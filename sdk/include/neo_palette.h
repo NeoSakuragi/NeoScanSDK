@@ -3,8 +3,8 @@
 
 #include "neo_types.h"
 
-void neo_palette_set(uint16_t slot, const uint16_t colors[16]);
-void neo_palette_set_color(uint16_t slot, uint8_t index, uint16_t color);
-void neo_palette_set_backdrop(uint16_t color);
+void PAL_setPalette(uint16_t slot, const uint16_t colors[16]);
+void PAL_setColor(uint16_t slot, uint8_t index, uint16_t color);
+void PAL_setBackdrop(uint16_t color);
 
 #endif

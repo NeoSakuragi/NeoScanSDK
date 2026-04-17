@@ -26,18 +26,18 @@
 #define BIOS_STATCHANGE    (*(volatile uint8_t *)0x10FDAD)
 
 /* Input bit masks */
-#define NEO_INPUT_UP     (1 << 0)
-#define NEO_INPUT_DOWN   (1 << 1)
-#define NEO_INPUT_LEFT   (1 << 2)
-#define NEO_INPUT_RIGHT  (1 << 3)
-#define NEO_INPUT_A      (1 << 4)
-#define NEO_INPUT_B      (1 << 5)
-#define NEO_INPUT_C      (1 << 6)
-#define NEO_INPUT_D      (1 << 7)
+#define INPUT_UP     (1 << 0)
+#define INPUT_DOWN   (1 << 1)
+#define INPUT_LEFT   (1 << 2)
+#define INPUT_RIGHT  (1 << 3)
+#define INPUT_A      (1 << 4)
+#define INPUT_B      (1 << 5)
+#define INPUT_C      (1 << 6)
+#define INPUT_D      (1 << 7)
 
 /* Start/Select/Coin (from BIOS_STATCURNT/STATCHANGE) */
-#define NEO_INPUT_START  (1 << 0)
-#define NEO_INPUT_SELECT (1 << 1)
+#define INPUT_START  (1 << 0)
+#define INPUT_SELECT (1 << 1)
 
 /* BIOS call addresses */
 #define BIOS_SYSTEM_INT1   0xC00438
@@ -47,23 +47,23 @@
 #define BIOS_LSP_1ST       0xC004C8
 
 /* VRAM address bases for sprite control blocks */
-#define NEO_VRAM_SCB1  0x0000
-#define NEO_VRAM_SCB2  0x8000
-#define NEO_VRAM_SCB3  0x8200
-#define NEO_VRAM_SCB4  0x8400
+#define VRAM_SCB1  0x0000
+#define VRAM_SCB2  0x8000
+#define VRAM_SCB3  0x8200
+#define VRAM_SCB4  0x8400
 
 /* Inline VRAM access */
-static inline void neo_vram_write(uint16_t addr, uint16_t data) {
+static inline void VDP_write(uint16_t addr, uint16_t data) {
     REG_VRAMADDR = addr;
     REG_VRAMRW = data;
 }
 
-static inline uint16_t neo_vram_read(uint16_t addr) {
+static inline uint16_t VDP_read(uint16_t addr) {
     REG_VRAMADDR = addr;
     return REG_VRAMRW;
 }
 
-static inline void neo_kick_watchdog(void) {
+static inline void SYS_kickWatchdog(void) {
     REG_WATCHDOG = 0;
 }
 
