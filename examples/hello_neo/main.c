@@ -8,6 +8,7 @@ static int16_t terry_x;
 static int16_t terry_y;
 static int16_t bounce_x;
 static int8_t  bounce_dx;
+static uint8_t shrink_y;
 
 void game_init(void) {
     PAL_setPalette(1, PALETTE);
@@ -21,6 +22,7 @@ void game_init(void) {
     ANIM_init(0, &ANIM_IDLE, 20, 2);
     terry_x = 160;
     terry_y = 200;
+    shrink_y = 0xFF;
     ANIM_show(0, terry_x, terry_y);
     ANIM_play(0, ANIM_PINGPONG);
 
@@ -31,6 +33,8 @@ void game_init(void) {
 }
 
 void game_tick(void) {
+    uint8_t col;
+
     SYS_kickWatchdog();
 
     if (JOY_held(0) & JOY_LEFT)   terry_x -= 2;
@@ -38,10 +42,15 @@ void game_tick(void) {
     if (JOY_held(0) & JOY_UP)     terry_y -= 2;
     if (JOY_held(0) & JOY_DOWN)   terry_y += 2;
 
-    if (JOY_pressed(0) & JOY_A)
-        ANIM_setSpeed(0, 2);
-    if (JOY_pressed(0) & JOY_B)
-        ANIM_setSpeed(0, 0);
+    if (JOY_held(0) & JOY_A) {
+        if (shrink_y > 2) shrink_y -= 2;
+    }
+    if (JOY_held(0) & JOY_B) {
+        if (shrink_y < 254) shrink_y += 2;
+    }
+
+    for (col = 0; col < ANIM_IDLE.width; col++)
+        SPR_setZoom(20 + col, shrink_y);
 
     ANIM_setPosition(0, terry_x, terry_y);
 

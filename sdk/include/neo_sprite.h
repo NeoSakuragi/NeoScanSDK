@@ -14,7 +14,8 @@ void SPR_setTile(uint16_t id, uint8_t row,
                  uint16_t tile, uint8_t palette,
                  uint8_t h_flip, uint8_t v_flip);
 
-void SPR_setShrink(uint16_t id, uint8_t x_shrink, uint8_t y_shrink);
+void SPR_setZoom(uint16_t id, uint8_t zoom);
+void SPR_setZoomXY(uint16_t id, uint8_t zoom_x, uint8_t zoom_y);
 
 void SPR_groupShow(uint16_t first_id, uint8_t width, uint8_t height,
                    const uint16_t *tiles, uint8_t palette,

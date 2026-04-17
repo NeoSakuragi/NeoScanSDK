@@ -56,9 +56,14 @@ void SPR_setTile(uint16_t id, uint8_t row,
              encode_scb1_attr(palette, h_flip, v_flip));
 }
 
-void SPR_setShrink(uint16_t id, uint8_t x_shrink, uint8_t y_shrink) {
+void SPR_setZoom(uint16_t id, uint8_t zoom) {
     cmd_push(VRAM_SCB2 + id,
-             ((uint16_t)y_shrink << 8) | x_shrink);
+             ((uint16_t)(zoom >> 4) << 8) | zoom);
+}
+
+void SPR_setZoomXY(uint16_t id, uint8_t zoom_x, uint8_t zoom_y) {
+    cmd_push(VRAM_SCB2 + id,
+             ((uint16_t)(zoom_x & 0xF) << 8) | zoom_y);
 }
 
 void SPR_groupShow(uint16_t first_id, uint8_t width, uint8_t height,
