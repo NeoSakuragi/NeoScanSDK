@@ -10,10 +10,22 @@ static int16_t bounce_x;
 static int8_t  bounce_dx;
 static uint8_t shrink_y;
 
+static const uint16_t TEXT_PAL[16] = {
+    0x8000,
+    COLOR_WHITE,
+    RGB(20, 25, 31),
+    RGB(31, 31, 0),
+};
+
 void game_init(void) {
+    PAL_setPalette(0, TEXT_PAL);
     PAL_setPalette(1, PALETTE);
     PAL_setPalette(2, ANIM_PALETTE);
     PAL_setBackdrop(RGB8(16, 16, 64));
+
+    FIX_clear();
+    FIX_print(14, 2, "NEOSCAN SDK", 0);
+    FIX_print(6, 26, "DPAD:MOVE  A/B:ZOOM  START:RESET", 0);
 
     SPR_show(1, TILE_SPRITES_0, 1, 80, 30, 1);
     SPR_show(2, TILE_SPRITES_1, 1, 152, 30, 1);
@@ -49,8 +61,17 @@ void game_tick(void) {
         if (shrink_y < 254) shrink_y += 2;
     }
 
+    if (JOY_pressed(0) & JOY_START) {
+        terry_x = 160;
+        terry_y = 200;
+        shrink_y = 0xFF;
+    }
+
     for (col = 0; col < ANIM_IDLE.width; col++)
         SPR_setZoom(20 + col, shrink_y);
+
+    FIX_print(1, 24, "ZOOM:     ", 0);
+    FIX_printNum(6, 24, shrink_y, 0);
 
     ANIM_setPosition(0, terry_x, terry_y);
 

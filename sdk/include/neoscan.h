@@ -7,5 +7,6 @@
 #include "neo_sprite.h"
 #include "neo_anim.h"
 #include "neo_input.h"
+#include "neo_fix.h"
 
 #endif

@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--elf', required=True, help='Linked ELF file')
     parser.add_argument('--c1', required=True, help='C1 ROM tile data')
     parser.add_argument('--c2', required=True, help='C2 ROM tile data')
+    parser.add_argument('--s1', default=None, help='S1 ROM font/fix data (default: empty)')
     parser.add_argument('--name', default='neoscan', help='ROM set name')
     parser.add_argument('--ngh', default='999', help='NGH number string')
     parser.add_argument('-o', '--output', default='rom.zip', help='Output ZIP')
@@ -70,8 +71,11 @@ def main():
     with open(c2_path, 'wb') as f:
         f.write(c2_data)
 
-    # --- S ROM (empty) ---
-    s_data = bytes(args.s_size)
+    # --- S ROM ---
+    if args.s1:
+        s_data = pad_rom(open(args.s1, 'rb').read(), args.s_size)
+    else:
+        s_data = bytes(args.s_size)
     s_path = os.path.join(rom_dir, f'{ngh}-s1.s1')
     with open(s_path, 'wb') as f:
         f.write(s_data)

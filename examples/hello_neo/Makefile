@@ -27,6 +27,10 @@ $(BUILD)/anim_idle.h $(BUILD)/anim_palette.h $(BUILD)/anim_c1.bin $(BUILD)/anim_
 	python3 $(TOOLS)/anim_encoder.py $(TERRY_ASE) -o $(BUILD) \
 		--tile-base $$(grep 'define TILE_COUNT' $(BUILD)/tiles.h | awk '{print $$3}')
 
+# --- Font / S ROM ---
+$(BUILD)/font.s1:
+	python3 $(TOOLS)/font_encoder.py -o $@
+
 # --- Combine C ROMs ---
 $(BUILD)/combined_c1.bin: $(BUILD)/tiles_c1.bin $(BUILD)/anim_c1.bin
 	cat $^ > $@
@@ -43,11 +47,12 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
-$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin
+$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1
 	python3 $(TOOLS)/neobuild.py \
 		--elf $(BUILD)/rom.elf \
 		--c1 $(BUILD)/combined_c1.bin \
 		--c2 $(BUILD)/combined_c2.bin \
+		--s1 $(BUILD)/font.s1 \
 		--name $(ROM_NAME) \
 		-o $@
 
