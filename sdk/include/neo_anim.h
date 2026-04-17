@@ -35,6 +35,7 @@ void ANIM_stop(uint8_t slot);
 void ANIM_setFrame(uint8_t slot, uint8_t frame);
 void ANIM_setSpeed(uint8_t slot, uint16_t vblanks_per_frame);
 void ANIM_setPosition(uint8_t slot, int16_t x, int16_t y);
+void ANIM_setFlip(uint8_t slot, uint8_t h_flip);
 
 void ANIM_show(uint8_t slot, int16_t x, int16_t y);
 void ANIM_hide(uint8_t slot);

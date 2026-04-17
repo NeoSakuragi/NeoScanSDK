@@ -16,6 +16,7 @@ typedef struct {
     uint16_t speed_override;
     uint8_t  playing;
     uint8_t  visible;
+    uint8_t  h_flip;
 } anim_slot_t;
 
 static anim_slot_t slots[ANIM_MAX_SLOTS];
@@ -24,16 +25,20 @@ static void apply_frame(anim_slot_t *s) {
     const anim_def_t *d = s->def;
     const anim_frame_t *f = &d->frames[s->cur_frame];
     uint8_t col, row;
-    uint16_t base_attr = (uint16_t)s->base_palette << 8;
+    uint16_t flip_bits = s->h_flip ? 1 : 0;
 
     for (col = 0; col < d->width; col++) {
         uint16_t id = s->first_sprite + col;
+        uint8_t src_col = s->h_flip ? (d->width - 1 - col) : col;
         for (row = 0; row < d->height; row++) {
-            uint16_t idx = col * d->height + row;
+            uint16_t idx = src_col * d->height + row;
             uint16_t tile = f->tiles[idx];
-            uint16_t attr = base_attr;
+            uint16_t attr;
             if (f->pal_offsets)
                 attr = (uint16_t)(s->base_palette + f->pal_offsets[idx]) << 8;
+            else
+                attr = (uint16_t)s->base_palette << 8;
+            attr |= flip_bits;
             cmd_push(VRAM_SCB1 + id * 64 + row * 2, tile);
             cmd_push(VRAM_SCB1 + id * 64 + row * 2 + 1, attr);
         }
@@ -97,6 +102,7 @@ void ANIM_init(uint8_t slot, const anim_def_t *def,
     s->speed_override = 0;
     s->playing = 0;
     s->visible = 0;
+    s->h_flip = 0;
     s->x = 0;
     s->y = 0;
 }
@@ -134,6 +140,12 @@ void ANIM_setSpeed(uint8_t slot, uint16_t vblanks_per_frame) {
     slots[slot].speed_override = vblanks_per_frame;
 }
 
+static int16_t flip_anchor_x(anim_slot_t *s) {
+    if (s->h_flip)
+        return (int16_t)(s->def->width * 16) - s->def->anchor_x;
+    return s->def->anchor_x;
+}
+
 void ANIM_setPosition(uint8_t slot, int16_t x, int16_t y) {
     anim_slot_t *s;
     if (slot >= ANIM_MAX_SLOTS) return;
@@ -142,8 +154,21 @@ void ANIM_setPosition(uint8_t slot, int16_t x, int16_t y) {
     s->y = y;
     if (s->visible && s->def)
         SPR_groupMove(s->first_sprite,
-                      x - s->def->anchor_x,
+                      x - flip_anchor_x(s),
                       y - s->def->anchor_y);
+}
+
+void ANIM_setFlip(uint8_t slot, uint8_t h_flip) {
+    anim_slot_t *s;
+    if (slot >= ANIM_MAX_SLOTS) return;
+    s = &slots[slot];
+    s->h_flip = h_flip ? 1 : 0;
+    if (s->visible && s->def) {
+        apply_frame(s);
+        SPR_groupMove(s->first_sprite,
+                      s->x - flip_anchor_x(s),
+                      s->y - s->def->anchor_y);
+    }
 }
 
 void ANIM_show(uint8_t slot, int16_t x, int16_t y) {
@@ -160,9 +185,9 @@ void ANIM_show(uint8_t slot, int16_t x, int16_t y) {
     f = &s->def->frames[s->cur_frame];
     SPR_groupShow(s->first_sprite, s->def->width, s->def->height,
                   f->tiles, s->base_palette,
-                  x - s->def->anchor_x, y - s->def->anchor_y);
+                  x - flip_anchor_x(s), y - s->def->anchor_y);
 
-    if (f->pal_offsets)
+    if (f->pal_offsets || s->h_flip)
         apply_frame(s);
 }
 

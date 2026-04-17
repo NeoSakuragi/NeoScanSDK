@@ -32,11 +32,15 @@ void game_init(void) {
     SPR_show(3, TILE_SPRITES_2, 1, 200, 30, 1);
 
     ANIM_init(0, &ANIM_IDLE, 20, 2);
+    ANIM_init(1, &ANIM_IDLE, 30, 2);
+    ANIM_setFlip(1, 1);
     terry_x = 160;
     terry_y = 200;
     shrink_y = 0xFF;
     ANIM_show(0, terry_x, terry_y);
+    ANIM_show(1, terry_x - 70, terry_y);
     ANIM_play(0, ANIM_PINGPONG);
+    ANIM_play(1, ANIM_PINGPONG);
 
     bounce_x = 80;
     bounce_dx = 1;
@@ -67,13 +71,16 @@ void game_tick(void) {
         shrink_y = 0xFF;
     }
 
-    for (col = 0; col < ANIM_IDLE.width; col++)
+    for (col = 0; col < ANIM_IDLE.width; col++) {
         SPR_setZoom(20 + col, shrink_y);
+        SPR_setZoom(30 + col, shrink_y);
+    }
 
     FIX_print(1, 24, "ZOOM:     ", 0);
     FIX_printNum(6, 24, shrink_y, 0);
 
     ANIM_setPosition(0, terry_x, terry_y);
+    ANIM_setPosition(1, terry_x - 70, terry_y);
 
     bounce_x += bounce_dx;
     if (bounce_x > 290 || bounce_x < 16)
