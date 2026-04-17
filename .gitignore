@@ -1,0 +1,11 @@
+*.o
+*.a
+*.elf
+*.bin
+*.zip
+build/
+roms/
+hash/
+__pycache__/
+neogeo/
+console_history
