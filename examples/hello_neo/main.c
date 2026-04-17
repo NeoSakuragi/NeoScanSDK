@@ -3,6 +3,7 @@
 #include "tiles.h"
 #include "anim_palette.h"
 #include "anim_idle.h"
+#include "sounds.h"
 
 static int16_t terry_x;
 static int16_t terry_y;
@@ -25,7 +26,7 @@ void game_init(void) {
 
     FIX_clear();
     FIX_print(14, 2, "NEOSCAN SDK", 0);
-    FIX_print(6, 26, "DPAD:MOVE  A/B:ZOOM  START:RESET", 0);
+    FIX_print(4, 26, "DPAD:MOVE A/B:ZOOM C:HIT D:BEEP", 0);
 
     SPR_show(1, TILE_SPRITES_0, 1, 80, 30, 1);
     SPR_show(2, TILE_SPRITES_1, 1, 152, 30, 1);
@@ -46,6 +47,8 @@ void game_init(void) {
     bounce_dx = 1;
 
     SYS_vblankFlush();
+
+    SND_play(SND_HIT);
 }
 
 void game_tick(void) {
@@ -64,6 +67,11 @@ void game_tick(void) {
     if (JOY_held(0) & JOY_B) {
         if (shrink_y < 254) shrink_y += 2;
     }
+
+    if (JOY_pressed(0) & JOY_C)
+        SND_play(SND_HIT);
+    if (JOY_pressed(0) & JOY_D)
+        SND_play(SND_BEEP);
 
     if (JOY_pressed(0) & JOY_START) {
         terry_x = 160;

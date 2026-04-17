@@ -8,5 +8,6 @@
 #include "neo_anim.h"
 #include "neo_input.h"
 #include "neo_fix.h"
+#include "neo_sound.h"
 
 #endif

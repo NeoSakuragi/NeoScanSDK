@@ -11,6 +11,9 @@ CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(BUILD) -Wal
 # Asset source: Terry idle from KOF95 extraction
 TERRY_ASE = /home/bruno/NeoGeo/output/kof95/sprites/15_terry_bogard/idle.aseprite
 
+# Sound assets
+WAVS     = assets/beep.wav assets/hit.wav
+
 all: $(ROM_NAME).zip
 
 # --- Static test tiles (tile IDs 1-4) ---
@@ -29,7 +32,13 @@ $(BUILD)/anim_idle.h $(BUILD)/anim_palette.h $(BUILD)/anim_c1.bin $(BUILD)/anim_
 
 # --- Font / S ROM ---
 $(BUILD)/font.s1:
+	@mkdir -p $(BUILD)
 	python3 $(TOOLS)/font_encoder.py -o $@
+
+# --- Sound ---
+$(BUILD)/sounds.h $(BUILD)/vrom.bin $(BUILD)/sound_table.bin: $(WAVS)
+	@mkdir -p $(BUILD)
+	python3 $(TOOLS)/wav_encoder.py $(WAVS) -o $(BUILD)
 
 # --- Combine C ROMs ---
 $(BUILD)/combined_c1.bin: $(BUILD)/tiles_c1.bin $(BUILD)/anim_c1.bin
@@ -39,7 +48,7 @@ $(BUILD)/combined_c2.bin: $(BUILD)/tiles_c2.bin $(BUILD)/anim_c2.bin
 	cat $^ > $@
 
 # --- Compile ---
-$(BUILD)/main.o: main.c $(BUILD)/palette.h $(BUILD)/tiles.h $(BUILD)/anim_idle.h $(BUILD)/anim_palette.h
+$(BUILD)/main.o: main.c $(BUILD)/palette.h $(BUILD)/tiles.h $(BUILD)/anim_idle.h $(BUILD)/anim_palette.h $(BUILD)/sounds.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # --- Link ---
@@ -47,12 +56,14 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
-$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1
+$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1 $(BUILD)/vrom.bin $(BUILD)/sound_table.bin
 	python3 $(TOOLS)/neobuild.py \
 		--elf $(BUILD)/rom.elf \
 		--c1 $(BUILD)/combined_c1.bin \
 		--c2 $(BUILD)/combined_c2.bin \
 		--s1 $(BUILD)/font.s1 \
+		--v1 $(BUILD)/vrom.bin \
+		--sound-table $(BUILD)/sound_table.bin \
 		--name $(ROM_NAME) \
 		-o $@
 

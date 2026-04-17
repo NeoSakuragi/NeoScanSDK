@@ -32,6 +32,8 @@ def main():
     parser.add_argument('--c1', required=True, help='C1 ROM tile data')
     parser.add_argument('--c2', required=True, help='C2 ROM tile data')
     parser.add_argument('--s1', default=None, help='S1 ROM font/fix data (default: empty)')
+    parser.add_argument('--v1', default=None, help='V1 ROM ADPCM-A data (default: silence)')
+    parser.add_argument('--sound-table', default=None, help='Sound sample table for M ROM')
     parser.add_argument('--name', default='neoscan', help='ROM set name')
     parser.add_argument('--ngh', default='999', help='NGH number string')
     parser.add_argument('-o', '--output', default='rom.zip', help='Output ZIP')
@@ -80,15 +82,21 @@ def main():
     with open(s_path, 'wb') as f:
         f.write(s_data)
 
-    # --- M ROM (silent driver) ---
+    # --- M ROM ---
     from mrom_builder import build_mrom
-    m_data = build_mrom()
+    table_bin = None
+    if args.sound_table and os.path.exists(args.sound_table):
+        table_bin = open(args.sound_table, 'rb').read()
+    m_data = build_mrom(table_bin)
     m_path = os.path.join(rom_dir, f'{ngh}-m1.m1')
     with open(m_path, 'wb') as f:
         f.write(m_data)
 
-    # --- V ROM (silence) ---
-    v_data = bytes([0x80] * args.v_size)
+    # --- V ROM ---
+    if args.v1 and os.path.exists(args.v1):
+        v_data = pad_rom(open(args.v1, 'rb').read(), args.v_size, fill=0x80)
+    else:
+        v_data = bytes([0x80] * args.v_size)
     v_path = os.path.join(rom_dir, f'{ngh}-v1.v1')
     with open(v_path, 'wb') as f:
         f.write(v_data)

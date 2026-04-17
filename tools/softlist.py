@@ -53,12 +53,12 @@ def build_softlist_xml(name, description, rom_files):
 
     r = roms['m1']
     xml += f'\t\t\t<dataarea name="audiocpu" size="0x{r["size"]:06x}">\n'
-    xml += f'\t\t\t\t<rom name="{r["name"]}" size="{r["size"]}" crc="{r["crc"]}" sha1="{r["sha1"]}"/>\n'
+    xml += f'\t\t\t\t<rom name="{r["name"]}" size="0x{r["size"]:06x}" crc="{r["crc"]}" sha1="{r["sha1"]}" offset="0x000000"/>\n'
     xml += '\t\t\t</dataarea>\n'
 
     r = roms['v1']
     xml += f'\t\t\t<dataarea name="ymsnd:adpcma" size="0x{r["size"]:06x}">\n'
-    xml += f'\t\t\t\t<rom name="{r["name"]}" size="{r["size"]}" crc="{r["crc"]}" sha1="{r["sha1"]}"/>\n'
+    xml += f'\t\t\t\t<rom name="{r["name"]}" size="0x{r["size"]:06x}" crc="{r["crc"]}" sha1="{r["sha1"]}" offset="0x000000"/>\n'
     xml += '\t\t\t</dataarea>\n'
 
     c1 = roms['c1']
