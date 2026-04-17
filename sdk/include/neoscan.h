@@ -6,5 +6,6 @@
 #include "neo_palette.h"
 #include "neo_sprite.h"
 #include "neo_anim.h"
+#include "neo_input.h"
 
 #endif

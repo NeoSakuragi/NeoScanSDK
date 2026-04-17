@@ -153,6 +153,7 @@ do_game:
 .Lwait:
     tstb    vblank_flag
     beq.s   .Lwait
+    jsr     JOY_update          /* Read inputs before game logic */
     jsr     game_tick           /* C function — called each VBlank */
     bra.s   .Lmain_loop
 
