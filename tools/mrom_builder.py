@@ -417,9 +417,9 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         pc = _emit(mrom, pc, 0xAF)                   # XOR A
         pc = _emit(mrom, pc, 0x32, RAM_MUS_PLAYING & 0xFF, RAM_MUS_PLAYING >> 8)
 
-    # Timer B setup
+    # Timer B setup ($8C ≈ 60Hz: period = (256-140)*16*72/8MHz = 16.7ms)
     pc = _emit(mrom, pc, 0x3E, 0x26, 0xD3, PORT_YM_A_ADDR)
-    pc = _emit(mrom, pc, 0x3E, 0xFF, 0xD3, PORT_YM_A_DATA)
+    pc = _emit(mrom, pc, 0x3E, 0x8C, 0xD3, PORT_YM_A_DATA)
     pc = _emit(mrom, pc, 0x3E, 0x27, 0xD3, PORT_YM_A_ADDR)
     pc = _emit(mrom, pc, 0x3E, 0x3A, 0xD3, PORT_YM_A_DATA)
 
