@@ -77,6 +77,62 @@ def encode_adpcma(pcm_data):
     return bytes(result)
 
 
+def encode_adpcmb(pcm_data):
+    """Encode 16-bit signed PCM to ADPCM-B (Delta-T) bytes.
+
+    Same codec as ADPCM-A but with 16-bit signal range instead of 12-bit.
+    """
+    signal = pcm_data.astype(np.int32)
+    predicted = 0
+    step_idx = 0
+    nibbles = []
+
+    for sample in signal:
+        step = STEP_TABLE[step_idx]
+        diff = sample - predicted
+
+        nibble = 0
+        if diff < 0:
+            nibble = 8
+            diff = -diff
+
+        if diff >= step:
+            nibble |= 4
+            diff -= step
+        if diff >= (step >> 1):
+            nibble |= 2
+            diff -= (step >> 1)
+        if diff >= (step >> 2):
+            nibble |= 1
+
+        delta = (step >> 3)
+        if nibble & 4:
+            delta += step
+        if nibble & 2:
+            delta += (step >> 1)
+        if nibble & 1:
+            delta += (step >> 2)
+        if nibble & 8:
+            predicted -= delta
+        else:
+            predicted += delta
+
+        predicted = max(-32768, min(32767, predicted))
+
+        step_idx += INDEX_ADJ[nibble & 7]
+        step_idx = max(0, min(48, step_idx))
+
+        nibbles.append(nibble & 0xF)
+
+    result = bytearray()
+    for i in range(0, len(nibbles), 2):
+        hi = nibbles[i]
+        lo = nibbles[i + 1] if i + 1 < len(nibbles) else 0
+        result.append((hi << 4) | lo)
+
+    return bytes(result)
+
+
 def load_wav(path, target_rate=ADPCM_RATE):
     """Load a WAV file and return 16-bit mono PCM at target sample rate."""
     with wave.open(path, 'rb') as w:
@@ -108,17 +164,83 @@ def load_wav(path, target_rate=ADPCM_RATE):
     return samples
 
 
+ADPCMB_RATE = 22050
+
+
+def build_voice_rom(wav_paths, vrom_size=0x80000):
+    """Build ADPCM-B V ROM and voice table from WAV files."""
+    vrom = bytearray(vrom_size)
+    offset = 0
+    voices = []
+
+    for path in wav_paths:
+        name = os.path.splitext(os.path.basename(path))[0]
+        print(f"  Encoding {os.path.basename(path)} (ADPCM-B)...")
+
+        pcm = load_wav(path, target_rate=ADPCMB_RATE)
+        adpcm = encode_adpcmb(pcm)
+
+        offset = (offset + 255) & ~255
+
+        if offset + len(adpcm) > vrom_size:
+            print(f"    WARNING: V ROM full, skipping {name}")
+            continue
+
+        start_256 = offset // 256
+        end_offset = offset + len(adpcm) - 1
+        end_256 = end_offset // 256
+
+        vrom[offset:offset + len(adpcm)] = adpcm
+
+        duration_ms = len(pcm) * 1000 // ADPCMB_RATE
+        print(f"    {len(pcm)} samples ({duration_ms}ms), "
+              f"ADPCM-B {len(adpcm)} bytes, "
+              f"addr ${start_256:04X}-${end_256:04X}")
+
+        voices.append((name, start_256, end_256))
+        offset = end_offset + 1
+
+    return bytes(vrom[:max(offset, 256)]), voices
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description='Convert WAV files to Neo Geo ADPCM-A V ROM')
+        description='Convert WAV files to Neo Geo ADPCM V ROM')
     parser.add_argument('wavs', nargs='+', help='Input WAV files')
     parser.add_argument('-o', '--output-dir', required=True,
                         help='Output directory')
+    parser.add_argument('--mode', choices=['a', 'b'], default='a',
+                        help='ADPCM mode: a=SFX (default), b=voice')
     parser.add_argument('--vrom-size', type=int, default=0x80000,
                         help='V ROM size (default: 512KB)')
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
+
+    if args.mode == 'b':
+        vrom_data, voices = build_voice_rom(args.wavs, args.vrom_size)
+
+        vrom_path = os.path.join(args.output_dir, 'vrom_b.bin')
+        with open(vrom_path, 'wb') as f:
+            f.write(vrom_data)
+
+        header_path = os.path.join(args.output_dir, 'voices.h')
+        with open(header_path, 'w') as f:
+            f.write('#ifndef VOICES_H\n#define VOICES_H\n\n')
+            for i, (name, start, end) in enumerate(voices):
+                f.write(f'#define VOX_{name.upper()} {i + 1}\n')
+            f.write(f'\n#define VOX_COUNT {len(voices)}\n')
+            f.write('\n#endif\n')
+
+        table_path = os.path.join(args.output_dir, 'voice_table.bin')
+        with open(table_path, 'wb') as f:
+            for _, start, end in voices:
+                f.write(struct.pack('<HH', start, end))
+
+        print(f"  V ROM (B): {vrom_path} ({len(vrom_data)} bytes, {len(voices)} voices)")
+        print(f"  Header: {header_path}")
+        print(f"  Table: {table_path}")
+        return
 
     vrom = bytearray(args.vrom_size)
     offset = 0

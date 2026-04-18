@@ -61,6 +61,12 @@ def build_softlist_xml(name, description, rom_files):
     xml += f'\t\t\t\t<rom name="{r["name"]}" size="0x{r["size"]:06x}" crc="{r["crc"]}" sha1="{r["sha1"]}" offset="0x000000"/>\n'
     xml += '\t\t\t</dataarea>\n'
 
+    if 'v2' in roms:
+        r = roms['v2']
+        xml += f'\t\t\t<dataarea name="ymsnd:adpcmb" size="0x{r["size"]:06x}">\n'
+        xml += f'\t\t\t\t<rom name="{r["name"]}" size="0x{r["size"]:06x}" crc="{r["crc"]}" sha1="{r["sha1"]}" offset="0x000000"/>\n'
+        xml += '\t\t\t</dataarea>\n'
+
     c1 = roms['c1']
     c2 = roms['c2']
     sprite_size = c1['size'] + c2['size']

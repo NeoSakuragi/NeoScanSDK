@@ -13,6 +13,7 @@ TERRY_ASE = /home/bruno/NeoGeo/output/kof95/sprites/15_terry_bogard/idle.aseprit
 
 # Sound assets
 WAVS     = assets/beep.wav assets/hit.wav
+VOICES   = assets/fight.wav
 
 all: $(ROM_NAME).zip
 
@@ -40,6 +41,11 @@ $(BUILD)/sounds.h $(BUILD)/vrom.bin $(BUILD)/sound_table.bin: $(WAVS)
 	@mkdir -p $(BUILD)
 	python3 $(TOOLS)/wav_encoder.py $(WAVS) -o $(BUILD)
 
+# --- Voices (ADPCM-B) ---
+$(BUILD)/voices.h $(BUILD)/vrom_b.bin $(BUILD)/voice_table.bin: $(VOICES)
+	@mkdir -p $(BUILD)
+	python3 $(TOOLS)/wav_encoder.py --mode b $(VOICES) -o $(BUILD)
+
 # --- Music ---
 $(BUILD)/music.bin: assets/music.vgz
 	@mkdir -p $(BUILD)
@@ -53,7 +59,7 @@ $(BUILD)/combined_c2.bin: $(BUILD)/tiles_c2.bin $(BUILD)/anim_c2.bin
 	cat $^ > $@
 
 # --- Compile ---
-$(BUILD)/main.o: main.c $(BUILD)/palette.h $(BUILD)/tiles.h $(BUILD)/anim_idle.h $(BUILD)/anim_palette.h $(BUILD)/sounds.h
+$(BUILD)/main.o: main.c $(BUILD)/palette.h $(BUILD)/tiles.h $(BUILD)/anim_idle.h $(BUILD)/anim_palette.h $(BUILD)/sounds.h $(BUILD)/voices.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # --- Link ---
@@ -61,14 +67,16 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
-$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1 $(BUILD)/vrom.bin $(BUILD)/sound_table.bin $(BUILD)/music.bin
+$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1 $(BUILD)/vrom.bin $(BUILD)/sound_table.bin $(BUILD)/music.bin $(BUILD)/vrom_b.bin $(BUILD)/voice_table.bin
 	python3 $(TOOLS)/neobuild.py \
 		--elf $(BUILD)/rom.elf \
 		--c1 $(BUILD)/combined_c1.bin \
 		--c2 $(BUILD)/combined_c2.bin \
 		--s1 $(BUILD)/font.s1 \
 		--v1 $(BUILD)/vrom.bin \
+		--v2 $(BUILD)/vrom_b.bin \
 		--sound-table $(BUILD)/sound_table.bin \
+		--voice-table $(BUILD)/voice_table.bin \
 		--music $(BUILD)/music.bin \
 		--name $(ROM_NAME) \
 		-o $@

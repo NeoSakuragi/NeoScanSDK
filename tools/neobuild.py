@@ -35,6 +35,8 @@ def main():
     parser.add_argument('--v1', default=None, help='V1 ROM ADPCM-A data (default: silence)')
     parser.add_argument('--sound-table', default=None, help='Sound sample table for M ROM')
     parser.add_argument('--music', default=None, help='VGM music stream for M ROM')
+    parser.add_argument('--v2', default=None, help='V2 ROM ADPCM-B voice data')
+    parser.add_argument('--voice-table', default=None, help='Voice sample table for M ROM')
     parser.add_argument('--name', default='neoscan', help='ROM set name')
     parser.add_argument('--ngh', default='999', help='NGH number string')
     parser.add_argument('-o', '--output', default='rom.zip', help='Output ZIP')
@@ -88,10 +90,13 @@ def main():
     table_bin = None
     if args.sound_table and os.path.exists(args.sound_table):
         table_bin = open(args.sound_table, 'rb').read()
+    voice_bin = None
+    if args.voice_table and os.path.exists(args.voice_table):
+        voice_bin = open(args.voice_table, 'rb').read()
     music_bin = None
     if args.music and os.path.exists(args.music):
         music_bin = open(args.music, 'rb').read()
-    m_data = build_mrom(table_bin, music_bin)
+    m_data = build_mrom(table_bin, music_bin, voice_bin)
     m_path = os.path.join(rom_dir, f'{ngh}-m1.m1')
     with open(m_path, 'wb') as f:
         f.write(m_data)
@@ -105,21 +110,34 @@ def main():
     with open(v_path, 'wb') as f:
         f.write(v_data)
 
+    # --- V2 ROM (ADPCM-B) ---
+    v2_path = None
+    if args.v2 and os.path.exists(args.v2):
+        v2_data = open(args.v2, 'rb').read()
+        v2_path = os.path.join(rom_dir, f'{ngh}-v2.v2')
+        with open(v2_path, 'wb') as f:
+            f.write(v2_data)
+
     # --- Softlist XML ---
     from softlist import build_softlist_xml
     rom_files = {
         'p1': p_path, 's1': s_path, 'm1': m_path,
         'v1': v_path, 'c1': c1_path, 'c2': c2_path,
     }
+    if v2_path:
+        rom_files['v2'] = v2_path
     xml = build_softlist_xml(args.name, 'NeoScan Homebrew', rom_files)
     xml_path = os.path.join(hash_dir, 'neogeo.xml')
     with open(xml_path, 'w') as f:
         f.write(xml)
 
     # --- ZIP ---
+    all_roms = [p_path, s_path, m_path, v_path, c1_path, c2_path]
+    if v2_path:
+        all_roms.append(v2_path)
     zip_path = args.output
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for rom_file in [p_path, s_path, m_path, v_path, c1_path, c2_path]:
+        for rom_file in all_roms:
             zf.write(rom_file, os.path.basename(rom_file))
     print(f"ROM: {zip_path}")
 

@@ -9,6 +9,8 @@ Supports ADPCM-A sample playback and VGM music streaming.
   $40       = stop all ADPCM-A channels
   $80       = start music (VGM playback)
   $81       = stop music
+  $90-$BF   = play ADPCM-B voice sample N ($90=1, $91=2, ...)
+  $C0       = stop ADPCM-B voice
 """
 import argparse
 import os
@@ -25,6 +27,7 @@ PORT_TO_68K        = 0x0C
 
 MROM_SIZE          = 0x20000
 TABLE_ADDR         = 0x200
+VOICE_TABLE_ADDR   = 0x300
 MUSIC_ADDR         = 0x0400
 
 # Z80 RAM
@@ -40,11 +43,12 @@ def _emit(mrom, pc, *bytez):
     return pc
 
 
-def build_mrom(sample_table_bin=None, music_bin=None):
+def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
     """Build a 128KB Z80 M ROM binary.
 
-    sample_table_bin: bytes with 4 bytes per sample (start_lo, start_hi, end_lo, end_hi).
-    music_bin: bytes from vgm_converter (2-byte loop offset + frame data + 0xFF).
+    sample_table_bin: bytes with 4 bytes per sample for ADPCM-A.
+    music_bin: bytes from vgm_converter.
+    voice_table_bin: bytes with 4 bytes per voice for ADPCM-B.
     """
     mrom = bytearray(MROM_SIZE)
 
@@ -54,6 +58,13 @@ def build_mrom(sample_table_bin=None, music_bin=None):
             mrom[TABLE_ADDR + i] = sample_table_bin[i]
     else:
         num_samples = 0
+
+    if voice_table_bin:
+        num_voices = len(voice_table_bin) // 4
+        for i in range(len(voice_table_bin)):
+            mrom[VOICE_TABLE_ADDR + i] = voice_table_bin[i]
+    else:
+        num_voices = 0
 
     has_music = music_bin is not None and len(music_bin) > 2
     if has_music:
@@ -115,6 +126,65 @@ def build_mrom(sample_table_bin=None, music_bin=None):
         pc = _emit(mrom, pc, 0xFE, 0x81)              # CP $81
         mus_stop_jr = pc
         pc = _emit(mrom, pc, 0x28, 0x00)              # JR Z, music_stop (patch)
+
+    if num_voices > 0:
+        # Check $C0 = stop voice
+        pc = _emit(mrom, pc, 0x78)                    # LD A,B
+        pc = _emit(mrom, pc, 0xFE, 0xC0)              # CP $C0
+        vox_stop_jr = pc
+        pc = _emit(mrom, pc, 0x28, 0x00)              # JR Z, voice_stop (patch)
+
+        # Check $90-$90+NUM_VOICES = play voice
+        pc = _emit(mrom, pc, 0x78)                    # LD A,B
+        pc = _emit(mrom, pc, 0xFE, 0x90)              # CP $90
+        vox_lo_jr = pc
+        pc = _emit(mrom, pc, 0x38, 0x00)              # JR C, skip (patch)
+        pc = _emit(mrom, pc, 0xFE, 0x90 + num_voices) # CP $90+NUM
+        vox_hi_jr = pc
+        pc = _emit(mrom, pc, 0x30, 0x00)              # JR NC, skip (patch)
+
+        # Valid voice: A = cmd, subtract $90 for 0-based index
+        pc = _emit(mrom, pc, 0xD6, 0x90)              # SUB $90
+        pc = _emit(mrom, pc, 0x87, 0x87)              # ADD A,A; ADD A,A (A*4)
+        pc = _emit(mrom, pc, 0x6F)                    # LD L,A
+        pc = _emit(mrom, pc, 0x26, (VOICE_TABLE_ADDR >> 8) & 0xFF)  # LD H,hi
+
+        # Reset ADPCM-B (reg $10 = $80)
+        pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x80, 0xD3, PORT_YM_A_DATA)
+
+        # Pan L+R (reg $11 = $C0)
+        pc = _emit(mrom, pc, 0x3E, 0x11, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0xC0, 0xD3, PORT_YM_A_DATA)
+
+        # Start address (regs $12/$13)
+        pc = _emit(mrom, pc, 0x3E, 0x12, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_A_DATA)
+        pc = _emit(mrom, pc, 0x23)
+        pc = _emit(mrom, pc, 0x3E, 0x13, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_A_DATA)
+
+        # End address (regs $14/$15)
+        pc = _emit(mrom, pc, 0x23)
+        pc = _emit(mrom, pc, 0x3E, 0x14, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_A_DATA)
+        pc = _emit(mrom, pc, 0x23)
+        pc = _emit(mrom, pc, 0x3E, 0x15, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_A_DATA)
+
+        # Delta-N = $5555 (22050 Hz playback)
+        pc = _emit(mrom, pc, 0x3E, 0x19, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x55, 0xD3, PORT_YM_A_DATA)
+        pc = _emit(mrom, pc, 0x3E, 0x1A, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x55, 0xD3, PORT_YM_A_DATA)
+
+        # Volume (reg $1B = $FF = max)
+        pc = _emit(mrom, pc, 0x3E, 0x1B, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0xFF, 0xD3, PORT_YM_A_DATA)
+
+        # Start playback (reg $10 = $01: bit0=start)
+        pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x01, 0xD3, PORT_YM_A_DATA)
 
     if num_samples > 0:
         # Check $40 = stop all ADPCM
@@ -220,6 +290,20 @@ def build_mrom(sample_table_bin=None, music_bin=None):
         # Patch JR targets for music commands
         mrom[mus_start_jr + 1] = (music_start - mus_start_jr - 2) & 0xFF
         mrom[mus_stop_jr + 1] = (music_stop - mus_stop_jr - 2) & 0xFF
+
+    # === Voice stop handler ===
+    if num_voices > 0:
+        voice_stop = pc
+        # Stop ADPCM-B: reg $10 = $00 (clear start), then $80 (reset)
+        pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x00, 0xD3, PORT_YM_A_DATA)
+        pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_A_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x80, 0xD3, PORT_YM_A_DATA)
+        pc = _emit(mrom, pc, 0xC3, nmi_done & 0xFF, nmi_done >> 8)
+
+        mrom[vox_stop_jr + 1] = (voice_stop - vox_stop_jr - 2) & 0xFF
+        mrom[vox_lo_jr + 1] = (nmi_done - vox_lo_jr - 2) & 0xFF
+        mrom[vox_hi_jr + 1] = (nmi_done - vox_hi_jr - 2) & 0xFF
 
     # === VGM frame processor subroutine ===
     if has_music:
@@ -341,6 +425,7 @@ def main():
     parser = argparse.ArgumentParser(description='Generate Neo Geo Z80 M ROM')
     parser.add_argument('-o', '--output', required=True, help='Output M ROM file')
     parser.add_argument('--sample-table', help='Binary sample table from wav_encoder')
+    parser.add_argument('--voice-table', help='Binary voice table from wav_encoder --mode b')
     parser.add_argument('--music', help='Binary music stream from vgm_converter')
     args = parser.parse_args()
 
@@ -348,11 +433,15 @@ def main():
     if args.sample_table and os.path.exists(args.sample_table):
         table_bin = open(args.sample_table, 'rb').read()
 
+    voice_bin = None
+    if args.voice_table and os.path.exists(args.voice_table):
+        voice_bin = open(args.voice_table, 'rb').read()
+
     music_bin = None
     if args.music and os.path.exists(args.music):
         music_bin = open(args.music, 'rb').read()
 
-    mrom = build_mrom(table_bin, music_bin)
+    mrom = build_mrom(table_bin, music_bin, voice_bin)
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     with open(args.output, 'wb') as f:
         f.write(mrom)

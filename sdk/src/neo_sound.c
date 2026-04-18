@@ -16,3 +16,11 @@ void MUS_play(void) {
 void MUS_stop(void) {
     REG_SOUND = MUS_CMD_STOP;
 }
+
+void VOX_play(uint8_t voice_id) {
+    REG_SOUND = VOX_CMD_BASE + voice_id - 1;
+}
+
+void VOX_stop(void) {
+    REG_SOUND = VOX_CMD_STOP;
+}

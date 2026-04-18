@@ -4,6 +4,7 @@
 #include "anim_palette.h"
 #include "anim_idle.h"
 #include "sounds.h"
+#include "voices.h"
 
 static int16_t terry_x;
 static int16_t terry_y;
@@ -73,7 +74,7 @@ void game_tick(void) {
         SND_play(SND_BEEP);
 
     if (JOY_pressed(0) & JOY_START)
-        MUS_play();
+        VOX_play(VOX_FIGHT);
 
     for (col = 0; col < ANIM_IDLE.width; col++) {
         SPR_setZoom(20 + col, shrink_y);
