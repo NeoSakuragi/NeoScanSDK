@@ -2,6 +2,7 @@
 """NeoScan build orchestrator: compile, link, and package a Neo Geo ROM."""
 import sys
 import os
+import struct
 import subprocess
 import zipfile
 import argparse
@@ -148,6 +149,42 @@ def main():
         for rom_file in all_roms:
             zf.write(rom_file, os.path.basename(rom_file))
     print(f"ROM: {zip_path}")
+
+    # --- .neo file (flash cart / MiSTer format) ---
+    neo_path = os.path.splitext(zip_path)[0] + '.neo'
+    c1_raw = open(c1_path, 'rb').read()
+    c2_raw = open(c2_path, 'rb').read()
+    c_interleaved = bytearray(len(c1_raw) + len(c2_raw))
+    for i in range(len(c1_raw)):
+        c_interleaved[i * 2] = c1_raw[i]
+        c_interleaved[i * 2 + 1] = c2_raw[i] if i < len(c2_raw) else 0
+
+    # P ROM for .neo: native big-endian (undo MAME's byte swap)
+    p_neo = byte_swap_16(p_data)
+
+    neo_header = bytearray(4096)
+    neo_header[0:4] = b'NEO\x01'                              # magic
+    struct.pack_into('<I', neo_header, 0x04, len(p_neo))       # P size
+    struct.pack_into('<I', neo_header, 0x08, len(s_data))      # S size
+    struct.pack_into('<I', neo_header, 0x0C, len(m_data))      # M size
+    struct.pack_into('<I', neo_header, 0x10, len(v_data))      # V1 size
+    struct.pack_into('<I', neo_header, 0x14, 0)                # V2 size
+    struct.pack_into('<I', neo_header, 0x18, len(c_interleaved))  # C size
+    struct.pack_into('<I', neo_header, 0x1C, 2026)             # year
+    struct.pack_into('<I', neo_header, 0x20, 0)                # genre
+    struct.pack_into('<I', neo_header, 0x24, 0)                # screenshot
+    struct.pack_into('<I', neo_header, 0x28, int(ngh))         # NGH
+    name_bytes = args.name.upper().encode('ascii')[:32]
+    neo_header[0x2C:0x2C + len(name_bytes)] = name_bytes
+
+    with open(neo_path, 'wb') as f:
+        f.write(bytes(neo_header))
+        f.write(p_neo)
+        f.write(s_data)
+        f.write(m_data)
+        f.write(v_data)
+        f.write(bytes(c_interleaved))
+    print(f"NEO: {neo_path} ({os.path.getsize(neo_path):,} bytes)")
 
     # --- Summary ---
     print(f"  P ROM: {len(p_data):,} bytes")
