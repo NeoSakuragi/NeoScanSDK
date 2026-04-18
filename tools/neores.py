@@ -356,7 +356,7 @@ def main():
             mark_built(cache, cache_key, [filepath])
 
         music_entries.append((name, music_dir))
-        header_lines.append(f'/* Music: {name} */')
+        header_lines.append(f'#define MUS_{name.upper().replace("MUS_", "")} {len(music_entries) - 1}')
         header_lines.append('')
 
     # --- Combine C ROMs ---
@@ -393,10 +393,31 @@ def main():
         'voice_table': os.path.join(out, '_voice', 'voice_table.bin') if voice_wavs else None,
     }
 
+    # Combine all music streams and samples
     if music_entries:
-        name, mdir = music_entries[0]
-        manifest['music_stream'] = os.path.join(mdir, 'stream.bin')
-        manifest['music_samples'] = os.path.join(mdir, 'samples.bin')
+        # Merge sample ROMs (overlay all onto one)
+        combined_samples = None
+        for name, mdir in music_entries:
+            sfile = os.path.join(mdir, 'samples.bin')
+            if os.path.exists(sfile):
+                sdata = open(sfile, 'rb').read()
+                if combined_samples is None:
+                    combined_samples = bytearray(sdata)
+                else:
+                    if len(sdata) > len(combined_samples):
+                        combined_samples.extend(b'\x80' * (len(sdata) - len(combined_samples)))
+                    for i in range(len(sdata)):
+                        if sdata[i] != 0x80:
+                            combined_samples[i] = sdata[i]
+
+        if combined_samples:
+            combined_path = os.path.join(out, 'music_samples.bin')
+            with open(combined_path, 'wb') as f:
+                f.write(bytes(combined_samples))
+            manifest['music_samples'] = combined_path
+
+        for i, (name, mdir) in enumerate(music_entries):
+            manifest[f'music_stream_{i}'] = os.path.join(mdir, 'stream.bin')
 
     manifest_path = os.path.join(out, 'manifest.txt')
     with open(manifest_path, 'w') as f:

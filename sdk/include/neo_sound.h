@@ -11,7 +11,7 @@
 
 void SND_play(uint8_t sample_id);
 void SND_stopAll(void);
-void MUS_play(void);
+void MUS_play(uint8_t track);
 void MUS_stop(void);
 void VOX_play(uint8_t voice_id);
 void VOX_stop(void);

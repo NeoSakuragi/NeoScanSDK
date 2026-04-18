@@ -211,36 +211,36 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         pc = _emit(mrom, pc, 0x6F)                    # LD L,A
         pc = _emit(mrom, pc, 0x26, (TABLE_ADDR >> 8) & 0xFF)
 
-        # Key-off channel 0
+        # Key-off channel 4 (bit 4 = ch4, bit 7 = dump)
         pc = _emit(mrom, pc, 0x3E, 0x00, 0xD3, PORT_YM_B_ADDR)
-        pc = _emit(mrom, pc, 0x3E, 0x81, 0xD3, PORT_YM_B_DATA)
+        pc = _emit(mrom, pc, 0x3E, 0x90, 0xD3, PORT_YM_B_DATA)
 
         # Total level (reg $01 = $3F)
         pc = _emit(mrom, pc, 0x3E, 0x01, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x3E, 0x3F, 0xD3, PORT_YM_B_DATA)
 
-        # Channel 0 pan + level (reg $08 = $DF)
-        pc = _emit(mrom, pc, 0x3E, 0x08, 0xD3, PORT_YM_B_ADDR)
+        # Channel 4 pan + level (reg $0C = $DF)
+        pc = _emit(mrom, pc, 0x3E, 0x0C, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x3E, 0xDF, 0xD3, PORT_YM_B_DATA)
 
-        # Start address
-        pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_B_ADDR)
+        # Start address (ch4: regs $14/$1C)
+        pc = _emit(mrom, pc, 0x3E, 0x14, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_B_DATA)
         pc = _emit(mrom, pc, 0x23)
-        pc = _emit(mrom, pc, 0x3E, 0x18, 0xD3, PORT_YM_B_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x1C, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_B_DATA)
 
-        # End address
+        # End address (ch4: regs $24/$2C)
         pc = _emit(mrom, pc, 0x23)
-        pc = _emit(mrom, pc, 0x3E, 0x20, 0xD3, PORT_YM_B_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x24, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_B_DATA)
         pc = _emit(mrom, pc, 0x23)
-        pc = _emit(mrom, pc, 0x3E, 0x28, 0xD3, PORT_YM_B_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x2C, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_B_DATA)
 
-        # Key-on channel 0
+        # Key-on channel 4 (bit 4)
         pc = _emit(mrom, pc, 0x3E, 0x00, 0xD3, PORT_YM_B_ADDR)
-        pc = _emit(mrom, pc, 0x3E, 0x01, 0xD3, PORT_YM_B_DATA)
+        pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_B_DATA)
 
     # NMI done
     nmi_done = pc

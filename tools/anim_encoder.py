@@ -320,6 +320,87 @@ def process_animation(ase_path, tile_base, tile_cache, c1_data, c2_data):
 
     n_cols = (grid_c1 - grid_c0) // 16
     n_rows = (grid_r1 - grid_r0) // 16
+
+    # Trim empty bottom rows across all frames
+    while n_rows > 1:
+        row_empty = True
+        for frame in frames:
+            img = frame['image']
+            ty = grid_r0 + (n_rows - 1) * 16
+            for col in range(n_cols):
+                tx = grid_c0 + col * 16
+                region = img[ty:min(ty+16, img.shape[0]), tx:min(tx+16, img.shape[1])]
+                if region.shape[2] > 3 and np.any(region[:, :, 3] > 0):
+                    row_empty = False
+                    break
+            if not row_empty:
+                break
+        if row_empty:
+            n_rows -= 1
+            grid_r1 -= 16
+        else:
+            break
+
+    # Trim empty top rows
+    while n_rows > 1:
+        row_empty = True
+        for frame in frames:
+            img = frame['image']
+            ty = grid_r0
+            for col in range(n_cols):
+                tx = grid_c0 + col * 16
+                region = img[ty:min(ty+16, img.shape[0]), tx:min(tx+16, img.shape[1])]
+                if region.shape[2] > 3 and np.any(region[:, :, 3] > 0):
+                    row_empty = False
+                    break
+            if not row_empty:
+                break
+        if row_empty:
+            n_rows -= 1
+            grid_r0 += 16
+        else:
+            break
+
+    # Trim empty right columns
+    while n_cols > 1:
+        col_empty = True
+        for frame in frames:
+            img = frame['image']
+            tx = grid_c0 + (n_cols - 1) * 16
+            for row in range(n_rows):
+                ty = grid_r0 + row * 16
+                region = img[ty:min(ty+16, img.shape[0]), tx:min(tx+16, img.shape[1])]
+                if region.shape[2] > 3 and np.any(region[:, :, 3] > 0):
+                    col_empty = False
+                    break
+            if not col_empty:
+                break
+        if col_empty:
+            n_cols -= 1
+            grid_c1 -= 16
+        else:
+            break
+
+    # Trim empty left columns
+    while n_cols > 1:
+        col_empty = True
+        for frame in frames:
+            img = frame['image']
+            tx = grid_c0
+            for row in range(n_rows):
+                ty = grid_r0 + row * 16
+                region = img[ty:min(ty+16, img.shape[0]), tx:min(tx+16, img.shape[1])]
+                if region.shape[2] > 3 and np.any(region[:, :, 3] > 0):
+                    col_empty = False
+                    break
+            if not col_empty:
+                break
+        if col_empty:
+            n_cols -= 1
+            grid_c0 += 16
+        else:
+            break
+
     print(f"  Grid: {n_cols} cols x {n_rows} rows ({n_cols * n_rows} tiles/frame)")
 
     center_xs = []
