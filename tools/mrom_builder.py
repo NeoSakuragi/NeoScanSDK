@@ -31,9 +31,9 @@ VOICE_TABLE_ADDR   = 0x300
 MUSIC_ADDR         = 0x0400
 
 # Z80 RAM
-RAM_MUS_PLAYING    = 0xF000
-RAM_MUS_POS        = 0xF001  # 2 bytes LE
-RAM_MUS_LOOP       = 0xF003  # 2 bytes LE
+RAM_MUS_PLAYING    = 0xF800
+RAM_MUS_POS        = 0xF801  # 2 bytes LE
+RAM_MUS_LOOP       = 0xF803  # 2 bytes LE
 
 
 def _emit(mrom, pc, *bytez):
@@ -119,29 +119,29 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         # Check $80 = start music
         pc = _emit(mrom, pc, 0x78)                    # LD A,B
         pc = _emit(mrom, pc, 0xFE, 0x80)              # CP $80
-        mus_start_jr = pc
-        pc = _emit(mrom, pc, 0x28, 0x00)              # JR Z, music_start (patch)
+        mus_start_jp = pc
+        pc = _emit(mrom, pc, 0xCA, 0x00, 0x00)        # JP Z, music_start (patch)
 
         # Check $81 = stop music
         pc = _emit(mrom, pc, 0xFE, 0x81)              # CP $81
-        mus_stop_jr = pc
-        pc = _emit(mrom, pc, 0x28, 0x00)              # JR Z, music_stop (patch)
+        mus_stop_jp = pc
+        pc = _emit(mrom, pc, 0xCA, 0x00, 0x00)        # JP Z, music_stop (patch)
 
     if num_voices > 0:
         # Check $C0 = stop voice
         pc = _emit(mrom, pc, 0x78)                    # LD A,B
         pc = _emit(mrom, pc, 0xFE, 0xC0)              # CP $C0
-        vox_stop_jr = pc
-        pc = _emit(mrom, pc, 0x28, 0x00)              # JR Z, voice_stop (patch)
+        vox_stop_jp = pc
+        pc = _emit(mrom, pc, 0xCA, 0x00, 0x00)        # JP Z, voice_stop (patch)
 
         # Check $90-$90+NUM_VOICES = play voice
         pc = _emit(mrom, pc, 0x78)                    # LD A,B
         pc = _emit(mrom, pc, 0xFE, 0x90)              # CP $90
-        vox_lo_jr = pc
-        pc = _emit(mrom, pc, 0x38, 0x00)              # JR C, skip (patch)
+        vox_lo_jp = pc
+        pc = _emit(mrom, pc, 0xDA, 0x00, 0x00)        # JP C, nmi_done (patch)
         pc = _emit(mrom, pc, 0xFE, 0x90 + num_voices) # CP $90+NUM
-        vox_hi_jr = pc
-        pc = _emit(mrom, pc, 0x30, 0x00)              # JR NC, skip (patch)
+        vox_hi_jp = pc
+        pc = _emit(mrom, pc, 0xD2, 0x00, 0x00)        # JP NC, nmi_done (patch)
 
         # Valid voice: A = cmd, subtract $90 for 0-based index
         pc = _emit(mrom, pc, 0xD6, 0x90)              # SUB $90
@@ -186,21 +186,23 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_A_ADDR)
         pc = _emit(mrom, pc, 0x3E, 0x01, 0xD3, PORT_YM_A_DATA)
 
+    adpcma_check = pc  # voice out-of-range falls through here
+
     if num_samples > 0:
         # Check $40 = stop all ADPCM
         pc = _emit(mrom, pc, 0x78)                    # LD A,B
         pc = _emit(mrom, pc, 0xFE, 0x40)              # CP $40
-        stop_jr = pc
-        pc = _emit(mrom, pc, 0x28, 0x00)              # JR Z,nmi_done (patch)
+        stop_jp = pc
+        pc = _emit(mrom, pc, 0xCA, 0x00, 0x00)        # JP Z,nmi_done (patch)
 
         # Check $01-NUM_SAMPLES
         pc = _emit(mrom, pc, 0x78)                    # LD A,B
         pc = _emit(mrom, pc, 0xFE, 0x01)              # CP $01
-        lo_jr = pc
-        pc = _emit(mrom, pc, 0x38, 0x00)              # JR C,nmi_done (patch)
+        lo_jp = pc
+        pc = _emit(mrom, pc, 0xDA, 0x00, 0x00)        # JP C,nmi_done (patch)
         pc = _emit(mrom, pc, 0xFE, num_samples + 1)   # CP NUM+1
-        hi_jr = pc
-        pc = _emit(mrom, pc, 0x30, 0x00)              # JR NC,nmi_done (patch)
+        hi_jp = pc
+        pc = _emit(mrom, pc, 0xD2, 0x00, 0x00)        # JP NC,nmi_done (patch)
 
         # Valid command: look up sample table
         pc = _emit(mrom, pc, 0x3D)                    # DEC A (0-based)
@@ -246,9 +248,12 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
 
     # Patch JR targets
     if num_samples > 0:
-        mrom[stop_jr + 1] = (nmi_done - stop_jr - 2) & 0xFF
-        mrom[lo_jr + 1] = (nmi_done - lo_jr - 2) & 0xFF
-        mrom[hi_jr + 1] = (nmi_done - hi_jr - 2) & 0xFF
+        mrom[stop_jp + 1] = nmi_done & 0xFF
+        mrom[stop_jp + 2] = nmi_done >> 8
+        mrom[lo_jp + 1] = nmi_done & 0xFF
+        mrom[lo_jp + 2] = nmi_done >> 8
+        mrom[hi_jp + 1] = nmi_done & 0xFF
+        mrom[hi_jp + 2] = nmi_done >> 8
 
     # === Music command handlers (after NMI done) ===
     if has_music:
@@ -287,9 +292,11 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         pc = _emit(mrom, pc, 0x3E, 0x05, 0xD3, PORT_YM_A_DATA)
         pc = _emit(mrom, pc, 0xC3, nmi_done & 0xFF, nmi_done >> 8)
 
-        # Patch JR targets for music commands
-        mrom[mus_start_jr + 1] = (music_start - mus_start_jr - 2) & 0xFF
-        mrom[mus_stop_jr + 1] = (music_stop - mus_stop_jr - 2) & 0xFF
+        # Patch JP targets for music commands
+        mrom[mus_start_jp + 1] = music_start & 0xFF
+        mrom[mus_start_jp + 2] = music_start >> 8
+        mrom[mus_stop_jp + 1] = music_stop & 0xFF
+        mrom[mus_stop_jp + 2] = music_stop >> 8
 
     # === Voice stop handler ===
     if num_voices > 0:
@@ -301,9 +308,12 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         pc = _emit(mrom, pc, 0x3E, 0x80, 0xD3, PORT_YM_A_DATA)
         pc = _emit(mrom, pc, 0xC3, nmi_done & 0xFF, nmi_done >> 8)
 
-        mrom[vox_stop_jr + 1] = (voice_stop - vox_stop_jr - 2) & 0xFF
-        mrom[vox_lo_jr + 1] = (nmi_done - vox_lo_jr - 2) & 0xFF
-        mrom[vox_hi_jr + 1] = (nmi_done - vox_hi_jr - 2) & 0xFF
+        mrom[vox_stop_jp + 1] = voice_stop & 0xFF
+        mrom[vox_stop_jp + 2] = voice_stop >> 8
+        mrom[vox_lo_jp + 1] = adpcma_check & 0xFF
+        mrom[vox_lo_jp + 2] = adpcma_check >> 8
+        mrom[vox_hi_jp + 1] = adpcma_check & 0xFF
+        mrom[vox_hi_jp + 2] = adpcma_check >> 8
 
     # === VGM frame processor subroutine ===
     if has_music:

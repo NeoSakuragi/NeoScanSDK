@@ -32,11 +32,11 @@ def main():
     parser.add_argument('--c1', required=True, help='C1 ROM tile data')
     parser.add_argument('--c2', required=True, help='C2 ROM tile data')
     parser.add_argument('--s1', default=None, help='S1 ROM font/fix data (default: empty)')
-    parser.add_argument('--v1', default=None, help='V1 ROM ADPCM-A data (default: silence)')
+    parser.add_argument('--v1', default=None, help='V1 ROM ADPCM-A SFX data')
+    parser.add_argument('--v1-overlay', default=None, help='ADPCM data to overlay onto V1 ROM (music samples)')
     parser.add_argument('--sound-table', default=None, help='Sound sample table for M ROM')
-    parser.add_argument('--music', default=None, help='VGM music stream for M ROM')
-    parser.add_argument('--v2', default=None, help='V2 ROM ADPCM-B voice data')
     parser.add_argument('--voice-table', default=None, help='Voice sample table for M ROM')
+    parser.add_argument('--music', default=None, help='VGM music stream for M ROM')
     parser.add_argument('--name', default='neoscan', help='ROM set name')
     parser.add_argument('--ngh', default='999', help='NGH number string')
     parser.add_argument('-o', '--output', default='rom.zip', help='Output ZIP')
@@ -101,22 +101,34 @@ def main():
     with open(m_path, 'wb') as f:
         f.write(m_data)
 
-    # --- V ROM ---
-    if args.v1 and os.path.exists(args.v1):
-        v_data = pad_rom(open(args.v1, 'rb').read(), args.v_size, fill=0x80)
+    # --- V ROM (merged: SFX + music samples overlay) ---
+    # Start with the overlay (music ADPCM samples at original addresses) if present
+    overlay = None
+    if getattr(args, 'v1_overlay', None) and os.path.exists(args.v1_overlay):
+        overlay = open(args.v1_overlay, 'rb').read()
+
+    if overlay:
+        v_rom = bytearray(overlay)
     else:
-        v_data = bytes([0x80] * args.v_size)
+        v_rom = bytearray([0x80] * args.v_size)
+
+    # Copy SFX data on top (SFX is at address 0, small, won't overlap music)
+    if args.v1 and os.path.exists(args.v1):
+        sfx = open(args.v1, 'rb').read()
+        # Only copy actual SFX data (non-silence prefix)
+        sfx_end = len(sfx)
+        while sfx_end > 0 and sfx[sfx_end - 1] == 0x80:
+            sfx_end -= 1
+        sfx_end = (sfx_end + 255) & ~255  # round up to 256
+        if sfx_end > 0:
+            if len(v_rom) < sfx_end:
+                v_rom.extend(b'\x80' * (sfx_end - len(v_rom)))
+            v_rom[:sfx_end] = sfx[:sfx_end]
+
+    v_data = bytes(v_rom)
     v_path = os.path.join(rom_dir, f'{ngh}-v1.v1')
     with open(v_path, 'wb') as f:
         f.write(v_data)
-
-    # --- V2 ROM (ADPCM-B) ---
-    v2_path = None
-    if args.v2 and os.path.exists(args.v2):
-        v2_data = open(args.v2, 'rb').read()
-        v2_path = os.path.join(rom_dir, f'{ngh}-v2.v2')
-        with open(v2_path, 'wb') as f:
-            f.write(v2_data)
 
     # --- Softlist XML ---
     from softlist import build_softlist_xml
@@ -124,8 +136,6 @@ def main():
         'p1': p_path, 's1': s_path, 'm1': m_path,
         'v1': v_path, 'c1': c1_path, 'c2': c2_path,
     }
-    if v2_path:
-        rom_files['v2'] = v2_path
     xml = build_softlist_xml(args.name, 'NeoScan Homebrew', rom_files)
     xml_path = os.path.join(hash_dir, 'neogeo.xml')
     with open(xml_path, 'w') as f:
@@ -133,8 +143,6 @@ def main():
 
     # --- ZIP ---
     all_roms = [p_path, s_path, m_path, v_path, c1_path, c2_path]
-    if v2_path:
-        all_roms.append(v2_path)
     zip_path = args.output
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
         for rom_file in all_roms:

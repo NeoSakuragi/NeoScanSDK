@@ -47,9 +47,9 @@ $(BUILD)/voices.h $(BUILD)/vrom_b.bin $(BUILD)/voice_table.bin: $(VOICES)
 	python3 $(TOOLS)/wav_encoder.py --mode b $(VOICES) -o $(BUILD)
 
 # --- Music ---
-$(BUILD)/music.bin: assets/music.vgz
+$(BUILD)/music.bin $(BUILD)/music_samples.bin: assets/music.vgz
 	@mkdir -p $(BUILD)
-	python3 $(TOOLS)/vgm_converter.py $< -o $@
+	python3 $(TOOLS)/vgm_converter.py $< -o $(BUILD)/music.bin --samples-out $(BUILD)/music_samples.bin
 
 # --- Combine C ROMs ---
 $(BUILD)/combined_c1.bin: $(BUILD)/tiles_c1.bin $(BUILD)/anim_c1.bin
@@ -67,14 +67,14 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
-$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1 $(BUILD)/vrom.bin $(BUILD)/sound_table.bin $(BUILD)/music.bin $(BUILD)/vrom_b.bin $(BUILD)/voice_table.bin
+$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1 $(BUILD)/vrom.bin $(BUILD)/sound_table.bin $(BUILD)/music.bin $(BUILD)/music_samples.bin $(BUILD)/voice_table.bin $(BUILD)/vrom_b.bin
 	python3 $(TOOLS)/neobuild.py \
 		--elf $(BUILD)/rom.elf \
 		--c1 $(BUILD)/combined_c1.bin \
 		--c2 $(BUILD)/combined_c2.bin \
 		--s1 $(BUILD)/font.s1 \
 		--v1 $(BUILD)/vrom.bin \
-		--v2 $(BUILD)/vrom_b.bin \
+		--v1-overlay $(BUILD)/music_samples.bin \
 		--sound-table $(BUILD)/sound_table.bin \
 		--voice-table $(BUILD)/voice_table.bin \
 		--music $(BUILD)/music.bin \
