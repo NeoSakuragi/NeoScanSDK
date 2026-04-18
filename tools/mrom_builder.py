@@ -34,6 +34,7 @@ MUSIC_ADDR         = 0x0400
 RAM_MUS_PLAYING    = 0xF800
 RAM_MUS_POS        = 0xF801  # 2 bytes LE
 RAM_MUS_LOOP       = 0xF803  # 2 bytes LE
+RAM_TICK_DIV       = 0xF805  # tick divider counter
 
 
 def _emit(mrom, pc, *bytez):
@@ -90,11 +91,11 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
 
     if has_music:
         # Check mus_playing
-        pc = _emit(mrom, pc, 0x3A, RAM_MUS_PLAYING & 0xFF, RAM_MUS_PLAYING >> 8)  # LD A,(mus_playing)
+        pc = _emit(mrom, pc, 0x3A, RAM_MUS_PLAYING & 0xFF, RAM_MUS_PLAYING >> 8)
         pc = _emit(mrom, pc, 0xB7)                   # OR A
         vgm_skip_jr = pc
         pc = _emit(mrom, pc, 0x28, 0x00)             # JR Z, skip (patch later)
-        pc = _emit(mrom, pc, 0xCD)                    # CALL vgm_process (patch addr later)
+        pc = _emit(mrom, pc, 0xCD)                    # CALL vgm_process
         vgm_call_addr = pc
         pc = _emit(mrom, pc, 0x00, 0x00)             # placeholder
 
@@ -417,9 +418,9 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         pc = _emit(mrom, pc, 0xAF)                   # XOR A
         pc = _emit(mrom, pc, 0x32, RAM_MUS_PLAYING & 0xFF, RAM_MUS_PLAYING >> 8)
 
-    # Timer B setup ($8C ≈ 60Hz: period = (256-140)*16*72/8MHz = 16.7ms)
+    # Timer B setup ($C6 = 60Hz: (256-198)*2304/8MHz = 16.7ms)
     pc = _emit(mrom, pc, 0x3E, 0x26, 0xD3, PORT_YM_A_ADDR)
-    pc = _emit(mrom, pc, 0x3E, 0x8C, 0xD3, PORT_YM_A_DATA)
+    pc = _emit(mrom, pc, 0x3E, 0xC6, 0xD3, PORT_YM_A_DATA)
     pc = _emit(mrom, pc, 0x3E, 0x27, 0xD3, PORT_YM_A_ADDR)
     pc = _emit(mrom, pc, 0x3E, 0x3A, 0xD3, PORT_YM_A_DATA)
 
