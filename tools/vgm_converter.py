@@ -216,76 +216,21 @@ def convert_vgm(data, header):
     return frames, loop_frame
 
 
-ACTION_REGS = {
-    (0, 0x28),  # FM key-on/off
-    (0, 0x10),  # ADPCM-B control
-    (1, 0x00),  # ADPCM-A key-on/off
-}
-
-
-def dedup_frames(frames):
-    """Remove redundant register writes (same reg+val as current state).
-
-    Skips dedup for action registers where re-writing the same value
-    has side effects (key-on triggers, ADPCM control).
-    """
-    state = {}
-    out = []
-    for frame in frames:
-        filtered = []
-        for port, reg, val in frame:
-            key = (port, reg)
-            if key in ACTION_REGS or state.get(key) != val:
-                filtered.append((port, reg, val))
-                state[key] = val
-        out.append(filtered)
-    return out
-
-
 def pack_stream(frames, loop_frame):
-    """Pack frames into compact binary stream.
-
-    Format v2:
-      2 bytes: loop offset (relative to frame data start)
-      Frame data:
-        Count byte:
-          $00-$7F: N register writes follow (2 bytes each: port_reg, val)
-          $80-$FE: skip (N - $80) empty frames (1-126 frames)
-          $FF: end marker
-        Write format: 2 bytes per write
-          Byte 0: bit 7 = port (0=A, 1=B), bits 6-0 = register
-          Byte 1: value
-    """
-    frames = dedup_frames(frames)
-
+    """Pack frames into compact binary stream."""
     body = bytearray()
     loop_byte_offset = 0xFFFF
-    empty_run = 0
-
-    def flush_empties():
-        nonlocal empty_run
-        while empty_run > 0:
-            n = min(empty_run, 126)
-            body.append(0x80 + n)
-            empty_run -= n
 
     for i, frame in enumerate(frames):
         if i == loop_frame and loop_frame != 0xFFFF:
-            flush_empties()
             loop_byte_offset = len(body)
-
-        if not frame:
-            empty_run += 1
-            continue
-
-        flush_empties()
         n = min(len(frame), 127)
         body.append(n)
         for port, reg, val in frame[:127]:
-            body.append(((port & 1) << 7) | (reg & 0x7F))
+            body.append(port & 1)
+            body.append(reg)
             body.append(val)
 
-    flush_empties()
     body.append(0xFF)
 
     header = struct.pack('<H', loop_byte_offset)
