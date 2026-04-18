@@ -13,7 +13,7 @@ all: $(ROM_NAME).zip
 # --- Resources (always runs, uses internal cache for incremental) ---
 .PHONY: resources
 resources:
-	python3 $(TOOLS)/neores.py resources.res -o $(BUILD)
+	python3 $(TOOLS)/neores.py res/resources.res -o $(BUILD)
 
 $(BUILD)/resources.h: resources
 	@true
