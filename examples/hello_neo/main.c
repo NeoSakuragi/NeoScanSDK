@@ -60,8 +60,8 @@ void game_init(void) {
     SPR_show(2, TILES_SPRITES_1, 1, 152, 30, 1);
     SPR_show(3, TILES_SPRITES_2, 1, 200, 30, 1);
 
-    ANIM_init(0, &ANIM_IDLE, 20, 2);
-    ANIM_init(1, &ANIM_IDLE, 30, 3);
+    ANIM_init(0, &ANIM_TERRY_IDLE, 20, 2);
+    ANIM_init(1, &ANIM_TERRY_IDLE, 30, 3);
     ANIM_setFlip(1, 1);
     terry_x = 160;
     terry_y = 200;
@@ -110,7 +110,7 @@ void game_tick(void) {
     if (JOY_pressed(0) & JOY_START)
         MUS_stop();
 
-    for (col = 0; col < ANIM_IDLE.width; col++) {
+    for (col = 0; col < ANIM_TERRY_IDLE.width; col++) {
         SPR_setZoom(20 + col, shrink_y);
         SPR_setZoom(30 + col, shrink_y);
     }
