@@ -34,7 +34,7 @@ MUSIC_ADDR         = 0x0400
 RAM_MUS_PLAYING    = 0xF800
 RAM_MUS_POS        = 0xF801  # 2 bytes LE
 RAM_MUS_LOOP       = 0xF803  # 2 bytes LE
-RAM_TICK_DIV       = 0xF805  # tick divider counter
+RAM_RLE_COUNT      = 0xF805  # RLE empty frame counter
 
 
 def _emit(mrom, pc, *bytez):
@@ -211,36 +211,36 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         pc = _emit(mrom, pc, 0x6F)                    # LD L,A
         pc = _emit(mrom, pc, 0x26, (TABLE_ADDR >> 8) & 0xFF)
 
-        # Key-off channel 0
+        # Key-off channel 4 (bit 4 = ch4, bit 7 = dump)
         pc = _emit(mrom, pc, 0x3E, 0x00, 0xD3, PORT_YM_B_ADDR)
-        pc = _emit(mrom, pc, 0x3E, 0x81, 0xD3, PORT_YM_B_DATA)
+        pc = _emit(mrom, pc, 0x3E, 0x90, 0xD3, PORT_YM_B_DATA)
 
         # Total level (reg $01 = $3F)
         pc = _emit(mrom, pc, 0x3E, 0x01, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x3E, 0x3F, 0xD3, PORT_YM_B_DATA)
 
-        # Channel 0 pan + level (reg $08 = $DF)
-        pc = _emit(mrom, pc, 0x3E, 0x08, 0xD3, PORT_YM_B_ADDR)
+        # Channel 4 pan + level (reg $0C = $DF)
+        pc = _emit(mrom, pc, 0x3E, 0x0C, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x3E, 0xDF, 0xD3, PORT_YM_B_DATA)
 
-        # Start address
-        pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_B_ADDR)
+        # Start address (ch4: regs $14/$1C)
+        pc = _emit(mrom, pc, 0x3E, 0x14, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_B_DATA)
         pc = _emit(mrom, pc, 0x23)
-        pc = _emit(mrom, pc, 0x3E, 0x18, 0xD3, PORT_YM_B_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x1C, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_B_DATA)
 
-        # End address
+        # End address (ch4: regs $24/$2C)
         pc = _emit(mrom, pc, 0x23)
-        pc = _emit(mrom, pc, 0x3E, 0x20, 0xD3, PORT_YM_B_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x24, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_B_DATA)
         pc = _emit(mrom, pc, 0x23)
-        pc = _emit(mrom, pc, 0x3E, 0x28, 0xD3, PORT_YM_B_ADDR)
+        pc = _emit(mrom, pc, 0x3E, 0x2C, 0xD3, PORT_YM_B_ADDR)
         pc = _emit(mrom, pc, 0x7E, 0xD3, PORT_YM_B_DATA)
 
-        # Key-on channel 0
+        # Key-on channel 4 (bit 4)
         pc = _emit(mrom, pc, 0x3E, 0x00, 0xD3, PORT_YM_B_ADDR)
-        pc = _emit(mrom, pc, 0x3E, 0x01, 0xD3, PORT_YM_B_DATA)
+        pc = _emit(mrom, pc, 0x3E, 0x10, 0xD3, PORT_YM_B_DATA)
 
     # NMI done
     nmi_done = pc
@@ -266,9 +266,11 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         # mus_loop = music_loop_addr
         pc = _emit(mrom, pc, 0x21, music_loop_addr & 0xFF, music_loop_addr >> 8)
         pc = _emit(mrom, pc, 0x22, RAM_MUS_LOOP & 0xFF, RAM_MUS_LOOP >> 8)
-        # mus_playing = 1
+        # mus_playing = 1, clear RLE counter
         pc = _emit(mrom, pc, 0x3E, 0x01)
         pc = _emit(mrom, pc, 0x32, RAM_MUS_PLAYING & 0xFF, RAM_MUS_PLAYING >> 8)
+        pc = _emit(mrom, pc, 0xAF)                   # XOR A
+        pc = _emit(mrom, pc, 0x32, RAM_RLE_COUNT & 0xFF, RAM_RLE_COUNT >> 8)
         pc = _emit(mrom, pc, 0xC3, nmi_done & 0xFF, nmi_done >> 8)  # JP nmi_done
 
         # Music stop handler
@@ -325,49 +327,51 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
 
         # LD HL, (mus_pos)
         pc = _emit(mrom, pc, 0x2A, RAM_MUS_POS & 0xFF, RAM_MUS_POS >> 8)
-        # LD A, (HL) — frame count byte
+        # LD A, (HL) — count byte
         pc = _emit(mrom, pc, 0x7E)
         # CP $FF — end marker?
         pc = _emit(mrom, pc, 0xFE, 0xFF)
         vgm_end_jr = pc
         pc = _emit(mrom, pc, 0x28, 0x00)             # JR Z, vgm_end (patch)
-        # OR A — count == 0? (empty frame)
+        # BIT 7, A — empty frame RLE? ($80-$FE = skip N frames)
+        pc = _emit(mrom, pc, 0xCB, 0x7F)             # BIT 7, A
+        vgm_rle_jr = pc
+        pc = _emit(mrom, pc, 0x20, 0x00)             # JR NZ, rle_skip (patch)
+        # OR A — count == 0? (shouldn't happen with RLE, but safety)
         pc = _emit(mrom, pc, 0xB7)
         vgm_empty_jr = pc
         pc = _emit(mrom, pc, 0x28, 0x00)             # JR Z, vgm_advance (patch)
-        # LD B, A — count
+        # LD B, A — count of writes
         pc = _emit(mrom, pc, 0x47)
 
-        # Write loop
+        # Write loop: 2 bytes per write (port_reg, val)
         vgm_write_loop = pc
         pc = _emit(mrom, pc, 0x23)                    # INC HL
-        pc = _emit(mrom, pc, 0x7E)                    # LD A, (HL) — port flag
-        pc = _emit(mrom, pc, 0xB7)                    # OR A
+        pc = _emit(mrom, pc, 0x7E)                    # LD A, (HL) — port_reg byte
+        pc = _emit(mrom, pc, 0x4F)                    # LD C, A (save port_reg)
+        pc = _emit(mrom, pc, 0xE6, 0x7F)              # AND $7F → register only
+        pc = _emit(mrom, pc, 0xCB, 0x79)              # BIT 7, C → port bit
         vgm_portb_jr = pc
         pc = _emit(mrom, pc, 0x20, 0x00)              # JR NZ, port_b (patch)
 
         # Port A write
-        pc = _emit(mrom, pc, 0x23)                    # INC HL
-        pc = _emit(mrom, pc, 0x7E)                    # LD A, (HL) — reg
-        pc = _emit(mrom, pc, 0xD3, PORT_YM_A_ADDR)
-        pc = _emit(mrom, pc, 0x23)                    # INC HL
-        pc = _emit(mrom, pc, 0x7E)                    # LD A, (HL) — val
-        pc = _emit(mrom, pc, 0xD3, PORT_YM_A_DATA)
+        pc = _emit(mrom, pc, 0xD3, PORT_YM_A_ADDR)    # OUT ($04), A — reg
+        pc = _emit(mrom, pc, 0x23)                     # INC HL
+        pc = _emit(mrom, pc, 0x7E)                     # LD A, (HL) — val
+        pc = _emit(mrom, pc, 0xD3, PORT_YM_A_DATA)    # OUT ($05), A
         vgm_write_next_jr = pc
         pc = _emit(mrom, pc, 0x18, 0x00)              # JR write_done (patch)
 
         # Port B write
         port_b = pc
-        pc = _emit(mrom, pc, 0x23)                    # INC HL
-        pc = _emit(mrom, pc, 0x7E)                    # LD A, (HL) — reg
-        pc = _emit(mrom, pc, 0xD3, PORT_YM_B_ADDR)
-        pc = _emit(mrom, pc, 0x23)                    # INC HL
-        pc = _emit(mrom, pc, 0x7E)                    # LD A, (HL) — val
-        pc = _emit(mrom, pc, 0xD3, PORT_YM_B_DATA)
+        pc = _emit(mrom, pc, 0xD3, PORT_YM_B_ADDR)    # OUT ($06), A — reg
+        pc = _emit(mrom, pc, 0x23)                     # INC HL
+        pc = _emit(mrom, pc, 0x7E)                     # LD A, (HL) — val
+        pc = _emit(mrom, pc, 0xD3, PORT_YM_B_DATA)    # OUT ($07), A
 
         # Write done
         write_done = pc
-        pc = _emit(mrom, pc, 0x10, (vgm_write_loop - pc - 2) & 0xFF)  # DJNZ write_loop
+        pc = _emit(mrom, pc, 0x10, (vgm_write_loop - pc - 2) & 0xFF)  # DJNZ
 
         # Patch JR targets
         mrom[vgm_portb_jr + 1] = (port_b - vgm_portb_jr - 2) & 0xFF
@@ -376,11 +380,40 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
         # Advance position: INC HL, store
         vgm_advance = pc
         pc = _emit(mrom, pc, 0x23)                    # INC HL
-        pc = _emit(mrom, pc, 0x22, RAM_MUS_POS & 0xFF, RAM_MUS_POS >> 8)  # LD (mus_pos), HL
+        pc = _emit(mrom, pc, 0x22, RAM_MUS_POS & 0xFF, RAM_MUS_POS >> 8)
         pc = _emit(mrom, pc, 0xC9)                    # RET
 
         # Patch empty frame JR
         mrom[vgm_empty_jr + 1] = (vgm_advance - vgm_empty_jr - 2) & 0xFF
+
+        # RLE skip: use RAM counter
+        rle_skip = pc
+        # Check if RAM counter is already active
+        pc = _emit(mrom, pc, 0x3A, RAM_RLE_COUNT & 0xFF, RAM_RLE_COUNT >> 8)
+        pc = _emit(mrom, pc, 0xB7)                    # OR A
+        rle_active_jr = pc
+        pc = _emit(mrom, pc, 0x20, 0x00)              # JR NZ, rle_decrement (patch)
+        # First time: load count from stream byte (A has stream byte)
+        pc = _emit(mrom, pc, 0x7E)                    # LD A, (HL) — re-read stream byte
+        pc = _emit(mrom, pc, 0xE6, 0x7F)              # AND $7F — strip $80 flag → count
+        pc = _emit(mrom, pc, 0x32, RAM_RLE_COUNT & 0xFF, RAM_RLE_COUNT >> 8)
+        pc = _emit(mrom, pc, 0xC9)                    # RET (don't advance pos yet)
+
+        # Decrement active counter
+        rle_decrement = pc
+        pc = _emit(mrom, pc, 0x3D)                    # DEC A
+        pc = _emit(mrom, pc, 0x32, RAM_RLE_COUNT & 0xFF, RAM_RLE_COUNT >> 8)
+        rle_done_jr = pc
+        pc = _emit(mrom, pc, 0x20, 0x00)              # JR NZ, rle_ret (still waiting)
+        # Counter reached 0: advance past RLE byte
+        pc = _emit(mrom, pc, 0x23)                    # INC HL
+        pc = _emit(mrom, pc, 0x22, RAM_MUS_POS & 0xFF, RAM_MUS_POS >> 8)
+        rle_ret = pc
+        pc = _emit(mrom, pc, 0xC9)                    # RET
+
+        mrom[vgm_rle_jr + 1] = (rle_skip - vgm_rle_jr - 2) & 0xFF
+        mrom[rle_active_jr + 1] = (rle_decrement - rle_active_jr - 2) & 0xFF
+        mrom[rle_done_jr + 1] = (rle_ret - rle_done_jr - 2) & 0xFF
 
         # VGM end: check loop
         vgm_end = pc
@@ -417,6 +450,7 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None):
     if has_music:
         pc = _emit(mrom, pc, 0xAF)                   # XOR A
         pc = _emit(mrom, pc, 0x32, RAM_MUS_PLAYING & 0xFF, RAM_MUS_PLAYING >> 8)
+        pc = _emit(mrom, pc, 0x32, RAM_RLE_COUNT & 0xFF, RAM_RLE_COUNT >> 8)
 
     # Timer B setup ($C6 = 60Hz: (256-198)*2304/8MHz = 16.7ms)
     pc = _emit(mrom, pc, 0x3E, 0x26, 0xD3, PORT_YM_A_ADDR)
