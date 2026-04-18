@@ -4,7 +4,6 @@
 #include "anim_palette.h"
 #include "anim_idle.h"
 #include "sounds.h"
-#include "voices.h"
 
 static int16_t terry_x;
 static int16_t terry_y;
@@ -27,7 +26,7 @@ void game_init(void) {
 
     FIX_clear();
     FIX_print(14, 2, "NEOSCAN SDK", 0);
-    FIX_print(2, 26, "DPAD:MOVE A/B:ZOOM C/D:SFX ST:MUS", 0);
+    FIX_print(3, 26, "DPAD:MOVE A/B:ZOOM C/D:SFX", 0);
 
     SPR_show(1, TILE_SPRITES_0, 1, 80, 30, 1);
     SPR_show(2, TILE_SPRITES_1, 1, 152, 30, 1);
@@ -74,7 +73,7 @@ void game_tick(void) {
         SND_play(SND_BEEP);
 
     if (JOY_pressed(0) & JOY_START)
-        VOX_play(VOX_FIGHT);
+        MUS_stop();
 
     for (col = 0; col < ANIM_IDLE.width; col++) {
         SPR_setZoom(20 + col, shrink_y);
