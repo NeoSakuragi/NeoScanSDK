@@ -136,7 +136,8 @@ def main():
         'p1': p_path, 's1': s_path, 'm1': m_path,
         'v1': v_path, 'c1': c1_path, 'c2': c2_path,
     }
-    xml = build_softlist_xml(args.name, 'NeoScan Homebrew', rom_files)
+    xml = build_softlist_xml(args.name, 'NeoScan Homebrew', rom_files,
+                             adpcmb_shared=bool(overlay))
     xml_path = os.path.join(hash_dir, 'neogeo.xml')
     with open(xml_path, 'w') as f:
         f.write(xml)

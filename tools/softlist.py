@@ -15,7 +15,7 @@ def file_checksums(path):
     return len(data), crc, sha1
 
 
-def build_softlist_xml(name, description, rom_files):
+def build_softlist_xml(name, description, rom_files, adpcmb_shared=False):
     """Build MAME softlist XML string.
 
     rom_files: dict with keys 'p1', 's1', 'm1', 'v1', 'c1', 'c2' → file paths.
@@ -63,6 +63,11 @@ def build_softlist_xml(name, description, rom_files):
 
     if 'v2' in roms:
         r = roms['v2']
+        xml += f'\t\t\t<dataarea name="ymsnd:adpcmb" size="0x{r["size"]:06x}">\n'
+        xml += f'\t\t\t\t<rom name="{r["name"]}" size="0x{r["size"]:06x}" crc="{r["crc"]}" sha1="{r["sha1"]}" offset="0x000000"/>\n'
+        xml += '\t\t\t</dataarea>\n'
+    elif adpcmb_shared:
+        r = roms['v1']
         xml += f'\t\t\t<dataarea name="ymsnd:adpcmb" size="0x{r["size"]:06x}">\n'
         xml += f'\t\t\t\t<rom name="{r["name"]}" size="0x{r["size"]:06x}" crc="{r["crc"]}" sha1="{r["sha1"]}" offset="0x000000"/>\n'
         xml += '\t\t\t</dataarea>\n'
