@@ -40,6 +40,11 @@ $(BUILD)/sounds.h $(BUILD)/vrom.bin $(BUILD)/sound_table.bin: $(WAVS)
 	@mkdir -p $(BUILD)
 	python3 $(TOOLS)/wav_encoder.py $(WAVS) -o $(BUILD)
 
+# --- Music ---
+$(BUILD)/music.bin: assets/music.vgz
+	@mkdir -p $(BUILD)
+	python3 $(TOOLS)/vgm_converter.py $< -o $@
+
 # --- Combine C ROMs ---
 $(BUILD)/combined_c1.bin: $(BUILD)/tiles_c1.bin $(BUILD)/anim_c1.bin
 	cat $^ > $@
@@ -56,7 +61,7 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
-$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1 $(BUILD)/vrom.bin $(BUILD)/sound_table.bin
+$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.bin $(BUILD)/font.s1 $(BUILD)/vrom.bin $(BUILD)/sound_table.bin $(BUILD)/music.bin
 	python3 $(TOOLS)/neobuild.py \
 		--elf $(BUILD)/rom.elf \
 		--c1 $(BUILD)/combined_c1.bin \
@@ -64,6 +69,7 @@ $(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/combined_c1.bin $(BUILD)/combined_c2.
 		--s1 $(BUILD)/font.s1 \
 		--v1 $(BUILD)/vrom.bin \
 		--sound-table $(BUILD)/sound_table.bin \
+		--music $(BUILD)/music.bin \
 		--name $(ROM_NAME) \
 		-o $@
 

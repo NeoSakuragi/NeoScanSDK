@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--s1', default=None, help='S1 ROM font/fix data (default: empty)')
     parser.add_argument('--v1', default=None, help='V1 ROM ADPCM-A data (default: silence)')
     parser.add_argument('--sound-table', default=None, help='Sound sample table for M ROM')
+    parser.add_argument('--music', default=None, help='VGM music stream for M ROM')
     parser.add_argument('--name', default='neoscan', help='ROM set name')
     parser.add_argument('--ngh', default='999', help='NGH number string')
     parser.add_argument('-o', '--output', default='rom.zip', help='Output ZIP')
@@ -87,7 +88,10 @@ def main():
     table_bin = None
     if args.sound_table and os.path.exists(args.sound_table):
         table_bin = open(args.sound_table, 'rb').read()
-    m_data = build_mrom(table_bin)
+    music_bin = None
+    if args.music and os.path.exists(args.music):
+        music_bin = open(args.music, 'rb').read()
+    m_data = build_mrom(table_bin, music_bin)
     m_path = os.path.join(rom_dir, f'{ngh}-m1.m1')
     with open(m_path, 'wb') as f:
         f.write(m_data)

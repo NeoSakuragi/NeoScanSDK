@@ -26,7 +26,7 @@ void game_init(void) {
 
     FIX_clear();
     FIX_print(14, 2, "NEOSCAN SDK", 0);
-    FIX_print(4, 26, "DPAD:MOVE A/B:ZOOM C:HIT D:BEEP", 0);
+    FIX_print(2, 26, "DPAD:MOVE A/B:ZOOM C/D:SFX ST:MUS", 0);
 
     SPR_show(1, TILE_SPRITES_0, 1, 80, 30, 1);
     SPR_show(2, TILE_SPRITES_1, 1, 152, 30, 1);
@@ -47,8 +47,7 @@ void game_init(void) {
     bounce_dx = 1;
 
     SYS_vblankFlush();
-
-    SND_play(SND_HIT);
+    MUS_play();
 }
 
 void game_tick(void) {
@@ -73,11 +72,8 @@ void game_tick(void) {
     if (JOY_pressed(0) & JOY_D)
         SND_play(SND_BEEP);
 
-    if (JOY_pressed(0) & JOY_START) {
-        terry_x = 160;
-        terry_y = 200;
-        shrink_y = 0xFF;
-    }
+    if (JOY_pressed(0) & JOY_START)
+        MUS_play();
 
     for (col = 0; col < ANIM_IDLE.width; col++) {
         SPR_setZoom(20 + col, shrink_y);
