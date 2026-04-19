@@ -253,7 +253,7 @@ void game_tick(void) {
         if (menu_sel == MENU_XPOS) { terry_x += 2; menu_dirty = 1; }
         else if (menu_sel == MENU_YPOS) { terry_y += 2; menu_dirty = 1; }
         else if (menu_sel == MENU_ZOOM) {
-            if (shrink_y < 254) { shrink_y += 1; menu_dirty = 1; }
+            if (shrink_y < 0xFF) { shrink_y += 1; menu_dirty = 1; }
         }
     }
 
