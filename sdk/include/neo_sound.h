@@ -5,7 +5,7 @@
 
 #define SND_STOP_ALL  0x40
 #define MUS_CMD_PLAY  0x80
-#define MUS_CMD_STOP  0x81
+#define MUS_CMD_STOP  0x70
 #define VOX_CMD_BASE  0x90
 #define VOX_CMD_STOP  0xC0
 

@@ -10,7 +10,7 @@ void SND_stopAll(void) {
 }
 
 void MUS_play(uint8_t track) {
-    REG_SOUND = MUS_CMD_PLAY;
+    REG_SOUND = MUS_CMD_PLAY + track;
 }
 
 void MUS_stop(void) {

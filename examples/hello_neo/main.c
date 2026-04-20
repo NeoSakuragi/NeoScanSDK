@@ -36,6 +36,9 @@ static uint8_t anim_p1;
 static uint8_t anim_p2;
 
 /* --- Music --- */
+#define NUM_TRACKS 4
+static const char *TRACK_NAMES[NUM_TRACKS]={"YAGAMI","ESAKA ","SEOUL ","TRASH "};
+static uint8_t cur_track;
 static uint8_t music_playing;
 
 /* --- SFX --- */
@@ -146,7 +149,7 @@ static void draw_menu(void) {
         FIX_print(2, row, MENU_LABELS[i], pal);
 
         if (i == MENU_MUSIC)
-            FIX_print(10, row, music_playing ? "ON        " : "OFF       ", 0);
+            FIX_print(10, row, music_playing ? TRACK_NAMES[cur_track] : "OFF   ", 0);
         else if (i == MENU_SFX)
             FIX_print(10, row, SFX_NAMES[cur_sfx], 0);
         else if (i == MENU_ANIM_P1)
@@ -202,12 +205,13 @@ void game_init(void) {
     bounce_dx = 1;
 
     menu_sel = 0;
-    cur_sfx = 0;
+    cur_sfx = 0; cur_track = 0;
     music_playing = 0;
     menu_dirty = 1;
 
     SYS_vblankFlush();
 
+    REG_SOUND = 3;  /* init nullsound driver */
     MUS_play(0);
     music_playing = 1;
     menu_dirty = 1;
@@ -232,7 +236,7 @@ void game_tick(void) {
     if (pressed & JOY_RIGHT) {
         menu_dirty = 1;
         if (menu_sel == MENU_MUSIC) {
-            if (!music_playing) { MUS_play(0); music_playing = 1; }
+            cur_track=(cur_track+1<NUM_TRACKS)?cur_track+1:0; MUS_play(cur_track); music_playing=1;
         } else if (menu_sel == MENU_SFX) {
             cur_sfx = (cur_sfx + 1 < NUM_SFX) ? cur_sfx + 1 : 0;
         } else if (menu_sel == MENU_ANIM_P1) {
@@ -261,7 +265,7 @@ void game_tick(void) {
     if (pressed & JOY_LEFT) {
         menu_dirty = 1;
         if (menu_sel == MENU_MUSIC) {
-            MUS_stop(); music_playing = 0;
+            if(music_playing){MUS_stop();music_playing=0;}else{cur_track=(cur_track>0)?cur_track-1:NUM_TRACKS-1;MUS_play(cur_track);music_playing=1;}
         } else if (menu_sel == MENU_SFX) {
             cur_sfx = (cur_sfx > 0) ? cur_sfx - 1 : NUM_SFX - 1;
         } else if (menu_sel == MENU_ANIM_P1) {
