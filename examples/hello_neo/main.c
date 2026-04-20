@@ -1,8 +1,33 @@
 #include <neoscan.h>
 #include "resources.h"
 
+/* v1.7 driver commands — written directly to REG_SOUND ($320000) */
+#define SND_STOP  0x03
+
+static const uint8_t TRACK_CMDS[] = {
+    0x25, 0x30, 0x31, 0x32, 0x3A, 0x3F,
+    0x20, 0x21, 0x22, 0x23, 0x24, 0x26, 0x27, 0x28, 0x29,
+    0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
+    0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3B, 0x3C, 0x3D, 0x3E,
+    0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49,
+    0x4A, 0x4B, 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56,
+};
+#define NUM_TRACKS (sizeof(TRACK_CMDS) / sizeof(TRACK_CMDS[0]))
+
+static const uint8_t SFX_CMDS[] = {
+    0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7,
+    0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF,
+    0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7,
+    0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF,
+    0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
+    0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF,
+    0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7,
+    0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
+};
+#define NUM_SFX (sizeof(SFX_CMDS) / sizeof(SFX_CMDS[0]))
+
 /* --- Menu --- */
-#define MENU_MUSIC    0
+#define MENU_TRACK    0
 #define MENU_SFX      1
 #define MENU_ANIM_P1  2
 #define MENU_ANIM_P2  3
@@ -14,7 +39,7 @@
 #define MENU_COUNT    9
 
 static const char *MENU_LABELS[MENU_COUNT] = {
-    "MUSIC  ", "SFX    ", "ANIM P1", "ANIM P2",
+    "TRACK  ", "SFX    ", "ANIM P1", "ANIM P2",
     "PAL P1 ", "PAL P2 ", "X-POS  ", "Y-POS  ", "ZOOM   "
 };
 
@@ -30,21 +55,13 @@ static const anim_def_t *ANIMS[NUM_ANIMS] = {
 static const char *ANIM_NAMES[NUM_ANIMS] = {
     "IDLE  ", "WALK  "
 };
-#define ANIM_MODE_IDLE   ANIM_PINGPONG
-#define ANIM_MODE_WALK   ANIM_LOOP
 static uint8_t anim_p1;
 static uint8_t anim_p2;
 
-/* --- Music --- */
-#define NUM_TRACKS 4
-static const char *TRACK_NAMES[NUM_TRACKS]={"YAGAMI","ESAKA ","SEOUL ","TRASH "};
 static uint8_t cur_track;
-static uint8_t music_playing;
-
-/* --- SFX --- */
 static uint8_t cur_sfx;
-#define NUM_SFX 2
-static const char *SFX_NAMES[NUM_SFX] = { "BEEP  ", "HIT   " };
+static uint8_t playing;
+static uint8_t init_delay;
 
 /* --- Palettes --- */
 #define NUM_PALETTES 8
@@ -128,6 +145,16 @@ static void set_anim(uint8_t slot, uint8_t anim_idx) {
     prev_height[slot] = new_h;
 }
 
+static void print_hex(uint8_t col, uint8_t row, uint8_t val, uint8_t pal) {
+    static const char HEX[] = "0123456789ABCDEF";
+    char buf[5];
+    buf[0] = '0'; buf[1] = 'x';
+    buf[2] = HEX[(val >> 4) & 0xF];
+    buf[3] = HEX[val & 0xF];
+    buf[4] = 0;
+    FIX_print(col, row, buf, pal);
+}
+
 static void draw_menu(void) {
     uint8_t i;
     uint8_t blink_on;
@@ -140,6 +167,8 @@ static void draw_menu(void) {
     if (!menu_dirty && prev_blink == blink_on)
         return;
 
+    FIX_print(1, 1, "HELLO NEO  v1.7", 0);
+
     for (i = 0; i < MENU_COUNT; i++) {
         uint8_t row = 2 + i;
         uint8_t sel = (i == menu_sel);
@@ -148,11 +177,14 @@ static void draw_menu(void) {
         FIX_print(1, row, sel ? ">" : " ", pal);
         FIX_print(2, row, MENU_LABELS[i], pal);
 
-        if (i == MENU_MUSIC)
-            FIX_print(10, row, music_playing ? TRACK_NAMES[cur_track] : "OFF   ", 0);
-        else if (i == MENU_SFX)
-            FIX_print(10, row, SFX_NAMES[cur_sfx], 0);
-        else if (i == MENU_ANIM_P1)
+        if (i == MENU_TRACK) {
+            print_hex(10, row, TRACK_CMDS[cur_track], pal);
+            FIX_print(15, row, playing ? "PLAY" : "STOP", playing ? 4 : 0);
+            FIX_print(20, row, "      ", 0);
+        } else if (i == MENU_SFX) {
+            print_hex(10, row, SFX_CMDS[cur_sfx], pal);
+            FIX_print(15, row, "      ", 0);
+        } else if (i == MENU_ANIM_P1)
             FIX_print(10, row, ANIM_NAMES[anim_p1], 0);
         else if (i == MENU_ANIM_P2)
             FIX_print(10, row, ANIM_NAMES[anim_p2], 0);
@@ -205,16 +237,13 @@ void game_init(void) {
     bounce_dx = 1;
 
     menu_sel = 0;
-    cur_sfx = 0; cur_track = 0;
-    music_playing = 0;
+    cur_track = 0;
+    cur_sfx = 0;
+    playing = 0;
+    init_delay = 120;
     menu_dirty = 1;
 
     SYS_vblankFlush();
-
-    REG_SOUND = 3;  /* init nullsound driver */
-    MUS_play(0);
-    music_playing = 1;
-    menu_dirty = 1;
 }
 
 void game_tick(void) {
@@ -222,6 +251,15 @@ void game_tick(void) {
     uint16_t pressed = JOY_pressed(0);
 
     SYS_kickWatchdog();
+
+    if (init_delay > 0) {
+        init_delay--;
+        if (init_delay == 0) {
+            REG_SOUND = 0x02;
+            playing = 1;
+            menu_dirty = 1;
+        }
+    }
 
     if (pressed & JOY_UP) {
         menu_sel = (menu_sel > 0) ? menu_sel - 1 : MENU_COUNT - 1;
@@ -232,11 +270,10 @@ void game_tick(void) {
         menu_dirty = 1;
     }
 
-    /* Right = increase (edge for discrete) */
     if (pressed & JOY_RIGHT) {
         menu_dirty = 1;
-        if (menu_sel == MENU_MUSIC) {
-            cur_track=(cur_track+1<NUM_TRACKS)?cur_track+1:0; MUS_play(cur_track); music_playing=1;
+        if (menu_sel == MENU_TRACK) {
+            cur_track = (cur_track + 1 < NUM_TRACKS) ? cur_track + 1 : 0;
         } else if (menu_sel == MENU_SFX) {
             cur_sfx = (cur_sfx + 1 < NUM_SFX) ? cur_sfx + 1 : 0;
         } else if (menu_sel == MENU_ANIM_P1) {
@@ -261,11 +298,10 @@ void game_tick(void) {
         }
     }
 
-    /* Left = decrease */
     if (pressed & JOY_LEFT) {
         menu_dirty = 1;
-        if (menu_sel == MENU_MUSIC) {
-            if(music_playing){MUS_stop();music_playing=0;}else{cur_track=(cur_track>0)?cur_track-1:NUM_TRACKS-1;MUS_play(cur_track);music_playing=1;}
+        if (menu_sel == MENU_TRACK) {
+            cur_track = (cur_track > 0) ? cur_track - 1 : NUM_TRACKS - 1;
         } else if (menu_sel == MENU_SFX) {
             cur_sfx = (cur_sfx > 0) ? cur_sfx - 1 : NUM_SFX - 1;
         } else if (menu_sel == MENU_ANIM_P1) {
@@ -290,9 +326,23 @@ void game_tick(void) {
         }
     }
 
-    /* A = play SFX (only on SFX row) */
-    if ((pressed & JOY_A) && menu_sel == MENU_SFX)
-        SND_play(cur_sfx + 1);
+    /* A = play */
+    if (pressed & JOY_A) {
+        menu_dirty = 1;
+        if (menu_sel == MENU_TRACK) {
+            REG_SOUND = TRACK_CMDS[cur_track];
+            playing = 1;
+        } else if (menu_sel == MENU_SFX) {
+            REG_SOUND = SFX_CMDS[cur_sfx];
+        }
+    }
+
+    /* B = stop */
+    if (pressed & JOY_B) {
+        REG_SOUND = SND_STOP;
+        playing = 0;
+        menu_dirty = 1;
+    }
 
     /* Apply zoom to both Terrys */
     for (col = 0; col < ANIMS[anim_p1]->width; col++)
