@@ -185,7 +185,7 @@ static void draw_menu(void) {
         FIX_print(2, row, MENU_LABELS[i], pal);
 
         if (i == MENU_TRACK) {
-            print_hex(10, row, TRACK_CMDS[cur_track], pal);
+            print_hex(10, row, PERFECT_TRACKS[cur_track], pal);
             FIX_print(15, row, playing ? "PLAY" : "STOP", playing ? 4 : 0);
             FIX_print(20, row, "      ", 0);
         } else if (i == MENU_SFX) {
@@ -263,24 +263,7 @@ void game_tick(void) {
 
     if (init_delay > 0) {
         init_delay--;
-        if (init_delay == 60) REG_SOUND = 0x07;
-        if (init_delay == 0) {
-            REG_SOUND = PERFECT_TRACKS[perfect_idx];
-            playing = 1;
-            auto_timer = 3600; /* ~60 seconds per track */
-            menu_dirty = 1;
-        }
-    }
-
-    if (playing && auto_timer > 0) {
-        auto_timer--;
-        if (auto_timer == 0) {
-            perfect_idx = (perfect_idx + 1) % NUM_PERFECT;
-            REG_SOUND = 0x07;
-            REG_SOUND = PERFECT_TRACKS[perfect_idx];
-            auto_timer = 3600;
-            menu_dirty = 1;
-        }
+        if (init_delay == 0) REG_SOUND = 0x07;
     }
 
     if (pressed & JOY_UP) {
@@ -295,7 +278,7 @@ void game_tick(void) {
     if (pressed & JOY_RIGHT) {
         menu_dirty = 1;
         if (menu_sel == MENU_TRACK) {
-            cur_track = (cur_track + 1 < NUM_TRACKS) ? cur_track + 1 : 0;
+            cur_track = (cur_track + 1 < NUM_PERFECT) ? cur_track + 1 : 0;
         } else if (menu_sel == MENU_SFX) {
             cur_sfx = (cur_sfx + 1 < NUM_SFX) ? cur_sfx + 1 : 0;
         } else if (menu_sel == MENU_ANIM_P1) {
@@ -323,7 +306,7 @@ void game_tick(void) {
     if (pressed & JOY_LEFT) {
         menu_dirty = 1;
         if (menu_sel == MENU_TRACK) {
-            cur_track = (cur_track > 0) ? cur_track - 1 : NUM_TRACKS - 1;
+            cur_track = (cur_track > 0) ? cur_track - 1 : NUM_PERFECT - 1;
         } else if (menu_sel == MENU_SFX) {
             cur_sfx = (cur_sfx > 0) ? cur_sfx - 1 : NUM_SFX - 1;
         } else if (menu_sel == MENU_ANIM_P1) {
@@ -353,7 +336,7 @@ void game_tick(void) {
         menu_dirty = 1;
         if (menu_sel == MENU_TRACK) {
             REG_SOUND = 0x07;
-            REG_SOUND = TRACK_CMDS[cur_track];
+            REG_SOUND = PERFECT_TRACKS[cur_track];
             playing = 1;
         } else if (menu_sel == MENU_SFX) {
             REG_SOUND = SFX_CMDS[cur_sfx];
