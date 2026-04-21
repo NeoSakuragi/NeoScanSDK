@@ -7,9 +7,9 @@ SDK_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), 'sdk')
 SOUND_DIR = os.path.join(SDK_DIR, 'sound')
 
 MROM_SIZE = 0x20000
-SFX_TABLE = 0x0500
-FM_FREQ   = 0x0700
-SEQ_HDR   = 0x0900
+SFX_TABLE = 0x0800
+FM_FREQ   = 0x0A00
+SEQ_HDR   = 0x0C00
 
 def build_driver():
     crt0 = os.path.join(SOUND_DIR, 'crt0_z80.s')
@@ -43,8 +43,24 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None,
             print(f"  WARNING: seq data ends at ${end:04X}, past $BFFF!")
         mrom[SEQ_HDR:SEQ_HDR+len(seq_blob)] = seq_blob
         print(f"  Seq data: {len(seq_blob):,} bytes at ${SEQ_HDR:04X}-${end-1:04X}")
-    elif music_bin and len(music_bin) > 2:
-        mrom[0x0400:0x0400+len(music_bin)] = music_bin
+    elif music_bin and len(music_bin) > 4:
+        # music_bin has header: [ni, ns, np, nt, ...data...]
+        # nt may be 0 if the converter didn't set tracks.
+        # Fix: set nt=1, insert a track table entry, then the stream.
+        ni, ns, np, nt = music_bin[0], music_bin[1], music_bin[2], music_bin[3]
+        meta = 4 + ni*30 + ns*4 + np*7
+        stream = music_bin[meta:]
+        # Build patched blob: header (nt=1) + metadata + track_entry + stream
+        patched = bytearray(music_bin[:meta])
+        patched[3] = 1  # nt = 1
+        track_off = meta + 4  # offset from HDR to stream (after track table)
+        # Check for loop: the converter stores loop frame at bytes 4-5 of header area
+        # For now, use no loop (0xFFFF)
+        loop_off = 0xFFFF
+        patched += struct.pack('<HH', track_off, loop_off)
+        patched += stream
+        mrom[SEQ_HDR:SEQ_HDR+len(patched)] = patched
+        print(f"  Music: {len(stream):,} bytes, track at offset 0x{track_off:04X}")
     return bytes(mrom)
 
 def main():

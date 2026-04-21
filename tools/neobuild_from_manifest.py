@@ -21,7 +21,8 @@ def main():
     for k, flag in [('c1','--c1'),('c2','--c2'),('s1','--s1'),
                      ('sfx_vrom','--v1'),('sfx_table','--sound-table'),
                      ('voice_table','--voice-table'),('music_samples','--v1-overlay'),
-                     ('seq_blob','--seq-blob'),('fm_freq_table','--fm-freq-table')]:
+                     ('seq_blob','--seq-blob'),('fm_freq_table','--fm-freq-table'),
+                     ('music_stream_0','--music')]:
         if k in manifest:
             cmd.extend([flag, manifest[k]])
     sys.exit(subprocess.call(cmd))

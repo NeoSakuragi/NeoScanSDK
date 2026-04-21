@@ -5,7 +5,7 @@ __sfr __at 0x04 PORT_A_ADDR;
 __sfr __at 0x05 PORT_A_DATA;
 __sfr __at 0x06 PORT_B_ADDR;
 __sfr __at 0x07 PORT_B_DATA;
-__sfr __at 0x08 PORT_NMI_EN;
+__sfr __at 0x18 PORT_NMI_EN;
 __sfr __at 0x0C PORT_TO_68K;
 
 static volatile uint8_t cmd_q[16];
@@ -16,9 +16,9 @@ static const uint8_t *sloop;
 static uint16_t delta;
 static uint8_t fm_inst[4];
 
-#define HDR     ((const uint8_t *)0x0900)
-#define FTBL    ((const uint8_t *)0x0700)
-#define SFXTBL  ((const uint8_t *)0x0500)
+#define SFXTBL  ((const uint8_t *)0x0800)
+#define FTBL    ((const uint8_t *)0x0A00)
+#define HDR     ((const uint8_t *)0x0C00)
 
 static void ya(uint8_t r, uint8_t v) { PORT_A_ADDR=r; PORT_A_DATA=v; }
 static void yb(uint8_t r, uint8_t v) { PORT_B_ADDR=r; PORT_B_DATA=v; }
