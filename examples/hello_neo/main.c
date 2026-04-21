@@ -256,7 +256,7 @@ void game_tick(void) {
         init_delay--;
         if (init_delay == 60) REG_SOUND = 0x07;  /* unlock music */
         if (init_delay == 0) {
-            REG_SOUND = 0x25;  /* play track */
+            REG_SOUND = 0x30;  /* play track */
             playing = 1;
             menu_dirty = 1;
         }
