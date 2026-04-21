@@ -4,6 +4,11 @@
 /* v1.7 driver commands — written directly to REG_SOUND ($320000) */
 #define SND_STOP  0x03
 
+static const uint8_t PERFECT_TRACKS[] = {
+    0x30, 0x32, 0x33, 0x34, 0x35, 0x36,
+};
+#define NUM_PERFECT (sizeof(PERFECT_TRACKS) / sizeof(PERFECT_TRACKS[0]))
+
 static const uint8_t TRACK_CMDS[] = {
     0x25, 0x30, 0x31, 0x32, 0x3A, 0x3F,
     0x20, 0x21, 0x22, 0x23, 0x24, 0x26, 0x27, 0x28, 0x29,
@@ -62,6 +67,8 @@ static uint8_t cur_track;
 static uint8_t cur_sfx;
 static uint8_t playing;
 static uint8_t init_delay;
+static uint8_t perfect_idx;
+static uint16_t auto_timer;
 
 /* --- Palettes --- */
 #define NUM_PALETTES 8
@@ -240,6 +247,8 @@ void game_init(void) {
     cur_track = 0;
     cur_sfx = 0;
     playing = 0;
+    perfect_idx = 0;
+    auto_timer = 0;
     init_delay = 120;
     menu_dirty = 1;
 
@@ -254,10 +263,22 @@ void game_tick(void) {
 
     if (init_delay > 0) {
         init_delay--;
-        if (init_delay == 60) REG_SOUND = 0x07;  /* unlock music */
+        if (init_delay == 60) REG_SOUND = 0x07;
         if (init_delay == 0) {
-            REG_SOUND = 0x30;  /* play track */
+            REG_SOUND = PERFECT_TRACKS[perfect_idx];
             playing = 1;
+            auto_timer = 3600; /* ~60 seconds per track */
+            menu_dirty = 1;
+        }
+    }
+
+    if (playing && auto_timer > 0) {
+        auto_timer--;
+        if (auto_timer == 0) {
+            perfect_idx = (perfect_idx + 1) % NUM_PERFECT;
+            REG_SOUND = 0x07;
+            REG_SOUND = PERFECT_TRACKS[perfect_idx];
+            auto_timer = 3600;
             menu_dirty = 1;
         }
     }
