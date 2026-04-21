@@ -331,6 +331,7 @@ void game_tick(void) {
     if (pressed & JOY_A) {
         menu_dirty = 1;
         if (menu_sel == MENU_TRACK) {
+            REG_SOUND = 0x07;
             REG_SOUND = TRACK_CMDS[cur_track];
             playing = 1;
         } else if (menu_sel == MENU_SFX) {
@@ -340,7 +341,7 @@ void game_tick(void) {
 
     /* B = stop */
     if (pressed & JOY_B) {
-        REG_SOUND = SND_STOP;
+        REG_SOUND = 0x03;
         playing = 0;
         menu_dirty = 1;
     }
