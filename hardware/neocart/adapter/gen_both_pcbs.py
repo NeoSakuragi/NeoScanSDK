@@ -397,7 +397,8 @@ assign(j1,44,prog_nets,'nAS_R'); assign(j1,45,prog_nets,'68KCLK_R')
 assign(j1,46,prog_nets,'RESET_R'); assign(j1,47,prog_nets,'SDMRD_R')
 assign(j1,48,prog_nets,'PDTACK'); assign(j1,49,prog_nets,'ROMWAIT')
 assign(j1,50,prog_nets,'4MB')
-for p in [59,60,61,62,63,64]: assign(j1, p, prog_nets, 'VCC_5V')
+for p in [59,61,63]: assign(j1, p, prog_nets, 'VCC_5V')  # VIN (odd)
+for p in [60,62,64]: assign(j1, p, prog_nets, 'GND')   # GVN (even)
 
 # ── J3: FPGA U1 socket (centered right, J1+61mm) ──
 j3 = place(prog, load_fp('Connector_PinSocket_2.54mm','PinSocket_2x32_P2.54mm_Vertical'),
@@ -412,7 +413,8 @@ assign(j3,47,prog_nets,'LOAD_C'); assign(j3,48,prog_nets,'SER_S')
 assign(j3,49,prog_nets,'CLK_S'); assign(j3,50,prog_nets,'LOAD_S')
 assign(j3,51,prog_nets,'PCK1B'); assign(j3,52,prog_nets,'PCK2B')
 assign(j3,53,prog_nets,'SDMRD_CHA')
-for p in [59,60,61,62,63,64]: assign(j3, p, prog_nets, 'VCC_5V')
+for p in [59,61,63]: assign(j3, p, prog_nets, 'VCC_5V')  # VIN (odd)
+for p in [60,62,64]: assign(j3, p, prog_nets, 'GND')   # GVN (even)
 
 # ── J2: Inter-board connector (male 2x40, centered between J1 and J3) ──
 j2 = place(prog, load_fp('Connector_PinHeader_2.54mm','PinHeader_2x40_P2.54mm_Vertical'),
