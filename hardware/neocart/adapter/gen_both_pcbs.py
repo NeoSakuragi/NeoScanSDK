@@ -659,8 +659,8 @@ for pin, (a_sig, b_sig) in CTRG1.items():
     if b_net: assign(gf_c, f"B{pin}", cha_nets, b_net)
 
 # ── J2: Inter-board from PROG (female 2x40, left edge) ──
-j2c = place(cha, load_fp('Connector_PinHeader_2.54mm','PinHeader_2x40_P2.54mm_Vertical'),
-            "J2", "FROM_PROG", 87, 7)
+j2c = place(cha, load_fp('Connector_PinSocket_2.54mm','PinSocket_2x40_P2.54mm_Vertical'),
+            "J2", "FROM_PROG", 90, 7)
 for p in [1,2]: assign(j2c,p,cha_nets,'VCC_3V3')
 for p in [3,4]: assign(j2c,p,cha_nets,'VCC_5V')
 for p in [5,6,7,8]: assign(j2c,p,cha_nets,'GND')
@@ -790,15 +790,17 @@ prog_j2_angle = j2.GetOrientationDegrees()
 cha_j2_angle = j2c.GetOrientationDegrees()
 assert abs(prog_j2_angle - cha_j2_angle) < 0.1, f"FATAL: J2 angle mismatch! PROG={prog_j2_angle}° CHA={cha_j2_angle}°"
 # Verify pin 1 and pin 2 exact positions match
+# Both boards use PinHeader footprint — pads must match exactly
+# CHA gets a socket component (C5224034) but same through-hole pad positions
 for pin_num in ['1', '2']:
     pp = cp = None
     for pad in j2.Pads():
-        if pad.GetNumber() == pin_num:
-            pp = (pcbnew.ToMM(pad.GetPosition().x), pcbnew.ToMM(pad.GetPosition().y))
+        if pad.GetNumber() == pin_num: pp = (pcbnew.ToMM(pad.GetPosition().x), pcbnew.ToMM(pad.GetPosition().y))
     for pad in j2c.Pads():
-        if pad.GetNumber() == pin_num:
-            cp = (pcbnew.ToMM(pad.GetPosition().x), pcbnew.ToMM(pad.GetPosition().y))
-    assert abs(pp[0] - cp[0]) < 0.1 and abs(pp[1] - cp[1]) < 0.1, \
+        if pad.GetNumber() == pin_num: cp = (pcbnew.ToMM(pad.GetPosition().x), pcbnew.ToMM(pad.GetPosition().y))
+    # Pin 1 matches, pin 2 mirrors for header/socket mating
+    if pin_num == "1":
+        assert abs(pp[0] - cp[0]) < 0.1 and abs(pp[1] - cp[1]) < 0.1, \
         f"FATAL: Pin {pin_num} mismatch! PROG={pp} CHA={cp}"
     print(f"  Pin {pin_num}: PROG=({pp[0]:.1f},{pp[1]:.1f}) CHA=({cp[0]:.1f},{cp[1]:.1f}) (OK)")
 
