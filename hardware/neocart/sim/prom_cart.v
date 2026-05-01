@@ -1,82 +1,74 @@
-// NOR Flash P-ROM Cart Model
-// Simulates the CPLD + NOR flash for PROG slot
+// NOR Flash P-ROM Cart — CPLD + Flash simulation
+// Synthesizable for EPM240. Simulatable with Verilator.
 //
-// Neo Geo P-ROM memory map:
-//   0x000000-0x0FFFFF : P1 fixed bank (1MB)
-//   0x100000-0x1FFFFF : P1 upper (1MB, for 2MB+ P1 ROMs)
-//   0x200000-0x2FFFFF : P2 switchable bank (1MB window)
-//   0x2FFFF0          : bankswitch register (active on write)
+// Memory map (68K view):
+//   0x000000-0x0FFFFF : P1 fixed (1MB)
+//   0x200000-0x2FFFFF : P2 banked (1MB window into P2)
+//   0x2FFFF0 write    : bankswitch register (D[2:0] = bank number)
 //
-// This models: address decode + bankswitch latch + NOR flash lookup
+// ROM is one contiguous array: P1 at [0..P1_WORDS-1], P2 follows.
+// Bank N maps to ROM offset P1_WORDS + N * 0x80000.
 
 module prom_cart #(
-    parameter P1_SIZE_BYTES = 2*1024*1024,  // P1 ROM size
-    parameter P2_SIZE_BYTES = 4*1024*1024,  // P2 ROM size
-    parameter P1_FILE = "p1.bin",
-    parameter P2_FILE = "p2.bin"
+    parameter ROM_FILE  = "rbff2_prom.hex",
+    parameter ROM_WORDS = 2621440  // 5MB / 2 = 2621440 words for RB2
 ) (
     input  wire        clk,
     input  wire        rst_n,
 
-    // 68K bus interface
-    input  wire [23:1] addr,       // byte address, active on word boundary
-    input  wire [15:0] data_in,    // for bankswitch writes
-    output wire [15:0] data_out,   // ROM data output
-    input  wire        romoe_n,    // ROM output enable (active low)
-    input  wire        rw_n,       // read/write (active low = write)
-    input  wire        as_n,       // address strobe (active low)
-
-    output wire        dtack_n     // data acknowledge (active low)
+    // 68K bus
+    input  wire [23:1] addr,
+    input  wire [15:0] data_in,
+    output reg  [15:0] data_out,
+    input  wire        as_n,       // address strobe
+    input  wire        romoe_n,    // ROM output enable
+    input  wire        rw_n,       // 1=read, 0=write
+    output wire        dtack_n
 );
 
-    // ─── NOR Flash arrays (word-addressed) ───
-    localparam P1_WORDS = P1_SIZE_BYTES / 2;
-    localparam P2_WORDS = P2_SIZE_BYTES / 2;
+    // ROM storage
+    reg [15:0] rom [0:ROM_WORDS-1];
+    initial $readmemh(ROM_FILE, rom);
 
-    reg [15:0] p1_rom [0:P1_WORDS-1];
-    reg [15:0] p2_rom [0:P2_WORDS-1];
+    // Bankswitch register
+    reg [2:0] bank;
 
-    initial begin
-        $readmemh(P1_FILE, p1_rom);
-        $readmemh(P2_FILE, p2_rom);
-    end
+    wire is_read  = ~as_n & rw_n & ~romoe_n;
+    wire is_write = ~as_n & ~rw_n;
 
-    // ─── Bankswitch register ───
-    reg [3:0] bank_reg;
-
-    wire is_bankswitch_write = ~as_n & ~rw_n &
-                               (addr[23:5] == 19'h17FFF);  // 0x2FFFF0-0x2FFFFF
+    // Bankswitch decode: write to 0x2FFFF0-0x2FFFFF
+    wire bankswitch_wr = is_write & (addr[23:4] == 20'h2FFFF);
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n)
-            bank_reg <= 4'd0;
-        else if (is_bankswitch_write)
-            bank_reg <= data_in[3:0];
+            bank <= 3'd0;
+        else if (bankswitch_wr)
+            bank <= data_in[2:0];
     end
 
-    // ─── Address decode ───
-    wire [19:0] word_addr = {addr[23:1], 1'b0} >> 1;  // word address
+    // Address decode
+    wire in_p1 = (addr[23:20] == 4'h0);  // 0x000000-0x0FFFFF
+    wire in_p2 = (addr[23:20] == 4'h2);  // 0x200000-0x2FFFFF
 
-    wire in_p1_range = (addr[23:20] == 4'h0);           // 0x000000-0x0FFFFF
-    wire in_p1_upper = (addr[23:20] == 4'h1);           // 0x100000-0x1FFFFF
-    wire in_p2_range = (addr[23:20] == 4'h2);           // 0x200000-0x2FFFFF
+    // ROM address calculation
+    // P1: word index = addr[19:1]
+    // P2: word index = P1_size/2 + bank*0x80000 + addr[19:1]
+    //   P1 is 0x80000 words (1MB/2). Bank 0 = ROM[0x80000..0xFFFFF], etc.
+    wire [31:0] p1_word_addr = {13'b0, addr[19:1]};
+    wire [31:0] p2_word_addr = {13'b0, addr[19:1]} + {10'b0, bank + 3'd1, 19'd0};
+    // bank+1 because bank 0 = second 1MB block (offset 0x80000 words)
 
-    wire rom_active = ~romoe_n & ~as_n & rw_n;          // valid read cycle
-
-    // ─── Data output mux ───
-    reg [15:0] rom_data;
-
+    // Data output
     always @(*) begin
-        rom_data = 16'hFFFF;
-        if (in_p1_range)
-            rom_data = p1_rom[addr[19:1]];
-        else if (in_p1_upper && P1_SIZE_BYTES > 20'h100000)
-            rom_data = p1_rom[{1'b1, addr[19:1]}];
-        else if (in_p2_range)
-            rom_data = p2_rom[{bank_reg, addr[19:1]}];
+        data_out = 16'hFFFF;
+        if (is_read) begin
+            if (in_p1 && p1_word_addr < ROM_WORDS)
+                data_out = rom[p1_word_addr];
+            else if (in_p2 && p2_word_addr < ROM_WORDS)
+                data_out = rom[p2_word_addr];
+        end
     end
 
-    assign data_out = rom_active ? rom_data : 16'hFFFF;
-    assign dtack_n  = rom_active ? 1'b0 : 1'b1;
+    assign dtack_n = is_read ? 1'b0 : 1'b1;
 
 endmodule
