@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?>
+<circuit>
+  <version>1</version>
+  <attributes>
+    <entry>
+      <string>Description</string>
+      <string>NeoCart PROG Slot — CPLD + NOR Flash
+Address decode + bankswitch register + ROM lookup.
+
+Inputs: ADDR[23:1], DATA_IN[15:0], AS_n, ROMOE_n, RW_n, CLK, RST_n
+Outputs: DATA_OUT[15:0], DTACK_n
+
+Memory map:
+  0x000000-0x0FFFFF : P1 fixed (1MB)
+  0x200000-0x2FFFFF : P2 banked (1MB window)
+  0x2FFFF0 write    : bankswitch register</string>
+    </entry>
+  </attributes>
+  <visualElements>
+    <!-- ═══════════ INPUTS ═══════════ -->
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>ADDR</string></entry>
+        <entry><string>Bits</string><int>23</int></entry>
+        <entry><string>intFormat</string><intFormat>hex</intFormat></entry>
+      </elementAttributes>
+      <pos x="100" y="100"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>DATA_IN</string></entry>
+        <entry><string>Bits</string><int>16</int></entry>
+        <entry><string>intFormat</string><intFormat>hex</intFormat></entry>
+      </elementAttributes>
+      <pos x="100" y="160"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>AS_n</string></entry>
+      </elementAttributes>
+      <pos x="100" y="220"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>ROMOE_n</string></entry>
+      </elementAttributes>
+      <pos x="100" y="260"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>RW_n</string></entry>
+      </elementAttributes>
+      <pos x="100" y="300"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Clock</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>CLK</string></entry>
+      </elementAttributes>
+      <pos x="100" y="360"/>
+    </visualElement>
+    <visualElement>
+      <elementName>In</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>RST_n</string></entry>
+      </elementAttributes>
+      <pos x="100" y="400"/>
+    </visualElement>
+
+    <!-- ═══════════ ACTIVE-LOW INVERSIONS ═══════════ -->
+    <visualElement>
+      <elementName>Not</elementName>
+      <elementAttributes/>
+      <pos x="180" y="220"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Not</elementName>
+      <elementAttributes/>
+      <pos x="180" y="260"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Not</elementName>
+      <elementAttributes/>
+      <pos x="180" y="300"/>
+    </visualElement>
+
+    <!-- ═══════════ READ/WRITE DETECT ═══════════ -->
+    <!-- is_read = AS & OE & RW (active high after inversion) -->
+    <visualElement>
+      <elementName>And</elementName>
+      <elementAttributes>
+        <entry><string>Inputs</string><int>3</int></entry>
+      </elementAttributes>
+      <pos x="280" y="220"/>
+    </visualElement>
+    <!-- is_write = AS & ~RW -->
+    <visualElement>
+      <elementName>And</elementName>
+      <elementAttributes/>
+      <pos x="280" y="340"/>
+    </visualElement>
+
+    <!-- ═══════════ ADDRESS DECODE ═══════════ -->
+    <!-- P1 range: ADDR[23:20] == 0 -->
+    <visualElement>
+      <elementName>Splitter</elementName>
+      <elementAttributes>
+        <entry><string>Input Splitting</string><string>23</string></entry>
+        <entry><string>Output Splitting</string><string>19,4</string></entry>
+      </elementAttributes>
+      <pos x="180" y="100"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Comparator</elementName>
+      <elementAttributes>
+        <entry><string>Bits</string><int>4</int></entry>
+      </elementAttributes>
+      <pos x="340" y="80"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Const</elementName>
+      <elementAttributes>
+        <entry><string>Value</string><long>0</long></entry>
+        <entry><string>Bits</string><int>4</int></entry>
+      </elementAttributes>
+      <pos x="300" y="100"/>
+    </visualElement>
+
+    <!-- P2 range: ADDR[23:20] == 2 -->
+    <visualElement>
+      <elementName>Comparator</elementName>
+      <elementAttributes>
+        <entry><string>Bits</string><int>4</int></entry>
+      </elementAttributes>
+      <pos x="340" y="140"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Const</elementName>
+      <elementAttributes>
+        <entry><string>Value</string><long>2</long></entry>
+        <entry><string>Bits</string><int>4</int></entry>
+      </elementAttributes>
+      <pos x="300" y="160"/>
+    </visualElement>
+
+    <!-- Bankswitch detect: ADDR[23:4] == 0x2FFFF -->
+    <visualElement>
+      <elementName>Splitter</elementName>
+      <elementAttributes>
+        <entry><string>Input Splitting</string><string>23</string></entry>
+        <entry><string>Output Splitting</string><string>3,20</string></entry>
+      </elementAttributes>
+      <pos x="180" y="460"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Comparator</elementName>
+      <elementAttributes>
+        <entry><string>Bits</string><int>20</int></entry>
+      </elementAttributes>
+      <pos x="340" y="460"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Const</elementName>
+      <elementAttributes>
+        <entry><string>Value</string><long>196607</long></entry>
+        <entry><string>Bits</string><int>20</int></entry>
+        <entry><string>intFormat</string><intFormat>hex</intFormat></entry>
+      </elementAttributes>
+      <pos x="300" y="480"/>
+    </visualElement>
+
+    <!-- bankswitch_wr = is_write AND addr_match -->
+    <visualElement>
+      <elementName>And</elementName>
+      <elementAttributes/>
+      <pos x="460" y="440"/>
+    </visualElement>
+
+    <!-- ═══════════ BANK REGISTER (3-bit D flip-flop) ═══════════ -->
+    <visualElement>
+      <elementName>Register</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>BANK_REG</string></entry>
+        <entry><string>Bits</string><int>3</int></entry>
+      </elementAttributes>
+      <pos x="560" y="420"/>
+    </visualElement>
+
+    <!-- ═══════════ ROM (NOR Flash) ═══════════ -->
+    <visualElement>
+      <elementName>ROM</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>P-ROM</string></entry>
+        <entry><string>AddrBits</string><int>10</int></entry>
+        <entry><string>Bits</string><int>16</int></entry>
+        <entry>
+          <string>Data</string>
+          <data>0010,F300,00C0,0402,00C0,0408,00C0,040E,00C0,0414,0000,0186,0000,0186,0000,0186</data>
+        </entry>
+        <entry><string>intFormat</string><intFormat>hex</intFormat></entry>
+      </elementAttributes>
+      <pos x="560" y="80"/>
+    </visualElement>
+
+    <!-- ═══════════ ADDRESS MUX ═══════════ -->
+    <!-- Select between P1 addr and P2 banked addr -->
+    <visualElement>
+      <elementName>Multiplexer</elementName>
+      <elementAttributes>
+        <entry><string>Bits</string><int>10</int></entry>
+      </elementAttributes>
+      <pos x="460" y="80"/>
+    </visualElement>
+
+    <!-- P1 address: lower 10 bits of ADDR -->
+    <visualElement>
+      <elementName>Splitter</elementName>
+      <elementAttributes>
+        <entry><string>Input Splitting</string><string>19</string></entry>
+        <entry><string>Output Splitting</string><string>10,9</string></entry>
+      </elementAttributes>
+      <pos x="300" y="20"/>
+    </visualElement>
+
+    <!-- ═══════════ OUTPUTS ═══════════ -->
+    <visualElement>
+      <elementName>Out</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>DATA_OUT</string></entry>
+        <entry><string>Bits</string><int>16</int></entry>
+        <entry><string>intFormat</string><intFormat>hex</intFormat></entry>
+      </elementAttributes>
+      <pos x="720" y="100"/>
+    </visualElement>
+    <visualElement>
+      <elementName>Out</elementName>
+      <elementAttributes>
+        <entry><string>Label</string><string>DTACK_n</string></entry>
+      </elementAttributes>
+      <pos x="720" y="240"/>
+    </visualElement>
+
+    <!-- DTACK = NOT is_read -->
+    <visualElement>
+      <elementName>Not</elementName>
+      <elementAttributes/>
+      <pos x="660" y="240"/>
+    </visualElement>
+
+    <!-- ═══════════ LABELS ═══════════ -->
+    <visualElement>
+      <elementName>Text</elementName>
+      <elementAttributes>
+        <entry><string>Description</string>
+          <string>NeoCart PROG — CPLD + NOR Flash Cart Simulation
+Address decode → bankswitch register → ROM lookup → data output
+
+This is the circuit that would be synthesized into the EPM240 CPLD.
+The ROM block represents the NOR flash chip (S29GL064).</string>
+        </entry>
+      </elementAttributes>
+      <pos x="100" y="-60"/>
+    </visualElement>
+
+  </visualElements>
+  <wires>
+    <!-- ADDR to splitter -->
+    <wire><p1 x="100" y="100"/><p2 x="180" y="100"/></wire>
+    <!-- ADDR to bankswitch splitter -->
+    <wire><p1 x="100" y="100"/><p2 x="140" y="100"/></wire>
+    <wire><p1 x="140" y="100"/><p2 x="140" y="460"/></wire>
+    <wire><p1 x="140" y="460"/><p2 x="180" y="460"/></wire>
+
+    <!-- Active-low inversions -->
+    <wire><p1 x="100" y="220"/><p2 x="180" y="220"/></wire>
+    <wire><p1 x="100" y="260"/><p2 x="180" y="260"/></wire>
+    <wire><p1 x="100" y="300"/><p2 x="180" y="300"/></wire>
+
+    <!-- is_read AND gate inputs -->
+    <wire><p1 x="220" y="220"/><p2 x="280" y="220"/></wire>
+    <wire><p1 x="220" y="260"/><p2 x="260" y="240"/></wire>
+    <wire><p1 x="260" y="240"/><p2 x="280" y="240"/></wire>
+    <wire><p1 x="220" y="300"/><p2 x="260" y="260"/></wire>
+    <wire><p1 x="260" y="260"/><p2 x="280" y="260"/></wire>
+
+    <!-- is_write AND gate: AS(inverted) AND NOT RW_n -->
+    <wire><p1 x="220" y="220"/><p2 x="240" y="340"/></wire>
+    <wire><p1 x="240" y="340"/><p2 x="280" y="340"/></wire>
+    <wire><p1 x="100" y="300"/><p2 x="160" y="300"/></wire>
+    <wire><p1 x="160" y="300"/><p2 x="160" y="360"/></wire>
+    <wire><p1 x="160" y="360"/><p2 x="280" y="360"/></wire>
+
+    <!-- Address upper bits to comparators -->
+    <wire><p1 x="200" y="120"/><p2 x="340" y="80"/></wire>
+    <wire><p1 x="300" y="100"/><p2 x="340" y="100"/></wire>
+    <wire><p1 x="200" y="120"/><p2 x="320" y="140"/></wire>
+    <wire><p1 x="320" y="140"/><p2 x="340" y="140"/></wire>
+    <wire><p1 x="300" y="160"/><p2 x="340" y="160"/></wire>
+
+    <!-- Bankswitch address compare -->
+    <wire><p1 x="200" y="480"/><p2 x="340" y="460"/></wire>
+    <wire><p1 x="300" y="480"/><p2 x="340" y="480"/></wire>
+
+    <!-- bankswitch_wr AND gate -->
+    <wire><p1 x="340" y="360"/><p2 x="420" y="440"/></wire>
+    <wire><p1 x="420" y="440"/><p2 x="460" y="440"/></wire>
+    <wire><p1 x="400" y="470"/><p2 x="460" y="460"/></wire>
+
+    <!-- Bank register -->
+    <wire><p1 x="100" y="160"/><p2 x="140" y="160"/></wire>
+    <wire><p1 x="140" y="160"/><p2 x="140" y="420"/></wire>
+    <wire><p1 x="140" y="420"/><p2 x="560" y="420"/></wire>
+    <wire><p1 x="520" y="460"/><p2 x="560" y="460"/></wire>
+    <wire><p1 x="100" y="360"/><p2 x="560" y="440"/></wire>
+
+    <!-- ROM address from mux -->
+    <wire><p1 x="200" y="100"/><p2 x="300" y="20"/></wire>
+    <wire><p1 x="320" y="20"/><p2 x="440" y="80"/></wire>
+    <wire><p1 x="440" y="80"/><p2 x="460" y="80"/></wire>
+    <wire><p1 x="500" y="100"/><p2 x="560" y="100"/></wire>
+
+    <!-- ROM chip select from is_read -->
+    <wire><p1 x="340" y="240"/><p2 x="540" y="120"/></wire>
+    <wire><p1 x="540" y="120"/><p2 x="560" y="120"/></wire>
+
+    <!-- ROM data out -->
+    <wire><p1 x="620" y="100"/><p2 x="720" y="100"/></wire>
+
+    <!-- DTACK -->
+    <wire><p1 x="340" y="240"/><p2 x="660" y="240"/></wire>
+    <wire><p1 x="700" y="240"/><p2 x="720" y="240"/></wire>
+  </wires>
+  <measurementOrdering>
+    <string>ADDR</string>
+    <string>DATA_IN</string>
+    <string>AS_n</string>
+    <string>ROMOE_n</string>
+    <string>RW_n</string>
+    <string>DATA_OUT</string>
+    <string>DTACK_n</string>
+  </measurementOrdering>
+</circuit>
