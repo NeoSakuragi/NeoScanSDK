@@ -7,7 +7,7 @@ def main():
     p2 = open('/home/bruno/NeoGeo/roms/rbff2/240-p2.sp2', 'rb').read()
     rom = array.array('H')
     rom.frombytes(p1 + p2)
-    rom.byteswap()
+    # ROM files are little-endian words, keep as-is — send as big-endian over TCP
     print(f"ROM loaded: {len(rom)} words")
     print(f"  word[0] = 0x{rom[0]:04X}")
     print(f"  word[1] = 0x{rom[1]:04X}")
@@ -18,39 +18,55 @@ def main():
     srv.listen(1)
     print(f"Serving on port 41114")
 
-    conn, addr = srv.accept()
-    print(f"MAME connected from {addr}")
+    while True:
+        print("Waiting for MAME...")
+        conn, addr = srv.accept()
+        print(f"MAME connected from {addr}")
+        try:
+            serve_client(conn, rom)
+        except Exception as e:
+            print(f"Client error: {e}")
+        conn.close()
+        print("Client disconnected")
+
+def serve_client(conn, rom):
 
     count = 0
-    bank = 0
     while True:
-        header = conn.recv(4)
-        if len(header) < 4:
+        # Client sends 6 bytes: [cmd_hi, cmd_lo, addr_b3, addr_b2, addr_b1, addr_b0]
+        pkt = b''
+        while len(pkt) < 6:
+            chunk = conn.recv(6 - len(pkt))
+            if not chunk:
+                break
+            pkt += chunk
+        if len(pkt) < 6:
             break
-        cmd, byte_addr = struct.unpack('>HH', header)
-        # Extended address for > 16 bits
-        if cmd == 0x0001:  # READ
-            ext = conn.recv(2)
-            full_addr = (byte_addr << 16) | struct.unpack('>H', ext)[0]
-            word_addr = full_addr // 2
+
+        cmd = (pkt[0] << 8) | pkt[1]
+        byte_addr = (pkt[2] << 24) | (pkt[3] << 16) | (pkt[4] << 8) | pkt[5]
+
+        if cmd == 1:  # READ
+            word_addr = byte_addr // 2
             word = rom[word_addr] if word_addr < len(rom) else 0xFFFF
             conn.sendall(struct.pack('>H', word))
             count += 1
             if count % 1000000 == 0:
                 print(f"  {count//1000000}M reads")
-        elif cmd == 0x0002:  # WRITE (bankswitch)
-            ext = conn.recv(4)
-            full_addr = (byte_addr << 16) | struct.unpack('>H', ext[:2])[0]
-            data = struct.unpack('>H', ext[2:4])[0]
-            bank = data & 7
-            print(f"  BANKSWITCH to {bank}")
+        elif cmd == 2:  # WRITE (bankswitch)
+            # Client sends 8 bytes total for write: 6 + 2 data
+            data_pkt = b''
+            while len(data_pkt) < 2:
+                chunk = conn.recv(2 - len(data_pkt))
+                if not chunk: break
+                data_pkt += chunk
+            data = struct.unpack('>H', data_pkt)[0]
+            print(f"  BANK={data & 7}")
             conn.sendall(struct.pack('>H', 0))
-        elif cmd == 0xFFFF:  # QUIT
+        else:
             break
 
-    conn.close()
-    srv.close()
-    print(f"Done — {count} total reads")
+    print(f"  Session: {count} reads")
 
 if __name__ == '__main__':
     main()
