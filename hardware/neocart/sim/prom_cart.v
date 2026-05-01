@@ -58,12 +58,14 @@ module prom_cart #(
     wire [31:0] p2_word_addr = {13'b0, addr[19:1]} + {10'b0, bank + 3'd1, 19'd0};
     // bank+1 because bank 0 = second 1MB block (offset 0x80000 words)
 
-    // Data output
+    // Data output — with CPLD modification
     always @(*) begin
         data_out = 16'hFFFF;
         if (is_read) begin
-            if (in_p1 && p1_word_addr < ROM_WORDS)
+            if (in_p1 && p1_word_addr < ROM_WORDS) begin
                 data_out = rom[p1_word_addr];
+                // Clean model — no modifications (use MAME write_tap for input swap)
+            end
             else if (in_p2 && p2_word_addr < ROM_WORDS)
                 data_out = rom[p2_word_addr];
         end
