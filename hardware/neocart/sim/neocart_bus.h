@@ -14,6 +14,10 @@
 #define NEOCART_SHM_PATH "/dev/shm/neocart_bus"
 #define NEOCART_SHM_SIZE 32
 
+/* Debug control: byte 30 = pause flag, byte 31 = step trigger */
+#define DBG_PAUSE       30  /* GUI writes: 1=paused, 0=running */
+#define DBG_STEP        31  /* GUI writes: 1=do one cycle, server clears to 0 */
+
 /* ═══════════════════════════════════════════════════════════════════
    PROG bus (CTRG2) — bytes 0-11
    68K ↔ P-ROM  +  YM2610 ↔ V-ROM

@@ -27,6 +27,11 @@ static uint8_t *v1rom; static uint32_t v1rom_size;
 static volatile uint8_t *shm;
 static uint64_t pc=0, vc=0, cc=0, sc=0, mc=0;
 
+static inline void dbg_wait(void) {
+    while (shm[DBG_PAUSE] && !shm[DBG_STEP] && running) ;
+    if (shm[DBG_STEP]) shm[DBG_STEP] = 0;
+}
+
 void *prog_thread(void *arg) {
     (void)arg;
     while (running) {
@@ -43,6 +48,7 @@ void *prog_thread(void *arg) {
             while (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_ROMOE_n) && running) ;
             __atomic_or_fetch(&shm[PROG_ACK], PROG_DTACK_n, __ATOMIC_SEQ_CST);
             pc++;
+            dbg_wait();
         }
 
         if (!(ctrl & PROG_VROM_OE_n)) {
@@ -54,6 +60,7 @@ void *prog_thread(void *arg) {
             while (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_VROM_OE_n) && running) ;
             __atomic_or_fetch(&shm[PROG_ACK], PROG_VDTACK_n, __ATOMIC_SEQ_CST);
             vc++;
+            dbg_wait();
         }
     }
     return NULL;
@@ -72,6 +79,7 @@ void *cha_thread(void *arg) {
             while (!(__atomic_load_n(&shm[CHA_CTRL], __ATOMIC_SEQ_CST) & CHA_PCK1B) && running) ;
             __atomic_or_fetch(&shm[CHA_ACK], CHA_CROM_DTACK_n, __ATOMIC_SEQ_CST);
             cc++;
+            dbg_wait();
         }
 
         if (!(ctrl & CHA_SROM_OE_n)) {
@@ -82,6 +90,7 @@ void *cha_thread(void *arg) {
             while (!(__atomic_load_n(&shm[CHA_CTRL], __ATOMIC_SEQ_CST) & CHA_SROM_OE_n) && running) ;
             __atomic_or_fetch(&shm[CHA_ACK], CHA_SROM_DTACK_n, __ATOMIC_SEQ_CST);
             sc++;
+            dbg_wait();
         }
 
         if (!(ctrl & CHA_MROM_OE_n)) {
@@ -92,6 +101,7 @@ void *cha_thread(void *arg) {
             while (!(__atomic_load_n(&shm[CHA_CTRL], __ATOMIC_SEQ_CST) & CHA_MROM_OE_n) && running) ;
             __atomic_or_fetch(&shm[CHA_ACK], CHA_MROM_DTACK_n, __ATOMIC_SEQ_CST);
             mc++;
+            dbg_wait();
         }
     }
     return NULL;
