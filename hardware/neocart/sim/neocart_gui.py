@@ -118,23 +118,37 @@ class NeoCartGUI:
                                  fg=COL_TEXT, font=('monospace', 10))
         self.lbl_game.pack(side=tk.RIGHT, padx=10)
 
-        # Main area — two connector panels
-        main = tk.Frame(self.root, bg=COL_BG)
-        main.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
+        # Notebook with two tabs: Pins and PCB
+        from tkinter import ttk
+        style = ttk.Style()
+        style.configure('Dark.TNotebook', background=COL_BG)
+        style.configure('Dark.TNotebook.Tab', background='#222', foreground='#aaa',
+                         padding=[10,4])
+        style.map('Dark.TNotebook.Tab', background=[('selected','#333')])
 
-        # PROG connector
-        self.prog_frame = tk.LabelFrame(main, text=" PROG (CTRG2) — P-ROM + V-ROM ",
+        notebook = ttk.Notebook(self.root, style='Dark.TNotebook')
+        notebook.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
+
+        # Tab 1: Pin array view
+        pin_tab = tk.Frame(notebook, bg=COL_BG)
+        notebook.add(pin_tab, text='  Pins  ')
+
+        self.prog_frame = tk.LabelFrame(pin_tab, text=" PROG (CTRG2) — P-ROM + V-ROM ",
                                          bg=COL_PCB, fg='#5a5', font=('monospace', 10, 'bold'),
                                          padx=6, pady=4)
         self.prog_frame.pack(fill=tk.X, pady=2)
         self.prog_pin_widgets = self._build_pin_row(self.prog_frame, PROG_PINS)
 
-        # CHA connector
-        self.cha_frame = tk.LabelFrame(main, text=" CHA (CTRG1) — C-ROM + S-ROM + M-ROM ",
+        self.cha_frame = tk.LabelFrame(pin_tab, text=" CHA (CTRG1) — C-ROM + S-ROM + M-ROM ",
                                         bg=COL_PCB, fg='#5a5', font=('monospace', 10, 'bold'),
                                         padx=6, pady=4)
         self.cha_frame.pack(fill=tk.X, pady=2)
         self.cha_pin_widgets = self._build_pin_row(self.cha_frame, CHA_PINS)
+
+        # Tab 2: PCB view
+        self.pcb_tab = tk.Frame(notebook, bg=COL_BG)
+        notebook.add(self.pcb_tab, text='  PCB  ')
+        self._build_pcb_view(self.pcb_tab)
 
         # Bus state readout — one line per ROM type
         bus_frame = tk.Frame(self.root, bg='#111', pady=6)
@@ -152,6 +166,225 @@ class NeoCartGUI:
                                     fg=COL_TEXT, font=('monospace', 9), anchor='w')
         self.lbl_status.pack(fill=tk.X, padx=6)
 
+
+    def _build_pcb_view(self, parent):
+        self.pcb_canvases = []
+        self.pcb_ic_items = []
+
+        grid = tk.Frame(parent, bg=COL_BG)
+        grid.pack(fill=tk.BOTH, expand=True)
+        grid.grid_columnconfigure(0, weight=1)
+        grid.grid_columnconfigure(1, weight=1)
+        grid.grid_rowconfigure(0, weight=1)
+        grid.grid_rowconfigure(1, weight=1)
+
+        # Determine ROM IC layout from .neo header
+        p_chips, v_chips, c_chips, s_chips, m_chips = [], [], [], [], []
+        if self.neo_path:
+            import struct
+            with open(self.neo_path, 'rb') as f:
+                hdr = f.read(256)
+                ps = struct.unpack_from('<I', hdr, 4)[0]
+                ss = struct.unpack_from('<I', hdr, 8)[0]
+                ms = struct.unpack_from('<I', hdr, 12)[0]
+                vs = struct.unpack_from('<I', hdr, 16)[0]
+                cs = struct.unpack_from('<I', hdr, 24)[0]
+            if ps > 0x100000:
+                p_chips = [("P1","1MB",COL_P,0,0x100000), ("P2",f"{(ps-0x100000)//1024//1024}MB",COL_P,0x100000,ps)]
+            else:
+                p_chips = [("P1",f"{ps//1024}KB",COL_P,0,ps)]
+            if vs > 0:
+                vn = max(1, (vs + 0x3FFFFF) // 0x400000)
+                for i in range(vn):
+                    base = i * 0x400000
+                    sz = min(0x400000, vs - base)
+                    v_chips.append((f"V{i+1}",f"{sz//1024//1024}MB",COL_V,base,base+sz))
+            cn = 0
+            if cs > 0:
+                pair_size = 0
+                if cs <= 0x400000: pair_size = cs // 2
+                elif cs <= 0x1000000: pair_size = 0x400000
+                else: pair_size = 0x800000
+                cn = max(2, (cs + pair_size - 1) // pair_size)
+                if cn % 2: cn += 1
+                for i in range(cn):
+                    base = i * pair_size
+                    c_chips.append((f"C{i+1}",f"{pair_size//1024//1024}MB",COL_C,base,base+pair_size))
+            if ss > 0:
+                s_chips = [("S1",f"{ss//1024}KB",COL_S,0,ss)]
+            if ms > 0:
+                m_chips = [("M1",f"{ms//1024}KB",COL_M,0,ms)]
+
+        # Board proportions: 174mm x 134mm ≈ 1.3:1
+        bw, bh = 480, 370
+        finger_h = 24
+        pcb_y1 = 8
+        pcb_y2 = bh - finger_h - 8
+
+        # Pin definitions per board side
+        def make_60(entries):
+            pins = []
+            for i in range(60):
+                found = False
+                for num, name, color in entries:
+                    if num == i+1:
+                        pins.append((name, color))
+                        found = True
+                        break
+                if not found:
+                    pins.append(("NC", None))
+            return pins
+
+        prog_a_entries = [(i,"VCC","VCC") for i in range(1,5)] + \
+            [(5+i,f"D{i}",COL_P) for i in range(16)] + \
+            [(21,"nRW",COL_P),(22,"GND","GND"),(23,"ROMOEU",COL_P),(24,"ROMOEL",COL_P),
+             (25,"GND","GND"),(33,"ROMOE",COL_P),(59,"+5V","VCC"),(60,"+5V","VCC")]
+
+        prog_b_entries = [(i,"VCC","VCC") for i in range(1,5)] + \
+            [(5+i,f"A{i+1}",COL_P) for i in range(19)] + \
+            [(58,"GND","GND"),(59,"+5V","VCC"),(60,"+5V","VCC")]
+
+        cha_a_entries = [(i,"VCC","VCC") for i in range(1,5)] + \
+            [(5+i,f"P{i}",COL_C) for i in range(24)] + \
+            [(29+i,f"CR{i}",COL_C) for i in range(8)] + \
+            [(37,"PCK1B",COL_C),(38,"PCK2B",COL_C),(58,"GND","GND"),(59,"+5V","VCC"),(60,"+5V","VCC")]
+
+        cha_b_entries = [(i,"VCC","VCC") for i in range(1,5)] + \
+            [(5+i,f"SDA{i}",COL_S) for i in range(16)] + \
+            [(21+i,f"SDD{i}",COL_S) for i in range(8)] + \
+            [(29,"SDMRD",COL_S),(30,"PCK1B",COL_C),(31,"PCK2B",COL_C),(32,"GND","GND")] + \
+            [(40+i,f"MA{i}",COL_M) for i in range(8)] + \
+            [(48+i,f"MD{i}",COL_M) for i in range(8)] + \
+            [(56,"MROMOE",COL_M),(58,"GND","GND"),(59,"+5V","VCC"),(60,"+5V","VCC")]
+
+        boards = [
+            ("PROG Front", make_60(prog_a_entries), p_chips + v_chips, 0, 0),
+            ("PROG Back",  make_60(prog_b_entries), p_chips + v_chips, 0, 1),
+            ("CHA Front",  make_60(cha_a_entries),  c_chips[:len(c_chips)//2], 1, 0),
+            ("CHA Back",   make_60(cha_b_entries),  c_chips[len(c_chips)//2:] + s_chips + m_chips, 1, 1),
+        ]
+
+        for title, pins, ics, r, c in boards:
+            f = tk.LabelFrame(grid, text=f" {title} ", bg='#0a0a0a', fg='#5a5',
+                              font=('monospace', 9, 'bold'))
+            f.grid(row=r, column=c, padx=3, pady=3, sticky='nsew')
+
+            cv = tk.Canvas(f, width=bw, height=bh, bg='#0a0a0a', highlightthickness=0)
+            cv.pack(padx=2, pady=2)
+
+            # PCB body with rounded corners
+            cv.create_rectangle(8, pcb_y1, bw-8, pcb_y2, fill='#1a4a1a', outline='#2a6a2a', width=2)
+
+            # Mounting holes
+            for hx, hy in [(30, 30), (bw-30, 30), (30, pcb_y2-22), (bw-30, pcb_y2-22)]:
+                cv.create_oval(hx-6, hy-6, hx+6, hy+6, fill='#0a0a0a', outline='#2a6a2a')
+
+            # Board title
+            cv.create_text(bw//2, pcb_y1+16, text=title, fill='#2a5a2a', font=('monospace', 9, 'bold'))
+
+            # IC packages
+            ic_items = []
+            if ics:
+                cols = min(4, len(ics))
+                rows_ic = (len(ics) + cols - 1) // cols
+                ic_w = min(90, (bw - 80) // cols)
+                ic_h = min(50, (pcb_y2 - 80) // rows_ic - 10)
+                for idx, (ic_name, ic_size, ic_color, ic_base, ic_end) in enumerate(ics):
+                    row_ic = idx // cols
+                    col_ic = idx % cols
+                    x0 = 50 + col_ic * (ic_w + 12)
+                    y0 = 50 + row_ic * (ic_h + 14)
+                    body = cv.create_rectangle(x0, y0, x0+ic_w, y0+ic_h,
+                                               fill='#111', outline='#333', width=1)
+                    # Pin notch
+                    cv.create_oval(x0+4, y0+ic_h//2-3, x0+10, y0+ic_h//2+3,
+                                   fill='#1a1a1a', outline='#333')
+                    # IC pins (tiny ticks on sides)
+                    pin_count = min(16, ic_h // 4)
+                    for p in range(pin_count):
+                        py = y0 + 4 + p * (ic_h - 8) // max(1, pin_count-1)
+                        cv.create_line(x0-4, py, x0, py, fill='#666')
+                        cv.create_line(x0+ic_w, py, x0+ic_w+4, py, fill='#666')
+                    # Label
+                    cv.create_text(x0+ic_w//2, y0+ic_h//2-6, text=ic_name,
+                                   fill=ic_color, font=('monospace', 9, 'bold'))
+                    cv.create_text(x0+ic_w//2, y0+ic_h//2+8, text=ic_size,
+                                   fill='#555', font=('monospace', 7))
+                    ic_items.append((body, ic_name, ic_color, ic_base, ic_end))
+
+            # Notch at edge connector
+            cv.create_arc(bw//2-10, pcb_y2-6, bw//2+10, pcb_y2+6, start=0, extent=180,
+                          fill='#0a0a0a', outline='#2a6a2a')
+
+            # Gold fingers
+            pin_items = []
+            pw = 6
+            gap = 1
+            total_w = 60 * (pw + gap)
+            x_start = (bw - total_w) // 2
+            for i, (name, color) in enumerate(pins):
+                x = x_start + i * (pw + gap)
+                y = pcb_y2
+                if color == "VCC":
+                    fill = '#661111'
+                elif color == "GND":
+                    fill = '#111111'
+                elif color is None:
+                    fill = '#aa8800'
+                else:
+                    fill = '#554400'
+                rect = cv.create_rectangle(x, y, x+pw, y+finger_h, fill=fill, outline='')
+                # Pin label
+                lbl_color = '#dd2222' if color == "VCC" else '#333' if color == "GND" else '#555'
+                cv.create_text(x+pw//2, y-5, text=name, fill=lbl_color,
+                               font=('monospace', 4), angle=90)
+                pin_items.append((rect, name, color))
+
+            self.pcb_canvases.append((cv, pin_items))
+            self.pcb_ic_items.append((cv, ic_items))
+
+    def _update_pcb_pins(self):
+        if not self.raw:
+            return
+        sig_state = {}
+        for pins in [PROG_PINS, CHA_PINS]:
+            for name, byte_off, bit, is_out, col_hi in pins:
+                if byte_off < SHM_SIZE:
+                    sig_state[name] = (self.raw[byte_off] >> bit) & 1
+
+        for cv, pin_items in self.pcb_canvases:
+            for rect, name, color in pin_items:
+                if color in (None, "VCC", "GND"):
+                    continue
+                active = sig_state.get(name, 0)
+                cv.itemconfig(rect, fill=color if active else '#332200')
+
+        # Light up active ICs
+        romoe = not (self.raw[3] & 0x01) if self.raw else False
+        vromoe = not (self.raw[3] & 0x08) if self.raw else False
+        pck1b = not (self.raw[15] & 0x01) if self.raw else False
+        sromoe = not (self.raw[15] & 0x04) if self.raw else False
+        mromoe = not (self.raw[15] & 0x08) if self.raw else False
+
+        paddr = (self.raw[0] | (self.raw[1]<<8) | ((self.raw[2]&0x07)<<16)) if self.raw else 0
+        caddr = (self.raw[12] | (self.raw[13]<<8) | (self.raw[14]<<16) | (self.raw[28]<<24)) if self.raw else 0
+        saddr = (self.raw[20] | (self.raw[21]<<8) | (self.raw[22]<<16)) if self.raw else 0
+
+        for cv, ic_items in self.pcb_ic_items:
+            for body, ic_name, ic_color, ic_base, ic_end in ic_items:
+                active = False
+                if ic_name.startswith('P') and romoe:
+                    active = ic_base <= paddr < ic_end
+                elif ic_name.startswith('V') and vromoe:
+                    active = True
+                elif ic_name.startswith('C') and pck1b:
+                    active = ic_base <= caddr < ic_end
+                elif ic_name.startswith('S') and sromoe:
+                    active = True
+                elif ic_name.startswith('M') and mromoe:
+                    active = True
+                cv.itemconfig(body, fill=ic_color if active else '#111',
+                              outline=ic_color if active else '#333')
 
     def _build_pin_row(self, parent, pins):
         widgets = []
@@ -203,6 +436,7 @@ class NeoCartGUI:
         if self.shm and self.raw:
             self._update_pins(self.prog_pin_widgets)
             self._update_pins(self.cha_pin_widgets)
+            self._update_pcb_pins()
 
             # P-ROM
             paddr = self.raw[0] | (self.raw[1]<<8) | ((self.raw[2]&0x07)<<16)
@@ -290,6 +524,12 @@ class NeoCartGUI:
             name = os.path.basename(path).replace('.neo', '')
             self.lbl_game.config(text=name)
             self.btn_start.config(state=tk.NORMAL)
+            # Rebuild PCB view with new ROM layout
+            for w in self.pcb_tab.winfo_children():
+                w.destroy()
+            self.pcb_canvases = []
+            self.pcb_ic_items = []
+            self._build_pcb_view(self.pcb_tab)
 
     def _start_server(self):
         if not self.neo_path:
