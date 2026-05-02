@@ -72,8 +72,9 @@ uint8_t cart_read_crom_byte(uint32_t byte_addr) {
 
 /* ═══ S-ROM read: SROM_OE + SROM_DTACK on CHA bus ═══ */
 uint8_t cart_read_srom_byte(uint32_t byte_addr) {
-    shm[CHA_SADDR_LO] = byte_addr & 0xFF;
-    shm[CHA_SADDR_HI] = (byte_addr >> 8) & 0xFF;
+    shm[CHA_SADDR_LO]  = byte_addr & 0xFF;
+    shm[CHA_SADDR_HI]  = (byte_addr >> 8) & 0xFF;
+    shm[CHA_SADDR_EXT] = (byte_addr >> 16) & 0xFF;
     __sync_synchronize();
 
     __atomic_and_fetch(&shm[CHA_CTRL], ~CHA_SROM_OE_n, __ATOMIC_SEQ_CST);

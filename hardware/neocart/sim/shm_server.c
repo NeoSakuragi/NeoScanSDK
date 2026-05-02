@@ -75,7 +75,7 @@ void *cha_thread(void *arg) {
         }
 
         if (!(ctrl & CHA_SROM_OE_n)) {
-            uint16_t a = shm[CHA_SADDR_LO] | (shm[CHA_SADDR_HI]<<8);
+            uint32_t a = shm[CHA_SADDR_LO] | (shm[CHA_SADDR_HI]<<8) | (shm[CHA_SADDR_EXT]<<16);
             shm[CHA_SDATA] = (srom && a < srom_size) ? srom[a] : 0;
             __sync_synchronize();
             __atomic_and_fetch(&shm[CHA_ACK], ~CHA_SROM_DTACK_n, __ATOMIC_SEQ_CST);

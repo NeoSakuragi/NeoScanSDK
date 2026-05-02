@@ -83,12 +83,13 @@
 #define CHA_CDATA_2     18  /* CR16-CR23 */
 #define CHA_CDATA_3     19  /* CR24-CR31 */
 
-/* S-ROM address: SDA0-SDA15 (16 bits) — bytes 20-21 */
+/* S-ROM address: SDA0-SDA23 (24 bits) — bytes 20-22 */
 #define CHA_SADDR_LO    20
 #define CHA_SADDR_HI    21
+#define CHA_SADDR_EXT   22  /* address bits [23:16] */
 
-/* S-ROM data: SDD0-SDD7 (8 bits) — byte 22 */
-#define CHA_SDATA       22
+/* S-ROM data: SDD0-SDD7 (8 bits) — byte 29 */
+#define CHA_SDATA       29
 
 /* M-ROM address: 17 bits — bytes 23-25 */
 #define CHA_MADDR_LO    23
@@ -181,13 +182,14 @@ static inline uint32_t bus_get_cdata(volatile uint8_t *shm) {
          | (shm[CHA_CDATA_3] << 24);
 }
 
-static inline void bus_set_saddr(volatile uint8_t *shm, uint16_t addr) {
-    shm[CHA_SADDR_LO] = addr & 0xFF;
-    shm[CHA_SADDR_HI] = (addr >> 8) & 0xFF;
+static inline void bus_set_saddr(volatile uint8_t *shm, uint32_t addr) {
+    shm[CHA_SADDR_LO]  = addr & 0xFF;
+    shm[CHA_SADDR_HI]  = (addr >> 8) & 0xFF;
+    shm[CHA_SADDR_EXT] = (addr >> 16) & 0xFF;
 }
 
-static inline uint16_t bus_get_saddr(volatile uint8_t *shm) {
-    return shm[CHA_SADDR_LO] | (shm[CHA_SADDR_HI] << 8);
+static inline uint32_t bus_get_saddr(volatile uint8_t *shm) {
+    return shm[CHA_SADDR_LO] | (shm[CHA_SADDR_HI] << 8) | (shm[CHA_SADDR_EXT] << 16);
 }
 
 static inline void bus_set_maddr(volatile uint8_t *shm, uint32_t addr) {
