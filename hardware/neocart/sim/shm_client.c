@@ -1,60 +1,140 @@
-/* Shared memory ROM client — single-flag protocol.
-   Layout (16 bytes):
-   [0..3]  address   (client writes)
-   [4..5]  data      (server writes)
-   [6]     unused
-   [7]     seq       (0=idle, odd=request pending, even=response ready)
-   Client writes address, then sets seq to odd. Server reads address,
-   looks up data, writes data, then sets seq to seq+1 (even).
-   Client spins until seq is even, reads data.
+/* NeoCart SHM client — pin-accurate MVS bus operations.
+   Every signal uses atomic bit ops (&= / |=) with SEQ_CST ordering.
+   CTRL byte driven by MVS (client), ACK byte driven by cart (server).
+
+   PROG bus: byte 3 = CTRL, byte 10 = ACK
+   CHA bus:  byte 15 = CTRL, byte 27 = ACK
 */
 #include <stdio.h>
 #include <stdint.h>
-#include <string.h>
 #include <sys/mman.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#define SHM_PATH "/dev/shm/neocart_rom"
-#define SHM_SIZE 16
+#include "neocart_bus.h"
 
 static volatile uint8_t *shm;
-static uint8_t seq = 0;
 
-int cart_init(const char *unused) {
-    (void)unused;
-    int fd = open(SHM_PATH, O_RDWR);
+int cart_init(const char *u) {
+    (void)u;
+    int fd = open(NEOCART_SHM_PATH, O_RDWR);
     if (fd < 0) { perror("SHM_CLIENT: open"); return -1; }
-    shm = (volatile uint8_t *)mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    shm = mmap(NULL, NEOCART_SHM_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     close(fd);
     if (shm == MAP_FAILED) { perror("SHM_CLIENT: mmap"); return -1; }
-    shm[7] = 0;
-    seq = 0;
-    __sync_synchronize();
-    printf("SHM_CLIENT: connected to shared memory\n");
+    printf("SHM_CLIENT: connected (pin-accurate, %d bytes)\n", NEOCART_SHM_SIZE);
     return 0;
 }
 
+/* ═══ P-ROM read: ROMOE + DTACK on PROG bus ═══ */
 uint16_t cart_read(uint32_t byte_addr) {
-    *(volatile uint32_t *)&shm[0] = byte_addr;
-    seq++;  /* odd = request */
+    shm[PROG_ADDR_LO]  = byte_addr & 0xFF;
+    shm[PROG_ADDR_MID] = (byte_addr >> 8) & 0xFF;
+    shm[PROG_ADDR_HI]  = (byte_addr >> 16) & 0xFF;
     __sync_synchronize();
-    shm[7] = seq;
 
-    while (__atomic_load_n(&shm[7], __ATOMIC_ACQUIRE) != (uint8_t)(seq + 1))
+    __atomic_and_fetch(&shm[PROG_CTRL], ~PROG_ROMOE_n, __ATOMIC_SEQ_CST);
+
+    while (__atomic_load_n(&shm[PROG_ACK], __ATOMIC_SEQ_CST) & PROG_DTACK_n)
         ;
 
-    seq++;  /* now even = matches server */
-    return *(volatile uint16_t *)&shm[4];
+    uint16_t data = shm[PROG_DATA_LO] | (shm[PROG_DATA_HI] << 8);
+
+    __atomic_or_fetch(&shm[PROG_CTRL], PROG_ROMOE_n, __ATOMIC_SEQ_CST);
+
+    while (!(__atomic_load_n(&shm[PROG_ACK], __ATOMIC_SEQ_CST) & PROG_DTACK_n))
+        ;
+
+    return data;
 }
 
+/* ═══ C-ROM byte read: PCK1B + CROM_DTACK on CHA bus ═══ */
 uint8_t cart_read_crom_byte(uint32_t byte_addr) {
-    return (uint8_t)cart_read(byte_addr | 0x80000000);
+    shm[CHA_CADDR_LO]  = byte_addr & 0xFF;
+    shm[CHA_CADDR_MID] = (byte_addr >> 8) & 0xFF;
+    shm[CHA_CADDR_HI]  = (byte_addr >> 16) & 0xFF;
+    shm[CHA_CADDR_EXT] = (byte_addr >> 24) & 0xFF;
+    __sync_synchronize();
+
+    __atomic_and_fetch(&shm[CHA_CTRL], ~CHA_PCK1B, __ATOMIC_SEQ_CST);
+
+    while (__atomic_load_n(&shm[CHA_ACK], __ATOMIC_SEQ_CST) & CHA_CROM_DTACK_n)
+        ;
+
+    uint8_t data = shm[CHA_CDATA_0];
+
+    __atomic_or_fetch(&shm[CHA_CTRL], CHA_PCK1B, __ATOMIC_SEQ_CST);
+
+    while (!(__atomic_load_n(&shm[CHA_ACK], __ATOMIC_SEQ_CST) & CHA_CROM_DTACK_n))
+        ;
+
+    return data;
 }
 
-void cart_write(uint32_t byte_addr, uint16_t data) {
-    (void)byte_addr; (void)data;
+/* ═══ S-ROM read: SROM_OE + SROM_DTACK on CHA bus ═══ */
+uint8_t cart_read_srom_byte(uint32_t byte_addr) {
+    shm[CHA_SADDR_LO] = byte_addr & 0xFF;
+    shm[CHA_SADDR_HI] = (byte_addr >> 8) & 0xFF;
+    __sync_synchronize();
+
+    __atomic_and_fetch(&shm[CHA_CTRL], ~CHA_SROM_OE_n, __ATOMIC_SEQ_CST);
+
+    while (__atomic_load_n(&shm[CHA_ACK], __ATOMIC_SEQ_CST) & CHA_SROM_DTACK_n)
+        ;
+
+    uint8_t data = shm[CHA_SDATA];
+
+    __atomic_or_fetch(&shm[CHA_CTRL], CHA_SROM_OE_n, __ATOMIC_SEQ_CST);
+
+    while (!(__atomic_load_n(&shm[CHA_ACK], __ATOMIC_SEQ_CST) & CHA_SROM_DTACK_n))
+        ;
+
+    return data;
 }
+
+/* ═══ M-ROM read: MROM_OE + MROM_DTACK on CHA bus ═══ */
+uint8_t cart_read_mrom_byte(uint32_t byte_addr) {
+    shm[CHA_MADDR_LO]  = byte_addr & 0xFF;
+    shm[CHA_MADDR_MID] = (byte_addr >> 8) & 0xFF;
+    shm[CHA_MADDR_HI]  = (byte_addr >> 16) & 0x01;
+    __sync_synchronize();
+
+    __atomic_and_fetch(&shm[CHA_CTRL], ~CHA_MROM_OE_n, __ATOMIC_SEQ_CST);
+
+    while (__atomic_load_n(&shm[CHA_ACK], __ATOMIC_SEQ_CST) & CHA_MROM_DTACK_n)
+        ;
+
+    uint8_t data = shm[CHA_MDATA];
+
+    __atomic_or_fetch(&shm[CHA_CTRL], CHA_MROM_OE_n, __ATOMIC_SEQ_CST);
+
+    while (!(__atomic_load_n(&shm[CHA_ACK], __ATOMIC_SEQ_CST) & CHA_MROM_DTACK_n))
+        ;
+
+    return data;
+}
+
+/* ═══ V-ROM read: VROM_OE + VROM_DTACK on PROG bus ═══ */
+uint8_t cart_read_vrom_byte(uint32_t byte_addr) {
+    shm[PROG_VADDR_LO]  = byte_addr & 0xFF;
+    shm[PROG_VADDR_MID] = (byte_addr >> 8) & 0xFF;
+    shm[PROG_VADDR_HI]  = (byte_addr >> 16) & 0xFF;
+    __sync_synchronize();
+
+    __atomic_and_fetch(&shm[PROG_CTRL], ~PROG_VROM_OE_n, __ATOMIC_SEQ_CST);
+
+    while (__atomic_load_n(&shm[PROG_ACK], __ATOMIC_SEQ_CST) & PROG_VDTACK_n)
+        ;
+
+    uint8_t data = shm[PROG_VDATA];
+
+    __atomic_or_fetch(&shm[PROG_CTRL], PROG_VROM_OE_n, __ATOMIC_SEQ_CST);
+
+    while (!(__atomic_load_n(&shm[PROG_ACK], __ATOMIC_SEQ_CST) & PROG_VDTACK_n))
+        ;
+
+    return data;
+}
+
+void cart_write(uint32_t a, uint16_t d) { (void)a; (void)d; }
 void cart_reset(void) {}
 void cart_destroy(void) {}

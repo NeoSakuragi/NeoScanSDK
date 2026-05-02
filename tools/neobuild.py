@@ -163,8 +163,8 @@ def main():
         c_interleaved[i * 2] = c1_raw[i]
         c_interleaved[i * 2 + 1] = c2_raw[i] if i < len(c2_raw) else 0
 
-    # P ROM for .neo: native big-endian (undo MAME's byte swap)
-    p_neo = byte_swap_16(p_data)
+    # P ROM for .neo: word-swapped, same as commercial .neo files
+    p_neo = p_data
 
     neo_header = bytearray(4096)
     neo_header[0:4] = b'NEO\x01'                              # magic
