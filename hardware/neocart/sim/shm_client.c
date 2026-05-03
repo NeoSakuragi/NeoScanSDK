@@ -47,6 +47,32 @@ uint16_t cart_read(uint32_t byte_addr) {
     return data;
 }
 
+/* ═══ C-ROM 32-bit read: PCK1B + CROM_DTACK on CHA bus (4 bytes, one clock edge) ═══ */
+uint32_t cart_read_crom32(uint32_t byte_addr) {
+    shm[CHA_CADDR_LO]  = byte_addr & 0xFF;
+    shm[CHA_CADDR_MID] = (byte_addr >> 8) & 0xFF;
+    shm[CHA_CADDR_HI]  = (byte_addr >> 16) & 0xFF;
+    shm[CHA_CADDR_EXT] = (byte_addr >> 24) & 0xFF;
+    __sync_synchronize();
+
+    __atomic_and_fetch(&shm[CHA_CTRL], ~CHA_PCK1B, __ATOMIC_SEQ_CST);
+
+    while (__atomic_load_n(&shm[CHA_ACK], __ATOMIC_SEQ_CST) & CHA_CROM_DTACK_n)
+        ;
+
+    uint32_t data = shm[CHA_CDATA_0]
+                  | (shm[CHA_CDATA_1] << 8)
+                  | (shm[CHA_CDATA_2] << 16)
+                  | (shm[CHA_CDATA_3] << 24);
+
+    __atomic_or_fetch(&shm[CHA_CTRL], CHA_PCK1B, __ATOMIC_SEQ_CST);
+
+    while (!(__atomic_load_n(&shm[CHA_ACK], __ATOMIC_SEQ_CST) & CHA_CROM_DTACK_n))
+        ;
+
+    return data;
+}
+
 /* ═══ C-ROM byte read: PCK1B + CROM_DTACK on CHA bus ═══ */
 uint8_t cart_read_crom_byte(uint32_t byte_addr) {
     shm[CHA_CADDR_LO]  = byte_addr & 0xFF;
