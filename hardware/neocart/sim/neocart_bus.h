@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 #define NEOCART_SHM_PATH "/dev/shm/neocart_bus"
-#define NEOCART_SHM_SIZE 320   /* 5 x 64-byte cache lines */
+#define NEOCART_SHM_SIZE 448   /* 7 x 64-byte cache lines */
 #define NEOCART_LINE     64
 
 
@@ -25,18 +25,12 @@
 #define PROG_CTRL       3
 #define PROG_DATA_LO    4   /* D[7:0]                */
 #define PROG_DATA_HI    5   /* D[15:8]               */
-#define PROG_VADDR_LO   6
-#define PROG_VADDR_MID  7
-#define PROG_VADDR_HI   8
-#define PROG_VDATA      9
-#define PROG_ACK        10
+#define PROG_ACK        6
 
 #define PROG_ROMOE_n    (1 << 0)
 #define PROG_ROMOEU_n   (1 << 1)
 #define PROG_ROMOEL_n   (1 << 2)
-#define PROG_VROM_OE_n  (1 << 3)
 #define PROG_DTACK_n    (1 << 0)
-#define PROG_VDTACK_n   (1 << 1)
 
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -89,12 +83,27 @@
 
 
 /* ═══════════════════════════════════════════════════════════════════
-   Line 4 (offset 256): Debug / control
+   Line 5 (offset 320): V-ROM (YM2610 ADPCM)
    ═══════════════════════════════════════════════════════════════════ */
 
-#define DBG_SKELETON    256
-#define DBG_PAUSE       257
-#define DBG_STEP        258
+#define VROM_ADDR_LO    320
+#define VROM_ADDR_MID   321
+#define VROM_ADDR_HI    322
+#define VROM_CTRL       323
+#define VROM_DATA       324
+#define VROM_ACK        325
+
+#define VROM_OE_n       (1 << 0)
+#define VROM_DTACK_n    (1 << 0)
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   Line 6 (offset 384): Debug / control
+   ═══════════════════════════════════════════════════════════════════ */
+
+#define DBG_SKELETON    384
+#define DBG_PAUSE       385
+#define DBG_STEP        386
 
 
 /* ═══════════════════════════════════════════════════════════════════

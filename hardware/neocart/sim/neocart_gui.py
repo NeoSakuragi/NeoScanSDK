@@ -9,14 +9,15 @@ from tkinter import filedialog
 import mmap, struct, os, subprocess, signal, sys, ctypes
 
 SHM_PATH = "/dev/shm/neocart_bus"
-SHM_SIZE = 320  # 5 x 64-byte cache lines
+SHM_SIZE = 448  # 7 x 64-byte cache lines
 
 # Cache line offsets
 PROG_BASE = 0
 CROM_BASE = 64
 SROM_BASE = 128
 MROM_BASE = 192
-DBG_BASE  = 256
+VROM_BASE = 320
+DBG_BASE  = 384
 SERVER_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shm_server")
 RETROARCH_BIN = "retroarch"
 GEOLITH_CORE = os.path.expanduser("~/.config/retroarch/cores/geolith_libretro.so")
@@ -48,7 +49,7 @@ PROG_PINS = [
     ("D8",5,0,1,COL_P),("D9",5,1,1,COL_P),("D10",5,2,1,COL_P),("D11",5,3,1,COL_P),
     ("D12",5,4,1,COL_P),("D13",5,5,1,COL_P),("D14",5,6,1,COL_P),("D15",5,7,1,COL_P),
     # Acknowledge
-    ("DTACK",10,0,1,COL_P),("VDTACK",10,1,1,COL_V),
+    ("DTACK",6,0,1,COL_P),("VDTACK",325,0,1,COL_V),
 ]
 
 CHA_PINS = [
@@ -377,7 +378,7 @@ class NeoCartGUI:
 
         # Light up active ICs
         romoe = not (self.raw[3] & 0x01) if self.raw else False
-        vromoe = not (self.raw[3] & 0x08) if self.raw else False
+        vromoe = not (self.raw[323] & 0x01) if self.raw else False
         pck1b = not (self.raw[68] & 0x01) if self.raw else False
         sromoe = not (self.raw[131] & 0x01) if self.raw else False
         mromoe = not (self.raw[195] & 0x01) if self.raw else False
@@ -458,17 +459,17 @@ class NeoCartGUI:
             paddr = self.raw[0] | (self.raw[1]<<8) | ((self.raw[2]&0x07)<<16)
             pdata = self.raw[4] | (self.raw[5]<<8)
             romoe = not (self.raw[3] & 0x01)
-            pdtack = not (self.raw[10] & 0x01)
+            pdtack = not (self.raw[6] & 0x01)
             if romoe or pdtack:
                 self.rom_labels["P-ROM"].config(text=f"P-ROM  ADDR 0x{paddr:06X}  DATA 0x{pdata:04X}  /OE {'*' if romoe else '-'}  /DTACK {'*' if pdtack else '-'}")
             else:
                 self.rom_labels["P-ROM"].config(text=f"P-ROM  idle")
 
-            # V-ROM (line 0)
-            vaddr = self.raw[6] | (self.raw[7]<<8) | (self.raw[8]<<16)
-            vdata = self.raw[9]
-            vromoe = not (self.raw[3] & 0x08)
-            vdtack = not (self.raw[10] & 0x02)
+            # V-ROM (line 5)
+            vaddr = self.raw[320] | (self.raw[321]<<8) | (self.raw[322]<<16)
+            vdata = self.raw[324]
+            vromoe = not (self.raw[323] & 0x01)
+            vdtack = not (self.raw[325] & 0x01)
             if vromoe or vdtack:
                 self.rom_labels["V-ROM"].config(text=f"V-ROM  ADDR 0x{vaddr:06X}  DATA 0x{vdata:02X}  /OE {'*' if vromoe else '-'}  /DTACK {'*' if vdtack else '-'}")
             else:
@@ -572,15 +573,18 @@ class NeoCartGUI:
             self.shm.close()
             self.shm = None
             self.raw = None
-        self.btn_start.config(state=tk.NORMAL)
-        self.btn_stop.config(state=tk.DISABLED)
-        self.btn_emu.config(state=tk.DISABLED)
-        self.btn_skeleton.config(state=tk.DISABLED)
-        self.lbl_status.config(text="Server: stopped")
+        try:
+            self.btn_start.config(state=tk.NORMAL)
+            self.btn_stop.config(state=tk.DISABLED)
+            self.btn_emu.config(state=tk.DISABLED)
+            self.btn_skeleton.config(state=tk.DISABLED)
+            self.lbl_status.config(text="Server: stopped")
+        except tk.TclError:
+            pass
 
     def _pause(self):
         if self.shm_rw:
-            self.shm_rw[257] = 1
+            self.shm_rw[385] = 1
             self.paused = True
             self.btn_pause.config(state=tk.DISABLED)
             self.btn_step.config(state=tk.NORMAL)
@@ -589,11 +593,11 @@ class NeoCartGUI:
 
     def _step(self):
         if self.shm_rw and self.paused:
-            self.shm_rw[258] = 1
+            self.shm_rw[386] = 1
 
     def _resume(self):
         if self.shm_rw:
-            self.shm_rw[257] = 0
+            self.shm_rw[385] = 0
             self.paused = False
             self.btn_pause.config(state=tk.NORMAL)
             self.btn_step.config(state=tk.DISABLED)
@@ -603,7 +607,7 @@ class NeoCartGUI:
     def _toggle_skeleton(self):
         if self.shm_rw:
             self.skeleton_on = not self.skeleton_on
-            self.shm_rw[256] = 1 if self.skeleton_on else 0
+            self.shm_rw[384] = 1 if self.skeleton_on else 0
             self.btn_skeleton.config(
                 bg='#aa3300' if self.skeleton_on else '#333',
                 text='Skeleton ON' if self.skeleton_on else 'Skeleton')

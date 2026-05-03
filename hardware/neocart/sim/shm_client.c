@@ -137,23 +137,23 @@ uint8_t cart_read_mrom_byte(uint32_t byte_addr) {
     return data;
 }
 
-/* ═══ V-ROM read: VROMOE + VDTACK on PROG line ═══ */
+/* ═══ V-ROM read: OE + DTACK on VROM line ═══ */
 uint8_t cart_read_vrom_byte(uint32_t byte_addr) {
-    shm[PROG_VADDR_LO]  = byte_addr & 0xFF;
-    shm[PROG_VADDR_MID] = (byte_addr >> 8) & 0xFF;
-    shm[PROG_VADDR_HI]  = (byte_addr >> 16) & 0xFF;
+    shm[VROM_ADDR_LO]  = byte_addr & 0xFF;
+    shm[VROM_ADDR_MID] = (byte_addr >> 8) & 0xFF;
+    shm[VROM_ADDR_HI]  = (byte_addr >> 16) & 0xFF;
     __sync_synchronize();
 
-    __atomic_and_fetch(&shm[PROG_CTRL], ~PROG_VROM_OE_n, __ATOMIC_SEQ_CST);
+    __atomic_and_fetch(&shm[VROM_CTRL], ~VROM_OE_n, __ATOMIC_SEQ_CST);
 
-    while (__atomic_load_n(&shm[PROG_ACK], __ATOMIC_SEQ_CST) & PROG_VDTACK_n)
+    while (__atomic_load_n(&shm[VROM_ACK], __ATOMIC_SEQ_CST) & VROM_DTACK_n)
         ;
 
-    uint8_t data = shm[PROG_VDATA];
+    uint8_t data = shm[VROM_DATA];
 
-    __atomic_or_fetch(&shm[PROG_CTRL], PROG_VROM_OE_n, __ATOMIC_SEQ_CST);
+    __atomic_or_fetch(&shm[VROM_CTRL], VROM_OE_n, __ATOMIC_SEQ_CST);
 
-    while (!(__atomic_load_n(&shm[PROG_ACK], __ATOMIC_SEQ_CST) & PROG_VDTACK_n))
+    while (!(__atomic_load_n(&shm[VROM_ACK], __ATOMIC_SEQ_CST) & VROM_DTACK_n))
         ;
 
     return data;

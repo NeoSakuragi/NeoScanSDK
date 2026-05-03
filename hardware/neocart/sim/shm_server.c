@@ -37,9 +37,7 @@ static inline void dbg_wait(void) {
 void *prog_thread(void *arg) {
     (void)arg;
     while (running) {
-        uint8_t ctrl = __atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST);
-
-        if (!(ctrl & PROG_ROMOE_n)) {
+        if (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_ROMOE_n)) {
             uint32_t a = shm[PROG_ADDR_LO] | (shm[PROG_ADDR_MID]<<8) | (shm[PROG_ADDR_HI]<<16);
             uint32_t w = a / 2;
             uint16_t d = (w < prom_words) ? prom[w] : 0xFFFF;
@@ -51,14 +49,24 @@ void *prog_thread(void *arg) {
             __atomic_or_fetch(&shm[PROG_ACK], PROG_DTACK_n, __ATOMIC_SEQ_CST);
             pc++;
             dbg_wait();
-        } else if (!(ctrl & PROG_VROM_OE_n)) {
-            uint32_t a = shm[PROG_VADDR_LO] | (shm[PROG_VADDR_MID]<<8) | (shm[PROG_VADDR_HI]<<16);
+        } else {
+            _mm_pause();
+        }
+    }
+    return NULL;
+}
+
+void *vrom_thread(void *arg) {
+    (void)arg;
+    while (running) {
+        if (!(__atomic_load_n(&shm[VROM_CTRL], __ATOMIC_SEQ_CST) & VROM_OE_n)) {
+            uint32_t a = shm[VROM_ADDR_LO] | (shm[VROM_ADDR_MID]<<8) | (shm[VROM_ADDR_HI]<<16);
             uint8_t d = (v1rom && a < v1rom_size) ? v1rom[a] : 0;
-            shm[PROG_VDATA] = d;
+            shm[VROM_DATA] = d;
             __sync_synchronize();
-            __atomic_and_fetch(&shm[PROG_ACK], ~PROG_VDTACK_n, __ATOMIC_SEQ_CST);
-            while (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_VROM_OE_n) && running) _mm_pause();
-            __atomic_or_fetch(&shm[PROG_ACK], PROG_VDTACK_n, __ATOMIC_SEQ_CST);
+            __atomic_and_fetch(&shm[VROM_ACK], ~VROM_DTACK_n, __ATOMIC_SEQ_CST);
+            while (!(__atomic_load_n(&shm[VROM_CTRL], __ATOMIC_SEQ_CST) & VROM_OE_n) && running) _mm_pause();
+            __atomic_or_fetch(&shm[VROM_ACK], VROM_DTACK_n, __ATOMIC_SEQ_CST);
             vc++;
             dbg_wait();
         } else {
@@ -190,19 +198,23 @@ int main(int argc, char **argv) {
     shm[SROM_ACK]  = 0xFF;
     shm[MROM_CTRL] = 0xFF;
     shm[MROM_ACK]  = 0xFF;
+    shm[VROM_CTRL] = 0xFF;
+    shm[VROM_ACK]  = 0xFF;
 
-    printf("Ready at %s (%d bytes, 5 cache lines)\n", NEOCART_SHM_PATH, NEOCART_SHM_SIZE);
+    printf("Ready at %s (%d bytes, 7 cache lines)\n", NEOCART_SHM_PATH, NEOCART_SHM_SIZE);
     fflush(stdout);
     signal(SIGINT, sighandler);
 
-    pthread_t t_prog, t_crom, t_srom, t_mrom, t_stats;
+    pthread_t t_prog, t_vrom, t_crom, t_srom, t_mrom, t_stats;
     pthread_create(&t_prog, NULL, prog_thread, NULL);
+    pthread_create(&t_vrom, NULL, vrom_thread, NULL);
     pthread_create(&t_crom, NULL, crom_thread, NULL);
     pthread_create(&t_srom, NULL, srom_thread, NULL);
     pthread_create(&t_mrom, NULL, mrom_thread, NULL);
     pthread_create(&t_stats, NULL, stats_thread, NULL);
 
     pthread_join(t_prog, NULL);
+    pthread_join(t_vrom, NULL);
     pthread_join(t_crom, NULL);
     pthread_join(t_srom, NULL);
     pthread_join(t_mrom, NULL);
