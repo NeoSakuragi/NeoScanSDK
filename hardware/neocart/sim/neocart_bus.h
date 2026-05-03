@@ -14,7 +14,8 @@
 #define NEOCART_SHM_PATH "/dev/shm/neocart_bus"
 #define NEOCART_SHM_SIZE 32
 
-/* Debug control: byte 30 = pause flag, byte 31 = step trigger */
+/* Debug control: byte 11 = skeleton, byte 30 = pause, byte 31 = step */
+#define DBG_SKELETON    11  /* GUI writes: 1=mask C-ROM upper bitplanes */
 #define DBG_PAUSE       30  /* GUI writes: 1=paused, 0=running */
 #define DBG_STEP        31  /* GUI writes: 1=do one cycle, server clears to 0 */
 

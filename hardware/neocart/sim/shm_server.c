@@ -77,6 +77,10 @@ void *cha_thread(void *arg) {
             shm[CHA_CDATA_1] = (crom && a+1 < crom_size) ? crom[a+1] : 0;
             shm[CHA_CDATA_2] = (crom && a+2 < crom_size) ? crom[a+2] : 0;
             shm[CHA_CDATA_3] = (crom && a+3 < crom_size) ? crom[a+3] : 0;
+            if (shm[DBG_SKELETON]) {
+                shm[CHA_CDATA_1] = 0;
+                shm[CHA_CDATA_3] = 0;
+            }
             __sync_synchronize();
             __atomic_and_fetch(&shm[CHA_ACK], ~CHA_CROM_DTACK_n, __ATOMIC_SEQ_CST);
             while (!(__atomic_load_n(&shm[CHA_CTRL], __ATOMIC_SEQ_CST) & CHA_PCK1B) && running) ;

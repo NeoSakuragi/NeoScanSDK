@@ -11,7 +11,8 @@ import mmap, struct, os, subprocess, signal, sys, ctypes
 SHM_PATH = "/dev/shm/neocart_bus"
 SHM_SIZE = 32
 SERVER_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shm_server")
-MAME_BIN = os.path.expanduser("~/CLProjects/mame/neogeo")
+RETROARCH_BIN = "retroarch"
+GEOLITH_CORE = os.path.expanduser("~/.config/retroarch/cores/geolith_libretro.so")
 
 COL_LOW  = "#111111"
 COL_BG   = "#0a0a0a"
@@ -97,9 +98,9 @@ class NeoCartGUI:
         self.btn_stop = tk.Button(ctrl, text="Stop", command=self._stop_server,
                                   bg='#333', fg='white', state=tk.DISABLED, padx=8)
         self.btn_stop.pack(side=tk.LEFT, padx=4)
-        self.btn_mame = tk.Button(ctrl, text="Launch MAME", command=self._launch_mame,
+        self.btn_emu = tk.Button(ctrl, text="Start Emu", command=self._launch_emu,
                                   bg='#333', fg='white', state=tk.DISABLED, padx=8)
-        self.btn_mame.pack(side=tk.LEFT, padx=4)
+        self.btn_emu.pack(side=tk.LEFT, padx=4)
 
         sep = tk.Frame(ctrl, bg='#444', width=2)
         sep.pack(side=tk.LEFT, fill=tk.Y, padx=8)
@@ -113,6 +114,14 @@ class NeoCartGUI:
         self.btn_resume = tk.Button(ctrl, text="Resume", command=self._resume,
                                      bg='#335500', fg='white', padx=8, state=tk.DISABLED)
         self.btn_resume.pack(side=tk.LEFT, padx=4)
+
+        sep2 = tk.Frame(ctrl, bg='#444', width=2)
+        sep2.pack(side=tk.LEFT, fill=tk.Y, padx=8)
+
+        self.skeleton_on = False
+        self.btn_skeleton = tk.Button(ctrl, text="Skeleton", command=self._toggle_skeleton,
+                                       bg='#333', fg='white', padx=8, state=tk.DISABLED)
+        self.btn_skeleton.pack(side=tk.LEFT, padx=4)
 
         self.lbl_game = tk.Label(ctrl, text="No game loaded", bg='#1a1a1a',
                                  fg=COL_TEXT, font=('monospace', 10))
@@ -541,8 +550,9 @@ class NeoCartGUI:
         self.root.after(500, self._try_open_shm)
         self.btn_start.config(state=tk.DISABLED)
         self.btn_stop.config(state=tk.NORMAL)
-        self.btn_mame.config(state=tk.NORMAL)
+        self.btn_emu.config(state=tk.NORMAL)
         self.btn_pause.config(state=tk.NORMAL)
+        self.btn_skeleton.config(state=tk.NORMAL)
         self.lbl_status.config(text=f"Server: running (PID {self.server_proc.pid})")
 
     def _stop_server(self):
@@ -557,7 +567,8 @@ class NeoCartGUI:
             self.raw = None
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
-        self.btn_mame.config(state=tk.DISABLED)
+        self.btn_emu.config(state=tk.DISABLED)
+        self.btn_skeleton.config(state=tk.DISABLED)
         self.lbl_status.config(text="Server: stopped")
 
     def _pause(self):
@@ -582,13 +593,21 @@ class NeoCartGUI:
             self.btn_resume.config(state=tk.DISABLED)
             self.lbl_status.config(text=f"Server: running")
 
-    def _launch_mame(self):
+    def _toggle_skeleton(self):
+        if self.shm_rw:
+            self.skeleton_on = not self.skeleton_on
+            self.shm_rw[11] = 1 if self.skeleton_on else 0
+            self.btn_skeleton.config(
+                bg='#aa3300' if self.skeleton_on else '#333',
+                text='Skeleton ON' if self.skeleton_on else 'Skeleton')
+
+    def _launch_emu(self):
+        if not self.neo_path:
+            return
+        env = {**os.environ, "NEOCART_SHM": "1"}
         subprocess.Popen([
-            MAME_BIN, "neocart",
-            "-rompath", os.path.expanduser("~/NeoGeo/roms"),
-            "-bios", "unibios40",
-            "-skip_gameinfo", "-window", "-nomaximize"
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            RETROARCH_BIN, "-L", GEOLITH_CORE, self.neo_path
+        ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def run(self):
         # Auto-load if argument provided
