@@ -1,0 +1,1 @@
+/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/sim/neocart_bus.h

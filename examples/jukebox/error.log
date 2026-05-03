@@ -1,0 +1,4 @@
+﻿Soft reset
+[:audiocpu] ':audiocpu' (0104): unmapped io memory write to 01C0 = 01 & FF
+[:audiocpu] ':audiocpu' (0104): unmapped io memory write to 01C0 = 01 & FF
+[:maincpu] ':maincpu' (C1245A): unmapped program memory write to 000000 = 0000 & FF00
