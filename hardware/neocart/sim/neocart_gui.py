@@ -9,7 +9,14 @@ from tkinter import filedialog
 import mmap, struct, os, subprocess, signal, sys, ctypes
 
 SHM_PATH = "/dev/shm/neocart_bus"
-SHM_SIZE = 32
+SHM_SIZE = 320  # 5 x 64-byte cache lines
+
+# Cache line offsets
+PROG_BASE = 0
+CROM_BASE = 64
+SROM_BASE = 128
+MROM_BASE = 192
+DBG_BASE  = 256
 SERVER_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shm_server")
 RETROARCH_BIN = "retroarch"
 GEOLITH_CORE = os.path.expanduser("~/.config/retroarch/cores/geolith_libretro.so")
@@ -45,26 +52,26 @@ PROG_PINS = [
 ]
 
 CHA_PINS = [
-    # C-ROM address (orange)
-    ("P0",12,0,0,COL_C),("P1",12,1,0,COL_C),("P2",12,2,0,COL_C),("P3",12,3,0,COL_C),
-    ("P4",12,4,0,COL_C),("P5",12,5,0,COL_C),("P6",12,6,0,COL_C),("P7",12,7,0,COL_C),
-    ("P8",13,0,0,COL_C),("P9",13,1,0,COL_C),("P10",13,2,0,COL_C),("P11",13,3,0,COL_C),
-    ("P12",13,4,0,COL_C),("P13",13,5,0,COL_C),("P14",13,6,0,COL_C),("P15",13,7,0,COL_C),
-    ("P16",14,0,0,COL_C),("P17",14,1,0,COL_C),("P18",14,2,0,COL_C),("P19",14,3,0,COL_C),
-    ("P20",14,4,0,COL_C),("P21",14,5,0,COL_C),("P22",14,6,0,COL_C),("P23",14,7,0,COL_C),
-    # Control — each in its family color
-    ("PCK1B",15,0,0,COL_C),("PCK2B",15,1,0,COL_C),("SDMRD",15,2,0,COL_S),("MROMOE",15,3,0,COL_M),
+    # C-ROM address (orange) — cache line 1
+    ("P0",64,0,0,COL_C),("P1",64,1,0,COL_C),("P2",64,2,0,COL_C),("P3",64,3,0,COL_C),
+    ("P4",64,4,0,COL_C),("P5",64,5,0,COL_C),("P6",64,6,0,COL_C),("P7",64,7,0,COL_C),
+    ("P8",65,0,0,COL_C),("P9",65,1,0,COL_C),("P10",65,2,0,COL_C),("P11",65,3,0,COL_C),
+    ("P12",65,4,0,COL_C),("P13",65,5,0,COL_C),("P14",65,6,0,COL_C),("P15",65,7,0,COL_C),
+    ("P16",66,0,0,COL_C),("P17",66,1,0,COL_C),("P18",66,2,0,COL_C),("P19",66,3,0,COL_C),
+    ("P20",66,4,0,COL_C),("P21",66,5,0,COL_C),("P22",66,6,0,COL_C),("P23",66,7,0,COL_C),
+    # Control — each on its own cache line
+    ("PCK1B",68,0,0,COL_C),("SDMRD",131,0,0,COL_S),("MROMOE",195,0,0,COL_M),
     # C-ROM data (orange)
-    ("CR0",16,0,1,COL_C),("CR1",16,1,1,COL_C),("CR2",16,2,1,COL_C),("CR3",16,3,1,COL_C),
-    ("CR4",16,4,1,COL_C),("CR5",16,5,1,COL_C),("CR6",16,6,1,COL_C),("CR7",16,7,1,COL_C),
-    # S-ROM address (pink)
-    ("SDA0",20,0,0,COL_S),("SDA1",20,1,0,COL_S),("SDA2",20,2,0,COL_S),("SDA3",20,3,0,COL_S),
-    ("SDA4",20,4,0,COL_S),("SDA5",20,5,0,COL_S),("SDA6",20,6,0,COL_S),("SDA7",20,7,0,COL_S),
+    ("CR0",69,0,1,COL_C),("CR1",69,1,1,COL_C),("CR2",69,2,1,COL_C),("CR3",69,3,1,COL_C),
+    ("CR4",69,4,1,COL_C),("CR5",69,5,1,COL_C),("CR6",69,6,1,COL_C),("CR7",69,7,1,COL_C),
+    # S-ROM address (pink) — cache line 2
+    ("SDA0",128,0,0,COL_S),("SDA1",128,1,0,COL_S),("SDA2",128,2,0,COL_S),("SDA3",128,3,0,COL_S),
+    ("SDA4",128,4,0,COL_S),("SDA5",128,5,0,COL_S),("SDA6",128,6,0,COL_S),("SDA7",128,7,0,COL_S),
     # S-ROM data (pink)
-    ("SDD0",29,0,1,COL_S),("SDD1",29,1,1,COL_S),("SDD2",29,2,1,COL_S),("SDD3",29,3,1,COL_S),
-    ("SDD4",29,4,1,COL_S),("SDD5",29,5,1,COL_S),("SDD6",29,6,1,COL_S),("SDD7",29,7,1,COL_S),
-    # Acknowledge — each in its family color
-    ("CDTACK",27,0,1,COL_C),("SDTACK",27,1,1,COL_S),("MDTACK",27,2,1,COL_M),
+    ("SDD0",132,0,1,COL_S),("SDD1",132,1,1,COL_S),("SDD2",132,2,1,COL_S),("SDD3",132,3,1,COL_S),
+    ("SDD4",132,4,1,COL_S),("SDD5",132,5,1,COL_S),("SDD6",132,6,1,COL_S),("SDD7",132,7,1,COL_S),
+    # Acknowledge — each on its own cache line
+    ("CDTACK",73,0,1,COL_C),("SDTACK",133,0,1,COL_S),("MDTACK",197,0,1,COL_M),
 ]
 
 
@@ -371,13 +378,13 @@ class NeoCartGUI:
         # Light up active ICs
         romoe = not (self.raw[3] & 0x01) if self.raw else False
         vromoe = not (self.raw[3] & 0x08) if self.raw else False
-        pck1b = not (self.raw[15] & 0x01) if self.raw else False
-        sromoe = not (self.raw[15] & 0x04) if self.raw else False
-        mromoe = not (self.raw[15] & 0x08) if self.raw else False
+        pck1b = not (self.raw[68] & 0x01) if self.raw else False
+        sromoe = not (self.raw[131] & 0x01) if self.raw else False
+        mromoe = not (self.raw[195] & 0x01) if self.raw else False
 
         paddr = (self.raw[0] | (self.raw[1]<<8) | ((self.raw[2]&0x07)<<16)) if self.raw else 0
-        caddr = (self.raw[12] | (self.raw[13]<<8) | (self.raw[14]<<16) | (self.raw[28]<<24)) if self.raw else 0
-        saddr = (self.raw[20] | (self.raw[21]<<8) | (self.raw[22]<<16)) if self.raw else 0
+        caddr = (self.raw[64] | (self.raw[65]<<8) | (self.raw[66]<<16) | (self.raw[67]<<24)) if self.raw else 0
+        saddr = (self.raw[128] | (self.raw[129]<<8) | (self.raw[130]<<16)) if self.raw else 0
 
         for cv, ic_items in self.pcb_ic_items:
             for body, ic_name, ic_color, ic_base, ic_end in ic_items:
@@ -447,7 +454,7 @@ class NeoCartGUI:
             self._update_pins(self.cha_pin_widgets)
             self._update_pcb_pins()
 
-            # P-ROM
+            # P-ROM (line 0)
             paddr = self.raw[0] | (self.raw[1]<<8) | ((self.raw[2]&0x07)<<16)
             pdata = self.raw[4] | (self.raw[5]<<8)
             romoe = not (self.raw[3] & 0x01)
@@ -457,7 +464,7 @@ class NeoCartGUI:
             else:
                 self.rom_labels["P-ROM"].config(text=f"P-ROM  idle")
 
-            # V-ROM
+            # V-ROM (line 0)
             vaddr = self.raw[6] | (self.raw[7]<<8) | (self.raw[8]<<16)
             vdata = self.raw[9]
             vromoe = not (self.raw[3] & 0x08)
@@ -467,31 +474,31 @@ class NeoCartGUI:
             else:
                 self.rom_labels["V-ROM"].config(text=f"V-ROM  idle")
 
-            # C-ROM
-            caddr = self.raw[12] | (self.raw[13]<<8) | (self.raw[14]<<16) | (self.raw[28]<<24)
-            cdata = self.raw[16] | (self.raw[17]<<8)
-            pck1b = not (self.raw[15] & 0x01)
-            cdtack = not (self.raw[27] & 0x01)
+            # C-ROM (line 1)
+            caddr = self.raw[64] | (self.raw[65]<<8) | (self.raw[66]<<16) | (self.raw[67]<<24)
+            cdata = self.raw[69] | (self.raw[70]<<8)
+            pck1b = not (self.raw[68] & 0x01)
+            cdtack = not (self.raw[73] & 0x01)
             if pck1b or cdtack:
                 self.rom_labels["C-ROM"].config(text=f"C-ROM  ADDR 0x{caddr:07X}  DATA 0x{cdata:04X}  /PCK1B {'*' if pck1b else '-'}  /DTACK {'*' if cdtack else '-'}")
             else:
                 self.rom_labels["C-ROM"].config(text=f"C-ROM  idle")
 
-            # S-ROM
-            saddr = self.raw[20] | (self.raw[21]<<8) | (self.raw[22]<<16)
-            sdata = self.raw[29]
-            sromoe = not (self.raw[15] & 0x04)
-            sdtack = not (self.raw[27] & 0x02)
+            # S-ROM (line 2)
+            saddr = self.raw[128] | (self.raw[129]<<8) | (self.raw[130]<<16)
+            sdata = self.raw[132]
+            sromoe = not (self.raw[131] & 0x01)
+            sdtack = not (self.raw[133] & 0x01)
             if sromoe or sdtack:
                 self.rom_labels["S-ROM"].config(text=f"S-ROM  ADDR 0x{saddr:05X}  DATA 0x{sdata:02X}  /SDMRD {'*' if sromoe else '-'}  /DTACK {'*' if sdtack else '-'}")
             else:
                 self.rom_labels["S-ROM"].config(text=f"S-ROM  idle")
 
-            # M-ROM
-            maddr = self.raw[23] | (self.raw[24]<<8) | ((self.raw[25]&1)<<16)
-            mdata = self.raw[26]
-            mromoe = not (self.raw[15] & 0x08)
-            mdtack = not (self.raw[27] & 0x04)
+            # M-ROM (line 3)
+            maddr = self.raw[192] | (self.raw[193]<<8) | ((self.raw[194]&1)<<16)
+            mdata = self.raw[196]
+            mromoe = not (self.raw[195] & 0x01)
+            mdtack = not (self.raw[197] & 0x01)
             if mromoe or mdtack:
                 self.rom_labels["M-ROM"].config(text=f"M-ROM  ADDR 0x{maddr:05X}  DATA 0x{mdata:02X}  /OE {'*' if mromoe else '-'}  /DTACK {'*' if mdtack else '-'}")
             else:
@@ -573,7 +580,7 @@ class NeoCartGUI:
 
     def _pause(self):
         if self.shm_rw:
-            self.shm_rw[30] = 1
+            self.shm_rw[257] = 1
             self.paused = True
             self.btn_pause.config(state=tk.DISABLED)
             self.btn_step.config(state=tk.NORMAL)
@@ -582,11 +589,11 @@ class NeoCartGUI:
 
     def _step(self):
         if self.shm_rw and self.paused:
-            self.shm_rw[31] = 1
+            self.shm_rw[258] = 1
 
     def _resume(self):
         if self.shm_rw:
-            self.shm_rw[30] = 0
+            self.shm_rw[257] = 0
             self.paused = False
             self.btn_pause.config(state=tk.NORMAL)
             self.btn_step.config(state=tk.DISABLED)
@@ -596,7 +603,7 @@ class NeoCartGUI:
     def _toggle_skeleton(self):
         if self.shm_rw:
             self.skeleton_on = not self.skeleton_on
-            self.shm_rw[11] = 1 if self.skeleton_on else 0
+            self.shm_rw[256] = 1 if self.skeleton_on else 0
             self.btn_skeleton.config(
                 bg='#aa3300' if self.skeleton_on else '#333',
                 text='Skeleton ON' if self.skeleton_on else 'Skeleton')

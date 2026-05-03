@@ -1,5 +1,6 @@
 /* NeoCart SHM server — pin-accurate, all atomic, SEQ_CST.
-   Two threads: PROG (P-ROM + V-ROM) and CHA (C-ROM + S-ROM + M-ROM).
+   Threads: PROG (P-ROM + V-ROM), CROM, SROM, MROM, stats.
+   Each ROM on its own 64-byte cache line — zero false sharing.
    Usage: ./shm_server game.neo
 */
 #include <stdio.h>
@@ -7,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <immintrin.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -28,7 +30,7 @@ static volatile uint8_t *shm;
 static uint64_t pc=0, vc=0, cc=0, sc=0, mc=0;
 
 static inline void dbg_wait(void) {
-    while (shm[DBG_PAUSE] && !shm[DBG_STEP] && running) ;
+    while (shm[DBG_PAUSE] && !shm[DBG_STEP] && running) _mm_pause();
     if (shm[DBG_STEP]) shm[DBG_STEP] = 0;
 }
 
@@ -45,70 +47,86 @@ void *prog_thread(void *arg) {
             shm[PROG_DATA_HI] = (d >> 8) & 0xFF;
             __sync_synchronize();
             __atomic_and_fetch(&shm[PROG_ACK], ~PROG_DTACK_n, __ATOMIC_SEQ_CST);
-            while (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_ROMOE_n) && running) ;
+            while (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_ROMOE_n) && running) _mm_pause();
             __atomic_or_fetch(&shm[PROG_ACK], PROG_DTACK_n, __ATOMIC_SEQ_CST);
             pc++;
             dbg_wait();
-        }
-
-        if (!(ctrl & PROG_VROM_OE_n)) {
+        } else if (!(ctrl & PROG_VROM_OE_n)) {
             uint32_t a = shm[PROG_VADDR_LO] | (shm[PROG_VADDR_MID]<<8) | (shm[PROG_VADDR_HI]<<16);
             uint8_t d = (v1rom && a < v1rom_size) ? v1rom[a] : 0;
             shm[PROG_VDATA] = d;
             __sync_synchronize();
             __atomic_and_fetch(&shm[PROG_ACK], ~PROG_VDTACK_n, __ATOMIC_SEQ_CST);
-            while (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_VROM_OE_n) && running) ;
+            while (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_VROM_OE_n) && running) _mm_pause();
             __atomic_or_fetch(&shm[PROG_ACK], PROG_VDTACK_n, __ATOMIC_SEQ_CST);
             vc++;
             dbg_wait();
+        } else {
+            _mm_pause();
         }
     }
     return NULL;
 }
 
-void *cha_thread(void *arg) {
+void *crom_thread(void *arg) {
     (void)arg;
     while (running) {
-        uint8_t ctrl = __atomic_load_n(&shm[CHA_CTRL], __ATOMIC_SEQ_CST);
-
-        if (!(ctrl & CHA_PCK1B)) {
-            uint32_t a = shm[CHA_CADDR_LO] | (shm[CHA_CADDR_MID]<<8) | (shm[CHA_CADDR_HI]<<16) | (shm[CHA_CADDR_EXT]<<24);
-            shm[CHA_CDATA_0] = (crom && a+0 < crom_size) ? crom[a+0] : 0;
-            shm[CHA_CDATA_1] = (crom && a+1 < crom_size) ? crom[a+1] : 0;
-            shm[CHA_CDATA_2] = (crom && a+2 < crom_size) ? crom[a+2] : 0;
-            shm[CHA_CDATA_3] = (crom && a+3 < crom_size) ? crom[a+3] : 0;
+        if (!(__atomic_load_n(&shm[CROM_CTRL], __ATOMIC_SEQ_CST) & CROM_PCK1B_n)) {
+            uint32_t a = shm[CROM_ADDR_LO] | (shm[CROM_ADDR_MID]<<8) | (shm[CROM_ADDR_HI]<<16) | (shm[CROM_ADDR_EXT]<<24);
+            shm[CROM_DATA_0] = (crom && a+0 < crom_size) ? crom[a+0] : 0;
+            shm[CROM_DATA_1] = (crom && a+1 < crom_size) ? crom[a+1] : 0;
+            shm[CROM_DATA_2] = (crom && a+2 < crom_size) ? crom[a+2] : 0;
+            shm[CROM_DATA_3] = (crom && a+3 < crom_size) ? crom[a+3] : 0;
             if (shm[DBG_SKELETON]) {
-                shm[CHA_CDATA_1] = 0;
-                shm[CHA_CDATA_3] = 0;
+                shm[CROM_DATA_1] = 0;
+                shm[CROM_DATA_3] = 0;
             }
             __sync_synchronize();
-            __atomic_and_fetch(&shm[CHA_ACK], ~CHA_CROM_DTACK_n, __ATOMIC_SEQ_CST);
-            while (!(__atomic_load_n(&shm[CHA_CTRL], __ATOMIC_SEQ_CST) & CHA_PCK1B) && running) ;
-            __atomic_or_fetch(&shm[CHA_ACK], CHA_CROM_DTACK_n, __ATOMIC_SEQ_CST);
+            __atomic_and_fetch(&shm[CROM_ACK], ~CROM_DTACK_n, __ATOMIC_SEQ_CST);
+            while (!(__atomic_load_n(&shm[CROM_CTRL], __ATOMIC_SEQ_CST) & CROM_PCK1B_n) && running) _mm_pause();
+            __atomic_or_fetch(&shm[CROM_ACK], CROM_DTACK_n, __ATOMIC_SEQ_CST);
             cc++;
             dbg_wait();
+        } else {
+            _mm_pause();
         }
+    }
+    return NULL;
+}
 
-        if (!(ctrl & CHA_SROM_OE_n)) {
-            uint32_t a = shm[CHA_SADDR_LO] | (shm[CHA_SADDR_HI]<<8) | (shm[CHA_SADDR_EXT]<<16);
-            shm[CHA_SDATA] = (srom && a < srom_size) ? srom[a] : 0;
+void *srom_thread(void *arg) {
+    (void)arg;
+    while (running) {
+        if (!(__atomic_load_n(&shm[SROM_CTRL], __ATOMIC_SEQ_CST) & SROM_OE_n)) {
+            uint32_t a = shm[SROM_ADDR_LO] | (shm[SROM_ADDR_HI]<<8) | (shm[SROM_ADDR_EXT]<<16);
+            shm[SROM_DATA] = (srom && a < srom_size) ? srom[a] : 0;
             __sync_synchronize();
-            __atomic_and_fetch(&shm[CHA_ACK], ~CHA_SROM_DTACK_n, __ATOMIC_SEQ_CST);
-            while (!(__atomic_load_n(&shm[CHA_CTRL], __ATOMIC_SEQ_CST) & CHA_SROM_OE_n) && running) ;
-            __atomic_or_fetch(&shm[CHA_ACK], CHA_SROM_DTACK_n, __ATOMIC_SEQ_CST);
+            __atomic_and_fetch(&shm[SROM_ACK], ~SROM_DTACK_n, __ATOMIC_SEQ_CST);
+            while (!(__atomic_load_n(&shm[SROM_CTRL], __ATOMIC_SEQ_CST) & SROM_OE_n) && running) _mm_pause();
+            __atomic_or_fetch(&shm[SROM_ACK], SROM_DTACK_n, __ATOMIC_SEQ_CST);
             sc++;
             dbg_wait();
+        } else {
+            _mm_pause();
         }
+    }
+    return NULL;
+}
 
-        if (!(ctrl & CHA_MROM_OE_n)) {
-            uint32_t a = shm[CHA_MADDR_LO] | (shm[CHA_MADDR_MID]<<8) | ((shm[CHA_MADDR_HI]&1)<<16);
-            shm[CHA_MDATA] = (mrom && a < mrom_size) ? mrom[a] : 0;
+void *mrom_thread(void *arg) {
+    (void)arg;
+    while (running) {
+        if (!(__atomic_load_n(&shm[MROM_CTRL], __ATOMIC_SEQ_CST) & MROM_OE_n)) {
+            uint32_t a = shm[MROM_ADDR_LO] | (shm[MROM_ADDR_MID]<<8) | ((shm[MROM_ADDR_HI]&1)<<16);
+            shm[MROM_DATA] = (mrom && a < mrom_size) ? mrom[a] : 0;
             __sync_synchronize();
-            __atomic_and_fetch(&shm[CHA_ACK], ~CHA_MROM_DTACK_n, __ATOMIC_SEQ_CST);
-            while (!(__atomic_load_n(&shm[CHA_CTRL], __ATOMIC_SEQ_CST) & CHA_MROM_OE_n) && running) ;
-            __atomic_or_fetch(&shm[CHA_ACK], CHA_MROM_DTACK_n, __ATOMIC_SEQ_CST);
+            __atomic_and_fetch(&shm[MROM_ACK], ~MROM_DTACK_n, __ATOMIC_SEQ_CST);
+            while (!(__atomic_load_n(&shm[MROM_CTRL], __ATOMIC_SEQ_CST) & MROM_OE_n) && running) _mm_pause();
+            __atomic_or_fetch(&shm[MROM_ACK], MROM_DTACK_n, __ATOMIC_SEQ_CST);
             mc++;
             dbg_wait();
+        } else {
+            _mm_pause();
         }
     }
     return NULL;
@@ -163,23 +181,32 @@ int main(int argc, char **argv) {
     shm = mmap(NULL, NEOCART_SHM_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
     close(fd);
     memset((void*)shm, 0, NEOCART_SHM_SIZE);
+
     shm[PROG_CTRL] = 0xFF;
     shm[PROG_ACK]  = 0xFF;
-    shm[CHA_CTRL]  = 0xFF;
-    shm[CHA_ACK]   = 0xFF;
+    shm[CROM_CTRL] = 0xFF;
+    shm[CROM_ACK]  = 0xFF;
+    shm[SROM_CTRL] = 0xFF;
+    shm[SROM_ACK]  = 0xFF;
+    shm[MROM_CTRL] = 0xFF;
+    shm[MROM_ACK]  = 0xFF;
 
-    printf("Ready at %s\n", NEOCART_SHM_PATH);
+    printf("Ready at %s (%d bytes, 5 cache lines)\n", NEOCART_SHM_PATH, NEOCART_SHM_SIZE);
     fflush(stdout);
     signal(SIGINT, sighandler);
 
-    pthread_t t1, t2, t3;
-    pthread_create(&t1, NULL, prog_thread, NULL);
-    pthread_create(&t2, NULL, cha_thread, NULL);
-    pthread_create(&t3, NULL, stats_thread, NULL);
+    pthread_t t_prog, t_crom, t_srom, t_mrom, t_stats;
+    pthread_create(&t_prog, NULL, prog_thread, NULL);
+    pthread_create(&t_crom, NULL, crom_thread, NULL);
+    pthread_create(&t_srom, NULL, srom_thread, NULL);
+    pthread_create(&t_mrom, NULL, mrom_thread, NULL);
+    pthread_create(&t_stats, NULL, stats_thread, NULL);
 
-    pthread_join(t1, NULL);
-    pthread_join(t2, NULL);
-    pthread_cancel(t3);
+    pthread_join(t_prog, NULL);
+    pthread_join(t_crom, NULL);
+    pthread_join(t_srom, NULL);
+    pthread_join(t_mrom, NULL);
+    pthread_cancel(t_stats);
 
     printf("\nP:%lu V:%lu C:%lu S:%lu M:%lu\n", pc, vc, cc, sc, mc);
     unlink(NEOCART_SHM_PATH);
