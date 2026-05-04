@@ -1,5 +1,6 @@
 /* neogeo_sdl — standalone SDL2 frontend for Geolith libretro core.
    Loads the .so at runtime, hardcoded keyboard input, SHM bridge enabled.
+   CRT shader: aperture grille + scanlines via OpenGL.
    Usage: ./neogeo_sdl game.neo [core.so]
 */
 #include <stdio.h>
@@ -11,6 +12,8 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <SDL2/SDL.h>
+#define GL_GLEXT_PROTOTYPES
+#include <SDL2/SDL_opengl.h>
 
 /* ═══ Minimal libretro types (subset of libretro.h) ═══ */
 
@@ -220,15 +223,69 @@ static void sdl_audio_cb(void *ud, uint8_t *stream, int len) {
     }
 }
 
-/* ═══ Video ═══ */
+/* ═══ Video (OpenGL + CRT shader) ═══ */
 
-static SDL_Texture *texture;
-static SDL_Renderer *renderer;
+static GLuint gl_tex, gl_prog;
+static unsigned tex_w, tex_h;
+
+static const char *vert_src =
+    "#version 120\n"
+    "attribute vec2 pos;\n"
+    "varying vec2 uv;\n"
+    "void main() {\n"
+    "    uv = vec2(pos.x * 0.5 + 0.5, 0.5 - pos.y * 0.5);\n"
+    "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+    "}\n";
+
+static const char *frag_src =
+    "#version 120\n"
+    "uniform sampler2D tex;\n"
+    "uniform vec2 texSize;\n"
+    "uniform vec2 outSize;\n"
+    "varying vec2 uv;\n"
+    "void main() {\n"
+    "    vec3 col = texture2D(tex, uv).rgb;\n"
+    "    vec2 px = uv * outSize;\n"
+    "    int subpx = int(mod(px.x, 4.0));\n"
+    "    vec3 mask;\n"
+    "    if (subpx == 0)      mask = vec3(1.0, 0.0, 0.0);\n"
+    "    else if (subpx == 1) mask = vec3(0.0, 1.0, 0.0);\n"
+    "    else if (subpx == 2) mask = vec3(0.0, 0.0, 1.0);\n"
+    "    else                 mask = vec3(0.0, 0.0, 0.0);\n"
+    "    float scanline = (mod(px.y, 4.0) < 3.0) ? 1.0 : 0.0;\n"
+    "    gl_FragColor = vec4(col * mask * scanline, 1.0);\n"
+    "}\n";
+
+static GLuint compile_shader(GLenum type, const char *src) {
+    GLuint s = glCreateShader(type);
+    glShaderSource(s, 1, &src, NULL);
+    glCompileShader(s);
+    GLint ok; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    if (!ok) {
+        char log[512]; glGetShaderInfoLog(s, sizeof(log), NULL, log);
+        fprintf(stderr, "shader: %s\n", log);
+    }
+    return s;
+}
+
+static GLuint build_program(void) {
+    GLuint vs = compile_shader(GL_VERTEX_SHADER, vert_src);
+    GLuint fs = compile_shader(GL_FRAGMENT_SHADER, frag_src);
+    GLuint p = glCreateProgram();
+    glAttachShader(p, vs); glAttachShader(p, fs);
+    glBindAttribLocation(p, 0, "pos");
+    glLinkProgram(p);
+    glDeleteShader(vs); glDeleteShader(fs);
+    return p;
+}
 
 static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
     if (!data) return;
-    SDL_Rect r = { 0, 0, (int)w, (int)h };
-    SDL_UpdateTexture(texture, &r, data, (int)pitch);
+    tex_w = w; tex_h = h;
+    glBindTexture(GL_TEXTURE_2D, gl_tex);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)(pitch / 4));
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_BGRA, GL_UNSIGNED_BYTE, data);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 }
 
 /* ═══ Input ═══ */
@@ -315,16 +372,38 @@ int main(int argc, char *argv[]) {
     printf("Video: %ux%u @ %.2f Hz | Audio: %d Hz stereo\n",
            av.geometry.base_width, av.geometry.base_height, fps, srate);
 
-    int scale = 3;
+    int scale = 4;
     int win_w = av.geometry.base_width * scale;
     int win_h = av.geometry.base_height * scale;
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_Window *window = SDL_CreateWindow("NeoScanSDK",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, win_w, win_h, 0);
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    SDL_RenderSetLogicalSize(renderer, av.geometry.base_width, av.geometry.base_height);
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        av.geometry.base_width, av.geometry.base_height);
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, win_w, win_h,
+        SDL_WINDOW_OPENGL);
+    SDL_GLContext glctx = SDL_GL_CreateContext(window);
+    SDL_GL_SetSwapInterval(0);
+
+    glGenTextures(1, &gl_tex);
+    glBindTexture(GL_TEXTURE_2D, gl_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
+                 av.geometry.base_width, av.geometry.base_height,
+                 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+
+    gl_prog = build_program();
+    glUseProgram(gl_prog);
+    glUniform1i(glGetUniformLocation(gl_prog, "tex"), 0);
+
+    static const float quad[] = { -1,-1, 1,-1, -1,1, 1,1 };
+    GLuint vbo;
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
     SDL_AudioSpec want = {0}, have;
     want.freq = srate;
@@ -338,29 +417,40 @@ int main(int argc, char *argv[]) {
     kbd = SDL_GetKeyboardState(NULL);
 
     bool running = true;
+    bool crt_on = true;
     while (running) {
         uint64_t t0 = SDL_GetPerformanceCounter();
 
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) running = false;
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
-                running = false;
+            if (ev.type == SDL_KEYDOWN) {
+                if (ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE) running = false;
+                if (ev.key.keysym.scancode == SDL_SCANCODE_F2) crt_on = !crt_on;
+            }
         }
 
         core.run();
 
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
-        SDL_RenderPresent(renderer);
+        glViewport(0, 0, win_w, win_h);
+        glUseProgram(gl_prog);
+        glUniform2f(glGetUniformLocation(gl_prog, "texSize"),
+                    (float)tex_w, (float)tex_h);
+        glUniform2f(glGetUniformLocation(gl_prog, "outSize"),
+                    crt_on ? (float)win_w : 1.0f,
+                    crt_on ? (float)win_h : 1.0f);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, gl_tex);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        SDL_GL_SwapWindow(window);
 
         uint64_t t1 = SDL_GetPerformanceCounter();
         double elapsed = (double)(t1 - t0) / SDL_GetPerformanceFrequency();
-        double target = 1.0 / fps;
-        if (elapsed < target) {
-            double remain = (target - elapsed) * 1000.0;
+        double target_t = 1.0 / fps;
+        if (elapsed < target_t) {
+            double remain = (target_t - elapsed) * 1000.0;
             if (remain > 1.0) SDL_Delay((uint32_t)(remain - 0.5));
-            while ((double)(SDL_GetPerformanceCounter() - t0) / SDL_GetPerformanceFrequency() < target)
+            while ((double)(SDL_GetPerformanceCounter() - t0) / SDL_GetPerformanceFrequency() < target_t)
                 ;
         }
     }
@@ -368,8 +458,10 @@ int main(int argc, char *argv[]) {
     if (adev) { SDL_PauseAudioDevice(adev, 1); SDL_CloseAudioDevice(adev); }
     core.unload_game();
     core.deinit();
-    SDL_DestroyTexture(texture);
-    SDL_DestroyRenderer(renderer);
+    glDeleteTextures(1, &gl_tex);
+    glDeleteProgram(gl_prog);
+    glDeleteBuffers(1, &vbo);
+    SDL_GL_DeleteContext(glctx);
     SDL_DestroyWindow(window);
     SDL_Quit();
     dlclose(core.handle);
