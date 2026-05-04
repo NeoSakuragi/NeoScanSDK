@@ -1,14 +1,13 @@
 #!/bin/sh
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BIOS_DIR="/home/bruno/NeoGeo/roms"
+SDK_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-echo "Building..."
-make -C "$SCRIPT_DIR"
+pkill -f neogeo_sdl 2>/dev/null || true
+sleep 0.3
 
-echo "Launching MAME..."
-/usr/games/mame neogeo hello_neo \
-    -hashpath "$SCRIPT_DIR/hash;/usr/share/games/mame/hash" \
-    -rompath "$SCRIPT_DIR/roms;$BIOS_DIR" \
-    -noautosave -skip_gameinfo \
-    -window
+cd "$SDK_DIR"
+make -C examples/hello_neo clean
+make -C examples/hello_neo
+
+"$SDK_DIR/emu/neogeo_sdl" "$SCRIPT_DIR/hello_neo.neo"

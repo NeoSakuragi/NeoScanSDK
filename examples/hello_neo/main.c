@@ -1,17 +1,38 @@
 #include <neoscan.h>
 #include "resources.h"
 
+/* --- KOF96 Sound Commands (v0.1 driver) --- */
+static const uint8_t TRACK_CMDS[] = {
+    0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+    0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E,
+    0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
+    0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D,
+};
+#define NUM_TRACKS (sizeof(TRACK_CMDS) / sizeof(TRACK_CMDS[0]))
+
+static uint16_t sfx_cmd;
+static uint8_t sfx_chan;
+static const uint8_t SFX_CHANNELS[] = { 0x1A, 0x1C, 0x1D };
+#define NUM_SFX_CHAN 3
+
+static uint8_t cur_track;
+static uint8_t playing;
+
 /* --- Menu --- */
-#define MENU_ANIM_P1  0
-#define MENU_ANIM_P2  1
-#define MENU_PAL_P1   2
-#define MENU_PAL_P2   3
-#define MENU_XPOS     4
-#define MENU_YPOS     5
-#define MENU_ZOOM     6
-#define MENU_COUNT    7
+#define MENU_TRACK    0
+#define MENU_SFX_CHAN  1
+#define MENU_SFX      2
+#define MENU_ANIM_P1  3
+#define MENU_ANIM_P2  4
+#define MENU_PAL_P1   5
+#define MENU_PAL_P2   6
+#define MENU_XPOS     7
+#define MENU_YPOS     8
+#define MENU_ZOOM     9
+#define MENU_COUNT    10
 
 static const char *MENU_LABELS[MENU_COUNT] = {
+    "TRACK  ", "SFX CH ", "SFX    ",
     "ANIM P1", "ANIM P2",
     "PAL P1 ", "PAL P2 ", "X-POS  ", "Y-POS  ", "ZOOM   "
 };
@@ -110,6 +131,16 @@ static void set_anim(uint8_t slot, uint8_t anim_idx) {
     prev_height[slot] = new_h;
 }
 
+static void print_hex(uint8_t col, uint8_t row, uint8_t val, uint8_t pal) {
+    static const char HEX[] = "0123456789ABCDEF";
+    char buf[5];
+    buf[0] = '0'; buf[1] = 'x';
+    buf[2] = HEX[(val >> 4) & 0xF];
+    buf[3] = HEX[val & 0xF];
+    buf[4] = 0;
+    FIX_print(col, row, buf, pal);
+}
+
 static void draw_menu(void) {
     uint8_t i;
     uint8_t prev_blink = (blink_timer >> 3) & 1;
@@ -119,7 +150,7 @@ static void draw_menu(void) {
     if (!menu_dirty && prev_blink == blink_on)
         return;
 
-    FIX_print(1, 1, "HELLO NEO", 0);
+    FIX_print(1, 1, "HELLO NEO  KOF96 SND", 0);
 
     for (i = 0; i < MENU_COUNT; i++) {
         uint8_t row = 2 + i;
@@ -129,7 +160,14 @@ static void draw_menu(void) {
         FIX_print(1, row, sel ? ">" : " ", pal);
         FIX_print(2, row, MENU_LABELS[i], pal);
 
-        if (i == MENU_ANIM_P1)
+        if (i == MENU_TRACK) {
+            print_hex(10, row, TRACK_CMDS[cur_track], pal);
+            FIX_print(15, row, playing ? "PLAY" : "STOP", playing ? 4 : 0);
+        } else if (i == MENU_SFX_CHAN) {
+            print_hex(10, row, SFX_CHANNELS[sfx_chan], pal);
+        } else if (i == MENU_SFX) {
+            print_hex(10, row, sfx_cmd, pal);
+        } else if (i == MENU_ANIM_P1)
             FIX_print(10, row, ANIM_NAMES[anim_p1], 0);
         else if (i == MENU_ANIM_P2)
             FIX_print(10, row, ANIM_NAMES[anim_p2], 0);
@@ -182,7 +220,11 @@ void game_init(void) {
     bounce_dx = 1;
 
     menu_sel = 0;
+    cur_track = 0;
+    playing = 0;
     menu_dirty = 1;
+
+    SND_init();
 
     SYS_vblankFlush();
 }
@@ -190,8 +232,10 @@ void game_init(void) {
 void game_tick(void) {
     uint8_t col;
     uint16_t pressed = JOY_pressed(0);
+    uint16_t held = JOY_held(0);
 
     SYS_kickWatchdog();
+    SND_update();
 
     if (pressed & JOY_UP) {
         menu_sel = (menu_sel > 0) ? menu_sel - 1 : MENU_COUNT - 1;
@@ -202,52 +246,65 @@ void game_tick(void) {
         menu_dirty = 1;
     }
 
-    if (pressed & JOY_RIGHT) {
-        menu_dirty = 1;
-        if (menu_sel == MENU_ANIM_P1) {
-            anim_p1 = (anim_p1 + 1 < NUM_ANIMS) ? anim_p1 + 1 : 0;
-            set_anim(0, anim_p1);
-        } else if (menu_sel == MENU_ANIM_P2) {
-            anim_p2 = (anim_p2 + 1 < NUM_ANIMS) ? anim_p2 + 1 : 0;
-            set_anim(1, anim_p2);
-        } else if (menu_sel == MENU_PAL_P1) {
-            pal_p1 = (pal_p1 + 1 < NUM_PALETTES) ? pal_p1 + 1 : 0;
-            apply_palette(3, pal_p1);
-        } else if (menu_sel == MENU_PAL_P2) {
-            pal_p2 = (pal_p2 + 1 < NUM_PALETTES) ? pal_p2 + 1 : 0;
-            apply_palette(2, pal_p2);
-        }
-    }
-    if (JOY_held(0) & JOY_RIGHT) {
-        if (menu_sel == MENU_XPOS) { terry_x += 2; menu_dirty = 1; }
-        else if (menu_sel == MENU_YPOS) { terry_y += 2; menu_dirty = 1; }
-        else if (menu_sel == MENU_ZOOM) {
-            if (shrink_y < 0xFF) { shrink_y += 1; menu_dirty = 1; }
-        }
+    switch (menu_sel) {
+    case MENU_TRACK:
+        if (pressed & JOY_RIGHT) { cur_track = (cur_track + 1 < NUM_TRACKS) ? cur_track + 1 : 0; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { cur_track = (cur_track > 0) ? cur_track - 1 : NUM_TRACKS - 1; menu_dirty = 1; }
+        if (pressed & JOY_A)     { SND_play(TRACK_CMDS[cur_track]); playing = 1; menu_dirty = 1; }
+        break;
+
+    case MENU_SFX_CHAN:
+        if (pressed & JOY_RIGHT) { sfx_chan = (sfx_chan + 1 < NUM_SFX_CHAN) ? sfx_chan + 1 : 0; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { sfx_chan = (sfx_chan > 0) ? sfx_chan - 1 : NUM_SFX_CHAN - 1; menu_dirty = 1; }
+        break;
+
+    case MENU_SFX:
+        if (pressed & JOY_RIGHT) { sfx_cmd++; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { sfx_cmd--; menu_dirty = 1; }
+        if (pressed & JOY_A)     { SND_play2(SFX_CHANNELS[sfx_chan], sfx_cmd); }
+        break;
+
+    case MENU_ANIM_P1:
+        if (pressed & JOY_RIGHT) { anim_p1 = (anim_p1 + 1 < NUM_ANIMS) ? anim_p1 + 1 : 0; set_anim(0, anim_p1); menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { anim_p1 = (anim_p1 > 0) ? anim_p1 - 1 : NUM_ANIMS - 1; set_anim(0, anim_p1); menu_dirty = 1; }
+        break;
+
+    case MENU_ANIM_P2:
+        if (pressed & JOY_RIGHT) { anim_p2 = (anim_p2 + 1 < NUM_ANIMS) ? anim_p2 + 1 : 0; set_anim(1, anim_p2); menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { anim_p2 = (anim_p2 > 0) ? anim_p2 - 1 : NUM_ANIMS - 1; set_anim(1, anim_p2); menu_dirty = 1; }
+        break;
+
+    case MENU_PAL_P1:
+        if (pressed & JOY_RIGHT) { pal_p1 = (pal_p1 + 1 < NUM_PALETTES) ? pal_p1 + 1 : 0; apply_palette(3, pal_p1); menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { pal_p1 = (pal_p1 > 0) ? pal_p1 - 1 : NUM_PALETTES - 1; apply_palette(3, pal_p1); menu_dirty = 1; }
+        break;
+
+    case MENU_PAL_P2:
+        if (pressed & JOY_RIGHT) { pal_p2 = (pal_p2 + 1 < NUM_PALETTES) ? pal_p2 + 1 : 0; apply_palette(2, pal_p2); menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { pal_p2 = (pal_p2 > 0) ? pal_p2 - 1 : NUM_PALETTES - 1; apply_palette(2, pal_p2); menu_dirty = 1; }
+        break;
+
+    case MENU_XPOS:
+        if (held & JOY_RIGHT) { terry_x += 2; menu_dirty = 1; }
+        if (held & JOY_LEFT)  { terry_x -= 2; menu_dirty = 1; }
+        break;
+
+    case MENU_YPOS:
+        if (held & JOY_RIGHT) { terry_y += 2; menu_dirty = 1; }
+        if (held & JOY_LEFT)  { terry_y -= 2; menu_dirty = 1; }
+        break;
+
+    case MENU_ZOOM:
+        if (held & JOY_RIGHT) { if (shrink_y < 0xFF) { shrink_y++; menu_dirty = 1; } }
+        if (held & JOY_LEFT)  { if (shrink_y > 1)    { shrink_y--; menu_dirty = 1; } }
+        break;
     }
 
-    if (pressed & JOY_LEFT) {
+    if (pressed & JOY_B) {
+        SND_stop();
+        SND_init();
+        playing = 0;
         menu_dirty = 1;
-        if (menu_sel == MENU_ANIM_P1) {
-            anim_p1 = (anim_p1 > 0) ? anim_p1 - 1 : NUM_ANIMS - 1;
-            set_anim(0, anim_p1);
-        } else if (menu_sel == MENU_ANIM_P2) {
-            anim_p2 = (anim_p2 > 0) ? anim_p2 - 1 : NUM_ANIMS - 1;
-            set_anim(1, anim_p2);
-        } else if (menu_sel == MENU_PAL_P1) {
-            pal_p1 = (pal_p1 > 0) ? pal_p1 - 1 : NUM_PALETTES - 1;
-            apply_palette(3, pal_p1);
-        } else if (menu_sel == MENU_PAL_P2) {
-            pal_p2 = (pal_p2 > 0) ? pal_p2 - 1 : NUM_PALETTES - 1;
-            apply_palette(2, pal_p2);
-        }
-    }
-    if (JOY_held(0) & JOY_LEFT) {
-        if (menu_sel == MENU_XPOS) { terry_x -= 2; menu_dirty = 1; }
-        else if (menu_sel == MENU_YPOS) { terry_y -= 2; menu_dirty = 1; }
-        else if (menu_sel == MENU_ZOOM) {
-            if (shrink_y > 1) { shrink_y -= 1; menu_dirty = 1; }
-        }
     }
 
     for (col = 0; col < ANIMS[anim_p1]->width; col++)
