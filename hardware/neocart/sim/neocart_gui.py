@@ -19,8 +19,7 @@ MROM_BASE = 192
 VROM_BASE = 320
 DBG_BASE  = 384
 SERVER_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shm_server")
-RETROARCH_BIN = "retroarch"
-GEOLITH_CORE = os.path.expanduser("~/.config/retroarch/cores/geolith_libretro.so")
+NEOSCAN_EMU = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../emu/neogeo_sdl"))
 
 COL_LOW  = "#111111"
 COL_BG   = "#0a0a0a"
@@ -615,10 +614,9 @@ class NeoCartGUI:
     def _launch_emu(self):
         if not self.neo_path:
             return
-        env = {**os.environ, "NEOCART_SHM": "1"}
         subprocess.Popen([
-            RETROARCH_BIN, "-L", GEOLITH_CORE, self.neo_path
-        ], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            NEOSCAN_EMU, self.neo_path
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def run(self):
         # Auto-load if argument provided

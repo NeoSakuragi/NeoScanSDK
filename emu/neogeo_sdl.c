@@ -104,6 +104,9 @@ static struct {
     void (*unload_game)(void);
     void (*run)(void);
     void (*reset)(void);
+    size_t (*serialize_size)(void);
+    bool (*serialize)(void *, size_t);
+    bool (*unserialize)(const void *, size_t);
 } core;
 
 static bool core_load(const char *path) {
@@ -118,6 +121,7 @@ static bool core_load(const char *path) {
     LOAD(init) LOAD(deinit) LOAD(api_version) LOAD(get_system_info)
     LOAD(get_system_av_info) LOAD(set_controller_port_device)
     LOAD(load_game) LOAD(unload_game) LOAD(run) LOAD(reset)
+    LOAD(serialize_size) LOAD(serialize) LOAD(unserialize)
     #undef LOAD
     return true;
 }
@@ -126,6 +130,14 @@ static bool core_load(const char *path) {
 
 static char sys_dir[512];
 static char save_dir[512];
+
+static int opt_hw = 0;    // 0=mvs, 1=aes
+static int opt_region = 0; // 0=us, 1=jp, 2=eu, 3=as
+static bool opt_vars_dirty = false;
+static const char *hw_names[] = {"mvs", "aes"};
+static const char *hw_labels[] = {"ARCADE (MVS)", "CONSOLE (AES)"};
+static const char *region_names[] = {"us", "jp", "eu", "as"};
+static const char *region_labels[] = {"USA", "JAPAN", "EUROPE", "ASIA"};
 
 static void log_cb(enum retro_log_level level, const char *fmt, ...) {
     va_list ap; va_start(ap, fmt);
@@ -145,8 +157,8 @@ static bool environ_cb(unsigned cmd, void *data) {
         struct retro_variable *v = data;
         if (!v->key) return false;
         if (!strcmp(v->key, "geolith_system_type"))   { v->value = "uni";     return true; }
-        if (!strcmp(v->key, "geolith_unibios_hw"))    { v->value = "mvs";     return true; }
-        if (!strcmp(v->key, "geolith_region"))         { v->value = "us";      return true; }
+        if (!strcmp(v->key, "geolith_unibios_hw"))    { v->value = hw_names[opt_hw]; return true; }
+        if (!strcmp(v->key, "geolith_region"))         { v->value = region_names[opt_region]; return true; }
         if (!strcmp(v->key, "geolith_memcard"))         { v->value = "on";      return true; }
         if (!strcmp(v->key, "geolith_memcard_wp"))      { v->value = "off";     return true; }
         if (!strcmp(v->key, "geolith_freeplay"))        { v->value = "on";      return true; }
@@ -167,7 +179,9 @@ static bool environ_cb(unsigned cmd, void *data) {
         v->value = NULL; return false;
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE:
-        *(bool *)data = false; return true;
+        *(bool *)data = opt_vars_dirty;
+        opt_vars_dirty = false;
+        return true;
     case RETRO_ENVIRONMENT_GET_LOG_INTERFACE: {
         struct retro_log_callback *cb = data;
         cb->log = log_cb; return true;
@@ -246,14 +260,15 @@ static const char *frag_src =
     "void main() {\n"
     "    vec3 col = texture2D(tex, uv).rgb;\n"
     "    vec2 px = uv * outSize;\n"
-    "    int subpx = int(mod(px.x, 4.0));\n"
-    "    vec3 mask;\n"
-    "    if (subpx == 0)      mask = vec3(1.0, 0.0, 0.0);\n"
-    "    else if (subpx == 1) mask = vec3(0.0, 1.0, 0.0);\n"
-    "    else if (subpx == 2) mask = vec3(0.0, 0.0, 1.0);\n"
-    "    else                 mask = vec3(0.0, 0.0, 0.0);\n"
-    "    float scanline = (mod(px.y, 4.0) < 3.0) ? 1.0 : 0.0;\n"
-    "    gl_FragColor = vec4(col * mask * scanline, 1.0);\n"
+    "    int cx = int(mod(px.x, 4.0));\n"
+    "    int cy = int(mod(px.y, 4.0));\n"
+    "    vec3 mask = vec3(0.0);\n"
+    "    if (cy < 3) {\n"
+    "        if (cx == 0) mask = vec3(1.0, 0.0, 0.0);\n"
+    "        if (cx == 1) mask = vec3(0.0, 1.0, 0.0);\n"
+    "        if (cx == 2) mask = vec3(0.0, 0.0, 1.0);\n"
+    "    }\n"
+    "    gl_FragColor = vec4(col * mask, 1.0);\n"
     "}\n";
 
 static GLuint compile_shader(GLenum type, const char *src) {
@@ -279,8 +294,45 @@ static GLuint build_program(void) {
     return p;
 }
 
+static int auto_snaps[16];
+static int num_auto_snaps = 0;
+static int auto_quit_frame = -1;
+static int snap_frame = -1;
+static char snap_path[512];
+
+static void save_ppm(const void *data, unsigned w, unsigned h, size_t pitch, const char *path) {
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    fprintf(f, "P6\n%u %u\n255\n", w, h);
+    const uint8_t *src = data;
+    for (unsigned y = 0; y < h; y++) {
+        const uint8_t *row = src + y * pitch;
+        for (unsigned x = 0; x < w; x++) {
+            fputc(row[x*4+2], f); // R (BGRA→RGB)
+            fputc(row[x*4+1], f); // G
+            fputc(row[x*4+0], f); // B
+        }
+    }
+    fclose(f);
+    fprintf(stderr, "Snap: %s\n", path);
+}
+
+static unsigned frame_count = 0;
+
 static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
     if (!data) return;
+    frame_count++;
+    if ((int)frame_count == snap_frame) {
+        save_ppm(data, w, h, pitch, snap_path);
+        snap_frame = -1;
+    }
+    for (int i = 0; i < num_auto_snaps; i++) {
+        if ((int)frame_count == auto_snaps[i]) {
+            char path[256];
+            snprintf(path, sizeof(path), "/tmp/neoscan_f%d.ppm", auto_snaps[i]);
+            save_ppm(data, w, h, pitch, path);
+        }
+    }
     tex_w = w; tex_h = h;
     glBindTexture(GL_TEXTURE_2D, gl_tex);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)(pitch / 4));
@@ -325,25 +377,226 @@ static int16_t input_state_cb(unsigned port, unsigned dev, unsigned idx, unsigne
     return 0;
 }
 
+/* ═══ Menu ═══ */
+
+enum { MENU_RESUME, MENU_RESET, MENU_HW, MENU_REGION, MENU_COUNT };
+static bool menu_open = false;
+static int menu_sel = 0;
+static GLuint menu_tex = 0;
+static int pending_reset = 0;
+static const char *game_path_global;
+
+// Embedded 8x8 font for uppercase A-Z, 0-9, space, colon, parens, slash
+static const uint8_t font8x8[128][8] = {
+    [' ']={0},
+    ['A']={0x3C,0x66,0x66,0x7E,0x66,0x66,0x66,0x00},
+    ['B']={0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00},
+    ['C']={0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00},
+    ['D']={0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00},
+    ['E']={0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0x00},
+    ['F']={0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0x00},
+    ['G']={0x3C,0x66,0x60,0x6E,0x66,0x66,0x3E,0x00},
+    ['H']={0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00},
+    ['I']={0x3C,0x18,0x18,0x18,0x18,0x18,0x3C,0x00},
+    ['J']={0x1E,0x0C,0x0C,0x0C,0x6C,0x6C,0x38,0x00},
+    ['K']={0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00},
+    ['L']={0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00},
+    ['M']={0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00},
+    ['N']={0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00},
+    ['O']={0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00},
+    ['P']={0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00},
+    ['Q']={0x3C,0x66,0x66,0x66,0x6A,0x6C,0x36,0x00},
+    ['R']={0x7C,0x66,0x66,0x7C,0x6C,0x66,0x66,0x00},
+    ['S']={0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00},
+    ['T']={0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00},
+    ['U']={0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00},
+    ['V']={0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00},
+    ['W']={0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00},
+    ['X']={0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00},
+    ['Y']={0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00},
+    ['Z']={0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00},
+    ['0']={0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00},
+    ['1']={0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00},
+    ['2']={0x3C,0x66,0x06,0x1C,0x30,0x60,0x7E,0x00},
+    ['3']={0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00},
+    ['4']={0x0C,0x1C,0x3C,0x6C,0x7E,0x0C,0x0C,0x00},
+    ['5']={0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00},
+    ['6']={0x3C,0x60,0x60,0x7C,0x66,0x66,0x3C,0x00},
+    ['7']={0x7E,0x06,0x0C,0x18,0x30,0x30,0x30,0x00},
+    ['8']={0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00},
+    ['9']={0x3C,0x66,0x66,0x3E,0x06,0x06,0x3C,0x00},
+    [':']={0x00,0x18,0x18,0x00,0x18,0x18,0x00,0x00},
+    ['(']={0x0C,0x18,0x30,0x30,0x30,0x18,0x0C,0x00},
+    [')']={0x30,0x18,0x0C,0x0C,0x0C,0x18,0x30,0x00},
+    ['/']={0x02,0x06,0x0C,0x18,0x30,0x60,0x40,0x00},
+    ['-']={0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00},
+    ['>']={0x30,0x18,0x0C,0x06,0x0C,0x18,0x30,0x00},
+};
+
+#define MENU_TEX_W 256
+#define MENU_TEX_H 256
+
+static void menu_render_text(uint32_t *buf, int bw, int x, int y,
+                              const char *s, uint32_t color) {
+    for (; *s; s++, x += 10) {
+        int ch = (unsigned char)*s;
+        if (ch >= 128) continue;
+        const uint8_t *glyph = font8x8[ch];
+        for (int row = 0; row < 8; row++)
+            for (int col = 0; col < 8; col++)
+                if (glyph[row] & (0x80 >> col)) {
+                    int px = x + col, py = y + row;
+                    if (px >= 0 && px < bw && py >= 0 && py < MENU_TEX_H)
+                        buf[py * bw + px] = color;
+                }
+    }
+}
+
+static void menu_draw(int win_w, int win_h) {
+    static uint32_t pixels[MENU_TEX_W * MENU_TEX_H];
+    memset(pixels, 0, sizeof(pixels));
+
+    const char *labels[MENU_COUNT];
+    char hw_buf[40], reg_buf[40];
+    labels[MENU_RESUME] = "RESUME";
+    labels[MENU_RESET]  = "RESET";
+    snprintf(hw_buf,  sizeof(hw_buf),  "BIOS: %s", hw_labels[opt_hw]);
+    snprintf(reg_buf, sizeof(reg_buf), "REGION: %s", region_labels[opt_region]);
+    labels[MENU_HW]     = hw_buf;
+    labels[MENU_REGION]  = reg_buf;
+
+    // Background
+    for (int y = 20; y < 20 + MENU_COUNT * 28 + 20; y++)
+        for (int x = 20; x < 236; x++)
+            pixels[y * MENU_TEX_W + x] = 0xE0102810;
+
+    // Items
+    for (int i = 0; i < MENU_COUNT; i++) {
+        int iy = 30 + i * 28;
+        if (i == menu_sel) {
+            for (int y = iy; y < iy + 20; y++)
+                for (int x = 24; x < 232; x++)
+                    pixels[y * MENU_TEX_W + x] = 0xFF006820;
+        }
+        uint32_t col = (i == menu_sel) ? 0xFF44FF88 : 0xFF88CC88;
+        menu_render_text(pixels, MENU_TEX_W, 32, iy + 6, labels[i], col);
+    }
+
+    // Arrow
+    menu_render_text(pixels, MENU_TEX_W, 22, 30 + menu_sel * 28 + 6, ">", 0xFF00FF44);
+
+    if (!menu_tex) {
+        glGenTextures(1, &menu_tex);
+        glBindTexture(GL_TEXTURE_2D, menu_tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
+    glBindTexture(GL_TEXTURE_2D, menu_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, MENU_TEX_W, MENU_TEX_H, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    glUseProgram(0);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, menu_tex);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex2f(-1,  1);
+    glTexCoord2f(1, 0); glVertex2f( 1,  1);
+    glTexCoord2f(1, 1); glVertex2f( 1, -1);
+    glTexCoord2f(0, 1); glVertex2f(-1, -1);
+    glEnd();
+    glDisable(GL_BLEND);
+    glDisable(GL_TEXTURE_2D);
+}
+
+/* ═══ Save states ═══ */
+
+static char state_base[512];
+static int state_wait = 0;  // 0=idle, 'S'=waiting for save key, 'L'=waiting for load key
+static int state_msg_frames = 0;
+static char state_msg[64];
+
+static char slot_char(SDL_Scancode sc) {
+    if (sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z) return 'a' + (sc - SDL_SCANCODE_A);
+    if (sc >= SDL_SCANCODE_0 && sc <= SDL_SCANCODE_9) return '0' + (sc - SDL_SCANCODE_0);
+    return 0;
+}
+
+static void state_save(char slot) {
+    size_t sz = core.serialize_size();
+    if (!sz) { snprintf(state_msg, sizeof(state_msg), "NO STATE SUPPORT"); state_msg_frames = 120; return; }
+    void *buf = malloc(sz);
+    if (!core.serialize(buf, sz)) { free(buf); snprintf(state_msg, sizeof(state_msg), "SAVE FAILED"); state_msg_frames = 120; return; }
+    char path[576];
+    snprintf(path, sizeof(path), "%s/%s.st%c", save_dir, state_base, slot);
+    FILE *f = fopen(path, "wb");
+    if (f) { fwrite(buf, 1, sz, f); fclose(f); }
+    free(buf);
+    snprintf(state_msg, sizeof(state_msg), "SAVED: %c", slot >= 'a' ? slot - 32 : slot);
+    state_msg_frames = 90;
+    fprintf(stderr, "State saved: %s\n", path);
+}
+
+static void state_load(char slot) {
+    char path[576];
+    snprintf(path, sizeof(path), "%s/%s.st%c", save_dir, state_base, slot);
+    FILE *f = fopen(path, "rb");
+    if (!f) { snprintf(state_msg, sizeof(state_msg), "EMPTY: %c", slot >= 'a' ? slot - 32 : slot); state_msg_frames = 90; return; }
+    fseek(f, 0, SEEK_END); size_t sz = ftell(f); fseek(f, 0, SEEK_SET);
+    void *buf = malloc(sz);
+    fread(buf, 1, sz, f); fclose(f);
+    if (!core.unserialize(buf, sz))
+        snprintf(state_msg, sizeof(state_msg), "LOAD FAILED: %c", slot >= 'a' ? slot - 32 : slot);
+    else
+        snprintf(state_msg, sizeof(state_msg), "LOADED: %c", slot >= 'a' ? slot - 32 : slot);
+    free(buf);
+    state_msg_frames = 90;
+    fprintf(stderr, "State loaded: %s\n", path);
+}
+
 /* ═══ Main ═══ */
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s game.neo [core.so]\n", argv[0]);
+        fprintf(stderr, "Usage: %s game.neo [--snap F1,F2,...] [--quit F] [core.so]\n", argv[0]);
         return 1;
     }
 
     const char *game = argv[1];
+    const char *core_override = NULL;
+    for (int i = 2; i < argc; i++) {
+        if (!strcmp(argv[i], "--snap") && i+1 < argc) {
+            char *s = argv[++i];
+            while (*s && num_auto_snaps < 16) {
+                auto_snaps[num_auto_snaps++] = atoi(s);
+                while (*s && *s != ',') s++;
+                if (*s == ',') s++;
+            }
+        } else if (!strcmp(argv[i], "--quit") && i+1 < argc) {
+            auto_quit_frame = atoi(argv[++i]);
+        } else {
+            core_override = argv[i];
+        }
+    }
+
     char default_core[512];
     snprintf(default_core, sizeof(default_core), "%s/.config/retroarch/cores/geolith_libretro.so",
              getenv("HOME"));
-    const char *core_path = argc > 2 ? argv[2] : default_core;
+    const char *core_path = core_override ? core_override : default_core;
 
     snprintf(sys_dir, sizeof(sys_dir), "%s/.config/retroarch/system", getenv("HOME"));
     snprintf(save_dir, sizeof(save_dir), "%s/.config/retroarch/saves", getenv("HOME"));
 
     if (access("/dev/shm/neocart_bus", F_OK) == 0)
         setenv("NEOCART_SHM", "1", 1);
+
+    // Extract game basename for state files (e.g. "kof95" from "/data/roms/kof95.neo")
+    const char *bn = strrchr(game, '/');
+    bn = bn ? bn + 1 : game;
+    snprintf(state_base, sizeof(state_base), "%s", bn);
+    char *dot = strrchr(state_base, '.');
+    if (dot) *dot = 0;
 
     if (!core_load(core_path)) return 1;
     printf("Core: %s (API %u)\n", core_path, core.api_version());
@@ -358,6 +611,7 @@ int main(int argc, char *argv[]) {
     core.set_input_state(input_state_cb);
     core.init();
 
+    game_path_global = game;
     struct retro_game_info info = { .path = game };
     if (!core.load_game(&info)) {
         fprintf(stderr, "Failed to load: %s\n", game);
@@ -418,6 +672,7 @@ int main(int argc, char *argv[]) {
 
     bool running = true;
     bool crt_on = true;
+
     while (running) {
         uint64_t t0 = SDL_GetPerformanceCounter();
 
@@ -425,12 +680,80 @@ int main(int argc, char *argv[]) {
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) running = false;
             if (ev.type == SDL_KEYDOWN) {
-                if (ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE) running = false;
-                if (ev.key.keysym.scancode == SDL_SCANCODE_F2) crt_on = !crt_on;
+                SDL_Scancode sc = ev.key.keysym.scancode;
+                if (menu_open) {
+                    if (sc == SDL_SCANCODE_F1 || sc == SDL_SCANCODE_ESCAPE) menu_open = false;
+                    if (sc == SDL_SCANCODE_UP) menu_sel = (menu_sel + MENU_COUNT - 1) % MENU_COUNT;
+                    if (sc == SDL_SCANCODE_DOWN) menu_sel = (menu_sel + 1) % MENU_COUNT;
+                    if (sc == SDL_SCANCODE_RETURN) {
+                        switch (menu_sel) {
+                            case MENU_RESUME: menu_open = false; break;
+                            case MENU_RESET: opt_vars_dirty = true; pending_reset = 2; menu_open = false; break;
+                            case MENU_HW: opt_hw ^= 1; break;
+                            case MENU_REGION: opt_region = (opt_region + 1) % 4; break;
+                        }
+                    }
+                    if (sc == SDL_SCANCODE_LEFT) {
+                        if (menu_sel == MENU_HW) opt_hw ^= 1;
+                        if (menu_sel == MENU_REGION) opt_region = (opt_region + 3) % 4;
+                    }
+                    if (sc == SDL_SCANCODE_RIGHT) {
+                        if (menu_sel == MENU_HW) opt_hw ^= 1;
+                        if (menu_sel == MENU_REGION) opt_region = (opt_region + 1) % 4;
+                    }
+                } else if (state_wait) {
+                    char c = slot_char(sc);
+                    if (c) {
+                        if (state_wait == 'S') state_save(c);
+                        else state_load(c);
+                    }
+                    state_wait = 0;
+                } else {
+                    if (sc == SDL_SCANCODE_ESCAPE) running = false;
+                    if (sc == SDL_SCANCODE_F1) menu_open = true;
+                    if (sc == SDL_SCANCODE_F2) crt_on = !crt_on;
+                    if (sc == SDL_SCANCODE_F5) {
+                        snprintf(snap_path, sizeof(snap_path), "/tmp/neoscan_%u.ppm", frame_count);
+                        snap_frame = frame_count + 1;
+                    }
+                    if (sc == SDL_SCANCODE_F6) { state_wait = 'S'; state_msg_frames = 0; }
+                    if (sc == SDL_SCANCODE_F7) { state_wait = 'L'; state_msg_frames = 0; }
+                }
             }
         }
 
-        core.run();
+        if (!menu_open) {
+            core.run();
+            if (pending_reset > 0 && --pending_reset == 0) {
+                core.unload_game();
+                // Patch NVRAM AFTER unload (unload saves old NVRAM to disk)
+                static const uint8_t nv_region[] = {0x00, 0x01, 0x02, 0x03};
+                char nvpath[576];
+                snprintf(nvpath, sizeof(nvpath), "%s/%s.nv", save_dir, state_base);
+                FILE *nf = fopen(nvpath, "r+b");
+                if (nf) {
+                    fseek(nf, 2, SEEK_SET);
+                    uint8_t mode = opt_hw ? 0x00 : 0x80;
+                    uint8_t reg = nv_region[opt_region];
+                    fwrite(&mode, 1, 1, nf);
+                    fwrite(&reg, 1, 1, nf);
+                    fclose(nf);
+                }
+                struct retro_game_info ri = { .path = game_path_global };
+                core.load_game(&ri);
+            }
+            if (auto_quit_frame > 0 && (int)frame_count >= auto_quit_frame) running = false;
+        }
+
+        if (state_wait) {
+            SDL_SetWindowTitle(window, state_wait == 'S' ? "NeoScanSDK [SAVE: press A-Z / 0-9]" : "NeoScanSDK [LOAD: press A-Z / 0-9]");
+        } else if (state_msg_frames > 0) {
+            char title[128]; snprintf(title, sizeof(title), "NeoScanSDK [%s]", state_msg);
+            SDL_SetWindowTitle(window, title);
+            state_msg_frames--;
+        } else {
+            SDL_SetWindowTitle(window, "NeoScanSDK");
+        }
 
         glViewport(0, 0, win_w, win_h);
         glUseProgram(gl_prog);
@@ -442,6 +765,7 @@ int main(int argc, char *argv[]) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, gl_tex);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        if (menu_open) menu_draw(win_w, win_h);
         SDL_GL_SwapWindow(window);
 
         uint64_t t1 = SDL_GetPerformanceCounter();
