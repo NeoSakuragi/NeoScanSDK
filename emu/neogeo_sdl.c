@@ -109,6 +109,7 @@ static struct {
     bool (*unserialize)(const void *, size_t);
     void *(*get_memory_data)(unsigned);
     size_t (*get_memory_size)(unsigned);
+    void (*neoscan_rerender)(void);
 } core;
 
 static bool core_load(const char *path) {
@@ -125,6 +126,7 @@ static bool core_load(const char *path) {
     LOAD(load_game) LOAD(unload_game) LOAD(run) LOAD(reset)
     LOAD(serialize_size) LOAD(serialize) LOAD(unserialize)
     LOAD(get_memory_data) LOAD(get_memory_size)
+    *(void **)(&core.neoscan_rerender) = dlsym(core.handle, "retro_neoscan_rerender");
     #undef LOAD
     return true;
 }
@@ -581,6 +583,142 @@ static void script_exec(unsigned fc) {
     }
 }
 
+/* ═══ Sprite debug panel ═══ */
+
+#define MAX_CHAINS 192
+typedef struct { int head; int len; int y; int tile; bool hidden; } sprite_chain_t;
+static sprite_chain_t chains[MAX_CHAINS];
+static int num_chains = 0;
+static int chain_scroll = 0;
+static bool sprite_panel = false;
+static bool sprite_step = false;
+static int chain_cursor = 0;
+static uint8_t *sprite_mask_ptr = NULL;
+static uint16_t *vram_ptr = NULL;
+
+static void sprite_analyze(void) {
+    if (!vram_ptr) return;
+    num_chains = 0;
+    for (int i = 1; i < 382 && num_chains < MAX_CHAINS; i++) {
+        uint16_t scb3 = vram_ptr[0x8200 + i];
+        if (!(scb3 & 0x40)) {
+            sprite_chain_t *c = &chains[num_chains];
+            c->head = i;
+            c->len = 1;
+            c->y = (scb3 >> 7) & 0x1ff;
+            c->tile = vram_ptr[i << 6] | ((vram_ptr[(i << 6) + 1] & 0xf0) << 12);
+            c->hidden = sprite_mask_ptr ? sprite_mask_ptr[i] : false;
+            int j = i + 1;
+            while (j < 382 && (vram_ptr[0x8200 + j] & 0x40)) {
+                c->len++;
+                j++;
+            }
+            num_chains++;
+        }
+    }
+}
+
+static void sprite_toggle_chain(int ci) {
+    if (ci < 0 || ci >= num_chains || !sprite_mask_ptr) return;
+    sprite_chain_t *c = &chains[ci];
+    c->hidden = !c->hidden;
+    uint8_t val = c->hidden ? 1 : 0;
+    for (int j = 0; j < c->len; j++)
+        sprite_mask_ptr[c->head + j] = val;
+}
+
+static void sprite_solo_chain(int ci) {
+    if (ci < 0 || ci >= num_chains || !sprite_mask_ptr) return;
+    memset(sprite_mask_ptr, 1, 382);
+    sprite_chain_t *c = &chains[ci];
+    for (int j = 0; j < c->len; j++)
+        sprite_mask_ptr[c->head + j] = 0;
+    for (int i = 0; i < num_chains; i++)
+        chains[i].hidden = true;
+    c->hidden = false;
+}
+
+static void sprite_show_all(void) {
+    if (!sprite_mask_ptr) return;
+    memset(sprite_mask_ptr, 0, 382);
+    for (int i = 0; i < num_chains; i++)
+        chains[i].hidden = false;
+}
+
+#define PANEL_W 220
+#define PANEL_ROWS 20
+
+static void sprite_panel_draw(int win_w, int win_h) {
+    sprite_analyze();
+
+    static uint32_t pixels[PANEL_W * 512];
+    int ph = PANEL_ROWS * 14 + 30;
+    memset(pixels, 0, PANEL_W * ph * 4);
+
+    // Background
+    for (int y = 0; y < ph; y++)
+        for (int x = 0; x < PANEL_W; x++)
+            pixels[y * PANEL_W + x] = 0xF0101010;
+
+    // Title
+    char title[32];
+    snprintf(title, sizeof(title), "CHAINS: %d", num_chains);
+    menu_render_text(pixels, PANEL_W, 4, 4, title, 0xFF00FF44);
+
+    // Visible rows
+    int max_scroll = num_chains > PANEL_ROWS ? num_chains - PANEL_ROWS : 0;
+    if (chain_scroll > max_scroll) chain_scroll = max_scroll;
+    if (chain_scroll < 0) chain_scroll = 0;
+
+    for (int r = 0; r < PANEL_ROWS && (chain_scroll + r) < num_chains; r++) {
+        int ci = chain_scroll + r;
+        sprite_chain_t *c = &chains[ci];
+        int ry = 20 + r * 14;
+
+        if (ci == chain_cursor) {
+            for (int y = ry; y < ry + 12; y++)
+                for (int x = 2; x < PANEL_W - 2; x++)
+                    pixels[y * PANEL_W + x] = 0xFF003818;
+        }
+
+        char line[40];
+        snprintf(line, sizeof(line), "%c %3d L%02d Y%03d T%05X",
+                 c->hidden ? '-' : '*', c->head, c->len, c->y, c->tile & 0xFFFFF);
+        uint32_t col = c->hidden ? 0xFF555555 : (ci == chain_cursor ? 0xFF44FF88 : 0xFFAADDAA);
+        menu_render_text(pixels, PANEL_W, 4, ry + 2, line, col);
+    }
+
+    // Upload as texture
+    static GLuint panel_tex = 0;
+    if (!panel_tex) {
+        glGenTextures(1, &panel_tex);
+        glBindTexture(GL_TEXTURE_2D, panel_tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
+    glBindTexture(GL_TEXTURE_2D, panel_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_W, ph, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    // Draw on right side of screen
+    glUseProgram(0);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_TEXTURE_2D);
+    float px = 1.0f - (float)(PANEL_W * 2) / win_w;
+    float py = 1.0f;
+    float pw = 2.0f * PANEL_W / win_w;
+    float pht = 2.0f * ph / win_h;
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex2f(px, py);
+    glTexCoord2f(1, 0); glVertex2f(px + pw, py);
+    glTexCoord2f(1, (float)ph / 512.0f); glVertex2f(px + pw, py - pht);
+    glTexCoord2f(0, (float)ph / 512.0f); glVertex2f(px, py - pht);
+    glEnd();
+    glDisable(GL_BLEND);
+    glDisable(GL_TEXTURE_2D);
+}
+
 /* ═══ Save states ═══ */
 
 static char state_base[512];
@@ -708,6 +846,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    sprite_mask_ptr = (uint8_t *)core.get_memory_data(100);
+    vram_ptr = (uint16_t *)core.get_memory_data(101);
+
     struct retro_system_av_info av;
     core.get_system_av_info(&av);
     double fps = av.timing.fps;
@@ -761,6 +902,7 @@ int main(int argc, char *argv[]) {
 
     bool running = true;
     bool crt_on = true;
+    int autoload_frame = 30; // load state 's' after boot settles
 
     while (running) {
         uint64_t t0 = SDL_GetPerformanceCounter();
@@ -800,6 +942,21 @@ int main(int argc, char *argv[]) {
                 } else {
                     if (sc == SDL_SCANCODE_ESCAPE) running = false;
                     if (sc == SDL_SCANCODE_F1) { menu_open = true; menu_sel = 0; }
+                    if (sc == SDL_SCANCODE_F3) sprite_panel = !sprite_panel;
+                    if (sprite_panel && !menu_open) {
+                        if (sc == SDL_SCANCODE_PAGEUP) { chain_cursor -= PANEL_ROWS; if (chain_cursor < 0) chain_cursor = 0; }
+                        if (sc == SDL_SCANCODE_PAGEDOWN) { chain_cursor += PANEL_ROWS; if (chain_cursor >= num_chains) chain_cursor = num_chains - 1; }
+                        if (sc == SDL_SCANCODE_HOME) chain_cursor = 0;
+                        if (sc == SDL_SCANCODE_END) chain_cursor = num_chains - 1;
+                        if (sc == SDL_SCANCODE_UP) { chain_cursor--; if (chain_cursor < 0) chain_cursor = 0; }
+                        if (sc == SDL_SCANCODE_DOWN) { chain_cursor++; if (chain_cursor >= num_chains) chain_cursor = num_chains - 1; }
+                        if (sc == SDL_SCANCODE_KP_ENTER || sc == SDL_SCANCODE_BACKSPACE) { sprite_toggle_chain(chain_cursor); sprite_step = true; }
+                        if (sc == SDL_SCANCODE_KP_MULTIPLY) { sprite_solo_chain(chain_cursor); sprite_step = true; }
+                        if (sc == SDL_SCANCODE_KP_0 || sc == SDL_SCANCODE_DELETE) { sprite_show_all(); sprite_step = true; }
+                        // Keep cursor in scroll view
+                        if (chain_cursor < chain_scroll) chain_scroll = chain_cursor;
+                        if (chain_cursor >= chain_scroll + PANEL_ROWS) chain_scroll = chain_cursor - PANEL_ROWS + 1;
+                    }
                     if (sc == SDL_SCANCODE_F2) crt_on = !crt_on;
                     if (sc == SDL_SCANCODE_F5) {
                         snprintf(snap_path, sizeof(snap_path), "/tmp/neoscan_%u.ppm", frame_count);
@@ -815,17 +972,37 @@ int main(int argc, char *argv[]) {
         tick++;
         script_exec(tick);
 
-        if (!menu_open) {
+        /* ── Frame flags: what to do this iteration ── */
+        enum {
+            FL_RUN_CORE   = 1 << 0,  // advance emulation
+            FL_RERENDER   = 1 << 1,  // re-render without advancing
+            FL_DRAW_GAME  = 1 << 2,  // blit game texture
+            FL_DRAW_MENU  = 1 << 3,  // draw menu overlay
+            FL_DRAW_PANEL = 1 << 4,  // draw sprite debug panel
+        };
+
+        unsigned flags = FL_DRAW_GAME;
+
+        if (menu_open)                          flags |= FL_DRAW_MENU;
+        else if (sprite_panel)                  flags |= FL_DRAW_PANEL;
+        else                                    flags |= FL_RUN_CORE;
+
+        if (sprite_step && sprite_panel)      { flags |= FL_RERENDER; flags &= ~FL_RUN_CORE; sprite_step = false; }
+
+        /* ── Execute ── */
+        if (flags & FL_RUN_CORE) {
             core.run();
+            if (autoload_frame > 0 && (int)frame_count == autoload_frame) {
+                state_load('s');
+                autoload_frame = 0;
+            }
             if (pending_reset > 0 && --pending_reset == 0) {
-                // Clear main RAM to kill warm-boot magic ($7654 at $10FE38)
                 #define RETRO_MEMORY_SYSTEM_RAM 2
                 void *sysram = core.get_memory_data(RETRO_MEMORY_SYSTEM_RAM);
                 size_t ramsz = core.get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
                 if (sysram && ramsz) memset(sysram, 0, ramsz);
                 core.unload_game();
                 core.deinit();
-                // Patch NVRAM between deinit and init
                 char nvpath[576];
                 snprintf(nvpath, sizeof(nvpath), "%s/%s.nv", save_dir, state_base);
                 FILE *nf = fopen(nvpath, "r+b");
@@ -840,31 +1017,46 @@ int main(int argc, char *argv[]) {
                 core.init();
                 struct retro_game_info ri = { .path = game_path_global };
                 core.load_game(&ri);
+                sprite_mask_ptr = (uint8_t *)core.get_memory_data(100);
+                vram_ptr = (uint16_t *)core.get_memory_data(101);
             }
             if (auto_quit_frame > 0 && (int)frame_count >= auto_quit_frame) running = false;
         }
 
-        if (state_wait) {
+        if (flags & FL_RERENDER) {
+            size_t ssz = core.serialize_size();
+            void *sbuf = malloc(ssz);
+            core.serialize(sbuf, ssz);
+            core.run();
+            core.unserialize(sbuf, ssz);
+            free(sbuf);
+        }
+
+        /* ── Window title ── */
+        if (state_wait)
             SDL_SetWindowTitle(window, state_wait == 'S' ? "NeoScanSDK [SAVE: press A-Z / 0-9]" : "NeoScanSDK [LOAD: press A-Z / 0-9]");
-        } else if (state_msg_frames > 0) {
+        else if (state_msg_frames > 0) {
             char title[128]; snprintf(title, sizeof(title), "NeoScanSDK [%s]", state_msg);
             SDL_SetWindowTitle(window, title);
             state_msg_frames--;
-        } else {
+        } else
             SDL_SetWindowTitle(window, "NeoScanSDK");
-        }
 
-        glViewport(0, 0, win_w, win_h);
-        glUseProgram(gl_prog);
-        glUniform2f(glGetUniformLocation(gl_prog, "texSize"),
-                    (float)tex_w, (float)tex_h);
-        glUniform2f(glGetUniformLocation(gl_prog, "outSize"),
-                    crt_on ? (float)win_w : 1.0f,
-                    crt_on ? (float)win_h : 1.0f);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, gl_tex);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-        if (menu_open) menu_draw(win_w, win_h);
+        /* ── Render ── */
+        if (flags & FL_DRAW_GAME) {
+            glViewport(0, 0, win_w, win_h);
+            glUseProgram(gl_prog);
+            glUniform2f(glGetUniformLocation(gl_prog, "texSize"),
+                        (float)tex_w, (float)tex_h);
+            glUniform2f(glGetUniformLocation(gl_prog, "outSize"),
+                        crt_on ? (float)win_w : 1.0f,
+                        crt_on ? (float)win_h : 1.0f);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, gl_tex);
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        }
+        if (flags & FL_DRAW_PANEL) sprite_panel_draw(win_w, win_h);
+        if (flags & FL_DRAW_MENU)  menu_draw(win_w, win_h);
         SDL_GL_SwapWindow(window);
 
         uint64_t t1 = SDL_GetPerformanceCounter();
