@@ -265,13 +265,14 @@ static const char *frag_src =
     "void main() {\n"
     "    vec3 col = texture2D(tex, uv).rgb;\n"
     "    vec2 px = uv * outSize;\n"
-    "    int cx = int(mod(px.x, 4.0));\n"
-    "    int cy = int(mod(px.y, 4.0));\n"
+    "    int cx = int(mod(px.x, 3.0));\n"
+    "    int cy = int(mod(px.y, 6.0));\n"
     "    vec3 mask = vec3(0.0);\n"
-    "    if (cy < 3) {\n"
-    "        if (cx == 0) mask = vec3(1.0, 0.0, 0.0);\n"
-    "        if (cx == 1) mask = vec3(0.0, 1.0, 0.0);\n"
-    "        if (cx == 2) mask = vec3(0.0, 0.0, 1.0);\n"
+    "    if (cy < 5) {\n"
+    "        int sub = int(mod(float(cx) + float(cy), 3.0));\n"
+    "        if (sub == 0) mask = vec3(1.0, 0.08, 0.08);\n"
+    "        else if (sub == 1) mask = vec3(0.08, 1.0, 0.08);\n"
+    "        else mask = vec3(0.08, 0.08, 1.0);\n"
     "    }\n"
     "    gl_FragColor = vec4(col * mask, 1.0);\n"
     "}\n";
@@ -889,7 +890,7 @@ int main(int argc, char *argv[]) {
     printf("Video: %ux%u @ %.2f Hz | Audio: %d Hz stereo\n",
            av.geometry.base_width, av.geometry.base_height, fps, srate);
 
-    int scale = 4;
+    int scale = 6;
     int win_w = av.geometry.base_width * scale;
     int win_h = av.geometry.base_height * scale;
 
