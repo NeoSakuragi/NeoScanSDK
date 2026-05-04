@@ -107,6 +107,8 @@ static struct {
     size_t (*serialize_size)(void);
     bool (*serialize)(void *, size_t);
     bool (*unserialize)(const void *, size_t);
+    void *(*get_memory_data)(unsigned);
+    size_t (*get_memory_size)(unsigned);
 } core;
 
 static bool core_load(const char *path) {
@@ -122,6 +124,7 @@ static bool core_load(const char *path) {
     LOAD(get_system_av_info) LOAD(set_controller_port_device)
     LOAD(load_game) LOAD(unload_game) LOAD(run) LOAD(reset)
     LOAD(serialize_size) LOAD(serialize) LOAD(unserialize)
+    LOAD(get_memory_data) LOAD(get_memory_size)
     #undef LOAD
     return true;
 }
@@ -136,8 +139,8 @@ static int opt_region = 0; // 0=us, 1=jp, 2=eu, 3=as
 static bool opt_vars_dirty = false;
 static const char *hw_names[] = {"mvs", "aes"};
 static const char *hw_labels[] = {"ARCADE (MVS)", "CONSOLE (AES)"};
-static const char *region_names[] = {"us", "jp", "eu", "as"};
-static const char *region_labels[] = {"USA", "JAPAN", "EUROPE", "ASIA"};
+static const char *region_names[] = {"jp", "us", "eu", "as"};
+static const char *region_labels[] = {"JAPAN", "USA", "EUROPE", "ASIA"};
 
 static void log_cb(enum retro_log_level level, const char *fmt, ...) {
     va_list ap; va_start(ap, fmt);
@@ -510,6 +513,74 @@ static void menu_draw(int win_w, int win_h) {
     glDisable(GL_TEXTURE_2D);
 }
 
+/* ═══ Script engine ═══ */
+
+typedef struct { int frame; char cmd[16]; char arg[256]; } script_cmd_t;
+static script_cmd_t script[256];
+static int script_len = 0;
+
+static SDL_Scancode key_from_name(const char *name) {
+    if (!strcmp(name, "F1")) return SDL_SCANCODE_F1;
+    if (!strcmp(name, "F2")) return SDL_SCANCODE_F2;
+    if (!strcmp(name, "F5")) return SDL_SCANCODE_F5;
+    if (!strcmp(name, "F6")) return SDL_SCANCODE_F6;
+    if (!strcmp(name, "F7")) return SDL_SCANCODE_F7;
+    if (!strcmp(name, "UP")) return SDL_SCANCODE_UP;
+    if (!strcmp(name, "DOWN")) return SDL_SCANCODE_DOWN;
+    if (!strcmp(name, "LEFT")) return SDL_SCANCODE_LEFT;
+    if (!strcmp(name, "RIGHT")) return SDL_SCANCODE_RIGHT;
+    if (!strcmp(name, "RETURN")) return SDL_SCANCODE_RETURN;
+    if (!strcmp(name, "ESCAPE")) return SDL_SCANCODE_ESCAPE;
+    if (!strcmp(name, "1")) return SDL_SCANCODE_1;
+    if (!strcmp(name, "2")) return SDL_SCANCODE_2;
+    if (!strcmp(name, "3")) return SDL_SCANCODE_3;
+    if (strlen(name) == 1 && name[0] >= 'a' && name[0] <= 'z')
+        return (SDL_Scancode)(SDL_SCANCODE_A + (name[0] - 'a'));
+    return SDL_SCANCODE_UNKNOWN;
+}
+
+static void script_load(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) return;
+    char line[300];
+    while (fgets(line, sizeof(line), f) && script_len < 256) {
+        if (line[0] == '#' || line[0] == '\n') continue;
+        script_cmd_t *c = &script[script_len];
+        if (sscanf(line, "%d %15s %255s", &c->frame, c->cmd, c->arg) >= 2) {
+            if (sscanf(line, "%d %15s", &c->frame, c->cmd) >= 2 &&
+                sscanf(line, "%*d %*s %255[^\n]", c->arg) < 1)
+                c->arg[0] = 0;
+            script_len++;
+        }
+    }
+    fclose(f);
+    fprintf(stderr, "Script: %d commands from %s\n", script_len, path);
+}
+
+static void script_inject_key(SDL_Scancode sc) {
+    SDL_Event ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = SDL_KEYDOWN;
+    ev.key.keysym.scancode = sc;
+    SDL_PushEvent(&ev);
+}
+
+static void script_exec(unsigned fc) {
+    for (int i = 0; i < script_len; i++) {
+        if (script[i].frame != (int)fc) continue;
+        if (!strcmp(script[i].cmd, "key")) {
+            SDL_Scancode sc = key_from_name(script[i].arg);
+            if (sc != SDL_SCANCODE_UNKNOWN) script_inject_key(sc);
+        } else if (!strcmp(script[i].cmd, "snap")) {
+            snprintf(snap_path, sizeof(snap_path), "%s", script[i].arg);
+            snap_frame = frame_count + 1;
+        } else if (!strcmp(script[i].cmd, "quit")) {
+            SDL_Event ev; ev.type = SDL_QUIT;
+            SDL_PushEvent(&ev);
+        }
+    }
+}
+
 /* ═══ Save states ═══ */
 
 static char state_base[512];
@@ -559,7 +630,7 @@ static void state_load(char slot) {
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s game.neo [--snap F1,F2,...] [--quit F] [core.so]\n", argv[0]);
+        fprintf(stderr, "Usage: %s game.neo [--snap F1,F2,...] [--quit F] [--script file] [core.so]\n", argv[0]);
         return 1;
     }
 
@@ -575,6 +646,8 @@ int main(int argc, char *argv[]) {
             }
         } else if (!strcmp(argv[i], "--quit") && i+1 < argc) {
             auto_quit_frame = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "--script") && i+1 < argc) {
+            script_load(argv[++i]);
         } else {
             core_override = argv[i];
         }
@@ -617,6 +690,22 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Failed to load: %s\n", game);
         core.deinit();
         return 1;
+    }
+
+    // Read NVRAM to sync menu with UniBIOS settings
+    {
+        char nvpath[576];
+        snprintf(nvpath, sizeof(nvpath), "%s/%s.nv", save_dir, state_base);
+        FILE *nf = fopen(nvpath, "rb");
+        if (nf) {
+            fseek(nf, 2, SEEK_SET);
+            uint8_t mode, reg;
+            if (fread(&mode, 1, 1, nf) == 1 && fread(&reg, 1, 1, nf) == 1) {
+                opt_hw = (mode == 0x00) ? 1 : 0;
+                if (reg <= 3) opt_region = reg;
+            }
+            fclose(nf);
+        }
     }
 
     struct retro_system_av_info av;
@@ -710,7 +799,7 @@ int main(int argc, char *argv[]) {
                     state_wait = 0;
                 } else {
                     if (sc == SDL_SCANCODE_ESCAPE) running = false;
-                    if (sc == SDL_SCANCODE_F1) menu_open = true;
+                    if (sc == SDL_SCANCODE_F1) { menu_open = true; menu_sel = 0; }
                     if (sc == SDL_SCANCODE_F2) crt_on = !crt_on;
                     if (sc == SDL_SCANCODE_F5) {
                         snprintf(snap_path, sizeof(snap_path), "/tmp/neoscan_%u.ppm", frame_count);
@@ -722,23 +811,33 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        static unsigned tick = 0;
+        tick++;
+        script_exec(tick);
+
         if (!menu_open) {
             core.run();
             if (pending_reset > 0 && --pending_reset == 0) {
+                // Clear main RAM to kill warm-boot magic ($7654 at $10FE38)
+                #define RETRO_MEMORY_SYSTEM_RAM 2
+                void *sysram = core.get_memory_data(RETRO_MEMORY_SYSTEM_RAM);
+                size_t ramsz = core.get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
+                if (sysram && ramsz) memset(sysram, 0, ramsz);
                 core.unload_game();
-                // Patch NVRAM AFTER unload (unload saves old NVRAM to disk)
-                static const uint8_t nv_region[] = {0x00, 0x01, 0x02, 0x03};
+                core.deinit();
+                // Patch NVRAM between deinit and init
                 char nvpath[576];
                 snprintf(nvpath, sizeof(nvpath), "%s/%s.nv", save_dir, state_base);
                 FILE *nf = fopen(nvpath, "r+b");
                 if (nf) {
                     fseek(nf, 2, SEEK_SET);
                     uint8_t mode = opt_hw ? 0x00 : 0x80;
-                    uint8_t reg = nv_region[opt_region];
+                    uint8_t reg = (uint8_t)opt_region;
                     fwrite(&mode, 1, 1, nf);
                     fwrite(&reg, 1, 1, nf);
                     fclose(nf);
                 }
+                core.init();
                 struct retro_game_info ri = { .path = game_path_global };
                 core.load_game(&ri);
             }
