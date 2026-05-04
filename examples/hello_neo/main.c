@@ -249,7 +249,7 @@ void game_init(void) {
     playing = 0;
     perfect_idx = 0;
     auto_timer = 0;
-    init_delay = 120;
+    init_delay = 300;
     menu_dirty = 1;
 
     SYS_vblankFlush();
@@ -263,7 +263,8 @@ void game_tick(void) {
 
     if (init_delay > 0) {
         init_delay--;
-        if (init_delay == 0) REG_SOUND = 0x07;
+        if (init_delay == 120) REG_SOUND = 0x07;
+        if (init_delay == 0) { REG_SOUND = 0x25; playing = 1; menu_dirty = 1; }
     }
 
     if (pressed & JOY_UP) {
@@ -336,7 +337,7 @@ void game_tick(void) {
         menu_dirty = 1;
         if (menu_sel == MENU_TRACK) {
             REG_SOUND = 0x07;
-            REG_SOUND = PERFECT_TRACKS[cur_track];
+            REG_SOUND = 0x25;
             playing = 1;
         } else if (menu_sel == MENU_SFX) {
             REG_SOUND = SFX_CMDS[cur_sfx];

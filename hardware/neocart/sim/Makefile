@@ -21,6 +21,7 @@ verilator: obj_dir/Vprom_cart__ALL.a verilator_bridge.cpp
 obj_dir/Vprom_cart__ALL.a: prom_cart.v
 	$(VERILATOR) --cc prom_cart.v \
 		-GROM_WORDS=$(ROM_WORDS) \
+		'-GROM_FILE="/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/sim/rbff2_prom.hex"' \
 		--top-module prom_cart \
 		--Mdir obj_dir
 	$(MAKE) -C obj_dir -f Vprom_cart.mk
