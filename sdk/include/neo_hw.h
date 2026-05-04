@@ -9,7 +9,6 @@
 #define REG_VRAMMOD    (*(volatile uint16_t *)0x3C0004)
 #define REG_IRQACK     (*(volatile uint16_t *)0x3C000C)
 #define REG_WATCHDOG   (*(volatile uint8_t  *)0x300001)
-#define REG_SOUND      (*(volatile uint8_t  *)0x320000)
 
 /* Palette RAM: 256 palettes x 16 colors x 2 bytes = 8KB */
 #define PALRAM         ((volatile uint16_t *)0x400000)

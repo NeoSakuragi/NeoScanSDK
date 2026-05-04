@@ -22,7 +22,7 @@ def main():
                      ('sfx_vrom','--v1'),('sfx_table','--sound-table'),
                      ('voice_table','--voice-table'),('music_samples','--v1-overlay'),
                      ('seq_blob','--seq-blob'),('fm_freq_table','--fm-freq-table'),
-                     ('donor_m1','--donor-m1'),('donor_v1','--donor-v1')]:
+                     ('donor_m1','--donor-m1'),('donor_v1','--donor-v1'),('donor_s1','--donor-s1')]:
         if k in manifest:
             cmd.extend([flag, manifest[k]])
     for i in range(16):

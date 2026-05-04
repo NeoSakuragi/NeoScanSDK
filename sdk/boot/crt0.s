@@ -47,7 +47,7 @@ _start:
     .long   0x00100000          /* P ROM size (1 MB) */
     .long   0                   /* No backup RAM */
     .word   0                   /* No backup RAM size */
-    .byte   0                   /* Eye catcher mode 0 = BIOS handles (inits Z80 sound) */
+    .byte   2                   /* Eye catcher mode 2 = skip */
     .byte   0                   /* Logo sprite bank */
     .long   soft_dip            /* JP DIP */
     .long   soft_dip            /* US DIP */
