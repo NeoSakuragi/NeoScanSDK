@@ -524,6 +524,7 @@ static int script_len = 0;
 static SDL_Scancode key_from_name(const char *name) {
     if (!strcmp(name, "F1")) return SDL_SCANCODE_F1;
     if (!strcmp(name, "F2")) return SDL_SCANCODE_F2;
+    if (!strcmp(name, "F3")) return SDL_SCANCODE_F3;
     if (!strcmp(name, "F5")) return SDL_SCANCODE_F5;
     if (!strcmp(name, "F6")) return SDL_SCANCODE_F6;
     if (!strcmp(name, "F7")) return SDL_SCANCODE_F7;
@@ -533,6 +534,8 @@ static SDL_Scancode key_from_name(const char *name) {
     if (!strcmp(name, "RIGHT")) return SDL_SCANCODE_RIGHT;
     if (!strcmp(name, "RETURN")) return SDL_SCANCODE_RETURN;
     if (!strcmp(name, "ESCAPE")) return SDL_SCANCODE_ESCAPE;
+    if (!strcmp(name, "BACKSPACE")) return SDL_SCANCODE_BACKSPACE;
+    if (!strcmp(name, "DELETE")) return SDL_SCANCODE_DELETE;
     if (!strcmp(name, "1")) return SDL_SCANCODE_1;
     if (!strcmp(name, "2")) return SDL_SCANCODE_2;
     if (!strcmp(name, "3")) return SDL_SCANCODE_3;
@@ -585,67 +588,95 @@ static void script_exec(unsigned fc) {
 
 /* ═══ Sprite debug panel ═══ */
 
-#define MAX_CHAINS 192
-typedef struct { int head; int len; int y; int tile; bool hidden; } sprite_chain_t;
-static sprite_chain_t chains[MAX_CHAINS];
-static int num_chains = 0;
+#define MAX_PC_GROUPS 64
+typedef struct {
+    uint32_t pc;       // P-ROM address
+    int num_chains;    // how many chains this routine manages
+    int num_sprites;   // total sprites across all chains
+} pc_group_t;
+
+static pc_group_t pc_groups[MAX_PC_GROUPS];
+static int num_pc_groups = 0;
 static int chain_scroll = 0;
 static bool sprite_panel = false;
 static bool sprite_step = false;
 static int chain_cursor = 0;
-static uint8_t *sprite_mask_ptr = NULL;
 static uint16_t *vram_ptr = NULL;
+static uint32_t *sprite_pc_ptr = NULL;
+static uint32_t *blocked_pcs_ptr = NULL;  // points into Geolith's blocked_pcs[]
+static int *num_blocked_ptr = NULL;       // points into Geolith's num_blocked_pcs
 
-static void sprite_analyze(void) {
-    if (!vram_ptr) return;
-    num_chains = 0;
-    for (int i = 1; i < 382 && num_chains < MAX_CHAINS; i++) {
-        uint16_t scb3 = vram_ptr[0x8200 + i];
-        if (!(scb3 & 0x40)) {
-            sprite_chain_t *c = &chains[num_chains];
-            c->head = i;
-            c->len = 1;
-            c->y = (scb3 >> 7) & 0x1ff;
-            c->tile = vram_ptr[i << 6] | ((vram_ptr[(i << 6) + 1] & 0xf0) << 12);
-            c->hidden = sprite_mask_ptr ? sprite_mask_ptr[i] : false;
-            int j = i + 1;
-            while (j < 382 && (vram_ptr[0x8200 + j] & 0x40)) {
-                c->len++;
-                j++;
-            }
-            num_chains++;
+static bool is_pc_hidden(uint32_t pc) {
+    if (!num_blocked_ptr) return false;
+    for (int i = 0; i < *num_blocked_ptr; i++)
+        if (blocked_pcs_ptr[i] == pc) return true;
+    return false;
+}
+
+static void toggle_pc(uint32_t pc) {
+    if (!pc || !blocked_pcs_ptr || !num_blocked_ptr) {
+        fprintf(stderr, "toggle_pc: NULL ptr (pc=%06X, bpc=%p, nbp=%p)\n", pc, (void*)blocked_pcs_ptr, (void*)num_blocked_ptr);
+        return;
+    }
+    for (int i = 0; i < *num_blocked_ptr; i++) {
+        if (blocked_pcs_ptr[i] == pc) {
+            blocked_pcs_ptr[i] = blocked_pcs_ptr[--(*num_blocked_ptr)];
+            fprintf(stderr, "UNBLOCK PC $%06X (now %d blocked)\n", pc, *num_blocked_ptr);
+            return;
         }
+    }
+    if (*num_blocked_ptr < 64) {
+        blocked_pcs_ptr[(*num_blocked_ptr)++] = pc;
+        fprintf(stderr, "BLOCK PC $%06X (now %d blocked)\n", pc, *num_blocked_ptr);
     }
 }
 
-static void sprite_toggle_chain(int ci) {
-    if (ci < 0 || ci >= num_chains || !sprite_mask_ptr) return;
-    sprite_chain_t *c = &chains[ci];
-    c->hidden = !c->hidden;
-    uint8_t val = c->hidden ? 1 : 0;
-    for (int j = 0; j < c->len; j++)
-        sprite_mask_ptr[c->head + j] = val;
+static void sprite_analyze(void) {
+    if (!vram_ptr || !sprite_pc_ptr) return;
+    num_pc_groups = 0;
+
+    // Walk all chain heads, group by PC
+    for (int i = 1; i < 382; i++) {
+        if (vram_ptr[0x8200 + i] & 0x40) continue; // sticky, not a head
+
+        uint32_t pc = sprite_pc_ptr ? sprite_pc_ptr[i] : 0;
+
+        int chain_len = 1;
+        int j = i + 1;
+        while (j < 382 && (vram_ptr[0x8200 + j] & 0x40)) { chain_len++; j++; }
+
+        // Find or create group
+        int gi = -1;
+        for (int g = 0; g < num_pc_groups; g++) {
+            if (pc_groups[g].pc == pc) { gi = g; break; }
+        }
+        if (gi < 0 && num_pc_groups < MAX_PC_GROUPS) {
+            gi = num_pc_groups++;
+            pc_groups[gi].pc = pc;
+            pc_groups[gi].num_chains = 0;
+            pc_groups[gi].num_sprites = 0;
+        }
+        if (gi >= 0) {
+            pc_groups[gi].num_chains++;
+            pc_groups[gi].num_sprites += chain_len;
+        }
+    }
+
+    // Sort by highest sprite index first (most sprites = background at bottom)
+    // Simple: sort by num_sprites ascending so small groups (HUD, chars) come first
+    for (int i = 0; i < num_pc_groups - 1; i++)
+        for (int j = i + 1; j < num_pc_groups; j++)
+            if (pc_groups[i].num_sprites > pc_groups[j].num_sprites) {
+                pc_group_t tmp = pc_groups[i];
+                pc_groups[i] = pc_groups[j];
+                pc_groups[j] = tmp;
+            }
+
+    if (chain_cursor < 0) chain_cursor = 0;
+    if (chain_cursor >= num_pc_groups) chain_cursor = num_pc_groups > 0 ? num_pc_groups - 1 : 0;
 }
 
-static void sprite_solo_chain(int ci) {
-    if (ci < 0 || ci >= num_chains || !sprite_mask_ptr) return;
-    memset(sprite_mask_ptr, 1, 382);
-    sprite_chain_t *c = &chains[ci];
-    for (int j = 0; j < c->len; j++)
-        sprite_mask_ptr[c->head + j] = 0;
-    for (int i = 0; i < num_chains; i++)
-        chains[i].hidden = true;
-    c->hidden = false;
-}
-
-static void sprite_show_all(void) {
-    if (!sprite_mask_ptr) return;
-    memset(sprite_mask_ptr, 0, 382);
-    for (int i = 0; i < num_chains; i++)
-        chains[i].hidden = false;
-}
-
-#define PANEL_W 220
+#define PANEL_W 300
 #define PANEL_ROWS 20
 
 static void sprite_panel_draw(int win_w, int win_h) {
@@ -661,18 +692,17 @@ static void sprite_panel_draw(int win_w, int win_h) {
             pixels[y * PANEL_W + x] = 0xF0101010;
 
     // Title
-    char title[32];
-    snprintf(title, sizeof(title), "CHAINS: %d", num_chains);
+    char title[48];
+    snprintf(title, sizeof(title), "  PC     CHN SPR");
     menu_render_text(pixels, PANEL_W, 4, 4, title, 0xFF00FF44);
 
-    // Visible rows
-    int max_scroll = num_chains > PANEL_ROWS ? num_chains - PANEL_ROWS : 0;
+    int max_scroll = num_pc_groups > PANEL_ROWS ? num_pc_groups - PANEL_ROWS : 0;
     if (chain_scroll > max_scroll) chain_scroll = max_scroll;
     if (chain_scroll < 0) chain_scroll = 0;
 
-    for (int r = 0; r < PANEL_ROWS && (chain_scroll + r) < num_chains; r++) {
+    for (int r = 0; r < PANEL_ROWS && (chain_scroll + r) < num_pc_groups; r++) {
         int ci = chain_scroll + r;
-        sprite_chain_t *c = &chains[ci];
+        pc_group_t *g = &pc_groups[ci];
         int ry = 20 + r * 14;
 
         if (ci == chain_cursor) {
@@ -681,10 +711,11 @@ static void sprite_panel_draw(int win_w, int win_h) {
                     pixels[y * PANEL_W + x] = 0xFF003818;
         }
 
-        char line[40];
-        snprintf(line, sizeof(line), "%c %3d L%02d Y%03d T%05X",
-                 c->hidden ? '-' : '*', c->head, c->len, c->y, c->tile & 0xFFFFF);
-        uint32_t col = c->hidden ? 0xFF555555 : (ci == chain_cursor ? 0xFF44FF88 : 0xFFAADDAA);
+        bool hidden = is_pc_hidden(g->pc);
+        char line[48];
+        snprintf(line, sizeof(line), "%c %06X  %2d %3d",
+                 hidden ? '-' : '*', g->pc & 0xFFFFFF, g->num_chains, g->num_sprites);
+        uint32_t col = hidden ? 0xFF555555 : (ci == chain_cursor ? 0xFF44FF88 : 0xFFAADDAA);
         menu_render_text(pixels, PANEL_W, 4, ry + 2, line, col);
     }
 
@@ -846,8 +877,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    sprite_mask_ptr = (uint8_t *)core.get_memory_data(100);
+    blocked_pcs_ptr = (uint32_t *)core.get_memory_data(100);
     vram_ptr = (uint16_t *)core.get_memory_data(101);
+    sprite_pc_ptr = (uint32_t *)core.get_memory_data(102);
+    num_blocked_ptr = (int *)core.get_memory_data(103);
 
     struct retro_system_av_info av;
     core.get_system_av_info(&av);
@@ -902,7 +935,7 @@ int main(int argc, char *argv[]) {
 
     bool running = true;
     bool crt_on = true;
-    int autoload_frame = 30; // load state 's' after boot settles
+    int autoload_frame = 30;
 
     while (running) {
         uint64_t t0 = SDL_GetPerformanceCounter();
@@ -942,17 +975,37 @@ int main(int argc, char *argv[]) {
                 } else {
                     if (sc == SDL_SCANCODE_ESCAPE) running = false;
                     if (sc == SDL_SCANCODE_F1) { menu_open = true; menu_sel = 0; }
-                    if (sc == SDL_SCANCODE_F3) sprite_panel = !sprite_panel;
+                    if (sc == SDL_SCANCODE_F3) {
+                        sprite_panel = !sprite_panel;
+                        if (sprite_panel) {
+                            sprite_analyze();
+                            fprintf(stderr, "=== SPRITE DEBUG ===\n");
+                            fprintf(stderr, "blocked_pcs_ptr=%p num_blocked_ptr=%p sprite_pc_ptr=%p vram_ptr=%p\n",
+                                (void*)blocked_pcs_ptr, (void*)num_blocked_ptr, (void*)sprite_pc_ptr, (void*)vram_ptr);
+                            if (num_blocked_ptr) fprintf(stderr, "num_blocked=%d\n", *num_blocked_ptr);
+                            fprintf(stderr, "PC groups: %d\n", num_pc_groups);
+                            for (int i = 0; i < num_pc_groups && i < 10; i++)
+                                fprintf(stderr, "  [%d] PC=$%06X chains=%d sprites=%d\n",
+                                    i, pc_groups[i].pc, pc_groups[i].num_chains, pc_groups[i].num_sprites);
+                        }
+                    }
                     if (sprite_panel && !menu_open) {
                         if (sc == SDL_SCANCODE_PAGEUP) { chain_cursor -= PANEL_ROWS; if (chain_cursor < 0) chain_cursor = 0; }
-                        if (sc == SDL_SCANCODE_PAGEDOWN) { chain_cursor += PANEL_ROWS; if (chain_cursor >= num_chains) chain_cursor = num_chains - 1; }
+                        if (sc == SDL_SCANCODE_PAGEDOWN) { chain_cursor += PANEL_ROWS; if (chain_cursor >= num_pc_groups) chain_cursor = num_pc_groups - 1; }
                         if (sc == SDL_SCANCODE_HOME) chain_cursor = 0;
-                        if (sc == SDL_SCANCODE_END) chain_cursor = num_chains - 1;
+                        if (sc == SDL_SCANCODE_END) chain_cursor = num_pc_groups - 1;
                         if (sc == SDL_SCANCODE_UP) { chain_cursor--; if (chain_cursor < 0) chain_cursor = 0; }
-                        if (sc == SDL_SCANCODE_DOWN) { chain_cursor++; if (chain_cursor >= num_chains) chain_cursor = num_chains - 1; }
-                        if (sc == SDL_SCANCODE_KP_ENTER || sc == SDL_SCANCODE_BACKSPACE) { sprite_toggle_chain(chain_cursor); sprite_step = true; }
-                        if (sc == SDL_SCANCODE_KP_MULTIPLY) { sprite_solo_chain(chain_cursor); sprite_step = true; }
-                        if (sc == SDL_SCANCODE_KP_0 || sc == SDL_SCANCODE_DELETE) { sprite_show_all(); sprite_step = true; }
+                        if (sc == SDL_SCANCODE_DOWN) { chain_cursor++; if (chain_cursor >= num_pc_groups) chain_cursor = num_pc_groups - 1; }
+                        if (sc == SDL_SCANCODE_KP_ENTER || sc == SDL_SCANCODE_BACKSPACE) {
+                            if (chain_cursor >= 0 && chain_cursor < num_pc_groups) {
+                                toggle_pc(pc_groups[chain_cursor].pc);
+                                core.get_memory_data(199); // trigger rerender
+                            }
+                        }
+                        if (sc == SDL_SCANCODE_KP_0 || sc == SDL_SCANCODE_DELETE) {
+                            if (num_blocked_ptr) *num_blocked_ptr = 0;
+                            core.get_memory_data(199); // trigger rerender
+                        }
                         // Keep cursor in scroll view
                         if (chain_cursor < chain_scroll) chain_scroll = chain_cursor;
                         if (chain_cursor >= chain_scroll + PANEL_ROWS) chain_scroll = chain_cursor - PANEL_ROWS + 1;
@@ -972,6 +1025,8 @@ int main(int argc, char *argv[]) {
         tick++;
         script_exec(tick);
 
+        if (sprite_panel) sprite_analyze();
+
         /* ── Frame flags: what to do this iteration ── */
         enum {
             FL_RUN_CORE   = 1 << 0,  // advance emulation
@@ -987,7 +1042,6 @@ int main(int argc, char *argv[]) {
         else if (sprite_panel)                  flags |= FL_DRAW_PANEL;
         else                                    flags |= FL_RUN_CORE;
 
-        if (sprite_step && sprite_panel)      { flags |= FL_RERENDER; flags &= ~FL_RUN_CORE; sprite_step = false; }
 
         /* ── Execute ── */
         if (flags & FL_RUN_CORE) {
@@ -1017,20 +1071,15 @@ int main(int argc, char *argv[]) {
                 core.init();
                 struct retro_game_info ri = { .path = game_path_global };
                 core.load_game(&ri);
-                sprite_mask_ptr = (uint8_t *)core.get_memory_data(100);
+                blocked_pcs_ptr = (uint32_t *)core.get_memory_data(100);
                 vram_ptr = (uint16_t *)core.get_memory_data(101);
+                sprite_pc_ptr = (uint32_t *)core.get_memory_data(102);
+                num_blocked_ptr = (int *)core.get_memory_data(103);
             }
             if (auto_quit_frame > 0 && (int)frame_count >= auto_quit_frame) running = false;
         }
 
-        if (flags & FL_RERENDER) {
-            size_t ssz = core.serialize_size();
-            void *sbuf = malloc(ssz);
-            core.serialize(sbuf, ssz);
-            core.run();
-            core.unserialize(sbuf, ssz);
-            free(sbuf);
-        }
+
 
         /* ── Window title ── */
         if (state_wait)
