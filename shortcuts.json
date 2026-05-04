@@ -7,6 +7,7 @@
     {"label": "Build + Run Hello Neo", "cmd": "/home/bruno/CLProjects/NeoScanSDK/examples/hello_neo/run.sh"},
     {"label": "Hello Neo", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/hello_neo/hello_neo.neo"},
     {"label": "Jukebox", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/jukebox/jukebox.neo"},
+    {"label": "Ikari Soccer", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/ikari_soccer/ikari_soccer.neo"},
     {"label": "SHM Server + KOF95", "cmd": "pkill -f shm_server; ~/CLProjects/NeoScanSDK/bus/shm_server /data/roms/kof95.neo & sleep 1 && ~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/kof95.neo"},
     {"label": "Bus Monitor", "cmd": "python3 ~/CLProjects/NeoScanSDK/bus/neocart_gui.py"}
 ]

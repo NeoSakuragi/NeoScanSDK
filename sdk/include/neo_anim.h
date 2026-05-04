@@ -8,7 +8,7 @@
 #define ANIM_PINGPONG  2
 #define ANIM_ONCE      3
 
-#define ANIM_MAX_SLOTS 8
+#define ANIM_MAX_SLOTS 32
 
 typedef struct {
     const uint16_t *tiles;
@@ -39,6 +39,9 @@ void ANIM_setFlip(uint8_t slot, uint8_t h_flip);
 
 void ANIM_show(uint8_t slot, int16_t x, int16_t y);
 void ANIM_hide(uint8_t slot);
+
+uint8_t ANIM_isPlaying(uint8_t slot);
+uint8_t ANIM_getFrame(uint8_t slot);
 
 void ANIM_update(void);
 

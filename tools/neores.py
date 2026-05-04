@@ -8,6 +8,7 @@ Resource types:
   PALETTE  name  "file.png|.aseprite"
   TILES    name  "file.png"
   ANIM     name  "file.aseprite"  [anim_name]
+  PLAYER8  name  "root_dir"  anim1=folder1,anim2=folder2,...
   SFX      name  "file.wav"
   VOICE    name  "file.wav"
   MUSIC    name  "file.vgm|.vgz"
@@ -144,6 +145,7 @@ def main():
     palettes = [(n, f, a) for t, n, f, a in entries if t == 'PALETTE']
     tiles = [(n, f, a) for t, n, f, a in entries if t == 'TILES']
     anims = [(n, f, a) for t, n, f, a in entries if t == 'ANIM']
+    player8s = [(n, f, a) for t, n, f, a in entries if t == 'PLAYER8']
     sfx = [(n, f, a) for t, n, f, a in entries if t == 'SFX']
     voices = [(n, f, a) for t, n, f, a in entries if t == 'VOICE']
     music = [(n, f, a) for t, n, f, a in entries if t == 'MUSIC']
@@ -267,6 +269,46 @@ def main():
             tile_c2_parts.append(c2)
             anim_tiles = os.path.getsize(c1) // 64
             tile_base += anim_tiles
+
+        header_lines.append('')
+
+    # --- PLAYER8 ---
+    for name, filepath, extra_args in player8s:
+        cache_key = f'player8_{name}'
+        p8_dir = os.path.join(out, f'_player8_{name}')
+
+        if not extra_args:
+            print(f"[PLAYER8] {name}: missing anim mappings")
+            continue
+
+        anims_arg = extra_args[0]  # e.g. idle=alex_idle,run=alex_runbefore,...
+
+        print(f"[PLAYER8] {name} <- {filepath}")
+        os.makedirs(p8_dir, exist_ok=True)
+
+        cmd = ['python3', os.path.join(tools, 'player8_encoder.py'),
+               filepath,
+               '--name', name,
+               '--anims', anims_arg,
+               '--tile-base', str(tile_base),
+               '-o', p8_dir]
+        run(cmd, "Encoding 8-way player sprites...")
+
+        # Include generated header
+        header_file = f'player8_{name.lower()}.h'
+        header_full = os.path.join(p8_dir, header_file)
+        if os.path.exists(header_full):
+            rel = os.path.relpath(header_full, out)
+            header_lines.append(f'#include "{rel}"')
+
+        # Count tiles from C ROM
+        c1 = os.path.join(p8_dir, 'player8_c1.bin')
+        c2 = os.path.join(p8_dir, 'player8_c2.bin')
+        if os.path.exists(c1):
+            tile_c1_parts.append(c1)
+            tile_c2_parts.append(c2)
+            p8_tiles = os.path.getsize(c1) // 64
+            tile_base += p8_tiles
 
         header_lines.append('')
 

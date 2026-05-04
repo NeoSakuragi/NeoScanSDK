@@ -201,6 +201,16 @@ void ANIM_hide(uint8_t slot) {
     SPR_groupHide(s->first_sprite, s->def->width);
 }
 
+uint8_t ANIM_isPlaying(uint8_t slot) {
+    if (slot >= ANIM_MAX_SLOTS) return 0;
+    return slots[slot].playing;
+}
+
+uint8_t ANIM_getFrame(uint8_t slot) {
+    if (slot >= ANIM_MAX_SLOTS) return 0;
+    return slots[slot].cur_frame;
+}
+
 void ANIM_update(void) {
     uint8_t i;
     for (i = 0; i < ANIM_MAX_SLOTS; i++) {
