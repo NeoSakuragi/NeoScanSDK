@@ -26,8 +26,10 @@ $(BUILD)/main.o: main.c $(BUILD)/resources.h
 $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
-# --- Package ROM (uses manifest for correct track ordering) ---
+# --- Package ROM (with KOF95 donor sound) ---
 $(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/resources.h
+	@echo "donor_m1=res/donor/m1.bin" >> $(BUILD)/manifest.txt
+	@echo "donor_v1=res/donor/v1.bin" >> $(BUILD)/manifest.txt
 	python3 $(TOOLS)/neobuild_from_manifest.py $(BUILD)/manifest.txt \
 		--elf $(BUILD)/rom.elf --name $(ROM_NAME) -o $@
 

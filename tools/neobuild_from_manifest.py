@@ -22,9 +22,13 @@ def main():
                      ('sfx_vrom','--v1'),('sfx_table','--sound-table'),
                      ('voice_table','--voice-table'),('music_samples','--v1-overlay'),
                      ('seq_blob','--seq-blob'),('fm_freq_table','--fm-freq-table'),
-                     ('music_stream_0','--music')]:
+                     ('donor_m1','--donor-m1'),('donor_v1','--donor-v1')]:
         if k in manifest:
             cmd.extend([flag, manifest[k]])
+    for i in range(16):
+        k = f'music_stream_{i}'
+        if k in manifest:
+            cmd.extend(['--music', manifest[k]])
     sys.exit(subprocess.call(cmd))
 
 if __name__ == '__main__':

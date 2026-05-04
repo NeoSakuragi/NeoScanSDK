@@ -39,7 +39,9 @@ def main():
     parser.add_argument('--voice-table', default=None, help='Voice sample table for M ROM')
     parser.add_argument('--seq-blob',default=None)
     parser.add_argument('--fm-freq-table',default=None)
-    parser.add_argument('--music', default=None, help='VGM music stream for M ROM')
+    parser.add_argument('--music', action='append', default=[], help='VGM music stream for M ROM (repeatable)')
+    parser.add_argument('--donor-m1', default=None, help='Use donor M-ROM directly (skip driver build)')
+    parser.add_argument('--donor-v1', default=None, help='Use donor V-ROM directly')
     parser.add_argument('--name', default='neoscan', help='ROM set name')
     parser.add_argument('--ngh', default='999', help='NGH number string')
     parser.add_argument('-o', '--output', default='rom.zip', help='Output ZIP')
@@ -89,48 +91,48 @@ def main():
         f.write(s_data)
 
     # --- M ROM ---
-    from mrom_builder import build_mrom
-    table_bin = None
-    if args.sound_table and os.path.exists(args.sound_table):
-        table_bin = open(args.sound_table, 'rb').read()
-    voice_bin = None
-    if args.voice_table and os.path.exists(args.voice_table):
-        voice_bin = open(args.voice_table, 'rb').read()
-    music_bin = None
-    if args.music and os.path.exists(args.music):
-        music_bin = open(args.music, 'rb').read()
-    seq=open(args.seq_blob,"rb").read() if args.seq_blob and os.path.exists(args.seq_blob) else None
-    fmf=open(args.fm_freq_table,"rb").read() if args.fm_freq_table and os.path.exists(args.fm_freq_table) else None
-    m_data = build_mrom(table_bin, music_bin, voice_bin, seq_blob=seq, fm_freq_table=fmf)
+    if args.donor_m1 and os.path.exists(args.donor_m1):
+        m_data = pad_rom(open(args.donor_m1, 'rb').read(), args.m_size)
+        print(f"Using donor M-ROM: {args.donor_m1}")
+    else:
+        from mrom_builder import build_mrom
+        table_bin = None
+        if args.sound_table and os.path.exists(args.sound_table):
+            table_bin = open(args.sound_table, 'rb').read()
+        voice_bin = None
+        if args.voice_table and os.path.exists(args.voice_table):
+            voice_bin = open(args.voice_table, 'rb').read()
+        music_bins = [open(p,'rb').read() for p in args.music if os.path.exists(p)]
+        seq=open(args.seq_blob,"rb").read() if args.seq_blob and os.path.exists(args.seq_blob) else None
+        fmf=open(args.fm_freq_table,"rb").read() if args.fm_freq_table and os.path.exists(args.fm_freq_table) else None
+        m_data = build_mrom(table_bin, music_bins if music_bins else None, voice_bin, seq_blob=seq, fm_freq_table=fmf)
     m_path = os.path.join(rom_dir, f'{ngh}-m1.m1')
     with open(m_path, 'wb') as f:
         f.write(m_data)
 
-    # --- V ROM (merged: SFX + music samples overlay) ---
-    # Start with the overlay (music ADPCM samples at original addresses) if present
-    overlay = None
-    if getattr(args, 'v1_overlay', None) and os.path.exists(args.v1_overlay):
-        overlay = open(args.v1_overlay, 'rb').read()
-
-    if overlay:
-        v_rom = bytearray(overlay)
+    # --- V ROM ---
+    if args.donor_v1 and os.path.exists(args.donor_v1):
+        v_data = open(args.donor_v1, 'rb').read()
+        print(f"Using donor V-ROM: {args.donor_v1} ({len(v_data)//1024}KB)")
     else:
-        v_rom = bytearray([0x80] * args.v_size)
-
-    # Copy SFX data on top (SFX is at address 0, small, won't overlap music)
-    if args.v1 and os.path.exists(args.v1):
-        sfx = open(args.v1, 'rb').read()
-        # Only copy actual SFX data (non-silence prefix)
-        sfx_end = len(sfx)
-        while sfx_end > 0 and sfx[sfx_end - 1] == 0x80:
-            sfx_end -= 1
-        sfx_end = (sfx_end + 255) & ~255  # round up to 256
-        if sfx_end > 0:
-            if len(v_rom) < sfx_end:
-                v_rom.extend(b'\x80' * (sfx_end - len(v_rom)))
-            v_rom[:sfx_end] = sfx[:sfx_end]
-
-    v_data = bytes(v_rom)
+        overlay = None
+        if getattr(args, 'v1_overlay', None) and os.path.exists(args.v1_overlay):
+            overlay = open(args.v1_overlay, 'rb').read()
+        if overlay:
+            v_rom = bytearray(overlay)
+        else:
+            v_rom = bytearray([0x80] * args.v_size)
+        if args.v1 and os.path.exists(args.v1):
+            sfx = open(args.v1, 'rb').read()
+            sfx_end = len(sfx)
+            while sfx_end > 0 and sfx[sfx_end - 1] == 0x80:
+                sfx_end -= 1
+            sfx_end = (sfx_end + 255) & ~255
+            if sfx_end > 0:
+                if len(v_rom) < sfx_end:
+                    v_rom.extend(b'\x80' * (sfx_end - len(v_rom)))
+                v_rom[:sfx_end] = sfx[:sfx_end]
+        v_data = bytes(v_rom)
     v_path = os.path.join(rom_dir, f'{ngh}-v1.v1')
     with open(v_path, 'wb') as f:
         f.write(v_data)

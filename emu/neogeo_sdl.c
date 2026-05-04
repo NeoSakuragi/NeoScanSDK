@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <math.h>
 #include <dlfcn.h>
 #include <SDL2/SDL.h>
 #define GL_GLEXT_PROTOTYPES
@@ -214,6 +215,9 @@ static bool environ_cb(unsigned cmd, void *data) {
 static int16_t ring_buf[RING_SIZE * 2];
 static volatile uint32_t ring_w = 0, ring_r = 0;
 
+static uint64_t audio_sum = 0;
+static uint32_t audio_count = 0;
+
 static size_t audio_batch_cb(const int16_t *data, size_t frames) {
     for (size_t i = 0; i < frames; i++) {
         uint32_t next = (ring_w + 1) & (RING_SIZE - 1);
@@ -221,6 +225,15 @@ static size_t audio_batch_cb(const int16_t *data, size_t frames) {
         ring_buf[ring_w * 2]     = data[i * 2];
         ring_buf[ring_w * 2 + 1] = data[i * 2 + 1];
         ring_w = next;
+        int32_t l = data[i * 2], r = data[i * 2 + 1];
+        audio_sum += (uint64_t)(l * l + r * r);
+        audio_count++;
+    }
+    if (audio_count >= 55555) {
+        double rms = sqrt((double)audio_sum / audio_count / 2.0);
+        fprintf(stderr, "AUDIO RMS: %.0f / 32768 (%.1f%%)\n", rms, rms * 100.0 / 32768.0);
+        audio_sum = 0;
+        audio_count = 0;
     }
     return frames;
 }

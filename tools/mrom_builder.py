@@ -28,7 +28,7 @@ def build_driver():
         os.path.join(SOUND_DIR,'driver.bin')], cwd=SOUND_DIR)
     return open(os.path.join(SOUND_DIR,'driver.bin'),'rb').read()
 
-def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None,
+def build_mrom(sample_table_bin=None, music_bins=None, voice_table_bin=None,
                seq_blob=None, fm_freq_table=None):
     driver = build_driver()
     mrom = bytearray(MROM_SIZE)
@@ -43,24 +43,27 @@ def build_mrom(sample_table_bin=None, music_bin=None, voice_table_bin=None,
             print(f"  WARNING: seq data ends at ${end:04X}, past $BFFF!")
         mrom[SEQ_HDR:SEQ_HDR+len(seq_blob)] = seq_blob
         print(f"  Seq data: {len(seq_blob):,} bytes at ${SEQ_HDR:04X}-${end-1:04X}")
-    elif music_bin and len(music_bin) > 4:
-        # music_bin has header: [ni, ns, np, nt, ...data...]
-        # nt may be 0 if the converter didn't set tracks.
-        # Fix: set nt=1, insert a track table entry, then the stream.
-        ni, ns, np, nt = music_bin[0], music_bin[1], music_bin[2], music_bin[3]
+    elif music_bins and len(music_bins) > 0:
+        first = music_bins[0]
+        ni, ns, np = first[0], first[1], first[2]
         meta = 4 + ni*30 + ns*4 + np*7
-        stream = music_bin[meta:]
-        # Build patched blob: header (nt=1) + metadata + track_entry + stream
-        patched = bytearray(music_bin[:meta])
-        patched[3] = 1  # nt = 1
-        track_off = meta + 4  # offset from HDR to stream (after track table)
-        # Check for loop: the converter stores loop frame at bytes 4-5 of header area
-        # For now, use no loop (0xFFFF)
-        loop_off = 0xFFFF
-        patched += struct.pack('<HH', track_off, loop_off)
-        patched += stream
+        nt = len(music_bins)
+        patched = bytearray(first[:meta])
+        patched[3] = nt
+        track_table_size = nt * 4
+        streams_start = meta + track_table_size
+        track_table = bytearray()
+        all_streams = bytearray()
+        for i, mb in enumerate(music_bins):
+            stream = mb[meta:]
+            stream_off = streams_start + len(all_streams)
+            track_table += struct.pack('<HH', stream_off, 0xFFFF)
+            all_streams += stream
+            print(f"  Track {i}: {len(stream):,} bytes at offset 0x{stream_off:04X}")
+        patched += track_table
+        patched += all_streams
         mrom[SEQ_HDR:SEQ_HDR+len(patched)] = patched
-        print(f"  Music: {len(stream):,} bytes, track at offset 0x{track_off:04X}")
+        print(f"  Music: {nt} tracks, {len(all_streams):,} bytes total")
     return bytes(mrom)
 
 def main():
@@ -76,10 +79,8 @@ def main():
     v = open(args.voice_table,'rb').read() if args.voice_table and os.path.exists(args.voice_table) else None
     s = open(args.seq_blob,'rb').read() if args.seq_blob and os.path.exists(args.seq_blob) else None
     f = open(args.fm_freq_table,'rb').read() if args.fm_freq_table and os.path.exists(args.fm_freq_table) else None
-    m = None
-    for p in args.music:
-        if os.path.exists(p): m = open(p,'rb').read(); break
-    mrom = build_mrom(t, m, v, seq_blob=s, fm_freq_table=f)
+    m = [open(p,'rb').read() for p in args.music if os.path.exists(p)]
+    mrom = build_mrom(t, m if m else None, v, seq_blob=s, fm_freq_table=f)
     os.makedirs(os.path.dirname(os.path.abspath(args.output)),exist_ok=True)
     open(args.output,'wb').write(mrom)
     print(f"M ROM: {args.output} ({len(mrom):,} bytes)")
