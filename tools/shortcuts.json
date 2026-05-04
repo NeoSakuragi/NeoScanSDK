@@ -2,6 +2,7 @@
     {"label": "KOF95", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/kof95.neo"},
     {"label": "KOF98", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/kof98.neo"},
     {"label": "Metal Slug", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/mslug.neo"},
+    {"label": "Metal Slug (NO COLL)", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/sandbox/mslug1-nocoll.neo"},
     {"label": "Hello Neo", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/hello_neo/hello_neo.neo"},
     {"label": "Jukebox", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/jukebox/jukebox.neo"},
     {"label": "SHM Server + KOF95", "cmd": "pkill -f shm_server; ~/CLProjects/NeoScanSDK/hardware/neocart/sim/shm_server /data/roms/kof95.neo & sleep 1 && ~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/kof95.neo"},
