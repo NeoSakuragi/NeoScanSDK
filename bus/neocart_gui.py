@@ -19,7 +19,7 @@ MROM_BASE = 192
 VROM_BASE = 320
 DBG_BASE  = 384
 SERVER_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shm_server")
-NEOSCAN_EMU = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../emu/neogeo_sdl"))
+NEOSCAN_EMU = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../emu/neogeo_sdl"))
 
 COL_LOW  = "#111111"
 COL_BG   = "#0a0a0a"

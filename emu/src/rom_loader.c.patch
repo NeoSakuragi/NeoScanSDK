@@ -1,2 +1,0 @@
-    /* Prevent BIOS full init from being triggered by game code */
-    ng.bios[0x1BB6A] = 0x4E; ng.bios[0x1BB6B] = 0x75;  /* RTS at $C1BB6A */

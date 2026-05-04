@@ -349,35 +349,75 @@ static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
 /* ═══ Input ═══ */
 
 static const uint8_t *kbd;
+static SDL_GameController *pad[2] = {NULL, NULL};
 
 static void input_poll_cb(void) {}
+
+static int pad_btn(int p, SDL_GameControllerButton btn) {
+    return pad[p] ? SDL_GameControllerGetButton(pad[p], btn) : 0;
+}
+static int pad_axis_neg(int p, SDL_GameControllerAxis axis, int16_t thresh) {
+    return pad[p] ? (SDL_GameControllerGetAxis(pad[p], axis) < -thresh) : 0;
+}
+static int pad_axis_pos(int p, SDL_GameControllerAxis axis, int16_t thresh) {
+    return pad[p] ? (SDL_GameControllerGetAxis(pad[p], axis) > thresh) : 0;
+}
 
 static int16_t input_state_cb(unsigned port, unsigned dev, unsigned idx, unsigned id) {
     (void)idx;
     if (dev != RETRO_DEVICE_JOYPAD) return 0;
 
+    // Neo Geo button mapping:
+    // B=A, A=B, Y=C, X=D, SELECT=coin, START=start
+    // Gamepad: face buttons (A/B/X/Y), shoulders for combos, dpad + left stick
+
     if (port == 0) {
         switch (id) {
-        case RETRO_DEVICE_ID_JOYPAD_UP:     return kbd[SDL_SCANCODE_W];
-        case RETRO_DEVICE_ID_JOYPAD_DOWN:   return kbd[SDL_SCANCODE_S];
-        case RETRO_DEVICE_ID_JOYPAD_LEFT:   return kbd[SDL_SCANCODE_A];
-        case RETRO_DEVICE_ID_JOYPAD_RIGHT:  return kbd[SDL_SCANCODE_D];
-        case RETRO_DEVICE_ID_JOYPAD_B:      return kbd[SDL_SCANCODE_U];
-        case RETRO_DEVICE_ID_JOYPAD_A:      return kbd[SDL_SCANCODE_I];
-        case RETRO_DEVICE_ID_JOYPAD_Y:      return kbd[SDL_SCANCODE_O];
-        case RETRO_DEVICE_ID_JOYPAD_X:      return kbd[SDL_SCANCODE_P];
-        case RETRO_DEVICE_ID_JOYPAD_START:  return kbd[SDL_SCANCODE_1];
-        case RETRO_DEVICE_ID_JOYPAD_SELECT: return kbd[SDL_SCANCODE_3];
+        case RETRO_DEVICE_ID_JOYPAD_UP:     return kbd[SDL_SCANCODE_W]     || pad_btn(0, SDL_CONTROLLER_BUTTON_DPAD_UP)    || pad_axis_neg(0, SDL_CONTROLLER_AXIS_LEFTY, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_DOWN:   return kbd[SDL_SCANCODE_S]     || pad_btn(0, SDL_CONTROLLER_BUTTON_DPAD_DOWN)  || pad_axis_pos(0, SDL_CONTROLLER_AXIS_LEFTY, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_LEFT:   return kbd[SDL_SCANCODE_A]     || pad_btn(0, SDL_CONTROLLER_BUTTON_DPAD_LEFT)  || pad_axis_neg(0, SDL_CONTROLLER_AXIS_LEFTX, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_RIGHT:  return kbd[SDL_SCANCODE_D]     || pad_btn(0, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) || pad_axis_pos(0, SDL_CONTROLLER_AXIS_LEFTX, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_B:      return kbd[SDL_SCANCODE_U]     || pad_btn(0, SDL_CONTROLLER_BUTTON_X)
+            || pad_btn(0, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)    // A+B: LB has A
+            || pad_btn(0, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)   // A+B+C: RB has A
+            || pad_axis_pos(0, SDL_CONTROLLER_AXIS_TRIGGERLEFT, 8000);  // B+C: LT has A
+        case RETRO_DEVICE_ID_JOYPAD_A:      return kbd[SDL_SCANCODE_I]     || pad_btn(0, SDL_CONTROLLER_BUTTON_A)
+            || pad_btn(0, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)    // A+B: LB has B
+            || pad_btn(0, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)   // A+B+C: RB has B
+            || pad_axis_pos(0, SDL_CONTROLLER_AXIS_TRIGGERLEFT, 8000);  // B+C: LT has B
+        case RETRO_DEVICE_ID_JOYPAD_Y:      return kbd[SDL_SCANCODE_O]     || pad_btn(0, SDL_CONTROLLER_BUTTON_Y)
+            || pad_axis_pos(0, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 8000)  // C+D: RT has C
+            || pad_btn(0, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)   // A+B+C: RB has C
+            || pad_axis_pos(0, SDL_CONTROLLER_AXIS_TRIGGERLEFT, 8000);  // B+C: LT has C
+        case RETRO_DEVICE_ID_JOYPAD_X:      return kbd[SDL_SCANCODE_P]     || pad_btn(0, SDL_CONTROLLER_BUTTON_B)
+            || pad_axis_pos(0, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 8000); // C+D: RT has D
+        case RETRO_DEVICE_ID_JOYPAD_START:  return kbd[SDL_SCANCODE_1]     || pad_btn(0, SDL_CONTROLLER_BUTTON_START);
+        case RETRO_DEVICE_ID_JOYPAD_SELECT: return kbd[SDL_SCANCODE_3]     || pad_btn(0, SDL_CONTROLLER_BUTTON_BACK);
         case RETRO_DEVICE_ID_JOYPAD_L3:     return kbd[SDL_SCANCODE_5];
         case RETRO_DEVICE_ID_JOYPAD_R3:     return kbd[SDL_SCANCODE_6];
         }
     } else if (port == 1) {
         switch (id) {
-        case RETRO_DEVICE_ID_JOYPAD_UP:     return kbd[SDL_SCANCODE_UP];
-        case RETRO_DEVICE_ID_JOYPAD_DOWN:   return kbd[SDL_SCANCODE_DOWN];
-        case RETRO_DEVICE_ID_JOYPAD_LEFT:   return kbd[SDL_SCANCODE_LEFT];
-        case RETRO_DEVICE_ID_JOYPAD_RIGHT:  return kbd[SDL_SCANCODE_RIGHT];
-        case RETRO_DEVICE_ID_JOYPAD_START:  return kbd[SDL_SCANCODE_2];
+        case RETRO_DEVICE_ID_JOYPAD_UP:     return kbd[SDL_SCANCODE_UP]    || pad_btn(1, SDL_CONTROLLER_BUTTON_DPAD_UP)    || pad_axis_neg(1, SDL_CONTROLLER_AXIS_LEFTY, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_DOWN:   return kbd[SDL_SCANCODE_DOWN]  || pad_btn(1, SDL_CONTROLLER_BUTTON_DPAD_DOWN)  || pad_axis_pos(1, SDL_CONTROLLER_AXIS_LEFTY, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_LEFT:   return kbd[SDL_SCANCODE_LEFT]  || pad_btn(1, SDL_CONTROLLER_BUTTON_DPAD_LEFT)  || pad_axis_neg(1, SDL_CONTROLLER_AXIS_LEFTX, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_RIGHT:  return kbd[SDL_SCANCODE_RIGHT] || pad_btn(1, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) || pad_axis_pos(1, SDL_CONTROLLER_AXIS_LEFTX, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_B:      return pad_btn(1, SDL_CONTROLLER_BUTTON_X)
+            || pad_btn(1, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)
+            || pad_btn(1, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
+            || pad_axis_pos(1, SDL_CONTROLLER_AXIS_TRIGGERLEFT, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_A:      return pad_btn(1, SDL_CONTROLLER_BUTTON_A)
+            || pad_btn(1, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)
+            || pad_btn(1, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
+            || pad_axis_pos(1, SDL_CONTROLLER_AXIS_TRIGGERLEFT, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_Y:      return pad_btn(1, SDL_CONTROLLER_BUTTON_Y)
+            || pad_axis_pos(1, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 8000)
+            || pad_btn(1, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
+            || pad_axis_pos(1, SDL_CONTROLLER_AXIS_TRIGGERLEFT, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_X:      return pad_btn(1, SDL_CONTROLLER_BUTTON_B)
+            || pad_axis_pos(1, SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 8000);
+        case RETRO_DEVICE_ID_JOYPAD_START:  return kbd[SDL_SCANCODE_2]     || pad_btn(1, SDL_CONTROLLER_BUTTON_START);
+        case RETRO_DEVICE_ID_JOYPAD_SELECT: return pad_btn(1, SDL_CONTROLLER_BUTTON_BACK);
         }
     }
     return 0;
@@ -844,7 +884,15 @@ int main(int argc, char *argv[]) {
     if (!core_load(core_path)) return 1;
     printf("Core: %s (API %u)\n", core_path, core.api_version());
 
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER);
+
+    for (int i = 0, p = 0; i < SDL_NumJoysticks() && p < 2; i++) {
+        if (SDL_IsGameController(i)) {
+            pad[p] = SDL_GameControllerOpen(i);
+            if (pad[p]) fprintf(stderr, "Pad %d: %s\n", p, SDL_GameControllerName(pad[p]));
+            p++;
+        }
+    }
 
     core.set_environment(environ_cb);
     core.set_video_refresh(video_cb);
@@ -944,6 +992,24 @@ int main(int argc, char *argv[]) {
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) running = false;
+            if (ev.type == SDL_CONTROLLERDEVICEADDED) {
+                for (int p = 0; p < 2; p++) {
+                    if (!pad[p]) {
+                        pad[p] = SDL_GameControllerOpen(ev.cdevice.which);
+                        if (pad[p]) fprintf(stderr, "Pad %d connected: %s\n", p, SDL_GameControllerName(pad[p]));
+                        break;
+                    }
+                }
+            }
+            if (ev.type == SDL_CONTROLLERDEVICEREMOVED) {
+                for (int p = 0; p < 2; p++) {
+                    if (pad[p] && ev.cdevice.which == SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(pad[p]))) {
+                        fprintf(stderr, "Pad %d disconnected\n", p);
+                        SDL_GameControllerClose(pad[p]);
+                        pad[p] = NULL;
+                    }
+                }
+            }
             if (ev.type == SDL_KEYDOWN) {
                 SDL_Scancode sc = ev.key.keysym.scancode;
                 if (menu_open) {
