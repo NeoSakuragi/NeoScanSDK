@@ -52,32 +52,32 @@ FM_PATCH_SIMPLE = {
 }
 FM_PATCH_ORGAN = {
     'DT_MUL': [0x01, 0x02, 0x01, 0x02],
-    'TL':     [0x10, 0x20, 0x10, 0x20],
+    'TL':     [0x23, 0x00, 0x23, 0x00],  # carriers (ops 1,3) at 0, mods at 0x23
     'KS_AR':  [0x1F, 0x1F, 0x1F, 0x1F],
-    'AM_DR':  [0x05, 0x08, 0x05, 0x08],
-    'SR':     [0x02, 0x02, 0x02, 0x02],
-    'SL_RR':  [0x1A, 0x2A, 0x1A, 0x2A],
-    'FB_ALG': 0x34,
+    'AM_DR':  [0x05, 0x02, 0x05, 0x02],
+    'SR':     [0x02, 0x01, 0x02, 0x01],
+    'SL_RR':  [0x1A, 0x0F, 0x1A, 0x0F],  # carriers: SL=0, RR=15
+    'FB_ALG': 0x35,  # algorithm 5 (2 carriers: ops 1 and 3), FB=6
     'LR_AMS_PMS': 0xC0,
 }
 FM_PATCH_BRASS = {
     'DT_MUL': [0x01, 0x01, 0x01, 0x01],
-    'TL':     [0x18, 0x30, 0x18, 0x00],
+    'TL':     [0x1A, 0x00, 0x1C, 0x00],  # ops 1,3 are carriers at 0
     'KS_AR':  [0x1F, 0x1D, 0x1F, 0x1D],
-    'AM_DR':  [0x0A, 0x08, 0x0A, 0x08],
-    'SR':     [0x02, 0x04, 0x02, 0x04],
-    'SL_RR':  [0x1A, 0x2B, 0x1A, 0x2B],
-    'FB_ALG': 0x22,
+    'AM_DR':  [0x08, 0x04, 0x0A, 0x04],
+    'SR':     [0x02, 0x02, 0x02, 0x02],
+    'SL_RR':  [0x1A, 0x1F, 0x1A, 0x1F],  # carriers: SL=1, RR=15
+    'FB_ALG': 0x35,  # algorithm 5, FB=6
     'LR_AMS_PMS': 0xC0,
 }
 FM_PATCH_PIANO = {
     'DT_MUL': [0x02, 0x01, 0x03, 0x01],
-    'TL':     [0x28, 0x20, 0x30, 0x00],
+    'TL':     [0x28, 0x00, 0x30, 0x00],  # ops 1,3 are carriers at 0
     'KS_AR':  [0x1F, 0x1F, 0x1F, 0x1F],
-    'AM_DR':  [0x10, 0x0C, 0x10, 0x0C],
-    'SR':     [0x06, 0x06, 0x06, 0x06],
-    'SL_RR':  [0x2A, 0x2A, 0x2A, 0x2A],
-    'FB_ALG': 0x20,
+    'AM_DR':  [0x10, 0x0A, 0x10, 0x0A],
+    'SR':     [0x06, 0x04, 0x06, 0x04],
+    'SL_RR':  [0x2A, 0x2F, 0x2A, 0x2F],  # carriers: SL=2, RR=15
+    'FB_ALG': 0x25,  # algorithm 5, FB=4
     'LR_AMS_PMS': 0xC0,
 }
 
@@ -297,12 +297,14 @@ def build_driver():
         a.db(b)
 
     # FM key-on/off value tables
+    # YM2610 FM channels: 1,2,4,5 (channels 0,3 are disabled for FM)
+    # Key-on encoding: bits 4-7=operator mask, bits 0-1=ch within bank, bit 2=bank
     KEYON_TABLE = 0x0050
     a.org(KEYON_TABLE)
-    a.db(0xF0, 0xF1, 0xF2, 0xF5)  # key-on: ch1-4
+    a.db(0xF1, 0xF2, 0xF5, 0xF6)  # key-on: YM ch1,2,4,5
     KEYOFF_TABLE = 0x0054
     a.org(KEYOFF_TABLE)
-    a.db(0x00, 0x01, 0x02, 0x05)  # key-off: ch1-4
+    a.db(0x01, 0x02, 0x05, 0x06)  # key-off: YM ch1,2,4,5
 
     # ================================================================
     # VECTORS
@@ -328,8 +330,8 @@ def build_driver():
     # === YM2610 full hardware init (matches KOF96 reference) ===
 
     # FM key-off all 4 channels (reg $28 via Port A)
-    # Value = operator mask (0) | channel -> all ops off = key-off
-    for ch_val in [0x00, 0x01, 0x02, 0x05]:
+    # YM2610 FM channels: 1,2,4,5 (channels 0,3 disabled for FM)
+    for ch_val in [0x01, 0x02, 0x05, 0x06]:
         a.ld_a_n(0x28); a.out_n_a(0x04)
         a.ld_a_n(ch_val); a.out_n_a(0x05)
 
@@ -598,8 +600,8 @@ def build_driver():
     a.patch_jp(jp_call_stop_reset, STOP_ALL)
     a.patch_jp(jp_call_stop_all, STOP_ALL)
 
-    # FM key-off all 4 channels
-    for val in [0x00, 0x01, 0x02, 0x05]:
+    # FM key-off all 4 channels (YM2610: ch 1,2,4,5)
+    for val in [0x01, 0x02, 0x05, 0x06]:
         a.ld_a_n(0x28); a.out_n_a(0x04)
         a.ld_a_n(val);  a.out_n_a(0x05)
 
@@ -668,8 +670,10 @@ def build_driver():
     a.ld_b_a()
 
     # --- Determine port and ch_offset from B ---
+    # YM2610 FM uses channels 1,2,4,5 so offset = (ch & 1) + 1
     a.ld_a_b()
     a.and_n(0x01)
+    a.inc_a()                 # offset 1 or 2 (not 0 or 1)
     a.ld_mem_a(RAM_TEMP + 1)  # ch_offset
 
     a.ld_a_b()
@@ -1204,8 +1208,10 @@ def build_driver():
     a.ld_hl_a()
 
     # Write reg $B4+ch_offset via correct port
+    # YM2610 FM uses channels 1,2,4,5 so offset = (ch & 1) + 1
     a.ld_a_b()
     a.and_n(0x01)
+    a.inc_a()                # offset 1 or 2
     a.add_a_n(0xB4)
     a.ld_d_a()               # D = register
 
