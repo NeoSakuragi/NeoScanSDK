@@ -7,11 +7,12 @@ Features:
   - SSG note playback on channels 1-3       (cmd $20-$2F)
   - ADPCM-B playback                        (cmd $40-$4F)
   - Panning control                         (cmd $30-$3F)
+  - Tick-based music sequencer              (cmd $50-$5F)
   - Stop/silence all                        (cmd $03)
 
 Command protocol (68K -> Z80 via NMI):
   $01         - Init/reset
-  $03         - Stop all
+  $03         - Stop all (including sequencer)
   $08         - Set param (next NMI byte = param value, via SND_play2)
   $10+ch      - FM key-on ch (0-3), note from param byte (MIDI note)
   $14+ch      - FM key-off ch (0-3)
@@ -22,7 +23,15 @@ Command protocol (68K -> Z80 via NMI):
   $34+ch      - ADPCM-A panning ch (0-5), param: 0=L, 1=C, 2=R
   $40         - ADPCM-B play (sample from param byte)
   $41         - ADPCM-B stop
+  $50+N       - Play song N (tick-based sequencer, Timer A driven)
   $C0+smp     - ADPCM-A trigger sample (on current ADPCM-A channel)
+
+Music engine:
+  Timer A IRQ at ~55Hz, software counter divides to sequencer tick rate.
+  Song data: 8 bytes/row (FM0-3, SSG0-2, ADPCM-A) in M-ROM.
+  Row bytes: $00=sustain, $01=key-off, $02-$7F=note-on, $80-$BF=set-patch.
+  $FF = end-of-song (loops to start).
+  2 built-in songs: C major scale (song 0), chord progression (song 1).
 """
 import struct, sys, argparse
 
@@ -96,12 +105,37 @@ RAM_ADPCMA_PAN = 0xF81C
 RAM_ADPCMA_CH = 0xF822
 RAM_TEMP      = 0xF830
 
-# Data table addresses (in ROM)
-SAMPLE_TABLE   = 0x0300
-FM_FNUM_TABLE  = 0x0340
-SSG_PERIOD_TABLE = 0x0360
-FM_PATCH_TABLE = 0x0380
+# Sequencer RAM
+RAM_SEQ_PLAYING   = 0xF840   # 1=playing, 0=stopped
+RAM_SEQ_ROW_LO    = 0xF841   # current row pointer low
+RAM_SEQ_ROW_HI    = 0xF842   # current row pointer high
+RAM_SEQ_START_LO  = 0xF843   # song start addr low
+RAM_SEQ_START_HI  = 0xF844   # song start addr high
+RAM_SEQ_END_LO    = 0xF845   # song end addr low (addr of $FF marker)
+RAM_SEQ_END_HI    = 0xF846   # song end addr high
+RAM_SEQ_TICK_CNT  = 0xF847   # tempo counter (decrements each IRQ)
+RAM_SEQ_TICK_RATE = 0xF848   # tempo reload value
+RAM_SEQ_FM_PATCH0 = 0xF849   # current sequencer FM patch ch0
+RAM_SEQ_FM_PATCH1 = 0xF84A   # current sequencer FM patch ch1
+RAM_SEQ_FM_PATCH2 = 0xF84B   # current sequencer FM patch ch2
+RAM_SEQ_FM_PATCH3 = 0xF84C   # current sequencer FM patch ch3
+
+# Data table addresses (in ROM) - placed at $2000+ to avoid code conflicts
+SAMPLE_TABLE   = 0x2000
+FM_FNUM_TABLE  = 0x2040
+SSG_PERIOD_TABLE = 0x2060
+FM_PATCH_TABLE = 0x2080
 PATCH_SIZE = 26  # 6 params * 4 ops + FB_ALG + LR_AMS_PMS
+SONG_TABLE     = 0x2100      # song table: 5 bytes per song
+SONG_DATA_BASE = 0x2200      # song data starts here
+
+# Song data format:
+# 8 bytes per row: [FM1] [FM2] [FM3] [FM4] [SSG1] [SSG2] [SSG3] [ADPCM_A_TRIG]
+# Values: $00=sustain, $01=key-off, $02-$7F=note-on, $80-$BF=set-patch, $FF=end-of-song
+SEQ_COLS = 8
+SEQ_SUSTAIN = 0x00
+SEQ_KEYOFF  = 0x01
+SEQ_END     = 0xFF
 
 
 class Asm:
@@ -238,9 +272,128 @@ class Asm:
     # OUT (C), A = ED 79
     def out_c_a(self):       self.db(0xED, 0x79)
 
+    # Additional register moves
+    def ld_a_de(self):     self.db(0x1A)  # LD A,(DE)
+    def ld_de_a(self):     self.db(0x12)  # LD (DE),A
+    def ld_e_b(self):      self.db(0x58)
+    def ld_b_c(self):      self.db(0x41)
+    def ld_b_d(self):      self.db(0x42)
+    def ld_b_e(self):      self.db(0x43)
+    def ld_d_e(self):      self.db(0x53)
+    def ld_d_b(self):      self.db(0x50)
+    def ld_d_c(self):      self.db(0x51)
+    def inc_de(self):      self.db(0x13)
+    def inc_bc(self):      self.db(0x03)
+    def inc_b(self):       self.db(0x04)
+    def inc_c(self):       self.db(0x0C)
+    def inc_e(self):       self.db(0x1C)
+    def dec_a(self):       self.db(0x3D)
+    def dec_b(self):       self.db(0x05)
+    def dec_c(self):       self.db(0x0D)
+    def dec_e(self):       self.db(0x1D)
+    def add_a_a(self):     self.db(0x87)
+    def add_a_e(self):     self.db(0x83)
+    def add_a_l(self):     self.db(0x85)
+    def add_a_d(self):     self.db(0x82)
+    def or_b(self):        self.db(0xB0)
+    def or_c(self):        self.db(0xB1)
+    def or_d(self):        self.db(0xB2)
+    def and_b(self):       self.db(0xA0)
+    def and_c(self):       self.db(0xA1)
+    def cp_b(self):        self.db(0xB8)
+    def cp_c(self):        self.db(0xB9)
+    def cp_d(self):        self.db(0xBA)
+    def cp_e(self):        self.db(0xBB)
+    def sub_b(self):       self.db(0x90)
+    def sub_c(self):       self.db(0x91)
+    def sub_e(self):       self.db(0x93)
+    def ld_l_d(self):      self.db(0x6A)
+    def ld_h_e(self):      self.db(0x63)
+    def ld_h_b(self):      self.db(0x60)
+    def ld_l_c(self):      self.db(0x69)
+    def ld_b_l(self):      self.db(0x45)
+    def ld_b_h(self):      self.db(0x44)
+    def ld_c_b(self):      self.db(0x48)
+
     # Jumps and calls
     def jp(self, addr):    self.db(0xC3, addr & 0xFF, (addr >> 8) & 0xFF)
     def call(self, addr):  self.db(0xCD, addr & 0xFF, (addr >> 8) & 0xFF)
+
+    # Patch a CALL instruction
+    def patch_call(self, call_addr, target):
+        self.code[call_addr + 1] = target & 0xFF
+        self.code[call_addr + 2] = (target >> 8) & 0xFF
+
+
+def build_test_songs():
+    """Build test song data. Returns list of (song_bytes, tempo) tuples."""
+    songs = []
+
+    # Song 0: C major scale on FM1, bass on FM2, kick/snare on ADPCM-A
+    # Each note = 2 rows (one 8th note at 120 BPM with 16th-note grid)
+    song = []
+    # Set FM1 to patch 2 (brass) and FM2 to patch 1 (organ) at the start
+    song.append([0x82, 0x81, 0, 0, 0, 0, 0, 0])  # patch change row
+
+    scale = [48, 50, 52, 53, 55, 57, 59, 60]  # C D E F G A B C (MIDI)
+    for i, note in enumerate(scale):
+        fm1 = note
+        fm2 = 36 if i % 4 == 0 else SEQ_SUSTAIN  # C2 bass every 4 notes
+        adpcm = 4 if i % 2 == 0 else 5           # kick(smp4)/snare(smp5) alternating
+        song.append([fm1, fm2, 0, 0, 0, 0, 0, adpcm])
+        song.append([SEQ_SUSTAIN, SEQ_SUSTAIN, 0, 0, 0, 0, 0, 0])  # sustain row
+
+    # Descending back down
+    for i, note in enumerate(reversed(scale[:-1])):
+        fm1 = note
+        fm2 = 36 if i % 4 == 0 else SEQ_SUSTAIN
+        adpcm = 4 if i % 2 == 0 else 5
+        song.append([fm1, fm2, 0, 0, 0, 0, 0, adpcm])
+        song.append([SEQ_SUSTAIN, SEQ_SUSTAIN, 0, 0, 0, 0, 0, 0])
+
+    # Key-off all, then end marker
+    song.append([SEQ_KEYOFF, SEQ_KEYOFF, 0, 0, 0, 0, 0, 0])
+    song.append([SEQ_END, 0, 0, 0, 0, 0, 0, 0])
+
+    # Flatten to bytes
+    song_bytes = bytearray()
+    for row in song:
+        for b in row:
+            song_bytes.append(b & 0xFF)
+    # Tempo: ~7 IRQs per tick at 55Hz IRQ rate = ~8 ticks/sec (120 BPM 16ths)
+    songs.append((song_bytes, 7))
+
+    # Song 1: Simple chord progression (FM chords + SSG melody)
+    song = []
+    # Set patches
+    song.append([0x80, 0x80, 0x80, 0x80, 0, 0, 0, 0])  # all FM = simple
+
+    # C major chord (C4, E4, G4) on FM1-3, melody on SSG1
+    chords = [
+        (48, 52, 55, 60),  # C major
+        (48, 52, 55, 64),  # C major, melody E5
+        (53, 57, 60, 65),  # F major, melody F5
+        (53, 57, 60, 67),  # F major, melody G5
+        (55, 59, 62, 67),  # G major, melody G5
+        (55, 59, 62, 65),  # G major, melody F5
+        (48, 52, 55, 64),  # C major, melody E5
+        (48, 52, 55, 60),  # C major, melody C5
+    ]
+    for fm1, fm2, fm3, ssg1 in chords:
+        song.append([fm1, fm2, fm3, 0, ssg1, 0, 0, 4])  # with kick
+        for _ in range(3):
+            song.append([0, 0, 0, 0, 0, 0, 0, 0])       # sustain 3 rows
+
+    song.append([SEQ_KEYOFF, SEQ_KEYOFF, SEQ_KEYOFF, 0, SEQ_KEYOFF, 0, 0, 0])
+    song.append([SEQ_END, 0, 0, 0, 0, 0, 0, 0])
+
+    song_bytes = bytearray()
+    for row in song:
+        for b in row:
+            song_bytes.append(b & 0xFF)
+    songs.append((song_bytes, 7))
+
+    return songs
 
 
 def emit_ym_write_portB(a, reg, data_reg='a'):
@@ -293,7 +446,7 @@ def build_driver():
 
     # Signature
     a.org(0x0040)
-    for b in b'NeoSynth v1.0':
+    for b in b'NeoSynth v2.0':
         a.db(b)
 
     # FM key-on/off value tables
@@ -307,18 +460,87 @@ def build_driver():
     a.db(0x01, 0x02, 0x05, 0x06)  # key-off: YM ch1,2,4,5
 
     # ================================================================
+    # SONG DATA
+    # ================================================================
+    test_songs = build_test_songs()
+    num_songs = len(test_songs)
+
+    # Song table at SONG_TABLE: 5 bytes per song
+    # [start_lo, start_hi, length_lo, length_hi, tempo]
+    song_data_addr = SONG_DATA_BASE
+    a.org(SONG_TABLE)
+    song_addrs = []
+    for song_bytes, tempo in test_songs:
+        song_addrs.append(song_data_addr)
+        a.db(song_data_addr & 0xFF, (song_data_addr >> 8) & 0xFF)
+        a.db(len(song_bytes) & 0xFF, (len(song_bytes) >> 8) & 0xFF)
+        a.db(tempo)
+        song_data_addr += len(song_bytes)
+
+    # Write actual song data
+    data_addr = SONG_DATA_BASE
+    for song_bytes, tempo in test_songs:
+        a.org(data_addr)
+        for b in song_bytes:
+            a.db(b)
+        data_addr += len(song_bytes)
+
+    # ================================================================
     # VECTORS
     # ================================================================
     a.org(0x0000)
     a.di()
     a.jp(0x0100)  # JP to init
 
-    a.org(0x0038)  # IRQ
-    a.ei()
-    a.reti()
+    # IRQ at $0038: jump to sequencer tick handler
+    a.org(0x0038)
+    a.jp(0x0080)  # jump to IRQ handler (placed at $0080 for space)
 
     a.org(0x0066)  # NMI vector
-    a.jp(0x0200)
+    a.jp(0x0280)
+
+    # ================================================================
+    # IRQ HANDLER at $0080 — Timer A tick for sequencer
+    # ================================================================
+    a.org(0x0080)
+    a.push_af()
+    a.push_hl()
+    a.push_de()
+    a.push_bc()
+
+    # Reset Timer A flag: reg $27 = $15 via Port A
+    a.ld_a_n(0x27); a.out_n_a(0x04)
+    a.ld_a_n(0x15); a.out_n_a(0x05)
+
+    # Check if music is playing
+    a.ld_a_mem(RAM_SEQ_PLAYING)
+    a.or_a()
+    jr_irq_not_playing = a.jr_z_ph()
+
+    # Decrement tick counter
+    a.ld_a_mem(RAM_SEQ_TICK_CNT)
+    a.sub_n(1)
+    a.ld_mem_a(RAM_SEQ_TICK_CNT)
+    jr_irq_no_tick = a.jr_nz_ph()
+
+    # Counter reached 0: reload and call sequencer tick
+    a.ld_a_mem(RAM_SEQ_TICK_RATE)
+    a.ld_mem_a(RAM_SEQ_TICK_CNT)
+    # CALL sequencer tick subroutine (patched later)
+    jp_seq_tick_call = a.here()
+    a.call(0x0000)
+
+    a.patch_jr(jr_irq_no_tick, a.here())
+    a.patch_jr(jr_irq_not_playing, a.here())
+
+    # IRQ exit
+    IRQ_DONE = a.here()
+    a.pop_bc()
+    a.pop_de()
+    a.pop_hl()
+    a.pop_af()
+    a.ei()
+    a.reti()
 
     # ================================================================
     # INIT at $0100
@@ -392,6 +614,30 @@ def build_driver():
     for i in range(4):
         a.ld_mem_a(RAM_FM_PATCH + i)
 
+    # Init sequencer RAM
+    a.xor_a()
+    a.ld_mem_a(RAM_SEQ_PLAYING)
+    a.ld_mem_a(RAM_SEQ_TICK_CNT)
+    a.ld_a_n(7)  # default tempo
+    a.ld_mem_a(RAM_SEQ_TICK_RATE)
+    a.xor_a()
+    for addr in [RAM_SEQ_ROW_LO, RAM_SEQ_ROW_HI,
+                 RAM_SEQ_START_LO, RAM_SEQ_START_HI,
+                 RAM_SEQ_END_LO, RAM_SEQ_END_HI,
+                 RAM_SEQ_FM_PATCH0, RAM_SEQ_FM_PATCH1,
+                 RAM_SEQ_FM_PATCH2, RAM_SEQ_FM_PATCH3]:
+        a.ld_mem_a(addr)
+
+    # Set up Timer A for IRQ (~55 Hz from KOF96 values)
+    # reg $24 = Timer A lo 8 bits, reg $25 = Timer A hi 2 bits
+    a.ld_a_n(0x24); a.out_n_a(0x04)
+    a.ld_a_n(0xAC); a.out_n_a(0x05)
+    a.ld_a_n(0x25); a.out_n_a(0x04)
+    a.ld_a_n(0x03); a.out_n_a(0x05)
+    # Enable Timer A: reg $27 = $15 (reset+load+enable Timer A)
+    a.ld_a_n(0x27); a.out_n_a(0x04)
+    a.ld_a_n(0x15); a.out_n_a(0x05)
+
     # Enable NMI
     a.ld_a_n(0x0F)  # just need any value
     a.out_n_a(0x08)
@@ -403,9 +649,9 @@ def build_driver():
     a.db(0x18, 0xFD)  # JR $-3 (back to HALT)
 
     # ================================================================
-    # NMI HANDLER at $0200
+    # NMI HANDLER at $0280
     # ================================================================
-    a.org(0x0200)
+    a.org(0x0280)
     a.push_af()
     a.push_hl()
     a.push_de()
@@ -493,6 +739,18 @@ def build_driver():
     jr_not_41 = a.jr_nz_ph()
     jp_adpcmb_stop = a.jp_ph()
     a.patch_jr(jr_not_41, a.here())
+
+    # $50-$5F: Play song N
+    a.ld_a_mem(RAM_CMD)
+    a.cp_n(0x50)
+    jr_below_50 = a.jr_c_ph()
+    a.cp_n(0x60)
+    jr_above_5f = a.jr_nc_ph()
+    a.sub_n(0x50)
+    a.ld_b_a()  # B = song index
+    jp_play_song = a.jp_ph()
+    a.patch_jr(jr_below_50, a.here())
+    a.patch_jr(jr_above_5f, a.here())
 
     # $C0+: ADPCM-A trigger
     a.ld_a_mem(RAM_CMD)
@@ -594,11 +852,15 @@ def build_driver():
     a.jp(NMI_DONE)
 
     # ================================================================
-    # STOP ALL
+    # STOP ALL (also stops sequencer)
     # ================================================================
     STOP_ALL = a.here()
     a.patch_jp(jp_call_stop_reset, STOP_ALL)
     a.patch_jp(jp_call_stop_all, STOP_ALL)
+
+    # Stop sequencer
+    a.xor_a()
+    a.ld_mem_a(RAM_SEQ_PLAYING)
 
     # FM key-off all 4 channels (YM2610: ch 1,2,4,5)
     for val in [0x01, 0x02, 0x05, 0x06]:
@@ -1265,6 +1527,608 @@ def build_driver():
     a.jp(NMI_DONE)
 
     # ================================================================
+    # PLAY SONG (B = song index, called from NMI $50+N)
+    # ================================================================
+    PLAY_SONG = a.here()
+    a.patch_jp(jp_play_song, PLAY_SONG)
+
+    # Bounds check: B < num_songs
+    a.ld_a_b()
+    a.cp_n(num_songs)
+    jr_song_ok = a.jr_c_ph()
+    a.jp(NMI_DONE)
+    a.patch_jr(jr_song_ok, a.here())
+
+    # Look up song table: SONG_TABLE + B * 5
+    # Compute B * 5 = B * 4 + B
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)  # HL = B
+    a.add_hl_hl()             # HL = B*2
+    a.add_hl_hl()             # HL = B*4
+    a.ld_d_n(0); a.ld_e_b()
+    a.add_hl_de()             # HL = B*5
+    a.ld_de_nn(SONG_TABLE)
+    a.add_hl_de()             # HL = SONG_TABLE + B*5
+
+    # Read song entry: [start_lo, start_hi, length_lo, length_hi, tempo]
+    a.ld_e_hl(); a.inc_hl()   # E = start_lo
+    a.ld_d_hl(); a.inc_hl()   # D = start_hi
+    # Store start address
+    a.ld_a_e(); a.ld_mem_a(RAM_SEQ_START_LO)
+    a.ld_a_d(); a.ld_mem_a(RAM_SEQ_START_HI)
+    # Also set current row pointer to start
+    a.ld_a_e(); a.ld_mem_a(RAM_SEQ_ROW_LO)
+    a.ld_a_d(); a.ld_mem_a(RAM_SEQ_ROW_HI)
+
+    # Read length
+    a.ld_c_hl(); a.inc_hl()   # C = len_lo
+    a.ld_b_hl(); a.inc_hl()   # B = len_hi
+    # End address = start + length
+    # DE = start, BC = length
+    a.push_hl()               # save HL (points to tempo byte)
+    a.ld_h_d(); a.ld_l_e()    # HL = start
+    a.add_hl_bc()             # HL = start + length = end
+    a.ld_a_l(); a.ld_mem_a(RAM_SEQ_END_LO)
+    a.ld_a_h(); a.ld_mem_a(RAM_SEQ_END_HI)
+    a.pop_hl()
+
+    # Read tempo
+    a.ld_a_hl()
+    a.ld_mem_a(RAM_SEQ_TICK_RATE)
+    a.ld_mem_a(RAM_SEQ_TICK_CNT)  # start counting from full tempo
+
+    # Clear sequencer patch state
+    a.xor_a()
+    a.ld_mem_a(RAM_SEQ_FM_PATCH0)
+    a.ld_mem_a(RAM_SEQ_FM_PATCH1)
+    a.ld_mem_a(RAM_SEQ_FM_PATCH2)
+    a.ld_mem_a(RAM_SEQ_FM_PATCH3)
+
+    # Set playing = 1
+    a.ld_a_n(0x01)
+    a.ld_mem_a(RAM_SEQ_PLAYING)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # SEQ_TICK: Advance one row of the sequencer
+    # Called from IRQ handler. Uses AF, BC, DE, HL (all saved by caller).
+    # Reads 8 bytes from current row pointer, processes each channel.
+    # ================================================================
+    SEQ_TICK = a.here()
+    a.patch_call(jp_seq_tick_call, SEQ_TICK)
+
+    # Load current row pointer into DE
+    a.ld_a_mem(RAM_SEQ_ROW_LO)
+    a.ld_e_a()
+    a.ld_a_mem(RAM_SEQ_ROW_HI)
+    a.ld_d_a()
+
+    # Check first byte for end marker ($FF)
+    a.ld_a_de()
+    a.cp_n(SEQ_END)
+    jr_not_end = a.jr_nz_ph()
+    # End of song: loop back to start
+    a.ld_a_mem(RAM_SEQ_START_LO)
+    a.ld_mem_a(RAM_SEQ_ROW_LO)
+    a.ld_e_a()
+    a.ld_a_mem(RAM_SEQ_START_HI)
+    a.ld_mem_a(RAM_SEQ_ROW_HI)
+    a.ld_d_a()
+    a.patch_jr(jr_not_end, a.here())
+
+    # Now DE = current row pointer (valid data)
+    # Process 8 columns: FM0-3 (cols 0-3), SSG0-2 (cols 4-6), ADPCM-A (col 7)
+
+    # --- FM Channel 0 (col 0) ---
+    a.ld_a_de()               # A = byte for FM ch0
+    a.ld_b_n(0)               # B = FM channel 0
+    a.push_de()
+    a.call(0x0000)            # CALL SEQ_PROCESS_FM (patched below)
+    jp_seq_fm_call_0 = a.pc - 3
+    a.pop_de()
+    a.inc_de()
+
+    # --- FM Channel 1 (col 1) ---
+    a.ld_a_de()
+    a.ld_b_n(1)
+    a.push_de()
+    a.call(0x0000)
+    jp_seq_fm_call_1 = a.pc - 3
+    a.pop_de()
+    a.inc_de()
+
+    # --- FM Channel 2 (col 2) ---
+    a.ld_a_de()
+    a.ld_b_n(2)
+    a.push_de()
+    a.call(0x0000)
+    jp_seq_fm_call_2 = a.pc - 3
+    a.pop_de()
+    a.inc_de()
+
+    # --- FM Channel 3 (col 3) ---
+    a.ld_a_de()
+    a.ld_b_n(3)
+    a.push_de()
+    a.call(0x0000)
+    jp_seq_fm_call_3 = a.pc - 3
+    a.pop_de()
+    a.inc_de()
+
+    # --- SSG Channel 0 (col 4) ---
+    a.ld_a_de()
+    a.ld_b_n(0)
+    a.push_de()
+    a.call(0x0000)
+    jp_seq_ssg_call_0 = a.pc - 3
+    a.pop_de()
+    a.inc_de()
+
+    # --- SSG Channel 1 (col 5) ---
+    a.ld_a_de()
+    a.ld_b_n(1)
+    a.push_de()
+    a.call(0x0000)
+    jp_seq_ssg_call_1 = a.pc - 3
+    a.pop_de()
+    a.inc_de()
+
+    # --- SSG Channel 2 (col 6) ---
+    a.ld_a_de()
+    a.ld_b_n(2)
+    a.push_de()
+    a.call(0x0000)
+    jp_seq_ssg_call_2 = a.pc - 3
+    a.pop_de()
+    a.inc_de()
+
+    # --- ADPCM-A (col 7) ---
+    a.ld_a_de()
+    a.ld_b_a()                # B = sample index
+    a.push_de()
+    a.call(0x0000)
+    jp_seq_adpcm_call = a.pc - 3
+    a.pop_de()
+    a.inc_de()
+
+    # Update row pointer (DE now points to next row)
+    a.ld_a_e(); a.ld_mem_a(RAM_SEQ_ROW_LO)
+    a.ld_a_d(); a.ld_mem_a(RAM_SEQ_ROW_HI)
+
+    a.ret()
+
+    # ================================================================
+    # SEQ_PROCESS_FM: Process one FM column byte
+    # A = byte value, B = FM channel (0-3)
+    # $00 = sustain, $01 = key-off, $02-$7F = note-on, $80-$BF = set patch
+    # ================================================================
+    SEQ_PROCESS_FM = a.here()
+    for addr in [jp_seq_fm_call_0, jp_seq_fm_call_1,
+                 jp_seq_fm_call_2, jp_seq_fm_call_3]:
+        a.patch_call(addr, SEQ_PROCESS_FM)
+
+    # Check for sustain ($00)
+    a.or_a()
+    jr_fm_not_sustain = a.jr_nz_ph()
+    a.ret()
+    a.patch_jr(jr_fm_not_sustain, a.here())
+
+    # Check for key-off ($01)
+    a.cp_n(SEQ_KEYOFF)
+    jr_fm_not_keyoff = a.jr_nz_ph()
+    # Key-off: look up keyoff table
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(KEYOFF_TABLE)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_hl()               # key-off value
+    a.ld_e_a()
+    a.ld_a_n(0x28); a.out_n_a(0x04)
+    a.ld_a_e(); a.out_n_a(0x05)
+    a.ret()
+    a.patch_jr(jr_fm_not_keyoff, a.here())
+
+    # Check for set patch ($80-$BF)
+    a.cp_n(0x80)
+    jr_fm_not_patch = a.jr_c_ph()
+    a.cp_n(0xC0)
+    jr_fm_patch_too_high = a.jr_nc_ph()
+    # Store patch: A & 0x3F = patch index
+    a.and_n(0x3F)
+    # Store in RAM_SEQ_FM_PATCHx (x = B)
+    a.push_af()
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(RAM_SEQ_FM_PATCH0)
+    a.add_hl_de()
+    a.pop_de()
+    a.pop_af()
+    a.ld_hl_a()               # store patch index
+    # Also store in the main RAM_FM_PATCH for key-on to use
+    a.push_af()
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(RAM_FM_PATCH)
+    a.add_hl_de()
+    a.pop_de()
+    a.pop_af()
+    a.ld_hl_a()
+    a.ret()
+    a.patch_jr(jr_fm_not_patch, a.here())
+    a.patch_jr(jr_fm_patch_too_high, a.here())
+
+    # Note-on ($02-$7F): A = MIDI note number
+    # Full inline FM note-on with patch register write
+    a.ld_mem_a(RAM_PARAM)     # store note
+
+    # Save channel in RAM_TEMP+2
+    a.ld_a_b()
+    a.ld_mem_a(RAM_TEMP + 2)
+
+    # --- Load patch for this channel ---
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(RAM_FM_PATCH)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_hl()               # A = patch index
+    a.ld_mem_a(RAM_TEMP)      # save patch index
+
+    # Bounds check patch
+    a.cp_n(NUM_FM_PATCHES)
+    jr_seq_pok = a.jr_c_ph()
+    a.xor_a()
+    a.patch_jr(jr_seq_pok, a.here())
+
+    # Compute patch pointer: HL = FM_PATCH_TABLE + A*26
+    a.ld_c_a()
+    a.ld_h_n(0); a.ld_l_a()
+    a.add_hl_hl()             # *2
+    a.push_hl()
+    a.add_hl_hl()             # *4
+    a.add_hl_hl()             # *8
+    a.push_hl()
+    a.add_hl_hl()             # *16
+    a.pop_de()
+    a.add_hl_de()             # *24
+    a.pop_de()
+    a.add_hl_de()             # *26
+    a.ld_de_nn(FM_PATCH_TABLE)
+    a.add_hl_de()             # HL = patch data pointer
+
+    # Restore channel into B
+    a.ld_a_mem(RAM_TEMP + 2)
+    a.ld_b_a()
+
+    # Determine port and ch_offset
+    a.ld_a_b()
+    a.and_n(0x01)
+    a.inc_a()
+    a.ld_mem_a(RAM_TEMP + 1)  # ch_offset
+
+    a.ld_a_b()
+    a.and_n(0x02)
+    jr_seq_porta = a.jr_z_ph()
+    a.ld_c_n(0x06)            # Port B addr
+    a.ld_d_n(0x07)            # Port B data
+    jr_seq_port_done = a.jr_ph()
+    a.patch_jr(jr_seq_porta, a.here())
+    a.ld_c_n(0x04)            # Port A addr
+    a.ld_d_n(0x05)            # Port A data
+    a.patch_jr(jr_seq_port_done, a.here())
+
+    # Write 24 operator registers (same as FM_KEY_ON)
+    for reg_base in [0x30, 0x40, 0x50, 0x60, 0x70, 0x80]:
+        for op_off in [0, 8, 4, 12]:
+            a.ld_a_hl()
+            a.push_af()
+            a.ld_a_mem(RAM_TEMP + 1)
+            a.add_a_n(reg_base + op_off)
+            a.out_c_a()
+            a.pop_af()
+            a.ld_e_c(); a.ld_c_d()
+            a.out_c_a()
+            a.ld_c_e()
+            a.inc_hl()
+
+    # Write FB_ALG
+    a.ld_a_hl()
+    a.push_af()
+    a.ld_a_mem(RAM_TEMP + 1)
+    a.add_a_n(0xB0)
+    a.out_c_a()
+    a.pop_af()
+    a.ld_e_c(); a.ld_c_d()
+    a.out_c_a()
+    a.ld_c_e()
+    a.inc_hl()
+
+    # Write LR_AMS_PMS with panning
+    a.ld_a_hl()
+    a.and_n(0x3F)
+    a.ld_e_a()
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(RAM_FM_PAN)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_hl()
+    a.and_n(0xC0)
+    a.or_e()
+    a.push_af()
+    a.ld_a_mem(RAM_TEMP + 1)
+    a.add_a_n(0xB4)
+    a.out_c_a()
+    a.pop_af()
+    a.ld_e_c(); a.ld_c_d()
+    a.out_c_a()
+    a.ld_c_e()
+
+    # --- Set frequency ---
+    a.ld_a_mem(RAM_PARAM)
+    a.ld_e_a()
+    a.ld_d_n(0)
+
+    seq_fm_div12 = a.here()
+    a.ld_a_e()
+    a.cp_n(12)
+    jr_seq_fm_div_done = a.jr_c_ph()
+    a.sub_n(12)
+    a.ld_e_a()
+    a.inc_d()
+    a.db(0x18, 0x00)
+    a.patch_jr(a.here() - 2, seq_fm_div12)
+    a.patch_jr(jr_seq_fm_div_done, a.here())
+
+    # D = octave, E = semitone. Look up F-number.
+    a.push_de()
+    a.ld_a_e()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.add_hl_hl()
+    a.push_de()
+    a.ld_de_nn(FM_FNUM_TABLE)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_c_hl()               # C = fnum_lo
+    a.inc_hl()
+    a.ld_a_hl()               # A = fnum_hi
+    a.ld_l_a()                # L = fnum_hi
+    a.pop_de()                # D = octave
+
+    # Compute block_fnum_hi
+    a.ld_a_d()
+    a.and_n(0x07)
+    a.rlca(); a.rlca(); a.rlca()
+    a.and_n(0x38)
+    a.or_l()
+    a.ld_d_a()                # D = block_fnum_hi
+    a.ld_e_c()                # E = fnum_lo
+
+    # Write freq regs
+    a.ld_a_mem(RAM_TEMP + 1)  # ch_offset
+    a.ld_c_a()
+
+    a.ld_a_b()
+    a.and_n(0x02)
+    jr_seq_ffreq_pa = a.jr_z_ph()
+    # Port B
+    a.ld_a_c(); a.add_a_n(0xA4); a.out_n_a(0x06)
+    a.ld_a_d(); a.out_n_a(0x07)
+    a.ld_a_c(); a.add_a_n(0xA0); a.out_n_a(0x06)
+    a.ld_a_e(); a.out_n_a(0x07)
+    jr_seq_ffreq_done = a.jr_ph()
+    a.patch_jr(jr_seq_ffreq_pa, a.here())
+    # Port A
+    a.ld_a_c(); a.add_a_n(0xA4); a.out_n_a(0x04)
+    a.ld_a_d(); a.out_n_a(0x05)
+    a.ld_a_c(); a.add_a_n(0xA0); a.out_n_a(0x04)
+    a.ld_a_e(); a.out_n_a(0x05)
+    a.patch_jr(jr_seq_ffreq_done, a.here())
+
+    # Key-on
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(KEYON_TABLE)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_hl()
+    a.ld_c_a()
+    a.ld_a_n(0x28); a.out_n_a(0x04)
+    a.ld_a_c(); a.out_n_a(0x05)
+
+    a.ret()
+
+    # ================================================================
+    # SEQ_PROCESS_SSG: Process one SSG column byte
+    # A = byte value, B = SSG channel (0-2)
+    # $00 = sustain, $01 = key-off, $02-$7F = note-on
+    # ================================================================
+    SEQ_PROCESS_SSG = a.here()
+    for addr in [jp_seq_ssg_call_0, jp_seq_ssg_call_1,
+                 jp_seq_ssg_call_2]:
+        a.patch_call(addr, SEQ_PROCESS_SSG)
+
+    # Check sustain
+    a.or_a()
+    jr_ssg_not_sustain = a.jr_nz_ph()
+    a.ret()
+    a.patch_jr(jr_ssg_not_sustain, a.here())
+
+    # Check key-off
+    a.cp_n(SEQ_KEYOFF)
+    jr_ssg_not_keyoff = a.jr_nz_ph()
+    # Volume = 0
+    a.ld_a_b()
+    a.add_a_n(0x08)
+    a.out_n_a(0x04)
+    a.xor_a()
+    a.out_n_a(0x05)
+    a.ret()
+    a.patch_jr(jr_ssg_not_keyoff, a.here())
+
+    # Note-on ($02-$7F): A = MIDI note
+    # Compute period and write to SSG regs
+    a.ld_mem_a(RAM_PARAM)
+    a.ld_e_a()
+    a.ld_d_n(0)
+
+    seq_ssg_div = a.here()
+    a.ld_a_e()
+    a.cp_n(12)
+    jr_seq_ssg_done = a.jr_c_ph()
+    a.sub_n(12)
+    a.ld_e_a()
+    a.inc_d()
+    a.db(0x18, 0x00)
+    a.patch_jr(a.here() - 2, seq_ssg_div)
+    a.patch_jr(jr_seq_ssg_done, a.here())
+
+    # D = octave, E = semitone
+    a.ld_a_e()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.add_hl_hl()
+    a.push_de()
+    a.ld_de_nn(SSG_PERIOD_TABLE)
+    a.add_hl_de()
+    a.pop_de()
+    a.push_de()
+    a.ld_e_hl(); a.inc_hl()
+    a.ld_d_hl()
+    a.ld_h_d(); a.ld_l_e()    # HL = period
+    a.pop_de()                 # D = octave
+
+    # Adjust period for octave
+    a.ld_a_d()
+    a.cp_n(4)
+    jr_seq_oct_eq = a.jr_z_ph()
+    jr_seq_oct_hi = a.jr_nc_ph()
+
+    # Octave < 4: shift left
+    a.ld_a_n(4)
+    a.sub_d()
+    a.ld_d_a()
+    seq_ssg_shl = a.here()
+    a.add_hl_hl()
+    a.dec_d()
+    jr_seq_shl = a.jr_nz_ph()
+    a.patch_jr(jr_seq_shl, seq_ssg_shl)
+    jr_seq_adj_done = a.jr_ph()
+
+    a.patch_jr(jr_seq_oct_hi, a.here())
+    # Octave > 4: shift right
+    a.ld_a_d()
+    a.sub_n(4)
+    a.ld_d_a()
+    seq_ssg_shr = a.here()
+    a.srl_h()
+    a.rr_l()
+    a.dec_d()
+    jr_seq_shr = a.jr_nz_ph()
+    a.patch_jr(jr_seq_shr, seq_ssg_shr)
+
+    a.patch_jr(jr_seq_oct_eq, a.here())
+    a.patch_jr(jr_seq_adj_done, a.here())
+
+    # HL = period, B = channel
+    a.ld_a_b()
+    a.add_a_a()               # A = channel * 2
+    a.ld_e_a()
+    a.out_n_a(0x04)
+    a.ld_a_l()
+    a.out_n_a(0x05)
+    a.ld_a_e()
+    a.inc_a()
+    a.out_n_a(0x04)
+    a.ld_a_h()
+    a.and_n(0x0F)
+    a.out_n_a(0x05)
+
+    # Mixer: enable tone
+    a.ld_a_n(0x07); a.out_n_a(0x04)
+    a.ld_a_n(0x38); a.out_n_a(0x05)
+
+    # Volume
+    a.ld_a_b()
+    a.add_a_n(0x08)
+    a.out_n_a(0x04)
+    a.ld_a_n(0x0F)
+    a.out_n_a(0x05)
+
+    a.ret()
+
+    # ================================================================
+    # SEQ_PROCESS_ADPCM: Process ADPCM-A column byte
+    # B = sample byte (raw value from column)
+    # $00 = no trigger, anything else = sample index to trigger
+    # ================================================================
+    SEQ_PROCESS_ADPCM = a.here()
+    a.patch_call(jp_seq_adpcm_call, SEQ_PROCESS_ADPCM)
+
+    # Check for no-trigger ($00)
+    a.ld_a_b()
+    a.or_a()
+    jr_adpcm_not_zero = a.jr_nz_ph()
+    a.ret()
+    a.patch_jr(jr_adpcm_not_zero, a.here())
+
+    # Check bounds
+    a.cp_n(NUM_SAMPLES)
+    jr_adpcm_ok = a.jr_c_ph()
+    a.ret()
+    a.patch_jr(jr_adpcm_ok, a.here())
+
+    # Trigger ADPCM-A sample B on channel 0 (sequencer always uses ch 0)
+    # HL = sample table + B*4
+    a.ld_l_a(); a.ld_h_n(0)
+    a.add_hl_hl(); a.add_hl_hl()
+    a.ld_de_nn(SAMPLE_TABLE)
+    a.add_hl_de()
+
+    a.ld_e_hl(); a.inc_hl()   # start_lo
+    a.ld_d_hl(); a.inc_hl()   # start_hi
+    a.ld_c_hl(); a.inc_hl()   # end_lo
+    a.ld_b_hl()               # end_hi
+
+    a.push_bc()               # save end addr
+    a.push_de()               # save start addr
+
+    # Dump ch0: reg $00 = $81
+    a.ld_a_n(0x00); a.out_n_a(0x06)
+    a.ld_a_n(0x81); a.out_n_a(0x07)
+
+    # Start addr: regs $10+0, $18+0
+    a.ld_a_n(0x10); a.out_n_a(0x06)
+    a.pop_de()
+    a.ld_a_e(); a.out_n_a(0x07)
+    a.ld_a_n(0x18); a.out_n_a(0x06)
+    a.ld_a_d(); a.out_n_a(0x07)
+
+    # End addr: regs $20+0, $28+0
+    a.pop_bc()
+    a.ld_a_n(0x20); a.out_n_a(0x06)
+    a.ld_a_c(); a.out_n_a(0x07)
+    a.ld_a_n(0x28); a.out_n_a(0x06)
+    a.ld_a_b(); a.out_n_a(0x07)
+
+    # Volume + pan: reg $08+0 = $DF (center + vol 31)
+    a.ld_a_n(0x08); a.out_n_a(0x06)
+    a.ld_a_n(0xDF); a.out_n_a(0x07)
+
+    # Trigger ch0: reg $00 = $01
+    a.ld_a_n(0x00); a.out_n_a(0x06)
+    a.ld_a_n(0x01); a.out_n_a(0x07)
+
+    a.ret()
+
+    # ================================================================
     # Patch all done_patches
     # ================================================================
     for jp_addr in done_patches:
@@ -1273,12 +2137,19 @@ def build_driver():
     # ================================================================
     # Summary
     # ================================================================
-    print(f"NeoSynth v1.0 Driver Map:")
+    print(f"NeoSynth v2.0 Driver Map:")
     print(f"  Init:          0x0100")
     print(f"  Main loop:     0x{MAIN_LOOP:04X}")
-    print(f"  NMI handler:   0x0200")
+    print(f"  IRQ handler:   0x0080")
+    print(f"  IRQ done:      0x{IRQ_DONE:04X}")
+    print(f"  NMI handler:   0x0280")
     print(f"  NMI done:      0x{NMI_DONE:04X}")
     print(f"  Stop All:      0x{STOP_ALL:04X}")
+    print(f"  Play Song:     0x{PLAY_SONG:04X}")
+    print(f"  Seq Tick:      0x{SEQ_TICK:04X}")
+    print(f"  Seq FM:        0x{SEQ_PROCESS_FM:04X}")
+    print(f"  Seq SSG:       0x{SEQ_PROCESS_SSG:04X}")
+    print(f"  Seq ADPCM:     0x{SEQ_PROCESS_ADPCM:04X}")
     print(f"  FM Key-On:     0x{FM_KEY_ON:04X}")
     print(f"  FM Key-Off:    0x{FM_KEY_OFF:04X}")
     print(f"  FM Load Patch: 0x{FM_LOAD_PATCH:04X}")
@@ -1293,6 +2164,8 @@ def build_driver():
     print(f"  FM Fnum table: 0x{FM_FNUM_TABLE:04X}")
     print(f"  SSG Period tbl:0x{SSG_PERIOD_TABLE:04X}")
     print(f"  FM Patch table:0x{FM_PATCH_TABLE:04X} ({NUM_FM_PATCHES} patches)")
+    print(f"  Song table:    0x{SONG_TABLE:04X} ({num_songs} songs)")
+    print(f"  Song data:     0x{SONG_DATA_BASE:04X}")
     print(f"  Code end:      0x{a.pc:04X}")
 
     return bytes(a.code)

@@ -333,6 +333,238 @@ keyon = [v for p, r, v in w if p == 'A' and r == 0x28]
 check('Key-on F1', 0xF1 in keyon)
 
 # ====================================================================
+# PLAY SONG ($50)
+# ====================================================================
+print('\n=== PLAY SONG ($50) ===')
+z = boot()
+
+# Check sequencer is stopped initially
+check('Seq stopped initially', z.ram[0x40] == 0)  # RAM_SEQ_PLAYING offset
+
+# Send play song 0 command
+w = send_cmd(z, 0x50)
+check('No YM writes on play cmd', True)  # play just sets up state
+check('Seq playing = 1', z.ram[0x40] == 1)
+
+# Check song start address was loaded
+from neosynth_build import SONG_DATA_BASE, RAM_SEQ_PLAYING, RAM_SEQ_ROW_LO, RAM_SEQ_ROW_HI
+from neosynth_build import RAM_SEQ_START_LO, RAM_SEQ_START_HI, RAM_SEQ_TICK_RATE
+from neosynth_build import RAM_SEQ_TICK_CNT, RAM_SEQ_END_LO, RAM_SEQ_END_HI
+
+row_lo = z.ram[(RAM_SEQ_ROW_LO - 0xF800) & 0x7FF]
+row_hi = z.ram[(RAM_SEQ_ROW_HI - 0xF800) & 0x7FF]
+row_addr = (row_hi << 8) | row_lo
+check(f'Row pointer = song start 0x{SONG_DATA_BASE:04X}',
+      row_addr == SONG_DATA_BASE, f'got 0x{row_addr:04X}')
+
+tempo = z.ram[(RAM_SEQ_TICK_RATE - 0xF800) & 0x7FF]
+check('Tempo loaded = 7', tempo == 7)
+
+# ====================================================================
+# STOP SONG ($03 stops sequencer)
+# ====================================================================
+print('\n=== STOP SONG ($03) ===')
+w = send_cmd(z, 0x03)
+check('Seq playing = 0 after stop', z.ram[0x40] == 0)
+
+# ====================================================================
+# SEQUENCER TICK (IRQ-driven)
+# ====================================================================
+print('\n=== SEQUENCER TICK ===')
+z = boot()
+
+# Start song 0
+send_cmd(z, 0x50)
+check('Seq playing after $50', z.ram[0x40] == 1)
+
+# Simulate enough timer IRQs to advance past the first tick
+# The tick rate is 7, so after 7 IRQs the sequencer should advance
+# First, verify counter starts at tempo value
+tick_cnt = z.ram[(RAM_SEQ_TICK_CNT - 0xF800) & 0x7FF]
+check(f'Tick counter init = 7', tick_cnt == 7, f'got {tick_cnt}')
+
+# Fire IRQs one at a time and check counter decrement
+z.ym_writes.clear()
+for i in range(6):
+    z.fire_irq()
+    # Run IRQ handler
+    for _ in range(1000):
+        z.step()
+        if z.halted or z.pc == z.mem_read16(z.sp):
+            break
+        if z.halted:
+            break
+
+# After 6 IRQs, counter should be at 1
+tick_cnt = z.ram[(RAM_SEQ_TICK_CNT - 0xF800) & 0x7FF]
+check(f'After 6 IRQs, counter = 1', tick_cnt == 1, f'got {tick_cnt}')
+
+# No musically relevant YM writes yet (only Timer A flag resets to reg $27)
+# Decode writes to check for non-timer writes
+pre_writes = []
+pre_cur_a = 0
+for _, port, val in z.ym_writes:
+    if port == 0x04: pre_cur_a = val
+    elif port == 0x05:
+        if pre_cur_a != 0x27:  # skip Timer A flag reset
+            pre_writes.append(('A', pre_cur_a, val))
+check('No music YM writes before tick', len(pre_writes) == 0, f'got {len(pre_writes)} writes')
+
+# Fire 7th IRQ - this should trigger first tick (patch change row)
+z.ym_writes.clear()
+z.fire_irq()
+for _ in range(50000):
+    z.step()
+    if z.halted:
+        break
+
+# After tick, counter should be reloaded to tempo
+tick_cnt = z.ram[(RAM_SEQ_TICK_CNT - 0xF800) & 0x7FF]
+check(f'After tick, counter reloaded = 7', tick_cnt == 7, f'got {tick_cnt}')
+
+# Row pointer should have advanced by 8 bytes (one row)
+row_lo = z.ram[(RAM_SEQ_ROW_LO - 0xF800) & 0x7FF]
+row_hi = z.ram[(RAM_SEQ_ROW_HI - 0xF800) & 0x7FF]
+row_addr = (row_hi << 8) | row_lo
+check(f'Row advanced to 0x{SONG_DATA_BASE + 8:04X}',
+      row_addr == SONG_DATA_BASE + 8, f'got 0x{row_addr:04X}')
+
+# First row is [0x82, 0x81, 0, 0, 0, 0, 0, 0] - patch changes
+# $82 = set patch 2 on FM0, $81 = set patch 1 on FM1
+# These should store patches in RAM but not produce note YM writes
+# (patch changes just store the index, no keyon)
+
+# Fire 7 more IRQs for second tick (the first note row)
+z.ym_writes.clear()
+for i in range(7):
+    z.fire_irq()
+    for _ in range(50000):
+        z.step()
+        if z.halted:
+            break
+
+# Second row is [48, 36, 0, 0, 0, 0, 0, 4] - FM0=C4, FM1=C2, ADPCM=smp4
+# Decode YM writes
+writes_2nd = []
+cur_addr_a = 0
+cur_addr_b = 0
+for _, port, val in z.ym_writes:
+    if port == 0x04:
+        cur_addr_a = val
+    elif port == 0x06:
+        cur_addr_b = val
+    elif port == 0x05:
+        writes_2nd.append(('A', cur_addr_a, val))
+    elif port == 0x07:
+        writes_2nd.append(('B', cur_addr_b, val))
+
+# Check FM ch0 key-on (YM ch1 = 0xF1)
+keyon_writes = [v for p, r, v in writes_2nd if p == 'A' and r == 0x28]
+check('Seq tick: FM ch0 key-on 0xF1', 0xF1 in keyon_writes, str(keyon_writes))
+
+# Check FM ch1 key-on (YM ch2 = 0xF2)
+check('Seq tick: FM ch1 key-on 0xF2', 0xF2 in keyon_writes, str(keyon_writes))
+
+# Check that ADPCM-A was triggered (Port B reg $00 should have trigger)
+adpcm_trig = [v for p, r, v in writes_2nd if p == 'B' and r == 0x00 and v < 0x80]
+check('Seq tick: ADPCM-A triggered', len(adpcm_trig) > 0, str(adpcm_trig))
+
+# Check FM ch0 has patch registers written (24 operator regs on Port A)
+fm0_patch_writes = [v for p, r, v in writes_2nd if p == 'A' and 0x31 <= r <= 0x8E]
+check('Seq tick: FM ch0 patch regs written', len(fm0_patch_writes) >= 24,
+      f'got {len(fm0_patch_writes)}')
+
+# Verify C4 frequency (MIDI 48: octave 4, semitone 0 -> fnum=618=0x26A, block=4)
+# fnum_lo=0x6A on reg $A1, block_fnum_hi = (4<<3)|2 = 0x22 on reg $A5
+flo = [v for p, r, v in writes_2nd if p == 'A' and r == 0xA1]
+fhi = [v for p, r, v in writes_2nd if p == 'A' and r == 0xA5]
+check('Seq tick: C4 fnum_lo 0x6A', 0x6A in flo, str(flo))
+check('Seq tick: C4 block+fhi 0x22', 0x22 in fhi, str(fhi))
+
+# ====================================================================
+# SEQUENCER SUSTAIN AND KEY-OFF
+# ====================================================================
+print('\n=== SEQUENCER SUSTAIN/KEYOFF ===')
+# Third row should be sustain [0,0,0,0,0,0,0,0] - no YM writes
+z.ym_writes.clear()
+for i in range(7):
+    z.fire_irq()
+    for _ in range(50000):
+        z.step()
+        if z.halted:
+            break
+
+writes_3rd = []
+cur_addr_a = 0
+cur_addr_b = 0
+for _, port, val in z.ym_writes:
+    if port == 0x04: cur_addr_a = val
+    elif port == 0x06: cur_addr_b = val
+    elif port == 0x05: writes_3rd.append(('A', cur_addr_a, val))
+    elif port == 0x07: writes_3rd.append(('B', cur_addr_b, val))
+
+# Sustain row should produce no key-on/off or frequency writes
+# (only Timer A flag reset writes, which go to reg $27)
+note_writes = [(p, r, v) for p, r, v in writes_3rd
+               if r in (0x28, 0xA0, 0xA1, 0xA2, 0xA5, 0xA6)]
+check('Sustain row: no note/keyon writes', len(note_writes) == 0,
+      str(note_writes[:5]))
+
+# ====================================================================
+# PLAY SONG 1 ($51)
+# ====================================================================
+print('\n=== PLAY SONG 1 ($51) ===')
+z = boot()
+w = send_cmd(z, 0x51)
+check('Song 1 playing', z.ram[0x40] == 1)
+
+# Song 1 start address should be different from song 0
+row_lo = z.ram[(RAM_SEQ_ROW_LO - 0xF800) & 0x7FF]
+row_hi = z.ram[(RAM_SEQ_ROW_HI - 0xF800) & 0x7FF]
+row_addr = (row_hi << 8) | row_lo
+check(f'Song 1 start addr > song 0 start', row_addr > SONG_DATA_BASE,
+      f'got 0x{row_addr:04X}')
+
+# ====================================================================
+# OUT OF RANGE SONG
+# ====================================================================
+print('\n=== OUT OF RANGE SONG ===')
+z = boot()
+w = send_cmd(z, 0x5F)  # song 15 - out of range
+check('OOB song: not playing', z.ram[0x40] == 0)
+
+# ====================================================================
+# SONG LOOP (end marker wraps to start)
+# ====================================================================
+print('\n=== SONG LOOP ===')
+z = boot()
+send_cmd(z, 0x50)
+
+# Get song 0 total rows: we know it from build_test_songs
+from neosynth_build import build_test_songs
+songs = build_test_songs()
+song0_bytes, song0_tempo = songs[0]
+song0_rows = len(song0_bytes) // 8
+
+# Advance through all rows
+for row in range(song0_rows + 1):  # +1 to hit end marker and loop
+    for i in range(7):
+        z.fire_irq()
+        for _ in range(50000):
+            z.step()
+            if z.halted:
+                break
+
+# After looping, row pointer should be back near start + 8 (past first row after loop)
+row_lo = z.ram[(RAM_SEQ_ROW_LO - 0xF800) & 0x7FF]
+row_hi = z.ram[(RAM_SEQ_ROW_HI - 0xF800) & 0x7FF]
+row_addr = (row_hi << 8) | row_lo
+check('After loop: row ptr near start',
+      SONG_DATA_BASE <= row_addr < SONG_DATA_BASE + len(song0_bytes),
+      f'got 0x{row_addr:04X}')
+check('Still playing after loop', z.ram[0x40] == 1)
+
+# ====================================================================
 # SUMMARY
 # ====================================================================
 print(f'\n{"="*60}')

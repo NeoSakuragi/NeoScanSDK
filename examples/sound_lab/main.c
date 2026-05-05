@@ -16,6 +16,7 @@
  *   $34+ch      ADPCM-A pan ch (0-5), param: 0=L 1=C 2=R
  *   $40         ADPCM-B play (sample from param)
  *   $41         ADPCM-B stop
+ *   $50+N       Play song N (sequencer)
  *   $C0+smp     ADPCM-A trigger sample
  */
 
@@ -31,6 +32,7 @@
 #define CMD_ADPCMA_PAN 0x34
 #define CMD_ADPCMB_ON  0x40
 #define CMD_ADPCMB_OFF 0x41
+#define CMD_PLAY_SONG  0x50
 #define CMD_ADPCMA     0xC0
 
 /* Simple command queue for multi-frame sequences */
@@ -466,8 +468,48 @@ void game_tick(void) {
         menu_dirty = 1;
         break;
 
-    /* -- Final stop -- */
+    /* -- Final stop before music test -- */
     case 2700:
+        SND_play(CMD_STOP);
+        auto_status = "STOP (pre-music)";
+        menu_dirty = 1;
+        break;
+
+    /* -- MUSIC: Play song 0 (C major scale) -- */
+    case 2800:
+        SND_play(CMD_PLAY_SONG + 0);
+        auto_status = "MUSIC: Song 0 play";
+        menu_dirty = 1;
+        break;
+
+    /* -- Let music play for ~5 seconds (300 frames) -- */
+    case 3100:
+        auto_status = "MUSIC: playing...";
+        menu_dirty = 1;
+        break;
+
+    /* -- Stop music -- */
+    case 3400:
+        SND_play(CMD_STOP);
+        auto_status = "MUSIC: stopped";
+        menu_dirty = 1;
+        break;
+
+    /* -- MUSIC: Play song 1 (chord progression) -- */
+    case 3500:
+        SND_play(CMD_PLAY_SONG + 1);
+        auto_status = "MUSIC: Song 1 play";
+        menu_dirty = 1;
+        break;
+
+    /* -- Let music play -- */
+    case 3800:
+        auto_status = "MUSIC: song 1...";
+        menu_dirty = 1;
+        break;
+
+    /* -- Final stop -- */
+    case 4100:
         SND_play(CMD_STOP);
         auto_status = "ALL DONE - SILENCE";
         menu_dirty = 1;
@@ -552,11 +594,11 @@ void game_tick(void) {
         break;
 
     case MENU_MUSIC:
-        if (pressed & JOY_RIGHT) { music_song++; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { music_song--; menu_dirty = 1; }
+        if (pressed & JOY_RIGHT) { music_song = (music_song < 1) ? music_song + 1 : 0; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { music_song = (music_song > 0) ? music_song - 1 : 1; menu_dirty = 1; }
         if (pressed & JOY_A) {
-            /* Send raw command for testing */
-            SND_play(music_song & 0xFF);
+            /* Play song N via sequencer */
+            SND_play(CMD_PLAY_SONG + (music_song & 0x0F));
         }
         if (pressed & JOY_B) {
             SND_play(CMD_STOP);
