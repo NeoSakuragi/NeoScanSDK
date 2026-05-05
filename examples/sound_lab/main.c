@@ -35,6 +35,8 @@
 #define CMD_PLAY_SONG  0x50
 #define CMD_ADPCMA     0xC0
 #define CMD_ADPCMA_B1  0xC1
+#define CMD_ADPCMA_B2  0xC2
+#define CMD_ADPCMA_B3  0xC3
 
 /* Simple command queue for multi-frame sequences */
 #define CMD_QUEUE_SIZE 8
@@ -308,19 +310,17 @@ void game_tick(void) {
     }
 
     case MENU_ADPCMA:
-        if (pressed & JOY_RIGHT) { adpcma_smp++; if (adpcma_smp > 306) adpcma_smp = 0; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { if (adpcma_smp > 0) adpcma_smp--; else adpcma_smp = 306; menu_dirty = 1; }
+        if (pressed & JOY_RIGHT) { adpcma_smp++; if (adpcma_smp > 870) adpcma_smp = 0; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { if (adpcma_smp > 0) adpcma_smp--; else adpcma_smp = 870; menu_dirty = 1; }
         if (pressed & JOY_A) {
-            /* For samples 0-255: param = index, cmd = $C0 */
-            /* For samples 256+: send bank cmd first, then param = index-256 */
             if (adpcma_smp < 256) {
                 cmd_param_action(adpcma_smp & 0xFF, CMD_ADPCMA);
+            } else if (adpcma_smp < 512) {
+                cmd_param_action((adpcma_smp - 256) & 0xFF, CMD_ADPCMA_B1);
+            } else if (adpcma_smp < 768) {
+                cmd_param_action((adpcma_smp - 512) & 0xFF, CMD_ADPCMA_B2);
             } else {
-                cmd_enqueue(CMD_SET_PARAM);
-                cmd_enqueue(1);
-                cmd_enqueue(CMD_SET_PARAM);
-                cmd_enqueue((adpcma_smp - 256) & 0xFF);
-                cmd_enqueue(CMD_ADPCMA_B1);
+                cmd_param_action((adpcma_smp - 768) & 0xFF, CMD_ADPCMA_B3);
             }
         }
         if (pressed & JOY_B) {
