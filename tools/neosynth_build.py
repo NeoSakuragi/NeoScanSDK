@@ -393,7 +393,244 @@ def build_test_songs():
             song_bytes.append(b & 0xFF)
     songs.append((song_bytes, 7))
 
+    # Song 2: Guile's Theme (Street Fighter 2) — C minor, 120 BPM
+    songs.append(build_guile_theme())
+
     return songs
+
+
+def build_guile_theme():
+    """Build Guile's Theme arranged for NeoSynth.
+
+    Key: C minor.  Tempo: 120 BPM, 16th-note grid (8 ticks/sec).
+    FM0 = lead melody (brass), FM1 = bass (organ),
+    FM2 = chord voice 1 (piano), FM3 = chord voice 2 (piano).
+    ADPCM-A = drums (kick/snare/hihat from KOF96 V-ROM).
+    """
+    # MIDI note constants
+    C2, D2, Eb2, F2, G2, Ab2, Bb2 = 36, 38, 39, 41, 43, 44, 46
+    C3, D3, Eb3, F3, G3, Ab3, Bb3 = 48, 50, 51, 53, 55, 56, 58
+    C4, D4, Eb4, F4, G4, Ab4, Bb4 = 60, 62, 63, 65, 67, 68, 70
+    C5 = 72
+    # Bass octave (below C2)
+    Ab1, Bb1 = 32, 34
+
+    # Drum samples (ADPCM-A trigger values for sequencer column)
+    KICK  = 4   # sample index in ADPCM_SAMPLES
+    SNARE = 5
+    HIHAT = 6
+
+    # Patch set commands: $80+patch_id
+    BRASS = 0x82   # FM patch 2
+    ORGAN = 0x81   # FM patch 1
+    PIANO = 0x83   # FM patch 3
+
+    S = SEQ_SUSTAIN  # 0x00 = sustain
+    OFF = SEQ_KEYOFF # 0x01 = key-off
+
+    song = []
+
+    def row(fm0=S, fm1=S, fm2=S, fm3=S, ssg0=S, ssg1=S, ssg2=S, adpcm=0):
+        return [fm0, fm1, fm2, fm3, ssg0, ssg1, ssg2, adpcm]
+
+    # --- Row 0: set patches ---
+    song.append(row(BRASS, ORGAN, PIANO, PIANO))
+
+    # Helper: standard drum pattern for a 16-row bar
+    # Kick on beat 1,3 (rows 0,8), Snare on beat 2,4 (rows 4,12)
+    # Hi-hat on every 8th note (every 2 rows)
+    def drum(bar_pos):
+        """Return ADPCM sample for position within a 16-row bar."""
+        if bar_pos % 8 == 0:
+            return KICK
+        if bar_pos % 8 == 4:
+            return SNARE
+        if bar_pos % 2 == 0:
+            return HIHAT
+        return 0
+
+    # ================================================================
+    # INTRO — The iconic Eb-F-G stabs (bars 1-2)
+    # ================================================================
+    # Bar 1: Eb4(8th) F4(8th) G4(dotted quarter=6 rows) rest(4 rows)
+    # Beat 1
+    song.append(row(Eb3, C2, Eb3, G3, 0, 0, 0, KICK))     # row 0
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 1
+    # Beat 1.5
+    song.append(row(F3,  S,  S,   S,  0, 0, 0, 0))         # row 2
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 3
+    # Beat 2 — G4 dotted quarter (6 rows)
+    song.append(row(G3,  S,  S,   S,  0, 0, 0, SNARE))     # row 4
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 5
+    song.append(row(S,   S,  S,   S,  0, 0, 0, 0))         # row 6
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 7
+    # Beat 3 — G4 continues
+    song.append(row(S,   S,  S,   S,  0, 0, 0, KICK))      # row 8
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 9
+    # Beat 3.5 — rest
+    song.append(row(OFF, S,  S,   S,  0, 0, 0, 0))         # row 10
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 11
+    # Beat 4 — rest
+    song.append(row(S,   S,  S,   S,  0, 0, 0, SNARE))     # row 12
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 13
+    song.append(row(S,   S,  S,   S,  0, 0, 0, 0))         # row 14
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 15
+
+    # Bar 2: Eb4(8th) F4(8th) Ab4(8th) G4(quarter=4) rest(8th) rest(quarter)
+    # Beat 1
+    song.append(row(Eb3, C2, Eb3, G3, 0, 0, 0, KICK))     # row 0
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 1
+    # Beat 1.5
+    song.append(row(F3,  S,  S,   S,  0, 0, 0, 0))         # row 2
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 3
+    # Beat 2 — Ab4
+    song.append(row(Ab3, S,  S,   S,  0, 0, 0, SNARE))     # row 4
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 5
+    # Beat 2.5 — G4 quarter
+    song.append(row(G3,  S,  S,   S,  0, 0, 0, 0))         # row 6
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 7
+    # Beat 3 — G4 sustain
+    song.append(row(S,   S,  S,   S,  0, 0, 0, KICK))      # row 8
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 9
+    # Beat 3.5 — rest
+    song.append(row(OFF, S,  OFF, OFF,0, 0, 0, 0))         # row 10
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 11
+    # Beat 4 — rest
+    song.append(row(S,   S,  S,   S,  0, 0, 0, SNARE))     # row 12
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 13
+    song.append(row(S,   S,  S,   S,  0, 0, 0, 0))         # row 14
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))     # row 15
+
+    # ================================================================
+    # VERSE — Bars 3-4: Eb-F-G... Bb-Ab-G-F
+    # ================================================================
+    # Bar 3: Eb4(8th) F4(8th) G4(dotted quarter) rest(8th)
+    # Same as Bar 1 pattern but with Ab bass chord
+    song.append(row(Eb3, Ab1, Ab2, C3, 0, 0, 0, KICK))    # row 0
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 1
+    song.append(row(F3,  S,   S,   S,  0, 0, 0, 0))       # row 2
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 3
+    song.append(row(G3,  S,   S,   S,  0, 0, 0, SNARE))   # row 4
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 5
+    song.append(row(S,   S,   S,   S,  0, 0, 0, 0))       # row 6
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 7
+    song.append(row(S,   S,   S,   S,  0, 0, 0, KICK))    # row 8
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 9
+    song.append(row(OFF, S,   S,   S,  0, 0, 0, 0))       # row 10
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 11
+    song.append(row(S,   S,   S,   S,  0, 0, 0, SNARE))   # row 12
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 13
+    song.append(row(S,   S,   S,   S,  0, 0, 0, 0))       # row 14
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 15
+
+    # Bar 4: Bb4(8th) Ab4(8th) G4(8th) F4(quarter) rest(8th) rest
+    song.append(row(Bb3, Bb1, Bb2, D3, 0, 0, 0, KICK))    # row 0
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 1
+    song.append(row(Ab3, S,   S,   S,  0, 0, 0, 0))       # row 2
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 3
+    song.append(row(G3,  S,   S,   S,  0, 0, 0, SNARE))   # row 4
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 5
+    song.append(row(F3,  S,   S,   S,  0, 0, 0, 0))       # row 6
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 7
+    song.append(row(S,   S,   S,   S,  0, 0, 0, KICK))    # row 8
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 9
+    song.append(row(OFF, OFF, OFF, OFF,0, 0, 0, 0))       # row 10
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 11
+    song.append(row(S,   S,   S,   S,  0, 0, 0, SNARE))   # row 12
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 13
+    song.append(row(S,   S,   S,   S,  0, 0, 0, 0))       # row 14
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 15
+
+    # ================================================================
+    # VERSE — Bars 5-6: G-G-F-Bb... Ab-G-Ab...
+    # ================================================================
+    # Bar 5: G4(8th) G4(8th) F4(8th) Bb4(quarter+8th=6 rows)
+    song.append(row(G3,  C2, Eb3, G3, 0, 0, 0, KICK))     # row 0
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 1
+    song.append(row(G3,  S,  S,   S,  0, 0, 0, 0))        # row 2  re-trigger
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 3
+    song.append(row(F3,  S,  S,   S,  0, 0, 0, SNARE))    # row 4
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 5
+    song.append(row(Bb3, S,  S,   S,  0, 0, 0, 0))        # row 6
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 7
+    song.append(row(S,   S,  S,   S,  0, 0, 0, KICK))     # row 8
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 9
+    song.append(row(S,   S,  S,   S,  0, 0, 0, 0))        # row 10
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 11
+    song.append(row(S,   S,  S,   S,  0, 0, 0, SNARE))    # row 12
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 13
+    song.append(row(S,   S,  S,   S,  0, 0, 0, 0))        # row 14
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 15
+
+    # Bar 6: Ab4(8th) G4(8th) Ab4(quarter+8th=6 rows) rest
+    song.append(row(Ab3, Ab1, Ab2, C3, 0, 0, 0, KICK))    # row 0
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 1
+    song.append(row(G3,  S,   S,   S,  0, 0, 0, 0))       # row 2
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 3
+    song.append(row(Ab3, S,   S,   S,  0, 0, 0, SNARE))   # row 4
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 5
+    song.append(row(S,   S,   S,   S,  0, 0, 0, 0))       # row 6
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 7
+    song.append(row(S,   S,   S,   S,  0, 0, 0, KICK))    # row 8
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 9
+    song.append(row(OFF, S,   S,   S,  0, 0, 0, 0))       # row 10
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 11
+    song.append(row(S,   S,   S,   S,  0, 0, 0, SNARE))   # row 12
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 13
+    song.append(row(S,   S,   S,   S,  0, 0, 0, 0))       # row 14
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 15
+
+    # ================================================================
+    # VERSE — Bars 7-8: D4... Eb4... F4... Bb3-D4-F4-Ab4(half)
+    # ================================================================
+    # Bar 7: D4(quarter+8th=6) Eb4(quarter+8th=6) F4(8th=2) fill(2)
+    song.append(row(D3,  Bb1, Bb2, D3, 0, 0, 0, KICK))    # row 0
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 1
+    song.append(row(S,   S,   S,   S,  0, 0, 0, 0))       # row 2
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 3
+    song.append(row(S,   S,   S,   S,  0, 0, 0, SNARE))   # row 4
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 5
+    song.append(row(Eb3, S,   S,   S,  0, 0, 0, 0))       # row 6
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 7
+    song.append(row(S,   S,   S,   S,  0, 0, 0, KICK))    # row 8
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 9
+    song.append(row(S,   S,   S,   S,  0, 0, 0, 0))       # row 10
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 11
+    song.append(row(F3,  S,   S,   S,  0, 0, 0, SNARE))   # row 12
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 13
+    song.append(row(S,   S,   S,   S,  0, 0, 0, 0))       # row 14
+    song.append(row(S,   S,   S,   S,  0, 0, 0, HIHAT))   # row 15
+
+    # Bar 8: Bb3(8th) D4(8th) F4(8th) Ab4(half=8 rows) rest(2)
+    song.append(row(Bb2, C2, Eb3, G3, 0, 0, 0, KICK))     # row 0
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 1
+    song.append(row(D3,  S,  S,   S,  0, 0, 0, 0))        # row 2
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 3
+    song.append(row(F3,  S,  S,   S,  0, 0, 0, SNARE))    # row 4
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 5
+    song.append(row(Ab3, S,  S,   S,  0, 0, 0, 0))        # row 6
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 7
+    song.append(row(S,   S,  S,   S,  0, 0, 0, KICK))     # row 8
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 9
+    song.append(row(S,   S,  S,   S,  0, 0, 0, 0))        # row 10
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 11
+    song.append(row(S,   S,  S,   S,  0, 0, 0, SNARE))    # row 12
+    song.append(row(S,   S,  S,   S,  0, 0, 0, HIHAT))    # row 13
+    # Key off everything before loop
+    song.append(row(OFF, OFF,OFF, OFF,0, 0, 0, 0))        # row 14
+    song.append(row(S,   S,  S,   S,  0, 0, 0, 0))        # row 15
+
+    # End marker (loops back to start)
+    song.append([SEQ_END, 0, 0, 0, 0, 0, 0, 0])
+
+    # Flatten to bytes
+    song_bytes = bytearray()
+    for r in song:
+        for b in r:
+            song_bytes.append(b & 0xFF)
+
+    # Tempo: 7 = ~8 ticks/sec = 120 BPM at 16th note resolution
+    return (song_bytes, 7)
 
 
 def emit_ym_write_portB(a, reg, data_reg='a'):

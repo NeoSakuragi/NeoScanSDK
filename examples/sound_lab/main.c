@@ -475,41 +475,61 @@ void game_tick(void) {
         menu_dirty = 1;
         break;
 
-    /* -- MUSIC: Play song 0 (C major scale) -- */
+    /* -- MUSIC: Play song 2 (Guile's Theme) FIRST -- */
     case 2800:
+        SND_play(CMD_PLAY_SONG + 2);
+        auto_status = "GUILE THEME";
+        menu_dirty = 1;
+        break;
+
+    /* -- Let Guile's Theme play ~10 seconds (600 frames) -- */
+    case 3100:
+        auto_status = "GUILE: playing...";
+        menu_dirty = 1;
+        break;
+
+    /* -- Stop Guile -- */
+    case 3400:
+        SND_play(CMD_STOP);
+        auto_status = "GUILE: stopped";
+        menu_dirty = 1;
+        break;
+
+    /* -- MUSIC: Play song 0 (C major scale) -- */
+    case 3500:
         SND_play(CMD_PLAY_SONG + 0);
         auto_status = "MUSIC: Song 0 play";
         menu_dirty = 1;
         break;
 
     /* -- Let music play for ~5 seconds (300 frames) -- */
-    case 3100:
+    case 3800:
         auto_status = "MUSIC: playing...";
         menu_dirty = 1;
         break;
 
     /* -- Stop music -- */
-    case 3400:
+    case 4100:
         SND_play(CMD_STOP);
         auto_status = "MUSIC: stopped";
         menu_dirty = 1;
         break;
 
     /* -- MUSIC: Play song 1 (chord progression) -- */
-    case 3500:
+    case 4200:
         SND_play(CMD_PLAY_SONG + 1);
         auto_status = "MUSIC: Song 1 play";
         menu_dirty = 1;
         break;
 
     /* -- Let music play -- */
-    case 3800:
+    case 4500:
         auto_status = "MUSIC: song 1...";
         menu_dirty = 1;
         break;
 
     /* -- Final stop -- */
-    case 4100:
+    case 4800:
         SND_play(CMD_STOP);
         auto_status = "ALL DONE - SILENCE";
         menu_dirty = 1;
@@ -594,8 +614,8 @@ void game_tick(void) {
         break;
 
     case MENU_MUSIC:
-        if (pressed & JOY_RIGHT) { music_song = (music_song < 1) ? music_song + 1 : 0; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { music_song = (music_song > 0) ? music_song - 1 : 1; menu_dirty = 1; }
+        if (pressed & JOY_RIGHT) { music_song = (music_song < 2) ? music_song + 1 : 0; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { music_song = (music_song > 0) ? music_song - 1 : 2; menu_dirty = 1; }
         if (pressed & JOY_A) {
             /* Play song N via sequencer */
             SND_play(CMD_PLAY_SONG + (music_song & 0x0F));
