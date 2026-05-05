@@ -13,6 +13,7 @@
  *   $18+ch      FM set patch ch (0-3), patch from param
  *   $20+ch      SSG key-on ch (0-2), note from param
  *   $24+ch      SSG key-off ch (0-2)
+ *   $28+ch      SSG set patch ch (0-2), preset from param (0-4)
  *   $30+ch      FM pan ch (0-3), param: 0=L 1=C 2=R
  *   $34+ch      ADPCM-A pan ch (0-5), param: 0=L 1=C 2=R
  *   $40         ADPCM-B play (sample from param)
@@ -29,6 +30,7 @@
 #define CMD_FM_PATCH   0x18
 #define CMD_SSG_ON     0x20
 #define CMD_SSG_OFF    0x24
+#define CMD_SSG_PATCH  0x28
 #define CMD_FM_PAN     0x30
 #define CMD_ADPCMA_PAN 0x34
 #define CMD_ADPCMB_ON  0x40
@@ -89,6 +91,17 @@ static const char *FM_PATCH_NAMES[FM_PATCH_COUNT] = {
     "KOF GTR ",  /* 17 */
     "KOF BELL",  /* 18 */
     "KOF KEYS",  /* 19 */
+};
+
+/* ---- SSG preset names (must match neosynth_build.py SSG_PRESETS order) ---- */
+#define SSG_PATCH_COUNT 5
+
+static const char *SSG_PATCH_NAMES[SSG_PATCH_COUNT] = {
+    "SQUARE",  /* 0 */
+    "PLUCK ",  /* 1 */
+    "BELL  ",  /* 2 */
+    "NOISE ",  /* 3 */
+    "BUZZ  ",  /* 4 */
 };
 
 /* ---- Instrument names for the KOF96 ADPCM-A kit ---- */
@@ -159,6 +172,7 @@ static uint16_t init_preset;
 static uint16_t fm_patch[4];
 static uint16_t fm_note[4];
 static uint16_t ssg_note[3];
+static uint16_t ssg_patch[3];
 static uint16_t adpcma_ch;
 static uint16_t adpcma_smp;
 static uint16_t adpcmb_smp;
@@ -229,7 +243,10 @@ static void draw_menu(void) {
         }
         case MENU_SSG1: case MENU_SSG2: case MENU_SSG3: {
             uint8_t ch = i - MENU_SSG1;
-            print_note(11, row, ssg_note[ch], pal);
+            if (ssg_patch[ch] < SSG_PATCH_COUNT) {
+                FIX_print(11, row, SSG_PATCH_NAMES[ssg_patch[ch]], pal);
+            }
+            print_note(18, row, ssg_note[ch], pal);
             break;
         }
         case MENU_ADPCMA:
@@ -258,7 +275,7 @@ static void draw_menu(void) {
     }
 
     FIX_print(1, 18, "A=PLAY  B=STOP  L/R=VALUE", 0);
-    FIX_print(1, 19, "C=CYCLE FM PATCH", 0);
+    FIX_print(1, 19, "C=CYCLE PATCH(FM/SSG)", 0);
 
     /* Auto-test status line */
     FIX_print(1, 21, "AUTO:                     ", 1);
@@ -289,6 +306,7 @@ void game_init(void) {
     init_preset = 0;
     fm_note[0] = fm_note[1] = fm_note[2] = fm_note[3] = 48; /* C4 */
     ssg_note[0] = ssg_note[1] = ssg_note[2] = 48;
+    ssg_patch[0] = ssg_patch[1] = ssg_patch[2] = 0; /* default: SQUARE */
     adpcma_ch = 0;
     adpcma_smp = 0;  /* Start at KICK */
     pan_val = 1; /* center */
@@ -365,6 +383,13 @@ void game_tick(void) {
         if (pressed & JOY_B) {
             /* SSG key-off */
             SND_play(CMD_SSG_OFF + ch);
+        }
+        if (pressed & JOY_C) {
+            /* Cycle through SSG presets */
+            ssg_patch[ch] = ssg_patch[ch] + 1;
+            if (ssg_patch[ch] >= SSG_PATCH_COUNT) ssg_patch[ch] = 0;
+            cmd_param_action((uint8_t)ssg_patch[ch], CMD_SSG_PATCH + ch);
+            menu_dirty = 1;
         }
         break;
     }

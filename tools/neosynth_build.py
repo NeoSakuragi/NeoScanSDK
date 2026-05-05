@@ -18,6 +18,7 @@ Command protocol (68K -> Z80 via NMI):
   $18+ch      - FM set patch ch (0-3), patch from param byte
   $20+ch      - SSG key-on ch (0-2), note from param byte
   $24+ch      - SSG key-off ch (0-2)
+  $28+ch      - SSG set patch ch (0-2), preset from param byte (0-4)
   $30+ch      - FM panning ch (0-3), param: 0=L, 1=C, 2=R
   $34+ch      - ADPCM-A panning ch (0-5), param: 0=L, 1=C, 2=R
   $50+N       - Play song N (tick-based sequencer, Timer A driven)
@@ -1287,6 +1288,13 @@ RAM_SEQ_FM_PATCH1 = 0xF84A   # current sequencer FM patch ch1
 RAM_SEQ_FM_PATCH2 = 0xF84B   # current sequencer FM patch ch2
 RAM_SEQ_FM_PATCH3 = 0xF84C   # current sequencer FM patch ch3
 
+# SSG preset/envelope RAM — 4 bytes per channel * 3 channels = 12 bytes
+# Layout per channel (ch 0-2): preset_idx, cur_vol, decay_counter, active
+RAM_SSG_PRESET    = 0xF850   # +ch*4: preset index (0-4)
+                              # +ch*4+1: current volume (0-15)
+                              # +ch*4+2: decay frame counter
+                              # +ch*4+3: active flag (1=playing, 0=idle)
+
 # Data table addresses (in ROM) - placed at $2000+ to avoid code conflicts
 # Sample table: 325 entries * 4 bytes = 1300 bytes (0x2000-0x2514)
 SAMPLE_TABLE   = 0x2000
@@ -2000,6 +2008,10 @@ def build_driver(sample_table_path=None):
     a.patch_jr(jr_irq_no_tick, a.here())
     a.patch_jr(jr_irq_not_playing, a.here())
 
+    # CALL SSG envelope subroutine (patched later)
+    jp_ssg_env_call = a.here()
+    a.call(0x0000)
+
     # IRQ exit
     IRQ_DONE = a.here()
     a.pop_bc()
@@ -2078,6 +2090,15 @@ def build_driver(sample_table_path=None):
     a.xor_a()
     for i in range(4):
         a.ld_mem_a(RAM_FM_PATCH + i)
+
+    # Init SSG preset RAM: preset=0 (SQUARE), vol=0, decay=0, active=0
+    a.xor_a()
+    for ch in range(3):
+        base = RAM_SSG_PRESET + ch * 4
+        a.ld_mem_a(base + 0)  # preset index = 0
+        a.ld_mem_a(base + 1)  # current volume = 0
+        a.ld_mem_a(base + 2)  # decay counter = 0
+        a.ld_mem_a(base + 3)  # active = 0
 
     # Init sequencer RAM
     a.xor_a()
@@ -2324,6 +2345,14 @@ def build_driver(sample_table_path=None):
     a.ld_b_a()
     jp_ssgoff = a.jp_ph()
     a.patch_jr(jr_not_ssgoff, a.here())
+
+    # $28-$2A: SSG set patch (cmd - $20 = 0x08-0x0A, sub 0x08 = ch 0-2)
+    a.cp_n(0x0B)
+    jr_not_ssgpatch = a.jr_nc_ph()
+    a.sub_n(0x08)
+    a.ld_b_a()
+    jp_ssgpatch = a.jp_ph()
+    a.patch_jr(jr_not_ssgpatch, a.here())
     a.jp(NMI_DONE)
 
     # ----------------------------------------------------------------
@@ -2368,6 +2397,11 @@ def build_driver(sample_table_path=None):
     for reg in [0x08, 0x09, 0x0A]:
         a.ld_a_n(reg); a.out_n_a(0x04)
         a.xor_a();     a.out_n_a(0x05)
+
+    # Clear SSG envelope active flags
+    a.xor_a()
+    for ch in range(3):
+        a.ld_mem_a(RAM_SSG_PRESET + ch * 4 + 3)  # active = 0
 
     # ADPCM-A dump all: Port B reg $00 = $BF
     a.ld_a_n(0x00); a.out_n_a(0x06)
@@ -2720,16 +2754,126 @@ def build_driver(sample_table_path=None):
     a.and_n(0x0F)
     a.out_n_a(0x05)
 
-    # Mixer: enable tone for all, disable noise
-    a.ld_a_n(0x07); a.out_n_a(0x04)
-    a.ld_a_n(0x38); a.out_n_a(0x05)
+    # --- Look up preset for this channel ---
+    # HL = SSG_PRESET_TABLE + preset_index * 3
+    a.push_bc()                  # save B = channel
+    a.push_hl()                  # save HL (period, not needed further)
+    # Read preset index from RAM_SSG_PRESET + ch*4
+    a.ld_a_b()
+    a.add_a_a()                  # *2
+    a.add_a_a()                  # *4
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(RAM_SSG_PRESET)
+    a.add_hl_de()                # HL = &RAM_SSG_PRESET[ch*4]
+    a.ld_a_hl()                  # A = preset index
+    # Bounds check
+    a.cp_n(NUM_SSG_PRESETS)
+    jr_preset_ok = a.jr_c_ph()
+    a.xor_a()
+    a.patch_jr(jr_preset_ok, a.here())
+    # Compute ROM table pointer: SSG_PRESET_TABLE + A*3
+    a.ld_e_a()                   # E = preset index
+    a.ld_l_a(); a.ld_h_n(0)     # HL = idx
+    a.add_hl_hl()                # HL = idx*2
+    a.ld_d_n(0)
+    a.add_hl_de()                # HL = idx*3
+    a.ld_de_nn(SSG_PRESET_TABLE)
+    a.add_hl_de()                # HL -> preset data (vol, decay, noise)
+    # Read preset: C = initial_vol, D = decay_rate, E = noise_enable
+    a.ld_c_hl(); a.inc_hl()      # C = initial_vol
+    a.ld_d_hl(); a.inc_hl()      # D = decay_rate
+    a.ld_e_hl()                  # E = noise_enable
+    a.pop_hl()                   # discard saved HL (period)
+    a.pop_bc()                   # restore B = channel (only B matters)
 
-    # Volume: reg $08+ch = $0F
+    # --- Set mixer based on noise_enable ---
+    # Read current mixer, modify bits for this channel
+    # Tone enable: bit 0/1/2 for ch A/B/C (active LOW)
+    # Noise enable: bit 3/4/5 for ch A/B/C (active LOW)
+    a.push_de()                  # save D=decay, E=noise
+    a.push_bc()                  # save B=channel, C=initial_vol
+    # Build mixer value: start with all noise off ($38), all tone enabled ($00)
+    # But we need to read-modify-write properly for the specific channel
+    # Simple approach: tone always on for all, noise on only if preset says so
+    a.ld_a_e()                   # A = noise_enable
+    a.or_a()
+    jr_no_noise = a.jr_z_ph()
+    # Noise enabled: clear noise-disable bit for this channel
+    # mixer = $38 & ~(1 << (3+ch)) = enable noise for this ch
+    a.ld_a_b()                   # channel
+    a.add_a_n(3)                 # bit position = 3+ch
+    a.ld_e_a()                   # E = bit position
+    a.ld_a_n(0x01)
+    # Shift left by E positions
+    a.ld_d_a()                   # D = mask being built
+    a.ld_a_e()
+    a.or_a()
+    jr_shift_done_ssg = a.jr_z_ph()
+    a.ld_a_d()
+    ssg_noise_shift = a.here()
+    a.rlca()
+    a.dec_e()
+    jr_noise_shift_again = a.jr_nz_ph()
+    a.patch_jr(jr_noise_shift_again, ssg_noise_shift)
+    a.patch_jr(jr_shift_done_ssg, a.here())
+    # A = bit mask for noise (e.g., $08 for ch0, $10 for ch1, $20 for ch2)
+    # Invert to clear that bit in $38
+    a.ld_d_a()                   # D = noise bit
+    a.ld_a_n(0x38)
+    a.push_bc()
+    a.ld_c_d()                   # C = noise bit to clear
+    # XOR to flip the bit: $38 ^ noise_bit
+    a.ld_a_n(0x38)
+    a.ld_b_a()                   # save
+    a.ld_a_c()
+    a.db(0x2F)                   # CPL — complement A = ~noise_bit
+    a.and_b()                    # $38 & ~noise_bit
+    a.pop_bc()
+    jr_mixer_set = a.jr_ph()
+
+    a.patch_jr(jr_no_noise, a.here())
+    # No noise: mixer = $38 (all noise off, all tone on)
+    a.ld_a_n(0x38)
+    a.patch_jr(jr_mixer_set, a.here())
+
+    # Write mixer to reg $07
+    a.ld_e_a()                   # save mixer value
+    a.ld_a_n(0x07); a.out_n_a(0x04)
+    a.ld_a_e(); a.out_n_a(0x05)
+
+    a.pop_bc()                   # restore B=channel, C=initial_vol
+    a.pop_de()                   # restore D=decay_rate, E=noise_enable
+
+    # --- Set initial volume from preset ---
     a.ld_a_b()
     a.add_a_n(0x08)
     a.out_n_a(0x04)
-    a.ld_a_n(0x0F)
+    a.ld_a_c()                   # A = initial_vol
+    a.and_n(0x0F)
     a.out_n_a(0x05)
+
+    # --- Set up software envelope state ---
+    # RAM_SSG_PRESET + ch*4 + 1 = current_vol
+    # RAM_SSG_PRESET + ch*4 + 2 = decay_counter (init to decay_rate)
+    # RAM_SSG_PRESET + ch*4 + 3 = active flag
+    a.push_de()
+    a.ld_a_b()                   # channel
+    a.add_a_a()                  # *2
+    a.add_a_a()                  # *4
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(RAM_SSG_PRESET)
+    a.add_hl_de()                # HL = &RAM_SSG_PRESET[ch*4]
+    a.inc_hl()                   # +1 = current_vol
+    a.ld_a_c()
+    a.and_n(0x0F)
+    a.ld_hl_a()                  # store current_vol = initial_vol
+    a.inc_hl()                   # +2 = decay_counter
+    a.ld_a_d()                   # decay_rate
+    a.ld_hl_a()                  # store decay_counter = decay_rate
+    a.inc_hl()                   # +3 = active
+    a.ld_a_n(0x01)
+    a.ld_hl_a()                  # active = 1
+    a.pop_de()
 
     a.jp(NMI_DONE)
 
@@ -2739,11 +2883,53 @@ def build_driver(sample_table_path=None):
     SSG_KEY_OFF = a.here()
     a.patch_jp(jp_ssgoff, SSG_KEY_OFF)
 
+    # Set volume to 0
     a.ld_a_b()
     a.add_a_n(0x08)
     a.out_n_a(0x04)
     a.xor_a()
     a.out_n_a(0x05)
+
+    # Clear active flag in envelope state
+    a.ld_a_b()
+    a.add_a_a()                  # *2
+    a.add_a_a()                  # *4
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(RAM_SSG_PRESET)
+    a.add_hl_de()
+    a.inc_hl(); a.inc_hl(); a.inc_hl()  # +3 = active
+    a.xor_a()
+    a.ld_hl_a()                  # active = 0
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # SSG SET PATCH (B = channel 0-2, preset index from RAM_PARAM)
+    # ================================================================
+    SSG_SET_PATCH = a.here()
+    a.patch_jp(jp_ssgpatch, SSG_SET_PATCH)
+
+    # Read preset index from RAM_PARAM, bounds check
+    a.ld_a_mem(RAM_PARAM)
+    a.cp_n(NUM_SSG_PRESETS)
+    jr_ssp_ok = a.jr_c_ph()
+    a.xor_a()                    # default to 0 if out of range
+    a.patch_jr(jr_ssp_ok, a.here())
+
+    # Store at RAM_SSG_PRESET + ch*4 + 0
+    a.ld_e_a()                   # E = preset index
+    a.ld_a_b()                   # channel
+    a.add_a_a()                  # *2
+    a.add_a_a()                  # *4
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(RAM_SSG_PRESET)
+    a.add_hl_de()                # HL = &RAM_SSG_PRESET[ch*4]
+    a.ld_a_mem(RAM_PARAM)        # reload preset index
+    a.cp_n(NUM_SSG_PRESETS)
+    jr_ssp_ok2 = a.jr_c_ph()
+    a.xor_a()
+    a.patch_jr(jr_ssp_ok2, a.here())
+    a.ld_hl_a()                  # store preset index
 
     a.jp(NMI_DONE)
 
@@ -3619,6 +3805,75 @@ def build_driver(sample_table_path=None):
     a.ret()
 
     # ================================================================
+    # SSG_ENVELOPE: Software envelope tick for all 3 SSG channels
+    # Called from IRQ handler every ~55Hz.
+    # For each channel: if active and decay_rate > 0, decrement counter.
+    # When counter hits 0: decrease volume, reload. Volume 0 = deactivate.
+    # ================================================================
+    SSG_ENVELOPE = a.here()
+    a.patch_call(jp_ssg_env_call, SSG_ENVELOPE)
+
+    for ch in range(3):
+        base = RAM_SSG_PRESET + ch * 4
+        # Check active flag
+        a.ld_a_mem(base + 3)     # active?
+        a.or_a()
+        jr_ssg_env_skip = a.jr_z_ph()
+
+        # Check if decay_counter > 0 (if decay_rate was 0, counter = 0 = sustained)
+        a.ld_a_mem(base + 2)     # decay_counter
+        a.or_a()
+        jr_ssg_env_sustained = a.jr_z_ph()
+
+        # Decrement counter
+        a.dec_a()
+        a.ld_mem_a(base + 2)
+        jr_ssg_env_no_decay = a.jr_nz_ph()
+
+        # Counter hit 0: decrease volume, reload counter
+        a.ld_a_mem(base + 1)     # current_vol
+        a.or_a()
+        jr_ssg_env_vol_zero = a.jr_z_ph()
+        a.dec_a()
+        a.ld_mem_a(base + 1)     # store new volume
+
+        # Write volume to SSG reg $08+ch
+        a.ld_e_a()               # save volume
+        a.ld_a_n(0x08 + ch)
+        a.out_n_a(0x04)
+        a.ld_a_e()
+        a.out_n_a(0x05)
+
+        # Reload counter from preset's decay_rate in ROM
+        a.ld_a_mem(base + 0)     # preset index
+        a.ld_l_a(); a.ld_h_n(0)
+        a.add_hl_hl()            # *2
+        a.ld_d_n(0); a.ld_e_a()
+        a.add_hl_de()            # *3
+        a.ld_de_nn(SSG_PRESET_TABLE + 1)  # +1 = decay_rate field
+        a.add_hl_de()
+        a.ld_a_hl()              # A = decay_rate
+        a.ld_mem_a(base + 2)     # reload counter
+
+        jr_ssg_env_done = a.jr_ph()
+
+        # Volume reached 0: deactivate channel (silence)
+        a.patch_jr(jr_ssg_env_vol_zero, a.here())
+        a.ld_a_n(0x08 + ch)
+        a.out_n_a(0x04)
+        a.xor_a()
+        a.out_n_a(0x05)
+        # Clear active flag
+        a.ld_mem_a(base + 3)
+
+        a.patch_jr(jr_ssg_env_no_decay, a.here())
+        a.patch_jr(jr_ssg_env_sustained, a.here())
+        a.patch_jr(jr_ssg_env_skip, a.here())
+        a.patch_jr(jr_ssg_env_done, a.here())
+
+    a.ret()
+
+    # ================================================================
     # Patch all done_patches
     # ================================================================
     for jp_addr in done_patches:
@@ -3645,6 +3900,8 @@ def build_driver(sample_table_path=None):
     print(f"  FM Load Patch: 0x{FM_LOAD_PATCH:04X}")
     print(f"  SSG Key-On:    0x{SSG_KEY_ON:04X}")
     print(f"  SSG Key-Off:   0x{SSG_KEY_OFF:04X}")
+    print(f"  SSG Set Patch: 0x{SSG_SET_PATCH:04X}")
+    print(f"  SSG Envelope:  0x{SSG_ENVELOPE:04X}")
     print(f"  ADPCM-A Trig:  0x{ADPCMA_TRIGGER:04X}")
     print(f"  FM Set Pan:    0x{FM_SET_PAN:04X}")
     print(f"  ADPCM-A Pan:   0x{ADPCMA_SET_PAN:04X}")
