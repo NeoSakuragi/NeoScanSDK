@@ -36,14 +36,313 @@ Music engine:
 import struct, sys, argparse
 
 ADPCM_SAMPLES = [
-    (0x0000, 0x0040),
-    (0x0041, 0x0080),
-    (0x0081, 0x00C0),
-    (0x00C1, 0x0120),
-    (0x5070, 0x5923),
-    (0xA470, 0xB521),
-    (0x5A69, 0x6423),
-    (0x6569, 0x6D23),
+    (0x09F2, 0x09FF),  # 0: 3KB
+    (0x0B60, 0x0B6C),  # 1: 3KB
+    (0x0B6D, 0x0B7C),  # 2: 3KB
+    (0x0A8C, 0x0A95),  # 3: 2KB
+    (0x00AB, 0x00F2),  # 4: 17KB
+    (0x0A96, 0x0AB8),  # 5: 8KB
+    (0x084B, 0x085F),  # 6: 5KB
+    (0x0860, 0x086F),  # 7: 3KB
+    (0x0955, 0x0965),  # 8: 4KB
+    (0x0BB4, 0x0BCF),  # 9: 6KB
+    (0x04F8, 0x0521),  # 10: 10KB
+    (0x067A, 0x0692),  # 11: 6KB
+    (0x0522, 0x052D),  # 12: 2KB
+    (0x0A2A, 0x0A33),  # 13: 2KB
+    (0x0B21, 0x0B49),  # 14: 10KB
+    (0x000F, 0x005A),  # 15: 18KB
+    (0x0485, 0x04A6),  # 16: 8KB
+    (0x0600, 0x061B),  # 17: 6KB
+    (0x0752, 0x076D),  # 18: 6KB
+    (0x061C, 0x063C),  # 19: 8KB
+    (0x0008, 0x000E),  # 20: 1KB
+    (0x0000, 0x0007),  # 21: 1KB
+    (0x0820, 0x082C),  # 22: 3KB
+    (0x082D, 0x0836),  # 23: 2KB
+    (0x0896, 0x08A2),  # 24: 3KB
+    (0x0884, 0x0895),  # 25: 4KB
+    (0x0074, 0x00C9),  # 26: 21KB
+    (0x0000, 0x0073),  # 27: 28KB
+    (0x0966, 0x096E),  # 28: 2KB
+    (0x0BD0, 0x0BDB),  # 29: 2KB
+    (0x09A7, 0x09B6),  # 30: 3KB
+    (0x0693, 0x06A7),  # 31: 5KB
+    (0x0937, 0x094B),  # 32: 5KB
+    (0x06E4, 0x06FE),  # 33: 6KB
+    (0x02F1, 0x02F8),  # 34: 1KB
+    (0x02E6, 0x02F0),  # 35: 2KB
+    (0x0BA6, 0x0BB3),  # 36: 3KB
+    (0x076E, 0x0789),  # 37: 6KB
+    (0x0845, 0x0859),  # 38: 5KB
+    (0x0BDC, 0x0BED),  # 39: 4KB
+    (0x0837, 0x084A),  # 40: 4KB
+    (0x07C9, 0x07E3),  # 41: 6KB
+    (0x0008, 0x000D),  # 42: 1KB
+    (0x00F3, 0x0143),  # 43: 20KB
+    (0x0B4A, 0x0B5F),  # 44: 5KB
+    (0x052E, 0x0559),  # 45: 10KB
+    (0x08A3, 0x08B7),  # 46: 5KB
+    (0x08B8, 0x08C8),  # 47: 4KB
+    (0x0800, 0x0808),  # 48: 2KB
+    (0x0809, 0x081F),  # 49: 5KB
+    (0x0903, 0x091A),  # 50: 5KB
+    (0x05CD, 0x05FF),  # 51: 12KB
+    (0x019F, 0x01FF),  # 52: 24KB
+    (0x0144, 0x019E),  # 53: 22KB
+    (0x06C3, 0x06E3),  # 54: 8KB
+    (0x0E2C, 0x0E47),  # 55: 6KB
+    (0x0870, 0x0883),  # 56: 4KB
+    (0x065A, 0x0679),  # 57: 7KB
+    (0x026E, 0x02A6),  # 58: 14KB
+    (0x06A8, 0x06C2),  # 59: 6KB
+    (0x02F9, 0x032D),  # 60: 13KB
+    (0x078A, 0x07A9),  # 61: 7KB
+    (0x04D6, 0x04F7),  # 62: 8KB
+    (0x0200, 0x0237),  # 63: 13KB
+    (0x0238, 0x026D),  # 64: 13KB
+    (0x0452, 0x0484),  # 65: 12KB
+    (0x0376, 0x03B9),  # 66: 16KB
+    (0x0400, 0x0423),  # 67: 8KB
+    (0x2350, 0x2359),  # 68: 2KB
+    (0x21A4, 0x21B5),  # 69: 4KB
+    (0x235A, 0x2364),  # 70: 2KB
+    (0x2365, 0x236D),  # 71: 2KB
+    (0x21B6, 0x21C9),  # 72: 4KB
+    (0x15BF, 0x15FF),  # 73: 16KB
+    (0x17D1, 0x17FF),  # 74: 11KB
+    (0x236E, 0x2379),  # 75: 2KB
+    (0x1FBE, 0x1FD4),  # 76: 5KB
+    (0x21CA, 0x21D9),  # 77: 3KB
+    (0x21DA, 0x21ED),  # 78: 4KB
+    (0x1BDD, 0x1BFF),  # 79: 8KB
+    (0x237A, 0x2383),  # 80: 2KB
+    (0x1FD5, 0x1FEA),  # 81: 5KB
+    (0x21EE, 0x21FF),  # 82: 4KB
+    (0x1D7C, 0x1D95),  # 83: 6KB
+    (0x1FEB, 0x1FFF),  # 84: 5KB
+    (0x1D96, 0x1DB1),  # 85: 6KB
+    (0x2384, 0x238F),  # 86: 2KB
+    (0x1DB2, 0x1DCA),  # 87: 6KB
+    (0x1DCB, 0x1DE2),  # 88: 5KB
+    (0x1DE3, 0x1DFF),  # 89: 7KB
+    (0x2000, 0x200F),  # 90: 3KB
+    (0x2010, 0x201F),  # 91: 3KB
+    (0x1A00, 0x1A0B),  # 92: 2KB
+    (0x2200, 0x2208),  # 93: 2KB
+    (0x2020, 0x202E),  # 94: 3KB
+    (0x1600, 0x1637),  # 95: 13KB
+    (0x1C00, 0x1C1B),  # 96: 6KB
+    (0x1A0C, 0x1A2B),  # 97: 7KB
+    (0x1C1C, 0x1C37),  # 98: 6KB
+    (0x202F, 0x203C),  # 99: 3KB
+    (0x203D, 0x204C),  # 100: 3KB
+    (0x1C38, 0x1C52),  # 101: 6KB
+    (0x204D, 0x205B),  # 102: 3KB
+    (0x1400, 0x1434),  # 103: 13KB
+    (0x205C, 0x206D),  # 104: 4KB
+    (0x1E00, 0x1E16),  # 105: 5KB
+    (0x1638, 0x163E),  # 106: 1KB
+    (0x222B, 0x2234),  # 107: 2KB
+    (0x2235, 0x2241),  # 108: 3KB
+    (0x20CC, 0x20DB),  # 109: 3KB
+    (0x1C6D, 0x1C78),  # 110: 2KB
+    (0x1E68, 0x1E7C),  # 111: 5KB
+    (0x1825, 0x1849),  # 112: 9KB
+    (0x1E7D, 0x1E8D),  # 113: 4KB
+    (0x1C79, 0x1C94),  # 114: 6KB
+    (0x20EF, 0x20FA),  # 115: 2KB
+    (0x20DC, 0x20EE),  # 116: 4KB
+    (0x2242, 0x224E),  # 117: 3KB
+    (0x1E8E, 0x1EA1),  # 118: 4KB
+    (0x20FB, 0x210C),  # 119: 4KB
+    (0x184A, 0x186B),  # 120: 8KB
+    (0x1AA6, 0x1AC6),  # 121: 8KB
+    (0x5F93, 0x5FBE),  # 122: 10KB
+    (0x224F, 0x2257),  # 123: 2KB
+    (0x186C, 0x188F),  # 124: 8KB
+    (0x163F, 0x166E),  # 125: 11KB
+    (0x5FBF, 0x5FDF),  # 126: 8KB
+    (0x19AC, 0x19B2),  # 127: 1KB
+    (0x2330, 0x233A),  # 128: 2KB
+    (0x233B, 0x2345),  # 129: 2KB
+    (0x2346, 0x234F),  # 130: 2KB
+    (0x1F64, 0x1F7A),  # 131: 5KB
+    (0x176C, 0x179B),  # 132: 11KB
+    (0x1F7B, 0x1F91),  # 133: 5KB
+    (0x1F92, 0x1FA6),  # 134: 5KB
+    (0x219C, 0x21A3),  # 135: 1KB
+    (0x19B3, 0x19DB),  # 136: 10KB
+    (0x179C, 0x17D0),  # 137: 13KB
+    (0x218C, 0x219B),  # 138: 3KB
+    (0x1FA7, 0x1FBD),  # 139: 5KB
+    (0x1D5F, 0x1D7B),  # 140: 7KB
+    (0x1B9D, 0x1BBD),  # 141: 8KB
+    (0x1BBE, 0x1BDC),  # 142: 7KB
+    (0x19DC, 0x19FF),  # 143: 8KB
+    (0x230B, 0x2317),  # 144: 3KB
+    (0x4C00, 0x4C0A),  # 145: 2KB
+    (0x4A18, 0x4A23),  # 146: 2KB
+    (0x4C0B, 0x4C17),  # 147: 3KB
+    (0x4C18, 0x4C23),  # 148: 2KB
+    (0x4C24, 0x4C3B),  # 149: 5KB
+    (0x4A24, 0x4A63),  # 150: 15KB
+    (0x4B7C, 0x4BC6),  # 151: 18KB
+    (0x4B18, 0x4B47),  # 152: 11KB
+    (0x4CFD, 0x4D1D),  # 153: 8KB
+    (0x4D1E, 0x4D2A),  # 154: 3KB
+    (0x4D2B, 0x4D48),  # 155: 7KB
+    (0x4D49, 0x4D6B),  # 156: 8KB
+    (0x4BC7, 0x4BFF),  # 157: 14KB
+    (0x21DB, 0x21FF),  # 158: 9KB
+    (0x4CE5, 0x4CFC),  # 159: 5KB
+    (0x4B48, 0x4B7B),  # 160: 12KB
+    (0x4A64, 0x4A8F),  # 161: 10KB
+    (0x4C3C, 0x4C55),  # 162: 6KB
+    (0x4A90, 0x4ABE),  # 163: 11KB
+    (0x4ABF, 0x4AE9),  # 164: 10KB
+    (0x4AEA, 0x4B17),  # 165: 11KB
+    (0x4C56, 0x4C7F),  # 166: 10KB
+    (0x227D, 0x228F),  # 167: 4KB
+    (0x4C80, 0x4CA9),  # 168: 10KB
+    (0x4CAA, 0x4CC7),  # 169: 7KB
+    (0x4CC8, 0x4CE4),  # 170: 7KB
+    (0x4393, 0x439B),  # 171: 2KB
+    (0x4400, 0x4412),  # 172: 4KB
+    (0x451A, 0x452C),  # 173: 4KB
+    (0x4413, 0x4419),  # 174: 1KB
+    (0x441A, 0x4425),  # 175: 2KB
+    (0x4426, 0x4431),  # 176: 2KB
+    (0x439C, 0x43E8),  # 177: 19KB
+    (0x4588, 0x45AA),  # 178: 8KB
+    (0x44E9, 0x4519),  # 179: 12KB
+    (0x4600, 0x4607),  # 180: 1KB
+    (0x4432, 0x4442),  # 181: 4KB
+    (0x45AB, 0x45DA),  # 182: 11KB
+    (0x45DB, 0x45E4),  # 183: 2KB
+    (0x4608, 0x460E),  # 184: 1KB
+    (0x43E9, 0x43FF),  # 185: 5KB
+    (0x452D, 0x4536),  # 186: 2KB
+    (0x4537, 0x4551),  # 187: 6KB
+    (0x4552, 0x4587),  # 188: 13KB
+    (0x4443, 0x4460),  # 189: 7KB
+    (0x4461, 0x447D),  # 190: 7KB
+    (0x447E, 0x4485),  # 191: 1KB
+    (0x4486, 0x4490),  # 192: 2KB
+    (0x4491, 0x44A6),  # 193: 5KB
+    (0x44A7, 0x44B9),  # 194: 4KB
+    (0x44BA, 0x44CD),  # 195: 4KB
+    (0x44CE, 0x44E8),  # 196: 6KB
+    (0x45E5, 0x45FF),  # 197: 6KB
+    (0x2C00, 0x2C0B),  # 198: 2KB
+    (0x2390, 0x2398),  # 199: 2KB
+    (0x2D47, 0x2D60),  # 200: 6KB
+    (0x2C0C, 0x2C17),  # 201: 2KB
+    (0x2C18, 0x2C21),  # 202: 2KB
+    (0x2B02, 0x2B12),  # 203: 4KB
+    (0x2B13, 0x2B52),  # 204: 15KB
+    (0x2D6A, 0x2D9E),  # 205: 13KB
+    (0x2D15, 0x2D46),  # 206: 12KB
+    (0x2D61, 0x2D69),  # 207: 2KB
+    (0x2C22, 0x2C35),  # 208: 4KB
+    (0x2399, 0x23FF),  # 209: 25KB
+    (0x2D9F, 0x2DAC),  # 210: 3KB
+    (0x2DAD, 0x2DEC),  # 211: 15KB
+    (0x2BCA, 0x2BFF),  # 212: 13KB
+    (0x2C36, 0x2C56),  # 213: 8KB
+    (0x2C57, 0x2C60),  # 214: 2KB
+    (0x2C61, 0x2C79),  # 215: 6KB
+    (0x2C7A, 0x2C9E),  # 216: 9KB
+    (0x2C9F, 0x2CCE),  # 217: 11KB
+    (0x2CCF, 0x2CE5),  # 218: 5KB
+    (0x2CE6, 0x2CF8),  # 219: 4KB
+    (0x2CF9, 0x2D14),  # 220: 6KB
+    (0x544E, 0x5456),  # 221: 2KB
+    (0x5600, 0x5611),  # 222: 4KB
+    (0x56D1, 0x56E2),  # 223: 4KB
+    (0x5612, 0x561B),  # 224: 2KB
+    (0x561C, 0x5627),  # 225: 2KB
+    (0x5628, 0x5636),  # 226: 3KB
+    (0x5457, 0x5486),  # 227: 11KB
+    (0x5538, 0x555F),  # 228: 9KB
+    (0x56B2, 0x56D0),  # 229: 7KB
+    (0x54EF, 0x5513),  # 230: 9KB
+    (0x5560, 0x5596),  # 231: 13KB
+    (0x5597, 0x55B9),  # 232: 8KB
+    (0x55BA, 0x55FF),  # 233: 17KB
+    (0x5514, 0x5537),  # 234: 8KB
+    (0x5637, 0x5658),  # 235: 8KB
+    (0x5487, 0x54A9),  # 236: 8KB
+    (0x5659, 0x5676),  # 237: 7KB
+    (0x5677, 0x5698),  # 238: 8KB
+    (0x54AA, 0x54CE),  # 239: 9KB
+    (0x49CE, 0x49E6),  # 240: 6KB
+    (0x54CF, 0x54EE),  # 241: 7KB
+    (0x5200, 0x5206),  # 242: 1KB
+    (0x4E00, 0x4E0C),  # 243: 3KB
+    (0x510A, 0x511D),  # 244: 4KB
+    (0x5207, 0x520E),  # 245: 1KB
+    (0x4D6C, 0x4D74),  # 246: 2KB
+    (0x5000, 0x500E),  # 247: 3KB
+    (0x4E0D, 0x4E55),  # 248: 18KB
+    (0x5168, 0x5197),  # 249: 11KB
+    (0x4EFF, 0x4F38),  # 250: 14KB
+    (0x511E, 0x512F),  # 251: 4KB
+    (0x500F, 0x501F),  # 252: 4KB
+    (0x5198, 0x51AF),  # 253: 5KB
+    (0x51B0, 0x51D4),  # 254: 9KB
+    (0x4F75, 0x4FBB),  # 255: 17KB
+    (0x51D5, 0x51FF),  # 256: 10KB
+    (0x4FBC, 0x4FFF),  # 257: 16KB
+    (0x5130, 0x5167),  # 258: 13KB
+    (0x4F39, 0x4F74),  # 259: 14KB
+    (0x503A, 0x504C),  # 260: 4KB
+    (0x520F, 0x5215),  # 261: 1KB
+    (0x5216, 0x521D),  # 262: 1KB
+    (0x504D, 0x5059),  # 263: 3KB
+    (0x521E, 0x522B),  # 264: 3KB
+    (0x505A, 0x5074),  # 265: 6KB
+    (0x4EA7, 0x4EC2),  # 266: 6KB
+    (0x4D78, 0x4D9A),  # 267: 8KB
+    (0x509B, 0x50B8),  # 268: 7KB
+    (0x4EC3, 0x4EFE),  # 269: 14KB
+    (0x50B9, 0x50E4),  # 270: 10KB
+    (0x4000, 0x4008),  # 271: 2KB
+    (0x3E00, 0x3E0F),  # 272: 3KB
+    (0x3F3C, 0x3F55),  # 273: 6KB
+    (0x3E10, 0x3E1F),  # 274: 3KB
+    (0x4009, 0x4010),  # 275: 1KB
+    (0x4011, 0x401F),  # 276: 3KB
+    (0x3E20, 0x3E44),  # 277: 9KB
+    (0x3F7C, 0x3F9A),  # 278: 7KB
+    (0x3F06, 0x3F3B),  # 279: 13KB
+    (0x3E45, 0x3E5F),  # 280: 6KB
+    (0x3F9B, 0x3FCB),  # 281: 12KB
+    (0x3DD8, 0x3DFF),  # 282: 9KB
+    (0x3FCC, 0x3FFF),  # 283: 12KB
+    (0x4020, 0x402E),  # 284: 3KB
+    (0x3DCD, 0x3DD7),  # 285: 2KB
+    (0x3E7E, 0x3EA0),  # 286: 8KB
+    (0x3EA1, 0x3EB0),  # 287: 3KB
+    (0x3E6B, 0x3E7D),  # 288: 4KB
+    (0x3EB1, 0x3EE1),  # 289: 12KB
+    (0x3EE2, 0x3F05),  # 290: 8KB
+    (0x4A00, 0x4A0B),  # 291: 2KB
+    (0x4800, 0x480C),  # 292: 3KB
+    (0x4775, 0x477D),  # 293: 2KB
+    (0x480D, 0x481B),  # 294: 3KB
+    (0x481C, 0x4826),  # 295: 2KB
+    (0x4A0C, 0x4A17),  # 296: 2KB
+    (0x02A7, 0x02E5),  # 297: 15KB
+    (0x0934, 0x093C),  # 298: 2KB
+    (0x0C00, 0x0C5A),  # 299: 22KB
+    (0x063D, 0x0659),  # 300: 7KB
+    (0x057D, 0x05A5),  # 301: 10KB
+    (0x9713, 0x977F),  # 302: 27KB
+    (0x8C25, 0x8CB8),  # 303: 36KB
+    (0x961C, 0x9692),  # 304: 29KB
+    (0x8BE0, 0x8BFF),  # 305: 7KB
+    (0x8800, 0x89B7),  # 306: 109KB
 ]
 
 FM_FNUMS = [618, 627, 636, 645, 655, 664, 674, 683, 694, 704, 714, 724]
@@ -121,13 +420,14 @@ RAM_SEQ_FM_PATCH2 = 0xF84B   # current sequencer FM patch ch2
 RAM_SEQ_FM_PATCH3 = 0xF84C   # current sequencer FM patch ch3
 
 # Data table addresses (in ROM) - placed at $2000+ to avoid code conflicts
+# Sample table: 325 entries * 4 bytes = 1300 bytes (0x2000-0x2514)
 SAMPLE_TABLE   = 0x2000
-FM_FNUM_TABLE  = 0x2040
-SSG_PERIOD_TABLE = 0x2060
-FM_PATCH_TABLE = 0x2080
+FM_FNUM_TABLE  = 0x2600
+SSG_PERIOD_TABLE = 0x2620
+FM_PATCH_TABLE = 0x2640
 PATCH_SIZE = 26  # 6 params * 4 ops + FB_ALG + LR_AMS_PMS
-SONG_TABLE     = 0x2100      # song table: 5 bytes per song
-SONG_DATA_BASE = 0x2200      # song data starts here
+SONG_TABLE     = 0x2800      # song table: 5 bytes per song (after sample table + FM/SSG tables)
+SONG_DATA_BASE = 0x2900      # song data starts here
 
 # Song data format:
 # 8 bytes per row: [FM1] [FM2] [FM3] [FM4] [SSG1] [SSG2] [SSG3] [ADPCM_A_TRIG]
@@ -994,8 +1294,26 @@ def build_driver():
     a.cp_n(0xC0)
     jr_below_c0 = a.jr_c_ph()
     a.sub_n(0xC0)
-    a.ld_b_a()  # B = sample index
+    jr_has_inline_smp = a.jr_nz_ph()  # if cmd > $C0, check $C1 vs inline
+    # cmd == $C0: sample index from param (0-255)
+    a.ld_a_mem(RAM_PARAM)
+    a.ld_b_a()
+    a.ld_c_n(0)  # C=0 = bank 0 (samples 0-255)
     jp_adpcma_trig = a.jp_ph()
+    # cmd > $C0
+    a.patch_jr(jr_has_inline_smp, a.here())
+    a.cp_n(1)  # cmd - $C0 == 1? ($C1 = bank 1)
+    jr_not_c1 = a.jr_nz_ph()
+    # cmd == $C1: sample index from param + 256
+    a.ld_a_mem(RAM_PARAM)
+    a.ld_b_a()
+    a.ld_c_n(1)  # C=1 = bank 1 (samples 256+)
+    jp_adpcma_trig_b1 = a.jp_ph()
+    # cmd > $C1: inline sample = cmd - $C0
+    a.patch_jr(jr_not_c1, a.here())
+    a.ld_b_a()
+    a.ld_c_n(0)
+    jp_adpcma_trig2 = a.jp_ph()
     a.patch_jr(jr_below_c0, a.here())
 
     # NMI done
@@ -1493,17 +1811,15 @@ def build_driver():
     # ================================================================
     ADPCMA_TRIGGER = a.here()
     a.patch_jp(jp_adpcma_trig, ADPCMA_TRIGGER)
+    a.patch_jp(jp_adpcma_trig_b1, ADPCMA_TRIGGER)
+    a.patch_jp(jp_adpcma_trig2, ADPCMA_TRIGGER)
 
-    # Bounds check
-    a.ld_a_b()
-    a.cp_n(NUM_SAMPLES)
-    jr_smp_ok = a.jr_c_ph()
-    a.jp(NMI_DONE)
-    a.patch_jr(jr_smp_ok, a.here())
-
-    # HL = sample table + B*4
-    a.ld_a_b()
-    a.ld_l_a(); a.ld_h_n(0)
+    # HL = SAMPLE_TABLE + (C*256 + B) * 4
+    # C = bank (0 or 1), B = index within bank
+    # LD L,B; LD H,C → HL = C*256 + B = full sample index
+    a.db(0x68)  # LD L, B
+    a.db(0x61)  # LD H, C
+    # HL * 4 for table offset
     a.add_hl_hl(); a.add_hl_hl()
     a.ld_de_nn(SAMPLE_TABLE)
     a.add_hl_de()
@@ -1610,7 +1926,7 @@ def build_driver():
     a.patch_jp(jp_adpcmb_play, ADPCMB_PLAY)
 
     a.ld_a_mem(RAM_PARAM)
-    a.cp_n(NUM_SAMPLES)
+    a.cp_n(0xFF)  # bounds check handled by 68K side
     jr_ab_ok = a.jr_c_ph()
     a.jp(NMI_DONE)
     a.patch_jr(jr_ab_ok, a.here())
@@ -2317,7 +2633,7 @@ def build_driver():
     a.patch_jr(jr_adpcm_not_zero, a.here())
 
     # Check bounds
-    a.cp_n(NUM_SAMPLES)
+    a.cp_n(0xFF)  # bounds check handled by 68K side
     jr_adpcm_ok = a.jr_c_ph()
     a.ret()
     a.patch_jr(jr_adpcm_ok, a.here())

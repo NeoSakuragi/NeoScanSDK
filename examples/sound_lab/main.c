@@ -34,6 +34,7 @@
 #define CMD_ADPCMB_OFF 0x41
 #define CMD_PLAY_SONG  0x50
 #define CMD_ADPCMA     0xC0
+#define CMD_ADPCMA_B1  0xC1
 
 /* Simple command queue for multi-frame sequences */
 #define CMD_QUEUE_SIZE 8
@@ -178,8 +179,8 @@ static void draw_menu(void) {
         case MENU_ADPCMA:
             FIX_print(11, row, "CH", pal);
             print_hex(13, row, adpcma_ch, pal);
-            FIX_print(18, row, "S", pal);
-            print_hex(19, row, adpcma_smp, pal);
+            FIX_print(17, row, "S", pal);
+            FIX_printNum(18, row, adpcma_smp, pal);
             break;
         case MENU_ADPCMB:
             FIX_print(11, row, "S", pal);
@@ -251,290 +252,8 @@ void game_tick(void) {
     /* Flush one queued command per frame */
     cmd_flush();
 
-    /* === Auto-test sequence (no user input needed) === */
-    /* Each sound event spaced ~150 frames (2.5s), total ~3000 frames */
     auto_frame++;
 
-    switch (auto_frame) {
-    /* -- ADPCM-A tests (direct trigger, no param needed) -- */
-    case 100:
-        SND_play(CMD_ADPCMA + 0);
-        auto_status = "ADPCM-A smp 0";
-        menu_dirty = 1;
-        break;
-    case 250:
-        SND_play(CMD_ADPCMA + 1);
-        auto_status = "ADPCM-A smp 1";
-        menu_dirty = 1;
-        break;
-    case 400:
-        SND_play(CMD_ADPCMA + 4);
-        auto_status = "ADPCM-A smp 4";
-        menu_dirty = 1;
-        break;
-    case 500:
-        SND_play(CMD_STOP);
-        auto_status = "STOP ALL";
-        menu_dirty = 1;
-        break;
-
-    /* -- FM Ch1: C4 (MIDI 48) -- */
-    case 550:
-        SND_play2(CMD_SET_PARAM, 48);
-        auto_status = "FM param C4";
-        menu_dirty = 1;
-        break;
-    case 553:
-        SND_play(CMD_FM_ON + 0);
-        auto_status = "FM ch0 C4 ~262Hz";
-        menu_dirty = 1;
-        break;
-    case 700:
-        SND_play(CMD_FM_OFF + 0);
-        auto_status = "FM ch0 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- FM Ch1: E4 (MIDI 52) -- */
-    case 750:
-        SND_play2(CMD_SET_PARAM, 52);
-        auto_status = "FM param E4";
-        menu_dirty = 1;
-        break;
-    case 753:
-        SND_play(CMD_FM_ON + 0);
-        auto_status = "FM ch0 E4 ~330Hz";
-        menu_dirty = 1;
-        break;
-    case 900:
-        SND_play(CMD_FM_OFF + 0);
-        auto_status = "FM ch0 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- FM Ch1: G4 (MIDI 55) -- */
-    case 950:
-        SND_play2(CMD_SET_PARAM, 55);
-        auto_status = "FM param G4";
-        menu_dirty = 1;
-        break;
-    case 953:
-        SND_play(CMD_FM_ON + 0);
-        auto_status = "FM ch0 G4 ~392Hz";
-        menu_dirty = 1;
-        break;
-    case 1100:
-        SND_play(CMD_FM_OFF + 0);
-        auto_status = "FM ch0 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- FM Ch2: C3 bass (MIDI 36) -- */
-    case 1150:
-        SND_play2(CMD_SET_PARAM, 36);
-        auto_status = "FM param C3";
-        menu_dirty = 1;
-        break;
-    case 1153:
-        SND_play(CMD_FM_ON + 1);
-        auto_status = "FM ch1 C3 ~131Hz";
-        menu_dirty = 1;
-        break;
-    case 1300:
-        SND_play(CMD_FM_OFF + 1);
-        auto_status = "FM ch1 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- SSG Ch1: C5 (MIDI 60) -- */
-    case 1350:
-        SND_play2(CMD_SET_PARAM, 60);
-        auto_status = "SSG param C5";
-        menu_dirty = 1;
-        break;
-    case 1353:
-        SND_play(CMD_SSG_ON + 0);
-        auto_status = "SSG ch0 C5 ~523Hz";
-        menu_dirty = 1;
-        break;
-    case 1500:
-        SND_play(CMD_SSG_OFF + 0);
-        auto_status = "SSG ch0 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- SSG Ch1: E5 (MIDI 64) -- */
-    case 1550:
-        SND_play2(CMD_SET_PARAM, 64);
-        auto_status = "SSG param E5";
-        menu_dirty = 1;
-        break;
-    case 1553:
-        SND_play(CMD_SSG_ON + 0);
-        auto_status = "SSG ch0 E5 ~659Hz";
-        menu_dirty = 1;
-        break;
-    case 1700:
-        SND_play(CMD_SSG_OFF + 0);
-        auto_status = "SSG ch0 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- SSG Ch1: G5 (MIDI 67) -- */
-    case 1750:
-        SND_play2(CMD_SET_PARAM, 67);
-        auto_status = "SSG param G5";
-        menu_dirty = 1;
-        break;
-    case 1753:
-        SND_play(CMD_SSG_ON + 0);
-        auto_status = "SSG ch0 G5 ~784Hz";
-        menu_dirty = 1;
-        break;
-    case 1900:
-        SND_play(CMD_SSG_OFF + 0);
-        auto_status = "SSG ch0 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- SSG Ch2: A4 sustained (MIDI 57) -- */
-    case 1950:
-        SND_play2(CMD_SET_PARAM, 57);
-        auto_status = "SSG param A4";
-        menu_dirty = 1;
-        break;
-    case 1953:
-        SND_play(CMD_SSG_ON + 1);
-        auto_status = "SSG ch1 A4 ~440Hz";
-        menu_dirty = 1;
-        break;
-    case 2200:
-        SND_play(CMD_SSG_OFF + 1);
-        auto_status = "SSG ch1 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- FM with organ patch (patch 1) -- */
-    case 2250:
-        SND_play2(CMD_SET_PARAM, 1);
-        auto_status = "FM set patch organ";
-        menu_dirty = 1;
-        break;
-    case 2253:
-        SND_play(CMD_FM_PATCH + 0);
-        auto_status = "FM ch0 patch=organ";
-        menu_dirty = 1;
-        break;
-    case 2260:
-        SND_play2(CMD_SET_PARAM, 48);
-        auto_status = "FM organ C4";
-        menu_dirty = 1;
-        break;
-    case 2263:
-        SND_play(CMD_FM_ON + 0);
-        auto_status = "FM ch0 organ C4";
-        menu_dirty = 1;
-        break;
-    case 2400:
-        SND_play(CMD_FM_OFF + 0);
-        auto_status = "FM ch0 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- FM with brass patch (patch 2) -- */
-    case 2450:
-        SND_play2(CMD_SET_PARAM, 2);
-        auto_status = "FM set patch brass";
-        menu_dirty = 1;
-        break;
-    case 2453:
-        SND_play(CMD_FM_PATCH + 0);
-        auto_status = "FM ch0 patch=brass";
-        menu_dirty = 1;
-        break;
-    case 2460:
-        SND_play2(CMD_SET_PARAM, 55);
-        auto_status = "FM brass G4";
-        menu_dirty = 1;
-        break;
-    case 2463:
-        SND_play(CMD_FM_ON + 0);
-        auto_status = "FM ch0 brass G4";
-        menu_dirty = 1;
-        break;
-    case 2600:
-        SND_play(CMD_FM_OFF + 0);
-        auto_status = "FM ch0 off";
-        menu_dirty = 1;
-        break;
-
-    /* -- Final stop before music test -- */
-    case 2700:
-        SND_play(CMD_STOP);
-        auto_status = "STOP (pre-music)";
-        menu_dirty = 1;
-        break;
-
-    /* -- MUSIC: Play song 2 (Guile's Theme) FIRST -- */
-    case 2800:
-        SND_play(CMD_PLAY_SONG + 2);
-        auto_status = "GUILE THEME";
-        menu_dirty = 1;
-        break;
-
-    /* -- Let Guile's Theme play ~10 seconds (600 frames) -- */
-    case 3100:
-        auto_status = "GUILE: playing...";
-        menu_dirty = 1;
-        break;
-
-    /* -- Stop Guile -- */
-    case 3400:
-        SND_play(CMD_STOP);
-        auto_status = "GUILE: stopped";
-        menu_dirty = 1;
-        break;
-
-    /* -- MUSIC: Play song 0 (C major scale) -- */
-    case 3500:
-        SND_play(CMD_PLAY_SONG + 0);
-        auto_status = "MUSIC: Song 0 play";
-        menu_dirty = 1;
-        break;
-
-    /* -- Let music play for ~5 seconds (300 frames) -- */
-    case 3800:
-        auto_status = "MUSIC: playing...";
-        menu_dirty = 1;
-        break;
-
-    /* -- Stop music -- */
-    case 4100:
-        SND_play(CMD_STOP);
-        auto_status = "MUSIC: stopped";
-        menu_dirty = 1;
-        break;
-
-    /* -- MUSIC: Play song 1 (chord progression) -- */
-    case 4200:
-        SND_play(CMD_PLAY_SONG + 1);
-        auto_status = "MUSIC: Song 1 play";
-        menu_dirty = 1;
-        break;
-
-    /* -- Let music play -- */
-    case 4500:
-        auto_status = "MUSIC: song 1...";
-        menu_dirty = 1;
-        break;
-
-    /* -- Final stop -- */
-    case 4800:
-        SND_play(CMD_STOP);
-        auto_status = "ALL DONE - SILENCE";
-        menu_dirty = 1;
-        break;
-    }
 
     if (pressed & JOY_UP) {
         menu_sel = (menu_sel > 0) ? menu_sel - 1 : MENU_COUNT - 1;
@@ -589,11 +308,20 @@ void game_tick(void) {
     }
 
     case MENU_ADPCMA:
-        if (pressed & JOY_RIGHT) { adpcma_smp = (adpcma_smp + 1) & 0x07; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { adpcma_smp = (adpcma_smp > 0) ? adpcma_smp - 1 : 7; menu_dirty = 1; }
+        if (pressed & JOY_RIGHT) { adpcma_smp++; if (adpcma_smp > 306) adpcma_smp = 0; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { if (adpcma_smp > 0) adpcma_smp--; else adpcma_smp = 306; menu_dirty = 1; }
         if (pressed & JOY_A) {
-            /* ADPCM-A trigger: direct command, no param needed */
-            SND_play(CMD_ADPCMA + (adpcma_smp & 0x3F));
+            /* For samples 0-255: param = index, cmd = $C0 */
+            /* For samples 256+: send bank cmd first, then param = index-256 */
+            if (adpcma_smp < 256) {
+                cmd_param_action(adpcma_smp & 0xFF, CMD_ADPCMA);
+            } else {
+                cmd_enqueue(CMD_SET_PARAM);
+                cmd_enqueue(1);
+                cmd_enqueue(CMD_SET_PARAM);
+                cmd_enqueue((adpcma_smp - 256) & 0xFF);
+                cmd_enqueue(CMD_ADPCMA_B1);
+            }
         }
         if (pressed & JOY_B) {
             /* Stop all ADPCM-A */
