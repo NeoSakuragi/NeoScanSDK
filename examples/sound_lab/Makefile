@@ -10,20 +10,22 @@ CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(BUILD) -Wal
 
 all: $(ROM_NAME).neo
 
-# --- Resources (reuse hello_neo's font + basic tiles) ---
-$(BUILD)/resources.h:
-	@mkdir -p $(BUILD)
-	cp ../hello_neo/build/font.s1 $(BUILD)/font.s1 2>/dev/null || true
-	cp ../hello_neo/build/combined_c1.bin $(BUILD)/combined_c1.bin 2>/dev/null || true
-	cp ../hello_neo/build/combined_c2.bin $(BUILD)/combined_c2.bin 2>/dev/null || true
-	cp ../hello_neo/build/resources.h $(BUILD)/resources.h 2>/dev/null || true
-	@echo "c1=$(BUILD)/combined_c1.bin" > $(BUILD)/manifest.txt
-	@echo "c2=$(BUILD)/combined_c2.bin" >> $(BUILD)/manifest.txt
-	@echo "s1=$(BUILD)/font.s1" >> $(BUILD)/manifest.txt
+# --- Generate WAV samples (if not present) ---
+res/kick.wav:
+	python3 $(TOOLS)/gen_drum_kit.py -o res/
 
-# --- Z80 Sound Driver ---
-$(BUILD)/neosynth_m1.bin: $(TOOLS)/neosynth_build.py
-	python3 $(TOOLS)/neosynth_build.py -o $@
+# --- Resources (neores pipeline: WAV -> ADPCM, font) ---
+$(BUILD)/resources.h: res/resources.res res/kick.wav
+	@mkdir -p $(BUILD)
+	python3 $(TOOLS)/neores.py res/resources.res -o $(BUILD) --force
+	@# Ensure C ROMs exist (neores only creates them when TILES are present)
+	@test -f $(BUILD)/combined_c1.bin || dd if=/dev/zero bs=64 count=1 of=$(BUILD)/combined_c1.bin 2>/dev/null
+	@test -f $(BUILD)/combined_c2.bin || dd if=/dev/zero bs=64 count=1 of=$(BUILD)/combined_c2.bin 2>/dev/null
+
+# --- Z80 Sound Driver (with custom sample table) ---
+$(BUILD)/neosynth_m1.bin: $(TOOLS)/neosynth_build.py $(BUILD)/resources.h
+	python3 $(TOOLS)/neosynth_build.py -o $@ \
+		--sample-table $(BUILD)/_sfx/sound_table.bin
 
 # --- Compile ---
 $(BUILD)/main.o: main.c $(BUILD)/resources.h
@@ -35,8 +37,12 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(SDK)/lib/libneoscan.a
 
 # --- Package ROM ---
 $(ROM_NAME).neo: $(BUILD)/rom.elf $(BUILD)/resources.h $(BUILD)/neosynth_m1.bin
+	@# Build manifest: font + C ROMs + custom VROM + neosynth driver
+	@echo "c1=$(BUILD)/combined_c1.bin" > $(BUILD)/manifest.txt
+	@echo "c2=$(BUILD)/combined_c2.bin" >> $(BUILD)/manifest.txt
+	@echo "s1=$(BUILD)/font.s1" >> $(BUILD)/manifest.txt
 	@echo "donor_m1=$(BUILD)/neosynth_m1.bin" >> $(BUILD)/manifest.txt
-	@echo "donor_v1=../hello_neo/res/kof96_v1.bin" >> $(BUILD)/manifest.txt
+	@echo "donor_v1=$(BUILD)/_sfx/vrom.bin" >> $(BUILD)/manifest.txt
 	python3 $(TOOLS)/neobuild_from_manifest.py $(BUILD)/manifest.txt \
 		--elf $(BUILD)/rom.elf --name $(ROM_NAME) -o $(ROM_NAME).zip
 

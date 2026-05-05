@@ -1,6 +1,7 @@
 #include <neoscan.h>
+#include "resources.h"
 
-/* === SOUND LAB — NeoSynth Driver Test Console === */
+/* === SOUND LAB — Drum & Bass Sample Kit === */
 
 /*
  * NeoSynth command protocol:
@@ -34,9 +35,6 @@
 #define CMD_ADPCMB_OFF 0x41
 #define CMD_PLAY_SONG  0x50
 #define CMD_ADPCMA     0xC0
-#define CMD_ADPCMA_B1  0xC1
-#define CMD_ADPCMA_B2  0xC2
-#define CMD_ADPCMA_B3  0xC3
 
 /* Simple command queue for multi-frame sequences */
 #define CMD_QUEUE_SIZE 8
@@ -66,6 +64,22 @@ static void cmd_param_action(uint8_t param_val, uint8_t action_cmd) {
     cmd_enqueue(param_val);
     cmd_enqueue(action_cmd);
 }
+
+/* ---- Instrument names for the ADPCM-A drum kit ---- */
+#define INST_COUNT SND_COUNT
+
+static const char *INST_NAMES[INST_COUNT] = {
+    "KICK    ",   /* 0 = SND_KICK - 1 */
+    "SNARE   ",   /* 1 */
+    "HH CLOS ",   /* 2 */
+    "HH OPEN ",   /* 3 */
+    "CRASH   ",   /* 4 */
+    "TOM LOW ",   /* 5 */
+    "TOM MID ",   /* 6 */
+    "CLAP    ",   /* 7 */
+    "BASS HIT",   /* 8 */
+    "BASS SLD",   /* 9 */
+};
 
 /* Menu items */
 #define MENU_INIT       0
@@ -153,9 +167,10 @@ static void draw_menu(void) {
         return;
 
     FIX_print(1, 1, "NEOSCAN SOUND LAB", 0);
+    FIX_print(1, 2, "DRUM & BASS KIT", 0);
 
     for (i = 0; i < MENU_COUNT; i++) {
-        uint8_t row = 3 + i;
+        uint8_t row = 4 + i;
         uint8_t sel = (i == menu_sel);
         uint8_t pal = (sel && blink_on) ? 1 : 0;
 
@@ -179,10 +194,14 @@ static void draw_menu(void) {
             break;
         }
         case MENU_ADPCMA:
-            FIX_print(11, row, "CH", pal);
-            print_hex(13, row, adpcma_ch, pal);
-            FIX_print(17, row, "S", pal);
-            FIX_printNum(18, row, adpcma_smp, pal);
+            /* Show instrument name instead of just a number */
+            if (adpcma_smp < INST_COUNT) {
+                FIX_print(11, row, INST_NAMES[adpcma_smp], pal);
+            } else {
+                FIX_print(11, row, "S", pal);
+                FIX_printNum(12, row, adpcma_smp, pal);
+                FIX_print(17, row, "   ", pal);
+            }
             break;
         case MENU_ADPCMB:
             FIX_print(11, row, "S", pal);
@@ -199,14 +218,14 @@ static void draw_menu(void) {
         }
     }
 
-    FIX_print(1, 17, "A=PLAY  B=STOP  L/R=VALUE", 0);
-    FIX_print(1, 18, "START=CYCLE FM PATCH", 0);
+    FIX_print(1, 18, "A=PLAY  B=STOP  L/R=VALUE", 0);
+    FIX_print(1, 19, "START=CYCLE FM PATCH", 0);
 
     /* Auto-test status line */
-    FIX_print(1, 20, "AUTO:                     ", 1);
-    FIX_print(7, 20, auto_status, 1);
-    FIX_print(1, 21, "FRAME:      ", 0);
-    FIX_printNum(8, 21, auto_frame, 0);
+    FIX_print(1, 21, "AUTO:                     ", 1);
+    FIX_print(7, 21, auto_status, 1);
+    FIX_print(1, 22, "FRAME:      ", 0);
+    FIX_printNum(8, 22, auto_frame, 0);
 
     menu_dirty = 0;
 }
@@ -232,6 +251,7 @@ void game_init(void) {
     fm_note[0] = fm_note[1] = fm_note[2] = fm_note[3] = 48; /* C4 */
     ssg_note[0] = ssg_note[1] = ssg_note[2] = 48;
     adpcma_ch = 0;
+    adpcma_smp = 0;  /* Start at KICK */
     pan_val = 1; /* center */
 
     /* Init queue */
@@ -310,18 +330,19 @@ void game_tick(void) {
     }
 
     case MENU_ADPCMA:
-        if (pressed & JOY_RIGHT) { adpcma_smp++; if (adpcma_smp > 870) adpcma_smp = 0; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { if (adpcma_smp > 0) adpcma_smp--; else adpcma_smp = 870; menu_dirty = 1; }
+        if (pressed & JOY_RIGHT) {
+            adpcma_smp++;
+            if (adpcma_smp >= INST_COUNT) adpcma_smp = 0;
+            menu_dirty = 1;
+        }
+        if (pressed & JOY_LEFT) {
+            if (adpcma_smp > 0) adpcma_smp--;
+            else adpcma_smp = INST_COUNT - 1;
+            menu_dirty = 1;
+        }
         if (pressed & JOY_A) {
-            if (adpcma_smp < 256) {
-                cmd_param_action(adpcma_smp & 0xFF, CMD_ADPCMA);
-            } else if (adpcma_smp < 512) {
-                cmd_param_action((adpcma_smp - 256) & 0xFF, CMD_ADPCMA_B1);
-            } else if (adpcma_smp < 768) {
-                cmd_param_action((adpcma_smp - 512) & 0xFF, CMD_ADPCMA_B2);
-            } else {
-                cmd_param_action((adpcma_smp - 768) & 0xFF, CMD_ADPCMA_B3);
-            }
+            /* Trigger ADPCM-A sample (0-based index) */
+            cmd_param_action(adpcma_smp & 0xFF, CMD_ADPCMA);
         }
         if (pressed & JOY_B) {
             /* Stop all ADPCM-A */

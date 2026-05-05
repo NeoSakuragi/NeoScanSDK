@@ -30,7 +30,7 @@ Music engine:
   $FF = end-of-song (loops to start).
   2 built-in songs: C major scale (song 0), chord progression (song 1).
 """
-import struct, sys, argparse
+import os, struct, sys, argparse
 
 ADPCM_SAMPLES = [
     (0x0000, 0x0007),  # 0: 1KB
@@ -1531,14 +1531,26 @@ def emit_ym_write_portB(a, reg, data_reg='a'):
     a.out_n_a(0x07)  # Port B data
 
 
-def build_driver():
+def build_driver(sample_table_path=None):
     a = Asm()
 
     # ================================================================
     # DATA TABLES
     # ================================================================
     # ADPCM-A sample table (4 bytes each: start_lo, start_hi, end_lo, end_hi)
-    for i, (start, end) in enumerate(ADPCM_SAMPLES):
+    if sample_table_path and os.path.exists(sample_table_path):
+        # Read external sample table (from wav_encoder.py output)
+        with open(sample_table_path, 'rb') as f:
+            table_data = f.read()
+        sample_entries = []
+        for i in range(0, len(table_data), 4):
+            start, end = struct.unpack_from('<HH', table_data, i)
+            sample_entries.append((start, end))
+        print(f"  Using external sample table: {sample_table_path} ({len(sample_entries)} samples)")
+    else:
+        sample_entries = ADPCM_SAMPLES
+
+    for i, (start, end) in enumerate(sample_entries):
         a.org(SAMPLE_TABLE + i * 4)
         a.db(start & 0xFF, (start >> 8) & 0xFF, end & 0xFF, (end >> 8) & 0xFF)
 
@@ -3302,7 +3314,7 @@ def build_driver():
     print(f"  ADPCM-A Trig:  0x{ADPCMA_TRIGGER:04X}")
     print(f"  FM Set Pan:    0x{FM_SET_PAN:04X}")
     print(f"  ADPCM-A Pan:   0x{ADPCMA_SET_PAN:04X}")
-    print(f"  Sample table:  0x{SAMPLE_TABLE:04X} ({NUM_SAMPLES} entries)")
+    print(f"  Sample table:  0x{SAMPLE_TABLE:04X} ({len(sample_entries)} entries)")
     print(f"  FM Fnum table: 0x{FM_FNUM_TABLE:04X}")
     print(f"  SSG Period tbl:0x{SSG_PERIOD_TABLE:04X}")
     print(f"  FM Patch table:0x{FM_PATCH_TABLE:04X} ({NUM_FM_PATCHES} patches)")
@@ -3316,8 +3328,10 @@ def build_driver():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--output', required=True)
+    parser.add_argument('--sample-table', default=None,
+                        help='External ADPCM-A sample table (sound_table.bin from wav_encoder)')
     args = parser.parse_args()
-    mrom = build_driver()
+    mrom = build_driver(sample_table_path=args.sample_table)
     with open(args.output, 'wb') as f:
         f.write(mrom)
     print(f"Written: {args.output}")
