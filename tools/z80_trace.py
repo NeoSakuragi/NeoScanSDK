@@ -175,6 +175,7 @@ class Z80Tracer:
     def fire_nmi(self):
         if not self.nmi_enabled:
             return
+        self.halted = False
         self.push(self.pc)
         self.pc = 0x0066
         self.iff2 = self.iff1
@@ -183,6 +184,7 @@ class Z80Tracer:
     def fire_irq(self):
         if not self.iff1:
             return
+        self.halted = False
         self.iff1 = self.iff2 = 0
         self.push(self.pc)
         if self.im == 1:
@@ -922,9 +924,17 @@ class Z80Tracer:
                 print(f"  UNIMPL ED opcode 0x{op:02X}")
 
     def is_main_loop(self, pc):
-        """Detect if PC is at the KOF96 main loop (JP $0107 at $0112)."""
-        # KOF96: main loop runs 0x0107-0x0114, JP 0x0107
-        return pc == 0x0107 or pc == 0x0112
+        """Detect if PC is at a main loop (instruction-based, not address-based)."""
+        op = self.mem_read(pc)
+        if op == 0x76:  # HALT
+            return True
+        if op == 0x18 and self.mem_read(pc + 1) == 0xFE:  # JR $-2
+            return True
+        if op == 0xC3:  # JP to known main loop addresses
+            target = self.mem_read(pc + 1) | (self.mem_read(pc + 2) << 8)
+            if target == 0x0107:  # KOF96
+                return True
+        return False
 
     def run_until_main_loop(self):
         """Run Z80 from reset until it reaches the main loop (init complete)."""

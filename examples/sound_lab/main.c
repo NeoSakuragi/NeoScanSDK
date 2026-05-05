@@ -2,6 +2,66 @@
 
 /* === SOUND LAB — NeoSynth Driver Test Console === */
 
+/*
+ * NeoSynth command protocol:
+ *   $01         Init/reset
+ *   $03         Stop all
+ *   $08 + val   Set parameter (two NMIs: $08 then value)
+ *   $10+ch      FM key-on ch (0-3), note from param
+ *   $14+ch      FM key-off ch (0-3)
+ *   $18+ch      FM set patch ch (0-3), patch from param
+ *   $20+ch      SSG key-on ch (0-2), note from param
+ *   $24+ch      SSG key-off ch (0-2)
+ *   $30+ch      FM pan ch (0-3), param: 0=L 1=C 2=R
+ *   $34+ch      ADPCM-A pan ch (0-5), param: 0=L 1=C 2=R
+ *   $40         ADPCM-B play (sample from param)
+ *   $41         ADPCM-B stop
+ *   $C0+smp     ADPCM-A trigger sample
+ */
+
+#define CMD_INIT       0x01
+#define CMD_STOP       0x03
+#define CMD_SET_PARAM  0x08
+#define CMD_FM_ON      0x10
+#define CMD_FM_OFF     0x14
+#define CMD_FM_PATCH   0x18
+#define CMD_SSG_ON     0x20
+#define CMD_SSG_OFF    0x24
+#define CMD_FM_PAN     0x30
+#define CMD_ADPCMA_PAN 0x34
+#define CMD_ADPCMB_ON  0x40
+#define CMD_ADPCMB_OFF 0x41
+#define CMD_ADPCMA     0xC0
+
+/* Simple command queue for multi-frame sequences */
+#define CMD_QUEUE_SIZE 8
+static uint8_t cmd_queue[CMD_QUEUE_SIZE];
+static uint8_t cmd_queue_head;
+static uint8_t cmd_queue_tail;
+
+static void cmd_enqueue(uint8_t cmd) {
+    uint8_t next = (cmd_queue_head + 1) & (CMD_QUEUE_SIZE - 1);
+    if (next != cmd_queue_tail) {
+        cmd_queue[cmd_queue_head] = cmd;
+        cmd_queue_head = next;
+    }
+}
+
+static void cmd_flush(void) {
+    /* Send one queued command per frame via SND_play */
+    if (cmd_queue_tail != cmd_queue_head) {
+        SND_play(cmd_queue[cmd_queue_tail]);
+        cmd_queue_tail = (cmd_queue_tail + 1) & (CMD_QUEUE_SIZE - 1);
+    }
+}
+
+/* Send a parameterized command: $08, param_val, action_cmd (3 frames) */
+static void cmd_param_action(uint8_t param_val, uint8_t action_cmd) {
+    cmd_enqueue(CMD_SET_PARAM);
+    cmd_enqueue(param_val);
+    cmd_enqueue(action_cmd);
+}
+
 /* Menu items */
 #define MENU_INIT       0
 #define MENU_FM1        1
@@ -35,6 +95,10 @@ static const char *MENU_LABELS[MENU_COUNT] = {
 static uint8_t menu_sel;
 static uint8_t menu_dirty;
 static uint8_t blink_timer;
+
+/* Auto-test mode: fires sound commands on a timer, no input needed */
+static uint16_t auto_frame;
+static const char *auto_status = "";
 
 /* Per-menu state */
 static uint16_t init_preset;
@@ -131,6 +195,14 @@ static void draw_menu(void) {
     }
 
     FIX_print(1, 17, "A=PLAY  B=STOP  L/R=VALUE", 0);
+    FIX_print(1, 18, "START=CYCLE FM PATCH", 0);
+
+    /* Auto-test status line */
+    FIX_print(1, 20, "AUTO:                     ", 1);
+    FIX_print(7, 20, auto_status, 1);
+    FIX_print(1, 21, "FRAME:      ", 0);
+    FIX_printNum(8, 21, auto_frame, 0);
+
     menu_dirty = 0;
 }
 
@@ -157,6 +229,10 @@ void game_init(void) {
     adpcma_ch = 0;
     pan_val = 1; /* center */
 
+    /* Init queue */
+    cmd_queue_head = 0;
+    cmd_queue_tail = 0;
+
     SND_init();
     SYS_vblankFlush();
 }
@@ -166,7 +242,80 @@ void game_tick(void) {
     (void)0;
 
     SYS_kickWatchdog();
+
+    /* Send any pending SND_play2 second byte */
     SND_update();
+
+    /* Flush one queued command per frame */
+    cmd_flush();
+
+    /* === Auto-test sequence (no user input needed) === */
+    auto_frame++;
+
+    switch (auto_frame) {
+    /* -- ADPCM-A tests (direct trigger, no param needed) -- */
+    case 350:
+        SND_play(CMD_ADPCMA + 0);
+        auto_status = "ADPCM-A smp 0";
+        menu_dirty = 1;
+        break;
+    case 500:
+        SND_play(CMD_ADPCMA + 1);
+        auto_status = "ADPCM-A smp 1";
+        menu_dirty = 1;
+        break;
+    case 650:
+        SND_play(CMD_ADPCMA + 4);
+        auto_status = "ADPCM-A smp 4";
+        menu_dirty = 1;
+        break;
+    case 800:
+        SND_play(CMD_STOP);
+        auto_status = "STOP ALL";
+        menu_dirty = 1;
+        break;
+
+    /* -- FM test: param on N, param val on N+1, action on N+3 -- */
+    case 900:
+        SND_play2(CMD_SET_PARAM, 48);  /* param = C4 (MIDI 48) */
+        auto_status = "FM set C4 param";
+        menu_dirty = 1;
+        break;
+    case 903:
+        SND_play(CMD_FM_ON + 0);       /* FM ch0 key-on */
+        auto_status = "FM ch0 key-on C4";
+        menu_dirty = 1;
+        break;
+    case 1050:
+        SND_play(CMD_FM_OFF + 0);      /* FM ch0 key-off */
+        auto_status = "FM ch0 key-off";
+        menu_dirty = 1;
+        break;
+
+    /* -- SSG test -- */
+    case 1100:
+        SND_play2(CMD_SET_PARAM, 60);  /* param = C5 (MIDI 60) */
+        auto_status = "SSG set C5 param";
+        menu_dirty = 1;
+        break;
+    case 1103:
+        SND_play(CMD_SSG_ON + 0);      /* SSG ch0 key-on */
+        auto_status = "SSG ch0 key-on C5";
+        menu_dirty = 1;
+        break;
+    case 1250:
+        SND_play(CMD_SSG_OFF + 0);     /* SSG ch0 key-off */
+        auto_status = "SSG ch0 key-off";
+        menu_dirty = 1;
+        break;
+
+    /* -- Final stop -- */
+    case 1350:
+        SND_play(CMD_STOP);
+        auto_status = "ALL DONE - SILENCE";
+        menu_dirty = 1;
+        break;
+    }
 
     if (pressed & JOY_UP) {
         menu_sel = (menu_sel > 0) ? menu_sel - 1 : MENU_COUNT - 1;
@@ -186,55 +335,74 @@ void game_tick(void) {
 
     case MENU_FM1: case MENU_FM2: case MENU_FM3: case MENU_FM4: {
         uint8_t ch = menu_sel - MENU_FM1;
-        if (pressed & JOY_RIGHT) { fm_note[ch]++; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { fm_note[ch]--; menu_dirty = 1; }
-        if (pressed & JOY_A)     {
-            /* TODO: send FM note command to driver */
+        if (pressed & JOY_RIGHT) { fm_note[ch]++; if (fm_note[ch] > 95) fm_note[ch] = 95; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { if (fm_note[ch] > 0) fm_note[ch]--; menu_dirty = 1; }
+        if (pressed & JOY_A) {
+            /* Set note param, then FM key-on */
+            cmd_param_action((uint8_t)fm_note[ch], CMD_FM_ON + ch);
         }
-        if (pressed & JOY_B)     {
-            /* TODO: send FM key-off */
+        if (pressed & JOY_B) {
+            /* FM key-off */
+            SND_play(CMD_FM_OFF + ch);
+        }
+        if (pressed & JOY_START) {
+            /* Cycle through FM patches */
+            fm_patch[ch] = (fm_patch[ch] + 1) & 0x03;
+            cmd_param_action((uint8_t)fm_patch[ch], CMD_FM_PATCH + ch);
+            menu_dirty = 1;
         }
         break;
     }
 
     case MENU_SSG1: case MENU_SSG2: case MENU_SSG3: {
         uint8_t ch = menu_sel - MENU_SSG1;
-        if (pressed & JOY_RIGHT) { ssg_note[ch]++; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { ssg_note[ch]--; menu_dirty = 1; }
-        if (pressed & JOY_A)     {
-            /* TODO: send SSG note command */
+        if (pressed & JOY_RIGHT) { ssg_note[ch]++; if (ssg_note[ch] > 95) ssg_note[ch] = 95; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { if (ssg_note[ch] > 0) ssg_note[ch]--; menu_dirty = 1; }
+        if (pressed & JOY_A) {
+            /* Set note param, then SSG key-on */
+            cmd_param_action((uint8_t)ssg_note[ch], CMD_SSG_ON + ch);
         }
-        if (pressed & JOY_B)     {
-            /* TODO: send SSG key-off */
+        if (pressed & JOY_B) {
+            /* SSG key-off */
+            SND_play(CMD_SSG_OFF + ch);
         }
         break;
     }
 
     case MENU_ADPCMA:
-        if (pressed & JOY_RIGHT) { adpcma_smp++; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { adpcma_smp--; menu_dirty = 1; }
-        if (pressed & JOY_A)     {
-            /* TODO: trigger ADPCM-A sample */
+        if (pressed & JOY_RIGHT) { adpcma_smp = (adpcma_smp + 1) & 0x07; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { adpcma_smp = (adpcma_smp > 0) ? adpcma_smp - 1 : 7; menu_dirty = 1; }
+        if (pressed & JOY_A) {
+            /* ADPCM-A trigger: direct command, no param needed */
+            SND_play(CMD_ADPCMA + (adpcma_smp & 0x3F));
+        }
+        if (pressed & JOY_B) {
+            /* Stop all ADPCM-A */
+            SND_play(CMD_STOP);
         }
         break;
 
     case MENU_ADPCMB:
-        if (pressed & JOY_RIGHT) { adpcmb_smp++; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { adpcmb_smp--; menu_dirty = 1; }
-        if (pressed & JOY_A)     {
-            /* TODO: trigger ADPCM-B sample */
+        if (pressed & JOY_RIGHT) { adpcmb_smp = (adpcmb_smp + 1) & 0x07; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { adpcmb_smp = (adpcmb_smp > 0) ? adpcmb_smp - 1 : 7; menu_dirty = 1; }
+        if (pressed & JOY_A) {
+            /* Set sample param, then ADPCM-B play */
+            cmd_param_action((uint8_t)adpcmb_smp, CMD_ADPCMB_ON);
+        }
+        if (pressed & JOY_B) {
+            SND_play(CMD_ADPCMB_OFF);
         }
         break;
 
     case MENU_MUSIC:
         if (pressed & JOY_RIGHT) { music_song++; menu_dirty = 1; }
         if (pressed & JOY_LEFT)  { music_song--; menu_dirty = 1; }
-        if (pressed & JOY_A)     {
-            /* TODO: play song */
+        if (pressed & JOY_A) {
+            /* Send raw command for testing */
+            SND_play(music_song & 0xFF);
         }
-        if (pressed & JOY_B)     {
-            SND_stop();
-            SND_init();
+        if (pressed & JOY_B) {
+            SND_play(CMD_STOP);
             menu_dirty = 1;
         }
         break;
@@ -242,16 +410,11 @@ void game_tick(void) {
     case MENU_PAN:
         if (pressed & JOY_RIGHT) { pan_val = (pan_val < 2) ? pan_val + 1 : 0; menu_dirty = 1; }
         if (pressed & JOY_LEFT)  { pan_val = (pan_val > 0) ? pan_val - 1 : 2; menu_dirty = 1; }
-        if (pressed & JOY_A)     {
-            /* TODO: set panning */
+        if (pressed & JOY_A) {
+            /* Set pan value param, then send FM pan for ch0 */
+            cmd_param_action((uint8_t)pan_val, CMD_FM_PAN + 0);
         }
         break;
-    }
-
-    if (pressed & JOY_B && menu_sel < MENU_MUSIC) {
-        SND_stop();
-        SND_init();
-        menu_dirty = 1;
     }
 
     draw_menu();

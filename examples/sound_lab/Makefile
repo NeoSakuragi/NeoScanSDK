@@ -36,6 +36,7 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(SDK)/lib/libneoscan.a
 # --- Package ROM ---
 $(ROM_NAME).neo: $(BUILD)/rom.elf $(BUILD)/resources.h $(BUILD)/neosynth_m1.bin
 	@echo "donor_m1=$(BUILD)/neosynth_m1.bin" >> $(BUILD)/manifest.txt
+	@echo "donor_v1=../hello_neo/res/kof96_v1.bin" >> $(BUILD)/manifest.txt
 	python3 $(TOOLS)/neobuild_from_manifest.py $(BUILD)/manifest.txt \
 		--elf $(BUILD)/rom.elf --name $(ROM_NAME) -o $(ROM_NAME).zip
 

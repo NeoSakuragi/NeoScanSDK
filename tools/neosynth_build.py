@@ -1,44 +1,1306 @@
 #!/usr/bin/env python3
-"""Build a stub NeoSynth Z80 M-ROM. Boots, responds to BIOS, does nothing else."""
+"""Build a NeoSynth Z80 M-ROM with full YM2610 sound driver.
+
+Features:
+  - ADPCM-A sample trigger on channels 0-5  (cmd $C0-$FF)
+  - FM note playback on channels 1-4        (cmd $10-$1F)
+  - SSG note playback on channels 1-3       (cmd $20-$2F)
+  - ADPCM-B playback                        (cmd $40-$4F)
+  - Panning control                         (cmd $30-$3F)
+  - Stop/silence all                        (cmd $03)
+
+Command protocol (68K -> Z80 via NMI):
+  $01         - Init/reset
+  $03         - Stop all
+  $08         - Set param (next NMI byte = param value, via SND_play2)
+  $10+ch      - FM key-on ch (0-3), note from param byte (MIDI note)
+  $14+ch      - FM key-off ch (0-3)
+  $18+ch      - FM set patch ch (0-3), patch from param byte
+  $20+ch      - SSG key-on ch (0-2), note from param byte
+  $24+ch      - SSG key-off ch (0-2)
+  $30+ch      - FM panning ch (0-3), param: 0=L, 1=C, 2=R
+  $34+ch      - ADPCM-A panning ch (0-5), param: 0=L, 1=C, 2=R
+  $40         - ADPCM-B play (sample from param byte)
+  $41         - ADPCM-B stop
+  $C0+smp     - ADPCM-A trigger sample (on current ADPCM-A channel)
+"""
 import struct, sys, argparse
 
-def build_stub():
-    code = bytearray(0x20000)  # 128KB
-    sig = b'NeoSynth v0.1'
-    code[0x40:0x40+len(sig)] = sig
+ADPCM_SAMPLES = [
+    (0x0000, 0x0040),
+    (0x0041, 0x0080),
+    (0x0081, 0x00C0),
+    (0x00C1, 0x0120),
+    (0x5070, 0x5923),
+    (0xA470, 0xB521),
+    (0x5A69, 0x6423),
+    (0x6569, 0x6D23),
+]
 
-    # 0x0000: DI; JP init
-    code[0x00] = 0xF3; code[0x01] = 0xC3; code[0x02] = 0x80; code[0x03] = 0x00
-    # 0x0038: EI; RETI
-    code[0x38] = 0xFB; code[0x39] = 0xED; code[0x3A] = 0x4D
-    # 0x0066: NMI — read command, reply, return
-    p = 0x0066
-    code[p] = 0xF5; p+=1      # PUSH AF
-    code[p] = 0xDB; p+=1      # IN A,(00)
-    code[p] = 0x00; p+=1
-    code[p] = 0xD3; p+=1      # OUT (0C),A
-    code[p] = 0x0C; p+=1
-    code[p] = 0xF1; p+=1      # POP AF
-    code[p] = 0xED; p+=1      # RETN
-    code[p] = 0x45; p+=1
+FM_FNUMS = [618, 627, 636, 645, 655, 664, 674, 683, 694, 704, 714, 724]
+SSG_PERIODS_OCT4 = [239, 225, 213, 201, 190, 179, 169, 159, 150, 142, 134, 126]
 
-    # Init at 0x0080
-    p = 0x0080
-    code[p] = 0x31; code[p+1] = 0xFC; code[p+2] = 0xFF; p+=3  # LD SP,$FFFC
-    code[p] = 0xED; code[p+1] = 0x56; p+=2                      # IM 1
-    code[p] = 0xD3; code[p+1] = 0x08; p+=2                      # OUT (08),A — enable NMI
-    code[p] = 0xFB; p+=1                                          # EI
-    code[p] = 0x18; code[p+1] = 0xFE; p+=2                      # JR $ (main loop)
+FM_PATCH_SIMPLE = {
+    'DT_MUL': [0x01, 0x00, 0x00, 0x00],
+    'TL':     [0x00, 0x7F, 0x7F, 0x7F],
+    'KS_AR':  [0x1F, 0x1F, 0x1F, 0x1F],
+    'AM_DR':  [0x00, 0x00, 0x00, 0x00],
+    'SR':     [0x00, 0x00, 0x00, 0x00],
+    'SL_RR':  [0x0F, 0x0F, 0x0F, 0x0F],
+    'FB_ALG': 0x07,
+    'LR_AMS_PMS': 0xC0,
+}
+FM_PATCH_ORGAN = {
+    'DT_MUL': [0x01, 0x02, 0x01, 0x02],
+    'TL':     [0x10, 0x20, 0x10, 0x20],
+    'KS_AR':  [0x1F, 0x1F, 0x1F, 0x1F],
+    'AM_DR':  [0x05, 0x08, 0x05, 0x08],
+    'SR':     [0x02, 0x02, 0x02, 0x02],
+    'SL_RR':  [0x1A, 0x2A, 0x1A, 0x2A],
+    'FB_ALG': 0x34,
+    'LR_AMS_PMS': 0xC0,
+}
+FM_PATCH_BRASS = {
+    'DT_MUL': [0x01, 0x01, 0x01, 0x01],
+    'TL':     [0x18, 0x30, 0x18, 0x00],
+    'KS_AR':  [0x1F, 0x1D, 0x1F, 0x1D],
+    'AM_DR':  [0x0A, 0x08, 0x0A, 0x08],
+    'SR':     [0x02, 0x04, 0x02, 0x04],
+    'SL_RR':  [0x1A, 0x2B, 0x1A, 0x2B],
+    'FB_ALG': 0x22,
+    'LR_AMS_PMS': 0xC0,
+}
+FM_PATCH_PIANO = {
+    'DT_MUL': [0x02, 0x01, 0x03, 0x01],
+    'TL':     [0x28, 0x20, 0x30, 0x00],
+    'KS_AR':  [0x1F, 0x1F, 0x1F, 0x1F],
+    'AM_DR':  [0x10, 0x0C, 0x10, 0x0C],
+    'SR':     [0x06, 0x06, 0x06, 0x06],
+    'SL_RR':  [0x2A, 0x2A, 0x2A, 0x2A],
+    'FB_ALG': 0x20,
+    'LR_AMS_PMS': 0xC0,
+}
 
-    return bytes(code)
+FM_PATCHES = [FM_PATCH_SIMPLE, FM_PATCH_ORGAN, FM_PATCH_BRASS, FM_PATCH_PIANO]
+NUM_FM_PATCHES = len(FM_PATCHES)
+NUM_SAMPLES = len(ADPCM_SAMPLES)
+
+# RAM addresses ($F800-$FFFF)
+RAM_CMD       = 0xF800
+RAM_PARAM     = 0xF801
+RAM_PARAM_FLAG = 0xF802
+RAM_FM_PATCH  = 0xF810
+RAM_FM_PAN    = 0xF814
+RAM_SSG_VOL   = 0xF818
+RAM_ADPCMA_PAN = 0xF81C
+RAM_ADPCMA_CH = 0xF822
+RAM_TEMP      = 0xF830
+
+# Data table addresses (in ROM)
+SAMPLE_TABLE   = 0x0300
+FM_FNUM_TABLE  = 0x0340
+SSG_PERIOD_TABLE = 0x0360
+FM_PATCH_TABLE = 0x0380
+PATCH_SIZE = 26  # 6 params * 4 ops + FB_ALG + LR_AMS_PMS
+
+
+class Asm:
+    """Minimal Z80 assembler with helper methods for common instructions."""
+    def __init__(self):
+        self.code = bytearray(0x20000)
+        self.pc = 0
+
+    def org(self, addr):
+        self.pc = addr
+
+    def db(self, *bs):
+        for b in bs:
+            self.code[self.pc] = b & 0xFF
+            self.pc += 1
+
+    def dw(self, val):
+        self.db(val & 0xFF, (val >> 8) & 0xFF)
+
+    def here(self):
+        return self.pc
+
+    def patch_jr(self, jr_addr, target):
+        offset = target - (jr_addr + 2)
+        if offset < -128 or offset > 127:
+            raise ValueError(f"JR offset {offset} out of range at 0x{jr_addr:04X} -> 0x{target:04X}")
+        self.code[jr_addr + 1] = (offset & 0xFF)
+
+    def patch_jp(self, jp_addr, target):
+        self.code[jp_addr + 1] = target & 0xFF
+        self.code[jp_addr + 2] = (target >> 8) & 0xFF
+
+    # Emit JP nn, return address for patching
+    def jp_ph(self):
+        addr = self.pc; self.db(0xC3, 0x00, 0x00); return addr
+    # Emit JR cc placeholders
+    def jr_z_ph(self):
+        addr = self.pc; self.db(0x28, 0x00); return addr
+    def jr_nz_ph(self):
+        addr = self.pc; self.db(0x20, 0x00); return addr
+    def jr_c_ph(self):
+        addr = self.pc; self.db(0x38, 0x00); return addr
+    def jr_nc_ph(self):
+        addr = self.pc; self.db(0x30, 0x00); return addr
+    def jr_ph(self):
+        addr = self.pc; self.db(0x18, 0x00); return addr
+
+    # === Instructions as raw bytes ===
+    def nop(self):       self.db(0x00)
+    def halt(self):      self.db(0x76)
+    def di(self):        self.db(0xF3)
+    def ei(self):        self.db(0xFB)
+    def ret(self):       self.db(0xC9)
+    def retn(self):      self.db(0xED, 0x45)
+    def reti(self):      self.db(0xED, 0x4D)
+    def im1(self):       self.db(0xED, 0x56)
+    def push_af(self):   self.db(0xF5)
+    def push_bc(self):   self.db(0xC5)
+    def push_de(self):   self.db(0xD5)
+    def push_hl(self):   self.db(0xE5)
+    def pop_af(self):    self.db(0xF1)
+    def pop_bc(self):    self.db(0xC1)
+    def pop_de(self):    self.db(0xD1)
+    def pop_hl(self):    self.db(0xE1)
+    def xor_a(self):     self.db(0xAF)
+    def or_a(self):      self.db(0xB7)
+    def or_e(self):      self.db(0xB3)
+    def or_l(self):      self.db(0xB5)
+    def add_a_c(self):   self.db(0x81)
+    def sub_d(self):     self.db(0x92)
+    def rlca(self):      self.db(0x07)
+    def inc_hl(self):    self.db(0x23)
+    def inc_d(self):     self.db(0x14)
+    def inc_a(self):     self.db(0x3C)
+    def dec_d(self):     self.db(0x15)
+    def add_hl_hl(self): self.db(0x29)
+    def add_hl_de(self): self.db(0x19)
+    def add_hl_bc(self): self.db(0x09)
+    def srl_h(self):     self.db(0xCB, 0x3C)
+    def rr_l(self):      self.db(0xCB, 0x1D)
+
+    # LD register moves
+    def ld_a_b(self):    self.db(0x78)
+    def ld_a_c(self):    self.db(0x79)
+    def ld_a_d(self):    self.db(0x7A)
+    def ld_a_e(self):    self.db(0x7B)
+    def ld_a_h(self):    self.db(0x7C)
+    def ld_a_l(self):    self.db(0x7D)
+    def ld_a_hl(self):   self.db(0x7E)  # LD A,(HL)
+    def ld_b_a(self):    self.db(0x47)
+    def ld_c_a(self):    self.db(0x4F)
+    def ld_d_a(self):    self.db(0x57)
+    def ld_e_a(self):    self.db(0x5F)
+    def ld_h_a(self):    self.db(0x67)
+    def ld_l_a(self):    self.db(0x6F)
+    def ld_e_hl(self):   self.db(0x5E)
+    def ld_d_hl(self):   self.db(0x56)
+    def ld_c_hl(self):   self.db(0x4E)
+    def ld_b_hl(self):   self.db(0x46)
+    def ld_hl_a(self):   self.db(0x77)  # LD (HL), A
+    def ld_c_d(self):    self.db(0x4A)
+    def ld_e_c(self):    self.db(0x59)
+    def ld_c_e(self):    self.db(0x4B)
+    def ld_h_d(self):    self.db(0x62)
+    def ld_l_e(self):    self.db(0x6B)
+
+    # LD immediate
+    def ld_a_n(self, n):   self.db(0x3E, n & 0xFF)
+    def ld_b_n(self, n):   self.db(0x06, n & 0xFF)
+    def ld_c_n(self, n):   self.db(0x0E, n & 0xFF)
+    def ld_d_n(self, n):   self.db(0x16, n & 0xFF)
+    def ld_e_n(self, n):   self.db(0x1E, n & 0xFF)
+    def ld_h_n(self, n):   self.db(0x26, n & 0xFF)
+    def ld_l_n(self, n):   self.db(0x2E, n & 0xFF)
+    def ld_sp_nn(self, nn): self.db(0x31, nn & 0xFF, (nn >> 8) & 0xFF)
+    def ld_hl_nn(self, nn): self.db(0x21, nn & 0xFF, (nn >> 8) & 0xFF)
+    def ld_de_nn(self, nn): self.db(0x11, nn & 0xFF, (nn >> 8) & 0xFF)
+    def ld_bc_nn(self, nn): self.db(0x01, nn & 0xFF, (nn >> 8) & 0xFF)
+
+    # LD memory
+    def ld_mem_a(self, addr):  self.db(0x32, addr & 0xFF, (addr >> 8) & 0xFF)
+    def ld_a_mem(self, addr):  self.db(0x3A, addr & 0xFF, (addr >> 8) & 0xFF)
+
+    # ALU immediate
+    def add_a_n(self, n):  self.db(0xC6, n & 0xFF)
+    def sub_n(self, n):    self.db(0xD6, n & 0xFF)
+    def cp_n(self, n):     self.db(0xFE, n & 0xFF)
+    def and_n(self, n):    self.db(0xE6, n & 0xFF)
+    def or_n(self, n):     self.db(0xF6, n & 0xFF)
+
+    # I/O
+    def out_n_a(self, port): self.db(0xD3, port & 0xFF)
+    def in_a_n(self, port):  self.db(0xDB, port & 0xFF)
+    # OUT (C), A = ED 79
+    def out_c_a(self):       self.db(0xED, 0x79)
+
+    # Jumps and calls
+    def jp(self, addr):    self.db(0xC3, addr & 0xFF, (addr >> 8) & 0xFF)
+    def call(self, addr):  self.db(0xCD, addr & 0xFF, (addr >> 8) & 0xFF)
+
+
+def emit_ym_write_portB(a, reg, data_reg='a'):
+    """Emit inline: set port B register to value in A."""
+    # Assumes we have the register number and data to write.
+    # reg is a constant. data_reg is where the value is.
+    a.ld_a_n(reg)
+    a.out_n_a(0x06)  # Port B addr
+    if data_reg == 'e':
+        a.ld_a_e()
+    elif data_reg == 'b':
+        a.ld_a_b()
+    elif data_reg == 'c':
+        a.ld_a_c()
+    elif data_reg == 'd':
+        a.ld_a_d()
+    # else assume A already has the value
+    a.out_n_a(0x07)  # Port B data
+
+
+def build_driver():
+    a = Asm()
+
+    # ================================================================
+    # DATA TABLES
+    # ================================================================
+    # ADPCM-A sample table (4 bytes each: start_lo, start_hi, end_lo, end_hi)
+    for i, (start, end) in enumerate(ADPCM_SAMPLES):
+        a.org(SAMPLE_TABLE + i * 4)
+        a.db(start & 0xFF, (start >> 8) & 0xFF, end & 0xFF, (end >> 8) & 0xFF)
+
+    # FM F-number table (12 entries, 2 bytes each, little-endian)
+    a.org(FM_FNUM_TABLE)
+    for fnum in FM_FNUMS:
+        a.dw(fnum)
+
+    # SSG period table for octave 4 (12 entries, 2 bytes each)
+    a.org(SSG_PERIOD_TABLE)
+    for period in SSG_PERIODS_OCT4:
+        a.dw(period)
+
+    # FM patch table (26 bytes each)
+    a.org(FM_PATCH_TABLE)
+    for patch in FM_PATCHES:
+        for key in ['DT_MUL', 'TL', 'KS_AR', 'AM_DR', 'SR', 'SL_RR']:
+            for op_i in range(4):
+                a.db(patch[key][op_i])
+        a.db(patch['FB_ALG'])
+        a.db(patch['LR_AMS_PMS'])
+
+    # Signature
+    a.org(0x0040)
+    for b in b'NeoSynth v1.0':
+        a.db(b)
+
+    # FM key-on/off value tables
+    KEYON_TABLE = 0x0050
+    a.org(KEYON_TABLE)
+    a.db(0xF0, 0xF1, 0xF2, 0xF5)  # key-on: ch1-4
+    KEYOFF_TABLE = 0x0054
+    a.org(KEYOFF_TABLE)
+    a.db(0x00, 0x01, 0x02, 0x05)  # key-off: ch1-4
+
+    # ================================================================
+    # VECTORS
+    # ================================================================
+    a.org(0x0000)
+    a.di()
+    a.jp(0x0100)  # JP to init
+
+    a.org(0x0038)  # IRQ
+    a.ei()
+    a.reti()
+
+    a.org(0x0066)  # NMI vector
+    a.jp(0x0200)
+
+    # ================================================================
+    # INIT at $0100
+    # ================================================================
+    a.org(0x0100)
+    a.ld_sp_nn(0xFFFC)
+    a.im1()
+
+    # === YM2610 full hardware init (matches KOF96 reference) ===
+
+    # FM key-off all 4 channels (reg $28 via Port A)
+    # Value = operator mask (0) | channel -> all ops off = key-off
+    for ch_val in [0x00, 0x01, 0x02, 0x05]:
+        a.ld_a_n(0x28); a.out_n_a(0x04)
+        a.ld_a_n(ch_val); a.out_n_a(0x05)
+
+    # SSG volumes to 0 (regs $08-$0A via Port A)
+    for reg in [0x08, 0x09, 0x0A]:
+        a.ld_a_n(reg); a.out_n_a(0x04)
+        a.xor_a(); a.out_n_a(0x05)
+
+    # SSG mixer: disable all tone + noise (reg $07 = $3F via Port A)
+    a.ld_a_n(0x07); a.out_n_a(0x04)
+    a.ld_a_n(0x3F); a.out_n_a(0x05)
+
+    # ADPCM-A dump all channels (Port B reg $00 = $BF)
+    a.ld_a_n(0x00); a.out_n_a(0x06)
+    a.ld_a_n(0xBF); a.out_n_a(0x07)
+
+    # ADPCM-A master volume: Port B reg $01 = $3F
+    a.ld_a_n(0x01); a.out_n_a(0x06)
+    a.ld_a_n(0x3F); a.out_n_a(0x07)
+
+    # ADPCM-B stop: Port A reg $10 = $01, then $10 = $00 (stop + clear)
+    a.ld_a_n(0x10); a.out_n_a(0x04)
+    a.ld_a_n(0x01); a.out_n_a(0x05)
+    a.ld_a_n(0x10); a.out_n_a(0x04)
+    a.xor_a(); a.out_n_a(0x05)
+
+    # Clear ADPCM-B flags (Port A reg $1C = $80, then $1C = $00)
+    a.ld_a_n(0x1C); a.out_n_a(0x04)
+    a.ld_a_n(0x80); a.out_n_a(0x05)
+    a.ld_a_n(0x1C); a.out_n_a(0x04)
+    a.xor_a(); a.out_n_a(0x05)
+
+    # Timer A + B flags reset (reg $27 = $30 via Port A)
+    a.ld_a_n(0x27); a.out_n_a(0x04)
+    a.ld_a_n(0x30); a.out_n_a(0x05)
+
+    # Init RAM: FM pan = $C0 (center) for all 4 channels
+    a.ld_a_n(0xC0)
+    for i in range(4):
+        a.ld_mem_a(RAM_FM_PAN + i)
+    # ADPCM-A pan = $C0 for all 6 channels
+    for i in range(6):
+        a.ld_mem_a(RAM_ADPCMA_PAN + i)
+
+    # Clear param and flags
+    a.xor_a()
+    a.ld_mem_a(RAM_ADPCMA_CH)
+    a.ld_mem_a(RAM_PARAM)
+    a.ld_mem_a(RAM_PARAM_FLAG)
+
+    # Default SSG volumes
+    a.ld_a_n(0x0F)
+    for i in range(3):
+        a.ld_mem_a(RAM_SSG_VOL + i)
+
+    # Default FM patches (all ch = patch 0)
+    a.xor_a()
+    for i in range(4):
+        a.ld_mem_a(RAM_FM_PATCH + i)
+
+    # Enable NMI
+    a.ld_a_n(0x0F)  # just need any value
+    a.out_n_a(0x08)
+    a.ei()
+
+    # Main loop
+    MAIN_LOOP = a.here()
+    a.halt()
+    a.db(0x18, 0xFD)  # JR $-3 (back to HALT)
+
+    # ================================================================
+    # NMI HANDLER at $0200
+    # ================================================================
+    a.org(0x0200)
+    a.push_af()
+    a.push_hl()
+    a.push_de()
+    a.push_bc()
+
+    a.in_a_n(0x00)       # read sound code
+    a.out_n_a(0x0C)      # reply
+    a.ld_mem_a(RAM_CMD)  # store
+
+    # --- Check param flag first ---
+    a.ld_a_mem(RAM_PARAM_FLAG)
+    a.or_a()
+    jr_no_param = a.jr_z_ph()
+    # This byte IS the param value
+    a.xor_a()
+    a.ld_mem_a(RAM_PARAM_FLAG)
+    a.ld_a_mem(RAM_CMD)
+    a.ld_mem_a(RAM_PARAM)
+    jp_done0 = a.jp_ph()
+    a.patch_jr(jr_no_param, a.here())
+
+    # --- Reload cmd and dispatch ---
+    a.ld_a_mem(RAM_CMD)
+
+    # $01: init/reset
+    a.cp_n(0x01)
+    jr_not_01 = a.jr_nz_ph()
+    # We'll call stop_all subroutine (address TBD, use JP placeholder)
+    jp_call_stop_reset = a.jp_ph()
+    a.patch_jr(jr_not_01, a.here())
+
+    # $03: stop all
+    a.cp_n(0x03)
+    jr_not_03 = a.jr_nz_ph()
+    jp_call_stop_all = a.jp_ph()
+    a.patch_jr(jr_not_03, a.here())
+
+    # $08: set param flag
+    a.cp_n(0x08)
+    jr_not_08 = a.jr_nz_ph()
+    a.ld_a_n(0x01)
+    a.ld_mem_a(RAM_PARAM_FLAG)
+    jp_done1 = a.jp_ph()
+    a.patch_jr(jr_not_08, a.here())
+
+    # $10-$1F: FM commands
+    a.ld_a_mem(RAM_CMD)
+    a.cp_n(0x10)
+    jr_below_10 = a.jr_c_ph()
+    a.cp_n(0x20)
+    jr_above_1f = a.jr_nc_ph()
+    jp_fm_dispatch = a.jp_ph()
+    a.patch_jr(jr_below_10, a.here())
+    a.patch_jr(jr_above_1f, a.here())
+
+    # $20-$2F: SSG commands
+    a.ld_a_mem(RAM_CMD)
+    a.cp_n(0x20)
+    jr_below_20 = a.jr_c_ph()
+    a.cp_n(0x30)
+    jr_above_2f = a.jr_nc_ph()
+    jp_ssg_dispatch = a.jp_ph()
+    a.patch_jr(jr_below_20, a.here())
+    a.patch_jr(jr_above_2f, a.here())
+
+    # $30-$3F: Pan commands
+    a.ld_a_mem(RAM_CMD)
+    a.cp_n(0x30)
+    jr_below_30 = a.jr_c_ph()
+    a.cp_n(0x40)
+    jr_above_3f = a.jr_nc_ph()
+    jp_pan_dispatch = a.jp_ph()
+    a.patch_jr(jr_below_30, a.here())
+    a.patch_jr(jr_above_3f, a.here())
+
+    # $40: ADPCM-B play
+    a.ld_a_mem(RAM_CMD)
+    a.cp_n(0x40)
+    jr_not_40 = a.jr_nz_ph()
+    jp_adpcmb_play = a.jp_ph()
+    a.patch_jr(jr_not_40, a.here())
+
+    # $41: ADPCM-B stop
+    a.cp_n(0x41)
+    jr_not_41 = a.jr_nz_ph()
+    jp_adpcmb_stop = a.jp_ph()
+    a.patch_jr(jr_not_41, a.here())
+
+    # $C0+: ADPCM-A trigger
+    a.ld_a_mem(RAM_CMD)
+    a.cp_n(0xC0)
+    jr_below_c0 = a.jr_c_ph()
+    a.sub_n(0xC0)
+    a.ld_b_a()  # B = sample index
+    jp_adpcma_trig = a.jp_ph()
+    a.patch_jr(jr_below_c0, a.here())
+
+    # NMI done
+    NMI_DONE = a.here()
+    a.pop_bc()
+    a.pop_de()
+    a.pop_hl()
+    a.pop_af()
+    a.retn()
+
+    # Collect all JP-to-done placeholders
+    done_patches = [jp_done0, jp_done1]
+
+    # ================================================================
+    # SUBROUTINES - placed sequentially after NMI handler
+    # ================================================================
+    # Start subroutines at $0400 to have plenty of room
+    a.org(0x0400)
+
+    # ----------------------------------------------------------------
+    # FM DISPATCH (cmd $10-$1F)
+    # ----------------------------------------------------------------
+    FM_DISPATCH = a.here()
+    a.patch_jp(jp_fm_dispatch, FM_DISPATCH)
+
+    a.ld_a_mem(RAM_CMD)
+    a.sub_n(0x10)
+    # 0-3: key-on, 4-7: key-off, 8-11: set patch
+    a.cp_n(0x04)
+    jr_not_fmon = a.jr_nc_ph()
+    # FM key-on: A = channel (0-3)
+    a.ld_b_a()
+    jp_fmon = a.jp_ph()  # will patch to FM_KEY_ON
+    a.patch_jr(jr_not_fmon, a.here())
+
+    a.cp_n(0x08)
+    jr_not_fmoff = a.jr_nc_ph()
+    # FM key-off: A-4 = channel
+    a.sub_n(0x04)
+    a.ld_b_a()
+    jp_fmoff = a.jp_ph()
+    a.patch_jr(jr_not_fmoff, a.here())
+
+    # FM set patch: A-8 = channel
+    a.sub_n(0x08)
+    a.ld_b_a()
+    jp_fmpatch = a.jp_ph()
+
+    # ----------------------------------------------------------------
+    # SSG DISPATCH (cmd $20-$2F)
+    # ----------------------------------------------------------------
+    SSG_DISPATCH = a.here()
+    a.patch_jp(jp_ssg_dispatch, SSG_DISPATCH)
+
+    a.ld_a_mem(RAM_CMD)
+    a.sub_n(0x20)
+    a.cp_n(0x03)
+    jr_not_ssgon = a.jr_nc_ph()
+    a.ld_b_a()
+    jp_ssgon = a.jp_ph()
+    a.patch_jr(jr_not_ssgon, a.here())
+
+    a.cp_n(0x07)
+    jr_not_ssgoff = a.jr_nc_ph()
+    a.sub_n(0x04)
+    a.ld_b_a()
+    jp_ssgoff = a.jp_ph()
+    a.patch_jr(jr_not_ssgoff, a.here())
+    a.jp(NMI_DONE)
+
+    # ----------------------------------------------------------------
+    # PAN DISPATCH (cmd $30-$3F)
+    # ----------------------------------------------------------------
+    PAN_DISPATCH = a.here()
+    a.patch_jp(jp_pan_dispatch, PAN_DISPATCH)
+
+    a.ld_a_mem(RAM_CMD)
+    a.sub_n(0x30)
+    a.cp_n(0x04)
+    jr_not_fmpan = a.jr_nc_ph()
+    a.ld_b_a()
+    jp_fmpan = a.jp_ph()
+    a.patch_jr(jr_not_fmpan, a.here())
+
+    a.sub_n(0x04)
+    a.cp_n(0x06)
+    jr_not_adpcmapan = a.jr_nc_ph()
+    a.ld_b_a()
+    jp_adpcmapan = a.jp_ph()
+    a.patch_jr(jr_not_adpcmapan, a.here())
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # STOP ALL
+    # ================================================================
+    STOP_ALL = a.here()
+    a.patch_jp(jp_call_stop_reset, STOP_ALL)
+    a.patch_jp(jp_call_stop_all, STOP_ALL)
+
+    # FM key-off all 4 channels
+    for val in [0x00, 0x01, 0x02, 0x05]:
+        a.ld_a_n(0x28); a.out_n_a(0x04)
+        a.ld_a_n(val);  a.out_n_a(0x05)
+
+    # SSG silence: volumes to 0
+    for reg in [0x08, 0x09, 0x0A]:
+        a.ld_a_n(reg); a.out_n_a(0x04)
+        a.xor_a();     a.out_n_a(0x05)
+
+    # ADPCM-A dump all: Port B reg $00 = $BF
+    a.ld_a_n(0x00); a.out_n_a(0x06)
+    a.ld_a_n(0xBF); a.out_n_a(0x07)
+
+    # ADPCM-B stop: Port A reg $10 = $01
+    a.ld_a_n(0x10); a.out_n_a(0x04)
+    a.ld_a_n(0x01); a.out_n_a(0x05)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # FM KEY-ON (B = channel 0-3, note from RAM_PARAM)
+    # ================================================================
+    FM_KEY_ON = a.here()
+    a.patch_jp(jp_fmon, FM_KEY_ON)
+
+    # First load default patch for this channel
+    a.push_bc()
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(RAM_FM_PATCH)
+    a.add_hl_de()
+    a.ld_a_hl()          # A = patch index for this channel
+    a.ld_mem_a(RAM_TEMP)  # save patch index
+    a.pop_bc()
+
+    # --- Save channel to RAM_TEMP+2 ---
+    a.ld_a_b()
+    a.ld_mem_a(RAM_TEMP + 2)  # save channel number
+
+    # --- Compute patch data pointer ---
+    a.ld_a_mem(RAM_TEMP)
+    a.cp_n(NUM_FM_PATCHES)
+    jr_pok = a.jr_c_ph()
+    a.xor_a()
+    a.patch_jr(jr_pok, a.here())
+
+    # HL = FM_PATCH_TABLE + A * 26
+    # 26 = 2 + 8 + 16  -> *2 + *8 + *16
+    a.ld_c_a()           # C = patch index
+    a.ld_b_n(0)
+    a.ld_h_n(0); a.ld_l_a()  # HL = idx
+    a.add_hl_hl()        # *2
+    a.push_hl()          # save *2
+    a.add_hl_hl()        # *4
+    a.add_hl_hl()        # *8
+    a.push_hl()          # save *8
+    a.add_hl_hl()        # *16
+    a.pop_de()           # DE = *8
+    a.add_hl_de()        # HL = *24
+    a.pop_de()           # DE = *2
+    a.add_hl_de()        # HL = *26
+    a.ld_de_nn(FM_PATCH_TABLE)
+    a.add_hl_de()        # HL = patch data pointer
+
+    # --- Restore channel into B ---
+    a.ld_a_mem(RAM_TEMP + 2)
+    a.ld_b_a()
+
+    # --- Determine port and ch_offset from B ---
+    a.ld_a_b()
+    a.and_n(0x01)
+    a.ld_mem_a(RAM_TEMP + 1)  # ch_offset
+
+    a.ld_a_b()
+    a.and_n(0x02)
+    jr_porta = a.jr_z_ph()
+    # Port B: addr=$06, data=$07
+    a.ld_c_n(0x06)
+    a.ld_d_n(0x07)
+    jr_port_done = a.jr_ph()
+    a.patch_jr(jr_porta, a.here())
+    a.ld_c_n(0x04)
+    a.ld_d_n(0x05)
+    a.patch_jr(jr_port_done, a.here())
+
+    # --- Write all 24 operator registers ---
+    # For each of 6 register groups, 4 operators
+    # Reg groups: $30, $40, $50, $60, $70, $80
+    # Op offsets: 0, 8, 4, 12
+    for reg_base in [0x30, 0x40, 0x50, 0x60, 0x70, 0x80]:
+        for op_off in [0, 8, 4, 12]:
+            # Read data byte from (HL)
+            a.ld_a_hl()       # A = data
+            a.push_af()       # save data
+            # Compute register: reg_base + op_off + ch_offset
+            a.ld_a_mem(RAM_TEMP + 1)
+            a.add_a_n(reg_base + op_off)
+            # Write addr to port (C)
+            a.out_c_a()       # OUT (C), A - sets register address
+            # Write data to port (D) - swap C<->D temporarily
+            a.pop_af()        # A = data
+            a.ld_e_c()        # save C in E
+            a.ld_c_d()        # C = data port
+            a.out_c_a()       # OUT (C), A - write data
+            a.ld_c_e()        # restore C = addr port
+            a.inc_hl()        # next patch byte
+
+    # --- Write FB_ALG: reg $B0 + ch_offset ---
+    a.ld_a_hl()
+    a.push_af()
+    a.ld_a_mem(RAM_TEMP + 1)
+    a.add_a_n(0xB0)
+    a.out_c_a()
+    a.pop_af()
+    a.ld_e_c(); a.ld_c_d()
+    a.out_c_a()
+    a.ld_c_e()
+    a.inc_hl()
+
+    # --- Write LR_AMS_PMS: reg $B4 + ch_offset, merged with panning ---
+    a.ld_a_hl()
+    a.and_n(0x3F)        # keep AMS/PMS
+    a.ld_e_a()
+    # Get pan from RAM
+    a.ld_a_b()           # channel
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(RAM_FM_PAN)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_hl()          # pan value
+    a.and_n(0xC0)
+    a.or_e()             # merge
+    a.push_af()
+    a.ld_a_mem(RAM_TEMP + 1)
+    a.add_a_n(0xB4)
+    a.out_c_a()          # addr
+    a.pop_af()
+    a.ld_e_c(); a.ld_c_d()
+    a.out_c_a()          # data
+    a.ld_c_e()
+
+    # --- Set frequency ---
+    # Get note from param, compute octave/semitone
+    a.ld_a_mem(RAM_PARAM)
+    a.ld_e_a()           # E = note
+    a.ld_d_n(0)          # D = octave counter
+
+    div12 = a.here()
+    a.ld_a_e()
+    a.cp_n(12)
+    jr_div_done = a.jr_c_ph()
+    a.sub_n(12)
+    a.ld_e_a()
+    a.inc_d()
+    a.db(0x18, 0x00)     # JR back to div12
+    a.patch_jr(a.here() - 2, div12)
+    a.patch_jr(jr_div_done, a.here())
+
+    # D = octave (block), E = semitone
+    # Lookup F-number
+    a.ld_a_e()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.add_hl_hl()        # *2
+    a.push_de()
+    a.ld_de_nn(FM_FNUM_TABLE)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_hl()          # fnum_lo
+    a.ld_e_a()
+    a.inc_hl()
+    a.ld_a_hl()          # fnum_hi (3 bits)
+    a.ld_l_a()           # L = fnum_hi
+
+    # Compute reg $A4 value: (block << 3) | fnum_hi
+    a.ld_a_d()           # A = octave
+    a.and_n(0x07)
+    a.rlca(); a.rlca(); a.rlca()
+    a.and_n(0x38)
+    a.or_l()             # A = block_fnum_hi
+    a.ld_d_a()           # D = block_fnum_hi
+
+    # Write freq regs via correct port (C=addr port, from earlier)
+    # But C/D were overwritten! We need to recompute port.
+    a.ld_a_b()
+    a.and_n(0x02)
+    jr_freq_porta = a.jr_z_ph()
+    # Port B
+    a.ld_a_mem(RAM_TEMP + 1)
+    a.add_a_n(0xA4)
+    a.out_n_a(0x06)
+    a.ld_a_d(); a.out_n_a(0x07)
+    a.ld_a_mem(RAM_TEMP + 1)
+    a.add_a_n(0xA0)
+    a.out_n_a(0x06)
+    a.ld_a_e(); a.out_n_a(0x07)
+    jr_freq_done = a.jr_ph()
+
+    a.patch_jr(jr_freq_porta, a.here())
+    # Port A
+    a.ld_a_mem(RAM_TEMP + 1)
+    a.add_a_n(0xA4)
+    a.out_n_a(0x04)
+    a.ld_a_d(); a.out_n_a(0x05)
+    a.ld_a_mem(RAM_TEMP + 1)
+    a.add_a_n(0xA0)
+    a.out_n_a(0x04)
+    a.ld_a_e(); a.out_n_a(0x05)
+    a.patch_jr(jr_freq_done, a.here())
+
+    # --- Key-on via reg $28 (always port A) ---
+    a.ld_a_b()           # channel
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(KEYON_TABLE)
+    a.add_hl_de()
+    a.ld_a_hl()          # key-on value
+    a.ld_e_a()
+    a.ld_a_n(0x28)
+    a.out_n_a(0x04)
+    a.ld_a_e()
+    a.out_n_a(0x05)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # FM KEY-OFF (B = channel 0-3)
+    # ================================================================
+    FM_KEY_OFF = a.here()
+    a.patch_jp(jp_fmoff, FM_KEY_OFF)
+
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(KEYOFF_TABLE)
+    a.add_hl_de()
+    a.ld_a_hl()
+    a.ld_e_a()
+    a.ld_a_n(0x28)
+    a.out_n_a(0x04)
+    a.ld_a_e()
+    a.out_n_a(0x05)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # FM LOAD PATCH (B = channel 0-3, patch from RAM_PARAM)
+    # Just stores patch index in RAM for next key-on
+    # ================================================================
+    FM_LOAD_PATCH = a.here()
+    a.patch_jp(jp_fmpatch, FM_LOAD_PATCH)
+
+    a.ld_a_mem(RAM_PARAM)
+    a.cp_n(NUM_FM_PATCHES)
+    jr_lp_ok = a.jr_c_ph()
+    a.xor_a()
+    a.patch_jr(jr_lp_ok, a.here())
+
+    a.ld_e_a()           # E = patch index
+    a.ld_a_b()           # channel
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(RAM_FM_PATCH)
+    a.add_hl_de()
+    a.ld_a_mem(RAM_PARAM)
+    a.cp_n(NUM_FM_PATCHES)
+    jr_lp2 = a.jr_c_ph()
+    a.xor_a()
+    a.patch_jr(jr_lp2, a.here())
+    a.ld_hl_a()
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # SSG KEY-ON (B = channel 0-2, note from RAM_PARAM)
+    # ================================================================
+    SSG_KEY_ON = a.here()
+    a.patch_jp(jp_ssgon, SSG_KEY_ON)
+
+    # Compute octave and semitone from MIDI note
+    a.ld_a_mem(RAM_PARAM)
+    a.ld_e_a()
+    a.ld_d_n(0)
+
+    ssg_div = a.here()
+    a.ld_a_e()
+    a.cp_n(12)
+    jr_ssg_done = a.jr_c_ph()
+    a.sub_n(12)
+    a.ld_e_a()
+    a.inc_d()
+    a.db(0x18, 0x00)
+    a.patch_jr(a.here() - 2, ssg_div)
+    a.patch_jr(jr_ssg_done, a.here())
+
+    # D = octave, E = semitone
+    # Look up base period (octave 4)
+    a.ld_a_e()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.add_hl_hl()
+    a.push_de()
+    a.ld_de_nn(SSG_PERIOD_TABLE)
+    a.add_hl_de()
+    a.pop_de()
+    # HL -> period entry
+    a.push_de()
+    a.ld_e_hl()          # E = period_lo
+    a.inc_hl()
+    a.ld_d_hl()          # D = period_hi
+    a.ld_h_d(); a.ld_l_e()  # HL = period
+    a.pop_de()           # D = octave
+
+    # Adjust period for octave
+    a.ld_a_d()
+    a.cp_n(4)
+    jr_oct_eq = a.jr_z_ph()
+    jr_oct_hi = a.jr_nc_ph()
+
+    # Octave < 4: shift left (4-D) times
+    a.ld_a_n(4)
+    a.sub_d()
+    a.ld_d_a()
+    ssg_shl = a.here()
+    a.add_hl_hl()
+    a.dec_d()
+    jr_shl_again = a.jr_nz_ph()
+    a.patch_jr(jr_shl_again, ssg_shl)
+    jr_ssg_adj_done = a.jr_ph()
+
+    a.patch_jr(jr_oct_hi, a.here())
+    # Octave > 4: shift right (D-4) times
+    a.ld_a_d()
+    a.sub_n(4)
+    a.ld_d_a()
+    ssg_shr = a.here()
+    a.srl_h()
+    a.rr_l()
+    a.dec_d()
+    jr_shr_again = a.jr_nz_ph()
+    a.patch_jr(jr_shr_again, ssg_shr)
+
+    a.patch_jr(jr_oct_eq, a.here())
+    a.patch_jr(jr_ssg_adj_done, a.here())
+
+    # HL = period. Write to SSG regs via Port A.
+    # Tone period low: reg = B*2
+    a.ld_a_b()
+    a.add_a_n(0)         # A = channel
+    a.db(0x87)           # ADD A, A = channel * 2
+    a.ld_e_a()           # E = reg number
+    a.out_n_a(0x04)      # reg addr
+    a.ld_a_l()
+    a.out_n_a(0x05)      # period low
+
+    # Tone period high: reg = B*2 + 1
+    a.ld_a_e()
+    a.inc_a()
+    a.out_n_a(0x04)
+    a.ld_a_h()
+    a.and_n(0x0F)
+    a.out_n_a(0x05)
+
+    # Mixer: enable tone for all, disable noise
+    a.ld_a_n(0x07); a.out_n_a(0x04)
+    a.ld_a_n(0x38); a.out_n_a(0x05)
+
+    # Volume: reg $08+ch = $0F
+    a.ld_a_b()
+    a.add_a_n(0x08)
+    a.out_n_a(0x04)
+    a.ld_a_n(0x0F)
+    a.out_n_a(0x05)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # SSG KEY-OFF (B = channel 0-2)
+    # ================================================================
+    SSG_KEY_OFF = a.here()
+    a.patch_jp(jp_ssgoff, SSG_KEY_OFF)
+
+    a.ld_a_b()
+    a.add_a_n(0x08)
+    a.out_n_a(0x04)
+    a.xor_a()
+    a.out_n_a(0x05)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # ADPCM-A TRIGGER (B = sample index, channel from RAM_ADPCMA_CH)
+    # ================================================================
+    ADPCMA_TRIGGER = a.here()
+    a.patch_jp(jp_adpcma_trig, ADPCMA_TRIGGER)
+
+    # Bounds check
+    a.ld_a_b()
+    a.cp_n(NUM_SAMPLES)
+    jr_smp_ok = a.jr_c_ph()
+    a.jp(NMI_DONE)
+    a.patch_jr(jr_smp_ok, a.here())
+
+    # HL = sample table + B*4
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.add_hl_hl(); a.add_hl_hl()
+    a.ld_de_nn(SAMPLE_TABLE)
+    a.add_hl_de()
+
+    # Read: E=start_lo, D=start_hi, C=end_lo, B=end_hi
+    a.ld_e_hl(); a.inc_hl()
+    a.ld_d_hl(); a.inc_hl()
+    a.ld_c_hl(); a.inc_hl()
+    a.ld_b_hl()
+
+    # Save addresses on stack
+    a.push_bc()  # end addr
+    a.push_de()  # start addr
+
+    # Get channel (0-5)
+    a.ld_a_mem(RAM_ADPCMA_CH)
+    a.and_n(0x07)
+    a.cp_n(6)
+    jr_ch_ok = a.jr_c_ph()
+    a.xor_a()
+    a.patch_jr(jr_ch_ok, a.here())
+    a.ld_mem_a(RAM_TEMP)  # save channel
+
+    # Compute channel bitmask: 1 << channel
+    a.ld_e_a()
+    a.ld_a_n(0x01)
+    a.ld_d_a()            # default mask = 1
+    a.ld_a_e()
+    a.or_a()
+    jr_no_shift = a.jr_z_ph()
+    a.ld_d_a()            # D = shift count
+    a.ld_a_n(0x01)
+    shift_loop = a.here()
+    a.rlca()
+    a.dec_d()
+    jr_shift = a.jr_nz_ph()
+    a.patch_jr(jr_shift, shift_loop)
+    jr_mask_done = a.jr_ph()
+    a.patch_jr(jr_no_shift, a.here())
+    a.ld_a_n(0x01)
+    a.patch_jr(jr_mask_done, a.here())
+    # A = channel mask
+    a.ld_mem_a(RAM_TEMP + 1)  # save mask
+
+    # Dump (stop) this channel: reg $00 = mask | $80
+    a.or_n(0x80)
+    a.ld_e_a()
+    a.ld_a_n(0x00); a.out_n_a(0x06)
+    a.ld_a_e();     a.out_n_a(0x07)
+
+    # Write start address
+    a.ld_a_mem(RAM_TEMP)   # channel
+    a.add_a_n(0x10)        # reg $10+ch = start_lo
+    a.out_n_a(0x06)
+    a.pop_de()             # DE = start addr (E=lo, D=hi)
+    a.ld_a_e()
+    a.out_n_a(0x07)
+
+    a.ld_a_mem(RAM_TEMP)
+    a.add_a_n(0x18)        # reg $18+ch = start_hi
+    a.out_n_a(0x06)
+    a.ld_a_d()
+    a.out_n_a(0x07)
+
+    # Write end address
+    a.pop_bc()             # BC = end addr (C=lo, B=hi)
+    a.ld_a_mem(RAM_TEMP)
+    a.add_a_n(0x20)        # reg $20+ch = end_lo
+    a.out_n_a(0x06)
+    a.ld_a_c()
+    a.out_n_a(0x07)
+
+    a.ld_a_mem(RAM_TEMP)
+    a.add_a_n(0x28)        # reg $28+ch = end_hi
+    a.out_n_a(0x06)
+    a.ld_a_b()
+    a.out_n_a(0x07)
+
+    # Volume + panning: reg $08+ch
+    a.ld_a_mem(RAM_TEMP)   # channel
+    a.add_a_n(0x08)
+    a.out_n_a(0x06)
+    # Get pan from RAM
+    a.ld_a_mem(RAM_TEMP)
+    a.ld_l_a(); a.ld_h_n(0)
+    a.ld_de_nn(RAM_ADPCMA_PAN)
+    a.add_hl_de()
+    a.ld_a_hl()            # pan value ($C0, $80, $40)
+    a.and_n(0xC0)
+    a.or_n(0x1F)           # volume = 31
+    a.out_n_a(0x07)
+
+    # Trigger: reg $00 = mask (without $80)
+    a.ld_a_n(0x00); a.out_n_a(0x06)
+    a.ld_a_mem(RAM_TEMP + 1)  # channel mask
+    a.out_n_a(0x07)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # ADPCM-B PLAY (sample from RAM_PARAM)
+    # ================================================================
+    ADPCMB_PLAY = a.here()
+    a.patch_jp(jp_adpcmb_play, ADPCMB_PLAY)
+
+    a.ld_a_mem(RAM_PARAM)
+    a.cp_n(NUM_SAMPLES)
+    jr_ab_ok = a.jr_c_ph()
+    a.jp(NMI_DONE)
+    a.patch_jr(jr_ab_ok, a.here())
+
+    # Lookup sample
+    a.ld_l_a(); a.ld_h_n(0)
+    a.add_hl_hl(); a.add_hl_hl()
+    a.ld_de_nn(SAMPLE_TABLE)
+    a.add_hl_de()
+
+    a.ld_e_hl(); a.inc_hl()
+    a.ld_d_hl(); a.inc_hl()
+    a.ld_c_hl(); a.inc_hl()
+    a.ld_b_hl()
+
+    # Stop first
+    a.ld_a_n(0x10); a.out_n_a(0x04)
+    a.ld_a_n(0x01); a.out_n_a(0x05)
+
+    # L/R output
+    a.ld_a_n(0x11); a.out_n_a(0x04)
+    a.ld_a_n(0xC0); a.out_n_a(0x05)
+
+    # Start addr
+    a.ld_a_n(0x12); a.out_n_a(0x04)
+    a.ld_a_e();     a.out_n_a(0x05)
+    a.ld_a_n(0x13); a.out_n_a(0x04)
+    a.ld_a_d();     a.out_n_a(0x05)
+
+    # End addr
+    a.ld_a_n(0x14); a.out_n_a(0x04)
+    a.ld_a_c();     a.out_n_a(0x05)
+    a.ld_a_n(0x15); a.out_n_a(0x04)
+    a.ld_a_b();     a.out_n_a(0x05)
+
+    # Delta-N: 22050Hz => $6573
+    a.ld_a_n(0x19); a.out_n_a(0x04)
+    a.ld_a_n(0x73); a.out_n_a(0x05)
+    a.ld_a_n(0x1A); a.out_n_a(0x04)
+    a.ld_a_n(0x65); a.out_n_a(0x05)
+
+    # Volume
+    a.ld_a_n(0x1B); a.out_n_a(0x04)
+    a.ld_a_n(0xFF); a.out_n_a(0x05)
+
+    # Start playback
+    a.ld_a_n(0x10); a.out_n_a(0x04)
+    a.ld_a_n(0x80); a.out_n_a(0x05)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # ADPCM-B STOP
+    # ================================================================
+    ADPCMB_STOP = a.here()
+    a.patch_jp(jp_adpcmb_stop, ADPCMB_STOP)
+
+    a.ld_a_n(0x10); a.out_n_a(0x04)
+    a.ld_a_n(0x01); a.out_n_a(0x05)
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # FM SET PANNING (B = channel 0-3, param: 0=L, 1=C, 2=R)
+    # ================================================================
+    FM_SET_PAN = a.here()
+    a.patch_jp(jp_fmpan, FM_SET_PAN)
+
+    # Convert param to L/R bits
+    a.ld_a_mem(RAM_PARAM)
+    a.cp_n(0x00)
+    jr_fn_l = a.jr_nz_ph()
+    a.ld_a_n(0x80)          # L only
+    jr_fp_set = a.jr_ph()
+    a.patch_jr(jr_fn_l, a.here())
+    a.cp_n(0x02)
+    jr_fn_r = a.jr_nz_ph()
+    a.ld_a_n(0x40)          # R only
+    jr_fp_set2 = a.jr_ph()
+    a.patch_jr(jr_fn_r, a.here())
+    a.ld_a_n(0xC0)          # Center
+    a.patch_jr(jr_fp_set, a.here())
+    a.patch_jr(jr_fp_set2, a.here())
+
+    # Store in RAM
+    a.ld_e_a()
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(RAM_FM_PAN)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_e()
+    a.ld_hl_a()
+
+    # Write reg $B4+ch_offset via correct port
+    a.ld_a_b()
+    a.and_n(0x01)
+    a.add_a_n(0xB4)
+    a.ld_d_a()               # D = register
+
+    a.ld_a_b()
+    a.and_n(0x02)
+    jr_fp_pa = a.jr_z_ph()
+    # Port B
+    a.ld_a_d(); a.out_n_a(0x06)
+    a.ld_a_e(); a.out_n_a(0x07)
+    jr_fp_pd = a.jr_ph()
+    a.patch_jr(jr_fp_pa, a.here())
+    # Port A
+    a.ld_a_d(); a.out_n_a(0x04)
+    a.ld_a_e(); a.out_n_a(0x05)
+    a.patch_jr(jr_fp_pd, a.here())
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # ADPCM-A SET PANNING (B = channel 0-5, param: 0=L, 1=C, 2=R)
+    # ================================================================
+    ADPCMA_SET_PAN = a.here()
+    a.patch_jp(jp_adpcmapan, ADPCMA_SET_PAN)
+
+    a.ld_a_mem(RAM_PARAM)
+    a.cp_n(0x00)
+    jr_ap_l = a.jr_nz_ph()
+    a.ld_a_n(0x80)
+    jr_ap_set = a.jr_ph()
+    a.patch_jr(jr_ap_l, a.here())
+    a.cp_n(0x02)
+    jr_ap_r = a.jr_nz_ph()
+    a.ld_a_n(0x40)
+    jr_ap_set2 = a.jr_ph()
+    a.patch_jr(jr_ap_r, a.here())
+    a.ld_a_n(0xC0)
+    a.patch_jr(jr_ap_set, a.here())
+    a.patch_jr(jr_ap_set2, a.here())
+
+    # Store in RAM
+    a.ld_e_a()
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(RAM_ADPCMA_PAN)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_e()
+    a.ld_hl_a()
+
+    a.jp(NMI_DONE)
+
+    # ================================================================
+    # Patch all done_patches
+    # ================================================================
+    for jp_addr in done_patches:
+        a.patch_jp(jp_addr, NMI_DONE)
+
+    # ================================================================
+    # Summary
+    # ================================================================
+    print(f"NeoSynth v1.0 Driver Map:")
+    print(f"  Init:          0x0100")
+    print(f"  Main loop:     0x{MAIN_LOOP:04X}")
+    print(f"  NMI handler:   0x0200")
+    print(f"  NMI done:      0x{NMI_DONE:04X}")
+    print(f"  Stop All:      0x{STOP_ALL:04X}")
+    print(f"  FM Key-On:     0x{FM_KEY_ON:04X}")
+    print(f"  FM Key-Off:    0x{FM_KEY_OFF:04X}")
+    print(f"  FM Load Patch: 0x{FM_LOAD_PATCH:04X}")
+    print(f"  SSG Key-On:    0x{SSG_KEY_ON:04X}")
+    print(f"  SSG Key-Off:   0x{SSG_KEY_OFF:04X}")
+    print(f"  ADPCM-A Trig:  0x{ADPCMA_TRIGGER:04X}")
+    print(f"  ADPCM-B Play:  0x{ADPCMB_PLAY:04X}")
+    print(f"  ADPCM-B Stop:  0x{ADPCMB_STOP:04X}")
+    print(f"  FM Set Pan:    0x{FM_SET_PAN:04X}")
+    print(f"  ADPCM-A Pan:   0x{ADPCMA_SET_PAN:04X}")
+    print(f"  Sample table:  0x{SAMPLE_TABLE:04X} ({NUM_SAMPLES} entries)")
+    print(f"  FM Fnum table: 0x{FM_FNUM_TABLE:04X}")
+    print(f"  SSG Period tbl:0x{SSG_PERIOD_TABLE:04X}")
+    print(f"  FM Patch table:0x{FM_PATCH_TABLE:04X} ({NUM_FM_PATCHES} patches)")
+    print(f"  Code end:      0x{a.pc:04X}")
+
+    return bytes(a.code)
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--output', required=True)
     args = parser.parse_args()
+    mrom = build_driver()
     with open(args.output, 'wb') as f:
-        f.write(build_stub())
-    print(f"NeoSynth stub: {args.output}")
+        f.write(mrom)
+    print(f"Written: {args.output}")
+
 
 if __name__ == '__main__':
     main()

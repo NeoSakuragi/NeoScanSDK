@@ -123,8 +123,8 @@ def full_analysis(wav_path):
     if has_sound:
         is_clean, info = check_is_clean(data)
         results["is_clean"] = bool(is_clean)
-        results["spectral_flatness"] = info["flatness"]
-        results["crest_factor"] = info["crest"]
+        results["spectral_flatness"] = float(info["flatness"])
+        results["crest_factor"] = float(info["crest"])
 
         has_onset, info = check_has_onset(data, sr)
         results["has_onset"] = bool(has_onset)
