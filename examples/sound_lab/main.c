@@ -330,8 +330,8 @@ void game_tick(void) {
         break;
 
     case MENU_ADPCMB:
-        if (pressed & JOY_RIGHT) { adpcmb_smp++; if (adpcmb_smp > 9) adpcmb_smp = 0; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { if (adpcmb_smp > 0) adpcmb_smp--; else adpcmb_smp = 9; menu_dirty = 1; }
+        if (pressed & JOY_RIGHT) { adpcmb_smp++; if (adpcmb_smp > 18) adpcmb_smp = 0; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { if (adpcmb_smp > 0) adpcmb_smp--; else adpcmb_smp = 18; menu_dirty = 1; }
         if (pressed & JOY_A) {
             /* Set sample param, then ADPCM-B play */
             cmd_param_action((uint8_t)adpcmb_smp, CMD_ADPCMB_ON);
