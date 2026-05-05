@@ -5,7 +5,6 @@ Features:
   - ADPCM-A sample trigger on channels 0-5  (cmd $C0-$FF)
   - FM note playback on channels 1-4        (cmd $10-$1F)
   - SSG note playback on channels 1-3       (cmd $20-$2F)
-  - ADPCM-B playback                        (cmd $40-$4F)
   - Panning control                         (cmd $30-$3F)
   - Tick-based music sequencer              (cmd $50-$5F)
   - Stop/silence all                        (cmd $03)
@@ -21,8 +20,6 @@ Command protocol (68K -> Z80 via NMI):
   $24+ch      - SSG key-off ch (0-2)
   $30+ch      - FM panning ch (0-3), param: 0=L, 1=C, 2=R
   $34+ch      - ADPCM-A panning ch (0-5), param: 0=L, 1=C, 2=R
-  $40         - ADPCM-B play (sample from param byte)
-  $41         - ADPCM-B stop
   $50+N       - Play song N (tick-based sequencer, Timer A driven)
   $C0+smp     - ADPCM-A trigger sample (on current ADPCM-A channel)
 
@@ -907,6 +904,16 @@ ADPCM_SAMPLES = [
     (0x9C25, 0x9C40),  # 868: 6KB
     (0x9E39, 0x9E6F),  # 869: 13KB
     (0x9F8C, 0x9FFF),  # 870: 28KB
+    (0x8800, 0x89B7),  # 871: ADPCM-B 109KB
+    (0x89B8, 0x89FF),  # 872: ADPCM-B 17KB
+    (0x8E00, 0x8E23),  # 873: ADPCM-B 8KB
+    (0x9000, 0x9082),  # 874: ADPCM-B 32KB
+    (0x9577, 0x95FF),  # 875: ADPCM-B 34KB
+    (0x9600, 0x961B),  # 876: ADPCM-B 6KB
+    (0x9800, 0x9874),  # 877: ADPCM-B 29KB
+    (0x98E5, 0x995A),  # 878: ADPCM-B 29KB
+    (0x995B, 0x99B2),  # 879: ADPCM-B 21KB
+    (0x9E39, 0x9E6F),  # 880: ADPCM-B 13KB
 ]
 
 FM_FNUMS = [618, 627, 636, 645, 655, 664, 674, 683, 694, 704, 714, 724]
@@ -1675,13 +1682,11 @@ def build_driver():
     a.ld_a_n(0x01); a.out_n_a(0x06)
     a.ld_a_n(0x3F); a.out_n_a(0x07)
 
-    # ADPCM-B stop: Port A reg $10 = $01, then $10 = $00 (stop + clear)
     a.ld_a_n(0x10); a.out_n_a(0x04)
     a.ld_a_n(0x01); a.out_n_a(0x05)
     a.ld_a_n(0x10); a.out_n_a(0x04)
     a.xor_a(); a.out_n_a(0x05)
 
-    # Clear ADPCM-B flags (Port A reg $1C = $80, then $1C = $00)
     a.ld_a_n(0x1C); a.out_n_a(0x04)
     a.ld_a_n(0x80); a.out_n_a(0x05)
     a.ld_a_n(0x1C); a.out_n_a(0x04)
@@ -1828,14 +1833,12 @@ def build_driver():
     a.patch_jr(jr_below_30, a.here())
     a.patch_jr(jr_above_3f, a.here())
 
-    # $40: ADPCM-B play
     a.ld_a_mem(RAM_CMD)
     a.cp_n(0x40)
     jr_not_40 = a.jr_nz_ph()
     jp_adpcmb_play = a.jp_ph()
     a.patch_jr(jr_not_40, a.here())
 
-    # $41: ADPCM-B stop
     a.cp_n(0x41)
     jr_not_41 = a.jr_nz_ph()
     jp_adpcmb_stop = a.jp_ph()
@@ -2011,7 +2014,6 @@ def build_driver():
     a.ld_a_n(0x00); a.out_n_a(0x06)
     a.ld_a_n(0xBF); a.out_n_a(0x07)
 
-    # ADPCM-B stop: Port A reg $10 = $01
     a.ld_a_n(0x10); a.out_n_a(0x04)
     a.ld_a_n(0x01); a.out_n_a(0x05)
 
@@ -2502,7 +2504,6 @@ def build_driver():
     a.jp(NMI_DONE)
 
     # ================================================================
-    # ADPCM-B PLAY (sample from RAM_PARAM)
     # ================================================================
     ADPCMB_PLAY = a.here()
     a.patch_jp(jp_adpcmb_play, ADPCMB_PLAY)
@@ -2513,10 +2514,10 @@ def build_driver():
     a.jp(NMI_DONE)
     a.patch_jr(jr_ab_ok, a.here())
 
-    # Lookup sample
+    ADPCMB_TABLE_OFFSET = SAMPLE_TABLE + 871 * 4
     a.ld_l_a(); a.ld_h_n(0)
     a.add_hl_hl(); a.add_hl_hl()
-    a.ld_de_nn(SAMPLE_TABLE)
+    a.ld_de_nn(ADPCMB_TABLE_OFFSET)
     a.add_hl_de()
 
     a.ld_e_hl(); a.inc_hl()
@@ -2544,15 +2545,15 @@ def build_driver():
     a.ld_a_n(0x15); a.out_n_a(0x04)
     a.ld_a_b();     a.out_n_a(0x05)
 
-    # Delta-N: 22050Hz => $6573
+    # Delta-N: ~18.5kHz => $5555 (ADPCM-A native rate)
     a.ld_a_n(0x19); a.out_n_a(0x04)
-    a.ld_a_n(0x73); a.out_n_a(0x05)
+    a.ld_a_n(0x55); a.out_n_a(0x05)
     a.ld_a_n(0x1A); a.out_n_a(0x04)
-    a.ld_a_n(0x65); a.out_n_a(0x05)
+    a.ld_a_n(0x55); a.out_n_a(0x05)
 
-    # Volume
+    # Volume: $6D (matches KOF96)
     a.ld_a_n(0x1B); a.out_n_a(0x04)
-    a.ld_a_n(0xFF); a.out_n_a(0x05)
+    a.ld_a_n(0x6D); a.out_n_a(0x05)
 
     # Start playback
     a.ld_a_n(0x10); a.out_n_a(0x04)
@@ -2561,7 +2562,6 @@ def build_driver():
     a.jp(NMI_DONE)
 
     # ================================================================
-    # ADPCM-B STOP
     # ================================================================
     ADPCMB_STOP = a.here()
     a.patch_jp(jp_adpcmb_stop, ADPCMB_STOP)
@@ -3088,7 +3088,7 @@ def build_driver():
     # ================================================================
     SEQ_PROCESS_SSG = a.here()
     for addr in [jp_seq_ssg_call_0, jp_seq_ssg_call_1,
-                 jp_seq_ssg_call_2]:
+]:
         a.patch_call(addr, SEQ_PROCESS_SSG)
 
     # Check sustain
@@ -3291,8 +3291,6 @@ def build_driver():
     print(f"  SSG Key-On:    0x{SSG_KEY_ON:04X}")
     print(f"  SSG Key-Off:   0x{SSG_KEY_OFF:04X}")
     print(f"  ADPCM-A Trig:  0x{ADPCMA_TRIGGER:04X}")
-    print(f"  ADPCM-B Play:  0x{ADPCMB_PLAY:04X}")
-    print(f"  ADPCM-B Stop:  0x{ADPCMB_STOP:04X}")
     print(f"  FM Set Pan:    0x{FM_SET_PAN:04X}")
     print(f"  ADPCM-A Pan:   0x{ADPCMA_SET_PAN:04X}")
     print(f"  Sample table:  0x{SAMPLE_TABLE:04X} ({NUM_SAMPLES} entries)")
