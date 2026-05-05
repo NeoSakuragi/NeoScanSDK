@@ -104,29 +104,37 @@ static const char *SSG_PATCH_NAMES[SSG_PATCH_COUNT] = {
     "BUZZ  ",  /* 4 */
 };
 
-/* ---- Instrument names for the KOF96 ADPCM-A kit ---- */
+/* ---- Instrument names for CrocellKit ADPCM-A samples ---- */
 #define INST_COUNT SND_COUNT
 
 static const char *INST_NAMES[INST_COUNT] = {
-    "KICK HVY",   /*  0 */
-    "KICK DEP",   /*  1 */
-    "SNARE TI",   /*  2 */
-    "SNARE MI",   /*  3 */
-    "HH CLOS ",   /*  4 */
-    "HH OPEN ",   /*  5 */
-    "CRASH   ",   /*  6 */
-    "BASS LOW",   /*  7 */
-    "BASS PLK",   /*  8 */
-    "BASS MID",   /*  9 */
-    "PERC TOM",   /* 10 */
-    "PERC HIT",   /* 11 */
-    "GUITAR  ",   /* 12 */
-    "MELODIC ",   /* 13 */
-    "BRASS HI",   /* 14 */
-    "BRASS ST",   /* 15 */
-    "VOCAL   ",   /* 16 */
-    "IMPACT  ",   /* 17 */
-    "WHOOSH  ",   /* 18 */
+    "KICK L  ",   /*  0 */
+    "KICK R  ",   /*  1 */
+    "SNARE   ",   /*  2 */
+    "SNARE RM",   /*  3 */
+    "RIMSHOT ",   /*  4 */
+    "SNARE RS",   /*  5 */
+    "HH CLOSE",   /*  6 */
+    "HH CL NP",   /*  7 */
+    "HH OPEN ",   /*  8 */
+    "HH SEMI ",   /*  9 */
+    "HH PEDAL",   /* 10 */
+    "HH PD HT",   /* 11 */
+    "TOM 1   ",   /* 12 */
+    "TOM 2   ",   /* 13 */
+    "FTOM 1  ",   /* 14 */
+    "FTOM 2  ",   /* 15 */
+    "CRASH L ",   /* 16 */
+    "CRASH R ",   /* 17 */
+    "CRASH LS",   /* 18 */
+    "CRASH RS",   /* 19 */
+    "CRASH XT",   /* 20 */
+    "CHINA L ",   /* 21 */
+    "CHINA R ",   /* 22 */
+    "SPLASH L",   /* 23 */
+    "SPLASH R",   /* 24 */
+    "RIDE    ",   /* 25 */
+    "RIDE BEL",   /* 26 */
 };
 
 /* Menu items */

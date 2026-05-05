@@ -127,6 +127,8 @@ def main():
                         help='Force rebuild all resources (ignore cache)')
     parser.add_argument('--only', default=None,
                         help='Only rebuild specific types (comma-separated: tiles,anim,sfx,voice,music)')
+    parser.add_argument('--vrom-size', default=None,
+                        help='V-ROM size in hex (e.g., 0x100000 for 1MB)')
     args = parser.parse_args()
 
     tools = args.tools_dir or os.path.dirname(os.path.abspath(__file__))
@@ -337,9 +339,11 @@ def main():
         else:
             print(f"[SFX] {len(sfx_wavs)} files")
             os.makedirs(sfx_dir, exist_ok=True)
-            run(['python3', os.path.join(tools, 'wav_encoder.py')]
-                + sfx_wavs + ['-o', sfx_dir],
-                "Encoding ADPCM-A...")
+            sfx_cmd = ['python3', os.path.join(tools, 'wav_encoder.py')]
+            sfx_cmd += sfx_wavs + ['-o', sfx_dir]
+            if args.vrom_size:
+                sfx_cmd += ['--vrom-size', str(int(args.vrom_size, 16))]
+            run(sfx_cmd, "Encoding ADPCM-A...")
             mark_built(cache, cache_key, sfx_wavs)
 
         # Map generated SND_xxx defines to resource names

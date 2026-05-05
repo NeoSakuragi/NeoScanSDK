@@ -13,7 +13,7 @@ all: $(ROM_NAME).neo
 # --- Resources (neores pipeline: WAV -> ADPCM, font) ---
 $(BUILD)/resources.h: res/resources.res $(wildcard res/instruments/*.wav)
 	@mkdir -p $(BUILD)
-	python3 $(TOOLS)/neores.py res/resources.res -o $(BUILD) --force
+	python3 $(TOOLS)/neores.py res/resources.res -o $(BUILD) --force --vrom-size 0x100000
 	@# Ensure C ROMs exist (neores only creates them when TILES are present)
 	@test -f $(BUILD)/combined_c1.bin || dd if=/dev/zero bs=64 count=1 of=$(BUILD)/combined_c1.bin 2>/dev/null
 	@test -f $(BUILD)/combined_c2.bin || dd if=/dev/zero bs=64 count=1 of=$(BUILD)/combined_c2.bin 2>/dev/null

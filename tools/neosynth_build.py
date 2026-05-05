@@ -2783,8 +2783,17 @@ def build_driver(sample_table_path=None):
     a.ld_c_hl(); a.inc_hl()      # C = initial_vol
     a.ld_d_hl(); a.inc_hl()      # D = decay_rate
     a.ld_e_hl()                  # E = noise_enable
+    # Save initial_vol before POP BC overwrites C
+    a.ld_a_c()
+    a.ld_mem_a(RAM_TEMP)         # RAM_TEMP = initial_vol
+    a.ld_a_d()
+    a.ld_mem_a(RAM_TEMP + 1)     # RAM_TEMP+1 = decay_rate
+    a.ld_a_e()
+    a.ld_mem_a(RAM_TEMP + 2)     # RAM_TEMP+2 = noise_enable
     a.pop_hl()                   # discard saved HL (period)
-    a.pop_bc()                   # restore B = channel (only B matters)
+    a.pop_bc()                   # restore B = channel
+    a.ld_a_mem(RAM_TEMP + 2)
+    a.ld_e_a()                   # E = noise_enable (restored)
 
     # --- Set mixer based on noise_enable ---
     # Read current mixer, modify bits for this channel
@@ -2848,7 +2857,7 @@ def build_driver(sample_table_path=None):
     a.ld_a_b()
     a.add_a_n(0x08)
     a.out_n_a(0x04)
-    a.ld_a_c()                   # A = initial_vol
+    a.ld_a_mem(RAM_TEMP)         # A = initial_vol (from saved temp)
     a.and_n(0x0F)
     a.out_n_a(0x05)
 
@@ -2856,24 +2865,24 @@ def build_driver(sample_table_path=None):
     # RAM_SSG_PRESET + ch*4 + 1 = current_vol
     # RAM_SSG_PRESET + ch*4 + 2 = decay_counter (init to decay_rate)
     # RAM_SSG_PRESET + ch*4 + 3 = active flag
-    a.push_de()
     a.ld_a_b()                   # channel
     a.add_a_a()                  # *2
     a.add_a_a()                  # *4
     a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
     a.ld_de_nn(RAM_SSG_PRESET)
-    a.add_hl_de()                # HL = &RAM_SSG_PRESET[ch*4]
+    a.add_hl_de()
+    a.pop_de()                   # HL = &RAM_SSG_PRESET[ch*4]
     a.inc_hl()                   # +1 = current_vol
-    a.ld_a_c()
+    a.ld_a_mem(RAM_TEMP)         # A = initial_vol
     a.and_n(0x0F)
     a.ld_hl_a()                  # store current_vol = initial_vol
     a.inc_hl()                   # +2 = decay_counter
-    a.ld_a_d()                   # decay_rate
+    a.ld_a_mem(RAM_TEMP + 1)     # decay_rate (saved to RAM_TEMP+1 earlier)
     a.ld_hl_a()                  # store decay_counter = decay_rate
     a.inc_hl()                   # +3 = active
     a.ld_a_n(0x01)
     a.ld_hl_a()                  # active = 1
-    a.pop_de()
 
     a.jp(NMI_DONE)
 
