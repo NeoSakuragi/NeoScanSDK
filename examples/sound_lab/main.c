@@ -258,7 +258,7 @@ static void draw_menu(void) {
     }
 
     FIX_print(1, 18, "A=PLAY  B=STOP  L/R=VALUE", 0);
-    FIX_print(1, 19, "START=CYCLE FM PATCH", 0);
+    FIX_print(1, 19, "C=CYCLE FM PATCH", 0);
 
     /* Auto-test status line */
     FIX_print(1, 21, "AUTO:                     ", 1);
@@ -315,10 +315,6 @@ void game_tick(void) {
 
     auto_frame++;
 
-    /* Auto-play: song 3 (beat with instruments) */
-    if (auto_frame == 200) {
-        SND_play(CMD_PLAY_SONG + 3);
-    }
 
     if (pressed & JOY_UP) {
         menu_sel = (menu_sel > 0) ? menu_sel - 1 : MENU_COUNT - 1;
@@ -348,7 +344,7 @@ void game_tick(void) {
             /* FM key-off */
             SND_play(CMD_FM_OFF + ch);
         }
-        if (pressed & JOY_START) {
+        if (pressed & JOY_C) {
             /* Cycle through all 20 FM patches */
             fm_patch[ch] = fm_patch[ch] + 1;
             if (fm_patch[ch] >= FM_PATCH_COUNT) fm_patch[ch] = 0;
