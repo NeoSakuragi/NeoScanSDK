@@ -4,6 +4,7 @@
     {"label": "Metal Slug", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/mslug.neo"},
     {"label": "Metal Slug (NO COLL)", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/sandbox/mslug1-nocoll.neo"},
     {"label": "Metal Slug (GOD MODE)", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/sandbox/mslug1-godmode.neo"},
+    {"label": "Sound Lab", "cmd": "/home/bruno/CLProjects/NeoScanSDK/examples/sound_lab/run.sh"},
     {"label": "Build + Run Hello Neo", "cmd": "/home/bruno/CLProjects/NeoScanSDK/examples/hello_neo/run.sh"},
     {"label": "Hello Neo", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/hello_neo/hello_neo.neo"},
     {"label": "Jukebox", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/jukebox/jukebox.neo"},
