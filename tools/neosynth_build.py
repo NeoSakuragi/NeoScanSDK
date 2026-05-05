@@ -928,6 +928,9 @@ ADPCM_SAMPLES = [
 FM_FNUMS = [617, 654, 693, 734, 778, 824, 873, 925, 980, 1038, 1100, 1165]
 SSG_PERIODS_OCT4 = [239, 225, 213, 201, 190, 179, 169, 159, 150, 142, 134, 127]
 
+# ================================================================
+# ORIGINAL NEOSYNTH FM PATCHES (0-3)
+# ================================================================
 FM_PATCH_SIMPLE = {
     'DT_MUL': [0x01, 0x00, 0x00, 0x00],
     'TL':     [0x00, 0x7F, 0x7F, 0x7F],
@@ -969,8 +972,293 @@ FM_PATCH_PIANO = {
     'LR_AMS_PMS': 0xC0,
 }
 
-FM_PATCHES = [FM_PATCH_SIMPLE, FM_PATCH_ORGAN, FM_PATCH_BRASS, FM_PATCH_PIANO]
+# ================================================================
+# KOF96 EXTRACTED FM PATCHES (4-19) — via Z80 tracer
+# ================================================================
+
+# Patch 4: Lead synth with rich harmonics (ALG=5 FB=5)
+# Used in KOF96 character select and stage themes
+FM_PATCH_KOF_LEAD = {
+    'DT_MUL': [0x70, 0x30, 0x20, 0x63],
+    'TL':     [0x19, 0x00, 0x00, 0x00],
+    'KS_AR':  [0x5A, 0x94, 0x98, 0xD4],
+    'AM_DR':  [0x08, 0x07, 0x03, 0x10],
+    'SR':     [0x01, 0x01, 0x01, 0x01],
+    'SL_RR':  [0x3B, 0x9C, 0x58, 0x5A],
+    'FB_ALG': 0x2D,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 5: Dual-carrier strings, gentle detune (ALG=4 FB=2)
+# Lush ensemble sound from KOF96 opening
+FM_PATCH_KOF_STRINGS = {
+    'DT_MUL': [0x75, 0x72, 0x35, 0x32],
+    'TL':     [0x1E, 0x00, 0x14, 0x00],
+    'KS_AR':  [0x9F, 0x9F, 0x9F, 0x9F],
+    'AM_DR':  [0x05, 0x05, 0x00, 0x0A],
+    'SR':     [0x05, 0x05, 0x07, 0x05],
+    'SL_RR':  [0x25, 0xF7, 0x05, 0x27],
+    'FB_ALG': 0x14,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 6: FM percussion hit — metallic, all carriers (ALG=6 FB=7)
+# Impact/crash sound used in KOF96 fight intros
+FM_PATCH_KOF_PERC = {
+    'DT_MUL': [0x01, 0x33, 0x02, 0x51],
+    'TL':     [0x11, 0x00, 0x00, 0x00],
+    'KS_AR':  [0x1F, 0x1F, 0x1F, 0x1F],
+    'AM_DR':  [0x19, 0x1F, 0x1F, 0x1F],
+    'SR':     [0x1E, 0x00, 0x00, 0x00],
+    'SL_RR':  [0x3F, 0x0F, 0x0F, 0x0F],
+    'FB_ALG': 0x3E,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 7: Slow-attack pad, warm and wide (ALG=4 FB=7)
+# Used in KOF96 ending themes and character intros
+FM_PATCH_KOF_PAD = {
+    'DT_MUL': [0x74, 0x74, 0x34, 0x34],
+    'TL':     [0x36, 0x00, 0x32, 0x00],
+    'KS_AR':  [0x0E, 0x0A, 0x0D, 0x0A],
+    'AM_DR':  [0x01, 0x01, 0x01, 0x01],
+    'SR':     [0x00, 0x00, 0x00, 0x00],
+    'SL_RR':  [0x48, 0x1A, 0x48, 0x1A],
+    'FB_ALG': 0x3C,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 8: Aggressive lead, high FB distortion (ALG=5 FB=7)
+# KOF96 boss battle theme lead voice
+FM_PATCH_KOF_LEAD_HARD = {
+    'DT_MUL': [0x71, 0x32, 0x22, 0x32],
+    'TL':     [0x14, 0x00, 0x00, 0x00],
+    'KS_AR':  [0x5A, 0x1F, 0x9F, 0x5F],
+    'AM_DR':  [0x18, 0x0F, 0x06, 0x06],
+    'SR':     [0x0D, 0x00, 0x02, 0x02],
+    'SL_RR':  [0x28, 0x28, 0x58, 0x68],
+    'FB_ALG': 0x3D,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 9: Orchestral strings, moderate attack (ALG=4 FB=4)
+# Background strings in stage themes
+FM_PATCH_KOF_ORCH_STR = {
+    'DT_MUL': [0x71, 0x71, 0x30, 0x31],
+    'TL':     [0x18, 0x00, 0x13, 0x00],
+    'KS_AR':  [0x1C, 0x1C, 0x19, 0x1C],
+    'AM_DR':  [0x0B, 0x00, 0x0C, 0x00],
+    'SR':     [0x07, 0x05, 0x0B, 0x05],
+    'SL_RR':  [0x73, 0x28, 0x16, 0x28],
+    'FB_ALG': 0x24,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 10: Pure additive sine, soft bell-like (ALG=7 FB=0)
+# Clean tones for melodic lines
+FM_PATCH_KOF_SINE = {
+    'DT_MUL': [0x01, 0x00, 0x00, 0x00],
+    'TL':     [0x00, 0x00, 0x00, 0x00],
+    'KS_AR':  [0x1F, 0x1F, 0x1F, 0x1F],
+    'AM_DR':  [0x1A, 0x0A, 0x10, 0x00],
+    'SR':     [0x01, 0x00, 0x00, 0x00],
+    'SL_RR':  [0x68, 0x68, 0x68, 0x68],
+    'FB_ALG': 0x07,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 11: Sustained power lead (ALG=5 FB=7)
+# KOF96 theme melody lines
+FM_PATCH_KOF_POWER = {
+    'DT_MUL': [0x70, 0x30, 0x70, 0x30],
+    'TL':     [0x1B, 0x00, 0x00, 0x00],
+    'KS_AR':  [0x1F, 0x9F, 0x5F, 0x1F],
+    'AM_DR':  [0x00, 0x00, 0x00, 0x00],
+    'SR':     [0x00, 0x03, 0x00, 0x05],
+    'SL_RR':  [0x0F, 0x0F, 0x0F, 0x0F],
+    'FB_ALG': 0x3D,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 12: Heavy bass, serial chain (ALG=0 FB=4)
+# KOF96 bass lines in fight themes
+FM_PATCH_KOF_BASS = {
+    'DT_MUL': [0x73, 0x33, 0x10, 0x00],
+    'TL':     [0x17, 0x28, 0x19, 0x3A],
+    'KS_AR':  [0x5F, 0xDD, 0xDF, 0xDF],
+    'AM_DR':  [0x12, 0x0A, 0x04, 0x03],
+    'SR':     [0x0F, 0x08, 0x08, 0x08],
+    'SL_RR':  [0xB0, 0x50, 0xD0, 0xB6],
+    'FB_ALG': 0x20,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 13: Distorted pluck, all ops at max attack (ALG=0 FB=6)
+# Sharp hit sound, KOF96 percussion stabs
+FM_PATCH_KOF_DIST_PLUCK = {
+    'DT_MUL': [0x00, 0x00, 0x00, 0x00],
+    'TL':     [0x12, 0x14, 0x13, 0x00],
+    'KS_AR':  [0x1F, 0x1F, 0x1F, 0x1F],
+    'AM_DR':  [0x02, 0x1F, 0x1F, 0x1F],
+    'SR':     [0x00, 0x00, 0x00, 0x00],
+    'SL_RR':  [0xFF, 0x0F, 0x0F, 0x0F],
+    'FB_ALG': 0x30,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 14: Slow nasal lead (ALG=3 FB=7)
+# Expressive lead in character themes
+FM_PATCH_KOF_NASAL = {
+    'DT_MUL': [0x74, 0x31, 0x24, 0x01],
+    'TL':     [0x0A, 0x10, 0x1A, 0x00],
+    'KS_AR':  [0x1F, 0x08, 0x08, 0x0A],
+    'AM_DR':  [0x1F, 0x02, 0x02, 0x02],
+    'SR':     [0x00, 0x01, 0x01, 0x01],
+    'SL_RR':  [0x63, 0x85, 0x66, 0xB2],
+    'FB_ALG': 0x3B,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 15: Distorted heavy, thick wall of sound (ALG=1 FB=7)
+# Power chords and heavy riffs
+FM_PATCH_KOF_DIST_HEAVY = {
+    'DT_MUL': [0x75, 0x3D, 0x3F, 0x78],
+    'TL':     [0x2C, 0x1D, 0x11, 0x00],
+    'KS_AR':  [0x1F, 0x1F, 0x14, 0x1C],
+    'AM_DR':  [0x03, 0x01, 0x05, 0x00],
+    'SR':     [0x00, 0x00, 0x00, 0x00],
+    'SL_RR':  [0x38, 0x38, 0x38, 0x09],
+    'FB_ALG': 0x39,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 16: Rich evolving pad (ALG=6 FB=0)
+# Atmospheric pad in KOF96 story sequences
+FM_PATCH_KOF_PAD_RICH = {
+    'DT_MUL': [0x01, 0x33, 0x72, 0x31],
+    'TL':     [0x4D, 0x00, 0x00, 0x00],
+    'KS_AR':  [0x0A, 0x8C, 0x4C, 0x52],
+    'AM_DR':  [0x00, 0x00, 0x00, 0x00],
+    'SR':     [0x01, 0x00, 0x01, 0x00],
+    'SL_RR':  [0x03, 0x05, 0x26, 0x06],
+    'FB_ALG': 0x06,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 17: Guitar-like pluck (ALG=4 FB=7)
+# Acoustic guitar simulation in stage themes
+FM_PATCH_KOF_GUITAR = {
+    'DT_MUL': [0x32, 0x54, 0x51, 0x32],
+    'TL':     [0x22, 0x00, 0x18, 0x00],
+    'KS_AR':  [0x1F, 0x0C, 0x1F, 0x0C],
+    'AM_DR':  [0x0F, 0x00, 0x1F, 0x00],
+    'SR':     [0x00, 0x00, 0x00, 0x00],
+    'SL_RR':  [0x21, 0x06, 0x01, 0x05],
+    'FB_ALG': 0x3C,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 18: Bell/vibraphone tone (ALG=2 FB=7)
+# Metallic bell hits in KOF96 victory themes
+FM_PATCH_KOF_BELL = {
+    'DT_MUL': [0x0C, 0x1F, 0x01, 0x53],
+    'TL':     [0x1D, 0x36, 0x1B, 0x00],
+    'KS_AR':  [0x1F, 0xDF, 0x1F, 0x9F],
+    'AM_DR':  [0x0C, 0x02, 0x0C, 0x05],
+    'SR':     [0x04, 0x04, 0x04, 0x07],
+    'SL_RR':  [0x1A, 0xF6, 0x06, 0x27],
+    'FB_ALG': 0x3A,
+    'LR_AMS_PMS': 0xC0,
+}
+
+# Patch 19: Electric keys/clav (ALG=2 FB=5)
+# Keyboard stabs and comping
+FM_PATCH_KOF_KEYS = {
+    'DT_MUL': [0x51, 0x05, 0x13, 0x01],
+    'TL':     [0x23, 0x2D, 0x26, 0x00],
+    'KS_AR':  [0x5F, 0x99, 0x5F, 0x94],
+    'AM_DR':  [0x05, 0x05, 0x05, 0x07],
+    'SR':     [0x02, 0x02, 0x02, 0x02],
+    'SL_RR':  [0x11, 0x11, 0x11, 0xA6],
+    'FB_ALG': 0x2A,
+    'LR_AMS_PMS': 0xC0,
+}
+
+FM_PATCHES = [
+    FM_PATCH_SIMPLE,         # 0: Simple sine
+    FM_PATCH_ORGAN,          # 1: Organ
+    FM_PATCH_BRASS,          # 2: Brass
+    FM_PATCH_PIANO,          # 3: Piano
+    FM_PATCH_KOF_LEAD,       # 4: KOF Lead
+    FM_PATCH_KOF_STRINGS,    # 5: KOF Strings
+    FM_PATCH_KOF_PERC,       # 6: KOF FM Perc
+    FM_PATCH_KOF_PAD,        # 7: KOF Pad Soft
+    FM_PATCH_KOF_LEAD_HARD,  # 8: KOF Lead Hard
+    FM_PATCH_KOF_ORCH_STR,   # 9: KOF Orch Strings
+    FM_PATCH_KOF_SINE,       # 10: KOF Sine Add
+    FM_PATCH_KOF_POWER,      # 11: KOF Power Lead
+    FM_PATCH_KOF_BASS,       # 12: KOF Bass Heavy
+    FM_PATCH_KOF_DIST_PLUCK, # 13: KOF Dist Pluck
+    FM_PATCH_KOF_NASAL,      # 14: KOF Nasal Lead
+    FM_PATCH_KOF_DIST_HEAVY, # 15: KOF Dist Heavy
+    FM_PATCH_KOF_PAD_RICH,   # 16: KOF Pad Rich
+    FM_PATCH_KOF_GUITAR,     # 17: KOF Guitar
+    FM_PATCH_KOF_BELL,       # 18: KOF Bell
+    FM_PATCH_KOF_KEYS,       # 19: KOF Keys
+]
 NUM_FM_PATCHES = len(FM_PATCHES)
+
+# FM patch display names (8 chars max, for fix layer)
+FM_PATCH_NAMES = [
+    "SINE    ",  # 0
+    "ORGAN   ",  # 1
+    "BRASS   ",  # 2
+    "PIANO   ",  # 3
+    "KOF LEAD",  # 4
+    "KOF STR ",  # 5
+    "KOF PERC",  # 6
+    "KOF PAD ",  # 7
+    "KOF HARD",  # 8
+    "KOF ORCH",  # 9
+    "KOF SINE",  # 10
+    "KOF POWR",  # 11
+    "KOF BASS",  # 12
+    "KOF DIST",  # 13
+    "KOF NASL",  # 14
+    "KOF DHVY",  # 15
+    "KOF RICH",  # 16
+    "KOF GTR ",  # 17
+    "KOF BELL",  # 18
+    "KOF KEYS",  # 19
+]
+
+# ================================================================
+# SSG PRESETS — volume envelope parameters for PSG channels
+# Each preset: (initial_volume 0-15, decay_rate 0-15, noise_enable 0/1)
+# Decay rate: 0=sustained, 1=very slow, 15=instant
+# ================================================================
+SSG_PRESET_SQUARE   = (15,  0, 0)  # Plain square, sustained
+SSG_PRESET_PLUCK    = (15, 10, 0)  # Fast attack, medium decay (arpeggios)
+SSG_PRESET_BELL     = (15,  3, 0)  # Fast attack, slow decay (bell)
+SSG_PRESET_NOISE_HH = (12, 14, 1)  # Noise channel, fast decay (hi-hat)
+SSG_PRESET_BUZZ     = ( 5,  0, 0)  # Low volume, sustained (background texture)
+
+SSG_PRESETS = [
+    SSG_PRESET_SQUARE,    # 0: Square
+    SSG_PRESET_PLUCK,     # 1: Pluck
+    SSG_PRESET_BELL,      # 2: Bell
+    SSG_PRESET_NOISE_HH,  # 3: Noise HH
+    SSG_PRESET_BUZZ,      # 4: Buzz
+]
+NUM_SSG_PRESETS = len(SSG_PRESETS)
+
+SSG_PRESET_NAMES = [
+    "SQUARE  ",  # 0
+    "PLUCK   ",  # 1
+    "BELL    ",  # 2
+    "NOIZ HH ",  # 3
+    "BUZZ    ",  # 4
+]
 NUM_SAMPLES = len(ADPCM_SAMPLES)
 
 # RAM addresses ($F800-$FFFF)
@@ -1006,8 +1294,9 @@ FM_FNUM_TABLE  = 0x2E00
 SSG_PERIOD_TABLE = 0x2E20
 FM_PATCH_TABLE = 0x2E40
 PATCH_SIZE = 26  # 6 params * 4 ops + FB_ALG + LR_AMS_PMS
-SONG_TABLE     = 0x3000      # song table: 5 bytes per song (after sample table + FM/SSG tables)
-SONG_DATA_BASE = 0x3100      # song data starts here
+SSG_PRESET_TABLE = 0x3060    # SSG presets: 3 bytes each (vol, decay, noise)
+SONG_TABLE     = 0x3100      # song table: 5 bytes per song (moved forward for 20 FM patches)
+SONG_DATA_BASE = 0x3200      # song data starts here
 
 # Song data format:
 # 8 bytes per row: [FM1] [FM2] [FM3] [FM4] [SSG1] [SSG2] [SSG3] [ADPCM_A_TRIG]
@@ -1275,6 +1564,48 @@ def build_test_songs():
 
     # Song 2: Guile's Theme (Street Fighter 2) — C minor, 120 BPM
     songs.append(build_guile_theme())
+
+
+    # Song 3: ADPCM-only drum beat (no FM to avoid stack bug)
+    song = []
+    S = SEQ_SUSTAIN
+    # Pure ADPCM pattern — 4 bars, kick/snare/hihat
+    # Samples: 1=kick, 3=snare, 5=hihat, 7=crash, 10=bass, 11=perc
+    for bar in range(4):
+        # Beat 1: kick + crash on bar 0
+        song.append([S,S,S,S,S,S,S, 7 if bar==0 else 1])
+        song.append([S,S,S,S,S,S,S, 5])
+        # &
+        song.append([S,S,S,S,S,S,S, 0])
+        song.append([S,S,S,S,S,S,S, 5])
+        # Beat 2: snare
+        song.append([S,S,S,S,S,S,S, 3])
+        song.append([S,S,S,S,S,S,S, 5])
+        # &
+        song.append([S,S,S,S,S,S,S, 0])
+        song.append([S,S,S,S,S,S,S, 5])
+        # Beat 3: kick
+        song.append([S,S,S,S,S,S,S, 1])
+        song.append([S,S,S,S,S,S,S, 5])
+        # &
+        song.append([S,S,S,S,S,S,S, 10])  # bass
+        song.append([S,S,S,S,S,S,S, 5])
+        # Beat 4: snare
+        song.append([S,S,S,S,S,S,S, 3])
+        song.append([S,S,S,S,S,S,S, 5])
+        # & fill on last bar
+        if bar == 3:
+            song.append([S,S,S,S,S,S,S, 11])  # perc
+            song.append([S,S,S,S,S,S,S, 11])
+        else:
+            song.append([S,S,S,S,S,S,S, 0])
+            song.append([S,S,S,S,S,S,S, 5])
+    song.append([0xFF,0,0,0,0,0,0,0])
+    song_bytes = bytearray()
+    for row in song:
+        for b in row:
+            song_bytes.append(b & 0xFF)
+    songs.append((song_bytes, 7))
 
     return songs
 
@@ -1573,9 +1904,16 @@ def build_driver(sample_table_path=None):
         a.db(patch['FB_ALG'])
         a.db(patch['LR_AMS_PMS'])
 
+    # SSG preset table (3 bytes each: volume, decay_rate, noise_enable)
+    a.org(SSG_PRESET_TABLE)
+    for vol, decay, noise in SSG_PRESETS:
+        a.db(vol)
+        a.db(decay)
+        a.db(noise)
+
     # Signature
     a.org(0x0040)
-    for b in b'NeoSynth v2.0':
+    for b in b'NeoSynth v3.0':
         a.db(b)
 
     # FM key-on/off value tables
@@ -2707,31 +3045,28 @@ def build_driver(sample_table_path=None):
     a.add_hl_de()             # HL = SONG_TABLE + B*5
 
     # Read song entry: [start_lo, start_hi, length_lo, length_hi, tempo]
+    # Read all 5 bytes into registers first
     a.ld_e_hl(); a.inc_hl()   # E = start_lo
     a.ld_d_hl(); a.inc_hl()   # D = start_hi
+    a.ld_c_hl(); a.inc_hl()   # C = len_lo
+    a.ld_b_hl(); a.inc_hl()   # B = len_hi
+    a.ld_a_hl()               # A = tempo
+
+    # Store tempo FIRST (before A gets clobbered)
+    a.ld_mem_a(RAM_SEQ_TICK_RATE)
+    a.ld_mem_a(RAM_SEQ_TICK_CNT)
+
     # Store start address
     a.ld_a_e(); a.ld_mem_a(RAM_SEQ_START_LO)
     a.ld_a_d(); a.ld_mem_a(RAM_SEQ_START_HI)
-    # Also set current row pointer to start
     a.ld_a_e(); a.ld_mem_a(RAM_SEQ_ROW_LO)
     a.ld_a_d(); a.ld_mem_a(RAM_SEQ_ROW_HI)
 
-    # Read length
-    a.ld_c_hl(); a.inc_hl()   # C = len_lo
-    a.ld_b_hl(); a.inc_hl()   # B = len_hi
-    # End address = start + length
-    # DE = start, BC = length
-    a.push_hl()               # save HL (points to tempo byte)
+    # Compute end = start + length
     a.ld_h_d(); a.ld_l_e()    # HL = start
     a.add_hl_bc()             # HL = start + length = end
     a.ld_a_l(); a.ld_mem_a(RAM_SEQ_END_LO)
     a.ld_a_h(); a.ld_mem_a(RAM_SEQ_END_HI)
-    a.pop_hl()
-
-    # Read tempo
-    a.ld_a_hl()
-    a.ld_mem_a(RAM_SEQ_TICK_RATE)
-    a.ld_mem_a(RAM_SEQ_TICK_CNT)  # start counting from full tempo
 
     # Clear sequencer patch state
     a.xor_a()
@@ -3108,8 +3443,7 @@ def build_driver(sample_table_path=None):
     # $00 = sustain, $01 = key-off, $02-$7F = note-on
     # ================================================================
     SEQ_PROCESS_SSG = a.here()
-    for addr in [jp_seq_ssg_call_0, jp_seq_ssg_call_1,
-]:
+    for addr in [jp_seq_ssg_call_0, jp_seq_ssg_call_1, jp_seq_ssg_call_2]:
         a.patch_call(addr, SEQ_PROCESS_SSG)
 
     # Check sustain
@@ -3318,6 +3652,7 @@ def build_driver(sample_table_path=None):
     print(f"  FM Fnum table: 0x{FM_FNUM_TABLE:04X}")
     print(f"  SSG Period tbl:0x{SSG_PERIOD_TABLE:04X}")
     print(f"  FM Patch table:0x{FM_PATCH_TABLE:04X} ({NUM_FM_PATCHES} patches)")
+    print(f"  SSG Presets:   0x{SSG_PRESET_TABLE:04X} ({NUM_SSG_PRESETS} presets)")
     print(f"  Song table:    0x{SONG_TABLE:04X} ({num_songs} songs)")
     print(f"  Song data:     0x{SONG_DATA_BASE:04X}")
     print(f"  Code end:      0x{a.pc:04X}")

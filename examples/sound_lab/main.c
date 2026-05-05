@@ -65,6 +65,32 @@ static void cmd_param_action(uint8_t param_val, uint8_t action_cmd) {
     cmd_enqueue(action_cmd);
 }
 
+/* ---- FM patch names (must match neosynth_build.py FM_PATCHES order) ---- */
+#define FM_PATCH_COUNT 20
+
+static const char *FM_PATCH_NAMES[FM_PATCH_COUNT] = {
+    "SINE    ",  /*  0 */
+    "ORGAN   ",  /*  1 */
+    "BRASS   ",  /*  2 */
+    "PIANO   ",  /*  3 */
+    "KOF LEAD",  /*  4 */
+    "KOF STR ",  /*  5 */
+    "KOF PERC",  /*  6 */
+    "KOF PAD ",  /*  7 */
+    "KOF HARD",  /*  8 */
+    "KOF ORCH",  /*  9 */
+    "KOF SINE",  /* 10 */
+    "KOF POWR",  /* 11 */
+    "KOF BASS",  /* 12 */
+    "KOF DIST",  /* 13 */
+    "KOF NASL",  /* 14 */
+    "KOF DHVY",  /* 15 */
+    "KOF RICH",  /* 16 */
+    "KOF GTR ",  /* 17 */
+    "KOF BELL",  /* 18 */
+    "KOF KEYS",  /* 19 */
+};
+
 /* ---- Instrument names for the KOF96 ADPCM-A kit ---- */
 #define INST_COUNT SND_COUNT
 
@@ -192,9 +218,13 @@ static void draw_menu(void) {
             break;
         case MENU_FM1: case MENU_FM2: case MENU_FM3: case MENU_FM4: {
             uint8_t ch = i - MENU_FM1;
-            FIX_print(11, row, "P", pal);
-            print_hex(12, row, fm_patch[ch], pal);
-            print_note(17, row, fm_note[ch], pal);
+            if (fm_patch[ch] < FM_PATCH_COUNT) {
+                FIX_print(11, row, FM_PATCH_NAMES[fm_patch[ch]], pal);
+            } else {
+                FIX_print(11, row, "P", pal);
+                print_hex(12, row, fm_patch[ch], pal);
+            }
+            print_note(20, row, fm_note[ch], pal);
             break;
         }
         case MENU_SSG1: case MENU_SSG2: case MENU_SSG3: {
@@ -285,6 +315,10 @@ void game_tick(void) {
 
     auto_frame++;
 
+    /* Auto-play: song 3 (beat with instruments) */
+    if (auto_frame == 200) {
+        SND_play(CMD_PLAY_SONG + 3);
+    }
 
     if (pressed & JOY_UP) {
         menu_sel = (menu_sel > 0) ? menu_sel - 1 : MENU_COUNT - 1;
@@ -315,8 +349,9 @@ void game_tick(void) {
             SND_play(CMD_FM_OFF + ch);
         }
         if (pressed & JOY_START) {
-            /* Cycle through FM patches */
-            fm_patch[ch] = (fm_patch[ch] + 1) & 0x03;
+            /* Cycle through all 20 FM patches */
+            fm_patch[ch] = fm_patch[ch] + 1;
+            if (fm_patch[ch] >= FM_PATCH_COUNT) fm_patch[ch] = 0;
             cmd_param_action((uint8_t)fm_patch[ch], CMD_FM_PATCH + ch);
             menu_dirty = 1;
         }
