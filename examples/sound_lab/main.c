@@ -1,7 +1,7 @@
 #include <neoscan.h>
 #include "resources.h"
 
-/* === SOUND LAB — Drum & Bass Sample Kit === */
+/* === SOUND LAB — KOF96 Instrument Kit === */
 
 /*
  * NeoSynth command protocol:
@@ -65,20 +65,29 @@ static void cmd_param_action(uint8_t param_val, uint8_t action_cmd) {
     cmd_enqueue(action_cmd);
 }
 
-/* ---- Instrument names for the ADPCM-A drum kit ---- */
+/* ---- Instrument names for the KOF96 ADPCM-A kit ---- */
 #define INST_COUNT SND_COUNT
 
 static const char *INST_NAMES[INST_COUNT] = {
-    "KICK    ",   /* 0 = SND_KICK - 1 */
-    "SNARE   ",   /* 1 */
-    "HH CLOS ",   /* 2 */
-    "HH OPEN ",   /* 3 */
-    "CRASH   ",   /* 4 */
-    "TOM LOW ",   /* 5 */
-    "TOM MID ",   /* 6 */
-    "CLAP    ",   /* 7 */
-    "BASS HIT",   /* 8 */
-    "BASS SLD",   /* 9 */
+    "KICK HVY",   /*  0 */
+    "KICK DEP",   /*  1 */
+    "SNARE TI",   /*  2 */
+    "SNARE MI",   /*  3 */
+    "HH CLOS ",   /*  4 */
+    "HH OPEN ",   /*  5 */
+    "CRASH   ",   /*  6 */
+    "BASS LOW",   /*  7 */
+    "BASS PLK",   /*  8 */
+    "BASS MID",   /*  9 */
+    "PERC TOM",   /* 10 */
+    "PERC HIT",   /* 11 */
+    "GUITAR  ",   /* 12 */
+    "MELODIC ",   /* 13 */
+    "BRASS HI",   /* 14 */
+    "BRASS ST",   /* 15 */
+    "VOCAL   ",   /* 16 */
+    "IMPACT  ",   /* 17 */
+    "WHOOSH  ",   /* 18 */
 };
 
 /* Menu items */
@@ -167,7 +176,7 @@ static void draw_menu(void) {
         return;
 
     FIX_print(1, 1, "NEOSCAN SOUND LAB", 0);
-    FIX_print(1, 2, "DRUM & BASS KIT", 0);
+    FIX_print(1, 2, "KOF96 INSTRUMENTS", 0);
 
     for (i = 0; i < MENU_COUNT; i++) {
         uint8_t row = 4 + i;

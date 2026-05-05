@@ -10,12 +10,8 @@ CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(BUILD) -Wal
 
 all: $(ROM_NAME).neo
 
-# --- Generate WAV samples (if not present) ---
-res/kick.wav:
-	python3 $(TOOLS)/gen_drum_kit.py -o res/
-
 # --- Resources (neores pipeline: WAV -> ADPCM, font) ---
-$(BUILD)/resources.h: res/resources.res res/kick.wav
+$(BUILD)/resources.h: res/resources.res $(wildcard res/instruments/*.wav)
 	@mkdir -p $(BUILD)
 	python3 $(TOOLS)/neores.py res/resources.res -o $(BUILD) --force
 	@# Ensure C ROMs exist (neores only creates them when TILES are present)

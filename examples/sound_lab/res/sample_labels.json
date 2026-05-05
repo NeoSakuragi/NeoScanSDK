@@ -1,0 +1,1712 @@
+{
+  "kof96_a_000.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1577.5,
+    "rms": 0.3492,
+    "spectral_centroid": 2900.7,
+    "dominant_freq": 2511.2
+  },
+  "kof96_a_001.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2269.4,
+    "rms": 0.1784,
+    "spectral_centroid": 2037.5,
+    "dominant_freq": 352.3
+  },
+  "kof96_a_002.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 2933.6,
+    "rms": 0.1127,
+    "spectral_centroid": 1661.8,
+    "dominant_freq": 144.5
+  },
+  "kof96_a_003.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 4013.0,
+    "rms": 0.1322,
+    "spectral_centroid": 1292.1,
+    "dominant_freq": 415.5
+  },
+  "kof96_a_004.wav": {
+    "label": "snare drum",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 304.4,
+    "rms": 0.0971,
+    "spectral_centroid": 2606.2,
+    "dominant_freq": 1463.4
+  },
+  "kof96_a_005.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1328.4,
+    "rms": 0.1793,
+    "spectral_centroid": 3232.1,
+    "dominant_freq": 1915.0
+  },
+  "kof96_a_006.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 3044.3,
+    "rms": 0.1873,
+    "spectral_centroid": 2529.2,
+    "dominant_freq": 36.1
+  },
+  "kof96_a_007.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 2989.0,
+    "rms": 0.1394,
+    "spectral_centroid": 1312.7,
+    "dominant_freq": 81.3
+  },
+  "kof96_a_008.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 2822.9,
+    "rms": 0.2524,
+    "spectral_centroid": 1392.7,
+    "dominant_freq": 794.9
+  },
+  "kof96_a_009.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 4096.0,
+    "rms": 0.1665,
+    "spectral_centroid": 1015.2,
+    "dominant_freq": 162.6
+  },
+  "kof96_a_010.wav": {
+    "label": "percussive hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 857.9,
+    "rms": 0.1832,
+    "spectral_centroid": 2032.9,
+    "dominant_freq": 831.1
+  },
+  "kof96_a_011.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1715.9,
+    "rms": 0.2035,
+    "spectral_centroid": 2381.3,
+    "dominant_freq": 2592.5
+  },
+  "kof96_a_012.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 7029.6,
+    "rms": 0.2102,
+    "spectral_centroid": 2518.6,
+    "dominant_freq": 2782.2
+  },
+  "kof96_a_013.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1771.2,
+    "rms": 0.2001,
+    "spectral_centroid": 2741.3,
+    "dominant_freq": 2565.4
+  },
+  "kof96_a_014.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1798.9,
+    "rms": 0.187,
+    "spectral_centroid": 2675.3,
+    "dominant_freq": 2755.1
+  },
+  "kof96_a_015.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 3509.2,
+    "rms": 0.1851,
+    "spectral_centroid": 2282.3,
+    "dominant_freq": 2773.2
+  },
+  "kof96_a_016.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1732.2,
+    "rms": 0.1843,
+    "spectral_centroid": 2339.6,
+    "dominant_freq": 2574.5
+  },
+  "kof96_a_017.wav": {
+    "label": "hi-hat closed",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 166.1,
+    "rms": 0.2145,
+    "spectral_centroid": 2980.8,
+    "dominant_freq": 2493.2
+  },
+  "kof96_a_018.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 802.6,
+    "rms": 0.1495,
+    "spectral_centroid": 3629.5,
+    "dominant_freq": 1842.8
+  },
+  "kof96_a_019.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1660.5,
+    "rms": 0.2029,
+    "spectral_centroid": 2882.5,
+    "dominant_freq": 2339.6
+  },
+  "kof96_a_020.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1660.5,
+    "rms": 0.2079,
+    "spectral_centroid": 2669.6,
+    "dominant_freq": 1761.5
+  },
+  "kof96_a_021.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1605.2,
+    "rms": 0.2028,
+    "spectral_centroid": 2661.8,
+    "dominant_freq": 1779.5
+  },
+  "kof96_a_022.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1688.2,
+    "rms": 0.1945,
+    "spectral_centroid": 2298.6,
+    "dominant_freq": 2574.5
+  },
+  "kof96_a_023.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1688.2,
+    "rms": 0.1976,
+    "spectral_centroid": 2757.7,
+    "dominant_freq": 2746.1
+  },
+  "kof96_a_024.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 3044.3,
+    "rms": 0.2301,
+    "spectral_centroid": 2326.1,
+    "dominant_freq": 2556.4
+  },
+  "kof96_a_025.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1522.2,
+    "rms": 0.2413,
+    "spectral_centroid": 2715.8,
+    "dominant_freq": 1770.5
+  },
+  "kof96_a_026.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 7223.4,
+    "rms": 0.1506,
+    "spectral_centroid": 1863.1,
+    "dominant_freq": 108.4
+  },
+  "kof96_a_027.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2767.6,
+    "rms": 0.1704,
+    "spectral_centroid": 2362.4,
+    "dominant_freq": 99.4
+  },
+  "kof96_a_028.wav": {
+    "label": "drum hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 581.2,
+    "rms": 0.1217,
+    "spectral_centroid": 734.6,
+    "dominant_freq": 36.1
+  },
+  "kof96_a_029.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 1605.2,
+    "rms": 0.1401,
+    "spectral_centroid": 750.6,
+    "dominant_freq": 108.4
+  },
+  "kof96_a_030.wav": {
+    "label": "snare drum",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 332.1,
+    "rms": 0.1851,
+    "spectral_centroid": 2922.7,
+    "dominant_freq": 2502.2
+  },
+  "kof96_a_031.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1328.4,
+    "rms": 0.235,
+    "spectral_centroid": 2622.4,
+    "dominant_freq": 2755.1
+  },
+  "kof96_a_032.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1383.8,
+    "rms": 0.2537,
+    "spectral_centroid": 2558.3,
+    "dominant_freq": 234.9
+  },
+  "kof96_a_033.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1356.1,
+    "rms": 0.2928,
+    "spectral_centroid": 2809.2,
+    "dominant_freq": 587.2
+  },
+  "kof96_a_034.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 8994.6,
+    "rms": 0.2404,
+    "spectral_centroid": 2392.5,
+    "dominant_freq": 243.9
+  },
+  "kof96_a_035.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1383.8,
+    "rms": 0.2338,
+    "spectral_centroid": 2660.0,
+    "dominant_freq": 2321.5
+  },
+  "kof96_a_036.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1439.1,
+    "rms": 0.1987,
+    "spectral_centroid": 2246.8,
+    "dominant_freq": 198.7
+  },
+  "kof96_a_037.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1937.3,
+    "rms": 0.1451,
+    "spectral_centroid": 4697.2,
+    "dominant_freq": 4724.4
+  },
+  "kof96_a_038.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 885.6,
+    "rms": 0.1619,
+    "spectral_centroid": 4624.5,
+    "dominant_freq": 4046.9
+  },
+  "kof96_a_039.wav": {
+    "label": "snare crack",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 138.4,
+    "rms": 0.2128,
+    "spectral_centroid": 2666.7,
+    "dominant_freq": 2303.5
+  },
+  "kof96_a_040.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1522.2,
+    "rms": 0.1691,
+    "spectral_centroid": 2603.4,
+    "dominant_freq": 45.2
+  },
+  "kof96_a_041.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 747.2,
+    "rms": 0.1269,
+    "spectral_centroid": 2300.6,
+    "dominant_freq": 36.1
+  },
+  "kof96_a_042.wav": {
+    "label": "snare drum",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 747.2,
+    "rms": 0.184,
+    "spectral_centroid": 2505.1,
+    "dominant_freq": 36.1
+  },
+  "kof96_a_043.wav": {
+    "label": "unknown sound",
+    "category": "other",
+    "keep": true,
+    "duration_ms": 636.5,
+    "rms": 0.1531,
+    "spectral_centroid": 1762.2,
+    "dominant_freq": 560.1
+  },
+  "kof96_a_044.wav": {
+    "label": "snare drum",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 636.5,
+    "rms": 0.1187,
+    "spectral_centroid": 2147.6,
+    "dominant_freq": 198.7
+  },
+  "kof96_a_045.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 2463.1,
+    "rms": 0.3106,
+    "spectral_centroid": 2893.5,
+    "dominant_freq": 1978.3
+  },
+  "kof96_a_046.wav": {
+    "label": "snare drum",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 664.2,
+    "rms": 0.0993,
+    "spectral_centroid": 4255.3,
+    "dominant_freq": 4606.9
+  },
+  "kof96_a_047.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1273.1,
+    "rms": 0.067,
+    "spectral_centroid": 4355.3,
+    "dominant_freq": 3414.6
+  },
+  "kof96_a_048.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 747.2,
+    "rms": 0.06,
+    "spectral_centroid": 5409.1,
+    "dominant_freq": 6296.1
+  },
+  "kof96_a_049.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2518.5,
+    "rms": 0.1873,
+    "spectral_centroid": 2777.6,
+    "dominant_freq": 189.7
+  },
+  "kof96_a_050.wav": {
+    "label": "drum hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 664.2,
+    "rms": 0.1945,
+    "spectral_centroid": 2072.7,
+    "dominant_freq": 144.5
+  },
+  "kof96_a_051.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 359.8,
+    "rms": 0.1607,
+    "spectral_centroid": 844.6,
+    "dominant_freq": 45.2
+  },
+  "kof96_a_052.wav": {
+    "label": "kick drum",
+    "category": "kick",
+    "keep": true,
+    "duration_ms": 359.8,
+    "rms": 0.2329,
+    "spectral_centroid": 413.5,
+    "dominant_freq": 36.1
+  },
+  "kof96_a_053.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 276.8,
+    "rms": 0.2068,
+    "spectral_centroid": 511.1,
+    "dominant_freq": 63.2
+  },
+  "kof96_a_054.wav": {
+    "label": "kick drum",
+    "category": "kick",
+    "keep": true,
+    "duration_ms": 221.4,
+    "rms": 0.2855,
+    "spectral_centroid": 401.4,
+    "dominant_freq": 63.2
+  },
+  "kof96_a_055.wav": {
+    "label": "kick drum",
+    "category": "kick",
+    "keep": true,
+    "duration_ms": 415.1,
+    "rms": 0.2157,
+    "spectral_centroid": 288.4,
+    "dominant_freq": 36.1
+  },
+  "kof96_a_056.wav": {
+    "label": "snare crack",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 498.2,
+    "rms": 0.1605,
+    "spectral_centroid": 2635.7,
+    "dominant_freq": 1797.6
+  },
+  "kof96_a_057.wav": {
+    "label": "drum hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 608.9,
+    "rms": 0.1555,
+    "spectral_centroid": 2073.6,
+    "dominant_freq": 234.9
+  },
+  "kof96_a_058.wav": {
+    "label": "snare drum",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 359.8,
+    "rms": 0.1846,
+    "spectral_centroid": 2484.5,
+    "dominant_freq": 551.0
+  },
+  "kof96_a_059.wav": {
+    "label": "cymbal",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1771.2,
+    "rms": 0.1754,
+    "spectral_centroid": 2146.3,
+    "dominant_freq": 1752.4
+  },
+  "kof96_a_060.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1771.2,
+    "rms": 0.1806,
+    "spectral_centroid": 2093.3,
+    "dominant_freq": 596.2
+  },
+  "kof96_a_061.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 664.2,
+    "rms": 0.1003,
+    "spectral_centroid": 5302.7,
+    "dominant_freq": 4733.4
+  },
+  "kof96_a_062.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 968.6,
+    "rms": 0.1676,
+    "spectral_centroid": 4704.2,
+    "dominant_freq": 6937.5
+  },
+  "kof96_a_063.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 470.5,
+    "rms": 0.2065,
+    "spectral_centroid": 1804.8,
+    "dominant_freq": 189.7
+  },
+  "kof96_a_064.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 415.1,
+    "rms": 0.1651,
+    "spectral_centroid": 2255.0,
+    "dominant_freq": 189.7
+  },
+  "kof96_a_065.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 442.8,
+    "rms": 0.1845,
+    "spectral_centroid": 2343.1,
+    "dominant_freq": 189.7
+  },
+  "kof96_a_066.wav": {
+    "label": "snare drum",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 359.8,
+    "rms": 0.1981,
+    "spectral_centroid": 3039.5,
+    "dominant_freq": 198.7
+  },
+  "kof96_a_067.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 3957.6,
+    "rms": 0.1358,
+    "spectral_centroid": 1392.2,
+    "dominant_freq": 298.1
+  },
+  "kof96_a_068.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1577.5,
+    "rms": 0.2433,
+    "spectral_centroid": 2578.4,
+    "dominant_freq": 99.4
+  },
+  "kof96_a_069.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 6199.4,
+    "rms": 0.1777,
+    "spectral_centroid": 2419.9,
+    "dominant_freq": 72.3
+  },
+  "kof96_a_070.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 6144.0,
+    "rms": 0.2166,
+    "spectral_centroid": 2520.6,
+    "dominant_freq": 72.3
+  },
+  "kof96_a_071.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 664.2,
+    "rms": 0.1967,
+    "spectral_centroid": 3938.4,
+    "dominant_freq": 99.4
+  },
+  "kof96_a_072.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 3265.7,
+    "rms": 0.2049,
+    "spectral_centroid": 1772.7,
+    "dominant_freq": 99.4
+  },
+  "kof96_a_073.wav": {
+    "label": "snare drum",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 470.5,
+    "rms": 0.1579,
+    "spectral_centroid": 2055.4,
+    "dominant_freq": 1788.6
+  },
+  "kof96_a_074.wav": {
+    "label": "unknown sound",
+    "category": "other",
+    "keep": true,
+    "duration_ms": 636.5,
+    "rms": 0.1421,
+    "spectral_centroid": 1949.6,
+    "dominant_freq": 578.1
+  },
+  "kof96_a_075.wav": {
+    "label": "long sound effect",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 5535.1,
+    "rms": 0.1146,
+    "spectral_centroid": 1524.8,
+    "dominant_freq": 280.0
+  },
+  "kof96_a_076.wav": {
+    "label": "long sound effect",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 5452.1,
+    "rms": 0.1483,
+    "spectral_centroid": 1710.7,
+    "dominant_freq": 262.0
+  },
+  "kof96_a_077.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 5147.7,
+    "rms": 0.1699,
+    "spectral_centroid": 2072.0,
+    "dominant_freq": 144.5
+  },
+  "kof96_a_078.wav": {
+    "label": "cymbal",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 4787.9,
+    "rms": 0.1936,
+    "spectral_centroid": 2501.8,
+    "dominant_freq": 108.4
+  },
+  "kof96_a_079.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 4234.4,
+    "rms": 0.1456,
+    "spectral_centroid": 3163.6,
+    "dominant_freq": 36.1
+  },
+  "kof96_a_080.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 7057.3,
+    "rms": 0.0934,
+    "spectral_centroid": 2261.0,
+    "dominant_freq": 72.3
+  },
+  "kof96_a_081.wav": {
+    "label": "snare crack",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 110.7,
+    "rms": 0.0808,
+    "spectral_centroid": 4160.4,
+    "dominant_freq": 5709.0
+  },
+  "kof96_a_082.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 4815.6,
+    "rms": 0.3152,
+    "spectral_centroid": 1287.7,
+    "dominant_freq": 352.3
+  },
+  "kof96_a_083.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 8247.4,
+    "rms": 0.137,
+    "spectral_centroid": 3063.8,
+    "dominant_freq": 2122.8
+  },
+  "kof96_a_084.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1605.2,
+    "rms": 0.2182,
+    "spectral_centroid": 2842.6,
+    "dominant_freq": 1779.5
+  },
+  "kof96_a_085.wav": {
+    "label": "vocal sample",
+    "category": "vocal",
+    "keep": true,
+    "duration_ms": 4400.4,
+    "rms": 0.3363,
+    "spectral_centroid": 676.1,
+    "dominant_freq": 90.3
+  },
+  "kof96_a_086.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": false,
+    "duration_ms": 10101.6,
+    "rms": 0.1462,
+    "spectral_centroid": 2948.0,
+    "dominant_freq": 2231.2
+  },
+  "kof96_a_087.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1992.6,
+    "rms": 0.1549,
+    "spectral_centroid": 2340.3,
+    "dominant_freq": 99.4
+  },
+  "kof96_a_088.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 2158.7,
+    "rms": 0.1241,
+    "spectral_centroid": 1511.4,
+    "dominant_freq": 442.6
+  },
+  "kof96_a_089.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 2020.3,
+    "rms": 0.1364,
+    "spectral_centroid": 3082.5,
+    "dominant_freq": 3423.6
+  },
+  "kof96_a_090.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1466.8,
+    "rms": 0.0978,
+    "spectral_centroid": 2816.4,
+    "dominant_freq": 3550.0
+  },
+  "kof96_a_091.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1605.2,
+    "rms": 0.3009,
+    "spectral_centroid": 2587.7,
+    "dominant_freq": 2493.2
+  },
+  "kof96_a_092.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 1965.0,
+    "rms": 0.1857,
+    "spectral_centroid": 1449.4,
+    "dominant_freq": 234.9
+  },
+  "kof96_a_093.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 7306.4,
+    "rms": 0.0913,
+    "spectral_centroid": 3207.3,
+    "dominant_freq": 3541.0
+  },
+  "kof96_a_094.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 1660.5,
+    "rms": 0.1388,
+    "spectral_centroid": 1383.6,
+    "dominant_freq": 885.3
+  },
+  "kof96_a_095.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1494.5,
+    "rms": 0.0976,
+    "spectral_centroid": 2952.0,
+    "dominant_freq": 3215.8
+  },
+  "kof96_a_096.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1577.5,
+    "rms": 0.201,
+    "spectral_centroid": 2805.1,
+    "dominant_freq": 2592.5
+  },
+  "kof96_a_097.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1549.8,
+    "rms": 0.3033,
+    "spectral_centroid": 3170.0,
+    "dominant_freq": 2574.5
+  },
+  "kof96_a_098.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 1522.2,
+    "rms": 0.1974,
+    "spectral_centroid": 1343.8,
+    "dominant_freq": 334.2
+  },
+  "kof96_a_099.wav": {
+    "label": "long sound effect",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 7721.5,
+    "rms": 0.1422,
+    "spectral_centroid": 1261.2,
+    "dominant_freq": 993.7
+  },
+  "kof96_a_100.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 304.4,
+    "rms": 0.1412,
+    "spectral_centroid": 1948.7,
+    "dominant_freq": 496.8
+  },
+  "kof96_a_101.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1439.1,
+    "rms": 0.1489,
+    "spectral_centroid": 1850.5,
+    "dominant_freq": 198.7
+  },
+  "kof96_a_102.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1411.5,
+    "rms": 0.1344,
+    "spectral_centroid": 2902.0,
+    "dominant_freq": 1571.8
+  },
+  "kof96_a_103.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 2933.6,
+    "rms": 0.2389,
+    "spectral_centroid": 2678.9,
+    "dominant_freq": 2357.7
+  },
+  "kof96_a_104.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1478.1,
+    "rms": 0.2274,
+    "spectral_centroid": 2629.4,
+    "dominant_freq": 1933.1
+  },
+  "kof96_a_105.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 2905.9,
+    "rms": 0.1298,
+    "spectral_centroid": 1546.5,
+    "dominant_freq": 1336.9
+  },
+  "kof96_a_106.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 2850.6,
+    "rms": 0.1663,
+    "spectral_centroid": 824.9,
+    "dominant_freq": 108.4
+  },
+  "kof96_a_107.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 1162.4,
+    "rms": 0.1123,
+    "spectral_centroid": 1428.7,
+    "dominant_freq": 153.6
+  },
+  "kof96_a_108.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1190.1,
+    "rms": 0.148,
+    "spectral_centroid": 1927.0,
+    "dominant_freq": 234.9
+  },
+  "kof96_a_109.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 2407.8,
+    "rms": 0.1075,
+    "spectral_centroid": 1889.0,
+    "dominant_freq": 1111.1
+  },
+  "kof96_a_110.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 3708.5,
+    "rms": 0.145,
+    "spectral_centroid": 2884.2,
+    "dominant_freq": 2520.3
+  },
+  "kof96_a_111.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 1245.4,
+    "rms": 0.1039,
+    "spectral_centroid": 1824.8,
+    "dominant_freq": 469.7
+  },
+  "kof96_a_112.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 1798.9,
+    "rms": 0.1822,
+    "spectral_centroid": 1513.1,
+    "dominant_freq": 523.9
+  },
+  "kof96_a_113.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 3819.2,
+    "rms": 0.1281,
+    "spectral_centroid": 1457.8,
+    "dominant_freq": 108.4
+  },
+  "kof96_a_114.wav": {
+    "label": "long sound effect",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 11734.5,
+    "rms": 0.1473,
+    "spectral_centroid": 1638.6,
+    "dominant_freq": 144.5
+  },
+  "kof96_a_115.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 276.8,
+    "rms": 0.1751,
+    "spectral_centroid": 1122.3,
+    "dominant_freq": 370.4
+  },
+  "kof96_a_116.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 1743.6,
+    "rms": 0.1207,
+    "spectral_centroid": 1475.8,
+    "dominant_freq": 108.4
+  },
+  "kof96_a_117.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 415.1,
+    "rms": 0.1177,
+    "spectral_centroid": 1949.4,
+    "dominant_freq": 442.6
+  },
+  "kof96_a_118.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 4345.1,
+    "rms": 0.0982,
+    "spectral_centroid": 2698.8,
+    "dominant_freq": 1770.5
+  },
+  "kof96_a_119.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1079.4,
+    "rms": 0.1404,
+    "spectral_centroid": 2911.3,
+    "dominant_freq": 1553.7
+  },
+  "kof96_a_120.wav": {
+    "label": "long sound effect",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 7278.7,
+    "rms": 0.1231,
+    "spectral_centroid": 1276.2,
+    "dominant_freq": 325.2
+  },
+  "kof96_a_121.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 1466.8,
+    "rms": 0.1003,
+    "spectral_centroid": 1635.3,
+    "dominant_freq": 388.4
+  },
+  "kof96_a_122.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 553.5,
+    "rms": 0.0629,
+    "spectral_centroid": 3886.3,
+    "dominant_freq": 587.2
+  },
+  "kof96_a_123.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 276.8,
+    "rms": 0.061,
+    "spectral_centroid": 2376.8,
+    "dominant_freq": 984.6
+  },
+  "kof96_a_124.wav": {
+    "label": "drum hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 553.5,
+    "rms": 0.1342,
+    "spectral_centroid": 1916.7,
+    "dominant_freq": 334.2
+  },
+  "kof96_a_125.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 3625.5,
+    "rms": 0.1847,
+    "spectral_centroid": 3210.1,
+    "dominant_freq": 3513.9
+  },
+  "kof96_a_126.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 774.9,
+    "rms": 0.0544,
+    "spectral_centroid": 4690.6,
+    "dominant_freq": 4083.0
+  },
+  "kof96_a_127.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 2573.8,
+    "rms": 0.1741,
+    "spectral_centroid": 1855.3,
+    "dominant_freq": 659.4
+  },
+  "kof96_a_128.wav": {
+    "label": "percussive hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 802.6,
+    "rms": 0.1621,
+    "spectral_centroid": 1086.7,
+    "dominant_freq": 45.2
+  },
+  "kof96_a_129.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 1024.0,
+    "rms": 0.1536,
+    "spectral_centroid": 1265.9,
+    "dominant_freq": 695.6
+  },
+  "kof96_a_130.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 1992.6,
+    "rms": 0.117,
+    "spectral_centroid": 1341.4,
+    "dominant_freq": 99.4
+  },
+  "kof96_a_131.wav": {
+    "label": "bass sustained",
+    "category": "bass",
+    "keep": true,
+    "duration_ms": 1688.2,
+    "rms": 0.1046,
+    "spectral_centroid": 1572.1,
+    "dominant_freq": 117.4
+  },
+  "kof96_a_132.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 442.8,
+    "rms": 0.0781,
+    "spectral_centroid": 1278.4,
+    "dominant_freq": 587.2
+  },
+  "kof96_a_133.wav": {
+    "label": "percussive hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 885.6,
+    "rms": 0.1307,
+    "spectral_centroid": 1795.4,
+    "dominant_freq": 298.1
+  },
+  "kof96_a_134.wav": {
+    "label": "percussive hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 885.6,
+    "rms": 0.118,
+    "spectral_centroid": 1790.1,
+    "dominant_freq": 442.6
+  },
+  "kof96_a_135.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 359.8,
+    "rms": 0.1088,
+    "spectral_centroid": 1911.7,
+    "dominant_freq": 469.7
+  },
+  "kof96_a_136.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 442.8,
+    "rms": 0.1174,
+    "spectral_centroid": 1862.3,
+    "dominant_freq": 523.9
+  },
+  "kof96_a_137.wav": {
+    "label": "percussive hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 885.6,
+    "rms": 0.1289,
+    "spectral_centroid": 1940.7,
+    "dominant_freq": 298.1
+  },
+  "kof96_a_138.wav": {
+    "label": "percussive hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 885.6,
+    "rms": 0.1163,
+    "spectral_centroid": 1708.1,
+    "dominant_freq": 442.6
+  },
+  "kof96_a_139.wav": {
+    "label": "drum hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 719.6,
+    "rms": 0.1346,
+    "spectral_centroid": 1924.6,
+    "dominant_freq": 325.2
+  },
+  "kof96_a_140.wav": {
+    "label": "percussive hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 885.6,
+    "rms": 0.1098,
+    "spectral_centroid": 1789.5,
+    "dominant_freq": 496.8
+  },
+  "kof96_a_141.wav": {
+    "label": "drum hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 664.2,
+    "rms": 0.1296,
+    "spectral_centroid": 2165.3,
+    "dominant_freq": 352.3
+  },
+  "kof96_a_142.wav": {
+    "label": "percussion hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 442.8,
+    "rms": 0.1234,
+    "spectral_centroid": 1776.3,
+    "dominant_freq": 442.6
+  },
+  "kof96_a_143.wav": {
+    "label": "drum hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 664.2,
+    "rms": 0.1332,
+    "spectral_centroid": 1942.0,
+    "dominant_freq": 370.4
+  },
+  "kof96_a_144.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 1217.7,
+    "rms": 0.1273,
+    "spectral_centroid": 1920.3,
+    "dominant_freq": 496.8
+  },
+  "kof96_a_145.wav": {
+    "label": "snare crack",
+    "category": "snare",
+    "keep": true,
+    "duration_ms": 332.1,
+    "rms": 0.1602,
+    "spectral_centroid": 3752.0,
+    "dominant_freq": 180.7
+  },
+  "kof96_a_146.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 4787.9,
+    "rms": 0.1347,
+    "spectral_centroid": 1256.3,
+    "dominant_freq": 442.6
+  },
+  "kof96_b_147.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 12177.3,
+    "rms": 0.6867,
+    "spectral_centroid": 2191.2,
+    "dominant_freq": 243.9
+  },
+  "kof96_b_148.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1992.6,
+    "rms": 0.6925,
+    "spectral_centroid": 1864.9,
+    "dominant_freq": 406.5
+  },
+  "kof96_b_149.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 4870.9,
+    "rms": 0.823,
+    "spectral_centroid": 2204.5,
+    "dominant_freq": 813.0
+  },
+  "kof96_b_150.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 6144.0,
+    "rms": 0.6998,
+    "spectral_centroid": 2236.6,
+    "dominant_freq": 641.4
+  },
+  "kof96_b_151.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 2269.4,
+    "rms": 0.5686,
+    "spectral_centroid": 2678.4,
+    "dominant_freq": 1210.4
+  },
+  "kof96_b_152.wav": {
+    "label": "cymbal",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 885.6,
+    "rms": 0.5947,
+    "spectral_centroid": 2301.6,
+    "dominant_freq": 496.8
+  },
+  "kof96_b_153.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1024.0,
+    "rms": 0.6362,
+    "spectral_centroid": 3347.8,
+    "dominant_freq": 1201.4
+  },
+  "kof96_b_154.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 4096.0,
+    "rms": 0.6639,
+    "spectral_centroid": 2617.2,
+    "dominant_freq": 2005.4
+  },
+  "kof96_b_155.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 9049.9,
+    "rms": 0.6957,
+    "spectral_centroid": 2149.8,
+    "dominant_freq": 397.5
+  },
+  "kof96_b_156.wav": {
+    "label": "cymbal",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 996.3,
+    "rms": 0.6756,
+    "spectral_centroid": 2201.8,
+    "dominant_freq": 2014.4
+  },
+  "kof96_b_157.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2961.3,
+    "rms": 0.5812,
+    "spectral_centroid": 1910.9,
+    "dominant_freq": 198.7
+  },
+  "kof96_b_158.wav": {
+    "label": "long sound effect",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 10212.3,
+    "rms": 0.7087,
+    "spectral_centroid": 783.6,
+    "dominant_freq": 108.4
+  },
+  "kof96_b_159.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 9133.0,
+    "rms": 0.6904,
+    "spectral_centroid": 2482.2,
+    "dominant_freq": 804.0
+  },
+  "kof96_b_160.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 3763.9,
+    "rms": 0.6529,
+    "spectral_centroid": 2097.0,
+    "dominant_freq": 1806.6
+  },
+  "kof96_b_161.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 4815.6,
+    "rms": 0.6687,
+    "spectral_centroid": 2244.6,
+    "dominant_freq": 225.8
+  },
+  "kof96_b_162.wav": {
+    "label": "cymbal",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 4068.3,
+    "rms": 0.6501,
+    "spectral_centroid": 2270.7,
+    "dominant_freq": 2122.8
+  },
+  "kof96_b_163.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1549.8,
+    "rms": 0.7031,
+    "spectral_centroid": 2485.3,
+    "dominant_freq": 1653.1
+  },
+  "kof96_b_164.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 4068.3,
+    "rms": 0.5814,
+    "spectral_centroid": 2480.3,
+    "dominant_freq": 804.0
+  },
+  "kof96_b_165.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 4483.5,
+    "rms": 0.5384,
+    "spectral_centroid": 2619.0,
+    "dominant_freq": 1201.4
+  },
+  "kof96_b_166.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2573.8,
+    "rms": 0.6217,
+    "spectral_centroid": 2370.5,
+    "dominant_freq": 1355.0
+  },
+  "kof96_b_167.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 3597.8,
+    "rms": 0.5376,
+    "spectral_centroid": 2444.7,
+    "dominant_freq": 406.5
+  },
+  "kof96_b_168.wav": {
+    "label": "melodic sustained",
+    "category": "melodic",
+    "keep": true,
+    "duration_ms": 4206.7,
+    "rms": 0.8591,
+    "spectral_centroid": 1678.7,
+    "dominant_freq": 605.2
+  },
+  "kof96_b_169.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 3791.6,
+    "rms": 0.6718,
+    "spectral_centroid": 2249.1,
+    "dominant_freq": 225.8
+  },
+  "kof96_b_170.wav": {
+    "label": "drum hit",
+    "category": "percussion",
+    "keep": true,
+    "duration_ms": 774.9,
+    "rms": 0.5595,
+    "spectral_centroid": 3448.8,
+    "dominant_freq": 9.0
+  },
+  "kof96_b_171.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 3293.4,
+    "rms": 0.7157,
+    "spectral_centroid": 2020.1,
+    "dominant_freq": 1219.5
+  },
+  "kof96_b_172.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 10101.6,
+    "rms": 0.5684,
+    "spectral_centroid": 2489.8,
+    "dominant_freq": 1210.4
+  },
+  "kof96_b_173.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 3542.5,
+    "rms": 0.4533,
+    "spectral_centroid": 3614.4,
+    "dominant_freq": 9.0
+  },
+  "kof96_b_174.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 9603.5,
+    "rms": 0.7272,
+    "spectral_centroid": 2169.7,
+    "dominant_freq": 1824.7
+  },
+  "kof96_b_175.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2435.5,
+    "rms": 0.6104,
+    "spectral_centroid": 2291.1,
+    "dominant_freq": 804.0
+  },
+  "kof96_b_176.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2131.0,
+    "rms": 0.5843,
+    "spectral_centroid": 2323.0,
+    "dominant_freq": 1626.0
+  },
+  "kof96_b_177.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2629.2,
+    "rms": 0.5813,
+    "spectral_centroid": 2435.2,
+    "dominant_freq": 605.2
+  },
+  "kof96_b_178.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 3653.2,
+    "rms": 0.5041,
+    "spectral_centroid": 3153.5,
+    "dominant_freq": 804.0
+  },
+  "kof96_b_179.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 3597.8,
+    "rms": 0.6856,
+    "spectral_centroid": 2308.2,
+    "dominant_freq": 903.3
+  },
+  "kof96_b_180.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 2103.4,
+    "rms": 0.7227,
+    "spectral_centroid": 2077.3,
+    "dominant_freq": 1219.5
+  },
+  "kof96_b_181.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1134.7,
+    "rms": 0.4315,
+    "spectral_centroid": 2608.0,
+    "dominant_freq": 1156.2
+  },
+  "kof96_b_182.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1660.5,
+    "rms": 0.5563,
+    "spectral_centroid": 2524.3,
+    "dominant_freq": 1644.0
+  },
+  "kof96_b_183.wav": {
+    "label": "hi-hat open",
+    "category": "hihat",
+    "keep": true,
+    "duration_ms": 1494.5,
+    "rms": 0.581,
+    "spectral_centroid": 2433.0,
+    "dominant_freq": 2186.0
+  },
+  "kof96_b_184.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 13422.7,
+    "rms": 0.688,
+    "spectral_centroid": 2285.3,
+    "dominant_freq": 451.7
+  },
+  "kof96_b_185.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1577.5,
+    "rms": 0.622,
+    "spectral_centroid": 2114.0,
+    "dominant_freq": 1355.0
+  },
+  "kof96_b_186.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1522.2,
+    "rms": 0.4148,
+    "spectral_centroid": 4252.9,
+    "dominant_freq": 18.1
+  },
+  "kof96_b_187.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 1992.6,
+    "rms": 0.8572,
+    "spectral_centroid": 1939.0,
+    "dominant_freq": 605.2
+  },
+  "kof96_b_188.wav": {
+    "label": "cymbal crash",
+    "category": "cymbal",
+    "keep": true,
+    "duration_ms": 1992.6,
+    "rms": 0.5126,
+    "spectral_centroid": 2664.0,
+    "dominant_freq": 1725.3
+  },
+  "kof96_b_189.wav": {
+    "label": "noise/sfx",
+    "category": "sfx",
+    "keep": false,
+    "duration_ms": 3210.4,
+    "rms": 0.8249,
+    "spectral_centroid": 1605.6,
+    "dominant_freq": 361.3
+  }
+}
