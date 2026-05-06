@@ -436,8 +436,8 @@ void game_tick(void) {
         break;
 
     case MENU_MUSIC:
-        if (pressed & JOY_RIGHT) { music_song = (music_song < 2) ? music_song + 1 : 0; menu_dirty = 1; }
-        if (pressed & JOY_LEFT)  { music_song = (music_song > 0) ? music_song - 1 : 2; menu_dirty = 1; }
+        if (pressed & JOY_RIGHT) { music_song = (music_song < 5) ? music_song + 1 : 0; menu_dirty = 1; }
+        if (pressed & JOY_LEFT)  { music_song = (music_song > 0) ? music_song - 1 : 5; menu_dirty = 1; }
         if (pressed & JOY_A) {
             /* Play song N via sequencer */
             SND_play(CMD_PLAY_SONG + (music_song & 0x0F));

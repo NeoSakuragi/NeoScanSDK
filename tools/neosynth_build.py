@@ -1615,7 +1615,128 @@ def build_test_songs():
             song_bytes.append(b & 0xFF)
     songs.append((song_bytes, 7))
 
+    # Song 4: CrocellKit groove
+    songs.append(build_crocell_groove())
+
+    # Song 5: Metronome — 60 BPM, kick on every beat, 16 beats then loop
+    songs.append(build_metronome())
+
     return songs
+
+
+def build_crocell_groove():
+    """Funky drum groove with FM bass using CrocellKit samples.
+
+    120 BPM, 16th-note grid (2 rows per 16th at tempo=7).
+    8 bars, looping. Columns: FM0 FM1 FM2 FM3 SSG0 SSG1 SSG2 ADPCM-A
+    """
+    S = 0x00  # sustain
+    OFF = 0x01  # key-off
+    END = 0xFF
+
+    # MIDI note numbers for bass line (C2-G2 range)
+    C2, D2, Eb2, F2, G2, Ab2, Bb2 = 36, 38, 39, 41, 43, 44, 46
+    C3 = 48
+
+    # CrocellKit sample indices
+    KICK = 1      # k_drum_l
+    SNARE = 3     # snare
+    HHC = 7       # hihat_closed
+    HHO = 9       # hihat_open
+    TOM1 = 13     # tom1
+    TOM2 = 14     # tom2
+    CRASH = 17    # crash_l
+    RIDE = 26     # ride
+    RIMSHOT = 5   # snare_rim_shot
+
+    song = []
+
+    # Set FM0 to patch 12 (KOF Bass Heavy)
+    song.append([0x8C, 0, 0, 0, 0, 0, 0, 0])
+
+    # Helper: make a row [fm0, 0, 0, 0, 0, 0, 0, drum]
+    def row(bass=S, drum=0):
+        return [bass, S, S, S, S, S, S, drum]
+
+    # 8 bars of groove
+    for bar in range(8):
+        # ---- Beat 1 ----
+        # 16th 1: kick + bass note + crash on bar 0
+        if bar == 0:
+            song.append(row(C2, CRASH))
+        elif bar == 4:
+            song.append(row(C2, CRASH))
+        else:
+            song.append(row(C2, KICK))
+        # 16th 2: hihat
+        song.append(row(S, HHC))
+        # 16th 3: ghost kick on even bars
+        song.append(row(S, KICK if bar % 2 == 0 else 0))
+        # 16th 4: hihat
+        song.append(row(S, HHC))
+
+        # ---- Beat 2 ----
+        # 16th 1: snare
+        song.append(row(Eb2, SNARE))
+        # 16th 2: hihat
+        song.append(row(S, HHC))
+        # 16th 3: rest
+        song.append(row(OFF, 0))
+        # 16th 4: hihat open
+        song.append(row(S, HHO))
+
+        # ---- Beat 3 ----
+        # 16th 1: kick + bass
+        song.append(row(F2, KICK))
+        # 16th 2: hihat
+        song.append(row(S, HHC))
+        # 16th 3: kick (syncopation)
+        song.append(row(G2, KICK))
+        # 16th 4: hihat
+        song.append(row(S, HHC))
+
+        # ---- Beat 4 ----
+        # 16th 1: snare
+        song.append(row(Eb2, SNARE))
+        # 16th 2: hihat
+        song.append(row(S, HHC))
+        # Fill on bars 3 and 7
+        if bar == 3 or bar == 7:
+            # 16th 3-4: tom fill
+            song.append(row(OFF, TOM1))
+            song.append(row(S, TOM2))
+        else:
+            # 16th 3: rest
+            song.append(row(OFF, 0))
+            # 16th 4: hihat
+            song.append(row(S, HHC))
+
+    song.append([END, 0, 0, 0, 0, 0, 0, 0])
+
+    song_bytes = bytearray()
+    for r in song:
+        for b in r:
+            song_bytes.append(b & 0xFF)
+    return (song_bytes, 12)
+
+
+def build_metronome():
+    """Basic beat — kick hat snare hat as 16th notes, 4 bars, loop."""
+    KICK = 1
+    HHC = 6
+    SNARE = 2
+    song = []
+    for _ in range(4):
+        song.append([0,0,0,0,0,0,0, KICK])
+        song.append([0,0,0,0,0,0,0, HHC])
+        song.append([0,0,0,0,0,0,0, SNARE])
+        song.append([0,0,0,0,0,0,0, HHC])
+    song.append([0xFF,0,0,0,0,0,0,0])
+    song_bytes = bytearray()
+    for r in song:
+        for b in r:
+            song_bytes.append(b & 0xFF)
+    return (song_bytes, 43)
 
 
 def build_guile_theme():
