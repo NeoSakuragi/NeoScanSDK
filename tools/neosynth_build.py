@@ -1506,11 +1506,194 @@ def build_test_songs():
     """Build test song data. Returns list of (song_bytes, tempo) tuples."""
     songs = []
 
-    # Song 0: C major scale on FM1, bass on FM2, kick/snare on ADPCM-A
-    # Each note = 2 rows (one 8th note at 120 BPM with 16th-note grid)
+    # Song 0: Guile's Theme with CrocellKit drums + FM bass/melody
+    songs.append(build_guile_with_drums())
+
+    return songs
+
+
+def build_guile_with_drums():
+    """Guile's Theme from MIDI — D minor, 125 BPM, CrocellKit drums.
+    FM0=melody, FM1=bass, FM2=chord, ADPCM=drums.
+    Converted from SFIICE_Guile_UAZ.mid.
+    """
+    import json, os
+    grid_path = '/tmp/guile_grids.json'
+    if not os.path.exists(grid_path):
+        raise FileNotFoundError("Run MIDI converter first: guile_grids.json not found")
+    with open(grid_path) as f:
+        grids = json.load(f)
+    melody = grids['melody']
+    bass = grids['bass']
+    chord1 = grids.get('chord1', grids.get('chord', []))
+    chord2 = grids.get('chord2', [])
+    drum = grids['drum']
+
+    END = 0xFF
+    BRASS = 0x84    # KOF Lead for melody
+    BASS_P = 0x8C   # KOF Bass Heavy
+    PIANO = 0x83    # Piano for chord1
+    STRINGS = 0x85  # KOF Strings for chord2
+
     song = []
-    # Set FM1 to patch 2 (brass) and FM2 to patch 1 (organ) at the start
-    song.append([0x82, 0x81, 0, 0, 0, 0, 0, 0])  # patch change row
+    song.append([BRASS, BASS_P, PIANO, STRINGS, 0, 0, 0, 0])  # set patches
+
+    grid_len = min(len(melody), len(bass), len(drum))
+    if chord2:
+        grid_len = min(grid_len, len(chord2))
+
+    last_tick = 0
+    for i in range(grid_len - 1, -1, -1):
+        if melody[i] or bass[i] or chord1[i] if i < len(chord1) else 0 or drum[i]:
+            last_tick = i
+            break
+
+    for i in range(last_tick + 1):
+        m = melody[i] if i < len(melody) else 0
+        b = bass[i] if i < len(bass) else 0
+        c1 = chord1[i] if i < len(chord1) else 0
+        c2 = chord2[i] if chord2 and i < len(chord2) else 0
+        d = drum[i] if i < len(drum) else 0
+        song.append([m, b, c1, c2, 0, 0, 0, d])
+
+    song.append([END, 0, 0, 0, 0, 0, 0, 0])
+
+    song_bytes = bytearray()
+    for row in song:
+        for byte in row:
+            song_bytes.append(byte & 0xFF)
+    # 125 BPM, 16th grid: 8.33 rows/sec, tempo = 165/8.33 ~ 20
+    return (song_bytes, 20)
+
+
+def _old_build_guile_with_drums():
+    """OLD hardcoded version — kept for reference."""
+    S = SEQ_SUSTAIN
+    OFF = SEQ_KEYOFF
+    END = 0xFF
+    # MIDI notes
+    C3,D3,Eb3,F3,G3,Ab3,Bb3 = 48,50,51,53,55,56,58
+    C4,D4,Eb4,F4,G4,Ab4,Bb4 = 60,62,63,65,67,68,70
+    C5,D5,Eb5 = 72,74,75
+    # Bass
+    Bb1,C2,D2,Eb2,F2,G2,Ab2 = 34,36,38,39,41,43,44
+
+    # CrocellKit drums
+    KICK=1; SNARE=2; HHC=6; HHO=8; CRASH=16; RIDE=25
+
+    # Patches: $80+id
+    BRASS=0x84    # KOF Lead
+    BASS=0x8C     # KOF Bass Heavy
+    PIANO=0x83    # Piano
+    STRINGS=0x85  # KOF Strings
+
+    song = []
+    def r(fm0=S,fm1=S,fm2=S,fm3=S,ssg0=S,ssg1=S,ssg2=S,drm=0):
+        return [fm0,fm1,fm2,fm3,ssg0,ssg1,ssg2,drm]
+
+    # Row 0: set patches
+    song.append(r(BRASS, BASS, PIANO, STRINGS))
+
+    # Standard drum pattern for one bar (16 rows)
+    def bar_drums():
+        return [KICK,HHC,0,HHC, SNARE,HHC,0,HHC, KICK,HHC,KICK,HHC, SNARE,HHC,0,HHC]
+
+    # ================================================================
+    # INTRO: bars 1-2 — Eb-F-G stabs
+    # ================================================================
+    drm = bar_drums()
+    # Bar 1: Eb(8th) F(8th) G(dotted quarter) rest
+    melody = [Eb4,S,F4,S, G4,S,S,S, S,S,OFF,S, S,S,S,S]
+    bass   = [Eb2,S,S,S, S,S,S,S, S,S,S,S, S,S,S,S]
+    ch2    = [Eb3,S,S,S, G3,S,S,S, S,S,OFF,S, S,S,S,S]
+    ch3    = [G3,S,S,S,  Bb3,S,S,S, S,S,OFF,S, S,S,S,S]
+    for i in range(16):
+        song.append(r(melody[i],bass[i],ch2[i],ch3[i],drm=drm[i]))
+
+    # Bar 2: Eb(8th) F(8th) Ab(8th) G(quarter) rest
+    melody = [Eb4,S,F4,S, Ab4,S,G4,S, S,S,OFF,S, S,S,S,S]
+    bass   = [Eb2,S,S,S, S,S,S,S, S,S,S,S, S,S,S,S]
+    ch2    = [Eb3,S,S,S, Ab3,S,G3,S, S,S,OFF,S, S,S,S,S]
+    ch3    = [G3,S,S,S,  C4,S,Bb3,S, S,S,OFF,S, S,S,S,S]
+    for i in range(16):
+        song.append(r(melody[i],bass[i],ch2[i],ch3[i],drm=drm[i]))
+
+    # ================================================================
+    # VERSE A: bars 3-4 — over Ab chord then Bb chord
+    # ================================================================
+    # Bar 3: Eb-F-G hold (Ab bass)
+    melody = [Eb4,S,F4,S, G4,S,S,S, S,S,OFF,S, S,S,S,S]
+    bass   = [Ab2,S,S,S, S,S,S,S, S,S,S,S, S,S,S,S]
+    ch2    = [Ab3,S,S,S, C4,S,S,S, S,S,OFF,S, S,S,S,S]
+    ch3    = [C4,S,S,S,  Eb4,S,S,S, S,S,OFF,S, S,S,S,S]
+    for i in range(16):
+        song.append(r(melody[i],bass[i],ch2[i],ch3[i],drm=drm[i]))
+
+    # Bar 4: Bb-Ab-G-F descending (Bb bass)
+    melody = [Bb4,S,Ab4,S, G4,S,F4,S, S,S,OFF,S, S,S,S,S]
+    bass   = [Bb1,S,S,S, S,S,S,S, S,S,S,S, S,S,S,S]
+    ch2    = [Bb3,S,S,S, D4,S,S,S, S,S,OFF,S, S,S,S,S]
+    ch3    = [D4,S,S,S,  F4,S,S,S, S,S,OFF,S, S,S,S,S]
+    for i in range(16):
+        song.append(r(melody[i],bass[i],ch2[i],ch3[i],drm=drm[i]))
+
+    # ================================================================
+    # VERSE B: bars 5-6 — G-G-F-Bb... Ab-G-F
+    # ================================================================
+    # Bar 5: G(8th) G(8th) F(8th) Bb(quarter+8th) (Eb bass)
+    melody = [G4,S,G4,S, F4,S,Bb4,S, S,S,S,S, OFF,S,S,S]
+    bass   = [Eb2,S,S,S, S,S,S,S, S,S,S,S, S,S,S,S]
+    ch2    = [Eb3,S,S,S, G3,S,Bb3,S, S,S,S,S, OFF,S,S,S]
+    ch3    = [G3,S,S,S,  Bb3,S,D4,S, S,S,S,S, OFF,S,S,S]
+    for i in range(16):
+        song.append(r(melody[i],bass[i],ch2[i],ch3[i],drm=drm[i]))
+
+    # Bar 6: Ab(8th) G(8th) F(quarter) rest (Ab bass)
+    melody = [Ab4,S,G4,S, F4,S,S,S, OFF,S,S,S, S,S,S,S]
+    bass   = [Ab2,S,S,S, S,S,S,S, S,S,S,S, S,S,S,S]
+    ch2    = [Ab3,S,S,S, C4,S,S,S, OFF,S,S,S, S,S,S,S]
+    ch3    = [C4,S,S,S,  Eb4,S,S,S, OFF,S,S,S, S,S,S,S]
+    for i in range(16):
+        song.append(r(melody[i],bass[i],ch2[i],ch3[i],drm=drm[i]))
+
+    # ================================================================
+    # CHORUS: bars 7-8 — the big Eb-F-G-Bb climb
+    # ================================================================
+    # Bar 7: Eb-F-G-Bb ascending (crash on beat 1)
+    drm7 = [CRASH,HHC,0,HHC, SNARE,HHC,0,HHC, KICK,HHC,KICK,HHC, SNARE,HHC,0,HHC]
+    melody = [Eb4,S,F4,S, G4,S,S,S, Bb4,S,S,S, S,S,OFF,S]
+    bass   = [Eb2,S,S,S, S,S,S,S, Bb1,S,S,S, S,S,S,S]
+    ch2    = [Eb3,S,G3,S, Bb3,S,S,S, D4,S,S,S, S,S,OFF,S]
+    ch3    = [G3,S,Bb3,S, D4,S,S,S, F4,S,S,S, S,S,OFF,S]
+    for i in range(16):
+        song.append(r(melody[i],bass[i],ch2[i],ch3[i],drm=drm7[i]))
+
+    # Bar 8: C5 hold, resolve to Bb4 (Eb bass, crash)
+    drm8 = [CRASH,HHC,0,HHC, SNARE,HHC,0,HHC, KICK,HHC,0,HHC, SNARE,HHC,RIDE,RIDE]
+    melody = [C5,S,S,S, S,S,S,S, Bb4,S,S,S, OFF,S,S,S]
+    bass   = [Eb2,S,S,S, S,S,S,S, Bb1,S,S,S, S,S,S,S]
+    ch2    = [Eb3,S,S,S, G3,S,S,S, Bb3,S,S,S, OFF,S,S,S]
+    ch3    = [G3,S,S,S,  Bb3,S,S,S, D4,S,S,S, OFF,S,S,S]
+    for i in range(16):
+        song.append(r(melody[i],bass[i],ch2[i],ch3[i],drm=drm8[i]))
+
+    song.append([END,0,0,0,0,0,0,0])
+
+    song_bytes = bytearray()
+    for row in song:
+        for b in row:
+            song_bytes.append(b & 0xFF)
+    # ~140 BPM: 4 rows/beat, 9.33 rows/sec -> tempo = 165/9.33 ≈ 18
+    return (song_bytes, 18)
+
+
+def _build_old_test_songs():
+    """Old test songs — kept for reference but not built."""
+    songs = []
+
+    # Old Song 0: C major scale on FM1, bass on FM2, kick/snare on ADPCM-A
+    song = []
+    song.append([0x82, 0x81, 0, 0, 0, 0, 0, 0])
 
     scale = [48, 50, 52, 53, 55, 57, 59, 60]  # C D E F G A B C (MIDI)
     for i, note in enumerate(scale):
@@ -3570,8 +3753,20 @@ def build_driver(sample_table_path=None):
     a.patch_jr(jr_fm_patch_too_high, a.here())
 
     # Note-on ($02-$7F): A = MIDI note number
-    # Full inline FM note-on with patch register write
+    # Key-off first to restart envelope on re-trigger
     a.ld_mem_a(RAM_PARAM)     # store note
+    a.push_af()
+    a.ld_a_b()
+    a.ld_l_a(); a.ld_h_n(0)
+    a.push_de()
+    a.ld_de_nn(KEYOFF_TABLE)
+    a.add_hl_de()
+    a.pop_de()
+    a.ld_a_hl()
+    a.ld_c_a()
+    a.ld_a_n(0x28); a.out_n_a(0x04)
+    a.ld_a_c(); a.out_n_a(0x05)  # key-off before re-trigger
+    a.pop_af()
 
     # Save channel in RAM_TEMP+2
     a.ld_a_b()
