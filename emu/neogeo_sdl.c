@@ -571,6 +571,10 @@ static void menu_draw(int win_w, int win_h) {
 
 /* ═══ Script engine ═══ */
 
+static uint16_t *vram_ptr_script = NULL; // forward ref for script vram dump
+static uint32_t *sprite_pc_ptr_script = NULL;
+static uint16_t *palram_ptr = NULL;
+
 typedef struct { int frame; char cmd[16]; char arg[256]; } script_cmd_t;
 static script_cmd_t script[256];
 static int script_len = 0;
@@ -636,6 +640,47 @@ static void script_exec(unsigned fc) {
         } else if (!strcmp(script[i].cmd, "quit")) {
             SDL_Event ev; ev.type = SDL_QUIT;
             SDL_PushEvent(&ev);
+        } else if (!strcmp(script[i].cmd, "vram")) {
+            if (vram_ptr_script) {
+                FILE *vf = fopen(script[i].arg, "wb");
+                if (vf) {
+                    fwrite(vram_ptr_script, 2, 0x10000, vf);
+                    fclose(vf);
+                    fprintf(stderr, "VRAM dump: %s\n", script[i].arg);
+                }
+            }
+        } else if (!strcmp(script[i].cmd, "sprdump")) {
+            if (vram_ptr_script && sprite_pc_ptr_script) {
+                FILE *sf = fopen(script[i].arg, "wb");
+                if (sf) {
+                    // Header: magic + version + frame number
+                    uint32_t magic = 0x53505244; // "SPRD"
+                    uint32_t version = palram_ptr ? 2 : 1;
+                    uint32_t fn = fc;
+                    fwrite(&magic, 4, 1, sf);
+                    fwrite(&version, 4, 1, sf);
+                    fwrite(&fn, 4, 1, sf);
+                    // 382 sprite slots: PC + SCB1 tiles + SCB2/3/4
+                    for (int s = 0; s < 382; s++) {
+                        uint32_t pc = sprite_pc_ptr_script[s];
+                        uint16_t scb3 = vram_ptr_script[0x8200 + s];
+                        uint16_t scb4 = vram_ptr_script[0x8400 + s];
+                        uint16_t scb2 = vram_ptr_script[0x8000 + s];
+                        fwrite(&pc, 4, 1, sf);
+                        fwrite(&scb2, 2, 1, sf);
+                        fwrite(&scb3, 2, 1, sf);
+                        fwrite(&scb4, 2, 1, sf);
+                        // SCB1: 64 words (32 tile+attr pairs)
+                        fwrite(&vram_ptr_script[s * 64], 2, 64, sf);
+                    }
+                    // v2: append palette RAM (8192 words = 16KB)
+                    if (palram_ptr) {
+                        fwrite(palram_ptr, 2, 8192, sf);
+                    }
+                    fclose(sf);
+                    fprintf(stderr, "Sprite dump v%u: %s (frame %u)\n", version, script[i].arg, fc);
+                }
+            }
         }
     }
 }
@@ -941,8 +986,11 @@ int main(int argc, char *argv[]) {
 
     blocked_pcs_ptr = (uint32_t *)core.get_memory_data(100);
     vram_ptr = (uint16_t *)core.get_memory_data(101);
+    vram_ptr_script = vram_ptr;
     sprite_pc_ptr = (uint32_t *)core.get_memory_data(102);
+    sprite_pc_ptr_script = sprite_pc_ptr;
     num_blocked_ptr = (int *)core.get_memory_data(103);
+    palram_ptr = (uint16_t *)core.get_memory_data(104);
 
     struct retro_system_av_info av;
     core.get_system_av_info(&av);
@@ -1153,8 +1201,11 @@ int main(int argc, char *argv[]) {
                 core.load_game(&ri);
                 blocked_pcs_ptr = (uint32_t *)core.get_memory_data(100);
                 vram_ptr = (uint16_t *)core.get_memory_data(101);
+                vram_ptr_script = vram_ptr;
                 sprite_pc_ptr = (uint32_t *)core.get_memory_data(102);
+                sprite_pc_ptr_script = sprite_pc_ptr;
                 num_blocked_ptr = (int *)core.get_memory_data(103);
+                palram_ptr = (uint16_t *)core.get_memory_data(104);
             }
             if (auto_quit_frame > 0 && (int)frame_count >= auto_quit_frame) running = false;
         }
