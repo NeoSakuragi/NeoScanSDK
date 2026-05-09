@@ -581,6 +581,20 @@ static size_t wram_size = 0;
 static uint32_t vblank_misses = 0;
 static uint16_t vblank_prev_tick = 0;
 
+/* Per-frame tracer */
+typedef struct {
+    uint32_t m68k_cycles;
+    uint16_t vram_writes;
+    uint16_t vram_addr_sets;
+    uint8_t  exception;
+    uint32_t exception_pc;
+    uint8_t  vector_switch;
+    uint8_t  watchdog_fired;
+} emu_frame_stats_t;
+
+static FILE *trace_file = NULL;
+static emu_frame_stats_t *core_stats_ptr = NULL;
+
 typedef struct { int frame; char cmd[16]; char arg[256]; } script_cmd_t;
 static script_cmd_t script[256];
 static int script_len = 0;
@@ -1151,7 +1165,15 @@ int main(int argc, char *argv[]) {
     palram_ptr = (uint16_t *)core.get_memory_data(104);
     wram_ptr = (uint8_t *)core.get_memory_data(RETRO_MEMORY_SYSTEM_RAM);
     wram_size = core.get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
+    core_stats_ptr = (emu_frame_stats_t *)core.get_memory_data(110);
     if (wram_ptr) fprintf(stderr, "WRAM: %zu bytes at %p\n", wram_size, (void*)wram_ptr);
+    if (core_stats_ptr) fprintf(stderr, "TRACE: core stats at %p\n", (void*)core_stats_ptr);
+
+    trace_file = fopen("/tmp/danmaku_trace.csv", "w");
+    if (trace_file) {
+        fprintf(trace_file, "frame,game_tick,alive,active,curves,spawns,cmds,slot,mode,"
+                "m68k_cyc,vram_wr,vram_addr,exception,exc_pc,vec_switch,watchdog,vblank_miss\n");
+    }
 
     struct retro_system_av_info av;
     core.get_system_av_info(&av);
@@ -1346,11 +1368,34 @@ int main(int argc, char *argv[]) {
         if (flags & FL_RUN_CORE) {
             core.run();
             /* VBlank miss detection: read game tick from debug RAM */
-            if (wram_ptr && wram_size >= 0xF206) {
+            if (wram_ptr && wram_size >= 0xF210) {
                 uint16_t game_tick = ((uint16_t)wram_ptr[0xF204] << 8) | wram_ptr[0xF205];
-                if (game_tick > 0 && game_tick == vblank_prev_tick)
-                    vblank_misses++;
+                uint8_t miss = (game_tick > 0 && game_tick == vblank_prev_tick) ? 1 : 0;
+                if (miss) vblank_misses++;
                 vblank_prev_tick = game_tick;
+
+                if (trace_file && core_stats_ptr) {
+                    uint16_t active  = ((uint16_t)wram_ptr[0xF200] << 8) | wram_ptr[0xF201];
+                    uint16_t curves  = ((uint16_t)wram_ptr[0xF208] << 8) | wram_ptr[0xF209];
+                    uint16_t spawns  = ((uint16_t)wram_ptr[0xF20A] << 8) | wram_ptr[0xF20B];
+                    uint16_t cmds    = ((uint16_t)wram_ptr[0xF20C] << 8) | wram_ptr[0xF20D];
+                    uint8_t  mode    = wram_ptr[0xF20E];
+                    uint8_t  slot    = wram_ptr[0xF20F];
+                    uint16_t alive   = ((uint16_t)wram_ptr[0xF206] << 8) | wram_ptr[0xF207];
+
+                    fprintf(trace_file,
+                        "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+                        frame_count, game_tick, alive == 0xBEEF ? 1 : 0,
+                        active, curves, spawns, cmds, slot, mode,
+                        core_stats_ptr->m68k_cycles,
+                        core_stats_ptr->vram_writes,
+                        core_stats_ptr->vram_addr_sets,
+                        core_stats_ptr->exception,
+                        core_stats_ptr->exception_pc,
+                        core_stats_ptr->vector_switch,
+                        core_stats_ptr->watchdog_fired,
+                        miss);
+                }
             }
             if (rec_file) rec_frame(tick);
             if (autoload_frame > 0 && (int)frame_count == autoload_frame) {
@@ -1435,6 +1480,10 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, "VBLANK STATS: %u emu_frames, %u misses (%s)\n",
         frame_count, vblank_misses, vblank_misses == 0 ? "SOLID 60fps" : "DROPPING");
+    if (trace_file) {
+        fclose(trace_file);
+        fprintf(stderr, "TRACE: saved to /tmp/danmaku_trace.csv\n");
+    }
     if (adev) { SDL_PauseAudioDevice(adev, 1); SDL_CloseAudioDevice(adev); }
     core.unload_game();
     core.deinit();

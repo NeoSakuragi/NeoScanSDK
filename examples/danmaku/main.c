@@ -28,13 +28,20 @@
 #define SPR_EXPL1    9
 #define SPR_HITBOX   10
 #define SPR_BLT_FIRST 11
-#define SPR_BLT_COUNT 360
+#define SPR_BLT_COUNT 250
 
-/* Debug: bullet stats at known RAM address for emulator poking */
+/* Debug RAM block — read by emulator tracer each frame */
 #define DEBUG_RAM_BULLETS ((volatile uint16_t *)0x10F200)
 #define DEBUG_RAM_MAXBLT  ((volatile uint16_t *)0x10F202)
 #define DEBUG_RAM_FRAME   ((volatile uint16_t *)0x10F204)
 #define DEBUG_RAM_ALIVE   ((volatile uint16_t *)0x10F206)
+#define DEBUG_RAM_CURVES  ((volatile uint16_t *)0x10F208)
+#define DEBUG_RAM_SPAWNS  ((volatile uint16_t *)0x10F20A)
+#define DEBUG_RAM_CMDS    ((volatile uint16_t *)0x10F20C)
+#define DEBUG_RAM_MODE    ((volatile uint8_t  *)0x10F20E)
+#define DEBUG_RAM_SLOT    ((volatile uint8_t  *)0x10F20F)
+
+static uint16_t spawns_this_frame;
 
 #define MAX_SHOTS    4
 #define MAX_ENEMIES  2
@@ -234,34 +241,24 @@ static void step_enemies(void) {
             BLT_setPlayer(&bsys, px, py);
 
             if (e->type == 0 && e->fire_cd == 0) {
-                if (slot16 == 4 || slot16 == 5) {
+                if (slot16 == 4) {
                     uint8_t ring_angle = (e->angle & 0x7F) << 1;
+                    bsys.default_curve = 2;
+                    BLT_ring(&bsys, ex, ey, 14, spd, ring_angle);
                     bsys.default_curve = 0;
-                    BLT_ring(&bsys, ex, ey, 20, spd, ring_angle);
-                    bsys.default_curve = 0;
-                    if (slot16 == 5) {
-                        e->angle = (e->angle & 0x80) | (((e->angle & 0x7F) + 3) & 0x7F);
-                        e->fire_cd = 10;
-                    }
+                    e->angle = (e->angle & 0x80) | (((e->angle & 0x7F) + 3) & 0x7F);
+                    e->fire_cd = 10;
                 } else { continue; }
             } else if (e->type == 1 && e->fire_cd == 0) {
                 if (slot16 == 10) {
                     bsys.default_tile = TILE_PINK_ORB;
                     bsys.default_pal = PAL_PINK_ORB;
                     bsys.default_shrink = 0x077F;
-                    BLT_fan(&bsys, ex, ey, 8, spd, 50);
+                    BLT_fan(&bsys, ex, ey, 12, spd, 50);
                     bsys.default_tile = TILE_BLUE_ORB;
                     bsys.default_pal = PAL_BLUE_ORB;
                     bsys.default_shrink = 0x0FFF;
-                } else if (slot16 == 12) {
-                    bsys.default_tile = TILE_PINK_ORB;
-                    bsys.default_pal = PAL_PINK_ORB;
-                    bsys.default_shrink = 0x077F;
-                    BLT_fan(&bsys, ex, ey, 8, spd, 50);
-                    bsys.default_tile = TILE_BLUE_ORB;
-                    bsys.default_pal = PAL_BLUE_ORB;
-                    bsys.default_shrink = 0x0FFF;
-                    e->fire_cd = 20;
+                    e->fire_cd = 10;
                 } else { continue; }
             } else { continue; }
         }
@@ -376,8 +373,11 @@ void game_init(void) {
     spawn_enemy(1, 1, 220);
 }
 
+extern uint16_t neo_cmd_count;
+
 void game_tick(void) {
     SYS_kickWatchdog();
+    spawns_this_frame = 0;
     *(volatile uint8_t *)0x10FDD4 = 0xFF;
     *(volatile uint8_t *)0x10FDD6 = 0xFF;
     *(volatile uint8_t *)0x10FDDA = 0xFF;
@@ -397,8 +397,17 @@ void game_tick(void) {
     if ((tick & 15) == 8) draw_hud();
 
     /* Always update debug RAM for emulator miss detection */
-    *DEBUG_RAM_FRAME = tick;
-    *DEBUG_RAM_ALIVE = 0xBEEF;
+    /* Write full debug block for tracer */
+    *DEBUG_RAM_BULLETS = bsys.active_count;
+    *DEBUG_RAM_MAXBLT  = bsys.max_bullets;
+    *DEBUG_RAM_FRAME   = tick;
+    *DEBUG_RAM_ALIVE   = 0xBEEF;
+    *DEBUG_RAM_CURVES  = bsys.curve_count;
+    *DEBUG_RAM_SPAWNS  = spawns_this_frame;
+    *DEBUG_RAM_CMDS    = neo_cmd_count;
+    *DEBUG_RAM_MODE    = *(volatile uint8_t *)0x10FD80;
+    *DEBUG_RAM_SLOT    = (uint8_t)(tick & 15);
+    spawns_this_frame  = 0;
 
     /* 2. Flush ALL cmd_push to VRAM in one go */
     SYS_vblankFlush();

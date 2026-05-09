@@ -153,6 +153,7 @@ int16_t BLT_spawn(bullet_sys_t *sys, int16_t x, int16_t y,
     b->active = 1;
     b->age = 0;
     sys->active_count++;
+    (*(volatile uint16_t *)0x10F20A)++;
     setup_sprite(sys, (uint16_t)idx);
     return idx;
 }
