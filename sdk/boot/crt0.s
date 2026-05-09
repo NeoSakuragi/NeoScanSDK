@@ -127,9 +127,12 @@ vblank_handler:
     | Game was running but BIOS stole mode bit — take it back
     orib    #0x80, 0x10FD80
 .Lgame_vblank:
+    moveml  %d0-%d1/%a0-%a3, %sp@-
     movew   #4, 0x3C000C        /* ACK VBlank */
     moveb   #0, 0x300001        /* Watchdog */
     moveb   #1, vblank_flag
+    addw    #1, vblank_count
+    moveml  %sp@+, %d0-%d1/%a0-%a3
     rte
 .Lbios_vblank:
     jmp     0xC00438            /* SYSTEM_INT1 — BIOS handles it */
@@ -179,6 +182,9 @@ do_game:
     .section .bss
     .align  2
 vblank_flag:
+    .skip   2
+    .global vblank_count
+vblank_count:
     .skip   2
 game_active:
     .skip   2

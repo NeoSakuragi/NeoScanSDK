@@ -578,6 +578,8 @@ static uint32_t *sprite_pc_ptr_script = NULL;
 static uint16_t *palram_ptr = NULL;
 static uint8_t *wram_ptr = NULL;  // 68K work RAM (0x100000-0x10FFFF)
 static size_t wram_size = 0;
+static uint32_t vblank_misses = 0;
+static uint16_t vblank_prev_tick = 0;
 
 typedef struct { int frame; char cmd[16]; char arg[256]; } script_cmd_t;
 static script_cmd_t script[256];
@@ -1343,6 +1345,13 @@ int main(int argc, char *argv[]) {
         /* ── Execute ── */
         if (flags & FL_RUN_CORE) {
             core.run();
+            /* VBlank miss detection: read game tick from debug RAM */
+            if (wram_ptr && wram_size >= 0xF206) {
+                uint16_t game_tick = ((uint16_t)wram_ptr[0xF204] << 8) | wram_ptr[0xF205];
+                if (game_tick > 0 && game_tick == vblank_prev_tick)
+                    vblank_misses++;
+                vblank_prev_tick = game_tick;
+            }
             if (rec_file) rec_frame(tick);
             if (autoload_frame > 0 && (int)frame_count == autoload_frame) {
                 state_load('s');
@@ -1413,6 +1422,9 @@ int main(int argc, char *argv[]) {
         uint64_t t1 = SDL_GetPerformanceCounter();
         double elapsed = (double)(t1 - t0) / SDL_GetPerformanceFrequency();
         double target_t = 1.0 / fps;
+        if (elapsed > target_t * 1.1 && (tick & 63) == 0)
+            fprintf(stderr, "FRAME OVERRUN: %.2fms (budget %.2fms) tick=%u\n",
+                    elapsed * 1000.0, target_t * 1000.0, tick);
         if (elapsed < target_t) {
             double remain = (target_t - elapsed) * 1000.0;
             if (remain > 1.0) SDL_Delay((uint32_t)(remain - 0.5));
@@ -1421,6 +1433,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    fprintf(stderr, "VBLANK STATS: %u emu_frames, %u misses (%s)\n",
+        frame_count, vblank_misses, vblank_misses == 0 ? "SOLID 60fps" : "DROPPING");
     if (adev) { SDL_PauseAudioDevice(adev, 1); SDL_CloseAudioDevice(adev); }
     core.unload_game();
     core.deinit();

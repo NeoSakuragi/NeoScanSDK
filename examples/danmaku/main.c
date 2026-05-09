@@ -218,25 +218,53 @@ static void step_enemies(void) {
         }
         SPR_move(SPR_ENEMY0 + i, FP16_INT(e->x) - 8, FP16_INT(e->y) - 8);
 
-        if (e->fire_cd > 0) { e->fire_cd--; continue; }
-
-        /* fire pattern */
-        BLT_setPlayer(&bsys, px, py);
+        if (e->fire_cd > 0) { e->fire_cd--; }
+        /*
+         * Frame schedule:
+         *   0-3: curve rotation (1/4 per frame)
+         *   4:   blue ring batch 1 (8 bullets)
+         *   5:   blue ring batch 2 (8 bullets)
+         *   8:   HUD
+         *  10:   pink fan batch 1 (6 bullets)
+         *  12:   pink fan batch 2 (6 bullets)
+         */
         {
+            uint8_t slot16 = tick & 15;
             int16_t ex = FP16_INT(e->x), ey = FP16_INT(e->y);
-            if (e->type == 0) {
-                BLT_ring(&bsys, ex, ey, 16, spd, e->angle);
-            } else {
-                bsys.default_tile = TILE_PINK_ORB;
-                bsys.default_pal = PAL_PINK_ORB;
-                bsys.default_shrink = 0x077F;
-                BLT_fan(&bsys, ex, ey, 7, spd, 50);
-                bsys.default_tile = TILE_BLUE_ORB;
-                bsys.default_pal = PAL_BLUE_ORB;
-                bsys.default_shrink = 0x0FFF;
-            }
+            BLT_setPlayer(&bsys, px, py);
+
+            if (e->type == 0 && e->fire_cd == 0) {
+                if (slot16 == 4 || slot16 == 5) {
+                    uint8_t ring_angle = (e->angle & 0x7F) << 1;
+                    bsys.default_curve = 0;
+                    BLT_ring(&bsys, ex, ey, 20, spd, ring_angle);
+                    bsys.default_curve = 0;
+                    if (slot16 == 5) {
+                        e->angle = (e->angle & 0x80) | (((e->angle & 0x7F) + 3) & 0x7F);
+                        e->fire_cd = 10;
+                    }
+                } else { continue; }
+            } else if (e->type == 1 && e->fire_cd == 0) {
+                if (slot16 == 10) {
+                    bsys.default_tile = TILE_PINK_ORB;
+                    bsys.default_pal = PAL_PINK_ORB;
+                    bsys.default_shrink = 0x077F;
+                    BLT_fan(&bsys, ex, ey, 8, spd, 50);
+                    bsys.default_tile = TILE_BLUE_ORB;
+                    bsys.default_pal = PAL_BLUE_ORB;
+                    bsys.default_shrink = 0x0FFF;
+                } else if (slot16 == 12) {
+                    bsys.default_tile = TILE_PINK_ORB;
+                    bsys.default_pal = PAL_PINK_ORB;
+                    bsys.default_shrink = 0x077F;
+                    BLT_fan(&bsys, ex, ey, 8, spd, 50);
+                    bsys.default_tile = TILE_BLUE_ORB;
+                    bsys.default_pal = PAL_BLUE_ORB;
+                    bsys.default_shrink = 0x0FFF;
+                    e->fire_cd = 20;
+                } else { continue; }
+            } else { continue; }
         }
-        e->fire_cd = 10;
 
         if (FP16_INT(e->y) > 240) { e->on = 0; SPR_hide(SPR_ENEMY0 + i); }
     }
@@ -363,10 +391,14 @@ void game_tick(void) {
     step_spawner();
 
     BLT_setPlayer(&bsys, px, py);
-    BLT_update(&bsys);
+    BLT_update(&bsys, tick);
     step_collision();
 
-    draw_hud();
+    if ((tick & 15) == 8) draw_hud();
+
+    /* Always update debug RAM for emulator miss detection */
+    *DEBUG_RAM_FRAME = tick;
+    *DEBUG_RAM_ALIVE = 0xBEEF;
 
     /* 2. Flush ALL cmd_push to VRAM in one go */
     SYS_vblankFlush();
