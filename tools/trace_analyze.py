@@ -87,12 +87,22 @@ if actives:
     print()
 
 if cycles:
-    print(f"=== CPU ===")
     budget = 202752
-    avg_cyc = sum(cycles) // len(cycles)
-    peak_cyc = max(cycles)
-    print(f"68K cycles/frame: avg={avg_cyc} ({avg_cyc*100//budget}%) peak={peak_cyc} ({peak_cyc*100//budget}%)")
+    work = [int(r['work_cyc']) for r in rows if int(r['alive']) and 'work_cyc' in r and int(r['work_cyc']) > 0]
+    idle = [int(r['idle_cyc']) for r in rows if int(r['alive']) and 'idle_cyc' in r]
+    waits = [int(r['wait_spins']) for r in rows if int(r['alive']) and 'wait_spins' in r]
+    print(f"=== CPU ===")
     print(f"Budget: {budget} cycles/frame")
+    if work:
+        avg_work = sum(work) // len(work)
+        peak_work = max(work)
+        avg_idle = sum(idle) // len(idle) if idle else 0
+        print(f"Work cycles: avg={avg_work} ({avg_work*100//budget}%) peak={peak_work} ({peak_work*100//budget}%)")
+        print(f"Idle cycles: avg={avg_idle} ({avg_idle*100//budget}%) = headroom")
+        print(f"Wait spins:  avg={sum(waits)//len(waits)} peak={max(waits)} min={min(waits)}")
+    else:
+        avg_cyc = sum(cycles) // len(cycles)
+        print(f"68K cycles/frame: avg={avg_cyc} (wait counter not available)")
     print()
 
 if vram_wr:

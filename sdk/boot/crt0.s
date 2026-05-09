@@ -169,13 +169,15 @@ do_game:
 
 .Lmain_loop:
     clrb    vblank_flag
+    clrl    wait_cycles         /* reset spin counter */
 .Lwait:
+    addl    #1, wait_cycles     /* count each spin: tstb+beq+addl = ~20 cycles */
     tstb    vblank_flag
     beq.s   .Lwait
-    jsr     0xC0044A            /* SYSTEM_IO — called from main loop, not interrupt */
-    orib    #0x80, 0x10FD80     /* Force mode bit back in case SYSTEM_IO cleared it */
-    jsr     JOY_update          /* Read inputs before game logic */
-    jsr     game_tick           /* C function — called each VBlank */
+    jsr     0xC0044A            /* SYSTEM_IO */
+    orib    #0x80, 0x10FD80
+    jsr     JOY_update
+    jsr     game_tick
     bra.s   .Lmain_loop
 
 | --- BSS --------------------------------------------------------------
@@ -188,3 +190,7 @@ vblank_count:
     .skip   2
 game_active:
     .skip   2
+    .global wait_cycles
+    .align  4
+wait_cycles:
+    .skip   4

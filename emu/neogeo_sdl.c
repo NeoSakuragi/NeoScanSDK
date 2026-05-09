@@ -1172,7 +1172,8 @@ int main(int argc, char *argv[]) {
     trace_file = fopen("/tmp/danmaku_trace.csv", "w");
     if (trace_file) {
         fprintf(trace_file, "frame,game_tick,alive,active,curves,spawns,cmds,slot,mode,"
-                "m68k_cyc,vram_wr,vram_addr,exception,exc_pc,vec_switch,watchdog,vblank_miss\n");
+                "m68k_cyc,vram_wr,vram_addr,exception,exc_pc,vec_switch,watchdog,vblank_miss,"
+                "wait_spins,idle_cyc,work_cyc\n");
     }
 
     struct retro_system_av_info av;
@@ -1383,8 +1384,18 @@ int main(int argc, char *argv[]) {
                     uint8_t  slot    = wram_ptr[0xF20F];
                     uint16_t alive   = ((uint16_t)wram_ptr[0xF206] << 8) | wram_ptr[0xF207];
 
+                    uint32_t wait_spins = 0;
+                    if (wram_size >= 0xF214) {
+                        wait_spins = ((uint32_t)wram_ptr[0xF210] << 24) |
+                                     ((uint32_t)wram_ptr[0xF211] << 16) |
+                                     ((uint32_t)wram_ptr[0xF212] << 8) |
+                                     wram_ptr[0xF213];
+                    }
+                    uint32_t idle_cyc = wait_spins * 20;
+                    uint32_t work_cyc = (idle_cyc < 202752) ? 202752 - idle_cyc : 0;
+
                     fprintf(trace_file,
-                        "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+                        "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
                         frame_count, game_tick, alive == 0xBEEF ? 1 : 0,
                         active, curves, spawns, cmds, slot, mode,
                         core_stats_ptr->m68k_cycles,
@@ -1394,7 +1405,8 @@ int main(int argc, char *argv[]) {
                         core_stats_ptr->exception_pc,
                         core_stats_ptr->vector_switch,
                         core_stats_ptr->watchdog_fired,
-                        miss);
+                        miss,
+                        wait_spins, idle_cyc, work_cyc);
                 }
             }
             if (rec_file) rec_frame(tick);

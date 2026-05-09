@@ -40,6 +40,7 @@
 #define DEBUG_RAM_CMDS    ((volatile uint16_t *)0x10F20C)
 #define DEBUG_RAM_MODE    ((volatile uint8_t  *)0x10F20E)
 #define DEBUG_RAM_SLOT    ((volatile uint8_t  *)0x10F20F)
+#define DEBUG_RAM_WAIT    ((volatile uint32_t *)0x10F210)
 
 static uint16_t spawns_this_frame;
 
@@ -407,6 +408,7 @@ void game_tick(void) {
     *DEBUG_RAM_CMDS    = neo_cmd_count;
     *DEBUG_RAM_MODE    = *(volatile uint8_t *)0x10FD80;
     *DEBUG_RAM_SLOT    = (uint8_t)(tick & 15);
+    { extern uint32_t wait_cycles; *DEBUG_RAM_WAIT = wait_cycles; }
     spawns_this_frame  = 0;
 
     /* 2. Flush ALL cmd_push to VRAM in one go */
