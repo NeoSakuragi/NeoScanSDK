@@ -57,7 +57,7 @@ _start:
     .word   0x4EF9              /* JMP abs.l opcode */
     .long   user_handler        /* USER callback ($122-$127) */
     .word   0x4EF9
-    .long   stub_rts            /* PLAYER_START ($128-$12D) */
+    .long   player_start        /* PLAYER_START ($128-$12D) */
     .word   0x4EF9
     .long   stub_rts            /* DEMO_END ($12E-$133) */
     .word   0x4EF9
@@ -89,6 +89,15 @@ stub_rts:
     rts
 
     .align  2
+player_start:
+    moveb   0x10FD82, %d0       /* Read credits */
+    beq.s   .Lno_credits
+    subib   #1, 0x10FD82        /* Decrement credit (BCD) */
+    moveb   #2, 0x10FDAF        /* USER_MODE = 2 (game mode) */
+.Lno_credits:
+    rts
+
+    .align  2
 soft_dip:
     .ascii  "NEOSCAN GAME\0"
     .fill   19, 1, 0
@@ -112,25 +121,31 @@ zero_bss:
 vblank_handler:
     btst    #7, 0x10FD80        /* BIOS_SYSTEM_MODE */
     bne.s   .Lgame_vblank
-    jmp     0xC00438            /* SYSTEM_INT1 — BIOS handles it */
-
+    | During BIOS init — let BIOS handle it
+    tstb    game_active
+    beq.s   .Lbios_vblank
+    | Game was running but BIOS stole mode bit — take it back
+    orib    #0x80, 0x10FD80
 .Lgame_vblank:
     movew   #4, 0x3C000C        /* ACK VBlank */
     moveb   #0, 0x300001        /* Watchdog */
-    jsr     0xC0044A            /* SYSTEM_IO (reads inputs) */
     moveb   #1, vblank_flag
     rte
+.Lbios_vblank:
+    jmp     0xC00438            /* SYSTEM_INT1 — BIOS handles it */
 
 | --- USER handler (dispatches to C) ----------------------------------
     .align  2
     .global user_handler
 user_handler:
     moveb   0x10FDAE, %d0       /* BIOS_USER_REQUEST */
+    moveb   %d0, 0x10F208       /* Log request to debug RAM */
     andiw   #0x00FF, %d0
     cmpib   #0, %d0
     beq     do_init
     cmpib   #2, %d0
     beq     do_game
+    moveb   #0xDD, 0x10F209     /* Log unhandled request */
     jmp     0xC00444            /* SYSTEM_RETURN */
 
     .align  2
@@ -145,6 +160,7 @@ do_init:
     .align  2
 do_game:
     orib    #0x80, 0x10FD80     /* Set system mode bit 7 */
+    moveb   #1, game_active     /* Mark game as running for VBlank guard */
     movew   #0x2000, %sr        /* Enable interrupts */
     jsr     game_init
 
@@ -153,6 +169,8 @@ do_game:
 .Lwait:
     tstb    vblank_flag
     beq.s   .Lwait
+    jsr     0xC0044A            /* SYSTEM_IO — called from main loop, not interrupt */
+    orib    #0x80, 0x10FD80     /* Force mode bit back in case SYSTEM_IO cleared it */
     jsr     JOY_update          /* Read inputs before game logic */
     jsr     game_tick           /* C function — called each VBlank */
     bra.s   .Lmain_loop
@@ -161,4 +179,6 @@ do_game:
     .section .bss
     .align  2
 vblank_flag:
+    .skip   2
+game_active:
     .skip   2

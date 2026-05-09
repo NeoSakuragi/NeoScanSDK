@@ -8,12 +8,15 @@ vram_cmd_t neo_cmd_buf[CMD_BUF_SIZE];
 uint16_t neo_cmd_count;
 
 void SYS_vblankFlush(void) {
-    uint16_t i;
+    uint16_t i, sr;
+    __asm__ volatile ("move.w %%sr, %0" : "=d"(sr));
+    __asm__ volatile ("move.w #0x2700, %%sr" ::: "cc");
     for (i = 0; i < neo_cmd_count; i++) {
         REG_VRAMADDR = neo_cmd_buf[i].addr;
         REG_VRAMRW = neo_cmd_buf[i].data;
     }
     neo_cmd_count = 0;
+    __asm__ volatile ("move.w %0, %%sr" :: "d"(sr) : "cc");
 }
 
 void SYS_waitVBlank(void) {

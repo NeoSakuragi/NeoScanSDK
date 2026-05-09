@@ -1,6 +1,7 @@
 [
     {"label": "KOF95", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/kof95.neo"},
     {"label": "KOF98", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/kof98.neo"},
+    {"label": "Sonic Wings 2", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/sonicwi2.neo"},
     {"label": "Metal Slug", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/mslug.neo"},
     {"label": "Metal Slug (NO COLL)", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/sandbox/mslug1-nocoll.neo"},
     {"label": "Metal Slug (GOD MODE)", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/sandbox/mslug1-godmode.neo"},
@@ -10,5 +11,7 @@
     {"label": "Jukebox", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/jukebox/jukebox.neo"},
     {"label": "Ikari Soccer", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/ikari_soccer/ikari_soccer.neo"},
     {"label": "SHM Server + KOF95", "cmd": "pkill -f shm_server; ~/CLProjects/NeoScanSDK/bus/shm_server /data/roms/kof95.neo & sleep 1 && ~/CLProjects/NeoScanSDK/emu/neogeo_sdl /data/roms/kof95.neo"},
+    {"label": "Danmaku", "cmd": "~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/danmaku/danmaku.neo"},
+    {"label": "Build + Run Danmaku", "cmd": "make -C ~/CLProjects/NeoScanSDK/examples/danmaku clean && make -C ~/CLProjects/NeoScanSDK/examples/danmaku && ~/CLProjects/NeoScanSDK/emu/neogeo_sdl ~/CLProjects/NeoScanSDK/examples/danmaku/danmaku.neo"},
     {"label": "Bus Monitor", "cmd": "python3 ~/CLProjects/NeoScanSDK/bus/neocart_gui.py"}
 ]

@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <time.h>
 #include <math.h>
 #include <dlfcn.h>
 #include <SDL2/SDL.h>
@@ -55,6 +56,7 @@
 #define RETRO_ENVIRONMENT_SET_CORE_OPTIONS_UPDATE_DISPLAY_CALLBACK 69
 
 #define RETRO_PIXEL_FORMAT_XRGB8888 1
+#define RETRO_MEMORY_SYSTEM_RAM 2
 
 enum retro_log_level { RETRO_LOG_DEBUG=0, RETRO_LOG_INFO, RETRO_LOG_WARN, RETRO_LOG_ERROR };
 typedef void (*retro_log_printf_t)(enum retro_log_level, const char *, ...);
@@ -574,6 +576,8 @@ static void menu_draw(int win_w, int win_h) {
 static uint16_t *vram_ptr_script = NULL; // forward ref for script vram dump
 static uint32_t *sprite_pc_ptr_script = NULL;
 static uint16_t *palram_ptr = NULL;
+static uint8_t *wram_ptr = NULL;  // 68K work RAM (0x100000-0x10FFFF)
+static size_t wram_size = 0;
 
 typedef struct { int frame; char cmd[16]; char arg[256]; } script_cmd_t;
 static script_cmd_t script[256];
@@ -640,6 +644,31 @@ static void script_exec(unsigned fc) {
         } else if (!strcmp(script[i].cmd, "quit")) {
             SDL_Event ev; ev.type = SDL_QUIT;
             SDL_PushEvent(&ev);
+        } else if (!strcmp(script[i].cmd, "poke")) {
+            /* poke <addr_hex> <value_hex>  — write 16-bit to 68K work RAM */
+            if (wram_ptr) {
+                unsigned addr, val;
+                if (sscanf(script[i].arg, "%x %x", &addr, &val) == 2) {
+                    unsigned off = addr - 0x100000;
+                    if (off + 1 < wram_size) {
+                        wram_ptr[off] = (val >> 8) & 0xFF;
+                        wram_ptr[off + 1] = val & 0xFF;
+                        fprintf(stderr, "POKE: [%06X] = %04X\n", addr, val);
+                    }
+                }
+            }
+        } else if (!strcmp(script[i].cmd, "peek")) {
+            /* peek <addr_hex>  — read 16-bit from 68K work RAM */
+            if (wram_ptr) {
+                unsigned addr;
+                if (sscanf(script[i].arg, "%x", &addr) == 1) {
+                    unsigned off = addr - 0x100000;
+                    if (off + 1 < wram_size) {
+                        uint16_t val = ((uint16_t)wram_ptr[off] << 8) | wram_ptr[off + 1];
+                        fprintf(stderr, "PEEK: [%06X] = %04X (frame %u)\n", addr, val, fc);
+                    }
+                }
+            }
         } else if (!strcmp(script[i].cmd, "vram")) {
             if (vram_ptr_script) {
                 FILE *vf = fopen(script[i].arg, "wb");
@@ -683,6 +712,133 @@ static void script_exec(unsigned fc) {
             }
         }
     }
+}
+
+/* ═══ Sprite recorder (F8 toggle) ═══ */
+
+static FILE *rec_file = NULL;
+static uint32_t rec_frames = 0;
+static char rec_path[512];
+
+// Previous frame state for delta compression
+static uint16_t prev_scb1[382][64];
+static uint16_t prev_scb3[382];
+static uint16_t prev_scb4[382];
+static uint32_t prev_pc[382];
+static bool rec_has_prev = false;
+
+static void rec_start(const char *dir) {
+    char ts[32];
+    time_t now = time(NULL);
+    strftime(ts, sizeof(ts), "%Y%m%d_%H%M%S", localtime(&now));
+    snprintf(rec_path, sizeof(rec_path), "%s/rec_%s.sprec", dir, ts);
+    rec_file = fopen(rec_path, "wb");
+    if (!rec_file) { fprintf(stderr, "REC: failed to open %s\n", rec_path); return; }
+
+    // Header: magic + version
+    uint32_t magic = 0x53524543; // "SREC"
+    uint32_t version = 1;
+    fwrite(&magic, 4, 1, rec_file);
+    fwrite(&version, 4, 1, rec_file);
+
+    rec_frames = 0;
+    rec_has_prev = false;
+    fprintf(stderr, "REC: started → %s\n", rec_path);
+}
+
+static void rec_stop(void) {
+    if (!rec_file) return;
+    // Write frame count at end
+    uint32_t marker = 0xFFFFFFFF;
+    fwrite(&marker, 4, 1, rec_file);
+    fwrite(&rec_frames, 4, 1, rec_file);
+    fclose(rec_file);
+    fprintf(stderr, "REC: stopped, %u frames → %s\n", rec_frames, rec_path);
+    rec_file = NULL;
+}
+
+static void rec_frame(unsigned fc) {
+    if (!rec_file || !vram_ptr_script || !sprite_pc_ptr_script) return;
+
+    // Collect active slots (non-zero tiles)
+    uint8_t active[382];
+    int num_active = 0;
+    for (int s = 0; s < 382; s++) {
+        active[s] = 0;
+        uint16_t scb3 = vram_ptr_script[0x8200 + s];
+        int height = scb3 & 0x3F;
+        for (int t = 0; t < height && t < 32; t++) {
+            if (vram_ptr_script[s * 64 + t * 2] != 0) { active[s] = 1; num_active++; break; }
+        }
+    }
+
+    // Check if anything changed from previous frame
+    bool changed = !rec_has_prev;
+    if (!changed) {
+        for (int s = 0; s < 382 && !changed; s++) {
+            if (!active[s] && prev_pc[s] == 0) continue;
+            if (sprite_pc_ptr_script[s] != prev_pc[s]) { changed = true; break; }
+            if (vram_ptr_script[0x8200 + s] != prev_scb3[s]) { changed = true; break; }
+            if (vram_ptr_script[0x8400 + s] != prev_scb4[s]) { changed = true; break; }
+            for (int w = 0; w < 64; w++) {
+                if (vram_ptr_script[s * 64 + w] != prev_scb1[s][w]) { changed = true; break; }
+            }
+        }
+    }
+
+    // Frame record: frame_num + num_active_slots + per-slot data
+    // Only write full frames when something changed, otherwise just frame marker
+    uint32_t fn = fc;
+    fwrite(&fn, 4, 1, rec_file);
+
+    if (!changed) {
+        // Delta: nothing changed, write 0 slots
+        uint16_t ns = 0;
+        fwrite(&ns, 2, 1, rec_file);
+    } else {
+        uint16_t ns = (uint16_t)num_active;
+        fwrite(&ns, 2, 1, rec_file);
+
+        for (int s = 0; s < 382; s++) {
+            if (!active[s]) continue;
+            uint16_t slot_id = (uint16_t)s;
+            uint32_t pc = sprite_pc_ptr_script[s];
+            uint16_t scb2 = vram_ptr_script[0x8000 + s];
+            uint16_t scb3 = vram_ptr_script[0x8200 + s];
+            uint16_t scb4 = vram_ptr_script[0x8400 + s];
+
+            fwrite(&slot_id, 2, 1, rec_file);
+            fwrite(&pc, 4, 1, rec_file);
+            fwrite(&scb2, 2, 1, rec_file);
+            fwrite(&scb3, 2, 1, rec_file);
+            fwrite(&scb4, 2, 1, rec_file);
+
+            int height = scb3 & 0x3F;
+            uint8_t h = (uint8_t)(height > 32 ? 32 : height);
+            fwrite(&h, 1, 1, rec_file);
+            fwrite(&vram_ptr_script[s * 64], 2, h * 2, rec_file);
+
+            // Update prev state
+            prev_pc[s] = pc;
+            prev_scb3[s] = scb3;
+            prev_scb4[s] = scb4;
+            memcpy(prev_scb1[s], &vram_ptr_script[s * 64], 128);
+        }
+
+        // Write palette on first frame and every 60 frames
+        if (palram_ptr && (rec_frames == 0 || rec_frames % 60 == 0)) {
+            uint16_t pal_marker = 0xFFFE;
+            fwrite(&pal_marker, 2, 1, rec_file);
+            fwrite(palram_ptr, 2, 8192, rec_file);
+        }
+    }
+
+    // Clear prev state for inactive slots
+    for (int s = 0; s < 382; s++) {
+        if (!active[s]) { prev_pc[s] = 0; prev_scb3[s] = 0; prev_scb4[s] = 0; }
+    }
+    rec_has_prev = true;
+    rec_frames++;
 }
 
 /* ═══ Sprite debug panel ═══ */
@@ -991,6 +1147,9 @@ int main(int argc, char *argv[]) {
     sprite_pc_ptr_script = sprite_pc_ptr;
     num_blocked_ptr = (int *)core.get_memory_data(103);
     palram_ptr = (uint16_t *)core.get_memory_data(104);
+    wram_ptr = (uint8_t *)core.get_memory_data(RETRO_MEMORY_SYSTEM_RAM);
+    wram_size = core.get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
+    if (wram_ptr) fprintf(stderr, "WRAM: %zu bytes at %p\n", wram_size, (void*)wram_ptr);
 
     struct retro_system_av_info av;
     core.get_system_av_info(&av);
@@ -1145,6 +1304,16 @@ int main(int argc, char *argv[]) {
                     }
                     if (sc == SDL_SCANCODE_F6) { state_wait = 'S'; state_msg_frames = 0; }
                     if (sc == SDL_SCANCODE_F7) { state_wait = 'L'; state_msg_frames = 0; }
+                    if (sc == SDL_SCANCODE_F8) {
+                        if (rec_file) {
+                            rec_stop();
+                            snprintf(state_msg, sizeof(state_msg), "REC STOP");
+                        } else {
+                            rec_start("/data/sonicwings/sw2");
+                            snprintf(state_msg, sizeof(state_msg), "REC START");
+                        }
+                        state_msg_frames = 120;
+                    }
                 }
             }
         }
@@ -1174,12 +1343,12 @@ int main(int argc, char *argv[]) {
         /* ── Execute ── */
         if (flags & FL_RUN_CORE) {
             core.run();
+            if (rec_file) rec_frame(tick);
             if (autoload_frame > 0 && (int)frame_count == autoload_frame) {
                 state_load('s');
                 autoload_frame = 0;
             }
             if (pending_reset > 0 && --pending_reset == 0) {
-                #define RETRO_MEMORY_SYSTEM_RAM 2
                 void *sysram = core.get_memory_data(RETRO_MEMORY_SYSTEM_RAM);
                 size_t ramsz = core.get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
                 if (sysram && ramsz) memset(sysram, 0, ramsz);
@@ -1206,6 +1375,8 @@ int main(int argc, char *argv[]) {
                 sprite_pc_ptr_script = sprite_pc_ptr;
                 num_blocked_ptr = (int *)core.get_memory_data(103);
                 palram_ptr = (uint16_t *)core.get_memory_data(104);
+                wram_ptr = (uint8_t *)core.get_memory_data(RETRO_MEMORY_SYSTEM_RAM);
+                wram_size = core.get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
             }
             if (auto_quit_frame > 0 && (int)frame_count >= auto_quit_frame) running = false;
         }

@@ -2,13 +2,24 @@
 #include "neo_fix.h"
 
 static void fix_write(uint8_t col, uint8_t row, uint16_t val) {
-    VDP_write(VRAM_FIX + col * 32 + row, val);
+    uint16_t addr = VRAM_FIX + col * 32 + row;
+    uint16_t sr;
+    __asm__ volatile ("move.w %%sr, %0" : "=d"(sr));
+    __asm__ volatile ("move.w #0x2700, %%sr" ::: "cc", "memory");
+    REG_VRAMADDR = addr;
+    REG_VRAMRW = val;
+    __asm__ volatile ("move.w %0, %%sr" :: "d"(sr) : "cc", "memory");
 }
 
 void FIX_clear(void) {
-    uint16_t addr;
-    for (addr = VRAM_FIX; addr < VRAM_FIX + FIX_COLS * 32; addr++)
-        VDP_write(addr, 0);
+    uint16_t addr, sr;
+    __asm__ volatile ("move.w %%sr, %0" : "=d"(sr));
+    __asm__ volatile ("move.w #0x2700, %%sr" ::: "cc", "memory");
+    for (addr = VRAM_FIX; addr < VRAM_FIX + FIX_COLS * 32; addr++) {
+        REG_VRAMADDR = addr;
+        REG_VRAMRW = 0;
+    }
+    __asm__ volatile ("move.w %0, %%sr" :: "d"(sr) : "cc", "memory");
 }
 
 void FIX_clearLine(uint8_t row) {
