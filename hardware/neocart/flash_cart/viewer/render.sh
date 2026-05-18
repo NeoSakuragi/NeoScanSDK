@@ -16,20 +16,20 @@ kicad-cli pcb export svg --output "$DIR/_prog_front.svg" \
   --layers "F.Cu,F.Mask,F.SilkS,Edge.Cuts" \
   --page-size-mode 2 --exclude-drawing-sheet "$PROG" 2>/dev/null
 
-# PROG back (B-side) — no mirror, so labels read correctly
+# PROG back (B-side) — mirrored for correct physical orientation
 kicad-cli pcb export svg --output "$DIR/_prog_back.svg" \
   --layers "B.Cu,B.Mask,B.SilkS,Edge.Cuts" \
-  --page-size-mode 2 --exclude-drawing-sheet "$PROG" 2>/dev/null
+  --mirror --page-size-mode 2 --exclude-drawing-sheet "$PROG" 2>/dev/null
 
 # CHA front (A-side)
 [ -f "$CHA" ] && kicad-cli pcb export svg --output "$DIR/_cha_front.svg" \
   --layers "F.Cu,F.Mask,F.SilkS,Edge.Cuts" \
   --page-size-mode 2 --exclude-drawing-sheet "$CHA" 2>/dev/null
 
-# CHA back (B-side) — no mirror
+# CHA back (B-side) — mirrored for correct physical orientation
 [ -f "$CHA" ] && kicad-cli pcb export svg --output "$DIR/_cha_back.svg" \
   --layers "B.Cu,B.Mask,B.SilkS,Edge.Cuts" \
-  --page-size-mode 2 --exclude-drawing-sheet "$CHA" 2>/dev/null
+  --mirror --page-size-mode 2 --exclude-drawing-sheet "$CHA" 2>/dev/null
 
 # Convert to PNG
 "$VENV/bin/python3" -c "

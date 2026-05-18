@@ -8293,6 +8293,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "GND"
@@ -8304,6 +8305,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P1"
@@ -8315,6 +8317,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P3"
@@ -8326,6 +8329,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P5"
@@ -8337,6 +8341,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P7"
@@ -8348,6 +8353,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P9"
@@ -8359,6 +8365,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P11"
@@ -8370,6 +8377,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P13"
@@ -8381,6 +8389,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P15"
@@ -8392,6 +8401,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P17"
@@ -8403,6 +8413,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P19"
@@ -8414,6 +8425,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P21"
@@ -8425,6 +8437,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "P23"
@@ -8436,6 +8449,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "24M"
@@ -8447,6 +8461,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "12M"
@@ -8458,6 +8473,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "8M"
@@ -8469,6 +8485,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "RESET"
@@ -8480,6 +8497,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR1"
@@ -8491,6 +8509,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR3"
@@ -8502,6 +8521,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR5"
@@ -8513,6 +8533,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR7"
@@ -8524,6 +8545,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR9"
@@ -8535,6 +8557,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR11"
@@ -8546,6 +8569,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR13"
@@ -8557,6 +8581,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR15"
@@ -8568,6 +8593,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR17"
@@ -8579,6 +8605,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR19"
@@ -8590,6 +8617,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "VCC"
@@ -8601,6 +8629,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "VCC"
@@ -8612,6 +8641,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "VCC"
@@ -8623,6 +8653,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "VCC"
@@ -8634,6 +8665,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR21"
@@ -8645,6 +8677,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR23"
@@ -8656,6 +8689,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR25"
@@ -8667,6 +8701,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR27"
@@ -8678,6 +8713,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR29"
@@ -8689,6 +8725,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "CR31"
@@ -8700,6 +8737,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "FIXD0"
@@ -8711,6 +8749,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "FIXD1"
@@ -8722,6 +8761,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "FIXD2"
@@ -8733,6 +8773,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "FIXD3"
@@ -8744,6 +8785,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "FIXD4"
@@ -8755,6 +8797,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "FIXD5"
@@ -8766,6 +8809,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "FIXD6"
@@ -8777,6 +8821,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "FIXD7"
@@ -8788,6 +8833,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDRD0"
@@ -8799,6 +8845,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDRD1"
@@ -8810,6 +8857,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDROM"
@@ -8821,6 +8869,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDMRD"
@@ -8832,6 +8881,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDD0"
@@ -8843,6 +8893,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDD1"
@@ -8854,6 +8905,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDD2"
@@ -8865,6 +8917,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDD3"
@@ -8876,6 +8929,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDD4"
@@ -8887,6 +8941,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDD5"
@@ -8898,6 +8953,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDD6"
@@ -8909,6 +8965,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "SDD7"
@@ -8920,6 +8977,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "GND"
@@ -8931,6 +8989,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "GND"
@@ -8942,6 +9001,7 @@
 				(size 1.17 1.17)
 				(thickness 0.15)
 			)
+			(justify mirror)
 		)
 	)
 	(gr_text "B-SIDE"
@@ -8953,6 +9013,7 @@
 				(size 2.925 2.925)
 				(thickness 0.2925)
 			)
+			(justify mirror)
 		)
 	)
 	(embedded_fonts no)
