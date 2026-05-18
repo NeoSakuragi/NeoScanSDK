@@ -1,0 +1,24 @@
+{
+  "board": {
+    "3dviewports": [],
+    "design_settings": {
+      "defaults": {
+        "board_outline_line_width": 0.1,
+        "copper_line_width": 0.2,
+        "copper_text_size_h": 1.5,
+        "copper_text_size_v": 1.5
+      }
+    },
+    "layer_presets": []
+  },
+  "meta": {
+    "filename": "prom_breakout.kicad_pro",
+    "version": 1
+  },
+  "schematic": {
+    "drawing": {},
+    "meta": {
+      "version": 1
+    }
+  }
+}
