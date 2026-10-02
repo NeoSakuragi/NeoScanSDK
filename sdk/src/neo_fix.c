@@ -1,8 +1,10 @@
 #include "neo_hw.h"
 #include "neo_fix.h"
 
+/* Rows are visible rows 0..27. Map rows 0-1 and 30-31 fall in vertical
+ * blanking (the display shows lines 16-239), so visible row y is map row y+2. */
 static void fix_write(uint8_t col, uint8_t row, uint16_t val) {
-    uint16_t addr = VRAM_FIX + col * 32 + row;
+    uint16_t addr = VRAM_FIX + col * 32 + row + 2;
     uint16_t sr;
     __asm__ volatile ("move.w %%sr, %0" : "=d"(sr));
     __asm__ volatile ("move.w #0x2700, %%sr" ::: "cc", "memory");

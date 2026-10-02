@@ -1,0 +1,117 @@
+[
+ {
+  "check": "reset clears bank latch",
+  "ok": true,
+  "detail": "(0, 0)"
+ },
+ {
+  "check": "idle: flash P not enabled, transceiver off",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "P1 read: flash OE low, CE low, WE high",
+  "ok": true,
+  "detail": "{'addr': 2, 'ce': 0, 'oe': 0, 'we': 1}"
+ },
+ {
+  "check": "P1 read: flash word address = 68K address >> 1 (A2 -> FA1), upper bits 0",
+  "ok": true,
+  "detail": "0x2"
+ },
+ {
+  "check": "P1 read: 0x1234 reaches the 68K data bus",
+  "ok": true,
+  "detail": "0x1234"
+ },
+ {
+  "check": "after read: bus released",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "bank write: transceiver enabled toward the flash side",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "bank write: flash not written (WE high) and not read (OE high)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "bank latch now holds bank 1",
+  "ok": true,
+  "detail": "(1, 0)"
+ },
+ {
+  "check": "outside the port window the bank bits do not reach the flash",
+  "ok": true,
+  "detail": "(0, 0)"
+ },
+ {
+  "check": "P2 read: flash OE low",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "P2 read: word address = (5 MB + 8) / 2",
+  "ok": true,
+  "detail": "0x280004"
+ },
+ {
+  "check": "P2 read: data reaches the bus",
+  "ok": true,
+  "detail": "0x1234"
+ },
+ {
+  "check": "ADPCM-A: chip 0 selected for bit23=0, chip 1 not",
+  "ok": true,
+  "detail": "(0, 1)"
+ },
+ {
+  "check": "ADPCM-A: byte address reconstructed",
+  "ok": true,
+  "detail": "0x5a5c3f"
+ },
+ {
+  "check": "ADPCM-A: sample byte 0xA5 driven onto SDRAD during SDROE",
+  "ok": true,
+  "detail": "0xa5"
+ },
+ {
+  "check": "ADPCM-A: bus released after SDROE",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "PROG: P flash OE/WE pulled inactive, transceiver disabled",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "PROG: 68K address buffers tri-stated (FA0 undriven)",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "PROG: 595 outputs enabled",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "PROG: sample data buffers disabled even with SDROE low",
+  "ok": true,
+  "detail": ""
+ },
+ {
+  "check": "PROG: MCU address reaches the P flash (FA3=1), OE low",
+  "ok": true,
+  "detail": "{'addr': 8, 'ce': 0, 'oe': 0, 'we': 1}"
+ },
+ {
+  "check": "PROG: flash data arrives on the MCU pins (FD = 0x1234), nothing else drives FD",
+  "ok": true,
+  "detail": ""
+ }
+]

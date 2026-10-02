@@ -1,0 +1,296 @@
+#!/usr/bin/env python3
+"""NeoCart programmer v1 - declarative netlist (single source of truth).
+
+A USB host for MVS PROG boards (CTRG2): the board plays the console. An RP2350B drives every cart line through 5 V
+level shifters, so it can flash and verify the NeoCart PROG board (JP1 on PROGRAM, see ../pboard/PROGRAMMING.md),
+dump an original SNK PROG board, and run bus tests driven from the PC (agentic cart debugging).
+
+- MCU: RP2350B (48 GPIO), the Raspberry Pi reference circuit (HW design guide): ABM8-272-T3 crystal + 1k, AOTA 3.3 uH
+  core inductor, W25Q32JV boot flash, USB-C device port, BOOTSEL / RUN buttons, SWD header.
+- GPIO0-15 = MD0-15, an internal 16-bit bus shared by the data transceivers (A side) and the address latch inputs.
+- GPIO16-30 = 15 cart strobes, straight through a level shifter: PIO can run real bus cycles (RP2350 ~7 ns steps).
+- Addresses that change slowly (A1-A19, ADPCM high address bits, /RESET, 4 MHz, /SLOTCS) come from two 74LVC16374
+  latches loaded from MD0-15 (LCLK1, LCLK2), then a level shifter.
+- Level shifters toward the cart: SN74LVC16T245, A side 3.3 V, B side = VCART (the switched cart 5 V). With the cart
+  unpowered every B port is high impedance (TI "VCC isolation"), so the programmer can never back-power a cart.
+- D0-D15 go through a 74LVC16245A at 3.3 V instead: the NeoCart PROG board drives D0-D15 at 3.3 V (its own LVC16245),
+  which a 5 V-referenced input (V_IH = 0.7 x 5 V = 3.5 V) would not accept; LVC inputs take 2.0 V and tolerate 5.5 V.
+- Sample buses SDRAD0-7 / SDPAD0-7 are 5 V on both sides (the PROG board's 74LVC8T245 B port runs at 5 V and needs
+  3.5 V for a high in PROGRAM writes): SN74LVC16T245 with VCCB = VCART.
+- Cart 5 V: TPS2553 current-limited switch (R_ILIM 33k: 0.79 A typical), enable + fault to the MCU, VCART on an ADC pin.
+- /ROMWAIT, /PWAIT0, /PWAIT1, /PDTACK (cart outputs) into 5 V-tolerant GPIO31-34 (RP2350 "Digital IO (FT)", GPIO0-39:
+  tolerate 5.5 V while IOVDD = 3.3 V) through 1k.
+
+Pin numbers checked against: RP2350 datasheet table 1427 (QFN-80), TI SN74LVC16T245 (SCES636B) pin configuration,
+Nexperia 74LVC16245A, Nexperia/TI 74LVC16374A, TI TPS2553 (SLVS841F) DBV pinout, Winbond W25Q32JV, the slot drawing
+EDAC 345-120-520-201 (2.54 mm pitch, 5.08 mm row spacing). check() also compares every pin name with the symbol.
+"""
+import importlib.util, os, re, sys
+from collections import defaultdict
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+_spec = importlib.util.spec_from_file_location('pboard_design', os.path.join(HERE, '..', 'pboard', 'design.py'))
+PB = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(PB)      # the cart side: CTRG2 pinout + PROG board netlist
+CTRG2_A, CTRG2_B = PB.CTRG2_A, PB.CTRG2_B
+
+PARTS = {}
+def part(ref, lcsc, symbol, footprint, value, desc):
+    PARTS[ref] = dict(lcsc=lcsc, symbol=symbol, footprint=footprint, value=value, desc=desc)
+
+part('J1', None, None, 'MVS_SLOT_EDAC_345-120', 'MVS slot', 'EDAC 345-120-520-201 (or Sullins EBC60DCxN): 2x60 card edge, 2.54 mm, hand-soldered, not from LCSC')
+part('U1', 'C42415655', 'RP2350B_C42415655', 'QFN-80_L10.0-W10.0-P0.40-TL-EP3.4', 'RP2350B', 'MCU, 48 GPIO')
+part('U2', 'C179173', 'W25Q32JVSSIQ_C179173', 'SOIC-8_L5.3-W5.3-P1.27-LS8.0-BL', 'W25Q32JV', 'MCU boot flash (QSPI)')
+part('U3', 'C6186', 'AMS1117-3.3', 'SOT-223-3_L6.5-W3.4-P2.30-LS7.0-BR', 'AMS1117-3.3', '3.3 V from USB VBUS')
+part('U4', 'C55266', 'TPS2553DBVR', 'SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BR', 'TPS2553', 'cart 5 V switch, current limit 0.79 A typ (R_ILIM 33k)')
+part('U5', 'C548160', 'SN74LVC16245ADGGR', 'TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL', '74LVC16245A', 'D0-D15 <-> MD0-15 at 3.3 V (5 V tolerant)')
+part('U6', 'C148170', 'SN74LVC16T245DGGR', 'TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL', 'SN74LVC16T245', 'SDRAD0-7 / SDPAD0-7 <-> MD0-7 / MD8-15, 3.3 V <-> 5 V')
+part('U7', 'C148170', 'SN74LVC16T245DGGR', 'TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL', 'SN74LVC16T245', '15 strobes GPIO16-30 -> cart, 3.3 V -> 5 V')
+part('U8', 'C148170', 'SN74LVC16T245DGGR', 'TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL', 'SN74LVC16T245', 'A1-A16 latch outputs -> cart, 3.3 V -> 5 V')
+part('U9', 'C148170', 'SN74LVC16T245DGGR', 'TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL', 'SN74LVC16T245', 'A17-A19, ADPCM high bits, /RESET, 4 MHz, /SLOTCS -> cart')
+part('U10', 'C6074', '74LVC16374ADGG,118', 'TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL', '74LVC16374A', 'latch: A1-A16 from MD0-15 (LCLK1)')
+part('U11', 'C6074', '74LVC16374ADGG,118', 'TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL', '74LVC16374A', 'latch: slow lines from MD0-15 (LCLK2)')
+part('Y1', 'C20625731', 'ABM8-272-T3_C20625731', 'CRYSTAL-SMD_4P-L3.2-W2.5-BL', '12 MHz', 'ABM8-272-T3, the RP2350 reference crystal (10 pF load)')
+part('L1', 'C42411119', 'AOTA-B201610S3R3-101-T', 'IND-SMD_L2.0-W1.6_AOTA-B201610S3R3-101-T', '3.3 uH', 'RP2350 core regulator inductor (reference part, polarity marked)')
+part('J2', 'C165948', 'TYPE-C-31-M-12', 'USB-C_SMD-TYPE-C-31-M-12_1', 'USB-C', 'USB 2.0 device port + 5 V supply')
+part('SW1', 'C318884', 'TS-1187A-B-A-B', 'SW-SMD_4P-L5.1-W5.1-P3.70-LS6.5-TL_H1.5', 'BOOTSEL', 'hold at reset: USB bootloader')
+part('SW2', 'C318884', 'TS-1187A-B-A-B', 'SW-SMD_4P-L5.1-W5.1-P3.70-LS6.5-TL_H1.5', 'RUN', 'MCU reset')
+part('JP1', 'C2894926', 'PZ254-1-03-Z-8.5', 'HDR-TH_03P-P2.54-V-M', 'SWD', '1x3 header, hand-soldered: SWCLK | GND | SWDIO')
+part('LED1', 'C2286', 'KT-0603R', 'LED-SMD_L1.6-W0.8-R-RD', '3V3', 'programmer powered')
+part('LED2', 'C2286', 'KT-0603R', 'LED-SMD_L1.6-W0.8-R-RD', 'CART', 'cart 5 V on')
+part('LED3', 'C2286', 'KT-0603R', 'LED-SMD_L1.6-W0.8-R-RD', 'BUSY', 'firmware activity (GPIO45)')
+
+PASSIVE = {'100n': ('C14663', 'C0603'), '10u': ('C15850', 'C0805'), '10k': ('C25804', 'R0603'), '1k': ('C21190', 'R0603'),
+           '4u7': ('C19666', 'C0603'), '1u': ('C15849', 'C0603'), '15p': ('C1644', 'C0603'), '27R': ('C25190', 'R0603'),
+           '33R': ('C23140', 'R0603'), '5k1': ('C23186', 'R0603'), '33k': ('C4216', 'R0603')}
+
+NETS = defaultdict(list)
+EXPECT = {}
+def conn(ref, pin, net, name=None):
+    NETS[net].append((ref, str(pin)))
+    if name: EXPECT[(ref, str(pin))] = name
+def nc(ref, pin, name=None): conn(ref, pin, f'NC_{ref}_{pin}', name)
+
+# --- J1 MVS slot: pad "A<k>" touches cart finger A<k> (component side), "B<k>" finger B<k>. Cart 5 V = VCART -----------
+CART = {}
+for side, table in (('A', CTRG2_A), ('B', CTRG2_B)):
+    for k, n in table.items():
+        n2 = 'VCART' if n == 'VCC5' else n
+        CART[f'{side}{k}'] = n2
+        if n2.startswith('NC_'): nc('J1', f'{side}{k}')
+        else: conn('J1', f'{side}{k}', n2)
+
+# --- 16-bit transceiver / latch pin tables (identical for 16245, 16T245, 16374: 1A1..1A8, 1B1..1B8, 2A.., 2B..) ---------
+X_A1 = [47, 46, 44, 43, 41, 40, 38, 37]; X_B1 = [2, 3, 5, 6, 8, 9, 11, 12]
+X_A2 = [36, 35, 33, 32, 30, 29, 27, 26]; X_B2 = [13, 14, 16, 17, 19, 20, 22, 23]
+def xcvr(ref, a_nets, b_nets, dir1, dir2, oe1, oe2, dual):
+    """16 channels: a_nets/b_nets[0..7] = half 1, [8..15] = half 2. None on the A side = input tied low (unused channel)."""
+    for i in range(16):
+        pa, pb, h, k = (X_A1[i], X_B1[i], 1, i + 1) if i < 8 else (X_A2[i - 8], X_B2[i - 8], 2, i - 7)
+        conn(ref, pa, a_nets[i] or 'GND', f'{h}A{k}')
+        if b_nets[i]: conn(ref, pb, b_nets[i], f'{h}B{k}')
+        else: nc(ref, pb, f'{h}B{k}')
+    conn(ref, 1, dir1, '1DIR'); conn(ref, 24, dir2, '2DIR'); conn(ref, 48, oe1, r'~\{1OE\}'); conn(ref, 25, oe2, r'~\{2OE\}')
+    if dual:
+        for p in (31, 42): conn(ref, p, 'P3V3', 'VCCA')
+        for p in (7, 18): conn(ref, p, 'VCART', 'VCCB')
+    else:
+        for p in (7, 18, 31, 42): conn(ref, p, 'P3V3', 'VCC')
+    for p in (4, 10, 15, 21, 28, 34, 39, 45): conn(ref, p, 'GND', 'GND')
+X374_D = X_A1 + X_A2; X374_Q = X_B1 + X_B2
+def latch(ref, clk, outs):
+    for i in range(16):
+        h, k = (1, i) if i < 8 else (2, i - 8)
+        conn(ref, X374_D[i], f'MD{i}', f'{h}D{k}')
+        if outs[i]: conn(ref, X374_Q[i], outs[i], f'{h}Q{k}')
+        else: nc(ref, X374_Q[i], f'{h}Q{k}')
+    conn(ref, 48, clk, '1CP'); conn(ref, 25, clk, '2CP'); conn(ref, 1, 'GND', r'~\{1OE\}'); conn(ref, 24, 'GND', r'~\{2OE\}')
+    for p in (7, 18, 31, 42): conn(ref, p, 'P3V3', 'VCC')
+    for p in (4, 10, 15, 21, 28, 34, 39, 45): conn(ref, p, 'GND', 'GND')
+
+MD = [f'MD{i}' for i in range(16)]
+# U5: data bus. DIR high = A -> B = programmer drives the cart (write); XDIR is pulled low (read) at reset
+xcvr('U5', MD, [f'D{i}' for i in range(16)], 'XDIR', 'XDIR', 'nOE_D', 'nOE_D', dual=False)
+# U6: sample buses, one half each, own enables
+xcvr('U6', MD, [f'SDRAD{i}' for i in range(8)] + [f'SDPAD{i}' for i in range(8)], 'XDIR', 'XDIR', 'nOE_VA', 'nOE_VB', dual=True)
+# U7: strobes, GPIO16-30, always A -> B
+STROBES = ['RW', 'nAS', 'nROMOE', 'nROMOEU', 'nROMOEL', 'nPORTOEU', 'nPORTOEL', 'nPORTWEU', 'nPORTWEL', 'nPORTADRS',
+           'SDRMPX', 'nSDROE', 'SDPMPX', 'nSDPOE', 'CLK68K']
+xcvr('U7', [f'G_{s}' for s in STROBES] + [None], STROBES + [None], 'P3V3', 'P3V3', 'nOE_OUT', 'nOE_OUT', dual=True)
+# U10 -> U8: A1-A16
+LAT1 = [f'A{i}' for i in range(1, 17)]
+latch('U10', 'LCLK1', [f'L_{n}' for n in LAT1])
+xcvr('U8', [f'L_{n}' for n in LAT1], LAT1, 'P3V3', 'P3V3', 'nOE_OUT', 'nOE_OUT', dual=True)
+# U11 -> U9: everything else the programmer drives
+LAT2 = ['A17', 'A18', 'A19', 'SDRA8', 'SDRA9', 'SDRA20', 'SDRA21', 'SDRA22', 'SDRA23', 'SDPA8', 'SDPA9', 'SDPA10', 'SDPA11', 'nRESET', 'CLK4M', 'nSLOTCS']
+latch('U11', 'LCLK2', [f'L_{n}' for n in LAT2])
+xcvr('U9', [f'L_{n}' for n in LAT2], LAT2, 'P3V3', 'P3V3', 'nOE_OUT', 'nOE_OUT', dual=True)
+CART_INPUTS = ['nROMWAIT', 'nPWAIT0', 'nPWAIT1', 'nPDTACK']
+
+# --- U1 RP2350B -------------------------------------------------------------------------------------------------------------
+GPIO_PIN = {**{i: 77 + i for i in range(4)}, **{4 + i: 1 + i for i in range(4)}, **{8 + i: 6 + i for i in range(4)}, **{12 + i: 11 + i for i in range(4)},
+            **{16 + i: 16 + i for i in range(8)}, **{24 + i: 25 + i for i in range(4)}, **{28 + i: 36 + i for i in range(5)},
+            **{33 + i: 42 + i for i in range(7)}, 40: 49, **{41 + i: 52 + i for i in range(7)}}
+GPIO_NET = {**{i: f'MD{i}' for i in range(16)}, **{16 + i: f'G_{s}' for i, s in enumerate(STROBES)},
+            **{31 + i: f'S_{s}' for i, s in enumerate(CART_INPUTS)},
+            35: 'XDIR', 36: 'nOE_D', 37: 'nOE_VA', 38: 'nOE_VB', 39: 'nOE_OUT', 40: 'LCLK1', 41: 'LCLK2',
+            42: 'VCART_EN', 43: 'nVCART_FAULT', 44: 'VCART_SENSE', 45: 'LED_BUSY', 46: 'GPIO46', 47: 'GPIO47'}
+for g, p in GPIO_PIN.items(): conn('U1', p, GPIO_NET[g], f'GPIO{g}(_ADC[0-7])?')
+for p in (5, 15, 24, 29, 41, 50, 60, 76): conn('U1', p, 'P3V3', 'IOVDD')
+for p in (10, 32, 51): conn('U1', p, 'VDD_CORE', 'DVDD')
+conn('U1', 69, 'P3V3', 'QSPI_IOVDD'); conn('U1', 68, 'P3V3', 'USB_OTP_VDD'); conn('U1', 59, 'P3V3', 'ADC_AVDD')
+conn('U1', 64, 'P3V3', 'VREG_VIN'); conn('U1', 61, 'VREG_AVDD', 'VREG_AVDD'); conn('U1', 62, 'GND', 'VREG_PGND')
+conn('U1', 63, 'VREG_LX', 'VREG_LX'); conn('U1', 65, 'VDD_CORE', 'VREG_FB'); conn('U1', 81, 'GND', 'GND')
+conn('U1', 66, 'USB_DM_MCU', 'USB_DM'); conn('U1', 67, 'USB_DP_MCU', 'USB_DP')
+conn('U1', 30, 'XIN', 'XIN'); conn('U1', 31, 'XOUT', 'XOUT'); conn('U1', 33, 'SWCLK', 'SWCLK'); conn('U1', 34, 'SWDIO', 'SWDIO'); conn('U1', 35, 'RUN', 'RUN')
+conn('U1', 75, 'QSPI_SS', 'QSPI_SS'); conn('U1', 71, 'QSPI_SCLK', 'QSPI_SCLK'); conn('U1', 72, 'QSPI_SD0', 'QSPI_SD0')
+conn('U1', 74, 'QSPI_SD1', 'QSPI_SD1'); conn('U1', 73, 'QSPI_SD2', 'QSPI_SD2'); conn('U1', 70, 'QSPI_SD3', 'QSPI_SD3')
+conn('U2', 1, 'QSPI_SS', r'~\{CS\}'); conn('U2', 2, 'QSPI_SD1', r'DO.*'); conn('U2', 3, 'QSPI_SD2', r'WP.*'); conn('U2', 4, 'GND', 'GND')
+conn('U2', 5, 'QSPI_SD0', r'DI.*'); conn('U2', 6, 'QSPI_SCLK', 'CLK'); conn('U2', 7, 'QSPI_SD3', r'HOLD.*'); conn('U2', 8, 'P3V3', 'VCC')
+conn('L1', 1, 'VREG_LX'); conn('L1', 2, 'VDD_CORE')
+conn('Y1', 1, 'XIN', 'OSC1|XIN|1'); conn('Y1', 3, 'XOUT_R', 'OSC2|XOUT|3'); conn('Y1', 2, 'GND'); conn('Y1', 4, 'GND')
+
+# --- power: USB-C, 3.3 V LDO, cart switch ----------------------------------------------------------------------------------
+conn('J2', 'A4B9', 'VBUS', 'VBUS'); conn('J2', 'B4A9', 'VBUS', 'VBUS'); conn('J2', 'A1B12', 'GND', 'GND'); conn('J2', 'B1A12', 'GND', 'GND')
+conn('J2', 'A5', 'CC1', 'CC1'); conn('J2', 'B5', 'CC2', 'CC2'); conn('J2', 'A6', 'USB_DP', 'DP1'); conn('J2', 'B6', 'USB_DP', 'DP2')
+conn('J2', 'A7', 'USB_DM', 'DN1'); conn('J2', 'B7', 'USB_DM', 'DN2'); nc('J2', 'A8', 'SBU1'); nc('J2', 'B8', 'SBU2')
+for p in (1, 2, 3, 4): conn('J2', p, 'GND', 'EH')
+conn('U3', 3, 'VBUS', 'VIN'); conn('U3', 2, 'P3V3', 'VOUT'); conn('U3', 4, 'P3V3', 'VOUT'); conn('U3', 1, 'GND', 'GND')
+conn('U4', 1, 'VBUS', 'IN'); conn('U4', 2, 'GND', 'GND'); conn('U4', 3, 'VCART_EN', 'EN'); conn('U4', 4, 'nVCART_FAULT', '/FAULT')
+conn('U4', 5, 'ILIM', 'ILIM'); conn('U4', 6, 'VCART', 'OUT')
+conn('SW1', 1, 'BOOTSEL_SW'); conn('SW1', 2, 'BOOTSEL_SW'); conn('SW1', 3, 'GND'); conn('SW1', 4, 'GND')
+conn('SW2', 1, 'RUN'); conn('SW2', 2, 'RUN'); conn('SW2', 3, 'GND'); conn('SW2', 4, 'GND')
+conn('JP1', 1, 'SWCLK'); conn('JP1', 2, 'GND'); conn('JP1', 3, 'SWDIO')
+conn('LED1', 1, 'P3V3', 'A'); conn('LED1', 2, 'LED1_K', 'K')
+conn('LED2', 1, 'VCART', 'A'); conn('LED2', 2, 'LED2_K', 'K')
+conn('LED3', 1, 'LED_BUSY', 'A'); conn('LED3', 2, 'LED3_K', 'K')
+
+TPS = ['GND', 'P3V3', 'VCART', 'VBUS', 'GPIO46', 'GPIO47']
+for i, n in enumerate(TPS, 1):
+    conn(f'TP{i}', 1, n); PARTS[f'TP{i}'] = dict(lcsc=None, symbol=None, footprint='TP_PTH_1.0', value=n, desc=f'test point {n}')
+for i in range(1, 5):
+    PARTS[f'MH{i}'] = dict(lcsc=None, symbol=None, footprint='MH_M3', value='M3', desc='mounting hole, 3.2 mm NPTH')
+
+# --- passives ----------------------------------------------------------------------------------------------------------------
+RC = []
+def R(v, a, b, owner=None): RC.append((f'R{len([x for x in RC if x[1] == "R"]) + 1}', 'R', v, a, b, owner))
+def C(v, a, b, owner=None): RC.append((f'C{len([x for x in RC if x[1] == "C"]) + 1}', 'C', v, a, b, owner))
+for n in ('nOE_D', 'nOE_VA', 'nOE_VB', 'nOE_OUT'): R('10k', n, 'P3V3', 'U1')     # every cart-side output off until firmware says so
+R('10k', 'XDIR', 'GND', 'U1'); R('10k', 'VCART_EN', 'GND', 'U4'); R('10k', 'nVCART_FAULT', 'P3V3', 'U4')
+R('33k', 'ILIM', 'GND', 'U4')                                                     # TPS2553 table 2 / IOSnom = 23950 / 33^0.977 = 0.79 A
+R('10k', 'VCART', 'VCART_SENSE', 'U1'); R('10k', 'VCART_SENSE', 'GND', 'U1')       # 5 V -> 2.5 V on ADC4
+for s in CART_INPUTS: R('1k', s, f'S_{s}', 'U1')
+R('10k', 'RUN', 'P3V3', 'U1'); R('10k', 'QSPI_SS', 'P3V3', 'U2'); R('1k', 'BOOTSEL_SW', 'QSPI_SS', 'SW1')
+R('5k1', 'CC1', 'GND', 'J2'); R('5k1', 'CC2', 'GND', 'J2')
+R('27R', 'USB_DP_MCU', 'USB_DP', 'U1'); R('27R', 'USB_DM_MCU', 'USB_DM', 'U1')
+R('1k', 'XOUT', 'XOUT_R', 'Y1'); R('33R', 'P3V3', 'VREG_AVDD', 'U1')
+R('1k', 'LED1_K', 'GND', 'LED1'); R('1k', 'LED2_K', 'GND', 'LED2'); R('1k', 'LED3_K', 'GND', 'LED3')
+C('15p', 'XIN', 'GND', 'Y1'); C('15p', 'XOUT_R', 'GND', 'Y1')
+C('4u7', 'VREG_AVDD', 'GND', 'U1'); C('4u7', 'VDD_CORE', 'GND', 'L1'); C('4u7', 'VDD_CORE', 'GND', 'U1'); C('4u7', 'P3V3', 'GND', 'U1')
+C('1u', 'P3V3', 'GND', 'U1')
+C('10u', 'VBUS', 'GND', 'J2'); C('10u', 'VBUS', 'GND', 'U3'); C('10u', 'P3V3', 'GND', 'U3'); C('10u', 'VCART', 'GND', 'U4'); C('10u', 'VCART', 'GND', 'J1')
+C('100n', 'VBUS', 'GND', 'U4')
+DECOUPLE = {'U1': 6, 'U2': 1, 'U5': 2, 'U10': 2, 'U11': 2}
+for ref, n in DECOUPLE.items():
+    for _ in range(n): C('100n', 'P3V3', 'GND', ref)
+for ref in ('U6', 'U7', 'U8', 'U9'): C('100n', 'P3V3', 'GND', ref); C('100n', 'VCART', 'GND', ref)   # VCCA and VCCB
+OWNER = {}
+for ref, kind, v, a, b, owner in RC:
+    conn(ref, 1, a); conn(ref, 2, b); OWNER[ref] = owner
+    PARTS[ref] = dict(lcsc=PASSIVE[v][0], symbol=None, footprint=PASSIVE[v][1], value=v, desc=f'{kind} {v} {a}-{b}')
+
+# ---------------------------------------------------------------------------------------------------------------------------
+def symbol_pins():
+    sym = {}
+    for path in (os.path.join(HERE, 'lib', 'progr.kicad_sym'), os.path.join(HERE, '..', 'pboard', 'lib', 'pboard.kicad_sym')):
+        src = open(path).read(); stack, top = [], None
+        for m in re.finditer(r'\(|\)|"(?:[^"\\]|\\.)*"|[^\s()"]+', src):
+            t = m.group(0)
+            if t == '(': stack.append([])
+            elif t == ')':
+                node = stack.pop()
+                if node and node[0] == 'pin':
+                    nm = next((x[1].strip('"') for x in node if isinstance(x, list) and x and x[0] == 'name'), '?')
+                    num = next((x[1].strip('"') for x in node if isinstance(x, list) and x and x[0] == 'number'), '?')
+                    sym.setdefault(top, {})[num] = nm
+                if stack: stack[-1].append(node)
+            else:
+                if stack: stack[-1].append(t)
+                if len(stack) == 2 and stack[-1] and stack[-1][0] == 'symbol' and len(stack[-1]) == 2: top = t.strip('"')
+    return sym
+
+# what the PROG board needs from a programmer (PROGRAMMING.md section 4): every net it drives must be driven here
+PROGRAMMER_DRIVES = set(STROBES) | set(LAT1) | set(LAT2)
+BIDIR = {f'D{i}' for i in range(16)} | {f'SDRAD{i}' for i in range(8)} | {f'SDPAD{i}' for i in range(8)}
+
+def check():
+    problems = []
+    pins = defaultdict(list)
+    for net, lst in NETS.items():
+        for ref, p in lst: pins[(ref, p)].append(net)
+    for k, v in pins.items():
+        if len(v) > 1: problems.append(f'pin {k} on several nets {v}')
+    sym = symbol_pins()
+    for ref, pt in PARTS.items():
+        if not pt['symbol']: continue
+        spins = sym.get(pt['symbol'])
+        if not spins: problems.append(f'{ref}: symbol {pt["symbol"]} not in library'); continue
+        used = {p for (r, p) in pins if r == ref}
+        if set(spins) - used: problems.append(f'{ref}: symbol pins not connected/NC: {sorted(set(spins) - used)}')
+        if used - set(spins): problems.append(f'{ref}: pins not in symbol: {sorted(used - set(spins))}')
+        for (r, p), pat in EXPECT.items():
+            if r == ref and not re.fullmatch(pat, spins.get(p, '?'), re.I):
+                problems.append(f'{ref} pin {p}: expected {pat!r}, symbol says {spins.get(p)!r}')
+    for net, lst in NETS.items():
+        if net.startswith('NC_'):
+            if len(lst) > 1: problems.append(f'NC net {net} shared: {lst}')
+            continue
+        if len(lst) < 2 and lst[0][0] != 'J1': problems.append(f'net {net} has one pin: {lst}')
+    # 1. the slot carries exactly the PROG board's finger table (imported, so this guards the import itself)
+    for k, n in CTRG2_A.items():
+        if not n.startswith('NC_') and CART[f'A{k}'] != ('VCART' if n == 'VCC5' else n): problems.append(f'slot A{k} != cart A{k}')
+    # 2. a cart inserted backwards (A<k> lands on B<61-k>) never puts 5 V on ground or ground on 5 V
+    for k in range(1, 61):
+        for s, o in (('A', 'B'), ('B', 'A')):
+            a, b = CART[f'{s}{k}'], CART[f'{o}{61 - k}']
+            if {a, b} == {'VCART', 'GND'}: problems.append(f'reversed insertion shorts: {s}{k} {a} onto {o}{61 - k} {b}')
+    # 3. every line the PROG board expects the console to drive is driven by a cart-side output here
+    pb_inputs = {n for n in list(CTRG2_A.values()) + list(CTRG2_B.values()) if not n.startswith('NC_') and n not in ('GND', 'VCC5')}
+    out_b = {n for ref in ('U7', 'U8', 'U9') for n, lst in NETS.items() for r, p in lst if r == ref and int(p) in X_B1 + X_B2}
+    io_b = {n for ref in ('U5', 'U6') for n, lst in NETS.items() for r, p in lst if r == ref and int(p) in X_B1 + X_B2}
+    for n in sorted(pb_inputs):
+        if n in CART_INPUTS:
+            if not any(r == 'U1' for r, _ in NETS[f'S_{n}']): problems.append(f'cart output {n} not readable')
+        elif n in BIDIR:
+            if n not in io_b: problems.append(f'bidirectional {n} has no transceiver')
+        elif n not in out_b: problems.append(f'cart input {n} not driven by the programmer')
+    # 4. nothing cart-side (5 V) touches an MCU pin except the four FT inputs through 1k
+    cart_nets = {n for n in CART.values() if n not in ('GND', 'VCART') and not n.startswith('NC_')}
+    for n in cart_nets:
+        if any(r == 'U1' for r, _ in NETS[n]): problems.append(f'cart net {n} wired straight to the MCU')
+    for i, s in enumerate(CART_INPUTS):
+        g = 31 + i
+        if not g <= 39: problems.append(f'{s} on a non-5V-tolerant GPIO{g}')
+    # 5. every 5 V-side supply of a cart driver is the switched cart rail: an unpowered cart is never driven (TI VCC isolation)
+    for ref, pt in PARTS.items():
+        if pt['value'] == 'SN74LVC16T245':
+            for p in ('7', '18'):
+                if next(n for n, lst in NETS.items() if (ref, p) in lst) != 'VCART': problems.append(f'{ref} VCCB pin {p} not on VCART')
+    # 6. output-enable pins of every cart-side driver are pulled to the disabled state
+    for n in ('nOE_D', 'nOE_VA', 'nOE_VB', 'nOE_OUT'):
+        if not any(PARTS[r]['value'] == '10k' and any(rr == r for rr, _ in NETS['P3V3']) for r, _ in NETS[n] if r.startswith('R')):
+            problems.append(f'{n} has no pull-up')
+    return problems
+
+def unique_parts():
+    seen = {}
+    for p in PARTS.values():
+        if p["lcsc"]: seen.setdefault(p["lcsc"], p["value"])
+    return sorted(seen.items())
+
+if __name__ == '__main__':
+    pr = check()
+    for p in pr: print('PROBLEM:', p)
+    up = unique_parts()
+    print(f'{len(PARTS)} parts, {len([n for n in NETS if not n.startswith("NC_")])} nets, {len(pr)} problems')
+    print(f'{len(up)} unique LCSC parts: ' + ', '.join(v for _, v in up))
+    sys.exit(1 if pr else 0)

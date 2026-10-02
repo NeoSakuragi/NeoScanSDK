@@ -5,7 +5,7 @@
 
 #define VRAM_FIX   0x7000
 #define FIX_COLS   40
-#define FIX_ROWS   28
+#define FIX_ROWS   28   /* visible rows; row y is map row y+2 */
 
 void FIX_clear(void);
 void FIX_clearLine(uint8_t row);

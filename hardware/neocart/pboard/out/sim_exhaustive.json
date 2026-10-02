@@ -1,0 +1,12 @@
+{
+ "states": 16640,
+ "findings": [
+  {
+   "net": "EXC",
+   "drivers": "CONTENTION on FD1: {'U1.Q1': 0, 'U6.1A2': 1}",
+   "states": 112,
+   "reachable": 0,
+   "example": "(0, {'RW': 0, 'nROMOE': 0, 'nPORTOEL': 0, 'nPORTOEU': 0, 'nPORTWEL': 0, 'nPORTADRS': 0, 'nSDROE': 0, 'nSDPOE': 0}, None)"
+  }
+ ]
+}
