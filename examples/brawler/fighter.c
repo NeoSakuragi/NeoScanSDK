@@ -143,7 +143,7 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
     v->facing = -away;                                           /* turn toward the attacker */
     if (v->y > 0) {                                              /* hit in the air (a juggle when falling): sent up again */
         enter(v, S_KNOCKDOWN); v->vy = reaction >= R_KNOCKDOWN ? FIX(5) : FIX(4); v->vx = dir_mul(away, FIX(1) + 0x8000);
-        play(v, BA_HIT_AIR); return;
+        play(v, BA_BLOWBACK); return;                            /* KOF's hit_air ends on standing frames (KOF96: none) */
     }
     switch (v->hp <= 0 ? R_KNOCKDOWN : reaction) {
     case R_LIGHT: case R_HEAVY:
@@ -415,7 +415,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
             f->y = 0;
             if (f->anim != BA_KNOCKDOWN_BOUNCE) { f->vy = FIX(3); f->vx >>= 1; play(f, BA_KNOCKDOWN_BOUNCE); }
             else { f->vx = f->vy = 0; enter(f, S_DOWN); play(f, BA_DOWN); }
-        } else if (f->vy < 0 && f->anim == BA_BLOWBACK) play(f, BA_KNOCKDOWN_FALL);
+        } else if (f->vy < 0 && (f->anim == BA_BLOWBACK || f->anim == BA_KNOCKDOWN_FLIGHT)) play(f, BA_KNOCKDOWN_FALL);
         break;
     case S_DOWN:
         if (f->state_t >= DOWN_FRAMES) {
