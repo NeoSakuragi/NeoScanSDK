@@ -1,4 +1,4 @@
-<title>KOF98 Song Lab</title>
+<title>Neo Geo Song Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -61,6 +61,7 @@ button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
 .lines .dim { color: var(--mute); }
 .note { color: var(--mute); font-size: 13px; max-width: 75ch; }
 .note p { margin: 0 0 8px; }
+.aud { display: flex; flex-wrap: wrap; gap: 8px; }
 kbd { font: 500 11px var(--mono); border: 1.5px solid var(--line); padding: 0 4px; }
 @media (max-width: 760px) { .inspect { grid-template-columns: minmax(0, 1fr); } .seq { grid-template-columns: 96px minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
@@ -68,11 +69,13 @@ kbd { font: 500 11px var(--mono); border: 1.5px solid var(--line); padding: 0 4p
 
 <div class="wrap">
   <header>
-    <h1 id="title">KOF98 Song Lab</h1>
+    <h1>Neo Geo Song Lab</h1>
     <p id="intro">The King of Fighters '98 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write SNK's Z80 sound driver made in MAME, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.</p>
   </header>
 
   <div class="transport" role="toolbar" aria-label="Transport">
+    <label for="game">Game</label>
+    <select id="game"></select>
     <label for="song">Song</label>
     <select id="song"></select>
     <button id="play" type="button">Play</button>
@@ -100,7 +103,7 @@ kbd { font: 500 11px var(--mono); border: 1.5px solid var(--line); padding: 0 4p
   <div class="inspect">
     <div class="panel">
       <h2>Selected note</h2>
-      <div id="sel" class="note"><p>Click a block to see the song data behind it: the note, and every command the channel read since its previous note (instrument, volume, pan, loops, calls).</p></div>
+      <div id="sel" class="note"><p>Click a block to hear that note on its own and see the song data behind it: the note, and every command the channel read since its previous note (instrument, volume, pan, loops, calls).</p></div>
     </div>
     <div class="panel">
       <h2>Channel stream</h2>
@@ -114,7 +117,7 @@ kbd { font: 500 11px var(--mono); border: 1.5px solid var(--line); padding: 0 4p
     <p><b>Real driver</b>: the register writes captured in MAME while the game's own Z80 driver played the song, placed at the timer interrupt they happened in.</p>
     <p><b>Model</b>: tools/kof98snd/song98.py + regs98.py, the driver re-implemented from its disassembly, reading the song data from the M1 ROM. For each song the facts line says on how many sequencer ticks its register writes are identical to the real driver's, same values, same order.</p>
     <p><b>Timing.</b> The capture only knows which interrupt (6 ms) a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each. The real driver loses an interrupt when a tick has too many writes; the model estimates those losses, so its clock can drift by a fraction of a second over a long song. A/B switching jumps to the same tick, not the same second.</p></div>
-    <p><b>Keys</b>: <kbd>Space</kbd> play / stop, <kbd>T</kbd> switch source, <kbd>M</kbd> on a track button mutes, <kbd>S</kbd> solos.</p>
+    <p><b>Keys</b>: <kbd>Space</kbd> play / stop, <kbd>T</kbd> switch source, <kbd>M</kbd> on a track button mutes, <kbd>S</kbd> solos. While stopped, clicking a block generates that note on its own: the chip set to its state at that moment, only that note keyed on, played through its release.</p>
   </div>
 </div>
 
@@ -127,7 +130,7 @@ const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).
 
 /* ---- worker: the YM2610 renderer ---- */
 const WORKER = `
-const PERIOD = 333; let ex = null, song = null;
+const PERIOD = 333; let ex = null, song = null, inited = null;
 const FMKEY = { 1: 'FM1', 2: 'FM2', 5: 'FM3', 6: 'FM4' };
 function keep(p, r, v, mute) {
   if (!mute.size) return v;
@@ -138,7 +141,8 @@ function keep(p, r, v, mute) {
 }
 onmessage = async e => {
   const m = e.data;
-  if (m.type === 'init') { const { instance } = await WebAssembly.instantiate(m.wasm, {}); ex = instance.exports; postMessage({ type: 'ready' }); return; }
+  if (m.type === 'init') { inited = WebAssembly.instantiate(m.wasm, {}).then(r => { ex = r.instance.exports; }); await inited; postMessage({ type: 'ready' }); return; }
+  await inited;                  // a message can arrive while the module is still being instantiated
   if (m.type === 'song') {
     song = m.song; const mem = new Uint8Array(ex.memory.buffer), vb = ex.yw_vrom();
     mem.fill(0, vb, vb + (16 << 20));
@@ -159,14 +163,42 @@ onmessage = async e => {
     }
     postMessage({ type: 'done', key: m.key, L, R }, [L.buffer, R.buffer]);
   }
+  if (m.type === 'note') {
+    // One note generated on its own: the chip is brought to its state at the note with every earlier key-on dropped
+    // (patches, levels, pans, pitches and sample addresses all set, nothing sounding), then only this channel keys
+    // on, its writes play until the note's end, it is keyed off, and the chip runs until the release has died out.
+    const ws = song[m.which], all = new Set(m.all), solo = new Set(m.all.filter(n => n !== m.track));
+    ex.yw_init(); for (const [p, r, v] of song.pre) ex.yw_write(p, r, v);
+    let i = 0;
+    for (; i < ws.length && ws[i][0] < m.at; i++) { const w = ws[i], v = keep(w[1], w[2], w[3], all); if (v >= 0) ex.yw_write(w[1], w[2], v); }
+    const out = []; let t = m.at, keyed = false;
+    const run = len => { ex.yw_run(len); const o = new Int16Array(ex.memory.buffer, ex.yw_out(), 2 * len); out.push(Int16Array.from(o)); t += len; return o; };
+    while (t < m.end) {
+      for (; i < ws.length && ws[i][0] <= t; i++) { const w = ws[i], v = keep(w[1], w[2], w[3], solo); if (v >= 0) ex.yw_write(w[1], w[2], v); }
+      if (!keyed && m.fm) { ex.yw_write(0, 0x28, 0xF0 | m.fm); keyed = true; }   // a slurred note has no key-on of its own
+      run(Math.max(1, Math.min(m.end, i < ws.length ? ws[i][0] : m.end, t + 4096) - t));
+    }
+    if (m.fm) ex.yw_write(0, 0x28, m.fm);                                     // key-off where the note ends
+    if (m.track === 'B' && m.gated) { ex.yw_write(0, 0x10, 1); ex.yw_write(0, 0x10, 0); }
+    for (let quiet = 0, n = 0; quiet < 3 && n < 120; n++) {                  // release: until 3 silent 37 ms blocks, 4.4 s max
+      const o = run(2048); let pk = 0; for (let j = 0; j < o.length; j++) pk = Math.max(pk, Math.abs(o[j]));
+      quiet = pk < 8 ? quiet + 1 : 0;
+    }
+    const n = out.reduce((a, o) => a + o.length / 2, 0), L = new Float32Array(n), R = new Float32Array(n);
+    let k = 0; for (const o of out) for (let j = 0; j < o.length; j += 2, k++) { L[k] = o[j] / 32768; R[k] = o[j + 1] / 32768; }
+    postMessage({ type: 'done', key: m.key, L, R }, [L.buffer, R.buffer]);
+  }
 };`;
-const worker = new Worker(URL.createObjectURL(new Blob([WORKER], { type: 'text/javascript' })));
+// two chips: one renders whole songs, the other only single notes, so a tapped note never waits behind a song render
+const WURL = URL.createObjectURL(new Blob([WORKER], { type: 'text/javascript' }));
+const worker = new Worker(WURL), noteWorker = new Worker(WURL);
 const pending = new Map();   // key -> [resolve]
-worker.onmessage = e => {
+const onDone = e => {
   const m = e.data;
-  if (m.type === 'ready') boot();
   if (m.type === 'done') { const list = pending.get(m.key) || []; pending.delete(m.key); list.forEach(f => f(m)); }
 };
+worker.onmessage = e => { if (e.data.type === 'ready') boot(); onDone(e); };
+noteWorker.onmessage = onDone;
 
 /* ---- state ---- */
 let INDEX = [], S = null, which = 'B', zoom = 0.25, follow = true;
@@ -181,7 +213,7 @@ function silenced() {
   for (const t of S.tracks) if (mute.has(t.name) || (solo.size && !solo.has(t.name))) out.add(t.name);
   return out;
 }
-const keyOf = (w, m) => S.cmd + '|' + w + '|' + [...m].sort().join(',');
+const keyOf = (w, m) => S.gid + '|' + S.cmd + '|' + w + '|' + [...m].sort().join(',');
 const irqMap = w => w === 'A' ? S.irqA : S.irqB;
 function sampleOfTick(tick, w) {
   const q = S.tick_irq[Math.max(0, Math.min(S.ticks, Math.floor(tick)))], m = irqMap(w);
@@ -206,35 +238,50 @@ function getBuffer(w, m) {
   });
 }
 
-/* ---- loading ---- */
+/* ---- loading: data/games.json lists the games, data/<game>/ holds index.json, game.json and one XX.json per song ---- */
+let GID = null, GAMES_LIST = [];
 async function boot() {
-  INDEX = await (await fetch('data/index.json')).json();
-  try {                       // the game: title, notes, bar length (build_web.py writes it; KOF98 defaults without it)
-    const g = await (await fetch('data/game.json')).json();
-    GAME = g; BAR = g.bar; BEAT = g.beat; zoom = 0.25 * 96 / BEAT;   // the same width per beat in both games
-    document.title = g.title; $('title').textContent = g.title; $('intro').innerHTML = g.intro;
-    $('notes').innerHTML = g.notes.map(n => `<p>${n}</p>`).join('');
-  } catch (e) {}
-  const sel = $('song');
+  const list = await (await fetch('data/games.json')).json();
+  for (const g of list) {           // only the games whose data is there
+    try { const r = await fetch(`data/${g.id}/index.json`); if (r.ok) GAMES_LIST.push(g); } catch (e) {}
+  }
+  const gs = $('game');
+  for (const g of GAMES_LIST) { const o = document.createElement('option'); o.value = g.id; o.textContent = g.title; gs.appendChild(o); }
+  let gid = GAMES_LIST[0].id, cmd = null;
+  const h = location.hash.slice(1).split('-');             // #kof94-25
+  if (GAMES_LIST.some(g => g.id === h[0])) { gid = h[0]; if (h[1]) cmd = parseInt(h[1], 16); }
+  gs.value = gid;
+  await loadGame(gid, cmd);
+}
+async function loadGame(gid, cmd) {
+  stop(); GID = gid;
+  INDEX = await (await fetch(`data/${gid}/index.json`)).json();
+  const g = await (await fetch(`data/${gid}/game.json`)).json();
+  GAME = g; BAR = g.bar; BEAT = g.beat; zoom = 0.25 * 96 / BEAT;   // the same width per beat in every game
+  document.title = `${g.title} · Neo Geo Song Lab`; $('intro').innerHTML = g.intro;
+  $('notes').innerHTML = g.notes.map(n => `<p>${n}</p>`).join('');
+  const sel = $('song'); sel.innerHTML = '';
   for (const s of INDEX) {
     const o = document.createElement('option'); o.value = s.cmd;
     o.textContent = `$${s.cmd.toString(16).toUpperCase()} · ${s.name || 'Song $' + s.cmd.toString(16).toUpperCase()} · ${Math.floor(s.seconds / 60)}:${String(Math.round(s.seconds % 60)).padStart(2, '0')}`;
     sel.appendChild(o);
   }
-  let start = GAME.start;
-  try { const h = parseInt(location.hash.slice(1), 16); if (INDEX.some(s => s.cmd === h)) start = h; } catch (e) {}
+  const start = INDEX.some(s => s.cmd === cmd) ? cmd : g.start;
   sel.value = start;
   await loadSong(start);
 }
 async function loadSong(cmd) {
   stop();
   status('Loading song data…');
-  S = await (await fetch(`data/${cmd.toString(16).toUpperCase().padStart(2, '0')}.json`)).json();
-  worker.postMessage({ type: 'song', song: S });
+  const gid = GID;
+  const song = await (await fetch(`data/${gid}/${cmd.toString(16).toUpperCase().padStart(2, '0')}.json`)).json();
+  if (gid !== GID) return;        // the game changed while this song loaded
+  S = song; S.gid = gid;
+  worker.postMessage({ type: 'song', song: S }); noteWorker.postMessage({ type: 'song', song: S });
   for (const k of [...cache.keys()]) cache.delete(k);
   mute.clear(); solo.clear(); selected = null; startSample = 0;
   buildHeads(); facts(); layout(); draw(0); showSel();
-  try { history.replaceState(null, '', '#' + cmd.toString(16).toUpperCase()); } catch (e) {}
+  try { history.replaceState(null, '', `#${gid}-${cmd.toString(16).toUpperCase()}`); } catch (e) {}
   status('Synthesizing both sources…');
   await Promise.all([getBuffer('B', new Set()), getBuffer('A', new Set())]);
   status('Ready. Press Play.');
@@ -391,6 +438,7 @@ function setSource(w) {
 $('srcA').onclick = () => setSource('A');
 $('srcB').onclick = () => setSource('B');
 $('song').onchange = e => loadSong(+e.target.value);
+$('game').onchange = e => loadGame(e.target.value, null);
 $('follow').onclick = () => { follow = !follow; $('follow').setAttribute('aria-pressed', follow); };
 function setZoom(z) {
   const tk = curTick(), tl = $('tl'), rel = tk * zoom - tl.scrollLeft;
@@ -418,11 +466,61 @@ $('cv').addEventListener('click', e => {
   const b = t.blocks.find(b => b[0] <= tk && tk < Math.max(b[1], b[0] + 3 / zoom));
   selected = b ? { track: row, b } : null;
   showSel(); draw(curTick());
+  if (b && !playing) audition(row, b, true);
 });
+
+/* ---- audition: one note on its own (the song rendered with only its track), or the mix over its span ---- */
+let aud = null;
+const FMCODE = { FM1: 1, FM2: 2, FM3: 5, FM4: 6 };
+function noteBuffer(t, b) {      // the note generated on its own by the worker (cached)
+  const key = `note|${S.gid}|${S.cmd}|${which}|${t.name}|${b[0]}`;
+  if (cache.has(key)) return Promise.resolve(cache.get(key));
+  return new Promise(res => {
+    pending.set(key, [msg => {
+      const buf = new AudioBuffer({ numberOfChannels: 2, length: msg.L.length, sampleRate: RATE });
+      buf.copyToChannel(msg.L, 0); buf.copyToChannel(msg.R, 1); cache.set(key, buf); res(buf);
+    }]);
+    noteWorker.postMessage({ type: 'note', key, which, track: t.name, all: S.tracks.map(x => x.name),
+      at: sampleOfTick(b[0], which), end: sampleOfTick(Math.min(b[1], S.ticks), which), fm: FMCODE[t.name] || 0,
+      gated: !/note_nogate/.test(t.lines[b[4]][2]) });
+  });
+}
+let audSeq = 0;
+async function audition(row, b, solo) {
+  if (!ctx) ctx = new AudioContext();
+  const resumed = ctx.state === 'suspended' ? ctx.resume() : null;   // inside the tap, before any await
+  const my = ++audSeq;
+  if (aud) { try { aud.stop(); } catch (e) {} aud = null; }
+  if (resumed) await resumed;
+  const t = S.tracks[row];
+  let buf, off = 0, dur;
+  if (solo) {
+    if (!cache.has(`note|${S.gid}|${S.cmd}|${which}|${t.name}|${b[0]}`)) status(`Generating ${b[2]} on ${t.name}…`);
+    buf = await noteBuffer(t, b); dur = buf.duration;
+  }
+  else {                          // the mix over the note's span (+ a short tail)
+    const m = silenced();
+    if (!cache.has(keyOf(which, m))) status('Synthesizing…');
+    buf = await getBuffer(which, m);
+    const at = sampleOfTick(b[0], which), end = sampleOfTick(Math.min(b[1], S.ticks), which);
+    off = at / RATE; dur = Math.min(8, Math.max(0.08, (end - at) / RATE) + 0.35);
+  }
+  if (my !== audSeq) return;      // a newer tap came in while this one was generating
+  if (aud) { try { aud.stop(); } catch (e) {} }
+  const node = ctx.createBufferSource(), g = ctx.createGain(); node.buffer = buf;
+  node.connect(g); g.connect(ctx.destination);
+  const when = ctx.currentTime + 0.02;
+  if (!solo) { g.gain.setValueAtTime(1, when + dur - 0.03); g.gain.linearRampToValueAtTime(0, when + dur); }
+  node.start(when, off); node.stop(when + dur);
+  aud = node;
+  let pk = 0; if (solo) { const d = buf.getChannelData(0), e = buf.getChannelData(1); for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]), Math.abs(e[i])); }
+  status(solo && pk < 1e-3 ? `${b[2]} on ${t.name} makes no sound on its own here (a tie or a silent note in the song too)`
+    : `${solo ? 'Note generated on its own' : 'Mix over this note'}: ${b[2]} on ${t.name}, ${dur.toFixed(2)} s`);
+}
 function esc(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]); }
 function showSel() {
   if (!selected) {
-    $('sel').innerHTML = '<p>Click a block to see the song data behind it: the note, and every command the channel read since its previous note (instrument, volume, pan, loops, calls). Click the bar ruler to move the playhead.</p>';
+    $('sel').innerHTML = '<p>Click a block to hear that note on its own and see the song data behind it: the note, and every command the channel read since its previous note (instrument, volume, pan, loops, calls). Click the bar ruler to move the playhead.</p>';
     $('lines').textContent = 'No block selected.'; $('lines').classList.add('dim'); return;
   }
   const t = S.tracks[selected.track], b = selected.b, li = b[4];
@@ -432,7 +530,10 @@ function showSel() {
   $('sel').innerHTML =
     `<p><b>${esc(b[2])}</b> on <b>${t.name}</b>, ${chip}</p>` +
     `<p>Tick <b>${b[0]}</b> (bar ${Math.floor(b[0] / BAR) + 1}, beat ${Math.floor(b[0] % BAR / BEAT) + 1}), at ${s0.toFixed(2)} s · block <b>${len}</b> ticks = ${(len / S.ticks_per_s * 1000).toFixed(0)} ms (${/note_nogate/.test(t.lines[li][2]) ? 'until the next event: a sample plays to its own end' : 'the note\'s gate, key-on to key-off'})</p>` +
-    `<p>${t.name.startsWith('A') ? 'Sample table' : 'Instrument'}: <b>${esc(b[3] || '—')}</b></p>`;
+    `<p>${t.name.startsWith('A') ? 'Sample table' : 'Instrument'}: <b>${esc(b[3] || '—')}</b></p>` +
+    `<p class="aud"><button type="button" id="audSolo">Play this note</button> <button type="button" id="audMix">Play the mix here</button></p>`;
+  $('audSolo').onclick = () => audition(selected.track, selected.b, true);
+  $('audMix').onclick = () => audition(selected.track, selected.b, false);
   const lo = Math.max(0, first - 3), hi = Math.min(t.lines.length, li + 6);
   $('lines').classList.remove('dim');
   $('lines').innerHTML = `<span class="dim">tick    address  length opcode / parameters</span>\n` + t.lines.slice(lo, hi).map((l, k) => {
@@ -442,6 +543,6 @@ function showSel() {
 }
 
 /* ---- start ---- */
-fetch('ym2610.wasm').then(r => r.arrayBuffer()).then(wasm => worker.postMessage({ type: 'init', wasm }, [wasm]))
+fetch('ym2610.wasm').then(r => r.arrayBuffer()).then(wasm => { noteWorker.postMessage({ type: 'init', wasm: wasm.slice(0) }); worker.postMessage({ type: 'init', wasm }, [wasm]); })
   .catch(() => status('Could not load the YM2610 module.'));
 </script>

@@ -4,7 +4,8 @@ while the game's own Z80 driver played it; B = our model of that driver), the tr
 listing, and the V ROM sample ranges both streams play. One page, one builder, two games:
 
     python3 build_web.py OUT_DIR 0x23 0x36 ...               KOF98 (song98.py / regs98.py, MAME captures)
-    python3 build_web.py --game ff3 OUT_DIR [0x26 ...]       Fatal Fury 3 (tools/ff3snd, captures in our emulator);
+    python3 build_web.py --game ff3 OUT_DIR [0x26 ...]       Fatal Fury 3 (tools/makoto3, captures in our emulator);
+    python3 build_web.py --game kof94 OUT_DIR [0x25 ...]     KOF94 (same driver family, tools/makoto3);
                                                              no commands = every music command
 
 OUT_DIR gets one JSON per song (XX.json), index.json (the song list) and game.json (the page's title and notes).
@@ -17,7 +18,7 @@ interrupt, which the driver then loses (an interrupt arriving while the handler 
 drops of 10 captured songs: the rule predicts the number of interrupts lost after 95% of the ticks with 20 writes or
 more.
 
-FF3: two timers, nothing lost (a pending flag waits for the handler, docs/ff3_sound_driver.md). Timer A every 1023
+FF3 and KOF94 (MAKOTO v3 driver): two timers, nothing lost (a pending flag waits for the handler, docs/ff3_sound_driver.md). Timer A every 1023
 samples, timer B every 16 * (256 - TB) samples, TB = the song's tempo byte (reg $26, changed by opcode $33). The
 captured interrupt order (A or B) is replayed on that schedule; the one unknown, the phase between the two timers, is
 the one that reproduces the captured order best. The model runs on the same interrupts, so both streams share one
@@ -43,7 +44,7 @@ GAMES = {
                            "<b>Timing.</b> The capture only knows which interrupt (6 ms) a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each. The real driver loses an interrupt when a tick has too many writes; the model estimates those losses, so its clock can drift by a fraction of a second over a long song. A/B switching jumps to the same tick, not the same second."],
                  'capture': 'MAME capture', 'unit': 'ticks'}},
     'ff3': {
-        'm1': '/data/tmp/snd98/ff3/ff3_m1.bin', 'cap': '/data/tmp/snd98/ff3/cap/cap_%02X.txt', 'neo': '/data/roms/fatfury3.neo',
+        'm1': '/data/neogeo_dict/sound/snd98/ff3/ff3_m1.bin', 'cap': '/data/neogeo_dict/sound/snd98/ff3/cap/cap_%02X.txt', 'neo': '/data/roms/fatfury3.neo',
         # measured in our emulator (docs/ff3_songs.md): the game's own commands at these screens
         'names': {0x3E: 'Title / attract', 0x23: 'Player select', 0x24: 'Enemy select', 0x26: 'Stage (vs Bob Wilson)',
                   0x27: 'Stage (vs Franco Bash)', 0x28: 'Stage (vs Blue Mary)', 0x29: 'Stage (vs Joe Higashi)',
@@ -51,9 +52,24 @@ GAMES = {
         'page': {'title': 'Fatal Fury 3 Song Lab', 'bar': 96, 'beat': 24, 'start': 0x26,
                  'intro': "Fatal Fury 3 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\") made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
                  'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Fatal Fury 3 V ROM. Nothing here is a recording.",
-                           "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/ff3snd/capture.py) while the game's own driver played the song.",
-                           "<b>Model</b>: tools/ff3snd/song_ff3.py + regs_ff3.py, the driver re-implemented from its disassembly, reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                           "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                           "<b>Model</b>: tools/makoto3/song.py + regs.py, the driver re-implemented from its disassembly, reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
                            "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples. The model does not replay looping ADPCM-A samples when they end (the driver's end-of-sample poll does): song $2A's looped samples stop early in the model."],
+                 'capture': 'capture', 'unit': 'interrupts'}},
+    'kof94': {
+        'm1': '/data/neogeo_dict/sound/kof94/kof94_m1.bin', 'cap': '/data/neogeo_dict/sound/kof94/cap/cap_%02X.txt', 'neo': '/data/roms/kof94.neo',
+        # measured in our emulator (docs/kof94_songs.md); the stage themes by the stage on screen
+        'names': {0x21: 'Stage: Brazil', 0x22: 'Stage: England', 0x23: 'Stage: Mexico', 0x24: 'Stage: USA',
+                  0x25: 'Stage: Italy', 0x26: 'Stage: Japan', 0x27: 'Stage: Korea', 0x28: 'Stage: China',
+                  0x29: 'Rugal', 0x2B: 'Rugal, second stage', 0x2C: 'Team ending (Italy)', 0x2D: 'After a coin',
+                  0x30: 'Winners\' quote', 0x31: 'Continue', 0x32: 'Team select / VS map', 0x34: 'Cutscene',
+                  0x35: 'World map', 0x51: 'Opening', 0x54: 'Ending (Rugal defeated)', 0x5F: 'NEO-GEO logo'},
+        'page': {'title': 'KOF94 Song Lab', 'bar': 96, 'beat': 24, 'start': 0x25,
+                 'intro': "The King of Fighters '94 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (a build of Fatal Fury 3's \"Ver 3.0 by MAKOTO\") made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+                 'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the KOF94 V ROM. Nothing here is a recording.",
+                           "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                           "<b>Model</b>: tools/makoto3/song.py + regs.py, the same model as Fatal Fury 3's with KOF94's table addresses, reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                           "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
                  'capture': 'capture', 'unit': 'interrupts'}},
 }
 
@@ -106,7 +122,7 @@ def kof98_tracks(s):
 
 def kof98_song(g, data, cmd):
     global CHANNELS
-    sys.path.insert(0, os.path.dirname(HERE))
+    sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'kof98snd'))
     from song98 import Song, CHANNELS
     from regs98 import writes, capture, compare
     path = g['cap'] % cmd
@@ -142,7 +158,7 @@ def kof98_song(g, data, cmd):
                 tempo=s.tempo, ticks_per_s=166.83 * s.tempo / 208, ticks=nt, tick_irq=[tick_irq[k] for k in range(nt + 1)],
                 irqA=irqA, irqB=[real[q] * PERIOD for q in range(nseq + 1)], tracks=kof98_tracks(s))
 
-# ------------------------------------------------------------------------------------------------------------ FF3
+# ------------------------------------------------------------------------------ FF3 and KOF94 (MAKOTO v3 driver)
 def ff3_schedule(kinds, tbs):
     """sample time of each interrupt: timer A every 1023 samples, timer B every 16 * (256 - TB) with TB in effect at
     the previous B (the value reloads at the overflow); the A phase that reproduces the captured order best"""
@@ -187,9 +203,9 @@ def ff3_tracks(s):
 
 def ff3_song(g, data, cmd):
     global CHANNELS
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), 'ff3snd'))
-    from song_ff3 import Song, CHANNELS, tick_hz
-    from regs_ff3 import writes, capture, compare
+    sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'makoto3'))
+    from song import Song, CHANNELS, tick_hz
+    from regs import writes, capture, compare
     path = g['cap'] % cmd
     cap, kinds, pre = capture(path, cmd)
     n = len(kinds) - 1                               # the capture stops inside its last interrupt
@@ -259,7 +275,10 @@ if __name__ == '__main__':
     data = open(g['m1'], 'rb').read(); v = vrom(g['neo'])
     out = a[0]; os.makedirs(out, exist_ok=True)
     cmds = [int(c, 16) for c in a[1:]]
-    if not cmds and game == 'ff3': cmds = [c for c in range(0x20, 0x60) if data[0x7D8E + c] == 2]
+    if not cmds and game != 'kof98':
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'makoto3'))
+        from games import music_cmds
+        cmds = music_cmds(data)
     index = []
     for c in cmds:
         d = song(game, data, v, c)
