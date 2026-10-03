@@ -24,8 +24,10 @@ SRC_BASE = export96.TILE_BASE                  # export96 numbers its tiles from
 
 def sb(v): return v - 256 if v > 127 else v
 
-def boxes(bx):
-    """KOF step boxes -> (hurt union, attack) as (x, y, w, h) or None"""
+REACH = 96                                     # px: every normal reaches at least this far forward (beat 'em up)
+
+def boxes(bx, reach=0):
+    """KOF step boxes -> (hurt union, attack) as (x, y, w, h) or None; reach: minimum forward reach of the attack box"""
     # KOF box key: the first hex digit is the type, 3 = hurt ('31'-'33', in every animation), 1 = attack ('11', '1B'-'1E',
     # only in attack animations; KOF96/98/99 census 2026-10-03). The second digit is not a slot: close A's attack box
     # is '1C', close C's / close D's '1D' (the old low-2-bits rule read '1D' as a hurt box: no C / D normal ever hit).
@@ -40,8 +42,10 @@ def boxes(bx):
     if atk:
         # Beat 'em up reach: the attack covers everything from the body line (x = 0) to its tip, so far normals still
         # land point blank inside a combo. Forward = negative x (ROM sprites face left); the vertical extent is kept.
+        # Normals also reach at least `reach` px forward, the same for every hit of a route: KOF's boxes are made for one
+        # opponent in front, so an enemy standing behind it was only reached by the longer hits and dropped out.
         x, y, w, hh = norm(atk[0])
-        left, right = x - w, x + w
+        left, right = min(x - w, -reach), x + w
         if left < 0: right = max(right, 0)
         a = ((left + right) // 2, y, (right - left + 1) // 2, hh)
     return h, a
@@ -196,7 +200,7 @@ def write_c(chars, outdir):
             a = ch['anims'].get(m) or ch['anims']['idle']
             steps, live, prev_act, prev_chain = [], None, False, False
             for s in a['steps']:
-                hb, ab = boxes(s['boxes'])
+                hb, ab = boxes(s['boxes'], REACH)
                 # KOF step flags: $0100 = attack active (the last attack box stays live on every active step, a box command
                 # only comes when it changes), $4000 = the next active step continues this hit. An active step after an
                 # inactive one, or after one without $4000, opens a new hit: Terry / Chang close C, Yamazaki close D hit

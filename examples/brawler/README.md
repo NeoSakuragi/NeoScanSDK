@@ -136,7 +136,9 @@ so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so i
   low two bits as a slot and lost every C / D attack box). The attack box stays live on every step with KOF's active flag
   ($0100); a step after one without $4000 opens a new hit (bstep flag 4; KOF98 measured, 52 of 54 normals: Billy's close
   D hits twice in KOF98, once here; KOF96 / KOF99 fighters follow the same rule, not measured). Attack boxes stretch back
-  to the body line (`export_bm.py`): far normals land point blank.
+  to the body line (`export_bm.py`): far normals land point blank; and normals reach at least 96 px forward (`REACH`,
+  specials keep KOF's shape), so every hit of a route reaches the same enemies and a group takes the whole route
+  together (KOF's boxes run 32-148 px: an enemy behind the first was only reached by the longer hits).
 - Jump: 3/4 of KOF's take-off speed (56 % of the height); KOF's full jump leaves the screen.
 - Throws (`export_bm.py`): per video frame, thrower frame + offset, victim posture + offset + facing + front flag.
   Postures are the portable names of tools/kof96/victim_poses96/98/99.json ('posture:angle', 28 used by this roster),

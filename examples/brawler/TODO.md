@@ -154,3 +154,6 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 33. A route (Bruno): far A, far A, close C, close D, C+D (knockdown). KOF98's C+D is state 116, the move the
        export calls body_toss. Presses during hit-stop are kept now (a tap inside the freeze was lost). Tested with one
        tap per move: 6 hits (close C twice), C+D knocks down.
+- [x] 34. Groups take the hits together: normals' attack boxes reach at least 96 px forward (KOF's: 32-148 px, so an
+       enemy behind the first one dropped out of the route). Tested: two enemies 14 px apart take all 6 hits of the A
+       route on the same frames and fly together on the C+D.
