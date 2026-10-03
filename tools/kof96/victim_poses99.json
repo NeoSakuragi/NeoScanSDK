@@ -1,0 +1,717 @@
+{
+ "_doc": "Portable victim-pose vocabulary for KOF99 throws (keys 'state.step' of KOF99 game states, Terry's animations). KOF99 re-uses state numbers with other meanings than KOF98 (432 is a launched pose here, a grabbed pose in KOF98), so the names were given by FRAME: Terry's pose frames keep their KOF96/98 frame numbers and names (f177 launched, f154 grabbed...), 16 new frames named by eye. Same postures and angle convention as victim_poses98.json. Coverage: every state any KOF99 throw list gives any of the 34 victims (91 states, 165 steps); 'multi_step' states have per-fighter lengths (names describe Terry's animation).",
+ "postures": {
+  "grabbed": "standing, held by the opponent",
+  "bent_back": "standing, bent backwards by the hold",
+  "hunched": "standing, doubled over / bent forward",
+  "hit_reel": "standing, reeling from a hit",
+  "launched": "airborne, knees up, just thrown or knocked up",
+  "horizontal": "body level in the air",
+  "falling": "diagonal on the way down, head lower than feet",
+  "inverted": "upside down, head down",
+  "inverted_diagonal": "upside down, tilted",
+  "lying": "on the floor",
+  "curled": "balled up, rolling or tumbling",
+  "standing": "upright and free (idle, walk, taunt frames some lists end on)"
+ },
+ "multi_step": [
+  0,
+  283,
+  285,
+  286,
+  287,
+  289,
+  305,
+  313,
+  314,
+  315,
+  316,
+  376,
+  382,
+  384,
+  390,
+  392,
+  400,
+  402,
+  403,
+  443,
+  444,
+  445,
+  446,
+  447,
+  459,
+  460,
+  461,
+  462,
+  463,
+  473,
+  480,
+  496,
+  506,
+  507,
+  509,
+  511
+ ],
+ "poses": {
+  "0.0": [
+   "standing",
+   0
+  ],
+  "0.1": [
+   "standing",
+   0
+  ],
+  "0.2": [
+   "standing",
+   0
+  ],
+  "0.3": [
+   "standing",
+   0
+  ],
+  "0.4": [
+   "standing",
+   0
+  ],
+  "0.5": [
+   "standing",
+   0
+  ],
+  "0.6": [
+   "standing",
+   0
+  ],
+  "283.0": [
+   "launched",
+   -30
+  ],
+  "283.1": [
+   "horizontal",
+   -60
+  ],
+  "283.2": [
+   "horizontal",
+   -90
+  ],
+  "285.0": [
+   "launched",
+   -20
+  ],
+  "285.1": [
+   "launched",
+   -30
+  ],
+  "285.2": [
+   "horizontal",
+   -60
+  ],
+  "285.3": [
+   "horizontal",
+   -90
+  ],
+  "286.0": [
+   "launched",
+   -20
+  ],
+  "286.1": [
+   "launched",
+   -30
+  ],
+  "286.2": [
+   "horizontal",
+   -60
+  ],
+  "286.3": [
+   "horizontal",
+   -90
+  ],
+  "287.0": [
+   "horizontal",
+   -90
+  ],
+  "287.1": [
+   "falling",
+   -135
+  ],
+  "289.0": [
+   "horizontal",
+   -90
+  ],
+  "289.1": [
+   "falling",
+   -135
+  ],
+  "289.2": [
+   "inverted",
+   180
+  ],
+  "289.3": [
+   "inverted",
+   180
+  ],
+  "305.0": [
+   "launched",
+   -20
+  ],
+  "305.1": [
+   "launched",
+   -30
+  ],
+  "305.2": [
+   "horizontal",
+   -60
+  ],
+  "305.3": [
+   "horizontal",
+   -90
+  ],
+  "305.4": [
+   "falling",
+   -135
+  ],
+  "313.0": [
+   "horizontal",
+   -90
+  ],
+  "313.1": [
+   "horizontal",
+   -90
+  ],
+  "313.2": [
+   "horizontal",
+   -90
+  ],
+  "314.0": [
+   "inverted",
+   180
+  ],
+  "314.1": [
+   "inverted",
+   180
+  ],
+  "314.2": [
+   "inverted_diagonal",
+   155
+  ],
+  "314.3": [
+   "falling",
+   135
+  ],
+  "314.4": [
+   "horizontal",
+   90
+  ],
+  "315.0": [
+   "inverted",
+   180
+  ],
+  "315.1": [
+   "inverted",
+   180
+  ],
+  "315.2": [
+   "falling",
+   -135
+  ],
+  "315.3": [
+   "horizontal",
+   -90
+  ],
+  "316.0": [
+   "horizontal",
+   90
+  ],
+  "316.1": [
+   "horizontal",
+   90
+  ],
+  "316.2": [
+   "horizontal",
+   90
+  ],
+  "330.0": [
+   "lying",
+   -90
+  ],
+  "335.0": [
+   "lying",
+   90
+  ],
+  "375.0": [
+   "hunched",
+   0
+  ],
+  "376.0": [
+   "inverted",
+   180
+  ],
+  "376.1": [
+   "inverted",
+   180
+  ],
+  "376.2": [
+   "falling",
+   -135
+  ],
+  "376.3": [
+   "horizontal",
+   -90
+  ],
+  "382.0": [
+   "inverted",
+   180
+  ],
+  "382.1": [
+   "inverted",
+   180
+  ],
+  "382.2": [
+   "inverted",
+   180
+  ],
+  "382.3": [
+   "inverted",
+   180
+  ],
+  "383.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "384.0": [
+   "inverted",
+   180
+  ],
+  "384.1": [
+   "inverted",
+   180
+  ],
+  "384.2": [
+   "inverted_diagonal",
+   150
+  ],
+  "384.3": [
+   "falling",
+   135
+  ],
+  "384.4": [
+   "horizontal",
+   90
+  ],
+  "390.0": [
+   "grabbed",
+   0
+  ],
+  "390.1": [
+   "hunched",
+   0
+  ],
+  "390.2": [
+   "hit_reel",
+   -15
+  ],
+  "390.3": [
+   "hunched",
+   0
+  ],
+  "390.4": [
+   "grabbed",
+   0
+  ],
+  "390.5": [
+   "bent_back",
+   -15
+  ],
+  "390.6": [
+   "bent_back",
+   -30
+  ],
+  "390.7": [
+   "horizontal",
+   -60
+  ],
+  "390.8": [
+   "horizontal",
+   -90
+  ],
+  "390.9": [
+   "lying",
+   -90
+  ],
+  "392.0": [
+   "inverted",
+   180
+  ],
+  "392.1": [
+   "inverted",
+   180
+  ],
+  "392.2": [
+   "falling",
+   -135
+  ],
+  "392.3": [
+   "horizontal",
+   -90
+  ],
+  "400.0": [
+   "grabbed",
+   0
+  ],
+  "400.1": [
+   "hunched",
+   30
+  ],
+  "400.2": [
+   "hunched",
+   45
+  ],
+  "400.3": [
+   "inverted_diagonal",
+   150
+  ],
+  "400.4": [
+   "lying",
+   90
+  ],
+  "402.0": [
+   "horizontal",
+   -90
+  ],
+  "402.1": [
+   "horizontal",
+   -60
+  ],
+  "402.2": [
+   "launched",
+   -30
+  ],
+  "402.3": [
+   "hit_reel",
+   -20
+  ],
+  "402.4": [
+   "hunched",
+   45
+  ],
+  "402.5": [
+   "inverted",
+   180
+  ],
+  "402.6": [
+   "inverted",
+   180
+  ],
+  "408.0": [
+   "inverted",
+   180
+  ],
+  "409.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "410.0": [
+   "inverted",
+   180
+  ],
+  "411.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "412.0": [
+   "lying",
+   -90
+  ],
+  "414.0": [
+   "lying",
+   90
+  ],
+  "416.0": [
+   "grabbed",
+   0
+  ],
+  "417.0": [
+   "bent_back",
+   -15
+  ],
+  "418.0": [
+   "bent_back",
+   -30
+  ],
+  "419.0": [
+   "bent_back",
+   -40
+  ],
+  "420.0": [
+   "inverted_diagonal",
+   160
+  ],
+  "421.0": [
+   "inverted_diagonal",
+   160
+  ],
+  "422.0": [
+   "inverted_diagonal",
+   -150
+  ],
+  "423.0": [
+   "inverted_diagonal",
+   -150
+  ],
+  "424.0": [
+   "grabbed",
+   0
+  ],
+  "425.0": [
+   "grabbed",
+   0
+  ],
+  "426.0": [
+   "hit_reel",
+   0
+  ],
+  "427.0": [
+   "hit_reel",
+   -15
+  ],
+  "428.0": [
+   "inverted",
+   180
+  ],
+  "429.0": [
+   "inverted",
+   180
+  ],
+  "430.0": [
+   "inverted",
+   180
+  ],
+  "431.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "432.0": [
+   "launched",
+   -30
+  ],
+  "433.0": [
+   "horizontal",
+   -60
+  ],
+  "434.0": [
+   "horizontal",
+   -90
+  ],
+  "435.0": [
+   "falling",
+   -135
+  ],
+  "436.0": [
+   "inverted",
+   180
+  ],
+  "437.0": [
+   "inverted",
+   180
+  ],
+  "438.0": [
+   "inverted",
+   180
+  ],
+  "439.0": [
+   "falling",
+   135
+  ],
+  "440.0": [
+   "inverted_diagonal",
+   155
+  ],
+  "441.0": [
+   "horizontal",
+   90
+  ],
+  "442.0": [
+   "horizontal",
+   90
+  ],
+  "443.0": [
+   "horizontal",
+   -90
+  ],
+  "444.0": [
+   "horizontal",
+   -90
+  ],
+  "445.0": [
+   "falling",
+   135
+  ],
+  "446.0": [
+   "falling",
+   -120
+  ],
+  "447.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "448.0": [
+   "falling",
+   -135
+  ],
+  "449.0": [
+   "falling",
+   -120
+  ],
+  "450.0": [
+   "horizontal",
+   -90
+  ],
+  "451.0": [
+   "launched",
+   -45
+  ],
+  "452.0": [
+   "launched",
+   -20
+  ],
+  "453.0": [
+   "launched",
+   0
+  ],
+  "454.0": [
+   "launched",
+   0
+  ],
+  "455.0": [
+   "launched",
+   30
+  ],
+  "456.0": [
+   "launched",
+   20
+  ],
+  "457.0": [
+   "horizontal",
+   90
+  ],
+  "458.0": [
+   "horizontal",
+   75
+  ],
+  "459.0": [
+   "horizontal",
+   -90
+  ],
+  "460.0": [
+   "horizontal",
+   -90
+  ],
+  "461.0": [
+   "hunched",
+   0
+  ],
+  "462.0": [
+   "hunched",
+   45
+  ],
+  "463.0": [
+   "hit_reel",
+   0
+  ],
+  "464.0": [
+   "grabbed",
+   0
+  ],
+  "465.0": [
+   "bent_back",
+   -15
+  ],
+  "466.0": [
+   "bent_back",
+   -30
+  ],
+  "467.0": [
+   "bent_back",
+   -40
+  ],
+  "468.0": [
+   "grabbed",
+   0
+  ],
+  "469.0": [
+   "grabbed",
+   0
+  ],
+  "470.0": [
+   "hit_reel",
+   0
+  ],
+  "473.0": [
+   "horizontal",
+   -60
+  ],
+  "473.1": [
+   "horizontal",
+   -90
+  ],
+  "473.2": [
+   "horizontal",
+   -80
+  ],
+  "473.3": [
+   "horizontal",
+   -90
+  ],
+  "473.4": [
+   "horizontal",
+   -60
+  ],
+  "473.5": [
+   "horizontal",
+   -90
+  ],
+  "473.6": [
+   "horizontal",
+   -80
+  ],
+  "473.7": [
+   "horizontal",
+   -90
+  ],
+  "473.8": [
+   "horizontal",
+   -60
+  ],
+  "473.9": [
+   "horizontal",
+   -90
+  ],
+  "473.10": [
+   "falling",
+   -135
+  ],
+  "473.11": [
+   "inverted",
+   180
+  ],
+  "473.12": [
+   "inverted",
+   180
+  ],
+  "480.0": [
+   "standing",
+   0
+  ],
+  "480.1": [
+   "standing",
+   0
+  ],
+  "480.2": [
+   "hunched",
+   20
+  ],
+  "480.3": [
+   "standing",
+   0
+  ]
+ }
+}

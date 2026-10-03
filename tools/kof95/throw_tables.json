@@ -1,0 +1,175 @@
+{
+ "heidern": {
+  "throw": [
+   "byte",
+   "0xda70"
+  ],
+  "air_throw": [
+   "byte",
+   "0xdef8"
+  ]
+ },
+ "ralf": {
+  "throw": [
+   "byte",
+   "0xfa16"
+  ]
+ },
+ "clark": {
+  "throw": [
+   "byte",
+   "0x10f7a"
+  ]
+ },
+ "athena": {
+  "throw": [
+   "byte",
+   "0x12f2c"
+  ],
+  "air_throw": [
+   "byte",
+   "0x1334c"
+  ]
+ },
+ "kensou": {
+  "throw": [
+   "strike"
+  ]
+ },
+ "chin": {
+  "throw": [
+   "byte",
+   "0x15bca"
+  ]
+ },
+ "kyo": {
+  "throw": [
+   "byte",
+   "0x16e5c"
+  ]
+ },
+ "benimaru": {
+  "throw": [
+   "byte",
+   "0x1864c"
+  ],
+  "air_throw": [
+   "byte",
+   "0x18bb2"
+  ]
+ },
+ "goro": {
+  "throw": [
+   "byte",
+   "0x19b32",
+   "0x19d8e"
+  ]
+ },
+ "iori": {
+  "throw": [
+   "byte",
+   "0x207c4"
+  ]
+ },
+ "eiji": {
+  "throw": [
+   "byte",
+   "0x222b0"
+  ]
+ },
+ "billy": {
+  "throw": [
+   "byte",
+   "0x23116"
+  ]
+ },
+ "kim": {
+  "throw": [
+   "byte",
+   "0x2366c"
+  ]
+ },
+ "chang": {
+  "throw": [
+   "byte",
+   "0x2444e"
+  ]
+ },
+ "choi": {
+  "throw": [
+   "byte",
+   "0x26a2c"
+  ]
+ },
+ "terry": {
+  "throw": [
+   "byte",
+   "0x27efc"
+  ]
+ },
+ "andy": {
+  "throw": [
+   "byte",
+   "0x28da6"
+  ]
+ },
+ "joe": {
+  "throw": [
+   "byte",
+   "0x2a5d6"
+  ]
+ },
+ "ryo": {
+  "throw": [
+   "word",
+   "0x2b6dc"
+  ]
+ },
+ "robert": {
+  "throw": [
+   "byte",
+   "0x2cce8"
+  ]
+ },
+ "takuma": {
+  "throw": [
+   "byte",
+   "0x2e1f6"
+  ]
+ },
+ "yuri": {
+  "throw": [
+   "byte",
+   "0x2f956"
+  ],
+  "air_throw": [
+   "byte",
+   "0x2ff80"
+  ]
+ },
+ "mai": {
+  "throw": [
+   "byte",
+   "0x315dc"
+  ]
+ },
+ "king": {
+  "throw": [
+   "byte",
+   "0x32de8"
+  ]
+ },
+ "saisyu": {
+  "throw": [
+   "byte",
+   "0x340d4"
+  ]
+ },
+ "omega_rugal": {
+  "throw": [
+   "byte",
+   "0x351ce",
+   "0x352a2"
+  ]
+ }
+}

@@ -1,0 +1,325 @@
+{
+ "_doc": "Portable victim-pose vocabulary for throws. Every pose a thrower puts the victim in is a KOF95 game state (+ the step reached in that state's animation, as the engine's raw record index); the victim's own state->slot table gives the frame, so the same numbers work for every KOF95 fighter. To reuse throws with sprites from another game, map each 'posture' (+ 'angle') to a frame of that game. posture: what the body does. angle: approximate body rotation in degrees, read by eye from Terry's frames: 0 = upright, 90 = horizontal with the head toward the side the victim faces, -90 = horizontal with the head toward its back, 180 = head down. Keys: 'state.step'. Coverage: every state any throw table gives any of the 26 victims (tools/kof95/throwtables.py).",
+ "postures": {
+  "grabbed": "standing, held by the opponent",
+  "bent_back": "standing, bent backwards by the hold",
+  "hunched": "standing, doubled over / bent forward",
+  "hit_reel": "standing, reeling from a hit",
+  "launched": "airborne, knees up, just thrown or knocked up",
+  "horizontal": "body level in the air",
+  "falling": "diagonal on the way down, head lower than feet",
+  "inverted": "upside down, head down",
+  "inverted_diagonal": "upside down, tilted",
+  "lying": "on the floor"
+ },
+ "poses": {
+  "33.1": [
+   "launched",
+   0
+  ],
+  "33.2": [
+   "launched",
+   0
+  ],
+  "33.3": [
+   "horizontal",
+   -90
+  ],
+  "37.0": [
+   "falling",
+   -135
+  ],
+  "38.0": [
+   "inverted",
+   180
+  ],
+  "41.0": [
+   "horizontal",
+   -90
+  ],
+  "41.1": [
+   "horizontal",
+   -90
+  ],
+  "44.0": [
+   "inverted",
+   180
+  ],
+  "44.1": [
+   "inverted",
+   180
+  ],
+  "44.2": [
+   "falling",
+   -135
+  ],
+  "103.0": [
+   "hit_reel",
+   0
+  ],
+  "103.1": [
+   "hit_reel",
+   0
+  ],
+  "103.2": [
+   "hit_reel",
+   -30
+  ],
+  "103.4": [
+   "horizontal",
+   -90
+  ],
+  "103.5": [
+   "lying",
+   -90
+  ],
+  "176.0": [
+   "grabbed",
+   0
+  ],
+  "177.0": [
+   "grabbed",
+   0
+  ],
+  "178.0": [
+   "bent_back",
+   -20
+  ],
+  "179.0": [
+   "bent_back",
+   -45
+  ],
+  "180.0": [
+   "grabbed",
+   0
+  ],
+  "181.0": [
+   "grabbed",
+   0
+  ],
+  "182.0": [
+   "bent_back",
+   -20
+  ],
+  "183.0": [
+   "bent_back",
+   -45
+  ],
+  "186.0": [
+   "inverted_diagonal",
+   -150
+  ],
+  "190.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "191.0": [
+   "inverted_diagonal",
+   120
+  ],
+  "192.0": [
+   "hunched",
+   0
+  ],
+  "193.0": [
+   "hunched",
+   0
+  ],
+  "194.0": [
+   "hunched",
+   0
+  ],
+  "196.0": [
+   "hunched",
+   0
+  ],
+  "197.0": [
+   "hunched",
+   0
+  ],
+  "198.0": [
+   "hunched",
+   0
+  ],
+  "199.0": [
+   "hunched",
+   0
+  ],
+  "201.0": [
+   "inverted",
+   180
+  ],
+  "202.0": [
+   "inverted",
+   180
+  ],
+  "203.0": [
+   "inverted",
+   180
+  ],
+  "204.0": [
+   "inverted",
+   180
+  ],
+  "205.0": [
+   "inverted",
+   180
+  ],
+  "206.0": [
+   "inverted",
+   180
+  ],
+  "207.0": [
+   "inverted",
+   180
+  ],
+  "208.0": [
+   "launched",
+   0
+  ],
+  "209.0": [
+   "horizontal",
+   -90
+  ],
+  "210.0": [
+   "horizontal",
+   90
+  ],
+  "211.0": [
+   "falling",
+   -135
+  ],
+  "212.0": [
+   "lying",
+   -90
+  ],
+  "213.0": [
+   "launched",
+   0
+  ],
+  "214.0": [
+   "horizontal",
+   90
+  ],
+  "215.0": [
+   "horizontal",
+   90
+  ],
+  "216.0": [
+   "lying",
+   -90
+  ],
+  "217.0": [
+   "lying",
+   -90
+  ],
+  "218.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "220.0": [
+   "horizontal",
+   90
+  ],
+  "223.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "224.0": [
+   "horizontal",
+   90
+  ],
+  "225.0": [
+   "horizontal",
+   90
+  ],
+  "226.0": [
+   "horizontal",
+   90
+  ],
+  "246.0": [
+   "hit_reel",
+   0
+  ],
+  "246.1": [
+   "hit_reel",
+   0
+  ],
+  "246.2": [
+   "hit_reel",
+   0
+  ],
+  "246.3": [
+   "hit_reel",
+   0
+  ],
+  "246.4": [
+   "hit_reel",
+   -30
+  ],
+  "246.6": [
+   "horizontal",
+   -90
+  ],
+  "246.7": [
+   "lying",
+   -90
+  ],
+  "247.0": [
+   "hit_reel",
+   0
+  ],
+  "247.1": [
+   "hit_reel",
+   0
+  ],
+  "184.0": [
+   "inverted",
+   180
+  ],
+  "185.0": [
+   "inverted",
+   180
+  ],
+  "187.0": [
+   "inverted_diagonal",
+   -135
+  ],
+  "188.0": [
+   "inverted",
+   180
+  ],
+  "189.0": [
+   "inverted",
+   180
+  ],
+  "195.0": [
+   "bent_back",
+   -20
+  ],
+  "200.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "219.0": [
+   "horizontal",
+   90
+  ],
+  "221.0": [
+   "horizontal",
+   -90
+  ],
+  "227.0": [
+   "horizontal",
+   90
+  ],
+  "254.0": [
+   "horizontal",
+   90
+  ],
+  "255.0": [
+   "horizontal",
+   90
+  ]
+ }
+}

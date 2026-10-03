@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""Data for the Song Lab page (song_lab.html): per song, the two YM2610 write streams (A = the real driver, captured
+while the game's own Z80 driver played it; B = our model of that driver), the track blocks from the model's event
+listing, and the V ROM sample ranges both streams play. One page, one builder, two games:
+
+    python3 build_web.py OUT_DIR 0x23 0x36 ...               KOF98 (song98.py / regs98.py, MAME captures)
+    python3 build_web.py --game ff3 OUT_DIR [0x26 ...]       Fatal Fury 3 (tools/ff3snd, captures in our emulator);
+                                                             no commands = every music command
+
+OUT_DIR gets one JSON per song (XX.json), index.json (the song list) and game.json (the page's title and notes).
+Time is in samples at 8 MHz / 144 = 55555.6 Hz (18 us: one timer-A count). Within an interrupt both streams space
+the writes alike: the handler starts ISR_START samples after the interrupt and each register write costs WRITE_COST.
+
+KOF98: a timer-A interrupt every 333 samples (166.83 Hz). Stream A knows which interrupt each write fell in (the
+capture's "i" lines); stream B runs the model's ticks back to back on that clock, so a long tick runs past the next
+interrupt, which the driver then loses (an interrupt arriving while the handler still runs is dropped). Fitted on the
+drops of 10 captured songs: the rule predicts the number of interrupts lost after 95% of the ticks with 20 writes or
+more.
+
+FF3: two timers, nothing lost (a pending flag waits for the handler, docs/ff3_sound_driver.md). Timer A every 1023
+samples, timer B every 16 * (256 - TB) samples, TB = the song's tempo byte (reg $26, changed by opcode $33). The
+captured interrupt order (A or B) is replayed on that schedule; the one unknown, the phase between the two timers, is
+the one that reproduces the captured order best. The model runs on the same interrupts, so both streams share one
+clock."""
+import base64, json, os, re, struct, sys
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+PERIOD, ISR_START, WRITE_COST = 333, 100, 6.4
+
+GAMES = {
+    'kof98': {
+        'm1': '/data/tmp/snd98/kof98_m1.bin', 'cap': '/data/tmp/snd98/cap/cap_%02X.txt', 'neo': '/data/roms/kof98.neo',
+        'names': {0x23: 'Team select', 0x21: 'Opening', 0x22: 'Coin', 0x24: 'Win screen', 0x26: 'Continue',
+                  0x28: 'How to play', 0x2C: 'VS jingle', 0x31: 'Stage theme (demo Joe vs Athena)',
+                  0x32: 'Stage theme (AoF team)', 0x33: 'Stage theme (demo Clark vs Kyo)',
+                  0x35: 'Stage theme (demo Chizuru)', 0x36: 'Stage theme (demo Choi vs Yamazaki)',
+                  0x3C: 'Stage theme (demo Yamazaki vs Robert)', 0x3D: 'Stage theme (demo Mary vs Leona)'},
+        'page': {'title': 'KOF98 Song Lab', 'bar': 384, 'beat': 96, 'start': 0x36,
+                 'intro': "The King of Fighters '98 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write SNK's Z80 sound driver made in MAME, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+                 'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the KOF98 V ROM. Nothing here is a recording.",
+                           "<b>Real driver</b>: the register writes captured in MAME while the game's own Z80 driver played the song, placed at the timer interrupt they happened in.",
+                           "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, the driver re-implemented from its disassembly, reading the song data from the M1 ROM. For each song the facts line says on how many sequencer ticks its register writes are identical to the real driver's, same values, same order.",
+                           "<b>Timing.</b> The capture only knows which interrupt (6 ms) a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each. The real driver loses an interrupt when a tick has too many writes; the model estimates those losses, so its clock can drift by a fraction of a second over a long song. A/B switching jumps to the same tick, not the same second."],
+                 'capture': 'MAME capture', 'unit': 'ticks'}},
+    'ff3': {
+        'm1': '/data/tmp/snd98/ff3/ff3_m1.bin', 'cap': '/data/tmp/snd98/ff3/cap/cap_%02X.txt', 'neo': '/data/roms/fatfury3.neo',
+        # measured in our emulator (docs/ff3_songs.md): the game's own commands at these screens
+        'names': {0x3E: 'Title / attract', 0x23: 'Player select', 0x24: 'Enemy select', 0x26: 'Stage (vs Bob Wilson)',
+                  0x27: 'Stage (vs Franco Bash)', 0x28: 'Stage (vs Blue Mary)', 0x29: 'Stage (vs Joe Higashi)',
+                  0x34: 'Win screen', 0x3B: 'Continue', 0x3F: 'Game over'},
+        'page': {'title': 'Fatal Fury 3 Song Lab', 'bar': 96, 'beat': 24, 'start': 0x26,
+                 'intro': "Fatal Fury 3 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\") made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+                 'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Fatal Fury 3 V ROM. Nothing here is a recording.",
+                           "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/ff3snd/capture.py) while the game's own driver played the song.",
+                           "<b>Model</b>: tools/ff3snd/song_ff3.py + regs_ff3.py, the driver re-implemented from its disassembly, reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                           "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples. The model does not replay looping ADPCM-A samples when they end (the driver's end-of-sample poll does): song $2A's looped samples stop early in the model."],
+                 'capture': 'capture', 'unit': 'interrupts'}},
+}
+
+def vrom(neo):
+    d = open(neo, 'rb')
+    h = struct.unpack('<7I', d.read(28))
+    off = 4096 + h[1] + h[2] + h[3]
+    d.seek(off); return d.read(h[4])
+
+# ---------------------------------------------------------------------------------------------------------- KOF98
+def kof98_cap_times(path, cmd):
+    """capture writes from the command on -> ([(sample, port, reg, val)], sample of each sequencer interrupt): interrupt boundary + ISR_START (if a new
+    handler starts there; not for the nested interrupt that lands during a long one) + WRITE_COST per write since"""
+    lines = [l.split() for l in open(path)]
+    out = []; started = False; tim = 0; j = 0; fresh = True; seq = [0]
+    for i, p in enumerate(lines):
+        if not p: continue
+        if p[0] == 'c' and not started and int(p[1], 16) >> 8 == cmd: started = True; continue
+        if not started: continue
+        if p[0] == 'i' and int(p[1], 16) & 1:
+            tim += 1; j = 0
+            q = next((x for x in lines[i + 1:i + 40] if x and x[0] in ('q', 'i')), None)
+            fresh = q is not None and q[0] == 'q' and q[1] == '1'
+            continue
+        if p[0] == 'q' and p[1] == '1': seq.append(tim * PERIOD); continue
+        if p[0] in ('a', 'b'):
+            out.append((int(tim * PERIOD + (ISR_START if fresh else 0) + j * WRITE_COST), p[0], int(p[1], 16), int(p[2], 16)))
+            j += 1
+    return out, seq
+
+def kof98_tracks(s):
+    tracks = []
+    for name in CHANNELS:
+        ev = [l for l in s.log if l[1] == name]
+        if not ev: continue
+        blocks, lines = [], []
+        inst = ''
+        for tick, _, pos, txt in ev:
+            lines.append([tick, pos, txt])
+            m = re.match(r'(?:\+(\d+) )?(\S+)\s*(.*)', txt.strip())
+            ln, op, args = int(m.group(1) or 0), m.group(2), m.group(3)
+            if op == 'instrument' or op == 'sampletable': inst = args.split(' ')[0]
+            if op.startswith('note'):
+                g = re.search(r'gate (\d+)', args)
+                dur = int(g.group(1)) if g else ln
+                lab = args.split(' (')[0]
+                blocks.append([tick, tick + max(dur, 1), lab, inst, len(lines) - 1])
+        tracks.append({'name': name, 'blocks': blocks, 'lines': lines})
+    return tracks
+
+def kof98_song(g, data, cmd):
+    global CHANNELS
+    sys.path.insert(0, os.path.dirname(HERE))
+    from song98 import Song, CHANNELS
+    from regs98 import writes, capture, compare
+    path = g['cap'] % cmd
+    cap, pre = capture(path, cmd)
+    nseq = cap[-1][0]
+    ca, irqA = kof98_cap_times(path, cmd)
+    A = [[t, 0 if p == 'a' else 1, r, val] for t, p, r, val in ca]
+    s = Song(data, cmd, listing=True).run(irqs=nseq)
+    B = writes(s)
+    count = {}
+    for q, p, r, val in B: count[q] = count.get(q, 0) + 1
+    real = {}; free = 0                          # sequencer interrupt -> timer interrupt; free: handler done (samples)
+    tim = 0
+    for q in range(0, nseq + 2):
+        while tim * PERIOD < free: tim += 1           # interrupts that arrive while the handler runs
+        real[q] = tim
+        n = count.get(q, 0)
+        free = tim * PERIOD + (ISR_START + n * WRITE_COST if n else 0)
+        tim += 1
+    Bw = []; j = 0; prev = None
+    for q, p, r, val in B:
+        if q > nseq: break
+        j = j + 1 if q == prev else 0; prev = q
+        Bw.append([int(real[q] * PERIOD + ISR_START + j * WRITE_COST), 0 if p == 'a' else 1, r, val])
+    acc = 0; irq = 0; tick_irq = {0: 0}; nt = 0      # sequencer tick -> sequencer interrupt (the tempo accumulator)
+    while irq <= nseq:
+        irq += 1; acc += s.tempo
+        if acc >= 0xD0: acc -= 0xD0; nt += 1; tick_irq[nt] = irq
+    import io, contextlib
+    with contextlib.redirect_stdout(io.StringIO()): same, total = compare(data, cmd, path)
+    print(f'${cmd:02X}: {nseq} seq irqs, measured drops {cap[-1][1] - nseq}', end=', ')
+    return dict(A=A, B=Bw, pre=[[0 if p == 'a' else 1, r, val] for p, r, val in pre], match=[same, total],
+                tempo=s.tempo, ticks_per_s=166.83 * s.tempo / 208, ticks=nt, tick_irq=[tick_irq[k] for k in range(nt + 1)],
+                irqA=irqA, irqB=[real[q] * PERIOD for q in range(nseq + 1)], tracks=kof98_tracks(s))
+
+# ------------------------------------------------------------------------------------------------------------ FF3
+def ff3_schedule(kinds, tbs):
+    """sample time of each interrupt: timer A every 1023 samples, timer B every 16 * (256 - TB) with TB in effect at
+    the previous B (the value reloads at the overflow); the A phase that reproduces the captured order best"""
+    tb = [0]
+    for k, t in zip(kinds, tbs):
+        if k == 'B': tb.append(tb[-1] + 16 * (256 - t))
+    tb = tb[:-1] if len(tb) > 1 else tb
+    def order(ph, n=3000):
+        ia = ib = 0; out = []
+        while len(out) < min(n, len(kinds)):
+            ta = ph + 1023 * ia; t_b = tb[ib] if ib < len(tb) else 10 ** 12
+            if t_b <= ta: out.append(('B', t_b)); ib += 1
+            else: out.append(('A', ta)); ia += 1
+        return out
+    best = max(range(-1023, 1024, 3), key=lambda ph: sum(x[0] == k for x, k in zip(order(ph), kinds)))
+    best = max(range(best - 3, best + 4), key=lambda ph: sum(x[0] == k for x, k in zip(order(ph), kinds)))
+    ia = ib = 0; times = []
+    for k in kinds:                                  # the captured order, each kind on its own schedule
+        if k == 'A': times.append(best + 1023 * ia); ia += 1
+        else: times.append(tb[ib] if ib < len(tb) else tb[-1]); ib += 1
+    t0 = min(times[:2]) if times else 0
+    return [t - t0 + PERIOD for t in times]
+
+def ff3_tracks(s):
+    tracks = []
+    for name in CHANNELS:
+        ev = [l for l in s.log if l[1] == name]
+        if not ev: continue
+        blocks, lines = [], []
+        inst = ''
+        for tick, _, pos, txt in ev:
+            lines.append([tick, pos, txt])
+            w = txt.split()
+            if w[0] == 'inst': inst = w[1]
+            if w[0] == 'note':
+                ln = int(re.search(r'len (\d+)', txt).group(1))
+                g = re.search(r'gate (\d+)', txt)
+                dur = int(g.group(1)) if g else ln
+                blocks.append([tick, tick + max(dur, 1), ' '.join(w[1:3]) if name.startswith('A') else w[1], inst, len(lines) - 1])
+        tracks.append({'name': name, 'blocks': blocks, 'lines': lines})
+    return tracks
+
+def ff3_song(g, data, cmd):
+    global CHANNELS
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), 'ff3snd'))
+    from song_ff3 import Song, CHANNELS, tick_hz
+    from regs_ff3 import writes, capture, compare
+    path = g['cap'] % cmd
+    cap, kinds, pre = capture(path, cmd)
+    n = len(kinds) - 1                               # the capture stops inside its last interrupt
+    tbs = []; tb = None                              # timer B value in effect at each interrupt
+    wi = 0
+    for i in range(1, n + 1):
+        while wi < len(cap) and cap[wi][0] < i:
+            if cap[wi][1:3] == ('a', 0x26): tb = cap[wi][3]
+            wi += 1
+        tbs.append(tb if tb is not None else 0)
+    times = [0] + ff3_schedule(kinds[:n], tbs)       # index = interrupt (0 = the command, in the main loop)
+    def place(ws):
+        out = []; j = 0; prev = None
+        for q, p, r, v in ws:
+            if q > n: break
+            j = j + 1 if q == prev else 0; prev = q
+            out.append([int(times[q] + (ISR_START if q else 0) + j * WRITE_COST), 0 if p == 'a' else 1, r, v])
+        return sorted(out, key=lambda x: x[0])
+    s = Song(data, cmd, listing=True).run(irqs=n, seq=kinds)
+    A, B = place(cap), place(writes(s))
+    import io, contextlib
+    with contextlib.redirect_stdout(io.StringIO()): same, total, _, _ = compare(data, cmd, path)
+    bt = [times[i + 1] for i, k in enumerate(kinds[:n]) if k == 'B']
+    nt = s.tick
+    seq = [0] + bt[:nt]
+    return dict(A=A, B=B, pre=[[0 if p == 'a' else 1, r, v] for p, r, v in pre], match=[same, total],
+                tempo=s.head[0x17], ticks_per_s=tick_hz(s.head[0x17]), ticks=nt, tick_irq=list(range(nt + 1)),
+                irqA=seq, irqB=seq, tracks=ff3_tracks(s))
+
+# --------------------------------------------------------------------------------------------------------- shared
+def song(game, data, v, cmd):
+    g = GAMES[game]
+    d = (kof98_song if game == 'kof98' else ff3_song)(g, data, cmd)
+    A, B = d['A'], d['B']
+    ranges = set()                                   # V ROM ranges keyed by either stream (256-byte units, end inclusive)
+    for stream in (A, B):
+        lat = {}
+        for t, p, r, val in stream:
+            lat[(p, r)] = val
+            if p == 1 and r == 0 and not val & 0x80:
+                for c in range(6):
+                    if val >> c & 1:
+                        st = lat.get((1, 0x10 + c), 0) | lat.get((1, 0x18 + c), 0) << 8
+                        en = lat.get((1, 0x20 + c), 0) | lat.get((1, 0x28 + c), 0) << 8
+                        ranges.add((st, en))
+            if p == 0 and r == 0x10 and val & 0x80:
+                st = lat.get((0, 0x12), 0) | lat.get((0, 0x13), 0) << 8
+                en = lat.get((0, 0x14), 0) | lat.get((0, 0x15), 0) << 8
+                ranges.add((st, en))
+    merged = []
+    for st, en in sorted(ranges):
+        if en < st: continue
+        if merged and st <= merged[-1][1] + 1: merged[-1][1] = max(merged[-1][1], en)
+        else: merged.append([st, en])
+    samples = [[st << 8, base64.b64encode(v[st << 8:(en + 1) << 8]).decode()] for st, en in merged]
+    nbytes = sum((en - st + 1) << 8 for st, en in merged)
+    print(f'A {len(A)} writes, B {len(B)} writes, {len(d["tracks"])} tracks, '
+          f'{sum(len(t["blocks"]) for t in d["tracks"])} blocks, samples {nbytes >> 10} KB, identical {d["match"][0]}/{d["match"][1]}')
+    return dict(d, cmd=cmd, name=g['names'].get(cmd, ''), samples=samples,
+                length=max(A[-1][0] if A else 0, B[-1][0] if B else 0) + PERIOD)
+
+if __name__ == '__main__':
+    a = sys.argv[1:]
+    game = 'kof98'
+    if a[0] == '--game': game = a[1]; a = a[2:]
+    g = GAMES[game]
+    data = open(g['m1'], 'rb').read(); v = vrom(g['neo'])
+    out = a[0]; os.makedirs(out, exist_ok=True)
+    cmds = [int(c, 16) for c in a[1:]]
+    if not cmds and game == 'ff3': cmds = [c for c in range(0x20, 0x60) if data[0x7D8E + c] == 2]
+    index = []
+    for c in cmds:
+        d = song(game, data, v, c)
+        open(f'{out}/{d["cmd"]:02X}.json', 'w').write(json.dumps(d, separators=(',', ':')))
+        index.append({k: d[k] for k in ('cmd', 'name', 'tempo', 'ticks_per_s', 'match', 'ticks')}
+                     | {'seconds': round(d['length'] / 55555.56, 1), 'tracks': [t['name'] for t in d['tracks']]})
+    json.dump(index, open(f'{out}/index.json', 'w'), separators=(',', ':'))
+    json.dump(g['page'], open(f'{out}/game.json', 'w'), separators=(',', ':'))

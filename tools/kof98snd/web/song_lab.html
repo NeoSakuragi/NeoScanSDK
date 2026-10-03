@@ -1,0 +1,447 @@
+<title>KOF98 Song Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a sequencer window. Transport on top, track headers left, a scrolling tick timeline right, an event inspector below. */
+:root {
+  --bg: #fafaf8; --panel: #ffffff; --ink: #121212; --mute: #5d5f63; --line: #121212; --grid: #d9dad6; --bar: #a9aba5;
+  --fm: #dbe6f6; --fm-ink: #0f2f6b; --aa: #f5e3cc; --aa-ink: #6a3a07; --ab: #dcefd7; --ab-ink: #1d4d14;
+  --sel: #121212; --head: #c8102e; --off: #ecece8; --accent: #0b4fd6;
+  --display: "Chakra Petch", "Arial Narrow", sans-serif; --body: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121315; --panel: #1a1c1f; --ink: #ececea; --mute: #a2a4a8; --line: #ececea; --grid: #2b2e33; --bar: #4a4e55;
+  --fm: #1d3357; --fm-ink: #cfe0ff; --aa: #4a3218; --aa-ink: #ffe2bf; --ab: #233f1d; --ab-ink: #d6f5cc;
+  --sel: #ffffff; --head: #ff4d6a; --off: #26282c; --accent: #6d9cff; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121315; --panel: #1a1c1f; --ink: #ececea; --mute: #a2a4a8; --line: #ececea; --grid: #2b2e33; --bar: #4a4e55;
+  --fm: #1d3357; --fm-ink: #cfe0ff; --aa: #4a3218; --aa-ink: #ffe2bf; --ab: #233f1d; --ab-ink: #d6f5cc;
+  --sel: #ffffff; --head: #ff4d6a; --off: #26282c; --accent: #6d9cff; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--body); }
+.wrap { padding-inline: 16px; padding-block: 16px 32px; max-width: 1400px; margin: 0 auto; display: grid; gap: 14px; }
+header h1 { font: 700 26px/1.1 var(--display); letter-spacing: .02em; margin: 0; text-wrap: balance; }
+header p { margin: 4px 0 0; color: var(--mute); max-width: 75ch; }
+.transport { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border: 2px solid var(--line); background: var(--panel); padding: 10px; }
+.transport label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); }
+select, button { font: 500 14px var(--body); color: var(--ink); background: var(--panel); border: 2px solid var(--line); padding: 6px 10px; cursor: pointer; }
+button:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+#play { min-width: 92px; font-weight: 600; }
+.ab { display: inline-flex; }
+.ab button { border-right-width: 0; }
+.ab button:last-child { border-right-width: 2px; }
+.readout { font: 500 15px var(--mono); font-variant-numeric: tabular-nums; padding: 4px 8px; border: 2px solid var(--line); min-width: 15ch; }
+.status { color: var(--mute); font-size: 13px; }
+.spacer { flex: 1; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; }
+.facts b { font-family: var(--mono); font-weight: 500; }
+.chip { display: inline-block; border: 1.5px solid var(--line); padding: 0 6px; font: 500 12px var(--mono); }
+.chip.ok { background: var(--ink); color: var(--panel); }
+.seq { display: grid; grid-template-columns: 132px minmax(0, 1fr); border: 2px solid var(--line); background: var(--panel); }
+.heads { border-right: 2px solid var(--line); }
+.heads .ruler-h { height: 26px; border-bottom: 2px solid var(--line); font: 500 11px var(--mono); color: var(--mute); display: flex; align-items: center; padding-inline: 8px; }
+.trk { height: 36px; border-bottom: 1px solid var(--grid); display: flex; align-items: center; gap: 6px; padding-inline: 8px; }
+.trk .nm { font: 600 13px var(--mono); flex: 1; min-width: 0; }
+.trk .nm small { display: block; font: 400 10px var(--body); color: var(--mute); text-transform: uppercase; letter-spacing: .05em; }
+.trk button { padding: 0; width: 24px; height: 22px; font: 600 11px var(--mono); border-width: 1.5px; }
+.trk.silent .nm { color: var(--mute); text-decoration: line-through; }
+.tl { position: relative; overflow-x: auto; overflow-y: hidden; }
+.tl canvas { position: sticky; left: 0; display: block; }
+.tl .spacer-w { height: 1px; }
+.zoom { display: inline-flex; gap: 0; }
+.zoom button { border-right-width: 0; width: 34px; padding: 6px 0; }
+.zoom button:last-child { border-right-width: 2px; }
+.inspect { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 14px; }
+.panel { border: 2px solid var(--line); background: var(--panel); padding: 12px; min-width: 0; }
+.panel h2 { font: 700 15px var(--display); letter-spacing: .03em; margin: 0 0 8px; text-transform: uppercase; }
+.lines { font: 12.5px/1.6 var(--mono); overflow-x: auto; max-height: 280px; overflow-y: auto; white-space: pre; }
+.lines .hit { background: var(--ink); color: var(--panel); }
+.lines .dim { color: var(--mute); }
+.note { color: var(--mute); font-size: 13px; max-width: 75ch; }
+.note p { margin: 0 0 8px; }
+kbd { font: 500 11px var(--mono); border: 1.5px solid var(--line); padding: 0 4px; }
+@media (max-width: 760px) { .inspect { grid-template-columns: minmax(0, 1fr); } .seq { grid-template-columns: 96px minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 id="title">KOF98 Song Lab</h1>
+    <p id="intro">The King of Fighters '98 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write SNK's Z80 sound driver made in MAME, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.</p>
+  </header>
+
+  <div class="transport" role="toolbar" aria-label="Transport">
+    <label for="song">Song</label>
+    <select id="song"></select>
+    <button id="play" type="button">Play</button>
+    <span class="ab" role="group" aria-label="Source">
+      <button id="srcA" type="button" aria-pressed="false">Real driver</button>
+      <button id="srcB" type="button" aria-pressed="true">Model</button>
+    </span>
+    <span class="readout" id="pos" aria-live="off">0:00.0 · bar 1</span>
+    <span class="zoom" role="group" aria-label="Zoom">
+      <button id="zout" type="button" aria-label="Zoom out">−</button>
+      <button id="zin" type="button" aria-label="Zoom in">+</button>
+    </span>
+    <button id="follow" type="button" aria-pressed="true">Follow</button>
+    <span class="spacer"></span>
+    <span class="status" id="status">Loading…</span>
+  </div>
+
+  <div class="facts" id="facts"></div>
+
+  <div class="seq">
+    <div class="heads" id="heads"><div class="ruler-h">BAR</div></div>
+    <div class="tl" id="tl"><canvas id="cv"></canvas><div class="spacer-w" id="sw"></div></div>
+  </div>
+
+  <div class="inspect">
+    <div class="panel">
+      <h2>Selected note</h2>
+      <div id="sel" class="note"><p>Click a block to see the song data behind it: the note, and every command the channel read since its previous note (instrument, volume, pan, loops, calls).</p></div>
+    </div>
+    <div class="panel">
+      <h2>Channel stream</h2>
+      <div id="lines" class="lines dim">No block selected.</div>
+    </div>
+  </div>
+
+  <div class="panel note">
+    <h2>What you are hearing</h2>
+    <div id="notes"><p><b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the KOF98 V ROM. Nothing here is a recording.</p>
+    <p><b>Real driver</b>: the register writes captured in MAME while the game's own Z80 driver played the song, placed at the timer interrupt they happened in.</p>
+    <p><b>Model</b>: tools/kof98snd/song98.py + regs98.py, the driver re-implemented from its disassembly, reading the song data from the M1 ROM. For each song the facts line says on how many sequencer ticks its register writes are identical to the real driver's, same values, same order.</p>
+    <p><b>Timing.</b> The capture only knows which interrupt (6 ms) a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each. The real driver loses an interrupt when a tick has too many writes; the model estimates those losses, so its clock can drift by a fraction of a second over a long song. A/B switching jumps to the same tick, not the same second.</p></div>
+    <p><b>Keys</b>: <kbd>Space</kbd> play / stop, <kbd>T</kbd> switch source, <kbd>M</kbd> on a track button mutes, <kbd>S</kbd> solos.</p>
+  </div>
+</div>
+
+<script>
+const RATE = 8000000 / 144, PERIOD = 333;
+const CHIP = { FM: 'FM', A: 'ADPCM-A', B: 'ADPCM-B' };
+const fam = n => n.startsWith('FM') ? 'fm' : n === 'B' ? 'ab' : 'aa';
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ---- worker: the YM2610 renderer ---- */
+const WORKER = `
+const PERIOD = 333; let ex = null, song = null;
+const FMKEY = { 1: 'FM1', 2: 'FM2', 5: 'FM3', 6: 'FM4' };
+function keep(p, r, v, mute) {
+  if (!mute.size) return v;
+  if (p === 0 && r === 0x28) return (v & 0xF0) && mute.has(FMKEY[v & 7]) ? -1 : v;
+  if (p === 1 && r === 0x00 && !(v & 0x80)) { let m = v; for (let c = 0; c < 6; c++) if (v >> c & 1 && mute.has('A' + (c + 1))) m &= ~(1 << c); return m ? m : -1; }
+  if (p === 0 && r === 0x10 && v & 0x80) return mute.has('B') ? -1 : v;
+  return v;
+}
+onmessage = async e => {
+  const m = e.data;
+  if (m.type === 'init') { const { instance } = await WebAssembly.instantiate(m.wasm, {}); ex = instance.exports; postMessage({ type: 'ready' }); return; }
+  if (m.type === 'song') {
+    song = m.song; const mem = new Uint8Array(ex.memory.buffer), vb = ex.yw_vrom();
+    mem.fill(0, vb, vb + (16 << 20));
+    for (const [addr, b64] of song.samples) mem.set(Uint8Array.from(atob(b64), c => c.charCodeAt(0)), vb + addr);
+    return;
+  }
+  if (m.type === 'render') {
+    const mute = new Set(m.mute), ws = song[m.which], to = song.length;
+    ex.yw_init(); for (const [p, r, v] of song.pre) ex.yw_write(p, r, v);
+    const L = new Float32Array(to), R = new Float32Array(to);
+    let i = 0, t = 0;
+    while (t < to) {
+      for (; i < ws.length && ws[i][0] <= t; i++) { const w = ws[i], v = keep(w[1], w[2], w[3], mute); if (v >= 0) ex.yw_write(w[1], w[2], v); }
+      const next = Math.min(to, i < ws.length ? ws[i][0] : to, t + 8192), len = Math.max(1, next - t);
+      ex.yw_run(len);
+      const o = new Int16Array(ex.memory.buffer, ex.yw_out(), 2 * len);
+      for (let j = 0; j < len && t < to; j++, t++) { L[t] = o[2 * j] / 32768; R[t] = o[2 * j + 1] / 32768; }
+    }
+    postMessage({ type: 'done', key: m.key, L, R }, [L.buffer, R.buffer]);
+  }
+};`;
+const worker = new Worker(URL.createObjectURL(new Blob([WORKER], { type: 'text/javascript' })));
+const pending = new Map();   // key -> [resolve]
+worker.onmessage = e => {
+  const m = e.data;
+  if (m.type === 'ready') boot();
+  if (m.type === 'done') { const list = pending.get(m.key) || []; pending.delete(m.key); list.forEach(f => f(m)); }
+};
+
+/* ---- state ---- */
+let INDEX = [], S = null, which = 'B', zoom = 0.25, follow = true;
+const mute = new Set(), solo = new Set();
+const cache = new Map();      // key -> AudioBuffer
+let ctx = null, src = null, playing = false, startCtx = 0, startSample = 0, selected = null;
+let BAR = 384, BEAT = 96;     // ticks per bar / per quarter note (game.json)
+let GAME = { capture: 'MAME capture', unit: 'ticks', start: 0x36 };
+
+function silenced() {
+  const out = new Set();
+  for (const t of S.tracks) if (mute.has(t.name) || (solo.size && !solo.has(t.name))) out.add(t.name);
+  return out;
+}
+const keyOf = (w, m) => S.cmd + '|' + w + '|' + [...m].sort().join(',');
+const irqMap = w => w === 'A' ? S.irqA : S.irqB;
+function sampleOfTick(tick, w) {
+  const q = S.tick_irq[Math.max(0, Math.min(S.ticks, Math.floor(tick)))], m = irqMap(w);
+  return m[Math.min(q, m.length - 1)];
+}
+function tickOfSample(s, w) {
+  let lo = 0, hi = S.ticks;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (sampleOfTick(mid, w) <= s) lo = mid; else hi = mid - 1; }
+  return lo;
+}
+function getBuffer(w, m) {
+  const key = keyOf(w, m);
+  if (cache.has(key)) return Promise.resolve(cache.get(key));
+  return new Promise(res => {
+    const first = !pending.has(key);
+    pending.set(key, [...(pending.get(key) || []), msg => {
+      const buf = new (window.AudioBuffer)({ numberOfChannels: 2, length: msg.L.length, sampleRate: RATE });
+      buf.copyToChannel(msg.L, 0); buf.copyToChannel(msg.R, 1);
+      cache.set(key, buf); res(buf);
+    }]);
+    if (first) worker.postMessage({ type: 'render', key, which: w, mute: [...m] });
+  });
+}
+
+/* ---- loading ---- */
+async function boot() {
+  INDEX = await (await fetch('data/index.json')).json();
+  try {                       // the game: title, notes, bar length (build_web.py writes it; KOF98 defaults without it)
+    const g = await (await fetch('data/game.json')).json();
+    GAME = g; BAR = g.bar; BEAT = g.beat; zoom = 0.25 * 96 / BEAT;   // the same width per beat in both games
+    document.title = g.title; $('title').textContent = g.title; $('intro').innerHTML = g.intro;
+    $('notes').innerHTML = g.notes.map(n => `<p>${n}</p>`).join('');
+  } catch (e) {}
+  const sel = $('song');
+  for (const s of INDEX) {
+    const o = document.createElement('option'); o.value = s.cmd;
+    o.textContent = `$${s.cmd.toString(16).toUpperCase()} · ${s.name || 'Song $' + s.cmd.toString(16).toUpperCase()} · ${Math.floor(s.seconds / 60)}:${String(Math.round(s.seconds % 60)).padStart(2, '0')}`;
+    sel.appendChild(o);
+  }
+  let start = GAME.start;
+  try { const h = parseInt(location.hash.slice(1), 16); if (INDEX.some(s => s.cmd === h)) start = h; } catch (e) {}
+  sel.value = start;
+  await loadSong(start);
+}
+async function loadSong(cmd) {
+  stop();
+  status('Loading song data…');
+  S = await (await fetch(`data/${cmd.toString(16).toUpperCase().padStart(2, '0')}.json`)).json();
+  worker.postMessage({ type: 'song', song: S });
+  for (const k of [...cache.keys()]) cache.delete(k);
+  mute.clear(); solo.clear(); selected = null; startSample = 0;
+  buildHeads(); facts(); layout(); draw(0); showSel();
+  try { history.replaceState(null, '', '#' + cmd.toString(16).toUpperCase()); } catch (e) {}
+  status('Synthesizing both sources…');
+  await Promise.all([getBuffer('B', new Set()), getBuffer('A', new Set())]);
+  status('Ready. Press Play.');
+}
+function status(t) { $('status').textContent = t; }
+function facts() {
+  const sec = S.length / RATE, [same, tot] = S.match;
+  const ok = same === tot;
+  $('facts').innerHTML =
+    `<span>Tempo <b>${S.tempo}</b> = <b>${S.ticks_per_s.toFixed(2)}</b> ticks/s</span>` +
+    `<span>Length <b>${Math.floor(sec / 60)}:${(sec % 60).toFixed(1).padStart(4, '0')}</b> (as long as the ${GAME.capture})</span>` +
+    `<span>Real driver <b>${S.A.length}</b> writes · Model <b>${S.B.length}</b> writes</span>` +
+    `<span>Register writes identical on <b>${same}</b> of <b>${tot}</b> ${GAME.unit} <span class="chip${ok ? ' ok' : ''}">${ok ? 'EXACT' : (100 * same / tot).toFixed(1) + '%'}</span></span>`;
+}
+
+/* ---- tracks ---- */
+function buildHeads() {
+  const h = $('heads'); h.querySelectorAll('.trk').forEach(e => e.remove());
+  for (const t of S.tracks) {
+    const d = document.createElement('div'); d.className = 'trk'; d.dataset.name = t.name;
+    const chip = t.name.startsWith('FM') ? CHIP.FM : t.name === 'B' ? CHIP.B : CHIP.A;
+    d.innerHTML = `<span class="nm">${t.name}<small>${chip}</small></span>` +
+      `<button type="button" aria-pressed="false" aria-label="Mute ${t.name}" data-k="m">M</button>` +
+      `<button type="button" aria-pressed="false" aria-label="Solo ${t.name}" data-k="s">S</button>`;
+    d.querySelectorAll('button').forEach(b => b.onclick = () => {
+      const set = b.dataset.k === 'm' ? mute : solo;
+      set.has(t.name) ? set.delete(t.name) : set.add(t.name);
+      refreshHeads(); retune();
+    });
+    h.appendChild(d);
+  }
+  refreshHeads();
+}
+function refreshHeads() {
+  const off = silenced();
+  document.querySelectorAll('.trk').forEach(d => {
+    const n = d.dataset.name;
+    d.querySelector('[data-k=m]').setAttribute('aria-pressed', mute.has(n));
+    d.querySelector('[data-k=s]').setAttribute('aria-pressed', solo.has(n));
+    d.classList.toggle('silent', off.has(n));
+  });
+}
+
+/* ---- timeline canvas ---- */
+const RULER = 28, ROW = 36;
+function layout() {
+  const tl = $('tl'), cv = $('cv'), dpr = window.devicePixelRatio || 1;
+  const w = tl.clientWidth, h = RULER + ROW * S.tracks.length;
+  cv.width = w * dpr; cv.height = h * dpr; cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  $('sw').style.width = Math.max(w, Math.ceil(S.ticks * zoom) + 40) + 'px';
+  cv.style.marginBottom = -1 + 'px';
+  tl.style.height = (h + 16) + 'px';
+}
+function curTick() {
+  if (!playing) return tickOfSample(startSample, which);
+  return tickOfSample(startSample + (ctx.currentTime - startCtx) * RATE, which);
+}
+function draw(tickNow) {
+  const cv = $('cv'), g = cv.getContext('2d'), dpr = window.devicePixelRatio || 1, tl = $('tl');
+  const W = cv.width / dpr, H = cv.height / dpr, x0 = tl.scrollLeft;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = css('--panel'); g.fillRect(0, 0, W, H);
+  const t0 = x0 / zoom, t1 = (x0 + W) / zoom, X = t => t * zoom - x0;
+  // bars and beats
+  g.font = '500 11px ' + css('--mono'); g.textBaseline = 'middle';
+  const beat = BEAT, step = zoom * beat < 6 ? BAR : beat;
+  for (let t = Math.floor(t0 / step) * step; t <= t1; t += step) {
+    const isBar = t % BAR === 0, x = Math.round(X(t)) + .5;
+    g.strokeStyle = isBar ? css('--bar') : css('--grid'); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, RULER); g.lineTo(x, H); g.stroke();
+    if (isBar && (zoom * BAR >= 28 || (t / BAR) % 4 === 0)) { g.fillStyle = css('--mute'); g.fillText(String(t / BAR + 1), x + 4, RULER / 2); }
+  }
+  g.strokeStyle = css('--line'); g.lineWidth = 2; g.beginPath(); g.moveTo(0, RULER - 1); g.lineTo(W, RULER - 1); g.stroke();
+  // rows
+  const off = silenced();
+  S.tracks.forEach((t, r) => {
+    const y = RULER + r * ROW;
+    g.strokeStyle = css('--grid'); g.lineWidth = 1; g.beginPath(); g.moveTo(0, y + ROW - .5); g.lineTo(W, y + ROW - .5); g.stroke();
+    const f = fam(t.name), fill = off.has(t.name) ? css('--off') : css('--' + f), ink = css('--' + f + '-ink');
+    for (const b of t.blocks) {
+      if (b[1] < t0 || b[0] > t1) continue;
+      const bx = X(b[0]), bw = Math.max(2, (b[1] - b[0]) * zoom - 1);
+      const isSel = selected && selected.track === r && selected.b === b;
+      g.fillStyle = fill; g.fillRect(bx, y + 5, bw, ROW - 10);
+      g.strokeStyle = isSel ? css('--sel') : ink; g.lineWidth = isSel ? 3 : 1;
+      g.strokeRect(bx + .5, y + 5.5, bw - 1, ROW - 11);
+      if (bw > 22) {
+        g.fillStyle = off.has(t.name) ? css('--mute') : ink; g.font = '500 11px ' + css('--mono');
+        g.save(); g.beginPath(); g.rect(bx + 2, y + 5, bw - 4, ROW - 10); g.clip();
+        g.fillText(b[2], bx + 4, y + ROW / 2); g.restore();
+      }
+    }
+  });
+  // playhead
+  const px = Math.round(X(tickNow)) + .5;
+  g.strokeStyle = css('--head'); g.lineWidth = 2; g.beginPath(); g.moveTo(px, 0); g.lineTo(px, H); g.stroke();
+  g.fillStyle = css('--head'); g.beginPath(); g.moveTo(px - 6, 0); g.lineTo(px + 6, 0); g.lineTo(px, 9); g.fill();
+  // readout
+  const s = sampleOfTick(tickNow, which) / RATE;
+  $('pos').textContent = `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')} · bar ${Math.floor(tickNow / BAR) + 1}.${Math.floor(tickNow % BAR / BEAT) + 1}`;
+}
+function frame() {
+  if (!S) return;
+  const tk = curTick();
+  if (playing && follow) {
+    const tl = $('tl'), x = tk * zoom;
+    if (x < tl.scrollLeft + 40 || x > tl.scrollLeft + tl.clientWidth * .8) tl.scrollLeft = Math.max(0, x - tl.clientWidth * .2);
+  }
+  draw(tk);
+  if (playing) {
+    if (startSample + (ctx.currentTime - startCtx) * RATE >= S.length) { stop(); startSample = 0; draw(0); return; }
+    requestAnimationFrame(frame);
+  }
+}
+$('tl').addEventListener('scroll', () => { if (!playing) draw(curTick()); });
+window.addEventListener('resize', () => { if (S) { layout(); draw(curTick()); } });
+
+/* ---- playback ---- */
+async function play(fromTick) {
+  if (!ctx) ctx = new AudioContext();
+  if (ctx.state === 'suspended') await ctx.resume();
+  const m = silenced(), key = keyOf(which, m);
+  if (!cache.has(key)) status('Synthesizing…');
+  const buf = await getBuffer(which, m);
+  const at = sampleOfTick(fromTick, which);
+  const node = ctx.createBufferSource(); node.buffer = buf; node.connect(ctx.destination);
+  const when = ctx.currentTime + 0.03;
+  node.start(when, at / RATE);
+  if (src) { const old = src; try { old.stop(when); } catch (e) {} }
+  src = node; startCtx = when; startSample = at; playing = true;
+  $('play').textContent = 'Stop'; $('play').setAttribute('aria-pressed', 'true');
+  status(which === 'A' ? 'Playing the real driver' : 'Playing the model');
+  requestAnimationFrame(frame);
+}
+function stop() {
+  if (src) { try { src.stop(); } catch (e) {} src = null; }
+  if (playing && ctx) startSample = startSample + (ctx.currentTime - startCtx) * RATE;
+  playing = false;
+  $('play').textContent = 'Play'; $('play').setAttribute('aria-pressed', 'false');
+}
+async function retune() {     // source or mutes changed: continue at the same tick
+  if (!S) return;
+  const tk = curTick();
+  if (playing) await play(tk);
+  else { startSample = sampleOfTick(tk, which); draw(tk); getBuffer(which, silenced()); }
+}
+$('play').onclick = () => playing ? (stop(), status('Stopped.'), draw(curTick())) : play(curTick() >= S.ticks ? 0 : curTick());
+function setSource(w) {
+  if (w === which) return;
+  const tk = curTick(); which = w;
+  $('srcA').setAttribute('aria-pressed', w === 'A'); $('srcB').setAttribute('aria-pressed', w === 'B');
+  if (playing) play(tk); else { startSample = sampleOfTick(tk, which); draw(tk); }
+}
+$('srcA').onclick = () => setSource('A');
+$('srcB').onclick = () => setSource('B');
+$('song').onchange = e => loadSong(+e.target.value);
+$('follow').onclick = () => { follow = !follow; $('follow').setAttribute('aria-pressed', follow); };
+function setZoom(z) {
+  const tk = curTick(), tl = $('tl'), rel = tk * zoom - tl.scrollLeft;
+  zoom = Math.max(0.02, Math.min(4, z)); layout(); tl.scrollLeft = Math.max(0, tk * zoom - rel); draw(tk);
+}
+$('zin').onclick = () => setZoom(zoom * 1.6);
+$('zout').onclick = () => setZoom(zoom / 1.6);
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
+  if (e.key === 't' || e.key === 'T') setSource(which === 'A' ? 'B' : 'A');
+});
+
+/* ---- selection ---- */
+$('cv').addEventListener('click', e => {
+  const r = $('cv').getBoundingClientRect(), x = e.clientX - r.left + $('tl').scrollLeft, y = e.clientY - r.top;
+  if (y < RULER) {          // ruler: move the playhead
+    const tk = Math.max(0, Math.min(S.ticks, x / zoom));
+    if (playing) play(tk); else { startSample = sampleOfTick(tk, which); draw(tk); }
+    return;
+  }
+  const row = Math.floor((y - RULER) / ROW), t = S.tracks[row];
+  if (!t) return;
+  const tk = x / zoom;
+  const b = t.blocks.find(b => b[0] <= tk && tk < Math.max(b[1], b[0] + 3 / zoom));
+  selected = b ? { track: row, b } : null;
+  showSel(); draw(curTick());
+});
+function esc(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]); }
+function showSel() {
+  if (!selected) {
+    $('sel').innerHTML = '<p>Click a block to see the song data behind it: the note, and every command the channel read since its previous note (instrument, volume, pan, loops, calls). Click the bar ruler to move the playhead.</p>';
+    $('lines').textContent = 'No block selected.'; $('lines').classList.add('dim'); return;
+  }
+  const t = S.tracks[selected.track], b = selected.b, li = b[4];
+  let first = li; while (first > 0 && !/^\+?\d*\s*note/.test(t.lines[first - 1][2].trim()) && li - first < 30) first--;
+  const len = b[1] - b[0], s0 = sampleOfTick(b[0], which) / RATE;
+  const chip = t.name.startsWith('FM') ? 'FM (4-operator)' : t.name === 'B' ? 'ADPCM-B (pitched sample)' : 'ADPCM-A (fixed-rate sample)';
+  $('sel').innerHTML =
+    `<p><b>${esc(b[2])}</b> on <b>${t.name}</b>, ${chip}</p>` +
+    `<p>Tick <b>${b[0]}</b> (bar ${Math.floor(b[0] / BAR) + 1}, beat ${Math.floor(b[0] % BAR / BEAT) + 1}), at ${s0.toFixed(2)} s · block <b>${len}</b> ticks = ${(len / S.ticks_per_s * 1000).toFixed(0)} ms (${/note_nogate/.test(t.lines[li][2]) ? 'until the next event: a sample plays to its own end' : 'the note\'s gate, key-on to key-off'})</p>` +
+    `<p>${t.name.startsWith('A') ? 'Sample table' : 'Instrument'}: <b>${esc(b[3] || '—')}</b></p>`;
+  const lo = Math.max(0, first - 3), hi = Math.min(t.lines.length, li + 6);
+  $('lines').classList.remove('dim');
+  $('lines').innerHTML = `<span class="dim">tick    address  length opcode / parameters</span>\n` + t.lines.slice(lo, hi).map((l, k) => {
+    const i = lo + k, txt = `${String(l[0]).padStart(6)}  $${l[1].toString(16).toUpperCase().padStart(4, '0')}  ${esc(l[2])}`;
+    return i === li ? `<span class="hit">${txt}</span>` : (i < first || i > li ? `<span class="dim">${txt}</span>` : txt);
+  }).join('\n');
+}
+
+/* ---- start ---- */
+fetch('ym2610.wasm').then(r => r.arrayBuffer()).then(wasm => worker.postMessage({ type: 'init', wasm }, [wasm]))
+  .catch(() => status('Could not load the YM2610 module.'));
+</script>

@@ -18,7 +18,7 @@ sys.path.insert(0, HERE)
 from make_stage import neo_colour
 
 PORTRAITS = '/data/neogeo_dict/portraits/'
-CROP = {'kof98': (2, 1), 'kof99': (2, 0), 'kof96': (6, 4)}      # top-left of the 28x28 face core per game
+CROP = {'kof98': (2, 1), 'kof99': (2, 0), 'kof96': (6, 4), 'kof94': (2, 0), 'kof97': (2, 2)}      # top-left of the 28x28 face core per game
 FACE_BG = (24, 40, 104)
 BAR_TILE, PORTRAIT_TILE = 0x80, 0x100
 # palette 0, entries 6-15: bar gradient (rows 1-5), trail gradient, empty, outline shadow

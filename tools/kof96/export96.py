@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""KOF96 / KOF98 export in the same JSON layout as tools/kof95/export.py (so tools/kof95/gallery.py renders it):
+characters -> frames (parts: dx, dy, flips, tile columns, 'pal' = index into the character's block_palettes), anims
+(steps with ticks, boxes), palettes (regular + second colour set), physics. Tiles go to kof95_c1/c2.bin.
+Moves are named game states (labelled in MAME, capture/labels.py).
+    python3 export96.py [--game kof98] OUTDIR [all | name ...]"""
+import json, os, struct, sys
+import rom96, throwscripts96, specials96, commands96
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+TILE_BASE = 256
+CAST = ['kyo', 'benimaru', 'goro', 'terry', 'andy', 'joe', 'ryo', 'robert', 'yuri', 'leona', 'ralf', 'clark', 'athena', 'kensou',
+        'chin', 'kasumi', 'mai', 'king', 'kim', 'chang', 'choi', 'iori', 'mature', 'vice', 'geese', 'krauser', 'mr_big', 'chizuru',
+        'goenitz']
+# move -> game state, labelled on Kyo vs Yuri (capture/labels.py)
+MOVES = {
+    'idle': 0, 'walk_fwd': 1, 'walk_back': 2, 'prejump': 3, 'jump_up_rise': 4, 'jump_up_fall': 5, 'land': 6,
+    'jump_fwd_rise': 8, 'jump_fwd_fall': 9, 'jump_back_rise': 12, 'jump_back_fall': 13,
+    'crouch_down': 21, 'crouch': 23, 'crouch_up': 22, 'run_start': 48, 'run': 49, 'run_stop': 50,
+    'backstep_start': 51, 'backstep': 52, 'backstep_land': 53,
+    'guard_stand_in': 26, 'guard_stand': 27, 'guard_stand_out': 28, 'guard_crouch_in': 32, 'guard_crouch': 33,
+    'atk_a_close': 80, 'atk_a_far': 81, 'atk_a_jump': 82, 'atk_a_jump_diag': 84, 'atk_a_crouch': 88,
+    'atk_b_close': 89, 'atk_b_far': 90, 'atk_b_jump': 91, 'atk_b_jump_diag': 93, 'atk_b_crouch': 97,
+    'atk_c_close': 98, 'atk_c_far': 99, 'atk_c_jump': 100, 'atk_c_jump_diag': 102, 'atk_c_crouch': 106,
+    'atk_d_close': 107, 'atk_d_far': 108, 'atk_d_jump': 109, 'atk_d_jump_diag': 111, 'atk_d_crouch': 115,
+    'body_toss': 116,
+    'hit_stand_light': 256, 'hit_stand_heavy': 262, 'hit_crouch_light': 264, 'hit_crouch_heavy': 266,
+    'blowback': 288, 'knockdown_flight': 298, 'knockdown_bounce': 334, 'knockdown_fall': 343, 'down': 355,
+    'getup': 66, 'trip': 327,
+}
+
+def palettes(m, cid):
+    """16 regular + 16 mirror palettes of the character's block: palette n at bank 1 $200002 + n*32, body = $100 + id*$20"""
+    get = lambda n: [0] + [m.u16(0x200002 + n * 32 + 2 * i, 1) for i in range(1, 16)]
+    base = 0x100 + cid * 0x20
+    return [get(base + k) for k in range(16)], [get(base + 16 + k) for k in range(16)]
+
+def physics(m, cid):
+    walk = m.u32(0x6E8EE + 4 * cid) / 65536
+    return {'walk_fwd': walk, 'walk_back': walk, 'jump_vy0': m.u32(0x6E96E + 8 * cid) / 65536,
+            'gravity': m.u32(0x6E972 + 8 * cid) / 65536, 'jump_dx': walk}
+
+CAST98 = ['kyo', 'benimaru', 'daimon', 'terry', 'andy', 'joe', 'ryo', 'robert', 'yuri', 'leona', 'ralf', 'clark', 'athena',
+          'kensou', 'chin', 'chizuru', 'mai', 'king', 'kim', 'chang', 'choi', 'yashiro', 'shermie', 'chris', 'yamazaki', 'mary',
+          'billy', 'iori', 'mature', 'vice', 'heidern', 'takuma', 'saisyu', 'heavy_d', 'lucky', 'brian', 'rugal', 'shingo']
+# labelled on Kyo vs Yuri (GAME=kof98 capture/labels.py): KOF96's numbering except run/backstep/roll and the knockdowns
+MOVES98 = dict(MOVES)
+for k in ('run_start', 'run', 'run_stop', 'backstep_start', 'backstep', 'backstep_land', 'blowback', 'knockdown_flight',
+          'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip'): del MOVES98[k]
+MOVES98.update({'hop_up_rise': 15, 'hop_up_fall': 16, 'hop_fwd_rise': 17, 'hop_fwd_fall': 18,
+                'run_start': 45, 'run': 46, 'run_stop': 47, 'backstep_start': 48, 'backstep': 49, 'backstep_land': 50,
+                'roll_start': 51, 'roll': 52, 'roll_end': 53,
+                'blowback': 283, 'knockdown_flight': 287, 'knockdown_bounce': 309, 'knockdown_fall': 313, 'down': 328,
+                'getup': 72, 'trip': 307, 'hit_air': 308, 'air_land': 279,
+                # win poses: the button held at the KO picks one (MAME, all 38 fighters: tools/kof98/capture/wins98.py)
+                'win_a': 336, 'win_a_hold': 337, 'win_b': 338, 'win_b_hold': 339,
+                'win_c': 340, 'win_c_hold': 341, 'win_d': 342, 'win_d_hold': 343})
+
+PAL_ROM = {'kof98': 0x2D77F0, 'kof99': 0x2D77F0, 'kof97': 0x2CFFF0}   # bank 2; KOF97's from its copy of KOF98's loader ($4AD6)
+def pal_rom98(m, n): return [0] + [m.u16(PAL_ROM[m.game] + n * 32 + 2 * i, 2) for i in range(1, 16)]
+def palettes98(m, cid, used):
+    """KOF98: palette n at bank 2 $2D77F0 + n*32 (loader $518A). Sprite palette byte 16+k = body palette k, at
+    n = $100 + id*$40 + $10*set + k (four colour sets A-D, chosen at character select, team record +7..9);
+    32+k = effect palette k, at n = $B80 + id*$10 + k (one for all sets). Checked against palette RAM in a fight
+    (P1 slots 16/32, P2 48/64). `used` = the palette bytes the exported frames use, in index order;
+    returns colour sets A-D, one palette per used byte (effects are the same in every set)."""
+    # KOF99 (palette RAM dumped in our emulator, bank 1): body n = $100 + id*$20 + $10*set, TWO colour sets
+    # (select with B = set 1), effects n = $520 + id*$10
+    body, step, sets, eff = (0x100, 0x20, 2, 0x520) if m.game == 'kof99' else (0x100, 0x40, 4, 0xB80)
+    def n(b, s): return body + cid * step + 0x10 * s + (b - 16) if b < 32 else eff + cid * 0x10 + (b - 32)
+    return [[pal_rom98(m, n(b, s)) for b in used] for s in range(sets)]
+
+PHYS = {'kof98': (0xABFC8, 0xAC060), 'kof99': (0xB51C4, 0xB524C),     # walk table, jump (vy, gravity) table
+        'kof97': (0xA3710, 0xA3790)}                                    # KOF97: KOF98's values for the shared cast, found by them
+
+def physics98(m, cid):
+    w, j = PHYS[m.game]
+    walk = m.u32(w + 4 * cid) / 65536
+    return {'walk_fwd': walk, 'walk_back': walk, 'jump_vy0': m.u32(j + 8 * cid) / 65536,
+            'gravity': m.u32(j + 4 + 8 * cid) / 65536, 'jump_dx': walk}
+
+# KOF99 (name table at $BCC88): KOF98's engine
+# KOF99 states, labelled in our emulator (GAME=kof99 capture/labels.py): KOF98's except the C+D blowback (285)
+MOVES99 = dict(MOVES98, blowback=285)
+# KOF97: KOF98's states through KOF97's per-fighter map ($AFBCA), checked on Terry's and Orochi's frames (the bosses'
+# maps send missing moves to what they have); the win poses are elsewhere (336 is a knockdown frame): not exported
+MOVES97 = {k: v for k, v in MOVES98.items() if not k.startswith('win_')}
+CAST97 = CAST98[:28] + ['iori_riot', 'leona_orochi', 'orochi', 'shingo']
+del MOVES99['win_d'], MOVES99['win_d_hold']     # KOF99: three win poses; holding D picks one of A-C (wins98.py, all 34)
+CAST99 = ['k_dash', 'maxima', 'benimaru', 'shingo', 'terry', 'andy', 'joe', 'mai', 'ryo', 'robert', 'yuri', 'takuma',
+          'leona', 'ralf', 'clark', 'whip', 'athena', 'kensou', 'chin', 'bao', 'king', 'mary', 'kasumi', 'xiangfei', 'kim',
+          'chang', 'choi', 'jhun', 'kyo', 'kyo_1', 'iori', 'krizalid', 'krizalid_2', 'kyo_2']
+
+def export(names, outdir, game='kof96', only=None):
+    """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials"""
+    prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
+    k98 = game in ('kof97', 'kof98', 'kof99')           # KOF97 and KOF99 use KOF98's layout
+    cast, moves = {'kof97': (CAST97, MOVES97), 'kof98': (CAST98, MOVES98), 'kof99': (CAST99, MOVES99)}.get(game, (CAST, MOVES))
+    mp = None if k98 else rom96.shared_map(m)
+    def slot_of(cid, st): return rom96.state_slot(m, cid, st) if k98 else mp[st]
+    tile_map, out = {}, {'game': game, 'tile_base': TILE_BASE, 'characters': {}}
+    def our_tile(code):
+        if code is None: return 0
+        if code not in tile_map: tile_map[code] = TILE_BASE + len(tile_map)
+        return tile_map[code]
+    adders = {}
+    for name in names:
+        cid = cast.index(name)
+        frames, index, used = [], {}, []
+        def add_frame(fidx, cid=cid, frames=frames, index=index, used=used):
+            if fidx not in index:
+                index[fidx] = len(frames); parts = []
+                for p in rom96.frame_parts(m, cid, fidx):
+                    sd = rom96.sdef(m, cid, p['sdef'])
+                    if not sd['cols']: continue
+                    if k98:                         # index into the character's used palette bytes
+                        b = sd['pal'] if 16 <= sd['pal'] < 48 else 16
+                        if b not in used: used.append(b)
+                        pal = used.index(b)
+                    else: pal = (sd['pal'] - 16) % 16 if 16 <= sd['pal'] < 112 else 0
+                    parts.append({'dx': p['dx'], 'dy': p['dy'], 'hflip': p['hflip'], 'vflip': p['vflip'], 'pal': pal,
+                                  'tiles': [[our_tile(t) for t in col] for col in sd['cols']]})
+                frames.append({'record': f'{cid}:{fidx}', 'parts': parts})
+            return index[fidx]
+        anims = {}
+        for move, state in moves.items():
+            if only is not None and move not in only: continue
+            slot = slot_of(cid, state)
+            try: steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
+            except Exception: continue
+            anims[move] = {'slot': slot, 'state': state, 'mode': mode, 'steps': [
+                {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
+        # every other animation slot of the table, with the game states that select it (intros, win poses, phases...)
+        inv = {}
+        for st in range(512):
+            try: inv.setdefault(slot_of(cid, st), []).append(st)
+            except Exception: pass
+        named = {a['slot'] for a in anims.values()}
+        for slot in (range(512) if only is None else []):
+            if slot in named: continue
+            try:
+                a = m.u32(m.u32(m.g['anims'] + cid * 4) + slot * 4)
+                if not (0x080000 <= a < 0x300000): continue
+                steps, mode = rom96.parse_anim(m, a)
+            except Exception: continue
+            if not steps: continue
+            try:                                        # frames decodable, else not an animation (past the table)
+                for t, fi, fl, b, ri in steps:
+                    for p in rom96.frame_parts(m, cid, fi): rom96.sdef(m, cid, p['sdef'])
+            except Exception: continue
+            anims[f'slot_{slot}'] = {'slot': slot, 'states': inv.get(slot, []), 'mode': mode, 'steps': [
+                {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
+        out['characters'][name] = {'id': cid, 'effect_palettes': {}, 'frames': frames, 'anims': anims,
+                                   'physics': physics98(m, cid) if k98 else physics(m, cid), 'throws': {}, 'specials': [],
+                                   'palette_bytes': used}
+        adders[name] = add_frame
+        print(f'{name}: {len(frames)} frames, {len(anims)} animations', flush=True)
+    # throws for every victim exported here (throwscripts96.py): the thrower's own animation + a per-video-frame script
+    have_throws = os.path.exists(os.path.join(HERE, 'capture', throwscripts96.TDIR.get(game, 'throws_' + game), 'tables.json'))
+    if only is not None and not (only & {'throw_c', 'throw_d', 'air_throw'}): have_throws = False
+    for cid, d in (throwscripts96.all_throws(m, mp, [cast.index(n) for n in names]) if have_throws else {}).items():
+        name = cast[cid]
+        if name not in names: continue
+        ch = out['characters'][name]
+        for key, b in d.items():
+            if only is not None and key not in only: continue
+            st = b['thrower_state']; sl = slot_of(cid, st)
+            steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, sl))
+            ch['anims'][key] = {'slot': sl, 'state': st, 'mode': mode, 'steps': [
+                {'frame': adders[name](fi), 'ticks': t, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in bx.items()}} for t, fi, fl, bx, ri, dx in steps]}
+            timeline = [[adders[name](f) if f is not None else -1, x, y] for f, x, y in b['timeline']]
+            victims = {cast[v]: [[adders[cast[v]](r[0]) if r[0] is not None else -1] + r[1:] for r in rows]
+                       for v, rows in b['victims'].items() if cast[v] in adders}
+            ch['throws'][key] = {'slot': sl, 'inputs': b['inputs'], 'table': b['lists'], 'hold': b.get('hold', False),
+                                 'timeline': timeline, 'victims': victims}
+        print(f'{name}: throws {list(d)}', flush=True)
+    # specials captured in MAME (specials96.py): frames of the fighter and of its projectiles, both in its own list
+    # (a filtered export takes them when `only` names 'specials'; each then carries frame_boxes: the boxes of every frame
+    #  of its own state animations, so a player of the script knows when the fighter's body hits)
+    for name in (names if only is None or 'specials' in only else []):
+        cid = cast.index(name); add = adders[name]; sps = []
+        for sp in specials96.load(m, cid):
+            st = sp['states']
+            states = [[s, (st[k + 1][0] if k + 1 < len(st) else len(sp['rows'])) - t, slot_of(cid, s)] for k, (t, s) in enumerate(st)]
+            script = [[add(f), x, h, [[add(of), ox, oh, same] for of, ox, oh, same in objs]] for f, x, h, objs in sp['rows']]
+            raw = {}                                    # boxes per ROM frame in the move's own animations ...
+            for s_, d_, sl in states:
+                try: steps_, _ = rom96.parse_anim(m, rom96.anim_addr(m, cid, sl))
+                except Exception: continue
+                for t, fi, fl, b, ri, _ in steps_: raw.setdefault(fi, {f'{k:02X}': v for k, v in b.items()})
+            fb = {add(f): raw[f] for f, x, h, objs in sp['rows'] if f in raw}   # ... for the frames the script shows
+            sps.append({'slot': sp['cmd'], 'input': sp['input'], 'condition': sp['condition'], 'button': sp['button'],
+                        'state': sp['state'], 'states': states, 'script': script, 'frame_boxes': fb})
+        out['characters'][name]['specials'] = sps
+        try:                                            # the decoded command list (inputs), captured or not
+            out['characters'][name]['commands'] = [commands96.notation(p) for k, p in
+                                                   enumerate(commands96.patterns(m, commands96.lists(m, cid)[1])) if p and k >= 3]
+        except Exception: pass
+        print(f'{name}: {len(sps)} specials', flush=True)
+    for name in names:                              # palettes last: KOF98 lists the palette bytes the frames use
+        ch = out['characters'][name]; cid = cast.index(name)
+        sets = palettes98(m, cid, ch['palette_bytes'] or [16]) if k98 else list(palettes(m, cid))
+        ch.update({'palette': sets[0][0], 'palette_mirror': sets[min(1, len(sets) - 1)][0], 'block_palettes': sets})
+        if k98: ch['palette_sets'] = [st[ch['palette_bytes'].index(16) if 16 in ch['palette_bytes'] else 0] for st in sets]
+    out['tiles'] = len(tile_map)
+    os.makedirs(outdir, exist_ok=True)
+    region = bytearray(128 * (TILE_BASE + len(tile_map)))
+    for code, ours in tile_map.items(): region[ours * 128:(ours + 1) * 128] = crom[code * 128:(code + 1) * 128]
+    open(os.path.join(outdir, 'kof95_c1.bin'), 'wb').write(bytes(region[0::2]))       # file names the gallery reads
+    open(os.path.join(outdir, 'kof95_c2.bin'), 'wb').write(bytes(region[1::2]))
+    json.dump(out, open(os.path.join(outdir, 'kof95_export.json'), 'w'))
+    return out
+
+if __name__ == '__main__':
+    args = sys.argv[1:]; game = 'kof96'
+    if args[:1] == ['--game']: game = args[1]; args = args[2:]
+    outdir = args[0]; names = args[1:] or ['kyo']
+    if names == ['all']: names = {'kof98': CAST98, 'kof99': CAST99}.get(game, CAST)
+    o = export(names, outdir, game); print('tiles', o['tiles'], f"({o['tiles'] * 128 // 1024} KB)")

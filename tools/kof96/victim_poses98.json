@@ -1,0 +1,634 @@
+{
+ "_doc": "Portable victim-pose vocabulary for KOF98 throws, same conventions as tools/kof96/victim_poses96.json (posture + angle read by eye from Terry's frames, ROM sprites face left: 0 upright, 90 horizontal head toward the facing side, -90 head toward the back, 180 head down). Keys 'state.step' of KOF98 game states; KOF98 has a state map per fighter, but these states are the same for every fighter. Coverage: every state any KOF98 throw list gives any of the 38 victims (77 states, 148 steps, 94 distinct frames; Terry's frames 154-549 are the KOF96 ones and keep their KOF96 names). States with a one-step animation for every fighter (56) are portable as they are; the others ('multi_step') have per-fighter lengths, their step names describe Terry's animation. KOF98 lists also carry a facing bit per entry ('turn' in throwtables96.entries).",
+ "postures": {
+  "grabbed": "standing, held by the opponent",
+  "bent_back": "standing, bent backwards by the hold",
+  "hunched": "standing, doubled over / bent forward",
+  "hit_reel": "standing, reeling from a hit",
+  "launched": "airborne, knees up, just thrown or knocked up",
+  "horizontal": "body level in the air",
+  "falling": "diagonal on the way down, head lower than feet",
+  "inverted": "upside down, head down",
+  "inverted_diagonal": "upside down, tilted",
+  "lying": "on the floor",
+  "curled": "balled up, rolling or tumbling",
+  "standing": "upright and free (idle, walk, taunt frames some lists end on)"
+ },
+ "multi_step": [
+  0,
+  1,
+  283,
+  284,
+  285,
+  289,
+  305,
+  307,
+  313,
+  315,
+  316,
+  318,
+  339,
+  376,
+  379,
+  384,
+  392,
+  464,
+  480,
+  496,
+  507
+ ],
+ "poses": {
+  "0.0": [
+   "standing",
+   0
+  ],
+  "0.1": [
+   "standing",
+   0
+  ],
+  "0.2": [
+   "standing",
+   0
+  ],
+  "0.3": [
+   "standing",
+   0
+  ],
+  "0.4": [
+   "standing",
+   0
+  ],
+  "0.5": [
+   "standing",
+   0
+  ],
+  "0.6": [
+   "standing",
+   0
+  ],
+  "0.7": [
+   "standing",
+   0
+  ],
+  "1.0": [
+   "standing",
+   0
+  ],
+  "1.1": [
+   "standing",
+   0
+  ],
+  "1.2": [
+   "standing",
+   0
+  ],
+  "1.3": [
+   "standing",
+   0
+  ],
+  "1.4": [
+   "standing",
+   0
+  ],
+  "1.5": [
+   "standing",
+   0
+  ],
+  "283.0": [
+   "launched",
+   -30
+  ],
+  "283.1": [
+   "horizontal",
+   -60
+  ],
+  "283.2": [
+   "horizontal",
+   -90
+  ],
+  "284.0": [
+   "launched",
+   -30
+  ],
+  "284.1": [
+   "horizontal",
+   -60
+  ],
+  "284.2": [
+   "horizontal",
+   -90
+  ],
+  "285.0": [
+   "launched",
+   -20
+  ],
+  "285.1": [
+   "launched",
+   -30
+  ],
+  "285.2": [
+   "horizontal",
+   -60
+  ],
+  "285.3": [
+   "horizontal",
+   -90
+  ],
+  "289.0": [
+   "horizontal",
+   -90
+  ],
+  "289.1": [
+   "falling",
+   -135
+  ],
+  "289.2": [
+   "inverted",
+   180
+  ],
+  "289.3": [
+   "inverted",
+   180
+  ],
+  "305.0": [
+   "launched",
+   -20
+  ],
+  "305.1": [
+   "launched",
+   -30
+  ],
+  "305.2": [
+   "horizontal",
+   -60
+  ],
+  "305.3": [
+   "horizontal",
+   -90
+  ],
+  "305.4": [
+   "falling",
+   -135
+  ],
+  "307.0": [
+   "launched",
+   -30
+  ],
+  "307.1": [
+   "horizontal",
+   -60
+  ],
+  "307.2": [
+   "horizontal",
+   -90
+  ],
+  "307.3": [
+   "falling",
+   -135
+  ],
+  "307.4": [
+   "falling",
+   -135
+  ],
+  "313.0": [
+   "horizontal",
+   -90
+  ],
+  "313.1": [
+   "horizontal",
+   -90
+  ],
+  "313.2": [
+   "horizontal",
+   -90
+  ],
+  "315.0": [
+   "inverted",
+   180
+  ],
+  "315.1": [
+   "inverted",
+   180
+  ],
+  "315.2": [
+   "falling",
+   -135
+  ],
+  "315.3": [
+   "horizontal",
+   -90
+  ],
+  "316.0": [
+   "horizontal",
+   90
+  ],
+  "316.1": [
+   "horizontal",
+   90
+  ],
+  "316.2": [
+   "horizontal",
+   90
+  ],
+  "318.0": [
+   "inverted",
+   180
+  ],
+  "318.1": [
+   "inverted_diagonal",
+   155
+  ],
+  "318.2": [
+   "falling",
+   135
+  ],
+  "318.3": [
+   "lying",
+   90
+  ],
+  "318.4": [
+   "lying",
+   90
+  ],
+  "335.0": [
+   "lying",
+   90
+  ],
+  "339.0": [
+   "standing",
+   0
+  ],
+  "376.0": [
+   "inverted",
+   180
+  ],
+  "376.1": [
+   "inverted",
+   180
+  ],
+  "376.2": [
+   "falling",
+   -135
+  ],
+  "376.3": [
+   "horizontal",
+   -90
+  ],
+  "379.0": [
+   "curled",
+   135
+  ],
+  "379.1": [
+   "curled",
+   90
+  ],
+  "379.2": [
+   "curled",
+   180
+  ],
+  "379.3": [
+   "inverted",
+   180
+  ],
+  "379.4": [
+   "inverted_diagonal",
+   -150
+  ],
+  "383.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "384.0": [
+   "inverted",
+   180
+  ],
+  "384.1": [
+   "inverted",
+   180
+  ],
+  "384.2": [
+   "inverted_diagonal",
+   150
+  ],
+  "384.3": [
+   "falling",
+   135
+  ],
+  "384.4": [
+   "horizontal",
+   90
+  ],
+  "392.0": [
+   "inverted",
+   180
+  ],
+  "392.1": [
+   "inverted",
+   180
+  ],
+  "392.2": [
+   "falling",
+   -135
+  ],
+  "392.3": [
+   "horizontal",
+   -90
+  ],
+  "408.0": [
+   "inverted",
+   180
+  ],
+  "409.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "410.0": [
+   "inverted",
+   180
+  ],
+  "411.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "412.0": [
+   "lying",
+   -90
+  ],
+  "414.0": [
+   "lying",
+   90
+  ],
+  "416.0": [
+   "grabbed",
+   0
+  ],
+  "417.0": [
+   "bent_back",
+   -15
+  ],
+  "418.0": [
+   "bent_back",
+   -30
+  ],
+  "419.0": [
+   "bent_back",
+   -40
+  ],
+  "420.0": [
+   "inverted_diagonal",
+   160
+  ],
+  "421.0": [
+   "inverted_diagonal",
+   160
+  ],
+  "422.0": [
+   "inverted_diagonal",
+   -150
+  ],
+  "423.0": [
+   "inverted_diagonal",
+   -150
+  ],
+  "424.0": [
+   "grabbed",
+   0
+  ],
+  "425.0": [
+   "grabbed",
+   0
+  ],
+  "426.0": [
+   "hit_reel",
+   0
+  ],
+  "427.0": [
+   "hit_reel",
+   -15
+  ],
+  "428.0": [
+   "inverted",
+   180
+  ],
+  "429.0": [
+   "inverted",
+   180
+  ],
+  "430.0": [
+   "inverted",
+   180
+  ],
+  "431.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "432.0": [
+   "launched",
+   -30
+  ],
+  "433.0": [
+   "horizontal",
+   -60
+  ],
+  "434.0": [
+   "horizontal",
+   -90
+  ],
+  "435.0": [
+   "falling",
+   -135
+  ],
+  "436.0": [
+   "inverted",
+   180
+  ],
+  "437.0": [
+   "inverted",
+   180
+  ],
+  "438.0": [
+   "inverted",
+   180
+  ],
+  "439.0": [
+   "falling",
+   135
+  ],
+  "440.0": [
+   "inverted_diagonal",
+   155
+  ],
+  "441.0": [
+   "horizontal",
+   90
+  ],
+  "442.0": [
+   "horizontal",
+   90
+  ],
+  "443.0": [
+   "horizontal",
+   -90
+  ],
+  "444.0": [
+   "horizontal",
+   -90
+  ],
+  "445.0": [
+   "falling",
+   135
+  ],
+  "446.0": [
+   "falling",
+   -120
+  ],
+  "447.0": [
+   "inverted_diagonal",
+   150
+  ],
+  "448.0": [
+   "falling",
+   -135
+  ],
+  "449.0": [
+   "falling",
+   -120
+  ],
+  "450.0": [
+   "horizontal",
+   -90
+  ],
+  "451.0": [
+   "launched",
+   -45
+  ],
+  "452.0": [
+   "launched",
+   -20
+  ],
+  "453.0": [
+   "launched",
+   0
+  ],
+  "454.0": [
+   "launched",
+   0
+  ],
+  "455.0": [
+   "launched",
+   30
+  ],
+  "456.0": [
+   "launched",
+   20
+  ],
+  "457.0": [
+   "horizontal",
+   90
+  ],
+  "458.0": [
+   "horizontal",
+   75
+  ],
+  "459.0": [
+   "horizontal",
+   -90
+  ],
+  "460.0": [
+   "horizontal",
+   -90
+  ],
+  "461.0": [
+   "hunched",
+   0
+  ],
+  "462.0": [
+   "hunched",
+   45
+  ],
+  "463.0": [
+   "hit_reel",
+   0
+  ],
+  "464.0": [
+   "standing",
+   0
+  ],
+  "464.1": [
+   "standing",
+   0
+  ],
+  "464.2": [
+   "standing",
+   0
+  ],
+  "464.3": [
+   "standing",
+   0
+  ],
+  "480.0": [
+   "standing",
+   0
+  ],
+  "480.1": [
+   "standing",
+   0
+  ],
+  "480.2": [
+   "standing",
+   0
+  ],
+  "480.3": [
+   "standing",
+   0
+  ],
+  "480.4": [
+   "standing",
+   0
+  ],
+  "480.5": [
+   "hunched",
+   30
+  ],
+  "480.6": [
+   "hunched",
+   30
+  ],
+  "480.7": [
+   "hunched",
+   30
+  ],
+  "480.8": [
+   "hunched",
+   30
+  ],
+  "480.9": [
+   "standing",
+   0
+  ],
+  "496.0": [
+   "standing",
+   0
+  ],
+  "496.1": [
+   "standing",
+   0
+  ],
+  "496.2": [
+   "standing",
+   0
+  ],
+  "496.3": [
+   "standing",
+   0
+  ],
+  "496.4": [
+   "standing",
+   0
+  ],
+  "496.5": [
+   "standing",
+   0
+  ]
+ }
+}

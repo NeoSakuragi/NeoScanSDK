@@ -126,6 +126,64 @@ def table96(outdir, specs):
                   open(os.path.join(outdir, f'{game}_{name}.json'), 'w'))
         print(spec, cols, 'x', rows, 'first tile', hex(tiles[0][0]), 'palette', hex(pid))
 
+def table94(outdir, specs):
+    """KOF94 HUD portraits from ROM (found from King's in a demo fight, VRAM at the top left): 2x2 sprite definitions
+    of effect table 28 ($080080 + 28*4), two per fighter in groups of 12 (sdef = (k // 12) * 24 + k % 12, k = 2 * id;
+    King id 23 -> 82); colours = palette 8 of the fighter's set (palette slot 24 = ROM palette $604 + 8 for King)"""
+    sys.path.insert(0, os.path.join(HERE, '..', 'kof95')); sys.path.insert(0, os.path.join(HERE, '..', 'kof94'))
+    import rom
+    from neogeo.animation import read_sprite_def
+    from ids94 import NEO, PAL_ROM, palette_base
+    from export94 import CAST
+    prom, crom = rom.load(NEO)
+    sd = struct.unpack('>I', prom[0x080080 + 28 * 4:0x080080 + 28 * 4 + 4])[0]
+    for spec in specs:
+        game, name = spec.split(':'); assert game == 'kof94'
+        cid = CAST.index(name); k = 2 * cid
+        d = read_sprite_def(prom, sd, 96 if cid >= 24 else (k // 12) * 24 + k % 12, bitmask_mode='word')   # both Rugals: 96
+        assert d and d['cols'] == 2 and d['tiles_per_col'] == 2, f'{name}: no 2x2 portrait ({d})'
+        pid = palette_base(prom, cid) + 8
+        pal = struct.unpack('>16H', prom[PAL_ROM + pid * 32:PAL_ROM + pid * 32 + 32])
+        idx = Image.new('P', (32, 32), 0); tiles, tile = [], d['base_tile']
+        for c in range(2):
+            col = []
+            for r in range(2):
+                px = decode(crom, tile); col.append(tile)
+                for y in range(16):
+                    for x in range(16): idx.putpixel((c * 16 + x, r * 16 + y), px[y][x])
+                tile += 1
+            tiles.append(col)
+        idx.putpalette([v_ for w in (0,) + pal[1:] for v_ in rgb(w)])
+        idx.save(os.path.join(outdir, f'{game}_{name}.png'))
+        json.dump({'game': game, 'name': name, 'cid': cid, 'tiles': tiles, 'rom_palette': pid, 'palette': [0] + list(pal[1:])},
+                  open(os.path.join(outdir, f'{game}_{name}.json'), 'w'))
+        print(spec, 'first tile', hex(tiles[0][0]), 'palette', hex(pid))
+
+def table97(outdir, specs):
+    """KOF97 HUD portraits from ROM (found from Andy's in a demo fight: VRAM top left -> tile $C2C7): effect table 34,
+    sprite definition 302 + id (3x2 tiles, palette byte 31 = the fighter's body palette 15, set A: ROM palette
+    $100 + id*$40 + 15, checked against palette RAM slot 31 = $20F for Andy)"""
+    m = rom96.Mem(rom96.load(rom96.GAMES['kof97']['neo'])[0], 'kof97'); crom = rom96.load(rom96.GAMES['kof97']['neo'])[1]
+    for spec in specs:
+        game, name = spec.split(':'); assert game == 'kof97'
+        cid = export96.CAST97.index(name); sd = rom96.sdef(m, 34, 302 + cid)
+        assert sd['pal'] == 31, f'{name}: portrait palette byte {sd["pal"]}'
+        pal = export96.pal_rom98(m, 0x100 + cid * 0x40 + 15)
+        cols = sd['cols']; idx = Image.new('P', (16 * len(cols), 16 * len(cols[0])), 0)
+        for c, col in enumerate(cols):
+            for r, t in enumerate(col):
+                if not t: continue
+                px = decode(crom, t)
+                for y in range(16):
+                    for x in range(16): idx.putpixel((c * 16 + x, r * 16 + y), px[y][x])
+        idx.putpalette([v_ for w in pal for v_ in rgb(w)])
+        idx.save(os.path.join(outdir, f'{game}_{name}.png'))
+        json.dump({'game': game, 'name': name, 'cid': cid, 'tiles': cols, 'palette': pal},
+                  open(os.path.join(outdir, f'{game}_{name}.json'), 'w'))
+        print(spec, len(cols), 'x', len(cols[0]), 'first tile', hex(next(t for col in cols for t in col if t)))
+
 if __name__ == '__main__':
     if sys.argv[1] == 'capture': capture(sys.argv[2], sys.argv[3:])
     if sys.argv[1] == 'table': table96(sys.argv[2], sys.argv[3:])
+    if sys.argv[1] == 'table94': table94(sys.argv[2], sys.argv[3:])
+    if sys.argv[1] == 'table97': table97(sys.argv[2], sys.argv[3:])

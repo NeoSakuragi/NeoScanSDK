@@ -1,0 +1,144 @@
+{
+ "_doc": "KOF95 ground truth captured from the running game (MAME, capture/*.lua, 2026-10-02). Animation slots are indices into the character's state table at $080000 + id*4; each animation's own terminator decides loop ($FF00) or play-once-and-hold ($FE00). Physics in px/frame (fixed point in the game); y is height above the floor. Phase lengths in frames are the game's own.",
+ "slots": {
+  "idle": 0,
+  "walk_fwd": 1,
+  "walk_back": 2,
+  "prejump": 3,
+  "land": 3,
+  "jump_up_rise": 5,
+  "jump_up_fall": 6,
+  "jump_fwd_rise": 7,
+  "jump_fwd_fall": 8,
+  "jump_back_rise": 9,
+  "jump_back_fall": 10,
+  "crouch_down": 11,
+  "crouch_up": 12,
+  "turn": 14,
+  "guard_stand_in": 16,
+  "guard_stand": 17,
+  "guard_crouch_in": 22,
+  "guard_crouch": 23,
+  "hit_stand_light": 54,
+  "hit_stand_heavy": 60,
+  "hit_stand_mid": 59,
+  "atk_a_close": 82,
+  "atk_a_far": 83,
+  "atk_a_jump": 84,
+  "atk_a_jump_diag": 85,
+  "atk_a_crouch": 86,
+  "atk_b_close": 87,
+  "atk_b_far": 88,
+  "atk_b_jump": 89,
+  "atk_b_jump_diag": 90,
+  "atk_b_crouch": 91,
+  "atk_c_close": 92,
+  "atk_c_far": 93,
+  "atk_c_jump": 94,
+  "atk_c_jump_diag": 95,
+  "atk_c_crouch": 96,
+  "atk_d_close": 97,
+  "atk_d_far": 98,
+  "atk_d_jump": 99,
+  "atk_d_jump_diag": 100,
+  "atk_d_crouch": 101,
+  "hit_crouch_light": 61,
+  "hit_crouch_heavy": 62,
+  "hit_air": 65,
+  "blowback": 66,
+  "trip": 67,
+  "knockdown_fall": 74,
+  "down": 78,
+  "getup": 80,
+  "dizzy": 81,
+  "body_toss": 34,
+  "body_toss_air": 35
+ },
+ "phases": {
+  "prejump_frames": 3,
+  "land_frames": 2,
+  "crouch_down_frames": 3,
+  "crouch_up_frames": 3,
+  "guard_blockstun_frames": 11,
+  "turn": "plays slot 14 to its end"
+ },
+ "characters": {
+  "terry": {
+   "id": 15,
+   "walk_fwd": 2.9375,
+   "walk_back": 2.203125,
+   "jump_vy0": 9.375,
+   "gravity": 0.51171875,
+   "jump_dx": 2.9375
+  },
+  "kyo": {
+   "id": 6,
+   "walk_fwd": 3.0,
+   "walk_back": 2.25,
+   "jump_vy0": 10.625,
+   "gravity": 0.60546875,
+   "jump_dx": 3.0
+  },
+  "ryo": {
+   "id": 18,
+   "walk_fwd": 2.95703125,
+   "walk_back": 2.2177734375,
+   "jump_vy0": 10.7578125,
+   "gravity": 0.578125,
+   "jump_dx": 2.95703125
+  },
+  "robert": {
+   "id": 19,
+   "walk_fwd": 3.0,
+   "walk_back": 2.25,
+   "jump_vy0": 10.1875,
+   "gravity": 0.5625,
+   "jump_dx": 3.0
+  }
+ },
+ "ram": {
+  "_doc": "Character objects: P1 $108100, P2 $108300, $200 bytes each.",
+  "x": "+$18.w (+$1A fraction)",
+  "height": "+$20.w (+$22 fraction)",
+  "frame_record": "+$28.l low 24 bits (top byte flags)",
+  "facing": "+$31 bit 0",
+  "sdef_table": "+$3C.l",
+  "state": "+$72.w"
+ },
+ "game_states": {
+  "_doc": "game state word (+$72) seen while each animation played (Terry, capture/terry_attack/hit*.txt)",
+  "atk": "A close 50 far 51 jump 52 crouch 58; B 59/60/61/67; C 68?/69/70/76; D 77/78/79/85 (stride 9)",
+  "hit": "stand light 26, stand heavy 29, crouch light 30, crouch heavy 31, air 32, blowback 33, trip 34, bounce 41, down 45, getup 47",
+  "body_toss": "C+D: ground 96 (slot 34), in a jump 111 (slot 35); the victim gets the blowback reaction (33 -> 41 -> 45 -> 47)",
+  "throw": "close + forward + C or D: 144 (slot per character, capture/throws/<id>.json)"
+ },
+ "reactions": {
+  "_doc": "measured on Terry (capture/terry_hit*.txt, terry_blow.txt); px/frame, y up; vx is away from the attacker. Hit-stop = the animation's first 15-tick step.",
+  "gravity": 0.46875,
+  "hit_air": {
+   "hitstop": 14,
+   "vy": 6.5,
+   "vx": 2.5,
+   "lands": "on feet (end of hit_air)"
+  },
+  "trip": {
+   "hitstop": 15,
+   "vy": 8.0,
+   "vx": 2.0,
+   "down_frames": 8
+  },
+  "blowback": {
+   "hitstop": 15,
+   "vy": 5.25,
+   "vx": 3.5,
+   "bounce_wait": 5,
+   "bounce_vy": 4.0,
+   "bounce_vx": 3.5,
+   "down_frames": 17
+  },
+  "getup_frames": 25
+ },
+ "boxes": {
+  "_doc": "animation command fd TT x y w h (signed bytes x/y, centre + half extents from the feet origin, same axis as sprite dx; the ROM's sprites face LEFT, so negative x = in front). TT>>4: 1 attack (live only on the step right after it), 3 upper hurtbox, 4 lower hurtbox (persist until replaced); low nibble varies (0/1/2) per move."
+ }
+}

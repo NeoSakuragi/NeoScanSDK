@@ -172,3 +172,92 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
        animation command $FB (x, before a step), which the parser skipped, so every normal played on the spot. Now
        parsed into bstep_t.dx and applied as the step starts. KOF98 MAME travel = data sum for Terry 85, Ralf 80, Chang
        56, Mai 26 px; our game: Terry's C+D 85 px.
+
+## AFK work (Bruno, 2026-10-03 15:15) — the loop takes the first open item, notes progress under it
+
+- [x] 39. KOF94 support in the dictionary tools: locate KOF94's animation / frame / sprite-def / palette tables
+       (start from tools/kof95/rom.py, KOF95's engine is KOF94's successor; confirm every address in the ROM and in
+       our emulator), frames + palettes decoded and rendered to a contact sheet that matches the game.
+       Progress: tables found = KOF95's: animations $080000 + id*4, sprite defs $080080 + id*4 (30 ids; 24
+       fighters + Rugal 24 + Omega Rugal 25 + effects 26-29). KOF94 sprite defs always use 16-bit column bitmasks
+       (neosdk read_sprite_def 'word' mode; KOF95's exporter assumed 8-bit for short sprites). tools/kof94/ids94.py
+       renders every id's idle frame: shapes right. Ids by shape: 0-2 Ikari, 3-5 Psycho, 6-8 Japan, 9-11 USA (where
+       KOF95 has the rival team), 12-14 Korea, 15-17 Fatal Fury, 18-20 AoF, 21-23 Women, 24 Rugal, 25 Omega Rugal.
+       Palettes NOT solved: 44 tagged blocks at $71000 (stride $400), block = id fits some fighters, not Terry/Andy/
+       Benimaru. Next: attract demo in our emulator, PALDUMP + VRAMDUMP during a fight, match the real palettes.
+       Done: palettes solved from the game's own loader ($330E / $336A, found from a demo fight's palette RAM):
+       palette n at $6F000 + n*32 (colour 0 = tag); first palette of (id, colour set) = word table $33D2 + (2*id + set)*2
+       ($380 + 14 per entry: 14 palettes per fighter per set); a sprite part uses base + (sdef byte 2 high nibble - 1).
+       Player object: id word at +$70, colour set +$D8, palette slot +$30. tools/kof94/ids94.py sheet: all 26 right.
+       Cast: 0 Heidern 1 Ralf 2 Clark | 3 Athena 4 Kensou 5 Chin | 6 Kyo 7 Benimaru 8 Goro | 9 Heavy D! 10 Lucky
+       Glauber 11 Brian Battler | 12 Kim 13 Chang 14 Choi | 15 Terry 16 Andy 17 Joe | 18 Ryo 19 Robert 20 Takuma |
+       21 Yuri 22 Mai 23 King | 24 Rugal 25 Rugal (torn jacket) | 26-29 effects.
+- [x] 40. KOF94 USA team (Heavy D!, Lucky Glauber, Brian Battler): animations, boxes, physics, palettes exported in the
+       KOF95 layout; brawler subset via export_bm.py; checked in a test ROM (not published).
+       Progress: slots = KOF95's for jumps/crouch/normals 82-101/trip 67/knockdown 74/down 78/getup 80; differences
+       seen on Terry: light hit 57 (54 empty), no run (49-56 empty), no C+D (34 = a standing pose), win 36, flight 72,
+       bounce 74, fall 75 (to confirm in play). Physics record $6D2B8 + id*128 (+$24 walk, +$28 jump, +$2C gravity;
+       Terry = KOF95's exactly). Boxes: attack 1x, hurt 3x AND 4x (export_bm only took 3x); step flags have $0100
+       active but no $4000 (multi-hit unknown: consecutive active steps = one hit for now); $FB moves as KOF98.
+       Next: tools/kof94/export94.py (export96-compatible JSON + kof95_c1/c2), export_bm dispatch on 'kof94', test ROM.
+       Done (15:31): tools/kof94/export94.py (CAST: heavy_d, lucky, brian, ..., rugal, rugal2; export96 layout) +
+       export_bm dispatch on kof94 (hurt boxes now type 3 and 4, harmless for KOF96+); HUD portraits from ROM
+       (portraits.py table94: effect table 28 2x2 sdefs, palette 8 of the set; King/Terry/USA checked), make_hud crop.
+       Test ROM (not published, CHARS = USA team + 11 of the roster, /data/tmp/brawler_usa.neo): select screen with
+       the KOF94 portraits, Heavy D! as P1, Lucky / Brian as enemies in their colours, A route hits with sparks,
+       knockdown flight / down / get-up play right on Lucky. Not done: their throws and specials (KOF94 capture
+       tooling = KOF95's, not run), multi-hit normals unmeasured, run = walk, C+D = far D (KOF94 has neither).
+- [x] 41. KOF94 both Rugals (Rugal, Omega Rugal): same as 40.
+       Done: the bosses' normals are compacted (suited Rugal 8 slots 82-89, Rugal 2 = torn jacket 12 slots 82-93), so
+       export94 now finds every move through KOF94's per-fighter game-state map ($7BF48 + id*4 -> word per state, low
+       byte = slot; code $4860): each brawler move = the game state Terry's map sends to Terry's slot. E.g. close C:
+       Terry 92, Rugal 85, Rugal 2 87. Both forms share Rugal's palettes and one HUD portrait (table 28 sdef 96). No
+       win pose (idle). Test ROM /data/tmp/brawler_rugal_aioff.neo: Rugal as P1 vs Rugal 2, A route 7 hits ending in a
+       knockdown, portraits right. The HUD shows the second form as RUGAL2 (export name).
+- [x] 42. KOF97 support: rom96.GAMES entry (KOF97 = the KOF96/98 engine family): table addresses confirmed, frames
+       rendered to a sheet that matches the game.
+       Done: KOF97 = KOF98's layout: animations bank 2 $200002, frame records bank 1 $200002, state map $AFBCA
+       (code $5A48 = KOF98's $5DAC), sprite definitions bank 1 $250000 (code $5A6E; KOF98 $240000), palettes bank 2
+       $2CFFF0 + n*32 (loader = KOF98's at $4AD6...), body n = $100 + id*$40 + $10*set + k as KOF98. All found by
+       matching KOF98's code bytes around each address. rom96.GAMES['kof97']; tools/kof97/ids97.py sheet: 35 tables,
+       all 32 fighters in their colours. Cast = KOF98's first 28 (kyo .. iori) then 28 Iori (Riot of the Blood),
+       29 Leona (Orochi), 30 Orochi, 31 Shingo; 32-34 effects.
+- [x] 43. KOF97 Orochi: same as 40 (boss: check its special frames / size against the 20-column sprite block).
+       Done: export96 knows kof97 (CAST97 = KOF98's first 28 + iori_riot, leona_orochi, orochi, shingo; MOVES97 =
+       KOF98's states minus the win poses, which are elsewhere in KOF97; physics walk $A3710 / jump $A3790 = KOF98's
+       values; palette base per game, PAL_ROM). Orochi: 72 frames, widest 8 columns, 10 rows (fits); his boss map
+       sends missing moves to what he has (no run / C+D: idle). HUD portraits (portraits.py table97): effect table 34
+       sdef 302 + id, 3x2 tiles, body palette 15 (checked on Andy in a demo fight: tile $C2C7, palette RAM 31 =
+       ROM $20F). Test ROM /data/tmp/brawler_orochi_aioff.neo: Orochi as P1 in his colours with his portrait, A / far
+       A hit; his close C is a rising float that whiffs, so his A route stops at 3 hits (boss data).
+- [x] 44. KOF98 sound engine deep dive (docs/kof98_sound_driver.md): Z80 M ROM memory map, command protocol from the
+       68000 ($07 unlock, $1A sfx, $1C voice, tracks $21-$3F), timer / IRQ setup, YM2610 register use per channel
+       type (FM, SSG, ADPCM-A, ADPCM-B), song data format (table -> per-channel streams -> opcodes), instruments,
+       how sfx steal channels; verified by tracing our emulator (Z80 trace) against the disassembly. Ends with what
+       our own driver should copy and what it should do differently.
+       Progress: KOF98's M ROM (256 KB) = the v1.7 driver already documented in docs/v17_bytecode.md and
+       docs/v17_opcodes_complete.md (code $0000-$2C48 byte-identical to the jukebox / soccerfury_player M1), string
+       "Sound Driver(ROM)Ver 1.7 98/06/16 To SNK". NMI $0066: command from port $00; 3 = reset at once ($0DC9), 1 = at
+       once while $FDBA = 0 ($0DBB), others queued in a 64-entry ring ($FD25, write index $FD67); every command echoed
+       to the 68000 on port $0C (reply latch), port $00 written to acknowledge. Reset $00B0: IM 1, RAM $F800-$FDDD
+       cleared, YM writes $27=$30 (timers), $21=0, ... IRQ $0038 -> $194C (timer ISR, see v17_bytecode.md).
+       Next: main loop / command dispatch, song table, then ground truth = MAME Lua tap on the sound CPU's YM writes.
+       Progress: docs/kof98_sound_driver.md started: ports and map, vectors, NMI ring + reply, main loop dispatch
+       ($3038 type table), all system commands ($07 unlock = clear music mute + re-arm Timer B), effect prefixes
+       ($1A/$1C/$1E/$1B/$17/$16/$1D = slots 1-7: the 68000 picks the channel), ADPCM-A sample records
+       [priority][start][end][pan|level] and the priority-stealing allocator over ADPCM-A 1-3, song header (11 enable
+       bytes, tempo, 11 stream pointers, bank sets $2708), stream = varlen delta + running-status opcode (corrects
+       v17_bytecode.md). Next: MAME tap of YM writes for one song as ground truth, then a decoder checked against it.
+       Progress: tools/kof98snd/ymtap.lua (MAME: every YM2610 write of the sound CPU + every 68000 command; the I/O
+       tap must cover $0000-$FFFF: OUT (n),A puts A on the upper address lines), keyons.py (key-ons per channel),
+       song98.py (decoder: banks, header, varlen delta, running status, flow). Boot capture: $01 $03 $03 $01 $03 $07
+       $21 (intro song). Song $21 decodes to 'end' on all 11 channels; FM1's first notes land on the captured key-ons
+       at 0.574 frames per tick (104.5 ticks/s, tempo byte 129), then drift (41/77 within 1 frame); FM2-4 and the
+       ADPCM channels don't line up yet. Next: find the drift (tempo op $10, loop counts, ties), then map the music's
+       ADPCM-A channels to hardware channels.
+       Done: docs/kof98_sound_driver.md (protocol, dispatch, every system command, effect slots + ADPCM-A priority
+       stealing, sample records, song header, stream encoding, corrected opcodes, instruments, recommendations).
+       song98.py validated on song $21: all 11 channels (FM 1-4, ADPCM-A 1-6, ADPCM-B; no SSG) decode to exactly
+       their captured key-on counts, each note within 3.8 frames. Corrections to v17_*.md found on the way: stream
+       = length varlen + running-status opcode (not "$C0-$FE duration"), $07/$08 loops, $09/$0A call/return, $0C
+       queue command, $1A/$1B SSG mixer/envelope, $0D 1 byte, header channels 4-9 = ADPCM-A 1-6 (not SSG).

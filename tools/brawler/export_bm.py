@@ -31,7 +31,7 @@ def boxes(bx, reach=0):
     # KOF box key: the first hex digit is the type, 3 = hurt ('31'-'33', in every animation), 1 = attack ('11', '1B'-'1E',
     # only in attack animations; KOF96/98/99 census 2026-10-03). The second digit is not a slot: close A's attack box
     # is '1C', close C's / close D's '1D' (the old low-2-bits rule read '1D' as a hurt box: no C / D normal ever hit).
-    hurt = [v for k, v in bx.items() if int(k, 16) >> 4 == 3]; atk = [v for k, v in bx.items() if int(k, 16) >> 4 == 1]
+    hurt = [v for k, v in bx.items() if int(k, 16) >> 4 in (3, 4)]; atk = [v for k, v in bx.items() if int(k, 16) >> 4 == 1]   # KOF94/95 hurt: 3x and 4x
     def norm(b): return sb(b[0]), sb(b[1]), b[2], b[3]
     h = None
     if hurt:
@@ -63,7 +63,10 @@ def build(specs, outdir):
     tile_next = TILE_BASE
     for game, names in games.items():
         tmp = os.path.join(outdir, 'tmp_' + game)
-        ex = export96.export(names, tmp, game, only=set(MOVES) | set(THROWS) | {'specials'})
+        if game == 'kof94':                             # KOF95's engine: its own reader, the same export layout
+            sys.path.insert(0, os.path.join(HERE, '..', 'kof94')); import export94
+            ex = export94.export(names, tmp, only=set(MOVES))
+        else: ex = export96.export(names, tmp, game, only=set(MOVES) | set(THROWS) | {'specials'})
         a = open(os.path.join(tmp, 'kof95_c1.bin'), 'rb').read(); b = open(os.path.join(tmp, 'kof95_c2.bin'), 'rb').read()
         n = ex['tiles']
         assert n < 0x10000, f'{game}: {n} tiles in one block (a block must fit one 64K tile page after its blank tile)'

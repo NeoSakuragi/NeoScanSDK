@@ -1,0 +1,563 @@
+<title>KOF95 Animation Bank</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  /* Single light theme by choice: the page is read on an e-ink tablet (black on white, solid borders). */
+  :root {
+    --paper: #ffffff; --ink: #111111; --ink-2: #4a4a4a; --rule: #111111; --faint: #d9d9d9;
+    --hit: #b00000;          /* attack box; also drawn thicker, so colour is never the only cue */
+    --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  html { background: var(--paper); }
+  body { background: var(--paper); color: var(--ink); font: 15px/1.5 var(--body); padding-inline: 16px; padding-block: 20px 48px; }
+  main { max-width: 1120px; margin: 0 auto; display: grid; gap: 28px; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01em; text-wrap: balance; margin: 0; line-height: 1.05; }
+  h1 { font-size: clamp(34px, 6vw, 52px); text-transform: uppercase; }
+  h2 { font-size: 26px; text-transform: uppercase; border-bottom: 2px solid var(--rule); padding-bottom: 4px; }
+  h3 { font-size: 19px; text-transform: uppercase; }
+  p { margin: 0; max-width: 68ch; }
+  .lede { display: grid; gap: 8px; }
+  .meta { font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
+  button { font: 600 14px/1 var(--body); color: var(--ink); background: var(--paper); border: 2px solid var(--ink); padding: 8px 12px; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  button:focus-visible, .card:focus-visible, .cell:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tabs button { font: 700 20px/1 var(--display); text-transform: uppercase; padding: 8px 18px; }
+
+  .viewer { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .viewer { grid-template-columns: 1fr; } }
+  .stage { border: 2px solid var(--ink); background: var(--paper); }
+  .stage canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  .info { display: grid; gap: 12px; }
+  .info .name { font: 700 30px/1 var(--display); text-transform: uppercase; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0; font-family: var(--mono); font-size: 13px; }
+  dt { color: var(--ink-2); } dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; align-items: center; }
+  .sw { display: inline-block; width: 22px; height: 12px; vertical-align: middle; margin-right: 6px; }
+  .sw.atk { border: 3px solid var(--hit); }
+  .sw.hurt { border: 1px dashed var(--ink); }
+
+  .strip-wrap { overflow-x: auto; border: 2px solid var(--ink); }
+  .strip { display: flex; gap: 0; min-width: min-content; }
+  .step { border-right: 1px solid var(--ink); padding: 6px 6px 4px; display: grid; justify-items: center; gap: 2px; cursor: pointer; }
+  .step:last-child { border-right: 0; }
+  .step[aria-current="true"] { outline: 3px solid var(--ink); outline-offset: -3px; }
+  .step canvas { image-rendering: pixelated; display: block; }
+  .step span { font: 12px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+
+  .group { display: grid; gap: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .card { border: 1px solid var(--ink); padding: 6px; display: grid; gap: 4px; cursor: pointer; background: var(--paper); }
+  .card[aria-current="true"] { border: 3px solid var(--ink); padding: 4px; }
+  .card canvas, .cell canvas { width: 100%; height: auto; image-rendering: pixelated; display: block; }
+  .card b, .cell b { font: 600 13px/1.2 var(--body); }
+  .card span, .cell span { font: 12px/1.2 var(--mono); color: var(--ink-2); }
+
+  .atk-wrap { overflow-x: auto; }
+  table.atk { border-collapse: collapse; min-width: 680px; width: 100%; }
+  table.atk th { font: 700 16px/1 var(--display); text-transform: uppercase; padding: 6px; border: 1px solid var(--ink); }
+  table.atk td { border: 1px solid var(--ink); padding: 0; vertical-align: top; }
+  .cell { padding: 6px; display: grid; gap: 4px; cursor: pointer; }
+  .cell[aria-current="true"] { outline: 3px solid var(--ink); outline-offset: -3px; }
+
+  .tabs.cast button { font-size: 16px; padding: 6px 10px; }
+  .swatches { display: grid; gap: 10px; }
+  .swrow { display: grid; grid-template-columns: 90px repeat(16, minmax(0, 1fr)); gap: 2px; align-items: stretch; }
+  .swrow b { font: 600 13px/1.2 var(--body); align-self: center; }
+  .sq { border: 1px solid var(--ink); min-height: 34px; display: flex; align-items: flex-end; justify-content: center; }
+  .sq span { font: 9px/1 var(--mono); background: var(--paper); padding: 1px 2px; margin-bottom: 2px; }
+  .sq.tr { background: repeating-linear-gradient(45deg, #fff 0 4px, #ccc 4px 8px); }
+  @media (max-width: 640px) { .swrow { grid-template-columns: repeat(8, minmax(0, 1fr)); } .swrow b { grid-column: 1 / -1; } }
+  table.data { border-collapse: collapse; font: 13px/1.4 var(--mono); font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { border: 1px solid var(--ink); padding: 4px 10px; text-align: right; }
+  table.data th:first-child, table.data td:first-child { text-align: left; }
+  table.data thead th { font-family: var(--body); font-weight: 600; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start; }
+  .tablewrap { overflow-x: auto; }
+.cmds { columns: 3 14em; font-family: var(--mono, monospace); padding-left: 1.2em; }
+</style>
+
+<main>
+  <header class="lede">
+    <h1>KOF95 Animation Bank</h1>
+    <p>Every animation the brawler prototype takes from The King of Fighters '95, drawn from the exported ROM data and played at the game's own timing: one tick per 59.19 Hz video frame. Click any animation to inspect it frame by frame.</p>
+    <p class="meta" id="totals"></p>
+  </header>
+
+  <nav class="tabs cast" id="tabs" aria-label="Character"></nav>
+
+  <section class="viewer" aria-label="Selected animation">
+    <div class="stage"><canvas id="stage" width="320" height="200"></canvas></div>
+    <div class="info">
+      <div class="name" id="vname"></div>
+      <div class="controls">
+        <button id="play" aria-pressed="true">Pause</button>
+        <button id="step">Next step</button>
+        <button data-speed="1" aria-pressed="true">1×</button>
+        <button data-speed="0.5" aria-pressed="false">½×</button>
+        <button data-speed="0.25" aria-pressed="false">¼×</button>
+      </div>
+      <div class="controls">
+        <button id="boxes" aria-pressed="true">Boxes</button>
+        <button id="face" aria-pressed="false">Face right</button>
+        <span id="palButtons" class="controls"></span>
+      </div>
+      <div class="controls" id="victimRow" hidden>
+        <label for="victim" style="font-weight:600;align-self:center">Victim</label>
+        <select id="victim" style="font:600 14px/1 var(--body);border:2px solid var(--ink);padding:6px;background:var(--paper);color:var(--ink)"></select>
+      </div>
+      <dl id="vinfo"></dl>
+      <div class="legend">
+        <span><i class="sw atk"></i>attack box (thick)</span>
+        <span><i class="sw hurt"></i>hurtbox (dashed)</span>
+        <span>+ feet origin</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="group" aria-label="Steps">
+    <h3 id="stripTitle">Steps</h3>
+    <div class="strip-wrap"><div class="strip" id="strip"></div></div>
+  </section>
+
+  <div id="groups" style="display:grid;gap:28px"></div>
+
+  <section class="group" aria-label="Palettes">
+    <h2 id="palTitle">Palettes</h2>
+    <div class="swatches" id="swatches"></div>
+    <p class="meta">Body palette 0 of each set, as stored in the program ROM: 16 colours per set, $1D9000 + id × $400 for the regular set and +$200 for the mirror set, which the second player wears when both sides pick the same fighter. Colour 0 is transparent; in ROM it holds the palette's number, which the game overwrites.</p>
+  </section>
+
+  <section class="group">
+    <h2>Measured physics</h2>
+    <div class="two">
+      <div class="tablewrap"><table class="data" id="phys"></table></div>
+      <div class="tablewrap"><table class="data" id="react"></table></div>
+    </div>
+    <p class="meta">Pixels per frame. Walk, jump launch and gravity come from each character's record at $7AF16 + id × 128 in the program ROM; walking back is ¾ of the walk speed and the jump drift equals it, as measured in MAME. Knockdown values were measured on Terry; their gravity is shared by every reaction.</p>
+  </section>
+</main>
+
+<script>
+const DATA = /*DATA*/null;
+const TICK_MS = 1000 / 59.19, HOLD_PAUSE = 40;
+const NAMES = {
+  idle: 'Idle', walk_fwd: 'Walk forward', walk_back: 'Walk back', turn: 'Turn', prejump: 'Pre-jump / land',
+  jump_up_rise: 'Jump up, rise', jump_up_fall: 'Jump up, fall', jump_fwd_rise: 'Jump forward, rise',
+  jump_fwd_fall: 'Jump forward, fall', jump_back_rise: 'Jump back, rise', jump_back_fall: 'Jump back, fall',
+  crouch_down: 'Crouch down', crouch_up: 'Stand up', guard_stand_in: 'Guard in', guard_stand: 'Guard hold',
+  guard_crouch_in: 'Crouch guard in', guard_crouch: 'Crouch guard hold',
+  hit_stand_light: 'Hit, light', hit_stand_mid: 'Hit, medium', hit_stand_heavy: 'Hit, heavy',
+  hit_crouch_light: 'Crouch hit, light', hit_crouch_heavy: 'Crouch hit, heavy', hit_air: 'Air hit',
+  blowback: 'Blowback launch', trip: 'Sweep trip', knockdown_fall: 'Knockdown fall', down: 'On the ground',
+  getup: 'Get up', dizzy: 'Dizzy', land: 'Land', crouch: 'Crouch', run_start: 'Run start', run: 'Run', run_stop: 'Run stop',
+  backstep_start: 'Backstep start', backstep: 'Backstep', backstep_land: 'Backstep land', guard_stand_out: 'Guard out',
+  knockdown_flight: 'Knocked flying', knockdown_bounce: 'Bounce', hop_up_rise: 'Hop up, rise', hop_up_fall: 'Hop up, fall',
+  hop_fwd_rise: 'Hop forward, rise', hop_fwd_fall: 'Hop forward, fall', roll_start: 'Roll start', roll: 'Roll', roll_end: 'Roll end',
+  air_land: 'Air hit, landing', win_a: 'Win A (hold A)', win_a_hold: 'Win A, end', win_b: 'Win B (hold B)', win_b_hold: 'Win B, end',
+  win_c: 'Win C (hold C)', win_c_hold: 'Win C, end', win_d: 'Win D (hold D)', win_d_hold: 'Win D, end', throw: 'Throw', throw_c: 'Throw (forward + C)', throw_d: 'Throw (forward + D)', air_throw: 'Air throw', body_toss: 'Body toss', body_toss_air: 'Body toss, in the air',
+};
+const CAST_NAMES = { heidern: 'Heidern', ralf: 'Ralf', clark: 'Clark', athena: 'Athena', kensou: 'Kensou', chin: 'Chin',
+  kyo: 'Kyo', benimaru: 'Benimaru', goro: 'Goro', iori: 'Iori', eiji: 'Eiji', billy: 'Billy', kim: 'Kim', chang: 'Chang',
+  choi: 'Choi', terry: 'Terry', andy: 'Andy', joe: 'Joe', ryo: 'Ryo', robert: 'Robert', takuma: 'Takuma', yuri: 'Yuri',
+  mai: 'Mai', king: 'King', saisyu: 'Saisyu', omega_rugal: 'Omega Rugal', leona: 'Leona', kasumi: 'Kasumi',
+  mature: 'Mature', vice: 'Vice', geese: 'Geese', krauser: 'Krauser', mr_big: 'Mr. Big', chizuru: 'Chizuru', goenitz: 'Goenitz',
+  daimon: 'Daimon', yashiro: 'Yashiro', shermie: 'Shermie', chris: 'Chris', yamazaki: 'Yamazaki', mary: 'Mary',
+  heavy_d: 'Heavy D!', lucky: 'Lucky', brian: 'Brian', rugal: 'Rugal', shingo: 'Shingo', k_dash: "K'", maxima: 'Maxima',
+  whip: 'Whip', bao: 'Bao', xiangfei: 'Xiangfei', jhun: 'Jhun', kyo_1: 'Kyo-1', kyo_2: 'Kyo-2', krizalid: 'Krizalid',
+  krizalid_2: 'Krizalid (2nd)' };
+const ATK_COLS = [['close', 'Close'], ['far', 'Far'], ['jump', 'Jump'], ['jump_diag', 'Jump diag.'], ['crouch', 'Crouch']];
+const label = m => NAMES[m] || (m.startsWith('slot_') ? `Slot ${m.slice(5)}` : null) || (m.startsWith('atk_') ? `${m[4].toUpperCase()} ${ATK_COLS.find(c => c[0] === m.slice(6))[1].toLowerCase()}` : m);
+
+let charName = 'terry', sel = 'idle', playing = true, speed = 1, showBoxes = true, faceRight = false, palSet = 0;
+/* atlases are 4-bit indexed (red channel = palette index); each character is coloured on first use, both sets */
+const atlases = {}, coloured = {};
+/* frame palette keys: 'b' body (regular / mirror set), 'c<i>' palette i of the fighter's block, 'g<slot>' a fixed
+   effect palette (same in both sets). One coloured copy of the atlas per key and set, made on first use. */
+const indexData = {};
+function paletteFor(n, key, set) {
+  const c = DATA.chars[n];
+  if (key === 'b') return c.palettes[set].map(([h]) => h);
+  if (key[0] === 'c') return c.block[set][key.slice(1)];
+  return c.gpal[key.slice(1)];
+}
+function colourise(n, key = 'b', set = 0) {
+  const id = `${n}|${key}|${key[0] === 'g' ? 0 : set}`;
+  if (coloured[id]) return coloured[id];
+  const im = atlases[n];
+  if (!indexData[n]) {
+    const src = document.createElement('canvas'); src.width = im.width; src.height = im.height;
+    const sx = src.getContext('2d'); sx.drawImage(im, 0, 0); indexData[n] = sx.getImageData(0, 0, im.width, im.height);
+  }
+  const idx = indexData[n], pal = paletteFor(n, key, set) || paletteFor(n, 'b', set);
+  const hex2 = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const rgb = pal.map(hex2);
+  /* body frames: pixel = block palette * 16 + colour (KOF96 parts carry their own palette); block 0 = the body */
+  const blocks = key === 'b' ? (DATA.chars[n].block || [{}, {}])[set] || {} : {};
+  const lut = new Array(256);
+  for (let v = 0; v < 256; v++) {
+    const bp = (v >> 4) && blocks[String(v >> 4)] ? blocks[String(v >> 4)] : null;
+    lut[v] = bp ? hex2(bp[v & 15]) : rgb[v & 15];
+  }
+  const out = document.createElement('canvas'); out.width = im.width; out.height = im.height;
+  const ox = out.getContext('2d'), d = ox.createImageData(im.width, im.height);
+  for (let i = 0; i < idx.data.length; i += 4) {
+    if (!idx.data[i + 3]) continue;
+    const [r, g, b] = lut[idx.data[i]]; d.data[i] = r; d.data[i + 1] = g; d.data[i + 2] = b; d.data[i + 3] = 255;
+  }
+  ox.putImageData(d, 0, 0); coloured[id] = out; return out;
+}
+function loadAtlas(n) {
+  return new Promise(res => {
+    if (atlases[n] && atlases[n].complete) return res();
+    const im = atlases[n] || new Image(); atlases[n] = im; im.onload = () => res(); if (!im.src) im.src = DATA.chars[n].atlas;
+  });
+}
+
+/* one player = an animation advancing in ticks; hold animations rest on the last step, then restart */
+function player(anim, script, kind = 'throw') { return { anim, script, kind, step: 0, t: 0, rest: 0 }; }
+function advance(p, ticks) {
+  if (p.script) {                                   /* one row per tick, rest, restart */
+    p.t += ticks;
+    const n = p.script.length;
+    if (p.t >= n + HOLD_PAUSE) p.t %= (n + HOLD_PAUSE);
+    p.step = Math.min(p.t, n - 1); p.rest = p.t >= n ? 1 : 0;
+    return;
+  }
+  const st = p.anim.steps;
+  p.t += ticks;
+  while (p.t >= (p.rest ? HOLD_PAUSE : st[p.step][1])) {
+    p.t -= p.rest ? HOLD_PAUSE : st[p.step][1];
+    if (p.rest) { p.rest = 0; p.step = 0; continue; }
+    if (p.step + 1 < st.length) p.step++;
+    else if (p.anim.hold) p.rest = 1;
+    else p.step = 0;
+  }
+}
+
+function drawFrame(ctx, ch, fi, ox, oy, scale, mirror, set = palSet) {
+  const [ax, ay, w, h, fx, fy, key] = DATA.chars[ch].frames[fi];
+  ctx.save(); ctx.translate(ox, oy); if (mirror) ctx.scale(-1, 1);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(colourise(ch, key || 'b', set), ax, ay, w, h, -fx * scale, -fy * scale, w * scale, h * scale);
+  ctx.restore();
+}
+/* throw: frame by frame for ANY victim, from the ROM throw table of the thrower (validated against MAME):
+   timeline row = [thrower frame, thrower x from start, thrower height]
+   victim row   = [victim frame (in the VICTIM's frames), x from thrower, height from thrower, faces the thrower's way,
+                   drawn in front of the thrower, KOF95 state.step] ; posture/angle from the vocabulary (DATA.poses) */
+/* special move: one row per game frame captured in MAME: [fighter frame, x from start, height,
+   [[object frame, x from the fighter's start, height, same facing], ...]] */
+function drawSpecial(ctx, ch, row, ox, oy, scale, faceR) {
+  const [ff, fx, fh, objs] = row, f = faceR ? 1 : -1;
+  drawFrame(ctx, ch, ff, ox + f * fx * scale, oy - fh * scale, scale, faceR);
+  for (const [of, x, h, same] of objs) drawFrame(ctx, ch, of, ox + f * x * scale, oy - h * scale, scale, same ? faceR : !faceR);
+}
+let throwVictim = null;                                   // null = the thrower itself (mirror colours)
+function victimOf(ch) { return throwVictim && DATA.chars[throwVictim] ? throwVictim : ch; }
+function drawThrow(ctx, ch, th, step, ox, oy, scale, faceR) {
+  const v = victimOf(ch), rows = th.victims[v] || th.victims[ch];
+  const [tf, tdx, ty] = th.timeline[step], [vf, vdx, vdy, same, front] = rows[Math.min(step, rows.length - 1)], f = faceR ? 1 : -1;
+  const tx = ox + f * tdx * scale, tyy = oy - ty * scale;
+  const vset = v === ch ? (palSet + 1) % DATA.set_names.length : palSet;     /* same fighter: the next colour set */
+  const drawV = () => { if (vf >= 0) drawFrame(ctx, v, vf, tx + f * vdx * scale, tyy - vdy * scale, scale, same ? faceR : !faceR, vset); };
+  if (!front) drawV();
+  drawFrame(ctx, ch, tf, tx, tyy, scale, faceR);
+  if (front) drawV();
+}
+function drawBoxes(ctx, boxes, ox, oy, scale, mirror) {
+  for (const [type, x, y, w, h] of boxes) {
+    const cx = mirror ? -x : x, atk = type === 1;
+    ctx.save();
+    ctx.lineWidth = atk ? 3 : 1;
+    ctx.strokeStyle = atk ? getComputedStyle(document.documentElement).getPropertyValue('--hit') : '#111';
+    ctx.setLineDash(atk ? [] : [4, 3]);
+    ctx.strokeRect(Math.round(ox + (cx - w) * scale) + .5, Math.round(oy + (y - h) * scale) + .5, 2 * w * scale, 2 * h * scale);
+    ctx.restore();
+  }
+}
+function cross(ctx, x, y) {
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 1; ctx.beginPath();
+  ctx.moveTo(x - 6, y + .5); ctx.lineTo(x + 7, y + .5); ctx.moveTo(x + .5, y - 6); ctx.lineTo(x + .5, y + 7); ctx.stroke();
+}
+
+/* ---- main viewer ---- */
+const stage = document.getElementById('stage'), sctx = stage.getContext('2d');
+let main = null;
+function select(m) {
+  sel = m;
+  if (m.startsWith('sp:')) return selectSpecial(+m.slice(3));
+  const th = (DATA.chars[charName].throws || {})[m];
+  main = player(DATA.chars[charName].anims[m], th ? th.timeline : null);
+  if (th) main.throw = th;
+  document.getElementById('victimRow').hidden = !th;
+  document.querySelectorAll('[data-anim]').forEach(el => el.setAttribute('aria-current', el.dataset.anim === m ? 'true' : 'false'));
+  const a = main.anim, total = a.steps.reduce((s, x) => s + x[1], 0);
+  document.getElementById('vname').textContent = label(m);
+  document.getElementById('vinfo').innerHTML =
+    `<dt>Slot</dt><dd>${a.slot}</dd><dt>Steps</dt><dd>${a.steps.length}</dd>` +
+    `<dt>Length</dt><dd>${total} ticks = ${(total * TICK_MS).toFixed(0)} ms</dd>` +
+    `<dt>End</dt><dd>${a.hold ? 'holds the last step' : 'loops'}</dd>` +
+    (th ? `<dt>Input</dt><dd>${th.inputs}, close</dd><dt>Throw</dt><dd>${th.timeline.length} frames; victim placed by the ROM table at ${th.table.slice(1).join(', ')} (${th.table[0]} format), one list per victim</dd>` : '') +
+    `<dt>Attack</dt><dd>${a.steps.some(s => s[2].some(b => b[0] === 1)) ? 'steps ' + a.steps.map((s, i) => s[2].some(b => b[0] === 1) ? i + 1 : 0).filter(Boolean).join(', ') : 'none'}</dd>`;
+  buildStrip(); drawMain();
+}
+function spLabel(sp) { return `${sp.input.replace(/(\[\d\])(\d+)f /g, '$1 $2f, ')} (${sp.button})`; }
+function selectSpecial(i) {
+  const sp = DATA.chars[charName].specials[i];
+  main = player({ steps: [[sp.script[0][0], 1, []]], hold: true, slot: '-' }, sp.script, 'special');
+  document.querySelectorAll('[data-anim]').forEach(el => el.setAttribute('aria-current', el.dataset.anim === sel ? 'true' : 'false'));
+  document.getElementById('vname').textContent = 'Special ' + spLabel(sp);
+  const proj = sp.script.some(r => r[3].length);
+  document.getElementById('vinfo').innerHTML =
+    `<dt>Input</dt><dd>${sp.input}, button ${sp.button} (command slot ${sp.slot})</dd>` +
+    `<dt>Condition</dt><dd>${sp.condition}</dd>` +
+    `<dt>Length</dt><dd>${sp.script.length} frames = ${(sp.script.length * TICK_MS).toFixed(0)} ms</dd>` +
+    `<dt>States</dt><dd>${sp.states.filter(s => s[0] >= 112).map(s => `${s[0]}→slot ${s[2]} (${s[1]}f)`).join(', ')}</dd>` +
+    `<dt>Spawns</dt><dd>${proj ? 'yes, drawn with their own palettes' : 'none'}</dd>`;
+  document.getElementById('strip').innerHTML = '';
+  document.getElementById('stripTitle').textContent = 'Replayed from the MAME capture, frame by frame';
+  drawMain();
+}
+function drawMain() {
+  const ch = charName;
+  sctx.fillStyle = '#fff'; sctx.fillRect(0, 0, stage.width, stage.height);
+  const oy = 184;
+  sctx.fillStyle = '#d9d9d9'; sctx.fillRect(0, oy + 1, stage.width, 1);
+  sctx.fillStyle = '#111'; sctx.font = '10px "IBM Plex Mono", monospace';
+  if (main.script && main.kind === 'special') {
+    const ox = faceRight ? 60 : 260;
+    drawSpecial(sctx, ch, main.script[main.step], ox, oy, 1, faceRight); cross(sctx, ox, oy);
+    sctx.fillStyle = '#111';
+    sctx.fillText(`frame ${main.step + 1}/${main.script.length}${main.rest ? '  (end)' : ''}`, 6, 13);
+    return;
+  }
+  if (main.script) {
+    const ox = faceRight ? 70 : 250;
+    drawThrow(sctx, ch, main.throw, main.step, ox, oy, 1, faceRight); cross(sctx, ox, oy);
+    sctx.fillStyle = '#111';
+    const v = victimOf(ch), rows = main.throw.victims[v] || [], r = rows[Math.min(main.step, rows.length - 1)] || [];
+    const pose = DATA.poses[r[5]] || DATA.poses[(r[5] || '').split('.')[0] + '.0'] || null;
+    sctx.fillText(`frame ${main.step + 1}/${main.script.length}${main.rest ? ' (end)' : ''}  ${CAST_NAMES[v]}${v === ch ? ' (mirror)' : ''}: ${pose ? `${pose[0]} ${pose[1] ?? ''}°, ` : ''}state ${r[5]}, ${r[1]},${r[2]} px${r[4] ? ', in front' : ''}`, 6, 13);
+    document.querySelectorAll('#strip .step').forEach(el => el.setAttribute('aria-current', 'false'));
+    return;
+  }
+  const st = main.anim.steps[main.step], ox = 160;
+  drawFrame(sctx, ch, st[0], ox, oy, 1, faceRight);
+  if (showBoxes) drawBoxes(sctx, st[2], ox, oy, 1, faceRight);
+  cross(sctx, ox, oy);
+  sctx.fillStyle = '#111';
+  sctx.fillText(`step ${main.step + 1}/${main.anim.steps.length}  ${st[1]}t  frame ${st[0]}${main.rest ? '  (holding)' : ''}`, 6, 13);
+  document.querySelectorAll('#strip .step').forEach((el, i) => el.setAttribute('aria-current', i === main.step ? 'true' : 'false'));
+}
+function buildStrip() {
+  const strip = document.getElementById('strip'); strip.innerHTML = '';
+  const a = main.anim, ch = charName;
+  document.getElementById('stripTitle').textContent = `Steps of ${label(sel)} (${a.steps.length})`;
+  a.steps.forEach((s, i) => {
+    const [, , w, h, fx, fy] = DATA.chars[ch].frames[s[0]];
+    const el = document.createElement('div'); el.className = 'step';
+    const c = document.createElement('canvas'); c.width = 120; c.height = 150;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 120, 150);
+    x.fillStyle = '#d9d9d9'; x.fillRect(0, 141, 120, 1);
+    drawFrame(x, ch, s[0], 60, 140, 0.75, faceRight); if (showBoxes) drawBoxes(x, s[2], 60, 140, 0.75, faceRight); cross(x, 60, 140);
+    const t = document.createElement('span'); t.textContent = `${i + 1} · ${s[1]}t`;
+    el.append(c, t); el.onclick = () => { playing = false; syncPlay(); main.step = i; main.t = 0; main.rest = 0; drawMain(); };
+    strip.append(el);
+  });
+}
+
+/* ---- thumbnails ---- */
+let thumbs = [];
+function thumbSpecial(i) {
+  const sp = DATA.chars[charName].specials[i], m = 'sp:' + i;
+  const el = document.createElement('button'); el.className = 'card'; el.type = 'button'; el.dataset.anim = m;
+  const c = document.createElement('canvas'); c.width = 150; c.height = 150;
+  const n = document.createElement('b'); n.textContent = spLabel(sp);
+  const s = document.createElement('span'); s.textContent = `${sp.script.length} frames${sp.condition !== 'normal' && sp.condition !== 'always' ? ' · ' + sp.condition : ''}`;
+  el.append(c, n, s); el.onclick = () => select(m);
+  thumbs.push({ c, ctx: c.getContext('2d'), p: player(null, sp.script, 'special') });
+  return el;
+}
+function thumb(m, cls, still = false) {
+  const a = DATA.chars[charName].anims[m]; if (!a) return null;
+  const el = document.createElement(cls === 'cell' ? 'div' : 'button');
+  el.className = cls; el.dataset.anim = m; el.tabIndex = 0;
+  if (cls === 'card') el.type = 'button';
+  const c = document.createElement('canvas'); c.width = 150; c.height = 150;
+  const n = document.createElement('b'); n.textContent = label(m);
+  const total = a.steps.reduce((s, x) => s + x[1], 0);
+  const s = document.createElement('span'); s.textContent = `slot ${a.slot} · ${a.steps.length} steps · ${total}t${a.hold ? ' · hold' : ''}`;
+  el.append(c, n, s);
+  el.onclick = () => select(m);
+  el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(m); } };
+  const th = (DATA.chars[charName].throws || {})[m];
+  const pl = player(a, th ? th.timeline : null); if (th) pl.throw = th;
+  thumbs.push({ c, ctx: c.getContext('2d'), p: pl, still });
+  if (a.states) s.textContent = `${a.steps.length} steps · ${total}t · ${a.states.length ? 'state ' + a.states.join(', ') : 'no state maps here'}`;
+  if (th) s.textContent = `slot ${a.slot} · ${th.timeline.length} frames · ${th.inputs}`;
+  return el;
+}
+function drawThumb(t) {
+  const x = t.ctx;
+  x.fillStyle = '#fff'; x.fillRect(0, 0, 150, 150);
+  x.fillStyle = '#d9d9d9'; x.fillRect(0, 141, 150, 1);
+  if (t.p.script && t.p.kind === 'special') { drawSpecial(x, charName, t.p.script[t.p.step], faceRight ? 20 : 130, 140, 0.45, faceRight); return; }
+  if (t.p.throw) { drawThrow(x, charName, t.p.throw, t.p.step, faceRight ? 30 : 120, 140, 0.5, faceRight); return; }
+  const st = t.p.anim.steps[t.p.step];
+  drawFrame(x, charName, st[0], 75, 140, 0.75, faceRight);
+  if (showBoxes) drawBoxes(x, st[2], 75, 140, 0.75, faceRight);
+}
+function buildGroups() {
+  thumbs = [];
+  const root = document.getElementById('groups'); root.innerHTML = '';
+  for (const [title, moves] of DATA.groups) {
+    const slotKeys = title === 'Other animation slots' ? Object.keys(DATA.chars[charName].anims).filter(k => k.startsWith('slot_')).sort((a, b) => a.slice(5) - b.slice(5)) : null;
+    const cmdOnly = title === 'Special moves' && !(DATA.chars[charName].specials || []).length && (DATA.chars[charName].commands || []).length;
+    if (!cmdOnly && (slotKeys ? !slotKeys.length : title === 'Special moves' ? !(DATA.chars[charName].specials || []).length : !moves.some(m => DATA.chars[charName].anims[m]))) continue;
+    const g = document.createElement('section'); g.className = 'group';
+    const h = document.createElement('h2'); h.textContent = title; g.append(h);
+    if (title === 'Attacks') {
+      const wrap = document.createElement('div'); wrap.className = 'atk-wrap';
+      const t = document.createElement('table'); t.className = 'atk';
+      t.innerHTML = '<thead><tr><th scope="col">Button</th>' + ATK_COLS.map(c => `<th scope="col">${c[1]}</th>`).join('') + '</tr></thead>';
+      const tb = document.createElement('tbody');
+      for (const b of 'abcd') {
+        const tr = document.createElement('tr');
+        const th = document.createElement('th'); th.scope = 'row'; th.textContent = b.toUpperCase(); tr.append(th);
+        for (const [k] of ATK_COLS) { const td = document.createElement('td'); const el = thumb(`atk_${b}_${k}`, 'cell'); if (el) td.append(el); tr.append(td); }
+        tb.append(tr);
+      }
+      t.append(tb); wrap.append(t); g.append(wrap);
+      const p = document.createElement('p'); p.className = 'meta';
+      p.textContent = 'Slots 82–101 in every character\'s state table: five per button, in this column order.'; g.append(p);
+    } else {
+      const cards = document.createElement('div'); cards.className = 'cards';
+      if (cmdOnly) {                         /* inputs decoded from the ROM, moves not captured yet */
+        const ul = document.createElement('ul'); ul.className = 'cmds';
+        DATA.chars[charName].commands.forEach(c => { const li = document.createElement('li'); li.textContent = c; ul.append(li); });
+        g.append(ul);
+        const p = document.createElement('p'); p.className = 'meta';
+        p.textContent = 'Command inputs decoded from the ROM recogniser (numpad notation facing right, ABCD = any button the move code accepts, [2]30 = hold down 30 frames). The moves themselves are not captured yet: that needs the game running.';
+        g.append(p); root.append(g); continue;
+      }
+      if (title === 'Special moves') {
+        DATA.chars[charName].specials.forEach((_, i) => cards.append(thumbSpecial(i)));
+        g.append(cards);
+        const p = document.createElement('p'); p.className = 'meta';
+        p.textContent = 'Inputs decoded from the game\'s command recogniser (motion patterns at $7A6B0, 8 commands per fighter); each move was then performed in MAME with that input and replayed here frame by frame, projectiles included, in their own palettes. P = A or C, K = B or D; [2] 35f, 8 = hold down 35 frames, then up.';
+        g.append(p); root.append(g); continue;
+      }
+      const list = slotKeys || (title === 'Throw' ? Object.keys(DATA.chars[charName].throws || {}) : moves);
+      for (const m of list) { const el = thumb(m, 'card', !!slotKeys); if (el) cards.append(el); }
+      g.append(cards);
+      if (slotKeys) {
+        const p = document.createElement('p'); p.className = 'meta';
+        p.textContent = `All ${slotKeys.length} other animations of the character's table (intros, win poses, taunts, move phases, EX and MAX versions...), with the game states that select them; thumbnails show the first step, click to play.`;
+        g.append(p);
+      }
+      if (title === 'Throw') {
+        const p = document.createElement('p'); p.className = 'meta';
+        p.textContent = 'Played from a per-frame script captured in MAME: the thrower\'s frame and position, and the victim\'s pose (a slot of the victim\'s own table, the same numbers for every fighter) and offset. The victim here is the same fighter in the mirror colours.';
+        g.append(p);
+      }
+    }
+    root.append(g);
+  }
+}
+
+function tables() {
+  const ph = DATA.chars;
+  const f = v => Number(v).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+  document.getElementById('phys').innerHTML = '<thead><tr><th>Character</th><th>Walk fwd</th><th>Walk back</th><th>Jump up speed</th><th>Gravity</th><th>Jump drift</th></tr></thead><tbody>' +
+    Object.entries(ph).map(([n, c]) => `<tr><td>${CAST_NAMES[n] || n}</td><td>${f(c.physics.walk_fwd)}</td><td>${f(c.physics.walk_back)}</td><td>${f(c.physics.jump_vy0)}</td><td>${f(c.physics.gravity)}</td><td>${f(c.physics.jump_dx)}</td></tr>`).join('') + '</tbody>';
+  const r = DATA.reactions || {};
+  const row = (n, o) => o ? `<tr><td>${n}</td><td>${o.hitstop ?? ''}</td><td>${f(o.vy)}</td><td>${f(o.vx)}</td><td>${o.down_frames ?? '—'}</td></tr>` : '';
+  document.getElementById('react').innerHTML = '<thead><tr><th>Reaction</th><th>Hit-stop</th><th>Launch up</th><th>Pushed back</th><th>Lies down</th></tr></thead><tbody>' +
+    row('Air hit', r.hit_air) + row('Sweep trip', r.trip) + row('Blowback', r.blowback) +
+    (r.blowback ? `<tr><td>Blowback bounce</td><td></td><td>${f(r.blowback.bounce_vy)}</td><td>${f(r.blowback.bounce_vx)}</td><td></td></tr>` : '') +
+    `<tr><td>Gravity</td><td colspan="4">${f(r.gravity)} px/frame²</td></tr><tr><td>Get up</td><td colspan="4">${r.getup_frames} frames</td></tr></tbody>`;
+}
+
+function swatches() {
+  const c = DATA.chars[charName], root = document.getElementById('swatches');
+  document.getElementById('palTitle').textContent = `Palettes of ${CAST_NAMES[charName] || charName}`;
+  root.innerHTML = '';
+  DATA.set_names.forEach((label, k) => {
+    const row = document.createElement('div'); row.className = 'swrow';
+    const b = document.createElement('b'); b.textContent = label; row.append(b);
+    c.palettes[k].forEach(([hex, word], i) => {
+      const sq = document.createElement('div'); sq.className = 'sq' + (i ? '' : ' tr');
+      if (i) sq.style.background = hex;
+      sq.title = i ? `colour ${i}: $${word} = ${hex}` : 'colour 0: transparent';
+      const t = document.createElement('span'); t.textContent = i ? word : '—'; sq.append(t); row.append(sq);
+    });
+    root.append(row);
+  });
+}
+let charToken = 0;
+async function setChar(n) {
+  charName = n; const token = ++charToken;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.char === n ? 'true' : 'false'));
+  await loadAtlas(n); if (token !== charToken) return;
+  buildGroups();
+  if (!DATA.chars[n].anims[sel] && !(DATA.chars[n].throws || {})[sel]) sel = 'idle';
+  select(sel); swatches();
+  thumbs.forEach(drawThumb);
+}
+function syncPlay() { const b = document.getElementById('play'); b.textContent = playing ? 'Pause' : 'Play'; b.setAttribute('aria-pressed', playing ? 'true' : 'false'); }
+
+const tabs = document.getElementById('tabs');
+for (const n of Object.keys(DATA.chars)) {
+  const b = document.createElement('button'); b.textContent = CAST_NAMES[n] || n; b.dataset.char = n; b.onclick = () => setChar(n); tabs.append(b);
+}
+const vsel = document.getElementById('victim');
+vsel.innerHTML = '<option value="">Same fighter (mirror colours)</option>' + Object.keys(DATA.chars).map(n => `<option value="${n}">${CAST_NAMES[n] || n}</option>`).join('');
+vsel.onchange = async () => {
+  throwVictim = vsel.value || null;
+  if (throwVictim) await loadAtlas(throwVictim);
+  drawMain(); thumbs.forEach(drawThumb);
+};
+/* one button per colour set: KOF95/96 regular + mirror, KOF98 the four sets A-D chosen at character select */
+document.getElementById('palButtons').innerHTML = DATA.set_names.map((n, k) =>
+  `<button data-pal="${k}" aria-pressed="${k ? 'false' : 'true'}">${n} colours</button>`).join('');
+document.querySelectorAll('[data-pal]').forEach(b => b.onclick = () => {
+  palSet = +b.dataset.pal; document.querySelectorAll('[data-pal]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  buildStrip(); drawMain(); thumbs.forEach(drawThumb);
+});
+document.getElementById('play').onclick = () => { playing = !playing; syncPlay(); };
+document.getElementById('step').onclick = () => {
+  playing = false; syncPlay();
+  if (main.script) { main.t = (main.t + 1) % main.script.length; main.step = main.t; main.rest = 0; drawMain(); return; }
+  main.rest = 0; main.t = 0; main.step = (main.step + 1) % main.anim.steps.length; drawMain();
+};
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed; document.querySelectorAll('[data-speed]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+});
+document.getElementById('boxes').onclick = e => { showBoxes = !showBoxes; e.currentTarget.setAttribute('aria-pressed', showBoxes); buildStrip(); drawMain(); thumbs.forEach(drawThumb); };
+document.getElementById('face').onclick = e => { faceRight = !faceRight; e.currentTarget.setAttribute('aria-pressed', faceRight); buildStrip(); drawMain(); thumbs.forEach(drawThumb); };
+
+const nAnims = Object.values(DATA.chars).reduce((s, c) => s + Object.keys(c.anims).length, 0);
+const nFrames = Object.values(DATA.chars).reduce((s, c) => s + c.frames.length, 0);
+document.getElementById('totals').textContent = `${Object.keys(DATA.chars).length} characters · ${nAnims} animations · ${nFrames} unique frames · ${DATA.set_names.length} palette sets each · KOF95 sprites face left, as stored in the ROM`;
+tables();
+setChar('terry');
+
+/* one clock for everything; reduced motion = still frames, step with the buttons */
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (still) { playing = false; syncPlay(); }
+let last = performance.now(), acc = 0;
+function loop(now) {
+  acc += (now - last) * speed; last = now;
+  const ticks = Math.floor(acc / TICK_MS); acc -= ticks * TICK_MS;
+  if (ticks > 0) {
+    if (playing && main) { advance(main, ticks); drawMain(); }   // main is set once the first character has loaded
+    if (!still) for (const t of thumbs) { if (t.still) continue; const s = t.p.step; advance(t.p, ticks); if (t.p.step !== s || ticks > 0) drawThumb(t); }
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
