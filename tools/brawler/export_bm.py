@@ -91,30 +91,65 @@ def build(specs, outdir):
 # projectile = objects while the body stays put (x <= 45, height <= 10; a capture often ends before the object flies,
 # so its travel is no criterion), rush = body forward >= 60 px staying low (height <= 30; scored travel - 2 x height: Terry's Burn
 # Knuckle, not his Crack Shoot), rise = height >= 25, scored
-# height - travel / 2. Light buttons (A / B) first. ROLE_OVERRIDE: KOF input notation per fighter and role.
-ROLE_OVERRIDE = {'mai': {'rise': '623B'}}      # Mai: [2]8A is a wall-jump dive, not a reversal
-ROLES = ('proj', 'rush', 'rise')
+# height - travel / 2. Big versions (C / D) first. ROLE_OVERRIDE: KOF input notation per fighter and role.
+ROLE_OVERRIDE = {'mai': {'rise': '623D'},       # Mai: [2]8A is a wall-jump dive, not a reversal
+                 'terry': {'up': '214D'},        # Crack Shoot
+                 'kyo': {'up': 'EX 624D'}}       # EX Kyo's triple kick
+ROLES = ('proj', 'rush', 'rise', 'up')
 
 def special_shape(sp):
     sc = sp['script']
     return max(r[1] for r in sc), max(r[2] for r in sc), any(r[3] for r in sc)
 
 def pick_specials(ch, name=None):
-    """[projectile, rush, rise] (None where the fighter has no such move)"""
+    """[projectile, rush, rise, up] (None where the fighter has no such move). The big versions first (C / D: Bruno
+    2026-10-03, the long Burn Knuckle, the high dragon punch); up+D = the best special of a move not used yet (one move
+    = its input motion with the punch or kick pair: 214A / 214C is one move, 214B / 214D another)."""
     c = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].startswith('air')]
-    light = lambda sp: sp['input'][-1:] in ('A', 'B')
+    auto = [sp for sp in c if not sp['input'].split()[0] in ('EX', 'MAX', 'Counter')]   # supers / EX: by override only
+    big = lambda sp: sp['input'][-1:] in ('C', 'D')
+    move = lambda sp: (sp['input'].rstrip('ABCD'), sp['input'][-1:] in ('A', 'C'))
     out = []
     for role in ROLES:
         want = ROLE_OVERRIDE.get(name, {}).get(role)
         pick = next((sp for sp in c if sp['input'] == want), None) if want else None
         if pick is None:
+            c_all, c = c, [sp for sp in auto if sp not in out]
             if role == 'proj': cand = [(0, sp) for sp in c if special_shape(sp)[2] and special_shape(sp)[0] <= 45 and special_shape(sp)[1] <= 10]
             elif role == 'rush': cand = [(special_shape(sp)[0] - 2 * special_shape(sp)[1], sp) for sp in c if special_shape(sp)[0] >= 60 and special_shape(sp)[1] <= 30]
-            else: cand = [(special_shape(sp)[1] - special_shape(sp)[0] / 2, sp) for sp in c if special_shape(sp)[1] >= 25]
-            cand.sort(key=lambda t: (not light(t[1]), -t[0]))
+            elif role == 'rise': cand = [(special_shape(sp)[1] - special_shape(sp)[0] / 2, sp) for sp in c if special_shape(sp)[1] >= 25]
+            else:
+                used = {move(sp) for sp in out if sp}
+                cand = [(0, sp) for sp in c if move(sp) not in used]
+            cand.sort(key=lambda t: (not big(t[1]), -t[0]))
             pick = cand[0][1] if cand else None
+            c = c_all
         out.append(pick)
     return out
+
+# Throw impacts (Bruno 2026-10-03): the moment a throw's blow lands (Terry's punch, Ralf's headbutt), else the moment the
+# victim touches the ground. From the victim's KOF states in the captured script (KOF96-99 numbering): a strike = the
+# victim entering a hit reaction (416-418, 426, 427) or a launch (283) straight from being held (424, 425, 432, 433) or
+# from the previous blow (multi-hit throws: one impact per blow); no strike = the first ground touch after it was in the
+# air (height back to 0, or state 309, the floor bounce).
+HELD = {424, 425, 432, 433}
+STRIKE = {416, 417, 418, 426, 427}
+
+def throw_impacts(rows, game):
+    if game not in ('kof96', 'kof97', 'kof98', 'kof99'): return []
+    st = lambda r: int(r[5].split('.')[0]) if r[5] else -1
+    out = []; prev = None
+    for i, r in enumerate(rows):
+        s = st(r)
+        if prev is not None and s != prev and prev in HELD | STRIKE and (s in STRIKE or (s == 283 and prev in HELD)):
+            out.append(i)
+        prev = s
+    if out: return out
+    air = False
+    for i, r in enumerate(rows):
+        if r[2] >= 16: air = True
+        if air and (r[2] <= 0 or st(r) == 309): return [i]
+    return []
 
 def frame_box(fr):
     """bounding box of a frame's sprites, as a KOF box (centre from the origin, half extents, sprite orientation)"""
@@ -182,16 +217,16 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx, pad; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals); dx: px the fighter moves forward as the step starts (KOF\'s $FB move) */',
          'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx; } bphys_t;     /* 16.16 px per frame */',
-         'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way, 2 = victim drawn in front */',
+         'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way, 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor) */',
          'typedef struct { uint16_t nrows; const bthrow_row_t *rows; } bthrow_t;',
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, pad; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, sprite bounds as its attack box */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, pad; bsobj_t obj[2]; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box when hit */',
          'typedef struct { uint16_t nrows, inv_rows; const bspec_row_t *rows; } bspec_t;   /* inv_rows: invincible for its first rows */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles */\n',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
-         'enum { BS_D, BS_FWD_D, BS_DOWN_D, BS_COUNT };',
+         'enum { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_COUNT };',
          f'enum {{ VP_COUNT = {len(pkeys)} }};   /* victim postures: ' + ' '.join(pkeys) + ' */',
          'extern const bchar_t bm_chars[BC_COUNT];\n#endif']
     c = ['/* Generated by tools/brawler/export_bm.py. Do not edit. */\n#include "bm_chars.h"\n']
@@ -233,12 +268,12 @@ def write_c(chars, outdir):
             th = ch.get('throws', {}).get(t)
             if not th: continue
             rows = th['victims'].get(n) or next(iter(th['victims'].values()))   # offsets of the mirror match (see README)
-            out = []
+            out = []; imp = set(throw_impacts(rows, game))
             for i, (tf, tx, ty) in enumerate(th['timeline']):
                 vf, vx, vy, same, front, key = rows[min(i, len(rows) - 1)]
                 v = vocab(game, key)
                 vp = pkeys.index(v) if vf >= 0 and v in pkeys else 255
-                out.append(f'{{{tf if tf >= 0 else 0}, {tx}, {ty}, {vp}, {same | front << 1}, {vx}, {vy}}}')
+                out.append(f'{{{tf if tf >= 0 else 0}, {tx}, {ty}, {vp}, {same | front << 1 | (4 if i in imp else 0)}, {vx}, {vy}}}')
             c.append(f'static const bthrow_row_t {n}_{t}[] = {{' + ', '.join(out) + '};')
         c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(
             f'{{{len(ch["throws"][t]["timeline"])}, {n}_{t}}}' if t in ch.get('throws', {}) else '{0, 0}' for t in THROWS) + '};')
@@ -277,7 +312,7 @@ if __name__ == '__main__':
     outdir = sys.argv[1]; specs = sys.argv[2:] or ['kof98:terry']
     chars, tiles = build(specs, outdir)
     for game, n, ch, off in chars:
-        print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D'), pick_specials(ch, n))) + ';', end=' ')
+        print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D', 'up+D'), pick_specials(ch, n))) + ';', end=' ')
         print(f'{len(ch["frames"])} frames, {len([m for m in MOVES if m in ch["anims"]])}/{len(MOVES)} moves, '
               f'{len(ch["block_palettes"])} colour sets, max cols '
               f'{max(sum(len(p["tiles"]) for p in f["parts"]) for f in ch["frames"])}')

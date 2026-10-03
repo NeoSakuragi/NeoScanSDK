@@ -72,7 +72,8 @@ typedef struct fighter {
     uint16_t frame_ovr;           /* frame shown instead of the animation's (holds and throw scripts), 0xFFFF = none */
     uint8_t  zfront;              /* drawn in front of a fighter at the same Z (throw victims) */
     uint8_t  pushing;             /* walked forward this frame (grabs on contact) */
-    uint8_t  throw_id, grab_hits;
+    uint8_t  throw_id, grab_hits; /* grab_hits: hits in the hold; during a throw, the throw's impacts */
+    uint8_t  throw_dealt, impact; /* throw damage dealt at its impacts; an impact this frame (combat() resolves it) */
     int32_t  throw_x0;
     struct fighter *target;       /* last opponent this fighter hit or grabbed (the HUD shows its life) */
     uint8_t  spec_id, spec_prev_hit;

@@ -6,7 +6,7 @@
 #include "fighter.h"
 #include "sound.h"
 
-#define GRAVITY_KD  0x7800        /* knockdown gravity 0.47 px/frame^2 (measured on KOF95) */
+#define GRAVITY_KD  0x5000        /* knockdown gravity 0.31 px/frame^2 (KOF95: 0.47): higher, slower falls to juggle */
 #define DOWN_FRAMES 40
 #define INV_GETUP   30
 #define HITSTOP     10            /* hit-stop, the same for every hit: light ones land as hard as heavy ones (KOF98 ~10-12) */
@@ -128,16 +128,17 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
     if (v->state == S_GRAB) release(v);                          /* hit while holding or while held: the hold ends */
     else if (v->state == S_GRABBED) release(v->held);
     v->facing = -away;                                           /* turn toward the attacker */
-    if (v->y > 0 && reaction < R_KNOCKDOWN) {                    /* hit in the air: knocked down */
-        enter(v, S_KNOCKDOWN); v->vy = FIX(2); v->vx = dir_mul(away, FIX(2)); play(v, BA_HIT_AIR); return;
+    if (v->y > 0) {                                              /* hit in the air (a juggle when falling): sent up again */
+        enter(v, S_KNOCKDOWN); v->vy = reaction >= R_KNOCKDOWN ? FIX(5) : FIX(4); v->vx = dir_mul(away, FIX(1) + 0x8000);
+        play(v, BA_HIT_AIR); return;
     }
     switch (v->hp <= 0 ? R_KNOCKDOWN : reaction) {
     case R_LIGHT: case R_HEAVY:
         enter(v, S_HITSTUN); play(v, reaction == R_LIGHT ? BA_HIT_STAND_LIGHT : BA_HIT_STAND_HEAVY);
         v->vx = dir_mul(away, FIX(push) >> 2);
         break;
-    case R_KNOCKDOWN: enter(v, S_KNOCKDOWN); v->vy = FIX(5); v->vx = dir_mul(away, FIX(2) + 0x8000); play(v, BA_BLOWBACK); break;
-    case R_LAUNCH:    enter(v, S_KNOCKDOWN); v->vy = FIX(7); v->vx = dir_mul(away, FIX(3)); play(v, BA_KNOCKDOWN_FLIGHT); break;
+    case R_KNOCKDOWN: enter(v, S_KNOCKDOWN); v->vy = FIX(7); v->vx = dir_mul(away, FIX(2)); play(v, BA_BLOWBACK); break;
+    case R_LAUNCH:    enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = dir_mul(away, FIX(2) + 0x8000); play(v, BA_KNOCKDOWN_FLIGHT); break;
     case R_TRIP:      enter(v, S_KNOCKDOWN); v->vy = FIX(3); v->vx = dir_mul(away, FIX(1)); play(v, BA_TRIP); break;
     }
 }
@@ -155,6 +156,8 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
 #define GRAB_HITS    3
 #define GRAB_DAMAGE  3
 #define THROW_DAMAGE 12
+#define SPLASH_DX    48               /* a throw's impact also knocks down the victim's teammates this close to it (Final Fight) */
+#define SPLASH_DAMAGE 6
 #define ESCAPE_PRESSES 4
 
 static void show_pose(fighter_t *v, uint8_t vp) {
@@ -209,6 +212,11 @@ static void hold_update(fighter_t *f, const intent_t *in) {
             uint8_t t = (in->press & IN_A) ? BT_THROW_C : BT_THROW_D;
             if (!f->ch->throws[t].nrows) t = BT_THROW_C;
             f->throw_id = t; f->throw_x0 = f->x; enter(f, S_THROW); enter(v, S_THROWN);
+            {                                                    /* its impacts share the throw's damage */
+                const bthrow_t *th = &f->ch->throws[t]; uint16_t i;
+                f->grab_hits = 0; f->throw_dealt = 0;
+                for (i = 0; i < th->nrows; i++) if (th->rows[i].flags & 4) f->grab_hits++;
+            }
             if (f->team) stat_throws++;
             return;
         }
@@ -227,10 +235,18 @@ static void throw_update(fighter_t *f) {
     const bthrow_row_t *r;
     if (f->state_t > th->nrows) {                                /* script over: the victim lies where it landed */
         release(f); clamp(f);
-        v->hp -= THROW_DAMAGE; v->y = 0; clamp(v); enter(v, S_DOWN); play(v, BA_DOWN);
+        v->hp -= THROW_DAMAGE - f->throw_dealt; v->y = 0; clamp(v); enter(v, S_DOWN); play(v, BA_DOWN);
         return;
     }
     r = &th->rows[f->state_t - 1];
+    if (r->flags & 4) {                                          /* impact: the blow lands / the victim hits the floor */
+        uint8_t d = 0, rest = THROW_DAMAGE;                     /* THROW_DAMAGE / impacts (no divide here) */
+        while (rest >= f->grab_hits) { rest -= f->grab_hits; d++; }
+        v->hp -= d; f->throw_dealt += d;
+        f->freeze = v->freeze = HITSTOP; f->impact = 1;          /* combat() hits the victim's teammates around it */
+        snd_sfx(SFX_HIT_CD);
+        spark_hit(INT(f->throw_x0) + dir_mul(f->facing, r->vx + r->tx), FLOOR_TOP + INT(f->z) - r->vy - 40, 1, f->facing);
+    }
     f->frame_ovr = r->tframe;
     f->x = f->throw_x0 + dir_mul(f->facing, FIX(r->tx)); f->y = FIX(r->ty);
     if (r->vpose != 0xFF) show_pose(v, r->vpose);
@@ -273,10 +289,11 @@ static void start_special(fighter_t *f, uint8_t k) {
     f->proj[0] = proj_alloc(f); f->proj[1] = proj_alloc(f);
     enter(f, S_SPECIAL);
 }
-static uint8_t special_for(const fighter_t *f, const intent_t *in) {   /* D, forward+D, down+D -> BS_*, 0xFF = none */
-    static const uint8_t order[3][3] = { { BS_D, BS_FWD_D, BS_DOWN_D }, { BS_FWD_D, BS_D, BS_DOWN_D }, { BS_DOWN_D, BS_FWD_D, BS_D } };
-    uint8_t want = in->dz > 0 ? 2 : in->dx ? 1 : 0, k;
-    for (k = 0; k < 3; k++) if (f->ch->specials[order[want][k]].nrows) return order[want][k];   /* missing: the nearest */
+static uint8_t special_for(const fighter_t *f, const intent_t *in) {   /* D, forward+D, down+D, up+D -> BS_*, 0xFF = none */
+    static const uint8_t order[4][4] = { { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D }, { BS_FWD_D, BS_D, BS_UP_D, BS_DOWN_D },
+                                         { BS_DOWN_D, BS_UP_D, BS_FWD_D, BS_D }, { BS_UP_D, BS_FWD_D, BS_DOWN_D, BS_D } };
+    uint8_t want = in->dz > 0 ? 2 : in->dz < 0 ? 3 : in->dx ? 1 : 0, k;   /* down / up = toward / away from the camera */
+    for (k = 0; k < 4; k++) if (f->ch->specials[order[want][k]].nrows) return order[want][k];   /* missing: the nearest */
     return 0xFF;
 }
 static void special_update(fighter_t *f) {
@@ -415,12 +432,29 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
 }
 
 /* ---- combat: every attacker's live attack box against every opponent's hurt box --------------------------------------- */
+static const bbox_t JUGGLE_BOX = { 0, -24, 28, 20 };       /* a falling fighter's body: KOF boxes (x, y up -, half w, h) */
 static int16_t box_x(const fighter_t *f, int8_t bx) { return INT(f->x) + (f->facing > 0 ? -bx : bx); }   /* sprites face left */
 static uint8_t grabbable(const fighter_t *v) {
     return !v->inv && !v->y && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
 }
 void combat(fighter_t **fs, uint8_t n) {
     uint8_t i, j;
+    for (i = 0; i < n; i++) {                                    /* throw impacts: the victim's teammates close to it go down */
+        fighter_t *a = fs[i], *v = a->held;
+        if (!a->impact) continue;
+        a->impact = 0;
+        if (!v) continue;
+        for (j = 0; j < n; j++) {
+            fighter_t *o = fs[j];
+            int16_t dx, dz;
+            if (o == v || o->team != v->team || o->inv || o->state == S_KNOCKDOWN || o->state == S_DOWN || o->state == S_GETUP ||
+                o->state == S_THROWN || o->state == S_PROJ || o->state == S_OFF || o->state == S_DEAD) continue;
+            dx = INT(o->x) - INT(v->x); dz = INT(o->z) - INT(v->z);
+            if (dx < -SPLASH_DX || dx > SPLASH_DX || dz < -Z_HIT || dz > Z_HIT) continue;
+            o->hp -= SPLASH_DAMAGE; o->freeze = HITSTOP; a->target = o;
+            react(o, dx >= 0 ? 1 : -1, R_KNOCKDOWN, 0);
+        }
+    }
     for (i = 0; i < n; i++) {                                    /* grabs: walking forward into a standing opponent */
         fighter_t *a = fs[i];
         if (!a->pushing || a->state != S_WALK || !a->ch->throws[BT_THROW_C].nrows) continue;
@@ -448,20 +482,24 @@ void combat(fighter_t **fs, uint8_t n) {
             fighter_t *v = fs[j];
             const bstep_t *sv;
             int16_t dz, dx, dy;
+            const bbox_t *hb;
             if (v->team == a->team || (a->hit_mask & (1 << v->idx)) || v->inv) continue;
-            if (v->state == S_KNOCKDOWN || v->state == S_DOWN || v->state == S_GETUP || v->state == S_THROW ||
+            if (v->state == S_DOWN || v->state == S_GETUP || v->state == S_THROW ||
                 v->state == S_THROWN || v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
+            if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls, no limit */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             sv = fighter_step(v);
-            if (!(sv->flags & 2)) continue;
-            dx = box_x(a, atk->x) - box_x(v, sv->hurt.x);
-            dy = (atk->y - INT(a->y)) - (sv->hurt.y - INT(v->y));
+            if (sv->flags & 2) hb = &sv->hurt;
+            else if (v->state == S_KNOCKDOWN) hb = &JUGGLE_BOX;          /* KOF's falls have no hurt box */
+            else continue;
+            dx = box_x(a, atk->x) - box_x(v, hb->x);
+            dy = (atk->y - INT(a->y)) - (hb->y - INT(v->y));
             if (dx < 0) dx = -dx;
             if (dy < 0) dy = -dy;
-            if (dx > atk->w + sv->hurt.w || dy > atk->h + sv->hurt.h) continue;
+            if (dx > atk->w + hb->w || dy > atk->h + hb->h) continue;
             {                                                /* spark: midway between the two boxes' centres */
-                int16_t sx = (box_x(a, atk->x) + box_x(v, sv->hurt.x)) >> 1;
-                int16_t sy = ((FLOOR_TOP + INT(a->z) - INT(a->y) + atk->y) + (FLOOR_TOP + INT(v->z) - INT(v->y) + sv->hurt.y)) >> 1;
+                int16_t sx = (box_x(a, atk->x) + box_x(v, hb->x)) >> 1;
+                int16_t sy = ((FLOOR_TOP + INT(a->z) - INT(a->y) + atk->y) + (FLOOR_TOP + INT(v->z) - INT(v->y) + hb->y)) >> 1;
                 uint8_t sfx = SFX_HIT_CD;
                 if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
                     const cnode_t *c = &COMBO[a->node];
