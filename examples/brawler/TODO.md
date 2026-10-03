@@ -157,3 +157,14 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 34. Groups take the hits together: normals' attack boxes reach at least 96 px forward (KOF's: 32-148 px, so an
        enemy behind the first one dropped out of the route). Tested: two enemies 14 px apart take all 6 hits of the A
        route on the same frames and fly together on the C+D.
+- [x] 35. AI walk/idle flicker (Bruno): enemies switched walk <-> idle up to 286 times in 20 s, mostly within 10 frames
+       (hover dead band = step-stop-step, and half speed by skipping every other frame = an on/off walk intent). Now:
+       hoverers walk all the way to their spot and set off again only beyond 16 px / 8 px deep; half speed is a 16.16
+       sub-pixel step every frame (intent `slow`); AI fighters go walk -> idle only after 10 frames without a walk
+       intent (Bruno asked 1 s; 60 frames left them walking in place a second after every real stop, measured).
+       Measured (harness, 1200 frames): 13-21 switches per enemy, 0-2 under 10 frames, 13-22 frames walking in place.
+- [x] 36. tools/brawler/harness.py: the core driven from Python frame by frame (RAM read/write, fighters decoded from
+       fighter.h offsets, place/force, hit log, save states, screenshots). Route check, 14 fighters x 3 routes vs two
+       dummies: every hit lands on both together, hit counts = the data's.
+- [x] 37. One hit sound per attack per frame, however many enemies it hits (each victim queued its own: 3 enemies = 3
+       sounds). Harness: 1 / 2 / 3 enemies hit at once -> 1 sound each time; sparks stay one per victim.

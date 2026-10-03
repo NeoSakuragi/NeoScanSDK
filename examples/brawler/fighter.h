@@ -38,6 +38,8 @@ typedef struct {                  /* what the controller wants this frame (playe
     uint8_t run;                  /* forward double tap */
     int8_t  face;                 /* standing still: turn this way (AI faces its target; players leave 0) */
     uint8_t grab;                 /* AI: walking forward grabs on contact (players always grab) */
+    uint8_t ai;                   /* the AI drives this fighter (enemies, the attract demo's P1) */
+    uint8_t slow;                 /* walk at half speed (16.16: sub-pixel steps every frame; the AI's positioning walk) */
 } intent_t;
 
 typedef struct {                  /* one link of a combo route (combo.c) */
@@ -79,7 +81,8 @@ typedef struct fighter {
     struct fighter *owner;        /* projectile: who threw it */
     uint8_t  ncols;               /* sprite columns of the shown frame (written by fighter_tiles) */
     uint8_t  landed;              /* the current attack connected (routes chain only on a hit) */
-    uint8_t  chain_node, chain_t; /* Final Fight chain: the route step that hit, frames left to continue it from neutral */            /* thrower X when the throw started (script X is relative to it) */
+    uint8_t  chain_node, chain_t; /* Final Fight chain: the route step that hit, frames left to continue it from neutral */
+    uint8_t  still;               /* AI: frames walking without a walk intent (the walk holds AI_IDLE_DELAY frames) */            /* thrower X when the throw started (script X is relative to it) */
 } fighter_t;
 
 extern const cnode_t COMBO[];

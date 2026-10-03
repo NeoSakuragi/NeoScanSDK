@@ -96,7 +96,9 @@ A token holder closes in to 36 px on the player's depth line, then either presse
 (AAA chains only on hits) or, 3 approaches in 8, walks into him with the `grab` intent: contact grabs (enemies only grab
 on purpose). Holding, it knees every 24 frames and after two may throw (its KOF forward+D/C script on the player). Any
 enemy 70-140 px away near the player's depth line fires its forward+D special now and then (the projectile one when it
-has one), so the hoverers shoot. The others hover around 90 px at a random depth offset. Cooldowns 50-110 frames,
+has one), so the hoverers shoot. The others hover around 90 px (walking all the way to their spot, at half speed in 16.16 sub-pixel steps every frame, and setting off
+again only when it is 16 px / 8 px deep away: no step-stop-step; an AI fighter goes from walk to idle only after 10 frames
+without a walk intent, so the walk never flickers) at a random depth offset. Cooldowns 50-110 frames,
 120-180 after a special.
 
 Grabbed player: 4 button presses break free (counted through hit-stop too), then 20 frames invulnerable.

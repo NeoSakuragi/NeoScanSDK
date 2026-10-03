@@ -10,6 +10,8 @@
 #define TOKENS     1              /* attackers at a time (2 swarmed the player) */
 #define ATTACK_DX  36
 #define HOVER_DX   90
+#define HOVER_GO_DX 16            /* a hoverer at its spot sets off again only when the spot is this far (x) ... */
+#define HOVER_GO_DZ 8             /* ... or this far in depth */
 #define RANGE_MIN  20             /* attack when the player is this close ... */
 #define RANGE_MAX  52             /* ... to this far, and on the same depth line */
 #define RANGE_DZ   6
@@ -26,6 +28,7 @@ typedef struct {
     uint8_t retarget;             /* frames before hover_dz changes */
     uint8_t target;               /* nearest player this frame */
     uint8_t plan_grab;            /* this approach ends in a grab */
+    uint8_t moving;               /* hovering: walking to its spot (walks until there, sets off again only when far) */
     int16_t dist;                 /* |dx| + |dz| to him */
 } ai_t;
 
@@ -90,13 +93,13 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         ai_t *a = &AI[i];
         intent_t *o = &in[i];
         int16_t ex, ez, tx, tz;
-        if (a->target == 0xFF) { o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; continue; }   /* nobody to fight */
+        if (a->target == 0xFF) { o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; continue; }   /* nobody to fight */
         ex = INT(e->x); ez = INT(e->z); tx = px[a->target]; tz = pz[a->target];
         int16_t dx, dz;
         int8_t side;
         int16_t gx, gz;
         dx = tx - ex; dz = tz - ez; side = dx > 0 ? -1 : 1;  /* side: the enemy's side of the player */
-        o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = sgn(dx); o->grab = 0;
+        o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = sgn(dx); o->grab = 0; o->ai = 1; o->slow = 0;
         if (a->cooldown) a->cooldown--;
         if (e->state == S_GRAB) {                                /* holding: knee every 24 frames, after two maybe throw */
             if (!a->press_t || a->press_t > 24) a->press_t = 24;
@@ -133,9 +136,14 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         }
         gx = a->token ? (side > 0 ? tx + ATTACK_DX : tx - ATTACK_DX) : (side > 0 ? tx + HOVER_DX : tx - HOVER_DX);
         gz = tz + (a->token ? 0 : a->hover_dz);
-        if ((tick + i) & 1) continue;                            /* walk on alternate frames: half speed */
-        if (iabs(gx - ex) > 6) o->dx = sgn(gx - ex);
-        if (iabs(gz - ez) > 3) o->dz = sgn(gz - ez);
+        if (!a->token) {                                         /* hoverers: walk all the way, or stand (no step-stop-step) */
+            if (a->moving) { if (iabs(gx - ex) <= 2 && iabs(gz - ez) <= 2) a->moving = 0; }
+            else if (iabs(gx - ex) > HOVER_GO_DX || iabs(gz - ez) > HOVER_GO_DZ) a->moving = 1;
+            if (!a->moving) continue;
+        }
+        o->slow = 1;                                             /* half speed, every frame (no on/off walk intent) */
+        if (iabs(gx - ex) > (a->token ? 6 : 2)) o->dx = sgn(gx - ex);
+        if (iabs(gz - ez) > (a->token ? 3 : 2)) o->dz = sgn(gz - ez);
     }
 }
 
@@ -147,7 +155,7 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *o) {
     fighter_t *me = &fs[p], *t = 0;
     int16_t mx = INT(me->x), mz = INT(me->z), bd = 0x7FFF, dx, dz;
     uint8_t i;
-    o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0;
+    o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0;
     if (bot_cd) bot_cd--;
     bot_t++;
     if (me->state == S_GRAB) {                                   /* knee, knee, throw */

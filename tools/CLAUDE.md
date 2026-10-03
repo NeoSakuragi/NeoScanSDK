@@ -32,6 +32,11 @@ Python scripts organized by function. All target Python 3.
 | `kof96_disasm_sections.py` | Disassemble KOF96 P-ROM sections |
 | `kof98_prom_scramble.py` | Descramble KOF98 P-ROM |
 | `extract_kof96_patches.py` | Extract FM patches from KOF96 Z80 |
+| `kof95/` | KOF95 animation dictionary: all 26 fighters' animations, boxes, palettes, physics, special-move inputs (decoded recogniser), specials replays, throws for any victim (decoded ROM tables), MAME capture tooling. **Read `kof95/README.md`** |
+| `kof96/` | KOF96 animation dictionary, same depth: 29 fighters, per-part palettes, decoded recogniser, throw lists (victim and thrower side, validated), captured specials; exports in the KOF95 layout for `kof95/gallery.py`. **Read `kof96/README.md`** (MAME needs `-noplugin cart_bridge`) |
+| `kof98/` | KOF98 animation dictionary (38 fighters, every animation, supers/MAX/EX, win poses, throws), produced by the shared `kof96/` code with `--game kof98`. **Read `kof98/README.md`** |
+| `kof99/` | KOF99 dictionary (34 fighters, every animation, specials/SDMs, throws, win poses), captured in our emulator (`emu/neogeo_sdl --capture`) via `kof96/capture/emu.py`. **Read `kof99/README.md`** |
+| `brawler/` | `export_bm.py`: beat 'em up subset of any KOF96/98/99 fighter (32 moves, boxes with beat 'em up reach, every colour set) as C tables + C1/C2 tiles for `examples/brawler`; `run_test.py`: play an input script on the brawler ROM in our emulator, contact sheet out; `harness.py`: the Geolith core driven from Python frame by frame (RAM read/write, fighter_t decoded via offsetof, place/force fighters, hit log, save states, screenshots); `portraits.py`: KOF96/98/99 HUD portraits (VRAM of a fight via our emulator's VRAMDUMP or MAME `vram_dump.lua`; KOF96 from its ROM tables), PNG + JSON in /data/neogeo_dict/portraits |
 
 ## Debug & analysis
 

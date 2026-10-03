@@ -12,6 +12,7 @@
 #define HITSTOP     10            /* hit-stop, the same for every hit: light ones land as hard as heavy ones (KOF98 ~10-12) */
 #define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
 #define STUN_HEAVY  54
+#define AI_IDLE_DELAY 10          /* AI fighters stop walking into idle only after this many frames without a walk intent */
 #define CHAIN_WINDOW 30           /* frames after a route step that hit during which A / B continues the route (Final Fight) */
 #define RUN_MUL     2             /* run = walk << 1 */
 #define X_MIN 16
@@ -74,7 +75,8 @@ static void clamp(fighter_t *f) {
     if (f->z > FIX(Z_DEPTH)) f->z = FIX(Z_DEPTH);
 }
 static void to_neutral(fighter_t *f, const intent_t *in) {
-    if (in && (in->dx || in->dz)) { enter(f, S_WALK); play_if_new(f, BA_WALK_FWD); }
+    if (in && (in->dx || in->dz)) { f->still = 0; enter(f, S_WALK); play_if_new(f, BA_WALK_FWD); }
+    else if (in && in->ai && f->state == S_WALK && ++f->still < AI_IDLE_DELAY) { }   /* AI: no walk/idle flicker */
     else { enter(f, S_IDLE); play_if_new(f, BA_IDLE); }
 }
 static uint8_t hit_sound(uint8_t anim) {                       /* KOF98's hit sound per button */
@@ -313,7 +315,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); break; }
         to_neutral(f, in);
         if (f->state == S_WALK) {
-            f->x += dir_mul(in->dx, ph->walk); f->z += dir_mul(in->dz, FIX(1)); clamp(f);
+            f->x += dir_mul(in->dx, in->slow ? ph->walk >> 1 : ph->walk); f->z += dir_mul(in->dz, in->slow ? FIX(1) >> 1 : FIX(1)); clamp(f);
             f->pushing = in->dx != 0 && (!f->team || in->grab);   /* facing follows dx: walking forward; enemies on purpose */
         }
         break;
@@ -402,6 +404,7 @@ void combat(fighter_t **fs, uint8_t n) {
     for (i = 0; i < n; i++) {
         fighter_t *a = fs[i];
         const bbox_t *atk;
+        uint8_t sounded = 0;                                     /* one hit sound per attack, however many it hits */
         if (a->freeze) continue;
         if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
             const bstep_t *sa = fighter_step(a);
@@ -439,9 +442,9 @@ void combat(fighter_t **fs, uint8_t n) {
                         if (later && rc >= R_KNOCKDOWN) rc = R_HEAVY;
                     }
                     if (rc < R_KNOCKDOWN) sfx = hit_sound(c->anim);
-                    snd_sfx(sfx);
+                    if (!sounded++) snd_sfx(sfx);
                     fighter_hit(a, v, dmg, rc, c->push);
-                } else { snd_sfx(sfx); fighter_hit(a, v, SPECIAL_DAMAGE, R_KNOCKDOWN, 0); }
+                } else { if (!sounded++) snd_sfx(sfx); fighter_hit(a, v, SPECIAL_DAMAGE, R_KNOCKDOWN, 0); }
                 spark_hit(sx, sy, sfx >= SFX_HIT_C, a->facing);  /* KOF98: A / B small, C / D / C+D big */
             }
         }
