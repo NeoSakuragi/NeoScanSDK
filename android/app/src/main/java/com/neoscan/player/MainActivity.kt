@@ -91,7 +91,7 @@ class MainActivity : Activity() {
             setRenderer(renderer)
             renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
         }
-        pad = PadView(this, ::openSettings) { m -> touchMask = m; pushPads() }
+        pad = PadView(this, ::openSettings, ::downloadLatest) { m -> touchMask = m; pushPads() }
         root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))
         root.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
@@ -99,6 +99,38 @@ class MainActivity : Activity() {
         emu = EmuThread(sys.absolutePath, save.absolutePath, rom.absolutePath, { gl.requestRender() }) { msg ->
             runOnUiThread { setContentView(TextView(this).apply { text = msg; gravity = Gravity.CENTER }) }
         }.also { it.start() }
+        pollUpdates()
+    }
+
+    /** every 5 s: is there a newer build than the installed one? the update button blinks while there is */
+    @Volatile private var polling = true
+    private fun pollUpdates() = Thread {
+        while (polling) {
+            val b = RomFetch.latest(this)
+            if (b > 0) { val ready = b > RomFetch.installedBuild(this); runOnUiThread { if (::pad.isInitialized) pad.updateReady = ready } }
+            try { Thread.sleep(5000) } catch (e: InterruptedException) { }
+        }
+    }.apply { isDaemon = true; start() }
+
+    /** the update button: download the latest build (checked: size + sha256), then restart the app on it (a fresh
+     *  process: the core is loaded once per process) */
+    private fun downloadLatest() {
+        val rom = File(getExternalFilesDir(null), "brawler.neo")
+        pad.updateText = "0%"
+        Thread {
+            val before = RomFetch.installedBuild(this)
+            RomFetch.update(this, rom) { t ->                      // "Downloading v0.0.8: 45 %" -> "45%"
+                Regex("(\\d+) %").find(t)?.let { m -> runOnUiThread { pad.updateText = m.groupValues[1] + "%" } } }
+            val got = RomFetch.installedBuild(this) > before
+            runOnUiThread {
+                pad.updateText = null
+                if (got) {
+                    val i = packageManager.getLaunchIntentForPackage(packageName)!!
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    startActivity(i); Runtime.getRuntime().exit(0)
+                }
+            }
+        }.start()
     }
 
     private fun openSettings() = startActivity(android.content.Intent(this, SettingsActivity::class.java))
@@ -121,5 +153,5 @@ class MainActivity : Activity() {
     /** the game pauses (picture, sound, emulation) whenever the activity is not in front: settings, home, screen off */
     override fun onPause() { super.onPause(); emu?.paused = true; if (::gl.isInitialized) gl.onPause() }
     override fun onResume() { super.onResume(); applySettings(); emu?.paused = false; if (::gl.isInitialized) gl.onResume() }
-    override fun onDestroy() { emu?.running = false; super.onDestroy() }
+    override fun onDestroy() { polling = false; emu?.running = false; super.onDestroy() }
 }

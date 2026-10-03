@@ -60,6 +60,19 @@ object RomFetch {
         return rom.exists()
     }
 
+    /** the server's latest build number, -1 when it cannot be asked (offline, no URL); light: latest.json only */
+    fun latest(ctx: Context): Long {
+        val base = base(ctx) ?: return -1
+        val id = ctx.getSharedPreferences("fetch", 0).getString("install", null) ?: "?"
+        return try {
+            val c = get(base + "latest.json", mapOf("X-Install-Id" to id, "X-Rom-Version" to installed(ctx), "X-Poll" to "1"))
+            JSONObject(c.inputStream.use { it.readBytes() }.toString(Charsets.UTF_8)).getLong("build")
+        } catch (e: Exception) { -1 }
+    }
+
+    /** the build number of the installed ROM (0 = none fetched: pushed by hand or never) */
+    fun installedBuild(ctx: Context): Long = ctx.getSharedPreferences("fetch", 0).getLong("build", 0)
+
     fun base(ctx: Context): String? = ctx.getSharedPreferences("fetch", 0).getString("url", null)
         ?: BuildConfig.ROM_URL.ifEmpty { null }?.trimEnd('/')?.plus("/")
 
