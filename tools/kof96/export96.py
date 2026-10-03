@@ -25,7 +25,7 @@ MOVES = {
     'atk_d_close': 107, 'atk_d_far': 108, 'atk_d_jump': 109, 'atk_d_jump_diag': 111, 'atk_d_crouch': 115,
     'body_toss': 116,
     'hit_stand_light': 256, 'hit_stand_heavy': 262, 'hit_crouch_light': 264, 'hit_crouch_heavy': 266,
-    'blowback': 288, 'knockdown_flight': 298, 'knockdown_bounce': 334, 'knockdown_fall': 343, 'down': 355,
+    'blowback': 288, 'blowback_n': 288, 'knockdown_flight': 298, 'knockdown_bounce': 334, 'knockdown_fall': 343, 'down': 355,
     'getup': 66, 'trip': 327,
 }
 
@@ -45,12 +45,13 @@ CAST98 = ['kyo', 'benimaru', 'daimon', 'terry', 'andy', 'joe', 'ryo', 'robert', 
           'billy', 'iori', 'mature', 'vice', 'heidern', 'takuma', 'saisyu', 'heavy_d', 'lucky', 'brian', 'rugal', 'shingo']
 # labelled on Kyo vs Yuri (GAME=kof98 capture/labels.py): KOF96's numbering except run/backstep/roll and the knockdowns
 MOVES98 = dict(MOVES)
-for k in ('run_start', 'run', 'run_stop', 'backstep_start', 'backstep', 'backstep_land', 'blowback', 'knockdown_flight',
+for k in ('run_start', 'run', 'run_stop', 'backstep_start', 'backstep', 'backstep_land', 'blowback', 'blowback_n', 'knockdown_flight',
           'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip'): del MOVES98[k]
 MOVES98.update({'hop_up_rise': 15, 'hop_up_fall': 16, 'hop_fwd_rise': 17, 'hop_fwd_fall': 18,
                 'run_start': 45, 'run': 46, 'run_stop': 47, 'backstep_start': 48, 'backstep': 49, 'backstep_land': 50,
                 'roll_start': 51, 'roll': 52, 'roll_end': 53,
-                'blowback': 283, 'knockdown_flight': 287, 'knockdown_bounce': 309, 'knockdown_fall': 313, 'down': 328,
+                # blowback: 283 a counter hit, 285 not (C+D captured on Yuri, 2026-10-04)
+                'blowback': 283, 'blowback_n': 285, 'knockdown_flight': 287, 'knockdown_bounce': 309, 'knockdown_fall': 313, 'down': 328,
                 'getup': 72, 'trip': 307, 'hit_air': 308, 'air_land': 279,
                 # win poses: the button held at the KO picks one (MAME, all 38 fighters: tools/kof98/capture/wins98.py)
                 'win_a': 336, 'win_a_hold': 337, 'win_b': 338, 'win_b_hold': 339,

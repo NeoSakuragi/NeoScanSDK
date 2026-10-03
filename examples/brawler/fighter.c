@@ -150,12 +150,13 @@ static void hit_sfx(uint8_t fx) {
     const uint8_t *s = HIT_SFX[(fx & 0x3F) < 33 ? fx & 0x3F : 1];
     snd_sfx(s[0]); if (s[1]) snd_sfx(s[1]);
 }
-/* burn: the victim of a fire hit shows one of KOF98's fixed burn palettes (palette RAM $68 purple, $F7 orange, loaded
- * for the whole fight) in place of its own, colour index for colour index, until it lands or recovers (inference: the
- * captures show it burnt through the hit reaction) */
+/* burn: the victim of a fire hit shows KOF98's burn palette in its attacker's flame colour (palette RAM $5F purple,
+ * Iori; $58 orange, Kyo; both loaded for the whole fight: VRAM during their Oniyaki hits) in place of its own, colour
+ * index for colour index, through its hit reaction and its fall until it hits the floor (screenshots: burnt in 262,
+ * 285, 287, its own colours from 309 on) */
 static const uint16_t BURN_PAL[2][16] = {
-    { 0x0000, 0x7FFF, 0x5FFF, 0x5FEF, 0x7DAF, 0x4C9F, 0x1A7E, 0x765C, 0x544A, 0x7DAF, 0x1B8F, 0x686E, 0x765C, 0x544B, 0x433A, 0x3218 },
-    { 0x0000, 0x7FFF, 0x6FFC, 0x5FE8, 0x6FC6, 0x2F93, 0x6D71, 0x1C60, 0x5FFA, 0x5FE8, 0x5FB4, 0x6FC6, 0x5FB4, 0x2F93, 0x6D71, 0x1C60 } };
+    { 0x0000, 0x2CA9, 0x7975, 0x3864, 0x0764, 0x1653, 0x4443, 0x4332, 0x5221, 0x6111, 0x4011, 0x7FFF, 0x3FCF, 0x7C9F, 0x385F, 0x143A },
+    { 0x0000, 0x7FC7, 0x0A85, 0x1974, 0x1863, 0x5652, 0x4542, 0x4431, 0x5320, 0x4210, 0x6100, 0x7FFF, 0x4FF9, 0x0FA4, 0x6C60, 0x6830 } };
 static void set_burn(fighter_t *f, uint8_t burn) {
     uint8_t i;
     if (f->burn == burn) return;
@@ -165,6 +166,8 @@ static void set_burn(fighter_t *f, uint8_t burn) {
 }
 
 static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   /* away: direction the victim is sent */
+    uint8_t blow = (v->state == S_ATTACK || v->state == S_AIR_ATTACK || v->state == S_SPECIAL)
+                   ? BA_BLOWBACK : BA_BLOWBACK_N;               /* KOF98: a counter hit (hit in its own attack) 283, else 285 */
     if (v->state == S_SPECIAL) special_end(v);                   /* hit out of a special: its projectiles go */
     if (v->state == S_GRAB) release(v);                          /* hit while holding or while held: the hold ends */
     else if (v->state == S_GRABBED) release(v->held);
@@ -178,8 +181,8 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
         enter(v, S_HITSTUN); play(v, reaction == R_LIGHT ? BA_HIT_STAND_LIGHT : BA_HIT_STAND_HEAVY);
         v->vx = dir_mul(away, FIX(push) >> 2);
         break;
-    case R_KNOCKDOWN: enter(v, S_KNOCKDOWN); v->vy = FIX(7); v->vx = dir_mul(away, FIX(2)); play(v, BA_BLOWBACK); break;
-    case R_LAUNCH:    enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = dir_mul(away, FIX(2) + 0x8000); play(v, BA_BLOWBACK); break;   /* KOF98 launches rise in 283 too (Burn Knuckle) */
+    case R_KNOCKDOWN: enter(v, S_KNOCKDOWN); v->vy = FIX(7); v->vx = dir_mul(away, FIX(2)); play(v, blow); break;
+    case R_LAUNCH:    enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = dir_mul(away, FIX(2) + 0x8000); play(v, blow); break;   /* KOF98 launches rise in it too (Burn Knuckle) */
     case R_TRIP:      enter(v, S_KNOCKDOWN); v->vy = FIX(3); v->vx = dir_mul(away, FIX(1)); play(v, BA_TRIP); break;
     }
 }
@@ -470,8 +473,8 @@ void fighter_update(fighter_t *f, const intent_t *in) {
                 f->vy = 0; f->vx -= f->vx >> 2;
                 if (f->anim_done) { f->vy = FIX(1); play(f, BA_KNOCKDOWN_FALL); }
             } else if (f->anim == BA_KNOCKDOWN_FALL) { f->vx = f->vy = 0; enter(f, S_DOWN); play(f, BA_DOWN); }
-            else { f->vy = 0; f->vx >>= 1; play(f, BA_KNOCKDOWN_BOUNCE); }
-        } else if (f->vy < 0 && f->anim == BA_BLOWBACK) play(f, BA_KNOCKDOWN_FLIGHT);
+            else { f->vy = 0; f->vx >>= 1; play(f, BA_KNOCKDOWN_BOUNCE); set_burn(f, 0); }   /* KOF98: a burn ends at the floor */
+        } else if (f->vy < 0 && (f->anim == BA_BLOWBACK || f->anim == BA_BLOWBACK_N)) play(f, BA_KNOCKDOWN_FLIGHT);
         break;
     case S_DOWN:
         if (f->state_t >= DOWN_FRAMES) {

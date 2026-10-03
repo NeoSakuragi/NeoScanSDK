@@ -79,10 +79,50 @@ if wlog then
     end)
   end
 end
+-- VLOG="pp,pp": VRAM data writes ($3C0002) whose high byte is one of those palette numbers (SCB1 attributes), with
+-- the PC, a0-a4 and d0-d1 (who draws a sprite with that palette); at most 400 lines
+local vlog = os.getenv("VLOG") and io.open(os.getenv("OUT") .. ".vlog", "w")
+if vlog then
+  local want, nv = {}, 0
+  for v in string.gmatch(os.getenv("VLOG"), "%x+") do want[tonumber(v, 16)] = true end
+  _G.record96_v = mem:install_write_tap(0x3C0002, 0x3C0003, "vlog", function(offset, data, mask)
+    if nv < 400 and want[(data >> 8) & 0xFF] then
+      nv = nv + 1
+      vlog:write(string.format("%05d %04X pc=%06X a0=%06X a1=%06X a2=%06X a3=%06X a4=%06X d0=%08X d1=%08X\n", n, data, cpu.state["PC"].value,
+        cpu.state["A0"].value, cpu.state["A1"].value, cpu.state["A2"].value, cpu.state["A3"].value, cpu.state["A4"].value, cpu.state["D0"].value, cpu.state["D1"].value))
+    end
+  end)
+end
+-- VFRAMES="f,f": every VRAM write (address register $3C0000 + data $3C0002, the LSPC steps by VRAMMOD) in those frames
+-- to OUT.vram<frame>: "addr data" lines (SCB1 = $0000-$6FFF: even tile, odd attribute = palette << 8 | flags)
+local vframes, vaddr, vmod, vf = {}, 0, 1, nil
+for v in string.gmatch(os.getenv("VFRAMES") or "", "%d+") do vframes[tonumber(v)] = true end
+if next(vframes) then
+  _G.record96_va = mem:install_write_tap(0x3C0000, 0x3C0005, "vframes", function(offset, data, mask)
+    if offset == 0x3C0000 then vaddr = data
+    elseif offset == 0x3C0004 then vmod = data
+    elseif offset == 0x3C0002 then
+      if vf then vf:write(string.format("%04X %04X\n", vaddr, data)) end
+      vaddr = (vaddr + vmod) & 0xFFFF
+    end
+  end)
+end
+-- RAMDUMP="frame:addr:len;...": work RAM bytes at those frames to OUT.ram<frame>_<addr> (hex)
+local ramdumps = {}
+for fr, a, l in string.gmatch(os.getenv("RAMDUMP") or "", "(%d+):(%x+):(%x+)") do ramdumps[#ramdumps + 1] = {tonumber(fr), tonumber(a, 16), tonumber(l, 16)} end
 local paldump = {}
 for v in string.gmatch(os.getenv("PALDUMP") or "", "%d+") do paldump[tonumber(v)] = true end
 _G.record96 = emu.add_machine_frame_notifier(function()
   n = n + 1
+  if vf then vf:close(); vf = nil end
+  for _, d in ipairs(ramdumps) do
+    if d[1] == n then
+      local h = {}
+      for i = 0, d[3] - 1 do h[#h + 1] = string.format("%02X", mem:read_u8(d[2] + i)) end
+      local rf = io.open(string.format("%s.ram%d_%06X", os.getenv("OUT"), n, d[2]), "w"); rf:write(table.concat(h)); rf:close()
+    end
+  end
+  if vframes[n] then vf = io.open(os.getenv("OUT") .. ".vram" .. n, "w") end
   if paldump[n] then
     local pf = io.open(os.getenv("OUT") .. ".pal" .. n, "wb")
     for a = 0x400000, 0x401FFE, 2 do local v = mem:read_u16(a); pf:write(string.char(v >> 8, v & 0xFF)) end

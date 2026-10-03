@@ -19,8 +19,9 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'atk_a_close', 'atk_a_far', 'atk_b_close', 'atk_b_far', 'atk_c_close', 'atk_c_far', 'atk_d_close', 'atk_d_far',
          'atk_d_crouch', 'atk_c_jump', 'atk_d_jump', 'body_toss', 'hit_stand_light', 'hit_stand_heavy', 'hit_air',
          'blowback', 'knockdown_flight', 'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip', 'win_a', 'atk_c_crouch',
-         'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # command normals (KOF97+: forward+A / B, down-forward+C / D)
-CMDS = MOVES[-4:]                              # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
+         'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d',   # command normals (KOF97+: forward+A / B, down-forward+C / D)
+         'blowback_n']                                 # KOF98's blowback when not a counter hit (285; blowback = 283)
+CMDS = MOVES[-5:-1]                              # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
 TILE_BASE = 1024                               # our first fighter tile; 1-1023 hold the stage (make_stage.py), 0 empty
 SRC_BASE = export96.TILE_BASE                  # export96 numbers its tiles from here
 
@@ -259,13 +260,21 @@ def special_rows(sp):
 
 def hit_fx(sp, i, game):
     """bspec_row_t.fx of a row opening a hit: KOF98's hit effect the move set in the attacker (captured per row:
-    +$1B8 the hit kind, the victim's hit sounds through the table at $1E208; +$1BA on a fire kind the burn colour, 2
-    orange (Kyo's Oniyaki), 1 purple (Iori's): inference from those two moves); KOF96 / KOF99 (fields not checked there) and rows without it: kind 1, the heavy hit ($13)"""
+    +$1B8 the hit kind, the victim's hit sounds through the table at $1E208; on a fire kind the victim burns in the
+    attacker's flame colour, FIRE_COLOUR); rows without it: kind 1, the heavy hit ($13). KOF96 / KOF99
+    fighters: their own kind (both games' handler tables, decoded 2026-10-04, number kinds as KOF98's), played with
+    KOF98's sounds since the brawler runs KOF98's driver"""
     rs = sp['row_steps'][i]
-    eff = rs[9] if game == 'kof98' and len(rs) > 9 and rs[9] else None
-    if not eff or not eff[0]: return 1
+    eff = rs[9] if len(rs) > 9 and rs[9] else None
+    if not eff or not eff[0] or eff[0] > 32: return 1   # KOF96 / KOF99 number their kinds as KOF98 (same handler
+                                                         # tables: 1 heavy hit, 11 hit + fire); KOF99's 33-46: none in KOF98
     fire = eff[0] in (11, 13, 21)                       # the kinds whose sounds have the fire crackle $2E: only they
-    return (eff[0] & 0x3F) | ((min(eff[1], 2) if fire else 0) << 6)   # burn (Terry's Rising Tackle: kind 1, +$1BA 1)
+    return (eff[0] & 0x3F) | ((FIRE_COLOUR.get(sp.get('fighter'), 2) if fire else 0) << 6)   # burn
+
+# the burn's colour: the attacker's flames (KOF98 VRAM during Kyo's and Iori's Oniyaki hits: the victim's sprites
+# leave its own palette for palette $58, orange, with Kyo, $5F, purple, with Iori; both always loaded). Purple = 1,
+# orange = 2 (fighter.c BURN_PAL); every fire user but Iori burns orange (inference: one flame colour per fighter)
+FIRE_COLOUR = {'iori': 1}
 
 def special_shape(sp):
     if sp.get('shape'): return tuple(sp['shape'])        # what the move does on its own (its whiff, export96)
@@ -458,7 +467,7 @@ def write_c(chars, outdir):
             c.append(f'static const bthrow_row_t {n}_{t}[] = {{' + ', '.join(out) + '};')
         c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(
             f'{{{len(ch["throws"][t]["timeline"])}, {n}_{t}}}' if t in ch.get('throws', {}) else '{0, 0}' for t in THROWS) + '};')
-        sps = [special_play(sp) if sp else None for sp in pick_specials(ch, n)]
+        sps = [dict(special_play(sp), fighter=n) if sp else None for sp in pick_specials(ch, n)]
         for k, sp in enumerate(sps):
             if sp is None: continue
             out = []
