@@ -348,13 +348,15 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
     (void)f;
 }
 
-/* ---- HUD on the fix layer (tools/brawler/make_hud.py): P1 top left = 32x32 portrait (fix palette 2 + fighter), name,
- * KOF94-style life bar (1 px steps, red damage trail that holds 20 frames then shrinks), lives; the enemy P1 fights in
- * the same layout on the right; P2 (2-player builds) under P1. Only changed cells are written. ---- */
+/* ---- HUD on the fix layer (tools/brawler/make_hud.py), fighting-game layout: top row = the life bars, KOF94-style (1 px
+ * steps, red damage trail that holds 20 frames then shrinks), the left one anchored at the left edge, the right one at the
+ * right edge (mirrored glyphs), so both empty from the middle outward; row below = the names, pinned to the corners next
+ * to the 32x32 portraits (fix palette 2 + fighter, rows 0-3 at the screen edges); then lives / continue. P1 left; right =
+ * the enemy P1 fights, or P2 (2-player builds: each player's target under its block). Only changed cells are written. ---- */
 #define BAR_CELLS 15
 #define BAR_PX    118                    /* inside the caps: 7 + 13 x 8 + 7 */
 #define LIFE      60
-typedef struct { uint8_t col, row, cell[BAR_CELLS], wait; int16_t px, trail; } bar_t;
+typedef struct { uint8_t col, row, mirror, cell[BAR_CELLS], wait; int16_t px, trail; } bar_t;
 static uint8_t lives[2];
 static uint16_t cont_t[2];                       /* continue countdown (frames), 0 = none */
 /* bars: 0 P1, 1 right block (P2, or P1's target alone), 2 P1's target under P1, 3 P2's target under P2 */
@@ -380,13 +382,13 @@ static void bar_draw(bar_t *b, int16_t hp) {
     if (px < b->px) b->wait = 20;
     b->px = px;
     if (b->trail > px) { if (b->wait) b->wait--; else b->trail--; } else b->trail = px;
-    for (c = 0; c < BAR_CELLS; c++) {
-        uint8_t kind = c == 0 ? 0 : c == BAR_CELLS - 1 ? 2 : 1, w = kind == 1 ? 8 : 7, t;
+    for (c = 0; c < BAR_CELLS; c++) {                            /* c counts from the bar's outer edge */
+        uint8_t kind = c == 0 ? 0 : c == BAR_CELLS - 1 ? 2 : 1, w = kind == 1 ? 8 : 7, t, sc = b->mirror ? BAR_CELLS - 1 - c : c;
         int16_t f = px - x0;
         if (f < 0) f = 0;
         if (f > w) f = w;
-        t = BAR_TILE + kind * 18 + (b->trail > x0 + f ? 9 : 0) + f;
-        if (b->cell[c] != t) { b->cell[c] = t; fix_put(b->col + c, b->row, t); }
+        t = (b->mirror ? BAR_TILE_R : BAR_TILE) + kind * 18 + (b->trail > x0 + f ? 9 : 0) + f;
+        if (b->cell[sc] != t) { b->cell[sc] = t; fix_put(b->col + sc, b->row, t); }
         x0 += w;
     }
 }
@@ -396,22 +398,29 @@ static void bar_clear(bar_t *b) {
     b->px = b->trail = -1; b->wait = 0;
 }
 static void hud_reset(void) {
-    static const uint8_t COL[4] = { 5, 20, 5, 20 }, ROW[4] = { 2, 2, 6, 6 };
+    static const uint8_t COL[4] = { 5, 20, 5, 20 }, ROW[4] = { 0, 0, 4, 4 };
     uint8_t p, c;
     for (p = 0; p < 4; p++) {
-        bars[p].col = COL[p]; bars[p].row = ROW[p]; bars[p].px = bars[p].trail = -1; bars[p].wait = 0; hud_tgt[p] = 0;
+        bars[p].col = COL[p]; bars[p].row = ROW[p]; bars[p].mirror = p & 1; bars[p].px = bars[p].trail = -1; bars[p].wait = 0; hud_tgt[p] = 0;
         for (c = 0; c < BAR_CELLS; c++) bars[p].cell[c] = 0;
     }
     for (p = 0; p < 2; p++) { hud_lives[p] = -1; hud_cont[p] = 0xFFFF; hud_face[p] = 0xFE; }
     hud_two = 0xFF;
 }
+static void hud_name(uint8_t right, uint8_t row, const char *name) {   /* pinned to its corner, beside the portrait */
+    uint8_t n = 0;
+    FIX_print(right ? 25 : 5, row, "          ", 0);
+    if (!name) return;
+    while (name[n]) n++;
+    FIX_print(right ? 35 - n : 5, row, name, 0);
+}
 /* a target: name (+ portrait when it is the right block) and bar, drawn when it changes; 0 = clear */
-static void hud_target(uint8_t slot, fighter_t *t, uint8_t name_col, uint8_t name_row, uint8_t face_side) {
+static void hud_target(uint8_t slot, fighter_t *t, uint8_t right, uint8_t name_row, uint8_t face_side) {
     if (t && t->state == S_OFF) t = 0;
     if (t != hud_tgt[slot]) {
         hud_tgt[slot] = t;
-        FIX_print(name_col, name_row, "          ", 0); if (t) FIX_print(name_col, name_row, t->ch->name, 0);
-        if (face_side) { uint8_t f = t ? char_index(t->ch) : 0xFF; if (hud_face[1] != f) { hud_face[1] = f; portrait(35, 1, f); } }
+        hud_name(right, name_row, t ? t->ch->name : 0);
+        if (face_side) { uint8_t f = t ? char_index(t->ch) : 0xFF; if (hud_face[1] != f) { hud_face[1] = f; portrait(35, 0, f); } }
         if (!t) bar_clear(&bars[slot]);
     }
     if (t) bar_draw(&bars[slot], t->hp);
@@ -426,25 +435,18 @@ static void hud(void) {
     }
     for (p = 0; p < 1 + two; p++) {                          /* the players' blocks: P1 left, P2 right */
         fighter_t *f = &fighters[p];
-        uint8_t face = char_index(f->ch), pc = p ? 35 : 1, nc = p ? 21 : 5;
-        if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 1, face); FIX_print(nc, 1, "          ", 0); FIX_print(nc, 1, f->ch->name, 0); }
+        uint8_t face = char_index(f->ch), pc = p ? 35 : 1, lc = p ? 32 : 5, cc = p ? 20 : 9;   /* lives / continue cols */
+        if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face); hud_name(p, 1, f->ch->name); }
         bar_draw(&bars[p], in_play(f) ? f->hp : 0);
-        if (lives[p] != hud_lives[p]) { hud_lives[p] = lives[p]; FIX_print(nc, 3, "x ", 0); FIX_printNum(nc + 1, 3, lives[p], 0); }
+        if (lives[p] != hud_lives[p]) { hud_lives[p] = lives[p]; FIX_print(lc, 2, "x ", 0); FIX_printNum(lc + 1, 2, lives[p], 0); }
         if (cont_t[p] / 60 != hud_cont[p]) {
             hud_cont[p] = cont_t[p] / 60;
-            if (cont_t[p]) { FIX_print(nc + 4, 3, "CONTINUE   ", 0); FIX_printNum(nc + 13, 3, hud_cont[p], 0); }
-            else FIX_print(nc + 4, 3, "           ", 0);
+            if (cont_t[p]) { FIX_print(cc, 2, "CONTINUE   ", 0); FIX_printNum(cc + 9, 2, hud_cont[p], 0); }
+            else FIX_print(cc, 2, "           ", 0);
         }
-        if (two) hud_target(2 + p, f->target, nc, 5, 0);   /* each player's target under its own bar */
+        if (two) hud_target(2 + p, f->target, p, 5, 0);    /* each player's target under its own block: bar, name */
     }
-    if (!two) hud_target(1, fighters[0].target, 21, 1, 1);  /* one player: its target is the right block */
-    /* SNK join prompt above the empty side, and above a player who is out: INSERT COIN / PRESS START, blinking */
-    if (!(hud_tick & 31)) {
-        uint8_t on = !(hud_tick & 32), cr = CREDITS_P1 != 0;
-        const char *msg = !on ? "           " : cr ? "PRESS START" : "INSERT COIN";
-        if (!two) FIX_print(23, 0, msg, 0); else FIX_print(23, 0, "           ", 0);
-        FIX_print(7, 0, in_play(&fighters[0]) ? "           " : msg, 0);
-    }
+    if (!two) hud_target(1, fighters[0].target, 1, 1, 1);  /* one player: its target is the right block */
     if ((hud_tick & 15) != 0 && (uint16_t)wait_cycles < hud_min_spins) hud_min_spins = (uint16_t)wait_cycles;  /* skip the print tick */
     if (!(++hud_tick & 15)) {
         uint16_t idle = (uint16_t)(((uint32_t)hud_min_spins * 7) >> 8);
