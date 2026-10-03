@@ -43,8 +43,51 @@ for v in string.gmatch(os.getenv("RELOAD") or "", "%d+") do reloads[tonumber(v)]
 -- SAVE="frame:name;...": save state <name> at those frames (same contract as neogeo_sdl --capture, which takes paths)
 local saves = {}
 for fr, name in string.gmatch(os.getenv("SAVE") or "", "(%d+):([^;]+)") do saves[tonumber(fr)] = name end
+-- SNDLOG=path: every sound command the 68000 writes (REG_SOUND, the byte at $320000) as "frame value" lines (hit sounds)
+-- PALDUMP="frame,frame,...": palette RAM ($400000, 8 KB) at those frames to OUT.pal<frame> (a victim's burn palette)
+local sndlog = os.getenv("SNDLOG") and io.open(os.getenv("SNDLOG"), "w")
+if sndlog then
+  _G.record96_snd = mem:install_write_tap(0x320000, 0x320001, "sndlog", function(offset, data, mask)
+    if mask & 0xFF00 ~= 0 then
+      local ok, sp = pcall(function() return cpu.state["SP"].value end); if not ok then sp = cpu.state["A7"].value end; local st = {}
+      for i = 0, 15 do st[#st + 1] = string.format("%06X", mem:read_u32(sp + i * 4) & 0xFFFFFF) end
+      sndlog:write(string.format("%05d %02X pc=%06X sp=%s\n", n, (data >> 8) & 0xFF, cpu.state["PC"].value, table.concat(st, ",")))
+    end
+  end)
+end
+-- QLOG=path: KOF98's sound ring ($10D940, filled by $7A98) writes with the 68000's PC and stack (who sends a sound)
+local qlog = os.getenv("QLOG") and io.open(os.getenv("QLOG"), "w")
+if qlog then
+  _G.record96_q = mem:install_write_tap(0x10D940, 0x10DA3F, "qlog", function(offset, data, mask)
+    local ok, sp = pcall(function() return cpu.state["SP"].value end); if not ok then sp = cpu.state["A7"].value end
+    local st = {}
+    for i = 0, 11 do st[#st + 1] = string.format("%06X", mem:read_u32(sp + i * 2) & 0xFFFFFF) end
+    local v = (mask & 0xFF00 ~= 0) and ((data >> 8) & 0xFF) or (data & 0xFF)
+    qlog:write(string.format("%05d %02X pc=%06X d0=%08X a4=%06X sp=%s\n", n, v, cpu.state["PC"].value, cpu.state["D0"].value, cpu.state["A4"].value, table.concat(st, ",")))
+    qlog:flush()
+  end)
+end
+-- WLOG="addr,addr": writes to those work-RAM bytes with the PC (who sets a field)
+local wlog = os.getenv("WLOG") and io.open(os.getenv("OUT") .. ".wlog", "w")
+if wlog then
+  _G.record96_w = {}
+  for a in string.gmatch(os.getenv("WLOG"), "%x+") do
+    local addr = tonumber(a, 16)
+    _G.record96_w[#_G.record96_w + 1] = mem:install_write_tap(addr & ~1, addr | 1, "wlog" .. a, function(offset, data, mask)
+      wlog:write(string.format("%05d %06X=%04X/%04X pc=%06X d0=%08X d1=%08X a0=%06X a1=%06X a4=%06X\n", n, offset, data, mask,
+        cpu.state["PC"].value, cpu.state["D0"].value, cpu.state["D1"].value, cpu.state["A0"].value, cpu.state["A1"].value, cpu.state["A4"].value))
+    end)
+  end
+end
+local paldump = {}
+for v in string.gmatch(os.getenv("PALDUMP") or "", "%d+") do paldump[tonumber(v)] = true end
 _G.record96 = emu.add_machine_frame_notifier(function()
   n = n + 1
+  if paldump[n] then
+    local pf = io.open(os.getenv("OUT") .. ".pal" .. n, "wb")
+    for a = 0x400000, 0x401FFE, 2 do local v = mem:read_u16(a); pf:write(string.char(v >> 8, v & 0xFF)) end
+    pf:close()
+  end
   if snaps[n] then manager.machine.video:snapshot() end
   if reloads[n] then manager.machine:load(os.getenv("RELOAD_STATE")) end
   if saves[n] then manager.machine:save(saves[n]) end
@@ -71,7 +114,7 @@ _G.record96 = emu.add_machine_frame_notifier(function()
     p.left = p.left - 1
     if p.left <= 0 then
       p.step = p.step + 1
-      if i == 1 and p.step > #p.seq then out:close(); manager.machine:exit(); return end
+      if i == 1 and p.step > #p.seq then out:close(); if sndlog then sndlog:close() end; manager.machine:exit(); return end
       apply(p)
     end
   end

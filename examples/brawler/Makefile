@@ -15,7 +15,7 @@ CFLAGS += -DGAME_VERSION='"$(VERSION)"'
 all: $(ROM_NAME).zip
 
 # --- Fighters: beat 'em up subset of the KOF dictionaries (needs /data/roms/kof96/98/99.neo) ---
-CHARS = kof98:terry kof98:ryo kof98:ralf kof98:chang kof98:yamazaki kof98:billy kof98:kyo kof98:iori kof98:mai kof96:geese kof96:mr_big kof96:krauser kof99:maxima kof99:k_dash
+CHARS = kof98:terry kof98:ryo kof98:ralf kof98:robert kof98:yamazaki kof98:billy kof98:kyo kof98:iori kof98:mai kof96:geese kof96:mr_big kof96:krauser kof98:yashiro kof99:k_dash
 $(BUILD)/bm_chars.c $(BUILD)/bm_chars.h $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h &: $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/make_stage.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json
 	mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) $(CHARS)

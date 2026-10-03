@@ -137,6 +137,33 @@ void fighter_revive(fighter_t *f) {
 /* ---- reactions -------------------------------------------------------------------------------------------------------- */
 static void release(fighter_t *a);
 static void special_end(fighter_t *f);
+/* KOF98's hit effects (P-ROM, decoded 2026-10-04): a move sets its hit kind in the attacker (+$1B8) and the victim
+ * plays the kind's handler (jump table $1E208) on the hit: sound indices through the table at $A9BCE, all $1A + code.
+ * Two codes (the second 0: one); kinds 4, 5, 17 pick one of two at random in the game (the first kept here); 0, 6
+ * and 13 go through further tables (not decoded: the heavy hit, 13 adds the fire crackle). Fire: kind 11 = $13 + $2E. */
+static const uint8_t HIT_SFX[33][2] = {
+    {0x13, 0}, {0x13, 0}, {0x14, 0}, {0x15, 0}, {0x11, 0}, {0x12, 0}, {0x13, 0}, {0x37, 0}, {0x7A, 0}, {0x7C, 0},
+    {0x12, 0}, {0x13, 0x2E}, {0x61, 0}, {0x13, 0x2E}, {0x13, 0x3D}, {0x19, 0}, {0x3D, 0}, {0x2A, 0}, {0x15, 0x42},
+    {0x69, 0}, {0x2B, 0}, {0x2E, 0}, {0x31, 0}, {0x4D, 0}, {0x17, 0}, {0x15, 0x42}, {0x15, 0x42}, {0x15, 0x42},
+    {0x42, 0}, {0x9C, 0}, {0x42, 0}, {0x42, 0}, {0xEB, 0} };
+static void hit_sfx(uint8_t fx) {
+    const uint8_t *s = HIT_SFX[(fx & 0x3F) < 33 ? fx & 0x3F : 1];
+    snd_sfx(s[0]); if (s[1]) snd_sfx(s[1]);
+}
+/* burn: the victim of a fire hit shows one of KOF98's fixed burn palettes (palette RAM $68 purple, $F7 orange, loaded
+ * for the whole fight) in place of its own, colour index for colour index, until it lands or recovers (inference: the
+ * captures show it burnt through the hit reaction) */
+static const uint16_t BURN_PAL[2][16] = {
+    { 0x0000, 0x7FFF, 0x5FFF, 0x5FEF, 0x7DAF, 0x4C9F, 0x1A7E, 0x765C, 0x544A, 0x7DAF, 0x1B8F, 0x686E, 0x765C, 0x544B, 0x433A, 0x3218 },
+    { 0x0000, 0x7FFF, 0x6FFC, 0x5FE8, 0x6FC6, 0x2F93, 0x6D71, 0x1C60, 0x5FFA, 0x5FE8, 0x5FB4, 0x6FC6, 0x5FB4, 0x2F93, 0x6D71, 0x1C60 } };
+static void set_burn(fighter_t *f, uint8_t burn) {
+    uint8_t i;
+    if (f->burn == burn) return;
+    f->burn = burn;
+    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++)
+        PAL_setPalette(f->palbase + i, burn ? BURN_PAL[burn - 1] : f->ch->pals + ((f->set * f->ch->npal + i) << 4));
+}
+
 static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   /* away: direction the victim is sent */
     if (v->state == S_SPECIAL) special_end(v);                   /* hit out of a special: its projectiles go */
     if (v->state == S_GRAB) release(v);                          /* hit while holding or while held: the hold ends */
@@ -152,7 +179,7 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
         v->vx = dir_mul(away, FIX(push) >> 2);
         break;
     case R_KNOCKDOWN: enter(v, S_KNOCKDOWN); v->vy = FIX(7); v->vx = dir_mul(away, FIX(2)); play(v, BA_BLOWBACK); break;
-    case R_LAUNCH:    enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = dir_mul(away, FIX(2) + 0x8000); play(v, BA_KNOCKDOWN_FLIGHT); break;
+    case R_LAUNCH:    enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = dir_mul(away, FIX(2) + 0x8000); play(v, BA_BLOWBACK); break;   /* KOF98 launches rise in 283 too (Burn Knuckle) */
     case R_TRIP:      enter(v, S_KNOCKDOWN); v->vy = FIX(3); v->vx = dir_mul(away, FIX(1)); play(v, BA_TRIP); break;
     }
 }
@@ -334,7 +361,7 @@ static void special_update(fighter_t *f) {
     if (f->state_t <= sp->inv_rows && f->inv < 2) f->inv = 2;    /* invincible move: from its first frame to its last hit */
     f->frame_ovr = r->frame;
     f->x = f->throw_x0 + dir_mul(f->facing, FIX(r->x)); f->y = r->y > 0 ? FIX(r->y) : 0; clamp(f);
-    if (r->hit & 2) { f->hit_mask = 0; f->spec_dmg = r->dmg; f->spec_react = r->hit >> 5; }   /* a new hit */
+    if (r->hit & 2) { f->hit_mask = 0; f->spec_dmg = r->dmg; f->spec_react = r->hit >> 5; f->spec_fx = r->fx; }   /* a new hit */
     if ((r->hit & 4) && f->landed && f->target && (f->target->state == S_KNOCKDOWN || f->target->state == S_HITSTUN)) {
         fighter_t *v = f->target;                                /* between its hits the move holds its target where */
         v->x = f->x + dir_mul(f->facing, FIX(r->vx)); v->z = f->z;   /* the game's opponent was (launched: kept 1 px */
@@ -367,6 +394,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         uint8_t ci = combo_input(f, in); if (ci) f->buffered = ci;
         if (in->press & IN_D) f->spec_buf = 0x80 | special_for(f, in);
     }
+    if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
     if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
@@ -434,11 +462,16 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         break;
     case S_KNOCKDOWN:
         f->y += f->vy; f->vy -= GRAVITY_KD; f->x += f->vx; clamp(f);
+        /* KOF98's fall (a C+D captured on Yuri: 285 / 283 counter rising 26 frames, 287 falling 13, 309 hitting the floor
+         * 4, 313 a 2 px bounce 10, 328 down): blowback up, flight down, bounce on the floor, the small hop, down */
         if (f->y <= 0) {
             f->y = 0;
-            if (f->anim != BA_KNOCKDOWN_BOUNCE) { f->vy = FIX(3); f->vx >>= 1; play(f, BA_KNOCKDOWN_BOUNCE); }
-            else { f->vx = f->vy = 0; enter(f, S_DOWN); play(f, BA_DOWN); }
-        } else if (f->vy < 0 && (f->anim == BA_BLOWBACK || f->anim == BA_KNOCKDOWN_FLIGHT)) play(f, BA_KNOCKDOWN_FALL);
+            if (f->anim == BA_KNOCKDOWN_BOUNCE) {                /* on the floor until it played, then the hop */
+                f->vy = 0; f->vx -= f->vx >> 2;
+                if (f->anim_done) { f->vy = FIX(1); play(f, BA_KNOCKDOWN_FALL); }
+            } else if (f->anim == BA_KNOCKDOWN_FALL) { f->vx = f->vy = 0; enter(f, S_DOWN); play(f, BA_DOWN); }
+            else { f->vy = 0; f->vx >>= 1; play(f, BA_KNOCKDOWN_BOUNCE); }
+        } else if (f->vy < 0 && f->anim == BA_BLOWBACK) play(f, BA_KNOCKDOWN_FLIGHT);
         break;
     case S_DOWN:
         if (f->state_t >= DOWN_FRAMES) {
@@ -548,9 +581,11 @@ void combat(fighter_t **fs, uint8_t n) {
             if (dx < 0) dx = -dx;
             if (dy < 0) dy = -dy;
             if (dx > atk->w + hb->w || dy > atk->h + hb->h) continue;
-            {                                                /* spark: midway between the two boxes' centres */
-                int16_t sx = (box_x(a, atk->x) + box_x(v, hb->x)) >> 1;
-                int16_t sy = ((FLOOR_TOP + INT(a->z) - INT(a->y) + atk->y) + (FLOOR_TOP + INT(v->z) - INT(v->y) + hb->y)) >> 1;
+            {                                                /* spark: the centre of the boxes' overlap, where they */
+                int16_t ax = box_x(a, atk->x), vx = box_x(v, hb->x);    /* touch (the centres' midpoint drifted toward */
+                int16_t ay = FLOOR_TOP + INT(a->z) - INT(a->y) + atk->y, vy = FLOOR_TOP + INT(v->z) - INT(v->y) + hb->y;   /* a long box's middle) */
+                int16_t sx = ((ax - atk->w > vx - hb->w ? ax - atk->w : vx - hb->w) + (ax + atk->w < vx + hb->w ? ax + atk->w : vx + hb->w)) >> 1;
+                int16_t sy = ((ay - atk->h > vy - hb->h ? ay - atk->h : vy - hb->h) + (ay + atk->h < vy + hb->h ? ay + atk->h : vy + hb->h)) >> 1;
                 uint8_t sfx = SFX_HIT_CD;
                 if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
                     const cnode_t *c = &COMBO[a->node];
@@ -569,7 +604,11 @@ void combat(fighter_t **fs, uint8_t n) {
                     a->hit_mask |= 1 << v->idx; a->landed = 1; a->target = v; v->freeze = HITSTOP;
                     if (v->state == S_WALK) to_neutral(v, 0);
                     continue;
-                } else { if (!sounded++) snd_sfx(sfx); fighter_hit(a, v, a->spec_dmg, a->spec_react, 0); }
+                } else {
+                    if (!sounded++) { if (a->state == S_SPECIAL) hit_sfx(a->spec_fx); else snd_sfx(sfx); }
+                    fighter_hit(a, v, a->spec_dmg, a->spec_react, 0);
+                    if (a->state == S_SPECIAL && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
+                }
                 spark_hit(sx, sy, sfx >= SFX_HIT_C, a->facing);  /* KOF98: A / B small, C / D / C+D big */
             }
         }
@@ -582,6 +621,6 @@ void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase,
     for (i = 0; i < ch->npal && i < MAX_PALS; i++) PAL_setPalette(palbase + i, ch->pals + ((set * ch->npal + i) << 4));
     f->x = FIX(x); f->z = FIX(z); f->y = 0; f->vx = f->vy = f->vz = 0;
     f->facing = team ? -1 : 1; f->hp = 60; f->freeze = f->inv = 0; f->held = 0;
-    f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF; f->zfront = 0; f->pushing = 0; f->target = 0; f->spec_atk = 0; f->proj[0] = f->proj[1] = 0; f->owner = 0; f->ncols = 0;
+    f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF; f->zfront = 0; f->pushing = 0; f->target = 0; f->spec_atk = 0; f->proj[0] = f->proj[1] = 0; f->owner = 0; f->ncols = 0; f->burn = 0; f->spec_fx = 0;
     enter(f, S_IDLE); play(f, BA_IDLE);
 }

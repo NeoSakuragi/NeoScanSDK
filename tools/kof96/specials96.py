@@ -112,8 +112,10 @@ def load_file(m, cid, path, T, seen, tag, first_of):
             v = r2[i][3]                                  # P1's animation step (state, raw index = +$74 / 6), P2's
             psteps.append([st, w[0x74 // 2] // 6, A.state_of(v), v[0x138 // 2],   # state + life, P1's live attack box
                            [w[0x90 // 2] >> 8, w[0x90 // 2] & 255, w[0x92 // 2] >> 8, w[0x92 // 2] & 255, w[0x94 // 2] >> 8],
-                           w[0x124 // 2] >> 8, round(A.y_of(v)), round((A.x_of(v) - x0) * f0)])   # (+$90: type, x, y,
-                                                       # w, h), P1's hit-stop (+$124, $FF none), P2's height, P2's x
+                           w[0x124 // 2] >> 8, round(A.y_of(v)), round((A.x_of(v) - x0) * f0),   # (+$90: type, x, y,
+                           [w[0x1B8 // 2] >> 8, w[0x1BA // 2] >> 8]])  # w, h), P1's hit-stop (+$124, $FF none), P2's
+                                                       # height, P2's x, KOF98 hit effect: kind (+$1B8: the victim's hit
+                                                       # sounds, table $1E208) and burn (+$1BA: 2 orange, 1 purple)
         if m.game != 'kof96':                              # KOF98/99: a super spends a power stock (P1 +$15E)
             so = emu.GAMES[m.game]['stock']                # byte offset of the stock count in the P1 object
             stock = lambda i: (r1[i][3][so // 2] >> 8) if so % 2 == 0 else (r1[i][3][so // 2] & 0xFF)

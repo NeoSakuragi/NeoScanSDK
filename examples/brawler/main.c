@@ -276,6 +276,8 @@ static const uint16_t DBG_ATK_COL[16] = { 0x8000, RGB(31, 6, 4), 0x0000 };
 static uint8_t dbg_on, dbg_shown;
 static void dbg_init(void) {
     uint8_t i;
+    for (i = 0; i < DBG_BOXES * 8; i++) cmd_push(VRAM_SCB3 + DBG_SPR + i, 0);   /* hidden, the viewer's boxes too */
+    dbg_shown = 0;
     PAL_setPalette(DBG_HURT_PAL, DBG_HURT_COL); PAL_setPalette(DBG_ATK_PAL, DBG_ATK_COL);
     for (i = 0; i < DBG_BOXES * 8; i++) {
         uint16_t *w = cmd_run(VRAM_SCB1 + (DBG_SPR + i) * 64, 2);
@@ -294,7 +296,7 @@ static void dbg_box(uint16_t *y, uint16_t *x, const fighter_t *f, const bbox_t *
 static void dbg_draw(void) {
     uint16_t *y, *x;
     uint8_t i, nh = 0, na = 0;
-    if (!dbg_on && !dbg_shown) return;
+    if (!(dbg_on && mode == 1) && !dbg_shown) return;            /* fights only: the select cursor shares 300-343 */
     y = cmd_run(VRAM_SCB3 + DBG_SPR, DBG_BOXES * 8); x = cmd_run(VRAM_SCB4 + DBG_SPR, DBG_BOXES * 8);
     for (i = 0; i < DBG_BOXES * 8; i++) y[i] = x[i] = 0;
     dbg_shown = dbg_on && mode == 1;

@@ -66,12 +66,20 @@ def build(specs, outdir):
         game, name = spec.split(':'); games.setdefault(game, []).append(name)
     chars, c1, c2 = [], bytearray(), bytearray()
     tile_next = TILE_BASE
-    for game, names in games.items():
-        tmp = os.path.join(outdir, 'tmp_' + game)
+    def export(game, names, tmp):
         if game == 'kof94':                             # KOF95's engine: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'kof94')); import export94
-            ex = export94.export(names, tmp, only=set(MOVES))
-        else: ex = export96.export(names, tmp, game, only=set(MOVES) | set(THROWS) | {'specials'})
+            return export94.export(names, tmp, only=set(MOVES))
+        return export96.export(names, tmp, game, only=set(MOVES) | set(THROWS) | {'specials'})
+    blocks = []                                         # (game, names, export, tmp dir): a game's roster in one block,
+    for game, names in games.items():                   # halves while its tiles overflow one 64K page (11 KOF98
+        todo = [names]                                  # fighters: 67162); a throw's victim offsets come from the
+        while todo:                                     # thrower's own block, the victim's poses from its own (vposes)
+            ns = todo.pop(0); tmp = os.path.join(outdir, f'tmp_{game}' + (f'_{len(blocks)}' if ns != names else ''))
+            ex = export(game, ns, tmp)
+            if ex['tiles'] >= 0x10000 and len(ns) > 1: todo[:0] = [ns[:len(ns) // 2], ns[len(ns) // 2:]]; continue
+            blocks.append((game, ns, ex, tmp))
+    for game, names, ex, tmp in blocks:
         a = open(os.path.join(tmp, 'kof95_c1.bin'), 'rb').read(); b = open(os.path.join(tmp, 'kof95_c2.bin'), 'rb').read()
         n = ex['tiles']
         assert n < 0x10000, f'{game}: {n} tiles in one block (a block must fit one 64K tile page after its blank tile)'
@@ -249,6 +257,16 @@ def special_rows(sp):
         out[path[-1]][3] = max(1, SPECIAL_DAMAGE - each * (len(path) - 1))
     return [tuple(r) for r in out]
 
+def hit_fx(sp, i, game):
+    """bspec_row_t.fx of a row opening a hit: KOF98's hit effect the move set in the attacker (captured per row:
+    +$1B8 the hit kind, the victim's hit sounds through the table at $1E208; +$1BA on a fire kind the burn colour, 2
+    orange (Kyo's Oniyaki), 1 purple (Iori's): inference from those two moves); KOF96 / KOF99 (fields not checked there) and rows without it: kind 1, the heavy hit ($13)"""
+    rs = sp['row_steps'][i]
+    eff = rs[9] if game == 'kof98' and len(rs) > 9 and rs[9] else None
+    if not eff or not eff[0]: return 1
+    fire = eff[0] in (11, 13, 21)                       # the kinds whose sounds have the fire crackle $2E: only they
+    return (eff[0] & 0x3F) | ((min(eff[1], 2) if fire else 0) << 6)   # burn (Terry's Rising Tackle: kind 1, +$1BA 1)
+
 def special_shape(sp):
     if sp.get('shape'): return tuple(sp['shape'])        # what the move does on its own (its whiff, export96)
     sc = sp['script'][:sp.get('cont') or None]
@@ -381,7 +399,7 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way, 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor) */',
          'typedef struct { uint16_t nrows; const bthrow_row_t *rows; } bthrow_t;',
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown), sprite bounds as its attack box */',
-         'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit, 4 the target is carried at vx (forward from the fighter) / vy (height), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens */',
+         'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy, fx, pad; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit, 4 the target is carried at vx (forward from the fighter) / vy (height), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
          'typedef struct { uint16_t nrows, inv_rows, cont, pad; const bspec_row_t *rows; } bspec_t;   /* inv_rows: invincible for its first rows; cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move */',
          'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
@@ -444,14 +462,15 @@ def write_c(chars, outdir):
         for k, sp in enumerate(sps):
             if sp is None: continue
             out = []
-            for (f, x, hgt, objs), (hb, ab, hit, dmg) in zip(sp['script'], special_rows(sp)):
+            for i, ((f, x, hgt, objs), (hb, ab, hit, dmg)) in enumerate(zip(sp['script'], special_rows(sp))):
                 ob = []
                 for of, ox, oh, same in objs[:2]:
                     b = (frame_box(ch['frames'][of]) if sp['objects_hit'] else None) or (0, 0, 0, 0)
                     ob.append(f'{{{of}, {ox}, {oh}, {same}, {sp["objreact"] + 1 if sp["objreact"] is not None else 0}, {bb(b)}}}')
                 ob += ['{0xFFFF, 0, 0, 0, 0, {0, 0, 0, 0}}'] * (2 - len(ob))
                 cv = sp['carry'][len(out)]
-                out.append(f'{{{f}, {x}, {hgt}, {bb(ab)}, {hit | (4 if cv else 0)}, {dmg}, {{{", ".join(ob)}}}, {cv[0] if cv else 0}, {cv[1] if cv else 0}}}')
+                out.append(f'{{{f}, {x}, {hgt}, {bb(ab)}, {hit | (4 if cv else 0)}, {dmg}, {{{", ".join(ob)}}}, {cv[0] if cv else 0}, '
+                           f'{cv[1] if cv else 0}, {hit_fx(sp, i, game) if hit & 2 else 0}, 0}}')
             c.append(f'static const bspec_row_t {n}_sp{k}[] = {{' + ', '.join(out) + '};')
         def inv_rows(sp, k):                             # the rising reversal: invincible through its last hit row
             if ROLES[k] != 'rise': return 0                     # or its apex

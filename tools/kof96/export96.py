@@ -129,12 +129,13 @@ def step_boxes(m, cid, sp, slot_of, raw):
     game's three hits are the dash and the two $07xx steps). A step not found (a capture without steps) falls back to
     the frame's boxes in the move's animations (raw), flags -1. Row step: [state, raw index, flags, P1's hit-stop
     counter (+$124 high byte, $FF none), P1's live box (+$90: type x y w h), P2's state, height, life, x from P1's
-    start] (None: a
+    start, KOF98's hit effect [kind +$1B8, burn +$1BA]] (None: a
     capture without them)."""
     out, live, parsed = [], None, {}
     for (f, x, h, objs), ps in zip(sp['rows'], sp.get('steps') or [[None, None]] * len(sp['rows'])):
         s_, ri = ps[0], ps[1]
-        extra = [ps[5], ps[4], ps[2], ps[6], ps[3], ps[7]] if len(ps) > 7 else [0xFF, None, None, None, None, None]
+        extra = ([ps[5], ps[4], ps[2], ps[6], ps[3], ps[7]] if len(ps) > 7 else [0xFF, None, None, None, None, None]) + \
+            [ps[8] if len(ps) > 8 else None]
         if s_ is not None and s_ not in parsed:
             try: parsed[s_] = {st_[4]: st_ for st_ in rom96.parse_anim(m, rom96.anim_addr(m, cid, slot_of(cid, s_)))[0]}
             except Exception: parsed[s_] = {}

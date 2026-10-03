@@ -86,6 +86,8 @@ typedef struct fighter {
     uint8_t  spec_buf;            /* D pressed during a normal: 0x80 | BS_* (0xFF: none), a special cancel once it hits */
     uint8_t  still;               /* AI: frames walking without a walk intent (the walk holds AI_IDLE_DELAY frames) */            /* thrower X when the throw started (script X is relative to it) */
     uint8_t  spec_dmg, spec_react; /* special: damage and victim reaction (R_*) of the hit window open (bspec_row_t) */
+    uint8_t  spec_fx;             /* special: KOF98 hit effect of the hit window open (bspec_row_t.fx: kind | burn << 6) */
+    uint8_t  burn;                /* burnt by a fire hit: 1 purple, 2 orange (its palettes show KOF98's burn ramp) */
 } fighter_t;
 
 extern const cnode_t COMBO[];
