@@ -9,6 +9,7 @@ void snd_tick(void);                     /* once a frame: send the next queued b
 extern volatile uint8_t snd_test;
 void snd_sfx(uint8_t code);              /* $1A + code, skipped when the queue already lags (hit storms) */
 void snd_music(uint8_t track);           /* KOF98 tracks $21-$3F (most loop; $2C, $24 are short) */
+void snd_reset(void);                    /* drop the queue (the BIOS just reset the sound CPU) */
 /* KOF98 codes (measured in MAME, hits on Yuri): swing $1E light (A, C) / $1F heavy (B, D, C+D);
  * hit $11 A, $12 B, $13 C, $14 D, $15 C+D blowback */
 enum { SFX_SWING_LIGHT = 0x1E, SFX_SWING_HEAVY = 0x1F, SFX_HIT_A = 0x11, SFX_HIT_B = 0x12, SFX_HIT_C = 0x13,

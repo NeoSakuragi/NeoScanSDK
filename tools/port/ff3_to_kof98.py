@@ -30,6 +30,8 @@ KOF98_NEO, FF3_NEO = '/data/roms/kof98.neo', '/data/roms/fatfury3.neo'
 FF3_M1 = '/data/neogeo_dict/sound/snd98/ff3/ff3_m1.bin'
 FREE_V = '/data/neogeo_dict/sound/snd98/kof98_v_free_runs.json'   # V pages only songs the brawler skips use
 CMD, BANKSET, SONG_AT, SONG_Z80, SONG_END = 0x27, 6, 0x38000, 0x8000, 0x3F800
+BUDGET, PATCH_WRITES = 28, 31   # writes per tick that keep KOF98's handler inside one timer period (ISR_START 100 +
+                                # 6.4 per write < 333 samples: 36, minus margin); one inline patch = 31 writes
 LOST = 0.011        # timer interrupts KOF98's driver loses playing this song in the brawler (measured: 76 of 6774)
 A_SLOTS = (0, 2, 6, 3, 4, 1, 5)
 A_TABLES = (0x3C4C, 0x424C, 0x484C, 0x4E4C, 0x544C, 0x5A4C, 0x604C)
@@ -133,8 +135,10 @@ class Port:
                 if not n.tick < c[0] < min(nxt, n.off if n.off is not None else nxt, end): continue
                 if c[1] == 'alevel': moments.append([c[0], 'level', c[2]])
                 elif c[1] == 'bslur': moments.append([c[0], 'slur', c[2], c[3]])
-        moments.sort(key=lambda m: m[0])
-        if not any(m[0] == L for m in moments): moments.append([L, 'label']); moments.sort(key=lambda m: m[0])
+        if name in FM:
+            for t, regs in self.patch_plan(name): moments.append([t, 'patch', regs])
+        moments.sort(key=lambda m: (m[0], m[1] != 'patch'))        # a patch before a note of the same tick
+        if not any(m[0] == L for m in moments): moments.append([L, 'label']); moments.sort(key=lambda m: (m[0], m[1] != 'patch'))
         if lst[0].tick > 1: moments.insert(0, [1, 'rest'])
         for i, n in enumerate(lst):              # a note sounding across the loop point
             nxt = lst[i + 1].tick if i + 1 < len(lst) else end
@@ -146,9 +150,14 @@ class Port:
             t = mo[0]
             nt = moments[k + 1][0] if k + 1 < len(moments) else end
             delta = nt - t
-            if t == L and label_at is None:
-                label_at = base_addr + len(out); st = {}                 # every state field re-emitted after the label
+            if t == L and label_at is None and mo[1] != 'patch' or (t > L and label_at is None):
+                label_at = base_addr + len(out)                          # every state field but the patch (planned
+                st = {'patch': st.get('patch')}                          # for both ways in) re-emitted after it
             kind = mo[1]
+            if kind == 'patch':
+                out += ev(None, 0x34, *mo[2][:28], mo[2][28], mo[2][29] & 0x3F, *([0] * 11)); st['patch'] = mo[2]
+                if delta: out += ev(delta, 0x01)
+                continue
             if kind in ('rest', 'label'):
                 if delta: out += ev(delta, 0x01)
                 continue
@@ -164,9 +173,7 @@ class Port:
             if st.get('off', 0): out += ev(None, 0x0E) + ev(None, 0x25, 0x80 if name.startswith('A') else 0x88); st['off'] = 0
             gate = self.gate_for(lst, t, nt, end, tie_ahead=self.slur_ahead(moments, k))
             if name in FM:
-                regs = tuple(n.regs)
-                if st.get('patch') != regs:
-                    out += ev(None, 0x34, *regs[:28], regs[28], regs[29] & 0x3F, *([0] * 11)); st['patch'] = regs
+                assert st.get('patch') == tuple(n.regs), (name, t)
                 if st.get('pan') != n.pan:
                     out += ev(None, PAN_OP[n.pan]); st['pan'] = n.pan
                 note, det = self.fm_note(n.fnum)
@@ -188,6 +195,35 @@ class Port:
         out += ev(None, 0x0B, *w16(label_at))
         return bytes(out)
 
+    def patch_needs(self, name):
+        """the patch loads an FM channel needs: [(note tick, regs, earliest tick)]: before a note whose patch is not the
+        one the previous note left (the loop's first note: from both the intro's last note and the body's last),
+        anywhere from the previous note's key-off on (a legato note: only at the note itself)"""
+        lst = [n for n in self.notes[name] if n.tick < self.loops[name][0] + self.loops[name][1]]
+        L, length = self.loops[name]; end = L + length
+        need = []; first_body = next(i for i, n in enumerate(lst) if n.tick >= L)
+        for i, n in enumerate(lst):
+            regs = tuple(n.regs)
+            prev = lst[i - 1] if i else None
+            if i == first_body:
+                last_body = lst[-1]
+                if tuple(last_body.regs) != regs:            # back from the goto: load it at the body's end
+                    need.append((end, regs, last_body.off if last_body.off is not None else end, 'end'))
+                if prev is None or tuple(prev.regs) != regs:  # from the intro: before the label
+                    lo = (prev.off if prev and prev.off is not None else (prev.tick + 1 if prev else 1))
+                    need.append((n.tick, regs, lo, 'intro'))
+                continue
+            if prev is not None and tuple(prev.regs) == regs: continue
+            if prev is None: lo = 1
+            elif getattr(n, 'legato', False) or prev.off is None: lo = n.tick
+            else: lo = prev.off
+            need.append((n.tick, regs, lo, 'note'))
+        return need
+
+    def patch_plan(self, name):
+        return [(self.patch_at.get((name, t, why), t if why != 'end' else lo), regs)
+                for t, regs, lo, why in self.patch_needs(name)]
+
     def slur_ahead(self, moments, k):
         """the next moment continues this sound (ADPCM-B slide, ADPCM-A level change, FM legato note)"""
         if k + 1 >= len(moments): return False
@@ -208,6 +244,55 @@ class Port:
 
     def build(self):
         self.place_samples()
+        # KOF98 driver bug: opcode $34 (inline patch, no KOF98 song uses it) flushes the registers through $1538, a
+        # copy of $14B6 without its DI / EI around each address-data pair; a timer interrupt landing inside a pair
+        # re-arms $27 and the pair's data byte then goes to $27: timer A off, the music dead for good (measured in
+        # the brawler: frame 1104, PC $1567 / $156B with interrupts on). $243F: CALL $1538 -> CALL $14B6.
+        assert self.m1[0x243F:0x2442] == bytes([0xCD, 0x38, 0x15])
+        self.m1[0x2440:0x2442] = bytes([0xB6, 0x14])
+        self.patch_at = {}
+        for it in range(12):
+            song = self.build_once()
+            moved = self.spread_patches()
+            if not moved: break
+        self.report['heaviest_tick_writes'] = self.max_load
+        return song
+
+    def tick_loads(self, m1):
+        """writes per sequencer tick in KOF98's model of the song (both passes of the loop)"""
+        import song98, regs98
+        s = song98.Song(bytes(m1), CMD).run(ticks=2 * max(a + b for a, b in self.loops.values()) + 2)
+        tick = {}
+        for irq, t, *_ in s.out: tick[irq] = t
+        load = {}
+        for irq, p, r, v in regs98.writes(s): load[tick.get(irq, 0)] = load.get(tick.get(irq, 0), 0) + 1
+        return load
+
+    def spread_patches(self):
+        """move patch loads off ticks whose interrupt would run past the next one (KOF98 then re-enters its handler,
+        and the nested timer re-arm makes the outer handler's next port-A data byte land in $27: timer A off, the
+        music clock dead; measured in the brawler, frame 1104): latest earlier tick with room, channel silent"""
+        load = self.tick_loads(self.m1)
+        self.max_load = max(load.values())
+        moved = False
+        for name in FM:
+            if name not in self.notes: continue
+            for t, regs, lo, why in self.patch_needs(name):
+                key = (name, t, why)
+                cur = self.patch_at.get(key, t if why != 'end' else lo)
+                if load.get(cur, 0) <= BUDGET: continue
+                hi = (self.loops[name][0] - 1) if why == 'intro' else (self.loops[name][0] + self.loops[name][1] - 1 if why == 'end' else t)
+                cands = [x for x in range(max(lo, 1), min(hi, cur) + 1) if x != cur and load.get(x, 0) + PATCH_WRITES <= BUDGET]
+                if not cands:
+                    self.warn(f'{name}: patch load at tick {cur} ({load.get(cur, 0)} writes) has no lighter silent tick')
+                    continue
+                new = max(cands)
+                self.patch_at[key] = new
+                load[cur] = load.get(cur, 0) - PATCH_WRITES; load[new] = load.get(new, 0) + PATCH_WRITES
+                moved = True
+        return moved
+
+    def build_once(self):
         names = [n for n in CHAN_K if n in self.notes]
         head = bytearray(14 + 22)
         for n in names: head[CHAN_K[n]] = 1
@@ -219,7 +304,9 @@ class Port:
             body += s; addr += len(s)
         song = bytes(head) + bytes(body)
         if SONG_AT + len(song) > SONG_END: raise ValueError(f'song too long: {len(song)} bytes')
-        assert all(b == 0xFF for b in self.m1[SONG_AT:SONG_AT + len(song)])
+        if not hasattr(self, 'blank'): self.blank = bytes(self.m1[SONG_AT:SONG_END])
+        assert all(b == 0xFF for b in self.blank[:len(song)])
+        self.m1[SONG_AT:SONG_END] = self.blank
         self.m1[SONG_AT:SONG_AT + len(song)] = song
         i = CMD - 0x20
         self.m1[0x329E + 2 * i:0x329E + 2 * i + 2] = w16(SONG_Z80)

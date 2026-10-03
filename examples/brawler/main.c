@@ -712,6 +712,7 @@ void game_enter(uint8_t request) {
       for (k = 0; k < BC_COUNT; k++) PAL_setPalette(2 + k, portrait_pal[k]); }   /* fix palettes 2-15: portraits */
     shadow_init();
     dbg_init();
+    snd_reset();                                             /* the BIOS reset the sound CPU before handing over */
     if (request == 3) title_start(); else attract_start();
     depth_sort();
     draw();
