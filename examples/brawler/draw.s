@@ -27,7 +27,7 @@
     .equ    F_SHOWN_FACING, 58
     .equ    F_FRAME_OVR, 60
     .equ    F_NCOLS, 92
-    | bchar_t / banim_t (6 bytes) / bstep_t (12) / bframe_t (6) / bpart_t (14)
+    | bchar_t / banim_t (6 bytes) / bstep_t (14) / bframe_t (6) / bpart_t (14)
     .equ    CH_FRAMES, 10
     .equ    CH_ANIMS, 14
     .equ    CH_TILE_HI, 46
@@ -63,9 +63,8 @@
     move.b  F_STEP(%a2), %d0
     add.w   %d0, %d0
     move.w  %d0, %d1
-    add.w   %d0, %d0
-    add.w   %d1, %d0
-    add.w   %d0, %d0                | step * 12
+    lsl.w   #3, %d0
+    sub.w   %d1, %d0                | step * 14
     move.w  (%a1,%d0.w), %d0        | bstep_t.frame (offset 0); upper word of d0 is 0
 .Lcf_done\@:
     .endm

@@ -141,6 +141,9 @@ so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so i
   to the body line (`export_bm.py`): far normals land point blank; and normals reach at least 96 px forward (`REACH`,
   specials keep KOF's shape), so every hit of a route reaches the same enemies and a group takes the whole route
   together (KOF's boxes run 32-148 px: an enemy behind the first was only reached by the longer hits).
+- Moves inside attacks are KOF's own: animation command $FB [00][x:16][00 00] moves the fighter as the next step starts
+  (rom96.parse_anim -> bstep_t.dx, forward +). C+D travels 85 px for Terry, 80 Ralf, 56 Chang, 26 Mai: the data's sums
+  equal the travel measured in KOF98 under MAME (dummy far away). 19 animations of the roster have moves.
 - Jump: 3/4 of KOF's take-off speed (56 % of the height); KOF's full jump leaves the screen.
 - Throws (`export_bm.py`): per video frame, thrower frame + offset, victim posture + offset + facing + front flag.
   Postures are the portable names of tools/kof96/victim_poses96/98/99.json ('posture:angle', 28 used by this roster),

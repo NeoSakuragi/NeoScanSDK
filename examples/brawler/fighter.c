@@ -48,9 +48,15 @@ const cnode_t COMBO[] = {
 };
 
 /* ---- animation player ------------------------------------------------------------------------------------- */
+static void clamp(fighter_t *f);
+static void step_move(fighter_t *f) {                         /* KOF's per-step move ($FB): attacks travel as in KOF */
+    int8_t dx = f->ch->anims[f->anim].steps[f->step].dx;
+    if (dx && (f->state == S_ATTACK || f->state == S_AIR_ATTACK)) { f->x += f->facing > 0 ? FIX(dx) : -FIX(dx); clamp(f); }
+}
 static void play(fighter_t *f, uint8_t anim) {
     f->anim = anim; f->step = 0; f->anim_done = 0;
     f->tick = f->ch->anims[anim].steps[0].ticks;
+    step_move(f);
 }
 static void play_if_new(fighter_t *f, uint8_t anim) { if (f->anim != anim) play(f, anim); }
 static void anim_tick(fighter_t *f) {
@@ -60,6 +66,7 @@ static void anim_tick(fighter_t *f) {
     else { f->anim_done = 1; if (an->hold) return; f->step = 0; }   /* loops report one pass done too */
     f->tick = an->steps[f->step].ticks;
     if (an->steps[f->step].flags & 4) f->hit_mask = 0;              /* multi-hit normals: a new hit window */
+    step_move(f);
 }
 const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
 void fighter_play(fighter_t *f, uint8_t anim) { play(f, anim); }

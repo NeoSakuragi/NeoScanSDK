@@ -168,3 +168,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
        dummies: every hit lands on both together, hit counts = the data's.
 - [x] 37. One hit sound per attack per frame, however many enemies it hits (each victim queued its own: 3 enemies = 3
        sounds). Harness: 1 / 2 / 3 enemies hit at once -> 1 sound each time; sparks stay one per victim.
+- [x] 38. Attacks travel as in KOF (Bruno: C+D felt like push-back baked into the animation): KOF moves the fighter with
+       animation command $FB (x, before a step), which the parser skipped, so every normal played on the spot. Now
+       parsed into bstep_t.dx and applied as the step starts. KOF98 MAME travel = data sum for Terry 85, Ralf 80, Chang
+       56, Mai 26 px; our game: Terry's C+D 85 px.
