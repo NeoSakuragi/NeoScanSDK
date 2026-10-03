@@ -91,6 +91,129 @@ CAST99 = ['k_dash', 'maxima', 'benimaru', 'shingo', 'terry', 'andy', 'joe', 'mai
           'leona', 'ralf', 'clark', 'whip', 'athena', 'kensou', 'chin', 'bao', 'king', 'mary', 'kasumi', 'xiangfei', 'kim',
           'chang', 'choi', 'jhun', 'kyo', 'kyo_1', 'iori', 'krizalid', 'krizalid_2', 'kyo_2']
 
+def step_boxes(m, cid, sp, slot_of, raw):
+    """per row of a capture, (boxes, [state, raw index, step flags]): the step P1 was on (captured state + raw index =
+    object +$74 / 6) gives its hurt boxes and, while the step is active (KOF step flag $0100), the attack box: the
+    last one stays live on every active step, a box command only comes when it changes, and it stays in the object
+    across states. A box on an inactive step is not an attack (Geese's Jaei-ken: the $0630 step after the dash, the
+    game's three hits are the dash and the two $07xx steps). A step not found (a capture without steps) falls back to
+    the frame's boxes in the move's animations (raw), flags -1. Row step: [state, raw index, flags, P1's hit-stop
+    counter (+$124 high byte, $FF none), P1's live box (+$90: type x y w h), P2's state, height, life, x from P1's
+    start] (None: a
+    capture without them)."""
+    out, live, parsed = [], None, {}
+    for (f, x, h, objs), ps in zip(sp['rows'], sp.get('steps') or [[None, None]] * len(sp['rows'])):
+        s_, ri = ps[0], ps[1]
+        extra = [ps[5], ps[4], ps[2], ps[6], ps[3], ps[7]] if len(ps) > 7 else [0xFF, None, None, None, None, None]
+        if s_ is not None and s_ not in parsed:
+            try: parsed[s_] = {st_[4]: st_ for st_ in rom96.parse_anim(m, rom96.anim_addr(m, cid, slot_of(cid, s_)))[0]}
+            except Exception: parsed[s_] = {}
+        step = parsed.get(s_, {}).get(ri)
+        if step is None:
+            out.append((raw.get(f, {}), [s_, ri, -1] + extra)); continue
+        b = {f'{k:02X}': v for k, v in step[3].items()}
+        atk = {k: v for k, v in b.items() if k[0] == '1'}
+        hurt = {k: v for k, v in b.items() if k[0] != '1'}
+        if atk: live = atk
+        atk = live if step[2] & 0x100 and live else {}
+        out.append(({**hurt, **atk}, [s_, ri, step[2]] + extra))
+    return out
+
+CONT_HIT_ROWS = 4          # a continuation's hit stays live this many rows (the brawler's victim may have moved a little)
+
+def special_entry(m, cid, sp, add, slot_of, game):
+    """one captured special -> its script (export layout). Rows: [frame, x from start, height, objects]; row_boxes /
+    row_steps per row (step_boxes); marks per row, letters: 'c' contact (the move's grab reaches the opponent, no
+    damage), 'j' a hit here goes on to the continuation, 'h' a hit of the continuation (opens a new hit). cont = 0, or
+    the first row of the hit-confirmed continuation. version: 'hit' (the script is a capture where the move reached
+    the opponent: the close-range one when it landed hits, or a far one a long rush still reached; the game's contact
+    freezes are in it, export_bm.special_play turns them into hit markers), 'whiff', or 'whiff+continuation'.
+
+    Hit-confirmed continuations: when the move's close-range capture (sp['close'], P2 in reach) goes through special
+    states its whiff does not (Geese's Jaei-ken: dash 146, then 148 149 on contact; Kyo's Kototsuki You: run 135, then
+    grab 137 138 140), the script is the whiff (all of it: a miss plays as in the game) followed by the close capture
+    from its first different state on (x relative to the contact point). The fighter jumps to `cont` when it hits
+    during the whiff, before its last state (the recovery); reaching `cont` without a hit ends the move. The
+    continuation's hits are the game's: one per drop of P2's life in the close capture, live on the row before the
+    drop for CONT_HIT_ROWS rows (not counting the game's hit-stop rows), the box of the step if active, else the object's live box at that row (+$90; Kyo's
+    explosion is dealt by code while the victim is held, its box sits on the victim). A whiff without any attack box
+    before its recovery (a running grab: KOF tests contact by code) gets the continuation's first box as contact box
+    (inference: the reach of KOF's own contact test is not decoded)."""
+    lo = 117 if game == 'kof96' else 128
+    def entry_states(e, n):
+        st = e['states']
+        return [[s, (st[k + 1][0] if k + 1 < len(st) else n) - t, slot_of(cid, s)] for k, (t, s) in enumerate(st)]
+    def raw_boxes(states):
+        raw = {}                                    # boxes per ROM frame in the move's own animations
+        for s_, d_, sl in states:
+            try: steps_, _ = rom96.parse_anim(m, rom96.anim_addr(m, cid, sl))
+            except Exception: continue
+            for t, fi, fl, b, ri, _ in steps_: raw.setdefault(fi, {f'{k:02X}': v for k, v in b.items()})
+        return raw
+    H, k, version, shape = sp.get('close'), None, 'whiff', None   # shape: the whiff's (travel, height, objects)
+    if H:
+        wp = [s for t, s in sp['states'] if lo <= s < 256]
+        hs = [(t, s) for t, s in H['states'] if lo <= s < 256]
+        k = next((i for i, (t, s) in enumerate(hs) if i >= len(wp) or wp[i] != s), None)
+        if not k:                                   # no continuation: the hit version is the script when it hit
+            shape = (max(r[1] for r in sp['rows']), max(r[2] for r in sp['rows']), any(r[3] for r in sp['rows']))
+            if game_hits(H): sp = dict(sp, rows=H['rows'], steps=H['steps'], states=H['states'])
+            H = None
+    if game_hits(sp): version = 'hit'               # (a long rush also reached P2 in the far capture)
+    states = entry_states(sp, len(sp['rows'])); raw = raw_boxes(states)
+    rows = [list(r) for r in sp['rows']]; sb = step_boxes(m, cid, sp, slot_of, raw)
+    marks = [''] * len(rows); cont = 0
+    if H:
+        h0 = hs[k][0]                           # first row of the continuation in the close capture
+        hstates = entry_states(H, len(H['rows'])); hraw = raw_boxes(hstates)
+        hsb = step_boxes(m, cid, H, slot_of, hraw)
+        bx = H['rows'][h0 - 1][1]               # contact point: x of the row before
+        last = max(t for t, s in sp['states'] if lo <= s < 256)   # the whiff's recovery state starts here
+        if not any(kk[0] == '1' for b, _ in sb[:last] for kk in b):
+            first = next((b for b, _ in hsb[h0:] if any(kk[0] == '1' for kk in b)), None)
+            if first:
+                fa = {kk: v for kk, v in first.items() if kk[0] == '1'}
+                for i in range(last):
+                    sb[i] = ({**sb[i][0], **fa}, sb[i][1]); marks[i] = 'c'
+        for i in range(last): marks[i] += 'j'
+        cont = len(rows)
+        life = [ps[3] for ps in H['steps']]
+        hit_rows = {i - 1 for i in range(max(h0, 1), len(life)) if life[i] < life[i - 1]}
+        live_of = {}                                # row -> the hit row whose box is live on it (the hit row,
+        for j in sorted(hit_rows):                  # then CONT_HIT_ROWS - 1 rows past the game's hit-stop)
+            i, n = j, 0
+            while i < len(H['rows']) and n < CONT_HIT_ROWS:
+                live_of[i] = j; n += i == j or H['steps'][i][5] == 0xFF; i += 1
+        crow, cmark = [], []
+        for i in range(h0, len(H['rows'])):
+            f, x, h, objs = H['rows'][i]
+            b, st_ = hsb[i]
+            atk = {kk: v for kk, v in b.items() if kk[0] == '1'}
+            hurt = {kk: v for kk, v in b.items() if kk[0] != '1'}
+            if i in live_of:
+                j = live_of[i]
+                if not atk:
+                    t_, bxx, byy, bw, bh = H['steps'][j][4]
+                    atk = {f'{0x10 | t_ if t_ < 16 else 0x100 | t_:02X}': [bxx, byy, bw, bh]}
+            else: atk = {}
+            crow.append([f, x - bx, h, [[of, ox - bx, oh, same] for of, ox, oh, same in objs]])
+            sb.append(({**hurt, **atk}, st_)); marks.append('h' if i in hit_rows else '')
+        rows += crow
+        states += [[s, d, sl] for s, d, sl in entry_states(H, len(H['rows'])) if s in {s_ for t_, s_ in hs[k:]}]
+        raw.update({f: b for f, b in hraw.items() if f not in raw})
+    script = [[add(f), x, h, [[add(of), ox, oh, same] for of, ox, oh, same in objs]] for f, x, h, objs in rows]
+    fb = {add(f): raw[f] for f, x, h, objs in rows if f in raw}   # boxes of the frames the script shows
+    return {'slot': sp['cmd'], 'input': sp['input'], 'condition': sp['condition'], 'button': sp['button'],
+            'state': sp['state'], 'states': states, 'script': script, 'frame_boxes': fb,
+            'row_boxes': [b for b, _ in sb], 'row_steps': [st_ for _, st_ in sb], 'marks': marks, 'cont': cont,
+            'game_hits': game_hits(H) if H else game_hits(sp) if sp.get('close') or version == 'hit' else -1,
+            'version': 'whiff+continuation' if cont else version, 'shape': shape}
+
+def game_hits(e):
+    """hits a capture landed: drops of P2's life (object +$138) while the move plays"""
+    life = [ps[3] for ps in e.get('steps', []) if len(ps) > 3]
+    return sum(1 for i in range(1, len(life)) if life[i] < life[i - 1])
+
 def export(names, outdir, game='kof96', only=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials"""
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
@@ -180,17 +303,7 @@ def export(names, outdir, game='kof96', only=None):
     for name in (names if only is None or 'specials' in only else []):
         cid = cast.index(name); add = adders[name]; sps = []
         for sp in specials96.load(m, cid):
-            st = sp['states']
-            states = [[s, (st[k + 1][0] if k + 1 < len(st) else len(sp['rows'])) - t, slot_of(cid, s)] for k, (t, s) in enumerate(st)]
-            script = [[add(f), x, h, [[add(of), ox, oh, same] for of, ox, oh, same in objs]] for f, x, h, objs in sp['rows']]
-            raw = {}                                    # boxes per ROM frame in the move's own animations ...
-            for s_, d_, sl in states:
-                try: steps_, _ = rom96.parse_anim(m, rom96.anim_addr(m, cid, sl))
-                except Exception: continue
-                for t, fi, fl, b, ri, _ in steps_: raw.setdefault(fi, {f'{k:02X}': v for k, v in b.items()})
-            fb = {add(f): raw[f] for f, x, h, objs in sp['rows'] if f in raw}   # ... for the frames the script shows
-            sps.append({'slot': sp['cmd'], 'input': sp['input'], 'condition': sp['condition'], 'button': sp['button'],
-                        'state': sp['state'], 'states': states, 'script': script, 'frame_boxes': fb})
+            sps.append(special_entry(m, cid, sp, add, slot_of, game))
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not
             out['characters'][name]['commands'] = [commands96.notation(p) for k, p in

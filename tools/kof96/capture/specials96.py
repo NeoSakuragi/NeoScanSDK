@@ -4,7 +4,8 @@ character (state 'vs', P1 swapped in as for throws; P2 = Yuri knocked down first
 Each try: positions reset (P1 x $100, P2 x $260), timer 59, P1 life 24 (red life: supers allowed), P2 life full;
 see motion() for the input timing. Every non-charge command is also tried in the air (straight jump, motion 6 frames
 after take-off). Recorded with record96.lua (fighters + P1-owned pool objects).
-    python3 capture/specials96.py ID [ID ...]   -> capture/specials/<id>.txt + <id>.json (tries)"""
+    python3 capture/specials96.py ID [ID ...]   -> capture/specials/<id>.txt + <id>.json (tries)
+    python3 capture/specials96.py --passes close ID ...   -> <id>_close: ground commands next to P2 (hit versions)"""
 import json, os, sys, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(HERE, '..'))
 sys.path.insert(0, os.path.join(HERE, '..', '..', 'kof95', 'capture'))
@@ -110,7 +111,8 @@ def run(cid, m, T=None, tag='', close=False, ex=False):
         pokes = [f'2:108238=0,108239=1,108250=0,108251=1,10A846={cid:02X},10A847={cid:02X},10A848={cid:02X}']
         for t, tr in enumerate(T):
             s = START + GAP * t; tr['start'] = s
-            pokes.append(f'{s - 3}:108118=01,108119=00,108318=02,108319=60,10A836=59,108238=0,108239=18,108250=0,108251=18,'
+            x1, x2 = ('80', 'B0') if close else ('00', '60')          # close pass: P1 x $180, P2 x $1B0, as KOF98's
+            pokes.append(f'{s - 3}:108118=01,108119={x1},108318={"01" if close else "02"},108319={x2},10A836=59,108238=0,108239=18,108250=0,108251=18,'
                          f'108438=0,108439=67,108450=0,108451=67')
             for off, n, keys in tr['events']:
                 if keys: spec.append(f'p1 {s + off} {n} {keys}')

@@ -84,7 +84,7 @@ def build(d):
         for m, a in ch['anims'].items():
             anims[m] = {'slot': a['slot'], 'hold': a['mode'] == 'hold', **({'states': a['states']} if 'states' in a else {}),
                         'steps': [[s['frame'], s['ticks'],
-                                   [[int(k, 16) >> 4, signed(b[0]), signed(b[1]), b[2], b[3]] for k, b in s['boxes'].items()]]
+                                   [[int(k[0], 16), signed(b[0]), signed(b[1]), b[2], b[3]] for k, b in s['boxes'].items()]]
                                   for s in a['steps']]}
         pal = lambda p: [[f'#{r:02x}{g:02x}{b:02x}', f'{w:04X}'] for w, (r, g, b) in ((w, decode_color(w)) for w in p)]
         hexpal = lambda p: [f'#{r:02x}{g:02x}{b:02x}' for r, g, b in (decode_color(w) for w in p)]

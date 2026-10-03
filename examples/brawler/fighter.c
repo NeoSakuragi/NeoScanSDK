@@ -270,7 +270,12 @@ static void throw_update(fighter_t *f) {
  * D: the fighter's first ground special, forward+D (any direction held: the fighter faces it) the second (export_bm.py
  * picks them), played from the per-frame script captured in the game: fighter frame + offset, body attack box (KOF's,
  * from the move's own animation) and up to two objects (projectiles), each a pool entity with its frame, offset, facing
- * and sprite bounds as attack box. A new hit window (box after a row without) lets the same targets be hit again. */
+ * and sprite bounds as attack box. Per row hit bits (export_bm special_rows): a row opening a new hit lets the same
+ * targets be hit again, with its damage (SPECIAL_DAMAGE split over the move's hits) and the victim's reaction measured
+ * in the game (bits 5-7: R_HEAVY keeps it on the ground until the part that ejects it); contact rows (a running grab's
+ * reach) only catch the victim. Hit-confirmed continuations (bspec_t.cont, one code path): a hit on a row with bit 16
+ * jumps to row `cont` (Geese's Jaei-ken follow-up, Kyo's grab + explosion), placed from where the fighter is; playing
+ * into `cont` without a hit ends the move (the whiff). Objects hit with their own measured reaction (bsobj_t.react). */
 #define SPECIAL_DAMAGE 8
 fighter_t projectiles[NPJ];
 uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;
@@ -298,7 +303,8 @@ static void special_end(fighter_t *f) {
 }
 static void start_special(fighter_t *f, uint8_t k) {
     if (f->team) stat_specials++;
-    f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0;
+    f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
+    f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN;
     f->proj[0] = proj_alloc(f); f->proj[1] = proj_alloc(f);
     enter(f, S_SPECIAL);
 }
@@ -313,13 +319,24 @@ static void special_update(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_id];
     const bspec_row_t *r;
     uint8_t k;
+    if (sp->cont && f->state_t <= sp->cont + 1) {
+        if (f->landed && (f->spec_prev_hit & 16)) {              /* it hit: on to the continuation, from here */
+            f->state_t = sp->cont + 1; f->throw_x0 = f->x;
+        } else if (f->state_t == sp->cont + 1) f->state_t = sp->nrows + 1;   /* a whiff: the move ends */
+    }
     if (f->state_t > sp->nrows) { special_end(f); to_neutral(f, 0); return; }
     r = &sp->rows[f->state_t - 1];
     if (f->state_t <= sp->inv_rows && f->inv < 2) f->inv = 2;    /* invincible move: from its first frame to its last hit */
     f->frame_ovr = r->frame;
     f->x = f->throw_x0 + dir_mul(f->facing, FIX(r->x)); f->y = r->y > 0 ? FIX(r->y) : 0; clamp(f);
-    if (r->hit && !f->spec_prev_hit) f->hit_mask = 0;            /* a new hit window */
-    f->spec_prev_hit = r->hit; f->spec_atk = r->hit ? &r->atk : 0;
+    if (r->hit & 2) { f->hit_mask = 0; f->spec_dmg = r->dmg; f->spec_react = r->hit >> 5; }   /* a new hit */
+    if ((r->hit & 4) && f->landed && f->target && (f->target->state == S_KNOCKDOWN || f->target->state == S_HITSTUN)) {
+        fighter_t *v = f->target;                                /* between its hits the move holds its target where */
+        v->x = f->x + dir_mul(f->facing, FIX(r->vx)); v->z = f->z;   /* the game's opponent was (launched: kept 1 px */
+        v->y = FIX(r->vy ? r->vy : v->state == S_KNOCKDOWN);             /* up, a knockdown at 0 would land) */
+        v->vx = v->vy = v->vz = 0; clamp(v);
+    }
+    f->spec_prev_hit = r->hit; f->spec_atk = (r->hit & 1) ? &r->atk : 0;
     for (k = 0; k < 2; k++) {
         fighter_t *p = f->proj[k];
         const bsobj_t *o = &r->obj[k];
@@ -330,6 +347,7 @@ static void special_update(fighter_t *f) {
         p->x = f->throw_x0 + dir_mul(f->facing, FIX(o->x)); p->y = o->y > 0 ? FIX(o->y) : 0; p->z = f->z;
         p->facing = o->same ? f->facing : -f->facing;
         p->spec_atk = o->box.w ? &o->box : 0;
+        p->spec_prev_hit = 0; p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = o->react ? o->react - 1 : R_KNOCKDOWN;
     }
 }
 
@@ -450,8 +468,23 @@ static int16_t box_x(const fighter_t *f, int8_t bx) { return INT(f->x) + (f->fac
 static uint8_t grabbable(const fighter_t *v) {
     return !v->inv && !v->y && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
 }
+#define PUSH_DX 32                /* a special pushes an opponent standing in its path to keep it this far ahead (KOF's push
+                                     boxes: the captured opponent stood 27-49 px ahead at the moves' first impacts) */
 void combat(fighter_t **fs, uint8_t n) {
     uint8_t i, j;
+    for (i = 0; i < n; i++) {                                    /* specials push who stands in their path: a rush */
+        fighter_t *a = fs[i];                                    /* reaches its hit as in the game, not past it */
+        if (a->state != S_SPECIAL || a->y) continue;
+        for (j = 0; j < n; j++) {
+            fighter_t *v = fs[j];
+            int16_t d, dz;
+            if (v->team == a->team || v->y || (v->state != S_IDLE && v->state != S_WALK && v->state != S_HITSTUN &&
+                v->state != S_ATTACK && v->state != S_SPECIAL)) continue;
+            dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
+            d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
+            if (d > -8 && d < PUSH_DX) { v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v); }
+        }
+    }
     for (i = 0; i < n; i++) {                                    /* throw impacts: the victim's teammates close to it go down */
         fighter_t *a = fs[i], *v = a->held;
         if (!a->impact) continue;
@@ -527,7 +560,11 @@ void combat(fighter_t **fs, uint8_t n) {
                     if (rc < R_KNOCKDOWN) sfx = hit_sound(c->anim);
                     if (!sounded++) snd_sfx(sfx);
                     fighter_hit(a, v, dmg, rc, c->push);
-                } else { if (!sounded++) snd_sfx(sfx); fighter_hit(a, v, SPECIAL_DAMAGE, R_KNOCKDOWN, 0); }
+                } else if (a->spec_prev_hit & 8) {       /* a running grab's reach: it catches, the continuation hits */
+                    a->hit_mask |= 1 << v->idx; a->landed = 1; a->target = v; v->freeze = HITSTOP;
+                    if (v->state == S_WALK) to_neutral(v, 0);
+                    continue;
+                } else { if (!sounded++) snd_sfx(sfx); fighter_hit(a, v, a->spec_dmg, a->spec_react, 0); }
                 spark_hit(sx, sy, sfx >= SFX_HIT_C, a->facing);  /* KOF98: A / B small, C / D / C+D big */
             }
         }

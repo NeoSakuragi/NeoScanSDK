@@ -68,7 +68,10 @@ than that step's ticks). Supers are recognised by the shared super flash (table 
 is also tried in the air. Result: 293 distinct moves (21 aerial), 6-15 per fighter. Not covered: command grabs on a
 close opponent (tries are made at distance, so grabs show their whiff), moves that need a condition the tries don't
 create (e.g. after a hit, or MAX mode). Checked against MAME screenshots: Kyo's Orochinagi body really is drawn in the
-flame palette (frames 738-741).
+flame palette (frames 738-741). Close pass (`--passes close`, KOF96 too since 2026-10-04: P1 x $180, P2 x $1B0): the hit
+versions; `specials96.load` attaches a close try of a kept move as its `close`. Each row also records P1's animation
+step (+$74 / 6), live attack box (+$90: type x y w h), hit-stop counter (+$124 high byte: counts down from the hit to 0,
+$FF none; measured in KOF96/98/99, starts where P2's life drops), P2's state, life (+$138), height and x.
 
 ## Throws
 **Victim placement `$1AF72`** (helper `$1B062`): the victim is moved to the thrower and offset by entry

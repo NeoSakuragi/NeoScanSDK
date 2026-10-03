@@ -76,7 +76,7 @@ typedef struct fighter {
     uint8_t  throw_dealt, impact; /* throw damage dealt at its impacts; an impact this frame (combat() resolves it) */
     int32_t  throw_x0;
     struct fighter *target;       /* last opponent this fighter hit or grabbed (the HUD shows its life) */
-    uint8_t  spec_id, spec_prev_hit;
+    uint8_t  spec_id, spec_prev_hit;   /* spec_prev_hit: hit bits of the special's current row (bspec_row_t.hit) */
     const bbox_t *spec_atk;       /* special / projectile: attack box of the current script row (0 = none) */
     struct fighter *proj[2];      /* projectiles of the special playing */
     struct fighter *owner;        /* projectile: who threw it */
@@ -85,6 +85,7 @@ typedef struct fighter {
     uint8_t  chain_node, chain_t; /* Final Fight chain: the route step that hit, frames left to continue it from neutral */
     uint8_t  spec_buf;            /* D pressed during a normal: 0x80 | BS_* (0xFF: none), a special cancel once it hits */
     uint8_t  still;               /* AI: frames walking without a walk intent (the walk holds AI_IDLE_DELAY frames) */            /* thrower X when the throw started (script X is relative to it) */
+    uint8_t  spec_dmg, spec_react; /* special: damage and victim reaction (R_*) of the hit window open (bspec_row_t) */
 } fighter_t;
 
 extern const cnode_t COMBO[];

@@ -86,11 +86,30 @@ captured ground specials by what the body does (objects while it stays put / for
 light buttons first; a fighter without a move for a role plays the nearest one it has. Terry: Power Wave / Burn Knuckle /
 Rising Tackle; Ryo:
 Ko-ou-ken / 624B / Ko-hou. A special pressed during a normal (even in its hit-stop) cancels it once it has hit. They play from the per-frame scripts captured in the games (tools/kof96/specials96.py): fighter
-frame + offset; body attack box = KOF's box of that frame in the move's own state animations (export96 `frame_boxes`),
-with the beat 'em up reach; up to two objects per row. Objects are `fighter_t` entities from a pool of 4
-(`projectiles[]`), so the renderer, depth sort, line guard and hit test are the same code; an object's attack box is
-its sprite bounds. A box after a row without one opens a new hit window (multi-hit moves). Hit out of a special: its
-objects go.
+frame + offset, up to two objects per row. Objects are `fighter_t` entities from a pool of 4 (`projectiles[]`), so the
+renderer, depth sort, line guard and hit test are the same code; an object's attack box is its sprite bounds (none for
+effects that hit nothing in the game: Burn Knuckle's flames). Hit out of a special: its objects go.
+
+How a script hits (export96 `special_entry`, export_bm `special_play` / `special_rows`; `tools/brawler/check_specials.py`
+prints all of it per special):
+- Body attack box per row = the box of the KOF animation step the fighter was on in the capture (state + step from
+  object +$74), live while the step is active (flag $0100, the last box command stays live), with KOF's attack type
+  0-63 (keys '1x' / '1xx': types 32-63 used to read as hurt boxes, so Krauser's dropkick, Ryo's Ko-hou never hit).
+- Hit version: when the move's close-range capture (opponent 48 px ahead) landed hits, that capture is the script.
+  KOF's contact freezes (object +$124 hit-stop counter) are hit markers, not movement: frozen rows are dropped, the row
+  before a freeze whose opponent's life drops is an impact. A run of box rows is live only when the game hit inside it,
+  opening a hit at its start and at each later impact, so a move hits as often as in the game at point blank (Terry's
+  Rising Tackle 7, Mr. Big's 63214D 6). Whiff scripts (no hit captured) keep the step rule of the normals.
+- Reaction per hit, measured after each impact from the opponent's state / height: grounded (heavy reel) or ejected
+  (knockdown, launch at 48 px+); defaults: last hit ejects, earlier ones reel. Damage 8 split over the hits.
+- Between its first and last hit the target is carried where the game's opponent was (KOF's push boxes and juggles),
+  and a special pushes an opponent standing in its path 32 px ahead (`PUSH_DX`, measured 27-49 px at the first impacts).
+- Hit-confirmed continuations (`bspec_t.cont`): when the close capture goes through states the whiff doesn't, the script
+  is the whiff + the continuation; a hit on a whiff row before its recovery jumps there, reaching it without a hit ends
+  the move. Geese's Jaei-ken: dash, then two more hits (3); Kyo's Kototsuki You (up+D, 624B): the run catches on
+  contact (KOF tests contact by code: the continuation's first box stands in for it), blow, explosion.
+- Counter stances are not picked (their close capture stays put with a live box and lands nothing: Geese's
+  Atemi-nage, Yamazaki's 426, Billy's 214).
 
 ## Enemies (`ai.c`)
 Same intents as a joystick, so one state machine runs everybody. Each enemy targets the nearest player and keeps to its

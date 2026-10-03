@@ -157,8 +157,13 @@ def parse_anim(m, addr, limit=300):
             if b0 == 0xFB:                         # move: signed x (byte 1 and bytes 4-5 are 0 in every KOF98 normal)
                 v = m.u16(a + 2); dx += v - 0x10000 if v & 0x8000 else v
             if b0 == 0xFD:                         # box: byte 1 bits 0-1 = slot (object +$90 + slot*5), bits 2-7 = type;
-                slot = b1 & 3                      # slot 0 = attack box (types 12-14, live on the next step), 1-3 hurtboxes
-                key = 0x10 | (b1 >> 2) if slot == 0 else 0x30 + slot      # stored with KOF95-style keys (1x attack, 3x hurt)
+                slot = b1 & 3                      # slot 0 = attack box (live on the next step), 1-3 hurtboxes
+                # stored with KOF95-style keys: first hex digit 1 = attack, 3 = hurt. The attack type runs 0-63
+                # (KOF96/98/99 census 2026-10-03): types 0-15 keep their two-digit keys '10'-'1F', types 16-63 get
+                # three digits '110'-'13F' (0x100 | type; 0x10 | type read types 32-63 as hurt keys '3x': Krauser's
+                # dropkick, Ryo's Ko-hou never hit). Tell kinds apart by the key's first character
+                t = b1 >> 2
+                key = (0x10 | t if t < 16 else 0x100 | t) if slot == 0 else 0x30 + slot
                 (attack if slot == 0 else boxes)[key] = [m.u8(a + 2), m.u8(a + 3), m.u8(a + 4), m.u8(a + 5)]
             continue
         steps.append((b0, m.u16(a + 2), m.u16(a + 4), {**boxes, **attack}, i, dx)); attack = {}; dx = 0
