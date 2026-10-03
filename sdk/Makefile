@@ -1,7 +1,7 @@
 CC      = m68k-linux-gnu-gcc
 AS      = m68k-linux-gnu-gcc
 AR      = m68k-linux-gnu-ar
-CFLAGS  = -m68000 -O2 -ffreestanding -nostdlib -Iinclude -Wall
+CFLAGS  = -m68000 -O2 -ffreestanding -nostdlib -Iinclude -Wall -MMD -MP   # -MMD: header changes rebuild the objects
 ASFLAGS = -m68000 -nostdlib
 
 SRCS    = src/neo_palette.c src/neo_sprite.c src/neo_vblank.c src/neo_anim.c src/neo_input.c src/neo_fix.c src/neo_sound.c src/neo_bullet.c
@@ -20,7 +20,9 @@ lib/crt0.o: boot/crt0.s
 src/%.o: src/%.c
 	$(CC) $(CFLAGS) -Isrc -c $< -o $@
 
+-include $(OBJS:.o=.d)
+
 clean:
-	rm -f $(OBJS) lib/libneoscan.a lib/crt0.o
+	rm -f $(OBJS) $(OBJS:.o=.d) lib/libneoscan.a lib/crt0.o
 
 .PHONY: all clean

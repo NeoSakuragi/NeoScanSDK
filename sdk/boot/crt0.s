@@ -59,7 +59,7 @@ _start:
     .word   0x4EF9
     .long   player_start        /* PLAYER_START ($128-$12D) */
     .word   0x4EF9
-    .long   stub_rts            /* DEMO_END ($12E-$133) */
+    .long   demo_end            /* DEMO_END ($12E-$133) */
     .word   0x4EF9
     .long   stub_rts            /* COIN_SOUND ($134-$139) */
 
@@ -89,18 +89,89 @@ stub_rts:
     rts
 
     .align  2
+| PLAYER_START: the BIOS calls it (from SYSTEM_IO) when a player presses START with a credit. BIOS_CREDIT_DEC +
+| CREDIT_CHECK keep the players who have a credit; the credit itself is already taken (measured with Unibios 4.0: an
+| extra CREDIT_DOWN took two; to recheck with an SNK MVS BIOS). USER_MODE = 2 (game); who started -> bios_start
+| (C: extern volatile uint8_t bios_start).
+| The game first filters the request (game_start_accept, weak, default all): a player it refuses (already playing, a
+| screen where nobody may join) gets its START_FLAG bit cleared, and the BIOS keeps that credit.
 player_start:
-    moveb   0x10FD82, %d0       /* Read credits */
-    beq.s   .Lno_credits
-    subib   #1, 0x10FD82        /* Decrement credit (BCD) */
-    moveb   #2, 0x10FDAF        /* USER_MODE = 2 (game mode) */
-.Lno_credits:
+    moveml  %d0-%d7/%a0-%a6, -(%sp)
+    moveq   #0, %d0
+    moveb   0x10FDB4, %d0       /* BIOS_START_FLAG: bit 0 P1, bit 1 P2 */
+    movel   %d0, -(%sp)
+    jsr     game_start_accept   /* C: uint8_t game_start_accept(uint8_t flags) */
+    addql   #4, %sp
+    andb    0x10FDB4, %d0
+    moveb   %d0, 0x10FDB4
+    clrl    0x10FDB0            /* BIOS_CREDIT_DEC1-4 */
+    tstb    %d0
+    beq.s   3f
+    btst    #0, %d0
+    beq.s   1f
+    moveb   #1, 0x10FDB0
+1:  btst    #1, %d0
+    beq.s   2f
+    moveb   #1, 0x10FDB1
+2:  jsr     0xC00450            /* CREDIT_CHECK: clears the START_FLAG bits of players short of credits */
+    moveb   0x10FDB4, %d0
+    beq.s   3f
+    orb     %d0, bios_start
+    moveb   #2, 0x10FDAF        /* USER_MODE = 2 (game) */
+3:  moveml  (%sp)+, %d0-%d7/%a0-%a6
     rts
 
+| DEMO_END: the BIOS calls it (from SYSTEM_IO) when the attract must stop (a coin went in). It does not expect it back:
+| returning left the game inside SYSTEM_IO for good (measured with Unibios 4.0). So the demo ends here: control goes
+| back to the BIOS, which then calls USER with request 3 (title). bios_demo_end is kept for the game to read.
+demo_end:
+    moveb   #1, bios_demo_end
+    bra     SYS_return
+
+| SYS_return (C: void SYS_return(void)): hand control back to the BIOS (end of the demo, game over). USER_MODE 0 unless
+| a game is still on; the BIOS resets the stack.
+    .global SYS_return
+SYS_return:
+    movew   #0x2700, %sr
+    clrb    game_active
+    andib   #0x7F, 0x10FD80     /* the BIOS handles vblank again */
+    jmp     0xC00444            /* SYSTEM_RETURN */
+
+| game_enter (C: void game_enter(uint8_t request)): called on USER request 2 (demo) and 3 (title) before the frame loop.
+| Weak default: game_init (the old behaviour: the game starts at once). A game with an attract / title defines its own.
+    .weak   game_enter
+game_enter:
+    jmp     game_init
+
+    .weak   game_start_accept
+game_start_accept:
+    movel   4(%sp), %d0
+    rts
+
+| Software DIP table (the BIOS's game settings menu; the chosen values land in BIOS RAM $10FD84: +0/+2 timers,
+| +4/+5 counters, +6.. list settings). Layout: 16-byte name, 2 + 2 timer bytes ($FFFF unused), 2 counter bytes ($FF
+| unused), 10 list bytes (high nibble default choice, low nibble choice count, 0 = unused), then 12-char texts: each
+| list setting's name and its choices. Weak: a game defines its own `soft_dip` (examples/brawler/main.c).
     .align  2
+    .weak   soft_dip
 soft_dip:
-    .ascii  "NEOSCAN GAME\0"
-    .fill   19, 1, 0
+    .ascii  "NEOSCAN GAME    "
+    .byte   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+    .fill   10, 1, 0
+
+| --- Copy .data initial values from ROM to work RAM ---------------------
+    .align  2
+copy_data:
+    lea     __data_load, %a0
+    lea     __data_start, %a1
+    lea     __data_end, %a2
+.Lcopy_loop:
+    cmpa.l  %a2, %a1
+    bge.s   .Lcopy_done
+    move.w  (%a0)+, (%a1)+
+    bra.s   .Lcopy_loop
+.Lcopy_done:
+    rts
 
 | --- Zero BSS ---------------------------------------------------------
     .align  2
@@ -148,24 +219,44 @@ user_handler:
     beq     do_init
     cmpib   #2, %d0
     beq     do_game
+    cmpib   #3, %d0
+    beq     do_game
     moveb   #0xDD, 0x10F209     /* Log unhandled request */
     jmp     0xC00444            /* SYSTEM_RETURN */
 
     .align  2
 do_init:
     moveb   #0, 0x300001        /* Watchdog */
+    bsr     boot_init
+    jsr     0xC00444            /* SYSTEM_RETURN */
+
+| One-time init since power-on: .bss cleared, .data copied, game_init. The BIOS sends USER request 0 only while the
+| game's backup RAM is uninitialised (in practice: the first boot), so the demo / title entry runs it too when the magic
+| in .noinit (not cleared by zero_bss, random at power-on) says it hasn't happened yet.
+boot_init:
     jsr     zero_bss
+    jsr     copy_data
+    movel   #0x4E454F21, init_magic
     jsr     0xC004C8            /* LSP_1ST (clear sprites) */
     jsr     0xC004C2            /* FIX_CLEAR */
     jsr     game_init           /* C function */
-    jmp     0xC00444            /* SYSTEM_RETURN */
+    rts
 
     .align  2
-do_game:
-    orib    #0x80, 0x10FD80     /* Set system mode bit 7 */
+do_game:                        /* d0 = USER request (2 demo, 3 title) */
+    cmpil   #0x4E454F21, init_magic
+    beq.s   1f
+    movel   %d0, -(%sp)
+    bsr     boot_init           /* no request 0 since power-on (backup RAM already set up) */
+    movel   (%sp)+, %d0
+1:  orib    #0x80, 0x10FD80     /* Set system mode bit 7 */
     moveb   #1, game_active     /* Mark game as running for VBlank guard */
+    clrb    bios_demo_end
+    clrb    bios_start
     movew   #0x2000, %sr        /* Enable interrupts */
-    jsr     game_init
+    movel   %d0, -(%sp)
+    jsr     game_enter
+    addql   #4, %sp
 
 .Lmain_loop:
     clrb    vblank_flag
@@ -180,6 +271,12 @@ do_game:
     jsr     game_tick
     bra.s   .Lmain_loop
 
+| --- not cleared by zero_bss ----------------------------------------------
+    .section .noinit, "aw", @nobits
+    .align  2
+init_magic:
+    .skip   4
+
 | --- BSS --------------------------------------------------------------
     .section .bss
     .align  2
@@ -190,6 +287,11 @@ vblank_count:
     .skip   2
 game_active:
     .skip   2
+    .global bios_demo_end, bios_start
+bios_demo_end:
+    .skip   1
+bios_start:
+    .skip   1
     .global wait_cycles
     .align  4
 wait_cycles:

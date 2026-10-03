@@ -57,6 +57,7 @@
 
 #define RETRO_PIXEL_FORMAT_XRGB8888 1
 #define RETRO_MEMORY_SYSTEM_RAM 2
+#define RETRO_MEMORY_VIDEO_RAM 3
 
 enum retro_log_level { RETRO_LOG_DEBUG=0, RETRO_LOG_INFO, RETRO_LOG_WARN, RETRO_LOG_ERROR };
 typedef void (*retro_log_printf_t)(enum retro_log_level, const char *, ...);
@@ -169,7 +170,7 @@ static bool environ_cb(unsigned cmd, void *data) {
         if (!strcmp(v->key, "geolith_region"))         { v->value = region_names[opt_region]; return true; }
         if (!strcmp(v->key, "geolith_memcard"))         { v->value = "on";      return true; }
         if (!strcmp(v->key, "geolith_memcard_wp"))      { v->value = "off";     return true; }
-        if (!strcmp(v->key, "geolith_freeplay"))        { v->value = "on";      return true; }
+        if (!strcmp(v->key, "geolith_freeplay"))        { v->value = "off";     return true; }   /* credits count (SNK MVS) */
         if (!strcmp(v->key, "geolith_settingmode"))     { v->value = "off";     return true; }
         if (!strcmp(v->key, "geolith_4player"))         { v->value = "off";     return true; }
         if (!strcmp(v->key, "geolith_overscan_t"))      { v->value = "8";       return true; }
@@ -219,8 +220,11 @@ static volatile uint32_t ring_w = 0, ring_r = 0;
 
 static uint64_t audio_sum = 0;
 static uint32_t audio_count = 0;
+static FILE *wav_f = NULL;                          /* capture mode WAV=path: the core's audio, 16-bit stereo */
+static uint32_t wav_frames = 0;
 
 static size_t audio_batch_cb(const int16_t *data, size_t frames) {
+    if (wav_f) { fwrite(data, 4, frames, wav_f); wav_frames += frames; }   /* little-endian host: WAV byte order */
     for (size_t i = 0; i < frames; i++) {
         uint32_t next = (ring_w + 1) & (RING_SIZE - 1);
         if (next == ring_r) break;
@@ -340,9 +344,74 @@ static void save_ppm(const void *data, unsigned w, unsigned h, size_t pitch, con
 
 static unsigned frame_count = 0;
 
+/* ═══ Capture mode (--capture) ═══
+ * Headless and unthrottled: no window, GL or audio. Same contract as the MAME recorder tools/kof96/capture/record96.lua,
+ * so the Python capture tools run on either emulator (env vars):
+ *   SEQ / SEQ2  "frames:inputs,..." for P1 / P2, inputs from U D L R a b c d (s = start, o = coin), '-' = none;
+ *               the run ends when SEQ ends
+ *   POKE        "frame:addr=byte,addr=byte;frame:..." work-RAM writes at those frames
+ *   RELOAD + RELOAD_STATE  frames at which to load the state file RELOAD_STATE (a file written by SAVE)
+ *   SAVE        "frame:path;..." write a save state (core serialize) at those frames; LOAD = state file to start from
+ *   DUMP        "frame:path;..." write the 64 KB of 68K work RAM ($100000-$10FFFF) at those frames
+ *   PALDUMP     "frame:path;..." write palette RAM, both banks (2 x 4096 words, big-endian; custom core region 104)
+ *   WAV         path: the run's audio as a 16-bit stereo WAV at the core's sample rate (music / SFX checks)
+ *   VRAMDUMP    "frame:path;..." write LSPC VRAM (the core's video RAM: SCB1 $0000, fix $7000, SCB2-4 $8000-$85FF, as
+ *               big-endian words): which sprites show which tiles, where, in which palette
+ *   SNAPS + SNAPDIR        frames to screenshot (PPM, SNAPDIR/snap_<frame>.ppm)
+ *   OUT         one line per frame: "frame p1inputs p2inputs <P1 object hex> <P2 object hex> <objects>", P1/P2 =
+ *               $108100/$108300 ($200 bytes); objects = P1-owned pool objects ($100100 + n*$200, owner long +$84 =
+ *               $108100, frame record +$28 in $200000-$2FFFFF) "base:id:state:steps:record:x:height:facing" or "-" */
+static int capture_mode = 0;
+typedef struct { int frames; char inp[16]; } cap_step_t;
+typedef struct { cap_step_t *seq; int n, step, left; } cap_player_t;
+static cap_player_t cap_p[2];
+static int cap_snap_next = 0;
+
+static void cap_parse(cap_player_t *p, const char *s) {
+    p->n = 0; p->seq = NULL; p->step = 0;
+    if (!s) return;
+    int cap = 64; p->seq = malloc(cap * sizeof(cap_step_t));
+    while (*s) {
+        int f; char inp[16];
+        if (sscanf(s, "%d:%15[^,]", &f, inp) == 2) {
+            if (p->n == cap) { cap *= 2; p->seq = realloc(p->seq, cap * sizeof(cap_step_t)); }
+            p->seq[p->n].frames = f; snprintf(p->seq[p->n].inp, 16, "%s", inp); p->n++;
+        }
+        while (*s && *s != ',') s++;
+        if (*s == ',') s++;
+    }
+    p->left = p->n ? p->seq[0].frames : 1 << 30;
+}
+static const char *cap_cur(int i) { cap_player_t *p = &cap_p[i]; return p->step < p->n ? p->seq[p->step].inp : "-"; }
+static int16_t cap_input(unsigned port, unsigned id) {
+    if (port > 1) return 0;
+    const char *k = cap_cur(port);
+    switch (id) {
+    case RETRO_DEVICE_ID_JOYPAD_UP: return strchr(k, 'U') != NULL;
+    case RETRO_DEVICE_ID_JOYPAD_DOWN: return strchr(k, 'D') != NULL;
+    case RETRO_DEVICE_ID_JOYPAD_LEFT: return strchr(k, 'L') != NULL;
+    case RETRO_DEVICE_ID_JOYPAD_RIGHT: return strchr(k, 'R') != NULL;
+    case RETRO_DEVICE_ID_JOYPAD_B: return strchr(k, 'a') != NULL;          /* Neo Geo A..D = retro B A Y X */
+    case RETRO_DEVICE_ID_JOYPAD_A: return strchr(k, 'b') != NULL;
+    case RETRO_DEVICE_ID_JOYPAD_Y: return strchr(k, 'c') != NULL;
+    case RETRO_DEVICE_ID_JOYPAD_X: return strchr(k, 'd') != NULL;
+    case RETRO_DEVICE_ID_JOYPAD_START: return strchr(k, 's') != NULL;
+    case RETRO_DEVICE_ID_JOYPAD_SELECT: return strchr(k, 'o') != NULL;
+    }
+    return 0;
+}
+
 static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
     if (!data) return;
     frame_count++;
+    if (capture_mode) {                                  /* capture: screenshots only, no GL */
+        if (cap_snap_next) {
+            char path[512]; const char *d = getenv("SNAPDIR");
+            snprintf(path, sizeof(path), "%s/snap_%d.ppm", d ? d : "/tmp", cap_snap_next);
+            save_ppm(data, w, h, pitch, path); cap_snap_next = 0;
+        }
+        return;
+    }
     if ((int)frame_count == snap_frame) {
         save_ppm(data, w, h, pitch, snap_path);
         snap_frame = -1;
@@ -366,7 +435,15 @@ static void video_cb(const void *data, unsigned w, unsigned h, size_t pitch) {
 static const uint8_t *kbd;
 static SDL_GameController *pad[2] = {NULL, NULL};
 
-static void input_poll_cb(void) {}
+/* keys held by the script engine ("key" / "keyup"): pushed SDL events never reach SDL_GetKeyboardState, so the joypad
+ * reads this merge of the real keyboard and the script's held keys */
+static const uint8_t *kbd_real;
+static uint8_t kbd_merged[SDL_NUM_SCANCODES];
+static uint8_t script_held[SDL_NUM_SCANCODES];
+static void input_poll_cb(void) {
+    if (capture_mode) return;
+    for (int i = 0; i < SDL_NUM_SCANCODES; i++) kbd_merged[i] = kbd_real[i] | script_held[i];
+}
 
 static int pad_btn(int p, SDL_GameControllerButton btn) {
     return pad[p] ? SDL_GameControllerGetButton(pad[p], btn) : 0;
@@ -381,6 +458,7 @@ static int pad_axis_pos(int p, SDL_GameControllerAxis axis, int16_t thresh) {
 static int16_t input_state_cb(unsigned port, unsigned dev, unsigned idx, unsigned id) {
     (void)idx;
     if (dev != RETRO_DEVICE_JOYPAD) return 0;
+    if (capture_mode) return cap_input(port, id);
 
     // Neo Geo button mapping:
     // B=A, A=B, Y=C, X=D, SELECT=coin, START=start
@@ -640,20 +718,24 @@ static void script_load(const char *path) {
     fprintf(stderr, "Script: %d commands from %s\n", script_len, path);
 }
 
-static void script_inject_key(SDL_Scancode sc) {
+static void script_inject_key_ev(SDL_Scancode sc, Uint32 type) {
     SDL_Event ev;
     memset(&ev, 0, sizeof(ev));
-    ev.type = SDL_KEYDOWN;
+    ev.type = type;
     ev.key.keysym.scancode = sc;
     SDL_PushEvent(&ev);
 }
+static void script_inject_key(SDL_Scancode sc) { script_inject_key_ev(sc, SDL_KEYDOWN); }
 
 static void script_exec(unsigned fc) {
     for (int i = 0; i < script_len; i++) {
         if (script[i].frame != (int)fc) continue;
         if (!strcmp(script[i].cmd, "key")) {
             SDL_Scancode sc = key_from_name(script[i].arg);
-            if (sc != SDL_SCANCODE_UNKNOWN) script_inject_key(sc);
+            if (sc != SDL_SCANCODE_UNKNOWN) { script_inject_key(sc); script_held[sc] = 1; }
+        } else if (!strcmp(script[i].cmd, "keyup")) {          /* release a key pressed with "key" (held keys stay down otherwise) */
+            SDL_Scancode sc = key_from_name(script[i].arg);
+            if (sc != SDL_SCANCODE_UNKNOWN) { script_inject_key_ev(sc, SDL_KEYUP); script_held[sc] = 0; }
         } else if (!strcmp(script[i].cmd, "snap")) {
             snprintf(snap_path, sizeof(snap_path), "%s", script[i].arg);
             snap_frame = frame_count + 1;
@@ -1068,9 +1150,137 @@ static void state_load(char slot) {
 
 /* ═══ Main ═══ */
 
+static int has_frame(const char *list, int n) {          /* "a,b,c" contains n */
+    if (!list) return 0;
+    for (const char *s = list; *s; ) { if (atoi(s) == n) return 1; while (*s && *s != ',') s++; if (*s == ',') s++; }
+    return 0;
+}
+
+static void wav_header(FILE *f, uint32_t rate, uint32_t frames) {
+    uint32_t data = frames * 4, v;
+    fseek(f, 0, SEEK_SET);
+    fwrite("RIFF", 1, 4, f); v = 36 + data; fwrite(&v, 4, 1, f); fwrite("WAVEfmt ", 1, 8, f);
+    v = 16; fwrite(&v, 4, 1, f); uint16_t h = 1; fwrite(&h, 2, 1, f); h = 2; fwrite(&h, 2, 1, f);
+    fwrite(&rate, 4, 1, f); v = rate * 4; fwrite(&v, 4, 1, f); h = 4; fwrite(&h, 2, 1, f); h = 16; fwrite(&h, 2, 1, f);
+    fwrite("data", 1, 4, f); fwrite(&data, 4, 1, f);
+}
+static int capture_run(void) {
+    cap_parse(&cap_p[0], getenv("SEQ")); cap_parse(&cap_p[1], getenv("SEQ2"));
+    struct retro_system_av_info wav_av; core.get_system_av_info(&wav_av);
+    if (getenv("WAV") && (wav_f = fopen(getenv("WAV"), "wb"))) wav_header(wav_f, (uint32_t)wav_av.timing.sample_rate, 0);
+    const char *poke = getenv("POKE"), *reload = getenv("RELOAD"), *rstate = getenv("RELOAD_STATE");
+    const char *save = getenv("SAVE"), *snaps = getenv("SNAPS"), *outp = getenv("OUT");
+    FILE *out = outp ? fopen(outp, "w") : NULL;
+    size_t ssz = core.serialize_size(); void *sbuf = malloc(ssz); size_t rlen = 0; void *rbuf = NULL;
+    if (rstate) {                                        /* the reload state, read once */
+        FILE *f = fopen(rstate, "rb");
+        if (f) { rbuf = malloc(ssz); rlen = fread(rbuf, 1, ssz, f); fclose(f); }
+        if (!rbuf || rlen != ssz) fprintf(stderr, "capture: bad RELOAD_STATE %s\n", rstate);
+    }
+    const char *load = getenv("LOAD"), *dump = getenv("DUMP");
+    if (load) {                                          /* LOAD: start from this state file */
+        FILE *f = fopen(load, "rb"); size_t l = 0;
+        if (f) { l = fread(sbuf, 1, ssz, f); fclose(f); }
+        if (l == ssz) core.unserialize(sbuf, ssz); else fprintf(stderr, "capture: bad LOAD %s\n", load);
+    }
+    const uint8_t *R = wram_ptr;
+    #define RD16(a) (((unsigned)R[(a) - 0x100000] << 8) | R[(a) - 0x100000 + 1])
+    #define RD32(a) ((RD16(a) << 16) | RD16((a) + 2))
+    for (int n = 1; ; n++) {
+        if (has_frame(snaps, n + 1)) cap_snap_next = n + 1;
+        core.run();                                       /* frame n with the current inputs */
+        if (has_frame(reload, n) && rbuf && rlen == ssz) core.unserialize(rbuf, ssz);
+        for (const char *ps = poke; ps && *ps; ) {        /* POKE "frame:addr=byte,...;..." */
+            int fr = atoi(ps); const char *c = strchr(ps, ':'), *end = strchr(ps, ';');
+            if (fr == n && c) {
+                for (const char *q = c + 1; *q && (!end || q < end); ) {
+                    unsigned a, v;
+                    if (sscanf(q, "%x=%x", &a, &v) == 2 && a >= 0x100000 && a - 0x100000 < wram_size) wram_ptr[a - 0x100000] = v;
+                    while (*q && *q != ',' && *q != ';') q++;
+                    if (*q == ',') q++;
+                }
+            }
+            ps = end ? end + 1 : NULL;
+        }
+        for (const char *ds = dump; ds && *ds; ) {        /* DUMP "frame:path;...": the 64 KB of work RAM */
+            int fr = atoi(ds); const char *c = strchr(ds, ':'), *end = strchr(ds, ';');
+            if (fr == n && c) {
+                char path[512]; size_t l = end ? (size_t)(end - c - 1) : strlen(c + 1);
+                snprintf(path, sizeof(path), "%.*s", (int)l, c + 1);
+                FILE *f = fopen(path, "wb"); if (f) { fwrite(wram_ptr, 1, wram_size, f); fclose(f); }
+            }
+            ds = end ? end + 1 : NULL;
+        }
+        for (const char *ds = getenv("VRAMDUMP"); ds && *ds; ) {  /* VRAMDUMP "frame:path;...": LSPC VRAM */
+            int fr = atoi(ds); const char *c = strchr(ds, ':'), *end = strchr(ds, ';');
+            uint16_t *vram = (uint16_t *)core.get_memory_data(RETRO_MEMORY_VIDEO_RAM);
+            size_t vsz = core.get_memory_size(RETRO_MEMORY_VIDEO_RAM);
+            if (fr == n && c && vram) {
+                char path[512]; size_t l = end ? (size_t)(end - c - 1) : strlen(c + 1);
+                snprintf(path, sizeof(path), "%.*s", (int)l, c + 1);
+                FILE *f = fopen(path, "wb");
+                if (f) { for (size_t i = 0; i < vsz / 2; i++) { fputc(vram[i] >> 8, f); fputc(vram[i] & 255, f); } fclose(f); }
+            }
+            ds = end ? end + 1 : NULL;
+        }
+        for (const char *ds = getenv("PALDUMP"); ds && *ds; ) {   /* PALDUMP "frame:path;...": palette RAM (custom core region 104) */
+            int fr = atoi(ds); const char *c = strchr(ds, ':'), *end = strchr(ds, ';');
+            if (fr == n && c && palram_ptr) {
+                char path[512]; size_t l = end ? (size_t)(end - c - 1) : strlen(c + 1);
+                snprintf(path, sizeof(path), "%.*s", (int)l, c + 1);
+                FILE *f = fopen(path, "wb");
+                if (f) { for (int i = 0; i < 0x2000; i++) { fputc(palram_ptr[i] >> 8, f); fputc(palram_ptr[i] & 255, f); } fclose(f); }   /* both banks */
+            }
+            ds = end ? end + 1 : NULL;
+        }
+        for (const char *ss = save; ss && *ss; ) {        /* SAVE "frame:path;..." */
+            int fr = atoi(ss); const char *c = strchr(ss, ':'), *end = strchr(ss, ';');
+            if (fr == n && c) {
+                char path[512]; size_t l = end ? (size_t)(end - c - 1) : strlen(c + 1);
+                snprintf(path, sizeof(path), "%.*s", (int)l, c + 1);
+                if (core.serialize(sbuf, ssz)) { FILE *f = fopen(path, "wb"); if (f) { fwrite(sbuf, 1, ssz, f); fclose(f); } }
+                fprintf(stderr, "capture: saved %s at frame %d\n", path, n);
+            }
+            ss = end ? end + 1 : NULL;
+        }
+        if (out) {
+            fprintf(out, "%05d %s %s", n, cap_cur(0), cap_cur(1));
+            for (unsigned base = 0x108100; base <= 0x108300; base += 0x200) {
+                fputc(' ', out);
+                for (unsigned i = 0; i < 0x200; i += 2) fprintf(out, "%04X", RD16(base + i));
+            }
+            int k = 0;
+            for (unsigned base = 0x100100; base <= 0x107F00; base += 0x200) {
+                if (RD32(base + 0x84) != 0x108100) continue;
+                unsigned rec = RD32(base + 0x28) & 0xFFFFFF;
+                if (rec < 0x200000 || rec >= 0x300000) continue;
+                fprintf(out, "%c%06X:%u:%u:%u:%06X:%d:%d:%u", k++ ? ';' : ' ', base, RD16(base + 0x70), RD16(base + 0x72),
+                        RD16(base + 0x80), rec, (int16_t)RD16(base + 0x18), (int16_t)RD16(base + 0x20), R[base + 0x31 - 0x100000] & 1);
+            }
+            if (!k) fputs(" -", out);
+            fputc('\n', out);
+        }
+        int done = 0;
+        for (int i = 0; i < 2; i++) {                     /* advance the input sequences */
+            cap_player_t *p = &cap_p[i];
+            if (--p->left <= 0) {
+                p->step++;
+                if (i == 0 && p->step >= p->n) done = 1;
+                p->left = p->step < p->n ? p->seq[p->step].frames : 1 << 30;
+            }
+        }
+        if (done || (!cap_p[0].n && n >= 100000)) break;
+    }
+    #undef RD16
+    #undef RD32
+    if (out) fclose(out);
+    if (wav_f) { wav_header(wav_f, (uint32_t)wav_av.timing.sample_rate, wav_frames); fclose(wav_f); wav_f = NULL; }
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s game.neo [--snap F1,F2,...] [--quit F] [--script file] [core.so]\n", argv[0]);
+        fprintf(stderr, "Usage: %s game.neo [--snap F1,F2,...] [--quit F] [--script file] [--capture] [core.so]\n", argv[0]);
         return 1;
     }
 
@@ -1086,6 +1296,8 @@ int main(int argc, char *argv[]) {
             }
         } else if (!strcmp(argv[i], "--quit") && i+1 < argc) {
             auto_quit_frame = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "--capture")) {
+            capture_mode = 1;
         } else if (!strcmp(argv[i], "--script") && i+1 < argc) {
             script_load(argv[++i]);
         } else {
@@ -1114,9 +1326,9 @@ int main(int argc, char *argv[]) {
     if (!core_load(core_path)) return 1;
     printf("Core: %s (API %u)\n", core_path, core.api_version());
 
-    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER);
+    if (!capture_mode) SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER);
 
-    for (int i = 0, p = 0; i < SDL_NumJoysticks() && p < 2; i++) {
+    for (int i = 0, p = 0; !capture_mode && i < SDL_NumJoysticks() && p < 2; i++) {
         if (SDL_IsGameController(i)) {
             pad[p] = SDL_GameControllerOpen(i);
             if (pad[p]) fprintf(stderr, "Pad %d: %s\n", p, SDL_GameControllerName(pad[p]));
@@ -1168,6 +1380,12 @@ int main(int argc, char *argv[]) {
     core_stats_ptr = (emu_frame_stats_t *)core.get_memory_data(110);
     if (wram_ptr) fprintf(stderr, "WRAM: %zu bytes at %p\n", wram_size, (void*)wram_ptr);
     if (core_stats_ptr) fprintf(stderr, "TRACE: core stats at %p\n", (void*)core_stats_ptr);
+
+    if (capture_mode) {                                  /* headless capture, see capture_run */
+        int rc = capture_run();
+        core.unload_game(); core.deinit();
+        return rc;
+    }
 
     trace_file = fopen("/tmp/danmaku_trace.csv", "w");
     if (trace_file) {
@@ -1225,7 +1443,8 @@ int main(int argc, char *argv[]) {
     SDL_AudioDeviceID adev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (adev) SDL_PauseAudioDevice(adev, 0);
 
-    kbd = SDL_GetKeyboardState(NULL);
+    kbd_real = SDL_GetKeyboardState(NULL);
+    kbd = kbd_merged;
 
     bool running = true;
     bool crt_on = true;

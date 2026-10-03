@@ -12,10 +12,18 @@ SDK_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), 'sdk')
 
 
 def pad_rom(data, target_size, fill=0x00):
-    """Pad ROM data to target size."""
-    if len(data) >= target_size:
-        return data[:target_size]
+    """Pad ROM data to target size. Data larger than the region is an error (it used to be cut silently: a 5 MB fighter
+    roster lost 3 MB of tiles)."""
+    if len(data) > target_size:
+        sys.exit(f'neobuild: {len(data):,} bytes do not fit a {target_size:,}-byte region')
     return data + bytes([fill] * (target_size - len(data)))
+
+
+def pow2_at_least(n, floor):
+    size = floor
+    while size < n:
+        size *= 2
+    return size
 
 
 def byte_swap_16(data):
@@ -66,15 +74,27 @@ def main():
     subprocess.check_call([
         'm68k-linux-gnu-objcopy', '-O', 'binary', args.elf, p_bin
     ])
-    p_data = pad_rom(open(p_bin, 'rb').read(), args.p_size)
+    p_raw = open(p_bin, 'rb').read()
+    if len(p_raw) > 0x200000:                                        # .p2data linked at $200000 (sdk/boot/neoscan.ld)
+        if len(p_raw) > 0x300000:
+            sys.exit(f'neobuild: program reaches ${len(p_raw):X}: past $2FFFFF needs P2 bank switching')
+        if any(p_raw[0x100000:0x200000]):
+            sys.exit('neobuild: program data between $100000 and $1FFFFF (work RAM / unmapped)')
+        p_raw = p_raw[:0x100000].ljust(0x100000, b'\0') + p_raw[0x200000:]   # P ROM = first MB, then the $200000 window
+    p_size = pow2_at_least(len(p_raw), args.p_size)                  # --p-size is the minimum
+    if p_size > 0x200000:
+        sys.exit(f'neobuild: {len(p_raw):,}-byte program: past 2 MB needs P2 bank switching')
+    p_data = pad_rom(p_raw, p_size)
     p_data = byte_swap_16(p_data)
     p_path = os.path.join(rom_dir, f'{ngh}-p1.p1')
     with open(p_path, 'wb') as f:
         f.write(p_data)
 
     # --- C ROMs ---
-    c1_data = pad_rom(open(args.c1, 'rb').read(), args.c_size)
-    c2_data = pad_rom(open(args.c2, 'rb').read(), args.c_size)
+    c1_raw_in, c2_raw_in = open(args.c1, 'rb').read(), open(args.c2, 'rb').read()
+    c_size = pow2_at_least(max(len(c1_raw_in), len(c2_raw_in)), args.c_size)   # --c-size is the minimum
+    c1_data = pad_rom(c1_raw_in, c_size)
+    c2_data = pad_rom(c2_raw_in, c_size)
     c1_path = os.path.join(rom_dir, f'{ngh}-c1.c1')
     c2_path = os.path.join(rom_dir, f'{ngh}-c2.c2')
     with open(c1_path, 'wb') as f:
@@ -96,7 +116,8 @@ def main():
 
     # --- M ROM ---
     if args.donor_m1 and os.path.exists(args.donor_m1):
-        m_data = pad_rom(open(args.donor_m1, 'rb').read(), args.m_size)
+        m_raw = open(args.donor_m1, 'rb').read()
+        m_data = pad_rom(m_raw, pow2_at_least(len(m_raw), args.m_size))   # --m-size is the minimum
         print(f"Using donor M-ROM: {args.donor_m1}")
     else:
         m_data = bytes(args.m_size)
@@ -156,7 +177,10 @@ def main():
     struct.pack_into('<I', neo_header, 0x1C, 2026)             # year
     struct.pack_into('<I', neo_header, 0x20, 0)                # genre
     struct.pack_into('<I', neo_header, 0x24, 0)                # screenshot
-    struct.pack_into('<I', neo_header, 0x28, int(ngh))         # NGH
+    # NGH in the .neo header: NOT the file-name NGH (999). Emulators look games up by it: Geolith treats 999 / 0x3E7
+    # as V-Liner (port 2 disconnected, Brezzasoft board), which silently killed joystick 2 in our ROMs. 0x0B00 is
+    # no special entry in Geolith's database (src/geo_neo.c).
+    struct.pack_into('<I', neo_header, 0x28, 0x0B00)                # NGH
     name_bytes = args.name.upper().encode('ascii')[:32]
     neo_header[0x2C:0x2C + len(name_bytes)] = name_bytes
 

@@ -20,10 +20,20 @@
 #define BIOS_USER_MODE     (*(volatile uint8_t *)0x10FDAF)
 #define BIOS_P1CURRENT     (*(volatile uint8_t *)0x10FD96)
 #define BIOS_P1CHANGE      (*(volatile uint8_t *)0x10FD97)
-#define BIOS_P2CURRENT     (*(volatile uint8_t *)0x10FD98)
-#define BIOS_P2CHANGE      (*(volatile uint8_t *)0x10FD99)
+/* BIOS RAM per player: +0 status, +1 previous, +2 current, +3 change, +4 repeat, +5 timer (P1 $10FD94, P2 $10FD9A).
+ * P2 was $10FD98/$10FD99 (P1's repeat/timer) until 2026-10-03: every SDK game read a dead second joystick. */
+#define BIOS_P2CURRENT     (*(volatile uint8_t *)0x10FD9C)
+#define BIOS_P2CHANGE      (*(volatile uint8_t *)0x10FD9D)
 #define BIOS_STATCURNT     (*(volatile uint8_t *)0x10FDAC)
 #define BIOS_STATCHANGE    (*(volatile uint8_t *)0x10FDAD)
+#define BIOS_START_FLAG    (*(volatile uint8_t *)0x10FDB4)
+
+/* MVS attract / title / game protocol (sdk/boot/crt0.s): USER request 2 (demo) and 3 (title) call game_enter(request)
+ * before the frame loop; DEMO_END (coin in during the demo) sets bios_demo_end; PLAYER_START (START with a credit)
+ * takes the credit and ORs the players into bios_start; SYS_return() gives control back to the BIOS. */
+extern volatile uint8_t bios_demo_end, bios_start;
+void game_enter(uint8_t request);
+void SYS_return(void);
 
 /* Input bit masks */
 #define INPUT_UP     (1 << 0)

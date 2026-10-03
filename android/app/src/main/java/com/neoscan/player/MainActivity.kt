@@ -1,0 +1,125 @@
+package com.neoscan.player
+
+import android.app.Activity
+import android.content.pm.ActivityInfo
+import android.opengl.GLSurfaceView
+import android.os.Bundle
+import android.view.Gravity
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.TextView
+import java.io.File
+
+/** The picture and the touch pad, both full screen, stacked: the layout of each orientation comes from [Screen]
+ *  (portrait: picture on top, pad under it; landscape: picture centred, pad over its sides). Rotation follows the
+ *  sensor; no restart on rotation (configChanges), the views just get their new size. BIOS (neogeo.zip, APK assets)
+ *  copied to files/system once; the game = brawler.neo in the app's external files dir (fetched by RomFetch). */
+class MainActivity : Activity() {
+    private var emu: EmuThread? = null
+    private lateinit var gl: GLSurfaceView
+    private lateinit var renderer: EmuRenderer
+    private lateinit var pad: PadView
+    private var touchMask = 0
+    private val padSlot = HashMap<Int, Int>()                         // gamepad device id -> player (0 = P1, 1 = P2)
+    private val padMask = IntArray(2)
+
+    /** P1 = touch + the first gamepad, P2 = the second gamepad (a third one also drives P2) */
+    private fun pushPads() { Native.setPad(0, touchMask or padMask[0]); Native.setPad(1, padMask[1]) }
+    private fun slot(dev: Int) = padSlot.getOrPut(dev) { minOf(padSlot.size, 1) }
+    private fun bitFor(code: Int): Int = when (code) {
+        KeyEvent.KEYCODE_BUTTON_A -> Pad.A; KeyEvent.KEYCODE_BUTTON_B -> Pad.B             // bottom, right
+        KeyEvent.KEYCODE_BUTTON_X -> Pad.C; KeyEvent.KEYCODE_BUTTON_Y -> Pad.D             // left, top
+        KeyEvent.KEYCODE_BUTTON_R1 -> Pad.A or Pad.B; KeyEvent.KEYCODE_BUTTON_L1 -> Pad.C or Pad.D
+        KeyEvent.KEYCODE_BUTTON_START -> Pad.START; KeyEvent.KEYCODE_BUTTON_SELECT -> Pad.COIN
+        KeyEvent.KEYCODE_DPAD_UP -> Pad.UP; KeyEvent.KEYCODE_DPAD_DOWN -> Pad.DOWN
+        KeyEvent.KEYCODE_DPAD_LEFT -> Pad.LEFT; KeyEvent.KEYCODE_DPAD_RIGHT -> Pad.RIGHT
+        else -> 0
+    }
+    override fun dispatchKeyEvent(e: KeyEvent): Boolean {
+        if (e.keyCode == KeyEvent.KEYCODE_BUTTON_MODE) { if (e.action == KeyEvent.ACTION_UP) openSettings(); return true }
+        val bit = bitFor(e.keyCode)
+        if (bit == 0 || e.repeatCount > 0 && e.action == KeyEvent.ACTION_DOWN) return bit != 0 || super.dispatchKeyEvent(e)
+        val p = slot(e.deviceId)
+        if (e.action == KeyEvent.ACTION_DOWN) padMask[p] = padMask[p] or bit
+        else if (e.action == KeyEvent.ACTION_UP) padMask[p] = padMask[p] and bit.inv()
+        pushPads(); return true
+    }
+    override fun dispatchGenericMotionEvent(e: MotionEvent): Boolean {
+        if (e.source and InputDevice.SOURCE_JOYSTICK != InputDevice.SOURCE_JOYSTICK || e.action != MotionEvent.ACTION_MOVE)
+            return super.dispatchGenericMotionEvent(e)
+        val x = e.getAxisValue(MotionEvent.AXIS_HAT_X).let { if (it != 0f) it else e.getAxisValue(MotionEvent.AXIS_X) }
+        val y = e.getAxisValue(MotionEvent.AXIS_HAT_Y).let { if (it != 0f) it else e.getAxisValue(MotionEvent.AXIS_Y) }
+        var d = 0
+        if (x < -0.5f) d = d or Pad.LEFT; if (x > 0.5f) d = d or Pad.RIGHT
+        if (y < -0.5f) d = d or Pad.UP; if (y > 0.5f) d = d or Pad.DOWN
+        val p = slot(e.deviceId)
+        padMask[p] = (padMask[p] and (Pad.UP or Pad.DOWN or Pad.LEFT or Pad.RIGHT).inv()) or d
+        pushPads(); return true
+    }
+
+    override fun onCreate(state: Bundle?) {
+        super.onCreate(state)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        val sys = File(filesDir, "system").apply { mkdirs() }; val save = File(filesDir, "save").apply { mkdirs() }
+        val bios = File(sys, "neogeo.zip")
+        if (!bios.exists()) assets.open("neogeo.zip").use { i -> bios.outputStream().use { i.copyTo(it) } }
+        val rom = File(getExternalFilesDir(null), "brawler.neo")
+        RomFetch.configure(this, intent.getStringExtra("url"))
+        val msg = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER; text = "Checking for a new build..." }
+        setContentView(msg)
+        Thread {                                                       // fetch first (off the UI thread), then play
+            val ok = if (Prefs(this).autoUpdate) RomFetch.update(this, rom) { t -> runOnUiThread { msg.text = t } } else rom.exists()
+            runOnUiThread { msg.text = "Brawler '27  v${RomFetch.installed(this)}\nplayer ${BuildConfig.VERSION_NAME}" }
+            Thread.sleep(1200)                                         // the version, readable, before the game starts
+            runOnUiThread {
+                if (ok) startGame(sys, save, rom)
+                else msg.text = "No game yet.\n\nCheck the connection (builds: canneji.duckdns.org/brawler), or\nadb push brawler.neo ${rom.absolutePath}"
+            }
+        }.start()
+    }
+
+    private fun startGame(sys: File, save: File, rom: File) {
+        val root = android.widget.FrameLayout(this)
+        gl = GLSurfaceView(this).apply {
+            setEGLContextClientVersion(2)
+            renderer = EmuRenderer { emu }
+            setRenderer(renderer)
+            renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+        }
+        pad = PadView(this, ::openSettings) { m -> touchMask = m; pushPads() }
+        root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))
+        root.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
+        setContentView(root)
+        applySettings()
+        emu = EmuThread(sys.absolutePath, save.absolutePath, rom.absolutePath, { gl.requestRender() }) { msg ->
+            runOnUiThread { setContentView(TextView(this).apply { text = msg; gravity = Gravity.CENTER }) }
+        }.also { it.start() }
+    }
+
+    private fun openSettings() = startActivity(android.content.Intent(this, SettingsActivity::class.java))
+    private fun applySettings() {
+        val p = Prefs(this)
+        requestedOrientation = when (p.orientation) {
+            "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        }
+        Screen.four3 = p.aspect == "4:3"
+        Screen.integer = p.scale == "integer" || p.filter == "subpixel"     // the subpixel pattern needs whole pixels
+        if (::renderer.isInitialized) {
+            renderer.smooth = p.filter == "smooth"; renderer.mode = when (p.filter) { "scanlines" -> 1; "subpixel" -> 2; else -> 0 }
+            renderer.dark = p.scanlines / 100f
+        }
+        if (::pad.isInitialized) { pad.opacity = p.opacity / 100f; pad.size = p.size / 100f; pad.vibrate = p.vibrate }   // size: relayout
+    }
+
+    /** the game pauses (picture, sound, emulation) whenever the activity is not in front: settings, home, screen off */
+    override fun onPause() { super.onPause(); emu?.paused = true; if (::gl.isInitialized) gl.onPause() }
+    override fun onResume() { super.onResume(); applySettings(); emu?.paused = false; if (::gl.isInitialized) gl.onResume() }
+    override fun onDestroy() { emu?.running = false; super.onDestroy() }
+}

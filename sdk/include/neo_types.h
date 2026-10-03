@@ -14,7 +14,7 @@ typedef uint8_t neo_bool;
 #define SCREEN_HEIGHT     224
 #define MAX_SPRITE_HEIGHT 33
 
-#define CMD_BUF_SIZE      512
+#define CMD_BUF_SIZE      4096   /* words (8 KB); flushing costs 22 cycles per word, ~50 per run */
 
 /*
  * Neo Geo 16-bit color format (scattered RGB5 + dark bit):
@@ -44,9 +44,6 @@ typedef uint8_t neo_bool;
 #define COLOR_GREEN   RGB(0, 31, 0)
 #define COLOR_BLUE    RGB(0, 0, 31)
 
-typedef struct {
-    uint16_t addr;
-    uint16_t data;
-} vram_cmd_t;
+
 
 #endif
