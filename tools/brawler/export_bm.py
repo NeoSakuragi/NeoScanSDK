@@ -31,7 +31,10 @@ def boxes(bx, reach=0):
     # KOF box key: the first hex digit is the type, 3 = hurt ('31'-'33', in every animation), 1 = attack ('11', '1B'-'1E',
     # only in attack animations; KOF96/98/99 census 2026-10-03). The second digit is not a slot: close A's attack box
     # is '1C', close C's / close D's '1D' (the old low-2-bits rule read '1D' as a hurt box: no C / D normal ever hit).
-    hurt = [v for k, v in bx.items() if int(k, 16) >> 4 in (3, 4)]; atk = [v for k, v in bx.items() if int(k, 16) >> 4 == 1]   # KOF94/95 hurt: 3x and 4x
+    # KOF99 '1B' = armor (it absorbs hits; only Maxima's C / D normals and C+D carry it): not an attack. KOF99 itself,
+    # measured in our emulator: Maxima's close C hits twice (life 101 -> 90 at frames 132 and 150), not three times.
+    hurt = [v for k, v in bx.items() if int(k, 16) >> 4 in (3, 4)]   # KOF94/95 hurt: 3x and 4x
+    atk = [v for k, v in bx.items() if int(k, 16) >> 4 == 1 and k.upper() != '1B']
     def norm(b): return sb(b[0]), sb(b[1]), b[2], b[3]
     h = None
     if hurt:
