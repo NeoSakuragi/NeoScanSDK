@@ -28,6 +28,11 @@ $(BUILD)/font.s1 $(BUILD)/hud.h &: $(TOOLS)/brawler/make_hud.py
 	python3 $(TOOLS)/font_encoder.py -o $(BUILD)/font.s1
 	python3 $(TOOLS)/brawler/make_hud.py $(CURDIR)/$(BUILD) $(CHARS)
 
+# --- Sound: KOF98's driver and samples, plus Fatal Fury 3's Terry stage theme ported into them as command $27
+# (tools/port: needs /data/roms/kof98.neo + fatfury3.neo; overwrites only V ROM that unplayed KOF98 stage themes use)
+$(BUILD)/port/kof98_m1.bin $(BUILD)/port/kof98_v1.bin &: $(TOOLS)/port/ff3_to_kof98.py $(TOOLS)/port/ff3_notes.py
+	python3 $(TOOLS)/port/ff3_to_kof98.py 0x2F $(CURDIR)/$(BUILD)/port
+
 # --- Compile ---
 $(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h fighter.h ai.h sound.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -42,8 +47,8 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
-$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/bm_c1.bin $(BUILD)/font.s1
-	printf 'c1=$(BUILD)/bm_c1.bin\nc2=$(BUILD)/bm_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=res/kof98_m1.bin\ndonor_v1=res/kof98_v1.bin\n' > $(BUILD)/manifest.txt
+$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/bm_c1.bin $(BUILD)/font.s1 $(BUILD)/port/kof98_m1.bin
+	printf 'c1=$(BUILD)/bm_c1.bin\nc2=$(BUILD)/bm_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=$(BUILD)/port/kof98_m1.bin\ndonor_v1=$(BUILD)/port/kof98_v1.bin\n' > $(BUILD)/manifest.txt
 	python3 $(TOOLS)/neobuild_from_manifest.py $(BUILD)/manifest.txt --elf $(BUILD)/rom.elf --name $(ROM_NAME) -o $@
 
 clean:

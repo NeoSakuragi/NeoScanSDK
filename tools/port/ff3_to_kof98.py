@@ -18,7 +18,8 @@ makes the same chip state (docs/kof98_sound_driver.md):
   next note;
 - ADPCM-B: direct-mode notes (octave << 4 | semitone) index KOF98's delta-N table, which holds FF3's values; FF3's
   samples become instruments 1-6 (records 1-6, placeholders in KOF98); a slide (FF3 $083E) = a tie into the next note;
-- tempo 83: 166.83 * 83 / 208 = 66.57 ticks/s (FF3 $2F: 66.77);
+- tempo: FF3's tick rate, raised by the share of timer interrupts KOF98's driver loses (LOST: FF3's driver
+  loses none): FF3 $2F 66.77 ticks/s -> tempo 84 = 67.37 nominal, 66.63 after the losses;
 - loop: each channel's intro, then its loop body behind a label, ending in $0B goto label."""
 import json, math, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -29,6 +30,7 @@ KOF98_NEO, FF3_NEO = '/data/roms/kof98.neo', '/data/roms/fatfury3.neo'
 FF3_M1 = '/data/neogeo_dict/sound/snd98/ff3/ff3_m1.bin'
 FREE_V = '/data/neogeo_dict/sound/snd98/kof98_v_free_runs.json'   # V pages only songs the brawler skips use
 CMD, BANKSET, SONG_AT, SONG_Z80, SONG_END = 0x27, 6, 0x38000, 0x8000, 0x3F800
+LOST = 0.011        # timer interrupts KOF98's driver loses playing this song in the brawler (measured: 76 of 6774)
 A_SLOTS = (0, 2, 6, 3, 4, 1, 5)
 A_TABLES = (0x3C4C, 0x424C, 0x484C, 0x4E4C, 0x544C, 0x5A4C, 0x604C)
 CHAN_K = {'FM1': 0, 'FM2': 1, 'FM3': 2, 'FM4': 3, 'A1': 4, 'A2': 5, 'A3': 6, 'A4': 7, 'A5': 8, 'A6': 9, 'B': 10}
@@ -209,7 +211,7 @@ class Port:
         names = [n for n in CHAN_K if n in self.notes]
         head = bytearray(14 + 22)
         for n in names: head[CHAN_K[n]] = 1
-        head[11] = round(self.hz * 208 / 166.83); head[12] = head[13] = 0
+        head[11] = round(self.hz * 208 / 166.83 / (1 - LOST)); head[12] = head[13] = 0
         body = bytearray(); addr = SONG_Z80 + len(head)
         for n in names:
             s = self.channel(n, addr)
@@ -224,7 +226,8 @@ class Port:
         bt = self.m1[0x2E06] | self.m1[0x2E07] << 8
         self.m1[bt + i] = BANKSET
         self.report['vmap'] = {json.dumps(list(k)): list(v) for k, v in self.vmap.items()}
-        self.report.update(song_bytes=len(song), tempo=head[11], kof98_hz=166.83 * head[11] / 208, ff3_hz=self.hz,
+        self.report.update(song_bytes=len(song), tempo=head[11], kof98_hz=166.83 * head[11] / 208,
+                           kof98_hz_after_losses=166.83 * head[11] / 208 * (1 - LOST), ff3_hz=self.hz,
                            channels=names)
         return song
 
