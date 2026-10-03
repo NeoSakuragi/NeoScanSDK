@@ -6,6 +6,19 @@
 #include "fighter.h"
 #include "sound.h"
 
+/* draw.s reads these structures at fixed offsets (its .equ list): the build stops if a field moves */
+#include <stddef.h>
+_Static_assert(offsetof(fighter_t, ch) == 0 && offsetof(fighter_t, palbase) == 5 && offsetof(fighter_t, spr) == 6, "draw.s F_CH/F_PALBASE/F_SPR");
+_Static_assert(offsetof(fighter_t, x) == 8 && offsetof(fighter_t, z) == 12 && offsetof(fighter_t, y) == 16, "draw.s F_X/F_Z/F_Y");
+_Static_assert(offsetof(fighter_t, facing) == 32 && offsetof(fighter_t, anim) == 38 && offsetof(fighter_t, step) == 39, "draw.s F_FACING/F_ANIM/F_STEP");
+_Static_assert(offsetof(fighter_t, shown_frame) == 56 && offsetof(fighter_t, shown_facing) == 58 && offsetof(fighter_t, frame_ovr) == 60, "draw.s F_SHOWN_*/F_FRAME_OVR");
+_Static_assert(offsetof(fighter_t, ncols) == 94, "draw.s F_NCOLS");
+_Static_assert(offsetof(bchar_t, frames) == 10 && offsetof(bchar_t, anims) == 14 && offsetof(bchar_t, tile_hi) == 46, "draw.s CH_*");
+_Static_assert(offsetof(banim_t, steps) == 2 && offsetof(bframe_t, nparts) == 0 && offsetof(bframe_t, parts) == 2, "draw.s AN_STEPS/FR_*");
+_Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offsetof(bpart_t, cols) == 4 && offsetof(bpart_t, rows) == 5 &&
+               offsetof(bpart_t, hflip) == 6 && offsetof(bpart_t, vflip) == 7 && offsetof(bpart_t, pal) == 8 &&
+               offsetof(bpart_t, tiles) == 10 && sizeof(bpart_t) == 14, "draw.s PT_*");
+
 #define GRAVITY_KD  0x5000        /* knockdown gravity 0.31 px/frame^2 (KOF95: 0.47): higher, slower falls to juggle */
 #define DOWN_FRAMES 40
 #define INV_GETUP   30

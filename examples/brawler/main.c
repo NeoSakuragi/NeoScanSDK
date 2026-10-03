@@ -69,7 +69,10 @@ static void arcade_line_reset(void) { shown_level = 0; shown_credits = 0xFF; }
 static void arcade_line(void) {                               /* bottom line, every screen; writes only changes */
     uint8_t l = level(), c = CREDITS_P1;
     char t[3];
-    if (l != shown_level) { FIX_print(16, 27, "LEVEL-", 0); t[0] = '0' + l; t[1] = 0; FIX_print(22, 27, t, 0); shown_level = l; }
+    if (l != shown_level) {
+        FIX_print(8, 27, "V" GAME_VERSION, 0);                /* the build (VERSION), left of the level */
+        FIX_print(16, 27, "LEVEL-", 0); t[0] = '0' + l; t[1] = 0; FIX_print(22, 27, t, 0); shown_level = l;
+    }
     if (c != shown_credits) {
         FIX_print(28, 27, "CREDIT", 0);
         t[0] = '0' + (c >> 4); t[1] = '0' + (c & 15); t[2] = 0; FIX_print(35, 27, t, 0); shown_credits = c;

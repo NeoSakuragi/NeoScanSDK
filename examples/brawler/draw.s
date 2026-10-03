@@ -1,5 +1,5 @@
 | Fighter rendering hot paths in 68000 assembly (measured: these two were 60 % of the frame in C).
-| Same contracts as the prototypes in fighter.h; the C structure offsets used here are pinned by _Static_assert in
+| Same contracts as the prototypes in fighter.h; the C structure offsets used here are pinned by _Static_assert in fighter.c (the build stops when fighter.h or bm_chars.h moves a field); was claimed before 2026-10-03 but missing, and an added field shifted ncols (glitched sprites) -
 | fighter.c (change a structure and the build stops there).
 |
 | fighter_tiles(f): when the shown frame or the facing changed, one SCB1 run per sprite column: rows x {tile, attribute}.
@@ -26,7 +26,7 @@
     .equ    F_SHOWN_FRAME, 56
     .equ    F_SHOWN_FACING, 58
     .equ    F_FRAME_OVR, 60
-    .equ    F_NCOLS, 92
+    .equ    F_NCOLS, 94
     | bchar_t / banim_t (6 bytes) / bstep_t (14) / bframe_t (6) / bpart_t (14)
     .equ    CH_FRAMES, 10
     .equ    CH_ANIMS, 14
