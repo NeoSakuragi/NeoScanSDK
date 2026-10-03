@@ -108,4 +108,5 @@ frame ~1100-1400. Round timer `$10A836` (BCD).
 | `victim_poses96.json` | portable throw-pose vocabulary: posture + angle for all 164 list poses; the 97 one-step poses (states 385-511) mean the same frame for every fighter, multi-step knockdown/release states are per-fighter (Terry's posture path in 'sequences'); KOF95's postures + 'curled' |
 | `capture/record96.lua` | recorder: scripted inputs, pokes, fighters + P1-owned pool objects per frame |
 | `capture/throws96.py`, `capture/specials96.py` | MAME runs per fighter |
+| `capture/cmdnormals.py` | KOF98/99 command normals (6A, 6B, 3C, 3D; not in the recogniser lists) played on every fighter, close + far, P2 life drops = hits -> `cmdnormals_<game>.json` (`export96.CMD_NORMALS`: state, hits, frames of the multi-state hops) |
 | `capture/boot.lua`, `capture/labels.py` | save state, state labelling |

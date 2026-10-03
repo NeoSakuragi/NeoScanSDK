@@ -18,7 +18,9 @@ import export96
 MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', 'jump_fwd_rise', 'jump_fwd_fall', 'land',
          'atk_a_close', 'atk_a_far', 'atk_b_close', 'atk_b_far', 'atk_c_close', 'atk_c_far', 'atk_d_close', 'atk_d_far',
          'atk_d_crouch', 'atk_c_jump', 'atk_d_jump', 'body_toss', 'hit_stand_light', 'hit_stand_heavy', 'hit_air',
-         'blowback', 'knockdown_flight', 'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip', 'win_a', 'atk_c_crouch']
+         'blowback', 'knockdown_flight', 'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip', 'win_a', 'atk_c_crouch',
+         'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # command normals (KOF97+: forward+A / B, down-forward+C / D)
+CMDS = MOVES[-4:]                              # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
 TILE_BASE = 1024                               # our first fighter tile; 1-1023 hold the stage (make_stage.py), 0 empty
 SRC_BASE = export96.TILE_BASE                  # export96 numbers its tiles from here
 
@@ -200,9 +202,14 @@ def special_rows(sp):
     rb = sp['row_boxes']; rs = sp['row_steps']; marks = sp['marks']; react = sp.get('react') or [None] * len(rb)
     cont = sp.get('cont', 0); hitv = sp.get('version') == 'hit' and any('i' in mk for mk in marks)
     out, prev_key, prev_act, prev_chain, prev_row = [], None, False, False, False
+    rom_new = [False] * len(rb)                          # a hit the ROM opens (its step rule), hit in the capture or not
     for i, r in enumerate(sp['script']):
         hb, ab = boxes(rb[i])
-        if (cont and i >= cont) or (hitv and not cont): new = ab is not None and ('h' in marks[i] or 'i' in marks[i])
+        if (cont and i >= cont) or (hitv and not cont):
+            new = ab is not None and ('h' in marks[i] or 'i' in marks[i])
+            if rs[i][2] >= 0 and (rs[i][0], rs[i][1]) != prev_key:
+                rom_new[i] = ab is not None and not (prev_act and prev_chain); new = new or rom_new[i]
+                prev_key, prev_act, prev_chain = (rs[i][0], rs[i][1]), ab is not None, bool(rs[i][2] & 0x4000)
         elif rs[i][2] >= 0:
             key = (rs[i][0], rs[i][1])
             if key != prev_key:
@@ -216,14 +223,15 @@ def special_rows(sp):
         out.append([hb, ab, (1 if ab else 0) | (2 if new else 0) | (8 if 'c' in marks[i] else 0) | (16 if 'j' in marks[i] else 0), 0])
     game = lambda i: (cont and i >= cont) or (hitv and not cont)
     i = 0
-    while i < len(out):                                  # the game's hits only: a run of boxes is live when the game
-        if out[i][1] is None or not game(i): i += 1; continue   # hit inside it; it opens at the run's start and
-        j = i                                            # again at each later hit in it
-        while j < len(out) and out[j][1] is not None and game(j): j += 1
-        hits_in = [k for k in range(i, j) if 'h' in marks[k] or 'i' in marks[k]]
+    while i < len(out):                                  # a run of boxes is live when the ROM made it live (an active
+        if out[i][1] is None or not game(i): i += 1; continue   # step: Ralf's [4]6C first punch, which the capture
+        j = i                                            # whiffed: Bruno 2026-10-04 "rely on rom data") or the game hit
+        while j < len(out) and out[j][1] is not None and game(j): j += 1   # inside it; it opens at the run's start,
+        hits_in = [k for k in range(i, j) if 'h' in marks[k] or 'i' in marks[k]]   # at each ROM step that opens a
+        rom = any(rs[k][2] >= 0 for k in range(i, j))    # hit and at each later hit of the game in it
         for k in range(i, j):
-            if not hits_in: out[k][1] = None; out[k][2] &= ~3
-            else: out[k][2] = out[k][2] & ~2 | (2 if k == i or k in hits_in[1:] else 0)
+            if not hits_in and not rom: out[k][1] = None; out[k][2] &= ~3
+            else: out[k][2] = out[k][2] & ~2 | (2 if k == i or k in hits_in[1:] or rom_new[k] else 0)
         i = j
     wins = [i for i, r in enumerate(out) if r[2] & 2]
     for k, w in enumerate(wins):                         # the reaction measured inside this hit, else the default
@@ -367,7 +375,7 @@ def write_c(chars, outdir):
          'typedef struct { int16_t dx, dy; uint8_t cols, rows, hflip, vflip, pal; const uint16_t *tiles; } bpart_t;   /* tiles: cols*rows column-major, 0 = empty; pal: palette index of the fighter */',
          'typedef struct { uint8_t nparts, ncols; const bpart_t *parts; } bframe_t;   /* ncols: hardware sprites the frame uses */',
          'typedef struct { int8_t x, y; uint8_t w, h; } bbox_t;                       /* centre from the feet (y<0 up), half extents; sprite faces left */',
-         'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx, pad; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals); dx: px the fighter moves forward as the step starts (KOF\'s $FB move) */',
+         'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx; uint8_t hy; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals); dx: px the fighter moves forward as the step starts (KOF\'s $FB move); hy: height in px during the step (command normals that hop: export96.cmd_frames) */',
          'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx; } bphys_t;     /* 16.16 px per frame */',
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way, 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor) */',
@@ -375,7 +383,7 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown), sprite bounds as its attack box */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit, 4 the target is carried at vx (forward from the fighter) / vy (height), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens */',
          'typedef struct { uint16_t nrows, inv_rows, cont, pad; const bspec_row_t *rows; } bspec_t;   /* inv_rows: invincible for its first rows; cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles */\n',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
@@ -409,13 +417,15 @@ def write_c(chars, outdir):
                 # only comes when it changes), $4000 = the next active step continues this hit. An active step after an
                 # inactive one, or after one without $4000, opens a new hit: Terry / Chang close C, Yamazaki close D hit
                 # twice (KOF98 measured: 52 of 54 normals match the rule; Billy's staff close D hits twice, rule says once)
+                # A box command on an inactive step only loads the box (live from the next active step): Yamazaki's 6A
+                # loads it on an inactive step between its two hits (KOF98: 2 hits, 3 when it counted), K''s crouch D (KOF99: 1)
                 fl = s.get('flags', 0); act = bool(fl & 0x100)
                 if ab: live = ab
-                elif act: ab = live
+                ab = live if act else None
                 new = ab is not None and not (prev_act and prev_chain)
                 prev_act, prev_chain = ab is not None, bool(fl & 0x4000)
                 fwd = -s.get('dx', 0); assert -128 <= fwd <= 127, (n, m, fwd)   # KOF x: negative = forward
-                steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (4 if new else 0)}, {bb(hb)}, {bb(ab)}, {fwd}, 0}}')
+                steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (4 if new else 0)}, {bb(hb)}, {bb(ab)}, {fwd}, {s.get('hy', 0)}}}')
             c.append(f'static const bstep_t {n}_{m}[] = {{' + ', '.join(steps) + '};')
         for t in THROWS:
             th = ch.get('throws', {}).get(t)
@@ -456,7 +466,7 @@ def write_c(chars, outdir):
     c.append('const bchar_t bm_chars[BC_COUNT] = {')
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
-        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}}},')
+        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}}},')
     c.append('};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')
@@ -468,5 +478,6 @@ if __name__ == '__main__':
         print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D', 'up+D'), pick_specials(ch, n))) + ';', end=' ')
         print(f'{len(ch["frames"])} frames, {len([m for m in MOVES if m in ch["anims"]])}/{len(MOVES)} moves, '
               f'{len(ch["block_palettes"])} colour sets, max cols '
-              f'{max(sum(len(p["tiles"]) for p in f["parts"]) for f in ch["frames"])}')
+              f'{max(sum(len(p["tiles"]) for p in f["parts"]) for f in ch["frames"])}, command normals: '
+              f'{" ".join(m for m in CMDS if m in ch["anims"]) or "-"}')
     print('tiles', tiles - TILE_BASE, f'({(tiles - TILE_BASE) * 128 // 1024} KB)')

@@ -91,6 +91,36 @@ CAST99 = ['k_dash', 'maxima', 'benimaru', 'shingo', 'terry', 'andy', 'joe', 'mai
           'leona', 'ralf', 'clark', 'whip', 'athena', 'kensou', 'chin', 'bao', 'king', 'mary', 'kasumi', 'xiangfei', 'kim',
           'chang', 'choi', 'jhun', 'kyo', 'kyo_1', 'iori', 'krizalid', 'krizalid_2', 'kyo_2']
 
+# Command normals (forward+A, forward+B, down-forward+C, down-forward+D: KOF97+), per fighter: not in the recogniser's
+# lists, the normal-attack code reads stick + button. Their states were found by playing them in the game
+# (capture/cmdnormals.py -> cmdnormals_<game>.json: fighter -> move -> [state, hits at point blank]); a fighter without
+# one for an input has no entry (the game plays the plain normal there).
+CMD_NORMALS = {g: json.load(open(os.path.join(HERE, f'cmdnormals_{g}.json'))) for g in ('kof98', 'kof99')
+               if os.path.exists(os.path.join(HERE, f'cmdnormals_{g}.json'))}
+
+def cmd_frames(m, cid, rows, slot_of, add_frame):
+    """a command normal that goes through several states (Mai's / Billy's hops: code moves the fighter up and forward
+    between animation steps) as one animation from its captured frames (capture/cmdnormals.py rows: state, raw step,
+    frame record, x forward, height): each run of frames on one KOF step = one step (ticks = its frames), split where
+    the height changes; the step's own flags and box commands on its first piece, the pieces before the last carry
+    KOF's $4000 'same hit' so a split step stays one hit window. dx = the capture's forward travel (KOF x: negative =
+    forward), hy = height in px."""
+    parsed, groups = {}, []
+    for st, ri, rec, x, h in rows:
+        if groups and groups[-1][0] == (st, ri, h): groups[-1][1] += 1
+        else: groups.append([(st, ri, h), 1, x])
+    steps, prev_x, prev_key = [], 0, None
+    for k, ((st, ri, h), n, x) in enumerate(groups):
+        if st not in parsed:
+            parsed[st] = {s_[4]: s_ for s_ in rom96.parse_anim(m, rom96.anim_addr(m, cid, slot_of(cid, st)))[0]}
+        t, fi, fl, b, _, _ = parsed[st][ri]
+        first = (st, ri) != prev_key
+        last = k + 1 == len(groups) or groups[k + 1][0][:2] != (st, ri)
+        steps.append({'frame': add_frame(fi), 'ticks': n, 'flags': fl if last else fl | 0x4000, 'dx': -(x - prev_x),
+                      'hy': h, 'boxes': {f'{kk:02X}': v for kk, v in b.items() if first or kk >> 4 != 1 and kk < 0x100}})
+        prev_x, prev_key = x, (st, ri)
+    return {'slot': slot_of(cid, rows[0][0]), 'mode': 'hold', 'steps': steps, 'captured': True}
+
 def step_boxes(m, cid, sp, slot_of, raw):
     """per row of a capture, (boxes, [state, raw index, step flags]): the step P1 was on (captured state + raw index =
     object +$74 / 6) gives its hurt boxes and, while the step is active (KOF step flag $0100), the attack box: the
@@ -246,7 +276,12 @@ def export(names, outdir, game='kof96', only=None):
                 frames.append({'record': f'{cid}:{fidx}', 'parts': parts})
             return index[fidx]
         anims = {}
-        for move, state in moves.items():
+        cmd_def = CMD_NORMALS.get(game, {}).get(name, {})
+        cmds = {k: v[0] for k, v in cmd_def.items() if len(v) < 3}
+        for move, v in cmd_def.items():                 # a command normal through several states (a hop): its frames
+            if len(v) < 3 or (only is not None and move not in only): continue
+            anims[move] = cmd_frames(m, cid, v[2], slot_of, add_frame) | {'state': v[0]}
+        for move, state in list(moves.items()) + list(cmds.items()):
             if only is not None and move not in only: continue
             slot = slot_of(cid, state)
             try: steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))

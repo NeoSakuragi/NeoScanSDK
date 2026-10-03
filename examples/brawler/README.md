@@ -79,6 +79,19 @@ its animation has finished. A victim stays in hitstun 36 frames (light) / 54 (he
 C, Yamazaki close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. One table
 (`COMBO[]` in fighter.c) for every fighter: the links are animations every KOF fighter has.
 
+## Command normals (library only, no input yet)
+KOF97+'s forward+A / forward+B / down-forward+C / down-forward+D normals are exported as `BA_CMD_FWD_A`, `BA_CMD_FWD_B`,
+`BA_CMD_DF_C`, `BA_CMD_DF_D` (end of `MOVES` in export_bm.py), with KOF's boxes and the normals' hit-window rule;
+`bchar_t.cmds` bit k = the fighter has `BA_CMD_FWD_A + k` (else the slot holds idle and must not be played). No input
+or combo route plays them yet. Found by playing every KOF98 / KOF99 fighter in the game (tools/kof96/capture/cmdnormals.py,
+`tools/kof96/cmdnormals_kof98.json` / `_kof99.json`). This roster: Terry 6A (2 hits) + 3C, Ryo 6A, Yamazaki 6A (2),
+Billy 6A (2, hop) + 6B (hop), Kyo 6B (2) + 3D (2), Iori 6A + 6B (game 2, here 3: its third window whiffed at point blank
+in the game), Mai 6B (hop), Maxima 6A + 3C, K' 6A + 6B (hop); Ralf, Chang, the KOF96 three: none. Moves that go through
+several game states (the hops) are built from the captured frames (export96.cmd_frames): `bstep_t.hy` = height, which
+the player applies to ground attacks. A hop travels past a point-blank victim (normals have no push box here): K''s 6B
+lands from ~100 px. Box rule fix (2026-10-04): a box command on an inactive step only loads the box (Yamazaki 6A 3 -> 2
+hits as in KOF98; also K' crouch D 2 -> 1, KOF99 measured 1; Mr. Big crouch C and Krauser close D 2 -> 1, not measured).
+
 ## Specials
 D (or A+B) = a projectile, forward+D = a move travelling forward, down+D (toward the camera) = a rising reversal,
 invincible from its first frame through its last hit or apex. `pick_specials` in export_bm.py sorts each fighter's

@@ -65,6 +65,7 @@ static void clamp(fighter_t *f);
 static void step_move(fighter_t *f) {                         /* KOF's per-step move ($FB): attacks travel as in KOF */
     int8_t dx = f->ch->anims[f->anim].steps[f->step].dx;
     if (dx && (f->state == S_ATTACK || f->state == S_AIR_ATTACK)) { f->x += f->facing > 0 ? FIX(dx) : -FIX(dx); clamp(f); }
+    if (f->state == S_ATTACK) f->y = FIX(f->ch->anims[f->anim].steps[f->step].hy);   /* ground attacks: 0, hops: the game's */
 }
 static void play(fighter_t *f, uint8_t anim) {
     f->anim = anim; f->step = 0; f->anim_done = 0;
@@ -299,7 +300,7 @@ static fighter_t *proj_alloc(fighter_t *owner) {
 static void special_end(fighter_t *f) {
     uint8_t k;
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
-    f->frame_ovr = 0xFFFF; f->spec_atk = 0; f->y = 0;
+    f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
 }
 static void start_special(fighter_t *f, uint8_t k) {
     if (f->team) stat_specials++;
@@ -324,7 +325,11 @@ static void special_update(fighter_t *f) {
             f->state_t = sp->cont + 1; f->throw_x0 = f->x;
         } else if (f->state_t == sp->cont + 1) f->state_t = sp->nrows + 1;   /* a whiff: the move ends */
     }
-    if (f->state_t > sp->nrows) { special_end(f); to_neutral(f, 0); return; }
+    if (f->state_t > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
+        special_end(f);
+        if (f->y > 0) { f->vx = f->vy = f->vz = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
+        return;
+    }
     r = &sp->rows[f->state_t - 1];
     if (f->state_t <= sp->inv_rows && f->inv < 2) f->inv = 2;    /* invincible move: from its first frame to its last hit */
     f->frame_ovr = r->frame;
