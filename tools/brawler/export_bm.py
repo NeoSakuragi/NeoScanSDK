@@ -26,9 +26,10 @@ def sb(v): return v - 256 if v > 127 else v
 
 def boxes(bx):
     """KOF step boxes -> (hurt union, attack) as (x, y, w, h) or None"""
-    # KOF box byte = slot | type << 2: slot 0 = the attack box, slots 1-3 = hurt boxes (the first hex digit is the type,
-    # not the slot: '1B' is a hurt box, '38' an attack box)
-    hurt = [v for k, v in bx.items() if int(k, 16) & 3]; atk = [v for k, v in bx.items() if not int(k, 16) & 3]
+    # KOF box key: the first hex digit is the type, 3 = hurt ('31'-'33', in every animation), 1 = attack ('11', '1B'-'1E',
+    # only in attack animations; KOF96/98/99 census 2026-10-03). The second digit is not a slot: close A's attack box
+    # is '1C', close C's / close D's '1D' (the old low-2-bits rule read '1D' as a hurt box: no C / D normal ever hit).
+    hurt = [v for k, v in bx.items() if int(k, 16) >> 4 == 3]; atk = [v for k, v in bx.items() if int(k, 16) >> 4 == 1]
     def norm(b): return sb(b[0]), sb(b[1]), b[2], b[3]
     h = None
     if hurt:
@@ -158,7 +159,7 @@ def write_c(chars, outdir):
          'typedef struct { int16_t dx, dy; uint8_t cols, rows, hflip, vflip, pal; const uint16_t *tiles; } bpart_t;   /* tiles: cols*rows column-major, 0 = empty; pal: palette index of the fighter */',
          'typedef struct { uint8_t nparts, ncols; const bpart_t *parts; } bframe_t;   /* ncols: hardware sprites the frame uses */',
          'typedef struct { int8_t x, y; uint8_t w, h; } bbox_t;                       /* centre from the feet (y<0 up), half extents; sprite faces left */',
-         'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box */',
+         'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals) */',
          'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx; } bphys_t;     /* 16.16 px per frame */',
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way, 2 = victim drawn in front */',
@@ -193,10 +194,19 @@ def write_c(chars, outdir):
             f'{{{len(fr["parts"])}, {sum(len(p["tiles"]) for p in fr["parts"])}, {n}_f{fi}}}' for fi, fr in enumerate(ch['frames'])) + '};')
         for m in MOVES:
             a = ch['anims'].get(m) or ch['anims']['idle']
-            steps = []
+            steps, live, prev_act, prev_chain = [], None, False, False
             for s in a['steps']:
                 hb, ab = boxes(s['boxes'])
-                steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0)}, {bb(hb)}, {bb(ab)}}}')
+                # KOF step flags: $0100 = attack active (the last attack box stays live on every active step, a box command
+                # only comes when it changes), $4000 = the next active step continues this hit. An active step after an
+                # inactive one, or after one without $4000, opens a new hit: Terry / Chang close C, Yamazaki close D hit
+                # twice (KOF98 measured: 52 of 54 normals match the rule; Billy's staff close D hits twice, rule says once)
+                fl = s.get('flags', 0); act = bool(fl & 0x100)
+                if ab: live = ab
+                elif act: ab = live
+                new = ab is not None and not (prev_act and prev_chain)
+                prev_act, prev_chain = ab is not None, bool(fl & 0x4000)
+                steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (4 if new else 0)}, {bb(hb)}, {bb(ab)}}}')
             c.append(f'static const bstep_t {n}_{m}[] = {{' + ', '.join(steps) + '};')
         for t in THROWS:
             th = ch.get('throws', {}).get(t)

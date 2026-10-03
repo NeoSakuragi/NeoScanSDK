@@ -71,8 +71,12 @@ Stick walks on the floor (up/down = depth), forward twice = run. A punch, B kick
 frame), the third knocks it down; B / D = KOF's forward+C / forward+D throw (12 damage), played from its per-frame script; after 90 frames it breaks
 free. The thrower can't be hit during a throw; a held enemy hit by someone else ends the hold.
 
-Links chain only when the previous one hit (`cancel` frames into it). One table (`COMBO[]` in fighter.c) for every
-fighter: the links are animations every KOF fighter has.
+Links chain only when the previous one hit: pressed during the move (remembered, the last press wins) or Final Fight
+style up to 30 frames after it ended (`CHAIN_WINDOW`: tap, wait, tap). An attack is never cut: the next one starts when
+its animation has finished. A victim stays in hitstun 36 frames (light) / 54 (heavy), 3x a fighting game's; hit-stop is
+13 frames for every hit, light ones included, so every impact lands with the same weight (KOF98 measured ~10-12). Multi-hit normals (Terry / Chang close
+C, Yamazaki close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. One table
+(`COMBO[]` in fighter.c) for every fighter: the links are animations every KOF fighter has.
 
 ## Specials
 D (or A+B) plays the fighter's first ground special, forward+D (any direction held) a second one from another move
@@ -125,11 +129,14 @@ so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so i
 
 ## Engine
 - `fighter.c`: one state machine for players and AI (intent in, no input code inside): walk/run/jump/attack/hitstun/
-  knockdown/down/getup, hit-stop (4 or 7 frames), hits = attack box vs hurt box in X/Y and |dZ| <= 12.
+  knockdown/down/getup, hit-stop (13 frames, every hit), hits = attack box vs hurt box in X/Y and |dZ| <= 12.
 - Coordinates 16.16: X, Z (0 = back of the 64 px floor band), Y up. Feet on screen at FLOOR_TOP + Z - Y. Depth order
   = sprite block order (higher block on top); a fighter that changes block gets its tiles rewritten.
-- Boxes are KOF's (box byte = slot | type << 2: slot 0 = attack, 1-3 = hurt), except attack boxes stretch back to the
-  body line (`export_bm.py`): far normals land point blank.
+- Boxes are KOF's, keyed by type as rom96 stores them: '3x' hurt, '1x' attack (until 2026-10-03 the exporter took the
+  low two bits as a slot and lost every C / D attack box). The attack box stays live on every step with KOF's active flag
+  ($0100); a step after one without $4000 opens a new hit (bstep flag 4; KOF98 measured, 52 of 54 normals: Billy's close
+  D hits twice in KOF98, once here; KOF96 / KOF99 fighters follow the same rule, not measured). Attack boxes stretch back
+  to the body line (`export_bm.py`): far normals land point blank.
 - Jump: 3/4 of KOF's take-off speed (56 % of the height); KOF's full jump leaves the screen.
 - Throws (`export_bm.py`): per video frame, thrower frame + offset, victim posture + offset + facing + front flag.
   Postures are the portable names of tools/kof96/victim_poses96/98/99.json ('posture:angle', 28 used by this roster),

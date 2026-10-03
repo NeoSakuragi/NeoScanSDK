@@ -44,8 +44,7 @@ typedef struct {                  /* one link of a combo route (combo.c) */
     uint8_t anim;                 /* BA_* */
     uint8_t damage, reaction;
     int8_t  push;                 /* px the victim slides back on hit */
-    uint8_t cancel;               /* frames after the start when the next link is accepted */
-    uint8_t next_a, next_b;       /* next node on A / B inside the window (0 = end of the route) */
+    uint8_t next_a, next_b;       /* next node on A / B (0 = end of the route) */
     uint8_t next_fwd_a, next_down_b;   /* finishers: forward+A / down+B */
 } cnode_t;
 
@@ -78,7 +77,9 @@ typedef struct fighter {
     const bbox_t *spec_atk;       /* special / projectile: attack box of the current script row (0 = none) */
     struct fighter *proj[2];      /* projectiles of the special playing */
     struct fighter *owner;        /* projectile: who threw it */
-    uint8_t  ncols;               /* sprite columns of the shown frame (written by fighter_tiles) */            /* thrower X when the throw started (script X is relative to it) */
+    uint8_t  ncols;               /* sprite columns of the shown frame (written by fighter_tiles) */
+    uint8_t  landed;              /* the current attack connected (routes chain only on a hit) */
+    uint8_t  chain_node, chain_t; /* Final Fight chain: the route step that hit, frames left to continue it from neutral */            /* thrower X when the throw started (script X is relative to it) */
 } fighter_t;
 
 extern const cnode_t COMBO[];

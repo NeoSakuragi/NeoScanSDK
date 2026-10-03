@@ -9,6 +9,10 @@
 #define GRAVITY_KD  0x7800        /* knockdown gravity 0.47 px/frame^2 (measured on KOF95) */
 #define DOWN_FRAMES 40
 #define INV_GETUP   30
+#define HITSTOP     13            /* hit-stop, the same for every hit: light ones land as hard as heavy ones (KOF98 ~10-12) */
+#define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
+#define STUN_HEAVY  54
+#define CHAIN_WINDOW 30           /* frames after a route step that hit during which A / B continues the route (Final Fight) */
 #define RUN_MUL     2             /* run = walk << 1 */
 #define X_MIN 16
 #define X_MAX (WORLD_W - 16)
@@ -23,20 +27,20 @@ const char *fighter_state_name(uint8_t st) { return NAMES[st]; }
  * finishers inside any window: forward+A = body toss (knockdown), down+B = sweep. Air: A / B.  D = special (body toss). */
 enum { N_NONE, N_A1, N_A2, N_AAA, N_AB, N_AAB, N_B1, N_BB, N_BA, N_BAB, N_FWD_A, N_AIR_A, N_AIR_B };
 const cnode_t COMBO[] = {
-    /* anim            dmg rct          push cancel nextA   nextB   fwdA     downB */
-    { 0,                0, 0,            0,  0,   0,      0,      0,       0 },
-    { BA_ATK_A_CLOSE,   3, R_LIGHT,      3,  5,   N_A2,   N_AB,   N_FWD_A, N_BAB },
-    { BA_ATK_A_FAR,     3, R_LIGHT,      3,  5,   N_AAA,  N_AAB,  N_FWD_A, N_BAB },
-    { BA_ATK_C_CLOSE,   8, R_KNOCKDOWN,  0,  0,   0,      0,      0,       0 },
-    { BA_ATK_D_CLOSE,   6, R_HEAVY,      6,  9,   0,      0,      N_FWD_A, N_BAB },
-    { BA_ATK_D_FAR,     9, R_LAUNCH,     0,  0,   0,      0,      0,       0 },
-    { BA_ATK_B_CLOSE,   4, R_LIGHT,      3,  6,   N_BA,   N_BB,   N_FWD_A, N_BAB },
-    { BA_ATK_D_CLOSE,   8, R_KNOCKDOWN,  0,  0,   0,      0,      0,       0 },
-    { BA_ATK_C_FAR,     5, R_HEAVY,      5,  9,   0,      N_BAB,  N_FWD_A, N_BAB },
-    { BA_ATK_D_CROUCH,  7, R_TRIP,       0,  0,   0,      0,      0,       0 },
-    { BA_BODY_TOSS,    10, R_KNOCKDOWN,  0,  0,   0,      0,      0,       0 },
-    { BA_ATK_C_JUMP,    6, R_HEAVY,      4,  0,   0,      0,      0,       0 },
-    { BA_ATK_D_JUMP,    8, R_KNOCKDOWN,  0,  0,   0,      0,      0,       0 },
+    /* anim            dmg rct          push nextA   nextB   fwdA     downB */
+    { 0,                0,  0,           0,  0,      0,      0,       0 },
+    { BA_ATK_A_CLOSE,   3,  R_LIGHT,     3,  N_A2,   N_AB,   N_FWD_A, N_BAB },
+    { BA_ATK_A_FAR,     3,  R_LIGHT,     3,  N_AAA,  N_AAB,  N_FWD_A, N_BAB },
+    { BA_ATK_C_CLOSE,   8,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
+    { BA_ATK_D_CLOSE,   6,  R_HEAVY,     6,  0,      0,      N_FWD_A, N_BAB },
+    { BA_ATK_D_FAR,     9,  R_LAUNCH,    0,  0,      0,      0,       0 },
+    { BA_ATK_B_CLOSE,   4,  R_LIGHT,     3,  N_BA,   N_BB,   N_FWD_A, N_BAB },
+    { BA_ATK_D_CLOSE,   8,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
+    { BA_ATK_C_FAR,     5,  R_HEAVY,     5,  0,      N_BAB,  N_FWD_A, N_BAB },
+    { BA_ATK_D_CROUCH,  7,  R_TRIP,      0,  0,      0,      0,       0 },
+    { BA_BODY_TOSS,     10, R_KNOCKDOWN, 0,  0,      0,      0,       0 },
+    { BA_ATK_C_JUMP,    6,  R_HEAVY,     4,  0,      0,      0,       0 },
+    { BA_ATK_D_JUMP,    8,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
 };
 
 /* ---- animation player ------------------------------------------------------------------------------------- */
@@ -51,6 +55,7 @@ static void anim_tick(fighter_t *f) {
     if (f->step + 1 < an->nsteps) f->step++;
     else { f->anim_done = 1; if (an->hold) return; f->step = 0; }   /* loops report one pass done too */
     f->tick = an->steps[f->step].ticks;
+    if (an->steps[f->step].flags & 4) f->hit_mask = 0;              /* multi-hit normals: a new hit window */
 }
 const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
 void fighter_play(fighter_t *f, uint8_t anim) { play(f, anim); }
@@ -82,7 +87,7 @@ static void start_node(fighter_t *f, uint8_t node) {
     uint8_t a = COMBO[node].anim;
     snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR || a == BA_ATK_C_JUMP
             ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
-    f->node = node; f->buffered = 0; f->hit_mask = 0;
+    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0;
     enter(f, node >= N_AIR_A ? S_AIR_ATTACK : S_ATTACK); play(f, COMBO[node].anim);
 }
 static uint8_t combo_input(const fighter_t *f, const intent_t *in) {     /* IN_* | 0x80 forward | 0x40 down */
@@ -277,6 +282,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     }
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
     if (f->inv) f->inv--;
+    if (f->chain_t) f->chain_t--;
     f->state_t++;
     f->pushing = 0;
     switch (f->state) {
@@ -291,7 +297,8 @@ void fighter_update(fighter_t *f, const intent_t *in) {
             break;
         }
         if (b & (IN_A | IN_B)) {
-            uint8_t ci = combo_input(f, in);
+            uint8_t ci = combo_input(f, in), nx = f->chain_t ? next_node(&COMBO[f->chain_node], ci) : 0;
+            if (nx) { start_node(f, nx); break; }                  /* the route goes on (Final Fight: tap, wait, tap) */
             if (f->state == S_RUN && (b & IN_A)) { start_node(f, N_FWD_A); break; }   /* dash attack */
             if ((ci & 0x40) && (ci & IN_B)) { start_node(f, N_BAB); break; }
             start_node(f, (b & IN_A) ? N_A1 : N_B1); break;
@@ -324,16 +331,17 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         const cnode_t *c = &COMBO[f->node];
         uint8_t ci = combo_input(f, in);
         if (ci) f->buffered = ci;                                /* the last press inside the link wins */
-        if (f->buffered && f->hit_mask && f->state_t >= c->cancel) {   /* routes chain only on a hit (Final Fight) */
-            uint8_t nx = next_node(c, f->buffered);
+        if (f->anim_done) {                                     /* a beat 'em up never cuts an attack: the next starts after it */
+            uint8_t nx = f->buffered && f->landed ? next_node(c, f->buffered) : 0;   /* routes chain only on a hit */
             if (nx) { start_node(f, nx); break; }
+            if (f->landed && (c->next_a | c->next_b | c->next_fwd_a | c->next_down_b)) { f->chain_node = f->node; f->chain_t = CHAIN_WINDOW; }   /* tap later: still the route */
+            to_neutral(f, in);
         }
-        if (f->anim_done) to_neutral(f, in);
         break;
     }
     case S_HITSTUN:
         f->x += f->vx; f->vx -= f->vx >> 3; clamp(f);
-        if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? 18 : 12)) to_neutral(f, 0);
+        if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT)) to_neutral(f, 0);
         break;
     case S_KNOCKDOWN:
         f->y += f->vy; f->vy -= GRAVITY_KD; f->x += f->vx; clamp(f);
@@ -363,9 +371,9 @@ void fighter_update(fighter_t *f, const intent_t *in) {
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     v->hp -= damage;
-    v->freeze = reaction == R_LIGHT ? 4 : 7;
+    v->freeze = HITSTOP;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
-    a->hit_mask |= 1 << v->idx;
+    a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
     (a->owner ? a->owner : a)->target = v;
     react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, push);
 }
@@ -420,9 +428,17 @@ void combat(fighter_t **fs, uint8_t n) {
                 uint8_t sfx = SFX_HIT_CD;
                 if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
                     const cnode_t *c = &COMBO[a->node];
-                    if (c->reaction < R_KNOCKDOWN) sfx = hit_sound(c->anim);
+                    const banim_t *an = &a->ch->anims[a->anim];
+                    uint8_t dmg = c->damage, rc = c->reaction, k, total = 0, later = 0;
+                    for (k = 0; k < an->nsteps; k++)                 /* multi-hit normal: damage split over its hits, */
+                        if (an->steps[k].flags & 4) { total++; if (k > a->step) later++; }   /* knockdown on the last */
+                    if (total > 1) {
+                        dmg = later ? dmg / total : dmg - dmg / total * (total - 1);
+                        if (later && rc >= R_KNOCKDOWN) rc = R_HEAVY;
+                    }
+                    if (rc < R_KNOCKDOWN) sfx = hit_sound(c->anim);
                     snd_sfx(sfx);
-                    fighter_hit(a, v, c->damage, c->reaction, c->push);
+                    fighter_hit(a, v, dmg, rc, c->push);
                 } else { snd_sfx(sfx); fighter_hit(a, v, SPECIAL_DAMAGE, R_KNOCKDOWN, 0); }
                 spark_hit(sx, sy, sfx >= SFX_HIT_C, a->facing);  /* KOF98: A / B small, C / D / C+D big */
             }

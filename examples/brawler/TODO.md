@@ -134,3 +134,19 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
        make_sparks.py (97 tiles at 700, sparks.h); drawn at the midpoint of the attack / hurt boxes, mirrored with the
        attacker, sprites 364-375 (debug boxes now 8 per kind), palette 254, 6 sprites a line reserved in the guard.
        Big for C / D / knockdowns / specials. Seen in a fight in our emulator: flash, star, burst at the fist.
+
+## Combo feel (Bruno, 2026-10-03)
+
+- [x] 26. Missing attack boxes: the exporter misread KOF's box keys (low 2 bits as a slot): every C / D normal of every
+       fighter (and Chang's B) had none, so AAA / AAB / BB / BAB finishers never hit. Now '1x' = attack, '3x' = hurt, and
+       the box stays live over KOF's active steps ($0100). Every attack animation has its box.
+- [x] 27. Multi-hit normals from KOF's step flags ($4000 = same hit): Terry close C hits twice (KOF98 measured in MAME:
+       Terry / Chang close C, Yamazaki / Billy close D), damage split, knockdown on the last hit. Seen in our emulator.
+- [x] 28. Hit-stop 4 / 7 -> 13 frames for every hit, light ones included (KOF98 measured ~10-12). Tested: 13 on close A,
+       far A and both close C hits.
+- [x] 29. Final Fight chain window: a route step that hit continues on A / B up to 30 frames after it ends. Tested: close A,
+       wait, far A, wait, close C (2 hits, knockdown).
+- [x] 30. Hitstun x3: 36 / 54 frames.
+- [x] 31. No animation cutting: a press during an attack is remembered and the next route step starts when the attack's
+       animation has finished (the `cancel` column is gone). Tested with A every 8 frames: close A plays its 3 steps, then
+       far A, then close C.
