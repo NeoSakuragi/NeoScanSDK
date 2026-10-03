@@ -54,17 +54,17 @@ P1 START in a fight (keyboard 1; P2 START joins) toggles it: the four corners of
 box (red) the hit test uses, as 8x8 brackets on sprites 300-363 (8 boxes per kind).
 
 ## Controls (P1 and P2)
-Stick walks on the floor (up/down = depth), forward twice = run. A punch, B kick, C jump, D special (body toss for now).
+Stick walks on the floor (up/down = depth), forward twice = run. A punch, B kick, C jump, D special (C+D blowback when a fighter has none).
 
 | Route | Links (KOF normals) | Ends with |
 |---|---|---|
-| AAA | close A, far A, close C | knockdown |
-| AAB | close A, far A, far D | launch |
+| AAAAA | far A, far A, close C (2 hits on Terry), close D, C+D | knockdown |
+| AB / AAB | far A, close D / far A, far A, far D | - / launch |
 | BB | close B, close D | knockdown |
 | BAB | close B, far C, crouch D | trip |
-| any link + forward A / down B | body toss / sweep | knockdown / trip |
+| any link + forward A / down B | C+D blowback / sweep | knockdown / trip |
 | D / forward+D | the fighter's two KOF specials (below) | knockdown, 8 damage |
-| run + A | body toss | knockdown |
+| run + A | C+D blowback | knockdown |
 | air A / air B | jump C / jump D | heavy / knockdown |
 
 **Hold:** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it. A = knee (3 damage, landing on the knee's attack
@@ -74,7 +74,7 @@ free. The thrower can't be hit during a throw; a held enemy hit by someone else 
 Links chain only when the previous one hit: pressed during the move (remembered, the last press wins) or Final Fight
 style up to 30 frames after it ended (`CHAIN_WINDOW`: tap, wait, tap). An attack is never cut: the next one starts when
 its animation has finished. A victim stays in hitstun 36 frames (light) / 54 (heavy), 3x a fighting game's; hit-stop is
-13 frames for every hit, light ones included, so every impact lands with the same weight (KOF98 measured ~10-12). Multi-hit normals (Terry / Chang close
+10 frames for every hit, light ones included, so every impact lands with the same weight (KOF98 measured ~10-12). Multi-hit normals (Terry / Chang close
 C, Yamazaki close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. One table
 (`COMBO[]` in fighter.c) for every fighter: the links are animations every KOF fighter has.
 
@@ -129,7 +129,7 @@ so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so i
 
 ## Engine
 - `fighter.c`: one state machine for players and AI (intent in, no input code inside): walk/run/jump/attack/hitstun/
-  knockdown/down/getup, hit-stop (13 frames, every hit), hits = attack box vs hurt box in X/Y and |dZ| <= 12.
+  knockdown/down/getup, hit-stop (10 frames, every hit), hits = attack box vs hurt box in X/Y and |dZ| <= 12.
 - Coordinates 16.16: X, Z (0 = back of the 64 px floor band), Y up. Feet on screen at FLOOR_TOP + Z - Y. Depth order
   = sprite block order (higher block on top); a fighter that changes block gets its tiles rewritten.
 - Boxes are KOF's, keyed by type as rom96 stores them: '3x' hurt, '1x' attack (until 2026-10-03 the exporter took the

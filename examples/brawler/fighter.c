@@ -9,7 +9,7 @@
 #define GRAVITY_KD  0x7800        /* knockdown gravity 0.47 px/frame^2 (measured on KOF95) */
 #define DOWN_FRAMES 40
 #define INV_GETUP   30
-#define HITSTOP     13            /* hit-stop, the same for every hit: light ones land as hard as heavy ones (KOF98 ~10-12) */
+#define HITSTOP     10            /* hit-stop, the same for every hit: light ones land as hard as heavy ones (KOF98 ~10-12) */
 #define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
 #define STUN_HEAVY  54
 #define CHAIN_WINDOW 30           /* frames after a route step that hit during which A / B continues the route (Final Fight) */
@@ -22,16 +22,19 @@ static const char *NAMES[S_COUNT] = { "IDLE    ", "WALK    ", "RUN     ", "PREJU
 const char *fighter_state_name(uint8_t st) { return NAMES[st]; }
 
 /* ---- combo routes (one table for every fighter: the links are KOF normals every fighter has) -------------------
- * A1 -A-> A2 -A-> AAA (knockdown)        A1/A2 -B-> AB / AAB (launch)
+ * A route (Bruno 2026-10-03): far A -A-> far A -A-> close C -A-> close D -A-> C+D (knockdown)
+ * A1/A2 -B-> AB / AAB (launch)
  * B1 -B-> BB (knockdown)                 B1 -A-> BA -B-> BAB (sweep: trip)
  * finishers inside any window: forward+A = body toss (knockdown), down+B = sweep. Air: A / B.  D = special (body toss). */
-enum { N_NONE, N_A1, N_A2, N_AAA, N_AB, N_AAB, N_B1, N_BB, N_BA, N_BAB, N_FWD_A, N_AIR_A, N_AIR_B };
+enum { N_NONE, N_A1, N_A2, N_A3, N_A4, N_A5, N_AB, N_AAB, N_B1, N_BB, N_BA, N_BAB, N_FWD_A, N_AIR_A, N_AIR_B };
 const cnode_t COMBO[] = {
     /* anim            dmg rct          push nextA   nextB   fwdA     downB */
     { 0,                0,  0,           0,  0,      0,      0,       0 },
-    { BA_ATK_A_CLOSE,   3,  R_LIGHT,     3,  N_A2,   N_AB,   N_FWD_A, N_BAB },
-    { BA_ATK_A_FAR,     3,  R_LIGHT,     3,  N_AAA,  N_AAB,  N_FWD_A, N_BAB },
-    { BA_ATK_C_CLOSE,   8,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
+    { BA_ATK_A_FAR,     3,  R_LIGHT,     3,  N_A2,   N_AB,   N_FWD_A, N_BAB },
+    { BA_ATK_A_FAR,     3,  R_LIGHT,     3,  N_A3,   N_AAB,  N_FWD_A, N_BAB },
+    { BA_ATK_C_CLOSE,   6,  R_HEAVY,     4,  N_A4,   0,      N_FWD_A, N_BAB },
+    { BA_ATK_D_CLOSE,   6,  R_HEAVY,     4,  N_A5,   0,      N_FWD_A, N_BAB },
+    { BA_BODY_TOSS,    10,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
     { BA_ATK_D_CLOSE,   6,  R_HEAVY,     6,  0,      0,      N_FWD_A, N_BAB },
     { BA_ATK_D_FAR,     9,  R_LAUNCH,    0,  0,      0,      0,       0 },
     { BA_ATK_B_CLOSE,   4,  R_LIGHT,     3,  N_BA,   N_BB,   N_FWD_A, N_BAB },
@@ -280,6 +283,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         fighter_t *h = f->held;
         release(h); f->x += dir_mul(h->facing, FIX(10)); clamp(f); f->inv = 20; f->freeze = h->freeze = 0; stat_escapes++;
     }
+    if (f->state == S_ATTACK) { uint8_t ci = combo_input(f, in); if (ci) f->buffered = ci; }   /* presses in hit-stop count */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
     if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
@@ -329,8 +333,6 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         break;
     case S_ATTACK: {
         const cnode_t *c = &COMBO[f->node];
-        uint8_t ci = combo_input(f, in);
-        if (ci) f->buffered = ci;                                /* the last press inside the link wins */
         if (f->anim_done) {                                     /* a beat 'em up never cuts an attack: the next starts after it */
             uint8_t nx = f->buffered && f->landed ? next_node(c, f->buffered) : 0;   /* routes chain only on a hit */
             if (nx) { start_node(f, nx); break; }

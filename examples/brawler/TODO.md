@@ -150,3 +150,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 31. No animation cutting: a press during an attack is remembered and the next route step starts when the attack's
        animation has finished (the `cancel` column is gone). Tested with A every 8 frames: close A plays its 3 steps, then
        far A, then close C.
+- [x] 32. Hit-stop -20 %: 13 -> 10 frames.
+- [x] 33. A route (Bruno): far A, far A, close C, close D, C+D (knockdown). KOF98's C+D is state 116, the move the
+       export calls body_toss. Presses during hit-stop are kept now (a tap inside the freeze was lost). Tested with one
+       tap per move: 6 hits (close C twice), C+D knocks down.
