@@ -9,7 +9,7 @@ python3 ../../tools/brawler/run_test.py out.png "p1 0 42 R; p1 42 14 U; p1 60 3 
 ```
 
 ## Arcade flow (MVS, Unibios)
-Power on: attract demo = a fight where P1 is `ai_bot` (closes in, combos, grabs, Rising Tackle when threatened) against
+Power on: attract demo = a fight where P1 is `ai_bot` (closes in, combos, grabs, down+D reversal when threatened) against
 weak enemies (`ai_weak`), a new fighter each time, INSERT COIN blinking; after 40 s it hands back to the BIOS, which
 starts it again. Coin (keyboard 3): title screen (banner, PRESS START); START (keyboard 1) takes a credit -> character
 select -> the fight. Game over / stage clear: back to the BIOS (attract, or the title while credits remain).
@@ -63,12 +63,13 @@ Stick walks on the floor (up/down = depth), forward twice = run. A punch, B kick
 | BB | close B, close D | knockdown |
 | BAB | close B, far C, crouch D | trip |
 | any link + forward A / down B | C+D blowback / sweep | knockdown / trip |
-| D / forward+D | the fighter's two KOF specials (below) | knockdown, 8 damage |
+| D / forward+D / down+D | the fighter's projectile / forward rush / rising reversal (below); cancels a normal that hit | knockdown, 8 damage |
 | run + A | C+D blowback | knockdown |
 | air A / air B | jump C / jump D | heavy / knockdown |
 
-**Hold:** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it. A = knee (3 damage, landing on the knee's attack
-frame), the third knocks it down; B / D = KOF's forward+C / forward+D throw (12 damage), played from its per-frame script; after 90 frames it breaks
+**Hold:** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it. A = down+C, B = close D (3 damage each, landing
+on the move's attack frame); the third hit is always C+D, which knocks it down and ends the hold. Forward+A = the forward throw
+(KOF's forward+C), forward+B = the reverse throw (KOF98's forward+D throw), 12 damage, played from its per-frame script; after 90 frames it breaks
 free. The thrower can't be hit during a throw; a held enemy hit by someone else ends the hold.
 
 Links chain only when the previous one hit: pressed during the move (remembered, the last press wins) or Final Fight
@@ -79,24 +80,26 @@ C, Yamazaki close D, ...) hit once per hit window, damage split over the hits, a
 (`COMBO[]` in fighter.c) for every fighter: the links are animations every KOF fighter has.
 
 ## Specials
-D (or A+B) plays the fighter's first ground special, forward+D (any direction held) a second one from another move
-slot, preferring one with a projectile (`pick_specials` in export_bm.py; overrides: Terry D = Rising Tackle, invincible
-from its first frame to its apex; forward+D = Power Wave), Ryo:
-Ko-ou-ken / Ko-hou. They play from the per-frame scripts captured in the games (tools/kof96/specials96.py): fighter
+D (or A+B) = a projectile, forward+D = a move travelling forward, down+D (toward the camera) = a rising reversal,
+invincible from its first frame through its last hit or apex. `pick_specials` in export_bm.py sorts each fighter's
+captured ground specials by what the body does (objects while it stays put / forward >= 60 px staying low / rising),
+light buttons first; a fighter without a move for a role plays the nearest one it has. Terry: Power Wave / Burn Knuckle /
+Rising Tackle; Ryo:
+Ko-ou-ken / 624B / Ko-hou. A special pressed during a normal (even in its hit-stop) cancels it once it has hit. They play from the per-frame scripts captured in the games (tools/kof96/specials96.py): fighter
 frame + offset; body attack box = KOF's box of that frame in the move's own state animations (export96 `frame_boxes`),
 with the beat 'em up reach; up to two objects per row. Objects are `fighter_t` entities from a pool of 4
 (`projectiles[]`), so the renderer, depth sort, line guard and hit test are the same code; an object's attack box is
 its sprite bounds. A box after a row without one opens a new hit window (multi-hit moves). Hit out of a special: its
-objects go. Enemies don't use specials yet.
+objects go.
 
 ## Enemies (`ai.c`)
 Same intents as a joystick, so one state machine runs everybody. Each enemy targets the nearest player and keeps to its
 side of him. Two attack tokens, dealt every 16 frames to the closest able enemies (distances computed once a frame).
 A token holder closes in to 36 px on the player's depth line, then either presses A one to three times 10 frames apart
 (AAA chains only on hits) or, 3 approaches in 8, walks into him with the `grab` intent: contact grabs (enemies only grab
-on purpose). Holding, it knees every 24 frames and after two may throw (its KOF forward+D/C script on the player). Any
-enemy 70-140 px away near the player's depth line fires its forward+D special now and then (the projectile one when it
-has one), so the hoverers shoot. The others hover around 90 px (walking all the way to their spot, at half speed in 16.16 sub-pixel steps every frame, and setting off
+on purpose). Holding, it hits (A or B) every 24 frames and after two may throw (forward+A / forward+B), else its third
+hit is the C+D. Any enemy 70-140 px away near the player's depth line fires its D special (the projectile) now and then,
+so the hoverers shoot. The others hover around 90 px (walking all the way to their spot, at half speed in 16.16 sub-pixel steps every frame, and setting off
 again only when it is 16 px / 8 px deep away: no step-stop-step; an AI fighter goes from walk to idle only after 10 frames
 without a walk intent, so the walk never flickers) at a random depth offset. Cooldowns 50-110 frames,
 120-180 after a special.

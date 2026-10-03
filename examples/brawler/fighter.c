@@ -99,7 +99,7 @@ static void start_node(fighter_t *f, uint8_t node) {
     uint8_t a = COMBO[node].anim;
     snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR || a == BA_ATK_C_JUMP
             ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
-    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0;
+    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0;
     enter(f, node >= N_AIR_A ? S_AIR_ATTACK : S_ATTACK); play(f, COMBO[node].anim);
 }
 static uint8_t combo_input(const fighter_t *f, const intent_t *in) {     /* IN_* | 0x80 forward | 0x40 down */
@@ -143,10 +143,13 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
 }
 
 /* ---- hold and throws -----------------------------------------------------------------------------------------------------
- * Walking into a standing opponent grabs it (combat). Hold pose = row 0 of the forward+C throw script for both. In the
- * hold: A = knee (close B, damage on its attack frame), the third sends the victim down; B / D = the KOF forward+C / forward+D throw, played from its
- * per-frame script (thrower frame + offset, victim posture + offset + facing + draw order); 90 frames: the victim breaks
- * free, or sooner by mashing ESCAPE_PRESSES buttons. Enemies grab too (AI intent `grab`). Postures are KOF's shared victim states; each fighter has its own frame for them (bchar_t.vposes). */
+ * Walking into a standing opponent grabs it (combat). Hold pose = row 0 of the forward+C throw script for both. In the hold
+ * (Bruno 2026-10-03): A = down+C, B = close D (damage on the move's attack frame, the victim reels in place); the third hit
+ * is always C+D, which knocks the victim down and ends the hold; forward+A = the forward throw (KOF's forward+C), forward+B
+ * = the reverse throw (KOF98 throws backward with forward+D). Throws play their per-frame script (thrower frame + offset,
+ * victim posture + offset + facing + draw order); 90 frames: the victim breaks free, or sooner by mashing ESCAPE_PRESSES
+ * buttons. Enemies grab too (AI intent `grab`). Postures are KOF's shared victim states; each fighter has its own frame
+ * for them (bchar_t.vposes). */
 #define GRAB_DX      32
 #define GRAB_TIME    90
 #define GRAB_HITS    3
@@ -179,30 +182,39 @@ static void release(fighter_t *a) {                              /* both free wh
     a->held = 0; a->frame_ovr = 0xFFFF; a->zfront = 0; a->y = 0; to_neutral(a, 0);
     if (v) { v->held = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; to_neutral(v, 0); }
 }
+static void start_node(fighter_t *f, uint8_t node);
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     const bthrow_row_t *r = f->ch->throws[BT_THROW_C].rows;
-    if (f->frame_ovr == 0xFFFF) {                                /* a knee is playing */
+    if (f->frame_ovr == 0xFFFF) {                                /* a hold hit is playing */
         if (f->buffered && ((fighter_step(f)->flags & 1) || f->anim_done)) {   /* it lands on its attack frame */
-            f->buffered = 0; snd_sfx(SFX_HIT_B);
+            f->buffered = 0;
+            if (f->grab_hits >= GRAB_HITS) {                     /* C+D: the victim goes down, the hold is over */
+                f->held = 0; v->held = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);
+                f->node = N_A5; f->landed = 1; enter(f, S_ATTACK);   /* the C+D plays on as a normal attack */
+                snd_sfx(SFX_HIT_CD); fighter_hit(f, v, COMBO[N_A5].damage, R_KNOCKDOWN, 0);
+                return;
+            }
+            snd_sfx(f->anim == BA_ATK_D_CLOSE ? SFX_HIT_D : SFX_HIT_C);
             v->hp -= GRAB_DAMAGE; v->frame_ovr = 0xFFFF; play(v, BA_HIT_STAND_LIGHT);
             f->freeze = v->freeze = 4;
             return;
         }
         if (!f->anim_done) return;
-        if (f->grab_hits >= GRAB_HITS) { release(f); react(v, f->facing, R_KNOCKDOWN, 0); return; }
         f->frame_ovr = r->tframe; show_pose(v, r->vpose);
         return;
     }
-    if (in->press & IN_A) {                                      /* knee: damage when its KOF attack box comes out */
-        f->frame_ovr = 0xFFFF; play(f, BA_ATK_B_CLOSE); f->grab_hits++; f->buffered = 1;
-        return;
-    }
-    if (in->press & (IN_B | IN_D)) {
-        uint8_t t = (in->press & IN_B) ? BT_THROW_C : BT_THROW_D;
-        if (!f->ch->throws[t].nrows) t = BT_THROW_C;
-        f->throw_id = t; f->throw_x0 = f->x; enter(f, S_THROW); enter(v, S_THROWN);
-        if (f->team) stat_throws++;
+    if (in->press & (IN_A | IN_B)) {
+        if (in->dx == f->facing) {                               /* forward+A / forward+B: throw forward / backward */
+            uint8_t t = (in->press & IN_A) ? BT_THROW_C : BT_THROW_D;
+            if (!f->ch->throws[t].nrows) t = BT_THROW_C;
+            f->throw_id = t; f->throw_x0 = f->x; enter(f, S_THROW); enter(v, S_THROWN);
+            if (f->team) stat_throws++;
+            return;
+        }
+        f->grab_hits++;                                          /* A: down+C, B: close D, the third: C+D */
+        f->frame_ovr = 0xFFFF; f->buffered = 1;
+        play(f, f->grab_hits >= GRAB_HITS ? BA_BODY_TOSS : (in->press & IN_A) ? BA_ATK_C_CROUCH : BA_ATK_D_CLOSE);
         return;
     }
     if (f->state_t >= GRAB_TIME) {                               /* the victim breaks free */
@@ -261,6 +273,12 @@ static void start_special(fighter_t *f, uint8_t k) {
     f->proj[0] = proj_alloc(f); f->proj[1] = proj_alloc(f);
     enter(f, S_SPECIAL);
 }
+static uint8_t special_for(const fighter_t *f, const intent_t *in) {   /* D, forward+D, down+D -> BS_*, 0xFF = none */
+    static const uint8_t order[3][3] = { { BS_D, BS_FWD_D, BS_DOWN_D }, { BS_FWD_D, BS_D, BS_DOWN_D }, { BS_DOWN_D, BS_FWD_D, BS_D } };
+    uint8_t want = in->dz > 0 ? 2 : in->dx ? 1 : 0, k;
+    for (k = 0; k < 3; k++) if (f->ch->specials[order[want][k]].nrows) return order[want][k];   /* missing: the nearest */
+    return 0xFF;
+}
 static void special_update(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_id];
     const bspec_row_t *r;
@@ -292,7 +310,10 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         fighter_t *h = f->held;
         release(h); f->x += dir_mul(h->facing, FIX(10)); clamp(f); f->inv = 20; f->freeze = h->freeze = 0; stat_escapes++;
     }
-    if (f->state == S_ATTACK) { uint8_t ci = combo_input(f, in); if (ci) f->buffered = ci; }   /* presses in hit-stop count */
+    if (f->state == S_ATTACK) {                                  /* presses in hit-stop count */
+        uint8_t ci = combo_input(f, in); if (ci) f->buffered = ci;
+        if (in->press & IN_D) f->spec_buf = 0x80 | special_for(f, in);
+    }
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
     if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
@@ -304,9 +325,9 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
         else if (in->face) f->facing = in->face;
         if (b & IN_C) { enter(f, S_PREJUMP); play(f, BA_PREJUMP); f->vx = dir_mul(in->dx, ph->jump_dx); f->vz = dir_mul(in->dz, FIX(1)); break; }
-        if (b & IN_D) {                                          /* special: D, or forward+D (facing follows the stick) */
-            uint8_t k = in->dx ? BS_FWD_D : BS_D;
-            if (f->ch->specials[k].nrows) start_special(f, k); else start_node(f, N_FWD_A);
+        if (b & IN_D) {                                          /* special: D projectile, forward+D rush, down+D reversal */
+            uint8_t k = special_for(f, in);
+            if (k != 0xFF) start_special(f, k); else start_node(f, N_FWD_A);
             break;
         }
         if (b & (IN_A | IN_B)) {
@@ -342,6 +363,10 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         break;
     case S_ATTACK: {
         const cnode_t *c = &COMBO[f->node];
+        if (f->landed && f->spec_buf && f->node < N_AIR_A) {      /* a special cancels a normal that hit: cut short */
+            uint8_t k = f->spec_buf & 0x7F; f->spec_buf = 0;
+            if (k != 0x7F) { start_special(f, k); break; }
+        }
         if (f->anim_done) {                                     /* a beat 'em up never cuts an attack: the next starts after it */
             uint8_t nx = f->buffered && f->landed ? next_node(c, f->buffered) : 0;   /* routes chain only on a hit */
             if (nx) { start_node(f, nx); break; }

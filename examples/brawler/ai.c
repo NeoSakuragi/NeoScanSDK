@@ -2,8 +2,8 @@
  * Every enemy picks the nearest player and keeps to its own side of him. Two attack tokens: every 16 frames they go to
  * the able enemy closest to its player (one token); the holder closes in to ATTACK_DX on the player's depth line and, in
  * range and facing him, presses A one to three times (the combo chains only if the hits land), then waits a random
- * cooldown (120-247 frames); 1 approach in 8 instead walks into him to grab (knees every 24 frames, after two maybe a throw); in
- * mid range near his depth line any enemy sometimes fires its forward+D special (the projectile one when it has one), so the
+ * cooldown (120-247 frames); 1 approach in 8 instead walks into him to grab (a hit every 24 frames, after two maybe a throw);
+ * in mid range near his depth line any enemy sometimes fires its D special (the projectile), so the
  * hoverers shoot. The others hover around HOVER_DX at a random depth offset, so the crowd surrounds instead of stacking. */
 #include "ai.h"
 
@@ -101,10 +101,13 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         dx = tx - ex; dz = tz - ez; side = dx > 0 ? -1 : 1;  /* side: the enemy's side of the player */
         o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = sgn(dx); o->grab = 0; o->ai = 1; o->slow = 0;
         if (a->cooldown) a->cooldown--;
-        if (e->state == S_GRAB) {                                /* holding: knee every 24 frames, after two maybe throw */
+        if (e->state == S_GRAB) {                                /* holding: a hit every 24 frames, after two maybe a throw */
             if (!a->press_t || a->press_t > 24) a->press_t = 24;
-            if (!--a->press_t) { o->press = e->grab_hits >= 2 && (rnd() & 1) ? IN_B : IN_A; a->press_t = 24; }
-            if (o->press == IN_B || e->grab_hits >= 3) rest(a, 60);
+            if (!--a->press_t) {
+                o->press = (rnd() & 1) ? IN_A : IN_B; a->press_t = 24;
+                if (e->grab_hits >= 2 && (rnd() & 1)) { o->dx = e->facing; rest(a, 60); }   /* forward+A / B: a throw */
+                else if (e->grab_hits >= 2) rest(a, 60);         /* the third hit: C+D, the hold ends */
+            }
             continue;
         }
         if (e->state == S_ATTACK) {                              /* follow-up presses of the current attack */
@@ -114,8 +117,8 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (!able(e)) { a->presses = 0; continue; }
         if (!a->retarget--) { a->hover_dz = (int8_t)((rnd() & 31) - 16); a->retarget = 60 + (rnd() & 63); }
         if (a->cooldown == 0 && iabs(dz) <= RANGE_DZ + 4 && iabs(dx) >= SPEC_MIN && iabs(dx) <= SPEC_MAX &&   /* any enemy: the hoverers stand in this range */
-            !ai_weak && e->ch->specials[BS_FWD_D].nrows && !rnd() && (rnd() & 1)) {   /* 1 in 512 a frame in range */
-            o->dx = sgn(dx); o->press = IN_D;                    /* forward+D: the projectile special when it has one */
+            !ai_weak && e->ch->specials[BS_D].nrows && !rnd() && (rnd() & 1)) {   /* 1 in 512 a frame in range */
+            o->press = IN_D;                                     /* D: the projectile (o->face turns it to the player) */
             rest(a, 180);
             continue;
         }
@@ -158,8 +161,8 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *o) {
     o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0;
     if (bot_cd) bot_cd--;
     bot_t++;
-    if (me->state == S_GRAB) {                                   /* knee, knee, throw */
-        if (!(bot_t & 15)) o->press = me->grab_hits >= 2 ? IN_B : IN_A;
+    if (me->state == S_GRAB) {                                   /* down+C, close D, then a throw (forward+A) */
+        if (!(bot_t & 15)) { o->press = me->grab_hits ? IN_B : IN_A; if (me->grab_hits >= 2) o->dx = me->facing; }
         return;
     }
     if (me->state == S_ATTACK) {                                 /* follow-up presses: the combo route */
@@ -173,7 +176,7 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *o) {
         if (!standing(e)) continue;
         d = iabs(INT(e->x) - mx) + iabs(INT(e->z) - mz);
         if (e->state == S_ATTACK && d < 56 && !bot_cd && (rnd() & 1)) {   /* threatened: invincible special */
-            o->press = IN_D; bot_cd = 40; return;
+            o->press = IN_D; o->dz = 1; bot_cd = 40; return;     /* down+D: the rising reversal */
         }
         if (d < bd) { bd = d; t = e; }
     }

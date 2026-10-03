@@ -82,6 +82,7 @@ typedef struct fighter {
     uint8_t  ncols;               /* sprite columns of the shown frame (written by fighter_tiles) */
     uint8_t  landed;              /* the current attack connected (routes chain only on a hit) */
     uint8_t  chain_node, chain_t; /* Final Fight chain: the route step that hit, frames left to continue it from neutral */
+    uint8_t  spec_buf;            /* D pressed during a normal: 0x80 | BS_* (0xFF: none), a special cancel once it hits */
     uint8_t  still;               /* AI: frames walking without a walk intent (the walk holds AI_IDLE_DELAY frames) */            /* thrower X when the throw started (script X is relative to it) */
 } fighter_t;
 

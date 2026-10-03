@@ -18,7 +18,7 @@ import export96
 MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', 'jump_fwd_rise', 'jump_fwd_fall', 'land',
          'atk_a_close', 'atk_a_far', 'atk_b_close', 'atk_b_far', 'atk_c_close', 'atk_c_far', 'atk_d_close', 'atk_d_far',
          'atk_d_crouch', 'atk_c_jump', 'atk_d_jump', 'body_toss', 'hit_stand_light', 'hit_stand_heavy', 'hit_air',
-         'blowback', 'knockdown_flight', 'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip', 'win_a']
+         'blowback', 'knockdown_flight', 'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip', 'win_a', 'atk_c_crouch']
 TILE_BASE = 1024                               # our first fighter tile; 1-1023 hold the stage (make_stage.py), 0 empty
 SRC_BASE = export96.TILE_BASE                  # export96 numbers its tiles from here
 
@@ -85,23 +85,36 @@ def build(specs, outdir):
     write_c(chars, outdir)
     return chars, tile_next
 
-# per-fighter choices (KOF input notation of the captured special): D, forward+D, and the moves invincible from their
-# first frame through their last hit or their apex (escape tools). Terry: D = Rising Tackle (KOF98 623A), forward+D =
-# Power Wave (236A).
-SPECIAL_D = {'terry': '623A'}
-SPECIAL_FWD_D = {'terry': '236A'}
-INVINCIBLE = {'terry': {'623A'}}
+# Specials by role (Bruno 2026-10-03): D = a projectile, forward+D = a move travelling forward (Terry's Burn Knuckle),
+# down+D = a rising invincible reversal (dragon punch, Rising Tackle...). Picked from each fighter's captured ground
+# specials by what its body does (tools/kof96/specials96.py scripts: per row frame, x forward, height, objects):
+# projectile = objects while the body stays put (x <= 45, height <= 10; a capture often ends before the object flies,
+# so its travel is no criterion), rush = body forward >= 60 px staying low (height <= 30; scored travel - 2 x height: Terry's Burn
+# Knuckle, not his Crack Shoot), rise = height >= 25, scored
+# height - travel / 2. Light buttons (A / B) first. ROLE_OVERRIDE: KOF input notation per fighter and role.
+ROLE_OVERRIDE = {'mai': {'rise': '623B'}}      # Mai: [2]8A is a wall-jump dive, not a reversal
+ROLES = ('proj', 'rush', 'rise')
+
+def special_shape(sp):
+    sc = sp['script']
+    return max(r[1] for r in sc), max(r[2] for r in sc), any(r[3] for r in sc)
 
 def pick_specials(ch, name=None):
-    """D: SPECIAL_D, else the fighter's first ground special (normal, not a super); forward+D: the first from another
-    move slot, preferably one that throws an object (projectile). Captured scripts, see tools/kof96/specials96.py."""
+    """[projectile, rush, rise] (None where the fighter has no such move)"""
     c = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].startswith('air')]
-    if not c: return []
-    s0 = next((sp for sp in c if sp['input'] == SPECIAL_D.get(name)), c[0])
-    others = [sp for sp in c if sp['slot'] != s0['slot']]
-    s1 = next((sp for sp in others if sp['input'] == SPECIAL_FWD_D.get(name)), None) or \
-         next((sp for sp in others if any(r[3] for r in sp['script'])), others[0] if others else s0)
-    return [s0, s1]
+    light = lambda sp: sp['input'][-1:] in ('A', 'B')
+    out = []
+    for role in ROLES:
+        want = ROLE_OVERRIDE.get(name, {}).get(role)
+        pick = next((sp for sp in c if sp['input'] == want), None) if want else None
+        if pick is None:
+            if role == 'proj': cand = [(0, sp) for sp in c if special_shape(sp)[2] and special_shape(sp)[0] <= 45 and special_shape(sp)[1] <= 10]
+            elif role == 'rush': cand = [(special_shape(sp)[0] - 2 * special_shape(sp)[1], sp) for sp in c if special_shape(sp)[0] >= 60 and special_shape(sp)[1] <= 30]
+            else: cand = [(special_shape(sp)[1] - special_shape(sp)[0] / 2, sp) for sp in c if special_shape(sp)[1] >= 25]
+            cand.sort(key=lambda t: (not light(t[1]), -t[0]))
+            pick = cand[0][1] if cand else None
+        out.append(pick)
+    return out
 
 def frame_box(fr):
     """bounding box of a frame's sprites, as a KOF box (centre from the origin, half extents, sprite orientation)"""
@@ -174,11 +187,11 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, pad; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, sprite bounds as its attack box */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, pad; bsobj_t obj[2]; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box when hit */',
          'typedef struct { uint16_t nrows, inv_rows; const bspec_row_t *rows; } bspec_t;   /* inv_rows: invincible for its first rows */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D, forward+D; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles */\n',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
-         'enum { BS_D, BS_FWD_D, BS_COUNT };',
+         'enum { BS_D, BS_FWD_D, BS_DOWN_D, BS_COUNT };',
          f'enum {{ VP_COUNT = {len(pkeys)} }};   /* victim postures: ' + ' '.join(pkeys) + ' */',
          'extern const bchar_t bm_chars[BC_COUNT];\n#endif']
     c = ['/* Generated by tools/brawler/export_bm.py. Do not edit. */\n#include "bm_chars.h"\n']
@@ -231,6 +244,7 @@ def write_c(chars, outdir):
             f'{{{len(ch["throws"][t]["timeline"])}, {n}_{t}}}' if t in ch.get('throws', {}) else '{0, 0}' for t in THROWS) + '};')
         sps = pick_specials(ch, n)
         for k, sp in enumerate(sps):
+            if sp is None: continue
             out = []
             for f, x, hgt, objs in sp['script']:
                 hb, ab = boxes(sp['frame_boxes'].get(f, sp['frame_boxes'].get(str(f), {})))
@@ -241,13 +255,13 @@ def write_c(chars, outdir):
                 ob += ['{0xFFFF, 0, 0, 0, 0, {0, 0, 0, 0}}'] * (2 - len(ob))
                 out.append(f'{{{f}, {x}, {hgt}, {bb(ab)}, {1 if ab else 0}, 0, {{{", ".join(ob)}}}}}')
             c.append(f'static const bspec_row_t {n}_sp{k}[] = {{' + ', '.join(out) + '};')
-        def inv_rows(sp):                                # invincible through its last hit row
-            if sp['input'] not in INVINCIBLE.get(n, ()): return 0
+        def inv_rows(sp, k):                             # the rising reversal: invincible through its last hit row
+            if ROLES[k] != 'rise': return 0                     # or its apex
             hits = [i for i, r in enumerate(sp['script']) if boxes(sp['frame_boxes'].get(r[0], {}))[1]]
             peak = max(range(len(sp['script'])), key=lambda i: sp['script'][i][2])   # a rising move: to its apex
             return max(hits[-1] + 1 if hits else 0, peak + 1 if sp['script'][peak][2] > 0 else 0) or len(sp['script'])
         c.append(f'static const bspec_t {n}_specials[BS_COUNT] = {{' + ', '.join(
-            [f'{{{len(sp["script"])}, {inv_rows(sp)}, {n}_sp{k}}}' for k, sp in enumerate(sps)] + ['{0, 0, 0}'] * (2 - len(sps))) + '};')
+            f'{{{len(sp["script"])}, {inv_rows(sp, k)}, {n}_sp{k}}}' if sp else '{0, 0, 0}' for k, sp in enumerate(sps)) + '};')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
             f'{{{len((ch["anims"].get(m) or ch["anims"]["idle"])["steps"])}, {1 if (ch["anims"].get(m) or ch["anims"]["idle"])["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')
@@ -263,7 +277,7 @@ if __name__ == '__main__':
     outdir = sys.argv[1]; specs = sys.argv[2:] or ['kof98:terry']
     chars, tiles = build(specs, outdir)
     for game, n, ch, off in chars:
-        print(f'{game}:{n}: specials D {" / forward+D ".join(sp["input"] + (" (projectile)" if any(r[3] for r in sp["script"]) else "") for sp in pick_specials(ch, n))};', end=' ')
+        print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D'), pick_specials(ch, n))) + ';', end=' ')
         print(f'{len(ch["frames"])} frames, {len([m for m in MOVES if m in ch["anims"]])}/{len(MOVES)} moves, '
               f'{len(ch["block_palettes"])} colour sets, max cols '
               f'{max(sum(len(p["tiles"]) for p in f["parts"]) for f in ch["frames"])}')
