@@ -1,34 +1,39 @@
 #!/usr/bin/env python3
-"""Fatal Fury 3 sound ground truth in our emulator: the Geolith core driven from Python (ctypes, as
-tools/brawler/harness.py) with a Z80 port tap, logging what tools/kof98snd/ymtap.lua logs in MAME.
+"""MAKOTO v3 sound ground truth in our emulator (Fatal Fury 3, KOF94, KOF95): the Geolith core driven from Python (ctypes,
+as tools/brawler/harness.py) with a Z80 port tap, logging what tools/kof98snd/ymtap.lua logs in MAME.
 
-    python3 capture.py OUT FRAMES [--send F:CMD,...] [--block F] [--rom PATH] [--wav PATH]
-    python3 capture.py --songs DIR [CMD ...]       every music command (or these): DIR/cap_XX.txt, power-on, the
-                                                   game's commands blocked from frame BLOCK on, the song sent at SEND,
-                                                   length from song_ff3.py (to the loop / end + 15 %)
+    python3 capture.py [--game ff3|kof94|kof95] OUT FRAMES [--send F:CMD,...] [--block F] [--rom PATH] [--wav PATH]
+    python3 capture.py [--game ff3|kof94|kof95] --songs DIR [CMD ...]
+                                         every music command (or these): DIR/cap_XX.txt, power-on, the game's
+                                         commands blocked from frame BLOCK on, the song sent at SEND (games.GAMES),
+                                         length from song.py (to the loop / end + 15 %). Default game: ff3
 
 Lines (the ymtap.lua format): "f <frame>" before the first line of a frame with activity; "a <reg> <val>" /
 "b <reg> <val>" = YM2610 port A / B write; "i <status>" = the sound CPU reads YM status port $04, which only the
 interrupt handler does ($218A, once per interrupt: bit 0 = timer A, bit 1 = timer B, the sequencer clock);
 "c <cmd>" = the Z80 reads a sound command (port $00, in the NMI handler); "c <cmd> blocked" = a command the
-game sent after frame BLOCK, replaced by $00 (which the FF3 NMI handler ignores before storing it, $007C);
+game sent after frame BLOCK, replaced by $00 (which the NMI handler ignores before storing it, $007C);
 "s <cmd>" = a SEND command written at the start of that frame.
 
 The core: a build of ~/CLProjects/geolith with the port tap (geo_z80.c geo_z80_port_tap, exported by libretro.c
 as retro_neoscan_z80_tap / retro_neoscan_z80_ram / retro_neoscan_sound_cmd), at CORE below; it is not installed
 as the RetroArch core."""
 import ctypes as C, os, sys
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'brawler'))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, '..', 'brawler')); sys.path.insert(0, HERE)
 from harness import ENV_CB, VIDEO_CB, SAMPLE_CB, BATCH_CB, POLL_CB, STATE_CB, GameInfo, Variable, OPTIONS, SYSDIR, KEYS
 
-CORE = '/data/tmp/snd98/ff3/geolith_tap.so'
-ROM = '/data/roms/fatfury3.neo'
-WORK = '/data/tmp/snd98/ff3/save'
+from games import GAMES, m1_path, music_cmds
+
+CORE = '/data/neogeo_dict/sound/snd98/ff3/geolith_tap.so'
+GAME = 'ff3'                  # set by --game
 TAP = C.CFUNCTYPE(C.c_uint8, C.c_int, C.c_uint16, C.c_uint8)
 
 class Sound:
     """the core with the tap; one per process (libretro cores are global)"""
-    def __init__(self, rom=ROM, core=CORE):
+    def __init__(self, rom=None, core=CORE):
+        rom = rom or GAMES[GAME]['rom']
+        WORK = GAMES[GAME]['dir'] + '/save'
         os.makedirs(WORK, exist_ok=True)
         self.frame = 0; self.out = None; self.block = None; self.allow = []; self.pad = set()
         self.wav = None
@@ -109,7 +114,7 @@ class Sound:
         buf = C.create_string_buffer(blob, len(blob)); assert self.core.retro_unserialize(buf, C.c_size_t(len(blob)))
     def z(self, addr): return self.zram[addr - 0xF800]
 
-def capture(out, frames, send=(), block=None, rom=ROM, wav=None):
+def capture(out, frames, send=(), block=None, rom=None, wav=None):
     """power on, log every frame up to `frames`; send = [(frame, cmd)]; block = frame from which the game's own
     commands are replaced by $00"""
     s = Sound(rom)
@@ -123,33 +128,32 @@ def capture(out, frames, send=(), block=None, rom=ROM, wav=None):
     if s.wav: s.wav.close()
     return s
 
-BLOCK, SEND = 880, 900        # the game sends $07 (unlock) at frame 873 and its first song ($3E) at 896
-
 def frames_for(data, cmd):
-    """capture length: song_ff3.py's ticks to the loop point or the end (a chained song: its intro + the next song)"""
-    from song_ff3 import Song, tick_hz
+    """capture length: song.py's ticks to the loop point or the end (a chained song: its intro + the next song)"""
+    from song import Song, tick_hz
     s = Song(data, cmd).run(ticks=30000)
     if s.queued:
         intro = s.queued[0][0]; nxt = s.queued[0][2]
         return frames_for(data, nxt) + int(intro / tick_hz(Song(data, cmd).tempo) * 59.19) + 60
-    n = s.tick if not s.running else max((v[0] + v[1] for v in s.loop_at.values()), default=s.tick)
+    n = s.tick if not s.running else max((v[0] + v[1] for v in s.loop_at.values()), default=min(s.tick, 600))
     s2 = Song(data, cmd).run(ticks=n)
     return int(s2.irq / (54.3 + tick_hz(s2.tempo)) * 59.19 * 1.15) + 120
 
 def capture_songs(out_dir, cmds=None):
     import subprocess
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    m1 = open(os.path.join(os.path.dirname(WORK), 'ff3_m1.bin'), 'rb').read()
+    g = GAMES[GAME]
+    m1 = open(m1_path(GAME), 'rb').read()
     os.makedirs(out_dir, exist_ok=True)
-    for cmd in cmds or [c for c in range(0x20, 0x60) if m1[0x7D8E + c] == 2]:
-        n = SEND + frames_for(m1, cmd)
-        subprocess.run([sys.executable, __file__, os.path.join(out_dir, f'cap_{cmd:02X}.txt'), str(n), '--block', str(BLOCK),
-                        '--send', f'{SEND}:{cmd:02X}'], check=True)
+    for cmd in cmds or music_cmds(m1):
+        n = g['send'] + frames_for(m1, cmd)
+        subprocess.run([sys.executable, __file__, '--game', GAME, os.path.join(out_dir, f'cap_{cmd:02X}.txt'), str(n),
+                        '--block', str(g['block']), '--send', f'{g["send"]}:{cmd:02X}'], check=True)
         print(f'${cmd:02X}: {n} frames', flush=True)
 
 if __name__ == '__main__':
     a = sys.argv
+    if a[1] == '--game': GAME = a[2]; a = a[:1] + a[3:]
     if a[1] == '--songs': capture_songs(a[2], [int(x, 16) for x in a[3:]]); sys.exit()
     opt = lambda k: a[a.index(k) + 1] if k in a else None
     send = [(int(f), int(c, 16)) for f, c in (x.split(':') for x in opt('--send').split(','))] if opt('--send') else []
-    capture(a[1], int(a[2]), send, int(opt('--block')) if opt('--block') else None, opt('--rom') or ROM, opt('--wav'))
+    capture(a[1], int(a[2]), send, int(opt('--block')) if opt('--block') else None, opt('--rom'), opt('--wav'))

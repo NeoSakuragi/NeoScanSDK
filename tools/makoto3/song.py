@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Fatal Fury 3 song decoder + tick-exact player model ("Ver 3.0 by MAKOTO" sound driver, docs/ff3_sound_driver.md,
-docs/ff3_songs.md).
+"""Song decoder + tick-exact player model of the "Ver 3.0 by MAKOTO" sound driver (Fatal Fury 3, KOF94, KOF95):
+docs/ff3_sound_driver.md (sections "KOF94's build", "KOF95's build"), docs/ff3_songs.md, docs/kof94_songs.md,
+docs/kof95_songs.md.
 
-    python3 song_ff3.py M1.bin 0x21                 summary (channels, notes, loop points)
-    python3 song_ff3.py M1.bin 0x21 --list [TICKS]  full event listing per channel (tick, address, event, params)
-    python3 song_ff3.py M1.bin 0x21 --keys [TICKS]  predicted chip events (key-on/off, F-number, sample, delta-N, TL)
-    python3 song_ff3.py M1.bin --catalog            one line per music command
+    python3 song.py M1.bin 0x21                 summary (channels, notes, loop points)
+    python3 song.py M1.bin 0x21 --list [TICKS]  full event listing per channel (tick, address, event, params)
+    python3 song.py M1.bin 0x21 --keys [TICKS]  predicted chip events (key-on/off, F-number, sample, delta-N, TL)
+    python3 song.py M1.bin --catalog            one line per music command
+
+The game comes from the M1 ROM (games.game_of); its table addresses from games.GAMES. Code addresses below are
+FF3's (KOF94's build is the same code, shifted; KOF95's a reworked build: docs/ff3_sound_driver.md).
 
 The model ports the Z80 code where it matters for timing and the YM2610 writes:
 - two clocks: timer B (value = the song's tempo byte, reg $26) runs the music, one sequencer tick per timer-B
@@ -17,7 +21,9 @@ The model ports the Z80 code where it matters for timing and the YM2610 writes:
 - events read by $24EC until a note or rest ($2579), opcodes $30-$5F through the jump table $25FA;
 - $40 / $47 / $55 end the interrupt at once (LD SP,($FE24) / JP $24C9): the channels after them skip the tick.
 Everything here is read from the code; docs/ff3_sound_driver.md gives the addresses."""
-import sys
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from games import GAMES, game_of, music_cmds
 
 CHANNELS = ['FM1', 'FM2', 'FM3', 'FM4', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'B']
 CODE = [1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14]            # $FE3C channel id of each header slot / block
@@ -37,10 +43,12 @@ def note_name(b):
     return f'{nib_name(b & 0x0F)}{b >> 5}' + ('+16' if b & 0x10 else '')
 
 class M1:
-    """the Z80's view: $0000-$7FFF fixed, $8000-$FFFF one of three 32 KB maps ($1151: bank byte $2E00[song])"""
-    BANKS = {0: 0x8000, 1: 0x10000, 2: 0x18000}       # 0: $01B0 identity; 1: ports $08-$0B <- $2E,$16,$0A,$04; 2: $3E,$1E,$0E,$06
-    def __init__(self, data): self.d = data; self.base = 0x8000
-    def bankset(self, n): self.base = self.BANKS[n]
+    """the Z80's view: $0000-$7FFF fixed, $8000-$FFFF one of the build's 32 KB maps ($1151: bank byte [song]).
+    FF3: 0 = $01B0 identity, 1 = ports $08-$0B <- $2E,$16,$0A,$04, 2 = $3E,$1E,$0E,$06; KOF94: 0 and 1"""
+    def __init__(self, data):
+        self.d = data; self.base = 0x8000
+        self.game = game_of(data); self.g = GAMES[self.game]
+    def bankset(self, n): self.base = self.g['banks'][n]
     def phys(self, a): return a if a < 0x8000 else self.base + a - 0x8000
     def rd(self, a): return self.d[self.phys(a & 0xFFFF)]
     def w(self, a): return self.rd(a) | self.rd(a + 1) << 8
@@ -129,7 +137,7 @@ class Chan:
 class Song:
     def __init__(self, data, cmd, listing=False):
         self.m = M1(data)
-        if data[0x7D8E + cmd] != 2: raise ValueError('not a music command')
+        if data[self.m.g['types'] + cmd] != 2: raise ValueError('not a music command')
         self.ch = None; self.shadow = {}                      # shadow: FM register mirror {(code, reg): val}
         self.out = []                                         # chip events: (irq, tick, chan, kind, data)
         self.irq = 0; self.tick = 0
@@ -151,9 +159,11 @@ class Song:
         before (all 0 after a reset)."""
         m = self.m; i = cmd - 0x20
         self.cmd = cmd
-        self.bank = self.m.d[0x2E00 + i]; m.bankset(self.bank)
-        self.ptr = ptr = m.w(0x3A70 + 2 * i)
-        self.smp = m.w(0x3B30 + 2 * i)                       # $FEF8: this song's ADPCM-A sample records
+        g = m.g
+        self.bank = self.m.d[g['bank_tab'] + i]; m.bankset(self.bank)
+        self.ptr = ptr = m.w(g['headers'] + 2 * i)
+        # $FEF8: this song's ADPCM-A sample records (FF3); KOF94: always effect slot 0's table ($0447)
+        self.smp = m.w(g['smp_tab'] + 2 * i) if g['smp_tab'] else g['smp_fixed']
         self.head = h = [m.rd(ptr + k) for k in range(0x30)]
         self.tempo = h[0x17]                                  # timer B value ($2B75)
         if not self.fade:                                     # $13D6: a fade keeps its levels
@@ -175,14 +185,14 @@ class Song:
     # -- pitch: $2459 / $20CF -> index byte: bits 7-5 block, bits 4-0 F-number table entry ($7F0F)
     def pitch_index(self, ch):
         a = (ch.trans + NIB_SEMI[ch.nib]) & 0xFF            # $20CF: transpose + semitone, signed index into $2113
-        e = self.m.rd(0x2113 + s8(a))
+        e = self.m.rd(self.m.g['pitch'] + s8(a))
         return (ch.octv + ch.hi + e) & 0xFF                  # $2462: + IX+E (octave shift) + IX+D (octave)
 
     def fm_key(self, ch, d, e):
         """$14B5: write $28 = channel | D (D = key bits); on a key-on also the F-number (after the key-on)"""
         self.emit(ch, 'key', d=d)
         if not d & 0xF0: return
-        fn = self.m.w(0x7F0F + 2 * (e & 0x1F))
+        fn = self.m.w(self.m.g['fnum'] + 2 * (e & 0x1F))
         fn = (fn + s8(ch.det)) & 0xFFFF                      # $1507: + IX+F (signed)
         hi = ((e >> 2) & 0x38 | fn >> 8) & 0xFF              # block bits OR the F-number's high byte
         self.shadow[(ch.code, 'fnum')] = hi << 8 | fn & 0xFF
@@ -232,17 +242,17 @@ class Song:
 
     def b_key(self, ch, d, e, vol):                          # $1683
         if not d: self.emit(ch, 'boff'); return             # $180A: $11 = 0
-        m = self.m
+        m = self.m; g = m.g
         if ch.bmode == 0:                                    # $1718 -> $1830: one sample per octave
             o = e >> 5
             smp = m.rd(self.fe40 + o)
-            dn = m.w(0x7CCE + 2 * ((e & 0x0F) | (e & 0xE0) >> 1))
+            dn = m.w(g['b_dn_oct'] + 2 * ((e & 0x0F) | (e & 0xE0) >> 1))
         elif ch.bmode == 1:                                  # $175C: kit, the note byte is the sample
             smp = e; dn = None
         else:                                                # $16D4 -> $1856: one sample, pitched
             idx = ((((e & 0xE0) - 0x40) & 0xFF) >> 1 & 0x70) | (e & 0x0F)
-            dn = m.w(0x7C46 + 2 * idx); smp = self.fe40 & 0xFF
-        rec = 0x6FD6 + 16 * smp                              # $0913
+            dn = m.w(g['b_dn_pitched'] + 2 * idx); smp = self.fe40 & 0xFF
+        rec = g['brec'] + g['brec_size'] * smp              # $0913 (KOF94: 26-byte records)
         if dn is None: dn = m.w(rec + 10)
         if d == 5: self.emit(ch, 'bslur', deltan=dn, vol=vol); return   # $083E
         info = dict(sample=smp, deltan=dn, start=m.w(rec + 1), end=m.w(rec + 3), vol=vol, loops=m.rd(rec + 5))
@@ -319,7 +329,7 @@ class Song:
         q = (n >> 3) & 0x1F; mode = self.gmode[ch.code]
         if mode == 7: return n
         if q: return (q * (mode + 1)) & 0xFF
-        return self.m.rd(0x2CA3 + 8 * n + mode)
+        return self.m.rd(self.m.g['gate'] + 8 * n + mode)
 
     def length(self, ch, n):
         g = self.gate_of(ch, n)
@@ -340,7 +350,7 @@ class Song:
         if len(x) > 2: ch.det = (x[2] - 0xB8) & 0xFF          # $2553
 
     def load_patch(self, ch, p):                             # $18A4 (52-byte patch at $2E40 + 52p) + $1A8C (writes)
-        m = self.m; a = 0x2E40 + 52 * p
+        m = self.m; a = m.g['patches'] + 52 * p
         q = [m.rd(a + i) for i in range(52)]
         self.emit(ch, 'patch', p=p, addr=a)
         v = self.vib[ch.code]                                # $1A2C
@@ -353,16 +363,21 @@ class Song:
     def execute(self, ch, ev):
         op, a = ev['op'], ev['args']
         c = ch.code
+        guard = self.m.g.get('stack_guard')                 # KOF95: depth 4 at most, games.py
         if op in (0x31, 0x32):
-            if len(ch.loops) >= 5: self.log.append((self.tick, ch.name, ev['pos'], 'LOOP STACK OVERFLOW'))
-            ch.loops.append([a[0], ch.pos])
+            if guard and len(ch.loops) >= 4: self.log.append((self.tick, ch.name, ev['pos'], 'loop start ignored (depth 4)'))
+            else:
+                if len(ch.loops) >= 5: self.log.append((self.tick, ch.name, ev['pos'], 'LOOP STACK OVERFLOW'))
+                ch.loops.append([a[0], ch.pos])
         elif op in (0x34, 0x38):
             if ch.loops:
                 ch.loops[-1][0] = (ch.loops[-1][0] - 1) & 0xFF
                 if ch.loops[-1][0]: ch.pos = ch.loops[-1][1]
                 else: ch.loops.pop()
             else: self.log.append((self.tick, ch.name, ev['pos'], 'loop end with an empty stack'))
-        elif op == 0x35: ch.calls.append(ch.pos); ch.pos = a[0] | a[1] << 8
+        elif op == 0x35:
+            if guard and len(ch.calls) >= 4: self.log.append((self.tick, ch.name, ev['pos'], 'call ignored (depth 4)'))
+            else: ch.calls.append(ch.pos); ch.pos = a[0] | a[1] << 8
         elif op == 0x36:
             if ch.calls: ch.pos = ch.calls.pop()
         elif op == 0x39: self.mark_jump(ch, a[0] | a[1] << 8); ch.pos = a[0] | a[1] << 8
@@ -379,11 +394,11 @@ class Song:
         elif op == 0x46:                                     # $2902
             p = a[0]
             if p < 0x40: ch.bmode = 1
-            elif p < 0x80: self.fe40 = self.m.rd(0x7C06 + p - 0x40); ch.bmode = 2
-            elif p < 0xC0: self.fe40 = 0x7CC6 + 8 * (p - 0x80); ch.bmode = 0
+            elif p < 0x80: self.fe40 = self.m.rd(self.m.g['b_single'] + p - 0x40); ch.bmode = 2
+            elif p < 0xC0: self.fe40 = self.m.g['b_octtab'] + 8 * (p - 0x80); ch.bmode = 0
         elif op == 0x47:                                     # $28F6: start song p, end the IRQ
             self.queued.append((self.tick, ch.name, a[0]))
-            if self.m.d[0x7D8E + a[0]] == 2: self.start(a[0]); self.emit(ch, 'start', cmd=a[0])
+            if self.m.d[self.m.g['types'] + a[0]] == 2: self.start(a[0]); self.emit(ch, 'start', cmd=a[0])
             else: self.running = False
             return 'abort'
         elif op == 0x4E: self.emit(ch, 'lfo', v=a[0])
@@ -542,8 +557,7 @@ def timers(song):
 
 def catalog(data):
     rows = []
-    for cmd in range(0x20, 0x60):
-        if data[0x7D8E + cmd] != 2: continue
+    for cmd in music_cmds(data):
         s = Song(data, cmd)
         s.run(ticks=20000)
         rows.append((cmd, s))

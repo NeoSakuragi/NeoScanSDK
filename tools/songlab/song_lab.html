@@ -259,6 +259,7 @@ async function loadGame(gid, cmd) {
   const g = await (await fetch(`data/${gid}/game.json`)).json();
   GAME = g; BAR = g.bar; BEAT = g.beat; zoom = 0.25 * 96 / BEAT;   // the same width per beat in every game
   document.title = `${g.title} · Neo Geo Song Lab`; $('intro').innerHTML = g.intro;
+  $('srcA').textContent = g.labelA || 'Real driver'; $('srcB').textContent = g.labelB || 'Model';
   $('notes').innerHTML = g.notes.map(n => `<p>${n}</p>`).join('');
   const sel = $('song'); sel.innerHTML = '';
   for (const s of INDEX) {
@@ -413,7 +414,7 @@ async function play(fromTick) {
   if (src) { const old = src; try { old.stop(when); } catch (e) {} }
   src = node; startCtx = when; startSample = at; playing = true;
   $('play').textContent = 'Stop'; $('play').setAttribute('aria-pressed', 'true');
-  status(which === 'A' ? 'Playing the real driver' : 'Playing the model');
+  status(`Playing: ${which === 'A' ? (GAME.labelA || 'the real driver') : (GAME.labelB || 'the model')}`);
   requestAnimationFrame(frame);
 }
 function stop() {

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Fatal Fury 3 songs as YM2610 register writes: song_ff3.py's chip events turned into the writes the driver makes
+"""MAKOTO v3 songs (Fatal Fury 3, KOF94, KOF95) as YM2610 register writes: song.py's chip events turned into the writes the driver makes
 ($1A8C, $2BC3, $14B5, $0359, $077D, $083E; docs/ff3_sound_driver.md "Output stage"), and a register-level comparison
 with a capture.py capture, interrupt by interrupt.
 
-    python3 regs_ff3.py M1.bin 0x23 CAP.txt          compare the model's writes with the capture
-    python3 regs_ff3.py M1.bin 0x23 CAP.txt --show N  print the first N differing interrupts
+    python3 regs.py M1.bin 0x23 CAP.txt          compare the model's writes with the capture
+    python3 regs.py M1.bin 0x23 CAP.txt --show N  print the first N differing interrupts
 
 writes(): [(irq, port, reg, val)], irq = timer interrupt since the command (0 = the command itself, in the main loop),
 port 'a' / 'b'. capture(): the same from a capture, plus the interrupt kinds ('A' / 'B') to drive the model."""
 import sys
 sys.path.insert(0, __file__.rsplit('/', 1)[0])
-from song_ff3 import Song, CHANNELS, M1
+from song import Song, CHANNELS
 
 FM = {'FM1': ('a', 1, 1), 'FM2': ('a', 2, 2), 'FM3': ('b', 1, 5), 'FM4': ('b', 2, 6)}   # port, reg offset, $28 code
 CARRIERS = [8, 8, 8, 8, 0x0A, 0x0E, 0x0E, 0x0F]          # $2C8D by algorithm: bit 0 S1, 1 S2, 2 S3, 3 S4
@@ -39,9 +39,9 @@ def patch_regs(q, tl_shadow, b4):
 def start_writes(s, cmd):
     """$111B for song cmd: ADPCM-B reset, FM keys off ($0B2E), timer B, ADPCM-A master volume, timer flags (a fade in
     progress would skip the master volume: no song starts during one)"""
-    d = s.m.d; i = cmd - 0x20
-    base = M1.BANKS[d[0x2E00 + i]]
-    ptr = d[0x3A70 + 2 * i] | d[0x3A71 + 2 * i] << 8
+    d = s.m.d; g = s.m.g; i = cmd - 0x20
+    base = g['banks'][d[g['bank_tab'] + i]]
+    ptr = d[g['headers'] + 2 * i] | d[g['headers'] + 1 + 2 * i] << 8
     rd = lambda a: d[a] if a < 0x8000 else d[base + a - 0x8000]
     return [('a', 0x10, 1), ('a', 0x10, 0), ('a', 0x28, 1), ('a', 0x28, 2), ('a', 0x28, 5), ('a', 0x28, 6),
             ('a', 0x26, rd(ptr + 0x17)), ('b', 0x01, rd(ptr + 0x19)), ('a', 0x27, 0x2F)]

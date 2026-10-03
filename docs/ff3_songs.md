@@ -1,13 +1,13 @@
 # Fatal Fury 3 songs
 
 The 40 music commands of Fatal Fury 3's sound driver (`ff3_sound_driver.md`): catalogue, structure, the techniques the
-song data uses, and the per-song validation of tools/ff3snd's model against the real driver. Everything is decoded
-by `tools/ff3snd/song_ff3.py` from the M1 ROM; "measured" = seen in our emulator.
+song data uses, and the per-song validation of tools/makoto3's model against the real driver. Everything is decoded
+by `tools/makoto3/song.py` from the M1 ROM; "measured" = seen in our emulator.
 
-    python3 tools/ff3snd/song_ff3.py /data/tmp/snd98/ff3/ff3_m1.bin --catalog          one line per command
-    python3 tools/ff3snd/song_ff3.py /data/tmp/snd98/ff3/ff3_m1.bin 0x26 --list        the event listing
-    python3 tools/ff3snd/capture.py --songs /data/tmp/snd98/ff3/cap                    capture every song
-    python3 tools/ff3snd/regs_ff3.py /data/tmp/snd98/ff3/ff3_m1.bin 0x26 /data/tmp/snd98/ff3/cap/cap_26.txt
+    python3 tools/makoto3/song.py /data/tmp/snd98/ff3/ff3_m1.bin --catalog              one line per command
+    python3 tools/makoto3/song.py /data/tmp/snd98/ff3/ff3_m1.bin 0x26 --list            the event listing
+    python3 tools/makoto3/capture.py --songs /data/tmp/snd98/ff3/cap                    capture every song
+    python3 tools/makoto3/regs.py /data/tmp/snd98/ff3/ff3_m1.bin 0x26 /data/tmp/snd98/ff3/cap/cap_26.txt
 
 ## Catalogue
 
@@ -108,11 +108,11 @@ leaves ADPCM-A 4-6 to the sound effects. Sixteen use ADPCM-A 4, 5 or 6 too (`$21
 
 ## Validation
 
-All 40 commands captured in our emulator (Geolith core with a Z80 port tap, `tools/ff3snd/capture.py`): power-on,
+All 40 commands captured in our emulator (Geolith core with a Z80 port tap, `tools/makoto3/capture.py`): power-on,
 the game's own commands blocked from frame 880 (after its `$07`), the song sent at frame 900, captured for its pass
 + 15 % (chains: the intro + the next song's pass). The model runs on the captured interrupt order (which interrupt
 was timer A, which timer B; measured), from the command on, and its register writes are compared interrupt by
-interrupt (`regs_ff3.compare`).
+interrupt (`regs.compare`).
 
 - **32417 of 32417 interrupts with writes identical, 431287 captured writes compared, no difference in any song.**
   Left out on both sides: `$27` (timer flags, every interrupt), `$1C` (ADPCM end-flag resets) and ADPCM-B `$10` = 0
@@ -124,7 +124,7 @@ interrupt (`regs_ff3.compare`).
 - The fade (`$44`) is validated, including the per-tick level refreshes and the stop it ends with.
 - What no song exercises is not validated: software vibrato, ADPCM-B pitch / level effects, and the opcodes listed
   without uses in `ff3_sound_driver.md`.
-- Playback check: `tools/kof98snd/web/build_web.py --game ff3` builds Song Lab data (`/data/tmp/ymweb/ff3/data`) and
+- Playback check: `tools/songlab/build_web.py --game ff3` builds Song Lab data (`/data/tmp/ymweb/ff3/data`) and
   render.js plays both streams through the WebAssembly YM2610: over the first 20 s, `$3E` renders identical audio,
   `$26` differs by 0.1 % RMS (write spacing inside an interrupt), `$2A` loses its looped samples in the model stream
   (the replays above are not generated).

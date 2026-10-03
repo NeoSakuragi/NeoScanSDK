@@ -1,13 +1,16 @@
-# Fatal Fury 3 sound driver ("Ver 3.0 by MAKOTO.04/03/10 to SK")
+# Fatal Fury 3 sound driver ("Ver 3.0 by MAKOTO.04/03/10 to SK"), and KOF94's and KOF95's builds of it
 
 Second deep dive into a classic SNK driver, after KOF98 (`kof98_sound_driver.md`). Source: Fatal Fury 3's M ROM
 (`/data/roms/fatfury3.neo`, M region, 128 KB; copy `/data/tmp/snd98/ff3/ff3_m1.bin`, disassembly `drv.asm` there, by
 `tools/z80disasm.py`), checked against captures of the real driver in our emulator, interrupt by interrupt
-(tools/ff3snd, see Validation). The signature at `$003E` reads `Ver 3.0 by MAKOTO.04/03/10 to SK`: a different
+(tools/makoto3, see Validation). The signature at `$003E` reads `Ver 3.0 by MAKOTO.04/03/10 to SK`: a different
 driver line from KOF98's SNK v1.7, and nothing of KOF98's layout carries over. This file is the driver: protocol,
 dispatch, the two clocks, channel state machine, stream format and every opcode, output stage, effects. The songs
-(catalogue, structure, per-song validation) are in `ff3_songs.md`. Everything below is read from the code (addresses
-cited) or measured; *(inferred)* marks the rest.
+(catalogue, structure, per-song validation) are in `ff3_songs.md`. The King of Fighters '94 runs a slightly different build of the same driver: its
+differences are in "KOF94's build" below, its songs in `kof94_songs.md`. The King of Fighters '95 runs a reworked
+build (other RAM layout, word jump tables, new effect commands, the same music engine): "KOF95's build", songs in
+`kof95_songs.md`. Everything below is read from the code
+(addresses cited) or measured; *(inferred)* marks the rest.
 
 ## Z80 map and ports
 
@@ -274,7 +277,7 @@ rests, 713 patch changes).
 
 47 opcodes `$31-$5F`: 5 no-ops and 40 other handler addresses (`$31`/`$32` and `$34`/`$38` share one; `$52` and `$5D`
 are two copies of the same code). Songs use 17 of them (the "Uses" column), all in the
-validated captures. song_ff3.py models those and `$37`, `$3A`, `$41`, `$4F`, `$50`, `$55`, `$56`; the others it
+validated captures. song.py models those and `$37`, `$3A`, `$41`, `$4F`, `$50`, `$55`, `$56`; the others it
 lists as events without effect on its writes.
 
 ## Output stage (`$2366`, after the events of a tick)
@@ -361,20 +364,195 @@ pan. Rest or gate end: `$11` = 0.
   tick (model: `$33` after `$36`: 2 writes differ from `$33` alone, `$32` after `$37`: 13, `$42` after `$41`: 0).
 - Reply byte = command, + 1 on every 128th command (`$01F9`, purpose unknown).
 
-## Validation (tools/ff3snd)
+## Validation (tools/makoto3)
 
 - `capture.py`: our emulator's core (Geolith) driven from Python with a Z80 port tap added to the core
   (`geo_z80.c`: `geo_z80_port_tap`; `libretro.c`: `retro_neoscan_z80_tap`, `retro_neoscan_z80_ram`,
   `retro_neoscan_sound_cmd`; built to `/data/tmp/snd98/ff3/geolith_tap.so`, not installed): every YM2610 write,
   every command the Z80 reads, an `i` line per interrupt (the handler's status read), the game's own commands blocked
   after its `$07`, a song sent at frame 900. `--songs` captures every music command to its loop point or end + 15 %.
-- `song_ff3.py`: decoder + model (the code above), driven by the captured interrupt order (A / B); `regs_ff3.py`:
+- `song.py`: decoder + model (the code above), driven by the captured interrupt order (A / B); `regs.py`:
   the model's register writes and the comparison, interrupt by interrupt, same values, same order (left out on both
   sides: `$27` timer flags, `$1C` end-flag resets and ADPCM-B `$10` = 0, which the end-of-sample poll also writes).
 - **All 40 music commands: every interrupt with writes identical (32417 of 32417), 0 differing**; song `$2A`'s 88
   ADPCM-A loop replays (written by the end-of-sample poll, timed by the sample length) are each the predicted loop
   region of the sample playing on that channel. Per song in `ff3_songs.md`.
 - Not validated: the opcodes no song uses, the software vibrato, the ADPCM-B effects (no song runs them).
+
+## KOF94's build
+
+The King of Fighters '94's M ROM (`/data/roms/kof94.neo`, 128 KB; copy `/data/neogeo_dict/sound/kof94/kof94_m1.bin`,
+disassembly `drv.asm` there) carries the same signature, `Ver 3.0 by MAKOTO.04/03/10 to SK`, and is the same driver:
+an instruction-by-instruction diff of `$0000-$2E3F` (both disassembled, absolute operands below `$F800` masked, then
+aligned) leaves only the differences below; every matched instruction's code operands point to the matching
+instruction. **The music engine is the same code**: from the song start on (`$111B`) every routine is FF3's, shifted
+by a constant, with the same RAM layout (`$F800-$FFFF` addresses identical), the same tables in the code area
+(semitones `$20EB`, pitch `$2113`, carriers `$2C8D`, timers `$2C95`, gate `$2CA3`, reply `$2CE9`: byte-identical) and
+the same opcode table; the model runs both builds from one code path (tools/makoto3, `games.py` lists each build's
+table addresses) and matches KOF94's real driver on every interrupt (below).
+
+Address map (FF3 → KOF94): `$0000-$0133` same; `$0137` → `$0133`; system commands `$0CA3` → `$0C7A`; song start
+`$111B` → `$10AC` (-`$6F`); `$13D6`-`$189B` -`$94` (`$14B5` → `$1421`, `$162F` → `$159B`, `$1683` → `$15EF`); from
+`$18A4` on -`$95` (`$18A4` → `$180F`, interrupt handler `$212B` → `$2096`, music tick `$2243` → `$21AE`, channel
+`$2334` → `$229F`, events `$24EC` → `$2457`, opcode table `$25FA` → `$2565`, register writes `$2BAD` → `$2B18`).
+NMI `$0066` is the same routine; its system-command trampolines moved with the code (`$0D00`/`$0D0E`/`$0D1C` →
+`$0CD1`/`$0CDF`/`$0CED`).
+
+Tables (FF3 → KOF94): command types `$7D8E` → `$6907`; song headers `$3A70` → `$3B40`; song bank bytes `$2E00` (same);
+FM patches `$2E40` (same address, 64 slots up to `$3B3F`; FF3 60); SSG effect headers `$3AF0` → `$3BC0`; ADPCM-A
+effect bitmaps `$4178`/`$4198`/`$41B8` → `$3E13`/`$3E33`/`$3E53`, records `$41EA`/`$4BA0`/`$5509` → `$3E73`/`$4973`/
+`$5473`; sequenced ADPCM-A effect headers `$6F8C` → `$5EC3`; ADPCM-B effect bitmaps `$6F96`/`$6FB6` → `$5EE3`/`$5F03`;
+ADPCM-B records `$6FD6` → `$5F23` (26 bytes, below) and `$6659`; opcode `$46` tables `$7C06` → `$6693`, `$7CC6` →
+`$6757`; delta-N `$7C46` → `$66D3`, `$7CCE` → `$6807`; mute exemption `$7F0E` → `$6A87` (`$7F` in both); F-numbers
+`$7F0F` → `$6A88`; SSG periods `$7F2F` → `$6AC8`.
+
+Functional differences, all read from the code:
+
+| Area | FF3 | KOF94 |
+|---|---|---|
+| Music ADPCM-A samples | per-song table: `$111B` sets `$FEF8` = word `$3B30`[song] | **one table for every song**: the note key-on calls `$0447` (FF3's `$04EF` read `$FEF8`) = effect slot 0's records `$3E73`; `$3B30` / `$FEF8` gone |
+| Bank maps | three: byte 0 identity, 1 `$10000`, 2 `$18000` (`$1161` `CP $02`) | two: 0 identity, any other byte `$10000-$17FFF` (the `CP $02` branch is gone) |
+| ADPCM-B records | 16 bytes; a music note clears the B pitch / level effect parameters (`$16FB` → `$0949`: zeros to `$FA8F-$FAA1`) | **26 bytes**: + `$0D..$19` = those parameters, and a music note loads them from the record (`$1667` → `$08F8`). Every KOF94 record holds 0 there (and `$30` at `+$0E`), so the effects stay off: validated, no effect writes |
+| ADPCM-B effect (`$19` + code) | key-on pan `$11` = `$C0` (`$06C6`); the sequenced B effect `$0973` unreachable | pan from record `+$0E` bits 5-4 (`$0655`); code ≥ `$F0` starts a sequenced B effect (header table `$6673`, `$05E0` → `$094A`). The 68K never sends `$19` (no `$19xx` word in its command table, below) |
+| ADPCM-A effect slots | five: prefixes `$18` `$1A` `$1C` `$1E` `$1B` | **three**: `$18` `$1A` `$1C` (bitmaps / records above); `$1B` has type 0 (ignored) |
+| Commands `$1D`, `$1E` | `$1D` dead B effect, `$1E` slot-3 effect | type 1, but the jump table `$0C7A` has 29 entries (`$00-$1C`): `JP (HL)` lands on the NMI trampolines, `$1D` at `$0CD1` (the `$01` path: park the Z80), `$1E` at `$0CD4` (the same minus the port-`$0C` write). *(inferred, not run)* |
+| Sequenced ADPCM-A effects | type 3 = `$F0-$F4`, `CP $F0` / `SUB $F0` | `CP $FF` / `SUB $FF`, and no command has type 3: unreachable |
+| ROM check at reset | the bank self-test result is overwritten: `$FEB3` = 1 (`$0113`, `$011D`, `$01AA` `LD A,$01`), so `$0194`'s jump into bank `$1E` never runs; bank `$1E` at `$EEDC` is `$FF` | `$FEB3` keeps the result, and when it is 0 `$0190` jumps into bank `$1E` (`$1EEDC`): 13 code bytes at word `$00AC` (= `$0195`) compared with a copy stored there, the result (`SBC HL,DE`) back in `$FEB3` (`$01A2`). Measured `$FEB3` = 0 after boot |
+| Reply byte | `$FEB3` = 1, so the reply is always the command (+1 every 128th) | with `$FEB3` = 0 (measured) the reply is the table byte `$2C54`[cmd] (`$016C`, `$0216`, `$0276`): a check the 68K can read *(purpose inferred)* |
+| `RST $08` / `$10` busy-wait | `$189C`: three `NOP`s, `RET` | `$1807` / `$1808`: `PUSH HL`, `POP HL`, `RET` (timing only) |
+| F-number table entries 16-31 | SSG periods (the table is shared with `$7F2F`) | a second FM scale ~48 cents sharp (926 → 952 ...; SSG periods at `$6AC8`): reachable by an FM note byte with bit 4 set, which no song has |
+| Command map | music `$20-$34`, `$36-$37`, `$3A-$3B`, `$3D-$47`, `$4A-$4C`, `$5F` (40) | music `$20-$2D`, `$30-$32`, `$34`, `$35`, `$40`, `$41`, `$50-$55`, `$5F` (28); SSG effect songs `$60`, `$61`, `$6A`, `$7F`; system `$00-$1E` except `$1B` |
+
+The model needed only the table addresses, the 26-byte ADPCM-B record stride and the fixed ADPCM-A table
+(`tools/makoto3/games.py`). Validation: **all 28 KOF94 music commands, 15571 of 15571 interrupts with writes
+identical, 231754 captured writes, 0 differing** (per song in `kof94_songs.md`); FF3 re-captured with the renamed tools
+still 32417 / 32417.
+
+The song data has nothing in common with FF3's except the boot jingle `$5F` (same notes and structure, other patch
+numbers for identical patches and a 2-step lower volume byte); 19 of the 60 FF3 patches have a byte-identical
+KOF94 patch.
+
+### What the 68000 sends (KOF94)
+
+The sound routine `$6536` (once per frame) takes the next byte of a queue at `$108000` + `$38C4`
+(`a5` = `$108000`; write index `$38BC`, read index `$38BD`), skips `$00`, drops `$01` (never sent), and writes it to
+`REG_SOUND` (`move.b d0,$320000`, `$6556`): **one byte per frame**. Requests go through `$6588`: sound ID in `d0`,
+the word `$51924`[ID] is queued as two bytes (high, low), so a word `$00xx` sends `xx` and `$1Axx` sends the effect
+prefix `$1A` and its code. ID table: music IDs `$0C` → `$20`, `$10-$18` → `$21-$29`, `$19-$1B` → `$30-$32`, `$1C` →
+`$40`, `$1D` → `$41`, `$1E`/`$1F` → `$34`/`$35`, `$20-$22` → `$2A-$2C`, `$23` → `$41`, `$24` → `$2D`, `$25-$2A` →
+`$50-$55`; `$00` = `$03` (hard reset), `$06` = `$07`, `$0B` = `$02`, `$0D-$0F` = `$0A $F0` / `$D0` / `$C0` (fades).
+Feeders found by a static scan of the first MB (521 calls of `$6588`, 256 distinct constant IDs in `d0`, 30 calls with
+`d0` from elsewhere): stage themes from the 9-word table `$3569E` indexed by `$1087DE` (`$10 $17 $15 $13 $16 $14 $12
+$11 $18`: measured stage order Brazil, China, Japan, USA, Korea, Italy, Mexico, England, then `$29` = Rugal); the
+opening from `$39374` by `$108836` (`$20 $26 $26 $25` → `$2A`, `$51`, `$51`, `$50`), or ID `$27` (`$52`) when
+`REG_LSPCMODE` bit 3 is set (`$38936`); constant IDs for `$2B`-`$2D`, `$30`-`$32`, `$34`, `$35`, `$41` (`$23`), `$53`
+(`$28`). **No constant or table reference found** for IDs `$0C` (`$20`), `$1C` (`$40`), `$1D` (`$41` through its first
+ID), `$29`, `$2A` (`$54`, `$55`). That is not "unused": `$54` was measured (an ending, ID `$29`), so it is reached by an
+ID computed at run time. Blind spots: IDs computed in registers (e.g. `$22236`: `$113` / `$228` + 3), IDs read from RAM
+structures (`a4@(218)`, `a4@(112)`-indexed tables `$513A2`-`$516CC`, all effect IDs), the second P-ROM MB, and direct
+`$320000` writes outside `$6556` (none found as instructions). Three ID-table words would send `$1E` (IDs `$2BA`,
+`$2BC`, `$2BE`), none referenced by a constant.
+
+## KOF95's build
+
+The King of Fighters '95's M ROM (`/data/roms/kof95.neo`, 128 KB; copy `/data/neogeo_dict/sound/kof95/kof95_m1.bin`,
+disassembly `drv.asm` there) carries the same signature, `Ver 3.0 by MAKOTO.04/03/10 to SK`, but is a more
+reworked build than KOF94's: the code ends at `$266A` (FF3 `$2CE8`), 5004 instructions against KOF94's 5638.
+Method: both builds disassembled, every 16-bit operand masked (RAM included), aligned instruction by instruction
+(`/data/neogeo_dict/sound/kof95/scratch/codediff.py`, diffs against KOF94 and FF3 there): 431 differing blocks
+against KOF94; those of the command path, the effects allocator and the music path read one by one, those of the
+timer-A ADPCM-B pitch / level effects (unused by the songs) only skimmed. Most are rewrites with the same effect (`XOR A` → `LD A,$00`, `JR` → `JP`, `PUSH`/`POP` pairs dropped,
+three-way branches folded into a shared subroutine, channel pointers loaded as constants instead of `ADD IY,DE`); the
+functional differences are listed below. **The music engine (song start, tick state machine, events, every opcode
+the songs use, output stage, patch load) behaves as FF3's**: the model needed table addresses and nothing else
+to match all 27 songs on every interrupt (Validation, below; per song in `kof95_songs.md`).
+
+Address map (FF3 → KOF95): NMI `$0066` (same); main loop `$0137` → `$0136` (ring read moved to a subroutine `$017D`,
+also used by prefix arguments `$020A`); dispatch `$01C1` → `$01C4`; system commands `$0CA3` → word table `$0A11`;
+song start `$111B` → `$0DA1` (`$1133` → `$0DB5`); ADPCM-A one-shot `$02A9` → `$0296`/`$02CD`, allocator `$0504` →
+`$0417`/`$0446`; ADPCM-B effect `$0661` → `$0564`; FM keys off `$0B2E` → `$08D3`; FM key `$14B5` → `$10FB`; music
+ADPCM-A note `$162F` → `$125A`; ADPCM-B note `$1683` → `$12C2`; patch load `$18A4` → `$1440`, register output `$1A8C`
+→ `$1615`; fade step `$1AFC` → `$167B`; FM vibrato `$1C8E` → `$17BA`; pitch `$20CF` → `$1B74` (semitones `$1B8A`,
+pitch table `$1BB2`); interrupt handler `$212B` → `$1BCA` (the music tick `$2243` is inline at `$1CA8`); channel
+`$2334` → `$1D72`, output `$2366` → `$1DA6`; events `$24EC` → `$1F22`; opcode table `$25FA` → word table `$2014`;
+end of song `$29F3` → `$235B`; loop / call `$2A3B` / `$2AAF` → `$23A1` / `$242E`; gate `$2B21` → `$24A9`;
+register writes `$2BAD` / `$2BB8` → `$252D` / `$2538`.
+
+Tables (FF3 → KOF95): command types `$7D8E` → `$72B4`; song headers `$3A70` → `$3B40`; per-song ADPCM-A sample
+tables `$3B30` → `$3C00`; song bank bytes `$2E00` (same); FM patches `$2E40` (same, 64 slots); SSG effect headers
+`$3AF0` → `$3BC0`; carriers `$2C8D` → `$260F`, timers `$2C95` → `$2617`, gate `$2CA3` → `$2625`, reply `$2CE9` →
+`$2671` (all byte-identical); ADPCM-B records `$6FD6` → `$6BFB` (16 bytes, FF3's layout); opcode `$46` tables `$7C06`
+→ `$702B`, `$7CC6` → `$70F3`; delta-N `$7C46` → `$706B`, `$7CCE` → `$71A3`; mute exemption `$7F0E` → `$7434` (`$7F`);
+F-numbers `$7F0F` → `$7435` (byte-identical to KOF94's, the sharp second scale included); new: one-byte effect code
+tables `$73B4` (ADPCM-B) and `$73F4` (ADPCM-A), both the identity 0-`$3F`.
+
+RAM: the music state moved, the stacks did not. Command ring `$FE4A` → `$FE34` (write index `$FEB1` → `$FE94`, read
+index `$FEB0` → `$FE93`); current command `$FE3D` → `$FE2A`; channel id `$FE3C` → `$FE29`; music running `$FE2D` →
+`$FE1A`, song started `$FE2C` → `$FE19`, fade `$FE27` → `$FE17`; mutes `$FE34` / `$FE35` → `$FE21` / `$FE22`; saved
+SP `$FE24` → `$FE15`; level block `$FABE` → `$FABD`; patch shadows `$FADE` / `$FB65` → `$FADD` / `$FB64`; effect
+states `$FBEC` → `$FBEB`; channel blocks `$FCEC` + 16n → `$FCE0` + 16n (FM1 `$FCE0` ... ADPCM-B `$FD80`, SSG
+`$FD90`-`$FDC0`, sequenced ADPCM-A `$FDE0`-`$FE00`); gate modes `$FCDD` → `$FCD1`; vibrato records `$FC83` → `$FC77`;
+loop / call stacks `$F827` / `$F957` (same). Reply `$FEB8` → `$FE9B`, stored also at `$FEA3`, `$FEB3`, `$FEC3`,
+`$FED3`: the main loop sends `$FEB3` to port `$0C` (`$0175`, `$0285`), the interrupt and the prefix read `$FE9B`
+(`$1BD6`, `$023B`); `$FEA3`, `$FEC3`, `$FED3` are never read.
+
+Functional differences, all read from the code:
+
+| Area | FF3 / KOF94 | KOF95 |
+|---|---|---|
+| NMI | stores anything but `$00`, `$01`, `$03`, `$10`, tests `$00` last | tests `$00` first (`$006C`), same effect |
+| Jump tables | system commands and opcodes: 3-byte `JP` tables, indexed without a range check | 2-byte word tables (`$0A11`, `$2014`); system commands `CP $20` / `RET NC` (`$0A01`), table of 32 |
+| Command map | FF3: music 40, SSG `$60-$65` `$7F`, sequenced A `$F0-$F4`; KOF94: music 28 | music `$20-$2E`, `$30`, `$31`, `$33-$3A`, `$50`, `$5F` (27); SSG effect songs `$60-$65`, `$6A`, `$7F` (type 5); **`$80-$BF` one-byte ADPCM-B effects** (type 4); **`$C0-$FF` one-byte ADPCM-A effects** (type 3); `$32` type 0 |
+| One-byte ADPCM-A effects | (prefix commands only) | `$C0-$FF` (`$028C`): code = `$73F4`[cmd - `$C0`] = 0-`$3F`, records of slot 0 (`$425B` + 11 × code), **no enable bitmap and no "code ≥ `$10`" test**; the game sends them all the time (4877 in our five runs, 51 of the 64 commands) |
+| One-byte ADPCM-B effects | | `$80-$BF` (`$0557`): code = `$73B4`[cmd - `$80`], record `$6BFB` + 16 × code, played as the `$19` prefix's effect (`$0564`); never sent in our runs |
+| Prefix effects | FF3: `$18 $1A $1C $1E $1B` + code (slots 0-4), `$19` B; KOF94: `$18 $1A $1C` | FF3's five slots and `$19` again (`$0ADC`-`$0B32`), through one bitmap test `$0B3F` (table `$0B71`): slot 0 bitmap `$41BB` / records `$425B` (147 codes enabled), 1 `$41DB` / `$4D5B` (238), 2 `$41FB` / `$5850` (none: these are the music's sample records), 3 `$421B` / `$6350` (136), 4 `$423B` / `$6B90` (none), `$19` `$6BBB` (none). In our runs the game used `$18`, `$1A`, `$1E` |
+| Effect stop `$14` / `$15` + code | KOF94: slot 0 / any other slot | slot 0 / slot 1 only (`$0B9C`, `$0BC2`: state `+9` = slot) |
+| `$1D`, `$1F` | FF3 `$1D` dead B effect; KOF94 `$1D` `$1E` past the table end (park the Z80) | nothing (`$0A76` `RET`) |
+| ADPCM-A effect channel | the effect always wins: a free channel of A4-A6, else the first whose running priority value is ≥ the new one's (`$0504`) | **the music keeps its channels**: `$0446` first masks out every A4-A6 channel whose music block is on (`+1` bit 0, from the song header); all three on → the effect is refused. Among the rest: a free channel at once (order A4, A5, A6), else the one with the greatest running priority value ≥ the new one's (the weakest sound; the later channel on a tie) |
+| Sequenced ADPCM-A effects | FF3 `$F0-$F4` (`$056F`); KOF94 unreachable | path kept (`$04B8`, headers `$6B9B`, all zero) but unreachable: the one-byte codes stop at `$3F`, and slot 0's bitmap (the only path with the `CP $F0` test, `$0296`) has no code ≥ `$F0` |
+| Music ADPCM-A samples | FF3 per song (`$FEF8` = `$3B30`[song]); KOF94 one fixed table | per song again: `$0DF4` stores `$3C00`[song] in `$FEDB`, the note copies it to `$FEE2` (`$129E`). 25 songs point at `$5850`, `$20` and `$5F` (no ADPCM-A notes) at `$425B` |
+| Timer-A channels | ids `$0B-$0D` share the music's note code; separate stack ids `$12 $11 $0F` | the same, with an explicit context flag: `$FC3A` = 1 while the timer-A part runs, 0 in the music tick (`$1C2B`, `$1CA8`); in timer-A context `$125A` keys a sequenced effect's notes from `$3C80`[effect - `$F0`] |
+| Loop / call stacks | no depth check (FF3 doc: "5 deep"); stack index `id × 16` computed in 8 bits (`ADD A,A` × 4), so the timer-A ids `$10-$12` wrap to the stacks of ids 0-2 *(read from the code, not run: no song or reachable effect uses them)*; loop end with an empty stack: `DEC` from 0, then a jump through a stale entry | **depth limited to 4**: a loop start or call at depth 4 is skipped with its parameter bytes (`$23A7`, `$2434`); a loop end with an empty stack does nothing (`$2416`); the index is 16-bit (`RL D`, `$23CB`). Song `$29` has an unmatched loop end (ADPCM-A 3, `$B6A9`, ticks 3097 and 6937): harmless in KOF95, validated |
+| ADPCM-B records | FF3 16 bytes; KOF94 26 (effect parameters per record) | 16 bytes; a music note clears the B pitch / level effect parameters (`$078C`, FF3's behaviour); a B effect key-on first saves them (`$077F`: `$FA89` → `$FAA3`, 16 bytes) |
+| ADPCM-B effect key-on | FF3 pan `$C0`; KOF94 pan from the record | pan `$C0` (`$05B7`), volume record `+$0C` |
+| Song start: ADPCM-B reset | when no ADPCM-B effect plays | when neither `$FE20` (B effect playing) nor `$FC37` is set (`$0DAB`) |
+| Bank maps | FF3 three; KOF94 two | two (`$0DD8`: any non-zero byte = `$10000-$17FFF`) |
+| Reset ROM check, reply | FF3: result overwritten (`$FEB3` = 1); KOF94: kept, reply from the table `$2C54` | FF3's: both outcomes set `$FE96` = 1 (`$0117`, `$0121`), so `$0197`'s jump into bank `$1E` never runs and the reply is the command (+1 every 128th, `$01FC`); the reply table `$2671` (KOF94's check table) is all 0 here |
+| Opcode `$5E` | `$FE22` = p (speed of the dead ADPCM-B volume slide) | skips its byte, nothing else (`$20DC`); the slide `$209A` is gone from timer A |
+| `RST $08` / `$10` | FF3 three `NOP`s; KOF94 `PUSH HL` / `POP HL` | `RST $08` = `RET` (no wait after the address write); `RST $10` → `$1433` (`PUSH IX`, `PUSH AF`, `POP AF`, `POP IX`: a wait after the data write) |
+| `$0F`, `$7F` | end the SSG effect song unless `$7F` | the same (`$0CC6`, `$FE31` = 4 marks `$7F`) |
+
+The model needed the table addresses (`tools/makoto3/games.py`) and, for faithfulness only, the depth-4 stack guard
+(`stack_guard`: no song nests deeper than 2, so it changes no write). Validation: **all 27 KOF95 music commands, 17683 of
+17683 interrupts with writes identical, 277711 captured writes, 0 differing**, including the chain `$25` → `$50`
+(opcode `$47`) and `$24`'s tempo changes (the fade, rewritten as a loop over the six ADPCM-A channels at `$16B4`, is
+not exercised: no KOF95 song fades itself); FF3 (32417 / 32417) and KOF94 (15571 / 15571) re-compared with the
+extended tools, and FF3 `$2A` `$3E` and KOF94 `$25` `$51` re-captured: identical.
+
+The M ROM's last 35438 bytes (`$17592-$1FFFF`) are byte-identical with KOF94's at the same offsets: KOF94's song data
+left in place. KOF95's banks reach `$17FFF` and RAM covers `$F800` up, so only `$17592-$177FF` is visible to the Z80
+(bank 1 `$F592-$F7FF`), and no KOF95 song points there *(inferred from the header table and the bank map)*.
+
+### What the 68000 sends (KOF95)
+
+The sound routine `$62F0` (called from `$39460`) takes the next byte of a queue at `$108000` + `$56B6` (write index
+`$56AE`, read index `$56AF`), skips `$00`, drops `$01`, and writes it to `REG_SOUND` (`$6310`). Requests: `$6342`
+(sound ID in `d0`: the word `$59A10`[ID] is queued as two bytes, high then low, so `$00xx` sends `xx` and `$1Axx`
+sends a prefix and its code), `$6318` (only when the ID differs from the last one requested, `$56B0`), `$6328` (ID,
+ID + 1 or ID + 2 by the object's distance across the screen: positional variants of an effect), `$6366` (per
+character, table `$5967C`). Music IDs: `$478-$485` → `$21-$2E`, `$486` → `$2D`, `$487` → `$30`, `$488` → `$31`, `$489`
+→ `$32` (type 0: the driver ignores it), `$48A` → `$0A $E0` (fade), `$48B` → `$20`, `$492-$499` → `$33-$3A`; `$06` =
+`$07`, `$0B` = `$02`, `$00` = `$03`. Fight sounds go both ways: one-byte `$C0-$FF` commands (e.g. IDs `$0C-$25`; 4877 sent in our runs) and prefix pairs `$18` / `$1A` / `$1E` + code (5108).
+
+A static scan of the first MB (811 calls with a constant `d0`, 29 without) finds constant references for every music
+ID but `$479-$481`, `$489` and `$48B`. The stage themes `$479-$481` come from the 11-word table `$3B36C` indexed by
+`$10A7E8`: `$24 $25 $22 $29 $23 $26 $27 $28 $2A $2A $2A`; measured in an arcade run, the index is the team of the
+opponent's first fighter in the cast order (`tools/kof95/rom.py` CAST / 3: 0 Ikari, 1 Psycho Soldier, 2 Hero, 3
+Rival, 4 Korea, 5 Fatal Fury, 6 Art of Fighting, 7 Women Fighters, 8 Saisyu / Omega Rugal), all 8 matches and the
+Saisyu fight. So: **`$20` (ID `$48B`) has no reference** and is an empty song (no channel on): unused *(inferred)*;
+**`$32` (ID `$489`)** is not a music command in this build and has no reference; `$50` has no ID: it is reached only
+by `$25`'s chain. Blind spots: IDs computed in registers or read from RAM (the 29 calls), the second P-ROM MB, and
+direct `$320000` writes (none found as instructions).
 
 ## Compared with KOF98
 
