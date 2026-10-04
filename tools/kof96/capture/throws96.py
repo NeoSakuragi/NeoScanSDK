@@ -15,6 +15,9 @@ GAME = os.environ.get('GAME', 'kof96')
 ROUND, GAP = int(os.environ.get("ROUND", 1100)), 300
 VICTIM = {'kof96': 8, 'kof98': 8, 'kof99': 3}[GAME]       # P2 in each game's 'vs' state (Yuri; KOF99 Shingo)          # GAME=kof98: one run per fighter from its state c<id> (prep98.lua)
 REC96 = os.path.join(HERE, 'record96.lua')
+# both fighters midscreen (a round starts at x $149 / $249: centre $1C9), 56 px apart: P1 $1B0, P2 $1E8 (Bruno
+# 2026-10-04: at P1 $180 the back throws carried the victim toward the left wall)
+POS = '108118=01,108119=B0,108318=01,108319=E8'
 TRIES = [('ground_c', 'p1 0 40 R; p1 26 3 Rc'), ('ground_d', 'p1 0 40 R; p1 26 3 Rd'),
          ('air_c', 'p1 0 6 UR; p2 2 6 U; p1 12 4 URc; p1 16 20 R')]
 
@@ -22,7 +25,7 @@ def run(cid, t):
     """one MAME run per try (written when the cart_bridge plugin still cut runs at 30 s; harmless now)"""
     out = os.path.join(HERE, 'throws', f'{cid}_{TRIES[t][0]}.txt'); os.makedirs(os.path.dirname(out), exist_ok=True)
     spec = ['p2 20 60 L', 'p2 85 3 c']; pokes = [f'2:108238=0,108239=1,108250=0,108251=1,10A846={cid:02X},10A847={cid:02X},10A848={cid:02X}',
-                                                 f'{ROUND - 2}:108118=01,108119=80,108318=01,108319=B8']
+                                                 f'{ROUND - 2}:{POS}']
     for e in TRIES[t][1].split(';'):
         w, a, n, i = e.split(); spec.append(f'{w} {int(a) + ROUND} {n} {i}')
     s1, s2 = seqs('; '.join(spec), ROUND + GAP)
@@ -43,7 +46,7 @@ def run98(cid):
     out = os.path.join(throwdir(), f'{cid}.txt'); os.makedirs(os.path.dirname(out), exist_ok=True)
     spec, pokes, reload = [], [], []
     for t, (_, ev) in enumerate(TRIES):
-        s = 40 + GAP * t; reload.append(s - 4); pokes.append(f'{s - 2}:108118=01,108119=80,108318=01,108319=B8')
+        s = 40 + GAP * t; reload.append(s - 4); pokes.append(f'{s - 2}:{POS}')
         for e in ev.split(';'):
             w, a, n, i = e.split(); spec.append(f'{w} {int(a) + s} {n} {i}')
     s1, s2 = seqs('; '.join(spec), 40 + GAP * len(TRIES) + 20)
@@ -81,7 +84,8 @@ if __name__ == '__main__':
         else:
             for t in range(len(TRIES)):
                 path = run(cid, t)
-                try: res[cid] += analyse(cid, t, path)
+                try: res[cid] += [dict(x, round=ROUND) for x in analyse(cid, t, path)]
                 except AssertionError as e: res[cid].append(str(e))
         print(cid, res[cid], flush=True)
-    json.dump(res, open(os.path.join(throwdir(), 'tables.json'), 'w'), indent=1)
+    p = os.path.join(throwdir(), 'tables.json')                 # merged: the fighters not re-run keep theirs
+    json.dump(dict(json.load(open(p)) if os.path.exists(p) else {}, **{str(k): v for k, v in res.items()}), open(p, 'w'), indent=1)

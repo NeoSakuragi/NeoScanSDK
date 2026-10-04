@@ -209,11 +209,11 @@ static void show_pose(fighter_t *v, uint8_t vp) {
     if (fr != 0xFFFF) v->frame_ovr = fr;
     else { v->frame_ovr = 0xFFFF; play_if_new(v, BA_HIT_STAND_LIGHT); }   /* no frame for it: the light hit pose */
 }
-static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r) {
-    v->x = a->x + dir_mul(a->facing, FIX(r->vx));
+static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r, int8_t face) {   /* face: the */
+    v->x = a->x + dir_mul(face, FIX(r->vx));                    /* thrower's facing the script's offsets are in */
     v->y = a->y + FIX(r->vy); if (v->y < 0) v->y = 0;
     v->z = a->z;
-    v->facing = (r->flags & 1) ? a->facing : -a->facing;
+    v->facing = (r->flags & 1) ? face : -face;
     v->zfront = (r->flags & 2) != 0;
 }
 static void grab(fighter_t *a, fighter_t *v) {
@@ -222,7 +222,7 @@ static void grab(fighter_t *a, fighter_t *v) {
     a->frame_ovr = r->tframe;
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0;   /* victim: presses mashed */
-    show_pose(v, r->vpose); place_victim(a, v, r);
+    show_pose(v, r->vpose); place_victim(a, v, r, a->facing);
 }
 static void release(fighter_t *a) {                              /* both free where they stand */
     fighter_t *v = a->held;
@@ -255,7 +255,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         if (in->dx == f->facing) {                               /* forward+A / forward+B: throw forward / backward */
             uint8_t t = (in->press & IN_A) ? BT_THROW_C : BT_THROW_D;
             if (!f->ch->throws[t].nrows) t = BT_THROW_C;
-            f->throw_id = t; f->throw_x0 = f->x; enter(f, S_THROW); enter(v, S_THROWN);
+            f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); enter(v, S_THROWN);
             {                                                    /* its impacts share the throw's damage */
                 const bthrow_t *th = &f->ch->throws[t]; uint16_t i;
                 f->grab_hits = 0; f->throw_dealt = 0;
@@ -273,6 +273,8 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         release(f); v->x += dir_mul(f->facing, FIX(10)); clamp(v); v->inv = 20;
     }
 }
+#define THROW_FREEZE 21           /* KOF98 Ryo's forward+C: step 10 held 21 frames past its ticks (the only throw freeze
+                                     among the roster's: every other throw step lasts its ROM ticks + 1, KOF96/98/99) */
 static void throw_update(fighter_t *f) {
     const bthrow_t *th = &f->ch->throws[f->throw_id];
     fighter_t *v = f->held;
@@ -287,14 +289,16 @@ static void throw_update(fighter_t *f) {
         uint8_t d = 0, rest = THROW_DAMAGE;                     /* THROW_DAMAGE / impacts (no divide here) */
         while (rest >= f->grab_hits) { rest -= f->grab_hits; d++; }
         v->hp -= d; f->throw_dealt += d;
-        f->freeze = v->freeze = HITSTOP; f->impact = 1;          /* combat() hits the victim's teammates around it */
+        if (r->flags & 16) f->freeze = v->freeze = THROW_FREEZE;   /* only where KOF froze (Ryo's forward+C) */
+        f->impact = 1;                                           /* combat() hits the victim's teammates around it */
         snd_sfx(SFX_HIT_CD);
-        spark_hit(INT(f->throw_x0) + dir_mul(f->facing, r->vx + r->tx), FLOOR_TOP + INT(f->z) - r->vy - 40, 1, f->facing);
+        spark_hit(INT(f->throw_x0) + dir_mul(f->throw_face, r->vx + r->tx), FLOOR_TOP + INT(f->z) - r->vy - 40, 1, f->throw_face);
     }
     f->frame_ovr = r->tframe;
-    f->x = f->throw_x0 + dir_mul(f->facing, FIX(r->tx)); f->y = FIX(r->ty);
+    f->x = f->throw_x0 + dir_mul(f->throw_face, FIX(r->tx)); f->y = FIX(r->ty);
+    f->facing = (r->flags & 8) ? -f->throw_face : f->throw_face;   /* turned around in the game (Terry's reverse throw) */
     if (r->vpose != 0xFF) show_pose(v, r->vpose);
-    place_victim(f, v, r);
+    place_victim(f, v, r, f->throw_face);
 }
 
 /* ---- specials ------------------------------------------------------------------------------------------------------------

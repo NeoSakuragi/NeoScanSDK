@@ -11,9 +11,10 @@ flight shifted so it starts where this victim was released.
 Choi's hold uses no list: as captured, with each victim's own frames for its states.
 Validated: every captured list reproduces Yuri's state and offset frame for frame up to the release (62 throws).
 
-Row: [thrower frame index, thrower x from start (thrower-facing), thrower height, victim frame index or None,
-      victim x from thrower, victim height from thrower, victim faces the thrower's way (1/0), victim drawn in front (1/0),
-      'state.step' = key into victim_poses96.json (posture + angle)]"""
+Timeline row: [thrower frame index, x from start, height, turned (1: faces away from its facing at the grab)].
+Victim row: [victim frame index or None, victim x from thrower, victim height from thrower, victim faces the thrower's
+      grab facing (1/0), victim drawn in front (1/0), 'state.step' = key into victim_poses96.json (posture + angle)].
+Every x is in the thrower's facing at the grab. The game's freezes are cut (build), 'impacts' = rows before them."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof95', 'capture'))
@@ -78,10 +79,28 @@ def build(m, mp, cid, found, victims):
         if drv is None and any(p != 'approach' for p in phase): released = True
         phase.append('flight' if released else drv if drv else 'approach')
     w0 = r1[g0][3]; f0 = 1 if A.facing_of(w0) else -1; x0 = A.x_of(w0)
-    timeline = []
+    # the game's freezes (Bruno 2026-10-04: impact freezes baked into the throws): KOF98 shows a step for its ROM ticks
+    # + 1 frames (checked on Terry, Ralf, Kyo); frames past that where nothing moves (thrower x, height, step; victim
+    # state, x, height) are a freeze (Ryo's forward+C: 20 frames on step 10; not P1's +$124 hit-stop, unset in throws).
+    # Dropped; the frame before a freeze is an impact. The anim's last step (a hold) is never cut.
+    drop, impacts, run_key, run_n = set(), [], None, 0
     for i in range(g0, g1):
+        w1, w2 = r1[i][3], r2[i][3]; key = (A.state_of(w1), w1[0x80 // 2])
+        run_n = run_n + 1 if key == run_key else 1; run_key = key
+        steps_ = anim_steps(m, cid, key[0], mp)[0]
+        if i == g0 or not steps_ or not 1 <= key[1] < len(steps_) or run_n <= steps_[key[1] - 1][0] + 1: continue
+        p1, p2 = r1[i - 1][3], r2[i - 1][3]
+        if (A.x_of(w1), A.y_of(w1), A.state_of(w2), A.x_of(w2), A.y_of(w2)) == (A.x_of(p1), A.y_of(p1), A.state_of(p2), A.x_of(p2), A.y_of(p2)):
+            if i - 1 not in drop: impacts.append(i - 1)
+            drop.add(i)
+    kept = [i for i in range(g0, g1) if i not in drop]
+    # facing: everything is measured in the thrower's facing at the grab (f0); a thrower that turns around during the
+    # throw (Terry's reverse throw) gets the row flag 'turned' (it is drawn mirrored, its places do not flip)
+    timeline = []
+    for i in kept:
         w1 = r1[i][3]
-        timeline.append((frame_by_step(m, cid, A.state_of(w1), w1[0x80 // 2], mp), round((A.x_of(w1) - x0) * f0), round(A.y_of(w1))))
+        timeline.append((frame_by_step(m, cid, A.state_of(w1), w1[0x80 // 2], mp), round((A.x_of(w1) - x0) * f0), round(A.y_of(w1)),
+                         int((1 if A.facing_of(w1) else -1) != f0)))
     out = {}
     for v in victims:
         rows, cur, shift, last = [], None, None, None
@@ -99,11 +118,15 @@ def build(m, mp, cid, found, victims):
                 state = A.state_of(w2); dx = round((A.x_of(w2) - A.x_of(w1)) * f); dy = round(A.y_of(w2) - A.y_of(w1))
                 same = int(A.facing_of(w1) == A.facing_of(w2)); front = 0
                 if ph == 'flight' and last: dx, dy = dx + last[0], dy + last[1]
-            if cur is None or cur[0] != state: cur = (state, k)
-            vf, step = frame_by_time(m, v, state, k - cur[1], mp)
+            if f != f0: dx, same = -dx, 1 - same                # into the grab's facing
+            if i in drop: continue
+            kk = len(rows)                                   # time in kept frames: the game froze the victim too
+            if cur is None or cur[0] != state: cur = (state, kk)
+            vf, step = frame_by_time(m, v, state, kk - cur[1], mp)
             rows.append([vf, dx, dy, same, front, f'{state}.{step}'])     # key into victim_poses96.json
         out[v] = rows
     return {'timeline': timeline, 'victims': out, 'thrower_state': A.state_of(r1[g0][3]),
+            'impacts': [kept.index(i) for i in impacts],
             'lists': [{'side': s, 'base': hex(b), 'size': z} for s, b, z in lists]}
 
 def hold(m, mp, cid, info, victims, cap='20_ground_c.txt', start=1400):
@@ -114,7 +137,7 @@ def hold(m, mp, cid, info, victims, cap='20_ground_c.txt', start=1400):
     g1 = min(len(r2), g0 + 120)
     w0 = r1[g0][3]; f0 = 1 if A.facing_of(w0) else -1; x0 = A.x_of(w0)
     timeline = [(frame_by_step(m, cid, A.state_of(r1[i][3]), r1[i][3][0x80 // 2], mp), round((A.x_of(r1[i][3]) - x0) * f0),
-                 round(A.y_of(r1[i][3]))) for i in range(g0, g1)]
+                 round(A.y_of(r1[i][3])), int((1 if A.facing_of(r1[i][3]) else -1) != f0)) for i in range(g0, g1)]
     out = {}
     for v in victims:
         rows, cur = [], None
@@ -122,8 +145,8 @@ def hold(m, mp, cid, info, victims, cap='20_ground_c.txt', start=1400):
             w1, w2 = r1[i][3], r2[i][3]; f = 1 if A.facing_of(w1) else -1; state = A.state_of(w2)
             if cur is None or cur[0] != state: cur = (state, k)
             vf, step = frame_by_time(m, v, state, k - cur[1], mp)
-            rows.append([vf, round((A.x_of(w2) - A.x_of(w1)) * f), round(A.y_of(w2) - A.y_of(w1)),
-                         int(A.facing_of(w1) == A.facing_of(w2)), 0, f'{state}.{step}'])
+            rows.append([vf, round((A.x_of(w2) - A.x_of(w1)) * f0), round(A.y_of(w2) - A.y_of(w1)),
+                         int((1 if A.facing_of(w2) else -1) == f0), 0, f'{state}.{step}'])
         out[v] = rows
     return {'timeline': timeline, 'victims': out, 'thrower_state': A.state_of(r1[g0][3]), 'lists': [], 'hold': True}
 

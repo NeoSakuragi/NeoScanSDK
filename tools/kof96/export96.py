@@ -328,11 +328,11 @@ def export(names, outdir, game='kof96', only=None):
             steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, sl))
             ch['anims'][key] = {'slot': sl, 'state': st, 'mode': mode, 'steps': [
                 {'frame': adders[name](fi), 'ticks': t, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in bx.items()}} for t, fi, fl, bx, ri, dx in steps]}
-            timeline = [[adders[name](f) if f is not None else -1, x, y] for f, x, y in b['timeline']]
+            timeline = [[adders[name](t[0]) if t[0] is not None else -1] + list(t[1:]) for t in b['timeline']]
             victims = {cast[v]: [[adders[cast[v]](r[0]) if r[0] is not None else -1] + r[1:] for r in rows]
                        for v, rows in b['victims'].items() if cast[v] in adders}
             ch['throws'][key] = {'slot': sl, 'inputs': b['inputs'], 'table': b['lists'], 'hold': b.get('hold', False),
-                                 'timeline': timeline, 'victims': victims}
+                                 'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', [])}
         print(f'{name}: throws {list(d)}', flush=True)
     # specials captured in MAME (specials96.py): frames of the fighter and of its projectiles, both in its own list
     # (a filtered export takes them when `only` names 'specials'; each then carries frame_boxes: the boxes of every frame

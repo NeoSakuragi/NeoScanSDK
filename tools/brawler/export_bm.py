@@ -405,7 +405,7 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx; uint8_t hy; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals); dx: px the fighter moves forward as the step starts (KOF\'s $FB move); hy: height in px during the step (command normals that hop: export96.cmd_frames) */',
          'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx; } bphys_t;     /* 16.16 px per frame */',
-         'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way, 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor) */',
+         'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor: damage, spark, splash), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',
          'typedef struct { uint16_t nrows; const bthrow_row_t *rows; } bthrow_t;',
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown), sprite bounds as its attack box */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy, fx, pad; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit, 4 the target is carried at vx (forward from the fighter) / vy (height), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
@@ -458,12 +458,13 @@ def write_c(chars, outdir):
             th = ch.get('throws', {}).get(t)
             if not th: continue
             rows = th['victims'].get(n) or next(iter(th['victims'].values()))   # offsets of the mirror match (see README)
-            out = []; imp = set(throw_impacts(rows, game))
-            for i, (tf, tx, ty) in enumerate(th['timeline']):
+            froze = set(th.get('impacts') or [])        # KOF froze there (Ryo's forward+C): the brawler's hit-stop too
+            out = []; imp = set(throw_impacts(rows, game)) | froze   # blows / floor touches: damage, no freeze (KOF's)
+            for i, (tf, tx, ty, *turned) in enumerate(th['timeline']):
                 vf, vx, vy, same, front, key = rows[min(i, len(rows) - 1)]
                 v = vocab(game, key)
                 vp = pkeys.index(v) if vf >= 0 and v in pkeys else 255
-                out.append(f'{{{tf if tf >= 0 else 0}, {tx}, {ty}, {vp}, {same | front << 1 | (4 if i in imp else 0)}, {vx}, {vy}}}')
+                out.append(f'{{{tf if tf >= 0 else 0}, {tx}, {ty}, {vp}, {same | front << 1 | (4 if i in imp else 0) | (8 if turned and turned[0] else 0) | (16 if i in froze else 0)}, {vx}, {vy}}}')
             c.append(f'static const bthrow_row_t {n}_{t}[] = {{' + ', '.join(out) + '};')
         c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(
             f'{{{len(ch["throws"][t]["timeline"])}, {n}_{t}}}' if t in ch.get('throws', {}) else '{0, 0}' for t in THROWS) + '};')
