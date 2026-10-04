@@ -221,33 +221,33 @@ Grabbed player: 4 button presses break free (counted through hit-stop too), then
 Measured with idle players (30 s): 3 grabs, 19 specials, 1 throw. Profiler HUD (PROFILE_HUD): EG / ES / ET = enemy grabs,
 specials, throws; PE = player escapes.
 
-## Stage (`tools/brawler/make_stage_s2.py`, needs /data/roms/sengoku2.neo)
-**Prototype placeholder** (2026-10-04): Sengoku 2's round 1 castle, extracted from its ROM (format decoded in
-/data/neogeo_dict/sengoku2/tools/extract_maps.py); the final game gets its own hand-drawn art. Two planes, placed as
-Sengoku 2 places them (block row 0 at screen y 0):
-- Front: map 0 block row 4 (blocks 6, 7: the courtyard, 640 px) then map 29 block row 4 (blocks 19, 20: the castle
-  after the warp, 640 px) = 80 x 14 tiles, 1280 x 224 px = `WORLD_W`. Sprites 22-42, scrolls with the camera.
-- Back: map 1 block row 2 (blocks 12, 13, 12: sunset sky over the burning field, 960 px), only its top 5 tile rows.
-  Sprites 1-21 (behind the front), at camera >> 1 like Sengoku 2 (parallax code 2); the world never scrolls it past
-  960 px (camera >> 1 <= 480), so it never wraps. The front is opaque below y 65 (measured: its transparent pixels are
-  all in tile rows 0-4), so the back plane is a band: each back sprite is as tall as the front columns over it let it
-  show (`stage_depth`, 0-5 rows: 0 where the front is opaque to the top, e.g. the tower), 12-21 of them shown, on lines
-  0-63 (0-79 over the two lantern poles). Rewritten only when the camera moves.
-- Tiles: 469 Sengoku 2 C ROM tiles copied raw, 452 after removing duplicates (a flipped copy points to the stored
-  tile, the flip folded into the map word), at tiles 1-452 (below the banner at 512). The maps are ready SCB1 words
-  {tile, attribute} per cell, so a column is a straight copy.
-- Palettes: the 6 Sengoku 2 palettes the two planes use (144-147, 150, 246; its set at $50040, never changed during
-  round 1) at 80-85 (0 text, 2-15 fix portraits, 16-79 fighters, 250-254 banner, shadow, boxes, sparks). The
-  select-to-fight fade scales all six; `fight_fade` now writes only when its level changes (every other tick): the
-  colour scaling took ~5 frames a tick, the 32-tick fade-in lasted 131-161 frames, now ~101.
-- Cost (PROFILE build, raster lines): front plane 7-8 a frame (as the street), back plane 0 with the camera still, up to
-  ~10 while it moves; guard 11 (was 7).
-- Floor: FLOOR_TOP 156 (was 150): the feet walk y 156-220, on the courtyard between the walls' bases (rock wall ~145,
-  tower ~160) and the bottom of the cobbles (222).
-Each plane is a ring of 21 sprites: sprite s shows the plane column c with c mod 21 = s, so scrolling rewrites one column
-(28 words front, 10 back) when a new one enters; X of each plane is one run a frame. Camera: the players' midpoint, 4 px
-a frame at most, clamped to the stage; players can't leave the view. The former procedural street (`make_stage.py`) is
-no longer built (make_banner.py still imports its colour helper).
+## Stage (`tools/brawler/make_stage_ra.py`, needs /data/roms/roboarmy.neo)
+**Prototype placeholder** (2026-10-04): Robo Army's area 0, the horizontal street, extracted from its ROM (engine
+decoded in /data/neogeo_dict/roboarmy/README.md); the final game gets its own hand-drawn art. The former Sengoku 2
+castle (`make_stage_s2.py`, two planes with parallax) stays in the repo, not built.
+- One plane, as Robo Army shows it (no parallax there): ids $00-$09 = 160 columns, 2560 px = `WORLD_W`, scrolls with the
+  camera. Sprites 22-42 (1-21 are free since the back plane went). Tile rows 2-13 (screen y 32-223, `STAGE_Y`,
+  `STAGE_ROWS` 12): rows 0-1 are blank along the whole street (Robo Army shows its black backdrop there, behind its HUD),
+  rows 14-15 are below the screen. Backdrop `STAGE_BACKDROP` = $0000 (Robo Army's palette RAM $401FFE in area 0).
+- Tiles: 1006 Robo Army C ROM tiles, 981 stored after folding flipped copies into the map words, + 21 auto-animated
+  groups (6 of 8 tiles, 15 of 4) copied whole to aligned places (the LSPC replaces the low 2 / 3 bits by its counter),
+  their words keep the attribute bits 2-3: 1089 tiles at 1-1089. Robo Army's tile $3FF is its blank (our tile 0); its
+  tile 0 is real art (one street cell). Auto-animation speed = Robo Army's (REG_LSPCMODE $0800, its table $7616 for
+  every scene), written by `stage_init` (`STAGE_LSPCMODE`): a new frame every 9 frames, as in Robo Army.
+- C ROM low area (below the fighters at `TILE_BASE` 2048, export_bm.py): stage 1-1535, banner 1536, shadow 1664-1665,
+  box corners 1666-1669, sparks 1724-1820. C ROM size unchanged (2 x 8 MB).
+- Palettes: the 25 Robo Army palettes the street uses (128-147, 158, 179, 180, 185, 186; its global set at $313F4) at
+  80-104 (0 text, 2-15 fix portraits, 16-79 fighters, 250-254 banner, shadow, boxes, sparks). The fade-in scales all 25:
+  it lasts ~137 frames (was ~103 with the castle's 6).
+- Floor: FLOOR_TOP 158: the street is solid dirt from y 160 to the bottom of the screen (grass tufts over its edge from
+  y ~145), so the feet walk y 158-222 (Z_DEPTH 64: the street is 64 px deep on screen, as the band).
+The plane is a ring of 21 sprites: sprite s shows the plane column c with c mod 21 = s, so scrolling rewrites one column
+(24 words) when a new one enters; X is one run a frame. Camera: the players' midpoint, 4 px a frame at most, clamped to
+the stage; players can't leave the view. The former procedural street (`make_stage.py`) is no longer built
+(make_banner.py still imports its colour helper).
+Proof (2026-10-04, our emulator): screenshots at camera 0 / 545 / 1120 / 2240 vs a render of Robo Army's own map words
+from its ROM: 0 wrong pixels (56256 compared each, fix layer masked; 80 consecutive frames over the animated columns);
+the animation counter steps every 9 frames through 0-7 in both the brawler and Robo Army (captured in our emulator).
 
 ## Roster
 `CHARS` in the Makefile: KOF98 Terry, Ryo, Ralf, Chang, Yamazaki, Billy, Kyo, Iori, Mai; KOF96 Geese, Mr. Big, Krauser;
@@ -262,16 +262,15 @@ victim poses are mapped by posture name (see Engine).
 
 ## Sprites per line
 The LSPC draws at most 96 sprites on a line and drops the highest-numbered (front) ones. Guard (`line_guard` in
-main.c): front plane 21 + the columns of every on-screen fighter, counted as if all shared the same lines; past 96 the
-lowest-priority fighter is hidden that frame. The back plane's band (lines 0 - 63/79, no shadows there) is a second count:
-front 21 + back 21 + sparks 6 + the columns of the fighters' parts that reach into it (from the shown frame's parts:
-+4 lines of guard). A fighter more than 128 px off screen is hidden (placed, its 9-bit X wrapped it onto the screen:
-the wave walking in from 512+ px showed at the left edge). Priority: players, then enemies front to back, reversed every other frame
-so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so it rarely fires; with the limit forced to
-50 it hid 2-3 enemies alternately and never a player. Per-band counting was exact but cost 22 lines; this costs 8.
-With the castle (2026-10-04, 8 fighters converged, jumping and throwing specials, VRAM counted every frame): worst line
-82-84 (floor band; the street build 79-85), worst line in y 0-79 64-67 (front 21 + back up to 21 + upper bodies; street
-66-67); the band count never hid anyone (same hides with it switched off).
+main.c): the stage plane's 21 + the columns of every on-screen fighter, counted as if all shared the same lines; past 96
+the lowest-priority fighter is hidden that frame. A fighter more than 128 px off screen is hidden (placed, its 9-bit X
+wrapped it onto the screen: the wave walking in from 512+ px showed at the left edge). Priority: players, then enemies
+front to back, reversed every other frame so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so
+it rarely fires; with the limit forced to 50 it hid 2-3 enemies alternately and never a player. Per-band counting was
+exact but cost 22 lines; this costs 8. The castle's back plane needed a second count on its band (lines 0-79); one plane
+needs none. Robo Army street (2026-10-04, AI_OFF, 8 fighters converged and attacking for 900 frames, VRAM counted every
+frame, same inputs as the castle build: 897 of 900 frames identical): worst line 88 sprites (castle 88), fighters hidden
+75 times (castle 127), never more than the castle build on any frame.
 
 ## Engine
 - `fighter.c`: one state machine for players and AI (intent in, no input code inside): walk/run/jump/attack/hitstun/

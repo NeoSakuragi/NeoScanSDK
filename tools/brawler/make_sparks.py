@@ -17,8 +17,9 @@ import json, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..')); sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
 JSON = os.path.join(HERE, 'sparks98.json')
-SPARK_BASE = 700                    # free C ROM tiles: after the debug corners (642-645), below the fighters (1024)
+SPARK_BASE = 1724                   # free C ROM tiles: after the debug corners (1666-1669), below the fighters (TILE_BASE)
 PAL = 0x51
+from export_bm import TILE_BASE
 
 def capture(dirs):
     from portraits import sprites
@@ -65,7 +66,7 @@ def build(outdir):
             for col in fr['tiles']:
                 for t in col:
                     if t not in remap: remap[t] = SPARK_BASE + len(order); order.append(t)
-    assert SPARK_BASE + len(order) <= 1024, 'spark tiles run into the fighters'
+    assert SPARK_BASE + len(order) <= TILE_BASE, 'spark tiles run into the fighters'
     for name, plane in (('bm_c1.bin', 0), ('bm_c2.bin', 1)):
         p = os.path.join(outdir, name); data = bytearray(open(p, 'rb').read())
         for k, t in enumerate(order):

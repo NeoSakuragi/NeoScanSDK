@@ -10,7 +10,7 @@
 |   looking the frame up again.
 
     .equ    MAX_COLS, 20
-    .equ    FLOOR_TOP, 156             | = fighter.h
+    .equ    FLOOR_TOP, 158             | = fighter.h
     .equ    CMD_BUF_SIZE, 4096
     .equ    STICKY, 0x40
     | fighter_t

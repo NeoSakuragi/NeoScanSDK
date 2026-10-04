@@ -17,7 +17,8 @@ Boundary and layout rules the build packer must respect when it places assets in
 - Tile 0 = empty; a page's first tile with tile_hi is the page start (blank). **[ours]**
 - LSPC auto-animation: animated tiles must be groups of 4 or 8 consecutive tiles, aligned (the low 2 or 3 bits are
   replaced by the animation counter). **[hw]**
-- Stage tiles: tiles 1-1023 reserved below the fighters (TILE_BASE 1024), banner at 512. **[ours]**
+- Stage tiles: tiles 1-1535 reserved below the fighters (TILE_BASE 2048); banner 1536, shadow / box corners
+  1664-1669, sparks from 1724. **[ours]**
 
 ## S ROM (fix layer, 32 bytes per 8x8 tile)
 

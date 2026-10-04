@@ -8,7 +8,7 @@ Per fighter: frames (parts: dx, dy, columns, rows, flips, palette index, tile co
 one hurt box = union of KOF's hurt boxes, the attack box when the step has one), every colour set (16-colour palettes,
 one per palette index), physics (16.16 px/frame). Boxes are KOF's: centre offset from the feet (y < 0 = up) and half
 extents, in the sprites' own orientation (ROM sprites face LEFT: mirror x when the fighter faces right).
-Tile numbers start at TILE_BASE (1-1023 hold the stage, make_stage.py)."""
+Tile numbers start at TILE_BASE (1 .. TILE_BASE - 1 hold the stage, banner and sparks)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
@@ -38,7 +38,8 @@ SOURCES = {'atk_c_hop': ['atk_c_hop', 'atk_c_jump'], 'atk_d_hop': ['atk_d_hop', 
 def source(ch, m):
     """the KOF animation a brawler move plays (idle when the fighter has none)"""
     return next((ch['anims'][k] for k in SOURCES.get(m, [m]) if k in ch['anims']), None) or ch['anims']['idle']
-TILE_BASE = 1024                               # our first fighter tile; 1-1023 hold the stage (make_stage.py), 0 empty
+TILE_BASE = 2048                               # our first fighter tile; 1-2047: stage (1-1535, make_stage_ra.py), banner,
+                                               # shadow, corners (make_banner.py), sparks (make_sparks.py); 0 empty
 SRC_BASE = export96.TILE_BASE                  # export96 numbers its tiles from here
 
 def sb(v): return v - 256 if v > 127 else v
