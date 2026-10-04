@@ -10,6 +10,9 @@ listing, and the V ROM sample ranges both streams play. One page, one builder, e
     python3 build_web.py --game kizuna OUT_DIR [0x21 ...]    Kizuna Encounter (SNK Sound Driver Ver 0.0, KOF98's model:
                                                              song98.py / regs98.py, captures in our emulator, capture98.py);
     python3 build_web.py --game fatfursp OUT_DIR [0x36 ...]  Fatal Fury Special (KOF94's MAKOTO v3 build, tools/makoto3);
+    python3 build_web.py --game aof OUT_DIR [0x21 ...]       Art of Fighting (KOF94's MAKOTO v3 music engine, tools/makoto3);
+    python3 build_web.py --game aof2 OUT_DIR [0x26 ...]      Art of Fighting 2 (KOF94's MAKOTO v3 build, tools/makoto3);
+    python3 build_web.py --game aof3 OUT_DIR [0x24 ...]      Art of Fighting 3 (KOF95's MAKOTO v3 build extended, tools/makoto3);
     python3 build_web.py --game ninjamas OUT_DIR [0xD0 ...]  Ninja Master's (ADK's driver, tools/adksnd: songadk.py /
                                                              regsadk.py, captures in our emulator, captureadk.py);
                                                              no commands = every music command
@@ -24,7 +27,7 @@ interrupt, which the driver then loses (an interrupt arriving while the handler 
 drops of 10 captured songs: the rule predicts the number of interrupts lost after 95% of the ticks with 20 writes or
 more.
 
-FF3, KOF94, KOF95 and Fatal Fury Special (MAKOTO v3 driver): two timers, nothing lost (a pending flag waits for the handler, docs/ff3_sound_driver.md). Timer A every 1023
+FF3, KOF94, KOF95, Fatal Fury Special and Art of Fighting 1-3 (MAKOTO v3 driver): two timers, nothing lost (a pending flag waits for the handler, docs/ff3_sound_driver.md). Timer A every 1023
 samples, timer B every 16 * (256 - TB) samples, TB = the song's tempo byte (reg $26, changed by opcode $33). The
 captured interrupt order (A or B) is replayed on that schedule; the one unknown, the phase between the two timers, is
 the one that reproduces the captured order best. The model runs on the same interrupts, so both streams share one
@@ -132,6 +135,68 @@ GAMES['fatfursp'] = {
              'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Fatal Fury Special V ROM. Nothing here is a recording.",
                        "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
                        "<b>Model</b>: tools/makoto3/song.py + regs.py, the model of Fatal Fury 3, KOF94 and KOF95 with Fatal Fury Special's table addresses (its driver code is KOF94's instruction for instruction), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
+             'capture': 'capture', 'unit': 'interrupts'}}
+
+GAMES['aof'] = {
+    'm1': '/data/neogeo_dict/sound/aof/aof_m1.bin', 'cap': '/data/neogeo_dict/sound/aof/cap/cap_%02X.txt',
+    'neo': '/data/roms/aof.neo',
+    # measured in our emulator (docs/aof_songs.md): the game's own commands at these screens; the stage themes with
+    # the 68K's stage counter ($108428) set before the stage
+    'names': {0x29: 'Opening (attract story)', 0x3C: 'Title', 0x2B: 'How to play', 0x46: 'Scene before the first fight',
+              0x21: 'Stage: Ryuhaku Todoh', 0x22: 'Stage: Jack Turner', 0x23: 'Stage: Lee Pai Long', 0x24: 'Stage: King',
+              0x25: 'Stage: Micky Rogers', 0x26: 'Stage: John Crawley', 0x27: 'Stage: Mr. Big', 0x28: 'Stage: Mr. Karate',
+              0x30: 'Talk scene after beating Todoh', 0x31: 'Talk scene (Jack, after a lost match)',
+              0x47: 'Scene before the Micky fight', 0x2E: 'Map between stages', 0x2F: 'Continue', 0x45: 'Game over',
+              0x43: 'Bonus game select', 0x2D: 'Bonus game', 0x44: 'Bonus game over', 0x2A: 'Ending',
+              0x5F: 'NEO-GEO logo'},
+    'page': {'title': 'Art of Fighting', 'bar': 96, 'beat': 24, 'start': 0x21,
+             'intro': "Art of Fighting songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\", the build of KOF94's music engine) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Art of Fighting V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/makoto3/song.py + regs.py, the model of Fatal Fury 3, KOF94, KOF95 and Fatal Fury Special with Art of Fighting's table addresses (its music engine is KOF94's code, its command path an earlier one), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
+             'capture': 'capture', 'unit': 'interrupts'}}
+
+GAMES['aof2'] = {
+    'm1': '/data/neogeo_dict/sound/aof2/aof2_m1.bin', 'cap': '/data/neogeo_dict/sound/aof2/cap/cap_%02X.txt',
+    'neo': '/data/roms/aof2.neo',
+    # measured in our emulator (docs/aof2_songs.md): the game's own commands at these screens; the stage themes by the
+    # opponent on screen
+    'names': {0x29: 'Opening (attract story)', 0x36: 'Title / how to play', 0x41: 'Player select',
+              0x26: 'Stage: Ryo Sakazaki', 0x45: 'Stage: Robert Garcia (intro)', 0x28: 'Stage: Robert Garcia',
+              0x25: 'Stage: Eiji Kisaragi', 0x30: 'Stage: Jack Turner', 0x22: 'Stage: Lee Pai Long', 0x31: 'Stage: King',
+              0x46: 'Stage: Micky Rogers (intro)', 0x50: 'Stage: Micky Rogers', 0x24: 'Stage: John Crawley',
+              0x21: 'Stage: Mr. Big', 0x23: 'Stage: Takuma Sakazaki', 0x27: 'Stage: Yuri Sakazaki', 0x51: 'Stage: Temjin',
+              0x52: 'Stage: Geese Howard', 0x4D: 'Scene before Geese', 0x35: 'Geese defeated', 0x34: 'Ending scene (Geese)',
+              0x48: "Ending (Ryo's)", 0x2A: 'Staff roll', 0x40: 'Between matches (South Town map)', 0x42: 'Continue',
+              0x2F: 'Game over', 0x33: 'Bonus game select', 0x4E: 'Bonus game title card',
+              0x43: 'Bonus game: strength training', 0x2B: 'Bonus game: Haoh Shoko-ken', 0x2D: 'Bonus game over',
+              0x2E: 'Bonus game over (Haoh Shoko-ken)', 0x5F: 'NEO-GEO logo'},
+    'page': {'title': 'Art of Fighting 2', 'bar': 96, 'beat': 24, 'start': 0x26,
+             'intro': "Art of Fighting 2 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\", the build KOF94 also runs) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Art of Fighting 2 V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/makoto3/song.py + regs.py, the model of Fatal Fury 3, KOF94 and KOF95 with Art of Fighting 2's table addresses (its driver code is KOF94's instruction for instruction), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
+             'capture': 'capture', 'unit': 'interrupts'}}
+
+GAMES['aof3'] = {
+    'm1': '/data/neogeo_dict/sound/aof3/aof3_m1.bin', 'cap': '/data/neogeo_dict/sound/aof3/cap/cap_%02X.txt',
+    'neo': '/data/roms/aof3.neo',
+    # measured in our emulator (docs/aof3_songs.md); a stage theme depends on the player's character and the stage
+    'names': {0x21: 'Opening (attract)', 0x3D: 'Title / how to play', 0x30: 'Player select',
+              0x24: 'Stage (Robert vs Rody, train yard)', 0x28: 'Stage (Robert vs Wang; Ryo vs Rody)',
+              0x2A: 'Stage (Robert vs Jin)', 0x2C: 'Stage (Robert vs Sinclair)', 0x2E: 'Stage (Robert vs Kasumi)',
+              0x26: 'Stage (Robert vs Lenny)', 0x2D: 'Stage (Robert vs Karman)', 0x23: 'Stage (Robert vs Ryo; Ryo vs Wang)',
+              0x25: 'Stage (Ryo vs Jin; demo Kasumi vs Jin)', 0x27: 'Stage (Ryo vs Robert)', 0x2B: 'Final stage (vs Wyler)',
+              0x36: 'Scene before the final stage', 0x32: 'Jingle before a stage', 0x2F: 'Scene after a match',
+              0x33: 'Continue', 0x3C: 'Game over', 0x5F: 'NEO-GEO logo'},
+    'page': {'title': 'Art of Fighting 3', 'bar': 96, 'beat': 24, 'start': 0x24,
+             'intro': "Art of Fighting 3 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\", KOF95's build extended) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Art of Fighting 3 V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/makoto3/song.py + regs.py, the model of Fatal Fury 3, KOF94 and KOF95 with Art of Fighting 3's tables and its two extensions (a sample table per ADPCM-A channel, set by opcode $3C; 6-byte sample records), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
                        "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
              'capture': 'capture', 'unit': 'interrupts'}}
 

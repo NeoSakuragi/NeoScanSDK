@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Song decoder + tick-exact player model of the "Ver 3.0 by MAKOTO" sound driver (Fatal Fury 3, KOF94, KOF95,
-Fatal Fury Special): docs/ff3_sound_driver.md (sections "KOF94's build", "KOF95's build", "Fatal Fury Special's build"),
-docs/ff3_songs.md, docs/kof94_songs.md, docs/fatfursp_songs.md,
-docs/kof95_songs.md.
+Fatal Fury Special, Art of Fighting 1-3): docs/ff3_sound_driver.md (sections "KOF94's build", "KOF95's build", "Fatal
+Fury Special's build", "Art of Fighting's build", "Art of Fighting 2's build", "Art of Fighting 3's build"),
+docs/ff3_songs.md, docs/kof94_songs.md, docs/fatfursp_songs.md, docs/kof95_songs.md, docs/aof_songs.md,
+docs/aof2_songs.md, docs/aof3_songs.md.
 
     python3 song.py M1.bin 0x21                 summary (channels, notes, loop points)
     python3 song.py M1.bin 0x21 --list [TICKS]  full event listing per channel (tick, address, event, params)
@@ -97,6 +98,7 @@ def parse(m, pos, chan):
     if b >= 0x60:
         ev.update(kind='bad', op=b); ev['next'] = pos; return ev
     name, n, _ = OPS[b]
+    if b == 0x3C and m.g.get('a_chan'): name, n = 'a_table', 1   # Art of Fighting 3 ($2532)
     ev.update(kind='op', op=b, name=name, args=[m.rd(pos + 1 + i) for i in range(n)])
     if b == 0x5F and chan not in (5, 6, 7): ev['args'] = []  # $269C: on other channels the byte is not consumed
     ev['next'] = pos + 1 + len(ev['args'])
@@ -145,6 +147,10 @@ class Song:
         self.cmd0 = cmd
         self.fade = 0; self.fade_speed = 0                    # $FE27, $FABE+2
         self.fe38 = self.fe39 = 0; self.fabe0 = 0             # fade accumulators, $FABE+0 (bit 3 FM done, bit 5 B done)
+        ac = self.m.g.get('a_chan')                           # Art of Fighting 3: $FEDF-$FEF1 as after a reset ($00E6)
+        self.aram = {}
+        if ac:
+            for c in range(6): self.aram[0xFEDF + 2 * c] = ac['default'] & 0xFF; self.aram[0xFEE0 + 2 * c] = ac['default'] >> 8; self.aram[0xFEEB + c] = 0
         self.start(cmd)
         self.ptr0, self.bank0, self.tempo0 = self.ptr, self.bank, self.tempo   # (a chained song replaces them)
         self.vib = {c: Vib() for c in (1, 2, 3, 4)}
@@ -223,9 +229,15 @@ class Song:
             if not d: self.emit(ch, 'adump'); return          # $17D1
             if not self.fade: self.emit(ch, 'alevel', v=b)     # $2C5C: reg $08+ch = pan | level (raw, not masked)
             if ch.status & 8: return                          # tie: the sample keeps playing
-            rec = self.smp + 11 * ch.hi
             m = self.m
-            info = dict(sample=ch.hi, start=m.w(rec + 1), end=m.w(rec + 3), loops=m.rd(rec + 5))
+            if m.g.get('a_chan'):                             # Art of Fighting 3 ($046D): the channel's table and record size
+                c = ch.code - 8
+                size = 11 if self.aram[0xFEEB + c] & 1 else 6
+                rec = (self.aram[0xFEDF + 2 * c] | self.aram[0xFEE0 + 2 * c] << 8) + size * ch.hi
+                loops = m.rd(rec + 5) if size == 11 else 0    # $0311: 6-byte records play once
+            else:
+                rec = self.smp + 11 * ch.hi; loops = m.rd(rec + 5)
+            info = dict(sample=ch.hi, start=m.w(rec + 1), end=m.w(rec + 3), loops=loops)
             if info['loops']: info.update(lstart=m.w(rec + 6), lend=m.w(rec + 8))
             self.emit(ch, 'akey', **info)
         else:                                                # ADPCM-B ($23EA)
@@ -395,7 +407,7 @@ class Song:
         elif op == 0x46:                                     # $2902
             p = a[0]
             if p < 0x40: ch.bmode = 1
-            elif p < 0x80: self.fe40 = self.m.rd(self.m.g['b_single'] + p - 0x40); ch.bmode = 2
+            elif p < 0x80 or self.m.g.get('b_octave') is False: self.fe40 = self.m.rd(self.m.g['b_single'] + p - 0x40); ch.bmode = 2
             elif p < 0xC0: self.fe40 = self.m.g['b_octtab'] + 8 * (p - 0x80); ch.bmode = 0
         elif op == 0x47:                                     # $28F6: start song p, end the IRQ
             self.queued.append((self.tick, ch.name, a[0]))
@@ -407,9 +419,21 @@ class Song:
         elif op == 0x50: self.emit(ch, 'reg', r=a[0], v=a[1])
         elif op == 0x55: self.emit(ch, 'ssg_end'); return 'abort'
         elif op == 0x56: ch.vol = (a[0] - 0x80) & 0xFF
+        elif op == 0x3C and self.m.g.get('a_chan'): self.a_table(ch, a[0])
         else:
             self.emit(ch, 'op', op=op, args=a)                # opcodes no song uses: listed, not modelled
         return None
+
+    def a_table(self, ch, p):
+        """Art of Fighting 3's opcode $3C ($2532): i = p - $18 (0-7, else nothing); a non-zero word words[i] becomes the
+        channel's ADPCM-A table ($FEDF + 2c) and flags[i] its flag byte ($FEEB + c), c = channel id - 8 (ADPCM-B, c = 6,
+        writes $FEF1 and $FEEB/$FEEC: ADPCM-A 1's flag and ADPCM-A 2's: the RAM is modelled byte by byte)"""
+        g = self.m.g['a_chan']; i = (p - 0x18) & 0xFF
+        if i >= 8: return
+        de = self.m.w(g['words'] + 2 * i); b = self.m.rd(g['flags'] + i)
+        if not de or ch.code < 8: return
+        c = ch.code - 8
+        self.aram[0xFEEB + c] = b; self.aram[0xFEDF + 2 * c] = de & 0xFF; self.aram[0xFEE0 + 2 * c] = de >> 8
 
     def pan(self, ch, p):                                    # $294F
         c = ch.code; bits = (p & 3) << 6                      # AND 3, RRCA, RRCA
@@ -571,7 +595,8 @@ def summary(s):
         print(f"song ${s.cmd0:02X}: header ${s.ptr0:04X} bank set {s.bank0} timer B ${s.tempo0:02X}, chains to "
               f"${s.queued[0][2]:02X} at tick {s.queued[0][0]} (opcode $47 on {s.queued[0][1]}); from there:")
     print(f"song ${s.cmd:02X}: header ${s.ptr:04X} bank set {s.bank} timer B ${s.tempo:02X} ({tick_hz(s.tempo):.2f} ticks/s) "
-          f"FM att ${s.fm_att:02X} ADPCM-A master ${s.a_vol:02X} ADPCM-B volume ${s.b_vol:02X} samples ${s.smp:04X}")
+          f"FM att ${s.fm_att:02X} ADPCM-A master ${s.a_vol:02X} ADPCM-B volume ${s.b_vol:02X} samples "
+          + (f"${s.smp:04X}" if s.smp is not None else 'per channel (opcode $3C)'))
     for ch in s.ch:
         if not s.on[ch.k]: continue
         keys = [e for e in s.out if e[2] == ch.name and (e[3] in ('akey', 'bkey') or e[3] == 'key' and e[4]['d'])]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MAKOTO v3 songs (Fatal Fury 3, KOF94, KOF95, Fatal Fury Special) as YM2610 register writes: song.py's chip events
+"""MAKOTO v3 songs (Fatal Fury 3, KOF94, KOF95, Fatal Fury Special, Art of Fighting 1-3) as YM2610 register writes: song.py's chip events
 turned into the writes the driver makes ($1A8C, $2BC3, $14B5, $0359, $077D, $083E; docs/ff3_sound_driver.md "Output
 stage"), and a register-level comparison
 with a capture.py capture, interrupt by interrupt.

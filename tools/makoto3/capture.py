@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""MAKOTO v3 sound ground truth in our emulator (Fatal Fury 3, KOF94, KOF95, Fatal Fury Special): the Geolith core
+"""MAKOTO v3 sound ground truth in our emulator (Fatal Fury 3, KOF94, KOF95, Fatal Fury Special, Art of Fighting 1-3): the Geolith core
 driven from Python (ctypes, as tools/brawler/harness.py) with a Z80 port tap, logging what tools/kof98snd/ymtap.lua logs in MAME.
 
-    python3 capture.py [--game ff3|kof94|kof95|fatfursp] OUT FRAMES [--send F:CMD,...] [--block F] [--rom PATH] [--wav PATH]
-    python3 capture.py [--game ff3|kof94|kof95|fatfursp] --songs DIR [CMD ...]
+    python3 capture.py [--game ff3|kof94|kof95|fatfursp|aof|aof2|aof3] OUT FRAMES [--send F:CMD,...] [--block F] [--rom PATH] [--wav PATH]
+    python3 capture.py [--game ff3|kof94|kof95|fatfursp|aof|aof2|aof3] --songs DIR [CMD ...]
                                          every music command (or these): DIR/cap_XX.txt, power-on, the game's
                                          commands blocked from frame BLOCK on, the song sent at SEND (games.GAMES),
                                          length from song.py (to the loop / end + 15 %). Default game: ff3

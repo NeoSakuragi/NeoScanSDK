@@ -1,4 +1,4 @@
-# Fatal Fury 3 sound driver ("Ver 3.0 by MAKOTO.04/03/10 to SK"), and the builds of KOF94, KOF95 and Fatal Fury Special
+# Fatal Fury 3 sound driver ("Ver 3.0 by MAKOTO.04/03/10 to SK"), and the builds of KOF94, KOF95, Fatal Fury Special and Art of Fighting 1-3
 
 Second deep dive into a classic SNK driver, after KOF98 (`kof98_sound_driver.md`). Source: Fatal Fury 3's M ROM
 (`/data/roms/fatfury3.neo`, M region, 128 KB; copy `/data/tmp/snd98/ff3/ff3_m1.bin`, disassembly `drv.asm` there, by
@@ -10,7 +10,10 @@ dispatch, the two clocks, channel state machine, stream format and every opcode,
 differences are in "KOF94's build" below, its songs in `kof94_songs.md`. The King of Fighters '95 runs a reworked
 build (other RAM layout, word jump tables, new effect commands, the same music engine): "KOF95's build", songs in
 `kof95_songs.md`. Fatal Fury Special (1993) runs KOF94's build with its own tables: "Fatal Fury Special's build", songs in
-`fatfursp_songs.md`. Everything below is read from the code
+`fatfursp_songs.md`. Art of Fighting (1992), Art of Fighting 2 (1994) and Art of Fighting 3 (1996) run three more
+builds: AOF1 = KOF94's music engine with an older command path, AOF2 = KOF94's build with its own tables, AOF3 =
+KOF95's build with per-channel ADPCM-A sample tables ("Art of Fighting's build", "Art of Fighting 2's build", "Art of
+Fighting 3's build"; songs in `aof_songs.md`, `aof2_songs.md`, `aof3_songs.md`). Everything below is read from the code
 (addresses cited) or measured; *(inferred)* marks the rest.
 
 ## Z80 map and ports
@@ -608,6 +611,145 @@ Duck King, Tung Fu Rue, then six bosses (index 15 is followed by command `$FB`, 
 the ten opponents on the enemy select screen starts that opponent's entry (`docs/fatfursp_songs.md`); the word at
 `$10B2EC` (`a5` = `$108000`, offset 13036) read when the theme starts holds the index + 1 (4 picks measured; *inferred*:
 the code advances it after the read).
+
+## Art of Fighting's build
+
+Art of Fighting's M ROM (`/data/roms/aof.neo`, 64 KB mirrored to 128 KB; copy `/data/neogeo_dict/sound/aof/aof_m1.bin`,
+disassembly `drv.asm` there) carries the same signature, `Ver 3.0 by MAKOTO.04/03/10 to SK`, with the interrupt vector
+`JP $2041`. Method as for KOF95 (`/data/neogeo_dict/sound/kof95/scratch/codediff.py`, output in
+`/data/neogeo_dict/sound/aof/scratch/k94_*`, `ff3_*`): 5613 instructions, 104 differing blocks against KOF94, 122
+against FF3. **The music engine is KOF94's**: from the song start on, every routine matches KOF94's instruction for
+instruction, shifted, with the same RAM layout and the same tables in the code area; the differences there are
+equivalent rewrites (`INC A` / `LD A,$01` after `XOR A`, `RETI` / `RET`, a `BIT 0,A` / `JR NZ` to the next
+instruction in the interrupt handler, the SSG sweep start storing 0 instead of A = 0). The 1992 game therefore runs
+KOF94's (1994) music engine, and the differences are in the command path (*inferred*: the music engine was settled by
+1992, the command path reworked by the time of FF3 and KOF94).
+
+Address map (KOF94 → AOF): song start `$10AC` → `$1045`; interrupt handler `$2096` → `$2041`; music tick `$21AE` →
+`$2159`; channel `$229F` → `$224A`; events `$2457` → `$23F9`; opcode table `$2565` → `$2507`; FM key `$1421` → `$13CA`;
+music ADPCM-A note `$159B` → `$1546` (records through `$0395`, KOF94 `$0447`); patch load `$180F` → `$17BA`; ADPCM-B
+records `$0913` → `$085D`; register writes `$2B18` → `$2ABD`.
+
+Tables (KOF94 → AOF): command types `$6907` → `$565C`; song bank bytes `$2E00` → `$2C10`; FM patches `$2E40` → `$2C50`;
+song headers `$3B40` → `$34A4`; SSG effect headers `$3BC0` → `$3524`; ADPCM-A effect records of slot 0 `$3E73` →
+`$3CBF` (also the music's sample table, as KOF94); sequenced ADPCM-A effect headers `$5EC3` → `$4FDE`; ADPCM-B records
+`$5F23` → `$5054` (KOF94's 26-byte layout); opcode `$46` tables `$6693` → `$53E8`, `$6757` → `$54AC`; delta-N `$66D3`
+→ `$5428`, `$6807` → `$555C`; one-byte effect code tables `$6A07` → `$575C` (ADPCM-B), `$6A47` → `$579C` (ADPCM-A);
+mute exemption `$6A87` → `$57DC`; F-numbers `$6A88` → `$57DD` (byte-identical, the sharp second scale included); pitch
+`$207E` → `$2029`, gate `$2C0E` → `$2BB3` (byte-identical).
+
+Functional differences, all read from the code:
+
+| Area | KOF94 | Art of Fighting |
+|---|---|---|
+| Dispatch | `$01C1`: type byte, then a `DEC A` / `JP Z` chain | `$0185`: `LD HL,$565C`, then a `CP 1` ... `CP 5` chain (1 `$0BB7` system, 2 `$01B6` → `$1045` song, 3 `$01FC`, 4 `$0512`, 5 `$0926`); `game_of()` looks for the type table load from `$0180` on |
+| Reply to the 68K | the command (+1 every 128th) or the check table `$2C54`[cmd], written by the main loop and by every interrupt | the NMI writes `$FEDD` OR `$80` to port `$0C` after storing a command (`$0091`); the main loop sets `$FEDD` = the refresh register R while `$FED9` is non-zero (`$015B`); no command echo, no write in the interrupt handler |
+| Reset | bank self-test, ROM check in bank `$1E` | neither; `OUT ($C0),A` with A = 1 (`$0105`, purpose unknown) |
+| Command map | music 28 | music `$20-$3C`, `$40-$47`, `$5F` (38), every song in bank map 0; SSG effect songs `$60-$62`, `$65`, `$68-$6A`, `$7F`; one-byte ADPCM-A effects `$C0-$CE`, `$D0-$E4`, `$E6-$EE` (type 3, `$01FC`: code = `$579C`[cmd - `$C0`], slot 0's records; a code ≥ `$E4` starts a sequenced effect, headers `$4FDE`, `$042A`) |
+
+The model needed the table addresses only (`tools/makoto3/games.py`). Validation: **all 38 music commands, 10180 of
+10180 interrupts with writes identical, 178911 captured writes, 0 differing**, including `$24`, which restarts itself
+with opcode `$47`; per song in `aof_songs.md`.
+
+### What the 68000 sends (Art of Fighting)
+
+The sound routine `$44E6` (once per frame) takes the next byte of a queue at `$107000` (`a5` = `$108000`, write index
+`$108104`, read index `$108105`), skips `$00`, drops `$01`, and writes it to `REG_SOUND` (`$4506`). Requests: `$4532`
+(sound ID in `d0` = a byte offset into the word table `$4552`, queued as two bytes, so `$00xx` sends `xx` and `$1Axx`
+an effect prefix and its code), `$450E` (only when the ID differs from the last one, `$10818A`), `$451E` (ID + 2 or + 4
+by the object's distance across the screen). Measured in our emulator: `$03` at frame 368 and 838, `$02` at 377 (the
+NEO-GEO logo jingle `$5F`), `$07` at 843, the opening `$29` at 1223. Stage themes and talk scenes come from 68K tables
+by the stage counter `$108428` (`aof_songs.md`).
+
+## Art of Fighting 2's build
+
+Art of Fighting 2's M ROM (`/data/roms/aof2.neo`, 128 KB; copy `/data/neogeo_dict/sound/aof2/aof2_m1.bin`) carries the
+same signature and KOF94's interrupt vector (`JP $2096`). Aligned with KOF94 and with Fatal Fury Special
+(`/data/neogeo_dict/sound/aof2/scratch/k94_*`, `ffs_*`): 5580 instructions on all three sides, three differing
+instructions against each, every matched code or RAM operand the same address. So it is **KOF94's driver code with
+other tables**, as Fatal Fury Special:
+
+| Address | KOF94 | Fatal Fury Special | Art of Fighting 2 |
+|---|---|---|---|
+| `$0014` | word `$59A7` | `$F907` | `$8F71` (the ROM sum of the `$10` self-test) |
+| `$02B9` / `$04EE` | `CP $FF` / `SUB $FF` | `CP $F0` / `SUB $F0` | `CP $F0` / `SUB $F0`: ADPCM-A effect codes `$F0-$FF` are sequenced effects, as Fatal Fury Special |
+| `$05E0` / `$094A` | `CP $F0` / `SUB $F0` | `CP $80` / `SUB $80` | `CP $F0` / `SUB $F0`: ADPCM-B effect codes `$F0-$FF` sequenced, as KOF94 |
+
+Tables (KOF94 → AOF2): command types `$6907` → `$6993` (`game_of()` tells it from KOF94 by this table); song headers
+`$3B40` → `$3B0C`; SSG effect headers `$3BC0` → `$3B8C`; song bank bytes `$2E00` and FM patches `$2E40` (same); ADPCM-A
+effect bitmaps `$3E13`/`$3E33`/`$3E53` → `$4130`/`$4150`/`$4170`, records `$3E73`/`$4973`/`$5473` → `$4190`/`$4C90`/
+`$5790` (`$4190`, slot 0's, is the music's sample table); sequenced ADPCM-A effect headers `$5EC3` → `$608B`; ADPCM-B
+effect bitmaps `$5EE3`/`$5F03` → `$60AB`/`$60CB`; ADPCM-B records `$5F23` → `$60EB` (26 bytes); sequenced ADPCM-B
+headers `$6673` → `$6703`; opcode `$46` tables `$6693` → `$6723`, `$6757` → `$67E3`; delta-N `$66D3` → `$6763`, `$6807`
+→ `$6893`; one-byte effect code tables `$6A07` → `$6A93`, `$6A47` → `$6AD3`; mute exemption `$6A87` → `$6B13`;
+F-numbers `$6A88` → `$6B14`; SSG periods `$6AC8` → `$6B54`.
+
+Command map (`$6993`): system `$00-$1E` except `$1B`; music `$20-$36`, `$40-$4E`, `$50-$52`, `$5F` (42); SSG effect
+songs `$60-$62`, `$65`, `$68-$6A`, `$7F`; one-byte ADPCM-A effects (type 3) `$C0-$DC`, `$F0-$F9`; one-byte ADPCM-B
+effects (type 4) `$99-$A6`.
+
+The M ROM's last 35438 bytes (`$17592-$1FFFF`) are byte-identical with KOF94's at the same offsets, the block the
+KOF95 section calls "KOF94's song data left in place"; Art of Fighting 2 came out before KOF94 (both 1994),
+and no song of either game reads the block (model runs of every song) (*inferred*: it comes from an earlier game or
+work in progress, carried from ROM image to ROM image).
+
+The model needed the table addresses only. Validation: **all 42 music commands, 18265 of 18265 interrupts with writes
+identical, 347698 captured writes, 0 differing**; per song in `aof2_songs.md`.
+
+### What the 68000 sends (Art of Fighting 2)
+
+The sound routine `$0962` takes the next byte of a queue at `$106B00` (write index `$108284`, read index `$108285`),
+skips `$00`, drops `$01`, and writes it to `REG_SOUND` (`$0982`). Requests: `$09BA` (sound ID = a byte offset into the
+word table `$09DA`, two bytes queued), `$098A` (only when the ID differs from the last one, `$10830A`). Measured: `$03`
+at 368, `$02` at 377 (the logo jingle `$5F`), `$07` at 843, the opening `$29` at 1365. Stage themes from the table
+`$9F1A` by the opponent, endings from `$11092` by the player's character (`aof2_songs.md`).
+
+## Art of Fighting 3's build
+
+Art of Fighting 3's M ROM (`/data/roms/aof3.neo`, 128 KB; copy `/data/neogeo_dict/sound/aof3/aof3_m1.bin`, disassembly
+`drv.asm` there) carries the same signature, with the interrupt vector `JP $1C9C`. Aligned with KOF95
+(`/data/neogeo_dict/sound/aof3/scratch/k95_*`): 5284 instructions against KOF95's 5004, 71 differing blocks (446
+against KOF94). It is **KOF95's reworked build** (word jump tables, KOF95's RAM layout, the depth-4 stack guard) with three changes
+to the music engine; the differences in the effect and system-command paths (`$02AF-$0475`, `$0A11-$0BEE` in KOF95's
+numbering) were not read one by one.
+
+Address map (KOF95 → AOF3): interrupt handler `$1BCA` → `$1C9C`; music tick `$1CA8` → `$1D7A`; song start `$0DA1` →
+`$0E7D`; channel `$1D72` → `$1E44`, output `$1DA6` → `$1E78`; events `$1F22` → `$1FF4`; opcode table `$2014` → `$20E6`;
+music ADPCM-A note `$125A` → `$133F`; ADPCM-B note `$12C2` → `$1393`; patch load `$1440` → `$1512`; register output
+`$1615` → `$16E7`; fade step `$167B` → `$174D`; pitch `$1B74` → `$1C46` (table `$1BB2` → `$1C84`); end of song `$235B` →
+`$2425`; gate `$24A9` → `$25C9` (table `$2625` → `$2745`); register writes `$252D` → `$264D`.
+
+Tables (KOF95 → AOF3): command types `$72B4` → `$5F5E` (loaded at `$01F7`); song bank bytes `$2E00` → `$2891`; FM
+patches `$2E40` → `$28D1`; song headers `$3B40` → `$3841`; SSG effect headers `$3BC0` → `$38C1`; sequenced ADPCM-A
+effect headers `$6B9B` → `$501B`; ADPCM-B records `$6BFB` → `$51E6` (16 bytes); opcode `$46` tables `$702B` → `$5CE6`,
+`$70F3` → `$5DAE`; delta-N `$706B` → `$5D26`, `$71A3` → `$5E5E`; F-numbers `$7435` → `$60DF` (byte-identical).
+
+Functional differences in the music engine, all read from the code:
+
+| Area | KOF95 | Art of Fighting 3 |
+|---|---|---|
+| Music ADPCM-A samples | per song: `$0DF4` stores `$3C00`[song] in `$FEDB`, the note copies it to `$FEE2` | **per channel**: a table pointer `$FEDF` + 2c and a flag byte `$FEEB` + c for ADPCM-A channel c, set at reset to `$3E0F` and 0 (`$00E6`) and changed only by opcode `$3C`: **kept across songs**. The note (`$046D`): flag bit 0 set → 11-byte records `$FEDF`[c] + 11 × sample (KOF95's key-on, `$03A8`), else 6-byte records `$FEDF`[c] + 6 × sample, keyed by `$0311` with the loop count forced to 0: `[?][start16][end16][?]`, played once |
+| Opcode `$3C` | no-op | **sample table** p (`$2532`): i = p - `$18`, 0-7 (else nothing, the byte consumed); word `$2570`[i] and byte `$2580`[i] (`$3E0F` 0, `$0000`, `$440F` 0, `$5015` 0, `$4A0F` 0, `$505B` 1, `$500F` 0, `$0000`); a zero word changes nothing; for a channel id ≥ 8 (c = id - 8) the word goes to `$FEDF` + 2c, the byte to `$FEEB` + c (on ADPCM-B, c = 6, that is `$FEEB`/`$FEEC` and `$FEF1`: ADPCM-A 1's and 2's flags; no song does it). Every song with ADPCM-A notes sets `$1A` (`$440F`, 6-byte records) on its ADPCM-A channels |
+| Opcode `$46` | p < `$40` kit, `$40-$7F` one pitched sample, `$80-$BF` one sample per octave, ≥ `$C0` nothing | p < `$40` kit; **every p ≥ `$40`** one pitched sample `$5CE6`[p - `$40`] (`$233F`: the per-octave mode and the "nothing" case are gone; no song uses p ≥ `$80`) |
+| Bank maps | two | three, as FF3 (`$0EB3`: 0 identity, 2 → `$18000-$1FFFF`, any other → `$10000-$17FFF`); the songs use 0 and 1 |
+
+Command map (`$5F5E`): system `$01-$14`, `$17-$1E`; music `$20-$28`, `$2A-$3D`, `$5F` (30); SSG effect songs `$60-$63`,
+`$66`, `$7F`; one-byte ADPCM-A effects `$C0-$FF` (type 3); no type 4.
+
+The model gained these three switches (`games.py`: `a_chan`, `b_octave`; the bank map), read from the code and
+exercised by the songs except the 11-byte records and `$46` p ≥ `$80`. Validation: **all 30 music commands, 16934 of
+16934 interrupts with writes identical, 249527 captured writes, 0 differing**; per song in `aof3_songs.md`. FF3
+(32417 / 32417), KOF94 (15571 / 15571), KOF95 (17683 / 17683) and Fatal Fury Special (29536 / 29536) re-compared with
+the extended tools: identical.
+
+### What the 68000 sends (Art of Fighting 3)
+
+The sound routine `$303B8` takes the next byte of a queue at `$10E12E` (write index `$10E124`, read index `$10E125`),
+skips `$00`, drops `$01`, and writes it to `REG_SOUND` (`$303D8`). Requests: `$30404` (sound ID in `d0`, a long from the
+table `$3051C` holding up to four command bytes, zero bytes skipped; negative IDs go through a per-character table
+`$3113C`), `$303E2` (only when the ID differs from the last one), `$303F4` (registers saved). Measured: `$03 $03 $07`
+twice (frames 864-874), `$02` at 404 (the logo jingle `$5F`), the opening `$21` at 1116. Stage themes from the table
+`$CE50` by the player's character and the stage number (`aof3_songs.md`).
 
 ## Compared with KOF98
 
