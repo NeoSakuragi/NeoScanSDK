@@ -4,7 +4,7 @@ AR      = m68k-linux-gnu-ar
 CFLAGS  = -m68000 -O2 -ffreestanding -nostdlib -Iinclude -Wall -MMD -MP   # -MMD: header changes rebuild the objects
 ASFLAGS = -m68000 -nostdlib
 
-SRCS    = src/neo_palette.c src/neo_sprite.c src/neo_vblank.c src/neo_anim.c src/neo_input.c src/neo_fix.c src/neo_sound.c src/neo_bullet.c
+SRCS    = src/neo_palette.c src/neo_sprite.c src/neo_vblank.c src/neo_anim.c src/neo_input.c src/neo_fix.c src/neo_sound.c src/neo_bullet.c src/neo_string.c
 OBJS    = $(SRCS:.c=.o)
 
 all: lib/libneoscan.a lib/crt0.o
@@ -19,6 +19,8 @@ lib/crt0.o: boot/crt0.s
 
 src/%.o: src/%.c
 	$(CC) $(CFLAGS) -Isrc -c $< -o $@
+
+src/neo_string.o: CFLAGS += -fno-tree-loop-distribute-patterns   # memset must not compile into a call to memset
 
 -include $(OBJS:.o=.d)
 

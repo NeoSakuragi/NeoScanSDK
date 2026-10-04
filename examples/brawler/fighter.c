@@ -647,6 +647,7 @@ void combat(fighter_t **fs, uint8_t n) {
 
 void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase, uint8_t team, int16_t x, int16_t z) {
     uint8_t i;
+    *f = (fighter_t){ 0 };                                       /* nothing left from the demo or the last fight */
     f->ch = ch; f->set = set; f->palbase = palbase; f->team = team;
     for (i = 0; i < ch->npal && i < MAX_PALS; i++) PAL_setPalette(palbase + i, ch->pals + ((set * ch->npal + i) << 4));
     f->x = FIX(x); f->z = FIX(z); f->y = 0; f->vx = f->vy = f->vz = 0;

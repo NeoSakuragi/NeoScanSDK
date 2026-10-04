@@ -338,16 +338,21 @@ static void draw(void) {
     dbg_draw();
 }
 
+static intent_t in[NF];                          /* this frame's intent per fighter (player pad or AI) */
+static void inputs_reset(void) {                 /* a select / fight starts: nothing of the demo or the last game */
+    uint8_t i;
+    for (i = 0; i < NF; i++) in[i] = (intent_t){ 0 };
+    for (i = 0; i < 2; i++) { tap_t[i] = 255; tap_dir[i] = 0; }
+}
 static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
     uint16_t held = JOY_held(p), pressed = JOY_pressed(p);
+    *in = (intent_t){ 0 };                                     /* from nothing every frame: a human's input carries nothing
+                                                                  the AI wrote (the attract demo drives P1's slot) */
     in->dx = (held & JOY_RIGHT) ? 1 : (held & JOY_LEFT) ? -1 : 0;
     in->dz = (held & JOY_DOWN) ? 1 : (held & JOY_UP) ? -1 : 0;
     in->press = ((pressed & JOY_A) ? IN_A : 0) | ((pressed & JOY_B) ? IN_B : 0) | ((pressed & JOY_C) ? IN_C : 0) | ((pressed & JOY_D) ? IN_D : 0);
     if ((pressed & (JOY_A | JOY_B)) && (held & JOY_A) && (held & JOY_B)) in->press = (in->press & ~(IN_A | IN_B)) | IN_D;   /* A+B = D */
     in->hold = ((held & JOY_A) ? IN_A : 0) | ((held & JOY_B) ? IN_B : 0) | ((held & JOY_C) ? IN_C : 0) | ((held & JOY_D) ? IN_D : 0);
-    in->run = 0; in->ai = 0; in->slow = 0;
-    in->face = 0; in->grab = 0;                                /* the AI's fields: the attract demo's bot wrote them into
-                                                                  P1's slot, a stale face turned P1 back when standing */
     if (pressed & (JOY_LEFT | JOY_RIGHT)) {                     /* forward tapped twice within 12 frames */
         uint8_t d = (pressed & JOY_RIGHT) ? 1 : 2;
         if (tap_dir[p] == d && tap_t[p] < 12) in->run = 1;
@@ -614,6 +619,7 @@ static void select_name(void) {
 static void select_start(void) {
     uint8_t p, i;
     mode = 0; sel_t = 0; sel_phase = SEL_CHOOSE; attract = 0; ai_weak = 0;
+    inputs_reset();
     snd_music(MUS_SELECT);
     FIX_clear(); arcade_line_reset();
     PAL_setBackdrop(RGB8(72, 76, 84));                       /* the line-up wall */
@@ -655,6 +661,7 @@ static void fight_fade(void);
 static void fight_start(void) {
     uint8_t i, c;
     mode = 1; nf = NE; cam_x = 0; wave = 0; banner_t = 0; navail = 0;
+    inputs_reset();
     snd_music(MUS_FIGHT);
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
     sparks_init();
@@ -817,7 +824,6 @@ void game_enter(uint8_t request) {
 }
 
 void game_tick(void) {
-    static intent_t in[NF];
     uint8_t i;
     prof_t = LINE();
     SYS_vblankFlush();              /* we are in vblank: last tick's VRAM commands go out now, tear-free (1 frame latency) */
