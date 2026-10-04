@@ -182,7 +182,36 @@ def table97(outdir, specs):
                   open(os.path.join(outdir, f'{game}_{name}.json'), 'w'))
         print(spec, len(cols), 'x', len(cols[0]), 'first tile', hex(next(t for col in cols for t in col if t)))
 
+# KOF96's member-select squares of the boss team (Geese, Krauser, Mr. Big: the grid's bottom-middle block; drawn as
+# part of the full-screen select picture, so taken from the screen): our emulator from power-on, two coins, START; the
+# select screen shows ~frame 2400 (after How to play). Square = (x0, y0) of a 28x28 window on the 304x224 screen.
+SQUARES96 = {'geese': (106, 146), 'krauser': (137, 146), 'mr_big': (168, 146)}
+
+def select96(outdir):
+    """-> OUTDIR/kof96_<name>_square.png (28x28 RGB, make_hud.py takes it as is). The frame used: the first of
+    2300-2700 (every 20) that, with the next, shows the grid (block borders white at y 160, x 135 / 167 / 197, the
+    squares' centres not white)."""
+    import tempfile
+    d = tempfile.mkdtemp(dir='/data/tmp')
+    frames = list(range(2300, 2701, 20))
+    env = dict(os.environ, SEQ='300:-,10:o,60:-,10:o,80:-,10:s,2600:-', OUT='/dev/null', SNAPDIR=d,
+               SNAPS=','.join(map(str, frames)))
+    subprocess.run([NGSDL, rom96.GAMES['kof96']['neo'], '--capture'], env=env, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, timeout=600)
+    white = lambda im, x, y: sum(im.getpixel((x, y))) > 650
+    def grid(fr):                                       # block borders white, the faces' centres not
+        im = Image.open(os.path.join(d, f'snap_{fr}.ppm')).convert('RGB')
+        return im if all(white(im, x, 160) for x in (135, 167, 197)) and \
+            not any(white(im, x + 14, y + 14) for x, y in SQUARES96.values()) else None
+    fr = next((a for a, b in zip(frames, frames[1:]) if grid(a) and grid(b)), None)   # two in a row: settled
+    if fr is None: raise SystemExit('KOF96 select screen not found')
+    im = grid(fr)
+    for name, (x0, y0) in SQUARES96.items():
+        im.crop((x0, y0, x0 + 28, y0 + 28)).save(os.path.join(outdir, f'kof96_{name}_square.png'))
+        print(f'kof96:{name} square from frame {fr} at ({x0}, {y0})')
+
 if __name__ == '__main__':
+    if sys.argv[1] == 'select96': select96(sys.argv[2])
     if sys.argv[1] == 'capture': capture(sys.argv[2], sys.argv[3:])
     if sys.argv[1] == 'table': table96(sys.argv[2], sys.argv[3:])
     if sys.argv[1] == 'table94': table94(sys.argv[2], sys.argv[3:])

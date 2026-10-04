@@ -93,6 +93,8 @@ def build(specs, outdir):
         off = tile_next - SRC_BASE; tile_next += n
         chars += [(game, name, ex['characters'][name], off) for name in names]
     assert tile_next <= 0x100000, f'{tile_next} tiles: past the 20-bit tile number'
+    chars.sort(key=lambda c: specs.index(f'{c[0]}:{c[1]}'))   # bm_chars in the command line's order, the order
+                                                          # make_hud.py gives the portraits (exports go by game)
     pad = bytearray(TILE_BASE * 64)
     open(os.path.join(outdir, 'bm_c1.bin'), 'wb').write(bytes(pad + c1))
     open(os.path.join(outdir, 'bm_c2.bin'), 'wb').write(bytes(pad + c2))
