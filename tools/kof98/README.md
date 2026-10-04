@@ -1,6 +1,6 @@
 # KOF98 animation dictionary
 
-Data (exports, gallery pages, MAME save states, capture recordings): `/data/neogeo_dict/` (see its README.md);
+Data (exports, gallery pages, save states, capture recordings): `/data/neogeo_dict/` (see its README.md);
 the `capture/` recording folders here are symlinks into it.
 
 Gallery artifact: https://claude.ai/artifact/LV1o7UFThpXTRhj3HLDaYe
@@ -9,8 +9,8 @@ KOF98 runs KOF96's engine, extended. The code is shared, not copied: `tools/kof9
 (`GAMES`), and `export96.py --game kof98`, `capture/specials96.py --game kof98`, `GAME=kof98 capture/throws96.py`,
 `GAME=kof98 capture/labels.py` do the KOF98 work. Read `tools/kof96/README.md` first; this file lists the differences.
 ROM `/data/roms/kof98.neo` (P = 2 MB P1 + 4 MB P2, identical to what MAME's CPU sees after its kof98 decryption).
-MAME set `~/Downloads/kof98.zip`; save states in `~/.mame/sta/kof98/` (`vs` = Kyo vs Yuri, `c<id>` / `c<id>x` per fighter).
-**Always `-noplugin cart_bridge`** (see the KOF96 README).
+Captured in our emulator (`tools/kof96/capture/emu.py`, see the KOF96 README); save states in
+`/data/neogeo_dict/ngsdl_sta/kof98/` (`vs` = Kyo vs Yuri, `boot_ngsdl.py kof98 --save 1593`; `c<id>` / `c<id>x` per fighter).
 
     python3 tools/kof96/export96.py --game kof98 OUT all
     python3 tools/kof95/gallery.py --split OUT site/index.html
@@ -42,7 +42,7 @@ knockdowns blowback 283 -> 287, trip 307 -> 309 -> 313 -> down 328 -> get-up 72,
 `export96.MOVES98`. Every other slot of each table is exported as `slot_<n>` with the states that select it.
 
 ## Specials, supers, MAX, EX
-Captures reload `c<id>` before every try (`capture/prep98.lua`: swap, then 3 power stocks earned in play; poking the
+Captures reload `c<id>` before every try (`tools/kof96/capture/specials96.prep`, KOF98's timeline in `emu.GAMES`: swap, then 3 power stocks earned in play; poking the
 stock bytes did not enable supers). Passes: main (ground + air), MAX (A+B+C, then each command that gave a super: SDMs),
 close range (P2 next to P1), EX (`c<id>x`, team record EX bit). A super = a try that spends a stock. Result: 590 moves
 incl. 206 supers, 59 MAX SDMs, 10 EX-only (Omega Rugal, Orochi team...). The close pass found nothing new by first

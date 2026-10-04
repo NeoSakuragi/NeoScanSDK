@@ -22,6 +22,7 @@ Addresses are Z80 addresses in the M1 ROM. Behaviour keys (False / absent = KOF9
 GAMES = {
     'kof98': dict(
         name="The King of Fighters '98", rom='/data/roms/kof98.neo', m1='/data/tmp/snd98/kof98_m1.bin',
+        dir='/data/neogeo_dict/sound/kof98',
         id=b'Sound Driver(ROM)Ver 1.7',
         songs=0x329E, song20=0x2BA2,  # song pointer per command - $20 (cmd $20 = the all-off header)
         banksets=0x2708,              # 4-byte bank sets (ports $08-$0B), indexed by ($2E06)[song]
@@ -36,6 +37,8 @@ GAMES = {
                ('a', 0x1C, 0x00)],
         overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=False,
         music=list(range(0x21, 0x4C)) + list(range(0x50, 0x57)),
+        block=410, send=430,  # our emulator (UniBIOS): the game sends $07 at frame 408 and its first song ($21) at 417
+                              # (measured 2026-10-04; MAME's captures, MVS BIOS: block 255, send 260)
     ),
     'kizuna': dict(
         name='Kizuna Encounter: Super Tag Battle', rom='/data/roms/kizuna.neo',

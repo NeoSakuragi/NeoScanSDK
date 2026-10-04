@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Per-victim throw scripts: every KOF96 throw, frame by frame, for any of the 29 victims.
 
-Thrower: its timeline as captured in MAME (capture/throws/<id>_<try>.txt, victim Yuri): state and step counter +$80, so
+Thrower: its timeline as captured (capture/throws/<id>_<try>.txt, victim Yuri): state and step counter +$80, so
 its frame is step +$80 - 1 of its own animation for that state (shared state map).
 Victim, list phase: the throw list the capture shows driving Yuri (victim side $1AF72 or thrower side $1B008,
 throwtables96.py), taken for the other victim: list = base + victim id * size, entry at the thrower's step +$80 - 1

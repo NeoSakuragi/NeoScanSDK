@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""KOF96 specials in MAME: every decoded command (commands96.py) of a character with each button, one MAME run per
+"""KOF96 specials in our emulator (emu.py): every decoded command (commands96.py) of a character with each button, one MAME run per
 character (state 'vs', P1 swapped in as for throws; P2 = Yuri knocked down first, then left standing far away).
 Each try: positions reset (P1 x $100, P2 x $260), timer 59, P1 life 24 (red life: supers allowed), P2 life full;
 see motion() for the input timing. Every non-charge command is also tried in the air (straight jump, motion 6 frames
-after take-off). Recorded with record96.lua (fighters + P1-owned pool objects).
+after take-off). Recorded with neogeo_sdl --capture (fighters + P1-owned pool objects).
     python3 capture/specials96.py ID [ID ...]   -> capture/specials/<id>.txt + <id>.json (tries)
     python3 capture/specials96.py --passes close ID ...   -> <id>_close: ground commands next to P2 (hit versions)"""
 import json, os, sys, subprocess
@@ -11,13 +11,11 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.jo
 sys.path.insert(0, os.path.join(HERE, '..', '..', 'kof95', 'capture'))
 from timeline import seqs
 import rom96, commands96, emu
-REC = os.path.join(HERE, 'record96.lua')
-ROMPATH = '/home/bruno/roms/neogeo;/home/bruno/Downloads'          # kof96.zip / kof98.zip + neogeo.zip
 START, GAP = 1400, 220
 BTN = {'A': 'a', 'B': 'b', 'C': 'c', 'D': 'd'}
 
 def stick_keys(v):
-    """history stick bits (facing right list) -> MAME keys"""
+    """history stick bits (facing right list) -> recorder keys"""
     return ''.join(k for bit, k in ((1, 'U'), (2, 'D'), (4, 'L'), (8, 'R')) if v & bit)
 
 def motion(p, button):
@@ -79,9 +77,10 @@ def prep(game, cid, ex=False):
     name = f'c{cid}{"x" if ex else ""}'
     if emu.state_exists(game, name): return
     g = emu.GAMES[game]; L = g['load_frames']; fill_end = L + g.get('fill_frames', 1100)
-    spec = ['p2 20 60 L', 'p2 85 3 c'] + [f'p1 {f} 3 c' for f in range(L - L % 40 + 40, fill_end, 40)]
+    tl = g.get('prep', {}); first = L - L % 40 + tl.get('fill_first', 40)        # emu.GAMES 'prep': per-game timeline
+    spec = list(tl.get('p2', ('p2 20 60 L', 'p2 85 3 c'))) + [f'p1 {f} 3 c' for f in range(first, fill_end, 40)]
     pokes = [f'2:{emu.swap_pokes(game, cid, ex)}']
-    for f in range(L - L % 40 + 40, fill_end, 40):
+    for f in range(first, fill_end, 40):
         pokes.append(f'{f}:108118=01,108119=C0,108318=01,108319=E8,{g["timer"]:X}=59,{emu.life_pokes(game, 0x108300, g["life_full"])}')
     pokes.append(f'{fill_end + 30}:108118=01,108119=00,108318=02,108319=60,{g["timer"]:X}=59,{emu.life_pokes(game, 0x108300, g["life_full"])}')
     s1, s2 = seqs('; '.join(spec), fill_end + 70)

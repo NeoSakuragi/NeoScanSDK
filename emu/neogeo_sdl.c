@@ -114,6 +114,9 @@ static struct {
     void *(*get_memory_data)(unsigned);
     size_t (*get_memory_size)(unsigned);
     void (*neoscan_rerender)(void);
+    void (*m68k_write_tap)(void (*)(uint32_t, uint32_t, int));   /* capture core only (see Capture mode) */
+    uint32_t (*m68k_reg)(int);
+    uint32_t (*m68k_read)(uint32_t, int);
 } core;
 
 static bool core_load(const char *path) {
@@ -131,6 +134,9 @@ static bool core_load(const char *path) {
     LOAD(serialize_size) LOAD(serialize) LOAD(unserialize)
     LOAD(get_memory_data) LOAD(get_memory_size)
     *(void **)(&core.neoscan_rerender) = dlsym(core.handle, "retro_neoscan_rerender");
+    *(void **)(&core.m68k_write_tap) = dlsym(core.handle, "retro_neoscan_m68k_write_tap");
+    *(void **)(&core.m68k_reg) = dlsym(core.handle, "retro_neoscan_m68k_reg");
+    *(void **)(&core.m68k_read) = dlsym(core.handle, "retro_neoscan_m68k_read");
     #undef LOAD
     return true;
 }
@@ -345,15 +351,37 @@ static void save_ppm(const void *data, unsigned w, unsigned h, size_t pitch, con
 static unsigned frame_count = 0;
 
 /* ═══ Capture mode (--capture) ═══
- * Headless and unthrottled: no window, GL or audio. Same contract as the MAME recorder tools/kof96/capture/record96.lua,
- * so the Python capture tools run on either emulator (env vars):
+ * Headless and unthrottled: no window, GL or audio. Runs on the capture core ~/.config/retroarch/cores/
+ * geolith_capture_libretro.so (built from ../geolith: the upstream core + the NeoScanSDK hooks retro_neoscan_m68k_write_tap
+ * / _m68k_reg / _m68k_read, the Z80 port tap and palette region 104; the interactive core's debugger regions are not in
+ * it) unless a core path is given. The contract is the one of the former MAME recorder tools/kof96/capture/record96.lua
+ * (removed 2026-10-04), so the Python capture tools did not change (env vars):
  *   SEQ / SEQ2  "frames:inputs,..." for P1 / P2, inputs from U D L R a b c d (s = start, o = coin), '-' = none;
  *               the run ends when SEQ ends
+ *   INPUT_LAG   1: the game reads the inputs of line n in frame n + 1 (the MAME recorder's timing, which the KOF96/98
+ *               captures were made with; tools/kof96/capture/emu.py sets it per game: KOF96/98 1, KOF99 0); default 0: in frame n
  *   POKE        "frame:addr=byte,addr=byte;frame:..." work-RAM writes at those frames
  *   RELOAD + RELOAD_STATE  frames at which to load the state file RELOAD_STATE (a file written by SAVE)
  *   SAVE        "frame:path;..." write a save state (core serialize) at those frames; LOAD = state file to start from
  *   DUMP        "frame:path;..." write the 64 KB of 68K work RAM ($100000-$10FFFF) at those frames
- *   PALDUMP     "frame:path;..." write palette RAM, both banks (2 x 4096 words, big-endian; custom core region 104)
+ *   PALDUMP     "frame:path;..." write palette RAM, both banks (2 x 4096 words, big-endian; custom core region 104);
+ *               or "frame,frame,..." (record96's form): the active bank ($400000-$401FFE, 8 KB) to OUT.pal<frame>
+ *   RAMDUMP     "frame:addr:len;..." (hex addr / len) the bytes at addr (68000 map) at those frames to OUT.ram<frame>_<addr>
+ *               as one hex string
+ *   WLOG        "addr,addr" (hex): every 68000 write to the word holding each address, to OUT.wlog: "frame addr=data/mask
+ *               pc=... d0 d1 a0 a1 a4" (addr even, data/mask in the 16-bit bus position: a byte at an even address = data
+ *               << 8 / FF00)
+ *   SNDLOG      path: each sound command the 68000 writes (REG_SOUND, the byte at $320000): "frame value pc=... sp=" + 16
+ *               longs from the stack (return addresses: who sent it)
+ *   QLOG        path: writes into KOF98's sound command ring $10D940-$10DA3F (filled by $7A98): "frame value pc=... d0=
+ *               a4= sp=" + 12 longs at SP + 2k
+ *   VLOG        "pp,pp" (hex palette numbers): VRAM data writes ($3C0002) whose high byte is one of them (SCB1 attribute
+ *               words), to OUT.vlog with pc, a0-a4, d0-d1; at most 400 lines
+ *   VFRAMES     "f,f,...": every VRAM data write during the frame after f (the LSPC address register $3C0000, stepped by
+ *               VRAMMOD $3C0004) to OUT.vram<f>: "addr data" lines
+ *               pc in these logs = the address of the writing instruction (the core's PPC). Frame numbers in the logs
+ *               are record96's: a write made while frame n runs is logged as n - 1 (the frames completed before it),
+ *               the OUT line of frame n is the state after it
  *   WAV         path: the run's audio as a 16-bit stereo WAV at the core's sample rate (music / SFX checks)
  *   VRAMDUMP    "frame:path;..." write LSPC VRAM (the core's video RAM: SCB1 $0000, fix $7000, SCB2-4 $8000-$85FF, as
  *               big-endian words): which sprites show which tiles, where, in which palette
@@ -362,6 +390,52 @@ static unsigned frame_count = 0;
  *               $108100/$108300 ($200 bytes); objects = P1-owned pool objects ($100100 + n*$200, owner long +$84 =
  *               $108100, frame record +$28 in $200000-$2FFFFF) "base:id:state:steps:record:x:height:facing" or "-" */
 static int capture_mode = 0;
+static int cap_n = 0;                                    /* frames completed: the frame number the write logs use */
+static FILE *cap_wlog, *cap_sndlog, *cap_qlog, *cap_vlog, *cap_vf;
+static uint32_t cap_wlog_addr[64]; static int cap_wlog_n;
+static uint8_t cap_vlog_pal[256]; static int cap_vlog_lines;
+static uint16_t cap_vaddr, cap_vmod = 1;
+static uint32_t cap_rd32(uint32_t a) { return core.m68k_read(a, 2) << 16 | core.m68k_read(a + 2, 2); }
+static void cap_write_tap(uint32_t addr, uint32_t v, int size) {     /* the core's 68000 write tap (capture logs) */
+    uint32_t even = addr & ~1u, data = size == 2 ? v : (addr & 1 ? v : v << 8), mask = size == 2 ? 0xFFFF : (addr & 1 ? 0x00FF : 0xFF00);
+    #define R(k) core.m68k_reg(k)
+    for (int i = 0; i < cap_wlog_n; i++)
+        if ((cap_wlog_addr[i] & ~1u) == even)
+            fprintf(cap_wlog, "%05d %06X=%04X/%04X pc=%06X d0=%08X d1=%08X a0=%06X a1=%06X a4=%06X\n", cap_n, even, data, mask,
+                    R(16), R(0), R(1), R(8) & 0xFFFFFF, R(9) & 0xFFFFFF, R(12) & 0xFFFFFF);
+    if (cap_sndlog && even == 0x320000 && (mask & 0xFF00)) {
+        uint32_t sp = R(15);
+        fprintf(cap_sndlog, "%05d %02X pc=%06X sp=", cap_n, data >> 8, R(16));
+        for (int i = 0; i < 16; i++) fprintf(cap_sndlog, "%s%06X", i ? "," : "", cap_rd32(sp + i * 4) & 0xFFFFFF);
+        fputc('\n', cap_sndlog);
+    }
+    if (cap_qlog && even >= 0x10D940 && even <= 0x10DA3E) {
+        uint32_t sp = R(15);
+        fprintf(cap_qlog, "%05d %02X pc=%06X d0=%08X a4=%06X sp=", cap_n, mask & 0xFF00 ? data >> 8 : data & 0xFF, R(16), R(0), R(12) & 0xFFFFFF);
+        for (int i = 0; i < 12; i++) fprintf(cap_qlog, "%s%06X", i ? "," : "", cap_rd32(sp + i * 2) & 0xFFFFFF);
+        fputc('\n', cap_qlog);
+    }
+    if (even >= 0x3C0000 && even <= 0x3C0004) {          /* LSPC: byte writes store the byte in both halves */
+        uint16_t w = size == 2 ? v : (v << 8 | v);
+        if (even == 0x3C0000) cap_vaddr = w;
+        else if (even == 0x3C0004) cap_vmod = w;
+        else {
+            if (cap_vlog && cap_vlog_lines < 400 && cap_vlog_pal[w >> 8]) {
+                cap_vlog_lines++;
+                fprintf(cap_vlog, "%05d %04X pc=%06X a0=%06X a1=%06X a2=%06X a3=%06X a4=%06X d0=%08X d1=%08X\n", cap_n, w, R(16),
+                        R(8) & 0xFFFFFF, R(9) & 0xFFFFFF, R(10) & 0xFFFFFF, R(11) & 0xFFFFFF, R(12) & 0xFFFFFF, R(0), R(1));
+            }
+            if (cap_vf) fprintf(cap_vf, "%04X %04X\n", cap_vaddr, w);
+            cap_vaddr += cap_vmod;
+        }
+    }
+    #undef R
+}
+static FILE *cap_open_out(const char *outp, const char *suffix) {   /* OUT + suffix ("OUT.wlog") */
+    char path[600]; snprintf(path, sizeof(path), "%s%s", outp ? outp : "/tmp/capture", suffix);
+    FILE *f = fopen(path, "w"); if (!f) fprintf(stderr, "capture: cannot write %s\n", path);
+    return f;
+}
 typedef struct { int frames; char inp[16]; } cap_step_t;
 typedef struct { cap_step_t *seq; int n, step, left; } cap_player_t;
 static cap_player_t cap_p[2];
@@ -383,9 +457,12 @@ static void cap_parse(cap_player_t *p, const char *s) {
     p->left = p->n ? p->seq[0].frames : 1 << 30;
 }
 static const char *cap_cur(int i) { cap_player_t *p = &cap_p[i]; return p->step < p->n ? p->seq[p->step].inp : "-"; }
+static int cap_lag = 0;                                  /* INPUT_LAG=1: the game reads line n's inputs in frame n + 1 */
+static char cap_prev[2][16] = {"-", "-"};               /* (the MAME recorder's timing: ioport values set from a
+                                                            frame notifier are read the frame after) */
 static int16_t cap_input(unsigned port, unsigned id) {
     if (port > 1) return 0;
-    const char *k = cap_cur(port);
+    const char *k = cap_lag ? cap_prev[port] : cap_cur(port);
     switch (id) {
     case RETRO_DEVICE_ID_JOYPAD_UP: return strchr(k, 'U') != NULL;
     case RETRO_DEVICE_ID_JOYPAD_DOWN: return strchr(k, 'D') != NULL;
@@ -1166,6 +1243,7 @@ static void wav_header(FILE *f, uint32_t rate, uint32_t frames) {
 }
 static int capture_run(void) {
     cap_parse(&cap_p[0], getenv("SEQ")); cap_parse(&cap_p[1], getenv("SEQ2"));
+    cap_lag = getenv("INPUT_LAG") && atoi(getenv("INPUT_LAG")) > 0;
     struct retro_system_av_info wav_av; core.get_system_av_info(&wav_av);
     if (getenv("WAV") && (wav_f = fopen(getenv("WAV"), "wb"))) wav_header(wav_f, (uint32_t)wav_av.timing.sample_rate, 0);
     const char *poke = getenv("POKE"), *reload = getenv("RELOAD"), *rstate = getenv("RELOAD_STATE");
@@ -1183,12 +1261,53 @@ static int capture_run(void) {
         if (f) { l = fread(sbuf, 1, ssz, f); fclose(f); }
         if (l == ssz) core.unserialize(sbuf, ssz); else fprintf(stderr, "capture: bad LOAD %s\n", load);
     }
+    const char *wlog = getenv("WLOG"), *vlog = getenv("VLOG"), *vframes = getenv("VFRAMES"), *ramdump = getenv("RAMDUMP");
+    const char *paldump = getenv("PALDUMP");
+    int paldump_list = paldump && !strchr(paldump, ':');  /* record96's "frame,frame" form */
+    if (wlog || vlog || vframes || getenv("SNDLOG") || getenv("QLOG") || ramdump || paldump_list) {
+        if (!core.m68k_write_tap || !core.m68k_reg || !core.m68k_read) {
+            fprintf(stderr, "capture: WLOG/SNDLOG/QLOG/VLOG/VFRAMES/RAMDUMP/PALDUMP lists need the capture core's 68000 hooks\n");
+            return 1;
+        }
+        for (const char *q = wlog; q && *q && cap_wlog_n < 64; ) {
+            cap_wlog_addr[cap_wlog_n++] = (uint32_t)strtoul(q, NULL, 16);
+            while (*q && *q != ',') q++;
+            if (*q == ',') q++;
+        }
+        if (wlog) cap_wlog = cap_open_out(outp, ".wlog");
+        for (const char *q = vlog; q && *q; ) {
+            cap_vlog_pal[strtoul(q, NULL, 16) & 255] = 1;
+            while (*q && *q != ',') q++;
+            if (*q == ',') q++;
+        }
+        if (vlog) cap_vlog = cap_open_out(outp, ".vlog");
+        if (getenv("SNDLOG")) cap_sndlog = fopen(getenv("SNDLOG"), "w");
+        if (getenv("QLOG")) cap_qlog = fopen(getenv("QLOG"), "w");
+        core.m68k_write_tap(cap_write_tap);
+    }
     const uint8_t *R = wram_ptr;
     #define RD16(a) (((unsigned)R[(a) - 0x100000] << 8) | R[(a) - 0x100000 + 1])
     #define RD32(a) ((RD16(a) << 16) | RD16((a) + 2))
     for (int n = 1; ; n++) {
         if (has_frame(snaps, n + 1)) cap_snap_next = n + 1;
+        cap_n = n - 1;
         core.run();                                       /* frame n with the current inputs */
+        if (cap_vf) { fclose(cap_vf); cap_vf = NULL; }    /* VFRAMES: the frame after f is done */
+        for (const char *ds = ramdump; ds && *ds; ) {     /* RAMDUMP "frame:addr:len;..." (hex addr, len) */
+            unsigned fr, a, l;
+            if (sscanf(ds, "%u:%x:%x", &fr, &a, &l) == 3 && (int)fr == n) {
+                char suf[32]; snprintf(suf, sizeof(suf), ".ram%d_%06X", n, a);
+                FILE *f = cap_open_out(outp, suf);
+                if (f) { for (unsigned i = 0; i < l; i++) fprintf(f, "%02X", core.m68k_read(a + i, 1) & 0xFF); fclose(f); }
+            }
+            ds = strchr(ds, ';'); if (ds) ds++;
+        }
+        if (vframes && has_frame(vframes, n)) { char suf[32]; snprintf(suf, sizeof(suf), ".vram%d", n); cap_vf = cap_open_out(outp, suf); }
+        if (paldump_list && has_frame(paldump, n)) {      /* PALDUMP "frame,...": the active bank as the 68000 sees it */
+            char suf[32]; snprintf(suf, sizeof(suf), ".pal%d", n);
+            FILE *f = cap_open_out(outp, suf);
+            if (f) { for (uint32_t a = 0x400000; a < 0x402000; a += 2) { uint32_t v = core.m68k_read(a, 2); fputc(v >> 8, f); fputc(v & 255, f); } fclose(f); }
+        }
         if (has_frame(reload, n) && rbuf && rlen == ssz) core.unserialize(rbuf, ssz);
         for (const char *ps = poke; ps && *ps; ) {        /* POKE "frame:addr=byte,...;..." */
             int fr = atoi(ps); const char *c = strchr(ps, ':'), *end = strchr(ps, ';');
@@ -1223,7 +1342,7 @@ static int capture_run(void) {
             }
             ds = end ? end + 1 : NULL;
         }
-        for (const char *ds = getenv("PALDUMP"); ds && *ds; ) {   /* PALDUMP "frame:path;...": palette RAM (custom core region 104) */
+        for (const char *ds = paldump_list ? NULL : paldump; ds && *ds; ) {   /* PALDUMP "frame:path;...": palette RAM (custom core region 104) */
             int fr = atoi(ds); const char *c = strchr(ds, ':'), *end = strchr(ds, ';');
             if (fr == n && c && palram_ptr) {
                 char path[512]; size_t l = end ? (size_t)(end - c - 1) : strlen(c + 1);
@@ -1263,6 +1382,7 @@ static int capture_run(void) {
         int done = 0;
         for (int i = 0; i < 2; i++) {                     /* advance the input sequences */
             cap_player_t *p = &cap_p[i];
+            snprintf(cap_prev[i], sizeof(cap_prev[i]), "%s", cap_cur(i));
             if (--p->left <= 0) {
                 p->step++;
                 if (i == 0 && p->step >= p->n) done = 1;
@@ -1273,6 +1393,8 @@ static int capture_run(void) {
     }
     #undef RD16
     #undef RD32
+    if (core.m68k_write_tap) core.m68k_write_tap(NULL);
+    for (FILE **f = (FILE *[]){cap_wlog, cap_sndlog, cap_qlog, cap_vlog, cap_vf}, **e = f + 5; f < e; f++) if (*f) fclose(*f);
     if (out) fclose(out);
     if (wav_f) { wav_header(wav_f, (uint32_t)wav_av.timing.sample_rate, wav_frames); fclose(wav_f); wav_f = NULL; }
     return 0;
@@ -1305,9 +1427,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    char default_core[512];
-    snprintf(default_core, sizeof(default_core), "%s/.config/retroarch/cores/geolith_libretro.so",
-             getenv("HOME"));
+    char default_core[512];                              /* capture: the core with the 68000 / Z80 hooks */
+    snprintf(default_core, sizeof(default_core), "%s/.config/retroarch/cores/%s.so",
+             getenv("HOME"), capture_mode ? "geolith_capture_libretro" : "geolith_libretro");
     const char *core_path = core_override ? core_override : default_core;
 
     snprintf(sys_dir, sizeof(sys_dir), "%s/.config/retroarch/system", getenv("HOME"));

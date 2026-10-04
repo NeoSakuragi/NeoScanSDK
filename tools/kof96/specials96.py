@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KOF96 specials from the MAME captures (capture/specials96.py): one entry per distinct move.
+"""KOF96 specials from the captures (capture/specials96.py, our emulator): one entry per distinct move.
 
 A try counts when P1 enters a special state (117..255: past the normals, before the reactions) and that first special
 state is new for the character; tries that fall back to a simpler command's move (e.g. 23623 giving 623) or to a

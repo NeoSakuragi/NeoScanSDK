@@ -8,7 +8,7 @@
 -- index without storing and so replays a stale command); only SEND commands get through.
 -- With IRQ=1 also "q n" at every non-zero write of the ISR's re-entry counter $FD9B: q 1 = a timer-A interrupt that
 -- runs the sequencer, q 2 = one that came while the previous ISR was still running (the driver drops it).
--- SEQ="frames:keys,..." plays P1 inputs (U D L R a b c d, '-' = none) as tools/kof96/capture/record96.lua does.
+-- SEQ="frames:keys,..." plays P1 inputs (U D L R a b c d, '-' = none) as neogeo_sdl --capture does.
 -- PATCH="addr:hexbytes,..." writes bytes into the M1 ROM (region :cslot1:audiocpu, at addr and its reload at
 -- addr+$10000) before the game runs: test songs in the free $2C56-$2DFF area (tools/kof98snd/testsong98.py).
 local out = io.open(os.getenv("OUT"), "w")

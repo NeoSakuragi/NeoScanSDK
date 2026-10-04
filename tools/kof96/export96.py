@@ -349,7 +349,7 @@ def export(names, outdir, game='kof96', only=None):
             ch['throws'][key] = {'slot': sl, 'inputs': b['inputs'], 'table': b['lists'], 'hold': b.get('hold', False),
                                  'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', [])}
         print(f'{name}: throws {list(d)}', flush=True)
-    # specials captured in MAME (specials96.py): frames of the fighter and of its projectiles, both in its own list
+    # specials captured in our emulator (capture/specials96.py): frames of the fighter and of its projectiles, both in its own list
     # (a filtered export takes them when `only` names 'specials'; each then carries frame_boxes: the boxes of every frame
     #  of its own state animations, so a player of the script knows when the fighter's body hits)
     for name in (names if only is None or 'specials' in only else []):

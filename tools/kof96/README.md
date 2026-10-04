@@ -1,18 +1,16 @@
 # KOF96 animation dictionary
 
-Data (exports, gallery pages, MAME save states, capture recordings): `/data/neogeo_dict/` (see its README.md);
+Data (exports, gallery pages, save states, capture recordings): `/data/neogeo_dict/` (see its README.md);
 the `capture/` recording folders here are symlinks into it.
 
 Gallery artifact: https://claude.ai/artifact/KbLRNbDS2RnysLmk8WTVzS
 
 Same engine family as KOF95 (see `../kof95/README.md`, whose `gallery.py` also renders this export); this file lists
-what is decoded for KOF96 and where it differs. ROM: `/data/roms/kof96.neo` (P = 1 MB P1 + 2 MB P2). MAME set:
-`/home/bruno/roms/neogeo/kof96.zip` (BIOS `~/Downloads/neogeo.zip`), save state `~/.mame/sta/kof96/vs.sta` (Kyo vs
-Yuri, made by `capture/boot.lua`).
-
-**MAME: always pass `-noplugin cart_bridge`.** `/usr/share/games/mame/plugins/cart_bridge/init.lua` (an old NeoCart
-test stub, enabled at start) takes a snapshot and exits MAME at screen frame 3400; the frame count is part of a save
-state, so a run from `vs` dies after 30 s.
+what is decoded for KOF96 and where it differs. ROM: `/data/roms/kof96.neo` (P = 1 MB P1 + 2 MB P2).
+Captures run in **our emulator** (`emu/neogeo_sdl --capture` on the capture core, through `capture/emu.py`; see
+"Capture in our emulator" below); save states `/data/neogeo_dict/ngsdl_sta/kof96/` (`vs` = Kyo vs Yuri, made by
+`capture/boot_ngsdl.py kof96 --save 1590`; `c<id>` by `capture/specials96.prep`). MAME is not needed (its old states
+stay in `~/.mame/sta/`, its captures in `/data/neogeo_dict/captures_mame_old/`).
 
 ## Memory map
 - `$000000-$0FFFFF` P1. `$200000-$2FFFFF` one 1 MB bank of P2: write 0/1 to `$2FFFFE`; the word at `$200000` is the
@@ -45,7 +43,7 @@ masks + the format-2 stream (format 6 aligned to even); 7/8: shared high word + 
 9/10: base word + 16/8-bit masks + one byte per cell (low byte of the code). Implemented in `rom96.sdef`.
 (`tools/neosdk`'s KOF96 decoder guessed these and is wrong for formats 6 and 10.)
 
-## Game states (labelled in MAME on Kyo vs Yuri, `capture/labels.py`)
+## Game states (labelled on Kyo vs Yuri, `capture/labels.py`)
 Movement 0-14 (idle, walks, jumps by direction), crouch 21-23, guard 26-28 / 32-36, run 48-50, backstep 51-53;
 normals 80-115 (per button: close, far, jump, jump diagonal, crouch); C+D 116; specials 117-255; hits 256-266,
 blowback 288 → 298 → 334 → 343 → 355 → get-up 66, trip 327; throw poses 400+. `export96.MOVES` names them.
@@ -90,7 +88,7 @@ and a button. A match stores the buttons pressed; the character's move code (e.g
 them (`& $50` = A/C, `& $A0` = B/D). Entries 0-2 are shared: run (6 5 6), backstep (4 5 4), super jump (2 then 8).
 
 **Capture** (`capture/specials96.py` → `specials96.py`): every command of every fighter with each button, on red
-life (supers allowed), P2 far away; one MAME run per fighter. A move is kept when its first special state is new.
+life (supers allowed), P2 far away; one emulator run per fighter. A move is kept when its first special state is new.
 Projectiles are pool objects (`$100100 + n*$200`, owner at `+$84`) that use the **owner's own animation table**
 (`+$70` = owner id); a finished projectile stays allocated, frozen on a step (treated as ended once it stays longer
 than that step's ticks). Supers are recognised by the shared super flash (table 29, state 58). Every non-charge command
@@ -119,7 +117,40 @@ state and offset frame for frame up to the release (3625 / 3678 frames; the 53 o
 release flag). `throwscripts96.py` builds each throw for all 29 victims (thrower timeline from the capture, victim
 pose and offset from that victim's list, flight after the release shifted to the release point).
 
-## RAM (MAME)
+## Capture in our emulator (2026-10-04)
+`capture/emu.py` runs every capture in `emu/neogeo_sdl --capture` on the capture core
+(`~/.config/retroarch/cores/geolith_capture_libretro.so`, see `emu/CLAUDE.md`); MAME is no longer used. The tracing that
+needed MAME is in the recorder: `WLOG`, `SNDLOG`, `QLOG`, `VLOG`, `VFRAMES`, `RAMDUMP`, `PALDUMP` (pass them in
+`emu.run(..., extra={...})`; formats in the comment block of `emu/neogeo_sdl.c`). States: `/data/neogeo_dict/ngsdl_sta/<game>/`.
+
+Timing, measured against the MAME captures: MAME's Lua recorder applied a frame's inputs one frame late, so `emu.GAMES`
+sets `input_lag` 1 for KOF96 / KOF98 (KOF99, captured in our emulator from the start, 0). With it the boot to `vs` is
+frame-identical to MAME's (P1 object counter `+$1D2`): MAME's `vs` = our boot frame 1590 (KOF96) / 1593 (KOF98), and
+KOF98's `c<id>` states made on prep98.lua's timeline (`emu.GAMES['kof98']['prep']`) put the fighters where MAME's did
+(P1 x $149, P2 $249).
+
+Equivalence (`capture/cmp_captures.py A.txt B.txt tries.json [gap]`, NOOBJ=1 without objects: each try aligned on P1's first state change, frames where the game lost
+a frame (P1 `+$1D2` not advancing) skipped, P2's life as hit / no hit; all MAME tries had start lag 0):
+- KOF98 specials (all 38 fighters): P1 state, step, frame record, x, height, facing, P2 state, hit frames and distance
+  identical in 1969 / 1972 main tries, 1004 / 1018 close, 588 / 588 EX; with P1's objects 1860 / 895 / 568. Command
+  normals 608 / 608, jumps 300 / 316, throw tables (base, size, side, states) 38 / 38, win poses 38 / 38 (+1 frame).
+- KOF96 specials replayed with the MAME runs' own inputs (`captures_ngsdl/kof96/specials_mame_inputs`): 1379 / 1396
+  (the rest: two fighters' supers, then later tries of the same run, which never reloads a state); throw tables 29 / 29
+  (id 20: the hand-written hold-throw note). KOF96 jumps 118 / 166: MAME's Terry state `c3` was made by an older procedure.
+- KOF99 (states and captures from the old core): byte-identical on the capture core.
+- What differs, and why: (1) damage ±1-3 per hit: game-side, the same try started 0-7 frames later gives 85 or 86 on
+  one state; (2) game frames lost to slowdown differ (68000 timing of the two emulators): e.g. Terry's close 623B has 7
+  lost frames here, none in MAME; supers end a frame apart; (3) pool slots: a projectile can take another object slot
+  (Terry's Power Wave at $100700 here, $102900 in MAME: the free-object order inside the `c<id>` state), and
+  `specials96.HELPERS_MAX` ($101600) then drops it as a helper; finished objects linger for different times;
+  (4) sub-pixel P2 distances after hits (1 px).
+- Brawler export (`export_bm.py`, all 14 fighters) from the re-capture: **not byte-identical** to the MAME-data build
+  (2980 of 9892 arrays; frame numbering cascades): Terry and Yamazaki lose their D projectile pick through (3); KOF96
+  main specials also changed inputs (the MAME captures predate today's `motion()`), KOF98 MAX captures used a 220-frame
+  gap (now 320). So `/data/neogeo_dict/captures` keeps the MAME captures (canonical, the build reproduces from them);
+  the full re-capture is in `/data/neogeo_dict/captures_ngsdl/` (5 GB) for the switch once (3) is solved.
+
+## RAM
 Fighters `$108100` / `$108300` (same object layout as KOF95: x `+$18`, height `+$20`, facing `+$31` bit 0, state
 `+$72`, step counter `+$80`), health `+$138` (copy `+$150`, 103 = full). Team records P1 `$10A843` (ids
 `$10A846-48`), P2 `$10A854` (ids `$10A857-59`). Swap: poke P1's ids and health 1, P2 hits; the new fighter loads by
@@ -135,8 +166,8 @@ frame ~1100-1400. Round timer `$10A836` (BCD).
 | `throwtables96.py` | throw list decoder + validation |
 | `throwscripts96.py` | per-victim throw scripts (row key 'state.step' → `victim_poses96.json`) |
 | `victim_poses96.json` | portable throw-pose vocabulary: posture + angle for all 164 list poses; the 97 one-step poses (states 385-511) mean the same frame for every fighter, multi-step knockdown/release states are per-fighter (Terry's posture path in 'sequences'); KOF95's postures + 'curled' |
-| `capture/record96.lua` | recorder: scripted inputs, pokes, fighters + P1-owned pool objects per frame |
-| `capture/throws96.py`, `capture/specials96.py` | MAME runs per fighter |
+| `capture/emu.py` | the recorder interface: `neogeo_sdl --capture` (scripted inputs, pokes, states, fighters + P1-owned pool objects per frame, tracing: WLOG / SNDLOG / QLOG / VLOG / VFRAMES / RAMDUMP / PALDUMP), per-game RAM addresses and state timeline |
+| `capture/throws96.py`, `capture/specials96.py` | one emulator run per fighter |
 | `capture/cmdnormals.py` | KOF98/99 command normals (6A, 6B, 3C, 3D; not in the recogniser lists) played on every fighter, close + far, P2 life drops = hits -> `cmdnormals_<game>.json` (`export96.CMD_NORMALS`: state, hits, frames of the multi-state hops) |
 | `capture/jumps.py` | both jump heights x 3 directions + the 4 air normals in each, per fighter (`--tap`: how long the stick must be held for a regular jump) -> `/data/neogeo_dict/captures/kof96/jumps_<game>.json` |
-| `capture/boot.lua`, `capture/labels.py` | save state, state labelling |
+| `capture/boot_ngsdl.py`, `capture/labels.py` | the `vs` save state, state labelling |

@@ -4,8 +4,8 @@ VRAM of a fight frame -> P1's portrait sprites (2 columns x 2 tiles at the top l
 
     python3 portraits.py capture OUTDIR kof98:terry kof99:k_dash ...   -> OUTDIR/<game>_<name>.json + .png
 
-KOF99 runs in our emulator (neogeo_sdl --capture VRAMDUMP / PALDUMP, states /data/neogeo_dict/ngsdl_sta/kof99/c<id>),
-KOF98 in MAME (vram_dump.lua, states ~/.mame/sta/kof98/c<id>.sta).
+KOF98 / KOF99 in our emulator (neogeo_sdl --capture VRAMDUMP + PALDUMP, states /data/neogeo_dict/ngsdl_sta/<game>/c<id>,
+made by tools/kof96/capture/specials96.prep).
 
     python3 portraits.py table OUTDIR kof96:geese ...                  -> the same files, from KOF96's ROM tables
 
@@ -23,19 +23,13 @@ CASTS = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAS
 def words(path): d = open(path, 'rb').read(); return struct.unpack(f'>{len(d) // 2}H', d)
 
 def dump(game, cid, outdir):
-    v, p = os.path.join(outdir, f'{game}_{cid}_vram.bin'), os.path.join(outdir, f'{game}_{cid}_pal.bin')
-    if game == 'kof99':
-        env = dict(os.environ, LOAD=f'/data/neogeo_dict/ngsdl_sta/kof99/c{cid}.state', SEQ='30:-', VRAMDUMP=f'20:{v}',
-                   PALDUMP=f'20:{p}', OUT='/dev/null')
-        subprocess.run([NGSDL, rom96.GAMES[game]['neo'], '--capture'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
-        pal = words(p)[0x1000:]                               # games draw from palette bank 1
-    else:
-        env = dict(os.environ, DUMP_FRAME='20', VRAM_OUT=v, PAL_OUT=p)
-        subprocess.run(['mame', game, '-rompath', '/home/bruno/roms/neogeo;/home/bruno/Downloads', '-state', f'c{cid}', '-video', 'none', '-sound', 'none', '-nothrottle', '-skip_gameinfo',
-                        '-noplugin', 'cart_bridge', '-autoboot_script', os.path.join(HERE, 'vram_dump.lua')],
-                       env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
-        pal = words(p)
-    return words(v), pal
+    """VRAM (VRAMDUMP) and the palette bank the 68000 sees ($400000, PALDUMP's frame-list form) at frame 20 of the
+    fighter's state c<id> in our emulator"""
+    v, o = os.path.join(outdir, f'{game}_{cid}_vram.bin'), os.path.join(outdir, f'{game}_{cid}')
+    env = dict(os.environ, LOAD=f'/data/neogeo_dict/ngsdl_sta/{game}/c{cid}.state', SEQ='30:-', VRAMDUMP=f'20:{v}',
+               PALDUMP='20', OUT=o)
+    subprocess.run([NGSDL, rom96.GAMES[game]['neo'], '--capture'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
+    return words(v), words(o + '.pal20')
 
 def sprites(v):
     out, x, y, h = [], 0, 0, 0

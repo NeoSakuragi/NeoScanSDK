@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""KOF98 win poses: from each fighter's state c<id> (prep98.lua), P2's life is set to 1, P1 hits with C at close range,
+"""KOF98 win poses: from each fighter's state c<id> (kof96/capture/specials96.prep), P2's life is set to 1, P1 hits with C at close range,
 and one button (A, B, C or D) is held through the round's end; the game picks the winner's pose by that button.
-Recorded with tools/kof96/capture/record96.lua; the states P1 enters after the KO are the win pose.
+Recorded with our emulator (tools/kof96/capture/emu.py); the states P1 enters after the KO are the win pose.
     python3 wins98.py ID [ID ...]   -> wins/<id>.txt + wins/wins.json {id: {button: [states]}}"""
 import json, os, sys, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))

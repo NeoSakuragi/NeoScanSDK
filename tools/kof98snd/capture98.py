@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SNK Sound Driver ground truth in our emulator (games98.py: Kizuna Encounter; KOF98's captures are MAME's, ymtap.lua):
+"""SNK Sound Driver ground truth in our emulator (games98.py: every build incl. KOF98; its first captures were MAME's, ymtap.lua):
 the Geolith core with the Z80 port tap of tools/makoto3/capture.py (class Sound), logging the ymtap.lua format.
 
     python3 capture98.py --game kizuna OUT FRAMES [--send F:CMD,...] [--block F]

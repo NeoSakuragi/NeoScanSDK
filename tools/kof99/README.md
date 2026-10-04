@@ -3,9 +3,9 @@
 Gallery artifact: https://claude.ai/artifact/Y4g7uTUi1tCiNWBbmY2ZEK · data: `/data/neogeo_dict/` (`exports/kof99`,
 `sites/kof99`, `captures/kof96/specials_kof99` + `throws_kof99`, `captures/kof98/wins_kof99`, `ngsdl_sta/kof99`).
 
-KOF99 is captured in **our emulator** (`emu/neogeo_sdl --capture`, headless, ~13x real time): there is no MAME set on
-this machine and MAME cannot run a `.neo`. The shared code in `tools/kof96` drives either emulator through
-`capture/emu.py` (per-game emulator, RAM addresses, states). ROM `/data/roms/kof99.neo` (P 9 MB, C 64 MB) is already
+KOF99 is captured in **our emulator** (`emu/neogeo_sdl --capture`, headless), like KOF96 and KOF98 since 2026-10-04,
+through `tools/kof96/capture/emu.py` (RAM addresses, states). Re-captured 2026-10-04 with the recorder's `INPUT_LAG=1`
+(the first captures read each input a frame earlier; old set in `/data/neogeo_dict/captures_ngsdl_lag0_old/`). ROM `/data/roms/kof99.neo` (P 9 MB, C 64 MB) is already
 decrypted (SMA program scramble and CMC42 sprite encryption undone).
 
     python3 tools/kof96/capture/specials96.py --game kof99 --passes main,max,sdm,close ID...

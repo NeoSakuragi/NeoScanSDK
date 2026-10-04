@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Label KOF96 game states by playing actions in MAME (state 'vs': Kyo P1 vs Yuri P2) and recording P1's (or P2's)
+"""Label KOF96 game states by playing actions in our emulator (emu.py, state 'vs': Kyo P1 vs Yuri P2) and recording P1's (or P2's)
 state sequence per action. The state -> slot map is shared by every character, so a label is valid for the cast.
     python3 capture/labels.py   -> prints per action: states (frames) -> slots"""
 import os, sys, subprocess
@@ -7,8 +7,6 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.jo
 sys.path.insert(0, os.path.join(HERE, '..', '..', 'kof95', 'capture'))
 import analyze as A, rom96, emu
 from timeline import seqs
-REC = os.path.join(HERE, '..', '..', 'kof95', 'capture', 'record.lua')
-ROMPATH = '/home/bruno/roms/neogeo;/home/bruno/Downloads'
 GAME = os.environ.get('GAME', 'kof96')          # GAME=kof98: same actions on KOF98 (state 'vs', Kyo vs Yuri)
 GAP = 110
 # (name, who acts, events relative to the segment start); P1 starts at the left facing right
