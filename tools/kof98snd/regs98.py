@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""KOF98 songs as YM2610 register writes: the song98.py model's chip events turned into the writes the driver makes
+"""SNK Sound Driver songs (KOF98, Kizuna Encounter: games98.py) as YM2610 register writes: the song98.py model's chip events turned into the writes the driver makes
 ($2003, $2447, $130C, $035D, $0825; docs/kof98_sound_driver.md "Output stage"), and a register-level comparison with a
-ymtap.lua capture.
+capture (ymtap.lua in MAME, capture98.py in our emulator).
 
     python3 regs98.py M1.bin 0x23 CAP.txt          compare model writes with the capture, sequencer tick by tick
     python3 regs98.py M1.bin 0x23 CAP.txt --show N  print the first N differing ticks
@@ -16,13 +16,15 @@ FM = {'FM1': ('a', 1, 1), 'FM2': ('a', 2, 2), 'FM3': ('b', 1, 5), 'FM4': ('b', 2
 CARRIERS = [8, 8, 8, 8, 0x0C, 0x0E, 0x0E, 0x0F]          # $26EF by algorithm; bit i = operator i in register order
 # (S1, S3, S2, S4: bit 0 S1, 1 S3, 2 S2, 3 S4)
 
-# the driver's song start ($20xx command path, before the first tick): ADPCM-B stop, FM keys off, ADPCM-A 1-3 dump
-START = [('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
-         ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87), ('a', 0x1C, 0x00)]
+def cmd_of(field):
+    """a capture's command field: MAME's ymtap.lua logs the 68000's word ($2300), capture98.py the Z80's byte ($23)"""
+    v = int(field, 16)
+    return v >> 8 if len(field) > 2 else v
 
 def writes(s):
-    """the model's events -> register writes"""
-    out = [(0, p, r, v) for p, r, v in START]
+    """the model's events -> register writes; first the driver's song start (games98 'start': KOF98 ADPCM-B stop,
+    FM keys off, ADPCM-A 1-3 dump; Kizuna ADPCM-B stop, FM keys off)"""
+    out = [(0, p, r, v) for p, r, v in s.g['start']]
     alg = {n: 0 for n in FM}; b4 = {n: 0xC0 for n in FM}    # pan shadow: both sides
     tls = {n: [0] * 4 for n in FM}                          # TL shadow ($F8C9 / $F950 + $10 + 4*op)
     w = lambda irq, p, r, v: out.append((irq, p, r, v & 0xFF))
@@ -52,11 +54,14 @@ def writes(s):
             elif kind == 'pan': b4[ch] = b4[ch] & 0x3F | kw['pan']; w(irq, p, 0xB4 + o, b4[ch])
             elif kind == 'ams_pms': b4[ch] = b4[ch] & 0xC0 | kw['p'] & 0x3F; w(irq, p, 0xB4 + o, b4[ch])
             elif kind == 'lfo': w(irq, 'a', 0x22, kw['reg22'])
+            elif kind == 'optl':                       # Ver 0.0 operator level effect ($18B5)
+                op = (0x40, 0x44, 0x48, 0x4C).index(kw['reg']); tls[ch][op] = kw['tl']; w(irq, p, kw['reg'] + o, kw['tl'])
             continue
         if ch.startswith('A'):
             c = int(ch[1]) - 1; bit = 1 << c
             if kind == 'akey':
                 w(irq, 'b', 0x08 + c, kw['pan'] | kw['level'] & 0x1F)
+                if 'rec_level' in kw: w(irq, 'b', 0x08 + c, kw['rec_level'])   # Ver 0.0, 11-byte records ($0277)
                 w(irq, 'b', 0x00, 0x80 | bit); w(irq, 'a', 0x1C, bit); w(irq, 'a', 0x1C, 0)
                 w(irq, 'b', 0x10 + c, kw['start']); w(irq, 'b', 0x18 + c, kw['start'] >> 8)
                 w(irq, 'b', 0x20 + c, kw['end']); w(irq, 'b', 0x28 + c, kw['end'] >> 8)
@@ -99,9 +104,9 @@ def capture(path, cmd):
         if p[0] == 'q':
             if started and p[1] == '1': seq += 1
             continue
-        if p[0] == 'f': continue
+        if p[0] in ('f', 's'): continue
         if p[0] == 'c':
-            if not started and int(p[1], 16) >> 8 == cmd: started = True
+            if not started and p[-1] != 'blocked' and cmd_of(p[1]) == cmd: started = True
             continue
         port, reg, val = p[0], int(p[1], 16), int(p[2], 16)
         if started: out.append((seq, tim, port, reg, val))

@@ -7,13 +7,15 @@ listing, and the V ROM sample ranges both streams play. One page, one builder, t
     python3 build_web.py --game ff3 OUT_DIR [0x26 ...]       Fatal Fury 3 (tools/makoto3, captures in our emulator);
     python3 build_web.py --game kof94 OUT_DIR [0x25 ...]     KOF94 (same driver family, tools/makoto3);
     python3 build_web.py --game kof95 OUT_DIR [0x22 ...]     KOF95 (same driver family, tools/makoto3);
+    python3 build_web.py --game kizuna OUT_DIR [0x21 ...]    Kizuna Encounter (SNK Sound Driver Ver 0.0, KOF98's model:
+                                                             song98.py / regs98.py, captures in our emulator, capture98.py);
                                                              no commands = every music command
 
 OUT_DIR gets one JSON per song (XX.json), index.json (the song list) and game.json (the page's title and notes).
 Time is in samples at 8 MHz / 144 = 55555.6 Hz (18 us: one timer-A count). Within an interrupt both streams space
 the writes alike: the handler starts ISR_START samples after the interrupt and each register write costs WRITE_COST.
 
-KOF98: a timer-A interrupt every 333 samples (166.83 Hz). Stream A knows which interrupt each write fell in (the
+KOF98 and Kizuna: a timer-A interrupt every 333 samples (166.83 Hz). Stream A knows which interrupt each write fell in (the
 capture's "i" lines); stream B runs the model's ticks back to back on that clock, so a long tick runs past the next
 interrupt, which the driver then loses (an interrupt arriving while the handler still runs is dropped). Fitted on the
 drops of 10 captured songs: the rule predicts the number of interrupts lost after 95% of the ticks with 20 writes or
@@ -92,13 +94,34 @@ GAMES = {
                  'capture': 'capture', 'unit': 'interrupts'}},
 }
 
+GAMES['kizuna'] = {
+    'm1': '/data/neogeo_dict/sound/kizuna/kizuna_m1.bin', 'cap': '/data/neogeo_dict/sound/kizuna/cap/cap_%02X.txt',
+    'neo': '/data/roms/kizuna.neo',
+    # measured in our emulator (docs/kizuna_songs.md): the game's own commands at these screens
+    'names': {0x3A: 'Title', 0x3B: 'How to play', 0x32: 'Tag team select', 0x21: 'Stage (dusk street, attract demo)',
+                  0x22: 'Stage (night harbour, attract demo)', 0x23: 'Stage (moonlit rooftop, attract demo)',
+                  0x24: 'Stage (harbour market)', 0x25: 'Ranking', 0x39: 'Continue', 0x36: 'Continue (after $39)',
+                  0x50: 'Game over'},
+    'page': {'title': 'Kizuna Encounter', 'bar': 96, 'beat': 24, 'start': 0x24,
+             'intro': "Kizuna Encounter: Super Tag Battle songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (SNK's \"Sound Driver Ver 0.0 95/08/11\", the ancestor of KOF98's) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Kizuna Encounter V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song, placed at the timer interrupt they happened in.",
+                       "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with Kizuna's table addresses and the behaviours of this earlier version, reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
+             'capture': 'capture', 'unit': 'ticks'}}
+
 def vrom(neo):
     d = open(neo, 'rb')
     h = struct.unpack('<7I', d.read(28))
     off = 4096 + h[1] + h[2] + h[3]
     d.seek(off); return d.read(h[4])
 
-# ---------------------------------------------------------------------------------------------------------- KOF98
+# ---------------------------------------------------------------------------------------------- KOF98 and Kizuna
+def cmd_of(field):
+    """MAME's captures log the 68000's word ($2300), capture98.py the Z80's byte ($23) (as regs98.cmd_of)"""
+    v = int(field, 16)
+    return v >> 8 if len(field) > 2 else v
+
 def kof98_cap_times(path, cmd):
     """capture writes from the command on -> ([(sample, port, reg, val)], sample of each sequencer interrupt): interrupt boundary + ISR_START (if a new
     handler starts there; not for the nested interrupt that lands during a long one) + WRITE_COST per write since"""
@@ -106,7 +129,7 @@ def kof98_cap_times(path, cmd):
     out = []; started = False; tim = 0; j = 0; fresh = True; seq = [0]
     for i, p in enumerate(lines):
         if not p: continue
-        if p[0] == 'c' and not started and int(p[1], 16) >> 8 == cmd: started = True; continue
+        if p[0] == 'c' and not started and p[-1] != 'blocked' and cmd_of(p[1]) == cmd: started = True; continue
         if not started: continue
         if p[0] == 'i' and int(p[1], 16) & 1:
             tim += 1; j = 0
@@ -257,7 +280,7 @@ def ff3_song(g, data, cmd):
 # --------------------------------------------------------------------------------------------------------- shared
 def song(game, data, v, cmd):
     g = GAMES[game]
-    d = (kof98_song if game == 'kof98' else ff3_song)(g, data, cmd)
+    d = (kof98_song if game in ('kof98', 'kizuna') else ff3_song)(g, data, cmd)
     A, B = d['A'], d['B']
     ranges = set()                                   # V ROM ranges keyed by either stream (256-byte units, end inclusive)
     for stream in (A, B):
@@ -294,7 +317,11 @@ if __name__ == '__main__':
     data = open(g['m1'], 'rb').read(); v = vrom(g['neo'])
     out = a[0]; os.makedirs(out, exist_ok=True)
     cmds = [int(c, 16) for c in a[1:]]
-    if not cmds and game != 'kof98':
+    if not cmds and game == 'kizuna':
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'kof98snd'))
+        from games98 import music_cmds
+        cmds = music_cmds(data)
+    elif not cmds and game != 'kof98':
         sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'makoto3'))
         from games import music_cmds
         cmds = music_cmds(data)

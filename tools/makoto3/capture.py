@@ -31,9 +31,9 @@ TAP = C.CFUNCTYPE(C.c_uint8, C.c_int, C.c_uint16, C.c_uint8)
 
 class Sound:
     """the core with the tap; one per process (libretro cores are global)"""
-    def __init__(self, rom=None, core=CORE):
+    def __init__(self, rom=None, core=CORE, work=None):
         rom = rom or GAMES[GAME]['rom']
-        WORK = GAMES[GAME]['dir'] + '/save'
+        WORK = work or GAMES[GAME]['dir'] + '/save'
         os.makedirs(WORK, exist_ok=True)
         self.frame = 0; self.out = None; self.block = None; self.allow = []; self.pad = set()
         self.wav = None

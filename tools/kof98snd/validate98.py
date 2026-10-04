@@ -10,7 +10,7 @@ key-on), key-offs, and the effect writes (F-number writes between key-ons = vibr
 import sys, os
 from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import song98
+import song98, regs98
 
 FMKEY = {1: 'FM1', 2: 'FM2', 5: 'FM3', 6: 'FM4'}
 
@@ -27,9 +27,9 @@ def read_capture(path, cmd):
         if p[0] == 'q':                        # $FD9B <- 1: a timer interrupt that runs the sequencer (2 = nested, dropped)
             if p[1] == '1': irq += 1
             continue
-        if p[0] == 'f': continue
+        if p[0] in ('f', 's'): continue
         if p[0] == 'c':
-            if cmd_irq is None and int(p[1], 16) >> 8 == cmd: cmd_irq = irq
+            if cmd_irq is None and p[-1] != 'blocked' and regs98.cmd_of(p[1]) == cmd: cmd_irq = irq
             continue
         port = p[0]; reg = int(p[1], 16); val = int(p[2], 16)
         lat[(port, reg)] = val
