@@ -301,12 +301,6 @@ def hit_fx(sp, i, game):
 # orange = 2 (fighter.c BURN_PAL); every fire user but Iori burns orange (inference: one flame colour per fighter)
 FIRE_COLOUR = {'iori': 1}
 
-# KOF96's and KOF99's sprites face the other way from KOF98's at rest (Bruno 2026-10-04: Geese and K' always looked
-# right-facing; measured in the brawler: holding right, Geese / Mr. Big / Krauser / K' faced left while their attacks hit
-# right). Their boxes are right; only the frames are mirrored: every part's flip toggled (draw.s places a flipped part
-# mirrored around the fighter's origin, x0 = ox - dx - w)
-MIRRORED = {'kof96', 'kof99'}
-
 def special_shape(sp):
     if sp.get('shape'): return tuple(sp['shape'])        # what the move does on its own (its whiff, export96)
     sc = sp['script'][:sp.get('cont') or None]
@@ -462,7 +456,7 @@ def write_c(chars, outdir):
                 flat = [(t + off) & 0xFFFF if t else 0 for col in p['tiles'] for t in col]   # low 16 bits; tile_hi has 16-19
                 c.append(f'static const uint16_t {n}_f{fi}_p{pi}[] = {{' + ', '.join(map(str, flat)) + '};')
             c.append(f'static const bpart_t {n}_f{fi}[] = {{' + ', '.join(
-                f'{{{p["dx"]}, {p["dy"]}, {len(p["tiles"])}, {len(p["tiles"][0])}, {p["hflip"] ^ (game in MIRRORED)}, {p["vflip"]}, {used[n].index(p.get("pal", 0))}, {n}_f{fi}_p{pi}}}'
+                f'{{{p["dx"]}, {p["dy"]}, {len(p["tiles"])}, {len(p["tiles"][0])}, {p["hflip"]}, {p["vflip"]}, {used[n].index(p.get("pal", 0))}, {n}_f{fi}_p{pi}}}'
                 for pi, p in enumerate(fr['parts'])) + '};' if fr['parts'] else f'static const bpart_t {n}_f{fi}[1];')
         c.append(f'static const bframe_t {n}_frames[] = {{' + ', '.join(
             f'{{{len(fr["parts"])}, {sum(len(p["tiles"]) for p in fr["parts"])}, {n}_f{fi}}}' for fi, fr in enumerate(ch['frames'])) + '};')

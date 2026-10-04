@@ -346,6 +346,8 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
     if ((pressed & (JOY_A | JOY_B)) && (held & JOY_A) && (held & JOY_B)) in->press = (in->press & ~(IN_A | IN_B)) | IN_D;   /* A+B = D */
     in->hold = ((held & JOY_A) ? IN_A : 0) | ((held & JOY_B) ? IN_B : 0) | ((held & JOY_C) ? IN_C : 0) | ((held & JOY_D) ? IN_D : 0);
     in->run = 0; in->ai = 0; in->slow = 0;
+    in->face = 0; in->grab = 0;                                /* the AI's fields: the attract demo's bot wrote them into
+                                                                  P1's slot, a stale face turned P1 back when standing */
     if (pressed & (JOY_LEFT | JOY_RIGHT)) {                     /* forward tapped twice within 12 frames */
         uint8_t d = (pressed & JOY_RIGHT) ? 1 : 2;
         if (tap_dir[p] == d && tap_t[p] < 12) in->run = 1;
