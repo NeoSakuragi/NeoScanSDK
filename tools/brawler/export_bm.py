@@ -287,6 +287,8 @@ def hit_fx(sp, i, game):
 # orange = 2 (fighter.c BURN_PAL); every fire user but Iori burns orange (inference: one flame colour per fighter)
 FIRE_COLOUR = {'iori': 1}
 
+MIRRORED = {'kof96', 'kof99'}
+
 def special_shape(sp):
     if sp.get('shape'): return tuple(sp['shape'])        # what the move does on its own (its whiff, export96)
     sc = sp['script'][:sp.get('cont') or None]
@@ -442,7 +444,7 @@ def write_c(chars, outdir):
                 flat = [(t + off) & 0xFFFF if t else 0 for col in p['tiles'] for t in col]   # low 16 bits; tile_hi has 16-19
                 c.append(f'static const uint16_t {n}_f{fi}_p{pi}[] = {{' + ', '.join(map(str, flat)) + '};')
             c.append(f'static const bpart_t {n}_f{fi}[] = {{' + ', '.join(
-                f'{{{p["dx"]}, {p["dy"]}, {len(p["tiles"])}, {len(p["tiles"][0])}, {p["hflip"]}, {p["vflip"]}, {used[n].index(p.get("pal", 0))}, {n}_f{fi}_p{pi}}}'
+                f'{{{p["dx"]}, {p["dy"]}, {len(p["tiles"])}, {len(p["tiles"][0])}, {p["hflip"] ^ (game in MIRRORED)}, {p["vflip"]}, {used[n].index(p.get("pal", 0))}, {n}_f{fi}_p{pi}}}'
                 for pi, p in enumerate(fr['parts'])) + '};' if fr['parts'] else f'static const bpart_t {n}_f{fi}[1];')
         c.append(f'static const bframe_t {n}_frames[] = {{' + ', '.join(
             f'{{{len(fr["parts"])}, {sum(len(p["tiles"]) for p in fr["parts"])}, {n}_f{fi}}}' for fi, fr in enumerate(ch['frames'])) + '};')
