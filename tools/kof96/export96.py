@@ -130,7 +130,7 @@ def step_boxes(m, cid, sp, slot_of, raw):
     game's three hits are the dash and the two $07xx steps). A step not found (a capture without steps) falls back to
     the frame's boxes in the move's animations (raw), flags -1. Row step: [state, raw index, flags, P1's hit-stop
     counter (+$124 high byte, $FF none), P1's live box (+$90: type x y w h), P2's state, height, life, x from P1's
-    start, KOF98's hit effect [kind +$1B8, burn +$1BA]] (None: a
+    start, KOF98's hit effect [kind +$1B8, burn +$1BA], the step's ROM ticks] (None: a
     capture without them)."""
     out, live, parsed = [], None, {}
     for (f, x, h, objs), ps in zip(sp['rows'], sp.get('steps') or [[None, None]] * len(sp['rows'])):
@@ -142,13 +142,13 @@ def step_boxes(m, cid, sp, slot_of, raw):
             except Exception: parsed[s_] = {}
         step = parsed.get(s_, {}).get(ri)
         if step is None:
-            out.append((raw.get(f, {}), [s_, ri, -1] + extra)); continue
+            out.append((raw.get(f, {}), [s_, ri, -1] + extra + [None])); continue
         b = {f'{k:02X}': v for k, v in step[3].items()}
         atk = {k: v for k, v in b.items() if k[0] == '1'}
         hurt = {k: v for k, v in b.items() if k[0] != '1'}
         if atk: live = atk
         atk = live if step[2] & 0x100 and live else {}
-        out.append(({**hurt, **atk}, [s_, ri, step[2]] + extra))
+        out.append(({**hurt, **atk}, [s_, ri, step[2]] + extra + [step[0]]))   # + the step's ROM ticks
     return out
 
 CONT_HIT_ROWS = 4          # a continuation's hit stays live this many rows (the brawler's victim may have moved a little)

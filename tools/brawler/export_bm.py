@@ -155,6 +155,15 @@ def special_play(sp):
     starts = [i for i in range(1, n) if run[i] and not run[i - 1]]
     still = lambda a, b: a[:3] == b[:3] and [o[1:3] for o in a[3]] == [o[1:3] for o in b[3]]
     drop = [run[i] and i > 0 and still(sc[i], sc[i - 1]) for i in range(n)]
+    # the game's other freezes (Bruno 2026-10-04: Ryo's Ko-Ou Ken holds ~10 frames after its fireball lands, a hit
+    # freeze P1's +$124 does not show): KOF96/98/99 show an animation step for its ROM ticks + 1 frames (measured on
+    # throws and specials); the frames of a step past ticks + 2 where nothing moves (fighter frame, place, objects)
+    # are cut too
+    run_key, run_n = None, 0
+    for i in range(n):
+        key = (rs[i][0], rs[i][1]); run_n = run_n + 1 if key == run_key else 1; run_key = key
+        t = rs[i][10] if len(rs[i]) > 10 else None
+        if t is not None and rs[i][2] >= 0 and run_n > t + 2 and i > 0 and still(sc[i], sc[i - 1]): drop[i] = True
     life = [r[7] if len(r) > 7 else None for r in rs]
     drops = [k for k in range(1, n) if life[k] is not None and life[k - 1] is not None and life[k] < life[k - 1]]
     if any(v is not None for v in life):               # an impact = a drop of the opponent's life: the row before

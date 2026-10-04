@@ -122,6 +122,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
        mid-fight (BIOS PLAYER_START); continues take a credit. Done: crt0 hook game_start_accept (a START from a
        player in play no longer eats a credit); P2 joins as an unused fighter, HUD switches to P1 left / P2 right;
        continue / rejoin = START; box viewer moved to P1 START. Tested: 3 coins, P1 start, P2 join, continue: 3-2-1-0.
+- [ ] 25. Attract mode alternates between the gameplay demo and the logo / title screen, with the same timing as
+       regular Neo Geo games (Bruno, 2026-10-04). Measure a real game's attract cycle first (e.g. KOF98 / KOF96 in
+       our emulator: how long each demo fight and each logo screen lasts, what the BIOS does between them) and match it.
 
 ## Hit feedback (Bruno, 2026-10-03)
 
