@@ -90,6 +90,13 @@ Terry / Ryo / Robert in our emulator with the object pool dumped every frame (RA
   Yuri's eruption lost its attack bit and hit nobody; two eruptions (Ryo 236C, Yuri 236A) pass through each other and
   both hit. (Inference: the projectile-against-projectile case is the attacker-is-a-projectile path `$3E50`-`$3ECE`,
   victim box types 12-15.)
+- **Several objects**: a move can spawn more than one projectile from the thrower (KOF96 Geese's 236C Double Reppuken:
+  eruptions 130 and 131, 24 frames and 30 px apart, each hits once), and a projectile can spawn objects of its own (owner
+  +$84 = the projectile, its table): trails without boxes (KOF96 Krauser's Blitz Ball 133 on its frames 0, 1, then every
+  6; Iori's Yami Barai 156 on 11, then every 12; both 7 px behind it, i.e. where it was the frame before). Objects on
+  table 0 / state 0 owned by projectiles carry no animation (left out). K''s KOF99 236A/C Eins Trigger is one object
+  (states 132/133 then 252) standing at the hand: its frames are drawn up to ~110 px ahead (sprite offsets -34 to -106),
+  its box reaches ~80 px. `projectiles96.definitions` returns every projectile of a move with its child.
 - **KOF96 / KOF99**: the same object kinds and rules measured (Krauser's Blitz Ball kind 1 4 / 7 px, ends on its hit; K''s
   23624 kind 1; Geese's / Mr. Big's 236 eruptions kind 3); their spawner and hit handlers are not decoded (inference: the
   KOF96 engine, the off-screen routine is byte-identical).

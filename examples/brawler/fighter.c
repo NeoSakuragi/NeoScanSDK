@@ -330,6 +330,7 @@ uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;
 
 void projectile_reset(fighter_t *p) {
     if (p->owner && p->owner->shot == p) p->owner->shot = 0;   /* KOF: the thrower may throw again (+$E1 bit 5 off) */
+    p->state_t = 0; p->node = 0;
     p->ch = &bm_chars[0]; p->anim = 0; p->step = 0; p->tick = 1;
     p->frame_ovr = 0xFFFF; p->shown_frame = 0xFFFF; p->state = S_OFF; p->spec_atk = 0; p->owner = 0;
     p->x = p->y = p->z = 0; p->facing = 1; p->zfront = 1; p->freeze = p->inv = 0; p->hit_mask = 0; p->held = 0; p->ncols = 0;
@@ -379,20 +380,39 @@ static void proj_row(fighter_t *p) {
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
 }
-static void proj_spawn(fighter_t *f, const bproj_t *d) {
-    fighter_t *p = proj_alloc(f);
-    if (!p) return;                                              /* pool full: thrown without its projectile */
-    p->pdef = d; p->prow = 0; p->pend = 0; p->facing = f->facing; p->z = f->z;
-    p->throw_x0 = f->throw_x0 + dir_mul(f->facing, FIX(d->spawn_x));   /* spawn point: the script's origin + offset */
+static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int8_t facing, int32_t z) {
+    fighter_t *p = proj_alloc(owner);
+    if (!p) return 0;                                            /* pool full: no entity for it */
+    p->pdef = d; p->prow = 0; p->pend = 0; p->facing = facing; p->z = z; p->throw_x0 = x0;
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
-    f->shot = p; p->tick = 0;                                    /* tick 0: shown at row 0 this frame (the update */
-    proj_row(p);                                                 /* after the fighters' advances it from the next) */
+    p->tick = 0; p->state_t = 0; p->node = d->child_b0;          /* tick 0: shown at row 0 this frame (the update after
+                                                                    the fighters' advances it from the next); state_t:
+                                                                    its frames alive; node: the next frame its child is born */
+    proj_row(p);
+    return p;
+}
+static void proj_spawn(fighter_t *f, const bproj_t *d) {         /* spawn point: the script's origin + offset */
+    fighter_t *p = proj_start(f, d, f->throw_x0 + dir_mul(f->facing, FIX(d->spawn_x)), f->facing, f->z);
+    if (p) f->shot = p;
 }
 static void proj_hit(fighter_t *p) {                             /* its hit landed (a fighter or a clash) */
     if (p->pdef->kind == 1) {                                    /* travelling: its end animation where it hit */
         if (!p->pdef->nend) { projectile_reset(p); return; }
         p->pend = 1; p->prow = 0; p->throw_x0 = p->x; proj_row(p);
     } else { p->pend = 2; p->spec_atk = 0; p->pown = 0; }       /* an eruption plays on, its attack spent */
+}
+static void proj_child(fighter_t *p) {                           /* its trail: an object it spawns where it is */
+    const bproj_t *d = p->pdef;                                  /* (its rows hold their own height) */
+    uint8_t i, nfree = 0;
+    if (!d->child || p->pend || p->state_t != p->node) return;
+    for (i = 0; i < NPJ; i++) nfree += projectiles[i].state == S_OFF;
+    if (nfree < 2) { p->node = p->state_t < d->child_b1 && d->child_b1 != 255 ? d->child_b1 : p->node + d->child_period; return; }
+                                                                 /* a trail never takes the last free entity (a thrown
+                                                                    projectile needs it) */
+    fighter_t *c = proj_start(p->owner, d->child, p->x + dir_mul(p->facing, (int32_t)d->child_dx << 13), p->facing, p->z);
+    if (c && c < p) c->tick = 1;                                 /* this update pass is past it: row 0 already counted */
+    p->node = p->state_t < d->child_b1 && d->child_b1 != 255 ? d->child_b1 : p->node + d->child_period;
+    if (!d->child_period && p->state_t >= d->child_b1) p->node = 255;
 }
 void projectiles_update(int16_t cam_x) {
     uint8_t i;
@@ -401,7 +421,8 @@ void projectiles_update(int16_t cam_x) {
         const bproj_t *d = p->pdef;
         int16_t sx;
         if (p->state != S_PROJ || !d) continue;
-        if (!p->tick) { p->tick = 1; continue; }                 /* its first frame: row 0 */
+        if (!p->tick) { p->tick = 1; proj_child(p); continue; }  /* its first frame: row 0 */
+        p->state_t++;
         if (p->pend == 1) {
             if (++p->prow >= d->nend) { projectile_reset(p); continue; }
         } else if (++p->prow >= d->nrows) {
@@ -410,7 +431,8 @@ void projectiles_update(int16_t cam_x) {
         }
         proj_row(p);
         sx = INT(p->x) - cam_x;
-        if (sx <= -64 || sx >= 384) projectile_reset(p);         /* off screen (KOF's test, the same 320 px screen) */
+        if (sx <= -64 || sx >= 384) { projectile_reset(p); continue; }   /* off screen (KOF's test, its 320 px screen) */
+        proj_child(p);
     }
 }
 static uint8_t special_for(const fighter_t *f, const intent_t *in) {   /* D, forward+D, down+D, up+D -> BS_*, 0xFF = none */
@@ -449,13 +471,14 @@ static void special_update(fighter_t *f) {
         v->vx = v->vy = v->vz = 0; clamp(v);
     }
     f->spec_prev_hit = r->hit; f->spec_atk = (r->hit & 1) ? &r->atk : 0;
-    if (sp->proj && f->state_t - 1 == sp->proj->spawn_row) proj_spawn(f, sp->proj);   /* the game's event step */
+    for (k = 0; k < sp->nproj; k++)                              /* the game's event steps (Geese's Double */
+        if (f->state_t - 1 == sp->proj[k].spawn_row) proj_spawn(f, &sp->proj[k]);   /* Reppuken: two) */
     for (k = 0; k < 2; k++) {
         fighter_t *p = f->proj[k];
         const bsobj_t *o = &r->obj[k];
         if (!p && o->frame != 0xFFFF) p = f->proj[k] = proj_alloc(f);   /* an effect of the script (no box) */
         if (!p) continue;
-        if (o->frame == 0xFFFF) { p->frame_ovr = 0xFFFF; p->spec_atk = 0; continue; }
+        if (o->frame == 0xFFFF) { projectile_reset(p); f->proj[k] = 0; continue; }   /* gone: the entity is free again */
         if (p->frame_ovr == 0xFFFF) p->hit_mask = 0;             /* the object (re)appears: fresh hits */
         p->frame_ovr = o->frame;
         p->x = f->throw_x0 + dir_mul(f->facing, FIX(o->x)); p->y = o->y > 0 ? FIX(o->y) : 0; p->z = f->z;

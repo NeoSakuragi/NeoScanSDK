@@ -256,21 +256,22 @@ def special_entry(m, cid, sp, add, slot_of, game):
             'version': 'whiff+continuation' if cont else version, 'shape': shape}
 
 def projectile_entry(m, cid, d, add, slot_of):
-    """a projectile (projectiles96.definition) in export terms: frames through the fighter's own frame list (the
+    """a projectile (one of projectiles96.definition's) in export terms: frames through the fighter's own frame list (the
     projectile is drawn from its table +$70, the fighter's own for every roster projectile), per flight row [frame, x
     from the spawn point (px, forward +), height, live attack box (KOF box type, x, y, w, h: the game's +$90 slot 0
     while +$7C bit 0) or None, its own box (slot 1, key '31': the box another projectile's attack meets, a clash) or
-    None]; end rows (after its hit: [frame, x from the impact, height]); the victim's reaction measured after the hit
+    None]; child: the trail it spawns (same rows; births = its frames that spawn one, dx / dy from its place then);
+    end rows (after its hit: [frame, x from the impact, height]); the victim's reaction measured after the hit
     (P2's states: 256-279 a grounded hit reel, 280-399 knocked down)"""
     parsed = {}
     def step(tid, st, raw):
         assert tid == cid, (cid, tid, st)               # drawn from the fighter's own frames
         if st not in parsed: parsed[st] = {s_[4]: s_ for s_ in rom96.parse_anim(m, rom96.anim_addr(m, cid, slot_of(cid, st)))[0]}
         return parsed[st][raw]
-    rows = []
-    for tid, st, raw, x, y, fl, box in d['rows']:
-        t, fi, sfl, b, ri, dx = step(tid, st, raw)
-        rows.append([add(fi), x, y, box, b.get(0x31)])
+    def flight(rs): return [[add(step(tid, st, raw)[1]), x, y, box, step(tid, st, raw)[3].get(0x31)] for tid, st, raw, x, y, fl, box in rs]
+    rows = flight(d['rows'])
+    c = d.get('child')
+    child = c and {'rows': flight(c['rows']), 'loop': c['loop'], 'births': c['births'], 'dx': c['dx'], 'dy': c['dy']}
     hit = next((h for k, h in sorted(d['hits'].items(), key=lambda kv: -int(kv[0])) if h.get('hits')), None)
     end = [[add(step(tid, st, raw)[1]), x, y] for tid, st, raw, x, y in (hit['end_rows'] if hit else [])]
     react = None
@@ -278,7 +279,7 @@ def projectile_entry(m, cid, d, add, slot_of):
         rs = [r for r in hit['reaction'] if r]
         react = 'knockdown' if any(280 <= r < 400 for r in rs) else 'heavy' if any(256 <= r < 280 for r in rs) else None
     return {k: d[k] for k in ('table', 'state', 'kind', 'hit_kind', 'spawn_row', 'spawn_x', 'spawn_y', 'loop', 'death',
-                              'life', 'travel', 'vx')} | {'rows': rows, 'end': end, 'react': react,
+                              'life', 'travel', 'vx')} | {'rows': rows, 'end': end, 'react': react, 'child': child,
             'hits': {k: {kk: v.get(kk) for kk in ('hits', 'frame', 'x', 'damage', 'victim_stop', 'owner_frozen')} for k, v in d['hits'].items()}}
 
 def game_hits(e):
@@ -382,7 +383,7 @@ def export(names, outdir, game='kof96', only=None):
         pdefs = projectiles96.definitions(game, cid)     # capture/projectiles.py: the move's projectile, by identity
         for sp in specials96.load(m, cid):
             e = special_entry(m, cid, sp, add, slot_of, game)
-            if sp['input'] in pdefs: e['projectile'] = projectile_entry(m, cid, pdefs[sp['input']], add, slot_of)
+            if sp['input'] in pdefs: e['projectiles'] = [projectile_entry(m, cid, d, add, slot_of) for d in pdefs[sp['input']]]
             sps.append(e)
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not

@@ -2,7 +2,7 @@
 """Projectiles of KOF96 / KOF98 / KOF99 specials, from the captures of capture/projectiles.py (our emulator, the
 object pool dumped every frame). How the games do it: tools/kof98/README.md "Projectiles".
 
-    definitions(m, game, cid) -> {input: projectile}         (normal + EX inputs, 'EX ...', of the fighter)
+    definitions(game, cid) -> {input: [projectile, ...]}     (normal + EX inputs, 'EX ...', of the fighter)
     python3 projectiles96.py [--game kof98] ID ...            -> the inventory table of the fighter's projectile moves
 
 A projectile = an object born during the move (owner +$84 = the fighter, followed by identity, never by pool slot)
@@ -52,24 +52,10 @@ def _period(rows, start):
             return P
     return None
 
-def definition(game, t, free, dist_tries, m=None):
-    """the projectile of the move tried in `t` (far capture), flight from `free`, hits from `dist_tries` {d: try}"""
-    m = m or rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
-    parsed = {}
-    def rom_active(f):                                     # the ROM step's active flag ($0100) of a captured frame
-        tid, st, raw = f[1], f[2], f[3]
-        if (tid, st) not in parsed:
-            parsed[tid, st] = {s_[4]: s_[2] for s_ in rom96.parse_anim(m, rom96.anim_addr(m, tid, rom96.state_slot(m, tid, st)))[0]}
-        return bool(parsed[tid, st].get(raw, 0) & 0x100)
-    src = free or t
-    ob = _projectile(src)
-    if ob is None: return None
-    g0 = _g0(game, src)
-    if g0 is None: return None
-    F = ob['frames']
-    born = F[0][0]
-    p1x = src['rows'][g0][0][2]
-    x0, y0 = F[0][5], F[0][6]
+def _flight(F, src):
+    """an object's frames -> (rows, loop, death, cam at its death): rows [table, state, raw step, x from its first
+    frame, height, step flags, live attack box or None]; loop = the row a looping flight repeats from"""
+    x0 = F[0][5]
     rows = [[f[1], f[2], f[3], round(f[5] - x0, 3), round(f[6], 2), f[8], f[9] if _live(f) else None] for f in F]
     last = F[-1]; cam = src['rows'][last[0]][2] if last[0] < len(src['rows']) else None
     if last[8] & 0x8000: death = 'anim'
@@ -85,33 +71,76 @@ def definition(game, t, free, dist_tries, m=None):
             if P: s0 = a; break
         loop = len(rows) - P if P else len(rows) - 1
         if P: rows = rows[:s0 + P] if s0 + P < len(rows) else rows; loop = s0
-    d = {'table': F[0][1], 'state': F[0][2], 'kind': F[0][10], 'hit_kind': F[0][12], 'spawn_row': born - g0,
-         'spawn_x': round(x0 - p1x, 2), 'spawn_y': y0, 'rows': rows, 'loop': loop, 'death': death,
-         'life': len(F), 'travel': round(F[-1][5] - x0, 2), 'vx': F[-1][7], 'hits': {},
-         'death_sx': round(last[5] - cam, 1) if cam is not None else None}   # screen x where it died (x - camera)
-    flight = {(r[0], r[1]) for r in rows}
-    for dist, dt in dist_tries.items():
-        o = next((o for o in dt['objects'] if (o['frames'][0][1], o['frames'][0][2]) == (d['table'], d['state'])), None) \
-            or _projectile(dt)                             # by identity (a hit on its first live frame clears the box
-        if o is None: continue                             # bit at once: it may never be seen live)
-        fr = {f[0]: f for f in o['frames']}
-        life = [r[1][4] for r in dt['rows']]               # its hits: P2's life drops while its attack box was live,
-        drops = [k for k in range(1, len(life)) if life[k] < life[k - 1] and   # or spent (a step the ROM makes active
-                 any(j in fr and (_live(fr[j]) or (fr[j][9][0] and rom_active(fr[j]))) for j in (k - 1, k))]   # whose bit the hit cleared)
-        if not drops: d['hits'][dist] = {'hits': 0}; continue
-        k = drops[0]
-        imp = fr.get(k) or fr.get(k - 1)
-        after = [f for f in o['frames'] if f[0] >= k]
-        end = [f for f in after if (f[1], f[2]) not in flight]
-        p2 = [r[1][0] for r in dt['rows'][k:k + 40]]
-        d['hits'][dist] = {'frame': k - (_g0(game, dt) or 0), 'x': round(imp[5] - o['frames'][0][5], 2), 'hits': len(drops),
-                           'damage': life[k - 1] - life[k], 'reaction': sorted(set(p2)), 'victim_stop': dt['rows'][k][1][5],
-                           'owner_frozen': dt['rows'][k][0][5] != 255,
-                           'end_rows': [[f[1], f[2], f[3], round(f[5] - imp[5], 3), round(f[6], 2)] for f in end],
-                           'after_hit_live': sum(1 for f in after if _live(f) and (f[1], f[2]) in flight)}
-    return d
+    return rows, loop, death, cam
+
+def _children(src, ob):
+    """objects the projectile spawns (owner +$84 = it, on its own table: Krauser's Blitz Ball trail 133, Iori's flame
+    trail 156; table 0 / state 0 objects carry no animation and are left out) -> one child definition: its rows, the
+    parent's frames it is born on (from the parent's first frame), its offset from the parent's x / height then"""
+    F = ob['frames']; span = {f[0]: f for f in F}
+    kids = [o for o in src['objects'] if o['owner'] == ob['base'] and o['born'] in span and o['frames'][0][1] == F[0][1]
+            and o['frames'][0][2]]
+    if not kids: return None
+    k0 = kids[0]; rows, loop, death, cam = _flight(k0['frames'], src)
+    births = [k['born'] - F[0][0] for k in kids]
+    off = [(round(k['frames'][0][5] - span[k['born']][5], 2), round(k['frames'][0][6] - span[k['born']][6], 2)) for k in kids]
+    return {'table': k0['frames'][0][1], 'state': k0['frames'][0][2], 'rows': rows, 'loop': loop, 'death': death,
+            'births': births, 'dx': off[-1][0], 'dy': off[-1][1], 'life': len(k0['frames'])}
+
+def definition(game, t, free, dist_tries, m=None):
+    """the projectiles of the move tried in `t` (far capture), flight from `free` (P2 off the ground), hits from
+    `dist_tries` {d: try}: every object born from the fighter (owner +$84 = P1) that has a live attack box, in birth
+    order (Geese's Double Reppuken: two eruptions, 24 frames and 30 px apart), each with the objects it spawns
+    (children: its trail) -> [definition, ...]"""
+    m = m or rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
+    parsed = {}
+    def rom_active(f):                                     # the ROM step's active flag ($0100) of a captured frame
+        tid, st, raw = f[1], f[2], f[3]
+        if (tid, st) not in parsed:
+            parsed[tid, st] = {s_[4]: s_[2] for s_ in rom96.parse_anim(m, rom96.anim_addr(m, tid, rom96.state_slot(m, tid, st)))[0]}
+        return bool(parsed[tid, st].get(raw, 0) & 0x100)
+    src = free or t
+    g0 = _g0(game, src)
+    if g0 is None: return []
+    roots = sorted([o for o in src['objects'] if o['owner'] == 0x108100 and any(_live(f) for f in o['frames'])], key=lambda o: o['born'])
+    out = []
+    for n, ob in enumerate(roots):
+        F = ob['frames']; ident = (F[0][1], F[0][2])
+        nth = sum(1 for o in roots[:n] if (o['frames'][0][1], o['frames'][0][2]) == ident)
+        p1x = src['rows'][g0][0][2]
+        x0, y0 = F[0][5], F[0][6]
+        rows, loop, death, cam = _flight(F, src)
+        d = {'table': F[0][1], 'state': F[0][2], 'kind': F[0][10], 'hit_kind': F[0][12], 'spawn_row': F[0][0] - g0,
+             'spawn_x': round(x0 - p1x, 2), 'spawn_y': y0, 'rows': rows, 'loop': loop, 'death': death,
+             'life': len(F), 'travel': round(F[-1][5] - x0, 2), 'vx': F[-1][7], 'hits': {},
+             'death_sx': round(F[-1][5] - cam, 1) if cam is not None else None,   # screen x where it died (x - camera)
+             'child': _children(src, ob)}
+        flight = {(r[0], r[1]) for r in rows}
+        for dist, dt in dist_tries.items():
+            same = sorted([o for o in dt['objects'] if o['owner'] == 0x108100 and (o['frames'][0][1], o['frames'][0][2]) == ident],
+                          key=lambda o: o['born'])        # by identity (a hit on its first live frame clears the box
+            o = same[nth] if nth < len(same) else None     # bit at once: it may never be seen live)
+            if o is None: d['hits'][dist] = {'hits': 0}; continue
+            fr = {f[0]: f for f in o['frames']}
+            life = [r[1][4] for r in dt['rows']]           # its hits: P2's life drops while its attack box was live,
+            drops = [k for k in range(1, len(life)) if life[k] < life[k - 1] and   # or spent (a step the ROM makes active
+                     any(j in fr and (_live(fr[j]) or (fr[j][9][0] and rom_active(fr[j]))) for j in (k - 1, k))]   # whose bit the hit cleared)
+            if not drops: d['hits'][dist] = {'hits': 0}; continue
+            k = drops[0]
+            imp = fr.get(k) or fr.get(k - 1)
+            after = [f for f in o['frames'] if f[0] >= k]
+            end = [f for f in after if (f[1], f[2]) not in flight]
+            p2 = [r[1][0] for r in dt['rows'][k:k + 40]]
+            d['hits'][dist] = {'frame': k - (_g0(game, dt) or 0), 'x': round(imp[5] - o['frames'][0][5], 2), 'hits': len(drops),
+                               'damage': life[k - 1] - life[k], 'reaction': sorted(set(p2)), 'victim_stop': dt['rows'][k][1][5],
+                               'owner_frozen': dt['rows'][k][0][5] != 255,
+                               'end_rows': [[f[1], f[2], f[3], round(f[5] - imp[5], 3), round(f[6], 2)] for f in end],
+                               'after_hit_live': sum(1 for f in after if _live(f) and (f[1], f[2]) in flight)}
+        out.append(d)
+    return out
 
 def definitions(game, cid):
+    """{input: [projectile definition, ...]} of the fighter's normal and EX ('EX ...') moves"""
     out = {}; m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     for tag in ('', 'x'):
         far = _load(game, cid, tag); free = _load(game, cid, tag + '_dfree')
@@ -126,8 +155,10 @@ if __name__ == '__main__':
     args = sys.argv[1:]; game = 'kof98'
     if args[:1] == ['--game']: game = args[1]; args = args[2:]
     for cid in map(int, args):
-        for inp, d in definitions(game, cid).items():
+        for inp, ds in definitions(game, cid).items():
+          for d in ds:
             h = d['hits']
+            c = d['child']
             print(f"{cid} {inp:10} st {d['state']} kind {d['kind']} spawn row {d['spawn_row']} x {d['spawn_x']} y {d['spawn_y']} "
-                  f"vx {d['vx']} life {d['life']} travel {d['travel']} death {d['death']} loop {d['loop']}/{len(d['rows'])} hk {d['hit_kind']} | " +
+                  f"vx {d['vx']} life {d['life']} travel {d['travel']} death {d['death']} loop {d['loop']}/{len(d['rows'])} hk {d['hit_kind']} child {(c['state'], c['births'][:4], c['dx'], c['life']) if c else '-'} | " +
                   ' '.join(f"d{k}: {v.get('hits')} hit" + (f" @{v['frame']} x{v['x']} dmg{v['damage']} r{v['reaction'][:3]} stop{v['victim_stop']} own{int(v['owner_frozen'])} end{len(v['end_rows'])} live{v['after_hit_live']}" if v.get('hits') else '') for k, v in h.items()))

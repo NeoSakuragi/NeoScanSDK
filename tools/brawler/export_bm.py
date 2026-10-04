@@ -303,21 +303,36 @@ FIRE_COLOUR = {'iori': 1}
 
 R_CODE = {'heavy': R_HEAVY, 'knockdown': R_KNOCKDOWN}
 
-def projectile_c(n, k, pj, game):
-    """C tables of a special's projectile (export96.projectile_entry): flight rows, end rows, bproj_t {n}_pj{k}"""
+def projectile_c(n, k, pjs, game):
+    """C tables of a special's projectiles (export96.projectile_entry, in spawn order): per projectile its flight
+    rows, end rows and child (its trail: a bproj_t without boxes), and the array bproj_t {n}_pj{k}[]"""
     def box(b): return '{0, 0, 0, 0}' if b is None else f'{{{sb(b[0])}, {sb(b[1])}, {b[2]}, {b[3]}}}'
     q = lambda v: max(-32768, min(32767, round(v * 8)))   # 1/8 px
-    rows = ', '.join(f'{{{f}, {q(x)}, {round(y)}, {box(a[1:] if a else None)}, {box(o)}, {(1 if a else 0) | (2 if o else 0)}, 0}}'
-                     for f, x, y, a, o in pj['rows'])
-    end = ', '.join(f'{{{f}, {q(x)}, {round(y)}}}' for f, x, y in pj['end']) or '{0, 0, 0}'
-    loop = 0xFF if pj['loop'] is None else pj['loop']
-    wrap = q(pj['rows'][-1][1] + pj['vx'] - pj['rows'][loop][1]) if pj['loop'] is not None else 0
-    hk = pj['hit_kind'] if 0 < pj['hit_kind'] <= 32 else 1
-    fx = hk | ((FIRE_COLOUR.get(n, 2) if hk in (11, 13, 21) else 0) << 6)
-    assert len(pj['rows']) < 256 and len(pj['end']) < 256 and pj['spawn_row'] < 256, n
-    return (f'static const bprow_t {n}_pjr{k}[] = {{{rows}}};\nstatic const bpend_t {n}_pje{k}[] = {{{end}}};\n'
-            f'static const bproj_t {n}_pj{k} = {{{len(pj["rows"])}, {loop}, {len(pj["end"])}, {pj["kind"]}, {pj["spawn_row"]}, '
-            f'{R_CODE.get(pj["react"], R_KNOCKDOWN)}, {fx}, 0, {round(pj["spawn_x"])}, {round(pj["spawn_y"])}, {wrap}, {n}_pjr{k}, {n}_pje{k}}};')
+    out, defs = [], []
+    def one(name, pj, child='0', births=(0, 0, 0), cd=(0, 0)):
+        rows = ', '.join(f'{{{f}, {q(x)}, {round(y)}, {box(a[1:] if a else None)}, {box(o)}, {(1 if a else 0) | (2 if o else 0)}, 0}}'
+                         for f, x, y, a, o in pj['rows'])
+        end = ', '.join(f'{{{f}, {q(x)}, {round(y)}}}' for f, x, y in pj.get('end', [])) or '{0, 0, 0}'
+        loop = 0xFF if pj['loop'] is None else pj['loop']
+        step = pj['rows'][-1][1] - pj['rows'][-2][1] if len(pj['rows']) > 1 else 0   # the flight's per-frame step
+        wrap = q(pj['rows'][-1][1] + step - pj['rows'][loop][1]) if pj['loop'] is not None else 0
+        hk = pj.get('hit_kind', 1); hk = hk if 0 < hk <= 32 else 1
+        fx = hk | ((FIRE_COLOUR.get(n, 2) if hk in (11, 13, 21) else 0) << 6)
+        assert len(pj['rows']) < 256 and len(pj.get('end', [])) < 256 and pj.get('spawn_row', 0) < 256, n
+        out.append(f'static const bprow_t {name}_r[] = {{{rows}}};\nstatic const bpend_t {name}_e[] = {{{end}}};')
+        return (f'{{{len(pj["rows"])}, {loop}, {len(pj.get("end", []))}, {pj.get("kind", 0)}, {pj.get("spawn_row", 0)}, '
+                f'{R_CODE.get(pj.get("react"), R_KNOCKDOWN)}, {fx}, 0, {round(pj.get("spawn_x", 0))}, {round(pj.get("spawn_y", 0))}, '
+                f'{wrap}, {name}_r, {name}_e, {child}, {births[0]}, {births[1]}, {births[2]}, 0, {q(cd[0])}, {round(cd[1])}}}')
+    for j, pj in enumerate(pjs):
+        c = pj.get('child'); child, births, cd = '0', (0, 0, 0), (0, 0)
+        if c:                                            # its trail: born on the parent's frames b0, b1, then every
+            b = c['births']; per = b[-1] - b[-2] if len(b) > 1 else 0   # period (Krauser 0, 1, 7, 13..; Iori 11, 23, 35..)
+            assert len(b) < 3 or all(b[i + 1] - b[i] == per for i in range(1, len(b) - 1)), (n, b)
+            out.append(f'static const bproj_t {n}_pj{k}_{j}c = ' + one(f'{n}_pj{k}_{j}c', c) + ';')
+            child, births, cd = f'&{n}_pj{k}_{j}c', (b[0], b[1] if len(b) > 1 else 255, per), (c['dx'], c['dy'])
+        defs.append(one(f'{n}_pj{k}_{j}', pj, child, births, cd))
+    out.append(f'static const bproj_t {n}_pj{k}[] = {{' + ', '.join(defs) + '};')
+    return '\n'.join(out)
 
 def special_shape(sp):
     if sp.get('shape'): return tuple(sp['shape'])        # what the move does on its own (its whiff, export96)
@@ -335,8 +350,7 @@ def counter_move(sp):
 def real_projectile(sp):
     """the special throws a projectile that reaches someone (tools/kof96/projectiles96: an object with a live attack
     box): a travelling one (object kind 1) or an eruption that hit P2 at one of the measured distances"""
-    pj = sp.get('projectile')
-    return bool(pj) and (pj['kind'] == 1 or any((h.get('hits') or 0) > 0 for h in pj['hits'].values()))
+    return any(pj['kind'] == 1 or any((h.get('hits') or 0) > 0 for h in pj['hits'].values()) for pj in sp.get('projectiles', []))
 
 def pick_specials(ch, name=None):
     """[projectile, rush, rise, up] (None where the fighter has no such move). The big versions first (C / D: Bruno
@@ -359,7 +373,7 @@ def pick_specials(ch, name=None):
         if pick is None:
             c_all, c = c, [sp for sp in auto if sp not in out]
             if role == 'proj':
-                cand = [((sp['projectile']['kind'] != 1, not big(sp), -sp['projectile']['travel']), sp) for sp in c if real_projectile(sp)]
+                cand = [((sp['projectiles'][0]['kind'] != 1, not big(sp), -sp['projectiles'][0]['travel']), sp) for sp in c if real_projectile(sp)]
                 cand.sort(key=lambda t: t[0])
                 pick = cand[0][1] if cand else None
                 c = c_all; out.append(pick); continue
@@ -459,8 +473,8 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy, fx, pad; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit, 4 the target is carried at vx (forward from the fighter) / vy (height), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk, own; uint8_t flags, pad; } bprow_t;   /* one frame of a projectile\'s flight: frame, x from its spawn point in 1/8 px (forward +), height px, attack box (live when flags & 1: the game\'s +$90 box while +$7C bit 0), own box (the box another projectile\'s attack meets: a clash; flags & 2) */',
          'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height */',
-         'typedef struct { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, pad; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; } bproj_t;   /* a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
-         'typedef struct { uint16_t nrows, inv_rows, cont, pad; const bspec_row_t *rows; const bproj_t *proj; } bspec_t;   /* inv_rows: invincible for its first rows; cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its projectile (0 = none) */',
+         'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, pad; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, pad2; int16_t child_dx, child_dy; } bproj_t;   /* child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
+         'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; } bspec_t;   /* inv_rows: invincible for its first rows; cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2) */',
          'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
@@ -522,12 +536,11 @@ def write_c(chars, outdir):
         sps = [dict(special_play(sp), fighter=n) if sp else None for sp in pick_specials(ch, n)]
         for k, sp in enumerate(sps):
             if sp is None: continue
-            pj = sp.get('projectile') if real_projectile(sp) else None
-            if pj:                                       # its spawn row in the script as played (frozen rows dropped)
-                pj = dict(pj, spawn_row=sum(1 for i in sp['keep'] if i < pj['spawn_row']))
-            pframes = {r[0] for r in pj['rows']} | {r[0] for r in pj['end']} if pj else set()
-            if pj:                                       # the projectile entity draws and hits; the script keeps
-                c.append(projectile_c(n, k, pj, game))   # the other objects (effects: they hit nothing)
+            pjs = [dict(pj, spawn_row=sum(1 for i in sp['keep'] if i < pj['spawn_row']))   # spawn rows in the script as
+                   for pj in sp['projectiles']] if real_projectile(sp) else []          # played (frozen rows dropped)
+            pframes = {r[0] for pj in pjs for r in pj['rows'] + pj['end'] + (pj['child']['rows'] if pj['child'] else [])}
+            if pjs:                                      # the projectile entities draw and hit; the script keeps
+                c.append(projectile_c(n, k, pjs, game))  # the other objects (effects: they hit nothing)
             out = []
             for i, ((f, x, hgt, objs), (hb, ab, hit, dmg)) in enumerate(zip(sp['script'], special_rows(sp))):
                 ob = []
@@ -546,7 +559,7 @@ def write_c(chars, outdir):
             peak = max(range(len(sp['script'])), key=lambda i: sp['script'][i][2])   # a rising move: to its apex
             return max(hits[-1] + 1 if hits else 0, peak + 1 if sp['script'][peak][2] > 0 else 0) or len(sp['script'])
         c.append(f'static const bspec_t {n}_specials[BS_COUNT] = {{' + ', '.join(
-            f'{{{len(sp["script"])}, {inv_rows(sp, k)}, {sp.get("cont", 0)}, 0, {n}_sp{k}, {f"&{n}_pj{k}" if real_projectile(sp) else 0}}}' if sp else '{0, 0, 0, 0, 0, 0}' for k, sp in enumerate(sps)) + '};')
+            f'{{{len(sp["script"])}, {inv_rows(sp, k)}, {sp.get("cont", 0)}, {len(sp["projectiles"]) if real_projectile(sp) else 0}, {n}_sp{k}, {f"{n}_pj{k}" if real_projectile(sp) else 0}}}' if sp else '{0, 0, 0, 0, 0, 0}' for k, sp in enumerate(sps)) + '};')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
             f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')

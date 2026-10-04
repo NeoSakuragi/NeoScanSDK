@@ -176,8 +176,13 @@ eruption), off screen (x - camera <= -64 or >= 384, the games' own test) or afte
 thrower does (hit out of the special, recovering, walking: KOF's flying routine never reads its owner); the thrower can't
 throw another while it flies (`fighter_t.shot`, KOF's owner +$E1 bit 5: D then plays the next role). Neither it nor
 its thrower freezes on its hit (the victim does, `HITSTOP`). Two projectiles of the two teams that meet (one's attack
-box on the other's own box) both spend their hit (measured in KOF98). Pool `projectiles[NPJ]` (4, shared with the script
-effects, both teams): a special thrown with the pool full shows no projectile. `projectiles_update` (main.c, after the
+box on the other's own box) both spend their hit (measured in KOF98). A special may throw several (`bspec_t.nproj`: Geese's
+Double Reppuken, two eruptions 24 frames and 30 px apart, both hit). A projectile may spawn a trail (`bproj_t.child`,
+KOF: objects owned by the projectile, its own table): Krauser's Blitz Ball one on its frames 0, 1, then every 6, Iori's
+Yami Barai on 11, then every 12, 7 px behind it, playing their own frames in place. Pool `projectiles[NPJ]` (4, shared
+with the script effects, both teams; a script effect's entity is freed as soon as its row shows none): a special thrown
+with the pool full shows no projectile, and a trail never takes the last free entity (so the brawler shows 2 of the
+Blitz Ball's trail pieces at a time where KOF96 shows 3, Iori's 1 of 2 in a 25-frame flight). `projectiles_update` (main.c, after the
 camera) moves them; fighter_t's projectile fields are at its end (draw.s pins the others).
 
 Proof (`tools/brawler/check_projectiles.py`, `make AI_OFF=1`, each fighter picked on the select screen; brawler / game;
@@ -189,10 +194,13 @@ frames counted from the special's first script row; game hits from our emulator 
 | Robert EX 236C | 15 / 15 | 7 / 7 | 382 / 380 | flies on | 1/1, 15/16 | 1/1, 18/18 | 1/1, 30/29 | both end |
 | Iori 236C | 10 / 10 | 7 / 7 | 380 / 377.9 | flies on | 1/1, 10/11 | 1/1, 16/16 | 1/1, 28/27 | both end |
 | Mai 236C | 15 / 15 | 7 / 7 | 378 / 377.1 | flies on | 1/1, 15/16 | 1/1, 23/22 | 1/1, 34/34 | both end |
-| Geese 236C | 18 / 18 | eruption, 17 frames / 17 | its end | plays on | 1/1, 20/21 | 1/1, 23/21 | 0/0 | - |
+| Geese 236C (2 eruptions) | 18, 42 / 18, 42 | eruption, 17 frames / 17 | its end | plays on | 2/2, 20/21 | 2/2, 23/21 | 0/0 | - |
 | Mr. Big 236C | 19 / 19 | eruption, 36 / 36 | its end | plays on | 1/1, 21/22 | 1/1, 21/22 | 0/0 | - |
 | Krauser 214C | 26 / 26 | 7 / 7 | 382 / 377.6 | flies on | 1/1, 26/27 | 1/1, 29/32 | 1/1, 40/43 | passes (high ball) |
 | K' 236C | 11 / 11 | eruption, 31 / 31 | its end | plays on | 1/1, 19/19 | 0/0 | 0/0 | - |
+K' 236C (Eins Trigger) is one object standing at K''s hand whose frames are drawn up to ~110 px ahead (the flame arc,
+then the burst); its attack box (-52 +- 28 px from the object) reaches ~80 px, so KOF99 hits at 60 px and not at 120
+(measured). Side by side, row for row: /data/neogeo_dict/brawler_proof/kdash_236C_kof99_vs_brawler.png.
 The game's hit frame is the frame P2's life drops, one after the collision (the brawler counts the collision frame);
 the other 1-3 frame differences are the victims' hurt boxes (the game's P2 vs the brawler's enemy). Free-flight life
 and travel differ by where the camera stands (the off-screen x matches).

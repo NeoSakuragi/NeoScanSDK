@@ -29,7 +29,7 @@ def chars_from_makefile():
     return re.search(r'^CHARS\s*=\s*(.+)$', mk, re.M).group(1).split()
 
 def picked(specs):
-    """game:name -> (special input, its game projectile definition) of the D role"""
+    """game:name -> (special input, its game projectile definitions) of the D role"""
     out, games = {}, {}
     for s in specs: g, n = s.split(':'); games.setdefault(g, []).append(n)
     for g, names in games.items():
@@ -44,6 +44,12 @@ def picked(specs):
 def mine(b, i):
     """projectile entity i is an independent projectile in flight (S_PROJ with a definition)"""
     return b.pget(i, 'state') == b.states.index('PROJ') and b.pget(i, 'pdef') != 0
+
+def is_child(b, i):
+    """entity i plays a trail (a bproj_t that is some projectile's child: its definition has no kind)"""
+    if not hasattr(b, 'trails'):                  # the trails' bproj_t symbols (export_bm: <name>_pj<k>_<j>c)
+        b.trails = {a for n, a in b.syms.items() if re.search(r'_pj\d+_\d+c$', n)}
+    return mine(b, i) and b.pget(i, 'pdef') in b.trails
 
 def trial(b, k, dist=None, owner_hit=False, clash=None, frames=200, spawn_row=None):
     """fighter k (bm_chars index, picked on the select screen) throws its D special; dist: enemy 2 standing that far
@@ -60,17 +66,20 @@ def trial(b, k, dist=None, owner_hit=False, clash=None, frames=200, spawn_row=No
     b.run(1, p1='d')
     if clash is not None: b.intent(clash)
     r = {'spawn': None, 'xs': [], 'end': None, 'sx': None, 'outlived': False, 'hit': None, 'after': None, 'owner': None,
-         'others': set()}
+         'others': set(), 'trail': 0, 'trail_x': []}
     t0 = slot = None; hp2 = b.fget(2, 'hp'); punched = None
     for t in range(frames):
         st = b.states[b.fget(0, 'state')]
         if t0 is None and st == 'SPECIAL': t0 = b.frame + 1      # the frame the script's row 0 shows
         if slot is None:
             for i in range(4):
-                if mine(b, i) and b.pget(i, 'owner') == b.base: slot = i; r['spawn'] = b.frame - t0
+                if mine(b, i) and not is_child(b, i) and b.pget(i, 'owner') == b.base: slot = i; r['spawn'] = b.frame - t0
         for i in range(4):
-            if i != slot and mine(b, i): r['others'].add(i)
+            if i != slot and mine(b, i) and not is_child(b, i): r['others'].add(i)
+            if is_child(b, i) and b.pget(i, 'state_t') == 0 and r['xs'] and r['end'] is None:   # a trail born this frame
+                r['trail'] += 1; r['trail_x'].append(round(b.pget(i, 'x') - b.pget(slot, 'x'), 1))
         if slot is not None and r['end'] is None:
+            if slot is not None and mine(b, slot) and is_child(b, slot): slot = None; continue
             if not mine(b, slot) or b.pget(slot, 'pend') == 1:
                 r['end'] = 'end' if mine(b, slot) else 'gone'
                 if not r['xs']: r['xs'].append(b.pget(slot, 'x'))
@@ -103,7 +112,8 @@ def main(args):
     shooters = [roster.index(s) for s in P]
     print('fighter input | spawn b/g | speed b/g | free: life b/g, travel b/g, died at sx b/g | outlives its special | '
           'owner hit | ' + ' | '.join(f'{d}: hits b/g, frame b/g, travel b/g, after' for d in projectiles96.DISTS) + ' | clash')
-    for spec, (inp, g) in P.items():
+    for spec, (inp, gs_) in P.items():
+        g = gs_[0]
         k = roster.index(spec)
         free = trial(b, k)
         xs = free['xs']; v = round(xs[-1] - xs[-2], 2) if len(xs) > 1 else 0
@@ -112,11 +122,16 @@ def main(args):
         line = (f'{spec.split(":")[1]} {inp} | {free["spawn"]}/{g["spawn_row"]} | {v}/{gv} | {len(xs)}/{g["life"]}, '
                 f'{round(xs[-1] - xs[0], 1)}/{g["travel"]}, {free["sx"] if free["end"] == "gone" and g["death"] != "anim" else free["end"]}/{gs} | '
                 f'{"yes" if free["outlived"] else "no"}')
+        if g['child']:
+            c = g['child']; nb = sum(1 for x in c['births'] if x < g['life'])
+            line += f' | trail {free["trail"]}/{nb} at dx {sorted(set(free["trail_x"]))}/{c["dx"]}'
+        if len(gs_) > 1: line += f' | +{len(gs_) - 1} more: spawn rows {[q["spawn_row"] for q in gs_]}'
         oh = trial(b, k, owner_hit=True)
         line += f' | {"thrower hit, " if oh["owner"] is not None else "not hit, "}' + (f'flew on to {oh["owner"]} px' if isinstance(oh['owner'], float) else str(oh['owner']))
         for d in projectiles96.DISTS:
             r = trial(b, k, d, spawn_row=g['spawn_row']); gh = g['hits'].get(d, {})
-            line += (f' | {r["hits"]}/{gh.get("hits", "-")}, {r["hit"][0] if r["hit"] else "-"}/{gh.get("frame", "-")}, '
+            gn = sum(q['hits'].get(d, {}).get('hits') or 0 for q in gs_)   # every projectile of the move
+            line += (f' | {r["hits"]}/{gn}, {r["hit"][0] if r["hit"] else "-"}/{gh.get("frame", "-")}, '
                      f'{r["hit"][1] if r["hit"] else "-"}/{gh.get("x", "-")}, {r["after"] or "-"}')
         # clash: an enemy whose fighter has a projectile (its D), on the screen's other side
         enemy = next((i for i in range(2, 8) if b.char_of(i) in shooters and b.char_of(i) != k), None)

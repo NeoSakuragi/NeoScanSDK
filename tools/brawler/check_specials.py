@@ -44,8 +44,9 @@ def main(args):
                 if cont: hits = f'{sum(1 for i, r in enumerate(sr) if r[2] & 2 and not r[2] & 8 and i < cont)}+{sum(1 for i, r in enumerate(sr) if r[2] & 2 and i >= cont)}'
                 game = sp.get('game_hits', -1)
                 obj = sum(1 for r in sp['script'] if r[3])
-                pj = sp.get('projectile') if export_bm.real_projectile(sp) else None   # bspec_t.proj: kind @ spawn row
-                proj = f'k{pj["kind"]}@{pj["spawn_row"]} {pj["travel"]:.0f}px' if pj else '-'
+                pjs = sp['projectiles'] if export_bm.real_projectile(sp) else []   # bspec_t.proj: kind @ spawn row
+                pj = pjs[0] if pjs else None
+                proj = ('+'.join(f'k{q["kind"]}@{q["spawn_row"]}' for q in pjs) + f' {pj["travel"]:.0f}px') if pj else '-'
                 nostep = sum(1 for r in sp.get('row_steps', []) if r[2] < 0)
                 flag = not atk and not pj
                 flagged += flag and role != '-'
