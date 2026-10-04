@@ -11,12 +11,12 @@
 
 #define FIX(v)   ((int32_t)(v) << 16)
 #define INT(v)   ((int16_t)((v) >> 16))
-#define FLOOR_TOP 150             /* screen y of the feet at Z = 0 */
+#define FLOOR_TOP 156             /* screen y of the feet at Z = 0 (feet 156-220: the castle courtyard, make_stage_s2.py) */
 #define Z_DEPTH   64              /* walkable band depth in px */
 #define Z_HIT     12              /* max depth difference for a hit / a grab */
 #define MAX_COLS  20              /* hardware sprites reserved per fighter (Billy's widest frame: 19) */
 #define MAX_PALS  8               /* palettes reserved per fighter (Terry with his effects: 5) */
-#define WORLD_W   1024            /* stage width in px (make_stage.py); fighters stay 16 px inside it */
+#define WORLD_W   1280            /* stage width in px (make_stage_s2.py); fighters stay 16 px inside it */
 
 enum {                            /* states: the state machine alone decides what happens next */
     S_IDLE, S_WALK, S_RUN, S_PREJUMP, S_AIR, S_LAND,

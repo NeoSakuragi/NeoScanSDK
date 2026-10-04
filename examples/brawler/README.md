@@ -221,11 +221,33 @@ Grabbed player: 4 button presses break free (counted through hit-stop too), then
 Measured with idle players (30 s): 3 grabs, 19 specials, 1 throw. Profiler HUD (PROFILE_HUD): EG / ES / ET = enemy grabs,
 specials, throws; PE = player escapes.
 
-## Stage (`tools/brawler/make_stage.py`)
-Placeholder street drawn procedurally: 64 x 14 tiles (1024 x 224 px), 140 unique tiles, palette 1, tiles 1-1023 of the
-C ROM (fighters start at 1024). 21 sprites (1-21, behind the fighters at 32+): sprite s shows the stage column c with
-c mod 21 = s, so scrolling rewrites one column (28 words) when a new one enters; X of all 21 is one run a frame.
-Camera: the players' midpoint, 4 px a frame at most, clamped to the stage; players can't leave the view.
+## Stage (`tools/brawler/make_stage_s2.py`, needs /data/roms/sengoku2.neo)
+**Prototype placeholder** (2026-10-04): Sengoku 2's round 1 castle, extracted from its ROM (format decoded in
+/data/neogeo_dict/sengoku2/tools/extract_maps.py); the final game gets its own hand-drawn art. Two planes, placed as
+Sengoku 2 places them (block row 0 at screen y 0):
+- Front: map 0 block row 4 (blocks 6, 7: the courtyard, 640 px) then map 29 block row 4 (blocks 19, 20: the castle
+  after the warp, 640 px) = 80 x 14 tiles, 1280 x 224 px = `WORLD_W`. Sprites 22-42, scrolls with the camera.
+- Back: map 1 block row 2 (blocks 12, 13, 12: sunset sky over the burning field, 960 px), only its top 5 tile rows.
+  Sprites 1-21 (behind the front), at camera >> 1 like Sengoku 2 (parallax code 2); the world never scrolls it past
+  960 px (camera >> 1 <= 480), so it never wraps. The front is opaque below y 65 (measured: its transparent pixels are
+  all in tile rows 0-4), so the back plane is a band: each back sprite is as tall as the front columns over it let it
+  show (`stage_depth`, 0-5 rows: 0 where the front is opaque to the top, e.g. the tower), 12-21 of them shown, on lines
+  0-63 (0-79 over the two lantern poles). Rewritten only when the camera moves.
+- Tiles: 469 Sengoku 2 C ROM tiles copied raw, 452 after removing duplicates (a flipped copy points to the stored
+  tile, the flip folded into the map word), at tiles 1-452 (below the banner at 512). The maps are ready SCB1 words
+  {tile, attribute} per cell, so a column is a straight copy.
+- Palettes: the 6 Sengoku 2 palettes the two planes use (144-147, 150, 246; its set at $50040, never changed during
+  round 1) at 80-85 (0 text, 2-15 fix portraits, 16-79 fighters, 250-254 banner, shadow, boxes, sparks). The
+  select-to-fight fade scales all six; `fight_fade` now writes only when its level changes (every other tick): the
+  colour scaling took ~5 frames a tick, the 32-tick fade-in lasted 131-161 frames, now ~101.
+- Cost (PROFILE build, raster lines): front plane 7-8 a frame (as the street), back plane 0 with the camera still, up to
+  ~10 while it moves; guard 11 (was 7).
+- Floor: FLOOR_TOP 156 (was 150): the feet walk y 156-220, on the courtyard between the walls' bases (rock wall ~145,
+  tower ~160) and the bottom of the cobbles (222).
+Each plane is a ring of 21 sprites: sprite s shows the plane column c with c mod 21 = s, so scrolling rewrites one column
+(28 words front, 10 back) when a new one enters; X of each plane is one run a frame. Camera: the players' midpoint, 4 px
+a frame at most, clamped to the stage; players can't leave the view. The former procedural street (`make_stage.py`) is
+no longer built (make_banner.py still imports its colour helper).
 
 ## Roster
 `CHARS` in the Makefile: KOF98 Terry, Ryo, Ralf, Chang, Yamazaki, Billy, Kyo, Iori, Mai; KOF96 Geese, Mr. Big, Krauser;
@@ -240,10 +262,16 @@ victim poses are mapped by posture name (see Engine).
 
 ## Sprites per line
 The LSPC draws at most 96 sprites on a line and drops the highest-numbered (front) ones. Guard (`line_guard` in
-main.c): stage 21 + the columns of every on-screen fighter, counted as if all shared the same lines; past 96 the
-lowest-priority fighter is hidden that frame. Priority: players, then enemies front to back, reversed every other frame
+main.c): front plane 21 + the columns of every on-screen fighter, counted as if all shared the same lines; past 96 the
+lowest-priority fighter is hidden that frame. The back plane's band (lines 0 - 63/79, no shadows there) is a second count:
+front 21 + back 21 + sparks 6 + the columns of the fighters' parts that reach into it (from the shown frame's parts:
++4 lines of guard). A fighter more than 128 px off screen is hidden (placed, its 9-bit X wrapped it onto the screen:
+the wave walking in from 512+ px showed at the left edge). Priority: players, then enemies front to back, reversed every other frame
 so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so it rarely fires; with the limit forced to
 50 it hid 2-3 enemies alternately and never a player. Per-band counting was exact but cost 22 lines; this costs 8.
+With the castle (2026-10-04, 8 fighters converged, jumping and throwing specials, VRAM counted every frame): worst line
+82-84 (floor band; the street build 79-85), worst line in y 0-79 64-67 (front 21 + back up to 21 + upper bodies; street
+66-67); the band count never hid anyone (same hides with it switched off).
 
 ## Engine
 - `fighter.c`: one state machine for players and AI (intent in, no input code inside): walk/run/jump/attack/hitstun/
@@ -267,8 +295,9 @@ so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so i
   its own frames. Each fighter's frame for a posture comes from its own game's throws; missing: same posture at the
   nearest angle, else same family (standing / air / head down / floor), else the family's brawler animation. Offsets
   come from the mirror match (KOF keeps one placement list per victim): other victims may sit a few px off.
-- Ground shadows (main.c `shadows`): an ellipse under every entity at FLOOR_TOP + Z, sprites 22-45 (between the
-  stage and the fighter blocks at 60+), each shown every other frame (flicker transparency; half the sprites a frame).
+- Ground shadows (main.c `shadows`): an ellipse under every entity at FLOOR_TOP + Z, sprites 43-54 (between the
+  stage and the fighter blocks at 60+), each shown every other frame (flicker transparency): the half shown on a frame
+  (entities 2j + parity) share 6 sprite pairs.
 - `draw.s`: tiles (SCB1 runs, only when the frame changes) and positions (one SCB3 + one SCB4 run for all 128 fighter
   sprites; each part a sticky chain). Offsets pinned by `_Static_assert` in fighter.c.
 

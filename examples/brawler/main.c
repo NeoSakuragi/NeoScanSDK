@@ -38,7 +38,7 @@ static void mark(uint8_t sec) {
 
 #define NF 8                         /* 2 players + 6 enemies: the POC target */
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
-#define SPR_BASE 60                  /* fighter blocks (stage 1-21 and shadows 22-45 behind them) */
+#define SPR_BASE 60                  /* fighter blocks (stage back 1-21, front 22-42, shadows 43-54 behind them) */
 static fighter_t fighters[NF];
 static fighter_t *order[NE];                     /* back (small Z) to front, the nf entities in play */
 static uint8_t nf;                               /* entities in play: the previews on the select screen, NE in the fight */
@@ -79,41 +79,92 @@ static void arcade_line(void) {                               /* bottom line, ev
     }
 }
 
-/* ---- stage: 21 sprites of 14 tiles; sprite s shows the stage column c with c mod 21 = s, so scrolling rewrites one
- * column's tiles each time a new column comes into view; X of all 21 is one run per frame. Behind the fighters. ---- */
-#define BG_SPR 1
+/* ---- stage (tools/brawler/make_stage_s2.py: Sengoku 2's round 1 castle, a placeholder): two planes of 21 sprites, each
+ * a ring: sprite s shows the plane column c with c mod 21 = s, so scrolling rewrites one column's tiles when a new one
+ * comes into view; X of all 21 is one run per frame. Front plane (sprites 22-42, 14 tiles) at the camera; back plane
+ * (sprites 1-21, behind it) at camera >> 1, a band of at most BACK_ROWS tiles at the top: each back sprite is as tall as
+ * the front columns over it let it show (stage_depth), so it costs no sprite on the lines the front covers (the floor
+ * band, y 80+). Palettes STAGE_PAL .. STAGE_PAL + STAGE_NPAL - 1 (the tile words carry them). Behind the fighters. ---- */
+#define BK_SPR 1
+#define BG_SPR 22
 #define BG_N   21
-#define BG_PAL 1
-static uint8_t bg_shown[BG_N];
+static uint8_t bg_shown[BG_N], bk_shown[BG_N];
+static uint8_t bk_band;                          /* lines 0 .. bk_band - 1 carry back plane sprites this frame */
+static int16_t bk_cam;                           /* the camera the back plane was placed for (-1: place it) */
 static int16_t cam_x;
+_Static_assert((STAGE_W - 320) / 2 + 336 <= BACK_COLS * 16, "the back plane never wraps");
 
+static uint16_t col_scale(uint16_t c, uint8_t k);
+static void stage_pals(uint8_t k) {                          /* the stage's palettes at k / 16 brightness */
+    uint16_t buf[16];
+    uint8_t p, i;
+    for (p = 0; p < STAGE_NPAL; p++) {
+        const uint16_t *src = stage_pal + p * 16;
+        for (i = 0; i < 16; i++) buf[i] = i ? col_scale(src[i], k) : src[0];
+        PAL_setPalette(STAGE_PAL + p, buf);
+    }
+}
+static void stage_hide(void) {                              /* title, select: no stage, no band for the guard */
+    uint8_t i;
+    bk_band = 0;
+    for (i = 0; i < BG_N; i++) { cmd_push(VRAM_SCB3 + BG_SPR + i, 0); cmd_push(VRAM_SCB3 + BK_SPR + i, 0); }
+}
 static void stage_init(void) {
     uint8_t s;
-    PAL_setPalette(BG_PAL, stage_pal);
+    stage_pals(16);
+    bk_cam = -1;
     for (s = 0; s < BG_N; s++) {
         cmd_push(VRAM_SCB2 + BG_SPR + s, 0x0FFF);
         cmd_push(VRAM_SCB3 + BG_SPR + s, (496 << 7) | STAGE_ROWS);        /* top of the screen, 14 tiles */
-        bg_shown[s] = 0xFF;
+        cmd_push(VRAM_SCB2 + BK_SPR + s, 0x0FFF);                         /* height: stage_draw, every frame */
+        bg_shown[s] = bk_shown[s] = 0xFF;
     }
 }
 static void stage_draw(void) {
-    uint8_t first = (uint8_t)(cam_x >> 4), s = first, k, r;
-    uint16_t *x = cmd_run(VRAM_SCB4 + BG_SPR, BG_N);
+    uint8_t first = (uint8_t)(cam_x >> 4), s = first, k, r, band = 0;
+    int16_t bx = cam_x >> 1;
+    uint16_t *x = cmd_run(VRAM_SCB4 + BG_SPR, BG_N), *y, *w;
+    const uint8_t *d;
     while (s >= BG_N) s -= BG_N;
     for (k = 0; k < BG_N; k++) {
         uint8_t c = first + k;
         if (c >= STAGE_COLS) { x[s] = 320 << 7; }                         /* past the end: off screen */
         else {
             if (bg_shown[s] != c) {
-                const uint16_t *t = stage_map + c * STAGE_ROWS;
-                uint16_t *w = cmd_run(VRAM_SCB1 + (BG_SPR + s) * 64, STAGE_ROWS * 2);
-                for (r = 0; r < STAGE_ROWS; r++) { *w++ = t[r]; *w++ = BG_PAL << 8; }
+                const uint16_t *t = stage_map + c * (STAGE_ROWS * 2);
+                w = cmd_run(VRAM_SCB1 + (BG_SPR + s) * 64, STAGE_ROWS * 2);
+                for (r = 0; r < STAGE_ROWS * 2; r++) *w++ = *t++;
                 bg_shown[s] = c;
             }
             x[s] = (uint16_t)(((c << 4) - cam_x) & 0x1FF) << 7;
         }
         if (++s == BG_N) s = 0;
     }
+    /* back plane, rewritten only when the camera moved. The world never scrolls it past its BACK_COLS (camera >> 1 +
+     * 336 < 960), so no wrap. Back column c is at screen x 16c - bx; the front columns over it are f = c + o and f + 1
+     * with o = (cam_x - bx) >> 4 (stage_depth has 2 zeros past the end for the last ones) */
+    if (cam_x == bk_cam) return;
+    bk_cam = cam_x;
+    first = (uint8_t)(bx >> 4); s = first;
+    d = stage_depth + first + ((cam_x - bx) >> 4);
+    x = cmd_run(VRAM_SCB4 + BK_SPR, BG_N); y = cmd_run(VRAM_SCB3 + BK_SPR, BG_N);
+    while (s >= BG_N) s -= BG_N;
+    for (k = 0; k < BG_N; k++, d++) {
+        uint8_t c = first + k, h = d[0] > d[1] ? d[0] : d[1];
+        int16_t sx = (c << 4) - bx;
+        if (sx >= 320) h = 0;                                     /* the 21st when aligned: off screen, no line cost */
+        if (h && bk_shown[s] != c) {
+            const uint16_t *t = back_map + c * (BACK_ROWS * 2);
+            w = cmd_run(VRAM_SCB1 + (BK_SPR + s) * 64, BACK_ROWS * 2);
+            for (r = 0; r < BACK_ROWS * 2; r++) *w++ = *t++;
+            bk_shown[s] = c;
+        }
+        if (h > band) band = h;
+        x[s] = (uint16_t)sx << 7;
+        y[s] = (496 << 7) | h;                                   /* height 0: not drawn */
+        if (++s == BG_N) s = 0;
+    }
+    bk_band = band << 4;
 }
 /* camera: toward the players' midpoint, 4 px a frame at most, inside the stage; players stay in view */
 static uint8_t in_play(const fighter_t *f) { return f->state != S_OFF; }
@@ -150,16 +201,27 @@ static void depth_sort(void) {
 
 /* ---- per-line sprite guard: the LSPC shows at most 96 sprites on a line and drops the highest-numbered ones, i.e. the
  * fighters in front. All fighters are counted as sharing the same lines (standing bodies all cover y 100-150; counting
- * per band cost 2k cycles a fighter): the stage's 21 + every shown fighter's columns stay <= 96, and a fighter that
- * would go past is hidden this frame. Priority: players, then enemies front to back, reversed every other frame so the
- * dropped ones flicker in turn. Conservative only when fighters are vertically apart (high jump vs lying down). ---- */
+ * per band cost 2k cycles a fighter): the front plane's 21 + every shown fighter's columns stay <= 96, and a fighter that
+ * would go past is hidden this frame. The back plane's band (lines 0 .. bk_band - 1, no shadows there) is a second
+ * count: front 21 + back 21 + the columns of the fighters' parts (sticky chains) that reach into it.
+ * Priority: players, then enemies front to back, reversed every other frame so the dropped ones flicker in turn.
+ * Conservative only when fighters are vertically apart (high jump vs lying down). ---- */
 #define LINE_MAX 96
 #define SH_RESERVE 12                    /* sprites per line kept for the ground shadows (half of 12 entities x 2) */
 #define SPARK_RESERVE 6                  /* and for hit sparks (two 3-column sparks on one line) */
 static uint8_t hidden[NE], guard_hidden;
+static uint8_t band_cols(const fighter_t *f) {              /* columns of the shown frame's parts above bk_band */
+    const bframe_t *b = &f->ch->frames[f->shown_frame];      /* fighter_tiles set it this frame */
+    const bpart_t *p = b->parts;
+    int16_t lim = bk_band - (FLOOR_TOP + INT(f->z) - INT(f->y));   /* a part's top (from the feet) above this: in */
+    uint8_t k = b->nparts, n = 0;
+    for (; k; k--, p++)
+        if ((p->vflip ? -p->dy - (p->rows << 4) : p->dy) < lim) n += p->cols;
+    return n;
+}
 static void line_guard(void) {
     static uint8_t parity;
-    uint8_t prio[NE], n = 0, i, k, used = BG_N + SH_RESERVE + SPARK_RESERVE;
+    uint8_t prio[NE], n = 0, i, k, used = BG_N + SH_RESERVE + SPARK_RESERVE, band = BG_N * 2 + SPARK_RESERVE;
     for (i = 0; i < nf; i++) if (!order[i]->team) prio[n++] = i;
     parity ^= 1;
     for (i = 0; i < nf; i++) {
@@ -170,12 +232,15 @@ static void line_guard(void) {
     for (k = 0; k < nf; k++) {
         fighter_t *f = order[prio[k]];
         int16_t sx = INT(f->x) - cam_x;
-        uint8_t cols;
+        uint8_t cols, up;
         if (f->state == S_OFF || (f->state == S_PROJ && f->frame_ovr == 0xFFFF) ||
             (f->state == S_DEAD && (f->state_t & 4))) { hidden[prio[k]] = 1; continue; }   /* the dead blink */
-        cols = sx < -128 || sx > 448 ? 0 : f->ncols;     /* well off screen: no sprites on any visible line */
-        if (used + cols > LINE_MAX) { hidden[prio[k]] = 1; guard_hidden++; }
-        else { hidden[prio[k]] = 0; used += cols; }
+        if (sx < -128 || sx > 448) { hidden[prio[k]] = 1; continue; }   /* well off screen: placed, its 9-bit X would
+                                                             wrap it onto the screen (a wave walking in from 512 px) */
+        cols = f->ncols;
+        up = bk_band ? band_cols(f) : 0;                 /* its columns on the back plane's band */
+        if (used + cols > LINE_MAX || band + up > LINE_MAX) { hidden[prio[k]] = 1; guard_hidden++; }
+        else { hidden[prio[k]] = 0; used += cols; band += up; }
     }
 }
 
@@ -183,16 +248,17 @@ static void line_guard(void) {
  * uses and those the block showed last frame (to clear them); a hidden block is cleared once. */
 static uint8_t block_placed[NE];                 /* columns each sprite block showed last frame */
 /* ---- ground shadows: a dark ellipse (2 sprites, tiles SHADOW_TILE) at each entity's ground point (FLOOR_TOP + Z, also
- * under jumps and projectiles), behind every fighter (sprites 22-45 < the blocks at 60+). Entities alternate frames by
- * draw order index: each shadow shows every other frame (flicker transparency) and at most half of them (12 sprites)
- * cost sprites on a frame. ---- */
-#define SH_SPR 22
+ * under jumps and projectiles), behind every fighter (sprites 43-54 < the blocks at 60+). Entities alternate frames by
+ * draw order index: each shadow shows every other frame (flicker transparency), so the half shown on a frame (entities
+ * 2j + parity) share 6 sprite pairs: pair j. ---- */
+#define SH_SPR 43
+_Static_assert((NE & 1) == 0, "shadow pairs: entities 2j and 2j + 1");
 #define SH_PAL 251
 static const uint16_t SHADOW_PAL[16] = { 0x8000, RGB(2, 2, 5) };
 static void shadow_init(void) {
     uint8_t i;
     PAL_setPalette(SH_PAL, SHADOW_PAL);
-    for (i = 0; i < NE * 2; i++) {
+    for (i = 0; i < NE; i++) {
         uint16_t *w = cmd_run(VRAM_SCB1 + (SH_SPR + i) * 64, 2);
         w[0] = SHADOW_TILE + (i & 1); w[1] = SH_PAL << 8;
         cmd_push(VRAM_SCB2 + SH_SPR + i, 0x0FFF);
@@ -200,13 +266,13 @@ static void shadow_init(void) {
 }
 static void shadows(void) {
     static uint8_t parity;
-    uint16_t *y = cmd_run(VRAM_SCB3 + SH_SPR, NE * 2), *x = cmd_run(VRAM_SCB4 + SH_SPR, NE * 2);
+    uint16_t *y = cmd_run(VRAM_SCB3 + SH_SPR, NE), *x = cmd_run(VRAM_SCB4 + SH_SPR, NE);
     uint8_t i;
     parity ^= 1;
-    for (i = 0; i < NE; i++, y += 2, x += 2) {
+    for (i = parity; i < NE; i += 2, y += 2, x += 2) {
         fighter_t *f = order[i];
         int16_t sx, gy;
-        if (mode != 1 || i >= nf || hidden[i] || (i & 1) != parity || f->state == S_OFF ||
+        if (mode != 1 || i >= nf || hidden[i] || f->state == S_OFF ||
             (f->state == S_PROJ && f->frame_ovr == 0xFFFF)) { y[0] = y[1] = x[0] = x[1] = 0; continue; }
         sx = INT(f->x) - cam_x - 16; gy = FLOOR_TOP + INT(f->z) - 8;
         y[0] = (uint16_t)((((496 - gy) & 0x1FF) << 7) | 1); y[1] = 0x40;      /* 1 tile high, second column sticky */
@@ -507,7 +573,7 @@ static void title_start(void) {
     mode = 2; nf = 0; title_t = 0; cam_x = 0;
     FIX_clear(); arcade_line_reset();
     PAL_setBackdrop(COLOR_BLACK);
-    for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);
+    stage_hide();
     for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     banner_show((320 - BANNER_COLS * 16) / 2, 56);
@@ -623,7 +689,7 @@ static void select_start(void) {
     snd_music(MUS_SELECT);
     FIX_clear(); arcade_line_reset();
     PAL_setBackdrop(RGB8(72, 76, 84));                       /* the line-up wall */
-    for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);                 /* stage sprites hidden */
+    stage_hide();                                            /* stage sprites hidden */
     dbg_init();
     FIX_print(10, 3, "SELECT YOUR FIGHTER", 0);
     FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);   /* keyboard: WASD, U I O P */
@@ -658,6 +724,7 @@ static void spawn_wave(void) {
     FIX_print(2, 26, "WAVE   ", 0); FIX_printNum(7, 26, wave + 1, 0);
 }
 static void fight_fade(void);
+static uint8_t fade_k;                           /* the fade level last written (0xFF: none yet) */
 static void fight_start(void) {
     uint8_t i, c;
     mode = 1; nf = NE; cam_x = 0; wave = 0; banner_t = 0; navail = 0;
@@ -678,7 +745,7 @@ static void fight_start(void) {
     }
     for (c = 0; c < BC_COUNT; c++) if (c != cursor[0] && c != cursor[1]) avail[navail++] = c;
     spawn_wave();
-    if (fade_in) { fade_in++; fight_fade(); }                /* from the select screen: starts black */
+    if (fade_in) { fade_in++; fade_k = 0xFF; fight_fade(); } /* from the select screen: starts black */
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
     for (i = 0; i < NPJ; i++) { projectile_reset(&projectiles[i]); projectiles[i].idx = NF + i; order[NF + i] = &projectiles[i]; }
     hud_reset();
@@ -787,12 +854,14 @@ static void select_tick(void) {
     for (a = 0; a < NF; a++) if (chr_of[a] != 0xFF) fighter_animate(&fighters[a]);
     select_arrows();
 }
-/* the fight fading in from black after the select screen: the stage, the backdrop, every fighter (k / 16) */
+/* the fight fading in from black after the select screen: the stage, the backdrop, every fighter (k / 16); k steps every
+ * other tick, and only a new k is written (the colour scaling of 6 stage + up to 40 fighter palettes took ~5 frames a
+ * tick: the fade-in lasted ~160 frames for its 32 ticks) */
 static void fight_fade(void) {
-    uint16_t buf[16];
     uint8_t i, k = 16 - (uint8_t)(--fade_in >> 1);
-    for (i = 0; i < 16; i++) buf[i] = i ? col_scale(stage_pal[i], k) : stage_pal[0];
-    PAL_setPalette(BG_PAL, buf);
+    if (k == fade_k) return;
+    fade_k = k;
+    stage_pals(k);
     PAL_setBackdrop(col_scale(RGB8(40, 60, 90), k));
     for (i = 0; i < NF; i++) if (fighters[i].ch) fighter_pals(&fighters[i], 1, k);
 }
