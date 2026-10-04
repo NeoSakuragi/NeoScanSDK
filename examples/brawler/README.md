@@ -221,33 +221,47 @@ Grabbed player: 4 button presses break free (counted through hit-stop too), then
 Measured with idle players (30 s): 3 grabs, 19 specials, 1 throw. Profiler HUD (PROFILE_HUD): EG / ES / ET = enemy grabs,
 specials, throws; PE = player escapes.
 
-## Stage (`tools/brawler/make_stage_ra.py`, needs /data/roms/roboarmy.neo)
-**Prototype placeholder** (2026-10-04): Robo Army's area 0, the horizontal street, extracted from its ROM (engine
-decoded in /data/neogeo_dict/roboarmy/README.md); the final game gets its own hand-drawn art. The former Sengoku 2
-castle (`make_stage_s2.py`, two planes with parallax) stays in the repo, not built.
-- One plane, as Robo Army shows it (no parallax there): ids $00-$09 = 160 columns, 2560 px = `WORLD_W`, scrolls with the
-  camera. Sprites 22-42 (1-21 are free since the back plane went). Tile rows 2-13 (screen y 32-223, `STAGE_Y`,
-  `STAGE_ROWS` 12): rows 0-1 are blank along the whole street (Robo Army shows its black backdrop there, behind its HUD),
-  rows 14-15 are below the screen. Backdrop `STAGE_BACKDROP` = $0000 (Robo Army's palette RAM $401FFE in area 0).
-- Tiles: 1006 Robo Army C ROM tiles, 981 stored after folding flipped copies into the map words, + 21 auto-animated
-  groups (6 of 8 tiles, 15 of 4) copied whole to aligned places (the LSPC replaces the low 2 / 3 bits by its counter),
-  their words keep the attribute bits 2-3: 1089 tiles at 1-1089. Robo Army's tile $3FF is its blank (our tile 0); its
-  tile 0 is real art (one street cell). Auto-animation speed = Robo Army's (REG_LSPCMODE $0800, its table $7616 for
-  every scene), written by `stage_init` (`STAGE_LSPCMODE`): a new frame every 9 frames, as in Robo Army.
-- C ROM low area (below the fighters at `TILE_BASE` 2048, export_bm.py): stage 1-1535, banner 1536, shadow 1664-1665,
-  box corners 1666-1669, sparks 1724-1820. C ROM size unchanged (2 x 8 MB).
-- Palettes: the 25 Robo Army palettes the street uses (128-147, 158, 179, 180, 185, 186; its global set at $313F4) at
-  80-104 (0 text, 2-15 fix portraits, 16-79 fighters, 250-254 banner, shadow, boxes, sparks). The fade-in scales all 25:
-  it lasts ~137 frames (was ~103 with the castle's 6).
-- Floor: FLOOR_TOP 158: the street is solid dirt from y 160 to the bottom of the screen (grass tufts over its edge from
-  y ~145), so the feet walk y 158-222 (Z_DEPTH 64: the street is 64 px deep on screen, as the band).
+## Stages (`tools/brawler/make_stage_ra.py`, needs /data/roms/roboarmy.neo)
+**Prototype placeholders** (2026-10-04): Robo Army's horizontal parts, extracted from its ROM (engine decoded in
+/data/neogeo_dict/roboarmy/README.md); the final game gets its own hand-drawn art. `make STAGE=n` picks the stage the
+fight (and the attract demo) starts on, default 0. The vertical parts (area 2's descent, area 5): docs/brawler_stage_vertical.md.
+The former Sengoku 2 castle (`make_stage_s2.py`, two planes with parallax) stays in the repo, not built.
+
+| n | Robo Army | map ids | width | stage tiles | palettes | floor_top |
+|---|---|---|---|---|---|---|
+| 0 | area 0, the jungle street | $00-$09 | 2560 | 1002 | 25 | 158 |
+| 1 | area 1, the highway | $0A-$13 | 2560 | 698 | 21 | 158 |
+| 2 | area 2, the boss arena after the descent | $1F-$20 | 512 | 223 | 7 | 158 |
+| 3 | area 3, the city / police garage | $21-$2A | 2560 | 985 | 28 | 158 |
+| 4 | area 4, the lab (water on the right) | $2B-$34 | 2560 | 689 | 22 | 158 |
+| 5 | area 6, the street (its first 100 columns; the rest is the final boss / ending) | $3B-$41 | 1600 | 356 | 9 | 158 |
+
+- One plane each, as Robo Army shows it (no parallax there), scrolling with the camera; sprites 22-42 (1-21 free). Tile
+  rows 2-13 (screen y 32-223) in every stage: rows 0-1 are blank (Robo Army's black backdrop behind its HUD), rows 14-15
+  below the screen. Backdrop $0000 (Robo Army's palette RAM $401FFE, all 14 scenes).
+- `stage.h`: `stages[]` (`stage_t`: map, palettes, columns, rows, y, floor_top, backdrop, REG_LSPCMODE); main.c
+  `stage_init(n)` loads the palettes (STAGE_PAL 80 + k, one stage at a time; at most 28), the LSPC speed ($0800 =
+  Robo Army's in every scene: a new auto-animation frame every 9 frames) and sets `floor_top` and `world_w`.
+- Tiles: one pool for every stage, each Robo Army tile stored once (flipped copies folded into the map words, 4- and
+  8-tile auto-animation groups copied whole to aligned places): 4311 tiles, 1525 in the low area 1-1535, 2786 after the
+  fighters (99102-101898; the map words carry tile bits 16-19). Robo Army's tile $3FF is its blank (our tile 0); its
+  tile 0 is real art. C ROM: 12.68 MB of fighters + 0.36 MB of stages in the 2 x 8 MB image (size unchanged).
+- C ROM low area (below the fighters at `TILE_BASE` 2048, export_bm.py): stage pool 1-1535, banner 1536, shadow
+  1664-1665, box corners 1666-1669, sparks 1724-1820.
+- Floor: `floor_top` (fighter.h; draw.s and the C code read it) = the stage's, `SELECT_FLOOR` 158 on the select screen;
+  Z_DEPTH 64. Measured on the art: the walkable band 158-222 is floor in every stage (area 0: dirt from y 160, grass
+  tufts over its edge; area 1: road from 160 under a curb 156-159; areas 3, 4 left, 6: floor from 157-158). Robo Army's
+  own band is feet y ~170-222 everywhere (object +4 172-224, measured). Stage 2 and stage 4's right half: the floor is
+  water (Robo Army's walkers stand in it too).
+- The fade-in scales the stage's palettes: ~137 frames with stage 0's 25.
 The plane is a ring of 21 sprites: sprite s shows the plane column c with c mod 21 = s, so scrolling rewrites one column
 (24 words) when a new one enters; X is one run a frame. Camera: the players' midpoint, 4 px a frame at most, clamped to
 the stage; players can't leave the view. The former procedural street (`make_stage.py`) is no longer built
 (make_banner.py still imports its colour helper).
-Proof (2026-10-04, our emulator): screenshots at camera 0 / 545 / 1120 / 2240 vs a render of Robo Army's own map words
-from its ROM: 0 wrong pixels (56256 compared each, fix layer masked; 80 consecutive frames over the animated columns);
-the animation counter steps every 9 frames through 0-7 in both the brawler and Robo Army (captured in our emulator).
+Proof (2026-10-04, our emulator, each stage built with `make STAGE=n`): screenshots at camera start / middle / end vs a
+render of Robo Army's own map words and palettes from its ROM: 0 wrong pixels in all 18 (45696 compared each, fix layer
+masked; the render's auto-animation counter matched, the others differ by 20-1508 px); P1's lowest pixel at y 157 / 221
+at z 0 / 64 in every stage (floor_top + z - 1).
 
 ## Roster
 `CHARS` in the Makefile: KOF98 Terry, Ryo, Ralf, Chang, Yamazaki, Billy, Kyo, Iori, Mai; KOF96 Geese, Mr. Big, Krauser;
@@ -275,7 +289,7 @@ frame, same inputs as the castle build: 897 of 900 frames identical): worst line
 ## Engine
 - `fighter.c`: one state machine for players and AI (intent in, no input code inside): walk/run/jump/attack/hitstun/
   knockdown/down/getup, hit-stop (10 frames, every hit), hits = attack box vs hurt box in X/Y and |dZ| <= 12.
-- Coordinates 16.16: X, Z (0 = back of the 64 px floor band), Y up. Feet on screen at FLOOR_TOP + Z - Y. Depth order
+- Coordinates 16.16: X, Z (0 = back of the 64 px floor band), Y up. Feet on screen at floor_top + Z - Y (the stage's). Depth order
   = sprite block order (higher block on top); a fighter that changes block gets its tiles rewritten.
 - Boxes are KOF's, keyed by type as rom96 stores them: '3x' hurt, '1x' attack (until 2026-10-03 the exporter took the
   low two bits as a slot and lost every C / D attack box). The attack box stays live on every step with KOF's active flag
@@ -294,7 +308,7 @@ frame, same inputs as the castle build: 897 of 900 frames identical): worst line
   its own frames. Each fighter's frame for a posture comes from its own game's throws; missing: same posture at the
   nearest angle, else same family (standing / air / head down / floor), else the family's brawler animation. Offsets
   come from the mirror match (KOF keeps one placement list per victim): other victims may sit a few px off.
-- Ground shadows (main.c `shadows`): an ellipse under every entity at FLOOR_TOP + Z, sprites 43-54 (between the
+- Ground shadows (main.c `shadows`): an ellipse under every entity at floor_top + Z, sprites 43-54 (between the
   stage and the fighter blocks at 60+), each shown every other frame (flicker transparency): the half shown on a frame
   (entities 2j + parity) share 6 sprite pairs.
 - `draw.s`: tiles (SCB1 runs, only when the frame changes) and positions (one SCB3 + one SCB4 run for all 128 fighter

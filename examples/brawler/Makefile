@@ -6,9 +6,10 @@ ROM_NAME = brawler
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
-CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(SDK)/src -I$(BUILD) -Wall -DPROFILE_HUD=$(PROFILE) -DAI_OFF=$(AI_OFF)
+CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(SDK)/src -I$(BUILD) -Wall -DPROFILE_HUD=$(PROFILE) -DAI_OFF=$(AI_OFF) -DSTAGE=$(STAGE)
 PROFILE ?= 0
 AI_OFF ?= 0
+STAGE ?= 0                # the stage the fight starts on (stage.h stages[], tools/brawler/make_stage_ra.py STAGES)
 VERSION := $(shell cat VERSION)
 CFLAGS += -DGAME_VERSION='"$(VERSION)"'
 
@@ -34,6 +35,9 @@ $(BUILD)/port/kof98_m1.bin $(BUILD)/port/kof98_v1.bin &: $(TOOLS)/port/ff3_to_ko
 	python3 $(TOOLS)/port/ff3_to_kof98.py 0x2F $(CURDIR)/$(BUILD)/port
 
 # --- Compile ---
+$(BUILD)/stage_opt: FORCE                  # the STAGE option of the last build: main.o is rebuilt when it changes
+	@mkdir -p $(BUILD); echo $(STAGE) | cmp -s - $@ || echo $(STAGE) > $@
+$(BUILD)/main.o: $(BUILD)/stage_opt
 $(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h fighter.h ai.h sound.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/bm_chars.o: $(BUILD)/bm_chars.c
@@ -54,7 +58,7 @@ $(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/bm_c1.bin $(BUILD)/font.s1 $(BUILD)/p
 clean:
 	rm -rf $(BUILD) $(ROM_NAME).zip $(ROM_NAME).neo roms/ hash/
 
-.PHONY: all clean publish publish-vps bump
+.PHONY: all clean publish publish-vps bump FORCE
 
 # --- publish for the Android player's auto-fetch: brawler.neo + latest.json (build number, size, sha256) into DEST ---
 publish: $(ROM_NAME).zip

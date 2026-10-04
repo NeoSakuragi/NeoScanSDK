@@ -15,7 +15,7 @@ from export_bm import TILE_BASE
 from make_stage import neo_colour
 
 FONT = '/usr/share/fonts/truetype/noto/NotoSans-CondensedBlack.ttf'
-BANNER_BASE = 1536                         # stage tiles are 1..1535 (make_stage_ra.py: ~1090); fighters start at TILE_BASE
+BANNER_BASE = 1536                         # stage tiles are 1..1535 (make_stage_ra.py: its pool fills them, the rest goes after the fighters); fighters start at TILE_BASE
 SHADOW_BASE = 1664                         # ground shadow: 2 tiles, a 30x9 ellipse in colour 1
 CORNER_BASE = 1666                         # debug box corners: 4 tiles (top left, top right, bottom left, bottom right)
 SHEAR = 0.32                               # extra slant (x shift per row)

@@ -10,7 +10,6 @@
 |   looking the frame up again.
 
     .equ    MAX_COLS, 20
-    .equ    FLOOR_TOP, 158             | = fighter.h
     .equ    CMD_BUF_SIZE, 4096
     .equ    STICKY, 0x40
     | fighter_t
@@ -220,9 +219,9 @@ fighter_place:
     move.w  50(%sp), %d4            | cam_x (int argument: low word)
     neg.w   %d4
     add.w   F_X(%a2), %d4           | ox = INT(x) - cam_x (INT = high word)
-    move.w  #FLOOR_TOP, %d5
+    move.w  floor_top, %d5          | fighter.h: the stage's (main.c)
     add.w   F_Z(%a2), %d5
-    sub.w   F_Y(%a2), %d5           | oy = FLOOR_TOP + INT(z) - INT(y)
+    sub.w   F_Y(%a2), %d5           | oy = floor_top + INT(z) - INT(y)
     CURRENT_FRAME
     FRAME_PARTS
     movea.l 40(%sp), %a0

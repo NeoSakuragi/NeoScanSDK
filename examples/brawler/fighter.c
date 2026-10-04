@@ -33,7 +33,7 @@ _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offse
  * visible on a tablet, 7 screen pixels per game pixel); at least 1 px */
 static int32_t whole(int32_t v) { int32_t w = (v + 0x8000) & ~0xFFFFL; return w ? w : 0x10000; }
 #define X_MIN 16
-#define X_MAX (WORLD_W - 16)
+#define X_MAX (world_w - 16)
 
 static const char *NAMES[S_COUNT] = { "IDLE    ", "WALK    ", "RUN     ", "PREJUMP ", "AIR     ", "LAND    ", "ATTACK  ",
     "AIR ATK ", "HITSTUN ", "KNOCKDN ", "DOWN    ", "GETUP   ", "GRAB    ", "GRABBED ", "THROW   ", "THROWN  ", "SPECIAL ", "DEAD    ", "PROJ    ", "OFF     " };
@@ -294,25 +294,32 @@ static void hold_update(fighter_t *f, const intent_t *in) {
 }
 #define THROW_FREEZE 21           /* KOF98 Ryo's forward+C: step 10 held 21 frames past its ticks (the only throw freeze
                                      among the roster's: every other throw step lasts its ROM ticks + 1, KOF96/98/99) */
+/* throws play at 1.5x KOF's speed (Bruno 2026-10-04): 3 script rows every 2 frames, frame n (state_t) showing row
+ * (n - 1) * 3 / 2; an impact row passed over still lands (damage, spark, sound, freeze) on the frame that passes it */
 static void throw_update(fighter_t *f) {
     const bthrow_t *th = &f->ch->throws[f->throw_id];
     fighter_t *v = f->held;
     const bthrow_row_t *r;
-    if (f->state_t > th->nrows) {                                /* script over: the victim lies where it landed */
+    uint16_t i = ((f->state_t - 1) * 3) >> 1, j = f->state_t > 1 ? (((f->state_t - 2) * 3) >> 1) + 1 : 0;
+    if (i >= th->nrows) {                                        /* script over: the victim lies where it landed */
         release(f); clamp(f);
         v->hp -= THROW_DAMAGE - f->throw_dealt; v->y = 0; clamp(v); enter(v, S_DOWN); play(v, BA_DOWN);
         return;
     }
-    r = &th->rows[f->state_t - 1];
-    if (r->flags & 4) {                                          /* impact: the blow lands / the victim hits the floor */
-        uint8_t d = 0, rest = THROW_DAMAGE;                     /* THROW_DAMAGE / impacts (no divide here) */
-        while (rest >= f->grab_hits) { rest -= f->grab_hits; d++; }
-        v->hp -= d; f->throw_dealt += d;
-        if (r->flags & 16) f->freeze = v->freeze = THROW_FREEZE;   /* only where KOF froze (Ryo's forward+C) */
-        f->impact = 1;                                           /* combat() hits the victim's teammates around it */
-        snd_sfx(SFX_HIT_CD);
-        spark_hit(INT(f->throw_x0) + dir_mul(f->throw_face, r->vx + r->tx), FLOOR_TOP + INT(f->z) - r->vy - 40, 1, f->throw_face);
+    for (; j <= i; j++) {
+        r = &th->rows[j];
+        if (r->vpose != 0xFF) show_pose(v, r->vpose);           /* a pose set on a passed row still applies */
+        if (r->flags & 4) {                                      /* impact: the blow lands / the victim hits the floor */
+            uint8_t d = 0, rest = THROW_DAMAGE;                 /* THROW_DAMAGE / impacts (no divide here) */
+            while (rest >= f->grab_hits) { rest -= f->grab_hits; d++; }
+            v->hp -= d; f->throw_dealt += d;
+            if (r->flags & 16) f->freeze = v->freeze = THROW_FREEZE;   /* only where KOF froze (Ryo's forward+C) */
+            f->impact = 1;                                       /* combat() hits the victim's teammates around it */
+            snd_sfx(SFX_HIT_CD);
+            spark_hit(INT(f->throw_x0) + dir_mul(f->throw_face, r->vx + r->tx), floor_top + INT(f->z) - r->vy - 40, 1, f->throw_face);
+        }
     }
+    r = &th->rows[i];
     f->frame_ovr = r->tframe;
     f->x = f->throw_x0 + dir_mul(f->throw_face, FIX(r->tx)); f->y = FIX(r->ty);
     f->facing = (r->flags & 8) ? -f->throw_face : f->throw_face;   /* turned around in the game (Terry's reverse throw) */
@@ -711,7 +718,7 @@ void combat(fighter_t **fs, uint8_t n) {
             if (dx > atk->w + hb->w || dy > atk->h + hb->h) continue;
             {                                                /* spark: the centre of the boxes' overlap, where they */
                 int16_t ax = box_x(a, atk->x), vx = box_x(v, hb->x);    /* touch (the centres' midpoint drifted toward */
-                int16_t ay = FLOOR_TOP + INT(a->z) - INT(a->y) + atk->y, vy = FLOOR_TOP + INT(v->z) - INT(v->y) + hb->y;   /* a long box's middle) */
+                int16_t ay = floor_top + INT(a->z) - INT(a->y) + atk->y, vy = floor_top + INT(v->z) - INT(v->y) + hb->y;   /* a long box's middle) */
                 int16_t sx = ((ax - atk->w > vx - hb->w ? ax - atk->w : vx - hb->w) + (ax + atk->w < vx + hb->w ? ax + atk->w : vx + hb->w)) >> 1;
                 int16_t sy = ((ay - atk->h > vy - hb->h ? ay - atk->h : vy - hb->h) + (ay + atk->h < vy + hb->h ? ay + atk->h : vy + hb->h)) >> 1;
                 uint8_t sfx = SFX_HIT_CD;

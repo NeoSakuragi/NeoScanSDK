@@ -2,7 +2,7 @@
  * supplies data (bm_chars.c, exported from the KOF dictionaries by tools/brawler/export_bm.py).
  *
  * Coordinates (16.16 fixed point): X left/right on the floor, Z depth (0 = back edge of the walkable band, grows
- * toward the camera), Y height above the floor. Screen: x = X - camera, feet y = FLOOR_TOP + Z - Y.
+ * toward the camera), Y height above the floor. Screen: x = X - camera, feet y = floor_top + Z - Y.
  * Hits: attack box vs hurt box overlap in X/Y, and |Z difference| <= Z_HIT. Draw order: by Z. */
 #ifndef FIGHTER_H
 #define FIGHTER_H
@@ -11,12 +11,13 @@
 
 #define FIX(v)   ((int32_t)(v) << 16)
 #define INT(v)   ((int16_t)((v) >> 16))
-#define FLOOR_TOP 158             /* screen y of the feet at Z = 0 (feet 158-222: Robo Army's street, solid from y 160 to the bottom) */
+extern int16_t floor_top;         /* screen y of the feet at Z = 0: the stage's (stage_t.floor_top, measured on its art; main.c
+                                     stage_init), SELECT_FLOOR on the select screen; draw.s reads it too */
 #define Z_DEPTH   64              /* walkable band depth in px */
 #define Z_HIT     12              /* max depth difference for a hit / a grab */
 #define MAX_COLS  20              /* hardware sprites reserved per fighter (Billy's widest frame: 19) */
 #define MAX_PALS  8               /* palettes reserved per fighter (Terry with his effects: 5) */
-#define WORLD_W   2560            /* stage width in px (make_stage_ra.py); fighters stay 16 px inside it */
+extern int16_t world_w;           /* the stage's width in px (stage_t.cols * 16); fighters stay 16 px inside it */
 
 enum {                            /* states: the state machine alone decides what happens next */
     S_IDLE, S_WALK, S_RUN, S_PREJUMP, S_AIR, S_LAND,
