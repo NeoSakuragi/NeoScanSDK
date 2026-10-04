@@ -131,14 +131,17 @@ hits as in KOF98; also K' crouch D 2 -> 1, KOF99 measured 1; Mr. Big crouch C an
 
 ## Specials
 D (or A+B) = a projectile, forward+D = a move travelling forward, down+D (toward the camera) = a rising reversal,
-invincible from its first frame through its last hit or apex. `pick_specials` in export_bm.py sorts each fighter's
-captured ground specials by what the body does (objects while it stays put / forward >= 60 px staying low / rising),
-light buttons first; a fighter without a move for a role plays the nearest one it has. Terry: Power Wave / Burn Knuckle /
-Rising Tackle; Ryo:
-Ko-ou-ken / 624B / Ko-hou. A special pressed during a normal (even in its hit-stop) cancels it once it has hit. They play from the per-frame scripts captured in the games (tools/kof96/specials96.py): fighter
-frame + offset, up to two objects per row. Objects are `fighter_t` entities from a pool of 4 (`projectiles[]`), so the
-renderer, depth sort, line guard and hit test are the same code; an object's attack box is its sprite bounds (none for
-effects that hit nothing in the game: Burn Knuckle's flames). Hit out of a special: its objects go.
+invincible from its first frame through its last hit or apex. `pick_specials` in export_bm.py picks from each fighter's
+captured ground specials; a KOF98 fighter and its EX version are one fighter (Bruno 2026-10-04: same normals, the EX
+adds specials), so the pool is both versions' ('EX ...' inputs). D = the fighter's real projectile (below: a travelling
+one first, big button first), forward+D = forward >= 60 px staying low, down+D = rising, light buttons last; a fighter
+without a move for a role plays the nearest one it has. Picks: Terry EX 236C (EX Power Wave) / 214C / 623C / 214D; Ryo
+EX 236C / 214C / EX 623C / 236D; Robert EX 236C / EX 624D / 623D / 623C; Kyo fwd+D EX 624D (the EX picks); Iori, Mai
+236C; Geese, Mr. Big 236C (eruptions); Krauser 214C (Blitz Ball, high); K' 236C (eruption); Ralf, Yamazaki, Billy, Kyo,
+Yashiro have no projectile. A move that can hit nothing (no attack box, no projectile) is never picked (K''s 236D, whose
+object hits nothing in KOF99 either, until 2026-10-04 hit with its sprite bounds; Orochi Yashiro's EX 214C). A special pressed during a normal (even in its hit-stop) cancels
+it once it has hit. They play from the per-frame scripts captured in the games (tools/kof96/specials96.py): fighter
+frame + offset, up to two script objects per row (effects: `fighter_t` pool entities without a box).
 
 How a script hits (export96 `special_entry`, export_bm `special_play` / `special_rows`; `tools/brawler/check_specials.py`
 prints all of it per special):
@@ -160,6 +163,39 @@ prints all of it per special):
   contact (KOF tests contact by code: the continuation's first box stands in for it), blow, explosion.
 - Counter stances are not picked (their close capture stays put with a live box and lands nothing: Geese's
   Atemi-nage, Yamazaki's 426, Billy's 214).
+
+## Projectiles (2026-10-04)
+How KOF96/98/99 do it: tools/kof98/README.md "Projectiles". A projectile is an entity of its own (`bspec_t.proj` ->
+`bproj_t`, exported per projectile special from tools/kof96/projectiles96.py, i.e. our emulator's captures of the move
+with the object pool followed by identity): spawned on the thrower's script row where the game spawns it (its event
+step), at the game's offset; then it plays its own rows (frame, x from the spawn point in 1/8 px, height, KOF's live
+attack box +$90 and its own box), looping a travelling one's flight (`loop`, `wrap_x`). It hits with its own box, once:
+a travelling one (KOF object kind 1) then plays its end in place, an eruption (kind 3) plays on with its attack spent;
+damage `SPECIAL_DAMAGE`, the victim's reaction and hit sound measured in the game. It dies when its rows end (an
+eruption), off screen (x - camera <= -64 or >= 384, the games' own test) or after its end. It flies on whatever its
+thrower does (hit out of the special, recovering, walking: KOF's flying routine never reads its owner); the thrower can't
+throw another while it flies (`fighter_t.shot`, KOF's owner +$E1 bit 5: D then plays the next role). Neither it nor
+its thrower freezes on its hit (the victim does, `HITSTOP`). Two projectiles of the two teams that meet (one's attack
+box on the other's own box) both spend their hit (measured in KOF98). Pool `projectiles[NPJ]` (4, shared with the script
+effects, both teams): a special thrown with the pool full shows no projectile. `projectiles_update` (main.c, after the
+camera) moves them; fighter_t's projectile fields are at its end (draw.s pins the others).
+
+Proof (`tools/brawler/check_projectiles.py`, `make AI_OFF=1`, each fighter picked on the select screen; brawler / game;
+frames counted from the special's first script row; game hits from our emulator with P2 (KOF96 / KOF98 Yuri, KOF99 Shingo) 60 / 120 / 200 px ahead):
+| fighter | spawn | px/frame | dies at screen x | thrower hit | 60 px hit, frame | 120 px | 200 px | clash |
+|---|---|---|---|---|---|---|---|---|
+| Terry EX 236C | 15 / 15 | 7 / 7 | 382 / 380.5 | flies on | 1/1, 15/16 | 1/1, 19/18 | 1/1, 30/30 | both end |
+| Ryo EX 236C | 14 / 14 | 7 / 7 | 378 / 378.9 | flies on | 1/1, 14/15 | 1/1, 16/15 | 1/1, 27/27 | both end |
+| Robert EX 236C | 15 / 15 | 7 / 7 | 382 / 380 | flies on | 1/1, 15/16 | 1/1, 18/18 | 1/1, 30/29 | both end |
+| Iori 236C | 10 / 10 | 7 / 7 | 380 / 377.9 | flies on | 1/1, 10/11 | 1/1, 16/16 | 1/1, 28/27 | both end |
+| Mai 236C | 15 / 15 | 7 / 7 | 378 / 377.1 | flies on | 1/1, 15/16 | 1/1, 23/22 | 1/1, 34/34 | both end |
+| Geese 236C | 18 / 18 | eruption, 17 frames / 17 | its end | plays on | 1/1, 20/21 | 1/1, 23/21 | 0/0 | - |
+| Mr. Big 236C | 19 / 19 | eruption, 36 / 36 | its end | plays on | 1/1, 21/22 | 1/1, 21/22 | 0/0 | - |
+| Krauser 214C | 26 / 26 | 7 / 7 | 382 / 377.6 | flies on | 1/1, 26/27 | 1/1, 29/32 | 1/1, 40/43 | passes (high ball) |
+| K' 236C | 11 / 11 | eruption, 31 / 31 | its end | plays on | 1/1, 19/19 | 0/0 | 0/0 | - |
+The game's hit frame is the frame P2's life drops, one after the collision (the brawler counts the collision frame);
+the other 1-3 frame differences are the victims' hurt boxes (the game's P2 vs the brawler's enemy). Free-flight life
+and travel differ by where the camera stands (the off-screen x matches).
 
 ## Enemies (`ai.c`)
 Same intents as a joystick, so one state machine runs everybody. Each enemy targets the nearest player and keeps to its

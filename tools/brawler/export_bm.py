@@ -211,7 +211,7 @@ def special_play(sp):
     return dict(sp, objects_hit=not hitv or bool(objhits),   # are effects (Burn Knuckle's flames): no box
                 script=[sc[i] for i in keep], row_boxes=[rb[i] for i in keep], row_steps=[rs[i] for i in keep],
                 marks=[marks[i] for i in keep], react=[react[i] for i in keep], objreact=objreact,
-                carry=[carry[i] for i in keep],
+                carry=[carry[i] for i in keep], keep=keep,
                 cont=sum(1 for i in keep if i < cont) if cont else 0,
                 stats={'freezes': len(starts), 'removed': n - len(keep),
                        'contact': (rs[hits[0]][8] - sc[hits[0]][1]) if hits and len(rs[hits[0]]) > 8 and rs[hits[0]][8] is not None else None, 'impacts': [keep.index(i) for i in impacts if i in keep],
@@ -301,6 +301,24 @@ def hit_fx(sp, i, game):
 # orange = 2 (fighter.c BURN_PAL); every fire user but Iori burns orange (inference: one flame colour per fighter)
 FIRE_COLOUR = {'iori': 1}
 
+R_CODE = {'heavy': R_HEAVY, 'knockdown': R_KNOCKDOWN}
+
+def projectile_c(n, k, pj, game):
+    """C tables of a special's projectile (export96.projectile_entry): flight rows, end rows, bproj_t {n}_pj{k}"""
+    def box(b): return '{0, 0, 0, 0}' if b is None else f'{{{sb(b[0])}, {sb(b[1])}, {b[2]}, {b[3]}}}'
+    q = lambda v: max(-32768, min(32767, round(v * 8)))   # 1/8 px
+    rows = ', '.join(f'{{{f}, {q(x)}, {round(y)}, {box(a[1:] if a else None)}, {box(o)}, {(1 if a else 0) | (2 if o else 0)}, 0}}'
+                     for f, x, y, a, o in pj['rows'])
+    end = ', '.join(f'{{{f}, {q(x)}, {round(y)}}}' for f, x, y in pj['end']) or '{0, 0, 0}'
+    loop = 0xFF if pj['loop'] is None else pj['loop']
+    wrap = q(pj['rows'][-1][1] + pj['vx'] - pj['rows'][loop][1]) if pj['loop'] is not None else 0
+    hk = pj['hit_kind'] if 0 < pj['hit_kind'] <= 32 else 1
+    fx = hk | ((FIRE_COLOUR.get(n, 2) if hk in (11, 13, 21) else 0) << 6)
+    assert len(pj['rows']) < 256 and len(pj['end']) < 256 and pj['spawn_row'] < 256, n
+    return (f'static const bprow_t {n}_pjr{k}[] = {{{rows}}};\nstatic const bpend_t {n}_pje{k}[] = {{{end}}};\n'
+            f'static const bproj_t {n}_pj{k} = {{{len(pj["rows"])}, {loop}, {len(pj["end"])}, {pj["kind"]}, {pj["spawn_row"]}, '
+            f'{R_CODE.get(pj["react"], R_KNOCKDOWN)}, {fx}, 0, {round(pj["spawn_x"])}, {round(pj["spawn_y"])}, {wrap}, {n}_pjr{k}, {n}_pje{k}}};')
+
 def special_shape(sp):
     if sp.get('shape'): return tuple(sp['shape'])        # what the move does on its own (its whiff, export96)
     sc = sp['script'][:sp.get('cont') or None]
@@ -314,22 +332,38 @@ def counter_move(sp):
     return sp.get('game_hits') == 0 and special_shape(sp)[0] <= 10 and any(
         k[0] == '1' for b in sp.get('row_boxes', []) for k in b)
 
+def real_projectile(sp):
+    """the special throws a projectile that reaches someone (tools/kof96/projectiles96: an object with a live attack
+    box): a travelling one (object kind 1) or an eruption that hit P2 at one of the measured distances"""
+    pj = sp.get('projectile')
+    return bool(pj) and (pj['kind'] == 1 or any((h.get('hits') or 0) > 0 for h in pj['hits'].values()))
+
 def pick_specials(ch, name=None):
     """[projectile, rush, rise, up] (None where the fighter has no such move). The big versions first (C / D: Bruno
     2026-10-03, the long Burn Knuckle, the high dragon punch); up+D = the best special of a move not used yet (one move
-    = its input motion with the punch or kick pair: 214A / 214C is one move, 214B / 214D another)."""
-    c = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].startswith('air')]
-    auto = [sp for sp in c if not sp['input'].split()[0] in ('EX', 'MAX', 'Counter') and not counter_move(sp)]   # supers / EX: by override only
+    = its input motion with the punch or kick pair: 214A / 214C is one move, 214B / 214D another). A KOF98 fighter and
+    its EX version are one fighter (Bruno 2026-10-04: same normals, the EX adds specials): the pool is both versions'
+    specials ('EX ...' inputs, captured on the EX state c<id>x). D = the fighter's real projectile (real_projectile): a
+    travelling one first (EX Terry's Power Wave over his Round Wave eruption), big button first, the longest travel."""
+    c = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].replace('EX ', '').startswith('air')]
+    can_hit = lambda sp: real_projectile(sp) or any(k[0] == '1' and k.upper() != '1B' for b in sp.get('row_boxes', []) for k in b)
+    auto = [sp for sp in c if not sp['input'].split()[0] in ('MAX', 'Counter') and not counter_move(sp) and can_hit(sp)]
+    # supers: by override only; a move that can hit nothing (no attack box, no projectile: K''s 236D, whose object never
+    # hits in KOF99 either; Orochi Yashiro's EX 214C) is not picked
     big = lambda sp: sp['input'][-1:] in ('C', 'D')
-    move = lambda sp: (sp['input'].rstrip('ABCD'), sp['input'][-1:] in ('A', 'C'))
+    move = lambda sp: (sp['input'].replace('EX ', '').rstrip('ABCD'), sp['input'][-1:] in ('A', 'C'))
     out = []
     for role in ROLES:
         want = ROLE_OVERRIDE.get(name, {}).get(role)
         pick = next((sp for sp in c if sp['input'] == want), None) if want else None
         if pick is None:
             c_all, c = c, [sp for sp in auto if sp not in out]
-            if role == 'proj': cand = [(0, sp) for sp in c if special_shape(sp)[2] and special_shape(sp)[0] <= 45 and special_shape(sp)[1] <= 10]
-            elif role == 'rush': cand = [(special_shape(sp)[0] - 2 * special_shape(sp)[1], sp) for sp in c if special_shape(sp)[0] >= 60 and special_shape(sp)[1] <= 30]
+            if role == 'proj':
+                cand = [((sp['projectile']['kind'] != 1, not big(sp), -sp['projectile']['travel']), sp) for sp in c if real_projectile(sp)]
+                cand.sort(key=lambda t: t[0])
+                pick = cand[0][1] if cand else None
+                c = c_all; out.append(pick); continue
+            elif role == 'rush': cand = [(special_shape(sp)[0] - 2 * special_shape(sp)[1], sp) for sp in c if special_shape(sp)[0] >= 60 and special_shape(sp)[1] <= 30 and not real_projectile(sp)]
             elif role == 'rise': cand = [(special_shape(sp)[1] - special_shape(sp)[0] / 2, sp) for sp in c if special_shape(sp)[1] >= 25]
             else:
                 used = {move(sp) for sp in out if sp}
@@ -363,17 +397,6 @@ def throw_impacts(rows, game):
         if r[2] >= 16: air = True
         if air and (r[2] <= 0 or st(r) == 309): return [i]
     return []
-
-def frame_box(fr):
-    """bounding box of a frame's sprites, as a KOF box (centre from the origin, half extents, sprite orientation)"""
-    xs, ys = [], []
-    for p in fr['parts']:
-        w, h = len(p['tiles']) * 16, len(p['tiles'][0]) * 16
-        x0 = -p['dx'] - w if p['hflip'] else p['dx']; y0 = -p['dy'] - h if p['vflip'] else p['dy']
-        xs += [x0, x0 + w]; ys += [y0, y0 + h]
-    if not xs: return None
-    cl = lambda v: max(-128, min(127, v))
-    return (cl((min(xs) + max(xs)) // 2), cl((min(ys) + max(ys)) // 2), min(255, (max(xs) - min(xs)) // 2), min(255, (max(ys) - min(ys)) // 2))
 
 VICTIM_POSES = {g: json.load(open(os.path.join(HERE, '..', 'kof96', f'victim_poses{g[3:]}.json')))['poses']
                 for g in ('kof96', 'kof98', 'kof99')}
@@ -432,9 +455,12 @@ def write_c(chars, outdir):
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx, hop_vy0, hop_gravity, hop_dx; uint8_t prejump; } bphys_t;   /* 16.16 px per frame (KOF ROM: export96 physics); jump_* = the regular jump (stick held), hop_* = the hop (stick tapped); jump_dx / hop_dx: horizontal speed of a forward or back jump; prejump: frames on the ground before take-off (KOF: the prejump animation, the frames in which a release makes the jump a hop) */',
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor: damage, spark, splash), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',
          'typedef struct { uint16_t nrows; const bthrow_row_t *rows; } bthrow_t;',
-         'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown), sprite bounds as its attack box */',
+         'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown); box: none (an effect: what hits is the special\'s projectile, bspec_t.proj) */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy, fx, pad; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit, 4 the target is carried at vx (forward from the fighter) / vy (height), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
-         'typedef struct { uint16_t nrows, inv_rows, cont, pad; const bspec_row_t *rows; } bspec_t;   /* inv_rows: invincible for its first rows; cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move */',
+         'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk, own; uint8_t flags, pad; } bprow_t;   /* one frame of a projectile\'s flight: frame, x from its spawn point in 1/8 px (forward +), height px, attack box (live when flags & 1: the game\'s +$90 box while +$7C bit 0), own box (the box another projectile\'s attack meets: a clash; flags & 2) */',
+         'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height */',
+         'typedef struct { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, pad; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; } bproj_t;   /* a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
+         'typedef struct { uint16_t nrows, inv_rows, cont, pad; const bspec_row_t *rows; const bproj_t *proj; } bspec_t;   /* inv_rows: invincible for its first rows; cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its projectile (0 = none) */',
          'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
@@ -496,11 +522,18 @@ def write_c(chars, outdir):
         sps = [dict(special_play(sp), fighter=n) if sp else None for sp in pick_specials(ch, n)]
         for k, sp in enumerate(sps):
             if sp is None: continue
+            pj = sp.get('projectile') if real_projectile(sp) else None
+            if pj:                                       # its spawn row in the script as played (frozen rows dropped)
+                pj = dict(pj, spawn_row=sum(1 for i in sp['keep'] if i < pj['spawn_row']))
+            pframes = {r[0] for r in pj['rows']} | {r[0] for r in pj['end']} if pj else set()
+            if pj:                                       # the projectile entity draws and hits; the script keeps
+                c.append(projectile_c(n, k, pj, game))   # the other objects (effects: they hit nothing)
             out = []
             for i, ((f, x, hgt, objs), (hb, ab, hit, dmg)) in enumerate(zip(sp['script'], special_rows(sp))):
                 ob = []
+                objs = [o for o in objs if o[0] not in pframes]
                 for of, ox, oh, same in objs[:2]:
-                    b = (frame_box(ch['frames'][of]) if sp['objects_hit'] else None) or (0, 0, 0, 0)
+                    b = (0, 0, 0, 0)                     # script objects are effects: what hits is a projectile
                     ob.append(f'{{{of}, {ox}, {oh}, {same}, {sp["objreact"] + 1 if sp["objreact"] is not None else 0}, {bb(b)}}}')
                 ob += ['{0xFFFF, 0, 0, 0, 0, {0, 0, 0, 0}}'] * (2 - len(ob))
                 cv = sp['carry'][len(out)]
@@ -513,7 +546,7 @@ def write_c(chars, outdir):
             peak = max(range(len(sp['script'])), key=lambda i: sp['script'][i][2])   # a rising move: to its apex
             return max(hits[-1] + 1 if hits else 0, peak + 1 if sp['script'][peak][2] > 0 else 0) or len(sp['script'])
         c.append(f'static const bspec_t {n}_specials[BS_COUNT] = {{' + ', '.join(
-            f'{{{len(sp["script"])}, {inv_rows(sp, k)}, {sp.get("cont", 0)}, 0, {n}_sp{k}}}' if sp else '{0, 0, 0, 0, 0}' for k, sp in enumerate(sps)) + '};')
+            f'{{{len(sp["script"])}, {inv_rows(sp, k)}, {sp.get("cont", 0)}, 0, {n}_sp{k}, {f"&{n}_pj{k}" if real_projectile(sp) else 0}}}' if sp else '{0, 0, 0, 0, 0, 0}' for k, sp in enumerate(sps)) + '};')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
             f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')

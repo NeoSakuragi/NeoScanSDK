@@ -18,9 +18,9 @@ sys.path.insert(0, os.path.join(HERE, '..', 'kof95', 'capture'))
 import analyze as A, rom96, commands96
 sys.path.insert(0, os.path.join(HERE, 'capture')); import emu
 
-HELPERS_MAX = 0x101600
 FLASH = {'kof96': ('29', '58'), 'kof98': ('38', '34')}          # the shared super flash (table, state)
 END = {0, 23}
+END_EX98 = END | {79}                                     # KOF98's EX versions stand in state 79, not 0
 
 NUMPAD = {'': '5', 'R': '6', 'L': '4', 'U': '8', 'D': '2', 'UR': '9', 'UL': '7', 'DR': '3', 'DL': '1'}
 
@@ -39,6 +39,13 @@ def notation(events, air=False):
         prev = d if st else prev
         if bt: out.append(bt)
     return ''.join(out)
+
+def special_state(game, st):
+    """a game state of a special move: past the normals, before the reactions (KOF96 117-255, KOF98/99 128-255: KOF98's
+    normals run past 116, hop attacks 120-123); KOF98's EX versions (c<id>x, team record EX bit) play their own moves
+    in states 480-511 (EX Terry's Power Wave 480/481, Ryo's / Robert's Ko-ou-ken / Ryuu Geki Ken too)"""
+    lo = 117 if game == 'kof96' else 128
+    return lo <= st < 256 or (game == 'kof98' and 480 <= st < 512)
 
 def frame_index(m, cid, rec):
     return (rec - rom96.frame_record(m, cid, 0)) // 6
@@ -62,15 +69,14 @@ def load_file(m, cid, path, T, seen, tag, first_of):
     for tr in T:
         s = tr['start']; win = tr.get('gap', 220) - 4             # frames of this try (longer for MAX/counter tries)
         if s + win >= len(r1): continue
-        lo = 117 if m.game == 'kof96' else 128            # KOF98's normals run past 116 (hop attacks 120-123)
-        g0 = next((i for i in range(s, s + 200) if lo <= A.state_of(r1[i][3]) < 256), None)
+        g0 = next((i for i in range(s, s + 200) if special_state(m.game, A.state_of(r1[i][3]))), None)
         if g0 is None: continue
         # a move = the special states it goes through (first 6, until neutral): KOF99's SDMs start in their DM's state
         path_ = []
         for i in range(g0, min(len(r1), g0 + 300, s + win)):
             st_ = A.state_of(r1[i][3])
-            if i > g0 + 2 and st_ in END: break
-            if lo <= st_ < 256 and (not path_ or path_[-1] != st_): path_.append(st_)
+            if i > g0 + 2 and st_ in (END_EX98 if tag == '_ex' and m.game == 'kof98' else END): break
+            if special_state(m.game, st_) and (not path_ or path_[-1] != st_): path_.append(st_)
         # main / close passes: one move per first state (a hit and a whiff of one move differ later on); the MAX /
         # counter, SDM and EX passes: kept when their state path is new (KOF99's counter-mode SDMs start in the DM's state)
         first = A.state_of(r1[g0][3]); key = tuple(path_)
@@ -83,11 +89,29 @@ def load_file(m, cid, path, T, seen, tag, first_of):
         seen.add(first); seen.add(key)
         w0 = r1[g0][3]; x0 = A.x_of(w0); f0 = 1 if A.facing_of(w0) else -1
         rows, states, psteps, super_ = [], [], [], False
-        def bases(i):
+        def objs_at(i):                                   # P1-owned objects in the OUT line of frame i
             o = lines[i - 1].split()[-1]
-            return set() if o == '-' else {x.split(':')[0] for x in o.split(';')}
-        old_objs = bases(s - 1)                           # alive before the try: not this move's
-        since, ended = {}, set()                          # an object frozen on one step past its ticks has ended
+            return {} if o == '-' else {x.split(':')[0]: x.split(':')[1:] for x in o.split(';')}
+        def ticks_of(tid, ost, steps):                    # ROM ticks of the object's current step (its own table)
+            if tid != str(cid) or int(ost) >= 512: return 0
+            st_ = rom96.parse_anim(m, rom96.anim_addr(m, cid, rom96.state_slot(m, cid, int(ost))))[0]
+            k = int(steps) - 1
+            return st_[k][0] if 0 <= k < len(st_) else 0
+        # identity, not slot (2026-10-04): the pool slot a projectile gets depends on the free-object order inside the
+        # state (Terry's Power Wave: $100700 here, $102900 in MAME), so the old rule "slots below $101600 are helpers"
+        # dropped real projectiles. An object is this move's from the frame it is born: its slot held no P1 object
+        # before the try, or held a stale one (the game frees an object without clearing it: a finished projectile
+        # keeps its last fields, frozen) that starts changing again. Objects alive before the try (KOF98's team
+        # helpers, states 464 / 469) are never counted. A slot whose object ended can hold a new one later in the
+        # try (Ryo's Ko-ou-ken takes the slot of the spark before it).
+        look = range(max(1, s - (3 if m.game != 'kof96' else 40)), s)   # frames since the try's state reload
+        pre = objs_at(s - 1)
+        def stale(b):                                     # frozen on one step past its ticks over the look window
+            v = pre[b]
+            return all(objs_at(j).get(b) == v for j in look) and len(look) > max(ticks_of(v[0], v[1], v[2]), 1) + 1
+        stale_pre = {b for b in pre if stale(b)}
+        born, since, ended = set(), {}, {}                # an object frozen on one step past its ticks has ended
+                                                          # (until its slot changes again: a new object there)
         for i in range(g0, min(len(r1), g0 + 300, s + win)):
             w = r1[i][3]; st = A.state_of(w)
             objs = []
@@ -95,18 +119,23 @@ def load_file(m, cid, path, T, seen, tag, first_of):
             for x in ([] if o == '-' else o.split(';')):
                 base, tid, ost, steps, rec, ox, oy, of = x.split(':')
                 if (tid, ost) == FLASH.get(m.game): super_ = True
-                if base in old_objs or base in ended: continue
                 key = (ost, steps, rec, ox, oy)
+                if base in ended:
+                    if ended[base] == key: continue
+                    del ended[base]; since.pop(base, None)
+                if base not in born:
+                    v = pre.get(base)
+                    if v is not None and (base not in stale_pre or v == [tid, ost, steps, rec, ox, oy, of]):
+                        continue                          # alive before the try (whatever it does: KOF98's team
+                                                          # helpers change state on a hit), or the stale leftover
+                    born.add(base)
                 if base not in since or since[base][0] != key: since[base] = (key, i)
-                elif tid == str(cid):
-                    st_ = rom96.parse_anim(m, rom96.anim_addr(m, cid, rom96.state_slot(m, cid, int(ost))))[0] if int(ost) < 512 else []
-                    k = int(steps) - 1
-                    ticks = st_[k][0] if 0 <= k < len(st_) else 0
-                    if i - since[base][1] > max(ticks, 1) + 1: ended.add(base); continue
+                elif tid == str(cid) and i - since[base][1] > max(ticks_of(tid, ost, steps), 1) + 1:
+                    ended[base] = key; continue
                 base, tid, rec = int(base, 16), int(tid), int(rec, 16)
-                if tid != cid or base < HELPERS_MAX: continue
+                if tid != cid: continue
                 objs.append([frame_index(m, cid, rec), round((int(ox) - x0) * f0), int(oy), int(int(of) == A.facing_of(w))])
-            if i > g0 + 2 and st in END and not objs: break           # P1 back to neutral and its projectiles gone
+            if i > g0 + 2 and st in (END_EX98 if tag == '_ex' and m.game == 'kof98' else END) and not objs: break           # P1 back to neutral and its projectiles gone
             if not states or states[-1][1] != st: states.append([i - g0, st])
             rows.append([frame_index(m, cid, A.frame_of(w)), round((A.x_of(w) - x0) * f0), round(A.y_of(w)), objs])
             v = r2[i][3]                                  # P1's animation step (state, raw index = +$74 / 6), P2's

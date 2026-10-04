@@ -848,6 +848,7 @@ void game_tick(void) {
     if (mode != 1) return;                                   /* back on the title screen */
     if (fade_in) fight_fade();
     camera();
+    projectiles_update(cam_x);
     mark(P_UPDATE);
     combat(order, nf);
     mark(P_COMBAT);

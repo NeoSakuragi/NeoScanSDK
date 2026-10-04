@@ -141,8 +141,10 @@ a frame (P1 `+$1D2` not advancing) skipped, P2's life as hit / no hit; all MAME 
 - What differs, and why: (1) damage ±1-3 per hit: game-side, the same try started 0-7 frames later gives 85 or 86 on
   one state; (2) game frames lost to slowdown differ (68000 timing of the two emulators): e.g. Terry's close 623B has 7
   lost frames here, none in MAME; supers end a frame apart; (3) pool slots: a projectile can take another object slot
-  (Terry's Power Wave at $100700 here, $102900 in MAME: the free-object order inside the `c<id>` state), and
-  `specials96.HELPERS_MAX` ($101600) then drops it as a helper; finished objects linger for different times;
+  (Terry's Power Wave at $100700 here, $102900 in MAME: the free-object order inside the `c<id>` state), which the
+  former slot rule (`HELPERS_MAX`, $101600) dropped as a helper; since 2026-10-04 `specials96.load` follows objects by
+  identity (born during the try; objects alive before it, KOF98's team helpers, never count; a freed object's slot
+  may hold a new one: Ryo's Ko-ou-ken takes the slot of the spark before it); finished objects linger for different times;
   (4) sub-pixel P2 distances after hits (1 px).
 - Brawler export (`export_bm.py`, all 14 fighters) from the re-capture: **not byte-identical** to the MAME-data build
   (2980 of 9892 arrays; frame numbering cascades): Terry and Yamazaki lose their D projectile pick through (3); KOF96
@@ -168,6 +170,7 @@ frame ~1100-1400. Round timer `$10A836` (BCD).
 | `victim_poses96.json` | portable throw-pose vocabulary: posture + angle for all 164 list poses; the 97 one-step poses (states 385-511) mean the same frame for every fighter, multi-step knockdown/release states are per-fighter (Terry's posture path in 'sequences'); KOF95's postures + 'curled' |
 | `capture/emu.py` | the recorder interface: `neogeo_sdl --capture` (scripted inputs, pokes, states, fighters + P1-owned pool objects per frame, tracing: WLOG / SNDLOG / QLOG / VLOG / VFRAMES / RAMDUMP / PALDUMP), per-game RAM addresses and state timeline |
 | `capture/throws96.py`, `capture/specials96.py` | one emulator run per fighter |
+| `capture/projectiles.py`, `projectiles96.py` | projectiles of the specials, by identity (owner +$84, table +$70, state +$72, kind +$F5; alive = +$06 != $FFFF): every ground special with the pool dumped every frame (RAMDUMP), P2 far / held off the ground (`--dist free`) / standing 60, 120, 200 px ahead -> `/data/neogeo_dict/captures/kof96/projectiles_<game>/`; `projectiles96.definitions(game, id)` = per input (normal and 'EX ...') its spawn row, flight rows (frame, x, height, live attack box +$90, own box), loop, death rule, end rows after a hit, hits per distance. How the games do it: `../kof98/README.md` "Projectiles" |
 | `capture/cmdnormals.py` | KOF98/99 command normals (6A, 6B, 3C, 3D; not in the recogniser lists) played on every fighter, close + far, P2 life drops = hits -> `cmdnormals_<game>.json` (`export96.CMD_NORMALS`: state, hits, frames of the multi-state hops) |
 | `capture/jumps.py` | both jump heights x 3 directions + the 4 air normals in each, per fighter (`--tap`: how long the stick must be held for a regular jump) -> `/data/neogeo_dict/captures/kof96/jumps_<game>.json` |
 | `capture/boot_ngsdl.py`, `capture/labels.py` | the `vs` save state, state labelling |

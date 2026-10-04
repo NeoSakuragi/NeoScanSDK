@@ -44,10 +44,13 @@ def _layout(game):
     fields = ['ch', 'set', 'palbase', 'spr', 'x', 'z', 'y', 'vx', 'vz', 'vy', 'facing', 'team', 'state', 'state_t', 'anim',
               'step', 'tick', 'anim_done', 'node', 'buffered', 'hit_mask', 'freeze', 'inv', 'hp', 'idx', 'held',
               'shown_frame', 'frame_ovr', 'zfront', 'pushing', 'throw_id', 'grab_hits', 'target', 'spec_id', 'owner',
-              'ncols', 'landed', 'chain_node', 'chain_t', 'spec_fx', 'burn', 'jump_kind', 'jump_dir']
+              'ncols', 'landed', 'chain_node', 'chain_t', 'spec_fx', 'burn', 'jump_kind', 'jump_dir',
+              'pdef', 'prow', 'pend', 'shot']
     src = '#include <stddef.h>\n#include "fighter.h"\nvoid offs(void) {\n' + ''.join(
         f'asm volatile(".equ OFF_{f}, %c0\\n.equ SZ_{f}, %c1" :: "i"(offsetof(fighter_t, {f})), "i"(sizeof(((fighter_t *)0)->{f})));\n'
-        for f in fields) + 'asm volatile(".equ SIZEOF, %c0" :: "i"(sizeof(fighter_t)));\n}\n'
+        for f in fields) + 'asm volatile(".equ SIZEOF, %c0" :: "i"(sizeof(fighter_t)));\n' + \
+        'asm volatile(".equ INTENT, %c0" :: "i"(sizeof(intent_t)));\n' + \
+        'asm volatile(".equ CHSIZE, %c0" :: "i"(sizeof(bchar_t)));\n}\n'
     with tempfile.NamedTemporaryFile('w', suffix='.c', delete=False) as t: t.write(src)
     asm = subprocess.run(['m68k-linux-gnu-gcc', '-m68000', '-O2', '-ffreestanding', '-nostdlib', '-I' + game,
                           '-I' + os.path.join(game, '..', '..', 'sdk', 'include'), '-I' + os.path.join(game, '..', '..', 'sdk', 'src'),
@@ -62,6 +65,7 @@ def _layout(game):
     for l in subprocess.run(['m68k-linux-gnu-nm', os.path.join(game, 'build', 'rom.elf')], capture_output=True, text=True).stdout.split('\n'):
         p = l.split()
         if len(p) == 3: syms[p[2]] = int(p[0], 16)
+    syms['sizeof_intent'] = eq['INTENT']; syms['sizeof_bchar'] = eq['CHSIZE']
     return layout, eq['SIZEOF'], states, syms
 
 class Brawler:
@@ -135,8 +139,9 @@ class Brawler:
         buf = C.create_string_buffer(blob, len(blob)); assert self.core.retro_unserialize(buf, C.c_size_t(len(blob)))
     def to_fight(self, cache=True):
         """power on -> coin -> START -> pick the cursor's fighter (Terry) -> the fight, 20 frames in"""
-        path = os.path.join(WORK, 'fight_%x.state' % (hash(open(self.rom, 'rb').read(4096 + 65536)) & 0xFFFFFFFF))
+        path = os.path.join(WORK, 'fight_%08x.state' % self._rom_id())
         if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
+        self.core.retro_reset()
         self.seq('600:-,4:o,100:-,4:s,100:-,4:a,270:-')
         open(path, 'wb').write(self.save())
 
@@ -158,6 +163,32 @@ class Brawler:
     def place(self, i, x=None, z=None):
         if x is not None: self.fset(i, 'x', x)
         if z is not None: self.fset(i, 'z', z)
+    def pget(self, i, field):
+        """a field of projectile entity i (fighter.c projectiles[NPJ]: fighter_t too)"""
+        off, sz = self.layout[field]; v = self.r(self.syms['projectiles'] + i * self.fsize + off, sz)
+        if field in ('x', 'z', 'y', 'vx', 'vz', 'vy'): return (v - (1 << 32) if v & 0x80000000 else v) / 65536
+        if field == 'facing': return v - (1 << 8 * sz) if v >> (8 * sz - 1) else v
+        return v
+    def intent(self, i, press=0, dx=0, dz=0, face=0):
+        """the intent of fighter i for the next frame (main.c in[]; in an AI_OFF build nothing else writes the enemies'
+        intents: the test drives them): press = IN_* bits (1 A, 2 B, 4 C, 8 D), dx / dz stick, face = turn this way"""
+        a = self.syms['in'] + i * self.syms['sizeof_intent']
+        for off, v in ((0, dx), (1, dz), (2, press), (4, face)): self.w(a + off, 1, v)
+    def _rom_id(self):
+        """a stable id of the ROM build (Python's hash() of bytes changes per process: the cache never hit)"""
+        import zlib
+        return zlib.crc32(open(self.rom, 'rb').read())
+    def pick(self, k, button='a', cache=True):
+        """power on -> coin -> START -> the select screen's fighter k (stick right k times: the real select path)
+        -> the fight, 20 frames in"""
+        path = os.path.join(WORK, 'fight_%08x_%d%s.state' % (self._rom_id(), k, button))
+        if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
+        self.core.retro_reset()                       # from power on, whatever ran before in this process
+        self.seq('600:-,4:o,100:-,4:s,100:-' + ',4:R,16:-' * k + f',4:{button},270:-')
+        open(path, 'wb').write(self.save())
+    def char_of(self, i):
+        """index in bm_chars (the Makefile's CHARS order) of fighter i"""
+        return (self.fget(i, 'ch') - self.syms['bm_chars']) // self.syms['sizeof_bchar']
     def fighter(self, i):
         d = {f: self.fget(i, f) for f in self.layout}
         d['state'] = self.states[d['state']] if d['state'] < len(self.states) else d['state']

@@ -6,7 +6,8 @@
 Per special: rows, rows with a body attack box (atk), hit windows (hits: rows that open a new hit, export_bm
 special_rows; with a continuation: hits of the whiff + of the continuation), the hits the game landed in its
 close-range capture (game: drops of P2's life, '-' = no close capture; a projectile's counts too), the first row of the
-hit-confirmed continuation (cont), rows with objects (obj) and objects with an attack box (objbox), states visited,
+hit-confirmed continuation (cont), rows with objects (obj), its projectile (proj: object kind @ spawn row, free-flight
+travel; the script's objects are effects without a box since 2026-10-04), states visited,
 rows whose animation step was not found in the ROM (nostep: their boxes come from the frame lookup). Picked specials (D / fwd+D / down+D /
 up+D, pick_specials) always; --all adds every other normal ground special. FLAG = nothing in it can hit.
 Scripts as played (export_bm.special_play): the game's contact freezes found / rows removed / impact rows with the
@@ -26,7 +27,7 @@ def main(args):
     games = {}
     for s in specs: g, n = s.split(':'); games.setdefault(g, []).append(n)
     tmp = os.path.join('/tmp', 'check_specials'); flagged = 0
-    print(f'{"fighter":10} {"role":6} {"input":14} {"rows":>4} {"atk":>4} {"hits":>6} {"game":>4} {"cont":>4} {"obj":>4} {"objbox":>6} {"states":>6} {"nostep":>6}')
+    print(f'{"fighter":10} {"role":6} {"input":14} {"rows":>4} {"atk":>4} {"hits":>6} {"game":>4} {"cont":>4} {"obj":>4} {"proj":>12} {"states":>6} {"nostep":>6}')
     for g, names in games.items():
         ex = export96.export(names, tmp, g, only={'idle', 'specials'})
         for n in names:
@@ -43,11 +44,12 @@ def main(args):
                 if cont: hits = f'{sum(1 for i, r in enumerate(sr) if r[2] & 2 and not r[2] & 8 and i < cont)}+{sum(1 for i, r in enumerate(sr) if r[2] & 2 and i >= cont)}'
                 game = sp.get('game_hits', -1)
                 obj = sum(1 for r in sp['script'] if r[3])
-                objbox = sum(1 for r in sp['script'] for o in r[3][:2] if export_bm.frame_box(ch['frames'][o[0]]))
+                pj = sp.get('projectile') if export_bm.real_projectile(sp) else None   # bspec_t.proj: kind @ spawn row
+                proj = f'k{pj["kind"]}@{pj["spawn_row"]} {pj["travel"]:.0f}px' if pj else '-'
                 nostep = sum(1 for r in sp.get('row_steps', []) if r[2] < 0)
-                flag = not atk and not objbox
+                flag = not atk and not pj
                 flagged += flag and role != '-'
-                print(f'{n:10} {role:6} {sp["input"]:14} {len(sp["script"]):4} {atk:4} {hits:>6} {game if game >= 0 else "-":>4} {cont:4} {obj:4} {objbox:6} '
+                print(f'{n:10} {role:6} {sp["input"]:14} {len(sp["script"]):4} {atk:4} {hits:>6} {game if game >= 0 else "-":>4} {cont:4} {obj:4} {proj:>12} '
                       f'{len(sp["states"]):6} {nostep:6}' + ('  FLAG: nothing hits' if flag else ''))
                 st = sp['stats']; R = '-LHKU'                # reactions: L light, H heavy (grounded), K knockdown, U launch
                 if st['freezes'] or sp['objreact'] is not None:

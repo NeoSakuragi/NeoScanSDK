@@ -317,21 +317,23 @@ static void throw_update(fighter_t *f) {
 /* ---- specials ------------------------------------------------------------------------------------------------------------
  * D: the fighter's first ground special, forward+D (any direction held: the fighter faces it) the second (export_bm.py
  * picks them), played from the per-frame script captured in the game: fighter frame + offset, body attack box (KOF's,
- * from the move's own animation) and up to two objects (projectiles), each a pool entity with its frame, offset, facing
- * and sprite bounds as attack box. Per row hit bits (export_bm special_rows): a row opening a new hit lets the same
+ * from the move's own animation) and up to two objects (effects: pool entities with their frame, offset and facing, no
+ * box); a projectile is an entity of its own (bspec_t.proj, see "projectiles" below). Per row hit bits (export_bm special_rows): a row opening a new hit lets the same
  * targets be hit again, with its damage (SPECIAL_DAMAGE split over the move's hits) and the victim's reaction measured
  * in the game (bits 5-7: R_HEAVY keeps it on the ground until the part that ejects it); contact rows (a running grab's
  * reach) only catch the victim. Hit-confirmed continuations (bspec_t.cont, one code path): a hit on a row with bit 16
  * jumps to row `cont` (Geese's Jaei-ken follow-up, Kyo's grab + explosion), placed from where the fighter is; playing
- * into `cont` without a hit ends the move (the whiff). Objects hit with their own measured reaction (bsobj_t.react). */
+ * into `cont` without a hit ends the move (the whiff). */
 #define SPECIAL_DAMAGE 8
 fighter_t projectiles[NPJ];
 uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;
 
 void projectile_reset(fighter_t *p) {
+    if (p->owner && p->owner->shot == p) p->owner->shot = 0;   /* KOF: the thrower may throw again (+$E1 bit 5 off) */
     p->ch = &bm_chars[0]; p->anim = 0; p->step = 0; p->tick = 1;
     p->frame_ovr = 0xFFFF; p->shown_frame = 0xFFFF; p->state = S_OFF; p->spec_atk = 0; p->owner = 0;
     p->x = p->y = p->z = 0; p->facing = 1; p->zfront = 1; p->freeze = p->inv = 0; p->hit_mask = 0; p->held = 0; p->ncols = 0;
+    p->pdef = 0; p->pown = 0; p->prow = p->pend = 0;
 }
 static fighter_t *proj_alloc(fighter_t *owner) {
     uint8_t i;
@@ -339,7 +341,7 @@ static fighter_t *proj_alloc(fighter_t *owner) {
         fighter_t *p = &projectiles[i];
         if (p->state != S_OFF) continue;
         p->state = S_PROJ; p->ch = owner->ch; p->palbase = owner->palbase; p->team = owner->team; p->owner = owner;
-        p->frame_ovr = 0xFFFF; p->spec_atk = 0; p->hit_mask = 0;
+        p->frame_ovr = 0xFFFF; p->spec_atk = 0; p->hit_mask = 0; p->pdef = 0; p->pown = 0; p->prow = p->pend = 0;
         return p;
     }
     return 0;                                                    /* pool empty: this special shows no objects */
@@ -353,14 +355,72 @@ static void start_special(fighter_t *f, uint8_t k) {
     if (f->team) stat_specials++;
     f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN;
-    f->proj[0] = proj_alloc(f); f->proj[1] = proj_alloc(f);
+    f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     enter(f, S_SPECIAL);
+}
+
+/* ---- projectiles (tools/kof98/README.md "Projectiles"; tools/kof96/projectiles96.py) ----------------------------------
+ * KOF96/98/99 spawn a projectile as an object of its own on the thrower's event step: its own animation, boxes and
+ * motion, owner +$84, one at a time per thrower (+$E1 bit 5). It lives on whatever the thrower does (its routine never
+ * reads the owner) and dies when its animation ends, when it leaves the screen (x - camera <= -64 or >= 384, the shared
+ * test KOF98 $180B6) or, a travelling one (kind 1), on its first hit, into its end animation; an eruption (kind 3)
+ * hits once and plays on. Neither it nor its thrower freezes on its hit (the victim does). Two projectiles that meet
+ * (one's attack box on the other's own box) both spend their hit. Here: a pool entity driven by its bproj_t rows. */
+static void proj_row(fighter_t *p) {
+    const bproj_t *d = p->pdef;
+    if (p->pend == 1) {                                          /* its end after the hit, in place */
+        const bpend_t *e = &d->end[p->prow];
+        p->frame_ovr = e->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)e->x << 13); p->y = FIX(e->y);
+        p->spec_atk = 0; p->pown = 0;
+    } else {
+        const bprow_t *r = &d->rows[p->prow];
+        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y);
+        p->spec_atk = (r->flags & 1) && !p->pend ? &r->atk : 0;
+        p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
+    }
+}
+static void proj_spawn(fighter_t *f, const bproj_t *d) {
+    fighter_t *p = proj_alloc(f);
+    if (!p) return;                                              /* pool full: thrown without its projectile */
+    p->pdef = d; p->prow = 0; p->pend = 0; p->facing = f->facing; p->z = f->z;
+    p->throw_x0 = f->throw_x0 + dir_mul(f->facing, FIX(d->spawn_x));   /* spawn point: the script's origin + offset */
+    p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
+    f->shot = p; p->tick = 0;                                    /* tick 0: shown at row 0 this frame (the update */
+    proj_row(p);                                                 /* after the fighters' advances it from the next) */
+}
+static void proj_hit(fighter_t *p) {                             /* its hit landed (a fighter or a clash) */
+    if (p->pdef->kind == 1) {                                    /* travelling: its end animation where it hit */
+        if (!p->pdef->nend) { projectile_reset(p); return; }
+        p->pend = 1; p->prow = 0; p->throw_x0 = p->x; proj_row(p);
+    } else { p->pend = 2; p->spec_atk = 0; p->pown = 0; }       /* an eruption plays on, its attack spent */
+}
+void projectiles_update(int16_t cam_x) {
+    uint8_t i;
+    for (i = 0; i < NPJ; i++) {
+        fighter_t *p = &projectiles[i];
+        const bproj_t *d = p->pdef;
+        int16_t sx;
+        if (p->state != S_PROJ || !d) continue;
+        if (!p->tick) { p->tick = 1; continue; }                 /* its first frame: row 0 */
+        if (p->pend == 1) {
+            if (++p->prow >= d->nend) { projectile_reset(p); continue; }
+        } else if (++p->prow >= d->nrows) {
+            if (d->loop == 0xFF) { projectile_reset(p); continue; }   /* its animation is over */
+            p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
+        }
+        proj_row(p);
+        sx = INT(p->x) - cam_x;
+        if (sx <= -64 || sx >= 384) projectile_reset(p);         /* off screen (KOF's test, the same 320 px screen) */
+    }
 }
 static uint8_t special_for(const fighter_t *f, const intent_t *in) {   /* D, forward+D, down+D, up+D -> BS_*, 0xFF = none */
     static const uint8_t order[4][4] = { { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D }, { BS_FWD_D, BS_D, BS_UP_D, BS_DOWN_D },
                                          { BS_DOWN_D, BS_UP_D, BS_FWD_D, BS_D }, { BS_UP_D, BS_FWD_D, BS_DOWN_D, BS_D } };
     uint8_t want = in->dz > 0 ? 2 : in->dz < 0 ? 3 : in->dx ? 1 : 0, k;   /* down / up = toward / away from the camera */
-    for (k = 0; k < 4; k++) if (f->ch->specials[order[want][k]].nrows) return order[want][k];   /* missing: the nearest */
+    for (k = 0; k < 4; k++) {                                    /* missing: the nearest; a projectile special not */
+        const bspec_t *sp = &f->ch->specials[order[want][k]];   /* while the fighter's projectile flies (KOF skips */
+        if (sp->nrows && !(sp->proj && f->shot)) return order[want][k];   /* the command: owner +$E1 bit 5) */
+    }
     return 0xFF;
 }
 static void special_update(fighter_t *f) {
@@ -389,9 +449,11 @@ static void special_update(fighter_t *f) {
         v->vx = v->vy = v->vz = 0; clamp(v);
     }
     f->spec_prev_hit = r->hit; f->spec_atk = (r->hit & 1) ? &r->atk : 0;
+    if (sp->proj && f->state_t - 1 == sp->proj->spawn_row) proj_spawn(f, sp->proj);   /* the game's event step */
     for (k = 0; k < 2; k++) {
         fighter_t *p = f->proj[k];
         const bsobj_t *o = &r->obj[k];
+        if (!p && o->frame != 0xFFFF) p = f->proj[k] = proj_alloc(f);   /* an effect of the script (no box) */
         if (!p) continue;
         if (o->frame == 0xFFFF) { p->frame_ovr = 0xFFFF; p->spec_atk = 0; continue; }
         if (p->frame_ovr == 0xFFFF) p->hit_mask = 0;             /* the object (re)appears: fresh hits */
@@ -533,6 +595,12 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
 /* ---- combat: every attacker's live attack box against every opponent's hurt box --------------------------------------- */
 static const bbox_t JUGGLE_BOX = { 0, -24, 28, 20 };       /* a falling fighter's body: KOF boxes (x, y up -, half w, h) */
 static int16_t box_x(const fighter_t *f, int8_t bx) { return INT(f->x) + (f->facing > 0 ? -bx : bx); }   /* sprites face left */
+static uint8_t boxes_meet(const fighter_t *a, const bbox_t *ab, const fighter_t *v, const bbox_t *vb) {
+    int16_t dx = box_x(a, ab->x) - box_x(v, vb->x), dy = (ab->y - INT(a->y)) - (vb->y - INT(v->y));
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    return dx <= ab->w + vb->w && dy <= ab->h + vb->h;
+}
 static uint8_t grabbable(const fighter_t *v) {
     return !v->inv && !v->y && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
 }
@@ -635,12 +703,26 @@ void combat(fighter_t **fs, uint8_t n) {
                     if (v->state == S_WALK) to_neutral(v, 0);
                     continue;
                 } else {
-                    if (!sounded++) { if (a->state == S_SPECIAL) hit_sfx(a->spec_fx); else snd_sfx(sfx); }
+                    if (!sounded++) { if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(sfx); }
                     fighter_hit(a, v, a->spec_dmg, a->spec_react, 0);
-                    if (a->state == S_SPECIAL && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
+                    if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                 }
                 spark_hit(sx, sy, sfx >= SFX_HIT_C, a->facing);  /* KOF98: A / B small, C / D / C+D big */
+                if (a->pdef) { proj_hit(a); break; }             /* a projectile hits once */
             }
+        }
+    }
+    for (i = 0; i < NPJ; i++) {                                  /* projectiles meeting: both hits spent (KOF98 */
+        fighter_t *a = &projectiles[i];                          /* measured: EX Ryo's Ko-ou-ken ended on Yuri's */
+        if (a->state != S_PROJ || !a->pdef || !a->spec_atk) continue;   /* eruption, whose attack went off) */
+        for (j = 0; j < NPJ; j++) {
+            fighter_t *b = &projectiles[j];
+            int16_t dz;
+            if (b->state != S_PROJ || !b->pdef || b->team == a->team || !b->pown) continue;
+            dz = INT(a->z) - INT(b->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
+            if (!boxes_meet(a, a->spec_atk, b, b->pown)) continue;
+            proj_hit(a); proj_hit(b);
+            break;
         }
     }
 }

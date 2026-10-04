@@ -5,7 +5,7 @@ characters -> frames (parts: dx, dy, flips, tile columns, 'pal' = index into the
 Moves are named game states (labelled in MAME, capture/labels.py).
     python3 export96.py [--game kof98] OUTDIR [all | name ...]"""
 import json, os, struct, sys
-import rom96, throwscripts96, specials96, commands96
+import rom96, throwscripts96, specials96, commands96, projectiles96
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TILE_BASE = 256
@@ -186,7 +186,6 @@ def special_entry(m, cid, sp, add, slot_of, game):
     explosion is dealt by code while the victim is held, its box sits on the victim). A whiff without any attack box
     before its recovery (a running grab: KOF tests contact by code) gets the continuation's first box as contact box
     (inference: the reach of KOF's own contact test is not decoded)."""
-    lo = 117 if game == 'kof96' else 128
     def entry_states(e, n):
         st = e['states']
         return [[s, (st[k + 1][0] if k + 1 < len(st) else n) - t, slot_of(cid, s)] for k, (t, s) in enumerate(st)]
@@ -199,8 +198,8 @@ def special_entry(m, cid, sp, add, slot_of, game):
         return raw
     H, k, version, shape = sp.get('close'), None, 'whiff', None   # shape: the whiff's (travel, height, objects)
     if H:
-        wp = [s for t, s in sp['states'] if lo <= s < 256]
-        hs = [(t, s) for t, s in H['states'] if lo <= s < 256]
+        wp = [s for t, s in sp['states'] if specials96.special_state(game, s)]
+        hs = [(t, s) for t, s in H['states'] if specials96.special_state(game, s)]
         k = next((i for i, (t, s) in enumerate(hs) if i >= len(wp) or wp[i] != s), None)
         if not k:                                   # no continuation: the hit version is the script when it hit
             shape = (max(r[1] for r in sp['rows']), max(r[2] for r in sp['rows']), any(r[3] for r in sp['rows']))
@@ -215,7 +214,7 @@ def special_entry(m, cid, sp, add, slot_of, game):
         hstates = entry_states(H, len(H['rows'])); hraw = raw_boxes(hstates)
         hsb = step_boxes(m, cid, H, slot_of, hraw)
         bx = H['rows'][h0 - 1][1]               # contact point: x of the row before
-        last = max(t for t, s in sp['states'] if lo <= s < 256)   # the whiff's recovery state starts here
+        last = max(t for t, s in sp['states'] if specials96.special_state(game, s))   # the whiff's recovery state starts here
         if not any(kk[0] == '1' for b, _ in sb[:last] for kk in b):
             first = next((b for b, _ in hsb[h0:] if any(kk[0] == '1' for kk in b)), None)
             if first:
@@ -255,6 +254,32 @@ def special_entry(m, cid, sp, add, slot_of, game):
             'row_boxes': [b for b, _ in sb], 'row_steps': [st_ for _, st_ in sb], 'marks': marks, 'cont': cont,
             'game_hits': game_hits(H) if H else game_hits(sp) if sp.get('close') or version == 'hit' else -1,
             'version': 'whiff+continuation' if cont else version, 'shape': shape}
+
+def projectile_entry(m, cid, d, add, slot_of):
+    """a projectile (projectiles96.definition) in export terms: frames through the fighter's own frame list (the
+    projectile is drawn from its table +$70, the fighter's own for every roster projectile), per flight row [frame, x
+    from the spawn point (px, forward +), height, live attack box (KOF box type, x, y, w, h: the game's +$90 slot 0
+    while +$7C bit 0) or None, its own box (slot 1, key '31': the box another projectile's attack meets, a clash) or
+    None]; end rows (after its hit: [frame, x from the impact, height]); the victim's reaction measured after the hit
+    (P2's states: 256-279 a grounded hit reel, 280-399 knocked down)"""
+    parsed = {}
+    def step(tid, st, raw):
+        assert tid == cid, (cid, tid, st)               # drawn from the fighter's own frames
+        if st not in parsed: parsed[st] = {s_[4]: s_ for s_ in rom96.parse_anim(m, rom96.anim_addr(m, cid, slot_of(cid, st)))[0]}
+        return parsed[st][raw]
+    rows = []
+    for tid, st, raw, x, y, fl, box in d['rows']:
+        t, fi, sfl, b, ri, dx = step(tid, st, raw)
+        rows.append([add(fi), x, y, box, b.get(0x31)])
+    hit = next((h for k, h in sorted(d['hits'].items(), key=lambda kv: -int(kv[0])) if h.get('hits')), None)
+    end = [[add(step(tid, st, raw)[1]), x, y] for tid, st, raw, x, y in (hit['end_rows'] if hit else [])]
+    react = None
+    if hit:
+        rs = [r for r in hit['reaction'] if r]
+        react = 'knockdown' if any(280 <= r < 400 for r in rs) else 'heavy' if any(256 <= r < 280 for r in rs) else None
+    return {k: d[k] for k in ('table', 'state', 'kind', 'hit_kind', 'spawn_row', 'spawn_x', 'spawn_y', 'loop', 'death',
+                              'life', 'travel', 'vx')} | {'rows': rows, 'end': end, 'react': react,
+            'hits': {k: {kk: v.get(kk) for kk in ('hits', 'frame', 'x', 'damage', 'victim_stop', 'owner_frozen')} for k, v in d['hits'].items()}}
 
 def game_hits(e):
     """hits a capture landed: drops of P2's life (object +$138) while the move plays"""
@@ -354,8 +379,11 @@ def export(names, outdir, game='kof96', only=None):
     #  of its own state animations, so a player of the script knows when the fighter's body hits)
     for name in (names if only is None or 'specials' in only else []):
         cid = cast.index(name); add = adders[name]; sps = []
+        pdefs = projectiles96.definitions(game, cid)     # capture/projectiles.py: the move's projectile, by identity
         for sp in specials96.load(m, cid):
-            sps.append(special_entry(m, cid, sp, add, slot_of, game))
+            e = special_entry(m, cid, sp, add, slot_of, game)
+            if sp['input'] in pdefs: e['projectile'] = projectile_entry(m, cid, pdefs[sp['input']], add, slot_of)
+            sps.append(e)
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not
             out['characters'][name]['commands'] = [commands96.notation(p) for k, p in

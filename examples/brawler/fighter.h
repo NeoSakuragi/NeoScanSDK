@@ -92,6 +92,13 @@ typedef struct fighter {
     int8_t   throw_face;          /* throw: the thrower's facing at the grab (the script's offsets are in it) */
     uint8_t  jump_kind;           /* the jump in progress: 0 regular (C held), 1 hop (C tapped) */
     uint8_t  jump_dir;            /* its direction: 0 vertical, 1 forward, 2 back (facing kept) */
+    /* independent projectile (S_PROJ entity spawned by a special's bspec_t.proj; fields added at the end: draw.s pins
+     * the ones above). pdef: its definition; prow: row of its flight (or of its end); pend: 1 its end rows play (a
+     * travelling one hit), 2 its attack is spent (an eruption that hit plays on); pown: the clash box of the row */
+    const bproj_t *pdef;
+    const bbox_t *pown;
+    uint8_t  prow, pend;
+    struct fighter *shot;         /* thrower: its projectile in flight (KOF: one at a time, owner +$E1 bit 5) */
 } fighter_t;
 
 extern const cnode_t COMBO[];
@@ -100,6 +107,7 @@ extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by en
 #define NPJ 4                     /* projectile entities: fighter_t too, so one renderer / sort / guard / hit test */
 extern fighter_t projectiles[NPJ];
 void projectile_reset(fighter_t *p);
+void projectiles_update(int16_t cam_x);   /* the independent projectiles' flight, after the fighters' update */
 
 void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase, uint8_t team, int16_t x, int16_t z);
 void fighter_update(fighter_t *f, const intent_t *in);
