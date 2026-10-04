@@ -15,6 +15,7 @@ listing, and the V ROM sample ranges both streams play. One page, one builder, e
     python3 build_web.py --game aof3 OUT_DIR [0x24 ...]      Art of Fighting 3 (KOF95's MAKOTO v3 build extended, tools/makoto3);
     python3 build_web.py --game samsho|samsho2|samsho3 OUT_DIR   Samurai Shodown 1-3 (MAKOTO v3 builds, tools/makoto3);
     python3 build_web.py --game samsho4 OUT_DIR [0x50 ...]   Samurai Shodown IV (SNK Sound Driver Ver 1.0, tools/kof98snd);
+    python3 build_web.py --game kof97 OUT_DIR [0x30 ...]     KOF97 (SNK Sound Driver Ver 1.1, tools/kof98snd);
     python3 build_web.py --game garou OUT_DIR [0x34 ...]     Garou: Mark of the Wolves (SNK Sound Driver Ver 1.8, tools/kof98snd);
     python3 build_web.py --game ninjamas OUT_DIR [0xD0 ...]  Ninja Master's (ADK's driver, tools/adksnd: songadk.py /
                                                              regsadk.py, captures in our emulator, captureadk.py);
@@ -44,7 +45,7 @@ import base64, json, os, re, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 PERIOD, ISR_START, WRITE_COST = 333, 100, 6.4
-SNKSND = ('kof98', 'kizuna', 'samsho4', 'garou')           # games on tools/kof98snd's model
+SNKSND = ('kof98', 'kof97', 'kizuna', 'samsho4', 'garou')           # games on tools/kof98snd's model
 
 GAMES = {
     'kof98': {
@@ -273,6 +274,26 @@ GAMES['samsho4'] = {
              'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Samurai Shodown IV V ROM. Nothing here is a recording.",
                        "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
                        "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with Samurai Shodown IV's table addresses and the one behaviour of this version that differs in its songs (an ADPCM-B slur into another note keys the sample on again), reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
+             'capture': 'capture', 'unit': 'ticks'}}
+
+GAMES['kof97'] = {
+    'm1': '/data/neogeo_dict/sound/kof97/kof97_m1.bin', 'cap': '/data/neogeo_dict/sound/kof97/caps/cap_%02X.txt',
+    'neo': '/data/roms/kof97.neo',
+    # measured in our emulator (docs/kof97_songs.md): the game's own commands at these screens; the fight themes from
+    # the 68K's tables $69F78 / $69FB8 (the opponent's fighter) and $69FCE (the stage number $10A7EA)
+    'names': {0x21: 'Opening / title', 0x3A: 'How to play (after a coin)', 0x23: 'Team and order select', 0x25: 'World map before a stage',
+              0x2C: 'Continue', 0x30: 'Stage 0: arena (attract demo)', 0x35: 'Stage 1: amusement park (attract demo)',
+              0x31: 'Stage 2: Bali village (attract demo)', 0x32: 'Stage 3: Chinese street festival (attract demo)',
+              0x33: 'Stage 4: Korean palace (attract demo)', 0x34: 'Stage 5: seaside city', 0x4A: 'Stage 6: lava ring',
+              0x4B: 'Stage 7: dark stone ring', 0x40: 'Theme: Kyo', 0x41: 'Theme: Iori', 0x42: 'Theme: Shingo',
+              0x43: 'Theme: Athena', 0x44: 'Theme: Yashiro / Shermie / Chris (New Face team)', 0x45: 'Theme: Terry',
+              0x46: 'Theme: Yamazaki', 0x47: 'Theme: Blue Mary', 0x48: 'Theme: Billy'},
+    'page': {'title': "The King of Fighters '97", 'bar': 96, 'beat': 24, 'start': 0x30,
+             'intro': "KOF97 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (SNK's \"Sound Driver Ver 1.1 96/10/01\", the build after Samurai Shodown IV's 1.0, before KOF98's 1.7) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the KOF97 V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with KOF97's table addresses (Samurai Shodown IV's driver without its ADPCM-B slur restart), reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
                        "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
              'capture': 'capture', 'unit': 'ticks'}}
 

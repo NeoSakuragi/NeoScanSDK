@@ -79,6 +79,24 @@ GAMES = {
         types=0x2FB0,                                           # command -> type, $20-$FF ($017C)
         block=878, send=900,  # the game sends $07 at frame 876 and its first song ($21) at 880 (measured)
     ),
+    'kof97': dict(
+        name="The King of Fighters '97", rom='/data/roms/kof97.neo',
+        m1='/data/neogeo_dict/sound/kof97/kof97_m1.bin', dir='/data/neogeo_dict/sound/kof97',
+        id=b'Sound Driver Ver 1.1 96/10/01',                 # Samurai Shodown IV's Ver 1.0 less its ADPCM-B slur
+        # restart (docs/kof97_sound_driver.md); every table below the song data moved by -$0E
+        songs=0x3216, song20=0x2D36, banksets=0x289C,           # ($1189, $117F, $11BD)
+        notes=0x2D5C, fnum=0x2BFC,                              # ($26B2, $26C3)
+        lv_fm=0x3095, lv_a=0x3115, lv_b=0x3195,                 # ($2172, $215C, $2199)
+        b_dn=0x2CBE, b_rec=0x2E1A, fx6=0x2E2A,                  # ($095C, $0815)
+        modmask=0x288B,                                         # ($2070)
+        big_slot=5, guard=0xFE6B,                               # ($22FF, $1B1D)
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87),
+               ('a', 0x1C, 0x00)],                              # ($1171: as KOF98)
+        overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=True,
+        types=0x2FB0,                                           # command -> type, $20-$FF ($017C)
+        block=878, send=900,  # the game sends $07 at frame 875 and its first song ($21, attract) at 1550 (measured)
+    ),
     'garou': dict(
         name='Garou: Mark of the Wolves', rom='/data/roms/garou.neo',
         m1='/data/neogeo_dict/sound/garou/garou_m1.bin', dir='/data/neogeo_dict/sound/garou',
