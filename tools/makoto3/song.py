@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Song decoder + tick-exact player model of the "Ver 3.0 by MAKOTO" sound driver (Fatal Fury 3, KOF94, KOF95):
-docs/ff3_sound_driver.md (sections "KOF94's build", "KOF95's build"), docs/ff3_songs.md, docs/kof94_songs.md,
+"""Song decoder + tick-exact player model of the "Ver 3.0 by MAKOTO" sound driver (Fatal Fury 3, KOF94, KOF95,
+Fatal Fury Special): docs/ff3_sound_driver.md (sections "KOF94's build", "KOF95's build", "Fatal Fury Special's build"),
+docs/ff3_songs.md, docs/kof94_songs.md, docs/fatfursp_songs.md,
 docs/kof95_songs.md.
 
     python3 song.py M1.bin 0x21                 summary (channels, notes, loop points)

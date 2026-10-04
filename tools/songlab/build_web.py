@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Data for the Song Lab page (song_lab.html): per song, the two YM2610 write streams (A = the real driver, captured
 while the game's own Z80 driver played it; B = our model of that driver), the track blocks from the model's event
-listing, and the V ROM sample ranges both streams play. One page, one builder, two games:
+listing, and the V ROM sample ranges both streams play. One page, one builder, every game:
 
     python3 build_web.py OUT_DIR 0x23 0x36 ...               KOF98 (song98.py / regs98.py, MAME captures)
     python3 build_web.py --game ff3 OUT_DIR [0x26 ...]       Fatal Fury 3 (tools/makoto3, captures in our emulator);
@@ -9,6 +9,9 @@ listing, and the V ROM sample ranges both streams play. One page, one builder, t
     python3 build_web.py --game kof95 OUT_DIR [0x22 ...]     KOF95 (same driver family, tools/makoto3);
     python3 build_web.py --game kizuna OUT_DIR [0x21 ...]    Kizuna Encounter (SNK Sound Driver Ver 0.0, KOF98's model:
                                                              song98.py / regs98.py, captures in our emulator, capture98.py);
+    python3 build_web.py --game fatfursp OUT_DIR [0x36 ...]  Fatal Fury Special (KOF94's MAKOTO v3 build, tools/makoto3);
+    python3 build_web.py --game ninjamas OUT_DIR [0xD0 ...]  Ninja Master's (ADK's driver, tools/adksnd: songadk.py /
+                                                             regsadk.py, captures in our emulator, captureadk.py);
                                                              no commands = every music command
 
 OUT_DIR gets one JSON per song (XX.json), index.json (the song list) and game.json (the page's title and notes).
@@ -21,11 +24,16 @@ interrupt, which the driver then loses (an interrupt arriving while the handler 
 drops of 10 captured songs: the rule predicts the number of interrupts lost after 95% of the ticks with 20 writes or
 more.
 
-FF3, KOF94 and KOF95 (MAKOTO v3 driver): two timers, nothing lost (a pending flag waits for the handler, docs/ff3_sound_driver.md). Timer A every 1023
+FF3, KOF94, KOF95 and Fatal Fury Special (MAKOTO v3 driver): two timers, nothing lost (a pending flag waits for the handler, docs/ff3_sound_driver.md). Timer A every 1023
 samples, timer B every 16 * (256 - TB) samples, TB = the song's tempo byte (reg $26, changed by opcode $33). The
 captured interrupt order (A or B) is replayed on that schedule; the one unknown, the phase between the two timers, is
 the one that reproduces the captured order best. The model runs on the same interrupts, so both streams share one
-clock."""
+clock. Fatal Fury Special runs the same driver (KOF94's build).
+
+Ninja Master's (ADK driver): the music runs in the main loop, one tick per two timer-A interrupts, timer A from the
+song's tempo. Both streams are placed on the captured timer-A interrupts (1024 - value samples apart, the value from
+the captured $24 / $25 writes): stream A at the interrupt each write followed, stream B at the interrupt regsadk.py
+finds each model tick starting on."""
 import base64, json, os, re, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -108,6 +116,39 @@ GAMES['kizuna'] = {
                        "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song, placed at the timer interrupt they happened in.",
                        "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with Kizuna's table addresses and the behaviours of this earlier version, reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
                        "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
+             'capture': 'capture', 'unit': 'ticks'}}
+
+GAMES['fatfursp'] = {
+    'm1': '/data/neogeo_dict/sound/fatfursp/fatfursp_m1.bin', 'cap': '/data/neogeo_dict/sound/fatfursp/cap/cap_%02X.txt',
+    'neo': '/data/roms/fatfursp.neo',
+    # measured in our emulator (docs/fatfursp_songs.md): the game's own commands at these screens
+    'names': {0x47: 'Title', 0x5F: 'NEO-GEO logo', 0x23: 'Player select', 0x24: 'Map before a match ("The 1st stage")',
+              0x30: 'Stage: Terry Bogard', 0x31: 'Stage: Andy Bogard', 0x32: 'Stage: Joe Higashi', 0x33: 'Stage: Big Bear',
+              0x34: 'Stage: Jubei Yamada', 0x35: 'Stage: Mai Shiranui', 0x36: 'Stage: Cheng Sinzan', 0x37: 'Stage: Kim Kaphwan',
+              0x42: 'Stage: Duck King', 0x44: 'Stage: Tung Fu Rue', 0x2E: "Winner's quote (after a lost match)",
+              0x2D: 'Continue / card save'},
+    'page': {'title': 'Fatal Fury Special', 'bar': 96, 'beat': 24, 'start': 0x36,
+             'intro': "Fatal Fury Special songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\", the build KOF94 also runs) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Fatal Fury Special V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/makoto3/song.py + regs.py, the model of Fatal Fury 3, KOF94 and KOF95 with Fatal Fury Special's table addresses (its driver code is KOF94's instruction for instruction), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
+             'capture': 'capture', 'unit': 'interrupts'}}
+
+GAMES['ninjamas'] = {
+    'm1': '/data/neogeo_dict/sound/ninjamas/ninjamas_m1.bin', 'cap': '/data/neogeo_dict/sound/ninjamas/cap/cap_%02X.txt',
+    'neo': '/data/roms/ninjamas.neo',
+    # measured in our emulator (docs/ninjamas_songs.md): the game's own commands at these screens
+    'names': {0x02: 'NEO-GEO logo', 0xD0: 'Title / attract', 0xD1: 'How to play', 0xD2: 'Character select',
+              0xC7: 'Stage: Goemon', 0xC5: 'Stage: Houoh', 0xC8: 'Stage: Unzen', 0xC9: 'Stage: Kasumi',
+              0xD3: 'Cue before a continue (cut by $D2)', 0xD5: 'Continue', 0xD6: 'Game over',
+              0xD9: 'Title after a game over'},
+    'page': {'title': "Ninja Master's", 'bar': 192, 'beat': 48, 'start': 0xD0,
+             'intro': "Ninja Master's songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (ADK's \"Operation System Program for Music & Effective Sound Ver. 8.8.9\") made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Ninja Master's V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/adksnd/captureadk.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/adksnd/songadk.py, the driver re-implemented from its disassembly. The songs are MML text (note letters, octave and volume commands, binary length codes) that the driver reads as it plays; the model reads the same text from the M1 ROM. The facts line says on how many music ticks its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> The driver plays the music in its main loop, one tick per two timer-A interrupts, timer A set by the song's tempo (192 ticks to a whole note). Both sources are placed on the captured interrupts, writes spaced by an estimated 6.4 samples. Tracks are named by chip channel: the driver's first two FM parts play on FM3 and FM4 (port B), its last two on FM1 and FM2."],
              'capture': 'capture', 'unit': 'ticks'}}
 
 def vrom(neo):
@@ -277,10 +318,67 @@ def ff3_song(g, data, cmd):
                 tempo=s.head[0x17], ticks_per_s=tick_hz(s.head[0x17]), ticks=nt, tick_irq=list(range(nt + 1)),
                 irqA=seq, irqB=seq, tracks=ff3_tracks(s))
 
+# ---------------------------------------------------------------------------------- Ninja Master's (ADK driver)
+ADK_TRACK = {'FM1': 'FM3', 'FM2': 'FM4', 'FM3': 'FM1', 'FM4': 'FM2'}   # header part -> chip channel (key-on code)
+
+def adk_song(g, data, cmd):
+    sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'adksnd'))
+    from songadk import Song, tick_hz
+    from regsadk import capture, compare
+    import io, contextlib
+    path = g['cap'] % cmd
+    cap, kinds, pre = capture(path, cmd)
+    with contextlib.redirect_stdout(io.StringIO()): same, total, _, p, _, r, _ = compare(data, cmd, path)
+    s = Song(data, cmd, listing=True).run(max(r) + 1)
+    # sample time of each timer-A interrupt: (1024 - value) samples, the value from the captured $24 / $25 writes
+    ta = [0]; v = 0x2DF; hi = None; wi = 0; t = 0
+    for n in range(1, sum(1 for k in kinds if k & 1) + 2):
+        while wi < len(cap) and cap[wi][0] < n:
+            _, port, reg, val = cap[wi]; wi += 1
+            if port == 'a' and reg == 0x24: hi = val
+            if port == 'a' and reg == 0x25 and hi is not None: v = hi << 2 | val & 3
+        t += 1024 - v; ta.append(t)
+    T = lambda n: ta[min(n, len(ta) - 1)] + PERIOD
+    A = []; j = 0; prev = None
+    for na, port, reg, val in cap:
+        j = j + 1 if na == prev else 0; prev = na
+        A.append([int(T(na) + ISR_START + j * WRITE_COST), 0 if port == 'a' else 1, reg, val])
+    starts = [r[k][1] for k in sorted(r)]
+    B = []
+    for k, ws in sorted(s.by_tick().items()):
+        if k >= len(starts): break
+        for j, (port, reg, val) in enumerate(ws):
+            B.append([int(T(starts[k]) + ISR_START + j * WRITE_COST), 0 if port == 'a' else 1, reg, val])
+    A.sort(key=lambda x: x[0]); B.sort(key=lambda x: x[0])
+    tracks = []
+    for c in s.ch:
+        if not c.log: continue
+        blocks, lines = [], []
+        inst = ''
+        for tick, pos, txt in c.log:
+            lines.append([tick, pos, txt])
+            w = txt.split()
+            if w[0] in ('patch', 'sample'): inst = w[1]
+            if w[0] in ('note', 'play', 'replay', 'fnum'):
+                ln = int(re.search(r'len (\d+)', txt).group(1))
+                gm = re.search(r'gate (\d+)', txt)
+                dur = int(gm.group(1)) if gm else ln
+                lab = w[1] if w[0] == 'note' else (w[1] if w[0] == 'play' else w[0])
+                blocks.append([tick, tick + max(min(dur, ln), 1), lab, inst, len(lines) - 1])
+        tracks.append({'name': ADK_TRACK.get(c.name, c.name), 'blocks': blocks, 'lines': lines})
+    order = ['FM1', 'FM2', 'FM3', 'FM4', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'B']
+    tracks.sort(key=lambda t: order.index(t['name']))
+    tv = s.timer[0][1] if s.timer else 0x2DF
+    nt = len(starts) - 1
+    seq = [T(x) for x in starts]
+    return dict(A=A, B=B, pre=[[0 if q == 'a' else 1, rr, vv] for q, rr, vv in pre], match=[same, total],
+                tempo=s.f833, ticks_per_s=tick_hz(tv), ticks=nt, tick_irq=list(range(nt + 1)),
+                irqA=seq, irqB=seq, tracks=tracks)
+
 # --------------------------------------------------------------------------------------------------------- shared
 def song(game, data, v, cmd):
     g = GAMES[game]
-    d = (kof98_song if game in ('kof98', 'kizuna') else ff3_song)(g, data, cmd)
+    d = (kof98_song if game in ('kof98', 'kizuna') else adk_song if game == 'ninjamas' else ff3_song)(g, data, cmd)
     A, B = d['A'], d['B']
     ranges = set()                                   # V ROM ranges keyed by either stream (256-byte units, end inclusive)
     for stream in (A, B):
@@ -317,7 +415,11 @@ if __name__ == '__main__':
     data = open(g['m1'], 'rb').read(); v = vrom(g['neo'])
     out = a[0]; os.makedirs(out, exist_ok=True)
     cmds = [int(c, 16) for c in a[1:]]
-    if not cmds and game == 'kizuna':
+    if not cmds and game == 'ninjamas':
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'adksnd'))
+        from gamesadk import music_cmds as adk_cmds
+        cmds = [c for c, _, _ in adk_cmds(data)]
+    elif not cmds and game == 'kizuna':
         sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'kof98snd'))
         from games98 import music_cmds
         cmds = music_cmds(data)

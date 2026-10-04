@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""MAKOTO v3 sound ground truth in our emulator (Fatal Fury 3, KOF94, KOF95): the Geolith core driven from Python (ctypes,
-as tools/brawler/harness.py) with a Z80 port tap, logging what tools/kof98snd/ymtap.lua logs in MAME.
+"""MAKOTO v3 sound ground truth in our emulator (Fatal Fury 3, KOF94, KOF95, Fatal Fury Special): the Geolith core
+driven from Python (ctypes, as tools/brawler/harness.py) with a Z80 port tap, logging what tools/kof98snd/ymtap.lua logs in MAME.
 
-    python3 capture.py [--game ff3|kof94|kof95] OUT FRAMES [--send F:CMD,...] [--block F] [--rom PATH] [--wav PATH]
-    python3 capture.py [--game ff3|kof94|kof95] --songs DIR [CMD ...]
+    python3 capture.py [--game ff3|kof94|kof95|fatfursp] OUT FRAMES [--send F:CMD,...] [--block F] [--rom PATH] [--wav PATH]
+    python3 capture.py [--game ff3|kof94|kof95|fatfursp] --songs DIR [CMD ...]
                                          every music command (or these): DIR/cap_XX.txt, power-on, the game's
                                          commands blocked from frame BLOCK on, the song sent at SEND (games.GAMES),
                                          length from song.py (to the loop / end + 15 %). Default game: ff3
@@ -134,6 +134,9 @@ def frames_for(data, cmd):
     s = Song(data, cmd).run(ticks=30000)
     if s.queued:
         intro = s.queued[0][0]; nxt = s.queued[0][2]
+        if nxt == cmd:                                         # a song restarting itself ($47 on its own command)
+            s2 = Song(data, cmd).run(ticks=intro)
+            return int(s2.irq / (54.3 + tick_hz(s2.tempo)) * 59.19 * 1.15) + 120
         return frames_for(data, nxt) + int(intro / tick_hz(Song(data, cmd).tempo) * 59.19) + 60
     n = s.tick if not s.running else max((v[0] + v[1] for v in s.loop_at.values()), default=min(s.tick, 600))
     s2 = Song(data, cmd).run(ticks=n)

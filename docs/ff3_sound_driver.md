@@ -1,4 +1,4 @@
-# Fatal Fury 3 sound driver ("Ver 3.0 by MAKOTO.04/03/10 to SK"), and KOF94's and KOF95's builds of it
+# Fatal Fury 3 sound driver ("Ver 3.0 by MAKOTO.04/03/10 to SK"), and the builds of KOF94, KOF95 and Fatal Fury Special
 
 Second deep dive into a classic SNK driver, after KOF98 (`kof98_sound_driver.md`). Source: Fatal Fury 3's M ROM
 (`/data/roms/fatfury3.neo`, M region, 128 KB; copy `/data/tmp/snd98/ff3/ff3_m1.bin`, disassembly `drv.asm` there, by
@@ -9,7 +9,8 @@ dispatch, the two clocks, channel state machine, stream format and every opcode,
 (catalogue, structure, per-song validation) are in `ff3_songs.md`. The King of Fighters '94 runs a slightly different build of the same driver: its
 differences are in "KOF94's build" below, its songs in `kof94_songs.md`. The King of Fighters '95 runs a reworked
 build (other RAM layout, word jump tables, new effect commands, the same music engine): "KOF95's build", songs in
-`kof95_songs.md`. Everything below is read from the code
+`kof95_songs.md`. Fatal Fury Special (1993) runs KOF94's build with its own tables: "Fatal Fury Special's build", songs in
+`fatfursp_songs.md`. Everything below is read from the code
 (addresses cited) or measured; *(inferred)* marks the rest.
 
 ## Z80 map and ports
@@ -553,6 +554,60 @@ Saisyu fight. So: **`$20` (ID `$48B`) has no reference** and is an empty song (n
 **`$32` (ID `$489`)** is not a music command in this build and has no reference; `$50` has no ID: it is reached only
 by `$25`'s chain. Blind spots: IDs computed in registers or read from RAM (the 29 calls), the second P-ROM MB, and
 direct `$320000` writes (none found as instructions).
+
+## Fatal Fury Special's build
+
+Fatal Fury Special's M ROM (`/data/roms/fatfursp.neo`, 128 KB; copy `/data/neogeo_dict/sound/fatfursp/fatfursp_m1.bin`,
+disassembly `drv.asm` there) carries the same signature, `Ver 3.0 by MAKOTO.04/03/10 to SK`, and its interrupt vector
+is KOF94's (`JP $2096`). It is **KOF94's driver code with other tables**: the two code areas `$0000-$2BFF`
+disassembled and aligned instruction by instruction with every 16-bit operand masked
+(`/data/neogeo_dict/sound/kof95/scratch/codediff.py`, output in `/data/neogeo_dict/sound/fatfursp/scratch/k94_*`) give
+5580 instructions on both sides and five differing instructions; every matched code or RAM operand is the same
+address in both builds. So the 1993 game does not run an earlier MAKOTO version than KOF94 (1994): the two are one
+build, differing in data (*inferred*: the code was carried over unchanged between the two games).
+
+The five differences, all read from the code:
+
+| Address | KOF94 | Fatal Fury Special | Effect |
+|---|---|---|---|
+| `$0014` | word `$59A7` | `$F907` | the ROM sum the `$10` self-test compares with (`$1062`) |
+| `$02B9` / `$04EE` | `CP $FF` / `SUB $FF` | `CP $F0` / `SUB $F0` | an ADPCM-A effect code `$F0-$FF` starts a sequenced ADPCM-A effect (headers `$64F6`), as FF3 (KOF94: unreachable) |
+| `$05E0` / `$094A` | `CP $F0` / `SUB $F0` | `CP $80` / `SUB $80` | an ADPCM-B effect code `$80-$FF` starts a sequenced ADPCM-B effect (headers `$7252`) |
+
+Tables (KOF94 → Fatal Fury Special): command types `$6907` → `$74E2`; song headers `$3B40` → `$3F1C`; SSG effect
+headers `$3BC0` → `$3F9C`; song bank bytes `$2E00` and FM patches `$2E40` (same addresses; 83 patches up to `$3F1B`);
+ADPCM-A effect bitmaps `$3E13`/`$3E33`/`$3E53` → `$46AE`/`$46CE`/`$46EE`, records `$3E73`/`$4973`/`$5473` →
+`$470E`/`$5111`/`$5B61` (`$470E`, slot 0's, is also the music's sample table: the note key-on `$0447`, as KOF94);
+sequenced ADPCM-A effect headers `$5EC3` → `$64F6`; ADPCM-B effect bitmaps `$5EE3`/`$5F03` → `$6512`/`$6532`;
+ADPCM-B records `$5F23` → `$6552` (KOF94's 26-byte layout); sequenced ADPCM-B headers `$6659`/`$6673` → `$7252`;
+opcode `$46` tables `$6693` → `$7272`, `$6757` → `$7332`; delta-N `$66D3` → `$72B2`, `$6807` → `$73E2`; one-byte
+effect code tables `$6A07` (ADPCM-B) → `$75E2`, `$6A47` (ADPCM-A) → `$7622`; mute exemption `$6A87` → `$7662`
+(`$7F`); F-numbers `$6A88` → `$7663` (byte-identical, the sharp second scale included); SSG periods `$6AC8` → `$76A3`.
+
+Command map (`$74E2`), the one functional difference that matters to the game: system `$00-$1E` except `$1B` (as
+KOF94); **music** `$20`, `$23-$25`, `$2D-$3B`, `$3D`, `$42-$48`, `$5F` (28); SSG effect songs `$60-$69`, `$7F`;
+**one-byte ADPCM-A effects** (type 3) `$C0-$E4`, `$FA-$FD`: code = `$7622`[cmd - `$C0`] (`$A0-$B7`, `$E5`, `$E8`,
+`$64`, `$65`; `$FA` → `$F2`, a sequenced effect), records of slot 0; **one-byte ADPCM-B effects** (type 4) `$80-$90`,
+`$A0`, `$B0-$BF`: code = `$75E2`[cmd - `$80`] (`$80-$8C` from `$B0`, `$BE`, `$BF` are sequenced effects). KOF94 has
+the same one-byte paths (`$029F` → `$043C`, `$05D6` → `$08D5`) but no command of type 3 or 4.
+
+The model needed the table addresses only (`tools/makoto3/games.py`; `game_of()` now also checks the type table the
+dispatch loads at `$01C1`, since the interrupt vector alone cannot tell the two builds apart). Validation: **all 28
+music commands, 29536 of 29536 interrupts with writes identical, 497007 captured writes, 0 differing**, including
+`$3A`, which restarts itself with opcode `$47` (`capture.py` now ends such a capture after one pass + 15 %); per song
+in `fatfursp_songs.md`. FF3 (32417 / 32417), KOF94 (15571 / 15571) and KOF95 (17683 / 17683) re-compared with the
+changed tools: identical.
+
+### What the 68000 sends (Fatal Fury Special)
+
+Measured in our emulator: `$02` at frame 377 of a power-on (the NEO-GEO logo jingle `$5F`), `$07` (unlock) at 846,
+the title `$47` at 860; the sound effects are prefix pairs (`$18`/`$1A`/`$1C` + code, as KOF94). The stage themes come
+from the 16-word table at P ROM `$4B3C` (`$4B0E`: `jsr $2389E` with the word): `$30 $31 $32 $33 $34 $36 $37 $35 $42
+$44 $38 $39 $3A $43 $3B $45`, the opponent's number in the order Terry, Andy, Joe, Big Bear, Jubei, Cheng, Kim, Mai,
+Duck King, Tung Fu Rue, then six bosses (index 15 is followed by command `$FB`, `$4B30`). Measured: choosing each of
+the ten opponents on the enemy select screen starts that opponent's entry (`docs/fatfursp_songs.md`); the word at
+`$10B2EC` (`a5` = `$108000`, offset 13036) read when the theme starts holds the index + 1 (4 picks measured; *inferred*:
+the code advances it after the read).
 
 ## Compared with KOF98
 
