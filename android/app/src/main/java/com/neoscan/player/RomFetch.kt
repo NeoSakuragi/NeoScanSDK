@@ -52,7 +52,9 @@ object RomFetch {
             val got = md.digest().joinToString("") { "%02x".format(it) }
             if (tmp.length() != size || got != sha) { tmp.delete(); Log.e(TAG, "fetch: bad file ($got)"); return rom.exists() }
             if (!tmp.renameTo(rom)) { tmp.delete(); return rom.exists() }
-            prefs.edit().putLong("build", build).putString("version", version).apply()
+            // commit, not apply: the update button restarts the process right after (exit(0)) and an async write was
+            // lost, so the restarted player fetched the same build again
+            prefs.edit().putLong("build", build).putString("version", version).commit()
             Log.i(TAG, "fetch: v$version (build $build) installed (${size / 1024} KB)")
         } catch (e: Exception) {
             Log.w(TAG, "fetch: ${e.message}; playing the cached ROM")

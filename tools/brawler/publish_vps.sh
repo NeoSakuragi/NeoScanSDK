@@ -9,6 +9,10 @@ ROM=$1; VER=$2; APK=$3; APKVER=$4
 HOST=root@195.201.91.211; DIR=/data/brawler/builds
 [ -f "$ROM" ] && [ -n "$VER" ] || { echo "usage: $0 ROM VERSION [APK APKVERSION]"; exit 1; }
 SIZE=$(stat -c %s "$ROM"); SHA=$(sha256sum "$ROM" | cut -d' ' -f1); BUILD=$(date +%s)
+# the same ROM is already the latest: keep its build number (a new one made every player fetch it again)
+if ssh -o BatchMode=yes "$HOST" "cat $DIR/latest.json" 2>/dev/null | grep -q "\"sha256\": \"$SHA\""; then
+  echo "ROM unchanged (sha256 $SHA): not republished"
+else
 rsync -q "$ROM" "$HOST:$DIR/brawler-$VER.neo.part"
 ssh -o BatchMode=yes "$HOST" "set -e; cd $DIR; mv brawler-$VER.neo.part brawler-$VER.neo; ln -sfn brawler-$VER.neo brawler.neo
   printf '{\"version\": \"%s\", \"build\": %s, \"file\": \"brawler-%s.neo\", \"size\": %s, \"sha256\": \"%s\"}\n' $VER $BUILD $VER $SIZE $SHA > latest.json.part
@@ -17,6 +21,7 @@ ssh -o BatchMode=yes "$HOST" "set -e; cd $DIR; mv brawler-$VER.neo.part brawler-
   chmod 644 brawler-*.neo latest.json
   mkdir -p /var/www/kanji/brawler
   printf '{\"version\": \"%s\", \"date\": \"%s\", \"size\": %s}\n' $VER \$(date -u +%Y-%m-%d) $SIZE > /var/www/kanji/brawler/info.json"
+fi
 if [ -n "$APK" ]; then
   rsync -q "$APK" "$HOST:$DIR/neoscan-player-$APKVER.apk"
   ssh -o BatchMode=yes "$HOST" "cd $DIR; ln -sfn neoscan-player-$APKVER.apk neoscan-player.apk; chmod 644 neoscan-player-*.apk; ls -t neoscan-player-*.apk | tail -n +4 | xargs -r rm -f"
