@@ -1019,7 +1019,7 @@ if __name__ == '__main__':
     mrom = build_driver_v3(song_data, num_rows, tick_rate_hz=8)
 
     if mrom:
-        out_path = '/home/bruno/CLProjects/NeoScanSDK/examples/hello_neo/res/neosynth_m1.bin'
+        out_path = '/home/bruno/CLProjects/NeoGeo/examples/hello_neo/res/neosynth_m1.bin'
         with open(out_path, 'wb') as f:
             f.write(mrom)
         print(f"Written: {out_path} ({len(mrom)} bytes)")

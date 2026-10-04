@@ -1,0 +1,26 @@
+[
+ {
+  "variant": 1,
+  "placed": "placed_n.kicad_pcb",
+  "strategy": "greedy",
+  "oit": "10",
+  "unrouted": 1,
+  "drc_open": 2,
+  "drc_errors": 0,
+  "vias": 222,
+  "length_mm": 8503,
+  "board": "/home/bruno/CLProjects/NeoGeo/hardware/neocart/progr/out/routed_v1.kicad_pcb"
+ },
+ {
+  "variant": 0,
+  "placed": "placed_m.kicad_pcb",
+  "strategy": "greedy",
+  "oit": "10",
+  "unrouted": 2,
+  "drc_open": 2,
+  "drc_errors": 1,
+  "vias": 234,
+  "length_mm": 8548,
+  "board": "/home/bruno/CLProjects/NeoGeo/hardware/neocart/progr/out/routed_v0.kicad_pcb"
+ }
+]

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<circuit>
+<version>1</version>
+<attributes/>
+<visualElements>
+<visualElement><elementName>In</elementName><elementAttributes><entry><string>Label</string><string>A[19:1]</string></entry><entry><string>Bits</string><int>19</int></entry><entry><string>intFormat</string><intFormat>hex</intFormat></entry></elementAttributes><pos x="100" y="60"/></visualElement>
+<visualElement><elementName>In</elementName><elementAttributes><entry><string>Label</string><string>nAS</string></entry><entry><string>InDefault</string><value v="1" z="false"/></entry></elementAttributes><pos x="100" y="160"/></visualElement>
+<visualElement><elementName>In</elementName><elementAttributes><entry><string>Label</string><string>ROMOEU</string></entry><entry><string>InDefault</string><value v="1" z="false"/></entry></elementAttributes><pos x="100" y="200"/></visualElement>
+<visualElement><elementName>In</elementName><elementAttributes><entry><string>Label</string><string>ROMOEL</string></entry><entry><string>InDefault</string><value v="1" z="false"/></entry></elementAttributes><pos x="100" y="240"/></visualElement>
+<visualElement><elementName>In</elementName><elementAttributes><entry><string>Label</string><string>nRW</string></entry><entry><string>InDefault</string><value v="1" z="false"/></entry></elementAttributes><pos x="100" y="280"/></visualElement>
+<visualElement><elementName>In</elementName><elementAttributes><entry><string>Label</string><string>68KCLK</string></entry></elementAttributes><pos x="100" y="340"/></visualElement>
+<visualElement><elementName>In</elementName><elementAttributes><entry><string>Label</string><string>ROMOE</string></entry><entry><string>InDefault</string><value v="1" z="false"/></entry></elementAttributes><pos x="100" y="380"/></visualElement>
+<visualElement><elementName>Not</elementName><elementAttributes/><pos x="200" y="160"/></visualElement>
+<visualElement><elementName>Not</elementName><elementAttributes/><pos x="200" y="200"/></visualElement>
+<visualElement><elementName>Not</elementName><elementAttributes/><pos x="200" y="240"/></visualElement>
+<visualElement><elementName>Not</elementName><elementAttributes/><pos x="200" y="280"/></visualElement>
+<visualElement><elementName>And</elementName><elementAttributes><entry><string>Inputs</string><int>4</int></entry></elementAttributes><pos x="340" y="160"/></visualElement>
+<visualElement><elementName>Not</elementName><elementAttributes/><pos x="480" y="280"/></visualElement>
+<visualElement><elementName>ROM</elementName><elementAttributes><entry><string>Label</string><string>S29GL064 NOR Flash</string></entry><entry><string>AddrBits</string><int>19</int></entry><entry><string>Bits</string><int>16</int></entry><entry><string>intFormat</string><intFormat>hex</intFormat></entry><entry><string>Data</string><data>10,f300,c0,402,c0,408,c0,40e,c0,414,0,186,0,186,0,186</data></entry></elementAttributes><pos x="500" y="40"/></visualElement>
+<visualElement><elementName>Out</elementName><elementAttributes><entry><string>Label</string><string>D[15:0]</string></entry><entry><string>Bits</string><int>16</int></entry><entry><string>intFormat</string><intFormat>hex</intFormat></entry></elementAttributes><pos x="640" y="60"/></visualElement>
+<visualElement><elementName>Out</elementName><elementAttributes><entry><string>Label</string><string>PDTACK</string></entry></elementAttributes><pos x="580" y="280"/></visualElement>
+<visualElement><elementName>Out</elementName><elementAttributes><entry><string>Label</string><string>ROMWAIT</string></entry></elementAttributes><pos x="580" y="320"/></visualElement>
+<visualElement><elementName>Const</elementName><elementAttributes><entry><string>Value</string><long>1</long></entry></elementAttributes><pos x="540" y="320"/></visualElement>
+</visualElements>
+<wires>
+<wire><p1 x="100" y="60"/><p2 x="500" y="40"/></wire>
+<wire><p1 x="100" y="160"/><p2 x="200" y="160"/></wire>
+<wire><p1 x="240" y="160"/><p2 x="340" y="160"/></wire>
+<wire><p1 x="100" y="200"/><p2 x="200" y="200"/></wire>
+<wire><p1 x="240" y="200"/><p2 x="340" y="180"/></wire>
+<wire><p1 x="100" y="240"/><p2 x="200" y="240"/></wire>
+<wire><p1 x="240" y="240"/><p2 x="320" y="200"/></wire>
+<wire><p1 x="320" y="200"/><p2 x="340" y="200"/></wire>
+<wire><p1 x="100" y="280"/><p2 x="200" y="280"/></wire>
+<wire><p1 x="240" y="280"/><p2 x="320" y="220"/></wire>
+<wire><p1 x="320" y="220"/><p2 x="340" y="220"/></wire>
+<wire><p1 x="400" y="200"/><p2 x="460" y="200"/></wire>
+<wire><p1 x="460" y="200"/><p2 x="460" y="80"/></wire>
+<wire><p1 x="460" y="80"/><p2 x="500" y="80"/></wire>
+<wire><p1 x="460" y="200"/><p2 x="460" y="280"/></wire>
+<wire><p1 x="460" y="280"/><p2 x="480" y="280"/></wire>
+<wire><p1 x="520" y="280"/><p2 x="580" y="280"/></wire>
+<wire><p1 x="560" y="60"/><p2 x="640" y="60"/></wire>
+<wire><p1 x="540" y="320"/><p2 x="580" y="320"/></wire>
+</wires>
+</circuit>

@@ -1,0 +1,4 @@
+# Debug: one key press, one snapshot to see if menu moved
+500 key s
+520 snap /tmp/sound_lab_after_down.ppm
+540 quit

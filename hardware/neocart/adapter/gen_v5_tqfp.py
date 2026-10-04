@@ -11,7 +11,7 @@ import os, json
 
 MM = pcbnew.FromMM
 FP_LIB = '/usr/share/kicad/footprints'
-OUT_DIR = '/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/adapter'
+OUT_DIR = '/home/bruno/CLProjects/NeoGeo/hardware/neocart/adapter'
 
 # ═══════════════════════════════════════════════════════════════
 # HELPERS

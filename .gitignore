@@ -9,3 +9,58 @@ hash/
 __pycache__/
 neogeo/
 console_history
+
+# local tooling and machine state (2026-10-04): not source
+AppDir/
+squashfs-root
+node_modules/
+/package.json
+/package-lock.json
+/snap/
+/nvram/
+/cfg/
+/.claude/
+/geolith
+*.d
+error.log
+examples/*/snap/
+examples/hello_neo/0x00B0
+# separate git repositories / third-party clones
+/mame/
+/tools/neosdk/
+/tools/kicad-mcp-server/
+# new ROM builds (the demo ROMs already tracked stay tracked)
+examples/danmaku/danmaku.neo
+examples/ikari_soccer/ikari_soccer.neo
+examples/soccerfury_player/build/
+examples/soccerfury_player/*.mp3
+examples/soccerfury_player/*.wav
+# hardware: third-party, regenerable or per-machine
+hardware/**/datasheets/
+*.step
+*.wrl
+hardware/**/.mcp-backups/
+hardware/**/.history/
+*.lck
+*.kicad_prl
+fp-info-cache
+hardware/**/logs/
+hardware/**/*.log
+hardware/**/*.hex
+hardware/**/*.vcd
+hardware/**/*.so
+hardware/**/*.ppm
+hardware/neocart/adapter/jlcpcb/project.db
+hardware/neocart/sim/prom_small_tb
+hardware/neocart/sim/shm_server
+hardware/neocart/sim/test_client
+hardware/neocart/sim/test_shm
+hardware/neocart/sim/nvram/
+hardware/neocart/pboard/harness/pboard_server
+# hardware out/: intermediate routing and debug files (the final boards, Gerbers, BOM/CPL and renders stay)
+hardware/**/out/*backup*
+hardware/**/out/*_try[0-9]*
+hardware/**/out/*run[0-9]*
+hardware/**/out/dbg*
+hardware/**/out/fallback*
+hardware/**/out/*_before_*

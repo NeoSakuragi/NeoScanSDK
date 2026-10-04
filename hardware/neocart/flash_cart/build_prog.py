@@ -5,7 +5,7 @@ import pcbnew
 def pad_x(n): return round(214.68 - (n-1)*2.54, 2)
 def mm(x,y): return pcbnew.VECTOR2I(pcbnew.FromMM(x), pcbnew.FromMM(y))
 
-PCB = '/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/flash_cart/mvs_blank_prog.kicad_pcb'
+PCB = '/home/bruno/CLProjects/NeoGeo/hardware/neocart/flash_cart/mvs_blank_prog.kicad_pcb'
 board = pcbnew.BOARD()
 
 # ══════ Board outline ══════

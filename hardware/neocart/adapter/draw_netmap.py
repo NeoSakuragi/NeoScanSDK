@@ -125,6 +125,6 @@ cha_connections = [
 draw_board(ax2, 'NEOCART CHA-256 — Net Map', cha_components, cha_connections)
 
 plt.tight_layout()
-out = '/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/adapter/netmap.png'
+out = '/home/bruno/CLProjects/NeoGeo/hardware/neocart/adapter/netmap.png'
 fig.savefig(out, dpi=150, bbox_inches='tight')
 print(f"Saved: {out}")

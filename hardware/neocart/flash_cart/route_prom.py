@@ -2,7 +2,7 @@
 """P-ROM header + routing. F.Cu fan for A-side, B.Cu fan for B-side. Zero crossings."""
 import pcbnew
 
-PCB = '/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/flash_cart/mvs_blank_prog.kicad_pcb'
+PCB = '/home/bruno/CLProjects/NeoGeo/hardware/neocart/flash_cart/mvs_blank_prog.kicad_pcb'
 board = pcbnew.LoadBoard(PCB)
 
 # Remove old header and tracks

@@ -1,0 +1,342 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-01T18:20:13",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.3",
+    "schematic_parity": [],
+    "source": "routed_v0.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 29 [MD13] of U5 on F.Cu",
+                    "pos": {
+                        "x": 51.25,
+                        "y": 53.8
+                    },
+                    "uuid": "6f349f12-21b0-44a9-995d-4ba61356fb38"
+                },
+                {
+                    "description": "Via [MD13] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 67.6037,
+                        "y": 65.4372
+                    },
+                    "uuid": "857777be-15de-4346-b109-20e96b6a3227"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad B13 [A9] of J1",
+                    "pos": {
+                        "x": 63.55,
+                        "y": 33.54
+                    },
+                    "uuid": "0e7cbd24-7df8-4ee0-bf6a-7e05ce90e298"
+                },
+                {
+                    "description": "Pad 13 [A9] of U8 on F.Cu",
+                    "pos": {
+                        "x": 71.25,
+                        "y": 46.29
+                    },
+                    "uuid": "dbb46678-60ca-4954-b64b-78d80b18a208"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": [
+        {
+            "description": "Clearance violation ( clearance 0,1500 mm; actual 0,1130 mm)",
+            "items": [
+                {
+                    "description": "Via [A8] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 60.858,
+                        "y": 36.6425
+                    },
+                    "uuid": "4f5c15ed-8d63-4d1a-85fc-88a535284624"
+                },
+                {
+                    "description": "Track [A6] on F.Cu, length 4,2011 mm",
+                    "pos": {
+                        "x": 58.5945,
+                        "y": 36.2045
+                    },
+                    "uuid": "be2e84c0-43a6-4735-afc8-7a93c8c15379"
+                }
+            ],
+            "severity": "error",
+            "type": "clearance"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint TP2",
+                    "pos": {
+                        "x": 146.5359,
+                        "y": 80.0
+                    },
+                    "uuid": "34e1050b-d507-444a-8018-285832e4d78d"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint TP3",
+                    "pos": {
+                        "x": 146.818,
+                        "y": 85.182
+                    },
+                    "uuid": "87525e58-5a53-4636-a1db-fc6ab48a2421"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint MH3",
+                    "pos": {
+                        "x": 24.0,
+                        "y": 116.0
+                    },
+                    "uuid": "8998439b-0507-4378-98a9-1cb5d084b1b7"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint MH4",
+                    "pos": {
+                        "x": 192.0,
+                        "y": 116.0
+                    },
+                    "uuid": "979dff8f-c77b-4518-930c-a1440de8920e"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint U1",
+                    "pos": {
+                        "x": 96.0,
+                        "y": 93.0
+                    },
+                    "uuid": "b695d30f-7e28-4279-a73b-73d894e17ab2"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint TP4",
+                    "pos": {
+                        "x": 155.5,
+                        "y": 82.0
+                    },
+                    "uuid": "ba8d5dca-2beb-4d3b-9b2d-81e8ef387cb0"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint MH1",
+                    "pos": {
+                        "x": 24.0,
+                        "y": 42.0
+                    },
+                    "uuid": "d0a9a3f3-6487-45db-a7ad-68298b0be902"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint J1",
+                    "pos": {
+                        "x": 108.0,
+                        "y": 31.0
+                    },
+                    "uuid": "d534d019-54b8-468f-9106-f31416ca1cf6"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint TP5",
+                    "pos": {
+                        "x": 109.711,
+                        "y": 117.6744
+                    },
+                    "uuid": "dd85b36b-0cc3-44cb-838a-27d443b49fbb"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint TP1",
+                    "pos": {
+                        "x": 146.6193,
+                        "y": 82.9059
+                    },
+                    "uuid": "ee51ec0b-0926-45ed-8ac6-4ad0a1d890c6"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'progr'",
+            "items": [
+                {
+                    "description": "Footprint MH2",
+                    "pos": {
+                        "x": 192.0,
+                        "y": 42.0
+                    },
+                    "uuid": "f36fdff9-4ec6-4875-8c0a-43d27eba04cf"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "Silkscreen clearance",
+            "items": [
+                {
+                    "description": "Segment of C1 on F.Silkscreen",
+                    "pos": {
+                        "x": 149.438748,
+                        "y": 79.2199
+                    },
+                    "uuid": "124a0300-4843-46bf-9ba3-a22105196183"
+                },
+                {
+                    "description": "Reference field of U4",
+                    "pos": {
+                        "x": 150.11,
+                        "y": 79.1
+                    },
+                    "uuid": "77fa3bb2-6236-4e07-938e-7caa90def9d5"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_overlap"
+        },
+        {
+            "description": "Silkscreen clipped by solder mask",
+            "items": [
+                {
+                    "description": "Circle of LED1 on F.Silkscreen",
+                    "pos": {
+                        "x": 160.8,
+                        "y": 114.6
+                    },
+                    "uuid": "b1c74c50-983d-4bae-94af-1c9ae39c6ecd"
+                },
+                {
+                    "description": "Pad 1 [VCART] of LED1 on F.Cu",
+                    "pos": {
+                        "x": 160.75,
+                        "y": 115.0
+                    },
+                    "uuid": "0878da5f-aa62-4039-a12d-966677c69c9b"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_over_copper"
+        },
+        {
+            "description": "Silkscreen clipped by solder mask",
+            "items": [
+                {
+                    "description": "Reference field of U4",
+                    "pos": {
+                        "x": 150.11,
+                        "y": 79.1
+                    },
+                    "uuid": "77fa3bb2-6236-4e07-938e-7caa90def9d5"
+                },
+                {
+                    "description": "Pad 2 [GND] of C1 on F.Cu",
+                    "pos": {
+                        "x": 150.65,
+                        "y": 78.4849
+                    },
+                    "uuid": "fd4835d4-d544-413f-9dd7-6e714785f8e2"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_over_copper"
+        }
+    ]
+}

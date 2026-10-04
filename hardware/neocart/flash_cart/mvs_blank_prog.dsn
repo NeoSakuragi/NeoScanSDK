@@ -1,0 +1,603 @@
+(pcb /home/bruno/CLProjects/NeoGeo/hardware/neocart/flash_cart/mvs_blank_prog.dsn
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (host_cad "KiCad's Pcbnew")
+    (host_version "9.0.8+dfsg-1")
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  88750 -26250  100750 -26250  100750 -23750  178750 -23750
+            178750 -26250  190750 -26250  190750 -23750  226750 -23750  226750 -138750
+            217050 -138750  217050 -157750  62450 -157750  62450 -138750
+            52750 -138750  52750 -23750  88750 -23750  88750 -26250)
+    )
+    (keepout "" (polygon signal 0  94301.6 -122018  93856.8 -122078  93419.1 -122178  92992.2 -122316
+            92579.5 -122493  92184.2 -122706  91809.6 -122953  91458.6 -123233
+            91134.2 -123543  90838.9 -123881  90575 -124244  90344.8 -124629
+            90150 -125034  89992.3 -125454  89872.9 -125887  89792.8 -126328
+            89752.5 -126776  89752.5 -127224  89792.8 -127672  89872.9 -128113
+            89992.3 -128546  90150 -128966  90344.8 -129371  90575 -129756
+            90838.9 -130119  91134.2 -130457  91458.6 -130767  91809.6 -131047
+            92184.2 -131294  92579.5 -131507  92992.2 -131684  93419.1 -131822
+            93856.8 -131922  94301.6 -131982  94750 -132003  95198.4 -131982
+            95643.2 -131922  96080.9 -131822  96507.8 -131684  96920.5 -131507
+            97315.8 -131294  97690.4 -131047  98041.4 -130767  98365.8 -130457
+            98661.1 -130119  98925 -129756  99155.2 -129371  99350 -128966
+            99507.7 -128546  99627.1 -128113  99707.2 -127672  99747.5 -127224
+            99750 -127000  99747.5 -126776  99707.2 -126328  99627.1 -125887
+            99507.7 -125454  99350 -125034  99155.2 -124629  98925 -124244
+            98661.1 -123881  98365.8 -123543  98041.4 -123233  97690.4 -122953
+            97315.8 -122706  96920.5 -122493  96507.8 -122316  96080.9 -122178
+            95643.2 -122078  95198.4 -122018  94750 -121997  94301.6 -122018))
+    (keepout "" (polygon signal 0  184302 -122018  183857 -122078  183419 -122178  182992 -122316
+            182579 -122493  182184 -122706  181810 -122953  181459 -123233
+            181134 -123543  180839 -123881  180575 -124244  180345 -124629
+            180150 -125034  179992 -125454  179873 -125887  179793 -126328
+            179753 -126776  179753 -127224  179793 -127672  179873 -128113
+            179992 -128546  180150 -128966  180345 -129371  180575 -129756
+            180839 -130119  181134 -130457  181459 -130767  181810 -131047
+            182184 -131294  182579 -131507  182992 -131684  183419 -131822
+            183857 -131922  184302 -131982  184750 -132003  185198 -131982
+            185643 -131922  186081 -131822  186508 -131684  186921 -131507
+            187316 -131294  187690 -131047  188041 -130767  188366 -130457
+            188661 -130119  188925 -129756  189155 -129371  189350 -128966
+            189508 -128546  189627 -128113  189707 -127672  189747 -127224
+            189750 -127000  189747 -126776  189707 -126328  189627 -125887
+            189508 -125454  189350 -125034  189155 -124629  188925 -124244
+            188661 -123881  188366 -123543  188041 -123233  187690 -122953
+            187316 -122706  186921 -122493  186508 -122316  186081 -122178
+            185643 -122078  185198 -122018  184750 -121997  184302 -122018))
+    (via "Via[0-1]_600:300_um")
+    (rule
+      (width 200)
+      (clearance 200)
+      (clearance 50 (type smd_smd))
+    )
+  )
+  (placement
+    (component ""
+      (place A19 168960.000000 -154400.000000 front 0.000000 (PN D14))
+      (place A57 72440.000000 -154400.000000 front 0.000000 (PN GND))
+      (place A14 181660.000000 -154400.000000 front 0.000000 (PN D9))
+      (place A15 179120.000000 -154400.000000 front 0.000000 (PN D10))
+      (place A60 64819.999000 -154400.000000 front 0.000000 (PN GND))
+      (place A4 207060.000000 -154400.000000 front 0.000000 (PN GND))
+      (place A41 113080.000000 -154400.000000 front 0.000000 (PN NC))
+      (place A32 135940.000000 -154400.000000 front 0.000000 (PN VCC))
+      (place A54 80060.000000 -154400.000000 front 0.000000 (PN SDRA23))
+      (place A31 138480.000000 -154400.000000 front 0.000000 (PN VCC))
+      (place A37 123240.000000 -154400.000000 front 0.000000 (PN NC))
+      (place A48 95300.000000 -154400.000000 front 0.000000 (PN SDPOE))
+      (place A59 67360.000000 -154400.000000 front 0.000000 (PN GND))
+      (place A51 87680.000000 -154400.000000 front 0.000000 (PN SDRA20))
+      (place A40 115620.000000 -154400.000000 front 0.000000 (PN NC))
+      (place A23 158800.000000 -154400.000000 front 0.000000 (PN ROMOEU))
+      (place A50 90220.000000 -154400.000000 front 0.000000 (PN SDRA9))
+      (place A2 212140.000000 -154400.000000 front 0.000000 (PN GND))
+      (place A46 100380.000000 -154400.000000 front 0.000000 (PN SDPA11))
+      (place A3 209600.000000 -154400.000000 front 0.000000 (PN GND))
+      (place A24 156260.000000 -154400.000000 front 0.000000 (PN ROMOEL))
+      (place A55 77520.000000 -154400.000000 front 0.000000 (PN SDRMPX))
+      (place A33 133400.000000 -154400.000000 front 0.000000 (PN PORTADRS))
+      (place A43 108000.000000 -154400.000000 front 0.000000 (PN SDPA8))
+      (place A42 110540.000000 -154400.000000 front 0.000000 (PN SLOTCS))
+      (place A36 125780.000000 -154400.000000 front 0.000000 (PN NC))
+      (place A10 191820.000000 -154400.000000 front 0.000000 (PN D5))
+      (place A6 201980.000000 -154400.000000 front 0.000000 (PN D1))
+      (place A52 85140.000000 -154400.000000 front 0.000000 (PN SDRA21))
+      (place A26 151180.000000 -154400.000000 front 0.000000 (PN PORTOEL))
+      (place A58 69900.000000 -154400.000000 front 0.000000 (PN GND))
+      (place A7 199440.000000 -154400.000000 front 0.000000 (PN D2))
+      (place A53 82600.000000 -154400.000000 front 0.000000 (PN SDRA22))
+      (place A5 204520.000000 -154400.000000 front 0.000000 (PN D0))
+      (place A8 196900.000000 -154400.000000 front 0.000000 (PN D3))
+      (place A9 194360.000000 -154400.000000 front 0.000000 (PN D4))
+      (place A35 128320.000000 -154400.000000 front 0.000000 (PN NC))
+      (place A13 184200.000000 -154400.000000 front 0.000000 (PN D8))
+      (place A17 174040.000000 -154400.000000 front 0.000000 (PN D12))
+      (place A16 176580.000000 -154400.000000 front 0.000000 (PN D11))
+      (place A44 105460.000000 -154400.000000 front 0.000000 (PN SDPA9))
+      (place A12 186740.000000 -154400.000000 front 0.000000 (PN D7))
+      (place A30 141020.000000 -154400.000000 front 0.000000 (PN VCC))
+      (place A39 118160.000000 -154400.000000 front 0.000000 (PN NC))
+      (place A47 97840.000000 -154400.000000 front 0.000000 (PN SDPMPX))
+      (place A49 92760.000000 -154400.000000 front 0.000000 (PN SDRA8))
+      (place A28 146100.000000 -154400.000000 front 0.000000 (PN PORTWEL))
+      (place A27 148640.000000 -154400.000000 front 0.000000 (PN PORTWEU))
+      (place A56 74980.000000 -154400.000000 front 0.000000 (PN SDROE))
+      (place A34 130860.000000 -154400.000000 front 0.000000 (PN NC))
+      (place A21 163880.000000 -154400.000000 front 0.000000 (PN R_W))
+      (place A29 143560.000000 -154400.000000 front 0.000000 (PN VCC))
+      (place A25 153720.000000 -154400.000000 front 0.000000 (PN PORTOEU))
+      (place A18 171500.000000 -154400.000000 front 0.000000 (PN D13))
+      (place A22 161340.000000 -154400.000000 front 0.000000 (PN AS))
+      (place A20 166420.000000 -154400.000000 front 0.000000 (PN D15))
+      (place A45 102920.000000 -154400.000000 front 0.000000 (PN SDPA10))
+      (place A38 120700.000000 -154400.000000 front 0.000000 (PN NC))
+      (place A1 214680.000000 -154400.000000 front 0.000000 (PN GND))
+      (place A11 189280.000000 -154400.000000 front 0.000000 (PN D6))
+      (place B40 115620.000000 -154400.000000 back 180.000000 (PN NC))
+      (place B33 133400.000000 -154400.000000 back 180.000000 (PN ROMOE))
+      (place B16 176580.000000 -154400.000000 back 180.000000 (PN A12))
+      (place B25 153720.000000 -154400.000000 back 180.000000 (PN ROMWAIT))
+      (place B29 143560.000000 -154400.000000 back 180.000000 (PN VCC))
+      (place B15 179120.000000 -154400.000000 back 180.000000 (PN A11))
+      (place B48 95300.000000 -154400.000000 back 180.000000 (PN SDPAD7))
+      (place B9 194360.000000 -154400.000000 back 180.000000 (PN A5))
+      (place B30 141020.000000 -154400.000000 back 180.000000 (PN VCC))
+      (place B58 69900.000000 -154400.000000 back 180.000000 (PN GND))
+      (place B13 184200.000000 -154400.000000 back 180.000000 (PN A9))
+      (place B2 212140.000000 -154400.000000 back 180.000000 (PN GND))
+      (place B28 146100.000000 -154400.000000 back 180.000000 (PN PDTACK))
+      (place B32 135940.000000 -154400.000000 back 180.000000 (PN VCC))
+      (place B22 161340.000000 -154400.000000 back 180.000000 (PN A18))
+      (place B3 209600.000000 -154400.000000 back 180.000000 (PN GND))
+      (place B5 204520.000000 -154400.000000 back 180.000000 (PN A1))
+      (place B38 120700.000000 -154400.000000 back 180.000000 (PN NC))
+      (place B52 85140.000000 -154400.000000 back 180.000000 (PN SDRAD3))
+      (place B18 171500.000000 -154400.000000 back 180.000000 (PN A14))
+      (place B51 87680.000000 -154400.000000 back 180.000000 (PN SDRAD2))
+      (place B35 128320.000000 -154400.000000 back 180.000000 (PN RESET))
+      (place B47 97840.000000 -154400.000000 back 180.000000 (PN SDPAD6))
+      (place B12 186740.000000 -154400.000000 back 180.000000 (PN A8))
+      (place B44 105460.000000 -154400.000000 back 180.000000 (PN SDPAD3))
+      (place B56 74980.000000 -154400.000000 back 180.000000 (PN SDRAD7))
+      (place B59 67360.000000 -154400.000000 back 180.000000 (PN GND))
+      (place B39 118160.000000 -154400.000000 back 180.000000 (PN NC))
+      (place B8 196900.000000 -154400.000000 back 180.000000 (PN A4))
+      (place B14 181660.000000 -154400.000000 back 180.000000 (PN A10))
+      (place B27 148640.000000 -154400.000000 back 180.000000 (PN PWAIT1))
+      (place B60 64819.999000 -154400.000000 back 180.000000 (PN GND))
+      (place B23 158800.000000 -154400.000000 back 180.000000 (PN A19))
+      (place B36 125780.000000 -154400.000000 back 180.000000 (PN NC))
+      (place B49 92760.000000 -154400.000000 back 180.000000 (PN SDRAD0))
+      (place B6 201980.000000 -154400.000000 back 180.000000 (PN A2))
+      (place B4 207060.000000 -154400.000000 back 180.000000 (PN GND))
+      (place B7 199440.000000 -154400.000000 back 180.000000 (PN A3))
+      (place B54 80060.000000 -154400.000000 back 180.000000 (PN SDRAD5))
+      (place B37 123240.000000 -154400.000000 back 180.000000 (PN NC))
+      (place B31 138480.000000 -154400.000000 back 180.000000 (PN VCC))
+      (place B11 189280.000000 -154400.000000 back 180.000000 (PN A7))
+      (place B50 90220.000000 -154400.000000 back 180.000000 (PN SDRAD1))
+      (place B1 214680.000000 -154400.000000 back 180.000000 (PN GND))
+      (place B10 191820.000000 -154400.000000 back 180.000000 (PN A6))
+      (place B19 168960.000000 -154400.000000 back 180.000000 (PN A15))
+      (place B17 174040.000000 -154400.000000 back 180.000000 (PN A13))
+      (place B24 156260.000000 -154400.000000 back 180.000000 (PN 68KCLKB))
+      (place B34 130860.000000 -154400.000000 back 180.000000 (PN 4MB))
+      (place B26 151180.000000 -154400.000000 back 180.000000 (PN PWAIT0))
+      (place B42 110540.000000 -154400.000000 back 180.000000 (PN SDPAD1))
+      (place B43 108000.000000 -154400.000000 back 180.000000 (PN SDPAD2))
+      (place B53 82600.000000 -154400.000000 back 180.000000 (PN SDRAD4))
+      (place B46 100380.000000 -154400.000000 back 180.000000 (PN SDPAD5))
+      (place B41 113080.000000 -154400.000000 back 180.000000 (PN SDPAD0))
+      (place B55 77520.000000 -154400.000000 back 180.000000 (PN SDRAD6))
+      (place B21 163880.000000 -154400.000000 back 180.000000 (PN A17))
+      (place B20 166420.000000 -154400.000000 back 180.000000 (PN A16))
+      (place B45 102920.000000 -154400.000000 back 180.000000 (PN SDPAD4))
+      (place B57 72440.000000 -154400.000000 back 180.000000 (PN GND))
+    )
+    (component ::1
+      (place J_PROM 220000.000000 -32000.000000 front 0.000000 (PN "P-ROM 2x20"))
+    )
+  )
+  (library
+    (image ""
+      (pin Rect[T]Pad_1500.000000x10000.000000_um 1 0 0)
+    )
+    (image ::1
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 1 0 0)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 2 2540 0)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 3 0 -2540)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 4 2540 -2540)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 5 0 -5080)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 6 2540 -5080)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 7 0 -7620)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 8 2540 -7620)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 9 0 -10160)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 10 2540 -10160)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 11 0 -12700)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 12 2540 -12700)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 13 0 -15240)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 14 2540 -15240)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 15 0 -17780)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 16 2540 -17780)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 17 0 -20320)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 18 2540 -20320)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 19 0 -22860)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 20 2540 -22860)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 21 0 -25400)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 22 2540 -25400)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 23 0 -27940)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 24 2540 -27940)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 25 0 -30480)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 26 2540 -30480)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 27 0 -33020)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 28 2540 -33020)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 29 0 -35560)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 30 2540 -35560)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 31 0 -38100)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 32 2540 -38100)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 33 0 -40640)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 34 2540 -40640)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 35 0 -43180)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 36 2540 -43180)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 37 0 -45720)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 38 2540 -45720)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 39 0 -48260)
+      (pin Oval[A]Pad_1700.000000x1700.000000_um 40 2540 -48260)
+    )
+    (padstack Oval[A]Pad_1700.000000x1700.000000_um
+      (shape (path F.Cu 1700  0 0  0 0))
+      (shape (path B.Cu 1700  0 0  0 0))
+      (attach off)
+    )
+    (padstack Rect[T]Pad_1500.000000x10000.000000_um
+      (shape (rect F.Cu -750 -5000 750 5000))
+      (attach off)
+    )
+    (padstack "Via[0-1]_600:300_um"
+      (shape (circle F.Cu 600))
+      (shape (circle B.Cu 600))
+      (attach off)
+    )
+  )
+  (network
+    (net SDPAD2
+      (pins B43-1)
+    )
+    (net A9
+      (pins J_PROM-19 B13-1)
+    )
+    (net PORTWEU
+      (pins A27-1)
+    )
+    (net A16
+      (pins J_PROM-33 B20-1)
+    )
+    (net SDPA11
+      (pins A46-1)
+    )
+    (net A12
+      (pins J_PROM-25 B16-1)
+    )
+    (net D13
+      (pins J_PROM-30 A18-1)
+    )
+    (net D7
+      (pins A12-1 J_PROM-18)
+    )
+    (net SDPAD7
+      (pins B48-1)
+    )
+    (net D12
+      (pins A17-1 J_PROM-28)
+    )
+    (net D2
+      (pins A7-1 J_PROM-8)
+    )
+    (net SLOTCS
+      (pins A42-1)
+    )
+    (net R_W
+      (pins A21-1)
+    )
+    (net SDRMPX
+      (pins A55-1)
+    )
+    (net ROMOEL
+      (pins A24-1 J_PROM-38)
+    )
+    (net ROMWAIT
+      (pins B25-1)
+    )
+    (net A11
+      (pins J_PROM-23 B15-1)
+    )
+    (net PDTACK
+      (pins B28-1)
+    )
+    (net SDRA23
+      (pins A54-1)
+    )
+    (net SDRAD4
+      (pins B53-1)
+    )
+    (net A4
+      (pins J_PROM-9 B8-1)
+    )
+    (net D4
+      (pins A9-1 J_PROM-12)
+    )
+    (net A15
+      (pins J_PROM-31 B19-1)
+    )
+    (net D1
+      (pins A6-1 J_PROM-6)
+    )
+    (net AS
+      (pins A22-1)
+    )
+    (net SDPMPX
+      (pins A47-1)
+    )
+    (net SDPAD3
+      (pins B44-1)
+    )
+    (net GND
+      (pins J_PROM-1 B1-1)
+    )
+    (net D11
+      (pins A16-1 J_PROM-26)
+    )
+    (net ROMOEU
+      (pins A23-1 J_PROM-36)
+    )
+    (net VCC
+      (pins J_PROM-2 A29-1)
+    )
+    (net SDROE
+      (pins A56-1)
+    )
+    (net D5
+      (pins A10-1 J_PROM-14)
+    )
+    (net A19
+      (pins J_PROM-39 B23-1)
+    )
+    (net D6
+      (pins J_PROM-16 A11-1)
+    )
+    (net SDPA10
+      (pins A45-1)
+    )
+    (net SDPOE
+      (pins A48-1)
+    )
+    (net SDPA8
+      (pins A43-1)
+    )
+    (net SDPAD1
+      (pins B42-1)
+    )
+    (net A6
+      (pins J_PROM-13 B10-1)
+    )
+    (net D8
+      (pins A13-1 J_PROM-20)
+    )
+    (net SDPAD0
+      (pins B41-1)
+    )
+    (net SDPAD6
+      (pins B47-1)
+    )
+    (net D10
+      (pins A15-1 J_PROM-24)
+    )
+    (net PORTOEL
+      (pins A26-1)
+    )
+    (net A5
+      (pins J_PROM-11 B9-1)
+    )
+    (net PWAIT0
+      (pins B26-1)
+    )
+    (net A7
+      (pins J_PROM-15 B11-1)
+    )
+    (net D0
+      (pins A5-1 J_PROM-4)
+    )
+    (net D14
+      (pins A19-1 J_PROM-32)
+    )
+    (net A13
+      (pins J_PROM-27 B17-1)
+    )
+    (net PORTADRS
+      (pins A33-1)
+    )
+    (net SDRAD5
+      (pins B54-1)
+    )
+    (net SDRAD3
+      (pins B52-1)
+    )
+    (net SDRAD7
+      (pins B56-1)
+    )
+    (net A3
+      (pins J_PROM-7 B7-1)
+    )
+    (net A8
+      (pins J_PROM-17 B12-1)
+    )
+    (net D3
+      (pins A8-1 J_PROM-10)
+    )
+    (net A14
+      (pins J_PROM-29 B18-1)
+    )
+    (net PWAIT1
+      (pins B27-1)
+    )
+    (net ROMOE
+      (pins J_PROM-40 B33-1)
+    )
+    (net SDRA21
+      (pins A52-1)
+    )
+    (net 68KCLKB
+      (pins B24-1)
+    )
+    (net D9
+      (pins A14-1 J_PROM-22)
+    )
+    (net D15
+      (pins J_PROM-34 A20-1)
+    )
+    (net A2
+      (pins J_PROM-5 B6-1)
+    )
+    (net SDRAD6
+      (pins B55-1)
+    )
+    (net SDRA20
+      (pins A51-1)
+    )
+    (net SDPAD4
+      (pins B45-1)
+    )
+    (net 4MB
+      (pins B34-1)
+    )
+    (net SDRAD2
+      (pins B51-1)
+    )
+    (net SDRA22
+      (pins A53-1)
+    )
+    (net A10
+      (pins J_PROM-21 B14-1)
+    )
+    (net RESET
+      (pins B35-1)
+    )
+    (net SDRAD1
+      (pins B50-1)
+    )
+    (net A1
+      (pins J_PROM-3 B5-1)
+    )
+    (net A18
+      (pins J_PROM-37 B22-1)
+    )
+    (net SDPAD5
+      (pins B46-1)
+    )
+    (net A17
+      (pins J_PROM-35 B21-1)
+    )
+    (net PORTOEU
+      (pins A25-1)
+    )
+    (net SDRA8
+      (pins A49-1)
+    )
+    (net SDRA9
+      (pins A50-1)
+    )
+    (net SDPA9
+      (pins A44-1)
+    )
+    (net SDRAD0
+      (pins B49-1)
+    )
+    (net PORTWEL
+      (pins A28-1)
+    )
+    (net GND_A1
+      (pins A1-1)
+    )
+    (net GND_A2
+      (pins A2-1)
+    )
+    (net GND_A3
+      (pins A3-1)
+    )
+    (net GND_A4
+      (pins A4-1)
+    )
+    (net VCC_A30
+      (pins A30-1)
+    )
+    (net VCC_A31
+      (pins A31-1)
+    )
+    (net VCC_A32
+      (pins A32-1)
+    )
+    (net GND_A57
+      (pins A57-1)
+    )
+    (net GND_A58
+      (pins A58-1)
+    )
+    (net GND_A59
+      (pins A59-1)
+    )
+    (net GND_A60
+      (pins A60-1)
+    )
+    (net GND_B2
+      (pins B2-1)
+    )
+    (net GND_B3
+      (pins B3-1)
+    )
+    (net GND_B4
+      (pins B4-1)
+    )
+    (net VCC_B29
+      (pins B29-1)
+    )
+    (net VCC_B30
+      (pins B30-1)
+    )
+    (net VCC_B31
+      (pins B31-1)
+    )
+    (net VCC_B32
+      (pins B32-1)
+    )
+    (net GND_B57
+      (pins B57-1)
+    )
+    (net GND_B58
+      (pins B58-1)
+    )
+    (net GND_B59
+      (pins B59-1)
+    )
+    (net GND_B60
+      (pins B60-1)
+    )
+    (class kicad_default 4MB 68KCLKB A1 A10 A11 A12 A13 A14 A15 A16 A17 A18
+      A19 A2 A3 A4 A5 A6 A7 A8 A9 AS D0 D1 D10 D11 D12 D13 D14 D15 D2 D3 D4
+      D5 D6 D7 D8 D9 GND GND_A1 GND_A2 GND_A3 GND_A4 GND_A57 GND_A58 GND_A59
+      GND_A60 GND_B2 GND_B3 GND_B4 GND_B57 GND_B58 GND_B59 GND_B60 PDTACK
+      PORTADRS PORTOEL PORTOEU PORTWEL PORTWEU PWAIT0 PWAIT1 RESET ROMOE ROMOEL
+      ROMOEU ROMWAIT R_W SDPA10 SDPA11 SDPA8 SDPA9 SDPAD0 SDPAD1 SDPAD2 SDPAD3
+      SDPAD4 SDPAD5 SDPAD6 SDPAD7 SDPMPX SDPOE SDRA20 SDRA21 SDRA22 SDRA23
+      SDRA8 SDRA9 SDRAD0 SDRAD1 SDRAD2 SDRAD3 SDRAD4 SDRAD5 SDRAD6 SDRAD7
+      SDRMPX SDROE SLOTCS VCC VCC_A30 VCC_A31 VCC_A32 VCC_B29 VCC_B30 VCC_B31
+      VCC_B32
+      (circuit
+        (use_via "Via[0-1]_600:300_um")
+      )
+      (rule
+        (width 200)
+        (clearance 200)
+      )
+    )
+  )
+  (wiring
+  )
+)

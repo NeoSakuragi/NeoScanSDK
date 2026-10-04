@@ -1,0 +1,4 @@
+(version 1)
+(rule "USB-C receptacle: its own pin pitch and shell holes (JLCPCB 2-layer minimum spacing 0.10 mm; footprint from their library)"
+  (condition "A.memberOfFootprint('J2') || B.memberOfFootprint('J2')")
+  (constraint clearance (min 0.1)) (constraint edge_clearance (min 0.1)) (constraint annular_width (min 0.05)))

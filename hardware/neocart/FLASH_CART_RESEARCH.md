@@ -2,7 +2,7 @@
 
 ## Goal
 Cheap, disposable MVS/AES cartridge boards for homebrew game distribution.
-Must be compatible with original MVS, original AES, and upcoming AES+ (Nov 2026).
+Must be compatible with original MVS, original AES, and upcoming AES+ (delayed to 2027-09-16 per the 2026-09-23 check).
 
 ## Architecture Options
 
@@ -138,7 +138,7 @@ Contact: Macronix sales, Hsinchu Taiwan — https://www.macronix.com
 
 ## Market Context (May 2026)
 
-- **AES+ launches Nov 12, 2026** — $250 console, $90 official carts, ASIC-based (no emulation)
+- **AES+ delayed to 2027-09-16** (checked 2026-09-23) — €199.99 console, ~€80 official carts, new ASICs (no emulation), AES carts only, MVS incompatible
 - Current homebrew Kickstarter carts: $289-499 (Bang² Busters 2, Metal Mack)
 - $199 price point for a new original game undercuts homebrew, justifies premium over official rereleases
 - At $199 × 1000 units = $199K revenue, ~$110K profit (flash cart approach)

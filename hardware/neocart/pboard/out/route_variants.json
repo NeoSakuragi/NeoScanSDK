@@ -1,0 +1,62 @@
+[
+ {
+  "variant": 4,
+  "placed": "placed_w3e.kicad_pcb",
+  "strategy": "greedy",
+  "oit": "10",
+  "unrouted": 1,
+  "drc_open": 0,
+  "drc_errors": 0,
+  "vias": 437,
+  "length_mm": 12709,
+  "board": "/home/bruno/CLProjects/NeoGeo/hardware/neocart/pboard/out/routed_v4.kicad_pcb"
+ },
+ {
+  "variant": 2,
+  "placed": "placed_w3c.kicad_pcb",
+  "strategy": "greedy",
+  "oit": "10",
+  "unrouted": 1,
+  "drc_open": 1,
+  "drc_errors": 0,
+  "vias": 456,
+  "length_mm": 12838,
+  "board": "/home/bruno/CLProjects/NeoGeo/hardware/neocart/pboard/out/routed_v2.kicad_pcb"
+ },
+ {
+  "variant": 3,
+  "placed": "placed_w3d.kicad_pcb",
+  "strategy": "greedy",
+  "oit": "10",
+  "unrouted": 1,
+  "drc_open": 2,
+  "drc_errors": 0,
+  "vias": 453,
+  "length_mm": 12779,
+  "board": "/home/bruno/CLProjects/NeoGeo/hardware/neocart/pboard/out/routed_v3.kicad_pcb"
+ },
+ {
+  "variant": 1,
+  "placed": "placed_w3b.kicad_pcb",
+  "strategy": "greedy",
+  "oit": "10",
+  "unrouted": 3,
+  "drc_open": 3,
+  "drc_errors": 0,
+  "vias": 424,
+  "length_mm": 12690,
+  "board": "/home/bruno/CLProjects/NeoGeo/hardware/neocart/pboard/out/routed_v1.kicad_pcb"
+ },
+ {
+  "variant": 0,
+  "placed": "placed_w3a.kicad_pcb",
+  "strategy": "greedy",
+  "oit": "10",
+  "unrouted": 1,
+  "drc_open": 4,
+  "drc_errors": 0,
+  "vias": 430,
+  "length_mm": 12620,
+  "board": "/home/bruno/CLProjects/NeoGeo/hardware/neocart/pboard/out/routed_v0.kicad_pcb"
+ }
+]

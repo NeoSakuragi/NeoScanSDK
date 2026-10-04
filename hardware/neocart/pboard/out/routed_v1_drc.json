@@ -1,0 +1,359 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-01T06:58:28",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.3",
+    "schematic_parity": [],
+    "source": "routed_v1.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 45 [GND] of U8 on F.Cu",
+                    "pos": {
+                        "x": 120.85,
+                        "y": 117.71
+                    },
+                    "uuid": "df668fef-7656-4d67-9634-ffe10d80349f"
+                },
+                {
+                    "description": "Track [GND] on B.Cu, length 4,4268 mm",
+                    "pos": {
+                        "x": 122.1966,
+                        "y": 121.5262
+                    },
+                    "uuid": "7383675d-5e4e-485a-abd4-c795312e92c8"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 7 [P3V3] of U8 on F.Cu",
+                    "pos": {
+                        "x": 119.35,
+                        "y": 110.29
+                    },
+                    "uuid": "fcc17903-5ad8-49ae-832b-2e29cedac75e"
+                },
+                {
+                    "description": "Track [P3V3] on F.Cu, length 0,7649 mm",
+                    "pos": {
+                        "x": 117.928,
+                        "y": 107.8752
+                    },
+                    "uuid": "59f20844-6775-4447-9962-09d494e6aec9"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Track [V_ADR17] on B.Cu, length 0,6336 mm",
+                    "pos": {
+                        "x": 61.2238,
+                        "y": 111.5609
+                    },
+                    "uuid": "606f79a4-6725-4e8f-99a4-78b7e571fbfd"
+                },
+                {
+                    "description": "Pad 9 [V_ADR17] of U9 on F.Cu",
+                    "pos": {
+                        "x": 134.15,
+                        "y": 110.29
+                    },
+                    "uuid": "808bcc55-831c-4fad-8a26-a6b7ede4c7fa"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": [
+        {
+            "description": "The current configuration does not include the footprint library 'neocart_blank'",
+            "items": [
+                {
+                    "description": "Footprint J2",
+                    "pos": {
+                        "x": 141.02,
+                        "y": 150.65
+                    },
+                    "uuid": "03672794-e6fb-49f8-baf4-025dc4273976"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'pboard'",
+            "items": [
+                {
+                    "description": "Footprint TP3",
+                    "pos": {
+                        "x": 141.0,
+                        "y": 83.0
+                    },
+                    "uuid": "1e852aa8-f8b1-479e-9408-39a8dd1706d2"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'pboard'",
+            "items": [
+                {
+                    "description": "Footprint TP2",
+                    "pos": {
+                        "x": 140.0,
+                        "y": 81.0
+                    },
+                    "uuid": "9565335f-aca1-452c-b35d-93b1a55cf460"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'pboard'",
+            "items": [
+                {
+                    "description": "Footprint TP4",
+                    "pos": {
+                        "x": 153.947,
+                        "y": 119.2148
+                    },
+                    "uuid": "ca7e9d83-d7e3-4bbb-b2ad-a500c49fb464"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'pboard'",
+            "items": [
+                {
+                    "description": "Footprint TP1",
+                    "pos": {
+                        "x": 142.0,
+                        "y": 81.0
+                    },
+                    "uuid": "ddf99ec7-59ac-4561-8dcc-6aab3ecf6f09"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'neocart_blank'",
+            "items": [
+                {
+                    "description": "Footprint J1",
+                    "pos": {
+                        "x": 138.48,
+                        "y": 150.65
+                    },
+                    "uuid": "aa8f54c6-b3e6-48a4-9fc6-2006f9abc005"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "Silkscreen clearance",
+            "items": [
+                {
+                    "description": "Segment of C5 on F.Silkscreen",
+                    "pos": {
+                        "x": 94.60942,
+                        "y": 36.61
+                    },
+                    "uuid": "4813170d-6899-4bab-a48a-8d702a01f2f7"
+                },
+                {
+                    "description": "Reference field of U2",
+                    "pos": {
+                        "x": 95.0,
+                        "y": 36.5
+                    },
+                    "uuid": "9cab142e-4587-493d-931a-30568a03fc7c"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_overlap"
+        },
+        {
+            "description": "Silkscreen clearance",
+            "items": [
+                {
+                    "description": "Reference field of U5",
+                    "pos": {
+                        "x": 200.089999,
+                        "y": 108.425
+                    },
+                    "uuid": "1f99f67f-5174-417f-917f-ee956b1c0da9"
+                },
+                {
+                    "description": "Segment of U1 on F.Silkscreen",
+                    "pos": {
+                        "x": 211.82,
+                        "y": 108.0896
+                    },
+                    "uuid": "2be3267d-a57b-4de7-8976-49c5ac0901b7"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_overlap"
+        },
+        {
+            "description": "Silkscreen clipped by solder mask",
+            "items": [
+                {
+                    "description": "Reference field of U8",
+                    "pos": {
+                        "x": 116.7175,
+                        "y": 108.4325
+                    },
+                    "uuid": "fa9297c9-628a-4f1a-b2ff-cce5eec1d56b"
+                },
+                {
+                    "description": "Pad 1 [P3V3] of C14 on F.Cu",
+                    "pos": {
+                        "x": 117.928,
+                        "y": 107.8752
+                    },
+                    "uuid": "6466ff3c-0f54-4ea2-a2a5-dbfecb39a2d0"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_over_copper"
+        },
+        {
+            "description": "Silkscreen clipped by solder mask",
+            "items": [
+                {
+                    "description": "Reference field of U2",
+                    "pos": {
+                        "x": 95.0,
+                        "y": 36.5
+                    },
+                    "uuid": "9cab142e-4587-493d-931a-30568a03fc7c"
+                },
+                {
+                    "description": "Pad 1 [P3V3] of C5 on F.Cu",
+                    "pos": {
+                        "x": 93.975,
+                        "y": 36.1
+                    },
+                    "uuid": "66348f63-323d-4f41-b038-5c3d4637b27b"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_over_copper"
+        },
+        {
+            "description": "Silkscreen clipped by solder mask",
+            "items": [
+                {
+                    "description": "Reference field of U2",
+                    "pos": {
+                        "x": 95.0,
+                        "y": 36.5
+                    },
+                    "uuid": "9cab142e-4587-493d-931a-30568a03fc7c"
+                },
+                {
+                    "description": "Pad 2 [GND] of C5 on F.Cu",
+                    "pos": {
+                        "x": 95.525,
+                        "y": 36.1
+                    },
+                    "uuid": "83bc9d87-8717-495e-9096-77bf6e7c0b9d"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_over_copper"
+        },
+        {
+            "description": "Silkscreen clipped by solder mask",
+            "items": [
+                {
+                    "description": "Reference field of U7",
+                    "pos": {
+                        "x": 60.9175,
+                        "y": 108.4325
+                    },
+                    "uuid": "41ee434e-aa0a-4a39-9311-8a160877a548"
+                },
+                {
+                    "description": "Pad 1 [P3V3] of C12 on F.Cu",
+                    "pos": {
+                        "x": 62.128,
+                        "y": 107.8752
+                    },
+                    "uuid": "7929175e-1bf1-4a14-8030-03827e684b3f"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_over_copper"
+        },
+        {
+            "description": "Silkscreen clipped by solder mask",
+            "items": [
+                {
+                    "description": "Reference field of U9",
+                    "pos": {
+                        "x": 132.517499,
+                        "y": 108.4325
+                    },
+                    "uuid": "8de7fc99-a74a-43a1-ac35-508079315030"
+                },
+                {
+                    "description": "Pad 1 [P3V3] of C16 on F.Cu",
+                    "pos": {
+                        "x": 133.728,
+                        "y": 107.8752
+                    },
+                    "uuid": "dfd96227-862c-4f50-ac96-fb99d86c6fcb"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_over_copper"
+        }
+    ]
+}

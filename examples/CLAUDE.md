@@ -21,6 +21,7 @@ After `make`, always:
 | `sound_lab/` | Audio test bench | Drum kits, ADPCM-A samples, SSG |
 | `ikari_soccer/` | Sprite chains | Multi-sprite objects, animation |
 | `soccerfury_player/` | Animated title | Unity 3D→2D pipeline output |
+| `brawler/` | Beat 'em up POC (Final Fight style) | X/Z/Y fighters on KOF98 data (`tools/brawler/export_bm.py`), combo routes, hit reactions, 8 fighters, raster-line profiler, renderer in 68000 asm (`draw.s`). Read `brawler/README.md` |
 
 ## Run
 

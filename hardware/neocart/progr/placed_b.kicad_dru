@@ -1,0 +1,4 @@
+(version 1)
+(rule "USB-C receptacle: its own 0.5 mm pin pitch and shell holes (JLCPCB 4-layer: 0.09 mm spacing)"
+  (condition "A.Parent.Reference == 'J2' && (B.Parent.Reference == 'J2' || B.Type == 'Edge')")
+  (constraint clearance (min 0.1)) (constraint edge_clearance (min 0.1)) (constraint annular_width (min 0.05)))

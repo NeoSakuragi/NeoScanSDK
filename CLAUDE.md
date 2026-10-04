@@ -35,6 +35,10 @@ cd examples/hello_neo && make       # builds hello_neo.neo
 
 After `make`, always re-copy donor ROMs and regenerate softlist if ADPCM-B changed.
 
+## Hardware (NeoCart)
+
+Two-board MVS cart: NOR flash on the bus, QMTech XC7A100T FPGA mapping, programming and watching the buses. Read `hardware/CLAUDE.md` and `hardware/neocart/README.md` (status 2026-09-23) before touching anything there. Never put a shift register on a live cart bus. KiCad is the 10.0.3 AppImage in `AppDir/`: `AppDir/AppRun kicad-cli …`, `AppDir/AppRun python3.11 gen.py` for pcbnew scripts.
+
 ## Directory map
 
 | Directory | What |
@@ -42,7 +46,7 @@ After `make`, always re-copy donor ROMs and regenerate softlist if ADPCM-B chang
 | `sdk/` | C dev kit (headers, source, boot, linker scripts) |
 | `emu/` | SDL2 emulator frontend + Geolith integration |
 | `bus/` | SHM pin-accurate cart bus simulator |
-| `hardware/neocart/` | FPGA dev cart (ECP5, KiCad, Verilog, firmware) |
+| `hardware/neocart/` | MVS cart hardware: QMTech FPGA adapters, flash boards, KiCad generators, JLCPCB files (see its README.md) |
 | `tools/` | Python scripts: ROM build, asset extraction, audio, debug |
 | `examples/` | Reference games (hello_neo, jukebox, sound_lab, etc.) |
 | `docs/` | Project specs (emulator arch, sound engine, bytecode) |

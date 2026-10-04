@@ -1,0 +1,1572 @@
+(footprint "neogeo-mvs-prog-b-side-edge"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "J1"
+		(at 11.28 -17.29 0)
+		(unlocked yes)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "56ceeeb5-f1be-4f81-bb51-73be3564a97f")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "NeoGeo MVS Prog B Side Edge"
+		(at 0 1 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "4a824823-8eae-472e-9b7e-a0afcafea0f4")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 180)
+		(layer "B.Fab")
+		(hide yes)
+		(uuid "3890c0a2-9149-49a5-94fe-07d247f675f8")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify mirror)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 180)
+		(layer "B.Fab")
+		(hide yes)
+		(uuid "9c5c7add-5d37-44d6-8b8e-ae6599f94a90")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify mirror)
+		)
+	)
+	(sheetfile "neogeo-diag-mvs-prog.kicad_sch")
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_text user "${REFERENCE}"
+		(at 11.28 -14.29 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "f5d91782-4a62-4125-948a-a5a6ec4f020d")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" connect custom
+		(at -76.2 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "36b348de-055f-4278-962d-c5c75eb1cbe1")
+	)
+	(pad "2" connect custom
+		(at -73.66 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "ee85c231-ef4d-4980-995a-4ce4b2c7cea5")
+	)
+	(pad "3" connect custom
+		(at -71.12 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "4261c649-1836-41ef-acb0-bf64bc68fb9f")
+	)
+	(pad "4" connect custom
+		(at -68.58 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "88057be1-ff26-4b9f-ab9e-28ba97be0b60")
+	)
+	(pad "5" connect custom
+		(at -66.04 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "10926698-6fea-4e2c-af95-64c3835a5233")
+	)
+	(pad "6" connect custom
+		(at -63.5 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "8e7c49d9-5634-4bd6-8d06-e96e8176552b")
+	)
+	(pad "7" connect custom
+		(at -60.96 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "26c83d8b-77e1-4bca-baa1-c667caad2a06")
+	)
+	(pad "8" connect custom
+		(at -58.42 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "acdfe6f7-11d3-4501-b65c-17c788f14c0e")
+	)
+	(pad "9" connect custom
+		(at -55.88 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "b05c7ee7-c61b-4ca0-936c-cbdf33911b24")
+	)
+	(pad "10" connect custom
+		(at -53.34 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "64ad7915-9266-4b73-8719-1a9a5f40dbf8")
+	)
+	(pad "11" connect custom
+		(at -50.8 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "5e6f2bc2-f9e9-400a-b456-703cb4074e9c")
+	)
+	(pad "12" connect custom
+		(at -48.26 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "8123c8ad-0446-4457-91f6-a62069d2cc75")
+	)
+	(pad "13" connect custom
+		(at -45.72 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "bd72fb6f-fa6d-4894-87e1-ad4f3efff4b6")
+	)
+	(pad "14" connect custom
+		(at -43.18 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "b3f51c14-3663-4393-98df-491f30697b71")
+	)
+	(pad "15" connect custom
+		(at -40.64 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "23499c98-9660-4b85-9353-f3df900bb517")
+	)
+	(pad "16" connect custom
+		(at -38.1 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "8d6205b6-4949-422a-9916-7fecde835246")
+	)
+	(pad "17" connect custom
+		(at -35.56 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "85521d18-7b25-4f45-94ed-0ec2ef8e1c95")
+	)
+	(pad "18" connect custom
+		(at -33.02 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "e46094b5-ab73-485a-b8c5-c6fd9dc54b04")
+	)
+	(pad "19" connect custom
+		(at -30.48 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "8203667d-8ebf-4594-bd3d-c8bce55bde30")
+	)
+	(pad "20" connect custom
+		(at -27.94 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "63cb87e4-f3a5-4dfd-8ca4-80ec08d6d548")
+	)
+	(pad "21" connect custom
+		(at -25.4 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "88f6c7d8-6406-4cb9-aad5-cb1016559a63")
+	)
+	(pad "22" connect custom
+		(at -22.86 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "52e834e3-2a17-41f1-b667-fbd6e706ec54")
+	)
+	(pad "23" connect custom
+		(at -20.32 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "dd53ce8d-9249-4ed4-a34f-d53c6b10e32b")
+	)
+	(pad "24" connect custom
+		(at -17.78 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "194a661d-8c9e-45fa-974f-8edfb96f1654")
+	)
+	(pad "25" connect custom
+		(at -15.24 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "9afe9383-2cf4-4112-9f9a-67fdde605221")
+	)
+	(pad "26" connect custom
+		(at -12.7 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "bf623821-9e99-44af-b056-669a9208f30c")
+	)
+	(pad "27" connect custom
+		(at -10.16 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "02a70ab8-ab59-4892-ad3c-2af1038d0d3d")
+	)
+	(pad "28" connect custom
+		(at -7.62 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "0dada111-0cec-4829-94ea-f964f0c648bb")
+	)
+	(pad "29" connect custom
+		(at -5.08 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "56869a7c-f0f3-4992-a1ae-634a7f10f664")
+	)
+	(pad "30" connect custom
+		(at -2.54 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "85b4a000-ff59-40d4-8ab3-67471fa1912a")
+	)
+	(pad "31" connect custom
+		(at 0 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "336ba833-2cc6-4869-b432-7216b7d59522")
+	)
+	(pad "32" connect custom
+		(at 2.54 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "aa0e01b2-967f-48b8-8703-62fb7594b0f1")
+	)
+	(pad "33" connect custom
+		(at 5.08 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "fac25c78-5c10-4014-90d1-b74e8cf60c1d")
+	)
+	(pad "34" connect custom
+		(at 7.62 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "162a4462-6a5c-475f-827f-08b1d23bbe93")
+	)
+	(pad "35" connect custom
+		(at 10.16 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "e7dd3cfa-70c2-41bb-a1dd-a10e3961dc5b")
+	)
+	(pad "36" connect custom
+		(at 12.7 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "ceffe0cc-1a2d-498e-9b8f-a132057cc2ec")
+	)
+	(pad "37" connect custom
+		(at 15.24 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "bf0a22b5-c613-4534-a404-851a8acd483b")
+	)
+	(pad "38" connect custom
+		(at 17.78 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "bd89dbef-1c88-44cf-a265-d82eeed83a70")
+	)
+	(pad "39" connect custom
+		(at 20.32 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "b977b4eb-5285-4336-b933-341d3e95fc51")
+	)
+	(pad "40" connect custom
+		(at 22.86 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "6a0d110b-d535-46ae-bd9d-998e0aad472e")
+	)
+	(pad "41" connect custom
+		(at 25.4 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "c9bd3f34-d393-4a10-bea8-eab12e5c097e")
+	)
+	(pad "42" connect custom
+		(at 27.94 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "ab22657d-78d5-4f69-abe5-a210b8f0fbad")
+	)
+	(pad "43" connect custom
+		(at 30.48 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "3397e917-6494-417a-ab57-a3fa5717a583")
+	)
+	(pad "44" connect custom
+		(at 33.02 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "5113989d-c6c9-4618-a673-5e949d25d6a3")
+	)
+	(pad "45" connect custom
+		(at 35.56 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "08e06873-fc1d-4ca4-9722-ab3fe288776a")
+	)
+	(pad "46" connect custom
+		(at 38.1 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "d6f84e90-ca06-4c26-8b0f-9aef5a717937")
+	)
+	(pad "47" connect custom
+		(at 40.64 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "f5bd70f5-0131-4395-a91f-6453459180fe")
+	)
+	(pad "48" connect custom
+		(at 43.18 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "00844436-2853-40a0-a6eb-88ce25387145")
+	)
+	(pad "49" connect custom
+		(at 45.72 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "36ec4078-5f81-43a0-b3ac-394e39cb61cc")
+	)
+	(pad "50" connect custom
+		(at 48.26 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "f3b5cbd2-21d9-4ed1-9c16-68ac181f0258")
+	)
+	(pad "51" connect custom
+		(at 50.8 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "795cde34-3638-4020-9e2d-01120d22c04d")
+	)
+	(pad "52" connect custom
+		(at 53.34 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "8e7afa09-52a9-4066-b255-1416bd3fbfaa")
+	)
+	(pad "53" connect custom
+		(at 55.88 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "0455c8aa-1351-41de-9b81-b94ce1d697d5")
+	)
+	(pad "54" connect custom
+		(at 58.42 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "e49a20b7-b9aa-4d7c-ad68-173bb29ec84a")
+	)
+	(pad "55" connect custom
+		(at 60.96 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "8d0e5649-a8c1-4cbd-bc78-076967041322")
+	)
+	(pad "56" connect custom
+		(at 63.5 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "49c92945-504a-48cb-afe0-991886a32504")
+	)
+	(pad "57" connect custom
+		(at 66.04 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "ab4c5465-a391-455a-a051-7f5d51a713e5")
+	)
+	(pad "58" connect custom
+		(at 68.58 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "df27820b-bac7-47f7-bf4d-7b6b08441407")
+	)
+	(pad "59" connect custom
+		(at 71.12 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "c04ccbe2-aeb0-4c01-8c87-8ccbd0d4d58a")
+	)
+	(pad "60" connect custom
+		(at 73.66 0)
+		(size 1.5 10)
+		(layers "F.Cu" "F.Mask")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0 5.842) (xy -0.508 4.826) (xy 0.508 4.826)
+				)
+				(width 0)
+				(fill yes)
+			)
+			(gr_rect
+				(start -0.127 6.35)
+				(end 0.127 5)
+				(width 0)
+				(fill yes)
+			)
+		)
+		(uuid "5e772e21-2a03-49dc-8cff-b440b7f36ecd")
+	)
+	(embedded_fonts no)
+)

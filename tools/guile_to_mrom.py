@@ -158,8 +158,8 @@ def build_song(channels, tempo=0x55, speed=0x05):
 # --- Main ---
 def main():
     vgm_path = '/home/bruno/NeoVGM/sf2_vgm/10 U.S.A. (Guile) I.vgz'
-    mrom_path = '/home/bruno/CLProjects/NeoScanSDK/examples/hello_neo/res/kof96_m1.bin'
-    output_path = '/home/bruno/CLProjects/NeoScanSDK/examples/hello_neo/res/kof96_m1_guile.bin'
+    mrom_path = '/home/bruno/CLProjects/NeoGeo/examples/hello_neo/res/kof96_m1.bin'
+    output_path = '/home/bruno/CLProjects/NeoGeo/examples/hello_neo/res/kof96_m1_guile.bin'
 
     print("Extracting notes from VGM...")
     ch_notes = extract_vgm_notes(vgm_path)

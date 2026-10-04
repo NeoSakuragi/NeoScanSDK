@@ -1,0 +1,151 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "2026-10-01T07:00:57",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.3",
+    "schematic_parity": [],
+    "source": "neocart_pboard_routed.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "The current configuration does not include the footprint library 'neocart_blank'",
+            "items": [
+                {
+                    "description": "Footprint J2",
+                    "pos": {
+                        "x": 141.02,
+                        "y": 150.65
+                    },
+                    "uuid": "03672794-e6fb-49f8-baf4-025dc4273976"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "Footprint 'TP_PTH_1.0' not found in library 'pboard'",
+            "items": [
+                {
+                    "description": "Footprint TP3",
+                    "pos": {
+                        "x": 141.0,
+                        "y": 83.0
+                    },
+                    "uuid": "86f19ea0-b9cc-4ddd-9e4c-c4ef16510e8e"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "Footprint 'TP_PTH_1.0' not found in library 'pboard'",
+            "items": [
+                {
+                    "description": "Footprint TP4",
+                    "pos": {
+                        "x": 153.947,
+                        "y": 119.2148
+                    },
+                    "uuid": "8e8516ef-6b30-47ab-8a5a-fa17f4d229ec"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "Footprint 'TP_PTH_1.0' not found in library 'pboard'",
+            "items": [
+                {
+                    "description": "Footprint TP1",
+                    "pos": {
+                        "x": 142.0,
+                        "y": 81.0
+                    },
+                    "uuid": "c799ab10-4677-418d-9596-5fdfde5ebd5a"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "Footprint 'TP_PTH_1.0' not found in library 'pboard'",
+            "items": [
+                {
+                    "description": "Footprint TP2",
+                    "pos": {
+                        "x": 140.0,
+                        "y": 81.0
+                    },
+                    "uuid": "d2c2b221-12f8-44db-b4e9-f838490a0e91"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'neocart_blank'",
+            "items": [
+                {
+                    "description": "Footprint J1",
+                    "pos": {
+                        "x": 138.48,
+                        "y": 150.65
+                    },
+                    "uuid": "aa8f54c6-b3e6-48a4-9fc6-2006f9abc005"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
+        },
+        {
+            "description": "Silkscreen clipped by solder mask",
+            "items": [
+                {
+                    "description": "Reference field of U15",
+                    "pos": {
+                        "x": 154.595,
+                        "y": 119.85
+                    },
+                    "uuid": "5353291d-a6f2-45d0-a0fb-1d6d36f6606d"
+                },
+                {
+                    "description": "PTH pad 1 [nPROG] of TP4",
+                    "pos": {
+                        "x": 153.947,
+                        "y": 119.2148
+                    },
+                    "uuid": "23bfdd84-0def-448c-9781-9e7a88d6f0d6"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_over_copper"
+        }
+    ]
+}

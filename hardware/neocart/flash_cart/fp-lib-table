@@ -1,5 +1,5 @@
 (fp_lib_table
   (version 7)
-  (lib (name "neogeo-diag")(type "KiCad")(uri "/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/footprints/neogeo-diag.pretty")(options "")(descr ""))
-  (lib (name "NeoCart_FC")(type "KiCad")(uri "/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/flash_cart/NeoCart_FC.pretty")(options "")(descr ""))
+  (lib (name "neogeo-diag")(type "KiCad")(uri "/home/bruno/CLProjects/NeoGeo/hardware/neocart/footprints/neogeo-diag.pretty")(options "")(descr ""))
+  (lib (name "NeoCart_FC")(type "KiCad")(uri "/home/bruno/CLProjects/NeoGeo/hardware/neocart/flash_cart/NeoCart_FC.pretty")(options "")(descr ""))
 )

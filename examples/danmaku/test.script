@@ -1,0 +1,16 @@
+30 key 3
+60 key 1
+90 key 1
+300 snap snap/f300.ppm
+300 peek 10F200
+600 snap snap/f600.ppm
+600 peek 10F200
+1200 snap snap/f1200.ppm
+1200 peek 10F200
+1800 snap snap/f1800.ppm
+2400 snap snap/f2400.ppm
+3000 snap snap/f3000.ppm
+3600 snap snap/f3600.ppm
+4200 snap snap/f4200.ppm
+5400 snap snap/f5400.ppm
+5500 quit

@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "neocart_blank")(type "KiCad")(uri "${KIPRJMOD}/neocart_blank.pretty")(options "")(descr "proven MVS edge + test-point footprints, copied from jwestfall69 neogeo-diag"))
+)

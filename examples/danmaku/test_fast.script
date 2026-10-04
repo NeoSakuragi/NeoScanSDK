@@ -1,0 +1,9 @@
+60 key 1
+90 key 1
+500 snap snap/t500.ppm
+1000 snap snap/t1000.ppm
+1500 snap snap/t1500.ppm
+2000 snap snap/t2000.ppm
+2500 snap snap/t2500.ppm
+3000 snap snap/t3000.ppm
+3000 quit

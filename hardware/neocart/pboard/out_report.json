@@ -1,0 +1,5291 @@
+{
+ "checks": [
+  {
+   "check": "outline copied from the blank board",
+   "ok": true,
+   "detail": "18"
+  },
+  {
+   "check": "blank outline present",
+   "ok": true,
+   "detail": "174.1x134.1"
+  },
+  {
+   "check": "U7 pad 27 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 26 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 28 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 34 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 39 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 45 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 36 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 35 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 33 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 32 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 30 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 29 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 47 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 46 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 44 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 43 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 41 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 40 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 38 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 37 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 31 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 42 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 48 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U7 pad 25 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 33 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 32 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 30 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 29 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 27 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 26 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 28 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 34 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 39 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 45 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 36 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 35 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 48 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 25 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 47 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 46 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 44 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 43 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 41 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 40 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 38 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 37 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 31 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 42 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U6 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U10 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U11 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-24_L7.8-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 30 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 29 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 27 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 26 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 28 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 34 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 39 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 45 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 36 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 35 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 33 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 32 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 48 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 25 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 47 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 46 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 44 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 43 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 41 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 40 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 38 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 37 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 31 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 42 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U8 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 30 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 29 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 27 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 26 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 28 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 34 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 39 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 45 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 36 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 35 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 33 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 32 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 47 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 46 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 44 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 43 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 41 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 40 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 38 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 37 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 31 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 42 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 48 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U9 pad 25 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.6-W6.2-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U19 pad 1 exists",
+   "ok": true,
+   "detail": "footprint SOT-223-3_L6.5-W3.4-P2.30-LS7.0-BR pads ['1', '2', '3', '4']..."
+  },
+  {
+   "check": "U19 pad 3 exists",
+   "ok": true,
+   "detail": "footprint SOT-223-3_L6.5-W3.4-P2.30-LS7.0-BR pads ['1', '2', '3', '4']..."
+  },
+  {
+   "check": "U19 pad 2 exists",
+   "ok": true,
+   "detail": "footprint SOT-223-3_L6.5-W3.4-P2.30-LS7.0-BR pads ['1', '2', '3', '4']..."
+  },
+  {
+   "check": "U19 pad 4 exists",
+   "ok": true,
+   "detail": "footprint SOT-223-3_L6.5-W3.4-P2.30-LS7.0-BR pads ['1', '2', '3', '4']..."
+  },
+  {
+   "check": "U13 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U13 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U15 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U16 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U4 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 28 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 34 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 39 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 45 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 31 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 42 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 26 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 27 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 29 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 30 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 32 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 33 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 35 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 36 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 37 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 38 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 40 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 41 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 43 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 44 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 46 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 47 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 48 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U4 pad 25 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 48 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 25 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 28 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 34 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 39 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 45 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 47 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 46 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 44 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 43 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 41 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 40 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 38 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 37 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 36 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 35 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 33 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 32 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 30 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 29 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 27 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 26 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 31 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 42 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U5 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-48_L12.5-W6.1-P0.50-LS8.1-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U14 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U14 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U18 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U12 pad 8 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 13 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 14 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 17 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 18 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 10 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 11 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 1 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 20 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 3 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 4 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 7 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 2 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 5 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 6 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 9 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 12 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 15 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 16 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U12 pad 19 exists",
+   "ok": true,
+   "detail": "footprint SSOP-20_L7.5-W5.2-P0.65-LS8.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U17 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "U17 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSSOP-14_L5.0-W4.4-P0.65-LS6.4-BL pads ['1', '10', '11', '12', '13', '14', '2', '3']..."
+  },
+  {
+   "check": "JP1 pad 2 exists",
+   "ok": true,
+   "detail": "footprint HDR-TH_03P-P2.54-V-M pads ['1', '2', '3']..."
+  },
+  {
+   "check": "JP1 pad 1 exists",
+   "ok": true,
+   "detail": "footprint HDR-TH_03P-P2.54-V-M pads ['1', '2', '3']..."
+  },
+  {
+   "check": "JP1 pad 3 exists",
+   "ok": true,
+   "detail": "footprint HDR-TH_03P-P2.54-V-M pads ['1', '2', '3']..."
+  },
+  {
+   "check": "U2 pad 32 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 53 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 33 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 52 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 43 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 29 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 51 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 31 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 26 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 25 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 54 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 35 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 37 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 39 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 41 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 44 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 46 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 48 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 50 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 36 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 38 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 40 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 42 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 45 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 47 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 49 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 34 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 27 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 28 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 30 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 55 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U2 pad 56 exists",
+   "ok": true,
+   "detail": "footprint TSOP-56_L18.4-W14.0-P0.50-LS20.0-TL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 26 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 27 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 46 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 47 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 37 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 12 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 14 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 25 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 24 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 23 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 22 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 21 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 20 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 19 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 18 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 8 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 7 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 6 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 5 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 4 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 3 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 2 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 48 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 17 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 16 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 9 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 10 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 13 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 29 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 31 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 33 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 35 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 38 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 40 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 42 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 44 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 30 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 32 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 34 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 36 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 39 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 41 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 43 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 45 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 28 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 11 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U1 pad 15 exists",
+   "ok": true,
+   "detail": "footprint TSOP-48_L12.0-W18.4-P0.50-LS20.0-BL pads ['1', '10', '11', '12', '13', '14', '15', '16']..."
+  },
+  {
+   "check": "U19 has a legal rotation at 141.0,90.0",
+   "ok": true,
+   "detail": "(0.0, 0)"
+  },
+  {
+   "check": "U13 has a legal rotation at 148.6,114.0",
+   "ok": true,
+   "detail": "(239.34891402306857, 0)"
+  },
+  {
+   "check": "U15 has a legal rotation at 154.6,114.0",
+   "ok": true,
+   "detail": "(289.0781503925058, 0)"
+  },
+  {
+   "check": "U16 has a legal rotation at 160.6,114.0",
+   "ok": true,
+   "detail": "(413.0780832848907, 0)"
+  },
+  {
+   "check": "U14 has a legal rotation at 84.0,100.5",
+   "ok": true,
+   "detail": "(346.2759660467254, 180)"
+  },
+  {
+   "check": "U18 has a legal rotation at 100.0,100.5",
+   "ok": true,
+   "detail": "(180.6546542847786, 90)"
+  },
+  {
+   "check": "U12 has a legal rotation at 150.0,100.5",
+   "ok": true,
+   "detail": "(188.37042439501366, 90)"
+  },
+  {
+   "check": "U17 has a legal rotation at 161.0,100.5",
+   "ok": true,
+   "detail": "(336.5845206026081, 90)"
+  },
+  {
+   "check": "U2 has a legal rotation at 97.0,50.0",
+   "ok": true,
+   "detail": "(2087.2857090394245, 90)"
+  },
+  {
+   "check": "U19 has a legal rotation at 141.0,90.0",
+   "ok": true,
+   "detail": "(0.0, 0)"
+  },
+  {
+   "check": "U13 has a legal rotation at 148.6,114.0",
+   "ok": true,
+   "detail": "(238.5998890360301, 0)"
+  },
+  {
+   "check": "U15 has a legal rotation at 154.6,114.0",
+   "ok": true,
+   "detail": "(289.1078330319565, 0)"
+  },
+  {
+   "check": "U16 has a legal rotation at 160.6,114.0",
+   "ok": true,
+   "detail": "(412.06666880820296, 0)"
+  },
+  {
+   "check": "U14 has a legal rotation at 84.0,100.5",
+   "ok": true,
+   "detail": "(348.85505640275795, 180)"
+  },
+  {
+   "check": "U18 has a legal rotation at 100.0,100.5",
+   "ok": true,
+   "detail": "(180.6546542847786, 90)"
+  },
+  {
+   "check": "U12 has a legal rotation at 150.0,100.5",
+   "ok": true,
+   "detail": "(188.37042439501366, 90)"
+  },
+  {
+   "check": "U17 has a legal rotation at 161.0,100.5",
+   "ok": true,
+   "detail": "(336.5845206026081, 90)"
+  },
+  {
+   "check": "U2 has a legal rotation at 97.0,50.0",
+   "ok": true,
+   "detail": "(2087.2857090394245, 90)"
+  },
+  {
+   "check": "TP1 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TP_PTH_1.0 pads ['1']..."
+  },
+  {
+   "check": "TP2 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TP_PTH_1.0 pads ['1']..."
+  },
+  {
+   "check": "TP3 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TP_PTH_1.0 pads ['1']..."
+  },
+  {
+   "check": "TP4 pad 1 exists",
+   "ok": true,
+   "detail": "footprint TP_PTH_1.0 pads ['1']..."
+  },
+  {
+   "check": "R1 pad 2 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R1 pad 1 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R2 pad 2 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R2 pad 1 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R3 pad 2 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R3 pad 1 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R4 pad 2 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R4 pad 1 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R5 pad 2 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "R5 pad 1 exists",
+   "ok": true,
+   "detail": "footprint R0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C1 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0805 pads ['1', '2']..."
+  },
+  {
+   "check": "C1 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0805 pads ['1', '2']..."
+  },
+  {
+   "check": "C2 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0805 pads ['1', '2']..."
+  },
+  {
+   "check": "C2 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0805 pads ['1', '2']..."
+  },
+  {
+   "check": "C3 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0805 pads ['1', '2']..."
+  },
+  {
+   "check": "C3 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0805 pads ['1', '2']..."
+  },
+  {
+   "check": "C4 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C4 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C5 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C5 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C6 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C6 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C7 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C7 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C8 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C8 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C9 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C9 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C10 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C10 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C11 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C11 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C12 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C12 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C13 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C13 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C14 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C14 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C15 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C15 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C16 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C16 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C17 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C17 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C18 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C18 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C19 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C19 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C20 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C20 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C21 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C21 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C22 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C22 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C23 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C23 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C24 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C24 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C25 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C25 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C26 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C26 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C27 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C27 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C28 pad 2 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "C28 pad 1 exists",
+   "ok": true,
+   "detail": "footprint C0603 pads ['1', '2']..."
+  },
+  {
+   "check": "every passive and test point found a legal spot",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "U4 has horizontal pin rows",
+   "ok": true,
+   "detail": "[110.2, 117.8]"
+  },
+  {
+   "check": "U4 every finger pin is on the bottom row",
+   "ok": true,
+   "detail": "(117.8, 114.0)"
+  },
+  {
+   "check": "U5 has horizontal pin rows",
+   "ok": true,
+   "detail": "[110.2, 117.8]"
+  },
+  {
+   "check": "U5 every finger pin is on the bottom row",
+   "ok": true,
+   "detail": "(117.8, 114.0)"
+  },
+  {
+   "check": "U6 has horizontal pin rows",
+   "ok": true,
+   "detail": "[110.3, 117.7]"
+  },
+  {
+   "check": "U6 every finger pin is on the bottom row",
+   "ok": true,
+   "detail": "(117.71, 114.0)"
+  },
+  {
+   "check": "U7 has horizontal pin rows",
+   "ok": true,
+   "detail": "[110.3, 117.7]"
+  },
+  {
+   "check": "U7 every finger pin is on the bottom row",
+   "ok": true,
+   "detail": "(117.71, 114.0)"
+  },
+  {
+   "check": "U8 has horizontal pin rows",
+   "ok": true,
+   "detail": "[110.3, 117.7]"
+  },
+  {
+   "check": "U8 every finger pin is on the bottom row",
+   "ok": true,
+   "detail": "(117.71, 114.0)"
+  },
+  {
+   "check": "U9 has horizontal pin rows",
+   "ok": true,
+   "detail": "[110.3, 117.7]"
+  },
+  {
+   "check": "U9 every finger pin is on the bottom row",
+   "ok": true,
+   "detail": "(117.71, 114.0)"
+  },
+  {
+   "check": "U10 has horizontal pin rows",
+   "ok": true,
+   "detail": "[111.0, 117.0]"
+  },
+  {
+   "check": "U10 every finger pin is on the bottom row",
+   "ok": true,
+   "detail": "(117.02, 114.0)"
+  },
+  {
+   "check": "U11 has horizontal pin rows",
+   "ok": true,
+   "detail": "[111.0, 117.0]"
+  },
+  {
+   "check": "U11 every finger pin is on the bottom row",
+   "ok": true,
+   "detail": "(117.02, 114.0)"
+  },
+  {
+   "check": "U4 pins clear of the right hole keep-out column (178.75-190.75)",
+   "ok": true,
+   "detail": "(166.25, 177.75)"
+  },
+  {
+   "check": "U5 pins clear of the right hole keep-out column (178.75-190.75)",
+   "ok": true,
+   "detail": "(194.25, 205.75)"
+  },
+  {
+   "check": "no two parts overlap (0.5 mm ICs, 0.3 mm passives)",
+   "ok": true,
+   "detail": "[]"
+  },
+  {
+   "check": "J1 inside the outline",
+   "ok": true,
+   "detail": "(64.07, 145.65, 215.43, 157.0)"
+  },
+  {
+   "check": "J2 inside the outline",
+   "ok": true,
+   "detail": "(64.07, 145.65, 215.43, 157.0)"
+  },
+  {
+   "check": "U7 inside the outline",
+   "ok": true,
+   "detail": "(54.395, 109.4325, 67.44, 118.5675)"
+  },
+  {
+   "check": "U7 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(54.395, 109.4325, 67.44, 118.5675)"
+  },
+  {
+   "check": "U7 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(54.395, 109.4325, 67.44, 118.5675)"
+  },
+  {
+   "check": "U7 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(54.395, 109.4325, 67.44, 118.5675)"
+  },
+  {
+   "check": "U7 clear of the shell notch",
+   "ok": true,
+   "detail": "(54.395, 109.4325, 67.44, 118.5675)"
+  },
+  {
+   "check": "U7 clear of the shell notch",
+   "ok": true,
+   "detail": "(54.395, 109.4325, 67.44, 118.5675)"
+  },
+  {
+   "check": "U6 inside the outline",
+   "ok": true,
+   "detail": "(68.195, 109.4325, 81.24, 118.5675)"
+  },
+  {
+   "check": "U6 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(68.195, 109.4325, 81.24, 118.5675)"
+  },
+  {
+   "check": "U6 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(68.195, 109.4325, 81.24, 118.5675)"
+  },
+  {
+   "check": "U6 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(68.195, 109.4325, 81.24, 118.5675)"
+  },
+  {
+   "check": "U6 clear of the shell notch",
+   "ok": true,
+   "detail": "(68.195, 109.4325, 81.24, 118.5675)"
+  },
+  {
+   "check": "U6 clear of the shell notch",
+   "ok": true,
+   "detail": "(68.195, 109.4325, 81.24, 118.5675)"
+  },
+  {
+   "check": "U10 inside the outline",
+   "ok": true,
+   "detail": "(83.135, 110.155, 91.215, 117.845)"
+  },
+  {
+   "check": "U10 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(83.135, 110.155, 91.215, 117.845)"
+  },
+  {
+   "check": "U10 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(83.135, 110.155, 91.215, 117.845)"
+  },
+  {
+   "check": "U10 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(83.135, 110.155, 91.215, 117.845)"
+  },
+  {
+   "check": "U10 clear of the shell notch",
+   "ok": true,
+   "detail": "(83.135, 110.155, 91.215, 117.845)"
+  },
+  {
+   "check": "U10 clear of the shell notch",
+   "ok": true,
+   "detail": "(83.135, 110.155, 91.215, 117.845)"
+  },
+  {
+   "check": "U11 inside the outline",
+   "ok": true,
+   "detail": "(97.935, 110.155, 106.015, 117.845)"
+  },
+  {
+   "check": "U11 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(97.935, 110.155, 106.015, 117.845)"
+  },
+  {
+   "check": "U11 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(97.935, 110.155, 106.015, 117.845)"
+  },
+  {
+   "check": "U11 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(97.935, 110.155, 106.015, 117.845)"
+  },
+  {
+   "check": "U11 clear of the shell notch",
+   "ok": true,
+   "detail": "(97.935, 110.155, 106.015, 117.845)"
+  },
+  {
+   "check": "U11 clear of the shell notch",
+   "ok": true,
+   "detail": "(97.935, 110.155, 106.015, 117.845)"
+  },
+  {
+   "check": "U8 inside the outline",
+   "ok": true,
+   "detail": "(110.195, 109.4325, 123.24, 118.5675)"
+  },
+  {
+   "check": "U8 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(110.195, 109.4325, 123.24, 118.5675)"
+  },
+  {
+   "check": "U8 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(110.195, 109.4325, 123.24, 118.5675)"
+  },
+  {
+   "check": "U8 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(110.195, 109.4325, 123.24, 118.5675)"
+  },
+  {
+   "check": "U8 clear of the shell notch",
+   "ok": true,
+   "detail": "(110.195, 109.4325, 123.24, 118.5675)"
+  },
+  {
+   "check": "U8 clear of the shell notch",
+   "ok": true,
+   "detail": "(110.195, 109.4325, 123.24, 118.5675)"
+  },
+  {
+   "check": "U9 inside the outline",
+   "ok": true,
+   "detail": "(125.995, 109.4325, 139.04, 118.5675)"
+  },
+  {
+   "check": "U9 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(125.995, 109.4325, 139.04, 118.5675)"
+  },
+  {
+   "check": "U9 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(125.995, 109.4325, 139.04, 118.5675)"
+  },
+  {
+   "check": "U9 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(125.995, 109.4325, 139.04, 118.5675)"
+  },
+  {
+   "check": "U9 clear of the shell notch",
+   "ok": true,
+   "detail": "(125.995, 109.4325, 139.04, 118.5675)"
+  },
+  {
+   "check": "U9 clear of the shell notch",
+   "ok": true,
+   "detail": "(125.995, 109.4325, 139.04, 118.5675)"
+  },
+  {
+   "check": "U19 inside the outline",
+   "ok": true,
+   "detail": "(136.86, 86.595, 145.22, 93.405)"
+  },
+  {
+   "check": "U19 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(136.86, 86.595, 145.22, 93.405)"
+  },
+  {
+   "check": "U19 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(136.86, 86.595, 145.22, 93.405)"
+  },
+  {
+   "check": "U19 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(136.86, 86.595, 145.22, 93.405)"
+  },
+  {
+   "check": "U19 clear of the shell notch",
+   "ok": true,
+   "detail": "(136.86, 86.595, 145.22, 93.405)"
+  },
+  {
+   "check": "U19 clear of the shell notch",
+   "ok": true,
+   "detail": "(136.86, 86.595, 145.22, 93.405)"
+  },
+  {
+   "check": "U13 inside the outline",
+   "ok": true,
+   "detail": "(145.965, 110.35, 151.225, 117.65)"
+  },
+  {
+   "check": "U13 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(145.965, 110.35, 151.225, 117.65)"
+  },
+  {
+   "check": "U13 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.965, 110.35, 151.225, 117.65)"
+  },
+  {
+   "check": "U13 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.965, 110.35, 151.225, 117.65)"
+  },
+  {
+   "check": "U13 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.965, 110.35, 151.225, 117.65)"
+  },
+  {
+   "check": "U13 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.965, 110.35, 151.225, 117.65)"
+  },
+  {
+   "check": "U15 inside the outline",
+   "ok": true,
+   "detail": "(151.965, 110.35, 157.225, 117.65)"
+  },
+  {
+   "check": "U15 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(151.965, 110.35, 157.225, 117.65)"
+  },
+  {
+   "check": "U15 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(151.965, 110.35, 157.225, 117.65)"
+  },
+  {
+   "check": "U15 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(151.965, 110.35, 157.225, 117.65)"
+  },
+  {
+   "check": "U15 clear of the shell notch",
+   "ok": true,
+   "detail": "(151.965, 110.35, 157.225, 117.65)"
+  },
+  {
+   "check": "U15 clear of the shell notch",
+   "ok": true,
+   "detail": "(151.965, 110.35, 157.225, 117.65)"
+  },
+  {
+   "check": "U16 inside the outline",
+   "ok": true,
+   "detail": "(157.965, 110.35, 163.225, 117.65)"
+  },
+  {
+   "check": "U16 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(157.965, 110.35, 163.225, 117.65)"
+  },
+  {
+   "check": "U16 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(157.965, 110.35, 163.225, 117.65)"
+  },
+  {
+   "check": "U16 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(157.965, 110.35, 163.225, 117.65)"
+  },
+  {
+   "check": "U16 clear of the shell notch",
+   "ok": true,
+   "detail": "(157.965, 110.35, 163.225, 117.65)"
+  },
+  {
+   "check": "U16 clear of the shell notch",
+   "ok": true,
+   "detail": "(157.965, 110.35, 163.225, 117.65)"
+  },
+  {
+   "check": "U4 inside the outline",
+   "ok": true,
+   "detail": "(165.395, 109.425, 178.425, 118.575)"
+  },
+  {
+   "check": "U4 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(165.395, 109.425, 178.425, 118.575)"
+  },
+  {
+   "check": "U4 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(165.395, 109.425, 178.425, 118.575)"
+  },
+  {
+   "check": "U4 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(165.395, 109.425, 178.425, 118.575)"
+  },
+  {
+   "check": "U4 clear of the shell notch",
+   "ok": true,
+   "detail": "(165.395, 109.425, 178.425, 118.575)"
+  },
+  {
+   "check": "U4 clear of the shell notch",
+   "ok": true,
+   "detail": "(165.395, 109.425, 178.425, 118.575)"
+  },
+  {
+   "check": "U5 inside the outline",
+   "ok": true,
+   "detail": "(193.575, 109.425, 206.605, 118.575)"
+  },
+  {
+   "check": "U5 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(193.575, 109.425, 206.605, 118.575)"
+  },
+  {
+   "check": "U5 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(193.575, 109.425, 206.605, 118.575)"
+  },
+  {
+   "check": "U5 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(193.575, 109.425, 206.605, 118.575)"
+  },
+  {
+   "check": "U5 clear of the shell notch",
+   "ok": true,
+   "detail": "(193.575, 109.425, 206.605, 118.575)"
+  },
+  {
+   "check": "U5 clear of the shell notch",
+   "ok": true,
+   "detail": "(193.575, 109.425, 206.605, 118.575)"
+  },
+  {
+   "check": "U14 inside the outline",
+   "ok": true,
+   "detail": "(81.375, 96.85, 86.635, 104.15)"
+  },
+  {
+   "check": "U14 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(81.375, 96.85, 86.635, 104.15)"
+  },
+  {
+   "check": "U14 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(81.375, 96.85, 86.635, 104.15)"
+  },
+  {
+   "check": "U14 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(81.375, 96.85, 86.635, 104.15)"
+  },
+  {
+   "check": "U14 clear of the shell notch",
+   "ok": true,
+   "detail": "(81.375, 96.85, 86.635, 104.15)"
+  },
+  {
+   "check": "U14 clear of the shell notch",
+   "ok": true,
+   "detail": "(81.375, 96.85, 86.635, 104.15)"
+  },
+  {
+   "check": "U18 inside the outline",
+   "ok": true,
+   "detail": "(96.35, 97.875, 103.65, 103.135)"
+  },
+  {
+   "check": "U18 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(96.35, 97.875, 103.65, 103.135)"
+  },
+  {
+   "check": "U18 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(96.35, 97.875, 103.65, 103.135)"
+  },
+  {
+   "check": "U18 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(96.35, 97.875, 103.65, 103.135)"
+  },
+  {
+   "check": "U18 clear of the shell notch",
+   "ok": true,
+   "detail": "(96.35, 97.875, 103.65, 103.135)"
+  },
+  {
+   "check": "U18 clear of the shell notch",
+   "ok": true,
+   "detail": "(96.35, 97.875, 103.65, 103.135)"
+  },
+  {
+   "check": "U12 inside the outline",
+   "ok": true,
+   "detail": "(145.4855, 96.745, 154.5145, 104.36)"
+  },
+  {
+   "check": "U12 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(145.4855, 96.745, 154.5145, 104.36)"
+  },
+  {
+   "check": "U12 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.4855, 96.745, 154.5145, 104.36)"
+  },
+  {
+   "check": "U12 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.4855, 96.745, 154.5145, 104.36)"
+  },
+  {
+   "check": "U12 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.4855, 96.745, 154.5145, 104.36)"
+  },
+  {
+   "check": "U12 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.4855, 96.745, 154.5145, 104.36)"
+  },
+  {
+   "check": "U17 inside the outline",
+   "ok": true,
+   "detail": "(157.35, 97.875, 164.65, 103.135)"
+  },
+  {
+   "check": "U17 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(157.35, 97.875, 164.65, 103.135)"
+  },
+  {
+   "check": "U17 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(157.35, 97.875, 164.65, 103.135)"
+  },
+  {
+   "check": "U17 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(157.35, 97.875, 164.65, 103.135)"
+  },
+  {
+   "check": "U17 clear of the shell notch",
+   "ok": true,
+   "detail": "(157.35, 97.875, 164.65, 103.135)"
+  },
+  {
+   "check": "U17 clear of the shell notch",
+   "ok": true,
+   "detail": "(157.35, 97.875, 164.65, 103.135)"
+  },
+  {
+   "check": "JP1 inside the outline",
+   "ok": true,
+   "detail": "(136.605, 96.365, 139.395, 104.635)"
+  },
+  {
+   "check": "JP1 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(136.605, 96.365, 139.395, 104.635)"
+  },
+  {
+   "check": "JP1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(136.605, 96.365, 139.395, 104.635)"
+  },
+  {
+   "check": "JP1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(136.605, 96.365, 139.395, 104.635)"
+  },
+  {
+   "check": "JP1 clear of the shell notch",
+   "ok": true,
+   "detail": "(136.605, 96.365, 139.395, 104.635)"
+  },
+  {
+   "check": "JP1 clear of the shell notch",
+   "ok": true,
+   "detail": "(136.605, 96.365, 139.395, 104.635)"
+  },
+  {
+   "check": "U2 inside the outline",
+   "ok": true,
+   "detail": "(89.85, 39.5, 104.15, 60.5)"
+  },
+  {
+   "check": "U2 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(89.85, 39.5, 104.15, 60.5)"
+  },
+  {
+   "check": "U2 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(89.85, 39.5, 104.15, 60.5)"
+  },
+  {
+   "check": "U2 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(89.85, 39.5, 104.15, 60.5)"
+  },
+  {
+   "check": "U2 clear of the shell notch",
+   "ok": true,
+   "detail": "(89.85, 39.5, 104.15, 60.5)"
+  },
+  {
+   "check": "U2 clear of the shell notch",
+   "ok": true,
+   "detail": "(89.85, 39.5, 104.15, 60.5)"
+  },
+  {
+   "check": "U1 inside the outline",
+   "ok": true,
+   "detail": "(192.355, 95.815, 213.745, 108.63)"
+  },
+  {
+   "check": "U1 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(192.355, 95.815, 213.745, 108.63)"
+  },
+  {
+   "check": "U1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(192.355, 95.815, 213.745, 108.63)"
+  },
+  {
+   "check": "U1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(192.355, 95.815, 213.745, 108.63)"
+  },
+  {
+   "check": "U1 clear of the shell notch",
+   "ok": true,
+   "detail": "(192.355, 95.815, 213.745, 108.63)"
+  },
+  {
+   "check": "U1 clear of the shell notch",
+   "ok": true,
+   "detail": "(192.355, 95.815, 213.745, 108.63)"
+  },
+  {
+   "check": "TP1 inside the outline",
+   "ok": true,
+   "detail": "(141.15, 80.15, 142.85, 81.85)"
+  },
+  {
+   "check": "TP1 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(141.15, 80.15, 142.85, 81.85)"
+  },
+  {
+   "check": "TP1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(141.15, 80.15, 142.85, 81.85)"
+  },
+  {
+   "check": "TP1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(141.15, 80.15, 142.85, 81.85)"
+  },
+  {
+   "check": "TP1 clear of the shell notch",
+   "ok": true,
+   "detail": "(141.15, 80.15, 142.85, 81.85)"
+  },
+  {
+   "check": "TP1 clear of the shell notch",
+   "ok": true,
+   "detail": "(141.15, 80.15, 142.85, 81.85)"
+  },
+  {
+   "check": "TP2 inside the outline",
+   "ok": true,
+   "detail": "(139.15, 80.15, 140.85, 81.85)"
+  },
+  {
+   "check": "TP2 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(139.15, 80.15, 140.85, 81.85)"
+  },
+  {
+   "check": "TP2 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(139.15, 80.15, 140.85, 81.85)"
+  },
+  {
+   "check": "TP2 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(139.15, 80.15, 140.85, 81.85)"
+  },
+  {
+   "check": "TP2 clear of the shell notch",
+   "ok": true,
+   "detail": "(139.15, 80.15, 140.85, 81.85)"
+  },
+  {
+   "check": "TP2 clear of the shell notch",
+   "ok": true,
+   "detail": "(139.15, 80.15, 140.85, 81.85)"
+  },
+  {
+   "check": "TP3 inside the outline",
+   "ok": true,
+   "detail": "(140.15, 82.15, 141.85, 83.85)"
+  },
+  {
+   "check": "TP3 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(140.15, 82.15, 141.85, 83.85)"
+  },
+  {
+   "check": "TP3 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(140.15, 82.15, 141.85, 83.85)"
+  },
+  {
+   "check": "TP3 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(140.15, 82.15, 141.85, 83.85)"
+  },
+  {
+   "check": "TP3 clear of the shell notch",
+   "ok": true,
+   "detail": "(140.15, 82.15, 141.85, 83.85)"
+  },
+  {
+   "check": "TP3 clear of the shell notch",
+   "ok": true,
+   "detail": "(140.15, 82.15, 141.85, 83.85)"
+  },
+  {
+   "check": "TP4 inside the outline",
+   "ok": true,
+   "detail": "(153.097047, 118.364814, 154.797047, 120.064814)"
+  },
+  {
+   "check": "TP4 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(153.097047, 118.364814, 154.797047, 120.064814)"
+  },
+  {
+   "check": "TP4 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(153.097047, 118.364814, 154.797047, 120.064814)"
+  },
+  {
+   "check": "TP4 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(153.097047, 118.364814, 154.797047, 120.064814)"
+  },
+  {
+   "check": "TP4 clear of the shell notch",
+   "ok": true,
+   "detail": "(153.097047, 118.364814, 154.797047, 120.064814)"
+  },
+  {
+   "check": "TP4 clear of the shell notch",
+   "ok": true,
+   "detail": "(153.097047, 118.364814, 154.797047, 120.064814)"
+  },
+  {
+   "check": "R1 inside the outline",
+   "ok": true,
+   "detail": "(140.245, 98.995, 141.755, 102.005)"
+  },
+  {
+   "check": "R1 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(140.245, 98.995, 141.755, 102.005)"
+  },
+  {
+   "check": "R1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(140.245, 98.995, 141.755, 102.005)"
+  },
+  {
+   "check": "R1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(140.245, 98.995, 141.755, 102.005)"
+  },
+  {
+   "check": "R1 clear of the shell notch",
+   "ok": true,
+   "detail": "(140.245, 98.995, 141.755, 102.005)"
+  },
+  {
+   "check": "R1 clear of the shell notch",
+   "ok": true,
+   "detail": "(140.245, 98.995, 141.755, 102.005)"
+  },
+  {
+   "check": "R2 inside the outline",
+   "ok": true,
+   "detail": "(153.215, 122.245, 156.225, 123.755)"
+  },
+  {
+   "check": "R2 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(153.215, 122.245, 156.225, 123.755)"
+  },
+  {
+   "check": "R2 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(153.215, 122.245, 156.225, 123.755)"
+  },
+  {
+   "check": "R2 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(153.215, 122.245, 156.225, 123.755)"
+  },
+  {
+   "check": "R2 clear of the shell notch",
+   "ok": true,
+   "detail": "(153.215, 122.245, 156.225, 123.755)"
+  },
+  {
+   "check": "R2 clear of the shell notch",
+   "ok": true,
+   "detail": "(153.215, 122.245, 156.225, 123.755)"
+  },
+  {
+   "check": "R3 inside the outline",
+   "ok": true,
+   "detail": "(151.390925, 121.753819, 152.900925, 124.763819)"
+  },
+  {
+   "check": "R3 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(151.390925, 121.753819, 152.900925, 124.763819)"
+  },
+  {
+   "check": "R3 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(151.390925, 121.753819, 152.900925, 124.763819)"
+  },
+  {
+   "check": "R3 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(151.390925, 121.753819, 152.900925, 124.763819)"
+  },
+  {
+   "check": "R3 clear of the shell notch",
+   "ok": true,
+   "detail": "(151.390925, 121.753819, 152.900925, 124.763819)"
+  },
+  {
+   "check": "R3 clear of the shell notch",
+   "ok": true,
+   "detail": "(151.390925, 121.753819, 152.900925, 124.763819)"
+  },
+  {
+   "check": "R4 inside the outline",
+   "ok": true,
+   "detail": "(148.885, 121.495, 150.395, 124.505)"
+  },
+  {
+   "check": "R4 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(148.885, 121.495, 150.395, 124.505)"
+  },
+  {
+   "check": "R4 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(148.885, 121.495, 150.395, 124.505)"
+  },
+  {
+   "check": "R4 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(148.885, 121.495, 150.395, 124.505)"
+  },
+  {
+   "check": "R4 clear of the shell notch",
+   "ok": true,
+   "detail": "(148.885, 121.495, 150.395, 124.505)"
+  },
+  {
+   "check": "R4 clear of the shell notch",
+   "ok": true,
+   "detail": "(148.885, 121.495, 150.395, 124.505)"
+  },
+  {
+   "check": "R5 inside the outline",
+   "ok": true,
+   "detail": "(146.345, 121.495, 147.855, 124.505)"
+  },
+  {
+   "check": "R5 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(146.345, 121.495, 147.855, 124.505)"
+  },
+  {
+   "check": "R5 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(146.345, 121.495, 147.855, 124.505)"
+  },
+  {
+   "check": "R5 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(146.345, 121.495, 147.855, 124.505)"
+  },
+  {
+   "check": "R5 clear of the shell notch",
+   "ok": true,
+   "detail": "(146.345, 121.495, 147.855, 124.505)"
+  },
+  {
+   "check": "R5 clear of the shell notch",
+   "ok": true,
+   "detail": "(146.345, 121.495, 147.855, 124.505)"
+  },
+  {
+   "check": "C1 inside the outline",
+   "ok": true,
+   "detail": "(145.965, 85.975, 147.975, 89.425)"
+  },
+  {
+   "check": "C1 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(145.965, 85.975, 147.975, 89.425)"
+  },
+  {
+   "check": "C1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.965, 85.975, 147.975, 89.425)"
+  },
+  {
+   "check": "C1 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.965, 85.975, 147.975, 89.425)"
+  },
+  {
+   "check": "C1 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.965, 85.975, 147.975, 89.425)"
+  },
+  {
+   "check": "C1 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.965, 85.975, 147.975, 89.425)"
+  },
+  {
+   "check": "C2 inside the outline",
+   "ok": true,
+   "detail": "(145.996088, 90.025, 148.006088, 93.475)"
+  },
+  {
+   "check": "C2 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(145.996088, 90.025, 148.006088, 93.475)"
+  },
+  {
+   "check": "C2 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.996088, 90.025, 148.006088, 93.475)"
+  },
+  {
+   "check": "C2 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.996088, 90.025, 148.006088, 93.475)"
+  },
+  {
+   "check": "C2 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.996088, 90.025, 148.006088, 93.475)"
+  },
+  {
+   "check": "C2 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.996088, 90.025, 148.006088, 93.475)"
+  },
+  {
+   "check": "C3 inside the outline",
+   "ok": true,
+   "detail": "(189.675, 105.515, 191.685, 108.965)"
+  },
+  {
+   "check": "C3 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(189.675, 105.515, 191.685, 108.965)"
+  },
+  {
+   "check": "C3 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(189.675, 105.515, 191.685, 108.965)"
+  },
+  {
+   "check": "C3 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(189.675, 105.515, 191.685, 108.965)"
+  },
+  {
+   "check": "C3 clear of the shell notch",
+   "ok": true,
+   "detail": "(189.675, 105.515, 191.685, 108.965)"
+  },
+  {
+   "check": "C3 clear of the shell notch",
+   "ok": true,
+   "detail": "(189.675, 105.515, 191.685, 108.965)"
+  },
+  {
+   "check": "C4 inside the outline",
+   "ok": true,
+   "detail": "(189.925, 109.516088, 192.935, 111.026088)"
+  },
+  {
+   "check": "C4 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(189.925, 109.516088, 192.935, 111.026088)"
+  },
+  {
+   "check": "C4 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(189.925, 109.516088, 192.935, 111.026088)"
+  },
+  {
+   "check": "C4 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(189.925, 109.516088, 192.935, 111.026088)"
+  },
+  {
+   "check": "C4 clear of the shell notch",
+   "ok": true,
+   "detail": "(189.925, 109.516088, 192.935, 111.026088)"
+  },
+  {
+   "check": "C4 clear of the shell notch",
+   "ok": true,
+   "detail": "(189.925, 109.516088, 192.935, 111.026088)"
+  },
+  {
+   "check": "C5 inside the outline",
+   "ok": true,
+   "detail": "(95.245, 37.345, 98.255, 38.855)"
+  },
+  {
+   "check": "C5 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(95.245, 37.345, 98.255, 38.855)"
+  },
+  {
+   "check": "C5 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(95.245, 37.345, 98.255, 38.855)"
+  },
+  {
+   "check": "C5 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(95.245, 37.345, 98.255, 38.855)"
+  },
+  {
+   "check": "C5 clear of the shell notch",
+   "ok": true,
+   "detail": "(95.245, 37.345, 98.255, 38.855)"
+  },
+  {
+   "check": "C5 clear of the shell notch",
+   "ok": true,
+   "detail": "(95.245, 37.345, 98.255, 38.855)"
+  },
+  {
+   "check": "C6 inside the outline",
+   "ok": true,
+   "detail": "(162.865834, 119.545, 164.375834, 122.555)"
+  },
+  {
+   "check": "C6 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(162.865834, 119.545, 164.375834, 122.555)"
+  },
+  {
+   "check": "C6 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(162.865834, 119.545, 164.375834, 122.555)"
+  },
+  {
+   "check": "C6 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(162.865834, 119.545, 164.375834, 122.555)"
+  },
+  {
+   "check": "C6 clear of the shell notch",
+   "ok": true,
+   "detail": "(162.865834, 119.545, 164.375834, 122.555)"
+  },
+  {
+   "check": "C6 clear of the shell notch",
+   "ok": true,
+   "detail": "(162.865834, 119.545, 164.375834, 122.555)"
+  },
+  {
+   "check": "C7 inside the outline",
+   "ok": true,
+   "detail": "(160.767593, 118.365552, 162.277593, 121.375552)"
+  },
+  {
+   "check": "C7 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(160.767593, 118.365552, 162.277593, 121.375552)"
+  },
+  {
+   "check": "C7 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(160.767593, 118.365552, 162.277593, 121.375552)"
+  },
+  {
+   "check": "C7 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(160.767593, 118.365552, 162.277593, 121.375552)"
+  },
+  {
+   "check": "C7 clear of the shell notch",
+   "ok": true,
+   "detail": "(160.767593, 118.365552, 162.277593, 121.375552)"
+  },
+  {
+   "check": "C7 clear of the shell notch",
+   "ok": true,
+   "detail": "(160.767593, 118.365552, 162.277593, 121.375552)"
+  },
+  {
+   "check": "C8 inside the outline",
+   "ok": true,
+   "detail": "(207.409814, 109.342047, 208.919814, 112.352047)"
+  },
+  {
+   "check": "C8 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(207.409814, 109.342047, 208.919814, 112.352047)"
+  },
+  {
+   "check": "C8 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(207.409814, 109.342047, 208.919814, 112.352047)"
+  },
+  {
+   "check": "C8 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(207.409814, 109.342047, 208.919814, 112.352047)"
+  },
+  {
+   "check": "C8 clear of the shell notch",
+   "ok": true,
+   "detail": "(207.409814, 109.342047, 208.919814, 112.352047)"
+  },
+  {
+   "check": "C8 clear of the shell notch",
+   "ok": true,
+   "detail": "(207.409814, 109.342047, 208.919814, 112.352047)"
+  },
+  {
+   "check": "C9 inside the outline",
+   "ok": true,
+   "detail": "(209.341666, 109.859685, 210.851666, 112.869685)"
+  },
+  {
+   "check": "C9 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(209.341666, 109.859685, 210.851666, 112.869685)"
+  },
+  {
+   "check": "C9 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(209.341666, 109.859685, 210.851666, 112.869685)"
+  },
+  {
+   "check": "C9 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(209.341666, 109.859685, 210.851666, 112.869685)"
+  },
+  {
+   "check": "C9 clear of the shell notch",
+   "ok": true,
+   "detail": "(209.341666, 109.859685, 210.851666, 112.869685)"
+  },
+  {
+   "check": "C9 clear of the shell notch",
+   "ok": true,
+   "detail": "(209.341666, 109.859685, 210.851666, 112.869685)"
+  },
+  {
+   "check": "C10 inside the outline",
+   "ok": true,
+   "detail": "(75.197952, 107.120185, 78.207952, 108.630185)"
+  },
+  {
+   "check": "C10 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(75.197952, 107.120185, 78.207952, 108.630185)"
+  },
+  {
+   "check": "C10 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(75.197952, 107.120185, 78.207952, 108.630185)"
+  },
+  {
+   "check": "C10 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(75.197952, 107.120185, 78.207952, 108.630185)"
+  },
+  {
+   "check": "C10 clear of the shell notch",
+   "ok": true,
+   "detail": "(75.197952, 107.120185, 78.207952, 108.630185)"
+  },
+  {
+   "check": "C10 clear of the shell notch",
+   "ok": true,
+   "detail": "(75.197952, 107.120185, 78.207952, 108.630185)"
+  },
+  {
+   "check": "C11 inside the outline",
+   "ok": true,
+   "detail": "(78.595, 105.320898, 80.105, 108.330898)"
+  },
+  {
+   "check": "C11 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(78.595, 105.320898, 80.105, 108.330898)"
+  },
+  {
+   "check": "C11 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(78.595, 105.320898, 80.105, 108.330898)"
+  },
+  {
+   "check": "C11 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(78.595, 105.320898, 80.105, 108.330898)"
+  },
+  {
+   "check": "C11 clear of the shell notch",
+   "ok": true,
+   "detail": "(78.595, 105.320898, 80.105, 108.330898)"
+  },
+  {
+   "check": "C11 clear of the shell notch",
+   "ok": true,
+   "detail": "(78.595, 105.320898, 80.105, 108.330898)"
+  },
+  {
+   "check": "C12 inside the outline",
+   "ok": true,
+   "detail": "(61.397952, 107.120185, 64.407952, 108.630185)"
+  },
+  {
+   "check": "C12 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(61.397952, 107.120185, 64.407952, 108.630185)"
+  },
+  {
+   "check": "C12 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(61.397952, 107.120185, 64.407952, 108.630185)"
+  },
+  {
+   "check": "C12 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(61.397952, 107.120185, 64.407952, 108.630185)"
+  },
+  {
+   "check": "C12 clear of the shell notch",
+   "ok": true,
+   "detail": "(61.397952, 107.120185, 64.407952, 108.630185)"
+  },
+  {
+   "check": "C12 clear of the shell notch",
+   "ok": true,
+   "detail": "(61.397952, 107.120185, 64.407952, 108.630185)"
+  },
+  {
+   "check": "C13 inside the outline",
+   "ok": true,
+   "detail": "(64.795, 105.320898, 66.305, 108.330898)"
+  },
+  {
+   "check": "C13 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(64.795, 105.320898, 66.305, 108.330898)"
+  },
+  {
+   "check": "C13 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(64.795, 105.320898, 66.305, 108.330898)"
+  },
+  {
+   "check": "C13 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(64.795, 105.320898, 66.305, 108.330898)"
+  },
+  {
+   "check": "C13 clear of the shell notch",
+   "ok": true,
+   "detail": "(64.795, 105.320898, 66.305, 108.330898)"
+  },
+  {
+   "check": "C13 clear of the shell notch",
+   "ok": true,
+   "detail": "(64.795, 105.320898, 66.305, 108.330898)"
+  },
+  {
+   "check": "C14 inside the outline",
+   "ok": true,
+   "detail": "(117.197952, 107.120185, 120.207952, 108.630185)"
+  },
+  {
+   "check": "C14 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(117.197952, 107.120185, 120.207952, 108.630185)"
+  },
+  {
+   "check": "C14 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(117.197952, 107.120185, 120.207952, 108.630185)"
+  },
+  {
+   "check": "C14 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(117.197952, 107.120185, 120.207952, 108.630185)"
+  },
+  {
+   "check": "C14 clear of the shell notch",
+   "ok": true,
+   "detail": "(117.197952, 107.120185, 120.207952, 108.630185)"
+  },
+  {
+   "check": "C14 clear of the shell notch",
+   "ok": true,
+   "detail": "(117.197952, 107.120185, 120.207952, 108.630185)"
+  },
+  {
+   "check": "C15 inside the outline",
+   "ok": true,
+   "detail": "(120.595, 105.320898, 122.105, 108.330898)"
+  },
+  {
+   "check": "C15 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(120.595, 105.320898, 122.105, 108.330898)"
+  },
+  {
+   "check": "C15 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(120.595, 105.320898, 122.105, 108.330898)"
+  },
+  {
+   "check": "C15 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(120.595, 105.320898, 122.105, 108.330898)"
+  },
+  {
+   "check": "C15 clear of the shell notch",
+   "ok": true,
+   "detail": "(120.595, 105.320898, 122.105, 108.330898)"
+  },
+  {
+   "check": "C15 clear of the shell notch",
+   "ok": true,
+   "detail": "(120.595, 105.320898, 122.105, 108.330898)"
+  },
+  {
+   "check": "C16 inside the outline",
+   "ok": true,
+   "detail": "(132.997952, 107.120185, 136.007952, 108.630185)"
+  },
+  {
+   "check": "C16 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(132.997952, 107.120185, 136.007952, 108.630185)"
+  },
+  {
+   "check": "C16 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(132.997952, 107.120185, 136.007952, 108.630185)"
+  },
+  {
+   "check": "C16 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(132.997952, 107.120185, 136.007952, 108.630185)"
+  },
+  {
+   "check": "C16 clear of the shell notch",
+   "ok": true,
+   "detail": "(132.997952, 107.120185, 136.007952, 108.630185)"
+  },
+  {
+   "check": "C16 clear of the shell notch",
+   "ok": true,
+   "detail": "(132.997952, 107.120185, 136.007952, 108.630185)"
+  },
+  {
+   "check": "C17 inside the outline",
+   "ok": true,
+   "detail": "(136.395, 105.320898, 137.905, 108.330898)"
+  },
+  {
+   "check": "C17 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(136.395, 105.320898, 137.905, 108.330898)"
+  },
+  {
+   "check": "C17 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(136.395, 105.320898, 137.905, 108.330898)"
+  },
+  {
+   "check": "C17 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(136.395, 105.320898, 137.905, 108.330898)"
+  },
+  {
+   "check": "C17 clear of the shell notch",
+   "ok": true,
+   "detail": "(136.395, 105.320898, 137.905, 108.330898)"
+  },
+  {
+   "check": "C17 clear of the shell notch",
+   "ok": true,
+   "detail": "(136.395, 105.320898, 137.905, 108.330898)"
+  },
+  {
+   "check": "C18 inside the outline",
+   "ok": true,
+   "detail": "(145.662047, 105.089814, 148.672047, 106.599814)"
+  },
+  {
+   "check": "C18 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(145.662047, 105.089814, 148.672047, 106.599814)"
+  },
+  {
+   "check": "C18 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.662047, 105.089814, 148.672047, 106.599814)"
+  },
+  {
+   "check": "C18 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(145.662047, 105.089814, 148.672047, 106.599814)"
+  },
+  {
+   "check": "C18 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.662047, 105.089814, 148.672047, 106.599814)"
+  },
+  {
+   "check": "C18 clear of the shell notch",
+   "ok": true,
+   "detail": "(145.662047, 105.089814, 148.672047, 106.599814)"
+  },
+  {
+   "check": "C19 inside the outline",
+   "ok": true,
+   "detail": "(143.729936, 110.945, 145.239936, 113.955)"
+  },
+  {
+   "check": "C19 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(143.729936, 110.945, 145.239936, 113.955)"
+  },
+  {
+   "check": "C19 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(143.729936, 110.945, 145.239936, 113.955)"
+  },
+  {
+   "check": "C19 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(143.729936, 110.945, 145.239936, 113.955)"
+  },
+  {
+   "check": "C19 clear of the shell notch",
+   "ok": true,
+   "detail": "(143.729936, 110.945, 145.239936, 113.955)"
+  },
+  {
+   "check": "C19 clear of the shell notch",
+   "ok": true,
+   "detail": "(143.729936, 110.945, 145.239936, 113.955)"
+  },
+  {
+   "check": "C20 inside the outline",
+   "ok": true,
+   "detail": "(87.695, 101.795, 89.205, 104.805)"
+  },
+  {
+   "check": "C20 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(87.695, 101.795, 89.205, 104.805)"
+  },
+  {
+   "check": "C20 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(87.695, 101.795, 89.205, 104.805)"
+  },
+  {
+   "check": "C20 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(87.695, 101.795, 89.205, 104.805)"
+  },
+  {
+   "check": "C20 clear of the shell notch",
+   "ok": true,
+   "detail": "(87.695, 101.795, 89.205, 104.805)"
+  },
+  {
+   "check": "C20 clear of the shell notch",
+   "ok": true,
+   "detail": "(87.695, 101.795, 89.205, 104.805)"
+  },
+  {
+   "check": "C21 inside the outline",
+   "ok": true,
+   "detail": "(150.497952, 108.030185, 153.507952, 109.540185)"
+  },
+  {
+   "check": "C21 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(150.497952, 108.030185, 153.507952, 109.540185)"
+  },
+  {
+   "check": "C21 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(150.497952, 108.030185, 153.507952, 109.540185)"
+  },
+  {
+   "check": "C21 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(150.497952, 108.030185, 153.507952, 109.540185)"
+  },
+  {
+   "check": "C21 clear of the shell notch",
+   "ok": true,
+   "detail": "(150.497952, 108.030185, 153.507952, 109.540185)"
+  },
+  {
+   "check": "C21 clear of the shell notch",
+   "ok": true,
+   "detail": "(150.497952, 108.030185, 153.507952, 109.540185)"
+  },
+  {
+   "check": "C22 inside the outline",
+   "ok": true,
+   "detail": "(156.497952, 108.030185, 159.507952, 109.540185)"
+  },
+  {
+   "check": "C22 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(156.497952, 108.030185, 159.507952, 109.540185)"
+  },
+  {
+   "check": "C22 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(156.497952, 108.030185, 159.507952, 109.540185)"
+  },
+  {
+   "check": "C22 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(156.497952, 108.030185, 159.507952, 109.540185)"
+  },
+  {
+   "check": "C22 clear of the shell notch",
+   "ok": true,
+   "detail": "(156.497952, 108.030185, 159.507952, 109.540185)"
+  },
+  {
+   "check": "C22 clear of the shell notch",
+   "ok": true,
+   "detail": "(156.497952, 108.030185, 159.507952, 109.540185)"
+  },
+  {
+   "check": "C23 inside the outline",
+   "ok": true,
+   "detail": "(157.945, 103.860063, 160.955, 105.370063)"
+  },
+  {
+   "check": "C23 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(157.945, 103.860063, 160.955, 105.370063)"
+  },
+  {
+   "check": "C23 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(157.945, 103.860063, 160.955, 105.370063)"
+  },
+  {
+   "check": "C23 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(157.945, 103.860063, 160.955, 105.370063)"
+  },
+  {
+   "check": "C23 clear of the shell notch",
+   "ok": true,
+   "detail": "(157.945, 103.860063, 160.955, 105.370063)"
+  },
+  {
+   "check": "C23 clear of the shell notch",
+   "ok": true,
+   "detail": "(157.945, 103.860063, 160.955, 105.370063)"
+  },
+  {
+   "check": "C24 inside the outline",
+   "ok": true,
+   "detail": "(96.945, 103.860063, 99.955, 105.370063)"
+  },
+  {
+   "check": "C24 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(96.945, 103.860063, 99.955, 105.370063)"
+  },
+  {
+   "check": "C24 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(96.945, 103.860063, 99.955, 105.370063)"
+  },
+  {
+   "check": "C24 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(96.945, 103.860063, 99.955, 105.370063)"
+  },
+  {
+   "check": "C24 clear of the shell notch",
+   "ok": true,
+   "detail": "(96.945, 103.860063, 99.955, 105.370063)"
+  },
+  {
+   "check": "C24 clear of the shell notch",
+   "ok": true,
+   "detail": "(96.945, 103.860063, 99.955, 105.370063)"
+  },
+  {
+   "check": "C25 inside the outline",
+   "ok": true,
+   "detail": "(92.015, 109.475, 93.525, 112.485)"
+  },
+  {
+   "check": "C25 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(92.015, 109.475, 93.525, 112.485)"
+  },
+  {
+   "check": "C25 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(92.015, 109.475, 93.525, 112.485)"
+  },
+  {
+   "check": "C25 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(92.015, 109.475, 93.525, 112.485)"
+  },
+  {
+   "check": "C25 clear of the shell notch",
+   "ok": true,
+   "detail": "(92.015, 109.475, 93.525, 112.485)"
+  },
+  {
+   "check": "C25 clear of the shell notch",
+   "ok": true,
+   "detail": "(92.015, 109.475, 93.525, 112.485)"
+  },
+  {
+   "check": "C26 inside the outline",
+   "ok": true,
+   "detail": "(92.365, 115.515, 93.875, 118.525)"
+  },
+  {
+   "check": "C26 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(92.365, 115.515, 93.875, 118.525)"
+  },
+  {
+   "check": "C26 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(92.365, 115.515, 93.875, 118.525)"
+  },
+  {
+   "check": "C26 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(92.365, 115.515, 93.875, 118.525)"
+  },
+  {
+   "check": "C26 clear of the shell notch",
+   "ok": true,
+   "detail": "(92.365, 115.515, 93.875, 118.525)"
+  },
+  {
+   "check": "C26 clear of the shell notch",
+   "ok": true,
+   "detail": "(92.365, 115.515, 93.875, 118.525)"
+  },
+  {
+   "check": "C27 inside the outline",
+   "ok": true,
+   "detail": "(106.815, 109.475, 108.325, 112.485)"
+  },
+  {
+   "check": "C27 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(106.815, 109.475, 108.325, 112.485)"
+  },
+  {
+   "check": "C27 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(106.815, 109.475, 108.325, 112.485)"
+  },
+  {
+   "check": "C27 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(106.815, 109.475, 108.325, 112.485)"
+  },
+  {
+   "check": "C27 clear of the shell notch",
+   "ok": true,
+   "detail": "(106.815, 109.475, 108.325, 112.485)"
+  },
+  {
+   "check": "C27 clear of the shell notch",
+   "ok": true,
+   "detail": "(106.815, 109.475, 108.325, 112.485)"
+  },
+  {
+   "check": "C28 inside the outline",
+   "ok": true,
+   "detail": "(107.165, 115.515, 108.675, 118.525)"
+  },
+  {
+   "check": "C28 clear of the shell neck and slot housing (no body below y 125)",
+   "ok": true,
+   "detail": "(107.165, 115.515, 108.675, 118.525)"
+  },
+  {
+   "check": "C28 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(107.165, 115.515, 108.675, 118.525)"
+  },
+  {
+   "check": "C28 clear of the shell-post hole",
+   "ok": true,
+   "detail": "(107.165, 115.515, 108.675, 118.525)"
+  },
+  {
+   "check": "C28 clear of the shell notch",
+   "ok": true,
+   "detail": "(107.165, 115.515, 108.675, 118.525)"
+  },
+  {
+   "check": "C28 clear of the shell notch",
+   "ok": true,
+   "detail": "(107.165, 115.515, 108.675, 118.525)"
+  }
+ ],
+ "placement": {
+  "J1": [
+   138.48,
+   150.65,
+   180
+  ],
+  "J2": [
+   141.02,
+   150.65,
+   0
+  ],
+  "U7": [
+   60.8,
+   114.0,
+   180
+  ],
+  "U6": [
+   74.6,
+   114.0,
+   180
+  ],
+  "U10": [
+   87.2,
+   114.0,
+   180
+  ],
+  "U11": [
+   102.0,
+   114.0,
+   180
+  ],
+  "U8": [
+   116.6,
+   114.0,
+   180
+  ],
+  "U9": [
+   132.4,
+   114.0,
+   180
+  ],
+  "U19": [
+   141.0,
+   90.0,
+   0
+  ],
+  "U13": [
+   148.6,
+   114.0,
+   0
+  ],
+  "U15": [
+   154.6,
+   114.0,
+   0
+  ],
+  "U16": [
+   160.6,
+   114.0,
+   0
+  ],
+  "U4": [
+   172.0,
+   114.0,
+   0
+  ],
+  "U5": [
+   200.0,
+   114.0,
+   180
+  ],
+  "U14": [
+   84.0,
+   100.5,
+   180
+  ],
+  "U18": [
+   100.0,
+   100.5,
+   90
+  ],
+  "U12": [
+   150.0,
+   100.5,
+   90
+  ],
+  "U17": [
+   161.0,
+   100.5,
+   90
+  ],
+  "JP1": [
+   138.0,
+   100.5,
+   90
+  ],
+  "U2": [
+   97.0,
+   50.0,
+   90
+  ],
+  "U1": [
+   203.05,
+   101.99,
+   90
+  ],
+  "TP1": [
+   142.0,
+   81.0,
+   0
+  ],
+  "TP2": [
+   140.0,
+   81.0,
+   0
+  ],
+  "TP3": [
+   141.0,
+   83.0,
+   0
+  ],
+  "TP4": [
+   153.95,
+   119.21,
+   0
+  ],
+  "R1": [
+   141.0,
+   100.5,
+   90
+  ],
+  "R2": [
+   154.72,
+   123.0,
+   0
+  ],
+  "R3": [
+   152.15,
+   123.26,
+   90
+  ],
+  "R4": [
+   149.64,
+   123.0,
+   90
+  ],
+  "R5": [
+   147.1,
+   123.0,
+   90
+  ],
+  "C1": [
+   146.97,
+   87.7,
+   90
+  ],
+  "C2": [
+   147.0,
+   91.75,
+   90
+  ],
+  "C3": [
+   190.68,
+   107.24,
+   90
+  ],
+  "C4": [
+   191.43,
+   110.27,
+   0
+  ],
+  "C5": [
+   96.75,
+   38.1,
+   0
+  ],
+  "C6": [
+   163.62,
+   121.05,
+   90
+  ],
+  "C7": [
+   161.52,
+   119.87,
+   90
+  ],
+  "C8": [
+   208.16,
+   110.85,
+   90
+  ],
+  "C9": [
+   210.1,
+   111.36,
+   90
+  ],
+  "C10": [
+   76.7,
+   107.88,
+   0
+  ],
+  "C11": [
+   79.35,
+   106.83,
+   90
+  ],
+  "C12": [
+   62.9,
+   107.88,
+   0
+  ],
+  "C13": [
+   65.55,
+   106.83,
+   90
+  ],
+  "C14": [
+   118.7,
+   107.88,
+   0
+  ],
+  "C15": [
+   121.35,
+   106.83,
+   90
+  ],
+  "C16": [
+   134.5,
+   107.88,
+   0
+  ],
+  "C17": [
+   137.15,
+   106.83,
+   90
+  ],
+  "C18": [
+   147.17,
+   105.84,
+   0
+  ],
+  "C19": [
+   144.48,
+   112.45,
+   90
+  ],
+  "C20": [
+   88.45,
+   103.3,
+   90
+  ],
+  "C21": [
+   152.0,
+   108.79,
+   0
+  ],
+  "C22": [
+   158.0,
+   108.79,
+   0
+  ],
+  "C23": [
+   159.45,
+   104.62,
+   0
+  ],
+  "C24": [
+   98.45,
+   104.62,
+   0
+  ],
+  "C25": [
+   92.77,
+   110.98,
+   90
+  ],
+  "C26": [
+   93.12,
+   117.02,
+   90
+  ],
+  "C27": [
+   107.57,
+   110.98,
+   90
+  ],
+  "C28": [
+   107.92,
+   117.02,
+   90
+  ]
+ }
+}

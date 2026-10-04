@@ -24,7 +24,7 @@ import os
 
 MM = pcbnew.FromMM
 FP_LIB = '/usr/share/kicad/footprints'
-OUT_DIR = '/home/bruno/CLProjects/NeoScanSDK/hardware/neocart/adapter'
+OUT_DIR = '/home/bruno/CLProjects/NeoGeo/hardware/neocart/adapter'
 
 def load_fp(lib_name, fp_name):
     return pcbnew.FootprintLoad(os.path.join(FP_LIB, f'{lib_name}.pretty'), fp_name)

@@ -1,0 +1,9 @@
+{
+  "router_settings": {
+    "default_preferred_direction_trace_clearance_class": 0
+  },
+  "usage_and_diagnostic_data": {
+    "analytics_enabled": false,
+    "last_asked": "2026-05-18"
+  }
+}
