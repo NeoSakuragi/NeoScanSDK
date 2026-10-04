@@ -23,4 +23,6 @@ class Prefs(ctx: Context) {
         get() = p.getBoolean("vibrate", true); set(v) = p.edit().putBoolean("vibrate", v).apply()
     var autoUpdate: Boolean                                         // fetch a newer build on launch
         get() = p.getBoolean("autoUpdate", true); set(v) = p.edit().putBoolean("autoUpdate", v).apply()
+    var frameStats: Boolean                                         // the frame-pacing line over the picture
+        get() = p.getBoolean("frameStats", false); set(v) = p.edit().putBoolean("frameStats", v).apply()
 }

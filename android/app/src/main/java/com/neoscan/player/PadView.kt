@@ -77,7 +77,9 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         btns.forEachIndexed { i, b -> b.x = dX + dxs[i] * r; b.y = dY + dys[i] * r; b.r = r }
     }
 
+    private val dbg = Paint().apply { color = Color.YELLOW; textSize = 28f; isAntiAlias = true }
     override fun onDraw(c: Canvas) {
+        if (FrameStats.show && FrameStats.line.isNotEmpty()) { c.drawText(FrameStats.line, 16f, 40f, dbg); postInvalidateDelayed(500) }
         if (portrait) { paint.alpha = 255; paint.color = Color.rgb(18, 18, 24); c.drawRect(0f, panelTop, width.toFloat(), height.toFloat(), paint) }
         if (!portrait) c.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), (opacity * 255).toInt())
         paint.style = Paint.Style.FILL; paint.color = Color.rgb(45, 45, 55); c.drawCircle(dx, dy, dr, paint)

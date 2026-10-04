@@ -59,12 +59,15 @@ class EmuRenderer(private val emu: () -> EmuThread?) : GLSurfaceView.Renderer {
         val r = Screen.picture(sw, sh)
         GLES20.glViewport(r.left, sh - r.bottom, r.width(), r.height())          // GL counts y from the bottom
         val e = emu() ?: return
-        var w: Int; var h: Int
+        var w: Int; var h: Int; var vsync: Long
         synchronized(e.lock) {
-            w = e.w; h = e.h
+            w = e.w; h = e.h; vsync = e.frontVsync
             e.front.position(0)
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex)
             GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, w, h, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, e.front)
+            val p = FrameStats.produced; if (p > FrameStats.drawn + 1 && FrameStats.drawn > 0) FrameStats.glSkipped += p - FrameStats.drawn - 1
+            FrameStats.drawn = p
+            val now = System.nanoTime(); if (FrameStats.lastDraw > 0 && now - FrameStats.lastDraw > 25_000_000L) FrameStats.glLong++; FrameStats.lastDraw = now
         }
         val u = w / 512f; val v = h / 512f
         quad.clear(); quad.put(floatArrayOf(-1f, -1f, 0f, v, 1f, -1f, u, v, -1f, 1f, 0f, 0f, 1f, 1f, u, 0f)); quad.position(0)

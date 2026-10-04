@@ -91,12 +91,37 @@ class MainActivity : Activity() {
             setRenderer(renderer)
             renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
         }
+        // the game surface declares its own rate (a fixed-source 59.19 Hz, like a video): the display picks 60 Hz and
+        // keeps it; MIUI overrode the window's preferredDisplayModeId alone after ~20 s
+        if (android.os.Build.VERSION.SDK_INT >= 30) gl.holder.addCallback(object : android.view.SurfaceHolder.Callback {
+            override fun surfaceCreated(h: android.view.SurfaceHolder) {
+                h.surface.setFrameRate(59.185606f, android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE) }
+            override fun surfaceChanged(h: android.view.SurfaceHolder, f: Int, w: Int, ht: Int) {}
+            override fun surfaceDestroyed(h: android.view.SurfaceHolder) {}
+        })
         pad = PadView(this, ::openSettings, ::downloadLatest) { m -> touchMask = m; pushPads() }
         root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))
         root.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
+        // the game runs at 59.2 fps: ask for the display's 60 Hz mode (the Redmi Pad 2 Pro defaults to 120 / 48 Hz)
+        @Suppress("DEPRECATION") val d = windowManager.defaultDisplay
+        val cur = d.mode
+        d.supportedModes.filter { it.physicalWidth == cur.physicalWidth && it.physicalHeight == cur.physicalHeight }
+            .minByOrNull { Math.abs(it.refreshRate - 60f) }?.let { m ->
+                window.attributes = window.attributes.also { it.preferredDisplayModeId = m.modeId } }
+        VsyncPacer.hz = d.refreshRate.toDouble()
+        getSystemService(android.hardware.display.DisplayManager::class.java).registerDisplayListener(object :
+            android.hardware.display.DisplayManager.DisplayListener {
+            override fun onDisplayChanged(id: Int) { if (id == d.displayId) VsyncPacer.hz = d.refreshRate.toDouble() }
+            override fun onDisplayAdded(id: Int) {}
+            override fun onDisplayRemoved(id: Int) {}
+        }, null)
+        VsyncPacer.draw = { gl.requestRender() }
+        VsyncPacer.start()
         applySettings()
-        emu = EmuThread(sys.absolutePath, save.absolutePath, rom.absolutePath, { gl.requestRender() }) { msg ->
+        FrameStats.start(getExternalFilesDir(null)!!)
+        val hints = if (android.os.Build.VERSION.SDK_INT >= 31) getSystemService(android.os.PerformanceHintManager::class.java) else null
+        emu = EmuThread(sys.absolutePath, save.absolutePath, rom.absolutePath, hints, { if (VsyncPacer.perFrame < 2) gl.requestRender() }) { msg ->
             runOnUiThread { setContentView(TextView(this).apply { text = msg; gravity = Gravity.CENTER }) }
         }.also { it.start() }
         pollUpdates()
@@ -141,6 +166,7 @@ class MainActivity : Activity() {
             "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         }
+        FrameStats.show = p.frameStats; if (::pad.isInitialized) pad.invalidate()
         Screen.four3 = p.aspect == "4:3"
         Screen.integer = p.scale == "integer" || p.filter == "subpixel"     // the subpixel pattern needs whole pixels
         if (::renderer.isInitialized) {

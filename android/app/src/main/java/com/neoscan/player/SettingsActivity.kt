@@ -51,6 +51,7 @@ class SettingsActivity : Activity() {
 
         section("Updates")
         toggle("Fetch new builds on launch", prefs.autoUpdate) { prefs.autoUpdate = it }
+        toggle("Show frame stats (also logged to files/frames.log)", prefs.frameStats) { prefs.frameStats = it }
         val rom = File(getExternalFilesDir(null), "brawler.neo")
         note("Installed: Brawler '27 v${RomFetch.installed(this)}" + (if (rom.exists()) "  (${rom.length() / 1048576} MB)" else "") +
              "\nSource: ${RomFetch.base(this) ?: "none"}")
