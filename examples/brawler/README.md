@@ -22,10 +22,14 @@ tools/brawler/publish_vps.sh) and the info page canneji.duckdns.org/brawler/ sho
 The secret is in the APK: it keeps casual visitors out, it is not real protection.
 
 ## Character select
-The roster as a 7 x 2 grid of 32x32 fix-layer portraits (tools/brawler/make_hud.py), corner-bracket cursors (P1 red,
-P2 green), each player's cursor fighter previewed large above it with its name. Stick moves (wraps), A/B/C/D picks that colour set, KOF style, and plays the win pose. Both picked: the fight
-starts 90 frames later; the enemies are the first six fighters nobody picked. Same fighter in the same colours: P2
-gets the next set.
+A police line-up (2026-10-04): the roster stands left to right in its idle pose, 84 px apart, and the camera pans to
+keep the selected fighter in the middle; the selected one shows its colours, the others shades of grey (luminance of
+their own palettes). "1P" with a down arrow (fix tile $7F, make_hud.py) above the selected head ("2P" above it when a
+second player selects). Stick left / right moves; A/B/C/D picks that colour set, KOF style, and plays the win pose.
+Then the others walk off the screen outward, the wall and the picked fighter fade to black (32 frames) and the fight
+fades in from black (stage, backdrop, fighters). Only the fighters on screen use an entity: the fight's 8 fighter
+entities are the line-up's actors, bound to whichever fighters the camera shows. HUD portraits (32x32 fix layer) stay
+for the fight.
 
 ## Game flow
 Three waves of six enemies (the fighters nobody picked, in turn), each walking in from the right; a defeated enemy

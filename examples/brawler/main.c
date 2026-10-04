@@ -514,62 +514,117 @@ static void title_tick(void) {
     if (bios_start) { bios_start = 0; banner_hide(); select_start(); }   /* START with a credit (PLAYER_START) */
 }
 
-/* ---- character select: names on the fix layer (4 columns), each player's cursor fighter previewed on the stage. Stick
- * moves, A/B/C/D picks that colour set (KOF style) and plays the win pose; both picked: the fight starts 90 frames later
- * with the six first unpicked fighters as the enemies. ---- */
-#define SEL_COLS 7                       /* portrait grid: 7 x 2 faces of 4 x 4 fix cells, a cell apart */
-#define GRID_COL 3
-#define GRID_ROW 17
+/* ---- character select: a police line-up (Bruno 2026-10-04). The roster stands left to right in its idle pose, LU_DX
+ * apart, the camera panning to keep the selected fighter in the middle; it shows its colours, the others shades of
+ * grey (their own palettes in luminance). "1P" / "2P" with an arrow above the selected one's head (fix layer). Stick
+ * left / right moves; A/B/C/D picks that colour set (KOF style) and plays the win pose; then the others walk off the
+ * screen, the scene fades to black and the fight's stage fades in. Only the fighters on screen use an entity (actor):
+ * the fight's NF entities are the actors here, bound to whichever fighters the camera shows. ---- */
+#define LU_X0  64                        /* world x of the first fighter */
+#define LU_DX  84                        /* between two fighters (their idle frames are ~70 px wide) */
+#define LU_W   (LU_X0 * 2 + (BC_COUNT - 1) * LU_DX)
+#define LU_Z   40                        /* feet at FLOOR_TOP + LU_Z */
+#define ARROW_ROW 7                      /* "1P" on this fix row, the arrow below it */
+#define FADE_T 32                        /* frames of a fade (level = t / 2, 16 steps) */
+enum { SEL_CHOOSE, SEL_LEAVE, SEL_FADE };
 static uint8_t cursor[2], picked[2], pick_set[2];
+static uint8_t sel_phase, fade_in;
 static uint16_t sel_t;
+static uint8_t act_of[BC_COUNT];         /* the actor showing a fighter, 0xFF none */
+static uint8_t chr_of[NF];               /* the fighter an actor shows, 0xFF free */
+static uint8_t arrow_col[2] = { 0xFF, 0xFF };
 
-static void preview(uint8_t p) {
-    const bchar_t *ch = &bm_chars[cursor[p]];
-    fighter_init(&fighters[p], ch, pick_set[p] % ch->nsets, 16 + p * MAX_PALS, 0, p ? 230 : 90, 0);
-    fighters[p].y = FIX(16);                                  /* feet above the portrait grid */
-    fighters[p].facing = p ? -1 : 1; fighters[p].idx = p;
-    FIX_print(p ? 26 : 3, 6, "          ", 0); FIX_print(p ? 26 : 3, 6, ch->name, 0);
+static uint16_t col_scale(uint16_t c, uint8_t k) {          /* a colour at k / 16 of its brightness */
+    uint8_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
+    return RGB((r * k) >> 4, (g * k) >> 4, (b * k) >> 4);
 }
-static void grid_cell(uint8_t i, uint8_t *col, uint8_t *row) {
-    uint8_t r = 0;
-    while (i >= SEL_COLS) { i -= SEL_COLS; r++; }
-    *col = GRID_COL + i * 5; *row = GRID_ROW + r * 5;
+static uint16_t col_grey(uint16_t c) {                      /* luminance (5 R + 9 G + 2 B) / 16, a cold grey */
+    uint8_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
+    uint8_t l = (uint8_t)((r * 5 + g * 9 + b * 2) >> 4);
+    return RGB(l, l, l + (l < 31));
 }
-/* cursor brackets: the debug viewer's corner sprites (P1 = 340-343 red, P2 = 300-303 green), hugging the face from
- * outside (the fix layer covers sprites, so the brackets show in the gap around it) */
-static void select_cursor(uint8_t p) {
-    uint16_t spr = p ? DBG_SPR : DBG_SPR + DBG_BOXES * 4;
-    uint8_t col, row, k;
-    int16_t px, py;
-    if (cursor[p] == 0xFF) { for (k = 0; k < 4; k++) cmd_push(VRAM_SCB3 + spr + k, 0); return; }
-    grid_cell(cursor[p], &col, &row);
-    px = col * 8; py = row * 8;
-    for (k = 0; k < 4; k++) {
-        int16_t x = (k & 1) ? px + 20 : px - 4, y = (k & 2) ? py + 20 : py - 4;
-        cmd_push(VRAM_SCB3 + spr + k, (uint16_t)((((496 - y) & 0x1FF) << 7) | 1));
-        cmd_push(VRAM_SCB4 + spr + k, (uint16_t)(x & 0x1FF) << 7);
+/* an entity's palettes: its own colours (grey = 0) or greys, at k / 16 brightness */
+static void fighter_pals(const fighter_t *f, uint8_t colour, uint8_t k) {
+    uint16_t buf[16];
+    uint8_t i, j;
+    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
+        const uint16_t *src = f->ch->pals + ((f->set * f->ch->npal + i) << 4);
+        buf[0] = src[0];
+        for (j = 1; j < 16; j++) buf[j] = col_scale(colour ? src[j] : col_grey(src[j]), k);
+        PAL_setPalette(f->palbase + i, buf);
     }
 }
-static void select_cursors_hide(void) {
-    uint8_t k;
-    for (k = 0; k < 4; k++) { cmd_push(VRAM_SCB3 + DBG_SPR + k, 0); cmd_push(VRAM_SCB3 + DBG_SPR + DBG_BOXES * 4 + k, 0); }
+static uint8_t chosen(uint8_t c) { return c == cursor[0] || c == cursor[1]; }
+static void actor_bind(uint8_t c, uint8_t a) {
+    fighter_t *f = &fighters[a];
+    const bchar_t *ch = &bm_chars[c];
+    uint8_t set = (c == cursor[0]) ? pick_set[0] : (c == cursor[1]) ? pick_set[1] : 0;
+    fighter_init(f, ch, set < ch->nsets ? set : 0, 16 + a * MAX_PALS, 0, LU_X0 + c * LU_DX, LU_Z);
+    f->idx = a; f->facing = 1;
+    fighter_pals(f, chosen(c), 16);
+    act_of[c] = a; chr_of[a] = c;
+}
+static void actor_free(uint8_t a) {
+    if (chr_of[a] != 0xFF) act_of[chr_of[a]] = 0xFF;
+    chr_of[a] = 0xFF; fighters[a].state = S_OFF;
+}
+/* the fighters the camera shows get an actor, the others give theirs back */
+static void lineup_bind(void) {
+    uint8_t c, a;
+    for (a = 0; a < NF; a++)
+        if (chr_of[a] != 0xFF) {
+            int16_t sx = LU_X0 + chr_of[a] * LU_DX - cam_x;
+            if (sx < -56 || sx > 376) actor_free(a);
+        }
+    for (c = 0; c < BC_COUNT; c++) {
+        int16_t sx = LU_X0 + c * LU_DX - cam_x;
+        if (act_of[c] != 0xFF || sx < -56 || sx > 376) continue;
+        for (a = 0; a < NF && chr_of[a] != 0xFF; a++) ;
+        if (a < NF) actor_bind(c, a);
+    }
+}
+static void lineup_camera(void) {
+    int16_t goal = LU_X0 + cursor[0] * LU_DX - 160, d;
+    if (goal < 0) goal = 0;
+    if (goal > LU_W - 320) goal = LU_W - 320;
+    d = goal - cam_x;
+    cam_x += d > 0 ? (d + 3) >> 2 : -((3 - d) >> 2);
+}
+static void select_arrows(void) {                           /* "1P" / "2P" + arrow over the selected head */
+    uint8_t p;
+    for (p = 0; p < 2; p++) {
+        int16_t sx = LU_X0 + (cursor[p] == 0xFF ? 0 : cursor[p]) * LU_DX - cam_x;
+        uint8_t col = cursor[p] == 0xFF || sel_phase == SEL_FADE || sx < 8 || sx > 312 ? 0xFF : (uint8_t)((sx - 8) >> 3);
+        if (col == arrow_col[p]) continue;
+        if (arrow_col[p] != 0xFF) { FIX_print(arrow_col[p], ARROW_ROW - p * 2, "  ", 0); FIX_print(arrow_col[p], ARROW_ROW + 1 - p * 2, "  ", 0); }
+        if (col != 0xFF) { FIX_print(col, ARROW_ROW - p * 2, p ? "2P" : "1P", 0); FIX_setTile(col, ARROW_ROW + 1 - p * 2, ARROW_TILE, 0); }
+        arrow_col[p] = col;
+    }
+}
+static void select_name(void) {
+    const char *n = bm_chars[cursor[0]].name;
+    uint8_t len = 0;
+    while (n[len]) len++;
+    FIX_print(9, 5, "                      ", 0);
+    FIX_print(20 - (len >> 1), 5, n, 0);
 }
 static void select_start(void) {
-    uint8_t p, i, col, row;
-    mode = 0; nf = 1; sel_t = 0; cam_x = 0; attract = 0; ai_weak = 0;
+    uint8_t p, i;
+    mode = 0; sel_t = 0; sel_phase = SEL_CHOOSE; attract = 0; ai_weak = 0;
     snd_music(MUS_SELECT);
     FIX_clear(); arcade_line_reset();
-    PAL_setBackdrop(COLOR_BLACK);
+    PAL_setBackdrop(RGB8(72, 76, 84));                       /* the line-up wall */
     for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);                 /* stage sprites hidden */
-    dbg_init();                                                                      /* corner sprites (the banner used 300-318) */
+    dbg_init();
     FIX_print(10, 3, "SELECT YOUR FIGHTER", 0);
     FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);   /* keyboard: WASD, U I O P */
-    for (i = 0; i < BC_COUNT; i++) { grid_cell(i, &col, &row); portrait(col, row, i); }
-    for (p = 0; p < 2; p++) { cursor[p] = p; picked[p] = 0; pick_set[p] = 0; preview(p); order[p] = &fighters[p]; }
-    cursor[1] = 0xFF; fighters[1].state = S_OFF; FIX_print(26, 6, "          ", 0);   /* P2 joins in the fight */
-    for (i = 2; i < NF; i++) fighters[i].state = S_OFF;
-    for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
-    select_cursor(0); select_cursor(1);
+    for (p = 0; p < 2; p++) { picked[p] = 0; pick_set[p] = 0; arrow_col[p] = 0xFF; }
+    cursor[0] = 0; cursor[1] = 0xFF;                         /* P2 joins in the fight */
+    for (i = 0; i < BC_COUNT; i++) act_of[i] = 0xFF;
+    for (i = 0; i < NF; i++) { chr_of[i] = 0xFF; fighters[i].state = S_OFF; order[i] = &fighters[i]; }
+    for (i = 0; i < NPJ; i++) { projectile_reset(&projectiles[i]); order[NF + i] = &projectiles[i]; }
+    nf = NF;
+    cam_x = 0; lineup_bind(); select_name();
 }
 /* ---- the fight: WAVES waves of six enemies (the fighters nobody picked, in turn) walking in from the right; a dead
  * enemy blinks out; a dead player uses a life, then gets a 10 s continue (any button); all enemies of the last wave
@@ -593,11 +648,11 @@ static void spawn_wave(void) {
     ai_init(0x1D2B + wave);
     FIX_print(2, 26, "WAVE   ", 0); FIX_printNum(7, 26, wave + 1, 0);
 }
+static void fight_fade(void);
 static void fight_start(void) {
     uint8_t i, c;
     mode = 1; nf = NE; cam_x = 0; wave = 0; banner_t = 0; navail = 0;
     snd_music(MUS_FIGHT);
-    select_cursors_hide();
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
     sparks_init();
     FIX_clear(); arcade_line_reset();
@@ -613,6 +668,7 @@ static void fight_start(void) {
     }
     for (c = 0; c < BC_COUNT; c++) if (c != cursor[0] && c != cursor[1]) avail[navail++] = c;
     spawn_wave();
+    if (fade_in) { fade_in++; fight_fade(); }                /* from the select screen: starts black */
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
     for (i = 0; i < NPJ; i++) { projectile_reset(&projectiles[i]); projectiles[i].idx = NF + i; order[NF + i] = &projectiles[i]; }
     hud_reset();
@@ -676,28 +732,59 @@ static void flow(void) {
     }
 }
 static void select_tick(void) {
-    uint8_t p, moved = 0;
-    for (p = 0; p < 1; p++) {
-        uint16_t pr = JOY_pressed(p);
-        if (!picked[p]) {
-            int8_t c = cursor[p];
-            if (pr & JOY_LEFT) c--;
-            if (pr & JOY_RIGHT) c++;
-            if (pr & JOY_UP) c -= SEL_COLS;
-            if (pr & JOY_DOWN) c += SEL_COLS;
-            while (c < 0) c += BC_COUNT;
-            while (c >= BC_COUNT) c -= BC_COUNT;
-            if (c != cursor[p]) { cursor[p] = c; preview(p); moved = 1; }
-            if (pr & (JOY_A | JOY_B | JOY_C | JOY_D)) {
-                pick_set[p] = (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3;
-                preview(p); fighter_play(&fighters[p], BA_WIN_A); picked[p] = 1;
-                FIX_print(p ? 30 : 4, 7, "OK", 0);
-            }
+    uint8_t a;
+    uint16_t pr = JOY_pressed(0);
+    sel_t++;
+    if (sel_phase == SEL_CHOOSE) {
+        int8_t c = cursor[0], was = c;
+        if (pr & JOY_LEFT) c--;
+        if (pr & JOY_RIGHT) c++;
+        if (c < 0) c = 0;
+        if (c >= BC_COUNT) c = BC_COUNT - 1;
+        if (c != was) {                                      /* colours follow the cursor */
+            cursor[0] = c;
+            if (act_of[was] != 0xFF) fighter_pals(&fighters[act_of[was]], 0, 16);
+            if (act_of[c] != 0xFF) fighter_pals(&fighters[act_of[c]], 1, 16);
+            select_name();
         }
-        fighter_animate(&fighters[p]);
+        lineup_camera(); lineup_bind();
+        if (pr & (JOY_A | JOY_B | JOY_C | JOY_D)) {
+            pick_set[0] = (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3;
+            a = act_of[cursor[0]];
+            if (a == 0xFF) { lineup_bind(); a = act_of[cursor[0]]; }
+            if (a != 0xFF) { actor_free(a); actor_bind(cursor[0], a); fighter_play(&fighters[a], BA_WIN_A); }
+            picked[0] = 1; sel_phase = SEL_LEAVE; sel_t = 0;
+        }
+    } else if (sel_phase == SEL_LEAVE) {                     /* the others walk off the screen, outward */
+        uint8_t left = 0;
+        for (a = 0; a < NF; a++) {
+            fighter_t *f = &fighters[a];
+            int16_t sx;
+            if (chr_of[a] == 0xFF || chr_of[a] == cursor[0]) continue;
+            if (sel_t == 1 || f->anim != BA_WALK_FWD) { f->facing = chr_of[a] < cursor[0] ? -1 : 1; fighter_play(f, BA_WALK_FWD); }
+            f->x += f->facing > 0 ? FIX(3) : -FIX(3);
+            sx = INT(f->x) - cam_x;
+            if (sx < -64 || sx > 384) actor_free(a); else left++;
+        }
+        if (!left && sel_t >= 60) { sel_phase = SEL_FADE; sel_t = 0; }
+    } else {                                                 /* to black: the wall and the picked fighter */
+        uint8_t k = sel_t >= FADE_T ? 0 : 16 - (uint8_t)(sel_t >> 1);
+        PAL_setBackdrop(col_scale(RGB8(72, 76, 84), k));
+        a = act_of[cursor[0]];
+        if (a != 0xFF) fighter_pals(&fighters[a], 1, k);
+        if (sel_t >= FADE_T + 8) { fade_in = FADE_T; fight_start(); return; }
     }
-    if (moved) { select_cursor(0); select_cursor(1); }
-    if (picked[0] && ++sel_t >= 90) fight_start();
+    for (a = 0; a < NF; a++) if (chr_of[a] != 0xFF) fighter_animate(&fighters[a]);
+    select_arrows();
+}
+/* the fight fading in from black after the select screen: the stage, the backdrop, every fighter (k / 16) */
+static void fight_fade(void) {
+    uint16_t buf[16];
+    uint8_t i, k = 16 - (uint8_t)(--fade_in >> 1);
+    for (i = 0; i < 16; i++) buf[i] = i ? col_scale(stage_pal[i], k) : stage_pal[0];
+    PAL_setPalette(BG_PAL, buf);
+    PAL_setBackdrop(col_scale(RGB8(40, 60, 90), k));
+    for (i = 0; i < NF; i++) if (fighters[i].ch) fighter_pals(&fighters[i], 1, k);
 }
 
 void game_init(void) {
@@ -750,6 +837,7 @@ void game_tick(void) {
     for (i = 0; i < NF; i++) if (fighters[i].state != S_OFF) fighter_update(&fighters[i], &in[i]);
     flow();
     if (mode != 1) return;                                   /* back on the title screen */
+    if (fade_in) fight_fade();
     camera();
     mark(P_UPDATE);
     combat(order, nf);
