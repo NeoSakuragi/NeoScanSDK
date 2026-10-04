@@ -87,6 +87,30 @@ GAMES = {
         b_single=0x6723, b_octtab=0x67E3, b_dn_pitched=0x6763, b_dn_oct=0x6893,
         block=850, send=900,  # the game sends $07 at frame 843 and its first song ($29) at 1365 (measured)
     ),
+    'samsho': dict(
+        name='Samurai Shodown', rom='/data/roms/samsho.neo', dir='/data/neogeo_dict/sound/samsho',
+        m1='samsho_m1.bin', irq=0x2096,               # KOF94's code, instruction for instruction ("Samurai Shodown's build")
+        types=0x59C2, bank_tab=0x2E00, banks={0: 0x8000, 1: 0x10000},
+        headers=0x362C,
+        smp_tab=None, smp_fixed=0x3D1F,               # one ADPCM-A table for every song: effect slot 0's ($0447), as KOF94
+        patches=0x2E40, pitch=0x207E, gate=0x2C0E,
+        fnum=0x5B43,          # KOF94's table, the sharp second scale included
+        brec=0x556C, brec_size=26,                    # KOF94's 26-byte records
+        b_single=0x5752, b_octtab=0x5812, b_dn_pitched=0x5792, b_dn_oct=0x58C2,
+        block=850, send=900,  # the game sends $07 at frame 847 and its first song ($27) at 858 (measured)
+    ),
+    'samsho2': dict(
+        name='Samurai Shodown II', rom='/data/roms/samsho2.neo', dir='/data/neogeo_dict/sound/samsho2',
+        m1='samsho2_m1.bin', irq=0x20EF,              # KOF94's music engine shifted +$59; more effect code ("Samurai Shodown II's build")
+        types=0x6C4A, bank_tab=0x2E00, banks={0: 0x8000, 1: 0x10000},
+        headers=0x3800,
+        smp_tab=None, smp_fixed=0x3EED,               # one ADPCM-A table for every song: effect slot 0's ($0466), as KOF94
+        patches=0x2E40, pitch=0x20D7, gate=0x2C67,
+        fnum=0x6DCB,          # KOF94's table, the sharp second scale included
+        brec=0x656A, brec_size=26,                    # KOF94's 26-byte records
+        b_single=0x69DA, b_octtab=0x6A9A, b_dn_pitched=0x6A1A, b_dn_oct=0x6B4A,
+        block=850, send=900,  # the game sends $07 at frame 847 and its first song ($2D) at 861 (measured)
+    ),
     'kof95': dict(
         name="The King of Fighters '95", rom='/data/roms/kof95.neo', dir='/data/neogeo_dict/sound/kof95',
         m1='kof95_m1.bin', irq=0x1BCA,
@@ -114,6 +138,20 @@ GAMES = {
         b_octave=False,       # opcode $46: every p >= $40 is one pitched sample ($233F), no per-octave mode
         stack_guard=True,
         block=880, send=900,  # the game sends $07 at frames 869 and 874 (each after $03 $03) and its first song ($21) at 1116 (measured)
+    ),
+    'samsho3': dict(
+        name='Samurai Shodown III', rom='/data/roms/samsho3.neo', dir='/data/neogeo_dict/sound/samsho3',
+        m1='samsho3_m1.bin', irq=0x1C9C,              # Art of Fighting 3's build, the per-octave ADPCM-B mode back ("Samurai Shodown III's build")
+        types=0x60F7, bank_tab=0x2E00, banks={0: 0x8000, 1: 0x10000, 2: 0x18000},   # three maps, as AOF3 ($0EAC)
+        headers=0x36C8,
+        smp_tab=None, smp_fixed=None,
+        a_chan=dict(default=0x3D03, words=0x2578, flags=0x2588),   # as AOF3 ($00E6, opcode $3C at $2542)
+        patches=0x2E40, pitch=0x1C84, gate=0x274D,
+        fnum=0x6278,
+        brec=0x5CFF, brec_size=16,
+        b_single=0x5E7F, b_octtab=0x5EBF, b_dn_pitched=0x5F6F, b_dn_oct=0x5FF7,
+        stack_guard=True,     # opcode $46 ($233F): p < $40 kit, < $80 one pitched sample, < $C0 per-octave tables ($1487), else nothing
+        block=880, send=900,  # the game sends $07 at frame 872 (after $03 $03) and its first song ($3C) at 930 (measured)
     ),
 }
 

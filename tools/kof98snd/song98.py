@@ -331,10 +331,11 @@ class Song:
         ch.level = a
         self.emit(ch, 'tl', tl=a)
 
-    def level_index(self, ch, table):                          # $1F79
-        if ch.flags & 1: return (ch.vel + ch.off) & 0xFF
-        if ch.vel == 0: return self.m.rd(table)
-        a = (((ch.vel * (ch.vol & 0x7F)) & 0xFFFF) << 1 >> 8) - 1      # (7 bits of the volume: 7 shift-adds)
+    def level_index(self, ch, table, vel=None):                # $1F79 (vel: Garou's level effect enters at $1F8C)
+        vel = ch.vel if vel is None else vel
+        if ch.flags & 1: return (vel + ch.off) & 0xFF
+        if vel == 0: return self.m.rd(table)
+        a = (((vel * (ch.vol & 0x7F)) & 0xFFFF) << 1 >> 8) - 1      # (7 bits of the volume: 7 shift-adds)
         return self.m.rd(table + (a & 0xFF))
 
     def fm_pitch(self, ch, fine, key):
@@ -344,19 +345,23 @@ class Song:
         if not ch.flags & 1: n = (n + ch.off) & 0xFF
         n &= 0x7F
         v = self.m.rd(self.g['notes'] + n)
-        if v >= 0xC0: self.emit(ch, 'badnote', note=n); return
-        blk = v & 7
-        if ch.flags & 1 and ch.vol:
-            blk = (blk + ch.vol) & 0xFF
-            if blk >= 8: self.emit(ch, 'badblock', note=n); return
-        idx = ((v & 0xF0) >> 1) + fine
-        fn = self.m.w(self.g['fnum'] + (idx & 0xFF))                   # 8-bit offset: a bend below semitone 0 wraps
-        fn = (fn + s8(ch.fdet & 0xFF)) & 0xFFFF
-        word = fn | (blk << 11)
+        if v >= 0xC0:                                           # $2533 CP $C0 / RET NC: carry clear, so the caller
+            self.emit(ch, 'badnote', note=n)                    # goes on with HL at the note table entry: the word
+            fn = (self.m.w(self.g['notes'] + n) + s8(ch.fdet & 0xFF)) & 0xFFFF   # there ($FFFF) + detune, the block
+            word = fn | (ch.note & 7) << 11                     # = the note byte's low 3 bits (B, $24B1)
+        else:
+            blk = v & 7
+            if ch.flags & 1 and ch.vol:
+                blk = (blk + ch.vol) & 0xFF
+                if blk >= 8: self.emit(ch, 'badblock', note=n); return
+            idx = ((v & 0xF0) >> 1) + fine
+            fn = self.m.w(self.g['fnum'] + (idx & 0xFF))               # 8-bit offset: a bend below semitone 0 wraps
+            fn = (fn + s8(ch.fdet & 0xFF)) & 0xFFFF
+            word = fn | (blk << 11)
         c = ch.code
         if c <= 4:
             self.shadow[(c, 'fnum')] = word
-            self.emit(ch, 'fnum', block=(word >> 11) & 7, fnum=word & 0x7FF)
+            self.emit(ch, 'fnum', block=(word >> 11) & 7, fnum=word & 0x7FF, hi=word >> 8 & 0xFF)   # hi: the byte written to $A4
         else:                                                   # $05 on ADPCM: the FM path is not guarded: port B
             self.emit(ch, 'bogus_fnum', reg_hi=0xA4 + c - 2, reg_lo=0xA0 + c - 2, word=word)  # regs $A4/$A0 + (ch-2)
         if self.fdb8:                                           # $24D1: restart the effects (records by $149E)
@@ -436,6 +441,9 @@ class Song:
         lv = self.level_index(ch, self.g['lv_b'])
         self.f9dd = (lv + self.b_att) & 0xFF
         d5 = bool(self.fd9c & 1)
+        if self.g.get('b_legato_keyon') and self.fd9c & 2 and not ch.flags & 1:
+            d5 = False                                           # Ver 1.0 $1FFC: a slur into another note, outside
+            # note mode, keys the sample on again instead of the tie path
         mode = ch.key
         if mode == 1:                                            # $088E: drum kit, the note picks the record
             rec = m.w(self.g['b_rec']) + 13 * b; dn = m.w(rec + 10)
@@ -639,9 +647,9 @@ class Song:
             if ch.note != 0xFF:
                 if c <= 4: self.fm_tl(ch)
                 elif c == 14:
-                    self.f9dd = self.b1b = (self.level_index(ch, 0x321D) + self.b_att) & 0xFF; self.emit(ch, 'bvol', vol=self.f9dd)
+                    self.f9dd = self.b1b = (self.level_index(ch, self.g['lv_b']) + self.b_att) & 0xFF; self.emit(ch, 'bvol', vol=self.f9dd)
                 else:                                         # $1FE8 -> $05D5: reg $08+ch = pan | level
-                    ch.level = self.level_index(ch, 0x319D) & 0x1F
+                    ch.level = self.level_index(ch, self.g['lv_a']) & 0x1F
                     self.emit(ch, 'alevel', level=ch.level, pan=ch.flags & 0xC0)
         elif op == 0x25:
             bias = 0x88 if c < 8 else (0x80 if c < 14 else 0xB8)
@@ -832,7 +840,11 @@ class Song:
             if r.f & 1:
                 v = r.tick(self.m)
                 if v is not None:                                 # $1924 -> $2003: the TL is recomputed without it
-                    self.out.append((self.irq, self.tick, CHANNELS[c - 1], 'tl', {'tl': self.ch[c - 1].level, 'fx2': True}))
+                    ch = self.ch[c - 1]
+                    if self.g.get('fm_level_fx'):                  # Garou $1948: velocity + value ($0AB6) -> $1F8C
+                        a = (self.level_index(ch, self.g['lv_fm'], (v + ch.vel) & 0xFF) + self.fm_att) & 0xFF
+                        ch.level = 0x7F if a >= 0x7F else a
+                    self.out.append((self.irq, self.tick, CHANNELS[c - 1], 'tl', {'tl': ch.level, 'fx2': True}))
         if self.v00:                                             # $184C: operator level effects, on the patch's
             for c in (1, 2, 3, 4):                               # modulators only: TL = the patch's TL + value
                 for i, r in enumerate(self.opfx[c]):

@@ -12,7 +12,8 @@ Lines (the ymtap.lua format): "f <frame>" before the first line of a frame with 
 "b <reg> <val>" = YM2610 port A / B write; "i <status>" = the sound CPU reads YM status port $04, which only the
 interrupt handler does ($218A, once per interrupt: bit 0 = timer A, bit 1 = timer B, the sequencer clock);
 "c <cmd>" = the Z80 reads a sound command (port $00, in the NMI handler); "c <cmd> blocked" = a command the
-game sent after frame BLOCK, replaced by $00 (which the NMI handler ignores before storing it, $007C);
+game sent after frame BLOCK, replaced by $00 (which the NMI handler ignores before storing it, $007C; a build
+whose NMI would replay a stale ring slot on $00 sets another byte, Sound.nop);
 "s <cmd>" = a SEND command written at the start of that frame.
 
 The core: a build of ~/CLProjects/geolith with the port tap (geo_z80.c geo_z80_port_tap, exported by libretro.c
@@ -36,6 +37,7 @@ class Sound:
         WORK = work or GAMES[GAME]['dir'] + '/save'
         os.makedirs(WORK, exist_ok=True)
         self.frame = 0; self.out = None; self.block = None; self.allow = []; self.pad = set()
+        self.nop = 0                                             # the byte a blocked command becomes
         self.wav = None
         self._opt = {k.encode(): C.c_char_p(v.encode()) for k, v in OPTIONS.items()}
         self._sys = C.c_char_p(SYSDIR.encode()); self._save = C.c_char_p(WORK.encode())
@@ -94,7 +96,7 @@ class Sound:
         if p == 4: self._line(f'i {v:02X}\n')
         elif p == 0 and v:
             if self.block is not None and self.frame >= self.block and v not in self.allow:
-                self._line(f'c {v:02X} blocked\n'); return 0
+                self._line(f'c {v:02X} blocked\n'); return self.nop
             if v in self.allow: self.allow.remove(v)
             self._line(f'c {v:02X}\n')
         return v

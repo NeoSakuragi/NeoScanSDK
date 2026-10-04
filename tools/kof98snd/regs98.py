@@ -48,7 +48,7 @@ def writes(s):
                 for i in range(4):
                     if not CARRIERS[alg[ch]] >> i & 1: tls[ch][i] = kw['tl']; w(irq, p, 0x40 + 4 * i + o, kw['tl'])
             elif kind in ('fnum', 'vib'):
-                w(irq, p, 0xA4 + o, kw['block'] << 3 | kw['fnum'] >> 8); w(irq, p, 0xA0 + o, kw['fnum'])
+                w(irq, p, 0xA4 + o, kw.get('hi', kw['block'] << 3 | kw['fnum'] >> 8)); w(irq, p, 0xA0 + o, kw['fnum'])
             elif kind == 'keyon': w(irq, 'a', 0x28, 0xF0 | code)
             elif kind == 'keyoff': w(irq, 'a', 0x28, code)
             elif kind == 'pan': b4[ch] = b4[ch] & 0x3F | kw['pan']; w(irq, p, 0xB4 + o, b4[ch])
@@ -57,6 +57,9 @@ def writes(s):
             elif kind == 'optl':                       # Ver 0.0 operator level effect ($18B5)
                 op = (0x40, 0x44, 0x48, 0x4C).index(kw['reg']); tls[ch][op] = kw['tl']; w(irq, p, kw['reg'] + o, kw['tl'])
             continue
+        if kind == 'bogus_fnum':                       # the FM pitch path run on an ADPCM channel ($05, any ADPCM)
+            w(irq, 'b', kw['reg_hi'], kw['word'] >> 8); w(irq, 'b', kw['reg_lo'], kw['word']); continue
+        if kind == 'bogus_key': w(irq, 'a', 0x28, kw['reg28']); continue
         if ch.startswith('A'):
             c = int(ch[1]) - 1; bit = 1 << c
             if kind == 'akey':
@@ -68,9 +71,6 @@ def writes(s):
                 w(irq, 'b', 0x00, bit)
             elif kind == 'alevel': w(irq, 'b', 0x08 + c, kw['pan'] | kw['level'])
             elif kind == 'adump': w(irq, 'b', 0x00, 0x80 | bit); w(irq, 'a', 0x1C, bit); w(irq, 'a', 0x1C, 0)
-            elif kind == 'bogus_fnum':
-                w(irq, 'b', kw['reg_hi'], kw['word'] >> 8); w(irq, 'b', kw['reg_lo'], kw['word'])
-            elif kind == 'bogus_key': w(irq, 'a', 0x28, kw['reg28'])
             continue
         if ch == 'B':
             if kind == 'bkey':

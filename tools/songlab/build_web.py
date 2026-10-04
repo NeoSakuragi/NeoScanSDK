@@ -13,6 +13,9 @@ listing, and the V ROM sample ranges both streams play. One page, one builder, e
     python3 build_web.py --game aof OUT_DIR [0x21 ...]       Art of Fighting (KOF94's MAKOTO v3 music engine, tools/makoto3);
     python3 build_web.py --game aof2 OUT_DIR [0x26 ...]      Art of Fighting 2 (KOF94's MAKOTO v3 build, tools/makoto3);
     python3 build_web.py --game aof3 OUT_DIR [0x24 ...]      Art of Fighting 3 (KOF95's MAKOTO v3 build extended, tools/makoto3);
+    python3 build_web.py --game samsho|samsho2|samsho3 OUT_DIR   Samurai Shodown 1-3 (MAKOTO v3 builds, tools/makoto3);
+    python3 build_web.py --game samsho4 OUT_DIR [0x50 ...]   Samurai Shodown IV (SNK Sound Driver Ver 1.0, tools/kof98snd);
+    python3 build_web.py --game garou OUT_DIR [0x34 ...]     Garou: Mark of the Wolves (SNK Sound Driver Ver 1.8, tools/kof98snd);
     python3 build_web.py --game ninjamas OUT_DIR [0xD0 ...]  Ninja Master's (ADK's driver, tools/adksnd: songadk.py /
                                                              regsadk.py, captures in our emulator, captureadk.py);
                                                              no commands = every music command
@@ -41,6 +44,7 @@ import base64, json, os, re, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 PERIOD, ISR_START, WRITE_COST = 333, 100, 6.4
+SNKSND = ('kof98', 'kizuna', 'samsho4', 'garou')           # games on tools/kof98snd's model
 
 GAMES = {
     'kof98': {
@@ -214,6 +218,76 @@ GAMES['ninjamas'] = {
                        "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/adksnd/captureadk.py) while the game's own driver played the song.",
                        "<b>Model</b>: tools/adksnd/songadk.py, the driver re-implemented from its disassembly. The songs are MML text (note letters, octave and volume commands, binary length codes) that the driver reads as it plays; the model reads the same text from the M1 ROM. The facts line says on how many music ticks its register writes are identical to the real driver's, same values, same order.",
                        "<b>Timing.</b> The driver plays the music in its main loop, one tick per two timer-A interrupts, timer A set by the song's tempo (192 ticks to a whole note). Both sources are placed on the captured interrupts, writes spaced by an estimated 6.4 samples. Tracks are named by chip channel: the driver's first two FM parts play on FM3 and FM4 (port B), its last two on FM1 and FM2."],
+             'capture': 'capture', 'unit': 'ticks'}}
+
+GAMES['samsho'] = {
+    'm1': '/data/neogeo_dict/sound/samsho/samsho_m1.bin', 'cap': '/data/neogeo_dict/sound/samsho/caps/cap_%02X.txt',
+    'neo': '/data/roms/samsho.neo',
+    # measured in our emulator (docs/samsho_songs.md): the game's own commands at these screens; the stage themes from
+    # the 68K's stage table (several measured with the stage byte set)
+    'names': {39: 'Title / attract', 33: 'Stage: Haohmaru (attract demo)', 66: 'Stage: Nakoruru', 65: 'Stage: Hanzo', 64: 'Stage: Galford', 37: 'Stage: Wan-Fu', 34: 'Stage: Ukyo', 68: 'Stage: Kyoshiro', 35: 'Stage: Gen-an', 40: 'Stage: Earthquake', 36: 'Stage: Jubei', 67: 'Stage: Tam Tam', 69: 'Stage: Charlotte', 42: 'Stage: Amakusa', 38: 'Bonus stage', 53: 'Player select (after a coin)', 45: 'Journey map (character chosen)', 49: "Opponent's challenge on the map", 44: "Winner's scene (after a lost match)", 83: 'Continue', 84: 'Game over'},
+    'page': {'title': 'Samurai Shodown', 'bar': 96, 'beat': 24, 'start': 0x21,
+             'intro': "Samurai Shodown songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\", the build KOF94 also runs) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Samurai Shodown V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/makoto3/song.py + regs.py, the model of Fatal Fury 3, KOF94 and KOF95 with Samurai Shodown's table addresses (its driver code is KOF94's instruction for instruction), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
+             'capture': 'capture', 'unit': 'interrupts'}}
+
+GAMES['samsho2'] = {
+    'm1': '/data/neogeo_dict/sound/samsho2/samsho2_m1.bin', 'cap': '/data/neogeo_dict/sound/samsho2/caps/cap_%02X.txt',
+    'neo': '/data/roms/samsho2.neo',
+    # measured in our emulator (docs/samsho2_songs.md): the game's own commands at these screens; the stage themes from
+    # the 68K's stage table (several measured with the stage byte set)
+    'names': {45: 'Title / attract', 56: 'Player select / opening story', 60: 'Opening story', 46: 'Before a fight ("En garde")', 33: 'Stage: Haohmaru (attract demo)', 37: 'Stage: Nakoruru', 49: 'Stage: Hanzo', 38: 'Stage: Galford', 43: 'Stage: Wan-Fu', 34: 'Stage: Ukyo', 48: 'Stage: Kyoshiro', 44: 'Stage: Gen-an', 35: 'Stage: Earthquake', 41: 'Stage: Jubei', 50: 'Stage: Charlotte', 40: 'Stage: Genjuro', 52: 'Stage: Cham Cham', 51: 'Stage: Neinhalt Sieger', 42: 'Stage: Nicotine', 36: 'Stage: Mizuki', 39: 'Stage: Kuroko', 47: 'End of a round', 53: "Winner's quote", 66: 'Continue', 70: 'Game over'},
+    'page': {'title': 'Samurai Shodown II', 'bar': 96, 'beat': 24, 'start': 0x2b,
+             'intro': "Samurai Shodown II songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\", KOF94's music engine with more effect slots) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Samurai Shodown II V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/makoto3/song.py + regs.py, the model of Fatal Fury 3, KOF94 and KOF95 with Samurai Shodown II's table addresses (its music engine is KOF94's code, moved), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
+             'capture': 'capture', 'unit': 'interrupts'}}
+
+GAMES['samsho3'] = {
+    'm1': '/data/neogeo_dict/sound/samsho3/samsho3_m1.bin', 'cap': '/data/neogeo_dict/sound/samsho3/caps/cap_%02X.txt',
+    'neo': '/data/roms/samsho3.neo',
+    # measured in our emulator (docs/samsho3_songs.md): the game's own commands at these screens; the stage themes from
+    # the 68K's stage table (several measured with the stage byte set)
+    'names': {60: 'Opening / title', 48: 'Player select', 49: 'Before a fight', 58: 'Before the fight with Zankuro', 33: 'Stage: Haohmaru', 36: 'Stage: Nakoruru', 43: 'Stage: Rimururu', 39: 'Stage: Hanzo', 35: 'Stage: Galford', 38: 'Stage: Kyoshiro', 34: 'Stage: Ukyo (attract demo)', 37: 'Stage: Genjuro', 40: 'Stage: Basara', 42: 'Stage: Shizumaru', 41: 'Stage: Gaira', 45: 'Stage: Amakusa', 44: 'Stage: Kuroko', 46: 'Stage: Zankuro', 50: 'Result of a round', 51: "Winner's quote", 62: 'Continue / game over'},
+    'page': {'title': 'Samurai Shodown III', 'bar': 96, 'beat': 24, 'start': 0x22,
+             'intro': "Samurai Shodown III songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\", Art of Fighting 3's build) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Samurai Shodown III V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/makoto3/song.py + regs.py, the model of Fatal Fury 3, KOF94, KOF95 and Art of Fighting 3 with Samurai Shodown III's tables (a sample table per ADPCM-A channel, set by opcode $3C, as Art of Fighting 3), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
+             'capture': 'capture', 'unit': 'interrupts'}}
+
+GAMES['samsho4'] = {
+    'm1': '/data/neogeo_dict/sound/samsho4/samsho4_m1.bin', 'cap': '/data/neogeo_dict/sound/samsho4/caps/cap_%02X.txt',
+    'neo': '/data/roms/samsho4.neo',
+    # measured in our emulator (docs/samsho4_songs.md): the game's own commands at these screens; the stage themes from
+    # the 68K's stage table (several measured with the stage byte set)
+    'names': {33: 'Opening / title', 57: 'Player select', 54: 'Scene before the first stage', 44: 'Map', 58: 'Scene before a fight (attract demo)', 34: 'Theme: Haohmaru', 82: 'Theme: Nakoruru', 83: 'Theme: Rimururu', 48: 'Theme: Galford', 80: 'Theme: Ukyo', 35: 'Theme: Genjuro', 50: 'Theme: Amakusa', 51: 'Theme: Zankuro', 84: 'Theme: Charlotte', 81: 'Theme: Kazuki', 49: 'Theme: Sogetsu', 39: 'Stage: Hanzo', 40: 'Stage: Kyoshiro', 55: 'Stage: Basara', 56: 'Stage: Shizumaru / Gaira', 59: 'Result of a round', 60: "Winner's scene", 61: 'Continue / game over'},
+    'page': {'title': 'Samurai Shodown IV', 'bar': 96, 'beat': 24, 'start': 0x50,
+             'intro': "Samurai Shodown IV songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (SNK's \"Sound Driver Ver 1.0 96/08/09\", between Kizuna Encounter's and KOF98's) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Samurai Shodown IV V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with Samurai Shodown IV's table addresses and the one behaviour of this version that differs in its songs (an ADPCM-B slur into another note keys the sample on again), reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
+             'capture': 'capture', 'unit': 'ticks'}}
+
+GAMES['garou'] = {
+    'm1': '/data/neogeo_dict/sound/garou/garou_m1.bin', 'cap': '/data/neogeo_dict/sound/garou/caps/cap_%02X.txt',
+    'neo': '/data/roms/garou.neo',
+    # measured in our emulator (docs/garou_songs.md): the game's own commands at these screens; the stage themes from
+    # the 68K's table $1A40C by the opponent ($107434; several measured with it set)
+    'names': {93: 'Intro ("Certainly, they existed...")', 33: 'Title (night city)', 63: 'How to play', 34: 'Player select', 97: 'End of a match (K.O.)', 44: 'Continue', 76: 'Game over / saving', 48: 'Stage: Terry Bogard', 49: 'Stage: Rock Howard (attract demo)', 50: 'Stage: Kim Dong Hwan', 51: 'Stage: Kim Jae Hoon', 52: 'Stage: Hotaru Futaba', 53: 'Stage: Gato', 54: 'Stage: B. Jenet', 55: 'Stage: Marco Rodriguez (attract demo)', 56: 'Stage: Hokutomaru (attract demo)', 57: 'Stage: Freeman', 58: 'Stage: Griffon', 59: 'Stage: Kevin Rian (attract demo)', 60: 'Stage: Grant', 61: 'Stage: Kain R. Heinlein', 64: 'Versus: Terry Bogard', 65: 'Versus: Rock Howard', 66: 'Versus: Kim Dong Hwan', 67: 'Versus: Kim Jae Hoon', 68: 'Versus: Hotaru Futaba', 69: 'Versus: Gato', 70: 'Versus: B. Jenet', 71: 'Versus: Marco Rodriguez', 72: 'Versus: Hokutomaru', 73: 'Versus: Freeman', 74: 'Versus: Griffon', 75: 'Versus: Kevin Rian'},
+    'page': {'title': 'Garou: Mark of the Wolves', 'bar': 96, 'beat': 24, 'start': 0x34,
+             'intro': "Garou: Mark of the Wolves songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (SNK's \"Sound Driver(ROM)Ver 1.8\", the build after KOF98's 1.7) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Garou V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with Garou's table addresses and its two changes (the FM level effect works on the velocity; an ADPCM-B slur into another note keys on again), reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
              'capture': 'capture', 'unit': 'ticks'}}
 
 def vrom(neo):
@@ -443,7 +517,7 @@ def adk_song(g, data, cmd):
 # --------------------------------------------------------------------------------------------------------- shared
 def song(game, data, v, cmd):
     g = GAMES[game]
-    d = (kof98_song if game in ('kof98', 'kizuna') else adk_song if game == 'ninjamas' else ff3_song)(g, data, cmd)
+    d = (kof98_song if game in SNKSND else adk_song if game == 'ninjamas' else ff3_song)(g, data, cmd)
     A, B = d['A'], d['B']
     ranges = set()                                   # V ROM ranges keyed by either stream (256-byte units, end inclusive)
     for stream in (A, B):
@@ -484,7 +558,7 @@ if __name__ == '__main__':
         sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'adksnd'))
         from gamesadk import music_cmds as adk_cmds
         cmds = [c for c, _, _ in adk_cmds(data)]
-    elif not cmds and game == 'kizuna':
+    elif not cmds and game in SNKSND and game != 'kof98':
         sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'kof98snd'))
         from games98 import music_cmds
         cmds = music_cmds(data)

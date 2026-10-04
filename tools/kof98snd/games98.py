@@ -56,6 +56,48 @@ GAMES = {
         types=0x2E6C,                                           # command -> type, $20-$FF ($0140)
         block=880, send=900,  # the game sends $07 at frame 872 and its first song ($3A, attract) at 935 (measured)
     ),
+    'samsho4': dict(
+        name='Samurai Shodown IV', rom='/data/roms/samsho4.neo',
+        m1='/data/neogeo_dict/sound/samsho4/samsho4_m1.bin', dir='/data/neogeo_dict/sound/samsho4',
+        id=b'Sound Driver Ver 1.0 96/08/09',
+        songs=0x3216, song20=0x2D44, banksets=0x28AA,           # ($1182, $118C, $11C0)
+        notes=0x2D6A, fnum=0x2C0A,                              # ($26C0, $26D1)
+        lv_fm=0x3095, lv_a=0x3115, lv_b=0x3195,                 # ($2180, $216A, $21A7)
+        b_dn=0x2CCC, b_rec=0x2E1A,                              # ($096A, $0815)
+        fx6=0x2E2A,
+        modmask=0x2899,                                         # ($207E)
+        big_slot=5,                                             # ($230D)
+        guard=0xFE6B,                                           # ($1B2B)
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87),
+               ('a', 0x1C, 0x00)],                              # ($1174: as KOF98)
+        overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=True,
+        b_legato_keyon=True,
+        types=0x2FB0,                                           # command -> type, $20-$FF ($017C)
+        block=878, send=900,  # the game sends $07 at frame 876 and its first song ($21) at 880 (measured)
+    ),
+    'garou': dict(
+        name='Garou: Mark of the Wolves', rom='/data/roms/garou.neo',
+        m1='/data/neogeo_dict/sound/garou/garou_m1.bin', dir='/data/neogeo_dict/sound/garou',
+        id=b'Sound Driver(ROM)Ver 1.8',                      # 99/08/04: KOF98's v1.7 with two changes (below)
+        songs=0x329E, song20=0x2BB2, banksets=0x2718,           # ($10FE, $10F4, $1132)
+        notes=0x2BD8, fnum=0x2A78,                              # ($252E, $253F)
+        lv_fm=0x311D, lv_a=0x319D, lv_b=0x321D,                 # ($2013, $1FFD, $203A)
+        b_dn=0x2B3A, b_rec=0x2E1E, fx6=0x2E32,                  # ($0979, $0812, $13EA)
+        big_slot=7, guard=0xFD9B,
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87),
+               ('a', 0x1C, 0x00)],
+        overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=False,
+        b_legato_keyon=True,                                    # ($1E8F, as Samurai Shodown IV)
+        fm_level_fx=True,                                       # ($1948: the FM level effect's value is added to the
+        # velocity and the TL computed from it, $0AB6 / $1F8C; KOF98 recomputes the TL without it)
+        types=0x3038,                                           # command -> type, $20-$FF ($0183)
+        nop=0x63,             # blocked commands become $63 (type 0: ignored): the NMI ($007B) advances the ring
+        # index on a $00 without writing the slot, and the main loop ($0146) would replay the byte left there
+        block=431, send=500,  # the game sends $07 at frame 430 and its first song ($5D) at 431 (measured): $5D is
+        # blocked, so every song starts from the driver's power-on state (its FM TL shadows carry over between songs)
+    ),
 }
 
 def game_of(data):
@@ -68,4 +110,6 @@ def music_cmds(data):
     """every music command (type 2) of the build; KOF98: its validated list"""
     g = GAMES[game_of(data)]
     if 'types' not in g: return g['music']
-    return [c for c in range(0x21, 0x100) if data[g['types'] + c - 0x20] == 2]
+    w = lambda a: data[a] | data[a + 1] << 8
+    return [c for c in range(0x21, 0x100) if data[g['types'] + c - 0x20] == 2 and w(g['songs'] + 2 * (c - 0x20))]
+    # (a type-2 command without a song pointer starts nothing, $1182: Garou's $5F)

@@ -13,7 +13,8 @@ build (other RAM layout, word jump tables, new effect commands, the same music e
 `fatfursp_songs.md`. Art of Fighting (1992), Art of Fighting 2 (1994) and Art of Fighting 3 (1996) run three more
 builds: AOF1 = KOF94's music engine with an older command path, AOF2 = KOF94's build with its own tables, AOF3 =
 KOF95's build with per-channel ADPCM-A sample tables ("Art of Fighting's build", "Art of Fighting 2's build", "Art of
-Fighting 3's build"; songs in `aof_songs.md`, `aof2_songs.md`, `aof3_songs.md`). Everything below is read from the code
+Fighting 3's build"; songs in `aof_songs.md`, `aof2_songs.md`, `aof3_songs.md`); Samurai Shodown 1-3 ("Samurai Shodown's
+build", "... II's build", "... III's build"; songs in `samsho_songs.md`, `samsho2_songs.md`, `samsho3_songs.md`). Everything below is read from the code
 (addresses cited) or measured; *(inferred)* marks the rest.
 
 ## Z80 map and ports
@@ -750,6 +751,53 @@ table `$3051C` holding up to four command bytes, zero bytes skipped; negative ID
 `$3113C`), `$303E2` (only when the ID differs from the last one), `$303F4` (registers saved). Measured: `$03 $03 $07`
 twice (frames 864-874), `$02` at 404 (the logo jingle `$5F`), the opening `$21` at 1116. Stage themes from the table
 `$CE50` by the player's character and the stage number (`aof3_songs.md`).
+
+## Samurai Shodown's build
+
+Samurai Shodown's M ROM (`/data/roms/samsho.neo`, 128 KB; copy `/data/neogeo_dict/sound/samsho/samsho_m1.bin`) carries
+the signature `Ver 3.0 by MAKOTO.04/03/10 to SK` and KOF94's interrupt vector (`JP $2096`). Byte-aligned with KOF94
+over `$0000-$2DFF`, the two differ only in 37 two-byte operands: **KOF94's driver code with other tables**, as Fatal
+Fury Special and Art of Fighting 2. The game's tables (`games.py` `samsho`; each found at the operand KOF94 uses):
+type table `$59C2` (`$01C6`), song headers `$362C` (`$1109`), ADPCM-A records `$3D1F` (`$0453`, effect slot 0's, as
+KOF94), F-numbers `$5B43`, ADPCM-B records `$556C` (26 bytes), `$5752` / `$5812` / `$5792` / `$58C2` (opcode `$46`
+tables); bank bytes `$2E00` (maps 0 and 1), patches `$2E40`, pitch `$207E` and gate `$2C0E` as KOF94. Music: `$20-$2A`,
+`$2C`, `$2D`, `$2F`, `$31`, `$35`, `$40-$46`, `$50-$58`, `$5F` (33). Songs: `samsho_songs.md`.
+
+## Samurai Shodown II's build
+
+Samurai Shodown II's M ROM (`/data/roms/samsho2.neo`, copy `/data/neogeo_dict/sound/samsho2/samsho2_m1.bin`): the same
+signature, interrupt vector `JP $20EF`. Aligned with KOF94 instruction by instruction
+(`/data/neogeo_dict/sound/samsho4/scratch/insdiff.py`, `z80disasm.py` listings in `/data/neogeo_dict/sound/samsho2/drv.asm`),
+the music engine (song start to output stage, `$10AC-$2DAF` in KOF94) is KOF94's code moved by `+$59` with every operand
+moved alike (the opcode jump table `$25BE` = KOF94's `$2565` + `$59`). What was added is effect code before it:
+- a third ADPCM-A effect sample table: routines `$0466` / `$047A` / `$048E` / `$04A2` (tables `$3EED`, `$49ED`, `$54ED`,
+  `$5FE2`) where KOF94 has three, and the effect start `$030A` that uses the new one;
+- system commands `$1D` and `$1E` (the type-1 jump table `$0CAD` has 34 entries, KOF94's 31), both with a parameter
+  byte (like `$18-$1C`); handlers `$0E02`, `$0E22` set `$FEB2` = 2 / 3 (the effect slot).
+Music ADPCM-A samples are still effect slot 0's table (`$3EED`, via `$0466`). Tables (`games.py` `samsho2`): types
+`$6C4A`, headers `$3800`, F-numbers `$6DCB`, ADPCM-B records `$656A` (26 bytes), `$69DA` / `$6A9A` / `$6A1A` / `$6B4A`,
+pitch `$20D7`, gate `$2C67`; bank bytes `$2E00`, patches `$2E40`. Music: `$20-$3D`, `$40-$47`, `$5F` (39). Songs:
+`samsho2_songs.md`. Opcodes `$4C` and `$5B` (ADPCM-B effect switches) appear in 68 places of its songs; the model lists
+them without running them, and every interrupt still matches.
+
+## Samurai Shodown III's build
+
+Samurai Shodown III's M ROM (`/data/roms/samsho3.neo`, copy `/data/neogeo_dict/sound/samsho3/samsho3_m1.bin`): the same
+signature and Art of Fighting 3's interrupt vector (`JP $1C9C`); aligned with Art of Fighting 3 it is that build
+(KOF95's reworked code, per-channel ADPCM-A tables set by opcode `$3C`, 6- or 11-byte records, three bank maps) with
+three changes:
+- **opcode `$46` has the per-octave ADPCM-B mode again** (`$233F`: `p < $40` kit, `< $80` one pitched sample
+  (`$1494`), `< $C0` per-octave sample tables (`$1487`, 8 bytes per entry), else nothing), as KOF95. `games.py` leaves
+  `b_octave` at its default. No SS3 song uses `$80-$BF` (all 721 `$46` events are `$40-$7F`): read from the code, not
+  measured;
+- `$0C6C`: an ADPCM-A effect started on channel `$0C` now clears the music block of `$FDE1` (A4) instead of `$FDF1`
+  (effects only);
+- the tables moved back to KOF95's places: bank bytes `$2E00`, patches `$2E40`.
+Tables (`games.py` `samsho3`): types `$60F7`, headers `$36C8`, per-channel ADPCM-A default `$3D03` (`$00E6`), opcode
+`$3C` words `$2578` / flags `$2588` (`$2542`), pitch `$1C84`, gate `$274D`, F-numbers `$6278`, ADPCM-B records `$5CFF`
+(16 bytes), `$5E7F` / `$5EBF` / `$5F6F` / `$5FF7`. Music: `$20-$40`, `$5F` (34). Its system commands with a
+parameter byte (`$0A70` jump table; handlers that call `$0232` or `$0BD0`): `$0A`, `$0E`, `$14`, `$15`, `$16`,
+`$18-$1E`. Songs: `samsho3_songs.md`.
 
 ## Compared with KOF98
 

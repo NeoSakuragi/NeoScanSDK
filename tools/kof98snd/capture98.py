@@ -28,6 +28,7 @@ class Sound(mk.Sound):
         g = GAMES[GAME]
         super().__init__(rom=g['rom'], work=g['dir'] + '/save')
         self.guard = g['guard']
+        self.nop = g.get('nop', 0)                               # Garou: $00 would replay a stale ring slot
     def _tap(self, write, port, v):
         r = super()._tap(write, port, v)
         if not write and port & 0xFF == 4 and v & 1:
