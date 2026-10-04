@@ -28,6 +28,10 @@ _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offse
 #define AI_IDLE_DELAY 10          /* AI fighters stop walking into idle only after this many frames without a walk intent */
 #define CHAIN_WINDOW 30           /* frames after a route step that hit during which A / B continues the route (Final Fight) */
 #define RUN_MUL     2             /* run = walk << 1 */
+/* KOF's walk / run / jump speeds rounded to whole pixels a frame (Terry walks 3.17 -> 3): the Neo Geo scrolls in whole
+ * pixels, so a fractional speed made the camera step 3,3,3,4,3,... and the background lurch every ~6 frames (very
+ * visible on a tablet, 7 screen pixels per game pixel); at least 1 px */
+static int32_t whole(int32_t v) { int32_t w = (v + 0x8000) & ~0xFFFFL; return w ? w : 0x10000; }
 #define X_MIN 16
 #define X_MAX (WORLD_W - 16)
 
@@ -528,12 +532,12 @@ void fighter_update(fighter_t *f, const intent_t *in) {
             start_node(f, (b & IN_A) ? N_A1 : N_B1); break;
         }
         if (f->state == S_RUN && in->dx == f->facing) {
-            f->x += dir_mul(f->facing, ph->walk << RUN_MUL >> 1); f->z += dir_mul(in->dz, FIX(1)); clamp(f); break;
+            f->x += dir_mul(f->facing, whole(ph->walk) << RUN_MUL >> 1); f->z += dir_mul(in->dz, FIX(1)); clamp(f); break;
         }
         if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); break; }
         to_neutral(f, in);
         if (f->state == S_WALK) {
-            f->x += dir_mul(in->dx, in->slow ? ph->walk >> 1 : ph->walk); f->z += dir_mul(in->dz, in->slow ? FIX(1) >> 1 : FIX(1)); clamp(f);
+            f->x += dir_mul(in->dx, in->slow ? whole(ph->walk) >> 1 : whole(ph->walk)); f->z += dir_mul(in->dz, in->slow ? FIX(1) >> 1 : FIX(1)); clamp(f);
             f->pushing = in->dx != 0 && (!f->team || in->grab);   /* facing follows dx: walking forward; enemies on purpose */
         }
         break;
@@ -541,7 +545,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     case S_PREJUMP:                                              /* KOF's prejump frames decide the height: C let go */
         if (!(in->hold & IN_C)) f->jump_kind = 1;                /* before take-off = a hop */
         if (f->state_t >= ph->prejump) {                         /* take-off (frames on the ground: the fighter's own) */
-            int32_t dx = f->jump_kind ? ph->hop_dx : ph->jump_dx;
+            int32_t dx = whole(f->jump_kind ? ph->hop_dx : ph->jump_dx);
             f->vy = f->jump_kind ? ph->hop_vy0 : ph->jump_vy0;
             f->vx = f->jump_dir == 1 ? dir_mul(f->facing, dx) : f->jump_dir == 2 ? dir_mul(-f->facing, dx) : 0;
             enter(f, S_AIR); play(f, JUMP_ANIM[f->jump_kind][f->jump_dir][0]);
