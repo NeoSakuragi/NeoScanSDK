@@ -58,7 +58,8 @@ P1 START in a fight (keyboard 1; P2 START joins) toggles it: the four corners of
 box (red) the hit test uses, as 8x8 brackets on sprites 300-363 (8 boxes per kind).
 
 ## Controls (P1 and P2)
-Stick walks on the floor (up/down = depth), forward twice = run. A punch, B kick, C jump, D special (C+D blowback when a fighter has none).
+Stick walks on the floor (up/down = depth), forward twice = run. A punch, B kick, C jump (tap = hop, hold = regular jump,
+stick = vertical / forward / back: see Jumps), D special (C+D blowback when a fighter has none).
 
 | Route | Links (KOF normals) | Ends with |
 |---|---|---|
@@ -69,7 +70,7 @@ Stick walks on the floor (up/down = depth), forward twice = run. A punch, B kick
 | any link + forward A / down B | C+D blowback / sweep | knockdown / trip |
 | D / forward+D / down+D | the fighter's projectile / forward rush / rising reversal (below); cancels a normal that hit | knockdown, 8 damage |
 | run + A | C+D blowback | knockdown |
-| air A / air B | jump C / jump D | heavy / knockdown |
+| air A / air B | the jump kind's C / D air normal (see Jumps) | heavy / knockdown |
 
 **Hold:** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it. A = down+C, B = close D (3 damage each, landing
 on the move's attack frame); the third hit is always C+D, which knocks it down and ends the hold. Forward+A = the forward throw
@@ -82,6 +83,38 @@ its animation has finished. A victim stays in hitstun 36 frames (light) / 54 (he
 10 frames for every hit, light ones included, so every impact lands with the same weight (KOF98 measured ~10-12). Multi-hit normals (Terry / Chang close
 C, Yamazaki close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. One table
 (`COMBO[]` in fighter.c) for every fighter: the links are animations every KOF fighter has.
+
+## Jumps (KOF's two heights, measured 2026-10-04)
+C tapped = the **hop**, C held = the **regular jump**, as in KOF96-99 (stick up) and Streets of Rage 2. The decision
+window is the fighter's own prejump (`bphys_t.prejump`: Terry 5 frames, most 4, K' 3): C still held on the take-off
+frame = regular jump, let go before it = hop (C held 1-4 frames from the press for Terry hops, 6+ jumps; in KOF98 Terry
+hops with up held 2-6 frames and jumps from 7, the game reading its input a frame late). Stick at the press: none =
+vertical, the way the fighter faces = forward, away from it = KOF's back jump (the fighter keeps facing; a walk turns
+the fighter first, so it takes the stick and C on the same frame). Everything comes from the games
+(`tools/kof96/capture/jumps.py`, every roster fighter, 6 jump kinds + 4 air normals each):
+- Physics from the ROM: launch speed and gravity from the jump table, horizontal speed = the walk table (the prejump code
+  loads both), the hop = the same with `vy -= vy >> 2` (KOF98 `$13E2A`, KOF96 `$EF24`, KOF99 `$E578`): 3/4 launch
+  speed, same gravity, same horizontal speed. bphys_t `jump_vy0 / gravity / jump_dx` + `hop_vy0 / hop_gravity / hop_dx`.
+- Animations: each kind and direction its own (`BA_JUMP_UP/FWD/BACK_RISE/FALL`, `BA_HOP_UP/FWD/BACK_RISE/FALL`; Terry's
+  forward / back jump is a somersault, his hops the tuck). No movement in them: the motion is the physics.
+- Air normals (A = KOF's C, B = KOF's D): regular jump vertical -> the vertical normal (KOF 100/109), forward or back ->
+  the diagonal one (102/111; KOF's back states 104/113 use the diagonal one's animation); hop -> KOF98/99's hop normals
+  (122/123, every direction; their animations are mostly the diagonal ones', so a vertical hop's C / D differs from a
+  vertical jump's for Kyo D, Mai, Billy, K'); KOF96 has no hop normals, its hop plays the jump's by direction (`export_bm.SOURCES`).
+
+Brawler vs game (harness, AI_OFF build; apex px / frames in the air / forward travel px):
+
+| | hop brawler | hop game | jump brawler | jump game |
+|---|---|---|---|---|
+| Terry (KOF98) | 52.5 / 28 / 91.9 | 52.4 / 27 / 91.9 | 91.8 / 37 / 120.4 | 91.6 / 36 / 120.4 |
+| Kyo (KOF98) | 51.9 / 25 / 80.1 | 51.6 / 24 / 80.1 | 90.5 / 34 / 107.9 | 90.2 / 33 / 107.9 |
+| Geese (KOF96) | 45.3 / 26 / 74.9 | 45.2 / 25 / 74.9 | 79.0 / 35 / 99.8 | 78.9 / 34 / 99.8 |
+| K' (KOF99) | 51.9 / 25 / 80.1 | 51.6 / 24 / 80.1 | 90.5 / 34 / 107.9 | 90.2 / 33 / 107.9 |
+
+The one frame and ~0.3 px: at the apex the game's rise -> fall state change runs two physics steps in one frame
+(measured: Kyo's height step goes 1.0, 0.149, -0.852), the brawler runs one a frame. The regular jump is KOF's full
+height: on the back line (Z = 0) only Terry's legs show at the apex, under the HUD (screenshot; Bruno asked for the real
+height; until 2026-10-04 the jump was 3/4 speed, which was in fact exactly KOF's hop).
 
 ## Command normals (library only, no input yet)
 KOF97+'s forward+A / forward+B / down-forward+C / down-forward+D normals are exported as `BA_CMD_FWD_A`, `BA_CMD_FWD_B`,
@@ -183,7 +216,7 @@ so dropped enemies flicker in turn. Measured: 8 converged fighters use ~77, so i
 - Moves inside attacks are KOF's own: animation command $FB [00][x:16][00 00] moves the fighter as the next step starts
   (rom96.parse_anim -> bstep_t.dx, forward +). C+D travels 85 px for Terry, 80 Ralf, 56 Chang, 26 Mai: the data's sums
   equal the travel measured in KOF98 under MAME (dummy far away). 19 animations of the roster have moves.
-- Jump: 3/4 of KOF's take-off speed (56 % of the height); KOF's full jump leaves the screen.
+- Jumps: KOF's hop and regular jump from the ROM's physics (see Jumps).
 - Throws (`export_bm.py`): per video frame, thrower frame + offset, victim posture + offset + facing + front flag.
   Postures are the portable names of tools/kof96/victim_poses96/98/99.json ('posture:angle', 28 used by this roster),
   not state numbers (KOF99 re-uses KOF98's numbers with other meanings), so a KOF96 throw plays on a KOF98 victim with

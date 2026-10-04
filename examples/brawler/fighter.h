@@ -40,6 +40,7 @@ typedef struct {                  /* what the controller wants this frame (playe
     uint8_t grab;                 /* AI: walking forward grabs on contact (players always grab) */
     uint8_t ai;                   /* the AI drives this fighter (enemies, the attract demo's P1) */
     uint8_t slow;                 /* walk at half speed (16.16: sub-pixel steps every frame; the AI's positioning walk) */
+    uint8_t hold;                 /* IN_* held this frame (C held through the prejump = the regular jump, released = a hop) */
 } intent_t;
 
 typedef struct {                  /* one link of a combo route (combo.c) */
@@ -89,6 +90,8 @@ typedef struct fighter {
     uint8_t  spec_fx;             /* special: KOF98 hit effect of the hit window open (bspec_row_t.fx: kind | burn << 6) */
     uint8_t  burn;                /* burnt by a fire hit: 1 purple, 2 orange (its palettes show KOF98's burn ramp) */
     int8_t   throw_face;          /* throw: the thrower's facing at the grab (the script's offsets are in it) */
+    uint8_t  jump_kind;           /* the jump in progress: 0 regular (C held), 1 hop (C tapped) */
+    uint8_t  jump_dir;            /* its direction: 0 vertical, 1 forward, 2 back (facing kept) */
 } fighter_t;
 
 extern const cnode_t COMBO[];

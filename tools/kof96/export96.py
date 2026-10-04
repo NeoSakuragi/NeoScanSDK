@@ -16,6 +16,8 @@ CAST = ['kyo', 'benimaru', 'goro', 'terry', 'andy', 'joe', 'ryo', 'robert', 'yur
 MOVES = {
     'idle': 0, 'walk_fwd': 1, 'walk_back': 2, 'prejump': 3, 'jump_up_rise': 4, 'jump_up_fall': 5, 'land': 6,
     'jump_fwd_rise': 8, 'jump_fwd_fall': 9, 'jump_back_rise': 12, 'jump_back_fall': 13,
+    # the hop (stick tapped: released before take-off), own states and animations (capture/jumps.py, KOF96/98/99)
+    'hop_up_rise': 15, 'hop_up_fall': 16, 'hop_fwd_rise': 17, 'hop_fwd_fall': 18, 'hop_back_rise': 19, 'hop_back_fall': 20,
     'crouch_down': 21, 'crouch': 23, 'crouch_up': 22, 'run_start': 48, 'run': 49, 'run_stop': 50,
     'backstep_start': 51, 'backstep': 52, 'backstep_land': 53,
     'guard_stand_in': 26, 'guard_stand': 27, 'guard_stand_out': 28, 'guard_crouch_in': 32, 'guard_crouch': 33,
@@ -35,10 +37,23 @@ def palettes(m, cid):
     base = 0x100 + cid * 0x20
     return [get(base + k) for k in range(16)], [get(base + 16 + k) for k in range(16)]
 
-def physics(m, cid):
-    walk = m.u32(0x6E8EE + 4 * cid) / 65536
-    return {'walk_fwd': walk, 'walk_back': walk, 'jump_vy0': m.u32(0x6E96E + 8 * cid) / 65536,
-            'gravity': m.u32(0x6E972 + 8 * cid) / 65536, 'jump_dx': walk}
+def jump_physics(walk, vy0, gravity, prejump):
+    """16.16 table values -> the physics of both jumps (px per frame). Decoded from the code (KOF96 $EF24, KOF98 $13E2A,
+    KOF99 $E578, same routine): the prejump loads launch speed +$58 and gravity +$5C from the jump table and the
+    horizontal speed +$50 from the walk table; a hop (stick released before take-off) sets flag +$E0 bit 3 and takes
+    vy -= vy >> 2 (lsr.l #2): 3/4 of the launch speed, the same gravity and horizontal speed. Measured in the games
+    (capture/jumps.py, 14 fighters x 6 jump kinds): every launch speed, gravity and |dx| equal to the bit.
+    prejump = frames on the ground: the prejump animation's steps at ticks + 1 frames each, + 1 (measured, all 14)."""
+    f = lambda v: v / 65536
+    return {'walk_fwd': f(walk), 'walk_back': f(walk), 'jump_vy0': f(vy0), 'gravity': f(gravity), 'jump_dx': f(walk),
+            'hop_vy0': f(vy0 - (vy0 >> 2)), 'hop_gravity': f(gravity), 'hop_dx': f(walk), 'prejump': prejump}
+
+def prejump_frames(m, cid, slot):
+    steps, _ = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
+    return sum(s[0] + 1 for s in steps) + 1
+
+def physics(m, cid, prejump=0):
+    return jump_physics(m.u32(0x6E8EE + 4 * cid), m.u32(0x6E96E + 8 * cid), m.u32(0x6E972 + 8 * cid), prejump)
 
 CAST98 = ['kyo', 'benimaru', 'daimon', 'terry', 'andy', 'joe', 'ryo', 'robert', 'yuri', 'leona', 'ralf', 'clark', 'athena',
           'kensou', 'chin', 'chizuru', 'mai', 'king', 'kim', 'chang', 'choi', 'yashiro', 'shermie', 'chris', 'yamazaki', 'mary',
@@ -48,6 +63,8 @@ MOVES98 = dict(MOVES)
 for k in ('run_start', 'run', 'run_stop', 'backstep_start', 'backstep', 'backstep_land', 'blowback', 'blowback_n', 'knockdown_flight',
           'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip'): del MOVES98[k]
 MOVES98.update({'hop_up_rise': 15, 'hop_up_fall': 16, 'hop_fwd_rise': 17, 'hop_fwd_fall': 18,
+                # hop normals (KOF97+: one per button for every hop direction; KOF96's hop plays the jump's normals)
+                'atk_a_hop': 120, 'atk_b_hop': 121, 'atk_c_hop': 122, 'atk_d_hop': 123,
                 'run_start': 45, 'run': 46, 'run_stop': 47, 'backstep_start': 48, 'backstep': 49, 'backstep_land': 50,
                 'roll_start': 51, 'roll': 52, 'roll_end': 53,
                 # blowback: 283 a counter hit, 285 not (C+D captured on Yuri, 2026-10-04)
@@ -74,11 +91,9 @@ def palettes98(m, cid, used):
 PHYS = {'kof98': (0xABFC8, 0xAC060), 'kof99': (0xB51C4, 0xB524C),     # walk table, jump (vy, gravity) table
         'kof97': (0xA3710, 0xA3790)}                                    # KOF97: KOF98's values for the shared cast, found by them
 
-def physics98(m, cid):
+def physics98(m, cid, prejump=0):
     w, j = PHYS[m.game]
-    walk = m.u32(w + 4 * cid) / 65536
-    return {'walk_fwd': walk, 'walk_back': walk, 'jump_vy0': m.u32(j + 8 * cid) / 65536,
-            'gravity': m.u32(j + 4 + 8 * cid) / 65536, 'jump_dx': walk}
+    return jump_physics(m.u32(w + 4 * cid), m.u32(j + 8 * cid), m.u32(j + 4 + 8 * cid), prejump)
 
 # KOF99 (name table at $BCC88): KOF98's engine
 # KOF99 states, labelled in our emulator (GAME=kof99 capture/labels.py): KOF98's except the C+D blowback (285)
@@ -311,7 +326,7 @@ def export(names, outdir, game='kof96', only=None):
             anims[f'slot_{slot}'] = {'slot': slot, 'states': inv.get(slot, []), 'mode': mode, 'steps': [
                 {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
         out['characters'][name] = {'id': cid, 'effect_palettes': {}, 'frames': frames, 'anims': anims,
-                                   'physics': physics98(m, cid) if k98 else physics(m, cid), 'throws': {}, 'specials': [],
+                                   'physics': (physics98 if k98 else physics)(m, cid, prejump_frames(m, cid, slot_of(cid, 3))), 'throws': {}, 'specials': [],
                                    'palette_bytes': used}
         adders[name] = add_frame
         print(f'{name}: {len(frames)} frames, {len(anims)} animations', flush=True)

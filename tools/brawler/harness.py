@@ -44,7 +44,7 @@ def _layout(game):
     fields = ['ch', 'set', 'palbase', 'spr', 'x', 'z', 'y', 'vx', 'vz', 'vy', 'facing', 'team', 'state', 'state_t', 'anim',
               'step', 'tick', 'anim_done', 'node', 'buffered', 'hit_mask', 'freeze', 'inv', 'hp', 'idx', 'held',
               'shown_frame', 'frame_ovr', 'zfront', 'pushing', 'throw_id', 'grab_hits', 'target', 'spec_id', 'owner',
-              'ncols', 'landed', 'chain_node', 'chain_t', 'spec_fx', 'burn']
+              'ncols', 'landed', 'chain_node', 'chain_t', 'spec_fx', 'burn', 'jump_kind', 'jump_dir']
     src = '#include <stddef.h>\n#include "fighter.h"\nvoid offs(void) {\n' + ''.join(
         f'asm volatile(".equ OFF_{f}, %c0\\n.equ SZ_{f}, %c1" :: "i"(offsetof(fighter_t, {f})), "i"(sizeof(((fighter_t *)0)->{f})));\n'
         for f in fields) + 'asm volatile(".equ SIZEOF, %c0" :: "i"(sizeof(fighter_t)));\n}\n'

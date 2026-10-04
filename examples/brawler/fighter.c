@@ -13,7 +13,7 @@ _Static_assert(offsetof(fighter_t, x) == 8 && offsetof(fighter_t, z) == 12 && of
 _Static_assert(offsetof(fighter_t, facing) == 32 && offsetof(fighter_t, anim) == 38 && offsetof(fighter_t, step) == 39, "draw.s F_FACING/F_ANIM/F_STEP");
 _Static_assert(offsetof(fighter_t, shown_frame) == 56 && offsetof(fighter_t, shown_facing) == 58 && offsetof(fighter_t, frame_ovr) == 60, "draw.s F_SHOWN_*/F_FRAME_OVR");
 _Static_assert(offsetof(fighter_t, ncols) == 94, "draw.s F_NCOLS");
-_Static_assert(offsetof(bchar_t, frames) == 10 && offsetof(bchar_t, anims) == 14 && offsetof(bchar_t, tile_hi) == 46, "draw.s CH_*");
+_Static_assert(offsetof(bchar_t, frames) == 10 && offsetof(bchar_t, anims) == 14 && offsetof(bchar_t, tile_hi) == 60, "draw.s CH_*");
 _Static_assert(offsetof(banim_t, steps) == 2 && offsetof(bframe_t, nparts) == 0 && offsetof(bframe_t, parts) == 2, "draw.s AN_STEPS/FR_*");
 _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offsetof(bpart_t, cols) == 4 && offsetof(bpart_t, rows) == 5 &&
                offsetof(bpart_t, hflip) == 6 && offsetof(bpart_t, vflip) == 7 && offsetof(bpart_t, pal) == 8 &&
@@ -109,12 +109,25 @@ static uint8_t hit_sound(uint8_t anim) {                       /* KOF98's hit so
     default: return SFX_HIT_CD;
     }
 }
+/* ---- jumps (tools/kof96/capture/jumps.py, KOF96/98/99 measured 2026-10-04) ------------------------------------------
+ * Two heights, KOF's: C held through the prejump = the regular jump, C released before take-off = the hop (3/4 of the
+ * launch speed, same gravity and horizontal speed: bphys_t, from the ROM). Each kind and direction has its own animations
+ * (Terry's forward / back jump is a somersault, his hops are the tuck), and its own air normals: a regular jump plays the
+ * vertical normal straight up, the diagonal one forward or back; a hop plays KOF98/99's hop normals (KOF96: the jump's). */
+static const uint8_t JUMP_ANIM[2][3][2] = {                   /* [kind][up, forward, back][rise, fall] */
+    { { BA_JUMP_UP_RISE, BA_JUMP_UP_FALL }, { BA_JUMP_FWD_RISE, BA_JUMP_FWD_FALL }, { BA_JUMP_BACK_RISE, BA_JUMP_BACK_FALL } },
+    { { BA_HOP_UP_RISE, BA_HOP_UP_FALL }, { BA_HOP_FWD_RISE, BA_HOP_FWD_FALL }, { BA_HOP_BACK_RISE, BA_HOP_BACK_FALL } } };
+static const uint8_t AIR_NORMAL[2][2][2] = {                  /* [kind][vertical, diagonal][air A = C, air B = D] */
+    { { BA_ATK_C_JUMP, BA_ATK_D_JUMP }, { BA_ATK_C_JUMP_DIAG, BA_ATK_D_JUMP_DIAG } },
+    { { BA_ATK_C_HOP, BA_ATK_D_HOP }, { BA_ATK_C_HOP_DIAG, BA_ATK_D_HOP_DIAG } } };
+
 static void start_node(fighter_t *f, uint8_t node) {
     uint8_t a = COMBO[node].anim;
     snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR || a == BA_ATK_C_JUMP
             ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
     f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0;
-    enter(f, node >= N_AIR_A ? S_AIR_ATTACK : S_ATTACK); play(f, COMBO[node].anim);
+    if (node >= N_AIR_A) a = AIR_NORMAL[f->jump_kind][f->jump_dir != 0][node == N_AIR_B];   /* this jump's air normal */
+    enter(f, node >= N_AIR_A ? S_AIR_ATTACK : S_ATTACK); play(f, a);
 }
 static uint8_t combo_input(const fighter_t *f, const intent_t *in) {     /* IN_* | 0x80 forward | 0x40 down */
     uint8_t b = in->press & (IN_A | IN_B);
@@ -361,7 +374,7 @@ static void special_update(fighter_t *f) {
     }
     if (f->state_t > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
         special_end(f);
-        if (f->y > 0) { f->vx = f->vy = f->vz = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
+        if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
         return;
     }
     r = &sp->rows[f->state_t - 1];
@@ -410,9 +423,13 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     switch (f->state) {
     case S_IDLE: case S_WALK: case S_RUN: {
         uint8_t b = in->press;
+        if (b & IN_C) {                                          /* jump: the stick picks the direction; pressed away */
+            f->jump_dir = !in->dx ? 0 : in->dx == f->facing ? 1 : 2;   /* from the facing it is KOF's back jump */
+            f->jump_kind = 0; f->vx = 0; f->vz = dir_mul(in->dz, FIX(1));
+            enter(f, S_PREJUMP); play(f, BA_PREJUMP); break;
+        }
         if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
         else if (in->face) f->facing = in->face;
-        if (b & IN_C) { enter(f, S_PREJUMP); play(f, BA_PREJUMP); f->vx = dir_mul(in->dx, ph->jump_dx); f->vz = dir_mul(in->dz, FIX(1)); break; }
         if (b & IN_D) {                                          /* special: D projectile, forward+D rush, down+D reversal */
             uint8_t k = special_for(f, in);
             if (k != 0xFF) start_special(f, k); else start_node(f, N_FWD_A);
@@ -436,14 +453,20 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         }
         break;
     }
-    case S_PREJUMP:
-        if (f->state_t >= 3) { f->vy = ph->jump_vy0 - (ph->jump_vy0 >> 2);   /* 3/4 take-off speed: 56 % of KOF's jump height */ enter(f, S_AIR); play(f, f->vx ? BA_JUMP_FWD_RISE : BA_JUMP_UP_RISE); }
+    case S_PREJUMP:                                              /* KOF's prejump frames decide the height: C let go */
+        if (!(in->hold & IN_C)) f->jump_kind = 1;                /* before take-off = a hop */
+        if (f->state_t >= ph->prejump) {                         /* take-off (frames on the ground: the fighter's own) */
+            int32_t dx = f->jump_kind ? ph->hop_dx : ph->jump_dx;
+            f->vy = f->jump_kind ? ph->hop_vy0 : ph->jump_vy0;
+            f->vx = f->jump_dir == 1 ? dir_mul(f->facing, dx) : f->jump_dir == 2 ? dir_mul(-f->facing, dx) : 0;
+            enter(f, S_AIR); play(f, JUMP_ANIM[f->jump_kind][f->jump_dir][0]);
+        }
         break;
     case S_AIR: case S_AIR_ATTACK:
         if (f->state == S_AIR && (in->press & (IN_A | IN_B))) start_node(f, (in->press & IN_A) ? N_AIR_A : N_AIR_B);
-        f->y += f->vy; f->vy -= ph->gravity; f->x += f->vx; f->z += f->vz; clamp(f);
-        if (f->state == S_AIR && f->vy < 0 && f->anim != BA_JUMP_FWD_FALL && f->anim != BA_JUMP_UP_FALL)
-            play(f, f->vx ? BA_JUMP_FWD_FALL : BA_JUMP_UP_FALL);
+        f->y += f->vy; f->vy -= f->jump_kind ? ph->hop_gravity : ph->gravity; f->x += f->vx; f->z += f->vz; clamp(f);
+        if (f->state == S_AIR && f->vy < 0 && f->anim == JUMP_ANIM[f->jump_kind][f->jump_dir][0])
+            play(f, JUMP_ANIM[f->jump_kind][f->jump_dir][1]);
         if (f->y <= 0) { f->y = 0; f->vx = f->vy = f->vz = 0; enter(f, S_LAND); play(f, BA_LAND); }
         break;
     case S_LAND:
@@ -629,5 +652,6 @@ void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase,
     f->x = FIX(x); f->z = FIX(z); f->y = 0; f->vx = f->vy = f->vz = 0;
     f->facing = team ? -1 : 1; f->hp = 60; f->freeze = f->inv = 0; f->held = 0;
     f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF; f->zfront = 0; f->pushing = 0; f->target = 0; f->spec_atk = 0; f->proj[0] = f->proj[1] = 0; f->owner = 0; f->ncols = 0; f->burn = 0; f->spec_fx = 0;
+    f->jump_kind = f->jump_dir = 0;
     enter(f, S_IDLE); play(f, BA_IDLE);
 }

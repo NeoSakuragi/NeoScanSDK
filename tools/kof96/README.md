@@ -35,7 +35,7 @@ effects (super flash = state 58), 30-31 other effect tables.
 | frame record | bank 0 `$23C008[id] + index*6`, parts `[x][y][word]`; object `+$28` = current record | word: bits 0-9 sprite def (KOF95 0-8), 13 chain, 15 H flip, 14 V flip |
 | sprite definitions | bank 0 `$26C000[id]`, renderer `$5254`, 11 formats via jump table `$54E0` | KOF95: one format |
 | palettes | bank 1 `$200002 + n*32`; body block n = `$100 + id*$20` (16 palettes), mirror set n + 16 | sprite-def palette byte `16+k` = palette k of the block (body, accessories and effects) |
-| physics | walk `$6E8EE + id*4`, jump vy / gravity `$6E96E + id*8` (16.16) | walking back = walk; jump drift = walk (measured on Kyo) |
+| physics | walk `$6E8EE + id*4`, jump vy / gravity `$6E96E + id*8` (16.16); hop = the jump with `vy -= vy >> 2` (code `$EF24`); see Jumps | walking back = walk; jump drift = walk (the prejump loads it from the walk table) |
 
 ### Sprite definition formats (from the renderer's handlers)
 Header `[palette offset][format][columns][rows]`; column-major grid, masks MSB = top row; tile bits 16-19 in bits 4-7 of
@@ -49,6 +49,35 @@ masks + the format-2 stream (format 6 aligned to even); 7/8: shared high word + 
 Movement 0-14 (idle, walks, jumps by direction), crouch 21-23, guard 26-28 / 32-36, run 48-50, backstep 51-53;
 normals 80-115 (per button: close, far, jump, jump diagonal, crouch); C+D 116; specials 117-255; hits 256-266,
 blowback 288 → 298 → 334 → 343 → 355 → get-up 66, trip 327; throw poses 400+. `export96.MOVES` names them.
+
+## Jumps (`capture/jumps.py`, KOF96 / KOF98 / KOF99, 2026-10-04)
+Two heights. Stick up held = the regular jump, up released before take-off = the hop (KOF98 Terry: up held 2-6 frames
+hops, 7+ jumps; K' 2-4 / 5+; one frame of input lag, the prejump lasting 3-5 frames by fighter). States (all three
+games, every roster fighter): prejump 3 / 7 / 11 (up / forward / back), jump rise-fall 4-5 / 8-9 / 12-13, hop 15-16 /
+17-18 / 19-20, landing 6 / 10 / 14 (one animation slot for the prejumps, one for the landings; jump and hop
+animations are distinct slots and differ: Terry's forward / back jumps are somersaults, his hops the vertical tuck).
+
+Physics (code, KOF98 `$13B74`-`$13C00` + `$13E2A`; KOF96 `$EF24`, KOF99 `$E578` the same hop routine): the prejump
+copies the fighter's walk speed (walk table) to +$50 and launch speed / gravity (jump table) to +$58 / +$5C; a hop sets
++$E0 bit 3 and takes `vy -= vy >> 2` (lsr.l #2): 3/4 of the launch speed, the same gravity and horizontal speed; a
+super jump (down, up) multiplies the horizontal speed by 1.5 (`$13DFA` / `$13E0E`, not measured). Prejump on the ground:
+the prejump animation's steps at ticks + 1 frames each, + 1. Checked on 14 fighters x 6 kinds: every launch speed,
+gravity and horizontal speed equals the rule bit for bit (`export96.jump_physics`). Per frame: y += vy, then vy -= g;
+at the apex the rise -> fall state change runs two steps in one frame (Kyo: steps 1.0, 0.149, -0.852).
+
+| fighter | jump vy / g (px/frame) | hop vy | walk = dx | jump apex / air frames | hop apex / air |
+|---|---|---|---|---|---|
+| Terry (96 + 98) | 9.4375 / 0.5117 | 7.0781 | 2.969 (96), 3.168 (98) | 91.6 / 36 | 52.4 / 27 |
+| Kyo (98), K' (99) | 10.2578 / 0.6172 | 7.6934 | 3.082 | 90.2 / 33 | 51.6 / 24 |
+| Kyo (96) | 10.625 / 0.6055 | 7.9688 | 3.082 | 98.3 / 35 | 56.4 / 26 |
+| Geese (96), Yamazaki (98) | 8.7031 / 0.5078 | 6.5273 | 2.773 / 2.645 | 78.9 / 34 | 45.2 / 25 |
+| Mai (98) | 11.0 / 0.5859 | 8.25 | 3.383 | 108.7 / 37 | 62.2 / 28 |
+
+Air normals (per button A / B / C / D): regular jump vertical 82 / 91 / 100 / 109, forward 84 / 93 / 102 / 111, back
+86 / 95 / 104 / 113 (the back state uses the forward one's animation slot). Hop: **KOF96 has no hop normals** (a hop
+plays the regular jump's state for its direction); **KOF98 / KOF99: 120 / 121 / 122 / 123 for every hop direction**
+(their animations equal the forward jump normals' for the roster checked, except K' D; they differ from the vertical
+ones for Kyo D, Mai C / D, Billy C / D, K' C / D).
 
 ## Special moves
 **Recogniser `$11C76`** (P1 `$11C42`, P2 `$11C4E`; `commands96.py`). Each frame the player's 60-byte input history is
@@ -109,4 +138,5 @@ frame ~1100-1400. Round timer `$10A836` (BCD).
 | `capture/record96.lua` | recorder: scripted inputs, pokes, fighters + P1-owned pool objects per frame |
 | `capture/throws96.py`, `capture/specials96.py` | MAME runs per fighter |
 | `capture/cmdnormals.py` | KOF98/99 command normals (6A, 6B, 3C, 3D; not in the recogniser lists) played on every fighter, close + far, P2 life drops = hits -> `cmdnormals_<game>.json` (`export96.CMD_NORMALS`: state, hits, frames of the multi-state hops) |
+| `capture/jumps.py` | both jump heights x 3 directions + the 4 air normals in each, per fighter (`--tap`: how long the stick must be held for a regular jump) -> `/data/neogeo_dict/captures/kof96/jumps_<game>.json` |
 | `capture/boot.lua`, `capture/labels.py` | save state, state labelling |

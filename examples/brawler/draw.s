@@ -30,7 +30,7 @@
     | bchar_t / banim_t (6 bytes) / bstep_t (14) / bframe_t (6) / bpart_t (14)
     .equ    CH_FRAMES, 10
     .equ    CH_ANIMS, 14
-    .equ    CH_TILE_HI, 46
+    .equ    CH_TILE_HI, 60
     .equ    AN_STEPS, 2
     .equ    FR_NPARTS, 0
     .equ    FR_PARTS, 2

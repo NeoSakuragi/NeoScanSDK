@@ -20,8 +20,22 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'atk_d_crouch', 'atk_c_jump', 'atk_d_jump', 'body_toss', 'hit_stand_light', 'hit_stand_heavy', 'hit_air',
          'blowback', 'knockdown_flight', 'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip', 'win_a', 'atk_c_crouch',
          'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d',   # command normals (KOF97+: forward+A / B, down-forward+C / D)
-         'blowback_n']                                 # KOF98's blowback when not a counter hit (285; blowback = 283)
-CMDS = MOVES[-5:-1]                              # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
+         'blowback_n',                                 # KOF98's blowback when not a counter hit (285; blowback = 283)
+         # the two jump heights (tools/kof96/capture/jumps.py, 2026-10-04): jump_* = stick held (KOF states 4/5, 8/9,
+         # 12/13), hop_* = stick tapped (15/16, 17/18, 19/20), each with its own animation; air normals per jump kind
+         'hop_up_rise', 'hop_up_fall', 'hop_fwd_rise', 'hop_fwd_fall', 'jump_back_rise', 'jump_back_fall',
+         'hop_back_rise', 'hop_back_fall', 'atk_c_jump_diag', 'atk_d_jump_diag',
+         'atk_c_hop', 'atk_d_hop', 'atk_c_hop_diag', 'atk_d_hop_diag']
+CMDS = ['cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
+# brawler move -> the KOF moves it is taken from, first found. Air normals measured in the games (capture/jumps.py, every
+# roster fighter): a regular jump plays the vertical normal (82/91/100/109) straight up and the diagonal one (84/93/102/111)
+# forward; back (86/95/104/113) maps to the diagonal one's animation slot. A hop: KOF98 / KOF99 have hop normals (120-123,
+# one per button, every direction); KOF96 has none, its hop plays the regular jump's normals by direction.
+SOURCES = {'atk_c_hop': ['atk_c_hop', 'atk_c_jump'], 'atk_d_hop': ['atk_d_hop', 'atk_d_jump'],
+           'atk_c_hop_diag': ['atk_c_hop', 'atk_c_jump_diag'], 'atk_d_hop_diag': ['atk_d_hop', 'atk_d_jump_diag']}
+def source(ch, m):
+    """the KOF animation a brawler move plays (idle when the fighter has none)"""
+    return next((ch['anims'][k] for k in SOURCES.get(m, [m]) if k in ch['anims']), None) or ch['anims']['idle']
 TILE_BASE = 1024                               # our first fighter tile; 1-1023 hold the stage (make_stage.py), 0 empty
 SRC_BASE = export96.TILE_BASE                  # export96 numbers its tiles from here
 
@@ -71,7 +85,7 @@ def build(specs, outdir):
         if game == 'kof94':                             # KOF95's engine: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'kof94')); import export94
             return export94.export(names, tmp, only=set(MOVES))
-        return export96.export(names, tmp, game, only=set(MOVES) | set(THROWS) | {'specials'})
+        return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {'specials'})
     blocks = []                                         # (game, names, export, tmp dir): a game's roster in one block,
     for game, names in games.items():                   # halves while its tiles overflow one 64K page (11 KOF98
         todo = [names]                                  # fighters: 67162); a throw's victim offsets come from the
@@ -287,6 +301,10 @@ def hit_fx(sp, i, game):
 # orange = 2 (fighter.c BURN_PAL); every fire user but Iori burns orange (inference: one flame colour per fighter)
 FIRE_COLOUR = {'iori': 1}
 
+# KOF96's and KOF99's sprites face the other way from KOF98's at rest (Bruno 2026-10-04: Geese and K' always looked
+# right-facing; measured in the brawler: holding right, Geese / Mr. Big / Krauser / K' faced left while their attacks hit
+# right). Their boxes are right; only the frames are mirrored: every part's flip toggled (draw.s places a flipped part
+# mirrored around the fighter's origin, x0 = ox - dx - w)
 MIRRORED = {'kof96', 'kof99'}
 
 def special_shape(sp):
@@ -417,7 +435,7 @@ def write_c(chars, outdir):
          'typedef struct { int8_t x, y; uint8_t w, h; } bbox_t;                       /* centre from the feet (y<0 up), half extents; sprite faces left */',
          'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx; uint8_t hy; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals); dx: px the fighter moves forward as the step starts (KOF\'s $FB move); hy: height in px during the step (command normals that hop: export96.cmd_frames) */',
          'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
-         'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx; } bphys_t;     /* 16.16 px per frame */',
+         'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx, hop_vy0, hop_gravity, hop_dx; uint8_t prejump; } bphys_t;   /* 16.16 px per frame (KOF ROM: export96 physics); jump_* = the regular jump (stick held), hop_* = the hop (stick tapped); jump_dx / hop_dx: horizontal speed of a forward or back jump; prejump: frames on the ground before take-off (KOF: the prejump animation, the frames in which a release makes the jump a hop) */',
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor: damage, spark, splash), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',
          'typedef struct { uint16_t nrows; const bthrow_row_t *rows; } bthrow_t;',
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown), sprite bounds as its attack box */',
@@ -449,7 +467,7 @@ def write_c(chars, outdir):
         c.append(f'static const bframe_t {n}_frames[] = {{' + ', '.join(
             f'{{{len(fr["parts"])}, {sum(len(p["tiles"]) for p in fr["parts"])}, {n}_f{fi}}}' for fi, fr in enumerate(ch['frames'])) + '};')
         for m in MOVES:
-            a = ch['anims'].get(m) or ch['anims']['idle']
+            a = source(ch, m)
             steps, live, prev_act, prev_chain = [], None, False, False
             for s in a['steps']:
                 hb, ab = boxes(s['boxes'], REACH)
@@ -504,11 +522,12 @@ def write_c(chars, outdir):
             f'{{{len(sp["script"])}, {inv_rows(sp, k)}, {sp.get("cont", 0)}, 0, {n}_sp{k}}}' if sp else '{0, 0, 0, 0, 0}' for k, sp in enumerate(sps)) + '};')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
-            f'{{{len((ch["anims"].get(m) or ch["anims"]["idle"])["steps"])}, {1 if (ch["anims"].get(m) or ch["anims"]["idle"])["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')
+            f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')
     c.append('const bchar_t bm_chars[BC_COUNT] = {')
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
-        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}}},')
+        p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
+        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}}},')
     c.append('};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')
@@ -518,7 +537,7 @@ if __name__ == '__main__':
     chars, tiles = build(specs, outdir)
     for game, n, ch, off in chars:
         print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D', 'up+D'), pick_specials(ch, n))) + ';', end=' ')
-        print(f'{len(ch["frames"])} frames, {len([m for m in MOVES if m in ch["anims"]])}/{len(MOVES)} moves, '
+        print(f'{len(ch["frames"])} frames, {len([m for m in MOVES if any(k in ch["anims"] for k in SOURCES.get(m, [m]))])}/{len(MOVES)} moves, '
               f'{len(ch["block_palettes"])} colour sets, max cols '
               f'{max(sum(len(p["tiles"]) for p in f["parts"]) for f in ch["frames"])}, command normals: '
               f'{" ".join(m for m in CMDS if m in ch["anims"]) or "-"}')

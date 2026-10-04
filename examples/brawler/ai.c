@@ -93,13 +93,13 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         ai_t *a = &AI[i];
         intent_t *o = &in[i];
         int16_t ex, ez, tx, tz;
-        if (a->target == 0xFF) { o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; continue; }   /* nobody to fight */
+        if (a->target == 0xFF) { o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0; continue; }   /* nobody to fight */
         ex = INT(e->x); ez = INT(e->z); tx = px[a->target]; tz = pz[a->target];
         int16_t dx, dz;
         int8_t side;
         int16_t gx, gz;
         dx = tx - ex; dz = tz - ez; side = dx > 0 ? -1 : 1;  /* side: the enemy's side of the player */
-        o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = sgn(dx); o->grab = 0; o->ai = 1; o->slow = 0;
+        o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = sgn(dx); o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0;
         if (a->cooldown) a->cooldown--;
         if (e->state == S_GRAB) {                                /* holding: a hit every 24 frames, after two maybe a throw */
             if (!a->press_t || a->press_t > 24) a->press_t = 24;
@@ -158,7 +158,7 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *o) {
     fighter_t *me = &fs[p], *t = 0;
     int16_t mx = INT(me->x), mz = INT(me->z), bd = 0x7FFF, dx, dz;
     uint8_t i;
-    o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0;
+    o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0;
     if (bot_cd) bot_cd--;
     bot_t++;
     if (me->state == S_GRAB) {                                   /* down+C, close D, then a throw (forward+A) */

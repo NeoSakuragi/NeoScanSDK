@@ -22,7 +22,8 @@ backstep 48-50, normals 80-115, C+D 116, hits, sweep 307->309->313->328->72, air
 Different:
 - banks selected through the SMA chip: `$2FFFF0`, value unscrambled with bitswap(5,12,10,8,6,14) into MAME's kof99
   bankoffset table (`mame/src/devices/bus/neogeo/prot_sma.cpp`); the engine's banks 0, 1 and 2 are the plain 1 MB banks
-- state map `$C1BCC`; walk `$B51C4`, jump (vy, gravity) `$B524C`; command lists `$BA866 + id*8` (no EX lists)
+- state map `$C1BCC`; walk `$B51C4`, jump (vy, gravity) `$B524C`, hop `vy -= vy >> 2` at `$E578` (jumps, hop normals 120-123
+  as KOF98: KOF96 README, Jumps); command lists `$BA866 + id*8` (no EX lists)
 - **palettes**: palette n at `$2D77F0 + n*32` (as KOF98), body n = `$100 + id*$20 + $10*set` — **two colour sets**
   (selecting with B gives set 2) — effects n = `$520 + id*$10`. Measured from palette RAM (bank 1) in our emulator.
 - C+D blowback starts in 285 (KOF98 283); **three win poses** (A 336, B 338, C 340; holding D picks one of them)

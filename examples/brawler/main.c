@@ -344,6 +344,7 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
     in->dz = (held & JOY_DOWN) ? 1 : (held & JOY_UP) ? -1 : 0;
     in->press = ((pressed & JOY_A) ? IN_A : 0) | ((pressed & JOY_B) ? IN_B : 0) | ((pressed & JOY_C) ? IN_C : 0) | ((pressed & JOY_D) ? IN_D : 0);
     if ((pressed & (JOY_A | JOY_B)) && (held & JOY_A) && (held & JOY_B)) in->press = (in->press & ~(IN_A | IN_B)) | IN_D;   /* A+B = D */
+    in->hold = ((held & JOY_A) ? IN_A : 0) | ((held & JOY_B) ? IN_B : 0) | ((held & JOY_C) ? IN_C : 0) | ((held & JOY_D) ? IN_D : 0);
     in->run = 0; in->ai = 0; in->slow = 0;
     if (pressed & (JOY_LEFT | JOY_RIGHT)) {                     /* forward tapped twice within 12 frames */
         uint8_t d = (pressed & JOY_RIGHT) ? 1 : 2;
