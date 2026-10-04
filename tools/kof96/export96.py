@@ -25,7 +25,7 @@ MOVES = {
     'atk_b_close': 89, 'atk_b_far': 90, 'atk_b_jump': 91, 'atk_b_jump_diag': 93, 'atk_b_crouch': 97,
     'atk_c_close': 98, 'atk_c_far': 99, 'atk_c_jump': 100, 'atk_c_jump_diag': 102, 'atk_c_crouch': 106,
     'atk_d_close': 107, 'atk_d_far': 108, 'atk_d_jump': 109, 'atk_d_jump_diag': 111, 'atk_d_crouch': 115,
-    'body_toss': 116,
+    'body_toss': 116, 'atk_cd_jump': 117,          # air C+D (capture/aircd.py, 2026-10-04: every jump and KOF96's hop)
     'hit_stand_light': 256, 'hit_stand_heavy': 262, 'hit_crouch_light': 264, 'hit_crouch_heavy': 266,
     'blowback': 288, 'blowback_n': 288, 'knockdown_flight': 298, 'knockdown_bounce': 334, 'knockdown_fall': 343, 'down': 355,
     'getup': 66, 'trip': 327,
@@ -64,7 +64,7 @@ for k in ('run_start', 'run', 'run_stop', 'backstep_start', 'backstep', 'backste
           'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip'): del MOVES98[k]
 MOVES98.update({'hop_up_rise': 15, 'hop_up_fall': 16, 'hop_fwd_rise': 17, 'hop_fwd_fall': 18,
                 # hop normals (KOF97+: one per button for every hop direction; KOF96's hop plays the jump's normals)
-                'atk_a_hop': 120, 'atk_b_hop': 121, 'atk_c_hop': 122, 'atk_d_hop': 123,
+                'atk_a_hop': 120, 'atk_b_hop': 121, 'atk_c_hop': 122, 'atk_d_hop': 123, 'atk_cd_hop': 124,
                 'run_start': 45, 'run': 46, 'run_stop': 47, 'backstep_start': 48, 'backstep': 49, 'backstep_land': 50,
                 'roll_start': 51, 'roll': 52, 'roll_end': 53,
                 # blowback: 283 a counter hit, 285 not (C+D captured on Yuri, 2026-10-04)

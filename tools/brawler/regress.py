@@ -48,6 +48,8 @@ for k in range(14):
         for i in range(1, 8): b.place(i, x=1000, z=0)
         b.place(0, x=300, z=30); b.place(2, x=260, z=30)           # an enemy behind P1 (P1 faces right)
         b.run(2)
+        w = 0                                                      # out of any hit taken before the placement
+        while b.states[b.fget(0, 'state')] != 'IDLE' and w < 300: b.run(1); w += 1
         tr = []
         for part in seq.split(','):
             m, keys = part.split(':')

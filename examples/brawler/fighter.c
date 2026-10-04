@@ -44,7 +44,7 @@ const char *fighter_state_name(uint8_t st) { return NAMES[st]; }
  * A1/A2 -B-> AB / AAB (launch)
  * B1 -B-> BB (knockdown)                 B1 -A-> BA -B-> BAB (sweep: trip)
  * finishers inside any window: forward+A = body toss (knockdown), down+B = sweep. Air: A / B.  D = special (body toss). */
-enum { N_NONE, N_A1, N_A2, N_A3, N_A4, N_A5, N_AB, N_AAB, N_B1, N_BB, N_BA, N_BAB, N_FWD_A, N_AIR_A, N_AIR_B };
+enum { N_NONE, N_A1, N_A2, N_A3, N_A4, N_A5, N_AB, N_AAB, N_B1, N_BB, N_BA, N_BAB, N_FWD_A, N_AIR_A, N_AIR_B, N_AIR_CD };
 const cnode_t COMBO[] = {
     /* anim            dmg rct          push nextA   nextB   fwdA     downB */
     { 0,                0,  0,           0,  0,      0,      0,       0 },
@@ -62,6 +62,7 @@ const cnode_t COMBO[] = {
     { BA_BODY_TOSS,     10, R_KNOCKDOWN, 0,  0,      0,      0,       0 },
     { BA_ATK_C_JUMP,    6,  R_HEAVY,     4,  0,      0,      0,       0 },
     { BA_ATK_D_JUMP,    8,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
+    { BA_ATK_CD_JUMP,  10,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },   /* air C+D, on C in the air */
 };
 
 /* ---- animation player ------------------------------------------------------------------------------------- */
@@ -130,7 +131,8 @@ static void start_node(fighter_t *f, uint8_t node) {
     snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR || a == BA_ATK_C_JUMP
             ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
     f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0;
-    if (node >= N_AIR_A) a = AIR_NORMAL[f->jump_kind][f->jump_dir != 0][node == N_AIR_B];   /* this jump's air normal */
+    if (node == N_AIR_CD) a = f->jump_kind ? BA_ATK_CD_HOP : BA_ATK_CD_JUMP;     /* KOF's 117, a KOF98 / 99 hop's 124 */
+    else if (node >= N_AIR_A) a = AIR_NORMAL[f->jump_kind][f->jump_dir != 0][node == N_AIR_B];   /* this jump's air normal */
     enter(f, node >= N_AIR_A ? S_AIR_ATTACK : S_ATTACK); play(f, a);
 }
 static uint8_t combo_input(const fighter_t *f, const intent_t *in) {     /* IN_* | 0x80 forward | 0x40 down */
@@ -552,7 +554,8 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         }
         break;
     case S_AIR: case S_AIR_ATTACK:
-        if (f->state == S_AIR && (in->press & (IN_A | IN_B))) start_node(f, (in->press & IN_A) ? N_AIR_A : N_AIR_B);
+        if (f->state == S_AIR && (in->press & (IN_A | IN_B | IN_C)))   /* C (the jump button) pressed again: air C+D */
+            start_node(f, (in->press & IN_C) ? N_AIR_CD : (in->press & IN_A) ? N_AIR_A : N_AIR_B);
         f->y += f->vy; f->vy -= f->jump_kind ? ph->hop_gravity : ph->gravity; f->x += f->vx; f->z += f->vz; clamp(f);
         if (f->state == S_AIR && f->vy < 0 && f->anim == JUMP_ANIM[f->jump_kind][f->jump_dir][0])
             play(f, JUMP_ANIM[f->jump_kind][f->jump_dir][1]);

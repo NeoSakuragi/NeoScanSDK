@@ -25,14 +25,16 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          # 12/13), hop_* = stick tapped (15/16, 17/18, 19/20), each with its own animation; air normals per jump kind
          'hop_up_rise', 'hop_up_fall', 'hop_fwd_rise', 'hop_fwd_fall', 'jump_back_rise', 'jump_back_fall',
          'hop_back_rise', 'hop_back_fall', 'atk_c_jump_diag', 'atk_d_jump_diag',
-         'atk_c_hop', 'atk_d_hop', 'atk_c_hop_diag', 'atk_d_hop_diag']
+         'atk_c_hop', 'atk_d_hop', 'atk_c_hop_diag', 'atk_d_hop_diag',
+         'atk_cd_jump', 'atk_cd_hop']                   # air C+D: KOF state 117, KOF98 / KOF99 hops 124 (capture/aircd.py)
 CMDS = ['cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
 # brawler move -> the KOF moves it is taken from, first found. Air normals measured in the games (capture/jumps.py, every
 # roster fighter): a regular jump plays the vertical normal (82/91/100/109) straight up and the diagonal one (84/93/102/111)
 # forward; back (86/95/104/113) maps to the diagonal one's animation slot. A hop: KOF98 / KOF99 have hop normals (120-123,
 # one per button, every direction); KOF96 has none, its hop plays the regular jump's normals by direction.
 SOURCES = {'atk_c_hop': ['atk_c_hop', 'atk_c_jump'], 'atk_d_hop': ['atk_d_hop', 'atk_d_jump'],
-           'atk_c_hop_diag': ['atk_c_hop', 'atk_c_jump_diag'], 'atk_d_hop_diag': ['atk_d_hop', 'atk_d_jump_diag']}
+           'atk_c_hop_diag': ['atk_c_hop', 'atk_c_jump_diag'], 'atk_d_hop_diag': ['atk_d_hop', 'atk_d_jump_diag'],
+           'atk_cd_hop': ['atk_cd_hop', 'atk_cd_jump']}
 def source(ch, m):
     """the KOF animation a brawler move plays (idle when the fighter has none)"""
     return next((ch['anims'][k] for k in SOURCES.get(m, [m]) if k in ch['anims']), None) or ch['anims']['idle']
@@ -86,26 +88,36 @@ def build(specs, outdir):
             sys.path.insert(0, os.path.join(HERE, '..', 'kof94')); import export94
             return export94.export(names, tmp, only=set(MOVES))
         return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {'specials'})
-    blocks = []                                         # (game, names, export, tmp dir): a game's roster in one block,
-    for game, names in games.items():                   # halves while its tiles overflow one 64K page (11 KOF98
-        todo = [names]                                  # fighters: 67162); a throw's victim offsets come from the
-        while todo:                                     # thrower's own block, the victim's poses from its own (vposes)
-            ns = todo.pop(0); tmp = os.path.join(outdir, f'tmp_{game}' + (f'_{len(blocks)}' if ns != names else ''))
-            ex = export(game, ns, tmp)
-            if ex['tiles'] >= 0x10000 and len(ns) > 1: todo[:0] = [ns[:len(ns) // 2], ns[len(ns) // 2:]]; continue
-            blocks.append((game, ns, ex, tmp))
-    for game, names, ex, tmp in blocks:
-        a = open(os.path.join(tmp, 'kof95_c1.bin'), 'rb').read(); b = open(os.path.join(tmp, 'kof95_c2.bin'), 'rb').read()
-        n = ex['tiles']
-        assert n < 0x10000, f'{game}: {n} tiles in one block (a block must fit one 64K tile page after its blank tile)'
-        if tile_next >> 16 != (tile_next + n - 1) >> 16:    # keep a block inside one 64K page: its fighters' tile numbers
-            gap = ((tile_next >> 16) + 1 << 16) - tile_next  # then share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute)
-            c1 += bytes(gap * 64); c2 += bytes(gap * 64); tile_next += gap
-        if tile_next & 0xFFFF == 0:                     # tile 0 = empty, and with tile_hi it means page start: blank
-            c1 += bytes(64); c2 += bytes(64); tile_next += 1
-        c1 += a[SRC_BASE * 64:(SRC_BASE + n) * 64]; c2 += b[SRC_BASE * 64:(SRC_BASE + n) * 64]
-        off = tile_next - SRC_BASE; tile_next += n
-        chars += [(game, name, ex['characters'][name], off) for name in names]
+    # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
+    # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross
+    # a page; whole game rosters per block left ~4 MB of padding at the page ends and doubled C to 32 MB when the air
+    # C+D animations pushed the last tile past 16 MB. A throw's victim offsets come from the thrower's own export, the
+    # victim's poses from its own (vposes), so fighters export independently.
+    blocks = []                                         # (game, name, export, tmp dir)
+    for game, names in games.items():
+        for name in names:
+            tmp = os.path.join(outdir, f'tmp_{game}_{name}')
+            ex = export(game, [name], tmp)
+            assert ex['tiles'] < 0x10000, f'{game}:{name}: {ex["tiles"]} tiles (a fighter must fit one 64K tile page)'
+            blocks.append((game, name, ex, tmp))
+    pages = [[TILE_BASE, []]]                           # per page: next free tile number, [(block, first tile)]
+    for blk in sorted(blocks, key=lambda b: -b[2]['tiles']):
+        n = blk[2]['tiles']
+        for p, pg in enumerate(pages):
+            start = max(pg[0], (p << 16) + 1)           # tile 0 = empty, and with tile_hi it means page start: blank
+            if start + n <= (p + 1) << 16: break
+        else:
+            pages.append([(len(pages) << 16) + 1, []]); p = len(pages) - 1; pg = pages[p]; start = pg[0]
+        pg[1].append((blk, start)); pg[0] = start + n
+    for p, pg in enumerate(pages):
+        for (game, name, ex, tmp), start in pg[1]:
+            a = open(os.path.join(tmp, 'kof95_c1.bin'), 'rb').read(); b = open(os.path.join(tmp, 'kof95_c2.bin'), 'rb').read()
+            n = ex['tiles']
+            if len(c1) // 64 + TILE_BASE < start:       # the gap to this block (page 2's blank tile 0, or a page's end)
+                g = start - TILE_BASE - len(c1) // 64; c1 += bytes(g * 64); c2 += bytes(g * 64)
+            c1 += a[SRC_BASE * 64:(SRC_BASE + n) * 64]; c2 += b[SRC_BASE * 64:(SRC_BASE + n) * 64]
+            chars.append((game, name, ex['characters'][name], start - SRC_BASE))
+    tile_next = TILE_BASE + len(c1) // 64
     assert tile_next <= 0x100000, f'{tile_next} tiles: past the 20-bit tile number'
     chars.sort(key=lambda c: specs.index(f'{c[0]}:{c[1]}'))   # bm_chars in the command line's order, the order
                                                           # make_hud.py gives the portraits (exports go by game)

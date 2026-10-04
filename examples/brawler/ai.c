@@ -52,6 +52,7 @@ static void rest(ai_t *a, uint8_t base) {
 void ai_init(uint16_t seed) {
     uint8_t i;
     lfsr = seed ? seed : 0xACE1;
+    tick = 0;                                     /* the token deal's phase: not carried over from the attract demo */
     for (i = 0; i < MAX_F; i++) { AI[i].token = 0; rest(&AI[i], 30); AI[i].presses = 0; AI[i].retarget = 0; AI[i].press_t = 0; }
 }
 
