@@ -22,7 +22,7 @@ _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offse
 #define GRAVITY_KD  0x5000        /* knockdown gravity 0.31 px/frame^2 (KOF95: 0.47): higher, slower falls to juggle */
 #define DOWN_FRAMES 40
 #define INV_GETUP   30
-#define HITSTOP     10            /* hit-stop, the same for every hit: light ones land as hard as heavy ones (KOF98 ~10-12) */
+#define HITSTOP     7             /* hit-stop frames, the same for every hit (Bruno 2026-10-04; KOF98 counts +$124 from 7 to 11 by move) */
 #define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
 #define STUN_HEAVY  54
 #define AI_IDLE_DELAY 10          /* AI fighters stop walking into idle only after this many frames without a walk intent */
