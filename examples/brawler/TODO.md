@@ -332,6 +332,19 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 66. (done 2026-10-05: landing = KOF's land animation, 4 frames (Terry / Rugal / Goenitz 5, K' 3), every fighter equal to the jump captures; projectile pool 4 -> 8 in 10-sprite blocks, Blitz Ball's 4 trail objects as KOF96; Mr. Big's colours equal KOF96's ROM, its tan is the stage's light (R +2 / B -1 on every fighter); KOF96 $26 / $29 / $2C register-identical (patch effects, B slur key-off, 16-bit tempo accumulator); attract logo 17 s -> demo 30 s (#25); proof /data/tmp/gaps66/out) Small gaps: landing 2 frames vs KOF's 4-5; projectile pool of 4 (trails thinner); Mr. Big's pale colour set
   vs KOF96's tan; KOF96 songs $26 / $29 / $2C 98-99 % model match; the attract cycle with logo / title timing (#25).
 
+- [ ] 71. Controls revamp (Bruno, 2026-10-05): A attack (all normals via routes: direction + position), B jump (also a
+  jump-cancel link in routes, on hit only -> air sub-routes), A+B SPECIAL MOVES = the six slots by direction (N, fwd,
+  down, up, down-fwd, up-fwd; Power Wave, Power Dunk, Rising Tackle...; also from a grab), C FURY = desperation moves
+  (Power Geyser and the other KOF DM / SDM supers, SS4 rage moves), D TAG mode (Bruno will explain). Chord detection
+  window (2-3 frames) for A+B; routes / Chain Lab glyphs / Terry's routes and the default trees re-authored for one
+  attack button. After the six-slot job.
+  SPECIAL METER (Bruno, 2026-10-05): a meter gauge, full at the start; each special move consumes meter; the meter
+  refills slowly over time; a special triggered WHILE BEING HIT (allowed: a "get out of trouble" move) costs twice as
+  much, and the player's palette flashes fully white for a split second to show something was consumed. Furies (C):
+  cost to be decided (default until Bruno decides: the same meter, half the gauge, only
+  usable from half full; a data value, easy to change).
+  QUEUED FIRST by Bruno (2026-10-05): the loop takes it before #67-#70.
+
 - [ ] 67. Samurai Shodown IV fighters into the character bank (Bruno: "start with Haohmaru first"): a full SS4 exporter
   (study: /data/neogeo_dict/samsho4/README.md — own engine, 444/454 frames pixel-exact): Haohmaru end to end into the
   brawler (animations, palettes, boxes, specials, weapon objects as needed), then the others. Running in a worktree
@@ -347,17 +360,6 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 
 - [ ] 70. Haohmaru's forward+D (SS4 421C) has a baked impact / KO scene (Bruno): recapture it as a whiff, or read it from
   SS4's own code (the handlers98 approach for SS4); also his other open points (memory reference_samsho4_extraction).
-
-- [ ] 71. Controls revamp (Bruno, 2026-10-05): A attack (all normals via routes: direction + position), B jump (also a
-  jump-cancel link in routes, on hit only -> air sub-routes), A+B SPECIAL MOVES = the six slots by direction (N, fwd,
-  down, up, down-fwd, up-fwd; Power Wave, Power Dunk, Rising Tackle...; also from a grab), C FURY = desperation moves
-  (Power Geyser and the other KOF DM / SDM supers, SS4 rage moves), D TAG mode (Bruno will explain). Chord detection
-  window (2-3 frames) for A+B; routes / Chain Lab glyphs / Terry's routes and the default trees re-authored for one
-  attack button. After the six-slot job.
-  SPECIAL METER (Bruno, 2026-10-05): a meter gauge, full at the start; each special move consumes meter; the meter
-  refills slowly over time; a special triggered WHILE BEING HIT (allowed: a "get out of trouble" move) costs twice as
-  much, and the player's palette flashes fully white for a split second to show something was consumed. Furies (C):
-  cost to be decided.
 
 - [ ] 72. Restore KOF98's hit count on Terry 214D (2), 623A (5), 623B (2) and Robert 624D (3) (review round 1): since
   the victim fix (no stick) they hit once less; re-time the missing hit(s) so they land, without sticking the victim
