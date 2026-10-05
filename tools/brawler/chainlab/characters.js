@@ -17,8 +17,8 @@
   };
   const clone = x => JSON.parse(JSON.stringify(x));
   const up = n => n.toUpperCase().replace(/_/g, ' ');
-  const ROLES = [['D', 'D', 'projectile'], ['fD', 'forward+D', 'rush'], ['dD', 'down+D', 'rising reversal (invincible)'], ['uD', 'up+D', 'another special'],
-    ['dfD', 'down-forward+D', 'a second projectile / an anti-air / a command move'], ['ufD', 'up-forward+D', 'an anti-air / a projectile / a command move']];
+  const ROLES = [['D', 'A+B', 'projectile'], ['fD', 'forward A+B', 'rush'], ['dD', 'down A+B', 'rising reversal (invincible)'], ['uD', 'up A+B', 'another special'],
+    ['dfD', 'down-forward A+B', 'a second projectile / an anti-air / a command move'], ['ufD', 'up-forward A+B', 'an anti-air / a projectile / a command move']];   // TODO #71: A+B slots
 
   while (!window.stagesTab || !window.chainlab) await new Promise(r => setTimeout(r, 100));
   const CLAB = window.chainlab, lab = CLAB.lab;
@@ -72,7 +72,7 @@
     lab.request(1, ci, dummy);
     if (CLAB.paused) CLAB.togglePause();
     CLAB.stepFrames(1);
-    msg(`${up(roster[ci].name)} against ${up(NAMES[dummy])} with these specials: play D, forward+D, down+D, up+D, down-forward+D, up-forward+D (W A S D + P).`);
+    msg(`${up(roster[ci].name)} against ${up(NAMES[dummy])} with these specials: play A+B, forward / down / up / down-forward / up-forward + A+B (W A S D + U and I together).`);
   }
   let note = '';
   const msg = t => { note = t; const e = $('chMsg'); if (e) e.textContent = t; };

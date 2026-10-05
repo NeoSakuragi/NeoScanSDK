@@ -23,7 +23,10 @@
  ],
  "ssg": {"what": "menu sounds (TODO #63): SSG cues on KOF98's own generated-sound path (command type 5), free commands $74-$77, data in the fixed area's free bytes (tools/port/ssg_cues.py); voices = SSG A, B, C: [note, ticks (13.9 ms), level 0-15]; build/snd/songs.h SSG_<name>",
   "cues": [
-   {"name": "CURSOR", "cmd": "74", "voices": [[["E7", 2, 12], ["E7", 2, 6], ["E7", 1, 2]]]},
+   {"name": "CURSOR", "cmd": "74", "what": "Fatal Fury 3's cursor (its SSG effect $60, TODO #75): its periods and levels exactly, 4 steps of 2 timer-A interrupts (36.8 ms) as 3-2-3-3 ticks (step ends within 5 ms of FF3)",
+    "voices": [[["A5", 3, 11], ["A5", 2, 4], ["A6", 3, 9], ["A6", 3, 4]],
+               [["E6", 3, 11], ["E6", 2, 4], ["C#7", 3, 9], ["C#7", 3, 4]],
+               [["A5+", 3, 11], ["A5+", 2, 4], ["A6+", 3, 9], ["A6+", 3, 4]]]},
    {"name": "CONFIRM", "cmd": "75", "voices": [[["C7", 3, 13], ["G7", 3, 13], ["C8", 4, 12], ["C8", 4, 8], ["C8", 4, 4], ["C8", 3, 2]],
                                                [["-", 1, 0], ["C6", 3, 8], ["G6", 3, 8], ["C7", 4, 7], ["C7", 4, 4], ["C7", 3, 2]]]},
    {"name": "CANCEL", "cmd": "76", "voices": [[["G6", 3, 12], ["D6", 3, 12], ["G5", 4, 11], ["G5", 4, 6], ["G5", 3, 2]],

@@ -4,16 +4,18 @@
   'use strict';
   const CL = window.ChainLab;
   const $ = id => document.getElementById(id);
-  const IN_LABEL = { A: 'A', B: 'B', dA: '↓A', dB: '↓B', fA: '→A', fB: '→B', dfA: '↘A', dfB: '↘B', AB: 'A+B', D: 'D', fD: '→D', dD: '↓D', uD: '↑D', dfD: '↘D', ufD: '↗D' };
+  // TODO #71: A attack (close A: an opponent within 40 px), B jump (in a route: the jump-cancel), A+B special, C fury
+  const IN_LABEL = { A: 'A', B: 'B (jump-cancel)', dA: '↓A', cA: 'close A', fA: '→A', bA: '←A', dfA: '↘A',
+                     AB: 'A+B', fAB: '→A+B', dAB: '↓A+B', uAB: '↑A+B', dfAB: '↘A+B', ufAB: '↗A+B' };
   const MOVE_LABEL = {
     atk_a_close: 'close A', atk_a_far: 'far A', atk_a_crouch: 'crouch A', atk_b_close: 'close B', atk_b_far: 'far B',
     atk_b_crouch: 'crouch B', atk_c_close: 'close C', atk_c_far: 'far C', atk_c_crouch: 'crouch C', atk_d_close: 'close D',
     atk_d_far: 'far D', atk_d_crouch: 'crouch D (sweep)', body_toss: 'C+D (blowback)', cmd_fwd_a: 'forward+A (command)',
     cmd_fwd_b: 'forward+B (command)', cmd_df_c: 'down-forward+C (command)', cmd_df_d: 'down-forward+D (command)',
     atk_c_jump: 'air C', atk_d_jump: 'air D', atk_cd_jump: 'air C+D' };
-  const SPECIAL_LABEL = { D: 'D special', fD: 'forward+D special', dD: 'down+D special', uD: 'up+D special', dfD: 'down-forward+D special', ufD: 'up-forward+D special' };
-  const ENTRY_LABEL = { dash: 'Dash attack (run + A)', nospecial: 'D without a special for it', hold: "The hold's third hit (C+D)",
-                        air_a: 'Air A', air_b: 'Air B', air_cd: 'Air C (C+D)' };
+  const SPECIAL_LABEL = { D: 'A+B special', fD: 'forward A+B special', dD: 'down A+B special', uD: 'up A+B special', dfD: 'down-forward A+B special', ufD: 'up-forward A+B special' };
+  const ENTRY_LABEL = { dash: 'Dash attack (run + A)', nospecial: 'A+B without a special for it', hold: "The hold's third hit (C+D)",
+                        air_a: 'Air A (A in a jump; A again on hit: its links)', air_b: 'Air down+A', air_cd: 'Air up+A' };
   const HOW_LABEL = ['start (from neutral)', 'after the move ended', 'cancel on hit', 'tapped in the chain window'];
   const clone = x => JSON.parse(JSON.stringify(x));
   const err = msg => { const e = $('err'); e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; };
@@ -232,7 +234,8 @@
   function linkLabel(l) {
     const info = built && built.fi === fi ? built.info.get(l.idx) : null;
     const speed = info ? spdText(CL.speedFx(info.node)) : '?';
-    if (l.special !== null) return { speed, input: info ? info.path.join(' ') : 'D', move: SPECIAL_LABEL[CL.SPECIALS[l.special]] + (F[fi].specials[CL.SPECIALS[l.special]] ? ' ' + F[fi].specials[CL.SPECIALS[l.special]] : '') };
+    if (l.special === CL.SPECIALS.length) return { speed, input: 'C', move: 'fury' };   // BS_FURY (fighter.h)
+    if (l.special !== null) return { speed, input: info ? info.path.join(' ') : 'A+B', move: SPECIAL_LABEL[CL.SPECIALS[l.special]] + (F[fi].specials[CL.SPECIALS[l.special]] ? ' ' + F[fi].specials[CL.SPECIALS[l.special]] : '') };
     if (!info) return { speed, input: '?', move: 'node ' + l.idx + (built ? '' : ' (press Build or "own tree" to name the nodes)') };
     return { speed, input: info.path.join(' '), move: MOVE_LABEL[info.node.move] || info.node.move };
   }
@@ -291,11 +294,13 @@
     for (const [v, t] of options) s.add(new Option(t, v)); s.value = value; return s;
   }
   function freeInputs(nd) { return CL.INPUTS.filter(k => !(nd.links && nd.links[k])); }
-  function newChild(k) {
-    if (CL.SPECIAL_INPUTS.includes(k)) return { special: k };
+  function newChild(k, air) {
+    if (CL.SPECIAL_INPUTS.includes(k)) return { special: CL.SLOT_OF[k] };
+    if (k === 'B') return { move: 'atk_c_jump', weight: 'strong', effect: 'none' };          // a jump-cancel: an air hit
+    if (air) return { move: 'atk_cd_jump', weight: 'strong', effect: 'knockdown' };          // the air sub-route's next hit
     const has = F[fi].has;
-    const pref = k === 'AB' ? ['body_toss'] : k.endsWith('A') ? (k.startsWith('d') && !k.startsWith('df') ? ['atk_a_crouch', 'atk_c_crouch'] : k.startsWith('df') ? ['cmd_df_c', 'atk_c_close'] : k.startsWith('f') ? ['cmd_fwd_a', 'atk_c_close'] : ['atk_a_close'])
-                                    : (k.startsWith('d') && !k.startsWith('df') ? ['atk_b_crouch', 'atk_d_crouch'] : k.startsWith('df') ? ['cmd_df_d', 'atk_d_close'] : k.startsWith('f') ? ['cmd_fwd_b', 'atk_d_close'] : ['atk_b_close']);
+    const pref = { dA: ['atk_a_crouch', 'atk_c_crouch'], dfA: ['cmd_df_c', 'atk_c_close'], fA: ['cmd_fwd_a', 'atk_c_close'],
+                   bA: ['atk_b_far', 'atk_d_far'], cA: ['atk_a_close'] }[k] || ['atk_a_far', 'atk_a_close'];
     const move = pref.find(m => has.includes(m)) || 'atk_a_close';
     return { move, weight: /atk_[ab]_/.test(move) ? 'light' : 'strong', effect: 'none' };
   }
@@ -305,16 +310,15 @@
   const svg = (w, hgt, body, cls) => { const e = document.createElementNS(NS, 'svg'); e.setAttribute('viewBox', `0 0 ${w} ${hgt}`);
     e.setAttribute('width', w); e.setAttribute('height', hgt); if (cls) e.setAttribute('class', cls); e.innerHTML = body; return e; };
   // the input that reaches a node: stick direction (-1/0/1 x, y; forward drawn right: P1 faces right) + buttons
-  const INPUT_GLYPH = { A: [0, 0, 'A'], B: [0, 0, 'B'], dA: [0, 1, 'A'], dB: [0, 1, 'B'], fA: [1, 0, 'A'], fB: [1, 0, 'B'],
-    dfA: [1, 1, 'A'], dfB: [1, 1, 'B'], AB: [0, 0, 'AB'], D: [0, 0, 'D'], fD: [1, 0, 'D'], dD: [0, 1, 'D'], uD: [0, -1, 'D'],
-    dfD: [1, 1, 'D'], ufD: [1, -1, 'D'] };
+  const INPUT_GLYPH = { A: [0, 0, 'A'], B: [0, 0, 'B'], dA: [0, 1, 'A'], cA: [0, 0, 'A', 'close'], fA: [1, 0, 'A'], bA: [-1, 0, 'A'],
+    dfA: [1, 1, 'A'], AB: [0, 0, 'AB'], fAB: [1, 0, 'AB'], dAB: [0, 1, 'AB'], uAB: [0, -1, 'AB'], dfAB: [1, 1, 'AB'], ufAB: [1, -1, 'AB'] };
   const BTN_COL = { A: '#d01818', B: '#e8b800', C: '#139a2c', D: '#1f4fd0' };
   // the input: a plain arrow for the stick, in the game's facing-relative sense (forward = →; N = neutral),
   // then the four buttons: pressed = filled in its Neo Geo colour with a solid border, unused = grey outline
   const ARROW = { '0,-1': '↑', '1,-1': '↗', '1,0': '→', '1,1': '↘', '0,1': '↓', '-1,1': '↙', '-1,0': '←', '-1,-1': '↖' };
   function inputGlyph(key) {
     const g = INPUT_GLYPH[key]; if (!g) return h('span', { class: 'glyph' });
-    const [dx, dy, btns] = g, arrow = ARROW[dx + ',' + dy];
+    const [dx, dy, btns, pos] = g, arrow = pos ? 'close' : ARROW[dx + ',' + dy];
     let bt = '';
     'ABCD'.split('').forEach((b, i) => {
       const on = btns.includes(b), x = 14 + i * 28;
@@ -405,14 +409,15 @@
     const [dd, dp] = CL.defaultDamage(nd);
     const dmg = nd.damage !== undefined ? nd.damage : dd;
     const sv = spd(nd), d = fd(nd.move, sv), w = nd.weight || 'light', eff = nd.effect || 'none';
-    const pick = () => air ? null : picker(nd.move, v => { nd.move = v; edited(); });
+    const pick = () => air ? (nd.move = CL.AIR_MOVE_NAMES[(CL.AIR_MOVE_NAMES.indexOf(nd.move) + 1) % 3], edited())   // air: C, D, C+D in turn
+                           : picker(nd.move, v => { nd.move = v; edited(); });
     const stat = (ic, text, title, onclick) => h('button', { class: 'st', title, onclick }, icon(ic), h('span', {}, text));
     const num = (field, def) => h('input', { type: 'number', value: nd[field] !== undefined ? nd[field] : '', placeholder: String(def),
       onchange: ev => { const v = ev.target.value; if (v === '') delete nd[field]; else nd[field] = Number(v); edited(); } });
     return h('div', { class: 'card' + (ctx && ctx.conflict ? ' isconflict' : ''), 'data-idx': idx },
       h('span', { class: 'res' }),
       h('div', { class: 'hd' }, inputGlyph(key)),
-      h('button', { class: 'artb', title: (MOVE_LABEL[nd.move] || nd.move) + (air ? '' : ' (tap: choose the move)'), onclick: pick }, art(nd.move)),
+      h('button', { class: 'artb', title: (MOVE_LABEL[nd.move] || nd.move) + (air ? ' (tap: the next air move)' : ' (tap: choose the move)'), onclick: pick }, art(nd.move)),
       h('div', { class: 'mods' },
         speedStat(nd, sv),   // no frame data on the card (Bruno): the move picker shows it
         stat(w, w, 'hit weight (tap: light / strong)', () => { nd.weight = w === 'light' ? 'strong' : 'light'; edited(); }),
@@ -453,7 +458,8 @@
     return `routes ${c.routes[0]} and ${c.routes[1]} press ${c.inputs.map(k => IN_LABEL[k]).join(' ')} but differ at hit ${c.step} (` +
       Object.entries(c.differs).map(([f, [a, b]]) => `${f} ${a === undefined ? '-' : a} / ${b === undefined ? '-' : b}`).join(', ') + ')';
   }
-  function newStep(k) { return Object.assign(newChild(k), { input: k }); }
+  function newStep(k, air) { return Object.assign(newChild(k, air), { input: k }); }
+  const inAir = steps => steps.some(st => st.input === 'B');   // a route's steps after its B: in that jump
   function render() {
     tree.routes = tree.routes || [];
     const m = merged(), idxMap = CL.nodeIndex(m.tree), users = new Map();
@@ -476,15 +482,15 @@
           const nd = path[k], u = nd ? users.get(nd) : null, others = u ? u.filter(x => x !== ri + 1) : [];
           const ctx = { k, up: () => mv(ri, -1), down: () => mv(ri, 1),
             del: () => { if (k) r.splice(k); else R.splice(ri, 1); edited(); },
-            branch: st.special === undefined ? inp => { R.splice(ri + 1, 0, clone(r.slice(0, k + 1)).concat([newStep(inp)])); edited(); } : null,
+            branch: st.special === undefined ? inp => { R.splice(ri + 1, 0, clone(r.slice(0, k + 1)).concat([newStep(inp, inAir(r.slice(0, k + 1)))])); edited(); } : null,
             conflict: conflictAt.has(`${ri}:${k}`) ? conflictAt.get(`${ri}:${k}`).t : null, conflictShort: conflictAt.has(`${ri}:${k}`) ? conflictAt.get(`${ri}:${k}`).s : null,
             trunkWith: others, trunk: !conflictAt.get(`${ri}:${k}`) && others.length ? `merged trunk with route${others.length > 1 ? 's' : ''} ${others.join(', ')} (same inputs and hit)` : null };
-          return [k ? h('span', { class: 'arrow' }, '→') : null, card(st, null, st.input, idxMap, false, ctx)];
+          return [k ? h('span', { class: 'arrow' }, '→') : null, card(st, null, st.input, idxMap, inAir(r.slice(0, k + 1)), ctx)];
         }).flat(),
           r.length && r[r.length - 1].special === undefined ? h('div', { class: 'addhit' }, sel([['', '+ hit'], ...CL.INPUTS.map(k => [k, 'on ' + IN_LABEL[k] + (CL.SPECIAL_INPUTS.includes(k) ? ' (special, ends it)' : '')])], '',
-            k => { if (k) { r.push(newStep(k)); edited(); } })) : null));
+            k => { if (k) { r.push(newStep(k, inAir(r))); edited(); } })) : null));
     });
-    $('tree').replaceChildren(...rows, h('div', { class: 'newroute' }, sel([['', '+ new route: first input…'], ...CL.INPUTS.filter(k => !CL.SPECIAL_INPUTS.includes(k)).map(k => [k, 'on ' + IN_LABEL[k]])], '',
+    $('tree').replaceChildren(...rows, h('div', { class: 'newroute' }, sel([['', '+ new route: first input…'], ...CL.INPUTS.filter(k => k !== 'B' && !CL.SPECIAL_INPUTS.includes(k)).map(k => [k, 'on ' + IN_LABEL[k]])], '',
       k => { if (k) { R.push([newStep(k)]); edited(); } })));
     if (m.conflicts.length) err('Conflicts (Build refused until fixed): ' + m.conflicts.map(conflictText).join('; '));
     else if (/^Conflicts|^Not built|^Imported/.test($('err').textContent)) err('');

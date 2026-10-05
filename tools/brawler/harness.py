@@ -46,7 +46,8 @@ def _layout(game):
               'step', 'tick', 'anim_done', 'node', 'buffered', 'hit_mask', 'freeze', 'inv', 'hp', 'idx', 'held',
               'shown_frame', 'frame_ovr', 'zfront', 'pushing', 'throw_id', 'grab_hits', 'target', 'spec_id', 'owner',
               'ncols', 'landed', 'chain_node', 'chain_t', 'spec_fx', 'burn', 'jump_kind', 'jump_dir',
-              'pdef', 'prow', 'pend', 'shot', 'power', 'tint', 'hp_max', 'acc', 'speed', 'srow', 'spec_atk', 'kmode', 'kdelay', 'spec_ix']
+              'pdef', 'prow', 'pend', 'shot', 'power', 'tint', 'hp_max', 'acc', 'speed', 'srow', 'spec_atk', 'kmode', 'kdelay', 'spec_ix',
+              'air_node', 'flash', 'meter', 'meter_t']
     hdr = open(os.path.join(game, 'fighter.h')).read()
     fields = [f for f in fields if re.search(r'\b%s\b' % f, hdr)]   # an older build may lack the newer fields
     src = '#include <stddef.h>\n#include "fighter.h"\nvoid offs(void) {\n' + ''.join(
@@ -187,7 +188,7 @@ class Brawler:
         return v
     def intent(self, i, press=0, dx=0, dz=0, face=0):
         """the intent of fighter i for the next frame (main.c in[]; in an AI_OFF build nothing else writes the enemies'
-        intents: the test drives them): press = IN_* bits (1 A, 2 B, 4 C, 8 D), dx / dz stick, face = turn this way"""
+        intents: the test drives them): press = IN_* bits (1 A attack, 2 B jump, 4 C fury, 8 D tag, 16 A+B special), dx / dz stick, face = turn this way"""
         a = self.syms['in'] + i * self.syms['sizeof_intent']
         for off, v in ((0, dx), (1, dz), (2, press), (4, face)): self.w(a + off, 1, v)
     def _rom_id(self):

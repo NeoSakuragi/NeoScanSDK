@@ -31,9 +31,12 @@ next safe point (a wave, the boss, a stage start, the enemy test's respawn); `la
 tables; `lab.pack_stat` reports. Same ROM as the release. Details: docs/brawler_data_model.md.
 
 ## Arcade flow (MVS, Unibios)
-Power on: attract demo = a fight where P1 is `ai_bot` (closes in, combos, grabs, down+D reversal when threatened) against
-weak enemies (AI preset `minion_attract`), a new fighter each time, INSERT COIN blinking; after 40 s it hands back to the BIOS, which
-starts it again. Coin (keyboard 3): title screen (banner, PRESS START; NEW GAME / CONTINUE STAGE n when a save is
+Power on: the attract cycle, KOF98's timing (measured in our emulator, TODO #25): the logo (the title screen without its
+menu, INSERT COIN blinking) 1020 frames (17 s), then the attract demo = a fight where P1 is `ai_bot` (closes in, combos,
+grabs, down+D reversal when threatened) against weak enemies (AI preset `minion_attract`), a new fighter each time,
+INSERT COIN blinking, 1800 frames (30 s, KOF98's demo fight from ROUND 1); then it hands back to the BIOS, which starts
+the cycle again. KOF98 also plays its intro before the logo and its ranking (240 frames) after the fight, and its header
+asks for the game's own eye-catcher (request 1, the NEOGEO logo, 466 frames between cycles); ours skips it (header 2). Coin (keyboard 3): title screen (banner, PRESS START; NEW GAME / CONTINUE STAGE n when a save is
 past stage 1); START (keyboard 1) takes a credit -> character select -> the campaign. Game over / the ending: back to
 the BIOS (attract, or the title while credits remain). AES (Unibios AES mode, no coin): START in the demo -> the title.
 
@@ -215,47 +218,63 @@ on its moves as KOF plays them (game.json `roster[].voices`: `"kof"` for all 16)
 P1 START in a fight (keyboard 1; P2 START joins) toggles it: the four corners of every hurt box (green) and attack
 box (red) the hit test uses, as 8x8 brackets on sprites 300-363 (8 boxes per kind).
 
-## Controls (P1 and P2)
-Stick walks on the floor (up/down = depth), forward twice = run. A punch, B kick, C jump (tap = hop, hold = regular jump,
-stick = vertical / forward / back: see Jumps), D special (C+D blowback when a fighter has none).
+## Controls (P1 and P2) (TODO #71, 2026-10-05)
+Stick walks on the floor (up/down = depth), forward twice = run.
+- **A = attack**, the only one: every normal comes from the fighter's route tree (below); the stick and the position pick
+  the move: neutral (far), **close** (an opponent within `CLOSE_X` 40 px, |dZ| <= 12: KOF's close normals), down (crouch),
+  forward, back, down-forward; in a jump: A, down+A, up+A (KOF's air C / D / C+D; a jump-cancel's own node instead).
+- **B = jump**: tap = hop, hold = regular jump, the stick picks vertical / forward / back (see Jumps). Inside a route, a
+  node's B link is a **jump-cancel** (on hit, as every link): the fighter jumps and its next A plays the link's air move,
+  whose A links chain in the same jump (an air sub-route).
+- **A+B = special**: the six slots by direction (A+B, forward, down, up, down-forward, up-forward + A+B: game.json
+  `specials`), from neutral, cancelling a normal that hit (a route's A+B link), out of a hold, and out of a hit (below).
+  A and B pressed within **2 frames** of each other (A then B or B then A, `CHORD` in main.c) are A+B; a lone A or B
+  acts 2 frames after its press (while it waits the fighter does not turn, so back + B is still KOF's back jump).
+- **C = fury**: the fighter's desperation move (game.json roster `fury`: a KOF DM / SDM, SS4's rage move).
+- **D = tag**: read, does nothing yet.
 
-| Route | Links (KOF normals) | Ends with |
+**Special meter** (game.json `meter`, HUD: the blue bar under the name): full at the start and at a new life, a point
+back every 10 frames (empty to full 20 s); an A+B special costs 30 of 120, a fury 60 and needs 60; a special out of a hit
+(hitstun, or held by an enemy: "get out of trouble") costs double and the fighter flashes fully white for 8 frames. Not
+enough meter: the press does nothing. Enemies have no meter.
+
+| Default route (every fighter without a routes file) | Links (KOF normals) | Ends with |
 |---|---|---|
-| AAAAA | far A, far A, close C (2 hits on Terry), close D, C+D | knockdown |
-| AB / AAB | far A, close D / far A, far A, far D | - / launch |
-| BB | close B, close D | knockdown |
-| BAB | close B, far C, crouch D | trip |
-| any link + forward A / down B | C+D blowback / sweep | knockdown / trip |
-| D / forward+D / down+D | the fighter's projectile / forward rush / rising reversal (below); cancels a normal that hit | knockdown, 8 damage |
-| run + A | C+D blowback | knockdown |
-| air A / air B | the jump kind's C / D air normal (see Jumps) | heavy / knockdown |
+| A A A A A (far) | far A, far A, close C, close D, C+D | knockdown |
+| A A ↘A | far A, far A, far D | launch |
+| A B A / A A B A | far A (, far A), jump-cancel: air C, A: air C+D | knockdown |
+| close A A A | close B, far C, crouch D | trip |
+| ↓A / any link + →A / ↓A | sweep / C+D / sweep | trip / knockdown / trip |
+| any link + A+B (+ stick) | the slot's special, cancelling a normal that hit | the special's |
+| run + A | C+D | knockdown |
+| air A (A on hit: air C+D) / air ↓A / air ↑A | the jump kind's C / D / C+D air normal (see Jumps) | heavy / knockdown / knockdown |
 
-**Hold:** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it. A = down+C, B = close D (3 damage each, landing
-on the move's attack frame); the third hit is always C+D, which knocks it down and ends the hold. Forward+A = the forward throw
-(KOF's forward+C), forward+B = the reverse throw (KOF98's forward+D throw), 12 damage, played from its per-frame script; after 90 frames it breaks
-free. The thrower can't be hit during a throw; a held enemy hit by someone else ends the hold.
+**Hold:** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it. A = down+C, then close D (3 damage each,
+landing on the move's attack frame); the third hit is always C+D, which knocks it down and ends the hold. Forward+A = the
+forward throw (KOF's forward+C), back+A = the reverse throw (KOF98's forward+D throw), 12 damage, played from its
+per-frame script; A+B = the special at once; after 90 frames it breaks free. The thrower can't be hit during a throw; a
+held enemy hit by someone else ends the hold.
 
 Links chain only when the previous one hit: pressed during the move (remembered, the last press wins) or Final Fight
-style up to 30 frames after it ended (`CHAIN_WINDOW`: tap, wait, tap). An attack is never cut: the next one starts when
-its animation has finished. A victim stays in hitstun 36 frames (light) / 54 (heavy), 3x a fighting game's; hit-stop is
-10 frames for every hit, light ones included, so every impact lands with the same weight (KOF98 measured ~10-12). Multi-hit normals (Terry / Chang close
-C, Yamazaki close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. The table
-above is the **default route tree** every fighter without a routes file plays (see Chain routes below); Terry has his own.
+style up to 30 frames after it ended (`CHAIN_WINDOW`: tap, wait, tap). A victim stays in hitstun 36 frames (light) / 54
+(heavy), 3x a fighting game's; hit-stop is 7 frames for every hit. Multi-hit normals (Terry / Chang close C, Yamazaki
+close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. The table above is the
+**default route tree**; Terry has his own (below).
 
 ## Chain routes and the Chain Lab (2026-10-05)
 Each fighter has a **route tree** (fighter.h "chain routes"): a node = one hit (the move: any ground normal incl. crouch A /
-B and the command normals, or a special as a route ender; the hit weight light / strong; the effect none / knockdown /
-launch / trip / blowback; damage and push, defaulted from weight / effect; its speed; the keep flag) and its links by input: A, B,
-↓A, ↓B, →A, →B, ↘A, ↘B, A+B, D, →D, ↓D, ↑D (down = toward the camera, forward = the way the fighter faces; a press falls
-back ↘ -> → -> ↓ -> plain; A+B, which is D otherwise, takes a node's A+B link when it has one). Since 2026-10-05 every
-node cancels on hit: the next link starts as soon as its input comes, after the hit-stop; the **keep** flag ("keep the full
-animation on hit") makes the move play to its end and the buffered input then take its link (the rule before). D links
-cancel a normal that hit, as before. Trees are written in
-`tools/brawler/routes/<fighter>.json` (format: `tools/brawler/routes.py`); `export_bm.py` encodes each fighter's tree
-(`bchar_t.routes`), identical subtrees shared, and a fighter without a file gets `routes.default_tree()` = the old
-`COMBO[]` (2026-10-05: with cancel on hit, no node marked keep). At boot `route_tab[]` (RAM) points at the ROM trees;
-the lab mailbox (`lab_t lab`) can point a fighter at a tree in RAM while the game runs. Terry: Bruno's 10 routes (jab
-rush, kick chain, ABAB, AA↓B, AAB→A, low line, AA↘A↓D, BA→D, BB A+B, AB↓A D).
+B and the command normals, an air normal after a jump-cancel, or a special slot as a route ender; the hit weight light /
+strong; the effect none / knockdown / launch / trip / blowback; damage and push, defaulted from weight / effect; its
+speed; the keep flag) and its links by input (tree version 4, TODO #71): A, B (jump-cancel), ↓A, close A, →A, ←A, ↘A,
+A+B, →A+B, ↓A+B, ↑A+B, ↘A+B, ↗A+B (down = toward the camera, forward = the way the fighter faces; an A falls back ↘ -> →
+-> ↓ -> ← -> close -> plain; a diagonal A+B: its link, else ↓ / ↑'s, else plain A+B's). A route starts with an A (B from
+neutral is the jump, A+B the slot's special). Every node cancels on hit: the next link starts as soon as its input comes,
+after the hit-stop; the **keep** flag makes the move play to its end and the buffered input then take its link. Trees are
+written in `tools/brawler/routes/<fighter>.json` (format: `tools/brawler/routes.py`); `export_bm.py` encodes each
+fighter's tree (`bchar_t.routes`), identical subtrees shared, and a fighter without a file gets `routes.default_tree()`.
+At boot `route_tab[]` (RAM) points at the ROM trees; the lab mailbox (`lab_t lab`) can point a fighter at a tree in RAM
+while the game runs. Terry: Bruno's 10 routes re-authored for one button (close jab rush cA A A A, cA A ↓A, cA A ←A →A,
+cA A ↘A ↓A+B, the jump-cancel cA A B A, cA →A A A, cA →A ↓A A+B, far kick chain A A A, A A →A, A →A →A+B, low line ↓A x4).
 
 **Chain Lab** (`tools/brawler/chainlab/`, live at canneji.duckdns.org/brawler-lab/ behind the Oros login): the Geolith core
 compiled to WebAssembly (`build_wasm.sh`, emsdk in /data/emsdk; `web_core.c`) runs this ROM with SNK's MVS BIOS in the
@@ -281,6 +300,7 @@ speed; a live row and the continuation point are never skipped; passed spawn row
 = 1.5x for every throw: the same rows on the same frames as before, passed impact rows still land).
 
 ## Jumps (KOF's two heights, measured 2026-10-04)
+(The jump button is B since TODO #71; this section's measurements say C, the button then.)
 C tapped = the **hop**, C held = the **regular jump**, as in KOF96-99 (stick up) and Streets of Rage 2. The decision
 window is the fighter's own prejump (`bphys_t.prejump`: Terry 5 frames, most 4, K' 3): C still held on the take-off
 frame = regular jump, let go before it = hop (C held 1-4 frames from the press for Terry hops, 6+ jumps; in KOF98 Terry
@@ -524,7 +544,7 @@ frame, Haohmaru's), fighters keep 20: sprites 60-299 as before; blocks are laid 
 ## Measured (8 fighters, 2026-10-03, our emulator)
 With the AI and the scrolling stage: worst frame 30-37 %; update (8 state machines + AI) 24-32 lines.
 With the 3-game roster and the guard: worst frame 32-40 % (KOF96 frames have more parts).
-With specials (20-column blocks, 4 projectile entities: 240 sprites placed a frame) and their extra frames: 42-47 %,
+With specials (20-column blocks, 4 projectile entities then; 8 of 10 columns since TODO #66: 240 sprites placed a frame) and their extra frames: 42-47 %,
 54 % during a special (a new large frame every row). The fight's first frame rewrites every block (100 %).
 Then (2026-10-03): position runs sized to the columns used (and the block's previous ones, to clear them; hidden blocks
 cleared once), the frame's column count cached by fighter_tiles for the line guard, flush unrolled 16x (~13.5 cycles a

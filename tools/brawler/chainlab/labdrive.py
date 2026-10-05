@@ -14,8 +14,9 @@ from harness import Brawler
 LAB_MAGIC, EV_OFF, EV_N, EV_SIZE, BUF_OFF = 0, 16, 64, 6, 16 + 64 * 6
 PACK_STAT_OFF, PACK_OFF = BUF_OFF + 16 + 128 * 24, BUF_OFF + 16 + 128 * 24 + 2   # fighter.h lab_t: pack_stat, pack (a data pack)
 KINDS = ['START', 'HIT', 'END', 'SPECIAL', 'CHAINWIN']
-# the scripted route: Terry's "AABA command" (A, A, B, forward+A), each press 2 frames, then the dummy recovers
-SCRIPT = '2:a,9:-,2:a,9:-,2:b,12:-,2:Ra,90:-'
+# the scripted route (TODO #71 buttons): Terry walks in, then "close A, A, back+A, forward+A" (close jab, far jab, far B,
+# forward+A command), each press 3 frames (a lone A acts 2 frames after its press), then the dummy recovers
+SCRIPT = '14:R,3:a,9:-,3:a,9:-,3:La,12:-,3:Ra,90:-'
 BOOT_FRAMES = 400                     # power on -> the MVS BIOS hands over to the game (attract)
 
 class Lab:

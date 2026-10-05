@@ -62,8 +62,8 @@ def trial(b, k, dist=None, owner_hit=False, clash=None, frames=200, spawn_row=No
     if clash is not None: b.place(clash, X0 + 250, Z0); b.fset(clash, 'facing', -1)
     b.run(20)                                     # the camera settles
     b.hits = []
-    if clash is not None: b.intent(clash, press=8, face=-1)
-    b.run(1, p1='d')
+    if clash is not None: b.intent(clash, press=16, face=-1)   # IN_SP: its A+B special (TODO #71)
+    b.run(1, p1='ab')                     # A+B together: the special at once
     if clash is not None: b.intent(clash)
     r = {'spawn': None, 'xs': [], 'end': None, 'sx': None, 'outlived': False, 'hit': None, 'after': None, 'owner': None,
          'others': set(), 'trail': 0, 'trail_x': []}

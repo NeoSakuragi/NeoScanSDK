@@ -9,6 +9,7 @@
    "watch": {"frame": 351, "step": -1},
    "routes": "tools/brawler/routes/terry.json",
    "specials": {"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D", "dfD": "426B", "ufD": "623D"},
+   "fury": "21416C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -18,6 +19,7 @@
    "watch": {"frame": 343, "step": -1},
    "routes": "default",
    "specials": {"D": "236A", "fD": "624D", "dD": "623A", "uD": "236D", "dfD": "EX 623A", "ufD": "EX 646A"},
+   "fury": "23624C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -27,6 +29,7 @@
    "watch": {"frame": 353, "step": -1},
    "routes": "default",
    "specials": {"D": "AAAA", "fD": "[4]6A", "dD": "[2]8A", "uD": "[4]6B", "dfD": "[2]8C", "ufD": "[4]6D"},
+   "fury": "23624C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -36,6 +39,7 @@
    "watch": {"frame": 340, "step": -1},
    "routes": "default",
    "specials": {"D": "EX 236C", "fD": "624D", "dD": "623C", "uD": "426B", "dfD": "623D", "ufD": "EX 646D"},
+   "fury": "23624C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -45,6 +49,7 @@
    "watch": {"frame": 349, "step": 0},
    "routes": "default",
    "specials": {"D": "623C", "fD": null, "dD": "623D", "uD": "623B", "dfD": null, "ufD": "214A"},
+   "fury": "236236C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -54,6 +59,7 @@
    "watch": {"frame": 347, "step": -1},
    "routes": "default",
    "specials": {"D": "CCCC", "fD": "426C", "dD": "623C", "uD": "623D", "dfD": null, "ufD": null},
+   "fury": "236236C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -63,6 +69,7 @@
    "watch": {"frame": 345, "step": -1},
    "routes": "default",
    "specials": {"D": "EX 236A", "fD": "236C", "dD": "623C", "uD": "421B", "dfD": "214A", "ufD": "EX 421D"},
+   "fury": "21426C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -72,6 +79,7 @@
    "watch": {"frame": 353, "step": -1},
    "routes": "default",
    "specials": {"D": "236A", "fD": "MAX 23624D", "dD": "623C", "uD": "623D", "dfD": "624B", "ufD": "214A"},
+   "fury": "23624C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -81,6 +89,7 @@
    "watch": {"frame": 338, "step": -1},
    "routes": "default",
    "specials": {"D": "236A", "fD": "426D", "dD": "623D", "uD": "EX 214D", "dfD": "623A", "ufD": "214C"},
+   "fury": "21426D",
    "unlock": "always",
    "voices": "kof"
   },
@@ -90,6 +99,7 @@
    "watch": {"frame": 340, "step": -1},
    "routes": "default",
    "specials": {"D": "426A", "fD": "624C", "dD": "623A", "uD": "214B", "dfD": "624A", "ufD": "214D"},
+   "fury": "21426C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -99,6 +109,7 @@
    "watch": {"frame": 210, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "63214C", "dD": "623C", "uD": "63214A", "dfD": "623A", "ufD": "236A"},
+   "fury": "1632143C",
    "unlock": {"boss_of_stage": 3},
    "voices": "kof"
   },
@@ -108,6 +119,7 @@
    "watch": {"frame": 216, "step": -1},
    "routes": "default",
    "specials": {"D": "236A", "fD": "63214C", "dD": "623C", "uD": "63214D", "dfD": "623A", "ufD": "AAAA"},
+   "fury": "23623C",
    "unlock": {"boss_of_stage": 1},
    "voices": "kof"
   },
@@ -117,6 +129,7 @@
    "watch": {"frame": 226, "step": -1},
    "routes": "default",
    "specials": {"D": "214A", "fD": "41236B", "dD": "236D", "uD": "623B", "dfD": "214B", "ufD": "623D"},
+   "fury": "641236C",
    "unlock": {"boss_of_stage": 2},
    "voices": "kof"
   },
@@ -126,6 +139,7 @@
    "watch": {"frame": 349, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "214D", "dD": "623C", "uD": "236B", "dfD": "623A", "ufD": "236D"},
+   "fury": "23624C",
    "unlock": "always",
    "voices": "kof"
   },
@@ -135,6 +149,7 @@
    "watch": {"frame": 343, "step": -1},
    "routes": "default",
    "specials": {"D": "236A", "fD": "624A", "dD": "6426D", "uD": "6426A", "dfD": "6426B", "ufD": "6426C"},
+   "fury": "23624C",
    "unlock": {"boss_of_stage": 4},
    "voices": "kof"
   },
@@ -144,6 +159,7 @@
    "watch": {"frame": 216, "step": -1},
    "routes": "default",
    "specials": {"D": "41236A", "fD": "41236C", "dD": "214C", "uD": "214B", "dfD": "41236B", "ufD": "41236D"},
+   "fury": "2141236C",
    "unlock": {"boss_of_stage": 5},
    "voices": "kof"
   },
@@ -153,6 +169,7 @@
    "watch": {"frame": 140, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "421C", "dD": "623B", "uD": "BUST 236D", "dfD": "BUST 623D", "ufD": null},
+   "fury": "BUST 236D",
    "unlock": "always"
   },
   {
@@ -195,6 +212,7 @@
    {"x": 280, "z": 0, "row": 2, "fighter": "kim"}
   ]
  },
+ "meter": {"about": "the special meter (TODO #71, fighter.c 'special meter'): players only, full at the start and at a new life; a point back every refill frames; an A+B special costs special, a fury (C) fury and needs fury_min; a special out of a hit costs hit_mul times as much and the fighter flashes white flash frames", "max": 120, "special": 30, "fury": 60, "fury_min": 60, "refill": 10, "hit_mul": 2, "flash": 8},
  "tints": {
   "shade": {"mix": 1, "mul": 11, "shift": 5, "add": [0, 0, 0]},
   "ash": {"mix": 3, "mul": 14, "shift": 6, "add": [-1, 0, 3]},

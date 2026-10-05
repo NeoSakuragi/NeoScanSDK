@@ -3,7 +3,7 @@
 docs/kof98_sound_driver.md "SSG cues"), no driver code changed. build_snd.py calls build() with songs.json "ssg":
 
     "ssg": {"cues": [{"name": "CURSOR", "cmd": "74", "voices": [[["E7", 2, 12], ["E7", 2, 6]], ...]}, ...]}
-    voice = [[note, ticks, level], ...] on SSG A, B, C in order; note "C#6" / "-" (a rest); ticks at the cue tempo ($5A:
+    voice = [[note, ticks, level], ...] on SSG A, B, C in order; note "C#6" / "A5+" (a half semitone up) / "-" (a rest); ticks at the cue tempo ($5A:
     166.83 * 90 / 208 = 72.2 ticks/s, 13.9 ms); level 0-15 = the SSG volume register (the note's velocity, written as is)
 
 What build() writes into the fixed 32 KB (every other byte of it stays KOF98's):
@@ -33,9 +33,10 @@ PRIO = 1                                                  # lower = stronger ($0
 NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 def note_byte(name):
+    h = name.endswith('+'); name = name.rstrip('+')           # "A5+" = A5 + a half semitone (note byte bit 4)
     n = NAMES.index(name[:-1]); o = int(name[-1]) - 1
     assert 0 <= o <= 7, name
-    return o << 5 | n
+    return o << 5 | h << 4 | n
 
 def period(m1, nb):
     t = PERIODS + 8 * (nb & 0x0F) + (4 if nb & 0x10 else 0)

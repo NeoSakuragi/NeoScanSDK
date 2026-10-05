@@ -37,6 +37,17 @@ typedef struct {
                                          (game.json proj_chance "1 in N a frame": 512 = 255 and 1) */
 } ai_preset_t;
 
+/* ---- layer 2: the special meter (TODO #71, fighter.c "special meter"): game.json "meter"; players only ---- */
+typedef struct {
+    uint16_t max;                 /* a full gauge (every player starts full) */
+    uint16_t special;             /* an A+B special's cost */
+    uint16_t fury, fury_min;      /* a fury's (C) cost; the meter it needs */
+    uint8_t  refill;              /* frames per point regained */
+    uint8_t  hit_mul;             /* a special out of a hit (hitstun / a hold on him) costs this many times as much */
+    uint8_t  flash, pad;          /* frames the palette flashes white when it did */
+} gmeter_t;
+extern const gmeter_t gmeter;
+
 /* ---- the minion tints (fighter_colour): a colour pulled toward its luminance l = (5 R + 9 G + 2 B) / 16:
  * channel = ((l * mix + channel) * mul >> shift) + add[channel], clamped 0-31. Tint 0 = the colour set as it is. ---- */
 typedef struct { uint8_t mix, mul, shift; int8_t add[3]; } gtint_t;
@@ -131,11 +142,10 @@ typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
  * offset from the pack's start (0 = none); the game checks it (version, sizes, every offset and index), copies it into
  * its own RAM, turns the offsets into pointers and repoints gstages / genemies / ai_tab at the next safe point (a wave,
  * the boss, a stage start, the lab's enemy respawn). lab.load = 4: back to the ROM's tables (at the same point). ---- */
-#define GD_VERSION 6              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
-                                     (header 20 bytes); 5: AI rows + hop_dx, hop_chance (42 bytes): older packs refused;
-                                     6: the roster section 6 bytes per fighter (+ down-forward+D, up-forward+D) and route
-                                     trees version 3 (24-byte nodes); a version 5 pack still loads (its 4 roles, the ROM's
-                                     two diagonals; its version 2 trees) */
+#define GD_VERSION 7              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
+                                     (header 20 bytes); 5: AI rows + hop_dx, hop_chance (42 bytes); 6: the roster section
+                                     6 bytes per fighter (+ down-forward+D, up-forward+D), route trees version 3; 7 (TODO
+                                     #71): route trees version 4 (one attack button). Only version 7 loads. */
 #define GD_ROLES(v) ((v) >= 6 ? BS_COUNT : 4)   /* roster section bytes per fighter */
 #define GD_MAX     4096           /* bytes, header included */
 typedef struct {

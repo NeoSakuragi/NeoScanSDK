@@ -332,7 +332,20 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 66. (done 2026-10-05: landing = KOF's land animation, 4 frames (Terry / Rugal / Goenitz 5, K' 3), every fighter equal to the jump captures; projectile pool 4 -> 8 in 10-sprite blocks, Blitz Ball's 4 trail objects as KOF96; Mr. Big's colours equal KOF96's ROM, its tan is the stage's light (R +2 / B -1 on every fighter); KOF96 $26 / $29 / $2C register-identical (patch effects, B slur key-off, 16-bit tempo accumulator); attract logo 17 s -> demo 30 s (#25); proof /data/tmp/gaps66/out) Small gaps: landing 2 frames vs KOF's 4-5; projectile pool of 4 (trails thinner); Mr. Big's pale colour set
   vs KOF96's tan; KOF96 songs $26 / $29 / $2C 98-99 % model match; the attract cycle with logo / title timing (#25).
 
-- [ ] 67. Samurai Shodown IV fighters into the character bank (Bruno: "start with Haohmaru first"): a full SS4 exporter
+- [x] 71. (done 2026-10-05: A attack via route trees v4 (close / far / crouch / forward / back / air by stick + position), B jump + jump-cancel links -> air sub-routes, A+B = the six slots with a 2-frame chord (A-B / B-A), C fury = per-fighter DM from game.json `fury`, D read only; special meter 120 (special 30, fury 60 from 60, +1 / 10 frames, double + white flash out of a hit) with a HUD bar; Terry + default trees + Chain Lab re-authored; tools/brawler/controls_proof.py all 18 fighters ok, campaign29 through, regress bleed True, Chain Lab proof identical; /data/tmp/controls71/out) Controls revamp (Bruno, 2026-10-05): A attack (all normals via routes: direction + position), B jump (also a
+  jump-cancel link in routes, on hit only -> air sub-routes), A+B SPECIAL MOVES = the six slots by direction (N, fwd,
+  down, up, down-fwd, up-fwd; Power Wave, Power Dunk, Rising Tackle...; also from a grab), C FURY = desperation moves
+  (Power Geyser and the other KOF DM / SDM supers, SS4 rage moves), D TAG mode (Bruno will explain). Chord detection
+  window (2-3 frames) for A+B; routes / Chain Lab glyphs / Terry's routes and the default trees re-authored for one
+  attack button. After the six-slot job.
+  SPECIAL METER (Bruno, 2026-10-05): a meter gauge, full at the start; each special move consumes meter; the meter
+  refills slowly over time; a special triggered WHILE BEING HIT (allowed: a "get out of trouble" move) costs twice as
+  much, and the player's palette flashes fully white for a split second to show something was consumed. Furies (C):
+  cost to be decided (default until Bruno decides: the same meter, half the gauge, only
+  usable from half full; a data value, easy to change).
+  QUEUED FIRST by Bruno (2026-10-05): the loop takes it before #67-#70.
+
+- [x] 67. (done for Haohmaru, 0.0.42+; the other SS4 fighters wait for Bruno: "we'll do more characters later on") Samurai Shodown IV fighters into the character bank (Bruno: "start with Haohmaru first"): a full SS4 exporter
   (study: /data/neogeo_dict/samsho4/README.md — own engine, 444/454 frames pixel-exact): Haohmaru end to end into the
   brawler (animations, palettes, boxes, specials, weapon objects as needed), then the others. Running in a worktree
   since 2026-10-05.
@@ -347,17 +360,6 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 
 - [ ] 70. Haohmaru's forward+D (SS4 421C) has a baked impact / KO scene (Bruno): recapture it as a whiff, or read it from
   SS4's own code (the handlers98 approach for SS4); also his other open points (memory reference_samsho4_extraction).
-
-- [ ] 71. Controls revamp (Bruno, 2026-10-05): A attack (all normals via routes: direction + position), B jump (also a
-  jump-cancel link in routes, on hit only -> air sub-routes), A+B SPECIAL MOVES = the six slots by direction (N, fwd,
-  down, up, down-fwd, up-fwd; Power Wave, Power Dunk, Rising Tackle...; also from a grab), C FURY = desperation moves
-  (Power Geyser and the other KOF DM / SDM supers, SS4 rage moves), D TAG mode (Bruno will explain). Chord detection
-  window (2-3 frames) for A+B; routes / Chain Lab glyphs / Terry's routes and the default trees re-authored for one
-  attack button. After the six-slot job.
-  SPECIAL METER (Bruno, 2026-10-05): a meter gauge, full at the start; each special move consumes meter; the meter
-  refills slowly over time; a special triggered WHILE BEING HIT (allowed: a "get out of trouble" move) costs twice as
-  much, and the player's palette flashes fully white for a split second to show something was consumed. Furies (C):
-  cost to be decided.
 
 - [ ] 72. Restore KOF98's hit count on Terry 214D (2), 623A (5), 623B (2) and Robert 624D (3) (review round 1): since
   the victim fix (no stick) they hit once less; re-time the missing hit(s) so they land, without sticking the victim
@@ -376,6 +378,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   Fatal Fury 3's own cursor sound (Bruno). Find the command FF3 sends on its menu / select cursor (MAKOTO v3.0 driver,
   tools/makoto3, capture in our emulator), and play that sound in the brawler: as an SSG cue if it is SSG, else port it
   (FM / ADPCM-A sample into the brawler's sound ROMs via songs.json).
+  Cursor DONE 2026-10-05: FF3's character-select cursor is command $60, an SSG effect song (captured in our emulator:
+  $60 on every stick move): a 3-voice chord, periods 141/94/138 at level 11 then 4, then 70/56/69 at 9 then 4, steps of
+  2 timer-A interrupts (36.8 ms). Now songs.json "ssg" CURSOR ($74): same periods, levels and mixer ($38) register for
+  register, timed 3-2-3-3 KOF98 cue ticks (each step end within 5 ms of FF3's); ssg_cues.py notes take "A5+" (half
+  semitone). Checks: ssg_cues.py --check all 4 OK; select screen with 5 cursor moves vs none: the 3329 music writes
+  identical; regress no-bleed True. WAVs to compare: /data/tmp/ff3cursor/out.
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to

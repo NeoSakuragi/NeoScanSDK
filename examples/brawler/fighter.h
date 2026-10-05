@@ -16,6 +16,7 @@ extern int16_t floor_top;         /* screen y of the feet at Z = 0: the stage's 
                                      stage_init), SELECT_FLOOR on the select screen; draw.s reads it too */
 #define Z_DEPTH   64              /* walkable band depth in px */
 #define Z_HIT     12              /* max depth difference for a hit / a grab */
+#define CLOSE_X   40              /* an opponent this close (|dX|, |dZ| <= Z_HIT): A takes a route's close link (KOF's close normals) */
 #define MAX_COLS  20              /* hardware sprites reserved per fighter (Billy's widest frame: 19) */
 #define MAX_PALS  8               /* palettes reserved per fighter (Terry with his effects: 5) */
 extern int16_t world_w;           /* the stage's width in px (stage_t.cols * 16); fighters stay 16 px inside it */
@@ -34,7 +35,10 @@ enum {                            /* states: the state machine alone decides wha
 enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK };   /* hit reactions (R_BLOWBACK: KOF's C+D, sent far); a
                                      special's body hit: R_HEAVY / R_KNOCKDOWN / R_LAUNCH = KOF98's 258 reel / 283-285
                                      blowback / 286 launch (fighter.c kof_react) */
-enum { IN_A = 1, IN_B = 2, IN_C = 4, IN_D = 8 };           /* buttons: punch, kick, jump, special */
+/* buttons by meaning (TODO #71, Bruno 2026-10-05): A attack (every normal: the route trees, stick + position pick the
+ * move), B jump (stick = direction; a route's B link = a jump-cancel on hit), A+B the special (main.c read_player: A and
+ * B pressed within CHORD frames of each other), C the fury (the fighter's desperation move), D tag (read, unused yet) */
+enum { IN_A = 1, IN_B = 2, IN_C = 4, IN_D = 8, IN_SP = 16 };
 
 typedef struct {                  /* what the controller wants this frame (player input or AI) */
     int8_t dx, dz;                /* stick: -1/0/1 (dz -1 = away from the camera) */
@@ -44,8 +48,8 @@ typedef struct {                  /* what the controller wants this frame (playe
     uint8_t grab;                 /* AI: walking forward grabs on contact (players always grab) */
     uint8_t ai;                   /* the AI drives this fighter (enemies, the attract demo's P1) */
     uint8_t slow;                 /* walk at half speed (16.16: sub-pixel steps every frame; the AI's positioning walk) */
-    uint8_t hold;                 /* IN_* held this frame (C held through the prejump = the regular jump, released = a hop) */
-    uint8_t ab;                   /* the D in press is A+B pressed together (a route's A+B link takes it, else it is D) */
+    uint8_t hold;                 /* IN_* held this frame (B held through the prejump = the regular jump, released = a hop) */
+    uint8_t close;                /* an opponent within CLOSE_X (main.c close_marks): A picks the route's close link */
 } intent_t;
 
 /* ---- chain routes (Chain Lab, 2026-10-05): one route tree per fighter, data only ---------------------------------------
@@ -54,12 +58,16 @@ typedef struct {                  /* what the controller wants this frame (playe
  * is a node index (0 = no link). A node is one hit: the move it plays (BA_*, or BS_* for a special), the hit weight and
  * the effect on the victim (the reaction), damage and push, its speed, the keep flag, and its links by input (RI_*). The game
  * reads the trees through route_tab[] (RAM, set at boot from bchar_t.routes), so a tree can be replaced while it runs. */
-enum { RI_A, RI_B, RI_DA, RI_DB, RI_FA, RI_FB, RI_DFA, RI_DFB, RI_AB,      /* normal links: A B, down+, forward+, down-forward+, A+B */
-       RI_D, RI_FD, RI_DD, RI_UD, RI_DFD, RI_UFD,                          /* special links (enders): D, forward+D, down+D, up+D,
-                                                                              down-forward+D, up-forward+D (version 3) */
+enum { RI_A, RI_B, RI_DA, RI_CA, RI_FA, RI_BA, RI_DFA,             /* normal links: A, B (a jump-cancel: its node is the air
+                                                                              attack A plays in that jump), down+A, close A
+                                                                              (an opponent within CLOSE_X), forward+A, back+A,
+                                                                              down-forward+A (tree version 4) */
+       RI_S = 9, RI_FS, RI_DS, RI_US, RI_DFS, RI_UFS,                      /* special links (enders): A+B, forward / down / up /
+                                                                              down-forward / up-forward + A+B (slots 7, 8 unused) */
        RI_N = 15 };
 enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4 };     /* rnode_t.flags: anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
-                                                         D_JUMP / CD_JUMP = air A / B / C+D, the jump picks the animation);
+                                                         D_JUMP / CD_JUMP = KOF's air C / D / C+D, the jump picks the
+                                                         animation; its A links chain in the same jump, on hit);
                                                          keep the full animation on hit: the move plays to its end, the
                                                          buffered input then takes its link (clear, the default since
                                                          2026-10-05: on hit the next link starts as soon as its input comes,
@@ -78,21 +86,20 @@ typedef struct {
 _Static_assert(sizeof(rnode_t) == 24, "routes.py NODE_SIZE");
 typedef struct {
     char    magic[2];             /* "RT" */
-    uint8_t version, nnodes;      /* version 3 (24-byte nodes, links RI_DFD / RI_UFD); version 2 (22-byte nodes, no
-                                     diagonal D links: a data pack before version 6) still read: RT_NODE, RT_NEXT */
+    uint8_t version, nnodes;      /* version 4 (TODO #71: one attack button; older trees are refused) */
     uint8_t root;                 /* the links from neutral (its own move unused) */
-    uint8_t dash, nospec, hold;   /* run + A; D when the fighter has no special for it; the hold's third hit (C+D) */
-    uint8_t air_a, air_b, air_cd; /* air normals */
+    uint8_t dash, nospec, hold;   /* run + A; A+B when the fighter has no special for it; the hold's third hit (C+D) */
+    uint8_t air_a, air_b, air_cd; /* air normals: A, down+A, up+A in a jump (a jump-cancel: its B link's node instead) */
     uint8_t pad[5];
 } rt_head_t;
-#define RT_NODE_V2 22             /* a version 2 node's size: rnode_t up to next[RI_DFD] + its pad */
-#define RT_NODE(t, i) ((const rnode_t *)((const uint8_t *)(t) + sizeof(rt_head_t) + (uint16_t)(i) * ((t)->version >= 3 ? sizeof(rnode_t) : RT_NODE_V2)))
-#define RT_NEXT(t, c, k) ((k) >= RI_DFD && (t)->version < 3 ? 0 : (c)->next[k])   /* a link (a v2 node has no diagonal D) */
+#define TREE_VERSION 4
+#define RT_NODE(t, i) ((const rnode_t *)((const uint8_t *)(t) + sizeof(rt_head_t) + (uint16_t)(i) * sizeof(rnode_t)))
 extern const rt_head_t *route_tab[BC_COUNT];
 /* specials by role (Brawler Lab Characters tab, 2026-10-05): every fighter's whole special pool is in the ROM
  * (bchar_t.specials); spec_tab[fighter] (RAM, set at boot from bchar_t.spmap; a data pack's roster section repoints it,
- * main.c gd_apply) maps D, forward+D, down+D, up+D, down-forward+D, up-forward+D (BS_*, BS_COUNT = 6) to one of them
- * (0xFF = none) */
+ * main.c gd_apply) maps the six A+B slots (BS_*, BS_COUNT = 6; named by their old D inputs: A+B, forward, down, up,
+ * down-forward, up-forward) to one of them (0xFF = none). BS_FURY: the fury (C), bchar_t.fury (game.json roster fury). */
+#define BS_FURY BS_COUNT
 extern const uint8_t *spec_tab[BC_COUNT];
 uint8_t spec_ix(const bchar_t *ch, uint8_t role);   /* role -> index in ch->specials, 0xFF = none */
 void specs_init(void);
@@ -215,7 +222,12 @@ typedef struct fighter {
     uint16_t kgfr, kvfr;
     uint8_t  kmode, kdelay;
     int8_t   spec_slide;          /* special: the reel slide of the hit window open (px, bspec_row_t.vx; -128: KOF98's 258, 65 px) */
+    uint8_t  air_node;            /* a jump-cancel in progress: the route node A plays in this jump (0 = the tree's air entries) */
+    uint8_t  flash;               /* frames left of the white flash (a special out of a hit spent double meter) */
+    uint16_t meter;               /* the special meter (players; gmeter: full at the start, specials and furies spend it) */
+    uint8_t  meter_t, pad_m;      /* frames toward the next point regained */
 } fighter_t;
+
 
 
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */

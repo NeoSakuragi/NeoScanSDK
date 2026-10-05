@@ -117,7 +117,7 @@ def main():
     # 2. specials with the pad: D, forward+D, down+D (stick down = toward the screen), up+D
     res = {}
     strips = []
-    for name, keys, dist in (('D', 'd', 150), ('fwd+D', 'Rd', 150), ('down+D', 'Dd', 50), ('up+D', 'Ud', 90)):
+    for name, keys, dist in (('D', 'ab', 150), ('fwd+D', 'Rab', 150), ('down+D', 'Dab', 50), ('up+D', 'Uab', 90)):   # A+B slots (TODO #71)
         lab_req(b, 1, k, 0); b.run(40)
         dm = next(i for i in range(1, 8) if b.states[b.fget(i, 'state')] != 'OFF')
         b.place(0, x=b.fget(dm, 'x') - dist, z=b.fget(dm, 'z')); b.fset(0, 'facing', 1); b.run(5)

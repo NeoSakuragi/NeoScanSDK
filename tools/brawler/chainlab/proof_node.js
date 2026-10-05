@@ -8,7 +8,7 @@ const CL = require(path.join(__dirname, 'lab.js'));
 const GeoCore = require(path.resolve(site, 'core.js'));
 const data = JSON.parse(fs.readFileSync(path.join(site, 'chainlab.json')));
 const layout = JSON.parse(fs.readFileSync(path.join(site, 'layout.json')));
-const SCRIPT = '2:a,9:-,2:a,9:-,2:b,12:-,2:Ra,90:-';            // = labdrive.py SCRIPT
+const SCRIPT = '14:R,3:a,9:-,3:a,9:-,3:La,12:-,3:Ra,90:-';            // = labdrive.py SCRIPT
 
 const src = fs.readFileSync(path.join(game, 'build', 'bm_chars.c'), 'utf8');
 let same = 0;

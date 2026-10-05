@@ -4,10 +4,12 @@
 A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Chain Lab page) is a tree of hits:
 
     {"fighter": "terry",
-     "links": {"A": NODE, "B": NODE, "dB": NODE},            # the links from neutral (where a route starts)
+     "links": {"A": NODE, "cA": NODE, "dA": NODE},           # the links from neutral (where a route starts)
      "entries": {"dash": NODE, "nospecial": NODE, "hold": NODE, "air_a": NODE, "air_b": NODE, "air_cd": NODE}}   # optional
-    NODE = {"move": "atk_a_close",                           # one of the fighter's moves (MOVE_NAMES), or
-            "special": "dD",                                 # a special (D, fD, dD, uD, dfD, ufD): a route ender, D inputs only
+    NODE = {"move": "atk_a_close",                           # one of the fighter's moves (MOVE_NAMES; an air node:
+                                                             # AIR_MOVE_NAMES), or
+            "special": "dD",                                 # a special slot (D, fD, dD, uD, dfD, ufD: the A+B slots, named
+                                                             # by their old D inputs): a route ender, A+B inputs only
             "weight": "light" | "strong",                    # the victim's hit animation and hit stun (effect none)
             "effect": "none" | "knockdown" | "launch" | "trip" | "blowback",
             "keep": true,                                    # optional: keep the full animation on hit (it plays to its
@@ -17,10 +19,14 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
             "speed": 1.25,                                   # optional: playback speed, x KOF's timing (0.25-4; 1 left out),
                                                              # 8.8 fixed point in the game (rnode_t.speed)
             "damage": 3, "push": 3,                          # optional (advanced): default from weight / effect
-            "links": {"A": NODE, "dfA": NODE, "D": NODE, ...}}
-    inputs (INPUTS, the game's RI_* order): A B, dA dB (down), fA fB (forward), dfA dfB (down-forward), AB (A+B together),
-    D fD dD uD dfD ufD (the specials). A link's input falls back in the game: down-forward -> forward -> down -> plain;
-    a diagonal D (dfD / ufD, tree version 3): its link, else down+D's / up+D's, else D's.
+            "links": {"A": NODE, "dfA": NODE, "AB": NODE, ...}}
+    inputs (TODO #71, tree version 4: A is the only attack button; INPUTS = the game's RI_* order): A, B, dA (down), cA
+    (close: an opponent within CLOSE_X, KOF's close normals), fA (forward), bA (back), dfA (down-forward); AB fAB dAB
+    uAB dfAB ufAB (A+B: the specials, slots D fD dD uD dfD ufD). An A falls back in the game: down-forward -> forward ->
+    down -> back -> close -> plain; a diagonal A+B: its link, else down's / up's, else plain A+B's. B is a jump-cancel
+    (on hit, like every link): its node is an air move (atk_c_jump / atk_d_jump / atk_cd_jump), played by the first A in
+    that jump (the stick picks the jump's direction), and an air node's A links chain in the same jump (an air
+    sub-route). A route never starts with B (B from neutral is the jump) nor with A+B (the slot's special).
 
 A fighter without a routes file gets default_tree(): the brawler's single table before the Chain Lab (fighter.c's
 old COMBO), byte for byte the same behaviour. encode() turns a tree into the blob fighter.h describes (rt_head_t +
@@ -30,19 +36,22 @@ import json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROUTES_DIR = os.path.join(HERE, 'routes')
-INPUTS = ['A', 'B', 'dA', 'dB', 'fA', 'fB', 'dfA', 'dfB', 'AB', 'D', 'fD', 'dD', 'uD', 'dfD', 'ufD']   # fighter.h RI_*
-NORMAL_INPUTS, SPECIAL_INPUTS = INPUTS[:9], INPUTS[9:]
+NORMAL_INPUTS = ['A', 'B', 'dA', 'cA', 'fA', 'bA', 'dfA']                               # fighter.h RI_A .. RI_DFA
+SPECIAL_INPUTS = ['AB', 'fAB', 'dAB', 'uAB', 'dfAB', 'ufAB']                             # RI_S .. RI_UFS
+INPUTS = NORMAL_INPUTS + [None, None] + SPECIAL_INPUTS                                  # fighter.h RI_* (slots 7, 8 unused)
 SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD']                                         # BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D
+SLOT_OF = dict(zip(SPECIAL_INPUTS, SPECIALS))                                            # an A+B input -> the slot it plays
 MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
               'atk_c_close', 'atk_c_far', 'atk_c_crouch', 'atk_d_close', 'atk_d_far', 'atk_d_crouch', 'body_toss',
               'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']                          # ground moves a route may play
 AIR_MOVES = {'air_a': 'atk_c_jump', 'air_b': 'atk_d_jump', 'air_cd': 'atk_cd_jump'}     # the jump picks the animation
+AIR_MOVE_NAMES = list(AIR_MOVES.values())                                                # an air node's moves (B links, air links)
 ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd']
 WEIGHTS = ['light', 'strong']
 EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback']                            # fighter.h RE_*
 RF_SPECIAL, RF_AIR, RF_KEEP = 1, 2, 4
-NODE_SIZE, HEAD_SIZE, RI_N, MAX_NODES = 24, 16, 15, 128                                  # tree version 3 (TREE_VERSION)
-TREE_VERSION = 3
+NODE_SIZE, HEAD_SIZE, RI_N, MAX_NODES = 24, 16, 15, 128                                  # tree version 4 (TREE_VERSION)
+TREE_VERSION = 4
 SPEED_MIN, SPEED_MAX = 0x40, 0x400
 
 
@@ -60,28 +69,29 @@ def default_damage(node):
 
 
 def default_tree():
-    """fighter.c's COMBO before the Chain Lab, as a tree (shared nodes repeated; encode() shares them again)"""
+    """every fighter without a routes file (TODO #71, one attack button): far A, far A, close C, close D, C+D (knockdown);
+    close A: close B, far C, crouch D (trip); down+A: the sweep; forward+A = body toss (knockdown) and down+A = sweep inside
+    any window; far A, far A, down-forward+A = far D (launch); B after a far A that hit = a jump-cancel (air C, then A:
+    air C+D); every A+B = the special its input picks, cancelling a normal that hit. Air: A air C (A again on hit: air
+    C+D), down+A air D, up+A air C+D. (Shared nodes repeated; encode() shares them again.)"""
     def n(move, dmg, w, eff, push, **links):
         return {'move': move, 'weight': w, 'effect': eff, 'damage': dmg, 'push': push,
-                'links': {**links, **{k: {'special': k} for k in SPECIALS}}}   # any D: the special its input picks
+                'links': {**links, **{k: {'special': SLOT_OF[k]} for k in SPECIAL_INPUTS}}}   # any A+B: the special its input picks
+    air = lambda m, dmg, w, eff, push, **links: dict({'move': m, 'weight': w, 'effect': eff, 'damage': dmg, 'push': push}, **({'links': links} if links else {}))
+    aircd = lambda: air('atk_cd_jump', 10, 'strong', 'knockdown', 0)
+    airc = lambda: air('atk_c_jump', 6, 'strong', 'none', 4, A=aircd())                  # an air route: C, then C+D on hit
     toss = lambda: n('body_toss', 10, 'strong', 'knockdown', 0)
     sweep = lambda: n('atk_d_crouch', 7, 'strong', 'trip', 0)
-    fin = lambda: {'fA': toss(), 'dB': sweep()}                                        # finishers inside any window
-    a5 = toss()
-    a4 = n('atk_d_close', 6, 'strong', 'none', 4, A=a5, **fin())
+    fin = lambda: {'fA': toss(), 'dA': sweep()}                                        # finishers inside any window
+    a4 = n('atk_d_close', 6, 'strong', 'none', 4, A=toss(), **fin())
     a3 = n('atk_c_close', 6, 'strong', 'none', 4, A=a4, **fin())
-    aab = n('atk_d_far', 9, 'strong', 'launch', 0)
-    a2 = n('atk_a_far', 3, 'light', 'none', 3, A=a3, B=aab, **fin())
-    ab = n('atk_d_close', 6, 'strong', 'none', 6, **fin())
-    a1 = n('atk_a_far', 3, 'light', 'none', 3, A=a2, B=ab, **fin())
-    bb = n('atk_d_close', 8, 'strong', 'knockdown', 0)
-    ba = n('atk_c_far', 5, 'strong', 'none', 5, B=sweep(), **fin())
-    b1 = n('atk_b_close', 4, 'light', 'none', 3, A=ba, B=bb, **fin())
-    air = lambda m, dmg, w, eff, push: {'move': m, 'weight': w, 'effect': eff, 'damage': dmg, 'push': push, 'links': {}}
-    return {'fighter': None, 'links': {'A': a1, 'B': b1, 'dB': sweep()},
+    a2 = n('atk_a_far', 3, 'light', 'none', 3, A=a3, dfA=n('atk_d_far', 9, 'strong', 'launch', 0), B=airc(), **fin())
+    a1 = n('atk_a_far', 3, 'light', 'none', 3, A=a2, B=airc(), **fin())
+    c2 = n('atk_c_far', 5, 'strong', 'none', 5, A=sweep(), **fin())
+    c1 = n('atk_b_close', 4, 'light', 'none', 3, A=c2, **fin())
+    return {'fighter': None, 'links': {'A': a1, 'cA': c1, 'dA': sweep()},
             'entries': {'dash': toss(), 'nospecial': toss(), 'hold': toss(),
-                        'air_a': air('atk_c_jump', 6, 'strong', 'none', 4), 'air_b': air('atk_d_jump', 8, 'strong', 'knockdown', 0),
-                        'air_cd': air('atk_cd_jump', 10, 'strong', 'knockdown', 0)}}
+                        'air_a': airc(), 'air_b': air('atk_d_jump', 8, 'strong', 'knockdown', 0), 'air_cd': aircd()}}
 
 
 def strip_specials(nd):
@@ -97,13 +107,14 @@ ENEMY_PRESETS = ['jabs', 'no_specials']
 
 def enemy_preset(name, own):
     """an enemy's named reduced move list (game.json enemies[].moves), from its fighter's own tree `own`:
-    jabs         A, A, strong close C (three hits on A, no B, no specials): a minion that only punches
+    jabs         A, A, strong close C (three hits on A, close or far, no jump-cancel, no specials): a minion that only punches
     no_specials  its own tree without the special links (its routes, no special cancels)"""
     assert name in ENEMY_PRESETS, f'no enemy move preset {name} ({", ".join(ENEMY_PRESETS)})'
     if name == 'no_specials': return dict(strip_specials(own), entries={k: strip_specials(v) for k, v in (own.get('entries') or {}).items()})
     c = {'move': 'atk_c_close', 'weight': 'strong', 'effect': 'none'}
     a2 = {'move': 'atk_a_far', 'weight': 'light', 'effect': 'none', 'links': {'A': c}}
-    return {'fighter': own.get('fighter'), 'links': {'A': {'move': 'atk_a_close', 'weight': 'light', 'effect': 'none', 'links': {'A': a2}}}}
+    a1 = {'move': 'atk_a_close', 'weight': 'light', 'effect': 'none', 'links': {'A': a2}}
+    return {'fighter': own.get('fighter'), 'links': {'A': a1, 'cA': a1}}           # from any range
 
 
 # ---- routes as the source (Bruno 2026-10-06): a routes file is a LIST OF ROUTES, each edited on its own ---------------
@@ -143,7 +154,8 @@ def merge_routes(routes):
         nd = root
         for si, st in enumerate(r):
             k = st['input']
-            assert k in INPUTS, f'route {ri + 1} step {si + 1}: unknown input {k}'
+            assert k in INPUTS and k is not None, f'route {ri + 1} step {si + 1}: unknown input {k}'
+            assert si or k not in ('B',) + tuple(SPECIAL_INPUTS), f'route {ri + 1}: a route starts with an A (B from neutral jumps, A+B is the special)'
             hit = {f: st[f] for f in HIT_FIELDS if f in st}
             ch = (nd.get('links') or {}).get(k)
             if ch is None:
@@ -193,10 +205,14 @@ def encode(tree, moves, has=None, specials_have=None):
         i = len(nodes); nodes.append(None); memo[key] = i
         nxt = [0] * RI_N
         for k, ch in (nd.get('links') or {}).items():
-            assert k in INPUTS, f'{where}: unknown input {k}'
-            if k in SPECIAL_INPUTS: assert 'special' in ch, f'{where} {k}: a D input leads to a special'
+            assert k in INPUTS and k is not None, f'{where}: unknown input {k}'
+            if k in SPECIAL_INPUTS:
+                assert 'special' in ch, f'{where} {k}: an A+B input leads to a special'
+                assert not air, f'{where} {k}: no special in the air'
             else: assert 'move' in ch, f'{where} {k}: an A / B input leads to a move'
-            nxt[INPUTS.index(k)] = node(ch, f'{where} {k}')
+            assert not (air and k == 'B'), f'{where}: no jump-cancel in the air'
+            assert not (where == 'root' and (k == 'B' or k in SPECIAL_INPUTS)), f'root {k}: a route starts with an A'
+            nxt[INPUTS.index(k)] = node(ch, f'{where} {k}', air or k == 'B')   # B: a jump-cancel, its node in the air
         if 'special' in nd:
             assert nd['special'] in SPECIALS, f'{where}: unknown special {nd["special"]}'
             assert not nd.get('links'), f'{where}: a special ends the route (no links)'
@@ -205,8 +221,8 @@ def encode(tree, moves, has=None, specials_have=None):
         else:
             m = nd['move']
             assert m in moves, f'{where}: unknown move {m}'
-            assert air or m in MOVE_NAMES, f'{where}: {m} is not a ground move'
-            assert has is None or m in has, f'{where}: the fighter has no {m}'
+            assert m in (AIR_MOVE_NAMES if air else MOVE_NAMES), f'{where}: {m} is not an {"air" if air else "ground"} move'
+            assert has is None or air or m in has, f'{where}: the fighter has no {m}'
             anim, flags = moves.index(m), (RF_AIR if air else 0) | (RF_KEEP if nd.get('keep') else 0)
         w, e = nd.get('weight', 'light'), nd.get('effect', 'none')
         assert w in WEIGHTS and e in EFFECTS, f'{where}: weight {w} / effect {e}'
@@ -218,8 +234,8 @@ def encode(tree, moves, has=None, specials_have=None):
         return i
     root = node({'links': tree.get('links', {})}, 'root')
     d = default_tree()['entries']
-    ent = [node(dict((tree.get('entries') or {}).get(k) or d[k], move=AIR_MOVES[k]) if k in AIR_MOVES else (tree.get('entries') or {}).get(k) or d[k],
-                k, air=k in AIR_MOVES) for k in ENTRIES]
+    ent = [node((tree.get('entries') or {}).get(k) or d[k], k, air=k in AIR_MOVES) for k in ENTRIES]   # an air entry: its own
+                                                         # move (air_a's default air C; any of the three)
     assert len(nodes) <= MAX_NODES, f'{len(nodes)} nodes (at most {MAX_NODES})'
     head = b'RT' + bytes([TREE_VERSION, len(nodes), root] + ent + [0] * 5)
     assert len(head) == HEAD_SIZE

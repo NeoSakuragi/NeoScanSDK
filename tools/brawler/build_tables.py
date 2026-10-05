@@ -33,8 +33,8 @@ MAX_ENEMIES = 6                                          # main.c NF - 2
 MAX_SLOTS = 19                                           # main.c NA (an actor per slot)
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
 GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
-GD_VERSION, GD_MAX = 6, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*,
-                                                         # 6: 6 roles per fighter, route trees version 3)
+GD_VERSION, GD_MAX = 7, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*,
+                                                         # 6: 6 roles per fighter, route trees version 3; 7: route trees version 4)
 TW = {'camera_x': 1, 'wave_clear': 2, 'time': 3}         # gamedata.h TW_*, TA_*
 TA = {'spawn': 1, 'lock': 2, 'music': 3, 'drama': 4, 'end_stage': 5}
 TW_STAGE, MAX_TRIGGERS = 0xFF, 32
@@ -55,7 +55,7 @@ def roster_export(g):
     return [{'bank': r['bank'], 'name': r['name'], 'watch': [r['watch']['frame'], r['watch']['step']],
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
-             'voices': r.get('voices')} for r in g['roster']]
+             'voices': r.get('voices'), 'fury': r.get('fury')} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -340,6 +340,12 @@ def tables(g, build):
          '#include <stddef.h>\n#include "bm_chars.h"\n#include "game_tables.h"\n#include "fighter.h"\n'] + layout_asserts()
     c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(
         '    { ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) + ' },   /* ' + n + ' */' for n, v in M['ai']) + '\n};')
+    m = g['meter']                                       # the special meter (TODO #71): every value a frame / point count
+    for k in m: assert k in ('about', 'max', 'special', 'fury', 'fury_min', 'refill', 'hit_mul', 'flash'), f'meter: unknown field {k}'
+    assert 0 < m['special'] <= m['max'] < 65536 and 0 < m['fury'] <= m['max'] and m['fury_min'] <= m['max'] and \
+        1 <= m['refill'] <= 255 and 1 <= m['hit_mul'] <= 8 and 0 <= m['flash'] <= 255, 'meter values'
+    c.append(f"const gmeter_t gmeter = {{ .max = {m['max']}, .special = {m['special']}, .fury = {m['fury']}, "
+             f".fury_min = {m['fury_min']}, .refill = {m['refill']}, .hit_mul = {m['hit_mul']}, .flash = {m['flash']} }};")
     c.append('const gtint_t gtints[TINT_COUNT] = {\n    { 0, 0, 0, { 0, 0, 0 } },   /* none: its own colour set */\n' + '\n'.join(
         f'    {{ {t["mix"]}, {t["mul"]}, {t["shift"]}, {{ {", ".join(map(str, t["add"]))} }} }},   /* {n} */' for n, t in g['tints'].items()) + '\n};')
     erows = []
