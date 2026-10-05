@@ -299,3 +299,44 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   fighter has one.
 
   Done 2026-10-05 (not committed): README Character select; proof /data/tmp/groupphoto/out (groupphoto_sheet.png).
+## Open work (2026-10-05) — the 10-minute loop takes the first unchecked item of "Loop queue", one agent at a time
+
+### Loop queue (in order)
+- [ ] 52. Brawler Lab tab: Stages / Waves — background picker (previews of the extracted backgrounds), music picker
+  (Song Lab playback), the wave designer: the stage as a horizontal strip with its lock points, enemies dropped onto
+  each wave (side, delay, count), a timeline of who comes in when; installs live through the data-pack path; same
+  Oros-login site as the Chain Lab (canneji /brawler-lab/).
+- [ ] 53. Brawler Lab tab: Enemies — base picker, palette editor (from a colour set / tint / custom 16 colours, live
+  sprite preview), AI preset + override sliders, life / power, trimmed move list (a Chain Lab tree), test it live in
+  the enemy-test mode (lab.req = 3).
+- [ ] 54. Brawler Lab tab: Characters — fold in the select-pose picker (the judging UI), the Chain Lab, the specials
+  mapping (each slot picked from the captured specials with impact pictures).
+- [ ] 55. Voices: list every fighter's voices (static scan of the FC 00 <index> play-sound records + a sound capture
+  of each special for the KOF99-style code-sent ones), a roster "voices" field, and the lab's suggested voice per move
+  with an override.
+- [ ] 56. Triggers + boss drama mode: triggers (camera x / wave clear / time: spawn, lock, music change, drama), the
+  boss entrance speech in drama mode (black bars, big portraits, text lines), per boss in game.json.
+- [ ] 57. TODO #49: the "please continue" overlay (9 -> 0), GAME OVER state with its screen and music, back to attract.
+- [ ] 58. Regular enemies jump (only bosses do): an AI preset field, default off for today's minion preset.
+- [ ] 59. Goenitz's up+D (214C) only hits point-blank: compare with KOF96's own range, fix the export or pick another
+  special for the slot.
+- [ ] 60. Terry's down-forward+C hits once in the brawler, KOF98 may hit twice: measure in KOF98 (our emulator) and fix
+  the export if needed.
+- [ ] 61. Real Bout Fatal Fury music (1, 2, Special) into the Song Lab (the queued music item), published.
+- [ ] 62. Animation Bank pages: lazy per-fighter loading, animate only the visible ones (the page Bruno found slow).
+- [ ] 63. TODO #50: SSG menu sounds (check what the KOF98 driver leaves free; Fatal Fury Special / KOF94 SSG routines).
+- [ ] 64. Sound player: name the "SPECIAL HIT n" effects (what each sound is), in songs.json's sfx names.
+- [ ] 65. Vertical parts of Robo Army (areas 2 and 5): the descent as an auto-scrolled transition between stages
+  (docs/brawler_stage_vertical.md option b).
+- [ ] 66. Small gaps: landing 2 frames vs KOF's 4-5; projectile pool of 4 (trails thinner); Mr. Big's pale colour set
+  vs KOF96's tan; KOF96 songs $26 / $29 / $2C 98-99 % model match; the attract cycle with logo / title timing (#25).
+
+### Needs Bruno (the loop never acts on these; it lists them in its report)
+- MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
+  battery RAM (SRAM unlock register) without a BIOS hand-back.
+- AES BIOS: neo-epo.bin, from Bruno's own console / set, for the Console mode (UniBIOS-AES until then).
+- Desktop emulator and test tools: switch the default from UniBIOS to SNK's MVS BIOS too?
+- Life bars on EASY: start full for every enemy (one line), or keep 2 px per life point?
+- Fork mame/ and geolith on GitHub (they can't be pushed today)?
+- Delete tools/brawler/export_bm.py.rej (a patch leftover; the agents were not allowed to).
+- Tablet: update to Player 0.0.11 (the test build there still has the double-download bug).
