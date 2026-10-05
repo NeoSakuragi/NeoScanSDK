@@ -268,6 +268,7 @@ do_game:                        /* d0 = USER request (2 demo, 3 title) */
     jsr     0xC0044A            /* SYSTEM_IO */
     orib    #0x80, 0x10FD80
     jsr     JOY_update
+    addql   #1, game_ticks      /* ticks started (tests key replays and traces by it: a lag frame shifts frames, not ticks) */
     jsr     game_tick
     bra.s   .Lmain_loop
 
@@ -295,4 +296,7 @@ bios_start:
     .global wait_cycles
     .align  4
 wait_cycles:
+    .skip   4
+    .global game_ticks
+game_ticks:
     .skip   4
