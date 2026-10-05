@@ -118,9 +118,10 @@ def fighter(r, a):
 def capture(name, pokes_extra=None):
     p2x, seq, seq2 = RECIPES[name]
     n = max(cap.nframes(seq), cap.nframes(seq2) if seq2 else 0)
-    pk = [f'{f}:108424={p2x >> 8:02X},108425={p2x & 255:02X}' for f in range(n)] if p2x else []
+    pin = 9 if 'throw' in name else n                    # a throw moves its victim: P2 pinned only until the grab
+    pk = [f'{f}:108424={p2x >> 8:02X},108425={p2x & 255:02X}' for f in range(n) if f < pin] if p2x else []
     pokes_extra = pokes_extra or EXTRA.get(name)
-    if pokes_extra: pk = [f'{f}:{pokes_extra}' for f in range(n)] if not pk else [p + ',' + pokes_extra for p in pk]
+    if pokes_extra: pk = [f'{f}:{pokes_extra}' for f in range(n)] if not pk else [p + ',' + pokes_extra for p in pk] + [f'{f}:{pokes_extra}' for f in range(len(pk), n)]
     sw = name in SWAP
     rows = cap.run(seq, seq2, pokes=';'.join(pk) or None, load=cap.VS2 if sw else cap.VS)
     base = {k for k in range(0x40) if rows[0]['pool'][k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}

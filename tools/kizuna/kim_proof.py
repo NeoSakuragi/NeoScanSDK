@@ -12,7 +12,8 @@ kz.render_step_zoom: pixel-identical to Kizuna's VRAM with its camera zoomed out
    compared with Kizuna's own rendering of the step it came from at zoom $CC (facing right; mirrored for facing left):
    the brawler's sprites read back from VRAM (SCB1-4 of P1's block, the brawler's C ROM tiles) as
    pen indices, palettes mapped back to the export's, mirrored when he faces left, aligned on the first opaque pixel.
-2. The six specials (D, forward+D, down+D, up+D, down-forward+D, up-forward+D) played with the pad against the dummy:
+2. The specials (A+B, forward / down / up / down-forward + A+B; up-forward+A+B is empty) and the C fury (6246A)
+   played with the pad against the dummy:
    hits taken by the dummy, a strip of each -> specials.png."""
 import json, os, re, sys, numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -127,9 +128,9 @@ def main():
     # 2. specials with the pad: D, forward+D, down+D (stick down = toward the screen), up+D
     res = {}
     strips = []
-    for name, keys, dist in (('D', 'd', 100), ('fwd+D', 'Rd', 80), ('down+D', 'Dd', 50), ('up+D', 'Ud', 60),
-                             ('df+D', 'DRd', 80), ('uf+D', 'URd', 80)):
-        lab_req(b, 1, k, 0); b.run(40)
+    for name, keys, dist in (('A+B', 'ab', 100), ('fwd+A+B', 'Rab', 80), ('down+A+B', 'Dab', 50), ('up+A+B', 'Uab', 80),
+                             ('df+A+B', 'DRab', 80), ('C fury', 'c', 80)):   # the A+B slots and the C fury (TODO #71)
+        lab_req(b, 1, k, 0); b.run(40); b.fset(0, 'meter', 120)   # a full meter (the fury needs half)
         dm = next(i for i in range(1, 8) if b.states[b.fget(i, 'state')] != 'OFF')
         b.place(0, x=b.fget(dm, 'x') - dist, z=b.fget(dm, 'z')); b.fset(0, 'facing', 1); b.run(5)
         h0 = len(b.hits); cells = []; proj = 0; vst = []

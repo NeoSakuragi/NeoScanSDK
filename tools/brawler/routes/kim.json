@@ -1,14 +1,17 @@
 {
  "fighter": "kim",
- "note": "Starter routes from Kizuna Encounter's own rules (2026-10-05, measured in our emulator, tools/kizuna/cancels_kz.py): Kim's weak-to-strong chain close A > B > C (close A > C, close B > C, crouch A > B / C), every close / crouch normal and far B / C cancel into his specials (236C rush = fD, 214B = D). For Bruno to rearrange in the Chain Lab.",
+ "note": "Kim's routes for one attack button (TODO #71, tree v4), from Kizuna Encounter's own rules measured in our emulator (tools/kizuna/cancels_kz.py): the weak-to-strong chain close A > B > C as cA A A, far B > C as A A, crouch A > B / C as dA dA / dA A; close / crouch normals and far B / C cancel into his specials (A+B = 214B, forward+A+B = 236C rush, down+A+B = [2]8C). Kizuna has no jump-cancel (measured: a jump input during close A / B / C / 2A starts only after recovery); the one B link (cA B: air C, then A: air up+A j.A knockdown) is a brawler addition so B works as the controls specify. 6B on forward+A, 3A on down-forward+A (trip), the B+C strong kick on back+A. For Bruno to rearrange in the Chain Lab.",
  "routes": [
-  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "B"}, {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "input": "A"}],
-  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "B"}, {"move": "atk_c_crouch", "weight": "strong", "effect": "none", "input": "dA"}, {"special": "fD", "input": "fD"}],
-  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_c_far", "weight": "strong", "effect": "none", "input": "A"}, {"special": "D", "input": "D"}],
-  [{"move": "atk_b_close", "weight": "light", "effect": "none", "input": "B"}, {"move": "atk_c_close", "weight": "strong", "effect": "launch", "input": "A"}],
-  [{"move": "atk_b_close", "weight": "light", "effect": "none", "input": "B"}, {"move": "cmd_fwd_b", "weight": "strong", "effect": "knockdown", "input": "fB"}],
-  [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_b_crouch", "weight": "light", "effect": "none", "input": "dB"}, {"move": "atk_d_crouch", "weight": "strong", "effect": "trip", "input": "dB"}],
-  [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_c_crouch", "weight": "strong", "effect": "none", "input": "dA"}, {"special": "dD", "input": "dD"}],
-  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "A"}, {"move": "body_toss", "weight": "strong", "effect": "blowback", "input": "AB"}]
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "input": "A"}],
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "A"}, {"special": "fD", "input": "fAB"}],
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_close", "weight": "strong", "effect": "none", "input": "fA"}, {"special": "D", "input": "AB"}],
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_jump", "weight": "strong", "effect": "none", "input": "B"}, {"move": "atk_cd_jump", "weight": "strong", "effect": "knockdown", "input": "A"}],
+  [{"move": "atk_b_far", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_c_far", "weight": "strong", "effect": "launch", "input": "A"}],
+  [{"move": "atk_b_far", "weight": "light", "effect": "none", "input": "A"}, {"special": "fD", "input": "fAB"}],
+  [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_b_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_d_crouch", "weight": "strong", "effect": "trip", "input": "dA"}],
+  [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_c_crouch", "weight": "strong", "effect": "none", "input": "A"}, {"special": "dD", "input": "dAB"}],
+  [{"move": "cmd_fwd_b", "weight": "strong", "effect": "knockdown", "input": "fA"}],
+  [{"move": "cmd_df_c", "weight": "light", "effect": "trip", "input": "dfA"}],
+  [{"move": "atk_d_far", "weight": "strong", "effect": "knockdown", "input": "bA"}]
  ]
 }

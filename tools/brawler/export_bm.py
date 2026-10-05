@@ -615,8 +615,8 @@ HELD = {424, 425, 432, 433}
 STRIKE = {416, 417, 418, 426, 427}
 
 def throw_impacts(rows, game):
-    if game not in ('kof96', 'kof97', 'kof98', 'kof99'): return []
-    st = lambda r: int(r[5].split('.')[0]) if r[5] else -1
+    if game not in ('kof96', 'kof97', 'kof98', 'kof99', 'kizuna'): return []
+    st = lambda r: int(r[5].split('.')[0]) if r[5] and game != 'kizuna' else -1   # Kizuna (Kim's toss): the landing only
     out = []; prev = None
     for i, r in enumerate(rows):
         s = st(r)
@@ -632,6 +632,7 @@ def throw_impacts(rows, game):
 
 VICTIM_POSES = {g: json.load(open(os.path.join(HERE, '..', 'kof96', f'victim_poses{g[3:]}.json')))['poses']
                 for g in ('kof96', 'kof98', 'kof99')}
+VICTIM_POSES['kizuna'] = json.load(open(os.path.join(HERE, '..', 'kizuna', 'victim_poses_kz.json')))['poses']   # Kim's throw
 
 FAMILY = {'grabbed': 'standing', 'hunched': 'standing', 'hit_reel': 'standing', 'bent_back': 'standing', 'standing': 'standing',
           'launched': 'air', 'horizontal': 'air', 'curled': 'air',
@@ -843,7 +844,7 @@ def write_c(chars, outdir):
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
-        land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99') else None   # SS4 / WHP: KOF's usual 4
+        land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna') else None   # SS4 / WHP: KOF's usual 4
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
         c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}}},')
     c.append('};')

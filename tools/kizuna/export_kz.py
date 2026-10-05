@@ -21,8 +21,13 @@ boxes [type][b1][x left][x right][y bottom][y top] x 4 px (forward / up positive
 the previous step's) include a type >= $10.
 Colour sets: A = ROM palettes $88 + k, B = $1C0 + k (code $13B2: tables $1438 / $1458 by character, bit 7 of the pick
 byte = colour B), k = the slot - 16 (Kim's sprites use slots 16, 17).
-Known limits: throws not exported (Kizuna's throw $6F + victim poses $F0 / $FE are captured, not mapped to the
-brawler's throw tables); the effects his specials spawn (sparks, the Phoenix's flames) are not drawn; no D button
+Throw (throw_c = Kizuna's 6C / 4C, $6F, its only throw; throw_d falls back to it): the capture throw_fc (P2 Hayate
+not pinned after the grab): the thrower's step per frame, the victim's place (object dx + the visual centre of Kim's
+own frame for that victim state, scaled) and state step as a posture key 'state.step' (victim_poses_kz.json: the
+victim states $10C (Hayate's $EF, Kim's $FA) and $17A ($DE), postures read by eye from Kim's frames), until the victim
+lands; Kim's own frames for those postures are his reaction frames (feet-centred, so KOF victims and he line up).
+Not exported: A+B (dodge $20) and C+D (taunt $21): the brawler has no slot for them (A+B is the special chord).
+Known limits: the effects his specials spawn (sparks, the Phoenix's flames) are not drawn; no D button
 attacks in Kizuna (D = tag): the brawler's D normals use his strong kick (B+C, $6E); one jump height (hop = jump)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -55,11 +60,12 @@ MOVES = {
     'atk_d_close': ('anim', 0x6E, 0, None), 'atk_d_far': ('anim', 0x6E, 0, None),
     'atk_a_crouch': ('anim', 0x4B, 0, None), 'atk_b_crouch': ('anim', 0x55, 0, None),
     'atk_c_crouch': ('anim', 0x5E, 0, None), 'atk_d_crouch': ('anim', 0x5F, 0, None),
-    'atk_c_jump': ('anim', 0x60, 0, None), 'atk_d_jump': ('anim', 0x58, 0, None),
-    'atk_c_jump_diag': ('anim', 0x60, 0, None), 'atk_d_jump_diag': ('anim', 0x58, 0, None),
+    # air: A = j.C ($60), down+A = the air dive j.2B ($8F: Kizuna's command $26, 2B in a jump), up+A = j.A ($4E)
+    'atk_c_jump': ('anim', 0x60, 0, None), 'atk_d_jump': ('anim', 0x8F, 0, None),
+    'atk_c_jump_diag': ('anim', 0x60, 0, None), 'atk_d_jump_diag': ('anim', 0x8F, 0, None),
     'atk_cd_jump': ('anim', 0x4E, 0, None), 'body_toss': ('anim', 0x5C, 0, None),
     'cmd_fwd_a': ('anim', 0x49, 0, None), 'cmd_fwd_b': ('anim', 0x53, 0, None),
-    'cmd_df_c': ('anim', 0x5F, 0, None), 'cmd_df_d': ('anim', 0x57, 0, None),
+    'cmd_df_c': ('anim', 0x4D, 0, None), 'cmd_df_d': ('anim', 0x57, 0, None),     # 3A, 3B (3C = atk_d_crouch)
     'hit_stand_light': ('anim', 0x22, 0, None), 'hit_stand_heavy': ('anim', 0x24, 0, None),
     'hit_air': ('anim', 0x32, 1, 2),
     # the knockdown ($32: hit off the feet, flying, the floor, lying) split the way fighter.c plays it
@@ -255,6 +261,41 @@ def special(B, inp, cap):
             'row_steps': rsteps, 'marks': [''] * n, 'projectiles': [], 'anims': anims,
             'shape': [max(r[1] for r in script), max(r[2] for r in script), False], 'game_hits': game_hits}
 
+VSTATE = {0xEF: (0x10C, 0xFA), 0xDE: (0x17A, 0xDE)}   # Hayate's victim animation -> (state, Kim's animation for it)
+POSES = json.load(open(os.path.join(HERE, 'victim_poses_kz.json')))['poses']
+KIM_POSE = {'grabbed': (0x24, 3), 'curled': (0x32, 2), 'inverted': (0x32, 2), 'horizontal': (0x32, 2),
+            'falling': (0x32, 2), 'lying': (0x2B, 5)}    # Kim's own (feet-centred) frame for each posture he is thrown in
+
+def vcentre(n, k):
+    """Kim's frame of animation n step k drawn facing right at x 0: (centre x, height of its lowest pixel)"""
+    img = np.zeros((H, W), np.uint16); kz.render_step(img, kz.parse_anim(0x5000 | n)[k]['addr'], X0, Y0)
+    ys, xs = np.nonzero(img)
+    return (xs.min() + xs.max()) / 2 - X0, Y0 - 1 - ys.max()
+
+def throw(B, cap):
+    """Kim's throw (6C, $6F) in export96's throw layout: per frame from the grab to the victim's landing, the thrower
+    [frame, dx, dy, turned] and the victim [Kim's frame for the posture, x forward, height, same facing, in front, key]"""
+    fr = cap['throw_fc']['frames']
+    s0 = next(i for i, f in enumerate(fr) if f[0][0] == 0x6F)
+    e = next(i for i in range(s0, len(fr)) if fr[i][1][0] == 0xDE and fr[i][1][1] == 1) + 1
+    x0 = fr[s0][0][2]
+    timeline, rows, steps = [], [], []
+    for i in range(s0, e):
+        a, b = fr[i][0], fr[i][1]
+        fi = B.frame(a[5])
+        timeline.append([fi, sc(a[2] - x0), sc(a[3]), a[4]])
+        if a[0] == 0x6F and (not steps or steps[-1][0] != a[5]): steps.append([a[5], 0])
+        if a[0] == 0x6F: steps[-1][1] += 1
+        st, kn = VSTATE[b[0]]
+        key = f'{st:X}.{b[1]}'
+        cx, bot = vcentre(kn, b[1])
+        vn, vk = KIM_POSE[POSES[key][0]]
+        vf = B.frame(kz.parse_anim(0x5000 | vn)[vk]['addr'])
+        rows.append([vf, sc(b[2] - a[2] - cx), sc(b[3] + bot), 0, 0, key])
+    anim = {'slot': 0x6F, 'mode': 'hold', 'steps': [step(B, ad, n, step_boxes(ad)) for ad, n in steps]}
+    return {'slot': 0x6F, 'inputs': '6C / 4C (close)', 'table': [], 'hold': False, 'timeline': timeline,
+            'victims': {'kim': rows}, 'impacts': [], 'anim': anim}
+
 def rom_palette(n): return [kz.u16(0x70000 + 32 * n + 2 * i) for i in range(16)]
 
 def export(names, outdir, only=None, extra=None):
@@ -273,11 +314,13 @@ def export(names, outdir, only=None, extra=None):
             st = boxes_in_force(w[0]); k = w[1] if w[1] >= 0 else len(st) - 1
             anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': [step(B, st[k][0]['addr'], st[k][0]['ticks'], [])]}
         if only is not None: anims = {k: v for k, v in anims.items() if k in only}
+        th = throw(B, cap)
+        anims['throw_c'] = th.pop('anim')
         sps = [special(B, inp, cap) for inp in SPECIALS]
         sets = [[[0] + rom_palette(s + p - 16)[1:] for p in B.pals] for s in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0],
-                                   'physics': physics(cap), 'throws': {}, 'specials': sps,
+                                   'physics': physics(cap), 'throws': {'throw_c': th}, 'specials': sps,
                                    'modes': {'sets': ['colour A', 'colour B'], 'palettes': [f'{p:02X}' for p in B.pals],
                                              'zoom': Z}}
     out['tiles'] = len(B.tiles)
