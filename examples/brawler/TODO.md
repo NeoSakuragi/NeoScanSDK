@@ -331,6 +331,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 66. Small gaps: landing 2 frames vs KOF's 4-5; projectile pool of 4 (trails thinner); Mr. Big's pale colour set
   vs KOF96's tan; KOF96 songs $26 / $29 / $2C 98-99 % model match; the attract cycle with logo / title timing (#25).
 
+- [ ] 67. Samurai Shodown IV fighters into the character bank (Bruno: "start with Haohmaru first"): a full SS4 exporter
+  (study: /data/neogeo_dict/samsho4/README.md — own engine, 444/454 frames pixel-exact): Haohmaru end to end into the
+  brawler (animations, palettes, boxes, specials, weapon objects as needed), then the others. Running in a worktree
+  since 2026-10-05.
+
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.
