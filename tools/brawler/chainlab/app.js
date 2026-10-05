@@ -117,6 +117,7 @@
     for (let i = 0; i < w * h * 4; i += 4) { d[i] = src[i + 2]; d[i + 1] = src[i + 1]; d[i + 2] = src[i]; d[i + 3] = 255; }
     ctx.putImageData(img, 0, 0);
     const c = lab.combo();
+    if (window.labStatus) { $('status').textContent = window.labStatus() + (paused ? '  PAUSED' : ''); return; }
     $('status').textContent = `frame ${lab.labFrame()}  P1 ${lab.stateName(0)}  dummy ${lab.stateName(2)}  combo ${c.hits} hits ${c.dmg} damage${paused ? '  PAUSED' : ''}`;
   }
   function fit() {                        // pixel-exact: a whole number of screen pixels per game pixel
@@ -454,5 +455,5 @@
   { const snap = clone(tree); built = { fi, tree: snap, info: indexInfo(snap) }; }
   builtLabel = $('built').textContent = F[fi].routes_file ? "the fighter's own tree (routes file, in the ROM)" : 'the default tree (in the ROM)';
   render(); draw();
-  window.chainlab = { lab, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); override = k.replace('-', ''); stepFrames(Number(n)); } override = null; }, get tree() { return tree; }, set tree(t) { tree = t; render(); }, build, render, stepFrames, data, chains: () => chains };
+  window.chainlab = { lab, draw, get paused() { return paused; }, togglePause, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); override = k.replace('-', ''); stepFrames(Number(n)); } override = null; }, get tree() { return tree; }, set tree(t) { tree = t; render(); }, build, render, stepFrames, data, chains: () => chains };
 })();

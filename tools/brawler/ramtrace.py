@@ -3,9 +3,14 @@
 
     python3 ramtrace.py GAME_DIR attract|campaign OUT.json     record (GAME_DIR/brawler.neo, symbols from its build/rom.elf)
     python3 ramtrace.py GAME_DIR campaign OUT.json --replay BASE.json   the same inputs and test pokes as BASE, frame for frame
-    python3 ramtrace.py --diff A.json B.json                   compare two recordings
+    python3 ramtrace.py --diff A.json B.json [--from-stage]    compare two recordings (--from-stage: from each one's first
+                                                               campaign sample on, ticks counted from there: a page whose core
+                                                               ran before its reset boots warm, its BIOS a few ticks longer)
     ... --pack PACK.bin                                        send a Brawler Lab data pack (build_tables.py pack) at tick 100
                                                                (installed at the next safe point): the game must play the same
+    python3 ramtrace.py GAME_DIR stage OUT.json --stage S --wave W [--pack PACK.bin] [--fighter F] [--frames N]
+                                                               the Stages tab's "play from here" (lab req 4 with the pack) on the
+                                                               desktop core, SNK's MVS BIOS as in the page: chainlab/stage_proof.sh
 
 attract   power on, three attract demos (8100 frames): every frame the flow (mode, attract, phase, wave, cam_x, lock_x)
           and every fighter's state, position, life, facing, animation step, fighter, colour set, power and tint
@@ -27,11 +32,15 @@ the flow and each fighter equal to the other trace's at that tick or one either 
 import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+STAGE_SCRIPT = '40:R,2:a,8:-,2:a,8:-,2:b,16:-,20:L,2:Da,30:-'   # P1 in the Stages tab's proof, repeated (frames:keys)
+BOOT_FRAMES = 400                                                 # = lab.js BOOT_FRAMES
 FIELDS = ['state', 'x', 'z', 'y', 'hp', 'hp_max', 'facing', 'anim', 'step', 'set', 'power', 'tint']
 
 
-def record(game, what, out, replay=None, pack=None):
+def record(game, what, out, replay=None, pack=None, stage=None):
+    import harness
     from harness import Brawler
+    if what == 'stage': harness.OPTIONS.update({'geolith_system_type': 'mvs', 'geolith_region': 'us'})   # = web_core.c
     b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
     S = b.syms; OFF, DEAD = b.states.index('OFF'), b.states.index('DEAD')
     def s16(n): v = b.r(S[n], 2); return v - 65536 if v > 32767 else v
@@ -56,15 +65,28 @@ def record(game, what, out, replay=None, pack=None):
     def run(n, p1=''):
         for _ in range(n):
             t0 = ticks()
-            if pack and t0 >= 100 and not sent:             # the lab's data pack, at tick 100: installed at the next safe point
+            if pack and what != 'stage' and t0 >= 100 and not sent:             # the lab's data pack, at tick 100: installed at the next safe point
                 for i, v in enumerate(b'LAB1'): b.w(S['lab'] + i, 1, v)
                 for i, v in enumerate(pack): b.w(S['lab'] + PACK_OFF + i, 1, v)
                 b.w(S['lab'] + 7, 1, 3); sent.append(t0)
-            b.run(1, p1=p1, each=keep if what != 'attract' else None); log.append(p1); tr.append(snap())
+            b.run(1, p1=p1, each=keep if what == 'campaign' else None); log.append(p1); tr.append(snap())
             t1 = ticks(); tk.append(t1)
             for k in range(t0 + 1, t1 + 1): in_tick[k] = p1   # the ticks that started in this frame read its input
     keep = lambda bb: bb.fset(0, 'hp', 60)
     b.core.retro_reset(); b.frame = 0
+    def stage_start():                                  # boot, then the page's "play from here": pack + req 4, the same frame
+        s_, w_, f_, n_ = stage
+        b.core.retro_reset()
+        for _ in range(BOOT_FRAMES): b.core.retro_run()
+        L = S['lab']
+        if pack:
+            from chainlab.labdrive import PACK_OFF
+            for i, v in enumerate(pack): b.w(L + PACK_OFF + i, 1, v)
+        for i, v in enumerate(b'LAB1'): b.w(L + i, 1, v)
+        if pack: b.w(L + 7, 1, 3)
+        b.w(L + 13, 1, w_); b.w(L + 5, 1, f_); b.w(L + 6, 1, s_); b.w(L + 4, 1, 4)
+        run(1)                                          # the page's play() steps one frame with no key (stages.js)
+    if what == 'stage': stage_start()
     if replay and 'in_tick' in json.load(open(replay)) and gt:   # by tick: the recorded inputs and pokes (open loop)
         base = json.load(open(replay))
         bin_ = {int(k): v for k, v in base['in_tick'].items()}; bp = list(base['tick_pokes']); last = base['ticks'][-1]
@@ -78,6 +100,12 @@ def record(game, what, out, replay=None, pack=None):
             run(1, p1)
     elif what == 'attract':
         run(8100)
+    elif what == 'stage':                               # P1: STAGE_SCRIPT repeated, by frame (a second run: --replay, by tick)
+        parts = [p.split(':') for p in STAGE_SCRIPT.split(',')]
+        while len(tr) < stage[3]:
+            for k, keys in parts:
+                for _ in range(int(k)):
+                    if len(tr) < stage[3]: run(1, keys.replace('-', ''))
     else:
         enemies = lambda: [i for i in range(2, 8) if b.fget(i, 'state') != OFF]
         phase = lambda: b.r(S['phase'], 1)
@@ -104,7 +132,8 @@ def record(game, what, out, replay=None, pack=None):
             if b.r(S['mode'], 1) == 3:                          # BOSS UNLOCKED: on to the next stage
                 run(100); run(4, 'a'); until(lambda: b.r(S['mode'], 1) != 3, 400, what='unlock end')
         run(300)
-    if pack: print('pack sent at tick', sent, 'status', b.r(S['lab'] + PACK_STAT_OFF, 1), '(2 = installed)')
+    if pack and what != 'stage': print('pack sent at tick', sent, 'status', b.r(S['lab'] + PACK_STAT_OFF, 1), '(2 = installed)')
+    if what == 'stage': print('pack status', b.r(S['lab'] + 3232, 1), '(2 = installed, 0 = none sent)')
     json.dump({'trace': tr, 'inputs': log, 'pokes': pokes, 'ticks': tk if gt else None, 'in_tick': in_tick if gt else None,
                'tick_pokes': tpokes}, open(out, 'w'))
     print(what, len(tr), 'frames ->', out)
@@ -117,8 +146,17 @@ def by_tick(x):
     return d
 
 
-def diff(a, b):
+def from_stage(x):
+    """the samples from the first tick after the stage start on (the first campaign sample, mode 1 and not the attract
+    demo, is the request's own tick: sampled mid-tick, its fighters still the demo's), ticks relative to it"""
+    i = next(k for k, s in enumerate(x['trace']) if s[0][0] == 1 and s[0][1] == 0)
+    i = next(k for k in range(i, len(x['ticks'])) if x['ticks'][k] > x['ticks'][i])
+    return dict(x, trace=x['trace'][i:], ticks=[t - x['ticks'][i] for t in x['ticks'][i:]])
+
+
+def diff(a, b, stage_start=False):
     X, Y = json.load(open(a)), json.load(open(b))
+    if stage_start: X, Y = from_stage(X), from_stage(Y)
     if isinstance(X, dict) and isinstance(Y, dict) and X.get('ticks') and Y.get('ticks'):
         A, B = by_tick(X), by_tick(Y)
         common = sorted(set(A) & set(B)); bad = []
@@ -146,7 +184,9 @@ def diff(a, b):
 
 
 if __name__ == '__main__':
-    if sys.argv[1] == '--diff': sys.exit(0 if diff(sys.argv[2], sys.argv[3]) else 1)
+    if sys.argv[1] == '--diff': sys.exit(0 if diff(sys.argv[2], sys.argv[3], '--from-stage' in sys.argv) else 1)
     a = sys.argv[1:]
     pk = open(a[a.index('--pack') + 1], 'rb').read() if '--pack' in a else None
-    record(*a[:3], replay=a[a.index('--replay') + 1] if '--replay' in a else None, pack=pk)
+    opt = lambda k, d: int(a[a.index(k) + 1]) if k in a else d
+    record(*a[:3], replay=a[a.index('--replay') + 1] if '--replay' in a else None, pack=pk,
+           stage=(opt('--stage', 0), opt('--wave', 0), opt('--fighter', 0), opt('--frames', 1800)))

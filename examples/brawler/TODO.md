@@ -302,7 +302,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 ## Open work (2026-10-05) — the 10-minute loop takes the first unchecked item of "Loop queue", one agent at a time
 
 ### Loop queue (in order)
-- [ ] 52. Brawler Lab tab: Stages / Waves — background picker (previews of the extracted backgrounds), music picker
+- [x] 52. (done 2026-10-05, docs/brawler_data_model.md "Stages tab") Brawler Lab tab: Stages / Waves — background picker (previews of the extracted backgrounds), music picker
   (Song Lab playback), the wave designer: the stage as a horizontal strip with its lock points, enemies dropped onto
   each wave (side, delay, count), a timeline of who comes in when; installs live through the data-pack path; same
   Oros-login site as the Chain Lab (canneji /brawler-lab/).

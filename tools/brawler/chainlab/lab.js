@@ -9,13 +9,15 @@
   // lab_t (fighter.h): magic 0, req 4, fighter 5, dummy 6, load 7, active 8, nev 9, frame 10, combo_hits 12, combo_dmg 14,
   // ev[64] at 16 (6 bytes: frame u16, kind, node, how, val), buf at 400 (rt_head_t + 128 nodes of 22 bytes), pack_stat at
   // 3232, pack at 3234 (a data pack, gamedata.h gdpack_t, at most GD_MAX bytes: build_tables.py pack)
-  const LAB = { magic: 0, req: 4, fighter: 5, dummy: 6, load: 7, active: 8, nev: 9, frame: 10, hits: 12, dmg: 14, ev: 16, buf: 400,
+  // wave 13 (req 4's first wave)
+  const LAB = { magic: 0, req: 4, fighter: 5, dummy: 6, load: 7, active: 8, nev: 9, frame: 10, hits: 12, wave: 13, dmg: 14, ev: 16, buf: 400,
                 packStat: 3232, pack: 3234 };
   const GD_MAX = 4096, GD_STAT = ['none', 'pending', 'installed', 'rom'];   // lab.pack_stat (gamedata.h GD_*; 0x80 | n: check n failed)
   const EV_N = 64, EV_SIZE = 6;
   const KINDS = ['START', 'HIT', 'END', 'SPECIAL', 'CHAINWIN'];
   const HOW = ['neutral', 'after end', 'cancel', 'window'];
   const BOOT_FRAMES = 400;
+  const RAM_FIELDS = ['state', 'x', 'z', 'y', 'hp', 'hp_max', 'facing', 'anim', 'step', 'set', 'power', 'tint'];   // ramtrace.py FIELDS
 
   // ---- route trees (tools/brawler/routes.py: the same format and the same encoder) ----------------------------------
   const INPUTS = ['A', 'B', 'dA', 'dB', 'fA', 'fB', 'dfA', 'dfB', 'AB', 'D', 'fD', 'dD', 'uD'];
@@ -191,6 +193,29 @@
       this.wbytes(this.lab + LAB.magic, [76, 65, 66, 49]);
       this.w8(this.lab + LAB.load, bytes ? 3 : 4);
     }
+    /* req 4: P1 = fighter alone in campaign stage `stage` (0-based) from wave `wave` (>= its waves: the boss), on the game's
+       next tick; a pack sent just before is installed first (the stage start is a safe point) */
+    playStage(fighter, stage, wave) { this.w8(this.lab + LAB.wave, wave); this.request(4, fighter, stage); }
+    playMusic(cmd) { this.request(5, undefined, cmd); }     // req 5: snd_music(cmd), a songs.h MUS_* command
+    /* tools/brawler/ramtrace.py snap(): the flow and each fighter, the same values and rounding (the proofs compare them) */
+    ramSnap() {
+      const y = this.layout.syms, s16 = a => (this.r16(a) << 16) >> 16, OFF = this.layout.states.indexOf('OFF');
+      const flow = [this.r8(y.mode), this.r8(y.attract), this.r8(y.phase), this.r8(y.wave), s16(y.cam_x), s16(y.lock_x)];
+      const fs = [];
+      for (let i = 0; i < 8; i++) {
+        if (this.fget(i, 'state') === OFF) { fs.push(null); continue; }
+        fs.push([...RAM_FIELDS.map(f => (f === 'x' || f === 'z' || f === 'y') ? this.round2(i, f) : this.fget(i, f)),
+                 (this.fget(i, 'ch') - y.bm_chars) / this.layout.sizeof_bchar]);
+      }
+      return [flow, fs];
+    }
+    round2(i, f) {                                  // Python round(v, 2) of a 16.16 field: exact, half to even
+      const n = (this.r32(this.fighters + i * this.layout.fsize + this.layout.fields[f][0]) | 0) * 100;
+      let q = Math.floor(n / 65536); const r = n - q * 65536;
+      if (r > 32768 || (r === 32768 && (q & 1))) q++;
+      return q / 100;
+    }
+    gameTicks() { return this.r32(this.layout.syms.game_ticks); }
     packStatus() { const v = this.r8(this.lab + LAB.packStat); return v & 0x80 ? 'bad (check ' + (v & 0x7F) + ')' : GD_STAT[v]; }
     nev() { return this.r8(this.lab + LAB.nev); }
     eventsSince(from) {                          // [from, nev) of the ring (at most its 64 latest)

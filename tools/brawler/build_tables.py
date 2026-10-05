@@ -9,6 +9,7 @@
     build_tables.py pack GAME.json BUILD_DIR OUT  the Brawler Lab's data pack (stages, enemies, AI rows: gamedata.h
                                                   gdpack_t) for lab.load 3, from a game.json the running ROM was built with
                                                   or an edit of it (same roster, same stage count)
+    build_tables.py labstages GAME.json BUILD_DIR OUT.json   the Brawler Lab Stages tab's data (pack_base bytes, names, songs)
 
 Everything is checked against the build: names resolve (fighters, enemies, AI presets, tints, songs), counts fit the
 engine (6 enemies at once, 16 select slots), lock points inside the stage (build/stage.h widths)."""
@@ -280,10 +281,10 @@ def tables(g, build):
     write_if_changed(os.path.join(build, 'game_tables.c'), '\n'.join(c) + '\n')
 
 
-def pack(g, build):
-    """the lab's data pack (gamedata.h gdpack_t): stages, enemies and AI rows, pointers as offsets from its start"""
+def pack_base(M):
+    """the pack's first part (everything but the stages): the header's room, the AI rows, the enemies with their pools,
+    names, palettes and trees; the Brawler Lab's Stages tab appends the stages to these bytes as pack_stages does"""
     import struct
-    M = model(g, build)
     out = bytearray(PACK_HEAD)
     def put(data, align=2):
         while len(out) % align: out.append(0)
@@ -292,7 +293,6 @@ def pack(g, build):
         b = bytearray(size)
         for k, o, f in layout: struct.pack_into('>' + f, b, o, v[k])
         return b
-    nsp = max(len(s['spawns']) for s in M['stages'])
     ai_o = put(bytes(b for _, v in M['ai'] for b in (v[k] for k in AI_ORDER)))
     ens = []
     for e in M['enemies']:
@@ -303,6 +303,16 @@ def pack(g, build):
         v['moves'] = put(e['moves']) if e['moves'] else 0
         ens.append(v)
     en_o = put(b''.join(rec(EN_LAYOUT, EN_SIZE, v) for v in ens))
+    return out, en_o, ai_o
+
+
+def pack_stages(M, out, en_o, ai_o):
+    """the stages after pack_base's bytes, then the header (chainlab/stages.js packStages is the same code)"""
+    import struct
+    def put(data, align=2):
+        while len(out) % align: out.append(0)
+        o = len(out); out.extend(data); return o
+    nsp = max(len(s['spawns']) for s in M['stages'])
     sts = []
     for s in M['stages']:
         assert s['music_n'] is not None and s['boss_song_n'] is not None, 'pack: build/snd/songs.h missing a song'
@@ -311,11 +321,39 @@ def pack(g, build):
         v['spawns'] = put(b''.join(struct.pack('>BBBBhBB', d['enemy'], d['pick'], d['set'], d['tint'], d['x'], d['z'], d['flags']) for d in sp))
         v['waves'] = put(b''.join(struct.pack('>hHBB', w['lock'], w['seed'], w['first'], w['n']) for w in s['waves']))
         sts.append(v)
-    st_o = put(b''.join(rec(ST_LAYOUT, ST_SIZE, v) for v in sts))
+    st = bytearray()
+    for v in sts:
+        b = bytearray(ST_SIZE)
+        for k, o, f in ST_LAYOUT: struct.pack_into('>' + f, b, o, v[k])
+        st += b
+    st_o = put(st)
     while len(out) % 2: out.append(0)
     assert len(out) <= GD_MAX, f'pack: {len(out)} bytes (at most {GD_MAX})'
-    struct.pack_into('>2sBBBBHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(ens), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, 0)
+    struct.pack_into('>2sBBBBHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(M['enemies']), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, 0)
     return bytes(out)
+
+
+def pack(g, build):
+    """the lab's data pack (gamedata.h gdpack_t): stages, enemies and AI rows, pointers as offsets from its start"""
+    M = model(g, build)
+    return pack_stages(M, *pack_base(M))
+
+
+def lab_stages(g, build):
+    """what the Brawler Lab's Stages tab needs to build packs in the page: pack_base's bytes, the enemies (name, base,
+    pool, the stage whose boss unlocks its fighter), tints, songs (MUS_* commands), the ROM's stage widths"""
+    M = model(g, build)
+    out, en_o, ai_o = pack_base(M)
+    idx = {n: i for i, n in enumerate(M['names'])}
+    ens = []
+    for e in g['enemies']:
+        b = e['base'] if e['base'] == 'pool' or e['base'] in idx else e.get('stand_in')
+        u = g['roster'][idx[b]].get('unlock') if b in idx else None
+        ens.append({'name': e['name'], 'base': b, 'pool': e.get('pool', []), 'life': e['life'],
+                    'unlock_of': u['boss_of_stage'] if isinstance(u, dict) else 0})
+    return {'base': out.hex(), 'en_o': en_o, 'ai_o': ai_o, 'nai': len(M['ai']), 'enemies': ens, 'tints': M['tints'],
+            'songs': songs(build), 'widths': stage_widths(build), 'stages': g['stages'], 'roster': M['names'],
+            'max_enemies': MAX_ENEMIES, 'gd_max': GD_MAX}
 
 
 def fmt(o, depth=0):
@@ -337,4 +375,5 @@ if __name__ == '__main__':
     elif cmd == 'tables': tables(g, sys.argv[3])
     elif cmd == 'format': open(path, 'w').write(fmt(g) + '\n')
     elif cmd == 'pack': open(sys.argv[4], 'wb').write(pack(g, sys.argv[3]))
+    elif cmd == 'labstages': json.dump(lab_stages(g, sys.argv[3]), open(sys.argv[4], 'w'))
     else: sys.exit(__doc__)

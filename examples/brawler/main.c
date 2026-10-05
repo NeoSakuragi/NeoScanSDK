@@ -1334,6 +1334,21 @@ static void lab_start(uint8_t kind) {
     lab_shown_hits = 0xFF; lab_shown_dmg = 0xFFFF;
     FIX_print(0, 26, "                                        ", 0); FIX_print(2, 26, kind == 2 ? "ENEMY TEST" : "CHAIN LAB", 0);
 }
+/* req 4 (the Brawler Lab's Stages tab, "play from here"): P1 alone (lab.fighter) in campaign stage lab.dummy as a new
+ * game, the camera at wave lab.wave's lock point and that wave spawned (or the boss, past the last wave); a pack sent
+ * with it is installed first (stage_begin is a safe point). From there the game is the normal campaign. */
+static void lab_stage(void) {
+    uint8_t w = lab.wave, i;
+    attract = 0; opt_on = 0; banner_hide(); fade_in = 0; BIOS_USER_MODE = 2; lab.active = 0;
+    pl_ch[0] = lab.fighter < BC_COUNT ? lab.fighter : 0; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
+    stage_begin(lab.dummy < GS_COUNT ? lab.dummy : 0, 1);
+    if (!w) return;
+    if (w > gs->nwaves) w = gs->nwaves;
+    wave = w; cam_x = lock_x = lock_at(w < gs->nwaves ? gs->waves[w].lock : gs->boss_lock);
+    fighters[0].x = FIX(cam_x + 60);
+    if (w < gs->nwaves) spawn_wave();
+    else { for (i = 2; i < NF; i++) fighters[i].state = S_OFF; boss_start(); }
+}
 static void lab_flow(void) {
     fighter_t *p = &fighters[0], *d = &fighters[LAB_DUMMY];
     p->hp = LIFE;                                             /* nobody hits P1; a dummy never dies */
@@ -1374,6 +1389,8 @@ static void lab_tick(void) {                                  /* the page's requ
     lab_install();
     if (lab.active) lab.frame++;                              /* this tick's events carry this frame */
     if (lab.req == 1 || lab.req == 3) lab_start(lab.req == 3 ? 2 : 1);
+    else if (lab.req == 4) lab_stage();
+    else if (lab.req == 5) snd_music(lab.dummy);
     else if (lab.req == 2 && lab.active == 2) { fighter_t *p = &fighters[0]; fighter_init(p, p->ch, p->set, 16, 0, cam_x + 110, 34); p->idx = 0; lab_enemy(); }
     else if (lab.req == 2 && lab.active) lab_place();
     lab.req = 0;

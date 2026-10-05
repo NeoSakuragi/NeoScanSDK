@@ -209,6 +209,24 @@ the wave index clamped to the new stage's waves.
 definition at the dummy's place, its own AI on (seed $1D2B), P1's life refilled, the enemy back 60 frames after it is
 beaten (a safe point); `lab.req = 2` re-places both; `lab.active` = 2. `tools/brawler/enemy_test.py` uses it.
 
+**Stages tab** (TODO 52, 2026-10-05; tools/brawler/chainlab: stages.js UI, stagepack.js the pack): the five stages
+(background picker with the ROM's six Robo Army streets, the 121 other extracted backgrounds listed as "needs a build";
+music and boss song played by the game in the page, `lab.req = 5`, `lab.dummy` = the MUS_* command; boss, minions),
+the wave designer (the stage strip with its lock points dragged in 8 px steps, entries marked: ▶ walks in, ■ placed,
+● the boss; per wave the spawns: enemy with its face, side, delay = walk-in rank (36 px further out each), z, set, pick,
+tint; add N at once; the 6-enemy limit), a timeline (per wave who enters first and who a delay step later), the
+build_tables.py checks in the page, export of one stage / all stages in game.json's layout, import. Play from here:
+the pack (`build_tables.py labstages` writes pack_base's bytes into the site's stages.json, the page appends the stages
+exactly as `pack_stages`) and `lab.req = 4` (`lab.fighter` = P1, `lab.dummy` = the stage, `lab.wave` = the first wave,
+past the last = the boss) in the same tick: stage_begin installs the pack, then the camera jumps to that wave's lock
+point and spawns it. Time-based spawns wait for the triggers below.
+
+Proof (chainlab/stage_proof.sh, 2026-10-05): stage 1 wave 2 edited in the page to 3 YAKUZA from the right; the same
+pack played in the page (headless Chrome, its wasm core), in Node (core.wasm) and on the desktop core (ramtrace.py
+stage): 1494 ticks identical from the stage start. Unedited: the page's pack = build_tables.py pack byte for byte
+(2874 bytes), and played by tick (--replay) identical to the ROM's own tables from wave 2 and from the boss. The release
+path is unchanged: attract 7707 ticks and the campaign replay 19031 ticks identical to HEAD's build.
+
 ## Planned, schema only
 
 **Triggers** (a stage's `triggers[]`, read by a small interpreter in the campaign tick):

@@ -96,15 +96,18 @@ typedef struct { uint16_t frame; uint8_t kind, node, how, val; } lab_ev_t;   /* 
 typedef struct {
     char     magic[4];            /* "LAB1" while the page drives the game */
     uint8_t  req;                 /* page: 1 = start training (fighter vs dummy), 2 = reset positions, 3 = enemy test
-                                     (fighter vs the enemy definition `dummy`, its AI on); the game clears it */
-    uint8_t  fighter, dummy;      /* bm_chars indices (req 1); req 3: dummy = a genemies index (EN_*) */
+                                     (fighter vs the enemy definition `dummy`, its AI on), 4 = play campaign stage `dummy`
+                                     from wave `wave` (>= its waves: the boss) with P1 = `fighter`, 5 = play the music
+                                     command `dummy` (the Stages tab); the game clears it */
+    uint8_t  fighter, dummy;      /* bm_chars indices (req 1); req 3: dummy = a genemies index (EN_*); req 4: a stage */
     uint8_t  load;                /* page: 1 = buf holds a tree for `fighter`: install it (the game clears it); 2 = back to
                                      the fighter's own tree; 3 = pack holds a data pack (gamedata.h gdpack_t): checked
                                      now, installed at the next safe point (pack_stat); 4 = back to the ROM's tables */
     uint8_t  active;              /* game: 1 while the training runs, 2 the enemy test */
     uint8_t  nev;                 /* game: events written (ring index = nev % LAB_NEV) */
     uint16_t frame;               /* game: training frames */
-    uint8_t  combo_hits, pad;     /* game: the readout on screen */
+    uint8_t  combo_hits;          /* game: the readout on screen */
+    uint8_t  wave;                /* page: req 4's first wave */
     uint16_t combo_dmg;
     lab_ev_t ev[LAB_NEV];
     uint8_t  buf[LAB_BUF];
