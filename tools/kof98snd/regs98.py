@@ -27,6 +27,7 @@ def writes(s):
     out = [(0, p, r, v) for p, r, v in s.g['start']]
     alg = {n: 0 for n in FM}; b4 = {n: 0xC0 for n in FM}    # pan shadow: both sides
     tls = {n: [0] * 4 for n in FM}                          # TL shadow ($F8C9 / $F950 + $10 + 4*op)
+    a_on = set()                                            # Ver 0.1: ADPCM-A channels keyed and not dumped
     w = lambda irq, p, r, v: out.append((irq, p, r, v & 0xFF))
     for irq, tick, ch, kind, kw in s.out:
         if ch in FM:
@@ -63,6 +64,8 @@ def writes(s):
         if ch.startswith('A'):
             c = int(ch[1]) - 1; bit = 1 << c
             if kind == 'akey':
+                if s.g.get('a_dump_first') and ch in a_on: w(irq, 'b', 0x00, 0x80 | bit)   # Ver 0.1: a note on a
+                a_on.add(ch)                                     # sounding channel dumps it before the level
                 w(irq, 'b', 0x08 + c, kw['pan'] | kw['level'] & 0x1F)
                 if 'rec_level' in kw: w(irq, 'b', 0x08 + c, kw['rec_level'])   # Ver 0.0, 11-byte records ($0277)
                 w(irq, 'b', 0x00, 0x80 | bit); w(irq, 'a', 0x1C, bit); w(irq, 'a', 0x1C, 0)
@@ -70,7 +73,8 @@ def writes(s):
                 w(irq, 'b', 0x20 + c, kw['end']); w(irq, 'b', 0x28 + c, kw['end'] >> 8)
                 w(irq, 'b', 0x00, bit)
             elif kind == 'alevel': w(irq, 'b', 0x08 + c, kw['pan'] | kw['level'])
-            elif kind == 'adump': w(irq, 'b', 0x00, 0x80 | bit); w(irq, 'a', 0x1C, bit); w(irq, 'a', 0x1C, 0)
+            elif kind == 'adump' and (ch in a_on or not s.g.get('a_dump_first')):   # Ver 0.1: only a sounding one
+                w(irq, 'b', 0x00, 0x80 | bit); w(irq, 'a', 0x1C, bit); w(irq, 'a', 0x1C, 0); a_on.discard(ch)
             continue
         if ch == 'B':
             if kind == 'bkey':

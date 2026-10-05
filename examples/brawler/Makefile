@@ -29,16 +29,18 @@ $(BUILD)/font.s1 $(BUILD)/hud.h &: $(TOOLS)/brawler/make_hud.py
 	python3 $(TOOLS)/font_encoder.py -o $(BUILD)/font.s1
 	python3 $(TOOLS)/brawler/make_hud.py $(CURDIR)/$(BUILD) $(CHARS)
 
-# --- Sound: KOF98's driver and samples, plus Fatal Fury 3's Terry stage theme ported into them as command $27
-# (tools/port: needs /data/roms/kof98.neo + fatfury3.neo; overwrites only V ROM that unplayed KOF98 stage themes use)
-$(BUILD)/port/kof98_m1.bin $(BUILD)/port/kof98_v1.bin &: $(TOOLS)/port/ff3_to_kof98.py $(TOOLS)/port/ff3_notes.py
-	python3 $(TOOLS)/port/ff3_to_kof98.py 0x2F $(CURDIR)/$(BUILD)/port
+# --- Sound: songs.json -> KOF98's driver with only the songs the game plays (M ROM), only the samples they and the
+# game's effects use (V ROM), build/snd/songs.h (MUS_* = driver commands, BOSS_SONGS); songs from other games are
+# ported into KOF98's format (tools/port/build_snd.py; needs /data/roms/kof98.neo and each source game's ROM)
+SND_TOOLS = $(addprefix $(TOOLS)/port/,build_snd.py port98.py ff3_notes.py snk_notes.py) $(TOOLS)/kof98snd/games98.py
+$(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h &: songs.json $(SND_TOOLS)
+	python3 $(TOOLS)/port/build_snd.py songs.json $(CURDIR)/$(BUILD)/snd
 
 # --- Compile ---
 $(BUILD)/stage_opt: FORCE                  # the STAGE option of the last build: main.o is rebuilt when it changes
 	@mkdir -p $(BUILD); echo $(STAGE) | cmp -s - $@ || echo $(STAGE) > $@
 $(BUILD)/main.o: $(BUILD)/stage_opt
-$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h fighter.h ai.h sound.h VERSION
+$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h fighter.h ai.h sound.h $(BUILD)/snd/songs.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/bm_chars.o: $(BUILD)/bm_chars.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -51,8 +53,8 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
-$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/bm_c1.bin $(BUILD)/font.s1 $(BUILD)/port/kof98_m1.bin
-	printf 'c1=$(BUILD)/bm_c1.bin\nc2=$(BUILD)/bm_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=$(BUILD)/port/kof98_m1.bin\ndonor_v1=$(BUILD)/port/kof98_v1.bin\n' > $(BUILD)/manifest.txt
+$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/bm_c1.bin $(BUILD)/font.s1 $(BUILD)/snd/m1.bin
+	printf 'c1=$(BUILD)/bm_c1.bin\nc2=$(BUILD)/bm_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=$(BUILD)/snd/m1.bin\ndonor_v1=$(BUILD)/snd/v1.bin\n' > $(BUILD)/manifest.txt
 	python3 $(TOOLS)/neobuild_from_manifest.py $(BUILD)/manifest.txt --elf $(BUILD)/rom.elf --name $(ROM_NAME) -o $@
 
 clean:

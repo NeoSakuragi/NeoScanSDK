@@ -3,6 +3,7 @@
 #define QN 32                            /* power of two */
 static uint8_t q[QN], qh, qt;
 volatile uint8_t snd_test;
+const uint8_t snd_boss_song[N_BOSS_SONGS] = BOSS_SONGS;
 
 void snd_cmd(uint8_t b) {
     uint8_t n = (qt + 1) & (QN - 1);

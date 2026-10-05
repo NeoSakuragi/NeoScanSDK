@@ -59,6 +59,24 @@ GAMES = {
         types=0x2E6C,                                           # command -> type, $20-$FF ($0140)
         block=880, send=900,  # the game sends $07 at frame 872 and its first song ($3A, attract) at 935 (measured)
     ),
+    'kof96': dict(
+        name="The King of Fighters '96", rom='/data/roms/kof96.neo',
+        m1='/data/neogeo_dict/sound/kof96/kof96_m1.bin', dir='/data/neogeo_dict/sound/kof96',
+        id=b'Sound Driver Ver 0.1 96/07/03',                 # Kizuna's Ver 0.0 layout; the code-area tables moved by
+        # +$52 (found by the code that loads them, the same instruction bytes as Kizuna / Samurai Shodown IV)
+        songs=0x30D0, song20=0x2B38, banksets=0x267F,
+        notes=0x2B5E, fnum=0x29FE,
+        lv_fm=0x2F4F, lv_a=0x2FCF, lv_b=0x304F,
+        b_dn=0x2AC0, b_rec=0x2E1A, fx6=0x2E2A, seqfx=0x2E2C,
+        modmask=0x266E, big_slot=5, guard=0xFE6B,
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06)],
+        overhang=False, untie_0e=False, ops='v00', vol_always=True, b_roots='v00', op_fx=True,
+        a_dump_first=True,                                      # an ADPCM-A note on a sounding channel dumps it first
+        b_legato_keyon=True,
+        types=0x2E6C,
+        block=878, send=900,  # the game sends $07 at frame 875 (measured)
+    ),
     'samsho4': dict(
         name='Samurai Shodown IV', rom='/data/roms/samsho4.neo',
         m1='/data/neogeo_dict/sound/samsho4/samsho4_m1.bin', dir='/data/neogeo_dict/sound/samsho4',

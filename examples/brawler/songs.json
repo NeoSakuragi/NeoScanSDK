@@ -1,0 +1,18 @@
+{
+ "about": "The brawler's songs and sound effects: tools/port/build_snd.py builds the M ROM (KOF98's driver + these songs) and the V ROM (only their samples) and build/snd/songs.h (MUS_<name> = the driver command). source = the game whose driver the song comes from (kof98 = KOF98's own song, kept as is; others are ported into KOF98's format by tools/port/port98.py); cmd = the song's command in that game (docs/<game>_songs.md).",
+ "driver": "kof98",
+ "sfx": {"slot": 1, "prefix": "1A",
+         "codes": ["11", "12", "13", "14", "15", "1E", "1F", "17", "19", "2A", "2B", "2E", "31", "37", "3D", "42", "4D", "61", "69", "7A", "7C", "9C", "EB"],
+         "what": "sound.h SFX_* (swings, hits) and fighter.c HIT_SFX (special-move hits)"},
+ "songs": [
+  {"name": "SELECT", "source": "kof98", "cmd": "21", "what": "KOF98 opening (title, character select)"},
+  {"name": "FIGHT", "source": "ff3", "cmd": "2F", "what": "Fatal Fury 3, Terry's stage (the stage fight)"},
+  {"name": "JINGLE", "source": "kof98", "cmd": "2C", "what": "KOF98 VS jingle (stage clear)"},
+  {"name": "BOSS_MR_BIG", "source": "aof2", "cmd": "21", "what": "Art of Fighting 2, Mr. Big's stage (opponent 9, measured)"},
+  {"name": "BOSS_KRAUSER", "source": "fatfursp", "cmd": "3B", "what": "Fatal Fury Special, Krauser's stage, Kaiser Wave (68K stage table index 14 = Krauser)"},
+  {"name": "BOSS_GEESE", "source": "fatfursp", "cmd": "43", "what": "Fatal Fury Special, Geese's stage (68K stage table index 13 = Geese)"},
+  {"name": "BOSS_RUGAL", "source": "kof98", "cmd": "3B", "what": "KOF98, Rugal's stage (68K $93020: character 36 -> slot 14 -> $3B)"},
+  {"name": "BOSS_GOENITZ", "source": "kof96", "cmd": "2D", "what": "KOF96, Goenitz's stage (68K stage table $4FC48 index 10 = team 10)"}
+ ],
+ "bosses": ["BOSS_MR_BIG", "BOSS_KRAUSER", "BOSS_GEESE", "BOSS_RUGAL", "BOSS_GOENITZ"]
+}
