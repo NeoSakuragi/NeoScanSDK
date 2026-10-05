@@ -104,13 +104,76 @@ def enemy_preset(name, own):
     return {'fighter': own.get('fighter'), 'links': {'A': {'move': 'atk_a_close', 'weight': 'light', 'effect': 'none', 'links': {'A': a2}}}}
 
 
+# ---- routes as the source (Bruno 2026-10-06): a routes file is a LIST OF ROUTES, each edited on its own ---------------
+# {"fighter": ..., "routes": [[STEP, STEP, ...], ...], "entries": {...}}, STEP = {"input": "A", "move": ... | "special": ...,
+# "weight", "effect", "keep"?, "speed"?, "damage"?, "push"?}. The build merges them into the game's tree (rnode_t, as
+# before): routes that start with the same inputs AND the same hits there share those nodes (a trunk); two routes with
+# the same inputs up to a step but a different hit there cannot both be in the game (it picks the next hit by input
+# alone): a conflict, reported (which routes, which step, what differs) and the build refused.
+HIT_FIELDS = ('move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push')
+
+
+def hit_of(nd):
+    """a node's hit as the game plays it (defaults applied): what decides whether two routes' steps are the same hit"""
+    if 'special' in nd: return {'special': nd['special'], 'speed': speed_fx(nd)}
+    dd, dp = default_damage(nd)
+    return {'move': nd.get('move'), 'weight': nd.get('weight', 'light'), 'effect': nd.get('effect', 'none'),
+            'keep': bool(nd.get('keep')), 'speed': speed_fx(nd), 'damage': nd.get('damage', dd), 'push': nd.get('push', dp)}
+
+
+def tree_to_routes(tree):
+    """a tree (the old routes file / the ROM's shape) -> its routes, root to leaf, in link order"""
+    out = []
+    def walk(links, path):
+        for k, ch in (links or {}).items():
+            step = dict({f: ch[f] for f in HIT_FIELDS if f in ch}, input=k)
+            if ch.get('links'): walk(ch['links'], path + [step])
+            else: out.append([dict(x) for x in path + [step]])   # each route its own steps
+    walk(tree.get('links'), [])
+    return out
+
+
+def merge_routes(routes):
+    """routes -> (tree {'links': ...}, conflicts [{routes: (i, j) 1-based, step (1-based), input path, differs}]);
+    a conflicting step is left out of the tree (the first route's hit stays)"""
+    root = {'links': {}}; owner = {}; conflicts = []
+    for ri, r in enumerate(routes):
+        nd = root
+        for si, st in enumerate(r):
+            k = st['input']
+            assert k in INPUTS, f'route {ri + 1} step {si + 1}: unknown input {k}'
+            hit = {f: st[f] for f in HIT_FIELDS if f in st}
+            ch = (nd.get('links') or {}).get(k)
+            if ch is None:
+                assert 'special' not in nd, f'route {ri + 1} step {si + 1}: a special ends its route'
+                ch = dict(hit); nd.setdefault('links', {})[k] = ch; owner[id(ch)] = ri
+            elif hit_of(ch) != hit_of(hit):
+                a, b = hit_of(ch), hit_of(hit)
+                conflicts.append({'routes': (owner[id(ch)] + 1, ri + 1), 'step': si + 1, 'inputs': [x['input'] for x in r[:si + 1]],
+                                  'differs': {f: (a.get(f), b.get(f)) for f in set(a) | set(b) if a.get(f) != b.get(f)}})
+                break
+            nd = ch
+    return root, conflicts
+
+
+def default_routes():
+    """the default tree (the brawler's table before the Chain Lab) as routes"""
+    return tree_to_routes(default_tree())
+
+
 def load(name, path=None):
     """the fighter's tree: its routes file (game.json roster[].routes; entries it leaves out: the default's), else
-    (path None) the default tree"""
+    (path None) the default tree. A file with "routes" (the list form) is merged (merge_routes; a conflict is an
+    error naming the routes and the step); the older tree form ("links") still loads as it is."""
     p = path
     d = default_tree()
     if p is None: return dict(d, fighter=name)
     t = json.load(open(p))
+    if 'routes' in t:
+        tree, conflicts = merge_routes(t['routes'])
+        assert not conflicts, f'{p}: ' + '; '.join(f"routes {c['routes'][0]} and {c['routes'][1]} differ at step {c['step']} " \
+            f"({' '.join(c['inputs'])}): " + ', '.join(f'{f} {x} / {y}' for f, (x, y) in c['differs'].items()) for c in conflicts)
+        t = dict({k: v for k, v in t.items() if k != 'routes'}, links=tree['links'])
     t['entries'] = {**d['entries'], **t.get('entries', {})}
     t['fighter'] = name
     return t

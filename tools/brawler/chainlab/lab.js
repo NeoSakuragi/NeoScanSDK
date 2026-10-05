@@ -246,7 +246,55 @@
     loadState(s) { const p = this.core._malloc(s.length); this.heap.set(s, p); this.core._wc_load(p, s.length); this.core._free(p); }
   }
 
-  const api = { Lab, speedFx, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  // ---- routes as the source (routes.py merge_routes / tree_to_routes: the same merge) ---------------------------------
+  const HIT_FIELDS = ['move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push'];
+  function hitOf(nd) {                 // a step's hit as the game plays it (defaults applied)
+    if ('special' in nd) return { special: nd.special, speed: speedFx(nd) };
+    const [dd, dp] = defaultDamage(nd);
+    return { move: nd.move, weight: nd.weight || 'light', effect: nd.effect || 'none', keep: !!nd.keep, speed: speedFx(nd),
+             damage: nd.damage !== undefined ? nd.damage : dd, push: nd.push !== undefined ? nd.push : dp };
+  }
+  function pick(o, fields) { const r = {}; for (const f of fields) if (f in o) r[f] = o[f]; return r; }
+  function treeToRoutes(tree) {
+    const out = [];
+    (function walk(links, path) {
+      for (const [k, ch] of Object.entries(links || {})) {
+        const st = Object.assign(pick(ch, HIT_FIELDS), { input: k });
+        if (ch.links && Object.keys(ch.links).length) walk(ch.links, path.concat([st])); else out.push(path.concat([st]).map(x => Object.assign({}, x)));   // each route its own steps
+      }
+    })(tree.links, []);
+    return out;
+  }
+  // routes -> {tree: {links}, conflicts: [{routes: [i, j] 1-based, step 1-based, inputs, differs {field: [a, b]}}],
+  // paths: per route the tree nodes its steps reached (up to a conflict)}
+  function mergeRoutes(routes) {
+    const root = { links: {} }, owner = new Map(), conflicts = [], paths = [];
+    routes.forEach((r, ri) => {
+      let nd = root; const path = [];
+      for (let si = 0; si < r.length; si++) {
+        const st = r[si], k = st.input, hit = pick(st, HIT_FIELDS);
+        if (!INPUTS.includes(k)) throw new Error(`route ${ri + 1} step ${si + 1}: unknown input ${k}`);
+        let ch = nd.links && nd.links[k];
+        if (!ch) {
+          if ('special' in nd) throw new Error(`route ${ri + 1} step ${si + 1}: a special ends its route`);
+          ch = Object.assign({}, hit); nd.links = nd.links || {}; nd.links[k] = ch; owner.set(ch, ri);
+        } else {
+          const a = hitOf(ch), b = hitOf(hit);
+          if (pyjson(a) !== pyjson(b)) {
+            const differs = {};
+            for (const f of new Set([...Object.keys(a), ...Object.keys(b)])) if (pyjson(a[f]) !== pyjson(b[f])) differs[f] = [a[f], b[f]];
+            conflicts.push({ routes: [owner.get(ch) + 1, ri + 1], step: si + 1, inputs: r.slice(0, si + 1).map(x => x.input), differs });
+            break;
+          }
+        }
+        path.push(ch); nd = ch;
+      }
+      paths.push(path);
+    });
+    return { tree: root, conflicts, paths };
+  }
+
+  const api = { Lab, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);

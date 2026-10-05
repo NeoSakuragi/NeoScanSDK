@@ -36,7 +36,11 @@
     F.forEach((f, i) => sel.add(new Option(f.name.toUpperCase().replace('_', ' ') + (sel.id === 'fighter' && f.routes_file ? ' (own routes)' : ''), i)));
     sel.value = v;
   }
-  let tree = clone(F[fi].tree);          // the tree in the editor
+  // the editor's document: the fighter's ROUTES (each edited on its own) + its entries; the game gets their merge
+  // (lab.js mergeRoutes = routes.py merge_routes: shared trunks where inputs and hits agree, conflicts reported)
+  const docOf = t => t.routes ? { fighter: t.fighter, routes: t.routes, entries: t.entries } : { fighter: t.fighter, routes: CL.treeToRoutes(t), entries: t.entries };
+  let tree = docOf(clone(F[fi].tree));    // the routes in the editor
+  const merged = () => { const m = CL.mergeRoutes(tree.routes); m.tree.entries = tree.entries; return m; };
   let built = null;                      // {fi, tree (snapshot), info: index -> {path, node}}
   let labTreeFor = -1;                   // the fighter whose route_tab entry points at the lab buffer
 
@@ -160,23 +164,25 @@
 
   function build() {
     let blob;
-    try { blob = CL.encodeTree(tree, data.ba, F[fi].has, F[fi].default.entries); } catch (e) { err('The tree cannot be built: ' + e.message); return; }
+    const m = merged();
+    if (m.conflicts.length) { err('Not built: ' + m.conflicts.map(conflictText).join('; ') + '. Change one of the two routes (the cards say CONFLICT).'); return; }
+    try { blob = CL.encodeTree(m.tree, data.ba, F[fi].has, F[fi].default.entries); } catch (e) { err('The routes cannot be built: ' + e.message); return; }
     err('');
     if (labTreeFor >= 0 && labTreeFor !== fi) restoreLabFighter();
     lab.installTree(fi, blob); lab.run(1); labTreeFor = fi;
-    const snap = clone(tree); built = { fi, tree: snap, info: indexInfo(snap), bytes: blob.length };
+    built = { fi, tree: clone(tree), info: indexInfo(m.tree), bytes: blob.length };
     builtLabel = $('built').textContent = `built: ${blob[3]} nodes, ${blob.length} bytes in the game's RAM`;
     render();
   }
   $('btnBuild').onclick = build;
   $('btnRom').onclick = () => {
-    restoreLabFighter(); tree = clone(F[fi].tree); { const snap = clone(tree); built = { fi, tree: snap, info: indexInfo(snap) }; }
+    restoreLabFighter(); tree = docOf(clone(F[fi].tree)); built = { fi, tree: clone(tree), info: indexInfo(merged().tree) };
     builtLabel = $('built').textContent = F[fi].routes_file ? 'the fighter\'s own tree (routes file, in the ROM)' : 'the default tree (in the ROM)';
     render();
   };
-  $('btnDefault').onclick = () => { tree = clone(F[fi].default); tree.fighter = F[fi].name; markDirty(); render(); };
+  $('btnDefault').onclick = () => { tree = docOf(clone(F[fi].default)); tree.fighter = F[fi].name; markDirty(); render(); };
   $('btnExport').onclick = () => {
-    const out = { fighter: F[fi].name, links: tree.links, entries: tree.entries };
+    const out = { fighter: F[fi].name, routes: tree.routes, entries: tree.entries };   // the list form (routes.py)
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }));
     a.download = F[fi].name + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -185,10 +191,11 @@
   $('file').onchange = async () => {
     const f = $('file').files[0]; if (!f) return;
     try {
-      const t = JSON.parse(await f.text());
+      const t = docOf(JSON.parse(await f.text()));                 // the list form, or an older tree file
       t.entries = Object.assign({}, F[fi].default.entries, t.entries || {});
-      CL.encodeTree(t, data.ba, F[fi].has, F[fi].default.entries);
-      tree = t; markDirty(); render(); err('');
+      const m = CL.mergeRoutes(t.routes); m.tree.entries = t.entries;
+      if (!m.conflicts.length) CL.encodeTree(m.tree, data.ba, F[fi].has, F[fi].default.entries);
+      tree = t; markDirty(); render(); if (!m.conflicts.length) err('');
     } catch (e) { err('Import: ' + e.message); }
     $('file').value = '';
   };
@@ -301,25 +308,19 @@
   const INPUT_GLYPH = { A: [0, 0, 'A'], B: [0, 0, 'B'], dA: [0, 1, 'A'], dB: [0, 1, 'B'], fA: [1, 0, 'A'], fB: [1, 0, 'B'],
     dfA: [1, 1, 'A'], dfB: [1, 1, 'B'], AB: [0, 0, 'AB'], D: [0, 0, 'D'], fD: [1, 0, 'D'], dD: [0, 1, 'D'], uD: [0, -1, 'D'] };
   const BTN_COL = { A: '#d01818', B: '#e8b800', C: '#139a2c', D: '#1f4fd0' };
+  // the input: a plain arrow for the stick, in the game's facing-relative sense (forward = →; N = neutral),
+  // then the four buttons: pressed = filled in its Neo Geo colour with a solid border, unused = grey outline
+  const ARROW = { '0,-1': '↑', '1,-1': '↗', '1,0': '→', '1,1': '↘', '0,1': '↓', '-1,1': '↙', '-1,0': '←', '-1,-1': '↖' };
   function inputGlyph(key) {
-    const g = INPUT_GLYPH[key]; if (!g) return null;
-    const [dx, dy, btns] = g, c = 11, r = 7;
-    let st = `<circle cx="${c}" cy="${c}" r="10" fill="#fff" stroke="#000" stroke-width="1.5"/>`;
-    for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) {
-      const k = x && y ? 0.72 : 1, px = c + x * r * k, py = c + y * r * k;
-      if (x === dx && y === dy) continue;
-      st += `<circle cx="${px}" cy="${py}" r="1.3" fill="#000"/>`;
-    }
-    const k = dx && dy ? 0.72 : 1, hx = c + dx * r * k, hy = c + dy * r * k;
-    if (dx || dy) st += `<line x1="${c}" y1="${c}" x2="${hx}" y2="${hy}" stroke="#000" stroke-width="2.4"/>`;
-    st += `<circle cx="${hx}" cy="${hy}" r="3.6" fill="#000"/>`;
+    const g = INPUT_GLYPH[key]; if (!g) return h('span', { class: 'glyph' });
+    const [dx, dy, btns] = g, arrow = ARROW[dx + ',' + dy];
     let bt = '';
     'ABCD'.split('').forEach((b, i) => {
-      const on = btns.includes(b), x = 7 + i * 14;
-      bt += on ? `<circle cx="${x}" cy="11" r="6.5" fill="${BTN_COL[b]}" stroke="#000" stroke-width="2"/><text x="${x}" y="14.5" text-anchor="middle" font-size="9.5" font-weight="700" fill="#000" font-family="sans-serif">${b}</text>`
-               : `<circle cx="${x}" cy="11" r="6" fill="#fff" stroke="#999" stroke-width="1"/><text x="${x}" y="14.3" text-anchor="middle" font-size="8.5" fill="#999" font-family="sans-serif">${b}</text>`;
+      const on = btns.includes(b), x = 14 + i * 28;
+      bt += on ? `<circle cx="${x}" cy="22" r="13" fill="${BTN_COL[b]}" stroke="#000" stroke-width="3"/><text x="${x}" y="29" text-anchor="middle" font-size="19" font-weight="700" fill="#000" font-family="sans-serif">${b}</text>`
+               : `<circle cx="${x}" cy="22" r="12" fill="#fff" stroke="#999" stroke-width="1.5"/><text x="${x}" y="28.5" text-anchor="middle" font-size="17" fill="#999" font-family="sans-serif">${b}</text>`;
     });
-    return h('span', { class: 'glyph', title: 'input: ' + IN_LABEL[key] }, svg(22, 22, st), svg(56, 22, bt));
+    return h('span', { class: 'glyph', title: 'input: ' + IN_LABEL[key] }, h('span', { class: 'arrow-in' + (arrow ? '' : ' neutral'), title: arrow ? '' : 'neutral: no direction held' }, arrow || 'N'), svg(112, 44, bt));
   }
   const ICON = {             // 14 x 14, black line art, each a different shape
     frames: '<circle cx="7" cy="7" r="5.6" fill="none" stroke="#000" stroke-width="1.6"/><path d="M7 3.5V7l2.6 1.6" fill="none" stroke="#000" stroke-width="1.6"/>',
@@ -382,28 +383,24 @@
   function card(nd, parent, key, idxMap, air, ctx) {
     const idx = idxMap.get(nd);
     const acts = [];
-    if (parent) {
-      const keys = Object.keys(parent.links), i = keys.indexOf(key);
-      const move = (d) => { const j = i + d; if (j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; const o = {}; for (const k of keys) o[k] = parent.links[k]; parent.links = o; edited(); };
-      acts.push(h('button', { onclick: () => move(-1), title: 'move this branch up: the routes through it are listed earlier (the game is unchanged)' }, '↑'),
-        h('button', { onclick: () => move(1), title: 'move this branch down: the routes through it are listed later (the game is unchanged)' }, '↓'),
-        h('button', { onclick: () => { delete parent.links[key]; edited(); }, title: 'delete this hit and everything after it' + (ctx && ctx.routes.length > 1 ? ` (routes ${ctx.routes.join(', ')})` : '') }, '✕'));
+    if (ctx) {                         // a route's card: ↑ / ↓ move the route in the list, ✕ cuts the route here
+      acts.push(h('button', { onclick: ctx.up, title: 'move this route up the list (the game is unchanged)' }, '↑'),
+        h('button', { onclick: ctx.down, title: 'move this route down the list (the game is unchanged)' }, '↓'),
+        h('button', { onclick: ctx.del, title: ctx.k ? 'delete this hit and the rest of this route (other routes are not touched)' : 'delete this route (other routes are not touched)' }, '✕'));
     }
-    const sharedNote = ctx && ctx.routes.length > 1 ? h('div', { class: 'shared' }, h('b', {}, 'shared'), `: routes ${ctx.routes.join(', ')}`,
-      ctx.onSplit ? h('button', { class: 'split', title: 'give this route its own copy of this hit (it needs another input here: the game picks the next hit by input)', onclick: ctx.onSplit }, 'separate…') : null) : null;
+    // one fixed line for the merge's note (every card the same size): a conflict, or the merged trunk; full text as tooltip
+    const nt = ctx && (ctx.conflict || ctx.trunk) || '';
+    const note = h('div', { class: 'note1' + (ctx && ctx.conflict ? ' conflict' : ''), title: nt }, ctx && ctx.conflict ? ctx.conflictShort : ctx && ctx.trunk ? 'merged trunk: ' + ctx.trunkWith.join(' ') : '');
     if (nd.special !== undefined) {
       const kof = F[fi].specials[nd.special];
-      return h('div', { class: 'card special' + (sharedNote ? ' isshared' : ''), 'data-idx': idx },
+      return h('div', { class: 'card special' + (ctx && ctx.conflict ? ' isconflict' : ''), 'data-idx': idx },
         h('span', { class: 'res' }),
         h('div', { class: 'hd' }, inputGlyph(key)),
-        h('div', { class: 'artb' }, specArt(nd.special)),
-        h('div', { class: 'cap' }, SPECIAL_LABEL[nd.special] + (kof ? ' · ' + kof : ''), h('br'), h('span', { class: 'note' }, 'route ender')),
+        h('div', { class: 'artb', title: SPECIAL_LABEL[nd.special] + (kof ? ' (KOF ' + kof + ')' : '') + ': a route ender' }, specArt(nd.special)),
         h('div', { class: 'mods' }, speedStat(nd, spd(nd))),
-        sharedNote, acts.length ? h('div', { class: 'acts' }, acts) : null);
+        note, h('div', { class: 'acts' }, acts));
     }
-    const free = freeInputs(nd);
-    if (!air && free.length)
-      acts.unshift(sel([['', '+'], ...free.map(k => [k, 'on ' + IN_LABEL[k]])], '', k => { if (!k) return; nd.links = nd.links || {}; nd.links[k] = newChild(k); edited(); }));
+    if (ctx && ctx.branch) acts.unshift(sel([['', '+'], ...CL.INPUTS.map(k => [k, 'new route: this one up to here, then ' + IN_LABEL[k]])], '', k => { if (k) ctx.branch(k); }));
     const [dd, dp] = CL.defaultDamage(nd);
     const dmg = nd.damage !== undefined ? nd.damage : dd;
     const sv = spd(nd), d = fd(nd.move, sv), w = nd.weight || 'light', eff = nd.effect || 'none';
@@ -411,12 +408,10 @@
     const stat = (ic, text, title, onclick) => h('button', { class: 'st', title, onclick }, icon(ic), h('span', {}, text));
     const num = (field, def) => h('input', { type: 'number', value: nd[field] !== undefined ? nd[field] : '', placeholder: String(def),
       onchange: ev => { const v = ev.target.value; if (v === '') delete nd[field]; else nd[field] = Number(v); edited(); } });
-    return h('div', { class: 'card' + (sharedNote ? ' isshared' : ''), 'data-idx': idx },
+    return h('div', { class: 'card' + (ctx && ctx.conflict ? ' isconflict' : ''), 'data-idx': idx },
       h('span', { class: 'res' }),
       h('div', { class: 'hd' }, inputGlyph(key)),
-      h('button', { class: 'artb', title: air ? '' : 'choose the move (pictures)', onclick: pick }, art(nd.move),
-        h('span', { class: 'bar', title: 'the move frame by frame at its speed: █ active' }, fdBar(nd.move, sv))),
-      h('button', { class: 'cap', title: air ? '' : 'choose the move (pictures)', onclick: pick }, MOVE_LABEL[nd.move] || nd.move),
+      h('button', { class: 'artb', title: (MOVE_LABEL[nd.move] || nd.move) + (air ? '' : ' (tap: choose the move)'), onclick: pick }, art(nd.move)),
       h('div', { class: 'mods' },
         h('button', { class: 'st fr', title: 'startup / active / recovery, total frames at this speed (tap: choose the move)', onclick: pick }, icon('frames'),
           h('span', {}, d ? `${d.startup}/${d.active}/${d.recovery} ${d.total}f` : '-')),
@@ -428,7 +423,7 @@
           pop.append(h('label', {}, 'damage ', num('damage', dd)), h('label', {}, 'push px ', num('push', dp)), h('div', { class: 'note' }, 'empty = default from weight / effect')))),
         stat(nd.keep ? 'keep_on' : 'keep_off', nd.keep ? 'full' : 'cancel', 'keep the full animation on hit (lit: plays to its end before the next link; unlit: the next link cancels it on hit) (tap: switch)',
           () => { if (nd.keep) delete nd.keep; else nd.keep = true; edited(); })),
-      sharedNote, acts.length ? h('div', { class: 'acts' }, acts) : null);
+      note, h('div', { class: 'acts' }, acts));
   }
   // the move picker: every move the fighter has, as its impact frame(s) drawn from the game's own data (make_site.py,
   // move_images.py), its name and frame data; the current one marked (thick border + "current")
@@ -452,75 +447,48 @@
   }
   function branch(nd, parent, key, idxMap, air) { return card(nd, parent, key, idxMap, air); }   // entries: one hit each
 
-  // ---- the chains as a list of routes (Bruno 2026-10-06): every root -> leaf path its own numbered row, left to right.
-  // The data stays the tree (the game picks the next hit by input, so routes starting with the same inputs share those
-  // hits); a card several routes go through says so ("shared: routes 1, 3") and editing it changes all of them.
-  function routesOf(t) {             // [{steps: [{key, node, parent}], n}] in tree order
-    const out = [];
-    (function walk(links, parent, path) {
-      for (const [k, ch] of Object.entries(links || {})) {
-        const p = path.concat({ key: k, node: ch, parent });
-        if (ch.links && Object.keys(ch.links).length) walk(ch.links, ch, p); else out.push({ steps: p });
-      }
-    })(t.links, t, []);
-    out.forEach((r, i) => { r.n = i + 1; });
-    return out;
+  // ---- the chains as a list of routes (Bruno 2026-10-06): the routes are the source, each edited on its own; the
+  // game gets their merge (a trunk where routes agree on inputs and hits, shown as a note; a conflict where they agree
+  // on the inputs but not on the hit: marked on both cards, Build refused until one changes)
+  function conflictText(c) {
+    return `routes ${c.routes[0]} and ${c.routes[1]} press ${c.inputs.map(k => IN_LABEL[k]).join(' ')} but differ at hit ${c.step} (` +
+      Object.entries(c.differs).map(([f, [a, b]]) => `${f} ${a === undefined ? '-' : a} / ${b === undefined ? '-' : b}`).join(', ') + ')';
   }
-  let draft = null;                  // "+ new route" in progress: [keys] through existing hits
-  function deleteRoute(r, through) { // the route's unshared tail: from its first hit no other route goes through
-    const k = r.steps.findIndex(st => through.get(st.node).length === 1);
-    const st = r.steps[k]; delete st.parent.links[st.key]; edited();
-  }
-  function separate(r, k) {          // route r gets its own copy of hit k (and of what follows on r) under another input
-    const st = r.steps[k], par = st.parent, free = freeInputs(par).filter(x => CL.SPECIAL_INPUTS.includes(x) === CL.SPECIAL_INPUTS.includes(st.key));
-    if (!free.length) { err('No free input left at this point for a separate copy.'); return; }
-    const box = h('div', { class: 'modal', onclick: e => { if (e.target === box) box.remove(); } },
-      h('div', { class: 'sheet small' }, h('div', { class: 'mhead' }, h('b', {}, `Route ${r.n}: its own copy of hit ${k + 1}`), h('button', { onclick: () => box.remove() }, 'Close')),
-        h('div', { class: 'in' }, h('p', {}, `The game chooses the next hit by the input, so two routes that press the same inputs always share their hits. ` +
-          `To give route ${r.n} its own copy, it needs another input here (now ${IN_LABEL[st.key]}). The other routes keep the current hit.`),
-          h('div', { class: 'row' }, free.map(x => h('button', { onclick: () => {
-            const copy = clone(st.node); delete copy.links;     // this hit, then only route r's continuation
-            let src = copy;
-            for (let j = k + 1; j < r.steps.length; j++) { const c = clone(r.steps[j].node); delete c.links; src.links = { [r.steps[j].key]: c }; src = c; }
-            const through = throughMap(routesOf(tree)); box.remove();
-            const kk = r.steps.findIndex(s2 => through.get(s2.node).length === 1); if (kk >= 0) delete r.steps[kk].parent.links[r.steps[kk].key];
-            par.links[x] = copy; edited();
-          } }, 'on ' + IN_LABEL[x]))))));
-    document.body.append(box);
-  }
-  function throughMap(routes) { const m = new Map(); for (const r of routes) for (const st of r.steps) { if (!m.has(st.node)) m.set(st.node, []); m.get(st.node).push(r.n); } return m; }
-  function addSel(label, nd, onPick, existing) {   // the inputs to add from a hit (existing ones shown with their move)
-    const opts = CL.INPUTS.filter(k => !(nd.links && nd.links[k]) || existing).map(k => {
-      const ch = nd.links && nd.links[k];
-      return [k, (ch ? 'on ' + IN_LABEL[k] + ' (existing: ' + (ch.special ? SPECIAL_LABEL[ch.special] : MOVE_LABEL[ch.move] || ch.move) + ')' : 'on ' + IN_LABEL[k] + (CL.SPECIAL_INPUTS.includes(k) ? ' (special, ends it)' : ''))];
-    });
-    return sel([['', label], ...opts], '', k => { if (k) onPick(k); });
-  }
+  function newStep(k) { return Object.assign(newChild(k), { input: k }); }
   function render() {
-    tree.links = tree.links || {};
-    const idxMap = CL.nodeIndex(tree), routes = routesOf(tree), through = throughMap(routes);
-    const rows = routes.map(r => h('div', { class: 'route', 'data-path': r.steps.map(st => idxMap.get(st.node)).join(',') },
-      h('div', { class: 'rhead' }, h('b', {}, `Route ${r.n}`), h('span', { class: 'rin' }, r.steps.map(st => IN_LABEL[st.key]).join(' ')),
-        h('span', { class: 'played' }),
-        h('button', { title: 'delete this route: only its hits no other route goes through', onclick: () => deleteRoute(r, through) }, 'Delete route')),
-      h('div', { class: 'rcards' }, r.steps.map((st, k) => [k ? h('span', { class: 'arrow' }, '→') : null,
-        card(st.node, st.parent, st.key, idxMap, false, { routes: through.get(st.node), onSplit: through.get(st.node).length > 1 ? () => separate(r, k) : null })]).flat(),
-        r.steps[r.steps.length - 1].node.special === undefined ? h('div', { class: 'addhit' }, addSel('+ hit', r.steps[r.steps.length - 1].node, k => { const nd = r.steps[r.steps.length - 1].node; nd.links = nd.links || {}; nd.links[k] = newChild(k); edited(); })) : null)));
-    // "+ new route": step by step from neutral; inputs that already lead somewhere reuse that hit (shared prefix)
-    let drow;
-    if (draft) {
-      let nd = tree, cards = [];
-      draft.forEach(k => { const ch = nd.links[k]; cards.push(card(ch, nd, k, idxMap, false, { routes: through.get(ch) || [] })); nd = ch; });
-      drow = h('div', { class: 'route draft' }, h('div', { class: 'rhead' }, h('b', {}, 'New route'), h('span', { class: 'rin' }, draft.map(k => IN_LABEL[k]).join(' ') || '(pick the first input)'),
-          h('button', { onclick: () => { draft = null; render(); } }, 'Cancel')),
-        h('div', { class: 'rcards' }, cards.map((c, i) => [i ? h('span', { class: 'arrow' }, '→') : null, c]).flat(),
-          h('div', { class: 'addhit' }, addSel(draft.length ? 'next input…' : 'first input…', nd, k => {
-            if (nd.links && nd.links[k] && nd.links[k].special === undefined) { draft.push(k); render(); return; }   // reuse the existing hit
-            if (nd.links && nd.links[k]) return;
-            nd.links = nd.links || {}; nd.links[k] = newChild(k); draft = null; edited();                    // a new hit: the route exists now
-          }, true))));
+    tree.routes = tree.routes || [];
+    const m = merged(), idxMap = CL.nodeIndex(m.tree), users = new Map();
+    m.paths.forEach((p, ri) => p.forEach(nd => { if (!users.has(nd)) users.set(nd, []); users.get(nd).push(ri + 1); }));
+    const conflictAt = new Map();      // "route:step" -> text
+    for (const c of m.conflicts) {
+      const t = `CONFLICT: ${conflictText(c)}`, f = Object.keys(c.differs).filter(x => x !== 'damage' && x !== 'push').concat(Object.keys(c.differs).filter(x => x === 'damage' || x === 'push'))[0];
+      conflictAt.set(`${c.routes[0] - 1}:${c.step - 1}`, { t, s: `CONFLICT: route ${c.routes[1]}, ${f}` });
+      conflictAt.set(`${c.routes[1] - 1}:${c.step - 1}`, { t, s: `CONFLICT: route ${c.routes[0]}, ${f}` });
     }
-    $('tree').replaceChildren(...rows, drow || h('div', { class: 'newroute' }, h('button', { onclick: () => { draft = []; render(); } }, '+ new route')));
+    const R = tree.routes;
+    const mv = (i, d) => { const j = i + d; if (j < 0 || j >= R.length) return; [R[i], R[j]] = [R[j], R[i]]; edited(); };
+    const rows = R.map((r, ri) => {
+      const path = m.paths[ri];
+      return h('div', { class: 'route' + (m.conflicts.some(c => c.routes.includes(ri + 1)) ? ' hasconflict' : ''), 'data-path': path.map(nd => idxMap.get(nd)).join(',') },
+        h('div', { class: 'rhead' }, h('b', {}, `Route ${ri + 1}`), h('span', { class: 'rin' }, r.map(st => IN_LABEL[st.input]).join(' ')),
+          h('span', { class: 'played' }),
+          h('button', { title: 'delete this route (no other route changes)', onclick: () => { R.splice(ri, 1); edited(); } }, 'Delete route')),
+        h('div', { class: 'rcards' }, r.map((st, k) => {
+          const nd = path[k], u = nd ? users.get(nd) : null, others = u ? u.filter(x => x !== ri + 1) : [];
+          const ctx = { k, up: () => mv(ri, -1), down: () => mv(ri, 1),
+            del: () => { if (k) r.splice(k); else R.splice(ri, 1); edited(); },
+            branch: st.special === undefined ? inp => { R.splice(ri + 1, 0, clone(r.slice(0, k + 1)).concat([newStep(inp)])); edited(); } : null,
+            conflict: conflictAt.has(`${ri}:${k}`) ? conflictAt.get(`${ri}:${k}`).t : null, conflictShort: conflictAt.has(`${ri}:${k}`) ? conflictAt.get(`${ri}:${k}`).s : null,
+            trunkWith: others, trunk: !conflictAt.get(`${ri}:${k}`) && others.length ? `merged trunk with route${others.length > 1 ? 's' : ''} ${others.join(', ')} (same inputs and hit)` : null };
+          return [k ? h('span', { class: 'arrow' }, '→') : null, card(st, null, st.input, idxMap, false, ctx)];
+        }).flat(),
+          r.length && r[r.length - 1].special === undefined ? h('div', { class: 'addhit' }, sel([['', '+ hit'], ...CL.INPUTS.map(k => [k, 'on ' + IN_LABEL[k] + (CL.SPECIAL_INPUTS.includes(k) ? ' (special, ends it)' : '')])], '',
+            k => { if (k) { r.push(newStep(k)); edited(); } })) : null));
+    });
+    $('tree').replaceChildren(...rows, h('div', { class: 'newroute' }, sel([['', '+ new route: first input…'], ...CL.INPUTS.filter(k => !CL.SPECIAL_INPUTS.includes(k)).map(k => [k, 'on ' + IN_LABEL[k]])], '',
+      k => { if (k) { R.push([newStep(k)]); edited(); } })));
+    if (m.conflicts.length) err('Conflicts (Build refused until fixed): ' + m.conflicts.map(conflictText).join('; '));
+    else if (/^Conflicts|^Not built|^Imported/.test($('err').textContent)) err('');
     tree.entries = tree.entries || clone(F[fi].default.entries);
     $('entrytree').replaceChildren(...CL.ENTRIES.map(k => h('div', { style: 'margin:10px 0' }, h('div', { style: 'font-weight:700;margin-bottom:4px' }, ENTRY_LABEL[k]),
       branch(tree.entries[k], null, k, new Map(), !!CL.AIR_MOVES[k]))));
@@ -528,8 +496,8 @@
     showReadout();
   }
   // the editor's "Reset positions" etc. done; first view: the fighter's own tree, as the ROM has it
-  { const snap = clone(tree); built = { fi, tree: snap, info: indexInfo(snap) }; }
+  built = { fi, tree: clone(tree), info: indexInfo(merged().tree) };
   builtLabel = $('built').textContent = F[fi].routes_file ? "the fighter's own tree (routes file, in the ROM)" : 'the default tree (in the ROM)';
   render(); draw();
-  window.chainlab = { lab, draw, get paused() { return paused; }, togglePause, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); override = k.replace('-', ''); stepFrames(Number(n)); } override = null; }, get tree() { return tree; }, set tree(t) { tree = t; markDirty(); render(); }, build, render, stepFrames, data, chains: () => chains };
+  window.chainlab = { lab, draw, get paused() { return paused; }, togglePause, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); override = k.replace('-', ''); stepFrames(Number(n)); } override = null; }, get tree() { return tree; }, set tree(t) { tree = docOf(t); markDirty(); render(); }, build, render, stepFrames, data, chains: () => chains };
 })();
