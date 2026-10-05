@@ -370,6 +370,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (each part needs its own input): reverse engineer KOF98's logic and play it. K' has many follow-ups, notably after his
   236A, which opens more routes in KOF99: read them from the ROM and support them (one follow-up mechanism for both).
 
+- [ ] 75. Hit sounds by use (review round 2, Bruno's listening): $9C SDM IMPACT on desperation moves' hits (the C fury,
+  Yuri's Shin Shoryuken sound), $19 GRAB START when a grab / command grab connects, $17 BLOCKED HIT for guarded hits,
+  $3D BACK BREAK on back-breaker throws (Krauser's), $2B SLASH for any blade hit. The SSG cursor sound is to change
+  (Bruno: Change, no note yet).
+
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.

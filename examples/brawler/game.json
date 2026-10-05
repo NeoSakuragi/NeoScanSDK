@@ -53,7 +53,7 @@
    "bank": "kof98:billy",
    "watch": {"frame": 347, "step": -1},
    "routes": "default",
-   "specials": {"D": null, "fD": null, "dD": "623D", "uD": "426C", "dfD": "623C", "ufD": "CCCC"},
+   "specials": {"D": "CCCC", "fD": "426C", "dD": "623C", "uD": "623D", "dfD": null, "ufD": null},
    "unlock": "always",
    "voices": "kof"
   },
@@ -160,7 +160,7 @@
    "bank": "whp:hanzo",
    "watch": {"frame": 0, "step": 0},
    "routes": "default",
-   "specials": {"D": "236A", "fD": "236D", "dD": "623B", "uD": "214C"},
+   "specials": {"D": "236A", "fD": "236D", "dD": "623B", "uD": "214C", "dfD": "623A", "ufD": "214D"},
    "unlock": "always"
   }
  ],
