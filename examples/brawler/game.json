@@ -467,6 +467,7 @@
    "background": 1,
    "music": "FIGHT",
    "power": 1,
+   "transition": {"section": 0, "direction": "down", "speed": 2},
    "waves": [
     {
      "lock": 0,
@@ -679,6 +680,7 @@
    "background": 4,
    "music": "FIGHT",
    "power": 2,
+   "transition": {"section": 1, "direction": "down", "speed": 2},
    "waves": [
     {
      "lock": 0,

@@ -71,6 +71,26 @@ def stage_widths(build):
     return [int(e.split(',')[1]) * 16 for e in re.findall(r'\{stage\d+_map, ([^}]*)\}', m.group(1))] if m else None
 
 
+def vsect_count(build):
+    """the descents (stage.h VSECT_COUNT, make_stage_ra.py VSECTIONS), None when it isn't built yet"""
+    p = os.path.join(build, 'stage.h')
+    m = os.path.exists(p) and re.search(r'#define VSECT_COUNT (\d+)', open(p).read())
+    return int(m.group(1)) if m else None
+
+
+def transition(s, nv, last, where):
+    """a stage's "transition" (played after it: a descent, main.c "transition") -> gstagex_t.trans, .trans_speed:
+    trans = 1 + section (0: none), bit 7 = "up"; speed in 1/4 px a frame (0.25-63.75 px)"""
+    t = s.get('transition')
+    if not t: return 0, 0
+    assert not last, f'{where}: transition after the last stage'
+    sec, d, sp = t['section'], t.get('direction', 'down'), t.get('speed', 2)
+    assert isinstance(sec, int) and 0 <= sec < (nv if nv is not None else 127), f'{where}: transition section {sec}'
+    assert d in ('down', 'up'), f'{where}: transition direction {d}'
+    q = round(sp * 4); assert 1 <= q <= 255 and q == sp * 4, f'{where}: transition speed {sp} (0.25 px steps, 0.25-63.75)'
+    return (1 + sec) | (0x80 if d == 'up' else 0), q
+
+
 def songs(build):
     """MUS_* name -> driver command, from build/snd/songs.h (the pack needs the numbers)"""
     p = os.path.join(build, 'snd', 'songs.h')
@@ -134,7 +154,7 @@ def model(g, build):
     enemies = g['enemies']; en_idx = {e['name']: i for i, e in enumerate(enemies)}
     presets = g['ai']['presets']
     tints = ['none'] + list(g['tints']); tint_idx = {n: i for i, n in enumerate(tints)}
-    widths = stage_widths(build); mus = songs(build)
+    widths = stage_widths(build); mus = songs(build); nv = vsect_count(build)
     assert len(names) == len(set(names)), 'roster: a name twice'
     assert len(en_idx) == len(enemies), 'enemies: a name twice'
     M = {'names': names, 'tints': tints, 'ai': [], 'enemies': [], 'stages': [], 'presets': list(presets)}
@@ -204,7 +224,8 @@ def model(g, build):
                             'spawns': sp, 'boss': en_idx[b['enemy']], 'boss_song': b['song'], 'unlock': unl, 'boss_lock': b['lock'],
                             'boss_x': b['x'], 'boss_z': b['z'], 'boss_seed': int(str(b['seed']), 0), 'boss_first': nb, 'nmin': len(b['minions']),
                             'music_n': mus.get(s['music']), 'boss_song_n': mus.get(b['song']), 'triggers': trig,
-                            'drama': dr_idx[b['drama']] if b.get('drama') else 0xFF})
+                            'drama': dr_idx[b['drama']] if b.get('drama') else 0xFF,
+                            'trans': transition(s, nv, si + 1 == len(g['stages']), f'stage {si + 1}')})
     return M
 
 
@@ -372,7 +393,8 @@ def tables(g, build):
                 f'.arg = {"MUS_" + t["music"] if t["music"] else t["arg"]}, .delay = {t["delay"]}, .sp = {{ .enemy = {t["sp"]["enemy"]}, '
                 f'.pick = {t["sp"]["pick"]}, .set = {t["sp"]["set"]}, .tint = {t["sp"]["tint"]}, .x = 0, .z = {t["sp"]["z"]}, .flags = 0x{t["sp"]["flags"]:02X} }} }}'
                 for t in s['triggers']) + '\n};')
-        xrows.append(f'    {{ .trig = {f"stage{si}_triggers" if s["triggers"] else 0}, .ntrig = {len(s["triggers"])}, .drama = {s["drama"]} }},   /* {s["name"]} */')
+        xrows.append(f'    {{ .trig = {f"stage{si}_triggers" if s["triggers"] else 0}, .ntrig = {len(s["triggers"])}, .drama = {s["drama"]}, '
+                     f'.trans = {s["trans"][0]}, .trans_speed = {s["trans"][1]} }},   /* {s["name"]} */')
     c.append('const gstagex_t gstagex_rom[GS_COUNT] = {\n' + '\n'.join(xrows) + '\n};')
     drows = []
     for di, (dn, scenes) in enumerate(M['dramas']):
@@ -484,7 +506,7 @@ def pack_stages(M, out, en_o, ai_o, spmap, vtabs=None):
     for i, t in enumerate(vtabs or []):                 # version 3: + per fighter its voice table's offset (0: the ROM's)
         if t is not None: struct.pack_into('>H', out, ro_o + len(spmap) + 2 * i, put(t, 1))
     tro = [put(b''.join(trig_bytes(t) for t in s['triggers'])) if s['triggers'] else 0 for s in M['stages']]   # version 4
-    sx_o = put(b''.join(struct.pack('>IBBH', o, len(s['triggers']), s['drama'], 0) for o, s in zip(tro, M['stages'])))
+    sx_o = put(b''.join(struct.pack('>IBBBB', o, len(s['triggers']), s['drama'], *s['trans']) for o, s in zip(tro, M['stages'])))
     while len(out) % 2: out.append(0)
     assert len(out) <= GD_MAX, f'pack: {len(out)} bytes (at most {GD_MAX})'
     struct.pack_into('>2sBBBBHHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(M['enemies']), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, ro_o, sx_o)

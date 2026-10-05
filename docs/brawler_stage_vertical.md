@@ -66,3 +66,13 @@ Recommendation: **(b)** for the prototype (it reuses Robo Army's flow and costs 
 (a) only if the final game designs climb or elevator sections with its own art, then in the world-fixed form
 (`floor_top = base - cam_y`), which the variable `floor_top` already allows. No prototype render was made (not cheap
 enough for this round: it needs the vertical builder and drawing above).
+
+## Built (TODO #65, 2026-10-05): option (b)
+
+`make_stage_ra.py` VSECTIONS exports each descent's camera range row-major into stage.h `vsects[]` (same tile pool,
+bitwise + flip dedupe); game.json `stages[].transition` {section, direction, speed} -> `gstagex_t.trans / trans_speed`
+(build_tables.py, stagepack.js); main.c "transitions" (mode 6): the plane's 20 sprites at height 32, one SCB3 run of the
+camera y a frame, a 20-run row write when a row enters; the players fall in place, drop out at the bottom, fade, next
+stage. Only the descents' last parts are shown (area 2 y 600-880, area 5 y 240-528): the whole of both would cost 1039
+tiles and push the C ROM past its 16 MB size step; these cost 355 tiles (C ROM 16,721,536 -> 16,766,976 bytes, still a
+16 MB image). Sprites per line: 20 (plane) + the two players.

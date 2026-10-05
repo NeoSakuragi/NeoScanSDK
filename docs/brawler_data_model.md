@@ -162,6 +162,7 @@ an enemy and keeps its constants in ai.c.
 | `background` | `0` | stages[] of make_stage_ra.py (Robo Army's parts today) |
 | `music` | `"FIGHT"` | songs.json name, started at the stage start |
 | `power` | `0` | its enemies' extra damage a hit |
+| `transition` | `{"section": 0, "direction": "down", "speed": 2}` | optional: after STAGE CLEAR (and BOSS UNLOCKED), a non-interactive descent before the next stage: the players fall while the camera scrolls through vertical section `section` (make_stage_ra.py VSECTIONS: 0 = Robo Army area 2's shaft, 1 = area 5's facade) `down` (or `up`), `speed` px a frame (0.25 steps); not on the last stage |
 | `waves[]` | | in order; the camera stops at each lock point until its wave is beaten |
 | `waves[].lock` | `448` | camera x of the lock point (0 = the stage start) |
 | `waves[].seed` | `"0x1D2C"` | the AI random generator's seed at this wave |
@@ -297,7 +298,7 @@ campaign tick, never in the attract demo; each fires once a stage, at most 32):
 Waves are counted from 0 in the data (wave 1 on screen = index 0). The real time-delayed spawns replace nothing: a wave's
 walk-in "delay" is still the rank (36 px further out). Binary: `gtrigger_t` 18 bytes {when, wave (0xFF = the stage
 start), at (s16), action, n, arg (u16: x, MUS_* command, drama index), delay (u16), gspawn_t sp}; per stage a
-`gstagex_t` 8 bytes {triggers*, ntrig, drama (the boss's, 0xFF none), pad} beside `gstage_t` (unchanged, so older packs
+`gstagex_t` 8 bytes {triggers*, ntrig, drama (the boss's, 0xFF none), trans (1 + section, bit 7 up; 0 none), trans_speed (1/4 px a frame)} beside `gstage_t` (unchanged, so older packs
 keep their layout); live pointer `gstagex`. RAM: `trig_fired` (a bit per trigger), `stage_tk`, `wave_t`, `wave_on`,
 `waves_cleared`, `trig_held`, the spawn queue `tq` (6).
 
