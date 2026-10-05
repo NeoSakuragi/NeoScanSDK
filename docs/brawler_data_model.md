@@ -14,7 +14,7 @@ installs stages, enemies and AI rows into the running game (data packs), proofs 
 
 | layer | what | where it lives | edited by |
 |---|---|---|---|
-| 0, the bank | KOF94 / 96 / 98 / 99 and Samurai Shodown IV (tools/samsho4) fighters as extracted: animations, frames, hit boxes, timing, palettes, captured specials and throws, sound commands per move | /data/neogeo_dict (dictionaries), tools/kof96 (export96), never edited | nobody: templates |
+| 0, the bank | KOF94 / 96 / 98 / 99, Samurai Shodown IV (tools/samsho4) and World Heroes Perfect (tools/whp) fighters as extracted: animations, frames, hit boxes, timing, palettes, captured specials and throws, sound commands per move | /data/neogeo_dict (dictionaries), tools/kof96 (export96), never edited | nobody: templates |
 | 1, roster | the playable characters: which bank fighter, select pose, specials mapping, chain routes, unlock; the select screen | game.json `roster`, `select` | Brawler Lab: Characters tab (+ the Chain Lab for the routes) |
 | 2, enemies | named enemies on a bank fighter (or a pool of them), life, power, AI preset; the AI presets; the minion tints | game.json `enemies`, `ai`, `tints` | Brawler Lab: Enemies tab |
 | 3, stages | background, music, waves (lock points + spawns), the boss with its minions, song and scene, triggers; dramas and big portraits | game.json `stages`, `dramas`, `portraits` | Brawler Lab: Stages / Waves tab |
@@ -30,7 +30,7 @@ game.json --build_tables.py roster--> build/roster.json --export_bm.py--> build/
 - `build/roster.json` is rewritten only when the roster's export inputs change (bank, watch, specials, routes), so a wave
   or AI edit rebuilds the small tables (seconds), not the fighters (80 s).
 - The generator checks names (fighters, enemies, presets, tints, songs: a wrong song name fails the compile, `MUS_*`),
-  counts (6 enemies at once, 5 minions with a boss, 16 select slots, every roster fighter in one slot), lock points
+  counts (6 enemies at once, 5 minions with a boss, 18 select slots, every roster fighter in one slot), lock points
   inside the stage (widths from build/stage.h) and moving forward.
 - It writes C with designated initialisers (`.life = 60`), so a field added to gamedata.h needs no generator change to
   compile (it reads 0 until the generator writes it).
@@ -59,7 +59,7 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 ## Layer 0: the bank
 
 One entry per fighter, read by `export_bm.py` from the game's dictionary (`tools/kof96/export96.py`, any of KOF96,
-KOF98, KOF99; `tools/kof94/export94.py`; `tools/samsho4/export_ss4.py` for Samurai Shodown IV, the same layout): every animation (6-byte step records: ticks, frame, flags, then commands), the frames (sprite parts and
+KOF98, KOF99; `tools/kof94/export94.py`; `tools/samsho4/export_ss4.py` for Samurai Shodown IV, `tools/whp/export_whp.py` for World Heroes Perfect, the same layout): every animation (6-byte step records: ticks, frame, flags, then commands), the frames (sprite parts and
 tiles), hit / hurt boxes, palettes (every colour set), physics, captured specials (scripts of rows) and throws
 (thrower and victim timelines), victim postures. The bank is addressed by a spec `game:name` (`kof98:terry`). It is
 never edited: layer 1 picks from it.
