@@ -93,6 +93,12 @@ as plain read-only data into the first program MB: 190 specials, ~500 KB), tile 
 its index, `spmap` (the special each role plays, game.json's `specials`). The game reads a role through `spec_tab[]`
 (RAM, fighter.c `spec_ix`); a special keeps the index it started with (`fighter_t.spec_ix`); the down+D role alone gets
 the special's invincible rows (`bspec_t.inv_rows`, the rising reversal's rule, computed for every special).
+The fury (role `BS_FURY`, every fighter's and every boss's alike) is untouchable once it connects (Bruno 2026-10-05:
+"keep the player invincible as soon as the fury connects and starts its script"): its first hit (its body, a script
+object or a projectile of its own; a running grab's catch; Kim's Phoenix: the rush's hit that starts the scripted part
+1) sets `fighter_t.inv = INV_FURY` (fighter.c `fury_lock`), held while it plays and cleared when it ends
+(`special_end`): nothing hits it (enemies, the crowd, projectiles, other players) and no body pushes it (a special's
+push, a low leap's stop). Before the connect (the whiff, the rush) the normal rules. Proof: `tools/brawler/fury_inv_proof.py`.
 
 ## Layer 2: enemies, AI presets, tints
 

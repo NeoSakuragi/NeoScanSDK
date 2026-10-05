@@ -24,6 +24,7 @@ _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offse
 #define GRAVITY_KD  0x5000        /* knockdown gravity 0.31 px/frame^2 (KOF95: 0.47): higher, slower falls to juggle */
 #define DOWN_FRAMES 40
 #define INV_GETUP   30
+#define INV_FURY    0xFF          /* the fury connected: untouchable (hits, pushes) until it ends (Bruno 2026-10-05) */
 #define HITSTOP     7             /* hit-stop frames, the same for every hit (Bruno 2026-10-04; KOF98 counts +$124 from 7 to 11 by move) */
 #define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
 #define STUN_HEAVY  54
@@ -569,6 +570,7 @@ static fighter_t *proj_alloc(fighter_t *owner) {
 }
 static void special_end(fighter_t *f) {
     uint8_t k;
+    if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's lock: hittable again at once */
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
 }
@@ -918,7 +920,8 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     meter_tick(f);
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
-    if (f->inv) f->inv--;
+    if (f->inv == INV_FURY) { if (f->state != S_SPECIAL || f->spec_id != BS_FURY) f->inv = 0; }   /* held for the fury's script */
+    else if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
     if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_SP)) {   /* out of trouble: a special while hit */
         uint8_t k = special_for(f, in);                          /* costs double and flashes white (spend) */
@@ -1055,12 +1058,19 @@ void fighter_update(fighter_t *f, const intent_t *in) {
 }
 
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
+static void fury_lock(fighter_t *a) {                            /* a fury's first connect (its body, its effect or its
+                                                                    projectile; Kim: the rush's hit that starts the scripted
+                                                                    part): the attacker can't be hit or pushed until it ends */
+    fighter_t *o = a->owner ? a->owner : a;
+    if (o->state == S_SPECIAL && o->spec_id == BS_FURY) o->inv = INV_FURY;
+}
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
     if (reaction > 15) reaction = v->y > 0 ? reaction >> 4 : reaction & 15;   /* packed: standing | juggled << 4 */
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
     rk = reaction; reaction &= 7;
     v->hp -= damage + (a->owner ? a->owner : a)->power;
+    fury_lock(a);
     voice_play(v->ch, v->team, v->hp > 0 ? VK_HIT : VK_KO);
     v->freeze = HITSTOP;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
@@ -1096,14 +1106,14 @@ void combat(fighter_t **fs, uint8_t n) {
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
             int16_t d, dz;
-            if (v->team == a->team || v->y || (v->state != S_IDLE && v->state != S_WALK && v->state != S_HITSTUN &&
+            if (v->team == a->team || v->y || v->inv == INV_FURY || (v->state != S_IDLE && v->state != S_WALK && v->state != S_HITSTUN &&
                 v->state != S_ATTACK && v->state != S_SPECIAL)) continue;
             if (v == a->target && (a->spec_prev_hit & 4) && a->landed) continue;   /* its carried target: held where the game had it */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
             if (d <= -8 || d >= PUSH_DX) continue;
             if (!a->y) { v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v); }
-            else {                                               /* a low leap stops at the body (SS4's 421C: P1 */
+            else if (a->inv != INV_FURY) {                       /* a low leap stops at the body (SS4's 421C: P1 */
                 int32_t back = dir_mul(a->facing, FIX(PUSH_DX - d));   /* held 30 px before P2 at y 10-51, then */
                 a->throw_x0 -= back; a->x -= back; clamp(a);     /* its landing slash hits), never carries it */
             }
@@ -1189,7 +1199,7 @@ void combat(fighter_t **fs, uint8_t n) {
                     if (!sounded++) snd_sfx(sfx);
                     fighter_hit(a, v, dmg, rc, c->push);
                 } else if (a->spec_prev_hit & 8) {       /* a running grab's reach: it catches, the continuation hits */
-                    a->hit_mask |= 1 << v->idx; a->landed = 1; a->shrow = a->srow; a->target = v; v->freeze = HITSTOP;
+                    a->hit_mask |= 1 << v->idx; a->landed = 1; a->shrow = a->srow; a->target = v; v->freeze = HITSTOP; fury_lock(a);
                     if (v->state == S_WALK) to_neutral(v, 0);
                     continue;
                 } else {
