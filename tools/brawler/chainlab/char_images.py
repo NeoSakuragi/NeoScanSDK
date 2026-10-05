@@ -97,7 +97,7 @@ def colour_sets(game_dir, out, names):
     """the ROM's select pose ('watch', its last step) in every colour set -> {fighter: {sheet, h, sets: [[x, w]...]}}"""
     rom = Rom(os.path.join(game_dir, 'build')); index = {}
     for name in names:
-        ch = rom.chars[name]; npal, nsets, tile_hi = ch[0], ch[1], ch[-4]
+        ch = rom.chars[name]; npal, nsets, tile_hi = ch[0], ch[1], rom.tile_hi[name]
         pals = [int(v) for v in __import__('move_images')._nums(rom.arr(f'{name}_pals'))]
         steps = __import__('re').findall(r'\{(\d+), (\d+), (\d+), \{', rom.arr(f'{name}_watch'))
         r = rom.frame_index(name, int(steps[-1][0]), tile_hi)
@@ -111,7 +111,7 @@ def special_images(game_dir, out, fighters):
     """fighters: chainlab.json's fighters (with 'pool') -> {fighter: {sheet, h, specials: [[[x, w], ...] per special]}}"""
     rom = Rom(os.path.join(game_dir, 'build')); index = {}
     for f in fighters:
-        name = f['name']; ch = rom.chars[name]; npal, tile_hi = ch[0], ch[-4]
+        name = f['name']; ch = rom.chars[name]; npal, tile_hi = ch[0], rom.tile_hi[name]
         pals = [int(v) for v in __import__('move_images')._nums(rom.arr(f'{name}_pals'))][:npal * 16]
         pics, per = [], []
         for k, sp in enumerate(f['pool']):
