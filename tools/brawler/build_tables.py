@@ -21,7 +21,7 @@ import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, HERE)
-SPECIAL_KEYS = ['D', 'fD', 'dD', 'uD']                   # bchar_t.specials order (BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D)
+SPECIAL_KEYS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD']    # bchar_t.spmap order (BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D)
 AI_FLAGS = {'token': 1, 'grab': 2, 'projectile': 4, 'reversal': 8, 'specials': 16, 'jump_in': 32, 'full_speed': 64, 'air_cd': 128,
             'boss_moves': 8 | 16 | 32}                    # gamedata.h AIF_*
 AI_FIELDS = ['rest_shift', 'rest_random', 'rest_add', 'rest_start', 'rest_attack', 'rest_special', 'rest_throw', 'grab_plan',
@@ -33,7 +33,8 @@ MAX_ENEMIES = 6                                          # main.c NF - 2
 MAX_SLOTS = 17                                           # main.c NA (an actor per slot)
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
 GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
-GD_VERSION, GD_MAX = 5, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*)
+GD_VERSION, GD_MAX = 6, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*,
+                                                         # 6: 6 roles per fighter, route trees version 3)
 TW = {'camera_x': 1, 'wave_clear': 2, 'time': 3}         # gamedata.h TW_*, TA_*
 TA = {'spawn': 1, 'lock': 2, 'music': 3, 'drama': 4, 'end_stage': 5}
 TW_STAGE, MAX_TRIGGERS = 0xFF, 32
@@ -431,7 +432,7 @@ def pack_base(M):
 
 def spec_map(g, build):
     """the pack's roster section: per roster fighter (bm_chars order) the special each role plays (D, forward+D, down+D,
-    up+D) as an index in its pool (build/chainlab.json fighters[].pool, export_bm special_pool order), 0xFF = none"""
+    up+D, down-forward+D, up-forward+D) as an index in its pool (build/chainlab.json fighters[].pool, export_bm special_pool order), 0xFF = none"""
     pools = {f['name']: [p['input'] for p in f['pool']] for f in json.load(open(os.path.join(build, 'chainlab.json')))['fighters']}
     out = []
     for r in g['roster']:

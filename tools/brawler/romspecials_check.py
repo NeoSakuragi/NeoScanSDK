@@ -16,7 +16,7 @@ from harness import Brawler
 import romspecials98 as K
 from PIL import Image, ImageDraw
 
-ROLES = {'D': '4:d', 'fD': '4:Rd', 'dD': '4:Dd', 'uD': '4:Ud'}
+ROLES = {'D': '4:d', 'fD': '4:Rd', 'dD': '4:Dd', 'uD': '4:Ud', 'dfD': '4:DRd', 'ufD': '4:URd'}   # facing right
 KOF = {'terry': 3, 'ralf': 10}
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = 4

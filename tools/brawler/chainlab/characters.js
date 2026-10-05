@@ -17,7 +17,8 @@
   };
   const clone = x => JSON.parse(JSON.stringify(x));
   const up = n => n.toUpperCase().replace(/_/g, ' ');
-  const ROLES = [['D', 'D', 'projectile'], ['fD', 'forward+D', 'rush'], ['dD', 'down+D', 'rising reversal (invincible)'], ['uD', 'up+D', 'another special']];
+  const ROLES = [['D', 'D', 'projectile'], ['fD', 'forward+D', 'rush'], ['dD', 'down+D', 'rising reversal (invincible)'], ['uD', 'up+D', 'another special'],
+    ['dfD', 'down-forward+D', 'a second projectile / an anti-air / a command move'], ['ufD', 'up-forward+D', 'an anti-air / a projectile / a command move']];
 
   while (!window.stagesTab || !window.chainlab) await new Promise(r => setTimeout(r, 100));
   const CLAB = window.chainlab, lab = CLAB.lab;
@@ -30,7 +31,7 @@
   const save = () => { try { localStorage.setItem(DRAFT, JSON.stringify(roster)); } catch (e) { /* private window */ } };
   function edited() { save(); render(); }
 
-  // ---- the pack's roster section: per roster fighter (bm_chars order) its four roles as indices in its pool ----------
+  // ---- the pack's roster section: per roster fighter (bm_chars order) its six roles as indices in its pool ----------
   function spmap() {
     const out = [];
     roster.forEach(r => { const pool = X.pool[r.name].map(p => p.input); for (const [k] of ROLES) { const i = r.specials[k] ? pool.indexOf(r.specials[k]) : -1; out.push(i < 0 ? 0xFF : i); } });
@@ -71,7 +72,7 @@
     lab.request(1, ci, dummy);
     if (CLAB.paused) CLAB.togglePause();
     CLAB.stepFrames(1);
-    msg(`${up(roster[ci].name)} against ${up(NAMES[dummy])} with these specials: play D, forward+D, down+D, up+D (W A S D + P).`);
+    msg(`${up(roster[ci].name)} against ${up(NAMES[dummy])} with these specials: play D, forward+D, down+D, up+D, down-forward+D, up-forward+D (W A S D + P).`);
   }
   let note = '';
   const msg = t => { note = t; const e = $('chMsg'); if (e) e.textContent = t; };

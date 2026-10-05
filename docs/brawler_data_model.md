@@ -52,7 +52,7 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 | tints | `gtint_t gtints[]` | 6 bytes each | ROM | not yet (a pointer when the lab needs it) |
 | select slots | `sel_slot_t SEL_SLOT[]`, `sel_fighter[]` | 4 + 1 bytes each | ROM; `slot_ch[]` RAM copy made on each select screen | `slot_ch` yes (RAM) |
 | unlocks | `roster_unlock[BC_COUNT]` | 1 byte each | ROM | no (save bits follow the stage order) |
-| chain routes | `rt_head_t` + `rnode_t[]` (fighter.h) | 16 + 22 bytes a node | ROM, `route_tab[]` in RAM | yes: the Chain Lab (lab.buf, `lab.load`) |
+| chain routes | `rt_head_t` + `rnode_t[]` (fighter.h) | 16 + 24 bytes a node (tree version 3; a version 2 tree, 22-byte nodes, still read) | ROM, `route_tab[]` in RAM | yes: the Chain Lab (lab.buf, `lab.load`) |
 | specials by role | `bchar_t.spmap` (4 bytes: an index in the fighter's `specials`, 0xFF none) via `spec_tab[]` | 4 bytes a fighter | ROM, `spec_tab[]` in RAM | yes: a data pack's roster section (version 2) |
 | fighters | `bchar_t bm_chars[]` + everything it points at | ~35 KB each | ROM ($200000) + C ROM | no: new content = a ROM build |
 
@@ -77,7 +77,7 @@ voice sample its KOF plays, with the moves that play it.
 | `bank` | `"kof98:terry"` | the layer-0 fighter |
 | `watch` | `{"frame": 351, "step": -1}` | the select screen's pose: KOF state and step (-1 = its last, held) |
 | `routes` | `"tools/brawler/routes/terry.json"` or `"default"` | its chain route tree (routes.py format; default = the pre-Chain-Lab table) |
-| `specials` | `{"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D"}` | the KOF input played by D, forward+D, down+D, up+D; null = none; any special of the fighter's pool (`export_bm.special_pool`: ground specials of the normal condition), all of which are in the ROM, so a change is live (a data pack). `export_bm.suggest_specials` is the automatic pick that filled these |
+| `specials` | `{"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D", "dfD": "236C", "ufD": "623D"}` | the KOF input played by D, forward+D, down+D, up+D, down-forward+D, up-forward+D (diagonals relative to the facing; down-back = down); null = none (an empty slot plays what the input played before the six slots: down-forward+D = down+D's, up-forward+D = up+D's, then their own fallbacks, fighter.c `special_pick`); any special of the fighter's pool (`export_bm.special_pool`: ground specials of the normal condition), all of which are in the ROM, so a change is live (a data pack). `export_bm.suggest_specials` is the automatic pick that filled these |
 | `unlock` | `"always"` or `{"boss_of_stage": 1}` | locked on the select screen until that stage's boss is beaten (save bit stage - 1) |
 | `voices` | absent, `"kof"` or `{"kof": true, "set": {"hit": 3, "special:236C": null}}` | absent = silent (none of its samples in the V ROM); `"kof"` = KOF's own voice on every move (the suggestion); an object = that base (`kof` false: none) with these keys changed to a voice id of its list (null: silent). Keys: every BA_* move name, `throw_c` / `throw_d`, `hit`, `ko`, `select`, `special:<input>` of its pool ("Voices" below) |
 
@@ -266,7 +266,7 @@ in select-screen order (the slot table), per fighter its bank, unlock rule (an e
 `roster_unlock`), the select pose in every colour set; the select pose picker: every candidate frame (first and last of
 each intro / win pose / walk-in state: KOF98 / KOF99 336-354, KOF96 202-239, exported by export96 exactly as the game's
 own `watch` pose, rendered in colour set 0 at build time), tap-to-pick tiles, the current one with a 6 px border and
-CURRENT, the ROM's with a dashed border and IN THE ROM; a change needs a build (exported); the specials: the four roles,
+CURRENT, the ROM's with a dashed border and IN THE ROM; a change needs a build (exported); the specials: the six roles,
 each with its pictures (where it hits, first and last, or throws, + the projectile), frame / hit data (`export_bm.
 special_info`: frames, first hit frame, hits and damage, projectile, travel, follow-up), the ROM's pick and
 `suggest_specials`' pick ("use it"), "Change…" opens every special of the pool and "none"; "Test on the dummy" sends the
@@ -308,6 +308,20 @@ scene past DR_COUNT; 19: a trigger (kinds, actions, spawn count 1-6, enemy, tint
 
 Pack version 5 (TODO #58): AI rows grow to 42 bytes (`hop_dx`, `hop_chance`); `gd_check` 2 refuses any pack before 5
 (its AI rows are 40 bytes). The lab builds its pack from game.json each time, so no stored pack is lost.
+
+Pack version 6 (2026-10-05, six special slots): the roster section holds 6 bytes per fighter (D, forward+D, down+D, up+D,
+down-forward+D, up-forward+D; `GD_ROLES`), the voice offsets follow at roster + BC_COUNT * 6; route trees are version 3
+(24-byte nodes: `next[]` + RI_DFD, RI_UFD, the diagonal D route enders: the ↘D / ↗D link, else ↓D's / ↑D's, else D's).
+A version 5 pack still loads: its 4 roles copied to RAM (`gd_spec`) with the ROM's two diagonals, its version 2 trees
+read at their own stride (`RT_NODE`, `RT_NEXT` = 0 for the diagonal links). The lab mailbox moves with the nodes:
+`lab.buf` 3088 bytes, `pack_stat` at 3488, `pack` at 3490 (lab.js LAB). Proof (/data/tmp/sixslots): a v5 pack from the
+tools before the change (Terry's up+D = 426D) and a v6 pack (Terry's down-forward+D = 426D) installed on the desktop
+core: both installed, each edit played, the other slot the ROM's; Viper's own move list (v2 / v3 tree) plays.
+
+**Specials out of a hold** (2026-10-05): holding a grabbed victim, any of the six D inputs ends the hold and starts the
+special at once (fighter.c `hold_update`); the victim is released (never held by a special) into hit stun in its held
+pose, which ends with the stun or the special's hit (`react`). forward+A / forward+B (throws) and the A / B hold hits
+are unchanged; the AI never presses D in a hold. A fighter without a forward+C throw (Haohmaru) never holds.
 
 **Drama mode** (main.c `drama_*`): `dramas` at the top level, `name: [scenes]`, a scene
 `{"speaker": "GEESE", "side": "right", "portrait": "geese", "lines": ["So you made it this far.", "..."], "wait": 120}`
