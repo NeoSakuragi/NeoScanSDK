@@ -219,7 +219,9 @@ typedef struct fighter {
 
 
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */
-#define NPJ 4                     /* projectile entities: fighter_t too, so one renderer / sort / guard / hit test */
+#define NPJ 8                     /* projectile entities: fighter_t too, so one renderer / sort / guard / hit test; 8 = a
+                                     Blitz Ball and its 4 live trail objects (KOF96 measured) + 3 for other throwers */
+#define PJ_COLS 10                /* sprites per projectile block (the widest projectile frame: Haohmaru's, 10) */
 extern fighter_t projectiles[NPJ];
 void projectile_reset(fighter_t *p);
 void projectiles_update(int16_t cam_x);   /* the independent projectiles' flight, after the fighters' update */

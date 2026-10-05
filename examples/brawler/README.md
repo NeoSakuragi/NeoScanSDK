@@ -488,6 +488,10 @@ exact but cost 22 lines; this costs 8. The castle's back plane needed a second c
 needs none. Robo Army street (2026-10-04, AI_OFF, 8 fighters converged and attacking for 900 frames, VRAM counted every
 frame, same inputs as the castle build: 897 of 900 frames identical): worst line 88 sprites (castle 88), fighters hidden
 75 times (castle 127), never more than the castle build on any frame.
+Projectile pool (2026-10-05, TODO #66): 8 entities (was 4) in blocks of `PJ_COLS` 10 sprites (the widest projectile
+frame, Haohmaru's), fighters keep 20: sprites 60-299 as before; blocks are laid out back to front at their own widths
+(a moved block's old sprites cleared first). Krauser's Blitz Ball now shows its 4 live trail objects (KOF96 measured:
+4; was 2), so 6 entities with its pinned effect. Shadow reserve = NE (16).
 
 ## Engine
 - `fighter.c`: one state machine for players and AI (intent in, no input code inside): walk/run/jump/attack/hitstun/
