@@ -385,6 +385,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   semitone). Checks: ssg_cues.py --check all 4 OK; select screen with 5 cursor moves vs none: the 3329 music writes
   identical; regress no-bleed True. WAVs to compare: /data/tmp/ff3cursor/out.
 
+- [ ] 76. Kim Young Mok leftovers (0.0.50, tools/kizuna, /data/neogeo_dict/kizuna/README.md): his voices into the
+  sound ROM (the voice build path reads KOF / SS4 / WHP, not Kizuna's driver: tools/kizuna/voices_kz.py lists 40);
+  his stage song (find it among Kizuna's 23 decoded songs, port via songs.json); the Phoenix fury plays only its opening
+  rush (its finish + flames are drawn by code: decode and play them); colour set B ($1C0) checked by eye; the 150 frames
+  where Kizuna slides a part by code (6C telescopic staff). A+B dodge / C+D taunt have no brawler slot (not mapped).
+
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.
