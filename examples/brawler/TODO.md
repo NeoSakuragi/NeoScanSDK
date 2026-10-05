@@ -494,4 +494,6 @@ One item per assigned special that still replays a capture (artifact grid https:
 - Life bars on EASY: start full for every enemy (one line), or keep 2 px per life point?
 - Fork mame/ and geolith on GitHub (they can't be pushed today)?
 - Delete tools/brawler/export_bm.py.rej (a patch leftover; the agents were not allowed to).
+- Guard / blocking: the brawler has none, so $17 BLOCKED HIT (#75) has nothing to play on. Add a guard mechanic
+  (which button / input?) or drop the sound?
 - Tablet: update to Player 0.0.11 (the test build there still has the double-download bug).
