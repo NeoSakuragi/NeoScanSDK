@@ -417,6 +417,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   render check per fighter, portraits, a starter routes file + six-slot / fury picks in a side file, banks exportable as
   `kizuna:<name>` -- but no game.json roster entry and no ROM growth until Bruno picks who goes in.
 
+- [ ] 139. Geese's fury (1632143C Raging Storm) and Krauser's (641236C) never hit a standing enemy at any distance (no
+  attack box on the body or its objects in the export), so they never connect (and never get the fury invincibility,
+  b04a9e8). Found by tools/brawler/fury_inv_proof.py; fix with their ROM reading (#78+ items for them).
+
 ### Recorded specials to read from the ROM (Bruno, 2026-10-05, after testing 0.0.55: "most recorded specials are off")
 One item per assigned special that still replays a capture (artifact grid https://claude.ai/artifact/KRSf1H6UNWyzSmgwZ3FgfY).
 - [ ] 78. Terry C fury = 21416C (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
