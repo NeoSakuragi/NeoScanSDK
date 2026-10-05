@@ -345,7 +345,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   usable from half full; a data value, easy to change).
   QUEUED FIRST by Bruno (2026-10-05): the loop takes it before #67-#70.
 
-- [ ] 67. Samurai Shodown IV fighters into the character bank (Bruno: "start with Haohmaru first"): a full SS4 exporter
+- [x] 67. (done for Haohmaru, 0.0.42+; the other SS4 fighters wait for Bruno: "we'll do more characters later on") Samurai Shodown IV fighters into the character bank (Bruno: "start with Haohmaru first"): a full SS4 exporter
   (study: /data/neogeo_dict/samsho4/README.md — own engine, 444/454 frames pixel-exact): Haohmaru end to end into the
   brawler (animations, palettes, boxes, specials, weapon objects as needed), then the others. Running in a worktree
   since 2026-10-05.
