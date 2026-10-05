@@ -378,6 +378,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   Fatal Fury 3's own cursor sound (Bruno). Find the command FF3 sends on its menu / select cursor (MAKOTO v3.0 driver,
   tools/makoto3, capture in our emulator), and play that sound in the brawler: as an SSG cue if it is SSG, else port it
   (FM / ADPCM-A sample into the brawler's sound ROMs via songs.json).
+  Cursor DONE 2026-10-05: FF3's character-select cursor is command $60, an SSG effect song (captured in our emulator:
+  $60 on every stick move): a 3-voice chord, periods 141/94/138 at level 11 then 4, then 70/56/69 at 9 then 4, steps of
+  2 timer-A interrupts (36.8 ms). Now songs.json "ssg" CURSOR ($74): same periods, levels and mixer ($38) register for
+  register, timed 3-2-3-3 KOF98 cue ticks (each step end within 5 ms of FF3's); ssg_cues.py notes take "A5+" (half
+  semitone). Checks: ssg_cues.py --check all 4 OK; select screen with 5 cursor moves vs none: the 3329 music writes
+  identical; regress no-bleed True. WAVs to compare: /data/tmp/ff3cursor/out.
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
