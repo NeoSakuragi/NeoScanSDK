@@ -108,11 +108,18 @@ typedef struct {                  /* per stage, beside gstage_t (whose layout ol
 /* ---- drama mode (main.c drama_*): letterbox bars, the action held, a big portrait (portraits_big.h) and text ---- */
 #define DR_LINES 3                /* text lines a scene */
 #define DR_COLS  34               /* characters a line (fix columns 3-36) */
-typedef struct {
-    uint8_t portrait, side, nlines, pad;   /* PB_* (0xFF none); 0 left (mirrored), 1 right */
-    uint16_t wait, pad2;          /* ticks the scene stays once its text is out (then the next; a button skips) */
-    const char *speaker;          /* the name plate */
+typedef struct {                  /* a player's lines when it is that fighter (game.json lines_by) */
+    uint8_t fighter, nlines, pad[2];   /* bm_chars index */
     const char *line[DR_LINES];
+} gsceneby_t;
+enum { DW_FIXED, DW_P1, DW_P2 };  /* gscene_t.who: the speaker as written; "$P1" / "$P2": whoever plays (P1: the one in play) */
+typedef struct {
+    uint8_t portrait, side, nlines, who;   /* PB_* (0xFF none; DW_P*: the player's own, pb_of_fighter); 0 left (mirrored), 1 right */
+    uint16_t wait;                /* ticks the scene stays once its text is out (then the next; a button skips) */
+    uint8_t nby, pad;             /* by[]: per-fighter lines (DW_P*), else line[] */
+    const char *speaker;          /* the name plate (DW_P*: the fighter's name) */
+    const char *line[DR_LINES];
+    const gsceneby_t *by;
 } gscene_t;
 typedef struct { uint8_t n, pad; uint16_t pad2; const gscene_t *scene; } gdrama_t;
 
@@ -143,7 +150,7 @@ typedef struct {
                                    * packs end their header before this field */
 } gdpack_t;
 _Static_assert(sizeof(gdpack_t) == 20, "build_tables.py PACK_HEAD");
-_Static_assert(sizeof(gtrigger_t) == 18 && sizeof(gstagex_t) == 8 && sizeof(gscene_t) == 24, "build_tables.py TRIG_SIZE / SX_SIZE");
+_Static_assert(sizeof(gtrigger_t) == 18 && sizeof(gstagex_t) == 8 && sizeof(gscene_t) == 28 && sizeof(gsceneby_t) == 16, "build_tables.py TRIG_SIZE / SX_SIZE");
 enum { GD_NONE, GD_PENDING, GD_INSTALLED, GD_ROM,            /* lab.pack_stat (game): waiting for the safe point; in use */
        GD_BAD = 0x80 };           /* | the check that failed (main.c gd_check) */
 

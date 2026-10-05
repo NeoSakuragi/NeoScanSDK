@@ -920,7 +920,15 @@
   "goenitz": "kof96:goenitz",
   "rugal": "kof98:rugal",
   "terry": "kof98:terry",
-  "ryo": "kof98:ryo"
+  "ryo": "kof98:ryo",
+  "ralf": "kof98:ralf",
+  "robert": "kof98:robert",
+  "yamazaki": "kof98:yamazaki",
+  "billy": "kof98:billy",
+  "kyo": "kof98:kyo",
+  "iori": "kof98:iori",
+  "mai": "kof98:mai",
+  "yashiro": "kof98:yashiro"
  },
  "dramas": {
   "mr_big_intro": [
@@ -946,7 +954,11 @@
     "portrait": "geese",
     "lines": ["So you made it this far.", "Impressive... for a fool."]
    },
-   {"speaker": "TERRY", "side": "left", "portrait": "terry", "lines": ["This ends tonight, Geese!"]}
+   {
+    "speaker": "$P1",
+    "side": "left",
+    "lines_by": {"terry": ["This ends tonight, Geese!"], "*": ["Your reign ends here, Geese!"]}
+   }
   ],
   "rugal_intro": [
    {

@@ -312,7 +312,12 @@ Pack version 5 (TODO #58): AI rows grow to 42 bytes (`hop_dx`, `hop_chance`); `g
 **Drama mode** (main.c `drama_*`): `dramas` at the top level, `name: [scenes]`, a scene
 `{"speaker": "GEESE", "side": "right", "portrait": "geese", "lines": ["So you made it this far.", "..."], "wait": 120}`
 (1-8 scenes, 1-3 lines of at most 34 ASCII characters, speaker 1-16, wait = ticks the scene stays once typed, default
-120); played by a trigger (`do.drama`) or as a boss walks in (`stages[].boss.drama`: before its song, which starts when
+120); a player's reply: speaker `"$P1"` (P1, or P2 when P1 is out) / `"$P2"` (only with both in play, else
+skipped), no `portrait` (its own: `pb_of_fighter`, the game.json portrait named like the fighter; none, e.g. K' or
+Haohmaru: name plate and text only, a HUD face cannot be scaled up by the hardware), the name plate = the fighter's
+name, `"lines_by": {"terry": [...], "*": [...]}` its own lines, else the "*" / `lines` ones; `gsceneby_t` {fighter,
+nlines, lines[3]}, gscene_t 28 bytes with `who`, `nby`, `by*`. Proof: Geese's reply with Terry, Kyo, Haohmaru in
+/data/tmp/drama/out/p1_*.png (Terry's own line and portrait; Kyo's portrait + the generic line; Haohmaru text only); played by a trigger (`do.drama`) or as a boss walks in (`stages[].boss.drama`: before its song, which starts when
 the scene ends). On screen: black bars slide in from the top (fix rows 0-3) and the bottom (rows 20-27), a row every 2
 ticks; the fight held (game_tick only draws: no AI, no update, no flow, no HUD; the HUD's rows 4-7 cleared); each
 scene's big portrait slides in from its speaker's edge (right as captured, left mirrored), the name plate in yellow on

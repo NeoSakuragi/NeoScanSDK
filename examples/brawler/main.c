@@ -1247,25 +1247,43 @@ static void pb_show(uint8_t pb, uint8_t side) {  /* its palettes and tiles; plac
     pb_place(160);
 }
 static void dr_put(uint8_t col, uint8_t row, char ch, uint8_t pal) { fix_put(col, row, (uint16_t)(pal << 12) | (DRAMA_FONT + (uint8_t)ch)); }
+static const char *const *dr_lines;              /* the scene's lines as played (a player's own: gscene_t.by) */
+static uint8_t dr_nl;
 static void dr_text(uint16_t upto) {             /* the scene's characters dr_chars..upto - 1 (lines from row 23, column 3) */
-    const gscene_t *sc = &dr->scene[dr_scene];
     uint16_t n = 0;
     uint8_t l, c;
-    for (l = 0; l < sc->nlines; l++)
-        for (c = 0; sc->line[l][c]; c++, n++) if (n >= dr_chars && n < upto) dr_put(3 + c, 23 + l, sc->line[l][c], 0);
+    for (l = 0; l < dr_nl; l++)
+        for (c = 0; dr_lines[l][c]; c++, n++) if (n >= dr_chars && n < upto) dr_put(3 + c, 23 + l, dr_lines[l][c], 0);
     dr_chars = upto;
+}
+static const fighter_t *dr_who(const gscene_t *sc) {   /* "$P1": P1, or P2 when P1 is out; "$P2": P2; 0 = skip the scene */
+    if (sc->who == DW_P1) return in_play(&fighters[0]) ? &fighters[0] : in_play(&fighters[1]) ? &fighters[1] : 0;
+    if (sc->who == DW_P2) return in_play(&fighters[1]) && in_play(&fighters[0]) ? &fighters[1] : 0;
+    return &fighters[0];
+}
+static uint8_t dr_next(uint8_t k) {              /* the first scene from k someone can play (dr->n: none) */
+    while (k < dr->n && !dr_who(&dr->scene[k])) k++;
+    return k;
 }
 static void dr_scene_start(void) {
     const gscene_t *sc = &dr->scene[dr_scene];
-    uint8_t l, n;
+    const fighter_t *f = dr_who(sc);
+    const char *name = sc->speaker;
+    uint8_t l, n, pb = sc->portrait;
+    dr_lines = sc->line; dr_nl = sc->nlines;
+    if (sc->who) {                               /* a player: its fighter's name, big portrait (none: text only), lines */
+        uint8_t c = char_index(f->ch);
+        name = f->ch->name; pb = pb_of_fighter[c];
+        for (l = 0; l < sc->nby; l++) if (sc->by[l].fighter == c) { dr_lines = sc->by[l].line; dr_nl = sc->by[l].nlines; }
+    }
     for (l = 21; l < 26; l++) dr_row(l, DRAMA_FONT + ' ');
-    if (sc->portrait != dr_pb || sc->side != dr_side) {
-        pb_hide(); dr_pb = sc->portrait;
+    if (pb != dr_pb || sc->side != dr_side) {
+        pb_hide(); dr_pb = pb;
         if (dr_pb < PB_COUNT) pb_show(dr_pb, sc->side); else dr_side = sc->side;
     }
-    for (n = 0; sc->speaker[n]; n++) ;
-    for (l = 0; l < n; l++) dr_put((sc->side ? 37 - n : 3) + l, 21, sc->speaker[l], 1);   /* the name plate, yellow */
-    for (dr_len = 0, l = 0; l < sc->nlines; l++) for (n = 0; sc->line[l][n]; n++) dr_len++;
+    for (n = 0; name[n] && n < 16; n++) ;
+    for (l = 0; l < n; l++) dr_put((sc->side ? 37 - n : 3) + l, 21, name[l], 1);   /* the name plate, yellow */
+    for (dr_len = 0, l = 0; l < dr_nl; l++) for (n = 0; dr_lines[l][n]; n++) dr_len++;
     dr_chars = 0; dr_t = 0;
 }
 static void drama_start(uint8_t d, uint8_t music) {
@@ -1286,14 +1304,15 @@ static void drama_tick(void) {
     switch (dr_on) {
     case DR_IN:                                  /* a bar step every 2 ticks */
         if (!(dr_t & 1)) dr_bar((uint8_t)(dr_t >> 1), 1);
-        if (dr_t >= 16) { dr_on = DR_SCENE; dr_scene = 0; dr_scene_start(); }
+        if (dr_t < 16) break;
+        if ((dr_scene = dr_next(0)) < dr->n) { dr_on = DR_SCENE; dr_scene_start(); } else { dr_on = DR_OUT; dr_t = 0; }
         break;
     case DR_SCENE:
         sc = &dr->scene[dr_scene];
         if (dr_slide) { dr_slide--; pb_place(dr_slide * 10); }
         if (dr_chars < dr_len) { dr_text(btn ? dr_len : dr_chars + 1); dr_t = 0; break; }   /* typed, a character a tick */
         if (!btn && dr_t < sc->wait) break;
-        if (++dr_scene < dr->n) { dr_scene_start(); break; }
+        if ((dr_scene = dr_next(dr_scene + 1)) < dr->n) { dr_scene_start(); break; }
         pb_hide();
         for (dr_t = 21; dr_t < 26; dr_t++) dr_row((uint8_t)dr_t, DRAMA_FONT + ' ');
         dr_on = DR_OUT; dr_t = 0;
