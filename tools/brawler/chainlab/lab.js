@@ -25,7 +25,32 @@
   const ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd'];
   const WEIGHTS = ['light', 'strong'];
   const EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback'];
-  const NODE_SIZE = 20, HEAD_SIZE = 16, RI_N = 14, MAX_NODES = 128;
+  const NODE_SIZE = 22, HEAD_SIZE = 16, RI_N = 13, MAX_NODES = 128, SPEED_MIN = 0x40, SPEED_MAX = 0x400;
+  // a node's speed as the game's 8.8 (routes.speed_fx: round half up)
+  function speedFx(nd) { const v = Math.floor((nd.speed === undefined ? 1 : Number(nd.speed)) * 256 + 0.5); if (!(v >= SPEED_MIN && v <= SPEED_MAX)) throw new Error('speed outside 0.25-4'); return v; }
+  // the steps shown frame by frame at a speed (routes.play_steps = fighter.c anim_tick): sf = [[ticks, active, opens], ...]
+  function playSteps(sf, speed) {
+    const shown = [0]; let step = 0, acc = 0;
+    for (let guard = 0; guard < 4000; guard++) {
+      acc += speed; let done = false;
+      for (;;) {
+        let d = (sf[step][0] + 1) << 8;
+        if (acc < d) break;
+        if (step + 1 < sf.length) { acc -= d; step++; } else { done = true; break; }
+        if (sf[step][1]) { d = (sf[step][0] + 1) << 8; if (acc >= d) acc = d - 1; break; }
+      }
+      if (done) return shown;
+      shown.push(step);
+    }
+    return shown;
+  }
+  // frame data at a speed (routes.frame_data): startup, active, recovery, total, hits, frames ('x' active)
+  function frameData(sf, speed) {
+    const shown = playSteps(sf, speed), fr = shown.map(k => !!sf[k][1]);
+    const first = fr.indexOf(true), last = fr.lastIndexOf(true), hits = new Set(shown.filter(k => sf[k][2])).size;
+    return { startup: first >= 0 ? first + 1 : 0, active: first >= 0 ? last - first + 1 : 0, recovery: first >= 0 ? fr.length - 1 - last : fr.length,
+             total: fr.length, hits, frames: fr.map(a => a ? 'x' : '-').join('') };
+  }
 
   function defaultDamage(n) {
     const e = n.effect || 'none';
@@ -66,14 +91,15 @@
         if (!moves.includes(nd.move)) throw new Error(`${where}: unknown move ${nd.move}`);
         if (!air && !MOVE_NAMES.includes(nd.move)) throw new Error(`${where}: ${nd.move} is not a ground move`);
         if (has && !has.includes(nd.move)) throw new Error(`${where}: the fighter has no ${nd.move}`);
-        anim = moves.indexOf(nd.move); flags = (air ? 2 : 0) | (nd.cancel ? 4 : 0);
+        anim = moves.indexOf(nd.move); flags = (air ? 2 : 0) | (nd.keep ? 4 : 0);
       }
       const w = nd.weight || 'light', e = nd.effect || 'none';
       if (!WEIGHTS.includes(w) || !EFFECTS.includes(e)) throw new Error(`${where}: weight ${w} / effect ${e}`);
       const [dd, dp] = defaultDamage(nd);
       const dmg = nd.damage !== undefined ? nd.damage : dd, push = nd.push !== undefined ? nd.push : dp;
       if (!(dmg >= 0 && dmg <= 255 && push >= -128 && push <= 127)) throw new Error(where + ': damage / push');
-      nodes[i] = Uint8Array.from([anim, flags, WEIGHTS.indexOf(w), EFFECTS.indexOf(e), dmg, push & 0xFF, ...nxt]);
+      const sp = speedFx(nd);
+      nodes[i] = Uint8Array.from([anim, flags, WEIGHTS.indexOf(w), EFFECTS.indexOf(e), dmg, push & 0xFF, sp >> 8, sp & 0xFF, ...nxt, 0]);
       return i;
     }
     const rootI = node({ links: tree.links || {} }, 'root', false);
@@ -85,7 +111,7 @@
     });
     if (nodes.length > MAX_NODES) throw new Error(`${nodes.length} nodes (at most ${MAX_NODES})`);
     const out = new Uint8Array(HEAD_SIZE + nodes.length * NODE_SIZE);
-    out.set([82, 84, 1, nodes.length, rootI, ...ent, 0, 0, 0, 0, 0]);
+    out.set([82, 84, 2, nodes.length, rootI, ...ent, 0, 0, 0, 0, 0]);
     nodes.forEach((n, i) => out.set(n, HEAD_SIZE + i * NODE_SIZE));
     return out;
   }
@@ -179,7 +205,7 @@
     loadState(s) { const p = this.core._malloc(s.length); this.heap.set(s, p); this.core._wc_load(p, s.length); this.core._free(p); }
   }
 
-  const api = { Lab, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  const api = { Lab, speedFx, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);

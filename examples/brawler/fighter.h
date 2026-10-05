@@ -49,26 +49,32 @@ typedef struct {                  /* what the controller wants this frame (playe
  * A tree blob (tools/brawler/export_bm.py from tools/brawler/routes/<fighter>.json, or the default tree = the old single
  * COMBO table; the Chain Lab page writes one into lab.buf): an rt_head_t, then nnodes rnode_t. Node 0 is "none"; a link
  * is a node index (0 = no link). A node is one hit: the move it plays (BA_*, or BS_* for a special), the hit weight and
- * the effect on the victim (the reaction), damage and push, the cancel flag, and its links by input (RI_*). The game
+ * the effect on the victim (the reaction), damage and push, its speed, the keep flag, and its links by input (RI_*). The game
  * reads the trees through route_tab[] (RAM, set at boot from bchar_t.routes), so a tree can be replaced while it runs. */
 enum { RI_A, RI_B, RI_DA, RI_DB, RI_FA, RI_FB, RI_DFA, RI_DFB, RI_AB,      /* normal links: A B, down+, forward+, down-forward+, A+B */
        RI_D, RI_FD, RI_DD, RI_UD,                                          /* special links (enders): D, forward+D, down+D, up+D */
-       RI_N = 14 };
-enum { RF_SPECIAL = 1, RF_AIR = 2, RF_CANCEL = 4 };   /* rnode_t.flags: anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
+       RI_N = 13 };
+enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4 };     /* rnode_t.flags: anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
                                                          D_JUMP / CD_JUMP = air A / B / C+D, the jump picks the animation);
-                                                         cancel on hit: the next link starts as soon as its input comes after
-                                                         the hit-stop (clear: the move plays to its end, the input is kept) */
+                                                         keep the full animation on hit: the move plays to its end, the
+                                                         buffered input then takes its link (clear, the default since
+                                                         2026-10-05: on hit the next link starts as soon as its input comes,
+                                                         after the hit-stop) */
 enum { RE_NONE, RE_KNOCKDOWN, RE_LAUNCH, RE_TRIP, RE_BLOWBACK };   /* rnode_t.effect */
 typedef struct {
     uint8_t anim, flags;
     uint8_t weight, effect;       /* weight 0 light / 1 strong (the victim's hit animation and stun, effect none) */
     uint8_t damage;
     int8_t  push;                 /* px the victim slides back on hit (effect none) */
+    uint16_t speed;               /* playback speed, 8.8 fixed point (0x0100 = KOF's own timing; 0x0040-0x0400): the move's
+                                     animation, or the special's script, advances by it every frame (fighter.c anim_tick) */
     uint8_t next[RI_N];           /* links by RI_* */
+    uint8_t pad;
 } rnode_t;
+_Static_assert(sizeof(rnode_t) == 22, "routes.py NODE_SIZE");
 typedef struct {
     char    magic[2];             /* "RT" */
-    uint8_t version, nnodes;      /* version 1 */
+    uint8_t version, nnodes;      /* version 2 (22-byte nodes with speed) */
     uint8_t root;                 /* the links from neutral (its own move unused) */
     uint8_t dash, nospec, hold;   /* run + A; D when the fighter has no special for it; the hold's third hit (C+D) */
     uint8_t air_a, air_b, air_cd; /* air normals */
@@ -154,6 +160,11 @@ typedef struct fighter {
     uint8_t  power;               /* extra damage every hit it lands (campaign: later stages and bosses hit harder) */
     uint8_t  tint;                /* minion colours (fighter_colour): 0 = its own colour set, 1-3 = shade / ash / rust */
     int16_t  hp_max;              /* its life at spawn when not 60 (campaign difficulty: enemies, bosses); 0 = 60 */
+    /* playback (fighter.c "animation player"): acc = time spent in the current step (animation) or row (special / throw
+     * script) in 1/256 frames, speed = 8.8 frames per frame (play() sets 0x0100, a route node / a throw its own), srow =
+     * the script row shown + 1 (specials, throws) */
+    uint32_t acc;
+    uint16_t speed, srow;
 } fighter_t;
 
 

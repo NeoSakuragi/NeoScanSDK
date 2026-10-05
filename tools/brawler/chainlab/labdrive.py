@@ -18,8 +18,9 @@ SCRIPT = '2:a,9:-,2:a,9:-,2:b,12:-,2:Ra,90:-'
 BOOT_FRAMES = 400                     # power on -> the MVS BIOS hands over to the game (attract)
 
 class Lab:
-    def __init__(self, rom=None):
-        self.b = Brawler(rom=rom) if rom else Brawler()
+    def __init__(self, rom=None, game=None):
+        game = game or harness.GAME                     # the build whose symbols and fighter_t layout apply
+        self.b = Brawler(rom=rom or os.path.join(game, 'brawler.neo'), game=game)
         self.lab = self.b.syms['lab']
     def poke(self, off, data):
         for i, v in enumerate(data): self.b.w(self.lab + off + i, 1, v)

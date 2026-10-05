@@ -6,45 +6,38 @@
    "move": "atk_a_close",
    "weight": "light",
    "effect": "none",
-   "cancel": false,
    "links": {
     "A": {
      "move": "atk_a_far",
      "weight": "light",
      "effect": "none",
-     "cancel": false,
      "links": {
       "A": {
        "move": "atk_c_close",
        "weight": "strong",
        "effect": "none",
-       "cancel": false,
        "links": {
         "A": {
          "move": "atk_d_far",
          "weight": "strong",
-         "effect": "launch",
-         "cancel": false
+         "effect": "launch"
         }
        }
       },
       "dB": {
        "move": "atk_d_crouch",
        "weight": "strong",
-       "effect": "trip",
-       "cancel": false
+       "effect": "trip"
       },
       "B": {
        "move": "atk_b_far",
        "weight": "light",
        "effect": "none",
-       "cancel": false,
        "links": {
         "fA": {
          "move": "cmd_fwd_a",
          "weight": "strong",
-         "effect": "knockdown",
-         "cancel": false
+         "effect": "knockdown"
         }
        }
       },
@@ -52,7 +45,6 @@
        "move": "cmd_df_c",
        "weight": "strong",
        "effect": "none",
-       "cancel": false,
        "links": {
         "dD": {
          "special": "dD"
@@ -65,19 +57,16 @@
      "move": "atk_b_close",
      "weight": "light",
      "effect": "none",
-     "cancel": false,
      "links": {
       "A": {
        "move": "atk_c_far",
        "weight": "strong",
        "effect": "none",
-       "cancel": false,
        "links": {
         "B": {
          "move": "atk_d_close",
          "weight": "strong",
-         "effect": "knockdown",
-         "cancel": false
+         "effect": "knockdown"
         }
        }
       },
@@ -85,7 +74,6 @@
        "move": "atk_c_crouch",
        "weight": "strong",
        "effect": "none",
-       "cancel": false,
        "links": {
         "D": {
          "special": "D"
@@ -100,25 +88,21 @@
    "move": "atk_b_close",
    "weight": "light",
    "effect": "none",
-   "cancel": false,
    "links": {
     "B": {
      "move": "atk_b_far",
      "weight": "light",
      "effect": "none",
-     "cancel": false,
      "links": {
       "B": {
        "move": "atk_d_close",
        "weight": "strong",
-       "effect": "knockdown",
-       "cancel": false
+       "effect": "knockdown"
       },
       "AB": {
        "move": "body_toss",
        "weight": "strong",
-       "effect": "blowback",
-       "cancel": false
+       "effect": "blowback"
       }
      }
     },
@@ -126,7 +110,6 @@
      "move": "atk_c_close",
      "weight": "strong",
      "effect": "none",
-     "cancel": false,
      "links": {
       "fD": {
        "special": "fD"
@@ -139,25 +122,21 @@
    "move": "atk_b_crouch",
    "weight": "light",
    "effect": "none",
-   "cancel": false,
    "links": {
     "dA": {
      "move": "atk_a_crouch",
      "weight": "light",
      "effect": "none",
-     "cancel": false,
      "links": {
       "dA": {
        "move": "atk_c_crouch",
        "weight": "strong",
        "effect": "none",
-       "cancel": false,
        "links": {
         "dB": {
          "move": "atk_d_crouch",
          "weight": "strong",
-         "effect": "trip",
-         "cancel": false
+         "effect": "trip"
         }
        }
       }

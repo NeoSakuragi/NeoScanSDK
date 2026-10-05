@@ -223,9 +223,10 @@
   }
   function linkLabel(l) {
     const info = built && built.fi === fi ? built.info.get(l.idx) : null;
-    if (l.special !== null) return { input: info ? info.path.join(' ') : 'D', move: SPECIAL_LABEL[CL.SPECIALS[l.special]] + (F[fi].specials[CL.SPECIALS[l.special]] ? ' ' + F[fi].specials[CL.SPECIALS[l.special]] : '') };
-    if (!info) return { input: '?', move: 'node ' + l.idx + (built ? '' : ' (press Build or "own tree" to name the nodes)') };
-    return { input: info.path.join(' '), move: MOVE_LABEL[info.node.move] || info.node.move };
+    const speed = info ? spdText(CL.speedFx(info.node)) : '?';
+    if (l.special !== null) return { speed, input: info ? info.path.join(' ') : 'D', move: SPECIAL_LABEL[CL.SPECIALS[l.special]] + (F[fi].specials[CL.SPECIALS[l.special]] ? ' ' + F[fi].specials[CL.SPECIALS[l.special]] : '') };
+    if (!info) return { speed, input: '?', move: 'node ' + l.idx + (built ? '' : ' (press Build or "own tree" to name the nodes)') };
+    return { speed, input: info.path.join(' '), move: MOVE_LABEL[info.node.move] || info.node.move };
   }
   function showReadout() {
     const ch = chains[chains.length - 1];
@@ -235,14 +236,15 @@
       const lb = linkLabel(l), first = l.hits[0];
       const gap = first !== undefined && prevHit !== null ? (first - prevHit) + ' f' : '-';
       const res = l.hits.length ? `HIT x${l.hits.length} (${l.dmg} dmg)` : (l.special !== null ? 'special (its hits: see combo)' : 'WHIFF');
-      rows += `<tr><td>${k + 1}</td><td><b>${lb.input}</b></td><td>${lb.move}</td><td>${HOW_LABEL[l.how]}</td><td>${res}</td>` +
+      const nx = ch.links[k + 1], cut = nx ? (nx.how === 2 ? 'yes: cancelled on hit' : 'no: played to its end') : '-';
+      rows += `<tr><td>${k + 1}</td><td><b>${lb.input}</b></td><td>${lb.move}</td><td>${lb.speed}</td><td>${HOW_LABEL[l.how]}</td><td>${res}</td><td>${cut}</td>` +
               `<td>${first !== undefined ? first - l.start + 1 : '-'}</td><td>${gap}</td></tr>`;
       if (l.hits.length) prevHit = l.hits[l.hits.length - 1];
     });
     const last = ch.links[ch.links.length - 1];
     const tail = last.end !== null && !last.window ? 'The route ended here (no link from this move, or it missed).' :
                  last.window ? 'The chain window opened after the last move: a later tap could still continue.' : '';
-    $('readbody').innerHTML = `<table><tr><th>#</th><th>input path</th><th>move</th><th>link went</th><th>result</th><th>to 1st hit</th><th>since prev. hit</th></tr>${rows}</table>` +
+    $('readbody').innerHTML = `<table><tr><th>#</th><th>input path</th><th>move</th><th>speed</th><th>link went</th><th>result</th><th>cut short by the next</th><th>to 1st hit</th><th>since prev. hit</th></tr>${rows}</table>` +
       `<div class="empty">${tail} Frames are game frames (60 a second), hit-stop included.</div>`;
     markTree(ch);
   }
@@ -258,12 +260,16 @@
   }
 
   // ---- the tree editor ------------------------------------------------------------------------------------------------
-  const fd = m => (F[fi].moves[m] || null);
-  function fdText(m) {                   // startup / active / recovery = total, hits, travel
-    const d = fd(m); if (!d) return '';
+  // frame data at a speed (8.8; the game's own player, lab.js frameData): KOF's timing at 0x100
+  const fd = (m, speed) => { const d = F[fi].moves[m]; if (!d) return null; if (!speed || speed === 0x100 || !d.steps) return d;
+    return Object.assign({ travel: d.travel }, CL.frameData(d.steps, speed)); };
+  const spd = nd => CL.speedFx(nd);
+  const spdText = v => '×' + (v / 256).toFixed(2);
+  function fdText(m, speed) {            // startup / active / recovery = total, hits, travel
+    const d = fd(m, speed); if (!d) return '';
     return `${d.startup}/${d.active}/${d.recovery} = ${d.total}f · ${d.hits} hit${d.hits > 1 ? 's' : ''}${d.travel ? ' · ' + d.travel + ' px' : ''}`;
   }
-  function fdBar(m) { const d = fd(m); return d ? d.frames.replace(/-/g, '·').replace(/x/g, '█') : ''; }
+  function fdBar(m, speed) { const d = fd(m, speed); return d ? d.frames.replace(/-/g, '·').replace(/x/g, '█') : ''; }
   const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith('on')) e[k] = v; else if (v !== null && v !== false) e.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c !== null && c !== undefined) e.append(c); return e; };
   function sel(options, value, onchange) {
     const s = h('select', { onchange: () => onchange(s.value) });
@@ -276,7 +282,7 @@
     const pref = k === 'AB' ? ['body_toss'] : k.endsWith('A') ? (k.startsWith('d') && !k.startsWith('df') ? ['atk_a_crouch', 'atk_c_crouch'] : k.startsWith('df') ? ['cmd_df_c', 'atk_c_close'] : k.startsWith('f') ? ['cmd_fwd_a', 'atk_c_close'] : ['atk_a_close'])
                                     : (k.startsWith('d') && !k.startsWith('df') ? ['atk_b_crouch', 'atk_d_crouch'] : k.startsWith('df') ? ['cmd_df_d', 'atk_d_close'] : k.startsWith('f') ? ['cmd_fwd_b', 'atk_d_close'] : ['atk_b_close']);
     const move = pref.find(m => has.includes(m)) || 'atk_a_close';
-    return { move, weight: /atk_[ab]_/.test(move) ? 'light' : 'strong', effect: 'none', cancel: false };
+    return { move, weight: /atk_[ab]_/.test(move) ? 'light' : 'strong', effect: 'none' };
   }
   function edited() { markDirty(); render(); }
   // ---- card art: SVG glyphs (shape carries the meaning; colour only adds to it: Bruno reads on e-ink) -----------------
@@ -317,7 +323,9 @@
     trip: '<path d="M2 11 Q7 14 12 8M10 8h2.3v2.3" stroke="#000" stroke-width="1.6" fill="none"/><path d="M1 5h4" stroke="#000" stroke-width="1.5"/>',   // sweep curve
     blowback: '<path d="M2 7h10M8.5 3.5 12 7l-3.5 3.5" stroke="#000" stroke-width="1.8" fill="none"/><path d="M1 3.5h3M1 10.5h3" stroke="#000" stroke-width="1.2"/>',   // arrow + speed lines
     damage: '<path d="M7 1l1.5 3.6L12.5 3l-1.8 3.6L13 9l-3.8-.2L8.5 13 7 9.6 5.2 13 4.6 8.8 1 9l2.4-2.5L1.5 3l3.9 1.6Z" fill="#000"/>',   // burst
-    cancel: '<rect x="1.3" y="4.5" width="6.4" height="5" rx="2.5" fill="none" stroke="#000" stroke-width="1.6"/><rect x="6.3" y="4.5" width="6.4" height="5" rx="2.5" fill="none" stroke="#000" stroke-width="1.6"/>',   // chain links
+    keep_on: '<rect x="1" y="2" width="12" height="10" fill="#000"/><path d="M3.5 4.5v5M6 4.5v5M8.5 4.5v5M11 4.5v5" stroke="#fff" stroke-width="1.2"/>',   // film strip, lit
+    keep_off: '<rect x="1.5" y="2.5" width="11" height="9" fill="#fff" stroke="#000" stroke-width="1.2"/><path d="M4.5 4.5v5M7 4.5v5" stroke="#000" stroke-width="1"/><path d="M9.5 7h3" stroke="#000" stroke-width="1" stroke-dasharray="1 1"/>',   // film strip, open
+    speed: '<path d="M1.5 10.5a5.5 5.5 0 0 1 11 0" fill="none" stroke="#000" stroke-width="1.6"/><path d="M7 10.5 10 5.5" stroke="#000" stroke-width="1.8"/><circle cx="7" cy="10.5" r="1.4" fill="#000"/>',   // gauge
     toend: '<path d="M1.5 7h8M6.5 3.5 10 7l-3.5 3.5" stroke="#000" stroke-width="1.6" fill="none"/><path d="M12 2.5v9" stroke="#000" stroke-width="2"/>' };   // arrow to a stop bar
   const icon = n => svg(14, 14, ICON[n], 'ic');
   const EFFECT_NAME = { none: 'stands', knockdown: 'knockdown', launch: 'launch', trip: 'trip', blowback: 'blowback' };
@@ -333,6 +341,18 @@
     const pop = h('div', { class: 'pop' }); build(pop, () => pop.remove());
     anchor.closest('.card').append(pop);
     setTimeout(() => addEventListener('pointerdown', function off(e) { if (!pop.contains(e.target)) { pop.remove(); removeEventListener('pointerdown', off, true); } }, true));
+  }
+  // the node's speed: ×1.00 = KOF's timing; tap: − / + 0.05 and presets (0.25-4; 1 is left out of the JSON)
+  function speedStat(nd, sv) {
+    const set = v => { v = Math.max(0.25, Math.min(4, Math.round(v * 100) / 100)); if (Math.abs(v - 1) < 1e-9) delete nd.speed; else nd.speed = v; edited(); };
+    const cur = (nd.speed === undefined ? 1 : nd.speed);
+    return h('button', { class: 'st spd' + (sv !== 0x100 ? ' set' : ''), title: 'playback speed (×1 = KOF\'s timing; hits are never skipped) (tap: change)',
+      onclick: ev => popover(ev.currentTarget, (pop, close) => {
+        pop.append(h('div', { class: 'srow' },
+          h('button', { onclick: () => { close(); set(cur - 0.05); } }, '− 0.05'), h('b', {}, spdText(sv)),
+          h('button', { onclick: () => { close(); set(cur + 0.05); } }, '+ 0.05')),
+          h('div', { class: 'srow' }, [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4].map(v => h('button', { class: Math.abs(v - cur) < 1e-9 ? 'cur' : '', onclick: () => { close(); set(v); } }, '×' + v)))); }) },
+      icon('speed'), h('span', {}, spdText(sv)));
   }
   function card(nd, parent, key, idxMap, air) {
     const idx = idxMap.get(nd);
@@ -350,14 +370,14 @@
         h('div', { class: 'hd' }, inputGlyph(key)),
         h('div', { class: 'name' }, SPECIAL_LABEL[nd.special]),
         h('div', { class: 'sp' }, kof ? 'KOF ' + kof : 'none: the nearest special plays', h('br'), 'route ender'),
-        h('div', { class: 'acts' }, acts));
+        h('div', { class: 'mrow' }, speedStat(nd, spd(nd)), h('span', { class: 'acts' }, acts)));
     }
     const free = freeInputs(nd);
     if (!air && free.length)
       acts.unshift(sel([['', '+'], ...free.map(k => [k, 'on ' + IN_LABEL[k]])], '', k => { if (!k) return; nd.links = nd.links || {}; nd.links[k] = newChild(k); edited(); }));
     const [dd, dp] = CL.defaultDamage(nd);
     const dmg = nd.damage !== undefined ? nd.damage : dd, push = nd.push !== undefined ? nd.push : dp;
-    const d = fd(nd.move), w = nd.weight || 'light', eff = nd.effect || 'none';
+    const sv = spd(nd), d = fd(nd.move, sv), w = nd.weight || 'light', eff = nd.effect || 'none';
     const pick = () => air ? null : picker(nd.move, v => { nd.move = v; edited(); });
     const stat = (ic, text, title, onclick) => h('button', { class: 'st', title, onclick }, icon(ic), h('span', {}, text));
     const num = (field, def) => h('input', { type: 'number', value: nd[field] !== undefined ? nd[field] : '', placeholder: String(def),
@@ -367,11 +387,12 @@
       h('div', { class: 'hd' }, inputGlyph(key),
         h('button', { class: 'name', title: air ? '' : 'choose the move (pictures)', onclick: pick }, (MOVE_LABEL[nd.move] || nd.move) + (air ? '' : ' ▸'))),
       h('button', { class: 'artb', title: air ? '' : 'choose the move (pictures)', onclick: pick }, art(nd.move),
-        h('span', { class: 'bar', title: 'the move frame by frame: █ active' }, fdBar(nd.move))),
+        h('span', { class: 'bar', title: 'the move frame by frame at its speed: █ active' }, fdBar(nd.move, sv))),
       h('div', { class: 'mods' },
         h('div', { class: 'mrow' },
           h('button', { class: 'st fr', title: 'startup / active / recovery = total frames (tap: choose the move)', onclick: pick }, icon('frames'),
             h('span', {}, d ? `${d.startup}/${d.active}/${d.recovery} ${d.total}f` : '-')),
+          speedStat(nd, sv),
           h('span', { class: 'acts' }, acts)),
         h('div', { class: 'mrow' },
           stat(w, w, 'hit weight (tap: light / strong)', () => { nd.weight = w === 'light' ? 'strong' : 'light'; edited(); }),
@@ -379,7 +400,8 @@
             pop.append(...CL.EFFECTS.map(e => h('button', { class: 'st' + (e === eff ? ' cur' : ''), onclick: () => { close(); nd.effect = e; edited(); } }, icon(e), h('span', {}, EFFECT_NAME[e])))))),
           stat('damage', String(dmg), 'damage (tap: damage and push)', ev => popover(ev.currentTarget, pop =>
             pop.append(h('label', {}, 'damage ', num('damage', dd)), h('label', {}, 'push px ', num('push', dp)), h('div', { class: 'note' }, 'empty = default from weight / effect')))),
-          stat(nd.cancel ? 'cancel' : 'toend', nd.cancel ? 'cancel' : 'end', 'on hit: cancel into the next link / play the move to its end (tap: switch)', () => { nd.cancel = !nd.cancel; edited(); }))),
+          stat(nd.keep ? 'keep_on' : 'keep_off', nd.keep ? 'full' : 'cancel', 'keep the full animation on hit (lit: plays to its end before the next link; unlit: the next link cancels it on hit) (tap: switch)',
+            () => { if (nd.keep) delete nd.keep; else nd.keep = true; edited(); }))),
     );
   }
   // the move picker: every move the fighter has, as its impact frame(s) drawn from the game's own data (make_site.py,

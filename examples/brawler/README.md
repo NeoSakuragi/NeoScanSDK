@@ -207,14 +207,15 @@ above is the **default route tree** every fighter without a routes file plays (s
 ## Chain routes and the Chain Lab (2026-10-05)
 Each fighter has a **route tree** (fighter.h "chain routes"): a node = one hit (the move: any ground normal incl. crouch A /
 B and the command normals, or a special as a route ender; the hit weight light / strong; the effect none / knockdown /
-launch / trip / blowback; damage and push, defaulted from weight / effect; the cancel flag) and its links by input: A, B,
+launch / trip / blowback; damage and push, defaulted from weight / effect; its speed; the keep flag) and its links by input: A, B,
 ↓A, ↓B, →A, →B, ↘A, ↘B, A+B, D, →D, ↓D, ↑D (down = toward the camera, forward = the way the fighter faces; a press falls
-back ↘ -> → -> ↓ -> plain; A+B, which is D otherwise, takes a node's A+B link when it has one). Cancel clear = the move
-plays to its end and the buffered input then takes its link (the brawler's rule since the start); set = on hit the link
-starts as soon as its input comes, after the hit-stop. D links cancel a normal that hit, as before. Trees are written in
+back ↘ -> → -> ↓ -> plain; A+B, which is D otherwise, takes a node's A+B link when it has one). Since 2026-10-05 every
+node cancels on hit: the next link starts as soon as its input comes, after the hit-stop; the **keep** flag ("keep the full
+animation on hit") makes the move play to its end and the buffered input then take its link (the rule before). D links
+cancel a normal that hit, as before. Trees are written in
 `tools/brawler/routes/<fighter>.json` (format: `tools/brawler/routes.py`); `export_bm.py` encodes each fighter's tree
 (`bchar_t.routes`), identical subtrees shared, and a fighter without a file gets `routes.default_tree()` = the old
-`COMBO[]` byte for byte (regress.py on all 16 fighters: unchanged). At boot `route_tab[]` (RAM) points at the ROM trees;
+`COMBO[]` (2026-10-05: with cancel on hit, no node marked keep). At boot `route_tab[]` (RAM) points at the ROM trees;
 the lab mailbox (`lab_t lab`) can point a fighter at a tree in RAM while the game runs. Terry: Bruno's 10 routes (jab
 rush, kick chain, ABAB, AA↓B, AAB→A, low line, AA↘A↓D, BA→D, BB A+B, AB↓A D).
 
@@ -226,6 +227,19 @@ the lab's): P1 against one dummy that never attacks and gets up, no waves, camer
 the fix layer. P1's route steps are logged in `lab.ev[]` (start: from neutral / after the move ended / cancel / chain
 window; hit; end) for the page's per-link readout. `labdrive.py` drives the same mailbox from the desktop core (harness);
 `proof.sh` plays Terry's AAB→A route in both cores and compares the traces (identical); `deploy_vps.sh` publishes.
+
+## Timing: KOF's frames, and a speed (2026-10-05)
+The animation player (fighter.c "animation player") shows a step for KOF's ticks + 1 frames, the first one too (until
+then: ticks, the first ticks - 1; Terry's normals were 17-43 % fast, close A 9 frames for KOF's 12). Everything it plays
+is KOF-exact at 1x: normals, walk, jumps, hit reactions, knockdowns, get-ups (`tools/brawler/chainlab/speed_proof.py
+timing`: Terry's 15 route moves last KOF's frames exactly, step by step). Time runs in 1/256 frames (`f->acc`): each frame
+the fighter's speed (8.8; 0x0100 = KOF) is added at the start of its update and the steps advance as their
+(ticks + 1) << 8 pass, the remainder carried. A route node carries its own speed (`rnode_t.speed`, routes JSON `"speed"`,
+0.25-4x); an active step is never skipped (an advance stops on it: shown, its box checked; hit-stop is not scaled), so a
+faster move lands the same hits (2x / 4x = 1x on Terry's close C, forward+A, Ralf's specials: `speed_proof.py hits`).
+Scripts use the same mechanism, one row a frame at 1x (`f->srow` + `f->acc`): specials (a route ender plays at its node's
+speed; a live row and the continuation point are never skipped; passed spawn rows still spawn) and throws (`bthrow_t.speed`
+= 1.5x for every throw: the same rows on the same frames as before, passed impact rows still land).
 
 ## Jumps (KOF's two heights, measured 2026-10-04)
 C tapped = the **hop**, C held = the **regular jump**, as in KOF96-99 (stick up) and Streets of Rage 2. The decision

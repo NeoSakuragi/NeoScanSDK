@@ -51,7 +51,7 @@ void lab_install(void) {
     const rt_head_t *t = (const rt_head_t *)lab.buf;
     if (!lab.load) return;
     if (lab.fighter < BC_COUNT) {
-        if (lab.load == 1 && t->magic[0] == 'R' && t->magic[1] == 'T' && t->version == 1) route_tab[lab.fighter] = t;
+        if (lab.load == 1 && t->magic[0] == 'R' && t->magic[1] == 'T' && t->version == 2) route_tab[lab.fighter] = t;
         else route_tab[lab.fighter] = (const rt_head_t *)bm_chars[lab.fighter].routes;
     }
     lab.load = 0;
@@ -66,7 +66,18 @@ static void lab_note(const fighter_t *f, uint8_t kind, uint8_t node, uint8_t how
     lab.nev++;
 }
 
-/* ---- animation player ------------------------------------------------------------------------------------- */
+/* ---- animation player (2026-10-05: KOF-exact, with a speed) ---------------------------------------------------------
+ * KOF shows a step for its ticks + 1 frames (measured: the brawler showed ticks, the first step ticks - 1: Terry's
+ * normals 17-43 % fast). Time is kept in 1/256 frames: f->acc = time spent in the current step, f->speed added once a
+ * frame (8.8: 0x0100 = KOF's timing; play() sets it, a route node its own), a step left when acc reaches its
+ * (ticks + 1) << 8, the remainder carried (no drift). The time is added at the start of the fighter's update, so the
+ * frame an animation starts on is its first frame, whatever started it (the state machine, or a hit in combat()); a
+ * hold animation's anim_done comes the frame after its last step's last frame: the state machine leaves it then, as
+ * KOF does. Impact protection: an active step (bstep_t flags & 1; the ones opening a hit, flags & 4, among them) is
+ * never skipped: an advance that would pass it within one frame stops on it, so it shows and combat() checks its box
+ * that frame (measured: stopping only on the openers lost Terry's Crack Shoot's first hit at 4x, which lands on a
+ * later live row of its window). Hit-stop
+ * (f->freeze) stops time; it is not scaled. Below 1x the steps just last longer. */
 static void clamp(fighter_t *f);
 static void step_move(fighter_t *f) {                         /* KOF's per-step move ($FB): attacks travel as in KOF */
     int8_t dx = f->ch->anims[f->anim].steps[f->step].dx;
@@ -74,19 +85,30 @@ static void step_move(fighter_t *f) {                         /* KOF's per-step 
     if (f->state == S_ATTACK) f->y = FIX(f->ch->anims[f->anim].steps[f->step].hy);   /* ground attacks: 0, hops: the game's */
 }
 static void play(fighter_t *f, uint8_t anim) {
-    f->anim = anim; f->step = 0; f->anim_done = 0;
-    f->tick = f->ch->anims[anim].steps[0].ticks;
+    f->anim = anim; f->step = 0; f->anim_done = 0; f->acc = 0; f->speed = 0x100;
     step_move(f);
 }
 static void play_if_new(fighter_t *f, uint8_t anim) { if (f->anim != anim) play(f, anim); }
 static void anim_tick(fighter_t *f) {
     const banim_t *an = &f->ch->anims[f->anim];
-    if (f->tick > 1) { f->tick--; return; }
-    if (f->step + 1 < an->nsteps) f->step++;
-    else { f->anim_done = 1; if (an->hold) return; f->step = 0; }   /* loops report one pass done too */
-    f->tick = an->steps[f->step].ticks;
-    if (an->steps[f->step].flags & 4) f->hit_mask = 0;              /* multi-hit normals: a new hit window */
-    step_move(f);
+    f->acc += f->speed;
+    for (;;) {
+        uint32_t d = (uint32_t)(an->steps[f->step].ticks + 1) << 8;
+        if (f->acc < d) return;
+        if (f->step + 1 < an->nsteps) { f->acc -= d; f->step++; }
+        else {                                                   /* loops report one pass done too */
+            f->anim_done = 1;
+            if (an->hold) { f->acc = d; return; }                /* held on its last step */
+            f->acc -= d; f->step = 0;
+        }
+        step_move(f);
+        if (an->steps[f->step].flags & 4) f->hit_mask = 0;       /* multi-hit normals: a new hit window */
+        if (an->steps[f->step].flags & 1) {                      /* an active step is never skipped: shown, its box checked */
+            d = (uint32_t)(an->steps[f->step].ticks + 1) << 8;
+            if (f->acc >= d) f->acc = d - 1;
+            return;
+        }
+    }
 }
 const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
 void fighter_play(fighter_t *f, uint8_t anim) { play(f, anim); }
@@ -139,6 +161,7 @@ static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
     }
     lab_note(f, LE_START, node, how, 0);
     enter(f, (c->flags & RF_AIR) ? S_AIR_ATTACK : S_ATTACK); play(f, a);
+    f->speed = c->speed;                                         /* the node's speed (play() set 1x) */
 }
 static uint8_t combo_input(const fighter_t *f, const intent_t *in) {     /* IN_* | 0x80 forward | 0x40 down */
     uint8_t b = in->press & (IN_A | IN_B);
@@ -321,6 +344,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
             uint8_t t = (in->press & IN_A) ? BT_THROW_C : BT_THROW_D;
             if (!f->ch->throws[t].nrows) t = BT_THROW_C;
             f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); enter(v, S_THROWN);
+            f->srow = 0; f->speed = f->ch->throws[t].speed;
             {                                                    /* its impacts share the throw's damage */
                 const bthrow_t *th = &f->ch->throws[t]; uint16_t i;
                 f->grab_hits = 0; f->throw_dealt = 0;
@@ -340,13 +364,31 @@ static void hold_update(fighter_t *f, const intent_t *in) {
 }
 #define THROW_FREEZE 21           /* KOF98 Ryo's forward+C: step 10 held 21 frames past its ticks (the only throw freeze
                                      among the roster's: every other throw step lasts its ROM ticks + 1, KOF96/98/99) */
-/* throws play at 1.5x KOF's speed (Bruno 2026-10-04): 3 script rows every 2 frames, frame n (state_t) showing row
- * (n - 1) * 3 / 2; an impact row passed over still lands (damage, spark, sound, freeze) on the frame that passes it */
+/* script rows (specials, throws): one row = one frame at 1x; f->srow = the row shown + 1, f->acc the time in it.
+ * Advanced by f->speed like the animation player; stop(row) = a row the advance must not pass (a special's hit
+ * row with its box live or opening a hit, its continuation point): it stops there. Returns the first row newly shown (rows from it to srow - 1 were
+ * passed or reached this frame). */
+static uint16_t script_advance(fighter_t *f, uint16_t nrows, const bspec_t *sp) {
+    uint16_t from = f->srow;
+    if (!f->srow) { f->srow = 1; f->acc = 0; return 0; }         /* its first frame: row 0 */
+    f->acc += f->speed;
+    while (f->acc >= 0x100) {
+        f->acc -= 0x100; f->srow++;
+        if (f->srow > nrows) break;
+        if (sp && ((sp->rows[f->srow - 1].hit & 3) || (sp->cont && f->srow == sp->cont + 1))) {
+            if (f->acc >= 0x100) f->acc = 0xFF;                  /* a live row / the continuation point: shown */
+            break;
+        }
+    }
+    return from;
+}
+/* throws play at their own speed (bthrow_t.speed: 1.5x for every throw, Bruno 2026-10-04: frame n shows row
+ * (n - 1) * 3 / 2); an impact row passed over still lands (damage, spark, sound, freeze) on the frame that passes it */
 static void throw_update(fighter_t *f) {
     const bthrow_t *th = &f->ch->throws[f->throw_id];
     fighter_t *v = f->held;
     const bthrow_row_t *r;
-    uint16_t i = ((f->state_t - 1) * 3) >> 1, j = f->state_t > 1 ? (((f->state_t - 2) * 3) >> 1) + 1 : 0;
+    uint16_t j = script_advance(f, th->nrows, 0), i = f->srow - 1;
     if (i >= th->nrows) {                                        /* script over: the victim lies where it landed */
         release(f); clamp(f);
         v->hp -= THROW_DAMAGE - f->throw_dealt; v->y = 0; clamp(v); enter(v, S_DOWN); play(v, BA_DOWN);
@@ -416,7 +458,7 @@ static void start_special(fighter_t *f, uint8_t k) {
     f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
-    enter(f, S_SPECIAL);
+    enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
 }
 
 /* ---- projectiles (tools/kof98/README.md "Projectiles"; tools/kof96/projectiles96.py) ----------------------------------
@@ -510,18 +552,19 @@ static void special_update(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_id];
     const bspec_row_t *r;
     uint8_t k;
-    if (sp->cont && f->state_t <= sp->cont + 1) {
+    uint16_t from = script_advance(f, sp->nrows, sp);            /* rows from..srow-1 reached this frame */
+    if (sp->cont && f->srow <= sp->cont + 1) {
         if (f->landed && (f->spec_prev_hit & 16)) {              /* it hit: on to the continuation, from here */
-            f->state_t = sp->cont + 1; f->throw_x0 = f->x;
-        } else if (f->state_t == sp->cont + 1) f->state_t = sp->nrows + 1;   /* a whiff: the move ends */
+            f->srow = sp->cont + 1; f->throw_x0 = f->x;
+        } else if (f->srow == sp->cont + 1) f->srow = sp->nrows + 1;   /* a whiff: the move ends */
     }
-    if (f->state_t > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
+    if (f->srow > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
         special_end(f);
         if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
         return;
     }
-    r = &sp->rows[f->state_t - 1];
-    if (f->state_t <= sp->inv_rows && f->inv < 2) f->inv = 2;    /* invincible move: from its first frame to its last hit */
+    r = &sp->rows[f->srow - 1];
+    if (f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;    /* invincible move: from its first frame to its last hit */
     f->frame_ovr = r->frame;
     f->x = f->throw_x0 + dir_mul(f->facing, FIX(r->x)); f->y = r->y > 0 ? FIX(r->y) : 0; clamp(f);
     if (r->hit & 2) { f->hit_mask = 0; f->spec_dmg = r->dmg; f->spec_react = r->hit >> 5; f->spec_fx = r->fx; }   /* a new hit */
@@ -533,7 +576,7 @@ static void special_update(fighter_t *f) {
     }
     f->spec_prev_hit = r->hit; f->spec_atk = (r->hit & 1) ? &r->atk : 0;
     for (k = 0; k < sp->nproj; k++)                              /* the game's event steps (Geese's Double */
-        if (f->state_t - 1 == sp->proj[k].spawn_row) proj_spawn(f, &sp->proj[k]);   /* Reppuken: two) */
+        if (sp->proj[k].spawn_row >= from && sp->proj[k].spawn_row < f->srow) proj_spawn(f, &sp->proj[k]);   /* Reppuken: two; a passed row spawns too) */
     for (k = 0; k < 2; k++) {
         fighter_t *p = f->proj[k];
         const bsobj_t *o = &r->obj[k];
@@ -567,6 +610,8 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     if (f->chain_t) f->chain_t--;
     f->state_t++;
     f->pushing = 0;
+    if (f->state != S_SPECIAL && f->state != S_THROW) anim_tick(f);   /* this frame's time first (see the animation player);
+                                                                    a script (special, throw) keeps its own in acc */
     switch (f->state) {
     case S_IDLE: case S_WALK: case S_RUN: {
         uint8_t b = in->press;
@@ -631,13 +676,13 @@ void fighter_update(fighter_t *f, const intent_t *in) {
             uint8_t d = f->spec_buf & 0x7F, nx = c->next[d] ? c->next[d] : c->next[RI_D], k;
             f->spec_buf = 0;
             k = nx ? special_pick(f, NODE(f, nx)->anim) : 0xFF;
-            if (k != 0xFF) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); start_special(f, k); break; }
+            if (k != 0xFF) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); start_special(f, k); f->speed = NODE(f, nx)->speed; break; }
         }
-        if (f->landed && f->buffered && (c->flags & RF_CANCEL)) {   /* cancel on hit: the next link now (after the hit-stop) */
+        if (f->landed && f->buffered && !(c->flags & RF_KEEP)) {   /* cancel on hit: the next link now (after the hit-stop) */
             uint8_t nx = next_node(c, f->buffered);
             if (nx) { lab_note(f, LE_END, f->node, LH_CANCEL, 1); start_node(f, nx, LH_CANCEL); break; }
         }
-        if (f->anim_done) {                                     /* plays to its end: the next starts after it */
+        if (f->anim_done) {                                     /* played to its end (keep flag, or no input yet) */
             uint8_t nx = f->buffered && f->landed ? next_node(c, f->buffered) : 0;   /* routes chain only on a hit */
             lab_note(f, LE_END, f->node, LH_AFTER_END, f->landed);
             if (nx) { start_node(f, nx, LH_AFTER_END); break; }
@@ -677,7 +722,6 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     case S_SPECIAL: special_update(f); break;
     default: break;
     }
-    anim_tick(f);
 }
 
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */

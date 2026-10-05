@@ -39,7 +39,7 @@ main { display: grid; grid-template-columns: minmax(0, 660px) minmax(0, 1fr); ga
 .edge::before { content: ""; width: 12px; border-top: var(--line); }
 .edge b { border: var(--line); padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 14px; background: var(--paper); white-space: nowrap; }
 .edge::after { content: ""; width: 10px; border-top: var(--line); }
-.card { position: relative; border: var(--line); background: var(--paper); padding: 3px 4px 4px; width: 214px; margin-right: 6px; font-size: 12px; line-height: 1.2; }
+.card { position: relative; border: var(--line); background: var(--paper); padding: 3px 4px 4px; width: 246px; margin-right: 6px; font-size: 12px; line-height: 1.2; }
 .card.root { width: 112px; }
 .card.special { width: 160px; border-style: double; border-width: 4px; }
 .card.hit { box-shadow: 4px 4px 0 #000; }
@@ -57,21 +57,28 @@ main { display: grid; grid-template-columns: minmax(0, 660px) minmax(0, 1fr); ga
 .card .mrow { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .card button.st { display: inline-flex; align-items: center; gap: 2px; height: 20px; min-height: 0; padding: 0 3px; border: 1px solid #000; font-weight: 400; font-size: 11px; background: #fff; white-space: nowrap; }
 .card .mrow button.st:not(.fr) { flex: 1 1 auto; justify-content: center; }
-.card button.st.fr { font-family: ui-monospace, monospace; font-size: 10.5px; border-color: transparent; padding-left: 0; }
+.card button.st.fr { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: -0.3px; flex: none; border-color: transparent; padding-left: 0; }
 .card .mrow .bar { font-family: ui-monospace, monospace; font-size: 7px; letter-spacing: -0.5px; overflow: hidden; white-space: nowrap; }
 .card .ic { flex: none; }
 .card .sp { font-size: 12px; margin: 3px 0; }
 .card select { min-height: 22px; padding: 0 2px; font-size: 12px; border-width: 1px; }
-.card .acts { display: flex; gap: 2px; margin-left: auto; }
+.card .acts { display: flex; gap: 1px; margin-left: auto; flex: none; }
 .card.special .acts { margin-top: 3px; }
-.card .acts button { min-height: 22px; min-width: 24px; padding: 0 4px; font-size: 12px; border-width: 1px; }
-.card:not(.root) .acts select { width: 34px; padding: 0; }
+.card .acts button { min-height: 22px; min-width: 20px; padding: 0 2px; font-size: 12px; border-width: 1px; }
+.card:not(.root) .acts select { width: 28px; padding: 0; }
 .card.root .acts { margin: 3px 0 0; }
 .card .pop { position: absolute; left: 20px; top: 90px; z-index: 5; background: #fff; border: 2px solid #000; box-shadow: 3px 3px 0 #000; padding: 4px; display: flex; flex-direction: column; gap: 3px; min-width: 128px; }
 .card .pop button.st { height: 26px; font-size: 12.5px; border: 1px solid #000; }
 .card .pop button.st.cur { border-width: 3px; font-weight: 700; }
 .card .pop label { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; }
 .card .pop input { min-height: 26px; width: 56px; padding: 0 3px; border-width: 1px; }
+.card button.st.spd { font-family: ui-monospace, monospace; font-size: 10.5px; flex: none; }
+.card button.st.spd.set { border-width: 2px; font-weight: 700; }
+.card button.st.spd { padding: 0 2px; letter-spacing: -0.3px; }
+.card .pop .srow { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; justify-content: space-between; }
+.card .pop .srow button { min-height: 28px; padding: 0 6px; font-size: 12px; border-width: 1px; }
+.card .pop .srow button.cur { border-width: 3px; }
+.card .pop { min-width: 180px; }
 .card .pop .note { font-size: 10.5px; color: var(--mid); }
 .edge { margin-top: 8px; min-width: 46px; }
 .edge::before { width: 8px; } .edge::after { width: 6px; }
