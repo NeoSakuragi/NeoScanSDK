@@ -388,9 +388,9 @@
         h('button', { onclick: ctx.down, title: 'move this route down the list (the game is unchanged)' }, '↓'),
         h('button', { onclick: ctx.del, title: ctx.k ? 'delete this hit and the rest of this route (other routes are not touched)' : 'delete this route (other routes are not touched)' }, '✕'));
     }
-    // one fixed line for the merge's note (every card the same size): a conflict, or the merged trunk; full text as tooltip
+    // one fixed line (every card the same size): empty, or a conflict; full text as tooltip
     const nt = ctx && (ctx.conflict || ctx.trunk) || '';
-    const note = h('div', { class: 'note1' + (ctx && ctx.conflict ? ' conflict' : ''), title: nt }, ctx && ctx.conflict ? ctx.conflictShort : ctx && ctx.trunk ? 'merged trunk: ' + ctx.trunkWith.join(' ') : '');
+    const note = h('div', { class: 'note1' + (ctx && ctx.conflict ? ' conflict' : ''), title: nt }, ctx && ctx.conflict ? ctx.conflictShort : '');   // only conflicts are shown (Bruno: no merge notes on the cards)
     if (nd.special !== undefined) {
       const kof = F[fi].specials[nd.special];
       return h('div', { class: 'card special' + (ctx && ctx.conflict ? ' isconflict' : ''), 'data-idx': idx },
