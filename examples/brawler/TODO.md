@@ -394,7 +394,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   semitone). Checks: ssg_cues.py --check all 4 OK; select screen with 5 cursor moves vs none: the 3329 music writes
   identical; regress no-bleed True. WAVs to compare: /data/tmp/ff3cursor/out.
 
-- [ ] 76. Kim Young Mok leftovers (0.0.50, tools/kizuna, /data/neogeo_dict/kizuna/README.md): his voices into the
+- [ ] 76. (0.0.53: his multipart moves + the Phoenix's on-connect sequence and flames play, one follow-up mechanism;
+  left: the Phoenix's red backdrop (the brawler shows the empty stage ~12 frames while both fly off-screen), random
+  flame feathers replayed as captured, j.2B > 2B follow-up 92 not played) Kim Young Mok leftovers (0.0.50, tools/kizuna, /data/neogeo_dict/kizuna/README.md): his voices into the
   sound ROM (the voice build path reads KOF / SS4 / WHP, not Kizuna's driver: tools/kizuna/voices_kz.py lists 40);
   his stage song (find it among Kizuna's 23 decoded songs, port via songs.json); colour set B ($1C0) checked by eye; the 150 frames
   where Kizuna slides a part by code (6C telescopic staff). A+B dodge / C+D taunt have no brawler slot (not mapped).
