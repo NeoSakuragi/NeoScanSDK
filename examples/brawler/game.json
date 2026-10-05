@@ -162,6 +162,14 @@
    "routes": "default",
    "specials": {"D": "236A", "fD": "236D", "dD": "623B", "uD": "214C", "dfD": "623A", "ufD": "214D"},
    "unlock": "always"
+  },
+  {
+   "name": "kim",
+   "bank": "kizuna:kim",
+   "watch": {"frame": 55, "step": 0},
+   "routes": "tools/brawler/routes/kim.json",
+   "specials": {"D": "214B", "fD": "236C", "dD": "[2]8C", "uD": "6246A", "dfD": "421A", "ufD": "236A"},
+   "unlock": "always"
   }
  ],
  "select": {
@@ -179,11 +187,12 @@
    {"x": 200, "z": 24, "row": 1, "fighter": "k_dash"},
    {"x": 240, "z": 24, "row": 1, "fighter": "haohmaru"},
    {"x": 280, "z": 24, "row": 1, "fighter": "hanzo"},
-   {"x": 48, "z": 0, "row": 2, "fighter": "mr_big"},
-   {"x": 104, "z": 0, "row": 2, "fighter": "krauser"},
-   {"x": 160, "z": 0, "row": 2, "fighter": "geese"},
-   {"x": 216, "z": 0, "row": 2, "fighter": "rugal"},
-   {"x": 272, "z": 0, "row": 2, "fighter": "goenitz"}
+   {"x": 40, "z": 0, "row": 2, "fighter": "mr_big"},
+   {"x": 88, "z": 0, "row": 2, "fighter": "krauser"},
+   {"x": 136, "z": 0, "row": 2, "fighter": "geese"},
+   {"x": 184, "z": 0, "row": 2, "fighter": "rugal"},
+   {"x": 232, "z": 0, "row": 2, "fighter": "goenitz"},
+   {"x": 280, "z": 0, "row": 2, "fighter": "kim"}
   ]
  },
  "tints": {
