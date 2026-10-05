@@ -77,7 +77,7 @@ def load_export(name, game):
 def main():
     os.makedirs(OUT, exist_ok=True)
     ex, reg = load_export('kim', 'kizuna'); ch = ex['characters']['kim']
-    used = sorted({int(f['record'], 16) for f in ch['frames']})
+    used = sorted({int(a, 16) for f in ch['frames'] for a in f['record'].split('+')})
     A = [full_cols(a) for a in used]
     C = [export_cols(f) for f in ch['frames']]
     full_tiles = set().union(*[a[2] for a in A])

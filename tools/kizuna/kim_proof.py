@@ -70,7 +70,7 @@ def ref_image(w, pals):
     """Kizuna's drawing of the step at w at the export's zoom (kz.render_step_zoom, facing right) in the export's
     palette numbering"""
     ref = np.zeros((640, 640), np.uint16)
-    kz.render_step_zoom(ref, w, 320, 520, export_kz.Z)
+    for a in str(w).split("+"): kz.render_step_zoom(ref, int(a, 16), 320, 520, export_kz.Z)   # "A+B": steps drawn at one place
     idx = np.vectorize(lambda p: pals.index(p) if p in pals else 0x70)(ref >> 4) if ref.any() else ref
     return np.where(ref & 15, (0x80 + idx) * 16 + (ref & 15), 0).astype(np.uint16)
 
@@ -117,7 +117,7 @@ def main():
                 x = int(b.fget(0, 'x')) - b.r(b.syms['cam_x'], 2); im = Image.open(p)
                 cells.append(im.crop((x - 120, 0, x + 120, im.height)))
                 got = crop_nz(block_image(b, vram, crom, used))
-                ref = ref_image(int(ex['frames'][fi]['record'], 16), pals)
+                ref = ref_image(ex['frames'][fi]['record'], pals)
                 ref = crop_nz(ref if facing > 0 else ref[:, ::-1])
                 if got.shape == ref.shape and (got == ref).all(): same += 1
                 else: diff += 1; worst.append((m, facing, fi, got.shape, ref.shape))

@@ -45,6 +45,8 @@ RECIPES = {   # name: (P2 x, P1 inputs, pokes every frame)
     'j2B_h': (330, '2:-,3:UR,10:-,3:Db,90:-', None),
     'j2B2_h': (330, '2:-,3:UR,10:-,3:Db,4:-,3:Db,90:-', None),
 }
+POOL = 0x8000                                          # task pool $100000-$107FFF: the Phoenix's PHOELX halves 508A /
+                                                       # 508B live at $104100 / $105A00, past the first $4000 [meas]
 PIN = 6                                                # P2 pinned before the move starts (its first frames)
 
 def fighter(r, a):
@@ -59,12 +61,12 @@ def capture(name):
     for f in range(n):
         s = ([f'108424={p2x >> 8:02X},108425={p2x & 255:02X}'] if f < PIN else []) + ([pokes] if pokes else [])
         if s: pk.append(f'{f}:' + ','.join(s))
-    rows = cap.run(seq, '', pokes=';'.join(pk) or None)
-    base = {k for k in range(0x40) if rows[0]['pool'][k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}
+    rows = cap.run(seq, '', pokes=';'.join(pk) or None, pool=POOL)
+    base = {k for k in range(POOL >> 8) if rows[0]['pool'][k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}
     out = []
     for r in rows:
         objs = []
-        for k in range(0x40):
+        for k in range(POOL >> 8):
             o = r['pool'][k * 0x100:(k + 1) * 0x100]
             if k in base or not cap.u32(o, 0x94): continue
             ob = cap.obj(r, 0x100000 + k * 0x100)

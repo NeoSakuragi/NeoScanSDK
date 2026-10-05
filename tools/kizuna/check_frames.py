@@ -57,7 +57,7 @@ def check_export():
                     pen = np.concatenate([pen[1], pen[0]], axis=1).astype(np.uint16)
                     y, x = 520 + p['dy'] + 16 * r, 320 + p['dx'] + 16 * c
                     img[y:y + 16, x:x + 16] = np.where(pen > 0, pals[p['pal']] << 4 | pen, img[y:y + 16, x:x + 16])
-        ref = np.zeros((640, 640), np.uint16); kz.render_step_zoom(ref, int(fr['record'], 16), 320, 520, export_kz.Z)
+        ref = np.zeros((640, 640), np.uint16); [kz.render_step_zoom(ref, int(a, 16), 320, 520, export_kz.Z) for a in fr['record'].split('+')]
         a, b = crop(img[:, ::-1]), crop(ref)
         if a.shape == b.shape and (a == b).all(): same += 1
         else: diff += 1; bad.append((fi, fr['record']))

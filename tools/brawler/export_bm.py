@@ -391,6 +391,11 @@ def special_rows(sp):
         pre = [i for i in wins if i < cont and not out[i][2] & 8]
         path = pre[:1] + [i for i in wins if i >= cont]
     else: path = wins
+    if sp.get('damage') and wins:                        # the source game's own damage for the whole move (Kizuna's
+        each = max(1, sp['damage'] // len(wins))         # desperation moves, in the brawler's life: export_kz FOLLOW
+        for i in wins: out[i][3] = each                  # 'damage'), split over its hits, the last takes the rest
+        out[wins[-1]][3] = max(1, sp['damage'] - each * (len(wins) - 1))
+        return [tuple(r) for r in out]
     if sp.get('parts') and not cont:                     # a source's parts (Kizuna): each part deals the damage of a
         for p in sp['parts']:                            # special, split over its own hits
             ph = [i for i in wins if p['first'] <= i < p['end']]
