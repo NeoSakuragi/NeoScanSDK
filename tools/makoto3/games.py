@@ -3,7 +3,7 @@
 build keeps the tables the song model reads (docs/ff3_sound_driver.md; sections "KOF94's build", "KOF95's build",
 "Fatal Fury Special's build", "Art of Fighting's build").
 song.py, regs.py and capture.py read everything game-specific from here; game_of() tells the build from the M1 ROM
-(the interrupt vector at $0039: FF3 JP $212B, KOF94 JP $2096, KOF95 JP $1BCA, Art of Fighting JP $2041, Art of Fighting 3 JP $1C9C;
+(the interrupt vector at $0039: FF3 JP $212B, KOF94 JP $2096, KOF95 JP $1BCA, Art of Fighting JP $2041, Art of Fighting 3, Samurai Shodown III and Real Bout Fatal Fury JP $1C9C;
 Art of Fighting 2 = KOF94's vector, told by its type table).
 
 Addresses are Z80 addresses in the M1 ROM; the FF3 names are the ones docs/ff3_sound_driver.md cites. KOF94's driver
@@ -152,6 +152,20 @@ GAMES = {
         b_single=0x5E7F, b_octtab=0x5EBF, b_dn_pitched=0x5F6F, b_dn_oct=0x5FF7,
         stack_guard=True,     # opcode $46 ($233F): p < $40 kit, < $80 one pitched sample, < $C0 per-octave tables ($1487), else nothing
         block=880, send=900,  # the game sends $07 at frame 872 (after $03 $03) and its first song ($3C) at 930 (measured)
+    ),
+    'rbff1': dict(
+        name='Real Bout Fatal Fury', rom='/data/roms/rbff1.neo', dir='/data/neogeo_dict/sound/rbff1',
+        m1='rbff1_m1.bin', irq=0x1C9C,                # Art of Fighting 3's code byte for byte; only table operands differ
+        types=0x6D46, bank_tab=0x2E00, banks={0: 0x8000, 1: 0x10000, 2: 0x18000},   # (docs/rbff1_sound_driver.md)
+        headers=0x3C78,
+        smp_tab=None, smp_fixed=None,
+        a_chan=dict(default=0x40F6, words=0x2570, flags=0x2580),
+        patches=0x2E40, pitch=0x1C84, gate=0x2745,
+        fnum=0x6EC7,
+        brec=0x65B6, brec_size=16,
+        b_single=0x6B46, b_octtab=0x6BC6, b_dn_pitched=0x6BC6, b_dn_oct=0x6C46,
+        b_octave=False, stack_guard=True,
+        block=880, send=900,  # the game sends $07 at frame 873 and its first song ($3E) at 894 (measured)
     ),
 }
 

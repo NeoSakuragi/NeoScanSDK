@@ -834,7 +834,9 @@ class Song:
                 v = r.tick(self.m)
                 if v is not None:
                     w = (self.shadow.get((c, 'fnum'), 0) + v) & 0xFFFF
-                    self.out.append((self.irq, self.tick, CHANNELS[c - 1], 'vib', {'block': (w >> 11) & 7, 'fnum': w & 0x7FF}))
+                    self.out.append((self.irq, self.tick, CHANNELS[c - 1], 'vib', {'block': (w >> 11) & 7, 'fnum': w & 0x7FF,
+                                                                                 'hi': w >> 8 & 0xFF}))   # the whole byte to $A4: a
+                    # bend below F-number 0 writes $FF there (Real Bout 2's $33)
         for c in (1, 2, 3, 4):
             r = self.fx2[c]
             if r.f & 1:

@@ -16,6 +16,8 @@ listing, and the V ROM sample ranges both streams play. One page, one builder, e
     python3 build_web.py --game samsho|samsho2|samsho3 OUT_DIR   Samurai Shodown 1-3 (MAKOTO v3 builds, tools/makoto3);
     python3 build_web.py --game samsho4 OUT_DIR [0x50 ...]   Samurai Shodown IV (SNK Sound Driver Ver 1.0, tools/kof98snd);
     python3 build_web.py --game kof97 OUT_DIR [0x30 ...]     KOF97 (SNK Sound Driver Ver 1.1, tools/kof98snd);
+    python3 build_web.py --game rbff1 OUT_DIR                Real Bout Fatal Fury (MAKOTO v3, Art of Fighting 3's code, tools/makoto3);
+    python3 build_web.py --game rbffspec|rbff2 OUT_DIR       Real Bout Special (SNK Ver 1.1 = KOF97's) / Real Bout 2 (SNK Ver 1.6), tools/kof98snd;
     python3 build_web.py --game garou OUT_DIR [0x34 ...]     Garou: Mark of the Wolves (SNK Sound Driver Ver 1.8, tools/kof98snd);
     python3 build_web.py --game ninjamas OUT_DIR [0xD0 ...]  Ninja Master's (ADK's driver, tools/adksnd: songadk.py /
                                                              regsadk.py, captures in our emulator, captureadk.py);
@@ -45,7 +47,7 @@ import base64, json, os, re, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 PERIOD, ISR_START, WRITE_COST = 333, 100, 6.4
-SNKSND = ('kof98', 'kof97', 'kizuna', 'samsho4', 'garou')           # games on tools/kof98snd's model
+SNKSND = ('kof98', 'kof97', 'kizuna', 'samsho4', 'garou', 'rbffspec', 'rbff2')           # games on tools/kof98snd's model
 
 GAMES = {
     'kof98': {
@@ -294,6 +296,65 @@ GAMES['kof97'] = {
              'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the KOF97 V ROM. Nothing here is a recording.",
                        "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
                        "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with KOF97's table addresses (Samurai Shodown IV's driver without its ADPCM-B slur restart), reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
+             'capture': 'capture', 'unit': 'ticks'}}
+
+GAMES['rbff1'] = {
+    'm1': '/data/neogeo_dict/sound/rbff1/rbff1_m1.bin', 'cap': '/data/neogeo_dict/sound/rbff1/caps/cap_%02X.txt',
+    'neo': '/data/roms/rbff1.neo',
+    # measured in our emulator (docs/rbff1_songs.md); the fight themes from the 68K's table $A76A by the CPU fighter's id
+    'names': {0x3E: 'Opening / title', 0x4B: 'Enemy select', 0x23: 'Enemy select (the same song data as $4B)',
+              0x59: 'Before a fight (stage intro)', 0x57: 'Before a fight (stage intro)', 0x5E: 'Before a fight (stage intro)',
+              0x56: 'Before the final fight (Geese)', 0x2F: 'Theme: Terry', 0x2C: 'Theme: Andy', 0x29: 'Theme: Joe', 0x2B: 'Theme: Mai',
+              0x30: 'Theme: Geese', 0x2E: 'Theme: Sokaku', 0x26: 'Theme: Bob', 0x2D: 'Theme: Hon-Fu', 0x28: 'Theme: Blue Mary',
+              0x27: 'Theme: Franco', 0x31: 'Theme: Yamazaki', 0x32: 'Theme: Jin Chonshu', 0x33: 'Theme: Jin Chonrei',
+              0x5A: 'Theme: Duck King', 0x5B: 'Theme: Kim', 0x5C: 'Theme: Billy', 0x2A: 'Final fight: Geese',
+              0x55: 'Continue', 0x5D: 'Ending (Terry)', 0x47: 'Staff roll', 0x3D: 'Rank / name entry',
+              0x3F: 'After the name entry', 0x20: 'All off (3 ticks)'},
+    'page': {'title': 'Real Bout Fatal Fury', 'bar': 96, 'beat': 24, 'start': 0x2F,
+             'intro': "Real Bout Fatal Fury songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (\"Ver 3.0 by MAKOTO\", Art of Fighting 3's code with other tables) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Real Bout Fatal Fury V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/makoto3/capture.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/makoto3/song.py + regs.py with Real Bout's tables (Art of Fighting 3's build: a sample table per ADPCM-A channel, set by opcode $3C), reading the song data from the M1 ROM. The facts line says on how many timer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One music tick per timer-B interrupt; both sources are placed on the same timer schedule (timer A 54.3 Hz, timer B from the song's tempo byte), writes spaced by an estimated 6.4 samples."],
+             'capture': 'capture', 'unit': 'interrupts'}}
+
+GAMES['rbffspec'] = {
+    'm1': '/data/neogeo_dict/sound/rbffspec/rbffspec_m1.bin', 'cap': '/data/neogeo_dict/sound/rbffspec/caps/cap_%02X.txt',
+    'neo': '/data/roms/rbffspec.neo',
+    # measured in our emulator (docs/rbffspec_songs.md); the fight themes from the 68K's table $ADEC by the CPU fighter's id
+    'names': {0x35: 'Opening / title', 0x38: 'Player select', 0x3D: 'Jingle that leads into the player select ($38)',
+              0x3A: 'Before a fight', 0x34: 'Theme: Terry', 0x21: 'Theme: Andy', 0x22: 'Theme: Joe', 0x23: 'Theme: Mai',
+              0x32: 'Theme: Geese (also in the ending)', 0x24: 'Theme: Sokaku', 0x25: 'Theme: Bob', 0x26: 'Theme: Hon-Fu',
+              0x27: 'Theme: Blue Mary', 0x28: 'Theme: Franco', 0x29: 'Theme: Yamazaki', 0x2A: 'Theme: Jin Chonshu / Jin Chonrei',
+              0x2C: 'Theme: Duck King', 0x2D: 'Theme: Kim', 0x2E: 'Theme: Billy', 0x30: 'Theme: Cheng', 0x2F: 'Theme: Tung',
+              0x31: 'Theme: Laurence', 0x33: 'Theme: Krauser', 0x37: 'Ending begins (after Krauser)', 0x36: 'Ending: Congratulation',
+              0x3B: 'Continue', 0x3C: 'Game over'},
+    'page': {'title': 'Real Bout Fatal Fury Special', 'bar': 96, 'beat': 24, 'start': 0x34,
+             'intro': "Real Bout Fatal Fury Special songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (SNK's \"Sound Driver Ver 1.1 96/10/01\", byte for byte KOF97's driver code) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Real Bout Fatal Fury Special V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with KOF97's table addresses (the same driver build), reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order ($3D: up to its last byte, a command that starts $38).",
+                       "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
+             'capture': 'capture', 'unit': 'ticks'}}
+
+GAMES['rbff2'] = {
+    'm1': '/data/neogeo_dict/sound/rbff2/rbff2_m1.bin', 'cap': '/data/neogeo_dict/sound/rbff2/caps/cap_%02X.txt',
+    'neo': '/data/roms/rbff2.neo',
+    # measured in our emulator (docs/rbff2_songs.md); the fight themes from the 68K's table $F6F4 by the CPU fighter's id
+    'names': {0x21: 'Opening / title', 0x22: 'Title after a coin', 0x23: 'How to play', 0x24: 'Player select',
+              0x26: 'Before a fight (Terry vs Andy)', 0x2A: 'Before a fight (mirror match)',
+              0x30: 'Theme: Terry', 0x31: 'Theme: Andy', 0x32: 'Theme: Joe', 0x33: 'Theme: Mai', 0x34: 'Theme: Geese',
+              0x35: 'Theme: Sokaku', 0x36: 'Theme: Bob', 0x37: 'Theme: Hon-Fu', 0x38: 'Theme: Blue Mary', 0x39: 'Theme: Franco',
+              0x3A: 'Theme: Yamazaki', 0x3B: 'Theme: Jin Chonshu / Jin Chonrei', 0x3C: 'Theme: Duck King', 0x3D: 'Theme: Kim',
+              0x3E: 'Theme: Billy', 0x3F: 'Theme: Cheng', 0x40: 'Theme: Tung', 0x41: 'Theme: Laurence', 0x42: 'Theme: Krauser',
+              0x43: 'Theme: Rick', 0x44: 'Theme: Li Xiangfei', 0x45: 'Theme: Alfred',
+              0x2B: 'Continue', 0x29: 'Game over', 0x2F: 'Ending (Terry)'},
+    'page': {'title': 'Real Bout Fatal Fury 2', 'bar': 96, 'beat': 24, 'start': 0x30,
+             'intro': "Real Bout Fatal Fury 2 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (SNK's \"Sound Driver(ROM)Ver 1.6 97/12/08\": KOF98's v1.7 code with the operator level effects of Ver 1.0/1.1) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Real Bout Fatal Fury 2 V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with Real Bout 2's table addresses and the operator level effects switched on, reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
                        "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
              'capture': 'capture', 'unit': 'ticks'}}
 

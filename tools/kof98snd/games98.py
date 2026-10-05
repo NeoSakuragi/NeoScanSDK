@@ -115,6 +115,43 @@ GAMES = {
         types=0x2FB0,                                           # command -> type, $20-$FF ($017C)
         block=878, send=900,  # the game sends $07 at frame 875 and its first song ($21, attract) at 1550 (measured)
     ),
+    'rbffspec': dict(
+        name='Real Bout Fatal Fury Special', rom='/data/roms/rbffspec.neo',
+        m1='/data/neogeo_dict/sound/rbffspec/rbffspec_m1.bin', dir='/data/neogeo_dict/sound/rbffspec',
+        id=b'Sound Driver Ver 1.1 96/10/01',                 # KOF97's build: $0000-$2E0D byte-identical to KOF97's
+        sig=(0x2E0E, bytes.fromhex('7b457b4b')),               # (pointer table $2E00 onwards = the game's data) -> the same
+        songs=0x3216, song20=0x2D36, banksets=0x289C,           # table addresses as 'kof97'; told apart by this signature
+        notes=0x2D5C, fnum=0x2BFC,
+        lv_fm=0x3095, lv_a=0x3115, lv_b=0x3195,
+        b_dn=0x2CBE, b_rec=0x2E1A, fx6=0x2E2A,
+        modmask=0x288B, big_slot=5, guard=0xFE6B,
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87),
+               ('a', 0x1C, 0x00)],
+        overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=True,
+        types=0x2FB0,
+        block=878, send=900,  # the game sends $07 at frame 873 and its first song ($35, attract) at 1076 (measured)
+    ),
+    'rbff2': dict(
+        name='Real Bout Fatal Fury 2: The Newcomers', rom='/data/roms/rbff2.neo',
+        m1='/data/neogeo_dict/sound/rbff2/rbff2_m1.bin', dir='/data/neogeo_dict/sound/rbff2',
+        id=b'Sound Driver(ROM)Ver 1.6',                      # 97/12/08: KOF98's v1.7 code with Ver 1.0/1.1's operator
+        # level effects (records at $F8A9, $195E-$1A3E, $14BB) and their RAM layout (docs/rbff2_sound_driver.md)
+        songs=0x329E, song20=0x2CDA, banksets=0x2840,           # ($10FF, $10F5, $1133)
+        notes=0x2D00, fnum=0x2BA0,                              # ($2655, $2666)
+        lv_fm=0x311D, lv_a=0x319D, lv_b=0x321D,                 # ($20F9, $20E3, $2120)
+        b_dn=0x2C62, b_rec=0x2E1E, fx6=0x2E32,                  # ($0978, $0810, $13ED)
+        modmask=0x282F,                                         # ($1539)
+        big_slot=7, guard=0xFE6B,                               # ($0EF2, $1C9D)
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87),
+               ('a', 0x1C, 0x00)],
+        overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=True,
+        types=0x3038,                                           # command -> type, $20-$FF ($0183)
+        nop=0x46,             # the NMI ($0069) advances the ring before testing for $00, as Garou's: a blocked command
+        # becomes $46 (type 0: ignored), or the main loop would replay the song command left in the slot
+        block=914, send=940,  # the game sends $07 at frame 912 and its first song ($21) at 925 (measured)
+    ),
     'garou': dict(
         name='Garou: Mark of the Wolves', rom='/data/roms/garou.neo',
         m1='/data/neogeo_dict/sound/garou/garou_m1.bin', dir='/data/neogeo_dict/sound/garou',
@@ -141,8 +178,12 @@ GAMES = {
 
 def game_of(data):
     """the game key of an M1 ROM, from the driver's ID string"""
-    for k, g in GAMES.items():
-        if data[0x3E:0x3E + len(g['id'])] == g['id']: return k
+    hits = [k for k, g in GAMES.items() if data[0x3E:0x3E + len(g['id'])] == g['id']]
+    for k in hits:                    # one build, several games (KOF97 / Real Bout Special): the 'sig' bytes decide
+        a, b = GAMES[k].get('sig', (0, b''))
+        if b and data[a:a + len(b)] == b: return k
+    for k in hits:
+        if 'sig' not in GAMES[k]: return k
     raise ValueError('not a known SNK Sound Driver build: ' + data[0x3E:0x66].decode('latin-1'))
 
 def music_cmds(data):

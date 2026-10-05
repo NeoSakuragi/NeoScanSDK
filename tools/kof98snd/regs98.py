@@ -128,12 +128,18 @@ def compare(data, cmd, path, show=0):
         if (p, r) not in MUSIC_SKIP and (p, r, v) != ('a', 0x10, 0): a.setdefault(q, []).append((p, r, v))
     for q, p, r, v in mod:
         if q <= n and (p, r) not in MUSIC_SKIP and (p, r, v) != ('a', 0x10, 0): b.setdefault(q, []).append((p, r, v))
+    chain = next((e[0] for e in s.out if e[3] == 'command' and isinstance(e[4]['cmd'], int)), None)
+    if chain is not None:                     # opcode $0C started another song (a jingle that leads into a theme):
+        a = {q: v for q, v in a.items() if q <= chain}       # compared up to there; the rest is that song's own
+        b = {q: v for q, v in b.items() if q <= chain}       # capture. In the interrupt of the chain the driver
+        if chain in a: a[chain] = a[chain][:len(b.get(chain, []))]   # starts the next song after this one's writes
     ticks = sorted(set(a) | set(b))
     same = sum(1 for q in ticks if a.get(q) == b.get(q))
     same_set = sum(1 for q in ticks if sorted(a.get(q, [])) == sorted(b.get(q, [])))
     na = sum(len(v) for v in a.values()); nb = sum(len(v) for v in b.values())
     print(f'song ${cmd:02X}: {n} sequencer interrupts, {na} captured writes, {nb} model writes; interrupts with '
-          f'writes {len(ticks)}: identical in order {same}, identical as a set {same_set}')
+          f'writes {len(ticks)}: identical in order {same}, identical as a set {same_set}'
+          + (f'; chains into ${s.queued[0][2]:02X} at interrupt {chain}, compared up to there' if chain is not None else ''))
     shown = 0
     for q in ticks:
         if a.get(q) == b.get(q) or shown >= show: continue
