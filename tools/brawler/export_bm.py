@@ -172,8 +172,11 @@ def build(specs, outdir):
 ROLE_OVERRIDE = {'mai': {'rise': '623D'},       # Mai: [2]8A is a wall-jump dive, not a reversal
                  'terry': {'up': '214D'},        # Crack Shoot
                  'kyo': {'up': '624B'},
-                 'goenitz': {'up': '214C'}}      # his 41236 is one wind (Yonokaze) for every button, at another
-                                                 # distance per button (60 / 120 / 200 px): D has 41236C, up+D his 214C          # Kototsuki You: the run, on contact the grab and the explosion (states
+                 'goenitz': {'up': '214A'}}      # his 41236 is one wind (Yonokaze) for every button, at another
+                                                 # distance per button (60 / 120 / 200 px): D has 41236C. up+D: 214A
+                                                 # (Yamidonari, the wind blowing forward: KOF96 hits a standing P2 at
+                                                 # 20-80 px, none at 120), not 214C (its boxes are above his head, an
+                                                 # anti-air: no hit on a standing P2 at any distance in KOF96, TODO #59)          # Kototsuki You: the run, on contact the grab and the explosion (states
                                                  # 134-140; 'EX 624D' was the same run, captured as a hit, no whiff)
 ROLES = ('proj', 'rush', 'rise', 'up')
 # fighters whose EX version is another character, not more moves (Bruno 2026-10-05: the regular Rugal, not Omega Rugal,
