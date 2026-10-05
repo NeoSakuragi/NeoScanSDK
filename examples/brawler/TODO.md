@@ -344,6 +344,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   then KOF96 / KOF99 routine addresses; the captured scripts stay the fallback (Vulcan Punch, command grabs, supers).
   Proof per fighter as romspecials_check.py does (0 frame mismatches whiff + hit). Terry + Ralf done in 0.0.37.
 
+- [ ] 70. Haohmaru's forward+D (SS4 421C) has a baked impact / KO scene (Bruno): recapture it as a whiff, or read it from
+  SS4's own code (the handlers98 approach for SS4); also his other open points (memory reference_samsho4_extraction).
+
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.
