@@ -182,7 +182,7 @@ ROLE_OVERRIDE = {'mai': {'rise': '623D'},       # Mai: [2]8A is a wall-jump dive
                                                  # 20-80 px, none at 120), not 214C (its boxes are above his head, an
                                                  # anti-air: no hit on a standing P2 at any distance in KOF96, TODO #59)          # Kototsuki You: the run, on contact the grab and the explosion (states
                                                  # 134-140; 'EX 624D' was the same run, captured as a hit, no whiff)
-ROLES = ('proj', 'rush', 'rise', 'up')
+ROLES = ('proj', 'rush', 'rise', 'up', 'df', 'uf')          # D, forward+D, down+D, up+D, down-forward+D, up-forward+D
 # fighters whose EX version is another character, not more moves (Bruno 2026-10-05: the regular Rugal, not Omega Rugal,
 # whose KOF98 EX specials are captured on c36x): their 'EX ...' specials are not picked
 NO_EX = {'rugal'}
@@ -523,7 +523,7 @@ def special_pool(ch, name=None):
 
 
 def pick_specials(ch, name):
-    """[D, forward+D, down+D, up+D] as the roster says (game.json roster[].specials: KOF inputs; None = no special)"""
+    """[D, forward+D, down+D, up+D, down-forward+D, up-forward+D] as the roster says (game.json roster[].specials: KOF inputs; None = no special)"""
     out = []
     for role, want in zip(ROLES, roster()[name]['specials']):
         sp = next((sp for sp in special_pool(ch, name) if sp['input'] == want), None) if want else None
@@ -539,7 +539,13 @@ def suggest_specials(ch, name=None):
     = its input motion with the punch or kick pair: 214A / 214C is one move, 214B / 214D another). A KOF98 fighter and
     its EX version are one fighter (Bruno 2026-10-04: same normals, the EX adds specials): the pool is both versions'
     specials ('EX ...' inputs, captured on the EX state c<id>x). D = the fighter's real projectile (real_projectile): a
-    travelling one first (EX Terry's Power Wave over his Round Wave eruption), big button first, the longest travel."""
+    travelling one first (EX Terry's Power Wave over his Round Wave eruption), big button first, the longest travel.
+    down-forward+D / up-forward+D (Bruno 2026-10-05, the two slots added to the four): the best special of a move the
+    roster's four slots (game.json) and the slot before do not use (one move = its motion and the punch or kick pair, EX
+    or not; Samurai Shodown's A / B / C are one slash; a projectile of another kind is another move: EX Terry's 236C
+    Power Wave travels, his 236C Round Wave erupts): down-forward+D a second projectile first, then an anti-air (rise),
+    then a command move (any other); up-forward+D an anti-air first, then a projectile, then a command move; only moves
+    that hit the standing opponent in KOF's close-range capture (game_hits not 0: a special out of a hold connects)."""
     c = special_pool(ch, name)
     can_hit = lambda sp: real_projectile(sp) or any(k[0] == '1' and k.upper() != '1B' for b in sp.get('row_boxes', []) for k in b)
     auto = [sp for sp in c if not sp['input'].split()[0] in ('MAX', 'Counter') and not counter_move(sp) and can_hit(sp)]
@@ -560,10 +566,25 @@ def suggest_specials(ch, name=None):
                 c = c_all; out.append(pick); continue
             elif role == 'rush': cand = [(special_shape(sp)[0] - 2 * special_shape(sp)[1], sp) for sp in c if special_shape(sp)[0] >= 60 and special_shape(sp)[1] <= 30 and not real_projectile(sp)]
             elif role == 'rise': cand = [(special_shape(sp)[1] - special_shape(sp)[0] / 2, sp) for sp in c if special_shape(sp)[1] >= 25]
+            elif role in ('df', 'uf'):
+                ss = name in roster() and roster()[name]['bank'].startswith('samsho')   # A / B / C: one slash, three strengths
+                mv = lambda sp: (sp['input'].replace('EX ', '').rstrip('ABCD'), ss or sp['input'][-1:] in ('A', 'C'))
+                pk = lambda sp: sp['projectiles'][0]['kind'] if real_projectile(sp) else None
+                same = lambda a, b: mv(a) == mv(b) and not (pk(a) and pk(b) and pk(a) != pk(b))   # two projectiles of
+                                                                 # another kind: two moves (EX Terry's Power Wave / Round Wave)
+                mapped = [sp for sp in (pick_specials(ch, name)[:4] if name in roster() else out[:4]) + out[4:] if sp]
+                twin = {sp['input']: sp for sp in c_all}
+                gh = lambda sp: sp.get('game_hits') if (sp.get('game_hits') or 0) >= 0 or sp['input'].replace('EX ', '') not in twin \
+                    else twin[sp['input'].replace('EX ', '')].get('game_hits')   # an EX move not captured: its twin's
+                c = [sp for sp in auto if not any(same(sp, m) for m in mapped) and gh(sp) != 0]   # a whiff on KOF's
+                                                                 # close-range standing opponent: no (a hold's special)
+                kind = lambda sp: 0 if real_projectile(sp) else 1 if special_shape(sp)[1] >= 25 else 2   # proj, rise, command
+                rank = {'df': (0, 1, 2), 'uf': (1, 0, 2)}[role]
+                cand = [(-rank.index(kind(sp)), sp) for sp in c]
             else:
                 used = {move(sp) for sp in out if sp}
                 cand = [(0, sp) for sp in c if move(sp) not in used]
-            cand.sort(key=lambda t: (not big(t[1]), -t[0]))
+            cand.sort(key=lambda t: (-t[0], not big(t[1])) if role in ('df', 'uf') else (not big(t[1]), -t[0]))
             pick = cand[0][1] if cand else None
             c = c_all
         out.append(pick)
@@ -677,11 +698,11 @@ def write_c(chars, outdir):
          'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END };   /* bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
          'enum { PC_END, PC_EVENT, PC_LAND, PC_FALL, PC_CNT, PC_HIT, PC_OFF, PC_ALWAYS };   /* P_BR conditions: animation over, an event step entered (consumed), landed, falling, counter < 0, the move hit, off screen, always */',
          'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; } bspec_t;   /* inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, pad; } bchar_t;   /* voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, pad; } bchar_t;   /* voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another, down-forward+D, up-forward+D: two more; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
-         'enum { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_COUNT };',
+         'enum { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D, BS_COUNT };',
          f'enum {{ VP_COUNT = {len(pkeys)} }};   /* victim postures: ' + ' '.join(pkeys) + ' */',
          'enum { VK_THROW = BA_COUNT, VK_HIT = BA_COUNT + BT_COUNT, VK_KO, VK_SELECT, VK_SPEC };   /* voice keys (voices.py keys): BA_*, VK_THROW + BT_*, the events, VK_SPEC + its special\'s index in the pool */',
          'extern const bchar_t bm_chars[BC_COUNT];\n#endif']
@@ -818,7 +839,7 @@ if __name__ == '__main__':
     specs = [r['bank'] for r in roster(sys.argv[3]).values()]
     chars, tiles = build(specs, outdir)
     for game, n, ch, off in chars:
-        print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D', 'up+D'), pick_specials(ch, n))) + ';', end=' ')
+        print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D', 'up+D', 'df+D', 'uf+D'), pick_specials(ch, n))) + ';', end=' ')
         print(f'{len(ch["frames"])} frames, {len([m for m in MOVES if any(k in ch["anims"] for k in SOURCES.get(m, [m]))])}/{len(MOVES)} moves, '
               f'{len(ch["block_palettes"])} colour sets, max cols '
               f'{max(sum(len(p["tiles"]) for p in f["parts"]) for f in ch["frames"])}, command normals: '

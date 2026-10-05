@@ -131,8 +131,12 @@ typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
  * offset from the pack's start (0 = none); the game checks it (version, sizes, every offset and index), copies it into
  * its own RAM, turns the offsets into pointers and repoints gstages / genemies / ai_tab at the next safe point (a wave,
  * the boss, a stage start, the lab's enemy respawn). lab.load = 4: back to the ROM's tables (at the same point). ---- */
-#define GD_VERSION 5              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
-                                     (header 20 bytes); 5: AI rows + hop_dx, hop_chance (42 bytes): older packs refused */
+#define GD_VERSION 6              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
+                                     (header 20 bytes); 5: AI rows + hop_dx, hop_chance (42 bytes): older packs refused;
+                                     6: the roster section 6 bytes per fighter (+ down-forward+D, up-forward+D) and route
+                                     trees version 3 (24-byte nodes); a version 5 pack still loads (its 4 roles, the ROM's
+                                     two diagonals; its version 2 trees) */
+#define GD_ROLES(v) ((v) >= 6 ? BS_COUNT : 4)   /* roster section bytes per fighter */
 #define GD_MAX     4096           /* bytes, header included */
 typedef struct {
     char     magic[2];            /* "GD" */
@@ -142,8 +146,9 @@ typedef struct {
     uint16_t stages, enemies, ai; /* offsets of gstage_t[nstages], genemy_t[nenemies], ai_preset_t[nai] */
     uint16_t nspawns;             /* spawns per stage at most (bounds checks) */
     uint16_t roster;              /* version 2: offset of the roster section (0 = none; version 1: padding, ignored): per
-                                   * fighter (BC_COUNT, bm_chars order) 4 bytes, the special each role plays (D, forward+D,
-                                   * down+D, up+D: an index in its bchar_t.specials, 0xFF = none): fighter.c spec_tab;
+                                   * fighter (BC_COUNT, bm_chars order) GD_ROLES bytes, the special each role plays (D,
+                                   * forward+D, down+D, up+D, version 6: down-forward+D, up-forward+D: an index in its
+                                   * bchar_t.specials, 0xFF = none): fighter.c spec_tab;
                                    * version 3: then per fighter a big-endian uint16, the offset of its voice table
                                    * (VK_SPEC + nspec entries of [voice id, at], fighter.c voice_tab; 0 = the ROM's) */
     uint16_t stagex;              /* version 4: offset of gstagex_t[nstages] (their triggers inside the pack); older

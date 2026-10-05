@@ -7,11 +7,11 @@
   const KEYS = { a: 0, b: 8, c: 1, d: 9, s: 3, o: 2, U: 4, D: 5, L: 6, R: 7 };
   const RAM_BASE = 0x100000;
   // lab_t (fighter.h): magic 0, req 4, fighter 5, dummy 6, load 7, active 8, nev 9, frame 10, combo_hits 12, combo_dmg 14,
-  // ev[64] at 16 (6 bytes: frame u16, kind, node, how, val), buf at 400 (rt_head_t + 128 nodes of 22 bytes), pack_stat at
-  // 3232, pack at 3234 (a data pack, gamedata.h gdpack_t, at most GD_MAX bytes: build_tables.py pack)
+  // ev[64] at 16 (6 bytes: frame u16, kind, node, how, val), buf at 400 (rt_head_t + 128 nodes of 24 bytes), pack_stat at
+  // 3488, pack at 3490 (a data pack, gamedata.h gdpack_t, at most GD_MAX bytes: build_tables.py pack)
   // wave 13 (req 4's first wave)
   const LAB = { magic: 0, req: 4, fighter: 5, dummy: 6, load: 7, active: 8, nev: 9, frame: 10, hits: 12, wave: 13, dmg: 14, ev: 16, buf: 400,
-                packStat: 3232, pack: 3234 };
+                packStat: 3488, pack: 3490 };
   const GD_MAX = 4096, GD_STAT = ['none', 'pending', 'installed', 'rom'];   // lab.pack_stat (gamedata.h GD_*; 0x80 | n: check n failed)
   const EV_N = 64, EV_SIZE = 6;
   const KINDS = ['START', 'HIT', 'END', 'SPECIAL', 'CHAINWIN'];
@@ -20,9 +20,9 @@
   const RAM_FIELDS = ['state', 'x', 'z', 'y', 'hp', 'hp_max', 'facing', 'anim', 'step', 'set', 'power', 'tint'];   // ramtrace.py FIELDS
 
   // ---- route trees (tools/brawler/routes.py: the same format and the same encoder) ----------------------------------
-  const INPUTS = ['A', 'B', 'dA', 'dB', 'fA', 'fB', 'dfA', 'dfB', 'AB', 'D', 'fD', 'dD', 'uD'];
+  const INPUTS = ['A', 'B', 'dA', 'dB', 'fA', 'fB', 'dfA', 'dfB', 'AB', 'D', 'fD', 'dD', 'uD', 'dfD', 'ufD'];
   const SPECIAL_INPUTS = INPUTS.slice(9);
-  const SPECIALS = ['D', 'fD', 'dD', 'uD'];
+  const SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD'];
   const MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
     'atk_c_close', 'atk_c_far', 'atk_c_crouch', 'atk_d_close', 'atk_d_far', 'atk_d_crouch', 'body_toss',
     'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d'];
@@ -30,7 +30,7 @@
   const ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd'];
   const WEIGHTS = ['light', 'strong'];
   const EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback'];
-  const NODE_SIZE = 22, HEAD_SIZE = 16, RI_N = 13, MAX_NODES = 128, SPEED_MIN = 0x40, SPEED_MAX = 0x400;
+  const NODE_SIZE = 24, HEAD_SIZE = 16, RI_N = 15, TREE_VERSION = 3, MAX_NODES = 128, SPEED_MIN = 0x40, SPEED_MAX = 0x400;
   // a node's speed as the game's 8.8 (routes.speed_fx: round half up)
   function speedFx(nd) { const v = Math.floor((nd.speed === undefined ? 1 : Number(nd.speed)) * 256 + 0.5); if (!(v >= SPEED_MIN && v <= SPEED_MAX)) throw new Error('speed outside 0.25-4'); return v; }
   // the steps shown frame by frame at a speed (routes.play_steps = fighter.c anim_tick): sf = [[ticks, active, opens], ...]
@@ -116,7 +116,7 @@
     });
     if (nodes.length > MAX_NODES) throw new Error(`${nodes.length} nodes (at most ${MAX_NODES})`);
     const out = new Uint8Array(HEAD_SIZE + nodes.length * NODE_SIZE);
-    out.set([82, 84, 2, nodes.length, rootI, ...ent, 0, 0, 0, 0, 0]);
+    out.set([82, 84, TREE_VERSION, nodes.length, rootI, ...ent, 0, 0, 0, 0, 0]);
     nodes.forEach((n, i) => out.set(n, HEAD_SIZE + i * NODE_SIZE));
     return out;
   }

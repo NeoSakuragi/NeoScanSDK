@@ -7,7 +7,7 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
      "links": {"A": NODE, "B": NODE, "dB": NODE},            # the links from neutral (where a route starts)
      "entries": {"dash": NODE, "nospecial": NODE, "hold": NODE, "air_a": NODE, "air_b": NODE, "air_cd": NODE}}   # optional
     NODE = {"move": "atk_a_close",                           # one of the fighter's moves (MOVE_NAMES), or
-            "special": "dD",                                 # a special (D, fD, dD, uD): a route ender, D inputs only
+            "special": "dD",                                 # a special (D, fD, dD, uD, dfD, ufD): a route ender, D inputs only
             "weight": "light" | "strong",                    # the victim's hit animation and hit stun (effect none)
             "effect": "none" | "knockdown" | "launch" | "trip" | "blowback",
             "keep": true,                                    # optional: keep the full animation on hit (it plays to its
@@ -19,7 +19,8 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
             "damage": 3, "push": 3,                          # optional (advanced): default from weight / effect
             "links": {"A": NODE, "dfA": NODE, "D": NODE, ...}}
     inputs (INPUTS, the game's RI_* order): A B, dA dB (down), fA fB (forward), dfA dfB (down-forward), AB (A+B together),
-    D fD dD uD (the specials). A link's input falls back in the game: down-forward -> forward -> down -> plain.
+    D fD dD uD dfD ufD (the specials). A link's input falls back in the game: down-forward -> forward -> down -> plain;
+    a diagonal D (dfD / ufD, tree version 3): its link, else down+D's / up+D's, else D's.
 
 A fighter without a routes file gets default_tree(): the brawler's single table before the Chain Lab (fighter.c's
 old COMBO), byte for byte the same behaviour. encode() turns a tree into the blob fighter.h describes (rt_head_t +
@@ -29,9 +30,9 @@ import json, os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROUTES_DIR = os.path.join(HERE, 'routes')
-INPUTS = ['A', 'B', 'dA', 'dB', 'fA', 'fB', 'dfA', 'dfB', 'AB', 'D', 'fD', 'dD', 'uD']     # fighter.h RI_*
+INPUTS = ['A', 'B', 'dA', 'dB', 'fA', 'fB', 'dfA', 'dfB', 'AB', 'D', 'fD', 'dD', 'uD', 'dfD', 'ufD']   # fighter.h RI_*
 NORMAL_INPUTS, SPECIAL_INPUTS = INPUTS[:9], INPUTS[9:]
-SPECIALS = ['D', 'fD', 'dD', 'uD']                                                       # BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D
+SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD']                                         # BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D
 MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
               'atk_c_close', 'atk_c_far', 'atk_c_crouch', 'atk_d_close', 'atk_d_far', 'atk_d_crouch', 'body_toss',
               'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']                          # ground moves a route may play
@@ -40,7 +41,8 @@ ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd']
 WEIGHTS = ['light', 'strong']
 EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback']                            # fighter.h RE_*
 RF_SPECIAL, RF_AIR, RF_KEEP = 1, 2, 4
-NODE_SIZE, HEAD_SIZE, RI_N, MAX_NODES = 22, 16, 13, 128
+NODE_SIZE, HEAD_SIZE, RI_N, MAX_NODES = 24, 16, 15, 128                                  # tree version 3 (TREE_VERSION)
+TREE_VERSION = 3
 SPEED_MIN, SPEED_MAX = 0x40, 0x400
 
 
@@ -219,7 +221,7 @@ def encode(tree, moves, has=None, specials_have=None):
     ent = [node(dict((tree.get('entries') or {}).get(k) or d[k], move=AIR_MOVES[k]) if k in AIR_MOVES else (tree.get('entries') or {}).get(k) or d[k],
                 k, air=k in AIR_MOVES) for k in ENTRIES]
     assert len(nodes) <= MAX_NODES, f'{len(nodes)} nodes (at most {MAX_NODES})'
-    head = b'RT' + bytes([2, len(nodes), root] + ent + [0] * 5)
+    head = b'RT' + bytes([TREE_VERSION, len(nodes), root] + ent + [0] * 5)
     assert len(head) == HEAD_SIZE
     return head + b''.join(nodes)
 

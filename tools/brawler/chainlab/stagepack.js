@@ -4,7 +4,7 @@
  * packs to build_tables.py pack's file byte for byte. */
 (function (root) {
   'use strict';
-  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 5, PACK_HEAD = 20, ST_SIZE = 24;
+  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 6, PACK_HEAD = 20, ST_SIZE = 24;
   const TW = { camera_x: 1, wave_clear: 2, time: 3 }, TA = { spawn: 1, lock: 2, music: 3, drama: 4, end_stage: 5 }, TW_STAGE = 0xFF, MAX_TRIGGERS = 32;
 
   /* a stage trigger (game.json form) -> the gtrigger_t fields (build_tables.py trigger()) */
@@ -113,7 +113,7 @@
   }
 
   /* the whole pack: stages.json's base bytes + the stages + the roster section (build_tables.py pack_stages); spmap: the
-     specials by role, 4 bytes per roster fighter (the Characters tab's, else stages.json's = game.json's); vtabs: per
+     specials by role, 6 bytes per roster fighter (version 6) (the Characters tab's, else stages.json's = game.json's); vtabs: per
      roster fighter its voice table (bytes) when it differs from the ROM's, else null (version 3) */
   function pack(stages, D, spmap, vtabs) {
     const M = model(stages, D);
@@ -136,7 +136,7 @@
       rows.push(...r);
     }
     const sto = put(rows);
-    const sm = spmap || D.spmap, vt = vtabs || Array(sm.length / 4).fill(null);
+    const sm = spmap || D.spmap, vt = vtabs || Array(sm.length / 6).fill(null);   // version 6: 6 roles per fighter
     const roo = put(sm.concat(Array(2 * vt.length).fill(0)));   // version 3: + per fighter its voice table's offset
     vt.forEach((t, i) => { if (t) { const o = put(t, 1); out[roo + sm.length + 2 * i] = o >> 8; out[roo + sm.length + 2 * i + 1] = o & 0xFF; } });
     const tro = M.stages.map(s => s.triggers.length ? put(s.triggers.flatMap(trigBytes)) : 0);   // version 4: the triggers

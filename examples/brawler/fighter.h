@@ -55,8 +55,9 @@ typedef struct {                  /* what the controller wants this frame (playe
  * the effect on the victim (the reaction), damage and push, its speed, the keep flag, and its links by input (RI_*). The game
  * reads the trees through route_tab[] (RAM, set at boot from bchar_t.routes), so a tree can be replaced while it runs. */
 enum { RI_A, RI_B, RI_DA, RI_DB, RI_FA, RI_FB, RI_DFA, RI_DFB, RI_AB,      /* normal links: A B, down+, forward+, down-forward+, A+B */
-       RI_D, RI_FD, RI_DD, RI_UD,                                          /* special links (enders): D, forward+D, down+D, up+D */
-       RI_N = 13 };
+       RI_D, RI_FD, RI_DD, RI_UD, RI_DFD, RI_UFD,                          /* special links (enders): D, forward+D, down+D, up+D,
+                                                                              down-forward+D, up-forward+D (version 3) */
+       RI_N = 15 };
 enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4 };     /* rnode_t.flags: anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
                                                          D_JUMP / CD_JUMP = air A / B / C+D, the jump picks the animation);
                                                          keep the full animation on hit: the move plays to its end, the
@@ -74,20 +75,24 @@ typedef struct {
     uint8_t next[RI_N];           /* links by RI_* */
     uint8_t pad;
 } rnode_t;
-_Static_assert(sizeof(rnode_t) == 22, "routes.py NODE_SIZE");
+_Static_assert(sizeof(rnode_t) == 24, "routes.py NODE_SIZE");
 typedef struct {
     char    magic[2];             /* "RT" */
-    uint8_t version, nnodes;      /* version 2 (22-byte nodes with speed) */
+    uint8_t version, nnodes;      /* version 3 (24-byte nodes, links RI_DFD / RI_UFD); version 2 (22-byte nodes, no
+                                     diagonal D links: a data pack before version 6) still read: RT_NODE, RT_NEXT */
     uint8_t root;                 /* the links from neutral (its own move unused) */
     uint8_t dash, nospec, hold;   /* run + A; D when the fighter has no special for it; the hold's third hit (C+D) */
     uint8_t air_a, air_b, air_cd; /* air normals */
     uint8_t pad[5];
 } rt_head_t;
-#define RT_NODE(t, i) ((const rnode_t *)((const uint8_t *)(t) + sizeof(rt_head_t)) + (i))
+#define RT_NODE_V2 22             /* a version 2 node's size: rnode_t up to next[RI_DFD] + its pad */
+#define RT_NODE(t, i) ((const rnode_t *)((const uint8_t *)(t) + sizeof(rt_head_t) + (uint16_t)(i) * ((t)->version >= 3 ? sizeof(rnode_t) : RT_NODE_V2)))
+#define RT_NEXT(t, c, k) ((k) >= RI_DFD && (t)->version < 3 ? 0 : (c)->next[k])   /* a link (a v2 node has no diagonal D) */
 extern const rt_head_t *route_tab[BC_COUNT];
 /* specials by role (Brawler Lab Characters tab, 2026-10-05): every fighter's whole special pool is in the ROM
  * (bchar_t.specials); spec_tab[fighter] (RAM, set at boot from bchar_t.spmap; a data pack's roster section repoints it,
- * main.c gd_apply) maps D, forward+D, down+D, up+D to one of them (0xFF = none) */
+ * main.c gd_apply) maps D, forward+D, down+D, up+D, down-forward+D, up-forward+D (BS_*, BS_COUNT = 6) to one of them
+ * (0xFF = none) */
 extern const uint8_t *spec_tab[BC_COUNT];
 uint8_t spec_ix(const bchar_t *ch, uint8_t role);   /* role -> index in ch->specials, 0xFF = none */
 void specs_init(void);

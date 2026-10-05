@@ -211,7 +211,7 @@
   }
 
   // ---- moves -----------------------------------------------------------------------------------------------------------
-  const IN = { A: 'A', B: 'B', dA: '↓A', dB: '↓B', fA: '→A', fB: '→B', dfA: '↘A', dfB: '↘B', AB: 'A+B', D: 'D', fD: '→D', dD: '↓D', uD: '↑D' };
+  const IN = { A: 'A', B: 'B', dA: '↓A', dB: '↓B', fA: '→A', fB: '→B', dfA: '↘A', dfB: '↘B', AB: 'A+B', D: 'D', fD: '→D', dD: '↓D', uD: '↑D', dfD: '↘D', ufD: '↗D' };
   function routeLines(t) {
     const out = [];
     (function walk(links, path) {

@@ -617,19 +617,21 @@ static uint8_t gd_in(uint16_t size, uint32_t off, uint32_t len, uint8_t even) { 
 static uint8_t gd_tree(const uint8_t *p, uint16_t size, uint32_t off) {   /* a route tree (fighter.h rt_head_t) */
     const rt_head_t *t = (const rt_head_t *)(p + off);
     uint8_t n, i, k;
-    if (!gd_in(size, off, sizeof(rt_head_t), 1) || t->magic[0] != 'R' || t->magic[1] != 'T' || t->version != 2) return 0;
-    n = t->nnodes;
-    if (!n || n > 128 || !gd_in(size, off, sizeof(rt_head_t) + n * sizeof(rnode_t), 1)) return 0;
+    if (!gd_in(size, off, sizeof(rt_head_t), 1) || t->magic[0] != 'R' || t->magic[1] != 'T' || (t->version != 2 && t->version != 3)) return 0;
+    n = t->nnodes;                                  /* version 2 (a pack before 6): 22-byte nodes, no diagonal D links */
+    if (!n || n > 128 || !gd_in(size, off, sizeof(rt_head_t) + n * (t->version >= 3 ? sizeof(rnode_t) : RT_NODE_V2), 1)) return 0;
     if (t->root >= n || t->dash >= n || t->nospec >= n || t->hold >= n || t->air_a >= n || t->air_b >= n || t->air_cd >= n) return 0;
     for (i = 1; i < n; i++) {                       /* node 0: "none" (zeros) */
         const rnode_t *d = RT_NODE(t, i);
         if (d->anim >= ((d->flags & RF_SPECIAL) ? BS_COUNT : BA_COUNT) || d->speed < 0x40 || d->speed > 0x400) return 0;
-        for (k = 0; k < RI_N; k++) if (d->next[k] >= n) return 0;
+        for (k = 0; k < RI_N; k++) if (RT_NEXT(t, d, k) >= n) return 0;
     }
     return 1;
 }
+static uint8_t gd_spec[BC_COUNT][BS_COUNT];      /* a version 5 pack's specials by role: its 4, the ROM's two diagonals */
 static uint16_t gd_voice_off(const uint8_t *p, uint8_t i) {   /* version 3: fighter i's voice table offset (0: none) */
-    const uint8_t *q = p + ((const gdpack_t *)p)->roster + BC_COUNT * BS_COUNT + 2 * i;
+    const gdpack_t *h = (const gdpack_t *)p;
+    const uint8_t *q = p + h->roster + BC_COUNT * GD_ROLES(h->version) + 2 * i;
     return (uint16_t)(q[0] << 8 | q[1]);
 }
 static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed */
@@ -671,12 +673,13 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
         for (k = 0; k < h->nspawns; k++) if (sp[k].enemy >= h->nenemies || sp[k].tint >= TINT_COUNT) return 15;
     }
     if (h->version >= 2 && h->roster) {         /* the specials by role: each an index in its fighter's pool, or none */
-        if (!gd_in(size, h->roster, BC_COUNT * BS_COUNT, 0)) return 16;
+        uint8_t nr = GD_ROLES(h->version);
+        if (!gd_in(size, h->roster, BC_COUNT * nr, 0)) return 16;
         for (i = 0; i < BC_COUNT; i++)
-            for (k = 0; k < BS_COUNT; k++) if (p[h->roster + i * BS_COUNT + k] != 0xFF && p[h->roster + i * BS_COUNT + k] >= bm_chars[i].nspec) return 16;
+            for (k = 0; k < nr; k++) if (p[h->roster + i * nr + k] != 0xFF && p[h->roster + i * nr + k] >= bm_chars[i].nspec) return 16;
     }
     if (h->version >= 3 && h->roster) {         /* the voices: per fighter a table offset (0: the ROM's), ids within its list */
-        if (!gd_in(size, h->roster + BC_COUNT * BS_COUNT, BC_COUNT * 2, 0)) return 17;
+        if (!gd_in(size, h->roster + BC_COUNT * GD_ROLES(h->version), BC_COUNT * 2, 0)) return 17;
         for (i = 0; i < BC_COUNT; i++) {
             uint16_t o = gd_voice_off(p, i), n = VK_SPEC + bm_chars[i].nspec;
             if (!o) continue;
@@ -723,7 +726,13 @@ static void gd_apply(void) {                     /* at a safe point: the pack (o
             }
             gstages = (const gstage_t *)(gd_live + h->stages); genemies = (const genemy_t *)(gd_live + h->enemies);
             ai_tab = (const ai_preset_t *)(gd_live + h->ai); gen_count = h->nenemies;
-            if (h->version >= 2 && h->roster) for (i = 0; i < BC_COUNT; i++) spec_tab[i] = gd_live + h->roster + i * BS_COUNT;
+            if (h->version >= 6 && h->roster) for (i = 0; i < BC_COUNT; i++) spec_tab[i] = gd_live + h->roster + i * BS_COUNT;
+            else if (h->roster)                  /* version 5: its 4 roles, the ROM's down-forward+D / up-forward+D */
+                for (i = 0; i < BC_COUNT; i++) {
+                    uint8_t k;
+                    for (k = 0; k < BS_COUNT; k++) gd_spec[i][k] = k < 4 ? gd_live[h->roster + i * 4 + k] : bm_chars[i].spmap[k];
+                    spec_tab[i] = gd_spec[i];
+                }
             else specs_init();                   /* version 1: the ROM's specials by role */
             voices_init();                       /* version 3: a fighter's voice table from the pack (0: the ROM's) */
             if (h->version >= 3 && h->roster)

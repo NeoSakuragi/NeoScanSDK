@@ -148,7 +148,7 @@ def record(game, what, out, replay=None, pack=None, stage=None):
                 run(100); run(4, 'a'); until(lambda: b.r(S['mode'], 1) != 3, 400, what='unlock end')
         run(300)
     if pack and what != 'stage': print('pack sent at tick', sent, 'status', b.r(S['lab'] + PACK_STAT_OFF, 1), '(2 = installed)')
-    if what == 'stage': print('pack status', b.r(S['lab'] + 3232, 1), '(2 = installed, 0 = none sent)')
+    if what == 'stage': print('pack status', b.r(S['lab'] + 3488, 1), '(2 = installed, 0 = none sent)')
     palram = None
     if enemy:                                           # the enemy's palettes as the game wrote them (bank 0, slot 16 + 2 * MAX_PALS)
         import ctypes as C

@@ -44,8 +44,8 @@ const char *fighter_state_name(uint8_t st) { return NAMES[st]; }
 /* ---- chain routes (fighter.h "chain routes"): each fighter's tree, through route_tab[] (RAM) ------------------------
  * The default tree (export_bm.py DEFAULT_ROUTES, every fighter without a routes file) is the old single table:
  * far A -A-> far A -A-> close C -A-> close D -A-> C+D (knockdown); A1/A2 -B-> AB / AAB (launch); B1 -B-> BB (knockdown),
- * B1 -A-> BA -B-> BAB (sweep: trip); forward+A = body toss, down+B = sweep inside any window; D, forward+D, down+D, up+D
- * = the special the input picks, cancelling a normal that hit. Air: A / B / C. */
+ * B1 -A-> BA -B-> BAB (sweep: trip); forward+A = body toss, down+B = sweep inside any window; D, forward+D, down+D, up+D,
+ * down-forward+D, up-forward+D = the special the input picks, cancelling a normal that hit. Air: A / B / C. */
 const rt_head_t *route_tab[BC_COUNT];
 lab_t lab;
 const uint8_t *spec_tab[BC_COUNT];
@@ -74,7 +74,7 @@ void lab_install(void) {
     const rt_head_t *t = (const rt_head_t *)lab.buf;
     if (!lab.load) return;
     if (lab.fighter < BC_COUNT) {
-        if (lab.load == 1 && t->magic[0] == 'R' && t->magic[1] == 'T' && t->version == 2) route_tab[lab.fighter] = t;
+        if (lab.load == 1 && t->magic[0] == 'R' && t->magic[1] == 'T' && (t->version == 2 || t->version == 3)) route_tab[lab.fighter] = t;
         else route_tab[lab.fighter] = (const rt_head_t *)bm_chars[lab.fighter].routes;
     }
     lab.load = 0;
@@ -210,8 +210,9 @@ static uint8_t combo_ab(const fighter_t *f, const intent_t *in, const rnode_t *c
     return in->ab && c->next[RI_AB] ? 0x20 | IN_A | IN_B | (in->dx == f->facing ? 0x80 : 0) | (in->dz > 0 ? 0x40 : 0) : 0;
 }
 static uint8_t has_links(const rnode_t *c) { uint8_t k, n = 0; for (k = RI_A; k <= RI_AB; k++) n |= c->next[k]; return n; }
-static uint8_t d_input(const intent_t *in) {                     /* D's direction, as special_for reads it */
-    return in->dz > 0 ? RI_DD : in->dz < 0 ? RI_UD : in->dx ? RI_FD : RI_D;
+static uint8_t d_input(const fighter_t *f, const intent_t *in) {  /* D's direction, as special_for reads it: a diagonal */
+    uint8_t fwd = in->dx == f->facing;                           /* only with the stick toward the facing (down-back = down) */
+    return in->dz > 0 ? (fwd ? RI_DFD : RI_DD) : in->dz < 0 ? (fwd ? RI_UFD : RI_UD) : in->dx ? RI_FD : RI_D;
 }
 
 void fighter_revive(fighter_t *f) {
@@ -287,6 +288,7 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
     uint8_t blow = (v->state == S_ATTACK || v->state == S_AIR_ATTACK || v->state == S_SPECIAL)
                    ? BA_BLOWBACK : BA_BLOWBACK_N;               /* KOF98: a counter hit (hit in its own attack) 283, else 285 */
     if (v->state == S_SPECIAL) { carry_drop(v); special_end(v); }   /* hit out of a special: its projectiles go, a carried target falls */
+    v->frame_ovr = 0xFFFF;                                       /* released from a hold by a special: its held pose ends */
     if (v->state == S_GRAB) release(v);                          /* hit while holding or while held: the hold ends */
     else if (v->state == S_GRABBED) release(v->held);
     v->facing = -away;                                           /* turn toward the attacker */
@@ -350,9 +352,22 @@ static void release(fighter_t *a) {                              /* both free wh
     if (v) { v->held = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; to_neutral(v, 0); }
 }
 static void start_node(fighter_t *f, uint8_t node, uint8_t how);
+static uint8_t special_for(const fighter_t *f, const intent_t *in);
+static void start_special(fighter_t *f, uint8_t k);
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     const bthrow_row_t *r = f->ch->throws[BT_THROW_C].rows;
+    if (in->press & IN_D) {                                      /* any D: the hold ends, the special at once (Bruno
+                                                                    2026-10-05); the victim reels in its held pose, free */
+        uint8_t k = special_for(f, in);                          /* (only throws hold a victim), until its stun ends or */
+        if (k != 0xFF) {                                         /* the special hits it */
+            f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->buffered = 0;
+            v->held = 0; v->zfront = 0; v->vx = v->vy = v->vz = 0; v->y = 0;
+            enter(v, S_HITSTUN); play(v, BA_HIT_STAND_LIGHT);    /* STUN_LIGHT frames; frame_ovr: the held pose */
+            lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k);
+            return;
+        }
+    }
     if (f->frame_ovr == 0xFFFF) {                                /* a hold hit is playing */
         if (f->buffered && ((fighter_step(f)->flags & 1) || f->anim_done)) {   /* it lands on its attack frame */
             f->buffered = 0;
@@ -577,19 +592,22 @@ void projectiles_update(int16_t cam_x) {
         proj_child(p);
     }
 }
-static uint8_t special_pick(const fighter_t *f, uint8_t want) {   /* BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D -> BS_*, 0xFF = none */
-    static const uint8_t order[4][4] = { { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D }, { BS_FWD_D, BS_D, BS_UP_D, BS_DOWN_D },
-                                         { BS_DOWN_D, BS_UP_D, BS_FWD_D, BS_D }, { BS_UP_D, BS_FWD_D, BS_DOWN_D, BS_D } };
+static uint8_t special_pick(const fighter_t *f, uint8_t want) {   /* a role (BS_*) -> the BS_* it plays, 0xFF = none */
+    static const uint8_t order[BS_COUNT][BS_COUNT] = {           /* an empty diagonal: down / up's own order (what the */
+        { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D },  /* input read before the six slots), then the other */
+        { BS_FWD_D, BS_D, BS_UP_D, BS_DOWN_D, BS_DF_D, BS_UF_D },  /* diagonal */
+        { BS_DOWN_D, BS_UP_D, BS_FWD_D, BS_D, BS_DF_D, BS_UF_D }, { BS_UP_D, BS_FWD_D, BS_DOWN_D, BS_D, BS_UF_D, BS_DF_D },
+        { BS_DF_D, BS_DOWN_D, BS_UP_D, BS_FWD_D, BS_D, BS_UF_D }, { BS_UF_D, BS_UP_D, BS_FWD_D, BS_DOWN_D, BS_D, BS_DF_D } };
     uint8_t k;
-    for (k = 0; k < 4; k++) {                                    /* missing: the nearest; a projectile special not */
+    for (k = 0; k < BS_COUNT; k++) {                                    /* missing: the nearest; a projectile special not */
         uint8_t ix = spec_ix(f->ch, order[want][k]);              /* while the fighter's projectile flies (KOF skips */
         const bspec_t *sp = &f->ch->specials[ix];                 /* the command: owner +$E1 bit 5) */
         if (ix != 0xFF && sp->nrows && !(sp->proj && f->shot)) return order[want][k];
     }
     return 0xFF;
 }
-/* D, forward+D, down+D, up+D (down / up = toward / away from the camera) -> BS_*, 0xFF = none */
-static uint8_t special_for(const fighter_t *f, const intent_t *in) { return special_pick(f, d_input(in) - RI_D); }
+/* D, forward+D, down+D, up+D, down-forward+D, up-forward+D (down / up = toward / away from the camera) -> BS_*, 0xFF = none */
+static uint8_t special_for(const fighter_t *f, const intent_t *in) { return special_pick(f, d_input(f, in) - RI_D); }
 /* ---- specials read from the ROM (tools/kof96/handlers98.py, handlers98.md) ---------------------------------------------
  * KOF98 runs a special as straight-line 68000 code: set speeds, start a state's animation, then a frame loop (the
  * coroutine resumes at +$00) that moves the body and waits for the animation's end / an event step / the landing.
@@ -812,7 +830,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     if (f->state == S_ATTACK) {                                  /* presses in hit-stop count */
         uint8_t ab = combo_ab(f, in, NODE(f, f->node)), ci = ab ? ab : combo_input(f, in);
         if (ci) f->buffered = ci;
-        if ((in->press & IN_D) && !ab) f->spec_buf = 0x80 | d_input(in);   /* A+B taken by a link is not a D */
+        if ((in->press & IN_D) && !ab) f->spec_buf = 0x80 | d_input(f, in);   /* A+B taken by a link is not a D */
     }
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
@@ -883,7 +901,9 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     case S_ATTACK: {
         const rnode_t *c = NODE(f, f->node);
         if (f->landed && f->spec_buf && !(c->flags & RF_AIR)) {  /* a special link cancels a normal that hit: cut short */
-            uint8_t d = f->spec_buf & 0x7F, nx = c->next[d] ? c->next[d] : c->next[RI_D], k;
+            uint8_t d = f->spec_buf & 0x7F, nx = RT_NEXT(TREE(f), c, d), k;   /* the input's link, else (a diagonal) */
+            if (!nx && d >= RI_DFD) nx = c->next[d == RI_DFD ? RI_DD : RI_UD];   /* down / up's, else plain D's */
+            if (!nx) nx = c->next[RI_D];
             f->spec_buf = 0;
             k = nx ? special_pick(f, NODE(f, nx)->anim) : 0xFF;
             if (k != 0xFF) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); start_special(f, k); f->speed = NODE(f, nx)->speed; break; }
@@ -904,7 +924,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     case S_HITSTUN:
         if (f->kdelay) f->kdelay--;                              /* KOF's shake after a special's hit: in place */
         else { f->x += f->vx; f->vx = f->kvfr ? fmul16(f->vx, f->kvfr) : f->vx - (f->vx >> 3); clamp(f); }
-        if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT)) to_neutral(f, 0);
+        if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT)) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends */
         break;
     case S_KNOCKDOWN:
         if (f->kmode && f->kdelay) { f->kdelay--; break; }       /* KOF's shake after the hit-stop: in place */
