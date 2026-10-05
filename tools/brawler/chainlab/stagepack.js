@@ -4,7 +4,44 @@
  * packs to build_tables.py pack's file byte for byte. */
 (function (root) {
   'use strict';
-  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 3, PACK_HEAD = 18, ST_SIZE = 24;
+  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 4, PACK_HEAD = 20, ST_SIZE = 24;
+  const TW = { camera_x: 1, wave_clear: 2, time: 3 }, TA = { spawn: 1, lock: 2, music: 3, drama: 4, end_stage: 5 }, TW_STAGE = 0xFF, MAX_TRIGGERS = 32;
+
+  /* a stage trigger (game.json form) -> the gtrigger_t fields (build_tables.py trigger()) */
+  function trigger(t, where, nwaves, en, tints, D, ww, err) {
+    const r = { when: 0, wave: TW_STAGE, at: 0, action: 0, n: 0, arg: 0, delay: 0, sp: { enemy: 0, pick: 0, set: 0, tint: 0, x: 0, z: 0, flags: 0 } };
+    for (const k of Object.keys(t)) if (!['when', 'do', 'note'].includes(k)) err(`${where}: unknown field ${k}`);
+    const w = t.when || {}, kinds = Object.keys(w).filter(k => k in TW);
+    if (kinds.length !== 1) { err(`${where}: when = one of ${Object.keys(TW).join(', ')}`); return r; }
+    const kind = kinds[0], wv = v => { v = v === 'boss' ? nwaves : v; if (!isInt(v, 0, nwaves)) err(`${where}: wave ${v} (1-${nwaves} or boss)`); return v; };
+    r.when = TW[kind];
+    if (kind === 'camera_x') { r.at = w.camera_x; if (!isInt(r.at, 0, ww ? ww - 320 : 32767)) err(`${where}: camera x ${r.at} outside 0-${ww ? ww - 320 : 32767}`); }
+    else if (kind === 'wave_clear') r.wave = wv(w.wave_clear);
+    else { r.at = w.time; if (!isInt(r.at, 0, 32767)) err(`${where}: time ${r.at} (ticks, 0-32767)`); if ('wave' in w) r.wave = wv(w.wave); }
+    let d = t.do;
+    if (d === 'end_stage') d = { end_stage: true };
+    const acts = d && typeof d === 'object' ? Object.keys(d) : [];
+    if (acts.length !== 1 || !(acts[0] in TA)) { err(`${where}: do = one of ${Object.keys(TA).join(', ')}`); return r; }
+    const act = acts[0], v = d[act];
+    r.action = TA[act];
+    if (act === 'spawn') {
+      if (!en.has(v.enemy)) err(`${where}: no enemy ${v.enemy}`);
+      const n = v.count === undefined ? 1 : v.count, dl = v.delay || 0, z = v.z === undefined ? 20 : v.z, tint = v.tint || 'none';
+      if (!isInt(n, 1, D.max_enemies) || !isInt(dl, 0, 32767) || !isInt(z, 0, 61)) err(`${where}: count 1-${D.max_enemies}, delay 0-32767, z 0-61`);
+      if (!tints.has(tint)) err(`${where}: no tint ${tint}`);
+      if (v.side && v.side !== 'left' && v.side !== 'right') err(`${where}: side ${v.side}`);
+      r.n = n; r.delay = dl;
+      r.sp = { enemy: en.get(v.enemy) || 0, pick: v.pick || 0, set: v.set || 0, tint: tints.get(tint) || 0, x: 0, z,
+               flags: SP_WALK_IN | (v.side === 'left' ? SP_LEFT : 0) | (v.not_boss ? SP_NOT_BOSS : 0) };
+    } else if (act === 'lock') { r.arg = v; if (!isInt(v, 0, 32767)) err(`${where}: lock ${v}`); }
+    else if (act === 'music') { if (!(v in D.songs)) err(`${where}: no song ${v}`); r.arg = D.songs[v] || 0; }
+    else if (act === 'drama') { const i = (D.dramas || []).indexOf(v); if (i < 0) err(`${where}: no drama ${v}`); r.arg = Math.max(0, i); }
+    return r;
+  }
+  function trigBytes(t) {               // gtrigger_t, 18 bytes big-endian (build_tables.py trig_bytes)
+    const be16 = v => [(v >> 8) & 0xFF, v & 0xFF], d = t.sp;
+    return [t.when, t.wave, ...be16(t.at), t.action, t.n, ...be16(t.arg), ...be16(t.delay), d.enemy, d.pick, d.set, d.tint, ...be16(d.x), d.z, d.flags];
+  }
 
   function num(v) { return typeof v === 'string' ? parseInt(v, v.startsWith('0x') || v.startsWith('0X') ? 16 : 10) : v; }
   const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -64,9 +101,13 @@
       if (!isInt(bseed, 0, 0xFFFF)) err(`${S}: boss seed ${b.seed}`);
       const power = s.power === undefined ? 0 : s.power;
       if (!isInt(power, 0, 255)) err(`${S}: power 0-255`);
+      const trig = (s.triggers || []).map((t, k) => trigger(t, `${S} trigger ${k + 1}`, s.waves.length, en, tints, D, ww, err));
+      if (trig.length > MAX_TRIGGERS) err(`${S}: at most ${MAX_TRIGGERS} triggers`);
+      const drama = b.drama ? (D.dramas || []).indexOf(b.drama) : 0xFF;
+      if (drama < 0) err(`${S}: no drama ${b.drama}`);
       out.push({ bg: s.background, music: D.songs[s.music], power, waves: wv, spawns: sp, boss: bi, boss_song: D.songs[b.song],
                  unlock: D.enemies[bi] && D.enemies[bi].unlock_of === si + 1 ? 1 : 0, boss_lock: b.lock, boss_x: b.x, boss_z: b.z,
-                 boss_seed: bseed, boss_first: nb, nmin: b.minions.length });
+                 boss_seed: bseed, boss_first: nb, nmin: b.minions.length, triggers: trig, drama: Math.max(0, drama) });
     });
     return { stages: out, errors };
   }
@@ -98,10 +139,12 @@
     const sm = spmap || D.spmap, vt = vtabs || Array(sm.length / 4).fill(null);
     const roo = put(sm.concat(Array(2 * vt.length).fill(0)));   // version 3: + per fighter its voice table's offset
     vt.forEach((t, i) => { if (t) { const o = put(t, 1); out[roo + sm.length + 2 * i] = o >> 8; out[roo + sm.length + 2 * i + 1] = o & 0xFF; } });
+    const tro = M.stages.map(s => s.triggers.length ? put(s.triggers.flatMap(trigBytes)) : 0);   // version 4: the triggers
+    const sxo = put(M.stages.flatMap((s, i) => [0, 0, ...be16(tro[i]), s.triggers.length, s.drama, 0, 0]));
     while (out.length % 2) out.push(0);
     if (out.length > D.gd_max) return { bytes: null, errors: [`pack: ${out.length} bytes (at most ${D.gd_max})`] };
     const head = [71, 68, GD_VERSION, M.stages.length, D.enemies.length, D.nai, ...be16(out.length), ...be16(sto), ...be16(D.en_o),
-                  ...be16(D.ai_o), ...be16(nsp), ...be16(roo)];
+                  ...be16(D.ai_o), ...be16(nsp), ...be16(roo), ...be16(sxo)];
     head.forEach((v, i) => { out[i] = v; });
     return { bytes: Uint8Array.from(out), errors: [], model: M.stages };
   }

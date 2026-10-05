@@ -33,6 +33,11 @@ $(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.js
 	python3 $(TOOLS)/brawler/make_banner.py $(CURDIR)/$(BUILD)
 	python3 $(TOOLS)/brawler/make_sparks.py $(CURDIR)/$(BUILD)
 
+# --- Drama mode portraits: game.json "portraits" (tools/brawler/big_portraits.py capture -> /data/neogeo_dict/portraits)
+# appended after the fighters' tiles: rom_c1/c2.bin = the C ROM the package takes ---
+$(BUILD)/rom_c1.bin $(BUILD)/rom_c2.bin $(BUILD)/portraits_big.h &: $(BUILD)/bm_c1.bin game.json $(TOOLS)/brawler/big_portraits.py
+	python3 $(TOOLS)/brawler/big_portraits.py build game.json $(CURDIR)/$(BUILD)
+
 $(BUILD)/font.s1 $(BUILD)/hud.h &: $(TOOLS)/brawler/make_hud.py
 	mkdir -p $(BUILD)
 	python3 $(TOOLS)/font_encoder.py -o $(BUILD)/font.s1
@@ -50,7 +55,7 @@ $(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h $(BUILD)/snd/voices
 $(BUILD)/stage_opt: FORCE                  # the STAGE option of the last build: main.o is rebuilt when it changes
 	@mkdir -p $(BUILD); echo $(STAGE) | cmp -s - $@ || echo $(STAGE) > $@
 $(BUILD)/main.o: $(BUILD)/stage_opt
-$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -67,8 +72,8 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
-$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/bm_c1.bin $(BUILD)/font.s1 $(BUILD)/snd/m1.bin
-	printf 'c1=$(BUILD)/bm_c1.bin\nc2=$(BUILD)/bm_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=$(BUILD)/snd/m1.bin\ndonor_v1=$(BUILD)/snd/v1.bin\n' > $(BUILD)/manifest.txt
+$(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/rom_c1.bin $(BUILD)/font.s1 $(BUILD)/snd/m1.bin
+	printf 'c1=$(BUILD)/rom_c1.bin\nc2=$(BUILD)/rom_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=$(BUILD)/snd/m1.bin\ndonor_v1=$(BUILD)/snd/v1.bin\n' > $(BUILD)/manifest.txt
 	python3 $(TOOLS)/neobuild_from_manifest.py $(BUILD)/manifest.txt --elf $(BUILD)/rom.elf --name $(ROM_NAME) -o $@
 
 clean:

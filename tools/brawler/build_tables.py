@@ -33,7 +33,11 @@ MAX_ENEMIES = 6                                          # main.c NF - 2
 MAX_SLOTS = 17                                           # main.c NA (an actor per slot)
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
 GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
-GD_VERSION, GD_MAX = 3, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices)
+GD_VERSION, GD_MAX = 4, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers)
+TW = {'camera_x': 1, 'wave_clear': 2, 'time': 3}         # gamedata.h TW_*, TA_*
+TA = {'spawn': 1, 'lock': 2, 'music': 3, 'drama': 4, 'end_stage': 5}
+TW_STAGE, MAX_TRIGGERS = 0xFF, 32
+DR_LINES, DR_COLS, DR_SPEAKER = 3, 34, 16                # gamedata.h gscene_t; the name plate's length
 
 
 def load(path): return json.load(open(path))
@@ -133,6 +137,8 @@ def model(g, build):
     assert len(names) == len(set(names)), 'roster: a name twice'
     assert len(en_idx) == len(enemies), 'enemies: a name twice'
     M = {'names': names, 'tints': tints, 'ai': [], 'enemies': [], 'stages': [], 'presets': list(presets)}
+    M['dramas'] = dramas(g)
+    dr_idx = {n: i for i, n in enumerate(g.get('dramas', {}))}
     for n, p in presets.items(): M['ai'].append((n, ai_row(n, p)))
     def row(name, preset, over):                        # an AI row: the preset, or the preset with overrides (own row)
         assert preset in presets, f'enemy {name}: no AI preset {preset}'
@@ -187,13 +193,90 @@ def model(g, build):
         assert len(b['minions']) <= MAX_ENEMIES - 1, f'stage {si + 1}: at most {MAX_ENEMIES - 1} minions with the boss'
         assert ww is None or b['lock'] <= ww - 320, f'stage {si + 1}: boss lock past the end'
         sp += [spawn(d, f'stage {si + 1} boss') for d in b['minions']]
+        trig = [trigger(t, f'stage {si + 1} trigger {k + 1}', len(s['waves']), en_idx, tint_idx, mus, dr_idx, ww)
+                for k, t in enumerate(s.get('triggers', []))]
+        assert len(trig) <= MAX_TRIGGERS, f'stage {si + 1}: at most {MAX_TRIGGERS} triggers'
+        assert b.get('drama') is None or b['drama'] in dr_idx, f'stage {si + 1}: no drama {b.get("drama")}'
         be = enemies[en_idx[b['enemy']]]
         unl = 1 if be['base'] in idx and g['roster'][idx[be['base']]].get('unlock') == {'boss_of_stage': si + 1} else 0
         M['stages'].append({'name': s['name'], 'bg': s['background'], 'music': s['music'], 'power': s.get('power', 0), 'waves': wv,
                             'spawns': sp, 'boss': en_idx[b['enemy']], 'boss_song': b['song'], 'unlock': unl, 'boss_lock': b['lock'],
                             'boss_x': b['x'], 'boss_z': b['z'], 'boss_seed': int(str(b['seed']), 0), 'boss_first': nb, 'nmin': len(b['minions']),
-                            'music_n': mus.get(s['music']), 'boss_song_n': mus.get(b['song'])})
+                            'music_n': mus.get(s['music']), 'boss_song_n': mus.get(b['song']), 'triggers': trig,
+                            'drama': dr_idx[b['drama']] if b.get('drama') else 0xFF})
     return M
+
+
+def trigger(t, where, nwaves, en_idx, tint_idx, mus, dr_idx, ww):
+    """a stage trigger (game.json form) -> the gtrigger_t fields (music: the song name, its command filled by the caller
+    that has build/snd/songs.h: 'music_n')"""
+    for k in t: assert k in ('when', 'do', 'note'), f'{where}: unknown field {k}'
+    w, d = t['when'], t['do']
+    assert isinstance(w, dict) and len([k for k in w if k in TW]) == 1, f'{where}: when = one of {list(TW)}'
+    for k in w: assert k in TW or k == 'wave', f'{where}: when {k}'
+    kind = next(k for k in w if k in TW)
+    wave = TW_STAGE; at = 0
+    def wv(v):
+        v = nwaves if v == 'boss' else v
+        assert isinstance(v, int) and 0 <= v <= nwaves, f'{where}: wave {v} (0-{nwaves - 1} or "boss")'
+        return v
+    if kind == 'camera_x':
+        at = w['camera_x']; assert isinstance(at, int) and 0 <= at <= (ww - 320 if ww else 32767), f'{where}: camera_x {at}'
+    elif kind == 'wave_clear': wave = wv(w['wave_clear'])
+    else:
+        at = w['time']; assert isinstance(at, int) and 0 <= at <= 32767, f'{where}: time {at} (ticks, 0-32767)'
+        if 'wave' in w: wave = wv(w['wave'])
+    if d == 'end_stage': d = {'end_stage': True}
+    assert isinstance(d, dict) and len(d) == 1 and next(iter(d)) in TA, f'{where}: do = one of {list(TA)}'
+    act, v = next(iter(d.items()))
+    r = {'when': TW[kind], 'wave': wave, 'at': at, 'action': TA[act], 'n': 0, 'arg': 0, 'delay': 0,
+         'sp': {'enemy': 0, 'pick': 0, 'set': 0, 'tint': 0, 'x': 0, 'z': 0, 'flags': 0}, 'music': None}
+    if act == 'spawn':
+        for k in v: assert k in ('enemy', 'side', 'count', 'delay', 'z', 'pick', 'set', 'tint', 'not_boss'), f'{where}: spawn {k}'
+        assert v['enemy'] in en_idx, f'{where}: no enemy {v["enemy"]}'
+        assert v.get('side', 'right') in ('left', 'right'), f'{where}: side'
+        n, dl, z = v.get('count', 1), v.get('delay', 0), v.get('z', 20)
+        assert 1 <= n <= MAX_ENEMIES and 0 <= dl <= 32767 and 0 <= z <= 61, f'{where}: count 1-{MAX_ENEMIES}, delay 0-32767, z 0-61'
+        assert v.get('tint', 'none') in tint_idx, f'{where}: no tint {v.get("tint")}'
+        fl = SP_WALK_IN | (SP_LEFT if v.get('side') == 'left' else 0) | (SP_NOT_BOSS if v.get('not_boss') else 0)
+        r.update(n=n, delay=dl, sp={'enemy': en_idx[v['enemy']], 'pick': v.get('pick', 0), 'set': v.get('set', 0),
+                                    'tint': tint_idx[v.get('tint', 'none')], 'x': 0, 'z': z, 'flags': fl})
+    elif act == 'lock':
+        assert isinstance(v, int) and 0 <= v <= 32767, f'{where}: lock {v}'
+        r['arg'] = v
+    elif act == 'music':
+        assert not mus or v in mus, f'{where}: no song {v}'
+        r['music'] = v; r['arg'] = mus.get(v, 0)
+    elif act == 'drama':
+        assert v in dr_idx, f'{where}: no drama {v}'
+        r['arg'] = dr_idx[v]
+    return r
+
+
+def dramas(g):
+    """game.json's dramas (name -> scenes) checked: portraits by name (game.json portraits), lines the fix font can show"""
+    ports = list(g.get('portraits', {}))
+    out = []
+    for n, scenes in g.get('dramas', {}).items():
+        assert re.fullmatch(r'[a-z0-9_]+', n) and 1 <= len(scenes) <= 8, f'drama {n}: a name a-z 0-9 _, 1-8 scenes'
+        rows = []
+        for k, sc in enumerate(scenes):
+            w = f'drama {n} scene {k + 1}'
+            for f in sc: assert f in ('speaker', 'side', 'portrait', 'lines', 'wait'), f'{w}: unknown field {f}'
+            p = sc.get('portrait')
+            assert p is None or p in ports, f'{w}: no portrait {p} (game.json portraits: {ports})'
+            assert sc.get('side', 'right') in ('left', 'right'), f'{w}: side'
+            lines = sc['lines']
+            assert 1 <= len(lines) <= DR_LINES, f'{w}: 1-{DR_LINES} lines'
+            for t in lines + [sc['speaker']]:
+                assert all(0x20 <= ord(c) < 0x7F for c in t), f'{w}: {t!r}: ASCII only'
+            assert all(len(t) <= DR_COLS for t in lines), f'{w}: a line has at most {DR_COLS} characters'
+            assert 1 <= len(sc['speaker']) <= DR_SPEAKER, f'{w}: speaker 1-{DR_SPEAKER} characters'
+            wait = sc.get('wait', 120); assert 0 <= wait <= 32767, f'{w}: wait (ticks)'
+            rows.append({'portrait': 0xFF if p is None else ports.index(p), 'side': 1 if sc.get('side', 'right') == 'right' else 0,
+                         'speaker': sc['speaker'], 'lines': lines, 'wait': wait})
+        out.append((n, rows))
+    return out
 
 
 # binary layouts (gamedata.h; game_tables.c asserts each offset, so a struct change fails the build until these follow)
@@ -208,7 +291,8 @@ EN_SIZE = 26
 ST_LAYOUT = [('bg', 0, 'B'), ('music', 1, 'B'), ('power', 2, 'B'), ('nwaves', 3, 'B'), ('waves', 4, 'I'), ('spawns', 8, 'I'),
              ('boss', 12, 'B'), ('boss_song', 13, 'B'), ('unlock', 14, 'B'), ('boss_z', 15, 'B'), ('boss_lock', 16, 'h'),
              ('boss_x', 18, 'h'), ('boss_seed', 20, 'H'), ('boss_first', 22, 'B'), ('nmin', 23, 'B')]
-ST_SIZE, WAVE_SIZE, SPAWN_SIZE, PACK_HEAD = 24, 6, 8, 18
+ST_SIZE, WAVE_SIZE, SPAWN_SIZE, PACK_HEAD = 24, 6, 8, 20
+TRIG_SIZE, SX_SIZE = 18, 8                                # gtrigger_t, gstagex_t
 
 
 def layout_asserts():
@@ -239,7 +323,9 @@ def tables(g, build):
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
          'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];',
-         'extern const uint8_t roster_unlock[BC_COUNT];']
+         'extern const uint8_t roster_unlock[BC_COUNT];',
+         f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
+         'extern const gstagex_t gstagex_rom[GS_COUNT];', 'extern const gdrama_t gdramas[DR_COUNT ? DR_COUNT : 1];']
     c = ['/* Generated by tools/brawler/build_tables.py from examples/brawler/game.json. Do not edit. */',
          '#include <stddef.h>\n#include "bm_chars.h"\n#include "game_tables.h"\n#include "fighter.h"\n'] + layout_asserts()
     c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(
@@ -268,6 +354,23 @@ def tables(g, build):
                     f'.unlock = {s["unlock"]}, .boss_lock = {s["boss_lock"]}, .boss_x = {s["boss_x"]}, .boss_z = {s["boss_z"]}, .boss_seed = 0x{s["boss_seed"]:04X}, '
                     f'.boss_first = {s["boss_first"]}, .nmin = {s["nmin"]} }},   /* {s["name"]} */')
     c.append('const gstage_t gstages_rom[GS_COUNT] = {\n' + '\n'.join(rows) + '\n};')
+    xrows = []
+    for si, s in enumerate(M['stages']):
+        if s['triggers']:
+            c.append(f'static const gtrigger_t stage{si}_triggers[] = {{\n    ' + ',\n    '.join(
+                f'{{ .when = {t["when"]}, .wave = {t["wave"]}, .at = {t["at"]}, .action = {t["action"]}, .n = {t["n"]}, '
+                f'.arg = {"MUS_" + t["music"] if t["music"] else t["arg"]}, .delay = {t["delay"]}, .sp = {{ .enemy = {t["sp"]["enemy"]}, '
+                f'.pick = {t["sp"]["pick"]}, .set = {t["sp"]["set"]}, .tint = {t["sp"]["tint"]}, .x = 0, .z = {t["sp"]["z"]}, .flags = 0x{t["sp"]["flags"]:02X} }} }}'
+                for t in s['triggers']) + '\n};')
+        xrows.append(f'    {{ .trig = {f"stage{si}_triggers" if s["triggers"] else 0}, .ntrig = {len(s["triggers"])}, .drama = {s["drama"]} }},   /* {s["name"]} */')
+    c.append('const gstagex_t gstagex_rom[GS_COUNT] = {\n' + '\n'.join(xrows) + '\n};')
+    drows = []
+    for di, (dn, scenes) in enumerate(M['dramas']):
+        c.append(f'static const gscene_t drama{di}[] = {{\n    ' + ',\n    '.join(
+            f'{{ .portrait = {sc["portrait"]}, .side = {sc["side"]}, .nlines = {len(sc["lines"])}, .wait = {sc["wait"]}, .speaker = {c_str(sc["speaker"])}, '
+            f'.line = {{ {", ".join(c_str(t) for t in sc["lines"])} }} }}' for sc in scenes) + '\n};')
+        drows.append(f'    {{ .n = {len(scenes)}, .scene = drama{di} }},   /* {dn} */')
+    c.append('const gdrama_t gdramas[DR_COUNT ? DR_COUNT : 1] = {\n' + ('\n'.join(drows) if drows else '    { 0 }') + '\n};')
     names = M['names']; idx = {n: i for i, n in enumerate(names)}
     slots = g['select']['slots']
     assert len(slots) <= MAX_SLOTS and sorted(idx[s['fighter']] for s in slots if s.get('fighter')) == list(range(len(names))), \
@@ -363,10 +466,20 @@ def pack_stages(M, out, en_o, ai_o, spmap, vtabs=None):
     ro_o = put(bytes(spmap) + bytes(2 * len(vtabs or [])))   # version 2: the roster section (the specials by role);
     for i, t in enumerate(vtabs or []):                 # version 3: + per fighter its voice table's offset (0: the ROM's)
         if t is not None: struct.pack_into('>H', out, ro_o + len(spmap) + 2 * i, put(t, 1))
+    tro = [put(b''.join(trig_bytes(t) for t in s['triggers'])) if s['triggers'] else 0 for s in M['stages']]   # version 4
+    sx_o = put(b''.join(struct.pack('>IBBH', o, len(s['triggers']), s['drama'], 0) for o, s in zip(tro, M['stages'])))
     while len(out) % 2: out.append(0)
     assert len(out) <= GD_MAX, f'pack: {len(out)} bytes (at most {GD_MAX})'
-    struct.pack_into('>2sBBBBHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(M['enemies']), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, ro_o)
+    struct.pack_into('>2sBBBBHHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(M['enemies']), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, ro_o, sx_o)
     return bytes(out)
+
+
+def trig_bytes(t):
+    """gtrigger_t, big-endian (stagepack.js trigBytes)"""
+    import struct
+    d = t['sp']
+    return struct.pack('>BBhBBHHBBBBhBB', t['when'], t['wave'], t['at'], t['action'], t['n'], t['arg'], t['delay'],
+                       d['enemy'], d['pick'], d['set'], d['tint'], d['x'], d['z'], d['flags'])
 
 
 def pack(g, build):
@@ -389,7 +502,7 @@ def lab_stages(g, build):
                     'unlock_of': u['boss_of_stage'] if isinstance(u, dict) else 0})
     return {'base': out.hex(), 'en_o': en_o, 'ai_o': ai_o, 'nai': len(M['ai']), 'enemies': ens, 'tints': M['tints'],
             'songs': songs(build), 'widths': stage_widths(build), 'stages': g['stages'], 'roster': M['names'],
-            'max_enemies': MAX_ENEMIES, 'gd_max': GD_MAX, 'spmap': list(spec_map(g, build))}
+            'max_enemies': MAX_ENEMIES, 'gd_max': GD_MAX, 'spmap': list(spec_map(g, build)), 'dramas': list(g.get('dramas', {}))}
 
 
 def lab_enemies(g):

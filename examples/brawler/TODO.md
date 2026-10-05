@@ -314,7 +314,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 55. (done 2026-10-05, docs/brawler_data_model.md "Voices"; 299 voices of the 16 fighters listed with WAVs (tools/brawler/voices.py: $FC scan + captures in our emulator, each sample found by its own driver), all 16 on as KOF's own by default (148 samples, V ROM 3.94 MB), voice_proof.py: Terry's / Kyo's specials and hit voices play KOF's own sample byte for byte, a lab edit live through pack v3) Voices: list every fighter's voices (static scan of the FC 00 <index> play-sound records + a sound capture
   of each special for the KOF99-style code-sent ones), a roster "voices" field, and the lab's suggested voice per move
   with an override.
-- [ ] 56. Triggers + boss drama mode: triggers (camera x / wave clear / time: spawn, lock, music change, drama), the
+- [x] 56. (done 2026-10-05, docs/brawler_data_model.md "Triggers and drama mode"; each boss's entry scene with its KOF96/98 win-screen portrait (big_portraits.py, C ROM 15.56 MB), screenshots /data/tmp/drama/out; chainlab/trigger_proof.sh: a trigger added in the page spawns at +120/+180 ticks, page = wasm = desktop 1494 ticks, pack v4 = build_tables.py; campaign29 through, regress bleed True) Triggers + boss drama mode: triggers (camera x / wave clear / time: spawn, lock, music change, drama), the
   boss entrance speech in drama mode (black bars, big portraits, text lines), per boss in game.json.
 - [ ] 57. TODO #49: the "please continue" overlay (9 -> 0), GAME OVER state with its screen and music, back to attract.
 - [ ] 58. Regular enemies jump (only bosses do): an AI preset field, default off for today's minion preset.

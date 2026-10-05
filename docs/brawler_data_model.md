@@ -17,7 +17,7 @@ installs stages, enemies and AI rows into the running game (data packs), proofs 
 | 0, the bank | KOF94 / 96 / 98 / 99 and Samurai Shodown IV (tools/samsho4) fighters as extracted: animations, frames, hit boxes, timing, palettes, captured specials and throws, sound commands per move | /data/neogeo_dict (dictionaries), tools/kof96 (export96), never edited | nobody: templates |
 | 1, roster | the playable characters: which bank fighter, select pose, specials mapping, chain routes, unlock; the select screen | game.json `roster`, `select` | Brawler Lab: Characters tab (+ the Chain Lab for the routes) |
 | 2, enemies | named enemies on a bank fighter (or a pool of them), life, power, AI preset; the AI presets; the minion tints | game.json `enemies`, `ai`, `tints` | Brawler Lab: Enemies tab |
-| 3, stages | background, music, waves (lock points + spawns), the boss with its minions and song; later triggers and drama | game.json `stages` | Brawler Lab: Stages / Waves tab |
+| 3, stages | background, music, waves (lock points + spawns), the boss with its minions, song and scene, triggers; dramas and big portraits | game.json `stages`, `dramas`, `portraits` | Brawler Lab: Stages / Waves tab |
 
 ## Build flow
 
@@ -206,7 +206,7 @@ writes a pack into `lab.pack` (lab_t, after `buf`: `pack_stat` at 3232, `pack` a
 3. `lab.load = 4`: back to the ROM's tables at the next safe point (`pack_stat` = 3). A bad pack sent while another
    one is pending cancels it.
 
-`gdpack_t` (18 bytes, big-endian): `GD`, version, nstages, nenemies, nai, size (u16), offsets of the stages, enemies and
+`gdpack_t` (20 bytes since version 4, 18 before, big-endian): `GD`, version, nstages, nenemies, nai, size (u16), offsets of the stages, enemies and
 AI rows (u16), nspawns (u16: every stage's spawn array holds that many, the last padded), roster (u16, version 2: the
 offset of the roster section, 0 = none; version 1: padding). Version 2 (2026-10-05, the Characters tab) adds the roster
 section after the stages: per roster fighter (bm_chars order) 4 bytes, the special each role plays as an index in its
@@ -220,7 +220,7 @@ the wave index clamped to the new stage's waves.
 definition at the dummy's place, its own AI on (seed $1D2B), P1's life refilled, the enemy back 60 frames after it is
 beaten (a safe point); `lab.req = 2` re-places both; `lab.active` = 2. `tools/brawler/enemy_test.py` uses it.
 
-**Stages tab** (TODO 52, 2026-10-05; tools/brawler/chainlab: stages.js UI, stagepack.js the pack): the five stages
+**Stages tab** (TODO 52, 2026-10-05; the triggers list and the boss scene: TODO 56 below; tools/brawler/chainlab: stages.js UI, stagepack.js the pack): the five stages
 (background picker with the ROM's six Robo Army streets, the 121 other extracted backgrounds listed as "needs a build";
 music and boss song played by the game in the page, `lab.req = 5`, `lab.dummy` = the MUS_* command; boss, minions),
 the wave designer (the stage strip with its lock points dragged in 8 px steps, entries marked: ▶ walks in, ■ placed,
@@ -282,24 +282,64 @@ Yamazaki and Krauser (/data/tmp/charstab/out). A version 1 pack is still read (i
 identical on HEAD's build and this one). The release path: attract 7707 ticks and the campaign replay 19031 ticks
 identical to HEAD's build (only tick 0 differs: power-on RAM before init), regress.py no-bleed true, campaign29 through.
 
-## Planned, schema only
+## Triggers and drama mode (TODO 56, 2026-10-05)
 
-**Triggers** (a stage's `triggers[]`, read by a small interpreter in the campaign tick):
+**Triggers** (a stage's `triggers[]`; build_tables.py `trigger()`, stagepack.js the same; main.c `triggers()` in the
+campaign tick, never in the attract demo; each fires once a stage, at most 32):
 
 | field | values |
 |---|---|
-| `when` | `{"camera_x": 900}`, `{"wave_clear": 2}`, `{"time": 600}` (frames since the stage start), `{"boss_life": 50}` (percent) |
-| `do` | `{"spawn": [spawns]}`, `{"lock": 1200}`, `{"music": "BOSS_GEESE"}`, `{"drama": "geese_intro"}` |
-| `once` | true (default) |
+| `when` | `{"camera_x": 900}` (the camera reached x), `{"wave_clear": 2}` (wave index 2 beaten; `"boss"` = the boss), `{"time": 600}` (ticks since the stage start) or `{"time": 120, "wave": 0}` (ticks since wave index 0 came; `"boss"` = since the boss came) |
+| `do` | `{"spawn": {"enemy": "MINION", "side": "right", "count": 2, "delay": 60, "z": 20, "pick": 0, "set": 0, "tint": "warm", "not_boss": true}}` (count enemies, one every `delay` ticks: pick + k, z + 11 k; they wait in a queue for a free enemy slot and count as enemies left), `{"lock": 1200}` (the camera stops there, never left of itself nor past the lock already in force, until every enemy on screen and queued is beaten; GO also waits for it), `{"music": "BOSS_GEESE"}`, `{"drama": "geese_intro"}`, `"end_stage"` (every enemy goes down, STAGE CLEAR) |
+| `note` | free text |
 
-Binary: `gtrigger_t` {kind, arg16, action, arg} 6 bytes + a spawn index for spawn actions; the stage gets `triggers*`,
-`ntriggers`; fired flags in RAM (a bit per trigger).
+Waves are counted from 0 in the data (wave 1 on screen = index 0). The real time-delayed spawns replace nothing: a wave's
+walk-in "delay" is still the rank (36 px further out). Binary: `gtrigger_t` 18 bytes {when, wave (0xFF = the stage
+start), at (s16), action, n, arg (u16: x, MUS_* command, drama index), delay (u16), gspawn_t sp}; per stage a
+`gstagex_t` 8 bytes {triggers*, ntrig, drama (the boss's, 0xFF none), pad} beside `gstage_t` (unchanged, so older packs
+keep their layout); live pointer `gstagex`. RAM: `trig_fired` (a bit per trigger), `stage_tk`, `wave_t`, `wave_on`,
+`waves_cleared`, `trig_held`, the spawn queue `tq` (6).
 
-**Drama mode** (a boss's short speech): `dramas` at the top level, named, referenced by a trigger or by `boss.drama`:
-`{"name": "geese_intro", "bars": true, "lines": [{"who": "geese", "side": "right", "text": "..."}, ...]}`. On screen:
-the fight frozen, black bars top and bottom (fix layer rows), the speaker's big portrait (the HUD portrait scaled, or a
-new 64x64 fix / sprite portrait from the bank), one text line at a time on the fix layer, A to advance. Binary: lines
-as {portrait, side, string offset}, strings in one blob.
+Pack version 4: the header grows to 20 bytes with `stagex` (u16 offset of gstagex_t[nstages]); after the roster
+section each stage's triggers, then the gstagex_t rows (triggers as offsets). `gd_check` 18: the stagex table / a boss
+scene past DR_COUNT; 19: a trigger (kinds, actions, spawn count 1-6, enemy, tint, drama). A pack before version 4
+(18-byte header) is still read: no triggers, the ROM's boss scenes.
+
+**Drama mode** (main.c `drama_*`): `dramas` at the top level, `name: [scenes]`, a scene
+`{"speaker": "GEESE", "side": "right", "portrait": "geese", "lines": ["So you made it this far.", "..."], "wait": 120}`
+(1-8 scenes, 1-3 lines of at most 34 ASCII characters, speaker 1-16, wait = ticks the scene stays once typed, default
+120); played by a trigger (`do.drama`) or as a boss walks in (`stages[].boss.drama`: before its song, which starts when
+the scene ends). On screen: black bars slide in from the top (fix rows 0-3) and the bottom (rows 20-27), a row every 2
+ticks; the fight held (game_tick only draws: no AI, no update, no flow, no HUD; the HUD's rows 4-7 cleared); each
+scene's big portrait slides in from its speaker's edge (right as captured, left mirrored), the name plate in yellow on
+the bar (row 21, the speaker's side) and the lines typed a character a tick (rows 23-25); A-D / START (either player):
+the rest of the text at once, then the next scene; then the bars slide out, the HUD is redrawn whole, the song starts.
+Bars and text use `DRAMA_FONT` (make_hud.py: the font on an opaque black cell, S ROM tiles $320-$37F; + ' ' = a black
+cell). Binary: `gscene_t` 24 bytes {portrait, side, nlines, wait, speaker*, line*[3]}, `gdrama_t` {n, scenes*} in ROM
+(`gdramas[DR_COUNT]`; packs do not carry scenes, only their index).
+
+**Big portraits** (game.json `portraits`: name -> `game:fighter`; tools/brawler/big_portraits.py): `capture` finds each
+fighter's win-screen portrait in our emulator (its fight state c<id>, P2's life and the round timer poked so P1 wins
+three rounds on time; VRAM + palette RAM every 50 frames; the widest run of tall sprites side by side that stands
+still): KOF96 Mr. Big, Krauser, Geese, Goenitz (12-14 columns of 16 tiles, 3-8 palettes), KOF98 Rugal, Terry, Ryo
+(16-20 columns of 14 tiles, 8 palettes) -> /data/neogeo_dict/portraits/big_<game>_<name>.json + .png. `build` trims
+empty rows / columns, stores identical tiles once after the fighters' tiles (rom_c1/c2.bin = bm_c1/c2.bin + 750 tiles,
+93 KB: C ROM 15.56 MB of the 32 MB allowed) and writes build/portraits_big.h (`pbig[]`: columns, rows, palettes, the
+map: palette << 24 | flip << 20 | tile). In the game: sprites 300-319 (the box viewer's, hidden meanwhile; dbg_init
+gives them back), palettes 240-247, top at y 24 (its first rows under the top bar); the line guard keeps its columns.
+The Stages tab edits `triggers` (a list per stage: when / do with their fields, add / remove) and the boss's scene.
+
+Proof (2026-10-05, our emulator only):
+- Campaign (/data/tmp/drama/campaign_drama.py = campaign29 + a screenshot of each boss scene, timer-advanced: no
+  button): the five boss scenes and Geese's second one (Terry, left) in /data/tmp/drama/out (drama_sheet.png); the
+  scenes last 115 ticks after the text is out (260 for Geese's two).
+- campaign29.py (unchanged, /data/tmp/drama/out29): through; its log = the previous run's but the boss's AI state counts
+  over 900 frames (the scene holds the boss for part of them).
+- chainlab/trigger_proof.sh: a trigger added in the page ("Add a trigger": 120 ticks after wave 1, 2 MINION from the
+  right, 60 ticks apart): the page's pack = build_tables.py pack of game.json + that trigger (3036 bytes), unedited =
+  build_tables.py pack (3018 bytes); played from the stage start in the page, in Node (core.wasm) and on the desktop
+  core: 1494 ticks identical; the enemies enter slots 4 and 5 at ticks +120 and +180.
+- regress.py bleed True.
 
 ## Voices: where KOF triggers them (measured in our emulator, 2026-10-05)
 

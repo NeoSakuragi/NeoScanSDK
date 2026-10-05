@@ -234,7 +234,42 @@
       ...Array.from({ length: steps }, (_, k) => h('td', {}, k === 0 && g.boss ? h('span', { class: 'chip', style: 'border-width:3px' }, enemyFace(g.boss), h('b', {}, g.boss.replace(/_/g, ' ')), ` at x ${s.boss.x}`) : null,
         g.spawns.filter(d => (d.walk_in ? d.walk_in.rank || 0 : 0) === k).map(chip)))));
     return h('div', { style: 'overflow:auto' }, h('table', { class: 'tl' }, head, rows),
-      h('div', { class: 'note', style: 'margin-top:4px' }, '→ walks in from the left, ← from the right; a delay step = 36 px further off screen (it arrives later). Time-based spawns are the planned triggers (TODO 56).'));
+      h('div', { class: 'note', style: 'margin-top:4px' }, '→ walks in from the left, ← from the right; a delay step = 36 px further off screen (it arrives later). Time-based spawns: the triggers below.'));
+  }
+
+  // ---- triggers: when (camera x / a wave beaten / ticks since the stage or a wave came) -> do (spawn / lock / music /
+  // drama / end the stage), game.json stages[].triggers (build_tables.py trigger(), main.c triggers()) ---------------------
+  const WHEN = [['camera_x', 'camera x reaches'], ['wave_clear', 'wave beaten'], ['time', 'ticks after']];
+  const DO = [['spawn', 'spawn'], ['lock', 'lock the camera at x'], ['music', 'music'], ['drama', 'drama scene'], ['end_stage', 'end the stage']];
+  const DO_NEW = { spawn: () => ({ spawn: { enemy: EN()[0].name, side: 'right', count: 2, delay: 60, z: 20 } }), lock: () => ({ lock: 0 }),
+                   music: () => ({ music: Object.keys(D.songs)[0] }), drama: () => ({ drama: (D.dramas || [])[0] || '' }), end_stage: () => 'end_stage' };
+  function triggerTable(s) {
+    const list = s.triggers || [];
+    const waveOpts = (stageStart) => [...(stageStart ? [['', 'the stage start']] : []), ...s.waves.map((_, k) => [String(k), `wave ${k + 1}`]), ['boss', 'the boss']];
+    const rows = list.map((t, k) => {
+      const set = fn => { fn(t); edited(); };
+      const kind = Object.keys(t.when).find(x => x !== 'wave'), act = t.do === 'end_stage' ? 'end_stage' : Object.keys(t.do)[0];
+      const when = [sel(WHEN, kind, v => set(t => { t.when = v === 'wave_clear' ? { wave_clear: 0 } : { [v]: 0 }; }))];
+      if (kind === 'wave_clear') when.push(sel(waveOpts(false), String(t.when.wave_clear), v => set(t => { t.when.wave_clear = v === 'boss' ? 'boss' : Number(v); })));
+      else when.push(numIn(t.when[kind], v => set(t => { t.when[kind] = v; }), { min: 0, style: 'width:76px', title: kind === 'time' ? 'ticks (60 a second)' : 'camera x' }));
+      if (kind === 'time') when.push(sel(waveOpts(true), t.when.wave === undefined ? '' : String(t.when.wave),
+        v => set(t => { if (v === '') delete t.when.wave; else t.when.wave = v === 'boss' ? 'boss' : Number(v); })));
+      const what = [sel(DO, act, v => set(t => { t.do = DO_NEW[v](); }))];
+      const a = t.do[act];
+      if (act === 'spawn') what.push(enemyFace(a.enemy), sel(enemyOpts(), a.enemy, v => set(() => { a.enemy = v; })),
+        sel([['right', 'from the right'], ['left', 'from the left']], a.side || 'right', v => set(() => { a.side = v; })),
+        ' x', numIn(a.count || 1, v => set(() => { a.count = v; }), { min: 1, max: D.max_enemies, title: 'how many' }),
+        ' every', numIn(a.delay || 0, v => set(() => { a.delay = v; }), { min: 0, title: 'ticks between two' }), ' ticks, z',
+        numIn(a.z === undefined ? 20 : a.z, v => set(() => { a.z = v; }), { min: 0, max: 61 }));
+      else if (act === 'lock') what.push(numIn(a, v => set(t => { t.do.lock = v; }), { step: 8, style: 'width:76px', title: 'held until every enemy on screen is beaten' }));
+      else if (act === 'music') what.push(sel(songOpts(), a, v => set(t => { t.do.music = v; })), h('button', { onclick: () => playSong(a) }, '▶'));
+      else if (act === 'drama') what.push(sel((D.dramas || []).map(n => [n, n]), a, v => set(t => { t.do.drama = v; })));
+      return h('tr', {}, h('td', {}, String(k + 1)), h('td', {}, when), h('td', {}, what),
+        h('td', {}, h('button', { onclick: () => { list.splice(k, 1); if (!list.length) delete s.triggers; edited(); }, title: 'remove' }, 'Remove')));
+    });
+    return h('div', {}, h('div', { style: 'overflow-x:auto' }, h('table', { class: 'sp' }, h('tr', {}, ['#', 'When', 'Do', ''].map(x => h('th', {}, x))), rows)),
+      h('div', { class: 'add' }, h('button', { disabled: list.length >= 32, onclick: () => { (s.triggers || (s.triggers = [])).push({ when: { time: 120, wave: 0 }, do: DO_NEW.spawn() }); edited(); } }, 'Add a trigger'),
+        h('span', { class: 'note' }, `${list.length} of 32; each fires once a stage (not in the attract demo); a spawn's enemies come one every "delay" ticks into free slots`)));
   }
 
   // ---- the page -------------------------------------------------------------------------------------------------------
@@ -270,6 +305,8 @@
       h('div', { class: 'box' }, h('h2', {}, 'Wave designer', h('span', { class: 'note', style: 'font-weight:400' }, 'drag a lock point (W1, W2, …, BOSS) along the stage; the dashed box is the screen there; ▶ walks in, ■ placed, ● the boss'), h('span', { class: 'sp' })),
         h('div', { class: 'in', id: 'stStrip' }, strip())),
       h('div', { class: 'box' }, h('h2', {}, 'Timeline: who comes in when'), h('div', { class: 'in' }, timeline())),
+      h('div', { class: 'box' }, h('h2', {}, 'Triggers', h('span', { class: 'note', style: 'font-weight:400' }, 'time-delayed spawns, camera locks, music changes, drama scenes'), h('span', { class: 'sp' })),
+        h('div', { class: 'in' }, triggerTable(s))),
       s.waves.map((w, k) => h('div', { class: 'wave' },
         h('div', { class: 'wh' }, h('b', {}, `Wave ${k + 1}`),
           h('label', {}, 'lock x ', numIn(w.lock, v => { w.lock = v; edited(); }, { step: 8, style: 'width:76px' })),
@@ -286,6 +323,7 @@
           h('label', {}, 'x ', numIn(s.boss.x, v => { s.boss.x = v; edited(); }, { style: 'width:76px' })),
           h('label', {}, 'z ', numIn(s.boss.z, v => { s.boss.z = v; edited(); }, { min: 0, max: 63 })),
           h('label', {}, 'seed ', (() => { const i = h('input', { value: s.boss.seed, style: 'width:80px' }); i.onchange = () => { s.boss.seed = i.value; edited(); }; return i; })()),
+          h('label', { title: 'played as the boss walks in, before its song (game.json dramas)' }, 'scene ', sel([['', 'none'], ...(D.dramas || []).map(n => [n, n])], s.boss.drama || '', v => { if (v) s.boss.drama = v; else delete s.boss.drama; edited(); })),
           h('button', { onclick: () => play(si, s.waves.length) }, '▶ Play from here')),
         h('div', { class: 'note', style: 'padding:2px 8px' }, 'Minions with the boss:'),
         spawnTable(s.boss.minions, true), adder(s.boss.minions, D.max_enemies - 1, true))].flat());

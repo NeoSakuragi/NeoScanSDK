@@ -13,6 +13,7 @@
 #include "sparks.h"
 #include "hud.h"
 #include "game_tables.h"
+#include "portraits_big.h"
 
 static uint16_t TEXT_PAL[16] = { 0x8000, COLOR_WHITE, RGB(20, 25, 31), RGB(31, 31, 0), RGB(31, 6, 4), RGB(6, 6, 10) };   /* 6-15: life bar (hud.h) */
 #ifndef GAME_VERSION
@@ -222,9 +223,10 @@ static void depth_sort(void) {
 #define SH_RESERVE 12                    /* sprites per line kept for the ground shadows (half of 12 entities x 2) */
 #define SPARK_RESERVE 6                  /* and for hit sparks (two 3-column sparks on one line) */
 static uint8_t hidden[NA], guard_hidden;
+static uint8_t dr_cols;                  /* the drama portrait's sprites on screen (main.c "drama mode"): kept per line */
 static void line_guard(void) {
     static uint8_t parity;
-    uint8_t prio[NA], n = 0, i, k, used = mode == 1 ? BG_N + SH_RESERVE + SPARK_RESERVE : 0;   /* the select: actors only */
+    uint8_t prio[NA], n = 0, i, k, used = mode == 1 ? BG_N + SH_RESERVE + SPARK_RESERVE + dr_cols : 0;   /* the select: actors only */
     for (i = 0; i < nf; i++) if (!order[i]->team) prio[n++] = i;
     parity ^= 1;
     for (i = 0; i < nf; i++) {
@@ -583,10 +585,12 @@ static void hud(void) {
  * lab can swap a table while the game runs, as route_tab does for the chain routes. */
 const gstage_t *gstages;
 const genemy_t *genemies;
+const gstagex_t *gstagex;
+static gstagex_t gsx_old[GS_COUNT];              /* a pack before version 4: the ROM's boss scenes, no triggers */
 static uint8_t gen_count = EN_COUNT;             /* enemies in genemies[] */
 static void gdata_init(void) {
     uint8_t i, k;
-    gstages = gstages_rom; genemies = genemies_rom;
+    gstages = gstages_rom; genemies = genemies_rom; gstagex = gstagex_rom;
     for (i = 0; i < AI_COUNT; i++)
         for (k = 0; k < sizeof(ai_preset_t); k++) ((uint8_t *)&ai_presets[i])[k] = ((const uint8_t *)&ai_presets_rom[i])[k];
 }
@@ -596,8 +600,9 @@ static void gdata_init(void) {
 static uint8_t gd_live[GD_MAX] __attribute__((aligned(4)));
 static uint8_t gd_want;                          /* 3: install lab.pack, 4: back to the ROM's tables, at the safe point */
 #define GD_OFF(ptr) ((uint32_t)(ptr))            /* a pointer field of a pack: its offset */
+static uint8_t gd_head = sizeof(gdpack_t);      /* the header's size: 18 bytes before version 4 */
 static uint8_t gd_in(uint16_t size, uint32_t off, uint32_t len, uint8_t even) {   /* [off, off + len) inside the pack */
-    return off >= sizeof(gdpack_t) && off + len <= size && !(even && (off & 1));
+    return off >= gd_head && off + len <= size && !(even && (off & 1));
 }
 static uint8_t gd_tree(const uint8_t *p, uint16_t size, uint32_t off) {   /* a route tree (fighter.h rt_head_t) */
     const rt_head_t *t = (const rt_head_t *)(p + off);
@@ -623,8 +628,9 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
     const gstage_t *st;
     uint16_t size = h->size, i, k;
     if (h->magic[0] != 'G' || h->magic[1] != 'D') return 1;
-    if (h->version < 1 || h->version > GD_VERSION) return 2;   /* version 1: no roster section; 2: no voices */
-    if (size < sizeof(gdpack_t) || size > GD_MAX) return 3;
+    if (h->version < 1 || h->version > GD_VERSION) return 2;   /* version 1: no roster section; 2: no voices; 3: no triggers */
+    gd_head = h->version >= 4 ? sizeof(gdpack_t) : sizeof(gdpack_t) - 2;
+    if (size < gd_head || size > GD_MAX) return 3;
     if (h->nstages != GS_COUNT || !h->nenemies || !h->nai) return 4;
     if (!gd_in(size, h->stages, h->nstages * sizeof(gstage_t), 1) || !gd_in(size, h->enemies, h->nenemies * sizeof(genemy_t), 1) ||
         !gd_in(size, h->ai, h->nai * sizeof(ai_preset_t), 0)) return 5;
@@ -668,10 +674,23 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
             for (k = 0; k < n; k++) if (p[o + 2 * k] > bm_chars[i].nvoice) return 17;
         }
     }
+    if (h->version >= 4) {                       /* the stages' triggers and boss scenes */
+        const gstagex_t *x = (const gstagex_t *)(p + h->stagex);
+        if (!gd_in(size, h->stagex, h->nstages * sizeof(gstagex_t), 1)) return 18;
+        for (i = 0; i < h->nstages; i++, x++) {
+            const gtrigger_t *t = (const gtrigger_t *)(p + GD_OFF(x->trig));
+            if (x->ntrig > 32 || (x->drama != 0xFF && x->drama >= DR_COUNT)) return 18;
+            if (x->ntrig && !gd_in(size, GD_OFF(x->trig), x->ntrig * sizeof(gtrigger_t), 1)) return 19;
+            for (k = 0; k < x->ntrig; k++, t++)
+                if (!t->when || t->when > TW_TIME || !t->action || t->action > TA_END ||
+                    (t->action == TA_SPAWN && (!t->n || t->n > NF - 2 || t->sp.enemy >= h->nenemies || t->sp.tint >= TINT_COUNT)) ||
+                    (t->action == TA_DRAMA && t->arg >= DR_COUNT)) return 19;
+        }
+    }
     return 0;
 }
 static void gd_apply(void) {                     /* at a safe point: the pack (or the ROM's tables) in use from now */
-    if (gd_want == 4) { gstages = gstages_rom; genemies = genemies_rom; ai_tab = ai_presets; gen_count = EN_COUNT; specs_init(); voices_init(); lab.pack_stat = GD_ROM; }
+    if (gd_want == 4) { gstages = gstages_rom; genemies = genemies_rom; gstagex = gstagex_rom; ai_tab = ai_presets; gen_count = EN_COUNT; specs_init(); voices_init(); lab.pack_stat = GD_ROM; }
     else if (gd_want == 3) {
         uint8_t e = gd_check(lab.pack);
         if (e) lab.pack_stat = GD_BAD | e;
@@ -699,6 +718,14 @@ static void gd_apply(void) {                     /* at a safe point: the pack (o
             voices_init();                       /* version 3: a fighter's voice table from the pack (0: the ROM's) */
             if (h->version >= 3 && h->roster)
                 for (i = 0; i < BC_COUNT; i++) { uint16_t o = gd_voice_off(gd_live, i); if (o) voice_tab[i] = gd_live + o; }
+            if (h->version >= 4) {               /* version 4: the pack's triggers */
+                gstagex_t *x = (gstagex_t *)(gd_live + h->stagex);
+                for (i = 0; i < h->nstages; i++) if (x[i].trig) x[i].trig = (const gtrigger_t *)(base + GD_OFF(x[i].trig));
+                gstagex = x;
+            } else {
+                for (i = 0; i < GS_COUNT; i++) { gsx_old[i] = gstagex_rom[i]; gsx_old[i].trig = 0; gsx_old[i].ntrig = 0; }
+                gstagex = gsx_old;
+            }
             lab.pack_stat = GD_INSTALLED;
         }
     }
@@ -1159,6 +1186,183 @@ static void spawns_ai(uint16_t seed, const gspawn_t *sp, uint8_t n, uint8_t slot
     ai_init(seed, p0);
     for (k = 0; k < n; k++) if ((p = ai_of(&genemies[sp[k].enemy])) != p0) ai_set(slot0 + k, p);
 }
+/* ---- drama mode (docs/brawler_data_model.md "Drama mode"): black bars slide in from the top and the bottom (fix rows
+ * 0-3 and 20-27, DRAMA_FONT's opaque cells), the fight held (no AI, no update, no flow: game_tick only draws), each scene's
+ * big portrait (portraits_big.h: sprites PB_SPR.., the box viewer's, palettes PB_PALN..) slides in on its speaker's side
+ * (left: mirrored), the name plate and the lines typed on the bottom bar; A-D / START: the rest of the text at once, then
+ * the next scene; else each scene goes on after its wait. Then the bars slide out, the HUD comes back, the song (a
+ * boss's) starts. ---- */
+#define PB_SPR  300
+#define PB_PALN 240                      /* palettes 240-247 */
+#define DR_PY   24                       /* the portrait's top on screen (its first rows under the top bar) */
+enum { DR_OFF, DR_IN, DR_SCENE, DR_OUT };
+static uint8_t dr_on, dr_scene, dr_music, dr_rows, dr_pb, dr_side, dr_slide;
+static const gdrama_t *dr;
+static uint16_t dr_t, dr_chars, dr_len;
+static void dr_row(uint8_t row, uint16_t v) { uint8_t c; for (c = 0; c < 40; c++) fix_put(c, row, v); }
+static void dr_bar(uint8_t st, uint8_t on) {    /* step 1-8: bottom row 28 - st, on even steps top row st / 2 - 1 */
+    uint16_t v = on ? DRAMA_FONT + ' ' : 0x20;
+    dr_row(28 - st, v);
+    if (!(st & 1)) dr_row((st >> 1) - 1, v);
+}
+static void pb_hide(void) {
+    uint8_t c;
+    for (c = 0; c < dr_cols; c++) cmd_push(VRAM_SCB3 + PB_SPR + c, 0);
+    dr_cols = 0;
+}
+static void pb_place(int16_t off) {              /* off: px still to slide in from the speaker's edge */
+    uint16_t *w;
+    int16_t x0 = dr_side ? 312 - dr_cols * 16 + off : 8 - off;
+    uint8_t c;
+    w = cmd_run(VRAM_SCB3 + PB_SPR, dr_cols);
+    for (c = 0; c < dr_cols; c++) w[c] = (uint16_t)(((496 - DR_PY) & 0x1FF) << 7) | dr_rows;
+    w = cmd_run(VRAM_SCB4 + PB_SPR, dr_cols);
+    for (c = 0; c < dr_cols; c++) w[c] = (uint16_t)((x0 + c * 16) & 0x1FF) << 7;
+}
+static void pb_show(uint8_t pb, uint8_t side) {  /* its palettes and tiles; placed off screen (pb_place slides it) */
+    const pbig_t *b = &pbig[pb];
+    uint8_t c, r;
+    const uint32_t *m0 = b->map, *m;
+    for (c = 0; c < b->npal; c++) PAL_setPalette(PB_PALN + c, b->pal + (c << 4));
+    if (!side) for (c = 1; c < b->cols; c++) m0 += b->rows;              /* left: the columns mirrored, from the last */
+    for (c = 0; c < b->cols; c++) {
+        m = m0;
+        if (side) m0 += b->rows; else m0 -= b->rows;
+        uint16_t *w = cmd_run(VRAM_SCB1 + (PB_SPR + c) * 64, b->rows * 2);
+        for (r = 0; r < b->rows; r++) {
+            uint32_t e = m[r];
+            *w++ = (uint16_t)e;
+            *w++ = e ? (uint16_t)(((PB_PALN + (uint16_t)(e >> 24)) << 8) | ((uint16_t)(e >> 12) & 0xF0) | (((uint16_t)(e >> 20) & 3) ^ (side ? 0 : 1))) : 0;
+        }
+    }
+    dr_cols = b->cols; dr_rows = b->rows; dr_side = side; dr_slide = 16;
+    pb_place(160);
+}
+static void dr_put(uint8_t col, uint8_t row, char ch, uint8_t pal) { fix_put(col, row, (uint16_t)(pal << 12) | (DRAMA_FONT + (uint8_t)ch)); }
+static void dr_text(uint16_t upto) {             /* the scene's characters dr_chars..upto - 1 (lines from row 23, column 3) */
+    const gscene_t *sc = &dr->scene[dr_scene];
+    uint16_t n = 0;
+    uint8_t l, c;
+    for (l = 0; l < sc->nlines; l++)
+        for (c = 0; sc->line[l][c]; c++, n++) if (n >= dr_chars && n < upto) dr_put(3 + c, 23 + l, sc->line[l][c], 0);
+    dr_chars = upto;
+}
+static void dr_scene_start(void) {
+    const gscene_t *sc = &dr->scene[dr_scene];
+    uint8_t l, n;
+    for (l = 21; l < 26; l++) dr_row(l, DRAMA_FONT + ' ');
+    if (sc->portrait != dr_pb || sc->side != dr_side) {
+        pb_hide(); dr_pb = sc->portrait;
+        if (dr_pb < PB_COUNT) pb_show(dr_pb, sc->side); else dr_side = sc->side;
+    }
+    for (n = 0; sc->speaker[n]; n++) ;
+    for (l = 0; l < n; l++) dr_put((sc->side ? 37 - n : 3) + l, 21, sc->speaker[l], 1);   /* the name plate, yellow */
+    for (dr_len = 0, l = 0; l < sc->nlines; l++) for (n = 0; sc->line[l][n]; n++) dr_len++;
+    dr_chars = 0; dr_t = 0;
+}
+static void drama_start(uint8_t d, uint8_t music) {
+    uint8_t i;
+    dr = &gdramas[d]; dr_music = music; dr_on = DR_IN; dr_t = 0; dr_pb = 0xFE; dr_side = 0xFE; dr_cols = 0;
+    for (i = 0; i < DBG_BOXES * 8; i++) cmd_push(VRAM_SCB3 + DBG_SPR + i, 0);   /* the box viewer gives its sprites */
+    dbg_shown = 0;
+    for (i = 4; i < 8; i++) dr_row(i, 0x20);       /* the HUD's target and boss bars (rows 4-7, under the top bar) */
+}
+static void hud_wave(void);
+static void drama_tick(void) {
+    uint16_t pr = JOY_pressed(0) | JOY_pressed(1);
+    uint8_t btn = (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)) != 0;
+    const gscene_t *sc;
+    dr_t++;
+    switch (dr_on) {
+    case DR_IN:                                  /* a bar step every 2 ticks */
+        if (!(dr_t & 1)) dr_bar((uint8_t)(dr_t >> 1), 1);
+        if (dr_t >= 16) { dr_on = DR_SCENE; dr_scene = 0; dr_scene_start(); }
+        break;
+    case DR_SCENE:
+        sc = &dr->scene[dr_scene];
+        if (dr_slide) { dr_slide--; pb_place(dr_slide * 10); }
+        if (dr_chars < dr_len) { dr_text(btn ? dr_len : dr_chars + 1); dr_t = 0; break; }   /* typed, a character a tick */
+        if (!btn && dr_t < sc->wait) break;
+        if (++dr_scene < dr->n) { dr_scene_start(); break; }
+        pb_hide();
+        for (dr_t = 21; dr_t < 26; dr_t++) dr_row((uint8_t)dr_t, DRAMA_FONT + ' ');
+        dr_on = DR_OUT; dr_t = 0;
+        break;
+    case DR_OUT:
+        if (!(dr_t & 1)) dr_bar(9 - (uint8_t)(dr_t >> 1), 0);
+        if (dr_t < 16) break;
+        dr_on = DR_OFF;
+        dbg_init();                              /* the box viewer's sprites back */
+        hud_two = 0xFF; arcade_line_reset(); hud_wave();   /* the HUD redrawn whole */
+        if (dr_music != 0xFF) snd_music(dr_music);
+        break;
+    }
+}
+
+/* ---- triggers (gamedata.h gtrigger_t; game.json stages[].triggers): checked every campaign tick (not in the attract
+ * demo), each fires once a stage. Spawns wait in a queue for their tick and a free enemy slot; a lock holds the camera
+ * until every enemy on screen (and queued) is beaten. ---- */
+static uint32_t trig_fired;
+static uint16_t stage_tk, wave_t;                /* ticks since the stage start; since the wave (or the boss) came */
+static uint8_t wave_on, waves_cleared, trig_held; /* the last wave spawned (nwaves: the boss); waves beaten; a lock on */
+#define TQ_N 6
+static struct { const gtrigger_t *t; uint8_t k; uint16_t at; } tq[TQ_N];
+static uint8_t tq_n;
+static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; }
+static void enemies_down(fighter_t *by) {        /* every enemy still up goes down (a boss beaten, TA_END) */
+    uint8_t i;
+    for (i = 2; i < NF; i++) {
+        fighter_t *e = &fighters[i];
+        if (e == by || e->state == S_OFF || e->state == S_DEAD || e->hp <= 0) continue;
+        if (e->state == S_THROWN || e->state == S_DOWN || e->state == S_GETUP) { e->hp = 0; continue; }
+        e->hp = 0; fighter_hit(by, e, 0, R_KNOCKDOWN, 0);
+    }
+}
+static void trig_fire(const gtrigger_t *t) {
+    uint8_t i;
+    int16_t x;
+    switch (t->action) {
+    case TA_SPAWN:
+        for (i = 0, x = 0; i < t->n && tq_n < TQ_N; i++, x += t->delay) { tq[tq_n].t = t; tq[tq_n].k = i; tq[tq_n].at = stage_tk + x; tq_n++; }
+        break;
+    case TA_LOCK:                                /* never back left of the camera, never past the lock already there */
+        x = lock_at((int16_t)t->arg);
+        if (x > lock_x) x = lock_x;
+        lock_x = x < cam_x ? cam_x : x; trig_held = 1;
+        break;
+    case TA_MUSIC: snd_music((uint8_t)t->arg); break;
+    case TA_DRAMA: drama_start((uint8_t)t->arg, 0xFF); break;
+    case TA_END: tq_n = 0; enemies_down(&fighters[0]); phase = PH_END; phase_t = 0; break;
+    }
+}
+static void triggers(void) {
+    const gstagex_t *x = &gstagex[camp];
+    uint8_t k, slot;
+    stage_tk++; wave_t++;
+    for (k = 0; k < x->ntrig && !dr_on; k++) {
+        const gtrigger_t *t = &x->trig[k];
+        uint32_t bit = 1UL << k;
+        if (trig_fired & bit) continue;
+        if (t->when == TW_CAMERA ? cam_x < t->at : t->when == TW_WAVE_CLEAR ? waves_cleared <= t->wave :
+            t->wave == TW_STAGE ? (int16_t)stage_tk < t->at : wave_on != t->wave || (int16_t)wave_t < t->at) continue;
+        trig_fired |= bit;
+        trig_fire(t);
+    }
+    for (k = 0; k < tq_n; ) {                    /* queued spawns: due, and a free slot */
+        const gtrigger_t *t = tq[k].t;
+        gspawn_t sp;
+        if ((int16_t)(stage_tk - tq[k].at) < 0) { k++; continue; }
+        for (slot = 2; slot < NF && fighters[slot].state != S_OFF; slot++) ;
+        if (slot == NF) break;
+        sp = t->sp; sp.pick += tq[k].k;
+        for (slot = 0; slot < tq[k].k; slot++) { sp.z += 11; if (sp.z > 61) sp.z -= 55; }   /* z + 11 k, kept on the floor */
+        for (slot = 2; slot < NF && fighters[slot].state != S_OFF; slot++) ;
+        spawn(slot, &sp, genemies[gs->boss].base);
+        ai_set(slot, ai_of(&genemies[sp.enemy]));
+        for (slot = k; slot + 1 < tq_n; slot++) tq[slot] = tq[slot + 1];
+        tq_n--;
+    }
+}
 static void spawn_wave(void) {
     const gwave_t *w;
     uint8_t k;
@@ -1169,6 +1373,7 @@ static void spawn_wave(void) {
         spawn(2 + k, &gs->spawns[w->first + k], 0xFF);
     }
     spawns_ai(w->seed, &gs->spawns[w->first], w->n, 2);
+    wave_on = wave; wave_t = 0;
     hud_wave();
 }
 static void boss_start(void) {
@@ -1185,7 +1390,9 @@ static void boss_start(void) {
     }
     spawns_ai(gs->boss_seed, &gs->spawns[gs->boss_first], gs->nmin, 3);
     ai_set(BOSS_IDX, ai_of(be));
-    snd_music(gs->boss_song);
+    wave_on = gs->nwaves; wave_t = 0;
+    k = gstagex[camp].drama;                         /* its scene first (the fight held), then its song */
+    if (k < DR_COUNT && !attract) drama_start(k, gs->boss_song); else snd_music(gs->boss_song);
     hud_wave();
 }
 static void go_sign(uint8_t on) { FIX_print(29, 3, on ? "GO -->" : "      ", 1); }   /* yellow, in the HUD's black band */
@@ -1193,6 +1400,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
     mode = 1; nf = NE; cam_x = 0; wave = 0; banner_t = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
+    triggers_reset(); dr_on = DR_OFF; dr_cols = 0;      /* a drama cut short (the lab): dbg_init below hides its sprites */
     inputs_reset();
     snd_music(gs->music);
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
@@ -1246,27 +1454,30 @@ static void ending_start(void);
 static void campaign(uint8_t left) {
     uint8_t i;
     phase_t++;
+    if (!attract) {
+        triggers();
+        left += tq_n;                                        /* queued spawns count as enemies */
+        if (dr_on) return;                                   /* a trigger's scene: the campaign waits for it */
+        if (trig_held && !left) { trig_held = 0; lock_x = lock_at(wave < gs->nwaves ? gs->waves[wave].lock : gs->boss_lock); }
+    }
     switch (phase) {
     case PH_WAVE:                                            /* camera held at lock_x until the wave is beaten */
         if (left) break;
         if (attract && wave + 1 >= gs->nwaves) { spawn_wave(); break; }   /* the demo: no boss, the last wave again */
+        waves_cleared = wave + 1;
         wave++; phase = PH_GO; phase_t = 0;
         lock_x = lock_at(wave < gs->nwaves ? gs->waves[wave].lock : gs->boss_lock);
         break;
     case PH_GO:                                              /* GO: the camera may scroll to the next lock point */
         if ((phase_t & 15) == 1) go_sign(!(phase_t & 16));   /* blinking, on from its first frame */
-        if (cam_x < lock_x) break;
+        if (cam_x < lock_x || trig_held || left) break;     /* a trigger's lock or enemies: they first */
         go_sign(0);
         if (wave < gs->nwaves) { phase = PH_WAVE; spawn_wave(); } else boss_start();
         break;
     case PH_BOSS:
         if (fighters[BOSS_IDX].state != S_DEAD && fighters[BOSS_IDX].state != S_OFF) break;
-        for (i = BOSS_IDX + 1; i < NF; i++) {                /* boss beaten: the minions go down with it */
-            fighter_t *e = &fighters[i];
-            if (e->state == S_OFF || e->state == S_DEAD || e->hp <= 0) continue;
-            if (e->state == S_THROWN || e->state == S_DOWN || e->state == S_GETUP) { e->hp = 0; continue; }
-            e->hp = 0; fighter_hit(&fighters[BOSS_IDX], e, 0, R_KNOCKDOWN, 0);
-        }
+        enemies_down(&fighters[BOSS_IDX]);                   /* boss beaten: the minions go down with it */
+        tq_n = 0; waves_cleared = gs->nwaves + 1;
         phase = PH_END; phase_t = 0;
         break;
     case PH_END:                                             /* every enemy gone: STAGE CLEAR, the save */
@@ -1383,7 +1594,7 @@ static void lab_stage(void) {
     stage_begin(lab.dummy < GS_COUNT ? lab.dummy : 0, 1);
     if (!w) return;
     if (w > gs->nwaves) w = gs->nwaves;
-    wave = w; cam_x = lock_x = lock_at(w < gs->nwaves ? gs->waves[w].lock : gs->boss_lock);
+    wave = w; waves_cleared = w; cam_x = lock_x = lock_at(w < gs->nwaves ? gs->waves[w].lock : gs->boss_lock);
     fighters[0].x = FIX(cam_x + 60);
     if (w < gs->nwaves) spawn_wave();
     else { for (i = 2; i < NF; i++) fighters[i].state = S_OFF; boss_start(); }
@@ -1600,10 +1811,11 @@ void game_tick(void) {
     SYS_kickWatchdog();
     snd_tick();
     lab_tick();
-    if (!lab.active) arcade_line();
+    if (!lab.active && !dr_on) arcade_line();
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
+    if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
     if (attract) {                                           /* the demo: a coin, 40 s or a game over ends it */
         if (bios_demo_end || ++attract_t > 2400) { SYS_return(); }
         if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); title_paid = 1; depth_sort(); draw(); return; }
@@ -1622,6 +1834,7 @@ void game_tick(void) {
     for (i = 0; i < NF; i++) if (fighters[i].state != S_OFF) fighter_update(&fighters[i], &in[i]);
     if (lab.active) lab_flow(); else flow();
     if (mode != 1) return;                                   /* back on the title screen */
+    if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
     if (fade_in) fight_fade();
     camera();
     projectiles_update(cam_x);

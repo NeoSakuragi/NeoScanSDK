@@ -441,7 +441,8 @@
       "z": 19,
       "tint": "ash"
      }
-    ]
+    ],
+    "drama": "mr_big_intro"
    }
   },
   {
@@ -540,7 +541,8 @@
       "z": 32,
       "tint": "shade"
      }
-    ]
+    ],
+    "drama": "krauser_intro"
    }
   },
   {
@@ -651,7 +653,8 @@
       "z": 45,
       "tint": "rust"
      }
-    ]
+    ],
+    "drama": "geese_intro"
    }
   },
   {
@@ -773,7 +776,8 @@
       "z": 58,
       "tint": "ash"
      }
-    ]
+    ],
+    "drama": "rugal_intro"
    }
   },
   {
@@ -896,8 +900,61 @@
       "z": 58,
       "tint": "rust"
      }
-    ]
+    ],
+    "drama": "goenitz_intro"
    }
   }
- ]
+ ],
+ "portraits": {
+  "mr_big": "kof96:mr_big",
+  "krauser": "kof96:krauser",
+  "geese": "kof96:geese",
+  "goenitz": "kof96:goenitz",
+  "rugal": "kof98:rugal",
+  "terry": "kof98:terry",
+  "ryo": "kof98:ryo"
+ },
+ "dramas": {
+  "mr_big_intro": [
+   {
+    "speaker": "MR. BIG",
+    "side": "right",
+    "portrait": "mr_big",
+    "lines": ["So you're the punks wrecking", "my business.", "Time to pay up!"]
+   }
+  ],
+  "krauser_intro": [
+   {
+    "speaker": "KRAUSER",
+    "side": "right",
+    "portrait": "krauser",
+    "lines": ["Welcome to my castle.", "Show me the strength that", "brought you this far!"]
+   }
+  ],
+  "geese_intro": [
+   {
+    "speaker": "GEESE",
+    "side": "right",
+    "portrait": "geese",
+    "lines": ["So you made it this far.", "Impressive... for a fool."]
+   },
+   {"speaker": "TERRY", "side": "left", "portrait": "terry", "lines": ["This ends tonight, Geese!"]}
+  ],
+  "rugal_intro": [
+   {
+    "speaker": "RUGAL",
+    "side": "right",
+    "portrait": "rugal",
+    "lines": ["Hmph. You are strong enough", "to stand before me.", "You'll make a fine statue!"]
+   }
+  ],
+  "goenitz_intro": [
+   {
+    "speaker": "GOENITZ",
+    "side": "right",
+    "portrait": "goenitz",
+    "lines": ["The wind is blowing...", "Let it carry you away!"]
+   }
+  ]
+ }
 }

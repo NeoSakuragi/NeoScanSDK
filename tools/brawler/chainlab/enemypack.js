@@ -5,7 +5,7 @@
 (function (root) {
   'use strict';
   const CL = root.ChainLab || (typeof require !== 'undefined' ? require('./lab.js') : null);
-  const PACK_HEAD = 18, EN_SIZE = 26, GE_SPAWN = 0xFF, GE_FIGHTER_NAME = 1;
+  const PACK_HEAD = 20, EN_SIZE = 26, GE_SPAWN = 0xFF, GE_FIGHTER_NAME = 1;
   const HUD_RE = /^[A-Z0-9_ .!-]{1,10}$/, NAME_RE = /^[A-Z][A-Z0-9_]{0,9}$/;
 
   // ---- colours ------------------------------------------------------------------------------------------------------

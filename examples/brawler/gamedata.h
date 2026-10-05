@@ -79,6 +79,41 @@ typedef struct {
     uint8_t boss_first, nmin;     /* its minions: spawns[boss_first..+nmin) */
 } gstage_t;
 
+/* ---- layer 3: triggers (a stage's `triggers`, game.json; main.c triggers()): when -> do, each once per stage ---- */
+enum { TW_CAMERA = 1,             /* at: the camera's x reached it */
+       TW_WAVE_CLEAR,             /* wave: that wave beaten (nwaves = the boss) */
+       TW_TIME };                 /* at: ticks since the stage start (wave TW_STAGE) or since wave `wave` came (nwaves = the boss) */
+#define TW_STAGE 0xFF
+enum { TA_SPAWN = 1,              /* n enemies like sp (pick + k, z + 11 k), one every `delay` ticks, into free slots */
+       TA_LOCK,                   /* arg: the camera stops at x = arg until every enemy on screen is beaten */
+       TA_MUSIC,                  /* arg: a driver command (MUS_*) */
+       TA_DRAMA,                  /* arg: a drama scene (gdramas index) */
+       TA_END };                  /* the stage is cleared (its enemies go down) */
+typedef struct {
+    uint8_t when, wave;           /* TW_*; the wave for TW_WAVE_CLEAR / TW_TIME */
+    int16_t at;                   /* camera x or ticks */
+    uint8_t action, n;            /* TA_*; TA_SPAWN: how many */
+    uint16_t arg, delay;          /* the action's argument; TA_SPAWN: ticks between two */
+    gspawn_t sp;                  /* TA_SPAWN: the first one (walk-in side in its flags) */
+} gtrigger_t;
+typedef struct {                  /* per stage, beside gstage_t (whose layout old packs keep) */
+    const gtrigger_t *trig;
+    uint8_t ntrig;                /* at most 32 */
+    uint8_t drama;                /* played as the boss walks in, before its song (0xFF: none) */
+    uint16_t pad;
+} gstagex_t;
+
+/* ---- drama mode (main.c drama_*): letterbox bars, the action held, a big portrait (portraits_big.h) and text ---- */
+#define DR_LINES 3                /* text lines a scene */
+#define DR_COLS  34               /* characters a line (fix columns 3-36) */
+typedef struct {
+    uint8_t portrait, side, nlines, pad;   /* PB_* (0xFF none); 0 left (mirrored), 1 right */
+    uint16_t wait, pad2;          /* ticks the scene stays once its text is out (then the next; a button skips) */
+    const char *speaker;          /* the name plate */
+    const char *line[DR_LINES];
+} gscene_t;
+typedef struct { uint8_t n, pad; uint16_t pad2; const gscene_t *scene; } gdrama_t;
+
 /* ---- layer 1: the select screen's group photo: slot places; sel_fighter[] = who stands there (0xFF: nobody) ---- */
 typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
 
@@ -87,7 +122,8 @@ typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
  * offset from the pack's start (0 = none); the game checks it (version, sizes, every offset and index), copies it into
  * its own RAM, turns the offsets into pointers and repoints gstages / genemies / ai_tab at the next safe point (a wave,
  * the boss, a stage start, the lab's enemy respawn). lab.load = 4: back to the ROM's tables (at the same point). ---- */
-#define GD_VERSION 3              /* 2 (2026-10-05): + the roster section; 3: + its voices part; older packs are still read */
+#define GD_VERSION 4              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
+                                     (header 20 bytes); older packs are still read (no triggers) */
 #define GD_MAX     4096           /* bytes, header included */
 typedef struct {
     char     magic[2];            /* "GD" */
@@ -101,14 +137,18 @@ typedef struct {
                                    * down+D, up+D: an index in its bchar_t.specials, 0xFF = none): fighter.c spec_tab;
                                    * version 3: then per fighter a big-endian uint16, the offset of its voice table
                                    * (VK_SPEC + nspec entries of [voice id, at], fighter.c voice_tab; 0 = the ROM's) */
+    uint16_t stagex;              /* version 4: offset of gstagex_t[nstages] (their triggers inside the pack); older
+                                   * packs end their header before this field */
 } gdpack_t;
-_Static_assert(sizeof(gdpack_t) == 18, "build_tables.py PACK_HEAD");
+_Static_assert(sizeof(gdpack_t) == 20, "build_tables.py PACK_HEAD");
+_Static_assert(sizeof(gtrigger_t) == 18 && sizeof(gstagex_t) == 8 && sizeof(gscene_t) == 24, "build_tables.py TRIG_SIZE / SX_SIZE");
 enum { GD_NONE, GD_PENDING, GD_INSTALLED, GD_ROM,            /* lab.pack_stat (game): waiting for the safe point; in use */
        GD_BAD = 0x80 };           /* | the check that failed (main.c gd_check) */
 
 /* ---- the live tables (main.c) ---- */
 extern const gstage_t *gstages;
 extern const genemy_t *genemies;
+extern const gstagex_t *gstagex;  /* the stages' triggers and boss scenes: the ROM's, or an installed pack's (version 4) */
 extern ai_preset_t ai_presets[];  /* the ROM's AI rows in RAM (a lab may poke them) */
 extern const ai_preset_t *ai_tab; /* the rows the AI reads: ai_presets, or an installed pack's */
 #endif
