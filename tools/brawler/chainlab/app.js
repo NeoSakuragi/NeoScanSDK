@@ -279,44 +279,108 @@
     return { move, weight: /atk_[ab]_/.test(move) ? 'light' : 'strong', effect: 'none', cancel: false };
   }
   function edited() { markDirty(); render(); }
+  // ---- card art: SVG glyphs (shape carries the meaning; colour only adds to it: Bruno reads on e-ink) -----------------
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = (w, hgt, body, cls) => { const e = document.createElementNS(NS, 'svg'); e.setAttribute('viewBox', `0 0 ${w} ${hgt}`);
+    e.setAttribute('width', w); e.setAttribute('height', hgt); if (cls) e.setAttribute('class', cls); e.innerHTML = body; return e; };
+  // the input that reaches a node: stick direction (-1/0/1 x, y; forward drawn right: P1 faces right) + buttons
+  const INPUT_GLYPH = { A: [0, 0, 'A'], B: [0, 0, 'B'], dA: [0, 1, 'A'], dB: [0, 1, 'B'], fA: [1, 0, 'A'], fB: [1, 0, 'B'],
+    dfA: [1, 1, 'A'], dfB: [1, 1, 'B'], AB: [0, 0, 'AB'], D: [0, 0, 'D'], fD: [1, 0, 'D'], dD: [0, 1, 'D'], uD: [0, -1, 'D'] };
+  const BTN_COL = { A: '#d01818', B: '#e8b800', C: '#139a2c', D: '#1f4fd0' };
+  function inputGlyph(key) {
+    const g = INPUT_GLYPH[key]; if (!g) return null;
+    const [dx, dy, btns] = g, c = 11, r = 7;
+    let st = `<circle cx="${c}" cy="${c}" r="10" fill="#fff" stroke="#000" stroke-width="1.5"/>`;
+    for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) {
+      const k = x && y ? 0.72 : 1, px = c + x * r * k, py = c + y * r * k;
+      if (x === dx && y === dy) continue;
+      st += `<circle cx="${px}" cy="${py}" r="1.3" fill="#000"/>`;
+    }
+    const k = dx && dy ? 0.72 : 1, hx = c + dx * r * k, hy = c + dy * r * k;
+    if (dx || dy) st += `<line x1="${c}" y1="${c}" x2="${hx}" y2="${hy}" stroke="#000" stroke-width="2.4"/>`;
+    st += `<circle cx="${hx}" cy="${hy}" r="3.6" fill="#000"/>`;
+    let bt = '';
+    'ABCD'.split('').forEach((b, i) => {
+      const on = btns.includes(b), x = 7 + i * 14;
+      bt += on ? `<circle cx="${x}" cy="11" r="6.5" fill="${BTN_COL[b]}" stroke="#000" stroke-width="2"/><text x="${x}" y="14.5" text-anchor="middle" font-size="9.5" font-weight="700" fill="#000" font-family="sans-serif">${b}</text>`
+               : `<circle cx="${x}" cy="11" r="6" fill="#fff" stroke="#999" stroke-width="1"/><text x="${x}" y="14.3" text-anchor="middle" font-size="8.5" fill="#999" font-family="sans-serif">${b}</text>`;
+    });
+    return h('span', { class: 'glyph', title: 'input: ' + IN_LABEL[key] }, svg(22, 22, st), svg(56, 22, bt));
+  }
+  const ICON = {             // 14 x 14, black line art, each a different shape
+    frames: '<circle cx="7" cy="7" r="5.6" fill="none" stroke="#000" stroke-width="1.6"/><path d="M7 3.5V7l2.6 1.6" fill="none" stroke="#000" stroke-width="1.6"/>',
+    light: '<path d="M2 12 C5 8 8 4 12 2 C11 6 8 10 2 12Z" fill="none" stroke="#000" stroke-width="1.4"/>',                 // feather
+    strong: '<rect x="1" y="5" width="2.6" height="4" fill="#000"/><rect x="10.4" y="5" width="2.6" height="4" fill="#000"/><rect x="3.6" y="3" width="2" height="8" fill="#000"/><rect x="8.4" y="3" width="2" height="8" fill="#000"/><rect x="5.6" y="6.2" width="2.8" height="1.6" fill="#000"/>',   // dumbbell
+    none: '<circle cx="7" cy="2.6" r="1.8" fill="#000"/><path d="M7 4.5V9M7 9l-2.5 4M7 9l2.5 4M4 6.5h6" stroke="#000" stroke-width="1.5" fill="none"/>',   // standing figure
+    knockdown: '<circle cx="2.6" cy="10" r="1.8" fill="#000"/><path d="M4.5 10H12M8 10l-1.5-3M10 10l1.5-3" stroke="#000" stroke-width="1.5" fill="none"/><path d="M1 13h12" stroke="#000" stroke-width="1"/>',   // lying figure
+    launch: '<path d="M7 13V2M3 6l4-4 4 4" stroke="#000" stroke-width="1.8" fill="none"/>',                                        // up arrow
+    trip: '<path d="M2 11 Q7 14 12 8M10 8h2.3v2.3" stroke="#000" stroke-width="1.6" fill="none"/><path d="M1 5h4" stroke="#000" stroke-width="1.5"/>',   // sweep curve
+    blowback: '<path d="M2 7h10M8.5 3.5 12 7l-3.5 3.5" stroke="#000" stroke-width="1.8" fill="none"/><path d="M1 3.5h3M1 10.5h3" stroke="#000" stroke-width="1.2"/>',   // arrow + speed lines
+    damage: '<path d="M7 1l1.5 3.6L12.5 3l-1.8 3.6L13 9l-3.8-.2L8.5 13 7 9.6 5.2 13 4.6 8.8 1 9l2.4-2.5L1.5 3l3.9 1.6Z" fill="#000"/>',   // burst
+    cancel: '<rect x="1.3" y="4.5" width="6.4" height="5" rx="2.5" fill="none" stroke="#000" stroke-width="1.6"/><rect x="6.3" y="4.5" width="6.4" height="5" rx="2.5" fill="none" stroke="#000" stroke-width="1.6"/>',   // chain links
+    toend: '<path d="M1.5 7h8M6.5 3.5 10 7l-3.5 3.5" stroke="#000" stroke-width="1.6" fill="none"/><path d="M12 2.5v9" stroke="#000" stroke-width="2"/>' };   // arrow to a stop bar
+  const icon = n => svg(14, 14, ICON[n], 'ic');
+  const EFFECT_NAME = { none: 'stands', knockdown: 'knockdown', launch: 'launch', trip: 'trip', blowback: 'blowback' };
+  function art(move, big) {           // the move's first impact frame (moves/<fighter>.png), scaled to the art box
+    const P = data.pics && data.pics[F[fi].name], c = P && P.moves[move] && P.moves[move][0];
+    if (!c) return h('div', { class: 'art empty' }, '—');
+    const H = 86, k = 102 / P.h, W = Math.min(Math.ceil(c.w * k), 204);   // the sheet's top fifth (tallest frames' heads) may crop
+    return h('div', { class: 'art', style: `width:${W}px;height:${H}px;background-image:url(${P.sheet});` +
+      `background-size:${P.w * k}px ${P.h * k}px;background-position:${-c.x * k + (W - c.w * k) / 2}px ${H - P.h * k}px` });
+  }
+  function popover(anchor, build) {   // a small box under the stat that was tapped; any tap elsewhere closes it
+    document.querySelectorAll('.pop').forEach(p => p.remove());
+    const pop = h('div', { class: 'pop' }); build(pop, () => pop.remove());
+    anchor.closest('.card').append(pop);
+    setTimeout(() => addEventListener('pointerdown', function off(e) { if (!pop.contains(e.target)) { pop.remove(); removeEventListener('pointerdown', off, true); } }, true));
+  }
   function card(nd, parent, key, idxMap, air) {
     const idx = idxMap.get(nd);
-    if (nd.special !== undefined) {
-      const kof = F[fi].specials[nd.special];
-      return h('div', { class: 'card special', 'data-idx': idx },
-        h('div', { class: 't' }, h('span', {}, SPECIAL_LABEL[nd.special]), h('span', { class: 'res' })),
-        h('div', { class: 'fd' }, kof ? 'KOF ' + kof + ' (route ender)' : 'none: the nearest special plays'),
-        h('div', { class: 'acts' }, h('button', { onclick: () => { delete parent.links[key]; edited(); } }, 'Delete')));
-    }
-        const [dd, dp] = CL.defaultDamage(nd);
-    const num = (field, def) => h('input', { type: 'number', value: nd[field] !== undefined ? nd[field] : '', placeholder: String(def),
-      onchange: ev => { const v = ev.target.value; if (v === '') delete nd[field]; else nd[field] = Number(v); edited(); } });
     const acts = [];
-    const free = freeInputs(nd);
-    if (!air && free.length)
-      acts.push(sel([['', '+ link'], ...free.map(k => [k, 'on ' + IN_LABEL[k]])], '', k => { if (!k) return; nd.links = nd.links || {}; nd.links[k] = newChild(k); edited(); }));
     if (parent) {
       const keys = Object.keys(parent.links), i = keys.indexOf(key);
       const move = (d) => { const j = i + d; if (j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; const o = {}; for (const k of keys) o[k] = parent.links[k]; parent.links = o; edited(); };
       acts.push(h('button', { onclick: () => move(-1), title: 'move up' }, '↑'), h('button', { onclick: () => move(1), title: 'move down' }, '↓'),
         h('button', { onclick: () => { delete parent.links[key]; edited(); }, title: 'delete this hit and its links' }, '✕'));
     }
+    if (nd.special !== undefined) {
+      const kof = F[fi].specials[nd.special];
+      return h('div', { class: 'card special', 'data-idx': idx },
+        h('span', { class: 'res' }),
+        h('div', { class: 'hd' }, inputGlyph(key)),
+        h('div', { class: 'name' }, SPECIAL_LABEL[nd.special]),
+        h('div', { class: 'sp' }, kof ? 'KOF ' + kof : 'none: the nearest special plays', h('br'), 'route ender'),
+        h('div', { class: 'acts' }, acts));
+    }
+    const free = freeInputs(nd);
+    if (!air && free.length)
+      acts.unshift(sel([['', '+'], ...free.map(k => [k, 'on ' + IN_LABEL[k]])], '', k => { if (!k) return; nd.links = nd.links || {}; nd.links[k] = newChild(k); edited(); }));
+    const [dd, dp] = CL.defaultDamage(nd);
     const dmg = nd.damage !== undefined ? nd.damage : dd, push = nd.push !== undefined ? nd.push : dp;
+    const d = fd(nd.move), w = nd.weight || 'light', eff = nd.effect || 'none';
+    const pick = () => air ? null : picker(nd.move, v => { nd.move = v; edited(); });
+    const stat = (ic, text, title, onclick) => h('button', { class: 'st', title, onclick }, icon(ic), h('span', {}, text));
+    const num = (field, def) => h('input', { type: 'number', value: nd[field] !== undefined ? nd[field] : '', placeholder: String(def),
+      onchange: ev => { const v = ev.target.value; if (v === '') delete nd[field]; else nd[field] = Number(v); edited(); } });
     return h('div', { class: 'card', 'data-idx': idx },
-      h('div', { class: 't' },
-        air ? h('span', {}, MOVE_LABEL[nd.move] || nd.move)
-            : h('button', { class: 'pick', title: 'choose the move (pictures)', onclick: () => picker(nd.move, v => { nd.move = v; edited(); }) }, (MOVE_LABEL[nd.move] || nd.move) + ' ▸'),
-        h('span', { class: 'res' })),
-      h('div', { class: 'fd' }, fdText(nd.move), ' ', h('span', { class: 'bar' }, fdBar(nd.move))),
-      h('div', { class: 'f2' },
-        sel(CL.WEIGHTS.map(w => [w, w + ' hit']), nd.weight || 'light', v => { nd.weight = v; edited(); }),
-        sel(CL.EFFECTS.map(w => [w, w === 'none' ? 'no effect' : w]), nd.effect || 'none', v => { nd.effect = v; edited(); })),
-      h('div', { class: 'f2' },
-        h('button', { class: 'tog' + (nd.cancel ? ' on' : ''), title: 'on hit: cancel into the next link / play the move to its end',
-          onclick: () => { nd.cancel = !nd.cancel; edited(); } }, nd.cancel ? 'cancel on hit' : 'plays to end'),
-        h('details', {}, h('summary', {}, `${dmg} dmg · push ${push}`),
-          h('div', { class: 'adv' }, h('label', {}, 'damage ', num('damage', dd)), h('label', {}, 'push px ', num('push', dp))))),
-      acts.length ? h('div', { class: 'acts' }, acts) : null);
+      h('span', { class: 'res' }),
+      h('div', { class: 'hd' }, inputGlyph(key),
+        h('button', { class: 'name', title: air ? '' : 'choose the move (pictures)', onclick: pick }, (MOVE_LABEL[nd.move] || nd.move) + (air ? '' : ' ▸'))),
+      h('button', { class: 'artb', title: air ? '' : 'choose the move (pictures)', onclick: pick }, art(nd.move),
+        h('span', { class: 'bar', title: 'the move frame by frame: █ active' }, fdBar(nd.move))),
+      h('div', { class: 'mods' },
+        h('div', { class: 'mrow' },
+          h('button', { class: 'st fr', title: 'startup / active / recovery = total frames (tap: choose the move)', onclick: pick }, icon('frames'),
+            h('span', {}, d ? `${d.startup}/${d.active}/${d.recovery} ${d.total}f` : '-')),
+          h('span', { class: 'acts' }, acts)),
+        h('div', { class: 'mrow' },
+          stat(w, w, 'hit weight (tap: light / strong)', () => { nd.weight = w === 'light' ? 'strong' : 'light'; edited(); }),
+          stat(eff, EFFECT_NAME[eff], 'effect on the victim (tap: choose)', ev => popover(ev.currentTarget, (pop, close) =>
+            pop.append(...CL.EFFECTS.map(e => h('button', { class: 'st' + (e === eff ? ' cur' : ''), onclick: () => { close(); nd.effect = e; edited(); } }, icon(e), h('span', {}, EFFECT_NAME[e])))))),
+          stat('damage', String(dmg), 'damage (tap: damage and push)', ev => popover(ev.currentTarget, pop =>
+            pop.append(h('label', {}, 'damage ', num('damage', dd)), h('label', {}, 'push px ', num('push', dp)), h('div', { class: 'note' }, 'empty = default from weight / effect')))),
+          stat(nd.cancel ? 'cancel' : 'toend', nd.cancel ? 'cancel' : 'end', 'on hit: cancel into the next link / play the move to its end (tap: switch)', () => { nd.cancel = !nd.cancel; edited(); }))),
+    );
   }
   // the move picker: every move the fighter has, as its impact frame(s) drawn from the game's own data (make_site.py,
   // move_images.py), its name and frame data; the current one marked (thick border + "current")
