@@ -339,6 +339,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 68. Brawler Lab for Samurai Shodown IV fighters: the pose picker (char_images.CANDIDATES has no samsho4 list: Haohmaru
   is skipped), check move / special / enemy pictures for samsho4 banks; Haohmaru's SS4 voices (voices.py covers KOF only).
 
+- [ ] 69. Specials from the ROM for everyone: extend tools/kof96/handlers98.py (loops, ROM state tables, inlined
+  per-fighter subroutines, owner-watching effects, compare / random branches; est. 60-70 % of KOF98's 415 handlers),
+  then KOF96 / KOF99 routine addresses; the captured scripts stay the fallback (Vulcan Punch, command grabs, supers).
+  Proof per fighter as romspecials_check.py does (0 frame mismatches whiff + hit). Terry + Ralf done in 0.0.37.
+
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.
