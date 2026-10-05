@@ -520,7 +520,9 @@ static void throw_update(fighter_t *f) {
  * role the move started with) or both, inside its window (script rows [lo, hi)), and switches to its part at once
  * (LK_NOW) or when the current part ends. A new part plays from where the fighter is. Kim's 236C (236C again: 98, again:
  * 9A), [2]8C (down+A on hit: the dive), 421A / 6246A (the hit's sequence), the KOF continuations (Geese's Jaei-ken,
- * Kyo's grab + explosion: a hit before `cont` jumps there now, a whiff ends there). */
+ * Kyo's grab + explosion: a hit before `cont` jumps there now, a whiff ends there). A special read from the ROM decides
+ * in its program (TODO #74: Iori's 214A, K''s 236C / 623C): a press of link k sets spend bit k, the program's P_CHECK
+ * (the frames the game's handler reads its input) arms it into plink, PC_LINK branches on it, P_PART clears it. */
 enum { LK_HIT = 1, LK_IN = 2, LK_NOW = 1, LK_AGAIN = 0xFE, LK_ANY = 0xFF };
 static void part_go(fighter_t *f, const bspec_t *sp, uint8_t k) {   /* part k from here; 0xFF: past the script (over) */
     f->sarm = 0;
@@ -538,6 +540,11 @@ static void special_input(fighter_t *f, const intent_t *in) {    /* a press duri
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     uint16_t row = f->srow ? f->srow - 1 : 0;
     uint8_t k;
+    if (sp->prog) {                                              /* a ROM special: its program reads the press (P_CHECK)
+                                                                    on the frames the game's handler calls its check */
+        for (k = 0; k < sp->nlinks && k < 8; k++) if (link_in(f, &sp->links[k], in)) f->spend |= 1 << k;
+        return;
+    }
     for (k = 0; k < sp->nlinks; k++) {
         const bslink_t *l = &sp->links[k];
         if (l->from != f->spart || !(l->trig & LK_IN) || row < l->lo || row >= l->hi) continue;
@@ -579,7 +586,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->spec_id = k; f->spec_ix = spec_ix(f->ch, k); f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
-    f->spart = 0; f->sarm = 0; f->shrow = 0;                     /* its first part, no follow-up armed, no hit */
+    f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = 0;   /* its first part, no follow-up armed, no hit */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
@@ -766,8 +773,11 @@ static void pan_advance(fighter_t *f) {
     f->pleft = f->pan->steps[f->pstep].ticks + 1;
     pan_enter(f, prev);
 }
-static uint8_t pcond(fighter_t *f, uint8_t c) {
+static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     switch (c) {
+    case PC_STEPEV: return f->pan->steps[f->pstep].flags & 8 ? 1 : 0;   /* the step has KOF's $0080 (tst, not consumed) */
+    case PC_WINDOW: return f->pan->steps[f->pstep].flags & 32 ? 1 : 0;  /* the step has KOF's $2000 (+$7C bit 5) */
+    case PC_LINK: return f->plink & v ? 1 : 0;                   /* a follow-up of these links was pressed in the part */
     case PC_END: return f->pflags & PF_END ? 1 : 0;
     case PC_EVENT: { uint8_t e = f->pflags & PF_EVENT ? 1 : 0; f->pflags &= ~PF_EVENT; return e; }
     case PC_LAND: return f->pflags & PF_LAND ? 1 : 0;
@@ -818,7 +828,7 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_NUDGE: f->x += dir_mul(f->facing, FIX(p->b)); f->y += FIX(p->v); clamp(f); break;
         case P_DEC: f->pcnt--; break;
         case P_BR:
-            if (pcond(f, p->a & 0x7F) == (p->a >> 7)) {
+            if (pcond(f, p->a & 0x7F, p->v) == (p->a >> 7)) {
                 if (p->b < 0) goto frame_done;
                 f->ppc = p->b;
             }
@@ -828,10 +838,14 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_JMP: f->ppc = p->b; break;
         case P_SPAWN: prog_spawn(f, &sp->robj[p->a]); break;
         case P_FXOFF: prog_fxoff(f); break;
+        case P_ADV: pan_advance(f); break;                       /* the engine called again on the same state: one more step tick */
+        case P_CHECK: f->plink |= f->spend & p->a; break;        /* the follow-up check: this frame's presses of links a */
+        case P_PART: f->plink = 0; break;                        /* the handler cleared its request: a new part */
         default: prog_end(f); return;                            /* P_END */
         }
     }
 frame_done:
+    f->spend = 0;                                                /* a press counts on the frame it is read */
     for (n = 0; n < 2; n++) {                                    /* its pinned effects follow this frame's move */
         fighter_t *p = f->proj[n];
         if (p && p->pdef && p->pdef->follow) { p->throw_x0 = f->x; p->facing = f->facing; proj_row(p); }

@@ -100,13 +100,13 @@ The decoder stays one walk; what it learned:
 
 Census now: 157 of KOF98's 415 handlers decode with nothing unknown (the census also counts effects watching their
 owner, which export anyway). Played from the ROM in the brawler (`ROM_SPECIALS`, `ROM_GAME`): 65 of the roster's KOF
-slot specials (46 KOF98, 19 KOF96; with Terry 236C / Ralf [4]6C 67 programs), each 0 frame mismatches against the game, whiff and hit
+slot specials (46 KOF98, 19 KOF96; since #73 / #74 also Billy 214B, Iori 214A, K''s six (KOF99): 73; with Terry 236C / Ralf [4]6C 67 programs), each 0 frame mismatches against the game, whiff and hit
 (`../brawler/romspecials_check.py`, /data/tmp/romspec69/out). Still captured scripts: Ralf AAAA (Vulcan Punch, mash
 loop), EX Ryo 646A / Robert EX 646D (they place the opponent: `$25032`, a hold), Robert 426B / Billy CCCC / Iori MAX
-23624D (no handler capture), Kyo 421B (`addi` on height), Kyo EX 421D / Iori 214A / Goenitz 214C / Geese 63214A/C (frame
+23624D (no handler capture), Kyo 421B (`addi` on height), Kyo EX 421D / Goenitz 214C / Geese 63214A/C (frame
 drift not found yet), Billy 623D (`cmp` on speed), Iori 624B (`$1603A` / `$16AC0`), Iori 623C (a state list read through `a1`),
 Yamazaki 214A, Rugal 624A / 6426A/C (compares, ROM tables through `d0`), Krauser 623B/D (allocates an object itself,
-`$2BB8`), K' (all six: KOF99 routines mapped, his follow-up yields and 214D's drift left), every fury (supers: super
+`$2BB8`), every fury (supers: super
 flash, stock, `cmp` / `$E4` branches).
 
 ## What did not fit primitives
@@ -125,3 +125,22 @@ flash, stock, `cmp` / `$E4` branches).
   (Rising Tackle, Bakudan Punch: 286 on every hit) or the default (the last hit knocks down). Proof
   `../brawler/romspecials_check.py` (victim x / height per frame against these traces).
 - Supers / MAX (super flash, stock spend) not tried.
+
+## Follow-ups read from the ROM (TODO #74, 2026-10-06)
+Iori's 214A/C Aoi Hana (KOF98 `$70E42`) and K''s 236A/C Ein Trigger (`$38F22`) / 623C Crow Bites (`$393A0`, KOF99)
+continue on more input. The decoder now models the input check itself (`FOLLOW_CHECKS`): Iori's `$710F2` (214 + A or C
+latches `+$D1` bit 7; `FOLLOW_LATCH`: the handler tests the bit, `andi #$7F` clears it at each part start = `('part',)`),
+KOF99's `$1ADBE` (forward + B or D this frame: d0, d1 bit 7 = D). The check becomes `('check', mask)`, the tests
+`('br', 'link:<mask>', ...)`; link bit k = `FOLLOW_INPUTS` (Iori 'again' = up-forward + A+B, the slot; K' 'fA' = forward
++ A for B, 'fAB' = forward + A+B for D). Brawler: `P_CHECK` (this frame's presses of those links join `fighter_t.plink`),
+`PC_LINK`, `P_PART`; `special_input` sets `spend` from the `bslink_t` inputs. Also new: `('adv',)` (the animate call on
+the state already playing advances it: K' 214D's fall, KOF99 `$446A` compares +$72 / +$78), `evstep` (`tst.b +$7D`:
+the current step has $0080, not consumed; Iori's event), `window` (`+$7C` bit 5 = step flag $2000: K''s follow-up
+window), `jmp (a0)` after `move.l X, (a4)` = X in the same frame (Iori's part switch through +$36, now part of the
+walk's place key), the KOF99 object yield `$12366` (K''s projectiles: the blocker of all six of his slots).
+Brute force in our emulator (`../brawler/followups_proof.py` part A, 184 runs): the handler reads a press 4 (KOF98) / 5
+(KOF99) game ticks after its button (`FOLLOW_LAG`), on exactly the frames it calls the check: Iori presses 3..19 of part
+1 (switch at its event step, frame 9, or at a later press + 4, or at its end 23), 11..27 for part 3 after a press at 5;
+K' 236C presses 7..21 (the $2000 steps 11..25 + 1: the check reads the step flags of the frame before; the switch at
+the animation's end, B -> 134, D -> 135), 623C 13..30 (the rise, until the apex: C version only, 146 / 147). Every other
+button / direction changes nothing. With a hit, KOF99's slowdown frames can move a window edge by a frame.

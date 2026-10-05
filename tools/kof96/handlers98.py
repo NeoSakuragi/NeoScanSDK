@@ -29,7 +29,10 @@ button / facing / EX flag concrete (the facing is right: forward speeds come out
   ('land',) $15F2C landing dust, ('follow',) $24A02 an effect pinned to its owner, ('inflight',) / ('release',)
   $24A7C / $24A5E the one-projectile-in-flight bit (owner +$E1 bit 5), ('flag', ...) other field writes, ('call', a)
   an unknown routine.
+  ('adv',)                      the animate call on the state already playing: one more step tick
+  ('check', mask) / ('part',)   a follow-up input check (FOLLOW_CHECKS) / the request cleared (a new part)
 Conditions: 'end' (animation over, +$7C bit 7), 'event' (+$7D bit 7: a step with flag $0080 was entered; consumed),
+'evstep' (tst.b +$7D: the step has $0080), 'window' (+$7C bit 5: $2000), 'link:<mask>' (a follow-up link armed),
 'land' (the last fall landed), 'falling' (vy < 0 after the last fall), 'cnt' (the counter went negative), 'off'
 (off screen, $180B6), 'hit' (+$E1 bit 7: this attack connected), 'input' (a button pressed again: mash loops).
 
@@ -66,8 +69,20 @@ ROUTINES99 = {0x1F5BC: 'init', 0x1F5C2: 'init', 0x6352: 'sound', 0xFF84: 'gauge'
               0x1FE3E: 'clrinput', 0x1FFB2: 'flags', 0x200A8: 'end', 0x1F7B4: 'fricmove', 0x10BE2: 'voice', 0x14C14: 'trail',
               0x1ADBE: 'zero', 0x1FA32: 'zero'}   # zero: a follow-up / cancel input check: none (returns d0 = 0)
 GAME_ROUTINES = {'kof98': ROUTINES, 'kof96': ROUTINES96, 'kof99': ROUTINES99}
-YIELD2 = {'kof98': (0x16F98, 0x1718E), 'kof96': (0x11A54, 0x11C16), 'kof99': (0x12092,)}   # the yield routine's call after animate
-TEST_FIELDS = {0x7C: 'end', 0x7D: 'event', 0xE1: 'hit'}
+YIELD2 = {'kof98': (0x16F98, 0x1718E), 'kof96': (0x11A54, 0x11C16), 'kof99': (0x12092, 0x12366)}   # the yield routine's call after animate
+TEST_FIELDS = {0x7C: 'end', 0x7D: 'evstep', 0xE1: 'hit'}   # tst.b +$7D: the current step has $0080 (not consumed; bclr is 'event')
+# Follow-up inputs (TODO #74): the routines a handler calls to read the player's follow-up command, by game. 'latch' (KOF98
+# Iori 214A/C $710F2: 214 + A or C sets +$D1 bit 7, the handler tests the bit; FOLLOW_LATCH names the handlers and the
+# field), 'fwdBD' (KOF99 $1ADBE: forward + B or D this frame -> d0 non-zero, d1 bit 7 = D; K' 236A/C and 623C). Each
+# becomes ('check', mask): the brawler's link presses seen this frame (bit k = FOLLOW_INPUTS[kind][k]) join the move's
+# armed set, and the tests become ('br', 'link:<mask>', ...) on that set; ('part',) = the handler clears its request (a
+# new part: the armed set empties). Brute force in our emulator (capture/followups98.py): the handler sees a press
+# FOLLOW_LAG frames after its button frame (KOF98 4, KOF99 5: the games' input paths), on exactly the frames it calls
+# the check (Iori: every frame of the part from its second; K': the steps with $2000, +$7C bit 5 'window').
+FOLLOW_CHECKS = {'kof98': {0x710F2: 'latch'}, 'kof99': {0x1ADBE: 'fwdBD'}}
+FOLLOW_LATCH = {('kof98', 0x70E42): 0xD1}
+FOLLOW_INPUTS = {'latch': ['again'], 'fwdBD': ['fA', 'fAB']}      # the brawler's press per link bit (export_bm link_c)
+FOLLOW_LAG = {'kof98': 4, 'kof99': 5}
 
 class Decoder:
     def __init__(self, m):
@@ -154,6 +169,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
                         (0x170, 0, 1), (0x1AC, 0, 4)] + list(fields or []):
         F.put(off, v, sz_)
     D = {}; A0 = None; ops = []; objects = []; seen = set(); cc = None
+    latch = FOLLOW_LATCH.get((dec.game, addr)) if depth == 0 else None; res_val = [None]; follow = [None]
     cnt_field = None; work = [addr]; pending_child = None
     def emit(a, *op): ops.append((a, op))
     def flush_child():
@@ -197,7 +213,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
     # a call into the fighter's own code (a follow-up check, a shared part) is walked inline: an op's place also
     # carries the return addresses
     def K(t): return (t, tuple((o_, F.get(o_, s_)) for o_, s_ in sorted(loopvars.items())) +   # (+ the scratch fields
-                      tuple(F.b.get(o_) for o_ in range(0xC2, 0xE0)), tuple(stack))        # $C2-$DF: states, speeds)
+                      tuple(F.b.get(o_) for o_ in list(range(0xC2, 0xE0)) + [0x36, 0x37, 0x38, 0x39]),   # $C2-$DF: states,
+                      tuple(stack))                  # speeds; +$36: the next part's code, Iori's 214A)
     def push(t): work.append((K(t), dict(F.b), dict(F.k), dict(D), A0, dict(loopvars), list(stack)))
     while budget:
         budget -= 1
@@ -217,7 +234,15 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
         if mn == 'jsr' or mn == 'jmp':
             mt = re.match(r'^%pc@\((0x[0-9a-f]+)\)$', o[0])
             t = imm(o[0]) if o[0].startswith('0x') else int(mt.group(1), 16) if mt else None
-            if t is None and o[0] == '%a0@': emit(a, 'jmp', 'resume'); a = None; continue
+            if t is None and o[0] == '%a0@':
+                if isinstance(A0, tuple) and A0[0] == 'res' and isinstance(A0[1], int): a = A0[1]; continue   # move.l X, (a4);
+                emit(a, 'jmp', 'resume'); a = None; continue                    # movea.l (a4), a0; jmp (a0): X now
+            fk = FOLLOW_CHECKS.get(dec.game, {}).get(t)
+            if fk and mn == 'jsr':                                              # a follow-up input check
+                follow[0] = fk
+                if fk == 'latch': emit(a, 'check', 1)
+                else: emit(a, 'check', 3); D['%d0'] = ('link', 3); cc = ('link:3', 'Zinv'); D['%d1'] = ('linkd1',)
+                a = nx; continue
             name = dec.R.get(t)
             if mn == 'jmp' and dec.is_yield(t): emit(a, 'br', None, True, 'yield'); a = None; continue
             if name == 'end': emit(a, 'end'); a = None; continue
@@ -227,7 +252,11 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
                 stack.append(nx); a = t; continue
             if name == 'sound': emit(a, 'sound', D.get('%d0'))
             elif name == 'gauge': emit(a, 'gauge', F.get(0x1DE, 2))
-            elif name == 'animfn': emit(a, 'anim', F.get(0x72, 2))
+            elif name == 'animfn':                     # the engine restarts the animation when the state (+$72) differs
+                st_ = F.get(0x72, 2)                       # from the one playing (+$78; -1 forces it), else advances it
+                if st_ is not None and F.get(0x78, 2) is not None and F.get(0x78, 2) == st_: emit(a, 'adv')
+                else: emit(a, 'anim', st_)
+                F.put(0x78, st_, 2)
             elif name == 'fall': emit(a, 'fall'); cc = ('land', 'Z'); D['%d1'] = ('falling',)
             elif name == 'mulfn': D['%d0'] = ('mul', D.get('%d0'), (D.get('%d1') or 0) & 0xFFFF)
             elif name == 'fricmove': emit(a, 'fricmove')
@@ -283,7 +312,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
         if base in ('tst',):
             f = field(o[0])
             f0 = field(o[0], 'a0')
-            if f0 is not None and A0 == 'owner': cc = ({0xD1: 'owner_fxoff'}.get(f0, f'owner_{f0:X}'), 'N')
+            if latch is not None and f == latch and sz == 1: cc = ('link:1', 'N')   # the follow-up request (bit 7)
+            elif f0 is not None and A0 == 'owner': cc = ({0xD1: 'owner_fxoff'}.get(f0, f'owner_{f0:X}'), 'N')
             elif f is not None and f in TEST_FIELDS: cc = (TEST_FIELDS[f], 'N')
             elif f is not None and F.get(f, sz) is not None: cc = ('val', F.get(f, sz))
             elif f is not None and sz == 1 and F.bit(f, 7) is not None: cc = ('valn', -F.bit(f, 7), 'f%X' % f)
@@ -293,7 +323,9 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
             a = nx; continue
         if mn == 'btst':
             b = imm(o[0]); f = field(o[1])
-            if f is not None and b < 8 and F.bit(f, b) is not None: cc = ('val', F.bit(f, b))
+            if o[1] == '%d1' and b == 7 and D.get('%d1') == ('linkd1',): cc = ('link:2', 'Zinv')   # fwdBD: D, not B
+            elif f == 0x7C and b == 5: cc = ('window', 'Zinv')             # the current step has $2000 (a follow-up window)
+            elif f is not None and b < 8 and F.bit(f, b) is not None: cc = ('val', F.bit(f, b))
             elif o[1].startswith('%fp@') or field(o[1], 'a3') is not None: cc = ('val', 0 if resumed[0] else 1)
             elif field(o[1], 'a0') is not None and A0 == 'owner': cc = (f'owner_{field(o[1], "a0"):X}.{b}', 'Zinv')
             else: cc = ('f%X.%d' % (f if f is not None else -1, b), 'Zinv')
@@ -309,7 +341,9 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
             if not dst.startswith('%a') or dst.startswith('%a4@') or dst.startswith('%a1@'):   # move sets N / Z
                 cc = ('val', v) if isinstance(v, int) else (f'mv{src}', 'N')
             if dst == '%a0' and field(src) == 0x84: A0 = 'owner'; a = nx; continue
+            if dst == '%a0' and src == '%a4@': A0 = ('res', res_val[0]); a = nx; continue
             if dst == '%a0' and field(src) is not None: A0 = v if isinstance(v, int) else None; a = nx; continue
+            if dst == '%a4@': res_val[0] = v if isinstance(v, int) else None
             if dst == '%a4@' and isinstance(v, int):                      # move.l #R, (a4): the resume point
                 if v == nx: emit(a, 'resume')
                 else: emit(a, 'resume_at', K(v)); push(v)
@@ -375,7 +409,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
         if base in ('ori', 'andi', 'or', 'and'):
             fd = field(o[1]); v = imm(o[0])
             if fd is not None:
-                if fd == 0xD1 and base == 'ori' and v & 0x80: emit(a, 'fxoff')
+                if latch is not None and fd == latch and base == 'andi' and not v & 0x80: emit(a, 'part')   # request cleared
+                elif fd == 0xD1 and base == 'ori' and v & 0x80: emit(a, 'fxoff')
                 elif fd in (0x7C, 0x7D) and base == 'andi': pass
                 if F.get(fd, sz) is not None: F.put(fd, (F.get(fd, sz) | v) if base.startswith('or') else (F.get(fd, sz) & v), sz)
                 elif sz == 1 and isinstance(v, int): F.setbits(fd, 'or' if base.startswith('or') else 'and', v & 0xFF)
@@ -395,7 +430,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
         keep = [(o_, F.get(o_, 2), 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8) if F.get(o_, 2) is not None]
         hit = decode(m, hr, button, ex, keep + [(0x50, F.get(0x50, 4), 4), (-1, 0, 1)], dec, depth + 1)
     prune(ops, pos)
-    return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1),
+    return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1), 'follow': follow[0],
             'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8)}}
 
 def prune(ops, pos):
@@ -411,10 +446,10 @@ def prune(ops, pos):
             elif op[0] == 'jmp' and isinstance(op[1], tuple) and op[1] in pos: i = pos[op[1]]
             else: return i
         return i
-    clean = {None, 'end', 'event', 'land', 'falling', 'cnt', 'off', 'hit', 'owner_fxoff'}
+    clean = {None, 'end', 'event', 'evstep', 'window', 'land', 'falling', 'cnt', 'off', 'hit', 'owner_fxoff'}
     for _ in range(4):
         for i, (a, op) in enumerate(ops):
-            if op[0] == 'br' and op[1] not in clean and op[3] != 'yield' and op[3] in pos and lands(i + 1) == lands(pos[op[3]]):
+            if op[0] == 'br' and op[1] not in clean and not str(op[1]).startswith('link:') and op[3] != 'yield' and op[3] in pos and lands(i + 1) == lands(pos[op[3]]):
                 ops[i] = (a, ('flag', 'pruned', op[1]))
 
 def show(d, ind=''):
@@ -458,6 +493,9 @@ class Obj:
         self.state = None; self.steps = None; self.step = 0; self.left = 0; self.done = False; self.event = False
         self.landed = False; self.falling = False; self.hit = False; self.over = False; self.spawned = []; self.mode = 'hold'
         self.fxoff = False; self.owner = None; self.off = False
+        self.presses = {}; self.f = 0; self.links = 0            # follow-ups: {frame: link bits seen then}, the armed set,
+        self.switch = False; self.parts = [[]]                   # the states per part (a taken link branch: the next anim
+                                                                 # starts a part)
     def play(self, st):
         self.state = st
         self.steps, self.mode = rom96.parse_anim(self.m, rom96.anim_addr(self.m, self.cid, rom96.state_slot(self.m, self.cid, st)))
@@ -486,6 +524,9 @@ class Obj:
         if c == 'off': return self.off
         if c == 'hit': return self.hit
         if c == 'owner_fxoff': return self.owner is not None and self.owner.fxoff
+        if c == 'evstep': return self.steps is not None and bool(self.steps[self.step][2] & 0x80)
+        if c == 'window': return self.steps is not None and bool(self.steps[self.step][2] & 0x2000)
+        if isinstance(c, str) and c.startswith('link:'): return bool(self.links & int(c[5:]))
         return False
     def frame(self, cam=0):
         """one frame of handler code; returns at the yield"""
@@ -494,7 +535,10 @@ class Obj:
             n += 1
             if n > 500: raise RuntimeError('no yield')
             op = self.ops[self.pc]; k = op[0]; self.pc += 1
-            if k == 'anim': self.play(op[1])
+            if k == 'anim':
+                self.play(op[1])
+                if self.switch: self.parts.append([]); self.switch = False
+                if op[1] not in self.parts[-1]: self.parts[-1].append(op[1])
             elif k == 'set':
                 if op[1] == 'vx': self.vx = op[2]
                 elif op[1] == 'vy': self.vy = op[2]
@@ -515,6 +559,7 @@ class Obj:
             elif k == 'resume_at': self.resume = self.prog['pos'][op[1]]
             elif k == 'br':
                 take = True if op[1] is None else (self.cond(op[1]) == op[2])
+                if take and isinstance(op[1], str) and op[1].startswith('link:') and op[2]: self.switch = True
                 if take:
                     if op[3] == 'yield': self.pc = self.resume; return
                     self.pc = self.prog['pos'][op[3]]
@@ -524,19 +569,23 @@ class Obj:
             elif k == 'spawn': self.spawned.append((op[1], op[2], op[3]))
             elif k in ('end', 'free', 'rts'): self.over = True; return
             elif k == 'fxoff': self.fxoff = True
+            elif k == 'adv': self.advance()
+            elif k == 'check': self.links |= self.presses.get(self.f, 0) & op[1]
+            elif k == 'part': self.links = 0
             elif k == 'follow' and self.owner is not None: self.x = self.owner.x + self.ofs[0]; self.h = self.owner.h + self.ofs[1]
     def tick(self, cam=0):
         self.spawned = []
         self.frame(cam)
         if not self.over: self.advance()
+        self.f += 1
     def shown(self):
         if self.steps is None: return None
         return self.steps[self.step][1]
 
-def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160):
+def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=None):
     """the program played alone (a whiff): per frame (state, ROM frame index, x, height, spawns [(object, x, h, vx)]);
     its objects played as their own Obj from their spawn frame (rows per object: frame, state, ROM frame, x, height)"""
-    o = Obj(m, cid, prog, x=x); o.resume = 0; rows = []; objs = []
+    o = Obj(m, cid, prog, x=x); o.resume = 0; rows = []; objs = []; o.presses = presses or {}
     for f in range(frames):
         if hit_at is not None and f == hit_at: o.hit = True
         o.tick(cam)
@@ -565,25 +614,54 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D'}, 'robert': {'EX 236C', '624D', '623C', '623D'},
                 'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C', '214B'}, 'kyo': {'623C', '214A', 'EX 236A', '236C'},
-                'iori': {'236A', '623D'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A'},
+                'iori': {'236A', '623D', '214A'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A'}, 'rugal': {'236A', '6426D', '6426B'},
                 'geese': {'236C', '623C', '623A', '236A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D'},
-                'krauser': {'214A', '214B', '41236B', '236D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B'}}
+                'krauser': {'214A', '214B', '41236B', '236D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B'},
+                'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D'}}
 ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 'kof96', 'k_dash': 'kof99'}   # else kof98
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
-            'spawn', 'fxoff', 'end', 'hitkind'}
+            'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part'}
 DROP_OPS = {'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
             'ownerflag', 'flags', 'trail'}
-CONDS = {None: 7, 'end': 0, 'event': 1, 'land': 2, 'falling': 3, 'cnt': 4, 'hit': 5, 'off': 6}
+CONDS = {None: 7, 'end': 0, 'event': 1, 'land': 2, 'falling': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'evstep': 8, 'window': 9,
+         'link': 10}                                   # fighter.h PC_*; 'link:<mask>' -> PC_LINK with the mask
+def cond_id(c): return CONDS['link'] if isinstance(c, str) and c.startswith('link:') else CONDS[c]
+def cond_ok(c): return c in CONDS or isinstance(c, str) and c.startswith('link:')
 
 def anim_steps(m, cid, st):
     return rom96.parse_anim(m, rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)))
 
-def openings(m, cid, prog, frames=300):
+def follow_parts(m, cid, prog, links, frames=300):
+    """a follow-up special's parts and links as the brawler lists them (bspart_t / bslink_t; the program decides at run
+    time): the model run with no press (part 0) and with each link pressed throughout; a part = the states played
+    between two link switches. -> parts [{'states', 'next': None}], links [{'from', 'to', 'input'}]"""
+    parts, out = [], []
+    def part(sts):
+        for i, p in enumerate(parts):
+            if p['states'][0] == sts[0]:
+                p['states'] += [s_ for s_ in sts if s_ not in p['states']]; return i
+        parts.append({'states': list(sts), 'next': None}); return len(parts) - 1
+    o = Obj(m, cid, prog); o.resume = 0
+    for f in range(frames):
+        o.tick()
+        if o.over: break
+    part(o.parts[0])
+    for k, inp in enumerate(links):
+        o = Obj(m, cid, prog); o.resume = 0; o.presses = {f: 1 << k for f in range(frames)}
+        for f in range(frames):
+            o.tick()
+            if o.over: break
+        ix = [part(p) for p in o.parts if p]
+        for a_, b_ in zip(ix, ix[1:]):
+            if not any(l['from'] == a_ and l['to'] == b_ and l['input'] == inp for l in out): out.append({'from': a_, 'to': b_, 'input': inp})
+    return parts, out
+
+def openings(m, cid, prog, frames=300, presses=None):
     """the whiff model run: per state the hit windows it opens (an active step, $0100, entered when the step before
     was not active-and-chained ($4000), a state's first step counting as new), the frame of the last opening, the apex
-    frame, the frames played"""
-    o = Obj(m, cid, prog); o.resume = 0
+    frame, the frames played. presses: the follow-up presses ({frame: link bits})"""
+    o = Obj(m, cid, prog); o.resume = 0; o.presses = presses or {}
     per, last, prev, peak, top = {}, -1, None, 0, -1
     for f in range(frames):
         st0, step0 = o.state, o.step
@@ -630,7 +708,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
     ex = inp.startswith('EX ')
     h, b = handler_of(cid, inp, ex, m.game)
     prog = decode(m, h, b, ex)
-    bad = [op for a, op in prog['ops'] if op[0] not in BODY_OPS | DROP_OPS or (op[0] == 'br' and op[1] not in CONDS)
+    bad = [op for a, op in prog['ops'] if op[0] not in BODY_OPS | DROP_OPS or (op[0] == 'br' and not cond_ok(op[1]))
            or (op[0] == 'anim' and op[1] is None)]
     if bad: return {'error': f'ops {bad[:3]}'}
     kept, idx = [], {}
@@ -642,7 +720,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
     for a, op in kept:
         k = op[0]
         if k == 'hitkind': hitkind = op[1]; continue
-        if k == 'br': ops.append(('br', CONDS[op[1]], 1 if op[2] else 0, target(op[3])))
+        if k == 'br': ops.append(('br', cond_id(op[1]), 1 if op[2] else 0, target(op[3])) + ((int(op[1][5:]),) if cond_id(op[1]) == CONDS['link'] else ()))
         elif k == 'jmp': ops.append(('br', CONDS[None], 1, 'yield') if op[1] == 'resume' else ('jmp', idx[prog['pos'][op[1]]]))
         elif k == 'resume_at': ops.append(('resume_at', idx[prog['pos'][op[1]]]))
         elif k == 'anim':
@@ -652,7 +730,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
     # hitkind ops were removed after indexing: re-index (they are never branch targets in the studied handlers)
     rem = [i for i, (a, op) in enumerate(kept) if op[0] == 'hitkind']
     def fix(t): return t if t == 'yield' else t - sum(1 for r in rem if r < t)
-    ops = [(o[0], o[1], o[2], fix(o[3])) if o[0] == 'br' else (o[0], fix(o[1])) if o[0] in ('jmp', 'resume_at') else o for o in ops]
+    ops = [(o[0], o[1], o[2], fix(o[3])) + tuple(o[4:]) if o[0] == 'br' else (o[0], fix(o[1])) if o[0] in ('jmp', 'resume_at') else o for o in ops]
     anims = {}
     for st in states + [ob.get('state') for ob in prog['objects']] + ([prog['objects'][0]['hit']['fields'].get(0x72)] if False else []):
         if st is None or st in anims: continue
@@ -666,6 +744,10 @@ def export_rom(m, cid, inp, add, game='kof98'):
             if ids: live = ids[-1]
             s['react'] = box_react(m, live, cid) if live is not None and s['flags'] & 0x100 else 0
     per, last, peak, length = openings(m, cid, prog)
+    links = FOLLOW_INPUTS.get(prog.get('follow'), [])
+    for k in range(len(links)):                                # a follow-up's hits: the run with link k pressed throughout
+        pk = openings(m, cid, prog, presses={f: 1 << k for f in range(300)})[0]
+        for st, n_ in pk.items(): per[st] = max(per.get(st, 0), n_)
     objs = []
     for k, ob in enumerate(prog['objects']):
         rows, loop, follow = object_rows(m, cid, ob)
@@ -681,7 +763,8 @@ def export_rom(m, cid, inp, add, game='kof98'):
                      'follow': follow, 'hit_kind': hitkind, 'react': 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
                      'child': None, 'state': ob.get('state')})
     return {'handler': h, 'button': b, 'ops': ops, 'states': states, 'anims': anims, 'openings': per, 'last_hit': last,
-            'apex': peak, 'length': length, 'objects': objs, 'hit_kind': hitkind}
+            'apex': peak, 'length': length, 'objects': objs, 'hit_kind': hitkind, 'links': links,
+            **(dict(zip(('parts', 'follow_links'), follow_parts(m, cid, prog, links))) if links else {})}
 
 # The victim's reaction to a hit, as KOF98 picks it (read 2026-10-05, our emulator + the ROM; KOF99 has the same code
 # and the same reaction lists 0-79). The collision ($3A84) stores the attack box's id (+$90, the box's first byte) in the

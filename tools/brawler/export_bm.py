@@ -493,7 +493,7 @@ def projectile_c(n, k, pjs, game):
     return '\n'.join(out)
 
 P_OPS = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
-         'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15}        # bm_chars.h P_*
+         'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'adv': 16, 'check': 17, 'part': 18}   # bm_chars.h P_*
 P_REGS = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4}
 
 def rom_ok(sp):
@@ -519,7 +519,7 @@ def rom_c(n, k, sp, game):
             fl = s['flags']
             if ab: live = ab
             ab = live if fl & 0x100 else None
-            steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (8 if fl & 0x80 else 0) | (16 if fl & 0x4000 else 0)}, '
+            steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (8 if fl & 0x80 else 0) | (16 if fl & 0x4000 else 0) | (32 if fl & 0x2000 else 0)}, '
                          f'{bb(hb)}, {bb(ab)}, {-s["dx"]}, {s.get("react", 0) if ab else 0}}}')   # hy: KOF's reaction (handlers98.box_react)
         out.append(f'static const bstep_t {n}_sp{k}_a{j}[] = {{' + ', '.join(steps) + '};')
     out.append(f'static const banim_t {n}_sp{k}_an[] = {{' + ', '.join(
@@ -540,7 +540,8 @@ def rom_c(n, k, sp, game):
             ops.append((c, reg, 0, round(v * 65536) if reg < 3 else int(v)))
         elif op[0] == 'mul': ops.append((c, 0, 0, op[1]))
         elif op[0] == 'nudge': ops.append((c, 0, round(op[1]), round(op[2])))
-        elif op[0] == 'br': ops.append((c, op[1] | op[2] << 7, -1 if op[3] == 'yield' else op[3], 0))
+        elif op[0] == 'br': ops.append((c, op[1] | op[2] << 7, -1 if op[3] == 'yield' else op[3], op[4] if len(op) > 4 else 0))
+        elif op[0] == 'check': ops.append((c, op[1], 0, 0))
         elif op[0] in ('resume_at', 'jmp'): ops.append((c, 0, op[1], 0))
         elif op[0] == 'spawn': ops.append((c, op[1], 0, 0))
         else: ops.append((c, 0, 0, 0))
@@ -760,8 +761,8 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height */',
          'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, follow; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, pad2; int16_t child_dx, child_dy; } bproj_t;   /* follow: 1 = an effect pinned to its thrower (rows: offsets from it; a ROM special\'s, ended by P_FXOFF or the special\'s end: Burn Knuckle\'s flame); child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
          'typedef struct { uint8_t op, a; int16_t b; int32_t v; } bprim_t;   /* one primitive of a special read from the ROM (tools/kof96/handlers98.py, handlers98.md; export_bm rom_c): op P_*, operands a / b / v (fighter.c prog_update) */',
-         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END };   /* bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
-         'enum { PC_END, PC_EVENT, PC_LAND, PC_FALL, PC_CNT, PC_HIT, PC_OFF, PC_ALWAYS };   /* P_BR conditions: animation over, an event step entered (consumed), landed, falling, counter < 0, the move hit, off screen, always */',
+         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END, P_ADV, P_CHECK, P_PART };   /* P_ADV the animation one more tick (the engine called again on the same state); P_CHECK a = the follow-up links read this frame (a press of link k this frame arms bit k: fighter_t.plink); P_PART the armed links cleared (a new part); bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
+         'enum { PC_END, PC_EVENT, PC_LAND, PC_FALL, PC_CNT, PC_HIT, PC_OFF, PC_ALWAYS, PC_STEPEV, PC_WINDOW, PC_LINK };   /* PC_STEPEV the step has KOF\'s $0080 (bstep_t flags 8, not consumed), PC_WINDOW $2000 (flags 32, a follow-up window), PC_LINK an armed link in the P_BR\'s v mask; P_BR conditions: animation over, an event step entered (consumed), landed, falling, counter < 0, the move hit, off screen, always */',
          'typedef struct { uint16_t first, end; uint8_t next, pad; } bspart_t;   /* a special\'s part: script rows [first, end), the part played when it ends (0xFF: the move ends; fighter.c "follow-ups") */',
          'typedef struct { uint8_t from, to, trig, in, dir, at; uint16_t lo, hi; } bslink_t;   /* a follow-up: from part `from` to part `to`; trig 1 a hit landed (LK_HIT), 2 a press (LK_IN: buttons `in` IN_*, stick `dir` = an A+B role BS_* by d_input, 0xFE the role the move started with, 0xFF any) inside the window [lo, hi) (script rows); at 1 = switch at once (LK_NOW), 0 = when the part ends */',
          'typedef struct { uint16_t nrows, inv_rows, nparts, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; const bspart_t *parts; const bslink_t *links; uint16_t nlinks; } bspec_t;   /* inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); parts / links: its follow-ups (nparts 0 = one part, the whole script; export_bm special_parts); proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
@@ -861,6 +862,21 @@ def write_c(chars, outdir):
                     f'{{{p["first"]}, {p["end"]}, {0xFF if p["next"] is None else p["next"]}, 0}}' for p in sp['parts']) + '};')
                 cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + ', '.join(
                     '{%d, %d, %d, %d, %d, %d, %d, %d}' % ((l['from'], l['to']) + link_c(l) + (1 if l['at'] == 'now' else 0, l['window'][0], l['window'][1]))
+                    for l in sp['links']) + '};')
+            if rom_ok(sp) and sp['rom'].get('links'):    # a ROM special's follow-ups: its program decides (P_CHECK, PC_LINK);
+                rp = sp['rom']['parts']; st_ = sp['rom']['states']   # links bit k = the press of link k (in / dir), parts
+                sp['parts'] = [{'first': st_.index(p['states'][0]), 'end': st_.index(p['states'][-1]) + 1, 'next': None} for p in rp]   # their states (anims)
+                sp['links'] = [{'from': l['from'], 'to': l['to'], 'on': 'input', 'input': l['input'], 'at': 'end', 'window': [0, 0xFFFF]}
+                               for l in sp['rom']['follow_links']]
+                # bit k of a P_CHECK / PC_LINK mask = the k-th distinct input (handlers98.FOLLOW_INPUTS order)
+                order = sp['rom']['links']; sp['links'].sort(key=lambda l: order.index(l['input']))
+                byin = {}
+                for l in sp['links']: byin.setdefault(l['input'], l)
+                sp['links'] = [byin[i] for i in order if i in byin] + [l for l in sp['links'] if byin.get(l['input']) is not l]
+                cs.append(f'static const bspart_t {n}_sp{k}_parts[] = {{' + ', '.join(
+                    f'{{{p["first"]}, {p["end"]}, 0xFF, 0}}' for p in sp['parts']) + '};')
+                cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + ', '.join(
+                    '{%d, %d, %d, %d, %d, %d, %d, %d}' % ((l['from'], l['to']) + link_c(l) + (0, l['window'][0], l['window'][1]))
                     for l in sp['links']) + '};')
             if rom_ok(sp): cs.append(rom_c(n, k, sp, game))   # read from the ROM: played by its program
         assert len(sps) < 255, n

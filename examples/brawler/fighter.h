@@ -232,6 +232,8 @@ typedef struct fighter {
     uint8_t  spart, sarm;         /* special: the part playing (bspec_t.parts), the follow-up link armed + 1 (0 = none;
                                    * fighter.c "follow-ups") */
     uint16_t shrow;               /* special: the script row its last hit landed on + 1 (0 = none yet): a hit link's window */
+    uint8_t  spend, plink;        /* a ROM special's follow-ups (prog_update P_CHECK / PC_LINK): the link presses of this
+                                   * frame (bit k = bslink_t k; kept through hit-stop), the links armed in this part */
 } fighter_t;
 
 

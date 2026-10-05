@@ -70,24 +70,41 @@ HITSTOP = {'kof98': HITSTOP_PCS, 'kof96': range(0x14B9E, 0x14CC0), 'kof99': rang
 
 def special(st): return 128 <= st < 256 or st >= 480
 
-def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98'):
+def follow_spec(cid, inp, dist, ex, game, follow):
+    """follow-up presses as trace input: follow = [(t, events)], t = the special's frame of the press's button, events
+    [(offset from it, frames, keys)] (a dry run finds the special's first frame)"""
+    rows0, _, _ = trace(cid, inp, dist, ex, 60, game=game)
+    f0 = rows0[next(i for i, r in enumerate(rows0) if special(r['state']))]['f']
+    return '; '.join(f'p1 {START + f0 + t + o} {n} {k}' for t, ev in follow for o, n, k in ev)
+
+def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98', follow=None):
+    """follow: follow-up presses [(t, events, link bits)] (follow_spec; the model sees each at t + FOLLOW_LAG)"""
     """the game (trace) against the decoded program's model (handlers98.run_model), frame by frame from the first
     special state: P1 state, ROM frame, x from the start, height; objects: first frame, state, frame, x, height.
     Game frames inside the engine's hit-stop (+$00 in $1B2C4..) are dropped (the brawler applies its own); the
     model learns 'hit' on the frame the game's P2 life drops."""
     import handlers98 as H
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
-    rows, _, _ = trace(cid, inp, dist, ex, frames, game=game)
+    spec = follow_spec(cid, inp, dist, ex, game, [(t, ev) for t, ev, mk in follow]) if follow else ''
+    rows, _, _ = trace(cid, inp, dist, ex, frames, p2_seq=spec, game=game)
     try: h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex)
     except KeyError: h = prog = None             # a captured special (no ROM handler): the game's rows only
     k0 = next(i for i, r in enumerate(rows) if special(r['state']))
-    hs = HITSTOP[game]
+    hs = HITSTOP[game]; gname = game
     froze = [i > k0 and r['pc'] in hs and rows[i - 1]['pc'] in hs for i, r in enumerate(rows)]
     lost = [i > 0 and r['tick'] == rows[i - 1]['tick'] for i, r in enumerate(rows)]   # the game lost the frame (slowdown:
     game = [r for i, r in enumerate(rows) if i >= k0 and not froze[i] and not lost[i]]   # P1 +$1D2 did not advance)
     frozen = sum(froze[k0:]); slow = sum(lost[k0:])
     hits = [i for i in range(1, len(game)) if game[i]['p2life'] < game[i - 1]['p2life']]
-    model, objs = H.run_model(m, cid, prog, frames, hit_at=hits[0] if hits else None) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
+    # a follow-up press is read FOLLOW_LAG game ticks after its button (the hit-stop ticks count, a frame the game lost
+    # does not): the model's frame = the kept frame the handler runs then (the first one at or after it)
+    presses, pf = {}, []
+    for t, ev, mk in follow or []:
+        j = next(j for j, r in enumerate(rows) if r['f'] >= rows[k0]['f'] + t); n_ = 0
+        while n_ < H.FOLLOW_LAG[gname] and j + 1 < len(rows):
+            j += 1; n_ += not lost[j]
+        i = next((q for q, r in enumerate(game) if r['f'] >= rows[j]['f']), len(game)); presses[i] = presses.get(i, 0) | mk; pf.append(i)
+    model, objs = H.run_model(m, cid, prog, frames, hit_at=hits[0] if hits else None, presses=presses) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
     x0 = game[0]['x'] - model[0][3]               # aligned on the first frame
     end = next((i for i, r in enumerate(game) if not special(r['state'])), len(game))
     n = min(end, len(model)); bad = []; nb = {'frame': 0, 'x': 0, 'h': 0}
@@ -99,7 +116,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         if any(d.values()): bad.append((i, (g['state'], g['frame'], gx, gh), mo[1:5]))
     res = {'input': inp, 'dist': dist, 'ex': ex, 'handler': f'${h:X}' if h else None, 'frames_game': end, 'frames_model': len(model),
            'mismatch': len(bad), 'by': nb, 'first_bad': bad[:4], 'hits_game': len(hits), 'hit_frames': hits, 'frozen_dropped': frozen, 'slowdown_dropped': slow,
-           'states': sorted({r['state'] for r in game[:end]})}
+           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf}
     before = {o['base'] for o in rows[k0 - 1]['objs']}
     born = {}
     rec0 = rom96.frame_record(m, cid, 0)
