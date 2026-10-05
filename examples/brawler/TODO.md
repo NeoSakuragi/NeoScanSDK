@@ -391,6 +391,14 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   rush (its finish + flames are drawn by code: decode and play them); colour set B ($1C0) checked by eye; the 150 frames
   where Kizuna slides a part by code (6C telescopic staff). A+B dodge / C+D taunt have no brawler slot (not mapped).
 
+- [ ] 77. Every other Kizuna Encounter fighter extracted, NOT in the build (Bruno, 2026-10-05: "queue all characters, do
+  not include them yet in the build"): Hayate, Eagle, Gozu, Mezu, Rosa, Joker, Chung (A Chun shares his animations),
+  Gordon, Shishioh (R Shishi shares his), Jyazu (character ids 0-12 in /data/neogeo_dict/kizuna/README.md). Same as Kim:
+  pre-scaled to Kizuna's widest zoom $CC (0.80, Bruno: "keep it at 0.80, it's on par with other characters"), every move
+  with full metadata (frames, timing, boxes, damage / reaction, movement, inputs, cancels, sounds), the kim_proof-style
+  render check per fighter, portraits, a starter routes file + six-slot / fury picks in a side file, banks exportable as
+  `kizuna:<name>` -- but no game.json roster entry and no ROM growth until Bruno picks who goes in.
+
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.
