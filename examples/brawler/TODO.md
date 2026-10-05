@@ -361,7 +361,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 70. Haohmaru's forward+D (SS4 421C) has a baked impact / KO scene (Bruno): recapture it as a whiff, or read it from
   SS4's own code (the handlers98 approach for SS4); also his other open points (memory reference_samsho4_extraction).
 
-- [ ] 72. Restore KOF98's hit count on Terry 214D (2), 623A (5), 623B (2) and Robert 624D (3) (review round 1): since
+- [ ] 72. (also from #69's notes: at its test distance Ralf [4]6A / [2]8A get extra hits, Ryo 623A 2 vs 1, Kyo 214A 3
+  vs 1, Robert 624D 4 vs 3; Ralf [4]6B, Yashiro 214D, Iori 623D land none where KOF lands one; victims after projectile
+  hits land far from KOF's spot) Restore KOF98's hit count on Terry 214D (2), 623A (5), 623B (2) and Robert 624D (3) (review round 1): since
   the victim fix (no stick) they hit once less; re-time the missing hit(s) so they land, without sticking the victim
   to the attacker ([[feedback_brawler_no_victim_stick]]).
 - [ ] 73. Extract the specials Bruno mapped that the bank lacks: Yamazaki's snake arm 214B (middle) and 214C (low)
