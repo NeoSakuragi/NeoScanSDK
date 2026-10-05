@@ -248,6 +248,6 @@ class Brawler:
     def screenshot(self, path):
         """the next frame's picture, as PNG"""
         from PIL import Image
-        self._want_video = True; self.core.retro_run(); self.frame += 1; self._want_video = False
+        self._want_video = True; self.run(1); self._want_video = False   # a frame like any other (its hits logged)
         data, w, h, pitch = self._video
         Image.frombuffer('RGBX', (w, h), data, 'raw', 'BGRX', pitch, 1).convert('RGB').save(path)

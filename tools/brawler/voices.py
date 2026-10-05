@@ -478,8 +478,53 @@ def whp_list(rname, name, cid):
     return {'game': 'whp', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
                                                                       'bytes', 'ms', 'uses')} for vo in lst]}
 
+# ---- Kizuna Encounter (Kim): its sounds are already captured with every move (tools/kizuna: capture_kz.py ->
+# kim_capture.json, followups_kz.py -> kim_followups.json: the bytes written to REG_SOUND each frame) and each word's
+# sample found by Kizuna's own driver (SNK Ver 0.0) in the tap core (voices_kz.py -> kim_voices.json: segments, level).
+# Uses: a move = Kim's animation + step the frame a word was sent; a special = the script row it was sent on
+# (export_kz.special_sounds: the rows the export plays, multipart moves included); hit / KO = his reaction captures.
+# Voices: his voice samples (prefix $1C, his slot, codes $B0 up: $1CB0-$1CD2 yells, hit, KO), and an effect only one
+# special sends (prefix $1A: [2]8C's $1A67, the Phoenix's cry $1A68, Kizuna plays it with the launch), listed first:
+# a special's own effect is its sound (voices.py suggest takes a key's first voice in list order). ----
+KZ_EVENTS = {'react_a': 'hit_c', 'react_b': 'hit_d', 'react_ko': 'ko'}
+def _kz():
+    sys.path.insert(0, os.path.join(TOOLS, 'kizuna')); import export_kz, voices_kz
+    return export_kz, voices_kz
+
+def kizuna_capture(rname, name, cid):
+    print(rname, ': Kizuna captures are tools/kizuna/capture_kz.py, followups_kz.py, voices_kz.py', flush=True)
+
+def kizuna_list(rname, name, cid):
+    E, VK = _kz()
+    cap = json.load(open(E.CAPTURE)); fc = json.load(open(E.FOLLOWUPS)); snd = json.load(open(VK.OUT))['sounds']
+    uses = []                                              # (word, use)
+    spw = {}                                               # word -> the specials that send it
+    for inp in E.SPECIALS:
+        for row, w in E.special_sounds(inp, cap, fc):
+            uses.append((w, {'kind': 'special', 'input': inp, 'at': row})); spw.setdefault(w, set()).add(inp)
+    for rec, d in cap.items():
+        for f, w in VK.words_of(d['frames']):
+            if rec in KZ_EVENTS: uses.append((w, {'kind': 'event', 'event': KZ_EVENTS[rec], 'at': 0}))
+            else: p = d['frames'][f][0]; uses.append((w, {'kind': 'anim', 'slot': p[0], 'states': [p[0]], 'step': p[1]}))
+    own_fx = {w for w, s in spw.items() if w >> 8 == FX_PREFIX and len(s) == 1}
+    def is_voice(w): return (w >> 8 == 0x1C and w & 0xFF >= 0xB0) or w in own_fx
+    v = v_rom('kizuna'); voices = {}
+    for w, u in uses:
+        if not is_voice(w) or f'{w:04X}' not in snd or 'segments' not in snd[f'{w:04X}']: continue
+        e = snd[f'{w:04X}']
+        vo = voices.setdefault(w, {'cmd': f'{w:04X}', 'cmds': [f'{w:04X}'], 'indices': [], 'segments': e['segments'], 'level': e['level'], 'uses': []})
+        if u not in vo['uses']: vo['uses'].append(u)
+    lst = [voices[w] for w in sorted(voices, key=lambda w: (w not in own_fx, w))]
+    for k, vo in enumerate(lst, 1):
+        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
+        vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
+    print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
+    return {'game': 'kizuna', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
+                                                                        'bytes', 'ms', 'uses')} for vo in lst]}
+
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
-       'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list}}
+       'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
+       'kizuna': {'cast': {'kim': 5}, 'capture': kizuna_capture, 'list': kizuna_list}}
 
 # ---- the brawler side (export_bm.py, build_snd.py, build_tables.py, the lab) ----
 # A fighter's voice table (bchar_t.voices, fighter.c voice_tab): one entry per voice key, 2 bytes [voice id, at]; id = the
@@ -488,7 +533,7 @@ OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_
 # Keys: every brawler animation (BA_*), the throws (BT_*), the events, then the fighter's specials pool by input.
 EVENT_KEYS = ['hit', 'ko', 'select']
 INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355),
-         'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)]}   # SS4 / WHP: the pose animations (char_images)
+         'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)], 'kizuna': []}   # SS4 / WHP: the pose animations (char_images)
 
 def keys(moves, throws, pool_inputs):
     return list(moves) + list(throws) + EVENT_KEYS + ['special:' + i for i in pool_inputs]

@@ -40,7 +40,8 @@ static void mark(uint8_t sec) {
 
 #define NF 8                         /* 2 players + 6 enemies: the POC target */
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
-#define FIGHT_SPRS (NF * MAX_COLS + NPJ * PJ_COLS)   /* a fight's blocks: a fighter's MAX_COLS, a projectile's PJ_COLS */
+#define FIGHT_SPRS (NF * MAX_COLS + NPJ * PJ_COLS)   /* a fight's blocks: a fighter's MAX_COLS, the projectile pool's
+                                        PJ_SPRS = NPJ * PJ_COLS shared by width (block_w) */
 #define NA 19                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
                                         fighter: the group photo) */
 #define SEL_COLS 16                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 16 =
@@ -196,10 +197,49 @@ static void camera(void) {
 static uint8_t block_placed[NA];                 /* columns each sprite block showed last frame */
 static uint16_t block_spr[NA];                   /* where it showed them (a block's place moves with the widths before it) */
 static uint16_t slot_spr[NA];                    /* each depth slot's first sprite this frame (depth_sort) */
-/* a block's width: in a fight a projectile's block is PJ_COLS (its widest frame: 10, Haohmaru's), a fighter's MAX_COLS,
- * so the pool fits below the banner; on the select screen every actor's SEL_COLS (draw.s fighter_tiles clips to it) */
+/* a block's width: in a fight a fighter's MAX_COLS; a projectile / effect entity's the widest projectile or effect frame
+ * of its thrower's character (pj_cols: measured from the data at boot) while it is in use, 0 when free, so the pool's
+ * PJ_SPRS sprites go to the entities alive by their real widths (Kim's Phoenix flames 13, Rugal's / Haohmaru's 10,
+ * Krauser's Blitz Ball and its 4 trails 5 each); an entity that would take the pool past PJ_SPRS gets no block this
+ * frame (not drawn). On the select screen every actor's SEL_COLS (draw.s fighter_tiles clips to it) */
+#define PJ_SPRS (NPJ * PJ_COLS)                  /* the projectile pool's sprites, shared by width: 80 */
+static uint8_t pj_cols[BC_COUNT];                /* per character: its widest projectile / effect frame (pj_measure) */
+static uint8_t pj_w[NPJ];                        /* per pool entity: its block this frame (0: free, or no room) */
+static uint8_t pj_scan(const bchar_t *c, const bproj_t *d) {   /* a projectile's rows, end rows and its trail's */
+    uint8_t w = 0, k;
+    for (; d; d = d->child) {
+        for (k = 0; k < d->nrows; k++) if (d->rows[k].frame != 0xFFFF && c->frames[d->rows[k].frame].ncols > w) w = c->frames[d->rows[k].frame].ncols;
+        if (d->end) for (k = 0; k < d->nend; k++) if (d->end[k].frame != 0xFFFF && c->frames[d->end[k].frame].ncols > w) w = c->frames[d->end[k].frame].ncols;
+        if (d->child == d) break;
+    }
+    return w;
+}
+static void pj_measure(void) {
+    uint8_t i, s, k, w;
+    uint16_t r;
+    for (i = 0; i < BC_COUNT; i++) {
+        const bchar_t *c = &bm_chars[i];
+        uint8_t m = 0;
+        for (s = 0; s < c->nspec; s++) {
+            const bspec_t *sp = &c->specials[s];
+            for (r = 0; r < sp->nrows; r++)                  /* the script's objects (effects: Kim's flames) */
+                for (k = 0; k < 2; k++) {
+                    uint16_t fr = sp->rows[r].obj[k].frame;
+                    if (fr != 0xFFFF && c->frames[fr].ncols > m) m = c->frames[fr].ncols;
+                }
+            for (k = 0; k < sp->nproj; k++) if ((w = pj_scan(c, &sp->proj[k])) > m) m = w;
+            if (sp->prog) {                                  /* a ROM special's objects: its P_SPAWNs */
+                const bprim_t *p;
+                for (p = sp->prog; p->op != P_END; p++) if (p->op == P_SPAWN && (w = pj_scan(c, &sp->robj[p->a])) > m) m = w;
+            }
+        }
+        pj_cols[i] = m > MAX_COLS ? MAX_COLS : m;
+    }
+    for (i = 0; i < NPJ; i++) projectiles[i].idx = NF + i;   /* block_w's index (also set by the fight's setup) */
+}
 static uint8_t block_w(const fighter_t *f) {
-    return blk_cols == MAX_COLS && f >= projectiles && f < projectiles + NPJ ? PJ_COLS : blk_cols;
+    if (blk_cols != MAX_COLS || f < projectiles || f >= projectiles + NPJ) return blk_cols;
+    return pj_w[f->idx - NF];                    /* (idx: a pointer difference would divide by sizeof) */
 }
 /* the select screen's NA actors need narrower blocks than a fight's NE entities (SEL_COLS / MAX_COLS sprites): a change
  * of width hides every block's sprites once (SCB3 height 0) and re-places the blocks from scratch */
@@ -219,6 +259,16 @@ static void depth_sort(void) {
             fighter_t *t = order[j]; order[j] = order[j - 1]; order[j - 1] = t;
         }
     blocks_layout(nf > NE ? SEL_COLS : MAX_COLS);
+    if (blk_cols == MAX_COLS) {                  /* the pool's widths: in use = its thrower's widest, within PJ_SPRS */
+        uint8_t used = 0;
+        for (i = 0; i < NPJ; i++) {
+            const fighter_t *p = &projectiles[i];
+            uint8_t w = p->state == S_OFF ? 0 : pj_cols[p->ch->id];
+            if (used + w > PJ_SPRS) w = 0;               /* no room left in the pool's sprites: not drawn */
+            used += w;
+            if (w != pj_w[i]) { pj_w[i] = w; projectiles[i].shown_frame = 0xFFFF; }   /* re-clipped: tiles again */
+        }
+    }
     {
         uint16_t s = SPR_BASE;                   /* blocks back to front, each its entity's width */
         for (i = 0; i < NA; i++) {
@@ -255,7 +305,8 @@ static void line_guard(void) {
         int16_t sx = INT(f->x) - cam_x;
         uint8_t cols;
         if (f->state == S_OFF || (f->state == S_PROJ && f->frame_ovr == 0xFFFF) ||
-            (f->state == S_DEAD && (f->state_t & 4))) { hidden[prio[k]] = 1; continue; }   /* the dead blink */
+            (f->state == S_DEAD && (f->state_t & 4)) || !block_w(f)) { hidden[prio[k]] = 1; continue; }   /* the dead
+                                                             blink; a pool entity without a block (no room) */
         if (sx < -128 || sx > 448) { hidden[prio[k]] = 1; continue; }   /* well off screen: placed, its 9-bit X would
                                                              wrap it onto the screen (a wave walking in from 512 px) */
         if (floor_top + INT(f->z) - INT(f->y) < 0) { hidden[prio[k]] = 1; continue; }   /* feet above the screen's top
@@ -407,7 +458,7 @@ static void draw(void) {
     uint8_t i;
     if (mode == 1) stage_draw();                             /* only the fight has a stage */
     for (i = 0; i < nf; i++)
-        if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF)) {
+        if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF) && block_w(order[i])) {
             uint8_t bc = blk_cols;
             blk_cols = block_w(order[i]); fighter_tiles(order[i]); blk_cols = bc;   /* clipped to its block */
         }
@@ -1999,6 +2050,7 @@ void game_enter(uint8_t request) {
       PAL_setPalette(METER_PAL, TEXT_PAL);
       for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k]; }   /* fix palettes 2-3: the shown portraits (portrait()) */
     shadow_init();
+    pj_measure();                                            /* the projectile blocks' widths (block_w) */
     dbg_init();
     snd_reset();                                             /* the BIOS reset the sound CPU before handing over */
     if (request == 3) title_start(); else attract_start();

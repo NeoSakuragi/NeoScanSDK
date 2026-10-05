@@ -27,7 +27,8 @@ own frame for that victim state, scaled) and state step as a posture key 'state.
 victim states $10C (Hayate's $EF, Kim's $FA) and $17A ($DE), postures read by eye from Kim's frames), until the victim
 lands; Kim's own frames for those postures are his reaction frames (feet-centred, so KOF victims and he line up).
 Not exported: A+B (dodge $20) and C+D (taunt $21): the brawler has no slot for them (A+B is the special chord).
-Known limits: the effects his specials spawn (sparks, the Phoenix's flames) are not drawn; no D button
+Known limits: the hit sparks his specials spawn are not drawn (the Phoenix's flames are: FOLLOW 'objects', each
+place's PHOELX halves one frame, at most two places a row: the third PHOELX W feather is left out); no D button
 attacks in Kizuna (D = tag): the brawler's D normals use his strong kick (B+C, $6E); one jump height (hop = jump)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -147,10 +148,12 @@ class Builder:
         if b not in self.tile_map: self.tile_map[b] = TILE_BASE + len(self.tiles); self.tiles.append(b)
         return self.tile_map[b]
     def frame(self, addr):
-        """the step at addr as brawler parts: drawn by Kizuna's renderer at zoom Z facing right, mirrored, re-tiled"""
+        """the step at addr as brawler parts: drawn by Kizuna's renderer at zoom Z facing right, mirrored, re-tiled;
+        addr a tuple: those steps drawn at one place, one frame (objects Kizuna draws together: the Phoenix's PHOELX
+        halves, a step each, 508A + 508C and 508B + 508D at the same x / y)"""
         if addr in self.index: return self.index[addr]
         img = np.zeros((H, W), np.uint16)
-        kz.render_step_zoom(img, addr, X0, Y0, Z)
+        for a in (addr if isinstance(addr, tuple) else (addr,)): kz.render_step_zoom(img, a, X0, Y0, Z)
         img = img[:, ::-1]                              # mirrored: feet column X0 -> W - X0 (offset u -> -u - 1)
         fx = W - X0
         parts = []
@@ -183,7 +186,7 @@ class Builder:
                                   'vflip': 0, 'pal': self.pals.index(pal), 'tiles': tc})
                     run = []
         self.index[addr] = len(self.frames)
-        self.frames.append({'record': f'{addr:06X}', 'parts': parts, 'weapon': None})
+        self.frames.append({'record': '+'.join(f'{a:06X}' for a in (addr if isinstance(addr, tuple) else (addr,))), 'parts': parts, 'weapon': None})
         return self.index[addr]
 
 HOLD = 120
@@ -239,10 +242,30 @@ def physics(cap):
     jdx = (fw[-1][2] - fw[0][2]) / (len(fw) - 1)
     return {'walk_fwd': walk * S, 'walk_back': back * S, 'jump_vy0': vy0 * S, 'gravity': g * S, 'jump_dx': jdx * S, 'prejump': t0 + 1}
 
-def special(B, inp, cap):
-    rec, hitrec, anims = SPECIALS[inp]; fr = cap[rec]['frames']
+def part_rows(fr, anims, hitcap):
+    """a capture's frames a special (or a part of a multipart move) plays: (first, end, the frames kept as script rows:
+    a connect capture's hit-stop frames removed)"""
     s0 = next(i for i, f in enumerate(fr) if f[0][0] == anims[0])
     e = next((i for i in range(s0, len(fr)) if fr[i][0][0] not in anims), len(fr))
+    return s0, e, [i for i in range(s0, e) if not (hitcap and frozen(fr, i))]
+
+def special_sounds(inp, cap, fc):
+    """[(script row, sound word)]: the sounds Kizuna sent while special inp played, at the script row of the frame each
+    was sent in (the rows special / multipart export; words as voices_kz.words_of reads them: prefix << 8 | code)"""
+    import voices_kz
+    parts = [(fc[r]['frames'], an, r.endswith('_h')) for r, an, _ in FOLLOW[inp]['parts']] if inp in FOLLOW else \
+            [(cap[SPECIALS[inp][0]]['frames'], SPECIALS[inp][2], False)]
+    out, base = [], 0
+    for fr, anims, hitcap in parts:
+        s0, e, rows = part_rows(fr, anims, hitcap)
+        for f, w in voices_kz.words_of(fr):
+            if s0 <= f < e: out.append((base + sum(1 for i in rows if i < f), w))
+        base += len(rows)
+    return out
+
+def special(B, inp, cap):
+    rec, hitrec, anims = SPECIALS[inp]; fr = cap[rec]['frames']
+    s0, e, _ = part_rows(fr, anims, False)
     x0 = fr[s0][0][2]
     script, rboxes, rsteps = [], [], []
     for i in range(s0, e):
@@ -282,9 +305,16 @@ FOLLOW = {
     '421A': {'parts': [('421A_w', (0x100,), None), ('421A_h', (0x101,), None)],
              'links': [(0, 1, 'hit', None, 0x100, 'now')], 'carry': 1},
     '6246A': {'parts': [('6246A_w', (0x85,), None), ('6246A_h', (0x86, 0x88, 0x89), None)],
-              'links': [(0, 1, 'hit', None, 0x85, 'now')], 'carry': 1, 'objects': 1},
+              'links': [(0, 1, 'hit', None, 0x85, 'now')], 'carry': 1, 'objects': 1, 'damage': '6246A_h'},
 }
 FOLLOWUPS = '/data/neogeo_dict/kizuna/kim_followups.json'
+LIFE_KZ, LIFE_BRAWLER = 192, 60                        # full life: Kizuna (+$113), the brawler (fighter.c f->hp)
+def game_damage(F, fc):
+    """{'damage': the move's damage as Kizuna dealt it (its hit capture's life drop: a desperation move takes it at once),
+    in the brawler's life} for a FOLLOW entry with 'damage' (export_bm special_rows splits it over the hits), else {}"""
+    if not F.get('damage'): return {}
+    fr = fc[F['damage']]['frames']
+    return {'damage': int(round((fr[0][1][6] - min(f[1][6] for f in fr)) * LIFE_BRAWLER / LIFE_KZ))}
 R_HEAVY, R_KNOCKDOWN, R_LAUNCH = 1, 2, 3               # fighter.h R_*
 def react_of(a):
     """the victim's Kizuna animation -> the brawler's reaction: hit off the feet / launched / knocked down, else a reel"""
@@ -316,24 +346,25 @@ def multipart(B, inp, fc):
     """a multipart move as one script of parts (export_bm.special_parts): rows, boxes, steps, victim places, objects"""
     F = FOLLOW[inp]; react = hit_reactions(fc)
     script, rboxes, rsteps, carry, rsrc, parts, links, spans = [], [], [], [], [], [], [], []
+    chained = {}                                         # rows whose box became a held victim's: their same-hit flag
     marks, grows = [], []
     for pi, (rec, anims, nxt) in enumerate(F['parts']):
         fr = fc[rec]['frames']
-        s0 = next(i for i, f in enumerate(fr) if f[0][0] == anims[0])
-        e = next((i for i in range(s0, len(fr)) if fr[i][0][0] not in anims), len(fr))
         hitcap = rec.endswith('_h')
-        rows = [i for i in range(s0, e) if not (hitcap and frozen(fr, i))]
+        s0, e, rows = part_rows(fr, anims, hitcap)
         x0 = fr[s0][0][2] if pi == 0 else fr[s0 - 1][0][2]   # part 0: from its start; a follow-up: from where Kim is
         first = len(script); spans.append([])
         for i in rows:
             p, q = fr[i][0], fr[i][1]
             bx = step_boxes(p[5])
             objs = []
-            if F.get('objects'):
+            if F.get('objects'):                         # Kim's own objects (the flames), alive; the ones at one place
+                grp = {}                                 # (x, y, flip) are one frame; the first two places by task slot
                 for o in sorted(fr[i][2]):
-                    if o[1] >> 12 == 5 and not o[7].startswith('\0'):   # Kim's own objects (the flames), alive
-                        objs.append([B.frame(o[6]), sc(o[3] - x0), sc(o[4]), 1 if o[5] == p[4] else 0])
-            script.append([B.frame(p[5]), sc(p[2] - x0), sc(p[3]), objs[:2]])
+                    if o[1] >> 12 == 5 and not o[7].startswith('\0'): grp.setdefault((o[3], o[4], o[5]), []).append(o[6])
+                for (ox, oy, of), st in list(grp.items())[:2]:
+                    objs.append([B.frame(tuple(sorted(st)) if len(st) > 1 else st[0]), sc(ox - x0), sc(oy), 1 if of == p[4] else 0])
+            script.append([B.frame(p[5]), sc(p[2] - x0), sc(p[3]), objs])
             rboxes.append(kof_boxes(bx))
             spans[-1].append((p[0], p[1]))
             rsrc.append(react.get((p[0], p[1])))
@@ -352,13 +383,34 @@ def multipart(B, inp, fc):
                     if k is None: continue
                     marks[first + k] += 'h'
                     cv = carry[first + k]
-                    if cv and not any(b_[0] == '1' for b_ in rboxes[first + k]):   # an object's hit (101's last: the
-                        for t in (first + k, first + k + 1):     # RUSH object): a box on the held victim, 2 rows
-                            if t < len(script): rboxes[t] = dict(rboxes[t], **{'1F': [max(-120, min(120, -cv[0])), max(-120, -(cv[1] + 40)), 24, 48]})
+                    if cv:                               # the held victim was hit here: the row's box covers it
+                        t = first + k                    # (the Phoenix's foot-up kicks at 86 steps 55 / 58: the
+                        vb = [max(-120, min(120, -cv[0])), max(-120, min(120, -(cv[1] - script[t][2] + 40))), 24, 48]   # victim 90-200 px above Kim's box)
+                        ab = next((v for k_, v in sorted(rboxes[t].items()) if k_[0] == '1'), None)
+                        if ab:                           # Kim's box there: its union with the victim's, the row's
+                            l = min(ab[0] - ab[2], vb[0] - vb[2]); r_ = max(ab[0] + ab[2], vb[0] + vb[2])   # same-hit
+                            b_ = min(ab[1] - ab[3], vb[1] - vb[3]); t_ = max(ab[1] + ab[3], vb[1] + vb[3])   # flag kept
+                            vb = [(l + r_) // 2, max(-120, (b_ + t_) // 2), min(120, (r_ - l + 1) // 2), min(120, (t_ - b_ + 1) // 2)]
+                            chained[t] = rsteps[t][2] & 0x4000
+                            if t > first: chained[t - 1] = rsteps[t - 1][2] & 0x4000
+                            rboxes[t] = {**{k_: v for k_, v in rboxes[t].items() if k_[0] != '1'}, '1F': vb}
+                        else:                            # an object's hit (101's last: the RUSH object): a box
+                            for t in (first + k, first + k + 1):     # on the held victim, 2 rows
+                                if t < len(script): rboxes[t] = dict(rboxes[t], **{'1F': vb if t == first + k else
+                                    [vb[0], max(-120, min(120, -(cv[1] - script[t][2] + 40))), 24, 48]})
+            if F.get('carry') == pi:                     # a carried part hits only where Kizuna's did (its victim is
+                j = first                                # held by script): a run of attack rows without a game hit
+                while j < len(script):                   # loses its box (6246A's 86 steps 61 / 64: no hit there)
+                    if not any(k_[0] == '1' for k_ in rboxes[j]): j += 1; continue
+                    e_ = j
+                    while e_ < len(script) and any(k_[0] == '1' for k_ in rboxes[e_]): e_ += 1
+                    if not any('h' in marks[t] for t in range(j, e_)):
+                        for t in range(j, e_): rboxes[t] = {k_: v for k_, v in rboxes[t].items() if k_[0] != '1'}
+                    j = e_
         for j in range(first, len(script)):
             nb = rboxes[j + 1] if j + 1 < len(script) else {}
             live = any(k_[0] == '1' for k_ in rboxes[j])
-            rsteps[j][2] = (0x100 if live else 0) | (0x4000 if live and nb == rboxes[j] else 0)
+            rsteps[j][2] = (0x100 if live else 0) | (0x4000 if live and (nb == rboxes[j] or chained.get(j)) else 0)
         parts.append({'first': first, 'end': len(script), 'next': nxt})
     for a, b, on, key, win, at in F['links']:
         an, st0 = win if isinstance(win, tuple) else (win, 0)
@@ -368,7 +420,7 @@ def multipart(B, inp, fc):
     p0 = script[:parts[0]['end']]
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
             'row_steps': rsteps, 'marks': marks, 'game_rows': grows, 'projectiles': [], 'anims': [a for _, an, _ in F['parts'] for a in an],
-            'shape': [max(r[1] for r in p0), max(r[2] for r in p0), False], 'game_hits': sum(1 for r in rsrc if r),
+            'shape': [max(r[1] for r in p0), max(r[2] for r in p0), False], 'game_hits': sum(1 for r in rsrc if r), **game_damage(F, fc),
             'parts': parts, 'links': links, 'carry_src': carry, 'react_src': rsrc}
 
 VSTATE = {0xEF: (0x10C, 0xFA), 0xDE: (0x17A, 0xDE)}   # Hayate's victim animation -> (state, Kim's animation for it)
