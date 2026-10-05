@@ -896,7 +896,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (f->y <= 0) { f->y = 0; f->vx = f->vy = f->vz = 0; enter(f, S_LAND); play(f, BA_LAND); }
         break;
     case S_LAND:
-        if (f->state_t >= 2) to_neutral(f, in);
+        if (f->state_t >= ph->land) to_neutral(f, in);         /* KOF's landing: the fighter's own frames (4, Terry 5) */
         break;
     case S_ATTACK: {
         const rnode_t *c = NODE(f, f->node);
