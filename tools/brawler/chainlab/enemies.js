@@ -200,7 +200,14 @@
         h('div', { class: 'note', style: 'margin:6px 0' }, 'Tint: ' + formula),
         h('div', { class: 'note' }, cu ? 'Custom: pick a colour below, then set it. The swatches show what the game loads (after the tint).' : 'Palette 0 as the game loads it (turn on custom colours to change them):'),
         grid, editor,
-        h('div', { class: 'prev' }, ['watch', 'idle', 'attack'].map(c => h('figure', {}, sprite(b, c, pals), h('figcaption', {}, { watch: 'select pose', idle: 'idle', attack: 'close C' }[c]))))));
+        h('div', { class: 'prev' }, ['watch', 'idle', 'attack'].map(c => h('figure', {}, sprite(b, c, pals), h('figcaption', {}, { watch: 'select pose', idle: 'idle', attack: 'close C' }[c], usesOther(b, c, cu) ? h('div', { class: 'note', style: 'max-width:180px' },
+          `also palette ${usesOther(b, c, cu).join(', ')} of the set: the custom colours replace palette 0 only, so the game draws these parts in the set's colours too`) : null))),
+        h('div', { class: 'note' }, 'The select pose is only shown on the select screen (roster fighters); an enemy never plays it.'))));
+  }
+
+  function usesOther(b, c, cu) {                // the palettes besides 0 a picture uses (only worth saying with custom colours)
+    const r = IMG[b] && IMG[b].cells[c], o = r && r[4] ? r[4].filter(p => p) : [];
+    return cu && o.length ? o : null;
   }
 
   // ---- moves -----------------------------------------------------------------------------------------------------------

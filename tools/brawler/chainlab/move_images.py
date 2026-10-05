@@ -120,7 +120,7 @@ def enemy_images(game, out, fighters):
     """the Enemies tab's sprites, recoloured in the page: per fighter its select pose (bstep watch, the last step), idle
     (step 0) and an attack (close C's first hit frame) as palette indices (pal * 16 + colour) in one 8-bit grey PNG
     (OUT_DIR/enemies/<fighter>.png, cells on a common feet line), and every colour set's palettes (the ROM's words)
-    -> {fighter: {sheet, cells: {watch|idle|attack: [x, y, w, h]}, npal, nsets, pals}}"""
+    -> {fighter: {sheet, cells: {watch|idle|attack: [x, y, w, h, palettes used]}, npal, nsets, pals}}"""
     rom = Rom(os.path.join(game, 'build'))
     os.makedirs(os.path.join(out, 'enemies'), exist_ok=True)
     index = {}
@@ -138,7 +138,7 @@ def enemy_images(game, out, fighters):
         W = sum(r[0].shape[1] + 4 for _, r in cells); sheet = np.zeros((up + down, W), np.uint8); x = 0; idx = {}
         for k, (img, ox, oy) in cells:
             sheet[up - oy:up - oy + img.shape[0], x:x + img.shape[1]] = img
-            idx[k] = [x, 0, img.shape[1], up + down]; x += img.shape[1] + 4
+            idx[k] = [x, 0, img.shape[1], up + down, sorted({int(v) >> 4 for v in np.unique(img) if v & 15})]; x += img.shape[1] + 4   # + the palettes it uses
         Image.fromarray(sheet, 'L').save(os.path.join(out, 'enemies', f'{name}.png'), optimize=True)
         index[name] = {'sheet': f'enemies/{name}.png', 'cells': idx, 'npal': npal, 'nsets': nsets, 'pals': pals}
     return index
