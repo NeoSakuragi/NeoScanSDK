@@ -352,7 +352,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   down, up, down-fwd, up-fwd; Power Wave, Power Dunk, Rising Tackle...; also from a grab), C FURY = desperation moves
   (Power Geyser and the other KOF DM / SDM supers, SS4 rage moves), D TAG mode (Bruno will explain). Chord detection
   window (2-3 frames) for A+B; routes / Chain Lab glyphs / Terry's routes and the default trees re-authored for one
-  attack button. After the six-slot job. Open: do specials / furies cost something (health, gauge)?
+  attack button. After the six-slot job.
+  SPECIAL METER (Bruno, 2026-10-05): a meter gauge, full at the start; each special move consumes meter; the meter
+  refills slowly over time; a special triggered WHILE BEING HIT (allowed: a "get out of trouble" move) costs twice as
+  much, and the player's palette flashes fully white for a split second to show something was consumed. Furies (C):
+  cost to be decided.
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
