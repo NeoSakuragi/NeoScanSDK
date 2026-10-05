@@ -162,7 +162,7 @@ frame ~1100-1400. Round timer `$10A836` (BCD).
 | File | Purpose |
 |---|---|
 | `rom96.py` | ROM loading, banked reads, animations, frames, the 11 sprite formats, state map |
-| `export96.py` | everything → `kof95_export.json` + C1/C2 in the KOF95 layout (`python3 export96.py OUT all`); then `../kof95/gallery.py --split OUT site/index.html` (atlases as `site/atlas/<name>.png`: the page alone would pass the artifact's 16 MB limit) |
+| `export96.py` | everything → `kof95_export.json` + C1/C2 in the KOF95 layout (`python3 export96.py OUT all`); then `../kof95/gallery.py OUT site/index.html` (the page holds the roster index; each fighter is `site/chars/<name>.json` + `site/atlas/<name>.png`, loaded when opened) |
 | `commands96.py` | recogniser lists → `commands96.json` |
 | `specials96.py` | captured specials → gallery scripts |
 | `throwtables96.py` | throw list decoder + validation |

@@ -13,7 +13,7 @@ Captured in our emulator (`tools/kof96/capture/emu.py`, see the KOF96 README); s
 `/data/neogeo_dict/ngsdl_sta/kof98/` (`vs` = Kyo vs Yuri, `boot_ngsdl.py kof98 --save 1593`; `c<id>` / `c<id>x` per fighter).
 
     python3 tools/kof96/export96.py --game kof98 OUT all
-    python3 tools/kof95/gallery.py --split OUT site/index.html
+    python3 tools/kof95/gallery.py OUT site/index.html
 
 ## Cast (38)
 0 Kyo 1 Benimaru 2 Daimon 3 Terry 4 Andy 5 Joe 6 Ryo 7 Robert 8 Yuri 9 Leona 10 Ralf 11 Clark 12 Athena 13 Kensou

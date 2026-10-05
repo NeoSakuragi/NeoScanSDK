@@ -210,11 +210,13 @@ function colourise(n, key = 'b', set = 0) {
   }
   ox.putImageData(d, 0, 0); coloured[id] = out; return out;
 }
-function loadAtlas(n) {
-  return new Promise(res => {
-    if (atlases[n] && atlases[n].complete) return res();
-    const im = atlases[n] || new Image(); atlases[n] = im; im.onload = () => res(); if (!im.src) im.src = DATA.chars[n].atlas;
-  });
+/* the page holds only the roster index; a fighter's animations (chars/<name>.json) and atlas load when first opened */
+const charLoads = {};
+function loadChar(n) {
+  return charLoads[n] || (charLoads[n] = fetch(`chars/${n}.json`).then(r => r.json()).then(d => {
+    Object.assign(DATA.chars[n], d);
+    return new Promise(res => { const im = new Image(); atlases[n] = im; im.onload = () => res(); im.src = d.atlas; });
+  }));
 }
 
 /* one player = an animation advancing in ticks; hold animations rest on the last step, then restart */
@@ -372,6 +374,13 @@ function buildStrip() {
 
 /* ---- thumbnails ---- */
 let thumbs = [];
+/* only thumbnails on screen are advanced and drawn; one coming into view is drawn at once, then animates */
+const thumbOf = new WeakMap();
+const seen = new IntersectionObserver(es => {
+  for (const e of es) { const t = thumbOf.get(e.target); if (!t) continue; t.vis = e.isIntersecting; if (t.vis) drawThumb(t); }
+}, { rootMargin: '150px 0px' });
+function addThumb(t) { t.vis = false; thumbs.push(t); thumbOf.set(t.c, t); seen.observe(t.c); }
+function redrawThumbs() { for (const t of thumbs) if (t.vis) drawThumb(t); }
 function thumbSpecial(i) {
   const sp = DATA.chars[charName].specials[i], m = 'sp:' + i;
   const el = document.createElement('button'); el.className = 'card'; el.type = 'button'; el.dataset.anim = m;
@@ -379,7 +388,7 @@ function thumbSpecial(i) {
   const n = document.createElement('b'); n.textContent = spLabel(sp);
   const s = document.createElement('span'); s.textContent = `${sp.script.length} frames${sp.condition !== 'normal' && sp.condition !== 'always' ? ' · ' + sp.condition : ''}`;
   el.append(c, n, s); el.onclick = () => select(m);
-  thumbs.push({ c, ctx: c.getContext('2d'), p: player(null, sp.script, 'special') });
+  addThumb({ c, ctx: c.getContext('2d'), p: player(null, sp.script, 'special') });
   return el;
 }
 function thumb(m, cls, still = false) {
@@ -396,7 +405,7 @@ function thumb(m, cls, still = false) {
   el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(m); } };
   const th = (DATA.chars[charName].throws || {})[m];
   const pl = player(a, th ? th.timeline : null); if (th) pl.throw = th;
-  thumbs.push({ c, ctx: c.getContext('2d'), p: pl, still });
+  addThumb({ c, ctx: c.getContext('2d'), p: pl, still });
   if (a.states) s.textContent = `${a.steps.length} steps · ${total}t · ${a.states.length ? 'state ' + a.states.join(', ') : 'no state maps here'}`;
   if (th) s.textContent = `slot ${a.slot} · ${th.timeline.length} frames · ${th.inputs}`;
   return el;
@@ -412,7 +421,7 @@ function drawThumb(t) {
   if (showBoxes) drawBoxes(x, st[2], 75, 140, 0.75, faceRight);
 }
 function buildGroups() {
-  thumbs = [];
+  seen.disconnect(); thumbs = [];
   const root = document.getElementById('groups'); root.innerHTML = '';
   for (const [title, moves] of DATA.groups) {
     const slotKeys = title === 'Other animation slots' ? Object.keys(DATA.chars[charName].anims).filter(k => k.startsWith('slot_')).sort((a, b) => a.slice(5) - b.slice(5)) : null;
@@ -500,13 +509,13 @@ function swatches() {
 }
 let charToken = 0;
 async function setChar(n) {
-  charName = n; const token = ++charToken;
+  const token = ++charToken;
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.char === n ? 'true' : 'false'));
-  await loadAtlas(n); if (token !== charToken) return;
+  await loadChar(n); if (token !== charToken) return;
+  charName = n;                                         /* only once loaded: the clock keeps drawing the current one */
   buildGroups();
   if (!DATA.chars[n].anims[sel] && !(DATA.chars[n].throws || {})[sel]) sel = 'idle';
   select(sel); swatches();
-  thumbs.forEach(drawThumb);
 }
 function syncPlay() { const b = document.getElementById('play'); b.textContent = playing ? 'Pause' : 'Play'; b.setAttribute('aria-pressed', playing ? 'true' : 'false'); }
 
@@ -517,16 +526,18 @@ for (const n of Object.keys(DATA.chars)) {
 const vsel = document.getElementById('victim');
 vsel.innerHTML = '<option value="">Same fighter (mirror colours)</option>' + Object.keys(DATA.chars).map(n => `<option value="${n}">${CAST_NAMES[n] || n}</option>`).join('');
 vsel.onchange = async () => {
-  throwVictim = vsel.value || null;
-  if (throwVictim) await loadAtlas(throwVictim);
-  drawMain(); thumbs.forEach(drawThumb);
+  const v = vsel.value || null;
+  if (v) await loadChar(v);
+  if ((vsel.value || null) !== v) return;
+  throwVictim = v;
+  drawMain(); redrawThumbs();
 };
 /* one button per colour set: KOF95/96 regular + mirror, KOF98 the four sets A-D chosen at character select */
 document.getElementById('palButtons').innerHTML = DATA.set_names.map((n, k) =>
   `<button data-pal="${k}" aria-pressed="${k ? 'false' : 'true'}">${n} colours</button>`).join('');
 document.querySelectorAll('[data-pal]').forEach(b => b.onclick = () => {
   palSet = +b.dataset.pal; document.querySelectorAll('[data-pal]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
-  buildStrip(); drawMain(); thumbs.forEach(drawThumb);
+  buildStrip(); drawMain(); redrawThumbs();
 });
 document.getElementById('play').onclick = () => { playing = !playing; syncPlay(); };
 document.getElementById('step').onclick = () => {
@@ -537,11 +548,11 @@ document.getElementById('step').onclick = () => {
 document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => {
   speed = +b.dataset.speed; document.querySelectorAll('[data-speed]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
 });
-document.getElementById('boxes').onclick = e => { showBoxes = !showBoxes; e.currentTarget.setAttribute('aria-pressed', showBoxes); buildStrip(); drawMain(); thumbs.forEach(drawThumb); };
-document.getElementById('face').onclick = e => { faceRight = !faceRight; e.currentTarget.setAttribute('aria-pressed', faceRight); buildStrip(); drawMain(); thumbs.forEach(drawThumb); };
+document.getElementById('boxes').onclick = e => { showBoxes = !showBoxes; e.currentTarget.setAttribute('aria-pressed', showBoxes); buildStrip(); drawMain(); redrawThumbs(); };
+document.getElementById('face').onclick = e => { faceRight = !faceRight; e.currentTarget.setAttribute('aria-pressed', faceRight); buildStrip(); drawMain(); redrawThumbs(); };
 
-const nAnims = Object.values(DATA.chars).reduce((s, c) => s + Object.keys(c.anims).length, 0);
-const nFrames = Object.values(DATA.chars).reduce((s, c) => s + c.frames.length, 0);
+const nAnims = Object.values(DATA.chars).reduce((s, c) => s + c.n_anims, 0);
+const nFrames = Object.values(DATA.chars).reduce((s, c) => s + c.n_frames, 0);
 document.getElementById('totals').textContent = `${Object.keys(DATA.chars).length} characters · ${nAnims} animations · ${nFrames} unique frames · ${DATA.set_names.length} palette sets each · KOF95 sprites face left, as stored in the ROM`;
 tables();
 setChar('terry');
@@ -554,8 +565,8 @@ function loop(now) {
   acc += (now - last) * speed; last = now;
   const ticks = Math.floor(acc / TICK_MS); acc -= ticks * TICK_MS;
   if (ticks > 0) {
-    if (playing && main) { advance(main, ticks); drawMain(); }   // main is set once the first character has loaded
-    if (!still) for (const t of thumbs) { if (t.still) continue; const s = t.p.step; advance(t.p, ticks); if (t.p.step !== s || ticks > 0) drawThumb(t); }
+    if (playing && main) { const s = main.step, r = main.rest; advance(main, ticks); if (main.step !== s || main.rest !== r) drawMain(); }   // main is set once the first character has loaded
+    if (!still) for (const t of thumbs) { if (t.still || !t.vis) continue; const s = t.p.step; advance(t.p, ticks); if (t.p.step !== s) drawThumb(t); }
   }
   requestAnimationFrame(loop);
 }

@@ -12,7 +12,7 @@ decrypted (SMA program scramble and CMC42 sprite encryption undone).
     GAME=kof99 python3 tools/kof96/capture/throws96.py ID...
     GAME=kof99 python3 tools/kof98/capture/wins98.py ID...
     GAME=kof99 python3 tools/kof96/capture/labels.py
-    python3 tools/kof96/export96.py --game kof99 OUT all && python3 tools/kof95/gallery.py --split OUT site/index.html
+    python3 tools/kof96/export96.py --game kof99 OUT all && python3 tools/kof95/gallery.py OUT site/index.html
 
 ## KOF98's engine, reworked game
 Same: animation engine ($4474), frames bank 1 `$200002[id]`, sprite definitions bank 1 `$240000[id]`, animations bank 2

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Animation gallery: one self-contained HTML page that plays every exported animation with KOF95's own timing.
 Uses only the exporter's output (kof95_export.json + kof95_c1/c2.bin), so it shows exactly what the ROM build gets.
-    python3 gallery.py EXPORTDIR OUT.html"""
+    python3 gallery.py EXPORTDIR OUT.html   (writes chars/*.json and atlas/*.png next to OUT.html)"""
 import base64, io, json, os, sys
 import numpy as np
 from PIL import Image
@@ -100,17 +100,16 @@ def build(d):
     return data
 
 if __name__ == '__main__':
-    # --split: atlases as separate PNGs next to the page (atlas/<name>.png) instead of data URIs, for a page over 16 MB
-    split = '--split' in sys.argv; args = [a for a in sys.argv[1:] if a != '--split']
-    d, out = args[0], args[1]
-    data = build(d)
-    if split:
-        import base64
-        os.makedirs(os.path.join(os.path.dirname(os.path.abspath(out)), 'atlas'), exist_ok=True)
-        for name, ch in data['chars'].items():
-            png = base64.b64decode(ch['atlas'].split(',', 1)[1])
-            open(os.path.join(os.path.dirname(os.path.abspath(out)), 'atlas', f'{name}.png'), 'wb').write(png)
-            ch['atlas'] = f'atlas/{name}.png'
+    # the page carries only the roster index; each fighter is chars/<name>.json + atlas/<name>.png next to it,
+    # fetched when the fighter is first opened (one fighter's data instead of the whole cast at load)
+    d, out = sys.argv[1], sys.argv[2]
+    data = build(d); root = os.path.dirname(os.path.abspath(out))
+    os.makedirs(os.path.join(root, 'atlas'), exist_ok=True); os.makedirs(os.path.join(root, 'chars'), exist_ok=True)
+    for name, ch in data['chars'].items():
+        open(os.path.join(root, 'atlas', f'{name}.png'), 'wb').write(base64.b64decode(ch['atlas'].split(',', 1)[1]))
+        ch['atlas'] = f'atlas/{name}.png'
+        json.dump(ch, open(os.path.join(root, 'chars', f'{name}.json'), 'w'), separators=(',', ':'))
+        data['chars'][name] = {'id': ch['id'], 'physics': ch['physics'], 'n_anims': len(ch['anims']), 'n_frames': len(ch['frames'])}
     tpl = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gallery_template.html')).read()
     tpl = tpl.replace('KOF95 sprites face left', f"{data['game'].upper()} sprites face left")
     if data['game'] == 'kof99':
