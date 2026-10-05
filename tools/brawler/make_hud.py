@@ -12,7 +12,7 @@
    /data/neogeo_dict/portraits; KOF96's boss team: their member-select squares, <game>_<name>_square.png, portraits.py
    select96), its 28x28 face core (other KOF96: centred on the face, its tan band repainted: band96) in
    one shared 2 px frame = 32x32, 15 colours, 16 fix tiles
-   (row-major) from PORTRAIT_TILE + i * 16, its own fix palette (main.c: 2 + i).
+   (row-major) from PORTRAIT_TILE + i * 16; colours portrait_pal[i], loaded into fix palette 2 + HUD side when shown (main.c portrait()).
 
     python3 make_hud.py OUTDIR kof98:terry ...        (after font_encoder.py wrote OUTDIR/font.s1)  -> hud.h"""
 import os, sys
@@ -120,7 +120,7 @@ def build(outdir, specs):
          f'#define BAR_TILE 0x{BAR_TILE:X}   /* + kind * 18 + rest * 9 + f: kind 0 left cap / 1 middle / 2 right cap */',
          f'#define BAR_TILE_R 0x{BAR_TILE_R:X}   /* the same glyphs mirrored: kind 0 = the right (outer) cap */',
          f'#define ARROW_TILE 0x{ARROW_TILE:X}   /* a down arrow (select screen) */',
-         f'#define PORTRAIT_TILE 0x{PORTRAIT_TILE:X}   /* + fighter * 16 + row * 4 + col (32x32, fix palette 2 + fighter) */',
+         f'#define PORTRAIT_TILE 0x{PORTRAIT_TILE:X}   /* + fighter * 16 + row * 4 + col (32x32, colours portrait_pal[fighter] in fix palette 2 + side) */',
          'static const uint16_t bar_colours[10] = {' + ', '.join('0x%04X' % neo_colour(*BAR_PAL[k]) for k in range(6, 16)) + '};   /* palette 0, entries 6-15 */',
          f'static const uint16_t portrait_pal[{len(specs)}][16] = {{' + ', '.join('{' + ', '.join(f'0x{v:04X}' for v in pl) + '}' for pl in pals) + '};',
          '#endif']

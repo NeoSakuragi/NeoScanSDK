@@ -400,7 +400,7 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
 /* ---- HUD on the fix layer (tools/brawler/make_hud.py), fighting-game layout: top row = the life bars, KOF94-style (1 px
  * steps, red damage trail that holds 20 frames then shrinks), the left one anchored at the left edge, the right one at the
  * right edge (mirrored glyphs), so both empty from the middle outward; row below = the names, pinned to the corners next
- * to the 32x32 portraits (fix palette 2 + fighter, rows 0-3 at the screen edges); then lives / continue. P1 left; right =
+ * to the 32x32 portraits (fix palette 2 + side, rows 0-3 at the screen edges); then lives / continue. P1 left; right =
  * the enemy P1 fights, or P2 (2-player builds: each player's target under its block). Only changed cells are written. ---- */
 #define BAR_CELLS 15
 #define BAR_PX    118                    /* inside the caps: 7 + 13 x 8 + 7 */
@@ -420,11 +420,14 @@ static uint16_t hud_tick, hud_min_spins = 0xFFFF;
 static uint8_t wave;
 static void fix_put(uint8_t col, uint8_t row, uint16_t v) { cmd_push(VRAM_FIX + col * 32 + row + 2, v); }
 static uint8_t char_index(const bchar_t *ch) { uint8_t i; for (i = 0; i < BC_COUNT; i++) if (&bm_chars[i] == ch) return i; return 0; }
-static void portrait(uint8_t col, uint8_t row, uint8_t ch) {      /* ch 0xFF = clear */
+/* a portrait in HUD slot `side` (0 left, 1 right) uses fix palette 2 + side, loaded with the fighter's colours when it
+ * is drawn: fix palettes are 4-bit (0-15), so 16 roster fighters cannot each keep one (2026-10-05: the bosses made 16) */
+static void portrait(uint8_t col, uint8_t row, uint8_t ch, uint8_t side) {      /* ch 0xFF = clear */
     uint8_t r, c;
+    if (ch != 0xFF) PAL_setPalette(2 + side, portrait_pal[ch]);
     for (r = 0; r < 4; r++)
         for (c = 0; c < 4; c++)
-            fix_put(col + c, row + r, ch == 0xFF ? 0x20 : (uint16_t)((2 + ch) << 12 | (PORTRAIT_TILE + ch * 16 + r * 4 + c)));
+            fix_put(col + c, row + r, ch == 0xFF ? 0x20 : (uint16_t)((2 + side) << 12 | (PORTRAIT_TILE + ch * 16 + r * 4 + c)));
 }
 static void bar_draw(bar_t *b, int16_t hp) {
     int16_t full = (b->n << 3) - 2, px = hp <= 0 ? 0 : hp * 2 > full ? full : hp * 2, x0 = 0;
@@ -474,7 +477,7 @@ static void hud_target(uint8_t slot, fighter_t *t, uint8_t right, uint8_t name_r
     if (t != hud_tgt[slot]) {
         hud_tgt[slot] = t;
         hud_name(right, name_row, t ? t->ch->name : 0);
-        if (face_side) { uint8_t f = t ? char_index(t->ch) : 0xFF; if (hud_face[1] != f) { hud_face[1] = f; portrait(35, 0, f); } }
+        if (face_side) { uint8_t f = t ? char_index(t->ch) : 0xFF; if (hud_face[1] != f) { hud_face[1] = f; portrait(35, 0, f, 1); } }
         if (!t) bar_clear(&bars[slot]);
     }
     if (t) bar_draw(&bars[slot], t->hp);
@@ -494,7 +497,7 @@ static void hud(void) {
     for (p = 0; p < 1 + two; p++) {                          /* the players' blocks: P1 left, P2 right */
         fighter_t *f = &fighters[p];
         uint8_t face = char_index(f->ch), pc = p ? 35 : 1, lc = p ? 32 : 5, cc = p ? 20 : 9;   /* lives / continue cols */
-        if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face); hud_name(p, 1, f->ch->name); }
+        if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face, p); hud_name(p, 1, f->ch->name); }
         bar_draw(&bars[p], in_play(f) ? f->hp : 0);
         if (lives[p] != hud_lives[p]) { hud_lives[p] = lives[p]; FIX_print(lc, 2, "x ", 0); FIX_printNum(lc + 1, 2, lives[p], 0); }
         if (cont_t[p] / 60 != hud_cont[p]) {
@@ -1054,7 +1057,7 @@ static void unlock_start(uint8_t k) {
     uint8_t c = boss_ch[k];
     show_start(3, c, 0, RGB8(40, 8, 8));
     centre(3, "BOSS UNLOCKED");
-    portrait(18, 5, c);
+    portrait(18, 5, c, 0);
     centre(10, bm_chars[c].name);
     centre(24, "NOW ON THE SELECT SCREEN");
     snd_music(MUS_SELECT);
@@ -1063,7 +1066,7 @@ static void ending_start(void) {
     show_start(4, pl_ch[0], pl_set[0], RGB8(8, 16, 40));
     centre(3, "CONGRATULATIONS!");
     centre(5, "ALL FIVE STAGES CLEARED");
-    portrait(18, 7, pl_ch[0]);
+    portrait(18, 7, pl_ch[0], 0);
     centre(24, "THANK YOU FOR PLAYING");
     snd_music(MUS_JINGLE);
 }
@@ -1156,8 +1159,8 @@ void game_enter(uint8_t request) {
     BIOS_USER_MODE = 1;                                      /* title / demo (game_init ran on request 0) */
     { uint8_t k; for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k];
       PAL_setPalette(0, TEXT_PAL);                           /* the BIOS's own screens overwrite palette 0 */
-      TEXT_PAL[1] = RGB(31, 28, 0); PAL_setPalette(1, TEXT_PAL); TEXT_PAL[1] = COLOR_WHITE;   /* 1: yellow text (GO) */
-      for (k = 0; k < BC_COUNT; k++) PAL_setPalette(2 + k, portrait_pal[k]); }   /* fix palettes 2-15: portraits */
+      TEXT_PAL[1] = RGB(31, 28, 0); PAL_setPalette(1, TEXT_PAL); TEXT_PAL[1] = COLOR_WHITE; }   /* 1: yellow text (GO);
+                                                                 fix palettes 2-3: the shown portraits (portrait()) */
     shadow_init();
     dbg_init();
     snd_reset();                                             /* the BIOS reset the sound CPU before handing over */

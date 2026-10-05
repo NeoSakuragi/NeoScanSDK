@@ -137,9 +137,14 @@ def build(specs, outdir):
 # height - travel / 2. Big versions (C / D) first. ROLE_OVERRIDE: KOF input notation per fighter and role.
 ROLE_OVERRIDE = {'mai': {'rise': '623D'},       # Mai: [2]8A is a wall-jump dive, not a reversal
                  'terry': {'up': '214D'},        # Crack Shoot
-                 'kyo': {'up': '624B'}}          # Kototsuki You: the run, on contact the grab and the explosion (states
+                 'kyo': {'up': '624B'},
+                 'goenitz': {'up': '214C'}}      # his 41236 is one wind (Yonokaze) for every button, at another
+                                                 # distance per button (60 / 120 / 200 px): D has 41236C, up+D his 214C          # Kototsuki You: the run, on contact the grab and the explosion (states
                                                  # 134-140; 'EX 624D' was the same run, captured as a hit, no whiff)
 ROLES = ('proj', 'rush', 'rise', 'up')
+# fighters whose EX version is another character, not more moves (Bruno 2026-10-05: the regular Rugal, not Omega Rugal,
+# whose KOF98 EX specials are captured on c36x): their 'EX ...' specials are not picked
+NO_EX = {'rugal'}
 
 SPECIAL_DAMAGE = 8                                     # a special's damage, split over its hits (fighter.c)
 R_HEAVY, R_KNOCKDOWN, R_LAUNCH = 1, 2, 3               # fighter.h R_*: the victim's reaction to a special's hit
@@ -372,7 +377,8 @@ def pick_specials(ch, name=None):
     its EX version are one fighter (Bruno 2026-10-04: same normals, the EX adds specials): the pool is both versions'
     specials ('EX ...' inputs, captured on the EX state c<id>x). D = the fighter's real projectile (real_projectile): a
     travelling one first (EX Terry's Power Wave over his Round Wave eruption), big button first, the longest travel."""
-    c = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].replace('EX ', '').startswith('air')]
+    c = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].replace('EX ', '').startswith('air')
+         and not (name in NO_EX and sp['input'].startswith('EX '))]
     can_hit = lambda sp: real_projectile(sp) or any(k[0] == '1' and k.upper() != '1B' for b in sp.get('row_boxes', []) for k in b)
     auto = [sp for sp in c if not sp['input'].split()[0] in ('MAX', 'Counter') and not counter_move(sp) and can_hit(sp)]
     # supers: by override only; a move that can hit nothing (no attack box, no projectile: K''s 236D, whose object never

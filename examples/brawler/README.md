@@ -340,7 +340,12 @@ at z 0 / 64 in every stage (floor_top + z - 1).
 
 ## Roster
 `CHARS` in the Makefile: KOF98 Terry, Ryo, Ralf, Chang, Yamazaki, Billy, Kyo, Iori, Mai; KOF96 Geese, Mr. Big, Krauser;
-KOF99 Maxima, K' (one export per game). 94,050 tiles = 16 MB of C ROM. The fighter tables (556 KB) live at $200000
+KOF99 Maxima, K' (one export per game); the bosses (2026-10-05, 0.0.29) KOF98 Rugal (the regular one: `export_bm.NO_EX`
+keeps Omega Rugal's EX specials out) and KOF96 Goenitz (no rush or rising special: forward+D / down+D play the nearest
+role he has), 16 fighters. The bosses are not selectable in their games: the captures put them on P1 the way every
+capture swaps fighters, by writing the id (KOF98 36, KOF96 28) into P1's team record (`capture/emu.py swap_pokes`).
+C ROM: 118,779 tiles used = 14.5 MB of the 16 MB image. HUD portraits use fix palette 2 + side, loaded when drawn
+(4-bit fix palettes: 16 fighters cannot keep one each). The fighter tables (556 KB) live at $200000
 (objcopy renames bm_chars.o's .rodata to .p2data), the code (22 KB) at $000000: P ROM 2 MB, no bank switching, room for
 about 45 fighters' tables; past that, P2 bank switching. Tile numbers are 20 bits: each game's block sits inside one 64K page
 (padded to the next page when it would cross one) and starts with a blank tile, tables keep the low 16 bits and
