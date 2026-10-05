@@ -9,7 +9,8 @@
    "watch": {"frame": 351, "step": -1},
    "routes": "tools/brawler/routes/terry.json",
    "specials": {"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "ryo",
@@ -17,7 +18,8 @@
    "watch": {"frame": 343, "step": -1},
    "routes": "default",
    "specials": {"D": "EX 236C", "fD": "214C", "dD": "EX 623C", "uD": "236D"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "ralf",
@@ -25,7 +27,8 @@
    "watch": {"frame": 353, "step": -1},
    "routes": "default",
    "specials": {"D": null, "fD": "[4]6C", "dD": "[2]8C", "uD": "[4]6D"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "robert",
@@ -33,7 +36,8 @@
    "watch": {"frame": 340, "step": -1},
    "routes": "default",
    "specials": {"D": "EX 236C", "fD": "EX 624D", "dD": "623D", "uD": "623C"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "yamazaki",
@@ -41,7 +45,8 @@
    "watch": {"frame": 349, "step": 0},
    "routes": "default",
    "specials": {"D": null, "fD": "623C", "dD": null, "uD": "236C"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "billy",
@@ -49,7 +54,8 @@
    "watch": {"frame": 347, "step": -1},
    "routes": "default",
    "specials": {"D": null, "fD": null, "dD": "623D", "uD": "426C"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "kyo",
@@ -57,7 +63,8 @@
    "watch": {"frame": 345, "step": -1},
    "routes": "default",
    "specials": {"D": null, "fD": "EX 624D", "dD": "623C", "uD": "624B"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "iori",
@@ -65,7 +72,8 @@
    "watch": {"frame": 353, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "623D", "dD": "623C", "uD": "214C"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "mai",
@@ -73,7 +81,8 @@
    "watch": {"frame": 338, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "426D", "dD": "623D", "uD": "214C"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "yashiro",
@@ -81,7 +90,8 @@
    "watch": {"frame": 340, "step": -1},
    "routes": "default",
    "specials": {"D": null, "fD": "426C", "dD": "214D", "uD": "623C"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "geese",
@@ -89,7 +99,8 @@
    "watch": {"frame": 210, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "63214C", "dD": "623C", "uD": null},
-   "unlock": {"boss_of_stage": 3}
+   "unlock": {"boss_of_stage": 3},
+   "voices": "kof"
   },
   {
    "name": "mr_big",
@@ -97,7 +108,8 @@
    "watch": {"frame": 216, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "63214C", "dD": "623C", "uD": "63214D"},
-   "unlock": {"boss_of_stage": 1}
+   "unlock": {"boss_of_stage": 1},
+   "voices": "kof"
   },
   {
    "name": "krauser",
@@ -105,7 +117,8 @@
    "watch": {"frame": 226, "step": -1},
    "routes": "default",
    "specials": {"D": "214C", "fD": "41236B", "dD": "623D", "uD": "214D"},
-   "unlock": {"boss_of_stage": 2}
+   "unlock": {"boss_of_stage": 2},
+   "voices": "kof"
   },
   {
    "name": "k_dash",
@@ -113,7 +126,8 @@
    "watch": {"frame": 349, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "214D", "dD": "623C", "uD": null},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "rugal",
@@ -121,7 +135,8 @@
    "watch": {"frame": 343, "step": -1},
    "routes": "default",
    "specials": {"D": "236C", "fD": "624A", "dD": "6426D", "uD": "236D"},
-   "unlock": {"boss_of_stage": 4}
+   "unlock": {"boss_of_stage": 4},
+   "voices": "kof"
   },
   {
    "name": "goenitz",
@@ -129,7 +144,8 @@
    "watch": {"frame": 216, "step": -1},
    "routes": "default",
    "specials": {"D": "41236C", "fD": null, "dD": null, "uD": "214C"},
-   "unlock": {"boss_of_stage": 5}
+   "unlock": {"boss_of_stage": 5},
+   "voices": "kof"
   }
  ],
  "select": {

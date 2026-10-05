@@ -95,7 +95,7 @@
   const songOpts = () => Object.keys(D.songs).map(n => [n, n.replace(/_/g, ' ')]);
 
   // ---- the pack and play --------------------------------------------------------------------------------------------
-  function packNow() { const e = ED(); return e.errors.length ? { bytes: null, errors: ['Enemies tab: ' + e.errors.join('; ')] } : SP.pack(stages, e.D, window.charsTab && window.charsTab.spmap()); }
+  function packNow() { const e = ED(); return e.errors.length ? { bytes: null, errors: ['Enemies tab: ' + e.errors.join('; ')] } : SP.pack(stages, e.D, window.charsTab && window.charsTab.spmap(), window.charsTab && window.charsTab.vtabs()); }
   function showErrors(errs) {
     const e = $('stErr'); e.textContent = errs.length ? 'Not valid (fix these before playing):\n' + errs.join('\n') : ''; e.classList.toggle('show', !!errs.length);
   }

@@ -311,7 +311,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   the enemy-test mode (lab.req = 3).
 - [x] 54. (done 2026-10-05, docs/brawler_data_model.md "Characters tab"; proof chainlab/char_proof.sh: Terry up+D 214D -> 426D live, page = desktop core 536 ticks, packs = build_tables.py; every special in the ROM, pack v2) Brawler Lab tab: Characters — fold in the select-pose picker (the judging UI), the Chain Lab, the specials
   mapping (each slot picked from the captured specials with impact pictures).
-- [ ] 55. Voices: list every fighter's voices (static scan of the FC 00 <index> play-sound records + a sound capture
+- [x] 55. (done 2026-10-05, docs/brawler_data_model.md "Voices"; 299 voices of the 16 fighters listed with WAVs (tools/brawler/voices.py: $FC scan + captures in our emulator, each sample found by its own driver), all 16 on as KOF's own by default (148 samples, V ROM 3.94 MB), voice_proof.py: Terry's / Kyo's specials and hit voices play KOF's own sample byte for byte, a lab edit live through pack v3) Voices: list every fighter's voices (static scan of the FC 00 <index> play-sound records + a sound capture
   of each special for the KOF99-style code-sent ones), a roster "voices" field, and the lab's suggested voice per move
   with an override.
 - [ ] 56. Triggers + boss drama mode: triggers (camera x / wave clear / time: spawn, lock, music change, drama), the

@@ -4,7 +4,7 @@
  * packs to build_tables.py pack's file byte for byte. */
 (function (root) {
   'use strict';
-  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 2, PACK_HEAD = 18, ST_SIZE = 24;
+  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 3, PACK_HEAD = 18, ST_SIZE = 24;
 
   function num(v) { return typeof v === 'string' ? parseInt(v, v.startsWith('0x') || v.startsWith('0X') ? 16 : 10) : v; }
   const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -72,8 +72,9 @@
   }
 
   /* the whole pack: stages.json's base bytes + the stages + the roster section (build_tables.py pack_stages); spmap: the
-     specials by role, 4 bytes per roster fighter (the Characters tab's, else stages.json's = game.json's) */
-  function pack(stages, D, spmap) {
+     specials by role, 4 bytes per roster fighter (the Characters tab's, else stages.json's = game.json's); vtabs: per
+     roster fighter its voice table (bytes) when it differs from the ROM's, else null (version 3) */
+  function pack(stages, D, spmap, vtabs) {
     const M = model(stages, D);
     if (M.errors.length) return { bytes: null, errors: M.errors };
     const base = D.base.match(/../g).map(h => parseInt(h, 16)), out = base.slice();
@@ -94,7 +95,9 @@
       rows.push(...r);
     }
     const sto = put(rows);
-    const roo = put(spmap || D.spmap);
+    const sm = spmap || D.spmap, vt = vtabs || Array(sm.length / 4).fill(null);
+    const roo = put(sm.concat(Array(2 * vt.length).fill(0)));   // version 3: + per fighter its voice table's offset
+    vt.forEach((t, i) => { if (t) { const o = put(t, 1); out[roo + sm.length + 2 * i] = o >> 8; out[roo + sm.length + 2 * i + 1] = o & 0xFF; } });
     while (out.length % 2) out.push(0);
     if (out.length > D.gd_max) return { bytes: null, errors: [`pack: ${out.length} bytes (at most ${D.gd_max})`] };
     const head = [71, 68, GD_VERSION, M.stages.length, D.enemies.length, D.nai, ...be16(out.length), ...be16(sto), ...be16(D.en_o),

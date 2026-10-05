@@ -66,6 +66,26 @@ chars = {'roster': G['roster'], 'slots': G['select']['slots'], 'stages': len(G['
          'sets': char_images.colour_sets(game, out, [r['name'] for r in G['roster']]),
          'specpics': char_images.special_images(game, out, lab['fighters']),
          'boss_of': [s_['boss']['enemy'] for s_ in G['stages']]}
+# the Voices section (TODO #55): each fighter's voice list (tools/brawler/voices.json), its voice keys, KOF's own voice per
+# key and the ROM's mapping (chainlab.json), the voices this ROM's V ROM holds (build/snd/snd_report.json), a WAV each
+import voices as V
+srep = json.load(open(os.path.join(game, 'build', 'snd', 'snd_report.json'))).get('voices', {'fighters': {}})
+def what(vo, sug):
+    u = [k.replace('special:', '').replace('_', ' ') for k, v in sug.items() if v[0] == vo['id']]   # the moves it is KOF's own for
+    for x in ([] if u else vo['uses']):                                                             # else where KOF plays it
+        t = x['input'] if x['kind'] == 'special' else x['event'] if x['kind'] == 'event' else \
+            ('intro' if any(st in V.INTRO[lab_g[n]] for st in x['states']) else 'win' if any(336 <= st < 344 for st in x['states']) else f"anim {x['slot']}")
+        if t not in u: u.append(t)
+    return ', '.join(u[:4]) + (' ...' if len(u) > 4 else '')
+chars['voices'] = {}
+for f in lab['fighters']:
+    n = f['name']; lab_g = {n: f['game']}
+    vl = V.bank(n)
+    for vo in vl:
+        src = os.path.join(V.OUT, 'wav', n, f"{vo['id']}.wav"); dst = os.path.join(out, 'voices', n)
+        os.makedirs(dst, exist_ok=True); shutil.copy(src, os.path.join(dst, f"{vo['id']}.wav"))
+    chars['voices'][n] = dict(f['voices'], game=f['game'], list=[{'id': vo['id'], 'cmd': vo['cmd'], 'ms': vo['ms'], 'what': what(vo, f['voices']['suggest'])} for vo in vl],
+                              inrom=sorted(int(i) for i, c in srep['fighters'].get(n, {}).get('codes', {}).items() if c))
 json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
 for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)

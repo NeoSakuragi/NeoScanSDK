@@ -33,7 +33,7 @@ MAX_ENEMIES = 6                                          # main.c NF - 2
 MAX_SLOTS = 16                                           # main.c SEL_NSLOT
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
 GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
-GD_VERSION, GD_MAX = 2, 4096                             # gamedata.h data pack (2: + the roster section)
+GD_VERSION, GD_MAX = 3, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices)
 
 
 def load(path): return json.load(open(path))
@@ -49,7 +49,8 @@ def roster_export(g):
     """what the fighter export (export_bm.py) needs of each roster fighter, in bm_chars order"""
     return [{'bank': r['bank'], 'name': r['name'], 'watch': [r['watch']['frame'], r['watch']['step']],
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
-             'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes'])} for r in g['roster']]
+             'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
+             'voices': r.get('voices')} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -322,7 +323,22 @@ def spec_map(g, build):
     return bytes(out)
 
 
-def pack_stages(M, out, en_o, ai_o, spmap):
+def voice_tabs(g, build):
+    """the pack's voices part: per roster fighter its voice table (voices.py table) when game.json's roster[].voices
+    gives another table than the ROM's (build/chainlab.json fighters[].voices: keys, KOF's suggestion, the ROM's map), else
+    None (the ROM's)"""
+    import voices as V
+    fs = {f['name']: f['voices'] for f in json.load(open(os.path.join(build, 'chainlab.json')))['fighters']}
+    out = []
+    for r in g['roster']:
+        d = fs[r['name']]
+        mp = V.mapping(r.get('voices'), d['suggest'])
+        t, rom = V.table(d['keys'], d['suggest'], mp, d['nvoice']), V.table(d['keys'], d['suggest'], d['map'], d['nvoice'])
+        out.append(bytes(t) if t != rom else None)
+    return out
+
+
+def pack_stages(M, out, en_o, ai_o, spmap, vtabs=None):
     """the stages after pack_base's bytes, the roster section (spec_map), then the header (chainlab/stagepack.js pack is the
     same code)"""
     import struct
@@ -344,7 +360,9 @@ def pack_stages(M, out, en_o, ai_o, spmap):
         for k, o, f in ST_LAYOUT: struct.pack_into('>' + f, b, o, v[k])
         st += b
     st_o = put(st)
-    ro_o = put(spmap)                                   # version 2: the roster section (the specials by role)
+    ro_o = put(bytes(spmap) + bytes(2 * len(vtabs or [])))   # version 2: the roster section (the specials by role);
+    for i, t in enumerate(vtabs or []):                 # version 3: + per fighter its voice table's offset (0: the ROM's)
+        if t is not None: struct.pack_into('>H', out, ro_o + len(spmap) + 2 * i, put(t, 1))
     while len(out) % 2: out.append(0)
     assert len(out) <= GD_MAX, f'pack: {len(out)} bytes (at most {GD_MAX})'
     struct.pack_into('>2sBBBBHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(M['enemies']), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, ro_o)
@@ -354,7 +372,7 @@ def pack_stages(M, out, en_o, ai_o, spmap):
 def pack(g, build):
     """the lab's data pack (gamedata.h gdpack_t): stages, enemies and AI rows, pointers as offsets from its start"""
     M = model(g, build)
-    return pack_stages(M, *pack_base(M), spec_map(g, build))
+    return pack_stages(M, *pack_base(M), spec_map(g, build), voice_tabs(g, build))
 
 
 def lab_stages(g, build):

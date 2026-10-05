@@ -87,7 +87,7 @@ typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
  * offset from the pack's start (0 = none); the game checks it (version, sizes, every offset and index), copies it into
  * its own RAM, turns the offsets into pointers and repoints gstages / genemies / ai_tab at the next safe point (a wave,
  * the boss, a stage start, the lab's enemy respawn). lab.load = 4: back to the ROM's tables (at the same point). ---- */
-#define GD_VERSION 2              /* 2 (2026-10-05): + the roster section; version 1 packs are still read (no roster section) */
+#define GD_VERSION 3              /* 2 (2026-10-05): + the roster section; 3: + its voices part; older packs are still read */
 #define GD_MAX     4096           /* bytes, header included */
 typedef struct {
     char     magic[2];            /* "GD" */
@@ -98,7 +98,9 @@ typedef struct {
     uint16_t nspawns;             /* spawns per stage at most (bounds checks) */
     uint16_t roster;              /* version 2: offset of the roster section (0 = none; version 1: padding, ignored): per
                                    * fighter (BC_COUNT, bm_chars order) 4 bytes, the special each role plays (D, forward+D,
-                                   * down+D, up+D: an index in its bchar_t.specials, 0xFF = none): fighter.c spec_tab */
+                                   * down+D, up+D: an index in its bchar_t.specials, 0xFF = none): fighter.c spec_tab;
+                                   * version 3: then per fighter a big-endian uint16, the offset of its voice table
+                                   * (VK_SPEC + nspec entries of [voice id, at], fighter.c voice_tab; 0 = the ROM's) */
 } gdpack_t;
 _Static_assert(sizeof(gdpack_t) == 18, "build_tables.py PACK_HEAD");
 enum { GD_NONE, GD_PENDING, GD_INSTALLED, GD_ROM,            /* lab.pack_stat (game): waiting for the safe point; in use */

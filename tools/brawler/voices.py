@@ -1,0 +1,396 @@
+#!/usr/bin/env python3
+"""Every roster fighter's voices (TODO #55, docs/brawler_data_model.md "Voices"): layer 0 of the voice data.
+
+    python3 voices.py capture [NAME ...]   sound captures in our emulator (emu/neogeo_sdl --capture, WLOG on the sound
+                                           mapper's word: index, object, driver word of every sound the game sends):
+                                           every specials pass the bank has (capture/specials96.py tries, as captured)
+                                           and an events pass (P1 hit twice, P1's two throws, P1 KO'd)
+                                           -> /data/neogeo_dict/voices/cap/<game>/
+    python3 voices.py list [NAME ...]      the listing: tools/brawler/voices.json + one WAV per voice
+                                           (/data/neogeo_dict/voices/wav/<name>/<id>.wav)
+
+Where a voice comes from (measured 2026-10-05):
+- KOF96 / KOF98 / KOF99 send every sound through one mapper (KOF96 $6AA8, KOF98 $7A98, KOF99 $6352): d0 = a sound
+  index, looked up in a word table (KOF96 $6CAD4, KOF98 $A9BCE, KOF99 $B1B5C) = driver prefix << 8 | code, stored in a
+  scratch word (a5 + $5936 / $593C / $58F0 = $10D936 / $10D93C / $10D8F0) and queued. At that store d1 = the index and
+  a4 = the object that asked (P1 = $108100). WLOG on the scratch word logs both.
+- An animation asks with a $FC record (`FC 00 <index:16> 00 00`, before the step it starts with: static scan), a move's
+  code asks directly (Terry's specials in KOF98, K''s in KOF99: only the capture sees those).
+- The driver word: prefix = the effect slot (KOF98 $1A hits / swings, the fighters' voices $1B / $1C / $1D / $1E / $16,
+  intro and win lines $17: each fighter its own slot, so teammates never cut each other), code = the slot's sample.
+- The sample: each game's own driver run in the tap core (tools/makoto3/capture.py: our emulator's core with a Z80 port
+  tap) with prefix + code sent and the game's own commands blocked: the ADPCM-A start / end registers it writes, every
+  key-on of that channel until the sound ends (a looped record replays parts). The WAV = those V ROM bytes decoded
+  (YM2610 ADPCM-A, 18518 Hz).
+A voice = one sample (its segments); the indices that play it are listed with it. Sounds of prefix $1A (hits, swings,
+fire) are effects, not voices; a sample several characters of the game use (the super flash...) is common, not listed."""
+import json, os, struct, subprocess, sys, wave
+HERE = os.path.dirname(os.path.abspath(__file__)); TOOLS = os.path.dirname(HERE)
+CAPDIR = os.path.join(TOOLS, 'kof96', 'capture')
+sys.path.insert(0, os.path.join(TOOLS, 'kof96')); sys.path.insert(0, os.path.join(TOOLS, 'kof95', 'capture'))
+import rom96, export96
+OUT = '/data/neogeo_dict/voices'
+JSON = os.path.join(HERE, 'voices.json')
+GAME_JSON = os.path.join(TOOLS, '..', 'examples', 'brawler', 'game.json')
+MAPPER = {'kof96': 0x6CAD4, 'kof98': 0xA9BCE, 'kof99': 0xB1B5C}          # index -> driver word
+SCRATCH = {'kof96': 0x10D936, 'kof98': 0x10D93C, 'kof99': 0x10D8F0}       # WLOG: the mapper's scratch word
+BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410}                         # the driver probe: frame after the game's $07
+CAST = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}
+P1 = 0x108100
+FX_PREFIX = 0x1A
+COMMON = {}                                                                # game -> driver words known common (below)
+RATE = 18518                                                               # ADPCM-A: 8 MHz / 432
+
+# ---- ADPCM-A (YM2610) ----
+STEPS = [16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173,
+         190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796, 876, 963, 1060, 1166, 1282, 1411,
+         1552]
+ADJ = [-1, -1, -1, -1, 2, 5, 7, 9]
+def adpcm_a(data):
+    """4-bit ADPCM-A (high nibble first) -> 16-bit PCM, the chip's 12-bit accumulator; every key-on starts from 0"""
+    acc, ix, out = 0, 0, []
+    for b in data:
+        for n in (b >> 4, b & 15):
+            d = ((n & 7) * 2 + 1) * STEPS[ix] >> 3
+            acc = (acc - d if n & 8 else acc + d) & 0xFFF
+            if acc & 0x800: acc -= 0x1000
+            ix = min(48, max(0, ix + ADJ[n & 7]))
+            out.append(acc << 4)
+    return out
+
+def v_rom(game):
+    d = open(rom96.GAMES[game]['neo'], 'rb').read()
+    h = struct.unpack('<6I', d[4:28]); o = 0x1000 + h[0] + h[1] + h[2]
+    return d[o:o + h[3]]
+
+def sample_bytes(v, segments):
+    return b''.join(v[s << 8:(e + 1) << 8] for s, e in segments)
+
+def write_wav(path, v, segments):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    pcm = []
+    for s, e in segments: pcm += adpcm_a(v[s << 8:(e + 1) << 8])
+    with wave.open(path, 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(RATE)
+        w.writeframes(struct.pack(f'<{len(pcm)}h', *pcm))
+    return len(pcm) * 1000 // RATE
+
+# ---- the roster ----
+def roster(names=None):
+    g = json.load(open(GAME_JSON))
+    out = []
+    for r in g['roster']:
+        game, name = r['bank'].split(':')
+        if names and r['name'] not in names: continue
+        if game not in MAPPER: continue
+        out.append((r['name'], game, name, CAST[game].index(name)))
+    return out
+
+_MEM = {}
+def mem(game):
+    if game not in _MEM:
+        p, _ = rom96.load(rom96.GAMES[game]['neo']); _MEM[game] = rom96.Mem(p, game)
+    return _MEM[game]
+
+def slot_states(m, cid):
+    k98 = m.game != 'kof96'
+    mp = None if k98 else rom96.shared_map(m)
+    inv = {}
+    for st in range(512):
+        try: inv.setdefault(rom96.state_slot(m, cid, st) if k98 else mp[st], []).append(st)
+        except Exception: pass
+    return inv
+
+def fc_records(m, cid):
+    """static scan: every $FC record of the character's animation table: (slot, step it precedes, index)"""
+    base = m.u32(m.g['anims'] + cid * 4); out = []
+    for slot in range(512):
+        try:
+            a = m.u32(base + slot * 4)
+            if not 0x080000 <= a < 0x300000: continue
+            n, recs = 0, []
+            for i in range(300):
+                b0 = m.u8(a + 6 * i)
+                if b0 in (0xFF, 0xFE): break
+                if b0 == 0xFC: recs.append((slot, n, m.u16(a + 6 * i + 2)))
+                elif b0 < 0x80: n += 1
+            else: continue
+            out += recs
+        except Exception: pass
+    return out
+
+def word(m, index): return m.u16(MAPPER[m.game] + 2 * index)
+
+# ---- captures ----
+def cap_dir(game): return os.path.join(OUT, 'cap', game)
+
+def wlog(path):
+    """[(frame, driver word, index, object)] from a WLOG of the mapper's scratch word"""
+    out = []
+    if not os.path.exists(path): return out
+    for l in open(path):
+        p = l.split()
+        if '=' not in p[1]: continue
+        f = int(p[0]); w = int(p[1].split('=')[1].split('/')[0], 16)
+        reg = {x.split('=')[0]: int(x.split('=')[1], 16) for x in p[2:] if '=' in x}
+        out.append((f, w, reg['d1'] & 0xFFFF, reg['a4'] & 0xFFFFFF))
+    return out
+
+def capture(names=None):
+    sys.path.insert(0, CAPDIR)
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('spcap', os.path.join(CAPDIR, 'specials96.py'))
+    sc = importlib.util.module_from_spec(spec); sys.modules['spcap'] = sc; spec.loader.exec_module(sc)
+    import emu
+    orig = emu.run
+    def run(game, out, *a, **k):
+        k['extra'] = dict(k.get('extra') or {}, WLOG=f'{SCRATCH[game]:X}')
+        return orig(game, out, *a, **k)
+    emu.run = run
+    for rname, game, name, cid in roster(names):
+        m = mem(game); d = cap_dir(game); os.makedirs(d, exist_ok=True)
+        canon = sc.outdir(m)
+        sc.outdir = lambda m_, d=d: d
+        for tag in ('', '_max', '_sdm', '_close', '_ex'):         # the passes the bank has, with their tries as captured
+            src = os.path.join(canon, f'{cid}{tag}.json')
+            if not os.path.exists(src): continue
+            T = json.load(open(src))
+            sc.run(cid, m, T, tag, close=tag == '_close', ex=tag == '_ex')
+            print(rname, tag or 'main', len(T), 'tries', flush=True)
+        sc.outdir = lambda m_, c=canon: c
+        events(sc, emu, game, cid, d)
+        print(rname, 'events', flush=True)
+
+EVENTS = ['hit_c', 'hit_d', 'throw_c', 'throw_d', 'ko']
+def events(sc, emu, game, cid, d):
+    """P1 = the fighter, P2 next to it: P2's close C and close D hit it, its forward + C / D throws, then its KO (life 1,
+    P2's C). KOF98 / KOF99: each try from the fighter's prepared state; KOF96: one run from 'vs' (P1 swapped in)."""
+    from timeline import seqs
+    T, spec, pokes, reload = [], [], [], []
+    near = '108118=01,108119=80,108318=01,108319=B0'
+    full = lambda: emu.life_pokes(game, 0x108100, emu.GAMES[game]['life_full'])
+    s = 40 if game != 'kof96' else sc.START
+    for k, ev in enumerate(EVENTS):
+        T.append({'event': ev, 'start': s, 'gap': 200}); reload.append(s - 4)
+        life = emu.life_pokes(game, 0x108100, 1) if ev == 'ko' else full()
+        tm = f',{emu.GAMES[game]["timer"]:X}=59'
+        pokes.append(f'{s - 2}:{near},{life}{tm}')
+        if ev.startswith('hit') or ev == 'ko': spec.append(f'p2 {s + 10} 3 {"d" if ev == "hit_d" else "c"}')
+        else: spec += [f'p1 {s + 4} 6 R', f'p1 {s + 10} 3 R{ev[-1]}']
+        s += 200
+    s1, s2 = seqs('; '.join(spec), s + 20)
+    out = os.path.join(d, f'{cid}_events.txt')
+    if game != 'kof96':
+        sc.prep(game, cid)
+        emu.run(game, out, s1, s2, pokes, reload=f'c{cid}', reload_frames=reload)
+    else:
+        pokes.insert(0, f'2:108238=0,108239=1,108250=0,108251=1,10A846={cid:02X},10A847={cid:02X},10A848={cid:02X}')
+        s1, s2 = seqs('; '.join(['p2 20 60 L', 'p2 85 3 c'] + spec), s + 20)
+        emu.run('kof96', out, s1, s2, pokes)
+    json.dump(T, open(os.path.join(d, f'{cid}_events.json'), 'w'), indent=1)
+
+# ---- the driver probe ----
+def probe(game, words, frames=150):
+    """{word: {'ch', 'level', 'segments': [[start, end], ...]}} the game's own driver playing prefix + code"""
+    sys.path.insert(0, os.path.join(TOOLS, 'makoto3'))
+    code = f'''
+import sys, json
+sys.path.insert(0, {os.path.join(TOOLS, 'makoto3')!r})
+import capture as mk
+class Log:
+    def __init__(self): self.lines = []
+    def write(self, t): self.lines += [l for l in t.split(chr(10)) if l]
+s = mk.Sound(rom={rom96.GAMES[game]['neo']!r}, work={os.path.join(OUT, 'save_' + game)!r})
+s.run({BLOCK[game]}); s.block = {BLOCK[game]}; s.run(20)
+base = s.save(); out = {{}}
+for w in {sorted(words)!r}:
+    pre, cd = w >> 8, w & 255
+    s.load(base); L = Log(); s.out = L; s._lastf = -1
+    s.send(pre); s.run(); s.send(cd); s.run({frames})
+    reg, hit, sent = {{}}, None, False
+    for l in L.lines:
+        p = l.split()
+        if p[0] == 'c' and int(p[1], 16) == cd: sent = True
+        if p[0] != 'b' or not sent: continue
+        r, v = int(p[1], 16), int(p[2], 16)
+        if r == 0 and v & 0x80 and hit and v & (1 << hit['ch']): break
+        if r == 0 and not v & 0x80 and v:
+            ch = (v & -v).bit_length() - 1
+            if hit is None: hit = {{'ch': ch, 'level': reg.get(8 + ch), 'segments': []}}
+            if ch == hit['ch']:
+                hit['segments'].append([reg.get(0x18 + ch, 0) << 8 | reg.get(0x10 + ch, 0), reg.get(0x28 + ch, 0) << 8 | reg.get(0x20 + ch, 0)])
+        reg[r] = v
+    out[w] = hit
+print(json.dumps(out))
+'''
+    r = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True)
+    return {int(k): v for k, v in json.loads(r.stdout.strip().split('\n')[-1]).items()}
+
+# ---- the listing ----
+def specials_of(game, cid):
+    """[(try, special entry or None, g0)]: the captured specials of the voices pass, by the bank's own rules (specials96.load)"""
+    import specials96 as S, analyze as A
+    m = mem(game); d = cap_dir(game); out = []
+    seen, first_of = set(), {}
+    for tag in ('', '_max', '_sdm', '_close', '_ex'):
+        p = os.path.join(d, f'{cid}{tag}.txt')
+        if not os.path.exists(p): continue
+        T = json.load(open(os.path.join(d, f'{cid}{tag}.json')))
+        es = S.load_file(m, cid, p, T, seen, tag, first_of)
+        r1 = A.load(p, 1)
+        for tr in T:
+            s = tr['start']
+            g0 = next((i for i in range(s, min(len(r1), s + 200)) if S.special_state(game, A.state_of(r1[i][3]))), None)
+            e = next((e for e in es if e['cmd'] == tr['cmd'] and e['button'] == tr['button'] and g0 is not None
+                      and e['state'] == A.state_of(r1[g0][3]) and e.get('_g0') is None), None)
+            if e is not None: e['_g0'] = g0
+            out.append((tag, tr, e, g0, wlog(p + '.wlog')))
+    return out
+
+def build_list(names=None):
+    old = json.load(open(JSON)) if os.path.exists(JSON) else {}
+    res = {'about': __doc__.split('\n\n')[0], 'rate': RATE, 'fighters': dict(old.get('fighters', {}))}
+    by_game = {}
+    for rname, game, name, cid in roster(names): by_game.setdefault(game, []).append((rname, name, cid))
+    for game, fs in by_game.items():
+        m = mem(game); v = v_rom(game)
+        # common words: the static scan of the whole cast (a word several characters' animations use)
+        users = {}
+        for c in range(len(CAST[game])):
+            try: recs = fc_records(m, c)
+            except Exception: continue
+            for slot, step, ix in recs: users.setdefault(word(m, ix), set()).add(c)
+        per = {}
+        for rname, name, cid in fs:
+            uses = []                                    # (word, index, use)
+            inv = slot_states(m, cid)
+            for slot, step, ix in fc_records(m, cid):
+                uses.append((word(m, ix), ix, {'kind': 'anim', 'slot': slot, 'states': inv.get(slot, [])[:6], 'step': step}))
+            for tag, tr, e, g0, W in specials_of(game, cid):
+                if e is None or g0 is None: continue
+                s = tr['start']; end = s + tr.get('gap', 220) - 4
+                for f, w, ix, a4 in W:
+                    if s <= f < end and a4 == P1 and f >= g0 - 2:
+                        uses.append((w, ix, {'kind': 'special', 'input': e['input'], 'at': max(0, f - g0 + 1)}))
+            evp = os.path.join(cap_dir(game), f'{cid}_events.txt')
+            if os.path.exists(evp):
+                W = wlog(evp + '.wlog')
+                for tr in json.load(open(os.path.join(cap_dir(game), f'{cid}_events.json'))):
+                    s = tr['start']
+                    for f, w, ix, a4 in W:
+                        if s <= f < s + tr['gap'] - 4 and a4 == P1:
+                            uses.append((w, ix, {'kind': 'event', 'event': tr['event'], 'at': f - s}))
+            per[rname] = (cid, uses)
+        words = {w for cid, us in per.values() for w, ix, u in us if w >> 8 not in (0, FX_PREFIX)}
+        print(game, len(words), 'driver words to probe', flush=True)
+        hits = probe(game, words)
+        # a word several characters' animations use (3+ of the cast), or 3+ roster fighters' captures send, is common
+        # (the super flash $1D11 / index $8A in KOF98...)
+        sent = {}
+        for rname, (cid, us) in per.items():
+            for w, ix, u in us: sent.setdefault(w, set()).add(rname)
+        for rname, name, cid in fs:
+            cid, uses = per[rname]
+            voices = {}
+            for w, ix, u in uses:
+                if w >> 8 in (0, FX_PREFIX) or not hits.get(w): continue
+                if len(users.get(w, set())) >= 3 or len(sent.get(w, ())) >= 3 or w in COMMON.get(game, ()): continue
+                h = hits[w]; key = tuple(map(tuple, h['segments']))
+                vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'indices': [], 'segments': h['segments'],
+                                             'level': h['level'], 'uses': []})
+                if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
+                if ix not in vo['indices']: vo['indices'].append(ix)
+                if u not in vo['uses']: vo['uses'].append(u)
+            # a sample several fighters of the cast share by sample (rare): kept; ids by first index
+            lst = sorted(voices.values(), key=lambda x: (min(x['indices']), x['cmd']))
+            for k, vo in enumerate(lst, 1):
+                vo['id'] = k
+                vo['bytes'] = len(sample_bytes(v, vo['segments']))
+                vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
+                vo['indices'] = [f'{i:03X}' for i in sorted(vo['indices'])]
+                vo['cmds'].sort()
+            res['fighters'][rname] = {'game': game, 'cid': cid, 'voices': [{k: vo[k] for k in (
+                'id', 'cmd', 'cmds', 'indices', 'segments', 'level', 'bytes', 'ms', 'uses')} for vo in lst]}
+            print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
+    order = [r['name'] for r in json.load(open(GAME_JSON))['roster']]
+    res['fighters'] = {k: res['fighters'][k] for k in order if k in res['fighters']}
+    with open(JSON, 'w') as f:
+        f.write('{"about": ' + json.dumps(res['about']) + ',\n "rate": ' + str(RATE) + ',\n "fighters": {\n')
+        f.write(',\n'.join(f'  {json.dumps(n)}: {{"game": "{d["game"]}", "cid": {d["cid"]}, "voices": [\n' +
+                           ',\n'.join('   ' + json.dumps(vo) for vo in d['voices']) + ']}' for n, d in res['fighters'].items()))
+        f.write('\n }\n}\n')
+    return res
+
+# ---- the brawler side (export_bm.py, build_snd.py, build_tables.py, the lab) ----
+# A fighter's voice table (bchar_t.voices, fighter.c voice_tab): one entry per voice key, 2 bytes [voice id, at]; id = the
+# fighter's voice (voices.json, 1-based; 0 = silent), at = where in the move it starts: the animation step (KOF's $FC
+# record precedes it), the special's script row (as played: frozen rows dropped), the throw's row; events at once.
+# Keys: every brawler animation (BA_*), the throws (BT_*), the events, then the fighter's specials pool by input.
+EVENT_KEYS = ['hit', 'ko', 'select']
+INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355)}
+
+def keys(moves, throws, pool_inputs):
+    return list(moves) + list(throws) + EVENT_KEYS + ['special:' + i for i in pool_inputs]
+
+def bank(name):
+    """the fighter's voice list (voices.json), [] when it has none"""
+    return _bank().get(name, {}).get('voices', [])
+_BANK = None
+def _bank():
+    global _BANK
+    if _BANK is None: _BANK = json.load(open(JSON))['fighters'] if os.path.exists(JSON) else {}
+    return _BANK
+
+def suggest(name, game, slot_of, throw_rows, pool):
+    """KOF's own voice per key: {key: [id, at]}. slot_of: brawler move -> its KOF animation slot (and its step count);
+    throw_rows: throw key -> (KOF slot, [the thrower's KOF step index shown on each row]); pool: [(input, keep rows)]"""
+    vs = bank(name); out = {}
+    def first(pred):
+        for vo in vs:
+            for u in vo['uses']:
+                r = pred(u)
+                if r is not None: return vo['id'], r
+        return None
+    for m, (slot, nsteps) in slot_of.items():
+        f = first(lambda u: min(u['step'], nsteps - 1) if u['kind'] == 'anim' and u['slot'] == slot else None)
+        if f: out[m] = list(f)
+    for t, (slot, steps) in throw_rows.items():         # the throw's animation record, else what its capture sent
+        f = first(lambda u: next((i for i, k in enumerate(steps) if k >= u['step']), 0) if u['kind'] == 'anim' and u['slot'] == slot else None) \
+            or first(lambda u: 0 if u['kind'] == 'event' and u['event'] == t else None)
+        if f: out[t] = list(f)
+    for ev, src in (('hit', ('hit_c', 'hit_d')), ('ko', ('ko',))):
+        f = first(lambda u: 0 if u['kind'] == 'event' and u['event'] in src else None)
+        if f: out[ev] = list(f)
+    win = slot_of.get('win_a', (None,))[0]
+    f = first(lambda u: 0 if u['kind'] == 'anim' and u['slot'] != win and any(s in INTRO[game] for s in u['states']) else None)
+    if f: out['select'] = list(f)
+    for inp, keep in pool:
+        f = first(lambda u: sum(1 for i in keep if i < u['at']) if u['kind'] == 'special' and u['input'] == inp else None)
+        if f: out['special:' + inp] = list(f)
+    return out
+
+def mapping(field, sug):
+    """game.json roster[].voices -> {key: id}: absent / null = no voices; "kof" = KOF's own on every move (the suggestion);
+    {"kof": true|false, "set": {key: id | null}} = that base with these keys changed (null: silent)"""
+    if not field: return {}
+    if field == 'kof': return {k: v[0] for k, v in sug.items()}
+    out = {k: v[0] for k, v in sug.items()} if field.get('kof', True) else {}
+    for k, v in field.get('set', {}).items():
+        if v: out[k] = v
+        else: out.pop(k, None)
+    return out
+
+def table(ks, sug, mp, nvoices):
+    """the voice table bytes: [id, at] per key; at = the suggestion's place for that key (a picked voice starts where KOF's
+    own did; a key KOF left silent: at its start)"""
+    out = []
+    for k in ks:
+        i = mp.get(k, 0)
+        assert 0 <= i <= nvoices, (k, i, nvoices)
+        out += [i, min(255, sug.get(k, [0, 0])[1]) if i else 0]
+    return out
+
+if __name__ == '__main__':
+    cmd, names = sys.argv[1], sys.argv[2:] or None
+    if cmd == 'capture': capture(names)
+    elif cmd == 'list': build_list(names)

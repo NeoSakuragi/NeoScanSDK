@@ -190,12 +190,15 @@ SNK's KOF98 sound driver (v1.7) in the M ROM. `songs.json` lists every song the 
 the song's command there) and the effect codes it sends (`$1A` prefix, slot 1). `make` runs
 `tools/port/build_snd.py songs.json build/snd`: M ROM = the driver + only those songs (KOF98's own kept as they are,
 songs of other games ported into KOF98's format by `tools/port/port98.py`), V ROM = only their samples and the
-effects' (16 MB -> 2.9 MB), `build/snd/songs.h` = `MUS_<name>` (the driver command) and `BOSS_SONGS`
+effects' (16 MB -> 2.9 MB; 3.9 MB with the voices), `build/snd/songs.h` = `MUS_<name>` (the driver command) and `BOSS_SONGS`
 (`snd_boss_song[]`: Mr. Big AOF2 `$21`, Krauser FFS `$3B` "Kaiser Wave", Geese FFS `$43`, Rugal KOF98 `$3B`,
 Goenitz KOF96 `$2D`). A new effect code must be added to `songs.json` or it plays nothing.
 Checks: `tools/port/compare_port.py build/snd NAME` (port vs original, both drivers' models, chip events),
 `tools/port/capture_snd.py --check build/snd` (each song in this ROM in our emulator vs the model, interrupt by
 interrupt), `capture_snd.py GAME CMD SECONDS OUT` (a WAV of any song from its own game).
+Voices (2026-10-05, docs/brawler_data_model.md "Voices"): each fighter's KOF voices (`tools/brawler/voices.json`)
+on its moves as KOF plays them (game.json `roster[].voices`: `"kof"` for all 16), only the mapped samples in the V ROM
+(148, 1.1 MB: V 3.9 MB), players on `$1C`, enemies on `$1E`; the Brawler Lab's Characters tab lists, plays and remaps them.
 
 ## Debug box viewer
 P1 START in a fight (keyboard 1; P2 START joins) toggles it: the four corners of every hurt box (green) and attack

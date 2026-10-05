@@ -6,6 +6,7 @@
 #include "fighter.h"
 #include "sound.h"
 #include "game_tables.h"
+#include "snd/voices.h"
 
 /* draw.s reads these structures at fixed offsets (its .equ list): the build stops if a field moves */
 #include <stddef.h>
@@ -49,6 +50,24 @@ const rt_head_t *route_tab[BC_COUNT];
 lab_t lab;
 const uint8_t *spec_tab[BC_COUNT];
 void specs_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) spec_tab[i] = bm_chars[i].spmap; }
+/* voices (TODO #55): voice_tab[fighter] = its voice table (bchar_t.voices, or a data pack's: main.c gd_apply), [id, at]
+ * per VK_* key; snd/voices.h (tools/port/build_snd.py) turns an id into the driver code of the sample in this V ROM (0:
+ * not in it, silent). A key fires where its move reaches `at`: an animation step entered (KOF's $FC record sits before
+ * it), a special's or a throw's script row reached; the events at once. Players send VOICE_PREFIX_PLAYER, enemies
+ * VOICE_PREFIX_ENEMY: two effect slots, so an enemy's voice never cuts the player's. The select screen's previews are mute. */
+const uint8_t *voice_tab[BC_COUNT];
+static const uint8_t *const vcodes[BC_COUNT] = VOICE_CODES;
+static const uint8_t vncodes[BC_COUNT] = VOICE_NCODES;
+static uint8_t mute;                                         /* fighter_play / fighter_animate: previews */
+void voices_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) voice_tab[i] = bm_chars[i].voices; }
+void voice_play(const bchar_t *ch, uint8_t team, uint8_t key) {
+    uint8_t id = voice_tab[ch->id][key * 2];
+    if (id && id < vncodes[ch->id]) snd_voice(team ? VOICE_PREFIX_ENEMY : VOICE_PREFIX_PLAYER, vcodes[ch->id][id]);
+}
+static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to) {   /* `at` in [from, to] */
+    const uint8_t *e = voice_tab[f->ch->id] + key * 2;
+    if (!mute && e[0] && f->state != S_PROJ && e[1] >= from && e[1] <= to) voice_play(f->ch, f->team, key);
+}
 uint8_t spec_ix(const bchar_t *ch, uint8_t role) { uint8_t k = spec_tab[ch->id][role]; return k < ch->nspec ? k : 0xFF; }
 void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }
 void lab_install(void) {
@@ -90,7 +109,7 @@ static void step_move(fighter_t *f) {                         /* KOF's per-step 
 }
 static void play(fighter_t *f, uint8_t anim) {
     f->anim = anim; f->step = 0; f->anim_done = 0; f->acc = 0; f->speed = 0x100;
-    step_move(f);
+    step_move(f); voice_at(f, anim, 0, 0);
 }
 static void play_if_new(fighter_t *f, uint8_t anim) { if (f->anim != anim) play(f, anim); }
 static void anim_tick(fighter_t *f) {
@@ -105,7 +124,7 @@ static void anim_tick(fighter_t *f) {
             if (an->hold) { f->acc = d; return; }                /* held on its last step */
             f->acc -= d; f->step = 0;
         }
-        step_move(f);
+        step_move(f); voice_at(f, f->anim, f->step, f->step);
         if (an->steps[f->step].flags & 4) f->hit_mask = 0;       /* multi-hit normals: a new hit window */
         if (an->steps[f->step].flags & 1) {                      /* an active step is never skipped: shown, its box checked */
             d = (uint32_t)(an->steps[f->step].ticks + 1) << 8;
@@ -115,8 +134,8 @@ static void anim_tick(fighter_t *f) {
     }
 }
 const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
-void fighter_play(fighter_t *f, uint8_t anim) { play(f, anim); }
-void fighter_animate(fighter_t *f) { anim_tick(f); }
+void fighter_play(fighter_t *f, uint8_t anim) { mute = 1; play(f, anim); mute = 0; }
+void fighter_animate(fighter_t *f) { mute = 1; anim_tick(f); mute = 0; }
 
 /* ---- helpers --------------------------------------------------------------------------------------------------- */
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
@@ -402,6 +421,7 @@ static void throw_update(fighter_t *f) {
         v->hp -= THROW_DAMAGE - f->throw_dealt; v->y = 0; clamp(v); enter(v, S_DOWN); play(v, BA_DOWN);
         return;
     }
+    voice_at(f, VK_THROW + f->throw_id, j, i);
     for (; j <= i; j++) {
         r = &th->rows[j];
         if (r->vpose != 0xFF) show_pose(v, r->vpose);           /* a pose set on a passed row still applies */
@@ -409,6 +429,7 @@ static void throw_update(fighter_t *f) {
             uint8_t d = 0, rest = THROW_DAMAGE;                 /* THROW_DAMAGE / impacts (no divide here) */
             while (rest >= f->grab_hits) { rest -= f->grab_hits; d++; }
             v->hp -= d; f->throw_dealt += d;
+            if (!mute) voice_play(v->ch, v->team, v->hp > 0 ? VK_HIT : VK_KO);
             if (r->flags & 16) f->freeze = v->freeze = THROW_FREEZE;   /* only where KOF froze (Ryo's forward+C) */
             f->impact = 1;                                       /* combat() hits the victim's teammates around it */
             snd_sfx(SFX_HIT_CD);
@@ -572,6 +593,7 @@ static void special_update(fighter_t *f) {
         if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
         return;
     }
+    voice_at(f, VK_SPEC + f->spec_ix, from, f->srow - 1);
     r = &sp->rows[f->srow - 1];
     if (f->spec_id == BS_DOWN_D && f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;   /* the rising reversal: invincible from its first frame to its last hit */
     f->frame_ovr = r->frame;
@@ -736,6 +758,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     v->hp -= damage + (a->owner ? a->owner : a)->power;
+    voice_play(v->ch, v->team, v->hp > 0 ? VK_HIT : VK_KO);
     v->freeze = HITSTOP;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
     a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;

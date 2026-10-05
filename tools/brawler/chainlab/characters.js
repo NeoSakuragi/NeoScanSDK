@@ -2,7 +2,8 @@
  * fighter, unlock rule, colour sets, the select pose (picked from every intro / win / walk-in frame, tap-to-pick; a ROM
  * build change: exported), the specials by role (D, forward+D, down+D, up+D, each picked from the fighter's captured
  * specials; live: the data pack's roster section, version 2, played in the in-page game against the dummy), its chain
- * routes (the Chain Lab, one click). Export / import in game.json's roster layout.
+ * routes (the Chain Lab, one click), its voices (KOF's own per move, a play button, an override from its voice list; live:
+ * the data pack's voices part, version 3). Export / import in game.json's roster layout.
  * Data: chars.json (make_site.py: game.json's roster, chainlab.json's pools, char_images.py pictures). */
 (async function () {
   'use strict';
@@ -35,6 +36,34 @@
     roster.forEach(r => { const pool = X.pool[r.name].map(p => p.input); for (const [k] of ROLES) { const i = r.specials[k] ? pool.indexOf(r.specials[k]) : -1; out.push(i < 0 ? 0xFF : i); } });
     return out;
   }
+  // ---- voices (TODO #55): roster[].voices = absent (none) | "kof" (KOF's own on every move) | {kof, set: {key: id | null}}
+  // (tools/brawler/voices.py mapping); the pack's voices part carries a fighter's table when it differs from the ROM's
+  const VO = X.voices || {};
+  function vmapping(field, sug) {
+    if (!field) return {};
+    const base = {}; for (const [k, v] of Object.entries(sug)) base[k] = v[0];
+    if (field === 'kof') return base;
+    const out = field.kof === false ? {} : base;
+    for (const [k, v] of Object.entries(field.set || {})) { if (v) out[k] = v; else delete out[k]; }
+    return out;
+  }
+  function vtable(d, mp) { const out = []; for (const k of d.keys) { const i = mp[k] || 0; out.push(i, i ? Math.min(255, (d.suggest[k] || [0, 0])[1]) : 0); } return out; }
+  function vtabs() {
+    return roster.map(r => { const d = VO[r.name]; if (!d) return null;
+      const t = vtable(d, vmapping(r.voices, d.suggest)), rom = vtable(d, d.map);
+      return t.every((v, i) => v === rom[i]) ? null : t; });
+  }
+  function vset(r, key, id) {                   // one key's voice; the field kept in its shortest form
+    const d = VO[r.name], sug = d.suggest;
+    const f = !r.voices ? { kof: false, set: {} } : r.voices === 'kof' ? { kof: true, set: {} } : clone(r.voices);
+    f.set = f.set || {};
+    const base = f.kof === false ? null : (sug[key] || [null])[0];
+    if ((id || null) === (base || null)) delete f.set[key]; else f.set[key] = id || null;
+    r.voices = Object.keys(f.set).length ? f : f.kof === false ? undefined : 'kof';
+    if (r.voices === undefined) delete r.voices;
+  }
+  let vAll = false;
+  const playWav = id => { const a = new Audio(`voices/${roster[ci].name}/${id}.wav`); a.play().catch(() => {}); };
   function test() {                             // the pack (stages, enemies, this map) + the Chain Lab training, one tick
     const p = window.stagesTab.pack();
     if (!p.bytes) { msg('pack not valid: ' + p.errors.join('; ')); return; }
@@ -124,6 +153,38 @@
       h('div', { class: 'in' }, h('table', { class: 'sp ai' }, h('tbody', {}, rows)),
         h('div', { class: 'row' }, h('label', {}, 'Dummy ', (() => { const s = h('select', { onchange: e => { dummy = Number(e.target.value); } }); NAMES.forEach((n, i) => s.add(new Option(up(n), i))); s.value = dummy; return s; })()),
           h('button', { onclick: test }, 'Test on the dummy'), h('span', { id: 'chMsg', class: 'note' }, note))));
+    // voices
+    const vd = VO[name], vbox = vd ? (() => {
+      const mp = vmapping(r.voices, vd.suggest), rom = vd.map, inrom = new Set(vd.inrom), byId = {};
+      vd.list.forEach(v => { byId[v.id] = v; });
+      const vlabel = id => { const v = byId[id]; return v ? `${id}. ${v.cmd} · ${(v.ms / 1000).toFixed(2)} s · ${v.what}` : 'none'; };
+      const play = id => id ? h('button', { class: 'play', title: 'listen (the sample as the source game\'s driver plays it)', onclick: () => playWav(id) }, '▶') : null;
+      const keyName = k => k.startsWith('special:') ? 'special ' + k.slice(8) : k === 'hit' ? 'hit (taking a hit)' : k === 'ko' ? 'KO (the last hit)' : k === 'select' ? 'select (picked)' : k.replace(/_/g, ' ');
+      const keys = vd.keys.filter(k => vAll || vd.suggest[k] || mp[k] || rom[k]);
+      const rows = keys.map(k => {
+        const cur = mp[k] || 0, sg = (vd.suggest[k] || [0])[0], romv = rom[k] || 0;
+        const sel = h('select', { style: 'max-width:20em', onchange: e => { vset(r, k, Number(e.target.value)); edited(); } },
+          [h('option', { value: 0 }, 'none'), ...vd.list.map(v => h('option', { value: v.id }, vlabel(v.id) + (v.id === sg ? ' (KOF)' : '')))]);
+        sel.value = cur;
+        const live = !cur || inrom.has(cur);
+        return h('tr', { class: cur !== romv ? 'over' : '' }, h('th', {}, keyName(k)),
+          h('td', { style: 'white-space:nowrap' }, sg ? h('span', { title: vlabel(sg) }, play(sg), ` ${sg} · ${byId[sg].cmd}`) : h('span', { class: 'note' }, 'silent')),
+          h('td', {}, play(cur), ' ', sel),
+          h('td', { class: 'mk' }, cur === romv ? (cur ? 'as the ROM' : '') : live ? h('b', {}, '● live (in the V ROM)') : h('span', { class: 'ok' }, 'NEEDS A BUILD (sample not in the V ROM)')));
+      });
+      const base = !r.voices ? 'off' : r.voices === 'kof' || r.voices.kof !== false ? 'kof' : 'off';
+      const baseSel = h('select', { onchange: e => { const set = r.voices && r.voices.set ? r.voices.set : {};
+          r.voices = e.target.value === 'kof' ? (Object.keys(set).length ? { kof: true, set } : 'kof') : (Object.keys(set).length ? { kof: false, set } : undefined);
+          if (r.voices === undefined) delete r.voices; edited(); } },
+        [h('option', { value: 'off' }, 'none (only the keys set below)'), h('option', { value: 'kof' }, "KOF's own on every move")]);
+      baseSel.value = base;
+      return h('div', { class: 'box' }, h('h2', {}, 'Voices', h('span', { class: 'note' }, `${vd.list.length} voices from ${vd.game.toUpperCase()} · ${inrom.size} in this ROM's V ROM · live through the data pack`), h('span', { class: 'sp' })),
+        h('div', { class: 'in' },
+          h('div', { class: 'row' }, h('label', {}, 'Base ', baseSel), h('label', {}, h('input', { type: 'checkbox', checked: vAll, onchange: e => { vAll = e.target.checked; render(); } }), ' every move (else the ones with a voice)'),
+            h('button', { onclick: () => { delete r.voices; if (o.voices) r.voices = clone(o.voices); edited(); } }, 'As the ROM')),
+          h('table', { class: 'sp ai voices' }, h('thead', {}, h('tr', {}, h('th', {}, 'move'), h('th', {}, "KOF's own"), h('th', {}, 'voice'), h('th', {}, ''))), h('tbody', {}, rows)),
+          h('div', { class: 'note' }, 'All voices: ', vd.list.map(v => h('span', { class: 'vchip' }, play(v.id), ` ${v.id} `)))));
+    })() : null;
     // chains
     const chainBox = h('div', { class: 'box' }, h('h2', {}, 'Chains'), h('div', { class: 'in stg' },
       h('span', {}, r.routes === 'default' ? 'the default route tree' : 'own route tree: ' + r.routes),
@@ -137,7 +198,7 @@
         h('input', { id: 'chFile', type: 'file', accept: '.json,application/json', hidden: true, onchange: e => importFile(e.target.files[0]) }),
         h('button', { onclick: () => { roster = clone(ORIG); edited(); } }, 'Reset all')));
     $('charcol').replaceChildren(h('div', { class: 'box' }, h('h2', {}, 'Roster', h('span', { class: 'note' }, 'in select-screen order (slot table)')), h('div', { class: 'in' }, list)),
-      head, poseBox, specBox, chainBox, io);
+      head, poseBox, specBox, vbox, chainBox, io);
   }
   function pickSpecial(k, label) {
     const r = roster[ci], pool = X.pool[r.name], SPP = X.specpics[r.name], sug = X.suggest[r.name][ROLES.findIndex(x => x[0] === k)];
@@ -166,11 +227,13 @@
         if (i < 0) throw new Error(`no roster fighter ${e.name} (a new fighter needs a build)`);
         if (e.bank !== ORIG[i].bank) throw new Error(`${e.name}: bank ${e.bank} is not this ROM's (${ORIG[i].bank})`);
         for (const [k] of ROLES) if (e.specials[k] && !X.pool[e.name].some(p => p.input === e.specials[k])) throw new Error(`${e.name}: no special ${e.specials[k]}`);
+        if (e.voices && e.voices !== 'kof') for (const [k, v] of Object.entries(e.voices.set || {}))
+          if (!VO[e.name] || !VO[e.name].keys.includes(k) || (v && !(v >= 1 && v <= VO[e.name].list.length))) throw new Error(`${e.name}: voice ${k} = ${v}`);
         roster[i] = clone(e);
       }
       msg(`imported ${list.length} fighter(s)`); edited();
     } catch (e) { msg('import: ' + e.message); render(); }
   }
-  window.charsTab = { spmap, test, render, get roster() { return roster; }, set roster(v) { roster = v; edited(); },
+  window.charsTab = { spmap, vtabs, test, render, get roster() { return roster; }, set roster(v) { roster = v; edited(); },
     select(k) { ci = typeof k === 'number' ? k : NAMES.indexOf(k); render(); }, set dummy(v) { dummy = v; }, X, reset() { roster = clone(ORIG); edited(); } };
 })();

@@ -89,6 +89,11 @@ extern const rt_head_t *route_tab[BC_COUNT];
 extern const uint8_t *spec_tab[BC_COUNT];
 uint8_t spec_ix(const bchar_t *ch, uint8_t role);   /* role -> index in ch->specials, 0xFF = none */
 void specs_init(void);
+/* voices (TODO #55, fighter.c): voice_tab[fighter] (RAM, set at boot from bchar_t.voices; a data pack's voices section
+ * repoints it, main.c gd_apply) = its voice table, [voice id, at] per VK_* key (bm_chars.h) */
+extern const uint8_t *voice_tab[BC_COUNT];
+void voices_init(void);
+void voice_play(const bchar_t *ch, uint8_t team, uint8_t key);   /* a key's voice now (events: the select screen's pick) */
 void routes_init(void);
 
 /* Chain Lab mailbox (examples/brawler/README.md "Chain Lab"): the page writes it from JavaScript, the game reads it at the

@@ -25,7 +25,7 @@ $(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/buil
 	python3 $(TOOLS)/brawler/build_tables.py tables game.json $(CURDIR)/$(BUILD)
 
 # --- Fighters: beat 'em up subset of the KOF dictionaries (needs /data/roms/kof96/98/99.neo) ---
-$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json
+$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py
 	mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json
 	python3 $(TOOLS)/brawler/make_stage_ra.py $(CURDIR)/$(BUILD)   # needs /data/roms/roboarmy.neo
@@ -39,16 +39,17 @@ $(BUILD)/font.s1 $(BUILD)/hud.h &: $(TOOLS)/brawler/make_hud.py
 
 # --- Sound: songs.json -> KOF98's driver with only the songs the game plays (M ROM), only the samples they and the
 # game's effects use (V ROM), build/snd/songs.h (MUS_* = driver commands, BOSS_SONGS); songs from other games are
-# ported into KOF98's format (tools/port/build_snd.py; needs /data/roms/kof98.neo and each source game's ROM)
+# ported into KOF98's format (tools/port/build_snd.py; needs /data/roms/kof98.neo and each source game's ROM); the
+# fighters' voices the ROM maps (build/voice_map.json, game.json roster[].voices) from their games' V ROMs
 SND_TOOLS = $(addprefix $(TOOLS)/port/,build_snd.py port98.py ff3_notes.py snk_notes.py) $(TOOLS)/kof98snd/games98.py
-$(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h &: songs.json $(SND_TOOLS)
+$(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h &: songs.json $(SND_TOOLS) $(BUILD)/voice_map.json $(TOOLS)/brawler/voices.json
 	python3 $(TOOLS)/port/build_snd.py songs.json $(CURDIR)/$(BUILD)/snd
 
 # --- Compile ---
 $(BUILD)/stage_opt: FORCE                  # the STAGE option of the last build: main.o is rebuilt when it changes
 	@mkdir -p $(BUILD); echo $(STAGE) | cmp -s - $@ || echo $(STAGE) > $@
 $(BUILD)/main.o: $(BUILD)/stage_opt
-$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h VERSION
+$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@

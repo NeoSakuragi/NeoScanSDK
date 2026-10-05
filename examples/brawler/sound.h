@@ -10,6 +10,7 @@ extern volatile uint8_t snd_test;        /* test hook: a byte poked here (captur
 void snd_sfx(uint8_t code);              /* $1A + code, skipped when the queue already lags (hit storms) */
 void snd_music(uint8_t track);           /* a MUS_* command (snd/songs.h); only the songs in songs.json exist */
 void snd_reset(void);                    /* drop the queue (the BIOS just reset the sound CPU) */
+void snd_voice(uint8_t prefix, uint8_t code);   /* a voice: prefix (snd/voices.h VOICE_PREFIX_*) + code, skipped like snd_sfx */
 /* KOF98 codes (measured in MAME, hits on Yuri): swing $1E light (A, C) / $1F heavy (B, D, C+D);
  * hit $11 A, $12 B, $13 C, $14 D, $15 C+D blowback. Every code the game sends must be in songs.json "sfx": the V ROM
  * holds only the samples of the codes listed there */

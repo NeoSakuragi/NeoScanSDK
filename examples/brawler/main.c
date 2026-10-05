@@ -598,13 +598,17 @@ static uint8_t gd_tree(const uint8_t *p, uint16_t size, uint32_t off) {   /* a r
     }
     return 1;
 }
+static uint16_t gd_voice_off(const uint8_t *p, uint8_t i) {   /* version 3: fighter i's voice table offset (0: none) */
+    const uint8_t *q = p + ((const gdpack_t *)p)->roster + BC_COUNT * BS_COUNT + 2 * i;
+    return (uint16_t)(q[0] << 8 | q[1]);
+}
 static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed */
     const gdpack_t *h = (const gdpack_t *)p;
     const genemy_t *en;
     const gstage_t *st;
     uint16_t size = h->size, i, k;
     if (h->magic[0] != 'G' || h->magic[1] != 'D') return 1;
-    if (h->version != 1 && h->version != GD_VERSION) return 2;   /* version 1: no roster section */
+    if (h->version < 1 || h->version > GD_VERSION) return 2;   /* version 1: no roster section; 2: no voices */
     if (size < sizeof(gdpack_t) || size > GD_MAX) return 3;
     if (h->nstages != GS_COUNT || !h->nenemies || !h->nai) return 4;
     if (!gd_in(size, h->stages, h->nstages * sizeof(gstage_t), 1) || !gd_in(size, h->enemies, h->nenemies * sizeof(genemy_t), 1) ||
@@ -640,10 +644,19 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
         for (i = 0; i < BC_COUNT; i++)
             for (k = 0; k < BS_COUNT; k++) if (p[h->roster + i * BS_COUNT + k] != 0xFF && p[h->roster + i * BS_COUNT + k] >= bm_chars[i].nspec) return 16;
     }
+    if (h->version >= 3 && h->roster) {         /* the voices: per fighter a table offset (0: the ROM's), ids within its list */
+        if (!gd_in(size, h->roster + BC_COUNT * BS_COUNT, BC_COUNT * 2, 0)) return 17;
+        for (i = 0; i < BC_COUNT; i++) {
+            uint16_t o = gd_voice_off(p, i), n = VK_SPEC + bm_chars[i].nspec;
+            if (!o) continue;
+            if (!gd_in(size, o, n * 2, 0)) return 17;
+            for (k = 0; k < n; k++) if (p[o + 2 * k] > bm_chars[i].nvoice) return 17;
+        }
+    }
     return 0;
 }
 static void gd_apply(void) {                     /* at a safe point: the pack (or the ROM's tables) in use from now */
-    if (gd_want == 4) { gstages = gstages_rom; genemies = genemies_rom; ai_tab = ai_presets; gen_count = EN_COUNT; specs_init(); lab.pack_stat = GD_ROM; }
+    if (gd_want == 4) { gstages = gstages_rom; genemies = genemies_rom; ai_tab = ai_presets; gen_count = EN_COUNT; specs_init(); voices_init(); lab.pack_stat = GD_ROM; }
     else if (gd_want == 3) {
         uint8_t e = gd_check(lab.pack);
         if (e) lab.pack_stat = GD_BAD | e;
@@ -668,6 +681,9 @@ static void gd_apply(void) {                     /* at a safe point: the pack (o
             ai_tab = (const ai_preset_t *)(gd_live + h->ai); gen_count = h->nenemies;
             if (h->version >= 2 && h->roster) for (i = 0; i < BC_COUNT; i++) spec_tab[i] = gd_live + h->roster + i * BS_COUNT;
             else specs_init();                   /* version 1: the ROM's specials by role */
+            voices_init();                       /* version 3: a fighter's voice table from the pack (0: the ROM's) */
+            if (h->version >= 3 && h->roster)
+                for (i = 0; i < BC_COUNT; i++) { uint16_t o = gd_voice_off(gd_live, i); if (o) voice_tab[i] = gd_live + o; }
             lab.pack_stat = GD_INSTALLED;
         }
     }
@@ -1476,6 +1492,7 @@ static void select_tick(void) {
                 pick_set[p] = (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3;
                 slot_show(cursor[p], pick_set[p]);
                 fighter_play(actor(slot_act[cursor[p]]), BA_WIN_A);
+                voice_play(actor(slot_act[cursor[p]])->ch, 0, VK_SELECT);   /* its select voice (KOF's intro line) */
                 actor(slot_act[cursor[p]])->team = 0;       /* the line guard keeps the picked ones first */
                 picked[p] = 1;
             }
@@ -1532,6 +1549,7 @@ void game_init(void) {
     gdata_init();                                            /* the game's tables (game.json) */
     routes_init();                                           /* the fighters' chain route trees (fighter.h) */
     specs_init();                                            /* their specials by role (fighter.h spec_tab) */
+    voices_init();                                           /* their voices (fighter.h voice_tab) */
     save_load();                                             /* MVS: the BIOS restored the block (a fresh one: reset) */
     PAL_setPalette(0, TEXT_PAL);
     PAL_setBackdrop(stg->backdrop);

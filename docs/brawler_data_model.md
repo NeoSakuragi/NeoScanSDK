@@ -64,7 +64,8 @@ tiles), hit / hurt boxes, palettes (every colour set), physics, captured special
 (thrower and victim timelines), victim postures. The bank is addressed by a spec `game:name` (`kof98:terry`). It is
 never edited: layer 1 picks from it.
 
-Sound commands per move are in the bank too (research below): today the export does not keep them.
+Voices are in the bank too: `tools/brawler/voices.json` (tools/brawler/voices.py, "Voices" below): per fighter every
+voice sample its KOF plays, with the moves that play it.
 
 ## Layer 1: roster and select screen
 
@@ -78,8 +79,9 @@ Sound commands per move are in the bank too (research below): today the export d
 | `routes` | `"tools/brawler/routes/terry.json"` or `"default"` | its chain route tree (routes.py format; default = the pre-Chain-Lab table) |
 | `specials` | `{"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D"}` | the KOF input played by D, forward+D, down+D, up+D; null = none; any special of the fighter's pool (`export_bm.special_pool`: ground specials of the normal condition), all of which are in the ROM, so a change is live (a data pack). `export_bm.suggest_specials` is the automatic pick that filled these |
 | `unlock` | `"always"` or `{"boss_of_stage": 1}` | locked on the select screen until that stage's boss is beaten (save bit stage - 1) |
+| `voices` | absent, `"kof"` or `{"kof": true, "set": {"hit": 3, "special:236C": null}}` | absent = silent (none of its samples in the V ROM); `"kof"` = KOF's own voice on every move (the suggestion); an object = that base (`kof` false: none) with these keys changed to a voice id of its list (null: silent). Keys: every BA_* move name, `throw_c` / `throw_d`, `hit`, `ko`, `select`, `special:<input>` of its pool ("Voices" below) |
 
-Later (step 3 and on): `voices` (per move, see below), `palettes` (custom colour sets), `moves` (a trimmed list).
+Later: `palettes` (custom colour sets), `moves` (a trimmed list).
 
 `select.slots`: `{"x": 40, "z": 48, "row": 0, "fighter": "terry"}` per slot; row 0 front, 2 back (`SEL_BACK`, the
 bosses). Generated as `SEL_SLOT[]` (x int16, z, row: 4 bytes) and `sel_fighter[]` (bm_chars index, 0xFF empty).
@@ -324,12 +326,58 @@ writes to REG_SOUND, with the stack) and QLOG (KOF98's sound ring $10D940), plus
    (a) scanning a fighter's animations for $FC records (static: KOF98 Kyo has 60 of them in 24 indices, KOF96 Kyo 33,
    KOF99 fighter 0 19) and (b) capturing each special with SNDLOG (the specials capture already plays every special).
 
-For the lab: a later step lists each roster fighter's voices (index, prefix, code, the moves whose animation or special
-plays it), adds a roster `voices` field (`{"move or special": code}`, null = silent) with the bank's own as the
-suggestion, and the export emits a per-move sound byte (a `bstep_t` flag or a parallel table) that fighter.c sends
-with `snd_cmd` as the step starts. The brawler's driver is KOF98's: KOF98 fighters' voice codes play as they are once
-songs.json lists them (the V ROM carries only listed samples); KOF96 / KOF99 voices need their samples ported into
-KOF98's V ROM layout (tools/port/build_snd.py) and new codes.
+### The listing, the bank, the game, the lab (TODO #55, 2026-10-05)
+
+**Listing** (`tools/brawler/voices.py`, layer 0 = `tools/brawler/voices.json`, WAVs in /data/neogeo_dict/voices/wav):
+- `capture`: every specials pass the bank has (the same tries) re-run in our emulator with WLOG on the mapper's scratch
+  word ($10D936 KOF96, $10D93C KOF98, $10D8F0 KOF99): at that store d1 = the index and a4 = the object, so every sound
+  is attributed (P1 = $108100) and timed from the special's first frame; plus an events pass (P1 hit by P2's close C
+  and close D, P1's forward + C / D, P1 KO'd at life 1).
+- `list`: the static $FC scan (every animation slot, the step each record precedes) + the captures -> driver words;
+  each word played by its own game's driver in the tap core (tools/makoto3/capture.py: our core with a Z80 port tap,
+  the game's commands blocked after its $07): the ADPCM-A start / end it keys on and the level it writes = the sample.
+  A voice = one sample, with every index and move that plays it. Prefix $1A (hits, swings) is not a voice; a word 3+
+  characters' animations or 3+ roster fighters' captures use is common (KOF98's super flash $1D11). 299 voices: Terry 19,
+  Ryo 18, Ralf 20, Robert 19, Yamazaki 17, Billy 16, Kyo 30, Iori 24, Mai 20, Yashiro 26, Rugal 28, Geese 15, Mr. Big 13,
+  Krauser 12, Goenitz 10, K' 12 (no looped voice among them: one segment each).
+- Code-sent voices are most of them: KOF98 Terry's specials, hit and KO voices come from code (index $AF-$BE), only his
+  win / intro lines and a throw voice are $FC records.
+
+**Brawler side**:
+- game.json `roster[].voices` (layer 1 table above). Keys (`voices.keys`): every BA_* move, `throw_c` / `throw_d`, `hit`,
+  `ko`, `select`, `special:<input>` per special of the pool. KOF's own per key (`voices.suggest`): the $FC record in the
+  move's source animation (its step), the throw animation's record (its script row) else its captured voice, the
+  captured hit / KO voices, the first intro line for `select`, the special's first captured voice at its frame (as
+  played: frozen rows dropped). One voice per key (Kyo's 236A says two lines in KOF: the first is kept).
+- Export (`export_bm.voice_data`): `bchar_t.voices` = [voice id, at] per key (VK_* in bm_chars.h: BA_*, VK_THROW +
+  BT_*, VK_HIT, VK_KO, VK_SELECT, VK_SPEC + pool index), `nvoice`; build/voice_map.json = the ids each fighter maps.
+- Sound build (`build_snd.py voices`, songs.json `voices`): only the mapped voices' samples, copied from their game's
+  V ROM; one code per sample from $11 (KOF98's prefix commands play a code only when its bit is set in the slot's
+  32-byte enable map, $0F1A: $2E20 + 2 * slot; $00-$10 are off) in slot 2 ($1C, players) and slot 3 ($1E, enemies),
+  record [KOF98's own priority (else $50)][start][end][the level its driver writes]; build/snd/voices.h: per fighter
+  voice id -> code.
+- Game (fighter.c): `voice_tab[]` (RAM, a pack can repoint it); a key fires when its move reaches `at`: an animation
+  step entered (play / anim_tick), a special's row reached (special_update), a throw's row (throw_update); `hit` / `ko`
+  in fighter_hit and at throw impacts (the victim's), `select` at the pick (main.c). The select screen's previews are
+  mute. Players send $1C, enemies $1E, through the queue's guard as effects.
+- Pack version 3: the roster section gets per fighter a big-endian offset of its voice table (0 = the ROM's), the
+  table only when it differs (build_tables.voice_tabs = chainlab/stagepack.js); checked (ids within its list).
+- Lab, Characters tab, "Voices": base (KOF's own / none), per key KOF's own with a play button (the WAV of the sample),
+  an override picker (any of the fighter's voices or none), "live" when the sample is in this V ROM, else "NEEDS A
+  BUILD"; export / import in the roster's layout (ids checked). Data: chars.json `voices` (make_site.py, WAVs in
+  site/voices/<fighter>/).
+- Default: every roster fighter `"kof"`: 148 samples, 1.12 MB of voices (codes $11-$A4); V ROM 4,128,768 bytes
+  (3.94 MB, was 3.01 MB): all 16 fit a 4 MB V ROM.
+
+**Proof** (2026-10-05, our emulator; /data/tmp/voices):
+- `voice_proof.py terry kyo` (the tap core, lab training, D / forward+D / down+D / up+D): EX 236C, 214C, 623C, 214D
+  each send $1C + its code, the driver keys on exactly its record, KOF's own voice for that move ($1C4C, $1C4B, $1C4F,
+  $1C4D), the played bytes = KOF98's V ROM bytes at the KOF sample, the level written = KOF98's ($DC). `kyo terry`: EX
+  624D, 623C, 624B = $1DBB / $1DB9 (KOF98's own), and the dummy Terry's hit voice $1C43 on $1E, all byte-identical.
+- Live: Terry's EX 236C set to voice 2 and 214C to voice 5 (not in the V ROM) in the page: the page's pack =
+  build_tables.py's pack of the same roster (3130 bytes; unedited 2970 = 2970), installed (status 2): EX 236C plays
+  voice 2's sample, 214C silent.
+- regress.py bleed True (frame-exact); campaign29.py log identical to the Characters-tab run's.
 
 ## Proof that step 1 changed nothing (2026-10-05, our emulator)
 
