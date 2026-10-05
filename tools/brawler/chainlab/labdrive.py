@@ -12,6 +12,7 @@ harness.OPTIONS.update({'geolith_system_type': 'mvs', 'geolith_region': 'us'})  
 from harness import Brawler
 
 LAB_MAGIC, EV_OFF, EV_N, EV_SIZE, BUF_OFF = 0, 16, 64, 6, 16 + 64 * 6
+PACK_STAT_OFF, PACK_OFF = BUF_OFF + 16 + 128 * 22, BUF_OFF + 16 + 128 * 22 + 2   # fighter.h lab_t: pack_stat, pack (a data pack)
 KINDS = ['START', 'HIT', 'END', 'SPECIAL', 'CHAINWIN']
 # the scripted route: Terry's "AABA command" (A, A, B, forward+A), each press 2 frames, then the dummy recovers
 SCRIPT = '2:a,9:-,2:a,9:-,2:b,12:-,2:Ra,90:-'

@@ -7,8 +7,11 @@
   const KEYS = { a: 0, b: 8, c: 1, d: 9, s: 3, o: 2, U: 4, D: 5, L: 6, R: 7 };
   const RAM_BASE = 0x100000;
   // lab_t (fighter.h): magic 0, req 4, fighter 5, dummy 6, load 7, active 8, nev 9, frame 10, combo_hits 12, combo_dmg 14,
-  // ev[64] at 16 (6 bytes: frame u16, kind, node, how, val), buf at 400
-  const LAB = { magic: 0, req: 4, fighter: 5, dummy: 6, load: 7, active: 8, nev: 9, frame: 10, hits: 12, dmg: 14, ev: 16, buf: 400 };
+  // ev[64] at 16 (6 bytes: frame u16, kind, node, how, val), buf at 400 (rt_head_t + 128 nodes of 22 bytes), pack_stat at
+  // 3232, pack at 3234 (a data pack, gamedata.h gdpack_t, at most GD_MAX bytes: build_tables.py pack)
+  const LAB = { magic: 0, req: 4, fighter: 5, dummy: 6, load: 7, active: 8, nev: 9, frame: 10, hits: 12, dmg: 14, ev: 16, buf: 400,
+                packStat: 3232, pack: 3234 };
+  const GD_MAX = 4096, GD_STAT = ['none', 'pending', 'installed', 'rom'];   // lab.pack_stat (gamedata.h GD_*; 0x80 | n: check n failed)
   const EV_N = 64, EV_SIZE = 6;
   const KINDS = ['START', 'HIT', 'END', 'SPECIAL', 'CHAINWIN'];
   const HOW = ['neutral', 'after end', 'cancel', 'window'];
@@ -181,6 +184,14 @@
       this.w8(this.lab + LAB.fighter, fighter);
       this.w8(this.lab + LAB.load, blob ? 1 : 2);
     }
+    /* a data pack (stages, enemies, AI rows): checked on the game's next tick, installed at its next safe point (a wave,
+       the boss, a stage start, the enemy test's respawn); null = back to the ROM's tables */
+    installPack(bytes) {
+      if (bytes) { if (bytes.length > GD_MAX) throw new Error('pack too big'); this.wbytes(this.lab + LAB.pack, bytes); }
+      this.wbytes(this.lab + LAB.magic, [76, 65, 66, 49]);
+      this.w8(this.lab + LAB.load, bytes ? 3 : 4);
+    }
+    packStatus() { const v = this.r8(this.lab + LAB.packStat); return v & 0x80 ? 'bad (check ' + (v & 0x7F) + ')' : GD_STAT[v]; }
     nev() { return this.r8(this.lab + LAB.nev); }
     eventsSince(from) {                          // [from, nev) of the ring (at most its 64 latest)
       const n = this.nev(), out = [];
