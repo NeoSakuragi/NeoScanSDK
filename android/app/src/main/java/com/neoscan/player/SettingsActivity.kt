@@ -31,6 +31,9 @@ class SettingsActivity : Activity() {
         col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; val m = (16 * dp).toInt(); setPadding(m, m, m, m * 2) }
         col.addView(TextView(this).apply { text = "Settings"; textSize = 24f; setTypeface(typeface, Typeface.BOLD) })
 
+        section("System")
+        choice("Hardware", listOf("arcade" to "Arcade (MVS): the BIOS soft-dip settings", "console" to "Console (AES): the game's own options, memory card"),
+               prefs.system) { prefs.system = it }
         section("Display")
         choice("Orientation", listOf("auto" to "Follow the phone", "portrait" to "Portrait", "landscape" to "Landscape"),
                prefs.orientation) { prefs.orientation = it }

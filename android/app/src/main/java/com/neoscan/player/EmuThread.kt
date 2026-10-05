@@ -15,7 +15,7 @@ import java.nio.ByteOrder
  *  queue stays near [TARGET_MS]: a ~1% pitch change at 60 Hz, inaudible. The picture is swapped into [front] for the
  *  GL thread. */
 class EmuThread(private val sysDir: String, private val saveDir: String, private val rom: String,
-                private val hints: android.os.PerformanceHintManager?,
+                private val hints: android.os.PerformanceHintManager?, val hw: String,
                 private val onFrame: () -> Unit, private val onError: (String) -> Unit) : Thread("emu") {
     @Volatile var running = true
     @Volatile var paused = false                                    // app in the background / settings open
@@ -25,8 +25,10 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
     @Volatile var frontVsync = 0L                                   // the refresh that started the frame in [front]
     val lock = Object()
     @Volatile var fps = 0f
+    @Volatile var flushed = false                                   // the saves are on disk since the last pause began
 
     override fun run() {
+        Native.setSystem(hw, aesBios(java.io.File(sysDir, "neogeo.zip")))
         val rate = Native.load(sysDir, saveDir, rom)
         if (rate <= 0) { onError("Could not load $rom"); return }
         val min = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
@@ -53,9 +55,11 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
             hints?.createHintSession(intArrayOf(android.os.Process.myTid()), 16_666_667L) else null
         while (running) {
             if (paused) {
+                if (!flushed) { Native.flushSaves(); flushed = true }   // Android may kill the app any time now
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) { track.pause(); track.flush(); written = 0; started = false }
                 sleep(20); continue
             }
+            flushed = false
             val vsync = VsyncPacer.next()                               // waits for the display (100 ms timeout)
             if (vsync < 0) continue
             val r0 = System.nanoTime()
@@ -90,9 +94,14 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
                     rate, if (samples > 0) rate.toDouble() * made / samples else 0.0, VsyncPacer.hz, VsyncPacer.fps, FrameStats.line)) }
         }
         if (android.os.Build.VERSION.SDK_INT >= 31) hint?.close()
+        Native.flushSaves()
         track.stop(); track.release()
     }
-    companion object { const val TARGET_MS = 60 }
+    companion object {
+        const val TARGET_MS = 60
+        /** the BIOS set has SNK's AES BIOS (neo-epo.bin) */
+        fun aesBios(zip: java.io.File) = try { java.util.zip.ZipFile(zip).use { it.getEntry("neo-epo.bin") != null } } catch (e: Exception) { false }
+    }
 }
 
 /** One emulator frame per display refresh: a Choreographer callback adds the elapsed refreshes' share of a frame (1 per

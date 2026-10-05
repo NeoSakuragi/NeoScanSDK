@@ -13,6 +13,10 @@ object Native {
     @JvmStatic external fun height(): Int
     /** pad bits = libretro joypad ids: see [Pad] */
     @JvmStatic external fun setPad(port: Int, mask: Int)
+    /** "mvs" (arcade: SNK's MVS BIOS) or "aes" (console: SNK's AES BIOS when [aesBios], else UniBIOS in AES mode), before [load] */
+    @JvmStatic external fun setSystem(hw: String, aesBios: Boolean)
+    /** write the core's NVRAM / memory card to the save dir (the core itself only does it on unload); emu thread */
+    @JvmStatic external fun flushSaves()
 }
 
 /** Neo Geo pad bits as the core reads them (libretro ids; Geolith maps B->A, A->B, Y->C, X->D, SELECT->coin). */

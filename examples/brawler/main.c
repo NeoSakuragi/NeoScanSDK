@@ -657,6 +657,7 @@ static void banner_hide(void) { uint8_t c; for (c = 0; c < BANNER_COLS; c++) cmd
  * START; A+B+C+D held 2 s clears the save. */
 static uint16_t title_t, title_hold;
 static uint8_t title_sel;                        /* 0 new game, 1 continue */
+static uint8_t title_paid;                       /* the START that opened the title already took the credit */
 static void select_start(void);
 static void save_load(void);
 static void save_reset(void);
@@ -682,7 +683,7 @@ static void title_start(void) {
     bios_start = 0;
     snd_music(MUS_SELECT);
     save_load();
-    title_sel = save.furthest != 0; title_hold = 0;
+    title_sel = save.furthest != 0; title_hold = 0; title_paid = 0;
     title_menu();
 }
 static void title_tick(void) {
@@ -693,8 +694,9 @@ static void title_tick(void) {
     if ((h & (JOY_A | JOY_B | JOY_C | JOY_D)) == (JOY_A | JOY_B | JOY_C | JOY_D)) {   /* held 2 s: the save cleared */
         if (++title_hold == 120) { save_reset(); save_write(); title_menu(); FIX_print(12, 22, "SAVE DATA CLEARED", 0); }
     } else title_hold = 0;
-    if (bios_start) {                                        /* START with a credit (PLAYER_START) */
-        bios_start = 0; camp_from = title_sel ? save.furthest : 0;
+    if (bios_start || (title_paid && (pr & (JOY_START | JOY_A)))) {   /* START with a credit (PLAYER_START), or START / A
+                                                             when the credit was taken by the START that opened it */
+        bios_start = 0; title_paid = 0; camp_from = title_sel ? save.furthest : 0;
         banner_hide(); select_start(); return;
     }
 }
@@ -1183,8 +1185,11 @@ void game_tick(void) {
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
     if (attract) {                                           /* the demo: a coin, 40 s or a game over ends it */
         if (bios_demo_end || ++attract_t > 2400) { SYS_return(); }
-        if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); depth_sort(); draw(); return; }   /* AES: START in the demo (no coin,
-                                                             no DEMO_END): the title, whose START then plays */
+        if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); title_paid = 1; depth_sort(); draw(); return; }
+                                                          /* START in the demo (AES: no coin; MVS: the BIOS took the
+                                                             credit): the title, NEW GAME / CONTINUE confirmed with
+                                                             START or A, no second credit (2026-10-05: on SNK's MVS BIOS
+                                                             the title waited for another coin) */
         ai_bot(fighters, NF, 0, &in[0]);
         if (!(attract_t & 31)) FIX_print(14, 13, (attract_t & 32) ? "           " : "INSERT COIN", 0);
     } else read_player(0, &in[0], &fighters[0]);

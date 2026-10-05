@@ -121,7 +121,7 @@ class MainActivity : Activity() {
         applySettings()
         FrameStats.start(getExternalFilesDir(null)!!)
         val hints = if (android.os.Build.VERSION.SDK_INT >= 31) getSystemService(android.os.PerformanceHintManager::class.java) else null
-        emu = EmuThread(sys.absolutePath, save.absolutePath, rom.absolutePath, hints, { if (VsyncPacer.perFrame < 2) gl.requestRender() }) { msg ->
+        emu = EmuThread(sys.absolutePath, save.absolutePath, rom.absolutePath, hints, hwOf(Prefs(this)), { if (VsyncPacer.perFrame < 2) gl.requestRender() }) { msg ->
             runOnUiThread { setContentView(TextView(this).apply { text = msg; gravity = Gravity.CENTER }) }
         }.also { it.start() }
         pollUpdates()
@@ -149,18 +149,30 @@ class MainActivity : Activity() {
             val got = RomFetch.installedBuild(this) > before
             runOnUiThread {
                 pad.updateText = null
-                if (got) {
-                    val i = packageManager.getLaunchIntentForPackage(packageName)!!
-                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                    startActivity(i); Runtime.getRuntime().exit(0)
-                }
+                if (got) restart()
+            }
+        }.start()
+    }
+
+    /** a fresh process (new ROM, other system): the game pauses, its saves are written (flushSaves), then restart */
+    private fun restart() {
+        emu?.paused = true
+        Thread {
+            val t0 = System.currentTimeMillis()
+            while (emu?.flushed == false && System.currentTimeMillis() - t0 < 1500) Thread.sleep(10)
+            runOnUiThread {
+                val i = packageManager.getLaunchIntentForPackage(packageName)!!
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                startActivity(i); Runtime.getRuntime().exit(0)
             }
         }.start()
     }
 
     private fun openSettings() = startActivity(android.content.Intent(this, SettingsActivity::class.java))
+    private fun hwOf(p: Prefs) = if (p.system == "console") "aes" else "mvs"
     private fun applySettings() {
         val p = Prefs(this)
+        emu?.let { if (it.hw != hwOf(p)) { restart(); return } }    // arcade <-> console: the core reloads
         requestedOrientation = when (p.orientation) {
             "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE

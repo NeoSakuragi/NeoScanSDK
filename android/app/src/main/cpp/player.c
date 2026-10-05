@@ -9,12 +9,17 @@
 #include <android/log.h>
 #include "libretro.h"
 
+int geo_savedata_save(unsigned datatype, const char *filename);   /* Geolith (src/geo.c) */
+
 #define TAG "NeoScanPlayer"
 #define MAXW 512
 #define MAXH 512
 #define AUDIO_MAX 8192
 
 static char sys_dir[512], save_dir[512];
+static char hw[8] = "mvs";                             /* mvs = arcade, aes = console (setSystem) */
+static char systype[8] = "mvs";                        /* geolith_system_type: mvs / aes = SNK's BIOS, uni = UniBIOS */
+static char game_base[128];                             /* the ROM's name without extension: the save files' name */
 static uint32_t fb[MAXW * MAXH];
 static int fb_w = 304, fb_h = 224;
 static int16_t audio[AUDIO_MAX * 2];
@@ -37,7 +42,7 @@ static bool environ_cb(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT: return *(unsigned *)data == RETRO_PIXEL_FORMAT_XRGB8888;
     case RETRO_ENVIRONMENT_GET_VARIABLE: {
         static const char *opts[][2] = {
-            {"geolith_system_type", "uni"}, {"geolith_unibios_hw", "mvs"}, {"geolith_region", "us"},
+            {"geolith_system_type", "(setSystem)"}, {"geolith_unibios_hw", "(setSystem)"}, {"geolith_region", "us"},
             {"geolith_memcard", "on"}, {"geolith_memcard_wp", "off"}, {"geolith_freeplay", "off"},
             {"geolith_settingmode", "off"}, {"geolith_4player", "off"}, {"geolith_overscan_t", "8"},
             {"geolith_overscan_b", "8"}, {"geolith_overscan_l", "8"}, {"geolith_overscan_r", "8"},
@@ -47,6 +52,9 @@ static bool environ_cb(unsigned cmd, void *data) {
         struct retro_variable *v = data;
         unsigned i;
         if (!v->key) return false;
+        if (!strcmp(v->key, "geolith_system_type")) { v->value = systype; return true; }
+        if (!strcmp(v->key, "geolith_unibios_hw")) {         /* UniBIOS detects AES / MVS from the coin 3-4 bits this sets */
+            v->value = hw; return true; }
         for (i = 0; i < sizeof(opts) / sizeof(opts[0]); i++)
             if (!strcmp(v->key, opts[i][0])) { v->value = opts[i][1]; return true; }
         v->value = NULL; return false;
@@ -105,6 +113,9 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_load(JNIEnv *env, jclass c
     retro_set_input_state(input_cb);
     retro_init();
     info.path = rom;
+    {   const char *b = strrchr(rom, '/'); char *dot;
+        snprintf(game_base, sizeof(game_base), "%s", b ? b + 1 : rom);
+        if ((dot = strrchr(game_base, '.'))) *dot = 0; }
     if (!retro_load_game(&info)) { __android_log_print(ANDROID_LOG_ERROR, TAG, "load failed: %s", rom); retro_deinit(); return 0; }
     retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
     retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
@@ -135,4 +146,28 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_height(JNIEnv *env, jclass
 JNIEXPORT void JNICALL Java_com_neoscan_player_Native_setPad(JNIEnv *env, jclass cls, jint port, jint mask) {
     (void)env; (void)cls;
     if (port >= 0 && port < 2) { latch[port] |= (uint16_t)(mask & ~held[port]); held[port] = (uint16_t)mask; }
+}
+
+/* "mvs" (arcade) or "aes" (console), read by the core at the next load (Bruno 2026-10-05: SNK's own BIOS for the
+ * best compatibility): arcade = SNK's MVS BIOS; console = SNK's AES BIOS (neo-epo.bin) when the BIOS set has it,
+ * else UniBIOS in AES mode (it tells AES from MVS by the coin 3-4 bits geolith_unibios_hw sets) */
+JNIEXPORT void JNICALL Java_com_neoscan_player_Native_setSystem(JNIEnv *env, jclass cls, jstring jhw, jboolean aes_bios) {
+    const char *h = (*env)->GetStringUTFChars(env, jhw, 0);
+    (void)cls; snprintf(hw, sizeof(hw), "%s", h); (*env)->ReleaseStringUTFChars(env, jhw, h);
+    snprintf(systype, sizeof(systype), "%s", strcmp(hw, "aes") ? "mvs" : aes_bios ? "aes" : "uni");
+    __android_log_print(ANDROID_LOG_INFO, TAG, "system: %s BIOS, %s hardware", systype, hw);
+}
+
+/* write NVRAM / cartridge RAM / memory card / CD backup RAM to the save dir, as Geolith's retro_unload_game does (the
+ * core only writes them on unload, and Android never unloads cleanly: the player calls this on every pause and before
+ * a restart). Called on the emulation thread between frames. */
+JNIEXPORT void JNICALL Java_com_neoscan_player_Native_flushSaves(JNIEnv *env, jclass cls) {
+    static const char *ext[] = { "nv", "srm", "mcr", "brm" };
+    char name[700]; unsigned i;
+    (void)env; (void)cls;
+    if (!loaded) return;
+    for (i = 0; i < 4; i++) {
+        int st; snprintf(name, sizeof(name), "%s/%s.%s", save_dir, game_base, ext[i]); st = geo_savedata_save(i, name);
+        if (st != 2) __android_log_print(ANDROID_LOG_INFO, TAG, "save %s: %s", name, st == 1 ? "written" : "FAILED");
+    }
 }
