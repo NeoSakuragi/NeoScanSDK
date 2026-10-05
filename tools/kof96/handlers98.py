@@ -1,0 +1,610 @@
+#!/usr/bin/env python3
+"""KOF98 special moves read from the ROM: the 68000 state handler of a special, decoded into a small program of engine
+primitives (catalogue: handlers98.md), plus a model that plays it (the KOF98 animation engine's timing, the handler's
+motion) so a decoded special can be checked against the game frame by frame and exported to the brawler.
+
+A fighter object runs a coroutine: +$00 holds the address its code resumes at each frame. A special's handler (picked by
+the move code: `move.l #handler, $198(a4)`, e.g. Terry 214A/C Burn Knuckle $428BE) is straight-line code: set fields
+(states +$D2.., speeds +$50 / +$58 / +$5C, hit kind +$1B8, damage tables +$108 / +$EF), start a state's animation
+(`move.w state, $72(a4)`, `move.w #-1, $78(a4)`, `jsr $5BA6`), then `move.l #R, (a4)` (resume at R from now on) and a
+frame loop at R whose conditional branches to the character's yield routine (`jsr $5BA6` animate, `jsr $16F98`, boxes,
+`jmp $600E`; one copy per character: Terry $427CC, Ralf $4FC54) end the frame. The decoder walks that code with the
+button / facing / EX flag concrete (the facing is right: forward speeds come out positive) and turns it into ops:
+
+  ('anim', state)               the state's animation from its first step (engine $5BB0 via $5BA6)
+  ('set', reg, value)           vx (+$50), vy (+$58), g (+$5C), fric (+$54 word, a 0.16 factor), cnt (a counter word)
+  ('mul', k)                    vx *= k / 65536 ($36A0 on vx)
+  ('move',)                     x += vx
+  ('fricmove',)                 vx *= fric, x += vx ($24A2A)
+  ('fall',)                     height += vy, vy -= g; landed: height 0 ($37E0)
+  ('nudge', dx, dy)             x / height += px (forward +)
+  ('dec',)                      cnt -= 1
+  ('br', cond, when, target)    branch when cond == when; target 'yield' = the frame ends there (resumes next frame)
+  ('resume',)                   the coroutine's resume point: the next op (`move.l #R, (a4)`)
+  ('jmp', addr)                 goto (a loop back: Vulcan Punch)
+  ('spawn', k, dx, dy)          object k of the decode's 'objects' at x + dx (forward +), height + dy ($24944)
+  ('end',) / ('free',)          back to the neutral routine ($25182) / an object frees itself ($34A8)
+  ('fxoff',)                    the move's attached effects end (owner +$D1 bit 7: Burn Knuckle's flame watches it)
+  bookkeeping kept for the record: ('sound', n) $7A98, ('hitkind', k) +$1B8, ('gauge', n) $155F4, ('stats',) $18C1C,
+  ('land',) $15F2C landing dust, ('follow',) $24A02 an effect pinned to its owner, ('inflight',) / ('release',)
+  $24A7C / $24A5E the one-projectile-in-flight bit (owner +$E1 bit 5), ('flag', ...) other field writes, ('call', a)
+  an unknown routine.
+Conditions: 'end' (animation over, +$7C bit 7), 'event' (+$7D bit 7: a step with flag $0080 was entered; consumed),
+'land' (the last fall landed), 'falling' (vy < 0 after the last fall), 'cnt' (the counter went negative), 'off'
+(off screen, $180B6), 'hit' (+$E1 bit 7: this attack connected), 'input' (a button pressed again: mash loops).
+
+    python3 handlers98.py CID INPUT [ex]     e.g. 3 214C; 10 [4]6C; 3 236C ex  -> the ops, the objects, a model run"""
+import json, os, re, struct, subprocess, sys
+HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
+import rom96
+
+P1 = '/data/tmp/romspecials/kof98_p.bin'          # the de-swapped P1 (written on first use)
+
+ROUTINES = {0x248A8: 'init', 0x7A98: 'sound', 0x155F4: 'gauge', 0x18C1C: 'stats', 0x37E0: 'fall', 0x36A0: 'mulfn',
+            0x24A2A: 'fricmove', 0x24944: 'spawnfn', 0x24A02: 'follow', 0x24A7C: 'inflight', 0x24A5E: 'release',
+            0x180B6: 'offfn', 0x15F2C: 'land', 0x24FE4: 'chain', 0x25182: 'end', 0x34A8: 'free', 0x5BA6: 'animfn',
+            0x24926: 'init', 0x248AE: 'init', 0x16B26: 'face', 0x16AEC: 'face', 0x176AE: 'clrinput', 0x1B03C: 'voice',
+            0x33A8: 'random', 0x1EB20: 'superflash', 0x3F8A: 'superflash', 0x1813A: 'superflash', 0x24A9A: 'ownerflag',
+            0x24AA0: 'ownerflag'}
+BOOKKEEPING = ('follow', 'inflight', 'release', 'land', 'stats', 'init', 'chain', 'face', 'clrinput', 'voice', 'superflash',
+               'ownerflag')
+TEST_FIELDS = {0x7C: 'end', 0x7D: 'event', 0xE1: 'hit'}
+
+class Decoder:
+    def __init__(self, m):
+        self.m = m; self.ins = {}
+        if not os.path.exists(P1):
+            os.makedirs(os.path.dirname(P1), exist_ok=True); open(P1, 'wb').write(m.p[:0x100000])
+
+    def at(self, a):
+        if a not in self.ins:
+            out = subprocess.run(['m68k-linux-gnu-objdump', '-D', '-b', 'binary', '-m', 'm68k', f'--start-address={a}',
+                                  f'--stop-address={a + 0x200}', P1], capture_output=True, text=True).stdout.splitlines()
+            lines = []
+            for l in out:
+                p = l.split('\t')
+                if len(p) >= 3 and re.match(r'^\s*[0-9a-f]+:$', p[0]):
+                    txt = ' '.join(p[2:]).strip().split(None, 1)
+                    lines.append((int(p[0].strip()[:-1], 16), txt[0], txt[1] if len(txt) > 1 else ''))
+            for k, (ad, mn, opd) in enumerate(lines[:-1]):
+                if ad not in self.ins: self.ins[ad] = (mn, split_ops(opd), lines[k + 1][0])
+        return self.ins[a]
+
+    def is_yield(self, a):
+        """a character's yield routine: animate ($5BA6), then $16F98 / $1718E (+ boxes), jmp $600E"""
+        mn, ops, nx = self.at(a)
+        if mn != 'jsr' or imm(ops[0]) != 0x5BA6: return False
+        mn2, ops2, _ = self.at(nx)
+        return mn2 == 'jsr' and imm(ops2[0]) in (0x16F98, 0x1718E)
+
+def split_ops(s):
+    out, depth, cur = [], 0, ''
+    for c in s:
+        if c == '(' : depth += 1
+        if c == ')': depth -= 1
+        if c == ',' and depth == 0: out.append(cur); cur = ''
+        else: cur += c
+    if cur: out.append(cur)
+    return out
+
+def imm(o):
+    o = o.lstrip('#')
+    return int(o, 16) if o.startswith('0x') else int(o) if re.match(r'^-?\d+$', o) else None
+
+def field(o, reg='a4'):
+    """'%a4@(80)' -> 80, '%a4@' -> 0, else None"""
+    mt = re.match(rf'^%{reg}@(?:\((-?\d+)\))?$', o)
+    return (int(mt.group(1)) if mt.group(1) else 0) if mt else None
+
+SIZE = {'b': 1, 'w': 2, 'l': 4}
+
+class Fields:
+    """the object's fields the decode knows, byte by byte (big-endian, as the 68000 reads them)"""
+    def __init__(self): self.b = {}
+    def put(self, off, v, size):
+        if not isinstance(v, int): [self.b.pop(off + i, None) for i in range(size)]; return
+        v &= (1 << 8 * size) - 1
+        for i in range(size): self.b[off + i] = (v >> 8 * (size - 1 - i)) & 0xFF
+    def get(self, off, size, signed=True):
+        if any(off + i not in self.b for i in range(size)): return None
+        v = 0
+        for i in range(size): v = v << 8 | self.b[off + i]
+        return v - (1 << 8 * size) if signed and v >> (8 * size - 1) else v
+
+def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
+    """the handler at addr -> {'addr', 'ops': [(addr, op)], 'objects': [decoded object routines]}. fields: an object's
+    inherited fields (spawn offsets +$D2 / +$D4, vx, end state +$D8, hit routine +$19C)"""
+    dec = dec or Decoder(m)
+    F = Fields()                                     # facing right, the button, EX, on the ground
+    for off, v, sz_ in [(0x31, 1, 1), (0x1A4, 0x10 << 'ABCD'.index(button), 1), (0x1D6, 1 if ex else 0, 1), (0xC8, 0, 2)] + list(fields or []):
+        F.put(off, v, sz_)
+    D = {}; A0 = None; ops = []; objects = []; seen = set(); cc = None
+    cnt_field = None; work = [addr]; pending_child = None
+    def emit(a, *op): ops.append((a, op))
+    def flush_child():
+        nonlocal pending_child
+        if pending_child is None: return
+        ch, at = pending_child; pending_child = None
+        objects.append(decode(m, ch['routine'], button, ex, ch['fields'], dec, depth + 1))
+        objects[-1].update(state=next((v for o_, v, s_ in ch['fields'] if o_ == 0x72), None), dx=ch['dx'], dy=ch['dy'])
+        emit(at, 'spawn', len(objects) - 1, ch['dx'], ch['dy'])
+    def val(o, size=2):
+        """an operand's value: int, ('f', off) for an a4 field read at run time / not known, None"""
+        if o.startswith('#'): return imm(o)
+        f = field(o)
+        if f in (0x50, 0x58): return ('f', f)                          # speeds: read at run time
+        if f is not None:
+            v = F.get(f, size); return ('f', f) if v is None else v
+        if re.match(r'^%d\d$', o): return D.get(o)
+        if field(o, 'a3') is not None: return F.get(0x1A4, 1, False)   # the buttons pressed (a3 = the input record)
+        return None
+    def store(f, v, size, a):
+        nonlocal cnt_field
+        if f == 0x00: return
+        if isinstance(v, tuple) and v[0] == 'mul': emit(a, 'mul', v[2]); F.put(f, None, size); return
+        if isinstance(v, tuple) and v[0] == 'f' and v[1] == f: return
+        F.put(f, v, size)
+        regs = {0x50: 'vx', 0x58: 'vy', 0x5C: 'g', 0x54: 'fric'}
+        if f in regs and size >= 2 and not isinstance(v, tuple):
+            x = v / 65536 if size == 4 else (v & 0xFFFF)
+            if f == 0x54: x = v & 0xFFFF
+            emit(a, 'set', regs[f], x)
+        elif f == 0x1B8: emit(a, 'hitkind', v)
+        elif f == cnt_field: emit(a, 'set', 'cnt', v)
+    a = addr; budget = 4000; work = []; pos = {}
+    while budget:
+        budget -= 1
+        if a is None:
+            while work and work[0] in seen: work.pop(0)
+            if not work: break
+            a = work.pop(0)
+        if a in seen:
+            emit(a, 'jmp', a); a = None; continue
+        mn, o, nx = dec.at(a)
+        if pending_child is not None and not any('%a1@' in x for x in o): flush_child()
+        seen.add(a); pos[a] = len(ops)
+        base = mn.rstrip('bwl') if mn[-1:] in 'bwl' and mn not in ('jsr', 'jmp', 'bclr', 'tstl') else mn
+        sz = SIZE.get(mn[-1:], 4)
+        if pending_child is not None and not any('%a1@' in x for x in o): flush_child()
+        if mn == 'jsr' or mn == 'jmp':
+            mt = re.match(r'^%pc@\((0x[0-9a-f]+)\)$', o[0])
+            t = imm(o[0]) if o[0].startswith('0x') else int(mt.group(1), 16) if mt else None
+            if t is None and o[0] == '%a0@': emit(a, 'jmp', 'resume'); a = None; continue
+            name = ROUTINES.get(t)
+            if mn == 'jmp' and dec.is_yield(t): emit(a, 'br', None, True, 'yield'); a = None; continue
+            if name == 'end': emit(a, 'end'); a = None; continue
+            if name == 'free': emit(a, 'free'); a = None; continue
+            if mn == 'jmp': a = t; continue
+            if name == 'sound': emit(a, 'sound', D.get('%d0'))
+            elif name == 'gauge': emit(a, 'gauge', F.get(0x1DE, 2))
+            elif name == 'animfn': emit(a, 'anim', F.get(0x72, 2))
+            elif name == 'fall': emit(a, 'fall'); cc = ('land', 'Z'); D['%d1'] = ('falling',)
+            elif name == 'mulfn': D['%d0'] = ('mul', D.get('%d0'), (D.get('%d1') or 0) & 0xFFFF)
+            elif name == 'fricmove': emit(a, 'fricmove')
+            elif name == 'offfn': emit(a, 'offscreen'); cc = ('off', 'N')
+            elif name == 'spawnfn':
+                d5, d6 = D.get('%d5', 0), D.get('%d6', 0)
+                d5 = d5 - 0x10000 if isinstance(d5, int) and d5 > 0x7FFF else d5
+                d6 = d6 - 0x10000 if isinstance(d6, int) and d6 > 0x7FFF else d6
+                cf = [(0x72, D.get('%d3'), 2), (0xD2, d5 if not F.get(0x31, 1) & 1 else -d5, 2), (0xD4, d6, 2), (0x31, F.get(0x31, 1), 1),
+                      (0x1A4, F.get(0x1A4, 1), 1), (0x1D6, F.get(0x1D6, 1), 1)]
+                pending_child = ({'routine': A0, 'fields': cf, 'dx': -d5, 'dy': d6}, a)   # dx forward +
+            elif name == 'random': emit(a, 'random'); D['%d0'] = ('random',)
+            elif name in BOOKKEEPING: emit(a, name)
+            else: emit(a, 'call', t)
+            a = nx; continue
+        if mn == 'lea':
+            mt = re.match(r'%pc@\((0x[0-9a-f]+)\)', o[0])
+            if mt and o[1] == '%a0': A0 = int(mt.group(1), 16)
+            a = nx; continue
+        if mn in ('nop', 'rts'):
+            if mn == 'rts': emit(a, 'rts'); a = None; continue
+            a = nx; continue
+        if mn[0] == 'b' and mn[:3] not in ('btst', 'bcl', 'bse', 'bch') and mn not in ('bclr', 'btst'):
+            cond = mn[1:3]; t = imm(o[0])
+            if cond == 'ra':
+                if dec.is_yield(t): emit(a, 'br', None, True, 'yield'); a = None; continue
+                a = t; continue
+            # condition: concrete flags (cc = ('val', v)) or an abstract one (cc = (name, flag))
+            if cc and cc[0] == 'val':
+                v = cc[1]
+                taken = {'eq': v == 0, 'ne': v != 0, 'pl': v >= 0, 'mi': v < 0}[cond]
+                a = t if taken else nx; continue
+            if cc is None or cond not in ('eq', 'ne', 'mi', 'pl'):        # a test this decoder does not model
+                tgt = 'yield' if dec.is_yield(t) else t
+                if tgt != 'yield': work.append(t)
+                emit(a, 'br', f'cc_{cond}@{a:X}' if cc is None else f'{cc[0]}_{cond}', True, tgt); a = nx; continue
+            name, flag = cc
+            when = {'eq': True, 'ne': False, 'mi': True, 'pl': False}[cond]   # taken when flag (Z or N) == when
+            # map flag polarity to the condition's truth: N/Z set means the condition holds
+            truth = not when if flag == 'Zinv' else when                         # btst: Z set = the bit is clear
+            if name == 'event_z': name, truth = 'event', not when                # bclr: Z set = the bit was clear
+            if name == 'cnt': truth = when                                        # N after subq: went negative
+            tgt = 'yield' if dec.is_yield(t) else t
+            if tgt != 'yield': work.append(t)
+            emit(a, 'br', name, truth, tgt)
+            a = nx; continue
+        if base in ('tst',):
+            f = field(o[0])
+            f0 = field(o[0], 'a0')
+            if f0 is not None and A0 == 'owner': cc = ({0xD1: 'owner_fxoff'}.get(f0, f'owner_{f0:X}'), 'N')
+            elif f is not None and f in TEST_FIELDS: cc = (TEST_FIELDS[f], 'N')
+            elif f is not None and F.get(f, sz) is not None: cc = ('val', F.get(f, sz))
+            elif o[0] == '%d1' and D.get('%d1') == ('falling',): cc = ('falling', 'N')
+            elif o[0].startswith('%d') and isinstance(D.get(o[0]), int): cc = ('val', D[o[0]])
+            else: cc = ('f%X' % (f if f is not None else -1), 'N')
+            a = nx; continue
+        if mn == 'btst':
+            b = imm(o[0]); f = field(o[1])
+            if f is not None and F.get(f + (0 if b < 8 else 0), 1) is not None and b < 8: cc = ('val', (F.get(f, 1, False) >> b) & 1)
+            elif o[1].startswith('%fp@'): cc = ('input', 'Zinv')
+            elif field(o[1], 'a0') is not None and A0 == 'owner': cc = (f'owner_{field(o[1], "a0"):X}.{b}', 'Zinv')
+            else: cc = ('f%X.%d' % (f if f is not None else -1, b), 'Zinv')
+            a = nx; continue
+        if mn == 'bclr':
+            f = field(o[1]); b = imm(o[0])
+            cc = ('event_z', 'Z') if f == 0x7D and b == 7 else ('f%X.%d' % (f or 0, b), 'Z')
+            a = nx; continue
+        if base == 'move' or base == 'movea' or mn.startswith('move'):
+            if mn == 'moveq': D[o[1]] = imm(o[0]); a = nx; continue
+            src, dst = o
+            v = val(src, sz)
+            if not dst.startswith('%a') or dst.startswith('%a4@') or dst.startswith('%a1@'):   # move sets N / Z
+                cc = ('val', v) if isinstance(v, int) else (f'mv{src}', 'N')
+            if dst == '%a0' and field(src) == 0x84: A0 = 'owner'; a = nx; continue
+            if dst == '%a4@' and isinstance(v, int):                      # move.l #R, (a4): the resume point
+                if v == nx: emit(a, 'resume')
+                else: emit(a, 'resume_at', v); work.append(v)
+                a = nx; continue
+            fd = field(dst)
+            if fd is not None:
+                store(fd, v if not (isinstance(v, tuple) and v[0] == 'f' and fd == 0x50) else v, sz, a)
+                if fd == 0x72: pass
+                a = nx; continue
+            fa1 = field(dst, 'a1')
+            if fa1 is not None and pending_child is not None:
+                if isinstance(v, tuple) and v[0] == 'f': v = F.get(v[1], sz)
+                pending_child[0]['fields'].append((fa1, v, sz))
+                a = nx; continue
+            if re.match(r'^%d\d$', dst):
+                D[dst] = v if not isinstance(v, tuple) or v[0] != 'f' else ('f', v[1]); a = nx; continue
+            a = nx; continue
+        if base in ('add', 'addq', 'sub') and len(o) == 2:
+            fd = field(o[1]); v = val(o[0], sz)
+            if base == 'sub' and fd == 0x58: a = nx; continue
+            if fd == 0x18:
+                if isinstance(v, tuple) and v[0] in ('f', 'mul') and (v[1] == 0x50 or v[1] == ('f', 0x50)): emit(a, 'move')
+                elif isinstance(v, int): emit(a, 'nudge', v if sz == 2 else v / 65536, 0)
+                else: emit(a, 'nudge?', v)
+            elif fd == 0x20:
+                if isinstance(v, int): emit(a, 'nudge', 0, v)
+                else: emit(a, 'nudgey?', v)
+            elif o[1].startswith('%d') and isinstance(D.get(o[1]), int) and isinstance(v, int): D[o[1]] += v
+            a = nx; continue
+        if mn in ('subqw', 'subqb', 'subql'):
+            fd = field(o[1])
+            cnt_field = fd; emit(a, 'dec'); cc = ('cnt', 'N')
+            if F.get(fd, sz) is not None: emit(a, 'set', 'cnt', F.get(fd, sz)); ops.insert(len(ops) - 2, ops.pop())  # value known: set first
+            a = nx; continue
+        if base == 'neg':
+            fd = field(o[0])
+            if fd is not None and F.get(fd, sz) is not None: store(fd, -F.get(fd, sz), sz, a)
+            elif o[0].startswith('%d') and isinstance(D.get(o[0]), int): D[o[0]] = -D[o[0]]
+            a = nx; continue
+        if base in ('clr',):
+            fd = field(o[0])
+            if fd is not None: store(fd, 0, sz, a)
+            elif o[0].startswith('%d'): D[o[0]] = 0
+            a = nx; continue
+        if base in ('ori', 'andi', 'or', 'and'):
+            fd = field(o[1]); v = imm(o[0])
+            if fd is not None:
+                if fd == 0xD1 and base == 'ori' and v & 0x80: emit(a, 'fxoff')
+                elif fd in (0x7C, 0x7D) and base == 'andi': pass
+                if F.get(fd, sz) is not None: F.put(fd, (F.get(fd, sz) | v) if base.startswith('or') else (F.get(fd, sz) & v), sz)
+                emit(a, 'flag', base, fd, v & 0xFF)
+            elif o[1].startswith('%d') and isinstance(D.get(o[1]), int):
+                D[o[1]] = (D[o[1]] | v) if base.startswith('or') else (D[o[1]] & v); cc = ('val', D[o[1]])
+            a = nx; continue
+        if base == 'cmpi':
+            a = nx; cc = ('cmp', 'Z'); continue
+        emit(a, 'unknown', mn, o); a = nx
+    if pending_child is not None: flush_child()
+    hit = None
+    hr = F.get(0x19C, 4, False)
+    if hr and depth < 3 and not (fields and any(o_ == -1 for o_, v, s_ in fields)):   # an object's hit routine (travelling ones)
+        keep = [(o_, F.get(o_, 2), 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8) if F.get(o_, 2) is not None]
+        hit = decode(m, hr, button, ex, keep + [(0x50, F.get(0x50, 4), 4), (-1, 0, 1)], dec, depth + 1)
+    return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1),
+            'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8)}}
+
+def show(d, ind=''):
+    for a, op in d['ops']:
+        print(f'{ind}{a:06X} ' + ' '.join(str(x) if not isinstance(x, int) or abs(x) < 256 else f'${x:X}' for x in op))
+    for k, ob in enumerate(d['objects']):
+        print(f'{ind}object {k}: routine ${ob["addr"]:X}, state {ob.get("state")}, at +{ob["dx"]} / {ob["dy"]}, kind {ob["kind"]}')
+        show(ob, ind + '    ')
+    if d.get('hit'):
+        print(f'{ind}on its hit: ${d["hit"]["addr"]:X}'); show(d['hit'], ind + '    ')
+
+# ---- the handler of a captured special ------------------------------------------------------------------------------
+CAP = os.path.join(HERE, 'capture', 'specials98')
+
+def handler_of(cid, inp, ex=False):
+    """(handler address, button) of a special as captured (capture/specials98: the move code's +$198 on the try's first
+    special frame). inp in specials96 notation ('214C', '[4]6C'); 'EX ...' = the EX version (c<id>x, '_ex' file)"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('specials96_top', os.path.join(HERE, 'specials96.py'))
+    S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
+    tag = '_ex' if ex or inp.startswith('EX ') else ''
+    inp = inp.replace('EX ', '')
+    T = json.load(open(os.path.join(CAP, f'{cid}{tag}.json'))); L = open(os.path.join(CAP, f'{cid}{tag}.txt')).read().splitlines()
+    for t in T:
+        if t['air'] or S.notation(t['events']) != inp: continue
+        for f in range(t['start'], t['start'] + t.get('gap', 220)):
+            o = bytes.fromhex(L[f - 1].split()[3]); st = struct.unpack('>H', o[0x72:0x74])[0]
+            if S.special_state('kof98', st): return struct.unpack('>I', o[0x198:0x19C])[0], t['button']
+    raise KeyError((cid, inp))
+
+# ---- the model: a decoded program played with the KOF98 animation engine's timing --------------------------------------
+class Obj:
+    """one object playing ops. Per frame: the handler runs from its resume point until a branch to the yield routine,
+    then the animation engine advances (a step shows ticks + 1 frames; the frame a state starts counts as the first
+    of its first step; past the last step: +$7C bit 7 'end', a hold stays, a loop restarts)"""
+    def __init__(self, m, cid, prog, x=0.0, h=0.0, vx=0.0):
+        self.m, self.cid, self.prog = m, cid, prog
+        self.ops = [op for a, op in prog['ops']]; self.addrs = [a for a, op in prog['ops']]
+        self.pc = 0; self.x, self.h, self.vx, self.vy, self.g, self.fric, self.cnt = x, h, vx, 0.0, 0.0, 0, 0
+        self.state = None; self.steps = None; self.step = 0; self.left = 0; self.done = False; self.event = False
+        self.landed = False; self.falling = False; self.hit = False; self.over = False; self.spawned = []; self.mode = 'hold'
+        self.fxoff = False; self.owner = None; self.off = False
+    def play(self, st):
+        self.state = st
+        self.steps, self.mode = rom96.parse_anim(self.m, rom96.anim_addr(self.m, self.cid, rom96.state_slot(self.m, self.cid, st)))
+        self.step = 0; self.left = self.steps[0][0] + 1; self.done = False
+        self.event = bool(self.steps[0][2] & 0x80); self.x += -self.steps[0][5]
+    def advance(self):
+        if self.steps is None: return
+        self.left -= 1
+        if self.left > 0: return
+        if self.step + 1 < len(self.steps):
+            self.step += 1
+        else:
+            self.done = True
+            if self.mode == 'hold': self.left = 1; return
+            self.step = 0
+        t, fi, fl, bx, raw, dx = self.steps[self.step]
+        self.left = t + 1; self.x += -dx
+        if fl & 0x80: self.event = True
+    def cond(self, c):
+        if c == 'end': return self.done
+        if c == 'event':
+            e = self.event; self.event = False; return e
+        if c == 'land': return self.landed
+        if c == 'falling': return self.falling
+        if c == 'cnt': return self.cnt < 0
+        if c == 'off': return self.off
+        if c == 'hit': return self.hit
+        if c == 'owner_fxoff': return self.owner is not None and self.owner.fxoff
+        return False
+    def frame(self, cam=0):
+        """one frame of handler code; returns at the yield"""
+        n = 0
+        while not self.over:
+            n += 1
+            if n > 500: raise RuntimeError('no yield')
+            op = self.ops[self.pc]; k = op[0]; self.pc += 1
+            if k == 'anim': self.play(op[1])
+            elif k == 'set':
+                if op[1] == 'vx': self.vx = op[2]
+                elif op[1] == 'vy': self.vy = op[2]
+                elif op[1] == 'g': self.g = op[2]
+                elif op[1] == 'fric': self.fric = op[2]
+                elif op[1] == 'cnt': self.cnt = op[2]
+            elif k == 'mul': self.vx = self.vx * op[1] / 65536
+            elif k == 'move': self.x += self.vx
+            elif k == 'fricmove': self.vx = self.vx * self.fric / 65536; self.x += self.vx
+            elif k == 'fall':
+                v0 = self.vy; self.vy -= self.g; self.h += v0
+                self.landed = self.h <= 0; self.falling = self.vy < 0 and not self.landed
+                if self.landed: self.h = 0
+            elif k == 'nudge': self.x += op[1]; self.h += op[2]
+            elif k == 'dec': self.cnt -= 1
+            elif k == 'offscreen': sx = self.x - cam if cam is not None else 0; self.off = sx <= -64 or sx >= 384
+            elif k == 'resume': self.resume = self.pc
+            elif k == 'resume_at': self.resume = self.prog['pos'][op[1]]
+            elif k == 'br':
+                take = True if op[1] is None else (self.cond(op[1]) == op[2])
+                if take:
+                    if op[3] == 'yield': self.pc = self.resume; return
+                    self.pc = self.prog['pos'][op[3]]
+            elif k == 'jmp':
+                if op[1] == 'resume': self.pc = self.resume; return
+                self.pc = self.prog['pos'][op[1]]
+            elif k == 'spawn': self.spawned.append((op[1], op[2], op[3]))
+            elif k in ('end', 'free', 'rts'): self.over = True; return
+            elif k == 'fxoff': self.fxoff = True
+            elif k == 'follow' and self.owner is not None: self.x = self.owner.x + self.ofs[0]; self.h = self.owner.h + self.ofs[1]
+    def tick(self, cam=0):
+        self.spawned = []
+        self.frame(cam)
+        if not self.over: self.advance()
+    def shown(self):
+        if self.steps is None: return None
+        return self.steps[self.step][1]
+
+def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160):
+    """the program played alone (a whiff): per frame (state, ROM frame index, x, height, spawns [(object, x, h, vx)]);
+    its objects played as their own Obj from their spawn frame (rows per object: frame, state, ROM frame, x, height)"""
+    o = Obj(m, cid, prog, x=x); o.resume = 0; rows = []; objs = []
+    for f in range(frames):
+        if hit_at is not None and f == hit_at: o.hit = True
+        o.tick(cam)
+        sp = []
+        for k, dx, dy in o.spawned:
+            ob = prog['objects'][k]; fl = ob['fields']
+            c = Obj(m, cid, ob, x=o.x, h=o.h, vx=ob['vx'])   # the spawner copies the thrower's place; the routine offsets it
+            c.resume = 0; c.born = f; c.rows = []; c.owner = o; c.ofs = (dx, dy); objs.append(c); sp.append(k)
+        for c in objs:
+            if c.over or c.born == f and False: continue
+            if c.born < f or True:
+                if not c.rows or c.born < f: pass
+        for c in objs:
+            if c.over: continue
+            if c.born == f: c.frame(cam)              # its first frame: its code runs, its animation does not advance
+            else: c.tick(cam)
+            if not c.over: c.rows.append((f, c.state, c.shown(), round(c.x, 2), round(c.h, 2)))
+        rows.append((f, o.state, o.shown(), round(o.x, 2), round(o.h, 2), sp))
+        if o.over: break
+    return rows, objs
+
+# ---- export: a decoded special for the brawler (export96 -> tools/brawler/export_bm.py) ---------------------------------
+# The specials played from the ROM in the brawler (prototype, 2026-10-05): KOF98 input per fighter. Everything else keeps
+# its captured script. A special qualifies when its program uses only the ops below (BODY_OPS) and its objects decode.
+ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C'}, 'ralf': {'[4]6C', '[2]8C', '[4]6D'}}
+BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
+            'spawn', 'fxoff', 'end', 'hitkind'}
+DROP_OPS = {'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
+            'ownerflag'}
+CONDS = {None: 7, 'end': 0, 'event': 1, 'land': 2, 'falling': 3, 'cnt': 4, 'hit': 5, 'off': 6}
+
+def anim_steps(m, cid, st):
+    return rom96.parse_anim(m, rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)))
+
+def openings(m, cid, prog, frames=300):
+    """the whiff model run: per state the hit windows it opens (an active step, $0100, entered when the step before
+    was not active-and-chained ($4000), a state's first step counting as new), the frame of the last opening, the apex
+    frame, the frames played"""
+    o = Obj(m, cid, prog); o.resume = 0
+    per, last, prev, peak, top = {}, -1, None, 0, -1
+    for f in range(frames):
+        st0, step0 = o.state, o.step
+        o.tick()
+        if o.over: return per, last, peak, f
+        if o.steps is not None and (o.state, o.step) != (st0, step0) or f == 0:
+            fl = o.steps[o.step][2]
+            p = prev if o.state == st0 else None
+            if fl & 0x100 and not (p is not None and p & 0x100 and p & 0x4000):
+                per[o.state] = per.get(o.state, 0) + 1; last = f
+            prev = fl
+        if o.h > top: top, peak = o.h, f
+    return per, last, peak, frames
+
+def object_rows(m, cid, ob, owner_x=0.0, frames=240):
+    """an object's flight from the model: rows [rom frame, x from the thrower's place at the spawn (forward +),
+    height, live attack box (type x y w h) or None, own box (slot 1) or None], loop (row the flight repeats from, None:
+    it ends), follow (pinned to its owner: x / height are offsets from it)"""
+    c = Obj(m, cid, ob, x=0.0, h=0.0, vx=ob['vx']); c.resume = 0
+    follow = any(op[0] == 'follow' for a, op in ob['ops'])
+    if follow: c.owner = Obj(m, cid, {'ops': [], 'objects': []}); c.ofs = (ob['dx'], ob['dy'])
+    rows, live, seen = [], None, {}
+    for f in range(frames):
+        if f == 0: c.frame(None)                      # never off screen: the brawler tests that itself
+        else: c.tick(None)
+        if c.over: break
+        t, fi, fl, bx, raw, dx = c.steps[c.step]
+        atk = {k: v for k, v in bx.items() if k < 0x30 or k >= 0x100}
+        if atk: live = next(iter(atk.items()))
+        a = [live[0] & 0x3F if live[0] < 0x100 else live[0] & 0xFF] + list(live[1]) if live and fl & 0x100 else None
+        rows.append([fi, round(c.x, 3), round(c.h, 3), a, bx.get(0x31)])
+        if c.mode == 'loop' and c.done and c.step == 0 and c.left == c.steps[0][0] + 1:   # one full cycle played:
+            cyc = sum(s[0] + 1 for s in c.steps)                                        # the flight repeats it
+            return rows[:-1], len(rows) - 1 - cyc, follow
+    return rows, None, follow
+
+def export_rom(m, cid, inp, add, game='kof98'):
+    """a special's ROM program in export terms (export96 calls it for ROM_SPECIALS; tools/brawler/export_bm.py compiles
+    it): ops (bookkeeping dropped, branch targets as op indices), anims {state: steps (frame = export index via add,
+    ticks, flags, dx, boxes)}, per state the hits it opens (whiff model), objects (flight rows for export_bm's
+    projectile tables), hit kind, the frame of the last hit / the apex (the rising reversal's invincibility)"""
+    ex = inp.startswith('EX ')
+    h, b = handler_of(cid, inp, ex)
+    prog = decode(m, h, b, ex)
+    bad = [op for a, op in prog['ops'] if op[0] not in BODY_OPS | DROP_OPS or (op[0] == 'br' and op[1] not in CONDS)
+           or (op[0] == 'anim' and op[1] is None)]
+    if bad: return {'error': f'ops {bad[:3]}'}
+    kept, idx = [], {}
+    for i, (a, op) in enumerate(prog['ops']):
+        idx[i] = len(kept)
+        if op[0] not in DROP_OPS: kept.append((a, op))
+    def target(t): return 'yield' if t == 'yield' else idx[prog['pos'][t]]
+    ops, hitkind, states = [], 1, []
+    for a, op in kept:
+        k = op[0]
+        if k == 'hitkind': hitkind = op[1]; continue
+        if k == 'br': ops.append(('br', CONDS[op[1]], 1 if op[2] else 0, target(op[3])))
+        elif k == 'jmp': ops.append(('br', CONDS[None], 1, 'yield') if op[1] == 'resume' else ('jmp', idx[prog['pos'][op[1]]]))
+        elif k == 'resume_at': ops.append(('resume_at', idx[prog['pos'][op[1]]]))
+        elif k == 'anim':
+            if op[1] not in states: states.append(op[1])
+            ops.append(('anim', states.index(op[1]), op[1]))
+        else: ops.append(op)
+    # hitkind ops were removed after indexing: re-index (they are never branch targets in the studied handlers)
+    rem = [i for i, (a, op) in enumerate(kept) if op[0] == 'hitkind']
+    def fix(t): return t if t == 'yield' else t - sum(1 for r in rem if r < t)
+    ops = [(o[0], o[1], o[2], fix(o[3])) if o[0] == 'br' else (o[0], fix(o[1])) if o[0] in ('jmp', 'resume_at') else o for o in ops]
+    anims = {}
+    for st in states + [ob.get('state') for ob in prog['objects']] + ([prog['objects'][0]['hit']['fields'].get(0x72)] if False else []):
+        if st is None or st in anims: continue
+        steps, mode = anim_steps(m, cid, st)
+        anims[st] = {'mode': mode, 'steps': [{'frame': add(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k_:02X}': v for k_, v in bx.items()}}
+                                             for t, fi, fl, bx, raw, dx in steps]}
+    per, last, peak, length = openings(m, cid, prog)
+    objs = []
+    for k, ob in enumerate(prog['objects']):
+        rows, loop, follow = object_rows(m, cid, ob)
+        end = []
+        if ob.get('hit'):                                      # its hit routine: the end animation in place
+            ho = Obj(m, cid, ob['hit']); ho.resume = 0
+            for f in range(120):
+                if f == 0: ho.frame(None)
+                else: ho.tick(None)
+                if ho.over or ho.steps is None: break
+                end.append([add(ho.shown()), 0, 0])
+        objs.append({'rows': [[add(r[0])] + r[1:] for r in rows], 'loop': loop, 'end': end, 'kind': ob['kind'] or 3,
+                     'follow': follow, 'hit_kind': hitkind, 'react': 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
+                     'child': None, 'state': ob.get('state')})
+    return {'handler': h, 'button': b, 'ops': ops, 'states': states, 'anims': anims, 'openings': per, 'last_hit': last,
+            'apex': peak, 'length': length, 'objects': objs, 'hit_kind': hitkind}
+
+CLEAN_CONDS = {None, 'end', 'event', 'land', 'falling', 'cnt', 'off', 'hit', 'owner_fxoff'}
+
+def census(m):
+    """every handler the move code installs (`move.l #h, $198(a4)` anywhere in P1), decoded with button C: how many
+    decode with no unknown routine, condition, loop or state table, and what the rest need"""
+    import collections
+    p = m.p; hs = set()
+    for a in range(0, 0x100000 - 8, 2):
+        if p[a:a + 2] == b'\x29\x7c' and p[a + 6:a + 8] == b'\x01\x98':
+            v = struct.unpack('>I', p[a + 2:a + 6])[0]
+            if 0x30000 <= v < 0x100000: hs.add(v)
+    dec = Decoder(m); issues = collections.Counter(); clean = 0
+    for h in sorted(hs):
+        found = set()
+        def walk(d):
+            for a, op in d['ops']:
+                if op[0] in ('call', 'unknown', 'nudge?', 'nudgey?'): found.add(op[0] if op[0] != 'call' else f'call ${op[1] or 0:X}')
+                if op[0] == 'anim' and op[1] is None: found.add('state table')
+                if op[0] == 'br' and op[1] not in CLEAN_CONDS: found.add(f'cond {op[1]}')
+                if op[0] == 'jmp' and op[1] != 'resume': found.add('loop')
+            for ob in d['objects']: walk(ob)
+            if d.get('hit'): walk(d['hit'])
+        try: walk(decode(m, h, 'C', False, None, dec))
+        except Exception as e: found.add('error')
+        clean += not found
+        issues.update({k.split(' ')[0] if k.startswith('call') else k for k in found})
+    return len(hs), clean, issues
+
+if __name__ == '__main__':
+    if sys.argv[1] == '--census':
+        m = rom96.Mem(rom96.load(rom96.GAMES['kof98']['neo'])[0], 'kof98')
+        n, clean, issues = census(m)
+        print(f'{n} handlers, {clean} decode cleanly; the rest need: {issues.most_common()}'); sys.exit()
+    cid, inp = int(sys.argv[1]), sys.argv[2]; ex = 'ex' in sys.argv[3:]
+    m = rom96.Mem(rom96.load(rom96.GAMES['kof98']['neo'])[0], 'kof98')
+    h, b = handler_of(cid, inp, ex)
+    print(f'{cid} {inp}: handler ${h:X} button {b}')
+    d = decode(m, h, b, ex); show(d)
+    rows, objs = run_model(m, cid, d)
+    for r in rows: print(*r)
+    for c in objs: print('object', c.prog['addr'], c.rows[:3], '...', len(c.rows))

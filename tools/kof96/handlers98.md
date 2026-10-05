@@ -1,0 +1,85 @@
+# KOF98 specials read from the ROM (state handlers -> primitives)
+
+Study 2026-10-05. Code: `handlers98.py` (decoder + model + export), `capture/romspecials98.py` (traces / game vs model
+in our emulator), `../brawler/romspecials_check.py` (game vs brawler, contact sheets), brawler `fighter.c prog_update`.
+Proof artifacts: `/data/tmp/romspecials/out` (`summary.json`, one KOF98 | brawler sheet per special and branch).
+
+## How KOF98 runs a special
+A fighter object is a coroutine: `+$00` is the address its code resumes at each frame. The move code (Terry `$1F7xx`,
+one block per fighter) matches the recogniser bits and the buttons and installs the handler with `move.l #h, $198(a4)`
+(Terry 214A/C Burn Knuckle `$428BE`, 214B/D Crack Shoot `$42C12`, 236A/C Power Wave `$42A9A`, EX 236A/C `$4382A`,
+623A/C Rising Tackle `$42D5E`; Ralf AAAA Vulcan Punch `$4FD46`, [4]6A/C Gatling Attack `$4FEE2`, [4]6B/D Ralf Kick
+`$506A6`, [2]8A/C Kyuukouka Bakudan Punch `$500A4` (air version `$50318`), 426B/D grab `$50648`). The handler is
+straight-line code: fields, a state's animation, `move.l #R, (a4)`, a frame loop at R whose conditional branches to the
+fighter's yield routine (Terry `$427CC`, Ralf `$4FC54`: `jsr $5BA6` animate, `jsr $16F98` / `$1718E`, boxes `$39F0` /
+`$3A08`, `jmp $600E`) end the frame; the next part starts when the loop's condition holds, in the same frame.
+Button / EX variants are field values chosen at the start (`btst #4, $1A4(a4)` = A pressed, `tst.b $1D6(a4)` = EX).
+The hit-stop is the engine's: on a hit it swaps the attacker's `+$00` to `$1B2C4` / `$1B37A` / `$1B388` for the frames
+(11 per hit here) and resumes the handler after; nothing in the handler knows about it.
+
+## Engine routines and fields (the catalogue)
+| primitive | ROM | arguments / meaning |
+|---|---|---|
+| anim *state* | `move.w s, $72(a4)` (+ `move.w #-1, $78(a4)` forces a restart), `jsr $5BA6` -> engine `$5BB0` | state animation from step 0. A step shows ticks + 1 frames; the frame it starts counts as the first frame of step 0; past the last step `+$7C` bit 7 (end) is set and a hold stays; `+$7B` non-zero holds the step (slowdown) |
+| set vx / vy / g / fric | `+$50` (16.16) / `+$58` / `+$5C` / `+$54` (word, 0.16) | forward + (the code negates them when facing left: `btst #0, $31(a4)`) |
+| move | `move.l $50(a4), d0; add.l d0, $18(a4)` | x += vx |
+| mul k | `$36A0` (d0 * d1 / 65536) on vx | Rising Tackle's friction 0.854 |
+| fricmove | `$24A2A` | vx *= fric, x += vx (Gatling Attack) |
+| fall | `$37E0` | height += vy, vy -= g; returns 0 landed (height 0), d1 = -1 once vy < 0 |
+| nudge dx, dy | `add.w #n, $18(a4)` / `$20(a4)` | Rising Tackle starts 8 px forward |
+| dec / cnt | `subq.w #1, $C2(a4)` | Rising Tackle's rise lasts at most +$C2 (12 / 32) frames |
+| spawn *routine*, state, dx, dy | `lea routine, a0`, d3 state, d5 / d6 offset (d5 < 0 = forward), `jsr $24944` | object: owner +$84, table, facing, x / y copied, offset to +$D2 / +$D4 (the routine adds it); after it the thrower writes `a1`: vx `+$50`, hit routine `+$19C`, end state `+$D8` |
+| follow | `$24A02` | an effect pinned to its owner + offset (Burn Knuckle's flame, state 250) |
+| inflight / release | `$24A7C` / `$24A5E` | owner +$E1 bit 5: one projectile at a time |
+| offscreen | `$180B6` | x - camera <= -64 or >= 384: the object frees itself |
+| fxoff | `ori.b #$80, $D1(a4)` | the attached effects end (the flame tests owner `+$D1` bit 7 / `+$E2` bit 2) |
+| end / free | `jmp $25182` (neutral routine `$13AA2`) / `jmp $34A8` | |
+| bookkeeping (dropped by the brawler) | `$248A8` / `$24926` init, `$7A98` sound / voice, `$155F4` gauge, `$18C1C` damage-table stats (+$108 / +$EF / +$F6), `$15F2C` landing dust, `$24FE4` cancel check, `$16B26` face the opponent, `$1B03C` voice, `$33A8` random, `$1EB20` / `$3F8A` / `$1813A` super flash | |
+
+Conditions a frame loop waits on: **end** (`tst.b $7C(a4)`, animation over), **event** (`$7D` bit 7: a step with flag
+`$0080` was entered; `bclr` consumes it: the projectile spawn), **land** / **falling** (`$37E0`), **cnt** (counter
+negative), **hit** (`+$E1` bit 7: this attack connected; Burn Knuckle / Ralf Kick only flag `+$E2` bit 7 then: a
+cancel window, no change of motion), objects: **off** (off screen), owner's `+$D1` bit 7. Hits are not in the code:
+the animation's attack box is live while the step flag `$0100` is set (the last box loaded), and an active step opens a
+new hit unless the active step before it carries `$4000`.
+
+## The studied specials as programs (button C; `python3 handlers98.py CID INPUT [ex]` prints them)
+- **Burn Knuckle 214C**: vx 9, vy 2, g 0.219; anim 129, wait end; spawn flame (250, pinned); anim 131: move + fall
+  until land (hit: flag only); fxoff; anim 133, wait end; end. 1 hit window.
+- **Rising Tackle 623C**: vx 8, vy 11, g 0.512, nudge 8; anim 141 wait end; anim 143 loop: vx *= 0.854, move, fall
+  until falling or 32 frames; vy 0; anim 144: fall until land; anim 146 wait end; end. 2 + 6 hit windows (KOF: 7 hits).
+- **Power Wave 236C**: vx 5; anim 162, on its event spawn the wave (163, kind 3: moves at vx until its own event, then
+  stands; dies with its animation); wait end. **EX 236C** (EX Terry, roster D): vx 7; anim 481, on its event spawn at
+  +64 px (482, kind 1: inflight, move, off screen -> free; hit routine plays 483 in place); wait end.
+- **Gatling Attack [4]6C** (Bruno's 1 hit, 1 hit, 2 hits): fric 0.797; anim 134 at vx 16, anim 136 at vx 12, anim 138
+  at vx 4 (each part: fricmove until end), anim 140 wait end. Windows 1 + 1 + 2 (138's second active step has no `$4000`).
+- **Kyuukouka Bakudan Punch [2]8C**: vx 3.5, vy 11.5, g 0.703; 142 wait end; 144 move + fall until falling; 146 wait
+  end (hangs at the apex); vx 9, vy -9: 147 move + fall until land; 148 wait end; vx -2, vy 7, g 0.5625: 149 move +
+  fall until land; 150 wait end.
+- **Ralf Kick [4]6D**: Burn Knuckle's shape (152 / 154 hop / 156), vx 5, vy 6.5, g 0.344.
+
+## Validation (our emulator, `capture/romspecials98.py compare`)
+Game frames inside the engine's hit-stop and frames the game lost to slowdown (P1 `+$1D2` not advancing: 19 at
+Bakudan Punch's landing, where its rocks spawn) are dropped. The model of each decoded program against the game:
+all 7 whiffs identical on every frame (state, ROM frame, x within 1 px, height within 0.5 px: 59 + 68 + 57 + 53 + 83 +
+93 + 70 frames); the hit versions identical in state, frame and height, x off only by the game's push-back (the
+opponent's body stops the attacker). Spawns: Power Wave frame 18, EX frame 14, flame frame 20, positions within 1 px.
+
+## Generality (`python3 handlers98.py --census`)
+415 handlers are installed through `$198` in KOF98. With this catalogue (about 25 routines, 8 conditions) 103 decode
+with nothing unknown; the rest still decode and list what they need: calls into per-character subroutines (170: to be
+inlined), loops back (94: mash loops, repeated parts), states read from ROM tables (60: Vulcan Punch), effects that
+watch their owner's flags (owner +$E2 / +$D1, ~90), compare / random branches (~100), 57 still stop on a test not
+modelled. KOF96 and KOF99 run the same engine family (KOF98's animation engine is KOF96's byte for byte, the off-screen
+routine is identical): the decoder is the same walk with each game's routine addresses (`ROUTINES`) and yield
+routines; not done.
+
+## What did not fit primitives
+- Vulcan Punch: a loop over a state table in ROM (`+$C2` points at it) re-armed by button presses (`btst` on the
+  recogniser bits): needs a table op and an input condition.
+- Ralf's 426B/D grab: its handler is only the whiff (207, end); the catch is the throw system (states 208-210 entered
+  from the hit dispatcher with the victim's throw list): the throw tables, not a special program.
+- The game's reactions stay outside: push-back between bodies, the victim's juggle (KOF re-launches it on every hit;
+  the brawler holds its target in front of the move between hits: `carry`), hit registration one frame after the box
+  goes live (brawler: the same frame).
+- Supers / MAX (super flash, stock spend) not tried.

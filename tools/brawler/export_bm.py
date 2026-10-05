@@ -399,7 +399,7 @@ def projectile_c(n, k, pjs, game):
         assert len(pj['rows']) < 256 and len(pj.get('end', [])) < 256 and pj.get('spawn_row', 0) < 256, n
         out.append(f'static const bprow_t {name}_r[] = {{{rows}}};\nstatic const bpend_t {name}_e[] = {{{end}}};')
         return (f'{{{len(pj["rows"])}, {loop}, {len(pj.get("end", []))}, {pj.get("kind", 0)}, {pj.get("spawn_row", 0)}, '
-                f'{R_CODE.get(pj.get("react"), R_KNOCKDOWN)}, {fx}, 0, {round(pj.get("spawn_x", 0))}, {round(pj.get("spawn_y", 0))}, '
+                f'{R_CODE.get(pj.get("react"), R_KNOCKDOWN)}, {fx}, {1 if pj.get("follow") else 0}, {round(pj.get("spawn_x", 0))}, {round(pj.get("spawn_y", 0))}, '
                 f'{wrap}, {name}_r, {name}_e, {child}, {births[0]}, {births[1]}, {births[2]}, 0, {q(cd[0])}, {round(cd[1])}}}')
     for j, pj in enumerate(pjs):
         c = pj.get('child'); child, births, cd = '0', (0, 0, 0), (0, 0)
@@ -410,6 +410,63 @@ def projectile_c(n, k, pjs, game):
             child, births, cd = f'&{n}_pj{k}_{j}c', (b[0], b[1] if len(b) > 1 else 255, per), (c['dx'], c['dy'])
         defs.append(one(f'{n}_pj{k}_{j}', pj, child, births, cd))
     out.append(f'static const bproj_t {n}_pj{k}[] = {{' + ', '.join(defs) + '};')
+    return '\n'.join(out)
+
+P_OPS = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
+         'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15}        # bm_chars.h P_*
+P_REGS = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4}
+
+def rom_ok(sp):
+    return bool(sp.get('rom')) and 'error' not in sp['rom']
+
+def rom_inv(sp):
+    """bspec_t.inv_rows of a ROM special (frames): as down+D invincible up to its last hit or its apex"""
+    r = sp['rom']; return max(r['last_hit'], r['apex']) + 1 if max(r['last_hit'], r['apex']) >= 0 else r['length']
+
+def rom_c(n, k, sp, game):
+    """a special read from the ROM (tools/kof96/handlers98.export_rom) as C: its animations (bstep_t: flags 1 attack box
+    live (KOF $0100, the last box loaded), 2 hurt box, 8 event ($0080), 16 same hit ($4000)), its program (bprim_t), its
+    objects (bproj_t, projectile_c). Damage: SPECIAL_DAMAGE split over the hits the whiff model opens; the hits of its
+    last hitting state knock down (R_KNOCKDOWN), the earlier ones R_HEAVY; carry (bit 11) when it hits more than once:
+    the target is held in the move between hits (KOF's juggle / push keeps it there)"""
+    r = sp['rom']; out = []
+    def bb(b): return '{0, 0, 0, 0}' if b is None else f'{{{b[0]}, {b[1]}, {b[2]}, {b[3]}}}'
+    live = None
+    for j, st in enumerate(r['states']):
+        a = r['anims'][st]; steps = []
+        for s in a['steps']:
+            hb, ab = boxes(s['boxes'])
+            fl = s['flags']
+            if ab: live = ab
+            ab = live if fl & 0x100 else None
+            steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (8 if fl & 0x80 else 0) | (16 if fl & 0x4000 else 0)}, '
+                         f'{bb(hb)}, {bb(ab)}, {-s["dx"]}, 0}}')
+        out.append(f'static const bstep_t {n}_sp{k}_a{j}[] = {{' + ', '.join(steps) + '};')
+    out.append(f'static const banim_t {n}_sp{k}_an[] = {{' + ', '.join(
+        f'{{{len(r["anims"][st]["steps"])}, {1 if r["anims"][st]["mode"] == "hold" else 0}, {n}_sp{k}_a{j}}}' for j, st in enumerate(r['states'])) + '};')
+    total = sum(r['openings'].values())
+    each = max(1, SPECIAL_DAMAGE // total) if total else 0
+    hitting = [st for st in r['states'] if r['openings'].get(st)]
+    hk = r['hit_kind'] if 0 < r['hit_kind'] <= 32 else 1
+    fx = hk | ((FIRE_COLOUR.get(n, 2) if hk in (11, 13, 21) else 0) << 6)
+    ops = []
+    for op in r['ops']:
+        c = P_OPS[op[0]]
+        if op[0] == 'anim':
+            st = op[2]; react = R_KNOCKDOWN if hitting and st == hitting[-1] else R_HEAVY
+            ops.append((c, op[1], each | react << 8 | ((1 << 11) if total > 1 else 0), fx))
+        elif op[0] == 'set':
+            v = op[2]; reg = P_REGS[op[1]]
+            ops.append((c, reg, 0, round(v * 65536) if reg < 3 else int(v)))
+        elif op[0] == 'mul': ops.append((c, 0, 0, op[1]))
+        elif op[0] == 'nudge': ops.append((c, 0, round(op[1]), round(op[2])))
+        elif op[0] == 'br': ops.append((c, op[1] | op[2] << 7, -1 if op[3] == 'yield' else op[3], 0))
+        elif op[0] in ('resume_at', 'jmp'): ops.append((c, 0, op[1], 0))
+        elif op[0] == 'spawn': ops.append((c, op[1], 0, 0))
+        else: ops.append((c, 0, 0, 0))
+    assert len(ops) < 255, (n, sp['input'])
+    out.append(f'static const bprim_t {n}_sp{k}_prog[] = {{' + ', '.join(f'{{{a}, {b}, {c}, {d}}}' for a, b, c, d in ops) + '};')
+    if r['objects']: out.append(projectile_c(n, f'{k}r', r['objects'], game))
     return '\n'.join(out)
 
 def special_shape(sp):
@@ -569,8 +626,11 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy, fx, pad; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit, 4 the target is carried at vx (forward from the fighter) / vy (height), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk, own; uint8_t flags, pad; } bprow_t;   /* one frame of a projectile\'s flight: frame, x from its spawn point in 1/8 px (forward +), height px, attack box (live when flags & 1: the game\'s +$90 box while +$7C bit 0), own box (the box another projectile\'s attack meets: a clash; flags & 2) */',
          'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height */',
-         'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, pad; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, pad2; int16_t child_dx, child_dy; } bproj_t;   /* child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
-         'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; } bspec_t;   /* inv_rows: invincible for its first rows when it is played as down+D (the rising reversal: fighter.c); cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2) */',
+         'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, follow; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, pad2; int16_t child_dx, child_dy; } bproj_t;   /* follow: 1 = an effect pinned to its thrower (rows: offsets from it; a ROM special\'s, ended by P_FXOFF or the special\'s end: Burn Knuckle\'s flame); child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
+         'typedef struct { uint8_t op, a; int16_t b; int32_t v; } bprim_t;   /* one primitive of a special read from the ROM (tools/kof96/handlers98.py, handlers98.md; export_bm rom_c): op P_*, operands a / b / v (fighter.c prog_update) */',
+         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END };   /* bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 | carry << 11 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
+         'enum { PC_END, PC_EVENT, PC_LAND, PC_FALL, PC_CNT, PC_HIT, PC_OFF, PC_ALWAYS };   /* P_BR conditions: animation over, an event step entered (consumed), landed, falling, counter < 0, the move hit, off screen, always */',
+         'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; } bspec_t;   /* inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
          'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
@@ -656,11 +716,13 @@ def write_c(chars, outdir):
                 out.append(f'{{{f}, {x}, {hgt}, {bb(ab)}, {hit | (4 if cv else 0)}, {dmg}, {{{", ".join(ob)}}}, {cv[0] if cv else 0}, '
                            f'{cv[1] if cv else 0}, {hit_fx(sp, i, game) if hit & 2 else 0}, 0}}')
             cs.append(f'static const bspec_row_t {n}_sp{k}[] = {{' + ', '.join(out) + '};')
+            if rom_ok(sp): cs.append(rom_c(n, k, sp, game))   # read from the ROM: played by its program
         assert len(sps) < 255, n
         pooldata[n] = [special_info(sp, game) for sp in sps]
         cs.append(f'const bspec_t {n}_specials[{max(1, len(sps))}] = {{' + (', '.join(
-            f'{{{len(sp["script"])}, {rise_inv(sp)}, {sp.get("cont", 0)}, {len(sp["projectiles"]) if real_projectile(sp) else 0}, {n}_sp{k}, {f"{n}_pj{k}" if real_projectile(sp) else 0}}}'
-            for k, sp in enumerate(sps)) or '{0, 0, 0, 0, 0, 0}') + '};')
+            f'{{{len(sp["script"])}, {rom_inv(sp) if rom_ok(sp) else rise_inv(sp)}, {sp.get("cont", 0)}, {len(sp["projectiles"]) if real_projectile(sp) else 0}, {n}_sp{k}, {f"{n}_pj{k}" if real_projectile(sp) else 0}, '
+            + (f'{n}_sp{k}_prog, {n}_sp{k}_an, {f"{n}_pj{k}r" if sp["rom"]["objects"] else 0}}}' if rom_ok(sp) else '0, 0, 0}')
+            for k, sp in enumerate(sps)) or '{0, 0, 0, 0, 0, 0, 0, 0, 0}') + '};')
         c.append(f'extern const bspec_t {n}_specials[];')
         c.append(f'static const uint8_t {n}_spmap[BS_COUNT] = {{' + ', '.join(str(spec_index(pool, sp)) for sp in pick_specials(ch, n)) + '};')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
@@ -678,6 +740,8 @@ def write_c(chars, outdir):
                                 'specials': {k: (sp['input'] if sp else None) for k, sp in zip(R.SPECIALS, sps)},
                                 'pool': pooldata[n], 'suggest': [sp['input'] if sp else None for sp in suggest_specials(ch, n)]})
     json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
+    json.dump({n: [fr.get('record') for fr in ch['frames']] for game, n, ch, off in chars},   # bm frame -> 'id:ROM frame'
+              open(os.path.join(outdir, 'bm_frames.json'), 'w'))                          # (romspecials_check.py)
     c.append('const bchar_t bm_chars[BC_COUNT] = {')
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
