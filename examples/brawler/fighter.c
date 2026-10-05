@@ -139,7 +139,10 @@ void fighter_animate(fighter_t *f) { mute = 1; anim_tick(f); mute = 0; }
 
 /* ---- helpers --------------------------------------------------------------------------------------------------- */
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
-static void enter(fighter_t *f, uint8_t st) { f->state = st; f->state_t = 0; }
+static void enter(fighter_t *f, uint8_t st) {
+    f->state = st; f->state_t = 0;
+    if (st != S_KNOCKDOWN && st != S_HITSTUN) { f->kmode = f->kdelay = 0; f->kvfr = 0; }   /* KOF's reaction (kof_react) ends */
+}
 static void clamp(fighter_t *f) {
     if (f->x < FIX(X_MIN)) f->x = FIX(X_MIN);
     if (f->x > FIX(X_MAX)) f->x = FIX(X_MAX);
@@ -279,13 +282,15 @@ void fighter_load_pals(const fighter_t *f) {
     }
 }
 
+static void carry_drop(fighter_t *f);
 static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   /* away: direction the victim is sent */
     uint8_t blow = (v->state == S_ATTACK || v->state == S_AIR_ATTACK || v->state == S_SPECIAL)
                    ? BA_BLOWBACK : BA_BLOWBACK_N;               /* KOF98: a counter hit (hit in its own attack) 283, else 285 */
-    if (v->state == S_SPECIAL) special_end(v);                   /* hit out of a special: its projectiles go */
+    if (v->state == S_SPECIAL) { carry_drop(v); special_end(v); }   /* hit out of a special: its projectiles go, a carried target falls */
     if (v->state == S_GRAB) release(v);                          /* hit while holding or while held: the hold ends */
     else if (v->state == S_GRABBED) release(v->held);
     v->facing = -away;                                           /* turn toward the attacker */
+    v->kmode = v->kdelay = 0; v->kvfr = 0;                       /* the brawler's own physics (kof_react sets KOF's) */
     if (v->y > 0) {                                              /* hit in the air (a juggle when falling): sent up again */
         enter(v, S_KNOCKDOWN); v->vy = reaction >= R_KNOCKDOWN ? FIX(5) : FIX(4); v->vx = dir_mul(away, FIX(1) + 0x8000);
         play(v, BA_BLOWBACK); return;                            /* KOF's hit_air ends on standing frames (KOF96: none) */
@@ -485,11 +490,11 @@ static void special_end(fighter_t *f) {
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
     f->spec_id = k; f->spec_ix = spec_ix(f->ch, k); f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
-    f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN;
+    f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
-        f->pres = 0; f->pflags = 0; f->pcarry = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
+        f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
     }
 }
 
@@ -599,12 +604,54 @@ static int32_t fmul16(int32_t v, uint16_t k) {                   /* v * k / 6553
     a = (a >> 16) * k + (((a & 0xFFFF) * k + 0x8000) >> 16);
     return v < 0 ? -(int32_t)a : (int32_t)a;
 }
+/* KOF98's reaction to a special's body hit, measured in our emulator (tools/kof96/capture/romspecials98.py, close
+ * traces: P2 +$50 vx, +$54 friction, +$58 vy, +$5C gravity after Ralf's [4]6C and [2]8C, Terry's 214C and 623C hits):
+ * 258 the standing reel (a slide at 11.18 px, x 0.828 a frame: 65 px; a captured special: the slide its capture
+ * shows, bspec_row_t.vx), 283 / 285 the blowback (vx 11.375 x 0.8125 down to
+ * ~4, up at 7 px, gravity 0.5; falling: vx x 0.8125 once), 286 the launch (up at 17.25 px, gravity 2.6875 decaying x
+ * 0.871 a frame, falling at gravity 0.625). The victim stays put the frames KOF shakes it (after the hit-stop), and is
+ * re-launched the same way by every later hit (a juggle). Each frame: height += vy, gravity *= decay, vy -= gravity,
+ * x += vx, vx *= friction; the frame vy reaches 0 the fall starts (vy -= the fall's gravity at once, as KOF) */
+#define KM_LAUNCH 4               /* kmode: KOF's 286 launch (its 286 / 293 frames have a hurt box: LAUNCH_BOX) */
+static const struct { int32_t vx, vy, g, gf, vmin; uint16_t gfr, vfr; uint8_t delay; } KOF_REACT[3] = {
+    { 0xB2E00, 0, 0, 0, 0, 0, 0xD400, 5 },                       /* R_HEAVY: 258 */
+    { 0xB6000, 0x70000, 0x8000, 0x8000, 0x48000, 0, 0xD000, 2 }, /* R_KNOCKDOWN: 283 / 285 */
+    { 0x20000, 0x114000, 0x2B000, 0xA000, 0, 0xDF00, 0, 2 },     /* R_LAUNCH: 286 */
+};
+static void kof_react(fighter_t *v, int8_t away, uint8_t rc, int8_t slide) {
+    uint8_t k;
+    if (v->hp <= 0 && rc < R_KNOCKDOWN) rc = R_KNOCKDOWN;
+    if (rc < R_HEAVY || rc > R_LAUNCH) return;                   /* the brawler's own (react) */
+    if (rc == R_HEAVY && v->y > 0) rc = R_KNOCKDOWN;             /* no reel in the air: KOF's air hit sends it off */
+    if (rc == R_HEAVY && v->state != S_HITSTUN) return;
+    k = rc - R_HEAVY;
+    v->vx = dir_mul(away, rc == R_HEAVY && slide != -128 ? fmul16(FIX(slide), 0x10000 - KOF_REACT[0].vfr) : KOF_REACT[k].vx); v->kvfr = KOF_REACT[k].vfr; v->kvmin = KOF_REACT[k].vmin; v->kdelay = KOF_REACT[k].delay;
+    if (rc == R_HEAVY) return;
+    if (v->state != S_KNOCKDOWN) return;
+    v->vy = KOF_REACT[k].vy; v->kg = KOF_REACT[k].g; v->kgf = KOF_REACT[k].gf; v->kgfr = KOF_REACT[k].gfr;
+    v->kmode = rc == R_LAUNCH ? 1 | KM_LAUNCH : 1;
+}
+static void kof_fall(fighter_t *f) {                             /* S_KNOCKDOWN in KOF's reaction: one frame */
+    f->y += f->vy;
+    if (f->kgfr) f->kg = fmul16(f->kg, f->kgfr);
+    f->vy -= f->kg;
+    f->x += f->vx; clamp(f);
+    if (f->kvfr && (f->vx >= f->kvmin || f->vx <= -f->kvmin)) f->vx = fmul16(f->vx, f->kvfr);
+    if ((f->kmode & 3) == 1 && f->vy <= 0) {                     /* the top: the fall */
+        f->kmode += 1; f->kg = f->kgf; f->kgfr = 0; f->vy -= f->kg;
+        if (f->kvfr) f->vx = fmul16(f->vx, f->kvfr);
+    }
+}
 static void pan_enter(fighter_t *f, uint8_t prev) {              /* a step starts: its $FB move, event, hit */
     const bstep_t *s = &f->pan->steps[f->pstep];
     if (s->dx) { f->x += dir_mul(f->facing, FIX(s->dx)); clamp(f); }
     if (s->flags & 8) f->pflags |= PF_EVENT;
     if ((s->flags & 1) && !((prev & 1) && (prev & 16))) {        /* a new hit window */
-        f->hit_mask = 0; f->spec_dmg = f->pdmg; f->spec_react = f->preact & 7; f->spec_fx = f->pfx;
+        uint8_t k;
+        f->hit_mask = 0; f->spec_dmg = f->pdmg; f->spec_react = f->preact & 7; f->spec_fx = f->pfx; f->spec_slide = -128;
+        if (f->spec_react == R_KNOCKDOWN)                        /* a knockdown state's earlier hits keep the victim */
+            for (k = f->pstep + 1; k < f->pan->nsteps; k++)      /* standing (KOF98 Gatling Attack 138: 258, then 283) */
+                if ((f->pan->steps[k].flags & 1) && !((f->pan->steps[k - 1].flags & 1) && (f->pan->steps[k - 1].flags & 16))) { f->spec_react = R_HEAVY; break; }
     }
 }
 static void pan_play(fighter_t *f, const banim_t *an) {
@@ -698,13 +745,11 @@ frame_done:
     f->frame_ovr = s->frame;
     f->spec_atk = (s->flags & 1) ? &s->atk : 0;
     f->spec_prev_hit = (s->flags & 1) ? 1 : 0;
-    if ((f->preact & 8) && f->landed && f->target && (f->target->state == S_KNOCKDOWN || f->target->state == S_HITSTUN)) {
-        fighter_t *v = f->target;                                /* between its hits the move holds its target in front */
-        if (!f->pcarry) f->pcarry = dir_mul(f->facing, INT(v->x) - INT(f->x));   /* of it, where the first hit found it */
-        v->x = f->x + dir_mul(f->facing, FIX(f->pcarry)); v->z = f->z;
-        v->y = f->y ? f->y : FIX(v->state == S_KNOCKDOWN);
-        v->vx = v->vy = v->vz = 0; clamp(v);
-    }
+}
+static void carry_drop(fighter_t *f) {                           /* a grab's carry ended: a target it left in the air */
+    fighter_t *v = f->target;                                    /* falls (Ralf's 426B left it 4 px up for good) */
+    if (!(f->spec_prev_hit & 4) || !v || v->y <= 0 || (v->state != S_HITSTUN && v->state != S_KNOCKDOWN)) return;
+    enter(v, S_KNOCKDOWN); v->vx = v->vy = 0; play(v, BA_KNOCKDOWN_FLIGHT);
 }
 static void special_update(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
@@ -719,6 +764,7 @@ static void special_update(fighter_t *f) {
         } else if (f->srow == sp->cont + 1) f->srow = sp->nrows + 1;   /* a whiff: the move ends */
     }
     if (f->srow > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
+        carry_drop(f);
         special_end(f);
         if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
         return;
@@ -728,13 +774,16 @@ static void special_update(fighter_t *f) {
     if (f->spec_id == BS_DOWN_D && f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;   /* the rising reversal: invincible from its first frame to its last hit */
     f->frame_ovr = r->frame;
     f->x = f->throw_x0 + dir_mul(f->facing, FIX(r->x)); f->y = r->y > 0 ? FIX(r->y) : 0; clamp(f);
-    if (r->hit & 2) { f->hit_mask = 0; f->spec_dmg = r->dmg; f->spec_react = r->hit >> 5; f->spec_fx = r->fx; }   /* a new hit */
+    if (r->hit & 2) {                                            /* a new hit; its reel slide as the capture's (px) */
+        f->hit_mask = 0; f->spec_dmg = r->dmg; f->spec_react = r->hit >> 5; f->spec_fx = r->fx; f->spec_slide = (r->hit & 4) ? 0 : r->vx;
+    }
     if ((r->hit & 4) && f->landed && f->target && (f->target->state == S_KNOCKDOWN || f->target->state == S_HITSTUN)) {
         fighter_t *v = f->target;                                /* between its hits the move holds its target where */
         v->x = f->x + dir_mul(f->facing, FIX(r->vx)); v->z = f->z;   /* the game's opponent was (launched: kept 1 px */
         v->y = FIX(r->vy ? r->vy : v->state == S_KNOCKDOWN);             /* up, a knockdown at 0 would land) */
         v->vx = v->vy = v->vz = 0; clamp(v);
     }
+    if (!(r->hit & 4)) carry_drop(f);
     f->spec_prev_hit = r->hit; f->spec_atk = (r->hit & 1) ? &r->atk : 0;
     for (k = 0; k < sp->nproj; k++)                              /* the game's event steps (Geese's Double */
         if (sp->proj[k].spawn_row >= from && sp->proj[k].spawn_row < f->srow) proj_spawn(f, &sp->proj[k]);   /* Reppuken: two; a passed row spawns too) */
@@ -853,15 +902,18 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         break;
     }
     case S_HITSTUN:
-        f->x += f->vx; f->vx -= f->vx >> 3; clamp(f);
+        if (f->kdelay) f->kdelay--;                              /* KOF's shake after a special's hit: in place */
+        else { f->x += f->vx; f->vx = f->kvfr ? fmul16(f->vx, f->kvfr) : f->vx - (f->vx >> 3); clamp(f); }
         if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT)) to_neutral(f, 0);
         break;
     case S_KNOCKDOWN:
-        f->y += f->vy; f->vy -= GRAVITY_KD; f->x += f->vx; clamp(f);
+        if (f->kmode && f->kdelay) { f->kdelay--; break; }       /* KOF's shake after the hit-stop: in place */
+        if (f->kmode) kof_fall(f);                               /* a special's hit: KOF98's reaction */
+        else { f->y += f->vy; f->vy -= GRAVITY_KD; f->x += f->vx; clamp(f); }
         /* KOF98's fall (a C+D captured on Yuri: 285 / 283 counter rising 26 frames, 287 falling 13, 309 hitting the floor
          * 4, 313 a 2 px bounce 10, 328 down): blowback up, flight down, bounce on the floor, the small hop, down */
         if (f->y <= 0) {
-            f->y = 0;
+            f->y = 0; f->kmode = 0; f->kvfr = 0;
             if (f->anim == BA_KNOCKDOWN_BOUNCE) {                /* on the floor until it played, then the hop */
                 f->vy = 0; f->vx -= f->vx >> 2;
                 if (f->anim_done) { f->vy = FIX(1); play(f, BA_KNOCKDOWN_FALL); }
@@ -895,10 +947,12 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     (a->owner ? a->owner : a)->target = v;
     lab_note(a->owner ? a->owner : a, LE_HIT, a->state == S_ATTACK || a->state == S_AIR_ATTACK ? a->node : 0xFF, v->idx, damage);
     react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, push);
+    if (a->state == S_SPECIAL) kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, a->spec_slide);   /* a special's body hit: KOF98's */
 }
 
 /* ---- combat: every attacker's live attack box against every opponent's hurt box --------------------------------------- */
 static const bbox_t JUGGLE_BOX = { 0, -24, 28, 20 };       /* a falling fighter's body: KOF boxes (x, y up -, half w, h) */
+static const bbox_t LAUNCH_BOX = { 0, -64, 28, 28 };       /* KOF98's launched body (states 286 / 293: box $31 0, 192, 28, 28) */
 static int16_t box_x(const fighter_t *f, int8_t bx) { return INT(f->x) + (f->facing > 0 ? -bx : bx); }   /* sprites face left */
 static uint8_t boxes_meet(const fighter_t *a, const bbox_t *ab, const fighter_t *v, const bbox_t *vb) {
     int16_t dx = box_x(a, ab->x) - box_x(v, vb->x), dy = (ab->y - INT(a->y)) - (vb->y - INT(v->y));
@@ -977,7 +1031,7 @@ void combat(fighter_t **fs, uint8_t n) {
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             sv = fighter_step(v);
             if (sv->flags & 2) hb = &sv->hurt;
-            else if (v->state == S_KNOCKDOWN) hb = &JUGGLE_BOX;          /* KOF's falls have no hurt box */
+            else if (v->state == S_KNOCKDOWN) hb = (v->kmode & KM_LAUNCH) ? &LAUNCH_BOX : &JUGGLE_BOX;   /* KOF's falls have no hurt box */
             else continue;
             dx = box_x(a, atk->x) - box_x(v, hb->x);
             dy = (atk->y - INT(a->y)) - (hb->y - INT(v->y));

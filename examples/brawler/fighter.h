@@ -31,7 +31,9 @@ enum {                            /* states: the state machine alone decides wha
     S_PROJ, S_OFF,                /* projectile entities (pool): in use / free */
     S_COUNT
 };
-enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK };   /* hit reactions (R_BLOWBACK: KOF's C+D, sent far) */
+enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK };   /* hit reactions (R_BLOWBACK: KOF's C+D, sent far); a
+                                     special's body hit: R_HEAVY / R_KNOCKDOWN / R_LAUNCH = KOF98's 258 reel / 283-285
+                                     blowback / 286 launch (fighter.c kof_react) */
 enum { IN_A = 1, IN_B = 2, IN_C = 4, IN_D = 8 };           /* buttons: punch, kick, jump, special */
 
 typedef struct {                  /* what the controller wants this frame (player input or AI) */
@@ -194,12 +196,20 @@ typedef struct fighter {
                                    * draw.s's offsets stay */
     /* a special read from the ROM (bspec_t.prog, fighter.c prog_update): its current animation and step (frames left
      * in it), op index / resume point, flags PF_*, the damage / reaction / effect of the hits it opens, its counter,
-     * friction (0.16) and gravity (16.16; vx / vy are the fighter's), the carried target's offset (px, forward) */
+     * friction (0.16) and gravity (16.16; vx / vy are the fighter's) */
     const banim_t *pan;
     uint8_t  pstep, pleft, ppc, pres, pflags, pdmg, preact, pfx;
-    int16_t  pcnt, pcarry;
+    int16_t  pcnt;
     uint16_t pfric;
     int32_t  pg;
+    /* KOF98's reaction to a special's body hit (fighter.c kof_react, measured in our emulator): kmode 1 rising, 2
+     * falling (0: the brawler's own knockdown physics); kdelay frames the victim stays put after the hit-stop; kg the
+     * gravity (16.16), kgfr its decay per frame (0.16, 0 none), kgf the fall's gravity, kvfr the friction on vx (0.16, 0
+     * none) applied while |vx| >= kvmin */
+    int32_t  kg, kgf, kvmin;
+    uint16_t kgfr, kvfr;
+    uint8_t  kmode, kdelay;
+    int8_t   spec_slide;          /* special: the reel slide of the hit window open (px, bspec_row_t.vx; -128: KOF98's 258, 65 px) */
 } fighter_t;
 
 

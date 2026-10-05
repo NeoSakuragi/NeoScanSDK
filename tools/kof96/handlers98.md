@@ -79,7 +79,14 @@ routines; not done.
   recogniser bits): needs a table op and an input condition.
 - Ralf's 426B/D grab: its handler is only the whiff (207, end); the catch is the throw system (states 208-210 entered
   from the hit dispatcher with the victim's throw list): the throw tables, not a special program.
-- The game's reactions stay outside: push-back between bodies, the victim's juggle (KOF re-launches it on every hit;
-  the brawler holds its target in front of the move between hits: `carry`), hit registration one frame after the box
-  goes live (brawler: the same frame).
+- The game's reactions stay outside: push-back between bodies, hit registration one frame after the box goes live
+  (brawler: the same frame). The victim's reaction is in since 2026-10-05 (the brawler held its target in front of the
+  move between hits, `carry`, and left it hanging in the air: Ralf's [2]8C): measured on P2 in the close traces, every
+  hit gives the victim one of three reactions, the same again on each later hit (a juggle re-launches it):
+  **258** reel (after 5 frames in place: slide vx 11.18, x 0.828 a frame), **283 / 285** blowback (2 frames, then vx
+  11.375 x 0.8125 down to ~4, vy 7, gravity 0.5, falling 287: vx x 0.8125), **286** launch (2 frames, then vy 17.25,
+  gravity 2.6875 x 0.871 a frame, vx 2; falling 293 at gravity 0.625; hurt box $31 0, 192, 28, 28 in 286 / 293, none
+  in 283 / 285 / 287). Brawler: `fighter.c kof_react` / `kof_fall`, reactions per hit from `export_bm.ROM_REACT`
+  (Rising Tackle, Bakudan Punch: 286 on every hit) or the default (the last hit knocks down). Proof
+  `../brawler/romspecials_check.py` (victim x / height per frame against these traces).
 - Supers / MAX (super flash, stock spend) not tried.

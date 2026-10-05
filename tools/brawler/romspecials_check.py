@@ -21,7 +21,7 @@ KOF = {'terry': 3, 'ralf': 10}
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = 4
 
-def brawler_run(b, k, role, hit, shots, frames=200):
+def brawler_run(b, k, role, hit, shots, frames=300):
     b.pick(k)
     while b.r(b.syms['fade_in'], 1): b.run(1)
     b.run(10)
@@ -49,7 +49,7 @@ def brawler_run(b, k, role, hit, shots, frames=200):
         st = b.states[b.fget(0, 'state')]
         if started is None and st == 'SPECIAL' and b.fget(0, 'frame_ovr') != 0xFFFF: started = f; path = os.path.join(shots, 'b_000.png')
         if started is None: continue
-        if st != 'SPECIAL' and f > started + 2: break
+        if st != 'SPECIAL' and f > started + 2 and (not hit or b.states[b.fget(2, 'state')] not in ('KNOCKDOWN', 'HITSTUN') or len(rows) > 400): break
         fz = b.fget(0, 'freeze')
         if fz or pfz: pfz = fz; continue                 # the brawler's own hit-stop (its last frame reads 0)
         pfz = fz
@@ -58,7 +58,8 @@ def brawler_run(b, k, role, hit, shots, frames=200):
             if b.pget(i, 'state') < len(b.states) and b.states[b.pget(i, 'state')] == 'PROJ' and b.pget(i, 'frame_ovr') != 0xFFFF:
                 pj.append((i, b.pget(i, 'frame_ovr'), round((b.pget(i, 'x') - x0) * fc, 2), round(b.pget(i, 'y'), 2)))
         rows.append({'frame': b.fget(0, 'frame_ovr'), 'x': round((b.fget(0, 'x') - x0) * fc, 2), 'h': round(b.fget(0, 'y'), 2),
-                     'hp2': b.fget(2, 'hp'), 'proj': pj, 'shot': path})
+                     'hp2': b.fget(2, 'hp'), 'proj': pj, 'shot': path,
+                     'vx': round((b.fget(2, 'x') - x0) * fc, 2), 'vh': round(b.fget(2, 'y'), 2), 'vst': b.states[b.fget(2, 'state')]})
     return rows
 
 def sheet(pairs, path, title):
@@ -107,7 +108,19 @@ def main(game, out, cases):
                  'brawler_hits': bhits, 'kof_freeze_dropped': res['frozen_dropped'], 'kof_slowdown_dropped': res['slowdown_dropped'],
                  'kof_objects': res['objects_game'], 'brawler_proj_first': bp and [bp[0]] + [list(p) for p in bp[1]],
                  'brawler_proj_next': (br[bp[0] + 1]['proj'] if bp and bp[0] + 1 < len(br) else None)}
-            summary.append(s); print(json.dumps(s), flush=True)
+            if branch == 'close':                        # the victim (2026-10-05: KOF98's own reaction, no carry): its x
+                # x from where KOF's first hit found it (each side: the brawler at its hit nearest KOF's first; KOF's
+                # charge moves differ in their walk-up) and height per frame, to the end of its fall (KOF: the floor, 309)
+                kh = res['hit_frames'][0] if res['hit_frames'] else 0
+                bh = min(bhits, key=lambda i: abs(i - kh)) if bhits else kh
+                vg = [(round(g['p2x'] - game_rows[kh]['p2x'] + (br[bh]['vx'] if bh < len(br) else 0), 2), g['p2h']) for g in game_rows]
+                m = min(len(br), len(vg))
+                vend = next((i for i in range(1, m) if game_rows[i]['p2state'] >= 300 and game_rows[i - 1]['p2h'] > 0), m)
+                s['victim_frames'] = vend
+                s['victim_max_dx'] = max((min(abs(br[i]['vx'] - vg[j][0]) for j in range(max(0, i - 1), min(m, i + 2))) for i in range(kh, vend)), default=0)
+                s['victim_max_dh'] = max((min(abs(br[i]['vh'] - vg[j][1]) for j in range(max(0, i - 1), min(m, i + 2))) for i in range(kh, vend)), default=0)
+                s['victim'] = [(i, br[i]['vx'], br[i]['vh'], vg[i][0], vg[i][1]) for i in range(vend)]
+            summary.append(s); print(json.dumps({k: v for k, v in s.items() if k != 'victim'}), flush=True)
             pairs = []
             for i in range(0, min(len(br), res['frames_game']), EVERY):
                 kp = os.path.join(shots, f'snap_{K.START + game_rows[i]["f"]}.ppm')

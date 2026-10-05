@@ -184,7 +184,12 @@ ROLES = ('proj', 'rush', 'rise', 'up')
 NO_EX = {'rugal'}
 
 SPECIAL_DAMAGE = 8                                     # a special's damage, split over its hits (fighter.c)
-R_HEAVY, R_KNOCKDOWN, R_LAUNCH = 1, 2, 3               # fighter.h R_*: the victim's reaction to a special's hit
+R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP = 1, 2, 3, 4   # fighter.h R_*: the victim's reaction to a special's hit (its body
+                                                       # hits: KOF98's 258 reel / 283-285 blowback / 286 launch, fighter.c
+                                                       # kof_react; R_TRIP the brawler's own)
+# the ROM specials whose every hit launches (KOF98 286; measured in our emulator, tools/kof96/capture/romspecials98.py close
+# traces 2026-10-05: Terry's Rising Tackle 7 hits, Ralf's Bakudan Punch 3, all 286); the others: rom_c's default
+ROM_REACT = {('terry', '623C'): R_LAUNCH, ('ralf', '[2]8C'): R_LAUNCH}
 IMPACT_ROWS = 4                                        # an impact row without a box of its step: the object's live box
                                                        # (+$90) on it and the next rows (the victim may have moved)
 
@@ -192,11 +197,14 @@ def victim_reaction(rs, i, end):
     """the opponent's reaction in a capture to the impact at row i (rows up to `end`, the next impact): ejected when it
     leaves the ground (height > 8) or enters a knockdown / blowback state (280-399): R_LAUNCH when it flies 48 px or
     higher, else R_KNOCKDOWN; grounded (a hit reel, states 256-279, height 0): R_HEAVY. Held states (400+: Kyo's grab
-    lifts the victim) decide nothing. None: no opponent data, or no reaction seen (a guard)."""
+    lifts the victim) decide nothing. None: no opponent data, or no reaction seen (a guard). 2026-10-05, the victim now
+    flies with KOF98's own reaction (fighter.c kof_react): R_LAUNCH = KOF98/99's 286 launch (or a flight of 100 px and
+    more: the blowback 283 / 285 peaks at 52), R_TRIP the sweep 276, else R_KNOCKDOWN."""
     seen = [(r[5], r[6]) for r in rs[i + 1:min(end, i + 60)] if len(r) > 6 and r[5] is not None and r[5] < 400]
     if not seen: return None
     top = max(h for st, h in seen)
-    if top > 8 or any(280 <= st < 400 for st, h in seen): return R_LAUNCH if top >= 48 else R_KNOCKDOWN
+    if seen[0][0] == 276 or (top <= 8 and any(st == 276 for st, h in seen)): return R_TRIP
+    if top > 8 or any(280 <= st < 400 for st, h in seen): return R_LAUNCH if top >= 100 or any(st == 286 for st, h in seen) else R_KNOCKDOWN
     if any(256 <= st < 280 for st, h in seen): return R_HEAVY
     return None
 
@@ -211,8 +219,9 @@ def special_play(sp):
     life drops is the impact (mark 'i'; a freeze without damage is a grab catching, Kyo's Kototsuki You): its body box (or the object's) is made live there (the object's live box +$90 when the step has none and no
     object flies), it opens a hit if none is open, and the opponent's reaction after it (victim_reaction) is that hit's
     reaction. Opponent life drops without a freeze = an object's hit: its reaction is the objects' (objreact).
-    Between its first and last hit the opponent's place in the capture (x from the fighter, height) is kept per row
-    (carry): KOF's push boxes and juggles hold it in the move, the brawler carries its target there.
+    A grab (a continuation or a contact row) keeps the opponent's place in the capture (x from the fighter, height) per
+    row between its first and last hit (carry): the brawler holds its target there. Any other special lets the victim
+    react on its own (Bruno 2026-10-05: never stick the victim to the attacker, throws and command grabs aside).
     -> dict like sp (script, row_boxes, row_steps, marks, cont remapped) + react (per row: R_* or None at impacts),
     objreact, stats (freezes, rows removed, impact rows, reactions)."""
     sc = sp['script']; n = len(sc)
@@ -257,8 +266,15 @@ def special_play(sp):
     for i in range(n - 1, 0, -1):                       # a dropped row's marks go to the row it repeats
         if drop[i]: marks[i - 1] += marks[i]; marks[i] = ''
     keep = [i for i in range(n) if not drop[i]]
-    carry = [None] * n                                 # the opponent's place between the move's first and last hit:
-    if len(hits) > 1:                                  # KOF keeps it in the move (push boxes, juggles); the brawler
+    slide = [None] * n                                 # a reel (R_HEAVY): how far the opponent slid in the capture, px
+    for k_, i in enumerate(impacts):                   # forward, to the next hit (at most 30 rows): fighter.c kof_react
+        if react[i] != R_HEAVY or len(rs[i]) <= 8 or rs[i][8] is None: continue   # slides it so far (KOF's push-back
+        e = min([j for j in hits if j > i] + [i + 30, n - 1])                       # differs by move: Gatling Attack 65
+        while e > i and (len(rs[e]) <= 8 or rs[e][8] is None): e -= 1                # px, Vulcan Punch none)
+        slide[i] = max(-127, min(127, rs[e][8] - rs[i][8]))
+    carry = [None] * n                                 # a grab: the opponent's place between its first and last hit
+    grab = bool(cont) or any('c' in mk for mk in marks) or any(len(r) > 5 and r[5] is not None and r[5] >= 400 for r in rs)
+    if len(hits) > 1 and grab:
         for i in range(hits[0] + 1, hits[-1] + 1):     # carries its target there (fighter.c)
             if len(rs[i]) > 8 and rs[i][8] is not None:
                 carry[i] = (max(-128, min(127, rs[i][8] - sc[i][1])), max(0, min(255, rs[i][6])))
@@ -266,7 +282,7 @@ def special_play(sp):
     return dict(sp, objects_hit=not hitv or bool(objhits),   # are effects (Burn Knuckle's flames): no box
                 script=[sc[i] for i in keep], row_boxes=[rb[i] for i in keep], row_steps=[rs[i] for i in keep],
                 marks=[marks[i] for i in keep], react=[react[i] for i in keep], objreact=objreact,
-                carry=[carry[i] for i in keep], keep=keep,
+                carry=[carry[i] for i in keep], slide=[slide[i] for i in keep], keep=keep,
                 cont=sum(1 for i in keep if i < cont) if cont else 0,
                 stats={'freezes': len(starts), 'removed': n - len(keep),
                        'contact': (rs[hits[0]][8] - sc[hits[0]][1]) if hits and len(rs[hits[0]]) > 8 and rs[hits[0]][8] is not None else None, 'impacts': [keep.index(i) for i in impacts if i in keep],
@@ -435,8 +451,8 @@ def rom_c(n, k, sp, game):
     """a special read from the ROM (tools/kof96/handlers98.export_rom) as C: its animations (bstep_t: flags 1 attack box
     live (KOF $0100, the last box loaded), 2 hurt box, 8 event ($0080), 16 same hit ($4000)), its program (bprim_t), its
     objects (bproj_t, projectile_c). Damage: SPECIAL_DAMAGE split over the hits the whiff model opens; the hits of its
-    last hitting state knock down (R_KNOCKDOWN), the earlier ones R_HEAVY; carry (bit 11) when it hits more than once:
-    the target is held in the move between hits (KOF's juggle / push keeps it there)"""
+    last hitting state knock down (R_KNOCKDOWN; fighter.c: its last hit only), the earlier ones R_HEAVY, or ROM_REACT's.
+    No carry: the victim flies with KOF98's reaction between hits (fighter.c kof_react)"""
     r = sp['rom']; out = []
     def bb(b): return '{0, 0, 0, 0}' if b is None else f'{{{b[0]}, {b[1]}, {b[2]}, {b[3]}}}'
     live = None
@@ -461,8 +477,8 @@ def rom_c(n, k, sp, game):
     for op in r['ops']:
         c = P_OPS[op[0]]
         if op[0] == 'anim':
-            st = op[2]; react = R_KNOCKDOWN if hitting and st == hitting[-1] else R_HEAVY
-            ops.append((c, op[1], each | react << 8 | ((1 << 11) if total > 1 else 0), fx))
+            st = op[2]; react = ROM_REACT.get((n, sp['input'])) or (R_KNOCKDOWN if hitting and st == hitting[-1] else R_HEAVY)
+            ops.append((c, op[1], each | react << 8, fx))
         elif op[0] == 'set':
             v = op[2]; reg = P_REGS[op[1]]
             ops.append((c, reg, 0, round(v * 65536) if reg < 3 else int(v)))
@@ -649,12 +665,12 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor: damage, spark, splash), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',
          'typedef struct { uint16_t nrows, speed; const bthrow_row_t *rows; } bthrow_t;   /* speed: 8.8 script rows a frame (fighter.c throw_update) */',
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown); box: none (an effect: what hits is the special\'s projectile, bspec_t.proj) */',
-         'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy, fx, pad; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit, 4 the target is carried at vx (forward from the fighter) / vy (height), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
+         'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int8_t vx; uint8_t vy, fx, pad; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit (vx without 4: the px a reel slides the victim, fighter.c kof_react), 4 the target is carried at vx (forward from the fighter) / vy (height; grabs only), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk, own; uint8_t flags, pad; } bprow_t;   /* one frame of a projectile\'s flight: frame, x from its spawn point in 1/8 px (forward +), height px, attack box (live when flags & 1: the game\'s +$90 box while +$7C bit 0), own box (the box another projectile\'s attack meets: a clash; flags & 2) */',
          'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height */',
          'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, follow; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, pad2; int16_t child_dx, child_dy; } bproj_t;   /* follow: 1 = an effect pinned to its thrower (rows: offsets from it; a ROM special\'s, ended by P_FXOFF or the special\'s end: Burn Knuckle\'s flame); child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
          'typedef struct { uint8_t op, a; int16_t b; int32_t v; } bprim_t;   /* one primitive of a special read from the ROM (tools/kof96/handlers98.py, handlers98.md; export_bm rom_c): op P_*, operands a / b / v (fighter.c prog_update) */',
-         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END };   /* bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 | carry << 11 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
+         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END };   /* bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
          'enum { PC_END, PC_EVENT, PC_LAND, PC_FALL, PC_CNT, PC_HIT, PC_OFF, PC_ALWAYS };   /* P_BR conditions: animation over, an event step entered (consumed), landed, falling, counter < 0, the move hit, off screen, always */',
          'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; } bspec_t;   /* inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
          'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, pad; } bchar_t;   /* voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
@@ -733,7 +749,11 @@ def write_c(chars, outdir):
             if pjs:                                      # the projectile entities draw and hit; the script keeps
                 cs.append(projectile_c(n, k, pjs, game))  # the other objects (effects: they hit nothing)
             out = []
-            for i, ((f, x, hgt, objs), (hb, ab, hit, dmg)) in enumerate(zip(sp['script'], special_rows(sp))):
+            rows_ = special_rows(sp); opens = [i for i, r in enumerate(rows_) if r[2] & 2] + [len(rows_)]
+            sl = {}                                      # a hit's reel slide (px, the opponent's in the capture): its
+            for a_, b_ in zip(opens, opens[1:]):         # opening row's vx when it carries nothing
+                sl[a_] = next((sp['slide'][j] for j in range(a_, b_) if sp['slide'][j] is not None), 0)
+            for i, ((f, x, hgt, objs), (hb, ab, hit, dmg)) in enumerate(zip(sp['script'], rows_)):
                 ob = []
                 objs = [o for o in objs if o[0] not in pframes]
                 for of, ox, oh, same in objs[:2]:
@@ -741,7 +761,7 @@ def write_c(chars, outdir):
                     ob.append(f'{{{of}, {ox}, {oh}, {same}, {sp["objreact"] + 1 if sp["objreact"] is not None else 0}, {bb(b)}}}')
                 ob += ['{0xFFFF, 0, 0, 0, 0, {0, 0, 0, 0}}'] * (2 - len(ob))
                 cv = sp['carry'][len(out)]
-                out.append(f'{{{f}, {x}, {hgt}, {bb(ab)}, {hit | (4 if cv else 0)}, {dmg}, {{{", ".join(ob)}}}, {cv[0] if cv else 0}, '
+                out.append(f'{{{f}, {x}, {hgt}, {bb(ab)}, {hit | (4 if cv else 0)}, {dmg}, {{{", ".join(ob)}}}, {cv[0] if cv else sl.get(i, 0)}, '
                            f'{cv[1] if cv else 0}, {hit_fx(sp, i, game) if hit & 2 else 0}, 0}}')
             cs.append(f'static const bspec_row_t {n}_sp{k}[] = {{' + ', '.join(out) + '};')
             if rom_ok(sp): cs.append(rom_c(n, k, sp, game))   # read from the ROM: played by its program
