@@ -6,7 +6,9 @@ will edit. This document is the schema of that file, how the build turns it into
 table in the ROM or in RAM, and which tables can be swapped while the game runs.
 
 Status: step 1 done (2026-10-05, brawler 0.0.34 + the data layer). Today's game is written out in game.json and the
-game reads only generated tables; the game plays exactly as 0.0.34 did (proof at the end).
+game reads only generated tables; the game plays exactly as 0.0.34 did (proof at the end). Step 2 done (2026-10-05):
+enemies are definitions (name, colours, trimmed move list, AI preset + overrides, life, power), the lab's write path
+installs stages, enemies and AI rows into the running game (data packs), proofs are keyed by the game's tick counter.
 
 ## The four layers
 
@@ -44,9 +46,9 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 
 | table | type (gamedata.h) | size | in | live-swappable |
 |---|---|---|---|---|
-| AI presets | `ai_preset_t ai_presets[AI_COUNT]` | 38 bytes each | RAM (copied at boot) | yes: write the bytes; takes effect at the enemy's next decision |
-| enemies | `genemy_t genemies_rom[]` via `genemies` | 12 bytes each | ROM, pointer in RAM | yes, by repointing; read at each spawn |
-| stages, waves, spawns | `gstage_t`, `gwave_t`, `gspawn_t` via `gstages` | 24 / 6 / 8 bytes | ROM, pointer in RAM | yes, by repointing; a stage is read at its start (`gs`), its waves and spawns as they come |
+| AI rows | `ai_preset_t ai_presets[AI_COUNT]` via `ai_tab` | 40 bytes each | RAM (copied at boot) | yes: write the bytes (next decision), or a data pack (next spawn) |
+| enemies | `genemy_t genemies_rom[]` via `genemies` | 26 bytes each | ROM, pointer in RAM | yes, a data pack; read at each spawn |
+| stages, waves, spawns | `gstage_t`, `gwave_t`, `gspawn_t` via `gstages` | 24 / 6 / 8 bytes | ROM, pointer in RAM | yes, a data pack; `gs` re-read at the safe point, its waves and spawns as they come |
 | tints | `gtint_t gtints[]` | 6 bytes each | ROM | not yet (a pointer when the lab needs it) |
 | select slots | `sel_slot_t SEL_SLOT[]`, `sel_fighter[]` | 4 + 1 bytes each | ROM; `slot_ch[]` RAM copy made on each select screen | `slot_ch` yes (RAM) |
 | unlocks | `roster_unlock[BC_COUNT]` | 1 byte each | ROM | no (save bits follow the stage order) |
@@ -90,7 +92,8 @@ throws, victim poses, specials (`bspec_t`, rows of a script), tile page, command
 
 | field | example | meaning |
 |---|---|---|
-| `name` | `"MR_BIG"` | unique (EN_MR_BIG in game_tables.h) |
+| `name` | `"YAKUZA"` | unique (EN_YAKUZA in game_tables.h); shown in the HUD (`_` as a space, 1-10 characters) |
+| `hud` | `"fighter"` | the HUD shows the fighter's name instead (today's minions and bosses) |
 | `base` | `"mr_big"` or `"pool"` | a roster fighter, or one of `pool` picked per spawn |
 | `pool` | `["terry", "ryo", ...]` | base pool: the candidates in roster order; the players' fighters are left out at the stage start |
 | `stand_in` | `"yashiro"` | fights when `base` is not in the roster |
@@ -98,29 +101,43 @@ throws, victim poses, specials (`bspec_t`, rows of a script), tile page, command
 | `power` | `1` | extra damage a hit, on top of the stage's `power` |
 | `ai` | `"boss"` | AI preset in the campaign |
 | `attract_ai` | `"minion_attract"` | AI preset in the attract demo (default: `ai`) |
+| `ai_over` | `{"grab_plan": 6, "hold_gap": 18}` | per-enemy AI: any preset field (flags as a list), merged over `ai` and `attract_ai` at build time into the enemy's own AI row (identical rows shared) |
+| `palette` | `{"set": 2}`, `{"tint": "ash", "set": 1}`, `{"custom": [16 colours]}` | its colours; left out: the spawn's `set` / `tint`. `custom`: 16 Neo Geo colour words replacing the first palette of its set (`set`, default 0): ROM or pack bytes and the palette RAM it already uses, nothing else |
+| `moves` | `"own"`, `"jabs"`, `"no_specials"`, `"tools/brawler/routes/enemies/viper.json"` | its trimmed move list: its fighter's own tree, a named preset (routes.py `ENEMY_PRESETS`: jabs = A, A, strong close C; no_specials = its own tree without special links) or a routes file (routes.py format); encoded against every fighter it may be (each must have the moves) |
 
-Later: `moves` (a trimmed move list), `palette` (a colour set or 16 custom colours), per-enemy AI overrides.
+`genemy_t` (26 bytes): 0 base (bm_chars index, 0xFF = pool), 1 ai, 2 attract_ai (AI rows), 3 power, 4 npool, 5 set and
+6 tint (0xFF = the spawn's), 7 flags (1 = the HUD shows the fighter's name), 8 life (int16), 10 pool, 14 name, 18 pal (16
+words), 22 moves (rt_head_t tree; 0 = route_tab's, the fighter's own); the game gives each spawned enemy its name, custom
+palette and tree (fighter_t `name`, `cpal`, `tree`; fighter.c TREE() reads `tree` first).
 
-`genemy_t` (12 bytes): 0 base (bm_chars index, 0xFF = pool), 1 ai, 2 attract_ai, 3 power, 4 npool, 6 life (int16),
-8 pool (pointer to npool bm_chars indices).
+Examples (no wave uses them yet): YAKUZA (yamazaki, minion + grab_plan 6, custom dark suit, 60 life), VIPER (mai, minion
++ full_speed, short rests, follow-ups 3, attack_dx 30, viper.json: jabs at 1.25x and a tripping sweep, ash tint on set 1,
+30 life), SNIPER (ryo, minion with only `projectile`, attack_dx 110, hover_dx 140, spec range 60-220, proj_chance 32,
+jabs, colour set 2, 45 life).
 
 `ai.tokens` (1): attack tokens dealt every 16 frames to the closest able enemies. `ai.presets` (today minion,
-minion_attract, boss), all fields bytes, `ai_preset_t` (38 bytes) in this order:
+minion_attract, boss), all fields bytes, `ai_preset_t` (40 bytes) in this order (build_tables.py AI_ORDER; game_tables.c
+asserts every offset), then one row per enemy with `ai_over`:
 
 | field | minion | boss | meaning |
 |---|---|---|---|
-| `flags` | grab, projectile | token, grab, projectile, boss_moves | token: always holds one; grab: approaches may grab; projectile: fires its D at mid range; boss_moves: the boss block |
+| `flags` | grab, projectile | token, grab, projectile, boss_moves | token: always holds one; grab: approaches may grab; projectile: fires its D at mid range; reversal (rev_*), specials (bspec_*), jump_in (jump_*): the boss block's three, `boss_moves` = all three; full_speed: walks at full speed while positioning (the others at half) |
 | `rest_shift`, `rest_random`, `rest_add` | 0, 127, 0 | 2, 31, 0 | a rest = (base >> shift) + (random & rest_random) + rest_add (minion_attract: rest_add 100, no grab, no projectile) |
 | `rest_start`, `rest_attack`, `rest_special`, `rest_throw` | 30, 120, 180, 60 | 60, ... | rest bases: at spawn, after a punch string, a D, a throw |
 | `grab_plan` | 1 | 1 | approaches of 8 that walk in to grab |
 | `attack_dx`, `hover_dx`, `hover_go_dx`, `hover_go_dz` | 36, 90, 16, 8 | same | token holder distance; the others'; when a hoverer sets off again |
 | `range_min`, `range_max`, `range_dz` | 20, 52, 6 | same | punch range |
-| `spec_min`, `spec_max`, `spec_dz` | 70, 140, 10 | same | D projectile range (1 in 512 a frame) |
+| `spec_min`, `spec_max`, `spec_dz` | 70, 140, 10 | same | D projectile range |
 | `follow_ups` (json) -> `follow_mask` | 1 | 1 | 0..N follow-up presses (N + 1 a power of two) |
 | `press_gap`, `hold_gap` | 10, 24 | same | frames between presses; between hits in a hold |
 | `rev_dx`, `rev_dz`, `rev_chance`, `rest_rev` | - | 56, 12, 4, 160 | boss: down+D against an attack this close, 1 in rev_chance |
 | `bspec_min`, `bspec_max`, `bspec_dz`, `bspec_chance`, `rush_dx`, `rest_bspec` | - | 20, 160, 10, 4, 110, 180 | boss: D or forward+D (the rush, 1 in 2 when closer than rush_dx) |
 | `jump_min`, `jump_max`, `jump_dz`, `jump_chance`, `rest_jump`, `air_b_dx` | - | 24, 140, 8, 64, 140, 56 | boss: jump-in (jump_chance of 256), air B this close |
+| `proj_chance` (json) -> `proj_mask`, `proj_mask2` | 512 | 512 | the projectile, 1 in N a frame in range: (random & proj_mask) == 0, then (random & proj_mask2) == proj_mask2 (512 = 255, 1: the 0.0.34 rule, the same random draws) |
+
+Spec's names for the overrides: aggression = `token` + the rests, rest = `rest_*`, preferred range / depth =
+`attack_dx`, `hover_dx`, `range_*`, special / jump-in / grab chance = `proj_chance` and `bspec_chance`, `jump_chance`,
+`grab_plan`, reaction to attacks = `reversal` + `rev_*`.
 
 Chances are "1 in N" with N a power of two (the game masks a random byte). The attract demo's player (`ai_bot`) is not
 an enemy and keeps its constants in ai.c.
@@ -165,6 +182,32 @@ pick 3w + k + s, set w + k, wave 0 at x 200 + 30k, later waves walking in (odd k
 seed $1D2B + w + 8s; lock points w x (width - 320) / 5 (448 px on the 2560 px stages, 256 on the last); the boss at
 the stage end with min(2 + s, 5) minions (pick 3k + s, not the boss, set k + s, tint 1 + (k + s) mod 3, z 6 + 13k),
 seed $5B05 + s; life 100 + 4s, power stage + 1.
+
+## Live install: data packs (the Brawler Lab's write path)
+
+The page (lab.js `installPack`, from `build_tables.py pack GAME.json BUILD OUT` today; the Enemies / Stages tabs later)
+writes a pack into `lab.pack` (lab_t, after `buf`: `pack_stat` at 3232, `pack` at 3234, at most 4096 bytes) and sets
+`lab.load = 3` (with `lab.magic` = LAB1). The game:
+
+1. on its next tick checks the pack (`gd_check`: magic `GD`, version `GD_VERSION` 1, size, nstages = GS_COUNT, every
+   table inside the pack and word-aligned, each enemy's base / pool / AI rows / tint / name (1-10 characters, ended
+   inside) / palette / route tree (magic, version, node links and moves, speeds), each stage's background, waves (1-6
+   spawns), spawns' enemies and tints, boss, minions); `pack_stat` = 1 pending, or 0x80 | the failed check;
+2. at the next safe point (a wave's spawn, the boss's, a stage start, the enemy test's respawn) checks it again, copies
+   it into its own RAM (`gd_live`), turns the offsets into pointers and points `gstages`, `genemies`, `ai_tab` at it
+   (`pack_stat` = 2). Every enemy slot gets its AI row again at that point, so nothing holds the old tables;
+3. `lab.load = 4`: back to the ROM's tables at the next safe point (`pack_stat` = 3). A bad pack sent while another
+   one is pending cancels it.
+
+`gdpack_t` (18 bytes, big-endian): `GD`, version, nstages, nenemies, nai, size (u16), offsets of the stages, enemies and
+AI rows (u16), nspawns (u16: every stage's spawn array holds that many, the last padded), pad. The tables are the ROM's
+structs with each pointer an offset from the pack's start (0 = none); then pools, names, palettes, trees, spawns and
+waves. Today's game.json packs into 2874 bytes. A stage edit takes effect at the next safe point too: `gs` is re-read and
+the wave index clamped to the new stage's waves.
+
+**Enemy test** (`lab.req = 3`, `lab.fighter` = P1's fighter, `lab.dummy` = an enemy index, EN_* order): P1 against that
+definition at the dummy's place, its own AI on (seed $1D2B), P1's life refilled, the enemy back 60 frames after it is
+beaten (a safe point); `lab.req = 2` re-places both; `lab.active` = 2. `tools/brawler/enemy_test.py` uses it.
 
 ## Planned, schema only
 
@@ -234,3 +277,20 @@ KOF98's V ROM layout (tools/port/build_snd.py) and new codes.
   identical up to the frame the test poke kills the boss. The build's timing is not cycle-identical (0.5 % more AI
   time in boss fights, cheaper fades), so a lag frame can land one frame apart; a poke made between frames then hits
   another game tick. Counted lag frames in the fights: 575 in both.
+
+## Proof that step 2 changed nothing (2026-10-05, our emulator)
+
+Baseline: 1432bb3 built with the same SDK crt0 (only the tick counter added: `addql #1, game_ticks` before each tick).
+
+- regress.py: bleed frame-exact (normal and AI_OFF builds); facing matrix (AI_OFF) 208 / 208 traces identical.
+- campaign29.py: log and campaign.json identical to 1432bb3's (5 stages, bosses, unlocks, ending, save, power cycle).
+- ramtrace.py tick-keyed: attract 7707 common ticks, campaign replay (1432bb3's inputs and pokes by tick) all 19033
+  ticks identical, every wave and boss fight included; the same with today's game.json sent as a data pack at tick 100
+  (installed at the attract demo's stage start): attract and campaign identical too.
+- Chain Lab training (labdrive.py): every state and lab event identical; `lab.frame` counts one less (the start tick is
+  a lag frame in this build).
+- The three examples in the enemy test (enemy_test.py, /data/tmp/enemies/out): names in the HUD, YAKUZA's dark suit
+  grabbing, VIPER's ash Mai jabbing (12 strings in 600 frames), SNIPER's set-2 Ryo firing Ko-ou-ken from range.
+- Write path: YAKUZA's life 60 -> 90 in an edited game.json, packed (2874 bytes), sent while YAKUZA fights: pending,
+  its life still 60; beaten, it comes back with 90 (installed); a version-9 pack refused (check 2), a name offset past
+  the end refused (check 9); load 4: back to the ROM, the next YAKUZA has 60.

@@ -16,6 +16,20 @@ stages (background, music, waves = lock points + spawns, the boss and its minion
 `gamedata.h`) for the game. The schema, the binary layouts and what is live-swappable: `docs/brawler_data_model.md`.
 `build_tables.py format game.json` rewrites the file in its canonical layout.
 
+**Enemies as definitions (step 2, 2026-10-05):** an enemy is a named entry: HUD name (today's minions and bosses keep
+their fighter's: `"hud": "fighter"`), base fighter (or a pool), palette (a colour set, a tint, or 16 custom colours
+replacing its first palette), a trimmed move list (a routes file such as `tools/brawler/routes/enemies/viper.json`, or a
+named preset: `jabs`, `no_specials`), life, power, an AI preset plus `ai_over` overrides (merged at build time into its
+own AI row; each enemy slot reads its own row). Three examples, in no wave yet: YAKUZA (Yamazaki, dark suit, grabs 6
+approaches in 8, 60 life), VIPER (Mai, ash tint, full-speed walk, quick 1.25x jabs, 30 life), SNIPER (Ryo, colour set 2,
+stays at 110-140 px and fires its D 1 in 32 frames in range, 45 life).
+**Enemy test** (lab mailbox `lab.req = 3`, `lab.dummy` = the enemy's index): P1 against one definition with its AI on,
+respawned when beaten; `tools/brawler/enemy_test.py OUT` screenshots each (examples: /data/tmp/enemies/out).
+**Write path** (`lab.load = 3`): the page writes a data pack (stages, enemies, AI rows; `build_tables.py pack`, lab.js
+`installPack`) into `lab.pack`; the game checks it (version byte, sizes, every offset and index) and installs it at the
+next safe point (a wave, the boss, a stage start, the enemy test's respawn); `lab.load = 4` goes back to the ROM's
+tables; `lab.pack_stat` reports. Same ROM as the release. Details: docs/brawler_data_model.md.
+
 ## Arcade flow (MVS, Unibios)
 Power on: attract demo = a fight where P1 is `ai_bot` (closes in, combos, grabs, down+D reversal when threatened) against
 weak enemies (AI preset `minion_attract`), a new fighter each time, INSERT COIN blinking; after 40 s it hands back to the BIOS, which
@@ -236,7 +250,8 @@ a dummy. Training mode (main.c "Chain Lab training", entered when the page write
 the lab's): P1 against one dummy that never attacks and gets up, no waves, camera fixed, the last combo's hits / damage on
 the fix layer. P1's route steps are logged in `lab.ev[]` (start: from neutral / after the move ended / cancel / chain
 window; hit; end) for the page's per-link readout. `labdrive.py` drives the same mailbox from the desktop core (harness);
-`proof.sh` plays Terry's AAB→A route in both cores and compares the traces (identical); `deploy_vps.sh` publishes.
+`proof.sh` plays Terry's AAB→A route in both cores and compares the traces (identical); `deploy_vps.sh` publishes. Enemy test (`lab.req = 3`) and
+data packs (`lab.load = 3 / 4`): see "Data" above.
 
 ## Timing: KOF's frames, and a speed (2026-10-05)
 The animation player (fighter.c "animation player") shows a step for KOF's ticks + 1 frames, the first one too (until
