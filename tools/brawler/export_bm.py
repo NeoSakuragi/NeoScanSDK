@@ -2,7 +2,12 @@
 """Brawler fighter data: a beat 'em up subset of each fighter's animations from the KOF dictionaries
 (tools/kof96/export96.py, any of KOF96/98/99), written as const 68000 tables + the C1/C2 tiles they use.
 
-    python3 export_bm.py OUTDIR kof98:terry kof98:kyo ...        -> bm_chars.c/.h, bm_c1.bin, bm_c2.bin
+    python3 export_bm.py OUTDIR --roster ROSTER.json             -> bm_chars.c/.h, bm_c1.bin, bm_c2.bin
+
+ROSTER.json = build_tables.py's roster view of examples/brawler/game.json (the Makefile writes build/roster.json): per
+fighter in bm_chars order, its bank spec (game:name), its select-screen 'watch' pose, its specials (the KOF input of each
+of D, forward+D, down+D, up+D, or null) and its chain routes file (null: routes.default_tree()). Tools that import this
+module (check_specials.py...) get the roster of examples/brawler/game.json (roster()).
 
 Per fighter: frames (parts: dx, dy, columns, rows, flips, palette index, tile columns), animations (steps: frame, ticks,
 one hurt box = union of KOF's hurt boxes, the attack box when the step has one), every colour set (16-colour palettes,
@@ -14,6 +19,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
 import export96
 import routes as R
+import build_tables
+GAME_JSON = os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')
+_ROSTER = None
+def roster(path=None):
+    """{name: roster entry} (build_tables.roster_export): from ROSTER.json when given, else from game.json"""
+    global _ROSTER
+    if path: _ROSTER = {r['name']: r for r in json.load(open(path))}
+    elif _ROSTER is None: _ROSTER = {r['name']: r for r in build_tables.roster_export(build_tables.load(GAME_JSON))}
+    return _ROSTER
 
 # the brawler's animation set (KOF move names); MOVES order = the BA_* enum
 MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', 'jump_fwd_rise', 'jump_fwd_fall', 'land',
@@ -28,7 +42,7 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'hop_back_rise', 'hop_back_fall', 'atk_c_jump_diag', 'atk_d_jump_diag',
          'atk_c_hop', 'atk_d_hop', 'atk_c_hop_diag', 'atk_d_hop_diag',
          'atk_cd_jump', 'atk_cd_hop',                   # air C+D: KOF state 117, KOF98 / KOF99 hops 124 (capture/aircd.py)
-         'watch',                                       # the group photo's pose (select screen): WATCH
+         'watch',                                       # the group photo's pose (select screen): roster watch
          'atk_a_crouch', 'atk_b_crouch']                # crouch A / B (KOF 88 / 97): chain routes (Chain Lab, routes.py)
 # The group photo's 'watch' pose (TODO #51, 2026-10-05): a front-facing, standing frame, one per fighter (game, name) ->
 # (KOF game state, step; -1 = the animation's last, held frame). KOF94 / KOF95 had real "watching" sprites: the waiting
@@ -39,12 +53,7 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
 # (336-343; KOF96: its intros / wins 208-239), chosen by eye on a render of every candidate. Missing: idle.
 # watch poses: Bruno's two judging rounds, 2026-10-05 (round 2 picked Billy 347 last, Mai 338 last, Robert 340 last,
 # Yamazaki 349 first, Yashiro 340 last)
-WATCH = {('kof98', 'terry'): (351, -1), ('kof98', 'ryo'): (343, -1), ('kof98', 'ralf'): (353, -1),
-         ('kof98', 'robert'): (340, -1), ('kof98', 'yamazaki'): (349, 0), ('kof98', 'billy'): (347, -1),
-         ('kof98', 'kyo'): (345, -1), ('kof98', 'iori'): (353, -1), ('kof98', 'mai'): (338, -1),
-         ('kof98', 'yashiro'): (340, -1), ('kof98', 'rugal'): (343, -1), ('kof99', 'k_dash'): (349, -1),
-         ('kof96', 'geese'): (210, -1), ('kof96', 'mr_big'): (216, -1), ('kof96', 'krauser'): (226, -1),
-         ('kof96', 'goenitz'): (216, -1)}
+# The poses are data now: game.json roster[].watch {frame, step} (moved there 2026-10-05 with these picks).
 CMDS = ['cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
 # brawler move -> the KOF moves it is taken from, first found. Air normals measured in the games (capture/jumps.py, every
 # roster fighter): a regular jump plays the vertical normal (82/91/100/109) straight up and the diagonal one (84/93/102/111)
@@ -108,7 +117,7 @@ def build(specs, outdir):
             sys.path.insert(0, os.path.join(HERE, '..', 'kof94')); import export94
             return export94.export(names, tmp, only=set(MOVES))
         return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {'specials'},
-                               extra={n: {'watch': WATCH[game, n]} for n in names if (game, n) in WATCH})
+                               extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()})
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
     # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross
     # a page; whole game rosters per block left ~4 MB of padding at the page ends and doubled C to 32 MB when the air
@@ -390,15 +399,32 @@ def real_projectile(sp):
     box): a travelling one (object kind 1) or an eruption that hit P2 at one of the measured distances"""
     return any(pj['kind'] == 1 or any((h.get('hits') or 0) > 0 for h in pj['hits'].values()) for pj in sp.get('projectiles', []))
 
-def pick_specials(ch, name=None):
-    """[projectile, rush, rise, up] (None where the fighter has no such move). The big versions first (C / D: Bruno
+def special_pool(ch, name=None):
+    """the specials a role may take: ground specials of the normal condition (an EX-is-another-character fighter's EX
+    ones left out)"""
+    return [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].replace('EX ', '').startswith('air')
+            and not (name in NO_EX and sp['input'].startswith('EX '))]
+
+
+def pick_specials(ch, name):
+    """[D, forward+D, down+D, up+D] as the roster says (game.json roster[].specials: KOF inputs; None = no special)"""
+    out = []
+    for role, want in zip(ROLES, roster()[name]['specials']):
+        sp = next((sp for sp in special_pool(ch, name) if sp['input'] == want), None) if want else None
+        assert sp or not want, f'{name}: no special {want} for {role}'
+        out.append(sp)
+    return out
+
+
+def suggest_specials(ch, name=None):
+    """[projectile, rush, rise, up] (None where the fighter has no such move): the automatic pick that filled game.json's
+    specials (2026-10-05), for the lab to suggest. The big versions first (C / D: Bruno
     2026-10-03, the long Burn Knuckle, the high dragon punch); up+D = the best special of a move not used yet (one move
     = its input motion with the punch or kick pair: 214A / 214C is one move, 214B / 214D another). A KOF98 fighter and
     its EX version are one fighter (Bruno 2026-10-04: same normals, the EX adds specials): the pool is both versions'
     specials ('EX ...' inputs, captured on the EX state c<id>x). D = the fighter's real projectile (real_projectile): a
     travelling one first (EX Terry's Power Wave over his Round Wave eruption), big button first, the longest travel."""
-    c = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].replace('EX ', '').startswith('air')
-         and not (name in NO_EX and sp['input'].startswith('EX '))]
+    c = special_pool(ch, name)
     can_hit = lambda sp: real_projectile(sp) or any(k[0] == '1' and k.upper() != '1B' for b in sp.get('row_boxes', []) for k in b)
     auto = [sp for sp in c if not sp['input'].split()[0] in ('MAX', 'Counter') and not counter_move(sp) and can_hit(sp)]
     # supers: by override only; a move that can hit nothing (no attack box, no projectile: K''s 236D, whose object never
@@ -606,10 +632,10 @@ def write_c(chars, outdir):
     for ci, (game, n, ch, off) in enumerate(chars):           # chain routes: tools/brawler/routes/<n>.json or the default
         has = {m for m in MOVES if any(k in ch['anims'] for k in SOURCES.get(m, [m]))}
         sps = pick_specials(ch, n)
-        tree = R.load(n)
+        tree = R.load(n, roster()[n]['routes'])
         blob = R.encode(tree, MOVES, has, [sp is not None for sp in sps])
         c.append(f'static const uint8_t {n}_routes[] = {{' + ', '.join(map(str, blob)) + '};')
-        lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': os.path.exists(os.path.join(R.ROUTES_DIR, f'{n}.json')),
+        lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': roster()[n]['routes'] is not None,
                                 'moves': {m: R.frame_data(source(ch, m)['steps']) for m in R.MOVE_NAMES if m in has},
                                 'specials': {k: (sp['input'] if sp else None) for k, sp in zip(R.SPECIALS, sps)}})
     json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
@@ -623,7 +649,9 @@ def write_c(chars, outdir):
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')
 
 if __name__ == '__main__':
-    outdir = sys.argv[1]; specs = sys.argv[2:] or ['kof98:terry']
+    outdir = sys.argv[1]
+    assert sys.argv[2] == '--roster', __doc__
+    specs = [r['bank'] for r in roster(sys.argv[3]).values()]
     chars, tiles = build(specs, outdir)
     for game, n, ch, off in chars:
         print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D', 'up+D'), pick_specials(ch, n))) + ';', end=' ')

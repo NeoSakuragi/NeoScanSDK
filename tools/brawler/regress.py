@@ -2,7 +2,7 @@
   bleed   the same game after attract-demo lengths 0/1500/2600/3700 frames: P1's trace from the fight start (mode 1,
           attract 0) under a fixed input script must be identical for every length (to the frame-sampling jitter,
           see `near`)
-  facing  every roster fighter (CHARS of the Makefile) (picked on the select screen) x 13 actions: per frame P1 state + facing + x, written to JSON for a
+  facing  every roster fighter (game.json's roster) (picked on the select screen) x 13 actions: per frame P1 state + facing + x, written to JSON for a
           comparison between builds
     python3 regress.py GAME_DIR OUT.json   (GAME_DIR/brawler.neo, symbols from GAME_DIR/build/rom.elf)"""
 import sys, json, re
@@ -50,7 +50,7 @@ ACTIONS = [('walk_L', '20:L,10:-'), ('walk_R', '20:R,10:-'), ('run_R', '3:R,3:-,
            ('A', '4:a,40:-'), ('B', '4:b,40:-'), ('jump_up', '4:c,60:-'), ('jump_fwd', '4:Rc,60:-'), ('jump_back', '4:Lc,60:-'),
            ('D', '4:d,90:-'), ('fwd_D', '4:Rd,90:-'), ('down_D', '4:Dd,90:-'), ('up_D', '4:Ud,90:-')]
 facing = {}
-NCHARS = len(re.search(r"^CHARS\s*=\s*(.+)$", open(os.path.join(game, "Makefile")).read(), re.M).group(1).split())
+NCHARS = len(json.load(open(os.path.join(game, "game.json")))["roster"])
 for k in range(NCHARS):
     b.pick(k, unlock=True)                         # campaign builds: the bosses are locked until beaten
     while b.r(b.syms['fade_in'], 1): b.run(1)       # the fight in full colour: P1 under control, phase-free

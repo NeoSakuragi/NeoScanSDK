@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mechanical check of the brawler's specials: per fighter, its ground specials as export_bm plays them.
 
-    python3 check_specials.py [--all] [game:name ...]      (default: CHARS of examples/brawler/Makefile)
+    python3 check_specials.py [--all] [game:name ...]      (default: the roster of examples/brawler/game.json)
 
 Per special: rows, rows with a body attack box (atk), hit windows (hits: rows that open a new hit, export_bm
 special_rows; with a continuation: hits of the whiff + of the continuation), the hits the game landed in its
@@ -18,9 +18,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
 import export_bm, export96
 
-def chars_from_makefile():
-    mk = open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'Makefile')).read()
-    return re.search(r'^CHARS\s*=\s*(.+)$', mk, re.M).group(1).split()
+def chars_from_makefile():                       # the roster of examples/brawler/game.json (bm_chars order)
+    import build_tables
+    return build_tables.chars(build_tables.load(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))
 
 def main(args):
     full = '--all' in args; specs = [a for a in args if not a.startswith('--')] or chars_from_makefile()

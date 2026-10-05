@@ -218,7 +218,7 @@ class Brawler:
             self.run(4, *([key] if not p else ['', key])); self.run(12)
         raise RuntimeError(f'cursor never reached fighter {k} (slot {t})')
     def pick(self, k, button='a', cache=True, unlock=False):
-        """power on -> coin -> START -> the select screen's fighter k (bm_chars index = CHARS order; the cursor walked
+        """power on -> coin -> START -> the select screen's fighter k (bm_chars index = game.json roster order; the cursor walked
         there with the stick: the real select path) -> the fight, 20 frames in; unlock: every boss selectable"""
         path = os.path.join(WORK, 'fight_%08x_%d%s%s.state' % (self._rom_id(), k, button, 'u' if unlock else ''))
         if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
@@ -230,7 +230,7 @@ class Brawler:
         self.seq(f'4:{button},270:-')
         open(path, 'wb').write(self.save())
     def char_of(self, i):
-        """index in bm_chars (the Makefile's CHARS order) of fighter i"""
+        """index in bm_chars (game.json roster order) of fighter i"""
         return (self.fget(i, 'ch') - self.syms['bm_chars']) // self.syms['sizeof_bchar']
     def fighter(self, i):
         d = {f: self.fget(i, f) for f in self.layout}

@@ -1,0 +1,812 @@
+{
+ "about": "The brawler as data (docs/brawler_data_model.md): roster (layer 1), enemies + AI presets (layer 2), stages (layer 3). tools/brawler/build_tables.py turns it into the tables the game reads (build/game_tables.c / .h, build/roster.json for the fighter export).",
+ "schema": 1,
+ "music": {"select": "SELECT", "clear": "JINGLE"},
+ "roster": [
+  {
+   "name": "terry",
+   "bank": "kof98:terry",
+   "watch": {"frame": 351, "step": -1},
+   "routes": "tools/brawler/routes/terry.json",
+   "specials": {"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D"},
+   "unlock": "always"
+  },
+  {
+   "name": "ryo",
+   "bank": "kof98:ryo",
+   "watch": {"frame": 343, "step": -1},
+   "routes": "default",
+   "specials": {"D": "EX 236C", "fD": "214C", "dD": "EX 623C", "uD": "236D"},
+   "unlock": "always"
+  },
+  {
+   "name": "ralf",
+   "bank": "kof98:ralf",
+   "watch": {"frame": 353, "step": -1},
+   "routes": "default",
+   "specials": {"D": null, "fD": "[4]6C", "dD": "[2]8C", "uD": "[4]6D"},
+   "unlock": "always"
+  },
+  {
+   "name": "robert",
+   "bank": "kof98:robert",
+   "watch": {"frame": 340, "step": -1},
+   "routes": "default",
+   "specials": {"D": "EX 236C", "fD": "EX 624D", "dD": "623D", "uD": "623C"},
+   "unlock": "always"
+  },
+  {
+   "name": "yamazaki",
+   "bank": "kof98:yamazaki",
+   "watch": {"frame": 349, "step": 0},
+   "routes": "default",
+   "specials": {"D": null, "fD": "623C", "dD": null, "uD": "236C"},
+   "unlock": "always"
+  },
+  {
+   "name": "billy",
+   "bank": "kof98:billy",
+   "watch": {"frame": 347, "step": -1},
+   "routes": "default",
+   "specials": {"D": null, "fD": null, "dD": "623D", "uD": "426C"},
+   "unlock": "always"
+  },
+  {
+   "name": "kyo",
+   "bank": "kof98:kyo",
+   "watch": {"frame": 345, "step": -1},
+   "routes": "default",
+   "specials": {"D": null, "fD": "EX 624D", "dD": "623C", "uD": "624B"},
+   "unlock": "always"
+  },
+  {
+   "name": "iori",
+   "bank": "kof98:iori",
+   "watch": {"frame": 353, "step": -1},
+   "routes": "default",
+   "specials": {"D": "236C", "fD": "623D", "dD": "623C", "uD": "214C"},
+   "unlock": "always"
+  },
+  {
+   "name": "mai",
+   "bank": "kof98:mai",
+   "watch": {"frame": 338, "step": -1},
+   "routes": "default",
+   "specials": {"D": "236C", "fD": "426D", "dD": "623D", "uD": "214C"},
+   "unlock": "always"
+  },
+  {
+   "name": "yashiro",
+   "bank": "kof98:yashiro",
+   "watch": {"frame": 340, "step": -1},
+   "routes": "default",
+   "specials": {"D": null, "fD": "426C", "dD": "214D", "uD": "623C"},
+   "unlock": "always"
+  },
+  {
+   "name": "geese",
+   "bank": "kof96:geese",
+   "watch": {"frame": 210, "step": -1},
+   "routes": "default",
+   "specials": {"D": "236C", "fD": "63214C", "dD": "623C", "uD": null},
+   "unlock": {"boss_of_stage": 3}
+  },
+  {
+   "name": "mr_big",
+   "bank": "kof96:mr_big",
+   "watch": {"frame": 216, "step": -1},
+   "routes": "default",
+   "specials": {"D": "236C", "fD": "63214C", "dD": "623C", "uD": "63214D"},
+   "unlock": {"boss_of_stage": 1}
+  },
+  {
+   "name": "krauser",
+   "bank": "kof96:krauser",
+   "watch": {"frame": 226, "step": -1},
+   "routes": "default",
+   "specials": {"D": "214C", "fD": "41236B", "dD": "623D", "uD": "214D"},
+   "unlock": {"boss_of_stage": 2}
+  },
+  {
+   "name": "k_dash",
+   "bank": "kof99:k_dash",
+   "watch": {"frame": 349, "step": -1},
+   "routes": "default",
+   "specials": {"D": "236C", "fD": "214D", "dD": "623C", "uD": null},
+   "unlock": "always"
+  },
+  {
+   "name": "rugal",
+   "bank": "kof98:rugal",
+   "watch": {"frame": 343, "step": -1},
+   "routes": "default",
+   "specials": {"D": "236C", "fD": "624A", "dD": "6426D", "uD": "236D"},
+   "unlock": {"boss_of_stage": 4}
+  },
+  {
+   "name": "goenitz",
+   "bank": "kof96:goenitz",
+   "watch": {"frame": 216, "step": -1},
+   "routes": "default",
+   "specials": {"D": "41236C", "fD": null, "dD": null, "uD": "214C"},
+   "unlock": {"boss_of_stage": 5}
+  }
+ ],
+ "select": {
+  "slots": [
+   {"x": 40, "z": 48, "row": 0, "fighter": "terry"},
+   {"x": 88, "z": 48, "row": 0, "fighter": "ryo"},
+   {"x": 136, "z": 48, "row": 0, "fighter": "ralf"},
+   {"x": 184, "z": 48, "row": 0, "fighter": "robert"},
+   {"x": 232, "z": 48, "row": 0, "fighter": "yamazaki"},
+   {"x": 280, "z": 48, "row": 0, "fighter": "billy"},
+   {"x": 64, "z": 24, "row": 1, "fighter": "kyo"},
+   {"x": 112, "z": 24, "row": 1, "fighter": "iori"},
+   {"x": 160, "z": 24, "row": 1, "fighter": "mai"},
+   {"x": 208, "z": 24, "row": 1, "fighter": "yashiro"},
+   {"x": 256, "z": 24, "row": 1, "fighter": "k_dash"},
+   {"x": 48, "z": 0, "row": 2, "fighter": "mr_big"},
+   {"x": 104, "z": 0, "row": 2, "fighter": "krauser"},
+   {"x": 160, "z": 0, "row": 2, "fighter": "geese"},
+   {"x": 216, "z": 0, "row": 2, "fighter": "rugal"},
+   {"x": 272, "z": 0, "row": 2, "fighter": "goenitz"}
+  ]
+ },
+ "tints": {
+  "shade": {"mix": 1, "mul": 11, "shift": 5, "add": [0, 0, 0]},
+  "ash": {"mix": 3, "mul": 14, "shift": 6, "add": [-1, 0, 3]},
+  "rust": {"mix": 1, "mul": 12, "shift": 5, "add": [3, 0, -2]}
+ },
+ "ai": {
+  "tokens": 1,
+  "presets": {
+   "minion": {
+    "flags": ["grab", "projectile"],
+    "rest_shift": 0,
+    "rest_random": 127,
+    "rest_add": 0,
+    "rest_start": 30,
+    "rest_attack": 120,
+    "rest_special": 180,
+    "rest_throw": 60,
+    "grab_plan": 1,
+    "attack_dx": 36,
+    "hover_dx": 90,
+    "hover_go_dx": 16,
+    "hover_go_dz": 8,
+    "range_min": 20,
+    "range_max": 52,
+    "range_dz": 6,
+    "spec_min": 70,
+    "spec_max": 140,
+    "spec_dz": 10,
+    "follow_ups": 1,
+    "press_gap": 10,
+    "hold_gap": 24
+   },
+   "minion_attract": {
+    "flags": [],
+    "rest_shift": 0,
+    "rest_random": 127,
+    "rest_add": 100,
+    "rest_start": 30,
+    "rest_attack": 120,
+    "rest_special": 180,
+    "rest_throw": 60,
+    "grab_plan": 1,
+    "attack_dx": 36,
+    "hover_dx": 90,
+    "hover_go_dx": 16,
+    "hover_go_dz": 8,
+    "range_min": 20,
+    "range_max": 52,
+    "range_dz": 6,
+    "spec_min": 70,
+    "spec_max": 140,
+    "spec_dz": 10,
+    "follow_ups": 1,
+    "press_gap": 10,
+    "hold_gap": 24
+   },
+   "boss": {
+    "flags": ["token", "grab", "projectile", "boss_moves"],
+    "rest_shift": 2,
+    "rest_random": 31,
+    "rest_add": 0,
+    "rest_start": 60,
+    "rest_attack": 120,
+    "rest_special": 180,
+    "rest_throw": 60,
+    "grab_plan": 1,
+    "attack_dx": 36,
+    "hover_dx": 90,
+    "hover_go_dx": 16,
+    "hover_go_dz": 8,
+    "range_min": 20,
+    "range_max": 52,
+    "range_dz": 6,
+    "spec_min": 70,
+    "spec_max": 140,
+    "spec_dz": 10,
+    "follow_ups": 1,
+    "press_gap": 10,
+    "hold_gap": 24,
+    "rev_dx": 56,
+    "rev_dz": 12,
+    "rev_chance": 4,
+    "rest_rev": 160,
+    "bspec_min": 20,
+    "bspec_max": 160,
+    "bspec_dz": 10,
+    "bspec_chance": 4,
+    "rush_dx": 110,
+    "rest_bspec": 180,
+    "jump_min": 24,
+    "jump_max": 140,
+    "jump_dz": 8,
+    "jump_chance": 64,
+    "rest_jump": 140,
+    "air_b_dx": 56
+   }
+  }
+ },
+ "enemies": [
+  {
+   "name": "MINION",
+   "base": "pool",
+   "pool": ["terry", "ryo", "ralf", "robert", "yamazaki", "billy", "kyo", "iori", "mai", "yashiro", "k_dash"],
+   "life": 60,
+   "power": 0,
+   "ai": "minion",
+   "attract_ai": "minion_attract"
+  },
+  {"name": "MR_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 100, "power": 1, "ai": "boss"},
+  {"name": "KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 104, "power": 1, "ai": "boss"},
+  {"name": "GEESE", "base": "geese", "stand_in": "geese", "life": 108, "power": 1, "ai": "boss"},
+  {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 112, "power": 1, "ai": "boss"},
+  {"name": "GOENITZ", "base": "goenitz", "stand_in": "iori", "life": 116, "power": 1, "ai": "boss"}
+ ],
+ "stages": [
+  {
+   "name": "STAGE 1",
+   "background": 0,
+   "music": "FIGHT",
+   "power": 0,
+   "waves": [
+    {
+     "lock": 0,
+     "seed": "0x1D2B",
+     "spawns": [
+      {"enemy": "MINION", "pick": 0, "set": 0, "x": 200, "z": 6},
+      {"enemy": "MINION", "pick": 1, "set": 1, "x": 230, "z": 17}
+     ]
+    },
+    {
+     "lock": 448,
+     "seed": "0x1D2C",
+     "spawns": [
+      {"enemy": "MINION", "pick": 3, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 4, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 5, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28}
+     ]
+    },
+    {
+     "lock": 896,
+     "seed": "0x1D2D",
+     "spawns": [
+      {"enemy": "MINION", "pick": 6, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 7, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 8, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 9, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39}
+     ]
+    },
+    {
+     "lock": 1344,
+     "seed": "0x1D2E",
+     "spawns": [
+      {"enemy": "MINION", "pick": 9, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 10, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 11, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 12, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 13, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50}
+     ]
+    },
+    {
+     "lock": 1792,
+     "seed": "0x1D2F",
+     "spawns": [
+      {"enemy": "MINION", "pick": 12, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 13, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 14, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 15, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 16, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 17, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    }
+   ],
+   "boss": {
+    "enemy": "MR_BIG",
+    "song": "BOSS_MR_BIG",
+    "lock": 2240,
+    "x": 2544,
+    "z": 30,
+    "seed": "0x5B05",
+    "minions": [
+     {
+      "enemy": "MINION",
+      "pick": 0,
+      "not_boss": true,
+      "set": 0,
+      "walk_in": {"side": "right", "rank": 0},
+      "z": 6,
+      "tint": "shade"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 3,
+      "not_boss": true,
+      "set": 1,
+      "walk_in": {"side": "left", "rank": 0},
+      "z": 19,
+      "tint": "ash"
+     }
+    ]
+   }
+  },
+  {
+   "name": "STAGE 2",
+   "background": 1,
+   "music": "FIGHT",
+   "power": 1,
+   "waves": [
+    {
+     "lock": 0,
+     "seed": "0x1D33",
+     "spawns": [
+      {"enemy": "MINION", "pick": 1, "set": 0, "x": 200, "z": 6},
+      {"enemy": "MINION", "pick": 2, "set": 1, "x": 230, "z": 17},
+      {"enemy": "MINION", "pick": 3, "set": 2, "x": 260, "z": 28}
+     ]
+    },
+    {
+     "lock": 448,
+     "seed": "0x1D34",
+     "spawns": [
+      {"enemy": "MINION", "pick": 4, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 5, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 6, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 7, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39}
+     ]
+    },
+    {
+     "lock": 896,
+     "seed": "0x1D35",
+     "spawns": [
+      {"enemy": "MINION", "pick": 7, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 8, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 9, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 10, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 11, "set": 6, "walk_in": {"side": "right", "rank": 2}, "z": 50}
+     ]
+    },
+    {
+     "lock": 1344,
+     "seed": "0x1D36",
+     "spawns": [
+      {"enemy": "MINION", "pick": 10, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 11, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 12, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 13, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 14, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 15, "set": 8, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 1792,
+     "seed": "0x1D37",
+     "spawns": [
+      {"enemy": "MINION", "pick": 13, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 14, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 15, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 16, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 17, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 18, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    }
+   ],
+   "boss": {
+    "enemy": "KRAUSER",
+    "song": "BOSS_KRAUSER",
+    "lock": 2240,
+    "x": 2544,
+    "z": 30,
+    "seed": "0x5B06",
+    "minions": [
+     {
+      "enemy": "MINION",
+      "pick": 1,
+      "not_boss": true,
+      "set": 1,
+      "walk_in": {"side": "right", "rank": 0},
+      "z": 6,
+      "tint": "ash"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 4,
+      "not_boss": true,
+      "set": 2,
+      "walk_in": {"side": "left", "rank": 0},
+      "z": 19,
+      "tint": "rust"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 7,
+      "not_boss": true,
+      "set": 3,
+      "walk_in": {"side": "right", "rank": 1},
+      "z": 32,
+      "tint": "shade"
+     }
+    ]
+   }
+  },
+  {
+   "name": "STAGE 3",
+   "background": 3,
+   "music": "FIGHT",
+   "power": 1,
+   "waves": [
+    {
+     "lock": 0,
+     "seed": "0x1D3B",
+     "spawns": [
+      {"enemy": "MINION", "pick": 2, "set": 0, "x": 200, "z": 6},
+      {"enemy": "MINION", "pick": 3, "set": 1, "x": 230, "z": 17},
+      {"enemy": "MINION", "pick": 4, "set": 2, "x": 260, "z": 28},
+      {"enemy": "MINION", "pick": 5, "set": 3, "x": 290, "z": 39}
+     ]
+    },
+    {
+     "lock": 448,
+     "seed": "0x1D3C",
+     "spawns": [
+      {"enemy": "MINION", "pick": 5, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 6, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 7, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 8, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 9, "set": 5, "walk_in": {"side": "right", "rank": 2}, "z": 50}
+     ]
+    },
+    {
+     "lock": 896,
+     "seed": "0x1D3D",
+     "spawns": [
+      {"enemy": "MINION", "pick": 8, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 9, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 10, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 11, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 12, "set": 6, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 13, "set": 7, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 1344,
+     "seed": "0x1D3E",
+     "spawns": [
+      {"enemy": "MINION", "pick": 11, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 12, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 13, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 14, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 15, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 16, "set": 8, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 1792,
+     "seed": "0x1D3F",
+     "spawns": [
+      {"enemy": "MINION", "pick": 14, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 15, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 16, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 17, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 18, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 19, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    }
+   ],
+   "boss": {
+    "enemy": "GEESE",
+    "song": "BOSS_GEESE",
+    "lock": 2240,
+    "x": 2544,
+    "z": 30,
+    "seed": "0x5B07",
+    "minions": [
+     {
+      "enemy": "MINION",
+      "pick": 2,
+      "not_boss": true,
+      "set": 2,
+      "walk_in": {"side": "right", "rank": 0},
+      "z": 6,
+      "tint": "rust"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 5,
+      "not_boss": true,
+      "set": 3,
+      "walk_in": {"side": "left", "rank": 0},
+      "z": 19,
+      "tint": "shade"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 8,
+      "not_boss": true,
+      "set": 4,
+      "walk_in": {"side": "right", "rank": 1},
+      "z": 32,
+      "tint": "ash"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 11,
+      "not_boss": true,
+      "set": 5,
+      "walk_in": {"side": "left", "rank": 1},
+      "z": 45,
+      "tint": "rust"
+     }
+    ]
+   }
+  },
+  {
+   "name": "STAGE 4",
+   "background": 4,
+   "music": "FIGHT",
+   "power": 2,
+   "waves": [
+    {
+     "lock": 0,
+     "seed": "0x1D43",
+     "spawns": [
+      {"enemy": "MINION", "pick": 3, "set": 0, "x": 200, "z": 6},
+      {"enemy": "MINION", "pick": 4, "set": 1, "x": 230, "z": 17},
+      {"enemy": "MINION", "pick": 5, "set": 2, "x": 260, "z": 28},
+      {"enemy": "MINION", "pick": 6, "set": 3, "x": 290, "z": 39},
+      {"enemy": "MINION", "pick": 7, "set": 4, "x": 320, "z": 50}
+     ]
+    },
+    {
+     "lock": 448,
+     "seed": "0x1D44",
+     "spawns": [
+      {"enemy": "MINION", "pick": 6, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 7, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 8, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 9, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 10, "set": 5, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 11, "set": 6, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 896,
+     "seed": "0x1D45",
+     "spawns": [
+      {"enemy": "MINION", "pick": 9, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 10, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 11, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 12, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 13, "set": 6, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 14, "set": 7, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 1344,
+     "seed": "0x1D46",
+     "spawns": [
+      {"enemy": "MINION", "pick": 12, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 13, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 14, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 15, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 16, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 17, "set": 8, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 1792,
+     "seed": "0x1D47",
+     "spawns": [
+      {"enemy": "MINION", "pick": 15, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 16, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 17, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 18, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 19, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 20, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    }
+   ],
+   "boss": {
+    "enemy": "RUGAL",
+    "song": "BOSS_RUGAL",
+    "lock": 2240,
+    "x": 2544,
+    "z": 30,
+    "seed": "0x5B08",
+    "minions": [
+     {
+      "enemy": "MINION",
+      "pick": 3,
+      "not_boss": true,
+      "set": 3,
+      "walk_in": {"side": "right", "rank": 0},
+      "z": 6,
+      "tint": "shade"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 6,
+      "not_boss": true,
+      "set": 4,
+      "walk_in": {"side": "left", "rank": 0},
+      "z": 19,
+      "tint": "ash"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 9,
+      "not_boss": true,
+      "set": 5,
+      "walk_in": {"side": "right", "rank": 1},
+      "z": 32,
+      "tint": "rust"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 12,
+      "not_boss": true,
+      "set": 6,
+      "walk_in": {"side": "left", "rank": 1},
+      "z": 45,
+      "tint": "shade"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 15,
+      "not_boss": true,
+      "set": 7,
+      "walk_in": {"side": "right", "rank": 2},
+      "z": 58,
+      "tint": "ash"
+     }
+    ]
+   }
+  },
+  {
+   "name": "STAGE 5",
+   "background": 5,
+   "music": "FIGHT",
+   "power": 2,
+   "waves": [
+    {
+     "lock": 0,
+     "seed": "0x1D4B",
+     "spawns": [
+      {"enemy": "MINION", "pick": 4, "set": 0, "x": 200, "z": 6},
+      {"enemy": "MINION", "pick": 5, "set": 1, "x": 230, "z": 17},
+      {"enemy": "MINION", "pick": 6, "set": 2, "x": 260, "z": 28},
+      {"enemy": "MINION", "pick": 7, "set": 3, "x": 290, "z": 39},
+      {"enemy": "MINION", "pick": 8, "set": 4, "x": 320, "z": 50},
+      {"enemy": "MINION", "pick": 9, "set": 5, "x": 350, "z": 61}
+     ]
+    },
+    {
+     "lock": 256,
+     "seed": "0x1D4C",
+     "spawns": [
+      {"enemy": "MINION", "pick": 7, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 8, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 9, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 10, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 11, "set": 5, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 12, "set": 6, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 512,
+     "seed": "0x1D4D",
+     "spawns": [
+      {"enemy": "MINION", "pick": 10, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 11, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 12, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 13, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 14, "set": 6, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 15, "set": 7, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 768,
+     "seed": "0x1D4E",
+     "spawns": [
+      {"enemy": "MINION", "pick": 13, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 14, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 15, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 16, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 17, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 18, "set": 8, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    },
+    {
+     "lock": 1024,
+     "seed": "0x1D4F",
+     "spawns": [
+      {"enemy": "MINION", "pick": 16, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "MINION", "pick": 17, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "MINION", "pick": 18, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "MINION", "pick": 19, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
+      {"enemy": "MINION", "pick": 20, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
+      {"enemy": "MINION", "pick": 21, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+     ]
+    }
+   ],
+   "boss": {
+    "enemy": "GOENITZ",
+    "song": "BOSS_GOENITZ",
+    "lock": 1280,
+    "x": 1584,
+    "z": 30,
+    "seed": "0x5B09",
+    "minions": [
+     {
+      "enemy": "MINION",
+      "pick": 4,
+      "not_boss": true,
+      "set": 4,
+      "walk_in": {"side": "right", "rank": 0},
+      "z": 6,
+      "tint": "ash"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 7,
+      "not_boss": true,
+      "set": 5,
+      "walk_in": {"side": "left", "rank": 0},
+      "z": 19,
+      "tint": "rust"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 10,
+      "not_boss": true,
+      "set": 6,
+      "walk_in": {"side": "right", "rank": 1},
+      "z": 32,
+      "tint": "shade"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 13,
+      "not_boss": true,
+      "set": 7,
+      "walk_in": {"side": "left", "rank": 1},
+      "z": 45,
+      "tint": "ash"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 16,
+      "not_boss": true,
+      "set": 8,
+      "walk_in": {"side": "right", "rank": 2},
+      "z": 58,
+      "tint": "rust"
+     }
+    ]
+   }
+  }
+ ]
+}

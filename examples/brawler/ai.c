@@ -1,24 +1,17 @@
 /* Enemy AI, Final Fight style.
  * Every enemy picks the nearest player and keeps to its own side of him. Two attack tokens: every 16 frames they go to
- * the able enemy closest to its player (one token); the holder closes in to ATTACK_DX on the player's depth line and, in
+ * the able enemy closest to its player (one token); the holder closes in to attack_dx on the player's depth line and, in
  * range and facing him, presses A one to three times (the combo chains only if the hits land), then waits a random
  * cooldown (120-247 frames); 1 approach in 8 instead walks into him to grab (a hit every 24 frames, after two maybe a throw);
  * in mid range near his depth line any enemy sometimes fires its D special (the projectile), so the
- * hoverers shoot. The others hover around HOVER_DX at a random depth offset, so the crowd surrounds instead of stacking. */
+ * hoverers shoot. The others hover around hover_dx at a random depth offset, so the crowd surrounds instead of stacking. */
 #include "ai.h"
+#include "game_tables.h"
 
-#define TOKENS     1              /* attackers at a time (2 swarmed the player) */
-#define ATTACK_DX  36
-#define HOVER_DX   90
-#define HOVER_GO_DX 16            /* a hoverer at its spot sets off again only when the spot is this far (x) ... */
-#define HOVER_GO_DZ 8             /* ... or this far in depth */
-#define RANGE_MIN  20             /* attack when the player is this close ... */
-#define RANGE_MAX  52             /* ... to this far, and on the same depth line */
-#define RANGE_DZ   6
+/* the numbers are an AI preset's (gamedata.h ai_preset_t, game.json "ai"): minion, minion_attract (the demo's: rests
+ * longer, no grabs, no specials), boss. ai_presets[] lives in RAM (copied from the ROM table at boot): a lab may poke it */
 #define MAX_F      8
-#define GRAB_PLAN  1              /* of 8 approaches end in a grab instead of punches */
-#define SPEC_MIN   70             /* special (forward+D) from this far ... */
-#define SPEC_MAX   140            /* ... to this far, near the player's depth line, about once a second in range (any enemy) */
+ai_preset_t ai_presets[AI_COUNT];
 
 typedef struct {
     uint8_t token;
@@ -30,7 +23,7 @@ typedef struct {
     uint8_t plan_grab;            /* this approach ends in a grab */
     uint8_t moving;               /* hovering: walking to its spot (walks until there, sets off again only when far) */
     int16_t dist;                 /* |dx| + |dz| to him */
-    uint8_t boss;                 /* a boss (ai_set_boss) */
+    const ai_preset_t *p;         /* its preset (ai_init, ai_set) */
     uint8_t jumping;              /* boss: a jump-in under way (C held through the prejump, air B when close) */
 } ai_t;
 
@@ -45,30 +38,29 @@ static uint8_t rnd(void) {                                       /* 16-bit Galoi
 static int16_t iabs(int16_t v) { return v < 0 ? -v : v; }
 static int8_t sgn(int16_t v) { return v > 0 ? 1 : v < 0 ? -1 : 0; }
 static uint8_t able(const fighter_t *f) { return f->state == S_IDLE || f->state == S_WALK; }
-uint8_t ai_weak;
 static void rest(ai_t *a, uint8_t base) {
-    if (a->boss) { a->cooldown = (base >> 2) + (rnd() & 31); a->plan_grab = (rnd() & 7) < GRAB_PLAN; return; }
-    a->cooldown = base + (rnd() & 127) + (ai_weak ? 100 : 0);
-    a->plan_grab = !ai_weak && (rnd() & 7) < GRAB_PLAN;
+    const ai_preset_t *p = a->p;
+    a->cooldown = (base >> p->rest_shift) + (rnd() & p->rest_random) + p->rest_add;
+    a->plan_grab = (p->flags & AIF_GRAB) && (rnd() & 7) < p->grab_plan;
 }
 
-void ai_init(uint16_t seed) {
+void ai_init(uint16_t seed, uint8_t preset) {
     uint8_t i;
     lfsr = seed ? seed : 0xACE1;
     tick = 0;                                     /* the token deal's phase: not carried over from the attract demo */
-    for (i = 0; i < MAX_F; i++) { AI[i].boss = AI[i].jumping = 0; AI[i].token = 0; rest(&AI[i], 30); AI[i].presses = 0; AI[i].retarget = 0; AI[i].press_t = 0; }
+    for (i = 0; i < MAX_F; i++) { AI[i].p = &ai_presets[preset]; AI[i].jumping = 0; AI[i].token = 0; rest(&AI[i], AI[i].p->rest_start); AI[i].presses = 0; AI[i].retarget = 0; AI[i].press_t = 0; }
 }
 
-void ai_set_boss(uint8_t i) { AI[i].boss = 1; rest(&AI[i], 60); }
+void ai_set(uint8_t i, uint8_t preset) { AI[i].p = &ai_presets[preset]; rest(&AI[i], AI[i].p->rest_start); }
 
 /* the closest able enemies (by this frame's distances) without a token get the tokens; a boss always has one */
 static void deal_tokens(fighter_t *fs, uint8_t nf, uint8_t np) {
     uint8_t i, k;
-    for (i = np; i < nf; i++) AI[i].token = AI[i].boss;
-    for (k = 0; k < TOKENS; k++) {
+    for (i = np; i < nf; i++) AI[i].token = AI[i].p->flags & AIF_TOKEN ? 1 : 0;
+    for (k = 0; k < AI_TOKENS; k++) {
         int16_t bd = 0x7FFF; uint8_t bi = 0xFF;
         for (i = np; i < nf; i++) {
-            if (AI[i].token || AI[i].boss || !(able(&fs[i]) || fs[i].state == S_ATTACK)) continue;
+            if (AI[i].token || (AI[i].p->flags & AIF_TOKEN) || !(able(&fs[i]) || fs[i].state == S_ATTACK)) continue;
             if (AI[i].dist < bd) { bd = AI[i].dist; bi = i; }
         }
         if (bi != 0xFF) AI[bi].token = 1;
@@ -98,6 +90,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         fighter_t *e = &fs[i];
         ai_t *a = &AI[i];
         intent_t *o = &in[i];
+        const ai_preset_t *P = a->p;
         int16_t ex, ez, tx, tz;
         if (a->target == 0xFF) { o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0; continue; }   /* nobody to fight */
         ex = INT(e->x); ez = INT(e->z); tx = px[a->target]; tz = pz[a->target];
@@ -108,66 +101,66 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = sgn(dx); o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0;
         if (a->cooldown) a->cooldown--;
         if (e->state == S_GRAB) {                                /* holding: a hit every 24 frames, after two maybe a throw */
-            if (!a->press_t || a->press_t > 24) a->press_t = 24;
+            if (!a->press_t || a->press_t > P->hold_gap) a->press_t = P->hold_gap;
             if (!--a->press_t) {
-                o->press = (rnd() & 1) ? IN_A : IN_B; a->press_t = 24;
-                if (e->grab_hits >= 2 && (rnd() & 1)) { o->dx = e->facing; rest(a, 60); }   /* forward+A / B: a throw */
-                else if (e->grab_hits >= 2) rest(a, 60);         /* the third hit: C+D, the hold ends */
+                o->press = (rnd() & 1) ? IN_A : IN_B; a->press_t = P->hold_gap;
+                if (e->grab_hits >= 2 && (rnd() & 1)) { o->dx = e->facing; rest(a, P->rest_throw); }   /* forward+A / B: a throw */
+                else if (e->grab_hits >= 2) rest(a, P->rest_throw);         /* the third hit: C+D, the hold ends */
             }
             continue;
         }
         if (e->state == S_ATTACK) {                              /* follow-up presses of the current attack */
-            if (a->presses && !--a->press_t) { o->press = IN_A; a->presses--; a->press_t = 10; }
+            if (a->presses && !--a->press_t) { o->press = IN_A; a->presses--; a->press_t = P->press_gap; }
             continue;
         }
         if (a->jumping) {                                        /* boss jump-in: hold C to the take-off (the full */
             if (e->state == S_PREJUMP) { o->hold = IN_C; continue; }   /* jump), air B once close on the way down */
-            if (e->state == S_AIR) { if (e->vy < 0 && iabs(dx) <= 56) { o->press = IN_B; a->jumping = 0; } continue; }
+            if (e->state == S_AIR) { if (e->vy < 0 && iabs(dx) <= P->air_b_dx) { o->press = IN_B; a->jumping = 0; } continue; }
             a->jumping = 0;
         }
         if (!able(e)) { a->presses = 0; continue; }
-        if (a->boss && a->cooldown == 0) {                       /* boss: reversal, specials, jump-ins */
+        if ((P->flags & AIF_BOSS_MOVES) && a->cooldown == 0) {                       /* boss: reversal, specials, jump-ins */
             fighter_t *t = &fs[a->target];
-            if ((t->state == S_ATTACK || t->state == S_AIR_ATTACK) && iabs(dx) < 56 && iabs(dz) <= RANGE_DZ + 6 &&
-                e->ch->specials[BS_DOWN_D].nrows && (rnd() & 3) == 0) {
-                o->press = IN_D; o->dz = 1; rest(a, 160); continue;   /* down+D: the rising reversal */
+            if ((t->state == S_ATTACK || t->state == S_AIR_ATTACK) && iabs(dx) < P->rev_dx && iabs(dz) <= P->rev_dz &&
+                e->ch->specials[BS_DOWN_D].nrows && (rnd() & P->rev_mask) == 0) {
+                o->press = IN_D; o->dz = 1; rest(a, P->rest_rev); continue;   /* down+D: the rising reversal */
             }
-            if (iabs(dz) <= RANGE_DZ + 4 && iabs(dx) >= 20 && iabs(dx) <= 160 && (rnd() & 3) == 0) {
+            if (iabs(dz) <= P->bspec_dz && iabs(dx) >= P->bspec_min && iabs(dx) <= P->bspec_max && (rnd() & P->bspec_mask) == 0) {
                 if (e->facing != sgn(dx)) continue;              /* o->face turns him, the special next frame */
-                o->press = IN_D; if (iabs(dx) < 110 && (rnd() & 1)) o->dx = sgn(dx);   /* D, or forward+D: the rush */
-                rest(a, 180); continue;
+                o->press = IN_D; if (iabs(dx) < P->rush_dx && (rnd() & 1)) o->dx = sgn(dx);   /* D, or forward+D: the rush */
+                rest(a, P->rest_bspec); continue;
             }
-            if (iabs(dz) <= RANGE_DZ + 2 && iabs(dx) >= 24 && iabs(dx) <= 140 && rnd() < 64 && e->facing == sgn(dx)) {
-                o->press = IN_C; o->hold = IN_C; o->dx = sgn(dx); a->jumping = 1; rest(a, 140); continue;   /* jump in */
+            if (iabs(dz) <= P->jump_dz && iabs(dx) >= P->jump_min && iabs(dx) <= P->jump_max && rnd() < P->jump_chance && e->facing == sgn(dx)) {
+                o->press = IN_C; o->hold = IN_C; o->dx = sgn(dx); a->jumping = 1; rest(a, P->rest_jump); continue;   /* jump in */
             }
         }
         if (!a->retarget--) { a->hover_dz = (int8_t)((rnd() & 31) - 16); a->retarget = 60 + (rnd() & 63); }
-        if (a->cooldown == 0 && iabs(dz) <= RANGE_DZ + 4 && iabs(dx) >= SPEC_MIN && iabs(dx) <= SPEC_MAX &&   /* any enemy: the hoverers stand in this range */
-            !ai_weak && e->ch->specials[BS_D].nrows && !rnd() && (rnd() & 1)) {   /* 1 in 512 a frame in range */
+        if (a->cooldown == 0 && iabs(dz) <= P->spec_dz && iabs(dx) >= P->spec_min && iabs(dx) <= P->spec_max &&   /* any enemy: the hoverers stand in this range */
+            (P->flags & AIF_PROJECTILE) && e->ch->specials[BS_D].nrows && !rnd() && (rnd() & 1)) {   /* 1 in 512 a frame in range */
             o->press = IN_D;                                     /* D: the projectile (o->face turns it to the player) */
-            rest(a, 180);
+            rest(a, P->rest_special);
             continue;
         }
-        if (a->token && a->cooldown == 0 && iabs(dz) <= RANGE_DZ && iabs(dx) <= RANGE_MAX) {
-            if (a->plan_grab && iabs(dx) >= RANGE_MIN - 4) {    /* walk into him: contact grabs */
+        if (a->token && a->cooldown == 0 && iabs(dz) <= P->range_dz && iabs(dx) <= P->range_max) {
+            if (a->plan_grab && iabs(dx) >= P->range_min - 4) {    /* walk into him: contact grabs */
                 o->dx = sgn(dx); o->grab = 1;
                 continue;
             }
-            if (iabs(dx) < RANGE_MIN - 4) a->plan_grab = 0;      /* too close to walk in (he is busy): punch */
-            if (iabs(dx) >= RANGE_MIN) {
+            if (iabs(dx) < P->range_min - 4) a->plan_grab = 0;      /* too close to walk in (he is busy): punch */
+            if (iabs(dx) >= P->range_min) {
                 if (e->facing != sgn(dx)) continue;              /* o->face turns him this frame, attack next */
                 o->press = IN_A;
-                a->presses = rnd() & 1;                                      /* 0-1 follow-up */
-                a->press_t = 10;
-                rest(a, 120);
+                a->presses = rnd() & P->follow_mask;                                      /* 0-1 follow-up */
+                a->press_t = P->press_gap;
+                rest(a, P->rest_attack);
                 continue;
             }
         }
-        gx = a->token ? (side > 0 ? tx + ATTACK_DX : tx - ATTACK_DX) : (side > 0 ? tx + HOVER_DX : tx - HOVER_DX);
+        gx = a->token ? (side > 0 ? tx + P->attack_dx : tx - P->attack_dx) : (side > 0 ? tx + P->hover_dx : tx - P->hover_dx);
         gz = tz + (a->token ? 0 : a->hover_dz);
         if (!a->token) {                                         /* hoverers: walk all the way, or stand (no step-stop-step) */
             if (a->moving) { if (iabs(gx - ex) <= 2 && iabs(gz - ez) <= 2) a->moving = 0; }
-            else if (iabs(gx - ex) > HOVER_GO_DX || iabs(gz - ez) > HOVER_GO_DZ) a->moving = 1;
+            else if (iabs(gx - ex) > P->hover_go_dx || iabs(gz - ez) > P->hover_go_dz) a->moving = 1;
             if (!a->moving) continue;
         }
         o->slow = 1;                                             /* half speed, every frame (no on/off walk intent) */

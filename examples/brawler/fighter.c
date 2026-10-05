@@ -5,6 +5,7 @@
 #include "neo_internal.h"
 #include "fighter.h"
 #include "sound.h"
+#include "game_tables.h"
 
 /* draw.s reads these structures at fixed offsets (its .equ list): the build stops if a field moves */
 #include <stddef.h>
@@ -224,23 +225,24 @@ static void set_burn(fighter_t *f, uint8_t burn) {
     for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, BURN_PAL[burn - 1]);
 }
 /* minion tints (Bruno 2026-10-05: minions never in a playable colour set): the set's colour pulled toward its luminance
- * (5 R + 9 G + 2 B) / 16, darkened, then a cast; colour 0 (transparent) untouched */
-uint16_t fighter_colour(const fighter_t *f, uint16_t c) {
-    int16_t r, g, b, l;
-    if (!f->tint) return c;
-    r = ((c >> 7) & 0x1E) | ((c >> 14) & 1); g = ((c >> 3) & 0x1E) | ((c >> 13) & 1); b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
-    l = (r * 5 + g * 9 + b * 2) >> 4;
-    switch (f->tint) {
-    case 1:  r = ((l + r) * 11) >> 5; g = ((l + g) * 11) >> 5; b = ((l + b) * 11) >> 5; break;                      /* shade */
-    case 2:  r = (((l * 3 + r) * 14) >> 6) - 1; g = ((l * 3 + g) * 14) >> 6; b = (((l * 3 + b) * 14) >> 6) + 3; break;   /* ash */
-    default: r = (((l + r) * 12) >> 5) + 3; g = ((l + g) * 12) >> 5; b = (((l + b) * 12) >> 5) - 2; break;           /* rust */
+ * (5 R + 9 G + 2 B) / 16 by the tint's numbers (gamedata.h gtint_t, game.json "tints": shade, ash, rust); colour 0
+ * (transparent) untouched */
+static __attribute__((noinline)) uint16_t tint_colour(uint8_t tint, uint16_t c) {
+    int16_t v[3], l;
+    uint8_t k;
+    const gtint_t *t = &gtints[tint];
+    v[0] = ((c >> 7) & 0x1E) | ((c >> 14) & 1); v[1] = ((c >> 3) & 0x1E) | ((c >> 13) & 1); v[2] = ((c << 1) & 0x1E) | ((c >> 12) & 1);
+    l = (v[0] * 5 + v[1] * 9 + v[2] * 2) >> 4;
+    for (k = 0; k < 3; k++) {
+        int16_t m = l * (int16_t)t->mix + v[k];                     /* 16 x 16 multiplies: muls, no libgcc */
+        v[k] = ((int16_t)(m * (int16_t)t->mul) >> t->shift) + t->add[k];
+        if (v[k] < 0) v[k] = 0;
+        if (v[k] > 31) v[k] = 31;
     }
-    if (r < 0) r = 0;
-    if (b < 0) b = 0;
-    if (r > 31) r = 31;
-    if (b > 31) b = 31;
-    return RGB(r, g, b);
+    return RGB(v[0], v[1], v[2]);
 }
+uint16_t fighter_colour(const fighter_t *f, uint16_t c) { return f->tint ? tint_colour(f->tint, c) : c; }   /* the
+                                                             untinted path stays as cheap as before (fades call it per colour) */
 void fighter_load_pals(const fighter_t *f) {
     uint16_t buf[16];
     uint8_t i, j;

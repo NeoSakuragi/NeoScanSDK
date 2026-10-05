@@ -4,7 +4,7 @@ bspec_t.proj) played in the brawler (harness.py, `make AI_OFF=1` build, the figh
 enemies' intents written by the test) next to the game's measurements of the same move (tools/kof96/projectiles96.py:
 our emulator, P2 held off the ground / standing 60, 120, 200 px ahead).
 
-    python3 check_projectiles.py [game:name ...]        (default: CHARS of examples/brawler/Makefile)
+    python3 check_projectiles.py [game:name ...]        (default: the roster of examples/brawler/game.json)
 
 Per projectile, brawler / game:
   spawn      frame of the special's script it appears on (row 0 = the special's first frame)
@@ -24,9 +24,9 @@ from harness import Brawler
 X0, Z0 = 150, 32                                 # thrower's place
 FAR = (1000, 0)                                  # the others: out of the way (other end of the stage, back line)
 
-def chars_from_makefile():
-    mk = open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'Makefile')).read()
-    return re.search(r'^CHARS\s*=\s*(.+)$', mk, re.M).group(1).split()
+def chars_from_makefile():                       # the roster of examples/brawler/game.json (bm_chars order)
+    import build_tables
+    return build_tables.chars(build_tables.load(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))
 
 def picked(specs):
     """game:name -> (special input, its game projectile definitions) of the D role"""

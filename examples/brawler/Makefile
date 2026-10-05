@@ -6,7 +6,7 @@ ROM_NAME = brawler
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
-CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(SDK)/src -I$(BUILD) -Wall -DPROFILE_HUD=$(PROFILE) -DAI_OFF=$(AI_OFF) -DSTAGE=$(STAGE)
+CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(SDK)/src -I$(BUILD) -I. -Wall -DPROFILE_HUD=$(PROFILE) -DAI_OFF=$(AI_OFF) -DSTAGE=$(STAGE)
 PROFILE ?= 0
 AI_OFF ?= 0
 STAGE ?= 0                # the stage the fight starts on (stage.h stages[], tools/brawler/make_stage_ra.py STAGES)
@@ -15,11 +15,19 @@ CFLAGS += -DGAME_VERSION='"$(VERSION)"'
 
 all: $(ROM_NAME).zip
 
+# --- The game's data: game.json (docs/brawler_data_model.md) -> build/roster.json (the fighter export's inputs, rewritten
+# only when they change) and build/game_tables.c / .h (stages, waves, enemies, AI presets, select slots, unlocks) ---
+CHARS := $(shell python3 $(TOOLS)/brawler/build_tables.py chars game.json)   # the roster's bank specs, bm_chars order
+$(BUILD)/roster.json: game.json $(TOOLS)/brawler/build_tables.py
+	@mkdir -p $(BUILD)
+	python3 $(TOOLS)/brawler/build_tables.py roster game.json $@
+$(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/build_tables.py $(BUILD)/stage.h
+	python3 $(TOOLS)/brawler/build_tables.py tables game.json $(CURDIR)/$(BUILD)
+
 # --- Fighters: beat 'em up subset of the KOF dictionaries (needs /data/roms/kof96/98/99.neo) ---
-CHARS = kof98:terry kof98:ryo kof98:ralf kof98:robert kof98:yamazaki kof98:billy kof98:kyo kof98:iori kof98:mai kof98:yashiro kof96:geese kof96:mr_big kof96:krauser kof99:k_dash kof98:rugal kof96:goenitz
-$(BUILD)/bm_chars.c $(BUILD)/bm_chars.h $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h &: $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json
+$(BUILD)/bm_chars.c $(BUILD)/bm_chars.h $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json
 	mkdir -p $(BUILD)
-	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) $(CHARS)
+	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json
 	python3 $(TOOLS)/brawler/make_stage_ra.py $(CURDIR)/$(BUILD)   # needs /data/roms/roboarmy.neo
 	python3 $(TOOLS)/brawler/make_banner.py $(CURDIR)/$(BUILD)
 	python3 $(TOOLS)/brawler/make_sparks.py $(CURDIR)/$(BUILD)
@@ -40,7 +48,9 @@ $(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h &: songs.json $(SND
 $(BUILD)/stage_opt: FORCE                  # the STAGE option of the last build: main.o is rebuilt when it changes
 	@mkdir -p $(BUILD); echo $(STAGE) | cmp -s - $@ || echo $(STAGE) > $@
 $(BUILD)/main.o: $(BUILD)/stage_opt
-$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h fighter.h ai.h sound.h $(BUILD)/snd/songs.h VERSION
+$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h VERSION
+	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/bm_chars.o: $(BUILD)/bm_chars.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -49,7 +59,7 @@ $(BUILD)/draw.o: draw.s
 	$(CC) -m68000 -c $< -o $@
 
 # --- Link ---
-$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars.o $(SDK)/lib/libneoscan.a
+$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---

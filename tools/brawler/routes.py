@@ -82,11 +82,12 @@ def default_tree():
                         'air_cd': air('atk_cd_jump', 10, 'strong', 'knockdown', 0)}}
 
 
-def load(name):
-    """the fighter's tree: its routes file (entries it leaves out: the default's), else the default tree"""
-    p = os.path.join(ROUTES_DIR, f'{name}.json')
+def load(name, path=None):
+    """the fighter's tree: its routes file (game.json roster[].routes; entries it leaves out: the default's), else
+    (path None) the default tree"""
+    p = path
     d = default_tree()
-    if not os.path.exists(p): return dict(d, fighter=name)
+    if p is None: return dict(d, fighter=name)
     t = json.load(open(p))
     t['entries'] = {**d['entries'], **t.get('entries', {})}
     t['fighter'] = name

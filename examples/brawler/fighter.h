@@ -158,7 +158,7 @@ typedef struct fighter {
     uint8_t  prow, pend;
     struct fighter *shot;         /* thrower: its projectile in flight (KOF: one at a time, owner +$E1 bit 5) */
     uint8_t  power;               /* extra damage every hit it lands (campaign: later stages and bosses hit harder) */
-    uint8_t  tint;                /* minion colours (fighter_colour): 0 = its own colour set, 1-3 = shade / ash / rust */
+    uint8_t  tint;                /* minion colours (fighter_colour): gtints[] index, 0 = its own colour set */
     int16_t  hp_max;              /* its life at spawn when not 60 (campaign difficulty: enemies, bosses); 0 = 60 */
     /* playback (fighter.c "animation player"): acc = time spent in the current step (animation) or row (special / throw
      * script) in 1/256 frames, speed = 8.8 frames per frame (play() sets 0x0100, a route node / a throw its own), srow =

@@ -12,6 +12,7 @@
 #include "banner.h"
 #include "sparks.h"
 #include "hud.h"
+#include "game_tables.h"
 
 static uint16_t TEXT_PAL[16] = { 0x8000, COLOR_WHITE, RGB(20, 25, 31), RGB(31, 31, 0), RGB(31, 6, 4), RGB(6, 6, 10) };   /* 6-15: life bar (hud.h) */
 #ifndef GAME_VERSION
@@ -45,7 +46,7 @@ static fighter_t fighters[NF];
 static fighter_t *order[NA];                     /* back (small Z) to front, the nf entities in play */
 static uint8_t nf;                               /* entities in play: the previews on the select screen, NE in the fight */
 static uint8_t mode;                             /* 0 select, 1 fight, 2 title, 3 BOSS UNLOCKED, 4 the ending */
-static uint8_t attract;                          /* the fight is the attract demo: P1 is ai_bot, enemies ai_weak */
+static uint8_t attract;                          /* the fight is the attract demo: P1 is ai_bot, enemies their attract_ai */
 static uint16_t attract_t;
 static uint8_t tap_t[2], tap_dir[2];             /* double-tap run detection per player */
 static void fight_fade(void);
@@ -99,7 +100,7 @@ static void arcade_line(void) {                               /* bottom line, ev
 }
 
 /* ---- stages (tools/brawler/make_stage_ra.py: Robo Army's horizontal parts, placeholders; stage.h stages[]): one at a
- * time, stage_init(n) at each stage start (the campaign's CAMP_STAGE; the attract demo: STAGE, make STAGE=n). One plane of 21 sprites (22-42), a
+ * time, stage_init(n) at each stage start (the campaign's gstages[].bg; the attract demo: STAGE, make STAGE=n). One plane of 21 sprites (22-42), a
  * ring: sprite s shows the plane column c with c mod 21 = s, so scrolling rewrites one column's tiles when a new one
  * comes into view; X of all 21 is one run per frame. stg->rows tiles from screen y stg->y, at the camera (Robo Army has
  * no parallax); above it the backdrop (stg->backdrop, Robo Army's black). Palettes STAGE_PAL .. STAGE_PAL + stg->npal - 1
@@ -560,50 +561,20 @@ static void hud(void) {
     }
 }
 
-#define CAMP_N    5
-#define WAVES_N   5
 #define CONTINUE  600
 #define BOSS_IDX  2                              /* the boss's fighter slot; minions 3.. */
-static const uint8_t CAMP_STAGE[CAMP_N] = { 0, 1, 3, 4, 5 };
-/* the bosses, one a stage. name: the export name in CHARS (Makefile); while it is missing, stand_in fights in its place
- * (Rugal and Goenitz are being exported, to be added at the end of CHARS: nothing here changes when they arrive, the
- * name is found). song: its theme, started when it comes in; placeholders = the fight music ($27) until the real songs
- * are converted (Mr Big: AOF2, Krauser: FF Special "Kaiser Wave", Geese: FF Special, Rugal: KOF98, Goenitz: KOF96):
- * put their command bytes here. A boss whose own fighter is in CHARS is locked on the select screen until beaten
- * (save.unlocked bit k = BOSS[k]). */
-typedef struct { const char *name, *stand_in; uint8_t song; } boss_t;
-static const boss_t BOSS[CAMP_N] = {
-    { "MR_BIG",  "MR_BIG",  MUS_BOSS_MR_BIG },
-    { "KRAUSER", "KRAUSER", MUS_BOSS_KRAUSER },
-    { "GEESE",   "GEESE",   MUS_BOSS_GEESE },
-    { "RUGAL",   "YASHIRO", MUS_BOSS_RUGAL },
-    { "GOENITZ", "IORI",    MUS_BOSS_GOENITZ },
-};
-#define BOSS_HP(s)    (100 + (s) * 4)            /* 1.7-1.9 x a fighter's 60 (bar: 2 px a point, 30 cells = 238 px) */
-#define BOSS_POWER(s) (1 + (((s) + 1) >> 1))
-static uint8_t boss_ch[CAMP_N];                  /* bm_chars index of each boss (its stand-in while missing) */
-static uint8_t boss_real;                        /* bit k: BOSS[k]'s own fighter is in CHARS */
-static uint8_t streq(const char *a, const char *b) { while (*a && *a == *b) { a++; b++; } return *a == *b; }
-static uint8_t char_named(const char *n) {
-    uint8_t c;
-    for (c = 0; c < BC_COUNT; c++) if (streq(bm_chars[c].name, n)) return c;
-    return 0xFF;
+/* the game's data (gamedata.h, generated from game.json by tools/brawler/build_tables.py): the campaign's stages with
+ * their waves and bosses, the enemies, the AI presets. Read through these pointers / the RAM copy (gdata_init), so a
+ * lab can swap a table while the game runs, as route_tab does for the chain routes. */
+const gstage_t *gstages;
+const genemy_t *genemies;
+static void gdata_init(void) {
+    uint8_t i, k;
+    gstages = gstages_rom; genemies = genemies_rom;
+    for (i = 0; i < AI_COUNT; i++)
+        for (k = 0; k < sizeof(ai_preset_t); k++) ((uint8_t *)&ai_presets[i])[k] = ((const uint8_t *)&ai_presets_rom[i])[k];
 }
-static void bosses_find(void) {
-    uint8_t k, c;
-    boss_real = 0;
-    for (k = 0; k < CAMP_N; k++) {
-        c = char_named(BOSS[k].name);
-        if (c != 0xFF) boss_real |= 1 << k;
-        else if ((c = char_named(BOSS[k].stand_in)) == 0xFF) c = 0;
-        boss_ch[k] = c;
-    }
-}
-static uint8_t boss_of(uint8_t c) {              /* k + 1 when fighter c is boss k's own fighter, else 0 */
-    uint8_t k;
-    for (k = 0; k < CAMP_N; k++) if ((boss_real >> k & 1) && boss_ch[k] == c) return k + 1;
-    return 0;
-}
+static uint8_t boss_fighter(uint8_t s) { return genemies[gstages[s].boss].base; }   /* bm_chars index of stage s's boss */
 
 /* ---- save data (SNK conventions, sdk neo_backup.h): MVS = the header's backup RAM block (this struct, NEO_BACKUP):
  * the BIOS copies it into battery RAM (its area for our NGH) each time the game hands control back (SYSTEM_RETURN:
@@ -633,7 +604,7 @@ static uint16_t save_sum(const save_t *s) {
 static uint8_t save_ok(save_t *s) {                      /* a format 1 save is upgraded in place (difficulty NORMAL) */
     uint8_t i;
     for (i = 0; i < 3; i++) if (s->magic[i] != SAVE_MAGIC[i]) return 0;
-    if ((s->magic[3] != '1' && s->magic[3] != '2') || s->sum != save_sum(s) || s->furthest >= CAMP_N) return 0;
+    if ((s->magic[3] != '1' && s->magic[3] != '2') || s->sum != save_sum(s) || s->furthest >= GS_COUNT) return 0;
     if (s->magic[3] == '1') s->difficulty = 1;
     if (s->difficulty > 3) s->difficulty = 1;
     s->magic[3] = '2'; s->sum = save_sum(s);
@@ -661,7 +632,7 @@ static void save_load(void) {
     if (!save_ok(&save)) save_reset();
     difficulty = save.difficulty;
 }
-static uint8_t char_locked(uint8_t c) { uint8_t k = boss_of(c); return k && !(save.unlocked >> (k - 1) & 1); }
+static uint8_t char_locked(uint8_t c) { uint8_t k = roster_unlock[c]; return k && !(save.unlocked >> (k - 1) & 1); }
 static uint8_t camp, camp_from;                  /* the stage in play; the one a new game starts at (title CONTINUE) */
 
 /* ---- title banner (tools/brawler/make_banner.py): one sticky sprite chain, BANNER_COLS columns of BANNER_ROWS tiles,
@@ -722,7 +693,7 @@ static void title_start(void) {
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     title_screen();
     bios_start = 0;
-    snd_music(MUS_SELECT);
+    snd_music(GAME_MUS_SELECT);
     save_load();
     title_sel = save.furthest != 0; title_hold = 0; title_paid = 0;   /* line 1 = CONTINUE when there is one */
     title_menu();
@@ -780,7 +751,7 @@ static void options_exit(void) {
     opt_on = 0;
     if (difficulty != opt_diff0) { save.difficulty = difficulty; save_write(); }   /* AES: CARD_SAVE at once */
     title_screen(); title_menu();
-    snd_music(MUS_SELECT);
+    snd_music(GAME_MUS_SELECT);
 }
 static void options_tick(void) {
     uint16_t pr = JOY_pressed(0), h = JOY_held(0);
@@ -841,32 +812,22 @@ static void title_tick(void) {
  * photo, everyone at once: the front rows the playable fighters, the back row the campaign bosses (a locked boss is a
  * dark silhouette, not selectable; once beaten it is in colour / grey like the others). Each fighter holds its 'watch'
  * pose (export_bm.WATCH: a front-facing frame from its intros / win poses), turned toward the middle. The places are
- * slots (SEL_SLOT: x, z, row), independent of who stands in them (SEL_PLACE: the fighter of each slot), so moving
- * someone on screen is a change to SEL_PLACE only. The cursor's fighter shows its colours, the others shades of grey
+ * slots (SEL_SLOT: x, z, row), independent of who stands in them (sel_fighter: the fighter of each slot), so moving
+ * someone on screen is a change to game.json's select slots only. The cursor's fighter shows its colours, the others shades of grey
  * (their own palettes in luminance). "1P" / "2P" with an arrow above the selected head (fix layer). Stick left / right
  * moves within a row, up / down to the row behind / in front (the nearest fighter in x); A/B/C/D picks that colour set
  * (KOF style) and plays the win pose. P2 joins here with START (a credit) and picks too; the two can't pick the same
  * fighter. When everyone in has picked, the others walk off the screen outward, the scene fades to black and the
  * fight's stage fades in. Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
-#define SEL_NSLOT 16
 #define SEL_BACK 2                       /* the bosses' row */
 #define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
 #define FADE_T 32                        /* frames of a fade (level = t / 2, 16 steps) */
 _Static_assert(BC_COUNT <= SEL_NSLOT && BC_COUNT <= NA, "group photo: a slot and an actor per fighter");
-typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
-/* the slots: x (px), z (feet at SELECT_FLOOR + z), row (0 front: low on the screen, drawn in front; 2 back: higher,
- * behind). Front rows 48 px apart, inside x 16-304 (the 304 px a TV shows) (the watch poses are 40-80 px wide: shoulders overlap, as in a photo), the middle row
- * between the front row's fighters, the back row spread wider. */
-static const sel_slot_t SEL_SLOT[SEL_NSLOT] = {
-    { 40, 48, 0 }, { 88, 48, 0 }, { 136, 48, 0 }, { 184, 48, 0 }, { 232, 48, 0 }, { 280, 48, 0 },
-    { 64, 24, 1 }, { 112, 24, 1 }, { 160, 24, 1 }, { 208, 24, 1 }, { 256, 24, 1 },
-    { 48, 0, SEL_BACK }, { 104, 0, SEL_BACK }, { 160, 0, SEL_BACK }, { 216, 0, SEL_BACK }, { 272, 0, SEL_BACK } };
-/* who stands where (export names, CHARS): SEL_PLACE[slot]. A fighter not listed takes the first free slot of its kind
- * (a boss: the back row; the others: rows 0-1); a listed name not in the build leaves its slot empty. */
-static const char *const SEL_PLACE[SEL_NSLOT] = {
-    "TERRY", "RYO", "RALF", "ROBERT", "YAMAZAKI", "BILLY",
-    "KYO", "IORI", "MAI", "YASHIRO", "K_DASH",
-    "MR_BIG", "KRAUSER", "GEESE", "RUGAL", "GOENITZ" };   /* the bosses in stage order */
+/* the slots (game.json "select", gamedata.h sel_slot_t): x (px), z (feet at SELECT_FLOOR + z), row (0 front: low on the
+ * screen, drawn in front; 2 back, SEL_BACK: higher, behind); sel_fighter[slot] = who stands there (the generator checks
+ * every roster fighter has one). Today: front rows 48 px apart inside x 16-304 (the 304 px a TV shows; the watch poses
+ * are 40-80 px wide: shoulders overlap, as in a photo), the middle row between the front row's fighters, the bosses in
+ * stage order on the back row, spread wider. */
 enum { SEL_CHOOSE, SEL_LEAVE, SEL_FADE };
 static uint8_t cursor[2], picked[2], pick_set[2];   /* cursor: a slot (0xFF: that player isn't in) */
 static uint8_t sel_phase, fade_in;
@@ -884,14 +845,8 @@ static void roster_build(void) {
     for (c = 0; c < BC_COUNT; c++) if (!char_locked(c)) lu[lu_n++] = c;
 }
 static void slots_build(void) {
-    uint8_t s, c;
-    for (s = 0; s < SEL_NSLOT; s++) slot_ch[s] = char_named(SEL_PLACE[s]);
-    for (c = 0; c < BC_COUNT; c++) {
-        for (s = 0; s < SEL_NSLOT && slot_ch[s] != c; s++) ;
-        if (s < SEL_NSLOT) continue;
-        for (s = 0; s < SEL_NSLOT && (slot_ch[s] != 0xFF || (SEL_SLOT[s].row == SEL_BACK) != (boss_of(c) != 0)); s++) ;
-        if (s < SEL_NSLOT) slot_ch[s] = c;
-    }
+    uint8_t s;
+    for (s = 0; s < SEL_NSLOT; s++) slot_ch[s] = sel_fighter[s];
 }
 static uint8_t selectable(uint8_t s) { return slot_ch[s] != 0xFF && !char_locked(slot_ch[s]); }
 static uint8_t arrow_col[2] = { 0xFF, 0xFF }, arrow_row[2];
@@ -985,9 +940,9 @@ static void select_name(void) {                             /* top: P1's fighter
 }
 static void select_start(void) {
     uint8_t p, i, s, a = 0;
-    mode = 0; sel_t = 0; sel_phase = SEL_CHOOSE; attract = 0; ai_weak = 0;
+    mode = 0; sel_t = 0; sel_phase = SEL_CHOOSE; attract = 0;
     inputs_reset();
-    snd_music(MUS_SELECT);
+    snd_music(GAME_MUS_SELECT);
     FIX_clear(); arcade_line_reset();
     PAL_setBackdrop(RGB8(72, 76, 84));                       /* the photo's wall */
     stage_hide();                                            /* stage sprites hidden */
@@ -1005,24 +960,24 @@ static void select_start(void) {
     nf = NA;
     cam_x = 0; select_name();
 }
-/* ---- campaign (Bruno 2026-10-05, Streets of Rage 2 / Golden Axe style): five stages, Robo Army's horizontal ones in
- * this order (stages[] 0, 1, 3, 4, 5; 2, the 512 px boss arena, is not used). Each stage scrolls end to end through
- * WAVES_N lock points spread evenly from its start (camera x 0) to its end (world_w - 320): at a lock point the camera
- * stops until the wave there is beaten, then GO blinks and the camera may scroll on to the next one (never back). Wave w
- * of stage s: 2 + s + w enemies (at most NF - 2 = 6), the fighters nobody picked and no boss, walking in from the right
- * (every other one from the left when there is room); stage s's enemies land (s + 1) / 2 extra damage a hit (`power`).
- * At the stage's end its boss (BOSS[s]) comes in with 2 + s minions (at most 5) in minion colours (fighter_colour's
- * tints: never a playable colour set); the boss bar under the HUD; boss beaten: the minions go down, STAGE CLEAR, the
- * save (furthest stage, boss unlocked), BOSS UNLOCKED when its fighter was locked, the fade to the next stage. After
- * the fifth: CONGRATULATIONS, then the title. Players: 3 lives, a 10 s continue (START with a credit); both out:
- * GAME OVER, back to the BIOS. The attract demo plays stage STAGE (make STAGE=n, stages[] index) without a boss. ---- */
+/* ---- campaign (Bruno 2026-10-05, Streets of Rage 2 / Golden Axe style): the stages of game.json in order (gstages[]:
+ * today Robo Army's horizontal ones, stages[] 0, 1, 3, 4, 5; 2, the 512 px boss arena, is not used). Each stage scrolls
+ * through its waves' lock points (camera x): at a lock point the camera stops until the wave there is beaten, then GO
+ * blinks and the camera may scroll on to the next one (never back), the last one the boss's. A wave's spawns (at most
+ * NF - 2 = 6) are enemies (genemies[]): a fixed fighter or one of a pool (the fighters nobody picked: pick mod the pool
+ * left), at a world x or walking in from off screen (the right, or the left when there is room); the stage's enemies
+ * land `power` extra damage a hit. At the stage's end its boss comes in with its minions (at most 5, in minion colours:
+ * fighter_colour's tints, never a playable colour set); the boss bar under the HUD; boss beaten: the minions go down,
+ * STAGE CLEAR, the save (furthest stage, boss unlocked), BOSS UNLOCKED when its fighter was locked, the fade to the next
+ * stage. After the last: CONGRATULATIONS, then the title. Players: 3 lives, a 10 s continue (START with a credit); both
+ * out: GAME OVER, back to the BIOS. The attract demo plays the first stage's waves on background STAGE (make STAGE=n,
+ * stages[] index) without a boss, the last wave again and again. ---- */
 
 static uint8_t unlock_k;                         /* the boss just unlocked + 1 (0 none) */
 static uint16_t phase_t;
-static int16_t lock_step;                        /* between two lock points */
+static const gstage_t *gs;                       /* the stage playing: gstages[camp] */
 static uint8_t power;                            /* this stage's enemies' extra damage */
 static uint8_t pl_ch[2], pl_set[2], pl_on[2];   /* the players, carried from stage to stage (pl_on: in play) */
-static uint8_t avail[BC_COUNT], navail;          /* the enemies: fighters nobody picked, no boss */
 static uint16_t banner_t;                        /* GAME OVER on screen, frames left */
 
 static uint8_t mod8(uint8_t a, uint8_t b) { while (a >= b) a -= b; return a; }   /* no libgcc: no 32-bit % */
@@ -1030,64 +985,82 @@ static void hud_wave(void) {
     FIX_print(2, 26, "STAGE   WAVE   ", 0); FIX_printNum(8, 26, camp + 1, 0);
     if (phase >= PH_BOSS) FIX_print(10, 26, "BOSS ", 0); else FIX_printNum(15, 26, wave + 1, 0);
 }
-static void enemy_init(uint8_t slot, uint8_t c, uint8_t set, int16_t x, int16_t z, uint8_t tint) {
+static int16_t lock_at(int16_t x) { int16_t m = world_w - 320; return x > m ? m : x; }   /* inside the background shown */
+static uint8_t ai_of(const genemy_t *en) { return attract ? en->attract_ai : en->ai; }
+static void enemy_init(uint8_t slot, uint8_t c, uint8_t set, int16_t x, int16_t z, uint8_t tint, const genemy_t *en) {
     fighter_t *e = &fighters[slot];
     if (x < 16) x = 16;
     if (x > world_w - 16) x = world_w - 16;
     fighter_init(e, &bm_chars[c], mod8(set, bm_chars[c].nsets), 16 + slot * MAX_PALS, 1, x, z);
-    e->idx = slot; e->power = power; e->tint = tint;
-    if (!attract) e->hp = e->hp_max = life(LIFE);         /* the campaign's difficulty (the demo: as it was) */
+    e->idx = slot; e->power = power + en->power; e->tint = tint;
+    if (!attract) e->hp = e->hp_max = life(en->life);     /* the campaign's difficulty (the demo: as it was) */
     if (tint) fighter_load_pals(e);
 }
-static int16_t walk_in_x(uint8_t k) {            /* off screen: the right, every other one the left when there is room */
-    if ((k & 1) && cam_x >= 64) return cam_x - 24 - (k >> 1) * 36;
-    return cam_x + 340 + (k >> 1) * 36;
+static int16_t spawn_x(const gspawn_t *sp) {     /* off screen: the right, or the left (SP_LEFT) when there is room */
+    int16_t r = (sp->flags >> 4) * 36;
+    if (!(sp->flags & SP_WALK_IN)) return sp->x;
+    if ((sp->flags & SP_LEFT) && cam_x >= 64) return cam_x - 24 - r;
+    return cam_x + 340 + r;
+}
+static uint8_t pool_pick(const genemy_t *en, uint8_t pick, uint8_t avoid) {   /* the pool without the players' fighters */
+    uint8_t av[BC_COUNT], n = 0, i, c, m;
+    for (i = 0; i < en->npool; i++) {
+        c = en->pool[i];
+        if (!(pl_on[0] && c == pl_ch[0]) && !(pl_on[1] && c == pl_ch[1])) av[n++] = c;
+    }
+    m = mod8(pick, n);
+    if (av[m] == avoid) m = mod8(m + 1, n);                /* SP_NOT_BOSS: not the boss's own fighter */
+    return av[m];
+}
+static void spawn(uint8_t slot, const gspawn_t *sp, uint8_t boss_c) {
+    const genemy_t *en = &genemies[sp->enemy];
+    uint8_t c = en->base != 0xFF ? en->base : pool_pick(en, sp->pick, sp->flags & SP_NOT_BOSS ? boss_c : 0xFF);
+    enemy_init(slot, c, sp->set, spawn_x(sp), sp->z, sp->tint, en);
+}
+/* the spawns' AI: every slot the first spawn's preset (ai_init, the RNG seeded), then any other spawn's its own */
+static void spawns_ai(uint16_t seed, const gspawn_t *sp, uint8_t n, uint8_t slot0) {
+    uint8_t k, p0 = n ? ai_of(&genemies[sp[0].enemy]) : AI_MINION, p;
+    ai_init(seed, p0);
+    for (k = 0; k < n; k++) if ((p = ai_of(&genemies[sp[k].enemy])) != p0) ai_set(slot0 + k, p);
 }
 static void spawn_wave(void) {
-    uint8_t k, n = 2 + camp + wave;
-    if (n > NF - 2) n = NF - 2;
+    const gwave_t *w = &gs->waves[wave];
+    uint8_t k;
     for (k = 0; k < NF - 2; k++) {
-        if (k >= n) { fighters[2 + k].state = S_OFF; continue; }
-        enemy_init(2 + k, avail[mod8(wave * 3 + k + camp, navail)], wave + k, wave ? walk_in_x(k) : 200 + k * 30, 6 + k * 11, 0);
+        if (k >= w->n) { fighters[2 + k].state = S_OFF; continue; }
+        spawn(2 + k, &gs->spawns[w->first + k], 0xFF);
     }
-    ai_init(0x1D2B + wave + camp * 8);
+    spawns_ai(w->seed, &gs->spawns[w->first], w->n, 2);
     hud_wave();
 }
 static void boss_start(void) {
-    uint8_t k, c = boss_ch[camp], n = 2 + camp, set = 0;
+    const genemy_t *be = &genemies[gs->boss];
+    uint8_t k, c = be->base, set = 0;
     phase = PH_BOSS; phase_t = 0;
-    if (n > NF - 3) n = NF - 3;
     if (c == pl_ch[0] && !pl_set[0]) set = 1;           /* never in P1's colours */
-    enemy_init(BOSS_IDX, c, set, world_w - 16, 30, 0);
-    fighters[BOSS_IDX].hp = fighters[BOSS_IDX].hp_max = life(BOSS_HP(camp)); fighters[BOSS_IDX].power = BOSS_POWER(camp);
+    enemy_init(BOSS_IDX, c, set, gs->boss_x, gs->boss_z, 0, be);
     for (k = 0; k < NF - 3; k++) {
-        uint8_t m = mod8(k * 3 + camp, navail);
-        if (avail[m] == c) m = mod8(m + 1, navail);         /* not the boss's own fighter (a stand-in is in the pool) */
-        m = avail[m];
-        if (k >= n) { fighters[3 + k].state = S_OFF; continue; }
-        enemy_init(3 + k, m, k + camp, walk_in_x(k), 6 + k * 13, 1 + mod8(k + camp, 3));
+        if (k >= gs->nmin) { fighters[3 + k].state = S_OFF; continue; }
+        spawn(3 + k, &gs->spawns[gs->boss_first + k], c);
     }
-    ai_init(0x5B05 + camp);
-    ai_set_boss(BOSS_IDX);
-    snd_music(BOSS[camp].song);
+    spawns_ai(gs->boss_seed, &gs->spawns[gs->boss_first], gs->nmin, 3);
+    ai_set(BOSS_IDX, ai_of(be));
+    snd_music(gs->boss_song);
     hud_wave();
 }
 static void go_sign(uint8_t on) { FIX_print(29, 3, on ? "GO -->" : "      ", 1); }   /* yellow, in the HUD's black band */
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
-    int16_t span;
-    mode = 1; nf = NE; cam_x = 0; wave = 0; banner_t = 0; camp = s; phase = PH_WAVE; phase_t = 0;
+    mode = 1; nf = NE; cam_x = 0; wave = 0; banner_t = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
     inputs_reset();
-    snd_music(MUS_FIGHT);
+    snd_music(gs->music);
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
     sparks_init();
     FIX_clear(); arcade_line_reset();
-    stage_init(attract ? STAGE : CAMP_STAGE[s]);             /* stage sprites back, every column rewritten */
+    stage_init(attract ? STAGE : gs->bg);             /* stage sprites back, every column rewritten */
     PAL_setBackdrop(stg->backdrop);
-    span = world_w - 320; lock_step = 0;
-    while (span >= WAVES_N) { span -= WAVES_N; lock_step++; }   /* (world_w - 320) / WAVES_N, no divide */
-    lock_x = 0;
-    power = (s + 1) >> 1;
+    lock_x = lock_at(gs->waves[0].lock);
+    power = gs->power;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     for (i = 0; i < 2; i++) {
         if (!pl_on[i]) { fighters[i].state = S_OFF; if (first) { lives[i] = 0; cont_t[i] = 0; } continue; }   /* out: its
@@ -1096,8 +1069,6 @@ static void stage_begin(uint8_t s, uint8_t first) {
         fighters[i].idx = i;
         if (first) { lives[i] = 3; cont_t[i] = 0; }
     }
-    navail = 0;
-    for (i = 0; i < BC_COUNT; i++) if (!(pl_on[0] && i == pl_ch[0]) && !(pl_on[1] && i == pl_ch[1]) && !boss_of(i)) avail[navail++] = i;
     spawn_wave();
     if (fade_in) { fade_in++; fade_k = 0xFF; fight_fade(); } /* from black (the select screen, the last stage) */
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
@@ -1115,7 +1086,7 @@ static void attract_start(void) {
     if (pick >= lu_n) pick = 0;
     pl_ch[0] = lu[pick]; pl_set[0] = mod8(pick & 3, bm_chars[pl_ch[0]].nsets); pl_on[0] = 1; pl_on[1] = 0;
     pick++;
-    attract = 1; attract_t = 0; ai_weak = 1;
+    attract = 1; attract_t = 0;
     fight_start();
 }
 static void select_start(void);
@@ -1137,15 +1108,15 @@ static void campaign(uint8_t left) {
     switch (phase) {
     case PH_WAVE:                                            /* camera held at lock_x until the wave is beaten */
         if (left) break;
-        if (attract && wave + 1 >= WAVES_N) { spawn_wave(); break; }   /* the demo: no boss, the last wave again */
+        if (attract && wave + 1 >= gs->nwaves) { spawn_wave(); break; }   /* the demo: no boss, the last wave again */
         wave++; phase = PH_GO; phase_t = 0;
-        lock_x = wave < WAVES_N ? lock_x + lock_step : world_w - 320;
+        lock_x = lock_at(wave < gs->nwaves ? gs->waves[wave].lock : gs->boss_lock);
         break;
     case PH_GO:                                              /* GO: the camera may scroll to the next lock point */
         if ((phase_t & 15) == 1) go_sign(!(phase_t & 16));   /* blinking, on from its first frame */
         if (cam_x < lock_x) break;
         go_sign(0);
-        if (wave < WAVES_N) { phase = PH_WAVE; spawn_wave(); } else boss_start();
+        if (wave < gs->nwaves) { phase = PH_WAVE; spawn_wave(); } else boss_start();
         break;
     case PH_BOSS:
         if (fighters[BOSS_IDX].state != S_DEAD && fighters[BOSS_IDX].state != S_OFF) break;
@@ -1159,11 +1130,11 @@ static void campaign(uint8_t left) {
         break;
     case PH_END:                                             /* every enemy gone: STAGE CLEAR, the save */
         if (left) break;
-        FIX_print(14, 13, "STAGE CLEAR", 0); snd_music(MUS_JINGLE);
+        FIX_print(14, 13, "STAGE CLEAR", 0); snd_music(GAME_MUS_CLEAR);
         phase = PH_CLEAR; phase_t = 0; unlock_k = 0;
         if (attract) break;
-        if (camp + 1 < CAMP_N && save.furthest < camp + 1) save.furthest = camp + 1;
-        if ((boss_real >> camp & 1) && !(save.unlocked >> camp & 1)) { save.unlocked |= 1 << camp; unlock_k = camp + 1; }
+        if (camp + 1 < GS_COUNT && save.furthest < camp + 1) save.furthest = camp + 1;
+        if (gs->unlock && !(save.unlocked >> camp & 1)) { save.unlocked |= 1 << camp; unlock_k = camp + 1; }
         save_write();
         break;
     case PH_CLEAR:
@@ -1175,7 +1146,7 @@ static void campaign(uint8_t left) {
         for (i = 0; i < 2; i++)
             if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = char_index(fighters[i].ch); pl_set[i] = fighters[i].set; }
         if (unlock_k) unlock_start(unlock_k - 1);
-        else if (camp + 1 >= CAMP_N) ending_start();
+        else if (camp + 1 >= GS_COUNT) ending_start();
         else { fade_in = FADE_T; stage_begin(camp + 1, 0); }
         break;
     }
@@ -1235,11 +1206,11 @@ static void lab_place(void) {
 }
 static void lab_start(void) {
     uint8_t i, c = lab.fighter < BC_COUNT ? lab.fighter : 0, dm = lab.dummy < BC_COUNT ? lab.dummy : 1;
-    attract = 0; ai_weak = 0; opt_on = 0; banner_hide(); fade_in = 0; BIOS_USER_MODE = 2;
+    attract = 0; opt_on = 0; banner_hide(); fade_in = 0; BIOS_USER_MODE = 2;
     pl_ch[0] = c; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     stage_begin(0, 1);
     for (i = 1; i < NF; i++) fighters[i].state = S_OFF;
-    enemy_init(LAB_DUMMY, dm, dm == c, 0, 34, 0);
+    enemy_init(LAB_DUMMY, dm, dm == c, 0, 34, 0, &genemies[EN_MINION]);   /* life and power of a minion */
     lab_place();
     lab.frame = 0; lab.nev = 0; lab_seen = 0; lab.combo_hits = 0; lab.combo_dmg = 0; lab.active = 1;
     lab_shown_hits = 0xFF; lab_shown_dmg = 0xFFFF;
@@ -1299,13 +1270,13 @@ static void show_start(uint8_t m, uint8_t c, uint8_t set, uint16_t wall) {
 }
 static void centre(uint8_t row, const char *t) { uint8_t n = 0; while (t[n]) n++; FIX_print(20 - (n >> 1), row, t, 0); }
 static void unlock_start(uint8_t k) {
-    uint8_t c = boss_ch[k];
+    uint8_t c = boss_fighter(k);
     show_start(3, c, 0, RGB8(40, 8, 8));
     centre(3, "BOSS UNLOCKED");
     portrait(18, 5, c, 0);
     centre(10, bm_chars[c].name);
     centre(24, "NOW ON THE SELECT SCREEN");
-    snd_music(MUS_SELECT);
+    snd_music(GAME_MUS_SELECT);
 }
 static void ending_start(void) {
     show_start(4, pl_ch[0], pl_set[0], RGB8(8, 16, 40));
@@ -1313,7 +1284,7 @@ static void ending_start(void) {
     centre(5, "ALL FIVE STAGES CLEARED");
     portrait(18, 7, pl_ch[0], 0);
     centre(24, "THANK YOU FOR PLAYING");
-    snd_music(MUS_JINGLE);
+    snd_music(GAME_MUS_CLEAR);
 }
 static void show_tick(void) {
     uint16_t pr = JOY_pressed(0) | JOY_pressed(1);
@@ -1322,7 +1293,7 @@ static void show_tick(void) {
     if (scr_t < (mode == 3 ? 360 : 600) && !(scr_t >= 90 && (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) return;
     if (mode == 4) SYS_return();                             /* the ending: back to the BIOS, which commits the MVS save
                                                                 and shows the title (credits left) or the attract demo */
-    else if (camp + 1 >= CAMP_N) ending_start();
+    else if (camp + 1 >= GS_COUNT) ending_start();
     else { fade_in = FADE_T; stage_begin(camp + 1, 0); }
 }
 static void select_tick(void) {
@@ -1405,7 +1376,7 @@ static void scene_pals(uint8_t k) {              /* the fight at k / 16: stage, 
 
 void game_init(void) {
     uint16_t i;
-    bosses_find();
+    gdata_init();                                            /* the game's tables (game.json) */
     routes_init();                                           /* the fighters' chain route trees (fighter.h) */
     save_load();                                             /* MVS: the BIOS restored the block (a fresh one: reset) */
     PAL_setPalette(0, TEXT_PAL);
