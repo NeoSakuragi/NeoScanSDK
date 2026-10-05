@@ -6,8 +6,10 @@ and a V ROM with only the samples those songs and the game's sound effects use.
 
 Manifest (examples/brawler/songs.json):
     {"driver": "kof98",
-     "sfx": {"slot": 1, "codes": ["11", ...]},                 the effect codes the game sends ($1A prefix = slot 1)
-     "songs": [{"name": "FIGHT", "source": "fatfury3", "cmd": "2F", "what": "..."}, ...],
+     "sfx": {"slot": 1, "prefix": "1A", "codes": ["11", ...],   the effect codes the game sends ($1A prefix = slot 1)
+             "names": {"11": "HIT A", ...}},                   short names (the options screen's SOUND PLAYER)
+     "songs": [{"name": "FIGHT", "source": "fatfury3", "cmd": "2F", "what": "...",
+                "label": "FIGHT"}, ...],                      label: the MUSIC PLAYER's name (default: name, _ = space)
      "bosses": ["BOSS_MR_BIG", ...]}                          song names, in the campaign's boss order
 A song whose source is the driver's own game ("kof98") keeps its command and its song data (its bank set block is
 copied whole); any other is ported (port98.py) into a free command, in manifest order from $27 (KOF98's empty slot),
@@ -212,7 +214,15 @@ def build(manifest, out):
         for s in man['songs']:
             h.write(f"#define MUS_{s['name']:14s} 0x{cmds[s['name']]:02X}   /* {s['source']} ${s['cmd'].upper()}: {s.get('what', '')} */\n")
         h.write(f"#define BOSS_SONGS {{ {', '.join('MUS_' + b for b in man['bosses'])} }}   /* {', '.join(man['bosses'])} */\n")
-        h.write(f"#define N_BOSS_SONGS {len(man['bosses'])}\n#endif\n")
+        h.write(f"#define N_BOSS_SONGS {len(man['bosses'])}\n")
+        # the options screen's players (examples/brawler OPTIONS): every song and effect of the build, with a name
+        lab = lambda s: s.get('label', s['name'].replace('_', ' '))[:16].upper()
+        h.write(f"#define N_SONGS {len(man['songs'])}\n#define SONG_LIST {{ "
+                + ', '.join(f'{{ MUS_{s["name"]}, "{lab(s)}" }}' for s in man['songs']) + ' }\n')
+        names = man['sfx'].get('names', {})
+        h.write(f"#define SFX_PREFIX 0x{man['sfx'].get('prefix', '1A').upper()}\n#define N_SFX {len(man['sfx']['codes'])}\n#define SFX_LIST {{ "
+                + ', '.join(f'{{ 0x{c.upper()}, "{names.get(c, "EFFECT " + c.upper())[:16].upper()}" }}' for c in man['sfx']['codes']) + ' }\n')
+        h.write('#endif\n')
     rep.update(m_bytes=m_size, bank_sets=nsets, v_bytes=v_size, v_used=v_used, v_kof98_kept=v_natives,
                kept_adpcm_a_records=len(keep_a), kept_adpcm_b_records=len(t.keep_b),
                v_gaps=[[a << 8, b << 8] for a, b in t.gaps])

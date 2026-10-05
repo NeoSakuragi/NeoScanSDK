@@ -102,6 +102,7 @@ typedef struct fighter {
     struct fighter *shot;         /* thrower: its projectile in flight (KOF: one at a time, owner +$E1 bit 5) */
     uint8_t  power;               /* extra damage every hit it lands (campaign: later stages and bosses hit harder) */
     uint8_t  tint;                /* minion colours (fighter_colour): 0 = its own colour set, 1-3 = shade / ash / rust */
+    int16_t  hp_max;              /* its life at spawn when not 60 (campaign difficulty: enemies, bosses); 0 = 60 */
 } fighter_t;
 
 extern const cnode_t COMBO[];

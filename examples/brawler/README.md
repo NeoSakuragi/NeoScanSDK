@@ -82,9 +82,10 @@ CHARS order) until beaten; P2's mid-fight join never picks a locked one. Players
 with a credit), carried from stage to stage with their fighter and colours; both out: GAME OVER.
 
 ## Save (SNK conventions, sdk/include/neo_backup.h)
-`save_t` (main.c, 16 bytes): 2 bytes debug dipswitches (SNK: the backup block starts with them), "BRW1", furthest
-stage reached (0-4), unlocked bosses (bit k = `BOSS[k]`), 6 spare, a 16-bit sum; anything that fails magic + sum is
-a fresh save. Game ID = the header NGH, $0999 (crt0; a released game needs its own number).
+`save_t` (main.c, 16 bytes): 2 bytes debug dipswitches (SNK: the backup block starts with them), "BRW2", furthest
+stage reached (0-4), unlocked bosses (bit k = `BOSS[k]`), difficulty (0-3, AES OPTIONS), 5 spare, a 16-bit sum;
+anything that fails magic + sum is a fresh save. Format 1 ("BRW1", 2026-10-05: the difficulty byte was a 0 spare) is
+read and upgraded in place (difficulty NORMAL). Game ID = the header NGH, $0999 (crt0; a released game needs its own number).
 - MVS (`BIOS_MVS_FLAG` $10FD82 != 0): the struct is the header's backup RAM block (`NEO_BACKUP`: header $10E/$112 =
   $100034 / 16). The BIOS restores it at power-on and copies it into battery RAM when the game returns control
   (SYSTEM_RETURN: game over, the ending, the demo's end) - measured: a change powered off before a return is lost.
@@ -122,6 +123,23 @@ HUD (fix layer, tools/brawler/make_hud.py): P1 portrait, name, KOF94-style life 
 left; one player: the enemy P1 last hit, mirrored top right; two players: P2 top right, each player's target under
 its own bar; the boss bar (name row 6, bar row 7). STAGE n WAVE n and CPU % at the bottom. `rm build/main.o; make PROFILE=1` adds the per-section profiler and the
 AI counters; `make AI_OFF=1` builds a test ROM whose enemies stand still.
+
+## Difficulty and OPTIONS (2026-10-05)
+Difficulty 0-3 = EASY / NORMAL / HARD / MANIAC: campaign enemies and bosses spawn with life x0.5 / x1 / x1.5 / x2
+(`life()`, shifts and adds; boss 100 -> 50 / 100 / 150 / 200; the attract demo unchanged). Bars: 2 px a life point as
+before; a life that would not fit (`fighter_t.hp_max`) is drawn to scale (full bar = hp_max).
+- Arcade (MVS): the soft DIP DIFFICULTY (LEVEL 1-8, default 4) in pairs: 1-2 EASY, 3-4 NORMAL, 5-6 HARD, 7-8 MANIAC.
+- Console (AES): the title adds OPTIONS (NEW GAME / CONTINUE / OPTIONS; MVS: no OPTIONS). The screen: stick up/down a
+  line, left/right changes it (held: repeats), A selects / plays, B back. DIFFICULTY (saved on leaving: CARD_SAVE;
+  shown as LEVEL-2/4/6/8 on the bottom line); MUSIC PLAYER (every song of the build, its command; B stops: `$04` then
+  `$07`, since `$04` also silences the effects until a `$07`); SOUND PLAYER (every effect of songs.json, `$1A` + code,
+  then RAW `$01-$FF` with C picking the prefix `$1A` / `$1C` / none; never `$00`, see docs/kof98_sound_driver.md); EXIT.
+  The names come from songs.json (song `label`, default the name with spaces; `sfx.names`) through build_snd.py's
+  songs.h `SONG_LIST` / `SFX_LIST`: a new song or effect shows up by itself.
+Proof (our emulator's core, /data/tmp/options/opts.py [mvs], screenshots /data/tmp/options/out): AES title shows
+OPTIONS, each song from silence to sound after A, B silence, all 23 effects sound from silence, RAW $1A $11 = HIT A's
+level exactly; MANIAC survives a power cycle on the card, enemies 120, boss 200 (bar full); MVS: no OPTIONS, soft dip
+LEVEL 1 / 4 / 5 / 8 -> enemies 30 / 60 / 90 / 120, boss 200 at 8.
 
 ## Hit sparks
 KOF98's two hit sparks (tools/brawler/make_sparks.py, data in sparks98.json, captured from MAME): small for A / B hits,

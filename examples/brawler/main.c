@@ -67,7 +67,20 @@ const uint8_t soft_dip[] = {
 };
 #define BIOS_GAME_DIP ((volatile uint8_t *)0x10FD84)
 #define CREDITS_P1    (*(volatile uint8_t *)0xD00034)
-static uint8_t level(void) { uint8_t l = BIOS_GAME_DIP[6]; return l > 7 ? 4 : l + 1; }
+/* difficulty 0-3 (EASY NORMAL HARD MANIAC): enemies' and bosses' life x0.5 x1 x1.5 x2 (`life`). Arcade (MVS): the soft
+ * DIP's LEVEL 1-8 in pairs (1-2 EASY, 3-4 NORMAL = the default LEVEL-4, 5-6 HARD, 7-8 MANIAC), set by the operator in
+ * the BIOS game settings; console (AES): the OPTIONS screen, kept in the save (memory card), shown as LEVEL-2/4/6/8 */
+static uint8_t difficulty = 1;                           /* AES: save.difficulty (save_load, the OPTIONS screen) */
+static uint8_t level(void) {
+    uint8_t l = BIOS_GAME_DIP[6];
+    if (!BIOS_MVS_FLAG) return (difficulty << 1) + 2;
+    return l > 7 ? 4 : l + 1;
+}
+static uint8_t diff(void) { return BIOS_MVS_FLAG ? (level() - 1) >> 1 : difficulty; }
+static int16_t life(int16_t b) {                         /* a spawn's life at this difficulty: shifts and adds only */
+    switch (diff()) { case 0: return b >> 1; case 2: return b + (b >> 1); case 3: return b << 1; }
+    return b;
+}
 static uint8_t shown_level, shown_credits;               /* 0 / 0xFF after a FIX_clear: rewrite */
 static void arcade_line_reset(void) { shown_level = 0; shown_credits = 0xFF; }
 static void arcade_line(void) {                               /* bottom line, every screen; writes only changes */
@@ -429,8 +442,14 @@ static void portrait(uint8_t col, uint8_t row, uint8_t ch, uint8_t side) {      
         for (c = 0; c < 4; c++)
             fix_put(col + c, row + r, ch == 0xFF ? 0x20 : (uint16_t)((2 + side) << 12 | (PORTRAIT_TILE + ch * 16 + r * 4 + c)));
 }
-static void bar_draw(bar_t *b, int16_t hp) {
-    int16_t full = (b->n << 3) - 2, px = hp <= 0 ? 0 : hp * 2 > full ? full : hp * 2, x0 = 0;
+static uint16_t div16(uint16_t n, uint16_t d) { uint32_t r = n; __asm__("divu.w %1,%0" : "+d"(r) : "d"(d)); return (uint16_t)r; }
+/* 2 px a life point (60 = a full fighter bar); a life that would not fit (hp_max: difficulty HARD / MANIAC enemies,
+ * bosses) is drawn to scale, max = the full bar */
+static void bar_draw(bar_t *b, int16_t hp, int16_t max) {
+    int16_t full = (b->n << 3) - 2, px, x0 = 0;
+    if (!max) max = LIFE;
+    px = hp <= 0 ? 0 : max * 2 > full ? (int16_t)div16((uint16_t)hp * (uint16_t)full, max) : hp * 2;
+    if (px > full) px = full;
     uint8_t c;
     if (px < b->px && b->trail < b->px) b->trail = b->px;          /* a new hit: the trail starts at the old life */
     if (px < b->px) b->wait = 20;
@@ -480,7 +499,7 @@ static void hud_target(uint8_t slot, fighter_t *t, uint8_t right, uint8_t name_r
         if (face_side) { uint8_t f = t ? char_index(t->ch) : 0xFF; if (hud_face[1] != f) { hud_face[1] = f; portrait(35, 0, f, 1); } }
         if (!t) bar_clear(&bars[slot]);
     }
-    if (t) bar_draw(&bars[slot], t->hp);
+    if (t) bar_draw(&bars[slot], t->hp, t->hp_max);
 }
 #define BIOS_PLAYER_MOD ((volatile uint8_t *)0x10FDB6)   /* per player: 0 never played, 1 playing, 2 continue, 3 over */
 static uint8_t p2_in(void) { return in_play(&fighters[1]) || cont_t[1]; }
@@ -498,7 +517,7 @@ static void hud(void) {
         fighter_t *f = &fighters[p];
         uint8_t face = char_index(f->ch), pc = p ? 35 : 1, lc = p ? 32 : 5, cc = p ? 20 : 9;   /* lives / continue cols */
         if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face, p); hud_name(p, 1, f->ch->name); }
-        bar_draw(&bars[p], in_play(f) ? f->hp : 0);
+        bar_draw(&bars[p], in_play(f) ? f->hp : 0, f->hp_max);
         if (lives[p] != hud_lives[p]) { hud_lives[p] = lives[p]; FIX_print(lc, 2, "x ", 0); FIX_printNum(lc + 1, 2, lives[p], 0); }
         if (cont_t[p] / 60 != hud_cont[p]) {
             hud_cont[p] = cont_t[p] / 60;
@@ -514,7 +533,7 @@ static void hud(void) {
         FIX_print(5, 6, "              ", 0);
         if (i) FIX_print(5, 6, fighters[BOSS_IDX_HUD].ch->name, 0); else bar_clear(&bars[4]);
     }
-    if (boss_shown) bar_draw(&bars[4], fighters[BOSS_IDX_HUD].hp);
+    if (boss_shown) bar_draw(&bars[4], fighters[BOSS_IDX_HUD].hp, fighters[BOSS_IDX_HUD].hp_max);
     if ((hud_tick & 15) != 0 && (uint16_t)wait_cycles < hud_min_spins) hud_min_spins = (uint16_t)wait_cycles;  /* skip the print tick */
     if (!(++hud_tick & 15)) {
         uint16_t idle = (uint16_t)(((uint32_t)hud_min_spins * 7) >> 8);
@@ -591,15 +610,16 @@ static uint8_t boss_of(uint8_t c) {              /* k + 1 when fighter c is boss
  * sum: anything else (a blank block, another build's) = a fresh save. ---- */
 typedef struct {
     uint8_t  dips[2];                            /* SNK: the backup block starts with the debug dipswitches */
-    char     magic[4];                           /* "BRW1" */
+    char     magic[4];                           /* "BRW2" (format 2; "BRW1" = format 1, read and upgraded) */
     uint8_t  furthest;                           /* the campaign stage reached, 0-4 (the title's CONTINUE) */
     uint8_t  unlocked;                           /* bit k: BOSS[k] beaten (selectable) */
-    uint8_t  pad[6];
+    uint8_t  difficulty;                         /* format 2: AES OPTIONS difficulty 0-3 (format 1: 0, a spare) */
+    uint8_t  pad[5];
     uint16_t sum;
 } save_t;
 NEO_BACKUP save_t save;
 uint8_t card_answer;                             /* AES: the last CARD answer (CARD_OK, CARD_NONE, ...) */
-static const char SAVE_MAGIC[4] = { 'B', 'R', 'W', '1' };
+static const char SAVE_MAGIC[4] = { 'B', 'R', 'W', '2' };   /* format 1 = "BRW1": same layout, difficulty was a 0 spare */
 static uint16_t save_sum(const save_t *s) {
     const uint8_t *p = (const uint8_t *)s + 2;
     uint16_t v = 0x5A5A;
@@ -607,10 +627,14 @@ static uint16_t save_sum(const save_t *s) {
     for (i = 0; i < sizeof(save_t) - 4; i++) v = (uint16_t)((v << 1) | (v >> 15)) + p[i];
     return v;
 }
-static uint8_t save_ok(const save_t *s) {
+static uint8_t save_ok(save_t *s) {                      /* a format 1 save is upgraded in place (difficulty NORMAL) */
     uint8_t i;
-    for (i = 0; i < 4; i++) if (s->magic[i] != SAVE_MAGIC[i]) return 0;
-    return s->sum == save_sum(s) && s->furthest < CAMP_N;
+    for (i = 0; i < 3; i++) if (s->magic[i] != SAVE_MAGIC[i]) return 0;
+    if ((s->magic[3] != '1' && s->magic[3] != '2') || s->sum != save_sum(s) || s->furthest >= CAMP_N) return 0;
+    if (s->magic[3] == '1') s->difficulty = 1;
+    if (s->difficulty > 3) s->difficulty = 1;
+    s->magic[3] = '2'; s->sum = save_sum(s);
+    return 1;
 }
 static void save_write(void) {
     save.sum = save_sum(&save);
@@ -619,8 +643,8 @@ static void save_write(void) {
 static void save_reset(void) {
     uint8_t i;
     for (i = 0; i < 4; i++) save.magic[i] = SAVE_MAGIC[i];
-    save.furthest = 0; save.unlocked = 0;
-    for (i = 0; i < 6; i++) save.pad[i] = 0;
+    save.furthest = 0; save.unlocked = 0; save.difficulty = 1;
+    for (i = 0; i < 5; i++) save.pad[i] = 0;
     save.sum = save_sum(&save);
 }
 static void save_load(void) {
@@ -632,6 +656,7 @@ static void save_load(void) {
             for (i = 2; i < sizeof(save_t); i++) ((uint8_t *)&save)[i] = ((const uint8_t *)&t)[i];
     }
     if (!save_ok(&save)) save_reset();
+    difficulty = save.difficulty;
 }
 static uint8_t char_locked(uint8_t c) { uint8_t k = boss_of(c); return k && !(save.unlocked >> (k - 1) & 1); }
 static uint8_t camp, camp_from;                  /* the stage in play; the one a new game starts at (title CONTINUE) */
@@ -653,50 +678,158 @@ static void banner_show(int16_t x, int16_t y) {
 }
 static void banner_hide(void) { uint8_t c; for (c = 0; c < BANNER_COLS; c++) cmd_push(VRAM_SCB3 + BN_SPR + c, 0); }
 
-/* title: banner, PRESS START; with a save past stage 1, stick up / down picks NEW GAME or CONTINUE (that stage) before
- * START; A+B+C+D held 2 s clears the save. */
+/* title: banner, PRESS START; a menu when there is a choice (stick up / down, then START): NEW GAME, CONTINUE STAGE n
+ * (a save past stage 1), OPTIONS (console = AES only, see options_tick); A+B+C+D held 2 s clears the save. */
 static uint16_t title_t, title_hold;
-static uint8_t title_sel;                        /* 0 new game, 1 continue */
+static uint8_t title_sel;                        /* the menu line */
 static uint8_t title_paid;                       /* the START that opened the title already took the credit */
+enum { TI_NEW, TI_CONT, TI_OPT };
+static uint8_t title_item[3], title_n;           /* the menu's lines */
+static uint8_t opt_on;                           /* the OPTIONS screen is up (a part of the title, mode 2) */
 static void select_start(void);
 static void save_load(void);
 static void save_reset(void);
 static void save_write(void);
 static void title_menu(void) {
-    FIX_print(12, 20, "                ", 0); FIX_print(12, 21, "                ", 0);
-    if (!save.furthest) { title_sel = 0; return; }
-    FIX_print(12, 20, title_sel ? "  NEW GAME" : "> NEW GAME", 0);
-    FIX_print(12, 21, title_sel ? "> CONTINUE STAGE" : "  CONTINUE STAGE", 0);
-    FIX_printNum(29, 21, save.furthest + 1, 0);
+    static const char *const TXT[3] = { "NEW GAME", "CONTINUE STAGE", "OPTIONS" };
+    uint8_t i;
+    for (i = 0; i < 3; i++) FIX_print(12, 20 + i, "                  ", 0);
+    title_n = 0; title_item[title_n++] = TI_NEW;
+    if (save.furthest) title_item[title_n++] = TI_CONT;
+    if (!BIOS_MVS_FLAG) title_item[title_n++] = TI_OPT;
+    if (title_sel >= title_n) title_sel = 0;
+    if (title_n == 1) return;
+    for (i = 0; i < title_n; i++) {
+        FIX_print(12, 20 + i, i == title_sel ? "> " : "  ", 0); FIX_print(14, 20 + i, TXT[title_item[i]], 0);
+        if (title_item[i] == TI_CONT) FIX_printNum(29, 20 + i, save.furthest + 1, 0);
+    }
+}
+static void title_screen(void) {
+    FIX_clear(); arcade_line_reset();
+    banner_show((320 - BANNER_COLS * 16) / 2, 56);
+    FIX_print(14, 24, "(C) 2027 NEOSAKURAGI", 0);
+    FIX_print(17, 15, "V" GAME_VERSION, 0);                 /* VERSION, from the Makefile */
 }
 static void title_start(void) {
     uint8_t i;
-    mode = 2; nf = 0; title_t = 0; cam_x = 0;
-    FIX_clear(); arcade_line_reset();
+    mode = 2; nf = 0; title_t = 0; cam_x = 0; opt_on = 0;
     PAL_setBackdrop(COLOR_BLACK);
     stage_hide();
     for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
-    banner_show((320 - BANNER_COLS * 16) / 2, 56);
-    FIX_print(14, 24, "(C) 2027 NEOSAKURAGI", 0);
-    FIX_print(17, 15, "V" GAME_VERSION, 0);                 /* VERSION, from the Makefile */
+    title_screen();
     bios_start = 0;
     snd_music(MUS_SELECT);
     save_load();
-    title_sel = save.furthest != 0; title_hold = 0; title_paid = 0;
+    title_sel = save.furthest != 0; title_hold = 0; title_paid = 0;   /* line 1 = CONTINUE when there is one */
     title_menu();
 }
-static void title_tick(void) {
+
+/* ---- OPTIONS (console only: the AES; an arcade's difficulty is the operator's soft DIP), a 90s SNK options screen on
+ * the fix layer: stick up / down picks a line, left / right changes it (held: repeats), A selects / plays, B back
+ * (MUSIC PLAYER: B stops the music).
+ *   DIFFICULTY    EASY NORMAL HARD MANIAC (life x0.5 x1 x1.5 x2, `life`), saved on leaving (memory card)
+ *   MUSIC PLAYER  every song of the build (songs.json -> songs.h SONG_LIST), its driver command
+ *   SOUND PLAYER  every effect of the build (SFX_LIST, sent $1A + code), then RAW $01-$FF: C picks the prefix sent
+ *                 before the code ($1A effect, $1C voice, none = the bare driver command), for sound debugging
+ *   EXIT ---- */
+#define OPT_ROW(r) (8 + (r) * 4)
+static uint8_t opt_row, opt_song, opt_pfx, opt_rep, opt_diff0;
+static uint16_t opt_snd;                         /* < N_SFX: snd_effects[], else RAW code opt_snd - N_SFX + 1 */
+#define RAW_N 255                                /* RAW $01-$FF: never $00 (KOF98's NMI drops it and the main loop
+                                                    replays a stale ring byte, docs/kof98_sound_driver.md) */
+static const char *const DIFF_NAME[4] = { "EASY  ", "NORMAL", "HARD  ", "MANIAC" };
+static void hex2(uint8_t col, uint8_t row, uint8_t v) {
+    static const char H[] = "0123456789ABCDEF";
+    char t[4] = { '$', H[v >> 4], H[v & 15], 0 };
+    FIX_print(col, row, t, 0);
+}
+static void opt_value(uint8_t r) {
+    uint8_t y = OPT_ROW(r) + 1;
+    if (r == 0) { FIX_print(20, OPT_ROW(0), DIFF_NAME[difficulty], 0); return; }
+    if (r == 1) {
+        FIX_print(8, y, "                ", 0); FIX_print(8, y, snd_songs[opt_song].name, 0);
+        FIX_print(28, y, "CMD", 0); hex2(32, y, snd_songs[opt_song].cmd); return;
+    }
+    if (r == 2) {
+        uint8_t raw = opt_snd >= N_SFX, code = raw ? (uint8_t)(opt_snd - N_SFX + 1) : snd_effects[opt_snd].cmd;
+        FIX_print(8, y, "                ", 0); FIX_print(8, y, raw ? "RAW" : snd_effects[opt_snd].name, 0);
+        if (!raw || opt_pfx < 2) hex2(28, y, raw && opt_pfx ? 0x1C : SFX_PREFIX); else FIX_print(28, y, "   ", 0);
+        hex2(32, y, code);
+    }
+}
+static void opt_cursor(void) {
+    uint8_t r;
+    for (r = 0; r < 4; r++) FIX_print(4, OPT_ROW(r), r == opt_row ? ">" : " ", 0);
+}
+static void options_start(void) {
+    static const char *const LBL[4] = { "DIFFICULTY", "MUSIC PLAYER", "SOUND PLAYER", "EXIT" };
+    uint8_t r;
+    opt_on = 1; opt_row = 0; opt_rep = 0; opt_diff0 = difficulty;
+    banner_hide(); FIX_clear(); arcade_line_reset();
+    FIX_print(16, 4, "OPTIONS", 1);
+    for (r = 0; r < 4; r++) { FIX_print(6, OPT_ROW(r), LBL[r], 0); if (r < 3) opt_value(r); }
+    FIX_print(4, 23, "STICK CHOOSE / CHANGE   A SELECT", 0);
+    FIX_print(4, 24, "B BACK / STOP MUSIC  C RAW PREFIX", 0);
+    opt_cursor();
+}
+static void options_exit(void) {
+    opt_on = 0;
+    if (difficulty != opt_diff0) { save.difficulty = difficulty; save_write(); }   /* AES: CARD_SAVE at once */
+    title_screen(); title_menu();
+    snd_music(MUS_SELECT);
+}
+static void options_tick(void) {
     uint16_t pr = JOY_pressed(0), h = JOY_held(0);
+    int8_t d = 0;
+    bios_start = 0;
+    if (pr & (JOY_UP | JOY_DOWN)) { opt_row = (opt_row + ((pr & JOY_DOWN) ? 1 : 3)) & 3; opt_cursor(); }
+    if (pr & (JOY_LEFT | JOY_RIGHT)) { d = (pr & JOY_RIGHT) ? 1 : -1; opt_rep = 0; }
+    else if (h & (JOY_LEFT | JOY_RIGHT)) { if (++opt_rep >= 20 && !(opt_rep & 3)) { d = (h & JOY_RIGHT) ? 1 : -1; opt_rep = 16; } }
+    else opt_rep = 0;
+    if (opt_row == 0 && (pr & JOY_A)) d = 1;
+    if (d) {
+        if (opt_row == 0) difficulty = (difficulty + d) & 3;
+        else if (opt_row == 1) opt_song = d > 0 ? (opt_song + 1 < N_SONGS ? opt_song + 1 : 0) : (opt_song ? opt_song - 1 : N_SONGS - 1);
+        else if (opt_row == 2) opt_snd = d > 0 ? (opt_snd + 1 < N_SFX + RAW_N ? opt_snd + 1 : 0) : (opt_snd ? opt_snd - 1 : N_SFX + RAW_N - 1);
+        if (opt_row < 3) opt_value(opt_row);
+    }
+    if (opt_row == 2 && (pr & JOY_C)) { opt_pfx = opt_pfx < 2 ? opt_pfx + 1 : 0; opt_value(2); }
+    if (pr & JOY_A) {
+        if (opt_row == 1) snd_music(snd_songs[opt_song].cmd);
+        else if (opt_row == 2) {
+            if (opt_snd < N_SFX) { snd_cmd(SFX_PREFIX); snd_cmd(snd_effects[opt_snd].cmd); }
+            else { if (opt_pfx < 2) snd_cmd(opt_pfx ? 0x1C : SFX_PREFIX); snd_cmd((uint8_t)(opt_snd - N_SFX + 1)); }
+        } else if (opt_row == 3) { options_exit(); return; }
+    }
+    if (pr & JOY_B) {
+        if (opt_row == 1) { snd_cmd(0x04); snd_cmd(0x07); }  /* KOF98's driver: $04 stops the music, and the effects
+                                                             too (timer A) until a $07 (measured: silent effects) */
+        else options_exit();
+    }
+}
+
+static void title_tick(void) {
+    uint16_t pr, h;
+    if (opt_on) { options_tick(); return; }
+    pr = JOY_pressed(0); h = JOY_held(0);
     if (!(title_t & 31)) FIX_print(15, 18, (title_t & 32) ? "           " : "PRESS START", 0);
     title_t++;
-    if (save.furthest && (pr & (JOY_UP | JOY_DOWN))) { title_sel = (pr & JOY_DOWN) ? 1 : 0; title_menu(); }
+    if (title_n > 1 && (pr & (JOY_UP | JOY_DOWN))) {
+        if (pr & JOY_DOWN) { if (title_sel + 1 < title_n) title_sel++; } else if (title_sel) title_sel--;
+        title_menu();
+    }
     if ((h & (JOY_A | JOY_B | JOY_C | JOY_D)) == (JOY_A | JOY_B | JOY_C | JOY_D)) {   /* held 2 s: the save cleared */
-        if (++title_hold == 120) { save_reset(); save_write(); title_menu(); FIX_print(12, 22, "SAVE DATA CLEARED", 0); }
+        if (++title_hold == 120) { save_reset(); save_write(); difficulty = save.difficulty; title_menu(); FIX_print(12, 23, "SAVE DATA CLEARED", 0); }
+        return;
     } else title_hold = 0;
+    if (title_item[title_sel] == TI_OPT) {                   /* console only: no credit involved */
+        if (bios_start || (pr & (JOY_START | JOY_A))) { bios_start = 0; options_start(); }
+        return;
+    }
     if (bios_start || (title_paid && (pr & (JOY_START | JOY_A)))) {   /* START with a credit (PLAYER_START), or START / A
                                                              when the credit was taken by the START that opened it */
-        bios_start = 0; title_paid = 0; camp_from = title_sel ? save.furthest : 0;
+        bios_start = 0; title_paid = 0; camp_from = title_item[title_sel] == TI_CONT ? save.furthest : 0;
         banner_hide(); select_start(); return;
     }
 }
@@ -856,6 +989,7 @@ static void enemy_init(uint8_t slot, uint8_t c, uint8_t set, int16_t x, int16_t 
     if (x > world_w - 16) x = world_w - 16;
     fighter_init(e, &bm_chars[c], mod8(set, bm_chars[c].nsets), 16 + slot * MAX_PALS, 1, x, z);
     e->idx = slot; e->power = power; e->tint = tint;
+    if (!attract) e->hp = e->hp_max = life(LIFE);         /* the campaign's difficulty (the demo: as it was) */
     if (tint) fighter_load_pals(e);
 }
 static int16_t walk_in_x(uint8_t k) {            /* off screen: the right, every other one the left when there is room */
@@ -878,7 +1012,7 @@ static void boss_start(void) {
     if (n > NF - 3) n = NF - 3;
     if (c == pl_ch[0] && !pl_set[0]) set = 1;           /* never in P1's colours */
     enemy_init(BOSS_IDX, c, set, world_w - 16, 30, 0);
-    fighters[BOSS_IDX].hp = BOSS_HP(camp); fighters[BOSS_IDX].power = BOSS_POWER(camp);
+    fighters[BOSS_IDX].hp = fighters[BOSS_IDX].hp_max = life(BOSS_HP(camp)); fighters[BOSS_IDX].power = BOSS_POWER(camp);
     for (k = 0; k < NF - 3; k++) {
         uint8_t m = mod8(k * 3 + camp, navail);
         if (avail[m] == c) m = mod8(m + 1, navail);         /* not the boss's own fighter (a stand-in is in the pool) */
@@ -943,7 +1077,7 @@ static void select_start(void);
  * ending screens: nobody; fight: a player not in play (P2 joins, a player continues or rejoins), not under GAME OVER
  * or once the stage's boss is beaten, never in the attract demo's fight (a coin ends the demo first). */
 uint8_t game_start_accept(uint8_t flags) {
-    if (mode == 2 || attract) return flags;
+    if (mode == 2 || attract) return opt_on ? 0 : flags;
     if (mode != 1 || banner_t || phase >= PH_END) return 0;
     return flags & ((in_play(&fighters[0]) ? 0 : 1) | (in_play(&fighters[1]) ? 0 : 2));
 }

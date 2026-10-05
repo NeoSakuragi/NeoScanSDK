@@ -4,6 +4,7 @@
 static uint8_t q[QN], qh, qt;
 volatile uint8_t snd_test;
 const uint8_t snd_boss_song[N_BOSS_SONGS] = BOSS_SONGS;
+const snd_name_t snd_songs[N_SONGS] = SONG_LIST, snd_effects[N_SFX] = SFX_LIST;
 
 void snd_cmd(uint8_t b) {
     uint8_t n = (qt + 1) & (QN - 1);

@@ -19,5 +19,8 @@ enum { SFX_SWING_LIGHT = 0x1E, SFX_SWING_HEAVY = 0x1F, SFX_HIT_A = 0x11, SFX_HIT
  * each song the build carries (MUS_SELECT, MUS_FIGHT, MUS_JINGLE, MUS_BOSS_MR_BIG, MUS_BOSS_KRAUSER, MUS_BOSS_GEESE,
  * MUS_BOSS_RUGAL, MUS_BOSS_GOENITZ) and BOSS_SONGS, the boss themes in songs.json's "bosses" order */
 #include "snd/songs.h"
-extern const uint8_t snd_boss_song[N_BOSS_SONGS];   /* Mr. Big, Krauser, Geese, Rugal, Goenitz: snd_music(snd_boss_song[i]) */
+extern const uint8_t snd_boss_song[N_BOSS_SONGS];
+/* the options screen's MUSIC / SOUND PLAYER: every song and effect of the build with its name (songs.json -> songs.h) */
+typedef struct { uint8_t cmd; const char *name; } snd_name_t;
+extern const snd_name_t snd_songs[N_SONGS], snd_effects[N_SFX];   /* Mr. Big, Krauser, Geese, Rugal, Goenitz: snd_music(snd_boss_song[i]) */
 #endif
