@@ -407,8 +407,10 @@ class Song:
             self.emit(ch, 'adump')
         else:
             if self.v00:
-                if self.fd9c & 1: self.b_note(ch, keyon=False)  # $1E12: the tie path ($079B) instead of a key-off
-                else: self.emit(ch, 'boff')
+                if self.fd9c & 1 and not (self.g.get('b_legato_keyon') and self.fd9c & 2 and not ch.flags & 1):
+                    self.b_note(ch, keyon=False)                # $1E12: the tie path ($079B) instead of a key-off
+                else: self.emit(ch, 'boff')                     # Ver 0.1: a slur into another note is a key-off here
+                                                                # (the note-on keys the sample again; KOF96 $2C measured)
                 return
             if ch.flags & 1 and self.fd9c & 2: return           # $1E9B (FD9C is global: the last note-on anywhere)
             self.emit(ch, 'boff')
@@ -808,20 +810,20 @@ class Song:
             r.depth = p[32] | p[33] << 8
             if p[33] & 0x80: r.f |= 0x10
             r.step = p[34] | p[35] << 8
-            if r.step: r.speed = p[36]; r.f |= 0x21; self.fdb8 |= not self.v00
+            if r.step: r.speed = p[36]; r.f |= 0x21; self.fdb8 |= not self.v00 or self.g.get("patch_fx", False)
         else:
             r.depth = (m.w(self.g['fx6']) + 2 * (p[32] | p[33] << 8)) & 0xFFFF
             r.depth = m.w(r.depth); r.step = p[34] << 8
-            if p[34]: r.speed = p[36]; r.f |= 0x21; self.fdb8 |= not self.v00
+            if p[34]: r.speed = p[36]; r.f |= 0x21; self.fdb8 |= not self.v00 or self.g.get("patch_fx", False)
         r2 = self.fx2[c]; r2.f = 0; r2.type = b >> 4; r2.delay = p[37]
         if r2.type != 6:
             r2.depth = p[38]
             if p[38] & 0x80: r2.f |= 0x10
             r2.step = p[39]
-            if p[39]: r2.speed = p[40]; r2.f |= 0x21; self.fdb8 |= not self.v00
+            if p[39]: r2.speed = p[40]; r2.f |= 0x21; self.fdb8 |= not self.v00 or self.g.get("patch_fx", False)
         else:
             r2.depth = m.w(m.w(self.g['fx6']) + 2 * p[38]); r2.step = p[39] << 8
-            if p[39]: r2.speed = p[40]; r2.f |= 0x21; self.fdb8 |= not self.v00
+            if p[39]: r2.speed = p[40]; r2.f |= 0x21; self.fdb8 |= not self.v00 or self.g.get("patch_fx", False)
 
     def mark_jump(self, ch, target):
         if ch.logname not in self.loop_at and not ch.loops and not ch.calls and target in ch.visited:
@@ -875,8 +877,8 @@ class Song:
             if irqs is None and all(c.status == 0 for c in self.ch): break   # (the driver keeps ticking: effects run on)
             self.irq += 1
             if self.v00: self.end_flags()
-            hl = self.acc + self.tempo
-            if hl < 0xD0:
+            hl = (self.acc + self.tempo) & 0xFFFF                # 16-bit (HL): a tempo above 208 carries on in acc and
+            if hl < 0xD0:                                       # wraps every 65536 / (tempo - 208) IRQs: one tick lost (KOF96 $29, tempo 240: every 2048)
                 self.acc = hl
                 if self.v00: self.group1()
                 continue

@@ -113,6 +113,14 @@ it matches every capture)*. A sequence frees its bit at its `$06`.
 - `validate98.py`: 23 770 key-ons, 36 283 key-offs / dumps, 9 710 F-number writes, 147 ADPCM-B delta-N, 144 FM pan
   and 68 ADPCM-B volume writes predicted, every one at the same interrupt with the same values.
 - KOF98 results are unchanged by the shared code (regs98 and validate98 outputs identical on its 50 captures).
+- KOF96 (`Ver 0.1`, games98 'kof96', 2026-10-05, TODO #66): the six captured songs (`$21 $26 $29 $2A $2C $2D` in
+  `/data/neogeo_dict/sound/kof96/cap`) register-identical, every interrupt with writes (was 98-99 % for `$26 $29 $2C`).
+  Three differences from Ver 0.0 found by them: a patch's pitch / level effects run (`patch_fx`: `$26`, patch `$3F`
+  with speed 0 steps FM1-3's F-number +1 256 ticks into a held note); on ADPCM-B a slur into another note is a key-off
+  at the old note's end (`$2C`: Ver 0.0 takes the tie path there, Ver 0.1 writes `$11`=0 and the new note keys the
+  sample again); and the tempo accumulator is 16 bits (all builds: a tempo above 208 carries on in it and the
+  sum wraps every 65536 / (tempo - 208) interrupts, losing one tick: `$29`, tempo 240, every 2048; only KOF96's
+  `$27` / `$29` have such tempos).
 
 Not measured (no song uses them): the operator level effects, `$1F` / `$20`, `$05` bends, `$29` splits, effect
 types other than 1. The fight sound effects (prefix commands) and the SSG / ADPCM-B effect groups are not modelled.

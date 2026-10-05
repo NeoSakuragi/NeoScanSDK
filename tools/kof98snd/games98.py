@@ -74,6 +74,8 @@ GAMES = {
         overhang=False, untie_0e=False, ops='v00', vol_always=True, b_roots='v00', op_fx=True,
         a_dump_first=True,                                      # an ADPCM-A note on a sounding channel dumps it first
         b_legato_keyon=True,
+        patch_fx=True,          # a patch's pitch / level effects run (set the effects flag): Ver 0.0's do not
+                                # (KOF96 $26: FM1-3 F-number +1 256 ticks into a note, patch $3F, speed 0; measured)
         types=0x2E6C,
         block=878, send=900,  # the game sends $07 at frame 875 (measured)
     ),
