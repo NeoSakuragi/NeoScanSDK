@@ -551,11 +551,11 @@ static const uint8_t CAMP_STAGE[CAMP_N] = { 0, 1, 3, 4, 5 };
  * (save.unlocked bit k = BOSS[k]). */
 typedef struct { const char *name, *stand_in; uint8_t song; } boss_t;
 static const boss_t BOSS[CAMP_N] = {
-    { "MR_BIG",  "MR_BIG",  MUS_FIGHT },
-    { "KRAUSER", "KRAUSER", MUS_FIGHT },
-    { "GEESE",   "GEESE",   MUS_FIGHT },
-    { "RUGAL",   "YASHIRO", MUS_FIGHT },
-    { "GOENITZ", "IORI",    MUS_FIGHT },
+    { "MR_BIG",  "MR_BIG",  MUS_BOSS_MR_BIG },
+    { "KRAUSER", "KRAUSER", MUS_BOSS_KRAUSER },
+    { "GEESE",   "GEESE",   MUS_BOSS_GEESE },
+    { "RUGAL",   "YASHIRO", MUS_BOSS_RUGAL },
+    { "GOENITZ", "IORI",    MUS_BOSS_GOENITZ },
 };
 #define BOSS_HP(s)    (100 + (s) * 4)            /* 1.7-1.9 x a fighter's 60 (bar: 2 px a point, 30 cells = 238 px) */
 #define BOSS_POWER(s) (1 + (((s) + 1) >> 1))
