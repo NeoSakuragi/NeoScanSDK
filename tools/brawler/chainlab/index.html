@@ -39,21 +39,41 @@ main { display: grid; grid-template-columns: minmax(0, 660px) minmax(0, 1fr); ga
 .edge::before { content: ""; width: 12px; border-top: var(--line); }
 .edge b { border: var(--line); padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 14px; background: var(--paper); white-space: nowrap; }
 .edge::after { content: ""; width: 10px; border-top: var(--line); }
-.card { border: var(--line); background: var(--paper); padding: 6px 8px; width: 236px; margin-right: 8px; font-size: 13px; }
-.card.root { width: 150px; }
-.card.special { width: 190px; border-style: double; border-width: 4px; }
+.card { border: var(--line); background: var(--paper); padding: 3px 5px 4px; width: 200px; margin-right: 6px; font-size: 12px; line-height: 1.25; }
+.card.root { width: 112px; }
+.card.special { width: 150px; border-style: double; border-width: 4px; }
 .card.hit { box-shadow: 4px 4px 0 #000; }
-.card .t { font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; gap: 6px; }
-.card .fd { font-family: ui-monospace, monospace; font-size: 11.5px; margin: 2px 0 4px; overflow-wrap: anywhere; }
-.card .fd .bar { letter-spacing: -1px; }
-.card select { min-height: 28px; padding: 1px 4px; width: 100%; min-width: 0; }
+.card .t { font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+.card .t .res { font-size: 11px; white-space: nowrap; }
+.card button.pick { font-weight: 700; font-size: 13px; min-height: 26px; padding: 0 5px; text-align: left; border-width: 1px; }
+.card .fd { font-family: ui-monospace, monospace; font-size: 11px; margin: 1px 0 2px; overflow-wrap: anywhere; }
+.card .fd .bar { font-size: 8px; letter-spacing: -0.5px; }
+.card select { min-height: 26px; padding: 0 2px; width: 100%; min-width: 0; font-size: 12px; border-width: 1px; }
+.card .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; align-items: start; margin-top: 3px; }
+.card button.tog { min-height: 26px; padding: 0 4px; font-size: 12px; font-weight: 600; border-width: 1px; }
+.card button.tog.on { border-width: 3px; }
+.card details summary { cursor: pointer; font-size: 11.5px; min-height: 26px; line-height: 26px; white-space: nowrap; }
+.card .adv { display: flex; flex-direction: column; gap: 3px; }
+.card .adv input { min-height: 24px; width: 54px; padding: 0 3px; border-width: 1px; }
+.card .acts { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+.card .acts button { min-height: 26px; min-width: 28px; padding: 0 5px; font-size: 12px; border-width: 1px; }
 .card .acts select { width: auto; }
-.card .f { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 3px 6px; align-items: center; margin: 3px 0; }
-.card .acts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
-.card .acts button { min-height: 26px; padding: 0 6px; font-size: 12px; }
-.card details { margin-top: 4px; }
-.card details summary { cursor: pointer; }
-.mark { font-family: ui-monospace, monospace; font-size: 12px; border: var(--thin); padding: 0 4px; white-space: nowrap; }
+.edge { margin-top: 8px; min-width: 46px; }
+.edge::before { width: 8px; } .edge::after { width: 6px; }
+.edge b { font-size: 13px; padding: 0 4px; }
+.kids { gap: 4px; }
+.modal { position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 10; display: flex; align-items: flex-start; justify-content: center; padding: 16px; }
+.modal .sheet { background: var(--paper); border: 3px solid #000; max-width: 1100px; width: 100%; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.modal .mhead { display: flex; gap: 12px; align-items: center; padding: 8px 10px; border-bottom: var(--line); flex-wrap: wrap; }
+.modal .mhead b { font-size: 16px; } .modal .mhead span { flex: 1; font-size: 13px; }
+.modal .mgrid { overflow: auto; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.modal button.mv { border: var(--thin); padding: 6px; font-weight: 400; display: flex; flex-direction: column; align-items: center; gap: 4px; background: var(--paper); color: var(--ink); }
+.modal button.mv.cur { border: 5px solid #000; padding: 2px; }
+.modal button.mv:active { background: var(--soft); color: var(--ink); }
+.modal .shots { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-end; justify-content: center; min-height: 60px; }
+.modal .shot { background-repeat: no-repeat; image-rendering: pixelated; }
+.modal .mname { font-weight: 700; font-size: 14px; }
+.modal .mfd { font-family: ui-monospace, monospace; font-size: 12px; }
 #entries { margin-top: 12px; }
 #entries > summary { cursor: pointer; font-weight: 700; }
 #err { border: var(--line); border-style: dashed; padding: 6px 8px; margin: 8px 0; display: none; white-space: pre-wrap; }

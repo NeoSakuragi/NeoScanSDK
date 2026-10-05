@@ -18,6 +18,9 @@ want = ['lab', 'fighters', 'route_tab', 'bm_chars', 'mode', 'cam_x', 'projectile
 json.dump({'fields': layout, 'fsize': fsize, 'states': states, 'syms': {k: syms[k] for k in want if k in syms},
            'version': open(os.path.join(game, 'VERSION')).read().strip()},
           open(os.path.join(out, 'layout.json'), 'w'))
-shutil.copy(os.path.join(game, 'build', 'chainlab.json'), os.path.join(out, 'chainlab.json'))
+import routes, move_images                      # the move picker's pictures: each move's impact frame(s), from the ROM's tables
+lab = json.load(open(os.path.join(game, 'build', 'chainlab.json')))
+lab['pics'] = move_images.move_images(game, out, [f['name'] for f in lab['fighters']], routes.MOVE_NAMES)
+json.dump(lab, open(os.path.join(out, 'chainlab.json'), 'w'), ensure_ascii=False)
 for f in ('index.html', 'app.js', 'lab.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)

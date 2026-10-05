@@ -164,13 +164,13 @@
     if (labTreeFor >= 0 && labTreeFor !== fi) restoreLabFighter();
     lab.installTree(fi, blob); lab.run(1); labTreeFor = fi;
     const snap = clone(tree); built = { fi, tree: snap, info: indexInfo(snap), bytes: blob.length };
-    $('built').textContent = `built: ${blob[3]} nodes, ${blob.length} bytes in the game's RAM`;
+    builtLabel = $('built').textContent = `built: ${blob[3]} nodes, ${blob.length} bytes in the game's RAM`;
     render();
   }
   $('btnBuild').onclick = build;
   $('btnRom').onclick = () => {
     restoreLabFighter(); tree = clone(F[fi].tree); { const snap = clone(tree); built = { fi, tree: snap, info: indexInfo(snap) }; }
-    $('built').textContent = F[fi].routes_file ? 'the fighter\'s own tree (routes file, in the ROM)' : 'the default tree (in the ROM)';
+    builtLabel = $('built').textContent = F[fi].routes_file ? 'the fighter\'s own tree (routes file, in the ROM)' : 'the default tree (in the ROM)';
     render();
   };
   $('btnDefault').onclick = () => { tree = clone(F[fi].default); tree.fighter = F[fi].name; markDirty(); render(); };
@@ -191,7 +191,8 @@
     } catch (e) { err('Import: ' + e.message); }
     $('file').value = '';
   };
-  function markDirty() { $('built').textContent = built && CL.pyjson(built.tree) === CL.pyjson(tree) ? $('built').textContent : 'edited: not built yet'; }
+  let builtLabel = '';
+  function markDirty() { $('built').textContent = built && CL.pyjson(built.tree) === CL.pyjson(tree) ? builtLabel : 'edited: not built yet'; }
 
   // ---- the readout: P1's route steps from the game's event log ---------------------------------------------------------
   function indexInfo(t) {                // node index -> {path (inputs from neutral), node}
@@ -258,9 +259,9 @@
 
   // ---- the tree editor ------------------------------------------------------------------------------------------------
   const fd = m => (F[fi].moves[m] || null);
-  function fdText(m) {
+  function fdText(m) {                   // startup / active / recovery = total, hits, travel
     const d = fd(m); if (!d) return '';
-    return `startup ${d.startup}  active ${d.active}  recovery ${d.recovery}  total ${d.total}f  ${d.hits} hit${d.hits > 1 ? 's' : ''}  travel ${d.travel} px`;
+    return `${d.startup}/${d.active}/${d.recovery} = ${d.total}f · ${d.hits} hit${d.hits > 1 ? 's' : ''}${d.travel ? ' · ' + d.travel + ' px' : ''}`;
   }
   function fdBar(m) { const d = fd(m); return d ? d.frames.replace(/-/g, '·').replace(/x/g, '█') : ''; }
   const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith('on')) e[k] = v; else if (v !== null && v !== false) e.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c !== null && c !== undefined) e.append(c); return e; };
@@ -287,32 +288,55 @@
         h('div', { class: 'fd' }, kof ? 'KOF ' + kof + ' (route ender)' : 'none: the nearest special plays'),
         h('div', { class: 'acts' }, h('button', { onclick: () => { delete parent.links[key]; edited(); } }, 'Delete')));
     }
-    const moves = (air ? [nd.move] : CL.MOVE_NAMES.filter(m => F[fi].has.includes(m)));
-    const [dd, dp] = CL.defaultDamage(nd);
+        const [dd, dp] = CL.defaultDamage(nd);
     const num = (field, def) => h('input', { type: 'number', value: nd[field] !== undefined ? nd[field] : '', placeholder: String(def),
       onchange: ev => { const v = ev.target.value; if (v === '') delete nd[field]; else nd[field] = Number(v); edited(); } });
-    const kids = [];
+    const acts = [];
+    const free = freeInputs(nd);
+    if (!air && free.length)
+      acts.push(sel([['', '+ link'], ...free.map(k => [k, 'on ' + IN_LABEL[k]])], '', k => { if (!k) return; nd.links = nd.links || {}; nd.links[k] = newChild(k); edited(); }));
     if (parent) {
       const keys = Object.keys(parent.links), i = keys.indexOf(key);
       const move = (d) => { const j = i + d; if (j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; const o = {}; for (const k of keys) o[k] = parent.links[k]; parent.links = o; edited(); };
-      kids.push(h('button', { onclick: () => move(-1), title: 'move up' }, '↑'), h('button', { onclick: () => move(1), title: 'move down' }, '↓'),
-        h('button', { onclick: () => { delete parent.links[key]; edited(); } }, 'Delete'));
+      acts.push(h('button', { onclick: () => move(-1), title: 'move up' }, '↑'), h('button', { onclick: () => move(1), title: 'move down' }, '↓'),
+        h('button', { onclick: () => { delete parent.links[key]; edited(); }, title: 'delete this hit and its links' }, '✕'));
     }
-    const free = freeInputs(nd);
-    if (!air && free.length) {
-      const add = sel([['', '+ link…'], ...free.map(k => [k, 'on ' + IN_LABEL[k]])], '', k => { if (!k) return; nd.links = nd.links || {}; nd.links[k] = newChild(k); edited(); });
-      kids.unshift(add);
-    }
+    const dmg = nd.damage !== undefined ? nd.damage : dd, push = nd.push !== undefined ? nd.push : dp;
     return h('div', { class: 'card', 'data-idx': idx },
-      h('div', { class: 't' }, h('span', {}, MOVE_LABEL[nd.move] || nd.move), h('span', { class: 'res' })),
-      h('div', { class: 'fd' }, fdText(nd.move), h('br'), h('span', { class: 'bar' }, fdBar(nd.move))),
-      air ? null : h('div', { class: 'f' }, 'move', sel(moves.map(m => [m, MOVE_LABEL[m] || m]), nd.move, v => { nd.move = v; edited(); })),
-      h('div', { class: 'f' }, 'weight', sel(CL.WEIGHTS.map(w => [w, w]), nd.weight || 'light', v => { nd.weight = v; edited(); })),
-      h('div', { class: 'f' }, 'effect', sel(CL.EFFECTS.map(w => [w, w]), nd.effect || 'none', v => { nd.effect = v; edited(); })),
-      h('div', { class: 'f' }, 'on hit', sel([['0', 'plays to the end'], ['1', 'cancel on hit']], nd.cancel ? '1' : '0', v => { nd.cancel = v === '1'; edited(); })),
-      h('details', {}, h('summary', {}, `damage ${nd.damage !== undefined ? nd.damage : dd}, push ${nd.push !== undefined ? nd.push : dp}`),
-        h('div', { class: 'f' }, 'damage', num('damage', dd)), h('div', { class: 'f' }, 'push px', num('push', dp))),
-      h('div', { class: 'acts' }, kids));
+      h('div', { class: 't' },
+        air ? h('span', {}, MOVE_LABEL[nd.move] || nd.move)
+            : h('button', { class: 'pick', title: 'choose the move (pictures)', onclick: () => picker(nd.move, v => { nd.move = v; edited(); }) }, (MOVE_LABEL[nd.move] || nd.move) + ' ▸'),
+        h('span', { class: 'res' })),
+      h('div', { class: 'fd' }, fdText(nd.move), ' ', h('span', { class: 'bar' }, fdBar(nd.move))),
+      h('div', { class: 'f2' },
+        sel(CL.WEIGHTS.map(w => [w, w + ' hit']), nd.weight || 'light', v => { nd.weight = v; edited(); }),
+        sel(CL.EFFECTS.map(w => [w, w === 'none' ? 'no effect' : w]), nd.effect || 'none', v => { nd.effect = v; edited(); })),
+      h('div', { class: 'f2' },
+        h('button', { class: 'tog' + (nd.cancel ? ' on' : ''), title: 'on hit: cancel into the next link / play the move to its end',
+          onclick: () => { nd.cancel = !nd.cancel; edited(); } }, nd.cancel ? 'cancel on hit' : 'plays to end'),
+        h('details', {}, h('summary', {}, `${dmg} dmg · push ${push}`),
+          h('div', { class: 'adv' }, h('label', {}, 'damage ', num('damage', dd)), h('label', {}, 'push px ', num('push', dp))))),
+      acts.length ? h('div', { class: 'acts' }, acts) : null);
+  }
+  // the move picker: every move the fighter has, as its impact frame(s) drawn from the game's own data (make_site.py,
+  // move_images.py), its name and frame data; the current one marked (thick border + "current")
+  function picker(current, choose) {
+    const P = data.pics && data.pics[F[fi].name], moves = CL.MOVE_NAMES.filter(m => F[fi].has.includes(m));
+    const close = () => { dlg.remove(); removeEventListener('keydown', esc, true); };
+    const esc = e => { if (e.code === 'Escape') { close(); e.stopImmediatePropagation(); e.preventDefault(); } };
+    addEventListener('keydown', esc, true);
+    const shots = m => (P && P.moves[m] || []).map(c => h('div', { class: 'shot', style:
+      `width:${c.w / 2}px;height:${c.h / 2}px;background-image:url(${P.sheet});background-size:${P.w / 2}px ${P.h / 2}px;background-position:-${c.x / 2}px 0` }));
+    const dlg = h('div', { class: 'modal', onclick: e => { if (e.target === dlg) close(); } },
+      h('div', { class: 'sheet', role: 'dialog', 'aria-label': 'choose a move' },
+        h('div', { class: 'mhead' }, h('b', {}, F[fi].name.toUpperCase() + ': choose the move'), h('span', {}, 'pictures = the frame(s) where it hits'),
+          h('button', { onclick: close }, 'Close')),
+        h('div', { class: 'mgrid' }, moves.map(m => h('button', { class: 'mv' + (m === current ? ' cur' : ''), onclick: () => { close(); if (m !== current) choose(m); } },
+          h('div', { class: 'shots' }, shots(m)),
+          h('div', { class: 'mname' }, (m === current ? '● ' : '') + (MOVE_LABEL[m] || m) + (m === current ? ' (current)' : '')),
+          h('div', { class: 'mfd' }, fdText(m)))))));
+    document.body.append(dlg);
+    const cur = dlg.querySelector('.cur'); if (cur) cur.scrollIntoView({ block: 'nearest' });
   }
   function branch(nd, parent, key, idxMap, air) {
     const links = Object.entries(nd.links || {});
@@ -342,7 +366,7 @@
   }
   // the editor's "Reset positions" etc. done; first view: the fighter's own tree, as the ROM has it
   { const snap = clone(tree); built = { fi, tree: snap, info: indexInfo(snap) }; }
-  $('built').textContent = F[fi].routes_file ? "the fighter's own tree (routes file, in the ROM)" : 'the default tree (in the ROM)';
+  builtLabel = $('built').textContent = F[fi].routes_file ? "the fighter's own tree (routes file, in the ROM)" : 'the default tree (in the ROM)';
   render(); draw();
   window.chainlab = { lab, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); override = k.replace('-', ''); stepFrames(Number(n)); } override = null; }, get tree() { return tree; }, set tree(t) { tree = t; render(); }, build, render, stepFrames, data, chains: () => chains };
 })();
