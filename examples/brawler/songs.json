@@ -13,6 +13,8 @@
   {"name": "SELECT", "source": "kof98", "cmd": "21", "what": "KOF98 opening (title, character select)"},
   {"name": "FIGHT", "source": "ff3", "cmd": "2F", "what": "Fatal Fury 3, Terry's stage (the stage fight)"},
   {"name": "JINGLE", "source": "kof98", "cmd": "2C", "what": "KOF98 VS jingle (stage clear)"},
+  {"name": "CONTINUE", "source": "kof98", "cmd": "2F", "what": "KOF98 continue countdown (measured in our emulator 2026-10-05: sent as the CONTINUE screen opens)"},
+  {"name": "GAME_OVER", "source": "kof98", "cmd": "26", "what": "KOF98 loser's screen after the last defeat (measured 2026-10-05; KOF98's own GAME OVER plays $2C, our stage clear)"},
   {"name": "BOSS_MR_BIG", "source": "aof2", "cmd": "21", "what": "Art of Fighting 2, Mr. Big's stage (opponent 9, measured)"},
   {"name": "BOSS_KRAUSER", "source": "fatfursp", "cmd": "3B", "what": "Fatal Fury Special, Krauser's stage, Kaiser Wave (68K stage table index 14 = Krauser)"},
   {"name": "BOSS_GEESE", "source": "fatfursp", "cmd": "43", "what": "Fatal Fury Special, Geese's stage (68K stage table index 13 = Geese)"},

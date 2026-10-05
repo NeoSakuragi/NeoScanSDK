@@ -317,6 +317,8 @@ def tables(g, build):
          f'#define TINT_COUNT {len(M["tints"])}',
          f'#define SEL_NSLOT {len(g["select"]["slots"])}',
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
+         f'#define GAME_MUS_CONTINUE MUS_{g["music"].get("continue", g["music"]["clear"])}',
+         f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}',
          f'#define AI_TOKENS {g["ai"]["tokens"]}',
          'enum { ' + ', '.join(f'AI_{n.upper()}' for n in presets) + ' };',
          'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',

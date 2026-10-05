@@ -8,6 +8,7 @@ void snd_cmd(uint8_t b);                 /* queue one byte */
 void snd_tick(void);                     /* once a frame: send the next queued byte */
 extern volatile uint8_t snd_test;        /* test hook: a byte poked here (capture POKE) is queued, then cleared */
 void snd_sfx(uint8_t code);              /* $1A + code, skipped when the queue already lags (hit storms) */
+extern uint8_t snd_song;                 /* the last snd_music track */
 void snd_music(uint8_t track);           /* a MUS_* command (snd/songs.h); only the songs in songs.json exist */
 void snd_reset(void);                    /* drop the queue (the BIOS just reset the sound CPU) */
 void snd_voice(uint8_t prefix, uint8_t code);   /* a voice: prefix (snd/voices.h VOICE_PREFIX_*) + code, skipped like snd_sfx */

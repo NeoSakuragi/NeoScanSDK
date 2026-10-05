@@ -26,5 +26,6 @@ void snd_voice(uint8_t prefix, uint8_t code) {
 }
 /* the BIOS resets the sound CPU ($01 $03) each time it hands control back (attract demo -> title -> demo...), and
    KOF98's driver then ignores music until $07 again: every music start carries its own unlock */
-void snd_music(uint8_t track) { snd_cmd(0x07); snd_cmd(track); }
+uint8_t snd_song;                       /* the last song started (the continue gives the fight its song back) */
+void snd_music(uint8_t track) { snd_cmd(0x07); snd_cmd(track); snd_song = track; }
 void snd_reset(void) { qh = qt; }       /* the BIOS reset the sound CPU: a queued prefix would pair with the wrong byte */

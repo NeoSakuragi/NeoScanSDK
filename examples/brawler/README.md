@@ -116,8 +116,19 @@ attack within 56 px is answered 1 time in 4 by down+D (the rising reversal). Mea
 specials, 1-5 jumps, 5-12 punch strings. Regular enemies do not jump (unchanged).
 
 Unlocks: a boss whose own fighter is in the roster stands on the select screen's back row as a silhouette, not selectable,
-until beaten; P2's mid-fight join never picks a locked one. Players: 3 lives, a 10 s CONTINUE (START
-with a credit), carried from stage to stage with their fighter and colours; both out: GAME OVER.
+until beaten; P2's mid-fight join never picks a locked one. Players: 3 lives, carried from stage to stage with their
+fighter and colours.
+
+Continue / GAME OVER (TODO #57, SNK convention): a player whose last life is gone counts 9 -> 0, a number a second;
+A-D jump to the next number. START (MVS: with a credit, the BIOS's PLAYER_START; SNK's MVS BIOS keeps each player's
+credits, P2's from coin slot 2; AES: START, free continues) brings him back where he fell, full life, 3 lives again.
+While the other player fights on, the count shows in the HUD and the fight goes on; with nobody in play the fight
+freezes under the CONTINUE? overlay (fix layer, the drama font, PRESS START / INSERT COIN blinking) with KOF98's
+continue song ($2F). Every count at 0: the fight fades out, the GAME OVER screen (the player lying, the stage reached,
+KOF98's loser theme $26; 8 s or a button after 1.5 s), then SYSTEM_RETURN (MVS: the save committed; the title while
+credits remain, else the demo; AES: the demo). The attract demo's bot has no continue: its last life ends the demo.
+Songs: game.json `music.continue` / `music.gameover`. Proof: /data/tmp/continue/cont.py mvs|aes (screenshots in
+/data/tmp/continue/out).
 
 ## Save (SNK conventions, sdk/include/neo_backup.h)
 `save_t` (main.c, 16 bytes): 2 bytes debug dipswitches (SNK: the backup block starts with them), "BRW2", furthest

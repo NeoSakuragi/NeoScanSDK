@@ -34,15 +34,15 @@ a/b/c" = the channels' loop points (several values = channels that start a few t
 | $23 | team select screen | 0 | 140 | 112.29 | FM1-4 A1-3 A4 A5 B | loop 768 ticks (6.8 s) from tick 376/385/386/391; FM1 192, FM3 192 |
 | $24 | win screen (winner's quote) | 0 | 98 | 78.60 | FM1 FM2 FM3 A1-6 B | ends at tick 579 (7.4 s) |
 | $25 |  | 0 | 135 | 108.28 | FM1 FM2 A1-3 A4 B | loop 768 ticks (7.1 s) from tick 277/289/290 |
-| $26 | continue countdown | 0 | 93 | 74.59 | FM1-4 A1-3 A6 B | ends at tick 1250 (16.8 s) |
+| $26 | loser's screen after the last defeat (measured in our emulator 2026-10-05; MAME notes said continue) | 0 | 93 | 74.59 | FM1-4 A1-3 A6 B | ends at tick 1250 (16.8 s) |
 | $28 | how to play (CONTROLS / JOYSTICK screen) | 0 | 134 | 107.48 | FM1-4 A1-3 A5 A6 B | loop 768 ticks (7.1 s) from tick 193/199/241/337; A1 1536, A2 1536 |
 | $29 |  | 0 | 107 | 85.82 | FM1-4 A1-6 B | loop 768 ticks (8.9 s) from tick 193/961/1729; FM1 192, FM2 2304, FM3 2304, A4 1612; ended: FM4 A3 A5 A6 |
 | $2A |  | 0 | 128 | 102.66 | FM1-4 A1-6 B | loop 9984 ticks (97.2 s) from tick 1535/1536/1537/1538 |
 | $2B |  | 0 | 100 | 80.21 | FM1 A1-6 | loop 384 ticks (4.8 s) from tick 385/391/397 |
-| $2C | VS screen jingle (ADPCM-A only) | 0 | 100 | 80.21 | A1-3 | ends at tick 387 (4.8 s) |
+| $2C | VS screen jingle (ADPCM-A only); also GAME OVER (measured 2026-10-05) | 0 | 100 | 80.21 | A1-3 | ends at tick 387 (4.8 s) |
 | $2D |  | 0 | 100 | 80.21 | FM1-4 A1-3 A4 A6 B | ends at tick 1873 (23.4 s) |
 | $2E |  | 0 | 120 | 96.25 | A1-3 B | ends at tick 1165 (12.1 s) |
-| $2F |  | 0 | 113 | 90.63 | A1-3 | ends at tick 1537 (17.0 s) |
+| $2F | continue countdown (measured in our emulator 2026-10-05, prefix $16) | 0 | 113 | 90.63 | A1-3 | ends at tick 1537 (17.0 s) |
 | $30 |  | 0 | 163 | 130.74 | FM1-4 A1-3 B | loop 12672 ticks (96.9 s) from tick 3073/3083/3089 |
 | $31 | stage theme: demo Joe (Terry/Andy/Joe) vs Athena | 1 | 120 | 96.25 | FM1-4 A1-3 B | loop 4992 ticks (51.9 s) from tick 385/577/579/581 |
 | $32 | stage theme: AoF team (demo Robert, Yuri; arcade vs Ryo) | 1 | 127 | 101.86 | FM1-4 A1-3 B | loop 7680 ticks (75.4 s) from tick 817/821/825 |

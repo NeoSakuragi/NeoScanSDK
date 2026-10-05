@@ -316,7 +316,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   with an override.
 - [x] 56. (done 2026-10-05, docs/brawler_data_model.md "Triggers and drama mode"; each boss's entry scene with its KOF96/98 win-screen portrait (big_portraits.py, C ROM 15.56 MB), screenshots /data/tmp/drama/out; chainlab/trigger_proof.sh: a trigger added in the page spawns at +120/+180 ticks, page = wasm = desktop 1494 ticks, pack v4 = build_tables.py; campaign29 through, regress bleed True) Triggers + boss drama mode: triggers (camera x / wave clear / time: spawn, lock, music change, drama), the
   boss entrance speech in drama mode (black bars, big portraits, text lines), per boss in game.json.
-- [ ] 57. TODO #49: the "please continue" overlay (9 -> 0), GAME OVER state with its screen and music, back to attract.
+- [x] 57. (done 2026-10-05, README "Continue / GAME OVER"; /data/tmp/continue/cont.py on SNK's MVS BIOS (us) + UniBIOS-AES: overlay 9 -> 0 at 60 ticks a number, A skips one, START continues where he fell (x 93 -> 93, 3 lives, the fight song back), 0 -> GAME OVER screen + $26 -> SYSTEM_RETURN -> demo, 2P count in the HUD then the shared overlay; regress bleed True, campaign29 log unchanged; SNK's MVS BIOS: P2 needs coin slot 2) TODO #49: the "please continue" overlay (9 -> 0), GAME OVER state with its screen and music, back to attract.
 - [ ] 58. Regular enemies jump (only bosses do): an AI preset field, default off for today's minion preset.
 - [ ] 59. Goenitz's up+D (214C) only hits point-blank: compare with KOF96's own range, fix the export or pick another
   special for the slot.

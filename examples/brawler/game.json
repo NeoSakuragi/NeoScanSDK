@@ -1,7 +1,7 @@
 {
  "about": "The brawler as data (docs/brawler_data_model.md): roster (layer 1), enemies + AI presets (layer 2), stages (layer 3). tools/brawler/build_tables.py turns it into the tables the game reads (build/game_tables.c / .h, build/roster.json for the fighter export).",
  "schema": 1,
- "music": {"select": "SELECT", "clear": "JINGLE"},
+ "music": {"select": "SELECT", "clear": "JINGLE", "continue": "CONTINUE", "gameover": "GAME_OVER"},
  "roster": [
   {
    "name": "terry",

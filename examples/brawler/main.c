@@ -50,7 +50,7 @@ uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_ti
 static fighter_t fighters[NF];
 static fighter_t *order[NA];                     /* back (small Z) to front, the nf entities in play */
 static uint8_t nf;                               /* entities in play: the previews on the select screen, NE in the fight */
-static uint8_t mode;                             /* 0 select, 1 fight, 2 title, 3 BOSS UNLOCKED, 4 the ending */
+static uint8_t mode;                             /* 0 select, 1 fight, 2 title, 3 BOSS UNLOCKED, 4 the ending, 5 GAME OVER */
 static uint8_t attract;                          /* the fight is the attract demo: P1 is ai_bot, enemies their attract_ai */
 static uint16_t attract_t;
 static uint8_t tap_t[2], tap_dir[2];             /* double-tap run detection per player */
@@ -75,6 +75,7 @@ const uint8_t soft_dip[] = {
 };
 #define BIOS_GAME_DIP ((volatile uint8_t *)0x10FD84)
 #define CREDITS_P1    (*(volatile uint8_t *)0xD00034)
+#define CREDITS_P2    (*(volatile uint8_t *)0xD00035)   /* SNK's MVS BIOS: P2's own (coin slot 2); UniBIOS shares P1's */
 /* difficulty 0-3 (EASY NORMAL HARD MANIAC): enemies' and bosses' life x0.5 x1 x1.5 x2 (`life`). Arcade (MVS): the soft
  * DIP's LEVEL 1-8 in pairs (1-2 EASY, 3-4 NORMAL = the default LEVEL-4, 5-6 HARD, 7-8 MANIAC), set by the operator in
  * the BIOS game settings; console (AES): the OPTIONS screen, kept in the save (memory card), shown as LEVEL-2/4/6/8 */
@@ -443,6 +444,13 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
 typedef struct { uint8_t col, row, mirror, n, cell[BOSS_CELLS], wait; int16_t px, trail; } bar_t;
 static uint8_t lives[2];
 static uint16_t cont_t[2];                       /* continue countdown (frames), 0 = none */
+static uint8_t cont_ov;                          /* the CONTINUE? overlay: 0 off, 1 on (the fight frozen), 2 fading out */
+static uint8_t cont_digit(uint8_t p) {           /* 9 .. 0 */
+    uint32_t r = (uint16_t)(cont_t[p] - 1);
+    if (!cont_t[p]) return 0;
+    __asm__("divu.w %1,%0" : "+d"(r) : "d"((uint16_t)60));
+    return (uint8_t)r;
+}
 /* bars: 0 P1, 1 right block (P2, or P1's target alone), 2 P1's target under P1, 3 P2's target under P2, 4 the boss */
 static bar_t bars[5];
 static uint8_t boss_shown;
@@ -540,9 +548,10 @@ static void hud(void) {
         if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face, p); hud_name(p, 1, f->ch->name); }
         bar_draw(&bars[p], in_play(f) ? f->hp : 0, f->hp_max);
         if (lives[p] != hud_lives[p]) { hud_lives[p] = lives[p]; FIX_print(lc, 2, "x ", 0); FIX_printNum(lc + 1, 2, lives[p], 0); }
-        if (cont_t[p] / 60 != hud_cont[p]) {
-            hud_cont[p] = cont_t[p] / 60;
-            if (cont_t[p]) { FIX_print(cc, 2, "CONTINUE   ", 0); FIX_printNum(cc + 9, 2, hud_cont[p], 0); }
+        i = cont_t[p] && !cont_ov ? cont_digit(p) + 1 : 0;   /* the count here while the other player fights on */
+        if (i != hud_cont[p]) {
+            hud_cont[p] = i;
+            if (i) { FIX_print(cc, 2, "CONTINUE   ", 0); FIX_printNum(cc + 9, 2, i - 1, 0); }
             else FIX_print(cc, 2, "           ", 0);
         }
         if (two) hud_target(2 + p, tgt(f), p, 5, 0);       /* each player's target under its own block: bar, name */
@@ -1127,8 +1136,8 @@ static void select_start(void) {
  * land `power` extra damage a hit. At the stage's end its boss comes in with its minions (at most 5, in minion colours:
  * fighter_colour's tints, never a playable colour set); the boss bar under the HUD; boss beaten: the minions go down,
  * STAGE CLEAR, the save (furthest stage, boss unlocked), BOSS UNLOCKED when its fighter was locked, the fade to the next
- * stage. After the last: CONGRATULATIONS, then the title. Players: 3 lives, a 10 s continue (START with a credit); both
- * out: GAME OVER, back to the BIOS. The attract demo plays the first stage's waves on background STAGE (make STAGE=n,
+ * stage. After the last: CONGRATULATIONS, then the title. Players: 3 lives, then the continue ("continue and GAME OVER"
+ * below). The attract demo plays the first stage's waves on background STAGE (make STAGE=n,
  * stages[] index) without a boss, the last wave again and again. ---- */
 
 static uint8_t unlock_k;                         /* the boss just unlocked + 1 (0 none) */
@@ -1136,7 +1145,6 @@ static uint16_t phase_t;
 static const gstage_t *gs;                       /* the stage playing: gstages[camp] */
 static uint8_t power;                            /* this stage's enemies' extra damage */
 static uint8_t pl_ch[2], pl_set[2], pl_on[2];   /* the players, carried from stage to stage (pl_on: in play) */
-static uint16_t banner_t;                        /* GAME OVER on screen, frames left */
 
 static uint8_t mod8(uint8_t a, uint8_t b) { while (a >= b) a -= b; return a; }   /* no libgcc: no 32-bit % */
 static void hud_wave(void) {
@@ -1399,7 +1407,7 @@ static void go_sign(uint8_t on) { FIX_print(29, 3, on ? "GO -->" : "      ", 1);
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
-    mode = 1; nf = NE; cam_x = 0; wave = 0; banner_t = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
+    mode = 1; nf = NE; cam_x = 0; wave = 0; cont_ov = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
     triggers_reset(); dr_on = DR_OFF; dr_cols = 0;      /* a drama cut short (the lab): dbg_init below hides its sprites */
     inputs_reset();
     snd_music(gs->music);
@@ -1440,13 +1448,13 @@ static void attract_start(void) {
 }
 static void select_start(void);
 /* BIOS PLAYER_START filter (crt0): who may take a credit now. Title: anyone (the game starts); select, unlock and
- * ending screens: nobody; fight: a player not in play (P2 joins, a player continues or rejoins), not under GAME OVER
+ * ending screens: nobody; fight: a player not in play (P2 joins, a player continues or rejoins), not once the count ran out
  * or once the stage's boss is beaten, never in the attract demo's fight (a coin ends the demo first). */
 uint8_t game_start_accept(uint8_t flags) {
     if (lab.active) return 0;                                /* the Chain Lab's training: nobody joins */
     if (mode == 2 || attract) return opt_on ? 0 : flags;
     if (mode == 0) return sel_phase == SEL_CHOOSE && cursor[1] == 0xFF ? flags & 2 : 0;   /* the select: P2 joins */
-    if (mode != 1 || banner_t || phase >= PH_END) return 0;
+    if (mode != 1 || cont_ov == 2 || phase >= PH_END) return 0;
     return flags & ((in_play(&fighters[0]) ? 0 : 1) | (in_play(&fighters[1]) ? 0 : 2));
 }
 static void unlock_start(uint8_t k);
@@ -1503,9 +1511,99 @@ static void campaign(uint8_t left) {
         break;
     }
 }
+/* ---- continue and GAME OVER (SNK convention, TODO #57): a player whose last life is gone counts 9 -> 0, a number a
+ * second (60 ticks); A-D jump to the next number. START (MVS: with a credit, the BIOS's PLAYER_START; AES: START, free
+ * continues as SNK's home carts) brings him back where he fell, full life, the lives reset. While the other player is
+ * in play the count shows in his HUD block and the fight goes on; with nobody in play the fight freezes under the
+ * CONTINUE? overlay, KOF98's continue song ($2F) playing. Every count at 0: the fight fades out, the GAME OVER screen
+ * (KOF98's loser theme $26), then back to the BIOS (MVS: SYSTEM_RETURN commits the save; title while credits remain,
+ * else the demo; AES: the demo). The attract demo's bot has no continue: its last life ends the demo. ---- */
+static void show_start(uint8_t m, uint8_t c, uint8_t set, uint16_t wall);
+static void centre(uint8_t row, const char *t);
+static uint8_t cont_mus, cont_txt[2], cont_prompt;
+static uint16_t cont_ft;
+static void p2_join(void) {                      /* P2 joins mid-fight: START with a credit (PLAYER_START) */
+    uint8_t c, i, used;
+    for (c = 0; c < BC_COUNT; c++) {                         /* an unlocked fighter nobody on screen is */
+        used = &bm_chars[c] == fighters[0].ch || char_locked(c);
+        for (i = 2; i < NF && !used; i++) used = fighters[i].state != S_OFF && fighters[i].ch == &bm_chars[c];
+        if (!used) break;
+    }
+    fighter_init(&fighters[1], &bm_chars[c < BC_COUNT ? c : 1], 1, 16 + MAX_PALS, 0, cam_x + 40, 20);
+    fighters[1].idx = 1; fighter_revive(&fighters[1]); lives[1] = 2; BIOS_PLAYER_MOD[1] = 1;
+    bios_start &= ~2;
+}
+static void cont_player(uint8_t p) {             /* one player: START continues (or rejoins), the count, A-D */
+    fighter_t *f = &fighters[p];
+    if (p && !p2_in()) return;
+    if (!in_play(f) && (bios_start & (1 << p))) {            /* where he fell, inside the screen */
+        int16_t x = INT(f->x);
+        if (x < cam_x + 24) x = cam_x + 24;
+        if (x > cam_x + 296) x = cam_x + 296;
+        f->x = FIX(x);
+        cont_t[p] = 0; lives[p] = 3; BIOS_PLAYER_MOD[p] = 1;
+        fighter_revive(f);
+        return;
+    }
+    if (!cont_t[p]) return;
+    if (JOY_pressed(p) & (JOY_A | JOY_B | JOY_C | JOY_D)) cont_t[p] = (uint16_t)cont_digit(p) * 60 + 1;   /* the next
+                                                             number at once (at 0: the count ends) */
+    if (!--cont_t[p]) BIOS_PLAYER_MOD[p] = 3;
+}
+static void ov_put(uint8_t col, uint8_t row, const char *t, uint8_t pal) { while (*t) dr_put(col++, row, *t++, pal); }
+#define OV_R0 10                                 /* the overlay box: fix rows 10-17, columns 9-30 */
+#define OV_R1 17
+static void cont_box(uint8_t on) {
+    uint8_t r, c;
+    for (r = OV_R0; r <= OV_R1; r++) for (c = 9; c <= 30; c++) fix_put(c, r, on ? DRAMA_FONT + ' ' : 0x20);
+    cont_txt[0] = cont_txt[1] = 0xFF; cont_prompt = 0xFF;
+    if (on) ov_put(15, 11, "CONTINUE?", 1);
+}
+static void cont_draw(void) {
+    uint8_t p, two = p2_in() || in_play(&fighters[1]), v;
+    char t[3] = { 0, 0, 0 };
+    for (p = 0; p < 1 + two; p++) {
+        v = cont_t[p] ? cont_digit(p) : 0xFE;                /* 0xFE: this player's count is over */
+        if (v == cont_txt[p]) continue;
+        cont_txt[p] = v;
+        t[0] = v == 0xFE ? '-' : '0' + v; t[1] = v == 0xFE ? '-' : ' ';
+        if (two) { ov_put(p ? 23 : 12, 14, p ? "2P" : "1P", 0); ov_put(p ? 26 : 15, 14, t, 0); }
+        else ov_put(19, 14, t, 0);
+    }
+    v = BIOS_MVS_FLAG && !CREDITS_P1 && !(cont_t[1] && CREDITS_P2) ? 1 : 0;   /* MVS without a credit: INSERT COIN (SNK's
+                                                             BIOS keeps each player's credits, his own coin slot) */
+    v |= (cont_ft & 32) ? 2 : 0;                             /* blinking */
+    if (v != cont_prompt) { cont_prompt = v; ov_put(14, 16, v & 2 ? "           " : v & 1 ? "INSERT COIN" : "PRESS START", 0); }
+}
+static void gameover_start(void) {
+    fighter_t *f = &fighters[0];
+    show_start(5, char_index(f->ch), f->set, RGB8(0, 0, 0));
+    fighter_play(&fighters[0], BA_DOWN);                     /* the player lies on the floor */
+    centre(10, "GAME OVER");
+    { char t[] = "STAGE  "; t[6] = '1' + camp; centre(13, t); }
+    snd_music(GAME_MUS_OVER);
+}
+static void cont_tick(void) {                    /* the fight frozen under the overlay */
+    uint8_t p;
+    cont_ft++;
+    if (cont_ov == 2) {                                      /* every count at 0: the fight fades, then GAME OVER */
+        scene_pals(cont_ft >= FADE_T ? 0 : 16 - (uint8_t)(cont_ft >> 1));
+        if (cont_ft >= FADE_T + 8) gameover_start();
+        return;
+    }
+    if ((bios_start & 2) && !p2_in()) p2_join();
+    for (p = 0; p < 2; p++) cont_player(p);
+    bios_start = 0;
+    if (in_play(&fighters[0]) || in_play(&fighters[1])) {    /* a continue: the fight goes on, its music back */
+        cont_box(0); cont_ov = 0; hud_two = 0xFF; arcade_line_reset(); hud_wave();
+        snd_music(cont_mus);
+        return;
+    }
+    if (!cont_t[0] && !cont_t[1]) { cont_box(0); cont_ov = 2; cont_ft = 0; snd_cmd(0x20); return; }   /* $20: stop */
+    cont_draw();
+}
 static void flow(void) {
     uint8_t i, p, left = 0;
-    if (banner_t) { if (!--banner_t) SYS_return(); return; }   /* back to the BIOS: demo, or title while credits remain */
     for (i = 2; i < NF; i++) {
         fighter_t *e = &fighters[i];
         if (e->state == S_DEAD && e->state_t > 60) e->state = S_OFF;      /* blinked out */
@@ -1513,30 +1611,20 @@ static void flow(void) {
     }
     if (!attract && in_play(&fighters[0]) && (JOY_pressed(0) & JOY_START)) dbg_on ^= 1;   /* box viewer: P1 START in play
                                                              (P2 START joins; a START that continues isn't in play yet) */
-    if ((bios_start & 2) && !attract && !p2_in()) {           /* P2 joins mid-fight: START with a credit (PLAYER_START) */
-        uint8_t c, used;
-        for (c = 0; c < BC_COUNT; c++) {                     /* an unlocked fighter nobody on screen is */
-            used = &bm_chars[c] == fighters[0].ch || char_locked(c);
-            for (i = 2; i < NF && !used; i++) used = fighters[i].state != S_OFF && fighters[i].ch == &bm_chars[c];
-            if (!used) break;
-        }
-        fighter_init(&fighters[1], &bm_chars[c < BC_COUNT ? c : 1], 1, 16 + MAX_PALS, 0, cam_x + 40, 20);
-        fighters[1].idx = 1; fighter_revive(&fighters[1]); lives[1] = 2; BIOS_PLAYER_MOD[1] = 1;
-    }
+    if ((bios_start & 2) && !attract && !p2_in()) p2_join();
     for (p = 0; p < 2; p++) {
         fighter_t *f = &fighters[p];
         if (f->state == S_DEAD) {
             if (lives[p]) { lives[p]--; fighter_revive(f); }
+            else if (attract) SYS_return();                  /* the demo's bot: no continue */
             else { f->state = S_OFF; cont_t[p] = CONTINUE; BIOS_PLAYER_MOD[p] = 2; }
         }
-        if (!in_play(f) && (bios_start & (1 << p))) {        /* START with a credit: continue, or P1 rejoins */
-            cont_t[p] = 0; lives[p] = 2; BIOS_PLAYER_MOD[p] = 1;
-            f->x = FIX(cam_x + (p ? 60 : 100)); fighter_revive(f);
-        } else if (cont_t[p] && !--cont_t[p]) BIOS_PLAYER_MOD[p] = 3;
+        cont_player(p);
     }
     bios_start = 0;
-    if (!in_play(&fighters[0]) && !in_play(&fighters[1]) && !cont_t[0] && !cont_t[1]) {
-        FIX_print(15, 13, "GAME OVER", 0); banner_t = 240; return;
+    if (!in_play(&fighters[0]) && !in_play(&fighters[1])) {  /* nobody in play: the fight freezes, CONTINUE? */
+        cont_ov = 1; cont_ft = 0; cont_mus = snd_song; snd_music(GAME_MUS_CONTINUE); cont_box(1); cont_draw();
+        return;
     }
     campaign(left);
 }
@@ -1686,8 +1774,8 @@ static void show_tick(void) {
     uint16_t pr = JOY_pressed(0) | JOY_pressed(1);
     scr_t++;
     fighter_animate(&fighters[0]);
-    if (scr_t < (mode == 3 ? 360 : 600) && !(scr_t >= 90 && (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) return;
-    if (mode == 4) SYS_return();                             /* the ending: back to the BIOS, which commits the MVS save
+    if (scr_t < (mode == 3 ? 360 : mode == 5 ? 480 : 600) && !(scr_t >= 90 && (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) return;
+    if (mode >= 4) SYS_return();                             /* the ending, GAME OVER: back to the BIOS, which commits the MVS save
                                                                 and shows the title (credits left) or the attract demo */
     else if (camp + 1 >= GS_COUNT) ending_start();
     else { fade_in = FADE_T; stage_begin(camp + 1, 0); }
@@ -1816,6 +1904,7 @@ void game_tick(void) {
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
     if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
+    if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */
     if (attract) {                                           /* the demo: a coin, 40 s or a game over ends it */
         if (bios_demo_end || ++attract_t > 2400) { SYS_return(); }
         if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); title_paid = 1; depth_sort(); draw(); return; }
