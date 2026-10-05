@@ -40,11 +40,12 @@ static void mark(uint8_t sec) {
 
 #define NF 8                         /* 2 players + 6 enemies: the POC target */
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
-#define NA 17                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
+#define NA 18                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
                                         fighter: the group photo) */
-#define SEL_COLS 17                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 17 =
-                                        sprites 60-348 there (the banner's, the debug boxes' and the sparks' 300-379 are
-                                        not in use on that screen); the watch / win poses are narrower */
+#define SEL_COLS 16                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 16 =
+                                        sprites 60-347 there (the banner's, the debug boxes' and the sparks' 300-379 are
+                                        not in use on that screen); the watch / win poses and the walk-offs are narrower
+                                        (2026-10-05: widest 13, a walk; win 11, watch 8) */
 uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
 #define SPR_BASE 60                  /* fighter blocks (stage 22-42, shadows 43-54 behind them; 1-21 free) */
 static fighter_t fighters[NF];

@@ -121,6 +121,10 @@ def build(specs, outdir):
             sys.path.insert(0, os.path.join(HERE, '..', 'samsho4')); import export_ss4
             return export_ss4.export(names, tmp, only=set(MOVES),
                                      extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()})
+        if game == 'whp':                               # World Heroes Perfect: its own reader, the same export layout
+            sys.path.insert(0, os.path.join(HERE, '..', 'whp')); import export_whp
+            return export_whp.export(names, tmp, only=set(MOVES),
+                                     extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()})
         return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {'specials'},
                                extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()})
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
