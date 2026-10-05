@@ -196,15 +196,38 @@ class Brawler:
         """campaign builds: every boss on the select screen (save.unlocked poked after the title loaded the save; the
         sum is not updated, so it lasts until the next power-on)"""
         if 'save' in self.syms: self.w(self.syms['save'] + 7, 1, 0xFF)
+    def sel_slots(self):
+        """the select screen's slot table (main.c SEL_SLOT, P ROM): [(x, z, row)], read from the .neo (P word-swapped)"""
+        if not hasattr(self, '_slots'):
+            d = open(self.rom, 'rb').read(); a = 0x1000 + self.syms['SEL_SLOT']; out = []
+            for i in range(16):
+                w = d[a + 4 * i:a + 4 * i + 4]; w = bytes([w[1], w[0], w[3], w[2]])
+                out.append((struct.unpack('>h', w[:2])[0], w[2], w[3]))
+            self._slots = out
+        return self._slots
+    def sel_goto(self, k, p=0):
+        """on the select screen: move player p's cursor to fighter k (bm_chars index) with the stick, row first
+        (up = the row behind), then left / right; returns the slot"""
+        slots = self.sel_slots(); sc = [self.r(self.syms['slot_ch'] + i, 1) for i in range(16)]
+        t = sc.index(k)
+        for _ in range(40):
+            c = self.r(self.syms['cursor'] + p, 1)
+            if c == t: return t
+            if slots[c][2] != slots[t][2]: key = 'U' if slots[t][2] > slots[c][2] else 'D'
+            else: key = 'R' if slots[t][0] > slots[c][0] else 'L'
+            self.run(4, *([key] if not p else ['', key])); self.run(12)
+        raise RuntimeError(f'cursor never reached fighter {k} (slot {t})')
     def pick(self, k, button='a', cache=True, unlock=False):
-        """power on -> coin -> START -> the select screen's fighter k (stick right k times: the real select path)
-        -> the fight, 20 frames in; unlock: every boss in the line-up (CHARS order, as before the campaign)"""
+        """power on -> coin -> START -> the select screen's fighter k (bm_chars index = CHARS order; the cursor walked
+        there with the stick: the real select path) -> the fight, 20 frames in; unlock: every boss selectable"""
         path = os.path.join(WORK, 'fight_%08x_%d%s%s.state' % (self._rom_id(), k, button, 'u' if unlock else ''))
         if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
         self.core.retro_reset()                       # from power on, whatever ran before in this process
         self.seq('600:-,4:o,100:-')
         if unlock: self.unlock_all()
-        self.seq('4:s,100:-' + ',4:R,16:-' * k + f',4:{button},270:-')
+        self.seq('4:s,100:-')
+        self.sel_goto(k)
+        self.seq(f'4:{button},270:-')
         open(path, 'wb').write(self.save())
     def char_of(self, i):
         """index in bm_chars (the Makefile's CHARS order) of fighter i"""

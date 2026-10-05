@@ -23,15 +23,29 @@ tools/brawler/publish_vps.sh) and the info page canneji.duckdns.org/brawler/ sho
 The secret is in the APK: it keeps casual visitors out, it is not real protection.
 
 ## Character select
-A police line-up (2026-10-04): the roster stands left to right in its idle pose, 84 px apart, and the camera pans to
-keep the selected fighter in the middle; the selected one shows its colours, the others shades of grey (luminance of
-their own palettes). "1P" with a down arrow (fix tile $7F, make_hud.py) above the selected head ("2P" above it when a
-second player selects). Stick left / right moves; A/B/C/D picks that colour set, KOF style, and plays the win pose.
-Then the others walk off the screen outward, the wall and the picked fighter fade to black (32 frames) and the fight
-fades in from black (stage, backdrop, fighters). Locked campaign bosses are not in the line-up (see Campaign).
-Only the fighters on screen use an entity: the fight's 8 fighter
-entities are the line-up's actors, bound to whichever fighters the camera shows. HUD portraits (32x32 fix layer) stay
-for the fight.
+A group photo (2026-10-05, TODO #51): the whole roster on screen at once in three rows, like a school photo. Front
+row (6) and middle row (5): the playable fighters; back row (5): the campaign bosses, in stage order. A locked boss is
+a dark silhouette (`SILHOUETTE`) the cursor skips; once beaten it is selectable like the others. Places are slots,
+independent of who stands in them: `SEL_SLOT[]` (x, z = feet at `SELECT_FLOOR` + z, row; front row z 48 = feet at
+y 206, middle 24, back 0; rows 48 px apart in x, the middle row between the front row's fighters) and `SEL_PLACE[]`
+(the export name in each slot): swapping two fighters on screen = swapping two names there; a fighter not listed takes
+the first free slot of its kind. Everyone holds a 'watch' pose (`BA_WATCH`, `export_bm.WATCH`: one held,
+front-facing frame of its intros / win poses), turned toward the middle. The cursor's fighter shows its colours, the
+others shades of grey (luminance of their own palettes). Stick left / right moves within a row, up / down to the row
+behind / in front (the nearest fighter in x); A/B/C/D picks that colour set, KOF style, and plays the win pose. P2
+joins on this screen with START (a credit: `game_start_accept`), starting on the last fighter of P1's row, and picks
+too (not the fighter P1 picked); "1P" / "2P" with a down arrow (fix tile $7F) above the selected head (side by side
+on one fighter), the names on row 2 (P1 left, P2 right). When everyone in has picked, the others walk off the screen
+outward, the wall and the picked fighters fade to black (32 frames) and the fight fades in with both players.
+Actors: each fighter on screen is an entity: the fight's 12 (8 fighters + 4 projectiles) and 4 more (`sel_extra`),
+`NA` = 16 sprite blocks of 20 (sprites 60-379; blocks 12-15 use the banner's / debug boxes' / sparks' sprites
+300-379, idle on this screen). Sprites per line (measured, VRAM): 69 at most with all 16 standing, 76 during the
+walk-off (the line guard counts from 0 here: no stage, shadows or sparks; the picked fighters come first).
+Neutral pose research: KOF94 / KOF95's background characters are the waiting teammates, real fighter objects (+$70 =
+fighter id) in KOF95 states 155 (watch), 156 / 157 (react to a hit), 158 / 159 (round won / lost), 160 (KO'd) =
+animation slots 36-41 of every fighter's table, in KOF95's art; KOF96 dropped them and KOF96 / 98 / 99 have no such
+slot, so `WATCH` takes the closest front-facing frame (KOF98 / 99 intros 347-354 and wins 336-343; KOF96 208-239).
+HUD portraits (32x32 fix layer) stay for the fight.
 
 ## Campaign (2026-10-05, Streets of Rage 2 / Golden Axe style)
 Five stages, Robo Army's horizontal ones in this order: `stages[]` 0, 1, 3, 4, 5 (`CAMP_STAGE` in main.c; 2, the
@@ -77,8 +91,8 @@ forward regular jump with C held through the prejump, air B on the way down), el
 attack within 56 px is answered 1 time in 4 by down+D (the rising reversal). Measured over 900 frames per boss: 3-8
 specials, 1-5 jumps, 5-12 punch strings. Regular enemies do not jump (unchanged).
 
-Unlocks: a boss whose own fighter is in CHARS is not on the select screen (the line-up shows only unlocked fighters,
-CHARS order) until beaten; P2's mid-fight join never picks a locked one. Players: 3 lives, a 10 s CONTINUE (START
+Unlocks: a boss whose own fighter is in CHARS stands on the select screen's back row as a silhouette, not selectable,
+until beaten; P2's mid-fight join never picks a locked one. Players: 3 lives, a 10 s CONTINUE (START
 with a credit), carried from stage to stage with their fighter and colours; both out: GAME OVER.
 
 ## Save (SNK conventions, sdk/include/neo_backup.h)
@@ -98,7 +112,8 @@ read and upgraded in place (difficulty NORMAL). Game ID = the header NGH, $0999 
   (neogeo_sdl: ~/.config/retroarch/saves) when the game is unloaded (quit, reset, end of a capture), and loads them
   at start. tools/brawler/harness.py: the core now gets persistent path buffers (its save dir pointer dangled, so
   harness runs never wrote a .nv), a fresh save dir per instance (`b.save_dir`, WORK/save_*, removed at exit: runs
-  don't share credits or saves), `b.power_cycle()`, and `unlock_all()` / `pick(k, unlock=True)` for the line-up.
+  don't share credits or saves), `b.power_cycle()`, and `unlock_all()` / `pick(k, unlock=True)` (k = the CHARS index; `sel_goto(k)` walks the cursor
+  there with the stick, rows first, reading `SEL_SLOT` from the ROM and `slot_ch` / `cursor` from RAM).
 
 Proof (2026-10-05, harness = our emulator's core, real path power on -> coin -> START -> select -> 5 stages; test
 pokes only: wave enemies set OFF, the boss set DEAD, P1's life refilled): per stage the enemy counts above, the camera
@@ -186,8 +201,31 @@ Links chain only when the previous one hit: pressed during the move (remembered,
 style up to 30 frames after it ended (`CHAIN_WINDOW`: tap, wait, tap). An attack is never cut: the next one starts when
 its animation has finished. A victim stays in hitstun 36 frames (light) / 54 (heavy), 3x a fighting game's; hit-stop is
 10 frames for every hit, light ones included, so every impact lands with the same weight (KOF98 measured ~10-12). Multi-hit normals (Terry / Chang close
-C, Yamazaki close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. One table
-(`COMBO[]` in fighter.c) for every fighter: the links are animations every KOF fighter has.
+C, Yamazaki close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. The table
+above is the **default route tree** every fighter without a routes file plays (see Chain routes below); Terry has his own.
+
+## Chain routes and the Chain Lab (2026-10-05)
+Each fighter has a **route tree** (fighter.h "chain routes"): a node = one hit (the move: any ground normal incl. crouch A /
+B and the command normals, or a special as a route ender; the hit weight light / strong; the effect none / knockdown /
+launch / trip / blowback; damage and push, defaulted from weight / effect; the cancel flag) and its links by input: A, B,
+↓A, ↓B, →A, →B, ↘A, ↘B, A+B, D, →D, ↓D, ↑D (down = toward the camera, forward = the way the fighter faces; a press falls
+back ↘ -> → -> ↓ -> plain; A+B, which is D otherwise, takes a node's A+B link when it has one). Cancel clear = the move
+plays to its end and the buffered input then takes its link (the brawler's rule since the start); set = on hit the link
+starts as soon as its input comes, after the hit-stop. D links cancel a normal that hit, as before. Trees are written in
+`tools/brawler/routes/<fighter>.json` (format: `tools/brawler/routes.py`); `export_bm.py` encodes each fighter's tree
+(`bchar_t.routes`), identical subtrees shared, and a fighter without a file gets `routes.default_tree()` = the old
+`COMBO[]` byte for byte (regress.py on all 16 fighters: unchanged). At boot `route_tab[]` (RAM) points at the ROM trees;
+the lab mailbox (`lab_t lab`) can point a fighter at a tree in RAM while the game runs. Terry: Bruno's 10 routes (jab
+rush, kick chain, ABAB, AA↓B, AAB→A, low line, AA↘A↓D, BA→D, BB A+B, AB↓A D).
+
+**Chain Lab** (`tools/brawler/chainlab/`, live at canneji.duckdns.org/brawler-lab/ behind the Oros login): the Geolith core
+compiled to WebAssembly (`build_wasm.sh`, emsdk in /data/emsdk; `web_core.c`) runs this ROM with SNK's MVS BIOS in the
+page; the page edits a fighter's tree, "Build" writes it into the game's RAM (`lab.buf`, live), and the player plays it on
+a dummy. Training mode (main.c "Chain Lab training", entered when the page writes `lab.req = 1`, so the release ROM is
+the lab's): P1 against one dummy that never attacks and gets up, no waves, camera fixed, the last combo's hits / damage on
+the fix layer. P1's route steps are logged in `lab.ev[]` (start: from neutral / after the move ended / cancel / chain
+window; hit; end) for the page's per-link readout. `labdrive.py` drives the same mailbox from the desktop core (harness);
+`proof.sh` plays Terry's AAB→A route in both cores and compares the traces (identical); `deploy_vps.sh` publishes.
 
 ## Jumps (KOF's two heights, measured 2026-10-04)
 C tapped = the **hop**, C held = the **regular jump**, as in KOF96-99 (stick up) and Streets of Rage 2. The decision
@@ -225,7 +263,7 @@ height; until 2026-10-04 the jump was 3/4 speed, which was in fact exactly KOF's
 KOF97+'s forward+A / forward+B / down-forward+C / down-forward+D normals are exported as `BA_CMD_FWD_A`, `BA_CMD_FWD_B`,
 `BA_CMD_DF_C`, `BA_CMD_DF_D` (end of `MOVES` in export_bm.py), with KOF's boxes and the normals' hit-window rule;
 `bchar_t.cmds` bit k = the fighter has `BA_CMD_FWD_A + k` (else the slot holds idle and must not be played). No input
-or combo route plays them yet. Found by playing every KOF98 / KOF99 fighter in the game (tools/kof96/capture/cmdnormals.py,
+or combo route plays them yet (2026-10-05: route trees may, Terry's play forward+A and down-forward+C). Found by playing every KOF98 / KOF99 fighter in the game (tools/kof96/capture/cmdnormals.py,
 `tools/kof96/cmdnormals_kof98.json` / `_kof99.json`). This roster: Terry 6A (2 hits) + 3C, Ryo 6A, Yamazaki 6A (2),
 Billy 6A (2, hop) + 6B (hop), Kyo 6B (2) + 3D (2), Iori 6A + 6B (game 2, here 3: its third window whiffed at point blank
 in the game), Mai 6B (hop), Maxima 6A + 3C, K' 6A + 6B (hop); Ralf, Chang, the KOF96 three: none. Moves that go through

@@ -1,0 +1,169 @@
+{
+ "fighter": "terry",
+ "note": "Bruno's 10 routes (2026-10-05 proposal): jab rush AAAA, kick chain BBB, alternating ABAB, AAB low finish AA dB, AABA command AAB fA, low line dB dA dA dB, rising finish AA dfA dD, burn route BA fD, blowback BB AB, wave cancel AB dA D",
+ "links": {
+  "A": {
+   "move": "atk_a_close",
+   "weight": "light",
+   "effect": "none",
+   "cancel": false,
+   "links": {
+    "A": {
+     "move": "atk_a_far",
+     "weight": "light",
+     "effect": "none",
+     "cancel": false,
+     "links": {
+      "A": {
+       "move": "atk_c_close",
+       "weight": "strong",
+       "effect": "none",
+       "cancel": false,
+       "links": {
+        "A": {
+         "move": "atk_d_far",
+         "weight": "strong",
+         "effect": "launch",
+         "cancel": false
+        }
+       }
+      },
+      "dB": {
+       "move": "atk_d_crouch",
+       "weight": "strong",
+       "effect": "trip",
+       "cancel": false
+      },
+      "B": {
+       "move": "atk_b_far",
+       "weight": "light",
+       "effect": "none",
+       "cancel": false,
+       "links": {
+        "fA": {
+         "move": "cmd_fwd_a",
+         "weight": "strong",
+         "effect": "knockdown",
+         "cancel": false
+        }
+       }
+      },
+      "dfA": {
+       "move": "cmd_df_c",
+       "weight": "strong",
+       "effect": "none",
+       "cancel": false,
+       "links": {
+        "dD": {
+         "special": "dD"
+        }
+       }
+      }
+     }
+    },
+    "B": {
+     "move": "atk_b_close",
+     "weight": "light",
+     "effect": "none",
+     "cancel": false,
+     "links": {
+      "A": {
+       "move": "atk_c_far",
+       "weight": "strong",
+       "effect": "none",
+       "cancel": false,
+       "links": {
+        "B": {
+         "move": "atk_d_close",
+         "weight": "strong",
+         "effect": "knockdown",
+         "cancel": false
+        }
+       }
+      },
+      "dA": {
+       "move": "atk_c_crouch",
+       "weight": "strong",
+       "effect": "none",
+       "cancel": false,
+       "links": {
+        "D": {
+         "special": "D"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "B": {
+   "move": "atk_b_close",
+   "weight": "light",
+   "effect": "none",
+   "cancel": false,
+   "links": {
+    "B": {
+     "move": "atk_b_far",
+     "weight": "light",
+     "effect": "none",
+     "cancel": false,
+     "links": {
+      "B": {
+       "move": "atk_d_close",
+       "weight": "strong",
+       "effect": "knockdown",
+       "cancel": false
+      },
+      "AB": {
+       "move": "body_toss",
+       "weight": "strong",
+       "effect": "blowback",
+       "cancel": false
+      }
+     }
+    },
+    "A": {
+     "move": "atk_c_close",
+     "weight": "strong",
+     "effect": "none",
+     "cancel": false,
+     "links": {
+      "fD": {
+       "special": "fD"
+      }
+     }
+    }
+   }
+  },
+  "dB": {
+   "move": "atk_b_crouch",
+   "weight": "light",
+   "effect": "none",
+   "cancel": false,
+   "links": {
+    "dA": {
+     "move": "atk_a_crouch",
+     "weight": "light",
+     "effect": "none",
+     "cancel": false,
+     "links": {
+      "dA": {
+       "move": "atk_c_crouch",
+       "weight": "strong",
+       "effect": "none",
+       "cancel": false,
+       "links": {
+        "dB": {
+         "move": "atk_d_crouch",
+         "weight": "strong",
+         "effect": "trip",
+         "cancel": false
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

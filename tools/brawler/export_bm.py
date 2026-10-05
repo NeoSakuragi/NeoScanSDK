@@ -13,6 +13,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
 import export96
+import routes as R
 
 # the brawler's animation set (KOF move names); MOVES order = the BA_* enum
 MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', 'jump_fwd_rise', 'jump_fwd_fall', 'land',
@@ -26,7 +27,24 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'hop_up_rise', 'hop_up_fall', 'hop_fwd_rise', 'hop_fwd_fall', 'jump_back_rise', 'jump_back_fall',
          'hop_back_rise', 'hop_back_fall', 'atk_c_jump_diag', 'atk_d_jump_diag',
          'atk_c_hop', 'atk_d_hop', 'atk_c_hop_diag', 'atk_d_hop_diag',
-         'atk_cd_jump', 'atk_cd_hop']                   # air C+D: KOF state 117, KOF98 / KOF99 hops 124 (capture/aircd.py)
+         'atk_cd_jump', 'atk_cd_hop',                   # air C+D: KOF state 117, KOF98 / KOF99 hops 124 (capture/aircd.py)
+         'watch',                                       # the group photo's pose (select screen): WATCH
+         'atk_a_crouch', 'atk_b_crouch']                # crouch A / B (KOF 88 / 97): chain routes (Chain Lab, routes.py)
+# The group photo's 'watch' pose (TODO #51, 2026-10-05): a front-facing, standing frame, one per fighter (game, name) ->
+# (KOF game state, step; -1 = the animation's last, held frame). KOF94 / KOF95 had real "watching" sprites: the waiting
+# teammates on the stage's edge are fighter objects (+$70 = the fighter id) in KOF95 states 155 watch, 156 / 157 react,
+# 158 / 159 the round won / lost, 160 KO'd (slots 36-41 of every fighter's table, measured in our emulator); KOF96 dropped
+# them and its, KOF98's and KOF99's tables have no such slot. So the pick is the closest front-facing frame among the
+# intros (KOF98 / KOF99 347-354: 347 the walk-in, 348 the intro, 349-354 the special intros' frames) and the win poses
+# (336-343; KOF96: its intros / wins 208-239), chosen by eye on a render of every candidate. Missing: idle.
+# watch poses: Bruno's two judging rounds, 2026-10-05 (round 2 picked Billy 347 last, Mai 338 last, Robert 340 last,
+# Yamazaki 349 first, Yashiro 340 last)
+WATCH = {('kof98', 'terry'): (351, -1), ('kof98', 'ryo'): (343, -1), ('kof98', 'ralf'): (353, -1),
+         ('kof98', 'robert'): (340, -1), ('kof98', 'yamazaki'): (349, 0), ('kof98', 'billy'): (347, -1),
+         ('kof98', 'kyo'): (345, -1), ('kof98', 'iori'): (353, -1), ('kof98', 'mai'): (338, -1),
+         ('kof98', 'yashiro'): (340, -1), ('kof98', 'rugal'): (343, -1), ('kof99', 'k_dash'): (349, -1),
+         ('kof96', 'geese'): (210, -1), ('kof96', 'mr_big'): (216, -1), ('kof96', 'krauser'): (226, -1),
+         ('kof96', 'goenitz'): (216, -1)}
 CMDS = ['cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
 # brawler move -> the KOF moves it is taken from, first found. Air normals measured in the games (capture/jumps.py, every
 # roster fighter): a regular jump plays the vertical normal (82/91/100/109) straight up and the diagonal one (84/93/102/111)
@@ -88,7 +106,8 @@ def build(specs, outdir):
         if game == 'kof94':                             # KOF95's engine: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'kof94')); import export94
             return export94.export(names, tmp, only=set(MOVES))
-        return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {'specials'})
+        return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {'specials'},
+                               extra={n: {'watch': WATCH[game, n]} for n in names if (game, n) in WATCH})
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
     # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross
     # a page; whole game rosters per block left ~4 MB of padding at the page ends and doubled C to 32 MB when the air
@@ -494,7 +513,7 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height */',
          'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, pad; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, pad2; int16_t child_dx, child_dy; } bproj_t;   /* child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
          'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; } bspec_t;   /* inv_rows: invincible for its first rows; cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2) */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
@@ -582,11 +601,22 @@ def write_c(chars, outdir):
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
             f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')
+    lab = {'ba': MOVES, 'route_moves': R.MOVE_NAMES, 'inputs': R.INPUTS, 'fighters': []}
+    for ci, (game, n, ch, off) in enumerate(chars):           # chain routes: tools/brawler/routes/<n>.json or the default
+        has = {m for m in MOVES if any(k in ch['anims'] for k in SOURCES.get(m, [m]))}
+        sps = pick_specials(ch, n)
+        tree = R.load(n)
+        blob = R.encode(tree, MOVES, has, [sp is not None for sp in sps])
+        c.append(f'static const uint8_t {n}_routes[] = {{' + ', '.join(map(str, blob)) + '};')
+        lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': os.path.exists(os.path.join(R.ROUTES_DIR, f'{n}.json')),
+                                'moves': {m: R.frame_data(source(ch, m)['steps']) for m in R.MOVE_NAMES if m in has},
+                                'specials': {k: (sp['input'] if sp else None) for k, sp in zip(R.SPECIALS, sps)}})
+    json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
     c.append('const bchar_t bm_chars[BC_COUNT] = {')
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
-        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}}},')
+        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}}},')
     c.append('};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')

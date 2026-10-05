@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chain Lab</title>
+<style>
+:root { --ink: #000; --paper: #fff; --soft: #f2f2f2; --mid: #666; --line: 2px solid #000; --thin: 1px solid #000; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 16px; border-bottom: var(--line); }
+header h1 { font-size: 18px; margin: 0 12px 0 0; }
+header label { display: flex; gap: 6px; align-items: center; }
+button, select, input { font: inherit; color: var(--ink); background: var(--paper); border: var(--line); border-radius: 0; padding: 4px 8px; min-height: 34px; }
+button { cursor: pointer; font-weight: 600; }
+button:active, button.on { background: var(--ink); color: var(--paper); }
+button:disabled { border-style: dashed; color: var(--mid); cursor: default; }
+input[type=number] { width: 64px; }
+main { display: grid; grid-template-columns: minmax(0, 660px) minmax(0, 1fr); gap: 0; }
+@media (max-width: 1250px) { main { grid-template-columns: minmax(0, 1fr); } }
+#gamecol { padding: 12px 16px; border-right: var(--line); }
+@media (max-width: 1250px) { #gamecol { border-right: none; border-bottom: var(--line); } }
+#screen { display: block; image-rendering: pixelated; image-rendering: crisp-edges; border: var(--line); background: #000; margin: 0 auto; touch-action: none; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+#status { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+#keys { font-size: 13px; border: var(--thin); padding: 6px 8px; margin-top: 8px; }
+#keys kbd { border: var(--thin); padding: 0 4px; font-family: ui-monospace, monospace; }
+#readout { border: var(--line); margin-top: 10px; }
+#readout h2, #treecol h2 { font-size: 15px; margin: 0; padding: 6px 8px; border-bottom: var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#readout table { border-collapse: collapse; width: 100%; font-size: 13px; }
+#readout td, #readout th { border-bottom: var(--thin); padding: 3px 6px; text-align: left; vertical-align: top; }
+#readout .empty { padding: 8px; color: var(--mid); }
+#treecol { padding: 12px 16px; min-width: 0; }
+#tree { overflow: auto; border: var(--line); padding: 12px; min-height: 200px; }
+.branch { display: flex; align-items: flex-start; }
+.kids { display: flex; flex-direction: column; gap: 6px; padding-left: 0; border-left: var(--line); margin-left: 0; }
+.kid { display: flex; align-items: flex-start; }
+.edge { display: flex; align-items: center; min-width: 54px; margin-top: 14px; }
+.edge::before { content: ""; width: 12px; border-top: var(--line); }
+.edge b { border: var(--line); padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 14px; background: var(--paper); white-space: nowrap; }
+.edge::after { content: ""; width: 10px; border-top: var(--line); }
+.card { border: var(--line); background: var(--paper); padding: 6px 8px; width: 236px; margin-right: 8px; font-size: 13px; }
+.card.root { width: 150px; }
+.card.special { width: 190px; border-style: double; border-width: 4px; }
+.card.hit { box-shadow: 4px 4px 0 #000; }
+.card .t { font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; gap: 6px; }
+.card .fd { font-family: ui-monospace, monospace; font-size: 11.5px; margin: 2px 0 4px; overflow-wrap: anywhere; }
+.card .fd .bar { letter-spacing: -1px; }
+.card select { min-height: 28px; padding: 1px 4px; width: 100%; min-width: 0; }
+.card .acts select { width: auto; }
+.card .f { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 3px 6px; align-items: center; margin: 3px 0; }
+.card .acts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.card .acts button { min-height: 26px; padding: 0 6px; font-size: 12px; }
+.card details { margin-top: 4px; }
+.card details summary { cursor: pointer; }
+.mark { font-family: ui-monospace, monospace; font-size: 12px; border: var(--thin); padding: 0 4px; white-space: nowrap; }
+#entries { margin-top: 12px; }
+#entries > summary { cursor: pointer; font-weight: 700; }
+#err { border: var(--line); border-style: dashed; padding: 6px 8px; margin: 8px 0; display: none; white-space: pre-wrap; }
+#touch { display: none; margin-top: 10px; user-select: none; -webkit-user-select: none; }
+#touch.show { display: flex; justify-content: space-between; gap: 12px; }
+#touch .pad { display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(3, 52px); gap: 4px; }
+#touch .btns { display: grid; grid-template-columns: repeat(2, 60px); gap: 6px; }
+#touch button { min-height: 52px; touch-action: none; }
+#loading { padding: 24px 16px; font-size: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Chain Lab</h1>
+  <label>Fighter <select id="fighter"></select></label>
+  <label>Dummy <select id="dummy"></select></label>
+  <button id="btnStart">Start training</button>
+  <span id="ver"></span>
+</header>
+<div id="loading">Loading the game (9 MB) and the emulator…</div>
+<main id="main" hidden>
+  <section id="gamecol">
+    <canvas id="screen" width="304" height="224"></canvas>
+    <div class="row">
+      <button id="btnPause">Pause</button>
+      <button id="btnStep" disabled>Step 1 frame</button>
+      <button id="btnPlace">Reset positions</button>
+      <button id="btnSound">Sound: off</button>
+      <label>Scale <select id="scale"><option value="0">fit</option><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+    </div>
+    <div id="status">-</div>
+    <div id="touch">
+      <div class="pad">
+        <span></span><button data-k="U">↑</button><span></span>
+        <button data-k="L">←</button><span></span><button data-k="R">→</button>
+        <span></span><button data-k="D">↓</button><span></span>
+      </div>
+      <div class="btns">
+        <button data-k="a">A</button><button data-k="b">B</button>
+        <button data-k="c">C</button><button data-k="d">D</button>
+        <button data-k="ab">A+B</button><button data-k="s">START</button>
+      </div>
+    </div>
+    <div id="keys">
+      Keys (same physical keys on QWERTZ and QWERTY): <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> stick,
+      <kbd>U</kbd> A punch, <kbd>I</kbd> B kick, <kbd>O</kbd> C jump, <kbd>P</kbd> D special, <kbd>U</kbd>+<kbd>I</kbd> together A+B
+      (arrows and Z X C V also work), <kbd>Enter</kbd> START (hit / hurt boxes on or off), <kbd>Esc</kbd> pause,
+      <kbd>.</kbd> step a frame (paused). Gamepad: d-pad or left stick; bottom / right / left / top face buttons = A / B / C / D, Start = START.
+      Down = toward the camera (the beat 'em up's depth), forward = the way the fighter faces.
+    </div>
+    <div id="readout">
+      <h2><span>Last chain, link by link</span><button id="btnClear">Clear</button></h2>
+      <div id="readbody"><div class="empty">Play a route on the dummy: each link shows here.</div></div>
+    </div>
+  </section>
+  <section id="treecol">
+    <div class="row">
+      <button id="btnBuild">Build: put this tree in the game</button>
+      <button id="btnRom">The fighter's own tree</button>
+      <button id="btnDefault">The default tree</button>
+      <button id="btnExport">Export JSON</button>
+      <label><button id="btnImport">Import JSON</button><input id="file" type="file" accept=".json,application/json" hidden></label>
+      <span id="built" class="mark">not built</span>
+    </div>
+    <div id="err"></div>
+    <h2 style="border:var(--line);border-bottom:none">Route tree: links (the input) lead to hits (move, frame data, weight, effect)</h2>
+    <div id="tree"></div>
+    <details id="entries"><summary>Other entries: dash attack, D without a special, the hold's C+D, air A / B / C</summary><div id="entrytree"></div></details>
+  </section>
+</main>
+<script src="lab.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -291,9 +291,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   channels its songs / SFX use, the command that plays an SSG sound). Identify the SSG routines and their data in
   Fatal Fury Special and KOF94 (MAKOTO drivers: tools/makoto3), capture them in our emulator, and build a small
   set of menu sounds (cursor move, select, cancel, unlock) the game can trigger alongside everything else.
-- [ ] 51. Character select as a group photo: the fighters stand in rows like a school photo, front row the playable
+- [x] 51. Character select as a group photo: the fighters stand in rows like a school photo, front row the playable
   ones, the back row(s) the bosses. A slot layout independent of the characters (slot = row, x, depth, scale /
   priority; a table maps fighters to slots, so a swap on screen is a table change). Look for a "neutral" stance:
   facing the viewer / watching the action, like the background characters in KOF94 / KOF95's stages — find which
   frames those are (the stage audience sprites, or the fighters' own win / intro / taunt poses) and whether every
   fighter has one.
+
+  Done 2026-10-05 (not committed): README Character select; proof /data/tmp/groupphoto/out (groupphoto_sheet.png).

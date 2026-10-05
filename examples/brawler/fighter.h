@@ -30,7 +30,7 @@ enum {                            /* states: the state machine alone decides wha
     S_PROJ, S_OFF,                /* projectile entities (pool): in use / free */
     S_COUNT
 };
-enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP };   /* hit reactions */
+enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK };   /* hit reactions (R_BLOWBACK: KOF's C+D, sent far) */
 enum { IN_A = 1, IN_B = 2, IN_C = 4, IN_D = 8 };           /* buttons: punch, kick, jump, special */
 
 typedef struct {                  /* what the controller wants this frame (player input or AI) */
@@ -42,15 +42,66 @@ typedef struct {                  /* what the controller wants this frame (playe
     uint8_t ai;                   /* the AI drives this fighter (enemies, the attract demo's P1) */
     uint8_t slow;                 /* walk at half speed (16.16: sub-pixel steps every frame; the AI's positioning walk) */
     uint8_t hold;                 /* IN_* held this frame (C held through the prejump = the regular jump, released = a hop) */
+    uint8_t ab;                   /* the D in press is A+B pressed together (a route's A+B link takes it, else it is D) */
 } intent_t;
 
-typedef struct {                  /* one link of a combo route (combo.c) */
-    uint8_t anim;                 /* BA_* */
-    uint8_t damage, reaction;
-    int8_t  push;                 /* px the victim slides back on hit */
-    uint8_t next_a, next_b;       /* next node on A / B (0 = end of the route) */
-    uint8_t next_fwd_a, next_down_b;   /* finishers: forward+A / down+B */
-} cnode_t;
+/* ---- chain routes (Chain Lab, 2026-10-05): one route tree per fighter, data only ---------------------------------------
+ * A tree blob (tools/brawler/export_bm.py from tools/brawler/routes/<fighter>.json, or the default tree = the old single
+ * COMBO table; the Chain Lab page writes one into lab.buf): an rt_head_t, then nnodes rnode_t. Node 0 is "none"; a link
+ * is a node index (0 = no link). A node is one hit: the move it plays (BA_*, or BS_* for a special), the hit weight and
+ * the effect on the victim (the reaction), damage and push, the cancel flag, and its links by input (RI_*). The game
+ * reads the trees through route_tab[] (RAM, set at boot from bchar_t.routes), so a tree can be replaced while it runs. */
+enum { RI_A, RI_B, RI_DA, RI_DB, RI_FA, RI_FB, RI_DFA, RI_DFB, RI_AB,      /* normal links: A B, down+, forward+, down-forward+, A+B */
+       RI_D, RI_FD, RI_DD, RI_UD,                                          /* special links (enders): D, forward+D, down+D, up+D */
+       RI_N = 14 };
+enum { RF_SPECIAL = 1, RF_AIR = 2, RF_CANCEL = 4 };   /* rnode_t.flags: anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
+                                                         D_JUMP / CD_JUMP = air A / B / C+D, the jump picks the animation);
+                                                         cancel on hit: the next link starts as soon as its input comes after
+                                                         the hit-stop (clear: the move plays to its end, the input is kept) */
+enum { RE_NONE, RE_KNOCKDOWN, RE_LAUNCH, RE_TRIP, RE_BLOWBACK };   /* rnode_t.effect */
+typedef struct {
+    uint8_t anim, flags;
+    uint8_t weight, effect;       /* weight 0 light / 1 strong (the victim's hit animation and stun, effect none) */
+    uint8_t damage;
+    int8_t  push;                 /* px the victim slides back on hit (effect none) */
+    uint8_t next[RI_N];           /* links by RI_* */
+} rnode_t;
+typedef struct {
+    char    magic[2];             /* "RT" */
+    uint8_t version, nnodes;      /* version 1 */
+    uint8_t root;                 /* the links from neutral (its own move unused) */
+    uint8_t dash, nospec, hold;   /* run + A; D when the fighter has no special for it; the hold's third hit (C+D) */
+    uint8_t air_a, air_b, air_cd; /* air normals */
+    uint8_t pad[5];
+} rt_head_t;
+#define RT_NODE(t, i) ((const rnode_t *)((const uint8_t *)(t) + sizeof(rt_head_t)) + (i))
+extern const rt_head_t *route_tab[BC_COUNT];
+void routes_init(void);
+
+/* Chain Lab mailbox (examples/brawler/README.md "Chain Lab"): the page writes it from JavaScript, the game reads it at the
+ * start of a tick; the game logs P1's route steps into ev[] (a ring) for the page's per-link readout. */
+enum { LE_START, LE_HIT, LE_END, LE_SPECIAL, LE_CHAINWIN };   /* lab_ev_t.kind */
+enum { LH_NEUTRAL, LH_AFTER_END, LH_CANCEL, LH_WINDOW };      /* LE_START: how the node started */
+typedef struct { uint16_t frame; uint8_t kind, node, how, val; } lab_ev_t;   /* val: LE_HIT damage, LE_SPECIAL BS_*,
+                                                                                 LE_END 1 = it had hit */
+#define LAB_NEV  64
+#define LAB_BUF  (sizeof(rt_head_t) + 128 * sizeof(rnode_t))
+typedef struct {
+    char     magic[4];            /* "LAB1" while the page drives the game */
+    uint8_t  req;                 /* page: 1 = start training (fighter vs dummy), 2 = reset positions; the game clears it */
+    uint8_t  fighter, dummy;      /* bm_chars indices (req 1) */
+    uint8_t  load;                /* page: 1 = buf holds a tree for `fighter`: install it (the game clears it); 2 = back to
+                                     the fighter's own tree */
+    uint8_t  active;              /* game: 1 while the training runs */
+    uint8_t  nev;                 /* game: events written (ring index = nev % LAB_NEV) */
+    uint16_t frame;               /* game: training frames */
+    uint8_t  combo_hits, pad;     /* game: the readout on screen */
+    uint16_t combo_dmg;
+    lab_ev_t ev[LAB_NEV];
+    uint8_t  buf[LAB_BUF];
+} lab_t;
+extern lab_t lab;
+void lab_install(void);           /* lab.load handled (routes_init's table, main.c calls it every tick) */
 
 typedef struct fighter {
     const bchar_t *ch;
@@ -63,7 +114,7 @@ typedef struct fighter {
     uint16_t state_t;
     uint8_t  anim, step, tick, anim_done;
     uint8_t  node;                /* combo node while attacking */
-    uint8_t  buffered;            /* next combo input pressed during the current link (IN_* | 0x80 forward | 0x40 down) */
+    uint8_t  buffered;            /* next combo input pressed during the current link (IN_* | 0x80 forward | 0x40 down | 0x20 A+B) */
     uint8_t  hit_mask;            /* fighters already hit by the current attack (bit per index) */
     uint8_t  freeze;              /* hit-stop frames */
     uint8_t  inv;                 /* invulnerable frames */
@@ -85,7 +136,7 @@ typedef struct fighter {
     uint8_t  ncols;               /* sprite columns of the shown frame (written by fighter_tiles) */
     uint8_t  landed;              /* the current attack connected (routes chain only on a hit) */
     uint8_t  chain_node, chain_t; /* Final Fight chain: the route step that hit, frames left to continue it from neutral */
-    uint8_t  spec_buf;            /* D pressed during a normal: 0x80 | BS_* (0xFF: none), a special cancel once it hits */
+    uint8_t  spec_buf;            /* D pressed during a normal: 0x80 | RI_D.. (its direction), the node's special link cancels once it hits */
     uint8_t  still;               /* AI: frames walking without a walk intent (the walk holds AI_IDLE_DELAY frames) */            /* thrower X when the throw started (script X is relative to it) */
     uint8_t  spec_dmg, spec_react; /* special: damage and victim reaction (R_*) of the hit window open (bspec_row_t) */
     uint8_t  spec_fx;             /* special: KOF98 hit effect of the hit window open (bspec_row_t.fx: kind | burn << 6) */
@@ -105,7 +156,6 @@ typedef struct fighter {
     int16_t  hp_max;              /* its life at spawn when not 60 (campaign difficulty: enemies, bosses); 0 = 60 */
 } fighter_t;
 
-extern const cnode_t COMBO[];
 
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */
 #define NPJ 4                     /* projectile entities: fighter_t too, so one renderer / sort / guard / hit test */

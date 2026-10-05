@@ -38,9 +38,11 @@ static void mark(uint8_t sec) {
 
 #define NF 8                         /* 2 players + 6 enemies: the POC target */
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
+#define NA 16                        /* sprite blocks: NE in a fight, NA actors on the select screen (blocks NE..NA-1 =
+                                        sprites 300-379: the banner's, the debug boxes', the sparks', none in use there) */
 #define SPR_BASE 60                  /* fighter blocks (stage 22-42, shadows 43-54 behind them; 1-21 free) */
 static fighter_t fighters[NF];
-static fighter_t *order[NE];                     /* back (small Z) to front, the nf entities in play */
+static fighter_t *order[NA];                     /* back (small Z) to front, the nf entities in play */
 static uint8_t nf;                               /* entities in play: the previews on the select screen, NE in the fight */
 static uint8_t mode;                             /* 0 select, 1 fight, 2 title, 3 BOSS UNLOCKED, 4 the ending */
 static uint8_t attract;                          /* the fight is the attract demo: P1 is ai_bot, enemies ai_weak */
@@ -202,10 +204,10 @@ static void depth_sort(void) {
 #define LINE_MAX 96
 #define SH_RESERVE 12                    /* sprites per line kept for the ground shadows (half of 12 entities x 2) */
 #define SPARK_RESERVE 6                  /* and for hit sparks (two 3-column sparks on one line) */
-static uint8_t hidden[NE], guard_hidden;
+static uint8_t hidden[NA], guard_hidden;
 static void line_guard(void) {
     static uint8_t parity;
-    uint8_t prio[NE], n = 0, i, k, used = BG_N + SH_RESERVE + SPARK_RESERVE;
+    uint8_t prio[NA], n = 0, i, k, used = mode == 1 ? BG_N + SH_RESERVE + SPARK_RESERVE : 0;   /* the select: actors only */
     for (i = 0; i < nf; i++) if (!order[i]->team) prio[n++] = i;
     parity ^= 1;
     for (i = 0; i < nf; i++) {
@@ -229,7 +231,7 @@ static void line_guard(void) {
 
 /* draw: tiles for the frames that changed, then per entity block one SCB3 and one SCB4 run covering the columns its frame
  * uses and those the block showed last frame (to clear them); a hidden block is cleared once. */
-static uint8_t block_placed[NE];                 /* columns each sprite block showed last frame */
+static uint8_t block_placed[NA];                 /* columns each sprite block showed last frame */
 /* ---- ground shadows: a dark ellipse (2 sprites, tiles SHADOW_TILE) at each entity's ground point (floor_top + Z, also
  * under jumps and projectiles), behind every fighter (sprites 43-54 < the blocks at 60+). Entities alternate frames by
  * draw order index: each shadow shows every other frame (flicker transparency), so the half shown on a frame (entities
@@ -288,6 +290,7 @@ static void sparks_init(void) {
 }
 static void sparks_draw(void) {
     uint8_t i, c, r;
+    if (!mode) return;                                       /* the select's actors use sprites 300-379 */
     for (i = 0; i < SPARK_N; i++) {
         spark_state_t *k = &spk[i];
         uint16_t spr = SPARK_SPR + i * 3;
@@ -371,7 +374,7 @@ static void draw(void) {
     mark(P_TILES);
     line_guard();
     mark(P_GUARD);
-    for (i = 0; i < NE; i++) {
+    for (i = 0; i < NA; i++) {
         fighter_t *f = order[i];
         uint8_t vis = i < nf && !hidden[i], n = vis ? f->ncols : 0, m = n > block_placed[i] ? n : block_placed[i];
         uint16_t spr = SPR_BASE + i * MAX_COLS, *y, *x;
@@ -400,7 +403,7 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
     in->dx = (held & JOY_RIGHT) ? 1 : (held & JOY_LEFT) ? -1 : 0;
     in->dz = (held & JOY_DOWN) ? 1 : (held & JOY_UP) ? -1 : 0;
     in->press = ((pressed & JOY_A) ? IN_A : 0) | ((pressed & JOY_B) ? IN_B : 0) | ((pressed & JOY_C) ? IN_C : 0) | ((pressed & JOY_D) ? IN_D : 0);
-    if ((pressed & (JOY_A | JOY_B)) && (held & JOY_A) && (held & JOY_B)) in->press = (in->press & ~(IN_A | IN_B)) | IN_D;   /* A+B = D */
+    if ((pressed & (JOY_A | JOY_B)) && (held & JOY_A) && (held & JOY_B)) { in->press = (in->press & ~(IN_A | IN_B)) | IN_D; in->ab = 1; }   /* A+B = D (or a route's A+B link) */
     in->hold = ((held & JOY_A) ? IN_A : 0) | ((held & JOY_B) ? IN_B : 0) | ((held & JOY_C) ? IN_C : 0) | ((held & JOY_D) ? IN_D : 0);
     if (pressed & (JOY_LEFT | JOY_RIGHT)) {                     /* forward tapped twice within 12 frames */
         uint8_t d = (pressed & JOY_RIGHT) ? 1 : 2;
@@ -834,26 +837,45 @@ static void title_tick(void) {
     }
 }
 
-/* ---- character select: a police line-up (Bruno 2026-10-04). The roster stands left to right in its idle pose, LU_DX
- * apart, the camera panning to keep the selected fighter in the middle; it shows its colours, the others shades of
- * grey (their own palettes in luminance). "1P" / "2P" with an arrow above the selected one's head (fix layer). Stick
- * left / right moves; A/B/C/D picks that colour set (KOF style) and plays the win pose; then the others walk off the
- * screen, the scene fades to black and the fight's stage fades in. Only the fighters on screen use an entity (actor):
- * the fight's NF entities are the actors here, bound to whichever fighters the camera shows. ---- */
-#define LU_X0  64                        /* world x of the first fighter */
-#define LU_DX  84                        /* between two fighters (their idle frames are ~70 px wide) */
-#define LU_W   (LU_X0 * 2 + (lu_n - 1) * LU_DX)
-#define LU_Z   40                        /* feet at SELECT_FLOOR + LU_Z */
-#define ARROW_ROW 7                      /* "1P" on this fix row, the arrow below it */
+/* ---- character select: a group photo (Bruno 2026-10-05, TODO #51). The whole roster stands in rows like a school
+ * photo, everyone at once: the front rows the playable fighters, the back row the campaign bosses (a locked boss is a
+ * dark silhouette, not selectable; once beaten it is in colour / grey like the others). Each fighter holds its 'watch'
+ * pose (export_bm.WATCH: a front-facing frame from its intros / win poses), turned toward the middle. The places are
+ * slots (SEL_SLOT: x, z, row), independent of who stands in them (SEL_PLACE: the fighter of each slot), so moving
+ * someone on screen is a change to SEL_PLACE only. The cursor's fighter shows its colours, the others shades of grey
+ * (their own palettes in luminance). "1P" / "2P" with an arrow above the selected head (fix layer). Stick left / right
+ * moves within a row, up / down to the row behind / in front (the nearest fighter in x); A/B/C/D picks that colour set
+ * (KOF style) and plays the win pose. P2 joins here with START (a credit) and picks too; the two can't pick the same
+ * fighter. When everyone in has picked, the others walk off the screen outward, the scene fades to black and the
+ * fight's stage fades in. Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
+#define SEL_NSLOT 16
+#define SEL_BACK 2                       /* the bosses' row */
+#define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
 #define FADE_T 32                        /* frames of a fade (level = t / 2, 16 steps) */
+_Static_assert(BC_COUNT <= SEL_NSLOT && BC_COUNT <= NA, "group photo: a slot and an actor per fighter");
+typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
+/* the slots: x (px), z (feet at SELECT_FLOOR + z), row (0 front: low on the screen, drawn in front; 2 back: higher,
+ * behind). Front rows 48 px apart, inside x 16-304 (the 304 px a TV shows) (the watch poses are 40-80 px wide: shoulders overlap, as in a photo), the middle row
+ * between the front row's fighters, the back row spread wider. */
+static const sel_slot_t SEL_SLOT[SEL_NSLOT] = {
+    { 40, 48, 0 }, { 88, 48, 0 }, { 136, 48, 0 }, { 184, 48, 0 }, { 232, 48, 0 }, { 280, 48, 0 },
+    { 64, 24, 1 }, { 112, 24, 1 }, { 160, 24, 1 }, { 208, 24, 1 }, { 256, 24, 1 },
+    { 48, 0, SEL_BACK }, { 104, 0, SEL_BACK }, { 160, 0, SEL_BACK }, { 216, 0, SEL_BACK }, { 272, 0, SEL_BACK } };
+/* who stands where (export names, CHARS): SEL_PLACE[slot]. A fighter not listed takes the first free slot of its kind
+ * (a boss: the back row; the others: rows 0-1); a listed name not in the build leaves its slot empty. */
+static const char *const SEL_PLACE[SEL_NSLOT] = {
+    "TERRY", "RYO", "RALF", "ROBERT", "YAMAZAKI", "BILLY",
+    "KYO", "IORI", "MAI", "YASHIRO", "K_DASH",
+    "MR_BIG", "KRAUSER", "GEESE", "RUGAL", "GOENITZ" };   /* the bosses in stage order */
 enum { SEL_CHOOSE, SEL_LEAVE, SEL_FADE };
-static uint8_t cursor[2], picked[2], pick_set[2];
+static uint8_t cursor[2], picked[2], pick_set[2];   /* cursor: a slot (0xFF: that player isn't in) */
 static uint8_t sel_phase, fade_in;
 static uint16_t sel_t;
-static uint8_t act_of[BC_COUNT];         /* the actor showing a line-up slot, 0xFF none */
-static uint8_t chr_of[NF];               /* the line-up slot an actor shows, 0xFF free */
-/* the line-up: the unlocked fighters in CHARS order (campaign bosses join once beaten, see BOSS[]); cursor[] and the
- * actors count in slots, lu[slot] = the bm_chars index */
+static uint8_t slot_ch[SEL_NSLOT];       /* the fighter (bm_chars index) in each slot, 0xFF empty */
+static uint8_t slot_act[SEL_NSLOT];      /* the actor showing it */
+static fighter_t sel_extra[NA - NE];     /* actors NE.. (the fight's entities are actors 0..NE-1) */
+static fighter_t *actor(uint8_t a) { return a < NF ? &fighters[a] : a < NE ? &projectiles[a - NF] : &sel_extra[a - NE]; }
+/* the unlocked fighters in CHARS order (the attract demo's players) */
 static uint8_t lu[BC_COUNT], lu_n;
 static uint8_t char_locked(uint8_t c);
 static void roster_build(void) {
@@ -861,7 +883,18 @@ static void roster_build(void) {
     lu_n = 0;
     for (c = 0; c < BC_COUNT; c++) if (!char_locked(c)) lu[lu_n++] = c;
 }
-static uint8_t arrow_col[2] = { 0xFF, 0xFF };
+static void slots_build(void) {
+    uint8_t s, c;
+    for (s = 0; s < SEL_NSLOT; s++) slot_ch[s] = char_named(SEL_PLACE[s]);
+    for (c = 0; c < BC_COUNT; c++) {
+        for (s = 0; s < SEL_NSLOT && slot_ch[s] != c; s++) ;
+        if (s < SEL_NSLOT) continue;
+        for (s = 0; s < SEL_NSLOT && (slot_ch[s] != 0xFF || (SEL_SLOT[s].row == SEL_BACK) != (boss_of(c) != 0)); s++) ;
+        if (s < SEL_NSLOT) slot_ch[s] = c;
+    }
+}
+static uint8_t selectable(uint8_t s) { return slot_ch[s] != 0xFF && !char_locked(slot_ch[s]); }
+static uint8_t arrow_col[2] = { 0xFF, 0xFF }, arrow_row[2];
 
 static uint16_t col_scale(uint16_t c, uint8_t k) {          /* a colour at k / 16 of its brightness */
     uint8_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
@@ -872,91 +905,105 @@ static uint16_t col_grey(uint16_t c) {                      /* luminance (5 R + 
     uint8_t l = (uint8_t)((r * 5 + g * 9 + b * 2) >> 4);
     return RGB(l, l, l + (l < 31));
 }
-/* an entity's palettes: its own colours (grey = 0) or greys, at k / 16 brightness */
+#define SILHOUETTE RGB(4, 4, 5)
+/* an entity's palettes: its own colours (1), greys (0) or a silhouette (2), at k / 16 brightness */
 static void fighter_pals(const fighter_t *f, uint8_t colour, uint8_t k) {
     uint16_t buf[16];
     uint8_t i, j;
     for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
         const uint16_t *src = f->ch->pals + ((f->set * f->ch->npal + i) << 4);
         buf[0] = src[0];
-        for (j = 1; j < 16; j++) buf[j] = col_scale(colour ? fighter_colour(f, src[j]) : col_grey(src[j]), k);
+        for (j = 1; j < 16; j++)
+            buf[j] = col_scale(colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_grey(src[j]), k);
         PAL_setPalette(f->palbase + i, buf);
     }
 }
-static uint8_t chosen(uint8_t c) { return c == cursor[0] || c == cursor[1]; }
-static void actor_bind(uint8_t c, uint8_t a) {
-    fighter_t *f = &fighters[a];
-    const bchar_t *ch = &bm_chars[lu[c]];
-    uint8_t set = (c == cursor[0]) ? pick_set[0] : (c == cursor[1]) ? pick_set[1] : 0;
-    fighter_init(f, ch, set < ch->nsets ? set : 0, 16 + a * MAX_PALS, 0, LU_X0 + c * LU_DX, LU_Z);
-    f->idx = a; f->facing = 1;
-    fighter_pals(f, chosen(c), 16);
-    act_of[c] = a; chr_of[a] = c;
+static uint8_t chosen(uint8_t s) { return s == cursor[0] || s == cursor[1]; }
+static uint8_t slot_look(uint8_t s) { return char_locked(slot_ch[s]) ? 2 : chosen(s); }
+static void slot_show(uint8_t s, uint8_t set) {             /* (re)binds slot s's actor: its fighter, colour set, pose */
+    uint8_t a = slot_act[s];
+    fighter_t *f = actor(a);
+    const bchar_t *ch = &bm_chars[slot_ch[s]];
+    fighter_init(f, ch, set < ch->nsets ? set : 0, 16 + a * MAX_PALS, 1, SEL_SLOT[s].x, SEL_SLOT[s].z);
+    f->idx = a; f->facing = SEL_SLOT[s].x < 160 ? 1 : -1;   /* turned toward the middle */
+    fighter_play(f, BA_WATCH);
+    fighter_pals(f, slot_look(s), 16);
 }
-static void actor_free(uint8_t a) {
-    if (chr_of[a] != 0xFF) act_of[chr_of[a]] = 0xFF;
-    chr_of[a] = 0xFF; fighters[a].state = S_OFF;
-}
-/* the fighters the camera shows get an actor, the others give theirs back */
-static void lineup_bind(void) {
-    uint8_t c, a;
-    for (a = 0; a < NF; a++)
-        if (chr_of[a] != 0xFF) {
-            int16_t sx = LU_X0 + chr_of[a] * LU_DX - cam_x;
-            if (sx < -56 || sx > 376) actor_free(a);
+/* the cursor from slot s: left / right = the nearest selectable slot that way in its row; up / down = the row behind /
+ * in front (further if that row has nobody selectable), the selectable slot nearest in x */
+static uint8_t sel_move(uint8_t s, uint16_t pr) {
+    int8_t dx = (pr & JOY_RIGHT) ? 1 : (pr & JOY_LEFT) ? -1 : 0, dr = (pr & JOY_UP) ? 1 : (pr & JOY_DOWN) ? -1 : 0;
+    int8_t row = SEL_SLOT[s].row;
+    uint8_t t, best = 0xFF;
+    int16_t bd = 0x7FFF, d;
+    if (dx) {
+        for (t = 0; t < SEL_NSLOT; t++) {
+            if (!selectable(t) || SEL_SLOT[t].row != row) continue;
+            d = (SEL_SLOT[t].x - SEL_SLOT[s].x) * dx;
+            if (d > 0 && d < bd) { bd = d; best = t; }
         }
-    for (c = 0; c < lu_n; c++) {
-        int16_t sx = LU_X0 + c * LU_DX - cam_x;
-        if (act_of[c] != 0xFF || sx < -56 || sx > 376) continue;
-        for (a = 0; a < NF && chr_of[a] != 0xFF; a++) ;
-        if (a < NF) actor_bind(c, a);
+    } else if (dr) {
+        for (row += dr; row >= 0 && row <= SEL_BACK && best == 0xFF; row += dr)
+            for (t = 0; t < SEL_NSLOT; t++) {
+                if (!selectable(t) || SEL_SLOT[t].row != row) continue;
+                d = SEL_SLOT[t].x - SEL_SLOT[s].x; if (d < 0) d = -d;
+                if (d < bd) { bd = d; best = t; }
+            }
     }
-}
-static void lineup_camera(void) {
-    int16_t goal = LU_X0 + cursor[0] * LU_DX - 160, d;
-    if (goal < 0) goal = 0;
-    if (goal > LU_W - 320) goal = LU_W - 320;
-    d = goal - cam_x;
-    cam_x += d > 0 ? (d + 3) >> 2 : -((3 - d) >> 2);
+    return best == 0xFF ? s : best;
 }
 static void select_arrows(void) {                           /* "1P" / "2P" + arrow over the selected head */
-    uint8_t p;
+    uint8_t p, col[2], row[2];
     for (p = 0; p < 2; p++) {
-        int16_t sx = LU_X0 + (cursor[p] == 0xFF ? 0 : cursor[p]) * LU_DX - cam_x;
-        uint8_t col = cursor[p] == 0xFF || sel_phase == SEL_FADE || sx < 8 || sx > 312 ? 0xFF : (uint8_t)((sx - 8) >> 3);
-        if (col == arrow_col[p]) continue;
-        if (arrow_col[p] != 0xFF) { FIX_print(arrow_col[p], ARROW_ROW - p * 2, "  ", 0); FIX_print(arrow_col[p], ARROW_ROW + 1 - p * 2, "  ", 0); }
-        if (col != 0xFF) { FIX_print(col, ARROW_ROW - p * 2, p ? "2P" : "1P", 0); FIX_setTile(col, ARROW_ROW + 1 - p * 2, ARROW_TILE, 0); }
-        arrow_col[p] = col;
+        uint8_t s = cursor[p];
+        col[p] = 0xFF; row[p] = 0;
+        if (s != 0xFF && sel_phase != SEL_FADE) {
+            int16_t sx = SEL_SLOT[s].x - 8 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
+            col[p] = sx < 0 ? 0 : (uint8_t)(sx >> 3);
+            row[p] = (uint8_t)((SELECT_FLOOR + SEL_SLOT[s].z - 120) >> 3);   /* FIX_print row r is screen y r * 8:
+                                                                 the arrow ends 120 px above the feet (tallest head) */
+        }
+    }
+    if (col[0] == arrow_col[0] && row[0] == arrow_row[0] && col[1] == arrow_col[1] && row[1] == arrow_row[1]) return;
+    for (p = 0; p < 2; p++)
+        if (arrow_col[p] != 0xFF) { FIX_print(arrow_col[p], arrow_row[p] - 1, "  ", 0); FIX_print(arrow_col[p], arrow_row[p], " ", 0); }
+    for (p = 0; p < 2; p++) {
+        if (col[p] != 0xFF) { FIX_print(col[p], row[p] - 1, p ? "2P" : "1P", 0); FIX_setTile(col[p], row[p], ARROW_TILE, 0); }
+        arrow_col[p] = col[p]; arrow_row[p] = row[p];
     }
 }
-static void select_name(void) {
-    const char *n = bm_chars[lu[cursor[0]]].name;
+static void name_at(uint8_t col, uint8_t row, uint8_t right, uint8_t s) {
+    const char *n = s == 0xFF ? "" : bm_chars[slot_ch[s]].name;
     uint8_t len = 0;
     while (n[len]) len++;
-    FIX_print(9, 5, "                      ", 0);
-    FIX_print(20 - (len >> 1), 5, n, 0);
+    FIX_print(right ? 39 - len : col, row, n, 0);
+}
+static void select_name(void) {                             /* top: P1's fighter (centred, or left with P2 in), P2's right */
+    FIX_print(0, 2, "                                        ", 0);
+    if (cursor[1] == 0xFF) { const char *n = bm_chars[slot_ch[cursor[0]]].name; uint8_t len = 0; while (n[len]) len++; FIX_print(20 - (len >> 1), 2, n, 0); }
+    else { name_at(1, 2, 0, cursor[0]); name_at(0, 2, 1, cursor[1]); }
 }
 static void select_start(void) {
-    uint8_t p, i;
+    uint8_t p, i, s, a = 0;
     mode = 0; sel_t = 0; sel_phase = SEL_CHOOSE; attract = 0; ai_weak = 0;
     inputs_reset();
     snd_music(MUS_SELECT);
     FIX_clear(); arcade_line_reset();
-    PAL_setBackdrop(RGB8(72, 76, 84));                       /* the line-up wall */
+    PAL_setBackdrop(RGB8(72, 76, 84));                       /* the photo's wall */
     stage_hide();                                            /* stage sprites hidden */
     floor_top = SELECT_FLOOR;
     dbg_init();
-    FIX_print(10, 3, "SELECT YOUR FIGHTER", 0);
-    FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);   /* keyboard: WASD, U I O P */
+    FIX_print(10, 1, "SELECT YOUR FIGHTER", 0);           /* FIX_print row r = screen y r * 8 (rows 0-27) */
+    FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);   /* under the front row's feet (y 206) */   /* keyboard: WASD, U I O P */
     for (p = 0; p < 2; p++) { picked[p] = 0; pick_set[p] = 0; arrow_col[p] = 0xFF; }
-    cursor[0] = 0; cursor[1] = 0xFF;                         /* P2 joins in the fight */
-    roster_build();
-    for (i = 0; i < BC_COUNT; i++) act_of[i] = 0xFF;
-    for (i = 0; i < NF; i++) { chr_of[i] = 0xFF; fighters[i].state = S_OFF; order[i] = &fighters[i]; }
-    for (i = 0; i < NPJ; i++) { projectile_reset(&projectiles[i]); order[NF + i] = &projectiles[i]; }
-    nf = NF;
-    cam_x = 0; lineup_bind(); select_name();
+    slots_build(); roster_build();
+    for (s = 0; s < SEL_NSLOT && !selectable(s); s++) ;
+    cursor[0] = s; cursor[1] = 0xFF;                         /* the first selectable slot (Terry); P2: START joins */
+    for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
+    for (i = 0; i < NA; i++) { actor(i)->state = S_OFF; order[i] = actor(i); }
+    for (s = 0; s < SEL_NSLOT; s++) { slot_act[s] = 0xFF; if (slot_ch[s] != 0xFF) { slot_act[s] = a++; slot_show(s, 0); } }
+    nf = NA;
+    cam_x = 0; select_name();
 }
 /* ---- campaign (Bruno 2026-10-05, Streets of Rage 2 / Golden Axe style): five stages, Robo Army's horizontal ones in
  * this order (stages[] 0, 1, 3, 4, 5; 2, the 512 px boss arena, is not used). Each stage scrolls end to end through
@@ -1056,10 +1103,9 @@ static void stage_begin(uint8_t s, uint8_t first) {
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
     for (i = 0; i < NPJ; i++) { projectiles[i].idx = NF + i; order[NF + i] = &projectiles[i]; }
     hud_reset();
-    if (first) { BIOS_PLAYER_MOD[0] = attract ? 0 : 1; BIOS_PLAYER_MOD[1] = 0; }   /* BIOS: who plays (a START then joins) */
+    if (first) { BIOS_PLAYER_MOD[0] = attract ? 0 : 1; BIOS_PLAYER_MOD[1] = pl_on[1]; }   /* BIOS: who plays (a START then joins) */
 }
-static void fight_start(void) {                  /* from the select screen: a new game at camp_from */
-    pl_ch[0] = lu[cursor[0]]; pl_set[0] = mod8(pick_set[0], bm_chars[pl_ch[0]].nsets); pl_on[0] = 1; pl_on[1] = 0;
+static void fight_start(void) {                  /* from the select screen (pl_* set): a new game at camp_from */
     stage_begin(attract ? 0 : camp_from, 1);
 }
 static void attract_start(void) {
@@ -1067,7 +1113,7 @@ static void attract_start(void) {
     banner_hide();
     roster_build();
     if (pick >= lu_n) pick = 0;
-    cursor[0] = pick; cursor[1] = 0xFF; pick_set[0] = pick & 3;
+    pl_ch[0] = lu[pick]; pl_set[0] = mod8(pick & 3, bm_chars[pl_ch[0]].nsets); pl_on[0] = 1; pl_on[1] = 0;
     pick++;
     attract = 1; attract_t = 0; ai_weak = 1;
     fight_start();
@@ -1077,7 +1123,9 @@ static void select_start(void);
  * ending screens: nobody; fight: a player not in play (P2 joins, a player continues or rejoins), not under GAME OVER
  * or once the stage's boss is beaten, never in the attract demo's fight (a coin ends the demo first). */
 uint8_t game_start_accept(uint8_t flags) {
+    if (lab.active) return 0;                                /* the Chain Lab's training: nobody joins */
     if (mode == 2 || attract) return opt_on ? 0 : flags;
+    if (mode == 0) return sel_phase == SEL_CHOOSE && cursor[1] == 0xFF ? flags & 2 : 0;   /* the select: P2 joins */
     if (mode != 1 || banner_t || phase >= PH_END) return 0;
     return flags & ((in_play(&fighters[0]) ? 0 : 1) | (in_play(&fighters[1]) ? 0 : 2));
 }
@@ -1170,6 +1218,67 @@ static void flow(void) {
     campaign(left);
 }
 
+/* ---- Chain Lab training (examples/brawler/README.md "Chain Lab"): the page (tools/brawler/chainlab) drives the game
+ * through the lab mailbox (fighter.h lab_t): req 1 = P1 (lab.fighter) against one standing dummy (lab.dummy) on the
+ * first stage, no waves, no timer, the camera fixed; the dummy never attacks, gets up after a knockdown and its life
+ * refills when it stands; req 2 = both back to their marks. The fix layer shows the last combo's hits and damage (a
+ * combo: P1's hits while the dummy has not recovered). The game itself (fighter.c) is the normal one. ---- */
+#define LAB_DUMMY 2
+static uint8_t lab_seen, lab_recovered = 1, lab_shown_hits = 0xFF;
+static uint16_t lab_shown_dmg = 0xFFFF;
+static void lab_place(void) {
+    fighter_t *p = &fighters[0], *d = &fighters[LAB_DUMMY];
+    fighter_init(p, p->ch, p->set, 16, 0, cam_x + 110, 34); p->idx = 0;
+    fighter_init(d, d->ch, d->set, 16 + LAB_DUMMY * MAX_PALS, 1, cam_x + 190, 34); d->idx = LAB_DUMMY;
+    for (uint8_t i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
+    lab_recovered = 1;
+}
+static void lab_start(void) {
+    uint8_t i, c = lab.fighter < BC_COUNT ? lab.fighter : 0, dm = lab.dummy < BC_COUNT ? lab.dummy : 1;
+    attract = 0; ai_weak = 0; opt_on = 0; banner_hide(); fade_in = 0; BIOS_USER_MODE = 2;
+    pl_ch[0] = c; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
+    stage_begin(0, 1);
+    for (i = 1; i < NF; i++) fighters[i].state = S_OFF;
+    enemy_init(LAB_DUMMY, dm, dm == c, 0, 34, 0);
+    lab_place();
+    lab.frame = 0; lab.nev = 0; lab_seen = 0; lab.combo_hits = 0; lab.combo_dmg = 0; lab.active = 1;
+    lab_shown_hits = 0xFF; lab_shown_dmg = 0xFFFF;
+    FIX_print(0, 26, "                                        ", 0); FIX_print(2, 26, "CHAIN LAB", 0);
+}
+static void lab_flow(void) {
+    fighter_t *p = &fighters[0], *d = &fighters[LAB_DUMMY];
+    p->hp = LIFE;                                             /* nobody hits P1; a dummy never dies */
+    if (d->state == S_IDLE || d->state == S_WALK) { d->hp = LIFE; lab_recovered = 1; }
+    else if (d->hp < 20) d->hp += 40;
+    if (d->state == S_DEAD) { fighter_revive(d); d->inv = 0; }
+    if (d->x < FIX(cam_x + 24)) d->x = FIX(cam_x + 24);       /* on screen: the camera does not follow it */
+    if (d->x > FIX(cam_x + 296)) d->x = FIX(cam_x + 296);
+    in[LAB_DUMMY] = (intent_t){ 0 };
+    in[LAB_DUMMY].face = INT(p->x) < INT(d->x) ? -1 : 1;      /* standing: it turns to face P1 */
+    while (lab_seen != lab.nev) {                             /* P1's hits since the last frame */
+        const lab_ev_t *e = &lab.ev[lab_seen & (LAB_NEV - 1)];
+        if (e->kind == LE_HIT) {
+            if (lab_recovered) { lab.combo_hits = 0; lab.combo_dmg = 0; lab_recovered = 0; }
+            lab.combo_hits++; lab.combo_dmg += e->val;
+        }
+        lab_seen++;
+    }
+    if (lab.combo_hits != lab_shown_hits || lab.combo_dmg != lab_shown_dmg) {
+        lab_shown_hits = lab.combo_hits; lab_shown_dmg = lab.combo_dmg;
+        FIX_print(13, 26, "HITS    DAMAGE    ", 0); FIX_printNum(18, 26, lab.combo_hits, 0); FIX_printNum(28, 26, lab.combo_dmg, 0);
+    }
+    if (in_play(p) && (JOY_pressed(0) & JOY_START)) dbg_on ^= 1;   /* the box viewer, as in a fight */
+    bios_start = 0;
+}
+static void lab_tick(void) {                                  /* the page's requests, before the frame's game logic */
+    if (lab.magic[0] != 'L' || lab.magic[1] != 'A' || lab.magic[2] != 'B' || lab.magic[3] != '1') return;
+    lab_install();
+    if (lab.active) lab.frame++;                              /* this tick's events carry this frame */
+    if (lab.req == 1) lab_start();
+    else if (lab.req == 2 && lab.active) lab_place();
+    lab.req = 0;
+}
+
 /* ---- BOSS UNLOCKED (a boss beaten for the first time) and the ending: the fighter alone in its win pose on a dark
  * wall, its portrait and name on the fix layer; A/B/C/D/START (after a moment) or the time goes on. ---- */
 static uint16_t scr_t;
@@ -1182,7 +1291,7 @@ static void show_start(uint8_t m, uint8_t c, uint8_t set, uint16_t wall) {
     PAL_setBackdrop(wall);
     for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
-    fighter_init(&fighters[0], &bm_chars[c], set, 16, 0, 160, LU_Z);
+    fighter_init(&fighters[0], &bm_chars[c], set, 16, 0, 160, SHOW_Z);
     fighters[0].idx = 0; fighters[0].facing = 1;
     fighter_play(&fighters[0], BA_WIN_A);
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
@@ -1217,49 +1326,66 @@ static void show_tick(void) {
     else { fade_in = FADE_T; stage_begin(camp + 1, 0); }
 }
 static void select_tick(void) {
-    uint8_t a;
-    uint16_t pr = JOY_pressed(0);
+    uint8_t a, p, s;
     sel_t++;
     if (sel_phase == SEL_CHOOSE) {
-        int8_t c = cursor[0], was = c;
-        if (pr & JOY_LEFT) c--;
-        if (pr & JOY_RIGHT) c++;
-        if (c < 0) c = 0;
-        if (c >= lu_n) c = lu_n - 1;
-        if (c != was) {                                      /* colours follow the cursor */
-            cursor[0] = c;
-            if (act_of[was] != 0xFF) fighter_pals(&fighters[act_of[was]], 0, 16);
-            if (act_of[c] != 0xFF) fighter_pals(&fighters[act_of[c]], 1, 16);
+        if ((bios_start & 2) && cursor[1] == 0xFF) {         /* P2 joins: START with a credit (PLAYER_START) */
+            for (s = SEL_NSLOT; s-- > 0 && !(selectable(s) && SEL_SLOT[s].row == SEL_SLOT[cursor[0]].row && s != cursor[0]); ) ;
+            cursor[1] = s < SEL_NSLOT ? s : cursor[0];       /* the last fighter of P1's row */
+            BIOS_PLAYER_MOD[1] = 1;
+            fighter_pals(actor(slot_act[cursor[1]]), 1, 16);
             select_name();
         }
-        lineup_camera(); lineup_bind();
-        if (pr & (JOY_A | JOY_B | JOY_C | JOY_D)) {
-            pick_set[0] = (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3;
-            a = act_of[cursor[0]];
-            if (a == 0xFF) { lineup_bind(); a = act_of[cursor[0]]; }
-            if (a != 0xFF) { actor_free(a); actor_bind(cursor[0], a); fighter_play(&fighters[a], BA_WIN_A); }
-            picked[0] = 1; sel_phase = SEL_LEAVE; sel_t = 0;
+        bios_start = 0;
+        for (p = 0; p < 2; p++) {
+            uint16_t pr = JOY_pressed(p);
+            uint8_t was = cursor[p];
+            if (was == 0xFF || picked[p]) continue;
+            s = sel_move(was, pr);
+            if (s != was) {                                  /* colours follow the cursor */
+                cursor[p] = s;
+                fighter_pals(actor(slot_act[was]), slot_look(was), 16);
+                fighter_pals(actor(slot_act[s]), 1, 16);
+                select_name();
+            }
+            if ((pr & (JOY_A | JOY_B | JOY_C | JOY_D)) && !(picked[p ^ 1] && cursor[p ^ 1] == cursor[p])) {
+                pick_set[p] = (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3;
+                slot_show(cursor[p], pick_set[p]);
+                fighter_play(actor(slot_act[cursor[p]]), BA_WIN_A);
+                actor(slot_act[cursor[p]])->team = 0;       /* the line guard keeps the picked ones first */
+                picked[p] = 1;
+            }
         }
+        if (picked[0] && (cursor[1] == 0xFF || picked[1])) { sel_phase = SEL_LEAVE; sel_t = 0; }
     } else if (sel_phase == SEL_LEAVE) {                     /* the others walk off the screen, outward */
         uint8_t left = 0;
-        for (a = 0; a < NF; a++) {
-            fighter_t *f = &fighters[a];
+        for (s = 0; s < SEL_NSLOT; s++) {
+            fighter_t *f;
             int16_t sx;
-            if (chr_of[a] == 0xFF || chr_of[a] == cursor[0]) continue;
-            if (sel_t == 1 || f->anim != BA_WALK_FWD) { f->facing = chr_of[a] < cursor[0] ? -1 : 1; fighter_play(f, BA_WALK_FWD); }
+            if (slot_act[s] == 0xFF || chosen(s)) continue;
+            f = actor(slot_act[s]);
+            if (f->state == S_OFF) continue;
+            if (sel_t == 1) { f->facing = SEL_SLOT[s].x < 160 ? -1 : 1; fighter_play(f, BA_WALK_FWD); }
             f->x += f->facing > 0 ? FIX(3) : -FIX(3);
             sx = INT(f->x) - cam_x;
-            if (sx < -64 || sx > 384) actor_free(a); else left++;
+            if (sx < -64 || sx > 384) f->state = S_OFF; else left++;
         }
         if (!left && sel_t >= 60) { sel_phase = SEL_FADE; sel_t = 0; }
-    } else {                                                 /* to black: the wall and the picked fighter */
+    } else {                                                 /* to black: the wall and the picked fighters */
         uint8_t k = sel_t >= FADE_T ? 0 : 16 - (uint8_t)(sel_t >> 1);
         PAL_setBackdrop(col_scale(RGB8(72, 76, 84), k));
-        a = act_of[cursor[0]];
-        if (a != 0xFF) fighter_pals(&fighters[a], 1, k);
-        if (sel_t >= FADE_T + 8) { fade_in = FADE_T; fight_start(); return; }
+        for (p = 0; p < 2; p++) if (cursor[p] != 0xFF) fighter_pals(actor(slot_act[cursor[p]]), 1, k);
+        if (sel_t >= FADE_T + 8) {
+            for (p = 0; p < 2; p++) {
+                pl_on[p] = cursor[p] != 0xFF;
+                if (!pl_on[p]) continue;
+                pl_ch[p] = slot_ch[cursor[p]]; pl_set[p] = mod8(pick_set[p], bm_chars[pl_ch[p]].nsets);
+            }
+            for (a = NE; a < NA; a++) actor(a)->state = S_OFF;
+            fade_in = FADE_T; fight_start(); return;
+        }
     }
-    for (a = 0; a < NF; a++) if (chr_of[a] != 0xFF) fighter_animate(&fighters[a]);
+    for (a = 0; a < NA; a++) if (actor(a)->state != S_OFF) fighter_animate(actor(a));
     select_arrows();
 }
 /* the fight fading in from black after the select screen: the stage, the backdrop, every fighter (k / 16); k steps every
@@ -1278,13 +1404,14 @@ static void scene_pals(uint8_t k) {              /* the fight at k / 16: stage, 
 }
 
 void game_init(void) {
-    uint8_t i;
+    uint16_t i;
     bosses_find();
+    routes_init();                                           /* the fighters' chain route trees (fighter.h) */
     save_load();                                             /* MVS: the BIOS restored the block (a fresh one: reset) */
     PAL_setPalette(0, TEXT_PAL);
     PAL_setBackdrop(stg->backdrop);
-    for (i = 0; i < NE * MAX_COLS; i++) cmd_push(VRAM_SCB2 + SPR_BASE + i, 0x0FFF);   /* full size, set once */
-    for (i = 0; i < NE; i++) block_placed[i] = MAX_COLS;                              /* clear every block once */
+    for (i = 0; i < NA * MAX_COLS; i++) cmd_push(VRAM_SCB2 + SPR_BASE + i, 0x0FFF);   /* full size, set once */
+    for (i = 0; i < NA; i++) block_placed[i] = MAX_COLS;                              /* clear every block once */
     stage_init(STAGE);
     snd_cmd(0x07);                                           /* KOF98's driver: music unlock */
 }
@@ -1313,7 +1440,8 @@ void game_tick(void) {
     mark(P_FLUSH);
     SYS_kickWatchdog();
     snd_tick();
-    arcade_line();
+    lab_tick();
+    if (!lab.active) arcade_line();
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
@@ -1329,11 +1457,11 @@ void game_tick(void) {
     } else read_player(0, &in[0], &fighters[0]);
     if (p2_in()) read_player(1, &in[1], &fighters[1]);
 #if !AI_OFF
-    ai_update(fighters, NF, 2, in);
+    if (!lab.active) ai_update(fighters, NF, 2, in);
 #endif
     mark(P_AI);
     for (i = 0; i < NF; i++) if (fighters[i].state != S_OFF) fighter_update(&fighters[i], &in[i]);
-    flow();
+    if (lab.active) lab_flow(); else flow();
     if (mode != 1) return;                                   /* back on the title screen */
     if (fade_in) fight_fade();
     camera();

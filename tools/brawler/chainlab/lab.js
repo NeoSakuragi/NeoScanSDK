@@ -1,0 +1,185 @@
+/* Chain Lab: the game in the page (core.wasm, web_core.c) and the lab mailbox (fighter.h lab_t), shared by the page
+ * (index.html) and the Node proof (proof_node.js). Nothing here plays the game: the 68000 code does; this only presses
+ * the pads, writes route trees into the game's RAM and reads its state back. */
+(function (root) {
+  'use strict';
+  // pads: libretro joypad ids (web_core.c): Neo A = 0, B = 8, C = 1, D = 9, START = 3, coin (SELECT) = 2, U D L R = 4-7
+  const KEYS = { a: 0, b: 8, c: 1, d: 9, s: 3, o: 2, U: 4, D: 5, L: 6, R: 7 };
+  const RAM_BASE = 0x100000;
+  // lab_t (fighter.h): magic 0, req 4, fighter 5, dummy 6, load 7, active 8, nev 9, frame 10, combo_hits 12, combo_dmg 14,
+  // ev[64] at 16 (6 bytes: frame u16, kind, node, how, val), buf at 400
+  const LAB = { magic: 0, req: 4, fighter: 5, dummy: 6, load: 7, active: 8, nev: 9, frame: 10, hits: 12, dmg: 14, ev: 16, buf: 400 };
+  const EV_N = 64, EV_SIZE = 6;
+  const KINDS = ['START', 'HIT', 'END', 'SPECIAL', 'CHAINWIN'];
+  const HOW = ['neutral', 'after end', 'cancel', 'window'];
+  const BOOT_FRAMES = 400;
+
+  // ---- route trees (tools/brawler/routes.py: the same format and the same encoder) ----------------------------------
+  const INPUTS = ['A', 'B', 'dA', 'dB', 'fA', 'fB', 'dfA', 'dfB', 'AB', 'D', 'fD', 'dD', 'uD'];
+  const SPECIAL_INPUTS = INPUTS.slice(9);
+  const SPECIALS = ['D', 'fD', 'dD', 'uD'];
+  const MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
+    'atk_c_close', 'atk_c_far', 'atk_c_crouch', 'atk_d_close', 'atk_d_far', 'atk_d_crouch', 'body_toss',
+    'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d'];
+  const AIR_MOVES = { air_a: 'atk_c_jump', air_b: 'atk_d_jump', air_cd: 'atk_cd_jump' };
+  const ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd'];
+  const WEIGHTS = ['light', 'strong'];
+  const EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback'];
+  const NODE_SIZE = 20, HEAD_SIZE = 16, RI_N = 14, MAX_NODES = 128;
+
+  function defaultDamage(n) {
+    const e = n.effect || 'none';
+    if (e !== 'none') return [{ knockdown: 8, launch: 9, trip: 7, blowback: 10 }[e], 0];
+    return n.weight === 'strong' ? [6, 4] : [3, 3];
+  }
+  // Python's json.dumps(x, sort_keys=True): the memo key that shares identical subtrees (same order as routes.py)
+  function pyjson(x) {
+    if (x === null || x === undefined) return 'null';
+    if (typeof x === 'boolean') return x ? 'true' : 'false';
+    if (typeof x === 'number') return String(x);
+    if (typeof x === 'string') return JSON.stringify(x).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+    if (Array.isArray(x)) return '[' + x.map(pyjson).join(', ') + ']';
+    return '{' + Object.keys(x).sort().map(k => pyjson(k) + ': ' + pyjson(x[k])).join(', ') + '}';
+  }
+  /* tree -> Uint8Array (fighter.h rt_head_t + rnode_t[]); moves: the BA_* order (chainlab.json "ba"); has: the moves the
+     fighter has; defaults: the default tree's entries. Throws with the node's path on an invalid tree. */
+  function encodeTree(tree, moves, has, defaults) {
+    const nodes = [new Uint8Array(NODE_SIZE)], memo = new Map();
+    function node(nd, where, air) {
+      const key = pyjson([nd, !!air]);
+      if (memo.has(key)) return memo.get(key);
+      const i = nodes.length; nodes.push(null); memo.set(key, i);
+      const nxt = new Array(RI_N).fill(0);
+      for (const [k, ch] of Object.entries(nd.links || {})) {
+        if (!INPUTS.includes(k)) throw new Error(`${where}: unknown input ${k}`);
+        if (SPECIAL_INPUTS.includes(k)) { if (!('special' in ch)) throw new Error(`${where} ${k}: a D input leads to a special`); }
+        else if (!('move' in ch)) throw new Error(`${where} ${k}: an A / B input leads to a move`);
+        nxt[INPUTS.indexOf(k)] = node(ch, `${where} ${k}`, false);
+      }
+      let anim, flags;
+      if ('special' in nd) {
+        if (!SPECIALS.includes(nd.special)) throw new Error(`${where}: unknown special ${nd.special}`);
+        if (nd.links && Object.keys(nd.links).length) throw new Error(`${where}: a special ends the route (no links)`);
+        anim = SPECIALS.indexOf(nd.special); flags = 1;
+      } else if (nd.move === undefined || nd.move === null) { anim = 0; flags = 0; }
+      else {
+        if (!moves.includes(nd.move)) throw new Error(`${where}: unknown move ${nd.move}`);
+        if (!air && !MOVE_NAMES.includes(nd.move)) throw new Error(`${where}: ${nd.move} is not a ground move`);
+        if (has && !has.includes(nd.move)) throw new Error(`${where}: the fighter has no ${nd.move}`);
+        anim = moves.indexOf(nd.move); flags = (air ? 2 : 0) | (nd.cancel ? 4 : 0);
+      }
+      const w = nd.weight || 'light', e = nd.effect || 'none';
+      if (!WEIGHTS.includes(w) || !EFFECTS.includes(e)) throw new Error(`${where}: weight ${w} / effect ${e}`);
+      const [dd, dp] = defaultDamage(nd);
+      const dmg = nd.damage !== undefined ? nd.damage : dd, push = nd.push !== undefined ? nd.push : dp;
+      if (!(dmg >= 0 && dmg <= 255 && push >= -128 && push <= 127)) throw new Error(where + ': damage / push');
+      nodes[i] = Uint8Array.from([anim, flags, WEIGHTS.indexOf(w), EFFECTS.indexOf(e), dmg, push & 0xFF, ...nxt]);
+      return i;
+    }
+    const rootI = node({ links: tree.links || {} }, 'root', false);
+    const ents = tree.entries || {};
+    const ent = ENTRIES.map(k => {
+      let nd = ents[k] || defaults[k];
+      if (AIR_MOVES[k]) nd = Object.assign({}, nd, { move: AIR_MOVES[k] });
+      return node(nd, k, !!AIR_MOVES[k]);
+    });
+    if (nodes.length > MAX_NODES) throw new Error(`${nodes.length} nodes (at most ${MAX_NODES})`);
+    const out = new Uint8Array(HEAD_SIZE + nodes.length * NODE_SIZE);
+    out.set([82, 84, 1, nodes.length, rootI, ...ent, 0, 0, 0, 0, 0]);
+    nodes.forEach((n, i) => out.set(n, HEAD_SIZE + i * NODE_SIZE));
+    return out;
+  }
+  // the node index encodeTree gives each node object of the tree (the readout maps the game's events back to the tree)
+  function nodeIndex(tree) {
+    const map = new Map(), memo = new Map(); let n = 1;
+    function node(nd, air) {
+      const key = pyjson([nd, !!air]);
+      if (memo.has(key)) { map.set(nd, memo.get(key)); return; }
+      const i = n++; memo.set(key, i); map.set(nd, i);
+      for (const ch of Object.values(nd.links || {})) node(ch, false);
+    }
+    node({ links: tree.links || {} }, false);
+    return map;
+  }
+
+  // ---- the core ---------------------------------------------------------------------------------------------------
+  class Lab {
+    constructor(core, layout) {
+      this.core = core; this.layout = layout;
+      this.lab = layout.syms.lab; this.fighters = layout.syms.fighters;
+      this.pads = [0, 0]; this.frame = 0;
+      this.state = null;                         // a save state of the training start (quick restart)
+    }
+    static async create(GeoCore, files, layout) {   // files: {bios: Uint8Array, rom: Uint8Array}
+      const core = await GeoCore(files.moduleArgs || {});
+      core.FS.mkdir('/sys'); core.FS.mkdir('/rom'); core.FS.mkdir('/save');
+      core.FS.writeFile('/sys/neogeo.zip', files.bios);
+      core.FS.writeFile('/rom/game.neo', files.rom);
+      if (!core._wc_init()) throw new Error('the core did not load the game');
+      return new Lab(core, layout);
+    }
+    get heap() { return this.core.HEAPU8; }      // re-read: memory growth replaces the buffer
+    ramAddr(a) { return this.core._wc_ram() + (a - RAM_BASE); }
+    r8(a) { return this.heap[this.ramAddr(a)]; }
+    r16(a) { const p = this.ramAddr(a); return (this.heap[p] << 8) | this.heap[p + 1]; }
+    r32(a) { const p = this.ramAddr(a), h = this.heap; return ((h[p] << 24) | (h[p + 1] << 16) | (h[p + 2] << 8) | h[p + 3]) >>> 0; }
+    w8(a, v) { this.heap[this.ramAddr(a)] = v & 0xFF; }
+    wbytes(a, bytes) { this.heap.set(bytes, this.ramAddr(a)); }
+    setPad(port, keys) { let b = 0; for (const k of keys) if (k in KEYS) b |= 1 << KEYS[k]; this.pads[port] = b; }
+    run(n = 1) {
+      for (let i = 0; i < n; i++) {
+        this.core._wc_pad(0, this.pads[0]); this.core._wc_pad(1, this.pads[1]);
+        this.core._wc_run(); this.frame++;
+      }
+    }
+    fget(i, field) {
+      const [off, sz] = this.layout.fields[field], a = this.fighters + i * this.layout.fsize + off;
+      let v = sz === 1 ? this.r8(a) : sz === 2 ? this.r16(a) : this.r32(a);
+      if (['x', 'z', 'y', 'vx', 'vz', 'vy'].includes(field)) return ((v | 0)) / 65536;
+      if (field === 'facing' || field === 'hp') { const bits = 8 * sz; if (v >> (bits - 1)) v -= 2 ** bits; }
+      return v;
+    }
+    stateName(i) { return this.layout.states[this.fget(i, 'state')]; }
+    // the mailbox
+    active() { return this.r8(this.lab + LAB.active) === 1; }
+    labFrame() { return this.r16(this.lab + LAB.frame); }
+    combo() { return { hits: this.r8(this.lab + LAB.hits), dmg: this.r16(this.lab + LAB.dmg) }; }
+    request(req, fighter, dummy) {
+      this.wbytes(this.lab + LAB.magic, [76, 65, 66, 49]);
+      if (fighter !== undefined) this.w8(this.lab + LAB.fighter, fighter);
+      if (dummy !== undefined) this.w8(this.lab + LAB.dummy, dummy);
+      this.w8(this.lab + LAB.req, req);
+    }
+    installTree(fighter, blob) {                 // the game takes it on its next tick (lab_install)
+      this.wbytes(this.lab + LAB.buf, blob);
+      this.w8(this.lab + LAB.fighter, fighter);
+      this.w8(this.lab + LAB.load, blob ? 1 : 2);
+    }
+    nev() { return this.r8(this.lab + LAB.nev); }
+    eventsSince(from) {                          // [from, nev) of the ring (at most its 64 latest)
+      const n = this.nev(), out = [];
+      let k = (n - from) & 0xFF; if (k > EV_N) { from = (n - EV_N) & 0xFF; k = EV_N; }
+      for (let j = 0; j < k; j++) {
+        const i = (from + j) & (EV_N - 1), a = this.lab + LAB.ev + i * EV_SIZE;
+        out.push({ frame: this.r16(a), kind: KINDS[this.r8(a + 2)], node: this.r8(a + 3), how: this.r8(a + 4), val: this.r8(a + 5) });
+      }
+      return { events: out, next: n };
+    }
+    /* power on -> the BIOS hands over -> the training (fighter vs dummy): the same steps as labdrive.py */
+    boot(fighter, dummy, blob) {
+      this.core._wc_reset(); this.frame = 0; this.pads = [0, 0];
+      this.run(BOOT_FRAMES);
+      if (blob) this.installTree(fighter, blob);
+      this.request(1, fighter, dummy);
+      for (let k = 0; k < 3000 && !this.active(); k++) this.run(1);
+      if (!this.active()) throw new Error('the training did not start');
+      this.run(2);
+    }
+    saveState() { const n = this.core._wc_state_size(), p = this.core._malloc(n); this.core._wc_save(p, n); const s = this.heap.slice(p, p + n); this.core._free(p); return s; }
+    loadState(s) { const p = this.core._malloc(s.length); this.heap.set(s, p); this.core._wc_load(p, s.length); this.core._free(p); }
+  }
+
+  const api = { Lab, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+    encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
+})(typeof window !== 'undefined' ? window : globalThis);

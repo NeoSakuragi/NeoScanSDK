@@ -39,31 +39,32 @@ static const char *NAMES[S_COUNT] = { "IDLE    ", "WALK    ", "RUN     ", "PREJU
     "AIR ATK ", "HITSTUN ", "KNOCKDN ", "DOWN    ", "GETUP   ", "GRAB    ", "GRABBED ", "THROW   ", "THROWN  ", "SPECIAL ", "DEAD    ", "PROJ    ", "OFF     " };
 const char *fighter_state_name(uint8_t st) { return NAMES[st]; }
 
-/* ---- combo routes (one table for every fighter: the links are KOF normals every fighter has) -------------------
- * A route (Bruno 2026-10-03): far A -A-> far A -A-> close C -A-> close D -A-> C+D (knockdown)
- * A1/A2 -B-> AB / AAB (launch)
- * B1 -B-> BB (knockdown)                 B1 -A-> BA -B-> BAB (sweep: trip)
- * finishers inside any window: forward+A = body toss (knockdown), down+B = sweep. Air: A / B.  D = special (body toss). */
-enum { N_NONE, N_A1, N_A2, N_A3, N_A4, N_A5, N_AB, N_AAB, N_B1, N_BB, N_BA, N_BAB, N_FWD_A, N_AIR_A, N_AIR_B, N_AIR_CD };
-const cnode_t COMBO[] = {
-    /* anim            dmg rct          push nextA   nextB   fwdA     downB */
-    { 0,                0,  0,           0,  0,      0,      0,       0 },
-    { BA_ATK_A_FAR,     3,  R_LIGHT,     3,  N_A2,   N_AB,   N_FWD_A, N_BAB },
-    { BA_ATK_A_FAR,     3,  R_LIGHT,     3,  N_A3,   N_AAB,  N_FWD_A, N_BAB },
-    { BA_ATK_C_CLOSE,   6,  R_HEAVY,     4,  N_A4,   0,      N_FWD_A, N_BAB },
-    { BA_ATK_D_CLOSE,   6,  R_HEAVY,     4,  N_A5,   0,      N_FWD_A, N_BAB },
-    { BA_BODY_TOSS,    10,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
-    { BA_ATK_D_CLOSE,   6,  R_HEAVY,     6,  0,      0,      N_FWD_A, N_BAB },
-    { BA_ATK_D_FAR,     9,  R_LAUNCH,    0,  0,      0,      0,       0 },
-    { BA_ATK_B_CLOSE,   4,  R_LIGHT,     3,  N_BA,   N_BB,   N_FWD_A, N_BAB },
-    { BA_ATK_D_CLOSE,   8,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
-    { BA_ATK_C_FAR,     5,  R_HEAVY,     5,  0,      N_BAB,  N_FWD_A, N_BAB },
-    { BA_ATK_D_CROUCH,  7,  R_TRIP,      0,  0,      0,      0,       0 },
-    { BA_BODY_TOSS,     10, R_KNOCKDOWN, 0,  0,      0,      0,       0 },
-    { BA_ATK_C_JUMP,    6,  R_HEAVY,     4,  0,      0,      0,       0 },
-    { BA_ATK_D_JUMP,    8,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },
-    { BA_ATK_CD_JUMP,  10,  R_KNOCKDOWN, 0,  0,      0,      0,       0 },   /* air C+D, on C in the air */
-};
+/* ---- chain routes (fighter.h "chain routes"): each fighter's tree, through route_tab[] (RAM) ------------------------
+ * The default tree (export_bm.py DEFAULT_ROUTES, every fighter without a routes file) is the old single table:
+ * far A -A-> far A -A-> close C -A-> close D -A-> C+D (knockdown); A1/A2 -B-> AB / AAB (launch); B1 -B-> BB (knockdown),
+ * B1 -A-> BA -B-> BAB (sweep: trip); forward+A = body toss, down+B = sweep inside any window; D, forward+D, down+D, up+D
+ * = the special the input picks, cancelling a normal that hit. Air: A / B / C. */
+const rt_head_t *route_tab[BC_COUNT];
+lab_t lab;
+void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }
+void lab_install(void) {
+    const rt_head_t *t = (const rt_head_t *)lab.buf;
+    if (!lab.load) return;
+    if (lab.fighter < BC_COUNT) {
+        if (lab.load == 1 && t->magic[0] == 'R' && t->magic[1] == 'T' && t->version == 1) route_tab[lab.fighter] = t;
+        else route_tab[lab.fighter] = (const rt_head_t *)bm_chars[lab.fighter].routes;
+    }
+    lab.load = 0;
+}
+#define TREE(f)    route_tab[(f)->ch->id]
+#define NODE(f, i) RT_NODE(TREE(f), i)
+static void lab_note(const fighter_t *f, uint8_t kind, uint8_t node, uint8_t how, uint8_t val) {   /* P1's route steps */
+    lab_ev_t *e;
+    if (!lab.active || f->idx || f->team || f->state == S_PROJ) return;
+    e = &lab.ev[lab.nev & (LAB_NEV - 1)];
+    e->frame = lab.frame; e->kind = kind; e->node = node; e->how = how; e->val = val;
+    lab.nev++;
+}
 
 /* ---- animation player ------------------------------------------------------------------------------------- */
 static void clamp(fighter_t *f);
@@ -107,10 +108,10 @@ static void to_neutral(fighter_t *f, const intent_t *in) {
 }
 static uint8_t hit_sound(uint8_t anim) {                       /* KOF98's hit sound per button */
     switch (anim) {
-    case BA_ATK_A_CLOSE: case BA_ATK_A_FAR: return SFX_HIT_A;
-    case BA_ATK_B_CLOSE: case BA_ATK_B_FAR: return SFX_HIT_B;
-    case BA_ATK_C_CLOSE: case BA_ATK_C_FAR: case BA_ATK_C_JUMP: return SFX_HIT_C;
-    case BA_ATK_D_CLOSE: case BA_ATK_D_FAR: case BA_ATK_D_CROUCH: case BA_ATK_D_JUMP: return SFX_HIT_D;
+    case BA_ATK_A_CLOSE: case BA_ATK_A_FAR: case BA_ATK_A_CROUCH: case BA_CMD_FWD_A: return SFX_HIT_A;
+    case BA_ATK_B_CLOSE: case BA_ATK_B_FAR: case BA_ATK_B_CROUCH: case BA_CMD_FWD_B: return SFX_HIT_B;
+    case BA_ATK_C_CLOSE: case BA_ATK_C_FAR: case BA_ATK_C_JUMP: case BA_ATK_C_CROUCH: case BA_CMD_DF_C: return SFX_HIT_C;
+    case BA_ATK_D_CLOSE: case BA_ATK_D_FAR: case BA_ATK_D_CROUCH: case BA_ATK_D_JUMP: case BA_CMD_DF_D: return SFX_HIT_D;
     default: return SFX_HIT_CD;
     }
 }
@@ -126,14 +127,18 @@ static const uint8_t AIR_NORMAL[2][2][2] = {                  /* [kind][vertical
     { { BA_ATK_C_JUMP, BA_ATK_D_JUMP }, { BA_ATK_C_JUMP_DIAG, BA_ATK_D_JUMP_DIAG } },
     { { BA_ATK_C_HOP, BA_ATK_D_HOP }, { BA_ATK_C_HOP_DIAG, BA_ATK_D_HOP_DIAG } } };
 
-static void start_node(fighter_t *f, uint8_t node) {
-    uint8_t a = COMBO[node].anim;
-    snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR || a == BA_ATK_C_JUMP
-            ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
+static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
+    const rnode_t *c = NODE(f, node);
+    uint8_t a = c->anim;
+    snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_A_CROUCH || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR ||
+            a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
     f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0;
-    if (node == N_AIR_CD) a = f->jump_kind ? BA_ATK_CD_HOP : BA_ATK_CD_JUMP;     /* KOF's 117, a KOF98 / 99 hop's 124 */
-    else if (node >= N_AIR_A) a = AIR_NORMAL[f->jump_kind][f->jump_dir != 0][node == N_AIR_B];   /* this jump's air normal */
-    enter(f, node >= N_AIR_A ? S_AIR_ATTACK : S_ATTACK); play(f, a);
+    if (c->flags & RF_AIR) {                                     /* the jump in progress picks the air normal */
+        if (a == BA_ATK_CD_JUMP) a = f->jump_kind ? BA_ATK_CD_HOP : BA_ATK_CD_JUMP;   /* KOF's 117, a KOF98 / 99 hop's 124 */
+        else a = AIR_NORMAL[f->jump_kind][f->jump_dir != 0][a == BA_ATK_D_JUMP];
+    }
+    lab_note(f, LE_START, node, how, 0);
+    enter(f, (c->flags & RF_AIR) ? S_AIR_ATTACK : S_ATTACK); play(f, a);
 }
 static uint8_t combo_input(const fighter_t *f, const intent_t *in) {     /* IN_* | 0x80 forward | 0x40 down */
     uint8_t b = in->press & (IN_A | IN_B);
@@ -142,10 +147,22 @@ static uint8_t combo_input(const fighter_t *f, const intent_t *in) {     /* IN_*
     if (in->dz > 0) b |= 0x40;
     return b;
 }
-static uint8_t next_node(const cnode_t *c, uint8_t b) {
-    if ((b & 0x80) && (b & IN_A) && c->next_fwd_a) return c->next_fwd_a;
-    if ((b & 0x40) && (b & IN_B) && c->next_down_b) return c->next_down_b;
-    return (b & IN_A) ? c->next_a : (b & IN_B) ? c->next_b : 0;
+/* the link a buffered input takes: the exact input, else down-forward -> forward -> down -> plain (a plain A / B always
+ * continues a route whatever the stick does); A+B (0x20) only when the node has the link (combo_ab) */
+static uint8_t next_node(const rnode_t *c, uint8_t b) {
+    uint8_t k = (b & IN_A) ? 0 : 1;                              /* RI_A / RI_B and their directional versions (+2, +4, +6) */
+    if (b & 0x20) return c->next[RI_AB];
+    if ((b & 0xC0) == 0xC0 && c->next[RI_DFA + k]) return c->next[RI_DFA + k];
+    if ((b & 0x80) && c->next[RI_FA + k]) return c->next[RI_FA + k];
+    if ((b & 0x40) && c->next[RI_DA + k]) return c->next[RI_DA + k];
+    return c->next[k];
+}
+static uint8_t combo_ab(const fighter_t *f, const intent_t *in, const rnode_t *c) {   /* A+B taken by the node's link */
+    return in->ab && c->next[RI_AB] ? 0x20 | IN_A | IN_B | (in->dx == f->facing ? 0x80 : 0) | (in->dz > 0 ? 0x40 : 0) : 0;
+}
+static uint8_t has_links(const rnode_t *c) { uint8_t k, n = 0; for (k = RI_A; k <= RI_AB; k++) n |= c->next[k]; return n; }
+static uint8_t d_input(const intent_t *in) {                     /* D's direction, as special_for reads it */
+    return in->dz > 0 ? RI_DD : in->dz < 0 ? RI_UD : in->dx ? RI_FD : RI_D;
 }
 
 void fighter_revive(fighter_t *f) {
@@ -231,6 +248,7 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
     case R_KNOCKDOWN: enter(v, S_KNOCKDOWN); v->vy = FIX(7); v->vx = dir_mul(away, FIX(2)); play(v, blow); break;
     case R_LAUNCH:    enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = dir_mul(away, FIX(2) + 0x8000); play(v, blow); break;   /* KOF98 launches rise in it too (Burn Knuckle) */
     case R_TRIP:      enter(v, S_KNOCKDOWN); v->vy = FIX(3); v->vx = dir_mul(away, FIX(1)); play(v, BA_TRIP); break;
+    case R_BLOWBACK:  enter(v, S_KNOCKDOWN); v->vy = FIX(4); v->vx = dir_mul(away, FIX(5)); play(v, blow); break;   /* KOF's C+D: low and far */
     }
 }
 
@@ -276,7 +294,7 @@ static void release(fighter_t *a) {                              /* both free wh
     a->held = 0; a->frame_ovr = 0xFFFF; a->zfront = 0; a->y = 0; to_neutral(a, 0);
     if (v) { v->held = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; to_neutral(v, 0); }
 }
-static void start_node(fighter_t *f, uint8_t node);
+static void start_node(fighter_t *f, uint8_t node, uint8_t how);
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     const bthrow_row_t *r = f->ch->throws[BT_THROW_C].rows;
@@ -285,8 +303,8 @@ static void hold_update(fighter_t *f, const intent_t *in) {
             f->buffered = 0;
             if (f->grab_hits >= GRAB_HITS) {                     /* C+D: the victim goes down, the hold is over */
                 f->held = 0; v->held = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);
-                f->node = N_A5; f->landed = 1; enter(f, S_ATTACK);   /* the C+D plays on as a normal attack */
-                snd_sfx(SFX_HIT_CD); fighter_hit(f, v, COMBO[N_A5].damage, R_KNOCKDOWN, 0);
+                f->node = TREE(f)->hold; f->landed = 1; enter(f, S_ATTACK);   /* the C+D plays on as a normal attack */
+                snd_sfx(SFX_HIT_CD); fighter_hit(f, v, NODE(f, f->node)->damage, R_KNOCKDOWN, 0);
                 return;
             }
             snd_sfx(f->anim == BA_ATK_D_CLOSE ? SFX_HIT_D : SFX_HIT_C);
@@ -476,16 +494,18 @@ void projectiles_update(int16_t cam_x) {
         proj_child(p);
     }
 }
-static uint8_t special_for(const fighter_t *f, const intent_t *in) {   /* D, forward+D, down+D, up+D -> BS_*, 0xFF = none */
+static uint8_t special_pick(const fighter_t *f, uint8_t want) {   /* BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D -> BS_*, 0xFF = none */
     static const uint8_t order[4][4] = { { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D }, { BS_FWD_D, BS_D, BS_UP_D, BS_DOWN_D },
                                          { BS_DOWN_D, BS_UP_D, BS_FWD_D, BS_D }, { BS_UP_D, BS_FWD_D, BS_DOWN_D, BS_D } };
-    uint8_t want = in->dz > 0 ? 2 : in->dz < 0 ? 3 : in->dx ? 1 : 0, k;   /* down / up = toward / away from the camera */
+    uint8_t k;
     for (k = 0; k < 4; k++) {                                    /* missing: the nearest; a projectile special not */
         const bspec_t *sp = &f->ch->specials[order[want][k]];   /* while the fighter's projectile flies (KOF skips */
         if (sp->nrows && !(sp->proj && f->shot)) return order[want][k];   /* the command: owner +$E1 bit 5) */
     }
     return 0xFF;
 }
+/* D, forward+D, down+D, up+D (down / up = toward / away from the camera) -> BS_*, 0xFF = none */
+static uint8_t special_for(const fighter_t *f, const intent_t *in) { return special_pick(f, d_input(in) - RI_D); }
 static void special_update(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_id];
     const bspec_row_t *r;
@@ -537,8 +557,9 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         release(h); f->x += dir_mul(h->facing, FIX(10)); clamp(f); f->inv = 20; f->freeze = h->freeze = 0; stat_escapes++;
     }
     if (f->state == S_ATTACK) {                                  /* presses in hit-stop count */
-        uint8_t ci = combo_input(f, in); if (ci) f->buffered = ci;
-        if (in->press & IN_D) f->spec_buf = 0x80 | special_for(f, in);
+        uint8_t ab = combo_ab(f, in, NODE(f, f->node)), ci = ab ? ab : combo_input(f, in);
+        if (ci) f->buffered = ci;
+        if ((in->press & IN_D) && !ab) f->spec_buf = 0x80 | d_input(in);   /* A+B taken by a link is not a D */
     }
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
@@ -556,17 +577,22 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         }
         if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
         else if (in->face) f->facing = in->face;
+        {                                                        /* A+B inside a chain window: the route's A+B link */
+            uint8_t ab = f->chain_t ? combo_ab(f, in, NODE(f, f->chain_node)) : 0;
+            if (ab) { start_node(f, next_node(NODE(f, f->chain_node), ab), LH_WINDOW); break; }
+        }
         if (b & IN_D) {                                          /* special: D projectile, forward+D rush, down+D reversal */
             uint8_t k = special_for(f, in);
-            if (k != 0xFF) start_special(f, k); else start_node(f, N_FWD_A);
+            if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k); } else start_node(f, TREE(f)->nospec, LH_NEUTRAL);
             break;
         }
         if (b & (IN_A | IN_B)) {
-            uint8_t ci = combo_input(f, in), nx = f->chain_t ? next_node(&COMBO[f->chain_node], ci) : 0;
-            if (nx) { start_node(f, nx); break; }                  /* the route goes on (Final Fight: tap, wait, tap) */
-            if (f->state == S_RUN && (b & IN_A)) { start_node(f, N_FWD_A); break; }   /* dash attack */
-            if ((ci & 0x40) && (ci & IN_B)) { start_node(f, N_BAB); break; }
-            start_node(f, (b & IN_A) ? N_A1 : N_B1); break;
+            uint8_t ci = combo_input(f, in), nx = f->chain_t ? next_node(NODE(f, f->chain_node), ci) : 0;
+            if (nx) { start_node(f, nx, LH_WINDOW); break; }       /* the route goes on (Final Fight: tap, wait, tap) */
+            if (f->state == S_RUN && (b & IN_A)) { start_node(f, TREE(f)->dash, LH_NEUTRAL); break; }   /* dash attack */
+            nx = next_node(NODE(f, TREE(f)->root), ci);          /* a route starts: the root's links */
+            if (nx) start_node(f, nx, LH_NEUTRAL);
+            break;
         }
         if (f->state == S_RUN && in->dx == f->facing) {
             f->x += dir_mul(f->facing, whole(ph->walk) << RUN_MUL >> 1); f->z += dir_mul(in->dz, FIX(1)); clamp(f); break;
@@ -590,7 +616,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         break;
     case S_AIR: case S_AIR_ATTACK:
         if (f->state == S_AIR && (in->press & (IN_A | IN_B | IN_C)))   /* C (the jump button) pressed again: air C+D */
-            start_node(f, (in->press & IN_C) ? N_AIR_CD : (in->press & IN_A) ? N_AIR_A : N_AIR_B);
+            start_node(f, (in->press & IN_C) ? TREE(f)->air_cd : (in->press & IN_A) ? TREE(f)->air_a : TREE(f)->air_b, LH_NEUTRAL);
         f->y += f->vy; f->vy -= f->jump_kind ? ph->hop_gravity : ph->gravity; f->x += f->vx; f->z += f->vz; clamp(f);
         if (f->state == S_AIR && f->vy < 0 && f->anim == JUMP_ANIM[f->jump_kind][f->jump_dir][0])
             play(f, JUMP_ANIM[f->jump_kind][f->jump_dir][1]);
@@ -600,15 +626,22 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (f->state_t >= 2) to_neutral(f, in);
         break;
     case S_ATTACK: {
-        const cnode_t *c = &COMBO[f->node];
-        if (f->landed && f->spec_buf && f->node < N_AIR_A) {      /* a special cancels a normal that hit: cut short */
-            uint8_t k = f->spec_buf & 0x7F; f->spec_buf = 0;
-            if (k != 0x7F) { start_special(f, k); break; }
+        const rnode_t *c = NODE(f, f->node);
+        if (f->landed && f->spec_buf && !(c->flags & RF_AIR)) {  /* a special link cancels a normal that hit: cut short */
+            uint8_t d = f->spec_buf & 0x7F, nx = c->next[d] ? c->next[d] : c->next[RI_D], k;
+            f->spec_buf = 0;
+            k = nx ? special_pick(f, NODE(f, nx)->anim) : 0xFF;
+            if (k != 0xFF) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); start_special(f, k); break; }
         }
-        if (f->anim_done) {                                     /* a beat 'em up never cuts an attack: the next starts after it */
+        if (f->landed && f->buffered && (c->flags & RF_CANCEL)) {   /* cancel on hit: the next link now (after the hit-stop) */
+            uint8_t nx = next_node(c, f->buffered);
+            if (nx) { lab_note(f, LE_END, f->node, LH_CANCEL, 1); start_node(f, nx, LH_CANCEL); break; }
+        }
+        if (f->anim_done) {                                     /* plays to its end: the next starts after it */
             uint8_t nx = f->buffered && f->landed ? next_node(c, f->buffered) : 0;   /* routes chain only on a hit */
-            if (nx) { start_node(f, nx); break; }
-            if (f->landed && (c->next_a | c->next_b | c->next_fwd_a | c->next_down_b)) { f->chain_node = f->node; f->chain_t = CHAIN_WINDOW; }   /* tap later: still the route */
+            lab_note(f, LE_END, f->node, LH_AFTER_END, f->landed);
+            if (nx) { start_node(f, nx, LH_AFTER_END); break; }
+            if (f->landed && has_links(c)) { f->chain_node = f->node; f->chain_t = CHAIN_WINDOW; lab_note(f, LE_CHAINWIN, f->node, 0, CHAIN_WINDOW); }   /* tap later: still the route */
             to_neutral(f, in);
         }
         break;
@@ -654,6 +687,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
     a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
     (a->owner ? a->owner : a)->target = v;
+    lab_note(a->owner ? a->owner : a, LE_HIT, a->state == S_ATTACK || a->state == S_AIR_ATTACK ? a->node : 0xFF, v->idx, damage);
     react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, push);
 }
 
@@ -751,9 +785,10 @@ void combat(fighter_t **fs, uint8_t n) {
                 int16_t sy = ((ay - atk->h > vy - hb->h ? ay - atk->h : vy - hb->h) + (ay + atk->h < vy + hb->h ? ay + atk->h : vy + hb->h)) >> 1;
                 uint8_t sfx = SFX_HIT_CD;
                 if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
-                    const cnode_t *c = &COMBO[a->node];
+                    const rnode_t *c = NODE(a, a->node);
                     const banim_t *an = &a->ch->anims[a->anim];
-                    uint8_t dmg = c->damage, rc = c->reaction, k, total = 0, later = 0;
+                    static const uint8_t EFFECT_R[5] = { 0, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK };
+                    uint8_t dmg = c->damage, rc = c->effect ? EFFECT_R[c->effect] : c->weight ? R_HEAVY : R_LIGHT, k, total = 0, later = 0;
                     for (k = 0; k < an->nsteps; k++)                 /* multi-hit normal: damage split over its hits, */
                         if (an->steps[k].flags & 4) { total++; if (k > a->step) later++; }   /* knockdown on the last */
                     if (total > 1) {

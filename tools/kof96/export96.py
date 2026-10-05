@@ -287,8 +287,10 @@ def game_hits(e):
     life = [ps[3] for ps in e.get('steps', []) if len(ps) > 3]
     return sum(1 for i in range(1, len(life)) if life[i] < life[i - 1])
 
-def export(names, outdir, game='kof96', only=None):
-    """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials"""
+def export(names, outdir, game='kof96', only=None, extra=None):
+    """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
+    extra: {name: {move: (state, step)}} more moves for one fighter, each a single held frame (the animation's step
+    `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH)"""
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
     k98 = game in ('kof97', 'kof98', 'kof99')           # KOF97 and KOF99 use KOF98's layout
     cast, moves = {'kof97': (CAST97, MOVES97), 'kof98': (CAST98, MOVES98), 'kof99': (CAST99, MOVES99)}.get(game, (CAST, MOVES))
@@ -331,6 +333,10 @@ def export(names, outdir, game='kof96', only=None):
             except Exception: continue
             anims[move] = {'slot': slot, 'state': state, 'mode': mode, 'steps': [
                 {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
+        for move, (state, step) in (extra or {}).get(name, {}).items():
+            slot = slot_of(cid, state); steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
+            t, fi, fl, b, ri, dx = steps[step]
+            anims[move] = {'slot': slot, 'state': state, 'mode': 'hold', 'steps': [{'frame': add_frame(fi), 'ticks': 1, 'flags': 0, 'dx': 0, 'boxes': {}}]}
         # every other animation slot of the table, with the game states that select it (intros, win poses, phases...)
         inv = {}
         for st in range(512):
