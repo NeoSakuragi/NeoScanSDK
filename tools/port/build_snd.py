@@ -10,7 +10,8 @@ Manifest (examples/brawler/songs.json):
              "names": {"11": "HIT A", ...}},                   short names (the options screen's SOUND PLAYER)
      "songs": [{"name": "FIGHT", "source": "fatfury3", "cmd": "2F", "what": "...",
                 "label": "FIGHT"}, ...],                      label: the MUSIC PLAYER's name (default: name, _ = space)
-     "bosses": ["BOSS_MR_BIG", ...]}                          song names, in the campaign's boss order
+     "bosses": ["BOSS_MR_BIG", ...],                          song names, in the campaign's boss order
+     "ssg": {"cues": [{"name": "CURSOR", "cmd": "74", "voices": [...]}, ...]}}   menu sounds: SSG cues (ssg_cues.py)
 A song whose source is the driver's own game ("kof98") keeps its command and its song data (its bank set block is
 copied whole); any other is ported (port98.py) into a free command, in manifest order from $27 (KOF98's empty slot),
 then the lowest free music command.
@@ -25,7 +26,7 @@ records) is rewritten to the new addresses; records nobody uses are emptied and 
 import json, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); TOOLS = os.path.dirname(HERE)
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(TOOLS, 'kof98snd'))
-import port98, song98, games98
+import port98, song98, games98, ssg_cues
 from port98 import roms, w16, A_TABLES, A_SLOTS
 
 KOF98 = '/data/roms/kof98.neo'
@@ -255,10 +256,15 @@ def build(manifest, out):
         print(f"{s['name']}: {s['source']} ${s['cmd']} -> ${dst:02X} bank set {p.at[0]} at ${p.at[1]:04X}, tempo {p.T} x{p.k} "
               f"({p.report['tempo_error_pct']:+.2f} %), "
               f"{p.report['song_bytes']} bytes, {p.report['samples']['bytes'] // 1024} KB of samples", flush=True)
-    # 6. the fixed 32 KB changed only where the build writes: sample tables, song pointers / bank bytes, $2440
+    # 5b. menu sounds: SSG cues on KOF98's generated-sound path (type 5), in the fixed area's free bytes
+    cue_ranges, cue_cmds = [], {}
+    if man.get('ssg'):
+        cue_ranges, cue_cmds, rep['ssg'] = ssg_cues.build(m1, man['ssg'])
+        print(f"ssg cues: {', '.join(f'{n} ${c:02X}' for n, c in cue_cmds.items())} ({rep['ssg']['bytes']} bytes)", flush=True)
+    # 6. the fixed 32 KB changed only where the build writes: sample tables, song pointers / bank bytes, $2440, cues
     ok = [(A_TABLES[sl], A_TABLES[sl] + 6 * A_CODES[sl]) for sl in range(7)] + [(SLOT7, SLOT7 + SLOT7_SIZE * CODES),
           (t.brecs, t.brecs + 13 * t.n_brecs), (0x329E, 0x329E + 2 * 0x60), (t.bt, t.bt + 0x60), (0x2440, 0x2442)] + \
-         [tuple(r) for r in (vrep or {}).get('enable_maps', [])]
+         [tuple(r) for r in (vrep or {}).get('enable_maps', [])] + cue_ranges
     bad = [i for i in range(0x8000) if m1[i] != old[i] and not any(a <= i < b for a, b in ok)]
     assert not bad, f'fixed area changed outside the tables: {[hex(i) for i in bad[:8]]}'
     # 7. sizes, files
@@ -274,6 +280,7 @@ def build(manifest, out):
         h.write('#ifndef SONGS_H\n#define SONGS_H\n')
         for s in man['songs']:
             h.write(f"#define MUS_{s['name']:14s} 0x{cmds[s['name']]:02X}   /* {s['source']} ${s['cmd'].upper()}: {s.get('what', '')} */\n")
+        for n, c in cue_cmds.items(): h.write(f"#define SSG_{n:14s} 0x{c:02X}   /* menu sound: SSG cue (ssg_cues.py) */\n")
         h.write(f"#define BOSS_SONGS {{ {', '.join('MUS_' + b for b in man['bosses'])} }}   /* {', '.join(man['bosses'])} */\n")
         h.write(f"#define N_BOSS_SONGS {len(man['bosses'])}\n")
         # the options screen's players (examples/brawler OPTIONS): every song and effect of the build, with a name

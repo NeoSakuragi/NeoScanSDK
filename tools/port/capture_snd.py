@@ -8,6 +8,8 @@ command; every YM2610 write logged (capture98.py's format) and the audio from th
         GAME = a key of tools/makoto3/games.py or tools/kof98snd/games98.py (its ROM, frames, re-entry guard),
                or 'brawler' (examples/brawler/brawler.neo: KOF98's driver, --rom for another build)
         -> OUT.txt (register log), OUT.wav (16-bit stereo, 55,555 Hz: the MVS rate of the core)
+        --then S:CMD,...  more commands during the capture, S seconds after the first (CMD as above; one byte a frame,
+                          the game's pace): effects / SSG cues over a song (tools/port/ssg_cues.py --mix)
 
     python3 capture_snd.py --check SND_DIR [--rom ROM.neo] [--seconds S] [--wav-dir DIR]
         every song of build_snd.py's output (SND_DIR/snd_report.json) captured in the brawler ROM and compared with
@@ -23,7 +25,7 @@ RATE = 55555
 BRAWLER_G = dict(block=1, send=440)       # every command of the game blocked (its attract demo plays music and
                                           # effects): the driver idles until the capture's own $07 + command
 
-def capture(game, cmd, seconds, out, rom=None):
+def capture(game, cmd, seconds, out, rom=None, then=None):
     if game == 'brawler' or game in games98.GAMES:
         g = dict(games98.GAMES['kof98' if game == 'brawler' else game])
         if game == 'brawler': g.update(BRAWLER_G, rom=rom or BRAWLER, nop=0x60)   # $60: KOF98's harmless filler
@@ -50,7 +52,15 @@ def capture(game, cmd, seconds, out, rom=None):
     if cmd > 0xFF: s.send(cmd >> 8); s.run()            # a prefix pair: $1A + code = a sound effect in slot 1
     s.send(cmd & 0xFF)                                  # commands (the brawler's attract music) stay out of it
     pcm = open(out + '.raw', 'wb'); s.wav = pcm
-    s.run(int(seconds * 59.1856) + 1)
+    later = {}                                          # frame (from the command) -> bytes
+    for item in (then or '').split(',') if then else []:
+        t, c = item.split(':')
+        later.setdefault(round(float(t) * 59.1856), []).extend(bytes.fromhex(c))
+    q = []
+    for k in range(int(seconds * 59.1856) + 1):
+        q += later.get(k, [])
+        if q and k: s.send(q.pop(0))
+        s.run()
     s.out.close(); pcm.close()
     data = open(out + '.raw', 'rb').read(); os.remove(out + '.raw')
     with wave.open(out + '.wav', 'wb') as w:
@@ -75,4 +85,4 @@ if __name__ == '__main__':
     a = sys.argv
     opt = lambda k: a[a.index(k) + 1] if k in a else None
     if a[1] == '--check': check(a[2], opt('--rom'), float(opt('--seconds')) if opt('--seconds') else None, opt('--wav-dir'))
-    else: capture(a[1], int(a[2], 16), float(a[3]), a[4], opt('--rom'))
+    else: capture(a[1], int(a[2], 16), float(a[3]), a[4], opt('--rom'), opt('--then'))

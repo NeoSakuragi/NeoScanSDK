@@ -20,6 +20,10 @@ void snd_sfx(uint8_t code) {
     if (((qt - qh) & (QN - 1)) > 6) return;
     snd_cmd(0x1A); snd_cmd(code);
 }
+void snd_ssg(uint8_t cue) {
+    if (((qt - qh) & (QN - 1)) > 6) return;
+    snd_cmd(cue);
+}
 void snd_voice(uint8_t prefix, uint8_t code) {
     if (!code || ((qt - qh) & (QN - 1)) > 6) return;
     snd_cmd(prefix); snd_cmd(code);

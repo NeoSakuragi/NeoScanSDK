@@ -324,7 +324,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   the export if needed.
 - [x] 61. (done 2026-10-05: RBFF1 = MAKOTO v3, AOF3's code with other tables, 34 songs 31651/31651; Special = SNK Ver 1.1, KOF97's build byte for byte, 27 songs 36573/36573; RBFF2 = SNK (ROM)Ver 1.6, KOF98's code + Ver 1.0's operator effects, 35 songs 42466/42467; fight themes from the 68K tables by fighter id, all measured; on canneji Song Lab, docs/rbff*_sound_driver.md + rbff*_songs.md) Real Bout Fatal Fury music (1, 2, Special) into the Song Lab (the queued music item), published.
 - [x] 62. (done 2026-10-05: tools/kof95/gallery.py; page = roster index (47 KB, was 13.7 MB), each fighter fetched when opened, only on-screen thumbnails animate and redraw on step change; KOF98 headless Chrome CPUx4: first fighter 2.9 s -> 0.7 s, heap 126 -> 44 MB, 27 thumbs on screen 12.8 -> 2.9 ms/frame; data identical per fighter; republish all four) Animation Bank pages: lazy per-fighter loading, animate only the visible ones (the page Bruno found slow).
-- [ ] 63. TODO #50: SSG menu sounds (check what the KOF98 driver leaves free; Fatal Fury Special / KOF94 SSG routines).
+- [x] 63. TODO #50: SSG menu sounds: done 2026-10-05: CURSOR / CONFIRM / CANCEL / UNLOCK as SSG cues $74-$77 on KOF98's own type-5 path (all of the SSG is free), wired into title / options / select / BOSS UNLOCKED; docs/kof98_sound_driver.md "SSG cues", tools/port/ssg_cues.py.
 - [ ] 64. Sound player: name the "SPECIAL HIT n" effects (what each sound is), in songs.json's sfx names.
 - [ ] 65. Vertical parts of Robo Army (areas 2 and 5): the descent as an auto-scrolled transition between stages
   (docs/brawler_stage_vertical.md option b).

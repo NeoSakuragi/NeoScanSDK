@@ -21,6 +21,19 @@
   {"name": "BOSS_RUGAL", "source": "kof98", "cmd": "3B", "what": "KOF98, Rugal's stage (68K $93020: character 36 -> slot 14 -> $3B)"},
   {"name": "BOSS_GOENITZ", "source": "kof96", "cmd": "2D", "what": "KOF96, Goenitz's stage (68K stage table $4FC48 index 10 = team 10)"}
  ],
+ "ssg": {"what": "menu sounds (TODO #63): SSG cues on KOF98's own generated-sound path (command type 5), free commands $74-$77, data in the fixed area's free bytes (tools/port/ssg_cues.py); voices = SSG A, B, C: [note, ticks (13.9 ms), level 0-15]; build/snd/songs.h SSG_<name>",
+  "cues": [
+   {"name": "CURSOR", "cmd": "74", "voices": [[["E7", 2, 12], ["E7", 2, 6], ["E7", 1, 2]]]},
+   {"name": "CONFIRM", "cmd": "75", "voices": [[["C7", 3, 13], ["G7", 3, 13], ["C8", 4, 12], ["C8", 4, 8], ["C8", 4, 4], ["C8", 3, 2]],
+                                               [["-", 1, 0], ["C6", 3, 8], ["G6", 3, 8], ["C7", 4, 7], ["C7", 4, 4], ["C7", 3, 2]]]},
+   {"name": "CANCEL", "cmd": "76", "voices": [[["G6", 3, 12], ["D6", 3, 12], ["G5", 4, 11], ["G5", 4, 6], ["G5", 3, 2]],
+                                              [["-", 1, 0], ["G5", 3, 7], ["D5", 3, 7], ["G4", 4, 6], ["G4", 4, 3]]]},
+   {"name": "UNLOCK", "cmd": "77", "voices": [[["C6", 3, 12], ["E6", 3, 12], ["G6", 3, 12], ["C7", 3, 12], ["E7", 3, 12], ["G7", 3, 12],
+                                               ["C8", 6, 13], ["C8", 6, 9], ["C8", 6, 6], ["C8", 6, 3], ["C8", 4, 1]],
+                                              [["-", 2, 0], ["C6", 3, 7], ["E6", 3, 7], ["G6", 3, 7], ["C7", 3, 7], ["E7", 3, 7], ["G7", 3, 7],
+                                               ["C8", 6, 8], ["C8", 6, 5], ["C8", 6, 3], ["C8", 4, 1]],
+                                              [["C5", 18, 9], ["G5", 6, 9], ["G5", 6, 6], ["G5", 6, 3], ["G5", 4, 1]]]}
+  ]},
  "bosses": ["BOSS_MR_BIG", "BOSS_KRAUSER", "BOSS_GEESE", "BOSS_RUGAL", "BOSS_GOENITZ"],
  "voices": {"bank": "../../tools/brawler/voices.json", "map": "build/voice_map.json", "slots": [2, 3], "prefixes": ["1C", "1E"],
             "what": "the fighters' voices (TODO #55): only the ones game.json's roster maps (export_bm.py writes build/voice_map.json), copied from each fighter's game's V ROM; one code per voice in slot 2 ($1C, players) and slot 3 ($1E, enemies): build/snd/voices.h"}

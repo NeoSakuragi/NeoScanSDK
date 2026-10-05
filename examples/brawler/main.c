@@ -923,12 +923,13 @@ static void options_tick(void) {
     uint16_t pr = JOY_pressed(0), h = JOY_held(0);
     int8_t d = 0;
     bios_start = 0;
-    if (pr & (JOY_UP | JOY_DOWN)) { opt_row = (opt_row + ((pr & JOY_DOWN) ? 1 : 3)) & 3; opt_cursor(); }
+    if (pr & (JOY_UP | JOY_DOWN)) { opt_row = (opt_row + ((pr & JOY_DOWN) ? 1 : 3)) & 3; opt_cursor(); snd_ssg(SSG_CURSOR); }
     if (pr & (JOY_LEFT | JOY_RIGHT)) { d = (pr & JOY_RIGHT) ? 1 : -1; opt_rep = 0; }
     else if (h & (JOY_LEFT | JOY_RIGHT)) { if (++opt_rep >= 20 && !(opt_rep & 3)) { d = (h & JOY_RIGHT) ? 1 : -1; opt_rep = 16; } }
     else opt_rep = 0;
     if (opt_row == 0 && (pr & JOY_A)) d = 1;
     if (d) {
+        if (opt_row < 3) snd_ssg(SSG_CURSOR);
         if (opt_row == 0) difficulty = (difficulty + d) & 3;
         else if (opt_row == 1) opt_song = d > 0 ? (opt_song + 1 < N_SONGS ? opt_song + 1 : 0) : (opt_song ? opt_song - 1 : N_SONGS - 1);
         else if (opt_row == 2) opt_snd = d > 0 ? (opt_snd + 1 < N_SFX + RAW_N ? opt_snd + 1 : 0) : (opt_snd ? opt_snd - 1 : N_SFX + RAW_N - 1);
@@ -940,12 +941,12 @@ static void options_tick(void) {
         else if (opt_row == 2) {
             if (opt_snd < N_SFX) { snd_cmd(SFX_PREFIX); snd_cmd(snd_effects[opt_snd].cmd); }
             else { if (opt_pfx < 2) snd_cmd(opt_pfx ? 0x1C : SFX_PREFIX); snd_cmd((uint8_t)(opt_snd - N_SFX + 1)); }
-        } else if (opt_row == 3) { options_exit(); return; }
+        } else if (opt_row == 3) { options_exit(); snd_ssg(SSG_CANCEL); return; }
     }
     if (pr & JOY_B) {
         if (opt_row == 1) { snd_cmd(0x04); snd_cmd(0x07); }  /* KOF98's driver: $04 stops the music, and the effects
                                                              too (timer A) until a $07 (measured: silent effects) */
-        else options_exit();
+        else { options_exit(); snd_ssg(SSG_CANCEL); }
     }
 }
 
@@ -956,7 +957,9 @@ static void title_tick(void) {
     if (!(title_t & 31)) FIX_print(15, 18, (title_t & 32) ? "           " : "PRESS START", 0);
     title_t++;
     if (title_n > 1 && (pr & (JOY_UP | JOY_DOWN))) {
+        uint8_t was = title_sel;
         if (pr & JOY_DOWN) { if (title_sel + 1 < title_n) title_sel++; } else if (title_sel) title_sel--;
+        if (title_sel != was) snd_ssg(SSG_CURSOR);
         title_menu();
     }
     if ((h & (JOY_A | JOY_B | JOY_C | JOY_D)) == (JOY_A | JOY_B | JOY_C | JOY_D)) {   /* held 2 s: the save cleared */
@@ -964,13 +967,14 @@ static void title_tick(void) {
         return;
     } else title_hold = 0;
     if (title_item[title_sel] == TI_OPT) {                   /* console only: no credit involved */
-        if (bios_start || (pr & (JOY_START | JOY_A))) { bios_start = 0; options_start(); }
+        if (bios_start || (pr & (JOY_START | JOY_A))) { bios_start = 0; snd_ssg(SSG_CONFIRM); options_start(); }
         return;
     }
     if (bios_start || (title_paid && (pr & (JOY_START | JOY_A)))) {   /* START with a credit (PLAYER_START), or START / A
                                                              when the credit was taken by the START that opened it */
         bios_start = 0; title_paid = 0; camp_from = title_item[title_sel] == TI_CONT ? save.furthest : 0;
-        banner_hide(); select_start(); return;
+        banner_hide(); select_start(); snd_ssg(SSG_CONFIRM); return;   /* the cue after the song start: queued
+                                                             before it, the driver's song start stretches its first note */
     }
 }
 
@@ -1782,6 +1786,7 @@ static void unlock_start(uint8_t k) {
     centre(10, bm_chars[c].name);
     centre(24, "NOW ON THE SELECT SCREEN");
     snd_music(GAME_MUS_SELECT);
+    snd_ssg(SSG_UNLOCK);                                     /* the fanfare blip over the music (SSG) */
 }
 static void ending_start(void) {
     show_start(4, pl_ch[0], pl_set[0], RGB8(8, 16, 40));
@@ -1819,7 +1824,7 @@ static void select_tick(void) {
             if (was == 0xFF || picked[p]) continue;
             s = sel_move(was, pr);
             if (s != was) {                                  /* colours follow the cursor */
-                cursor[p] = s;
+                cursor[p] = s; snd_ssg(SSG_CURSOR);
                 fighter_pals(actor(slot_act[was]), slot_look(was), 16);
                 fighter_pals(actor(slot_act[s]), 1, 16);
                 select_name();
@@ -1830,7 +1835,7 @@ static void select_tick(void) {
                 fighter_play(actor(slot_act[cursor[p]]), BA_WIN_A);
                 voice_play(actor(slot_act[cursor[p]])->ch, 0, VK_SELECT);   /* its select voice (KOF's intro line) */
                 actor(slot_act[cursor[p]])->team = 0;       /* the line guard keeps the picked ones first */
-                picked[p] = 1;
+                picked[p] = 1; snd_ssg(SSG_CONFIRM);
             }
         }
         if (picked[0] && (cursor[1] == 0xFF || picked[1])) { sel_phase = SEL_LEAVE; sel_t = 0; }

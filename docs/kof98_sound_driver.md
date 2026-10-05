@@ -454,3 +454,50 @@ attacking: `$1A`+`$11-$14` hits, `$1A`+`$1E`/`$1F` swings, `$1C`+`$C4`/`$C5`/`$C
 
 So KOF98's split is by chip: **FM + ADPCM for music, ADPCM-A 4-6 for fight sounds, SSG for the generated cues**;
 the only sharing (ADPCM-A 4-6, music vs effects) is arbitrated by priority.
+
+## SSG cues (type 5, `$0AC0`): the brawler's menu sounds (TODO #63)
+
+What the driver leaves free on the SSG: **all of it**. No KOF98 song writes an SSG register (all 49, song98.py census
+and captures), the fight effects are ADPCM-A only (diffcap above), so SSG A-C and the noise generator belong to the
+type-5 cues alone. The path, read from `$0AC0` and measured in our emulator (tools/port/capture_snd.py):
+- command → type 5 (`$3038`) → index cmd - `($3118)` (= `$60`) into the word table `($2E00)` = `$331E` (32 entries,
+  `$60-$7F`); a 0 pointer = nothing. Refused while the effects mute `$FD12` is set (`$06`; `$07` clears it), except
+  cmd `($329D)` = `$7F`.
+- header, 14 bytes: `[4 enables][priority][noise mixer bits → $FD09][4 stream pointers]`, the four channel blocks
+  (`$27` bytes, the music's layout) `$FBD1` / `$FBF8` / `$FC1F` = SSG A / B / C (channel ids 5-7), `$FC46` = id 0, the
+  noise channel (its note = noise period, reg 6, `$0C0D`). An enable of 0 skips that block.
+- one cue at a time: a new cue plays when its priority value is **≤** the running one's (`$0AFF`: lower = stronger;
+  `$FD0B` keeps the last one, `$FD0A` = busy), `$0C6D` silences the SSG first (levels 0, mixer `$3F`).
+- clock: group 4 of the timer A ISR, tempo `$5A` set by every cue start (`$0B5B`): 72.2 ticks/s, 13.9 ms a tick.
+- streams: the song format (length, opcode, running status); notes = `$2A` note velocity (gate = length) or `$00`;
+  **velocity = the SSG volume register as is** (0-15); key-off = the channel's tone bit off in reg 7 (level kept).
+  Note byte (`$0B74`): bits 7-5 octave shift o, bit 4 half a semitone, bits 3-0 semitone n: period = word(`$2AC8` +
+  8n (+4)) >> o, the table being C1 = 32.7 Hz at 125 kHz / period. Opcodes `$1A` (noise bits into reg 7) and `$1B`
+  (hardware envelope `$0D`, `$0B`, `$0C`) are the cue-only ones.
+- **the first channel to reach its end (`$06`) ends the cue on every channel** (measured: a 21-tick voice lost its
+  last step when the other voice ended at tick 18), so the voices of a cue have one length.
+- KOF98's own cues: `$65`, `$70-$72`, `$7A`, `$7F` (data `$774B-$7B2D`); `$7F` holds the music (*inferred*).
+
+**Fatal Fury Special / KOF94 (MAKOTO v3, docs/ff3_sound_driver.md):** the same design one generation earlier: header
+`[priority][4 streams][4 flags][noise bits]` (KOF94 table `$3BC0`, cues `$60 $61 $6A $7F`; Fatal Fury Special `$3F9C`,
+cues `$60-$69 $7F`), blocks SSG A-C + a noise block, the song interpreter at timer A's rate. How a blip is written
+there (read from the data, levels *inferred* from the `$8v` bytes): **no envelope generator and no pitch sweep, only
+volume steps**: each note struck loud then repeated quiet (`$8B` then `$84`, 2 ticks each: a pluck), notes in
+arpeggio by octave jumps (`$8A` → `$AA`), the three voices playing a chord of three such lines; longer cues decay
+by stepping the level of a held note down (FFS `$65`: 12, 10, 8, 7, 6, 5, 4, 2); the noise block only rests. Only
+`$7F` (both games) sets the hardware envelope (`$53`) and noise bits (`$51`). FF3's pitch sweep opcode `$5F` is
+unused by these cues.
+
+**The brawler's cues** (songs.json "ssg", tools/port/ssg_cues.py, built into the M ROM by build_snd.py; no driver
+code changed): commands `$74-$77` (type 0 in KOF98, now 5), data in the fixed area's free bytes `$2C56-$2DFF`,
+priority 1, KOF98's own cues kept. Written in the MAKOTO idiom (struck note, quieter repeats; a second voice an
+octave down one tick late): CURSOR `$74` (E7, 69 ms), CONFIRM `$75` (C7 G7 C8 rising, 291 ms), CANCEL `$76` (G6 D6
+G5 falling, 236 ms), UNLOCK `$77` (C6-C8 arpeggio over a C5 / G5 bass, 637 ms). Sent by the game with `snd_ssg()`
+(sound.c): title (cursor, start, options), options (rows, values, EXIT / B back), select (cursor, pick), BOSS
+UNLOCKED. A cue sent just before a song start has its first note stretched ~4 interrupts by the song start's work,
+so the game sends the cue after the song command.
+Measured (`ssg_cues.py --check`): each cue alone writes SSG registers only, its notes / levels / periods in order,
+each step within 2 interrupts of its length. `--mix` (song + `$1A` hits with and without the 8 cues over them): every
+song and effect write identical in value and order; in the select song's run one more timer interrupt dropped by the
+re-entry guard (6 with cues, 5 without: the music 6 ms later from there), the fight song's run none. The game's
+songs stay register-identical to song98.py's model (`capture_snd.py --check`).
