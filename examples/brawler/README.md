@@ -8,9 +8,17 @@ make                                    # needs /data/roms/kof98.neo (fighter da
 python3 ../../tools/brawler/run_test.py out.png "p1 0 42 R; p1 42 14 U; p1 60 3 a; p1 71 3 a; p1 82 3 a" --snaps 65,76,87
 ```
 
+## Data (game.json, 2026-10-05)
+Everything the game is made of besides the engine is data in `game.json`: the roster (bank fighter, watch pose,
+specials, chain routes, unlock), the select screen's slots, the enemies, the AI presets, the minion tints and the
+stages (background, music, waves = lock points + spawns, the boss and its minions). `tools/brawler/build_tables.py`
+(run by the Makefile) writes `build/roster.json` for the fighter export and `build/game_tables.c / .h` (types in
+`gamedata.h`) for the game. The schema, the binary layouts and what is live-swappable: `docs/brawler_data_model.md`.
+`build_tables.py format game.json` rewrites the file in its canonical layout.
+
 ## Arcade flow (MVS, Unibios)
 Power on: attract demo = a fight where P1 is `ai_bot` (closes in, combos, grabs, down+D reversal when threatened) against
-weak enemies (`ai_weak`), a new fighter each time, INSERT COIN blinking; after 40 s it hands back to the BIOS, which
+weak enemies (AI preset `minion_attract`), a new fighter each time, INSERT COIN blinking; after 40 s it hands back to the BIOS, which
 starts it again. Coin (keyboard 3): title screen (banner, PRESS START; NEW GAME / CONTINUE STAGE n when a save is
 past stage 1); START (keyboard 1) takes a credit -> character select -> the campaign. Game over / the ending: back to
 the BIOS (attract, or the title while credits remain). AES (Unibios AES mode, no coin): START in the demo -> the title.
@@ -26,10 +34,10 @@ The secret is in the APK: it keeps casual visitors out, it is not real protectio
 A group photo (2026-10-05, TODO #51): the whole roster on screen at once in three rows, like a school photo. Front
 row (6) and middle row (5): the playable fighters; back row (5): the campaign bosses, in stage order. A locked boss is
 a dark silhouette (`SILHOUETTE`) the cursor skips; once beaten it is selectable like the others. Places are slots,
-independent of who stands in them: `SEL_SLOT[]` (x, z = feet at `SELECT_FLOOR` + z, row; front row z 48 = feet at
-y 206, middle 24, back 0; rows 48 px apart in x, the middle row between the front row's fighters) and `SEL_PLACE[]`
-(the export name in each slot): swapping two fighters on screen = swapping two names there; a fighter not listed takes
-the first free slot of its kind. Everyone holds a 'watch' pose (`BA_WATCH`, `export_bm.WATCH`: one held,
+independent of who stands in them: game.json `select.slots` (x, z = feet at `SELECT_FLOOR` + z, row; front row z 48
+= feet at y 206, middle 24, back 0; rows 48 px apart in x, the middle row between the front row's fighters; and the
+fighter standing there): swapping two fighters on screen = swapping two names there (the generator checks every roster
+fighter has a slot). Everyone holds a 'watch' pose (`BA_WATCH`, game.json `roster[].watch`: one held,
 front-facing frame of its intros / win poses), turned toward the middle. The cursor's fighter shows its colours, the
 others shades of grey (luminance of their own palettes). Stick left / right moves within a row, up / down to the row
 behind / in front (the nearest fighter in x); A/B/C/D picks that colour set, KOF style, and plays the win pose. P2
@@ -44,11 +52,13 @@ walk-off (the line guard counts from 0 here: no stage, shadows or sparks; the pi
 Neutral pose research: KOF94 / KOF95's background characters are the waiting teammates, real fighter objects (+$70 =
 fighter id) in KOF95 states 155 (watch), 156 / 157 (react to a hit), 158 / 159 (round won / lost), 160 (KO'd) =
 animation slots 36-41 of every fighter's table, in KOF95's art; KOF96 dropped them and KOF96 / 98 / 99 have no such
-slot, so `WATCH` takes the closest front-facing frame (KOF98 / 99 intros 347-354 and wins 336-343; KOF96 208-239).
+slot, so the watch pose is the closest front-facing frame (KOF98 / 99 intros 347-354 and wins 336-343; KOF96 208-239).
 HUD portraits (32x32 fix layer) stay for the fight.
 
 ## Campaign (2026-10-05, Streets of Rage 2 / Golden Axe style)
-Five stages, Robo Army's horizontal ones in this order: `stages[]` 0, 1, 3, 4, 5 (`CAMP_STAGE` in main.c; 2, the
+All of it is data since 2026-10-05: game.json `stages` (background, music, waves with their lock points and spawns,
+the boss with its minions), `enemies`, `ai.presets`, `tints` (docs/brawler_data_model.md); what follows is today's
+content. Five stages, Robo Army's horizontal ones in this order: `stages[]` 0, 1, 3, 4, 5 (`background`; 2, the
 512 px arena, is not used), one ROM, `stage_init(n)` at each stage start, a 32-frame fade to black and back between
 stages. Each stage scrolls end to end through 5 lock points spread evenly from camera x 0 to its end (448 px apart on
 the 2560 px stages, 256 on the 1600 px last one): at a lock point the camera stops until the wave there is beaten,
@@ -57,14 +67,14 @@ then "GO -->" blinks and the camera may scroll to the next one (it never scrolls
 (no boss), walking in from the right, every other one from the left when there is room; stage s's enemies land
 (s + 1) / 2 extra damage a hit (`fighter_t.power`). HUD bottom left: STAGE n WAVE n / BOSS.
 
-Bosses (`BOSS[]` in main.c, one a stage): at the stage's end the camera stays locked and the boss comes in from the
+Bosses (game.json `stages[].boss` -> an `enemies` entry, one a stage): at the stage's end the camera stays locked and the boss comes in from the
 right edge with 2 + s minions (at most 5: boss + minions + 2 players = 8 fighters); its life (100 + 4 s, 1.7-1.9 x a
 fighter's 60; damage +1 + (s + 1) / 2) shows in the boss bar (name on fix row 6, a 30-cell bar on row 7); its theme
 starts as it comes in. Beaten: its minions go down with it, STAGE CLEAR, the save, BOSS UNLOCKED (its win pose, its
 portrait and name) when its fighter was locked, then the next stage; after stage 5 CONGRATULATIONS, then back to the
 BIOS (the title while credits remain, else the attract demo; this return is also what commits the MVS save).
 
-| stage | boss | `BOSS[]` name / stand-in | theme (placeholder now: $27, the fight music) |
+| stage | boss | enemy base / stand-in | theme (songs.json) |
 |---|---|---|---|
 | 1 | Mr. Big | MR_BIG | AOF2 |
 | 2 | Krauser | KRAUSER | FF Special "Kaiser Wave" |
@@ -72,10 +82,9 @@ BIOS (the title while credits remain, else the attract demo; this return is also
 | 4 | Rugal | RUGAL / YASHIRO | KOF98 |
 | 5 | Goenitz | GOENITZ / IORI | KOF96 |
 
-Rugal and Goenitz plug in by their export name: once `kof98:rugal` / `kof96:goenitz` (export names RUGAL, GOENITZ)
-are added at the end of `CHARS`, `bosses_find` finds them and they replace the stand-ins, get locked on the select
-screen and unlock like the others; if their export names differ, change `BOSS[].name`. Stand-ins are ordinary
-fighters: never locked, no unlock screen. The boss songs: put each converted song's command byte in `BOSS[].song`.
+A boss enemy's `base` is a roster fighter; when it is not in the roster, its `stand_in` fights instead (resolved by
+build_tables.py). A boss fighter is locked on the select screen until its stage is cleared (roster `unlock`:
+`{"boss_of_stage": n}`); stand-ins are ordinary fighters. The boss songs are songs.json names (`MUS_*`).
 Note for the export: the HUD portraits use fix palettes 2 + fighter (2-15 = 14 fighters): a 15th and 16th fighter
 need the portrait palettes shared or moved.
 
@@ -83,15 +92,16 @@ Minions never wear a playable colour set: `fighter_t.tint` 1-3 runs the set's co
 (fighter.c) on every palette load (fight start, fades, the end of a burn): pulled toward their luminance
 (5 R + 9 G + 2 B) / 16 and darkened, then a cast. 1 shade: half desaturated, 69 %; 2 ash: 3/4 desaturated, 88 %, cold
 (B +3, R -1); 3 rust: half desaturated, 75 %, warm (R +3, B -2). Minion k of stage s: colour set k + s, tint
-1 + (k + s) mod 3; never the boss's own fighter.
+1 + (k + s) mod 3; never the boss's own fighter. The three tints are game.json `tints` (mix, multiplier, shift, cast),
+a spawn names one.
 
-Boss AI (`ai_set_boss`, ai.c): always holds an attack token besides the minions' one, rests a quarter as long; when
+Boss AI (preset `boss`, `ai_set`, ai.c): always holds an attack token besides the minions' one, rests a quarter as long; when
 ready 20-160 px away on the player's line: 1 time in 4 a special (D, or forward+D, the rush), else 1 in 4 a jump-in (a
 forward regular jump with C held through the prejump, air B on the way down), else it closes in and punches; a player
 attack within 56 px is answered 1 time in 4 by down+D (the rising reversal). Measured over 900 frames per boss: 3-8
 specials, 1-5 jumps, 5-12 punch strings. Regular enemies do not jump (unchanged).
 
-Unlocks: a boss whose own fighter is in CHARS stands on the select screen's back row as a silhouette, not selectable,
+Unlocks: a boss whose own fighter is in the roster stands on the select screen's back row as a silhouette, not selectable,
 until beaten; P2's mid-fight join never picks a locked one. Players: 3 lives, a 10 s CONTINUE (START
 with a credit), carried from stage to stage with their fighter and colours; both out: GAME OVER.
 
@@ -112,7 +122,7 @@ read and upgraded in place (difficulty NORMAL). Game ID = the header NGH, $0999 
   (neogeo_sdl: ~/.config/retroarch/saves) when the game is unloaded (quit, reset, end of a capture), and loads them
   at start. tools/brawler/harness.py: the core now gets persistent path buffers (its save dir pointer dangled, so
   harness runs never wrote a .nv), a fresh save dir per instance (`b.save_dir`, WORK/save_*, removed at exit: runs
-  don't share credits or saves), `b.power_cycle()`, and `unlock_all()` / `pick(k, unlock=True)` (k = the CHARS index; `sel_goto(k)` walks the cursor
+  don't share credits or saves), `b.power_cycle()`, and `unlock_all()` / `pick(k, unlock=True)` (k = the roster index; `sel_goto(k)` walks the cursor
   there with the stick, rows first, reading `SEL_SLOT` from the ROM and `slot_ch` / `cursor` from RAM).
 
 Proof (2026-10-05, harness = our emulator's core, real path power on -> coin -> START -> select -> 5 stages; test
@@ -363,6 +373,8 @@ the other 1-3 frame differences are the victims' hurt boxes (the game's P2 vs th
 and travel differ by where the camera stands (the off-screen x matches).
 
 ## Enemies (`ai.c`)
+The numbers below are the `minion` AI preset (game.json `ai.presets`, gamedata.h `ai_preset_t`, copied into RAM at
+boot: `ai_presets[]`).
 Same intents as a joystick, so one state machine runs everybody. Each enemy targets the nearest player and keeps to its
 side of him. Two attack tokens, dealt every 16 frames to the closest able enemies (distances computed once a frame).
 A token holder closes in to 36 px on the player's depth line, then either presses A one to three times 10 frames apart
@@ -421,7 +433,7 @@ masked; the render's auto-animation counter matched, the others differ by 20-150
 at z 0 / 64 in every stage (floor_top + z - 1).
 
 ## Roster
-`CHARS` in the Makefile: KOF98 Terry, Ryo, Ralf, Chang, Yamazaki, Billy, Kyo, Iori, Mai; KOF96 Geese, Mr. Big, Krauser;
+game.json `roster` (its `bank` specs are the Makefile's CHARS, in bm_chars order): KOF98 Terry, Ryo, Ralf, Chang, Yamazaki, Billy, Kyo, Iori, Mai; KOF96 Geese, Mr. Big, Krauser;
 KOF99 Maxima, K' (one export per game); the bosses (2026-10-05, 0.0.29) KOF98 Rugal (the regular one: `export_bm.NO_EX`
 keeps Omega Rugal's EX specials out) and KOF96 Goenitz (no rush or rising special: forward+D / down+D play the nearest
 role he has), 16 fighters. The bosses are not selectable in their games: the captures put them on P1 the way every
