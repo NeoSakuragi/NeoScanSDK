@@ -32,9 +32,12 @@ enum {                            /* states: the state machine alone decides wha
     S_PROJ, S_OFF,                /* projectile entities (pool): in use / free */
     S_COUNT
 };
-enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK };   /* hit reactions (R_BLOWBACK: KOF's C+D, sent far); a
-                                     special's body hit: R_HEAVY / R_KNOCKDOWN / R_LAUNCH = KOF98's 258 reel / 283-285
-                                     blowback / 286 launch (fighter.c kof_react) */
+enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_SLAM, R_LIFT };   /* hit reactions (R_BLOWBACK: KOF's
+                                     C+D, sent far); a special's body hit: R_HEAVY / R_KNOCKDOWN / R_LAUNCH / R_TRIP /
+                                     R_SLAM / R_LIFT = KOF98's 258 reel / 283-285 blowback / 286 launch / 276 sweep /
+                                     303 slam down / the launch straight up (fighter.c kof_react). A special's reaction
+                                     may come packed: standing | juggled << 4 (KOF's reaction table by attack box,
+                                     tools/kof96/handlers98.box_react; fighter_hit picks by the victim's height) */
 /* buttons by meaning (TODO #71, Bruno 2026-10-05): A attack (every normal: the route trees, stick + position pick the
  * move), B jump (stick = direction; a route's B link = a jump-cancel on hit), A+B the special (main.c read_player: A and
  * B pressed within CHORD frames of each other), C the fury (the fighter's desperation move), D tag (read, unused yet) */

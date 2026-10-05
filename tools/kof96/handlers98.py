@@ -561,7 +561,7 @@ def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160):
 # ---- export: a decoded special for the brawler (export96 -> tools/brawler/export_bm.py) ---------------------------------
 # The specials played from the ROM in the brawler (prototype, 2026-10-05): KOF98 input per fighter. Everything else keeps
 # its captured script. A special qualifies when its program uses only the ops below (BODY_OPS) and its objects decode.
-ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B'},
+ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B', '623A', '623B'},
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D'}, 'robert': {'EX 236C', '624D', '623C', '623D'},
                 'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C'},
@@ -659,6 +659,12 @@ def export_rom(m, cid, inp, add, game='kof98'):
         steps, mode = anim_steps(m, cid, st)
         anims[st] = {'mode': mode, 'steps': [{'frame': add(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k_:02X}': v for k_, v in bx.items()}}
                                              for t, fi, fl, bx, raw, dx in steps]}
+    live = None                                                # each step's reaction (box_react) by the attack box live
+    for st in states:                                          # on it (the last one loaded: rom_c's rule), packed
+        for s in anims[st]['steps']:
+            ids = [int(k[1:], 16) for k in s['boxes'] if k[0] == '1' and len(k) == 3]
+            if ids: live = ids[-1]
+            s['react'] = box_react(m, live, cid) if live is not None and s['flags'] & 0x100 else 0
     per, last, peak, length = openings(m, cid, prog)
     objs = []
     for k, ob in enumerate(prog['objects']):
@@ -676,6 +682,55 @@ def export_rom(m, cid, inp, add, game='kof98'):
                      'child': None, 'state': ob.get('state')})
     return {'handler': h, 'button': b, 'ops': ops, 'states': states, 'anims': anims, 'openings': per, 'last_hit': last,
             'apex': peak, 'length': length, 'objects': objs, 'hit_kind': hitkind}
+
+# The victim's reaction to a hit, as KOF98 picks it (read 2026-10-05, our emulator + the ROM; KOF99 has the same code
+# and the same reaction lists 0-79). The collision ($3A84) stores the attack box's id (+$90, the box's first byte) in the
+# victim's +$AD; its hit routine ($1B4F4) picks a reaction index +$12F from a table by that id and the victim's
+# situation +$12E (0-3 on the ground, 2 standing; 4-8 in the air, 6 = juggled in a launch): ids $18+ at
+# T1 + (id - $18) * 36 + situation (+18 / +9 for counter hits and other flags, not taken here), ids under $18 at
+# T0 + (id - $0C) * 72 + situation (the body box: +$AC = 1). Index -> handler $1BA3A[i] (the victim's states $B2ED2[i],
+# its speeds $1BAE2[i]), grouped here by handler as the brawler's reactions (fighter.h R_*): 0-21 / 77-81 the reel
+# (258-271, 280; speed 13.5 px x 0.828), 22-25 the sweep (276), 26-37 / 44-49 the blowback (283-286: vx 14, vy 7),
+# 38-43 / 56-59 the launch (285 / 286 / 299: vx 2, vy 17.25), 50-53 the launch straight up (vx 0), 60-61 the slam
+# down (303 / 304: vx 6, vy -10). Measured on Terry 214D (2 reels, ids $19 / $1F), 623A (5 launches, $28), 623B ($23
+# blowback, then $30 slams the airborne victim down), 214C ($1B blowback), Robert 624D (reels $19 / $18), Ryo 623A
+# ($27 launch), Yashiro 214D ($31 sweep), Yamazaki 623D ($35 reel 280).
+REACT_TABLES = {'kof98': (0xB320C, 0xB356C, 0xB2ED2), 'kof99': (0xBBEB6, 0xBC216, 0xBBB62)}   # T0, T1, the states lists
+R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_SLAM, R_LIFT = 1, 2, 3, 4, 6, 7      # fighter.h R_*
+
+def react_index(m, box, air):
+    """KOF's reaction index (+$12F) for a hit by attack box id `box` on a standing (air False: situation 2) or juggled
+    (air True: 6) victim; None: no table (KOF96) or an id outside it"""
+    if m.game not in REACT_TABLES or not 0x0C <= box < 0x40: return None
+    t0, t1, _ = REACT_TABLES[m.game]; e = 6 if air else 2
+    return m.u8(t1 + (box - 0x18) * 36 + e) if box >= 0x18 else m.u8(t0 + (box - 0x0C) * 72 + e)
+
+def react_class(rx):
+    """a reaction index -> the brawler's reaction (R_*), by KOF's handler group"""
+    if rx is None: return None
+    if rx <= 21 or 77 <= rx <= 81: return R_HEAVY
+    if rx <= 25: return R_TRIP
+    if 38 <= rx <= 43 or 56 <= rx <= 59: return R_LAUNCH
+    if 50 <= rx <= 53: return R_LIFT
+    if rx in (60, 61): return R_SLAM
+    return R_KNOCKDOWN
+
+def react_hurt(m, cid, rx):
+    """the victim keeps a hurt box in reaction rx (KOF's juggle rule: the reaction's first state, read on fighter cid,
+    has the $0200 flag on its first step: 258-271 reels, 286 / 288 / 293; 276 sweep, 283 / 285 / 287 blowback and
+    launch, 303 slam have none: nothing hits it until it is down)"""
+    c2 = REACT_TABLES[m.game][2]; st = m.u16(c2 + m.u16(c2 + 2 * rx))
+    return bool(anim_steps(m, cid, st)[0][0][2] & 0x200)
+
+def box_react(m, box, cid):
+    """the brawler's packed reaction for a hit by attack box `box`: standing | juggled << 4, each R_* | 8 when the
+    victim stays hittable in it (react_hurt; 0 = no table)"""
+    out = 0
+    for k, air in ((0, False), (4, True)):
+        rx = react_index(m, box, air)
+        if rx is None: return 0
+        out |= (react_class(rx) | (8 if react_hurt(m, cid, rx) else 0)) << k
+    return out
 
 CLEAN_CONDS = {None, 'end', 'event', 'land', 'falling', 'cnt', 'off', 'hit', 'owner_fxoff'}
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """The ROM-read specials (tools/kof96/handlers98.py, export_bm rom_c, fighter.c prog_update) against KOF98, frame by frame.
 
-    python3 romspecials_check.py GAME_DIR OUT_DIR [fighter:role ...]     (an AI_OFF=1 build: the target stands still)
+    python3 romspecials_check.py GAME_DIR OUT_DIR [fighter:role[=INPUT] ...]     (an AI_OFF=1 build: the target stands still)
+    BRANCHES=whiff,close,mid (default whiff,close): mid = P2 112 px ahead (romspecials98.PLACE); =INPUT plays another
+    special of the fighter's pool from that slot
 
 Per special and branch (whiff: nobody near; hit: an enemy standing 48 px ahead, KOF98's close-range distance), from the
 special's first frame: the frame shown (ROM frame index), x from the start (forward +), height, the hits (frames the
@@ -22,14 +24,20 @@ KOF = {'kyo': 0, 'terry': 3, 'ryo': 6, 'robert': 7, 'ralf': 10, 'mai': 16, 'yash
        'geese': ('kof96', 24), 'mr_big': ('kof96', 26), 'krauser': ('kof96', 25), 'goenitz': ('kof96', 28), 'k_dash': ('kof99', 0)}   # KOF98 id or (game, id)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = 4
+DIST = {'close': 48, 'mid': 112}                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
+BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
 
-def brawler_run(b, k, role, hit, shots, frames=300):
+def brawler_run(b, k, role, hit, shots, frames=300, pool=None):
     b.pick(k, unlock=True)                              # Rugal / Goenitz are unlocked by play
     while b.r(b.syms['fade_in'], 1): b.run(1)
     b.run(10)
+    if pool is not None:                                 # fighter:role=INPUT: the slot repointed at another special
+        scr = b.syms['lab'] + 400                        # (lab.buf, unused without a Lab tree; spec_tab[fighter] -> it)
+        for q in range(6): b.w(scr + q, 1, pool if q == list(ROLES).index(role) else 0xFF)
+        b.w(b.syms['spec_tab'] + 4 * k, 4, scr)
     for i in range(1, 8): b.place(i, x=1000, z=0)
     b.place(0, x=60, z=30)                               # the left of the screen: room for the rushes
-    if hit: b.place(2, x=108, z=30)
+    if hit: b.place(2, x=60 + hit, z=30)
     b.run(2)
     w = 0
     while b.states[b.fget(0, 'state')] != 'IDLE' and w < 300: b.run(1); w += 1
@@ -85,16 +93,25 @@ def main(game, out, cases):
     b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
     summary = []
     for case in cases:
-        name, role = case.split(':'); inp = gj[name]['specials'][role]; cid = KOF[name]
+        name, role = case.split(':'); role, _, inp = role.partition('='); inp = inp or gj[name]['specials'][role]; cid = KOF[name]
+        pool = None
+        if '=' in case:
+            fi = next(f for f in json.load(open(os.path.join(game, 'build', 'chainlab.json')))['fighters'] if f['name'] == name)
+            pool = [p['input'] for p in fi['pool']].index(inp)
         kg, cid = cid if isinstance(cid, tuple) else ('kof98', cid)
-        for branch in ('whiff', 'close'):
+        for branch in BRANCHES:
             tag = f'{name}_{inp.replace(" ", "").replace("[", "c").replace("]", "")}_{branch}'
             shots = os.path.join(out, 'shots', tag); os.makedirs(shots, exist_ok=True)
-            res, game_rows, model, objs, prog = K.compare(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), quiet=True, game=kg)
+            try: res, game_rows, model, objs, prog = K.compare(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), quiet=True, game=kg)
+            except StopIteration as e:                   # KOF's trace never entered the special (a mash input: Ralf AAAA)
+                s = {'case': case, 'input': inp, 'branch': branch, 'error': f'no KOF trace {e!r}'}
+                summary.append(s); print(json.dumps(s), flush=True); continue
             # KOF screenshots at the kept frames (every EVERY-th of the move after the dropped ones)
             want = [game_rows[i]['f'] for i in range(0, res['frames_game'], EVERY)][:30]
             K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), snaps=[K.START + f for f in want], snapdir=shots, game=kg)
-            br = brawler_run(b, roster.index(name), role, branch == 'close', shots)
+            # the opponent as far ahead as KOF's was when the special started (a charge move walked P1 back first)
+            gap = round(game_rows[0]['p2x'] - game_rows[0]['x']) if branch in DIST else None
+            br = brawler_run(b, roster.index(name), role, gap, shots, pool=pool)
             rec = lambda bf: int(frames[name][bf].split(':')[1]) if bf < len(frames[name]) and frames[name][bf] else -1
             n = min(len(br), res['frames_game'])
             gx0 = game_rows[0]['x'] - model[0][3]
@@ -111,7 +128,7 @@ def main(game, out, cases):
                  'brawler_hits': bhits, 'kof_freeze_dropped': res['frozen_dropped'], 'kof_slowdown_dropped': res['slowdown_dropped'],
                  'kof_objects': res['objects_game'], 'brawler_proj_first': bp and [bp[0]] + [list(p) for p in bp[1]],
                  'brawler_proj_next': (br[bp[0] + 1]['proj'] if bp and bp[0] + 1 < len(br) else None)}
-            if branch == 'close':                        # the victim (2026-10-05: KOF98's own reaction, no carry): its x
+            if branch in DIST:                           # the victim (2026-10-05: KOF98's own reaction, no carry): its x
                 # x from where KOF's first hit found it (each side: the brawler at its hit nearest KOF's first; KOF's
                 # charge moves differ in their walk-up) and height per frame, to the end of its fall (KOF: the floor, 309)
                 kh = res['hit_frames'][0] if res['hit_frames'] else 0

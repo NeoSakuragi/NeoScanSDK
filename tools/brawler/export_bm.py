@@ -515,7 +515,7 @@ def rom_c(n, k, sp, game):
             if ab: live = ab
             ab = live if fl & 0x100 else None
             steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (8 if fl & 0x80 else 0) | (16 if fl & 0x4000 else 0)}, '
-                         f'{bb(hb)}, {bb(ab)}, {-s["dx"]}, 0}}')
+                         f'{bb(hb)}, {bb(ab)}, {-s["dx"]}, {s.get("react", 0) if ab else 0}}}')   # hy: KOF's reaction (handlers98.box_react)
         out.append(f'static const bstep_t {n}_sp{k}_a{j}[] = {{' + ', '.join(steps) + '};')
     out.append(f'static const banim_t {n}_sp{k}_an[] = {{' + ', '.join(
         f'{{{len(r["anims"][st]["steps"])}, {1 if r["anims"][st]["mode"] == "hold" else 0}, {n}_sp{k}_a{j}}}' for j, st in enumerate(r['states'])) + '};')
@@ -744,7 +744,7 @@ def write_c(chars, outdir):
          'typedef struct { int16_t dx, dy; uint8_t cols, rows, hflip, vflip, pal; const uint16_t *tiles; } bpart_t;   /* tiles: cols*rows column-major, 0 = empty; pal: palette index of the fighter */',
          'typedef struct { uint8_t nparts, ncols; const bpart_t *parts; } bframe_t;   /* ncols: hardware sprites the frame uses */',
          'typedef struct { int8_t x, y; uint8_t w, h; } bbox_t;                       /* centre from the feet (y<0 up), half extents; sprite faces left */',
-         'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx; uint8_t hy; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals); dx: px the fighter moves forward as the step starts (KOF\'s $FB move); hy: height in px during the step (command normals that hop: export96.cmd_frames) */',
+         'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx; uint8_t hy; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals); dx: px the fighter moves forward as the step starts (KOF\'s $FB move); hy: height in px during the step (command normals that hop: export96.cmd_frames); in a ROM special\'s anims (bspec_t.anims) the victim\'s reaction to its attack box instead, packed R_* standing | juggled << 4 (KOF\'s reaction table: tools/kof96/handlers98.box_react; 0 = the P_ANIM reaction) */',
          'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx, hop_vy0, hop_gravity, hop_dx; uint8_t prejump, land; } bphys_t;   /* 16.16 px per frame (KOF ROM: export96 physics); jump_* = the regular jump (stick held), hop_* = the hop (stick tapped); jump_dx / hop_dx: horizontal speed of a forward or back jump; prejump: frames on the ground before take-off (KOF: the prejump animation, the frames in which a release makes the jump a hop); land: frames on the floor after a jump (KOF: the landing animation\'s steps at ticks + 1 frames each, + 1, measured: KOF98 4, Terry / Rugal / Goenitz 5) */',
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor: damage, spark, splash), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',

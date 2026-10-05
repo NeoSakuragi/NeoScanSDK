@@ -361,7 +361,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 70. (0.0.52: 421A/B/C + Bust 236D/623D recaptured as whiffs, no hit stop / push baked; a low leap is held at a standing body, 421C lands its slash, the brawler's own knockdown; other open points listed in the memory note) Haohmaru's forward+D (SS4 421C) has a baked impact / KO scene (Bruno): recapture it as a whiff, or read it from
   SS4's own code (the handlers98 approach for SS4); also his other open points (memory reference_samsho4_extraction).
 
-- [ ] 72. (also from #69's notes: at its test distance Ralf [4]6A / [2]8A get extra hits, Ryo 623A 2 vs 1, Kyo 214A 3
+- [x] 72. (0.0.54: KOF98's reaction table read from the ROM (box id -> reaction + juggle rule, handlers98.box_react; strict box overlap): Terry 214D 2/2, 623A 5/5, 623B 2/2, Robert 624D close 3/3 (was 4), Ryo 623A 1, Ralf [2]8A 1, victims within 3 px (/data/tmp/hits72/out/table72.txt); LEFT: Robert 624D mid 3 vs 2, Ralf [4]6A 2 vs 1, Kyo 214A 3 vs 1, Kyo EX 421D 1 vs 3, Terry 623C / 623D mid hit where KOF misses (KOF's P2 is Takuma, the brawler's victim Terry: box edges), KOF96 fighters keep the old reactions, projectile victims untouched) (also from #69's notes: at its test distance Ralf [4]6A / [2]8A get extra hits, Ryo 623A 2 vs 1, Kyo 214A 3
   vs 1, Robert 624D 4 vs 3; Ralf [4]6B, Yashiro 214D, Iori 623D land none where KOF lands one; victims after projectile
   hits land far from KOF's spot) Restore KOF98's hit count on Terry 214D (2), 623A (5), 623B (2) and Robert 624D (3) (review round 1): since
   the victim fix (no stick) they hit once less; re-time the missing hit(s) so they land, without sticking the victim

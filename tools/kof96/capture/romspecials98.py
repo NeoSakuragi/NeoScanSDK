@@ -78,7 +78,8 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
     import handlers98 as H
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     rows, _, _ = trace(cid, inp, dist, ex, frames, game=game)
-    h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex)
+    try: h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex)
+    except KeyError: h = prog = None             # a captured special (no ROM handler): the game's rows only
     k0 = next(i for i, r in enumerate(rows) if special(r['state']))
     hs = HITSTOP[game]
     froze = [i > k0 and r['pc'] in hs and rows[i - 1]['pc'] in hs for i, r in enumerate(rows)]
@@ -86,7 +87,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
     game = [r for i, r in enumerate(rows) if i >= k0 and not froze[i] and not lost[i]]   # P1 +$1D2 did not advance)
     frozen = sum(froze[k0:]); slow = sum(lost[k0:])
     hits = [i for i in range(1, len(game)) if game[i]['p2life'] < game[i - 1]['p2life']]
-    model, objs = H.run_model(m, cid, prog, frames, hit_at=hits[0] if hits else None)
+    model, objs = H.run_model(m, cid, prog, frames, hit_at=hits[0] if hits else None) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
     x0 = game[0]['x'] - model[0][3]               # aligned on the first frame
     end = next((i for i, r in enumerate(game) if not special(r['state'])), len(game))
     n = min(end, len(model)); bad = []; nb = {'frame': 0, 'x': 0, 'h': 0}
@@ -96,7 +97,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         d = {'frame': (g['state'], g['frame']) != (mo[1], mo[2]), 'x': abs(gx - mo[3]) > 1.01, 'h': abs(gh - mo[4]) > 0.51}
         for k in d: nb[k] += d[k]
         if any(d.values()): bad.append((i, (g['state'], g['frame'], gx, gh), mo[1:5]))
-    res = {'input': inp, 'dist': dist, 'ex': ex, 'handler': f'${h:X}', 'frames_game': end, 'frames_model': len(model),
+    res = {'input': inp, 'dist': dist, 'ex': ex, 'handler': f'${h:X}' if h else None, 'frames_game': end, 'frames_model': len(model),
            'mismatch': len(bad), 'by': nb, 'first_bad': bad[:4], 'hits_game': len(hits), 'hit_frames': hits, 'frozen_dropped': frozen, 'slowdown_dropped': slow,
            'states': sorted({r['state'] for r in game[:end]})}
     before = {o['base'] for o in rows[k0 - 1]['objs']}
