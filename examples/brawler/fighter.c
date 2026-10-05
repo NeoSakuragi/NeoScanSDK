@@ -156,14 +156,21 @@ static void to_neutral(fighter_t *f, const intent_t *in) {
     else if (in && in->ai && f->state == S_WALK && ++f->still < AI_IDLE_DELAY) { }   /* AI: no walk/idle flicker */
     else { enter(f, S_IDLE); play_if_new(f, BA_IDLE); }
 }
-static uint8_t hit_sound(uint8_t anim) {                       /* KOF98's hit sound per button */
+enum { SX_A, SX_B, SX_C, SX_D, SX_CD, SX_THROW_C, SX_THROW_D };   /* bchar_t.sfx (export_bm SFX_KEYS) */
+static uint8_t hit_btn(uint8_t anim) {                         /* the button a normal's hit sounds as */
     switch (anim) {
-    case BA_ATK_A_CLOSE: case BA_ATK_A_FAR: case BA_ATK_A_CROUCH: case BA_CMD_FWD_A: return SFX_HIT_A;
-    case BA_ATK_B_CLOSE: case BA_ATK_B_FAR: case BA_ATK_B_CROUCH: case BA_CMD_FWD_B: return SFX_HIT_B;
-    case BA_ATK_C_CLOSE: case BA_ATK_C_FAR: case BA_ATK_C_JUMP: case BA_ATK_C_CROUCH: case BA_CMD_DF_C: return SFX_HIT_C;
-    case BA_ATK_D_CLOSE: case BA_ATK_D_FAR: case BA_ATK_D_CROUCH: case BA_ATK_D_JUMP: case BA_CMD_DF_D: return SFX_HIT_D;
-    default: return SFX_HIT_CD;
+    case BA_ATK_A_CLOSE: case BA_ATK_A_FAR: case BA_ATK_A_CROUCH: case BA_CMD_FWD_A: return SX_A;
+    case BA_ATK_B_CLOSE: case BA_ATK_B_FAR: case BA_ATK_B_CROUCH: case BA_CMD_FWD_B: return SX_B;
+    case BA_ATK_C_CLOSE: case BA_ATK_C_FAR: case BA_ATK_C_JUMP: case BA_ATK_C_CROUCH: case BA_CMD_DF_C: return SX_C;
+    case BA_ATK_D_CLOSE: case BA_ATK_D_FAR: case BA_ATK_D_CROUCH: case BA_ATK_D_JUMP: case BA_CMD_DF_D: return SX_D;
+    default: return SX_CD;
     }
+}
+/* a normal's hit sound: KOF98's per button ($11 A .. $14 D; $15 C+D and every knockdown), unless the fighter's
+ * bchar_t.sfx sets the button's (TODO #75, game.json roster[].hit_sfx: Haohmaru's sword slashes $2B) */
+static uint8_t hit_sound(const fighter_t *f, uint8_t anim, uint8_t knockdown) {
+    uint8_t b = hit_btn(anim);
+    return f->ch->sfx[b] ? f->ch->sfx[b] : knockdown ? SFX_HIT_CD : SFX_HIT_A + b;
 }
 /* ---- jumps (tools/kof96/capture/jumps.py, KOF96/98/99 measured 2026-10-04) ------------------------------------------
  * Two heights, KOF's: C held through the prejump = the regular jump, C released before take-off = the hop (3/4 of the
@@ -382,7 +389,7 @@ static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r
 static void grab(fighter_t *a, fighter_t *v) {
     const bthrow_row_t *r = a->ch->throws[BT_THROW_C].rows;
     enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0;
-    a->frame_ovr = r->tframe;
+    a->frame_ovr = r->tframe; snd_sfx(SFX_GRAB);                 /* KOF98's grab start (TODO #75) */
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0;   /* victim: presses mashed */
     show_pose(v, r->vpose); place_victim(a, v, r, a->facing);
@@ -415,10 +422,10 @@ static void hold_update(fighter_t *f, const intent_t *in) {
             if (f->grab_hits >= GRAB_HITS) {                     /* C+D: the victim goes down, the hold is over */
                 f->held = 0; v->held = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);
                 f->node = TREE(f)->hold; f->landed = 1; enter(f, S_ATTACK);   /* the C+D plays on as a normal attack */
-                snd_sfx(SFX_HIT_CD); fighter_hit(f, v, NODE(f, f->node)->damage, R_KNOCKDOWN, 0);
+                snd_sfx(hit_sound(f, BA_BODY_TOSS, 1)); fighter_hit(f, v, NODE(f, f->node)->damage, R_KNOCKDOWN, 0);
                 return;
             }
-            snd_sfx(f->anim == BA_ATK_D_CLOSE ? SFX_HIT_D : SFX_HIT_C);
+            snd_sfx(hit_sound(f, f->anim, 0));
             v->hp -= GRAB_DAMAGE; v->frame_ovr = 0xFFFF; play(v, BA_HIT_STAND_LIGHT);
             f->freeze = v->freeze = 4;
             return;
@@ -494,7 +501,7 @@ static void throw_update(fighter_t *f) {
             if (!mute) voice_play(v->ch, v->team, v->hp > 0 ? VK_HIT : VK_KO);
             if (r->flags & 16) f->freeze = v->freeze = THROW_FREEZE;   /* only where KOF froze (Ryo's forward+C) */
             f->impact = 1;                                       /* combat() hits the victim's teammates around it */
-            snd_sfx(SFX_HIT_CD);
+            snd_sfx(f->ch->sfx[SX_THROW_C + f->throw_id] ? f->ch->sfx[SX_THROW_C + f->throw_id] : SFX_HIT_CD);   /* Krauser's back breaker: $3D */
             spark_hit(INT(f->throw_x0) + dir_mul(f->throw_face, r->vx + r->tx), floor_top + INT(f->z) - r->vy - 40, 1, f->throw_face);
         }
     }
@@ -1197,7 +1204,7 @@ void combat(fighter_t **fs, uint8_t n) {
                 int16_t ay = floor_top + INT(a->z) - INT(a->y) + atk->y, vy = floor_top + INT(v->z) - INT(v->y) + hb->y;   /* a long box's middle) */
                 int16_t sx = ((ax - atk->w > vx - hb->w ? ax - atk->w : vx - hb->w) + (ax + atk->w < vx + hb->w ? ax + atk->w : vx + hb->w)) >> 1;
                 int16_t sy = ((ay - atk->h > vy - hb->h ? ay - atk->h : vy - hb->h) + (ay + atk->h < vy + hb->h ? ay + atk->h : vy + hb->h)) >> 1;
-                uint8_t sfx = SFX_HIT_CD;
+                uint8_t big = 1;
                 if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
                     const rnode_t *c = NODE(a, a->node);
                     const banim_t *an = &a->ch->anims[a->anim];
@@ -1209,19 +1216,20 @@ void combat(fighter_t **fs, uint8_t n) {
                         dmg = later ? dmg / total : dmg - dmg / total * (total - 1);
                         if (later && rc >= R_KNOCKDOWN) rc = R_HEAVY;
                     }
-                    if (rc < R_KNOCKDOWN) sfx = hit_sound(c->anim);
-                    if (!sounded++) snd_sfx(sfx);
+                    big = rc >= R_KNOCKDOWN || hit_btn(c->anim) >= SX_C;
+                    if (!sounded++) snd_sfx(hit_sound(a, c->anim, rc >= R_KNOCKDOWN));
                     fighter_hit(a, v, dmg, rc, c->push);
                 } else if (a->spec_prev_hit & 8) {       /* a running grab's reach: it catches, the continuation hits */
                     a->hit_mask |= 1 << v->idx; a->landed = 1; a->shrow = a->srow; a->target = v; v->freeze = HITSTOP; fury_lock(a);
+                    if (!sounded++) snd_sfx(SFX_GRAB);           /* the command grab connects: KOF98's grab start */
                     if (v->state == S_WALK) to_neutral(v, 0);
                     continue;
                 } else {
-                    if (!sounded++) { if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(sfx); }
+                    if (!sounded++) { if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD); }
                     fighter_hit(a, v, a->spec_dmg, a->spec_react, 0);
                     if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                 }
-                spark_hit(sx, sy, sfx >= SFX_HIT_C, a->facing);  /* KOF98: A / B small, C / D / C+D big */
+                spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big */
                 if (a->pdef) { proj_hit(a); break; }             /* a projectile hits once */
             }
         }

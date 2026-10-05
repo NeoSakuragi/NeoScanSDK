@@ -131,7 +131,8 @@
    "specials": {"D": "214A", "fD": "41236B", "dD": "236D", "uD": "623B", "dfD": "214B", "ufD": "623D"},
    "fury": "641236C",
    "unlock": {"boss_of_stage": 2},
-   "voices": "kof"
+   "voices": "kof",
+   "hit_sfx": {"throw_c": "BACK BREAK"}
   },
   {
    "name": "k_dash",
@@ -171,7 +172,8 @@
    "specials": {"D": "236C", "fD": "421C", "dD": "623B", "uD": "BUST 236D", "dfD": "BUST 623D", "ufD": null},
    "fury": "BUST 236D",
    "unlock": "always",
-   "voices": "kof"
+   "voices": "kof",
+   "hit_sfx": {"A": "SLASH", "B": "SLASH", "C": "SLASH", "CD": "SLASH", "421C": "SLASH", "623B": "SLASH"}
   },
   {
    "name": "hanzo",

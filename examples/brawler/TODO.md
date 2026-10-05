@@ -381,7 +381,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   three parts linked by 'again' presses; K''s 236A = one part with several press links (fA, fB, ...) to its follow-ups.
   Left: capture Iori's / K''s parts and their windows (KOF98 / KOF99 ROM), as export_kz FOLLOW does for Kim.
 
-- [ ] 75. Hit sounds by use (review round 2, Bruno's listening): $9C SDM IMPACT on desperation moves' hits (the C fury,
+- [x] 75. Hit sounds by use (review round 2, Bruno's listening): $9C SDM IMPACT on desperation moves' hits (the C fury,
   Yuri's Shin Shoryuken sound), $19 GRAB START when a grab / command grab connects, $17 BLOCKED HIT for guarded hits,
   $3D BACK BREAK on back-breaker throws (Krauser's), $2B SLASH for any blade hit. The menu cursor sound is to change: take
   Fatal Fury 3's own cursor sound (Bruno). Find the command FF3 sends on its menu / select cursor (MAKOTO v3.0 driver,
@@ -393,6 +393,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   register, timed 3-2-3-3 KOF98 cue ticks (each step end within 5 ms of FF3's); ssg_cues.py notes take "A5+" (half
   semitone). Checks: ssg_cues.py --check all 4 OK; select screen with 5 cursor moves vs none: the 3329 music writes
   identical; regress no-bleed True. WAVs to compare: /data/tmp/ff3cursor/out.
+  Done 2026-10-06: fury hits $9C, grab / command-grab catch $19, Krauser's back breaker $3D, Haohmaru's slashes $2B (game.json roster[].hit_sfx, bchar_t.sfx, export_bm move_fx); $17 not wired: the brawler has no guard.
 
 - [ ] 76. (0.0.53: his multipart moves + the Phoenix's on-connect sequence and flames play, one follow-up mechanism;
   left: the Phoenix's red backdrop (the brawler shows the empty stage ~12 frames while both fly off-screen), random
