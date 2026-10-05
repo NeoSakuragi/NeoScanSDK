@@ -258,6 +258,8 @@ static void line_guard(void) {
             (f->state == S_DEAD && (f->state_t & 4))) { hidden[prio[k]] = 1; continue; }   /* the dead blink */
         if (sx < -128 || sx > 448) { hidden[prio[k]] = 1; continue; }   /* well off screen: placed, its 9-bit X would
                                                              wrap it onto the screen (a wave walking in from 512 px) */
+        if (floor_top + INT(f->z) - INT(f->y) < 0) { hidden[prio[k]] = 1; continue; }   /* feet above the screen's top
+                                                             (Kim's Phoenix flies out): its 9-bit Y would wrap it onto the screen */
         cols = f->ncols;
         if (used + cols > LINE_MAX) { hidden[prio[k]] = 1; guard_hidden++; }
         else { hidden[prio[k]] = 0; used += cols; }

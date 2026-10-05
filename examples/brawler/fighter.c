@@ -455,15 +455,16 @@ static void hold_update(fighter_t *f, const intent_t *in) {
  * Advanced by f->speed like the animation player; stop(row) = a row the advance must not pass (a special's hit
  * row with its box live or opening a hit, its continuation point): it stops there. Returns the first row newly shown (rows from it to srow - 1 were
  * passed or reached this frame). */
+static uint16_t part_end(const fighter_t *f, const bspec_t *sp) { return sp->nparts ? sp->parts[f->spart].end : sp->nrows; }
 static uint16_t script_advance(fighter_t *f, uint16_t nrows, const bspec_t *sp) {
-    uint16_t from = f->srow;
+    uint16_t from = f->srow, end = sp ? part_end(f, sp) : nrows;
     if (!f->srow) { f->srow = 1; f->acc = 0; return 0; }         /* its first frame: row 0 */
     f->acc += f->speed;
     while (f->acc >= 0x100) {
         f->acc -= 0x100; f->srow++;
-        if (f->srow > nrows) break;
-        if (sp && ((sp->rows[f->srow - 1].hit & 3) || (sp->cont && f->srow == sp->cont + 1))) {
-            if (f->acc >= 0x100) f->acc = 0xFF;                  /* a live row / the continuation point: shown */
+        if (f->srow > end) break;                                /* past its part: special_update goes on */
+        if (sp && (sp->rows[f->srow - 1].hit & 3)) {
+            if (f->acc >= 0x100) f->acc = 0xFF;                  /* a live row: shown */
             break;
         }
     }
@@ -511,9 +512,38 @@ static void throw_update(fighter_t *f) {
  * box); a projectile is an entity of its own (bspec_t.proj, see "projectiles" below). Per row hit bits (export_bm special_rows): a row opening a new hit lets the same
  * targets be hit again, with its damage (SPECIAL_DAMAGE split over the move's hits) and the victim's reaction measured
  * in the game (bits 5-7: R_HEAVY keeps it on the ground until the part that ejects it); contact rows (a running grab's
- * reach) only catch the victim. Hit-confirmed continuations (bspec_t.cont, one code path): a hit on a row with bit 16
- * jumps to row `cont` (Geese's Jaei-ken follow-up, Kyo's grab + explosion), placed from where the fighter is; playing
- * into `cont` without a hit ends the move (the whiff). */
+ * reach) only catch the victim.
+ * Follow-ups (one mechanism, data: bspec_t.parts / links, export_bm special_play): a special's script is made of parts
+ * (row ranges); a part that ends goes on to its `next` part (0xFF: the move ends) unless a link from it fired: a link
+ * fires on a hit landed inside its window (LK_HIT; fighter_t.shrow), on a press (LK_IN: the button IN_* + the stick as A+B's role, d_input; LK_AGAIN = the
+ * role the move started with) or both, inside its window (script rows [lo, hi)), and switches to its part at once
+ * (LK_NOW) or when the current part ends. A new part plays from where the fighter is. Kim's 236C (236C again: 98, again:
+ * 9A), [2]8C (down+A on hit: the dive), 421A / 6246A (the hit's sequence), the KOF continuations (Geese's Jaei-ken,
+ * Kyo's grab + explosion: a hit before `cont` jumps there now, a whiff ends there). */
+enum { LK_HIT = 1, LK_IN = 2, LK_NOW = 1, LK_AGAIN = 0xFE, LK_ANY = 0xFF };
+static void part_go(fighter_t *f, const bspec_t *sp, uint8_t k) {   /* part k from here; 0xFF: past the script (over) */
+    f->sarm = 0;
+    if (k == 0xFF) { f->srow = sp->nrows + 1; return; }
+    f->spart = k; f->srow = sp->parts[k].first + 1; f->throw_x0 = f->x;
+}
+static uint8_t link_in(const fighter_t *f, const bslink_t *l, const intent_t *in) {
+    uint8_t d;
+    if (!(in->press & l->in)) return 0;
+    if (l->dir == LK_ANY) return 1;
+    d = d_input(f, in) - RI_S;
+    return l->dir == LK_AGAIN ? d == f->spec_id || f->spec_id == BS_FURY : d == l->dir;
+}
+static void special_input(fighter_t *f, const intent_t *in) {    /* a press during a special: a follow-up link armed */
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+    uint16_t row = f->srow ? f->srow - 1 : 0;
+    uint8_t k;
+    for (k = 0; k < sp->nlinks; k++) {
+        const bslink_t *l = &sp->links[k];
+        if (l->from != f->spart || !(l->trig & LK_IN) || row < l->lo || row >= l->hi) continue;
+        if ((l->trig & LK_HIT) && !(f->shrow > l->lo && f->shrow <= l->hi)) continue;   /* a hit landed in the window */
+        if (link_in(f, l, in)) { f->sarm = k + 1; return; }
+    }
+}
 #define SPECIAL_DAMAGE 8
 fighter_t projectiles[NPJ];
 uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;
@@ -547,6 +577,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->spec_id = k; f->spec_ix = spec_ix(f->ch, k); f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
+    f->spart = 0; f->sarm = 0; f->shrow = 0;                     /* its first part, no follow-up armed, no hit */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
@@ -816,10 +847,15 @@ static void special_update(fighter_t *f) {
     uint16_t from;
     if (sp->prog) { prog_update(f, sp); return; }                /* read from the ROM: its program */
     from = script_advance(f, sp->nrows, sp);                     /* rows from..srow-1 reached this frame */
-    if (sp->cont && f->srow <= sp->cont + 1) {
-        if (f->landed && (f->spec_prev_hit & 16)) {              /* it hit: on to the continuation, from here */
-            f->srow = sp->cont + 1; f->throw_x0 = f->x;
-        } else if (f->srow == sp->cont + 1) f->srow = sp->nrows + 1;   /* a whiff: the move ends */
+    if (sp->nparts) {                                            /* follow-ups: a hit in a link's window arms it, */
+        for (k = 0; k < sp->nlinks && !f->sarm; k++) {          /* an armed LK_NOW link switches at once, a part's
+                                                                    end goes to the armed link's part or its next */
+            const bslink_t *l = &sp->links[k];
+            if (l->from == f->spart && l->trig == LK_HIT && f->shrow > l->lo && f->shrow <= l->hi) f->sarm = k + 1;
+        }
+        if (f->sarm && (sp->links[f->sarm - 1].at & LK_NOW)) part_go(f, sp, sp->links[f->sarm - 1].to);
+        else if (f->srow > sp->parts[f->spart].end)
+            part_go(f, sp, f->sarm ? sp->links[f->sarm - 1].to : sp->parts[f->spart].next);
     }
     if (f->srow > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
         carry_drop(f);
@@ -872,6 +908,8 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (ci) f->buffered = ci;
         if (in->press & IN_SP) f->spec_buf = 0x80 | d_input(f, in);
     }
+    if (f->state == S_SPECIAL && in->press && f->ch->specials[f->spec_ix].nlinks) special_input(f, in);   /* a follow-up
+                                                                    (presses in hit-stop count) */
     meter_tick(f);
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
@@ -1018,6 +1056,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     v->freeze = HITSTOP;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
     a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
+    if (a->state == S_SPECIAL) a->shrow = a->srow;               /* the special's row it landed on + 1 (follow-up windows) */
     (a->owner ? a->owner : a)->target = v;
     lab_note(a->owner ? a->owner : a, LE_HIT, a->state == S_ATTACK || a->state == S_AIR_ATTACK ? a->node : 0xFF, v->idx, damage);
     react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, push);
@@ -1050,6 +1089,7 @@ void combat(fighter_t **fs, uint8_t n) {
             int16_t d, dz;
             if (v->team == a->team || v->y || (v->state != S_IDLE && v->state != S_WALK && v->state != S_HITSTUN &&
                 v->state != S_ATTACK && v->state != S_SPECIAL)) continue;
+            if (v == a->target && (a->spec_prev_hit & 4) && a->landed) continue;   /* its carried target: held where the game had it */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
             if (d <= -8 || d >= PUSH_DX) continue;
@@ -1139,7 +1179,7 @@ void combat(fighter_t **fs, uint8_t n) {
                     if (!sounded++) snd_sfx(sfx);
                     fighter_hit(a, v, dmg, rc, c->push);
                 } else if (a->spec_prev_hit & 8) {       /* a running grab's reach: it catches, the continuation hits */
-                    a->hit_mask |= 1 << v->idx; a->landed = 1; a->target = v; v->freeze = HITSTOP;
+                    a->hit_mask |= 1 << v->idx; a->landed = 1; a->shrow = a->srow; a->target = v; v->freeze = HITSTOP;
                     if (v->state == S_WALK) to_neutral(v, 0);
                     continue;
                 } else {
