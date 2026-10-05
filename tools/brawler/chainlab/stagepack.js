@@ -105,13 +105,9 @@
       if (trig.length > MAX_TRIGGERS) err(`${S}: at most ${MAX_TRIGGERS} triggers`);
       const drama = b.drama ? (D.dramas || []).indexOf(b.drama) : 0xFF;
       if (drama < 0) err(`${S}: no drama ${b.drama}`);
-      const tr = s.transition, trq = tr ? (tr.speed === undefined ? 2 : tr.speed) * 4 : 0;   // a descent after it (build_tables.py transition)
-      if (tr && (!isInt(tr.section, 0, 126) || !['down', 'up', undefined].includes(tr.direction) || !isInt(trq, 1, 255) || si + 1 === D.stages.length))
-        err(`${S}: transition ${JSON.stringify(tr)}`);
-      const trans = tr ? [(1 + tr.section) | (tr.direction === 'up' ? 0x80 : 0), trq] : [0, 0];
       out.push({ bg: s.background, music: D.songs[s.music], power, waves: wv, spawns: sp, boss: bi, boss_song: D.songs[b.song],
                  unlock: D.enemies[bi] && D.enemies[bi].unlock_of === si + 1 ? 1 : 0, boss_lock: b.lock, boss_x: b.x, boss_z: b.z,
-                 boss_seed: bseed, boss_first: nb, nmin: b.minions.length, triggers: trig, drama: Math.max(0, drama), trans });
+                 boss_seed: bseed, boss_first: nb, nmin: b.minions.length, triggers: trig, drama: Math.max(0, drama) });
     });
     return { stages: out, errors };
   }
@@ -144,7 +140,7 @@
     const roo = put(sm.concat(Array(2 * vt.length).fill(0)));   // version 3: + per fighter its voice table's offset
     vt.forEach((t, i) => { if (t) { const o = put(t, 1); out[roo + sm.length + 2 * i] = o >> 8; out[roo + sm.length + 2 * i + 1] = o & 0xFF; } });
     const tro = M.stages.map(s => s.triggers.length ? put(s.triggers.flatMap(trigBytes)) : 0);   // version 4: the triggers
-    const sxo = put(M.stages.flatMap((s, i) => [0, 0, ...be16(tro[i]), s.triggers.length, s.drama, ...(s.trans || [0, 0])]));
+    const sxo = put(M.stages.flatMap((s, i) => [0, 0, ...be16(tro[i]), s.triggers.length, s.drama, 0, 0]));
     while (out.length % 2) out.push(0);
     if (out.length > D.gd_max) return { bytes: null, errors: [`pack: ${out.length} bytes (at most ${D.gd_max})`] };
     const head = [71, 68, GD_VERSION, M.stages.length, D.enemies.length, D.nai, ...be16(out.length), ...be16(sto), ...be16(D.en_o),

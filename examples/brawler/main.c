@@ -171,29 +171,6 @@ static void stage_draw(void) {
         if (++s == BG_N) s = 0;
     }
 }
-/* a descent's plane (the transitions, "transition" below; stage.h vsects[]): the same 21 sprites, 20 of them at height 32
- * (a 512 px ring: map row r in tile slot r & 31, so one SCB3 run of the camera y places them all), x fixed (column c =
- * sprite c, 320 px); a row entering at the bottom (or the top) is written as 20 two-word runs. vr_lo .. vr_hi - 1: the
- * rows the ring holds. */
-static int16_t cam_y, vr_lo, vr_hi;
-static void vrow(int16_t r) {
-    const uint16_t *t = stg->map + (uint16_t)r * (uint16_t)(stg->cols * 2);   /* 16 x 16 -> mulu */
-    uint8_t c;
-    for (c = 0; c < stg->cols; c++, t += 2) {
-        uint16_t *w = cmd_run(VRAM_SCB1 + (BG_SPR + c) * 64 + ((r & 31) << 1), 2);
-        w[0] = t[0]; w[1] = t[1];
-    }
-}
-static void vplane_draw(void) {
-    int16_t lo = cam_y >> 4, hi = ((cam_y + 223) >> 4) + 1;
-    uint16_t *y, v = ((uint16_t)(496 + cam_y) & 0x1FF) << 7 | 32;
-    uint8_t s;
-    if (hi > stg->rows) hi = stg->rows;
-    while (vr_hi < hi) { vrow(vr_hi++); if (vr_hi - vr_lo > 32) vr_lo = vr_hi - 32; }
-    while (vr_lo > lo) { vrow(--vr_lo); if (vr_hi - vr_lo > 32) vr_hi = vr_lo + 32; }
-    y = cmd_run(VRAM_SCB3 + BG_SPR, BG_N);
-    for (s = 0; s < BG_N; s++) y[s] = s < stg->cols ? v : 0;
-}
 /* camera: toward the players' midpoint, 4 px a frame at most, inside the stage; players stay in view */
 static uint8_t in_play(const fighter_t *f) { return f->state != S_OFF; }
 static void camera(void) {
@@ -265,7 +242,7 @@ static uint8_t hidden[NA], guard_hidden;
 static uint8_t dr_cols;                  /* the drama portrait's sprites on screen (main.c "drama mode"): kept per line */
 static void line_guard(void) {
     static uint8_t parity;
-    uint8_t prio[NA], n = 0, i, k, used = mode == 1 ? BG_N + SH_RESERVE + SPARK_RESERVE + dr_cols : mode == 6 ? BG_N : 0;   /* the select: actors only */
+    uint8_t prio[NA], n = 0, i, k, used = mode == 1 ? BG_N + SH_RESERVE + SPARK_RESERVE + dr_cols : 0;   /* the select: actors only */
     for (i = 0; i < nf; i++) if (!order[i]->team) prio[n++] = i;
     parity ^= 1;
     for (i = 0; i < nf; i++) {
@@ -427,7 +404,6 @@ static void dbg_draw(void) {
 static void draw(void) {
     uint8_t i;
     if (mode == 1) stage_draw();                             /* only the fight has a stage */
-    else if (mode == 6) vplane_draw();                       /* a transition's descent */
     for (i = 0; i < nf; i++)
         if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF)) {
             uint8_t bc = blk_cols;
@@ -1542,7 +1518,6 @@ uint8_t game_start_accept(uint8_t flags) {
 }
 static void unlock_start(uint8_t k);
 static void ending_start(void);
-static void next_stage(void);
 static void campaign(uint8_t left) {
     uint8_t i;
     phase_t++;
@@ -1591,7 +1566,7 @@ static void campaign(uint8_t left) {
             if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = char_index(fighters[i].ch); pl_set[i] = fighters[i].set; }
         if (unlock_k) unlock_start(unlock_k - 1);
         else if (camp + 1 >= GS_COUNT) ending_start();
-        else next_stage();
+        else { fade_in = FADE_T; stage_begin(camp + 1, 0); }
         break;
     }
 }
@@ -1863,73 +1838,6 @@ static void show_tick(void) {
     if (mode >= 4) SYS_return();                             /* the ending, GAME OVER: back to the BIOS, which commits the MVS save
                                                                 and shows the title (credits left) or the attract demo */
     else if (camp + 1 >= GS_COUNT) ending_start();
-    else next_stage();
-}
-/* ---- transitions (TODO #65, docs/brawler_stage_vertical.md option b): a stage whose gstagex_t.trans is set (game.json
- * stages[].transition) is followed, after STAGE CLEAR (and BOSS UNLOCKED), by a descent: vsects[trans - 1] (Robo Army's
- * vertical parts) on the stage plane ("a descent's plane" above), the camera y from vsect y to floor_top (bit 7: the
- * other way) at trans_speed / 4 px a frame. Not interactive: the players (those in play) fall in place in their jump's
- * falling pose, no enemies, no shadows, no HUD; at the bottom they drop out of the screen, a fade to black, the next
- * stage (Robo Army cuts there too). Mode 6. ---- */
-#define TR_FLOOR 150                             /* the fallers' ground line on screen (Z 0) */
-#define TR_HIGH  40                              /* their height above it while the camera scrolls */
-static uint8_t tr_up, tr_spd, tr_ph;             /* direction, speed (1/4 px), phase: 0 scroll, 1 drop, 2 fade */
-static uint16_t tr_t;
-static int16_t tr_q, tr_vy;                      /* camera y in 1/4 px; the drop's speed (1/16 px) */
-static void trans_start(void) {
-    const gstagex_t *x = &gstagex[camp];
-    uint8_t i;
-    mode = 6; nf = NE; tr_t = 0; tr_ph = 0; tr_vy = 0; cam_x = 0;
-    stg = &vsects[(x->trans & 0x7F) - 1]; tr_up = x->trans >> 7; tr_spd = x->trans_speed;
-    tr_q = (tr_up ? stg->floor_top : stg->y) << 2; cam_y = tr_q >> 2; vr_lo = vr_hi = cam_y >> 4;
-    FIX_clear(); arcade_line_reset(); sparks_init();
-    floor_top = TR_FLOOR;
-    *(volatile uint16_t *)0x3C0006 = stg->lspcmode;          /* REG_LSPCMODE: auto-animation speed */
-    for (i = 0; i < BG_N; i++) { cmd_push(VRAM_SCB2 + BG_SPR + i, 0x0FFF); cmd_push(VRAM_SCB4 + BG_SPR + i, (uint16_t)(i * 16) << 7); }
-    for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
-    for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
-    for (i = 0; i < 2; i++) {
-        if (!pl_on[i]) continue;
-        fighter_init(&fighters[i], &bm_chars[pl_ch[i]], pl_set[i], 16 + i * MAX_PALS, 0, i ? 200 : 120, i ? 10 : 30);
-        fighters[i].idx = i; fighters[i].facing = 1; fighters[i].y = FIX(TR_HIGH);
-        fighter_play(&fighters[i], BA_JUMP_UP_FALL);
-    }
-    for (i = 0; i < NF; i++) order[i] = &fighters[i];
-    for (i = 0; i < NPJ; i++) order[NF + i] = &projectiles[i];
-    fade_k = 0xFF; scene_pals(0);
-}
-static void trans_tick(void) {
-    uint8_t i;
-    int16_t end = (tr_up ? stg->y : stg->floor_top) << 2;
-    tr_t++;
-    if (tr_ph < 2 && tr_t <= FADE_T) scene_pals((uint8_t)(tr_t >> 1));   /* from black */
-    for (i = 0; i < 2; i++) if (fighters[i].state != S_OFF) {
-        fighter_t *f = &fighters[i];
-        fighter_animate(f);
-        if (tr_ph == 1) {                                    /* the drop: out of the screen's bottom */
-            f->y -= (int32_t)tr_vy << 12;
-            if (TR_FLOOR + INT(f->z) - INT(f->y) > 340) f->state = S_OFF;
-        }
-    }
-    switch (tr_ph) {
-    case 0:                                                  /* the camera scrolls through the section */
-        tr_q += tr_up ? -tr_spd : tr_spd;
-        if (tr_up ? tr_q <= end : tr_q >= end) { tr_q = end; tr_ph = 1; }
-        cam_y = tr_q >> 2;
-        break;
-    case 1:
-        tr_vy += 6;
-        if (fighters[0].state == S_OFF && fighters[1].state == S_OFF) { tr_ph = 2; tr_t = 0; fade_k = 0xFF; }
-        break;
-    case 2:                                                  /* to black, then the next stage */
-        scene_pals(tr_t >= FADE_T ? 0 : 16 - (uint8_t)(tr_t >> 1));
-        if (tr_t >= FADE_T + 8) next_stage();
-        break;
-    }
-}
-static void next_stage(void) {                   /* after STAGE CLEAR / BOSS UNLOCKED: the stage's descent (if any), then
-                                                    the next stage */
-    if (mode != 6 && gstagex[camp].trans) trans_start();
     else { fade_in = FADE_T; stage_begin(camp + 1, 0); }
 }
 static void select_tick(void) {
@@ -2054,7 +1962,6 @@ void game_tick(void) {
     if (!lab.active && !dr_on) arcade_line();
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
-    if (mode == 6) { trans_tick(); if (mode == 6) { depth_sort(); draw(); } return; }   /* a transition */
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
     if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
     if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */

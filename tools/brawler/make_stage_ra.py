@@ -47,22 +47,6 @@ BACKDROP = 0x0000                          # Robo Army's backdrop (palette RAM $
 # floor below y 152 / 165 is water (Robo Army's walkers stand in that band too).
 STAGES = [(0, 0x00, 160, 158), (1, 0x0A, 160, 158), (2, 0x1F, 32, 158), (3, 0x21, 160, 158), (4, 0x2B, 160, 158),
           (6, 0x3B, 100, 158)]
-# The vertical parts (docs/brawler_stage_vertical.md, measured): descents played as transitions between stages (game.json
-# stages[].transition, main.c "transition"): (Robo Army area, first map id, 256-px bands, camera y start, camera y end).
-# A band = 2 map ids (32 columns); only columns 0-19 (320 px) are ever on screen. Area 2: bands 0-4 (ids $14-$1D), its
-# camera from y ~40 to 960; area 5: bands 0-2 (ids $35-$3A), y ~40 to 528. Each transition shows only the descent's last
-# part: the whole of both costs 1039 new tiles (133 KB), past the 16 MB C ROM size step (8 MB a chip, 436 tiles free in
-# 0.0.44: neobuild pads to a power of two, so 32 MB); area 2 from y 600 to 880 (above the shaft's floor: the fallers
-# drop out of the screen's bottom) and area 5 from y 240 to its end: 355 tiles (45 KB).
-VSECTIONS = [(2, 0x14, 5, 600, 880), (5, 0x35, 3, 240, 528)]
-VCOLS = 20
-
-def vsect_cells(vs):
-    """a descent's rows the camera shows, row-major: (cells[row][col], first row)"""
-    area, i0, bands, y0, y1 = vs
-    r0, r1 = y0 >> 4, (y1 + 223) >> 4
-    assert r1 < bands * 16
-    return [[rom_cell(i0 + 2 * (r >> 4), c, r & 15) for c in range(VCOLS)] for r in range(r0, r1 + 1)], r0
 
 def load_rom():
     d = open(ROM, 'rb').read()
@@ -156,12 +140,18 @@ def build(outdir):
          '/* a stage: SCB1 words {tile bits 0-15, attribute} per cell, column-major, rows from screen y y; palettes',
          ' * STAGE_PAL .. + npal - 1; floor_top = screen y of the feet at Z = 0; REG_LSPCMODE value (auto-animation speed) */',
          'typedef struct { const uint16_t *map, *pal; uint16_t cols; uint8_t rows, npal; int16_t y, floor_top; uint16_t backdrop, lspcmode; } stage_t;']
-    def encode(cells, pals):
-        """SCB1 word pairs of a list of cells (Robo Army tile, attribute); palettes STAGE_PAL + pals.index"""
+    table, info, maxpal, maxrows = [], [], 0, 0
+    for n, st in enumerate(STAGES):
+        area, i0, cols, floor = st
+        cells, r0 = stage_cells(st); rows = len(cells[0])
+        pals = sorted({u8(PTAB + t) for col in cells for t, a in col if t is not None})
+        assert STAGE_PAL + len(pals) <= 250, pals                 # 250+: banner, shadows, debug, sparks (main.c)
+        assert cols < 255 and floor + 64 <= 222
         # animated groups (the LSPC replaces the low 2 / 3 bits): copied whole, aligned; 4-groups inside an 8-group share it
         groups = {}
-        for t, a in cells:
-            if t is not None and a & 12: n_ = 8 if a & 8 else 4; groups[t & ~(n_ - 1)] = max(groups.get(t & ~(n_ - 1), 0), n_)
+        for col in cells:
+            for t, a in col:
+                if t is not None and a & 12: n_ = 8 if a & 8 else 4; groups[t & ~(n_ - 1)] = max(groups.get(t & ~(n_ - 1), 0), n_)
         for g, k in list(groups.items()):
             if k == 4 and groups.get(g & ~7) == 8: del groups[g]
         for g, k in sorted(groups.items(), key=lambda kv: -kv[1]):
@@ -170,24 +160,16 @@ def build(outdir):
             for j in range(k): slots[base + j] = g + j; index.setdefault(tile_px(g + j).tobytes(), base + j)
             rom_of[('grp', g)] = (base, k)
         out = []
-        for t, a in cells:
-            if t is None: out += [0, 0]; continue
-            pn = STAGE_PAL + pals.index(u8(PTAB + t))
-            if a & 12:
-                k = 8 if a & 8 else 4; g = t & ~7 if groups.get(t & ~7) == 8 else t & ~3
-                tn = rom_of[('grp', g)][0] + (t & ~(k - 1)) - g; f = 0      # the group start (low bits: the counter's)
-            else:
-                tn, f = ours(t)
-            out += [tn & 0xFFFF, pn << 8 | (tn >> 16) << 4 | (a ^ f)]
-        return out
-    table, info, maxpal, maxrows = [], [], 0, 0
-    for n, st in enumerate(STAGES):
-        area, i0, cols, floor = st
-        cells, r0 = stage_cells(st); rows = len(cells[0])
-        pals = sorted({u8(PTAB + t) for col in cells for t, a in col if t is not None})
-        assert STAGE_PAL + len(pals) <= 250, pals                 # 250+: banner, shadows, debug, sparks (main.c)
-        assert cols < 255 and floor + 64 <= 222
-        out = encode([c for col in cells for c in col], pals)
+        for col in cells:
+            for t, a in col:
+                if t is None: out += [0, 0]; continue
+                pn = STAGE_PAL + pals.index(u8(PTAB + t))
+                if a & 12:
+                    k = 8 if a & 8 else 4; g = t & ~7 if groups.get(t & ~7) == 8 else t & ~3
+                    tn = rom_of[('grp', g)][0] + (t & ~(k - 1)) - g; f = 0      # the group start (low bits: the counter's)
+                else:
+                    tn, f = ours(t)
+                out += [tn & 0xFFFF, pn << 8 | (tn >> 16) << 4 | (a ^ f)]
         pal_words = [w for p in pals for w in palette(p)]
         h.append(f'/* stage {n}: Robo Army area {area}, ids ${i0:02X}-${i0 + (cols - 1) // 16:02X}, {cols} columns ({cols * 16} px), rows {r0}-{r0 + rows - 1}, '
                  f'palettes {", ".join(map(str, pals))} */')
@@ -196,20 +178,6 @@ def build(outdir):
         table.append(f'{{stage{n}_map, stage{n}_pal, {cols}, {rows}, {len(pals)}, {r0 * 16}, {floor}, 0x{BACKDROP:04X}, 0x{LSPCMODE:04X}}}')
         maxpal, maxrows = max(maxpal, len(pals)), max(maxrows, rows)
         info.append((n, area, cols * 16, rows, r0, len(pals), floor, out))
-    n_stage_tiles = len(slots); vtab, vinfo = [], []
-    for n, vs in enumerate(VSECTIONS):
-        area, i0, bands, y0, y1 = vs
-        cells, r0 = vsect_cells(vs); rows = len(cells)
-        pals = sorted({u8(PTAB + t) for row in cells for t, a in row if t is not None})
-        assert STAGE_PAL + len(pals) <= 250 and rows < 256, pals
-        out = encode([c for row in cells for c in row], pals)
-        pal_words = [w for p in pals for w in palette(p)]
-        h.append(f'/* descent {n}: Robo Army area {area}, ids ${i0:02X}-${i0 + 2 * bands - 1:02X}, rows {r0}-{r0 + rows - 1} x {VCOLS} '
-                 f'columns (row-major), camera {y0}-{y1}, palettes {", ".join(map(str, pals))} */')
-        h.append(f'static const uint16_t vsect{n}_pal[{len(pal_words)}] = {{' + ', '.join(f'0x{v:04X}' for v in pal_words) + '};')
-        h.append(f'static const uint16_t vsect{n}_map[{len(out)}] = {{' + ', '.join(map(str, out)) + '};')
-        vtab.append(f'{{vsect{n}_map, vsect{n}_pal, {VCOLS}, {rows}, {len(pals)}, {y0 - r0 * 16}, {y1 - r0 * 16}, 0x{BACKDROP:04X}, 0x{LSPCMODE:04X}}}')
-        vinfo.append((n, area, rows, r0, pals, out))
     # tiles into the C ROM image (grown past the fighters as needed)
     for name, k in (('bm_c1.bin', 0), ('bm_c2.bin', 1)):
         p = os.path.join(outdir, name); data = bytearray(open(p, 'rb').read())
@@ -217,10 +185,7 @@ def build(outdir):
         for t, rt in slots.items(): data[t * 64:(t + 1) * 64] = tile_raw(rt)[k]
         open(p, 'wb').write(bytes(data))
     h += [f'#define STAGE_COUNT {len(STAGES)}', f'#define STAGE_MAXPAL {maxpal}', f'#define STAGE_MAXROWS {maxrows}',
-          'static const stage_t stages[STAGE_COUNT] = {' + ', '.join(table) + '};',
-          '/* the descents (transitions, main.c): the same stage_t, map row-major (rows x cols), y / floor_top = the camera\'s',
-          ' * start / end y from the map\'s first row */',
-          f'#define VSECT_COUNT {len(VSECTIONS)}', 'static const stage_t vsects[VSECT_COUNT] = {' + ', '.join(vtab) + '};', '#endif']
+          'static const stage_t stages[STAGE_COUNT] = {' + ', '.join(table) + '};', '#endif']
     open(os.path.join(outdir, 'stage.h'), 'w').write('\n'.join(h) + '\n')
     # previews: our words, our tiles (as stored in the image), our palettes
     for n, area, w, rows, r0, npal, floor, out in info:
@@ -233,18 +198,6 @@ def build(outdir):
             c, r = divmod(i // 2, rows); px = flip(tile_px(slots[tn]), aw & 3); lut = luts[(aw >> 8) - STAGE_PAL]
             m = px != 0; y = (r0 + r) * 16; sub = img[y:y + 16, c * 16:c * 16 + 16]; sub[m] = lut[px[m]]
         Image.fromarray(img).save(os.path.join(outdir, f'stage{n}.png'))
-    for n, area, rows, r0, pals, out in vinfo:
-        luts = [np.array([rgb(v) for v in palette(p)], np.uint8) for p in pals]
-        img = np.zeros((rows * 16, VCOLS * 16, 3), np.uint8)
-        for i in range(0, len(out), 2):
-            tn, aw = out[i] | ((out[i + 1] >> 4) & 15) << 16, out[i + 1]
-            if not out[i]: continue
-            r, c = divmod(i // 2, VCOLS); px = flip(tile_px(slots[tn]), aw & 3); lut = luts[(aw >> 8) - STAGE_PAL]
-            m = px != 0; sub = img[r * 16:r * 16 + 16, c * 16:c * 16 + 16]; sub[m] = lut[px[m]]
-        Image.fromarray(img).save(os.path.join(outdir, f'vsect{n}.png'))
-        used = {out[i] | ((out[i + 1] >> 4) & 15) << 16 for i in range(0, len(out), 2) if out[i]}
-        print(f'  descent {n}: area {area}, rows {r0}-{r0 + rows - 1}, {len(used)} tile numbers, {len(pals)} palettes')
-    print(f'descents: {len(slots) - n_stage_tiles} new tiles ({(len(slots) - n_stage_tiles) * 128} bytes of C ROM)')
     lo = [t for t in slots if t < BANNER_BASE]; hi = [t for t in slots if t >= BANNER_BASE]
     print(f'stages: {len(STAGES)}, {len(slots)} tiles: {len(lo)} in 1-{free["lo"] - 1}, {len(hi)} in {hi0}-{free["hi"] - 1} '
           f'(C ROM {hi0 * 128} -> {free["hi"] * 128} bytes)')

@@ -102,8 +102,7 @@ typedef struct {                  /* per stage, beside gstage_t (whose layout ol
     const gtrigger_t *trig;
     uint8_t ntrig;                /* at most 32 */
     uint8_t drama;                /* played as the boss walks in, before its song (0xFF: none) */
-    uint8_t trans;                /* after the stage: descent trans - 1 (stage.h vsects[]), bit 7 = up; 0: none */
-    uint8_t trans_speed;          /* its camera speed, 1/4 px a frame */
+    uint16_t pad;
 } gstagex_t;
 
 /* ---- drama mode (main.c drama_*): letterbox bars, the action held, a big portrait (portraits_big.h) and text ---- */
