@@ -91,6 +91,12 @@ def capture(outdir, specs):
                   open(os.path.join(outdir, f'{game}_{name}.json'), 'w'))
         print(spec, 'tiles', [[hex(t) for t, a in c['tiles']] for c in cols], 'flip', attr & 3, 'palette', hex(pn))
 
+# Goenitz (id 28, the boss): his HUD portrait is in the pointer list, but ROM palette $16C + 28 is not his colours (a
+# grey-blue set, not found anywhere in the P ROM as drawn); in his fight (state c28, P1 = Goenitz through the team
+# record) palette RAM slot $1F holds the portrait's colours: taken from there (dump at frame 20, the slot the portrait's
+# first tile is drawn with)
+FIGHT_PAL96 = {'goenitz'}
+
 def table96(outdir, specs):
     """KOF96 HUD portraits from ROM: sprite definitions [palette slot, format $01, cols, rows, first tile (long), one
     row-mask byte per column ($80 = top row)], tiles in column order over the rows present"""
@@ -103,6 +109,10 @@ def table96(outdir, specs):
         assert fmt == 1, f'{name}: portrait format {fmt:02X}'
         pid = 0x16C + cid                                                    # its colours: ROM palette $16C + id
         pal = struct.unpack('>16H', prom[0x200002 + pid * 32:0x200002 + pid * 32 + 32])
+        if name in FIGHT_PAL96:                                              # the boss: colours from its fight
+            v, pr = dump('kof96', cid, outdir)
+            slot_ = next(a >> 8 for s in sprites(v) for t, a in s['tiles'] if t == tile)
+            pal = pr[slot_ * 16:slot_ * 16 + 16]; pid = None
         idx = Image.new('P', (cols * 16, rows * 16), 0); tiles = []
         for c in range(cols):
             col = []
@@ -118,7 +128,7 @@ def table96(outdir, specs):
         json.dump({'game': game, 'name': name, 'cid': cid, 'tiles': tiles, 'palette_index': slot, 'rom_palette': pid,
                    'palette': [0] + list(pal[1:]), 'note': 'top tile row sits above the screen in the HUD'},
                   open(os.path.join(outdir, f'{game}_{name}.json'), 'w'))
-        print(spec, cols, 'x', rows, 'first tile', hex(tiles[0][0]), 'palette', hex(pid))
+        print(spec, cols, 'x', rows, 'first tile', hex(tiles[0][0]), 'palette', hex(pid) if pid else 'from the fight')
 
 def table94(outdir, specs):
     """KOF94 HUD portraits from ROM (found from King's in a demo fight, VRAM at the top left): 2x2 sprite definitions
