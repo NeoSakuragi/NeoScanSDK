@@ -33,7 +33,7 @@ def main(args):
         for n in names:
             ch = ex['characters'][n]
             picked = export_bm.pick_specials(ch, n)
-            rows = [(role, sp) for role, sp in zip(('D', 'fwd+D', 'down+D', 'up+D'), picked) if sp]
+            rows = [(role, sp) for role, sp in zip(('D', 'fwd+D', 'down+D', 'up+D', 'df+D', 'uf+D'), picked) if sp]
             if full:
                 rows += [('-', sp) for sp in ch['specials'] if sp['condition'] == 'normal' and not sp['input'].startswith('air')
                          and sp not in picked]
@@ -52,7 +52,7 @@ def main(args):
                 flagged += flag and role != '-'
                 print(f'{n:10} {role:6} {sp["input"]:14} {len(sp["script"]):4} {atk:4} {hits:>6} {game if game >= 0 else "-":>4} {cont:4} {obj:4} {proj:>12} '
                       f'{len(sp["states"]):6} {nostep:6}' + ('  FLAG: nothing hits' if flag else ''))
-                st = sp['stats']; R = '-LHKU'                # reactions: L light, H heavy (grounded), K knockdown, U launch
+                st = sp['stats']; R = '-LHKUTBSY'            # reactions (fighter.h R_*): L light, H heavy (grounded), K knockdown, U launch, T trip, B blowback, S slam, Y lift
                 if st['freezes'] or sp['objreact'] is not None:
                     print(f'{"":17} freezes {st["freezes"]}, rows removed {st["removed"]}, impacts at rows {st["impacts"]} '
                           f'(opponent {st["contact"]} px ahead at the first) '

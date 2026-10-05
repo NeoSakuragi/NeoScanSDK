@@ -48,7 +48,7 @@
    "bank": "kof98:yamazaki",
    "watch": {"frame": 349, "step": 0},
    "routes": "default",
-   "specials": {"D": "623C", "fD": null, "dD": "623D", "uD": "623B", "dfD": null, "ufD": "214A"},
+   "specials": {"D": "623C", "fD": "214B", "dD": "623D", "uD": "623B", "dfD": "214C", "ufD": "214A"},
    "fury": "236236C",
    "unlock": "always",
    "voices": "kof"
@@ -58,7 +58,7 @@
    "bank": "kof98:billy",
    "watch": {"frame": 347, "step": -1},
    "routes": "default",
-   "specials": {"D": "CCCC", "fD": "426C", "dD": "623C", "uD": "623D", "dfD": null, "ufD": null},
+   "specials": {"D": "CCCC", "fD": "426C", "dD": "623C", "uD": "623D", "dfD": null, "ufD": "214B"},
    "fury": "236236C",
    "unlock": "always",
    "voices": "kof"
@@ -78,7 +78,7 @@
    "bank": "kof98:iori",
    "watch": {"frame": 353, "step": -1},
    "routes": "default",
-   "specials": {"D": "236A", "fD": "MAX 23624D", "dD": "623C", "uD": "623D", "dfD": "624B", "ufD": "214A"},
+   "specials": {"D": "236A", "fD": "624D", "dD": "623C", "uD": "623D", "dfD": "624B", "ufD": "214A"},
    "fury": "23624C",
    "unlock": "always",
    "voices": "kof"

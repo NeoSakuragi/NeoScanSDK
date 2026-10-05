@@ -27,7 +27,7 @@ EVERY = 4
 DIST = {'close': 48, 'mid': 112}                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
 BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
 
-def brawler_run(b, k, role, hit, shots, frames=300, pool=None):
+def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None):
     b.pick(k, unlock=True)                              # Rugal / Goenitz are unlocked by play
     b.run(10)
     if pool is not None:                                 # fighter:role=INPUT: the slot repointed at another special
@@ -40,6 +40,7 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None):
     b.run(2)
     w = 0
     while b.states[b.fget(0, 'state')] != 'IDLE' and w < 300: b.run(1); w += 1
+    if meter is not None: b.fset(0, 'meter', meter)       # a full special meter (0.0.48: A+B costs meter)
     b.hits = []
     n, keys = ROLES[role].split(':')
     rows, started, t, pfz = [], None, 0, 0
@@ -88,6 +89,7 @@ def main(game, out, cases):
     os.makedirs(out, exist_ok=True)
     roster = [r['name'] for r in json.load(open(os.path.join(game, 'game.json')))['roster']]
     gj = {r['name']: r for r in json.load(open(os.path.join(game, 'game.json')))['roster']}
+    meter = json.load(open(os.path.join(game, 'game.json')))['meter']['max']
     frames = json.load(open(os.path.join(game, 'build', 'bm_frames.json')))
     b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
     summary = []
@@ -110,7 +112,7 @@ def main(game, out, cases):
             K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), snaps=[K.START + f for f in want], snapdir=shots, game=kg)
             # the opponent as far ahead as KOF's was when the special started (a charge move walked P1 back first)
             gap = round(game_rows[0]['p2x'] - game_rows[0]['x']) if branch in DIST else None
-            br = brawler_run(b, roster.index(name), role, gap, shots, pool=pool)
+            br = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter)
             rec = lambda bf: int(frames[name][bf].split(':')[1]) if bf < len(frames[name]) and frames[name][bf] else -1
             n = min(len(br), res['frames_game'])
             gx0 = game_rows[0]['x'] - model[0][3]

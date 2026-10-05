@@ -366,7 +366,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   hits land far from KOF's spot) Restore KOF98's hit count on Terry 214D (2), 623A (5), 623B (2) and Robert 624D (3) (review round 1): since
   the victim fix (no stick) they hit once less; re-time the missing hit(s) so they land, without sticking the victim
   to the attacker ([[feedback_brawler_no_victim_stick]]).
-- [ ] 73. Extract the specials Bruno mapped that the bank lacks: Yamazaki's snake arm 214B (middle) and 214C (low)
+- [x] 73. (done 2026-10-06: Yamazaki 214B / 214C kept as their own moves (specials96: a main-pass whiff with a new state path is a new move; 128->132 / 133), captured, 2/2 hits each as KOF, fD / dfD; Billy's angled staff = 214B (state 151, ROM frame 397), ROM-driven, ufD, 0 frame mismatches whiff + close (it hits a standing victim once where KOF whiffs Yuri: an anti-air box); Iori fD 'MAX 23624D' is now named 624D (same move); pictures /data/tmp/miss73/out) Extract the specials Bruno mapped that the bank lacks: Yamazaki's snake arm 214B (middle) and 214C (low)
   (214A exists), Billy's angled stick attack (find it in KOF98). Then apply the slot mapping from review round 2
   (artifact https://claude.ai/artifact/CpAmeQcqCtmrK9EPJ68HyM, db map/<fighter>) once Bruno says done.
 

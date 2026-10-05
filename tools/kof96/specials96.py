@@ -77,14 +77,16 @@ def load_file(m, cid, path, T, seen, tag, first_of):
             st_ = A.state_of(r1[i][3])
             if i > g0 + 2 and st_ in (END_EX98 if tag == '_ex' and m.game == 'kof98' else END): break
             if special_state(m.game, st_) and (not path_ or path_[-1] != st_): path_.append(st_)
-        # main / close passes: one move per first state (a hit and a whiff of one move differ later on); the MAX /
-        # counter, SDM and EX passes: kept when their state path is new (KOF99's counter-mode SDMs start in the DM's state)
+        # close pass: one move per first state (a hit and a whiff of one move differ later on), attached to the far
+        # move of the same command and button; every other pass: kept when its state path is new (the main pass is a
+        # whiff, so a new path is another move: Yamazaki's 214A / B / C leave state 128 for 131 / 132 / 133; KOF99's
+        # counter-mode SDMs start in the DM's state)
         first = A.state_of(r1[g0][3]); key = tuple(path_)
         attach = None
-        if tag in ('', '_close'):
+        if tag == '_close':
             if first in seen:
-                attach = first_of.get(first) if tag == '_close' else None
-                if attach is None or 'close' in attach or (attach['cmd'], attach['button']) != (tr['cmd'], tr['button']): continue
+                attach = first_of.get((first, tr['cmd'], tr['button']))
+                if attach is None or 'close' in attach: continue
         elif key in seen: continue
         seen.add(first); seen.add(key)
         w0 = r1[g0][3]; x0 = A.x_of(w0); f0 = 1 if A.facing_of(w0) else -1
@@ -154,7 +156,7 @@ def load_file(m, cid, path, T, seen, tag, first_of):
                         [e for e in tr['events'] if not (tr.get('max') and e[2] == 'abc')], tr.get('air')),
                     'condition': 'super' if super_ else 'normal', 'states': states, 'rows': rows, 'steps': psteps}
         if attach is not None: attach['close'] = e
-        else: out.append(e); first_of.setdefault(first, e)
+        else: out.append(e); first_of.setdefault((first, tr['cmd'], tr['button']), e)
     return out
 
 if __name__ == '__main__':
