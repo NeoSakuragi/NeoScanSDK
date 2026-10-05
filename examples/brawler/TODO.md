@@ -372,8 +372,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 
 - [ ] 75. Hit sounds by use (review round 2, Bruno's listening): $9C SDM IMPACT on desperation moves' hits (the C fury,
   Yuri's Shin Shoryuken sound), $19 GRAB START when a grab / command grab connects, $17 BLOCKED HIT for guarded hits,
-  $3D BACK BREAK on back-breaker throws (Krauser's), $2B SLASH for any blade hit. The SSG cursor sound is to change
-  (Bruno: Change, no note yet).
+  $3D BACK BREAK on back-breaker throws (Krauser's), $2B SLASH for any blade hit. The menu cursor sound is to change: take
+  Fatal Fury 3's own cursor sound (Bruno). Find the command FF3 sends on its menu / select cursor (MAKOTO v3.0 driver,
+  tools/makoto3, capture in our emulator), and play that sound in the brawler: as an SSG cue if it is SSG, else port it
+  (FM / ADPCM-A sample into the brawler's sound ROMs via songs.json).
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
