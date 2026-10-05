@@ -77,7 +77,8 @@ voice sample its KOF plays, with the moves that play it.
 | `bank` | `"kof98:terry"` | the layer-0 fighter |
 | `watch` | `{"frame": 351, "step": -1}` | the select screen's pose: KOF state and step (-1 = its last, held) |
 | `routes` | `"tools/brawler/routes/terry.json"` or `"default"` | its chain route tree (routes.py format; default = the pre-Chain-Lab table) |
-| `specials` | `{"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D", "dfD": "236C", "ufD": "623D"}` | the KOF input played by D, forward+D, down+D, up+D, down-forward+D, up-forward+D (diagonals relative to the facing; down-back = down); null = none (an empty slot plays what the input played before the six slots: down-forward+D = down+D's, up-forward+D = up+D's, then their own fallbacks, fighter.c `special_pick`); any special of the fighter's pool (`export_bm.special_pool`: ground specials of the normal condition), all of which are in the ROM, so a change is live (a data pack). `export_bm.suggest_specials` is the automatic pick that filled these |
+| `specials` | `{"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D", "dfD": "236C", "ufD": "623D"}` | the KOF input played by the six A+B slots (TODO #71; the keys keep the old D names): A+B, forward, down, up, down-forward, up-forward + A+B (diagonals relative to the facing; down-back = down); null = none (an empty slot plays what the input played before the six slots: down-forward+D = down+D's, up-forward+D = up+D's, then their own fallbacks, fighter.c `special_pick`); any special of the fighter's pool (`export_bm.special_pool`: ground specials of the normal condition), all of which are in the ROM, so a change is live (a data pack). `export_bm.suggest_specials` is the automatic pick that filled these |
+| `fury` | `"21416C"` (absent = none) | TODO #71: the fury, button C (needs half the meter, costs half): the fighter's main desperation move, any special of its bank (KOF DM / SDM, an SS4 rage move: conditions other than normal too); appended to its pool when not in it, `bchar_t.fury` = its index (0xFF none), played as role `BS_FURY`. Picks (2026-10-05): Terry 21416C Power Geyser, Ryo 23624C Ryuko Ranbu, Ralf 23624C (15 hits), Robert 23624C Ryuko Ranbu, Yamazaki 236236C Guillotine, Billy 236236C Chou Kaen Senpuukon, Kyo 21426C Orochinagi, Iori 23624C Ya Otome, Mai 21426D Chou Hissatsu Shinobi Bachi, Yashiro 21426C Final Impact, Geese 1632143C Raging Storm, Mr. Big 23623C (his only DM), Krauser 641236C (his only DM), K' 23624C Heat Drive, Rugal 23624C Gigantic Pressure, Goenitz 2141236C (his DM; the SDM 6321463214C left), Haohmaru BUST 236D (SS4 rage move), Hanzo none (World Heroes Perfect: no super in his capture) |
 | `unlock` | `"always"` or `{"boss_of_stage": 1}` | locked on the select screen until that stage's boss is beaten (save bit stage - 1) |
 | `voices` | absent, `"kof"` or `{"kof": true, "set": {"hit": 3, "special:236C": null}}` | absent = silent (none of its samples in the V ROM); `"kof"` = KOF's own voice on every move (the suggestion); an object = that base (`kof` false: none) with these keys changed to a voice id of its list (null: silent). Keys: every BA_* move name, `throw_c` / `throw_d`, `hit`, `ko`, `select`, `special:<input>` of its pool ("Voices" below) |
 
@@ -122,13 +123,18 @@ Examples (no wave uses them yet): YAKUZA (yamazaki, minion + grab_plan 6, custom
 30 life), SNIPER (ryo, minion with only `projectile`, attack_dx 110, hover_dx 140, spec range 60-220, proj_chance 32,
 jabs, colour set 2, 45 life).
 
+`meter` (TODO #71, `gmeter_t`, ROM only): the special meter, players only: `max` 120 (full at the start and at a new
+life), `special` 30 (an A+B special), `fury` 60 and `fury_min` 60 (C: half the gauge, only from half full), `refill` 10
+(frames per point: empty to full in 20 s), `hit_mul` 2 (a special out of a hit, in hitstun or held, costs twice as much),
+`flash` 8 (frames the fighter's palettes are fully white when it did). Not enough meter: the press does nothing.
+
 `ai.tokens` (1): attack tokens dealt every 16 frames to the closest able enemies. `ai.presets` (today minion,
 minion_attract, boss), all fields bytes, `ai_preset_t` (42 bytes) in this order (build_tables.py AI_ORDER; game_tables.c
 asserts every offset), then one row per enemy with `ai_over`:
 
 | field | minion | boss | meaning |
 |---|---|---|---|
-| `flags` | grab, projectile | token, grab, projectile, boss_moves | token: always holds one; grab: approaches may grab; projectile: fires its D at mid range; reversal (rev_*), specials (bspec_*): the boss block; jump_in (jump_*, hop_*): any enemy (TODO #58); `boss_moves` = reversal + specials + jump_in; full_speed: walks at full speed while positioning (the others at half); air_cd: the jump-in's air attack is C+D (else B) |
+| `flags` | grab, projectile | token, grab, projectile, boss_moves | token: always holds one; grab: approaches may grab; projectile: fires its A+B special at mid range; reversal (rev_*), specials (bspec_*): the boss block; jump_in (jump_*, hop_*): any enemy (TODO #58); `boss_moves` = reversal + specials + jump_in; full_speed: walks at full speed while positioning (the others at half); air_cd: the jump-in's air attack is C+D (up+A in the air; else air B, down+A) |
 | `rest_shift`, `rest_random`, `rest_add` | 0, 127, 0 | 2, 31, 0 | a rest = (base >> shift) + (random & rest_random) + rest_add (minion_attract: rest_add 100, no grab, no projectile) |
 | `rest_start`, `rest_attack`, `rest_special`, `rest_throw` | 30, 120, 180, 60 | 60, ... | rest bases: at spawn, after a punch string, a D, a throw |
 | `grab_plan` | 1 | 1 | approaches of 8 that walk in to grab |
@@ -139,7 +145,7 @@ asserts every offset), then one row per enemy with `ai_over`:
 | `press_gap`, `hold_gap` | 10, 24 | same | frames between presses; between hits in a hold |
 | `rev_dx`, `rev_dz`, `rev_chance`, `rest_rev` | - | 56, 12, 4, 160 | boss: down+D against an attack this close, 1 in rev_chance |
 | `bspec_min`, `bspec_max`, `bspec_dz`, `bspec_chance`, `rush_dx`, `rest_bspec` | - | 20, 160, 10, 4, 110, 180 | boss: D or forward+D (the rush, 1 in 2 when closer than rush_dx) |
-| `jump_min`, `jump_max`, `jump_dz`, `jump_chance`, `rest_jump`, `air_b_dx` | - | 24, 140, 8, 64, 140, 56 | jump-in, any enemy with `jump_in`: the token holder (or a `token` enemy) after its rest, from jump_min to jump_max on the depth line +- jump_dz, jump_chance of 256 a frame: a full forward jump, its air attack (B, or C+D with `air_cd`) on the way down this close |
+| `jump_min`, `jump_max`, `jump_dz`, `jump_chance`, `rest_jump`, `air_b_dx` | - | 24, 140, 8, 64, 140, 56 | jump-in, any enemy with `jump_in`: the token holder (or a `token` enemy) after its rest, from jump_min to jump_max on the depth line +- jump_dz, jump_chance of 256 a frame: a full forward jump, its air attack (down+A = air B, or up+A = air C+D with `air_cd`) on the way down this close |
 | `hop_dx`, `hop_chance` | - | - | with `jump_in`: the token holder resting closer than hop_dx hops back (hop_chance of 256 a frame, 0 = never), out to the jump-in range |
 | `proj_chance` (json) -> `proj_mask`, `proj_mask2` | 512 | 512 | the projectile, 1 in N a frame in range: (random & proj_mask) == 0, then (random & proj_mask2) == proj_mask2 (512 = 255, 1: the 0.0.34 rule, the same random draws) |
 
@@ -308,6 +314,10 @@ scene past DR_COUNT; 19: a trigger (kinds, actions, spawn count 1-6, enemy, tint
 
 Pack version 5 (TODO #58): AI rows grow to 42 bytes (`hop_dx`, `hop_chance`); `gd_check` 2 refuses any pack before 5
 (its AI rows are 40 bytes). The lab builds its pack from game.json each time, so no stored pack is lost.
+
+Pack version 7 (TODO #71, one attack button): route trees version 4 (`TREE_VERSION`; links A, B = jump-cancel, ↓A,
+close A, →A, ←A, ↘A, slots 7-8 unused, then the six A+B specials); only version 7 loads (older packs' trees read the old
+buttons: refused, check 2; the version 5 compatibility path is gone). Before (history):
 
 Pack version 6 (2026-10-05, six special slots): the roster section holds 6 bytes per fighter (D, forward+D, down+D, up+D,
 down-forward+D, up-forward+D; `GD_ROLES`), the voice offsets follow at roster + BC_COUNT * 6; route trees are version 3
