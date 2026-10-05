@@ -1271,6 +1271,8 @@ static void dr_scene_start(void) {
 static void drama_start(uint8_t d, uint8_t music) {
     uint8_t i;
     dr = &gdramas[d]; dr_music = music; dr_on = DR_IN; dr_t = 0; dr_pb = 0xFE; dr_side = 0xFE; dr_cols = 0;
+    if (music != 0xFF) snd_music(music);           /* the boss's music starts with the bars (Bruno), not after the scene */
+    dr_music = 0xFF;
     for (i = 0; i < DBG_BOXES * 8; i++) cmd_push(VRAM_SCB3 + DBG_SPR + i, 0);   /* the box viewer gives its sprites */
     dbg_shown = 0;
     for (i = 4; i < 8; i++) dr_row(i, 0x20);       /* the HUD's target and boss bars (rows 4-7, under the top bar) */
