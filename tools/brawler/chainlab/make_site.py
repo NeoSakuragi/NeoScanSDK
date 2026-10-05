@@ -56,5 +56,16 @@ json.dump(st, open(os.path.join(out, 'stages.json'), 'w'))
 en = build_tables.lab_enemies(G)
 en['images'] = move_images.enemy_images(game, out, en['roster'])
 json.dump(en, open(os.path.join(out, 'enemies.json'), 'w'))
-for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+# the Characters tab: the roster (game.json form, select slots), each fighter's pool of specials with its frame / hit
+# data (chainlab.json 'pool', export_bm.special_info) and the auto-suggestion; pictures rendered here (char_images.py):
+# select-pose candidates in colour, the select pose in every colour set, each special's impact / projectile frames
+import char_images
+chars = {'roster': G['roster'], 'slots': G['select']['slots'], 'stages': len(G['stages']),
+         'pool': {f['name']: f['pool'] for f in lab['fighters']}, 'suggest': {f['name']: f['suggest'] for f in lab['fighters']},
+         'poses': char_images.pose_candidates(G['roster'], out, os.path.join('/data/tmp/chainlab', 'tmp_poses')),
+         'sets': char_images.colour_sets(game, out, [r['name'] for r in G['roster']]),
+         'specpics': char_images.special_images(game, out, lab['fighters']),
+         'boss_of': [s_['boss']['enemy'] for s_ in G['stages']]}
+json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
+for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)

@@ -25,7 +25,7 @@ $(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/buil
 	python3 $(TOOLS)/brawler/build_tables.py tables game.json $(CURDIR)/$(BUILD)
 
 # --- Fighters: beat 'em up subset of the KOF dictionaries (needs /data/roms/kof96/98/99.neo) ---
-$(BUILD)/bm_chars.c $(BUILD)/bm_chars.h $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json
+$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json
 	mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json
 	python3 $(TOOLS)/brawler/make_stage_ra.py $(CURDIR)/$(BUILD)   # needs /data/roms/roboarmy.neo
@@ -55,11 +55,13 @@ $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/b
 $(BUILD)/bm_chars.o: $(BUILD)/bm_chars.c
 	$(CC) $(CFLAGS) -c $< -o $@
 	m68k-linux-gnu-objcopy --rename-section .rodata=.p2data --rename-section .rodata.str1.1=.p2data.str $@   # tables -> $$200000
+$(BUILD)/bm_spec.o: $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h      # every fighter's specials: plain .rodata, the first MB
+	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/draw.o: draw.s
 	$(CC) -m68000 -c $< -o $@
 
 # --- Link ---
-$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a
+$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars.o $(BUILD)/bm_spec.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---

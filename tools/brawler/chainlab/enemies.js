@@ -46,7 +46,7 @@
   function packNow() {
     const e = stageData(ST.D);
     if (e.errors.length) return { bytes: null, errors: e.errors };
-    const p = SP.pack(ST.stages, e.D);
+    const p = SP.pack(ST.stages, e.D, window.charsTab && window.charsTab.spmap());
     return p.bytes ? p : { bytes: null, errors: p.errors.map(m => 'Stages tab: ' + m) };
   }
   function test() {

@@ -330,6 +330,37 @@ def special_rows(sp):
         out[path[-1]][3] = max(1, SPECIAL_DAMAGE - each * (len(path) - 1))
     return [tuple(r) for r in out]
 
+def rise_inv(sp):
+    """bspec_t.inv_rows: the rows a special is invincible for when it plays as down+D, the rising reversal (fighter.c
+    applies it to that role only): through its last hit row or its apex"""
+    hits = [i for i, r in enumerate(special_rows(sp)) if r[1]]
+    peak = max(range(len(sp['script'])), key=lambda i: sp['script'][i][2])   # a rising move: to its apex
+    return max(hits[-1] + 1 if hits else 0, peak + 1 if sp['script'][peak][2] > 0 else 0) or len(sp['script'])
+
+
+def special_info(sp, game):
+    """a played special's data for the Brawler Lab's Characters tab: input, rows (frames at 1x), the rows that open a hit
+    with their damage and the fighter frame there, the first live attack row (body or projectile), invincible rows as
+    down+D, its projectile (first flight frame), the continuation row"""
+    rows = special_rows(sp)
+    hits = [[i, r[3], sp['script'][i][0]] for i, r in enumerate(rows) if r[2] & 2]
+    pj = sp['projectiles'][0] if real_projectile(sp) else None
+    spawn = sum(1 for i in sp['keep'] if i < pj['spawn_row']) if pj else None
+    live = [i for i, r in enumerate(rows) if r[2] & 1]
+    first = min([i for i in live] + ([spawn] if pj else [])) if live or pj else None
+    sh = special_shape(sp)
+    return {'input': sp['input'], 'rows': len(sp['script']), 'hits': hits, 'first': first, 'inv': rise_inv(sp),
+            'cont': sp.get('cont', 0), 'proj': None if pj is None else {'row': spawn, 'frame': pj['rows'][0][0], 'kind': pj.get('kind', 0),
+                                                                        'travel': round(pj.get('travel') or 0)},
+            'pose': sp['script'][spawn if pj else (hits[0][0] if hits else len(sp['script']) // 2)][0],
+            'travel': round(sh[0]), 'height': round(sh[1])}
+
+
+def spec_index(pool, sp):
+    """a special's index in its fighter's pool (bchar_t.specials), 0xFF = none"""
+    return 0xFF if sp is None else next(k for k, q in enumerate(pool) if q is sp)
+
+
 def hit_fx(sp, i, game):
     """bspec_row_t.fx of a row opening a hit: KOF98's hit effect the move set in the attacker (captured per row:
     +$1B8 the hit kind, the victim's hit sounds through the table at $1E208; on a fire kind the victim burns in the
@@ -539,8 +570,8 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk, own; uint8_t flags, pad; } bprow_t;   /* one frame of a projectile\'s flight: frame, x from its spawn point in 1/8 px (forward +), height px, attack box (live when flags & 1: the game\'s +$90 box while +$7C bit 0), own box (the box another projectile\'s attack meets: a clash; flags & 2) */',
          'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height */',
          'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, pad; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, pad2; int16_t child_dx, child_dy; } bproj_t;   /* child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
-         'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; } bspec_t;   /* inv_rows: invincible for its first rows; cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2) */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: BS_COUNT (D projectile, forward+D rush, down+D rising reversal, up+D another; nrows 0 = none); tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
+         'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; } bspec_t;   /* inv_rows: invincible for its first rows when it is played as down+D (the rising reversal: fighter.c); cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2) */',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; } bchar_t;   /* pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
@@ -548,9 +579,13 @@ def write_c(chars, outdir):
          f'enum {{ VP_COUNT = {len(pkeys)} }};   /* victim postures: ' + ' '.join(pkeys) + ' */',
          'extern const bchar_t bm_chars[BC_COUNT];\n#endif']
     c = ['/* Generated by tools/brawler/export_bm.py. Do not edit. */\n#include "bm_chars.h"\n']
+    cs = ['/* Generated by tools/brawler/export_bm.py. Do not edit. Every fighter\'s specials (its special_pool, in pool order):\n'
+          ' * compiled as plain read-only data, so they sit in the first program MB, beside the code (bm_chars.c goes to $200000). */\n'
+          '#include "bm_chars.h"\n']
     fx = lambda v: str(int(round(v * 65536)))
     def bb(b): return '{0, 0, 0, 0}' if b is None else f'{{{b[0]}, {b[1]}, {b[2]}, {b[3]}}}'
     used = {}                                            # palettes the exported frames use, renumbered 0..k-1
+    pooldata = {}                                        # per fighter its pool's frame / hit data (chainlab.json)
     for game, n, ch, off in chars:
         used[n] = sorted({p.get('pal', 0) for fr in ch['frames'] for p in fr['parts']}) or [0]
         sets = ch['block_palettes']
@@ -598,14 +633,17 @@ def write_c(chars, outdir):
             c.append(f'static const bthrow_row_t {n}_{t}[] = {{' + ', '.join(out) + '};')
         c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(
             f'{{{len(ch["throws"][t]["timeline"])}, {THROW_SPEED}, {n}_{t}}}' if t in ch.get('throws', {}) else '{0, 0x100, 0}' for t in THROWS) + '};')
-        sps = [dict(special_play(sp), fighter=n) if sp else None for sp in pick_specials(ch, n)]
+        # every special of its pool (special_pool) is in the ROM, in pool order (bm_spec.c, the first program MB): the four
+        # roles (D, forward+D, down+D, up+D) pick from it through a map ({n}_spmap, game.json's specials; fighter.c
+        # spec_tab in RAM, so the Brawler Lab's Characters tab remaps them live with a data pack)
+        pool = special_pool(ch, n)
+        sps = [dict(special_play(sp), fighter=n) for sp in pool]
         for k, sp in enumerate(sps):
-            if sp is None: continue
             pjs = [dict(pj, spawn_row=sum(1 for i in sp['keep'] if i < pj['spawn_row']))   # spawn rows in the script as
                    for pj in sp['projectiles']] if real_projectile(sp) else []          # played (frozen rows dropped)
             pframes = {r[0] for pj in pjs for r in pj['rows'] + pj['end'] + (pj['child']['rows'] if pj['child'] else [])}
             if pjs:                                      # the projectile entities draw and hit; the script keeps
-                c.append(projectile_c(n, k, pjs, game))  # the other objects (effects: they hit nothing)
+                cs.append(projectile_c(n, k, pjs, game))  # the other objects (effects: they hit nothing)
             out = []
             for i, ((f, x, hgt, objs), (hb, ab, hit, dmg)) in enumerate(zip(sp['script'], special_rows(sp))):
                 ob = []
@@ -617,14 +655,14 @@ def write_c(chars, outdir):
                 cv = sp['carry'][len(out)]
                 out.append(f'{{{f}, {x}, {hgt}, {bb(ab)}, {hit | (4 if cv else 0)}, {dmg}, {{{", ".join(ob)}}}, {cv[0] if cv else 0}, '
                            f'{cv[1] if cv else 0}, {hit_fx(sp, i, game) if hit & 2 else 0}, 0}}')
-            c.append(f'static const bspec_row_t {n}_sp{k}[] = {{' + ', '.join(out) + '};')
-        def inv_rows(sp, k):                             # the rising reversal: invincible through its last hit row
-            if ROLES[k] != 'rise': return 0                     # or its apex
-            hits = [i for i, r in enumerate(special_rows(sp)) if r[1]]
-            peak = max(range(len(sp['script'])), key=lambda i: sp['script'][i][2])   # a rising move: to its apex
-            return max(hits[-1] + 1 if hits else 0, peak + 1 if sp['script'][peak][2] > 0 else 0) or len(sp['script'])
-        c.append(f'static const bspec_t {n}_specials[BS_COUNT] = {{' + ', '.join(
-            f'{{{len(sp["script"])}, {inv_rows(sp, k)}, {sp.get("cont", 0)}, {len(sp["projectiles"]) if real_projectile(sp) else 0}, {n}_sp{k}, {f"{n}_pj{k}" if real_projectile(sp) else 0}}}' if sp else '{0, 0, 0, 0, 0, 0}' for k, sp in enumerate(sps)) + '};')
+            cs.append(f'static const bspec_row_t {n}_sp{k}[] = {{' + ', '.join(out) + '};')
+        assert len(sps) < 255, n
+        pooldata[n] = [special_info(sp, game) for sp in sps]
+        cs.append(f'const bspec_t {n}_specials[{max(1, len(sps))}] = {{' + (', '.join(
+            f'{{{len(sp["script"])}, {rise_inv(sp)}, {sp.get("cont", 0)}, {len(sp["projectiles"]) if real_projectile(sp) else 0}, {n}_sp{k}, {f"{n}_pj{k}" if real_projectile(sp) else 0}}}'
+            for k, sp in enumerate(sps)) or '{0, 0, 0, 0, 0, 0}') + '};')
+        c.append(f'extern const bspec_t {n}_specials[];')
+        c.append(f'static const uint8_t {n}_spmap[BS_COUNT] = {{' + ', '.join(str(spec_index(pool, sp)) for sp in pick_specials(ch, n)) + '};')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
             f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')
@@ -637,16 +675,18 @@ def write_c(chars, outdir):
         c.append(f'static const uint8_t {n}_routes[] = {{' + ', '.join(map(str, blob)) + '};')
         lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': roster()[n]['routes'] is not None,
                                 'moves': {m: R.frame_data(source(ch, m)['steps']) for m in R.MOVE_NAMES if m in has},
-                                'specials': {k: (sp['input'] if sp else None) for k, sp in zip(R.SPECIALS, sps)}})
+                                'specials': {k: (sp['input'] if sp else None) for k, sp in zip(R.SPECIALS, sps)},
+                                'pool': pooldata[n], 'suggest': [sp['input'] if sp else None for sp in suggest_specials(ch, n)]})
     json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
     c.append('const bchar_t bm_chars[BC_COUNT] = {')
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
-        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}}},')
+        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap}},')
     c.append('};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')
+    open(os.path.join(outdir, 'bm_spec.c'), 'w').write('\n'.join(cs) + '\n')
 
 if __name__ == '__main__':
     outdir = sys.argv[1]

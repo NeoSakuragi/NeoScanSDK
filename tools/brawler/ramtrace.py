@@ -11,6 +11,10 @@
     python3 ramtrace.py GAME_DIR stage OUT.json --stage S --wave W [--pack PACK.bin] [--fighter F] [--frames N]
                                                                the Stages tab's "play from here" (lab req 4 with the pack) on the
                                                                desktop core, SNK's MVS BIOS as in the page: chainlab/stage_proof.sh
+    python3 ramtrace.py GAME_DIR lab OUT.json --dummy D [--pack PACK.bin] [--fighter F] [--frames N]
+                                                               the Characters tab's "Test on the dummy" (lab req 1, the Chain
+                                                               Lab training, with the pack, the same frame), P1 plays
+                                                               CHAR_SCRIPT (the four specials): chainlab/char_proof.sh
     python3 ramtrace.py GAME_DIR enemy OUT.json --enemy E [--pack PACK.bin] [--fighter F] [--frames N]
                                                                the Enemies tab's "Test it" (lab req 3, enemy E with the pack, the
                                                                same frame); OUT also holds the enemy's palettes (palette RAM
@@ -37,6 +41,7 @@ import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 STAGE_SCRIPT = '40:R,2:a,8:-,2:a,8:-,2:b,16:-,20:L,2:Da,30:-'   # P1 in the Stages tab's proof, repeated (frames:keys)
+CHAR_SCRIPT = '30:-,2:Ud,100:-,2:d,100:-,2:Rd,100:-,2:Dd,100:-,2:Ud,100:-'   # the Characters tab's proof: up+D, D, fwd+D, down+D, up+D
 BOOT_FRAMES = 400                                                 # = lab.js BOOT_FRAMES
 FIELDS = ['state', 'x', 'z', 'y', 'hp', 'hp_max', 'facing', 'anim', 'step', 'set', 'power', 'tint']
 
@@ -46,6 +51,8 @@ def record(game, what, out, replay=None, pack=None, stage=None):
     from harness import Brawler
     if what == 'enemy': what, enemy = 'stage', True
     else: enemy = False
+    labr = what == 'lab'                                # the Characters tab's test: the Chain Lab training (req 1) with the pack
+    if labr: what = 'stage'
     if what == 'stage': harness.OPTIONS.update({'geolith_system_type': 'mvs', 'geolith_region': 'us'})   # = web_core.c
     b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
     S = b.syms; OFF, DEAD = b.states.index('OFF'), b.states.index('DEAD')
@@ -91,6 +98,7 @@ def record(game, what, out, replay=None, pack=None, stage=None):
         for i, v in enumerate(b'LAB1'): b.w(L + i, 1, v)
         if pack: b.w(L + 7, 1, 3)
         if enemy: b.w(L + 5, 1, f_); b.w(L + 6, 1, s_); b.w(L + 4, 1, 3)       # req 3: P1 f_ against enemy s_
+        elif labr: b.w(L + 5, 1, f_); b.w(L + 6, 1, s_); b.w(L + 4, 1, 1)      # req 1: P1 f_ against the dummy s_
         else: b.w(L + 13, 1, w_); b.w(L + 5, 1, f_); b.w(L + 6, 1, s_); b.w(L + 4, 1, 4)
         run(1)                                          # the page's play() steps one frame with no key (stages.js)
     if what == 'stage': stage_start()
@@ -108,7 +116,7 @@ def record(game, what, out, replay=None, pack=None, stage=None):
     elif what == 'attract':
         run(8100)
     elif what == 'stage':                               # P1: STAGE_SCRIPT repeated, by frame (a second run: --replay, by tick)
-        parts = [p.split(':') for p in STAGE_SCRIPT.split(',')]
+        parts = [p.split(':') for p in (CHAR_SCRIPT if labr else STAGE_SCRIPT).split(',')]
         while len(tr) < stage[3]:
             for k, keys in parts:
                 for _ in range(int(k)):
@@ -202,4 +210,4 @@ if __name__ == '__main__':
     pk = open(a[a.index('--pack') + 1], 'rb').read() if '--pack' in a else None
     opt = lambda k, d: int(a[a.index(k) + 1]) if k in a else d
     record(*a[:3], replay=a[a.index('--replay') + 1] if '--replay' in a else None, pack=pk,
-           stage=(opt('--enemy', 0) if a[1] == 'enemy' else opt('--stage', 0), opt('--wave', 0), opt('--fighter', 0), opt('--frames', 1800)))
+           stage=(opt('--enemy', 0) if a[1] == 'enemy' else opt('--dummy', 1) if a[1] == 'lab' else opt('--stage', 0), opt('--wave', 0), opt('--fighter', 0), opt('--frames', 1800)))

@@ -6,7 +6,8 @@
                                                   only when they changed (export_bm.py re-runs only then)
     build_tables.py tables GAME.json BUILD_DIR    BUILD_DIR/game_tables.h + game_tables.c (gamedata.h types)
     build_tables.py format GAME.json              rewrite the file in its canonical layout (one line per spawn, slot...)
-    build_tables.py pack GAME.json BUILD_DIR OUT  the Brawler Lab's data pack (stages, enemies, AI rows: gamedata.h
+    build_tables.py pack GAME.json BUILD_DIR OUT  the Brawler Lab's data pack (stages, enemies, AI rows, version 2: the
+                                                  roster section, the fighters' specials by role: gamedata.h
                                                   gdpack_t) for lab.load 3, from a game.json the running ROM was built with
                                                   or an edit of it (same roster, same stage count)
     build_tables.py labstages GAME.json BUILD_DIR OUT.json   the Brawler Lab Stages tab's data (pack_base bytes, names, songs)
@@ -32,7 +33,7 @@ MAX_ENEMIES = 6                                          # main.c NF - 2
 MAX_SLOTS = 16                                           # main.c SEL_NSLOT
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
 GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
-GD_VERSION, GD_MAX = 1, 4096                             # gamedata.h data pack
+GD_VERSION, GD_MAX = 2, 4096                             # gamedata.h data pack (2: + the roster section)
 
 
 def load(path): return json.load(open(path))
@@ -308,8 +309,22 @@ def pack_base(M):
     return out, en_o, ai_o
 
 
-def pack_stages(M, out, en_o, ai_o):
-    """the stages after pack_base's bytes, then the header (chainlab/stages.js packStages is the same code)"""
+def spec_map(g, build):
+    """the pack's roster section: per roster fighter (bm_chars order) the special each role plays (D, forward+D, down+D,
+    up+D) as an index in its pool (build/chainlab.json fighters[].pool, export_bm special_pool order), 0xFF = none"""
+    pools = {f['name']: [p['input'] for p in f['pool']] for f in json.load(open(os.path.join(build, 'chainlab.json')))['fighters']}
+    out = []
+    for r in g['roster']:
+        for k in SPECIAL_KEYS:
+            want = r['specials'].get(k)
+            assert want is None or want in pools[r['name']], f"{r['name']}: no special {want} for {k} (its pool: {' '.join(pools[r['name']])})"
+            out.append(0xFF if want is None else pools[r['name']].index(want))
+    return bytes(out)
+
+
+def pack_stages(M, out, en_o, ai_o, spmap):
+    """the stages after pack_base's bytes, the roster section (spec_map), then the header (chainlab/stagepack.js pack is the
+    same code)"""
     import struct
     def put(data, align=2):
         while len(out) % align: out.append(0)
@@ -329,16 +344,17 @@ def pack_stages(M, out, en_o, ai_o):
         for k, o, f in ST_LAYOUT: struct.pack_into('>' + f, b, o, v[k])
         st += b
     st_o = put(st)
+    ro_o = put(spmap)                                   # version 2: the roster section (the specials by role)
     while len(out) % 2: out.append(0)
     assert len(out) <= GD_MAX, f'pack: {len(out)} bytes (at most {GD_MAX})'
-    struct.pack_into('>2sBBBBHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(M['enemies']), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, 0)
+    struct.pack_into('>2sBBBBHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(M['enemies']), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, ro_o)
     return bytes(out)
 
 
 def pack(g, build):
     """the lab's data pack (gamedata.h gdpack_t): stages, enemies and AI rows, pointers as offsets from its start"""
     M = model(g, build)
-    return pack_stages(M, *pack_base(M))
+    return pack_stages(M, *pack_base(M), spec_map(g, build))
 
 
 def lab_stages(g, build):
@@ -355,7 +371,7 @@ def lab_stages(g, build):
                     'unlock_of': u['boss_of_stage'] if isinstance(u, dict) else 0})
     return {'base': out.hex(), 'en_o': en_o, 'ai_o': ai_o, 'nai': len(M['ai']), 'enemies': ens, 'tints': M['tints'],
             'songs': songs(build), 'widths': stage_widths(build), 'stages': g['stages'], 'roster': M['names'],
-            'max_enemies': MAX_ENEMIES, 'gd_max': GD_MAX}
+            'max_enemies': MAX_ENEMIES, 'gd_max': GD_MAX, 'spmap': list(spec_map(g, build))}
 
 
 def lab_enemies(g):

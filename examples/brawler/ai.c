@@ -125,7 +125,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if ((P->flags & AIF_BOSS_MOVES) && a->cooldown == 0) {                       /* boss: reversal, specials, jump-ins */
             fighter_t *t = &fs[a->target];
             if ((P->flags & AIF_REVERSAL) && (t->state == S_ATTACK || t->state == S_AIR_ATTACK) && iabs(dx) < P->rev_dx && iabs(dz) <= P->rev_dz &&
-                e->ch->specials[BS_DOWN_D].nrows && (rnd() & P->rev_mask) == 0) {
+                spec_ix(e->ch, BS_DOWN_D) != 0xFF && (rnd() & P->rev_mask) == 0) {
                 o->press = IN_D; o->dz = 1; rest(a, P->rest_rev); continue;   /* down+D: the rising reversal */
             }
             if ((P->flags & AIF_SPECIALS) && iabs(dz) <= P->bspec_dz && iabs(dx) >= P->bspec_min && iabs(dx) <= P->bspec_max && (rnd() & P->bspec_mask) == 0) {
@@ -139,7 +139,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         }
         if (!a->retarget--) { a->hover_dz = (int8_t)((rnd() & 31) - 16); a->retarget = 60 + (rnd() & 63); }
         if (a->cooldown == 0 && iabs(dz) <= P->spec_dz && iabs(dx) >= P->spec_min && iabs(dx) <= P->spec_max &&   /* any enemy: the hoverers stand in this range */
-            (P->flags & AIF_PROJECTILE) && e->ch->specials[BS_D].nrows && !(rnd() & P->proj_mask) &&
+            (P->flags & AIF_PROJECTILE) && spec_ix(e->ch, BS_D) != 0xFF && !(rnd() & P->proj_mask) &&
             (rnd() & P->proj_mask2) == P->proj_mask2) {         /* 1 in (proj_mask + 1) (proj_mask2 + 1) a frame in range */
             o->press = IN_D;                                     /* D: the projectile (o->face turns it to the player) */
             rest(a, P->rest_special);

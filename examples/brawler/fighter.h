@@ -83,6 +83,12 @@ typedef struct {
 } rt_head_t;
 #define RT_NODE(t, i) ((const rnode_t *)((const uint8_t *)(t) + sizeof(rt_head_t)) + (i))
 extern const rt_head_t *route_tab[BC_COUNT];
+/* specials by role (Brawler Lab Characters tab, 2026-10-05): every fighter's whole special pool is in the ROM
+ * (bchar_t.specials); spec_tab[fighter] (RAM, set at boot from bchar_t.spmap; a data pack's roster section repoints it,
+ * main.c gd_apply) maps D, forward+D, down+D, up+D to one of them (0xFF = none) */
+extern const uint8_t *spec_tab[BC_COUNT];
+uint8_t spec_ix(const bchar_t *ch, uint8_t role);   /* role -> index in ch->specials, 0xFF = none */
+void specs_init(void);
 void routes_init(void);
 
 /* Chain Lab mailbox (examples/brawler/README.md "Chain Lab"): the page writes it from JavaScript, the game reads it at the
@@ -143,7 +149,8 @@ typedef struct fighter {
     uint8_t  throw_dealt, impact; /* throw damage dealt at its impacts; an impact this frame (combat() resolves it) */
     int32_t  throw_x0;
     struct fighter *target;       /* last opponent this fighter hit or grabbed (the HUD shows its life) */
-    uint8_t  spec_id, spec_prev_hit;   /* spec_prev_hit: hit bits of the special's current row (bspec_row_t.hit) */
+    uint8_t  spec_id, spec_prev_hit;   /* the special playing: its role (BS_*; spec_ix: its index in ch->specials);
+                                        * spec_prev_hit: hit bits of its current row (bspec_row_t.hit) */
     const bbox_t *spec_atk;       /* special / projectile: attack box of the current script row (0 = none) */
     struct fighter *proj[2];      /* projectiles of the special playing */
     struct fighter *owner;        /* projectile: who threw it */
@@ -178,6 +185,8 @@ typedef struct fighter {
     const char *name;
     const uint16_t *cpal;
     const rt_head_t *tree;
+    uint8_t  spec_ix;             /* the special playing: its index in ch->specials (spec_tab when it started); last, so
+                                   * draw.s's offsets stay */
 } fighter_t;
 
 

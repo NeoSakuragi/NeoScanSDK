@@ -47,6 +47,9 @@ const char *fighter_state_name(uint8_t st) { return NAMES[st]; }
  * = the special the input picks, cancelling a normal that hit. Air: A / B / C. */
 const rt_head_t *route_tab[BC_COUNT];
 lab_t lab;
+const uint8_t *spec_tab[BC_COUNT];
+void specs_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) spec_tab[i] = bm_chars[i].spmap; }
+uint8_t spec_ix(const bchar_t *ch, uint8_t role) { uint8_t k = spec_tab[ch->id][role]; return k < ch->nspec ? k : 0xFF; }
 void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }
 void lab_install(void) {
     const rt_head_t *t = (const rt_head_t *)lab.buf;
@@ -458,9 +461,9 @@ static void special_end(fighter_t *f) {
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
 }
-static void start_special(fighter_t *f, uint8_t k) {
+static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
-    f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
+    f->spec_id = k; f->spec_ix = spec_ix(f->ch, k); f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
@@ -546,15 +549,16 @@ static uint8_t special_pick(const fighter_t *f, uint8_t want) {   /* BS_D, BS_FW
                                          { BS_DOWN_D, BS_UP_D, BS_FWD_D, BS_D }, { BS_UP_D, BS_FWD_D, BS_DOWN_D, BS_D } };
     uint8_t k;
     for (k = 0; k < 4; k++) {                                    /* missing: the nearest; a projectile special not */
-        const bspec_t *sp = &f->ch->specials[order[want][k]];   /* while the fighter's projectile flies (KOF skips */
-        if (sp->nrows && !(sp->proj && f->shot)) return order[want][k];   /* the command: owner +$E1 bit 5) */
+        uint8_t ix = spec_ix(f->ch, order[want][k]);              /* while the fighter's projectile flies (KOF skips */
+        const bspec_t *sp = &f->ch->specials[ix];                 /* the command: owner +$E1 bit 5) */
+        if (ix != 0xFF && sp->nrows && !(sp->proj && f->shot)) return order[want][k];
     }
     return 0xFF;
 }
 /* D, forward+D, down+D, up+D (down / up = toward / away from the camera) -> BS_*, 0xFF = none */
 static uint8_t special_for(const fighter_t *f, const intent_t *in) { return special_pick(f, d_input(in) - RI_D); }
 static void special_update(fighter_t *f) {
-    const bspec_t *sp = &f->ch->specials[f->spec_id];
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];
     const bspec_row_t *r;
     uint8_t k;
     uint16_t from = script_advance(f, sp->nrows, sp);            /* rows from..srow-1 reached this frame */
@@ -569,7 +573,7 @@ static void special_update(fighter_t *f) {
         return;
     }
     r = &sp->rows[f->srow - 1];
-    if (f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;    /* invincible move: from its first frame to its last hit */
+    if (f->spec_id == BS_DOWN_D && f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;   /* the rising reversal: invincible from its first frame to its last hit */
     f->frame_ovr = r->frame;
     f->x = f->throw_x0 + dir_mul(f->facing, FIX(r->x)); f->y = r->y > 0 ? FIX(r->y) : 0; clamp(f);
     if (r->hit & 2) { f->hit_mask = 0; f->spec_dmg = r->dmg; f->spec_react = r->hit >> 5; f->spec_fx = r->fx; }   /* a new hit */

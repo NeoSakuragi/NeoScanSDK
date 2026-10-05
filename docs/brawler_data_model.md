@@ -15,7 +15,7 @@ installs stages, enemies and AI rows into the running game (data packs), proofs 
 | layer | what | where it lives | edited by |
 |---|---|---|---|
 | 0, the bank | KOF96 / 98 / 99 fighters as extracted: animations, frames, hit boxes, timing, palettes, captured specials and throws, sound commands per move | /data/neogeo_dict (dictionaries), tools/kof96 (export96), never edited | nobody: templates |
-| 1, roster | the playable characters: which bank fighter, select pose, specials mapping, chain routes, unlock; the select screen | game.json `roster`, `select` | Brawler Lab: Characters tab (Chain Lab today) |
+| 1, roster | the playable characters: which bank fighter, select pose, specials mapping, chain routes, unlock; the select screen | game.json `roster`, `select` | Brawler Lab: Characters tab (+ the Chain Lab for the routes) |
 | 2, enemies | named enemies on a bank fighter (or a pool of them), life, power, AI preset; the AI presets; the minion tints | game.json `enemies`, `ai`, `tints` | Brawler Lab: Enemies tab |
 | 3, stages | background, music, waves (lock points + spawns), the boss with its minions and song; later triggers and drama | game.json `stages` | Brawler Lab: Stages / Waves tab |
 
@@ -53,6 +53,7 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 | select slots | `sel_slot_t SEL_SLOT[]`, `sel_fighter[]` | 4 + 1 bytes each | ROM; `slot_ch[]` RAM copy made on each select screen | `slot_ch` yes (RAM) |
 | unlocks | `roster_unlock[BC_COUNT]` | 1 byte each | ROM | no (save bits follow the stage order) |
 | chain routes | `rt_head_t` + `rnode_t[]` (fighter.h) | 16 + 22 bytes a node | ROM, `route_tab[]` in RAM | yes: the Chain Lab (lab.buf, `lab.load`) |
+| specials by role | `bchar_t.spmap` (4 bytes: an index in the fighter's `specials`, 0xFF none) via `spec_tab[]` | 4 bytes a fighter | ROM, `spec_tab[]` in RAM | yes: a data pack's roster section (version 2) |
 | fighters | `bchar_t bm_chars[]` + everything it points at | ~35 KB each | ROM ($200000) + C ROM | no: new content = a ROM build |
 
 ## Layer 0: the bank
@@ -75,7 +76,7 @@ Sound commands per move are in the bank too (research below): today the export d
 | `bank` | `"kof98:terry"` | the layer-0 fighter |
 | `watch` | `{"frame": 351, "step": -1}` | the select screen's pose: KOF state and step (-1 = its last, held) |
 | `routes` | `"tools/brawler/routes/terry.json"` or `"default"` | its chain route tree (routes.py format; default = the pre-Chain-Lab table) |
-| `specials` | `{"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D"}` | the KOF input played by D, forward+D, down+D, up+D; null = none. `export_bm.suggest_specials` is the automatic pick that filled these |
+| `specials` | `{"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D"}` | the KOF input played by D, forward+D, down+D, up+D; null = none; any special of the fighter's pool (`export_bm.special_pool`: ground specials of the normal condition), all of which are in the ROM, so a change is live (a data pack). `export_bm.suggest_specials` is the automatic pick that filled these |
 | `unlock` | `"always"` or `{"boss_of_stage": 1}` | locked on the select screen until that stage's boss is beaten (save bit stage - 1) |
 
 Later (step 3 and on): `voices` (per move, see below), `palettes` (custom colour sets), `moves` (a trimmed list).
@@ -84,7 +85,11 @@ Later (step 3 and on): `voices` (per move, see below), `palettes` (custom colour
 bosses). Generated as `SEL_SLOT[]` (x int16, z, row: 4 bytes) and `sel_fighter[]` (bm_chars index, 0xFF empty).
 
 ROM side of a fighter (`bchar_t`, export_bm.py): name, palettes, frames, animations (`banim_t` / `bstep_t`), physics,
-throws, victim poses, specials (`bspec_t`, rows of a script), tile page, command normals, its route blob, its index.
+throws, victim poses, specials (`bspec_t`, rows of a script: its whole pool, `nspec` of them, in build/bm_spec.c, compiled
+as plain read-only data into the first program MB: 190 specials, ~500 KB), tile page, command normals, its route blob,
+its index, `spmap` (the special each role plays, game.json's `specials`). The game reads a role through `spec_tab[]`
+(RAM, fighter.c `spec_ix`); a special keeps the index it started with (`fighter_t.spec_ix`); the down+D role alone gets
+the special's invincible rows (`bspec_t.inv_rows`, the rising reversal's rule, computed for every special).
 
 ## Layer 2: enemies, AI presets, tints
 
@@ -200,9 +205,13 @@ writes a pack into `lab.pack` (lab_t, after `buf`: `pack_stat` at 3232, `pack` a
    one is pending cancels it.
 
 `gdpack_t` (18 bytes, big-endian): `GD`, version, nstages, nenemies, nai, size (u16), offsets of the stages, enemies and
-AI rows (u16), nspawns (u16: every stage's spawn array holds that many, the last padded), pad. The tables are the ROM's
+AI rows (u16), nspawns (u16: every stage's spawn array holds that many, the last padded), roster (u16, version 2: the
+offset of the roster section, 0 = none; version 1: padding). Version 2 (2026-10-05, the Characters tab) adds the roster
+section after the stages: per roster fighter (bm_chars order) 4 bytes, the special each role plays as an index in its
+pool (0xFF = none), checked against `bchar_t.nspec` (check 16) and installed into `spec_tab[]`; a version 1 pack is still
+read and puts the ROM's specials back. `lab.load = 4` does too. The tables are the ROM's
 structs with each pointer an offset from the pack's start (0 = none); then pools, names, palettes, trees, spawns and
-waves. Today's game.json packs into 2874 bytes. A stage edit takes effect at the next safe point too: `gs` is re-read and
+waves. Today's game.json packs into 2938 bytes (version 2). A stage edit takes effect at the next safe point too: `gs` is re-read and
 the wave index clamped to the new stage's waves.
 
 **Enemy test** (`lab.req = 3`, `lab.fighter` = P1's fighter, `lab.dummy` = an enemy index, EN_* order): P1 against that
@@ -248,6 +257,28 @@ $2D74 -> $6F74); the page's enemies merged into game.json and packed by build_ta
 (2874 bytes); tested in the page (headless Chrome, its wasm core) and on the desktop core (ramtrace.py enemy) with that
 pack: 1494 ticks identical; the enemy's palette RAM (slots 32-39) identical between the two cores and equal to the page's
 swatches; unedited: the page's pack = build_tables.py pack. stage_proof.sh still passes with the tab in the page.
+
+**Characters tab** (TODO 54, 2026-10-05; tools/brawler/chainlab: characters.js, char_images.py the pictures): the roster
+in select-screen order (the slot table), per fighter its bank, unlock rule (an edit: "needs a build", the ROM table
+`roster_unlock`), the select pose in every colour set; the select pose picker: every candidate frame (first and last of
+each intro / win pose / walk-in state: KOF98 / KOF99 336-354, KOF96 202-239, exported by export96 exactly as the game's
+own `watch` pose, rendered in colour set 0 at build time), tap-to-pick tiles, the current one with a 6 px border and
+CURRENT, the ROM's with a dashed border and IN THE ROM; a change needs a build (exported); the specials: the four roles,
+each with its pictures (where it hits, first and last, or throws, + the projectile), frame / hit data (`export_bm.
+special_info`: frames, first hit frame, hits and damage, projectile, travel, follow-up), the ROM's pick and
+`suggest_specials`' pick ("use it"), "Change…" opens every special of the pool and "none"; "Test on the dummy" sends the
+pack (Stages + Enemies tabs' data + this tab's roster section) and `lab.req = 1` (the Chain Lab training) in one tick;
+"Open in the Chain Lab" puts the fighter in the Chain Lab tab; export one fighter / the roster in game.json's layout,
+import (bank and specials checked against this ROM). Data: chars.json (make_site.py).
+
+Proof (chainlab/char_proof.sh, 2026-10-05): Terry's up+D set in the page from 214D to 426D; the same pack played in the
+page (headless Chrome, its wasm core, lab req 1 against Ryo, ramtrace.CHAR_SCRIPT: up+D, D, forward+D, down+D, up+D) and
+on the desktop core (ramtrace.py lab): 536 ticks identical, 506 of them differ from the ROM's mapping; the page's roster
+merged into game.json and packed by build_tables.py = the page's pack, unedited = build_tables.py pack (2938 bytes). Pose
+tiles: each fighter's CURRENT tile = the ROM's watch frame pixel for pixel (16 / 16), in-game select screen beside Terry,
+Yamazaki and Krauser (/data/tmp/charstab/out). A version 1 pack is still read (installed, the ROM's specials: 535 ticks
+identical on HEAD's build and this one). The release path: attract 7707 ticks and the campaign replay 19031 ticks
+identical to HEAD's build (only tick 0 differs: power-on RAM before init), regress.py no-bleed true, campaign29 through.
 
 ## Planned, schema only
 

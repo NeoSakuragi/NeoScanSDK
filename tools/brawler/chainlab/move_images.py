@@ -26,6 +26,7 @@ class Rom:
         c1 = np.frombuffer(open(os.path.join(build, 'bm_c1.bin'), 'rb').read(), np.uint8)
         c2 = np.frombuffer(open(os.path.join(build, 'bm_c2.bin'), 'rb').read(), np.uint8)
         self.c = np.empty(len(c1) * 2, np.uint8); self.c[0::2] = c1; self.c[1::2] = c2
+        # per fighter its bchar_t numbers: [0] npal, [1] nsets, [-4] tile_hi (then cmds, id, nspec)
         self.chars = {m.group(1).lower(): _nums(m.group(2)) for m in re.finditer(r'\{"(\w+)", ([^\n]*?)\},\n', self.src)}
 
     def arr(self, name):
@@ -48,36 +49,50 @@ class Rom:
     def frame_index(self, name, fi, tile_hi):
         """-> frame fi as palette indices (pal * 16 + colour, 0 = transparent), its feet origin (ox, oy), facing right"""
         parts = re.findall(r'\{(-?\d+), (-?\d+), (\d+), (\d+), (\d), (\d), (\d+), (\w+)\}', self.arr(f'{name}_f{fi}') or '')
-        placed = []
+        out = []
         for dx, dy, cols, rows, hf, vf, pal, tarr in parts:
             dx, dy, cols, rows, hf, vf, pal = map(int, (dx, dy, cols, rows, hf, vf, pal))
-            tiles = _nums(self.arr(tarr)); img = np.zeros((rows * 16, cols * 16), np.uint8)
-            for c in range(cols):
-                for r in range(rows):
-                    t = tiles[c * rows + r]
-                    if t: img[r * 16:(r + 1) * 16, c * 16:(c + 1) * 16] = self.tile((tile_hi << 16) | t)
-            w, h = cols * 16, rows * 16
-            x0 = -dx - w if hf else dx; y0 = -dy - h if vf else dy
-            if hf: img = img[:, ::-1]
-            if vf: img = img[::-1, :]
-            placed.append((x0, y0, img, pal))
-        if not placed: return None
-        minx = min(p[0] for p in placed); miny = min(p[1] for p in placed)
-        maxx = max(p[0] + p[2].shape[1] for p in placed); maxy = max(p[1] + p[2].shape[0] for p in placed)
-        out = np.zeros((maxy - miny, maxx - minx), np.uint8)
-        for x0, y0, img, pal in placed:
-            m = img > 0
-            sub = out[y0 - miny:y0 - miny + img.shape[0], x0 - minx:x0 - minx + img.shape[1]]
-            sub[m] = pal * 16 + img[m]
-        return out[:, ::-1], maxx - 1, -miny       # ROM sprites face left: P1 faces right (origin x mirrored)
+            tiles = _nums(self.arr(tarr))
+            out.append((dx, dy, hf, vf, pal, [[(tile_hi << 16) | t if t else 0 for t in tiles[c * rows:(c + 1) * rows]] for c in range(cols)]))
+        return place(out, self.tile)
 
     def frame(self, name, fi, tile_hi, pals):
         """-> RGBA image of frame fi (colours pals: pal * 16 + colour), its feet origin (ox, oy), facing right"""
         r = self.frame_index(name, fi, tile_hi)
         if r is None: return None
         ix, ox, oy = r
-        lut = np.array([(0, 0, 0, 0) if k % 16 == 0 or k >= len(pals) else (*_colour(pals[k]), 255) for k in range(256)], np.uint8)
-        return lut[ix], ox, oy
+        return colours(ix, pals), ox, oy
+
+
+def place(parts, tile):
+    """parts [(dx, dy, hflip, vflip, pal, tile columns)] drawn as draw.s places them -> (palette indices pal * 16 +
+    colour, 0 = transparent; its feet origin ox, oy), facing right; None when empty"""
+    placed = []
+    for dx, dy, hf, vf, pal, cols in parts:
+        rows = len(cols[0]); w, h = len(cols) * 16, rows * 16
+        img = np.zeros((h, w), np.uint8)
+        for c, col in enumerate(cols):
+            for r, t in enumerate(col):
+                if t: img[r * 16:(r + 1) * 16, c * 16:(c + 1) * 16] = tile(t)
+        x0 = -dx - w if hf else dx; y0 = -dy - h if vf else dy
+        if hf: img = img[:, ::-1]
+        if vf: img = img[::-1, :]
+        placed.append((x0, y0, img, pal))
+    if not placed: return None
+    minx = min(p[0] for p in placed); miny = min(p[1] for p in placed)
+    maxx = max(p[0] + p[2].shape[1] for p in placed); maxy = max(p[1] + p[2].shape[0] for p in placed)
+    out = np.zeros((maxy - miny, maxx - minx), np.uint8)
+    for x0, y0, img, pal in placed:
+        m = img > 0
+        sub = out[y0 - miny:y0 - miny + img.shape[0], x0 - minx:x0 - minx + img.shape[1]]
+        sub[m] = pal * 16 + img[m]
+    return out[:, ::-1], maxx - 1, -miny       # ROM sprites face left: P1 faces right (origin x mirrored)
+
+
+def colours(ix, pals):
+    """palette indices -> RGBA (pals: the colour words, pal * 16 + colour)"""
+    lut = np.array([(0, 0, 0, 0) if k % 16 == 0 or k >= len(pals) else (*_colour(pals[k]), 255) for k in range(256)], np.uint8)
+    return lut[ix]
 
 
 def move_images(game, out, fighters, moves, scale=2):
@@ -86,7 +101,7 @@ def move_images(game, out, fighters, moves, scale=2):
     index = {}
     for name in fighters:
         ch = rom.chars[name]
-        npal, tile_hi = ch[0], ch[-3]
+        npal, tile_hi = ch[0], ch[-4]
         pals = _nums(rom.arr(f'{name}_pals'))[:npal * 16]          # colour set 0
         shots = []
         for m in moves:
@@ -126,7 +141,7 @@ def enemy_images(game, out, fighters):
     index = {}
     for name in fighters:
         ch = rom.chars[name]
-        npal, nsets, tile_hi = ch[0], ch[1], ch[-3]
+        npal, nsets, tile_hi = ch[0], ch[1], ch[-4]
         pals = _nums(rom.arr(f'{name}_pals'))[:npal * nsets * 16]
         steps = lambda a: [(int(f), int(fl)) for f, t, fl in re.findall(r'\{(\d+), (\d+), (\d+), \{', rom.arr(f'{name}_{a}') or '')]
         want = {'watch': steps('watch')[-1:], 'idle': steps('idle')[:1]}

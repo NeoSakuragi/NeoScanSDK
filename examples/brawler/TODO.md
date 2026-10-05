@@ -309,7 +309,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 53. (done 2026-10-05, docs/brawler_data_model.md "Enemies tab"; proof chainlab/enemy_proof.sh: page = desktop core 1494 ticks, palette RAM = swatches, packs = build_tables.py) Brawler Lab tab: Enemies — base picker, palette editor (from a colour set / tint / custom 16 colours, live
   sprite preview), AI preset + override sliders, life / power, trimmed move list (a Chain Lab tree), test it live in
   the enemy-test mode (lab.req = 3).
-- [ ] 54. Brawler Lab tab: Characters — fold in the select-pose picker (the judging UI), the Chain Lab, the specials
+- [x] 54. (done 2026-10-05, docs/brawler_data_model.md "Characters tab"; proof chainlab/char_proof.sh: Terry up+D 214D -> 426D live, page = desktop core 536 ticks, packs = build_tables.py; every special in the ROM, pack v2) Brawler Lab tab: Characters — fold in the select-pose picker (the judging UI), the Chain Lab, the specials
   mapping (each slot picked from the captured specials with impact pictures).
 - [ ] 55. Voices: list every fighter's voices (static scan of the FC 00 <index> play-sound records + a sound capture
   of each special for the KOF99-style code-sent ones), a roster "voices" field, and the lab's suggested voice per move

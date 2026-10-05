@@ -604,7 +604,7 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
     const gstage_t *st;
     uint16_t size = h->size, i, k;
     if (h->magic[0] != 'G' || h->magic[1] != 'D') return 1;
-    if (h->version != GD_VERSION) return 2;
+    if (h->version != 1 && h->version != GD_VERSION) return 2;   /* version 1: no roster section */
     if (size < sizeof(gdpack_t) || size > GD_MAX) return 3;
     if (h->nstages != GS_COUNT || !h->nenemies || !h->nai) return 4;
     if (!gd_in(size, h->stages, h->nstages * sizeof(gstage_t), 1) || !gd_in(size, h->enemies, h->nenemies * sizeof(genemy_t), 1) ||
@@ -635,10 +635,15 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
         if (st->boss >= h->nenemies || st->nmin > NF - 3 || st->boss_first + st->nmin > h->nspawns) return 14;
         for (k = 0; k < h->nspawns; k++) if (sp[k].enemy >= h->nenemies || sp[k].tint >= TINT_COUNT) return 15;
     }
+    if (h->version >= 2 && h->roster) {         /* the specials by role: each an index in its fighter's pool, or none */
+        if (!gd_in(size, h->roster, BC_COUNT * BS_COUNT, 0)) return 16;
+        for (i = 0; i < BC_COUNT; i++)
+            for (k = 0; k < BS_COUNT; k++) if (p[h->roster + i * BS_COUNT + k] != 0xFF && p[h->roster + i * BS_COUNT + k] >= bm_chars[i].nspec) return 16;
+    }
     return 0;
 }
 static void gd_apply(void) {                     /* at a safe point: the pack (or the ROM's tables) in use from now */
-    if (gd_want == 4) { gstages = gstages_rom; genemies = genemies_rom; ai_tab = ai_presets; gen_count = EN_COUNT; lab.pack_stat = GD_ROM; }
+    if (gd_want == 4) { gstages = gstages_rom; genemies = genemies_rom; ai_tab = ai_presets; gen_count = EN_COUNT; specs_init(); lab.pack_stat = GD_ROM; }
     else if (gd_want == 3) {
         uint8_t e = gd_check(lab.pack);
         if (e) lab.pack_stat = GD_BAD | e;
@@ -661,6 +666,8 @@ static void gd_apply(void) {                     /* at a safe point: the pack (o
             }
             gstages = (const gstage_t *)(gd_live + h->stages); genemies = (const genemy_t *)(gd_live + h->enemies);
             ai_tab = (const ai_preset_t *)(gd_live + h->ai); gen_count = h->nenemies;
+            if (h->version >= 2 && h->roster) for (i = 0; i < BC_COUNT; i++) spec_tab[i] = gd_live + h->roster + i * BS_COUNT;
+            else specs_init();                   /* version 1: the ROM's specials by role */
             lab.pack_stat = GD_INSTALLED;
         }
     }
@@ -1524,6 +1531,7 @@ void game_init(void) {
     uint16_t i;
     gdata_init();                                            /* the game's tables (game.json) */
     routes_init();                                           /* the fighters' chain route trees (fighter.h) */
+    specs_init();                                            /* their specials by role (fighter.h spec_tab) */
     save_load();                                             /* MVS: the BIOS restored the block (a fresh one: reset) */
     PAL_setPalette(0, TEXT_PAL);
     PAL_setBackdrop(stg->backdrop);

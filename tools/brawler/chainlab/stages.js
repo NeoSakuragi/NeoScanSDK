@@ -43,7 +43,7 @@
   // ---- tabs -------------------------------------------------------------------------------------------------------------
   // three tabs share the game column: the Chain Lab (its tree and readout), Stages, Enemies (enemies.js)
   let active = false;
-  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']] };
+  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']], chars: ['tabChars', ['charcol']] };
   window.labTab = name => {
     for (const [k, [b, els]] of Object.entries(TABS)) {
       if ($(b)) $(b).classList.toggle('on', k === name);
@@ -60,7 +60,7 @@
   const PHASES = ['', 'GO', 'boss', 'boss beaten', 'stage clear', 'fade'];
   const MODES = ['select', 'fight', 'title', 'boss unlocked', 'ending'];
   window.labStatus = () => {
-    if (!active && window.labTabName !== 'enemies') return null;
+    if (!active && window.labTabName !== 'enemies' && window.labTabName !== 'chars') return null;
     const y = lab.layout.syms, r8 = a => (a === undefined ? 0 : lab.r8(a)), cam = y.cam_x === undefined ? 0 : (lab.r16(y.cam_x) << 16 >> 16);
     const m = r8(y.mode), la = lab.r8(lab.lab + 8), act = la === 2 ? 'enemy test' : la ? 'Chain Lab training' : (r8(y.attract) ? 'attract demo' : MODES[m] || m);
     const where = m === 1 && !r8(y.attract) && !la ? `  stage ${r8(y.camp) + 1}  ${r8(y.phase) >= 2 ? 'boss' : 'wave ' + (r8(y.wave) + 1)}  ${PHASES[r8(y.phase)] || ''}  camera x ${cam}` : '';
@@ -95,7 +95,7 @@
   const songOpts = () => Object.keys(D.songs).map(n => [n, n.replace(/_/g, ' ')]);
 
   // ---- the pack and play --------------------------------------------------------------------------------------------
-  function packNow() { const e = ED(); return e.errors.length ? { bytes: null, errors: ['Enemies tab: ' + e.errors.join('; ')] } : SP.pack(stages, e.D); }
+  function packNow() { const e = ED(); return e.errors.length ? { bytes: null, errors: ['Enemies tab: ' + e.errors.join('; ')] } : SP.pack(stages, e.D, window.charsTab && window.charsTab.spmap()); }
   function showErrors(errs) {
     const e = $('stErr'); e.textContent = errs.length ? 'Not valid (fix these before playing):\n' + errs.join('\n') : ''; e.classList.toggle('show', !!errs.length);
   }

@@ -4,7 +4,7 @@
  * packs to build_tables.py pack's file byte for byte. */
 (function (root) {
   'use strict';
-  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 1, PACK_HEAD = 18, ST_SIZE = 24;
+  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 2, PACK_HEAD = 18, ST_SIZE = 24;
 
   function num(v) { return typeof v === 'string' ? parseInt(v, v.startsWith('0x') || v.startsWith('0X') ? 16 : 10) : v; }
   const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -71,8 +71,9 @@
     return { stages: out, errors };
   }
 
-  /* the whole pack: stages.json's base bytes + the stages (build_tables.py pack_stages) */
-  function pack(stages, D) {
+  /* the whole pack: stages.json's base bytes + the stages + the roster section (build_tables.py pack_stages); spmap: the
+     specials by role, 4 bytes per roster fighter (the Characters tab's, else stages.json's = game.json's) */
+  function pack(stages, D, spmap) {
     const M = model(stages, D);
     if (M.errors.length) return { bytes: null, errors: M.errors };
     const base = D.base.match(/../g).map(h => parseInt(h, 16)), out = base.slice();
@@ -93,10 +94,11 @@
       rows.push(...r);
     }
     const sto = put(rows);
+    const roo = put(spmap || D.spmap);
     while (out.length % 2) out.push(0);
     if (out.length > D.gd_max) return { bytes: null, errors: [`pack: ${out.length} bytes (at most ${D.gd_max})`] };
     const head = [71, 68, GD_VERSION, M.stages.length, D.enemies.length, D.nai, ...be16(out.length), ...be16(sto), ...be16(D.en_o),
-                  ...be16(D.ai_o), ...be16(nsp), 0, 0];
+                  ...be16(D.ai_o), ...be16(nsp), ...be16(roo)];
     head.forEach((v, i) => { out[i] = v; });
     return { bytes: Uint8Array.from(out), errors: [], model: M.stages };
   }
