@@ -336,6 +336,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   brawler (animations, palettes, boxes, specials, weapon objects as needed), then the others. Running in a worktree
   since 2026-10-05.
 
+- [ ] 68. Brawler Lab for Samurai Shodown IV fighters: the pose picker (char_images.CANDIDATES has no samsho4 list: Haohmaru
+  is skipped), check move / special / enemy pictures for samsho4 banks; Haohmaru's SS4 voices (voices.py covers KOF only).
+
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.

@@ -56,6 +56,7 @@ def pose_candidates(roster, out, tmp):
     index = {}
     for r in roster:
         game, name = r['bank'].split(':')
+        if game not in CANDIDATES: continue                       # no candidate list for this bank yet (samsho4): no pose picker
         have = _states(game, name, CANDIDATES[game])
         cur = (r['watch']['frame'], r['watch']['step'])
         want = {}
