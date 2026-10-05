@@ -154,6 +154,14 @@
    "routes": "default",
    "specials": {"D": "236C", "fD": "421C", "dD": "623B", "uD": "BUST 236D"},
    "unlock": "always"
+  },
+  {
+   "name": "hanzo",
+   "bank": "whp:hanzo",
+   "watch": {"frame": 0, "step": 0},
+   "routes": "default",
+   "specials": {"D": "236A", "fD": "236D", "dD": "623B", "uD": "214C"},
+   "unlock": "always"
   }
  ],
  "select": {
@@ -164,12 +172,13 @@
    {"x": 184, "z": 48, "row": 0, "fighter": "robert"},
    {"x": 232, "z": 48, "row": 0, "fighter": "yamazaki"},
    {"x": 280, "z": 48, "row": 0, "fighter": "billy"},
-   {"x": 52, "z": 24, "row": 1, "fighter": "kyo"},
-   {"x": 96, "z": 24, "row": 1, "fighter": "iori"},
-   {"x": 140, "z": 24, "row": 1, "fighter": "mai"},
-   {"x": 184, "z": 24, "row": 1, "fighter": "yashiro"},
-   {"x": 228, "z": 24, "row": 1, "fighter": "k_dash"},
-   {"x": 272, "z": 24, "row": 1, "fighter": "haohmaru"},
+   {"x": 40, "z": 24, "row": 1, "fighter": "kyo"},
+   {"x": 80, "z": 24, "row": 1, "fighter": "iori"},
+   {"x": 120, "z": 24, "row": 1, "fighter": "mai"},
+   {"x": 160, "z": 24, "row": 1, "fighter": "yashiro"},
+   {"x": 200, "z": 24, "row": 1, "fighter": "k_dash"},
+   {"x": 240, "z": 24, "row": 1, "fighter": "haohmaru"},
+   {"x": 280, "z": 24, "row": 1, "fighter": "hanzo"},
    {"x": 48, "z": 0, "row": 2, "fighter": "mr_big"},
    {"x": 104, "z": 0, "row": 2, "fighter": "krauser"},
    {"x": 160, "z": 0, "row": 2, "fighter": "geese"},
