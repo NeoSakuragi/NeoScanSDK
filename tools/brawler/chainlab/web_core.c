@@ -103,6 +103,7 @@ EMSCRIPTEN_KEEPALIVE int16_t *wc_audio(void) { return audio; }
 EMSCRIPTEN_KEEPALIVE int wc_audio_n(void) { return audio_n; }
 EMSCRIPTEN_KEEPALIVE uint8_t *wc_ram(void) { return retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM); }
 EMSCRIPTEN_KEEPALIVE int wc_ram_size(void) { return (int)retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM); }
+EMSCRIPTEN_KEEPALIVE uint16_t *wc_palram(void) { return retro_get_memory_data(104); }   /* palette RAM, both banks (8192 words, host order) */
 EMSCRIPTEN_KEEPALIVE int wc_state_size(void) { return (int)retro_serialize_size(); }
 EMSCRIPTEN_KEEPALIVE int wc_save(void *buf, int n) { return retro_serialize(buf, n); }
 EMSCRIPTEN_KEEPALIVE int wc_load(void *buf, int n) { return retro_unserialize(buf, n); }

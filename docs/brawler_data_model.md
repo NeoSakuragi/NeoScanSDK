@@ -227,6 +227,28 @@ stage): 1494 ticks identical from the stage start. Unedited: the page's pack = b
 (2874 bytes), and played by tick (--replay) identical to the ROM's own tables from wave 2 and from the boss. The release
 path is unchanged: attract 7707 ticks and the campaign replay 19031 ticks identical to HEAD's build.
 
+**Enemies tab** (TODO 53, 2026-10-05; tools/brawler/chainlab: enemies.js UI, enemypack.js the pack's enemy half):
+the enemy list (add, duplicate, delete), per enemy its name (validated: 1-10 of A-Z 0-9 _, a letter first, unique; the
+HUD shows it or the fighter's name), base fighter (a picker of the roster's select poses, or a pool with its fighters
+ticked), life, power; colours: colour set, tint (its formula with the numbers), custom 16 colours for palette 0 (a swatch
+grid; per colour R / G / B 0-31, the dark bit, a colour picker quantised to 5 bits, the word shown) with the select pose,
+idle and close C drawn in the page from index sprites (make_site.py: move_images.enemy_images, every colour set's
+palettes) recoloured exactly as fighter_load_pals does (set, custom palette 0, tint on colours 1-15); the AI: preset and
+attract preset, every preset field grouped (aggression and rests, range and depth, grab, projectile, strings, the boss
+block's reaction / specials / jump-in) with the preset's value beside the override, "● override" marking an overridden
+row, a reset per row and for all; moves: own tree, jabs, no_specials or a routes file, the route list shown, "Edit in the
+Chain Lab" puts the enemy's tree in the Chain Lab's editor on its fighter and "Use this tree" keeps it as
+tools/brawler/routes/enemies/<name>.json (carried by the export). Test it: the pack (this tab's enemies + the Stages
+tab's stages; the Stages tab packs with this tab's enemies too) and `lab.req = 3` in the same tick (lab_start installs
+it). Export one enemy / all (game.json layout, with the routes files they use), import. Data: `build_tables.py
+labenemies` (enemies.json); palette RAM is read in the page through web_core.c `wc_palram` (Geolith's memory id 104).
+
+Proof (chainlab/enemy_proof.sh, 2026-10-05): YAKUZA edited in the page (life 90, grab_plan 8, custom colour 3 red to 31:
+$2D74 -> $6F74); the page's enemies merged into game.json and packed by build_tables.py = the page's pack byte for byte
+(2874 bytes); tested in the page (headless Chrome, its wasm core) and on the desktop core (ramtrace.py enemy) with that
+pack: 1494 ticks identical; the enemy's palette RAM (slots 32-39) identical between the two cores and equal to the page's
+swatches; unedited: the page's pack = build_tables.py pack. stage_proof.sh still passes with the tab in the page.
+
 ## Planned, schema only
 
 **Triggers** (a stage's `triggers[]`, read by a small interpreter in the campaign tick):

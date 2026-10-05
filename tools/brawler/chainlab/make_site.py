@@ -51,5 +51,10 @@ for i, r in enumerate(G['roster']):
 faces.save(os.path.join(out, 'stages', 'faces.png'))
 st.update(bgs=bgs, other_bgs=other, song_list=[s_['name'] for s_ in json.load(open(os.path.join(game, 'songs.json')))['songs']])
 json.dump(st, open(os.path.join(out, 'stages.json'), 'w'))
-for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+# the Enemies tab: game.json's enemies, presets, tints, routes files (build_tables.py labenemies) and each fighter's
+# select pose / idle / close C as palette indices with every colour set (move_images.enemy_images), recoloured in the page
+en = build_tables.lab_enemies(G)
+en['images'] = move_images.enemy_images(game, out, en['roster'])
+json.dump(en, open(os.path.join(out, 'enemies.json'), 'w'))
+for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)

@@ -149,12 +149,43 @@ table.tl td, table.tl th { border: var(--thin); padding: 3px 5px; vertical-align
 .bggrid .nb { border: 1px dashed #000; padding: 4px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
 .bggrid .nb img { width: 100%; height: 60px; object-fit: contain; }
 .note { font-size: 12.5px; color: var(--mid); }
+#enemycol { padding: 12px 16px; min-width: 0; }
+#enemycol .box { border: var(--line); margin: 10px 0; }
+#enemycol .box > h2 { font-size: 15px; margin: 0; padding: 6px 8px; border-bottom: var(--line); display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+#enemycol .box > h2 .sp { flex: 1; }
+#enemycol .in { padding: 8px; }
+#enemycol select, #enemycol input { min-height: 28px; padding: 1px 4px; font-size: 13px; border-width: 1px; }
+#enemycol input[type=number] { width: 64px; }
+#enemycol input[type=range] { width: 110px; padding: 0; border: none; vertical-align: middle; }
+#enemycol input[type=checkbox] { min-height: 0; }
+#enemycol button { min-height: 30px; }
+#enList { display: flex; flex-wrap: wrap; gap: 0; margin-top: 8px; }
+#enList button { margin-right: -2px; display: flex; gap: 6px; align-items: center; text-align: left; font-weight: 400; font-size: 13px; line-height: 1.2; }
+#enList button.on { border-width: 4px; font-weight: 700; }
+#enErr { border: var(--line); border-style: dashed; padding: 6px 8px; margin: 8px 0; white-space: pre-wrap; display: none; }
+#enErr.show { display: block; }
+.swatches { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; margin: 6px 0; max-width: 640px; }
+.swatches .sw { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px; border-width: 1px; font-weight: 400; font-size: 12px; min-height: 0; }
+.swatches .sw.cur { border-width: 4px; padding: 0; font-weight: 700; }
+.swatches .chip { width: 100%; height: 26px; border: 1px solid #000; margin: 0; display: flex; align-items: center; justify-content: center; }
+.swatches .hx { font-family: ui-monospace, monospace; font-size: 11px; }
+.ced { border: var(--thin); padding: 6px 8px; margin: 6px 0; font-size: 13px; }
+.prev { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-top: 8px; }
+.prev figure { margin: 0; border: var(--thin); padding: 4px; display: flex; flex-direction: column; align-items: center; }
+.prev figcaption { font-size: 12px; }
+canvas.spr { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+table.ai td.pv { font-family: ui-monospace, monospace; }
+table.ai tr.over td { font-weight: 700; border-top-width: 2px; border-bottom-width: 2px; }
+table.ai td.mk { white-space: nowrap; font-size: 12px; }
+table.ai th.grp { background: var(--soft); border-top: var(--line); }
+table.ai .sl { display: inline-flex; gap: 4px; align-items: center; }
+ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-monospace, monospace; }
 </style>
 </head>
 <body>
 <header>
   <h1>Brawler Lab</h1>
-  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button></nav>
+  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button></nav>
   <span id="clhead" class="row" style="margin:0">
   <label>Fighter <select id="fighter"></select></label>
   <label>Dummy <select id="dummy"></select></label>
@@ -213,11 +244,14 @@ table.tl td, table.tl th { border: var(--thin); padding: 3px 5px; vertical-align
     <details id="entries"><summary>Other entries: dash attack, D without a special, the hold's C+D, air A / B / C</summary><div id="entrytree"></div></details>
   </section>
   <section id="stagecol" hidden></section>
+  <section id="enemycol" hidden></section>
 </main>
 <script src="lab.js"></script>
 <script src="core.js"></script>
 <script src="app.js"></script>
 <script src="stagepack.js"></script>
 <script src="stages.js"></script>
+<script src="enemypack.js"></script>
+<script src="enemies.js"></script>
 </body>
 </html>

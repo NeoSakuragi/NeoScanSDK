@@ -455,5 +455,5 @@
   { const snap = clone(tree); built = { fi, tree: snap, info: indexInfo(snap) }; }
   builtLabel = $('built').textContent = F[fi].routes_file ? "the fighter's own tree (routes file, in the ROM)" : 'the default tree (in the ROM)';
   render(); draw();
-  window.chainlab = { lab, draw, get paused() { return paused; }, togglePause, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); override = k.replace('-', ''); stepFrames(Number(n)); } override = null; }, get tree() { return tree; }, set tree(t) { tree = t; render(); }, build, render, stepFrames, data, chains: () => chains };
+  window.chainlab = { lab, draw, get paused() { return paused; }, togglePause, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); override = k.replace('-', ''); stepFrames(Number(n)); } override = null; }, get tree() { return tree; }, set tree(t) { tree = t; markDirty(); render(); }, build, render, stepFrames, data, chains: () => chains };
 })();

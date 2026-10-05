@@ -11,6 +11,10 @@
     python3 ramtrace.py GAME_DIR stage OUT.json --stage S --wave W [--pack PACK.bin] [--fighter F] [--frames N]
                                                                the Stages tab's "play from here" (lab req 4 with the pack) on the
                                                                desktop core, SNK's MVS BIOS as in the page: chainlab/stage_proof.sh
+    python3 ramtrace.py GAME_DIR enemy OUT.json --enemy E [--pack PACK.bin] [--fighter F] [--frames N]
+                                                               the Enemies tab's "Test it" (lab req 3, enemy E with the pack, the
+                                                               same frame); OUT also holds the enemy's palettes (palette RAM
+                                                               slots 32-39) at the end: chainlab/enemy_proof.sh
 
 attract   power on, three attract demos (8100 frames): every frame the flow (mode, attract, phase, wave, cam_x, lock_x)
           and every fighter's state, position, life, facing, animation step, fighter, colour set, power and tint
@@ -40,6 +44,8 @@ FIELDS = ['state', 'x', 'z', 'y', 'hp', 'hp_max', 'facing', 'anim', 'step', 'set
 def record(game, what, out, replay=None, pack=None, stage=None):
     import harness
     from harness import Brawler
+    if what == 'enemy': what, enemy = 'stage', True
+    else: enemy = False
     if what == 'stage': harness.OPTIONS.update({'geolith_system_type': 'mvs', 'geolith_region': 'us'})   # = web_core.c
     b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
     S = b.syms; OFF, DEAD = b.states.index('OFF'), b.states.index('DEAD')
@@ -84,7 +90,8 @@ def record(game, what, out, replay=None, pack=None, stage=None):
             for i, v in enumerate(pack): b.w(L + PACK_OFF + i, 1, v)
         for i, v in enumerate(b'LAB1'): b.w(L + i, 1, v)
         if pack: b.w(L + 7, 1, 3)
-        b.w(L + 13, 1, w_); b.w(L + 5, 1, f_); b.w(L + 6, 1, s_); b.w(L + 4, 1, 4)
+        if enemy: b.w(L + 5, 1, f_); b.w(L + 6, 1, s_); b.w(L + 4, 1, 3)       # req 3: P1 f_ against enemy s_
+        else: b.w(L + 13, 1, w_); b.w(L + 5, 1, f_); b.w(L + 6, 1, s_); b.w(L + 4, 1, 4)
         run(1)                                          # the page's play() steps one frame with no key (stages.js)
     if what == 'stage': stage_start()
     if replay and 'in_tick' in json.load(open(replay)) and gt:   # by tick: the recorded inputs and pokes (open loop)
@@ -134,7 +141,13 @@ def record(game, what, out, replay=None, pack=None, stage=None):
         run(300)
     if pack and what != 'stage': print('pack sent at tick', sent, 'status', b.r(S['lab'] + PACK_STAT_OFF, 1), '(2 = installed)')
     if what == 'stage': print('pack status', b.r(S['lab'] + 3232, 1), '(2 = installed, 0 = none sent)')
-    json.dump({'trace': tr, 'inputs': log, 'pokes': pokes, 'ticks': tk if gt else None, 'in_tick': in_tick if gt else None,
+    palram = None
+    if enemy:                                           # the enemy's palettes as the game wrote them (bank 0, slot 16 + 2 * MAX_PALS)
+        import ctypes as C
+        b.core.retro_get_memory_data.restype = C.c_void_p
+        w = (C.c_uint16 * 8192).from_address(b.core.retro_get_memory_data(104))
+        palram = [[w[(32 + i) * 16 + k] for k in range(16)] for i in range(8)]
+    json.dump({'trace': tr, 'inputs': log, 'palram': palram, 'pokes': pokes, 'ticks': tk if gt else None, 'in_tick': in_tick if gt else None,
                'tick_pokes': tpokes}, open(out, 'w'))
     print(what, len(tr), 'frames ->', out)
 
@@ -189,4 +202,4 @@ if __name__ == '__main__':
     pk = open(a[a.index('--pack') + 1], 'rb').read() if '--pack' in a else None
     opt = lambda k, d: int(a[a.index(k) + 1]) if k in a else d
     record(*a[:3], replay=a[a.index('--replay') + 1] if '--replay' in a else None, pack=pk,
-           stage=(opt('--stage', 0), opt('--wave', 0), opt('--fighter', 0), opt('--frames', 1800)))
+           stage=(opt('--enemy', 0) if a[1] == 'enemy' else opt('--stage', 0), opt('--wave', 0), opt('--fighter', 0), opt('--frames', 1800)))

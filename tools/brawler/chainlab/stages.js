@@ -32,31 +32,38 @@
   const CLAB = window.chainlab, lab = CLAB.lab;
   let D;
   try { D = await (await fetch('stages.json', { cache: 'no-cache' })).json(); } catch (e) { $('tabStages').disabled = true; return; }
-  const EN = D.enemies, ROSTER = D.roster, ORIG = clone(D.stages);
+  const ED = () => window.enemiesTab ? window.enemiesTab.stageData(D) : { errors: [], D };   // the Enemies tab's enemies
+  const EN = () => (ED().D || D).enemies;
+  const ROSTER = D.roster, ORIG = clone(D.stages);
   const DRAFT = 'brawlerlab.stages.' + (lab.layout.version || '');
   let stages = clone(ORIG), si = 0;
   try { const d = JSON.parse(localStorage.getItem(DRAFT)); if (Array.isArray(d) && d.length === ORIG.length) stages = d; } catch (e) { /* none */ }
   const save = () => { try { localStorage.setItem(DRAFT, JSON.stringify(stages)); } catch (e) { /* private window */ } };
 
   // ---- tabs -------------------------------------------------------------------------------------------------------------
+  // three tabs share the game column: the Chain Lab (its tree and readout), Stages, Enemies (enemies.js)
   let active = false;
-  function tab(on) {
-    active = on;
-    $('tabStages').classList.toggle('on', on); $('tabChain').classList.toggle('on', !on);
-    $('treecol').hidden = on; $('stagecol').hidden = !on; $('clhead').hidden = on;
-    $('readout').hidden = on;
-    if (on) render();
+  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']] };
+  window.labTab = name => {
+    for (const [k, [b, els]] of Object.entries(TABS)) {
+      if ($(b)) $(b).classList.toggle('on', k === name);
+      for (const id of els) if ($(id)) $(id).hidden = k !== name;
+    }
+    window.labTabName = name; active = name === 'stages';
+    if (active) render();
+    window.dispatchEvent(new CustomEvent('labtab', { detail: name }));
     CLAB.draw();
-  }
+  };
+  function tab(on) { window.labTab(on ? 'stages' : 'chain'); }
   $('tabChain').onclick = () => tab(false);
   $('tabStages').onclick = () => tab(true);
   const PHASES = ['', 'GO', 'boss', 'boss beaten', 'stage clear', 'fade'];
   const MODES = ['select', 'fight', 'title', 'boss unlocked', 'ending'];
   window.labStatus = () => {
-    if (!active) return null;
+    if (!active && window.labTabName !== 'enemies') return null;
     const y = lab.layout.syms, r8 = a => (a === undefined ? 0 : lab.r8(a)), cam = y.cam_x === undefined ? 0 : (lab.r16(y.cam_x) << 16 >> 16);
-    const m = r8(y.mode), act = lab.active() ? 'Chain Lab training' : (r8(y.attract) ? 'attract demo' : MODES[m] || m);
-    const where = m === 1 && !r8(y.attract) && !lab.active() ? `  stage ${r8(y.camp) + 1}  ${r8(y.phase) >= 2 ? 'boss' : 'wave ' + (r8(y.wave) + 1)}  ${PHASES[r8(y.phase)] || ''}  camera x ${cam}` : '';
+    const m = r8(y.mode), la = lab.r8(lab.lab + 8), act = la === 2 ? 'enemy test' : la ? 'Chain Lab training' : (r8(y.attract) ? 'attract demo' : MODES[m] || m);
+    const where = m === 1 && !r8(y.attract) && !la ? `  stage ${r8(y.camp) + 1}  ${r8(y.phase) >= 2 ? 'boss' : 'wave ' + (r8(y.wave) + 1)}  ${PHASES[r8(y.phase)] || ''}  camera x ${cam}` : '';
     return `${act}${where}  pack: ${lab.packStatus()}`;
   };
   // the game.json stage form keeps build_tables.py format's key order: enemy, pick, not_boss, set, x / walk_in, z, tint
@@ -78,17 +85,17 @@
     return h('span', { class: 'face' + (small ? ' small' : ''), title: name, style: `background-image:url(stages/faces.png);background-position:${-i * s}px 0` + (small ? `;background-size:${ROSTER.length * 16}px 16px` : '') });
   }
   function enemyFace(en) {
-    const e = EN.find(x => x.name === en);
+    const e = EN().find(x => x.name === en);
     if (!e) return h('span', {}, '?');
     if (e.base !== 'pool') return face(e.base);
     return h('span', { class: 'pool', title: 'pool: ' + e.pool.join(', ') }, e.pool.slice(0, 4).map(n => face(n, true)));
   }
   const enemyLabel = e => `${e.name.replace(/_/g, ' ')} (${e.base === 'pool' ? 'pool of ' + e.pool.length : e.base}, ${e.life} life)`;
-  const enemyOpts = () => EN.map(e => [e.name, enemyLabel(e)]);
+  const enemyOpts = () => EN().map(e => [e.name, enemyLabel(e)]);
   const songOpts = () => Object.keys(D.songs).map(n => [n, n.replace(/_/g, ' ')]);
 
   // ---- the pack and play --------------------------------------------------------------------------------------------
-  function packNow() { return SP.pack(stages, D); }
+  function packNow() { const e = ED(); return e.errors.length ? { bytes: null, errors: ['Enemies tab: ' + e.errors.join('; ')] } : SP.pack(stages, e.D); }
   function showErrors(errs) {
     const e = $('stErr'); e.textContent = errs.length ? 'Not valid (fix these before playing):\n' + errs.join('\n') : ''; e.classList.toggle('show', !!errs.length);
   }
@@ -199,7 +206,7 @@
     return h('div', { style: 'overflow-x:auto' }, h('table', { class: 'sp' }, head, rows));
   }
   function adder(list, max, isBoss) {
-    const en = sel(enemyOpts(), EN[0].name, () => {}), side = sel([['right', 'from the right'], ['left', 'from the left']], 'right', () => {});
+    const en = sel(enemyOpts(), EN()[0].name, () => {}), side = sel([['right', 'from the right'], ['left', 'from the left']], 'right', () => {});
     const delay = h('input', { type: 'number', value: 0, min: 0, max: 15 }), count = h('input', { type: 'number', value: 1, min: 1, max: max });
     const free = max - list.length;
     const add = h('button', { disabled: free <= 0, onclick: () => {
@@ -268,7 +275,7 @@
           h('label', {}, 'lock x ', numIn(w.lock, v => { w.lock = v; edited(); }, { step: 8, style: 'width:76px' })),
           h('label', {}, 'seed ', (() => { const i = h('input', { value: w.seed, style: 'width:80px' }); i.onchange = () => { w.seed = i.value; edited(); }; return i; })()),
           h('button', { onclick: () => play(si, k) }, '▶ Play from here'),
-          h('button', { onclick: () => { s.waves.splice(k + 1, 0, { lock: w.lock, seed: '0x' + ((SP.num(w.seed) + 1) & 0xFFFF).toString(16).toUpperCase(), spawns: [canon({ enemy: EN[0].name, pick: 0, set: 0, walk_in: { side: 'right', rank: 0 }, z: 6 })] }); edited(); } }, 'Insert a wave after'),
+          h('button', { onclick: () => { s.waves.splice(k + 1, 0, { lock: w.lock, seed: '0x' + ((SP.num(w.seed) + 1) & 0xFFFF).toString(16).toUpperCase(), spawns: [canon({ enemy: EN()[0].name, pick: 0, set: 0, walk_in: { side: 'right', rank: 0 }, z: 6 })] }); edited(); } }, 'Insert a wave after'),
           h('button', { disabled: s.waves.length <= 1, onclick: () => { s.waves.splice(k, 1); edited(); } }, 'Remove wave')),
         spawnTable(w.spawns, false), adder(w.spawns, D.max_enemies, false))),
       h('div', { class: 'wave' },

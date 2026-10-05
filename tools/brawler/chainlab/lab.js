@@ -215,6 +215,11 @@
       if (r > 32768 || (r === 32768 && (q & 1))) q++;
       return q / 100;
     }
+    /* palette `slot` (bank 0) as the game wrote it: 16 colour words (web_core.c wc_palram, geolith's palette RAM) */
+    palette(slot) { const p = (this.core._wc_palram() >> 1) + slot * 16; return Array.from(this.core.HEAP16.subarray(p, p + 16), v => v & 0xFFFF); }
+    /* req 3: P1 = fighter against enemy definition `enemy` (EN_* / the pack's order) with its own AI; a pack sent just
+       before is installed first */
+    enemyTest(fighter, enemy) { this.request(3, fighter, enemy); }
     gameTicks() { return this.r32(this.layout.syms.game_ticks); }
     packStatus() { const v = this.r8(this.lab + LAB.packStat); return v & 0x80 ? 'bad (check ' + (v & 0x7F) + ')' : GD_STAT[v]; }
     nev() { return this.r8(this.lab + LAB.nev); }

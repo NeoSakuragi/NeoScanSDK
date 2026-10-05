@@ -306,7 +306,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (Song Lab playback), the wave designer: the stage as a horizontal strip with its lock points, enemies dropped onto
   each wave (side, delay, count), a timeline of who comes in when; installs live through the data-pack path; same
   Oros-login site as the Chain Lab (canneji /brawler-lab/).
-- [ ] 53. Brawler Lab tab: Enemies — base picker, palette editor (from a colour set / tint / custom 16 colours, live
+- [x] 53. (done 2026-10-05, docs/brawler_data_model.md "Enemies tab"; proof chainlab/enemy_proof.sh: page = desktop core 1494 ticks, palette RAM = swatches, packs = build_tables.py) Brawler Lab tab: Enemies — base picker, palette editor (from a colour set / tint / custom 16 colours, live
   sprite preview), AI preset + override sliders, life / power, trimmed move list (a Chain Lab tree), test it live in
   the enemy-test mode (lab.req = 3).
 - [ ] 54. Brawler Lab tab: Characters — fold in the select-pose picker (the judging UI), the Chain Lab, the specials

@@ -10,6 +10,8 @@
                                                   gdpack_t) for lab.load 3, from a game.json the running ROM was built with
                                                   or an edit of it (same roster, same stage count)
     build_tables.py labstages GAME.json BUILD_DIR OUT.json   the Brawler Lab Stages tab's data (pack_base bytes, names, songs)
+    build_tables.py labenemies GAME.json OUT.json            the Brawler Lab Enemies tab's data (enemies, AI presets, tints,
+                                                             the routes files its enemies use, the schema's names)
 
 Everything is checked against the build: names resolve (fighters, enemies, AI presets, tints, songs), counts fit the
 engine (6 enemies at once, 16 select slots), lock points inside the stage (build/stage.h widths)."""
@@ -356,6 +358,17 @@ def lab_stages(g, build):
             'max_enemies': MAX_ENEMIES, 'gd_max': GD_MAX}
 
 
+def lab_enemies(g):
+    """what the Brawler Lab's Enemies tab needs to build the pack's first part in the page (chainlab/enemypack.js, the
+    same rules and bytes as model()'s enemy half and pack_base): the enemies and AI presets in game.json form, the tints,
+    the roster (names, the stage whose boss unlocks each), the routes files the enemies use, the schema's constants"""
+    files = {e['moves']: json.load(open(os.path.join(REPO, e['moves']))) for e in g['enemies'] if str(e.get('moves', '')).endswith('.json')}
+    return {'enemies': g['enemies'], 'presets': g['ai']['presets'], 'tints': g['tints'], 'roster': roster_names(g),
+            'unlock': [r['unlock']['boss_of_stage'] if isinstance(r.get('unlock'), dict) else 0 for r in g['roster']],
+            'route_files': files, 'ai_flags': AI_FLAGS, 'ai_fields': AI_FIELDS, 'chance_masks': CHANCE_MASKS, 'ai_order': AI_ORDER,
+            'move_presets': ['own'] + __import__('routes').ENEMY_PRESETS, 'max_name': 10}
+
+
 def fmt(o, depth=0):
     """game.json's layout: a container that fits 120 characters on one line (a spawn, a slot, a watch pose), the others open"""
     if isinstance(o, (dict, list)) and o and len(json.dumps(o, ensure_ascii=False)) + depth > 120:
@@ -376,4 +389,5 @@ if __name__ == '__main__':
     elif cmd == 'format': open(path, 'w').write(fmt(g) + '\n')
     elif cmd == 'pack': open(sys.argv[4], 'wb').write(pack(g, sys.argv[3]))
     elif cmd == 'labstages': json.dump(lab_stages(g, sys.argv[3]), open(sys.argv[4], 'w'))
+    elif cmd == 'labenemies': json.dump(lab_enemies(g), open(sys.argv[3], 'w'))
     else: sys.exit(__doc__)

@@ -45,8 +45,8 @@ class Rom:
                 out[:, xb + x] = v
         return out
 
-    def frame(self, name, fi, tile_hi, pals):
-        """-> RGBA image of frame fi, its feet origin (ox, oy), facing right"""
+    def frame_index(self, name, fi, tile_hi):
+        """-> frame fi as palette indices (pal * 16 + colour, 0 = transparent), its feet origin (ox, oy), facing right"""
         parts = re.findall(r'\{(-?\d+), (-?\d+), (\d+), (\d+), (\d), (\d), (\d+), (\w+)\}', self.arr(f'{name}_f{fi}') or '')
         placed = []
         for dx, dy, cols, rows, hf, vf, pal, tarr in parts:
@@ -64,14 +64,20 @@ class Rom:
         if not placed: return None
         minx = min(p[0] for p in placed); miny = min(p[1] for p in placed)
         maxx = max(p[0] + p[2].shape[1] for p in placed); maxy = max(p[1] + p[2].shape[0] for p in placed)
-        rgba = np.zeros((maxy - miny, maxx - minx, 4), np.uint8)
+        out = np.zeros((maxy - miny, maxx - minx), np.uint8)
         for x0, y0, img, pal in placed:
             m = img > 0
-            lut = np.array([(0, 0, 0, 0)] + [(*_colour(pals[pal * 16 + k]), 255) for k in range(1, 16)], np.uint8)
-            sub = rgba[y0 - miny:y0 - miny + img.shape[0], x0 - minx:x0 - minx + img.shape[1]]
-            sub[m] = lut[img[m]]
-        rgba = rgba[:, ::-1]                       # ROM sprites face left: P1 faces right
-        return rgba, maxx - 1, -miny               # origin x mirrored: 0 -> width-1-(0-minx)
+            sub = out[y0 - miny:y0 - miny + img.shape[0], x0 - minx:x0 - minx + img.shape[1]]
+            sub[m] = pal * 16 + img[m]
+        return out[:, ::-1], maxx - 1, -miny       # ROM sprites face left: P1 faces right (origin x mirrored)
+
+    def frame(self, name, fi, tile_hi, pals):
+        """-> RGBA image of frame fi (colours pals: pal * 16 + colour), its feet origin (ox, oy), facing right"""
+        r = self.frame_index(name, fi, tile_hi)
+        if r is None: return None
+        ix, ox, oy = r
+        lut = np.array([(0, 0, 0, 0) if k % 16 == 0 or k >= len(pals) else (*_colour(pals[k]), 255) for k in range(256)], np.uint8)
+        return lut[ix], ox, oy
 
 
 def move_images(game, out, fighters, moves, scale=2):
@@ -107,6 +113,34 @@ def move_images(game, out, fighters, moves, scale=2):
         im = im.resize((im.width * scale, im.height * scale), Image.NEAREST)
         im.save(os.path.join(out, 'moves', f'{name}.png'), optimize=True)
         index[name] = {'sheet': f'moves/{name}.png', 'w': im.width, 'h': im.height, 'moves': idx}
+    return index
+
+
+def enemy_images(game, out, fighters):
+    """the Enemies tab's sprites, recoloured in the page: per fighter its select pose (bstep watch, the last step), idle
+    (step 0) and an attack (close C's first hit frame) as palette indices (pal * 16 + colour) in one 8-bit grey PNG
+    (OUT_DIR/enemies/<fighter>.png, cells on a common feet line), and every colour set's palettes (the ROM's words)
+    -> {fighter: {sheet, cells: {watch|idle|attack: [x, y, w, h]}, npal, nsets, pals}}"""
+    rom = Rom(os.path.join(game, 'build'))
+    os.makedirs(os.path.join(out, 'enemies'), exist_ok=True)
+    index = {}
+    for name in fighters:
+        ch = rom.chars[name]
+        npal, nsets, tile_hi = ch[0], ch[1], ch[-3]
+        pals = _nums(rom.arr(f'{name}_pals'))[:npal * nsets * 16]
+        steps = lambda a: [(int(f), int(fl)) for f, t, fl in re.findall(r'\{(\d+), (\d+), (\d+), \{', rom.arr(f'{name}_{a}') or '')]
+        want = {'watch': steps('watch')[-1:], 'idle': steps('idle')[:1]}
+        atk = [f for f, fl in steps('atk_c_close') if fl & 4] or [f for f, fl in steps('atk_a_close') if fl & 4]
+        want['attack'] = [(atk[0], 0)] if atk else []
+        cells = [(k, rom.frame_index(name, v[0][0], tile_hi)) for k, v in want.items() if v]
+        cells = [(k, r) for k, r in cells if r is not None]
+        up = max(r[2] for _, r in cells); down = max(r[0].shape[0] - r[2] for _, r in cells)
+        W = sum(r[0].shape[1] + 4 for _, r in cells); sheet = np.zeros((up + down, W), np.uint8); x = 0; idx = {}
+        for k, (img, ox, oy) in cells:
+            sheet[up - oy:up - oy + img.shape[0], x:x + img.shape[1]] = img
+            idx[k] = [x, 0, img.shape[1], up + down]; x += img.shape[1] + 4
+        Image.fromarray(sheet, 'L').save(os.path.join(out, 'enemies', f'{name}.png'), optimize=True)
+        index[name] = {'sheet': f'enemies/{name}.png', 'cells': idx, 'npal': npal, 'nsets': nsets, 'pals': pals}
     return index
 
 
