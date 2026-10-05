@@ -45,8 +45,8 @@ _start:
     .ascii  "NEO-GEO\0"        /* Magic */
     .word   0x0999              /* NGH number (patched by build tool) */
     .long   0x00100000          /* P ROM size (1 MB) */
-    .long   0                   /* No backup RAM */
-    .word   0                   /* No backup RAM size */
+    .long   __backup_ptr        /* backup RAM block in work RAM (neoscan.ld .backup; 0 = none) */
+    .word   __backup_size       /* its size in bytes */
     .byte   2                   /* Eye catcher mode 2 = skip */
     .byte   0                   /* Logo sprite bank */
     .long   soft_dip            /* JP DIP */

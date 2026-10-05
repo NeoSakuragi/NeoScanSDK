@@ -12,7 +12,8 @@ write the 68000 work RAM between frames, place fighters, force states, press but
 
 Fighter fields and their offsets come from the compiler (offsetof on fighter.h, emitted into assembly), symbol
 addresses from build/rom.elf, so the harness follows the struct when it changes. The core is the same .so our
-emulator loads (~/.config/retroarch/cores/geolith_libretro.so); saves go to a scratch dir, never the user's."""
+emulator loads (~/.config/retroarch/cores/geolith_libretro.so); saves go to a fresh scratch dir per instance
+(WORK/save_*, removed at exit), never the user's."""
 import ctypes as C, os, re, struct, subprocess, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -45,7 +46,9 @@ def _layout(game):
               'step', 'tick', 'anim_done', 'node', 'buffered', 'hit_mask', 'freeze', 'inv', 'hp', 'idx', 'held',
               'shown_frame', 'frame_ovr', 'zfront', 'pushing', 'throw_id', 'grab_hits', 'target', 'spec_id', 'owner',
               'ncols', 'landed', 'chain_node', 'chain_t', 'spec_fx', 'burn', 'jump_kind', 'jump_dir',
-              'pdef', 'prow', 'pend', 'shot']
+              'pdef', 'prow', 'pend', 'shot', 'power', 'tint']
+    hdr = open(os.path.join(game, 'fighter.h')).read()
+    fields = [f for f in fields if re.search(r'\b%s\b' % f, hdr)]   # an older build may lack the newer fields
     src = '#include <stddef.h>\n#include "fighter.h"\nvoid offs(void) {\n' + ''.join(
         f'asm volatile(".equ OFF_{f}, %c0\\n.equ SZ_{f}, %c1" :: "i"(offsetof(fighter_t, {f})), "i"(sizeof(((fighter_t *)0)->{f})));\n'
         for f in fields) + 'asm volatile(".equ SIZEOF, %c0" :: "i"(sizeof(fighter_t)));\n' + \
@@ -77,7 +80,11 @@ class Brawler:
         os.makedirs(WORK, exist_ok=True)
         self.pad = [set(), set()]; self.frame = 0; self.hits = []; self._video = None
         self._opt = {k.encode(): C.c_char_p(v.encode()) for k, v in OPTIONS.items()}
-        self._sys = C.c_char_p(SYSDIR.encode()); self._save = C.c_char_p(WORK.encode())
+        # a fresh save dir per instance (NVRAM = BIOS settings, credits, the game's backup block; memory card): runs
+        # don't inherit each other's credits or saves; a test powers off / on inside it (save_dir, power_cycle)
+        import tempfile, atexit, shutil
+        self.save_dir = tempfile.mkdtemp(prefix='save_', dir=WORK); atexit.register(shutil.rmtree, self.save_dir, True)
+        self._sys = C.c_char_p(SYSDIR.encode()); self._save = C.c_char_p(self.save_dir.encode())
         if Brawler._core is not None: raise RuntimeError('one Brawler per process (the core is a global)')
         core = Brawler._core = C.CDLL(CORE)
         self._cbs = [ENV_CB(self._env), VIDEO_CB(self._vid), SAMPLE_CB(lambda l, r: None), BATCH_CB(lambda d, n: n),
@@ -97,7 +104,8 @@ class Brawler:
     # libretro callbacks
     def _env(self, cmd, data):
         if cmd in (9, 31):                                           # system / save directory
-            C.cast(data, C.POINTER(C.c_char_p))[0] = (self._sys if cmd == 9 else self._save).value; return True
+            C.cast(data, C.POINTER(C.c_void_p))[0] = C.cast(self._sys if cmd == 9 else self._save, C.c_void_p)   # our
+            return True                                              # buffers (the core keeps the save dir until unload)
         if cmd == 10: return C.cast(data, C.POINTER(C.c_uint))[0] == 1   # XRGB8888
         if cmd == 15:
             v = C.cast(data, C.POINTER(Variable))[0]; val = self._opt.get(v.key)
@@ -111,6 +119,12 @@ class Brawler:
     def _input(self, port, dev, idx, id):
         if dev != 1 or port > 1: return 0
         return int(any(KEYS[k] == id for k in self.pad[port]))
+
+    def power_cycle(self):
+        """power off (the core writes NVRAM / memory card to save_dir) and on again (it loads them)"""
+        self.core.retro_unload_game()
+        if not self.core.retro_load_game(C.byref(GameInfo(self.rom.encode(), None, 0, None))): raise RuntimeError('reload failed')
+        self.ram = (C.c_uint8 * self.core.retro_get_memory_size(2)).from_address(self.core.retro_get_memory_data(2))
 
     # frames
     _want_video = False
@@ -178,13 +192,19 @@ class Brawler:
         """a stable id of the ROM build (Python's hash() of bytes changes per process: the cache never hit)"""
         import zlib
         return zlib.crc32(open(self.rom, 'rb').read())
-    def pick(self, k, button='a', cache=True):
+    def unlock_all(self):
+        """campaign builds: every boss on the select screen (save.unlocked poked after the title loaded the save; the
+        sum is not updated, so it lasts until the next power-on)"""
+        if 'save' in self.syms: self.w(self.syms['save'] + 7, 1, 0xFF)
+    def pick(self, k, button='a', cache=True, unlock=False):
         """power on -> coin -> START -> the select screen's fighter k (stick right k times: the real select path)
-        -> the fight, 20 frames in"""
-        path = os.path.join(WORK, 'fight_%08x_%d%s.state' % (self._rom_id(), k, button))
+        -> the fight, 20 frames in; unlock: every boss in the line-up (CHARS order, as before the campaign)"""
+        path = os.path.join(WORK, 'fight_%08x_%d%s%s.state' % (self._rom_id(), k, button, 'u' if unlock else ''))
         if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
         self.core.retro_reset()                       # from power on, whatever ran before in this process
-        self.seq('600:-,4:o,100:-,4:s,100:-' + ',4:R,16:-' * k + f',4:{button},270:-')
+        self.seq('600:-,4:o,100:-')
+        if unlock: self.unlock_all()
+        self.seq('4:s,100:-' + ',4:R,16:-' * k + f',4:{button},270:-')
         open(path, 'wb').write(self.save())
     def char_of(self, i):
         """index in bm_chars (the Makefile's CHARS order) of fighter i"""

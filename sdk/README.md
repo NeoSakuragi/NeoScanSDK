@@ -12,6 +12,7 @@ C development kit for Neo Geo homebrew. Targets the 68000 with VASM assembler an
 | `neo_input.h` | Joystick input polling |
 | `neo_anim.h` | Sprite animation engine |
 | `neo_hw.h` | Hardware registers, VBlank, IRQ |
+| `neo_backup.h` | Save data, SNK conventions: MVS backup RAM block (`NEO_BACKUP`), AES memory card (BIOS CARD call) |
 
 ## Build
 

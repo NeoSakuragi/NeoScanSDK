@@ -11,8 +11,9 @@ python3 ../../tools/brawler/run_test.py out.png "p1 0 42 R; p1 42 14 U; p1 60 3 
 ## Arcade flow (MVS, Unibios)
 Power on: attract demo = a fight where P1 is `ai_bot` (closes in, combos, grabs, down+D reversal when threatened) against
 weak enemies (`ai_weak`), a new fighter each time, INSERT COIN blinking; after 40 s it hands back to the BIOS, which
-starts it again. Coin (keyboard 3): title screen (banner, PRESS START); START (keyboard 1) takes a credit -> character
-select -> the fight. Game over / stage clear: back to the BIOS (attract, or the title while credits remain).
+starts it again. Coin (keyboard 3): title screen (banner, PRESS START; NEW GAME / CONTINUE STAGE n when a save is
+past stage 1); START (keyboard 1) takes a credit -> character select -> the campaign. Game over / the ending: back to
+the BIOS (attract, or the title while credits remain). AES (Unibios AES mode, no coin): START in the demo -> the title.
 
 ## Versions, publishing, Android player
 `VERSION` (0.0.1 style; `make bump`) is compiled in and shown on the title screen. `make publish-vps` uploads the
@@ -27,14 +28,88 @@ keep the selected fighter in the middle; the selected one shows its colours, the
 their own palettes). "1P" with a down arrow (fix tile $7F, make_hud.py) above the selected head ("2P" above it when a
 second player selects). Stick left / right moves; A/B/C/D picks that colour set, KOF style, and plays the win pose.
 Then the others walk off the screen outward, the wall and the picked fighter fade to black (32 frames) and the fight
-fades in from black (stage, backdrop, fighters). Only the fighters on screen use an entity: the fight's 8 fighter
+fades in from black (stage, backdrop, fighters). Locked campaign bosses are not in the line-up (see Campaign).
+Only the fighters on screen use an entity: the fight's 8 fighter
 entities are the line-up's actors, bound to whichever fighters the camera shows. HUD portraits (32x32 fix layer) stay
 for the fight.
 
-## Game flow
-Three waves of six enemies (the fighters nobody picked, in turn), each walking in from the right; a defeated enemy
-blinks and goes. Players: 3 lives, then a 10 s CONTINUE (START with a credit: 3 more). Last wave gone: STAGE CLEAR;
-both players out: GAME OVER; both end back at the BIOS (title while credits remain, else the attract demo).
+## Campaign (2026-10-05, Streets of Rage 2 / Golden Axe style)
+Five stages, Robo Army's horizontal ones in this order: `stages[]` 0, 1, 3, 4, 5 (`CAMP_STAGE` in main.c; 2, the
+512 px arena, is not used), one ROM, `stage_init(n)` at each stage start, a 32-frame fade to black and back between
+stages. Each stage scrolls end to end through 5 lock points spread evenly from camera x 0 to its end (448 px apart on
+the 2560 px stages, 256 on the 1600 px last one): at a lock point the camera stops until the wave there is beaten,
+then "GO -->" blinks and the camera may scroll to the next one (it never scrolls back). Wave w of stage s (0-based):
+2 + s + w enemies, at most 6 (stage 1: 2 3 4 5 6, stage 2: 3 4 5 6 6, ... stage 5: 6 x 5), the fighters nobody picked
+(no boss), walking in from the right, every other one from the left when there is room; stage s's enemies land
+(s + 1) / 2 extra damage a hit (`fighter_t.power`). HUD bottom left: STAGE n WAVE n / BOSS.
+
+Bosses (`BOSS[]` in main.c, one a stage): at the stage's end the camera stays locked and the boss comes in from the
+right edge with 2 + s minions (at most 5: boss + minions + 2 players = 8 fighters); its life (100 + 4 s, 1.7-1.9 x a
+fighter's 60; damage +1 + (s + 1) / 2) shows in the boss bar (name on fix row 6, a 30-cell bar on row 7); its theme
+starts as it comes in. Beaten: its minions go down with it, STAGE CLEAR, the save, BOSS UNLOCKED (its win pose, its
+portrait and name) when its fighter was locked, then the next stage; after stage 5 CONGRATULATIONS, then back to the
+BIOS (the title while credits remain, else the attract demo; this return is also what commits the MVS save).
+
+| stage | boss | `BOSS[]` name / stand-in | theme (placeholder now: $27, the fight music) |
+|---|---|---|---|
+| 1 | Mr. Big | MR_BIG | AOF2 |
+| 2 | Krauser | KRAUSER | FF Special "Kaiser Wave" |
+| 3 | Geese | GEESE | FF Special |
+| 4 | Rugal | RUGAL / YASHIRO | KOF98 |
+| 5 | Goenitz | GOENITZ / IORI | KOF96 |
+
+Rugal and Goenitz plug in by their export name: once `kof98:rugal` / `kof96:goenitz` (export names RUGAL, GOENITZ)
+are added at the end of `CHARS`, `bosses_find` finds them and they replace the stand-ins, get locked on the select
+screen and unlock like the others; if their export names differ, change `BOSS[].name`. Stand-ins are ordinary
+fighters: never locked, no unlock screen. The boss songs: put each converted song's command byte in `BOSS[].song`.
+Note for the export: the HUD portraits use fix palettes 2 + fighter (2-15 = 14 fighters): a 15th and 16th fighter
+need the portrait palettes shared or moved.
+
+Minions never wear a playable colour set: `fighter_t.tint` 1-3 runs the set's colours through `fighter_colour`
+(fighter.c) on every palette load (fight start, fades, the end of a burn): pulled toward their luminance
+(5 R + 9 G + 2 B) / 16 and darkened, then a cast. 1 shade: half desaturated, 69 %; 2 ash: 3/4 desaturated, 88 %, cold
+(B +3, R -1); 3 rust: half desaturated, 75 %, warm (R +3, B -2). Minion k of stage s: colour set k + s, tint
+1 + (k + s) mod 3; never the boss's own fighter.
+
+Boss AI (`ai_set_boss`, ai.c): always holds an attack token besides the minions' one, rests a quarter as long; when
+ready 20-160 px away on the player's line: 1 time in 4 a special (D, or forward+D, the rush), else 1 in 4 a jump-in (a
+forward regular jump with C held through the prejump, air B on the way down), else it closes in and punches; a player
+attack within 56 px is answered 1 time in 4 by down+D (the rising reversal). Measured over 900 frames per boss: 3-8
+specials, 1-5 jumps, 5-12 punch strings. Regular enemies do not jump (unchanged).
+
+Unlocks: a boss whose own fighter is in CHARS is not on the select screen (the line-up shows only unlocked fighters,
+CHARS order) until beaten; P2's mid-fight join never picks a locked one. Players: 3 lives, a 10 s CONTINUE (START
+with a credit), carried from stage to stage with their fighter and colours; both out: GAME OVER.
+
+## Save (SNK conventions, sdk/include/neo_backup.h)
+`save_t` (main.c, 16 bytes): 2 bytes debug dipswitches (SNK: the backup block starts with them), "BRW1", furthest
+stage reached (0-4), unlocked bosses (bit k = `BOSS[k]`), 6 spare, a 16-bit sum; anything that fails magic + sum is
+a fresh save. Game ID = the header NGH, $0999 (crt0; a released game needs its own number).
+- MVS (`BIOS_MVS_FLAG` $10FD82 != 0): the struct is the header's backup RAM block (`NEO_BACKUP`: header $10E/$112 =
+  $100034 / 16). The BIOS restores it at power-on and copies it into battery RAM when the game returns control
+  (SYSTEM_RETURN: game over, the ending, the demo's end) - measured: a change powered off before a return is lost.
+- AES: the memory card through the BIOS CARD call ($C00468): CARD_LOAD on the title (and at power-on), CARD_SAVE at
+  once after each stage (FCB $0999, sub 0, 16 bytes). Measured in AES mode: answer 0, the record in `brawler.mcr`
+  ($142), read back after a power-off mid-game: CONTINUE STAGE 2.
+- Title: stick up / down = NEW GAME or CONTINUE STAGE n (n = furthest + 1), then START; A+B+C+D held 2 s clears the
+  save ("SAVE DATA CLEARED").
+- Our emulator persists both: Geolith writes `<rom>.nv` (MVS battery RAM) and `<rom>.mcr` (card) to its save dir
+  (neogeo_sdl: ~/.config/retroarch/saves) when the game is unloaded (quit, reset, end of a capture), and loads them
+  at start. tools/brawler/harness.py: the core now gets persistent path buffers (its save dir pointer dangled, so
+  harness runs never wrote a .nv), a fresh save dir per instance (`b.save_dir`, WORK/save_*, removed at exit: runs
+  don't share credits or saves), `b.power_cycle()`, and `unlock_all()` / `pick(k, unlock=True)` for the line-up.
+
+Proof (2026-10-05, harness = our emulator's core, real path power on -> coin -> START -> select -> 5 stages; test
+pokes only: wave enemies set OFF, the boss set DEAD, P1's life refilled): per stage the enemy counts above, the camera
+held at each lock (0, 448, ... 1792; stage 5: 0, 256, ... 1024; boss at world end), each boss with its minions, tints
+and bar, BOSS UNLOCKED after stages 1-3 (stand-ins after 4-5: none), the ending, power off, the title's CONTINUE
+STAGE 5, the select with 14 fighters; CONTINUE starts stage 5. Sheet: /data/tmp/campaign/out/campaign_sheet.png
+(script /data/tmp/campaign/campaign.py, AES card run aes.py). Regressions: regress.py bleed True (normal build also
+frame-exact; see regress.py `near` for the harness's frame-sampling jitter it now tolerates, and the stale-palette
+bleed it found: the fade wrote unused slots' leftover fighters, so the first tick's length depended on the demo);
+facing (AI_OFF builds vs 0.0.28, 14 fighters x 13 actions, bosses unlocked by the harness) same final facing in all
+182 cells; sprites per line with 8 fighters converged (AI_OFF, 900 frames): worst line 71 (0.0.28: 75), the guard
+never fired in either.
 
 Arcade conventions (SNK MVS; the game draws them, not the BIOS): "LEVEL-n" and "CREDIT nn" on the bottom line of
 every screen. LEVEL = the DIFFICULTY setting (LEVEL 1-8, default 4) of the game's soft DIP table (`soft_dip` in
@@ -45,7 +120,7 @@ or under a STAGE CLEAR / GAME OVER banner.
 
 HUD (fix layer, tools/brawler/make_hud.py): P1 portrait, name, KOF94-style life bar with a damage trail, lives, top
 left; one player: the enemy P1 last hit, mirrored top right; two players: P2 top right, each player's target under
-its own bar. WAVE n and CPU % at the bottom. `rm build/main.o; make PROFILE=1` adds the per-section profiler and the
+its own bar; the boss bar (name row 6, bar row 7). STAGE n WAVE n and CPU % at the bottom. `rm build/main.o; make PROFILE=1` adds the per-section profiler and the
 AI counters; `make AI_OFF=1` builds a test ROM whose enemies stand still.
 
 ## Hit sparks
@@ -223,8 +298,8 @@ specials, throws; PE = player escapes.
 
 ## Stages (`tools/brawler/make_stage_ra.py`, needs /data/roms/roboarmy.neo)
 **Prototype placeholders** (2026-10-04): Robo Army's horizontal parts, extracted from its ROM (engine decoded in
-/data/neogeo_dict/roboarmy/README.md); the final game gets its own hand-drawn art. `make STAGE=n` picks the stage the
-fight (and the attract demo) starts on, default 0. The vertical parts (area 2's descent, area 5): docs/brawler_stage_vertical.md.
+/data/neogeo_dict/roboarmy/README.md); the final game gets its own hand-drawn art. The campaign plays 0, 1, 3, 4, 5 (see Campaign); `make STAGE=n` picks the stage the attract demo
+plays (default 0). The vertical parts (area 2's descent, area 5): docs/brawler_stage_vertical.md.
 The former Sengoku 2 castle (`make_stage_s2.py`, two planes with parallax) stays in the repo, not built.
 
 | n | Robo Army | map ids | width | stage tiles | palettes | floor_top |

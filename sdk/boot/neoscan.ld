@@ -41,6 +41,18 @@ SECTIONS
         *(.noinit)
     } > wram
 
+    /* the game's backup RAM block (SNK header $10E / $112): variables declared with NEO_BACKUP (neo_backup.h). The
+       BIOS keeps it in battery RAM on MVS and copies it back here at power-on, so it is neither cleared nor copied
+       by crt0. Its first 2 bytes are the debug dipswitches (SNK convention; neo_backup.h). None declared: size 0,
+       header pointer 0 (the BIOS then keeps nothing). */
+    .backup (NOLOAD) : {
+        __backup_start = .;
+        *(.backup .backup.*)
+        . = ALIGN(2);
+    } > wram
+    __backup_size = SIZEOF(.backup);
+    __backup_ptr = __backup_size ? __backup_start : 0;
+
     .bss : {
         __bss_start = .;
         *(.bss .bss.*)

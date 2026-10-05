@@ -100,6 +100,8 @@ typedef struct fighter {
     const bbox_t *pown;
     uint8_t  prow, pend;
     struct fighter *shot;         /* thrower: its projectile in flight (KOF: one at a time, owner +$E1 bit 5) */
+    uint8_t  power;               /* extra damage every hit it lands (campaign: later stages and bosses hit harder) */
+    uint8_t  tint;                /* minion colours (fighter_colour): 0 = its own colour set, 1-3 = shade / ash / rust */
 } fighter_t;
 
 extern const cnode_t COMBO[];
@@ -121,6 +123,10 @@ const char *fighter_state_name(uint8_t st);
 const bstep_t *fighter_step(const fighter_t *f);
 void fighter_play(fighter_t *f, uint8_t anim);              /* outside the state machine (select screen previews) */
 void fighter_animate(fighter_t *f);
-void fighter_revive(fighter_t *f);                          /* full life, getting up, invulnerable a moment */
+void fighter_revive(fighter_t *f);
+/* a colour of f's palettes as shown: its tint applied (minions, main.c): 1 shade (half desaturated, 69 %), 2 ash (3/4
+ * desaturated, 88 %, cold), 3 rust (half desaturated, 75 %, warm); never one of the playable colour sets */
+uint16_t fighter_colour(const fighter_t *f, uint16_t c);
+void fighter_load_pals(const fighter_t *f);                 /* its colour set through its tint into its hardware palettes */                          /* full life, getting up, invulnerable a moment */
 
 #endif

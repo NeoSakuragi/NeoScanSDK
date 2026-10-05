@@ -57,4 +57,12 @@ make          # builds sdk/lib/libneoscan.a
 - **USER request 0 is not every boot**: the BIOS sends it only while the game's backup RAM is uninitialised. crt0's
   `boot_init` (zero .bss, copy .data, game_init) therefore also runs from the demo / title entry when the `.noinit`
   magic says it hasn't run since power-on. Without that, initialised globals read 0 from the second boot on.
+- **Save data** (`neo_backup.h`, measured with Unibios 4.0 in our emulator, 2026-10-05): variables declared
+  `NEO_BACKUP` go to the linker's `.backup` section (work RAM, neither cleared nor copied by crt0); crt0 puts its
+  address and size in the header ($10E / $112; none declared: 0 / 0). MVS: the BIOS restores the block at power-on and
+  copies it into battery RAM (here $D00322 for NGH $0999) each time the game hands control back (SYSTEM_RETURN), not
+  while the game runs: a change powered off before the next return is lost. First 2 bytes = debug dipswitches (SNK).
+  AES: `CARD_call(CARD_SAVE / CARD_LOAD, buf, size, sub)` = the BIOS CARD call $C00468 (FCB = header NGH), answer
+  `CARD_OK` 0, `CARD_NO_DATA` $82 ...; written to the card at once (our emulator: `<rom>.mcr` in the save dir).
+  `BIOS_MVS_FLAG` = $10FD82 (0 AES, $80 MVS under the Unibios; $10FE80 reads 0 in both).
 

@@ -9,5 +9,6 @@
 #include "neo_input.h"
 #include "neo_fix.h"
 #include "neo_sound.h"
+#include "neo_backup.h"
 
 #endif

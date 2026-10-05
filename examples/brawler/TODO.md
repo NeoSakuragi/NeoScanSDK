@@ -264,3 +264,36 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
        their captured key-on counts, each note within 3.8 frames. Corrections to v17_*.md found on the way: stream
        = length varlen + running-status opcode (not "$C0-$FE duration"), $07/$08 loops, $09/$0A call/return, $0C
        queue command, $1A/$1B SSG mixer/envelope, $0D 1 byte, header channels 4-9 = ADPCM-A 1-6 (not SSG).
+
+## Campaign (Bruno, 2026-10-05)
+
+- [x] 45. Campaign mode, Streets of Rage 2 / Golden Axe style: Robo Army stages 0, 1, 3, 4, 5 in one ROM, 5 wave locks
+       a stage (camera stuck until the wave is beaten, then GO), 2-6 enemies a wave rising per wave and per stage,
+       later stages hit harder; a boss at each stage's end with minions in minion-only colours (tints), boss bar, own
+       theme slot, AI that jumps in and uses specials more; bosses locked on the select screen until beaten (BOSS
+       UNLOCKED screen); congratulations after stage 5; save (MVS backup RAM block / AES memory card, SNK conventions,
+       sdk neo_backup.h): furthest stage + unlocked bosses, title CONTINUE, A+B+C+D 2 s resets. README "Campaign" /
+       "Save". Proof: /data/tmp/campaign/out (harness, real game path).
+- [ ] 46. Rugal (KOF98) and Goenitz (KOF96) as bosses 4 and 5: they plug in by export name when added to CHARS (main.c
+       BOSS[]); their HUD portraits need fix palettes past 15 (2 + fighter): share or move them.
+- [ ] 47. Boss themes: convert Mr Big (AOF2), Krauser (FF Special "Kaiser Wave"), Geese (FF Special), Rugal (KOF98),
+       Goenitz (KOF96) and put their command bytes in BOSS[].song (placeholders: $27).
+- [ ] 48. MVS save commit: the BIOS writes the backup block to battery RAM only when the game returns control; a stage
+       cleared then powered off mid-run is lost on MVS (AES card saves at once). Decide whether that is acceptable.
+
+## Bruno, 2026-10-05
+
+- [ ] 49. "Please continue" screen: when the last life is gone, an overlay over the frozen fight with a countdown
+  9 -> 0 (START / a coin continues: the player comes back where he fell); at 0 the GAME OVER game state, its own
+  screen and music, then back to the attract mode.
+- [ ] 50. SSG sounds for the menus: the YM2610's SSG (3 square channels + noise) as a sound layer of its own on top
+  of the music (FM) and the PCM sounds (ADPCM-A / B) — check how free it really is in the KOF98 driver (which SSG
+  channels its songs / SFX use, the command that plays an SSG sound). Identify the SSG routines and their data in
+  Fatal Fury Special and KOF94 (MAKOTO drivers: tools/makoto3), capture them in our emulator, and build a small
+  set of menu sounds (cursor move, select, cancel, unlock) the game can trigger alongside everything else.
+- [ ] 51. Character select as a group photo: the fighters stand in rows like a school photo, front row the playable
+  ones, the back row(s) the bosses. A slot layout independent of the characters (slot = row, x, depth, scale /
+  priority; a table maps fighters to slots, so a swap on screen is a table change). Look for a "neutral" stance:
+  facing the viewer / watching the action, like the background characters in KOF94 / KOF95's stages — find which
+  frames those are (the stage audience sprites, or the fighters' own win / intro / taunt poses) and whether every
+  fighter has one.

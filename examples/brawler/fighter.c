@@ -180,8 +180,36 @@ static void set_burn(fighter_t *f, uint8_t burn) {
     uint8_t i;
     if (f->burn == burn) return;
     f->burn = burn;
-    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++)
-        PAL_setPalette(f->palbase + i, burn ? BURN_PAL[burn - 1] : f->ch->pals + ((f->set * f->ch->npal + i) << 4));
+    if (!burn) { fighter_load_pals(f); return; }
+    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, BURN_PAL[burn - 1]);
+}
+/* minion tints (Bruno 2026-10-05: minions never in a playable colour set): the set's colour pulled toward its luminance
+ * (5 R + 9 G + 2 B) / 16, darkened, then a cast; colour 0 (transparent) untouched */
+uint16_t fighter_colour(const fighter_t *f, uint16_t c) {
+    int16_t r, g, b, l;
+    if (!f->tint) return c;
+    r = ((c >> 7) & 0x1E) | ((c >> 14) & 1); g = ((c >> 3) & 0x1E) | ((c >> 13) & 1); b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
+    l = (r * 5 + g * 9 + b * 2) >> 4;
+    switch (f->tint) {
+    case 1:  r = ((l + r) * 11) >> 5; g = ((l + g) * 11) >> 5; b = ((l + b) * 11) >> 5; break;                      /* shade */
+    case 2:  r = (((l * 3 + r) * 14) >> 6) - 1; g = ((l * 3 + g) * 14) >> 6; b = (((l * 3 + b) * 14) >> 6) + 3; break;   /* ash */
+    default: r = (((l + r) * 12) >> 5) + 3; g = ((l + g) * 12) >> 5; b = (((l + b) * 12) >> 5) - 2; break;           /* rust */
+    }
+    if (r < 0) r = 0;
+    if (b < 0) b = 0;
+    if (r > 31) r = 31;
+    if (b > 31) b = 31;
+    return RGB(r, g, b);
+}
+void fighter_load_pals(const fighter_t *f) {
+    uint16_t buf[16];
+    uint8_t i, j;
+    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
+        const uint16_t *src = f->ch->pals + ((f->set * f->ch->npal + i) << 4);
+        buf[0] = src[0];
+        for (j = 1; j < 16; j++) buf[j] = fighter_colour(f, src[j]);
+        PAL_setPalette(f->palbase + i, buf);
+    }
 }
 
 static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   /* away: direction the victim is sent */
@@ -621,7 +649,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
 
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
-    v->hp -= damage;
+    v->hp -= damage + (a->owner ? a->owner : a)->power;
     v->freeze = HITSTOP;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
     a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
