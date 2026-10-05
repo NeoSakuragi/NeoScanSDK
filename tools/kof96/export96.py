@@ -390,7 +390,7 @@ def export(names, outdir, game='kof96', only=None, extra=None):
         for sp in specials96.load(m, cid):
             e = special_entry(m, cid, sp, add, slot_of, game)
             if sp['input'] in pdefs: e['projectiles'] = [projectile_entry(m, cid, d, add, slot_of) for d in pdefs[sp['input']]]
-            if game == 'kof98' and sp['input'] in handlers98.ROM_SPECIALS.get(name, ()):   # the ROM-read prototype:
+            if handlers98.ROM_GAME.get(name, 'kof98') == game and sp['input'] in handlers98.ROM_SPECIALS.get(name, ()):   # read from the ROM:
                 e['rom'] = handlers98.export_rom(m, cid, sp['input'], add)                  # its handler's program
             sps.append(e)
         out['characters'][name]['specials'] = sps

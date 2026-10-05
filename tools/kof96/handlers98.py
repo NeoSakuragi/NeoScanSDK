@@ -38,28 +38,48 @@ import json, os, re, struct, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import rom96
 
-P1 = '/data/tmp/romspecials/kof98_p.bin'          # the de-swapped P1 (written on first use)
+P1S = {'kof98': '/data/tmp/romspecials/kof98_p.bin', 'kof96': '/data/tmp/romspecials/kof96_p.bin',
+       'kof99': '/data/tmp/romspecials/kof99_p.bin'}       # the de-swapped P1 per game (written on first use)
+P1 = P1S['kof98']
 
 ROUTINES = {0x248A8: 'init', 0x7A98: 'sound', 0x155F4: 'gauge', 0x18C1C: 'stats', 0x37E0: 'fall', 0x36A0: 'mulfn',
             0x24A2A: 'fricmove', 0x24944: 'spawnfn', 0x24A02: 'follow', 0x24A7C: 'inflight', 0x24A5E: 'release',
             0x180B6: 'offfn', 0x15F2C: 'land', 0x24FE4: 'chain', 0x25182: 'end', 0x34A8: 'free', 0x5BA6: 'animfn',
             0x24926: 'init', 0x248AE: 'init', 0x16B26: 'face', 0x16AEC: 'face', 0x176AE: 'clrinput', 0x1B03C: 'voice',
             0x33A8: 'random', 0x1EB20: 'superflash', 0x3F8A: 'superflash', 0x1813A: 'superflash', 0x24A9A: 'ownerflag',
-            0x24AA0: 'ownerflag'}
+            0x24AA0: 'ownerflag', 0x24FF6: 'chain', 0x25002: 'chain', 0x2500E: 'chain', 0x2501A: 'chain', 0x25026: 'chain',
+            0x24F2C: 'stats', 0x24F34: 'stats', 0x24F3C: 'stats', 0x250C6: 'flags', 0x24F52: 'clrinput'}
 BOOKKEEPING = ('follow', 'inflight', 'release', 'land', 'stats', 'init', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-               'ownerflag')
+               'ownerflag', 'flags', 'trail')
+# KOF96 / KOF99: the same engine family, the same object fields; the routines at their own addresses (found by their
+# code: KOF98's bytes, or the calls in the specials' handlers next to KOF98's)
+ROUTINES96 = {0x1A756: 'init', 0x6AA8: 'sound', 0x12CB0: 'stats', 0x2F34: 'fall', 0x2DF4: 'mulfn', 0x1A88C: 'fricmove',
+              0x1A7CA: 'spawnfn', 0x1A864: 'follow', 0x1A8C2: 'inflight', 0x1A8A4: 'release', 0x2B2C: 'random',
+              0x2C2C: 'free', 0x4D50: 'animfn', 0x11644: 'face', 0x12044: 'clrinput', 0x1ACB4: 'clrinput', 0x14A3C: 'voice',
+              0x12A34: 'superflash', 0x1AC8E: 'stats', 0x1AC96: 'stats', 0x1AC9E: 'stats', 0x1A8E0: 'ownerflag',
+              0x1ADE2: 'end', 0x10C04: 'voice', 0x10CCC: 'voice', 0x17316: 'voice', 0x17330: 'voice', 0x14A2A: 'voice',
+              0x13AB2: 'trail', 0x1A8E6: 'ownerflag', 0x129B0: 'offfn'}
+ROUTINES99 = {0x1F5BC: 'init', 0x1F5C2: 'init', 0x6352: 'sound', 0xFF84: 'gauge', 0x13C96: 'stats', 0x446A: 'animfn',
+              0x12884: 'clrinput', 0x1F660: 'spawnfn', 0x21BE: 'fall', 0x207E: 'mulfn', 0x1D42: 'random', 0x1EA4: 'free',
+              0x2A4C: 'superflash', 0x1337E: 'superflash', 0x1AB7A: 'superflash', 0x160F6: 'voice', 0x1F760: 'follow',
+              0x1F7E8: 'release', 0x1F834: 'inflight', 0x1FE18: 'stats', 0x1FE20: 'stats', 0x1FE28: 'stats',
+              0x1FE3E: 'clrinput', 0x1FFB2: 'flags', 0x200A8: 'end', 0x1F7B4: 'fricmove', 0x10BE2: 'voice', 0x14C14: 'trail',
+              0x1ADBE: 'zero', 0x1FA32: 'zero'}   # zero: a follow-up / cancel input check: none (returns d0 = 0)
+GAME_ROUTINES = {'kof98': ROUTINES, 'kof96': ROUTINES96, 'kof99': ROUTINES99}
+YIELD2 = {'kof98': (0x16F98, 0x1718E), 'kof96': (0x11A54, 0x11C16), 'kof99': (0x12092,)}   # the yield routine's call after animate
 TEST_FIELDS = {0x7C: 'end', 0x7D: 'event', 0xE1: 'hit'}
 
 class Decoder:
     def __init__(self, m):
-        self.m = m; self.ins = {}
-        if not os.path.exists(P1):
-            os.makedirs(os.path.dirname(P1), exist_ok=True); open(P1, 'wb').write(m.p[:0x100000])
+        self.m = m; self.ins = {}; self.game = getattr(m, 'game', 'kof98'); self.P1 = P1S[self.game]
+        self.R = GAME_ROUTINES[self.game]; self.animfn = next(a for a, n in self.R.items() if n == 'animfn')
+        if not os.path.exists(self.P1):
+            os.makedirs(os.path.dirname(self.P1), exist_ok=True); open(self.P1, 'wb').write(m.p[:0x100000])
 
     def at(self, a):
         if a not in self.ins:
             out = subprocess.run(['m68k-linux-gnu-objdump', '-D', '-b', 'binary', '-m', 'm68k', f'--start-address={a}',
-                                  f'--stop-address={a + 0x200}', P1], capture_output=True, text=True).stdout.splitlines()
+                                  f'--stop-address={a + 0x200}', self.P1], capture_output=True, text=True).stdout.splitlines()
             lines = []
             for l in out:
                 p = l.split('\t')
@@ -73,9 +93,12 @@ class Decoder:
     def is_yield(self, a):
         """a character's yield routine: animate ($5BA6), then $16F98 / $1718E (+ boxes), jmp $600E"""
         mn, ops, nx = self.at(a)
-        if mn != 'jsr' or imm(ops[0]) != 0x5BA6: return False
+        if mn == 'jsr' and self.R.get(imm(ops[0])) == 'zero':           # a cancel check (no input: none), then the yield
+            mn2, ops2, _ = self.at(nx)
+            return mn2.startswith('beq') and self.is_yield(imm(ops2[0]))
+        if mn != 'jsr' or imm(ops[0]) != self.animfn: return False
         mn2, ops2, _ = self.at(nx)
-        return mn2 == 'jsr' and imm(ops2[0]) in (0x16F98, 0x1718E)
+        return mn2 == 'jsr' and imm(ops2[0]) in YIELD2[self.game]
 
 def split_ops(s):
     out, depth, cur = [], 0, ''
@@ -100,8 +123,9 @@ SIZE = {'b': 1, 'w': 2, 'l': 4}
 
 class Fields:
     """the object's fields the decode knows, byte by byte (big-endian, as the 68000 reads them)"""
-    def __init__(self): self.b = {}
+    def __init__(self): self.b = {}; self.k = {}      # k: byte -> (mask, bits) known bits of an unknown byte (andi / ori)
     def put(self, off, v, size):
+        for i in range(size): self.k.pop(off + i, None)
         if not isinstance(v, int): [self.b.pop(off + i, None) for i in range(size)]; return
         v &= (1 << 8 * size) - 1
         for i in range(size): self.b[off + i] = (v >> 8 * (size - 1 - i)) & 0xFF
@@ -110,13 +134,24 @@ class Fields:
         v = 0
         for i in range(size): v = v << 8 | self.b[off + i]
         return v - (1 << 8 * size) if signed and v >> (8 * size - 1) else v
+    def bit(self, off, b):
+        if off in self.b: return self.b[off] >> b & 1
+        mk, bits = self.k.get(off, (0, 0))
+        return bits >> b & 1 if mk >> b & 1 else None
+    def setbits(self, off, op, v):
+        mk, bits = self.k.get(off, (0, 0))
+        if op == 'or': self.k[off] = (mk | v, bits | v)
+        else: self.k[off] = (mk | (~v & 0xFF), bits & v)
 
 def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
     """the handler at addr -> {'addr', 'ops': [(addr, op)], 'objects': [decoded object routines]}. fields: an object's
     inherited fields (spawn offsets +$D2 / +$D4, vx, end state +$D8, hit routine +$19C)"""
     dec = dec or Decoder(m)
     F = Fields()                                     # facing right, the button, EX, on the ground
-    for off, v, sz_ in [(0x31, 1, 1), (0x1A4, 0x10 << 'ABCD'.index(button), 1), (0x1D6, 1 if ex else 0, 1), (0xC8, 0, 2)] + list(fields or []):
+    # a human player (+$170 bit 7 clear: no CPU random follow-up), no motion recognised during the move (+$1AC-$1AF: the
+    # follow-up windows' bits) and, past the first frame, no new button press (the input record a3 / fp reads 0)
+    for off, v, sz_ in [(0x31, 1, 1), (0x1A4, 0x10 << 'ABCD'.index(button), 1), (0x1D6, 1 if ex else 0, 1), (0xC8, 0, 2),
+                        (0x170, 0, 1), (0x1AC, 0, 4)] + list(fields or []):
         F.put(off, v, sz_)
     D = {}; A0 = None; ops = []; objects = []; seen = set(); cc = None
     cnt_field = None; work = [addr]; pending_child = None
@@ -136,14 +171,17 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
         if f is not None:
             v = F.get(f, size); return ('f', f) if v is None else v
         if re.match(r'^%d\d$', o): return D.get(o)
-        if field(o, 'a3') is not None: return F.get(0x1A4, 1, False)   # the buttons pressed (a3 = the input record)
+        if field(o, 'a3') is not None or o.startswith('%fp@'):           # the buttons pressed (a3 = the input record): the
+            return 0 if resumed[0] else F.get(0x1A4, 1, False)           # special's own on its first frame, then none
+        if o == '%a0@' and isinstance(A0, int) and A0 < 0x100000:       # a ROM table (a state list: +$32 / +$C2 pointers)
+            return int.from_bytes(m.p[A0:A0 + size], 'big')
         return None
     def store(f, v, size, a):
         nonlocal cnt_field
         if f == 0x00: return
         if isinstance(v, tuple) and v[0] == 'mul': emit(a, 'mul', v[2]); F.put(f, None, size); return
         if isinstance(v, tuple) and v[0] == 'f' and v[1] == f: return
-        F.put(f, v, size)
+        F.put(f, v, size); stored_at[f] = len(ops)
         regs = {0x50: 'vx', 0x58: 'vy', 0x5C: 'g', 0x54: 'fric'}
         if f in regs and size >= 2 and not isinstance(v, tuple):
             x = v / 65536 if size == 4 else (v & 0xFFFF)
@@ -152,17 +190,27 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
         elif f == 0x1B8: emit(a, 'hitkind', v)
         elif f == cnt_field: emit(a, 'set', 'cnt', v)
     a = addr; budget = 4000; work = []; pos = {}
+    # loops run at decode time: a field the handler steps once per pass (a repeat count `subq; bne` after the frame loop
+    # ended, a state-table pointer `addq #2`) is concrete, so each pass is its own copy of the code: an op's place is
+    # (address, the loop fields' values) and a pass with other values walks the code again (unrolled)
+    loopvars = {}; yielded = False; stack = []; resumed = [False]; stored_at = {}
+    # a call into the fighter's own code (a follow-up check, a shared part) is walked inline: an op's place also
+    # carries the return addresses
+    def K(t): return (t, tuple((o_, F.get(o_, s_)) for o_, s_ in sorted(loopvars.items())) +   # (+ the scratch fields
+                      tuple(F.b.get(o_) for o_ in range(0xC2, 0xE0)), tuple(stack))        # $C2-$DF: states, speeds)
+    def push(t): work.append((K(t), dict(F.b), dict(F.k), dict(D), A0, dict(loopvars), list(stack)))
     while budget:
         budget -= 1
         if a is None:
-            while work and work[0] in seen: work.pop(0)
+            while work and work[0][0] in seen: work.pop(0)
             if not work: break
-            a = work.pop(0)
-        if a in seen:
-            emit(a, 'jmp', a); a = None; continue
+            (a, _, _), F.b, F.k, D, A0, loopvars, stack = work.pop(0); yielded = False; cc = None
+        k_ = K(a)
+        if k_ in seen:
+            emit(a, 'jmp', k_); a = None; continue
         mn, o, nx = dec.at(a)
         if pending_child is not None and not any('%a1@' in x for x in o): flush_child()
-        seen.add(a); pos[a] = len(ops)
+        seen.add(k_); pos[k_] = len(ops)
         base = mn.rstrip('bwl') if mn[-1:] in 'bwl' and mn not in ('jsr', 'jmp', 'bclr', 'tstl') else mn
         sz = SIZE.get(mn[-1:], 4)
         if pending_child is not None and not any('%a1@' in x for x in o): flush_child()
@@ -170,11 +218,13 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
             mt = re.match(r'^%pc@\((0x[0-9a-f]+)\)$', o[0])
             t = imm(o[0]) if o[0].startswith('0x') else int(mt.group(1), 16) if mt else None
             if t is None and o[0] == '%a0@': emit(a, 'jmp', 'resume'); a = None; continue
-            name = ROUTINES.get(t)
+            name = dec.R.get(t)
             if mn == 'jmp' and dec.is_yield(t): emit(a, 'br', None, True, 'yield'); a = None; continue
             if name == 'end': emit(a, 'end'); a = None; continue
             if name == 'free': emit(a, 'free'); a = None; continue
             if mn == 'jmp': a = t; continue
+            if name is None and t is not None and t >= 0x30000 and len(stack) < 4:   # the fighter's own subroutine: inline
+                stack.append(nx); a = t; continue
             if name == 'sound': emit(a, 'sound', D.get('%d0'))
             elif name == 'gauge': emit(a, 'gauge', F.get(0x1DE, 2))
             elif name == 'animfn': emit(a, 'anim', F.get(0x72, 2))
@@ -190,6 +240,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
                       (0x1A4, F.get(0x1A4, 1), 1), (0x1D6, F.get(0x1D6, 1), 1)]
                 pending_child = ({'routine': A0, 'fields': cf, 'dx': -d5, 'dy': d6}, a)   # dx forward +
             elif name == 'random': emit(a, 'random'); D['%d0'] = ('random',)
+            elif name == 'zero': D['%d0'] = 0; cc = ('val', 0)
             elif name in BOOKKEEPING: emit(a, name)
             else: emit(a, 'call', t)
             a = nx; continue
@@ -198,6 +249,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
             if mt and o[1] == '%a0': A0 = int(mt.group(1), 16)
             a = nx; continue
         if mn in ('nop', 'rts'):
+            if mn == 'rts' and stack: a = stack.pop(); continue
             if mn == 'rts': emit(a, 'rts'); a = None; continue
             a = nx; continue
         if mn[0] == 'b' and mn[:3] not in ('btst', 'bcl', 'bse', 'bch') and mn not in ('bclr', 'btst'):
@@ -206,13 +258,16 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
                 if dec.is_yield(t): emit(a, 'br', None, True, 'yield'); a = None; continue
                 a = t; continue
             # condition: concrete flags (cc = ('val', v)) or an abstract one (cc = (name, flag))
+            if cc and cc[0] == 'valn':                                      # only bit 7 known (tst.b): N, not Z
+                cc = ('val', cc[1]) if cond in ('mi', 'pl') else (cc[2], 'N')
             if cc and cc[0] == 'val':
                 v = cc[1]
                 taken = {'eq': v == 0, 'ne': v != 0, 'pl': v >= 0, 'mi': v < 0}[cond]
                 a = t if taken else nx; continue
             if cc is None or cond not in ('eq', 'ne', 'mi', 'pl'):        # a test this decoder does not model
-                tgt = 'yield' if dec.is_yield(t) else t
-                if tgt != 'yield': work.append(t)
+                tgt = 'yield' if dec.is_yield(t) else K(t)
+                if tgt != 'yield': push(t)
+                else: yielded = True
                 emit(a, 'br', f'cc_{cond}@{a:X}' if cc is None else f'{cc[0]}_{cond}', True, tgt); a = nx; continue
             name, flag = cc
             when = {'eq': True, 'ne': False, 'mi': True, 'pl': False}[cond]   # taken when flag (Z or N) == when
@@ -220,8 +275,9 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
             truth = not when if flag == 'Zinv' else when                         # btst: Z set = the bit is clear
             if name == 'event_z': name, truth = 'event', not when                # bclr: Z set = the bit was clear
             if name == 'cnt': truth = when                                        # N after subq: went negative
-            tgt = 'yield' if dec.is_yield(t) else t
-            if tgt != 'yield': work.append(t)
+            tgt = 'yield' if dec.is_yield(t) else K(t)
+            if tgt != 'yield': push(t)
+            else: yielded = True
             emit(a, 'br', name, truth, tgt)
             a = nx; continue
         if base in ('tst',):
@@ -230,14 +286,15 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
             if f0 is not None and A0 == 'owner': cc = ({0xD1: 'owner_fxoff'}.get(f0, f'owner_{f0:X}'), 'N')
             elif f is not None and f in TEST_FIELDS: cc = (TEST_FIELDS[f], 'N')
             elif f is not None and F.get(f, sz) is not None: cc = ('val', F.get(f, sz))
+            elif f is not None and sz == 1 and F.bit(f, 7) is not None: cc = ('valn', -F.bit(f, 7), 'f%X' % f)
             elif o[0] == '%d1' and D.get('%d1') == ('falling',): cc = ('falling', 'N')
             elif o[0].startswith('%d') and isinstance(D.get(o[0]), int): cc = ('val', D[o[0]])
             else: cc = ('f%X' % (f if f is not None else -1), 'N')
             a = nx; continue
         if mn == 'btst':
             b = imm(o[0]); f = field(o[1])
-            if f is not None and F.get(f + (0 if b < 8 else 0), 1) is not None and b < 8: cc = ('val', (F.get(f, 1, False) >> b) & 1)
-            elif o[1].startswith('%fp@'): cc = ('input', 'Zinv')
+            if f is not None and b < 8 and F.bit(f, b) is not None: cc = ('val', F.bit(f, b))
+            elif o[1].startswith('%fp@') or field(o[1], 'a3') is not None: cc = ('val', 0 if resumed[0] else 1)
             elif field(o[1], 'a0') is not None and A0 == 'owner': cc = (f'owner_{field(o[1], "a0"):X}.{b}', 'Zinv')
             else: cc = ('f%X.%d' % (f if f is not None else -1, b), 'Zinv')
             a = nx; continue
@@ -252,9 +309,11 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
             if not dst.startswith('%a') or dst.startswith('%a4@') or dst.startswith('%a1@'):   # move sets N / Z
                 cc = ('val', v) if isinstance(v, int) else (f'mv{src}', 'N')
             if dst == '%a0' and field(src) == 0x84: A0 = 'owner'; a = nx; continue
+            if dst == '%a0' and field(src) is not None: A0 = v if isinstance(v, int) else None; a = nx; continue
             if dst == '%a4@' and isinstance(v, int):                      # move.l #R, (a4): the resume point
                 if v == nx: emit(a, 'resume')
-                else: emit(a, 'resume_at', v); work.append(v)
+                else: emit(a, 'resume_at', K(v)); push(v)
+                yielded = False; resumed[0] = True
                 a = nx; continue
             fd = field(dst)
             if fd is not None:
@@ -280,11 +339,28 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
                 if isinstance(v, int): emit(a, 'nudge', 0, v)
                 else: emit(a, 'nudgey?', v)
             elif o[1].startswith('%d') and isinstance(D.get(o[1]), int) and isinstance(v, int): D[o[1]] += v
+            elif fd is not None and base == 'addq' and isinstance(v, int) and F.get(fd, sz) is not None:   # a table pointer steps
+                F.put(fd, F.get(fd, sz) + v, sz); loopvars[fd] = sz
+            a = nx; continue
+        if mn in ('subqw', 'subqb', 'subql') and field(o[1]) is None:      # a register: a loop counter within the frame
+            v = imm(o[0])
+            if isinstance(D.get(o[1]), int): D[o[1]] -= v; cc = ('val', D[o[1]])
+            else: cc = ('dreg', 'N')
+            a = nx; continue
+        if mn in ('subqw', 'subqb', 'subql') and yielded and F.get(field(o[1]), sz) is not None and field(o[1]) not in (0x50, 0x58):
+            fd = field(o[1]); nv = F.get(fd, sz) - imm(o[0])                 # a repeat count, once per pass (the frame loop
+            F.put(fd, nv, sz); loopvars[fd] = sz; cc = ('val', nv)          # ended before it): concrete, the passes unrolled
             a = nx; continue
         if mn in ('subqw', 'subqb', 'subql'):
             fd = field(o[1])
             cnt_field = fd; emit(a, 'dec'); cc = ('cnt', 'N')
-            if F.get(fd, sz) is not None: emit(a, 'set', 'cnt', F.get(fd, sz)); ops.insert(len(ops) - 2, ops.pop())  # value known: set first
+            if F.get(fd, sz) is not None:                # value known: the counter is set where the field was written
+                at = stored_at.get(fd, 0)                    # (or at the start: a field the spawner gave an object)
+                ops.insert(at, (a, ('set', 'cnt', F.get(fd, sz))))
+                for k in pos:
+                    if pos[k] >= at: pos[k] += 1
+                for k in stored_at:
+                    if stored_at[k] >= at: stored_at[k] += 1
             a = nx; continue
         if base == 'neg':
             fd = field(o[0])
@@ -302,9 +378,12 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
                 if fd == 0xD1 and base == 'ori' and v & 0x80: emit(a, 'fxoff')
                 elif fd in (0x7C, 0x7D) and base == 'andi': pass
                 if F.get(fd, sz) is not None: F.put(fd, (F.get(fd, sz) | v) if base.startswith('or') else (F.get(fd, sz) & v), sz)
+                elif sz == 1 and isinstance(v, int): F.setbits(fd, 'or' if base.startswith('or') else 'and', v & 0xFF)
                 emit(a, 'flag', base, fd, v & 0xFF)
-            elif o[1].startswith('%d') and isinstance(D.get(o[1]), int):
+            elif o[1].startswith('%d') and isinstance(D.get(o[1]), int) and isinstance(v, int):
                 D[o[1]] = (D[o[1]] | v) if base.startswith('or') else (D[o[1]] & v); cc = ('val', D[o[1]])
+            elif o[1].startswith('%d'):
+                cc = (f'{base}_{D.get(o[1])[0] if isinstance(D.get(o[1]), tuple) else "d"}', 'Z'); D[o[1]] = None
             a = nx; continue
         if base == 'cmpi':
             a = nx; cc = ('cmp', 'Z'); continue
@@ -315,8 +394,28 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0):
     if hr and depth < 3 and not (fields and any(o_ == -1 for o_, v, s_ in fields)):   # an object's hit routine (travelling ones)
         keep = [(o_, F.get(o_, 2), 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8) if F.get(o_, 2) is not None]
         hit = decode(m, hr, button, ex, keep + [(0x50, F.get(0x50, 4), 4), (-1, 0, 1)], dec, depth + 1)
+    prune(ops, pos)
     return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1),
             'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8)}}
+
+def prune(ops, pos):
+    """a branch on a test the decoder does not model whose two ways meet again before anything but bookkeeping (the
+    follow-up / cancel checks with no input: both ways reach the same op) is no branch: dropped (('flag', 'pruned'))"""
+    skip = {'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
+            'ownerflag', 'flags', 'trail', 'random'}
+    def lands(i):
+        seen = set()
+        while i < len(ops) and i not in seen:
+            seen.add(i); op = ops[i][1]
+            if op[0] in skip: i += 1
+            elif op[0] == 'jmp' and isinstance(op[1], tuple) and op[1] in pos: i = pos[op[1]]
+            else: return i
+        return i
+    clean = {None, 'end', 'event', 'land', 'falling', 'cnt', 'off', 'hit', 'owner_fxoff'}
+    for _ in range(4):
+        for i, (a, op) in enumerate(ops):
+            if op[0] == 'br' and op[1] not in clean and op[3] != 'yield' and op[3] in pos and lands(i + 1) == lands(pos[op[3]]):
+                ops[i] = (a, ('flag', 'pruned', op[1]))
 
 def show(d, ind=''):
     for a, op in d['ops']:
@@ -329,8 +428,9 @@ def show(d, ind=''):
 
 # ---- the handler of a captured special ------------------------------------------------------------------------------
 CAP = os.path.join(HERE, 'capture', 'specials98')
+CAPS = {'kof98': CAP, 'kof96': os.path.join(HERE, 'capture', 'specials'), 'kof99': os.path.join(HERE, 'capture', 'specials_kof99')}
 
-def handler_of(cid, inp, ex=False):
+def handler_of(cid, inp, ex=False, game='kof98'):
     """(handler address, button) of a special as captured (capture/specials98: the move code's +$198 on the try's first
     special frame). inp in specials96 notation ('214C', '[4]6C'); 'EX ...' = the EX version (c<id>x, '_ex' file)"""
     import importlib.util
@@ -338,12 +438,12 @@ def handler_of(cid, inp, ex=False):
     S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
     tag = '_ex' if ex or inp.startswith('EX ') else ''
     inp = inp.replace('EX ', '')
-    T = json.load(open(os.path.join(CAP, f'{cid}{tag}.json'))); L = open(os.path.join(CAP, f'{cid}{tag}.txt')).read().splitlines()
+    T = json.load(open(os.path.join(CAPS[game], f'{cid}{tag}.json'))); L = open(os.path.join(CAPS[game], f'{cid}{tag}.txt')).read().splitlines()
     for t in T:
         if t['air'] or S.notation(t['events']) != inp: continue
         for f in range(t['start'], t['start'] + t.get('gap', 220)):
             o = bytes.fromhex(L[f - 1].split()[3]); st = struct.unpack('>H', o[0x72:0x74])[0]
-            if S.special_state('kof98', st): return struct.unpack('>I', o[0x198:0x19C])[0], t['button']
+            if S.special_state(game, st): return struct.unpack('>I', o[0x198:0x19C])[0], t['button']
     raise KeyError((cid, inp))
 
 # ---- the model: a decoded program played with the KOF98 animation engine's timing --------------------------------------
@@ -461,11 +561,19 @@ def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160):
 # ---- export: a decoded special for the brawler (export96 -> tools/brawler/export_bm.py) ---------------------------------
 # The specials played from the ROM in the brawler (prototype, 2026-10-05): KOF98 input per fighter. Everything else keeps
 # its captured script. A special qualifies when its program uses only the ops below (BODY_OPS) and its objects decode.
-ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C'}, 'ralf': {'[4]6C', '[2]8C', '[4]6D'}}
+ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B'},
+                'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B'},
+                'ryo': {'236A', '623A', '236D', 'EX 623A', '624D'}, 'robert': {'EX 236C', '624D', '623C', '623D'},
+                'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C'},
+                'iori': {'236A', '623D'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A'},
+                'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A'}, 'rugal': {'236A', '6426D', '6426B'},
+                'geese': {'236C', '623C', '623A', '236A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D'},
+                'krauser': {'214A', '214B', '41236B', '236D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B'}}
+ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 'kof96', 'k_dash': 'kof99'}   # else kof98
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
             'spawn', 'fxoff', 'end', 'hitkind'}
 DROP_OPS = {'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-            'ownerflag'}
+            'ownerflag', 'flags', 'trail'}
 CONDS = {None: 7, 'end': 0, 'event': 1, 'land': 2, 'falling': 3, 'cnt': 4, 'hit': 5, 'off': 6}
 
 def anim_steps(m, cid, st):
@@ -496,6 +604,8 @@ def object_rows(m, cid, ob, owner_x=0.0, frames=240):
     it ends), follow (pinned to its owner: x / height are offsets from it)"""
     c = Obj(m, cid, ob, x=0.0, h=0.0, vx=ob['vx']); c.resume = 0
     follow = any(op[0] == 'follow' for a, op in ob['ops'])
+    offs = any(op[0] == 'offscreen' for a, op in ob['ops'])   # it flies until off screen: a looping flight repeats
+    # (one whose program ends it itself, a counter / its animations (Goenitz's Yonokaze), plays to its end)
     if follow: c.owner = Obj(m, cid, {'ops': [], 'objects': []}); c.ofs = (ob['dx'], ob['dy'])
     rows, live, seen = [], None, {}
     for f in range(frames):
@@ -507,7 +617,7 @@ def object_rows(m, cid, ob, owner_x=0.0, frames=240):
         if atk: live = next(iter(atk.items()))
         a = [live[0] & 0x3F if live[0] < 0x100 else live[0] & 0xFF] + list(live[1]) if live and fl & 0x100 else None
         rows.append([fi, round(c.x, 3), round(c.h, 3), a, bx.get(0x31)])
-        if c.mode == 'loop' and c.done and c.step == 0 and c.left == c.steps[0][0] + 1:   # one full cycle played:
+        if offs and c.mode == 'loop' and c.done and c.step == 0 and c.left == c.steps[0][0] + 1:   # one full cycle played:
             cyc = sum(s[0] + 1 for s in c.steps)                                        # the flight repeats it
             return rows[:-1], len(rows) - 1 - cyc, follow
     return rows, None, follow
@@ -518,7 +628,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
     ticks, flags, dx, boxes)}, per state the hits it opens (whiff model), objects (flight rows for export_bm's
     projectile tables), hit kind, the frame of the last hit / the apex (the rising reversal's invincibility)"""
     ex = inp.startswith('EX ')
-    h, b = handler_of(cid, inp, ex)
+    h, b = handler_of(cid, inp, ex, m.game)
     prog = decode(m, h, b, ex)
     bad = [op for a, op in prog['ops'] if op[0] not in BODY_OPS | DROP_OPS or (op[0] == 'br' and op[1] not in CONDS)
            or (op[0] == 'anim' and op[1] is None)]

@@ -7,7 +7,8 @@ Per special and branch (whiff: nobody near; hit: an enemy standing 48 px ahead, 
 special's first frame: the frame shown (ROM frame index), x from the start (forward +), height, the hits (frames the
 target's life drops) and the projectile (first frame, place, speed). KOF98 side: tools/kof96/capture/romspecials98.py
 (our emulator; the game's hit-stop and slowdown frames dropped: the brawler applies its own hit-stop instead). The
-brawler's own hit-stop frames (P1 freeze) are dropped the same way and counted. Contact sheets: OUT_DIR/<fighter>_<input>
+brawler's own hit-stop frames (P1's program did not run: srow unchanged; the hit's own frame runs) are dropped the same
+way. KOF96 / KOF99 fighters: KOF = (game, id). Specials by A+B (0.0.48). Contact sheets: OUT_DIR/<fighter>_<input>
 _<branch>.png, KOF98 left, brawler right, every 4th frame; OUT_DIR/summary.json."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -16,13 +17,14 @@ from harness import Brawler
 import romspecials98 as K
 from PIL import Image, ImageDraw
 
-ROLES = {'D': '4:d', 'fD': '4:Rd', 'dD': '4:Dd', 'uD': '4:Ud', 'dfD': '4:DRd', 'ufD': '4:URd'}   # facing right
-KOF = {'terry': 3, 'ralf': 10}
+ROLES = {'D': '4:ab', 'fD': '4:Rab', 'dD': '4:Dab', 'uD': '4:Uab', 'dfD': '4:DRab', 'ufD': '4:URab'}   # facing right (A+B: 0.0.48)
+KOF = {'kyo': 0, 'terry': 3, 'ryo': 6, 'robert': 7, 'ralf': 10, 'mai': 16, 'yashiro': 21, 'yamazaki': 24, 'billy': 26, 'iori': 27, 'rugal': 36,
+       'geese': ('kof96', 24), 'mr_big': ('kof96', 26), 'krauser': ('kof96', 25), 'goenitz': ('kof96', 28), 'k_dash': ('kof99', 0)}   # KOF98 id or (game, id)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = 4
 
 def brawler_run(b, k, role, hit, shots, frames=300):
-    b.pick(k)
+    b.pick(k, unlock=True)                              # Rugal / Goenitz are unlocked by play
     while b.r(b.syms['fade_in'], 1): b.run(1)
     b.run(10)
     for i in range(1, 8): b.place(i, x=1000, z=0)
@@ -50,9 +52,9 @@ def brawler_run(b, k, role, hit, shots, frames=300):
         if started is None and st == 'SPECIAL' and b.fget(0, 'frame_ovr') != 0xFFFF: started = f; path = os.path.join(shots, 'b_000.png')
         if started is None: continue
         if st != 'SPECIAL' and f > started + 2 and (not hit or b.states[b.fget(2, 'state')] not in ('KNOCKDOWN', 'HITSTUN') or len(rows) > 400): break
-        fz = b.fget(0, 'freeze')
-        if fz or pfz: pfz = fz; continue                 # the brawler's own hit-stop (its last frame reads 0)
-        pfz = fz
+        sr = b.fget(0, 'srow')                           # the brawler's own hit-stop: frames its program did not run
+        if rows and sr == pfz: continue                  # (fighter.c prog_update counts srow; the hit's own frame runs)
+        pfz = sr
         pj = []
         for i in range(4):
             if b.pget(i, 'state') < len(b.states) and b.states[b.pget(i, 'state')] == 'PROJ' and b.pget(i, 'frame_ovr') != 0xFFFF:
@@ -84,13 +86,14 @@ def main(game, out, cases):
     summary = []
     for case in cases:
         name, role = case.split(':'); inp = gj[name]['specials'][role]; cid = KOF[name]
+        kg, cid = cid if isinstance(cid, tuple) else ('kof98', cid)
         for branch in ('whiff', 'close'):
             tag = f'{name}_{inp.replace(" ", "").replace("[", "c").replace("]", "")}_{branch}'
             shots = os.path.join(out, 'shots', tag); os.makedirs(shots, exist_ok=True)
-            res, game_rows, model, objs, prog = K.compare(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), quiet=True)
+            res, game_rows, model, objs, prog = K.compare(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), quiet=True, game=kg)
             # KOF screenshots at the kept frames (every EVERY-th of the move after the dropped ones)
             want = [game_rows[i]['f'] for i in range(0, res['frames_game'], EVERY)][:30]
-            K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), snaps=[K.START + f for f in want], snapdir=shots)
+            K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), snaps=[K.START + f for f in want], snapdir=shots, game=kg)
             br = brawler_run(b, roster.index(name), role, branch == 'close', shots)
             rec = lambda bf: int(frames[name][bf].split(':')[1]) if bf < len(frames[name]) and frames[name][bf] else -1
             n = min(len(br), res['frames_game'])
@@ -120,7 +123,7 @@ def main(game, out, cases):
                 s['victim_max_dx'] = max((min(abs(br[i]['vx'] - vg[j][0]) for j in range(max(0, i - 1), min(m, i + 2))) for i in range(kh, vend)), default=0)
                 s['victim_max_dh'] = max((min(abs(br[i]['vh'] - vg[j][1]) for j in range(max(0, i - 1), min(m, i + 2))) for i in range(kh, vend)), default=0)
                 s['victim'] = [(i, br[i]['vx'], br[i]['vh'], vg[i][0], vg[i][1]) for i in range(vend)]
-            summary.append(s); print(json.dumps({k: v for k, v in s.items() if k != 'victim'}), flush=True)
+            summary.append(s); json.dump(summary, open(os.path.join(out, 'summary.json'), 'w'), indent=1); print(json.dumps({k: v for k, v in s.items() if k != 'victim'}), flush=True)
             pairs = []
             for i in range(0, min(len(br), res['frames_game']), EVERY):
                 kp = os.path.join(shots, f'snap_{K.START + game_rows[i]["f"]}.ppm')

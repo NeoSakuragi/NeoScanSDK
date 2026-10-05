@@ -74,6 +74,41 @@ modelled. KOF96 and KOF99 run the same engine family (KOF98's animation engine i
 routine is identical): the decoder is the same walk with each game's routine addresses (`ROUTINES`) and yield
 routines; not done.
 
+## Extended walk (TODO #69, 2026-10-05): every fighter, KOF96 / KOF99
+The decoder stays one walk; what it learned:
+- **Unrolled loops / ROM state tables**: a field stepped once per pass (a repeat count `subq; bne` reached after the frame
+  loop ended, a state-list pointer `+$32` / `+$C2` read with `move.w (a0), $72(a4)` then `addq #2`) is concrete at
+  decode time, so each pass is its own copy of the code. An op's place is (address, the loop fields, the scratch fields
+  `$C2-$DF`, the call stack): the same code reached with other states / speeds is walked again (Yashiro 623A's hit
+  path lands into its own state 137, not the whiff's 130). A counter decremented every frame (Rising Tackle's `+$C2`)
+  stays the runtime `cnt`.
+- **Inlined calls**: `jsr` into the fighter's own code (>= $30000: follow-up checks, shared parts) is walked inline with a
+  return stack; `rts` returns.
+- **No follow-up input**: the brawler has none, so the walk assumes a human player (`+$170` bit 7 clear: no CPU random
+  follow-up), no motion recognised during the move (`+$1AC-$1AF` 0) and, past the first `move.l #R, (a4)`, no new
+  press (input record `a3` / `fp` reads 0). `andi` / `ori` on an unknown byte keep the bits they fix (`+$D1` bit 7, the
+  follow-up-requested flag, is cleared at the start of the move). KOF99's cancel / follow-up checks (`$1FA32`, `$1ADBE`)
+  return 0; a yield behind such a check (`jsr check; beq yield`) is a yield.
+- **Converging branches**: a branch on an unmodelled test whose two ways reach the same op past bookkeeping is dropped
+  (`prune`: Kyo 236C's and Billy 426C's follow-up windows, `+$7C` bit 5).
+- **Bookkeeping added**: KOF98 `$24FF6-$25026` (button-dependent damage tables), `$24F2C-$24F3C` (+$F6), `$250C6`
+  (flags), `$24F52` (input clear).
+- **KOF96 / KOF99**: `GAME_ROUTINES` / `YIELD2` per game (KOF96 animate `$4D50`, yield `$11A54` (objects `$11C16`),
+  spawn `$1A7CA`, fall `$2F34`, end `$1ADE2`, voices `$10C04` / `$10CCC` / `$17316`, afterimage trail `$13AB2`; KOF99
+  animate `$446A`, yield `$12092`, spawn `$1F660`, fall `$21BE`, fricmove `$1F7B4`, end `$200A8`), hit-stop PCs
+  (`romspecials98.HITSTOP`: KOF96 `$14B9E-`, KOF99 `$164E0-`), captures `capture/specials` / `specials_kof99`.
+
+Census now: 157 of KOF98's 415 handlers decode with nothing unknown (the census also counts effects watching their
+owner, which export anyway). Played from the ROM in the brawler (`ROM_SPECIALS`, `ROM_GAME`): 65 of the roster's KOF
+slot specials (46 KOF98, 19 KOF96; with Terry 236C / Ralf [4]6C 67 programs), each 0 frame mismatches against the game, whiff and hit
+(`../brawler/romspecials_check.py`, /data/tmp/romspec69/out). Still captured scripts: Ralf AAAA (Vulcan Punch, mash
+loop), EX Ryo 646A / Robert EX 646D (they place the opponent: `$25032`, a hold), Robert 426B / Billy CCCC / Iori MAX
+23624D (no handler capture), Kyo 421B (`addi` on height), Kyo EX 421D / Iori 214A / Goenitz 214C / Geese 63214A/C (frame
+drift not found yet), Billy 623D (`cmp` on speed), Iori 624B (`$1603A` / `$16AC0`), Iori 623C (a state list read through `a1`),
+Yamazaki 214A, Rugal 624A / 6426A/C (compares, ROM tables through `d0`), Krauser 623B/D (allocates an object itself,
+`$2BB8`), K' (all six: KOF99 routines mapped, his follow-up yields and 214D's drift left), every fury (supers: super
+flash, stock, `cmp` / `$E4` branches).
+
 ## What did not fit primitives
 - Vulcan Punch: a loop over a state table in ROM (`+$C2` points at it) re-armed by button presses (`btst` on the
   recogniser bits): needs a table op and an input condition.

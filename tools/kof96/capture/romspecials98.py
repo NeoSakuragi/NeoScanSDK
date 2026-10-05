@@ -66,20 +66,22 @@ def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='
     return rows, wl, out
 
 HITSTOP_PCS = range(0x1B2C4, 0x1B400)            # the hit-stop routine the engine swaps in (+$00) while the attacker freezes
+HITSTOP = {'kof98': HITSTOP_PCS, 'kof96': range(0x14B9E, 0x14CC0), 'kof99': range(0x164E0, 0x16600)}
 
 def special(st): return 128 <= st < 256 or st >= 480
 
-def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False):
+def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98'):
     """the game (trace) against the decoded program's model (handlers98.run_model), frame by frame from the first
     special state: P1 state, ROM frame, x from the start, height; objects: first frame, state, frame, x, height.
     Game frames inside the engine's hit-stop (+$00 in $1B2C4..) are dropped (the brawler applies its own); the
     model learns 'hit' on the frame the game's P2 life drops."""
     import handlers98 as H
-    m = rom96.Mem(rom96.load(rom96.GAMES['kof98']['neo'])[0], 'kof98')
-    rows, _, _ = trace(cid, inp, dist, ex, frames)
-    h, b = H.handler_of(cid, inp, ex); prog = H.decode(m, h, b, ex)
+    m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
+    rows, _, _ = trace(cid, inp, dist, ex, frames, game=game)
+    h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex)
     k0 = next(i for i, r in enumerate(rows) if special(r['state']))
-    froze = [i > k0 and r['pc'] in HITSTOP_PCS and rows[i - 1]['pc'] in HITSTOP_PCS for i, r in enumerate(rows)]
+    hs = HITSTOP[game]
+    froze = [i > k0 and r['pc'] in hs and rows[i - 1]['pc'] in hs for i, r in enumerate(rows)]
     lost = [i > 0 and r['tick'] == rows[i - 1]['tick'] for i, r in enumerate(rows)]   # the game lost the frame (slowdown:
     game = [r for i, r in enumerate(rows) if i >= k0 and not froze[i] and not lost[i]]   # P1 +$1D2 did not advance)
     frozen = sum(froze[k0:]); slow = sum(lost[k0:])
