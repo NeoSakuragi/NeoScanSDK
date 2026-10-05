@@ -174,3 +174,4 @@ frame ~1100-1400. Round timer `$10A836` (BCD).
 | `capture/cmdnormals.py` | KOF98/99 command normals (6A, 6B, 3C, 3D; not in the recogniser lists) played on every fighter, close + far, P2 life drops = hits -> `cmdnormals_<game>.json` (`export96.CMD_NORMALS`: state, hits, frames of the multi-state hops) |
 | `capture/jumps.py` | both jump heights x 3 directions + the 4 air normals in each, per fighter (`--tap`: how long the stick must be held for a regular jump) -> `/data/neogeo_dict/captures/kof96/jumps_<game>.json` |
 | `capture/boot_ngsdl.py`, `capture/labels.py` | the `vs` save state, state labelling |
+| `handlers98.py`, `handlers98.md`, `capture/romspecials98.py` | KOF98 specials read from the ROM: a special's 68000 state handler decoded into engine primitives, a model of the animation engine + motion checked frame by frame against the game, the brawler export (`ROM_SPECIALS`: Terry, Ralf); catalogue and results in handlers98.md |

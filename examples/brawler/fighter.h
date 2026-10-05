@@ -192,6 +192,14 @@ typedef struct fighter {
     const rt_head_t *tree;
     uint8_t  spec_ix;             /* the special playing: its index in ch->specials (spec_tab when it started); last, so
                                    * draw.s's offsets stay */
+    /* a special read from the ROM (bspec_t.prog, fighter.c prog_update): its current animation and step (frames left
+     * in it), op index / resume point, flags PF_*, the damage / reaction / effect of the hits it opens, its counter,
+     * friction (0.16) and gravity (16.16; vx / vy are the fighter's), the carried target's offset (px, forward) */
+    const banim_t *pan;
+    uint8_t  pstep, pleft, ppc, pres, pflags, pdmg, preact, pfx;
+    int16_t  pcnt, pcarry;
+    uint16_t pfric;
+    int32_t  pg;
 } fighter_t;
 
 

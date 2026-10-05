@@ -488,6 +488,9 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
+    if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
+        f->pres = 0; f->pflags = 0; f->pcarry = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
+    }
 }
 
 /* ---- projectiles (tools/kof98/README.md "Projectiles"; tools/kof96/projectiles96.py) ----------------------------------
@@ -509,6 +512,7 @@ static void proj_row(fighter_t *p) {
         p->spec_atk = (r->flags & 1) && !p->pend ? &r->atk : 0;
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
+    if (d->follow && p->owner) p->y += p->owner->y;              /* pinned to its thrower (Burn Knuckle's flame) */
 }
 static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int8_t facing, int32_t z) {
     fighter_t *p = proj_alloc(owner);
@@ -555,6 +559,9 @@ void projectiles_update(int16_t cam_x) {
         p->state_t++;
         if (p->pend == 1) {
             if (++p->prow >= d->nend) { projectile_reset(p); continue; }
+        } else if (d->follow && p->owner) {                      /* pinned: its rows cycle at the thrower's place */
+            if (++p->prow >= d->nrows) p->prow = d->loop == 0xFF ? 0 : d->loop;
+            p->throw_x0 = p->owner->x; p->facing = p->owner->facing;
         } else if (++p->prow >= d->nrows) {
             if (d->loop == 0xFF) { projectile_reset(p); continue; }   /* its animation is over */
             p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
@@ -578,11 +585,134 @@ static uint8_t special_pick(const fighter_t *f, uint8_t want) {   /* BS_D, BS_FW
 }
 /* D, forward+D, down+D, up+D (down / up = toward / away from the camera) -> BS_*, 0xFF = none */
 static uint8_t special_for(const fighter_t *f, const intent_t *in) { return special_pick(f, d_input(in) - RI_D); }
+/* ---- specials read from the ROM (tools/kof96/handlers98.py, handlers98.md) ---------------------------------------------
+ * KOF98 runs a special as straight-line 68000 code: set speeds, start a state's animation, then a frame loop (the
+ * coroutine resumes at +$00) that moves the body and waits for the animation's end / an event step / the landing.
+ * export_bm.rom_c turns that code into bprim_t ops; this plays them: each frame the ops run from the resume point until
+ * a P_BR to the frame's end, then the animation advances (KOF98's engine: a step shows ticks + 1 frames, the frame a
+ * state starts counts as the first of its first step, past the last step the end flag is set, a hold stays on it).
+ * Hits come from the animation (an attack box while the step is active, a new hit unless the active step before it
+ * carries KOF's same-hit flag); the brawler's own hit-stop freezes it (fighter_update), no freeze is in the data. */
+enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8 };
+static int32_t fmul16(int32_t v, uint16_t k) {                   /* v * k / 65536 (KOF98 $36A0), sign kept */
+    uint32_t a = v < 0 ? -v : v;
+    a = (a >> 16) * k + (((a & 0xFFFF) * k + 0x8000) >> 16);
+    return v < 0 ? -(int32_t)a : (int32_t)a;
+}
+static void pan_enter(fighter_t *f, uint8_t prev) {              /* a step starts: its $FB move, event, hit */
+    const bstep_t *s = &f->pan->steps[f->pstep];
+    if (s->dx) { f->x += dir_mul(f->facing, FIX(s->dx)); clamp(f); }
+    if (s->flags & 8) f->pflags |= PF_EVENT;
+    if ((s->flags & 1) && !((prev & 1) && (prev & 16))) {        /* a new hit window */
+        f->hit_mask = 0; f->spec_dmg = f->pdmg; f->spec_react = f->preact & 7; f->spec_fx = f->pfx;
+    }
+}
+static void pan_play(fighter_t *f, const banim_t *an) {
+    f->pan = an; f->pstep = 0; f->pleft = an->steps[0].ticks + 1; f->pflags &= ~(PF_END | PF_EVENT);
+    pan_enter(f, 0);
+}
+static void pan_advance(fighter_t *f) {
+    uint8_t prev = f->pan->steps[f->pstep].flags;
+    if (--f->pleft) return;
+    if (f->pstep + 1 < f->pan->nsteps) f->pstep++;
+    else {
+        f->pflags |= PF_END;
+        if (f->pan->hold) { f->pleft = 1; return; }
+        f->pstep = 0;
+    }
+    f->pleft = f->pan->steps[f->pstep].ticks + 1;
+    pan_enter(f, prev);
+}
+static uint8_t pcond(fighter_t *f, uint8_t c) {
+    switch (c) {
+    case PC_END: return f->pflags & PF_END ? 1 : 0;
+    case PC_EVENT: { uint8_t e = f->pflags & PF_EVENT ? 1 : 0; f->pflags &= ~PF_EVENT; return e; }
+    case PC_LAND: return f->pflags & PF_LAND ? 1 : 0;
+    case PC_FALL: return f->pflags & PF_FALL ? 1 : 0;
+    case PC_CNT: return f->pcnt < 0;
+    case PC_HIT: return f->landed;
+    case PC_OFF: return 0;
+    }
+    return 1;
+}
+static void prog_fxoff(fighter_t *f) {                           /* its pinned effects end (KOF: owner +$D1 bit 7) */
+    uint8_t k;
+    for (k = 0; k < 2; k++) if (f->proj[k] && f->proj[k]->pdef && f->proj[k]->pdef->follow) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
+}
+static void prog_spawn(fighter_t *f, const bproj_t *d) {
+    fighter_t *p = proj_start(f, d, f->x, f->facing, f->z);      /* rows: from the thrower's place now */
+    if (!p) return;
+    if (d->follow) { if (!f->proj[0]) f->proj[0] = p; else if (!f->proj[1]) f->proj[1] = p; }
+    else f->shot = p;
+}
+static void prog_end(fighter_t *f) {
+    special_end(f);
+    if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
+}
+static void prog_update(fighter_t *f, const bspec_t *sp) {
+    const bstep_t *s;
+    uint8_t n;
+    f->srow++;                                                   /* frames played (the reversal's invincibility) */
+    if (f->spec_id == BS_DOWN_D && f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;
+    f->ppc = f->pres;
+    for (n = 0; n < 96; n++) {
+        const bprim_t *p = &sp->prog[f->ppc++];
+        switch (p->op) {
+        case P_ANIM: f->pdmg = p->b & 0xFF; f->preact = p->b >> 8; f->pfx = p->v; pan_play(f, &sp->anims[p->a]); break;
+        case P_SET:
+            if (p->a == 0) f->vx = p->v; else if (p->a == 1) f->vy = p->v; else if (p->a == 2) f->pg = p->v;
+            else if (p->a == 3) f->pfric = p->v; else f->pcnt = p->v;
+            break;
+        case P_MUL: f->vx = fmul16(f->vx, p->v); break;
+        case P_FRICMOVE: f->vx = fmul16(f->vx, f->pfric);        /* fall through: then x += vx */
+        case P_MOVE: f->x += dir_mul(f->facing, f->vx); clamp(f); break;
+        case P_FALL: {
+            int32_t v0 = f->vy;
+            f->vy -= f->pg; f->y += v0; f->pflags &= ~(PF_LAND | PF_FALL);
+            if (f->y <= 0) { f->y = 0; f->pflags |= PF_LAND; } else if (f->vy < 0) f->pflags |= PF_FALL;
+            break;
+        }
+        case P_NUDGE: f->x += dir_mul(f->facing, FIX(p->b)); f->y += FIX(p->v); clamp(f); break;
+        case P_DEC: f->pcnt--; break;
+        case P_BR:
+            if (pcond(f, p->a & 0x7F) == (p->a >> 7)) {
+                if (p->b < 0) goto frame_done;
+                f->ppc = p->b;
+            }
+            break;
+        case P_RESUME: f->pres = f->ppc; break;
+        case P_RESUMEAT: f->pres = p->b; break;
+        case P_JMP: f->ppc = p->b; break;
+        case P_SPAWN: prog_spawn(f, &sp->robj[p->a]); break;
+        case P_FXOFF: prog_fxoff(f); break;
+        default: prog_end(f); return;                            /* P_END */
+        }
+    }
+frame_done:
+    for (n = 0; n < 2; n++) {                                    /* its pinned effects follow this frame's move */
+        fighter_t *p = f->proj[n];
+        if (p && p->pdef && p->pdef->follow) { p->throw_x0 = f->x; p->facing = f->facing; proj_row(p); }
+    }
+    pan_advance(f);
+    s = &f->pan->steps[f->pstep];
+    f->frame_ovr = s->frame;
+    f->spec_atk = (s->flags & 1) ? &s->atk : 0;
+    f->spec_prev_hit = (s->flags & 1) ? 1 : 0;
+    if ((f->preact & 8) && f->landed && f->target && (f->target->state == S_KNOCKDOWN || f->target->state == S_HITSTUN)) {
+        fighter_t *v = f->target;                                /* between its hits the move holds its target in front */
+        if (!f->pcarry) f->pcarry = dir_mul(f->facing, INT(v->x) - INT(f->x));   /* of it, where the first hit found it */
+        v->x = f->x + dir_mul(f->facing, FIX(f->pcarry)); v->z = f->z;
+        v->y = f->y ? f->y : FIX(v->state == S_KNOCKDOWN);
+        v->vx = v->vy = v->vz = 0; clamp(v);
+    }
+}
 static void special_update(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     const bspec_row_t *r;
     uint8_t k;
-    uint16_t from = script_advance(f, sp->nrows, sp);            /* rows from..srow-1 reached this frame */
+    uint16_t from;
+    if (sp->prog) { prog_update(f, sp); return; }                /* read from the ROM: its program */
+    from = script_advance(f, sp->nrows, sp);                     /* rows from..srow-1 reached this frame */
     if (sp->cont && f->srow <= sp->cont + 1) {
         if (f->landed && (f->spec_prev_hit & 16)) {              /* it hit: on to the continuation, from here */
             f->srow = sp->cont + 1; f->throw_x0 = f->x;

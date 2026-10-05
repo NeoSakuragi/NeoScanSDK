@@ -5,7 +5,7 @@ characters -> frames (parts: dx, dy, flips, tile columns, 'pal' = index into the
 Moves are named game states (labelled in MAME, capture/labels.py).
     python3 export96.py [--game kof98] OUTDIR [all | name ...]"""
 import json, os, struct, sys
-import rom96, throwscripts96, specials96, commands96, projectiles96
+import rom96, throwscripts96, specials96, commands96, projectiles96, handlers98
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TILE_BASE = 256
@@ -390,6 +390,8 @@ def export(names, outdir, game='kof96', only=None, extra=None):
         for sp in specials96.load(m, cid):
             e = special_entry(m, cid, sp, add, slot_of, game)
             if sp['input'] in pdefs: e['projectiles'] = [projectile_entry(m, cid, d, add, slot_of) for d in pdefs[sp['input']]]
+            if game == 'kof98' and sp['input'] in handlers98.ROM_SPECIALS.get(name, ()):   # the ROM-read prototype:
+                e['rom'] = handlers98.export_rom(m, cid, sp['input'], add)                  # its handler's program
             sps.append(e)
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not
