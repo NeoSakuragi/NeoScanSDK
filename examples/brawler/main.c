@@ -886,7 +886,7 @@ static void title_screen(void) {
 }
 static void title_start(void) {
     uint8_t i;
-    mode = 2; nf = 0; title_t = 0; cam_x = 0; opt_on = 0;
+    mode = 2; nf = 0; attract = 0; title_t = 0; cam_x = 0; opt_on = 0;
     PAL_setBackdrop(COLOR_BLACK);
     stage_hide();
     for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
@@ -984,8 +984,10 @@ static void options_tick(void) {
     }
 }
 
+static void attract_logo_tick(void);
 static void title_tick(void) {
     uint16_t pr, h;
+    if (attract) { attract_logo_tick(); return; }
     if (opt_on) { options_tick(); return; }
     pr = JOY_pressed(0); h = JOY_held(0);
     if (!(title_t & 31)) FIX_print(15, 18, (title_t & 32) ? "           " : "PRESS START", 0);
@@ -1495,7 +1497,13 @@ static void stage_begin(uint8_t s, uint8_t first) {
 static void fight_start(void) {                  /* from the select screen (pl_* set): a new game at camp_from */
     stage_begin(attract ? 0 : camp_from, 1);
 }
-static void attract_start(void) {
+/* the attract cycle (TODO #25), KOF98's measured in our emulator (power on, no coin, 24 000 frames, BIOS USER_REQUEST
+ * writes + snapshots): its intro, the title logo 1020 frames (17 s), the demo fight 1800 (30 s, ROUND 1 to the KO),
+ * the ranking 240, then SYSTEM_RETURN; the BIOS's eye-catcher 466 frames and request 2 again. Here: the logo, then the
+ * demo fight, then SYSTEM_RETURN (no intro or ranking to show). */
+#define ATTRACT_LOGO 1020
+#define ATTRACT_DEMO 1800
+static void attract_fight(void) {
     static uint8_t pick;
     banner_hide();
     roster_build();
@@ -1504,6 +1512,26 @@ static void attract_start(void) {
     pick++;
     attract = 1; attract_t = 0;
     fight_start();
+}
+static void attract_start(void) {                      /* the logo: the title screen without its menu, INSERT COIN */
+    uint8_t i;
+    mode = 2; nf = 0; title_t = 0; cam_x = 0; opt_on = 0;
+    PAL_setBackdrop(COLOR_BLACK);
+    stage_hide();
+    for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
+    for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
+    title_screen();
+    bios_start = 0;
+    snd_music(GAME_MUS_SELECT);
+    attract = 2; attract_t = 0;
+}
+static void attract_logo_tick(void) {
+    if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); title_paid = 1; return; }   /* as in the demo */
+    if (bios_demo_end) { SYS_return(); return; }
+    if (!title_t) banner_show((320 - BANNER_COLS * 16) / 2, 56);   /* again: power-on's first draw clears every block's
+                                                             sprites once (game_init), the banner's 300-379 among them */
+    if (!(title_t & 31)) FIX_print(14, 18, (title_t & 32) ? "           " : "INSERT COIN", 0);
+    if (++title_t >= ATTRACT_LOGO) { FIX_clear(); arcade_line_reset(); banner_hide(); attract_fight(); }
 }
 static void select_start(void);
 /* BIOS PLAYER_START filter (crt0): who may take a credit now. Title: anyone (the game starts); select, unlock and
@@ -1965,8 +1993,8 @@ void game_tick(void) {
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
     if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
     if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */
-    if (attract) {                                           /* the demo: a coin, 40 s or a game over ends it */
-        if (bios_demo_end || ++attract_t > 2400) { SYS_return(); }
+    if (attract) {                                           /* the demo: a coin, 30 s or a game over ends it */
+        if (bios_demo_end || ++attract_t > ATTRACT_DEMO) { SYS_return(); }
         if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); title_paid = 1; depth_sort(); draw(); return; }
                                                           /* START in the demo (AES: no coin; MVS: the BIOS took the
                                                              credit): the title, NEW GAME / CONTINUE confirmed with

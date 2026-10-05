@@ -31,9 +31,12 @@ next safe point (a wave, the boss, a stage start, the enemy test's respawn); `la
 tables; `lab.pack_stat` reports. Same ROM as the release. Details: docs/brawler_data_model.md.
 
 ## Arcade flow (MVS, Unibios)
-Power on: attract demo = a fight where P1 is `ai_bot` (closes in, combos, grabs, down+D reversal when threatened) against
-weak enemies (AI preset `minion_attract`), a new fighter each time, INSERT COIN blinking; after 40 s it hands back to the BIOS, which
-starts it again. Coin (keyboard 3): title screen (banner, PRESS START; NEW GAME / CONTINUE STAGE n when a save is
+Power on: the attract cycle, KOF98's timing (measured in our emulator, TODO #25): the logo (the title screen without its
+menu, INSERT COIN blinking) 1020 frames (17 s), then the attract demo = a fight where P1 is `ai_bot` (closes in, combos,
+grabs, down+D reversal when threatened) against weak enemies (AI preset `minion_attract`), a new fighter each time,
+INSERT COIN blinking, 1800 frames (30 s, KOF98's demo fight from ROUND 1); then it hands back to the BIOS, which starts
+the cycle again. KOF98 also plays its intro before the logo and its ranking (240 frames) after the fight, and its header
+asks for the game's own eye-catcher (request 1, the NEOGEO logo, 466 frames between cycles); ours skips it (header 2). Coin (keyboard 3): title screen (banner, PRESS START; NEW GAME / CONTINUE STAGE n when a save is
 past stage 1); START (keyboard 1) takes a credit -> character select -> the campaign. Game over / the ending: back to
 the BIOS (attract, or the title while credits remain). AES (Unibios AES mode, no coin): START in the demo -> the title.
 
@@ -524,7 +527,7 @@ frame, Haohmaru's), fighters keep 20: sprites 60-299 as before; blocks are laid 
 ## Measured (8 fighters, 2026-10-03, our emulator)
 With the AI and the scrolling stage: worst frame 30-37 %; update (8 state machines + AI) 24-32 lines.
 With the 3-game roster and the guard: worst frame 32-40 % (KOF96 frames have more parts).
-With specials (20-column blocks, 4 projectile entities: 240 sprites placed a frame) and their extra frames: 42-47 %,
+With specials (20-column blocks, 4 projectile entities then; 8 of 10 columns since TODO #66: 240 sprites placed a frame) and their extra frames: 42-47 %,
 54 % during a special (a new large frame every row). The fight's first frame rewrites every block (100 %).
 Then (2026-10-03): position runs sized to the columns used (and the block's previous ones, to clear them; hidden blocks
 cleared once), the frame's column count cached by fighter_tiles for the line guard, flush unrolled 16x (~13.5 cycles a
