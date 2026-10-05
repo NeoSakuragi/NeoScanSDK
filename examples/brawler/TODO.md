@@ -326,8 +326,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 62. (done 2026-10-05: tools/kof95/gallery.py; page = roster index (47 KB, was 13.7 MB), each fighter fetched when opened, only on-screen thumbnails animate and redraw on step change; KOF98 headless Chrome CPUx4: first fighter 2.9 s -> 0.7 s, heap 126 -> 44 MB, 27 thumbs on screen 12.8 -> 2.9 ms/frame; data identical per fighter; republish all four) Animation Bank pages: lazy per-fighter loading, animate only the visible ones (the page Bruno found slow).
 - [x] 63. TODO #50: SSG menu sounds: done 2026-10-05: CURSOR / CONFIRM / CANCEL / UNLOCK as SSG cues $74-$77 on KOF98's own type-5 path (all of the SSG is free), wired into title / options / select / BOSS UNLOCKED; docs/kof98_sound_driver.md "SSG cues", tools/port/ssg_cues.py.
 - [x] 64. (done 2026-10-05: 15 names in songs.json from the KOF98 moves using each hit kind (captures + the ROM's $1B8 writes, hitsfx.py) and WAV spectrograms of each code in our emulator (/data/tmp/sfxnames); sound player AES screenshot fits (16 cols); regress bleed True) Sound player: name the "SPECIAL HIT n" effects (what each sound is), in songs.json's sfx names.
-- [ ] 65. Vertical parts of Robo Army (areas 2 and 5): the descent as an auto-scrolled transition between stages
-  (docs/brawler_stage_vertical.md option b).
+- [x] 65. Vertical parts of Robo Army (areas 2 and 5): the descent as an auto-scrolled transition between stages
+  (docs/brawler_stage_vertical.md option b). Built (1a0b555), then dropped by Bruno in review round 1 ("i don't want
+  descend"): reverted in 7adc3e3; the stages stay horizontal only.
 - [ ] 66. Small gaps: landing 2 frames vs KOF's 4-5; projectile pool of 4 (trails thinner); Mr. Big's pale colour set
   vs KOF96's tan; KOF96 songs $26 / $29 / $2C 98-99 % model match; the attract cycle with logo / title timing (#25).
 
@@ -357,6 +358,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   refills slowly over time; a special triggered WHILE BEING HIT (allowed: a "get out of trouble" move) costs twice as
   much, and the player's palette flashes fully white for a split second to show something was consumed. Furies (C):
   cost to be decided.
+
+- [ ] 72. Restore KOF98's hit count on Terry 214D (2), 623A (5), 623B (2) and Robert 624D (3) (review round 1): since
+  the victim fix (no stick) they hit once less; re-time the missing hit(s) so they land, without sticking the victim
+  to the attacker ([[feedback_brawler_no_victim_stick]]).
+- [ ] 73. Extract the specials Bruno mapped that the bank lacks: Yamazaki's snake arm 214B (middle) and 214C (low)
+  (214A exists), Billy's angled stick attack (find it in KOF98). Then apply the slot mapping from review round 2
+  (artifact https://claude.ai/artifact/CpAmeQcqCtmrK9EPJ68HyM, db map/<fighter>) once Bruno says done.
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
