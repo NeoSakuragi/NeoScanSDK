@@ -1,0 +1,11 @@
+{
+ "fighter": null,
+ "note": "VIPER (example enemy): quick jabs at 1.25x, a kick that trips; no specials",
+ "links": {
+  "A": {"move": "atk_a_close", "weight": "light", "effect": "none", "speed": 1.25, "links": {
+   "A": {"move": "atk_a_far", "weight": "light", "effect": "none", "speed": 1.25, "links": {
+    "A": {"move": "atk_a_close", "weight": "light", "effect": "none", "speed": 1.25, "links": {
+     "A": {"move": "atk_d_crouch", "weight": "strong", "effect": "trip", "speed": 1.25}}}}}}},
+  "B": {"move": "atk_b_close", "weight": "light", "effect": "none", "speed": 1.25}
+ }
+}

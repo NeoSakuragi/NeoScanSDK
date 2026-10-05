@@ -499,7 +499,7 @@ static void hud_target(uint8_t slot, fighter_t *t, uint8_t right, uint8_t name_r
     if (t && t->state == S_OFF) t = 0;
     if (t != hud_tgt[slot]) {
         hud_tgt[slot] = t;
-        hud_name(right, name_row, t ? t->ch->name : 0);
+        hud_name(right, name_row, t ? FIGHTER_NAME(t) : 0);
         if (face_side) { uint8_t f = t ? char_index(t->ch) : 0xFF; if (hud_face[1] != f) { hud_face[1] = f; portrait(35, 0, f, 1); } }
         if (!t) bar_clear(&bars[slot]);
     }
@@ -535,7 +535,7 @@ static void hud(void) {
     if (i != boss_shown) {                                   /* the boss bar: name on row 6, bar on row 7 */
         boss_shown = i;
         FIX_print(5, 6, "              ", 0);
-        if (i) FIX_print(5, 6, fighters[BOSS_IDX_HUD].ch->name, 0); else bar_clear(&bars[4]);
+        if (i) FIX_print(5, 6, FIGHTER_NAME(&fighters[BOSS_IDX_HUD]), 0); else bar_clear(&bars[4]);
     }
     if (boss_shown) bar_draw(&bars[4], fighters[BOSS_IDX_HUD].hp, fighters[BOSS_IDX_HUD].hp_max);
     if ((hud_tick & 15) != 0 && (uint16_t)wait_cycles < hud_min_spins) hud_min_spins = (uint16_t)wait_cycles;  /* skip the print tick */
@@ -568,11 +568,103 @@ static void hud(void) {
  * lab can swap a table while the game runs, as route_tab does for the chain routes. */
 const gstage_t *gstages;
 const genemy_t *genemies;
+static uint8_t gen_count = EN_COUNT;             /* enemies in genemies[] */
 static void gdata_init(void) {
     uint8_t i, k;
     gstages = gstages_rom; genemies = genemies_rom;
     for (i = 0; i < AI_COUNT; i++)
         for (k = 0; k < sizeof(ai_preset_t); k++) ((uint8_t *)&ai_presets[i])[k] = ((const uint8_t *)&ai_presets_rom[i])[k];
+}
+/* ---- the Brawler Lab's write path (gamedata.h gdpack_t): a data pack in lab.pack, checked when the page sends it
+ * (lab.load 3) and again as it is installed at the next safe point (gd_apply: a wave's spawn, the boss's, a stage start,
+ * the lab's enemy respawn), copied into gd_live and its offsets turned into pointers. Same ROM as the release. ---- */
+static uint8_t gd_live[GD_MAX] __attribute__((aligned(4)));
+static uint8_t gd_want;                          /* 3: install lab.pack, 4: back to the ROM's tables, at the safe point */
+#define GD_OFF(ptr) ((uint32_t)(ptr))            /* a pointer field of a pack: its offset */
+static uint8_t gd_in(uint16_t size, uint32_t off, uint32_t len, uint8_t even) {   /* [off, off + len) inside the pack */
+    return off >= sizeof(gdpack_t) && off + len <= size && !(even && (off & 1));
+}
+static uint8_t gd_tree(const uint8_t *p, uint16_t size, uint32_t off) {   /* a route tree (fighter.h rt_head_t) */
+    const rt_head_t *t = (const rt_head_t *)(p + off);
+    uint8_t n, i, k;
+    if (!gd_in(size, off, sizeof(rt_head_t), 1) || t->magic[0] != 'R' || t->magic[1] != 'T' || t->version != 2) return 0;
+    n = t->nnodes;
+    if (!n || n > 128 || !gd_in(size, off, sizeof(rt_head_t) + n * sizeof(rnode_t), 1)) return 0;
+    if (t->root >= n || t->dash >= n || t->nospec >= n || t->hold >= n || t->air_a >= n || t->air_b >= n || t->air_cd >= n) return 0;
+    for (i = 1; i < n; i++) {                       /* node 0: "none" (zeros) */
+        const rnode_t *d = RT_NODE(t, i);
+        if (d->anim >= ((d->flags & RF_SPECIAL) ? BS_COUNT : BA_COUNT) || d->speed < 0x40 || d->speed > 0x400) return 0;
+        for (k = 0; k < RI_N; k++) if (d->next[k] >= n) return 0;
+    }
+    return 1;
+}
+static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed */
+    const gdpack_t *h = (const gdpack_t *)p;
+    const genemy_t *en;
+    const gstage_t *st;
+    uint16_t size = h->size, i, k;
+    if (h->magic[0] != 'G' || h->magic[1] != 'D') return 1;
+    if (h->version != GD_VERSION) return 2;
+    if (size < sizeof(gdpack_t) || size > GD_MAX) return 3;
+    if (h->nstages != GS_COUNT || !h->nenemies || !h->nai) return 4;
+    if (!gd_in(size, h->stages, h->nstages * sizeof(gstage_t), 1) || !gd_in(size, h->enemies, h->nenemies * sizeof(genemy_t), 1) ||
+        !gd_in(size, h->ai, h->nai * sizeof(ai_preset_t), 0)) return 5;
+    en = (const genemy_t *)(p + h->enemies);
+    for (i = 0; i < h->nenemies; i++, en++) {
+        if (en->base == 0xFF) {
+            if (!en->npool || !gd_in(size, GD_OFF(en->pool), en->npool, 0)) return 6;
+            for (k = 0; k < en->npool; k++) if (p[GD_OFF(en->pool) + k] >= BC_COUNT) return 6;
+        } else if (en->base >= BC_COUNT) return 6;
+        if (en->ai >= h->nai || en->attract_ai >= h->nai) return 7;
+        if (en->tint != GE_SPAWN && en->tint >= TINT_COUNT) return 8;
+        if (en->name) {                          /* a name: 1-10 characters */
+            if (!gd_in(size, GD_OFF(en->name), 1, 0)) return 9;
+            for (k = 0; k < 11 && GD_OFF(en->name) + k < size && p[GD_OFF(en->name) + k]; k++) ;
+            if (!k || k > 10 || GD_OFF(en->name) + k >= size) return 9;
+        }
+        if (en->pal && !gd_in(size, GD_OFF(en->pal), 32, 1)) return 10;
+        if (en->moves && !gd_tree(p, size, GD_OFF(en->moves))) return 11;
+    }
+    st = (const gstage_t *)(p + h->stages);
+    for (i = 0; i < h->nstages; i++, st++) {
+        const gwave_t *w = (const gwave_t *)(p + GD_OFF(st->waves));
+        const gspawn_t *sp = (const gspawn_t *)(p + GD_OFF(st->spawns));
+        if (st->bg >= STAGE_COUNT || !st->nwaves || !gd_in(size, GD_OFF(st->waves), st->nwaves * sizeof(gwave_t), 1) ||
+            !gd_in(size, GD_OFF(st->spawns), h->nspawns * sizeof(gspawn_t), 1)) return 12;
+        for (k = 0; k < st->nwaves; k++) if (!w[k].n || w[k].n > NF - 2 || w[k].first + w[k].n > h->nspawns) return 13;
+        if (st->boss >= h->nenemies || st->nmin > NF - 3 || st->boss_first + st->nmin > h->nspawns) return 14;
+        for (k = 0; k < h->nspawns; k++) if (sp[k].enemy >= h->nenemies || sp[k].tint >= TINT_COUNT) return 15;
+    }
+    return 0;
+}
+static void gd_apply(void) {                     /* at a safe point: the pack (or the ROM's tables) in use from now */
+    if (gd_want == 4) { gstages = gstages_rom; genemies = genemies_rom; ai_tab = ai_presets; gen_count = EN_COUNT; lab.pack_stat = GD_ROM; }
+    else if (gd_want == 3) {
+        uint8_t e = gd_check(lab.pack);
+        if (e) lab.pack_stat = GD_BAD | e;
+        else {
+            const gdpack_t *h = (const gdpack_t *)gd_live;
+            uint32_t base = (uint32_t)gd_live;
+            genemy_t *en; gstage_t *st;
+            uint16_t i;
+            for (i = 0; i < ((const gdpack_t *)lab.pack)->size; i++) gd_live[i] = lab.pack[i];
+            en = (genemy_t *)(gd_live + h->enemies);
+            for (i = 0; i < h->nenemies; i++, en++) {
+                if (en->pool) en->pool = (const uint8_t *)(base + GD_OFF(en->pool));
+                if (en->name) en->name = (const char *)(base + GD_OFF(en->name));
+                if (en->pal) en->pal = (const uint16_t *)(base + GD_OFF(en->pal));
+                if (en->moves) en->moves = (const uint8_t *)(base + GD_OFF(en->moves));
+            }
+            st = (gstage_t *)(gd_live + h->stages);
+            for (i = 0; i < h->nstages; i++, st++) {
+                st->waves = (const gwave_t *)(base + GD_OFF(st->waves)); st->spawns = (const gspawn_t *)(base + GD_OFF(st->spawns));
+            }
+            gstages = (const gstage_t *)(gd_live + h->stages); genemies = (const genemy_t *)(gd_live + h->enemies);
+            ai_tab = (const ai_preset_t *)(gd_live + h->ai); gen_count = h->nenemies;
+            lab.pack_stat = GD_INSTALLED;
+        }
+    }
+    gd_want = 0;
 }
 static uint8_t boss_fighter(uint8_t s) { return genemies[gstages[s].boss].base; }   /* bm_chars index of stage s's boss */
 
@@ -866,7 +958,7 @@ static void fighter_pals(const fighter_t *f, uint8_t colour, uint8_t k) {
     uint16_t buf[16];
     uint8_t i, j;
     for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
-        const uint16_t *src = f->ch->pals + ((f->set * f->ch->npal + i) << 4);
+        const uint16_t *src = fighter_src_pal(f, i);
         buf[0] = src[0];
         for (j = 1; j < 16; j++)
             buf[j] = col_scale(colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_grey(src[j]), k);
@@ -987,14 +1079,19 @@ static void hud_wave(void) {
 }
 static int16_t lock_at(int16_t x) { int16_t m = world_w - 320; return x > m ? m : x; }   /* inside the background shown */
 static uint8_t ai_of(const genemy_t *en) { return attract ? en->attract_ai : en->ai; }
+/* an enemy from its definition: its fighter c, its colours (its own set / tint when it has one, else the spawn's; its
+ * custom colours), its HUD name, its route tree, life and power */
 static void enemy_init(uint8_t slot, uint8_t c, uint8_t set, int16_t x, int16_t z, uint8_t tint, const genemy_t *en) {
     fighter_t *e = &fighters[slot];
     if (x < 16) x = 16;
     if (x > world_w - 16) x = world_w - 16;
+    if (en->set != GE_SPAWN) set = en->set;
+    if (en->tint != GE_SPAWN) tint = en->tint;
     fighter_init(e, &bm_chars[c], mod8(set, bm_chars[c].nsets), 16 + slot * MAX_PALS, 1, x, z);
     e->idx = slot; e->power = power + en->power; e->tint = tint;
+    e->name = en->flags & GE_FIGHTER_NAME ? 0 : en->name; e->cpal = en->pal; e->tree = (const rt_head_t *)en->moves;
     if (!attract) e->hp = e->hp_max = life(en->life);     /* the campaign's difficulty (the demo: as it was) */
-    if (tint) fighter_load_pals(e);
+    if (tint || e->cpal) fighter_load_pals(e);
 }
 static int16_t spawn_x(const gspawn_t *sp) {     /* off screen: the right, or the left (SP_LEFT) when there is room */
     int16_t r = (sp->flags >> 4) * 36;
@@ -1024,8 +1121,10 @@ static void spawns_ai(uint16_t seed, const gspawn_t *sp, uint8_t n, uint8_t slot
     for (k = 0; k < n; k++) if ((p = ai_of(&genemies[sp[k].enemy])) != p0) ai_set(slot0 + k, p);
 }
 static void spawn_wave(void) {
-    const gwave_t *w = &gs->waves[wave];
+    const gwave_t *w;
     uint8_t k;
+    if (gd_want) { gd_apply(); gs = &gstages[camp]; if (wave >= gs->nwaves) wave = gs->nwaves - 1; }   /* a lab's pack */
+    w = &gs->waves[wave];
     for (k = 0; k < NF - 2; k++) {
         if (k >= w->n) { fighters[2 + k].state = S_OFF; continue; }
         spawn(2 + k, &gs->spawns[w->first + k], 0xFF);
@@ -1034,8 +1133,10 @@ static void spawn_wave(void) {
     hud_wave();
 }
 static void boss_start(void) {
-    const genemy_t *be = &genemies[gs->boss];
-    uint8_t k, c = be->base, set = 0;
+    const genemy_t *be;
+    uint8_t k, c, set = 0;
+    if (gd_want) { gd_apply(); gs = &gstages[camp]; }   /* a lab's pack */
+    be = &genemies[gs->boss]; c = be->base;
     phase = PH_BOSS; phase_t = 0;
     if (c == pl_ch[0] && !pl_set[0]) set = 1;           /* never in P1's colours */
     enemy_init(BOSS_IDX, c, set, gs->boss_x, gs->boss_z, 0, be);
@@ -1051,6 +1152,7 @@ static void boss_start(void) {
 static void go_sign(uint8_t on) { FIX_print(29, 3, on ? "GO -->" : "      ", 1); }   /* yellow, in the HUD's black band */
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
+    if (gd_want) gd_apply();                                 /* a lab's pack */
     mode = 1; nf = NE; cam_x = 0; wave = 0; banner_t = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
     inputs_reset();
     snd_music(gs->music);
@@ -1204,21 +1306,43 @@ static void lab_place(void) {
     for (uint8_t i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     lab_recovered = 1;
 }
-static void lab_start(void) {
+/* the enemy test (req 3): the enemy definition lab.dummy (genemies[], a pool enemy as its first fighter) with its own
+ * AI, at the dummy's place; dead, it comes again (a safe point: a pack sent meanwhile is installed first) */
+static void lab_enemy(void) {
+    const genemy_t *en;
+    uint8_t c;
+    if (gd_want) gd_apply();
+    en = &genemies[lab.dummy < gen_count ? lab.dummy : 0];
+    c = en->base != 0xFF ? en->base : en->pool[0];
+    enemy_init(LAB_DUMMY, c, c == pl_ch[0], cam_x + 190, 34, 0, en);
+    ai_init(0x1D2B, en->ai);
+    fighters[0].target = &fighters[LAB_DUMMY];              /* the HUD shows it from the start */
+}
+static void lab_start(uint8_t kind) {
     uint8_t i, c = lab.fighter < BC_COUNT ? lab.fighter : 0, dm = lab.dummy < BC_COUNT ? lab.dummy : 1;
     attract = 0; opt_on = 0; banner_hide(); fade_in = 0; BIOS_USER_MODE = 2;
     pl_ch[0] = c; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     stage_begin(0, 1);
     for (i = 1; i < NF; i++) fighters[i].state = S_OFF;
-    enemy_init(LAB_DUMMY, dm, dm == c, 0, 34, 0, &genemies[EN_MINION]);   /* life and power of a minion */
-    lab_place();
-    lab.frame = 0; lab.nev = 0; lab_seen = 0; lab.combo_hits = 0; lab.combo_dmg = 0; lab.active = 1;
+    lab.active = kind;
+    if (kind == 2) { fighter_t *p = &fighters[0]; fighter_init(p, p->ch, p->set, 16, 0, cam_x + 110, 34); p->idx = 0; lab_enemy(); }
+    else {
+        enemy_init(LAB_DUMMY, dm, dm == c, 0, 34, 0, &genemies_rom[EN_MINION]);   /* life and power of a minion */
+        lab_place();
+    }
+    lab.frame = 0; lab.nev = 0; lab_seen = 0; lab.combo_hits = 0; lab.combo_dmg = 0;
     lab_shown_hits = 0xFF; lab_shown_dmg = 0xFFFF;
-    FIX_print(0, 26, "                                        ", 0); FIX_print(2, 26, "CHAIN LAB", 0);
+    FIX_print(0, 26, "                                        ", 0); FIX_print(2, 26, kind == 2 ? "ENEMY TEST" : "CHAIN LAB", 0);
 }
 static void lab_flow(void) {
     fighter_t *p = &fighters[0], *d = &fighters[LAB_DUMMY];
     p->hp = LIFE;                                             /* nobody hits P1; a dummy never dies */
+    if (lab.active == 2) {                                    /* the enemy test: it fights; beaten, it comes again */
+        if (d->state == S_DEAD && d->state_t > 60) lab_enemy();
+        if (in_play(p) && (JOY_pressed(0) & JOY_START)) dbg_on ^= 1;
+        bios_start = 0;
+        return;
+    }
     if (d->state == S_IDLE || d->state == S_WALK) { d->hp = LIFE; lab_recovered = 1; }
     else if (d->hp < 20) d->hp += 40;
     if (d->state == S_DEAD) { fighter_revive(d); d->inv = 0; }
@@ -1243,9 +1367,14 @@ static void lab_flow(void) {
 }
 static void lab_tick(void) {                                  /* the page's requests, before the frame's game logic */
     if (lab.magic[0] != 'L' || lab.magic[1] != 'A' || lab.magic[2] != 'B' || lab.magic[3] != '1') return;
+    if (lab.load >= 3) {                                      /* a data pack (3) or the ROM's tables (4): at the safe point */
+        uint8_t e = lab.load == 3 ? gd_check(lab.pack) : 0;
+        lab.pack_stat = e ? GD_BAD | e : GD_PENDING; gd_want = e ? 0 : lab.load; lab.load = 0;
+    }
     lab_install();
     if (lab.active) lab.frame++;                              /* this tick's events carry this frame */
-    if (lab.req == 1) lab_start();
+    if (lab.req == 1 || lab.req == 3) lab_start(lab.req == 3 ? 2 : 1);
+    else if (lab.req == 2 && lab.active == 2) { fighter_t *p = &fighters[0]; fighter_init(p, p->ch, p->set, 16, 0, cam_x + 110, 34); p->idx = 0; lab_enemy(); }
     else if (lab.req == 2 && lab.active) lab_place();
     lab.req = 0;
 }
@@ -1428,7 +1557,7 @@ void game_tick(void) {
     } else read_player(0, &in[0], &fighters[0]);
     if (p2_in()) read_player(1, &in[1], &fighters[1]);
 #if !AI_OFF
-    if (!lab.active) ai_update(fighters, NF, 2, in);
+    if (lab.active != 1) ai_update(fighters, NF, 2, in);   /* not against the Chain Lab's dummy */
 #endif
     mark(P_AI);
     for (i = 0; i < NF; i++) if (fighters[i].state != S_OFF) fighter_update(&fighters[i], &in[i]);

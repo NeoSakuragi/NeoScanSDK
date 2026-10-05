@@ -57,7 +57,7 @@ void lab_install(void) {
     }
     lab.load = 0;
 }
-#define TREE(f)    route_tab[(f)->ch->id]
+#define TREE(f)    ((f)->tree ? (f)->tree : route_tab[(f)->ch->id])   /* an enemy's own tree, else its fighter's */
 #define NODE(f, i) RT_NODE(TREE(f), i)
 static void lab_note(const fighter_t *f, uint8_t kind, uint8_t node, uint8_t how, uint8_t val) {   /* P1's route steps */
     lab_ev_t *e;
@@ -243,11 +243,14 @@ static __attribute__((noinline)) uint16_t tint_colour(uint8_t tint, uint16_t c) 
 }
 uint16_t fighter_colour(const fighter_t *f, uint16_t c) { return f->tint ? tint_colour(f->tint, c) : c; }   /* the
                                                              untinted path stays as cheap as before (fades call it per colour) */
+const uint16_t *fighter_src_pal(const fighter_t *f, uint8_t i) {
+    return i == 0 && f->cpal ? f->cpal : f->ch->pals + ((f->set * f->ch->npal + i) << 4);
+}
 void fighter_load_pals(const fighter_t *f) {
     uint16_t buf[16];
     uint8_t i, j;
     for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
-        const uint16_t *src = f->ch->pals + ((f->set * f->ch->npal + i) << 4);
+        const uint16_t *src = fighter_src_pal(f, i);
         buf[0] = src[0];
         for (j = 1; j < 16; j++) buf[j] = fighter_colour(f, src[j]);
         PAL_setPalette(f->palbase + i, buf);

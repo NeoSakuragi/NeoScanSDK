@@ -82,6 +82,28 @@ def default_tree():
                         'air_cd': air('atk_cd_jump', 10, 'strong', 'knockdown', 0)}}
 
 
+def strip_specials(nd):
+    """a tree without its special links (D inputs): the route ends where the special was"""
+    out = {k: v for k, v in nd.items() if k != 'links'}
+    links = {k: strip_specials(v) for k, v in (nd.get('links') or {}).items() if k not in SPECIAL_INPUTS}
+    if links: out['links'] = links
+    return out
+
+
+ENEMY_PRESETS = ['jabs', 'no_specials']
+
+
+def enemy_preset(name, own):
+    """an enemy's named reduced move list (game.json enemies[].moves), from its fighter's own tree `own`:
+    jabs         A, A, strong close C (three hits on A, no B, no specials): a minion that only punches
+    no_specials  its own tree without the special links (its routes, no special cancels)"""
+    assert name in ENEMY_PRESETS, f'no enemy move preset {name} ({", ".join(ENEMY_PRESETS)})'
+    if name == 'no_specials': return dict(strip_specials(own), entries={k: strip_specials(v) for k, v in (own.get('entries') or {}).items()})
+    c = {'move': 'atk_c_close', 'weight': 'strong', 'effect': 'none'}
+    a2 = {'move': 'atk_a_far', 'weight': 'light', 'effect': 'none', 'links': {'A': c}}
+    return {'fighter': own.get('fighter'), 'links': {'A': {'move': 'atk_a_close', 'weight': 'light', 'effect': 'none', 'links': {'A': a2}}}}
+
+
 def load(name, path=None):
     """the fighter's tree: its routes file (game.json roster[].routes; entries it leaves out: the default's), else
     (path None) the default tree"""

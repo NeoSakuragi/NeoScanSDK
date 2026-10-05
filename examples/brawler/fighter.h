@@ -8,6 +8,7 @@
 #define FIGHTER_H
 #include <stdint.h>
 #include "bm_chars.h"
+#include "gamedata.h"
 
 #define FIX(v)   ((int32_t)(v) << 16)
 #define INT(v)   ((int16_t)((v) >> 16))
@@ -94,17 +95,21 @@ typedef struct { uint16_t frame; uint8_t kind, node, how, val; } lab_ev_t;   /* 
 #define LAB_BUF  (sizeof(rt_head_t) + 128 * sizeof(rnode_t))
 typedef struct {
     char     magic[4];            /* "LAB1" while the page drives the game */
-    uint8_t  req;                 /* page: 1 = start training (fighter vs dummy), 2 = reset positions; the game clears it */
-    uint8_t  fighter, dummy;      /* bm_chars indices (req 1) */
+    uint8_t  req;                 /* page: 1 = start training (fighter vs dummy), 2 = reset positions, 3 = enemy test
+                                     (fighter vs the enemy definition `dummy`, its AI on); the game clears it */
+    uint8_t  fighter, dummy;      /* bm_chars indices (req 1); req 3: dummy = a genemies index (EN_*) */
     uint8_t  load;                /* page: 1 = buf holds a tree for `fighter`: install it (the game clears it); 2 = back to
-                                     the fighter's own tree */
-    uint8_t  active;              /* game: 1 while the training runs */
+                                     the fighter's own tree; 3 = pack holds a data pack (gamedata.h gdpack_t): checked
+                                     now, installed at the next safe point (pack_stat); 4 = back to the ROM's tables */
+    uint8_t  active;              /* game: 1 while the training runs, 2 the enemy test */
     uint8_t  nev;                 /* game: events written (ring index = nev % LAB_NEV) */
     uint16_t frame;               /* game: training frames */
     uint8_t  combo_hits, pad;     /* game: the readout on screen */
     uint16_t combo_dmg;
     lab_ev_t ev[LAB_NEV];
     uint8_t  buf[LAB_BUF];
+    uint8_t  pack_stat, pack_pad; /* game: GD_* (gamedata.h) of the last load 3 / 4 */
+    uint8_t  pack[GD_MAX];        /* page: a data pack (load 3) */
 } lab_t;
 extern lab_t lab;
 void lab_install(void);           /* lab.load handled (routes_init's table, main.c calls it every tick) */
@@ -165,6 +170,11 @@ typedef struct fighter {
      * the script row shown + 1 (specials, throws) */
     uint32_t acc;
     uint16_t speed, srow;
+    /* an enemy's definition (main.c enemy_init, genemy_t): its HUD name (0 = its fighter's), 16 custom colours for its
+     * first palette (0 = its set's), its route tree (0 = route_tab's, its fighter's own) */
+    const char *name;
+    const uint16_t *cpal;
+    const rt_head_t *tree;
 } fighter_t;
 
 
@@ -189,6 +199,8 @@ void fighter_revive(fighter_t *f);
 /* a colour of f's palettes as shown: its tint applied (minions, main.c): 1 shade (half desaturated, 69 %), 2 ash (3/4
  * desaturated, 88 %, cold), 3 rust (half desaturated, 75 %, warm); never one of the playable colour sets */
 uint16_t fighter_colour(const fighter_t *f, uint16_t c);
+const uint16_t *fighter_src_pal(const fighter_t *f, uint8_t i);   /* its palette i as defined (set, custom colours) */
+#define FIGHTER_NAME(f) ((f)->name ? (f)->name : (f)->ch->name)
 void fighter_load_pals(const fighter_t *f);                 /* its colour set through its tint into its hardware palettes */                          /* full life, getting up, invulnerable a moment */
 
 #endif

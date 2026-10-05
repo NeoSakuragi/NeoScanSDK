@@ -8,10 +8,13 @@
 #include "ai.h"
 #include "game_tables.h"
 
-/* the numbers are an AI preset's (gamedata.h ai_preset_t, game.json "ai"): minion, minion_attract (the demo's: rests
- * longer, no grabs, no specials), boss. ai_presets[] lives in RAM (copied from the ROM table at boot): a lab may poke it */
+/* the numbers are an AI row's (gamedata.h ai_preset_t, game.json "ai" and the enemies' "ai_over"): the presets minion,
+ * minion_attract (the demo's: rests longer, no grabs, no specials), boss, then one row per enemy with overrides. Each
+ * enemy slot reads its own row (ai_t.p, set at its spawn). ai_presets[] lives in RAM (copied from the ROM table at
+ * boot): a lab may poke it; ai_tab points at it or at an installed pack's rows (main.c gd_apply) */
 #define MAX_F      8
 ai_preset_t ai_presets[AI_COUNT];
+const ai_preset_t *ai_tab = ai_presets;
 
 typedef struct {
     uint8_t token;
@@ -48,10 +51,10 @@ void ai_init(uint16_t seed, uint8_t preset) {
     uint8_t i;
     lfsr = seed ? seed : 0xACE1;
     tick = 0;                                     /* the token deal's phase: not carried over from the attract demo */
-    for (i = 0; i < MAX_F; i++) { AI[i].p = &ai_presets[preset]; AI[i].jumping = 0; AI[i].token = 0; rest(&AI[i], AI[i].p->rest_start); AI[i].presses = 0; AI[i].retarget = 0; AI[i].press_t = 0; }
+    for (i = 0; i < MAX_F; i++) { AI[i].p = &ai_tab[preset]; AI[i].jumping = 0; AI[i].token = 0; rest(&AI[i], AI[i].p->rest_start); AI[i].presses = 0; AI[i].retarget = 0; AI[i].press_t = 0; }
 }
 
-void ai_set(uint8_t i, uint8_t preset) { AI[i].p = &ai_presets[preset]; rest(&AI[i], AI[i].p->rest_start); }
+void ai_set(uint8_t i, uint8_t preset) { AI[i].p = &ai_tab[preset]; rest(&AI[i], AI[i].p->rest_start); }
 
 /* the closest able enemies (by this frame's distances) without a token get the tokens; a boss always has one */
 static void deal_tokens(fighter_t *fs, uint8_t nf, uint8_t np) {
@@ -121,22 +124,23 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (!able(e)) { a->presses = 0; continue; }
         if ((P->flags & AIF_BOSS_MOVES) && a->cooldown == 0) {                       /* boss: reversal, specials, jump-ins */
             fighter_t *t = &fs[a->target];
-            if ((t->state == S_ATTACK || t->state == S_AIR_ATTACK) && iabs(dx) < P->rev_dx && iabs(dz) <= P->rev_dz &&
+            if ((P->flags & AIF_REVERSAL) && (t->state == S_ATTACK || t->state == S_AIR_ATTACK) && iabs(dx) < P->rev_dx && iabs(dz) <= P->rev_dz &&
                 e->ch->specials[BS_DOWN_D].nrows && (rnd() & P->rev_mask) == 0) {
                 o->press = IN_D; o->dz = 1; rest(a, P->rest_rev); continue;   /* down+D: the rising reversal */
             }
-            if (iabs(dz) <= P->bspec_dz && iabs(dx) >= P->bspec_min && iabs(dx) <= P->bspec_max && (rnd() & P->bspec_mask) == 0) {
+            if ((P->flags & AIF_SPECIALS) && iabs(dz) <= P->bspec_dz && iabs(dx) >= P->bspec_min && iabs(dx) <= P->bspec_max && (rnd() & P->bspec_mask) == 0) {
                 if (e->facing != sgn(dx)) continue;              /* o->face turns him, the special next frame */
                 o->press = IN_D; if (iabs(dx) < P->rush_dx && (rnd() & 1)) o->dx = sgn(dx);   /* D, or forward+D: the rush */
                 rest(a, P->rest_bspec); continue;
             }
-            if (iabs(dz) <= P->jump_dz && iabs(dx) >= P->jump_min && iabs(dx) <= P->jump_max && rnd() < P->jump_chance && e->facing == sgn(dx)) {
+            if ((P->flags & AIF_JUMP_IN) && iabs(dz) <= P->jump_dz && iabs(dx) >= P->jump_min && iabs(dx) <= P->jump_max && rnd() < P->jump_chance && e->facing == sgn(dx)) {
                 o->press = IN_C; o->hold = IN_C; o->dx = sgn(dx); a->jumping = 1; rest(a, P->rest_jump); continue;   /* jump in */
             }
         }
         if (!a->retarget--) { a->hover_dz = (int8_t)((rnd() & 31) - 16); a->retarget = 60 + (rnd() & 63); }
         if (a->cooldown == 0 && iabs(dz) <= P->spec_dz && iabs(dx) >= P->spec_min && iabs(dx) <= P->spec_max &&   /* any enemy: the hoverers stand in this range */
-            (P->flags & AIF_PROJECTILE) && e->ch->specials[BS_D].nrows && !rnd() && (rnd() & 1)) {   /* 1 in 512 a frame in range */
+            (P->flags & AIF_PROJECTILE) && e->ch->specials[BS_D].nrows && !(rnd() & P->proj_mask) &&
+            (rnd() & P->proj_mask2) == P->proj_mask2) {         /* 1 in (proj_mask + 1) (proj_mask2 + 1) a frame in range */
             o->press = IN_D;                                     /* D: the projectile (o->face turns it to the player) */
             rest(a, P->rest_special);
             continue;
@@ -163,7 +167,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
             else if (iabs(gx - ex) > P->hover_go_dx || iabs(gz - ez) > P->hover_go_dz) a->moving = 1;
             if (!a->moving) continue;
         }
-        o->slow = 1;                                             /* half speed, every frame (no on/off walk intent) */
+        o->slow = !(P->flags & AIF_FULL_SPEED);                  /* half speed, every frame (no on/off walk intent) */
         if (iabs(gx - ex) > (a->token ? 6 : 2)) o->dx = sgn(gx - ex);
         if (iabs(gz - ez) > (a->token ? 3 : 2)) o->dz = sgn(gz - ez);
     }

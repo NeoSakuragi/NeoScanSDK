@@ -11,8 +11,12 @@
 /* ---- layer 2: AI presets (ai.c). Every distance is px, every rest frames, chances "1 in mask + 1" ---- */
 enum { AIF_TOKEN = 1,             /* always holds an attack token (a boss), on top of the dealt ones */
        AIF_GRAB = 2,              /* an approach may end in a grab (grab_plan of 8) */
-       AIF_PROJECTILE = 4,        /* fires its D special at mid range (spec_min-spec_max, 1 in 512 a frame) */
-       AIF_BOSS_MOVES = 8 };      /* the boss block: rising reversal, specials / the rush, jump-ins */
+       AIF_PROJECTILE = 4,        /* fires its D special at mid range (spec_min-spec_max, 1 in proj_mask chance a frame) */
+       AIF_REVERSAL = 8,          /* reaction to attacks: down+D (its rising reversal) against an attack (rev_*) */
+       AIF_SPECIALS = 16,         /* D / forward+D (the rush) on the player's line (bspec_*) */
+       AIF_JUMP_IN = 32,          /* forward jump-ins with an air B (jump_*) */
+       AIF_FULL_SPEED = 64 };     /* walks at its full speed (the others walk at half speed while positioning) */
+#define AIF_BOSS_MOVES (AIF_REVERSAL | AIF_SPECIALS | AIF_JUMP_IN)   /* game.json "boss_moves": the three, checked in this order */
 typedef struct {
     uint8_t flags;
     uint8_t rest_shift, rest_random, rest_add;   /* a rest: (base >> rest_shift) + (random & rest_random) + rest_add */
@@ -27,6 +31,8 @@ typedef struct {
     uint8_t rev_dx, rev_dz, rev_mask, rest_rev;    /* boss: down+D against an attack this close, 1 in rev_mask + 1 */
     uint8_t bspec_min, bspec_max, bspec_dz, bspec_mask, rush_dx, rest_bspec;   /* boss: D / forward+D (closer than rush_dx: 1 in 2) */
     uint8_t jump_min, jump_max, jump_dz, jump_chance, rest_jump, air_b_dx;     /* boss: jump-in, jump_chance of 256; air B this close */
+    uint8_t proj_mask, proj_mask2;    /* the projectile: (random & proj_mask) == 0 and (random & proj_mask2) == 0 in a frame
+                                         (game.json proj_chance "1 in N a frame": 512 = 255 and 1) */
 } ai_preset_t;
 
 /* ---- the minion tints (fighter_colour): a colour pulled toward its luminance l = (5 R + 9 G + 2 B) / 16:
@@ -34,13 +40,22 @@ typedef struct {
 typedef struct { uint8_t mix, mul, shift; int8_t add[3]; } gtint_t;
 
 /* ---- layer 2: enemies. base = a roster fighter (bm_chars index) or 0xFF: one of the pool, picked per spawn ---- */
+enum { GE_FIGHTER_NAME = 1 };     /* the HUD shows its fighter's name (today's minions and bosses), not the enemy's */
+#define GE_SPAWN 0xFF             /* set / tint: the spawn's (gspawn_t) */
 typedef struct {
-    uint8_t base, ai, attract_ai; /* AI preset in the campaign; in the attract demo */
+    uint8_t base, ai, attract_ai; /* AI rows (ai_tab: the presets, then the enemies' own rows with their overrides merged);
+                                     in the campaign; in the attract demo */
     uint8_t power;                /* extra damage a hit, on top of the stage's power */
     uint8_t npool;
+    uint8_t set, tint;            /* its colour set (mod the fighter's sets) and gtint_t, GE_SPAWN = the spawn's */
+    uint8_t flags;                /* GE_* */
     int16_t life;                 /* life at NORMAL difficulty (main.c life() scales it) */
     const uint8_t *pool;          /* base 0xFF: the fighters it may be (bm_chars indices), the players' fighters left out */
+    const char *name;             /* shown in the HUD (unless GE_FIGHTER_NAME) */
+    const uint16_t *pal;          /* 16 custom colours replacing its set's first palette (0 = the set's own) */
+    const uint8_t *moves;         /* its route tree (fighter.h rt_head_t: a trimmed move list), 0 = its fighter's own */
 } genemy_t;
+_Static_assert(sizeof(genemy_t) == 26, "build_tables.py EN_SIZE");
 
 /* ---- layer 3: stages ---- */
 enum { SP_WALK_IN = 1,            /* x unused: walks in from off screen, rank (flags >> 4) * 36 px further out */
@@ -67,8 +82,29 @@ typedef struct {
 /* ---- layer 1: the select screen's group photo: slot places; sel_fighter[] = who stands there (0xFF: nobody) ---- */
 typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
 
+/* ---- a data pack (Brawler Lab write path, docs/brawler_data_model.md "Live install"): stages, enemies and AI rows in
+ * one blob the page writes into lab.pack (fighter.h lab_t) with lab.load = 3. The structs as above, every pointer an
+ * offset from the pack's start (0 = none); the game checks it (version, sizes, every offset and index), copies it into
+ * its own RAM, turns the offsets into pointers and repoints gstages / genemies / ai_tab at the next safe point (a wave,
+ * the boss, a stage start, the lab's enemy respawn). lab.load = 4: back to the ROM's tables (at the same point). ---- */
+#define GD_VERSION 1
+#define GD_MAX     4096           /* bytes, header included */
+typedef struct {
+    char     magic[2];            /* "GD" */
+    uint8_t  version;             /* GD_VERSION */
+    uint8_t  nstages, nenemies, nai;   /* nstages = GS_COUNT (the save's bits follow the stages) */
+    uint16_t size;                /* bytes, this header included */
+    uint16_t stages, enemies, ai; /* offsets of gstage_t[nstages], genemy_t[nenemies], ai_preset_t[nai] */
+    uint16_t nspawns;             /* spawns per stage at most (bounds checks) */
+    uint16_t pad;
+} gdpack_t;
+_Static_assert(sizeof(gdpack_t) == 18, "build_tables.py PACK_HEAD");
+enum { GD_NONE, GD_PENDING, GD_INSTALLED, GD_ROM,            /* lab.pack_stat (game): waiting for the safe point; in use */
+       GD_BAD = 0x80 };           /* | the check that failed (main.c gd_check) */
+
 /* ---- the live tables (main.c) ---- */
 extern const gstage_t *gstages;
 extern const genemy_t *genemies;
-extern ai_preset_t ai_presets[];
+extern ai_preset_t ai_presets[];  /* the ROM's AI rows in RAM (a lab may poke them) */
+extern const ai_preset_t *ai_tab; /* the rows the AI reads: ai_presets, or an installed pack's */
 #endif

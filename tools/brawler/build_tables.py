@@ -6,6 +6,9 @@
                                                   only when they changed (export_bm.py re-runs only then)
     build_tables.py tables GAME.json BUILD_DIR    BUILD_DIR/game_tables.h + game_tables.c (gamedata.h types)
     build_tables.py format GAME.json              rewrite the file in its canonical layout (one line per spawn, slot...)
+    build_tables.py pack GAME.json BUILD_DIR OUT  the Brawler Lab's data pack (stages, enemies, AI rows: gamedata.h
+                                                  gdpack_t) for lab.load 3, from a game.json the running ROM was built with
+                                                  or an edit of it (same roster, same stage count)
 
 Everything is checked against the build: names resolve (fighters, enemies, AI presets, tints, songs), counts fit the
 engine (6 enemies at once, 16 select slots), lock points inside the stage (build/stage.h widths)."""
@@ -13,8 +16,10 @@ import json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, '..', '..'))
+sys.path.insert(0, HERE)
 SPECIAL_KEYS = ['D', 'fD', 'dD', 'uD']                   # bchar_t.specials order (BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D)
-AI_FLAGS = {'token': 1, 'grab': 2, 'projectile': 4, 'boss_moves': 8}   # gamedata.h AIF_*
+AI_FLAGS = {'token': 1, 'grab': 2, 'projectile': 4, 'reversal': 8, 'specials': 16, 'jump_in': 32, 'full_speed': 64,
+            'boss_moves': 8 | 16 | 32}                    # gamedata.h AIF_*
 AI_FIELDS = ['rest_shift', 'rest_random', 'rest_add', 'rest_start', 'rest_attack', 'rest_special', 'rest_throw', 'grab_plan',
              'attack_dx', 'hover_dx', 'hover_go_dx', 'hover_go_dz', 'range_min', 'range_max', 'range_dz', 'spec_min',
              'spec_max', 'spec_dz', 'press_gap', 'hold_gap', 'rev_dx', 'rev_dz', 'rest_rev', 'bspec_min', 'bspec_max',
@@ -23,6 +28,8 @@ CHANCE_MASKS = {'follow_ups': 'follow_mask', 'rev_chance': 'rev_mask', 'bspec_ch
 MAX_ENEMIES = 6                                          # main.c NF - 2
 MAX_SLOTS = 16                                           # main.c SEL_NSLOT
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
+GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
+GD_VERSION, GD_MAX = 1, 4096                             # gamedata.h data pack
 
 
 def load(path): return json.load(open(path))
@@ -54,65 +61,105 @@ def stage_widths(build):
     return [int(e.split(',')[1]) * 16 for e in re.findall(r'\{stage\d+_map, ([^}]*)\}', m.group(1))] if m else None
 
 
-def tables(g, build):
+def songs(build):
+    """MUS_* name -> driver command, from build/snd/songs.h (the pack needs the numbers)"""
+    p = os.path.join(build, 'snd', 'songs.h')
+    return {m[0]: int(m[1], 0) for m in re.findall(r'#define MUS_(\w+)\s+(0x[0-9A-Fa-f]+|\d+)', open(p).read())} if os.path.exists(p) else {}
+
+
+def ai_row(n, p):
+    """an AI preset (game.json form) -> the ai_preset_t fields"""
+    fl = 0
+    for f in p.get('flags', []): fl |= AI_FLAGS[f]
+    v = {'flags': fl}
+    for k in AI_FIELDS: v[k] = p.get(k, 0)
+    for k, m in CHANCE_MASKS.items():
+        ch = p.get(k, 1 if k == 'follow_ups' else 0)
+        if k == 'follow_ups': v[m] = (1 << ch.bit_length()) - 1 if ch else 0   # follow-up presses: 0..N (N = 2^k - 1)
+        else:
+            assert ch == 0 or (ch & (ch - 1)) == 0, f'AI {n}: {k} must be 1 in a power of two'
+            v[m] = ch - 1 if ch else 0
+    pc = p.get('proj_chance', 512)                       # the projectile: 1 in N a frame in range (two random bytes)
+    assert pc >= 1 and (pc & (pc - 1)) == 0 and pc <= 65536, f'AI {n}: proj_chance must be a power of two'
+    v['proj_mask'], v['proj_mask2'] = min(pc, 256) - 1, max(pc >> 8, 1) - 1
+    for k, x in v.items(): assert 0 <= x <= 255, f'AI {n}: {k} = {x} (0-255)'
+    return v
+
+
+def enemy_tree(e, g, build, idx):
+    """an enemy's trimmed move list: None (its fighter's own tree), a routes.ENEMY_PRESETS name or a routes file, encoded
+    against every fighter it may be (each must have the moves)"""
+    m = e.get('moves', 'own')
+    if m == 'own': return None
+    import routes as R
+    lab = json.load(open(os.path.join(build, 'chainlab.json')))
+    fs = {f['name']: f for f in lab['fighters']}
+    bases = e['pool'] if e['base'] == 'pool' else [e['base'] if e['base'] in idx else e['stand_in']]
+    blob = None
+    for b in bases:
+        r = g['roster'][idx[b]]
+        own = R.load(b, None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']))
+        tree = R.enemy_preset(m, own) if not m.endswith('.json') else R.load(b, os.path.join(REPO, m))
+        x = R.encode(tree, lab['ba'], set(fs[b]['has']))
+        assert blob is None or x == blob, f'enemy {e["name"]}: its tree differs between its fighters'
+        blob = x
+    return blob
+
+
+def palette(e, n):
+    """an enemy's colours: set (GE_SPAWN = the spawn's), tint name (None = the spawn's), 16 custom colours or None"""
+    pal = e.get('palette') or {}
+    for k in pal: assert k in ('set', 'tint', 'custom'), f'enemy {n}: palette {k}'
+    cu = pal.get('custom')
+    if cu is not None:
+        cu = [int(str(c), 0) for c in cu]
+        assert len(cu) == 16 and all(0 <= c <= 0xFFFF for c in cu), f'enemy {n}: custom = 16 Neo Geo colours (0-$FFFF)'
+    return pal.get('set', GE_SPAWN if cu is None and 'tint' not in pal else 0), pal.get('tint'), cu
+
+
+def model(g, build):
+    """game.json -> the tables as numbers (one source for the C tables and the lab's data pack)"""
     names = roster_names(g)
     idx = {n: i for i, n in enumerate(names)}
     enemies = g['enemies']; en_idx = {e['name']: i for i, e in enumerate(enemies)}
-    presets = g['ai']['presets']; ai_idx = {n: i for i, n in enumerate(presets)}
+    presets = g['ai']['presets']
     tints = ['none'] + list(g['tints']); tint_idx = {n: i for i, n in enumerate(tints)}
-    widths = stage_widths(build)
-    h = ['/* Generated by tools/brawler/build_tables.py from examples/brawler/game.json. Do not edit. */',
-         '#ifndef GAME_TABLES_H\n#define GAME_TABLES_H\n#include "bm_chars.h"\n#include "gamedata.h"\n#include "snd/songs.h"',
-         f'#define GS_COUNT {len(g["stages"])}            /* campaign stages */',
-         f'#define EN_COUNT {len(enemies)}', f'#define AI_COUNT {len(presets)}', f'#define TINT_COUNT {len(tints)}',
-         f'#define SEL_NSLOT {len(g["select"]["slots"])}',
-         f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
-         f'#define AI_TOKENS {g["ai"]["tokens"]}',
-         'enum { ' + ', '.join(f'AI_{n.upper()}' for n in presets) + ' };',
-         'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in enemies) + ' };',
-         'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
-         'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
-         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];',
-         'extern const uint8_t roster_unlock[BC_COUNT];']
-    c = ['/* Generated by tools/brawler/build_tables.py from examples/brawler/game.json. Do not edit. */',
-         '#include "bm_chars.h"\n#include "game_tables.h"\n']
+    widths = stage_widths(build); mus = songs(build)
     assert len(names) == len(set(names)), 'roster: a name twice'
-    # AI presets
-    rows = []
-    for n, p in presets.items():
-        fl = 0
-        for f in p.get('flags', []): fl |= AI_FLAGS[f]
-        v = {'flags': fl}
-        for k in AI_FIELDS: v[k] = p.get(k, 0)
-        for k, m in CHANCE_MASKS.items():
-            ch = p.get(k, 1 if k == 'follow_ups' else 0)
-            if k == 'follow_ups': v[m] = (1 << ch.bit_length()) - 1 if ch else 0   # follow-up presses: 0..N (N = 2^k - 1)
-            else:
-                assert ch == 0 or (ch & (ch - 1)) == 0, f'AI {n}: {k} must be 1 in a power of two'
-                v[m] = ch - 1 if ch else 0
-        for k, x in v.items(): assert 0 <= x <= 255, f'AI {n}: {k} = {x} (0-255)'
-        rows.append('    { ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) + ' },   /* ' + n + ' */')
-    c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(rows) + '\n};')
-    # tints
-    c.append('const gtint_t gtints[TINT_COUNT] = {\n    { 0, 0, 0, { 0, 0, 0 } },   /* none: its own colour set */\n' + '\n'.join(
-        f'    {{ {t["mix"]}, {t["mul"]}, {t["shift"]}, {{ {", ".join(map(str, t["add"]))} }} }},   /* {n} */' for n, t in g['tints'].items()) + '\n};')
-    # enemies (pools after them)
-    pools, erows = [], []
+    assert len(en_idx) == len(enemies), 'enemies: a name twice'
+    M = {'names': names, 'tints': tints, 'ai': [], 'enemies': [], 'stages': [], 'presets': list(presets)}
+    for n, p in presets.items(): M['ai'].append((n, ai_row(n, p)))
+    def row(name, preset, over):                        # an AI row: the preset, or the preset with overrides (own row)
+        assert preset in presets, f'enemy {name}: no AI preset {preset}'
+        if not over: return list(presets).index(preset)
+        v = ai_row(name, {**presets[preset], **over})
+        for i, (_, w) in enumerate(M['ai']):
+            if w == v: return i
+        M['ai'].append((f'{name}_{preset}', v)); return len(M['ai']) - 1
     for e in enemies:
+        n = e['name']
+        name = e.get('hud', n)
+        assert name == 'fighter' or re.fullmatch(r'[A-Z0-9_ .!-]{1,10}', name), f'enemy {n}: HUD name 1-10 characters (A-Z 0-9 _ . ! -)'
+        for k in e: assert k in ('name', 'base', 'pool', 'stand_in', 'life', 'power', 'ai', 'attract_ai', 'ai_over', 'palette', 'moves', 'hud'), f'enemy {n}: unknown field {k}'
         if e['base'] == 'pool':
-            pl = [idx[n] for n in e['pool']]
-            assert pl == sorted(pl), f'enemy {e["name"]}: list the pool in roster order'
-            pools.append(f'static const uint8_t pool_{e["name"].lower()}[] = {{ {", ".join(map(str, pl))} }};')
-            base, pool, npool = 0xFF, f'pool_{e["name"].lower()}', len(pl)
+            pl = [idx[x] for x in e['pool']]
+            assert pl == sorted(pl), f'enemy {n}: list the pool in roster order'
+            base = 0xFF
         else:
             b = e['base'] if e['base'] in idx else e.get('stand_in')
-            assert b in idx, f'enemy {e["name"]}: neither {e["base"]} nor its stand-in is in the roster'
-            base, pool, npool = idx[b], '0', 0
-        erows.append(f'    {{ .base = {base}, .ai = AI_{e["ai"].upper()}, .attract_ai = AI_{e.get("attract_ai", e["ai"]).upper()}, '
-                     f'.power = {e.get("power", 0)}, .npool = {npool}, .life = {e["life"]}, .pool = {pool} }},   /* {e["name"]} */')
-    c += pools
-    c.append('const genemy_t genemies_rom[EN_COUNT] = {\n' + '\n'.join(erows) + '\n};')
-    # stages: spawns, waves, then the stage table
+            assert b in idx, f'enemy {n}: neither {e["base"]} nor its stand-in is in the roster'
+            base, pl = idx[b], []
+        over = e.get('ai_over') or {}
+        for k in over: assert k in AI_FIELDS or k in CHANCE_MASKS or k in ('flags', 'proj_chance'), f'enemy {n}: ai_over {k}'
+        st, ti, cu = palette(e, n)
+        assert ti is None or ti in tint_idx, f'enemy {n}: no tint {ti}'
+        assert st == GE_SPAWN or 0 <= st < 255, f'enemy {n}: palette set {st}'
+        assert 1 <= e['life'] <= 32767 and 0 <= e.get('power', 0) <= 255, f'enemy {n}: life 1-32767, power 0-255'
+        M['enemies'].append({'name': n, 'base': base, 'pool': pl, 'ai': row(n, e['ai'], over),
+                             'attract_ai': row(n, e.get('attract_ai', e['ai']), over), 'power': e.get('power', 0),
+                             'set': st, 'tint': GE_SPAWN if ti is None else tint_idx[ti], 'flags': GE_FIGHTER_NAME if name == 'fighter' else 0,
+                             'life': e['life'], 'hud': None if name == 'fighter' else name.replace('_', ' '), 'pal': cu, 'moves': enemy_tree(e, g, build, idx)})
+    assert len(M['ai']) <= 255, 'at most 255 AI rows'
     def spawn(d, where):
         e = d['enemy']; assert e in en_idx, f'{where}: no enemy {e}'
         fl, x = 0, d.get('x', 0)
@@ -120,8 +167,8 @@ def tables(g, build):
             w = d['walk_in']; fl |= SP_WALK_IN | (SP_LEFT if w['side'] == 'left' else 0) | (w.get('rank', 0) << 4)
             assert w['side'] in ('left', 'right') and 0 <= w.get('rank', 0) < 16, where
         if d.get('not_boss'): fl |= SP_NOT_BOSS
-        return (f'{{ .enemy = EN_{e.upper()}, .pick = {d.get("pick", 0)}, .set = {d.get("set", 0)}, .tint = {tint_idx[d.get("tint", "none")]}, '
-                f'.x = {x}, .z = {d["z"]}, .flags = 0x{fl:02X} }}')
+        return {'enemy': en_idx[e], 'pick': d.get('pick', 0), 'set': d.get('set', 0), 'tint': tint_idx[d.get('tint', 'none')],
+                'x': x, 'z': d['z'], 'flags': fl}
     for si, s in enumerate(g['stages']):
         ww = widths[s['background']] if widths else None
         sp, wv = [], []
@@ -129,22 +176,94 @@ def tables(g, build):
             assert 1 <= len(w['spawns']) <= MAX_ENEMIES, f'stage {si + 1} wave {wi + 1}: 1-{MAX_ENEMIES} spawns'
             assert ww is None or 0 <= w['lock'] <= ww - 320, f'stage {si + 1} wave {wi + 1}: lock {w["lock"]} outside 0-{ww - 320}'
             assert wi == 0 or w['lock'] >= s['waves'][wi - 1]['lock'], f'stage {si + 1}: lock points go forward'
-            wv.append(f'{{ .lock = {w["lock"]}, .seed = 0x{int(str(w["seed"]), 0):04X}, .first = {len(sp)}, .n = {len(w["spawns"])} }}')
+            wv.append({'lock': w['lock'], 'seed': int(str(w['seed']), 0), 'first': len(sp), 'n': len(w['spawns'])})
             sp += [spawn(d, f'stage {si + 1} wave {wi + 1}') for d in w['spawns']]
         b = s['boss']; nb = len(sp)
         assert len(b['minions']) <= MAX_ENEMIES - 1, f'stage {si + 1}: at most {MAX_ENEMIES - 1} minions with the boss'
         assert ww is None or b['lock'] <= ww - 320, f'stage {si + 1}: boss lock past the end'
         sp += [spawn(d, f'stage {si + 1} boss') for d in b['minions']]
-        c.append(f'static const gspawn_t stage{si}_spawns[] = {{\n    ' + ',\n    '.join(sp) + '\n};')
-        c.append(f'static const gwave_t stage{si}_waves[] = {{\n    ' + ',\n    '.join(wv) + '\n};')
         be = enemies[en_idx[b['enemy']]]
         unl = 1 if be['base'] in idx and g['roster'][idx[be['base']]].get('unlock') == {'boss_of_stage': si + 1} else 0
-        s['_row'] = (f'    {{ .bg = {s["background"]}, .music = MUS_{s["music"]}, .power = {s.get("power", 0)}, .nwaves = {len(wv)}, '
-                     f'.waves = stage{si}_waves, .spawns = stage{si}_spawns, .boss = EN_{b["enemy"].upper()}, .boss_song = MUS_{b["song"]}, '
-                     f'.unlock = {unl}, .boss_lock = {b["lock"]}, .boss_x = {b["x"]}, .boss_z = {b["z"]}, .boss_seed = 0x{int(str(b["seed"]), 0):04X}, '
-                     f'.boss_first = {nb}, .nmin = {len(b["minions"])} }},   /* {s["name"]} */')
-    c.append('const gstage_t gstages_rom[GS_COUNT] = {\n' + '\n'.join(s.pop('_row') for s in g['stages']) + '\n};')
-    # select screen, unlocks
+        M['stages'].append({'name': s['name'], 'bg': s['background'], 'music': s['music'], 'power': s.get('power', 0), 'waves': wv,
+                            'spawns': sp, 'boss': en_idx[b['enemy']], 'boss_song': b['song'], 'unlock': unl, 'boss_lock': b['lock'],
+                            'boss_x': b['x'], 'boss_z': b['z'], 'boss_seed': int(str(b['seed']), 0), 'boss_first': nb, 'nmin': len(b['minions']),
+                            'music_n': mus.get(s['music']), 'boss_song_n': mus.get(b['song'])})
+    return M
+
+
+# binary layouts (gamedata.h; game_tables.c asserts each offset, so a struct change fails the build until these follow)
+AI_ORDER = ['flags', 'rest_shift', 'rest_random', 'rest_add', 'rest_start', 'rest_attack', 'rest_special', 'rest_throw', 'grab_plan',
+            'attack_dx', 'hover_dx', 'hover_go_dx', 'hover_go_dz', 'range_min', 'range_max', 'range_dz', 'spec_min', 'spec_max', 'spec_dz',
+            'follow_mask', 'press_gap', 'hold_gap', 'rev_dx', 'rev_dz', 'rev_mask', 'rest_rev', 'bspec_min', 'bspec_max', 'bspec_dz',
+            'bspec_mask', 'rush_dx', 'rest_bspec', 'jump_min', 'jump_max', 'jump_dz', 'jump_chance', 'rest_jump', 'air_b_dx',
+            'proj_mask', 'proj_mask2']
+EN_LAYOUT = [('base', 0, 'B'), ('ai', 1, 'B'), ('attract_ai', 2, 'B'), ('power', 3, 'B'), ('npool', 4, 'B'), ('set', 5, 'B'),
+             ('tint', 6, 'B'), ('flags', 7, 'B'), ('life', 8, 'h'), ('pool', 10, 'I'), ('name', 14, 'I'), ('pal', 18, 'I'), ('moves', 22, 'I')]
+EN_SIZE = 26
+ST_LAYOUT = [('bg', 0, 'B'), ('music', 1, 'B'), ('power', 2, 'B'), ('nwaves', 3, 'B'), ('waves', 4, 'I'), ('spawns', 8, 'I'),
+             ('boss', 12, 'B'), ('boss_song', 13, 'B'), ('unlock', 14, 'B'), ('boss_z', 15, 'B'), ('boss_lock', 16, 'h'),
+             ('boss_x', 18, 'h'), ('boss_seed', 20, 'H'), ('boss_first', 22, 'B'), ('nmin', 23, 'B')]
+ST_SIZE, WAVE_SIZE, SPAWN_SIZE, PACK_HEAD = 24, 6, 8, 18
+
+
+def layout_asserts():
+    out = [f'_Static_assert(sizeof(ai_preset_t) == {len(AI_ORDER)}, "build_tables.py AI_ORDER");']
+    out += [f'_Static_assert(offsetof(ai_preset_t, {k}) == {i}, "build_tables.py AI_ORDER");' for i, k in enumerate(AI_ORDER)]
+    out += [f'_Static_assert(offsetof(genemy_t, {k}) == {o}, "build_tables.py EN_LAYOUT");' for k, o, _ in EN_LAYOUT]
+    out += [f'_Static_assert(offsetof(gstage_t, {k}) == {o}, "build_tables.py ST_LAYOUT");' for k, o, _ in ST_LAYOUT]
+    out += [f'_Static_assert(sizeof(gstage_t) == {ST_SIZE} && sizeof(gwave_t) == {WAVE_SIZE} && sizeof(gspawn_t) == {SPAWN_SIZE}, "build_tables.py sizes");']
+    return out
+
+
+def c_str(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def tables(g, build):
+    M = model(g, build)
+    presets = M['presets']
+    h = ['/* Generated by tools/brawler/build_tables.py from examples/brawler/game.json. Do not edit. */',
+         '#ifndef GAME_TABLES_H\n#define GAME_TABLES_H\n#include "bm_chars.h"\n#include "gamedata.h"\n#include "snd/songs.h"',
+         f'#define GS_COUNT {len(g["stages"])}            /* campaign stages */',
+         f'#define EN_COUNT {len(M["enemies"])}', f'#define AI_COUNT {len(M["ai"])}            /* the presets, then the enemies\' own rows */',
+         f'#define TINT_COUNT {len(M["tints"])}',
+         f'#define SEL_NSLOT {len(g["select"]["slots"])}',
+         f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
+         f'#define AI_TOKENS {g["ai"]["tokens"]}',
+         'enum { ' + ', '.join(f'AI_{n.upper()}' for n in presets) + ' };',
+         'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',
+         'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
+         'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
+         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];',
+         'extern const uint8_t roster_unlock[BC_COUNT];']
+    c = ['/* Generated by tools/brawler/build_tables.py from examples/brawler/game.json. Do not edit. */',
+         '#include <stddef.h>\n#include "bm_chars.h"\n#include "game_tables.h"\n#include "fighter.h"\n'] + layout_asserts()
+    c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(
+        '    { ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) + ' },   /* ' + n + ' */' for n, v in M['ai']) + '\n};')
+    c.append('const gtint_t gtints[TINT_COUNT] = {\n    { 0, 0, 0, { 0, 0, 0 } },   /* none: its own colour set */\n' + '\n'.join(
+        f'    {{ {t["mix"]}, {t["mul"]}, {t["shift"]}, {{ {", ".join(map(str, t["add"]))} }} }},   /* {n} */' for n, t in g['tints'].items()) + '\n};')
+    erows = []
+    for e in M['enemies']:
+        ln = e['name'].lower()
+        if e['pool']: c.append(f'static const uint8_t pool_{ln}[] = {{ {", ".join(map(str, e["pool"]))} }};')
+        if e['pal']: c.append(f'static const uint16_t pal_{ln}[16] = {{ {", ".join(f"0x{x:04X}" for x in e["pal"])} }};')
+        if e['moves']: c.append(f'static const uint8_t moves_{ln}[{len(e["moves"])}] __attribute__((aligned(2))) = {{ {", ".join(map(str, e["moves"]))} }};')
+        erows.append(f'    {{ .base = {e["base"]}, .ai = {e["ai"]}, .attract_ai = {e["attract_ai"]}, .power = {e["power"]}, .npool = {len(e["pool"])}, '
+                     f'.set = {e["set"]}, .tint = {e["tint"]}, .flags = {e["flags"]}, .life = {e["life"]}, .pool = {"pool_" + ln if e["pool"] else 0}, '
+                     f'.name = {c_str(e["hud"]) if e["hud"] else 0}, .pal = {"pal_" + ln if e["pal"] else 0}, .moves = {"moves_" + ln if e["moves"] else 0} }},   /* {e["name"]} */')
+    c.append('const genemy_t genemies_rom[EN_COUNT] = {\n' + '\n'.join(erows) + '\n};')
+    rows = []
+    for si, s in enumerate(M['stages']):
+        c.append(f'static const gspawn_t stage{si}_spawns[] = {{\n    ' + ',\n    '.join(
+            f'{{ .enemy = {d["enemy"]}, .pick = {d["pick"]}, .set = {d["set"]}, .tint = {d["tint"]}, .x = {d["x"]}, .z = {d["z"]}, .flags = 0x{d["flags"]:02X} }}'
+            for d in s['spawns']) + '\n};')
+        c.append(f'static const gwave_t stage{si}_waves[] = {{\n    ' + ',\n    '.join(
+            f'{{ .lock = {w["lock"]}, .seed = 0x{w["seed"]:04X}, .first = {w["first"]}, .n = {w["n"]} }}' for w in s['waves']) + '\n};')
+        rows.append(f'    {{ .bg = {s["bg"]}, .music = MUS_{s["music"]}, .power = {s["power"]}, .nwaves = {len(s["waves"])}, '
+                    f'.waves = stage{si}_waves, .spawns = stage{si}_spawns, .boss = {s["boss"]}, .boss_song = MUS_{s["boss_song"]}, '
+                    f'.unlock = {s["unlock"]}, .boss_lock = {s["boss_lock"]}, .boss_x = {s["boss_x"]}, .boss_z = {s["boss_z"]}, .boss_seed = 0x{s["boss_seed"]:04X}, '
+                    f'.boss_first = {s["boss_first"]}, .nmin = {s["nmin"]} }},   /* {s["name"]} */')
+    c.append('const gstage_t gstages_rom[GS_COUNT] = {\n' + '\n'.join(rows) + '\n};')
+    names = M['names']; idx = {n: i for i, n in enumerate(names)}
     slots = g['select']['slots']
     assert len(slots) <= MAX_SLOTS and sorted(idx[s['fighter']] for s in slots if s.get('fighter')) == list(range(len(names))), \
         'select: every roster fighter in exactly one slot'
@@ -159,6 +278,44 @@ def tables(g, build):
     h.append('#endif')
     write_if_changed(os.path.join(build, 'game_tables.h'), '\n'.join(h) + '\n')
     write_if_changed(os.path.join(build, 'game_tables.c'), '\n'.join(c) + '\n')
+
+
+def pack(g, build):
+    """the lab's data pack (gamedata.h gdpack_t): stages, enemies and AI rows, pointers as offsets from its start"""
+    import struct
+    M = model(g, build)
+    out = bytearray(PACK_HEAD)
+    def put(data, align=2):
+        while len(out) % align: out.append(0)
+        o = len(out); out.extend(data); return o
+    def rec(layout, size, v):
+        b = bytearray(size)
+        for k, o, f in layout: struct.pack_into('>' + f, b, o, v[k])
+        return b
+    nsp = max(len(s['spawns']) for s in M['stages'])
+    ai_o = put(bytes(b for _, v in M['ai'] for b in (v[k] for k in AI_ORDER)))
+    ens = []
+    for e in M['enemies']:
+        v = dict(e, npool=len(e['pool']))
+        v['pool'] = put(bytes(e['pool']), 1) if e['pool'] else 0
+        v['name'] = put(e['hud'].encode() + b'\0', 1) if e['hud'] else 0
+        v['pal'] = put(struct.pack('>16H', *e['pal'])) if e['pal'] else 0
+        v['moves'] = put(e['moves']) if e['moves'] else 0
+        ens.append(v)
+    en_o = put(b''.join(rec(EN_LAYOUT, EN_SIZE, v) for v in ens))
+    sts = []
+    for s in M['stages']:
+        assert s['music_n'] is not None and s['boss_song_n'] is not None, 'pack: build/snd/songs.h missing a song'
+        sp = s['spawns'] + [s['spawns'][-1]] * (nsp - len(s['spawns']))      # padded: every stage holds nspawns
+        v = dict(s, music=s['music_n'], boss_song=s['boss_song_n'], nwaves=len(s['waves']))
+        v['spawns'] = put(b''.join(struct.pack('>BBBBhBB', d['enemy'], d['pick'], d['set'], d['tint'], d['x'], d['z'], d['flags']) for d in sp))
+        v['waves'] = put(b''.join(struct.pack('>hHBB', w['lock'], w['seed'], w['first'], w['n']) for w in s['waves']))
+        sts.append(v)
+    st_o = put(b''.join(rec(ST_LAYOUT, ST_SIZE, v) for v in sts))
+    while len(out) % 2: out.append(0)
+    assert len(out) <= GD_MAX, f'pack: {len(out)} bytes (at most {GD_MAX})'
+    struct.pack_into('>2sBBBBHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(ens), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, 0)
+    return bytes(out)
 
 
 def fmt(o, depth=0):
@@ -179,4 +336,5 @@ if __name__ == '__main__':
     elif cmd == 'roster': write_if_changed(sys.argv[3], json.dumps(roster_export(g), indent=1) + '\n')
     elif cmd == 'tables': tables(g, sys.argv[3])
     elif cmd == 'format': open(path, 'w').write(fmt(g) + '\n')
+    elif cmd == 'pack': open(sys.argv[4], 'wb').write(pack(g, sys.argv[3]))
     else: sys.exit(__doc__)

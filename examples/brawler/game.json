@@ -258,13 +258,79 @@
    "life": 60,
    "power": 0,
    "ai": "minion",
-   "attract_ai": "minion_attract"
+   "attract_ai": "minion_attract",
+   "hud": "fighter"
   },
-  {"name": "MR_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 100, "power": 1, "ai": "boss"},
-  {"name": "KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 104, "power": 1, "ai": "boss"},
-  {"name": "GEESE", "base": "geese", "stand_in": "geese", "life": 108, "power": 1, "ai": "boss"},
-  {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 112, "power": 1, "ai": "boss"},
-  {"name": "GOENITZ", "base": "goenitz", "stand_in": "iori", "life": 116, "power": 1, "ai": "boss"}
+  {"name": "MR_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 100, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 104, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "GEESE", "base": "geese", "stand_in": "geese", "life": 108, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 112, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "GOENITZ", "base": "goenitz", "stand_in": "iori", "life": 116, "power": 1, "ai": "boss", "hud": "fighter"},
+  {
+   "name": "YAKUZA",
+   "base": "yamazaki",
+   "life": 60,
+   "power": 0,
+   "ai": "minion",
+   "ai_over": {"grab_plan": 6, "hold_gap": 18},
+   "palette": {
+    "custom": [
+     "0x0000",
+     "0x4FD9",
+     "0x5FB6",
+     "0x2D74",
+     "0x6832",
+     "0x3511",
+     "0x6557",
+     "0x6335",
+     "0x0223",
+     "0x7445",
+     "0x7334",
+     "0x7223",
+     "0x1222",
+     "0x6112",
+     "0x5000",
+     "0x3DCC"
+    ]
+   }
+  },
+  {
+   "name": "VIPER",
+   "base": "mai",
+   "life": 30,
+   "power": 0,
+   "ai": "minion",
+   "ai_over": {
+    "flags": ["grab", "full_speed"],
+    "rest_shift": 1,
+    "rest_random": 31,
+    "rest_attack": 60,
+    "follow_ups": 3,
+    "press_gap": 6,
+    "attack_dx": 30
+   },
+   "palette": {"tint": "ash", "set": 1},
+   "moves": "tools/brawler/routes/enemies/viper.json"
+  },
+  {
+   "name": "SNIPER",
+   "base": "ryo",
+   "life": 45,
+   "power": 0,
+   "ai": "minion",
+   "ai_over": {
+    "flags": ["projectile"],
+    "attack_dx": 110,
+    "hover_dx": 140,
+    "spec_min": 60,
+    "spec_max": 220,
+    "spec_dz": 12,
+    "proj_chance": 32,
+    "rest_special": 90
+   },
+   "palette": {"set": 2},
+   "moves": "jabs"
+  }
  ],
  "stages": [
   {
