@@ -122,7 +122,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
        mid-fight (BIOS PLAYER_START); continues take a credit. Done: crt0 hook game_start_accept (a START from a
        player in play no longer eats a credit); P2 joins as an unused fighter, HUD switches to P1 left / P2 right;
        continue / rejoin = START; box viewer moved to P1 START. Tested: 3 coins, P1 start, P2 join, continue: 3-2-1-0.
-- [ ] 25. Attract mode alternates between the gameplay demo and the logo / title screen, with the same timing as
+- [x] 25. (done 2026-10-05, TODO #66: KOF98 measured in our emulator: logo 1020 frames, demo fight 1800, ranking 240, its eye-catcher 466; ours: logo 1020 -> demo 1800 -> BIOS, README) Attract mode alternates between the gameplay demo and the logo / title screen, with the same timing as
        regular Neo Geo games (Bruno, 2026-10-04). Measure a real game's attract cycle first (e.g. KOF98 / KOF96 in
        our emulator: how long each demo fight and each logo screen lasts, what the BIOS does between them) and match it.
 
@@ -329,7 +329,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 65. Vertical parts of Robo Army (areas 2 and 5): the descent as an auto-scrolled transition between stages
   (docs/brawler_stage_vertical.md option b). Built (1a0b555), then dropped by Bruno in review round 1 ("i don't want
   descend"): reverted in 7adc3e3; the stages stay horizontal only.
-- [ ] 66. Small gaps: landing 2 frames vs KOF's 4-5; projectile pool of 4 (trails thinner); Mr. Big's pale colour set
+- [x] 66. (done 2026-10-05: landing = KOF's land animation, 4 frames (Terry / Rugal / Goenitz 5, K' 3), every fighter equal to the jump captures; projectile pool 4 -> 8 in 10-sprite blocks, Blitz Ball's 4 trail objects as KOF96; Mr. Big's colours equal KOF96's ROM, its tan is the stage's light (R +2 / B -1 on every fighter); KOF96 $26 / $29 / $2C register-identical (patch effects, B slur key-off, 16-bit tempo accumulator); attract logo 17 s -> demo 30 s (#25); proof /data/tmp/gaps66/out) Small gaps: landing 2 frames vs KOF's 4-5; projectile pool of 4 (trails thinner); Mr. Big's pale colour set
   vs KOF96's tan; KOF96 songs $26 / $29 / $2C 98-99 % model match; the attract cycle with logo / title timing (#25).
 
 - [ ] 67. Samurai Shodown IV fighters into the character bank (Bruno: "start with Haohmaru first"): a full SS4 exporter
@@ -365,6 +365,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 73. Extract the specials Bruno mapped that the bank lacks: Yamazaki's snake arm 214B (middle) and 214C (low)
   (214A exists), Billy's angled stick attack (find it in KOF98). Then apply the slot mapping from review round 2
   (artifact https://claude.ai/artifact/CpAmeQcqCtmrK9EPJ68HyM, db map/<fighter>) once Bruno says done.
+
+- [ ] 74. Follow-up specials (review round 2): moves that continue on more input. Iori's 214A is a 3-part sequence
+  (each part needs its own input): reverse engineer KOF98's logic and play it. K' has many follow-ups, notably after his
+  236A, which opens more routes in KOF99: read them from the ROM and support them (one follow-up mechanism for both).
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
