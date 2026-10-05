@@ -261,6 +261,116 @@ def special(B, inp, cap):
             'row_steps': rsteps, 'marks': [''] * n, 'projectiles': [], 'anims': anims,
             'shape': [max(r[1] for r in script), max(r[2] for r in script), False], 'game_hits': game_hits}
 
+# Multipart moves: the logic decoded from the 68000 code (substates_kz.py, README "Move sub-states"), cross-checked by
+# brute force in our emulator (brute_kz.py), the frames from captures (followups_kz.py: whiff and connect, P2 free after
+# the move starts). A follow-up command is accepted only inside the move's window (+$10C bit 3, opened by the handler):
+#   236C  97 + 8E the 3-hit rush, then 99; 236C again while 8E plays (hit, whiff or block): 98 instead of 99 when 8E
+#         ends; again while 98 plays: 9A; 98 / 9A end in 99. Nothing after 9A.
+#   [2]8C 9B rising, then 9C 9E; once airborne a landed hit opens the window: 2C before 9B ends -> 9D, the dive (9E).
+#   421A  100 the lunge; a hit that caught: at once 101 (the whiff ends after 100).
+#   6246A 85 the rush; a hit that caught: at once 86 (rush hits, the launch, the flight in the Phoenix flames $508C /
+#         $508D), 88 the dive among flame feathers $5068 / $506B (random places in Kizuna: the captured ones), 89.
+# A part = (capture, Kim's animations in it); links (export_bm.special_parts): 'again' = the A+B input that started the
+# move; down+C -> down+A (A is the brawler's attack button). Connect parts (hit captures): Kizuna's hit-stop frames
+# removed (Kim and the victim both still: the brawler freezes on its own hits), the victim held where Kizuna had it
+# (carry: the desperation moves drive their victim by script, +$1AF phases) until the part ends.
+FOLLOW = {
+    '236C': {'parts': [('236C_w', (0x97, 0x8E), 1), ('236C_w', (0x99,), None), ('236C2_w', (0x98,), 1), ('236C3_w', (0x9A,), 1)],
+             'links': [(0, 2, 'input', 'again', 0x8E, 'end'), (2, 3, 'input', 'again', 0x98, 'end')]},
+    '[2]8C': {'parts': [('28C_w', (0x9B,), 1), ('28C_w', (0x9C, 0x9E), None), ('28C2_h', (0x9D, 0x9E), None)],
+              'links': [(0, 2, 'hit+input', 'dA', (0x9B, 2), 'end')]},
+    '421A': {'parts': [('421A_w', (0x100,), None), ('421A_h', (0x101,), None)],
+             'links': [(0, 1, 'hit', None, 0x100, 'now')], 'carry': 1},
+    '6246A': {'parts': [('6246A_w', (0x85,), None), ('6246A_h', (0x86, 0x88, 0x89), None)],
+              'links': [(0, 1, 'hit', None, 0x85, 'now')], 'carry': 1, 'objects': 1},
+}
+FOLLOWUPS = '/data/neogeo_dict/kizuna/kim_followups.json'
+R_HEAVY, R_KNOCKDOWN, R_LAUNCH = 1, 2, 3               # fighter.h R_*
+def react_of(a):
+    """the victim's Kizuna animation -> the brawler's reaction: hit off the feet / launched / knocked down, else a reel"""
+    return R_LAUNCH if a in (0x32, 0x33, 0x9B) else R_KNOCKDOWN if a in (0x2B, 0x2C) else R_HEAVY
+
+def frozen(fr, i):
+    """a hit-stop frame: Kim still (step, place, tick count) while the victim is still or just hit"""
+    if i == 0: return False
+    p, q, p0, q0 = fr[i][0], fr[i][1], fr[i - 1][0], fr[i - 1][1]
+    still = [p[k] for k in (0, 1, 2, 3, 10)] == [p0[k] for k in (0, 1, 2, 3, 10)]
+    vstill = [q[k] for k in (0, 1, 10)] == [q0[k] for k in (0, 1, 10)] or (q[1] == 0 and q[10] == 0 and q[0] != q0[0])
+    return still and vstill
+
+def hit_reactions(fc):
+    """(Kim's anim, step) -> the reaction of the victim it hit, from every hit capture (a new reaction animation or its
+    step 0 again starts on a hit; Kim's step on the frame before is the impact)"""
+    out = {}
+    for k, v in fc.items():
+        if not k.endswith('_h'): continue
+        fr = v['frames']
+        for j in range(1, len(fr)):
+            q, q0 = fr[j][1], fr[j - 1][1]
+            if q[0] != q0[0] or (q[1] == 0 and q0[1] != 0 and q[10] == 0 and q0[0] == q[0]):
+                if q[0] in (0, 0x1B, 0x1D, 0x01, 0x02): continue      # standing / getting up / walking: no hit
+                p = fr[j - 1][0]; out.setdefault((p[0], p[1]), react_of(q[0]))
+    return out
+
+def multipart(B, inp, fc):
+    """a multipart move as one script of parts (export_bm.special_parts): rows, boxes, steps, victim places, objects"""
+    F = FOLLOW[inp]; react = hit_reactions(fc)
+    script, rboxes, rsteps, carry, rsrc, parts, links, spans = [], [], [], [], [], [], [], []
+    marks, grows = [], []
+    for pi, (rec, anims, nxt) in enumerate(F['parts']):
+        fr = fc[rec]['frames']
+        s0 = next(i for i, f in enumerate(fr) if f[0][0] == anims[0])
+        e = next((i for i in range(s0, len(fr)) if fr[i][0][0] not in anims), len(fr))
+        hitcap = rec.endswith('_h')
+        rows = [i for i in range(s0, e) if not (hitcap and frozen(fr, i))]
+        x0 = fr[s0][0][2] if pi == 0 else fr[s0 - 1][0][2]   # part 0: from its start; a follow-up: from where Kim is
+        first = len(script); spans.append([])
+        for i in rows:
+            p, q = fr[i][0], fr[i][1]
+            bx = step_boxes(p[5])
+            objs = []
+            if F.get('objects'):
+                for o in sorted(fr[i][2]):
+                    if o[1] >> 12 == 5 and not o[7].startswith('\0'):   # Kim's own objects (the flames), alive
+                        objs.append([B.frame(o[6]), sc(o[3] - x0), sc(o[4]), 1 if o[5] == p[4] else 0])
+            script.append([B.frame(p[5]), sc(p[2] - x0), sc(p[3]), objs[:2]])
+            rboxes.append(kof_boxes(bx))
+            spans[-1].append((p[0], p[1]))
+            rsrc.append(react.get((p[0], p[1])))
+            carry.append((max(-32000, min(32000, sc(q[2] - p[2]))), max(0, min(255, sc(q[3])))) if F.get('carry') == pi and hitcap else None)
+        for j in range(first, len(script)):
+            nb = rboxes[j + 1] if j + 1 < len(script) else {}
+            live = any(k_[0] == '1' for k_ in rboxes[j])
+            rsteps.append([spans[-1][j - first][0], spans[-1][j - first][1], (0x100 if live else 0) | (0x4000 if live and nb == rboxes[j] else 0), 0xFF])
+        marks += [''] * (len(script) - first)
+        if hitcap:                                       # the connect part hits where Kizuna's victim was hit: the row
+            grows += range(first, len(script))           # before each new reaction (export_bm special_rows 'h')
+            for j in range(s0 + 1, e):
+                q, q0 = fr[j][1], fr[j - 1][1]
+                if q[0] != q0[0] and q[0] not in (0, 0x1B, 0x1D, 1, 2) or (q[0] == q0[0] and q[1] == 0 and q0[1] != 0 and q[10] == 0):
+                    k = max((t for t, i in enumerate(rows) if i < j), default=None)
+                    if k is None: continue
+                    marks[first + k] += 'h'
+                    cv = carry[first + k]
+                    if cv and not any(b_[0] == '1' for b_ in rboxes[first + k]):   # an object's hit (101's last: the
+                        for t in (first + k, first + k + 1):     # RUSH object): a box on the held victim, 2 rows
+                            if t < len(script): rboxes[t] = dict(rboxes[t], **{'1F': [max(-120, min(120, -cv[0])), max(-120, -(cv[1] + 40)), 24, 48]})
+        for j in range(first, len(script)):
+            nb = rboxes[j + 1] if j + 1 < len(script) else {}
+            live = any(k_[0] == '1' for k_ in rboxes[j])
+            rsteps[j][2] = (0x100 if live else 0) | (0x4000 if live and nb == rboxes[j] else 0)
+        parts.append({'first': first, 'end': len(script), 'next': nxt})
+    for a, b, on, key, win, at in F['links']:
+        an, st0 = win if isinstance(win, tuple) else (win, 0)
+        rows = [parts[a]['first'] + k for k, (n, s) in enumerate(spans[a]) if n == an and s >= st0]
+        links.append({'from': a, 'to': b, 'on': on, 'input': key, 'window': [rows[0], rows[-1] + 1], 'at': at})
+    n = len(script)
+    p0 = script[:parts[0]['end']]
+    return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
+            'row_steps': rsteps, 'marks': marks, 'game_rows': grows, 'projectiles': [], 'anims': [a for _, an, _ in F['parts'] for a in an],
+            'shape': [max(r[1] for r in p0), max(r[2] for r in p0), False], 'game_hits': sum(1 for r in rsrc if r),
+            'parts': parts, 'links': links, 'carry_src': carry, 'react_src': rsrc}
+
 VSTATE = {0xEF: (0x10C, 0xFA), 0xDE: (0x17A, 0xDE)}   # Hayate's victim animation -> (state, Kim's animation for it)
 POSES = json.load(open(os.path.join(HERE, 'victim_poses_kz.json')))['poses']
 KIM_POSE = {'grabbed': (0x24, 3), 'curled': (0x32, 2), 'inverted': (0x32, 2), 'horizontal': (0x32, 2),
@@ -316,7 +426,8 @@ def export(names, outdir, only=None, extra=None):
         if only is not None: anims = {k: v for k, v in anims.items() if k in only}
         th = throw(B, cap)
         anims['throw_c'] = th.pop('anim')
-        sps = [special(B, inp, cap) for inp in SPECIALS]
+        fc = json.load(open(FOLLOWUPS))
+        sps = [multipart(B, inp, fc) if inp in FOLLOW else special(B, inp, cap) for inp in SPECIALS]
         sets = [[[0] + rom_palette(s + p - 16)[1:] for p in B.pals] for s in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0],

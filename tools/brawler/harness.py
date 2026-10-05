@@ -47,7 +47,7 @@ def _layout(game):
               'shown_frame', 'frame_ovr', 'zfront', 'pushing', 'throw_id', 'grab_hits', 'target', 'spec_id', 'owner',
               'ncols', 'landed', 'chain_node', 'chain_t', 'spec_fx', 'burn', 'jump_kind', 'jump_dir',
               'pdef', 'prow', 'pend', 'shot', 'power', 'tint', 'hp_max', 'acc', 'speed', 'srow', 'spec_atk', 'kmode', 'kdelay', 'spec_ix',
-              'air_node', 'flash', 'meter', 'meter_t']
+              'air_node', 'flash', 'meter', 'meter_t', 'spart', 'sarm', 'shrow']
     hdr = open(os.path.join(game, 'fighter.h')).read()
     fields = [f for f in fields if re.search(r'\b%s\b' % f, hdr)]   # an older build may lack the newer fields
     src = '#include <stddef.h>\n#include "fighter.h"\nvoid offs(void) {\n' + ''.join(

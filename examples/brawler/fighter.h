@@ -226,6 +226,9 @@ typedef struct fighter {
     uint8_t  flash;               /* frames left of the white flash (a special out of a hit spent double meter) */
     uint16_t meter;               /* the special meter (players; gmeter: full at the start, specials and furies spend it) */
     uint8_t  meter_t, pad_m;      /* frames toward the next point regained */
+    uint8_t  spart, sarm;         /* special: the part playing (bspec_t.parts), the follow-up link armed + 1 (0 = none;
+                                   * fighter.c "follow-ups") */
+    uint16_t shrow;               /* special: the script row its last hit landed on + 1 (0 = none yet): a hit link's window */
 } fighter_t;
 
 

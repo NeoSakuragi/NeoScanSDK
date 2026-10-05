@@ -371,6 +371,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 74. Follow-up specials (review round 2): moves that continue on more input. Iori's 214A is a 3-part sequence
   (each part needs its own input): reverse engineer KOF98's logic and play it. K' has many follow-ups, notably after his
   236A, which opens more routes in KOF99: read them from the ROM and support them (one follow-up mechanism for both).
+  Mechanism DONE 2026-10-05 (with Kim's multipart moves): fighter.c "follow-ups", bspec_t.parts / links (export_bm
+  special_parts): a special = parts (script row ranges, each with its `next` part or the end); a link from a part fires
+  on a hit landed in its window, on a press in its window ('again' = the A+B role the move started with, or a brawler
+  press like 'dA', 'fA', 'AB') or both, and switches at once or when the part ends. The KOF hit-confirmed continuations
+  (Geese's Jaei-ken, Kyo's Kototsuki You: former bspec_t.cont) are now two parts + one 'hit, now' link. Iori's 214A =
+  three parts linked by 'again' presses; K''s 236A = one part with several press links (fA, fB, ...) to its follow-ups.
+  Left: capture Iori's / K''s parts and their windows (KOF98 / KOF99 ROM), as export_kz FOLLOW does for Kim.
 
 - [ ] 75. Hit sounds by use (review round 2, Bruno's listening): $9C SDM IMPACT on desperation moves' hits (the C fury,
   Yuri's Shin Shoryuken sound), $19 GRAB START when a grab / command grab connects, $17 BLOCKED HIT for guarded hits,
@@ -387,9 +394,16 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 
 - [ ] 76. Kim Young Mok leftovers (0.0.50, tools/kizuna, /data/neogeo_dict/kizuna/README.md): his voices into the
   sound ROM (the voice build path reads KOF / SS4 / WHP, not Kizuna's driver: tools/kizuna/voices_kz.py lists 40);
-  his stage song (find it among Kizuna's 23 decoded songs, port via songs.json); the Phoenix fury plays only its opening
-  rush (its finish + flames are drawn by code: decode and play them); colour set B ($1C0) checked by eye; the 150 frames
+  his stage song (find it among Kizuna's 23 decoded songs, port via songs.json); colour set B ($1C0) checked by eye; the 150 frames
   where Kizuna slides a part by code (6C telescopic staff). A+B dodge / C+D taunt have no brawler slot (not mapped).
+  Multipart moves DONE 2026-10-05 (README "Move sub-states": decoded from the 68000 code, cross-checked by brute force
+  in our emulator): 236C = 97 + 8E rush, A+B forward again during 8E -> 98, again during 98 -> 9A (Kizuna: 236C again,
+  hit, whiff or block); [2]8C: down+A after its airborne hit -> 9D the dive (Kizuna: 2C, hit only); 421A on a hit ->
+  101; the C fury (6246A) on a hit -> the Phoenix: 12-hit rush, flight in the flames, dive among falling flame
+  feathers, the victim held where Kizuna places it (Hayate's capture), its flames drawn as script objects. Proofs:
+  tools/kizuna/kim_followups_proof.py (13 scenarios x facings vs Kizuna, contact sheets /data/tmp/kimseq/out),
+  kim_proof.py (every frame of every part identical to Kizuna's render, both facings). Not played: j.2B's follow-up
+  (2B again -> 92: j.2B is an air normal in the brawler); the red backdrop flash of the Phoenix.
 
 - [ ] 77. Every other Kizuna Encounter fighter extracted, NOT in the build (Bruno, 2026-10-05: "queue all characters, do
   not include them yet in the build"): Hayate, Eagle, Gozu, Mezu, Rosa, Joker, Chung (A Chun shares his animations),

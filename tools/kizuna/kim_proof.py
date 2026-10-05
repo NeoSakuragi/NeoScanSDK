@@ -6,7 +6,7 @@ kz.render_step_zoom: pixel-identical to Kizuna's VRAM with its camera zoomed out
 
     python3 kim_proof.py [OUTDIR]          (default /data/tmp/kizuna/out/proof)
 
-1. Every move, both facings: in the Chain Lab training (lab req 1: P1 = Kim against a standing dummy) each step of
+1. Every move and every frame of every special's parts (and its objects: the Phoenix's flames), both facings: in the Chain Lab training (lab req 1: P1 = Kim against a standing dummy) each step of
    each of his BA_* animations is shown through the game's renderer (fighter_t.frame_ovr), the screen cropped around him
    -> moves_right.png / moves_left.png (one row per move, the steps left to right); and every one of those frames is
    compared with Kizuna's own rendering of the step it came from at zoom $CC (facing right; mirrored for facing left):
@@ -100,11 +100,16 @@ def main():
     same = diff = 0; worst = []
     for facing in (1, -1):
         rows = []
-        for m in moves:
-            a = anims.get(m) or ex['anims']['idle']
+        items = [(m, [st['frame'] for st in (anims.get(m) or ex['anims']['idle'])['steps']]) for m in moves]
+        for sp in ex['specials']:                     # every part of every special (followups: export_kz FOLLOW) and
+            fs = []                                   # its objects (the Phoenix's flames), each distinct frame once
+            for r in sp['script']:
+                for f_ in [r[0]] + [o[0] for o in r[3]]:
+                    if f_ not in fs: fs.append(f_)
+            items.append((f'sp {sp["input"]}', fs))
+        for m, frs in items:
             cells = []
-            for st in a['steps']:
-                fi = st['frame']
+            for fi in frs:
                 for _ in range(2):
                     b.fset(0, 'facing', facing & 0xFF); b.fset(0, 'frame_ovr', fi); b.fset(0, 'shown_frame', 0xFFFF); b.run(1)
                 b.fset(0, 'frame_ovr', fi); b.fset(0, 'facing', facing & 0xFF)
@@ -116,12 +121,12 @@ def main():
                 ref = crop_nz(ref if facing > 0 else ref[:, ::-1])
                 if got.shape == ref.shape and (got == ref).all(): same += 1
                 else: diff += 1; worst.append((m, facing, fi, got.shape, ref.shape))
-            rows.append((m, cells))
-        W = 240 * max(len(c) for _, c in rows) + 120; H = 230
+            for k_ in range(0, max(1, len(cells)), 24): rows.append((m if not k_ else '', [c.resize((120, 115)) for c in cells[k_:k_ + 24]]))
+        W = 120 * max(len(c) for _, c in rows) + 120; H = 115
         sheet = Image.new('RGB', (W, H * len(rows)), 'white'); d = ImageDraw.Draw(sheet)
         for i, (m, cells) in enumerate(rows):
             d.text((4, i * H + 4), m, fill='black')
-            for j, c in enumerate(cells): sheet.paste(c.resize((240, 230)), (120 + j * 240, i * H))
+            for j, c in enumerate(cells): sheet.paste(c, (120 + j * 120, i * H))
         sheet.save(os.path.join(OUT, f'moves_{"right" if facing > 0 else "left"}.png'))
     print(f'frames vs Kizuna: {same} identical, {diff} differ', worst[:6])
     b.fset(0, 'frame_ovr', 0xFFFF)
