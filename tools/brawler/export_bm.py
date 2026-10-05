@@ -116,6 +116,10 @@ def build(specs, outdir):
         if game == 'kof94':                             # KOF95's engine: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'kof94')); import export94
             return export94.export(names, tmp, only=set(MOVES))
+        if game == 'samsho4':                           # Samurai Shodown IV: its own reader, the same export layout
+            sys.path.insert(0, os.path.join(HERE, '..', 'samsho4')); import export_ss4
+            return export_ss4.export(names, tmp, only=set(MOVES),
+                                     extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()})
         return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {'specials'},
                                extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()})
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room

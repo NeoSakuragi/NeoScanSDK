@@ -39,8 +39,12 @@ static void mark(uint8_t sec) {
 
 #define NF 8                         /* 2 players + 6 enemies: the POC target */
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
-#define NA 16                        /* sprite blocks: NE in a fight, NA actors on the select screen (blocks NE..NA-1 =
-                                        sprites 300-379: the banner's, the debug boxes', the sparks', none in use there) */
+#define NA 17                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
+                                        fighter: the group photo) */
+#define SEL_COLS 17                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 17 =
+                                        sprites 60-348 there (the banner's, the debug boxes' and the sparks' 300-379 are
+                                        not in use on that screen); the watch / win poses are narrower */
+uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
 #define SPR_BASE 60                  /* fighter blocks (stage 22-42, shadows 43-54 behind them; 1-21 free) */
 static fighter_t fighters[NF];
 static fighter_t *order[NA];                     /* back (small Z) to front, the nf entities in play */
@@ -185,6 +189,17 @@ static void camera(void) {
 
 /* Neo Geo draws higher sprite numbers on top: fighters further back get the lower blocks. A fighter whose block changed
  * gets its tiles rewritten into the new block (the position pass covers every block every frame, so nothing to hide). */
+static uint8_t block_placed[NA];                 /* columns each sprite block showed last frame */
+/* the select screen's NA actors need narrower blocks than a fight's NE entities (SEL_COLS / MAX_COLS sprites): a change
+ * of width hides every block's sprites once (SCB3 height 0) and re-places the blocks from scratch */
+static void blocks_layout(uint8_t cols) {
+    uint16_t i, *y;
+    if (cols == blk_cols) return;
+    blk_cols = cols;
+    y = cmd_run(VRAM_SCB3 + SPR_BASE, NA * SEL_COLS > NE * MAX_COLS ? NA * SEL_COLS : NE * MAX_COLS);
+    for (i = 0; i < (NA * SEL_COLS > NE * MAX_COLS ? NA * SEL_COLS : NE * MAX_COLS); i++) y[i] = 0;
+    for (i = 0; i < NA; i++) block_placed[i] = 0;
+}
 static void depth_sort(void) {
     uint8_t i, j;
     for (i = 1; i < nf; i++)
@@ -192,8 +207,9 @@ static void depth_sort(void) {
                               (order[j]->z == order[j - 1]->z && order[j]->zfront < order[j - 1]->zfront)); j--) {
             fighter_t *t = order[j]; order[j] = order[j - 1]; order[j - 1] = t;
         }
+    blocks_layout(nf > NE ? SEL_COLS : MAX_COLS);
     for (i = 0; i < nf; i++)
-        if (order[i]->spr != SPR_BASE + i * MAX_COLS) { order[i]->spr = SPR_BASE + i * MAX_COLS; order[i]->shown_frame = 0xFFFF; }
+        if (order[i]->spr != SPR_BASE + i * blk_cols) { order[i]->spr = SPR_BASE + i * blk_cols; order[i]->shown_frame = 0xFFFF; }
 }
 
 /* ---- per-line sprite guard: the LSPC shows at most 96 sprites on a line and drops the highest-numbered ones, i.e. the
@@ -232,7 +248,6 @@ static void line_guard(void) {
 
 /* draw: tiles for the frames that changed, then per entity block one SCB3 and one SCB4 run covering the columns its frame
  * uses and those the block showed last frame (to clear them); a hidden block is cleared once. */
-static uint8_t block_placed[NA];                 /* columns each sprite block showed last frame */
 /* ---- ground shadows: a dark ellipse (2 sprites, tiles SHADOW_TILE) at each entity's ground point (floor_top + Z, also
  * under jumps and projectiles), behind every fighter (sprites 43-54 < the blocks at 60+). Entities alternate frames by
  * draw order index: each shadow shows every other frame (flicker transparency), so the half shown on a frame (entities
@@ -378,7 +393,7 @@ static void draw(void) {
     for (i = 0; i < NA; i++) {
         fighter_t *f = order[i];
         uint8_t vis = i < nf && !hidden[i], n = vis ? f->ncols : 0, m = n > block_placed[i] ? n : block_placed[i];
-        uint16_t spr = SPR_BASE + i * MAX_COLS, *y, *x;
+        uint16_t spr = SPR_BASE + i * blk_cols, *y, *x;
         if (m) {
             y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
             if (vis) fighter_place(f, y, x, cam_x, m);
@@ -915,6 +930,7 @@ static void title_tick(void) {
 #define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
 #define FADE_T 32                        /* frames of a fade (level = t / 2, 16 steps) */
 _Static_assert(BC_COUNT <= SEL_NSLOT && BC_COUNT <= NA, "group photo: a slot and an actor per fighter");
+_Static_assert(SPR_BASE + NE * MAX_COLS <= 300 && SPR_BASE + NA * SEL_COLS <= 364, "sprite blocks: fight below the banner, select below the sparks");
 /* the slots (game.json "select", gamedata.h sel_slot_t): x (px), z (feet at SELECT_FLOOR + z), row (0 front: low on the
  * screen, drawn in front; 2 back, SEL_BACK: higher, behind); sel_fighter[slot] = who stands there (the generator checks
  * every roster fighter has one). Today: front rows 48 px apart inside x 16-304 (the 304 px a TV shows; the watch poses
@@ -1527,8 +1543,8 @@ void game_init(void) {
     save_load();                                             /* MVS: the BIOS restored the block (a fresh one: reset) */
     PAL_setPalette(0, TEXT_PAL);
     PAL_setBackdrop(stg->backdrop);
-    for (i = 0; i < NA * MAX_COLS; i++) cmd_push(VRAM_SCB2 + SPR_BASE + i, 0x0FFF);   /* full size, set once */
-    for (i = 0; i < NA; i++) block_placed[i] = MAX_COLS;                              /* clear every block once */
+    for (i = 0; i < NA * SEL_COLS || i < NE * MAX_COLS; i++) cmd_push(VRAM_SCB2 + SPR_BASE + i, 0x0FFF);   /* full size, set once */
+    for (i = 0; i < NA; i++) block_placed[i] = blk_cols;                              /* clear every block once */
     stage_init(STAGE);
     snd_cmd(0x07);                                           /* KOF98's driver: music unlock */
 }

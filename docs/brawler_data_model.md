@@ -14,7 +14,7 @@ installs stages, enemies and AI rows into the running game (data packs), proofs 
 
 | layer | what | where it lives | edited by |
 |---|---|---|---|
-| 0, the bank | KOF96 / 98 / 99 fighters as extracted: animations, frames, hit boxes, timing, palettes, captured specials and throws, sound commands per move | /data/neogeo_dict (dictionaries), tools/kof96 (export96), never edited | nobody: templates |
+| 0, the bank | KOF94 / 96 / 98 / 99 and Samurai Shodown IV (tools/samsho4) fighters as extracted: animations, frames, hit boxes, timing, palettes, captured specials and throws, sound commands per move | /data/neogeo_dict (dictionaries), tools/kof96 (export96), never edited | nobody: templates |
 | 1, roster | the playable characters: which bank fighter, select pose, specials mapping, chain routes, unlock; the select screen | game.json `roster`, `select` | Brawler Lab: Characters tab (Chain Lab today) |
 | 2, enemies | named enemies on a bank fighter (or a pool of them), life, power, AI preset; the AI presets; the minion tints | game.json `enemies`, `ai`, `tints` | Brawler Lab: Enemies tab |
 | 3, stages | background, music, waves (lock points + spawns), the boss with its minions and song; later triggers and drama | game.json `stages` | Brawler Lab: Stages / Waves tab |
@@ -57,8 +57,8 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 
 ## Layer 0: the bank
 
-One entry per KOF fighter, read by `export_bm.py` from the game's dictionary (`tools/kof96/export96.py`, any of KOF96,
-KOF98, KOF99): every animation (6-byte step records: ticks, frame, flags, then commands), the frames (sprite parts and
+One entry per fighter, read by `export_bm.py` from the game's dictionary (`tools/kof96/export96.py`, any of KOF96,
+KOF98, KOF99; `tools/kof94/export94.py`; `tools/samsho4/export_ss4.py` for Samurai Shodown IV, the same layout): every animation (6-byte step records: ticks, frame, flags, then commands), the frames (sprite parts and
 tiles), hit / hurt boxes, palettes (every colour set), physics, captured specials (scripts of rows) and throws
 (thrower and victim timelines), victim postures. The bank is addressed by a spec `game:name` (`kof98:terry`). It is
 never edited: layer 1 picks from it.
