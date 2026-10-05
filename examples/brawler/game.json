@@ -170,7 +170,8 @@
    "routes": "default",
    "specials": {"D": "236C", "fD": "421C", "dD": "623B", "uD": "BUST 236D", "dfD": "BUST 623D", "ufD": null},
    "fury": "BUST 236D",
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   },
   {
    "name": "hanzo",
@@ -178,7 +179,8 @@
    "watch": {"frame": 0, "step": 0},
    "routes": "default",
    "specials": {"D": "236A", "fD": "236D", "dD": "623B", "uD": "214C", "dfD": "623A", "ufD": "214D"},
-   "unlock": "always"
+   "unlock": "always",
+   "voices": "kof"
   }
  ],
  "select": {

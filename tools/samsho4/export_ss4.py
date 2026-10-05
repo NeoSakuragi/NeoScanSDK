@@ -240,11 +240,10 @@ def export(names, outdir, only=None, extra=None):
         for mv, (a, f, l, mode) in MOVES.items():
             anims[mv] = {'slot': a, 'mode': mode, 'steps': anim_steps(B, a, f, l)}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
-        w = (extra or {}).get(name, {}).get('watch')
-        if w:                                            # roster watch pose: (SS4 animation, step; -1 = its last)
-            st = ss4.steps_of(cid, w[0]); k = w[1] if w[1] >= 0 else len(st) - 1
-            anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': anim_steps(B, w[0], k, k)}
         if only is not None: anims = {k: v for k, v in anims.items() if k in only}
+        for mv, (a, k) in (extra or {}).get(name, {}).items():   # held poses (export96's extra): the roster's watch, the
+            st = ss4.steps_of(cid, a); k = k if k >= 0 else len(st) - 1   # lab's pose candidates: (SS4 animation, step; -1 = its last)
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, a, k, k)}
         sps = [special(B, inp, cap) for inp in SPECIALS]
         sets = [[[0] + p[1:] for p in ss4.fighter_palettes(cid, md, co)] for md, co in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,

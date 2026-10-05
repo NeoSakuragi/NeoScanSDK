@@ -415,6 +415,15 @@ writes to REG_SOUND, with the stack) and QLOG (KOF98's sound ring $10D940), plus
   Krauser 12, Goenitz 10, K' 12 (no looped voice among them: one segment each).
 - Code-sent voices are most of them: KOF98 Terry's specials, hit and KO voices come from code (index $AF-$BE), only his
   win / intro lines and a throw voice are $FC records.
+- Non-KOF banks (TODO #68, 2026-10-05; voices.py `OWN`, the same voices.json layout, `"kof"` in roster[].voices means
+  the fighter's own game): **Samurai Shodown IV** (SNK's driver Ver 1.0): every sound goes through $542C, index -> long
+  $55DE + 4 * index = prefix + code, queued at $108EEC (WLOG there: d1 = the word, a4 = the sender); senders = the
+  animation steps' extra word (box word bit 3: static scan) and code (the normals' shout $1C81, the specials' lines, the
+  hit grunt $1C8A sent by the hit's effect object: the capture_ss4 recipes re-run with WLOG). Haohmaru = prefix $1C:
+  28 voices (KO voice not found). **World Heroes Perfect** (ADK's driver, not decoded): one byte a sound or $FC + a byte
+  (a second page), all sent by code ($9CCA; no step command carries a sound), so the listing is the captures' (SNDLOG of
+  the capture_whp recipes Hanzou plays alone); a voice = a word its own driver keys on ADPCM-A channel 3 (swings / hits
+  are channel 5). Hanzou: 8 voices (normals' shouts, his four specials); hit / KO grunts and intro / win lines not found.
 
 **Brawler side**:
 - game.json `roster[].voices` (layer 1 table above). Keys (`voices.keys`): every BA_* move, `throw_c` / `throw_d`, `hit`,

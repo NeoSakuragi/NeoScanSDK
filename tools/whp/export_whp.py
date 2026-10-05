@@ -249,6 +249,10 @@ def special(B, inp, cap):
             'shape': [max(r[1] for r in script), max(r[2] for r in script), bool(pjs)],
             'game_hits': sum(1 for j in range(s0 + 1, e) if fr[j][1][0] != fr[j - 1][1][0] and fr[j - 1][1][0] in (4, 5))}
 
+def drawn_steps(cid, a):
+    """an animation's steps that draw a def of their own (the held poses' step numbering)"""
+    return [s for s in whp.steps_of(cid, a) if not s['ctrl'] and s['defw'] is not None]
+
 def export(names, outdir, only=None, extra=None):
     cap = json.load(open(CAPTURE))
     B = Builder(); out = {'game': 'whp', 'tile_base': TILE_BASE, 'characters': {}}
@@ -261,12 +265,10 @@ def export(names, outdir, only=None, extra=None):
             else: st = cap_steps(B, cap, src[1], src[2], src[3]); slot = src[2]
             anims[mv] = {'slot': slot, 'mode': 'loop' if src[0] == 'sub' else 'hold', 'steps': st}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
-        w = (extra or {}).get(name, {}).get('watch')
-        if w:                                            # roster watch pose: (animation, step; -1 = its last)
-            st = [s for s in whp.steps_of(cid, w[0]) if not s['ctrl'] and s['defw'] is not None]
-            k = w[1] if w[1] >= 0 else len(st) - 1
-            anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': [step(B, st[k]['defw'], st[k]['ticks'])]}
         if only is not None: anims = {k: v for k, v in anims.items() if k in only}
+        for mv, (a, k) in (extra or {}).get(name, {}).items():   # held poses (export96's extra): the roster's watch, the
+            st = drawn_steps(cid, a); k = k if k >= 0 else len(st) - 1   # lab's pose candidates: (animation, step; -1 = its last)
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': [step(B, st[k]['defw'], st[k]['ticks'])]}
         sps = [special(B, inp, cap) for inp in SPECIALS]
         sets = [[[0] + whp.palette(p)[1:] for p in [s] + B.pals[1:]] for s in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,

@@ -16,9 +16,11 @@ import numpy as np
 from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..')); sys.path.insert(0, os.path.join(HERE, '..', '..', 'kof96'))
+sys.path += [os.path.join(HERE, '..', '..', 'samsho4'), os.path.join(HERE, '..', '..', 'whp')]
 from move_images import Rom, place, colours
 
-CANDIDATES = {'kof96': range(202, 240), 'kof98': range(336, 355), 'kof99': range(336, 355)}
+CANDIDATES = {'kof96': range(202, 240), 'kof98': range(336, 355), 'kof99': range(336, 355),
+              'samsho4': [*range(119, 127), *range(129, 150)], 'whp': [0, 1, *range(32, 64)]}   # SS4: intros, taunts, win poses (140 the sheathing; 127 / 128 only the sword: left out); WHP: $00 / $26 win + intro, $22 back view, the poses around them
 
 
 def sheet(pics, path, gap=4):
@@ -33,7 +35,14 @@ def sheet(pics, path, gap=4):
 
 
 def _states(game, name, states):
-    """the candidate states this fighter has: {state: number of steps} (export96's own state -> animation lookup)"""
+    """the candidate states this fighter has: {state: number of steps} (export96's own state -> animation lookup; SS4 /
+    WHP: the animation numbers themselves, their exporters' own step lists)"""
+    if game == 'samsho4':
+        import export_ss4, ss4
+        return {a: n for a in states if (n := len(ss4.steps_of(export_ss4.CAST[name], a)))}
+    if game == 'whp':
+        import export_whp
+        return {a: n for a in states if (n := len(export_whp.drawn_steps(export_whp.CAST[name], a)))}
     import export96, rom96
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
     k98 = game in ('kof97', 'kof98', 'kof99')
@@ -51,19 +60,21 @@ def _states(game, name, states):
 
 def pose_candidates(roster, out, tmp):
     """roster: game.json's roster -> {fighter: {sheet, h, tiles: [{x, w, poses: [[state, step]...]}], current: tile}}"""
-    import export96
+    import export96, export_ss4, export_whp
     os.makedirs(os.path.join(out, 'chars'), exist_ok=True)
     index = {}
     for r in roster:
         game, name = r['bank'].split(':')
-        if game not in CANDIDATES: continue                       # no candidate list for this bank yet (samsho4): no pose picker
+        if game not in CANDIDATES: continue                       # no candidate list for this bank: no pose picker
         have = _states(game, name, CANDIDATES[game])
         cur = (r['watch']['frame'], r['watch']['step'])
         want = {}
         for st, n in have.items():
             want[f's{st}_0'] = (st, 0); want[f's{st}_-1'] = (st, -1)
         if cur[0] in have: want[f's{cur[0]}_{cur[1]}'] = cur        # a held step that is neither first nor last
-        ex = export96.export([name], os.path.join(tmp, name), game, only=set(), extra={name: want})
+        if game == 'samsho4': ex = export_ss4.export([name], os.path.join(tmp, name), only=set(), extra={name: want})
+        elif game == 'whp': ex = export_whp.export([name], os.path.join(tmp, name), only=set(), extra={name: want})
+        else: ex = export96.export([name], os.path.join(tmp, name), game, only=set(), extra={name: want})
         ch = ex['characters'][name]
         c1 = np.frombuffer(open(os.path.join(tmp, name, 'kof95_c1.bin'), 'rb').read(), np.uint8)
         c2 = np.frombuffer(open(os.path.join(tmp, name, 'kof95_c2.bin'), 'rb').read(), np.uint8)

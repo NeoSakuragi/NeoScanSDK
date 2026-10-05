@@ -350,7 +350,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   brawler (animations, palettes, boxes, specials, weapon objects as needed), then the others. Running in a worktree
   since 2026-10-05.
 
-- [ ] 68. Brawler Lab for Samurai Shodown IV fighters: the pose picker (char_images.CANDIDATES has no samsho4 list: Haohmaru
+- [x] 68. (done 2026-10-05: Haohmaru + Hanzou in the Lab with pose pickers, move / special / enemy pictures (frames pixel-equal to SS4 / WHP renders), their own voices (SS4 28, WHP 8, mapped by default, lab override; WHP's ADK driver read by capture), Lab redeployed) Brawler Lab for Samurai Shodown IV fighters: the pose picker (char_images.CANDIDATES has no samsho4 list: Haohmaru
   is skipped), check move / special / enemy pictures for samsho4 banks; Haohmaru's SS4 voices (voices.py covers KOF only).
 
 - [ ] 69. Specials from the ROM for everyone: extend tools/kof96/handlers98.py (loops, ROM state tables, inlined

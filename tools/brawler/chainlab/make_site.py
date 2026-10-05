@@ -46,8 +46,9 @@ for d, game_name in (('roboarmy', 'Robo Army'), ('mutnat', 'Mutation Nation'), (
         other.append({'game': game_name, 'name': b[:-4], 'size': [w, h], 'img': t})
 faces = Image.new('RGB', (32 * len(st['roster']), 32), 'white')
 for i, r in enumerate(G['roster']):
-    f = '/data/neogeo_dict/portraits/' + r['bank'].replace(':', '_') + '.png'
-    if os.path.exists(f): faces.paste(Image.open(f).convert('RGB').resize((32, 32), Image.LANCZOS), (32 * i, 0))
+    f = next((f for f in ('/data/neogeo_dict/portraits/' + r['bank'].replace(':', '_') + x for x in ('.png', '_select.png', '_square.png'))
+              if os.path.exists(f)), '')                # KOF: its face; SS4 / WHP: their select-screen portrait
+    if f: faces.paste(Image.open(f).convert('RGB').resize((32, 32), Image.LANCZOS), (32 * i, 0))
 faces.save(os.path.join(out, 'stages', 'faces.png'))
 st.update(bgs=bgs, other_bgs=other, song_list=[s_['name'] for s_ in json.load(open(os.path.join(game, 'songs.json')))['songs']])
 json.dump(st, open(os.path.join(out, 'stages.json'), 'w'))

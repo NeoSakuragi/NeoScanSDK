@@ -155,7 +155,7 @@
         h('div', { class: 'row' }, h('label', {}, 'Dummy ', (() => { const s = h('select', { onchange: e => { dummy = Number(e.target.value); } }); NAMES.forEach((n, i) => s.add(new Option(up(n), i))); s.value = dummy; return s; })()),
           h('button', { onclick: test }, 'Test on the dummy'), h('span', { id: 'chMsg', class: 'note' }, note))));
     // voices
-    const vd = VO[name], vbox = vd ? (() => {
+    const vd = VO[name], own = vd && { samsho4: 'SS4', whp: 'WHP' }[vd.game] || 'KOF', vbox = vd ? (() => {
       const mp = vmapping(r.voices, vd.suggest), rom = vd.map, inrom = new Set(vd.inrom), byId = {};
       vd.list.forEach(v => { byId[v.id] = v; });
       const vlabel = id => { const v = byId[id]; return v ? `${id}. ${v.cmd} · ${(v.ms / 1000).toFixed(2)} s · ${v.what}` : 'none'; };
@@ -165,7 +165,7 @@
       const rows = keys.map(k => {
         const cur = mp[k] || 0, sg = (vd.suggest[k] || [0])[0], romv = rom[k] || 0;
         const sel = h('select', { style: 'max-width:20em', onchange: e => { vset(r, k, Number(e.target.value)); edited(); } },
-          [h('option', { value: 0 }, 'none'), ...vd.list.map(v => h('option', { value: v.id }, vlabel(v.id) + (v.id === sg ? ' (KOF)' : '')))]);
+          [h('option', { value: 0 }, 'none'), ...vd.list.map(v => h('option', { value: v.id }, vlabel(v.id) + (v.id === sg ? ` (${own})` : '')))]);
         sel.value = cur;
         const live = !cur || inrom.has(cur);
         return h('tr', { class: cur !== romv ? 'over' : '' }, h('th', {}, keyName(k)),
@@ -177,13 +177,13 @@
       const baseSel = h('select', { onchange: e => { const set = r.voices && r.voices.set ? r.voices.set : {};
           r.voices = e.target.value === 'kof' ? (Object.keys(set).length ? { kof: true, set } : 'kof') : (Object.keys(set).length ? { kof: false, set } : undefined);
           if (r.voices === undefined) delete r.voices; edited(); } },
-        [h('option', { value: 'off' }, 'none (only the keys set below)'), h('option', { value: 'kof' }, "KOF's own on every move")]);
+        [h('option', { value: 'off' }, 'none (only the keys set below)'), h('option', { value: 'kof' }, `${own}'s own on every move`)]);
       baseSel.value = base;
       return h('div', { class: 'box' }, h('h2', {}, 'Voices', h('span', { class: 'note' }, `${vd.list.length} voices from ${vd.game.toUpperCase()} · ${inrom.size} in this ROM's V ROM · live through the data pack`), h('span', { class: 'sp' })),
         h('div', { class: 'in' },
           h('div', { class: 'row' }, h('label', {}, 'Base ', baseSel), h('label', {}, h('input', { type: 'checkbox', checked: vAll, onchange: e => { vAll = e.target.checked; render(); } }), ' every move (else the ones with a voice)'),
             h('button', { onclick: () => { delete r.voices; if (o.voices) r.voices = clone(o.voices); edited(); } }, 'As the ROM')),
-          h('table', { class: 'sp ai voices' }, h('thead', {}, h('tr', {}, h('th', {}, 'move'), h('th', {}, "KOF's own"), h('th', {}, 'voice'), h('th', {}, ''))), h('tbody', {}, rows)),
+          h('table', { class: 'sp ai voices' }, h('thead', {}, h('tr', {}, h('th', {}, 'move'), h('th', {}, `${own}'s own`), h('th', {}, 'voice'), h('th', {}, ''))), h('tbody', {}, rows)),
           h('div', { class: 'note' }, 'All voices: ', vd.list.map(v => h('span', { class: 'vchip' }, play(v.id), ` ${v.id} `)))));
     })() : null;
     // chains

@@ -34,7 +34,7 @@ JSON = os.path.join(HERE, 'voices.json')
 GAME_JSON = os.path.join(TOOLS, '..', 'examples', 'brawler', 'game.json')
 MAPPER = {'kof96': 0x6CAD4, 'kof98': 0xA9BCE, 'kof99': 0xB1B5C}          # index -> driver word
 SCRATCH = {'kof96': 0x10D936, 'kof98': 0x10D93C, 'kof99': 0x10D8F0}       # WLOG: the mapper's scratch word
-BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410}                         # the driver probe: frame after the game's $07
+BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842}       # the driver probe: frame after the game's $07 (tap core frames)
 CAST = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}
 P1 = 0x108100
 FX_PREFIX = 0x1A
@@ -58,8 +58,10 @@ def adpcm_a(data):
             out.append(acc << 4)
     return out
 
+def neo(game): return rom96.GAMES[game]['neo'] if game in rom96.GAMES else f'/data/roms/{game}.neo'
+
 def v_rom(game):
-    d = open(rom96.GAMES[game]['neo'], 'rb').read()
+    d = open(neo(game), 'rb').read()
     h = struct.unpack('<6I', d[4:28]); o = 0x1000 + h[0] + h[1] + h[2]
     return d[o:o + h[3]]
 
@@ -82,8 +84,8 @@ def roster(names=None):
     for r in g['roster']:
         game, name = r['bank'].split(':')
         if names and r['name'] not in names: continue
-        if game not in MAPPER: continue
-        out.append((r['name'], game, name, CAST[game].index(name)))
+        if game in MAPPER: out.append((r['name'], game, name, CAST[game].index(name)))
+        elif game in OWN: out.append((r['name'], game, name, OWN[game]['cast'][name]))
     return out
 
 _MEM = {}
@@ -148,6 +150,7 @@ def capture(names=None):
         return orig(game, out, *a, **k)
     emu.run = run
     for rname, game, name, cid in roster(names):
+        if game in OWN: OWN[game]['capture'](rname, name, cid); continue
         m = mem(game); d = cap_dir(game); os.makedirs(d, exist_ok=True)
         canon = sc.outdir(m)
         sc.outdir = lambda m_, d=d: d
@@ -200,13 +203,14 @@ import capture as mk
 class Log:
     def __init__(self): self.lines = []
     def write(self, t): self.lines += [l for l in t.split(chr(10)) if l]
-s = mk.Sound(rom={rom96.GAMES[game]['neo']!r}, work={os.path.join(OUT, 'save_' + game)!r})
+s = mk.Sound(rom={neo(game)!r}, work={os.path.join(OUT, 'save_' + game)!r})
 s.run({BLOCK[game]}); s.block = {BLOCK[game]}; s.run(20)
 base = s.save(); out = {{}}
 for w in {sorted(words)!r}:
     pre, cd = w >> 8, w & 255
     s.load(base); L = Log(); s.out = L; s._lastf = -1
-    s.send(pre); s.run(); s.send(cd); s.run({frames})
+    if pre: s.send(pre); s.run()
+    s.send(cd); s.run({frames})
     reg, hit, sent = {{}}, None, False
     for l in L.lines:
         p = l.split()
@@ -253,6 +257,9 @@ def build_list(names=None):
     by_game = {}
     for rname, game, name, cid in roster(names): by_game.setdefault(game, []).append((rname, name, cid))
     for game, fs in by_game.items():
+        if game in OWN:
+            for rname, name, cid in fs: res['fighters'][rname] = OWN[game]['list'](rname, name, cid)
+            continue
         m = mem(game); v = v_rom(game)
         # common words: the static scan of the whole cast (a word several characters' animations use)
         users = {}
@@ -321,13 +328,167 @@ def build_list(names=None):
         f.write('\n }\n}\n')
     return res
 
+# ---- Samurai Shodown IV (measured 2026-10-05, our emulator; SNK's driver Ver 1.0, tools/kof98snd) ----
+# Every sound goes through $542C: d0 = [bit 15: only when +$4C is clear][bits 12-14: handler][bits 0-10: index]; handler
+# 0 / 4 = $55A4 (4 also spawns an effect object), 2 / 6 = $5570 (the same, index + 0..2 by screen position: pan); the
+# index -> long at $55DE + 4 * index = $00 prefix code $00 (prefix $00: a one-byte command), queued at $108EEC ($55D0,
+# a4 = the object that asked) and sent from there. Senders: an animation step whose box word has bit 3 (the extra word
+# = d0, tools/samsho4/ss4.py 'extra': static scan) and code (the normals' shout $1C81, the hit grunts $1C8A-$1C8C sent
+# by the hit's effect object, the specials' lines: the capture sees those). Haohmaru's voices are prefix $1C (every
+# voice word P1 sends in the captures). KO voice: not found (its life byte not located; the lab can map one).
+SS4_TABLE = 0x55DE
+SS4_PREFIX = 0x1C
+def _ss4():
+    sys.path.insert(0, os.path.join(TOOLS, 'samsho4')); import ss4, cap, capture_ss4, export_ss4
+    return ss4, cap, capture_ss4, export_ss4
+
+def ss4_word(index):
+    m = _ss4()[0].m                                    # the study's ROM reader (the .neo stores P byte-swapped)
+    return m.u8(SS4_TABLE + 4 * index + 1) << 8 | m.u8(SS4_TABLE + 4 * index + 2)
+
+def ss4_capture(rname, name, cid):
+    """every capture_ss4 recipe again with WLOG on the queue ($108EEC): (frame, driver word, object) of each sound
+    queued, P1's [animation, step pointer] per frame -> OUT/cap/samsho4/<name>.json"""
+    ss4, cap, C, _ = _ss4()
+    from concurrent.futures import ThreadPoolExecutor
+    def one(rec):
+        mode, p2x, seq, seq2 = C.RECIPES[rec]
+        pk = ';'.join(f'{f}:103A2E={p2x >> 8:02X},103A2F={p2x & 255:02X}' for f in range(cap.nframes(seq)))
+        d = os.path.join(cap_dir('samsho4'), 'tmp', rec.replace(' ', '_'))
+        rows = cap.run(seq, seq2, pokes=pk, load=cap.VS if mode == 'slash' else C.BUST, extra={'WLOG': '108EEC'}, keep=d)
+        sent = []
+        for l in open(os.path.join(d, 'cap.txt.wlog')):
+            p = l.split(); r = dict(x.split('=') for x in p[2:] if '=' in x)
+            if r.get('pc') == '0055D0' and p[1].startswith('108EEC'): sent.append((int(p[0]), int(r['d1'], 16) >> 16, int(r['a4'], 16)))
+        return rec, {'sent': sent, 'p1': [[cap.u16(r['p1'], 0x22), cap.u32(r['p1'], 0x4E)] for r in rows]}
+    with ThreadPoolExecutor(8) as ex: res = dict(ex.map(one, C.RECIPES))
+    os.makedirs(cap_dir('samsho4'), exist_ok=True)
+    json.dump(res, open(os.path.join(cap_dir('samsho4'), f'{name}.json'), 'w'))
+    print(rname, len(res), 'recipes', sum(len(v['sent']) for v in res.values()), 'sounds', flush=True)
+
+def ss4_list(rname, name, cid):
+    """the fighter's voices: the static records of its animations + what the captures saw it (and its hits) send"""
+    ss4, cap, C, E = _ss4()
+    uses = []                                           # (word, sound index or None, use)
+    for a in range(1840):
+        try: st = ss4.steps_of(cid, a)
+        except Exception: continue
+        for k, x in enumerate(st):
+            w = x.get('extra')
+            if w is None or (w >> 12) & 1: continue     # handlers 1 / 3 / 5 / 7: not a sound
+            ix = w & 0x7FF
+            uses.append((ss4_word(ix), ix, {'kind': 'anim', 'slot': a, 'states': [a], 'step': k}))
+    capd = json.load(open(os.path.join(cap_dir('samsho4'), f'{name}.json')))
+    inputs = {rec: inp for inp, (rec, anims) in E.SPECIALS.items()}
+    P1 = 0x103600
+    for rec, d in capd.items():
+        p1 = d['p1']                                    # row i = frame i + 1; a write in frame n is logged as n - 1
+        inp = inputs.get(rec)
+        g0 = next((i for i, (a, _) in enumerate(p1) if a == E.SPECIALS[inp][1][0]), None) if inp else None
+        for f, w, a4 in d['sent']:
+            if w >> 8 != SS4_PREFIX: continue
+            if a4 != P1:                                # a hit's effect object: the victim's grunt
+                if rec in ('react_light', 'react_heavy'): uses.append((w, None, {'kind': 'event', 'event': 'hit_c', 'at': 0}))
+                continue
+            if inp and g0 is not None and f >= g0: uses.append((w, None, {'kind': 'special', 'input': inp, 'at': f - g0}))
+            elif not inp and f < len(p1):
+                a, ptr = p1[f]; k = ss4.step_index(cid, a, ptr)
+                uses.append((w, None, {'kind': 'anim', 'slot': a, 'states': [a], 'step': max(0, (k or 1) - 1)}))
+    words = {w for w, ix, u in uses if w >> 8 == SS4_PREFIX}
+    hits = probe('samsho4', words); v = v_rom('samsho4')
+    voices = {}
+    for w, ix, u in uses:
+        if w >> 8 != SS4_PREFIX or not hits.get(w): continue
+        h = hits[w]; key = tuple(map(tuple, h['segments']))
+        vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'indices': [], 'segments': h['segments'], 'level': h['level'], 'uses': []})
+        if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
+        if ix is not None and ix not in vo['indices']: vo['indices'].append(ix)
+        if u not in vo['uses']: vo['uses'].append(u)
+    lst = sorted(voices.values(), key=lambda x: x['cmd'])
+    for k, vo in enumerate(lst, 1):
+        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
+        vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
+        vo['indices'] = [f'{i:03X}' for i in sorted(vo['indices'])]; vo['cmds'].sort()
+    print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
+    return {'game': 'samsho4', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
+                                                                          'bytes', 'ms', 'uses')} for vo in lst]}
+
+# ---- World Heroes Perfect (ADK's driver, not decoded; measured 2026-10-05 in our emulator) ----
+# The game writes REG_SOUND from one place ($9CCA): one byte a sound, or $FC + a byte (a second page: $FC $A9 plays
+# another sample than $A9 alone). No sound record in the animation steps (no step command carries one): every voice is
+# sent by code, so the listing is the captures' (capture_whp recipes Hanzou plays alone: normals, jumps, specials as
+# whiffs; SNDLOG). Its own driver in the tap core (probe, block after the boot's $FF) keys ADPCM-A channel 3 for the
+# shouts and channel 5 for swings / hits: a voice = a word whose sample plays on channel 3. Not found: the hit / KO
+# grunts (the reaction captures show only the attacker's sounds), intro / win lines (not captured).
+WHP_VOICE_CH = 3
+def _whp():
+    sys.path.insert(0, os.path.join(TOOLS, 'whp')); import cap_whp, capture_whp, export_whp
+    return cap_whp, capture_whp, export_whp
+
+def whp_capture(rname, name, cid):
+    cap, C, _ = _whp()
+    from concurrent.futures import ThreadPoolExecutor
+    def one(rec):
+        p2x, seq, seq2 = C.RECIPES[rec]
+        n = cap.nframes(seq)
+        pk = ';'.join(f'{f}:100102={p2x * 128 >> 8 & 255:02X},100103={p2x * 128 & 255:02X}' for f in range(n)) if p2x else None
+        d = os.path.join(cap_dir('whp'), 'tmp', rec); os.makedirs(d, exist_ok=True)
+        env = dict(os.environ, SEQ=seq, SEQ2=seq2, OUT=os.path.join(d, 'cap.txt'), LOAD=cap.VS, SNDLOG=os.path.join(d, 'snd.txt'))
+        if pk: env['POKE'] = pk
+        subprocess.run([cap.NGSDL, cap.NEO, '--capture'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
+        return rec, [[int(l.split()[0]), int(l.split()[1], 16)] for l in open(os.path.join(d, 'snd.txt'))]
+    recs = [k for k, (p2x, seq, seq2) in C.RECIPES.items() if not k.startswith('react')]
+    with ThreadPoolExecutor(8) as ex: res = dict(ex.map(one, recs))
+    json.dump(res, open(os.path.join(cap_dir('whp'), f'{name}.json'), 'w'))
+    print(rname, len(res), 'recipes', sum(len(v) for v in res.values()), 'sound bytes', flush=True)
+
+def whp_list(rname, name, cid):
+    cap, C, E = _whp()
+    capd = json.load(open(os.path.join(cap_dir('whp'), f'{name}.json')))
+    frames = json.load(open(E.CAPTURE))
+    inputs = {rec: inp for inp, (rec, anims) in E.SPECIALS.items()}
+    uses = []
+    for rec, sent in capd.items():
+        words, k = [], 0
+        while k < len(sent):                               # $FC + the next byte = one word
+            f, b = sent[k]
+            if b == 0xFC and k + 1 < len(sent): words.append((f, 0xFC00 | sent[k + 1][1])); k += 2
+            else: words.append((f, b)); k += 1
+        p1 = [fr[0] for fr in frames[rec]['frames']]       # row i = frame i + 1; a write in frame n is logged as n - 1
+        inp = inputs.get(rec)
+        g0 = next((i for i, r in enumerate(p1) if r[0] == E.SPECIALS[inp][1][0]), None) if inp else None
+        for f, w in words:
+            if inp:
+                if g0 is not None and f >= g0: uses.append((w, {'kind': 'special', 'input': inp, 'at': f - g0}))
+            elif f < len(p1): uses.append((w, {'kind': 'anim', 'slot': p1[f][0], 'states': [p1[f][0]], 'step': p1[f][1]}))
+    hits = probe('whp', {w for w, u in uses}); v = v_rom('whp')
+    voices = {}
+    for w, u in uses:
+        h = hits.get(w)
+        if not h or h['ch'] != WHP_VOICE_CH: continue
+        key = tuple(map(tuple, h['segments']))
+        vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'indices': [], 'segments': h['segments'], 'level': h['level'], 'uses': []})
+        if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
+        if u not in vo['uses']: vo['uses'].append(u)
+    lst = sorted(voices.values(), key=lambda x: x['cmd'])
+    for k, vo in enumerate(lst, 1):
+        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
+        vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments']); vo['cmds'].sort()
+    print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
+    return {'game': 'whp', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
+                                                                      'bytes', 'ms', 'uses')} for vo in lst]}
+
+OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
+       'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list}}
+
 # ---- the brawler side (export_bm.py, build_snd.py, build_tables.py, the lab) ----
 # A fighter's voice table (bchar_t.voices, fighter.c voice_tab): one entry per voice key, 2 bytes [voice id, at]; id = the
 # fighter's voice (voices.json, 1-based; 0 = silent), at = where in the move it starts: the animation step (KOF's $FC
 # record precedes it), the special's script row (as played: frozen rows dropped), the throw's row; events at once.
 # Keys: every brawler animation (BA_*), the throws (BT_*), the events, then the fighter's specials pool by input.
 EVENT_KEYS = ['hit', 'ko', 'select']
-INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355)}
+INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355),
+         'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)]}   # SS4 / WHP: the pose animations (char_images)
 
 def keys(moves, throws, pool_inputs):
     return list(moves) + list(throws) + EVENT_KEYS + ['special:' + i for i in pool_inputs]
