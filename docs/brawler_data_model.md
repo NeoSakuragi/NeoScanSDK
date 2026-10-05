@@ -46,7 +46,7 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 
 | table | type (gamedata.h) | size | in | live-swappable |
 |---|---|---|---|---|
-| AI rows | `ai_preset_t ai_presets[AI_COUNT]` via `ai_tab` | 40 bytes each | RAM (copied at boot) | yes: write the bytes (next decision), or a data pack (next spawn) |
+| AI rows | `ai_preset_t ai_presets[AI_COUNT]` via `ai_tab` | 42 bytes each | RAM (copied at boot) | yes: write the bytes (next decision), or a data pack (next spawn) |
 | enemies | `genemy_t genemies_rom[]` via `genemies` | 26 bytes each | ROM, pointer in RAM | yes, a data pack; read at each spawn |
 | stages, waves, spawns | `gstage_t`, `gwave_t`, `gspawn_t` via `gstages` | 24 / 6 / 8 bytes | ROM, pointer in RAM | yes, a data pack; `gs` re-read at the safe point, its waves and spawns as they come |
 | tints | `gtint_t gtints[]` | 6 bytes each | ROM | not yet (a pointer when the lab needs it) |
@@ -118,17 +118,17 @@ words), 22 moves (rt_head_t tree; 0 = route_tab's, the fighter's own); the game 
 palette and tree (fighter_t `name`, `cpal`, `tree`; fighter.c TREE() reads `tree` first).
 
 Examples (no wave uses them yet): YAKUZA (yamazaki, minion + grab_plan 6, custom dark suit, 60 life), VIPER (mai, minion
-+ full_speed, short rests, follow-ups 3, attack_dx 30, viper.json: jabs at 1.25x and a tripping sweep, ash tint on set 1,
++ full_speed + jump_in (jump-in from 40-120 px, chance 32, back-hop under 40 px, chance 4), short rests, follow-ups 3, attack_dx 30, viper.json: jabs at 1.25x and a tripping sweep, ash tint on set 1,
 30 life), SNIPER (ryo, minion with only `projectile`, attack_dx 110, hover_dx 140, spec range 60-220, proj_chance 32,
 jabs, colour set 2, 45 life).
 
 `ai.tokens` (1): attack tokens dealt every 16 frames to the closest able enemies. `ai.presets` (today minion,
-minion_attract, boss), all fields bytes, `ai_preset_t` (40 bytes) in this order (build_tables.py AI_ORDER; game_tables.c
+minion_attract, boss), all fields bytes, `ai_preset_t` (42 bytes) in this order (build_tables.py AI_ORDER; game_tables.c
 asserts every offset), then one row per enemy with `ai_over`:
 
 | field | minion | boss | meaning |
 |---|---|---|---|
-| `flags` | grab, projectile | token, grab, projectile, boss_moves | token: always holds one; grab: approaches may grab; projectile: fires its D at mid range; reversal (rev_*), specials (bspec_*), jump_in (jump_*): the boss block's three, `boss_moves` = all three; full_speed: walks at full speed while positioning (the others at half) |
+| `flags` | grab, projectile | token, grab, projectile, boss_moves | token: always holds one; grab: approaches may grab; projectile: fires its D at mid range; reversal (rev_*), specials (bspec_*): the boss block; jump_in (jump_*, hop_*): any enemy (TODO #58); `boss_moves` = reversal + specials + jump_in; full_speed: walks at full speed while positioning (the others at half); air_cd: the jump-in's air attack is C+D (else B) |
 | `rest_shift`, `rest_random`, `rest_add` | 0, 127, 0 | 2, 31, 0 | a rest = (base >> shift) + (random & rest_random) + rest_add (minion_attract: rest_add 100, no grab, no projectile) |
 | `rest_start`, `rest_attack`, `rest_special`, `rest_throw` | 30, 120, 180, 60 | 60, ... | rest bases: at spawn, after a punch string, a D, a throw |
 | `grab_plan` | 1 | 1 | approaches of 8 that walk in to grab |
@@ -139,7 +139,8 @@ asserts every offset), then one row per enemy with `ai_over`:
 | `press_gap`, `hold_gap` | 10, 24 | same | frames between presses; between hits in a hold |
 | `rev_dx`, `rev_dz`, `rev_chance`, `rest_rev` | - | 56, 12, 4, 160 | boss: down+D against an attack this close, 1 in rev_chance |
 | `bspec_min`, `bspec_max`, `bspec_dz`, `bspec_chance`, `rush_dx`, `rest_bspec` | - | 20, 160, 10, 4, 110, 180 | boss: D or forward+D (the rush, 1 in 2 when closer than rush_dx) |
-| `jump_min`, `jump_max`, `jump_dz`, `jump_chance`, `rest_jump`, `air_b_dx` | - | 24, 140, 8, 64, 140, 56 | boss: jump-in (jump_chance of 256), air B this close |
+| `jump_min`, `jump_max`, `jump_dz`, `jump_chance`, `rest_jump`, `air_b_dx` | - | 24, 140, 8, 64, 140, 56 | jump-in, any enemy with `jump_in`: the token holder (or a `token` enemy) after its rest, from jump_min to jump_max on the depth line +- jump_dz, jump_chance of 256 a frame: a full forward jump, its air attack (B, or C+D with `air_cd`) on the way down this close |
+| `hop_dx`, `hop_chance` | - | - | with `jump_in`: the token holder resting closer than hop_dx hops back (hop_chance of 256 a frame, 0 = never), out to the jump-in range |
 | `proj_chance` (json) -> `proj_mask`, `proj_mask2` | 512 | 512 | the projectile, 1 in N a frame in range: (random & proj_mask) == 0, then (random & proj_mask2) == proj_mask2 (512 = 255, 1: the 0.0.34 rule, the same random draws) |
 
 Spec's names for the overrides: aggression = `token` + the rests, rest = `rest_*`, preferred range / depth =
@@ -304,6 +305,9 @@ Pack version 4: the header grows to 20 bytes with `stagex` (u16 offset of gstage
 section each stage's triggers, then the gstagex_t rows (triggers as offsets). `gd_check` 18: the stagex table / a boss
 scene past DR_COUNT; 19: a trigger (kinds, actions, spawn count 1-6, enemy, tint, drama). A pack before version 4
 (18-byte header) is still read: no triggers, the ROM's boss scenes.
+
+Pack version 5 (TODO #58): AI rows grow to 42 bytes (`hop_dx`, `hop_chance`); `gd_check` 2 refuses any pack before 5
+(its AI rows are 40 bytes). The lab builds its pack from game.json each time, so no stored pack is lost.
 
 **Drama mode** (main.c `drama_*`): `dramas` at the top level, `name: [scenes]`, a scene
 `{"speaker": "GEESE", "side": "right", "portrait": "geese", "lines": ["So you made it this far.", "..."], "wait": 120}`

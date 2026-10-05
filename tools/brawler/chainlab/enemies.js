@@ -102,7 +102,7 @@
   const DEF = { follow_ups: 1, proj_chance: 512 };
   const presetVal = (p, k) => p[k] !== undefined ? p[k] : (DEF[k] !== undefined ? DEF[k] : 0);
   const bitsOf = list => (list || []).reduce((a, f) => a | X.ai_flags[f], 0);
-  const FLAG_ONE = ['token', 'grab', 'projectile', 'reversal', 'specials', 'jump_in', 'full_speed'];
+  const FLAG_ONE = ['token', 'grab', 'projectile', 'reversal', 'specials', 'jump_in', 'full_speed', 'air_cd'];
   const POW2 = n => [...Array(n)].map((_, i) => 1 << i);
   const CHOICE = { proj_chance: POW2(17), rev_chance: [0, ...POW2(8)], bspec_chance: [0, ...POW2(8)], follow_ups: [0, 1, 3, 7, 15] };
   const GROUPS = [
@@ -117,7 +117,7 @@
     ['Strings', 'frames', [['follow_ups', 'follow-up presses: 0 to N'], ['press_gap', 'between presses'], ['hold_gap', 'between hits in a hold']]],
     ['Reaction to attacks (boss block)', '', [['reversal', 'down+D against an attack this close'], ['rev_dx', 'px'], ['rev_dz', 'depth px'], ['rev_chance', '1 in N (0 = never)'], ['rest_rev', 'rest after it']]],
     ['Specials (boss block)', '', [['specials', 'D or forward+D (the rush)'], ['bspec_min', 'range from'], ['bspec_max', 'range to'], ['bspec_dz', 'depth'], ['bspec_chance', '1 in N (0 = never)'], ['rush_dx', 'the rush when closer (1 in 2)'], ['rest_bspec', 'rest after it']]],
-    ['Jump-in (boss block)', '', [['jump_in', 'jumps in'], ['jump_min', 'range from'], ['jump_max', 'range to'], ['jump_dz', 'depth'], ['jump_chance', 'of 256'], ['rest_jump', 'rest after it'], ['air_b_dx', 'air B this close']]]];
+    ['Jump-in (any enemy: the token holder\'s attack)', '', [['jump_in', 'jumps in (forward jump, an air attack on the way down)'], ['jump_min', 'range from'], ['jump_max', 'range to'], ['jump_dz', 'depth'], ['jump_chance', 'of 256'], ['rest_jump', 'rest after it'], ['air_b_dx', 'the air attack this close'], ['air_cd', 'the air attack is C+D (else B)'], ['hop_dx', 'resting closer than this: a back-hop'], ['hop_chance', 'the back-hop, of 256 a frame (0 = never)']]]];
 
   function aiBox(e) {
     const P = PRESETS[e.ai] || {}, over = e.ai_over || {};

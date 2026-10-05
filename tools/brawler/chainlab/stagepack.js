@@ -4,7 +4,7 @@
  * packs to build_tables.py pack's file byte for byte. */
 (function (root) {
   'use strict';
-  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 4, PACK_HEAD = 20, ST_SIZE = 24;
+  const SP_WALK_IN = 1, SP_LEFT = 2, SP_NOT_BOSS = 4, GD_VERSION = 5, PACK_HEAD = 20, ST_SIZE = 24;
   const TW = { camera_x: 1, wave_clear: 2, time: 3 }, TA = { spawn: 1, lock: 2, music: 3, drama: 4, end_stage: 5 }, TW_STAGE = 0xFF, MAX_TRIGGERS = 32;
 
   /* a stage trigger (game.json form) -> the gtrigger_t fields (build_tables.py trigger()) */

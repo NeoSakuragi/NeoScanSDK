@@ -4,7 +4,7 @@
  * range and facing him, presses A one to three times (the combo chains only if the hits land), then waits a random
  * cooldown (120-247 frames); 1 approach in 8 instead walks into him to grab (a hit every 24 frames, after two maybe a throw);
  * in mid range near his depth line any enemy sometimes fires its D special (the projectile), so the
- * hoverers shoot. The others hover around hover_dx at a random depth offset, so the crowd surrounds instead of stacking. */
+ * hoverers shoot; with jump_in the token holder may jump in from jump_min-jump_max (air B or air C+D). The others hover around hover_dx at a random depth offset, so the crowd surrounds instead of stacking. */
 #include "ai.h"
 #include "game_tables.h"
 
@@ -27,7 +27,7 @@ typedef struct {
     uint8_t moving;               /* hovering: walking to its spot (walks until there, sets off again only when far) */
     int16_t dist;                 /* |dx| + |dz| to him */
     const ai_preset_t *p;         /* its preset (ai_init, ai_set) */
-    uint8_t jumping;              /* boss: a jump-in under way (C held through the prejump, air B when close) */
+    uint8_t jumping;              /* a jump-in under way (C held through the prejump, air B when close) */
 } ai_t;
 
 static ai_t AI[MAX_F];
@@ -116,13 +116,13 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
             if (a->presses && !--a->press_t) { o->press = IN_A; a->presses--; a->press_t = P->press_gap; }
             continue;
         }
-        if (a->jumping) {                                        /* boss jump-in: hold C to the take-off (the full */
-            if (e->state == S_PREJUMP) { o->hold = IN_C; continue; }   /* jump), air B once close on the way down */
-            if (e->state == S_AIR) { if (e->vy < 0 && iabs(dx) <= P->air_b_dx) { o->press = IN_B; a->jumping = 0; } continue; }
+        if (a->jumping) {                                        /* jump-in: hold C to the take-off (the full jump), */
+            if (e->state == S_PREJUMP) { o->hold = IN_C; continue; }   /* air B (air_cd: C, the air C+D) once close on the way down */
+            if (e->state == S_AIR) { if (e->vy < 0 && iabs(dx) <= P->air_b_dx) { o->press = (P->flags & AIF_AIR_CD) ? IN_C : IN_B; a->jumping = 0; } continue; }
             a->jumping = 0;
         }
         if (!able(e)) { a->presses = 0; continue; }
-        if ((P->flags & AIF_BOSS_MOVES) && a->cooldown == 0) {                       /* boss: reversal, specials, jump-ins */
+        if ((P->flags & AIF_BOSS_MOVES) && a->cooldown == 0) {                       /* boss: reversal, specials */
             fighter_t *t = &fs[a->target];
             if ((P->flags & AIF_REVERSAL) && (t->state == S_ATTACK || t->state == S_AIR_ATTACK) && iabs(dx) < P->rev_dx && iabs(dz) <= P->rev_dz &&
                 spec_ix(e->ch, BS_DOWN_D) != 0xFF && (rnd() & P->rev_mask) == 0) {
@@ -133,9 +133,14 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
                 o->press = IN_D; if (iabs(dx) < P->rush_dx && (rnd() & 1)) o->dx = sgn(dx);   /* D, or forward+D: the rush */
                 rest(a, P->rest_bspec); continue;
             }
-            if ((P->flags & AIF_JUMP_IN) && iabs(dz) <= P->jump_dz && iabs(dx) >= P->jump_min && iabs(dx) <= P->jump_max && rnd() < P->jump_chance && e->facing == sgn(dx)) {
-                o->press = IN_C; o->hold = IN_C; o->dx = sgn(dx); a->jumping = 1; rest(a, P->rest_jump); continue;   /* jump in */
-            }
+        }
+        if ((P->flags & AIF_JUMP_IN) && a->cooldown == 0 && (a->token || (P->flags & AIF_TOKEN)) &&   /* any enemy: the jump-in, */
+            iabs(dz) <= P->jump_dz && iabs(dx) >= P->jump_min && iabs(dx) <= P->jump_max && rnd() < P->jump_chance && e->facing == sgn(dx)) {
+            o->press = IN_C; o->hold = IN_C; o->dx = sgn(dx); a->jumping = 1; rest(a, P->rest_jump); continue;   /* an attack: the token's */
+        }
+        if ((P->flags & AIF_JUMP_IN) && P->hop_chance && a->cooldown && (a->token || (P->flags & AIF_TOKEN)) &&   /* resting close: */
+            iabs(dx) < P->hop_dx && iabs(dz) <= P->jump_dz && e->facing == sgn(dx) && rnd() < P->hop_chance) {
+            o->press = IN_C; o->dx = -sgn(dx); continue;         /* C let go at once, pressed away: a back-hop (then the jump-in range) */
         }
         if (!a->retarget--) { a->hover_dz = (int8_t)((rnd() & 31) - 16); a->retarget = 60 + (rnd() & 63); }
         if (a->cooldown == 0 && iabs(dz) <= P->spec_dz && iabs(dx) >= P->spec_min && iabs(dx) <= P->spec_max &&   /* any enemy: the hoverers stand in this range */

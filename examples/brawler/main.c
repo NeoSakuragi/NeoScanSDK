@@ -637,7 +637,7 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
     const gstage_t *st;
     uint16_t size = h->size, i, k;
     if (h->magic[0] != 'G' || h->magic[1] != 'D') return 1;
-    if (h->version < 1 || h->version > GD_VERSION) return 2;   /* version 1: no roster section; 2: no voices; 3: no triggers */
+    if (h->version < 5 || h->version > GD_VERSION) return 2;   /* before 5 the AI rows were 40 bytes (no hop_*) */
     gd_head = h->version >= 4 ? sizeof(gdpack_t) : sizeof(gdpack_t) - 2;
     if (size < gd_head || size > GD_MAX) return 3;
     if (h->nstages != GS_COUNT || !h->nenemies || !h->nai) return 4;

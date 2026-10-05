@@ -14,8 +14,9 @@ enum { AIF_TOKEN = 1,             /* always holds an attack token (a boss), on t
        AIF_PROJECTILE = 4,        /* fires its D special at mid range (spec_min-spec_max, 1 in proj_mask chance a frame) */
        AIF_REVERSAL = 8,          /* reaction to attacks: down+D (its rising reversal) against an attack (rev_*) */
        AIF_SPECIALS = 16,         /* D / forward+D (the rush) on the player's line (bspec_*) */
-       AIF_JUMP_IN = 32,          /* forward jump-ins with an air B (jump_*) */
-       AIF_FULL_SPEED = 64 };     /* walks at its full speed (the others walk at half speed while positioning) */
+       AIF_JUMP_IN = 32,          /* forward jump-ins with an air B (jump_*): any enemy, as the token's attack */
+       AIF_FULL_SPEED = 64,       /* walks at its full speed (the others walk at half speed while positioning) */
+       AIF_AIR_CD = 128 };        /* the jump-in's air attack is C+D (else B) */
 #define AIF_BOSS_MOVES (AIF_REVERSAL | AIF_SPECIALS | AIF_JUMP_IN)   /* game.json "boss_moves": the three, checked in this order */
 typedef struct {
     uint8_t flags;
@@ -30,7 +31,8 @@ typedef struct {
     uint8_t press_gap, hold_gap;  /* frames between presses in a string; between hits in a hold */
     uint8_t rev_dx, rev_dz, rev_mask, rest_rev;    /* boss: down+D against an attack this close, 1 in rev_mask + 1 */
     uint8_t bspec_min, bspec_max, bspec_dz, bspec_mask, rush_dx, rest_bspec;   /* boss: D / forward+D (closer than rush_dx: 1 in 2) */
-    uint8_t jump_min, jump_max, jump_dz, jump_chance, rest_jump, air_b_dx;     /* boss: jump-in, jump_chance of 256; air B this close */
+    uint8_t jump_min, jump_max, jump_dz, jump_chance, rest_jump, air_b_dx;     /* jump-in (any enemy), jump_chance of 256; air B this close */
+    uint8_t hop_dx, hop_chance;   /* jump_in: resting closer than hop_dx, a back-hop (hop_chance of 256 a frame, 0 = never) */
     uint8_t proj_mask, proj_mask2;    /* the projectile: (random & proj_mask) == 0 and (random & proj_mask2) == 0 in a frame
                                          (game.json proj_chance "1 in N a frame": 512 = 255 and 1) */
 } ai_preset_t;
@@ -122,8 +124,8 @@ typedef struct { int16_t x; uint8_t z, row; } sel_slot_t;
  * offset from the pack's start (0 = none); the game checks it (version, sizes, every offset and index), copies it into
  * its own RAM, turns the offsets into pointers and repoints gstages / genemies / ai_tab at the next safe point (a wave,
  * the boss, a stage start, the lab's enemy respawn). lab.load = 4: back to the ROM's tables (at the same point). ---- */
-#define GD_VERSION 4              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
-                                     (header 20 bytes); older packs are still read (no triggers) */
+#define GD_VERSION 5              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
+                                     (header 20 bytes); 5: AI rows + hop_dx, hop_chance (42 bytes): older packs refused */
 #define GD_MAX     4096           /* bytes, header included */
 typedef struct {
     char     magic[2];            /* "GD" */
