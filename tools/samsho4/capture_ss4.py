@@ -4,7 +4,7 @@ per recipe from the 'vs' states (Slash: cap/vs.state, Bust: cap/vs_bust.state; P
 P2 Haohmaru pinned at x P2X). Per frame: P1 [anim, step, x, y], P2 [anim, step, x, y], the P1-side pool objects
 (named objects with an animation, $103C00-$107FFF: SENPUDAN = Senpuu Retsu Zan's tornado) [name, anim, step, x, y].
 
-    python3 capture_ss4.py [OUT.json]        (default /data/neogeo_dict/samsho4/haohmaru_capture.json)
+    python3 capture_ss4.py [OUT.json [RECIPE ...]]        (default /data/neogeo_dict/samsho4/haohmaru_capture.json)
 
 Recipes: SEQ strings (U D L R a b c d, 3-frame presses), the state, P2's x. Measured facts these captures gave
 (2026-10-05): a step shows for its ROM ticks frames (KOF96-99: ticks + 1); Slash and Bust share every normal
@@ -18,6 +18,7 @@ import cap, ss4
 BUST = '/data/neogeo_dict/samsho4/cap/vs_bust.state'
 OUT = '/data/neogeo_dict/samsho4/haohmaru_capture.json'
 FAR, NEAR = 600, 280
+WHIFF = 900                                       # P2 out of reach of the 421 leaps (421C travels ~200 px)
 # name: (state, P2 x, P1 seq, P2 seq, pool objects)
 RECIPES = {
     'idle': ('slash', FAR, '2:-,90:-', ''),
@@ -44,13 +45,16 @@ RECIPES = {
     'react_heavy': ('slash', NEAR + 10, '2:-,3:c,120:-', ''),
     'react_air': ('slash', NEAR + 10, '2:-,17:-,3:Dc,120:-', '2:-,3:U,140:-'),
     'react_trip': ('slash', NEAR + 20, '2:-,3:DRd,200:-', ''),
-    # specials: Slash (A / B / C versions of 236, 623, 421), both modes' A+B+C, B+C+D, B+C; Bust's own
-    **{f'{mo}{b}': ('slash', 400, f'2:-,{",".join(f"3:{d}" for d in dirs[:-1])},3:{dirs[-1]}{b},3:{b},150:-', '')
+    # specials: Slash (A / B / C versions of 236, 623, 421), both modes' A+B+C, B+C+D, B+C; Bust's own. Whiffs (TODO #70):
+    # a special that connects carries SS4's hit stop (the step on the hit held ~20 frames) and the push off the pinned
+    # P2 (421C: 63 px back) - the brawler adds its own on a hit - so every special that would reach P2 at 400 (the 421
+    # leaps, Bust 236D / 623D) is captured with P2 at WHIFF; 236 stays at 400 (its tornado's hit animation is exported)
+    **{f'{mo}{b}': ('slash', 400 if mo == '236' else WHIFF, f'2:-,{",".join(f"3:{d}" for d in dirs[:-1])},3:{dirs[-1]}{b},3:{b},150:-', '')
        for mo, dirs in (('236', ('D', 'DR', 'R')), ('623', ('R', 'D', 'DR')), ('421', ('L', 'D', 'DL'))) for b in 'abc'},
     'ABC': ('slash', 400, '2:-,3:abc,150:-', ''), 'BCD': ('slash', 400, '2:-,3:bcd,150:-', ''),
     'BC': ('slash', 400, '2:-,3:bc,100:-', ''), 'AB': ('slash', 400, '2:-,3:ab,100:-', ''),
-    'BUST 236d': ('bust', 400, '2:-,3:D,3:DR,3:Rd,3:d,150:-', ''),
-    'BUST 623d': ('bust', 400, '2:-,3:R,3:D,3:DRd,3:d,150:-', ''),
+    'BUST 236d': ('bust', WHIFF, '2:-,3:D,3:DR,3:Rd,3:d,150:-', ''),
+    'BUST 623d': ('bust', WHIFF, '2:-,3:R,3:D,3:DRd,3:d,150:-', ''),
     'BUST 421c': ('bust', 400, '2:-,3:L,3:D,3:DLc,3:c,150:-', ''),
 }
 SPECIAL = lambda k: k[0].isdigit() or k.isupper() or k.startswith('BUST')
@@ -81,8 +85,9 @@ def capture(name):
 
 if __name__ == '__main__':
     path = sys.argv[1] if len(sys.argv) > 1 else OUT
-    data = {}
-    for k in RECIPES:
+    keys = sys.argv[2:] or list(RECIPES)             # recipe names given: recaptured into the existing file
+    data = json.load(open(path)) if sys.argv[2:] else {}
+    for k in keys:
         data[k] = {'recipe': RECIPES[k], 'frames': capture(k)}
         anims = []
         for f in data[k]['frames']:

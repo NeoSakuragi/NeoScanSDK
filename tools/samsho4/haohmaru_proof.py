@@ -10,7 +10,7 @@ harness.py, the game's ROM on the Geolith core), picked on the select screen (th
    compared with SS4's own rendering of the step it came from (ss4.render_step, the study's renderer: 444 / 454 frames
    pixel-exact against SS4's VRAM): the brawler's sprites read back from VRAM (SCB1-4 of P1's block, the brawler's C ROM
    tiles) as pen indices, palettes mapped back to SS4's, mirrored when he faces left, aligned on the first opaque pixel.
-2. The specials (D, forward+D, down+D, up+D) played with the pad against the dummy: hits taken by the dummy, projectile
+2. The specials (D, forward+D (also at 340 px and as a whiff), down+D, up+D) played with the pad against the dummy: hits taken by the dummy, projectile
    entities in flight, a strip of each -> specials.png."""
 import json, os, re, sys, numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -117,7 +117,9 @@ def main():
     # 2. specials with the pad: D, forward+D, down+D (stick down = toward the screen), up+D
     res = {}
     strips = []
-    for name, keys, dist in (('D', 'ab', 150), ('fwd+D', 'Rab', 150), ('down+D', 'Dab', 50), ('up+D', 'Uab', 90)):   # A+B slots (TODO #71)
+    for name, keys, dist in (('D', 'ab', 150), ('fwd+D', 'Rab', 150), ('fwd+D 340', 'Rab', 340), ('fwd+D whiff', 'Rab', -200),
+                             ('down+D', 'Dab', 50), ('up+D', 'Uab', 90)):   # A+B slots (TODO #71); fwd+D (421C, a 322 px
+        # leap since TODO #70's whiff capture) also with the dummy at its landing and behind him (a whiff)
         lab_req(b, 1, k, 0); b.run(40)
         dm = next(i for i in range(1, 8) if b.states[b.fget(i, 'state')] != 'OFF')
         b.place(0, x=b.fget(dm, 'x') - dist, z=b.fget(dm, 'z')); b.fset(0, 'facing', 1); b.run(5)

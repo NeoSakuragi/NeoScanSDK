@@ -1037,13 +1037,14 @@ static uint8_t boxes_meet(const fighter_t *a, const bbox_t *ab, const fighter_t 
 static uint8_t grabbable(const fighter_t *v) {
     return !v->inv && !v->y && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
 }
+#define AIR_BLOCK_Y 64            /* a special in the air below this height (px) is held by a standing body ahead */
 #define PUSH_DX 32                /* a special pushes an opponent standing in its path to keep it this far ahead (KOF's push
                                      boxes: the captured opponent stood 27-49 px ahead at the moves' first impacts) */
 void combat(fighter_t **fs, uint8_t n) {
     uint8_t i, j;
     for (i = 0; i < n; i++) {                                    /* specials push who stands in their path: a rush */
         fighter_t *a = fs[i];                                    /* reaches its hit as in the game, not past it */
-        if (a->state != S_SPECIAL || a->y) continue;
+        if (a->state != S_SPECIAL || INT(a->y) >= AIR_BLOCK_Y) continue;
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
             int16_t d, dz;
@@ -1051,7 +1052,12 @@ void combat(fighter_t **fs, uint8_t n) {
                 v->state != S_ATTACK && v->state != S_SPECIAL)) continue;
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
-            if (d > -8 && d < PUSH_DX) { v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v); }
+            if (d <= -8 || d >= PUSH_DX) continue;
+            if (!a->y) { v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v); }
+            else {                                               /* a low leap stops at the body (SS4's 421C: P1 */
+                int32_t back = dir_mul(a->facing, FIX(PUSH_DX - d));   /* held 30 px before P2 at y 10-51, then */
+                a->throw_x0 -= back; a->x -= back; clamp(a);     /* its landing slash hits), never carries it */
+            }
         }
     }
     for (i = 0; i < n; i++) {                                    /* throw impacts: the victim's teammates close to it go down */

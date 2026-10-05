@@ -76,6 +76,7 @@ SPECIALS = {**{f'{m}{b.upper()}': (f'{m}{b}', anims[i]) for m, anims in (
 PROJECTILES = {'SENPUDAN': {'kind': 1, 'flight': [435, 436, 437, 438, 439, 360], 'loop_anim': (438, 439, 360), 'end_anims': [361]},
                'SENPU-HA': {'kind': 3, 'flight': [448], 'loop_anim': None, 'end_anims': []}}   # A / B / C: launch 435-437, flight 438 / 439 / 360
 BASIC = {0, 2, 4, 6, 8, 12, 14}
+WHIFF = 900                                       # = capture_ss4.WHIFF: P2's x in a whiff capture
 
 def flip_tile(t, hf, vf):
     """a 128-byte .neo C tile (2 halves of 16 rows x 4 bytes; bit 0 = the leftmost pixel of a half) flipped"""
@@ -229,7 +230,10 @@ def special(B, inp, cap):
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
             'row_steps': rsteps, 'marks': [''] * n, 'projectiles': pjs, 'anims': anims,
             'shape': [max(r[1] for r in script), max(r[2] for r in script), bool(pjs)],
-            'game_hits': sum(1 for j in range(s0 + 1, e) if fr[j][1][0] != fr[j - 1][1][0] and fr[j - 1][1][0] in (0, 2))}
+            # hits on P2 in the capture; -1 (not measured, check_specials' '-') for a whiff capture (P2 out of reach,
+            # capture_ss4.WHIFF): 0 would read as KOF's 'whiffs on a close standing opponent' (a counter / hold)
+            'game_hits': -1 if cap[rec]['recipe'][1] >= WHIFF else
+                         sum(1 for j in range(s0 + 1, e) if fr[j][1][0] != fr[j - 1][1][0] and fr[j - 1][1][0] in (0, 2))}
 
 def export(names, outdir, only=None, extra=None):
     cap = json.load(open(CAPTURE))

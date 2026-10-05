@@ -358,7 +358,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   then KOF96 / KOF99 routine addresses; the captured scripts stay the fallback (Vulcan Punch, command grabs, supers).
   Proof per fighter as romspecials_check.py does (0 frame mismatches whiff + hit). Terry + Ralf done in 0.0.37.
 
-- [ ] 70. Haohmaru's forward+D (SS4 421C) has a baked impact / KO scene (Bruno): recapture it as a whiff, or read it from
+- [x] 70. (0.0.52: 421A/B/C + Bust 236D/623D recaptured as whiffs, no hit stop / push baked; a low leap is held at a standing body, 421C lands its slash, the brawler's own knockdown; other open points listed in the memory note) Haohmaru's forward+D (SS4 421C) has a baked impact / KO scene (Bruno): recapture it as a whiff, or read it from
   SS4's own code (the handlers98 approach for SS4); also his other open points (memory reference_samsho4_extraction).
 
 - [ ] 72. (also from #69's notes: at its test distance Ralf [4]6A / [2]8A get extra hits, Ryo 623A 2 vs 1, Kyo 214A 3
