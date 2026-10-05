@@ -517,9 +517,21 @@ def real_projectile(sp):
 
 def special_pool(ch, name=None):
     """the specials a role may take: ground specials of the normal condition (an EX-is-another-character fighter's EX
-    ones left out)"""
-    return [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].replace('EX ', '').startswith('air')
-            and not (name in NO_EX and sp['input'].startswith('EX '))]
+    ones left out); then the fighter's fury (game.json roster[].fury, TODO #71: a KOF DM / SDM, an SS4 rage move; the C
+    button, bchar_t.fury) when it is not one of them"""
+    out = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].replace('EX ', '').startswith('air')
+           and not (name in NO_EX and sp['input'].startswith('EX '))]
+    fury = fury_special(ch, name)
+    return out + [fury] if fury is not None and fury not in out else out
+
+
+def fury_special(ch, name):
+    """the fighter's fury (game.json roster[].fury: its KOF input, any condition; None = none)"""
+    want = roster()[name].get('fury') if name in roster() else None
+    if not want: return None
+    sp = next((sp for sp in ch.get('specials', []) if sp['input'] == want), None)
+    assert sp, f'{name}: no fury {want} in its bank'
+    return sp
 
 
 def pick_specials(ch, name):
@@ -548,7 +560,7 @@ def suggest_specials(ch, name=None):
     that hit the standing opponent in KOF's close-range capture (game_hits not 0: a special out of a hold connects)."""
     c = special_pool(ch, name)
     can_hit = lambda sp: real_projectile(sp) or any(k[0] == '1' and k.upper() != '1B' for b in sp.get('row_boxes', []) for k in b)
-    auto = [sp for sp in c if not sp['input'].split()[0] in ('MAX', 'Counter') and not counter_move(sp) and can_hit(sp)]
+    auto = [sp for sp in c if not sp['input'].split()[0] in ('MAX', 'Counter') and sp['condition'] == 'normal' and not counter_move(sp) and can_hit(sp)]
     # supers: by override only; a move that can hit nothing (no attack box, no projectile: K''s 236D, whose object never
     # hits in KOF99 either; Orochi Yashiro's EX 214C) is not picked
     big = lambda sp: sp['input'][-1:] in ('C', 'D')
@@ -698,7 +710,7 @@ def write_c(chars, outdir):
          'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END };   /* bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
          'enum { PC_END, PC_EVENT, PC_LAND, PC_FALL, PC_CNT, PC_HIT, PC_OFF, PC_ALWAYS };   /* P_BR conditions: animation over, an event step entered (consumed), landed, falling, counter < 0, the move hit, off screen, always */',
          'typedef struct { uint16_t nrows, inv_rows, cont, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; } bspec_t;   /* inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); cont: first row of the hit-confirmed continuation (0 = none): a hit on a row with hit bit 16 jumps there, reaching it ends the move; proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, pad; } bchar_t;   /* voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another, down-forward+D, up-forward+D: two more; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, fury; } bchar_t;   /* voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; fury: the fury\'s index in specials (C, game.json roster fury; 0xFF = none); pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another, down-forward+D, up-forward+D: two more; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
@@ -829,7 +841,7 @@ def write_c(chars, outdir):
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
         land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99') else None   # SS4 / WHP: KOF's usual 4
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
-        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, 0}},')
+        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}}},')
     c.append('};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')

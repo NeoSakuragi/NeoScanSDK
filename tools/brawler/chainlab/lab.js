@@ -20,17 +20,22 @@
   const RAM_FIELDS = ['state', 'x', 'z', 'y', 'hp', 'hp_max', 'facing', 'anim', 'step', 'set', 'power', 'tint'];   // ramtrace.py FIELDS
 
   // ---- route trees (tools/brawler/routes.py: the same format and the same encoder) ----------------------------------
-  const INPUTS = ['A', 'B', 'dA', 'dB', 'fA', 'fB', 'dfA', 'dfB', 'AB', 'D', 'fD', 'dD', 'uD', 'dfD', 'ufD'];
-  const SPECIAL_INPUTS = INPUTS.slice(9);
+  // TODO #71 (tree version 4): A the only attack button (cA = close: an opponent within 40 px), B a jump-cancel (its
+  // node is an air move, its A links an air sub-route), A+B the specials (slots D fD dD uD dfD ufD)
+  const INPUTS = ['A', 'B', 'dA', 'cA', 'fA', 'bA', 'dfA', 'AB', 'fAB', 'dAB', 'uAB', 'dfAB', 'ufAB'];
+  const SPECIAL_INPUTS = INPUTS.slice(7);
+  const RI = k => { const i = INPUTS.indexOf(k); return i < 7 ? i : i + 2; };   // fighter.h RI_* (slots 7, 8 unused)
   const SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD'];
+  const SLOT_OF = Object.fromEntries(SPECIAL_INPUTS.map((k, i) => [k, SPECIALS[i]]));
   const MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
     'atk_c_close', 'atk_c_far', 'atk_c_crouch', 'atk_d_close', 'atk_d_far', 'atk_d_crouch', 'body_toss',
     'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d'];
   const AIR_MOVES = { air_a: 'atk_c_jump', air_b: 'atk_d_jump', air_cd: 'atk_cd_jump' };
+  const AIR_MOVE_NAMES = Object.values(AIR_MOVES);
   const ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd'];
   const WEIGHTS = ['light', 'strong'];
   const EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback'];
-  const NODE_SIZE = 24, HEAD_SIZE = 16, RI_N = 15, TREE_VERSION = 3, MAX_NODES = 128, SPEED_MIN = 0x40, SPEED_MAX = 0x400;
+  const NODE_SIZE = 24, HEAD_SIZE = 16, RI_N = 15, TREE_VERSION = 4, MAX_NODES = 128, SPEED_MIN = 0x40, SPEED_MAX = 0x400;
   // a node's speed as the game's 8.8 (routes.speed_fx: round half up)
   function speedFx(nd) { const v = Math.floor((nd.speed === undefined ? 1 : Number(nd.speed)) * 256 + 0.5); if (!(v >= SPEED_MIN && v <= SPEED_MAX)) throw new Error('speed outside 0.25-4'); return v; }
   // the steps shown frame by frame at a speed (routes.play_steps = fighter.c anim_tick): sf = [[ticks, active, opens], ...]
@@ -82,9 +87,13 @@
       const nxt = new Array(RI_N).fill(0);
       for (const [k, ch] of Object.entries(nd.links || {})) {
         if (!INPUTS.includes(k)) throw new Error(`${where}: unknown input ${k}`);
-        if (SPECIAL_INPUTS.includes(k)) { if (!('special' in ch)) throw new Error(`${where} ${k}: a D input leads to a special`); }
-        else if (!('move' in ch)) throw new Error(`${where} ${k}: an A / B input leads to a move`);
-        nxt[INPUTS.indexOf(k)] = node(ch, `${where} ${k}`, false);
+        if (SPECIAL_INPUTS.includes(k)) {
+          if (!('special' in ch)) throw new Error(`${where} ${k}: an A+B input leads to a special`);
+          if (air) throw new Error(`${where} ${k}: no special in the air`);
+        } else if (!('move' in ch)) throw new Error(`${where} ${k}: an A / B input leads to a move`);
+        if (air && k === 'B') throw new Error(`${where}: no jump-cancel in the air`);
+        if (where === 'root' && (k === 'B' || SPECIAL_INPUTS.includes(k))) throw new Error(`root ${k}: a route starts with an A`);
+        nxt[RI(k)] = node(ch, `${where} ${k}`, air || k === 'B');
       }
       let anim, flags;
       if ('special' in nd) {
@@ -94,8 +103,8 @@
       } else if (nd.move === undefined || nd.move === null) { anim = 0; flags = 0; }
       else {
         if (!moves.includes(nd.move)) throw new Error(`${where}: unknown move ${nd.move}`);
-        if (!air && !MOVE_NAMES.includes(nd.move)) throw new Error(`${where}: ${nd.move} is not a ground move`);
-        if (has && !has.includes(nd.move)) throw new Error(`${where}: the fighter has no ${nd.move}`);
+        if (!(air ? AIR_MOVE_NAMES : MOVE_NAMES).includes(nd.move)) throw new Error(`${where}: ${nd.move} is not an ${air ? 'air' : 'ground'} move`);
+        if (has && !air && !has.includes(nd.move)) throw new Error(`${where}: the fighter has no ${nd.move}`);
         anim = moves.indexOf(nd.move); flags = (air ? 2 : 0) | (nd.keep ? 4 : 0);
       }
       const w = nd.weight || 'light', e = nd.effect || 'none';
@@ -110,9 +119,7 @@
     const rootI = node({ links: tree.links || {} }, 'root', false);
     const ents = tree.entries || {};
     const ent = ENTRIES.map(k => {
-      let nd = ents[k] || defaults[k];
-      if (AIR_MOVES[k]) nd = Object.assign({}, nd, { move: AIR_MOVES[k] });
-      return node(nd, k, !!AIR_MOVES[k]);
+      return node(ents[k] || defaults[k], k, !!AIR_MOVES[k]);   // an air entry: its own move (any of the three)
     });
     if (nodes.length > MAX_NODES) throw new Error(`${nodes.length} nodes (at most ${MAX_NODES})`);
     const out = new Uint8Array(HEAD_SIZE + nodes.length * NODE_SIZE);
@@ -127,7 +134,7 @@
       const key = pyjson([nd, !!air]);
       if (memo.has(key)) { map.set(nd, memo.get(key)); return; }
       const i = n++; memo.set(key, i); map.set(nd, i);
-      for (const ch of Object.values(nd.links || {})) node(ch, false);
+      for (const [k, ch] of Object.entries(nd.links || {})) node(ch, air || k === 'B');
     }
     node({ links: tree.links || {} }, false);
     return map;
@@ -274,6 +281,7 @@
       for (let si = 0; si < r.length; si++) {
         const st = r[si], k = st.input, hit = pick(st, HIT_FIELDS);
         if (!INPUTS.includes(k)) throw new Error(`route ${ri + 1} step ${si + 1}: unknown input ${k}`);
+        if (!si && (k === 'B' || SPECIAL_INPUTS.includes(k))) throw new Error(`route ${ri + 1}: a route starts with an A (B from neutral jumps, A+B is the special)`);
         let ch = nd.links && nd.links[k];
         if (!ch) {
           if ('special' in nd) throw new Error(`route ${ri + 1} step ${si + 1}: a special ends its route`);
@@ -294,7 +302,7 @@
     return { tree: root, conflicts, paths };
   }
 
-  const api = { Lab, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  const api = { Lab, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);

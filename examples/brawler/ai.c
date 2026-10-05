@@ -3,7 +3,7 @@
  * the able enemy closest to its player (one token); the holder closes in to attack_dx on the player's depth line and, in
  * range and facing him, presses A one to three times (the combo chains only if the hits land), then waits a random
  * cooldown (120-247 frames); 1 approach in 8 instead walks into him to grab (a hit every 24 frames, after two maybe a throw);
- * in mid range near his depth line any enemy sometimes fires its D special (the projectile), so the
+ * in mid range near his depth line any enemy sometimes fires its A+B special (the projectile), so the
  * hoverers shoot; with jump_in the token holder may jump in from jump_min-jump_max (air B or air C+D). The others hover around hover_dx at a random depth offset, so the crowd surrounds instead of stacking. */
 #include "ai.h"
 #include "game_tables.h"
@@ -106,8 +106,8 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (e->state == S_GRAB) {                                /* holding: a hit every 24 frames, after two maybe a throw */
             if (!a->press_t || a->press_t > P->hold_gap) a->press_t = P->hold_gap;
             if (!--a->press_t) {
-                o->press = (rnd() & 1) ? IN_A : IN_B; a->press_t = P->hold_gap;
-                if (e->grab_hits >= 2 && (rnd() & 1)) { o->dx = e->facing; rest(a, P->rest_throw); }   /* forward+A / B: a throw */
+                o->press = IN_A; a->press_t = P->hold_gap;
+                if (e->grab_hits >= 2 && (rnd() & 1)) { o->dx = e->facing; rest(a, P->rest_throw); }   /* forward+A: a throw */
                 else if (e->grab_hits >= 2) rest(a, P->rest_throw);         /* the third hit: C+D, the hold ends */
             }
             continue;
@@ -116,9 +116,9 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
             if (a->presses && !--a->press_t) { o->press = IN_A; a->presses--; a->press_t = P->press_gap; }
             continue;
         }
-        if (a->jumping) {                                        /* jump-in: hold C to the take-off (the full jump), */
-            if (e->state == S_PREJUMP) { o->hold = IN_C; continue; }   /* air B (air_cd: C, the air C+D) once close on the way down */
-            if (e->state == S_AIR) { if (e->vy < 0 && iabs(dx) <= P->air_b_dx) { o->press = (P->flags & AIF_AIR_CD) ? IN_C : IN_B; a->jumping = 0; } continue; }
+        if (a->jumping) {                                        /* jump-in: hold B to the take-off (the full jump), */
+            if (e->state == S_PREJUMP) { o->hold = IN_B; continue; }   /* down+A (air B; air_cd: up+A, the air C+D) once close on the way down */
+            if (e->state == S_AIR) { if (e->vy < 0 && iabs(dx) <= P->air_b_dx) { o->press = IN_A; o->dz = (P->flags & AIF_AIR_CD) ? -1 : 1; a->jumping = 0; } continue; }
             a->jumping = 0;
         }
         if (!able(e)) { a->presses = 0; continue; }
@@ -126,27 +126,27 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
             fighter_t *t = &fs[a->target];
             if ((P->flags & AIF_REVERSAL) && (t->state == S_ATTACK || t->state == S_AIR_ATTACK) && iabs(dx) < P->rev_dx && iabs(dz) <= P->rev_dz &&
                 spec_ix(e->ch, BS_DOWN_D) != 0xFF && (rnd() & P->rev_mask) == 0) {
-                o->press = IN_D; o->dz = 1; rest(a, P->rest_rev); continue;   /* down+D: the rising reversal */
+                o->press = IN_SP; o->dz = 1; rest(a, P->rest_rev); continue;   /* down + A+B: the rising reversal */
             }
             if ((P->flags & AIF_SPECIALS) && iabs(dz) <= P->bspec_dz && iabs(dx) >= P->bspec_min && iabs(dx) <= P->bspec_max && (rnd() & P->bspec_mask) == 0) {
                 if (e->facing != sgn(dx)) continue;              /* o->face turns him, the special next frame */
-                o->press = IN_D; if (iabs(dx) < P->rush_dx && (rnd() & 1)) o->dx = sgn(dx);   /* D, or forward+D: the rush */
+                o->press = IN_SP; if (iabs(dx) < P->rush_dx && (rnd() & 1)) o->dx = sgn(dx);   /* A+B, or forward + A+B: the rush */
                 rest(a, P->rest_bspec); continue;
             }
         }
         if ((P->flags & AIF_JUMP_IN) && a->cooldown == 0 && (a->token || (P->flags & AIF_TOKEN)) &&   /* any enemy: the jump-in, */
             iabs(dz) <= P->jump_dz && iabs(dx) >= P->jump_min && iabs(dx) <= P->jump_max && rnd() < P->jump_chance && e->facing == sgn(dx)) {
-            o->press = IN_C; o->hold = IN_C; o->dx = sgn(dx); a->jumping = 1; rest(a, P->rest_jump); continue;   /* an attack: the token's */
+            o->press = IN_B; o->hold = IN_B; o->dx = sgn(dx); a->jumping = 1; rest(a, P->rest_jump); continue;   /* an attack: the token's */
         }
         if ((P->flags & AIF_JUMP_IN) && P->hop_chance && a->cooldown && (a->token || (P->flags & AIF_TOKEN)) &&   /* resting close: */
             iabs(dx) < P->hop_dx && iabs(dz) <= P->jump_dz && e->facing == sgn(dx) && rnd() < P->hop_chance) {
-            o->press = IN_C; o->dx = -sgn(dx); continue;         /* C let go at once, pressed away: a back-hop (then the jump-in range) */
+            o->press = IN_B; o->dx = -sgn(dx); continue;         /* B let go at once, pressed away: a back-hop (then the jump-in range) */
         }
         if (!a->retarget--) { a->hover_dz = (int8_t)((rnd() & 31) - 16); a->retarget = 60 + (rnd() & 63); }
         if (a->cooldown == 0 && iabs(dz) <= P->spec_dz && iabs(dx) >= P->spec_min && iabs(dx) <= P->spec_max &&   /* any enemy: the hoverers stand in this range */
             (P->flags & AIF_PROJECTILE) && spec_ix(e->ch, BS_D) != 0xFF && !(rnd() & P->proj_mask) &&
             (rnd() & P->proj_mask2) == P->proj_mask2) {         /* 1 in (proj_mask + 1) (proj_mask2 + 1) a frame in range */
-            o->press = IN_D;                                     /* D: the projectile (o->face turns it to the player) */
+            o->press = IN_SP;                                    /* A+B: the projectile (o->face turns it to the player) */
             rest(a, P->rest_special);
             continue;
         }
@@ -190,7 +190,7 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *o) {
     if (bot_cd) bot_cd--;
     bot_t++;
     if (me->state == S_GRAB) {                                   /* down+C, close D, then a throw (forward+A) */
-        if (!(bot_t & 15)) { o->press = me->grab_hits ? IN_B : IN_A; if (me->grab_hits >= 2) o->dx = me->facing; }
+        if (!(bot_t & 15)) { o->press = IN_A; if (me->grab_hits >= 2) o->dx = me->facing; }
         return;
     }
     if (me->state == S_ATTACK) {                                 /* follow-up presses: the combo route */
@@ -204,7 +204,7 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *o) {
         if (!standing(e)) continue;
         d = iabs(INT(e->x) - mx) + iabs(INT(e->z) - mz);
         if (e->state == S_ATTACK && d < 56 && !bot_cd && (rnd() & 1)) {   /* threatened: invincible special */
-            o->press = IN_D; o->dz = 1; bot_cd = 40; return;     /* down+D: the rising reversal */
+            o->press = IN_SP; o->dz = 1; bot_cd = 40; return;    /* down + A+B: the rising reversal */
         }
         if (d < bd) { bd = d; t = e; }
     }

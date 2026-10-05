@@ -435,10 +435,27 @@ static void draw(void) {
 }
 
 static intent_t in[NF];                          /* this frame's intent per fighter (player pad or AI) */
+#define CHORD 2                                  /* A+B (TODO #71): the second button up to 2 frames after the first; a lone
+                                                    A / B counts 2 frames after its press */
+static uint8_t chord_btn[2], chord_t[2];         /* per player: the A / B press waiting for its partner, frames waited */
 static void inputs_reset(void) {                 /* a select / fight starts: nothing of the demo or the last game */
     uint8_t i;
     for (i = 0; i < NF; i++) in[i] = (intent_t){ 0 };
-    for (i = 0; i < 2; i++) { tap_t[i] = 255; tap_dir[i] = 0; }
+    for (i = 0; i < 2; i++) { tap_t[i] = 255; tap_dir[i] = 0; chord_btn[i] = 0; }
+}
+static void close_marks(void) {                 /* intent.close: an opponent within CLOSE_X (A takes a route's close link) */
+    uint8_t i, j;
+    for (i = 0; i < NF; i++) {
+        const fighter_t *f = &fighters[i];
+        in[i].close = 0;
+        if (f->state == S_OFF) continue;
+        for (j = 0; j < NF; j++) {
+            const fighter_t *o = &fighters[j];
+            int16_t dx = INT(o->x) - INT(f->x), dz = INT(o->z) - INT(f->z);
+            if (o->team == f->team || o->state == S_OFF || o->state == S_DEAD) continue;
+            if (dx >= -CLOSE_X && dx <= CLOSE_X && dz >= -Z_HIT && dz <= Z_HIT) { in[i].close = 1; break; }
+        }
+    }
 }
 static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
     uint16_t held = JOY_held(p), pressed = JOY_pressed(p);
@@ -446,15 +463,24 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
                                                                   the AI wrote (the attract demo drives P1's slot) */
     in->dx = (held & JOY_RIGHT) ? 1 : (held & JOY_LEFT) ? -1 : 0;
     in->dz = (held & JOY_DOWN) ? 1 : (held & JOY_UP) ? -1 : 0;
-    in->press = ((pressed & JOY_A) ? IN_A : 0) | ((pressed & JOY_B) ? IN_B : 0) | ((pressed & JOY_C) ? IN_C : 0) | ((pressed & JOY_D) ? IN_D : 0);
-    if ((pressed & (JOY_A | JOY_B)) && (held & JOY_A) && (held & JOY_B)) { in->press = (in->press & ~(IN_A | IN_B)) | IN_D; in->ab = 1; }   /* A+B = D (or a route's A+B link) */
+    in->press = ((pressed & JOY_C) ? IN_C : 0) | ((pressed & JOY_D) ? IN_D : 0);
+    {                                                          /* A / B wait CHORD frames for the other: A+B = the special */
+        uint8_t a = (pressed & JOY_A) ? IN_A : 0, b = (pressed & JOY_B) ? IN_B : 0;
+        if (chord_btn[p]) {                                    /* one is waiting: the other within the window = A+B */
+            if ((a | b) & ~chord_btn[p]) { in->press |= IN_SP; chord_btn[p] = 0; }
+            else if (++chord_t[p] >= CHORD) { in->press |= chord_btn[p]; chord_btn[p] = 0; }   /* alone: the attack / the jump */
+        } else if (a && b) in->press |= IN_SP;                 /* the same frame */
+        else if (a | b) { chord_btn[p] = a | b; chord_t[p] = 0; }
+        if (chord_btn[p] && in->dx == -f->facing) in->dx = 0;   /* waiting: no turn yet, so back + B is KOF's back jump
+                                                                  and back + A a route's back link (a walk turns the
+                                                                  fighter: it takes the stick and the press together) */
+    }
     in->hold = ((held & JOY_A) ? IN_A : 0) | ((held & JOY_B) ? IN_B : 0) | ((held & JOY_C) ? IN_C : 0) | ((held & JOY_D) ? IN_D : 0);
     if (pressed & (JOY_LEFT | JOY_RIGHT)) {                     /* forward tapped twice within 12 frames */
         uint8_t d = (pressed & JOY_RIGHT) ? 1 : 2;
         if (tap_dir[p] == d && tap_t[p] < 12) in->run = 1;
         tap_dir[p] = d; tap_t[p] = 0;
     } else if (tap_t[p] < 255) tap_t[p]++;
-    (void)f;
 }
 
 /* ---- HUD on the fix layer (tools/brawler/make_hud.py), fighting-game layout: top row = the life bars, KOF94-style (1 px
@@ -466,7 +492,7 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
 #define BAR_PX    118                    /* inside the caps: 7 + 13 x 8 + 7 */
 #define LIFE      60
 #define BOSS_CELLS 30                    /* the boss bar: 7 + 28 x 8 + 7 = 238 px, fix row 7 under the HUD */
-typedef struct { uint8_t col, row, mirror, n, cell[BOSS_CELLS], wait; int16_t px, trail; } bar_t;
+typedef struct { uint8_t col, row, mirror, n, cell[BOSS_CELLS], wait, pal; int16_t px, trail; } bar_t;
 static uint8_t lives[2];
 static uint16_t cont_t[2];                       /* continue countdown (frames), 0 = none */
 static uint8_t cont_ov;                          /* the CONTINUE? overlay: 0 off, 1 on (the fight frozen), 2 fading out */
@@ -476,8 +502,11 @@ static uint8_t cont_digit(uint8_t p) {           /* 9 .. 0 */
     __asm__("divu.w %1,%0" : "+d"(r) : "d"((uint16_t)60));
     return (uint8_t)r;
 }
-/* bars: 0 P1, 1 right block (P2, or P1's target alone), 2 P1's target under P1, 3 P2's target under P2, 4 the boss */
-static bar_t bars[5];
+/* bars: 0 P1, 1 right block (P2, or P1's target alone), 2 P1's target under P1, 3 P2's target under P2, 4 the boss,
+ * 5 / 6 P1's / P2's special meter (TODO #71: row 3 under the name, 8 cells, the life bar's glyphs in METER_PAL) */
+#define METER_CELLS 8
+#define METER_PAL 4                      /* fix palette 4: palette 0 with the bar colours' red and blue swapped */
+static bar_t bars[7];
 static uint8_t boss_shown;
 static fighter_t *hud_tgt[4];
 static int8_t hud_lives[2];
@@ -515,7 +544,7 @@ static void bar_draw(bar_t *b, int16_t hp, int16_t max) {
         if (f < 0) f = 0;
         if (f > w) f = w;
         t = (b->mirror ? BAR_TILE_R : BAR_TILE) + kind * 18 + (b->trail > x0 + f ? 9 : 0) + f;
-        if (b->cell[sc] != t) { b->cell[sc] = t; fix_put(b->col + sc, b->row, t); }
+        if (b->cell[sc] != t) { b->cell[sc] = t; fix_put(b->col + sc, b->row, (uint16_t)b->pal << 12 | t); }
         x0 += w;
     }
 }
@@ -525,11 +554,11 @@ static void bar_clear(bar_t *b) {
     b->px = b->trail = -1; b->wait = 0;
 }
 static void hud_reset(void) {
-    static const uint8_t COL[5] = { 5, 20, 5, 20, 5 }, ROW[5] = { 0, 0, 4, 4, 7 };
+    static const uint8_t COL[7] = { 5, 20, 5, 20, 5, 5, 35 - METER_CELLS }, ROW[7] = { 0, 0, 4, 4, 7, 3, 3 };
     uint8_t p, c;
-    for (p = 0; p < 5; p++) {
-        bars[p].col = COL[p]; bars[p].row = ROW[p]; bars[p].mirror = p & 1 && p < 4; bars[p].px = bars[p].trail = -1; bars[p].wait = 0;
-        bars[p].n = p < 4 ? BAR_CELLS : BOSS_CELLS;
+    for (p = 0; p < 7; p++) {
+        bars[p].col = COL[p]; bars[p].row = ROW[p]; bars[p].mirror = (p & 1 && p < 4) || p == 6; bars[p].px = bars[p].trail = -1; bars[p].wait = 0;
+        bars[p].n = p < 4 ? BAR_CELLS : p == 4 ? BOSS_CELLS : METER_CELLS; bars[p].pal = p >= 5 ? METER_PAL : 0;
         if (p < 4) hud_tgt[p] = 0;
         for (c = 0; c < BOSS_CELLS; c++) bars[p].cell[c] = 0;
     }
@@ -572,6 +601,7 @@ static void hud(void) {
         uint8_t face = char_index(f->ch), pc = p ? 35 : 1, lc = p ? 32 : 5, cc = p ? 20 : 9;   /* lives / continue cols */
         if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face, p); hud_name(p, 1, f->ch->name); }
         bar_draw(&bars[p], in_play(f) ? f->hp : 0, f->hp_max);
+        bar_draw(&bars[5 + p], in_play(f) ? (int16_t)f->meter : 0, (int16_t)gmeter.max);   /* the special meter */
         if (lives[p] != hud_lives[p]) { hud_lives[p] = lives[p]; FIX_print(lc, 2, "x ", 0); FIX_printNum(lc + 1, 2, lives[p], 0); }
         i = cont_t[p] && !cont_ov ? cont_digit(p) + 1 : 0;   /* the count here while the other player fights on */
         if (i != hud_cont[p]) {
@@ -641,18 +671,17 @@ static uint8_t gd_in(uint16_t size, uint32_t off, uint32_t len, uint8_t even) { 
 static uint8_t gd_tree(const uint8_t *p, uint16_t size, uint32_t off) {   /* a route tree (fighter.h rt_head_t) */
     const rt_head_t *t = (const rt_head_t *)(p + off);
     uint8_t n, i, k;
-    if (!gd_in(size, off, sizeof(rt_head_t), 1) || t->magic[0] != 'R' || t->magic[1] != 'T' || (t->version != 2 && t->version != 3)) return 0;
-    n = t->nnodes;                                  /* version 2 (a pack before 6): 22-byte nodes, no diagonal D links */
-    if (!n || n > 128 || !gd_in(size, off, sizeof(rt_head_t) + n * (t->version >= 3 ? sizeof(rnode_t) : RT_NODE_V2), 1)) return 0;
+    if (!gd_in(size, off, sizeof(rt_head_t), 1) || t->magic[0] != 'R' || t->magic[1] != 'T' || t->version != TREE_VERSION) return 0;
+    n = t->nnodes;
+    if (!n || n > 128 || !gd_in(size, off, sizeof(rt_head_t) + n * sizeof(rnode_t), 1)) return 0;
     if (t->root >= n || t->dash >= n || t->nospec >= n || t->hold >= n || t->air_a >= n || t->air_b >= n || t->air_cd >= n) return 0;
     for (i = 1; i < n; i++) {                       /* node 0: "none" (zeros) */
         const rnode_t *d = RT_NODE(t, i);
         if (d->anim >= ((d->flags & RF_SPECIAL) ? BS_COUNT : BA_COUNT) || d->speed < 0x40 || d->speed > 0x400) return 0;
-        for (k = 0; k < RI_N; k++) if (RT_NEXT(t, d, k) >= n) return 0;
+        for (k = 0; k < RI_N; k++) if (d->next[k] >= n) return 0;
     }
     return 1;
 }
-static uint8_t gd_spec[BC_COUNT][BS_COUNT];      /* a version 5 pack's specials by role: its 4, the ROM's two diagonals */
 static uint16_t gd_voice_off(const uint8_t *p, uint8_t i) {   /* version 3: fighter i's voice table offset (0: none) */
     const gdpack_t *h = (const gdpack_t *)p;
     const uint8_t *q = p + h->roster + BC_COUNT * GD_ROLES(h->version) + 2 * i;
@@ -664,7 +693,7 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
     const gstage_t *st;
     uint16_t size = h->size, i, k;
     if (h->magic[0] != 'G' || h->magic[1] != 'D') return 1;
-    if (h->version < 5 || h->version > GD_VERSION) return 2;   /* before 5 the AI rows were 40 bytes (no hop_*) */
+    if (h->version != GD_VERSION) return 2;     /* 7 (TODO #71): route trees version 4; an older pack's trees read the old buttons */
     gd_head = h->version >= 4 ? sizeof(gdpack_t) : sizeof(gdpack_t) - 2;
     if (size < gd_head || size > GD_MAX) return 3;
     if (h->nstages != GS_COUNT || !h->nenemies || !h->nai) return 4;
@@ -750,13 +779,7 @@ static void gd_apply(void) {                     /* at a safe point: the pack (o
             }
             gstages = (const gstage_t *)(gd_live + h->stages); genemies = (const genemy_t *)(gd_live + h->enemies);
             ai_tab = (const ai_preset_t *)(gd_live + h->ai); gen_count = h->nenemies;
-            if (h->version >= 6 && h->roster) for (i = 0; i < BC_COUNT; i++) spec_tab[i] = gd_live + h->roster + i * BS_COUNT;
-            else if (h->roster)                  /* version 5: its 4 roles, the ROM's down-forward+D / up-forward+D */
-                for (i = 0; i < BC_COUNT; i++) {
-                    uint8_t k;
-                    for (k = 0; k < BS_COUNT; k++) gd_spec[i][k] = k < 4 ? gd_live[h->roster + i * 4 + k] : bm_chars[i].spmap[k];
-                    spec_tab[i] = gd_spec[i];
-                }
+            if (h->roster) for (i = 0; i < BC_COUNT; i++) spec_tab[i] = gd_live + h->roster + i * BS_COUNT;
             else specs_init();                   /* version 1: the ROM's specials by role */
             voices_init();                       /* version 3: a fighter's voice table from the pack (0: the ROM's) */
             if (h->version >= 3 && h->roster)
@@ -1968,8 +1991,11 @@ void game_enter(uint8_t request) {
     BIOS_USER_MODE = 1;                                      /* title / demo (game_init ran on request 0) */
     { uint8_t k; for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k];
       PAL_setPalette(0, TEXT_PAL);                           /* the BIOS's own screens overwrite palette 0 */
-      TEXT_PAL[1] = RGB(31, 28, 0); PAL_setPalette(1, TEXT_PAL); TEXT_PAL[1] = COLOR_WHITE; }   /* 1: yellow text (GO);
-                                                                 fix palettes 2-3: the shown portraits (portrait()) */
+      TEXT_PAL[1] = RGB(31, 28, 0); PAL_setPalette(1, TEXT_PAL); TEXT_PAL[1] = COLOR_WHITE;   /* 1: yellow text (GO); */
+      for (k = 6; k < 16; k++) { uint16_t c = bar_colours[k - 6];                        /* 4: the meter (red <-> blue) */
+          TEXT_PAL[k] = (c & 0xA0F0) | ((c >> 8) & 0xF) | ((c & 0xF) << 8) | ((c >> 2) & 0x1000) | ((c << 2) & 0x4000); }
+      PAL_setPalette(METER_PAL, TEXT_PAL);
+      for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k]; }   /* fix palettes 2-3: the shown portraits (portrait()) */
     shadow_init();
     dbg_init();
     snd_reset();                                             /* the BIOS reset the sound CPU before handing over */
@@ -2008,6 +2034,7 @@ void game_tick(void) {
     if (lab.active != 1) ai_update(fighters, NF, 2, in);   /* not against the Chain Lab's dummy */
 #endif
     mark(P_AI);
+    close_marks();
     for (i = 0; i < NF; i++) if (fighters[i].state != S_OFF) fighter_update(&fighters[i], &in[i]);
     if (lab.active) lab_flow(); else flow();
     if (mode != 1) return;                                   /* back on the title screen */
