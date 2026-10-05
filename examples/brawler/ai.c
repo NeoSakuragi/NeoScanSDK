@@ -51,7 +51,7 @@ void ai_init(uint16_t seed, uint8_t preset) {
     uint8_t i;
     lfsr = seed ? seed : 0xACE1;
     tick = 0;                                     /* the token deal's phase: not carried over from the attract demo */
-    for (i = 0; i < MAX_F; i++) { AI[i].p = &ai_tab[preset]; AI[i].jumping = 0; AI[i].token = 0; rest(&AI[i], AI[i].p->rest_start); AI[i].presses = 0; AI[i].retarget = 0; AI[i].press_t = 0; }
+    for (i = 0; i < MAX_F; i++) { AI[i].p = &ai_tab[preset]; AI[i].jumping = 0; AI[i].token = 0; rest(&AI[i], AI[i].p->rest_start); AI[i].presses = 0; AI[i].retarget = 0; AI[i].press_t = 0; AI[i].moving = 0; AI[i].hover_dz = 0; }
 }
 
 void ai_set(uint8_t i, uint8_t preset) { AI[i].p = &ai_tab[preset]; rest(&AI[i], AI[i].p->rest_start); }

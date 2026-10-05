@@ -57,7 +57,7 @@
   function tab(on) { window.labTab(on ? 'stages' : 'chain'); }
   $('tabChain').onclick = () => tab(false);
   $('tabStages').onclick = () => tab(true);
-  const PHASES = ['', 'GO', 'boss', 'boss beaten', 'stage clear', 'fade'];
+  const PHASES = ['', 'GO', 'boss', 'boss beaten', 'stage clear'];
   const MODES = ['select', 'fight', 'title', 'boss unlocked', 'ending'];
   window.labStatus = () => {
     if (!active && window.labTabName !== 'enemies' && window.labTabName !== 'chars') return null;

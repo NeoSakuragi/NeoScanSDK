@@ -29,7 +29,6 @@ BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
 
 def brawler_run(b, k, role, hit, shots, frames=300, pool=None):
     b.pick(k, unlock=True)                              # Rugal / Goenitz are unlocked by play
-    while b.r(b.syms['fade_in'], 1): b.run(1)
     b.run(10)
     if pool is not None:                                 # fighter:role=INPUT: the slot repointed at another special
         scr = b.syms['lab'] + 400                        # (lab.buf, unused without a Lab tree; spec_tab[fighter] -> it)

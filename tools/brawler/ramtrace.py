@@ -131,7 +131,7 @@ def record(game, what, out, replay=None, pack=None, stage=None):
             raise RuntimeError('timeout: ' + what)
         run(600); run(4, 'o'); run(100); run(4, 's'); run(100); run(4, 'a')   # coin, START, the first fighter (Terry)
         for st in range(5):                                     # the five stages
-            until(lambda: b.r(S['mode'], 1) == 1 and b.r(S['fade_in'], 1) == 0, 900, what='fight')
+            until(lambda: b.r(S['mode'], 1) == 1, 900, what='fight')
             while phase() in (0, 1):
                 until(lambda: phase() == 0 and enemies(), 2000, 'R', 'wave')
                 run(240)

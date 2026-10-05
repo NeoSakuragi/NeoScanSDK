@@ -308,7 +308,7 @@ static __attribute__((noinline)) uint16_t tint_colour(uint8_t tint, uint16_t c) 
     return RGB(v[0], v[1], v[2]);
 }
 uint16_t fighter_colour(const fighter_t *f, uint16_t c) { return f->tint ? tint_colour(f->tint, c) : c; }   /* the
-                                                             untinted path stays as cheap as before (fades call it per colour) */
+                                                             untinted path stays as cheap as before (the select screen calls it per colour) */
 const uint16_t *fighter_src_pal(const fighter_t *f, uint8_t i) {
     return i == 0 && f->cpal ? f->cpal : f->ch->pals + ((f->set * f->ch->npal + i) << 4);
 }

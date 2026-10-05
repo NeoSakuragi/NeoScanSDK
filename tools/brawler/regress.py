@@ -54,7 +54,6 @@ facing = {}
 NCHARS = len(json.load(open(os.path.join(game, "game.json")))["roster"])
 for k in range(NCHARS):
     b.pick(k, unlock=True)                         # campaign builds: the bosses are locked until beaten
-    while b.r(b.syms['fade_in'], 1): b.run(1)       # the fight in full colour: P1 under control, phase-free
     b.run(10); st = b.save()
     name = b.char_of(0)
     for an, seq in ACTIONS:

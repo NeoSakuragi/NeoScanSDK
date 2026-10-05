@@ -57,10 +57,7 @@ static uint8_t mode;                             /* 0 select, 1 fight, 2 title, 
 static uint8_t attract;                          /* the fight is the attract demo: P1 is ai_bot, enemies their attract_ai */
 static uint16_t attract_t;
 static uint8_t tap_t[2], tap_dir[2];             /* double-tap run detection per player */
-static void fight_fade(void);
-static void scene_pals(uint8_t k);
-static uint8_t fade_k;                           /* the fade level last written (0xFF: none yet) */
-enum { PH_WAVE, PH_GO, PH_BOSS, PH_END, PH_CLEAR, PH_FADE };   /* campaign phases (see "campaign") */
+enum { PH_WAVE, PH_GO, PH_BOSS, PH_END, PH_CLEAR };   /* campaign phases (see "campaign") */
 static uint8_t phase;
 
 /* ---- SNK MVS conventions: the game (not the BIOS) shows "LEVEL-n" and "CREDIT nn" on the bottom line. LEVEL = the
@@ -128,15 +125,9 @@ static int16_t cam_x, lock_x;                    /* lock_x: how far right the ca
 static const stage_t *stg = &stages[STAGE];
 int16_t floor_top = SELECT_FLOOR, world_w;
 
-static uint16_t col_scale(uint16_t c, uint8_t k);
-static void stage_pals(uint8_t k) {                          /* the stage's palettes at k / 16 brightness */
-    uint16_t buf[16];
-    uint8_t p, i;
-    for (p = 0; p < stg->npal; p++) {
-        const uint16_t *src = stg->pal + p * 16;
-        for (i = 0; i < 16; i++) buf[i] = i ? col_scale(src[i], k) : src[0];
-        PAL_setPalette(STAGE_PAL + p, buf);
-    }
+static void stage_pals(void) {                               /* the stage's palettes */
+    uint8_t p;
+    for (p = 0; p < stg->npal; p++) PAL_setPalette(STAGE_PAL + p, stg->pal + p * 16);
 }
 static void stage_hide(void) {                              /* title, select: no stage */
     uint8_t i;
@@ -145,7 +136,7 @@ static void stage_hide(void) {                              /* title, select: no
 static void stage_init(uint8_t n) {
     uint8_t s;
     stg = &stages[n]; floor_top = stg->floor_top; world_w = stg->cols << 4;
-    stage_pals(16);
+    stage_pals();
     *(volatile uint16_t *)0x3C0006 = stg->lspcmode;                /* REG_LSPCMODE: auto-animation speed */
     for (s = 0; s < BG_N; s++) {
         cmd_push(VRAM_SCB2 + BG_SPR + s, 0x0FFF);
@@ -290,13 +281,14 @@ static void depth_sort(void) {
 #define SPARK_RESERVE 6                  /* and for hit sparks (two 3-column sparks on one line) */
 static uint8_t hidden[NA], guard_hidden;
 static uint8_t dr_cols;                  /* the drama portrait's sprites on screen (main.c "drama mode"): kept per line */
+static uint8_t guard_parity, shadow_parity;   /* the frame alternations (line_guard's team order, shadows' halves): set
+                                            at a stage's start (stage_begin), not left by whatever ran before (regress bleed) */
 static void line_guard(void) {
-    static uint8_t parity;
     uint8_t prio[NA], n = 0, i, k, used = mode == 1 ? BG_N + SH_RESERVE + SPARK_RESERVE + dr_cols : 0;   /* the select: actors only */
     for (i = 0; i < nf; i++) if (!order[i]->team) prio[n++] = i;
-    parity ^= 1;
+    guard_parity ^= 1;
     for (i = 0; i < nf; i++) {
-        uint8_t j = parity ? nf - 1 - i : i;                 /* order[] is back to front */
+        uint8_t j = guard_parity ? nf - 1 - i : i;                 /* order[] is back to front */
         if (order[j]->team) prio[n++] = j;
     }
     guard_hidden = 0;
@@ -338,11 +330,10 @@ static void shadow_init(void) {
     }
 }
 static void shadows(void) {
-    static uint8_t parity;
     uint16_t *y = cmd_run(VRAM_SCB3 + SH_SPR, NE), *x = cmd_run(VRAM_SCB4 + SH_SPR, NE);
     uint8_t i;
-    parity ^= 1;
-    for (i = parity; i < NE; i += 2, y += 2, x += 2) {
+    shadow_parity ^= 1;
+    for (i = shadow_parity; i < NE; i += 2, y += 2, x += 2) {
         fighter_t *f = order[i];
         int16_t sx, gy;
         if (mode != 1 || i >= nf || hidden[i] || f->state == S_OFF ||
@@ -1099,11 +1090,10 @@ static void title_tick(void) {
  * (their own palettes in luminance). "1P" / "2P" with an arrow above the selected head (fix layer). Stick left / right
  * moves within a row, up / down to the row behind / in front (the nearest fighter in x); A/B/C/D picks that colour set
  * (KOF style) and plays the win pose. P2 joins here with START (a credit) and picks too; the two can't pick the same
- * fighter. When everyone in has picked, the others walk off the screen outward, the scene fades to black and the
- * fight's stage fades in. Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
+ * fighter. When everyone in has picked, the others walk off the screen outward, then the
+ * fight cuts in (no fades: a palette fade cost ticks frames). Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
 #define SEL_BACK 2                       /* the bosses' row */
 #define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
-#define FADE_T 32                        /* frames of a fade (level = t / 2, 16 steps) */
 _Static_assert(BC_COUNT <= SEL_NSLOT && BC_COUNT <= NA, "group photo: a slot and an actor per fighter");
 _Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 364, "sprite blocks: fight below the banner, select below the sparks");
 /* the slots (game.json "select", gamedata.h sel_slot_t): x (px), z (feet at SELECT_FLOOR + z), row (0 front: low on the
@@ -1111,9 +1101,9 @@ _Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 364, 
  * every roster fighter has one). Today: front rows 48 px apart inside x 16-304 (the 304 px a TV shows; the watch poses
  * are 40-80 px wide: shoulders overlap, as in a photo), the middle row between the front row's fighters, the bosses in
  * stage order on the back row, spread wider. */
-enum { SEL_CHOOSE, SEL_LEAVE, SEL_FADE };
+enum { SEL_CHOOSE, SEL_LEAVE };
 static uint8_t cursor[2], picked[2], pick_set[2];   /* cursor: a slot (0xFF: that player isn't in) */
-static uint8_t sel_phase, fade_in;
+static uint8_t sel_phase;
 static uint16_t sel_t;
 static uint8_t slot_ch[SEL_NSLOT];       /* the fighter (bm_chars index) in each slot, 0xFF empty */
 static uint8_t slot_act[SEL_NSLOT];      /* the actor showing it */
@@ -1134,25 +1124,21 @@ static void slots_build(void) {
 static uint8_t selectable(uint8_t s) { return slot_ch[s] != 0xFF && !char_locked(slot_ch[s]); }
 static uint8_t arrow_col[2] = { 0xFF, 0xFF }, arrow_row[2];
 
-static uint16_t col_scale(uint16_t c, uint8_t k) {          /* a colour at k / 16 of its brightness */
-    uint8_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
-    return RGB((r * k) >> 4, (g * k) >> 4, (b * k) >> 4);
-}
 static uint16_t col_grey(uint16_t c) {                      /* luminance (5 R + 9 G + 2 B) / 16, a cold grey */
     uint8_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
     uint8_t l = (uint8_t)((r * 5 + g * 9 + b * 2) >> 4);
     return RGB(l, l, l + (l < 31));
 }
 #define SILHOUETTE RGB(4, 4, 5)
-/* an entity's palettes: its own colours (1), greys (0) or a silhouette (2), at k / 16 brightness */
-static void fighter_pals(const fighter_t *f, uint8_t colour, uint8_t k) {
+/* an entity's palettes: its own colours (1), greys (0) or a silhouette (2) */
+static void fighter_pals(const fighter_t *f, uint8_t colour) {
     uint16_t buf[16];
     uint8_t i, j;
     for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
         const uint16_t *src = fighter_src_pal(f, i);
         buf[0] = src[0];
         for (j = 1; j < 16; j++)
-            buf[j] = col_scale(colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_grey(src[j]), k);
+            buf[j] = colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_grey(src[j]);
         PAL_setPalette(f->palbase + i, buf);
     }
 }
@@ -1165,7 +1151,7 @@ static void slot_show(uint8_t s, uint8_t set) {             /* (re)binds slot s'
     fighter_init(f, ch, set < ch->nsets ? set : 0, 16 + a * MAX_PALS, 1, SEL_SLOT[s].x, SEL_SLOT[s].z);
     f->idx = a; f->facing = SEL_SLOT[s].x < 160 ? 1 : -1;   /* turned toward the middle */
     fighter_play(f, BA_WATCH);
-    fighter_pals(f, slot_look(s), 16);
+    fighter_pals(f, slot_look(s));
 }
 /* the cursor from slot s: left / right = the nearest selectable slot that way in its row; up / down = the row behind /
  * in front (further if that row has nobody selectable), the selectable slot nearest in x */
@@ -1195,7 +1181,7 @@ static void select_arrows(void) {                           /* "1P" / "2P" + arr
     for (p = 0; p < 2; p++) {
         uint8_t s = cursor[p];
         col[p] = 0xFF; row[p] = 0;
-        if (s != 0xFF && sel_phase != SEL_FADE) {
+        if (s != 0xFF) {
             int16_t sx = SEL_SLOT[s].x - 8 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
             col[p] = sx < 0 ? 0 : (uint8_t)(sx >> 3);
             row[p] = (uint8_t)((SELECT_FLOOR + SEL_SLOT[s].z - 120) >> 3);   /* FIX_print row r is screen y r * 8:
@@ -1251,7 +1237,7 @@ static void select_start(void) {
  * left), at a world x or walking in from off screen (the right, or the left when there is room); the stage's enemies
  * land `power` extra damage a hit. At the stage's end its boss comes in with its minions (at most 5, in minion colours:
  * fighter_colour's tints, never a playable colour set); the boss bar under the HUD; boss beaten: the minions go down,
- * STAGE CLEAR, the save (furthest stage, boss unlocked), BOSS UNLOCKED when its fighter was locked, the fade to the next
+ * STAGE CLEAR, the save (furthest stage, boss unlocked), BOSS UNLOCKED when its fighter was locked, a cut to the next
  * stage. After the last: CONGRATULATIONS, then the title. Players: 3 lives, then the continue ("continue and GAME OVER"
  * below). The attract demo plays the first stage's waves on background STAGE (make STAGE=n,
  * stages[] index) without a boss, the last wave again and again. ---- */
@@ -1545,7 +1531,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
     mode = 1; nf = NE; cam_x = 0; wave = 0; cont_ov = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
-    triggers_reset(); dr_on = DR_OFF; dr_cols = 0;      /* a drama cut short (the lab): dbg_init below hides its sprites */
+    triggers_reset(); dr_on = DR_OFF; dr_cols = 0; guard_parity = shadow_parity = 0;      /* a drama cut short (the lab): dbg_init below hides its sprites */
     inputs_reset();
     snd_music(gs->music);
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
@@ -1564,7 +1550,6 @@ static void stage_begin(uint8_t s, uint8_t first) {
         if (first) { lives[i] = 3; cont_t[i] = 0; }
     }
     spawn_wave();
-    if (fade_in) { fade_in++; fade_k = 0xFF; fight_fade(); } /* from black (the select screen, the last stage) */
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
     for (i = 0; i < NPJ; i++) { projectiles[i].idx = NF + i; order[NF + i] = &projectiles[i]; }
     hud_reset();
@@ -1661,16 +1646,12 @@ static void campaign(uint8_t left) {
         save_write();
         break;
     case PH_CLEAR:
-        if (phase_t >= 200) { phase = PH_FADE; phase_t = 0; fade_k = 0xFF; }
-        break;
-    case PH_FADE:                                            /* to black, then the next screen */
-        scene_pals(phase_t >= FADE_T ? 0 : 16 - (uint8_t)(phase_t >> 1));
-        if (phase_t < FADE_T + 8) break;
+        if (phase_t < 200) break;                            /* then the next screen: a cut (no fades) */
         for (i = 0; i < 2; i++)
             if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = char_index(fighters[i].ch); pl_set[i] = fighters[i].set; }
         if (unlock_k) unlock_start(unlock_k - 1);
         else if (camp + 1 >= GS_COUNT) ending_start();
-        else { fade_in = FADE_T; stage_begin(camp + 1, 0); }
+        else stage_begin(camp + 1, 0);
         break;
     }
 }
@@ -1678,7 +1659,7 @@ static void campaign(uint8_t left) {
  * second (60 ticks); A-D jump to the next number. START (MVS: with a credit, the BIOS's PLAYER_START; AES: START, free
  * continues as SNK's home carts) brings him back where he fell, full life, the lives reset. While the other player is
  * in play the count shows in his HUD block and the fight goes on; with nobody in play the fight freezes under the
- * CONTINUE? overlay, KOF98's continue song ($2F) playing. Every count at 0: the fight fades out, the GAME OVER screen
+ * CONTINUE? overlay, KOF98's continue song ($2F) playing. Every count at 0: a cut to the GAME OVER screen
  * (KOF98's loser theme $26), then back to the BIOS (MVS: SYSTEM_RETURN commits the save; title while credits remain,
  * else the demo; AES: the demo). The attract demo's bot has no continue: its last life ends the demo. ---- */
 static void show_start(uint8_t m, uint8_t c, uint8_t set, uint16_t wall);
@@ -1749,11 +1730,7 @@ static void gameover_start(void) {
 static void cont_tick(void) {                    /* the fight frozen under the overlay */
     uint8_t p;
     cont_ft++;
-    if (cont_ov == 2) {                                      /* every count at 0: the fight fades, then GAME OVER */
-        scene_pals(cont_ft >= FADE_T ? 0 : 16 - (uint8_t)(cont_ft >> 1));
-        if (cont_ft >= FADE_T + 8) gameover_start();
-        return;
-    }
+    if (cont_ov == 2) { gameover_start(); return; }          /* every count at 0: GAME OVER (a cut) */
     if ((bios_start & 2) && !p2_in()) p2_join();
     for (p = 0; p < 2; p++) cont_player(p);
     bios_start = 0;
@@ -1821,7 +1798,7 @@ static void lab_enemy(void) {
 }
 static void lab_start(uint8_t kind) {
     uint8_t i, c = lab.fighter < BC_COUNT ? lab.fighter : 0, dm = lab.dummy < BC_COUNT ? lab.dummy : 1;
-    attract = 0; opt_on = 0; banner_hide(); fade_in = 0; BIOS_USER_MODE = 2;
+    attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2;
     pl_ch[0] = c; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     stage_begin(0, 1);
     for (i = 1; i < NF; i++) fighters[i].state = S_OFF;
@@ -1840,7 +1817,7 @@ static void lab_start(uint8_t kind) {
  * with it is installed first (stage_begin is a safe point). From there the game is the normal campaign. */
 static void lab_stage(void) {
     uint8_t w = lab.wave, i;
-    attract = 0; opt_on = 0; banner_hide(); fade_in = 0; BIOS_USER_MODE = 2; lab.active = 0;
+    attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2; lab.active = 0;
     pl_ch[0] = lab.fighter < BC_COUNT ? lab.fighter : 0; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     stage_begin(lab.dummy < GS_COUNT ? lab.dummy : 0, 1);
     if (!w) return;
@@ -1942,7 +1919,7 @@ static void show_tick(void) {
     if (mode >= 4) SYS_return();                             /* the ending, GAME OVER: back to the BIOS, which commits the MVS save
                                                                 and shows the title (credits left) or the attract demo */
     else if (camp + 1 >= GS_COUNT) ending_start();
-    else { fade_in = FADE_T; stage_begin(camp + 1, 0); }
+    else stage_begin(camp + 1, 0);
 }
 static void select_tick(void) {
     uint8_t a, p, s;
@@ -1952,7 +1929,7 @@ static void select_tick(void) {
             for (s = SEL_NSLOT; s-- > 0 && !(selectable(s) && SEL_SLOT[s].row == SEL_SLOT[cursor[0]].row && s != cursor[0]); ) ;
             cursor[1] = s < SEL_NSLOT ? s : cursor[0];       /* the last fighter of P1's row */
             BIOS_PLAYER_MOD[1] = 1;
-            fighter_pals(actor(slot_act[cursor[1]]), 1, 16);
+            fighter_pals(actor(slot_act[cursor[1]]), 1);
             select_name();
         }
         bios_start = 0;
@@ -1963,8 +1940,8 @@ static void select_tick(void) {
             s = sel_move(was, pr);
             if (s != was) {                                  /* colours follow the cursor */
                 cursor[p] = s; snd_ssg(SSG_CURSOR);
-                fighter_pals(actor(slot_act[was]), slot_look(was), 16);
-                fighter_pals(actor(slot_act[s]), 1, 16);
+                fighter_pals(actor(slot_act[was]), slot_look(was));
+                fighter_pals(actor(slot_act[s]), 1);
                 select_name();
             }
             if ((pr & (JOY_A | JOY_B | JOY_C | JOY_D)) && !(picked[p ^ 1] && cursor[p ^ 1] == cursor[p])) {
@@ -1990,37 +1967,18 @@ static void select_tick(void) {
             sx = INT(f->x) - cam_x;
             if (sx < -64 || sx > 384) f->state = S_OFF; else left++;
         }
-        if (!left && sel_t >= 60) { sel_phase = SEL_FADE; sel_t = 0; }
-    } else {                                                 /* to black: the wall and the picked fighters */
-        uint8_t k = sel_t >= FADE_T ? 0 : 16 - (uint8_t)(sel_t >> 1);
-        PAL_setBackdrop(col_scale(RGB8(72, 76, 84), k));
-        for (p = 0; p < 2; p++) if (cursor[p] != 0xFF) fighter_pals(actor(slot_act[cursor[p]]), 1, k);
-        if (sel_t >= FADE_T + 8) {
+        if (!left && sel_t >= 60) {                          /* then the fight: a cut (no fades) */
             for (p = 0; p < 2; p++) {
                 pl_on[p] = cursor[p] != 0xFF;
                 if (!pl_on[p]) continue;
                 pl_ch[p] = slot_ch[cursor[p]]; pl_set[p] = mod8(pick_set[p], bm_chars[pl_ch[p]].nsets);
             }
             for (a = NE; a < NA; a++) actor(a)->state = S_OFF;
-            fade_in = FADE_T; fight_start(); return;
+            fight_start(); return;
         }
     }
     for (a = 0; a < NA; a++) if (actor(a)->state != S_OFF) fighter_animate(actor(a));
     select_arrows();
-}
-/* the fight fading in from black after the select screen: the stage, the backdrop, every fighter (k / 16); k steps every
- * other tick, and only a new k is written (scaling every palette each tick took ~5 frames a
- * tick: the fade-in lasted ~160 frames for its 32 ticks; with the 25 Robo Army stage palettes it lasts ~137) */
-static void fight_fade(void) { scene_pals(16 - (uint8_t)(--fade_in >> 1)); }
-static void scene_pals(uint8_t k) {              /* the fight at k / 16: stage, backdrop, fighters (also the fade out) */
-    uint8_t i;
-    if (k == fade_k) return;
-    fade_k = k;
-    stage_pals(k);
-    PAL_setBackdrop(col_scale(stg->backdrop, k));
-    for (i = 0; i < NF; i++) if (fighters[i].state != S_OFF) fighter_pals(&fighters[i], 1, k);   /* in play only: an
-                                                             unused slot's stale fighter (the demo's, a line-up actor's) cost
-                                                             the first tick a frame or not by history (regress bleed) */
 }
 
 void game_init(void) {
@@ -2093,7 +2051,6 @@ void game_tick(void) {
     if (lab.active) lab_flow(); else flow();
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
-    if (fade_in) fight_fade();
     camera();
     projectiles_update(cam_x);
     mark(P_UPDATE);
