@@ -35,6 +35,8 @@ effects (super flash = state 58), 30-31 other effect tables.
 | palettes | bank 1 `$200002 + n*32`; body block n = `$100 + id*$20` (16 palettes), mirror set n + 16 | sprite-def palette byte `16+k` = palette k of the block (body, accessories and effects) |
 | physics | walk `$6E8EE + id*4`, jump vy / gravity `$6E96E + id*8` (16.16); hop = the jump with `vy -= vy >> 2` (code `$EF24`); see Jumps | walking back = walk; jump drift = walk (the prejump loads it from the walk table) |
 
+In a fight KOF96 shows these colours lit by the stage (palette RAM dumped in our emulator, 2026-10-05, TODO #66): the USA stage of the prepared states c0/c3/c24/c25/c26/c28 = ROM colour + 2 red steps, - 1 blue step (5-bit, clamped), constant through the round; the vs state's round + 1 red. Every fighter the same, so Mr. Big's "tan" next to the brawler's "pale" is that light, not the export: the exported palettes equal the ROM's word for word (/data/tmp/gaps66/out/mrbig_*).
+
 ### Sprite definition formats (from the renderer's handlers)
 Header `[palette offset][format][columns][rows]`; column-major grid, masks MSB = top row; tile bits 16-19 in bits 4-7 of
 an attribute byte. 0/4: 16-bit masks + 32-bit base, consecutive tiles; 1: 8-bit masks, consecutive; 2: no mask, per
