@@ -413,9 +413,7 @@
       h('div', { class: 'hd' }, inputGlyph(key)),
       h('button', { class: 'artb', title: (MOVE_LABEL[nd.move] || nd.move) + (air ? '' : ' (tap: choose the move)'), onclick: pick }, art(nd.move)),
       h('div', { class: 'mods' },
-        h('button', { class: 'st fr', title: 'startup / active / recovery, total frames at this speed (tap: choose the move)', onclick: pick }, icon('frames'),
-          h('span', {}, d ? `${d.startup}/${d.active}/${d.recovery} ${d.total}f` : '-')),
-        speedStat(nd, sv),
+        speedStat(nd, sv),   // no frame data on the card (Bruno): the move picker shows it
         stat(w, w, 'hit weight (tap: light / strong)', () => { nd.weight = w === 'light' ? 'strong' : 'light'; edited(); }),
         stat(eff, EFFECT_NAME[eff], 'effect on the victim (tap: choose)', ev => popover(ev.currentTarget, (pop, close) =>
           pop.append(...CL.EFFECTS.map(e => h('button', { class: 'st' + (e === eff ? ' cur' : ''), onclick: () => { close(); nd.effect = e; edited(); } }, icon(e), h('span', {}, EFFECT_NAME[e])))))),

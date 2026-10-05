@@ -146,6 +146,14 @@
    "specials": {"D": "41236C", "fD": null, "dD": null, "uD": "214C"},
    "unlock": {"boss_of_stage": 5},
    "voices": "kof"
+  },
+  {
+   "name": "haohmaru",
+   "bank": "samsho4:haohmaru",
+   "watch": {"frame": 140, "step": -1},
+   "routes": "default",
+   "specials": {"D": "236C", "fD": "421C", "dD": "623B", "uD": "BUST 236D"},
+   "unlock": "always"
   }
  ],
  "select": {
@@ -156,11 +164,12 @@
    {"x": 184, "z": 48, "row": 0, "fighter": "robert"},
    {"x": 232, "z": 48, "row": 0, "fighter": "yamazaki"},
    {"x": 280, "z": 48, "row": 0, "fighter": "billy"},
-   {"x": 64, "z": 24, "row": 1, "fighter": "kyo"},
-   {"x": 112, "z": 24, "row": 1, "fighter": "iori"},
-   {"x": 160, "z": 24, "row": 1, "fighter": "mai"},
-   {"x": 208, "z": 24, "row": 1, "fighter": "yashiro"},
-   {"x": 256, "z": 24, "row": 1, "fighter": "k_dash"},
+   {"x": 52, "z": 24, "row": 1, "fighter": "kyo"},
+   {"x": 96, "z": 24, "row": 1, "fighter": "iori"},
+   {"x": 140, "z": 24, "row": 1, "fighter": "mai"},
+   {"x": 184, "z": 24, "row": 1, "fighter": "yashiro"},
+   {"x": 228, "z": 24, "row": 1, "fighter": "k_dash"},
+   {"x": 272, "z": 24, "row": 1, "fighter": "haohmaru"},
    {"x": 48, "z": 0, "row": 2, "fighter": "mr_big"},
    {"x": 104, "z": 0, "row": 2, "fighter": "krauser"},
    {"x": 160, "z": 0, "row": 2, "fighter": "geese"},

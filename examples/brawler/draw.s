@@ -103,7 +103,8 @@ fighter_tiles:
     lsl.w   #4, %d0
     move.w  %d0, -(%sp)
     move.w  F_SPR(%a2), %d3
-    moveq   #MAX_COLS, %d1
+    moveq   #0, %d1
+    move.b  blk_cols, %d1           | sprites per block (main.c: MAX_COLS in a fight, SEL_COLS on the select screen)
     subq.w  #1, %d2
     bmi     .Lt_done
 
@@ -204,7 +205,8 @@ fighter_tiles:
     dbra    %d2, .Lt_part
 .Lt_done:
     addq.l  #2, %sp                 | tile_hi word
-    moveq   #MAX_COLS, %d0
+    moveq   #0, %d0
+    move.b  blk_cols, %d0
     sub.w   %d1, %d0
     move.b  %d0, F_NCOLS(%a2)       | columns written for this frame
 .Lt_ret:
