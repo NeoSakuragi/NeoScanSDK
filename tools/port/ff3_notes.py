@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """A MAKOTO v3 song (Fatal Fury 3, KOF94) as notes with their full chip state, from the tools/makoto3 model:
-the engine-neutral form ff3_to_kof98.py writes into KOF98's format.
+the engine-neutral form port98.py writes into KOF98's format.
 
     python3 ff3_notes.py M1.bin 0x2F          summary: notes per channel, loop points, what does not map 1:1
 
@@ -25,11 +25,11 @@ class Note:
         return f'Note({self.tick}-{self.off} ' + ' '.join(f'{k}={v}' for k, v in self.__dict__.items()
                                                            if k not in ('tick', 'off', 'changes', 'regs')) + ')'
 
-def notes(data, cmd, ticks=None):
+def notes(data, cmd, ticks=None, passes=1):
     s = Song(data, cmd)
     s.run(ticks=ticks or 20000)
-    if ticks is None:                                        # one intro + one loop of every channel
-        end = max((a + b for a, b, _ in s.loop_at.values()), default=s.tick) + 1
+    if ticks is None:                                        # the intro + `passes` loops of every channel
+        end = max((a + passes * b for a, b, _ in s.loop_at.values()), default=s.tick) + 1
         s = Song(data, cmd); s.run(ticks=end)
     out = {n: [] for n in ('FM1', 'FM2', 'FM3', 'FM4', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'B')}
     st = {n: dict(regs=None, alg=0, tl=0, fnum=0, pan=0xC0, tls=[0] * 4, b4=0xC0) for n in FM}

@@ -128,6 +128,18 @@ KOF98's two hit sparks (tools/brawler/make_sparks.py, data in sparks98.json, cap
 big for C / D / C+D, knockdowns and specials; at the midpoint of the attack and hurt boxes, mirrored with the attacker.
 Sprites 364-375 (4 at once), palette 254, C ROM tiles 700-796.
 
+## Sound (`songs.json`, `sound.c`)
+SNK's KOF98 sound driver (v1.7) in the M ROM. `songs.json` lists every song the game plays (name, source game,
+the song's command there) and the effect codes it sends (`$1A` prefix, slot 1). `make` runs
+`tools/port/build_snd.py songs.json build/snd`: M ROM = the driver + only those songs (KOF98's own kept as they are,
+songs of other games ported into KOF98's format by `tools/port/port98.py`), V ROM = only their samples and the
+effects' (16 MB -> 2.9 MB), `build/snd/songs.h` = `MUS_<name>` (the driver command) and `BOSS_SONGS`
+(`snd_boss_song[]`: Mr. Big AOF2 `$21`, Krauser FFS `$3B` "Kaiser Wave", Geese FFS `$43`, Rugal KOF98 `$3B`,
+Goenitz KOF96 `$2D`). A new effect code must be added to `songs.json` or it plays nothing.
+Checks: `tools/port/compare_port.py build/snd NAME` (port vs original, both drivers' models, chip events),
+`tools/port/capture_snd.py --check build/snd` (each song in this ROM in our emulator vs the model, interrupt by
+interrupt), `capture_snd.py GAME CMD SECONDS OUT` (a WAV of any song from its own game).
+
 ## Debug box viewer
 P1 START in a fight (keyboard 1; P2 START joins) toggles it: the four corners of every hurt box (green) and attack
 box (red) the hit test uses, as 8x8 brackets on sprites 300-363 (8 boxes per kind).

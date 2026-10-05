@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Song Lab data for a port: the original song from its own driver (A: Fatal Fury 3's real driver, the capture) and
-the port played by KOF98's driver (B: song98.py's model of the patched M1, ff3_to_kof98.py), on one tick grid (FF3
-tick k = KOF98 tick k), so the page's A/B switch lands on the same note.
+the port played by KOF98's driver (B: song98.py's model of build_snd.py's M1, port98.py), on one tick grid (FF3
+tick k = KOF98 tick k: a port with tick scale 1), so the page's A/B switch lands on the same note.
 
-    python3 songlab_port.py 0x2F PORT_DIR OUT_DIR       -> OUT_DIR/XX.json (+ index.json, game.json)"""
+    python3 songlab_port.py 0x2F SND_DIR OUT_DIR       -> OUT_DIR/XX.json (+ index.json, game.json)
+    (SND_DIR = build_snd.py's output, e.g. examples/brawler/build/snd)"""
 import base64, json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); TOOLS = os.path.dirname(HERE)
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(TOOLS, 'songlab')); sys.path.insert(0, os.path.join(TOOLS, 'kof98snd'))
@@ -36,8 +37,10 @@ def build(cmd, pdir, out):
     g = bw.GAMES['ff3']
     ff3 = open(g['m1'], 'rb').read()
     d = bw.ff3_song(g, ff3, cmd)                                  # A = FF3 capture, tracks, tick grid
-    m1 = open(f'{pdir}/kof98_m1.bin', 'rb').read()
-    s = song98.Song(m1, 0x27).run(ticks=d['ticks'] + 2)
+    rep = next(x for x in json.load(open(f'{pdir}/snd_report.json'))['songs'] if x.get('source') == f'ff3 ${cmd:02X}')
+    assert rep.get('tick_scale', 1) == 1
+    m1 = open(f'{pdir}/m1.bin', 'rb').read()
+    s = song98.Song(m1, rep['cmd']).run(ticks=d['ticks'] + 2)
     ws = regs98.writes(s)
     nseq = s.irq
     count = {}
@@ -59,14 +62,13 @@ def build(cmd, pdir, out):
     irqB = [real[q] * bw.PERIOD for q in tick_irq] + [real[nseq] * bw.PERIOD] * (d['ticks'] + 1 - len(tick_irq))
     _, ff3_v = bw.vrom(g['neo']), None
     ff3_v = bw.vrom(g['neo'])
-    port_v = open(f'{pdir}/kof98_v1.bin', 'rb').read()
+    port_v = open(f'{pdir}/v1.bin', 'rb').read()
     ma, sa = blobs(ranges(d['A']), ff3_v); mb, sb = blobs(ranges(B), port_v)
     for a0, a1 in ma:
         for b0, b1 in mb: assert a1 < b0 or b1 < a0, 'FF3 and port samples overlap'
     import io, contextlib
-    with contextlib.redirect_stdout(io.StringIO()): tot = compare_port.compare(cmd, pdir, d['ticks'])
+    with contextlib.redirect_stdout(io.StringIO()): tot = compare_port.compare(pdir, rep['name'], d['ticks'])
     same = sum(v[0] for v in tot.values()); total = sum(max(v[1], v[2]) for v in tot.values())
-    rep = json.load(open(f'{pdir}/port_{cmd:02X}.json'))
     data = dict(d, B=B, irqB=irqB[:d['ticks'] + 1], cmd=cmd, match=[same, total],
                 name=f"Terry's stage (FF3 ${cmd:02X}) on KOF98's driver" if cmd == 0x2F else f'FF3 ${cmd:02X} on KOF98',
                 samples=sa + sb, length=max(d['A'][-1][0], B[-1][0]) + bw.PERIOD)
@@ -80,7 +82,7 @@ def build(cmd, pdir, out):
             'labelA': 'FF3 driver', 'labelB': 'KOF98 driver',
             'intro': ("Songs moved from one sound engine to another. <b>FF3 driver</b> is Fatal Fury 3's own driver "
                       "(\"Ver 3.0 by MAKOTO\") playing the song, captured in our emulator. <b>KOF98 driver</b> is the "
-                      "same song converted into KOF98's song format (tools/port/ff3_to_kof98.py) and played by KOF98's "
+                      "same song converted into KOF98's song format (tools/port/port98.py) and played by KOF98's "
                       "driver (SNK v1.7), as our brawler would. Switch while it plays; the playhead keeps its place."),
             'notes': ["<b>How.</b> Every FF3 note is written with its full chip state: KOF98's direct level mode carries "
                       "FF3's attenuation values as velocities, detune reaches FF3's exact F-numbers, FM patches go inline, "
@@ -88,7 +90,7 @@ def build(cmd, pdir, out):
                       "(the same values as FF3's), samples are moved into V ROM space only unused KOF98 stage themes need.",
                       f"<b>Check.</b> The facts line counts key-ons and key-offs whose tick and chip state (patch, "
                       f"pitch, level, pan, sample) are identical in both drivers. Known differences: <ul>{warn}"
-                      f"<li>tempo: KOF98 83 = {rep['kof98_hz']:.2f} ticks/s, FF3 {rep['ff3_hz']:.2f}; KOF98's driver also "
+                      f"<li>tempo: KOF98 {rep['tempo']} = {rep['kof98_hz']:.2f} ticks/s, FF3 {rep['ff3_hz']:.2f}; KOF98's driver also "
                       f"loses timer interrupts on heavy ticks, FF3's never does</li></ul>",
                       "<b>Measured on SNK's real KOF98 code</b>: the brawler with the port as its music, in our emulator: "
                       "every key-on of the first 40 s had the model's chip state (1804 of 1804 events)."]}
