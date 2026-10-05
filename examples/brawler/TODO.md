@@ -348,10 +348,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   SS4's own code (the handlers98 approach for SS4); also his other open points (memory reference_samsho4_extraction).
 
 - [ ] 71. Controls revamp (Bruno, 2026-10-05): A attack (all normals via routes: direction + position), B jump (also a
-  jump-cancel link in routes, on hit only -> air sub-routes), A+B fury = the six special slots by direction (N, fwd,
-  down, up, down-fwd, up-fwd; also from a grab), C desperation moves (KOF DM / SDM supers, SS4 rage moves), D reserved
-  ("mystery button"). Chord detection window (2-3 frames) for A+B; routes / Chain Lab glyphs / Terry's routes and the
-  default trees re-authored for one attack button. After the six-slot job. Open: does fury cost something?
+  jump-cancel link in routes, on hit only -> air sub-routes), A+B SPECIAL MOVES = the six slots by direction (N, fwd,
+  down, up, down-fwd, up-fwd; Power Wave, Power Dunk, Rising Tackle...; also from a grab), C FURY = desperation moves
+  (Power Geyser and the other KOF DM / SDM supers, SS4 rage moves), D TAG mode (Bruno will explain). Chord detection
+  window (2-3 frames) for A+B; routes / Chain Lab glyphs / Terry's routes and the default trees re-authored for one
+  attack button. After the six-slot job. Open: do specials / furies cost something (health, gauge)?
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
