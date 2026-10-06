@@ -768,6 +768,7 @@ def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=No
         if catch_at is not None and f == catch_at + 1 and o.hitpc is not None:   # a catch box connected at catch_at:
             o.dead = catch_dead(m, o); o.go = o.hitpc; o.hitpc = None              # its dead frames, then its routine
         o.tick(cam)
+        if o.fxoff and getattr(o, 'fx_at', None) is None: o.fx_at = f   # the frame it set +$D1 bit 7 (P_FXOFF)
         sp = []
         for k, dx, dy in o.spawned:
             ob = prog['objects'][k]; fl = ob['fields']
@@ -895,10 +896,11 @@ def openings(m, cid, prog, frames=300, presses=None):
         if o.h > top: top, peak = o.h, f
     return per, last, peak, frames
 
-def object_rows(m, cid, ob, owner_x=0.0, frames=240):
+def object_rows(m, cid, ob, owner_x=0.0, frames=240, fxoff_at=None):
     """an object's flight from the model: rows [rom frame, x from the thrower's place at the spawn (forward +),
     height, live attack box (type x y w h) or None, own box (slot 1) or None], loop (row the flight repeats from, None:
-    it ends), follow (pinned to its owner: x / height are offsets from it)"""
+    it ends), follow (pinned to its owner: x / height are offsets from it). fxoff_at: the object's frame on which its
+    owner sets +$D1 bit 7 (P_FXOFF: a pinned effect that watches it plays its end then, Raging Storm's pillars)"""
     c = Obj(m, cid, ob, x=0.0, h=0.0, vx=ob['vx']); c.resume = 0
     follow = any(op[0] == 'follow' for a, op in ob['ops'])
     offs = any(op[0] == 'offscreen' for a, op in ob['ops'])   # it flies until off screen: a looping flight repeats
@@ -906,6 +908,7 @@ def object_rows(m, cid, ob, owner_x=0.0, frames=240):
     if follow: c.owner = Obj(m, cid, {'ops': [], 'objects': []}); c.ofs = (ob['dx'], ob['dy'])
     rows, live, seen = [], None, {}
     for f in range(frames):
+        if follow and fxoff_at is not None and f == fxoff_at: c.owner.fxoff = True
         if f == 0: c.frame(None)                      # never off screen: the brawler tests that itself
         else: c.tick(None)
         if c.over:
@@ -983,8 +986,18 @@ def export_rom(m, cid, inp, add, game='kof98'):
         pk = openings(m, cid, prog, presses={f: 1 << k for f in range(300)})[0]
         for st, n_ in pk.items(): per[st] = max(per.get(st, 0), n_)
     objs = []
+    mrows, mobjs = run_model(m, cid, prog, 300)                 # the whiff: when its pinned effects end
     for k, ob in enumerate(prog['objects']):
         rows, loop, follow = object_rows(m, cid, ob)
+        mc = next((c for c in mobjs if c.prog is ob), None)
+        if follow == 1 and mc is not None and mc.over and getattr(mc.owner, 'fx_at', None) is not None:
+            # pinned and ended by the move's P_FXOFF (the end it plays then included) while the thrower stands still
+            # over its life (Raging Storm's pillars): an eruption (kind 3, not pinned) whose rows are its whole life
+            # in KOF, so it dies when they end (the brawler's pinned effects lived on past two, TODO #142)
+            life = [r[3] for r in mrows if mc.born <= r[0] < mc.born + len(mc.rows)]
+            if life and max(life) == min(life):
+                rows, loop, f2 = object_rows(m, cid, ob, fxoff_at=mc.owner.fx_at - mc.born)
+                if f2 == 3 and len(rows) == len(mc.rows): follow = 0
         end = []
         if ob.get('hit'):                                      # its hit routine: the end animation in place
             ho = Obj(m, cid, ob['hit']); ho.resume = 0
