@@ -235,7 +235,7 @@ def main():
         print(json.dumps(api('scenario/' + a.id), indent=1, ensure_ascii=False))
     elif a.cmd == 'put':
         rec = json.load(open(a.file)) if a.file else get_recipe(a.id)
-        print(api('scenario', {'id': a.id, 'recipe': rec, 'by': 'scenario.py'})['ok'])
+        r = api('scenario', {'id': a.id, 'recipe': rec, 'by': 'scenario.py'}); print(r.get('ok', 'row' in r))   # the server answers the row
     elif a.cmd == 'gen':
         out, sha, res = gen(a.id, a.rom)
         for k, v in res.items(): print(k, v['state_sha256'][:16], v['size'], 'bytes; end', v['end'])

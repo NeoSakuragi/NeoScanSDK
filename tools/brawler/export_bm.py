@@ -986,19 +986,20 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None):
     pre += [(steps[act - 1]['frame'], HOLD_STARTUP - len(pre))] if act >= 1 else []
     post = [(s_['frame'], s_['ticks'] + 1) for s_ in steps[act:]]
     th = ch.get('throws', {}).get('throw_c')
-    if th:
+    turned = 8 if th and th.get('turned') else 0       # SS2's grab turns the thrower (its victim behind him, -33 px):
+    if th:                                              # the hold hits too, row flag 8, so they strike the held victim
         r0 = (th['victims'].get(n) or next(iter(th['victims'].values())))[0]
         v = vocab(game, r0[5]); held = (pkeys.index(v) if r0[0] is not None and r0[0] >= 0 and v in pkeys else 255, min(r0[1], dx), r0[2], r0[3])
     else: held = (255, dx, 0, 0)
     rows = []
     for fr, d in pre:
-        for _ in range(d): rows.append(f'{{{fr}, 0, 0, {held[0]}, {held[3]}, {held[1]}, {held[2]}}}')
+        for _ in range(d): rows.append(f'{{{fr}, 0, 0, {held[0]}, {held[3] | turned}, {held[1]}, {held[2]}}}')
     hit = len(rows)
     for fr, d in post:
         for _ in range(d):
             if len(rows) - hit >= HOLD_TAIL: break
             first = len(rows) == hit
-            rows.append(f'{{{fr}, 0, 0, {MOVES.index("hit_stand_light")}, {32 | held[3] | (4 if first else 0)}, {held[1]}, {held[2]}}}')
+            rows.append(f'{{{fr}, 0, 0, {MOVES.index("hit_stand_light")}, {32 | held[3] | turned | (4 if first else 0)}, {held[1]}, {held[2]}}}')
     return rows, (MOVES.index(move) if move in MOVES else 0xFF, hstep)
 
 VICTIM_POSES = {g: json.load(open(os.path.join(HERE, '..', 'kof96', f'victim_poses{g[3:]}.json')))['poses']

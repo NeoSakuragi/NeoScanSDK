@@ -700,9 +700,12 @@ static void throw_free(fighter_t *f, uint8_t done) {
 }
 static uint8_t cancel_pick(fighter_t *f);
 static uint16_t last_impact(const bthrow_t *th) {               /* a throw's cancel row ("cancels" rule 4): its last */
-    uint16_t i = th->nrows;                                      /* impact row, 0xFFFF none (Yamazaki's back throw) */
-    while (i--) if (th->rows[i].flags & 4) return i;
-    return 0xFFFF;
+    uint16_t i = th->nrows, last = 0xFFFF;                       /* impact row before the control return (the blow: */
+    while (i--) if (th->rows[i].flags & 4) {                     /* Terry's / Geese's victim lands after it, a cancel */
+        if (i < th->ret) return i;                               /* there would come from neutral, feedback */
+        if (last == 0xFFFF) last = i;                            /* 20261006-194211-5d29), else its last impact row; */
+    }                                                            /* 0xFFFF none (Yamazaki's back throw) */
+    return last;
 }
 /* the thrower's side after the grab (TODO #146): the paired script up to the control return, then it acts again; a
  * throw's last impact / the hold finisher's landing cancel ("cancels" rule 4) */
@@ -1008,18 +1011,21 @@ static uint8_t special_for(const fighter_t *f, const intent_t *in) { return spec
  * hit) cancels, from the end of its hit-stop to its last frame, into a special (C + the stick: the route's own special
  * link when it has one, else the slot special_for picks) or the fury (D, down+D its MAX), each the moment its press
  * is read (presses during the normal are buffered: spec_buf / fury_buf). (2) A special (not a fury) whose first hit
- * landed (its body's or its projectile's: scancel) cancels into the fury on D, on the ground and not while it holds a
- * caught victim (PF_HOLD / a catch: its routine owns the victim); a D before that first hit does nothing. The fury
+ * landed (its body's or its projectile's, or its catch: scancel) cancels into the fury on D, on the ground and not
+ * while it holds a caught victim (PF_HOLD: its routine owns the victim); a catch's final impact (its slam: Rugal's God
+ * Press grinding the victim into the wall, a ground slam) lets the victim go, and from that frame the special cancels
+ * like any hit (a D pressed since its first hit fires then, feedback 20261006-175700-5d29); a D before that first hit does nothing. The fury
  * plays as from neutral: its meter, super flash, charge sound and invincibility. (3) A fury (not a MAX) whose first hit
  * landed cancels the same way into the fighter's MAX fury on down+D (TODO #151; D alone does nothing): the MAX from its
  * start, its own flash (orange), charge sound, invincibility and meter; a MAX is never cancelled (may_cancel), nor a
- * fury of a fighter without a MAX. (4) A throw's last impact (forward / back + A: the blow or the victim hitting the
- * floor, bthrow_row_t flags 4: last_impact) and the hold finisher's landing are normal hits: from the frame after
+ * fury of a fighter without a MAX. (4) A throw's last impact before its control return (forward / back + A: the blow
+ * or the victim hitting the floor, bthrow_row_t flags 4: last_impact) and the hold finisher's landing are normal hits: from the frame after
  * the impact (after its hit-stop, Ryo's freeze) to the thrower's control return, C + the stick cancels into the special,
  * D into the fury (down+D the MAX); the thrower lets go, a victim still in the script plays it on alone. A C / D pressed
- * up to CANCEL_BUF frames before the first legal frame (hit-stop frames not counted) is buffered and fires on it; when
- * the last impact comes after the control return (Terry's and Geese's throws: the victim lands a few frames after the
- * thrower acts again), the control return is that frame, and from it a press does the same from neutral. A throw
+ * up to CANCEL_BUF frames before the first legal frame (hit-stop frames not counted) is buffered and fires on it. The
+ * victim landing after the control return (Terry's and Geese's throws) is not the cancel point: the blow before it is
+ * (feedback 20261006-194211-5d29: a cancel at the landing came from neutral, after Ryo had flown away); a throw whose
+ * only impact comes after the control return cancels from the control return. A throw
  * without an impact row (Yamazaki's back throw, Mai's forward throw: the damage at the script's end) has no cancel.
  * KOF98, measured (Kyo vs Yuri, close B / close C then 236A, every press frame: tools/brawler/throws166_proof.py k): a
  * normal's special cancel takes a press from the normal's startup until 8 (close C) / 9 (close B) frames after the
@@ -1606,8 +1612,8 @@ static void update(fighter_t *f, const intent_t *in) {
     case S_THROWN: thrown_update(f); break;                      /* its thrower let go: it plays its rows on alone */
     case S_SPECIAL:
         if (may_cancel(f) && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && f->fury_buf &&
-            (f->spec_id == BS_FURY ? f->pcatch == 0 || f->pcatch == 0xFE : !f->pcatch)) {   /* a fury: once its catch
-                                                                    routine lets the victim go (PF_HOLD off), rule 3 */
+            (f->pcatch == 0 || f->pcatch == 0xFE)) {             /* a catch: once its routine lets the victim go
+                                                                    (PF_HOLD off: its final impact), rules 2 / 3 */
             if (f->spec_id == BS_FURY) {                         /* a fury -> its MAX (rule 3): the fury's objects go */
                 uint8_t i;                                       /* with it (shots, eruptions, pinned effects), so the */
                 for (i = 0; i < NPJ; i++)                        /* MAX spawns whole (feedback 20261006-174005-5d29) */

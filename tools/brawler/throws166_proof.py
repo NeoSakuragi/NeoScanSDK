@@ -19,7 +19,8 @@ the Geolith harness (harness.py) on a `make AI_OFF=1` build (the test drives the
      throw (forward / back + A; its last impact row from build/bm_chars.c), C (a special) or D (the fury) pressed 12
      frames before the first legal frame (buffered), C / down+D 2 frames after it, C CANCEL_BUF + 6 before it (too early:
      nothing then): P1 SPECIAL on the first legal frame (the frame after the impact row shows, after its hit-stop: Ryo's
-     freeze; the control return when the impact comes after it: Terry, Geese), the victim plays its script on to its end;
+     freeze; the impact = the last one before the control return: Terry's / Geese's blow, not the landing after it, feedback
+     20261006-194211-5d29 reopened; the control return when every impact comes after it), the victim plays its script on to its end;
      a throw with no impact row: a C before its end does nothing (OUT/f_throws.txt, OUT/f_terry_throw_c_fury.png)
   g  Bruno's own inputs (bundle 20261006-194211-5d29, Terry): each of his throws replayed with his pads frame for frame
      from his forward / back + A to 75 frames on (mirrored when he faced left): the cancel fires on his own presses
@@ -281,7 +282,8 @@ def throw_data():
     for m in re.finditer(r'static const bthrow_t (\w+)_throws\[BT_COUNT\] = \{(.*?)\};\n', src):
         for t, (n, sp, name, ret) in zip(('throw_c', 'throw_d'), re.findall(r'\{(\d+), (\d+), (\w+), (\d+)', m.group(2))):
             imp = [i for i, r in enumerate(rows[name]) if r[4] & 4]
-            out[(m.group(1), t)] = dict(nrows=int(n), ret=int(ret), last=imp[-1] if imp else None)
+            pre = [i for i in imp if i < int(ret)]              # fighter.c last_impact: the last before the control return,
+            out[(m.group(1), t)] = dict(nrows=int(n), ret=int(ret), last=pre[-1] if pre else imp[-1] if imp else None)   # else the last
     return out
 
 def throw_run(b, start, key_throw, press=None, at=None, n=260, shots=None):

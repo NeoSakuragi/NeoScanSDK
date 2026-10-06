@@ -1,15 +1,15 @@
 {
  "20261006-194211-5d29": {
-  "title": "Terry: cancel the throw's last hit into the fury",
+  "title": "Terry: cancel the throw's blow into the fury",
   "setup": {
    "mode": "lab",
    "fighter": "terry",
    "dummy": "ryo",
    "gap": 40
   },
-  "do": "Walk into Ryo to grab him, then forward + A to throw. While Ryo flies, press D (the fury) or C (a special).",
-  "expect": "As Terry finishes the throw, the fury (or the special) starts at once and hits Ryo.",
-  "do_keys": "4:R,4:Ra,30:-,6:d",
+  "do": "Walk into Ryo to grab him, then forward + A to throw. Press D (the fury) or C (a special) during the throw, up to the kick that sends Ryo flying.",
+  "expect": "The moment Terry's kick lands, the fury (or the special) starts; Ryo flies on and lands on his own.",
+  "do_keys": "4:R,4:Ra,12:-,6:d",
   "proof": 70
  },
  "20261006-173012-5d29": {
@@ -135,7 +135,7 @@
    "gap": 40
   },
   "do": "Walk into Ryo to grab him, then forward + A to throw (back + A throws the other way).",
-  "expect": "Haohmaru grabs Ryo and throws him with his Samurai Shodown II throw; Ryo lands and gets up.",
+  "expect": "Haohmaru turns to face Ryo as he grabs him (Ryo behind him), as in Samurai Shodown II; his A hits in the hold strike Ryo; the throw sends Ryo over his head and Ryo lands in front.",
   "do_keys": "4:R,4:Ra",
   "proof": 110
  },
@@ -364,7 +364,7 @@
   "proof": 120
  },
  "20261006-175700-5d29": {
-  "title": "Rugal: the rush pins the victim against the wall",
+  "title": "Rugal: God Press into the fury after the wall slam",
   "setup": {
    "mode": "lab",
    "fighter": "rugal",
@@ -372,10 +372,10 @@
    "x": 150,
    "gap": 60
   },
-  "do": "Press forward + C (the rushing strike) with Terry between you and the right edge.",
-  "expect": "Rugal stops at the screen edge and Terry is pinned against the wall, visibly; nobody slides off the screen.",
-  "do_keys": "3:R,4:Rc",
-  "proof": 120
+  "do": "Press forward + C (the rushing strike) with Terry between you and the right edge; press D (the fury) any time after Rugal catches Terry.",
+  "expect": "Terry is pinned and slammed against the wall; as he comes off the wall, Rugal's fury starts at once.",
+  "do_keys": "3:R,4:Rc,20:R,4:Rd",
+  "proof": 150
  },
  "20261006-175740-5d29": {
   "title": "Rugal: no second Rugal in a taunt pose",

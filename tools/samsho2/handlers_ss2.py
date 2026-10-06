@@ -710,7 +710,7 @@ def throw(B, ch, name, key):
     for i, s in enumerate(tst): tl += [i] * (s['ticks'] + 1)
     tl += [tl[-1]]                                    # +$FA's frame: the routine ends the throw the next frame
     import export_ss2 as X
-    th_steps = X.anim_steps(B, ch, a)
+    th_steps = X.anim_steps(B, ch, a, mirror=True)       # the thrower turned on the steps SS2 draws mirrored
     timeline = [[th_steps[i]['frame'], 0, 0, 0] for i in tl]
     snd = [i for i, s in enumerate(tst) if any(c[0] == 'sound' for c in s['cmds'])]
     cut = snd[1]                                      # the cut: the step of its second sound (the first, $024: the grab)
@@ -759,7 +759,8 @@ def throw(B, ch, name, key):
     anim = {'slot': a, 'mode': 'hold', 'steps': th_steps}
     return {'slot': a, 'inputs': 'close + forward + ' + ('A+B' if key == 'throw_c' else 'D / C+D'), 'table': [], 'hold': False,
             'rom': True, 'timeline': timeline, 'victims': {name: rows}, 'impacts': sorted(set(impacts)),
-            'release': rel, 'land': land, 'ret': ret, 'anim': anim, 'ss2': {'anim': a, 'victim_action': sub}}
+            'release': rel, 'land': land, 'ret': ret, 'anim': anim, 'ss2': {'anim': a, 'victim_action': sub},
+            'turned': bool(tst[0]['flags'] & 0x8000)}         # the grab drawn turned: the victim behind him (export_bm hold_rows)
 
 def throws(B, ch, name):
     return {k: throw(B, ch, name, k) for k in THROWS[name]}
