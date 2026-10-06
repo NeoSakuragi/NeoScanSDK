@@ -16,11 +16,13 @@ import numpy as np
 from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..')); sys.path.insert(0, os.path.join(HERE, '..', '..', 'kof96'))
-sys.path += [os.path.join(HERE, '..', '..', 'samsho4'), os.path.join(HERE, '..', '..', 'whp')]
+sys.path += [os.path.join(HERE, '..', '..', d) for d in ('samsho4', 'whp', 'kizuna', 'doubledr')]
 from move_images import Rom, place, colours
 
 CANDIDATES = {'kof96': range(202, 240), 'kof98': range(336, 355), 'kof99': range(336, 355),
-              'samsho4': [*range(119, 127), *range(129, 150)], 'whp': [0, 1, *range(32, 64)]}   # SS4: intros, taunts, win poses (140 the sheathing; 127 / 128 only the sword: left out); WHP: $00 / $26 win + intro, $22 back view, the poses around them
+              'samsho4': [*range(119, 127), *range(129, 150)], 'whp': [0, 1, *range(32, 64)],   # SS4: intros, taunts, win poses (140 the sheathing; 127 / 128 only the sword: left out); WHP: $00 / $26 win + intro, $22 back view, the poses around them
+              'kizuna': [0x21, *range(0x34, 0x3A), 0x80, 0xA0],   # Kizuna (Kim's numbering): the taunt $21, $34-$39 ($37 the ROM's select pose), win $80, idle $A0
+              'doubledr': [0, *range(99, 110)]}   # Double Dragon: idle 0, the win poses (Billy 100, the transformed 99), the one-frame poses 101-109
 
 
 def sheet(pics, path, gap=4):
@@ -43,6 +45,14 @@ def _states(game, name, states):
     if game == 'whp':
         import export_whp
         return {a: n for a in states if (n := len(export_whp.drawn_steps(export_whp.CAST[name], a)))}
+    if game == 'kizuna':
+        import export_kz
+        export_kz.setup(name)
+        return {a: n for a in states if (n := len(export_kz.boxes_in_force(a)))}
+    if game == 'doubledr':
+        import dd
+        dd.load()
+        return {a: n for a in states if (n := len(dd.steps(__import__('export_dd').CAST[name], a)[1]))}
     import export96, rom96
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
     k98 = game in ('kof97', 'kof98', 'kof99')
@@ -58,13 +68,45 @@ def _states(game, name, states):
     return have
 
 
+def _c_data(tile_base, tiles):
+    """an exporter's tiles (128 bytes each, numbered from tile_base) -> the interleaved C data Rom.tile reads"""
+    return np.frombuffer(bytes(128 * tile_base) + b''.join(tiles), np.uint8).copy()
+
+
+def _held_kz(name, want):
+    """Kizuna: each wanted (animation, step) as export_kz's roster watch pose is built (its Builder, zoomed frames),
+    colour A -> ({anims: {key: {steps: [{frame}]}}, frames, block_palettes: [set 0]}, C data)"""
+    import export_kz as E
+    E.setup(name); B = E.Builder(); anims = {}
+    for key, (a, k) in want.items():
+        st = E.boxes_in_force(a); k = k if k >= 0 else len(st) - 1
+        anims[key] = {'steps': [{'frame': B.frame(st[k][0]['addr'])}]}
+    sets = [[[0] + E.rom_palette(E.SETS[0] + p - 16)[1:] for p in B.pals]]
+    return {'anims': anims, 'frames': B.frames, 'block_palettes': sets}, _c_data(E.TILE_BASE, B.tiles)
+
+
+def _held_dd(name, want):
+    """Double Dragon: each wanted (animation, step) as export_dd's roster watch pose is built, colour set A"""
+    import export_dd as E, dd
+    dd.load(); ch = E.CAST[name]; B = E.Builder(ch); pr = E.palram(); anims = {}
+    for key, (a, k) in want.items():
+        st = dd.steps(ch, a)[1]; k = k if k >= 0 else len(st) - 1
+        anims[key] = {'steps': [{'frame': B.frame(st[k]['def_'])}]}
+    slot = lambda key: E.BODY[ch][0] if key == 'body' else E.FORM_PAL[ch][0] if key == 'form' else key
+    sets = [[[0] + pr[16 * slot(key) + 1:16 * slot(key) + 16] for key in B.pals]]
+    return {'anims': anims, 'frames': B.frames, 'block_palettes': sets}, _c_data(E.TILE_BASE, B.tiles)
+
+
+HELD = {'kizuna': _held_kz, 'doubledr': _held_dd}
+
+
 def pose_candidates(roster, out, tmp):
     """roster: game.json's roster -> {fighter: {sheet, h, tiles: [{x, w, poses: [[state, step]...]}], current: tile}}"""
     import export96, export_ss4, export_whp
     os.makedirs(os.path.join(out, 'chars'), exist_ok=True)
     index = {}
     for r in roster:
-        game, name = r['bank'].split(':')
+        game, name = r['bank'].split(':'); rn = r['name']             # bank fighter (the exporter's), roster name (doubledr:billy = billy_lee)
         if game not in CANDIDATES: continue                       # no candidate list for this bank: no pose picker
         have = _states(game, name, CANDIDATES[game])
         cur = (r['watch']['frame'], r['watch']['step'])
@@ -72,13 +114,15 @@ def pose_candidates(roster, out, tmp):
         for st, n in have.items():
             want[f's{st}_0'] = (st, 0); want[f's{st}_-1'] = (st, -1)
         if cur[0] in have: want[f's{cur[0]}_{cur[1]}'] = cur        # a held step that is neither first nor last
-        if game == 'samsho4': ex = export_ss4.export([name], os.path.join(tmp, name), only=set(), extra={name: want})
-        elif game == 'whp': ex = export_whp.export([name], os.path.join(tmp, name), only=set(), extra={name: want})
-        else: ex = export96.export([name], os.path.join(tmp, name), game, only=set(), extra={name: want})
-        ch = ex['characters'][name]
-        c1 = np.frombuffer(open(os.path.join(tmp, name, 'kof95_c1.bin'), 'rb').read(), np.uint8)
-        c2 = np.frombuffer(open(os.path.join(tmp, name, 'kof95_c2.bin'), 'rb').read(), np.uint8)
-        cr = np.empty(len(c1) * 2, np.uint8); cr[0::2] = c1; cr[1::2] = c2
+        if game in HELD: ch, cr = HELD[game](name, want)               # Kizuna / DD: their exporters' builders directly
+        else:
+            if game == 'samsho4': ex = export_ss4.export([name], os.path.join(tmp, name), only=set(), extra={name: want})
+            elif game == 'whp': ex = export_whp.export([name], os.path.join(tmp, name), only=set(), extra={name: want})
+            else: ex = export96.export([name], os.path.join(tmp, name), game, only=set(), extra={name: want})
+            ch = ex['characters'][name]
+            c1 = np.frombuffer(open(os.path.join(tmp, name, 'kof95_c1.bin'), 'rb').read(), np.uint8)
+            c2 = np.frombuffer(open(os.path.join(tmp, name, 'kof95_c2.bin'), 'rb').read(), np.uint8)
+            cr = np.empty(len(c1) * 2, np.uint8); cr[0::2] = c1; cr[1::2] = c2
         rom = Rom.__new__(Rom); rom.c = cr                           # its tile decoder over the export's own C data
         pals = [w for p in ch['block_palettes'][0] for w in p]
         tiles, by_frame, pics = [], {}, []
@@ -94,13 +138,13 @@ def pose_candidates(roster, out, tmp):
                 continue
             res = place([(p['dx'], p['dy'], p['hflip'], p['vflip'], p.get('pal', 0), p['tiles']) for p in fr['parts']], rom.tile)
             if res is None: continue
-            by_frame[fi] = len(tiles); tiles.append({'poses': [pose], 'frame': fr['record']})
+            by_frame[fi] = len(tiles); tiles.append({'poses': [pose], 'frame': fr.get('record')})
             pics.append((len(tiles) - 1, colours(res[0], pals), res[1], res[2]))
-        idx, H = sheet(pics, os.path.join(out, 'chars', f'pose_{name}.png'))
+        idx, H = sheet(pics, os.path.join(out, 'chars', f'pose_{rn}.png'))
         for k, t in enumerate(tiles): t['x'], t['w'] = idx[k]
         norm = [cur[0], -1 if cur[0] in have and cur[1] in (-1, have[cur[0]] - 1) else cur[1]]
         curk = next((k for k, t in enumerate(tiles) if norm in t['poses']), None)
-        index[name] = {'sheet': f'chars/pose_{name}.png', 'h': H, 'tiles': tiles, 'current': curk, 'states': have}
+        index[rn] = {'sheet': f'chars/pose_{rn}.png', 'h': H, 'tiles': tiles, 'current': curk, 'states': have}
     return index
 
 

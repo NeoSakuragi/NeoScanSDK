@@ -80,19 +80,20 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
      *  null = no voice, or offline / the server failed */
     fun transcribe(): Pair<String, String>? {
         val a = audio() ?: return null
-        val u = url(ctx, "transcribe") ?: return null
-        return try {
-            val c = Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 5000; readTimeout = 60000; requestMethod = "POST"; doOutput = true
-                setFixedLengthStreamingMode(a.length())
-                setRequestProperty("Content-Type", "application/octet-stream"); setRequestProperty("X-Audio-Name", a.name)
-                setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
-                if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
-                outputStream.use { o -> a.inputStream().use { it.copyTo(o) } }
-            } }
-            if (c.responseCode != 200) { Log.w(TAG, "feedback: transcribe HTTP ${c.responseCode}"); null }
-            else JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }).let { txId = it.optString("tx_id"); it.getString("text") to it.optString("model") }
-        } catch (x: Exception) { Log.w(TAG, "feedback: transcribe ${x.message}"); null }
+        return transcribeFile(ctx, a)?.let { txId = it.third; it.first to it.second }
+    }
+
+    /** "Reply to a note" in the note box (0.0.17): the text and the voice (if any) go as a reply to note [id] instead
+     *  of a new note; the replay bundle is dropped. [done] gets null = sent, else the error (on that thread) */
+    fun replyTo(id: String, text: String, raw: String, done: (String?) -> Unit) {
+        val d = work ?: return; work = null
+        val a = d.listFiles()?.firstOrNull { it.name.startsWith("audio.") }
+        val tx = txId
+        Thread {
+            val r = reply(ctx, id, if (a != null) "voice" else "text", text, raw, tx, a)
+            d.deleteRecursively()
+            done(r.exceptionOrNull()?.message)
+        }.start()
     }
 
     private fun audio(): File? = work?.listFiles()?.firstOrNull { it.name.startsWith("audio.") }
@@ -128,7 +129,42 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
     /** Cancel: the bundle is dropped */
     fun cancel() { work?.deleteRecursively(); work = null }
 
-    private fun testAudio(): File? = ctx.getExternalFilesDir(null)?.listFiles()?.firstOrNull { it.name.startsWith("feedback_test_audio.") }
+    private fun testAudio(): File? = testAudio(ctx)
+
+    /** a voice reply's recording (the list's "Hold to talk", 0.0.17): the same AAC settings as a note's voice; the
+     *  test file replaces the microphone when present */
+    class VoiceRec(private val ctx: Context) {
+        private var rec: MediaRecorder? = null
+        private var t0 = 0L
+        var file: File? = null; private set
+        fun start(): Boolean {
+            stopQuiet(); t0 = android.os.SystemClock.uptimeMillis()
+            val f = File(ctx.cacheDir, "reply_audio.m4a").apply { delete() }
+            if (testAudio(ctx) != null) return true
+            return try {
+                rec = (if (Build.VERSION.SDK_INT >= 31) MediaRecorder(ctx) else @Suppress("DEPRECATION") MediaRecorder()).apply {
+                    setAudioSource(MediaRecorder.AudioSource.MIC)
+                    setOutputFormat(MediaRecorder.OutputFormat.MPEG_4); setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    setAudioSamplingRate(16000); setAudioChannels(1); setAudioEncodingBitRate(32000); setMaxDuration(180_000)
+                    setOutputFile(f.absolutePath); prepare(); start()
+                }; true
+            } catch (x: Exception) { Log.w(TAG, "reply: mic ${x.message}"); rec = null; false }
+        }
+        /** -> the voice file, or null (held under [MIN_MS], or no voice) */
+        fun stop(): File? {
+            val held = android.os.SystemClock.uptimeMillis() - t0
+            val r = rec; rec = null
+            val f = File(ctx.cacheDir, "reply_audio.m4a")
+            try { r?.stop() } catch (x: Exception) { f.delete() }
+            r?.release()
+            val t = testAudio(ctx)
+            file = if (held < MIN_MS) null else if (t != null) File(ctx.cacheDir, "reply_audio." + t.extension).also { t.copyTo(it, true) }
+                   else f.takeIf { it.exists() && it.length() > 0 }
+            return file
+        }
+        fun stopQuiet() { try { rec?.stop() } catch (x: Exception) { }; rec?.release(); rec = null }
+        fun clear() { stopQuiet(); file = null }
+    }
 
     private fun meta(id: String, held: Long): JSONObject {
         val p = ctx.getPackageManager().getPackageInfo(ctx.packageName, 0)
@@ -162,6 +198,75 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
 
         /** the upload URL: <ROM base>/../feedback/upload (canneji.duckdns.org/brawler/feedback/upload) */
         fun url(ctx: Context, what: String = "upload"): URL? = RomFetch.base(ctx)?.let { URL(URL(it), "../feedback/$what") }
+
+        /** a voice file transcribed by the server at once (blocking: off the UI thread) -> (text, model, tx_id);
+         *  null = offline / the server failed */
+        fun transcribeFile(ctx: Context, a: File): Triple<String, String, String>? {
+            val u = url(ctx, "transcribe") ?: return null
+            return try {
+                val c = Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5000; readTimeout = 60000; requestMethod = "POST"; doOutput = true
+                    setFixedLengthStreamingMode(a.length())
+                    setRequestProperty("Content-Type", "application/octet-stream"); setRequestProperty("X-Audio-Name", a.name)
+                    setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
+                    if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+                    outputStream.use { o -> a.inputStream().use { it.copyTo(o) } }
+                } }
+                if (c.responseCode != 200) { Log.w(TAG, "feedback: transcribe HTTP ${c.responseCode}"); null }
+                else JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }).let {
+                    Triple(it.getString("text"), it.optString("model"), it.optString("tx_id")) }
+            } catch (x: Exception) { Log.w(TAG, "feedback: transcribe ${x.message}"); null }
+        }
+
+        /** a reply to one of his notes (0.0.17, POST ../feedback/reply): [kind] voice | text | up (verified fixed) |
+         *  down (still broken: reopened); the voice goes along in base64. Blocking. -> the note's row, or the error */
+        fun reply(ctx: Context, id: String, kind: String, text: String, raw: String = "", tx: String = "", audio: File? = null): Result<JSONObject> {
+            val u = url(ctx, "reply") ?: return Result.failure(Exception("no server"))
+            val body = JSONObject().apply {
+                put("id", id); put("kind", kind); put("text", text); put("raw_transcript", raw); put("tx_id", tx)
+                put("device", "${Build.MANUFACTURER} ${Build.MODEL}"); put("android", "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
+                if (audio != null) { put("audio_name", audio.name); put("audio_b64", android.util.Base64.encodeToString(audio.readBytes(), android.util.Base64.NO_WRAP)) }
+            }.toString().toByteArray()
+            return try {
+                val c = Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5000; readTimeout = 30000; requestMethod = "POST"; doOutput = true
+                    setFixedLengthStreamingMode(body.size); setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
+                    if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+                    outputStream.use { it.write(body) }
+                } }
+                val code = c.responseCode
+                val txt = (if (code == 200) c.inputStream else c.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
+                if (code == 200) Result.success(JSONObject(txt).getJSONObject("row"))
+                else Result.failure(Exception("HTTP $code " + (try { JSONObject(txt).optString("error") } catch (x: Exception) { "" })))
+            } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+        }
+
+        /** his notes (GET ../feedback/mine): {user, rows: [... each with history + replies]}. Blocking. */
+        fun mine(ctx: Context): Result<JSONObject> = try {
+            val u = url(ctx, "mine")
+            val c = if (u == null) null else Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000; readTimeout = 20000
+                setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
+                if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+            } }
+            if (c == null) Result.failure(Exception("no server"))
+            else if (c.responseCode == 401) Result.failure(Exception("Not signed in: log out and in again (settings)"))
+            else if (c.responseCode != 200) Result.failure(Exception("The server answered HTTP ${c.responseCode}"))
+            else Result.success(JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }))
+        } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+
+        /** the filters of his list (0.0.17): open = not closed and not waiting for him; ready = shipped in a build
+         *  at or before the one he runs (he can test it) */
+        fun isOpen(r: JSONObject) = r.optString("status") !in setOf("shipped", "wont_do", "duplicate", "verified")
+        fun isReady(r: JSONObject, running: String) = r.optString("status") == "shipped" && versionLE(r.optString("release"), running)
+        fun versionLE(a: String, b: String): Boolean {
+            val x = a.split('.').map { it.toIntOrNull() ?: return false }; val y = b.split('.').map { it.toIntOrNull() ?: return false }
+            for (i in 0 until maxOf(x.size, y.size)) { val p = x.getOrElse(i) { 0 }; val q = y.getOrElse(i) { 0 }; if (p != q) return p < q }
+            return true
+        }
+
+        fun testAudio(ctx: Context): File? = ctx.getExternalFilesDir(null)?.listFiles()?.firstOrNull { it.name.startsWith("feedback_test_audio.") }
 
         /** send every queued bundle (blocking; off the UI thread); true when the queue is empty afterwards */
         @Synchronized fun flush(ctx: Context): Boolean {
@@ -202,6 +307,12 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
                 md.digest().joinToString("") { "%02x".format(it) }
             }.also { synchronized(shas) { shas[k] = it } }
         }
+
+        /** a server time (UTC ISO) in the device's time zone, "yyyy-MM-dd HH:mm" */
+        fun local(iso: String): String = try {
+            val p = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(p.parse(iso)!!)
+        } catch (x: Exception) { iso.take(16).replace('T', ' ') }
 
         private fun iso(t: Long) = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date(t))
     }

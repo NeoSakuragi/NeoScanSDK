@@ -12,7 +12,8 @@ pads from W to the press P) + snap_<f>.state checkpoints + press.state + screen.
 server's transcript.txt). The replay loads the same ROM (by sha256: cache, the repo build, /data/roms, else the VPS
 builds), unserializes W, feeds the inputs frame by frame and checks every checkpoint and the press state byte for byte
 (determinism) and the last picture against screen.png; then a contact sheet + a clip of the last seconds and
-report.md. One line per bundle on stdout."""
+report.md (with the player's reply thread, Player 0.0.17). One line per bundle on stdout, reopened notes first, and
+/data/feedback/report.md: every note in the tracker with its thread, the reopened ones first."""
 import ctypes as C, glob, hashlib, json, os, struct, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -210,6 +211,9 @@ def report(d, row=None):
     if row: L += [f"Status: {row['status']}" + (f" (release {row['release']})" if row['release'] else '') +
                   (f", category {row['category']}" if row['category'] else '') + (f", fighters {row['fighters']}" if row['fighters'] else ''), '']
     L += ['## Note (as sent)', '', final or '(none typed)', '', '## Transcript (raw)', '', tx, '']
+    if row and row.get('replies'):
+        L += ['## Thread (his replies)', ''] + ['- ' + t.strip() for t in fb.thread(row['replies'], '')] + ['']
+        L += [f"  voice: {os.path.join(d, x['audio_path'])}" for x in row['replies'] if x.get('audio_path')] + ['']
     if tj: L += [f"_({tj.get('model')}, {tj.get('seconds')} s)_", '']
     elif meta.get('transcript_model'): L += [f"_({meta['transcript_model']}, in the player)_", '']
     L += ['## Versions', '', '| | |', '|---|---|',
@@ -249,6 +253,8 @@ def main():
     except Exception as e: print('tracker:', e)
     dirs = sorted(p for p in glob.glob(os.path.join(OUT, '*')) if os.path.exists(os.path.join(p, 'meta.json')))
     built = False
+    order = {'reopened': 0}                                 # reopened notes first
+    dirs.sort(key=lambda d: order.get((rows.get(os.path.basename(d)) or {}).get('status'), 1))
     for d in dirs:
         rep = os.path.join(d, 'report.md')
         newest = max(os.path.getmtime(os.path.join(d, f)) for f in os.listdir(d) if f not in ('report.md', 'replay.json', 'sheet.png', 'clip.gif'))
@@ -257,6 +263,22 @@ def main():
             if not built: build_core(); built = True
             subprocess.run([sys.executable, os.path.abspath(__file__), '--replay', d])
         print(report(d, rows.get(os.path.basename(d))))
+    if rows: overview(rows)
+
+
+def overview(rows):
+    """/data/feedback/report.md: every note with its status and thread, reopened first, then shipped (to verify), open,
+    and the closed ones (verified, won't do, duplicate)"""
+    rank = lambda r: {'reopened': 0, 'shipped': 1, 'verified': 3, 'wont_do': 3, 'duplicate': 3}.get(r['status'], 2)
+    L = ['# Feedback overview', '', f'{len(rows)} notes; reopened first. Per note: /data/feedback/<id>/report.md', '']
+    head = {0: 'Reopened (still broken)', 1: 'Shipped, to verify', 2: 'Open', 3: 'Closed (verified / won\'t do / duplicate)'}
+    last = None
+    for r in sorted(rows.values(), key=lambda r: (rank(r), r['created'])):
+        if rank(r) != last: L += ([''] if last is not None else []) + [f'## {head[rank(r)]}', '']; last = rank(r)
+        L.append('- ' + fb.line(r))
+        L += ['  ' + t for t in fb.thread(r.get('replies'), '  ')]
+    open(os.path.join(OUT, 'report.md'), 'w').write('\n'.join(L) + '\n')
+    print('overview:', os.path.join(OUT, 'report.md'), f"({sum(r['status'] == 'reopened' for r in rows.values())} reopened)")
 
 
 if __name__ == '__main__':

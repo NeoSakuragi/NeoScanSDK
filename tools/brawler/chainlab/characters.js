@@ -17,6 +17,7 @@
   };
   const clone = x => JSON.parse(JSON.stringify(x));
   const up = n => n.toUpperCase().replace(/_/g, ' ');
+  const disp = r => r.display || up(r.name);                 // game.json roster[].display (BILLY LEE, SUPERBILLY), else the name
   const ROLES = [['D', 'C', 'projectile'], ['fD', '→C (forward C)', 'rush'], ['dD', '↓C (down C)', 'rising reversal (invincible)'], ['uD', '↑C (up C)', 'another special'],
     ['dfD', '↘C (down-forward C)', 'a second projectile / an anti-air / a command move'], ['ufD', '↗C (up-forward C)', 'an anti-air / a projectile / a command move']];   // 0.0.64: C + the stick picks the slot (keys D .. ufD: the old names)
 
@@ -83,6 +84,7 @@
   // ---- labels ---------------------------------------------------------------------------------------------------------
   function stateName(game, st) {
     if (game === 'kof96') return `state ${st}`;
+    if (game !== 'kof98' && game !== 'kof99') return game === 'kizuna' || game === 'whp' ? `anim $${st.toString(16).toUpperCase().padStart(2, '0')}` : `anim ${st}`;   // SS4 / WHP / Kizuna / DD: the bank's animation numbers
     if (st >= 336 && st <= 343) return `win pose (${st})`;
     if (st === 347) return `walk-in (${st})`;
     if (st === 348) return `intro (${st})`;
@@ -110,28 +112,31 @@
   function render() {
     if (window.labTabName !== 'chars') return;
     const r = roster[ci], o = ORIG[ci], game = r.bank.split(':')[0], name = r.name;
-    const list = h('div', { id: 'chList' }, order.filter(([s]) => s.fighter).map(([s, k]) => {
-      const i = NAMES.indexOf(s.fighter), rr = roster[i], ed = JSON.stringify(rr) !== JSON.stringify(ORIG[i]);
-      return h('button', { class: i === ci ? 'on' : '', onclick: () => { ci = i; render(); }, title: `select slot ${k + 1}` },
-        face(i), h('span', {}, h('b', {}, `${k + 1}. ${up(rr.name)}${ed ? ' ●' : ''}`), h('br'), `${rr.bank} · ${rr.unlock === 'always' ? 'always' : 'boss ' + rr.unlock.boss_of_stage}`));
+    const btn = (i, label, sub, title) => { const rr = roster[i], ed = JSON.stringify(rr) !== JSON.stringify(ORIG[i]);
+      return h('button', { class: i === ci ? 'on' : '', onclick: () => { ci = i; render(); }, title }, face(i), h('span', {}, h('b', {}, `${label}${ed ? ' ●' : ''}`), h('br'), sub)); };
+    const list = h('div', { id: 'chList' }, order.filter(([s]) => s.fighter).flatMap(([s, k]) => {
+      const i = NAMES.indexOf(s.fighter), rr = roster[i], f = ORIG[i].form, fi = f ? NAMES.indexOf(f.target) : -1;
+      return [btn(i, `${k + 1}. ${disp(rr)}`, `${rr.bank} · ${rr.unlock === 'always' ? 'always' : 'boss ' + rr.unlock.boss_of_stage}`, `select slot ${k + 1}`),
+        fi >= 0 ? btn(fi, `↳ ${disp(roster[fi])} (form)`, `${roster[fi].bank} · ${f.trigger}`, `${disp(rr)}'s form (not on the select screen)`) : null];   // a form: under its fighter
     }));
     // fighter head + unlock + colour sets
     const S = X.sets[name];
     const unlockSel = h('select', { onchange: e => { r.unlock = e.target.value === '0' ? 'always' : { boss_of_stage: Number(e.target.value) }; edited(); } },
       [h('option', { value: 0 }, 'always playable'), ...Array.from({ length: X.stages }, (_, s) => h('option', { value: s + 1 }, `beat stage ${s + 1}'s boss (${X.boss_of[s]})`))]);
     unlockSel.value = r.unlock === 'always' ? 0 : r.unlock.boss_of_stage;
-    const head = h('div', { class: 'box' }, h('h2', {}, face(ci), h('span', {}, `${up(name)}`), h('span', { class: 'note' }, `bank ${r.bank} · roster ${ci + 1} of ${roster.length}`), h('span', { class: 'sp' }),
+    const head = h('div', { class: 'box' }, h('h2', {}, face(ci), h('span', {}, disp(r)), h('span', { class: 'note' }, `bank ${r.bank} · roster ${ci + 1} of ${roster.length}` +
+          (o.selectable === false ? ` · a form of ${disp(roster.find(x => x.form && x.form.target === name) || { name: '?' })}, not on the select screen` : '')), h('span', { class: 'sp' }),
         h('button', { onclick: () => { roster[ci] = clone(ORIG[ci]); edited(); } }, 'Reset this fighter')),
       h('div', { class: 'in' },
         h('div', { class: 'stg' }, h('label', {}, 'Unlock ', unlockSel), JSON.stringify(r.unlock) !== JSON.stringify(o.unlock) ? h('span', { class: 'ok' }, 'NEEDS A BUILD (ROM table)') : h('span', { class: 'note' }, unlockText(r.unlock))),
         h('div', { class: 'note', style: 'margin-top:8px' }, 'Colour sets (the select pose in each):'),
         h('div', { class: 'prev' }, S.sets.map(([x, w], s) => h('figure', {}, pic(S, x, w, S.h), h('figcaption', {}, `set ${s}`))))));
     // select pose picker
-    const P = X.poses[name], romTile = P.current;
+    const P = X.poses[name] || { tiles: [], current: null, states: {}, h: 0 }, romTile = P.current;   // no candidate list for the bank: no tiles
     const cur = P.tiles.findIndex(t => t.poses.some(([st, sp]) => st === r.watch.frame && (sp === r.watch.step || (sp === -1 && P.states[st] - 1 === r.watch.step))));
     const poseBox = h('div', { class: 'box' }, h('h2', {}, 'Select pose', h('span', { class: 'note' }, 'tap the frame this fighter holds on the select screen'), h('span', { class: 'sp' }),
         samePose(r.watch, o.watch) ? h('span', { class: 'note' }, 'the ROM\'s pose') : h('span', { class: 'ok' }, 'NEEDS A BUILD: export, then make')),
-      h('div', { class: 'in' }, h('div', { class: 'poses' }, P.tiles.map((t, k) => h('button', {
+      h('div', { class: 'in' }, X.poses[name] ? null : h('div', { class: 'note' }, `no pose candidates for the ${game} bank`), h('div', { class: 'poses' }, P.tiles.map((t, k) => h('button', {
         class: 'pose' + (k === cur ? ' cur' : '') + (k === romTile && k !== cur ? ' rom' : ''), 'aria-pressed': k === cur ? 'true' : 'false',
         onclick: () => { if (k === cur) return; const [st, sp] = k === romTile ? [o.watch.frame, o.watch.step] : t.poses[0]; r.watch = { frame: st, step: sp }; edited(); } },
         pic(P, t.x, t.w, P.h),
@@ -155,7 +160,7 @@
         h('div', { class: 'row' }, h('label', {}, 'Dummy ', (() => { const s = h('select', { onchange: e => { dummy = Number(e.target.value); } }); NAMES.forEach((n, i) => s.add(new Option(up(n), i))); s.value = dummy; return s; })()),
           h('button', { onclick: test }, 'Test on the dummy'), h('span', { id: 'chMsg', class: 'note' }, note))));
     // voices
-    const vd = VO[name], own = vd && { samsho4: 'SS4', whp: 'WHP' }[vd.game] || 'KOF', vbox = vd ? (() => {
+    const vd = VO[name], own = vd && { samsho4: 'SS4', whp: 'WHP', kizuna: 'Kizuna', doubledr: 'DD' }[vd.game] || 'KOF', vbox = vd ? (() => {
       const mp = vmapping(r.voices, vd.suggest), rom = vd.map, inrom = new Set(vd.inrom), byId = {};
       vd.list.forEach(v => { byId[v.id] = v; });
       const vlabel = id => { const v = byId[id]; return v ? `${id}. ${v.cmd} · ${(v.ms / 1000).toFixed(2)} s · ${v.what}` : 'none'; };

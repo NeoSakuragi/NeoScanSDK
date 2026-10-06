@@ -11,7 +11,13 @@ checks the token again with Oros's /api/whoami, so it knows the user; no token =
                      player sent no transcript
   GET  /dlauth       nginx's auth_request for /brawler/download/ (the token, or a pre-0.0.15 player in the transition)
   GET  /mine         the user's notes, newest first, each with its status history and its files (the player's list)
-  GET  /mine/file/<id>/<name>   a file of one of the user's notes (screen_marked.png, audio.m4a ...)
+  GET  /mine/file/<id>/<name>   a file of one of the user's notes (screen_marked.png, audio.m4a, reply_<n>.m4a ...)
+  POST /reply        (Player 0.0.17) a reply to one of the user's notes, JSON {id, kind, text, raw_transcript?, tx_id?,
+                     audio_b64?, audio_name?, device?, android?}: kind voice (its audio, transcribed by /transcribe
+                     first and edited) | text | up (thumbs up: status verified) | down (thumbs down: status reopened,
+                     with an optional text / voice); stored in the replies table with its origin, the status change
+                     in status_history -> {"reply", "row"}. Every row of /mine, /api/list and /api/item carries its
+                     thread ("replies", oldest first).
   Notes sent before the login (no user) are claimed by the first account that calls from the same install id.
 Signed in (nginx /brawler-lab/feedback-api/ behind the Oros login, the Brawler Lab's Feedback tab; or over ssh on
 localhost: tools/feedback/fb.py, pull.py):
@@ -27,7 +33,7 @@ Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for w
 PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
 linked to its note (the player sends the tx_id it got back; cancelled notes' transcriptions stay unlinked but count
 in the total). Notes from before the cost log: estimated from the audio's duration (source 'duration').
-Tracker: DATA/feedback.db (SQLite; feedback + status_history + transcriptions), copied daily to DATA/backups/ (kept 14), mirrored to
+Tracker: DATA/feedback.db (SQLite; feedback + status_history + transcriptions + replies), copied daily to DATA/backups/ (kept 14), mirrored to
 the desktop by pull.py. The OpenAI key is read from KEY_FILE at each call; never logged, never stored."""
 import http.server, io, json, mimetypes, os, queue, re, secrets, socketserver, sqlite3, threading, time
 import urllib.error, urllib.parse, urllib.request, uuid, zipfile
@@ -47,7 +53,9 @@ def old_player(v):
 MODELS = ('gpt-4o-mini-transcribe', 'whisper-1')         # the first that answers
 PROMPT = ('Neo Geo brawler game feedback, in English or French. Terms: Terry, Geese, Ryo, Ryuko Ranbu, Kim, Phoenix, '
           'Hanzo, Billy, fury, MAX, grab, throw, hold hits, Chain Lab, brawler, hitbox, combo, special, desperation.')
-STATUSES = ('new', 'read', 'in_progress', 'shipped', 'wont_do', 'duplicate')
+STATUSES = ('new', 'read', 'in_progress', 'shipped', 'wont_do', 'duplicate', 'verified', 'reopened')
+REPLY_KINDS = ('voice', 'text', 'up', 'down')            # up = verified fixed, down = still broken (reopened)
+MAX_REPLY = 12 << 20                                     # the JSON with the voice in base64 (MAX_AUDIO * 4 / 3)
 CATEGORIES = ('', 'sound', 'graphics', 'gameplay', 'integration', 'scripting', 'other')
 MAX_BODY = 32 << 20
 MAX_AUDIO = 8 << 20
@@ -88,7 +96,12 @@ def db_init():
             tx_id TEXT PRIMARY KEY, at TEXT, feedback_id TEXT DEFAULT '', model TEXT, audio_seconds REAL,
             input_text_tokens INTEGER, input_audio_tokens INTEGER, output_tokens INTEGER, usage_json TEXT,
             cost_usd REAL, cost_source TEXT, prices_checked TEXT, by TEXT);
-        CREATE INDEX IF NOT EXISTS transcriptions_fb ON transcriptions(feedback_id);''')
+        CREATE INDEX IF NOT EXISTS transcriptions_fb ON transcriptions(feedback_id);
+        CREATE TABLE IF NOT EXISTS replies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id TEXT, at TEXT, user TEXT, kind TEXT, text TEXT DEFAULT '',
+            raw_transcript TEXT DEFAULT '', audio_path TEXT DEFAULT '', status_from TEXT DEFAULT '', status_to TEXT DEFAULT '',
+            apk_version TEXT, install_id TEXT, device TEXT, android TEXT, ip TEXT, user_agent TEXT);
+        CREATE INDEX IF NOT EXISTS replies_fb ON replies(feedback_id);''')
         cols = {r[1] for r in c.execute('PRAGMA table_info(feedback)')}
         for col in ('user', 'install_id', 'marked'):                  # 0.0.15: the account, its install, a scribble
             if col not in cols: c.execute(f"ALTER TABLE feedback ADD COLUMN {col} TEXT DEFAULT ''")
@@ -333,6 +346,11 @@ def claim(user, install):
 def row_dict(r): return {k: r[k] for k in r.keys()}
 
 
+def replies(c, fid):
+    """a note's thread, oldest first"""
+    return [row_dict(x) for x in c.execute('SELECT * FROM replies WHERE feedback_id=? ORDER BY id', (fid,))]
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, obj=None, body=None, ctype='application/json'):
         b = body if body is not None else (json.dumps(obj, ensure_ascii=False) + '\n').encode()
@@ -365,6 +383,7 @@ class H(http.server.BaseHTTPRequestHandler):
                     if q.get(k): conds.append(f'{k}=?'); args.append(q[k][0])
                 if conds: sql += ' WHERE ' + ' AND '.join(conds)
                 rows = [row_dict(r) for r in c.execute(sql + ' ORDER BY created DESC', args)]
+                for r in rows: r['replies'] = replies(c, r['id'])
                 tot = c.execute("SELECT COUNT(*) n, ROUND(SUM(cost_usd), 6) usd, ROUND(SUM(CASE WHEN feedback_id != '' THEN cost_usd ELSE 0 END), 6) linked, "
                                 "ROUND(SUM(audio_seconds), 1) secs FROM transcriptions").fetchone()
                 return self.reply(200, {'rows': rows, 'statuses': STATUSES, 'categories': CATEGORIES[1:], 'user': account(self.headers),
@@ -376,7 +395,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 hist = [row_dict(h) for h in c.execute('SELECT * FROM status_history WHERE feedback_id=? ORDER BY at', (parts[1],))]
                 txs = [row_dict(t) for t in c.execute('SELECT * FROM transcriptions WHERE feedback_id=? ORDER BY at', (parts[1],))]
                 d = os.path.join(BUNDLES, parts[1])
-                return self.reply(200, {'row': row_dict(r), 'history': hist, 'transcriptions': txs, 'files': sorted(os.listdir(d)) if os.path.isdir(d) else []})
+                return self.reply(200, {'row': row_dict(r), 'history': hist, 'transcriptions': txs, 'replies': replies(c, parts[1]), 'files': sorted(os.listdir(d)) if os.path.isdir(d) else []})
         if len(parts) == 2 and parts[0] == 'rom' and SHA.match(parts[1]):
             p = os.path.join(ROMS, parts[1] + '.neo.gz')
             if not os.path.exists(p): return self.reply(404, {'error': 'build not archived'})
@@ -470,6 +489,8 @@ class H(http.server.BaseHTTPRequestHandler):
                     r['history'] = [row_dict(h) for h in c.execute('SELECT at, from_status, to_status, by, note FROM status_history '
                                                                    'WHERE feedback_id=? ORDER BY at', (r['id'],))]
                     d = os.path.join(BUNDLES, r['id'])
+                    r['replies'] = [{k: x[k] for k in ('id', 'at', 'kind', 'text', 'audio_path', 'status_from', 'status_to', 'device', 'apk_version')}
+                                    for x in replies(c, r['id'])]
                     r['screen'] = 'screen_marked.png' if os.path.exists(os.path.join(d, 'screen_marked.png')) else 'screen.png' if os.path.exists(os.path.join(d, 'screen.png')) else ''
                 return self.reply(200, {'user': user, 'rows': rows})
             if len(parts) == 3 and parts[0] == 'file' and ID.match(parts[1]) and NAME.match(parts[2]) and not parts[2].endswith('.state'):
@@ -483,6 +504,7 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/transcribe': return self.transcribe()
         if self.path == '/upload': return self.upload()
+        if self.path == '/reply': return self.post_reply()
         if not self.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         if self.path == '/api/status': return self.change(self.set_status)
         if self.path == '/api/set': return self.change(self.set_fields)
@@ -553,6 +575,54 @@ class H(http.server.BaseHTTPRequestHandler):
         jobs.put('rom:' + meta.get('rom_sha256', ''))
         log('bundle', bid, user, len(body), 'bytes', meta.get('device'), meta.get('app_version'), 'text' if meta.get('final_text') else 'no text')
         self.reply(200, {'id': bid})
+
+    def post_reply(self):
+        """a reply to one of the signed-in user's notes (no legacy access: Player 0.0.17+)"""
+        import base64
+        user = self.player()
+        if not user: return
+        b = self.body(MAX_REPLY)
+        if b is None: return self.reply(413, {'error': 'size'})
+        try: req = json.loads(b)
+        except ValueError: return self.reply(400, {'error': 'json'})
+        fid, kind = req.get('id', ''), req.get('kind', '')
+        text = str(req.get('text') or '').strip()[:4000]
+        if not ID.match(fid) or kind not in REPLY_KINDS: return self.reply(400, {'error': 'id + kind (' + ', '.join(REPLY_KINDS) + ')'})
+        try: audio = base64.b64decode(req['audio_b64'], validate=True) if req.get('audio_b64') else b''
+        except ValueError: return self.reply(400, {'error': 'audio_b64'})
+        if len(audio) > MAX_AUDIO: return self.reply(413, {'error': 'size'})
+        if kind == 'voice' and not audio: return self.reply(400, {'error': 'a voice reply needs its audio'})
+        if kind == 'text' and not text: return self.reply(400, {'error': 'an empty reply'})
+        ext = (req.get('audio_name') or 'a.m4a').rsplit('.', 1)[-1]
+        if ext not in ('m4a', 'wav', 'mp3', 'ogg'): ext = 'm4a'
+        w = self.who(user)
+        with lock, db() as c:
+            r = c.execute('SELECT * FROM feedback WHERE id=? AND user=?', (fid, user)).fetchone()
+            if not r: return self.reply(404, {'error': 'no such note of yours'})
+            to = {'up': 'verified', 'down': 'reopened'}.get(kind, '')
+            cur = c.execute('INSERT INTO replies (feedback_id, at, user, kind, text, raw_transcript, status_from, status_to, apk_version, '
+                            'install_id, device, android, ip, user_agent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                            (fid, now(), user, kind, text, str(req.get('raw_transcript') or '')[:4000], r['status'] if to else '', to,
+                             self.headers.get('X-App-Version'), w['install_id'], str(req.get('device') or '')[:80] or None,
+                             str(req.get('android') or '')[:40] or None, w['ip'], w['user_agent']))
+            rid = cur.lastrowid
+            if audio:
+                name = f'reply_{rid}.{ext}'
+                with open(os.path.join(BUNDLES, fid, name), 'wb') as f: f.write(audio)
+                c.execute('UPDATE replies SET audio_path=? WHERE id=?', (name, rid))
+            if to:
+                c.execute('UPDATE feedback SET status=?, updated=? WHERE id=?', (to, now(), fid))
+                c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (fid, now(), r['status'], to, user,
+                          ('thumbs up: verified fixed' if kind == 'up' else 'thumbs down: still broken') + (': ' + text if text else '')))
+            else:
+                c.execute('UPDATE feedback SET updated=? WHERE id=?', (now(), fid))
+            tx = req.get('tx_id', '')
+            if tx and re.match(r'^[0-9a-f]{16}$', tx):
+                c.execute("UPDATE transcriptions SET feedback_id=? WHERE tx_id=? AND feedback_id=''", (fid, tx))
+            out = {'reply': row_dict(c.execute('SELECT * FROM replies WHERE id=?', (rid,)).fetchone()),
+                   'row': row_dict(c.execute('SELECT * FROM feedback WHERE id=?', (fid,)).fetchone())}
+        log('reply', fid, rid, user, kind, (r['status'] + ' -> ' + to) if to else '', len(audio), 'bytes audio', len(text), 'chars')
+        self.reply(200, out)
 
     def log_message(self, fmt, *a): pass
 

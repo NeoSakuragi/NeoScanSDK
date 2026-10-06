@@ -222,6 +222,7 @@ class MainActivity : Activity() {
             // the buttons share the line above the box: the keyboard (pan mode) never hides them
             val row = android.widget.LinearLayout(this@MainActivity).apply { orientation = android.widget.LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             row.addView(info, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(android.widget.Button(this@MainActivity).apply { text = "Reply to..."; isAllCaps = false; setOnClickListener { pickNote() } })
             row.addView(android.widget.Button(this@MainActivity).apply { text = "Cancel"; setOnClickListener { feedback.cancel(); close() } })
             row.addView(android.widget.Button(this@MainActivity).apply { text = "Send"; setOnClickListener {
                 feedback.send(edit.text.toString().trim(), raw, model, failed, ArrayList(ink.strokes)) { sent -> runOnUiThread { toast(if (sent) "Feedback sent" else "Queued") } }
@@ -236,6 +237,32 @@ class MainActivity : Activity() {
                         if (edit.text.isEmpty()) { edit.setText(r.first); edit.setSelection(edit.text.length) }
                         info.text = "Correct or add to it, then Send"
                     } else { failed = true; info.text = "Transcription unavailable: your voice goes with the bundle"; edit.hint = "Type a note (optional)" }
+                }
+            }.start()
+        }
+
+        /** 0.0.17: this voice / text goes as a reply to one of his notes (open, or shipped in the build he runs) instead
+         *  of a new note; the replay and the drawing are dropped */
+        private fun pickNote() {
+            val running = RomFetch.installed(this@MainActivity)
+            Thread {
+                val r = Feedback.mine(this@MainActivity)
+                runOnUiThread {
+                    r.onFailure { toast("Your notes are unavailable: ${it.message}") }
+                    r.onSuccess { j ->
+                        val all = j.getJSONArray("rows")
+                        val notes = (0 until all.length()).map { all.getJSONObject(it) }.filter { Feedback.isOpen(it) || Feedback.isReady(it, running) }
+                        if (notes.isEmpty()) { toast("No open notes to reply to"); return@onSuccess }
+                        val labels = notes.map { n -> Feedback.local(n.optString("created")) + "  " +
+                            (if (n.optString("status") == "shipped") "SHIPPED " + n.optString("release") else n.optString("status").uppercase()) + "\n" +
+                            n.optString("final_text").ifEmpty { n.optString("raw_transcript") }.take(90) }
+                        android.app.AlertDialog.Builder(this@MainActivity).setTitle("Reply to which note?")
+                            .setItems(labels.toTypedArray()) { _, i ->
+                                feedback.replyTo(notes[i].optString("id"), edit.text.toString().trim(), raw) { err ->
+                                    runOnUiThread { toast(if (err == null) "Reply sent" else "Reply not sent: $err") } }
+                                close()
+                            }.setNegativeButton("Back", null).show()
+                    }
                 }
             }.start()
         }

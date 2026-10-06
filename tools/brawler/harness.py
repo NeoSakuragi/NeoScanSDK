@@ -11,14 +11,16 @@ write the 68000 work RAM between frames, place fighters, force states, press but
     print(b.hits)                     # (frame, victim, hp lost, victim state) for every hit so far
 
 Fighter fields and their offsets come from the compiler (offsetof on fighter.h, emitted into assembly), symbol
-addresses from build/rom.elf, so the harness follows the struct when it changes. The core is the same .so our
-emulator loads (~/.config/retroarch/cores/geolith_libretro.so); saves go to a fresh scratch dir per instance
+addresses from build/rom.elf, so the harness follows the struct when it changes. The core is the repo's Geolith build
+(geolith/libretro/geolith_libretro.so, the one the feedback replays use; BRAWLER_CORE overrides): its save states (v3,
+geolith fa094e0) carry the 68000's pending cycles and the YM2610 pacing. The installed retroarch core predates that:
+a state loaded right after power-on and the same state loaded after any frame played differently (TODO #165). Saves go to a fresh scratch dir per instance
 (WORK/save_*, removed at exit), never the user's."""
 import ctypes as C, os, re, struct, subprocess, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
-CORE = os.path.expanduser('~/.config/retroarch/cores/geolith_libretro.so')
+CORE = os.environ.get('BRAWLER_CORE') or os.path.normpath(os.path.join(HERE, '..', '..', 'geolith', 'libretro', 'geolith_libretro.so'))
 SYSDIR = os.path.expanduser('~/.config/retroarch/system')
 WORK = '/data/tmp/harness'                      # save dir (NVRAM, memory card) and the cached fight-start state
 RAM_BASE = 0x100000
@@ -104,6 +106,7 @@ class Brawler:
         self.ram = (C.c_uint8 * n).from_address(core.retro_get_memory_data(2))   # live: writes land in the 68000's RAM
         self.core = core
         self.base = self.syms['fighters']
+        self._pin_clock()
 
     # libretro callbacks
     def _env(self, cmd, data):
@@ -129,6 +132,24 @@ class Brawler:
         self.core.retro_unload_game()
         if not self.core.retro_load_game(C.byref(GameInfo(self.rom.encode(), None, 0, None))): raise RuntimeError('reload failed')
         self.ram = (C.c_uint8 * self.core.retro_get_memory_size(2)).from_address(self.core.retro_get_memory_data(2))
+        self._pin_clock()
+
+    CLOCK = (26, 1, 4, 1, 0, 0, 0)                    # 2026-01-01 (a Thursday) 00:00:00: year % 100, month, weekday, day, h, m, s
+    def _pin_clock(self):
+        """the MVS calendar chip (uPD4990) starts at the host's wall clock when the core loads the game (geo_rtc_init);
+        the BIOS reads it every frame (SYSTEM_IO) and leaves it on the stack, where the game's code reads it back (a
+        fight state made at another minute played differently: TODO #165). Pinned to CLOCK at every power-on, through
+        the save state (geo_rtc_state_save: 7 big-endian words year, month, weekday, day, hour, minute, second)"""
+        import time
+        blob = bytearray(self.save())
+        for dt in (0, -1, -2):                      # the core read the clock a moment ago (a second / minute may have turned)
+            t = time.localtime(time.time() + dt)
+            key = struct.pack('>4I', t.tm_year % 100, t.tm_mon, (t.tm_wday + 1) % 7, t.tm_mday)   # C: Sunday = 0
+            at = [m.start() for m in re.finditer(re.escape(key), bytes(blob))]
+            if len(at) == 1: break
+        else: raise RuntimeError('calendar not found in the save state (geo_rtc_state_save layout changed?)')
+        blob[at[0]:at[0] + 28] = struct.pack('>7I', *self.CLOCK)
+        self.load(bytes(blob))
 
     # frames
     _want_video = False
@@ -193,9 +214,11 @@ class Brawler:
         a = self.syms['in'] + i * self.syms['sizeof_intent']
         for off, v in ((0, dx), (1, dz), (2, press), (4, face)): self.w(a + off, 1, v)
     def _rom_id(self):
-        """a stable id of the ROM build (Python's hash() of bytes changes per process: the cache never hit)"""
+        """a stable id of the ROM build + the core (Python's hash() of bytes changes per process: the cache never hit; a
+        state cached by another core build or another pinned clock must not be loaded: #165)"""
         import zlib
-        return zlib.crc32(open(self.rom, 'rb').read())
+        if not hasattr(Brawler, '_core_crc'): Brawler._core_crc = zlib.crc32(open(CORE, 'rb').read() + repr(Brawler.CLOCK).encode())
+        return zlib.crc32(open(self.rom, 'rb').read()) ^ Brawler._core_crc
     def unlock_all(self):
         """campaign builds: every boss on the select screen (save.unlocked poked after the title loaded the save; the
         sum is not updated, so it lasts until the next power-on)"""

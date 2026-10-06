@@ -26,11 +26,12 @@ class Rom:
         c1 = np.frombuffer(open(os.path.join(build, 'bm_c1.bin'), 'rb').read(), np.uint8)
         c2 = np.frombuffer(open(os.path.join(build, 'bm_c2.bin'), 'rb').read(), np.uint8)
         self.c = np.empty(len(c1) * 2, np.uint8); self.c[0::2] = c1; self.c[1::2] = c2
-        # per fighter its bchar_t numbers: [0] npal, [1] nsets (tile_hi: self.tile_hi)
-        self.chars = {m.group(1).lower(): _nums(m.group(2)) for m in re.finditer(r'\{"(\w+)", ([^\n]*?)\},\n', self.src)}
+        # per fighter (keyed by its table prefix `<name>_pals`, the roster name: the display string differs, "BILLY LEE"
+        # = billy_lee, "SUPERBILLY" = billy_super) its bchar_t numbers: [0] npal, [1] nsets (tile_hi: self.tile_hi)
+        self.chars = {m.group(3): [int(m.group(1)), int(m.group(2))] for m in re.finditer(r'\{"[^"\n]*", (\d+), (\d+), (\w+)_pals, ', self.src)}
         # tile_hi by name, not by position: the field right after `<name>_specials` (bchar_t grows at its end: the voices
         # fields of 2026-10-05 shifted [-4] and the pictures came out of another fighter's page)
-        self.tile_hi = {m.group(1).lower(): int(m.group(2)) for m in re.finditer(r'\{"(\w+)", [^\n]*?\w+_specials, (\d+),', self.src)}
+        self.tile_hi = {m.group(1): int(m.group(2)) for m in re.finditer(r'\{"[^"\n]*", [^\n]*? (\w+)_specials, (\d+),', self.src)}
 
     def arr(self, name):
         m = re.search(r'static const \w+ %s\[[^\]]*\] = \{(.*?)\};' % re.escape(name), self.src)

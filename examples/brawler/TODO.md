@@ -525,7 +525,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   damage) per the extract-all-variants rule; store them in the variant table (the Billy job builds it), the brawler
   plays its latched rule; sheet WHP vs brawler per variant. Close the feedback row as shipped with the release.
 
-- [ ] 148. HAOHMARU FROM SS4'S CODE: REAL FURY, SPECIALS, THROW (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
+- [ ] 148. (+ 20261006-173459-5d29: "Samsho characters still don't have throws." — also Hanzo / WHP has none) HAOHMARU FROM SS4'S CODE: REAL FURY, SPECIALS, THROW (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
   Haohmaru in Samurai Shodown." The replay shows the fury = "BUST 236D", a powered single flaming slash). Find in
   SAMURAI SHODOWN IV's code his true super moves (its own engine: tools/samsho4, /data/neogeo_dict/samsho4/README.md):
   the Weapon Flipping Technique (rage-full super) and the Rage Explosion's Issen, their commands, conditions,
@@ -583,7 +583,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (and the empty down-forward slot): a pick round in the Lab's Characters tab (the specials mapping with impact pictures,
   #54) or the interactive judging page; then a game.json change (quick).
 
-- [ ] 154. CONTINUE AND GAME OVER MUSIC (feedback 20261006-160529-b3f3: "The music is incorrect on the continue screen."
+- [ ] 154. (+ 20261006-173221 / 173232 / 173249-5d29: the stage-clear and ending music "not fitting", "weird": pick congratulating tracks in the same audition) CONTINUE AND GAME OVER MUSIC (feedback 20261006-160529-b3f3: "The music is incorrect on the continue screen."
   and 20261006-160539-b3f3: "The music is also incorrect on the game over screen."). Replay (driver command = RAM
   snd_song): CONTINUE? opens at frame 46799 with $2F, GAME OVER at 47290 with $26: what game.json music / songs.json
   ask. Both play exactly as in KOF98 (compare_port.py on the build: CONTINUE 8 / 8 chip events identical, GAME_OVER 1158
@@ -695,7 +695,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   "A"} (vocabulary variant.table, latched at the start); check Billy Lee's 623 the same way (same default) and show
   Bruno both rows' heights (billy_proof's travel / height per row). Quick.
 
-- [ ] 163. (+ note 20261006-164210-5d29, 0.0.72: "The jets are missing the voice for the blitz ball of Krauser.") KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
+- [ ] 163. (+ 20261006-174212-5d29, 0.0.74: "There's still no voice for Rising Storm and Double Repuken.") (+ note 20261006-164210-5d29, 0.0.72: "The jets are missing the voice for the blitz ball of Krauser.") KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
   Krauser shouting Blitzball, Blitzball whenever he throws his projectiles? Also, the projectile should induce fire,
   since these are literally fireballs."). Replay (boss Krauser = fighter 2, stage 2): his specials at frames 13392 and
   13653 (role 0 = game.json "D" = 214A, the Blitz Ball): the game's sound queue sends NOTHING during 13653-13701 (no
@@ -717,11 +717,73 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   enemy in the air). Find which object draws them (replay the note: frames before the press) and whether it is right
   (KOF98's own effect with its palette?) or a stray / wrong-palette object; ask Bruno only if it matches KOF98.
 
-- [ ] 165. REGRESS HARNESS NON-DETERMINISM (found by #146, 2026-10-06): the same base ROM gives different regress.py
+- [x] 165. (done 2026-10-06: two hidden inputs, both outside the game. 1) harness.py loaded the installed retroarch core (May, pre-fa094e0 v2 states without the 68000 pending cycles / YM2610 pacing): a state loaded right after power-on played differently from the same state loaded after any frame (fighter 15: the same 6 cases as #146's diff), so a live-made vs a cached fight state differed. Now the repo build geolith/libretro/geolith_libretro.so (as tools/feedback), cache keyed by ROM + core. 2) the uPD4990 calendar starts at the host wall clock at load (geo_rtc_init); the BIOS reads it every frame and leaves it on the stack ($10F289): fight states made at another minute differed (fighters 9, 13). Pinned to 2026-01-01 00:00 at every power-on through the save state. Proof /data/tmp/det165: regress 4 runs (3 fresh caches at different times + 1 cached) 260/260 cases + bleed identical; controls_proof and cancel_proof 3 runs each byte-identical JSON) REGRESS HARNESS NON-DETERMINISM (found by #146, 2026-10-06): the same base ROM gives different regress.py
   facing traces in two full runs (4 traces, fighter 11): right after the test places the enemy, it stays idle in one
   run and walks in the other; fighter + AI fields at the start state match, the hidden input is not found (traces
   /data/tmp/throws146/m). The feedback replays are byte-identical, so suspect the harness (state load / RNG seed /
   frame counter / an uninitialised RAM byte in the placement path). Find it: a proof that isn't repeatable is no proof.
+
+- [ ] 166. THROWS ROUND 2 (Bruno's notes on 0.0.73's Geese / Terry pilot, all Player 0.0.15):
+  (a) 20261006-172625-5d29: "There's a sound being played whenever I grab an opponent. I want that sound to be played
+  only when an actual throw is being triggered." + "in King of Fighters 98 and also 96, there's a little blue special
+  effect ... that goes along the throw. Can you locate it and integrate it as standard in Brawler?" -> the catch is
+  silent, the throw sound at the throw start; find KOF96/98's throw-start effect object (its code + sprite) and make it
+  a standard throw effect (vocabulary fx).
+  (b) 20261006-172727-5d29 + 172758 (same request twice): "When I hold an opponent and hit, I want the surrounding
+  opponents to also be hit, like in Final Fight or Streets of Rage ... also there may not be an impact effect on that
+  hold and hit." -> hold hits get an attack box hitting every enemy in reach (crowd rule, each once per hit) + the
+  standard hit spark / impact on the held victim.
+  (c) 20261006-172836-5d29: "For the hit animation of Terry, don't use the stand C, use the diagonal C animation, I
+  think this one starts faster." -> Terry's hold hit = his down-forward+C (crouching / diagonal C); generalise: a
+  per-fighter hold-hit choice in game.json, the default = the fastest-startup close normal (measure startups).
+  (d) 20261006-173012-5d29: "This hit at the end of the throw, I want this to be considered a regular hit, so that I
+  could cancel with a special or even a fury after that." -> the hold finisher (3rd hit) is a normal hit: cancellable
+  into specials / furies per #143's rules (the victim launched, juggle allowed).
+  (e) 20261006-172919-5d29: "For the player death sequence ... like Final Fight ... the player dies, then the blinking
+  animation together with the death sound, and then the continue screen if there's no more lives. If there's another
+  life, then the player respawns in the air and falls on the floor, and as the player falls back, all the enemies are
+  pushed down." -> a standard death / respawn sequence (blink + death voice, continue if no lives; else drop from the
+  air, landing = a screen-wide knockdown of enemies, invincible while falling).
+  Proof: sheets per point, Geese + Terry, then roster-wide rules; the usual proofs. Close the feedback rows shipped.
+
+- [ ] 167. HUD VERSION LABEL (20261006-173317-5d29: "The version that is displayed at the bottom is a bit too close
+  from the level 4 label ... I would push this on the bottom left."): move the version text to the bottom-left corner.
+
+- [ ] 168. GOENITZ (20261006-173139-5d29: "What is the sound effect of Goenitz? He has like sound effects that he should
+  make with every tornado, and he also should have another special move, like a teleport."): decode his KOF96/98
+  tornado specials' sound sends (each tornado's wind sound) and his teleport special(s) from the ROM handlers; give
+  the teleport a C slot; sheets + sound log vs KOF.
+
+- [x] 169. FEEDBACK THREADS IN THE APK (20261006-173524-5d29 + 173615: "list the status of every open feedback,
+  whether it's been treated or fixed in the current build ... provide feedback against that particular feedback to keep
+  a trail and a history, and either say ... resolved or ... still here ... adding the voice feedback"; "provide myself a
+  feedback in the form of another voice feedback or just a thumbs up, thumbs down"): the APK list (0.0.15, Settings ->
+  My feedback notes) gets a filter "open" (not shipped / won't do) and "shipped in a build I can test", and per note a
+  reply thread: voice (transcribed, same flow minus the replay) or typed reply, and thumbs up = verified fixed (status
+  verified) / thumbs down = still broken (reopens: status reopened); replies in the tracker (table replies), in fb.py
+  show, the Lab tab and pull.py's report; pull.py lists reopened notes first.
+  Done (Player 0.0.17, docs/feedback.md "Threads"): the list shows the build he runs and filters Open / Shipped: test
+  it / All; per note his thread + 👍 Fixed (verified) / 👎 Still broken (reopened, optional reply) / Reply (hold to
+  talk -> transcribed, editable; or typed); the in-game note box has "Reply to..." (picks an open / testable note, no
+  bundle). Server: POST /brawler/feedback/reply, table replies (origin columns), status change in the history;
+  fb.py show, pull.py (report.md thread + /data/feedback/report.md overview, reopened first), Lab tab (thread,
+  reopened first). Proven in JanusPhone with brawler-test: text, voice, 👍 shipped -> verified, 👎 verified ->
+  reopened, filters 4/1/7 -> 5/0/7, in-game text + voice replies.
+
+- [ ] 170. RAGING STORM BLINKING (20261006-174101-5d29, 0.0.74: blinking whenever Geese's Raging Storm plays): replay
+  the note; measure sprites per line during the storm (pillars x fighters x HUD) vs the 96 limit and the line guard
+  (main.c guard_hidden, cf. #158): fix by a sprite-budget rule for eruptions (fewer pillar columns drawn, or the
+  guard dropping background / far actors first, never the effect itself), sheet before / after.
+
+- [ ] 171. UNINITIALISED STACK READ (lead from #165): poking $10F289 (a stack byte the BIOS leaves) changes 1 of
+  fighter 9's 13 regress traces: some game code reads stack it never wrote. Find it (a read watch in our core on
+  never-written work RAM during play) and initialise; real hardware RAM powers up random.
+
+- [ ] 172. BOSS DEATH SEQUENCE (20261006-174259-5d29, 0.0.74: "when the boss dies, as soon as he is being hit, that's
+  the end. So we stop the control of the player, we enter slow motion for five seconds, the boss screams, and everybody
+  else falls and dies, like in traditional beat'em all games."): a standard stage-end rule: the boss's killing hit ->
+  player input off, ~5 s slow motion (frame skip / half-rate game logic, music and voice kept), the boss's death voice,
+  every remaining enemy knocked down and dying (no score loss), then the stage clear. Sheet + timing log.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

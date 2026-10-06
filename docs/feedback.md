@@ -80,7 +80,21 @@ drawing canvas (`Ink.kt`).
 - Each card has the date, the versions, the origin, the note, category and fighters, and the status with its history
   and the developer's notes.
 - The screenshot (the marked one; tap for full screen) and the voice (play / stop) come with the token.
-- Pull down or press Refresh to reload. The list is read-only.
+- Pull down or press Refresh to reload.
+
+**Threads (0.0.17).** The list answers back.
+- **At the top:** the build he runs (game version and build, player version).
+- **Filters** (remembered): **Open** (every status but shipped, won't do, duplicate and verified), **Shipped: test it**
+  (shipped in a release at or before the game version he runs) and **All**, each with its count.
+- **Under each note:** his replies, oldest first (a voice reply plays), and three buttons:
+  - **👍 Fixed** (after a confirmation): status `verified`.
+  - **👎 Still broken:** a reply box opens (optional); Send sets status `reopened` with the text and voice.
+  - **Reply:** hold "Hold to talk" (the voice records while held, then goes to `/transcribe`; the text lands in the box
+    to edit) or type, then Send. No replay bundle.
+- **From the game:** the note box (mic press or tap) has **Reply to...**: it lists his open notes and the shipped ones
+  he can test; the one he picks gets the text and voice as a reply instead of a new note. The replay and the drawing
+  are dropped.
+- Everything goes to `POST /brawler/feedback/reply` (the Oros token only; no legacy access).
 
 ## On the VPS (tools/feedback/server.py, deploy_vps.sh)
 
@@ -108,8 +122,12 @@ drawing canvas (`Ink.kt`).
     bundle_path, status, release, notes, updated, category, fighters, duplicate_of, user, install_id, marked, ip,
     user_agent, android.
   - `status_history`: feedback_id, at, from_status, to_status, by, note.
+  - `replies` (0.0.17): id, feedback_id, at, user, kind (voice / text / up / down), text, raw_transcript, audio_path
+    (`reply_<id>.m4a` in the note's bundle dir), status_from, status_to, and the origin: apk_version, install_id,
+    device, android, ip, user_agent. A thumbs up / down also writes its status change to `status_history`. A voice
+    reply's transcription is linked to the note (its cost).
 - **Statuses:** new → read (pulled) → in_progress → shipped (with a release, e.g. 0.0.71), wont_do, or duplicate (of
-  another id).
+  another id); then the player's own verdict: verified (thumbs up) or reopened (thumbs down).
 - **Categories:** sound, graphics, gameplay, integration, scripting, other. They are set at triage; nothing is picked
   in the player.
 
@@ -129,7 +147,9 @@ cost comes from `tools/feedback/prices.json`, the price table with its source an
 - **`tools/feedback/pull.py`:**
   - Fetches the bundles into `/data/feedback/<id>/` and the DB backups into `/data/feedback/_server/backups/`.
   - Marks the new rows read.
-  - Replays each new bundle and writes `report.md`, then prints one line per bundle.
+  - Replays each new bundle and writes `report.md` (with his reply thread), then prints one line per bundle, reopened
+    notes first.
+  - Writes `/data/feedback/report.md`: every note with its thread, grouped reopened, shipped (to verify), open, closed.
 - **How a replay runs:**
   - It finds the same ROM by sha256: the cache `/data/feedback/_roms`, then the repo build and `/data/roms`, then the
     VPS builds (only the last 3 are kept there, so pull often).
@@ -143,7 +163,7 @@ cost comes from `tools/feedback/prices.json`, the price table with its source an
 - **`tools/feedback/fb.py`:** the tracker from the shell. It goes through the service's API over ssh and never edits
   the DB directly.
   - `fb.py list [--status S] [--category C]`
-  - `fb.py show ID`
+  - `fb.py show ID` (with his reply thread)
   - `fb.py status ID in_progress|wont_do [--note ...]`
   - `fb.py status ID shipped --release 0.0.71`
   - `fb.py status ID duplicate --of ID2`
@@ -151,7 +171,7 @@ cost comes from `tools/feedback/prices.json`, the price table with its source an
 - **The Brawler Lab's Feedback tab** (`tools/brawler/chainlab/feedback.js`) lists the feedback. Each row shows the
   date, versions, the note as sent with the raw transcript under it, and the status and release as text. A play
   button plays the voice, and the screenshot opens from the row.
-  - It filters by status and category.
+  - It filters by status and category. Reopened notes come first; each note shows his reply thread (voice playable).
   - Category and fighters can be edited in the row.
 
 ## Replay in the browser (the Brawler Lab's Feedback tab)

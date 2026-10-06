@@ -16,7 +16,14 @@
   };
   while (!window.stagesTab && !window.labTab) await new Promise(r => setTimeout(r, 100));
   const API = 'feedback-api/';
-  const STATUS_TEXT = { new: 'NEW', read: 'read', in_progress: 'IN PROGRESS', shipped: 'SHIPPED', wont_do: "won't do", duplicate: 'duplicate' };
+  const STATUS_TEXT = { new: 'NEW', read: 'read', in_progress: 'IN PROGRESS', shipped: 'SHIPPED', wont_do: "won't do", duplicate: 'duplicate', verified: 'VERIFIED', reopened: 'REOPENED' };
+  const REPLY_KIND = { up: '👍 verified fixed', down: '👎 still broken', voice: 'voice', text: 'text' };
+  // the player's reply thread (Player 0.0.17): oldest first, the voice playable, a status change shown
+  const thread = r => (r.replies || []).length ? h('div', { class: 'small', style: 'margin-top:6px;border-top:1px solid #000;padding-top:4px' },
+    h('b', {}, 'Thread'), r.replies.map(x => h('div', {},
+      x.at.slice(0, 16).replace('T', ' ') + ' ' + (x.user || '') + ' — ' + (REPLY_KIND[x.kind] || x.kind) +
+        (x.status_to ? ' [' + x.status_from + ' → ' + x.status_to + ']' : '') + (x.text ? ': ' + x.text : ''),
+      x.audio_path ? h('audio', { controls: true, preload: 'none', src: API + 'file/' + r.id + '/' + x.audio_path, style: 'display:block;height:28px' }) : null))) : null;
   let rows = [], cats = [], cost = null, filt = { status: '', category: '' }, msg = '';
   const col = $('fbcol');
   const rbox = h('div'), lbox = h('div');
@@ -137,6 +144,7 @@
     lbox.textContent = '';
     const sel = (key, opts) => h('select', { onchange: e => { filt[key] = e.target.value; render(); } },
       h('option', { value: '' }, 'all'), opts.map(o => h('option', { value: o, selected: filt[key] === o }, key === 'status' ? STATUS_TEXT[o] : o)));
+    rows.sort((a, b) => (b.status === 'reopened') - (a.status === 'reopened'));   // reopened first
     const shown = rows.filter(r => (!filt.status || r.status === filt.status) && (!filt.category || r.category === filt.category));
     lbox.append(h('div', { class: 'box' },
       h('h2', {}, 'Feedback from the player', h('span', { class: 'sp' }),
@@ -145,7 +153,7 @@
       h('div', { class: 'in' },
         msg ? h('p', { class: 'ok' }, msg) : null,
         cost ? h('p', { class: 'note' }, `Transcription cost: $${cost.usd.toFixed(4)} in all (${cost.transcriptions} transcriptions, ${Math.round(cost.audio_seconds)} s of audio; $${cost.usd_in_notes.toFixed(4)} in sent notes, the rest cancelled). Prices: ${cost.prices.source}, checked ${cost.prices.checked}.`) : null,
-        h('p', { class: 'note' }, `${shown.length} of ${rows.length}. Status: NEW → read (pulled) → IN PROGRESS → SHIPPED (release) | won't do | duplicate; set with tools/feedback/fb.py.`),
+        h('p', { class: 'note' }, `${shown.length} of ${rows.length}. Status: NEW → read (pulled) → IN PROGRESS → SHIPPED (release) | won't do | duplicate; set with tools/feedback/fb.py. The player's 👍 = VERIFIED, 👎 = REOPENED (his thread under the note).`),
         h('table', { class: 'fb' },
           h('tr', {}, ['When / id', 'Versions', 'Note', 'Status', 'Category / fighters', 'Replay / voice / picture', 'Cost'].map(t => h('th', {}, t))),
           shown.map(r => h('tr', {},
@@ -156,7 +164,7 @@
                 'install ' + (r.install_id || '-').slice(0, 8) + ', IP ' + (r.ip || '-'), h('br'), r.user_agent || '')),
             h('td', { class: 'txt' }, h('div', {}, r.final_text || '(no text typed)'),
               r.raw_transcript && !(r.final_text || '').includes(r.raw_transcript) ? h('div', { class: 'small' }, 'transcript: ' + r.raw_transcript) : null,
-              r.notes ? h('div', { class: 'small' }, 'notes: ' + r.notes) : null),
+              r.notes ? h('div', { class: 'small' }, 'notes: ' + r.notes) : null, thread(r)),
             h('td', {}, h('b', {}, STATUS_TEXT[r.status] || r.status), r.status === 'shipped' ? h('div', {}, 'in ' + r.release) : null,
               r.status === 'duplicate' ? h('div', { class: 'small' }, 'of ' + r.duplicate_of) : null),
             h('td', {},
