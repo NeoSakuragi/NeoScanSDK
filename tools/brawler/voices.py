@@ -492,7 +492,8 @@ def whp_list(rname, name, cid):
     cap, C, E = _whp()
     capd = json.load(open(os.path.join(cap_dir('whp'), f'{name}.json')))
     frames = json.load(open(E.CAPTURE))
-    inputs = {rec: inp for inp, (rec, anims) in E.SPECIALS.items()}
+    SP = {**E.SPECIALS, **getattr(E, 'ROM_SPECIALS', {})}   # (the ROM-read ones: their capture, TODO #147)
+    inputs = {rec: inp for inp, (rec, anims) in SP.items()}
     uses = []
     for rec, sent in capd.items():
         words, k = [], 0
@@ -502,7 +503,7 @@ def whp_list(rname, name, cid):
             else: words.append((f, b)); k += 1
         p1 = [fr[0] for fr in frames[rec]['frames']]       # row i = frame i + 1; a write in frame n is logged as n - 1
         inp = inputs.get(rec)
-        g0 = next((i for i, r in enumerate(p1) if r[0] == E.SPECIALS[inp][1][0]), None) if inp else None
+        g0 = next((i for i, r in enumerate(p1) if r[0] == SP[inp][1][0]), None) if inp else None
         for f, w in words:
             if inp:
                 if g0 is not None and f >= g0: uses.append((w, {'kind': 'special', 'input': inp, 'at': f - g0}))

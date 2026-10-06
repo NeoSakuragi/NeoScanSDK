@@ -207,9 +207,10 @@
    "watch": {"frame": 0, "step": 0},
    "routes": "default",
    "fury": "HERO 623AB",
-   "specials": {"D": "236A", "fD": "236D", "dD": "623B", "uD": "214C", "dfD": "623A", "ufD": "214D"},
+   "specials": {"D": "236P", "fD": "236D", "dD": "623B", "uD": "214C", "dfD": "623A", "ufD": "214D"},
    "unlock": "always",
-   "voices": "kof"
+   "voices": "kof",
+   "variant": {"236P": "A"}
   },
   {
    "name": "kim",
