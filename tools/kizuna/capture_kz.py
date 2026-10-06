@@ -129,7 +129,7 @@ def fighter(r, a):
     return [o['anim'] & 0xFFF, o['step'], o['x'], o['y'], o['flags'] >> 1 & 1, o['ptr'], o['raw'][0x113],
             r['cam'][0x2A], o['anim'] >> 12, cap.s16(r['cam'], 0x1A)]
 
-def capture(name, pokes_extra=None):
+def capture(name, pokes_extra=None, raw=False, vram=False, keep=None):
     p2x, seq, seq2 = RECIPES[name]
     n = max(cap.nframes(seq), cap.nframes(seq2) if seq2 else 0)
     pin = 9 if 'throw' in name else n                    # a throw moves its victim: P2 pinned only until the grab
@@ -137,14 +137,13 @@ def capture(name, pokes_extra=None):
     pokes_extra = pokes_extra or EXTRA.get(name)
     if pokes_extra: pk = [f'{f}:{pokes_extra}' for f in range(n)] if not pk else [p + ',' + pokes_extra for p in pk] + [f'{f}:{pokes_extra}' for f in range(len(pk), n)]
     sw = name in SWAP
-    rows = cap.run(seq, seq2, pokes=';'.join(pk) or None, load=FK.state(NAME, 'vs2' if sw else 'vs'), pool=POOL)
-    base = {k for k in range(POOL >> 8) if rows[0]['pool'][k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}
+    rows = cap.run(seq, seq2, pokes=';'.join(pk) or None, load=FK.state(NAME, 'vs2' if sw else 'vs'), pool=POOL, vram=vram, keep=keep)
+    if raw: return rows                                  # (kim_effects_check.py: with VRAM / palette dumps)
+    new = cap.new_objects(rows, POOL)
     out = []
-    for r in rows:
+    for r, ks in zip(rows, new):
         objs = []
-        for k in range(POOL >> 8):
-            o = r['pool'][k * 0x100:(k + 1) * 0x100]
-            if k in base or not cap.u32(o, 0x94): continue
+        for k in ks:
             ob = cap.obj(r, 0x100000 + k * 0x100)
             objs.append([k, ob['anim'], ob['step'], ob['x'], ob['y'], ob['flags'] >> 1 & 1, ob['ptr'], ob['name'].strip()])
         a, b = (0x108400, 0x108200) if sw else (0x108200, 0x108400)

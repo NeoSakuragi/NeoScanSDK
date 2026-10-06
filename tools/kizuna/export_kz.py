@@ -33,8 +33,10 @@ own frame for that victim state, scaled) and state step as a posture key 'state.
 victim states $10C (Hayate's $EF, Kim's $FA) and $17A ($DE), postures read by eye from Kim's frames), until the victim
 lands; Kim's own frames for those postures are his reaction frames (feet-centred, so KOF victims and he line up).
 Not exported: A+B (dodge $20) and C+D (taunt $21): the brawler has no slot for them (A+B is the special chord).
-Known limits: the hit sparks his specials spawn are not drawn (the Phoenix's flames are: FOLLOW 'objects', each
-place's PHOELX halves one frame, at most two places a row: the third PHOELX W feather is left out); no D button
+Effects (TODO #144): his own effect objects are drawn: the Phoenix's flames as FOLLOW 'objects' (each place's PHOELX
+halves one frame, two places a row) and every other one (the Hienzan pillar, 214B / 236A's ADH EFFE, 421A's
+afterimages, the Phoenix's further feathers) as pinned effects (effects()); kim_effects_check.py proves it against
+Kizuna's screen. Known limits: Kizuna's generic hit sparks / marks are not drawn (the brawler plays its own); no D button
 attacks in Kizuna (D = tag): the brawler's D normals use his strong kick (B+C, $6E); one jump height (hop = jump)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -305,6 +307,38 @@ def projectile(B, fr, s0, x0, hf):
             'vx': rows[1][1] - rows[0][1] if len(rows) > 1 else 0, 'rows': rows, 'end': [], 'react': 'knockdown',
             'child': None, 'hits': {'near': {'hits': hits}}}
 
+def effects(B, fr, rows, first, x0, skip=()):
+    """Kim's own effect objects in a special's (or a part's) script rows (TODO #144, spawn.pinned_effect): every run of
+    a task slot alive with an animation of his table and no attack box in its steps (those are projectile()'s), e.g.
+    the Hienzan pillar '503 EFFE' ($509F, $5084: palette 27, blue) -> an effect entity of the special (export_bm
+    played_projectiles; bproj_t follow 1 | 2 | 4: pinned to Kim, its rows run with his script rows, frozen with his
+    hit-stop, ended when the special leaves them), spawned at the script row it first shows (first + k), each row its
+    step drawn as a frame at its place from Kim's (forward / up px at zoom Z, the same rounding as the script's).
+    Kizuna's pillar is Kim's: it stops with his hit-stop, moves with him and dies when his rising part 9B ends [meas]."""
+    seen = {}
+    for k, i in enumerate(rows):
+        p = fr[i][0]
+        for o in fr[i][2]:
+            if o[1] >> 12 != CH or o[7].startswith('\0') or any(attack(b) for b in step_boxes(o[6])) or (i, o[0]) in skip: continue
+            seen.setdefault(o[0], []).append((k, o, p))
+    out = []
+    for slot, ev in sorted(seen.items(), key=lambda kv: kv[1][0][0]):
+        runs = [[ev[0]]]
+        for e in ev[1:]:
+            if e[0] == runs[-1][-1][0] + 1: runs[-1].append(e)
+            else: runs.append([e])                       # the slot freed and taken again: another object
+        for run in runs:
+            rws = []
+            for k, o, p in run:
+                assert o[5] == p[4], (inp_of(fr), 'an effect facing away from Kim')
+                rws.append([B.frame(o[6]), sc(o[3] - x0) - sc(p[2] - x0), sc(o[4]) - max(0, sc(p[3])), None, None])
+            out.append({'effect': True, 'table': 0, 'state': run[0][1][1] & 0xFFF, 'kind': 0, 'hit_kind': 1, 'follow': 7,
+                        'spawn_row': first + run[0][0], 'spawn_x': 0, 'spawn_y': 0, 'loop': None, 'death': None,
+                        'life': len(rws), 'travel': 0, 'vx': 0, 'rows': rws, 'end': [], 'react': 'knockdown',
+                        'child': None, 'hits': {}, 'name': run[0][1][7]})
+    return out
+def inp_of(fr): return f'P1 anim {fr[0][0][0]:X}'
+
 def special(B, inp, cap):
     rec, hitrec, anims = SPECIALS[inp]; fr = cap[rec]['frames']
     s0, e, _ = part_rows(fr, anims, False)
@@ -324,7 +358,7 @@ def special(B, inp, cap):
     n = len(script)
     pj = projectile(B, fr, s0, x0, hf)
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
-            'row_steps': rsteps, 'marks': [''] * n, 'projectiles': [pj] if pj else [], 'anims': anims,
+            'row_steps': rsteps, 'marks': [''] * n, 'projectiles': ([pj] if pj else []) + effects(B, fr, range(s0, e), 0, x0), 'anims': anims,
             'shape': [max(r[1] for r in script), max(r[2] for r in script), False], 'game_hits': game_hits}
 
 # Multipart moves: the logic decoded from the 68000 code (substates_kz.py, README "Move sub-states"), cross-checked by
@@ -394,13 +428,14 @@ def multipart(B, inp, fc):
     F = FOLLOW[inp]; react = hit_reactions(fc)
     script, rboxes, rsteps, carry, rsrc, parts, links, spans = [], [], [], [], [], [], [], []
     chained = {}                                         # rows whose box became a held victim's: their same-hit flag
-    marks, grows, backdrop = [], [], None
+    marks, grows, backdrop, effs = [], [], None, []
     for pi, (rec, anims, nxt) in enumerate(F['parts']):
         fr = fc[rec]['frames']
         hitcap = rec.endswith('_h')
         s0, e, rows = part_rows(fr, anims, hitcap)
         x0 = fr[s0][0][2] if pi == 0 else fr[s0 - 1][0][2]   # part 0: from its start; a follow-up: from where Kim is
         first = len(script); spans.append([])
+        drawn = set()                                    # (6246A: its flames' first two places are script objects,
         for i in rows:
             p, q = fr[i][0], fr[i][1]
             bx = step_boxes(p[5])
@@ -410,12 +445,14 @@ def multipart(B, inp, fc):
                 for o in sorted(fr[i][2]):
                     if o[1] >> 12 == CH and not o[7].startswith('\0'): grp.setdefault((o[3], o[4], o[5]), []).append(o[6])
                 for (ox, oy, of), st in list(grp.items())[:2]:
+                    drawn |= {(i, o[0]) for o in fr[i][2] if (o[3], o[4], o[5]) == (ox, oy, of)}
                     objs.append([B.frame(tuple(sorted(st)) if len(st) > 1 else st[0]), sc(ox - x0), sc(oy), 1 if of == p[4] else 0])
             script.append([B.frame(p[5]), sc(p[2] - x0), sc(p[3]), objs])
             rboxes.append(kof_boxes(bx))
             spans[-1].append((p[0], p[1]))
             rsrc.append(react.get((p[0], p[1])))
             carry.append((max(-32000, min(32000, sc(q[2] - p[2]))), max(0, min(255, sc(q[3])))) if F.get('carry') == pi and hitcap else None)
+        effs += effects(B, fr, rows, first, x0, drawn)  # the others (the third PHOELX W feather on) pinned effects)
         for j in range(first, len(script)):
             nb = rboxes[j + 1] if j + 1 < len(script) else {}
             live = any(k_[0] == '1' for k_ in rboxes[j])
@@ -472,7 +509,7 @@ def multipart(B, inp, fc):
     n = len(script)
     p0 = script[:parts[0]['end']]
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
-            'row_steps': rsteps, 'marks': marks, 'game_rows': grows, 'projectiles': [], 'anims': [a for _, an, _ in F['parts'] for a in an],
+            'row_steps': rsteps, 'marks': marks, 'game_rows': grows, 'projectiles': effs, 'anims': [a for _, an, _ in F['parts'] for a in an],
             'shape': [max(r[1] for r in p0), max(r[2] for r in p0), False], 'game_hits': sum(1 for r in rsrc if r), **game_damage(F, fc),
             'parts': parts, 'links': links, 'carry_src': carry, 'react_src': rsrc, **({'backdrop': backdrop} if backdrop else {})}
 

@@ -680,8 +680,8 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
     return p;
 }
 static void proj_spawn(fighter_t *f, const bproj_t *d) {         /* spawn point: the script's origin + offset */
-    fighter_t *p = proj_start(f, d, f->throw_x0 + dir_mul(f->facing, FIX(d->spawn_x)), f->facing, f->z);
-    if (p) f->shot = p;
+    fighter_t *p = proj_start(f, d, (d->follow & 4) ? f->x : f->throw_x0 + dir_mul(f->facing, FIX(d->spawn_x)), f->facing, f->z);
+    if (p && !(d->follow & 4)) f->shot = p;                      /* (a pinned effect of the script is no shot) */
 }
 static void proj_hit(fighter_t *p) {                             /* its hit landed (a fighter or a clash) */
     if (p->owner) p->owner->pflags |= (p->pdef->sig << 2) & (PF_SIG7 | PF_SIG6);   /* its hit signals its thrower */
@@ -722,7 +722,13 @@ void projectiles_update(int16_t cam_x) {
         if (p->pend == 1) {
             if (++p->prow >= d->nend) { projectile_reset(p); continue; }
         } else if (d->follow && p->owner) {                      /* pinned: its rows cycle at the thrower's place */
-            if (++p->prow >= d->nrows) {
+            if (d->follow & 4) {                                 /* or run with its thrower's script rows (frozen with
+                                                                    its hit-stop; Kizuna's Hienzan pillar, TODO #144) */
+                const fighter_t *o = p->owner;
+                int16_t k = o->state == S_SPECIAL ? (int16_t)o->srow - 1 - d->spawn_row : -1;
+                if (k < 0 || k >= d->nrows) { projectile_reset(p); continue; }   /* the special left its rows */
+                p->prow = k;
+            } else if (++p->prow >= d->nrows) {
                 if (d->follow & 2) { projectile_reset(p); continue; }   /* (or end there: it frees itself) */
                 p->prow = d->loop == 0xFF ? 0 : d->loop;
             }

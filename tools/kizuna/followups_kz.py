@@ -112,7 +112,7 @@ def fighter(r, a):
     return [o['anim'] & 0xFFF, o['step'], o['x'], o['y'], o['flags'] >> 1 & 1, o['ptr'], w[0x113], r['cam'][0x2A],
             o['anim'] >> 12, cap.s16(r['cam'], 0x1A), cap.u16(w, 0x48), w[0x10C] >> 3 & 1, w[0x1EB], cap.s16(r['cam'], 0x1E)]
 
-def capture(name):
+def capture(name, raw=False, vram=False, keep=None):
     p2x, seq, pokes = RECIPES[name][:3]
     hold = RECIPES[name][3] if len(RECIPES[name]) > 3 else ''
     n = cap.nframes(seq)
@@ -120,14 +120,13 @@ def capture(name):
     for f in range(n):
         s = ([f'108424={p2x >> 8:02X},108425={p2x & 255:02X}'] if f < PIN else []) + ([pokes] if pokes else [])
         if s: pk.append(f'{f}:' + ','.join(s))
-    rows = cap.run(seq, f'{n}:{hold}' if hold else '', pokes=';'.join(pk) or None, pool=POOL, load=STATE)
-    base = {k for k in range(POOL >> 8) if rows[0]['pool'][k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}
+    rows = cap.run(seq, f'{n}:{hold}' if hold else '', pokes=';'.join(pk) or None, pool=POOL, vram=vram, keep=keep, load=STATE)
+    if raw: return rows                                  # (kim_effects_check.py: with VRAM / palette dumps)
+    new = cap.new_objects(rows, POOL)
     out = []
-    for r in rows:
+    for r, ks in zip(rows, new):
         objs = []
-        for k in range(POOL >> 8):
-            o = r['pool'][k * 0x100:(k + 1) * 0x100]
-            if k in base or not cap.u32(o, 0x94): continue
+        for k in ks:
             ob = cap.obj(r, 0x100000 + k * 0x100)
             objs.append([k, ob['anim'], ob['step'], ob['x'], ob['y'], ob['flags'] >> 1 & 1, ob['ptr'], ob['name'].rstrip(' ')])
         out.append([fighter(r, 0x108200), fighter(r, 0x108400), objs, r['snd']])

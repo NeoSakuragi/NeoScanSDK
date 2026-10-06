@@ -111,6 +111,9 @@ def main():
             for r in sp['script']:
                 for f_ in [r[0]] + [o[0] for o in r[3]]:
                     if f_ not in fs: fs.append(f_)
+            for pj in sp.get('projectiles', []):        # its projectiles / pinned effects (TODO #144: the Hienzan
+                for r in pj['rows'] + pj.get('end', []):  # pillar, 214B / 236A's ADH EFFE, 421A's afterimages)
+                    if r[0] not in fs: fs.append(r[0])
             items.append((f'sp {sp["input"]}', fs))
         for m, frs in items:
             cells = []

@@ -27,7 +27,9 @@ def parse(txt):
         except ValueError: pass
     return b''.join(out)
 
-def run(seq1, seq2='', extra=None, load=VS, pokes=None, keep=None, vram=False, n=None, pool=0x4000):
+POOL = 0x8000                                                    # the whole task pool $100000-$107FFF (TODO #144: Kim's
+                                                                 # Hienzan pillar '503 EFFE' lives at $106300)
+def run(seq1, seq2='', extra=None, load=VS, pokes=None, keep=None, vram=False, n=None, pool=POOL):
     n = n or max(nframes(seq1), nframes(seq2) if seq2 else 0)
     os.makedirs('/data/tmp/kizuna', exist_ok=True)
     d = keep or tempfile.mkdtemp(dir='/data/tmp/kizuna')
@@ -84,3 +86,21 @@ def obj(row, addr):
     return dict(name=o[0x10:0x18].decode('latin1'), ch=u16(o, 0x1E), x=s16(o, 0x24), y=s16(o, 0x28), sx=u16(o, 0x30),
                 sy=u16(o, 0x32), flags=o[0x0F], anim=u16(o, 0x40), cnt=o[0x42], step=o[0x43], nxt=u32(o, 0x44),
                 ticks=o[0x4A], ptr=u32(o, 0x94), trailer=u16(o, 0x72), boxes=u32(o, 0x74), raw=o)
+
+def new_objects(rows, pool=POOL):
+    """per row, the pool slots of the objects the capture made (TODO #144): a task alive now (name byte 0 not 0) that was
+    not alive at the start, or one that died during the capture (its step pointer +$94 moved since the start: its death
+    frames kept, name byte 0 = 0). Dead slots at the start keep stale animations and pointers (slot 12: Kim's $50A0)
+    and live start tasks (stage, partners, shadows) are not the move's. The first captures (until 2026-10-06) read
+    only $100000-$103FFF and dropped every slot with an animation at the start: the Hienzan pillar was lost."""
+    r0 = rows[0]['pool']
+    live0 = {k for k in range(pool >> 8) if r0[k * 0x100 + 0x10] and r0[k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}
+    out = []
+    for r in rows:
+        ks = []
+        for k in range(pool >> 8):
+            o = r['pool'][k * 0x100:(k + 1) * 0x100]
+            if not u32(o, 0x94) or k in live0: continue
+            if o[0x10] or u32(o, 0x94) != u32(r0, k * 0x100 + 0x94): ks.append(k)
+        out.append(ks)
+    return out

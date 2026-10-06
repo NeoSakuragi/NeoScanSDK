@@ -454,7 +454,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   as usual. One rule in fighter.c (no per-move data), documented in docs/brawler_move_vocabulary.md; proofs: per fighter
   normal -> special, normal -> fury, special -> fury (hit and whiff), controls_proof, regress, campaign29.
 
-- [ ] 144. Kim's Hienzan ([2]8C, down C) is missing its BLUE effect (Bruno, 2026-10-06): find the effect object /
+- [x] 144. (done 2026-10-06: the pillar = task '503 EFFE' ($509F / $5084, palette 27) the captures missed (half the task pool read); exported with 214B / 236A ADH EFFE, 421A afterimages, the Phoenix's other feathers as pinned effects (bproj_t follow bit 4); kim_effects_check.py (Kizuna's screen, every tile attributed) all ok, kim144_proof / kim_proof 1262/1262 / kim_followups_proof / controls_proof all ok, regress no-bleed True; sheets /data/tmp/kim144/out) Kim's Hienzan ([2]8C, down C) is missing its BLUE effect (Bruno, 2026-10-06): find the effect object /
   palette Kizuna draws with the rising staff (spawned object or an extra sprite part on the steps, its palette =
   blue), export it through the effects library and play it; check Kim's other moves for missing effects the same way
   (kim_proof frame-identical incl. effect objects vs Kizuna's screen, not just Kim's body).
