@@ -24,18 +24,20 @@ def tl7(ws):
 def run(data, cmd, passes=1):
     """the model to the intro + `passes` loops of every looping channel (or the end) -> (Song, {pass: tick}, loops)"""
     n, _ = loop_passes(data, cmd)
-    s = Song(data, cmd).run(n + 1)
-    loops = s.loop_ticks()
-    end_t = max((a + passes * b for a, b in loops.values()), default=None)
-    if end_t is not None and passes > 1:
-        # run until the first channel's tick passes end_t
-        s = Song(data, cmd); first = s.e['streams'][0][0]
-        while s.drv.ticks[first] <= end_t and s.active(): s.drv.pass_()
-    tick = {}; first = s.e['streams'][0][0]
-    s2 = Song(data, cmd)
-    for q in range(1, s.drv.npass + 1):
-        s2.drv.pass_(); tick[q] = s2.drv.ticks[first]
-    return s2, tick, s2.loop_ticks()
+    loops = Song(data, cmd).run(n + 1).loop_ticks()
+    end_t = max((a + passes * b for a, b in loops.values()), default=1 << 30)
+    s = Song(data, cmd); first = s.e['streams'][0][0]; tick = {}
+    while (s.drv.npass < 4 or s.active()) and s.drv.ticks[first] <= end_t:
+        s.drv.pass_(); tick[s.drv.npass] = s.drv.ticks[first]
+    return s, tick, loops
+
+def ticks_writes(data, cmd, ticks):
+    """the model's writes (TL to 7 bits) up to the end of music tick `ticks` and a pass -> tick function"""
+    s = Song(data, cmd); first = s.e['streams'][0][0]; tick = {}
+    while s.drv.ticks[first] <= ticks and (s.active() or s.drv.npass < 4):
+        s.drv.pass_(); tick[s.drv.npass] = s.drv.ticks[first]
+    ws = [w for w in tl7(s.writes) if tick.get(w[0], 0) <= ticks]
+    return ws, lambda q: tick.get(q, 0)
 
 def notes(data, cmd, passes=1):
     s, tick, loops = run(data, cmd, passes)

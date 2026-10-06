@@ -36,14 +36,18 @@ from ff3_notes import FM
 import ff3_notes, snk_notes
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'makoto3'))
 import games as makoto_games, games98
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'ngss'))
+import games_ngss, ngss_notes
 
 SONG_Z80, SONG_Z80_END = 0x8000, 0xF800          # a bank set's window: Z80 $8000-$F7FF (RAM from $F800)
 
 def source(game):
-    """(M1 bytes, V bytes, notes function) of a source game: MAKOTO builds (tools/makoto3/games.py) or SNK's line
-    (tools/kof98snd/games98.py)"""
+    """(M1 bytes, V bytes, notes function) of a source game: MAKOTO builds (tools/makoto3/games.py), Technos' SDC_NGSS
+    (tools/ngss/games_ngss.py: Double Dragon, Super Dodge Ball) or SNK's line (tools/kof98snd/games98.py)"""
     if game in makoto_games.GAMES:
         g = makoto_games.GAMES[game]; m1 = open(os.path.join(g['dir'], g['m1']), 'rb').read(); fn = ff3_notes.notes
+    elif game in games_ngss.GAMES:
+        g = games_ngss.GAMES[game]; m1 = open(games_ngss.m1_path(game), 'rb').read(); fn = ngss_notes.notes
     else:
         g = games98.GAMES[game]; m1 = open(g['m1'], 'rb').read(); fn = snk_notes.notes
     return m1, roms(g['rom'])[1], fn
@@ -86,7 +90,8 @@ class Port:
         src_m1, self.src_v, fn = source(src_game)
         self.src = src_game
         self.notes, self.loops, self.hz, _ = fn(src_m1, src_cmd, passes=2)
-        self.src_loss = 0.0 if fn is ff3_notes.notes else drops(src_m1, src_cmd, max(a + b for a, b in self.loops.values()))
+        # MAKOTO and SDC_NGSS lose no interrupt (a pending flag waits; SDC_NGSS: the captures stay pass-aligned)
+        self.src_loss = 0.0 if fn in (ff3_notes.notes, ngss_notes.notes) else drops(src_m1, src_cmd, max(a + b for a, b in self.loops.values()))
         self.noloop = set()
         for ch in list(self.notes):                    # a channel without a loop: its notes up to the song's end
             if ch not in self.loops: self.loops[ch] = (1, max(n.tick for n in self.notes[ch]) + 1); self.noloop.add(ch)
@@ -154,9 +159,13 @@ class Port:
             idx = ((v & 0xF0) >> 1) & 0xFF
             self.pitch[n] = (v & 7, m[0x2A68 + idx] | m[0x2A69 + idx] << 8)
 
-    def fm_note(self, word):
+    def fm_note(self, word, avoid=None):
+        """(KOF98 note, detune) for an F-number word: the nearest note of the same block. avoid: a note number not to
+        use (a tie into the same note writes nothing, $2447: a pitch step of a slide that lands on the previous note's
+        number goes through the neighbouring note with the detune that makes the same F-number; detune -64..127)"""
         blk, fn = word >> 11 & 7, word & 0x7FF
-        best = min(((abs(fn - f), n, fn - f) for n, (b, f) in self.pitch.items() if b == blk), default=None)
+        best = min(((abs(fn - f), n, fn - f) for n, (b, f) in self.pitch.items() if b == blk and n != avoid
+                    and (avoid is None or -64 <= fn - f <= 127)), default=None)
         if best is None or best[0] > 127: raise ValueError(f'F-number {word:04X} out of reach')
         return best[1], best[2]
 
@@ -262,8 +271,10 @@ class Port:
                 if st.get('pan') != n.pan:
                     out += ev(None, PAN_OP[n.pan]); st['pan'] = n.pan
                 note, det = self.fm_note(n.fnum)
+                if getattr(n, 'legato', False) and st.get('note') == note and st.get('fnum') != n.fnum:
+                    note, det = self.fm_note(n.fnum, avoid=note)
                 if st.get('det') != det: out += ev(None, 0x2E, (det + 0x40) & 0xFF); st['det'] = det
-                out += ev(delta, 0x00, *vl(gate), note, n.tl); st['vel'] = n.tl
+                out += ev(delta, 0x00, *vl(gate), note, n.tl); st['vel'] = n.tl; st['note'] = note; st['fnum'] = n.fnum
             elif name.startswith('A'):
                 sl, code = self.acode[(n.start, n.end)]
                 if st.get('slot') != sl: out += ev(None, 0x0D, sl); st['slot'] = sl

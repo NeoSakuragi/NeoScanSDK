@@ -21,7 +21,7 @@ NAME = {1: 'FM1', 2: 'FM2', 5: 'FM3', 6: 'FM4'}
 def events(ws, tick_of):
     """register writes [(irq, port, reg, val)] -> {channel: [(tick, 'on'/'off', state)]}"""
     R = {'a': [0] * 256, 'b': [0] * 256}; out = {}; on = {}
-    late = []; last_irq = None                       # FM key-ons whose F-number / TL follow in the same interrupt
+    late = []; late_a = []; last_irq = None                       # FM key-ons whose F-number / TL follow in the same interrupt
     pitch = {}; last_t = [0]; held = {}; keyed = set()                         # F-number of each held FM note: a change = a 'pitch' event
     def settle():
         for n, i, pp, o in late:
@@ -30,6 +30,9 @@ def events(ws, tick_of):
                       fnum=R[pp][0xA4 + o] << 8 | R[pp][0xA0 + o], b0=R[pp][0xB0 + o], b4=R[pp][0xB4 + o])
             pitch[n] = st['fnum']
         late.clear()
+        for n, i, c in late_a:                       # ADPCM-A: the level as the interrupt leaves it (SDC_NGSS writes
+            out[n][i][2]['lvl'] = R['b'][0x08 + c]   # it just after the key-on, $061E)
+        late_a.clear()
         for c, n in NAME.items():                    # slurs / vibrato: the pitch of a held note changes
             pp, o = FMCH[c]
             if on.get(n) and pitch.get(n) is not None:
@@ -70,6 +73,7 @@ def events(ws, tick_of):
                     st = dict(start=R['b'][0x10 + c] | R['b'][0x18 + c] << 8, end=R['b'][0x20 + c] | R['b'][0x28 + c] << 8,
                               lvl=R['b'][0x08 + c])
                     out.setdefault(n, []).append((t, 'on', st)); on[n] = True; keyed.add(n)
+                    late_a.append((n, len(out[n]) - 1, c))
         elif p == 'a' and r == 0x1B and v == 0 and on.get('B'):     # volume 0: silent (the port's skipped key-off)
             out.setdefault('B', []).append((t, 'off', None)); on['B'] = False
         elif p == 'a' and r == 0x10 and v & 0x80:
@@ -92,6 +96,8 @@ def tickmap(s):
 
 def source_events(game, cmd, ticks):
     m1, _, fn = port98.source(game)
+    if fn is port98.ngss_notes.notes:
+        ws, tick_of = port98.ngss_notes.ticks_writes(m1, cmd, ticks); return events(ws, tick_of)
     if fn is port98.ff3_notes.notes: s = ff3song.Song(m1, cmd).run(ticks=ticks); ws = ff3regs.writes(s)
     else: s = song98.Song(m1, cmd).run(ticks=ticks); ws = regs98.writes(s)
     return events(ws, tickmap(s))
