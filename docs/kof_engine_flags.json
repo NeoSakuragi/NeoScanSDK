@@ -1,0 +1,338 @@
+{
+ "about": "KOF engine (KOF96 / 98 / 99 family) fighter-object fields and flag bits, as read from the KOF98 P ROM (addresses are KOF98's; KOF96 / KOF99 use the same object layout, their routines sit elsewhere: tools/kof96/handlers98.py ROUTINES96 / ROUTINES99). Used by tools/brawler/convsheet.py: every bit write a special's handler makes that the decoder (handlers98) drops is looked up here; a bit without an entry, or with effect 'unknown', is listed as UNEXPLAINED on the move's conversion sheet. effect: 'gameplay' (changes what the move does in KOF), 'none' (no gameplay effect in the brawler: guard / CPU AI cues, presentation, bookkeeping), 'unknown'. brawler: how the brawler covers it. evidence: the ROM code that reads / writes the bit (KOF98). Read 2026-10-06 (TODO #142).",
+ "fields": {
+  "+$00": "resume address of the object's coroutine (move.l #R, (a4))",
+  "+$18": "x (word: px, the low word fraction)",
+  "+$20": "height",
+  "+$31": "facing (bit 0 set = facing right; the decoder assumes right, a left facing negates vx / dx)",
+  "+$50": "vx (16.16 px/frame)",
+  "+$54": "friction (0.16 factor, $24A2A)",
+  "+$58": "vy (16.16 px/frame)",
+  "+$5C": "gravity g (16.16 px/frame^2)",
+  "+$72": "state to play (animation)",
+  "+$78": "state playing (-1 forces a restart)",
+  "+$7C": "the current step's flags, high byte (animate $5C4A: step bytes 4-5 -> +$7C / +$7D)",
+  "+$7D": "the current step's flags, low byte",
+  "+$84": "owner object (an effect's fighter)",
+  "+$B6": "opponent object",
+  "+$BC": "|opponent x - x| ($16AC0)",
+  "+$C2": "handler scratch (Rising Tackle: the rise counter, subq at $42F48; Power Geyser: pointer into its state / pillar table)",
+  "+$C6": "handler scratch (Power Geyser: pointer into its pillar offset table)",
+  "+$D1": "signal bits between a fighter and its objects",
+  "+$D2": "handler scratch word 0 (a state list entry, or a count: Power Geyser's +$D2 = pillars)",
+  "+$D4": "handler scratch word 1 (a state list entry, or a count: Power Geyser's +$D2 = pillars)",
+  "+$D6": "handler scratch word 2 (a state list entry, or a count: Power Geyser's +$D2 = pillars)",
+  "+$D8": "handler scratch word 3 (a state list entry, or a count: Power Geyser's +$D2 = pillars)",
+  "+$EF": "damage table index of the move's hits (read by the stats routines $18C1C / $18C84)",
+  "+$108": "damage / attack stats byte read with +$EF (stats routines)",
+  "+$109": "damage stats byte 2 (Power Geyser MAX: -1)",
+  "+$170": "CPU control (bit 7: CPU player; the decoder takes a human)",
+  "+$198": "the special's handler address (move code)",
+  "+$19C": "catch routine (run after a catch box's hit-stop)",
+  "+$1A4": "the special's button (bit 4 A, 5 B, 6 C, 7 D: copied from the input record a3 +$7D at the handler's start)",
+  "+$1AC": "follow-up command windows (+$1AC-$1AF)",
+  "+$1B8": "hit kind (hit sound / effect)",
+  "+$1D6": "EX flag (non-zero: the fighter is the EX version)",
+  "+$1DE": "gauge gained ($155F4)"
+ },
+ "bits": {
+  "+$7C.0": {
+   "name": "attack box live (step flag $0100)",
+   "effect": "gameplay",
+   "brawler": "bstep_t flags 1",
+   "meaning": "The step's first attack box can hit. Collision $3AD0 tests +$7C bits 0-3 (box slots), clears the slot's bit on a hit ($3B1C).",
+   "evidence": [
+    "$5C4A animate copies the step flags",
+    "$3AD0 btst d2,+$7C",
+    "$3B1C bclr d3,+$7C"
+   ]
+  },
+  "+$7C.5": {
+   "name": "follow-up window (step flag $2000)",
+   "effect": "gameplay",
+   "brawler": "bstep_t flags 32, PC_WINDOW",
+   "meaning": "A follow-up input window is open on this step.",
+   "evidence": [
+    "handlers98 'window'"
+   ]
+  },
+  "+$7C.6": {
+   "name": "chained hit (step flag $4000)",
+   "effect": "gameplay",
+   "brawler": "bstep_t flags 16 (same hit)",
+   "meaning": "A hit on this step sets the attacker's +$E2 bit 7 (no further hits in the chain).",
+   "evidence": [
+    "$3B20 btst #6,+$7C -> $3B2A ori #$80,+$E2"
+   ]
+  },
+  "+$7C.7": {
+   "name": "animation ended",
+   "effect": "gameplay",
+   "brawler": "PC_END",
+   "meaning": "Set by animate past the last step ($5CB8).",
+   "evidence": [
+    "$5CB8"
+   ]
+  },
+  "+$7D.7": {
+   "name": "event step (step flag $0080)",
+   "effect": "gameplay",
+   "brawler": "P_EVCLR / PC_EVENT (andi on +$7D = the event consumed)",
+   "meaning": "The step is the move's event; the handler consumes it with andi.",
+   "evidence": [
+    "handlers98 'event' / 'evclr'"
+   ]
+  },
+  "+$D1.6": {
+   "name": "object signal 6",
+   "effect": "gameplay",
+   "brawler": "PC_SIG6, P_SIGCLR",
+   "meaning": "An object signals its owner (K''s shot hit / gone).",
+   "evidence": [
+    "handlers98 sigbits"
+   ]
+  },
+  "+$D1.7": {
+   "name": "effects end (fxoff) / object signal",
+   "effect": "gameplay",
+   "brawler": "P_FXOFF, PC_SIG7",
+   "meaning": "Owner side: its attached effects end (they test the owner's bit: Burn Knuckle's flame $42A86); object side: a signal to the owner.",
+   "evidence": [
+    "$42A86 tst owner +$D1",
+    "$3D80C"
+   ]
+  },
+  "+$E0.0": {
+   "name": "attacking (opponent's proximity guard)",
+   "effect": "none",
+   "brawler": "no guard in the brawler (ruleset 'guard / chip')",
+   "meaning": "The fighter is attacking: the opponent walking back within 224 px turns it into a guard (state 26). Set on the owner while its effect lives ($24A86 'ownerflag'), cleared by $24A68.",
+   "evidence": [
+    "$148CE btst #0,opp+$E0 (walk-back routine $142EC -> $14928 guard state 26)",
+    "$148E8 cmpi #224,+$BC",
+    "$39F0A CPU AI weight"
+   ]
+  },
+  "+$E1.2": {
+   "name": "guard trigger at any distance",
+   "effect": "none",
+   "brawler": "no guard in the brawler",
+   "meaning": "With +$E0 bit 0: the opponent's walk-back guards whatever the distance (an effect / projectile out).",
+   "evidence": [
+    "$148D8 btst #2,opp+$E1 -> guard",
+    "$24A92 set with $24A86"
+   ]
+  },
+  "+$E1.5": {
+   "name": "projectile in flight",
+   "effect": "gameplay",
+   "brawler": "one projectile at a time per thrower (ruleset 'projectiles')",
+   "meaning": "One projectile in flight ($24A7C 'inflight' / $24A5E 'release').",
+   "evidence": [
+    "$24A80",
+    "$24A62"
+   ]
+  },
+  "+$E1.6": {
+   "name": "catch spent",
+   "effect": "gameplay",
+   "brawler": "decode-time: the catch routine (P_ONHIT) is exported only while the bit is clear",
+   "meaning": "Set once the catch routine ran ($1B3DA, $1D6AC, $1DAA6); the catch test $1B9F6 / $1BA32 runs +$19C only while it is clear. $250C6 clears it (with +$E6 bit 0 and the opponent's +$E2 bit 2 / +$E4 bit 2 / +$E5 bit 1).",
+   "evidence": [
+    "$1BA32 btst #6,+$E1",
+    "$1B3DA ori #$40,+$E1",
+    "$250CC andi #$BF,+$E1"
+   ]
+  },
+  "+$E1.7": {
+   "name": "this attack connected",
+   "effect": "gameplay",
+   "brawler": "PC_HIT, P_HITOFF",
+   "meaning": "Tested by tst.b +$E1 (handlers98 'hit').",
+   "evidence": [
+    "handlers98 TEST_FIELDS"
+   ]
+  },
+  "+$E2.1": {
+   "name": "super flash ends",
+   "effect": "none",
+   "brawler": "the super flash is not in the brawler (presentation, TODO #139)",
+   "meaning": "The super-flash routines ($19A88 / $19AB4 / $19AE0 / $19B06, 'superflash') spawn the flash object $19898 and clear the owner's bit; the flash frees itself when its owner sets it ($198BE / $19900). A desperation move sets it when its flash should end (Ryo's Ryuuko Ranbu $48382).",
+   "evidence": [
+    "$19AA6 andi #$FD,+$E2",
+    "$198BE btst #1,owner+$E2 -> free",
+    "$48382 ori #2,+$E2"
+   ]
+  },
+  "+$E2.2": {
+   "name": "was hit: attached effects end",
+   "effect": "gameplay",
+   "brawler": "fighter.c special_end on a hit out of a special (all its objects go, travelling ones too)",
+   "meaning": "Set when the fighter takes a hit ($1B48A in the hit routine, $1E818 the cinematic hit); every attached effect tests its owner's bit and frees itself (Burn Knuckle's flame $42A7E, 170 sites). A handler clears it before spawning its effect so an old hit does not end the new one.",
+   "evidence": [
+    "$1B48A ori #4,+$E2",
+    "$1E818 ori #4,+$E2",
+    "$42A7E / $3D802 btst #2,owner+$E2 -> free"
+   ]
+  },
+  "+$E2.7": {
+   "name": "attack boxes off (chain hit landed)",
+   "effect": "gameplay",
+   "brawler": "no flag: the brawler opens one hit per active step run (bstep_t flags 16 chains); a state with more openings after the connect would hit again",
+   "meaning": "While set, the yield routine clears +$7C bit 0 every frame after animate ($17004, $1718E): no attack box is live. Collision sets it when a $4000 step hits ($3B2A); handlers set it on their hit (Burn Knuckle $42A00: one hit) and clear it on landing / at the next part ($42A2A, 106 andi sites).",
+   "evidence": [
+    "$17004 tst.b +$E2; bpl; andi #$FE,+$7C",
+    "$1718E same",
+    "$3B2A ori #$80,+$E2"
+   ]
+  },
+  "+$E3.2": {
+   "name": "guard trigger while airborne",
+   "effect": "none",
+   "brawler": "no guard in the brawler",
+   "meaning": "Read by the opponent's guard test for a jumping fighter ($1490E); set with +$E0 bit 0 by $24A86.",
+   "evidence": [
+    "$1490E btst #2,opp+$E3"
+   ]
+  },
+  "+$E3.7": {
+   "name": "any hit since cleared",
+   "effect": "gameplay",
+   "brawler": "PC_HITANY, P_HITCLR",
+   "meaning": "Tested by tst.b +$E3 (handlers98 'hitany').",
+   "evidence": [
+    "handlers98 TEST_FIELDS"
+   ]
+  },
+  "+$E4.0": {
+   "name": "SDM / object stats from the owner",
+   "effect": "none",
+   "brawler": "damage scale is the brawler's (ruleset 'damage scale')",
+   "meaning": "Desperation-move power level bit (dmcheck); on an object, $2505A then runs $18C84 (its damage stats from +$EF and the owner).",
+   "evidence": [
+    "$2505A btst #0,+$E4",
+    "$18C84"
+   ]
+  },
+  "+$E4.4": {
+   "name": "caught victim held",
+   "effect": "gameplay",
+   "brawler": "P_HOLD / P_UNHOLD",
+   "meaning": "The caught victim stays a standing reel while held.",
+   "evidence": [
+    "handlers98 'hold'"
+   ]
+  }
+ },
+ "routines": {
+  "kof98:$24A7C": {
+   "name": "inflight",
+   "sets": [
+    "owner +$E1.5",
+    "owner +$E0.0",
+    "owner +$E3.2",
+    "owner +$E1.2"
+   ],
+   "effect": "gameplay",
+   "brawler": "one projectile at a time"
+  },
+  "kof98:$24A5E": {
+   "name": "release",
+   "clears": [
+    "owner +$E1.5",
+    "owner +$E0.0",
+    "owner +$E3.2",
+    "owner +$E1.2"
+   ],
+   "effect": "gameplay",
+   "brawler": "one projectile at a time"
+  },
+  "kof98:$24AA0": {
+   "name": "ownerflag (set)",
+   "sets": [
+    "owner +$E0.0",
+    "owner +$E3.2",
+    "owner +$E1.2"
+   ],
+   "effect": "none",
+   "brawler": "no guard: the opponent's proximity guard cue while the effect lives"
+  },
+  "kof98:$24A9A": {
+   "name": "ownerflag (clear)",
+   "clears": [
+    "owner +$E0.0",
+    "owner +$E3.2",
+    "owner +$E1.2"
+   ],
+   "effect": "none",
+   "brawler": "no guard"
+  },
+  "kof98:$250C6": {
+   "name": "flags",
+   "clears": [
+    "+$E6.0",
+    "+$E1.6",
+    "opponent +$E2.2",
+    "opponent +$E4.2",
+    "opponent +$E5.1"
+   ],
+   "effect": "gameplay",
+   "brawler": "catch re-armed (decode-time, see +$E1.6); the opponent's bits: unknown beyond +$E2.2"
+  },
+  "kof98:$2505A": {
+   "name": "object stats",
+   "reads": [
+    "+$E4.0"
+   ],
+   "effect": "none",
+   "brawler": "damage scale is the brawler's",
+   "meaning": "if +$E4 bit 0: jsr $18C84 (the object's damage stats from +$EF and its owner)"
+  },
+  "kof96:$1A8C2": {
+   "name": "inflight",
+   "sets": [
+    "owner +$E1.5",
+    "owner +$E0.0",
+    "owner +$E3.2",
+    "owner +$E1.2"
+   ],
+   "effect": "gameplay",
+   "brawler": "one projectile at a time",
+   "same_as": "kof98:$24A7C"
+  },
+  "kof96:$1A8A4": {
+   "name": "release",
+   "clears": [
+    "owner +$E1.5",
+    "owner +$E0.0",
+    "owner +$E3.2",
+    "owner +$E1.2"
+   ],
+   "effect": "gameplay",
+   "brawler": "one projectile at a time",
+   "same_as": "kof98:$24A5E"
+  },
+  "kof96:$1A8E6": {
+   "name": "ownerflag (set)",
+   "sets": [
+    "owner +$E0.0",
+    "owner +$E3.2",
+    "owner +$E1.2"
+   ],
+   "effect": "none",
+   "brawler": "no guard: the opponent's proximity guard cue while the effect lives",
+   "same_as": "kof98:$24AA0 (byte-identical code)"
+  },
+  "kof96:$1A8E0": {
+   "name": "ownerflag (clear)",
+   "clears": [
+    "owner +$E0.0",
+    "owner +$E3.2",
+    "owner +$E1.2"
+   ],
+   "effect": "none",
+   "brawler": "no guard",
+   "same_as": "kof98:$24A9A (byte-identical code)"
+  }
+ }
+}

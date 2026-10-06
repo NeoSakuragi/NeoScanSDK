@@ -153,9 +153,21 @@ def facts(mv):
     f['sig'] = any(o['sig'] for o in objs)
     f['loop'] = any(o['loop'] != 255 for o in objs)
     f['nobj'] = len(objs)
+    f['variants'] = variant_tests(mv) if mv['slot'] else []
     return f
 
 def slots(mv): return (mv['slot'] or '').split('+')
+def variant_tests(mv):
+    """a ROM move: the input fields its handler branches on (button +$1A4 / EX flag +$1D6): it has variants"""
+    if mv['kind'] != 'rom': return []
+    try:
+        H, export96, m = kof_env(mv['game'])
+        cid = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}[mv['game']].index(mv['fighter'])
+        h, b = H.handler_of(cid, mv['input'], game=mv['game'])
+        dec = H.Decoder(m); dec.trace = []
+        H.decode(m, h, b, mv['input'].startswith('EX '), dec=dec, cid=cid)
+        return sorted({x['test'].split(' (')[0] for x in branches(dec.trace, h) if x['variant']})
+    except Exception: return []
 def mid(mv): return f"{mv['fighter']}:{mv['input']}"
 def label(mv): return f"{mv['fighter']} {mv['input']}" + (f" [{mv['slot']}]" if mv['slot'] else '')
 
@@ -254,6 +266,14 @@ FEATURES = [
   lambda mv, f: mv['kind'] == 'recorded' and f['contact']),
  ('hold', 'hold.carry', [('rows', '(x, y) per row', '')], 'The victim is placed per row relative to the attacker (recorded cinematic).',
   'bspec_row_t.hit bit 2 + vx / vy (recorded)', lambda mv, f: mv['kind'] == 'recorded' and f['carry']),
+ ('variant', 'variant.parameter_set', [('variants', '[input -> parameter set]', 'light / heavy / EX light / EX heavy'),
+                                       ('selector', 'button | EX flag', '')],
+  'One behaviour (the program) with parameter sets chosen by the input that started it: KOF\'s handler tests the button '
+  '(+$1A4), the EX flag (+$1D6) and a DM\'s MAX bit (+$E4 bit 0) and writes other speeds, timers, state / spawn tables, '
+  'counts and damage ids (Double Dragon 1995: 4 per special).',
+  'decoded, not played: handlers98.decode_variants forks at each selector test, export_rom stores every version '
+  '(rom.variants); the game plays the slot\'s own button; the sheets list the versions side by side',
+  lambda mv, f: bool(f.get('variants'))),
  ('presentation', 'fx.backdrop', [('rows', 'range', ''), ('colours', '2 x 16-bit', '')], 'The stage hidden, the backdrop alternating 2 colours.',
   'bspec_t.bd_* (main.c screen_fx)', lambda mv, f: bool(mv['bd'])),
  ('presentation', 'fx.voice_extra', [('voices', '[(id, at)]', '')], 'More than one voice line in a move.', 'bchar_t.vmore',
@@ -467,25 +487,127 @@ def missing(moves, vocab, fx):
 
 # ---- conversion sheets --------------------------------------------------------------------------------------------------
 KOF = os.path.join(ROOT, 'tools', 'kof96')
-def kof_source(mv):
-    """(excerpt, ops, model) of a KOF ROM move: the handler's instructions that produced each decoded op (68000,
-    annotated with the op), the decoded ops, the whiff model's state runs (and the catch branch)"""
+FLAGS_JSON = os.path.join(ROOT, 'docs', 'kof_engine_flags.json')   # the shared KOF-engine field / flag table
+_MEM = {}
+def kof_env(game):
+    """(handlers98, export96, rom Mem) of a KOF game, loaded once"""
     sys.path.insert(0, KOF); sys.path.insert(0, os.path.join(KOF, 'capture'))
     import handlers98 as H, rom96, export96
-    game = mv['game']; cast = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}[game]
+    if game not in _MEM: _MEM[game] = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
+    return H, export96, _MEM[game]
+
+def flag_table():
+    if not hasattr(flag_table, 't'): flag_table.t = json.load(open(FLAGS_JSON))
+    return flag_table.t
+
+def fname(f):
+    """a fighter-object field's name from the flag table ('+$50 vx (16.16 px/frame)')"""
+    n = flag_table()['fields'].get(f'+${f:X}')
+    return f'+${f:X}' + (f' {n.split(" (")[0]}' if n else '')
+
+def fval(f, size, v):
+    """a stored value as the engine reads it (handlers98.store_value: 16.16 speeds as px, ROM pointers as addresses)"""
+    return kof_env('kof98')[0].store_value(f, size, v)
+
+def ctx_label(ctxs, ctx, top):
+    ra, depth, _ = ctxs[ctx]
+    return 'handler' if depth == 0 and ra == top else f'object routine ${ra:X}' + (' (hit)' if depth > 1 else '')
+
+BUTTON_FIELD, EX_FIELD, FACING_FIELD, MAX_FIELD = 0x1A4, 0x1D6, 0x31, 0xE4
+def branches(trace, top):
+    """the branches the decode decided from a known field (the button, the EX flag, the MAX bit, the facing): one per
+    address"""
+    H = kof_env('kof98')[0]; trace_ctx = H.trace_ctx
+    ctxs = trace_ctx(trace); out, seen = [], set()
+    for ctx, (ra, depth, ev) in ctxs.items():
+        for e in ev:
+            if e[0] != 'decide' or (ctx, e[2]) in seen: continue
+            seen.add((ctx, e[2]))
+            _, _, a, src, v, cond, taken, t, nx = e
+            kind, ta, f, x = src
+            if f == BUTTON_FIELD and kind == 'btst':
+                what = f'button bit {x} of +$1A4 ({"ABCD"[x - 4] if 4 <= x < 8 else "?"})'; state = 'set' if v else 'clear'
+            elif f == EX_FIELD: what = 'EX flag +$1D6'; state = 'EX' if v else 'not EX'
+            elif f == MAX_FIELD and kind == 'btst' and x == 0: what = 'MAX / SDM bit +$E4 bit 0'; state = 'MAX' if v else 'not MAX'
+            elif f == FACING_FIELD and kind == 'btst' and x == 0: what = 'facing +$31 bit 0'; state = 'right (decoder assumption; left mirrors)'
+            else: what = fname(f) + (f' bit {x}' if kind == 'btst' else ''); state = str(v)
+            out.append({'addr': f'${a:06X}', 'test_at': f'${ta:06X}', 'in': ctx_label(ctxs, ctx, top), 'test': what,
+                        'value': state, 'variant': f in (BUTTON_FIELD, EX_FIELD) or f == MAX_FIELD and kind == 'btst' and x == 0,
+                        'taken': f'${t:06X}' if taken else f'${nx:06X} (falls through)',
+                        'other_way': f'${nx:06X} (falls through)' if taken else f'${t:06X}'})
+    return out
+
+def bits_of(op):
+    """a handlers98 ('flag', base, field, value) op -> [(bit, 'set' | 'cleared')]"""
+    _, base, fd, v = op[:4]
+    return [(b, 'set') for b in range(8) if v >> b & 1] if base.startswith('or') else [(b, 'cleared') for b in range(8) if not v >> b & 1]
+
+NAMED_BIT_OPS = {'part', 'fxoff', 'sigclr', 'hitclr', 'hitoff', 'hold', 'unhold', 'evclr'}   # handlers98 ops that model a bit write
+def kof_source(mv):
+    """(excerpt, model, extra) of a KOF ROM move: the handler's instructions that produced each decoded op (68000,
+    annotated with the op, one line per instruction), the whiff model's state runs (and the catch branch), and extra:
+    dead stores, branches decided by the button / EX flag / facing, the bit writes the export drops (unexplained ones
+    flagged), the move's variants, the exported program's op -> instruction address"""
+    game = mv['game']; H, export96, m = kof_env(game)
+    cast = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}[game]
     cid = cast.index(mv['fighter'])
-    m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     h, b = H.handler_of(cid, mv['input'], game=game)
-    dec = H.Decoder(m); d = H.decode(m, h, b, mv['input'].startswith('EX '), dec=dec, cid=cid)
-    lines = []
+    ex = mv['input'].startswith('EX ')
+    dec = H.Decoder(m); dec.trace = []
+    d = H.decode(m, h, b, ex, dec=dec, cid=cid)
+    trace = dec.trace; dec.trace = None
+    ctxs = H.trace_ctx(trace); dead = H.dead_stores(trace, dec)
+    dead_at = {}                                       # (routine, address) -> its dead store record
+    for (ctx, a), (e, kl) in dead.items():
+        ra = ctxs[ctx][0]
+        dead_at[(ra, a)] = {'addr': f'${a:06X}', 'in': ctx_label(ctxs, ctx, h), 'field': fname(e[3]), 'value': fval(e[3], e[4], e[5]),
+                            'overwritten_at': f'${kl[2]:06X}', 'by': fval(kl[3], kl[4], kl[5])}
+    tab = flag_table(); lines = []; bitw = []
+    rows, objs = H.run_model(m, cid, d, frames=400)
+    reached = {id(o.prog) for o in objs}             # the objects the whiff model spawns
     def walk(dd, ind=''):
-        for a, op in dd['ops']:
+        ops = dd['ops']; named = {a for a, op in ops if op[0] in NAMED_BIT_OPS}
+        for i, (a, op) in enumerate(ops):
+            if op[0] == 'flag' and op[1] != 'pruned' and a in named: continue     # the named op says it (one line)
             try: mn, ops_, _ = dec.at(a); ins = f'{mn} {",".join(ops_)}'
             except Exception: ins = '?'
-            lines.append({'addr': f'${a:06X}', 'asm': ins, 'op': ' '.join(str(x) if not isinstance(x, (int, float)) or abs(x) < 256 else f'${int(x):X}' for x in op if not isinstance(x, tuple)), 'in': ind or 'handler'})
+            txt = ' '.join(str(x) if not isinstance(x, (int, float)) or abs(x) < 256 else f'${int(x):X}' for x in op if not isinstance(x, tuple))
+            note = None
+            if op[0] == 'flag' and op[1] == 'pruned': txt = f'branch on {op[2]} pruned (both ways meet before anything but bookkeeping)'
+            elif op[0] == 'flag':
+                parts = []
+                for bt, how in bits_of(op):
+                    ent = tab['bits'].get(f'+${op[2]:X}.{bt}')
+                    w = f'+${op[2]:X} bit {bt} {how}'
+                    rec = {'addr': f'${a:06X}', 'in': ind or 'handler', 'write': w, 'name': ent['name'] if ent else None,
+                           'effect': ent['effect'] if ent else 'unknown', 'brawler': ent['brawler'] if ent else None,
+                           'status': 'explained' if ent and ent['effect'] != 'unknown' else 'UNEXPLAINED'}
+                    bitw.append(rec)
+                    parts.append(w + (f': {ent["name"]} ({ent["effect"]})' if ent and ent['effect'] != 'unknown' else ': UNEXPLAINED'))
+                txt = 'dropped bit write: ' + '; '.join(parts)
+            elif op[0] in ('ownerflag', 'flags', 'inflight', 'release'):
+                t_ = int(ops_[0], 16) if ins != '?' and ops_ and ops_[0].startswith('0x') else None
+                ent = tab['routines'].get(f'{game}:${t_:X}') if t_ is not None else None
+                w = f'jsr ${t_:X}' if t_ is not None else op[0]
+                if op[0] in ('ownerflag', 'flags'):
+                    bitw.append({'addr': f'${a:06X}', 'in': ind or 'handler', 'write': w + (' (' + ', '.join(ent.get('sets', []) + ent.get('clears', []) + ent.get('reads', [])) + ')' if ent else ''),
+                                 'name': ent['name'] if ent else None, 'effect': ent['effect'] if ent else 'unknown',
+                                 'brawler': ent['brawler'] if ent else None, 'status': 'explained' if ent else 'UNEXPLAINED'})
+                if ent: txt += f' = {ent["name"]}: ' + ', '.join([f'sets {x}' for x in ent.get('sets', [])] + [f'clears {x}' for x in ent.get('clears', [])] + [f'reads {x}' for x in ent.get('reads', [])])
+                elif op[0] in ('ownerflag', 'flags'): txt += ' UNEXPLAINED'
+            if op[0] == 'br' and isinstance(op[1], str) and op[1].startswith('owner_') and '.' in op[1]:
+                ent = tab['bits'].get('+$' + op[1][6:])
+                txt += f' (owner +${op[1][6:]}: ' + (ent['name'] if ent else 'UNEXPLAINED') + ')'
+            if op[0] == 'spawn' and dd is d and op[1] < len(d['objects']) and id(d['objects'][op[1]]) not in reached:
+                note = 'never reached in the whiff model: a decode-time place past the state\'s last event step (KOF spawns no such object)'
+            dr = dead_at.get((dd['addr'], a))
+            if dr and op[0] == 'set': note = f'DEAD: overwritten at {dr["overwritten_at"]} ({dr["by"]}) before any frame plays'
+            if lines and lines[-1]['addr'] == f'${a:06X}' and lines[-1]['in'] == (ind or 'handler') and lines[-1]['asm'] == ins:
+                lines[-1]['op'] += '; ' + txt; continue          # one instruction, one line (its ops joined)
+            lines.append({'addr': f'${a:06X}', 'asm': ins, 'op': txt, 'in': ind or 'handler', **({'note': note} if note else {})})
         for k, ob in enumerate(dd.get('objects', [])): walk(ob, f'object {k} (${ob["addr"]:X}, state {ob.get("state")}, kind {ob["kind"]})')
+        if ind and dd.get('hit'): walk(dd['hit'], ind + ' hit')
     walk(d)
-    rows, objs = H.run_model(m, cid, d, frames=400)
     runs = lambda rs: [[s, a, b_] for s, a, b_ in _runs([r[1] for r in rs])]
     states = []                                        # export_rom's anim order: first appearance in the decoded ops
     for a_, op in d['ops']:
@@ -501,7 +623,32 @@ def kof_source(mv):
             model['catch_at'] = ca; model['caught'] = runs(r2); model['caught_frames'] = len(r2); break
     per, last, peak, n = H.openings(m, cid, d)
     model['openings'] = {str(k): v for k, v in per.items()}
-    return lines, model
+    # the exported program (bspec_t.prog) = the handler's ops minus DROP_OPS and hitkind (export_rom): op -> address
+    kept = [a for a, op in d['ops'] if op[0] not in H.DROP_OPS and op[0] != 'hitkind']
+    br = branches(trace, h)
+    extra = {'dead_stores': sorted(dead_at.values(), key=lambda r: (r['in'] != 'handler', r['addr'])), 'branches': br,
+             'bit_writes': bitw, 'prog_addr': kept if len(kept) == len(mv['prog']) else None,
+             'variants': variants(mv, H, m, cid, h, b, ex, br)}
+    return lines, model, extra
+
+def variants(mv, H, m, cid, h, b, ex, br):
+    """every version of the move's handler (handlers98.decode_variants: forked at each button / EX / MAX test, the
+    same code path as the export's 'variants'): its live field writes, states, objects, whiff length, hit openings.
+    [] when the handler has one version."""
+    vs = H.decode_variants(m, h, b, ex, cid)
+    if len(vs) < 2: return []
+    out = []
+    for v in vs:
+        r = H.variant_summary(m, cid, mv['input'], v)
+        try: same = H.handler_of(cid, r['input'], v['ex'], m.game)[0] == h
+        except Exception: same = None                 # no capture of that input
+        out.append({'input': r['input'], 'strength': ('MAX ' if v['sdm'] else '') + ('EX ' if v['ex'] else '') + ('light' if v['button'] in 'AB' else 'heavy'),
+                    'this_sheet': r['input'] == mv['input'], 'button': v['button'], 'ex': v['ex'], 'max': v['sdm'],
+                    'captured_same_handler': same, 'states': r['states'], 'objects_spawned': r['objects_spawned'],
+                    'hit_kind': r['hit_kind'], 'whiff_frames': r['whiff_frames'], 'hits': r['hit_openings'],
+                    'params': {fname(int(k[2:], 16)): x for k, x in r['fields'].items()},
+                    'path': [t for a_, t in r['path']], 'path_at': [a_ for a_, t in r['path']]})
+    return out
 
 def _runs(seq):
     out, start = [], 0
@@ -509,11 +656,17 @@ def _runs(seq):
         if i == len(seq) or seq[i] != seq[start]: out.append((seq[start], start, i - 1)); start = i
     return out
 
-def prog_mapping(mv, model=None):
-    """the exported program as phases: one per P_ANIM, with the ops that run in it mapped to standard features"""
+def prog_mapping(mv, model=None, extra=None):
+    """the exported program as phases: one per P_ANIM, with the ops that run in it mapped to standard features. A set
+    overwritten before any frame plays (extra dead_stores: the other variant's value the handler writes first) is left
+    out; a set names the instruction it came from ('at')"""
     states = model['states'] if model and len(model['states']) == len(mv['anims']) else []
+    addrs = (extra or {}).get('prog_addr')
+    dead = {r['addr'] for r in (extra or {}).get('dead_stores', []) if r['in'] == 'handler'}
     phases, cur, pre = [], None, []
     for i, (op, a, b, v) in enumerate(mv['prog']):
+        at = f'${addrs[i]:06X}' if addrs else None
+        if op == P['SET'] and at in dead: continue
         name = PN.get(op, str(op))
         if op == P['ANIM']:
             steps = mv['anims'][a]
@@ -541,7 +694,7 @@ def prog_mapping(mv, model=None):
         if op == P['SET']:
             reg = REG[a]; val = v / 65536 if a in (0, 1, 2, 5) else v / 65536 if a == 3 else v
             feat = {'feature': {'vx': 'move.velocity', 'vy': 'move.velocity', 'g': 'move.gravity', 'fric': 'move.friction',
-                                'cnt': 'branch.on_timer', 'h': 'move.nudge'}[reg], 'params': {reg: round(val, 4)}}
+                                'cnt': 'branch.on_timer', 'h': 'move.nudge'}[reg], 'params': {reg: round(val, 4), **({'at': at} if at else {})}}
         elif op == P['MUL']: feat = {'feature': 'move.friction', 'params': {'mul': round(v / 65536, 4)}}
         elif op in (P['MOVE'], P['FRICMOVE'], P['FALL']):
             feat = {'feature': {P['MOVE']: 'move.velocity', P['FRICMOVE']: 'move.friction', P['FALL']: 'move.gravity'}[op], 'params': {'apply': name.lower()}}
@@ -677,11 +830,12 @@ def fidelity(mv):
 
 def sheet(mv, vocab, fx):
     rec = {'move': label(mv), 'fighter': mv['fighter'], 'game': mv['game'], 'input': mv['input'], 'slot': mv['slot'], 'played_as': mv['kind']}
+    extra = {'dead_stores': [], 'branches': [], 'bit_writes': [], 'variants': []}
     if mv['kind'] == 'rom':
-        try: code, model = kof_source(mv)
+        try: code, model, extra = kof_source(mv)
         except Exception as e: code, model = [{'error': repr(e)}], None
-        rec['source'] = {'kind': 'rom', 'code': code, 'model': model}
-        phases = prog_mapping(mv, model)
+        rec['source'] = {'kind': 'rom', 'code': code, 'model': model, 'dead_stores': extra['dead_stores']}
+        phases = prog_mapping(mv, model, extra)
     else:
         rec['source'] = {'kind': 'capture', 'code': 'capture', 'rows': mv['nrows'],
                          'note': MISSING.get(mid(mv), (None, [], ''))[2]}
@@ -693,6 +847,11 @@ def sheet(mv, vocab, fx):
     rec['ingestion'] = classify(mv, fx[mid(mv)], vocab)
     rec['features_missing'] = [n['component'] for n in rec['ingestion']['needs']]
     rec['fidelity'] = fidelity(mv)
+    rec['branches'] = extra['branches']               # decided by the button / EX flag / facing (+ other known fields)
+    rec['variants'] = extra['variants']               # one handler, several inputs: parameter sets side by side
+    rec['bit_writes'] = extra['bit_writes']           # every bit write the export drops, with its meaning
+    rec['bit_writes'] = list({(w['addr'], w['in'], w['write']): w for w in rec['bit_writes']}.values())   # (a loop walked twice: once)
+    rec['unexplained'] = [w for w in rec['bit_writes'] if w['status'] == 'UNEXPLAINED']
     return rec
 
 def sheet_md(s):
@@ -700,9 +859,48 @@ def sheet_md(s):
     src = s['source']
     if src['kind'] == 'rom' and src['model']:
         L += [f"Handler {src['model']['handler']}, button {src['model']['button']}. Instruction behind each decoded op:", '', '```']
-        L += [f"{c['addr']}  {c['asm']:<40} ; {c['op']}" + ('' if c['in'] == 'handler' else f"   [{c['in']}]") for c in src['code']]
+        L += [f"{c['addr']}  {c['asm']:<40} ; {c['op']}" + ('' if c['in'] == 'handler' else f"   [{c['in']}]") + (f"   << {c['note']}" if c.get('note') else '') for c in src['code']]
         L += ['```', '', f"Model (whiff): state runs [state, first, last frame] {src['model']['whiff']}"]
         if 'caught' in src['model']: L.append(f"Model (catch at frame {src['model']['catch_at']}): {src['model']['caught']}")
+        L += ['', '### Branches decided by the input (button / EX flag) and the facing']
+        for x in s['branches']:
+            own = next((dict(zip(v['path_at'], v['path'])) for v in s['variants'] if v.get('this_sheet')), {})
+            vs = lambda same: [v['input'] for v in s['variants'] if x['addr'] in v.get('path_at', []) and x['addr'] in own
+                               and (dict(zip(v['path_at'], v['path']))[x['addr']] == own[x['addr']]) == same]
+            L.append(f"- {x['addr']} ({x['in']}) {x['test']} = **{x['value']}** -> {x['taken']}" + (f" ({', '.join(vs(True))})" if vs(True) else '')
+                     + f"; otherwise {x['other_way']}" + (f" ({', '.join(vs(False))})" if vs(False) else ''))
+        if not s['branches']: L.append('- none: the handler does not test them')
+        L += ['', '### Dead stores (overwritten before any frame plays: not in the mapping)']
+        for r in src.get('dead_stores', []):
+            L.append(f"- {r['addr']} ({r['in']}) {r['field']} = {r['value']}, overwritten at {r['overwritten_at']} by {r['by']}" + (' (same value)' if r['value'] == r['by'] else ''))
+        if not src.get('dead_stores'): L.append('- none')
+        L += ['', '### Bit writes the export drops']
+        for w in s['bit_writes']:
+            L.append(f"- {w['addr']} ({w['in']}) {w['write']}: " + (f"**UNEXPLAINED**" if w['status'] == 'UNEXPLAINED' else f"{w['name']}; effect {w['effect']}; brawler: {w['brawler']}"))
+        if not s['bit_writes']: L.append('- none')
+        L.append(f"Unexplained: {len(s['unexplained'])} (table: docs/kof_engine_flags.json)")
+        L += ['', '### Variants (one handler, parameter sets chosen by the button / EX flag)']
+        V = [v for v in s['variants'] if 'error' not in v]
+        if V:
+            keys = []
+            for v in V: keys += [k for k in v['params'] if k not in keys]
+            cell = lambda x: '/'.join(map(str, x)) if isinstance(x, list) else '-' if x is None else str(x)
+            L += ['| parameter | ' + ' | '.join(f"{v['input']} ({v['strength']})" + (' *' if v['this_sheet'] else '') for v in V) + ' |', '|---' * (len(V) + 1) + '|']
+            L.append('| path | ' + ' | '.join('; '.join(v['path']) for v in V) + ' |')
+            L.append('| states (whiff model) | ' + ' | '.join(cell(v['states']) for v in V) + ' |')
+            L.append('| objects spawned (whiff model) | ' + ' | '.join(cell(v['objects_spawned']) for v in V) + ' |')
+            L.append('| hit kind | ' + ' | '.join(cell(v['hit_kind']) for v in V) + ' |')
+            L.append('| whiff frames / hit openings | ' + ' | '.join(f"{v['whiff_frames']} / {v['hits']}" for v in V) + ' |')
+            same = []
+            for k in keys:
+                vals = [v['params'].get(k) for v in V]
+                if all(x == vals[0] for x in vals): same.append(f'{k} {cell(vals[0])}'); continue
+                L.append(f'| {k} | ' + ' | '.join(cell(x) for x in vals) + ' |')
+            L.append(f"Same in every variant: {', '.join(same) or 'nothing'}. Captured with this handler: " +
+                     ', '.join(f"{v['input']} {'yes' if v['captured_same_handler'] else 'no capture' if v['captured_same_handler'] is None else 'NO (other handler)'}" for v in V) + '. (* = this sheet)')
+        for v in s['variants']:
+            if 'error' in v: L.append(f"- {v['input']}: decode error {v['error']}")
+        if not s['variants']: L.append('- one parameter set: the handler tests neither the button nor the EX flag')
     else: L += ['capture (no handler decoder for this source): ' + str(src.get('rows')) + ' recorded rows. ' + (src.get('note') or '')]
     L += ['', '## (b) Understood'] + [f'- {u}' for u in s['understood']]
     L += ['', '## (c) Step mapping', '| phase | frames / rows | feature | parameters |', '|---|---|---|---|']

@@ -28,7 +28,7 @@ recorded; so are 16 KOF moves.
 
 ## 1. The standard features
 
-Eight families. A ROM program (`bprim_t` ops) is already a sequence of these features; a recorded move uses the
+Nine families. A ROM program (`bprim_t` ops) is already a sequence of these features; a recorded move uses the
 `keyframed_path` / `script_effect` / `carry` stand-ins, which the ingestion pipeline (section 5) replaces. Counts = moves
 in the game using the feature (98 / 96 / 99 = KOF98 / 96 / 99, SS4, WHP, KZ = Kizuna); the move lists are in
 `vocab.json`. Fighter-wide mechanisms (route nodes, throws, the walk-in hold, the meter flash) are counted in fighters.
@@ -113,6 +113,19 @@ friction, px boxes from the feet, frames at 60 Hz).
 | `hold.carry` | rows ((x, y) per row) | The victim is placed per row relative to the attacker (recorded cinematic). | bspec_row_t.hit bit 2 + vx / vy (recorded) | 7 (98 4 96 1 KZ 2) |
 | `hold.throw_script` | rows ((thrower frame, offset, victim pose, offset, flags) per frame), speed (8.8) | A paired attacker / victim script with impacts (the walk-in throws C / D). | bthrow_t / bthrow_row_t, throw_update | 17 fighters |
 | `hold.grab_hold` | hits (int, 3), time (frames, 90) | Walk into a standing enemy: hold, knee hits, throw, escape. | S_GRAB / S_GRABBED, GRAB_* (hold_update) | 17 fighters |
+
+### variant
+
+| feature | parameters | semantics | implemented by | moves |
+|---|---|---|---|---|
+| `variant.parameter_set` | variants ([input -> parameter set]: light / heavy / EX / MAX), selector (button, EX flag, MAX bit) | One behaviour (the program) with parameter sets chosen by the input that started it: KOF's handler tests the button (+$1A4 bits 4-7), the EX flag (+$1D6) and a DM's MAX bit (+$E4 bit 0) and writes other speeds, timers, state / spawn tables, counts and damage ids (Double Dragon 1995: 4 per special). | decoded, not played: `handlers98.decode_variants` forks at every selector test (each other way, the tests before it kept, decoded again until no new path), `export_rom` stores every version as `rom.variants`; the game plays the slot's own button | 94 (98 61 96 26 99 7) |
+
+Every ROM move but one has versions: 73 two, 2 three, 19 four (Goenitz 41236A/B/C/D: one handler, four buttons;
+Terry 623A/C + EX 623A/C). Terry's seven: 623C = 623A / 623C / EX 623A / EX 623C (states 140-145 / 141-146 / 484-488
+/ 485-489, vx 1 / 8, vy 7 / 11, g 0.32 / 0.51, rise counter 12 / 32, damage id 32 / 33); 214C = 214A / 214C (vx 7 / 9,
+vy 1 / 2, damage id 26 / 27); 214D = 214B / 214D; 426B = 426B / 426D; 623D = 623B / 623D; EX 236C = EX 236A / EX 236C
+(vx 4 / 7); 21416C = 21416A / 21416C (one pillar, tables $4339A / $4339E) / MAX 21416C (+$E4 bit 0: three pillars 171-173,
+tables $433A2 / $433B0, count 3, damage id 39).
 
 ### presentation
 
@@ -249,7 +262,27 @@ handler, KOF state order, whiff / catch state runs with frame ranges, hit openin
 `understood` (one line per phase), `mapping` (phase -> frames -> feature + parameters), `features_used`,
 `features_missing`, `ingestion` {class, features, needs [component, kind, extends, spec], regression_set}, `fidelity`
 (newest proof per branch: frames KOF / brawler, frame mismatches, hits and hit-frame offsets, max x / height error,
-victim error).
+victim error), and for ROM moves (TODO #142 review fixes, 2026-10-06):
+
+- `source.code`: one line per instruction (a named op and the raw bit write behind it are one line); a `set` overwritten
+  before any frame plays carries `note` DEAD; a `spawn` the whiff model never reaches is noted (Power Geyser C's
+  `spawn 1`: a decode-time place past state 166's only event step, reading the next table word; KOF's capture and the
+  model spawn one pillar, 167). `set cnt` is attributed to the counter's write (Rising Tackle $042E14), not its `subq`.
+- `source.dead_stores`: field writes overwritten before anything reads them or a frame ends (the decoder's trace,
+  `handlers98.dead_stores`: a call is a barrier only for the fields its code may read, `routine_reads`). The step
+  mapping leaves them out and names each `set`'s instruction (`at`): Rising Tackle 623C plays vx 8 / vy 11 / g 0.51 /
+  counter 32 ($042E14-$042E2A); the 623A values written first ($042DC8-$042DDE) are listed as dead.
+- `branches`: the branches the decode decided from a known field: button bit (+$1A4), EX flag (+$1D6), MAX bit
+  (+$E4 bit 0), facing (+$31 bit 0, the decoder's assumption), with both ways and the versions each leads to.
+- `variants`: every version of the handler side by side (`handlers98.decode_variants` + `variant_summary`, the same code
+  path as the export's `rom.variants`): path, states and objects of the whiff model, hit kind, whiff frames, hit
+  openings, live field writes (damage id +$EF, counts / tables +$C2-$D8, speeds).
+- `bit_writes` / `unexplained`: every bit write the export drops (handlers98 'flag' ops, owner-flag routines), looked up
+  in `docs/kof_engine_flags.json` (the shared KOF-engine field / bit / routine table, read from the KOF98 code that reads
+  each bit: meaning, effect gameplay / none, how the brawler covers it); no entry = UNEXPLAINED. Terry's seven sheets: 0
+  unexplained (Burn Knuckle: +$E2 bit 2 = was hit, its flame frees itself; +$E2 bit 7 = attack boxes off after the hit
+  until landing; Power Geyser: the owner flags = the opponent's proximity guard cue). Over all 95 ROM moves the
+  unexplained left are +$E5 bit 2, +$E6 bit 0, +$E7 bit 5, +$11D bit 7, +$D1 bit 0 (8 writes, none in Terry's moves).
 
 | sample | source | phases | class | fidelity (existing proofs) |
 |---|---|---|---|---|

@@ -196,9 +196,10 @@ class Fields:
         if op == 'or': self.k[off] = (mk | v, bits | v)
         else: self.k[off] = (mk | (~v & 0xFF), bits & v)
 
-def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=None):
+def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=None, sdm=False):
     """the handler at addr -> {'addr', 'ops': [(addr, op)], 'objects': [decoded object routines]}. fields: an object's
-    inherited fields (spawn offsets +$D2 / +$D4, vx, end state +$D8, hit routine +$19C)"""
+    inherited fields (spawn offsets +$D2 / +$D4, vx, end state +$D8, hit routine +$19C). sdm: a desperation move's
+    power check ($24D80) returns the MAX / SDM version (+$E4 bit 0 set), else the plain DM (the brawler's fury)"""
     dec = dec or Decoder(m)
     if cid is not None: dec.cid = cid
     F = Fields()                                     # facing right, the button, EX, on the ground
@@ -217,7 +218,13 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             llag[n_] = FOLLOW_LAG_KIND.get(kind, FOLLOW_LAG.get(dec.game, 4))
         return sum(1 << lnames.index(n_) for n_ in set(FOLLOW_INPUTS[kind]))
     cnt_field = None; work = [addr]; pending_child = None
-    def emit(a, *op): ops.append((a, op))
+    # dec.trace (a list, tools/brawler/convsheet.py): the walk's field stores / reads / calls / frame boundaries / the
+    # branches decided by a known field (button, EX flag, facing), per decode (ctx), in walk order. Analysis only.
+    T = getattr(dec, 'trace', None); ctx = (addr, depth, len(T)) if T is not None else None
+    if T is not None: T.append(('ctx', ctx, addr, depth, button, ex))
+    def emit(a, *op):
+        ops.append((a, op))
+        if T is not None and op[0] in ('br', 'jmp', 'resume_at', 'end', 'free', 'rts'): T.append(('boundary', ctx, a, op[0]))
     def flush_child():
         nonlocal pending_child
         if pending_child is None: return
@@ -255,7 +262,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if f == 0x00: return
         if isinstance(v, tuple) and v[0] == 'mul': emit(a, 'mul', v[2]); F.put(f, None, size); return
         if isinstance(v, tuple) and v[0] == 'f' and v[1] == f: return
-        F.put(f, v, size); stored_at[f] = len(ops)
+        F.put(f, v, size); stored_at[f] = len(ops); stored_addr[f] = a
+        if T is not None: T.append(('store', ctx, a, f, size, v))
         if f == 0x19C and depth == 0 and isinstance(v, int) and size == 4 and F.bit(0xE1, 6) == 0:   # a fighter's catch
             emit(a, 'onhit', K(v)); push(v)            # routine (TODO #139): the engine runs it after a catch box's hit-stop
                                                        # (box $38 / $39, $1B9F6) unless +$E1 bit 6 is set (a catch spent: the
@@ -273,7 +281,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
     # loops run at decode time: a field the handler steps once per pass (a repeat count `subq; bne` after the frame loop
     # ended, a state-table pointer `addq #2`) is concrete, so each pass is its own copy of the code: an op's place is
     # (address, the loop fields' values) and a pass with other values walks the code again (unrolled)
-    loopvars = {}; yielded = False; stack = []; resumed = [False]; stored_at = {}; cur = [addr]
+    loopvars = {}; yielded = False; stack = []; resumed = [False]; stored_at = {}; stored_addr = {}; cur = [addr]
     # a call into the fighter's own code (a follow-up check, a shared part) is walked inline: an op's place also
     # carries the return addresses
     def K(t): return (t, tuple((o_, F.get(o_, s_)) for o_, s_ in sorted(loopvars.items())) +   # (+ the scratch fields
@@ -295,10 +303,17 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             while work and work[0][0] in seen: work.pop(0)
             if not work: break
             (a, _, _), F.b, F.k, D, A0, loopvars, stack = work.pop(0); yielded = False; cc = None
+            if T is not None: T.append(('path', ctx, a))
         k_ = K(a)
         if k_ in seen:
             emit(a, 'jmp', k_); a = None; continue
         mn, o, nx = dec.at(a); cur[0] = a
+        if T is not None:                              # a4 field reads (a move / clr destination is a store, logged there)
+            if mn in ('jsr', 'jmp') and o and not o[0].startswith('%a0'): T.append(('call', ctx, a, o[0]))
+            for i_, x_ in enumerate(o):
+                f_ = field(x_)
+                if f_ is None or i_ == len(o) - 1 and (mn.startswith('move') or mn.startswith('clr')): continue
+                T.append(('read', ctx, a, f_, SIZE.get(mn[-1:], 4)))
         if mn in ('btst', 'tstb', 'tstw', 'tstl', 'moveb', 'movew', 'movel', 'andib', 'cmpib') and any(field(x) in range(0x1AC, 0x1B0) for x in o if field(x) is not None):
             PROBE.append((a, ' '.join(o), resumed[0]))
         if mn == 'btst' and (o[1].startswith('%fp@') or field(o[1], 'a3') is not None): PROBE.append((a, 'btst ' + ' '.join(o), resumed[0]))
@@ -354,7 +369,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 emit(a, 'place', (D.get('%d0') or 0) / 65536)
             elif name == 'zero': D['%d0'] = 0; cc = ('val', 0); PROBE.append((a, f'zero {t:X}', resumed[0]))
             elif name == 'dmcheck':                    # a desperation move's power check (TODO #139): the brawler's
-                D['%d0'] = 2; cc = ('val', 2); F.setbits(0xE4, 'and', 0xFE)   # fury = a plain DM (2; no SDM: +$E4 bit 0)
+                D['%d0'] = 2; cc = ('val', 2)                  # fury = a plain DM (2; no SDM: +$E4 bit 0)
+                F.setbits(0xE4, 'or', 1) if sdm else F.setbits(0xE4, 'and', 0xFE)   # (decode_variants: sdm = the MAX one)
             elif name in BOOKKEEPING: emit(a, name)
             else: emit(a, 'call', t)
             a = nx; continue
@@ -379,6 +395,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if cc and cc[0] == 'val':
                 v = cc[1]
                 taken = {'eq': v == 0, 'ne': v != 0, 'pl': v >= 0, 'mi': v < 0}[cond]
+                if T is not None and len(cc) > 2: T.append(('decide', ctx, a, cc[2], v, cond, taken, t, nx))
                 if taken and dec.is_yield(t): yres(a); emit(a, 'br', None, True, 'yieldn' if dec.is_yield(t) == 'n' else 'yield'); a = None; continue   # (into the
                 a = t if taken else nx; continue                                                         # yield: a yield)
             if cc and cc[1] == 'HI' and cond in ('hi', 'ls'):              # far:N (unsigned >): the opponent farther
@@ -421,7 +438,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             elif f0 is not None and A0 == 'opp': cc = ('val', 0)          # the opponent: a normal one (not KO'd, no flags)
             elif f is not None and f in TEST_FIELDS: cc = (TEST_FIELDS[f], 'N')
             elif f == 0xD1 and sz == 1 and F.bit(f, 7) is None: cc = ('sig7', 'N')   # its object's signal (+$D1 bit 7)
-            elif f is not None and F.get(f, sz) is not None: cc = ('val', F.get(f, sz))
+            elif f is not None and F.get(f, sz) is not None: cc = ('val', F.get(f, sz), ('tst', a, f, sz))
             elif f is not None and sz == 1 and F.bit(f, 7) is not None: cc = ('valn', -F.bit(f, 7), 'f%X' % f)
             elif o[0] == '%d1' and D.get('%d1') == ('falling',): cc = ('falling', 'N')
             elif o[0].startswith('%d') and isinstance(D.get(o[0]), int): cc = ('val', D[o[0]])
@@ -432,7 +449,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if o[1] == '%d1' and b == 7 and isinstance(D.get('%d1'), tuple) and D['%d1'][0] == 'linkd1': cc = (f'link:{D["%d1"][1]}', 'Zinv')   # fwdBD: D, not B
             elif f == 0x7C and b == 5: cc = ('window', 'Zinv')             # the current step has $2000 (a follow-up window)
             elif f == 0xD1 and b in (6, 7) and F.bit(f, b) is None: cc = (f'sig{b}', 'Zinv')   # an object's signal
-            elif f is not None and b < 8 and F.bit(f, b) is not None: cc = ('val', F.bit(f, b))
+            elif f is not None and b < 8 and F.bit(f, b) is not None: cc = ('val', F.bit(f, b), ('btst', a, f, b))
             elif o[1].startswith('%fp@') or field(o[1], 'a3') is not None: cc = ('val', 0 if resumed[0] else 1)
             elif field(o[1], 'a0') is not None and A0 == 'owner': cc = (f'owner_{field(o[1], "a0"):X}.{b}', 'Zinv')
             elif field(o[1], 'a0') is not None and A0 == 'opp': cc = ('val', 0)
@@ -509,7 +526,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             cnt_field = fd; emit(a, 'dec'); cc = ('cnt', 'N')
             if F.get(fd, sz) is not None:                # value known: the counter is set where the field was written
                 at = stored_at.get(fd, 0)                    # (or at the start: a field the spawner gave an object)
-                ops.insert(at, (a, ('set', 'cnt', F.get(fd, sz))))
+                ops.insert(at, (stored_addr.get(fd, a), ('set', 'cnt', F.get(fd, sz))))   # (the write's address)
                 for k in pos:
                     if pos[k] >= at: pos[k] += 1
                 for k in stored_at:
@@ -791,6 +808,162 @@ def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=No
         if o.over: break
     return rows, objs
 
+# ---- variants: one handler, every version of the move (TODO #142) -----------------------------------------------------
+# A special's handler holds all its versions: it tests the button (+$1A4 bits 4-7: A / B / C / D), the EX flag (+$1D6)
+# and, for a desperation move, the MAX / SDM bit (+$E4 bit 0, set by the power check $24D80) and writes each version's
+# speeds, counters, state tables and damage ids (Terry's Rising Tackle $42D5E: +$1A4 bit 4 and +$1D6, four versions;
+# Power Geyser $4322E: +$E4 bit 0 = the triple MAX geyser, else +$1A4 bit 4 A / C). decode() resolves one path (the
+# fields concrete); decode_variants() forks at every selector test met: each other way, with the decisions before it
+# kept, is decoded again until no new path appears. dec.trace (decode) records the decisions.
+SELECTORS = {0x1A4: 'button', 0x1D6: 'EX', 0xE4: 'MAX'}
+TWIN = {'A': 'C', 'C': 'A', 'B': 'D', 'D': 'B'}
+
+def trace_ctx(trace):
+    """dec.trace split per decode: ctx -> (routine address, depth, events in walk order)"""
+    out = {}
+    for e in trace:
+        if e[0] == 'ctx': out[e[1]] = (e[2], e[3], [])
+        elif e[1] in out: out[e[1]][2].append(e)
+    return out
+
+def selector_decisions(trace):
+    """the walk's branches decided by a selector: [(branch address, field, bit or None, value 0 / 1)], walk order"""
+    out, seen = [], set()
+    for e in trace:
+        if e[0] != 'decide' or e[2] in seen: continue
+        kind, ta, f, x = e[3]
+        if f == 0x1A4 and kind == 'btst' and 4 <= x < 8 or f == 0x1D6 or f == 0xE4 and kind == 'btst' and x == 0:
+            seen.add(e[2]); out.append((e[2], f, x if kind == 'btst' else None, 1 if e[4] else 0))
+    return out
+
+def _sat(combo, f, x, v):
+    bt, ex, sdm = combo
+    if f == 0x1A4: return ((0x10 << 'ABCD'.index(bt)) >> x & 1) == v
+    return int(ex if f == 0x1D6 else sdm) == v
+
+def decode_variants(m, h, button, ex=False, cid=None, sdm=False):
+    """every version of the handler at h: [{'button', 'ex', 'sdm', 'path': selector_decisions, 'prog': decode(),
+    'trace', 'dec'}], this input's first. Two inputs with the same path are one version (the first kept)."""
+    import itertools
+    todo, tried, paths, out = [(button, bool(ex), bool(sdm))], set(), set(), []
+    while todo:
+        c = todo.pop(0)
+        if c in tried: continue
+        tried.add(c)
+        dec = Decoder(m); dec.trace = []
+        try: d = decode(m, h, c[0], c[1], dec=dec, cid=cid, sdm=c[2])
+        except Exception: continue
+        path = selector_decisions(dec.trace); key = tuple((a, v) for a, f, x, v in path)
+        if key in paths: continue
+        paths.add(key); out.append({'button': c[0], 'ex': c[1], 'sdm': c[2], 'path': path, 'prog': d, 'trace': dec.trace, 'dec': dec})
+        for i, (a, f, x, v) in enumerate(path):       # the other way of each test, the tests before it unchanged
+            want = path[:i] + [(a, f, x, 1 - v)]
+            cost = lambda k: (k[1] != c[1]) + (k[2] != c[2]) + (0 if k[0] == c[0] else 0.5 if k[0] == TWIN[c[0]] else 1)
+            for k in sorted(itertools.product('ABCD', (False, True), (False, True)), key=cost):
+                if all(_sat(k, f_, x_, v_) for a_, f_, x_, v_ in want): todo.append(k); break
+    return out
+
+_RREADS = {}
+def routine_reads(dec, t):
+    """the a4 fields a called routine may read (its code walked to every rts, calls followed); None = unknown (a4 used
+    as a pointer, an indirect jump, too long): anything"""
+    key = (dec.game, t)
+    if key in _RREADS: return _RREADS[key]
+    _RREADS[key] = None                                # (recursion: unknown)
+    fre = re.compile(r'^%a4@\((-?\d+)\)$'); tre = re.compile(r'^(?:%pc@\()?(0x[0-9a-f]+)\)?$')
+    out, work, seen = set(), [t], set()
+    while work:
+        a = work.pop()
+        while a is not None and a not in seen:
+            if len(seen) > 2000: return None
+            seen.add(a)
+            try: mn, o, nx = dec.at(a)
+            except Exception: return None
+            for i, x in enumerate(o):
+                if '%a4' not in x: continue
+                mt = fre.match(x); f = int(mt.group(1)) if mt else 0 if x == '%a4@' else None
+                if f is None: return None             # a4 as a pointer (lea / movea / postincrement): anything
+                if not (i == len(o) - 1 and (mn.startswith('move') or mn.startswith('clr'))): out.add(f)
+            mt = tre.match(o[0]) if o else None; tgt = int(mt.group(1), 16) if mt else None
+            if mn in ('rts', 'rte'): a = None
+            elif mn in ('jsr', 'bsrw', 'bsrs', 'bsrl', 'bsr'):
+                r = routine_reads(dec, tgt) if tgt is not None else None
+                if r is None: return None
+                out |= r; a = nx
+            elif mn == 'jmp':
+                if tgt is None: return None
+                a = tgt
+            elif mn.startswith('bra'): a = tgt
+            elif (mn[0] == 'b' and mn[:4] not in ('btst', 'bclr', 'bset', 'bchg') or mn.startswith('db')) and tgt is not None:
+                work.append(tgt); a = nx
+            else: a = nx
+    _RREADS[key] = out
+    return out
+
+def dead_stores(trace, dec=None):
+    """field writes overwritten before anything reads them or a frame ends: {(ctx, addr): (store, killing store)}.
+    Conservative: a branch kept in the program, a path change, a read of any byte or a call that may read it
+    (routine_reads; any field when unknown) ends the search (live). A store walked several times is dead only if every
+    walk kills it."""
+    res = {}
+    tre = re.compile(r'^(?:%pc@\()?(0x[0-9a-f]+)\)?$')
+    for ctx, (ra, depth, ev) in trace_ctx(trace).items():
+        for i, e in enumerate(ev):
+            if e[0] != 'store': continue
+            span, killer = set(range(e[3], e[3] + e[4])), None
+            for e2 in ev[i + 1:]:
+                if e2[0] in ('boundary', 'path'): break
+                if e2[0] == 'call':
+                    mt = tre.match(e2[3]); rr = routine_reads(dec, int(mt.group(1), 16)) if dec is not None and mt else None
+                    if rr is None or span & rr: break
+                    continue
+                if e2[0] in ('read', 'store') and span & set(range(e2[3], e2[3] + e2[4])):
+                    if e2[0] == 'store' and span <= set(range(e2[3], e2[3] + e2[4])): killer = e2
+                    break
+            res.setdefault((ctx, e[2]), []).append((e, killer))
+    return {k: v[-1] for k, v in res.items() if all(kl for e, kl in v)}
+
+def store_value(f, size, v):
+    """a stored value as the engine reads it: 16.16 speeds in px, a long into the ROM as its address"""
+    if not isinstance(v, int): return v
+    if f in (0x50, 0x58, 0x5C, 0x20) and size == 4: return round((v - (1 << 32) if v >> 31 else v) / 65536, 4)
+    if size == 4 and 0x400 <= v < 0x200000: return f'${v:X}'
+    return v
+
+def variant_name(inp, v):
+    base = inp.replace('EX ', '').replace('MAX ', '')
+    return ('MAX ' if v['sdm'] else '') + ('EX ' if v['ex'] else '') + (base[:-1] + v['button'] if base[-1] in 'ABCD' else base)
+
+def selector_text(f, x, v):
+    if f == 0x1A4: return f'+$1A4 bit {x} ({"ABCD"[x - 4]}) {"set" if v else "clear"}'
+    if f == 0x1D6: return f'+$1D6 EX {"yes" if v else "no"}'
+    return f'+$E4 bit 0 MAX {"yes" if v else "no"}'
+
+def variant_summary(m, cid, inp, v, frames=400):
+    """a version's effective parameters: its live field writes (dead ones dropped; +$EF the damage id, +$D2.. counts
+    and state lists, +$C2.. table pointers), states, spawned objects, hit kind, whiff length, hit openings"""
+    d, tr, dec = v['prog'], v['trace'], v['dec']
+    ctxs = trace_ctx(tr); dead = dead_stores(tr, dec)
+    top = next(c for c, (ra, dp, ev) in ctxs.items() if dp == 0)
+    fields = {}
+    for e in ctxs[top][2]:
+        if e[0] != 'store' or (top, e[2]) in dead or e[3] in (0x00, 0x72, 0x78): continue
+        vals = fields.setdefault(f'+${e[3]:X}', []); x = store_value(e[3], e[4], e[5])
+        if x not in vals: vals.append(x)
+    try:                                               # the states it plays and the objects it spawns: the whiff model
+        rows, objs = run_model(m, cid, d, frames); per = openings(m, cid, d)[0]   # (a decode-time place the run never
+        spawned = [o.prog.get('state') for o in objs]                            # reaches is left out)
+        states = list(dict.fromkeys(r[1] for r in rows))
+    except Exception:
+        rows, per, spawned = [], {}, None
+        states = list(dict.fromkeys(op[1] for a_, op in d['ops'] if op[0] == 'anim'))
+    hk = [op[1] for a_, op in d['ops'] if op[0] == 'hitkind']
+    return {'input': variant_name(inp, v), 'button': v['button'], 'ex': v['ex'], 'sdm': v['sdm'],
+            'path': [[f'${a:06X}', selector_text(f, x, val)] for a, f, x, val in v['path']],
+            'states': states, 'objects_spawned': spawned, 'hit_kind': hk[-1] if hk else None, 'whiff_frames': len(rows),
+            'hit_openings': sum(per.values()), 'fields': {k: x[0] if len(x) == 1 else x for k, x in fields.items()},
+            'dead_stores': sum(1 for (c, a) in dead if c == top)}
+
 # ---- export: a decoded special for the brawler (export96 -> tools/brawler/export_bm.py) ---------------------------------
 # The specials played from the ROM in the brawler (prototype, 2026-10-05): KOF98 input per fighter. Everything else keeps
 # its captured script. A special qualifies when its program uses only the ops below (BODY_OPS) and its objects decode.
@@ -1012,7 +1185,10 @@ def export_rom(m, cid, inp, add, game='kof98'):
         objs.append({'rows': [[add(r[0])] + r[1:] for r in rows], 'loop': loop, 'end': end, 'kind': ob['kind'] or 3,
                      'follow': int(follow), 'hit_kind': hitkind, 'react': rx or 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
                      'child': None, 'state': ob.get('state'), 'sig': se | (sh & ~se & 0xC0) >> 2})
+    variants = [variant_summary(m, cid, inp, v) for v in decode_variants(m, h, b, ex, cid)]   # every version (stored;
+    variants = variants if len(variants) > 1 else []                                          # the game plays this one)
     return {'handler': h, 'button': b, 'ops': ops, 'states': states, 'anims': anims, 'openings': per, 'last_hit': last,
+            'variants': variants,
             'apex': peak, 'length': length, 'objects': objs, 'hit_kind': hitkind, 'links': links,
             **(dict(zip(('parts', 'follow_links'), follow_parts(m, cid, prog, links))) if links else {})}
 
