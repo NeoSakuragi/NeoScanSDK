@@ -119,6 +119,9 @@ def proof_all(out, game=harness.GAME, names=None):
     bank = json.load(open(V.JSON))['fighters']
     ov = rep.get('overflow') or {'prefixes': []}
     P1 = {int(rep['prefixes'][0], 16): 0} | ({int(ov['prefixes'][0], 16): 0x100} if ov['prefixes'] else {})
+    # a voice of channel 'fx' (its game's own effect slot: Kizuna's, SS2's $18 / $1A) is sent on the other team's prefix
+    # (fighter.c voice_id: bit 7 of the id), so it never cuts the fighter's voice: P1's fx voices are heard there
+    P1E = {int(rep['prefixes'][1], 16): 0} | ({int(ov['prefixes'][1], 16): 0x100} if len(ov['prefixes']) > 1 else {})
     b = harness.Brawler(game=game); S = b.syms
     log = []
     def tap(write, port, v):
@@ -136,6 +139,7 @@ def proof_all(out, game=harness.GAME, names=None):
         rf = next(r for r in G['roster'] if r['name'] == n); fury = rf.get('fury')
         pool = [p['input'] for p in lab[n]['pool']]
         vo = bank.get(n, {'voices': []})['voices']
+        fxid = {x['id'] for x in vo if x.get('channel') == 'fx'}
         rows = []
         for k, inp in enumerate(pool):
             keys = 'd' if fury and inp == fury else 'Dd' if fury and inp == 'MAX ' + fury else 'c'
@@ -163,17 +167,19 @@ def proof_all(out, game=harness.GAME, names=None):
                 for fr, v in sent:                       # frame it queued them in
                     if want is not None:
                         i = code_of.get(v | want[0])
-                        if i and f0 is not None: got.append([want[1] - f0 - 1, i])   # (frame 0 = the special's first
+                        if i and f0 is not None and (not want[2] or i in fxid): got.append([want[1] - f0 - 1, i])   # (frame 0 = the special's first
                                                                     # update: start_special's frame + 1, KOF's handler's first)
                         want = None
-                    elif v in P1: want = (P1[v], fr)
+                    elif v in P1: want = (P1[v], fr, 0)
+                    elif v in P1E: want = (P1E[v], fr, 1)
                 heard = []                               # and the ones the Z80 read (the driver got them)
                 for fr, v in log:
                     if want is not None:
                         i = code_of.get(v | want[0])
-                        if i and f0 is not None: heard.append(i)
+                        if i and f0 is not None and (not want[2] or i in fxid): heard.append(i)
                         want = None
-                    elif v in P1: want = (P1[v], fr)
+                    elif v in P1: want = (P1[v], fr, 0)
+                    elif v in P1E: want = (P1E[v], fr, 1)
                 runs[case] = {'voices': got, 'z80_read': heard == [i for _, i in got], 'played': f0 is not None, 'frames': (end or b.frame) - (f0 or 0),
                               'spec_ix': b.fget(0, 'spec_ix')}
             cap = sorted([u['at'], x['id']] for x in vo for u in x['uses'] if u['kind'] == 'special' and u['input'] == inp)

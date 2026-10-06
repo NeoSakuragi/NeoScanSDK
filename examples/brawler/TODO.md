@@ -539,6 +539,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   C"; "the opponent is kind of thrown on the other side"): decode SS4's throw command + Haohmaru's throw animation and
   victim handling and express it through #146's standard throw (walk-in grab, forward / back + A, the paired script,
   the rules) — after #146's Geese / Terry pilot is approved. Haohmaru = the first fully ROM-decoded non-KOF fighter.
+  PROGRESS 2026-10-06 (worktree branch worktree-agent-ad6294cbf3aee0c90, with #175 / #176): Haohmaru is now SS2's
+  (samsho2:haohmaru, tools/samsho2/export_ss2.py + handlers_ss2.py; SS4's tools kept): every special decoded from its
+  action handlers (236S tornado, 623S Kogetsu Zan with its crescent pinned to him for its life, 623K, 236K, 214A sake),
+  A / B / A+B as the variant table (623S on the A row: B / A+B rise 135 / 268 px), the fury = SS2's weapon-flipping
+  technique (rage-only, one button: no MAX), his throws (slash 274 / kick 346) as paired scripts from the class 4 / 5
+  handlers. Proof /data/tmp/ss2/out: acceptance.json (fury = WFT, the crescent at offset 0, 0 every frame it lives,
+  the throw: GRAB -> THROW -> THROWN -> DOWN), frames 542 / 582 identical vs SS2 both facings, specials_haohmaru.png.
 
 - [ ] 150. A DANCE FURY HITTING AN AIRBORNE VICTIM (feedback 20261006-160204-b3f3, Bruno in play, 0.0.71: "When the dance
   fury of Robert is already started and somebody is in the air, and there's an impact, the victim does not get kind of
@@ -811,7 +818,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   leftover entity) and fix. (c) 20261006-175904-5d29: "a blue effect that should be in the hand of Rugal, and it's not
   there" (Kaiser Wave's charge in the hand) -> the pinned hand effect from the ROM handler; its voice is in #163.
 
-- [ ] 174. P-ROM BANK SWITCHING (2026-10-06): 0.0.76 overflowed the first P MB by 14 bytes; main.o's tables moved
+- [ ] 174. (DONE ON BRANCH 2026-10-06, awaiting Bruno's review; docs/rom_packer_rules.md "P ROM", proof /data/tmp/bank174: each fighter's bulk (frames, tiles, special scripts / programs, projectile rows) in its P2 bank (tools/brawler/bank_pack.py), everything other fighters / combat / AI / HUD read in MB1; MB1 629 KB free, bank 0 12.8 KB free, bank 1 552 KB free, P ROM 3 MB; controls / cancel / fury_inv / campaign29 / romspecials JSON identical to the unbanked build, regress bleed same; 6 bank layouts (BANK_SPLIT, same-cycle builds) byte-identical; CPU busiest stage mean 66.2 -> 67.8 %, worst 96 -> 96 %; Android player and the Lab wasm core run it; NeoCart v3 chip map fixed in pboard_flash.py) P-ROM BANK SWITCHING (2026-10-06): 0.0.76 overflowed the first P MB by 14 bytes; main.o's tables moved
   to .p2data ($200000). Left: ~61 KB in MB1, ~88 KB in MB2. Before the next fighter: P2 bank switching (the cart's
   $2FFFF0 bank register, tools/neobuild.py limits), a bank per fighter group's tables with the code reading them
   through a bank-select at use (or the special tables moved to banks, code + hot tables in MB1); prove every fighter
@@ -825,12 +832,24 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   its follow-ups (branch.followup), his throws (close + forward + A+B slash, + D / C+D kick) through #146's standard
   throw; weapon loss not modelled yet (he keeps his sword; the weapon state is a later component); voices from SS2's
   MAKOTO 3.0 driver (tools/makoto3) into the voice path; palettes; frame check vs SS2 both facings; the usual proofs.
+  PROGRESS 2026-10-06 (worktree branch worktree-agent-ad6294cbf3aee0c90): Genjuro (samsho2:genjuro): 214S card wave
+  (object type 10, its 32-frame life then its break), 236S the three-part slash (follow-ups = the ROM's type-5 cancel:
+  a connect + the window steps, C again: chain_proof_ss2.py), 623S, the rage move (6 3 2 1 4 6 A) as the fury (no MAX:
+  one button), his throw (274, victim 514), voices (MAKOTO driver samples, voices.py samsho2), palettes A / B, select
+  slot middle row; weapon loss not modelled. Proofs /data/tmp/ss2/out (controls, cancel, fury_inv, voice, regress,
+  campaign29, bank_proof, frames 566 / 576, specials_genjuro.png).
 
 - [ ] 176. KUROKO (Samurai Shodown II, hidden table 17, 636 animations, 84 px) INTO THE BRAWLER AS A FIGHTER (Bruno,
   2026-10-06: "I want the hidden character kuroko, he has tons of fun special moves"; after #175): his full moveset
   from SS2's data (his special moves are parodies of other fighters' moves: decode every one, its command, its
   objects; flag / referee gags included), exported like Genjuro (variant table, rage move = fury, strongest = MAX,
   throws via #146), voices, palettes, frame check; how he is unlocked in SS2 noted (the brawler: selectable).
+  PROGRESS 2026-10-06 (worktree branch worktree-agent-ad6294cbf3aee0c90): Kuroko (samsho2:kuroko) selectable (front
+  row): his parodies (results 39-46: anim 29 + the objects type 24 / 25 of $4C07C / $4C12A), the flag sweeps 6+ABC /
+  6+BCD, C C C C C with the ghost pinned to him, the rage moves as fury (RAGE, 6 3 2 1 4 6 A+B) and MAX (MAX RAGE,
+  6 4 1 2 3 6 C+D: the dance twice); his throw (27); voices incl. the parody shouts. Not in the build: 6 3 2 1 4 A (the
+  flag that flies out and comes back: spawn.boomerang), 61236A / 126BC (a 9th / 10th palette). Unlock in SS2: not
+  traced (his vs state pokes the selected-character byte $100D0B: mkvs_kuroko.py). Frames 358 / 364 identical.
 
 - [x] 177. (done 2026-10-06: (a) make_site.py read a voice use's 'states' on the new 'prog' uses (#163): they name their input like a special; deploy_vps.sh rebuilds the wasm when any Geolith source is newer (one geo_m68k.c, desktop = Lab P2 latch); Lab live 0.0.78: Geese (bank 1) vs Kyo (bank 0) and back, every tab loads, note 20261006-155636-b3f3 on its 0.0.71 build replays byte-identical. (b) GCC 15 store merging joined byte stores at odd offsets into word / long moves (clr.w 97(a2): chain_t + spec_buf; lab+9 long) even with -m68000 -mstrict-align: -fno-store-merging in the brawler + SDK Makefiles; odd-access check core (/data/tmp/align177): 822 -> 0 over controls_proof, 637 -> 0 over campaign29 (log identical to the unfixed build's), 0 over regress + cancel_proof; regress no-bleed True, cancel_proof all 21 ok) (found by #174) (a) the Lab deploy is broken since #163's merge: tools/brawler/chainlab/make_site.py
   KeyError 'states' — fix and redeploy the Lab with 0.0.77+; (b) the game does unaligned word writes into `in[]`

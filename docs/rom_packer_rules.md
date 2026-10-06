@@ -84,24 +84,34 @@ songs and sound-effect codes play, every sample record rewritten to the new addr
   every cross-fighter read (combat: attack box vs hurt box, throws: thrower's script vs victim's postures, the AI).
   Chosen: (c) on a split of the data by who reads it. MB1 keeps every table another fighter, combat, the AI or the HUD
   reads (bchar_t, animations + steps with their boxes, normal and special, throws / holds, postures, palettes, routes,
-  voices, the bspec_t / bproj_t headers: 264 KB for 21 fighters, ~12.5 KB a fighter); a fighter's bank holds what only
+  voices, the bspec_t / bproj_t headers: 262 KB for 21 fighters, ~12.5 KB a fighter); a fighter's bank holds what only
   its own code reads: frames, parts, tile numbers, its specials' script rows, programs, parts, links, variant columns,
   its projectiles' rows (1.53 MB, ~73 KB a fighter). The bank is then needed in four places only: the fighter's update
   (fighter_update), its projectiles (projectiles_update, proj_row), its drawing (main.c draw: draw.s fighter_tiles /
   fighter_place) and an attacker's box from a script row (combat, dbg_draw: copied out under its bank); each switch
-  is BANK_set(CH_BANK(ch)) ... BANK_set(old). Cost: one compare per select, a 16-bit write when the bank changes,
-  at most ~3 switches per entity per frame. **[ours]**
+  is BANK_set(CH_BANK(ch)) ... BANK_set(old). Cost: a compare per select, a 16-bit write only when the bank changes;
+  measured (tools/brawler/bank_cpu.py, the whole campaign with P1 throwing normals / specials / furies, the game's own
+  CPU % per 16-tick window): busiest stage (5) mean 66.2 % -> 67.8 %, worst window 96 % -> 96 % (all stages: worst
+  stages 1-5 96 / 94 / 98 / 100 / 96 -> 97 / 95 / 99 / 96 / 96). **[ours]**
 - **bank_pack.py** (between the compile of bm_chars.c / bm_spec.c with -fdata-sections and the link): a table of a
   banked type goes to its fighter's bank when that fighter is the only one whose data reaches it (contexts from
-  bm_chars[i] down every relocation); shared tables (KOF's common projectile end rows: 7 tables, 1.4 KB) and all they
+  bm_chars[i] down every relocation); shared tables (KOF's common projectile end rows: 2 tables, 16 bytes) and all they
   lead to stay in MB1. A fighter and its form link's target share a bank (form_set swaps bchar_t in place). Fighters
   whole, first fit by decreasing size, each bank 1 MB - 16. Refuses any pointer from a bank into another bank, and
   from an MB1 table into a bank unless it is a holder (bchar_t element, bspec_t, bproj_t) of the same fighter. Writes
   build/bm_bank.c (bm_bank[]: each fighter's bank), build/banks.txt / banks.json (per bank: used, free, fighters).
   BANK_SPLIT=mask: proof layouts (bank = parity of the fighter index's bits in the mask). **[ours]**
-- Brawler 0.0.76 + #174: MB1 419 KB used (code ~90 KB, main.c's stage / HUD tables 61 KB back from $200000, fighter
-  tables 264 KB), 629 KB free; bank 0 1,030,942 bytes (17,618 free: 13 fighters), bank 1 497,724 bytes (550,836 free:
-  8 fighters); P ROM 3 MB. **Tables the code reads in one go must not straddle a bank edge** (a table is never split:
+- **Proof of the reads** (TODO #174): a read made with the wrong bank returns another fighter's bytes only in a layout
+  where the two fighters sit in different banks. Masks 1, 2, 4, 8, 17 separate every pair of the 21 fighters at least
+  once; built with `-DNEO_BANK_ALWAYS_WRITE` (BANK_set writes every time: the same cycles in every layout, so the
+  harness's mid-tick sampling sees the same thing) the 6 layouts gave byte-identical controls / cancel / regress /
+  campaign / fury-invincibility / CPU outputs. Against the unbanked build: the same JSON everywhere except regress's
+  enemy-placement traces of one fighter and some screenshots' shadow parity: timing (a bank switch costs cycles; the
+  harness pokes and samples inside a tick), gone when the timing is equal. tools/brawler/bank_proof.py checks the link,
+  the .neo and the NeoCart v3 chip image. **[ours]**
+- Brawler 0.0.77 + #174: MB1 419,308 bytes used (code ~90 KB, main.c's stage / HUD tables 61 KB back from $200000,
+  fighter tables 262 KB), 629,268 free; bank 0 1,035,800 bytes (12,760 free: 12 fighters), bank 1 496,914 bytes
+  (551,646 free: 9 fighters); P ROM 3 MB. **Tables the code reads in one go must not straddle a bank edge** (a table is never split:
   sections are whole). **[ours]**
 
 ## Descriptor
