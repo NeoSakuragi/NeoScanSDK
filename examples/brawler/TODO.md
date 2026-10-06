@@ -437,6 +437,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   render check per fighter, portraits, a starter routes file + six-slot / fury picks in a side file, banks exportable as
   `kizuna:<name>` -- but no game.json roster entry and no ROM growth until Bruno picks who goes in.
 
+- [ ] 143. NEXT (Bruno, 2026-10-06): cancels as engine rules for every fighter: (1) any normal (A routes, air
+  normals) cancels into a special (C + direction) or a fury (D / down+D MAX); (2) any special cancels into a fury.
+  Defaults until Bruno says otherwise: a normal cancels on contact (hit or guard) during its active / cancel window, as
+  KOF; a special cancels into a fury after its first hit lands (KOF's super cancel), the fury's flash and invincibility
+  as usual. One rule in fighter.c (no per-move data), documented in docs/brawler_move_vocabulary.md; proofs: per fighter
+  normal -> special, normal -> fury, special -> fury (hit and whiff), controls_proof, regress, campaign29.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
