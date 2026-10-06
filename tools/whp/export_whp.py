@@ -16,7 +16,8 @@ y up negative); a step's attack box is live when its flags have $0800 (the game'
 last command 8 of the animation; body boxes are the def's (box 0, the broad box, left out).
 Colour sets: A = palette $10, B = $11 (the navy costume); the effect palettes (the projectile cycles $80 / $82 / $83,
 its impact $9D / $9E / $9F / $3E) the same in both: 8 palettes, the brawler's MAX_PALS.
-The desperation move and its hero version: fury() (from tools/whp/handlers_whp.py's model). Known limits: throws are not captured; no hop
+The fury (button D): the hero rising, super_rising() ('HERO 623AB'); its MAX version (down+D): the hero desperation
+move, fury(hero=True) ('MAX HERO 623AB'); both from tools/whp/handlers_whp.py's model. Known limits: throws are not captured; no hop
 (WHP has one jump height: hop_* = jump_*); no trip reaction in WHP (a sweep gives the standing heavy reaction):
 trip = the knockdown's start."""
 import json, os, sys
@@ -262,7 +263,7 @@ def special(B, inp, cap):
 DM_INPUT = '65426AC'
 EDGE_AFTER = 8
 
-def fury(B, hero=False):
+def fury(B, hero=False, inp=None):
     import handlers_whp as H
     refs = json.load(open(H.REF))
     rec = 'dmh' if hero else 'dm'
@@ -303,12 +304,87 @@ def fury(B, hero=False):
             carry.append((max(-32000, min(32000, round(vx - r['x']))), 0))   # it an air hit)
         else: carry.append(None)
     n = len(script)
-    inp = ('MAX ' if hero else '') + DM_INPUT
+    inp = inp or ('MAX ' if hero else '') + DM_INPUT
     return {'input': inp, 'condition': 'desperation', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
             'row_steps': rsteps, 'marks': [''] * n, 'projectiles': [], 'anims': [rel, rel + 1, 0x1B],
             'shape': [max(r[1] for r in script[:land + 1]), max(r[2] for r in script[:land + 1]), False],
             'game_hits': len(hit['hits']), 'parts': parts, 'links': links, 'carry_src': carry,
             'whp': {'rel': rel, 'land_row': land, 'dive_rows': dive, 'edge_after': EDGE_AFTER}}
+
+# The fury (button D, Bruno 2026-10-06: "Super Shoryuha"): the hero rising, Hanzou's 623 with the hero gauge full
+# (handlers_whp: the punch list's command 5, R D DR, byte FC: A / B / A+B -> $104 / $105 / $106, hero $120 / $121 /
+# $122). The A+B one, $122: the fastest rise (vy 10.5 px), the spin played twice, the most damage in WHP (47 + 6 x 2 of
+# 192 at point blank). Played from the model (frame-identical to WHP, handlers_whp --check sr_hit / sr_whiff); WHP's
+# 55-frame freeze at step 1 (effect $24: the flashing palette, the sparkles: WHP's super flash) is the brawler's super
+# flash (engine rule): Hanzou holds step 1 through it as in WHP, so the uppercut comes when the flash ends. Two parts: the uppercut (steps 0-2) and the rise (step 3 to the landing, $18); a hit in the
+# uppercut goes on to the rise at once (WHP $4C188: a contact while Hanzou stands still ends the step with the
+# hit-stop). Hits open where WHP's did at point blank (sr_hit: the uppercut, then six in the spin: steps 7, 8, 10, 7,
+# 8, 10); the live steps between them go on with the hit before (the 'same hit' $4000 flag). The ice dragon (task $20,
+# command 9 $13) as WHP drew it in the whiff (every other frame). The victim: WHP's hits launch it and it rises with
+# Hanzou, hit again on the way up ($AB / $BA, its own flight: no hold); the brawler's reactions: a launch at each hit
+# (KOF's 286, juggleable), the last one knocks it down.
+SR_INPUT = 'HERO 623AB'
+GAME_JSON = os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')
+R_KNOCKDOWN, R_LAUNCH = 2, 3                      # fighter.h R_* (export_bm: special_play react_src)
+SR_REL = 0x122
+
+def runs_of(frames, key):
+    """[(key, first index, end index)] of consecutive frames with the same key"""
+    out = []
+    for i, f in enumerate(frames):
+        k = key(f)
+        if out and out[-1][0] == k: out[-1][2] = i + 1
+        else: out.append([k, i, i + 1])
+    return out
+
+def super_rising(B):
+    import handlers_whp as H
+    refs = json.load(open(H.REF))
+    hit, wref = refs['sr_hit'], refs['sr_whiff']
+    mw = H.play('hanzo', SR_REL, first_ticks=True)
+    n = len(wref['frames'])
+    mw = mw[:n]                                           # (the model goes on standing; WHP's move ends with $18)
+    for k, (r, c) in enumerate(zip(mw, wref['frames'])):  # the model is WHP's whiff
+        assert [r['anim'], r['step'], r['defw']] == c['p1'][:3] and abs(r['x'] - c['p1'][3]) < 1.01 and abs(r['y'] - c['p1'][4]) < 1.01, k
+    fxs = [c['fx'] for c in wref['frames']]
+    # WHP's freeze: Hanzou held on step 1's first frame while everybody else stops. The brawler's super flash stands
+    # in for it: held through the flash (game.json super_flash: from the fury's frame start for freeze frames; row r
+    # plays on fury frame r + 1), then step 1's own frames
+    sf = json.load(open(GAME_JSON))['super_flash']
+    s1 = next(k for k, r in enumerate(mw) if r['step'] == 1)
+    hold = max(0, sf['start'] + sf['freeze'] - 1 - s1)
+    mw = mw[:s1] + [dict(mw[s1]) for _ in range(hold)] + mw[s1:]
+    fxs = fxs[:s1] + [[] for _ in range(hold)] + fxs[s1:]
+    up_end = next(k for k, r in enumerate(mw) if r['anim'] == SR_REL and r['step'] >= 3)   # the rise's first row
+    up = [k for k in range(up_end) if mw[k]['live'] is not None]
+    # WHP's hits by step run: the hit capture's runs = the whiff's (the uppercut's run shorter)
+    hf = hit['frames']; hr = runs_of(hf, lambda f: (f['p1'][0], f['p1'][1]))
+    wr = runs_of(mw, lambda r: (r['anim'], r['step']))
+    assert [k for k, _, _ in hr] == [k for k, _, _ in wr][:len(hr)], 'hit / whiff runs differ'
+    opens = {j for h in hit['hits'] for j, (_, a, b) in enumerate(hr) if a <= h + 1 < b}   # the runs where life dropped
+    script, rboxes, rsteps, react = [], [], [], []
+    for j, (key, a, b) in enumerate(wr):
+        nxt_live = j + 1 < len(wr) and mw[wr[j + 1][1]]['live'] is not None
+        for k in range(a, b):
+            r = mw[k]
+            objs = []
+            for task, dw, ox, oy, of in fxs[k]:
+                if dw == whp.BLANK or abs(ox - r['x']) > 120: continue   # (parked off screen: the flicker)
+                objs.append([B.frame(dw), round(ox), round(oy), 1 if of == 0 else 0])
+            script.append([B.frame(r['defw']), round(r['x']), round(r['y']), objs[:2]])
+            atk = whp.attack_boxes(r['live']) if r['live'] is not None else None
+            rboxes.append(kof_boxes(r['defw'], atk))
+            same = atk is not None and nxt_live and j + 1 not in opens
+            rsteps.append([r['anim'], r['step'], (0x100 if atk else 0) | (0x4000 if same else 0), 0xFF])
+            react.append((R_KNOCKDOWN if j == max(opens) else R_LAUNCH) if j in opens and k == a else None)
+    nrow = len(script)
+    parts = [{'first': 0, 'end': up_end, 'next': 1}, {'first': up_end, 'end': nrow, 'next': None}]
+    links = [{'from': 0, 'to': 1, 'on': 'hit', 'input': None, 'window': [up[0], up_end], 'at': 'now'}]
+    return {'input': SR_INPUT, 'condition': 'hero', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
+            'row_steps': rsteps, 'marks': [''] * nrow, 'projectiles': [], 'anims': [SR_REL, 0x18],
+            'shape': [max(r[1] for r in script), max(r[2] for r in script), False],
+            'game_hits': len(hit['hits']), 'parts': parts, 'links': links, 'react_src': react,
+            'whp': {'rel': SR_REL, 'flash_hold': hold, 'uppercut_rows': up, 'rise_row': up_end, 'hit_runs': sorted(opens)}}
 
 def drawn_steps(cid, a):
     """an animation's steps that draw a def of their own (the held poses' step numbering)"""
@@ -330,7 +406,7 @@ def export(names, outdir, only=None, extra=None):
         for mv, (a, k) in (extra or {}).get(name, {}).items():   # held poses (export96's extra): the roster's watch, the
             st = drawn_steps(cid, a); k = k if k >= 0 else len(st) - 1   # lab's pose candidates: (animation, step; -1 = its last)
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': [step(B, st[k]['defw'], st[k]['ticks'])]}
-        sps = [special(B, inp, cap) for inp in SPECIALS] + [fury(B), fury(B, hero=True)]
+        sps = [special(B, inp, cap) for inp in SPECIALS] + [super_rising(B), fury(B, hero=True, inp='MAX ' + SR_INPUT)]
         assert len(B.pals) <= 8, f'{len(B.pals)} palettes (MAX_PALS 8)'
         sets = [[[0] + whp.palette(p)[1:] for p in [s] + B.pals[1:]] for s in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
