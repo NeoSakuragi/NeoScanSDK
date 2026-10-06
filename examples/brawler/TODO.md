@@ -811,6 +811,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   leftover entity) and fix. (c) 20261006-175904-5d29: "a blue effect that should be in the hand of Rugal, and it's not
   there" (Kaiser Wave's charge in the hand) -> the pinned hand effect from the ROM handler; its voice is in #163.
 
+- [ ] 174. P-ROM BANK SWITCHING (2026-10-06): 0.0.76 overflowed the first P MB by 14 bytes; main.o's tables moved
+  to .p2data ($200000). Left: ~61 KB in MB1, ~88 KB in MB2. Before the next fighter: P2 bank switching (the cart's
+  $2FFFF0 bank register, tools/neobuild.py limits), a bank per fighter group's tables with the code reading them
+  through a bank-select at use (or the special tables moved to banks, code + hot tables in MB1); prove every fighter
+  in every bank (controls_proof) and the NeoCart flash board's banking matches (hardware/neocart).
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
