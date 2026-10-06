@@ -798,8 +798,9 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
  * test KOF98 $180B6) or, a travelling one (kind 1), on its first hit, into its end animation; an eruption (kind 3)
  * hits once and plays on (KOF's 1v1; the brawler's crowd rule: it hits every target it touches, each once). Neither it nor its thrower freezes on its hit (the victim does). Two projectiles that meet
  * (one's attack box on the other's own box) both spend their hit. Here: a pool entity driven by its bproj_t rows. */
-static void proj_row(fighter_t *p) {
-    const bproj_t *d = p->pdef;
+static void proj_row(fighter_t *p) {                            /* its rows: its fighter's bank (called from */
+    const bproj_t *d = p->pdef;                                  /* its owner's update, the projectiles' and combat) */
+    uint8_t ob = BANK_set(CH_BANK(p->ch));
     if (p->pend == 1) {                                          /* its end after the hit, in place */
         const bpend_t *e = &d->end[p->prow];
         p->frame_ovr = e->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)e->x << 13); p->y = FIX(e->y);
@@ -811,6 +812,7 @@ static void proj_row(fighter_t *p) {
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
     if (d->follow && p->owner) p->y += p->owner->y;              /* pinned to its thrower (Burn Knuckle's flame) */
+    BANK_set(ob);
 }
 static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int8_t facing, int32_t z) {
     fighter_t *p;
@@ -869,46 +871,52 @@ static void proj_launch(fighter_t *p) {                          /* its next pha
     p->spec_react = d->react; p->spec_fx = d->fx; p->hit_mask = 0; p->pcnt = d->hits; p->freeze = 0;
     proj_row(p);
 }
+static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of an entity (its bank mapped) */
+    const bproj_t *d = p->pdef;
+    int16_t sx;
+    if (!p->tick) { p->tick = 1; proj_child(p); return; }        /* its first frame: row 0 */
+    if (p->freeze) {                                             /* after a hit (bproj_t stop): frozen, it moves on */
+        if (--p->freeze) return;                                 /* stop frames after it; with hits left it may hit */
+        if (d->kind == 1) p->hit_mask = 0;                       /* again then (object.phase; an eruption waits for */
+    }                                                            /* a re-arming row) */
+    p->state_t++;
+    if (p->pend == 4) p->pend = 5;                               /* its thrower's signal: one more pinned frame (KOF */
+    else if (p->pend == 5) { proj_launch(p); proj_child(p); return; }   /* runs the object before its thrower), */
+    if (p->pend == 1) {                                          /* then its next phase */
+        if (++p->prow >= d->nend) { projectile_reset(p); return; }
+    } else if (d->follow && p->owner) {                          /* pinned: its rows cycle at the thrower's place */
+        if (d->follow & 4) {                                     /* or run with its thrower's script rows (frozen with
+                                                                    its hit-stop; Kizuna's Hienzan pillar, TODO #144) */
+            const fighter_t *o = p->owner;
+            int16_t k = o->state == S_SPECIAL ? (int16_t)o->srow - 1 - d->spawn_row : -1;
+            if (k < 0 || k >= d->nrows) { projectile_reset(p); return; }   /* the special left its rows */
+            p->prow = k;
+        } else if (++p->prow >= d->nrows) {
+            if (d->follow & 2) { projectile_reset(p); return; }  /* (or end there: it frees itself) */
+            p->prow = d->loop == 0xFF ? 0 : d->loop;
+        }
+        p->throw_x0 = p->owner->x; p->facing = p->owner->facing;
+    } else if (++p->prow >= d->nrows) {
+        if (d->loop == 0xFF) { projectile_reset(p); return; }    /* its animation is over */
+        p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
+    }
+    proj_row(p);
+    if ((p->pend == 0 || p->pend == 3) && (d->rows[p->prow].flags & 4)) {   /* a re-arming row */
+        p->hit_mask = 0; if (p->pend == 3) p->pend = 0;          /* (KOF: +$E2 bit 7 cleared on an event step) */
+    }
+    sx = INT(p->x) - cam_x;
+    if (sx <= -64 || sx >= 384) { projectile_reset(p); return; }   /* off screen (KOF's test, its 320 px screen) */
+    proj_child(p);
+}
 void projectiles_update(int16_t cam_x) {
     uint8_t i;
     for (i = 0; i < NPJ; i++) {
         fighter_t *p = &projectiles[i];
-        const bproj_t *d = p->pdef;
-        int16_t sx;
-        if (p->state != S_PROJ || !d) continue;
-        if (!p->tick) { p->tick = 1; proj_child(p); continue; }  /* its first frame: row 0 */
-        if (p->freeze) {                                         /* after a hit (bproj_t stop): frozen, it moves on */
-            if (--p->freeze) continue;                           /* stop frames after it; with hits left it may hit */
-            if (d->kind == 1) p->hit_mask = 0;                   /* again then (object.phase; an eruption waits for */
-        }                                                        /* a re-arming row) */
-        p->state_t++;
-        if (p->pend == 4) p->pend = 5;                           /* its thrower's signal: one more pinned frame (KOF */
-        else if (p->pend == 5) { proj_launch(p); proj_child(p); continue; }   /* runs the object before its thrower), */
-        if (p->pend == 1) {                                      /* then its next phase */
-            if (++p->prow >= d->nend) { projectile_reset(p); continue; }
-        } else if (d->follow && p->owner) {                      /* pinned: its rows cycle at the thrower's place */
-            if (d->follow & 4) {                                 /* or run with its thrower's script rows (frozen with
-                                                                    its hit-stop; Kizuna's Hienzan pillar, TODO #144) */
-                const fighter_t *o = p->owner;
-                int16_t k = o->state == S_SPECIAL ? (int16_t)o->srow - 1 - d->spawn_row : -1;
-                if (k < 0 || k >= d->nrows) { projectile_reset(p); continue; }   /* the special left its rows */
-                p->prow = k;
-            } else if (++p->prow >= d->nrows) {
-                if (d->follow & 2) { projectile_reset(p); continue; }   /* (or end there: it frees itself) */
-                p->prow = d->loop == 0xFF ? 0 : d->loop;
-            }
-            p->throw_x0 = p->owner->x; p->facing = p->owner->facing;
-        } else if (++p->prow >= d->nrows) {
-            if (d->loop == 0xFF) { projectile_reset(p); continue; }   /* its animation is over */
-            p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
-        }
-        proj_row(p);
-        if ((p->pend == 0 || p->pend == 3) && (d->rows[p->prow].flags & 4)) {   /* a re-arming row */
-            p->hit_mask = 0; if (p->pend == 3) p->pend = 0;      /* (KOF: +$E2 bit 7 cleared on an event step) */
-        }
-        sx = INT(p->x) - cam_x;
-        if (sx <= -64 || sx >= 384) { projectile_reset(p); continue; }   /* off screen (KOF's test, its 320 px screen) */
-        proj_child(p);
+        uint8_t ob;
+        if (p->state != S_PROJ || !p->pdef) continue;
+        ob = BANK_set(CH_BANK(p->ch));                           /* its rows: its fighter's bank (fighter.h "banks") */
+        proj_update(p, cam_x);
+        BANK_set(ob);
     }
 }
 static uint8_t special_pick(const fighter_t *f, uint8_t want) {   /* a role (BS_*) -> the BS_* it plays, 0xFF = none */
@@ -1243,7 +1251,13 @@ static void special_update(fighter_t *f) {
 }
 
 /* ---- state machine --------------------------------------------------------------------------------------------- */
-void fighter_update(fighter_t *f, const intent_t *in) {
+static void update(fighter_t *f, const intent_t *in);
+void fighter_update(fighter_t *f, const intent_t *in) {         /* its bank mapped (fighter.h "banks"): its special's */
+    uint8_t ob = BANK_set(CH_BANK(f->ch));                       /* rows, program, parts, links, its objects' rows; a */
+    update(f, in);                                               /* form link swaps f->ch for a fighter of the same bank */
+    BANK_set(ob);                                                /* (bank_pack.py) */
+}
+static void update(fighter_t *f, const intent_t *in) {
     const bphys_t *ph = &f->ch->phys;
     if (f->state == S_GRABBED && in->press && f->held && !f->held->srow && ++f->grab_hits >= ESCAPE_PRESSES) {   /* mash to
                                                                     break free (hit-stop too; never while a hold hit plays) */
@@ -1642,13 +1656,16 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
     for (i = 0; i < n; i++) {
         fighter_t *a = fs[i];
         const bbox_t *atk;
+        bbox_t abox;                                             /* a script row's box: in the attacker's bank, copied */
         uint8_t sounded = 0;                                     /* one hit sound per attack, however many it hits */
         if (a->freeze || (only && a != only)) continue;
         if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
             const bstep_t *sa = fighter_step(a);
             if (!(sa->flags & 1)) continue;
             atk = &sa->atk;
-        } else if ((a->state == S_SPECIAL || a->state == S_PROJ) && a->spec_atk) atk = a->spec_atk;
+        } else if ((a->state == S_SPECIAL || a->state == S_PROJ) && a->spec_atk) {
+            uint8_t ob = BANK_set(CH_BANK(a->ch)); abox = *a->spec_atk; BANK_set(ob); atk = &abox;
+        }
         else continue;
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
@@ -1709,14 +1726,18 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
     }
     for (i = 0; i < NPJ && !only; i++) {                         /* projectiles meeting: both hits spent (KOF98 */
         fighter_t *a = &projectiles[i];                          /* measured: EX Ryo's Ko-ou-ken ended on Yuri's */
+        bbox_t ab, bb;                                           /* (both boxes copied out under their banks) */
+        uint8_t ob;
         if (a->state != S_PROJ || !a->pdef || !a->spec_atk || a->pend == 3) continue;   /* eruption, whose attack went off;
                                                                     one that hit a fighter: spent for clashes, as KOF's) */
+        ob = BANK_set(CH_BANK(a->ch)); ab = *a->spec_atk; BANK_set(ob);
         for (j = 0; j < NPJ; j++) {
             fighter_t *b = &projectiles[j];
             int16_t dz;
             if (b->state != S_PROJ || !b->pdef || b->team == a->team || !b->pown) continue;
             dz = INT(a->z) - INT(b->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
-            if (!boxes_meet(a, a->spec_atk, b, b->pown)) continue;
+            ob = BANK_set(CH_BANK(b->ch)); bb = *b->pown; BANK_set(ob);
+            if (!boxes_meet(a, &ab, b, &bb)) continue;
             proj_hit(a); proj_hit(b);
             break;
         }

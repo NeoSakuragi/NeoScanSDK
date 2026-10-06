@@ -7,8 +7,20 @@
 #ifndef FIGHTER_H
 #define FIGHTER_H
 #include <stdint.h>
+#include <neo_bank.h>
 #include "bm_chars.h"
 #include "gamedata.h"
+
+/* banks (TODO #174, docs/rom_packer_rules.md "P ROM"): a fighter's bulk lives in its P2 bank (bm_bank[id], written by
+ * tools/brawler/bank_pack.py): its frames (bframe_t, bpart_t, the tile numbers), its specials' script rows (bspec_row_t
+ * with their objects), programs (bprim_t), parts, links and variant columns, its projectiles' rows (bprow_t, bpend_t).
+ * Everything another fighter, combat, the AI or the HUD reads stays in the first MB: bchar_t, the animations and their
+ * steps (boxes), throws, postures, palettes, routes, voices, the bspec_t / bproj_t headers. So the bank is needed only
+ * where a fighter's own bulk is read: its update (fighter_update), its projectiles' (projectiles_update, proj_row), its
+ * drawing (main.c draw: draw.s), and an attacker's box from a script row (combat, main.c dbg_draw: copied out under its
+ * bank). Every switch is BANK_set(CH_BANK(ch)) ... BANK_set(old): no reader leaves the bank changed for its caller. */
+extern const uint8_t bm_bank[BC_COUNT];
+#define CH_BANK(ch) (bm_bank[(ch)->id])
 
 #define FIX(v)   ((int32_t)(v) << 16)
 #define INT(v)   ((int16_t)((v) >> 16))

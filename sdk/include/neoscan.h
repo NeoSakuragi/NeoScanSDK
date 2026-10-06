@@ -10,5 +10,6 @@
 #include "neo_fix.h"
 #include "neo_sound.h"
 #include "neo_backup.h"
+#include "neo_bank.h"
 
 #endif

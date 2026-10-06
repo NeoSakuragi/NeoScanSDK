@@ -63,17 +63,27 @@ $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/b
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/main.o: main.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
-	m68k-linux-gnu-objcopy --rename-section .rodata=.p2data.main $@   # main's tables (stage art, HUD: ~60 KB) -> $$200000: the first MB is full
+# the fighters' tables: one section per table (-fdata-sections), then tools/brawler/bank_pack.py sends each fighter's
+# bulk (frames, tiles, special scripts and programs, projectile rows) to its P2 bank and keeps what every fighter and
+# the engine read every frame in the first MB (docs/rom_packer_rules.md "P ROM"); objcopy renames the banked tables'
+# sections .p2bankN (sdk/boot/neoscan.ld), bm_bank.c holds each fighter's bank
 $(BUILD)/bm_chars.o: $(BUILD)/bm_chars.c
-	$(CC) $(CFLAGS) -c $< -o $@
-	m68k-linux-gnu-objcopy --rename-section .rodata=.p2data --rename-section .rodata.str1.1=.p2data.str $@   # tables -> $$200000
-$(BUILD)/bm_spec.o: $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h      # every fighter's specials: plain .rodata, the first MB
+	$(CC) $(CFLAGS) -fdata-sections -c $< -o $@
+$(BUILD)/bm_spec.o: $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h
+	$(CC) $(CFLAGS) -fdata-sections -c $< -o $@
+$(BUILD)/bank_rename.txt $(BUILD)/bm_bank.c $(BUILD)/banks.txt &: $(BUILD)/bm_chars.o $(BUILD)/bm_spec.o $(TOOLS)/brawler/bank_pack.py
+	python3 $(TOOLS)/brawler/bank_pack.py $(BUILD)
+$(BUILD)/bm_chars_b.o: $(BUILD)/bm_chars.o $(BUILD)/bank_rename.txt
+	m68k-linux-gnu-objcopy @$(BUILD)/bank_rename.txt $< $@
+$(BUILD)/bm_spec_b.o: $(BUILD)/bm_spec.o $(BUILD)/bank_rename.txt
+	m68k-linux-gnu-objcopy @$(BUILD)/bank_rename.txt $< $@
+$(BUILD)/bm_bank.o: $(BUILD)/bm_bank.c
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/draw.o: draw.s
 	$(CC) -m68000 -c $< -o $@
 
 # --- Link ---
-$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars.o $(BUILD)/bm_spec.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a
+$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars_b.o $(BUILD)/bm_spec_b.o $(BUILD)/bm_bank.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
 
 # --- Package ROM ---
