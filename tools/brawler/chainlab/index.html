@@ -215,13 +215,25 @@ button.pose .pl { display: flex; flex-direction: column; font-size: 11.5px; text
 .spc { display: flex; flex-direction: column; gap: 2px; }
 .spc .shots { display: flex; gap: 4px; align-items: flex-end; flex-wrap: wrap; }
 .spc .mname { font-weight: 700; } .spc .mfd { font-size: 12px; }
+#fbcol { padding: 12px 16px; min-width: 0; }
+#fbcol .box { border: var(--line); margin: 10px 0; }
+#fbcol .box > h2 { font-size: 15px; margin: 0; padding: 6px 8px; border-bottom: var(--line); display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+#fbcol .box > h2 .sp { flex: 1; }
+#fbcol .in { padding: 8px; overflow-x: auto; }
+#fbcol .note, #fbcol .small { font-size: 12.5px; }
+#fbcol select, #fbcol input { min-height: 28px; padding: 1px 4px; font-size: 13px; border-width: 1px; }
+table.fb { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.fb td, table.fb th { border: var(--thin); padding: 4px 6px; text-align: left; vertical-align: top; }
+table.fb td.mono { font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; }
+table.fb td.txt { min-width: 260px; }
+table.fb audio { display: block; margin-top: 4px; max-width: 220px; }
 ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-monospace, monospace; }
 </style>
 </head>
 <body>
 <header>
   <h1>Brawler Lab</h1>
-  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button></nav>
+  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabFeedback">Feedback</button></nav>
   <span id="clhead" class="row" style="margin:0">
   <label>Fighter <select id="fighter"></select></label>
   <label>Dummy <select id="dummy"></select></label>
@@ -283,6 +295,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
   <section id="stagecol" hidden></section>
   <section id="enemycol" hidden></section>
   <section id="charcol" hidden></section>
+  <section id="fbcol" hidden></section>
 </main>
 <script src="lab.js"></script>
 <script src="core.js"></script>
@@ -292,5 +305,6 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <script src="enemypack.js"></script>
 <script src="enemies.js"></script>
 <script src="characters.js"></script>
+<script src="feedback.js"></script>
 </body>
 </html>

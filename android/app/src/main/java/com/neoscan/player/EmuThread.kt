@@ -27,6 +27,9 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
     @Volatile var fps = 0f
     @Volatile var resetReq = false                                  // a soft reset asked from the UI: done between frames
     @Volatile var flushed = false                                   // the saves are on disk since the last pause began
+    /** a feedback capture asked from the UI: done between frames (states + inputs into dir, then the picture); the
+     *  callback gets {window frame, press frame} (null = failed) and the picture (ARGB, w, h), on this thread */
+    @Volatile var feedbackReq: Pair<java.io.File, (LongArray?, IntArray, Int, Int) -> Unit>? = null
 
     override fun run() {
         Native.setSystem(hw, aesBios(java.io.File(sysDir, "neogeo.zip")))
@@ -64,6 +67,10 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
             val vsync = VsyncPacer.next()                               // waits for the display (100 ms timeout)
             if (vsync < 0) continue
             if (resetReq) { resetReq = false; Native.reset() }
+            feedbackReq?.let { (dir, done) -> feedbackReq = null
+                val r = Native.feedback(dir.absolutePath)
+                val px = IntArray(Native.width() * Native.height()); Native.screenshot(px)
+                done(r, px, Native.width(), Native.height()) }
             val r0 = System.nanoTime()
             val n = Native.runFrame(back, audio)
             val work = System.nanoTime() - r0

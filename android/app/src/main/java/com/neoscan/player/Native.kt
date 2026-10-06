@@ -19,6 +19,13 @@ object Native {
     @JvmStatic external fun flushSaves()
     /** soft reset (the core's retro_reset: the BIOS boots the cart again, NVRAM / memory card kept); emu thread */
     @JvmStatic external fun reset()
+    /** feedback capture into [dir] (press.state, snap_<frame>.state, inputs.bin: see player.c); emu thread, between
+     *  frames; returns {window start frame, press frame} or null */
+    @JvmStatic external fun feedback(dir: String): LongArray?
+    /** the last frame's picture as opaque ARGB, rows of [width]; returns the pixels written */
+    @JvmStatic external fun screenshot(out: IntArray): Int
+    /** the BIOS the core boots: mvs / aes / uni */
+    @JvmStatic external fun systemType(): String
 }
 
 /** Neo Geo pad bits as the core reads them (libretro ids; Geolith maps B->A, A->B, Y->C, X->D, SELECT->coin). */
