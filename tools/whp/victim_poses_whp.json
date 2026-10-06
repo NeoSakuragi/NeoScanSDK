@@ -1,0 +1,10 @@
+{
+ "_doc": "World Heroes Perfect victim postures (export_bm.VICTIM_POSES['whp'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle relative to the sprite's facing, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'throw anim.step' of the thrower (export_whp.throw_export): the victim def its command 16 places at that step, Hanzou's own defs as the victim (row 1). Read by eye 2026-10-06 from /data/tmp/whp6/victim_defs.png (render of every held step: D1 = the forward throw, D3 = the back throw).",
+ "poses": {
+  "D1.0": ["grabbed", 0], "D1.1": ["hunched", 30], "D1.2": ["horizontal", 90], "D1.3": ["inverted", 180],
+  "D1.4": ["inverted_diagonal", -150], "D1.5": ["inverted_diagonal", -155], "D1.6": ["inverted_diagonal", -155],
+  "D1.7": ["inverted_diagonal", -155], "D1.8": ["inverted", 180],
+  "D3.0": ["grabbed", 0], "D3.1": ["hunched", 30], "D3.2": ["hunched", 30], "D3.3": ["hunched", 30],
+  "D3.4": ["horizontal", 60], "D3.5": ["horizontal", 90], "D3.6": ["inverted", 180], "D3.7": ["inverted", 180]
+ }
+}

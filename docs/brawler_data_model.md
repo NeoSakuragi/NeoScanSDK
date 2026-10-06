@@ -64,6 +64,41 @@ tiles), hit / hurt boxes, palettes (every colour set), physics, captured special
 (thrower and victim timelines), victim postures. The bank is addressed by a spec `game:name` (`kof98:terry`). It is
 never edited: layer 1 picks from it.
 
+### World Heroes Perfect's six buttons in the bank (2026-10-07, `tools/whp/moves_whp.py`)
+
+WHP has six attacks: A / B = light / heavy punch, C / D = light / heavy kick, A+B = strong punch, C+D = strong kick
+(a chord = the buttons pressed within 3 frames, $2E25C; the press is handled when the window closes, so the stick
+counts as it is then). Strengths are named **low / mid / high** (A / B / A+B, C / D / C+D). The importer reads every
+fighter's buttons from the ROM's action tables, the same code for the whole cast (a fighter = its row, +$6004 - 1):
+
+- **Normals**, button x stance (`moves_whp.normals`): the ground table word[$349C0 + 32 chord + 2 (stick & 14)] (neutral,
+  down, a direction), + 1 with the stick away from the opponent ($3535C), + $18 inside the close reach byte[$34594 +
+  32 row + n] + byte[$34574 + victim row] ($353BC), the run normals (+ 3, + $1B with down: the six handlers'
+  immediates), the air handler's (vertical / diagonal, $36FBA). Exported (`export_whp.normal_anims`) as: far
+  `atk_X_far` (C+D far = `body_toss`), close `atk_X_close`, crouch `atk_X_crouch`, air `atk_X_jump` / `atk_X_jump_diag`,
+  a direction's own animation `cmd_fwd_X` (Hanzou: forward + C far $4D, forward + C+D close $6D), running `atk_X_run` /
+  `atk_X_run_low`, X = a b ab c d cd. A stance whose animation is another's is that move (Hanzou: 66 stances, 44 moves).
+  New BA_* moves (export_bm.MOVES, appended): A+B / C+D in every stance, air A / B / A+B / diagonal C+D, `cmd_fwd_c`,
+  `cmd_fwd_cd`, the twelve run normals; all are route cards (routes.MOVE_NAMES, the air ones AIR_MOVE_NAMES: the jump
+  picks vertical / diagonal, fighter.c start_node); a fighter without them never plays them (routes.encode `has`; the
+  air ones fall back to the jump's C / D / C+D: export_bm SOURCES).
+- **The mapping rule** (WHP's six strengths on the brawler's one attack button A): the strengths are route cards, the
+  route author places each (light / heavy / strong are different cards: `atk_a_far` / `atk_b_far` / `atk_ab_far`); the
+  default tree (routes.default_tree) is unchanged, so a fighter without a routes file plays what it played before.
+- **Specials**: every ground special = its command with three rows (`moves_whp.specials`: the punch list $2E40C A /
+  B / A+B, the kick list $2E60C C / D / C+D), one program per special with the rows as its variant table
+  (`export_whp.rom_special`: each row played by the model handlers_whp.play, its motion in constant-acceleration
+  segments, its projectiles spawned on their frame; the head picks the row from column 0; column 1 the damage).
+  The row played is `roster[].variant[input]`: a button letter or **low / mid / high**; absent = high (the heaviest).
+  Hanzou's picks: 236P low (as before), 236K mid, 623P mid, 214K low, 23536P high (game.json). A command whose three
+  entries are one animation, or that is not an attack, is listed in the inventory and not exported (Hanzou's 258P /
+  258K: one animation for the three, a vanishing jump to fixed screen places, $35FEA step 8).
+- **Throws** (`moves_whp.throws` / `throw_model`): A+B or C+D with a direction near a standing opponent ($315B0, before
+  the normal); forward = `throw_c`, back = `throw_d` (#146's walk-in grab + forward / back + A); the thrower's frames
+  from the model, the held victim from command 16's table (its defs, feet-centred, postures in
+  tools/whp/victim_poses_whp.json), the flight after command 18 as the knockdown animations, impacts = +$60D5 bit 7 steps
+  and the landing, control return = the first thrower step after the last impact (throwrom's rule).
+
 Voices are in the bank too: `tools/brawler/voices.json` (tools/brawler/voices.py, "Voices" below): per fighter every
 voice sample its KOF plays, with the moves that play it.
 
@@ -85,7 +120,7 @@ voice sample its KOF plays, with the moves that play it.
 | `voices` | absent, `"kof"` or `{"kof": true, "set": {"hit": 3, "special:236C": null}}` | absent = silent (none of its samples in the V ROM); `"kof"` = KOF's own voice on every move (the suggestion); an object = that base (`kof` false: none) with these keys changed to a voice id of its list (null: silent). Keys: every BA_* move name, `throw_c` / `throw_d`, `hit`, `ko`, `select`, `special:<input>` of its pool ("Voices" below) |
 | `display` | `"BILLY LEE"` | the name shown (HUD, select) when it differs from `name` upper-cased (at most 10 characters) |
 | `scale` | `1` | the fighter's size: 1 = its game's art at full size (Double Dragon's Billy Lee, 115 px, Bruno 2026-10-06; Kizuna's fighters are exported at 0.80 by their exporter); a per-fighter value so it can change later (export_dd accepts 1 today) |
-| `variant` | `{"623": "A"}` (absent = the source's default, the heaviest) | the row of a special's variant table played (vocabulary `variant.table`: DD's four buttons), latched at the move's start |
+| `variant` | `{"623": "A"}` (absent = the source's default, the heaviest) | the row of a special's variant table played (vocabulary `variant.table`: DD's four buttons; WHP: a button or low / mid / high), latched at the move's start |
 | `form` | `{"trigger": "down+D full meter", "transition": "FORM", "target": "billy_super", "carry": ["life", "position", "facing", "meter"], "exit": "life"}` | the form link (vocabulary `form.change`): the trigger starts the transition (a special of its bank), which turns the fighter into the target roster entry; exit `life` (a lost life) or `stage` |
 | `selectable` | `false` (absent = true) | no select slot: a form link's target (Super Billy); never picked (roster_unlock 0xFF) |
 

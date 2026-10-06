@@ -214,10 +214,16 @@ static void to_neutral(fighter_t *f, const intent_t *in) {
 enum { SX_A, SX_B, SX_C, SX_D, SX_CD, SX_THROW_C, SX_THROW_D };   /* bchar_t.sfx (export_bm SFX_KEYS) */
 static uint8_t hit_btn(uint8_t anim) {                         /* the button a normal's hit sounds as */
     switch (anim) {
-    case BA_ATK_A_CLOSE: case BA_ATK_A_FAR: case BA_ATK_A_CROUCH: case BA_CMD_FWD_A: return SX_A;
-    case BA_ATK_B_CLOSE: case BA_ATK_B_FAR: case BA_ATK_B_CROUCH: case BA_CMD_FWD_B: return SX_B;
-    case BA_ATK_C_CLOSE: case BA_ATK_C_FAR: case BA_ATK_C_JUMP: case BA_ATK_C_CROUCH: case BA_CMD_DF_C: return SX_C;
-    case BA_ATK_D_CLOSE: case BA_ATK_D_FAR: case BA_ATK_D_CROUCH: case BA_ATK_D_JUMP: case BA_CMD_DF_D: return SX_D;
+    case BA_ATK_A_CLOSE: case BA_ATK_A_FAR: case BA_ATK_A_CROUCH: case BA_CMD_FWD_A: case BA_ATK_A_JUMP: case BA_ATK_A_JUMP_DIAG:
+    case BA_ATK_A_RUN: case BA_ATK_A_RUN_LOW: return SX_A;
+    case BA_ATK_B_CLOSE: case BA_ATK_B_FAR: case BA_ATK_B_CROUCH: case BA_CMD_FWD_B: case BA_ATK_B_JUMP: case BA_ATK_B_JUMP_DIAG:
+    case BA_ATK_B_RUN: case BA_ATK_B_RUN_LOW:
+    case BA_ATK_AB_CLOSE: case BA_ATK_AB_FAR: case BA_ATK_AB_CROUCH: case BA_ATK_AB_JUMP: case BA_ATK_AB_JUMP_DIAG:
+    case BA_ATK_AB_RUN: case BA_ATK_AB_RUN_LOW: return SX_B;   /* WHP's strong punch: the heavy punch's sound */
+    case BA_ATK_C_CLOSE: case BA_ATK_C_FAR: case BA_ATK_C_JUMP: case BA_ATK_C_CROUCH: case BA_CMD_DF_C: case BA_CMD_FWD_C:
+    case BA_ATK_C_RUN: case BA_ATK_C_RUN_LOW: return SX_C;
+    case BA_ATK_D_CLOSE: case BA_ATK_D_FAR: case BA_ATK_D_CROUCH: case BA_ATK_D_JUMP: case BA_CMD_DF_D: case BA_ATK_D_RUN:
+    case BA_ATK_D_RUN_LOW: return SX_D;
     default: return SX_CD;
     }
 }
@@ -246,7 +252,11 @@ static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
             a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
     f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0;
     if (c->flags & RF_AIR) {                                     /* the jump in progress picks the air normal */
-        if (a == BA_ATK_CD_JUMP) a = f->jump_kind ? BA_ATK_CD_HOP : BA_ATK_CD_JUMP;   /* KOF's 117, a KOF98 / 99 hop's 124 */
+        if (a == BA_ATK_CD_JUMP) a = f->jump_kind ? BA_ATK_CD_HOP : f->jump_dir ? BA_ATK_CD_JUMP_DIAG : BA_ATK_CD_JUMP;   /* KOF's
+                                                                    117, a KOF98 / 99 hop's 124; WHP's diagonal C+D (a KOF
+                                                                    fighter's is its 117: export_bm SOURCES) */
+        else if (a == BA_ATK_A_JUMP || a == BA_ATK_B_JUMP || a == BA_ATK_AB_JUMP) a += f->jump_dir != 0;   /* WHP's air A / B /
+                                                                    A+B: the vertical one, its diagonal next (BA_* order) */
         else a = AIR_NORMAL[f->jump_kind][f->jump_dir != 0][a == BA_ATK_D_JUMP];
     }
     lab_note(f, LE_START, node, how, 0);
