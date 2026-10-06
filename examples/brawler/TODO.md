@@ -723,6 +723,29 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   /data/tmp/throws146/m). The feedback replays are byte-identical, so suspect the harness (state load / RNG seed /
   frame counter / an uninitialised RAM byte in the placement path). Find it: a proof that isn't repeatable is no proof.
 
+- [ ] 166. THROWS ROUND 2 (Bruno's notes on 0.0.73's Geese / Terry pilot, all Player 0.0.15):
+  (a) 20261006-172625-5d29: "There's a sound being played whenever I grab an opponent. I want that sound to be played
+  only when an actual throw is being triggered." + "in King of Fighters 98 and also 96, there's a little blue special
+  effect ... that goes along the throw. Can you locate it and integrate it as standard in Brawler?" -> the catch is
+  silent, the throw sound at the throw start; find KOF96/98's throw-start effect object (its code + sprite) and make it
+  a standard throw effect (vocabulary fx).
+  (b) 20261006-172727-5d29 + 172758 (same request twice): "When I hold an opponent and hit, I want the surrounding
+  opponents to also be hit, like in Final Fight or Streets of Rage ... also there may not be an impact effect on that
+  hold and hit." -> hold hits get an attack box hitting every enemy in reach (crowd rule, each once per hit) + the
+  standard hit spark / impact on the held victim.
+  (c) 20261006-172836-5d29: "For the hit animation of Terry, don't use the stand C, use the diagonal C animation, I
+  think this one starts faster." -> Terry's hold hit = his down-forward+C (crouching / diagonal C); generalise: a
+  per-fighter hold-hit choice in game.json, the default = the fastest-startup close normal (measure startups).
+  (d) 20261006-173012-5d29: "This hit at the end of the throw, I want this to be considered a regular hit, so that I
+  could cancel with a special or even a fury after that." -> the hold finisher (3rd hit) is a normal hit: cancellable
+  into specials / furies per #143's rules (the victim launched, juggle allowed).
+  (e) 20261006-172919-5d29: "For the player death sequence ... like Final Fight ... the player dies, then the blinking
+  animation together with the death sound, and then the continue screen if there's no more lives. If there's another
+  life, then the player respawns in the air and falls on the floor, and as the player falls back, all the enemies are
+  pushed down." -> a standard death / respawn sequence (blink + death voice, continue if no lives; else drop from the
+  air, landing = a screen-wide knockdown of enemies, invincible while falling).
+  Proof: sheets per point, Geese + Terry, then roster-wide rules; the usual proofs. Close the feedback rows shipped.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
