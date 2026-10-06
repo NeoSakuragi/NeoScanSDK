@@ -525,7 +525,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   damage) per the extract-all-variants rule; store them in the variant table (the Billy job builds it), the brawler
   plays its latched rule; sheet WHP vs brawler per variant. Close the feedback row as shipped with the release.
 
-- [ ] 148. (+ 20261006-173459-5d29: "Samsho characters still don't have throws." — also Hanzo / WHP has none) HAOHMARU FROM SS4'S CODE: REAL FURY, SPECIALS, THROW (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
+- [ ] 148. (REPLACED 2026-10-06, Bruno: "yes replace haoh, put the samsho 2 version": Haohmaru comes from SAMURAI SHODOWN II, exported with Genjuro (#175, same exporter, after #174), every move decoded from SS2's data: specials with their effects attached, his rage move as the fury, his SS2 throw via #146; the roster entry haohmaru switches from samsho4:haohmaru to the SS2 bank; the SS4 tools stay. The notes below are the acceptance list.) (+ 20261006-173459-5d29: "Samsho characters still don't have throws." — also Hanzo / WHP has none) HAOHMARU FROM SS4'S CODE: REAL FURY, SPECIALS, THROW (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
   Haohmaru in Samurai Shodown." The replay shows the fury = "BUST 236D", a powered single flaming slash). Find in
   SAMURAI SHODOWN IV's code his true super moves (its own engine: tools/samsho4, /data/neogeo_dict/samsho4/README.md):
   the Weapon Flipping Technique (rage-full super) and the Rage Explosion's Issen, their commands, conditions,
@@ -817,7 +817,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   through a bank-select at use (or the special tables moved to banks, code + hot tables in MB1); prove every fighter
   in every bank (controls_proof) and the NeoCart flash board's banking matches (hardware/neocart).
 
-- [ ] 175. GENJURO (Samurai Shodown II) INTO THE BRAWLER (Bruno, 2026-10-06; AFTER #174 bank switching): study
+- [ ] 175. (+ HAOHMARU from SS2 in the same job, replacing the SS4 one: #148) GENJURO (Samurai Shodown II) INTO THE BRAWLER (Bruno, 2026-10-06; AFTER #174 bank switching): study
   /data/neogeo_dict/samsho2/README.md + tools/samsho2 (the study recommends him: 99 px, Terry-sized, 1:1 no scaling);
   an exporter tools/samsho2/export_ss2.py in the export96 layout (like export_ss4 / export_kz / export_dd), every move
   decoded from SS2's data / handlers (no recorded moves), A / B / A+B as rows of the variant table, his rage-only
