@@ -47,14 +47,35 @@ def u32(a): return m.u32(a)
 # ---- the command ----------------------------------------------------------------------------------------------------
 DIRS = {0: 'N', 1: 'U', 2: 'D', 4: 'L', 8: 'R', 0x0A: 'DR', 0x06: 'DL', 0x09: 'UR', 0x05: 'UL'}
 def parse_command(i):
-    """command i of $2F40C ($3109A): {'motion': [(dir, window entries)] oldest first, 'anims': (a, a, a), 'hero': (h, h, h)}"""
+    """command i of $2F40C ($3109A): {'motion': [(dir, window entries)] oldest first, 'term': the byte after the motion
+    (FC: a hero triple follows, FE: also needs +$604D clear, FF: plain; $310D8), 'anims': (a, a, a), 'hero': (h, h, h)
+    or None}"""
     a = u32(CMD_PTRS + 4 * i); assert u8(a) == 0xFF, f'command {i}: not a motion ({u8(a):02X})'
     a += 1; mot = []
     while u8(a) < 0x80: mot.append((u8(a), u8(a + 1))); a += 2
-    assert u8(a) == 0xFC, f'command {i}: {u8(a):02X} after the motion'
-    an = tuple(0x100 + u8(a + 1 + k) if u8(a + 1 + k) < 0x80 else u8(a + 1 + k) for k in range(3))
-    he = tuple(0x100 + u8(a + 4 + k) if u8(a + 4 + k) < 0x80 else u8(a + 4 + k) for k in range(3))
-    return {'index': i, 'addr': u32(CMD_PTRS + 4 * i), 'motion': mot[::-1], 'anims': an, 'hero': he}
+    term = u8(a)
+    assert term in (0xFC, 0xFE, 0xFF), f'command {i}: {term:02X} after the motion'
+    rel = lambda v: 0x100 + v if v < 0x80 else v
+    an = tuple(rel(u8(a + 1 + k)) for k in range(3))
+    he = tuple(rel(u8(a + 4 + k)) for k in range(3)) if term == 0xFC else None
+    return {'index': i, 'addr': u32(CMD_PTRS + 4 * i), 'motion': mot[::-1], 'term': term, 'anims': an, 'hero': he}
+
+# the ground specials ($30CA2): the new presses +$6D (+$6001 bits 4-7: A 1, B 2, C 4, D 8, $30B38) pick a list per
+# row: A / B / A+B ($30CE2: list $2E40C facing right / $2E50C left, 8 command indices per row) or C / D / C+D ($30D20:
+# $2E60C / $2E70C); the anims triple is indexed by the press (A, B, A+B; C, D, C+D: $31126), the hero triple instead
+# while the hero gauge is full (+$6A13, command byte FC: $310E4)
+SPECIAL_LISTS = {'punch': ((0x2E40C, 0x2E50C), ('A', 'B', 'AB')), 'kick': ((0x2E60C, 0x2E70C), ('C', 'D', 'CD'))}
+def special_commands(row):
+    """the row's ground special commands facing right: [(list, command)] (parse_command; commands not of the motion form
+    left out)"""
+    out = []
+    for name, ((right, _), _) in SPECIAL_LISTS.items():
+        for k in range(8):
+            i = u8(right + 8 * row + k)
+            if not i: continue
+            try: out.append((name, parse_command(i)))
+            except AssertionError: pass
+    return out
 
 def dm_command(row):
     """the row's desperation command(s): chords (button masks), the commands facing right / left, the life gate"""
@@ -236,7 +257,7 @@ def held(cond, st):
     if k == 'vanim>=': return st['vanim'] >= cond[1]
     raise ValueError(cond)
 
-def play(name, rel, victim=(0.0, 0.0), hit_frames=(), edge_after=8, vanim=0xFF, maxf=400, xmin=None):
+def play(name, rel, victim=(0.0, 0.0), hit_frames=(), edge_after=8, vanim=0xFF, maxf=400, xmin=None, stop_frames=(), first_ticks=False):
     """the DM played by the model, facing right, from x 0 on the floor: per frame dict(anim, step, defw, x, y (px, up),
     live (attack box set or None), spawns [effect k], flash). victim = its (x, y) px or a function of the model's frame
     (the hooks place Hanzou from it); hit_frames = the frames whose attack box connects (the caller's contact; the
@@ -245,8 +266,13 @@ def play(name, rel, victim=(0.0, 0.0), hit_frames=(), edge_after=8, vanim=0xFF, 
     the victim's animation (relative) when the hit check runs (WHP: $30-$3F = a guard: the dive bounces off).
     Engine rules [code, meas]: a step shows ticks + 1 frames; each frame: the pending landing / hit branch ($151FE),
     else the step timer; the hooks; then the motion y += vy + ay / 2, vy += ay (x likewise; [meas]: the first frame of
-    a jump rises vy + ay / 2); a landing (vy < 0 and the next y at or below the floor, $2E1EA) is taken in the next
-    frame's update."""
+    a jump rises vy + ay / 2); a landing (vy < 0 and y + vy + ay at or below the floor, $2E1EA) is taken in the next
+    frame's update. stop_frames = the frames whose contact drops the victim's life (the game's damage, $4C17C): when
+    the attacker stands still there (+$0C / +$10 longs: no velocity, no acceleration) the step's tick counter is cleared
+    (clrb +$60E0, $4C188): the step ends with the hit-stop (the hero rising's uppercut, step 2). first_ticks: the move
+    starts before the frame's animation update runs, its first step shows ticks frames [meas: the 623 commands, $104 /
+    $105 / $120-$122; the DM, 236 and 214 show ticks + 1]. x moves x += vx, vx += ax ($9C46: no half step, [meas] on
+    the hero rising's ax); y keeps the measured vy + ay / 2."""
     char = CHARS[name]; row = ROWS[name]
     st = dict(anim=rel, step=-1, left=0, x=0.0, y=0.0, vx=0.0, vy=0.0, ax=0.0, ay=0.0, land=None, onhit=None, loops={},
               air=0, edge_after=edge_after, vanim=vanim, defw=None, box=None, live=False, hit=False, hit_seen=False)
@@ -300,6 +326,7 @@ def play(name, rel, victim=(0.0, 0.0), hit_frames=(), edge_after=8, vanim=0xFF, 
         raise RuntimeError('entry loop')
     st['over'] = False
     enter(rel, 0)
+    if first_ticks: st['left'] -= 1                  # entered before the frame's animation update [meas]
     landed_next = False
     for f in range(maxf):
         if f > 0:
@@ -327,14 +354,15 @@ def play(name, rel, victim=(0.0, 0.0), hit_frames=(), edge_after=8, vanim=0xFF, 
             break
         # the motion
         st['y'] += st['vy'] + st['ay'] / 2; st['vy'] += st['ay']
-        st['x'] += st['vx'] + st['ax'] / 2; st['vx'] += st['ax']
+        st['x'] += st['vx']; st['vx'] += st['ax']        # x: the motion routine's own order ($9C46) [code + meas]
         if xmin is not None and st['x'] < xmin: st['x'] = xmin; st['air'] = max(st['air'], edge_after)   # WHP's bound
         if st['y'] > 0 or st['vy'] > 0: st['air'] += 1
-        if st['land'] and st['vy'] < 0 and st['y'] + st['vy'] <= 0: landed_next = True
+        if st['land'] and st['vy'] < 0 and st['y'] + st['vy'] + st['ay'] <= 0: landed_next = True   # $2E1FA: y + vy + ay
         sp = st.pop('pending_spawns', [])
         out.append(dict(f=f, anim=st['anim'], step=st['step'], defw=st['defw'], x=st['x'], y=st['y'],
                         live=st['box'] if st['live'] else None, spawns=sp, flash=flash))
         if f in hit_frames: st['hit_seen'] = True
+        if f in stop_frames and not (st['vx'] or st['vy'] or st['ax'] or st['ay']): st['left'] = 1   # $4C188
     return out
 
 _hooks = {}
@@ -344,14 +372,35 @@ def hook_table_cached(row, anim):
 
 # ---- captures (the check only) ------------------------------------------------------------------------------------------
 DM_SEQ = '2:-,3:R,2:-,3:L,3:D,3:Rac,'             # 6 5 4 2 6 + A+C (the motion, then the chord with the last direction)
+SR_SEQ = '2:-,3:R,3:D,3:DRab,3:ab,'               # 6 2 3 + A+B (capture_whp.m): the hero gauge full -> $122
+# recipe: (P1's inputs, P2's inputs, hero gauge full[, P2 pinned at x px, for n frames])
 RECIPES = {'dm_hit': (DM_SEQ + '300:-', '', False), 'dm_whiff': (DM_SEQ + '200:-', '2:-,40:R', False),
-           'dmh_hit': (DM_SEQ + '400:-', '', True), 'dmh_whiff': (DM_SEQ + '200:-', '2:-,40:R', True)}
+           'dmh_hit': (DM_SEQ + '400:-', '', True), 'dmh_whiff': (DM_SEQ + '200:-', '2:-,40:R', True),
+           'sr_hit': (SR_SEQ + '400:-', '', True, 240, 14), 'sr_whiff': (SR_SEQ + '200:-', '', True)}
+# the move each recipe plays (relative animation) and the animations that belong to it (its landing)
+REL = {'dm': 0x128, 'dmh': 0x12A, 'sr': 0x122}
+MOVE_ANIMS = {'dm': (0x128, 0x129, 0x1B, 0x19), 'dmh': (0x12A, 0x12B, 0x1B, 0x19), 'sr': (0x122, 0x18)}
+def rec_move(rec): return rec.rsplit('_', 1)[0]
 # the reference geometry: the vs. state's round-start places. Hit: P2 stands at 376, Hanzou's jump back reaches the
 # screen bound (fp+$4104 + 10 px) after 8 frames of flight [meas]; whiff: P2 walks away first, Hanzou starts pinned at
-# the bound (x -10.5 px from his start: the hang comes at the first frame 48 px up)
+# the bound (x -10.5 px from his start: the hang comes at the first frame 48 px up). The hero rising ($122) runs no
+# hooks: no geometry (hit: P2 pinned 57 px in front for the motion's frames; whiff: P2 stays at 376).
 GEOMETRY = {'dm_hit': dict(edge_after=8), 'dm_whiff': dict(edge_after=99, xmin=-10.5),
-            'dmh_hit': dict(edge_after=8), 'dmh_whiff': dict(edge_after=99, xmin=-10.5)}
+            'dmh_hit': dict(edge_after=8), 'dmh_whiff': dict(edge_after=99, xmin=-10.5), 'sr_hit': dict(first_ticks=True), 'sr_whiff': dict(first_ticks=True)}
 FX_TASKS = {0x5A: 'kanji', 0x5D: 'smoke', 0x7A: 'clone', 0x71: 'clone (hero)', 0x77: 'sparkle'}   # the DM's own effects (task +$2E) [meas]: $7A = $8F's mirrored clone of the last dash, $71 = $86's second Hanzou diving from above (hero DM)
+SR_FX_TASKS = {0x20: 'dragon'}                    # the hero rising's own effect [meas] (command 9 $13 at step 2: task $20,
+                                                  # $C070 the flash at the fist, then the ice dragon around Hanzou $C060-$C06C,
+                                                  # drawn every other frame: the frames between it is parked off screen)
+def fx_tasks(rec): return SR_FX_TASKS if rec_move(rec) == 'sr' else FX_TASKS
+def pokes(rec):
+    """the recipe's RAM pokes (emu POKE): P1's life under the gate, the hero gauge full, P2 pinned"""
+    seq, seq2, hero, *p2x = RECIPES[rec]
+    pf = {f: '10600C=50,10607D=FF' + (',106A13=FF,106A16=00,106A17=DF,106A18=00,106A19=DF' if hero else '') for f in range(4)}
+    if p2x and p2x[0]:                                # P2 pinned at x p2x[0] px for p2x[1] frames (capture_whp's way)
+        for f in range(p2x[1]):
+            pf[f] = (pf[f] + ',' if f in pf else '') + f'100102={p2x[0] * 128 >> 8 & 255:02X},100103={p2x[0] * 128 & 255:02X}'
+    return ';'.join(f'{f}:{v}' for f, v in sorted(pf.items()))
+
 def capture(rec, keep=None, vram=False):
     """a DM in our emulator from the vs. state (cap_whp.VS: Hanzou P1 at x 200 facing right, Fuuma P2 at 376), P1's life
     under the gate (+$600C := 80, +$607D := $FF; hero: the gauge full, +$6A13 / +$6A16 / +$6A18) -> per frame dict(p1,
@@ -359,11 +408,11 @@ def capture(rec, keep=None, vram=False):
     [meas]; fp+$232 jumps during the DM), fx: the effect pool ($100400 + $80 k: task +$2E, def, x, y, flip), flash
     (fp+$30B0), freeze (fp+$4141: the hero DM's freeze), backdrop (palette $1FFE), vram)"""
     import cap_whp as cap, glob, shutil, tempfile
-    seq, seq2, hero = RECIPES[rec]
+    seq, seq2 = RECIPES[rec][:2]
     n = max(cap.nframes(seq), cap.nframes(seq2) if seq2 else 0)
     d = keep or tempfile.mkdtemp(dir='/data/tmp'); os.makedirs(d, exist_ok=True)
     for f in glob.glob(f'{d}/cap.txt*') + glob.glob(f'{d}/vram*.bin'): os.remove(f)
-    pk = ';'.join(f'{f}:10600C=50,10607D=FF' + (',106A13=FF,106A16=00,106A17=DF,106A18=00,106A19=DF' if hero else '') for f in range(4))
+    pk = pokes(rec)
     rd = ';'.join(f'{f}:100000:3000;{f}:106000:3000;{f}:1030B0:2;{f}:108200:40;{f}:10C100:48' for f in range(1, n))
     env = dict(os.environ, SEQ=seq, SEQ2=seq2, OUT=f'{d}/cap.txt', LOAD=cap.VS, RAMDUMP=rd, POKE=pk,
                PALDUMP=','.join(str(f) for f in range(1, n)))
@@ -379,7 +428,7 @@ def capture(rec, keep=None, vram=False):
         def fighter(k):
             b = k * 0x100
             return dict(anim=U(a, b + 0xDA) - U(o, b + 0x64), step=a[b + 0xDC], defw=U(o, b + 8), x=U(o, b + 2), y=U(o, b),
-                        flip=o[b + 0x21] >> 7, live=a[b + 0xD6] >> 3 & 1, box=U(a, b + 0xF8), life=a[b + 0x0C],
+                        flip=o[b + 0x21] >> 7, live=a[b + 0xD6] >> 3 & 1, box=U(a, b + 0xF8), life=a[b + 0x0C], tick=U(a, b + 0xE0),
                         pal=o[b + 0x20], add=U(o, b + 0x2C), flags=o[b + 0x21], offs=(S(o, b + 0x14), S(o, b + 0x16)))
         fx = []
         for b in range(0x400, 0x3000, 0x80):
@@ -397,13 +446,13 @@ def reference(rec, rows=None):
     y], p2 [x, y] (px from Hanzou's start, y up), life, fx [[task, def, x, y, flip]], backdrop)], hits [frame indices
     whose contact drops P2's life: the frame before the drop], rel)"""
     rows = rows if rows is not None else capture(rec)
-    rel0 = 0x12A if rec.startswith('dmh') else 0x128
+    rel0 = REL[rec_move(rec)]; own = MOVE_ANIMS[rec_move(rec)]; tasks = fx_tasks(rec)
     s0 = next(i for i, r in enumerate(rows) if r['p1']['anim'] == rel0)
     x0, _ = world(rows[s0])
     keep, drops = [], []
     for i in range(s0, len(rows)):
         r = rows[i]; p = r['p1']
-        if p['anim'] not in (rel0, rel0 + 1, 0x1B, 0x19): break
+        if p['anim'] not in own: break
         if r.get('freeze'): continue
         if i > s0:
             q = rows[i - 1]['p1']
@@ -417,7 +466,7 @@ def reference(rec, rows=None):
         out.append(dict(f=r['f'], p1=[p['anim'], p['step'], p['defw'], round(x - x0, 3), round(y, 3)],
                         p2=[round(vx - x0, 3), round(vy, 3)], life=r['p2']['life'], backdrop=r['backdrop'],
                         fx=[[o['task'], o['defw'], round(o['x'] / 128 + r['camx'] - x0, 3), round((o['y'] - r['floor']) / 128, 3), o['flip']]
-                            for o in r['fx'] if o['task'] in FX_TASKS]))
+                            for o in r['fx'] if o['task'] in tasks]))
     return {'rel': rel0, 'frames': out, 'hits': [d - 1 for d in drops]}
 
 def check(ref, rec):
@@ -425,7 +474,8 @@ def check(ref, rec):
     first contact, the victim where the reference had it, the geometry of the recipe"""
     fr = ref['frames']
     vic = lambda k: tuple(fr[min(k, len(fr) - 1)]['p2'])
-    mod = play('hanzo', ref['rel'], victim=vic, hit_frames=set(ref['hits'][:1]), **GEOMETRY[rec])
+    mod = play('hanzo', ref['rel'], victim=vic, hit_frames=set(ref['hits'][:1]), stop_frames={h + 1 for h in ref['hits']},
+               **GEOMETRY[rec])
     bad = []
     for k in range(max(len(mod), len(fr))):
         a = mod[k] if k < len(mod) else None; c = fr[k]['p1'] if k < len(fr) else None
@@ -458,6 +508,11 @@ if __name__ == '__main__':
     for cm in c['right']:
         print(f"  command {cm['index']} @{cm['addr']:X}: motion {[(DIRS[d], w) for d, w in cm['motion']]} anims "
               f"{[hex(a) for a in cm['anims']]} hero {[hex(a) for a in cm['hero']]}  = {notation(cm, c['chords'][0])}")
+    print('ground specials (facing right; a triple per press, the hero triple with the gauge full):')
+    for lst, cm in special_commands(row):
+        presses = SPECIAL_LISTS[lst][1]
+        print(f"  {lst} command {cm['index']} @{cm['addr']:X} {cm['term']:02X}: motion {[(DIRS[d], w) for d, w in cm['motion']]} "
+              f"{dict(zip(presses, map(hex, cm['anims'])))} hero {dict(zip(presses, map(hex, cm['hero']))) if cm['hero'] else None}")
     print(f'hook routine {hook_routine(row):X}')
     for a in sorted({x for cm in c['right'] for x in cm['anims'] + cm['hero']} | {0x129, 0x12B}):
         for (an, s), p in sorted(hook_table(row, [a]).items()):

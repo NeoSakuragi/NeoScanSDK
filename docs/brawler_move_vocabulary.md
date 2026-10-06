@@ -221,7 +221,7 @@ shows which existing features the move would use). Machine-readable: `missing.js
 | hanzo 623B [dD] | 129 | decode.whp | a (after analysis) |
 | hanzo 214C [uD] | 130 | decode.whp | a (after analysis) |
 | hanzo 214D [ufD] | 132 | decode.whp | a (after analysis) |
-| hanzo 65426AC [fury] + MAX (hero) | - | none: script generated from the ROM model (tools/whp/handlers_whp.py, frame-identical to WHP, hanzo_fury_proof.py); parts dive / landing / ninja sequence, carry | done |
+| hanzo HERO 623AB [fury] (the hero rising, "Super Shoryuha") + MAX = the hero DM 65426AC | - | none: scripts generated from the ROM model (tools/whp/handlers_whp.py, frame-identical to WHP, hanzo_fury_proof.py); fury: parts uppercut / rise (a hit ends the uppercut at once, WHP $4C188), held through the super flash, juggle launches; MAX: parts dive / landing / ninja sequence, carry | done |
 | kim 236C [fD] | 134 | decode.kizuna | a (after analysis) |
 | kim 214B [D] | 133 | decode.kizuna | a (after analysis) |
 | kim [2]8C [dD] | 135 | decode.kizuna | a (after analysis) |
