@@ -194,16 +194,48 @@
    "fury": "6246A",
    "voices": "kof",
    "unlock": "always"
+  },
+  {
+   "name": "billy_lee",
+   "display": "BILLY LEE",
+   "scale": 1,
+   "bank": "doubledr:billy",
+   "watch": {"frame": 0, "step": 0},
+   "routes": "tools/brawler/routes/billy_lee.json",
+   "specials": {"D": "214", "fD": "236", "dD": "623", "uD": null, "dfD": null, "ufD": null},
+   "fury": "SUPER 236",
+   "unlock": "always",
+   "voices": {"kof": false, "set": {"special:236": 13, "special:623": 14, "hit": 4}},
+   "form": {
+    "trigger": "down+D full meter",
+    "transition": "FORM",
+    "target": "billy_super",
+    "carry": ["life", "position", "facing", "meter"],
+    "exit": "life"
+   }
+  },
+  {
+   "name": "billy_super",
+   "display": "SUPERBILLY",
+   "scale": 1,
+   "bank": "doubledr:billy_super",
+   "watch": {"frame": 0, "step": 0},
+   "routes": "tools/brawler/routes/billy_lee.json",
+   "specials": {"D": "41236", "fD": "236", "dD": "623", "uD": "214", "dfD": null, "ufD": null},
+   "selectable": false,
+   "unlock": "always",
+   "voices": {"kof": false, "set": {"special:236": 13, "special:623": 15, "hit": 4}}
   }
  ],
  "select": {
   "slots": [
    {"x": 40, "z": 48, "row": 0, "fighter": "terry"},
-   {"x": 88, "z": 48, "row": 0, "fighter": "ryo"},
-   {"x": 136, "z": 48, "row": 0, "fighter": "ralf"},
-   {"x": 184, "z": 48, "row": 0, "fighter": "robert"},
-   {"x": 232, "z": 48, "row": 0, "fighter": "yamazaki"},
-   {"x": 280, "z": 48, "row": 0, "fighter": "billy"},
+   {"x": 80, "z": 48, "row": 0, "fighter": "ryo"},
+   {"x": 120, "z": 48, "row": 0, "fighter": "ralf"},
+   {"x": 160, "z": 48, "row": 0, "fighter": "robert"},
+   {"x": 200, "z": 48, "row": 0, "fighter": "yamazaki"},
+   {"x": 240, "z": 48, "row": 0, "fighter": "billy"},
+   {"x": 280, "z": 48, "row": 0, "fighter": "billy_lee"},
    {"x": 40, "z": 24, "row": 1, "fighter": "kyo"},
    {"x": 80, "z": 24, "row": 1, "fighter": "iori"},
    {"x": 120, "z": 24, "row": 1, "fighter": "mai"},

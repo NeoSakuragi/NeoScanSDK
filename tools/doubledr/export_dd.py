@@ -114,7 +114,8 @@ class Builder:
             out.append({'dx': p['_x'], 'dy': p['_top'] + FEET, 'hflip': 0, 'vflip': 0, 'pal': self.pal(p['_k']),
                         'tiles': [t + [0] * (n - len(t)) for t in p['tiles']]})
         self.index[layers] = len(self.frames)
-        self.frames.append({'record': '+'.join(f'{w}' for w, *_ in layers), 'parts': out, 'weapon': None})
+        self.frames.append({'record': '+'.join(f'{w}' for w, *_ in layers), 'parts': out, 'weapon': None,
+                            'layers': [list(l) for l in layers]})   # (billy_proof.py: DD's drawing of the same)
         return self.index[layers]
 
 def dd_boxes(w6):
@@ -477,6 +478,9 @@ def export(names, outdir, only=None, extra=None):
     allt = []
     for name in names:
         ch = CAST[name]; B = Builder(ch)
+        scale = (extra or {}).get(name, {}).get('scale', 1)    # game.json roster[].scale (Bruno 2026-10-06: full
+        assert scale == 1, f'{name}: scale {scale}: only 1 is exported so far'   # size, 115 px; another scale: the
+                                                       # definitions through the LSPC shrink tables first, as export_kz)
         B.tiles = allt; B.tile_map = {bytes(t): TILE_BASE + i for i, t in enumerate(allt)}
         anims = {}
         for mv, src in MOVES.items():

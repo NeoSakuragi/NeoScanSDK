@@ -27,8 +27,9 @@ $(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/buil
 # --- Fighters: beat 'em up subset of the KOF dictionaries (needs /data/roms/kof96/98/99.neo) and of Samurai Shodown IV
 # (tools/samsho4: /data/roms/samsho4.neo + /data/neogeo_dict/samsho4/haohmaru_capture.json) and of World Heroes Perfect
 # (tools/whp: /data/roms/whp.neo + /data/neogeo_dict/whp/hanzo_capture.json) and of Kizuna Encounter (tools/kizuna:
-# /data/roms/kizuna.neo + /data/neogeo_dict/kizuna/kim_capture.json) ---
-$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py
+# /data/roms/kizuna.neo + /data/neogeo_dict/kizuna/kim_capture.json) and of Double Dragon (tools/doubledr: /data/roms/doubledr.neo,
+# its palette RAM /data/neogeo_dict/doubledr/palram.json) ---
+$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py
 	mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json
 	python3 $(TOOLS)/brawler/make_stage_ra.py $(CURDIR)/$(BUILD)   # needs /data/roms/roboarmy.neo

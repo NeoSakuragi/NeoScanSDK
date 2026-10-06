@@ -150,7 +150,7 @@ def voices(t, man, mdir, out):
             if key not in placed:
                 if game not in srcv: srcv[game] = roms(f'/data/roms/{game}.neo')[1] if game != 'kof98' else t.v_src
                 while any((sl, nxt) in t.keep_a for sl in slots): nxt += 1   # (records nobody keeps are empty now)
-                assert nxt < CODES, 'no free voice code'
+                assert nxt < CODES, f'no free voice code ({len(placed)} samples placed)'
                 ns, ne = t.place(game, st, en, srcv[game], adpcm_a=True)
                 pre = int(vo['cmd'][:2], 16); code = int(vo['cmd'][2:], 16); sl0 = PREFIX_SLOT.get(pre)
                 prio = VOICE_PRIO

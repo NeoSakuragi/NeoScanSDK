@@ -81,7 +81,8 @@ static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to
         if (e[0] == key && e[2] >= from && e[2] <= to) voice_id(f->ch, f->team, e[1]);
 }
 uint8_t spec_ix(const bchar_t *ch, uint8_t role) {
-    uint8_t k = role == BS_FURY_MAX ? (ch->fury_max < ch->nspec ? ch->fury_max : ch->fury) : role == BS_FURY ? ch->fury : spec_tab[ch->id][role];
+    uint8_t k = role == BS_FURY_MAX ? (ch->fury_max < ch->nspec ? ch->fury_max : ch->fury) : role == BS_FURY ? ch->fury :
+                role == BS_FORM ? (ch->form_trig ? ch->form_spec : 0xFF) : spec_tab[ch->id][role];
     return k < ch->nspec ? k : 0xFF;
 }
 void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }
@@ -291,7 +292,15 @@ static void meter_tick(fighter_t *f) {
     else if (!f->team && f->meter < gmeter.max && ++f->meter_t >= gmeter.refill) { f->meter++; f->meter_t = 0; }
 }
 
+static void form_set(fighter_t *f, const bchar_t *to) {   /* the fighter's character data replaced (the form link) */
+    f->ch = to; if (f->set >= to->nsets) f->set = 0;
+    fighter_load_pals(f); f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF;
+    f->node = 0; f->buffered = 0; f->spec_buf = f->fury_buf = 0; f->chain_t = 0; f->air_node = 0; f->landed = 0;
+}
 void fighter_revive(fighter_t *f) {
+    if (f->form_from && bm_chars[f->form_from - 1].form_exit == FX_LIFE) {   /* a life lost: back to the base form */
+        form_set(f, &bm_chars[f->form_from - 1]); f->form_from = 0;
+    }
     f->hp = 60; f->held = 0; f->frame_ovr = 0xFFFF; f->y = 0; f->vx = f->vy = f->vz = 0; f->meter = gmeter.max;
     enter(f, S_GETUP); play(f, BA_GETUP); f->inv = 90;
 }
@@ -629,6 +638,9 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     if (f->team) stat_specials++;
     f->spec_ix = spec_ix(f->ch, k); if (k == BS_FURY_MAX) k = BS_FURY;   /* the MAX fury: the fury's role, its own special */
     f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
+    f->var = f->ch->specials[f->spec_ix].vdef;                   /* its variant row: the rule's, latched for the whole move
+                                                                    (vocabulary "variants are latched at move start") */
+    if (k == BS_FORM) f->inv = INV_FURY;                         /* the transition: untouchable (no hurt box either) */
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     if (k == BS_FURY) f->inv = INV_FURY;                         /* every fury, every fighter: invincible from the trigger
@@ -901,6 +913,21 @@ static void hold_apply(fighter_t *f) {                           /* a caught vic
     if (f->phold) { t->x = f->x + dir_mul(f->facing, FIX(f->phold)); t->y = 0; clamp(t); }
     t->vx = 0; t->kdelay = 0; t->state_t = 0; t->facing = -f->facing;
 }
+/* ---- form (vocabulary form.change, Double Dragon's transformation; game.json roster[].form): a fighter declares a
+ * trigger, a transition (one of its specials, role BS_FORM: untouchable while it plays) and a target roster entry; the
+ * transition's P_FORM replaces the fighter's character data (bchar_t: frames, moves, specials, routes, palettes, HUD face
+ * and name) in place: life, place, facing, meter, its slot and the enemies' targeting (fighter_t pointers) are kept; the
+ * special ends there (its effects with it), the new form falls / stands with its own animations. Back to the base form
+ * by its exit rule (fighter_revive; every player at a stage's start). Generic: any roster entry, any target. */
+static void form_swap(fighter_t *f) {
+    const bchar_t *to = &bm_chars[f->ch->form_to];
+    if (!f->form_from) f->form_from = f->ch->id + 1;
+    special_end(f); f->pflags = 0;
+    if (f->inv == INV_FURY) f->inv = 0;
+    form_set(f, to);
+    f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0;
+    if (f->y > 0) { enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
+}
 static void prog_update(fighter_t *f, const bspec_t *sp) {
     const bstep_t *s;
     uint8_t n;
@@ -918,13 +945,20 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
     f->ppc = f->pres;
     for (n = 0; n < 96; n++) {
         const bprim_t *p = &sp->prog[f->ppc++];
-        switch (p->op) {
-        case P_ANIM: f->pdmg = p->b & 0xFF; f->preact = p->b >> 8; f->pfx = p->v; pan_play(f, &sp->anims[p->a]); break;
+        int32_t v = p->v;
+        uint8_t op = p->op;
+        if (op & 0x80) { op &= 0x7F; v = sp->vars[(uint16_t)f->var * sp->vcols + p->b]; }   /* a variant column */
+        switch (op) {
+        case P_ANIM:
+            f->pdmg = sp->vdmg ? (uint8_t)sp->vars[(uint16_t)f->var * sp->vcols + sp->vdmg - 1] : p->b & 0xFF;
+            f->preact = p->b >> 8; f->pfx = v; pan_play(f, &sp->anims[p->a + (sp->nvar ? f->var * sp->vanim : 0)]); break;
         case P_SET:
-            if (p->a == 0) f->vx = p->v; else if (p->a == 1) f->vy = p->v; else if (p->a == 2) f->pg = p->v;
-            else if (p->a == 3) f->pfric = p->v; else if (p->a == 5) f->y = p->v; else f->pcnt = p->v;
+            if (p->a == 0) f->vx = v; else if (p->a == 1) f->vy = v; else if (p->a == 2) f->pg = v;
+            else if (p->a == 3) f->pfric = v; else if (p->a == 5) f->y = v; else f->pcnt = v;
             break;
-        case P_MUL: f->vx = fmul16(f->vx, p->v); break;
+        case P_MUL: if (p->a == 1) f->vy = fmul16(f->vy, v); else f->vx = fmul16(f->vx, v); break;
+        case P_ADD: if (p->a == 0) f->vx += v; else if (p->a == 1) f->vy += v; else f->pcnt += v; break;
+        case P_FORM: form_swap(f); return;                       /* the form link: the fighter is its other form now */
         case P_FRICMOVE: f->vx = fmul16(f->vx, f->pfric);        /* fall through: then x += vx */
         case P_MOVE: f->x += dir_mul(f->facing, f->vx); clamp(f); break;
         case P_FALL: {
@@ -944,7 +978,7 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_RESUME: f->pres = f->ppc; break;
         case P_RESUMEAT: f->pres = p->b; break;
         case P_JMP: f->ppc = p->b; break;
-        case P_SPAWN: prog_spawn(f, &sp->robj[p->a]); break;
+        case P_SPAWN: prog_spawn(f, &sp->robj[p->a + (sp->nvar ? f->var * sp->vobj : 0)]); break;
         case P_FXOFF: prog_fxoff(f); f->pflags |= PF_SIG7; break;   /* KOF: +$D1 bit 7 */
         case P_SIGCLR: f->pflags &= ~(~p->v & (PF_SIG7 | PF_SIG6)); break;
         case P_HITOFF: f->landed = 0; break;                     /* KOF +$E1 bit 7 cleared */
@@ -987,7 +1021,12 @@ static void special_update(fighter_t *f) {
     const bspec_row_t *r;
     uint8_t k;
     uint16_t from;
-    if (sp->prog) { prog_update(f, sp); return; }                /* read from the ROM: its program */
+    if (sp->prog) {                                              /* read from the ROM: its program */
+        prog_update(f, sp);
+        if (sp->pvoice && f->state == S_SPECIAL) voice_at(f, VK_SPEC + f->spec_ix, f->srow - 1, f->srow - 1);   /* its
+                                                                    voices by its frames (bspec_t.pvoice: Double Dragon's) */
+        return;
+    }
     from = script_advance(f, sp->nrows, sp);                     /* rows from..srow-1 reached this frame */
     if (sp->nparts) {                                            /* follow-ups: a hit in a link's window arms it, */
         for (k = 0; k < sp->nlinks && !f->sarm; k++) {          /* an armed LK_NOW link switches at once, a part's
@@ -1051,7 +1090,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
         if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
     }
-    if (f->state == S_SPECIAL && f->spec_id != BS_FURY && f->scancel && (in->press & IN_D) && !f->team)
+    if (f->state == S_SPECIAL && f->spec_id != BS_FURY && f->spec_id != BS_FORM && f->scancel && (in->press & IN_D) && !f->team)
         f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
                                                                     before its first hit does nothing) */
     if (f->state == S_SPECIAL && in->press && f->ch->specials[f->spec_ix].nlinks) special_input(f, in);   /* a follow-up
@@ -1059,7 +1098,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     meter_tick(f);
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
-    if (f->inv == INV_FURY) { if (f->state != S_SPECIAL || f->spec_id != BS_FURY) f->inv = 0; }   /* held for the fury's script */
+    if (f->inv == INV_FURY) { if (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM)) f->inv = 0; }   /* held for the fury's script (and a form's transition) */
     else if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
     if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C) && !dancing(f)) {   /* out of trouble: a special
@@ -1085,6 +1124,11 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         else if (in->face) f->facing = in->face;
         if (b & IN_D) {                                          /* D: the fury, from half a gauge (gmeter); down+D: its MAX
                                                                     version (bchar_t.fury_max; none: the fury) */
+            if (in->dz > 0 && f->ch->form_trig == FT_DOWN_D_FULL && spec_ix(f->ch, BS_FORM) != 0xFF &&
+                (f->team || gmeter.infinite || f->meter >= gmeter.max) && spend(f, gmeter.max, gmeter.max, 0)) {
+                lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FORM); start_special(f, BS_FORM); break;   /* the form link's
+                                                                    trigger: its transition (a full meter, all of it) */
+            }
             if (spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FURY); start_special(f, in->dz > 0 ? BS_FURY_MAX : BS_FURY); }
             break;
         }
@@ -1202,7 +1246,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     case S_GRAB: hold_update(f, in); break;
     case S_THROW: throw_update(f); break;
     case S_SPECIAL:
-        if (f->spec_id != BS_FURY && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && !f->pcatch && f->fury_buf) {
+        if (f->spec_id != BS_FURY && f->spec_id != BS_FORM && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && !f->pcatch && f->fury_buf) {
             carry_drop(f); special_end(f); f->pflags = 0;        /* the super cancel ("cancels"): the special stops, */
             if (fury_cancel(f)) break;                           /* the fury starts this frame */
             to_neutral(f, 0); break;                             /* (no fury / no meter: the special played on to here) */
