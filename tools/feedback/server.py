@@ -13,13 +13,18 @@ localhost: tools/feedback/fb.py, pull.py):
   GET  /api/file/<id>/<name>                 a bundle file (the audio, screen.png)
   POST /api/status {id, status, release?, note?, duplicate_of?, by?}
   POST /api/set    {id, category?, fighters?, notes?, by?}
-Tracker: DATA/feedback.db (SQLite; feedback + status_history), copied daily to DATA/backups/ (kept 14), mirrored to
+Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
+PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
+linked to its note (the player sends the tx_id it got back; cancelled notes' transcriptions stay unlinked but count
+in the total). Notes from before the cost log: estimated from the audio's duration (source 'duration').
+Tracker: DATA/feedback.db (SQLite; feedback + status_history + transcriptions), copied daily to DATA/backups/ (kept 14), mirrored to
 the desktop by pull.py. The OpenAI key is read from KEY_FILE at each call; never logged, never stored."""
 import http.server, io, json, mimetypes, os, queue, re, secrets, socketserver, sqlite3, threading, time
 import urllib.error, urllib.parse, urllib.request, uuid, zipfile
 
 DATA = os.environ.get('FEEDBACK_DATA', '/data/brawler/feedback')
 PORT = int(os.environ.get('FEEDBACK_PORT', '8920'))
+PRICES = os.environ.get('FEEDBACK_PRICES', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'prices.json'))
 KEY_FILE = os.environ.get('FEEDBACK_OPENAI_KEY', '/data/oros/secrets/openai.key')
 WHOAMI = os.environ.get('FEEDBACK_WHOAMI', 'http://127.0.0.1:8900/api/whoami')
 MODELS = ('gpt-4o-mini-transcribe', 'whisper-1')         # the first that answers
@@ -58,7 +63,12 @@ def db_init():
             category TEXT DEFAULT '', fighters TEXT DEFAULT '', duplicate_of TEXT DEFAULT '', transcript_model TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS status_history (
             feedback_id TEXT, at TEXT, from_status TEXT, to_status TEXT, by TEXT, note TEXT);
-        CREATE INDEX IF NOT EXISTS status_history_id ON status_history(feedback_id);''')
+        CREATE INDEX IF NOT EXISTS status_history_id ON status_history(feedback_id);
+        CREATE TABLE IF NOT EXISTS transcriptions (
+            tx_id TEXT PRIMARY KEY, at TEXT, feedback_id TEXT DEFAULT '', model TEXT, audio_seconds REAL,
+            input_text_tokens INTEGER, input_audio_tokens INTEGER, output_tokens INTEGER, usage_json TEXT,
+            cost_usd REAL, cost_source TEXT, prices_checked TEXT, by TEXT);
+        CREATE INDEX IF NOT EXISTS transcriptions_fb ON transcriptions(feedback_id);''')
 
 
 def backup():
@@ -68,6 +78,64 @@ def backup():
     if os.path.exists(p): return
     src = db(); dst = sqlite3.connect(p + '.part'); src.backup(dst); dst.close(); src.close(); os.replace(p + '.part', p)
     for old in sorted(f for f in os.listdir(d) if f.startswith('feedback-'))[:-14]: os.remove(os.path.join(d, old))
+
+
+def prices():
+    return json.load(open(PRICES))
+
+
+def audio_seconds(data=None, path=None):
+    """the audio's duration (ffprobe), None when unknown"""
+    import subprocess, tempfile
+    tmp = None
+    if path is None:
+        tmp = tempfile.NamedTemporaryFile(suffix='.m4a', delete=False); tmp.write(data); tmp.close(); path = tmp.name
+    try:
+        r = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path], capture_output=True, text=True, timeout=20)
+        return round(float(r.stdout.strip()), 2)
+    except Exception: return None
+    finally:
+        if tmp: os.unlink(tmp.name)
+
+
+def cost_of(model, usage, seconds):
+    """-> (usd, source, prices_checked, text_in, audio_in, out)"""
+    P = prices(); m = P['models'].get(model, {})
+    usage = usage or {}
+    if usage.get('type') == 'tokens':
+        det = usage.get('input_token_details') or {}
+        ti, ai, out = det.get('text_tokens', 0), det.get('audio_tokens', usage.get('input_tokens', 0)), usage.get('output_tokens', 0)
+        usd = ti * m.get('text_input_per_1m', 0) / 1e6 + ai * m.get('audio_input_per_1m', 0) / 1e6 + out * m.get('output_per_1m', 0) / 1e6
+        return usd, 'usage', P['checked'], ti, ai, out
+    secs = usage.get('seconds') if usage.get('type') == 'duration' else seconds
+    rate = m.get('per_minute', m.get('estimated_per_minute', 0))
+    return (secs or 0) / 60 * rate, 'usage' if usage.get('type') == 'duration' else 'duration', P['checked'], None, None, None
+
+
+def log_tx(model, usage, seconds, feedback_id='', by='player', at=None, source=None):
+    usd, src, checked, ti, ai, out = cost_of(model, usage, seconds)
+    tx = secrets.token_hex(8)
+    with lock, db() as c:
+        c.execute('INSERT INTO transcriptions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', (tx, at or now(), feedback_id, model, seconds, ti, ai, out,
+                  json.dumps(usage) if usage else '', round(usd, 6), source or src, checked, by))
+    return tx, usd
+
+
+def backfill():
+    """notes with a voice and no transcription logged: the unlinked player transcription of the same duration (an
+    older player sent no tx_id), else estimated from the audio's duration"""
+    with db() as c:
+        rows = c.execute("SELECT id, audio_path, transcript_model, created FROM feedback WHERE audio_path != '' AND raw_transcript != '' "
+                         "AND id NOT IN (SELECT feedback_id FROM transcriptions)").fetchall()
+    for r in rows:
+        secs = audio_seconds(path=os.path.join(BUNDLES, r['id'], r['audio_path']))
+        with lock, db() as c:
+            t = c.execute("SELECT tx_id, cost_usd FROM transcriptions WHERE feedback_id='' AND by='player' AND ABS(audio_seconds - ?) < 0.05 "
+                          "ORDER BY at LIMIT 1", (secs or -1,)).fetchone()
+            if t: c.execute('UPDATE transcriptions SET feedback_id=? WHERE tx_id=?', (r['id'], t['tx_id']))
+        if t: log('backfill cost', r['id'], 'linked', t['tx_id'], f"${t['cost_usd']:.5f}"); continue
+        tx, usd = log_tx(r['transcript_model'] or MODELS[0], None, secs, r['id'], 'backfill', r['created'])
+        log('backfill cost', r['id'], secs, 's', f'${usd:.5f}')
 
 
 def write_json(path, obj):
@@ -95,7 +163,7 @@ def openai_transcribe(name, data):
         del auth
         try:
             with urllib.request.urlopen(req, timeout=120) as r: res = json.load(r)
-            return res.get('text', '').strip(), model, round(time.time() - t0, 2)
+            return res.get('text', '').strip(), model, round(time.time() - t0, 2), res.get('usage')
         except urllib.error.HTTPError as e: err = f'{model}: HTTP {e.code} {e.read()[:200]!r}'
         except Exception as e: err = f'{model}: {e}'
         log('transcribe', name, err)
@@ -110,7 +178,9 @@ def transcribe_bundle(bid):
     p = os.path.join(d, row['audio_path'])
     if not os.path.exists(p): return
     t0 = time.time()
-    text, model, dt = openai_transcribe(row['audio_path'], open(p, 'rb').read())
+    data = open(p, 'rb').read()
+    text, model, dt, usage = openai_transcribe(row['audio_path'], data)
+    log_tx(model, usage, audio_seconds(path=p), bid, 'server')
     with open(os.path.join(d, 'transcript.txt'), 'w') as f: f.write(text + '\n')
     write_json(os.path.join(d, 'transcript.json'), {'text': text, 'model': model, 'seconds': dt, 'done': now(), 'by': 'server'})
     with db() as c: c.execute('UPDATE feedback SET raw_transcript=?, transcript_model=?, updated=? WHERE id=?', (text, model, now(), bid))
@@ -167,19 +237,25 @@ class H(http.server.BaseHTTPRequestHandler):
         parts = u.path.split('/')[2:]
         with db() as c:
             if parts == ['list']:
-                sql, args = 'SELECT * FROM feedback', []
+                sql, args = ('SELECT f.*, (SELECT ROUND(SUM(cost_usd), 6) FROM transcriptions t WHERE t.feedback_id = f.id) AS cost_usd, '
+                             '(SELECT GROUP_CONCAT(cost_source) FROM transcriptions t WHERE t.feedback_id = f.id) AS cost_source FROM feedback f'), []
                 conds = []
                 for k in ('status', 'category'):
                     if q.get(k): conds.append(f'{k}=?'); args.append(q[k][0])
                 if conds: sql += ' WHERE ' + ' AND '.join(conds)
                 rows = [row_dict(r) for r in c.execute(sql + ' ORDER BY created DESC', args)]
-                return self.reply(200, {'rows': rows, 'statuses': STATUSES, 'categories': CATEGORIES[1:], 'user': account(self.headers)})
+                tot = c.execute("SELECT COUNT(*) n, ROUND(SUM(cost_usd), 6) usd, ROUND(SUM(CASE WHEN feedback_id != '' THEN cost_usd ELSE 0 END), 6) linked, "
+                                "ROUND(SUM(audio_seconds), 1) secs FROM transcriptions").fetchone()
+                return self.reply(200, {'rows': rows, 'statuses': STATUSES, 'categories': CATEGORIES[1:], 'user': account(self.headers),
+                                        'cost': {'transcriptions': tot['n'], 'usd': tot['usd'] or 0, 'usd_in_notes': tot['linked'] or 0,
+                                                 'audio_seconds': tot['secs'] or 0, 'prices': prices()}})
             if len(parts) == 2 and parts[0] == 'item' and ID.match(parts[1]):
                 r = c.execute('SELECT * FROM feedback WHERE id=?', (parts[1],)).fetchone()
                 if not r: return self.reply(404, {'error': 'no such feedback'})
                 hist = [row_dict(h) for h in c.execute('SELECT * FROM status_history WHERE feedback_id=? ORDER BY at', (parts[1],))]
+                txs = [row_dict(t) for t in c.execute('SELECT * FROM transcriptions WHERE feedback_id=? ORDER BY at', (parts[1],))]
                 d = os.path.join(BUNDLES, parts[1])
-                return self.reply(200, {'row': row_dict(r), 'history': hist, 'files': sorted(os.listdir(d)) if os.path.isdir(d) else []})
+                return self.reply(200, {'row': row_dict(r), 'history': hist, 'transcriptions': txs, 'files': sorted(os.listdir(d)) if os.path.isdir(d) else []})
         if len(parts) == 3 and parts[0] == 'file' and ID.match(parts[1]) and NAME.match(parts[2]):
             p = os.path.join(BUNDLES, parts[1], parts[2])
             if os.path.exists(p):
@@ -239,10 +315,11 @@ class H(http.server.BaseHTTPRequestHandler):
         name = self.headers.get('X-Audio-Name', 'audio.m4a')
         if not NAME.match(name): name = 'audio.m4a'
         t0 = time.time()
-        try: text, model, dt = openai_transcribe(name, data)
+        try: text, model, dt, usage = openai_transcribe(name, data)
         except RuntimeError as e: return self.reply(502, {'error': 'transcription unavailable'})
-        log('transcribe (player)', len(data), 'bytes', model, f'{time.time() - t0:.1f}s', len(text), 'chars')
-        self.reply(200, {'text': text, 'model': model, 'seconds': dt})
+        tx, usd = log_tx(model, usage, audio_seconds(data=data), '', 'player')
+        log('transcribe (player)', len(data), 'bytes', model, f'{time.time() - t0:.1f}s', len(text), 'chars', f'${usd:.5f}', json.dumps(usage))
+        self.reply(200, {'text': text, 'model': model, 'seconds': dt, 'tx_id': tx})
 
     def upload(self):
         body = self.body(MAX_BODY)
@@ -275,6 +352,16 @@ class H(http.server.BaseHTTPRequestHandler):
                       (bid, meta.get('created') or now(), meta.get('app_version', ''), meta.get('rom_version', ''), meta.get('rom_sha256', ''),
                        meta.get('device', ''), raw, meta.get('final_text', ''), audio, d, 'new', now(), meta.get('transcript_model', '')))
             c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (bid, now(), '', 'new', 'player', meta.get('kind', '')))
+        tx = meta.get('transcribe_tx', '')
+        if tx and re.match(r'^[0-9a-f]{16}$', tx):
+            with lock, db() as c: c.execute("UPDATE transcriptions SET feedback_id=? WHERE tx_id=? AND feedback_id=''", (bid, tx))
+        elif audio and raw:                                   # an older player sends no tx_id: its transcription is the
+            secs = audio_seconds(path=os.path.join(d, audio))  # unlinked one of the same duration, else an estimate
+            with lock, db() as c:
+                t = c.execute("SELECT tx_id FROM transcriptions WHERE feedback_id='' AND by='player' AND ABS(audio_seconds - ?) < 0.05 "
+                              "ORDER BY at DESC LIMIT 1", (secs or -1,)).fetchone()
+                if t: c.execute('UPDATE transcriptions SET feedback_id=? WHERE tx_id=?', (bid, t['tx_id']))
+            if not t: log_tx(meta.get('transcript_model') or MODELS[0], None, secs, bid, 'estimate')
         if audio and not raw: jobs.put(bid)
         log('bundle', bid, len(body), 'bytes', meta.get('device'), meta.get('app_version'), 'text' if meta.get('final_text') else 'no text')
         self.reply(200, {'id': bid})
@@ -287,7 +374,7 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 if __name__ == '__main__':
-    os.makedirs(BUNDLES, exist_ok=True); db_init()
+    os.makedirs(BUNDLES, exist_ok=True); db_init(); backfill()
     threading.Thread(target=worker, daemon=True).start()
     with db() as c:                                          # transcripts missed while down
         for r in c.execute("SELECT id FROM feedback WHERE audio_path != '' AND raw_transcript = ''"): jobs.put(r['id'])

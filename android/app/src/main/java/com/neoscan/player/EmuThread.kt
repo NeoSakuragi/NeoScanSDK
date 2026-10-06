@@ -58,6 +58,12 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
         val hint = if (android.os.Build.VERSION.SDK_INT >= 31)
             hints?.createHintSession(intArrayOf(android.os.Process.myTid()), 16_666_667L) else null
         while (running) {
+            // a feedback press: the game is paused first (MainActivity), then this captures the frame on screen, so
+            // the replay window ends exactly at the picture the player saw at the press
+            feedbackReq?.let { (dir, done) -> feedbackReq = null
+                val r = Native.feedback(dir.absolutePath)
+                val px = IntArray(Native.width() * Native.height()); Native.screenshot(px)
+                done(r, px, Native.width(), Native.height()) }
             if (paused) {
                 if (!flushed) { Native.flushSaves(); flushed = true }   // Android may kill the app any time now
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) { track.pause(); track.flush(); written = 0; started = false }
@@ -67,10 +73,6 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
             val vsync = VsyncPacer.next()                               // waits for the display (100 ms timeout)
             if (vsync < 0) continue
             if (resetReq) { resetReq = false; Native.reset() }
-            feedbackReq?.let { (dir, done) -> feedbackReq = null
-                val r = Native.feedback(dir.absolutePath)
-                val px = IntArray(Native.width() * Native.height()); Native.screenshot(px)
-                done(r, px, Native.width(), Native.height()) }
             val r0 = System.nanoTime()
             val n = Native.runFrame(back, audio)
             val work = System.nanoTime() - r0

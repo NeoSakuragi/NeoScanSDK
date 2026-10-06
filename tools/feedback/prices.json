@@ -1,0 +1,9 @@
+{
+  "source": "https://developers.openai.com/api/docs/pricing and /api/docs/models/gpt-4o-mini-transcribe",
+  "checked": "2026-10-06",
+  "currency": "USD",
+  "models": {
+    "gpt-4o-mini-transcribe": {"text_input_per_1m": 1.25, "audio_input_per_1m": 1.25, "output_per_1m": 5.00, "estimated_per_minute": 0.003},
+    "whisper-1": {"per_minute": 0.006}
+  }
+}

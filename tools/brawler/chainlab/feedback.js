@@ -15,14 +15,14 @@
   while (!window.stagesTab && !window.labTab) await new Promise(r => setTimeout(r, 100));
   const API = 'feedback-api/';
   const STATUS_TEXT = { new: 'NEW', read: 'read', in_progress: 'IN PROGRESS', shipped: 'SHIPPED', wont_do: "won't do", duplicate: 'duplicate' };
-  let rows = [], cats = [], filt = { status: '', category: '' }, msg = '';
+  let rows = [], cats = [], cost = null, filt = { status: '', category: '' }, msg = '';
   const col = $('fbcol');
 
   async function load() {
     try {
       const r = await fetch(API + 'list', { cache: 'no-store', credentials: 'same-origin' });
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json(); rows = j.rows; cats = j.categories; msg = '';
+      const j = await r.json(); rows = j.rows; cats = j.categories; cost = j.cost; msg = '';
     } catch (e) { msg = 'The feedback list is unavailable (' + e.message + ').'; }
     render();
   }
@@ -57,9 +57,10 @@
         h('button', { onclick: load }, 'Reload')),
       h('div', { class: 'in' },
         msg ? h('p', { class: 'ok' }, msg) : null,
+        cost ? h('p', { class: 'note' }, `Transcription cost: $${cost.usd.toFixed(4)} in all (${cost.transcriptions} transcriptions, ${Math.round(cost.audio_seconds)} s of audio; $${cost.usd_in_notes.toFixed(4)} in sent notes, the rest cancelled). Prices: ${cost.prices.source}, checked ${cost.prices.checked}.`) : null,
         h('p', { class: 'note' }, `${shown.length} of ${rows.length}. Status: NEW → read (pulled) → IN PROGRESS → SHIPPED (release) | won't do | duplicate; set with tools/feedback/fb.py.`),
         h('table', { class: 'fb' },
-          h('tr', {}, ['When / id', 'Versions', 'Note', 'Status', 'Category / fighters', 'Voice / picture'].map(t => h('th', {}, t))),
+          h('tr', {}, ['When / id', 'Versions', 'Note', 'Status', 'Category / fighters', 'Voice / picture', 'Cost'].map(t => h('th', {}, t))),
           shown.map(r => h('tr', {},
             h('td', { class: 'mono' }, r.created.slice(0, 16).replace('T', ' '), h('br'), r.id),
             h('td', {}, 'player ' + r.apk_version, h('br'), 'game v' + r.game_version, h('br'), h('span', { class: 'small' }, r.device)),
@@ -76,7 +77,8 @@
                            onchange: e => set(r.id, { fighters: e.target.value }) })),
             h('td', {},
               r.audio_path ? h('button', { onclick: e => play(e.target, r) }, '▶ Play') : h('span', { class: 'small' }, 'no voice'),
-              h('br'), h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank' }, 'screenshot'))))))));
+              h('br'), h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank' }, 'screenshot')),
+            h('td', { class: 'mono' }, r.cost_usd == null ? '-' : '$' + r.cost_usd.toFixed(4), (r.cost_source || '').includes('duration') ? h('div', { class: 'small' }, 'estimated') : null)))))));
   }
 
   const tab = $('tabFeedback');

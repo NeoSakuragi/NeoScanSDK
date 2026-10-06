@@ -8,7 +8,7 @@ set -e
 HOST=root@195.201.91.211; APP=/data/brawler/feedback/app
 cd "$(dirname "$0")"
 ssh -o BatchMode=yes "$HOST" "mkdir -p $APP /data/brawler/feedback/bundles"
-rsync -q server.py "$HOST:$APP/server.py"
+rsync -q server.py prices.json "$HOST:$APP/"
 ssh -o BatchMode=yes "$HOST" 'set -e
 cat > /etc/systemd/system/brawler-feedback.service <<UNIT
 [Unit]

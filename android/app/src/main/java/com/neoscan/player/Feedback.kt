@@ -38,7 +38,7 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
     fun start(mic: Boolean) {
         val id = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + "-" + installId(ctx).take(4)
         val d = File(ctx.filesDir, "feedback/work/$id").apply { deleteRecursively(); mkdirs() }
-        dir = d; t0 = android.os.SystemClock.uptimeMillis(); frames = null
+        dir = d; t0 = android.os.SystemClock.uptimeMillis(); frames = null; txId = ""
         val latch = java.util.concurrent.CountDownLatch(1); captured = latch
         val e = emu()
         if (e != null) e.feedbackReq = d to { r, px, w, h ->
@@ -61,6 +61,7 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
 
     private var work: File? = null                                   // the bundle being written (after stop, until send / cancel)
     private var heldMs = 0L
+    @Volatile private var txId = ""                                   // the server's id of this voice's transcription (its cost)
 
     /** button up: the voice stops; returns how long the button was held (shorter than [MIN_MS] = a tap: a text note) */
     fun stop(): Long {
@@ -88,7 +89,7 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
             }
             c.outputStream.use { o -> a.inputStream().use { it.copyTo(o) } }
             if (c.responseCode != 200) { Log.w(TAG, "feedback: transcribe HTTP ${c.responseCode}"); null }
-            else JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }).let { it.getString("text") to it.optString("model") }
+            else JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }).let { txId = it.optString("tx_id"); it.getString("text") to it.optString("model") }
         } catch (x: Exception) { Log.w(TAG, "feedback: transcribe ${x.message}"); null }
     }
 
@@ -103,7 +104,7 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
             latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
             File(d, "meta.json").writeText(meta(d.name, heldMs).apply {
                 put("final_text", text); put("raw_transcript", raw); put("transcript_model", model)
-                put("transcribe_error", transcribeError); put("kind", if (d.listFiles()!!.any { it.name.startsWith("audio.") }) "voice" else "text")
+                put("transcribe_error", transcribeError); put("transcribe_tx", txId); put("kind", if (d.listFiles()!!.any { it.name.startsWith("audio.") }) "voice" else "text")
             }.toString(2))
             val q = File(ctx.filesDir, "feedback/queue").apply { mkdirs() }
             val zip = File(q, d.name + ".zip"); val part = File(q, d.name + ".zip.part")

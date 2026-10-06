@@ -141,10 +141,10 @@ class MainActivity : Activity() {
                 fp.edit().putBoolean("micAsked", true).apply()
                 requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 1); return
             }
+            emu?.paused = true; noteOpen = true                        // frozen at the press, until Send / Cancel
             feedback.start(granted)
         } else if (feedback.recording) {
             val voice = feedback.stop() >= Feedback.MIN_MS
-            emu?.paused = true; noteOpen = true                        // the game waits for Send / Cancel
             noteBox(voice)
         }
     }

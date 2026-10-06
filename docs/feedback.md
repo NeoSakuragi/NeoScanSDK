@@ -8,7 +8,9 @@ minute. Built 2026-10-06, Player 0.0.13.
 - **The mic button** sits next to the soft reset. Hold it and talk.
   - At the press, the emulation thread writes the replay data between two frames (`Native.feedback`, player.c).
   - While the button is held, the voice records (AAC, 16 kHz mono, 32 kbps, `audio.m4a`).
-- **Release:** the game pauses. The voice goes to the server, which transcribes it at once (about 2 s).
+- **The game freezes at the press** (0.0.14), not the release: the replay window and the screenshot end at the frame on screen
+  when the button went down, and the game stays frozen while he talks and while the box is open.
+- **Release:** The voice goes to the server, which transcribes it at once (about 2 s).
   - The text comes back into an editable box. Fix it or add to it with the keyboard.
   - **Send** sends the final text with the bundle. **Cancel** drops the bundle. Either one resumes the game.
 - **A tap** (under 0.4 s) opens the box empty, for a typed note. That note carries the replay too.
@@ -68,6 +70,17 @@ No login is needed, like the ROM download. The public calls are size capped and 
   another id).
 - **Categories:** sound, graphics, gameplay, integration, scripting, other. They are set at triage; nothing is picked
   in the player.
+
+## Cost
+
+Every transcription's usage is stored as OpenAI returns it in the `transcriptions` table (tx_id, at, feedback_id,
+model, audio_seconds, text / audio / output tokens, usage_json, cost_usd, cost_source, prices_checked, by). Its USD
+cost comes from `tools/feedback/prices.json`, the price table with its source and the date it was checked.
+- **Linking:** the player (0.0.14) sends back the `tx_id` it got from `/transcribe`. For an older player, the server
+  links the unlinked transcription of the same audio duration.
+- **Estimates:** older notes without usage are estimated from the audio duration (`cost_source` = `duration`).
+- **Where it shows:** `fb.py list --cost` (per note, plus the running total), `fb.py show`, and the Lab tab.
+- **Measured:** a 60 s clip used 600 audio + 61 prompt tokens in and 136 out, about $0.0015.
 
 ## On the desktop
 
