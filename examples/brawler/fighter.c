@@ -25,6 +25,9 @@ _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offse
 #define DOWN_FRAMES 40
 #define INV_GETUP   30
 #define INV_FURY    0xFF          /* the fury connected: untouchable (hits, pushes) until it ends (Bruno 2026-10-05) */
+enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8, PF_HITANY = 16, PF_HOLD = 32, PF_SIG6 = 64, PF_SIG7 = 128 };   /* PF_EVENT: KOF's +$7D bit 7
+                                     (the step's $0080 until consumed), PF_HITANY +$E3 bit 7, PF_HOLD +$E4 bit 4, PF_SIG7 /
+                                     PF_SIG6 +$D1 bits 7 / 6: its objects' signals (bproj_t sig) and P_FXOFF (TODO #139) */
 #define HITSTOP     7             /* hit-stop frames, the same for every hit (Bruno 2026-10-04; KOF98 counts +$124 from 7 to 11 by move) */
 #define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
 #define STUN_HEAVY  54
@@ -571,6 +574,11 @@ uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;
 
 void projectile_reset(fighter_t *p) {
     if (p->owner && p->owner->shot == p) p->owner->shot = 0;   /* KOF: the thrower may throw again (+$E1 bit 5 off) */
+    if (p->owner && p->pdef) {                                   /* its end signals its thrower (bproj_t sig, TODO #139) */
+        p->owner->pflags |= p->pdef->sig & (PF_SIG7 | PF_SIG6);
+        if (p->owner->proj[0] == p) p->owner->proj[0] = 0;       /* a pinned effect that ended itself */
+        if (p->owner->proj[1] == p) p->owner->proj[1] = 0;
+    }
     p->state_t = 0; p->node = 0;
     p->ch = &bm_chars[0]; p->anim = 0; p->step = 0; p->tick = 1;
     p->frame_ovr = 0xFFFF; p->shown_frame = 0xFFFF; p->state = S_OFF; p->spec_atk = 0; p->owner = 0;
@@ -644,6 +652,7 @@ static void proj_spawn(fighter_t *f, const bproj_t *d) {         /* spawn point:
     if (p) f->shot = p;
 }
 static void proj_hit(fighter_t *p) {                             /* its hit landed (a fighter or a clash) */
+    if (p->owner) p->owner->pflags |= (p->pdef->sig << 2) & (PF_SIG7 | PF_SIG6);   /* its hit signals its thrower */
     if (p->pdef->kind == 1) {                                    /* travelling: its end animation where it hit */
         if (!p->pdef->nend) { projectile_reset(p); return; }
         p->pend = 1; p->prow = 0; p->throw_x0 = p->x; proj_row(p);
@@ -674,7 +683,10 @@ void projectiles_update(int16_t cam_x) {
         if (p->pend == 1) {
             if (++p->prow >= d->nend) { projectile_reset(p); continue; }
         } else if (d->follow && p->owner) {                      /* pinned: its rows cycle at the thrower's place */
-            if (++p->prow >= d->nrows) p->prow = d->loop == 0xFF ? 0 : d->loop;
+            if (++p->prow >= d->nrows) {
+                if (d->follow & 2) { projectile_reset(p); continue; }   /* (or end there: it frees itself) */
+                p->prow = d->loop == 0xFF ? 0 : d->loop;
+            }
             p->throw_x0 = p->owner->x; p->facing = p->owner->facing;
         } else if (++p->prow >= d->nrows) {
             if (d->loop == 0xFF) { projectile_reset(p); continue; }   /* its animation is over */
@@ -710,8 +722,7 @@ static uint8_t special_for(const fighter_t *f, const intent_t *in) { return spec
  * state starts counts as the first of its first step, past the last step the end flag is set, a hold stays on it).
  * Hits come from the animation (an attack box while the step is active, a new hit unless the active step before it
  * carries KOF's same-hit flag); the brawler's own hit-stop freezes it (fighter_update), no freeze is in the data. */
-enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8, PF_HITANY = 16, PF_HOLD = 32 };   /* PF_EVENT: KOF's +$7D bit 7
-                                     (the step's $0080 until consumed), PF_HITANY +$E3 bit 7, PF_HOLD +$E4 bit 4 (TODO #139) */
+
 static int32_t fmul16(int32_t v, uint16_t k) {                   /* v * k / 65536 (KOF98 $36A0), sign kept */
     uint32_t a = v < 0 ? -v : v;
     a = (a >> 16) * k + (((a & 0xFFFF) * k + 0x8000) >> 16);
@@ -792,6 +803,10 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     switch (c) {
     case PC_STEPEV: return f->pflags & PF_EVENT ? 1 : 0;        /* the step's KOF $0080, not consumed (tst) */
     case PC_HITANY: return f->pflags & PF_HITANY ? 1 : 0;       /* a hit landed since P_HITCLR (KOF +$E3 bit 7) */
+    case PC_SIG7: return f->pflags & PF_SIG7 ? 1 : 0;           /* its object's signal (KOF +$D1 bit 7: tst) */
+    case PC_SIG7C: { uint8_t e = f->pflags & PF_SIG7 ? 1 : 0; f->pflags &= ~PF_SIG7; return e; }   /* (bclr) */
+    case PC_SIG6: return f->pflags & PF_SIG6 ? 1 : 0;
+    case PC_FAR: { int16_t d; if (!f->target) return 1; d = INT(f->target->x) - INT(f->x); return (d < 0 ? -d : d) > v; }   /* (KOF +$BC) */
     case PC_WINDOW: return f->pan->steps[f->pstep].flags & 32 ? 1 : 0;  /* the step has KOF's $2000 (+$7C bit 5) */
     case PC_LINK: return f->plink & v ? 1 : 0;                   /* a follow-up of these links was pressed in the part */
     case PC_END: return f->pflags & PF_END ? 1 : 0;
@@ -864,7 +879,9 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_RESUMEAT: f->pres = p->b; break;
         case P_JMP: f->ppc = p->b; break;
         case P_SPAWN: prog_spawn(f, &sp->robj[p->a]); break;
-        case P_FXOFF: prog_fxoff(f); break;
+        case P_FXOFF: prog_fxoff(f); f->pflags |= PF_SIG7; break;   /* KOF: +$D1 bit 7 */
+        case P_SIGCLR: f->pflags &= ~(~p->v & (PF_SIG7 | PF_SIG6)); break;
+        case P_HITOFF: f->landed = 0; break;                     /* KOF +$E1 bit 7 cleared */
         case P_ADV: pan_advance(f); break;                       /* the engine called again on the same state: one more step tick */
         case P_CHECK: f->plink |= f->spend & p->a; break;        /* the follow-up check: this frame's presses of links a */
         case P_PART: f->plink = 0; break;                        /* the handler cleared its request: a new part */

@@ -52,9 +52,9 @@ ROUTINES = {0x248A8: 'init', 0x7A98: 'sound', 0x155F4: 'gauge', 0x18C1C: 'stats'
             0x33A8: 'random', 0x1EB20: 'superflash', 0x3F8A: 'superflash', 0x1813A: 'superflash', 0x24A9A: 'ownerflag',
             0x24AA0: 'ownerflag', 0x24FF6: 'chain', 0x25002: 'chain', 0x2500E: 'chain', 0x2501A: 'chain', 0x25026: 'chain',
             0x24F2C: 'stats', 0x24F34: 'stats', 0x24F3C: 'stats', 0x250C6: 'flags', 0x24F52: 'clrinput',
-            0x24D80: 'dmcheck', 0x2505A: 'flags', 0x25032: 'place', 0x16034: 'voice', 0x1603A: 'voice', 0x19AB4: 'superflash', 0x19AE0: 'superflash', 0x25088: 'superflash'}
+            0x24D80: 'dmcheck', 0x2505A: 'flags', 0x25032: 'place', 0x16034: 'voice', 0x1603A: 'voice', 0x16AC0: 'dist', 0x19AB4: 'superflash', 0x19AE0: 'superflash', 0x25088: 'superflash'}
 BOOKKEEPING = ('follow', 'inflight', 'release', 'land', 'stats', 'init', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-               'ownerflag', 'flags', 'trail')
+               'ownerflag', 'flags', 'trail', 'alloc')
 # KOF96 / KOF99: the same engine family, the same object fields; the routines at their own addresses (found by their
 # code: KOF98's bytes, or the calls in the specials' handlers next to KOF98's)
 ROUTINES96 = {0x1A756: 'init', 0x6AA8: 'sound', 0x12CB0: 'stats', 0x2F34: 'fall', 0x2DF4: 'mulfn', 0x1A88C: 'fricmove',
@@ -62,13 +62,15 @@ ROUTINES96 = {0x1A756: 'init', 0x6AA8: 'sound', 0x12CB0: 'stats', 0x2F34: 'fall'
               0x2C2C: 'free', 0x4D50: 'animfn', 0x11644: 'face', 0x12044: 'clrinput', 0x1ACB4: 'clrinput', 0x14A3C: 'voice',
               0x12A34: 'superflash', 0x1AC8E: 'stats', 0x1AC96: 'stats', 0x1AC9E: 'stats', 0x1A8E0: 'ownerflag',
               0x1ADE2: 'end', 0x10C04: 'voice', 0x10CCC: 'voice', 0x17316: 'voice', 0x17330: 'voice', 0x14A2A: 'voice',
-              0x13AB2: 'trail', 0x1A8E6: 'ownerflag', 0x129B0: 'offfn', 0x1AB70: 'dmcheck'}
+              0x13AB2: 'trail', 0x1A8E6: 'ownerflag', 0x129B0: 'offfn', 0x1AB70: 'dmcheck',
+              0x2BB8: 'alloc', 0x1AD94: 'place'}   # alloc: an engine object of its own (Raging Storm's screen quake $24838)
 ROUTINES99 = {0x1F5BC: 'init', 0x1F5C2: 'init', 0x6352: 'sound', 0xFF84: 'gauge', 0x13C96: 'stats', 0x446A: 'animfn',
               0x12884: 'clrinput', 0x1F660: 'spawnfn', 0x21BE: 'fall', 0x207E: 'mulfn', 0x1D42: 'random', 0x1EA4: 'free',
               0x2A4C: 'superflash', 0x1337E: 'superflash', 0x1AB7A: 'superflash', 0x160F6: 'voice', 0x1F760: 'follow',
               0x1F7E8: 'release', 0x1F834: 'inflight', 0x1FE18: 'stats', 0x1FE20: 'stats', 0x1FE28: 'stats',
               0x1FE3E: 'clrinput', 0x1FFB2: 'flags', 0x200A8: 'end', 0x1F7B4: 'fricmove', 0x10BE2: 'voice', 0x14C14: 'trail',
-              0x1ADBE: 'zero', 0x1FA32: 'zero', 0x1FC48: 'dmcheck'}   # zero: a follow-up / cancel input check: none (returns d0 = 0)
+              0x1ADBE: 'zero', 0x1FA32: 'zero', 0x1FC48: 'dmcheck',
+              0x1FF1E: 'place', 0x11B52: 'dist', 0x1328C: 'offfn'}   # zero: a follow-up / cancel input check: none (returns d0 = 0)
 GAME_ROUTINES = {'kof98': ROUTINES, 'kof96': ROUTINES96, 'kof99': ROUTINES99}
 YIELD2 = {'kof98': (0x16F98, 0x1718E), 'kof96': (0x11A54, 0x11C16), 'kof99': (0x12092, 0x12366)}   # the yield routine's call after animate
 TEST_FIELDS = {0x7C: 'end', 0x7D: 'evstep', 0xE1: 'hit', 0xE3: 'hitany'}   # +$E3 bit 7: a hit landed since the code cleared it   # tst.b +$7D: the current step has $0080 (not consumed; bclr is 'event')
@@ -128,6 +130,9 @@ class Decoder:
         if mn == 'jsr' and self.R.get(imm(ops[0])) == 'zero':           # a cancel check (no input: none), then the yield
             mn2, ops2, _ = self.at(nx)
             return mn2.startswith('beq') and self.is_yield(imm(ops2[0]))
+        if mn == 'jsr' and imm(ops[0]) in YIELD2[self.game]:            # the yield's second half: no animate this frame
+            mn2, ops2, _ = self.at(nx)                                   # (K''s shot ending at half speed: KOF99 $38E7C /
+            return 'n' if mn2 in ('jmp', 'rts') else False               # $38E88)
         if mn != 'jsr' or imm(ops[0]) != self.animfn: return False
         mn2, ops2, _ = self.at(nx)
         return mn2 == 'jsr' and imm(ops2[0]) in YIELD2[self.game]
@@ -196,6 +201,10 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         ch, at = pending_child; pending_child = None
         if depth >= 3: emit(at, 'spawndeep', ch['routine']); return        # an object spawning itself (Kyo's fury)
         objects.append(decode(m, ch['routine'], button, ex, ch['fields'], dec, depth + 1))
+        sb = sigbits(objects[-1])                      # the bits it may set on its owner are unknown from now on
+        if sb:
+            if 0xD1 in F.b: F.k[0xD1] = (0xFF, F.b.pop(0xD1))
+            mk_, bt_ = F.k.get(0xD1, (0, 0)); F.k[0xD1] = (mk_ & ~sb & 0xFF, bt_ & ~sb & 0xFF)
         objects[-1].update(state=next((v for o_, v, s_ in ch['fields'] if o_ == 0x72), None), dx=ch['dx'], dy=ch['dy'])
         emit(at, 'spawn', len(objects) - 1, ch['dx'], ch['dy'])
     def val(o, size=2):
@@ -283,7 +292,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 else: emit(a, 'check', 3); D['%d0'] = ('link', 3); cc = ('link:3', 'Zinv'); D['%d1'] = ('linkd1',)
                 a = nx; continue
             name = dec.R.get(t)
-            if mn == 'jmp' and dec.is_yield(t): yres(a); emit(a, 'br', None, True, 'yield'); a = None; continue
+            if mn == 'jmp' and dec.is_yield(t): yres(a); emit(a, 'br', None, True, 'yieldn' if dec.is_yield(t) == 'n' else 'yield'); a = None; continue
             if name == 'end': emit(a, 'end'); a = None; continue
             if name == 'free': emit(a, 'free'); a = None; continue
             if mn == 'jmp': a = t; continue
@@ -308,6 +317,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                       (0x1A4, F.get(0x1A4, 1), 1), (0x1D6, F.get(0x1D6, 1), 1)]
                 pending_child = ({'routine': A0, 'fields': cf, 'dx': -d5, 'dy': d6}, a)   # dx forward +
             elif name == 'random': emit(a, 'random'); D['%d0'] = ('random',)
+            elif name == 'dist': F.put(0xBC, None, 2); D['_dist'] = True   # +$BC = |opponent x - x| (K''s dash: 'far:N')
             elif name == 'place':                      # the opponent put d0 px in front, facing the attacker (a catch)
                 emit(a, 'place', (D.get('%d0') or 0) / 65536)
             elif name == 'zero': D['%d0'] = 0; cc = ('val', 0)
@@ -329,7 +339,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if mn[0] == 'b' and mn[:3] not in ('btst', 'bcl', 'bse', 'bch') and mn not in ('bclr', 'btst'):
             cond = mn[1:3]; t = imm(o[0])
             if cond == 'ra':
-                if dec.is_yield(t): yres(a); emit(a, 'br', None, True, 'yield'); a = None; continue
+                if dec.is_yield(t): yres(a); emit(a, 'br', None, True, 'yieldn' if dec.is_yield(t) == 'n' else 'yield'); a = None; continue
                 a = t; continue
             # condition: concrete flags (cc = ('val', v)) or an abstract one (cc = (name, flag))
             if cc and cc[0] == 'valn':                                      # only bit 7 known (tst.b): N, not Z
@@ -337,10 +347,16 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if cc and cc[0] == 'val':
                 v = cc[1]
                 taken = {'eq': v == 0, 'ne': v != 0, 'pl': v >= 0, 'mi': v < 0}[cond]
-                a = t if taken else nx; continue
-            if cc is None or cond not in ('eq', 'ne', 'mi', 'pl'):        # a test this decoder does not model
+                if taken and dec.is_yield(t): yres(a); emit(a, 'br', None, True, 'yieldn' if dec.is_yield(t) == 'n' else 'yield'); a = None; continue   # (into the
+                a = t if taken else nx; continue                                                         # yield: a yield)
+            if cc and cc[1] == 'HI' and cond in ('hi', 'ls'):              # far:N (unsigned >): the opponent farther
                 tgt = 'yield' if dec.is_yield(t) else K(t)
                 if tgt != 'yield': push(t)
+                else: yielded = True; yres(a)
+                emit(a, 'br', cc[0], cond == 'hi', tgt); a = nx; continue
+            if cc is None or cond not in ('eq', 'ne', 'mi', 'pl'):        # a test this decoder does not model
+                tgt = ('yieldn' if dec.is_yield(t) == 'n' else 'yield') if dec.is_yield(t) else K(t)
+                if tgt not in ('yield', 'yieldn'): push(t)
                 else: yielded = True; yres(a)
                 emit(a, 'br', f'cc_{cond}@{a:X}' if cc is None else f'{cc[0]}_{cond}', True, tgt); a = nx; continue
             name, flag = cc
@@ -348,9 +364,10 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             # map flag polarity to the condition's truth: N/Z set means the condition holds
             truth = not when if flag == 'Zinv' else when                         # btst: Z set = the bit is clear
             if name == 'event_z': name, truth = 'event', not when                # bclr: Z set = the bit was clear
+            if name == 'sig7c_z': name, truth = 'sig7c', not when
             if name == 'cnt': truth = when                                        # N after subq: went negative
-            tgt = 'yield' if dec.is_yield(t) else K(t)
-            if tgt != 'yield': push(t)
+            tgt = ('yieldn' if dec.is_yield(t) == 'n' else 'yield') if dec.is_yield(t) else K(t)
+            if tgt not in ('yield', 'yieldn'): push(t)
             else: yielded = True; yres(a)
             emit(a, 'br', name, truth, tgt)
             a = nx; continue
@@ -359,7 +376,9 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             f0 = field(o[0], 'a0')
             if latch is not None and f == latch and sz == 1: cc = ('link:1', 'N')   # the follow-up request (bit 7)
             elif f0 is not None and A0 == 'owner': cc = ({0xD1: 'owner_fxoff'}.get(f0, f'owner_{f0:X}'), 'N')
+            elif f0 is not None and A0 == 'opp': cc = ('val', 0)          # the opponent: a normal one (not KO'd, no flags)
             elif f is not None and f in TEST_FIELDS: cc = (TEST_FIELDS[f], 'N')
+            elif f == 0xD1 and sz == 1 and F.bit(f, 7) is None: cc = ('sig7', 'N')   # its object's signal (+$D1 bit 7)
             elif f is not None and F.get(f, sz) is not None: cc = ('val', F.get(f, sz))
             elif f is not None and sz == 1 and F.bit(f, 7) is not None: cc = ('valn', -F.bit(f, 7), 'f%X' % f)
             elif o[0] == '%d1' and D.get('%d1') == ('falling',): cc = ('falling', 'N')
@@ -370,9 +389,11 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             b = imm(o[0]); f = field(o[1])
             if o[1] == '%d1' and b == 7 and D.get('%d1') == ('linkd1',): cc = ('link:2', 'Zinv')   # fwdBD: D, not B
             elif f == 0x7C and b == 5: cc = ('window', 'Zinv')             # the current step has $2000 (a follow-up window)
+            elif f == 0xD1 and b in (6, 7) and F.bit(f, b) is None: cc = (f'sig{b}', 'Zinv')   # an object's signal
             elif f is not None and b < 8 and F.bit(f, b) is not None: cc = ('val', F.bit(f, b))
             elif o[1].startswith('%fp@') or field(o[1], 'a3') is not None: cc = ('val', 0 if resumed[0] else 1)
             elif field(o[1], 'a0') is not None and A0 == 'owner': cc = (f'owner_{field(o[1], "a0"):X}.{b}', 'Zinv')
+            elif field(o[1], 'a0') is not None and A0 == 'opp': cc = ('val', 0)
             else: cc = ('f%X.%d' % (f if f is not None else -1, b), 'Zinv')
             a = nx; continue
         if mn == 'bclr':
@@ -381,7 +402,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 cc = ('val', F.bit(f, b))                                   # mash latch +$D1 bit 7: no mash, clear)
                 F.setbits(f, 'and', 0xFF & ~(1 << b)) if f not in F.b else F.put(f, F.b[f] & ~(1 << b), 1)
                 a = nx; continue
-            cc = ('event_z', 'Z') if f == 0x7D and b == 7 else ('f%X.%d' % (f or 0, b), 'Z')
+            cc = ('event_z', 'Z') if f == 0x7D and b == 7 else ('sig7c_z', 'Z') if f == 0xD1 and b == 7 else ('f%X.%d' % (f or 0, b), 'Z')
             a = nx; continue
         if base == 'move' or base == 'movea' or mn.startswith('move'):
             if mn == 'moveq': D[o[1]] = imm(o[0]); a = nx; continue
@@ -390,6 +411,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if not dst.startswith('%a') or dst.startswith('%a4@') or dst.startswith('%a1@'):   # move sets N / Z
                 cc = ('val', v) if isinstance(v, int) else (f'mv{src}', 'N')
             if dst == '%a0' and field(src) == 0x84: A0 = 'owner'; a = nx; continue
+            if dst == '%a0' and field(src) == 0xB6 and depth == 0: A0 = 'opp'; a = nx; continue   # the opponent
             if dst == '%a0' and src == '%a4@': A0 = ('res', res_val[0]); a = nx; continue
             if dst == '%a0' and field(src) is not None: A0 = v if isinstance(v, int) else None; a = nx; continue
             if dst in ('%a1', '%a2'): D[dst] = v if isinstance(v, int) else None; a = nx; continue
@@ -466,13 +488,18 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if fd is not None: store(fd, 0, sz, a)
             elif o[0].startswith('%d'): D[o[0]] = 0
             a = nx; continue
+        if base == 'ori' and field(o[1], 'a0') == 0xD1 and A0 == 'owner' and depth > 0 and isinstance(imm(o[0]), int):
+            emit(a, 'ownersig', imm(o[0]) & 0xC0); a = nx; continue    # an object signals its owner (+$D1 bits 7 / 6:
+                                                                         # Geese's side effects end, K''s shot hit / gone)
         if base in ('ori', 'andi', 'or', 'and'):
             fd = field(o[1]); v = imm(o[0]) if o[0].startswith('#') else val(o[0], sz)   # and.b (fp), d0: the buttons held
             v = v if isinstance(v, int) else None                                         # (none past the first frame)
             if fd is not None:
                 if latch is not None and fd == latch and base == 'andi' and not v & 0x80: emit(a, 'part')   # request cleared
                 elif fd == 0xD1 and base == 'ori' and v & 0x80: emit(a, 'fxoff')
+                elif fd == 0xD1 and base == 'andi' and depth == 0 and isinstance(v, int) and (~v & 0xC0): emit(a, 'sigclr', v & 0xC0)
                 elif fd == 0xE3 and base == 'andi' and not v & 0x80: emit(a, 'hitclr')   # +$E3 bit 7 cleared
+                elif fd == 0xE1 and base == 'andi' and not v & 0x80 and depth == 0: emit(a, 'hitoff')   # +$E1 bit 7 (K''s lunge)
                 elif fd == 0xE4 and base == 'ori' and v & 0x10 and depth == 0: emit(a, 'hold')       # +$E4 bit 4: the
                 elif fd == 0xE4 and base == 'andi' and not v & 0x10 and depth == 0: emit(a, 'unhold') # caught victim held
                 elif fd == 0x7D and base == 'andi' and not v & 0x80: emit(a, 'evclr')   # the event consumed (tst + andi:
@@ -486,6 +513,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 cc = (f'{base}_{D.get(o[1])[0] if isinstance(D.get(o[1]), tuple) else "d"}', 'Z'); D[o[1]] = None
             a = nx; continue
         if base == 'cmpi':
+            if field(o[1]) == 0xBC and D.get('_dist') and isinstance(imm(o[0]), int):   # the distance to the opponent
+                cc = (f'far:{imm(o[0])}', 'HI'); a = nx; continue
             if o[1].startswith('%d') and isinstance(D.get(o[1]), int) and isinstance(imm(o[0]), int):   # a known register
                 cc = ('val', (D[o[1]] & 0xFFFF) - imm(o[0])); a = nx; continue                        # (dmcheck's d0)
             a = nx; cc = ('cmp', 'Z'); continue
@@ -499,6 +528,14 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
     prune(ops, pos)
     return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1), 'follow': follow[0],
             'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8)}}
+
+def sigbits(d, hit=None):
+    """the owner +$D1 bits an object's code sets (its main code, hit=False; its hit routine, hit=True; both: None)"""
+    out = 0
+    for a, op in (d['ops'] if hit is not True else []):
+        if op[0] == 'ownersig': out |= op[1]
+    if hit is not False and d.get('hit'): out |= sigbits(d['hit'])
+    return out & 0xC0
 
 def prune(ops, pos):
     """a branch on a test the decoder does not model whose two ways meet again before anything but bookkeeping (the
@@ -561,6 +598,8 @@ class Obj:
         self.landed = False; self.falling = False; self.hit = False; self.over = False; self.spawned = []; self.mode = 'hold'
         self.fxoff = False; self.owner = None; self.off = False
         self.hitpc = None; self.hitany = False; self.dead = 0; self.go = None   # a catch routine (onhit), +$E3 bit 7
+        self.sig = 0                                  # +$D1 bits 7 / 6 its objects set (ownersig)
+        self.opp = None                               # frame -> the opponent's x (forward +), for 'far:N'
         self.presses = {}; self.f = 0; self.links = 0            # follow-ups: {frame: link bits seen then}, the armed set,
         self.switch = False; self.parts = [[]]                   # the states per part (a taken link branch: the next anim
                                                                  # starts a part)
@@ -592,6 +631,11 @@ class Obj:
         if c == 'off': return self.off
         if c == 'hit': return self.hit
         if c == 'hitany': return self.hitany
+        if isinstance(c, str) and c.startswith('far:'):   # the opponent farther than N px (the game's P2 x, else far)
+            return self.opp is None or abs(self.opp(self.f) - self.x) > int(c[4:])
+        if c in ('sig7', 'sig6'): return bool(self.sig & (0x80 if c == 'sig7' else 0x40))
+        if c == 'sig7c':
+            e = bool(self.sig & 0x80); self.sig &= 0x7F; return e
         if c == 'owner_fxoff': return self.owner is not None and self.owner.fxoff
         if c == 'evstep': return self.event           # +$7D bit 7: the step's $0080 unless the code cleared it
         if c == 'window': return self.steps is not None and bool(self.steps[self.step][2] & 0x2000)
@@ -631,38 +675,41 @@ class Obj:
                 take = True if op[1] is None else (self.cond(op[1]) == op[2])
                 if take and isinstance(op[1], str) and op[1].startswith('link:') and op[2]: self.switch = True
                 if take:
-                    if op[3] == 'yield': self.pc = self.resume; return
+                    if op[3] in ('yield', 'yieldn'): self.pc = self.resume; self.noadv = op[3] == 'yieldn'; return
                     self.pc = self.prog['pos'][op[3]]
             elif k == 'jmp':
                 if op[1] == 'resume': self.pc = self.resume; return
                 self.pc = self.prog['pos'][op[1]]
             elif k == 'spawn': self.spawned.append((op[1], op[2], op[3]))
             elif k in ('end', 'free', 'rts'): self.over = True; return
-            elif k == 'fxoff': self.fxoff = True
+            elif k == 'fxoff': self.fxoff = True; self.sig |= 0x80
+            elif k == 'ownersig' and self.owner is not None: self.owner.sig |= op[1]
+            elif k == 'sigclr': self.sig &= op[1] | 0x3F
             elif k == 'evclr': self.event = False
             elif k == 'onhit': self.hitpc = self.prog['pos'][op[1]]
             elif k == 'hitclr': self.hitany = False
+            elif k == 'hitoff': self.hit = False
             elif k == 'adv': self.advance()
             elif k == 'check': self.links |= self.presses.get(self.f, 0) & op[1]
             elif k == 'part': self.links = 0
             elif k == 'follow' and self.owner is not None: self.x = self.owner.x + self.ofs[0]; self.h = self.owner.h + self.ofs[1]
     def tick(self, cam=0):
-        self.spawned = []
+        self.spawned = []; self.noadv = False
         if self.dead:                                 # the catch's hit-stop frame: no code, no animation
             self.dead -= 1; self.f += 1
             if not self.dead: self.pc = self.resume = self.go
             return
         self.frame(cam)
-        if not self.over: self.advance()
+        if not self.over and not self.noadv: self.advance()
         self.f += 1
     def shown(self):
         if self.steps is None: return None
         return self.steps[self.step][1]
 
-def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=None, hits=(), catch_at=None):
+def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=None, hits=(), catch_at=None, opp=None):
     """the program played alone (a whiff): per frame (state, ROM frame index, x, height, spawns [(object, x, h, vx)]);
     its objects played as their own Obj from their spawn frame (rows per object: frame, state, ROM frame, x, height)"""
-    o = Obj(m, cid, prog, x=x); o.resume = 0; rows = []; objs = []; o.presses = presses or {}
+    o = Obj(m, cid, prog, x=x); o.resume = 0; rows = []; objs = []; o.presses = presses or {}; o.opp = opp
     for f in range(frames):
         if hit_at is not None and f == hit_at: o.hit = True
         if f in hits: o.hitany = True                 # +$E3 bit 7: every hit (the game's life drops)
@@ -678,6 +725,10 @@ def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=No
             if c.over or c.born == f and False: continue
             if c.born < f or True:
                 if not c.rows or c.born < f: pass
+        for c in objs:                                # a travelling object hit (the game's life dropped last frame):
+            if not c.over and c.born < f and (f - 1) in hits and c.prog.get('hit') and c.prog.get('kind') == 1 and not getattr(c, 'hitdone', 0):
+                h_ = c.prog['hit']; c.prog = h_; c.ops = [op for a_, op in h_['ops']]; c.pc = c.resume = 0   # its hit
+                c.hitdone = 1; c.born = f                                                                     # routine
         for c in objs:
             if c.over: continue
             if c.born == f: c.frame(cam)              # its first frame: its code runs, its animation does not advance
@@ -696,27 +747,28 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C', '214B', '236236C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C'},
                 'iori': {'236A', '623D', '214A'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B'},
-                'geese': {'236C', '623C', '623A', '236A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
+                'geese': {'236C', '623C', '623A', '236A', '1632143C'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '41236B', '236D', '641236C'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B'},
                 'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D'}}
 ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 'kof96', 'k_dash': 'kof99'}   # else kof98
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
-            'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'place', 'hitclr', 'hold', 'unhold'}
+            'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'place', 'hitclr', 'hold', 'unhold', 'sigclr', 'hitoff'}
 DROP_OPS = {'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-            'ownerflag', 'flags', 'trail'}
+            'ownerflag', 'flags', 'trail', 'alloc', 'ownersig'}
 CONDS = {None: 7, 'end': 0, 'event': 1, 'land': 2, 'falling': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'evstep': 8, 'window': 9,
-         'link': 10, 'hitany': 11}                     # fighter.h PC_*; 'link:<mask>' -> PC_LINK with the mask
+         'link': 10, 'hitany': 11, 'sig7': 12, 'sig7c': 13, 'sig6': 14, 'far': 15}   # 'far:N' -> PC_FAR, N                     # fighter.h PC_*; 'link:<mask>' -> PC_LINK with the mask
 HITSTOP_TABLES = {'kof98': 0x1DCCC, 'kof96': 0x16E20, 'kof99': 0x19832}   # by the step's flags bits 4-6 (KOF98 $1DC52):
 def no_stop(m, fl):                                    # attacker / victim hit-stop frames; all 0 (class 4, KOF96 also
     t = HITSTOP_TABLES.get(m.game)                     # 6): a barrage hit, nobody stops and the victim reels in place
     return t is not None and not any(m.u8(t + 4 * ((fl & 0x70) >> 4) + k) for k in range(3))   # (Ralf's 164, Ryo's 181)
-# the attack box that catches: $37 on a step with $4000 (+$7C bit 6: Ryo's 178): after its hit-stop the engine runs the
-# attacker's +$19C routine (KOF98 $1B9F6 on the attacker's +$AA; boxes $38 / $39 clear the attacker's +$AA at the hit,
-# $3C00: Kyo's 214A hits on in KOF's trace; $37 without $4000 catches only after tests on the victim, not modelled)
+# the attack box that catches: $37: after its hit-stop the engine runs the attacker's +$19C routine (KOF98 $1B9F6 on the
+# attacker's +$AA: on a step with $4000 (+$7C bit 6: Ryo's 178) at once, else after tests on the victim (its hurt box id
+# not 9, $1A496), taken as a standing victim: K''s 201; boxes $38 / $39 clear the attacker's +$AA at the hit, $3C00:
+# Kyo's 214A hits on in KOF's trace)
 def is_catch(box, fl):
-    return box == 0x37 and bool(fl & 0x4000)
-def cond_id(c): return CONDS['link'] if isinstance(c, str) and c.startswith('link:') else CONDS[c]
-def cond_ok(c): return c in CONDS or isinstance(c, str) and c.startswith('link:')
+    return box == 0x37
+def cond_id(c): return CONDS[c.split(':')[0]] if isinstance(c, str) and ':' in c else CONDS[c]
+def cond_ok(c): return c in CONDS or isinstance(c, str) and c.split(':')[0] in ('link', 'far')
 
 def anim_steps(m, cid, st):
     return rom96.parse_anim(m, rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)))
@@ -751,17 +803,21 @@ def openings(m, cid, prog, frames=300, presses=None):
     was not active-and-chained ($4000), a state's first step counting as new), the frame of the last opening, the apex
     frame, the frames played. presses: the follow-up presses ({frame: link bits})"""
     o = Obj(m, cid, prog); o.resume = 0; o.presses = presses or {}
+    o.opp = lambda f: o.x                              # the opponent next to it (K''s dash ends at once)
     per, last, prev, peak, top = {}, -1, None, 0, -1
     live, caught = None, None                          # a catch (TODO #139): its routine counted as if every hit lands
     for f in range(frames):
         st0, step0 = o.state, o.step
         if caught is not None and f == caught + 1: o.dead = 1; o.go = o.hitpc; o.hitpc = None
         o.tick()
+        for k_, dx_, dy_ in o.spawned:                 # its objects hit: their hit signals (K''s shot: +$D1 bit 7)
+            o.sig |= sigbits(prog['objects'][k_], True) & ~sigbits(prog['objects'][k_], False)
         if o.over: return per, last, peak, f
         if o.steps is not None and (o.state, o.step) != (st0, step0) or f == 0:
             fl = o.steps[o.step][2]
-            ids = [k_ & 0xFF for k_ in o.steps[o.step][3] if k_ >= 0x100]
-            if ids: live = ids[-1]
+            for q_ in range(0 if o.state != st0 else o.step, o.step + 1):   # (a new state may skip its step 0 in a tick)
+                ids = [k_ & 0xFF for k_ in o.steps[q_][3] if k_ >= 0x100]
+                if ids: live = ids[-1]
             p = prev if o.state == st0 else None
             if fl & 0x100 and not (p is not None and p & 0x100 and p & 0x4000):
                 per[o.state] = per.get(o.state, 0) + 1; last = f
@@ -784,7 +840,9 @@ def object_rows(m, cid, ob, owner_x=0.0, frames=240):
     for f in range(frames):
         if f == 0: c.frame(None)                      # never off screen: the brawler tests that itself
         else: c.tick(None)
-        if c.over: break
+        if c.over:
+            if follow: follow = 3                     # pinned and ends itself (Raging Storm's side effects): bit 1
+            break
         t, fi, fl, bx, raw, dx = c.steps[c.step]
         atk = {k: v for k, v in bx.items() if k < 0x30 or k >= 0x100}
         if atk: live = next(iter(atk.items()))
@@ -819,7 +877,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
         if k == 'hitkind':                             # the move's last (a catch routine's own kinds not: they come
             if idx_of[id(op)] < hk_end: hitkind = op[1]   # after its entry)
             continue
-        if k == 'br': ops.append(('br', cond_id(op[1]), 1 if op[2] else 0, target(op[3])) + ((int(op[1][5:]),) if cond_id(op[1]) == CONDS['link'] else ()))
+        if k == 'br': ops.append(('br', cond_id(op[1]), 1 if op[2] else 0, target(op[3])) + ((int(op[1].split(':')[1]),) if isinstance(op[1], str) and ':' in op[1] else ()))
         elif k == 'jmp': ops.append(('br', CONDS[None], 1, 'yield') if op[1] == 'resume' else ('jmp', idx[prog['pos'][op[1]]]))
         elif k == 'resume_at': ops.append(('resume_at', idx[prog['pos'][op[1]]]))
         elif k == 'onhit': ops.append(('onhit', idx[prog['pos'][op[1]]]))
@@ -865,9 +923,12 @@ def export_rom(m, cid, inp, add, game='kof98'):
                 else: ho.tick(None)
                 if ho.over or ho.steps is None: break
                 end.append([add(ho.shown()), 0, 0])
+        se, sh = sigbits(ob, False), sigbits(ob, True)    # its owner signals: at its end / at its hit (TODO #139)
+        box = next((r[3][0] for r in rows if r[3]), None)  # its victim's reaction by KOF's table (packed; 0: none)
+        rx = box_react(m, box, cid) if box is not None else 0
         objs.append({'rows': [[add(r[0])] + r[1:] for r in rows], 'loop': loop, 'end': end, 'kind': ob['kind'] or 3,
-                     'follow': follow, 'hit_kind': hitkind, 'react': 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
-                     'child': None, 'state': ob.get('state')})
+                     'follow': int(follow), 'hit_kind': hitkind, 'react': rx or 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
+                     'child': None, 'state': ob.get('state'), 'sig': se | (sh & ~se & 0xC0) >> 2})
     return {'handler': h, 'button': b, 'ops': ops, 'states': states, 'anims': anims, 'openings': per, 'last_hit': last,
             'apex': peak, 'length': length, 'objects': objs, 'hit_kind': hitkind, 'links': links,
             **(dict(zip(('parts', 'follow_links'), follow_parts(m, cid, prog, links))) if links else {})}

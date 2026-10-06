@@ -15,8 +15,10 @@ START = 40                                       # the try's first input frame (
 PLACE = {'whiff': ('00', 'E0', '02', 'E0'), 'far': ('01', '00', '02', '60'), 'close': ('01', '80', '01', 'B0'), 'mid': ('01', '80', '01', 'F0')}
 
 # a fury whose capture try gives another special from the reload state (KOF96 Mr. Big 23623C: C on the last down-forward
-# reads as 236C first): the motion held 2 frames longer before the press, then the DM (state 133)
-DM_EVENTS = {('kof96', 26, '23623C'): [(0, 2, 'D'), (2, 2, 'DR'), (4, 2, 'R'), (6, 2, 'D'), (8, 2, 'DR'), (10, 2, 'DR'), (12, 4, 'DRc')]}
+# reads as 236C first): the motion held 2 frames longer before the press, then the DM (state 133); Geese's 1632143C the same
+DM_EVENTS = {('kof96', 26, '23623C'): [(0, 2, 'D'), (2, 2, 'DR'), (4, 2, 'R'), (6, 2, 'D'), (8, 2, 'DR'), (10, 2, 'DR'), (12, 4, 'DRc')],
+             ('kof96', 24, '1632143C'): [(0, 2, 'DL'), (2, 2, 'R'), (4, 2, 'DR'), (6, 2, 'D'), (8, 2, 'DL'), (10, 2, 'L'), (12, 2, 'DR'),
+                                          (14, 2, 'DR'), (16, 4, 'DRc')]}   # (Geese: else 63214C, state 145)
 
 def try_for(m, cid, inp, ex=False):
     """the specials96 try (events) whose notation (specials96.notation of its events, ground) is inp"""
@@ -138,8 +140,9 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         i = next((q for q, r in enumerate(game) if r['f'] >= rows[j]['f']), len(game)); presses[i] = presses.get(i, 0) | mk; pf.append(i)
     # a catch (a fury's rush / grab, TODO #139): the first frame P1 entered the hit-stop with a catch routine installed
     catch = next((i for i, r in enumerate(game) if r['pc'] in hs and u32(r['raw'], 0x19C)), None)
+    opp = lambda f: game[min(f, len(game) - 1)]['p2x'] - game[0]['x']          # P2's x from P1's start (K''s 'far:N')
     model, objs = H.run_model(m, cid, prog, frames, hit_at=hits[0] if hits else None, presses=presses, hits=set(hits),
-                              catch_at=catch) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
+                              catch_at=catch, opp=opp) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
     x0 = game[0]['x'] - model[0][3]               # aligned on the first frame
     end = next((i for i, r in enumerate(game) if not special(r['state'])), len(game))
     n = min(end, len(model)); bad = []; nb = {'frame': 0, 'x': 0, 'h': 0}

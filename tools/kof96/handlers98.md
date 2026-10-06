@@ -181,6 +181,19 @@ Every KOF-banked fighter's C fury (game.json roster `fury`) goes through the sam
   through a1 / a2 (`move.w n(a1), d5`, `lea 12(a2), a2`) is concrete. A small count (<= 8) is unrolled.
 - **The yield's own animate**: a state written to +$72 and left to the yield routine's animate call (Ryo's 178) becomes
   an `anim` at the resume point. A height write (`clr.l +$20`) is `('set', 'h', v)`.
+- **Object -> owner signals** (+$D1 bits 7 / 6): an object's code ORs them into its owner (Raging Storm's side effects
+  at their end start the pillars; K''s shot sets bit 7 on its hit, bit 6 when gone): `('ownersig', bits)` in the object,
+  those bits unknown to the owner's walk after the spawn, conditions `sig7` (tst), `sig7c` (bclr), `sig6` (btst), `andi`
+  on +$D1 `('sigclr', kept)`. Brawler: bproj_t.sig (bits 7 / 6 at its end, 5 / 4 at its hit), PC_SIG7 / PC_SIG7C /
+  PC_SIG6, P_SIGCLR; a pinned object that frees itself ends at its last row (bproj_t.follow 3). The model plays a
+  travelling object's hit routine from the frame after the game's hit.
+- **Distance** (KOF98 `$16AC0`, KOF99 `$11B52` -> +$BC): `cmpi #N, +$BC; bhi` = `far:N` (K''s dash runs while the
+  opponent is farther than 224 px); brawler PC_FAR (the target). `andi #$7F, +$E1` = `('hitoff',)`, P_HITOFF. The
+  opponent's own flags (a0 = +$B6) read as a normal opponent's (clear).
+- **The yield's second half** (`jsr` the yield's tail, then `jmp` / `rts`: KOF99 `$38E7C` / `$38E88`) ends the frame
+  without the animate call: target `yieldn` (the model holds the animation that frame; K''s shot's end at half speed).
+- **A ROM object's victim**: its reaction from KOF's table by its attack box (packed, like a body hit) instead of a
+  knockdown (K''s shot leaves the victim reeling in reach of the lunge).
 - **Traces** (`capture/romspecials98.py dm=True`): KOF96 gives DMs from low life (life 24, +$E2 bit 1 as specials96's
   capture had it), Mr. Big's 23623C needs its last down-forward held 2 frames longer (`DM_EVENTS`); a fury's whiff in
   KOF: P2 jumps over it (`whiff_jump`: the first jump start with no hit and no catch, cached in
