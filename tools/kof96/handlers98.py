@@ -749,7 +749,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '41236B', '236D', '641236C'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B'},
-                'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D'}}
+                'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D', '23624C'}}
 ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 'kof96', 'k_dash': 'kof99'}   # else kof98
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
             'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'place', 'hitclr', 'hold', 'unhold', 'sigclr', 'hitoff'}
