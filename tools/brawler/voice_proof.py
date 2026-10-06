@@ -5,7 +5,8 @@ voice command the Z80 reads ($1C / $1E + code) with the ADPCM-A key-on it starts
 (or the dummy) was in, and the check: the sample played = the voice's sample in its source game's V ROM, byte for byte;
 the voice = KOF's own for that move (voices.json uses).
 
-    python3 voice_proof.py FIGHTER DUMMY OUT.json [GAME_DIR] [--pack PACK.bin]   (a lab data pack installed with the start)"""
+    python3 voice_proof.py FIGHTER DUMMY OUT.json [GAME_DIR] [--pack PACK.bin]   (a lab data pack installed with the start)
+    python3 voice_proof.py --all OUTDIR [NAME ...]   every fighter's specials and furies vs the source's sound log (proof_all)"""
 import ctypes as C, json, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import harness, voices as V
@@ -103,7 +104,88 @@ def main(fighter, dummy, out, game=harness.GAME, pack=None):
               'own' if e.get('kof_own') else 'NOT OWN', f"${e['start']:04X}-${e['end']:04X}", 'level', e.get('level'), e.get('level_kof'), 'bytes equal' if e.get('bytes_equal') else 'BYTES DIFFER')
     return res
 
+def proof_all(out, game=harness.GAME, names=None):
+    """TODO #163: every roster fighter's every special (its pool, game.json's picks and the rest) and its fury / MAX,
+    each played twice in the Chain Lab (the dummy out of reach: the whiff; at point blank: the hit path), every voice
+    command the Z80 reads (player prefix + code -> the fighter's voice id, snd_report) with its frame from the special's
+    first frame; against the source game's sound log for that input (voices.json: the captured plays, $14 stops left
+    out, 'at' 1 = its first frame) and the program's own sends (voices.json 'prog' uses, KOF ROM specials). A special is
+    played as role D (spec_tab repointed to a map in the lab's pack buffer, C pressed), a fury with D, a MAX with
+    down+D (meter full). -> OUT/voices_all.json, a line per move"""
+    G = json.load(open(os.path.join(game, 'game.json'))); names_all = [r['name'] for r in G['roster']]
+    rep = json.load(open(os.path.join(game, 'build', 'snd', 'snd_report.json')))['voices']
+    lab = {f['name']: f for f in json.load(open(os.path.join(game, 'build', 'chainlab.json')))['fighters']}
+    bank = json.load(open(V.JSON))['fighters']
+    ov = rep.get('overflow') or {'prefixes': []}
+    P1 = {int(rep['prefixes'][0], 16): 0} | ({int(ov['prefixes'][0], 16): 0x100} if ov['prefixes'] else {})
+    b = harness.Brawler(game=game); S = b.syms
+    log = []
+    def tap(write, port, v):
+        if not write and port & 0xFF == 0 and v: log.append((b.frame, v))
+        return v
+    cb = TAP(tap); b.core.retro_neoscan_z80_tap(cb)
+    for _ in range(400): b.core.retro_run()
+    from chainlab.labdrive import PACK_OFF
+    L = S['lab']; MAP = L + PACK_OFF                         # (the pack buffer, never installed here)
+    for i, v in enumerate(b'LAB1'): b.w(L + i, 1, v)
+    st = b.states
+    res = {}
+    for n in (names or names_all):
+        fi = names_all.index(n); code_of = {int(c): int(i) for i, c in rep['fighters'].get(n, {'codes': {}})['codes'].items()}
+        rf = next(r for r in G['roster'] if r['name'] == n); fury = rf.get('fury')
+        pool = [p['input'] for p in lab[n]['pool']]
+        vo = bank.get(n, {'voices': []})['voices']
+        rows = []
+        for k, inp in enumerate(pool):
+            keys = 'd' if fury and inp == fury else 'Dd' if fury and inp == 'MAX ' + fury else 'c'
+            runs = {}
+            for case in ('whiff', 'close'):
+                b.w(L + 5, 1, fi); b.w(L + 6, 1, names_all.index('terry') if n != 'terry' else names_all.index('ryo')); b.w(L + 4, 1, 1)
+                b.run(30)
+                b.w(S['spec_tab'] + 4 * fi, 4, MAP)
+                for j in range(6): b.w(MAP + j, 1, k if j == 0 else 0xFF)
+                b.fset(0, 'meter', 120); b.fset(0, 'facing', 1)
+                if case == 'close': b.place(2, x=b.fget(0, 'x') + 34, z=b.fget(0, 'z'))
+                else: b.place(2, x=b.fget(0, 'x') + 260, z=b.fget(0, 'z') + 40)
+                b.run(2)
+                log.clear(); f0 = None; end = None
+                for f in range(700):
+                    b.run(1, p1=keys if f < 3 else '')
+                    sname = st[b.fget(0, 'state')]
+                    if f0 is None and sname == 'SPECIAL': f0 = b.frame
+                    if f0 is not None and end is None and sname != 'SPECIAL': end = b.frame
+                    if end is not None and b.frame > end + 40: break
+                got, want = [], None
+                for fr, v in log:
+                    if want is not None:
+                        i = code_of.get(v | want)
+                        if i and f0 is not None: got.append([fr - f0, i])
+                        want = None
+                    elif v in P1: want = P1[v]
+                runs[case] = {'voices': got, 'played': f0 is not None, 'frames': (end or b.frame) - (f0 or 0),
+                              'spec_ix': b.fget(0, 'spec_ix')}
+            cap = sorted([u['at'] - 1, x['id']] for x in vo for u in x['uses'] if u['kind'] == 'special' and u['input'] == inp)
+            prog = sorted({x['id'] for x in vo for u in x['uses'] if u['kind'] == 'prog' and u['input'] == inp})
+            ours = {i for r in runs.values() for _, i in r['voices']}
+            src = {i for _, i in cap} | set(prog)
+            # the captured plays: each found among ours (either run) at its frame
+            timing = [[at, i, any([at, i] in r['voices'] for r in runs.values()),
+                       min((abs(a - at) for r in runs.values() for a, j in r['voices'] if j == i), default=None)] for at, i in cap]
+            row = {'input': inp, 'keys': keys, 'runs': runs, 'source_plays': cap, 'program_sends': prog,
+                   'missing': sorted(src - ours), 'extra': sorted(ours - src), 'timing': timing,
+                   'ok': not (src - ours) and not (ours - src) and all(t[2] for t in timing)}
+            rows.append(row)
+            print(n, inp, 'OK' if row['ok'] else 'DIFF', 'whiff', runs['whiff']['voices'], 'close', runs['close']['voices'],
+                  '| source', cap, 'prog', prog, ('missing ' + str(row['missing'])) if row['missing'] else '',
+                  ('extra ' + str(row['extra'])) if row['extra'] else '', flush=True)
+        res[n] = rows
+    os.makedirs(out, exist_ok=True)
+    json.dump(res, open(os.path.join(out, 'voices_all.json'), 'w'), indent=1)
+    return res
+
 if __name__ == '__main__':
+    if sys.argv[1:2] == ['--all']:
+        proof_all(sys.argv[2], names=sys.argv[3:] or None); sys.exit()
     a = sys.argv[1:]; pk = a[a.index('--pack') + 1] if '--pack' in a else None
     a = [x for i, x in enumerate(a) if x != '--pack' and (i == 0 or a[i - 1] != '--pack')]
     main(*a[:3], *(a[3:4] or [harness.GAME]), pack=pk)

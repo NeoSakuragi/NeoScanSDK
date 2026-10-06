@@ -263,6 +263,8 @@ typedef struct fighter {
     struct fighter *thr_by;       /* thrower let go (fighter.c thrown_update); thr_by: who threw it (or holds it: a */
     uint8_t  thr_skip, pad_thr;   /* hold hit); thr_skip: the frame of the hand-over, its update came after the thrower's; */
     uint32_t thr_pos;             /* thr_pos: its place in the script alone, 8.8 rows (acc is its animation's: its flight plays one) */
+    uint8_t  pvl_id, pvl_n;       /* a ROM special's voice sent later (P_VOICE b > 0, KOF +$1B4 / +$1B6; TODO #163): its id,
+                                   * the frames left (0 = none; counted down by its program's frames, dropped at its end) */
 } fighter_t;
 
 
