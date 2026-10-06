@@ -145,6 +145,36 @@ K' 236C presses 7..21 (the $2000 steps 11..25 + 1: the check reads the step flag
 the animation's end, B -> 134, D -> 135), 623C 13..30 (the rise, until the apex: C version only, 146 / 147). Every other
 button / direction changes nothing. With a hit, KOF99's slowdown frames can move a window edge by a frame.
 
+## Every follow-up of Kyo, Iori and K' (TODO #140, 2026-10-06)
+Search: the walk logs every read of player input (`PROBE`: the input record `fp` / `a3`, the recogniser's latched bits
+`+$1AC-$1AF`, KOF99's `zero` checks) past the first frame, per slot special and fury; brute force in our emulator
+(`/data/tmp/fu140/brute.py`: 13 motions / sticks x 4 buttons at every 2nd frame of each special, whiff and hit, block
+every 4th, the game's states against the no-press run). New checks (`FOLLOW_CHECKS`; bit k of a mask = `prog['links']`
+[k], the names in the order the walk meets them, so one program can have several kinds):
+- `hcbP` Kyo `$3CB1C`: recogniser command 7 (`6 2 4` + button, KOF98 bit pair 2k: `+$1AD` bit 6 or this frame's
+  `fp@(5)`) with A or C (`a3@(125) & $50`); Kyo 236C Dokugami's part 1 (states 168 / 169) -> Tsumi Yomi (170 / 171)
+  at its event step; 214 + A / C counts too while 236C's own forward is still in the recogniser's window.
+- `fP` the engine's `$1ED30` (forward exactly + A or C, `fp` / `fp@(1)`), scoped (`FOLLOW_SCOPE`) to Kyo 236C: Tsumi
+  Yomi -> Batsu Yomi (172 / 173 / 174). Read 6 frames after the button (`FOLLOW_LAG_KIND`), the stick still forward then;
+  the part's input clear (`$24F52`, op `clrinput`) drops a press made more than a frame before it.
+- `hitlatch` Iori `$71466`: 623D Kototsuki In's landing (`FOLLOW_LATCH` `$712F4`): 214 + A / C (`+$1AD` bit 6) sets
+  `+$D1` bit 7, the handler then jumps into 214A Aoi Hana's handler, whose own `$710F2` checks follow (2 more parts).
+  `+$1AC-$1AF` is filled only in the attacker's hit-stop (`$1B3A2`, cleared at each one's start `$1B364`): a
+  hit-confirm, on hit or block, never on a whiff (`('check', mask, 'hl')`: the model latches the presses read in a
+  hit-stop on the hit's frame, romspecials98 maps them there; the brawler: `fighter_t.phl`, the presses made in its
+  hit-stop, P_CHECK b = 1). The jump reads Aoi Hana's button from 214's command (`$70E48`): `FOLLOW_BTN` gives A.
+- On hit, a 6A press read inside KOF's hit-stop is lost (`$1ED30` reads this frame's press): romspecials98 drops it;
+  presses read within ~2 frames after a hit-stop also miss in KOF and not in the model (Kyo 236C, 6A at 50 / 52 / 58
+  after 63214A at 24): left as is, the proofs press outside them.
+Model: a part starts at the first animation after any link test found its link armed (`pmask`: which link);
+`follow_parts` runs every set of links pressed throughout (Kyo's second link exists only in the part the first starts)
+and drops a run that plays what the no-press run plays (K' 623A: the check runs, the A version has no follow-up).
+No follow-up input in Kyo EX 236A / 623C / 421B / 214A / EX 421D, Iori 236A / 624D / 623C / 624B, K' 214D / 236B / 236D
+/ 623A or the three furies (Kyo's 21426C reads the held button: holding A / C delays the release, not a follow-up).
+Brute force results: /data/tmp/fu140/out/brute_<fighter>.json (summary `summ.py`: the divergences whose states are not
+the move's own; the rest were the press overlapping the special's own input, normals after its end, or the hit / block
+branches' run-to-run jitter, which a rerun does not reproduce).
+
 ## Furies (desperation moves) read from the ROM (TODO #139, 2026-10-06)
 Every KOF-banked fighter's C fury (game.json roster `fury`) goes through the same walk. What the DMs added:
 - **Power check**: the handler opens with `jsr $24D80` (KOF96 `$1AB70`, KOF99 `$1FC48`): d0 0 = no power (`jmp` out),

@@ -566,7 +566,7 @@ def rom_c(n, k, sp, game):
         elif op[0] == 'mul': ops.append((c, 0, 0, op[1]))
         elif op[0] == 'nudge': ops.append((c, 0, round(op[1]), round(op[2])))
         elif op[0] == 'br': ops.append((c, op[1] | op[2] << 7, -1 if op[3] == 'yield' else op[3], op[4] if len(op) > 4 else 0))
-        elif op[0] == 'check': ops.append((c, op[1], 0, 0))
+        elif op[0] == 'check': ops.append((c, op[1], 1 if len(op) > 2 else 0, 0))   # b 1: the presses of its hit-stop
         elif op[0] == 'sigclr': ops.append((c, 0, 0, op[1]))
         elif op[0] in ('resume_at', 'jmp'): ops.append((c, 0, op[1], 0))
         elif op[0] == 'onhit': ops.append((c, op[2] if len(op) > 2 else 0, op[1], 0))   # a: the catch's hit-stop (its dead frames - 1)
@@ -892,7 +892,7 @@ def write_c(chars, outdir):
                 cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + ', '.join(
                     '{%d, %d, %d, %d, %d, %d, %d, %d}' % ((l['from'], l['to']) + link_c(l) + (1 if l['at'] == 'now' else 0, l['window'][0], l['window'][1]))
                     for l in sp['links']) + '};')
-            if rom_ok(sp) and sp['rom'].get('links'):    # a ROM special's follow-ups: its program decides (P_CHECK, PC_LINK);
+            if rom_ok(sp) and sp['rom'].get('follow_links'):   # a ROM special's follow-ups: its program decides (P_CHECK, PC_LINK);
                 rp = sp['rom']['parts']; st_ = sp['rom']['states']   # links bit k = the press of link k (in / dir), parts
                 sp['parts'] = [{'first': st_.index(p['states'][0]), 'end': st_.index(p['states'][-1]) + 1, 'next': None} for p in rp]   # their states (anims)
                 sp['links'] = [{'from': l['from'], 'to': l['to'], 'on': 'input', 'input': l['input'], 'at': 'end', 'window': [0, 0xFFFF]}

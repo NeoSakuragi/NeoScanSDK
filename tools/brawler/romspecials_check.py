@@ -4,7 +4,7 @@
     python3 romspecials_check.py GAME_DIR OUT_DIR [fighter:role[=INPUT] ...]     (an AI_OFF=1 build: the target stands still)
     BRANCHES=whiff,close,mid (default whiff,close): mid = P2 112 px ahead (romspecials98.PLACE); =INPUT plays another
     special of the fighter's pool from that slot; +LINK@T (repeatable) a follow-up press (TODO #74): LINK one of the
-    special's links (handlers98.FOLLOW_INPUTS: 'again', 'fA', 'fAB'), T the special's frame of KOF's button press
+    special's links (its program's 'links': 'again', 'fA', 'fAB'), T the special's frame of KOF's button press
     (FOLLOW_KOF: the game's input; the brawler presses so its program reads it on the frame KOF's handler does, T +
     FOLLOW_LAG); e.g. iori:ufD+again@5+again@13, k_dash:D+fAB@12
 
@@ -28,13 +28,21 @@ ROLES = {'D': '4:ab', 'fD': '4:Rab', 'dD': '4:Dab', 'uD': '4:Uab', 'dfD': '4:DRa
 KOF = {'kyo': 0, 'terry': 3, 'ryo': 6, 'robert': 7, 'ralf': 10, 'mai': 16, 'yashiro': 21, 'yamazaki': 24, 'billy': 26, 'iori': 27, 'rugal': 36,
        'geese': ('kof96', 24), 'mr_big': ('kof96', 26), 'krauser': ('kof96', 25), 'goenitz': ('kof96', 28), 'k_dash': ('kof99', 0)}   # KOF98 id or (game, id)
 # a follow-up's input in the game, facing right: [(frames from the button press, frames held, keys)]
-FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],
+FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],                       # 214A (214A, 623D)
+              ('kyo', 'again'): [(-8, 2, 'R'), (-6, 2, 'DR'), (-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   # 63214A (236C)
+              ('kyo', 'fA'): [(-2, 2, 'R'), (0, 6, 'Ra')],                                          # 6A (236C's 2nd)
               ('k_dash', 'fA'): [(-2, 2, 'R'), (0, 6, 'Rb')], ('k_dash', 'fAB'): [(-2, 2, 'R'), (0, 6, 'Rd')]}
 FOLLOW_PAD = {'fA': ('Ra', 2), 'fAB': ('Rab', 0)}       # the brawler's pad keys, the frames its intent waits (CHORD)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = 4
 DIST = {'close': 48, 'mid': 112}                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
 BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
+
+def prog_links(game, cid, inp):
+    """the link names of a ROM special's program (bit k = links[k])"""
+    m = K.rom96.Mem(K.rom96.load(K.rom96.GAMES[game]['neo'])[0], game)
+    h, bt = H.handler_of(cid, inp, inp.startswith('EX '), game)
+    return H.decode(m, h, bt, inp.startswith('EX '), cid=cid)['links']
 
 def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follow=(), facing=1):
     """follow: [(program frame that must read the press, keys, intent delay)]; facing -1: from the right, keys mirrored"""
@@ -65,7 +73,8 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
         if started is not None:                          # a follow-up: pressed so that prog_update reads it at its frame
             sr = b.fget(0, 'srow')                       # (srow = the program frames played: the next one is srow)
             for j, (pf, fk, dl) in enumerate(follow):
-                if j not in fpress and sr >= pf - dl - FOLLOW_BLAG: fpress[j] = 3
+                if j not in fpress and (b.fget(0, 'freeze') > 1 if pf is None else sr >= pf - dl - FOLLOW_BLAG): fpress[j] = 3
+                # (pf None: pressed in its hit-stop, Iori 623D's latch)
                 if fpress.get(j, 0) > 0: b.pad = [set(mir(fk)), set()]; fpress[j] -= 1
         st = b.states[b.fget(0, 'state')]
         want = started is not None and (len(rows) % EVERY == 0)
@@ -121,7 +130,7 @@ def main(game, out, cases):
             fi = next(f for f in json.load(open(os.path.join(game, 'build', 'chainlab.json')))['fighters'] if f['name'] == name)
             pool = [p['input'] for p in fi['pool']].index(inp)
         kg, cid = cid if isinstance(cid, tuple) else ('kof98', cid)
-        links = H.FOLLOW_INPUTS.get({'kof98': 'latch', 'kof99': 'fwdBD'}[kg], []) if fus else []
+        links = prog_links(kg, cid, inp) if fus else []
         kfol = [(t, FOLLOW_KOF[(name, l)], 1 << links.index(l)) for l, t in fus]
         bpad = [((ROLES[role].split(':')[1], 0) if l == 'again' else FOLLOW_PAD[l]) for l, t in fus]
         for branch in BRANCHES:
@@ -148,7 +157,9 @@ def main(game, out, cases):
                     p2_seq=K.follow_spec(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), kg, [(t, ev) for t, ev, mk in kfol]) if kfol else '')
             # the opponent as far ahead as KOF's was when the special started (a charge move walked P1 back first)
             gap = round(game_rows[0]['p2x'] - game_rows[0]['x']) if branch in DIST else None
-            bfol = [(pf,) + bp for pf, bp in zip(res['press_frames'], bpad)]   # the program frame KOF's handler read it on
+            bfol = [((None if q in res['press_latched'] else pf),) + bp for q, (pf, bp) in enumerate(zip(res['press_frames'], bpad))
+                    if pf is not None]   # (a press KOF latched in its hit-stop: the brawler presses in its own)   # the program frame KOF's
+                                                         # handler read it on (None: lost in KOF's hit-stop, not pressed)
             br = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter, follow=bfol, frames=500 if dm else 300)
             rec = lambda bf: int(frames[name][bf].split(':')[1]) if bf < len(frames[name]) and frames[name][bf] else -1
             n = min(len(br), res['frames_game'])

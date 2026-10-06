@@ -132,12 +132,18 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
     hits = [i for i in range(1, len(game)) if game[i]['p2life'] < game[i - 1]['p2life']]
     # a follow-up press is read FOLLOW_LAG game ticks after its button (the hit-stop ticks count, a frame the game lost
     # does not): the model's frame = the kept frame the handler runs then (the first one at or after it)
-    presses, pf = {}, []
+    presses, pf, hl = {}, [], []
     for t, ev, mk in follow or []:
         j = next(j for j, r in enumerate(rows) if r['f'] >= rows[k0]['f'] + t); n_ = 0
-        while n_ < H.FOLLOW_LAG[gname] and j + 1 < len(rows):
+        lag = max((prog['link_lag'][b_] for b_ in range(len(prog.get('link_lag', []))) if mk >> b_ & 1), default=H.FOLLOW_LAG[gname])
+        while n_ < lag and j + 1 < len(rows):
             j += 1; n_ += not lost[j]
-        i = next((q for q, r in enumerate(game) if r['f'] >= rows[j]['f']), len(game)); presses[i] = presses.get(i, 0) | mk; pf.append(i)
+        i = next((q for q, r in enumerate(game) if r['f'] >= rows[j]['f']), len(game))
+        if prog and prog.get('hitlatch') and rows[j]['pc'] in hs:   # read inside a hit-stop: latched on the hit's frame
+            i = max(q for q, r in enumerate(game) if r['f'] <= rows[j]['f']); i = next((h_ for h_ in hits if h_ >= i), i)
+            hl.append(len(pf))
+        if froze[j] and lag in H.FOLLOW_LAG_KIND.values(): mk = 0   # an input-record check ($1ED30: the press of this
+        presses[i] = presses.get(i, 0) | mk; pf.append(i if mk else None)   # frame) read inside the hit-stop: lost (#140)
     # a catch (a fury's rush / grab, TODO #139): the first frame P1 entered the hit-stop with a catch routine installed
     catch = next((i for i, r in enumerate(game) if r['pc'] in hs and u32(r['raw'], 0x19C)), None)
     opp = lambda f: game[min(f, len(game) - 1)]['p2x'] - game[0]['x']          # P2's x from P1's start (K''s 'far:N')
@@ -154,7 +160,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         if any(d.values()): bad.append((i, (g['state'], g['frame'], gx, gh), mo[1:5]))
     res = {'input': inp, 'dist': dist, 'ex': ex, 'handler': f'${h:X}' if h else None, 'frames_game': end, 'frames_model': len(model),
            'mismatch': len(bad), 'by': nb, 'first_bad': bad[:4], 'hits_game': len(hits), 'hit_frames': hits, 'frozen_dropped': frozen, 'slowdown_dropped': slow,
-           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf, 'catch': catch}
+           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf, 'press_latched': hl, 'catch': catch}
     before = {o['base'] for o in rows[k0 - 1]['objs']}
     born = {}
     rec0 = rom96.frame_record(m, cid, 0)
