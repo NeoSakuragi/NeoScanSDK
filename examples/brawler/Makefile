@@ -54,10 +54,9 @@ $(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h $(BUILD)/snd/voices
 	python3 $(TOOLS)/port/build_snd.py songs.json $(CURDIR)/$(BUILD)/snd
 
 # --- Compile ---
-$(BUILD)/stage_opt: FORCE                  # the STAGE option of the last build: main.o is rebuilt when it changes
-	@mkdir -p $(BUILD); echo $(STAGE) | cmp -s - $@ || echo $(STAGE) > $@
-$(BUILD)/main.o: $(BUILD)/stage_opt
-$(BUILD)/%.o: %.c $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/stage_opt: FORCE                  # the -D options of the last build (STAGE, AI_OFF, PROFILE): every object is rebuilt
+	@mkdir -p $(BUILD); echo "$(STAGE) $(AI_OFF) $(PROFILE)" | cmp -s - $@ || echo "$(STAGE) $(AI_OFF) $(PROFILE)" > $@   # when one changes (an AI_OFF build no longer leaves main.o stale)
+$(BUILD)/%.o: %.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@
