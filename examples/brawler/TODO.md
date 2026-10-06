@@ -952,6 +952,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (/data/tmp/rugal173/regress_*_fresh.json). Find the timing dependency in the harness (pokes / samples mid-tick): a
   regression check must not move with the RAM layout.
 
+- [ ] 179. SS2 SPECIALS FEEL RECORDED (Bruno in chat, 0.0.85: "they all seem garbage recorded"): audit every SS2
+  special's program (decoded from the handler code vs captures replayed), play them in real fights vs SS2 in the same
+  situations, re-derive every replayed part from SS2's code. In progress.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
