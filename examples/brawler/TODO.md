@@ -525,7 +525,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   damage) per the extract-all-variants rule; store them in the variant table (the Billy job builds it), the brawler
   plays its latched rule; sheet WHP vs brawler per variant. Close the feedback row as shipped with the release.
 
-- [ ] 148. HAOHMARU FROM SS4'S CODE: REAL FURY, SPECIALS, THROW (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
+- [ ] 148. (+ 20261006-173459-5d29: "Samsho characters still don't have throws." — also Hanzo / WHP has none) HAOHMARU FROM SS4'S CODE: REAL FURY, SPECIALS, THROW (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
   Haohmaru in Samurai Shodown." The replay shows the fury = "BUST 236D", a powered single flaming slash). Find in
   SAMURAI SHODOWN IV's code his true super moves (its own engine: tools/samsho4, /data/neogeo_dict/samsho4/README.md):
   the Weapon Flipping Technique (rage-full super) and the Rage Explosion's Issen, their commands, conditions,
@@ -583,7 +583,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (and the empty down-forward slot): a pick round in the Lab's Characters tab (the specials mapping with impact pictures,
   #54) or the interactive judging page; then a game.json change (quick).
 
-- [ ] 154. CONTINUE AND GAME OVER MUSIC (feedback 20261006-160529-b3f3: "The music is incorrect on the continue screen."
+- [ ] 154. (+ 20261006-173221 / 173232 / 173249-5d29: the stage-clear and ending music "not fitting", "weird": pick congratulating tracks in the same audition) CONTINUE AND GAME OVER MUSIC (feedback 20261006-160529-b3f3: "The music is incorrect on the continue screen."
   and 20261006-160539-b3f3: "The music is also incorrect on the game over screen."). Replay (driver command = RAM
   snd_song): CONTINUE? opens at frame 46799 with $2F, GAME OVER at 47290 with $26: what game.json music / songs.json
   ask. Both play exactly as in KOF98 (compare_port.py on the build: CONTINUE 8 / 8 chip events identical, GAME_OVER 1158
@@ -745,6 +745,23 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   pushed down." -> a standard death / respawn sequence (blink + death voice, continue if no lives; else drop from the
   air, landing = a screen-wide knockdown of enemies, invincible while falling).
   Proof: sheets per point, Geese + Terry, then roster-wide rules; the usual proofs. Close the feedback rows shipped.
+
+- [ ] 167. HUD VERSION LABEL (20261006-173317-5d29: "The version that is displayed at the bottom is a bit too close
+  from the level 4 label ... I would push this on the bottom left."): move the version text to the bottom-left corner.
+
+- [ ] 168. GOENITZ (20261006-173139-5d29: "What is the sound effect of Goenitz? He has like sound effects that he should
+  make with every tornado, and he also should have another special move, like a teleport."): decode his KOF96/98
+  tornado specials' sound sends (each tornado's wind sound) and his teleport special(s) from the ROM handlers; give
+  the teleport a C slot; sheets + sound log vs KOF.
+
+- [ ] 169. FEEDBACK THREADS IN THE APK (20261006-173524-5d29 + 173615: "list the status of every open feedback,
+  whether it's been treated or fixed in the current build ... provide feedback against that particular feedback to keep
+  a trail and a history, and either say ... resolved or ... still here ... adding the voice feedback"; "provide myself a
+  feedback in the form of another voice feedback or just a thumbs up, thumbs down"): the APK list (0.0.15, Settings ->
+  My feedback notes) gets a filter "open" (not shipped / won't do) and "shipped in a build I can test", and per note a
+  reply thread: voice (transcribed, same flow minus the replay) or typed reply, and thumbs up = verified fixed (status
+  verified) / thumbs down = still broken (reopens: status reopened); replies in the tracker (table replies), in fb.py
+  show, the Lab tab and pull.py's report; pull.py lists reopened notes first.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
