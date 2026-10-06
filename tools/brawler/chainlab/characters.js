@@ -1,6 +1,6 @@
 /* Brawler Lab, Characters tab: game.json's `roster` (docs/brawler_data_model.md "Layer 1"). Per fighter: its bank
  * fighter, unlock rule, colour sets, the select pose (picked from every intro / win / walk-in frame, tap-to-pick; a ROM
- * build change: exported), the specials by role (D, forward+D, down+D, up+D, each picked from the fighter's captured
+ * build change: exported), the specials by role (C, forward+C, down+C, up+C, down-forward+C, up-forward+C; keys D .. ufD, each picked from the fighter's captured
  * specials; live: the data pack's roster section, version 2, played in the in-page game against the dummy), its chain
  * routes (the Chain Lab, one click), its voices (KOF's own per move, a play button, an override from its voice list; live:
  * the data pack's voices part, version 3). Export / import in game.json's roster layout.
@@ -17,8 +17,8 @@
   };
   const clone = x => JSON.parse(JSON.stringify(x));
   const up = n => n.toUpperCase().replace(/_/g, ' ');
-  const ROLES = [['D', 'A+B', 'projectile'], ['fD', 'forward A+B', 'rush'], ['dD', 'down A+B', 'rising reversal (invincible)'], ['uD', 'up A+B', 'another special'],
-    ['dfD', 'down-forward A+B', 'a second projectile / an anti-air / a command move'], ['ufD', 'up-forward A+B', 'an anti-air / a projectile / a command move']];   // TODO #71: A+B slots
+  const ROLES = [['D', 'C', 'projectile'], ['fD', '→C (forward C)', 'rush'], ['dD', '↓C (down C)', 'rising reversal (invincible)'], ['uD', '↑C (up C)', 'another special'],
+    ['dfD', '↘C (down-forward C)', 'a second projectile / an anti-air / a command move'], ['ufD', '↗C (up-forward C)', 'an anti-air / a projectile / a command move']];   // 0.0.64: C + the stick picks the slot (keys D .. ufD: the old names)
 
   while (!window.stagesTab || !window.chainlab) await new Promise(r => setTimeout(r, 100));
   const CLAB = window.chainlab, lab = CLAB.lab;
@@ -72,7 +72,7 @@
     lab.request(1, ci, dummy);
     if (CLAB.paused) CLAB.togglePause();
     CLAB.stepFrames(1);
-    msg(`${up(roster[ci].name)} against ${up(NAMES[dummy])} with these specials: play A+B, forward / down / up / down-forward / up-forward + A+B (W A S D + U and I together).`);
+    msg(`${up(roster[ci].name)} against ${up(NAMES[dummy])} with these specials: play C, forward / down / up / down-forward / up-forward + C (W A S D + O), D = fury (P).`);
   }
   let note = '';
   const msg = t => { note = t; const e = $('chMsg'); if (e) e.textContent = t; };

@@ -115,8 +115,8 @@
     ['Grab', '', [['grab', 'approaches may grab'], ['grab_plan', 'approaches of 8 that walk in to grab']]],
     ['Projectile (its D)', '', [['projectile', 'fires its D at mid range'], ['spec_min', 'range from (px)'], ['spec_max', 'range to (px)'], ['spec_dz', 'depth (px)'], ['proj_chance', '1 in N a frame in range']]],
     ['Strings', 'frames', [['follow_ups', 'follow-up presses: 0 to N'], ['press_gap', 'between presses'], ['hold_gap', 'between hits in a hold']]],
-    ['Reaction to attacks (boss block)', '', [['reversal', 'down + A+B against an attack this close'], ['rev_dx', 'px'], ['rev_dz', 'depth px'], ['rev_chance', '1 in N (0 = never)'], ['rest_rev', 'rest after it']]],
-    ['Specials (boss block)', '', [['specials', 'A+B or forward + A+B (the rush)'], ['bspec_min', 'range from'], ['bspec_max', 'range to'], ['bspec_dz', 'depth'], ['bspec_chance', '1 in N (0 = never)'], ['rush_dx', 'the rush when closer (1 in 2)'], ['rest_bspec', 'rest after it']]],
+    ['Reaction to attacks (boss block)', '', [['reversal', 'down + C against an attack this close'], ['rev_dx', 'px'], ['rev_dz', 'depth px'], ['rev_chance', '1 in N (0 = never)'], ['rest_rev', 'rest after it']]],
+    ['Specials (boss block)', '', [['specials', 'C or forward + C (the rush)'], ['bspec_min', 'range from'], ['bspec_max', 'range to'], ['bspec_dz', 'depth'], ['bspec_chance', '1 in N (0 = never)'], ['rush_dx', 'the rush when closer (1 in 2)'], ['rest_bspec', 'rest after it']]],
     ['Jump-in (any enemy: the token holder\'s attack)', '', [['jump_in', 'jumps in (forward jump, an air attack on the way down)'], ['jump_min', 'range from'], ['jump_max', 'range to'], ['jump_dz', 'depth'], ['jump_chance', 'of 256'], ['rest_jump', 'rest after it'], ['air_b_dx', 'the air attack this close'], ['air_cd', 'the air attack is C+D (else B)'], ['hop_dx', 'resting closer than this: a back-hop'], ['hop_chance', 'the back-hop, of 256 a frame (0 = never)']]]];
 
   function aiBox(e) {
@@ -211,7 +211,7 @@
   }
 
   // ---- moves -----------------------------------------------------------------------------------------------------------
-  const IN = { A: 'A', B: 'B', dA: '↓A', dB: '↓B', fA: '→A', fB: '→B', dfA: '↘A', dfB: '↘B', AB: 'A+B', D: 'D', fD: '→D', dD: '↓D', uD: '↑D', dfD: '↘D', ufD: '↗D' };
+  const IN = { A: 'A', B: 'B', dA: '↓A', dB: '↓B', fA: '→A', fB: '→B', dfA: '↘A', dfB: '↘B', AB: 'C', D: 'C', fD: '→C', dD: '↓C', uD: '↑C', dfD: '↘C', ufD: '↗C' };
   function routeLines(t) {
     const out = [];
     (function walk(links, path) {
