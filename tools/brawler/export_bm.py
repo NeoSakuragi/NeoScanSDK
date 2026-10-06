@@ -594,6 +594,11 @@ def rom_c(n, k, sp, game, vres=None):
         if vt.get('nvar'):
             out.append(f'static const int32_t {n}_sp{k}_vars[] = {{' + ', '.join(str(v) for row in vt['rows'] for v in row) + '};')
         if r['objects']: out.append(projectile_c(n, f'{k}r', r['objects'], game, sp))
+        # its steps' sounds and spawns (World Heroes Perfect's step commands 4 / 9, export_whp: TODO #147), each row's
+        # animation its own entries: bchar_t.pvox / pfx as KOF's $FC / $FA records
+        sp['_pvox'] = [(k, j, i, v) for j, st in enumerate(r['states']) for i, s_ in enumerate(r['anims'][st]['steps'])
+                       for v in [vres(w) if vres else 0 for w in s_.get('voices', [])] if v]
+        sp['_pfx'] = [(k, j, i, o) for j, i, o in r.get('step_fx', [])]
         return '\n'.join(out)
     total = sum(r['openings'].values())
     each = max(1, SPECIAL_DAMAGE // total) if total else 0
@@ -736,6 +741,10 @@ def dedupe_c(text):
         out.append(line)
     return '\n'.join(out)
 
+
+def step_voiced(sp):
+    """a program written by its source's exporter whose steps carry their sound records (export_whp, TODO #147)"""
+    return prog_only(sp) and any(s_.get('voices') for a in sp['rom']['anims'].values() for s_ in a['steps'])
 
 def prog_only(sp):
     """a program written by its source's exporter (export_dd 'prims'): the script rows are the Brawler Lab's data only
@@ -1048,8 +1057,11 @@ def kof_prog(sp, game):
     return game in H.SOUND_MAPPER and rom_ok(sp) and not sp['rom'].get('prims')
 
 def voice_of_index(n, game):
-    """sound index -> the fighter's voice id (voices.json, by driver word; 0: not one of its voices)"""
-    m = V.mem(game); of = {c: vo['id'] for vo in V.bank(n) for c in vo['cmds']}
+    """sound index -> the fighter's voice id (voices.json, by driver word; 0: not one of its voices); a game without
+    KOF's sound mapper (World Heroes Perfect, TODO #147): its steps' sound records hold the word itself"""
+    of = {c: vo['id'] for vo in V.bank(n) for c in vo['cmds']}
+    if game not in H.SOUND_MAPPER: return lambda w: of.get(f'{w:04X}', 0)
+    m = V.mem(game)
     return lambda ix: of.get(f'{H.sound_word(m, ix):04X}', 0)
 
 def prog_voices(n, game, sp):
@@ -1059,7 +1071,8 @@ def prog_voices(n, game, sp):
     now = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and not op[2]]
     steps = [vi(ix) for st in r['states'] for s in r['anims'][st]['steps'] for ix in s.get('voices', [])]
     later = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and op[2]]
-    return [i for i in now + steps + later if i]
+    ids = [i for i in now + steps + later if i]                    # its own effects (channel 'fx', TODO #168) after
+    return [i for i in ids if not V.fx_bit(n, i)] + [i for i in ids if V.fx_bit(n, i)]   # its voices: the key's suggestion is a voice
 
 def prog_voice_res(n, game, inp, sug, mp):
     """a KOF ROM special's send -> the voice id it plays (fx bit included; 0: silent): the roster keeps the key's
@@ -1227,7 +1240,7 @@ def write_c(chars, outdir):
                 cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + ', '.join(
                     '{%d, %d, %d, %d, %d, %d, %d, %d}' % ((l['from'], l['to']) + link_c(l) + (0, l['window'][0], l['window'][1]))
                     for l in sp['links']) + '};')
-            if rom_ok(sp): cs.append(rom_c(n, k, sp, game, prog_voice_res(n, game, pool[k]['input'], vsug, vmp) if kof_prog(sp, game) else None))   # read from the ROM: played by its program
+            if rom_ok(sp): cs.append(rom_c(n, k, sp, game, prog_voice_res(n, game, pool[k]['input'], vsug, vmp) if kof_prog(sp, game) or step_voiced(sp) else None))   # read from the ROM: played by its program
         assert len(sps) < 255, n
         pooldata[n] = [special_info(sp, game) for sp in sps]
         cs.append(f'const bspec_t {n}_specials[{max(1, len(sps))}] = {{' + (', '.join(

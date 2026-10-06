@@ -73,11 +73,13 @@ ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',
          'atk_c_hop': 'atk_c_jump', 'atk_d_hop': 'atk_d_jump', 'atk_c_hop_diag': 'atk_c_jump_diag',
          'atk_d_hop_diag': 'atk_d_jump_diag', 'atk_cd_hop': 'atk_cd_jump'}
-# specials: input -> (whiff capture, the animations the move plays). Hanzou in WHP: 236 A / B Ninpou Koryuu Ha (the
-# projectile, $100 / $101), 236 C / D the dashing slash ($110 / $111, 116 px forward), 623 A / B the rising Koryuu
-# ($104 / $105, 51 / 80 px up, a hit on every step), 214 C / D the flying kick ($108 / $109, 61 px forward, 23 up,
-# a spin of four steps that hits on every other one); the landing ($19) is part of the move
-SPECIALS = {'236A': ('236aw', [0x100]), '236B': ('236bw', [0x101]), '236C': ('236cw', [0x110]), '236D': ('236dw', [0x111]),
+# specials: input -> (whiff capture, the animations the move plays). Hanzou in WHP: 236 C / D the dashing slash
+# ($110 / $111, 116 px forward), 623 A / B the rising Koryuu ($104 / $105, 51 / 80 px up, a hit on every step), 214 C
+# / D the flying kick ($108 / $109, 61 px forward, 23 up, a spin of four steps that hits on every other one); the
+# landing ($19) is part of the move. The projectile, 236 + A / B / A+B Ninpou Koryuu Ha, is read from the ROM:
+# koryuuha() ('236P', TODO #147); ROM_SPECIALS = its capture for the voice listing (voices.py whp_list)
+ROM_SPECIALS = {'236P': ('236aw', [0x100])}
+SPECIALS = {'236C': ('236cw', [0x110]), '236D': ('236dw', [0x111]),
             '623A': ('623aw', [0x104, 0x19]), '623B': ('623bw', [0x105, 0x19]),
             '214C': ('214cw', [0x108, 0x19]), '214D': ('214dw', [0x109, 0x19])}
 # projectiles: the pool object with a live box (+$44) of the 236 A / B capture: its flight defs (one cycle loops) and
@@ -136,6 +138,18 @@ class Builder:
         self.index[w] = len(self.frames)
         self.frames.append({'record': f'{w:04X}', 'parts': parts, 'weapon': None})
         return self.index[w]
+    def frame_multi(self, layers):
+        """several defs as one frame: [(def, px forward, px up)] (an object drawn with its parts: the Koryuu Ha's tail),
+        the first drawn first"""
+        if len(layers) == 1 and layers[0][1:] == (0, 0): return self.frame(layers[0][0])
+        k = tuple(layers)
+        if k in self.index: return self.index[k]
+        parts = []
+        for w, dx, dy in layers:
+            for q in self.frames[self.frame(w)]['parts']: parts.append(dict(q, dx=q['dx'] - dx, dy=q['dy'] - dy))
+        self.index[k] = len(self.frames)
+        self.frames.append({'record': '+'.join(f'{w:04X}@{dx}' for w, dx, dy in layers), 'parts': parts, 'weapon': None})
+        return self.index[k]
 
 HOLD = 120                                        # a step held until something else ends it (WHP ticks 255 / 20+ on the
                                                   # air normals: until the landing): the brawler's long hold
@@ -386,6 +400,68 @@ def super_rising(B):
             'game_hits': len(hit['hits']), 'parts': parts, 'links': links, 'react_src': react,
             'whp': {'rel': SR_REL, 'flash_hold': hold, 'uppercut_rows': up, 'rise_row': up_end, 'hit_runs': sorted(opens)}}
 
+# The projectile (TODO #147): 236 + A / B / A+B, one special '236P' with the three presses as the variant table
+# (vocabulary variant.table: the row game.json roster[].variant['236P'] picks, latched at the move's start; else the
+# heaviest, A+B). Read from the ROM (handlers_whp.koryuuha: Hanzou's animations $100 / $101 / $102, the effect each
+# spawns at its step with command 9, the object's routine: speed 3 / 5.25 / 7.5 px, its def cycle, its two trailing
+# parts, its impact; the model is frame-identical to WHP, koryuuha_check). The program: the row's animation to its end;
+# the object spawned as the step with command 9 is entered (bchar_t.pfx), the shout (command 4 $A0) likewise
+# (bchar_t.pvox). The object: one entity whose frame is the main def with its parts at their place behind it (the
+# parts end with it at its hit, as in WHP); WHP's empty def every third frame (its flicker) keeps the def before (the
+# brawler's rule for WHP's flicker); rows until it is past any screen (the brawler's off-screen test ends it). Damage:
+# one hit, WHP's the same for the three (10 of 192 [meas]): the brawler's special damage for each row.
+KORYUUHA_REACH = 470                              # px: rows until the object is this far (off screen from any start)
+
+def koryuuha(B):
+    import handlers_whp as H
+    presses = list(H.KORYUUHA)
+    states, anims_d, objects, step_fx = [], {}, [], []
+    models = [H.koryuuha(p, frames=300) for p in presses]
+    for v, M in enumerate(models):
+        k = f'{v}:{M["anim"]:X}'; states.append(k)
+        st = anim_steps(B, M['anim'], 0, None)
+        for i, e in enumerate(M['steps']):
+            st[i]['voices'] = [int(a, 16) for c, a in e['cmds'] if c == 4]
+        st[-1]['ticks'] -= 1                      # the held last step: the program sees its end a frame after it (the
+                                                  # brawler's PF_END; export_ss2's rule): WHP's length, 47 / 46 / 47 frames
+        anims_d[k] = {'mode': 'hold', 'steps': st}
+        step_fx.append((v, M['spawn_step'], v))
+        o = M['object']; ab = whp.attack_boxes(o['box'])
+        rows, last, lastp = [], None, [None] * len(o['parts'])
+        for r in M['rows']:
+            if r['x'] > KORYUUHA_REACH: break
+            d = r['defw'] if r['defw'] != whp.BLANK else last; last = d
+            layers = [(d, 0, 0)]
+            for j, (pd, px) in enumerate(r['parts']):
+                if pd is None: continue
+                pd = pd if pd != whp.BLANK else lastp[j]; lastp[j] = pd
+                if pd is not None: layers.append((pd, round(px - r['x']), 0))
+            rows.append([B.frame_multi(layers), r['x'], r['y'], [1] + box_kof(*ab[0]), None])
+        end = [[B.frame(e['defw']), e['dx'], 0] for e in M['impact'] if e['defw'] != whp.BLANK]
+        objects.append({'kind': 1, 'rows': rows, 'loop': None, 'end': end, 'react': 'heavy', 'hit_kind': 1,
+                        'spawn_row': M['spawn_frame'], 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0,
+                        'travel': rows[-1][1], 'vx': o['vx'], 'name': 'KORYUUHA',
+                        'whp': {'effect': M['effect'], 'level': o['level'], 'box': o['box'], 'parts': [p['vx'] for p in o['parts']]}})
+    P = {'anim': 1, 'resume': 10, 'br': 9, 'end': 15}; PC_END = 0
+    prims = [[P['anim'], 0, (8 | 1 << 8), None], [P['resume'], 0, 0, 0], [P['br'], PC_END, -1, 0], [P['end'], 0, 0, 0]]
+    default = len(presses) - 1
+    # the script (Brawler Lab data, never played: prog_only) = the default row frame by frame
+    M = models[default]; st = anims_d[states[default]]['steps']
+    script, rb, rs = [], [], []
+    for i, s_ in enumerate(st):
+        for _ in range(s_['ticks'] + 1):
+            script.append([s_['frame'], 0, 0, []]); rb.append(s_['boxes']); rs.append([M['anim'], i, s_['flags'], 0xFF])
+    rom = {'states': states, 'anims': anims_d, 'prims': prims, 'objects': objects, 'openings': {}, 'step_fx': step_fx,
+           'hit_kind': 1, 'last_hit': -1, 'apex': -1, 'length': len(script), 'voice_frames': False,
+           'vtable': {'rows': [[8] for _ in presses], 'ncol': 1, 'nvar': len(presses), 'default': default, 'vanim': 1,
+                      'vobj': 1, 'vdmg': 1, 'buttons': presses, 'anims': [m_['anim'] for m_ in models],
+                      'speeds': [m_['object']['vx'] for m_ in models], 'spawn_frames': [m_['spawn_frame'] for m_ in models],
+                      'whp_damage': [10, 10, 10]}}
+    pj = [dict(objects[default], spawn_row=M['spawn_frame'])]
+    return {'input': '236P', 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
+            'marks': [''] * len(script), 'projectiles': pj, 'anims': [m_['anim'] for m_ in models],
+            'shape': [0, 0, True], 'game_hits': 1, 'rom': rom}
+
 def drawn_steps(cid, a):
     """an animation's steps that draw a def of their own (the held poses' step numbering)"""
     return [s for s in whp.steps_of(cid, a) if not s['ctrl'] and s['defw'] is not None]
@@ -406,7 +482,7 @@ def export(names, outdir, only=None, extra=None):
         for mv, (a, k) in (extra or {}).get(name, {}).items():   # held poses (export96's extra): the roster's watch, the
             st = drawn_steps(cid, a); k = k if k >= 0 else len(st) - 1   # lab's pose candidates: (animation, step; -1 = its last)
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': [step(B, st[k]['defw'], st[k]['ticks'])]}
-        sps = [special(B, inp, cap) for inp in SPECIALS] + [super_rising(B), fury(B, hero=True, inp='MAX ' + SR_INPUT)]
+        sps = [koryuuha(B)] + [special(B, inp, cap) for inp in SPECIALS] + [super_rising(B), fury(B, hero=True, inp='MAX ' + SR_INPUT)]
         assert len(B.pals) <= 8, f'{len(B.pals)} palettes (MAX_PALS 8)'
         sets = [[[0] + whp.palette(p)[1:] for p in [s] + B.pals[1:]] for s in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
