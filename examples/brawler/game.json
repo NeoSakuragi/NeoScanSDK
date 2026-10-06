@@ -176,7 +176,8 @@
    "fury": "WFT",
    "unlock": "always",
    "voices": "kof",
-   "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH", "236S": "SLASH", "623S": "SLASH", "214A": "SLASH"}
+   "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH", "236S": "SLASH", "623S": "SLASH", "214A": "SLASH"},
+   "variant": {"623S": "A"}
   },
   {
    "name": "genjuro",
@@ -187,7 +188,8 @@
    "fury": "WFT",
    "unlock": "always",
    "voices": "kof",
-   "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH", "236S": "SLASH", "623S": "SLASH", "WFT": "SLASH"}
+   "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH", "236S": "SLASH", "623S": "SLASH", "WFT": "SLASH"},
+   "variant": {"623S": "A"}
   },
   {
    "name": "hanzo",
