@@ -251,11 +251,16 @@ enough meter: the press does nothing. Enemies have no meter.
 | run + A | C+D | knockdown |
 | air A (A on hit: air C+D) / air ↓A / air ↑A | the jump kind's C / D / C+D air normal (see Jumps) | heavy / knockdown / knockdown |
 
-**Hold:** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it. A = down+C, then close D (3 damage each,
-landing on the move's attack frame); the third hit is always C+D, which knocks it down and ends the hold. Forward+A = the
-forward throw (KOF's forward+C), back+A = the reverse throw (KOF98's forward+D throw), 12 damage, played from its
-per-frame script; C = the special at once; after 90 frames it breaks free. The thrower can't be hit during a throw; a
-held enemy hit by someone else ends the hold.
+**Hold (TODO #146, Final Fight's rule):** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it; it is drawn
+behind the grabber from the catch to the release. A = a hold hit (the fighter's own blow, `bchar_t.holds`: game.json
+roster[].throws.hold, default close C, its startup squeezed to 3 frames; 3 damage), the third A the finisher (close D by
+default: knocks it down, the hold ends); a press during a hit is the next one. Every hit keeps the hold: the victim breaks
+free 90 frames after the grab or after the last hit ended, never during one (a held player may also mash 4 buttons,
+counted from the last hit). Forward+A = the forward throw (KOF's forward+C), back+A = the reverse throw (forward+D), at
+any time, 12 damage shared by its impacts (blows, the landing); C = the special at once. A throw is a paired script
+(below); the thrower acts again at its control return row, the victim flies on alone and lies down; from its release to
+its landing the thrown body knocks down every other enemy it touches (6 damage each, once, the throw's way). The
+thrower can't be hit during a throw; a held enemy hit by someone else ends the hold.
 
 Links chain only when the previous one hit: pressed during the move (remembered, the last press wins) or Final Fight
 style up to 30 frames after it ended (`CHAIN_WINDOW`: tap, wait, tap). A victim stays in hitstun 36 frames (light) / 54
@@ -298,8 +303,9 @@ the fighter's speed (8.8; 0x0100 = KOF) is added at the start of its update and 
 0.25-4x); an active step is never skipped (an advance stops on it: shown, its box checked; hit-stop is not scaled), so a
 faster move lands the same hits (2x / 4x = 1x on Terry's close C, forward+A, Ralf's specials: `speed_proof.py hits`).
 Scripts use the same mechanism, one row a frame at 1x (`f->srow` + `f->acc`): specials (a route ender plays at its node's
-speed; a live row and the continuation point are never skipped; passed spawn rows still spawn) and throws (`bthrow_t.speed`
-= 1.5x for every throw: the same rows on the same frames as before, passed impact rows still land).
+speed; a live row and the continuation point are never skipped; passed spawn rows still spawn) and throws (`bthrow_t.speed`,
+per throw in data: game.json roster[].throws.speed; 1x for the throws read from the ROM, the captured scripts of the rest of
+the roster keep 1.5x until their pass; passed impact rows still land).
 
 ## Jumps (KOF's two heights, measured 2026-10-04)
 (The jump button is B since TODO #71; this section's measurements say C, the button then.)

@@ -112,7 +112,7 @@ THROW_SPEED, CAPTURED_THROW_SPEED = 0x100, 0x180
 # game has them (at most HOLD_TAIL frames), the held victim reeling from the blow
 HOLDS = ['hit', 'fin']
 HOLD_DEFAULT = {'hit': 'atk_c_close', 'fin': 'atk_d_close'}
-HOLD_STARTUP, HOLD_TAIL = 3, 14
+HOLD_STARTUP, HOLD_TAIL, HOLD_DX = 3, 14, 40
 
 def build(specs, outdir):
     """one export per game (the whole roster of that game at once, so every fighter has the frames of every victim
@@ -798,11 +798,14 @@ def throw_rows(game, n, th, pkeys, front=None):
     nn = lambda x: 0xFFFF if x is None else x
     return out, {'ret': min(ret, nrows), 'rel': nn(rel), 'land': nn(land)}
 
-def hold_rows(ch, n, game, k, move, pkeys):
+def hold_rows(ch, n, game, k, move, pkeys, dx=None):
     """a hold hit (k 'hit', or 'fin' the finisher) as a paired script: the fighter's own `move` (a normal, its frames),
     its startup squeezed to HOLD_STARTUP frames (the last poses before the active step, 1 + 2 frames), the active step
     (impact on its first frame) and what follows, at most HOLD_TAIL frames; the victim held in the throw's grab pose
-    (forward+C row 0) until the blow, then reeling (BA_HIT_STAND_LIGHT; the finisher knocks it down: fighter.c)"""
+    (forward+C row 0) until the blow, then reeling (BA_HIT_STAND_LIGHT; the finisher knocks it down: fighter.c), dx px
+    in front (game.json roster[].throws.hold.dx; default the throw's row 0, at most HOLD_DX: in contact, Final Fight);
+    the first row's victim is also the hold's own pose (fighter.c grab)"""
+    dx = HOLD_DX if dx is None else dx
     a = source(ch, move); steps = a['steps']
     act, live = None, None                             # its first active step (the normals' rule: $0100 with a box loaded)
     for j, s_ in enumerate(steps):
@@ -816,8 +819,8 @@ def hold_rows(ch, n, game, k, move, pkeys):
     th = ch.get('throws', {}).get('throw_c')
     if th:
         r0 = (th['victims'].get(n) or next(iter(th['victims'].values())))[0]
-        v = vocab(game, r0[5]); held = (pkeys.index(v) if r0[0] is not None and r0[0] >= 0 and v in pkeys else 255, r0[1], r0[2], r0[3])
-    else: held = (255, 48, 0, 0)
+        v = vocab(game, r0[5]); held = (pkeys.index(v) if r0[0] is not None and r0[0] >= 0 and v in pkeys else 255, min(r0[1], dx), r0[2], r0[3])
+    else: held = (255, dx, 0, 0)
     rows = []
     for fr, d in pre:
         for _ in range(d): rows.append(f'{{{fr}, 0, 0, {held[0]}, {held[3]}, {held[1]}, {held[2]}}}')
@@ -979,7 +982,7 @@ def write_c(chars, outdir):
         c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(thr) + '};')
         hl = []
         for k in HOLDS:
-            out = hold_rows(ch, n, game, k, (tdata.get('hold') or {}).get(k, HOLD_DEFAULT[k]), pkeys)
+            out = hold_rows(ch, n, game, k, (tdata.get('hold') or {}).get(k, HOLD_DEFAULT[k]), pkeys, (tdata.get('hold') or {}).get('dx'))
             c.append(f'static const bthrow_row_t {n}_hold_{k}[] = {{' + ', '.join(out) + '};')
             hl.append(f'{{{len(out)}, 0x100, {n}_hold_{k}, {len(out)}, 0xFFFF, 0xFFFF, 0}}')
         c.append(f'static const bthrow_t {n}_holds[{len(HOLDS)}] = {{' + ', '.join(hl) + '};')

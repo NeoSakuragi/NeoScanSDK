@@ -254,7 +254,8 @@ typedef struct fighter {
                                    * landed a hit (its own or its projectile's) = a fury may cancel it */
     const bthrow_t *thr;          /* a thrown victim's paired script (TODO #146): it plays its rows itself once its */
     struct fighter *thr_by;       /* thrower let go (fighter.c thrown_update); thr_by: who threw it (or holds it: a */
-    uint8_t  thr_skip, pad_thr;   /* hold hit); thr_skip: the frame of the hand-over, its update came after the thrower's */
+    uint8_t  thr_skip, pad_thr;   /* hold hit); thr_skip: the frame of the hand-over, its update came after the thrower's; */
+    uint32_t thr_pos;             /* thr_pos: its place in the script alone, 8.8 rows (acc is its animation's: its flight plays one) */
 } fighter_t;
 
 

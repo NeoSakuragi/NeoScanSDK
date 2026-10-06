@@ -439,12 +439,12 @@ static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r
     place_at(v, a->x + dir_mul(face, FIX(r->vx)), a->y, a->z, face, r);   /* thrower's facing the offsets are in */
 }
 static void grab(fighter_t *a, fighter_t *v) {
-    const bthrow_row_t *r = a->ch->throws[BT_THROW_C].rows;
-    enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1;
+    const bthrow_row_t *r = a->ch->throws[BT_THROW_C].rows, *h = a->ch->holds[0].rows;   /* the thrower's grab pose, */
+    enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0;
     a->frame_ovr = r->tframe; snd_sfx(SFX_GRAB);                 /* KOF98's grab start (TODO #75) */
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0; v->thr = 0;   /* victim: presses mashed */
-    show_pose(v, r); place_victim(a, v, r, a->facing);
+    show_pose(v, h); place_victim(a, v, h, a->facing);           /* the victim's: the hold hit's first row */
 }
 static void release(fighter_t *a) {                              /* both free where they stand */
     fighter_t *v = a->held;
@@ -525,7 +525,7 @@ static uint8_t paired_update(fighter_t *f) {
             f->held = 0; v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);   /* is over */
             snd_sfx(hit_sound(f, BA_ATK_D_CLOSE, 1)); fighter_hit(f, v, NODE(f, TREE(f)->hold)->damage, R_KNOCKDOWN, 0);
             v = 0; enter(f, S_THROW);                            /* its follow-through plays on (srow kept) */
-        } else if (i >= th->nrows) { victim_end(v); f->held = 0; v = 0; }
+        } else if (i >= th->nrows && f->throw_id < BT_COUNT) { victim_end(v); f->held = 0; v = 0; }   /* (a hold hit: held on) */
     }
     if (i >= th->ret) return 0;
     r = &th->rows[i];
@@ -546,6 +546,7 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
     v->srow = 0; v->speed = th->speed; v->hit_mask = 0; v->grab_hits = 0; v->throw_dealt = 0; v->thr_skip = 0;
     for (i = 0; i < th->nrows; i++) if (th->rows[i].flags & 4) v->grab_hits++;   /* its impacts share the throw's damage */
     if (f->team) stat_throws++;
+    paired_update(f);                                            /* its first row now */
 }
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
@@ -565,18 +566,19 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D);   /* any time (a hold hit playing too) */
         return;
     }
-    if (f->srow) {                                               /* a hold hit playing (its paired script) */
+    if (f->srow) {                                               /* a hold hit playing (its paired script): an A now */
+        if (in->press & IN_A) f->buffered = 1;                   /* is the next hit, as soon as this one ends */
         if (paired_update(f)) return;
         if (f->state != S_GRAB) {                                /* the finisher's follow-through ended: free */
             f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->srow = 0; to_neutral(f, 0); return;
         }
         f->srow = 0; f->state_t = 0;                             /* back to the hold; the escape time starts again */
         f->x = f->throw_x0; f->y = 0; f->facing = f->throw_face;
-        f->frame_ovr = r->tframe; show_pose(v, r); place_victim(f, v, r, f->facing);
-        return;
+        f->frame_ovr = r->tframe; show_pose(v, f->ch->holds[0].rows); place_victim(f, v, f->ch->holds[0].rows, f->facing);
+        if (!f->buffered) return;
     }
-    if ((in->press & IN_A) && f->grab_hits < GRAB_HITS) {        /* A: a hold hit, the third the finisher */
-        f->grab_hits++;
+    if (((in->press & IN_A) || f->buffered) && f->grab_hits < GRAB_HITS) {   /* A: a hold hit, the third the finisher */
+        f->buffered = 0; f->grab_hits++;
         f->throw_id = f->grab_hits >= GRAB_HITS ? BT_HOLD_FIN : BT_HOLD_HIT;
         f->throw_x0 = f->x; f->throw_face = f->facing; f->speed = thr_of(f, f->throw_id)->speed;
         v->throw_id = f->throw_id; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
@@ -592,7 +594,7 @@ static void throw_update(fighter_t *f) {
     fighter_t *v = f->held;
     if (paired_update(f)) return;
     if (f->held == v && v && v->held == f) {                     /* its part goes on (thrown_update): row, time, speed */
-        v->held = 0; v->srow = f->srow; v->acc = f->acc; v->speed = f->speed;
+        v->held = 0; v->thr_pos = ((uint32_t)(f->srow - 1) << 8) + f->acc; v->speed = f->speed;
         v->thr_skip = v->idx > f->idx;                           /* it updates later this frame: not twice */
     }
     f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->srow = 0; clamp(f); to_neutral(f, 0);
@@ -603,7 +605,8 @@ static void thrown_update(fighter_t *v) {                        /* a thrown vic
     uint16_t j, i;
     if (!th || v->held) return;                                  /* its thrower plays it */
     if (v->thr_skip) { v->thr_skip = 0; return; }
-    j = script_advance(v, th->nrows, 0); i = v->srow - 1;
+    j = v->srow; v->thr_pos += th->speed; i = v->thr_pos >> 8;   /* (v->srow: the row shown + 1, victim_rows) */
+    if (j > i) return;
     victim_rows(v, th, j, i);
     if (i >= th->nrows) { victim_end(v); return; }
     r = &th->rows[i];
@@ -1144,7 +1147,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     }
     f->state_t++;
     f->pushing = 0;
-    if (f->state != S_SPECIAL && f->state != S_THROW) anim_tick(f);   /* this frame's time first (see the animation player);
+    if (f->state != S_SPECIAL && f->state != S_THROW && f->state != S_GRAB) anim_tick(f);   /* this frame's time first (see the animation player);
                                                                     a script (special, throw) keeps its own in acc */
     switch (f->state) {
     case S_IDLE: case S_WALK: case S_RUN: {
