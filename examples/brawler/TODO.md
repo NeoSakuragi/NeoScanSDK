@@ -484,7 +484,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (data override only where a throw needs it in front); (7) NO RECORDED THROWS: today the thrower's timeline and the
   approach / post-release flight are captured on Yuri (tools/kof96/throwscripts96.py), only the victim's list phase
   comes from the ROM throw tables (throwtables96.py): decode the throw handlers' code + tables (handlers98 style) and
-  express each throw through the paired script; captures only for analysis and the fidelity proof.
+  express each throw through the paired script; captures only for analysis and the fidelity proof. PILOT FIRST
+  (Bruno): Geese Howard and Terry only, made perfect and reviewed by Bruno, then the rest of the roster. (8) CONTROL
+  RETURN POINT, chosen from the decoded code, not a fixed rule: per throw, find where the thrower is really done (the
+  ROM's own release / "can act" transition, the last impact, the victim's landing) and give control back at the
+  earliest step after the last impact where the thrower's follow-through is complete, so the action isn't chopped
+  (no mid-pose cut) and no dead idle tail either; list the chosen frame per throw in its conversion sheet.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
