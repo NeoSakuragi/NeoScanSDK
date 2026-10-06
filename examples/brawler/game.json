@@ -215,7 +215,7 @@
   {
    "name": "kim",
    "bank": "kizuna:kim",
-   "watch": {"frame": 33, "step": -1},
+   "watch": {"frame": 55, "step": 11},
    "routes": "tools/brawler/routes/kim.json",
    "specials": {"D": "214B", "fD": "236C", "dD": "[2]8C", "uD": "421A", "dfD": "236A", "ufD": null},
    "fury": "6246A",
