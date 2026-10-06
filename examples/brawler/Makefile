@@ -61,6 +61,9 @@ $(BUILD)/%.o: %.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUIL
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/main.o: main.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+	$(CC) $(CFLAGS) -c $< -o $@
+	m68k-linux-gnu-objcopy --rename-section .rodata=.p2data.main $@   # main's tables (stage art, HUD: ~60 KB) -> $$200000: the first MB is full
 $(BUILD)/bm_chars.o: $(BUILD)/bm_chars.c
 	$(CC) $(CFLAGS) -c $< -o $@
 	m68k-linux-gnu-objcopy --rename-section .rodata=.p2data --rename-section .rodata.str1.1=.p2data.str $@   # tables -> $$200000
