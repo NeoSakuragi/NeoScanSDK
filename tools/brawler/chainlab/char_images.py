@@ -101,8 +101,12 @@ HELD = {'kizuna': _held_kz, 'doubledr': _held_dd}
 
 
 def pose_candidates(roster, out, tmp):
-    """roster: game.json's roster -> {fighter: {sheet, h, tiles: [{x, w, poses: [[state, step]...]}], current: tile}}"""
+    """roster: game.json's roster -> {fighter: {sheet, h, tiles: [{x, w, poses: [[state, step]...]}], current: tile,
+    ix: [{poses, frame, head}] (the Select screen tab: each frame as palette indices facing left, select_images.left_frame,
+    its head point, head_point.py), pals: the export's colour set 0 (words)}}"""
     import export96, export_ss4, export_whp
+    from select_images import left_frame
+    import head_point as HP
     os.makedirs(os.path.join(out, 'chars'), exist_ok=True)
     index = {}
     for r in roster:
@@ -125,7 +129,7 @@ def pose_candidates(roster, out, tmp):
             cr = np.empty(len(c1) * 2, np.uint8); cr[0::2] = c1; cr[1::2] = c2
         rom = Rom.__new__(Rom); rom.c = cr                           # its tile decoder over the export's own C data
         pals = [w for p in ch['block_palettes'][0] for w in p]
-        tiles, by_frame, pics = [], {}, []
+        tiles, by_frame, pics, ix = [], {}, [], []
         for key, (st, step) in sorted(want.items(), key=lambda kv: (kv[1][0], kv[1][1] if kv[1][1] >= 0 else 999)):
             a = ch['anims'].get(key)
             if not a: continue
@@ -140,11 +144,15 @@ def pose_candidates(roster, out, tmp):
             if res is None: continue
             by_frame[fi] = len(tiles); tiles.append({'poses': [pose], 'frame': fr.get('record')})
             pics.append((len(tiles) - 1, colours(res[0], pals), res[1], res[2]))
+            try: head = list(HP.head_of(HP.pens(ch, cr.tobytes(), fi)))
+            except IndexError: head = None             # past head_point's picture: export_bm could not place its arrow
+            ix.append({'poses': tiles[-1]['poses'], 'head': head,
+                       'frame': left_frame([(p['dx'], p['dy'], p['hflip'], p['vflip'], p.get('pal', 0), p['tiles'], None) for p in fr['parts']], rom.tile)})
         idx, H = sheet(pics, os.path.join(out, 'chars', f'pose_{rn}.png'))
         for k, t in enumerate(tiles): t['x'], t['w'] = idx[k]
         norm = [cur[0], -1 if cur[0] in have and cur[1] in (-1, have[cur[0]] - 1) else cur[1]]
         curk = next((k for k, t in enumerate(tiles) if norm in t['poses']), None)
-        index[rn] = {'sheet': f'chars/pose_{rn}.png', 'h': H, 'tiles': tiles, 'current': curk, 'states': have}
+        index[rn] = {'sheet': f'chars/pose_{rn}.png', 'h': H, 'tiles': tiles, 'current': curk, 'states': have, 'ix': ix, 'pals': pals}
     return index
 
 

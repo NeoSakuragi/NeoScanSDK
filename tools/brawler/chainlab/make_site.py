@@ -60,10 +60,14 @@ json.dump(en, open(os.path.join(out, 'enemies.json'), 'w'))
 # the Characters tab: the roster (game.json form, select slots), each fighter's pool of specials with its frame / hit
 # data (chainlab.json 'pool', export_bm.special_info) and the auto-suggestion; pictures rendered here (char_images.py):
 # select-pose candidates in colour, the select pose in every colour set, each special's impact / projectile frames
-import char_images
-chars = {'roster': G['roster'], 'slots': G['select']['slots'], 'stages': len(G['stages']),
+import char_images, copy, select_images
+SL = build_tables.select_layout(G)              # the select screen (game.json select_layout, else the first layout)
+eff = copy.deepcopy(G['roster'])                # the roster with the select poses the build exports (its watch)
+for r in eff: r['watch'] = dict(r['watch'], frame=build_tables.watch_of(G, r)[0][0], step=build_tables.watch_of(G, r)[0][1])
+poses = char_images.pose_candidates(eff, out, os.path.join('/data/tmp/chainlab', 'tmp_poses'))
+chars = {'roster': G['roster'], 'slots': sorted(SL, key=lambda n: SL[n]['slot']), 'stages': len(G['stages']),
          'pool': {f['name']: f['pool'] for f in lab['fighters']}, 'suggest': {f['name']: f['suggest'] for f in lab['fighters']},
-         'poses': char_images.pose_candidates(G['roster'], out, os.path.join('/data/tmp/chainlab', 'tmp_poses')),
+         'poses': {n: {k: v for k, v in p.items() if k not in ('ix', 'pals')} for n, p in poses.items()},
          'sets': char_images.colour_sets(game, out, [r['name'] for r in G['roster']]),
          'specpics': char_images.special_images(game, out, lab['fighters']),
          'boss_of': [s_['boss']['enemy'] for s_ in G['stages']]}
@@ -88,5 +92,8 @@ for f in lab['fighters']:
     chars['voices'][n] = dict(f['voices'], game=f['game'], list=[{'id': vo['id'], 'cmd': vo['cmd'], 'ms': vo['ms'], 'what': what(vo, f['voices']['suggest'])} for vo in vl],
                               inrom=sorted(int(i) for i, c in srep['fighters'].get(n, {}).get('codes', {}).items() if c))
 json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
-for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'fbreplay.js', 'feedback.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+# the Select screen tab: the build's select screen as data (select_images.py: the ROM's pictures, the fix layer from our
+# emulator, the pose candidates above as palette indices) for selectrender.js
+json.dump(select_images.select_data(game, poses), open(os.path.join(out, 'select.json'), 'w'))
+for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)

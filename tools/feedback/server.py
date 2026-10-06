@@ -41,6 +41,10 @@ localhost: tools/feedback/fb.py, pull.py):
   POST /api/scenario_state {id, rom_sha, keys, version, state_sha256}   scenario.py, after the rsync of the states
   GET  /api/scenario/<id>/<sha>/<file>       a state / the proof clip; GET /api/attempt/<aid>/<name> a test attempt's replay
   POST /api/test {id, result, rom_sha?, game_version?, system?, note?}  a test attempt in the Lab (up / down set the status)
+  GET  /api/select_layout                    the select screen layout Bruno saved in the Lab's Select screen tab (404: none)
+  POST /api/select_layout {layout, game_version?}   saved as DATA/select_layout.json (the one before it kept in
+                                             DATA/select_layout/<time>.json); tools/brawler/select_layout.py pulls it
+                                             into game.json "select_layout" 
   POST /api/event {id, kind, at, text, ref, todo?, fix_commit?}         a timeline event (backfill_history.py; idempotent)
 Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
@@ -493,6 +497,9 @@ class H(http.server.BaseHTTPRequestHandler):
             if len(parts) == 2 and parts[0] == 'scenario' and ID.match(parts[1]):
                 return self.reply(200, {'id': parts[1], 'recipe': scenario(c, parts[1]), 'states': [row_dict(x) for x in c.execute(
                     'SELECT * FROM scenario_states WHERE feedback_id=? ORDER BY created', (parts[1],))]})
+        if parts == ['select_layout']:
+            p = os.path.join(DATA, 'select_layout.json')
+            return self.reply(200, body=open(p, 'rb').read()) if os.path.exists(p) else self.reply(404, {'error': 'no layout saved'})
         if len(parts) == 2 and parts[0] == 'rom' and SHA.match(parts[1]):
             p = os.path.join(ROMS, parts[1] + '.neo.gz')
             if not os.path.exists(p): return self.reply(404, {'error': 'build not archived'})
@@ -694,7 +701,32 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/api/scenario_state': return self.change(self.add_state)
         if self.path == '/api/event': return self.change(self.add_event)
         if self.path == '/api/test': return self.change(self.lab_test)
+        if self.path == '/api/select_layout': return self.save_layout()
         self.reply(404, {'error': 'not found'})
+
+    def save_layout(self):
+        """the Lab's Select screen tab: {layout: {fighter: {x, y, z, facing, pose, slot}}, game_version?} (build_tables.py
+        select_layout checks it fully when select_layout.py pulls it; here only its shape)"""
+        b = self.body(1 << 16)
+        try: req = json.loads(b or b'')
+        except ValueError: return self.reply(400, {'error': 'json'})
+        L = req.get('layout') if isinstance(req, dict) else None
+        ok = isinstance(L, dict) and 0 < len(L) <= 64 and all(
+            isinstance(k, str) and re.match(r'^[a-z0-9_]{1,24}$', k) and isinstance(v, dict) and set(v) == {'x', 'y', 'z', 'facing', 'pose', 'slot'}
+            and all(isinstance(v[f], int) for f in ('x', 'y', 'z', 'slot')) and v['facing'] in ('left', 'right')
+            and isinstance(v['pose'], list) and len(v['pose']) == 2 and all(isinstance(x, int) for x in v['pose']) for k, v in L.items())
+        if not ok: return self.reply(400, {'error': 'layout: {fighter: {x, y, z, facing, pose, slot}}'})
+        doc = {'layout': L, 'saved': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'by': account(self.headers) or 'ssh',
+               'game_version': str(req.get('game_version', ''))[:20]}
+        with lock:
+            p = os.path.join(DATA, 'select_layout.json')
+            if os.path.exists(p):
+                h = os.path.join(DATA, 'select_layout'); os.makedirs(h, exist_ok=True)
+                os.replace(p, os.path.join(h, time.strftime('%Y%m%d-%H%M%S', time.gmtime()) + '.json'))
+            with open(p + '.tmp', 'w') as f: json.dump(doc, f, indent=1)
+            os.replace(p + '.tmp', p)
+        log('select layout saved by', doc['by'], len(L), 'fighters')
+        self.reply(200, {'ok': True, 'saved': doc['saved'], 'by': doc['by']})
 
     def transcribe(self):
         user = self.player(legacy=True)

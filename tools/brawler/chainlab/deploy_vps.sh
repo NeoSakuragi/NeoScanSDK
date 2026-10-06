@@ -15,7 +15,7 @@ GEO=${GEOLITH:-$HOME/CLProjects/geolith}
 [ -f "$SITE/core.wasm" ] && [ "$SITE/core.wasm" -nt "$HERE/web_core.c" ] && [ -z "$(find "$GEO/src" "$GEO/libretro" -name '*.[ch]' -newer "$SITE/core.wasm" | head -1)" ] \
   || "$HERE/build_wasm.sh" "$SITE"
 python3 "$HERE/make_site.py" "$SITE" "$GAME"
-for f in game.neo core.wasm core.js chainlab.json enemies.json chars.json; do gzip -9 -k -f "$SITE/$f"; done
+for f in game.neo core.wasm core.js chainlab.json enemies.json chars.json select.json; do gzip -9 -k -f "$SITE/$f"; done
 ssh $HOST 'mkdir -p /data/brawler-lab && test -f /data/brawler-lab/login.html || cp /var/www/kanji/jlpt/login.html /data/brawler-lab/login.html'
 rsync -a --exclude login.html "$SITE/" $HOST:/data/brawler-lab/
 echo "deployed: https://canneji.duckdns.org/brawler-lab/ (Oros login)"

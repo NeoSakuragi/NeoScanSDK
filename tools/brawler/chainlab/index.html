@@ -198,6 +198,32 @@ table.ai td.mk { white-space: nowrap; font-size: 12px; }
 table.ai th.grp { background: var(--soft); border-top: var(--line); }
 table.ai .sl { display: inline-flex; gap: 4px; align-items: center; }
 #charcol { padding: 12px 16px; min-width: 0; }
+#selcol { padding: 12px 16px; min-width: 0; grid-column: 1 / -1; }
+#selcol .box { border: var(--line); margin: 10px 0; }
+#selcol .box > h2 { font-size: 15px; margin: 0; padding: 6px 8px; border-bottom: var(--line); display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+#selcol .box > h2 .sp { flex: 1; }
+#selcol .in { padding: 8px; }
+#selcol select, #selcol input { min-height: 30px; padding: 1px 4px; font-size: 14px; border-width: 1px; }
+#selStage { display: flex; align-items: flex-start; overflow-x: auto; margin: 6px 0; }
+#selView { display: block; image-rendering: pixelated; image-rendering: crisp-edges; border: var(--line); touch-action: none; cursor: grab; outline: none; }
+#selView:focus { border-width: 3px; }
+#selLines { display: block; border: var(--line); border-left: none; }
+#selWorst { font-size: 15px; margin: 4px 0; }
+#selWorst .warn, #selcol .warn { font-weight: 700; border: 2px solid #000; padding: 0 4px; }
+#selcol .poses { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; margin-top: 6px; }
+#selcol button.pose { display: flex; flex-direction: column; align-items: center; gap: 2px; font-weight: 400; font-size: 12px; background: var(--paper); color: var(--ink); border-width: 1px; padding: 4px; }
+#selcol button.pose.cur { border-width: 5px; padding: 0; }
+#selcol button.pose canvas { image-rendering: pixelated; }
+#selcol ol.slots { margin: 0; padding: 6px 8px 6px 34px; columns: 2 300px; column-gap: 24px; }
+#selcol ol.slots li { display: flex; gap: 6px; align-items: center; border: var(--thin); margin: 0 0 -1px; padding: 2px 4px; break-inside: avoid; background: var(--paper); }
+#selcol ol.slots li.on .nm { font-weight: 700; text-decoration: underline; }
+#selcol ol.slots li.cur .nm::after { content: "  ◀ cursor"; font-weight: 400; }
+#selcol ol.slots li.drop { border-top: 4px solid #000; }
+#selcol ol.slots li .grip { cursor: grab; font-weight: 700; }
+#selcol ol.slots li .nm { cursor: pointer; }
+#selcol ol.slots li .sp { flex: 1; }
+#selcol ol.slots li button { min-height: 26px; padding: 0 8px; border-width: 1px; }
+#selcol table.sp tr.over td { font-weight: 700; }
 #charcol .box { border: var(--line); margin: 10px 0; }
 #charcol .box > h2 { font-size: 15px; margin: 0; padding: 6px 8px; border-bottom: var(--line); display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
 #charcol .box > h2 .sp { flex: 1; }
@@ -238,7 +264,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <body>
 <header>
   <h1>Brawler Lab</h1>
-  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabFeedback">Feedback</button></nav>
+  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabSelect">Select screen</button><button id="tabFeedback">Feedback</button></nav>
   <span id="clhead" class="row" style="margin:0">
   <label>Fighter <select id="fighter"></select></label>
   <label>Dummy <select id="dummy"></select></label>
@@ -300,6 +326,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
   <section id="stagecol" hidden></section>
   <section id="enemycol" hidden></section>
   <section id="charcol" hidden></section>
+  <section id="selcol" hidden></section>
   <section id="fbcol" hidden></section>
 </main>
 <script src="lab.js"></script>
@@ -310,6 +337,8 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <script src="enemypack.js"></script>
 <script src="enemies.js"></script>
 <script src="characters.js"></script>
+<script src="selectrender.js"></script>
+<script src="selectscreen.js"></script>
 <script src="fbreplay.js"></script>
 <script src="feedback.js"></script>
 </body>

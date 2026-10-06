@@ -50,9 +50,50 @@ def roster_names(g): return [r['name'] for r in g['roster']]
 def chars(g): return [r['bank'] for r in g['roster']]
 
 
+SELECT_FLOOR = 158                                       # main.c: the select screen's floor (legacy slots: feet at it + z)
+
+
+def select_layout(g):
+    """the select screen's group photo: {fighter: {x, y, z, facing, pose, slot}} for every selectable roster fighter (the
+    Brawler Lab's Select screen tab writes it, tools/brawler/select_layout.py pulls it into game.json "select_layout"):
+    x, y its feet on the screen (px, the 320 px LSPC line: a TV shows x 8-311), z its draw order (0 = the back, drawn
+    first), facing 'left' (the ROM sprites') or 'right', pose [frame, step] its select pose (export_bm 'watch': a KOF
+    state and its step, -1 = the last), slot its place in the stick's order (left / right step through it).
+    No block: the first layout (game.json select.slots: rows, x / z, facing the middle, the roster's watch poses, drawn
+    back row first, a row in slot order; the stick's order = the slots' order)."""
+    names = [r['name'] for r in g['roster'] if r.get('selectable', True)]
+    if 'select_layout' in g:
+        L = g['select_layout']
+    else:
+        slots = [s for s in g['select']['slots'] if s.get('fighter')]
+        watch = {r['name']: r['watch'] for r in g['roster']}
+        rank = {s['fighter']: k for k, s in enumerate(sorted(slots, key=lambda s: s['z']))}   # sorted() is stable: slot order in a row
+        L = {s['fighter']: {'x': s['x'], 'y': SELECT_FLOOR + s['z'], 'z': rank[s['fighter']], 'facing': 'right' if s['x'] < 160 else 'left',
+                            'pose': [watch[s['fighter']]['frame'], watch[s['fighter']]['step']], 'slot': k} for k, s in enumerate(slots)}
+        L = {n: L[n] for n in names if n in L}
+    assert sorted(L) == sorted(names), f'select_layout: every selectable roster fighter exactly once (missing {set(names) - set(L)}, extra {set(L) - set(names)})'
+    assert len(L) <= MAX_SLOTS, f'select_layout: {len(L)} fighters, {MAX_SLOTS} actors at most (main.c NA)'
+    for k in ('z', 'slot'):
+        assert sorted(v[k] for v in L.values()) == list(range(len(L))), f'select_layout: {k} must number the fighters 0..{len(L) - 1} once each'
+    for n, v in L.items():
+        assert set(v) == {'x', 'y', 'z', 'facing', 'pose', 'slot'}, f'select_layout {n}: fields {sorted(v)}'
+        assert -64 <= v['x'] <= 383 and 0 <= v['y'] <= 300 and v['facing'] in ('left', 'right'), f'select_layout {n}: {v}'
+        assert len(v['pose']) == 2 and all(isinstance(x, int) for x in v['pose']), f'select_layout {n}: pose {v["pose"]}'
+    return L
+
+
+def watch_of(g, r):
+    """a roster fighter's select pose [frame, step] and its head point (None: head_point.py finds it): the select layout's
+    pose; roster[].watch.head (a hand-set point) only while the pose is the one it was set for"""
+    w = [r['watch']['frame'], r['watch']['step']]
+    L = select_layout(g) if r.get('selectable', True) else {}
+    pose = L[r['name']]['pose'] if r['name'] in L else w
+    return list(pose), (r['watch'].get('head') if list(pose) == w else None)
+
+
 def roster_export(g):
     """what the fighter export (export_bm.py) needs of each roster fighter, in bm_chars order"""
-    return [{'bank': r['bank'], 'name': r['name'], 'watch': [r['watch']['frame'], r['watch']['step']], 'head': r['watch'].get('head'),
+    return [{'bank': r['bank'], 'name': r['name'], 'watch': watch_of(g, r)[0], 'head': watch_of(g, r)[1],
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
@@ -324,7 +365,7 @@ def tables(g, build):
          f'#define GS_COUNT {len(g["stages"])}            /* campaign stages */',
          f'#define EN_COUNT {len(M["enemies"])}', f'#define AI_COUNT {len(M["ai"])}            /* the presets, then the enemies\' own rows */',
          f'#define TINT_COUNT {len(M["tints"])}',
-         f'#define SEL_NSLOT {len(g["select"]["slots"])}',
+         f'#define SEL_NSLOT {len(select_layout(g))}',
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
          f'#define GAME_MUS_CONTINUE MUS_{g["music"].get("continue", g["music"]["clear"])}',
          f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}',
@@ -403,12 +444,10 @@ def tables(g, build):
              ' };   /* each roster fighter\'s big portrait (game.json portraits, by its name), 0xFF none */')
     c.append('const gdrama_t gdramas[DR_COUNT ? DR_COUNT : 1] = {\n' + ('\n'.join(drows) if drows else '    { 0 }') + '\n};')
     names = M['names']; idx = {n: i for i, n in enumerate(names)}
-    slots = g['select']['slots']
-    sel = [i for i, r in enumerate(g['roster']) if r.get('selectable', True)]   # (a form link's target: no slot)
-    assert len(slots) <= MAX_SLOTS and sorted(idx[s['fighter']] for s in slots if s.get('fighter')) == sel, \
-        'select: every selectable roster fighter in exactly one slot'
-    c.append('const sel_slot_t SEL_SLOT[SEL_NSLOT] = {\n    ' + ', '.join(f'{{ {s["x"]}, {s["z"]}, {s["row"]} }}' for s in slots) + '\n};')
-    c.append('const uint8_t sel_fighter[SEL_NSLOT] = { ' + ', '.join(str(idx[s['fighter']]) if s.get('fighter') else '0xFF' for s in slots) + ' };')
+    L = select_layout(g); slots = sorted(L, key=lambda n: L[n]['slot'])          # the stick's order (a form link's target: no slot)
+    c.append('const sel_slot_t SEL_SLOT[SEL_NSLOT] = {   /* game.json select_layout: x, y (feet), z (draw order), face */\n    ' + '\n    '.join(
+        f'{{ {L[n]["x"]}, {L[n]["y"]}, {L[n]["z"]}, {1 if L[n]["facing"] == "right" else -1} }},   /* {n} */' for n in slots) + '\n};')
+    c.append('const uint8_t sel_fighter[SEL_NSLOT] = { ' + ', '.join(str(idx[n]) for n in slots) + ' };')
     unl = []
     for r in g['roster']:
         u = r.get('unlock', 'always')

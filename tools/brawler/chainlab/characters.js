@@ -108,7 +108,7 @@
   }
 
   // ---- render ---------------------------------------------------------------------------------------------------------
-  const order = X.slots.map((s, k) => [s, k]).sort((a, b) => a[0].row - b[0].row || a[0].x - b[0].x);
+  const order = X.slots.map((n, k) => [{ fighter: n }, k]);   // the select screen's stick order (make_site: build_tables.select_layout)
   function render() {
     if (window.labTabName !== 'chars') return;
     const r = roster[ci], o = ORIG[ci], game = r.bank.split(':')[0], name = r.name;

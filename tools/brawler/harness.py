@@ -224,24 +224,24 @@ class Brawler:
         sum is not updated, so it lasts until the next power-on)"""
         if 'save' in self.syms: self.w(self.syms['save'] + 7, 1, 0xFF)
     def sel_slots(self):
-        """the select screen's slot table (main.c SEL_SLOT, P ROM): [(x, z, row)], read from the .neo (P word-swapped)"""
+        """the select screen's slot table (main.c SEL_SLOT, P ROM, in the stick's order): [(x, y, z, face)], read from the
+        .neo (P word-swapped)"""
         if not hasattr(self, '_slots'):
             d = open(self.rom, 'rb').read(); a = 0x1000 + self.syms['SEL_SLOT']; out = []
             for i in range(self.nslot):
-                w = d[a + 4 * i:a + 4 * i + 4]; w = bytes([w[1], w[0], w[3], w[2]])
-                out.append((struct.unpack('>h', w[:2])[0], w[2], w[3]))
+                w = d[a + 6 * i:a + 6 * i + 6]; w = bytes([w[1], w[0], w[3], w[2], w[5], w[4]])
+                out.append(struct.unpack('>hhBb', w))
             self._slots = out
         return self._slots
     def sel_goto(self, k, p=0):
-        """on the select screen: move player p's cursor to fighter k (bm_chars index) with the stick, row first
-        (up = the row behind), then left / right; returns the slot"""
-        slots = self.sel_slots(); sc = [self.r(self.syms['slot_ch'] + i, 1) for i in range(self.nslot)]
+        """on the select screen: move player p's cursor to fighter k (bm_chars index) with the stick: left / right step
+        through the slots (the stick's order, main.c sel_move); returns the slot"""
+        sc = [self.r(self.syms['slot_ch'] + i, 1) for i in range(self.nslot)]
         t = sc.index(k)
         for _ in range(40):
             c = self.r(self.syms['cursor'] + p, 1)
             if c == t: return t
-            if slots[c][2] != slots[t][2]: key = 'U' if slots[t][2] > slots[c][2] else 'D'
-            else: key = 'R' if slots[t][0] > slots[c][0] else 'L'
+            key = 'R' if t > c else 'L'
             self.run(4, *([key] if not p else ['', key])); self.run(12)
         raise RuntimeError(f'cursor never reached fighter {k} (slot {t})')
     def pick(self, k, button='a', cache=True, unlock=False):

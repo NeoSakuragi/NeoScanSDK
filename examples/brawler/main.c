@@ -265,11 +265,13 @@ static void blocks_layout(uint8_t cols) {
     for (i = 0; i < (NA * SEL_COLS > FIGHT_SPRS ? NA * SEL_COLS : FIGHT_SPRS); i++) y[i] = 0;
     for (i = 0; i < NA; i++) block_placed[i] = 0;
 }
+static uint8_t sel_rank[NA];                     /* the select screen: each actor's draw order (SEL_SLOT z, 0 the back) */
+static int32_t depth(const fighter_t *f) { return nf > NE ? sel_rank[f->idx] : f->z; }   /* the select: its layout's order */
 static void depth_sort(void) {
     uint8_t i, j;
     for (i = 1; i < nf; i++)
-        for (j = i; j > 0 && (order[j]->z < order[j - 1]->z ||
-                              (order[j]->z == order[j - 1]->z && order[j]->zfront < order[j - 1]->zfront)); j--) {
+        for (j = i; j > 0 && (depth(order[j]) < depth(order[j - 1]) ||
+                              (depth(order[j]) == depth(order[j - 1]) && order[j]->zfront < order[j - 1]->zfront)); j--) {
             fighter_t *t = order[j]; order[j] = order[j - 1]; order[j - 1] = t;
         }
     blocks_layout(nf > NE ? SEL_COLS : MAX_COLS);
@@ -1380,23 +1382,21 @@ static void title_tick(void) {
 /* ---- character select: a group photo (Bruno 2026-10-05, TODO #51). The whole roster stands in rows like a school
  * photo, everyone at once: the front rows the playable fighters, the back row the campaign bosses (a locked boss is a
  * dark silhouette, not selectable; once beaten it is in colour / grey like the others). Each fighter holds its 'watch'
- * pose (export_bm.WATCH: a front-facing frame from its intros / win poses), turned toward the middle. The places are
- * slots (SEL_SLOT: x, z, row), independent of who stands in them (sel_fighter: the fighter of each slot), so moving
- * someone on screen is a change to game.json's select slots only. The cursor's fighter shows its colours, the others shades of grey
+ * pose (export_bm.WATCH: a front-facing frame from its intros / win poses), facing as the layout says. The places are
+ * slots (SEL_SLOT: x, y, z, face), independent of who stands in them (sel_fighter: the fighter of each slot), so moving
+ * someone on screen is a change to game.json's select_layout only. The cursor's fighter shows its colours, the others shades of grey
  * (their own palettes in luminance). "1P" / "2P" with an arrow above the selected head (fix layer). Stick left / right
- * moves within a row, up / down to the row behind / in front (the nearest fighter in x); A/B/C/D picks that colour set
+ * steps through the layout's stick order, up / down to the nearest fighter higher / lower; A/B/C/D picks that colour set
  * (KOF style) and plays the win pose. P2 joins here with START (a credit) and picks too; the two can't pick the same
  * fighter. When everyone in has picked, the others walk off the screen outward, then the
  * fight cuts in (no fades: a palette fade cost ticks frames). Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
-#define SEL_BACK 2                       /* the bosses' row */
 #define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
 _Static_assert(SEL_NSLOT <= NA, "group photo: an actor per slot (every selectable fighter has one: build_tables.py)");
 _Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 380, "sprite blocks: fight below the banner, select within the 380 sprites (sparks / throw effect idle there)");
-/* the slots (game.json "select", gamedata.h sel_slot_t): x (px), z (feet at SELECT_FLOOR + z), row (0 front: low on the
- * screen, drawn in front; 2 back, SEL_BACK: higher, behind); sel_fighter[slot] = who stands there (the generator checks
- * every roster fighter has one). Today: front rows 48 px apart inside x 16-304 (the 304 px a TV shows; the watch poses
- * are 40-80 px wide: shoulders overlap, as in a photo), the middle row between the front row's fighters, the bosses in
- * stage order on the back row, spread wider. */
+/* the slots (game.json select_layout, placed by Bruno in the Brawler Lab's Select screen tab; build_tables.py
+ * select_layout, gamedata.h sel_slot_t), in the stick's order: x, y (the feet, px), z (the draw order, 0 the back:
+ * depth_sort), face (1 right, -1 left), sel_fighter[slot] = who stands there (the generator checks every selectable
+ * roster fighter has one). No select_layout block: the first layout (rows, everyone facing the middle). */
 enum { SEL_CHOOSE, SEL_LEAVE };
 static uint8_t cursor[2], picked[2], pick_set[2];   /* cursor: a slot (0xFF: that player isn't in) */
 static uint8_t sel_phase;
@@ -1444,31 +1444,28 @@ static void slot_show(uint8_t s, uint8_t set) {             /* (re)binds slot s'
     uint8_t a = slot_act[s];
     fighter_t *f = actor(a);
     const bchar_t *ch = &bm_chars[slot_ch[s]];
-    fighter_init(f, ch, set < ch->nsets ? set : 0, 16 + a * MAX_PALS, 1, SEL_SLOT[s].x, SEL_SLOT[s].z);
-    f->idx = a; f->facing = SEL_SLOT[s].x < 160 ? 1 : -1;   /* turned toward the middle */
+    fighter_init(f, ch, set < ch->nsets ? set : 0, 16 + a * MAX_PALS, 1, SEL_SLOT[s].x, SEL_SLOT[s].y - SELECT_FLOOR);
+    f->idx = a; f->facing = SEL_SLOT[s].face; sel_rank[a] = SEL_SLOT[s].z;
     fighter_play(f, BA_WATCH);
     fighter_pals(f, slot_look(s));
 }
-/* the cursor from slot s: left / right = the nearest selectable slot that way in its row; up / down = the row behind /
- * in front (further if that row has nobody selectable), the selectable slot nearest in x */
+/* the cursor from slot s: left / right = the selectable slot before / after it in the stick's order (the slots' order,
+ * no wrap); up / down = the selectable slot whose feet are at least 8 px higher / lower, the nearest (|dx| + |dy|) */
 static uint8_t sel_move(uint8_t s, uint16_t pr) {
     int8_t dx = (pr & JOY_RIGHT) ? 1 : (pr & JOY_LEFT) ? -1 : 0, dr = (pr & JOY_UP) ? 1 : (pr & JOY_DOWN) ? -1 : 0;
-    int8_t row = SEL_SLOT[s].row;
     uint8_t t, best = 0xFF;
-    int16_t bd = 0x7FFF, d;
+    int16_t bd = 0x7FFF, d, e;
     if (dx) {
-        for (t = 0; t < SEL_NSLOT; t++) {
-            if (!selectable(t) || SEL_SLOT[t].row != row) continue;
-            d = (SEL_SLOT[t].x - SEL_SLOT[s].x) * dx;
-            if (d > 0 && d < bd) { bd = d; best = t; }
-        }
+        for (t = s + dx; t < SEL_NSLOT; t += dx)                 /* (uint8_t: below 0 wraps past SEL_NSLOT) */
+            if (selectable(t)) return t;
     } else if (dr) {
-        for (row += dr; row >= 0 && row <= SEL_BACK && best == 0xFF; row += dr)
-            for (t = 0; t < SEL_NSLOT; t++) {
-                if (!selectable(t) || SEL_SLOT[t].row != row) continue;
-                d = SEL_SLOT[t].x - SEL_SLOT[s].x; if (d < 0) d = -d;
-                if (d < bd) { bd = d; best = t; }
-            }
+        for (t = 0; t < SEL_NSLOT; t++) {
+            if (!selectable(t)) continue;
+            e = (SEL_SLOT[s].y - SEL_SLOT[t].y) * dr;            /* > 0: that way */
+            if (e < 8) continue;
+            d = SEL_SLOT[t].x - SEL_SLOT[s].x; if (d < 0) d = -d;
+            if (d + e < bd) { bd = d + e; best = t; }
+        }
     }
     return best == 0xFF ? s : best;
 }
@@ -1481,8 +1478,8 @@ static void select_arrows(void) {                           /* "1P" / "2P" + arr
             /* the pose's head point (bm_head, TODO #157: export_bm.py / head_point.py, facing left; the actor faces
              * the middle: mirrored when it faces right); the arrow's 8 px cell centred on it, ending 2 px above it */
             const int8_t *hd = bm_head[slot_ch[s]];
-            int16_t sx = SEL_SLOT[s].x + (SEL_SLOT[s].x < 160 ? -hd[0] : hd[0]) - 4 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
-            int16_t sy = SELECT_FLOOR + SEL_SLOT[s].z + hd[1] - 10;
+            int16_t sx = SEL_SLOT[s].x + (SEL_SLOT[s].face > 0 ? -hd[0] : hd[0]) - 4 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
+            int16_t sy = SEL_SLOT[s].y + hd[1] - 10;
             col[p] = sx < 0 ? 0 : (uint8_t)((sx + 4) >> 3);        /* FIX_print col c / row r = screen x c * 8, y r * 8 */
             row[p] = sy < 32 ? 4 : (uint8_t)((sy + 4) >> 3);       /* (rows 1-2: the title and the name; "1P" one row above) */
         }
@@ -2290,8 +2287,9 @@ static void select_tick(void) {
     sel_t++;
     if (sel_phase == SEL_CHOOSE) {
         if ((bios_start & 2) && cursor[1] == 0xFF) {         /* P2 joins: START with a credit (PLAYER_START) */
-            for (s = SEL_NSLOT; s-- > 0 && !(selectable(s) && SEL_SLOT[s].row == SEL_SLOT[cursor[0]].row && s != cursor[0]); ) ;
-            cursor[1] = s < SEL_NSLOT ? s : cursor[0];       /* the last fighter of P1's row */
+            for (s = SEL_NSLOT; s-- > 0 && !(selectable(s) && SEL_SLOT[s].y == SEL_SLOT[cursor[0]].y && s != cursor[0]); ) ;
+            if (s >= SEL_NSLOT) for (s = SEL_NSLOT; s-- > 0 && !(selectable(s) && s != cursor[0]); ) ;
+            cursor[1] = s < SEL_NSLOT ? s : cursor[0];       /* the last fighter (stick order) on P1's feet line, else the last */
             BIOS_PLAYER_MOD[1] = 1;
             fighter_pals(actor(slot_act[cursor[1]]), 1);
             select_name();
