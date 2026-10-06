@@ -6,7 +6,8 @@ voice command the Z80 reads ($1C / $1E + code) with the ADPCM-A key-on it starts
 the voice = KOF's own for that move (voices.json uses).
 
     python3 voice_proof.py FIGHTER DUMMY OUT.json [GAME_DIR] [--pack PACK.bin]   (a lab data pack installed with the start)
-    python3 voice_proof.py --all OUTDIR [NAME ...]   every fighter's specials and furies vs the source's sound log (proof_all)"""
+    python3 voice_proof.py --all OUTDIR [NAME ...]   every fighter's specials and furies vs the source's sound log (proof_all)
+    python3 voice_proof.py --burn OUTDIR             Krauser's Blitz Ball burns its victim (blitz_burn)"""
 import ctypes as C, json, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import harness, voices as V
@@ -182,9 +183,13 @@ def proof_all(out, game=harness.GAME, names=None):
             # the captured plays: each found among ours (either run) at its frame
             timing = [[at, i, any([at, i] in r['voices'] for r in runs.values()),
                        min((abs(a - at) for r in runs.values() for a, j in r['voices'] if j == i), default=None)] for at, i in cap]
+            # pass: every play of the source's log is ours, at its frame (in either run), nothing the source never
+            # sends; the program's sends the capture did not show (a hit-only path, a branch) are listed, not required
+            # when the move has a capture
+            need = {i for _, i in cap} or set(prog)
             row = {'input': inp, 'keys': keys, 'runs': runs, 'source_plays': cap, 'program_sends': prog,
-                   'missing': sorted(src - ours), 'extra': sorted(ours - src), 'timing': timing,
-                   'ok': not (src - ours) and not (ours - src) and all(t[2] for t in timing)}
+                   'missing': sorted(need - ours), 'not_sent_program': sorted(set(prog) - ours), 'extra': sorted(ours - src),
+                   'timing': timing, 'ok': not (need - ours) and not (ours - src) and all(t[2] for t in timing)}
             rows.append(row)
             print(n, inp, 'OK' if row['ok'] else 'DIFF', 'whiff', runs['whiff']['voices'], 'close', runs['close']['voices'],
                   '| source', cap, 'prog', prog, ('missing ' + str(row['missing'])) if row['missing'] else '',
@@ -194,7 +199,30 @@ def proof_all(out, game=harness.GAME, names=None):
     json.dump(res, open(os.path.join(out, 'voices_all.json'), 'w'), indent=1)
     return res
 
+def blitz_burn(out, game=harness.GAME):
+    """TODO #163 FIRE: Krauser's Blitz Ball (214A, his D special; game.json roster[].fire) hits the lab dummy 120 px
+    away: the dummy's fighter_t.burn while it reels (2 = orange) -> OUT/blitz_burn.json + a screenshot"""
+    G = json.load(open(os.path.join(game, 'game.json'))); names = [r['name'] for r in G['roster']]
+    b = harness.Brawler(game=game); S = b.syms
+    for _ in range(400): b.core.retro_run()
+    L = S['lab']
+    for i, v in enumerate(b'LAB1'): b.w(L + i, 1, v)
+    b.w(L + 5, 1, names.index('krauser')); b.w(L + 6, 1, names.index('terry')); b.w(L + 4, 1, 1); b.run(30)
+    b.fset(0, 'facing', 1); b.place(2, x=b.fget(0, 'x') + 120, z=b.fget(0, 'z')); b.run(2)
+    rows, shot = [], None
+    for f in range(120):
+        b.run(1, p1='c' if f < 3 else '')
+        r = {'f': f, 'p1': b.states[b.fget(0, 'state')], 'dummy': b.states[b.fget(2, 'state')], 'burn': b.fget(2, 'burn'), 'hp': b.fget(2, 'hp')}
+        rows.append(r)
+        if r['burn'] and shot is None: shot = os.path.join(out, 'blitz_burn.png'); b.screenshot(shot)
+    res = {'burnt_frames': sum(1 for r in rows if r['burn']), 'burn': max(r['burn'] for r in rows), 'hit': any(r['dummy'] in ('HITSTUN', 'KNOCKDOWN') for r in rows), 'life_lost': rows[0]['hp'] - min(r['hp'] for r in rows),
+           'shot': shot, 'rows': rows}
+    json.dump(res, open(os.path.join(out, 'blitz_burn.json'), 'w'), indent=1)
+    print('Blitz Ball: hit', res['hit'], 'life lost', res['life_lost'], 'burnt frames', res['burnt_frames'], 'burn colour', res['burn'], shot)
+
 if __name__ == '__main__':
+    if sys.argv[1:2] == ['--burn']:
+        blitz_burn(sys.argv[2]); sys.exit()
     if sys.argv[1:2] == ['--all']:
         proof_all(sys.argv[2], names=sys.argv[3:] or None); sys.exit()
     a = sys.argv[1:]; pk = a[a.index('--pack') + 1] if '--pack' in a else None

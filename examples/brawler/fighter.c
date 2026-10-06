@@ -1181,7 +1181,9 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_HITCLR: f->pflags &= ~PF_HITANY; break;
         case P_HOLD: f->pflags |= PF_HOLD; break;
         case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
-        default: prog_end(f); return;                            /* P_END */
+        default:                                                 /* P_END (this frame still counts a voice to come) */
+            if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);
+            prog_end(f); return;
         }
     }
 frame_done:
