@@ -817,7 +817,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   through a bank-select at use (or the special tables moved to banks, code + hot tables in MB1); prove every fighter
   in every bank (controls_proof) and the NeoCart flash board's banking matches (hardware/neocart).
 
-- [ ] 175. (+ HAOHMARU from SS2 in the same job, replacing the SS4 one: #148) GENJURO (Samurai Shodown II) INTO THE BRAWLER (Bruno, 2026-10-06; AFTER #174 bank switching): study
+- [ ] 175. (PRIORITY Bruno 2026-10-06: "I asked for haohmaru and kuroko": Haohmaru + Kuroko first, Genjuro parked out of the roster) (+ HAOHMARU from SS2 in the same job, replacing the SS4 one: #148) GENJURO (Samurai Shodown II) INTO THE BRAWLER (Bruno, 2026-10-06; AFTER #174 bank switching): study
   /data/neogeo_dict/samsho2/README.md + tools/samsho2 (the study recommends him: 99 px, Terry-sized, 1:1 no scaling);
   an exporter tools/samsho2/export_ss2.py in the export96 layout (like export_ss4 / export_kz / export_dd), every move
   decoded from SS2's data / handlers (no recorded moves), A / B / A+B as rows of the variant table, his rage-only
