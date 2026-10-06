@@ -12,7 +12,12 @@ Per fighter:
   special -> fury     a ground special (slot by slot, distance by distance) whose first hit lands, D in that hit's
                       hit-stop: spec_id becomes the fury in the same SPECIAL state (flash, invincibility); the same
                       special with D before its first hit: it plays to its end, no fury
-  air normal -> special  no special starts in the air (S_AIR reads A only): air A that hits + C = no special in the air"""
+  air normal -> special  no special starts in the air (S_AIR reads A only): air A that hits + C = no special in the air
+  fury -> MAX         (TODO #151, rule 3) the fury (D) whose first hit lands, down+D pressed from that hit's hit-stop on
+                      (every frame until it takes or the fury ends): the MAX (bchar_t.fury_max: P1's spec_ix becomes the
+                      MAX's, spec_id stays the fury's) from its start with its own super flash (orange: main.c sf_col 1)
+                      and invincibility; D alone after the hit: nothing; the fury whiffing + down+D: nothing; the MAX
+                      after its own hit + down+D: never cancelled. A fighter without a MAX: down+D cancels nothing"""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
@@ -27,6 +32,7 @@ L = Lab(); b = L.b; ST = b.states
 BS_FURY = 6
 SLOTS = ['', 'R', 'D', 'U', 'DR', 'UR']                 # C, forward / down / up / down-forward / up-forward + C
 SFW = b.syms.get('sf_who')                              # main.c super flash: its attacker (0 none)
+SFC = b.syms.get('sf_col')                              # its colour: 0 blue (a fury), 1 orange (a MAX)
 
 def st(i=0): return ST[b.fget(i, 'state')]
 def run(n, k=''): b.run(n, p1=k)
@@ -130,6 +136,72 @@ def air_special():
         return {'dist': dist, 'special_in_air': air_spec, 'ok': not air_spec, 'note': 'no special starts in the air'}
     return {'ok': None, 'note': 'air A never hit the dummy'}
 
+def fury_ix(keys):
+    """the spec_ix a fury press plays (D: the fury, Dd: its MAX, or the fury when it has none)"""
+    settle(); setpos(300); run(1, keys); run(1)
+    k = b.fget(0, 'spec_ix') if st(0) == 'SPECIAL' and b.fget(0, 'spec_id') == BS_FURY else None
+    trace(400, lambda t: t[0] != 'SPECIAL'); return k
+
+def fury_hit(keys, dists=(40, 60, 28, 80, 110)):
+    """fire the fury (keys) at the dummy -> the distance its first hit landed at (P1 in that hit's hit-stop), else None"""
+    for dist in dists:
+        settle(); setpos(dist); h0 = len(b.hits); run(1, keys); run(1)
+        if st(0) != 'SPECIAL' or b.fget(0, 'spec_id') != BS_FURY: continue
+        for k in range(300):
+            if st(0) != 'SPECIAL' or b.fget(0, 'spec_id') != BS_FURY: break
+            if any(h[1] == 2 for h in b.hits[h0:]): return dist   # its first hit (body or projectile)
+            run(1)
+        trace(400, lambda t: t[0] != 'SPECIAL')
+    return None
+
+def mash_max(ix0, n=300):
+    """down+D every other frame until P1's special changes (the MAX) or the fury ends -> (frames, spec_ix, inv, flash colour)"""
+    for k in range(n):
+        if st(0) != 'SPECIAL': return {'cancelled': False, 'ended_after': k}
+        if b.fget(0, 'spec_ix') != ix0:
+            ix = b.fget(0, 'spec_ix'); inv = b.fget(0, 'inv'); sid = b.fget(0, 'spec_id'); fl = flash_who()
+            col = b.r(SFC, 1) if SFC and fl else None
+            return {'cancelled': True, 'after_frames': k, 'spec_ix': ix, 'spec_id': sid, 'inv': inv, 'flash_p1': fl, 'flash_orange': col == 1}
+        run(1, 'Dd' if k % 2 == 0 else '')
+    return {'cancelled': False, 'ended_after': None}
+
+def fury_max():
+    fx, mx = fury_ix('d'), fury_ix('Dd')
+    r = {'fury_ix': fx, 'max_ix': mx}
+    if fx is None: r.update(ok=None, note='no fury'); return r
+    has_max = mx is not None and mx != fx; r['has_max'] = has_max
+    d = fury_hit('d')
+    if d is None: r.update(ok=None, note='the fury never hits the dummy'); return r
+    r['dist'] = d
+    # D alone after the hit: nothing
+    for k in range(40):
+        if st(0) != 'SPECIAL': break
+        run(1, 'd' if k % 2 == 0 else '')
+    r['plain_d_after_hit'] = {'spec_ix_after': b.fget(0, 'spec_ix') if st(0) == 'SPECIAL' else None}
+    r['plain_d_after_hit']['ok'] = r['plain_d_after_hit']['spec_ix_after'] in (fx, None)
+    trace(400, lambda t: t[0] != 'SPECIAL')
+    # down+D after the hit: the MAX
+    fury_hit('d', (d,)); m = mash_max(fx); r['hit'] = m
+    if has_max: m['ok'] = m['cancelled'] and m['spec_ix'] == mx and m['spec_id'] == BS_FURY and m['inv'] == 0xFF and m['flash_p1'] != 0 and m['flash_orange']
+    else: m['ok'] = not m['cancelled']
+    # the MAX after its own hit + down+D: never cancelled (spec_ix stays the MAX's to its end)
+    if has_max and m['cancelled']:
+        trace(30); h0 = len(b.hits)
+        for _ in range(400):
+            if st(0) != 'SPECIAL': break
+            run(1, 'Dd' if b.frame % 2 == 0 else '')
+            if b.fget(0, 'spec_ix') != mx and st(0) == 'SPECIAL': break
+        r['max_again'] = {'restarted': st(0) == 'SPECIAL' and b.fget(0, 'spec_ix') != mx, 'hits': len(b.hits) - h0}
+        r['max_again']['ok'] = not r['max_again']['restarted']
+        trace(400, lambda t: t[0] != 'SPECIAL')
+    # the fury whiffing (nobody near) + down+D: nothing
+    settle(); setpos(300); b.place(2, z=0); b.place(0, z=60); run(2); h0 = len(b.hits); run(1, 'd'); run(1)   # off its lane
+    w = mash_max(fx, 200); r['whiff'] = w; w['dummy_hits'] = sum(1 for h in b.hits[h0:] if h[1] == 2)
+    w['ok'] = not w['cancelled'] and w['dummy_hits'] == 0
+    trace(400, lambda t: t[0] != 'SPECIAL')
+    r['ok'] = all(v.get('ok') is not False for v in r.values() if isinstance(v, dict))
+    return r
+
 res = {}
 for ci, name in enumerate(names):
     if name not in only: continue
@@ -142,6 +214,7 @@ for ci, name in enumerate(names):
     r['normal_fury_whiff'] = normal_cancel('d', True)
     r['special_fury'] = special_fury()
     r['air_normal_special'] = air_special()
+    r['fury_max'] = fury_max()
     oks = {k: v.get('ok') for k, v in r.items()}
     r['ok'] = all(v is not False for v in oks.values())
     print(name, ' '.join(f'{k}={"ok" if v else ("n/a" if v is None else "FAIL")}' for k, v in oks.items()), flush=True)
