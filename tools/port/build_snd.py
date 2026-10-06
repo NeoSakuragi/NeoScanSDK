@@ -129,17 +129,23 @@ def voices(t, man, mdir, out):
     its own driver plays) into ours, one record per voice with the same code in every voice slot (players' prefix, enemies'
     prefix: a player's voice never cuts an enemy's): [priority (KOF98's own record's, else $50)][start][end][its level
     byte as the source driver wrote it]. A voice whose driver replays parts (a looped record) keeps its first segment.
-    -> OUT/voices.h: per fighter (game.json roster order) voice id -> driver code (0 = not in the V ROM)"""
+    -> OUT/voices.h: per fighter (game.json roster order) voice id -> driver code (0 = not in the V ROM). A slot holds
+    codes $11-$EF (223 voices): past them the voices go on in the "overflow" pair of slots (same layout, its own
+    prefixes; TODO #161 needed 230), their codes | $100 in voices.h (fighter.c voice_id: VOICE_PREFIX2_*)"""
     cfg = man['voices']
     bank = json.load(open(os.path.join(mdir, cfg['bank'])))['fighters']
     vmap = json.load(open(os.path.join(mdir, cfg['map'])))
-    slots = cfg['slots']
+    groups = [(cfg['slots'], cfg['prefixes'])] + ([(cfg['overflow']['slots'], cfg['overflow']['prefixes'])] if cfg.get('overflow') else [])
+    g = 0; slots = groups[0][0]
     old = bytes(roms(KOF98)[0])                           # KOF98's own records (the build emptied the unused ones)
     srcv = {}
-    codes, placed, rep = {}, {}, {'fighters': {}, 'bytes': 0, 'slots': slots, 'prefixes': cfg['prefixes']}
+    codes, placed, rep = {}, {}, {'fighters': {}, 'bytes': 0, 'slots': slots, 'prefixes': cfg['prefixes'],
+                                  **({'overflow': cfg['overflow']} if cfg.get('overflow') else {})}
     nxt = 0x11                                            # the prefix commands play a code only when its bit is set in
     bits = [t.w(0x2E20 + 2 * sl) for sl in slots]         # the slot's 32-byte enable map ($0F1A: $2E20 + 2 * slot -> map,
     rep['enable_maps'] = [[b, b + 32] for b in bits]      # bit 7 - code % 8 of byte code / 8); KOF98 leaves $00-$10 off
+    for sl in sum((s_ for s_, _ in groups[1:]), []):      # the overflow slots: KOF98's records there go unused (the
+        assert all(t.m1[A_TABLES[sl] + 6 * c + 1:A_TABLES[sl] + 6 * c + 5] == bytes(4) for c in range(0x11, CODES)), sl   # build emptied them)
     for f in vmap:
         fb = bank.get(f['name'], {'voices': []}); game = fb.get('game')
         codes[f['name']] = [0] * (len(fb['voices']) + 1)
@@ -150,6 +156,10 @@ def voices(t, man, mdir, out):
             if key not in placed:
                 if game not in srcv: srcv[game] = roms(f'/data/roms/{game}.neo')[1] if game != 'kof98' else t.v_src
                 while any((sl, nxt) in t.keep_a for sl in slots): nxt += 1   # (records nobody keeps are empty now)
+                if nxt >= CODES and g + 1 < len(groups):      # this pair is full: the overflow pair, from $11
+                    g += 1; slots = groups[g][0]; nxt = 0x11; bits = [t.w(0x2E20 + 2 * sl) for sl in slots]
+                    rep['enable_maps'] += [[b, b + 32] for b in bits]
+                    while any((sl, nxt) in t.keep_a for sl in slots): nxt += 1
                 assert nxt < CODES, f'no free voice code ({len(placed)} samples placed)'
                 ns, ne = t.place(game, st, en, srcv[game], adpcm_a=True)
                 pre = int(vo['cmd'][:2], 16); code = int(vo['cmd'][2:], 16); sl0 = PREFIX_SLOT.get(pre)
@@ -162,7 +172,7 @@ def voices(t, man, mdir, out):
                     t.m1[bits[slots.index(sl)] + nxt // 8] |= 0x80 >> (nxt % 8)
                     t.keep_a.add((sl, nxt))
                     assert t.v[ns << 8:(ne + 1) << 8] == srcv[game][st << 8:(en + 1) << 8]
-                placed[key] = nxt; rep['bytes'] += (en - st + 1) << 8; nxt += 1
+                placed[key] = nxt | g << 8; rep['bytes'] += (en - st + 1) << 8; nxt += 1
             codes[f['name']][i] = placed[key]
         rep['fighters'][f['name']] = {'voices': len(f['ids']), 'codes': {i: codes[f['name']][i] for i in f['ids']}}
     os.makedirs(out, exist_ok=True)
@@ -171,12 +181,15 @@ def voices(t, man, mdir, out):
                 ' * voice id (voices.json) -> KOF98 driver code, sent after VOICE_PREFIX_PLAYER / _ENEMY; 0 = not in the V ROM */\n')
         h.write('#ifndef VOICES_H\n#define VOICES_H\n')
         h.write(f"#define VOICE_PREFIX_PLAYER 0x{cfg['prefixes'][0]}\n#define VOICE_PREFIX_ENEMY 0x{cfg['prefixes'][1]}\n")
+        p2 = groups[-1][1]                                # codes | $100: the overflow slots' prefixes (none: the same)
+        h.write(f"#define VOICE_PREFIX2_PLAYER 0x{p2[0]}\n#define VOICE_PREFIX2_ENEMY 0x{p2[1]}\n")
         for k, f in enumerate(vmap):
-            h.write(f"static const uint8_t vcode_{k}[] = {{ {', '.join(map(str, codes[f['name']]))} }};   /* {f['name']} */\n")
+            h.write(f"static const uint16_t vcode_{k}[] = {{ {', '.join(map(str, codes[f['name']]))} }};   /* {f['name']} */\n")
         h.write('#define VOICE_CODES { ' + ', '.join(f'vcode_{k}' for k in range(len(vmap))) + ' }\n')
         h.write('#define VOICE_NCODES { ' + ', '.join(str(len(codes[f['name']])) for f in vmap) + ' }\n#endif\n')
     rep['samples'] = len(placed)
-    print(f"voices: {len(placed)} samples, {rep['bytes'] // 1024} KB, codes $11-${nxt - 1:02X} in slots {slots}", flush=True)
+    print(f"voices: {len(placed)} samples, {rep['bytes'] // 1024} KB, codes $11-${nxt - 1:02X} in slots {slots}"
+          + (f" (after slots {groups[0][0]} full)" if g else ''), flush=True)
     return rep
 
 def build(manifest, out):

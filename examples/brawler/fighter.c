@@ -62,14 +62,17 @@ void specs_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) spec_tab[i] = 
  * it), a special's or a throw's script row reached; the events at once. Players send VOICE_PREFIX_PLAYER, enemies
  * VOICE_PREFIX_ENEMY: two effect slots, so an enemy's voice never cuts the player's. The select screen's previews are mute. */
 const uint8_t *voice_tab[BC_COUNT];
-static const uint8_t *const vcodes[BC_COUNT] = VOICE_CODES;
+static const uint16_t *const vcodes[BC_COUNT] = VOICE_CODES;   /* code | $100: the overflow slots (VOICE_PREFIX2_*) */
 static const uint8_t vncodes[BC_COUNT] = VOICE_NCODES;
 static uint8_t mute;                                         /* fighter_play / fighter_animate: previews */
 void voices_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) voice_tab[i] = bm_chars[i].voices; }
 /* id bit 7: an effect of its game (voices.py fx_bit): the other voice slot, so it plays over the fighter's voice */
 static void voice_id(const bchar_t *ch, uint8_t team, uint8_t id) {
     if (id & 0x80) { team ^= 1; id &= 0x7F; }
-    if (id && id < vncodes[ch->id]) snd_voice(team ? VOICE_PREFIX_ENEMY : VOICE_PREFIX_PLAYER, vcodes[ch->id][id]);
+    if (id && id < vncodes[ch->id]) {
+        uint16_t c = vcodes[ch->id][id];
+        snd_voice(c >> 8 ? (team ? VOICE_PREFIX2_ENEMY : VOICE_PREFIX2_PLAYER) : (team ? VOICE_PREFIX_ENEMY : VOICE_PREFIX_PLAYER), (uint8_t)c);
+    }
 }
 void voice_play(const bchar_t *ch, uint8_t team, uint8_t key) { voice_id(ch, team, voice_tab[ch->id][key * 2]); }
 static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to) {   /* `at` in [from, to] */

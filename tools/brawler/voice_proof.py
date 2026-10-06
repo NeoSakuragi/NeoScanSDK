@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import harness, voices as V
 harness.CORE = '/data/neogeo_dict/sound/snd98/ff3/geolith_tap.so'
 TAP = C.CFUNCTYPE(C.c_uint8, C.c_int, C.c_uint16, C.c_uint8)
-SCRIPT = '60:-,2:d,110:-,2:Rd,110:-,2:Dd,110:-,2:Ud,110:-,2:a,40:-,2:b,40:-,2:c,40:-,2:Ra,60:-'
+SCRIPT = os.environ.get('VP_SCRIPT') or '60:-,2:d,110:-,2:Rd,110:-,2:Dd,110:-,2:Ud,110:-,2:a,40:-,2:b,40:-,2:c,40:-,2:Ra,60:-'   # VP_SCRIPT: another
 
 def main(fighter, dummy, out, game=harness.GAME, pack=None):
     G = json.load(open(os.path.join(game, 'game.json'))); names = [r['name'] for r in G['roster']]
@@ -44,14 +44,18 @@ def main(fighter, dummy, out, game=harness.GAME, pack=None):
         for _ in range(int(n)):
             b.run(1, p1=k.replace('-', ''))
             moves[b.frame] = (b.states[b.fget(0, 'state')], b.fget(0, 'anim'), b.fget(0, 'spec_id'), b.fget(0, 'srow'),
-                              b.states[b.fget(1, 'state')])
+                              b.states[b.fget(1, 'state')], b.fget(0, 'spec_ix'))
     vrom = open(os.path.join(game, 'build', 'snd', 'v1.bin'), 'rb').read()
     m1 = open(os.path.join(game, 'build', 'snd', 'm1.bin'), 'rb').read()
     bank = json.load(open(V.JSON))['fighters']
     res = []
     pending = None; reg = {}
     PAIRED = {0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E}   # KOF98: commands that take the next byte
-    VP = (int(rep['prefixes'][0], 16), int(rep['prefixes'][1], 16))
+    ov = rep.get('overflow') or {'slots': [], 'prefixes': []}  # the overflow slots (codes | $100 in the report)
+    TAB = {int(p, 16): 0x484C for p in rep['prefixes']}       # prefix -> its sample table (slot 2; slot 3 holds the same)
+    TAB.update({int(p, 16): 0x544C for p in ov['prefixes']})  # (slot 4; slot 5 the same)
+    VP = tuple(TAB)
+    PLAYER = {int(rep['prefixes'][0], 16)} | ({int(ov['prefixes'][0], 16)} if ov['prefixes'] else set())
     want, fresh = None, set()                                 # a prefix waiting for its code; registers written since
     for f, kind, x, y in log:
         if kind == 'c':
@@ -67,9 +71,9 @@ def main(fighter, dummy, out, game=harness.GAME, pack=None):
         if x == 0 and not y & 0x80 and y and pending and pending[1] is not None:
             ch = (y & -y).bit_length() - 1
             st, en = reg.get(0x18 + ch, 0) << 8 | reg.get(0x10 + ch, 0), reg.get(0x28 + ch, 0) << 8 | reg.get(0x20 + ch, 0)
-            r = 0x484C + 6 * pending[1]                       # its record (slot 2; slot 3 holds the same)
+            r = TAB[pending[0]] + 6 * pending[1]              # its record
             if (st, en) != (m1[r + 1] | m1[r + 2] << 8, m1[r + 3] | m1[r + 4] << 8): continue
-            who = by_code.get(pending[1]); pre = pending[0]
+            pre = pending[0]; who = by_code.get(pending[1] | (0x100 if pre in TAB and TAB[pre] != 0x484C else 0))
             e = {'frame': pending[2], 'prefix': f'{pre:02X}', 'code': f'{pending[1]:02X}', 'start': st, 'end': en, 'level': reg.get(8 + ch)}
             if who:
                 n, i = who; vo = bank[n]['voices'][i - 1]; src = V.v_rom(bank[n]['game'])
@@ -78,11 +82,12 @@ def main(fighter, dummy, out, game=harness.GAME, pack=None):
                          bytes_equal=vrom[st << 8:(en + 1) << 8] == src[s0 << 8:(e0 + 1) << 8], nbytes=(en - st + 1) << 8)
                 mv = moves.get(pending[2]) or moves.get(pending[2] + 1)
                 if mv:
-                    side = 0 if pre == int(rep['prefixes'][0], 16) else 1
+                    side = 0 if pre in PLAYER else 1
                     e['p1'] = list(mv[:4]); e['dummy_state'] = mv[4]
                     vk = lab[n]['voices']['keys']
                     if side == 0 and mv[0] == 'SPECIAL':           # the role's special (lab req 1: the ROM's map)
-                        inp = list(lab[n]['specials'].values())[mv[2]]; key = 'special:' + inp
+                        sv = list(lab[n]['specials'].values())   # (a fury / MAX / form transition: the special played)
+                        inp = sv[mv[2]] if mv[2] < len(sv) else lab[n]['pool'][mv[5]]['input']; key = 'special:' + inp
                     elif side == 0 and mv[0] in ('ATTACK', 'AIR_ATTACK'): key = vk[mv[1]]
                     elif side == 1: key = 'hit'
                     else: key = vk[mv[1]]

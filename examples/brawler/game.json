@@ -205,7 +205,7 @@
    "specials": {"D": "214", "fD": "236", "dD": "623", "uD": null, "dfD": null, "ufD": null},
    "fury": "SUPER 236",
    "unlock": "always",
-   "voices": {"kof": false, "set": {"special:236": 13, "special:623": 14, "hit": 4}},
+   "voices": {"kof": false, "set": {"special:236": 13, "special:623": 14, "special:FORM": 15, "hit": 4}},
    "form": {
     "trigger": "down+D full meter",
     "transition": "FORM",
@@ -224,7 +224,7 @@
    "specials": {"D": "41236", "fD": "236", "dD": "623", "uD": "214", "dfD": null, "ufD": null},
    "selectable": false,
    "unlock": "always",
-   "voices": {"kof": false, "set": {"special:236": 13, "special:623": 15, "hit": 4}}
+   "voices": {"kof": false, "set": {"special:236": 14, "special:623": 16, "special:41236": 12, "special:214": 17, "hit": 4}}
   }
  ],
  "select": {

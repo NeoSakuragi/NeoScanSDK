@@ -38,6 +38,6 @@
                                               [["C5", 18, 9], ["G5", 6, 9], ["G5", 6, 6], ["G5", 6, 3], ["G5", 4, 1]]]}
   ]},
  "bosses": ["BOSS_MR_BIG", "BOSS_KRAUSER", "BOSS_GEESE", "BOSS_RUGAL", "BOSS_GOENITZ"],
- "voices": {"bank": "../../tools/brawler/voices.json", "map": "build/voice_map.json", "slots": [2, 3], "prefixes": ["1C", "1E"],
-            "what": "the fighters' voices (TODO #55): only the ones game.json's roster maps (export_bm.py writes build/voice_map.json), copied from each fighter's game's V ROM; one code per voice in slot 2 ($1C, players) and slot 3 ($1E, enemies): build/snd/voices.h"}
+ "voices": {"bank": "../../tools/brawler/voices.json", "map": "build/voice_map.json", "slots": [2, 3], "prefixes": ["1C", "1E"], "overflow": {"slots": [4, 5], "prefixes": ["1B", "17"]},
+            "what": "the fighters' voices (TODO #55): only the ones game.json's roster maps (export_bm.py writes build/voice_map.json), copied from each fighter's game's V ROM; one code per voice in slot 2 ($1C, players) and slot 3 ($1E, enemies), codes $11-$EF; past those (223 voices) the overflow pair, slot 4 ($1B, players) and slot 5 ($17, enemies), empty in KOF98's build (TODO #161): build/snd/voices.h"}
 }
