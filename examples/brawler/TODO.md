@@ -470,6 +470,18 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   falls inside it; fixed (the fury's own attacker may hit during the flash). The flash pose stays wanted for
   consistency. Bruno: for these fighters the concentration glow emphasizes the HEAD (anchor = the pose's head point).
 
+- [ ] 146. THROW SYSTEM REBUILT (Bruno, 2026-10-06: the mechanics are right — walk to grab, forward / back + A to
+  throw — the execution is wrong). Rules: (1) no global throw speed multiplier (the early "+50 %"): a per-throw speed
+  in data, sane default; (2) a throw ends a few frames after the victim lands: the source's recovery tail trimmed, the
+  thrower acts again; (3) dedicated HOLD-HIT animations per fighter with a 2-3 frame startup (a knee / elbow /
+  headbutt from the fighter's own frames); (4) HOLD rule, Final Fight style: hits keep the hold, the victim breaks free
+  after ~1.5 s without a hit (never while hitting), 3 hits max then the 3rd is a knockdown finisher; forward / back + A
+  throws any time; (5) the PAIRED attacker / victim script (vocabulary hold.paired_script, the debt list's top item):
+  per frame the victim's pose + offset relative to the attacker, checked visually throw by throw; grabbability from
+  the victim's current state (the Heidern rule). Proof: per fighter contact sheets of every throw (attacker + victim
+  together) and a 3-hit hold, timings logged; controls / cancel / fury proofs, regress, campaign29. NEXT after the
+  Hanzo remap.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
