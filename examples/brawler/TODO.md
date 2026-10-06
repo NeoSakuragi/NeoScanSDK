@@ -444,6 +444,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   as usual. One rule in fighter.c (no per-move data), documented in docs/brawler_move_vocabulary.md; proofs: per fighter
   normal -> special, normal -> fury, special -> fury (hit and whiff), controls_proof, regress, campaign29.
 
+- [ ] 144. Kim's Hienzan ([2]8C, down C) is missing its BLUE effect (Bruno, 2026-10-06): find the effect object /
+  palette Kizuna draws with the rising staff (spawned object or an extra sprite part on the steps, its palette =
+  blue), export it through the effects library and play it; check Kim's other moves for missing effects the same way
+  (kim_proof frame-identical incl. effect objects vs Kizuna's screen, not just Kim's body).
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
