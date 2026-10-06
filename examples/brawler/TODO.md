@@ -469,6 +469,16 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   623C, 623D, 624B; K': 214D, 236B, 236D, 623A) for follow-ups: decoded from the handlers (handlers98.py P_CHECK) AND
   brute force (every button / direction / motion at every frame, whiff / hit / block), then play them through the
   follow-up mechanism; proof followups_proof.py + romspecials_check 0 frame mismatches. FIRST after the furies job.
+  Status 2026-10-06 (brute force paused by Bruno; he will record input paths in the game instead): played + proven
+  (KOF captures at the decoded windows, romspecials_check 0 frame mismatches whiff + hit per chain, followups_proof game
+  vs model 600 / 603 + brawler vs model 96 / 96): Kyo fD 236C -> again (63214A/C: Tsumi Yomi) -> fA (6A/C: Batsu
+  Yomi); Iori uD 623D -> again in the kick's hit-stop (214A/C, hit / block only) -> Aoi Hana's 3 parts; Iori ufD,
+  K' D / dD unchanged. Disagreements: Iori 623D -> 214C plays Aoi Hana C in KOF, the brawler A (by design); a 214A
+  after Aoi Hana ends restarts it in KOF (a new special). Brute-forced (whiff / hit / block, every 2nd frame, partial
+  results /data/tmp/fu140/out/brute_*.json): all of Kyo's slots + fury, all of Iori's (no follow-up but 623D);
+  decoded-only (no input check found, not brute-forced): K' 214D, 236B, 236D, 623A, 23624C. Left for Bruno's recorded
+  paths: those K' moves; Kyo 6A presses just after a hit-stop (KOF misses some the model takes); Kyo fury's held C
+  (delays the release, not a follow-up, not played).
 
 - [x] 139. (done 2026-10-06: Geese and Krauser now hit from the ROM (Raging Storm's pillars after their side effects end; Kaiser Wave spawned 87 px ahead, 96 px up): fury_inv_proof all 18 ok, Geese locks from frame 39, Krauser from 61) Geese's fury (1632143C Raging Storm) and Krauser's (641236C) never hit a standing enemy at any distance (no
   attack box on the body or its objects in the export), so they never connect (and never get the fury invincibility,

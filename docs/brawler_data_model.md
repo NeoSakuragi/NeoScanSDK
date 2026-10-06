@@ -101,6 +101,22 @@ object or a projectile of its own; a running grab's catch; Kim's Phoenix: the ru
 (`special_end`): nothing hits it (enemies, the crowd, projectiles, other players) and no body pushes it (a special's
 push, a low leap's stop). Before the connect (the whiff, the rush) the normal rules. Proof: `tools/brawler/fury_inv_proof.py`.
 
+**Follow-ups of ROM specials** (TODO #74, #140): a special read from the ROM continues on the inputs its handler
+checks (handlers98 `FOLLOW_CHECKS`), each mapped to one brawler press made while the special plays (`bslink_t`,
+export_bm `link_c`; the program decides when it counts: `P_CHECK` on the frames KOF's handler reads, `PC_LINK`):
+
+| fighter, slot (KOF input) | KOF follow-up | brawler press |
+|---|---|---|
+| Iori ufD (214A Aoi Hana) | 214 + A / C, twice (parts 2, 3) | `again` = up-forward + A+B, twice |
+| Iori uD (623D Kototsuki In) | on hit / block only: 214 + A / C during the kick's hit-stop -> Aoi Hana (A) at the landing, then its two parts | `again` = up + A+B in the hit-stop, then twice more |
+| Kyo fD (236C Dokugami) | 63214 + A / C -> Tsumi Yomi; then 6 + A / C -> Batsu Yomi | `again` = forward + A+B; then `fA` = forward + A |
+| K' D (236C Ein Trigger) | 6 + B -> state 134; 6 + D -> state 135 | `fA` = forward + A; `fAB` = forward + A+B |
+| K' dD (623C Crow Bites) | 6 + B or D during the rise -> 146 / 147 (the same part) | `fA` or `fAB` |
+
+`again` = the slot's own A+B input. Every other slot special of the three (and their furies) has no follow-up in the
+ROM (brute force in our emulator, whiff / hit / block). Proof: `tools/brawler/followups_proof.py` (game vs model,
+brawler vs model, both facings), `romspecials_check.py` with `+LINK@T` cases.
+
 ## Layer 2: enemies, AI presets, tints
 
 `enemies` is a list of named entries:

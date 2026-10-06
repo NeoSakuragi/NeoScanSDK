@@ -558,7 +558,10 @@ static void special_input(fighter_t *f, const intent_t *in) {    /* a press duri
     uint8_t k;
     if (sp->prog) {                                              /* a ROM special: its program reads the press (P_CHECK)
                                                                     on the frames the game's handler calls its check */
-        for (k = 0; k < sp->nlinks && k < 8; k++) if (link_in(f, &sp->links[k], in)) f->spend |= 1 << k;
+        for (k = 0; k < sp->nlinks && k < 8; k++) if (link_in(f, &sp->links[k], in)) {
+            f->spend |= 1 << k;
+            if (f->freeze) f->phl |= 1 << k;                     /* made in a hit-stop: latched (P_CHECK b) */
+        }
         return;
     }
     for (k = 0; k < sp->nlinks; k++) {
@@ -607,7 +610,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->spec_id = k; f->spec_ix = spec_ix(f->ch, k); f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
-    f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = 0;   /* its first part, no follow-up armed, no hit */
+    f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = 0;   /* its first part, no follow-up armed, no hit */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
@@ -888,7 +891,9 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_SIGCLR: f->pflags &= ~(~p->v & (PF_SIG7 | PF_SIG6)); break;
         case P_HITOFF: f->landed = 0; break;                     /* KOF +$E1 bit 7 cleared */
         case P_ADV: pan_advance(f); break;                       /* the engine called again on the same state: one more step tick */
-        case P_CHECK: f->plink |= f->spend & p->a; break;        /* the follow-up check: this frame's presses of links a */
+        case P_CHECK: f->plink |= (p->b ? f->phl : f->spend) & p->a; break;   /* the follow-up check: this frame's presses
+                                                                    of links a (b: those made in its last hit-stop, KOF
+                                                                    +$1AC: Iori 623D's landing, TODO #140) */
         case P_PART: f->plink = 0; break;                        /* the handler cleared its request: a new part */
         case P_EVCLR: f->pflags &= ~PF_EVENT; break;             /* the step's event consumed */
         case P_ONHIT: if (!f->pcatch) { f->phit = p->b; f->pdeadn = p->a + 1; } break;   /* its catch routine (KOF +$19C) */
