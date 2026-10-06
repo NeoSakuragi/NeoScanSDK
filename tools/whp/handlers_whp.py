@@ -490,6 +490,181 @@ def world(r, who='p1'):
     floor's y word too)"""
     p = r[who]; return p['x'] / 128 + r['camx'], (p['y'] - r['floor']) / 128
 
+# ---- the projectile: Ninpou Koryuu Ha (236 + A / B / A+B), TODO #147 ---------------------------------------------------
+# The command [code]: punch list command 7 (D, R: 236), byte FE = no hero triple (WHP has no hero Koryuu Ha) and only
+# while +$604D is clear: one Koryuu Ha in flight ($4EB9E sets it at the spawn, $4EC32 clears it at the object's end).
+# The press picks the animation: A $100, B $101, A+B $102 ($31126). Each plays the same steps with other timings and
+# spawns its own effect at step 4 (command 9 $100 / $101 / $102 -> long[$59602 + 4 k]). The effect routine [code]:
+# allocates the object ($4EB9E), +$42 the level (0 / 1 / 2), +$40 the attack box set (214 / 215 / 216: the same box),
+# vx ($4EC0C: 3 / 5.25 / 7.5 px a frame), the place ($4EC1E: Hanzou's y / x + $2180 / $1800: 67 px up, 48 px in
+# front), its frame routine $4E15A
+# (by state +$43: 0 the flight = the def cycle $4E1B8, one def a frame, every third the empty def, then $9C46 the
+# motion; off screen ($4EC52) or under the floor ($4EC76): freed), and two trailing parts ($4EA00: vx 2.5 / 2.75,
+# 4.75 / 5.0, 7.0 / 7.25 px; routines $4EA58 / $4EA78: def cycles $4EAF2 / $4EADC, y = the main object's of two /
+# one frames before, x never past it; freed when the main object's task +$2E is no longer 2: at its hit). Its hit
+# [meas]: the collision code sets +$43 = 3: after the hit-stop $4E28E: vx 68 (0.53 px), routine $4E2BE: the impact
+# cycle $4E2D6 (3 frames a def: C030 C034 C038 C03C, the empty def, then freed).
+KORYUUHA = {'A': 0x100, 'B': 0x101, 'AB': 0x102}           # press -> Hanzou's animation (relative) = the effect index
+EFFECTS = 0x59602
+ROUTINES = {0x4EC0C: 'vx', 0x4EC1E: 'place', 0x4EA00: 'part', 0x4EB9E: 'alloc', 0x131B4: 'cycle', 0x9C46: 'motion'}
+
+def def_cycle(t):
+    """a def table of $131B4 [code]: byte 1 = frames a def - 1; words from +2: a def, $F0xx = go to entry xx, $FFFF =
+    the end (the caller frees the object) -> (frames per def, [defs], loop entry or None)"""
+    per = u8(t + 1) + 1; defs = []
+    for i in range(64):
+        w = u16(t + 2 + 2 * i)
+        if w == 0xFFFF: return per, defs, None
+        if w & 0xF000 == 0xF000: return per, defs, w & 0xFF
+        defs.append(w)
+    raise ValueError(f'{t:X}: no end')
+
+def _imm(op): return int(op.split(',')[0].lstrip('#'))
+def _pc(op): return int(re.search(r'0x([0-9a-f]+)', op).group(1), 16)
+
+def effect_object(k):
+    """the effect routine of command 9 k read from its code -> dict(level, box, vx, dy (px up), routine, parts [dict(vx,
+    routine, cycle, ysrc)], flight (cycle), hit_vx, impact (cycle))"""
+    a = u32(EFFECTS + 4 * k); ins = dis(a, a + 0x100); pc = a
+    out = {'addr': a, 'parts': []}; d0 = None; last = None
+    while pc in ins:
+        mn, op, nx = ins[pc]
+        if mn == 'rts': break
+        if mn == 'movel' and op.endswith(',%d0') and op.startswith('#'): d0 = _imm(op)
+        elif mn == 'jsr':
+            r = ROUTINES.get(_pc(op))
+            if r == 'vx': out['vx'] = (d0 & 0xFFFF if d0 & 0x8000 == 0 else (d0 & 0xFFFF) - 0x10000) / 128
+            elif r == 'place': out['dy'] = (d0 >> 16) / 128; out['dx0'] = (d0 & 0xFFFF) / 128
+            elif r == 'part': out['parts'].append({'vx': d0 / 128}); last = 'part'
+        elif mn == 'movew' and op.endswith(',%a1@(64)'): out['box'] = _imm(op)
+        elif mn == 'moveb' and op.endswith(',%a1@(66)'): out['level'] = _imm(op)
+        elif mn == 'clrb' and op == '%a1@(66)': out['level'] = 0
+        elif mn == 'movel' and op.endswith(',%a1@(4)'):
+            if last == 'part': out['parts'][-1]['routine'] = _imm(op); last = None
+            else: out['routine'] = _imm(op)
+        pc = nx
+    assert {'vx', 'dy', 'box', 'level', 'routine'} <= set(out), out
+    # the frame routine: a jump table by +$43
+    ins = dis(out['routine'], out['routine'] + 0x40)
+    tab = next(_pc(op) for mn, op, nx in ins.values() if mn == 'moveal' and '%d0:w' in op)
+    st = lambda s: u32(tab + 4 * s)
+    def lea(r, n=0x40):
+        i2 = dis(r, r + n)
+        return next(_pc(op) for mn, op, nx in i2.values() if mn == 'lea' and op.endswith(',%a0') and '%pc@' in op)
+    out['flight'] = def_cycle(lea(st(0)))
+    i3 = dis(st(3), st(3) + 0x40); hv, nr = None, None
+    for mn, op, nx in i3.values():
+        if mn == 'movel' and op.endswith(',%a5@(12)'): hv = _imm(op)
+        if mn == 'movel' and op.endswith(',%a5@(4)'): nr = _imm(op)
+    out['hit_vx'] = hv / 128; out['impact'] = def_cycle(lea(nr))
+    for p in out['parts']:
+        p['cycle'] = def_cycle(lea(p['routine']))
+        i4 = dis(p['routine'], p['routine'] + 0x30)
+        p['ysrc'] = next(int(op.split('@(')[1].split(')')[0]) for mn, op, nx in i4.values()
+                         if mn == 'movew' and op.startswith('%a0@(') and op.endswith(',%a5@'))   # +$74 / +$72: y 2 / 1 frames ago
+    return out
+
+def koryuuha(press, frames=180):
+    """the model [code]: Hanzou's animation (its entries: frame of the spawn = the step with command
+    9, the move's length) and the object's flight from its spawn frame: per frame dict(x (px from Hanzou, forward), y,
+    def (the empty def kept as WHP shows it), parts [(def, x)])"""
+    rel = KORYUUHA[press]; E = [e for e in entries(CHARS['hanzo'], rel) if e['ctrl'] is None]
+    k = next(int(a, 16) for e in E for c, a in e['cmds'] if c == 9)
+    spawn_step = next(i for i, e in enumerate(E) if any(c == 9 for c, a in e['cmds']))
+    o = effect_object(k)
+    spawn_f = sum(e['ticks'] + 1 for e in E[:spawn_step]); length = sum(e['ticks'] + 1 for e in E)
+    def cyc(c, t):
+        per, defs, loop = c; i = t // per
+        if i >= len(defs):
+            if loop is None: return None
+            i = loop + (i - loop) % (len(defs) - loop)
+        return defs[i]
+    # the parts [code $4EA58 + meas]: born with the main object and moved in that frame after it; from the next frame
+    # they run before it: x += their vx, then held at the main object's x (of the frame before); y = the main
+    # object's y of 2 (+$74) / 1 (+$72) frames before: +$74 holds nothing for its first 2 frames (y 0: off screen)
+    HIDDEN = {116: 2, 114: 0}
+    rows, px = [], [None] * len(o['parts'])
+    for t in range(frames):
+        x = o['dx0'] + o['vx'] * (t + 1); xprev = x - o['vx']
+        parts = []
+        for j, p in enumerate(o['parts']):
+            px[j] = min(x, o['dx0'] + p['vx']) if t == 0 else min(px[j] + p['vx'], xprev)
+            parts.append((cyc(p['cycle'], t) if t >= HIDDEN[p['ysrc']] else None, px[j]))
+        rows.append(dict(t=t, x=x, y=o['dy'], defw=cyc(o['flight'], t), parts=parts))
+    impact = []
+    for t in range(200):
+        d = cyc(o['impact'], t)
+        if d is None: break
+        impact.append(dict(t=t, dx=o['hit_vx'] * (t + 1), defw=d))
+    return {'press': press, 'anim': rel, 'effect': k, 'object': o, 'spawn_step': spawn_step, 'spawn_frame': spawn_f,
+            'length': length, 'steps': E, 'rows': rows, 'impact': impact}
+
+def koryuuha_capture(press, hit=True):
+    """WHP in our emulator from the vs. state: Hanzou's 236 + the press; hit: P2 pinned at x 400 (the projectile reaches
+    it), else P2 walks away first (capture_whp's AWAY) -> per frame dict(p1 anim / step, p1x, objects of the Koryuu Ha
+    (main: routine $4E15A, parts: their routines) [x px world, y, def, +$43, +$2E], p2 life, palette of each)"""
+    import cap_whp as cap, capture_whp as C
+    b = {'A': 'a', 'B': 'b', 'AB': 'ab'}[press]
+    seq = C.m('D DR R'.split(), b) + '150:-'
+    if hit:
+        n = cap.nframes(seq); p2x = 400
+        pk = ';'.join(f'{f}:100102={p2x * 128 >> 8 & 255:02X},100103={p2x * 128 & 255:02X}' for f in range(n)); seq2 = ''
+    else: seq = C.away(seq); seq2 = C.AWAY; pk = None
+    rows = cap.run(seq, seq2, pokes=pk, span=0x3000)
+    o_ = effect_object(KORYUUHA[press] if press != 'AB' else 0x102)
+    rts = {o_['routine']: 'main', **{p['routine']: f'part{i}' for i, p in enumerate(o_['parts'])}}
+    U = cap.u16; out = []
+    for r in rows:
+        o = r['obj']; objs = {}
+        for a in range(0x200, 0x3000, 0x80):
+            rt = U(o, a + 4) << 16 | U(o, a + 6)
+            name = rts.get(rt) or ('main' if rt in (0x4DD84, 0x4E2BE) and U(o, a + 0x40) == o_['box'] else None)
+            if not name or not o[a + 0x28]: continue
+            objs[name] = dict(x=U(o, a + 2) / 128 + r['cam'], y=(U(o, a) - 0x4800) / 128, defw=U(o, a + 8), state=o[a + 0x43],
+                              task=U(o, a + 0x2E), pal=o[a + 0x20], box=U(o, a + 0x40), level=o[a + 0x42], live=o[a + 0x44])
+        p1 = cap.obj(r, 0)
+        out.append(dict(f=r['f'], anim=p1['anim'] - p1['base'], step=p1['step'], p1x=p1['x'] / 128 + r['cam'],
+                        p2life=r['anim'][0x100 + 0x0C], objs=objs))
+    return out
+
+def koryuuha_check(press, hit=True, cap_rows=None):
+    """the model vs WHP: the move's frames (Hanzou's animation from its first frame to neutral), the spawn frame, the
+    main object's x / y / def per frame (the flight until the hit or 150 frames), the parts', the life drop, the impact"""
+    M = koryuuha(press); rows = cap_rows or koryuuha_capture(press, hit)
+    s0 = next(i for i, r in enumerate(rows) if r['anim'] == M['anim'])
+    e0 = next((i for i in range(s0, len(rows)) if rows[i]['anim'] != M['anim']), len(rows))
+    sp = next(i for i in range(s0, len(rows)) if 'main' in rows[i]['objs'])
+    x0 = rows[s0]['p1x']; bad = []; n = 0; hit_at = None
+    for t in range(150):
+        i = sp + t
+        if i >= len(rows) or 'main' not in rows[i]['objs']: break
+        c = rows[i]['objs']['main']
+        if c['state'] != 0: hit_at = t; break
+        m = M['rows'][t]; n += 1
+        if abs(c['x'] - x0 - m['x']) > 0.01 or c['y'] != m['y'] or c['defw'] != m['defw']: bad.append(('main', t, c, m))
+        for j, (pd, px) in enumerate(m['parts']):
+            cp = rows[i]['objs'].get(f'part{j}')
+            if cp is None or abs(cp['x'] - x0 - px) > 0.01 or (cp['defw'] != pd if pd is not None else cp['y'] > -100):
+                bad.append((f'part{j}', t, cp, (pd, px)))
+    life0 = rows[s0]['p2life']; life1 = min(r['p2life'] for r in rows)
+    imp = []
+    if hit_at is not None:                                   # the impact: from the first frame its cycle shows
+        hi = sp + hit_at
+        k0 = next((i for i in range(hi, len(rows)) if rows[i]['objs'].get('main', {}).get('defw') == M['impact'][0]['defw']), None)
+        if k0 is not None:
+            xh = rows[k0 - 1]['objs']['main']['x']
+            for t, m in enumerate(M['impact']):
+                c = rows[k0 + t]['objs'].get('main') if k0 + t < len(rows) else None
+                ok = c is not None and c['defw'] == m['defw'] and abs(c['x'] - xh - m['dx']) < 0.01
+                imp.append([t, c and c['defw'], m['defw'], ok])
+        parts_after = [sorted(k for k in rows[hi + 1]['objs'] if k != 'main')] if hi + 1 < len(rows) else []
+    else: parts_after = []
+    return {'press': press, 'hit': hit, 'move_frames': e0 - s0, 'model_move_frames': M['length'], 'spawn_frame': sp - s0,
+            'model_spawn_frame': M['spawn_frame'], 'flight_frames': n, 'mismatches': len(bad), 'first_bad': [str(b) for b in bad[:3]],
+            'hit_frame': hit_at, 'life_drop': life0 - life1, 'impact': imp, 'impact_ok': all(x[3] for x in imp) if imp else None,
+            'parts_after_hit': parts_after, 'palettes': sorted({o['pal'] for r in rows for o in r['objs'].values()}),
+            'vx': M['object']['vx'], 'level': M['object']['level'], 'box': M['object']['box']}
+
 if __name__ == '__main__':
     if '--capture' in sys.argv or '--check' in sys.argv:
         import json
