@@ -20,6 +20,8 @@ static int audio_n;
 static uint16_t pads[2];                 /* bit = libretro joypad id (B 0 = Neo A, A 8 = Neo B, Y 1 = C, X 9 = D) */
 static char region[8] = "us";
 static char systype[8] = "mvs", hw[8] = "mvs";   /* wc_system: the feedback replay boots what the player booted */
+static char memcard[4] = "off";                  /* wc_memcard: the player's card (meta.json "memcard"; older bundles: on);
+                                                    off on MVS (TODO #156: the BIOS's card reminder after every game) */
 
 static void log_cb(enum retro_log_level level, const char *fmt, ...) {
     va_list ap; va_start(ap, fmt);
@@ -33,7 +35,7 @@ static bool environ_cb(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT: return *(unsigned *)data == RETRO_PIXEL_FORMAT_XRGB8888;
     case RETRO_ENVIRONMENT_GET_VARIABLE: {
         static const char *opts[][2] = {
-            {"geolith_memcard", "on"}, {"geolith_memcard_wp", "off"}, {"geolith_freeplay", "off"},
+            {"geolith_memcard_wp", "off"}, {"geolith_freeplay", "off"},
             {"geolith_settingmode", "off"}, {"geolith_4player", "off"}, {"geolith_overscan_t", "8"},
             {"geolith_overscan_b", "8"}, {"geolith_overscan_l", "8"}, {"geolith_overscan_r", "8"},
             {"geolith_palette", "resnet"}, {"geolith_aspect", "1:1"}, {"geolith_sprlimit", "96"},
@@ -45,6 +47,7 @@ static bool environ_cb(unsigned cmd, void *data) {
         if (!strcmp(v->key, "geolith_region")) { v->value = region; return true; }
         if (!strcmp(v->key, "geolith_system_type")) { v->value = systype; return true; }
         if (!strcmp(v->key, "geolith_unibios_hw")) { v->value = hw; return true; }
+        if (!strcmp(v->key, "geolith_memcard")) { v->value = memcard; return true; }
         for (i = 0; i < sizeof(opts) / sizeof(opts[0]); i++)
             if (!strcmp(v->key, opts[i][0])) { v->value = opts[i][1]; return true; }
         v->value = NULL; return false;
@@ -89,6 +92,8 @@ static int16_t input_cb(unsigned port, unsigned dev, unsigned idx, unsigned id) 
 EMSCRIPTEN_KEEPALIVE void wc_system(const char *st, const char *h) {
     snprintf(systype, sizeof(systype), "%s", st); snprintf(hw, sizeof(hw), "%s", h);
 }
+/* before wc_init: geolith_memcard "on" / "off", as the bundle's meta.json (absent: on, the players before 0.0.16) */
+EMSCRIPTEN_KEEPALIVE void wc_memcard(const char *m) { snprintf(memcard, sizeof(memcard), "%s", m); }
 EMSCRIPTEN_KEEPALIVE int wc_init(void) {
     struct retro_game_info gi = { "/rom/game.neo", NULL, 0, NULL };
     retro_set_environment(environ_cb);

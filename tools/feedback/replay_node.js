@@ -13,7 +13,7 @@ const GeoCore = require(path.join(site, 'core.js'));
   const snaps = {};
   for (const f of fs.readdirSync(dir)) { const m = /^snap_(\d+)\.state$/.exec(f); if (m) snaps[+m[1]] = new Uint8Array(fs.readFileSync(path.join(dir, f))); }
   const bundle = { inputs: new Uint8Array(fs.readFileSync(path.join(dir, 'inputs.bin'))), snaps, press: new Uint8Array(fs.readFileSync(path.join(dir, 'press.state'))) };
-  const files = { bios: fs.readFileSync(path.join(site, 'neogeo.zip')), rom, systype: meta.system_type || 'mvs', hw: meta.hw || 'mvs',
+  const files = { bios: fs.readFileSync(path.join(site, 'neogeo.zip')), rom, systype: meta.system_type || 'mvs', hw: meta.hw || 'mvs', memcard: meta.memcard || 'on',
                   moduleArgs: { locateFile: f => path.join(site, f) } };
   const r = await FeedbackReplay.create(GeoCore, files, bundle);
   let t = Date.now();

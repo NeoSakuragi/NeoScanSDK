@@ -68,8 +68,8 @@ def build_core():
 
 class Core:
     """the Geolith core with the Android player's settings (player.c environ_cb: region us, system per bundle)"""
-    def __init__(self, rom, systype, hw):
-        opts = dict(H.OPTIONS, geolith_region='us', geolith_system_type=systype, geolith_unibios_hw=hw)
+    def __init__(self, rom, systype, hw, memcard='on'):
+        opts = dict(H.OPTIONS, geolith_region='us', geolith_system_type=systype, geolith_unibios_hw=hw, geolith_memcard=memcard)
         self._opt = {k.encode(): C.c_char_p(v.encode()) for k, v in opts.items()}
         self.save_dir = tempfile.mkdtemp(prefix='fbsave_', dir='/data/tmp')
         self._sys = C.c_char_p(H.SYSDIR.encode()); self._save = C.c_char_p(self.save_dir.encode())
@@ -142,7 +142,7 @@ def replay(d):
     rom = find_rom(meta)
     if not rom: return done(error=f"ROM sha256 {meta.get('rom_sha256')} (v{meta.get('rom_version')}) not found locally nor on the VPS")
     res['rom'] = rom
-    core = Core(rom, meta.get('system_type', 'mvs'), meta.get('hw', 'mvs'))
+    core = Core(rom, meta.get('system_type', 'mvs'), meta.get('hw', 'mvs'), meta.get('memcard', 'on'))   # older bundles: on
     snaps = {int(os.path.basename(p)[5:-6]): p for p in glob.glob(os.path.join(d, 'snap_*.state'))}
     start = snaps.get(W)
     core.load(open(start or os.path.join(d, 'press.state'), 'rb').read())

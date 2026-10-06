@@ -58,7 +58,7 @@ static bool environ_cb(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_GET_VARIABLE: {
         static const char *opts[][2] = {
             {"geolith_system_type", "(setSystem)"}, {"geolith_unibios_hw", "(setSystem)"}, {"geolith_region", "us"},
-            {"geolith_memcard", "on"}, {"geolith_memcard_wp", "off"}, {"geolith_freeplay", "off"},
+            {"geolith_memcard_wp", "off"}, {"geolith_freeplay", "off"},
             {"geolith_settingmode", "off"}, {"geolith_4player", "off"}, {"geolith_overscan_t", "8"},
             {"geolith_overscan_b", "8"}, {"geolith_overscan_l", "8"}, {"geolith_overscan_r", "8"},
             {"geolith_palette", "resnet"}, {"geolith_aspect", "1:1"}, {"geolith_sprlimit", "96"},
@@ -68,6 +68,9 @@ static bool environ_cb(unsigned cmd, void *data) {
         unsigned i;
         if (!v->key) return false;
         if (!strcmp(v->key, "geolith_system_type")) { v->value = systype; return true; }
+        if (!strcmp(v->key, "geolith_memcard")) {             /* the card only on AES, where the brawler saves to it; on */
+            v->value = strcmp(hw, "aes") ? "off" : "on"; return true; }   /* MVS (backup RAM) a card made the BIOS say
+                                                                    "your card is still inserted" after every game (TODO #156) */
         if (!strcmp(v->key, "geolith_unibios_hw")) {         /* UniBIOS detects AES / MVS from the coin 3-4 bits this sets */
             v->value = hw; return true; }
         for (i = 0; i < sizeof(opts) / sizeof(opts[0]); i++)
@@ -264,3 +267,5 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_screenshot(JNIEnv *env, jc
 
 /* "mvs" / "aes" / "uni": the BIOS the core was told to boot (for the feedback bundle's versions) */
 JNIEXPORT jstring JNICALL Java_com_neoscan_player_Native_systemType(JNIEnv *env, jclass cls) { (void)cls; return (*env)->NewStringUTF(env, systype); }
+/* "on" / "off": the memory card the core was told about (geolith_memcard; the feedback bundle's meta.json "memcard") */
+JNIEXPORT jstring JNICALL Java_com_neoscan_player_Native_memcard(JNIEnv *env, jclass cls) { (void)cls; return (*env)->NewStringUTF(env, strcmp(hw, "aes") ? "off" : "on"); }

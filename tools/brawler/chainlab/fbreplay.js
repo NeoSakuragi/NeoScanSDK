@@ -34,6 +34,8 @@
         for (let i = 0; i < s.length; i++) core.HEAPU8[p + i] = s.charCodeAt(i); core.HEAPU8[p + s.length] = 0; return p; };
       const a = str(files.systype || 'mvs'), b = str(files.hw || 'mvs');
       core._wc_system(a, b); core._free(a); core._free(b);
+      const mc = str(files.memcard || 'on');                      // meta.json "memcard" (older bundles: none = on)
+      core._wc_memcard(mc); core._free(mc);
       if (!core._wc_init()) throw new Error('the core did not load the game');
       return new FeedbackReplay(core, bundle);
     }

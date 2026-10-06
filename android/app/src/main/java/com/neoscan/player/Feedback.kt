@@ -143,6 +143,7 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
             put("latest_sha256", fetch.getString("sha256", ""))
             put("bios_sha256", sha(File(ctx.filesDir, "system/neogeo.zip")))
             put("hw", e?.hw ?: "?"); put("system_type", if (e != null) Native.systemType() else "?"); put("region", "us")
+            put("memcard", if (e != null) Native.memcard() else "?")
             put("device", "${Build.MANUFACTURER} ${Build.MODEL}"); put("android", "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
             put("install_id", installId(ctx))
             frames?.let { put("window_frame", it[0]); put("press_frame", it[1]) }

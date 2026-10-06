@@ -23,7 +23,7 @@
   if (col) col.append(rbox, lbox);
 
   // ---- replay -------------------------------------------------------------------------------------------------------
-  const cores = {};                                     // rom sha -> the wasm core with that build loaded (one each)
+  const cores = {}, roms = {};                          // rom sha + memory card -> the wasm core with that build loaded; rom sha -> the build
   let bios = null, R = null, raf = 0, playing = false, speed = 1, acc = 0, last = 0, ac = null, at = 0, startState = null, img = null;
   const get = async (url, what) => { const r = await fetch(url, { credentials: 'same-origin' }); if (!r.ok) throw new Error(what + ': HTTP ' + r.status); return new Uint8Array(await r.arrayBuffer()); };
   function stopLoop() { playing = false; cancelAnimationFrame(raf); }
@@ -84,7 +84,7 @@
     try {
       const [item, rom] = await Promise.all([
         fetch(API + 'item/' + r.id, { credentials: 'same-origin' }).then(x => x.json()),
-        cores[r.rom_sha] ? null : get(API + 'rom/' + r.rom_sha, 'game build ' + r.game_version)]);
+        roms[r.rom_sha] ? null : get(API + 'rom/' + r.rom_sha, 'game build ' + r.game_version)]);
       if (!bios) bios = await get('neogeo.zip', 'BIOS');
       const snaps = {};
       const names = item.files.filter(f => /^snap_\d+\.state$/.test(f));
@@ -92,8 +92,10 @@
         fetch(API + 'file/' + r.id + '/meta.json', { credentials: 'same-origin' }).then(x => x.json()), ...names.map(f => get(API + 'file/' + r.id + '/' + f, f))]);
       names.forEach((f, i) => { snaps[+f.slice(5, -6)] = snapData[i]; });
       const bundle = { inputs, snaps, press };
-      if (!cores[r.rom_sha]) cores[r.rom_sha] = (await FeedbackReplay.create(window.GeoCore, { bios, rom, systype: meta.system_type, hw: meta.hw }, bundle)).core;
-      R = new FeedbackReplay(cores[r.rom_sha], bundle);
+      const ck = r.rom_sha + ':' + (meta.memcard || 'on');            // a core per ROM and memory card setting
+      if (rom) roms[r.rom_sha] = rom;
+      if (!cores[ck]) cores[ck] = (await FeedbackReplay.create(window.GeoCore, { bios, rom: roms[r.rom_sha], systype: meta.system_type, hw: meta.hw, memcard: meta.memcard }, bundle)).core;
+      R = new FeedbackReplay(cores[ck], bundle);
       const t0 = performance.now();
       R.start = Math.max(R.W, R.P - 600);
       R.seek(R.start); startState = R.save(); draw();

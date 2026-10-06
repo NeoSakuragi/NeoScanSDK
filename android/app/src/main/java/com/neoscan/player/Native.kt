@@ -26,6 +26,8 @@ object Native {
     @JvmStatic external fun screenshot(out: IntArray): Int
     /** the BIOS the core boots: mvs / aes / uni */
     @JvmStatic external fun systemType(): String
+    /** the memory card: "on" (AES) / "off" (MVS: no card, TODO #156) */
+    @JvmStatic external fun memcard(): String
 }
 
 /** Neo Geo pad bits as the core reads them (libretro ids; Geolith maps B->A, A->B, Y->C, X->D, SELECT->coin). */

@@ -174,7 +174,8 @@ static bool environ_cb(unsigned cmd, void *data) {
         if (!strcmp(v->key, "geolith_system_type"))   { v->value = "uni";     return true; }
         if (!strcmp(v->key, "geolith_unibios_hw"))    { v->value = hw_names[opt_hw]; return true; }
         if (!strcmp(v->key, "geolith_region"))         { v->value = region_names[opt_region]; return true; }
-        if (!strcmp(v->key, "geolith_memcard"))         { v->value = "on";      return true; }
+        if (!strcmp(v->key, "geolith_memcard"))         { v->value = opt_hw ? "on" : "off"; return true; }   /* AES only: on MVS
+                                                                    the BIOS says "your card is still inserted" after every game (TODO #156) */
         if (!strcmp(v->key, "geolith_memcard_wp"))      { v->value = "off";     return true; }
         if (!strcmp(v->key, "geolith_freeplay"))        { v->value = "off";     return true; }   /* credits count (SNK MVS) */
         if (!strcmp(v->key, "geolith_settingmode"))     { v->value = "off";     return true; }
