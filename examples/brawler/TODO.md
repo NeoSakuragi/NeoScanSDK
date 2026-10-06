@@ -826,11 +826,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   throw; weapon loss not modelled yet (he keeps his sword; the weapon state is a later component); voices from SS2's
   MAKOTO 3.0 driver (tools/makoto3) into the voice path; palettes; frame check vs SS2 both facings; the usual proofs.
 
-- [ ] 176. KUROKO (Samurai Shodown II, hidden table 17, 636 animations, 84 px) INTO THE BRAWLER (Bruno, 2026-10-06; after
-  #175): find what his table holds: a full fighter moveset (in SS2 he is the referee; a playable moveset there would be
-  a hidden one) or referee animations only (flags, judging); if a moveset: export like Genjuro (his flag moves as
-  specials); if referee animations only: propose to Bruno what he becomes (a stage actor / referee in the brawler,
-  or a fighter built from those frames) before building.
+- [ ] 176. KUROKO (Samurai Shodown II, hidden table 17, 636 animations, 84 px) INTO THE BRAWLER AS A FIGHTER (Bruno,
+  2026-10-06: "I want the hidden character kuroko, he has tons of fun special moves"; after #175): his full moveset
+  from SS2's data (his special moves are parodies of other fighters' moves: decode every one, its command, its
+  objects; flag / referee gags included), exported like Genjuro (variant table, rage move = fury, strongest = MAX,
+  throws via #146), voices, palettes, frame check; how he is unlocked in SS2 noted (the brawler: selectable).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
