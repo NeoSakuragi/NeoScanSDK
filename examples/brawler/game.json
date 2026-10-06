@@ -59,7 +59,7 @@
    "watch": {"frame": 347, "step": -1},
    "routes": "default",
    "specials": {"D": "CCCC", "fD": "426C", "dD": "623C", "uD": "623D", "dfD": null, "ufD": "214B"},
-   "fury": "236236C",
+   "fury": "23624C",
    "unlock": "always",
    "voices": "kof"
   },

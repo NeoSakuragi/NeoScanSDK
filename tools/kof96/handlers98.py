@@ -584,7 +584,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
     hit = None
     hr = F.get(0x19C, 4, False)
     if hr and depth > 0 and depth < 3 and not (fields and any(o_ == -1 for o_, v, s_ in fields)):   # an object's hit routine (travelling ones)
-        keep = [(o_, F.get(o_, 2), 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8) if F.get(o_, 2) is not None]
+        keep = [(o_, F.get(o_, 2), 2) for o_ in (0x72, 0xC2, 0xD2, 0xD4, 0xD8) if F.get(o_, 2) is not None]
         hit = decode(m, hr, button, ex, keep + [(0x50, F.get(0x50, 4), 4), (-1, 0, 1)], dec, depth + 1)
     prune(ops, pos)
     return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1), 'follow': follow[0], 'links': lnames, 'hitlatch': hitlatch[0], 'link_lag': [llag[n_] for n_ in lnames],
@@ -970,7 +970,7 @@ def variant_summary(m, cid, inp, v, frames=400):
 ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B', '623A', '623B', '21416C'},
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D'},
-                'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C', '214B', '236236C', '623D'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B'},
+                'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B'},
                 'iori': {'236A', '623D', '214A', '623C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},

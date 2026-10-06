@@ -28,7 +28,7 @@ NPJ = 8                                                  # fighter.h: the projec
 FOLLOW_BLAG = 1                                          # the brawler's pad -> intent delay (frames; measured)
 from PIL import Image, ImageDraw
 
-ROLES = {'D': '4:c', 'fD': '4:Rc', 'dD': '4:Dc', 'uD': '4:Uc', 'dfD': '4:DRc', 'ufD': '4:URc', 'C': '4:d'}   # facing right (C + the stick:
+ROLES = {'D': '4:c', 'fD': '4:Rc', 'dD': '4:Dc', 'uD': '4:Uc', 'dfD': '4:DRc', 'ufD': '4:URc', 'C': '4:d', 'M': '4:Dd'}   # M: the MAX fury (down+D, TODO #152)   # facing right (C + the stick:
 # 2026-10-06; role 'C' = the fury, button D, game.json roster[].fury, TODO #139)
 KOF = {'kyo': 0, 'terry': 3, 'ryo': 6, 'robert': 7, 'ralf': 10, 'mai': 16, 'yashiro': 21, 'yamazaki': 24, 'billy': 26, 'iori': 27, 'rugal': 36,
        'geese': ('kof96', 24), 'mr_big': ('kof96', 26), 'krauser': ('kof96', 25), 'goenitz': ('kof96', 28), 'k_dash': ('kof99', 0)}   # KOF98 id or (game, id)
@@ -183,7 +183,8 @@ def main(game, out, cases):
     summary = []
     for case in cases:
         name, role = case.split(':'); role, *fus = role.split('+'); role, _, inp = role.partition('=')
-        inp = inp or (gj[name]['fury'] if role == 'C' else gj[name]['specials'][role]); cid = KOF[name]
+        inp = inp or (gj[name]['fury'] if role in ('C', 'M') else gj[name]['specials'][role]); cid = KOF[name]
+        sdm = role == 'M'                                # KOF98's MAX version of the fury (romspecials98 sdm)
         fus = [(fu.split('@')[0], int(fu.split('@')[1])) for fu in fus]
         pool = None
         if '=' in case:
@@ -194,11 +195,11 @@ def main(game, out, cases):
         kfol = [(t, FOLLOW_KOF[(name, l)], 1 << links.index(l)) for l, t in fus]
         bpad = [((ROLES[role].split(':')[1], 0) if l == 'again' else FOLLOW_PAD[l]) for l, t in fus]
         for branch in BRANCHES:
-            tag = f'{name}_{inp.replace(" ", "").replace("[", "c").replace("]", "")}' + ''.join(f'+{l}{t}' for l, t in fus) + f'_{branch}'
+            tag = f'{name}_{"MAX" if sdm else ""}{inp.replace(" ", "").replace("[", "c").replace("]", "")}' + ''.join(f'+{l}{t}' for l, t in fus) + f'_{branch}'
             shots = os.path.join(out, 'shots', tag); os.makedirs(shots, exist_ok=True)
-            dm = role == 'C'                             # a fury: KOF96's from low life, P2 jumps over the whiff, 400 frames
+            dm = role in ('C', 'M')                      # a fury: KOF96's from low life, P2 jumps over the whiff, 400 frames
             try: res, game_rows, model, objs, prog = K.compare(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), quiet=True, game=kg, follow=kfol,
-                                                               dm=dm, frames=400 if dm else 200)
+                                                               dm=dm, frames=400 if dm else 200, sdm=sdm)
             except StopIteration as e:                   # KOF's trace never entered the special (a mash input: Ralf AAAA)
                 s = {'case': case, 'input': inp, 'branch': branch, 'error': f'no KOF trace {e!r}'}
                 summary.append(s); print(json.dumps(s), flush=True); continue
@@ -213,7 +214,7 @@ def main(game, out, cases):
                 res = dict(res, frames_game=len(model) - 1, hit_frames=[], frozen_dropped=0, slowdown_dropped=0, objects_game=[])
             # KOF screenshots at the kept frames (every EVERY-th of the move after the dropped ones)
             want = [game_rows[i]['f'] for i in range(0, res['frames_game'], EVERY)][:30]
-            K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), 400 if dm else 200, snaps=[K.START + f for f in want], snapdir=shots, game=kg, dm=dm,
+            K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), 400 if dm else 200, snaps=[K.START + f for f in want], snapdir=shots, game=kg, dm=dm, sdm=sdm,
                     p2_seq=K.follow_spec(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), kg, [(t, ev) for t, ev, mk in kfol]) if kfol else '')
             # the opponent as far ahead as KOF's was when the special started (a charge move walked P1 back first)
             gap = round(game_rows[0]['p2x'] - game_rows[0]['x']) if branch in DIST else None

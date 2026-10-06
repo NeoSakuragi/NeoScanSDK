@@ -667,10 +667,14 @@ def form_c(chars, ch, n):
 
 def fury_max_special(ch, name):
     """the fury's MAX version (export96: 'MAX <fury input>', the handler's +$E4 bit 0 path with the fury's own button;
-    down+D, TODO #139); None = none (down+D plays the fury)"""
+    down+D, TODO #139); else the same command's MAX on another button when that one is read from the ROM (TODO #152: a
+    fury whose own button has no MAX in the bank; never a captured MAX: no recorded specials); None = none (down+D
+    plays the fury)"""
     want = roster()[name].get('fury') if name in roster() else None
     if not want: return None
-    return next((sp for sp in ch.get('specials', []) if sp['input'] == 'MAX ' + want), None)
+    sps = ch.get('specials', [])
+    return next((sp for sp in sps if sp['input'] == 'MAX ' + want), None) or \
+        next((sp for b in 'ABCD' for sp in sps if want[-1] in 'ABCD' and sp['input'] == 'MAX ' + want[:-1] + b and sp.get('rom')), None)
 
 
 def dedupe_c(text):

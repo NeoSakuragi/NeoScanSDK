@@ -116,7 +116,7 @@ def follow_spec(cid, inp, dist, ex, game, follow, dm=False):
     f0 = rows0[next(i for i, r in enumerate(rows0) if special(r['state']))]['f']
     return '; '.join(f'p1 {START + f0 + t + o} {n} {k}' for t, ev in follow for o, n, k in ev)
 
-def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98', follow=None, dm=False):
+def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98', follow=None, dm=False, sdm=False):
     """follow: follow-up presses [(t, events, link bits)] (follow_spec; the model sees each at t + FOLLOW_LAG)"""
     """the game (trace) against the decoded program's model (handlers98.run_model), frame by frame from the first
     special state: P1 state, ROM frame, x from the start, height; objects: first frame, state, frame, x, height.
@@ -125,8 +125,8 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
     import handlers98 as H
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     spec = follow_spec(cid, inp, dist, ex, game, [(t, ev) for t, ev, mk in follow], dm) if follow else ''
-    rows, _, _ = trace(cid, inp, dist, ex, frames, p2_seq=spec, game=game, dm=dm)
-    try: h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex, cid=cid)
+    rows, _, _ = trace(cid, inp, dist, ex, frames, p2_seq=spec, game=game, dm=dm, sdm=sdm)   # sdm: its MAX version
+    try: h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex, cid=cid, sdm=sdm)
     except KeyError: h = prog = None             # a captured special (no ROM handler): the game's rows only
     k0 = next(i for i, r in enumerate(rows) if special(r['state']))
     hs = HITSTOP[game]; gname = game
