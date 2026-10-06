@@ -369,6 +369,7 @@ def export(names, outdir, game='kof96', only=None, extra=None):
     if only is None or only & {'throw_c', 'throw_d'}:          # the pilot's throws read from the ROM (throwrom.py, TODO
         import throwrom                                         # #146): they replace the captured scripts
         found.update(throwrom.all_throws(m, game, [cast.index(n) for n in names]))
+    import throwrom
     for cid, d in found.items():
         name = cast[cid]
         if name not in names: continue
@@ -383,7 +384,8 @@ def export(names, outdir, game='kof96', only=None, extra=None):
             victims = {cast[v]: [[adders[cast[v]](r[0]) if r[0] is not None else -1] + r[1:] for r in rows]
                        for v, rows in b['victims'].items() if cast[v] in adders}
             ch['throws'][key] = {'slot': sl, 'inputs': b['inputs'], 'table': b['lists'], 'hold': b.get('hold', False),
-                                 'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', [])}
+                                 'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', []),
+                                 'fx': throwrom.throw_fx(m, game, cid, sl)}   # the throw-start effect (TODO #166)
             if b.get('rom'):                                    # read from the ROM: its decoded points + conversion sheet
                 ch['throws'][key].update({k: b[k] for k in ('release', 'land', 'down', 'end', 'ret', 'sheet')}, rom=True)
         print(f'{name}: throws {list(d)}', flush=True)

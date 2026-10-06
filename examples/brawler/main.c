@@ -12,6 +12,7 @@
 #include "banner.h"
 #include "sparks.h"
 #include "superflash.h"
+#include "throwfx.h"
 #include "hud.h"
 #include "game_tables.h"
 #include "portraits_big.h"
@@ -486,6 +487,43 @@ static void sf_tick(void) {                                  /* after the frame'
     if (sf_who && ++sf_flash_t >= gflash.freeze) sf_reset();
 }
 
+/* ---- the throw-start effect (fx.throw_start, TODO #166 a; tools/brawler/make_sparks.py -> throwfx.h): KOF96/98's
+ * effect state 61 (blue streaks, palette 90 -> TFX_PAL), spawned by a throw's start row (fighter.c paired_update,
+ * bthrow_t.fx_*) at a point fixed in the world, played once (TFX_LEN frames); one at a time (a new throw takes it over),
+ * sprites 376-379 in front of everything; it stands still while a super flash freezes the world. ---- */
+#define TFX_SPR 376
+#define TFX_PAL 255
+_Static_assert(SPARK_SPR + SPARK_N * 3 <= TFX_SPR && TFX_SPR + TFX_COLS <= 381, "throw effect: after the sparks");
+static uint8_t tfx_on, tfx_t, tfx_k, tfx_wait;
+static int16_t tfx_x, tfx_y;
+static int8_t tfx_face;
+void throw_fx(int16_t wx, int16_t sy, int8_t facing) {
+    if (mode != 1) return;
+    tfx_on = 1; tfx_t = 0; tfx_k = 0xFF; tfx_x = wx; tfx_y = sy; tfx_face = facing;
+    tfx_wait = 1;                                            /* KOF draws its new object the frame after (measured: the
+                                                                source's pictures show it one frame after the spawn) */
+}
+static void tfx_reset(void) {
+    uint8_t c;
+    tfx_on = 0; tfx_k = 0xFF;
+    PAL_setPalette(TFX_PAL, tfx_pal);
+    for (c = 0; c < TFX_COLS; c++) { cmd_push(VRAM_SCB2 + TFX_SPR + c, 0x0FFF); cmd_push(VRAM_SCB3 + TFX_SPR + c, 0); }
+}
+static void tfx_draw(void) {
+    uint8_t c, k;
+    if (!mode) { tfx_on = 0; return; }                      /* the select's actors use sprites 300-379 */
+    if (!tfx_on) return;
+    if (tfx_wait) { tfx_wait = 0; return; }
+    for (k = 0; k < TFX_N && !(tfx_t >= tfx_frames[k].at && tfx_t < tfx_frames[k].at + tfx_frames[k].dur); k++) ;
+    if (k >= TFX_N || mode != 1) {                               /* over */
+        for (c = 0; c < TFX_COLS; c++) cmd_push(VRAM_SCB3 + TFX_SPR + c, 0);
+        tfx_on = 0; tfx_k = 0xFF; return;
+    }
+    sf_place(&tfx_frames[k], TFX_SPR, TFX_PAL, TFX_COLS, k != tfx_k, tfx_x - cam_x, tfx_y, tfx_face);
+    tfx_k = k;
+    if (!sf_who) tfx_t++;
+}
+
 /* ---- debug boxes (P2 START toggles): the corners of every hurt box (green) and attack box (red) the hit test uses,
  * 8x8 brackets on sprites 300-347 (the banner's, free in a fight): 24 for hurt boxes, 24 for attack boxes. ---- */
 #define DBG_SPR 300
@@ -592,6 +630,7 @@ static void draw(void) {
     shadows();
     sparks_draw();
     if (mode == 1) sf_draw();
+    tfx_draw();
     dbg_draw();
 }
 
@@ -1641,6 +1680,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
     sparks_init();
     sf_reset();
+    tfx_reset();
     FIX_clear(); arcade_line_reset();
     stage_init(attract ? STAGE : gs->bg);             /* stage sprites back, every column rewritten */
     PAL_setBackdrop(stg->backdrop);
@@ -1782,16 +1822,21 @@ static void p2_join(void) {                      /* P2 joins mid-fight: START wi
     fighters[1].idx = 1; fighter_revive(&fighters[1]); lives[1] = 2; BIOS_PLAYER_MOD[1] = 1;
     bios_start &= ~2;
 }
+#define DEATH_BLINK 60            /* frames a dead fighter blinks (players: with its death voice) before it goes */
+static void respawn(fighter_t *f) {              /* a life used or a continue: it drops back in where it fell,
+                                                    inside the screen (fighter.c "death and respawn", TODO #166 e) */
+    int16_t x = INT(f->x);
+    if (x < cam_x + 24) x = cam_x + 24;
+    if (x > cam_x + 296) x = cam_x + 296;
+    f->x = FIX(x);
+    fighter_respawn(f);
+}
 static void cont_player(uint8_t p) {             /* one player: START continues (or rejoins), the count, A-D */
     fighter_t *f = &fighters[p];
     if (p && !p2_in()) return;
     if (!in_play(f) && (bios_start & (1 << p))) {            /* where he fell, inside the screen */
-        int16_t x = INT(f->x);
-        if (x < cam_x + 24) x = cam_x + 24;
-        if (x > cam_x + 296) x = cam_x + 296;
-        f->x = FIX(x);
         cont_t[p] = 0; lives[p] = 3; BIOS_PLAYER_MOD[p] = 1;
-        fighter_revive(f);
+        respawn(f);
         return;
     }
     if (!cont_t[p]) return;
@@ -1851,7 +1896,7 @@ static void flow(void) {
     uint8_t i, p, left = 0;
     for (i = 2; i < NF; i++) {
         fighter_t *e = &fighters[i];
-        if (e->state == S_DEAD && e->state_t > 60) e->state = S_OFF;      /* blinked out */
+        if (e->state == S_DEAD && e->state_t > DEATH_BLINK) e->state = S_OFF;   /* blinked out */
         if (e->state != S_OFF) left++;
     }
     if (!attract && in_play(&fighters[0]) && (JOY_pressed(0) & JOY_START)) dbg_on ^= 1;   /* box viewer: P1 START in play
@@ -1859,10 +1904,21 @@ static void flow(void) {
     if ((bios_start & 2) && !attract && !p2_in()) p2_join();
     for (p = 0; p < 2; p++) {
         fighter_t *f = &fighters[p];
-        if (f->state == S_DEAD) {
-            if (lives[p]) { lives[p]--; fighter_revive(f); }
+        if (f->state == S_DEAD && f->state_t > DEATH_BLINK) {   /* blinked out (fighter.c "death and respawn") */
+            if (lives[p]) { lives[p]--; respawn(f); }            /* a life: it drops back in */
             else if (attract) SYS_return();                  /* the demo's bot: no continue */
             else { f->state = S_OFF; cont_t[p] = CONTINUE; BIOS_PLAYER_MOD[p] = 2; }
+        }
+        if (f->drop == 2) {                                      /* its drop landed: every enemy on screen goes down */
+            f->drop = 0; snd_sfx(SFX_HIT_CD);
+            for (i = 2; i < NF; i++) {
+                fighter_t *e = &fighters[i];
+                int16_t sx = INT(e->x) - cam_x;
+                if (e->team == f->team || sx < -16 || sx > 336) continue;
+                if (e->state == S_OFF || e->state == S_DEAD || e->state == S_PROJ || e->state == S_DOWN ||
+                    e->state == S_GETUP || e->state == S_KNOCKDOWN || e->state == S_THROWN) continue;
+                fighter_quake(f, e);
+            }
         }
         cont_player(p);
     }
