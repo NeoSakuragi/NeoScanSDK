@@ -278,6 +278,9 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if f == 0x20: x = v / 65536 if size == 4 else v   # the height set (clr.l +$20: a catch puts it on the floor)
             emit(a, 'set', regs[f], x)
         elif f == 0x1B8: emit(a, 'hitkind', v)
+        elif f == 0x1B6 and depth == 0 and isinstance(v, int) and v > 0:   # a voice later (TODO #163): the fighter's
+            emit(a, 'vlater', F.get(0x1B4, 2), v)      # update counts +$1B6 down and sends +$1B4 at 0 (KOF98 $17074,
+                                                       # KOF96 $11B24: Geese's Double Reppuken's second shout, Ryo's 23624C)
         elif f == cnt_field: emit(a, 'set', 'cnt', v)
         elif f == 0xF5 and depth > 0 and isinstance(v, int): emit(a, 'kind', v)   # an object's kind (+$F5) as it changes:
                                                        # Billy's fire ring, 3 while pinned, 1 once launched (TODO #152)
@@ -987,7 +990,54 @@ ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
             'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'place', 'hitclr', 'hold', 'unhold', 'sigclr', 'hitoff'}
 DROP_OPS = {'kind', 'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-            'ownerflag', 'flags', 'trail', 'alloc', 'ownersig'}
+            'ownerflag', 'flags', 'trail', 'alloc', 'ownersig', 'vlater'}
+# ---- voices (TODO #163): every voice the move's code sends, at its place in the program ----
+# KOF96 / KOF98 / KOF99 send a sound through one mapper (index -> driver word, tools/brawler/voices.py MAPPER): the code
+# now ('sound', index), or n frames later ('vlater', index, n: +$1B4 / +$1B6), or the animation as a step starts (its $FC
+# records, step_sounds). The 'voice' routines are not voices: KOF98 $16034 plays the super flash ($1D11 / $1D15 / $1D13,
+# common) and queues it at +$1BA / +$1BC, $1B03C sends the driver's $14 + each queued word = a STOP of that voice ($14's
+# handler $0F43 keys off the channel playing it; measured in the tap core 2026-10-06, KOF96 the same).
+SOUND_MAPPER = {'kof96': 0x6CAD4, 'kof98': 0xA9BCE, 'kof99': 0xB1B5C}
+def sound_word(m, ix):
+    return m.u16(SOUND_MAPPER[m.game] + 2 * ix) if isinstance(ix, int) and m.game in SOUND_MAPPER else None
+
+def voice_send(m, op):
+    """a sound op that may send a voice -> (index, frames later) or None: $1A (hits, swings, fire) and bare driver
+    commands (prefix 0) are not voices"""
+    if op[0] == 'sound': ix, n = op[1], 0
+    elif op[0] == 'vlater': ix, n = op[1], op[2]
+    else: return None
+    w = sound_word(m, ix)
+    return None if w is None or w >> 8 in (0, 0x1A) else (ix, n)
+
+def kept_op(m, op):
+    """an op the exported program keeps (bspec_t.prog; hitkind is removed after indexing): the body and the voice sends"""
+    return op[0] not in DROP_OPS or voice_send(m, op) is not None
+
+def step_sounds(m, cid, st):
+    """per step of a state's animation the sound indices of the $FC records before it (`FC 00 <index:16> 00 00`): the
+    engine sends them as it enters the step (a loop re-enters step 0: sent again)"""
+    a = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); out, cur = [], []
+    for i in range(300):
+        b0 = m.u8(a + 6 * i)
+        if b0 in (0xFF, 0xFE): break
+        if b0 == 0xFC: cur.append(m.u16(a + 6 * i + 2))
+        elif b0 < 0x80: out.append(cur); cur = []
+    return out
+
+def voice_sends(m, cid, prog):
+    """the voice words a decoded special may send, in op order: [(via, index, word, detail)]: via 'code' / 'later'
+    (detail: the frames) / 'step' (detail: (state, step))"""
+    out = []
+    for a, op in prog['ops']:
+        vs = voice_send(m, op)
+        if vs: out.append(('later' if op[0] == 'vlater' else 'code', vs[0], sound_word(m, vs[0]), vs[1]))
+        if op[0] == 'anim' and op[1] is not None:
+            for k, ixs in enumerate(step_sounds(m, cid, op[1])):
+                for ix in ixs:
+                    w = sound_word(m, ix)
+                    if w is not None and w >> 8 not in (0, 0x1A): out.append(('step', ix, w, (op[1], k)))
+    return out
 CONDS = {None: 7, 'end': 0, 'event': 1, 'land': 2, 'falling': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'evstep': 8, 'window': 9,
          'link': 10, 'hitany': 11, 'sig7': 12, 'sig7c': 13, 'sig6': 14, 'far': 15, 'low': 16}   # 'far:N' -> PC_FAR, N                     # fighter.h PC_*; 'link:<mask>' -> PC_LINK with the mask
 HITSTOP_TABLES = {'kof98': 0x1DCCC, 'kof96': 0x16E20, 'kof99': 0x19832}   # by the step's flags bits 4-6 (KOF98 $1DC52):
@@ -1174,7 +1224,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
     kept, idx = [], {}
     for i, (a, op) in enumerate(prog['ops']):
         idx[i] = len(kept)
-        if op[0] not in DROP_OPS: kept.append((a, op))
+        if kept_op(m, op): kept.append((a, op))   # (its voice sends too: TODO #163)
     def target(t): return 'yield' if t == 'yield' else idx[prog['pos'][t]]
     ops, hitkind, states = [], 1, []
     idx_of = {id(op): i for i, (a, op) in enumerate(prog['ops'])}
@@ -1191,6 +1241,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
         elif k == 'anim':
             if op[1] not in states: states.append(op[1])
             ops.append(('anim', states.index(op[1]), op[1]))
+        elif voice_send(m, op): ops.append(('vsend',) + voice_send(m, op))   # a voice: now / n frames later
         else: ops.append(op)
     # hitkind ops were removed after indexing: re-index (they are never branch targets in the studied handlers)
     rem = [i for i, (a, op) in enumerate(kept) if op[0] == 'hitkind']
@@ -1200,8 +1251,10 @@ def export_rom(m, cid, inp, add, game='kof98'):
     for st in states + [ob.get('state') for ob in prog['objects']] + ([prog['objects'][0]['hit']['fields'].get(0x72)] if False else []):
         if st is None or st in anims: continue
         steps, mode = anim_steps(m, cid, st)
-        anims[st] = {'mode': mode, 'steps': [{'frame': add(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k_:02X}': v for k_, v in bx.items()}}
-                                             for t, fi, fl, bx, raw, dx in steps]}
+        ss = step_sounds(m, cid, st)                    # each step's voices ($FC records, TODO #163)
+        anims[st] = {'mode': mode, 'steps': [{'frame': add(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k_:02X}': v for k_, v in bx.items()},
+                                              'voices': [ix for ix in (ss[k_s] if k_s < len(ss) else []) if voice_send(m, ('sound', ix))]}
+                                             for k_s, (t, fi, fl, bx, raw, dx) in enumerate(steps)]}
     live = None                                                # each step's reaction (box_react) by the attack box live
     for st in states:                                          # on it (the last one loaded: rom_c's rule), packed
         aa = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); raws = [s_[4] for s_ in anim_steps(m, cid, st)[0]]

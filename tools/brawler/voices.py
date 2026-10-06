@@ -136,6 +136,19 @@ def wlog(path):
         f = int(p[0]); w = int(p[1].split('=')[1].split('/')[0], 16)
         reg = {x.split('=')[0]: int(x.split('=')[1], 16) for x in p[2:] if '=' in x}
         out.append((f, w, reg['d1'] & 0xFFFF, reg['a4'] & 0xFFFFFF))
+    return drop_stops(out)
+
+STOP = 0x0014
+def drop_stops(W):
+    """the plays of a WLOG: KOF96 / KOF98 / KOF99 cut a voice still sounding with the driver's $14 + its word (KOF98
+    $1B03C sends $0014 then each word the move queued at +$1BC.. ; the driver's $14 handler $0F43 keys off the channel
+    playing that prefix + code: measured in the tap core 2026-10-06, KOF96's driver the same), so the word an object sends
+    right after its $0014 in the same frame is a STOP, not a play (TODO #163: Rugal's Kaiser Wave logged "Kaiser" twice)"""
+    out = []
+    for k, e in enumerate(W):
+        if e[1] == STOP: continue
+        if k and W[k - 1][1] == STOP and W[k - 1][0] == e[0] and W[k - 1][3] == e[3]: continue
+        out.append(e)
     return out
 
 def capture(names=None):
@@ -251,6 +264,24 @@ def specials_of(game, cid):
             out.append((tag, tr, e, g0, wlog(p + '.wlog')))
     return out
 
+def prog_sends(rname, game, m, cid):
+    """[(input, [(via, index, word, detail)])]: the fighter's ROM specials (tools/kof96/handlers98.ROM_SPECIALS, and the
+    MAX version of a DM) and the voice words their programs may send (handlers98.voice_sends)"""
+    import handlers98 as H
+    if H.ROM_GAME.get(rname, 'kof98') != game: return []
+    out = []
+    for inp in sorted(H.ROM_SPECIALS.get(rname, ())):
+        ex = inp.startswith('EX '); seen = None
+        for sdm in (False, True):
+            try:
+                h, b = H.handler_of(cid, inp, ex, m.game); prog = H.decode(m, h, b, ex, cid=cid, sdm=sdm)
+            except Exception: continue
+            ops = [op for a, op in prog['ops']]
+            if ops == seen: continue                       # no MAX version (+$E4 bit 0 never tested)
+            seen = ops
+            out.append((('MAX ' if sdm else '') + inp, H.voice_sends(m, cid, prog)))
+    return out
+
 def build_list(names=None):
     old = json.load(open(JSON)) if os.path.exists(JSON) else {}
     res = {'about': __doc__.split('\n\n')[0], 'rate': RATE, 'fighters': dict(old.get('fighters', {}))}
@@ -278,7 +309,14 @@ def build_list(names=None):
                 s = tr['start']; end = s + tr.get('gap', 220) - 4
                 for f, w, ix, a4 in W:
                     if s <= f < end and a4 == P1 and f >= g0 - 2:
-                        uses.append((w, ix, {'kind': 'special', 'input': e['input'], 'at': max(0, f - g0 + 1)}))
+                        uses.append((w, ix, {'kind': 'special', 'input': e['input'], 'at': max(0, f - g0)}))   # (0 = its first frame, as the
+                                                                    # other games' lists; was f - g0 + 1: a frame late, TODO #163)
+            for inp, sends in prog_sends(rname, game, m, cid):   # the ROM specials' programs: every voice they may send
+                for via, ix, w, det in sends:                         # (a hit-only path, a DM the captures missed: TODO #163)
+                    u = {'kind': 'prog', 'input': inp, 'via': via}
+                    if via == 'step': u.update(state=det[0], step=det[1])
+                    elif via == 'later': u['later'] = det
+                    uses.append((w, ix, u))
             evp = os.path.join(cap_dir(game), f'{cid}_events.txt')
             if os.path.exists(evp):
                 W = wlog(evp + '.wlog')
@@ -308,8 +346,11 @@ def build_list(names=None):
                 if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
                 if ix not in vo['indices']: vo['indices'].append(ix)
                 if u not in vo['uses']: vo['uses'].append(u)
-            # a sample several fighters of the cast share by sample (rare): kept; ids by first index
-            lst = sorted(voices.values(), key=lambda x: (min(x['indices']), x['cmd']))
+            # a sample several fighters of the cast share by sample (rare): kept; ids by first index, the ids of the
+            # list before kept (game.json / data packs name voices by id): new voices after them
+            was = {tuple(map(tuple, vo['segments'])): vo['id'] for vo in old.get('fighters', {}).get(rname, {}).get('voices', [])}
+            lst = sorted(voices.values(), key=lambda x: (was.get(tuple(map(tuple, x['segments'])), 1 << 20), min(x['indices']), x['cmd']))
+            assert all(was.get(tuple(map(tuple, x['segments']))) in (None, k) for k, x in enumerate(lst, 1)), (rname, 'a voice of the list before is gone')
             for k, vo in enumerate(lst, 1):
                 vo['id'] = k
                 vo['bytes'] = len(sample_bytes(v, vo['segments']))
