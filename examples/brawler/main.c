@@ -408,7 +408,8 @@ static void sparks_draw(void) {
 /* ---- the super flash (fx.super_flash, TODO #139; tools/kof96/handlers98.md "Super flash"): an engine rule, every fury
  * (D) and MAX fury (down+D) of every fighter, timings and colours game-wide (game.json super_flash -> gamedata.h
  * gflash). From the fury's frame gflash.start (fighter.c) for gflash.freeze frames the game freezes except the attacker
- * (game_tick: no other fighter, projectile, camera, wave or timer moves; nobody hits), the stage is hidden and the
+ * (game_tick: no other fighter, projectile, camera, wave or timer moves; only the attacker's own boxes hit), its charge
+ * sound gflash.sound plays (KOF98's $1A $3A), the stage is hidden and the
  * backdrop is gflash.white_col for gflash.white frames, then gflash.dark_col (KOF98's controller $37120: $10A788 bit 7 =
  * stage planes blank, $10D936 = backdrop); KOF98's concentration (the effects library: make_sparks.py build_flash ->
  * superflash.h) plays at the anchor, following the attacker: the glow behind everything (sprites 1-10, its palette
@@ -436,6 +437,8 @@ void super_flash(fighter_t *f) {
     sf_col = f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max;   /* MAX: orange */
     if (sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
     PAL_setPalette(SF_RAYS_PAL, sf_ray_pal[sf_col]);
+    snd_sfx(gflash.sound);                                   /* KOF98's charge sound ($370F0 -> $3906E: index $99 =
+                                                                $1A $3A, DM and SDM alike) */
 }
 static void sf_reset(void) {
     uint8_t c;
@@ -2155,9 +2158,9 @@ void game_tick(void) {
     if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
-    if (!sf_who) { camera(); projectiles_update(cam_x); }
+    if (!sf_who) { camera(); dance_update(order, nf, cam_x); projectiles_update(cam_x); }
     mark(P_UPDATE);
-    if (!sf_who) combat(order, nf);
+    combat(order, nf, sf_who);                               /* a super flash: its attacker's own boxes only */
     mark(P_COMBAT);
     depth_sort();
     mark(P_SORT);

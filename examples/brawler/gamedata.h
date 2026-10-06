@@ -55,7 +55,7 @@ extern const gmeter_t gmeter;
  * effects library, superflash.h: KOF98's) plays at the anchor, blue for a fury, orange for a MAX fury. The anchor: the
  * special's bspec_t.sf_dx / sf_dy when it has one (sf_anchor), else dx / dy here (px from the feet, KOF orientation). */
 typedef struct {
-    uint8_t  start, freeze, white, pad;
+    uint8_t  start, freeze, white, sound;   /* sound: the effect code ($1A prefix) played at the start: KOF98's charge */
     int16_t  dx, dy;
     uint16_t white_col, dark_col;
 } gflash_t;

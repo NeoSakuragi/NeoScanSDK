@@ -164,6 +164,17 @@ static void clamp(fighter_t *f) {
     if (f->z < 0) f->z = 0;
     if (f->z > FIX(Z_DEPTH)) f->z = FIX(Z_DEPTH);
 }
+/* ---- dance (Bruno 2026-10-06, docs/brawler_move_vocabulary.md "dance"): a fury's victims. fighter_hit marks every
+ * fighter a fury hits (fighter_t.dance = the attacker). While that fury plays, its victim stays in its reel: no recovery
+ * (S_HITSTUN holds), no special out of it, no fall when its life runs out (a hit whose reaction is a reel keeps it
+ * standing; the knockdown / launch comes only with the hit that has one: the finisher), and when the fury ends a victim
+ * still reeling with no life left falls then. A fury holding a caught victim (KOF +$E4 bit 4, PF_HOLD) holds the whole
+ * crowd it hits: every hit a reel in place, its target (the caught one) kept. From the first hit until the victim is
+ * down, it and the fury stay inside the screen (dance_update: the screen edge is a wall). ---- */
+static uint8_t dancing(const fighter_t *v) {                    /* its fury still plays */
+    const fighter_t *a = v->dance;
+    return a && a->state == S_SPECIAL && a->spec_id == BS_FURY;
+}
 static void to_neutral(fighter_t *f, const intent_t *in) {
     if (in && (in->dx || in->dz)) { f->still = 0; enter(f, S_WALK); play_if_new(f, BA_WALK_FWD); }
     else if (in && in->ai && f->state == S_WALK && ++f->still < AI_IDLE_DELAY) { }   /* AI: no walk/idle flicker */
@@ -363,7 +374,7 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
         enter(v, S_KNOCKDOWN); v->vy = reaction >= R_KNOCKDOWN ? FIX(5) : FIX(4); v->vx = dir_mul(away, FIX(1) + 0x8000);
         play(v, reaction == R_SLAM ? BA_KNOCKDOWN_FLIGHT : BA_BLOWBACK); return;   /* KOF's hit_air ends on standing frames (KOF96: none) */
     }
-    switch (v->hp <= 0 ? R_KNOCKDOWN : reaction) {
+    switch (v->hp <= 0 && !dancing(v) ? R_KNOCKDOWN : reaction) {   /* (a dance's reel: its finisher fells it) */
     case R_LIGHT: case R_HEAVY:
         enter(v, S_HITSTUN); play(v, reaction == R_LIGHT ? BA_HIT_STAND_LIGHT : BA_HIT_STAND_HEAVY);
         v->vx = dir_mul(away, FIX(push) >> 2);
@@ -516,7 +527,7 @@ static void throw_update(fighter_t *f) {
             uint8_t d = 0, rest = THROW_DAMAGE;                 /* THROW_DAMAGE / impacts (no divide here) */
             while (rest >= f->grab_hits) { rest -= f->grab_hits; d++; }
             v->hp -= d; f->throw_dealt += d;
-            if (!mute) voice_play(v->ch, v->team, v->hp > 0 ? VK_HIT : VK_KO);
+            if (!mute && v->hp > 0) voice_play(v->ch, v->team, VK_HIT);   /* the KO voice: at the death (S_DEAD) */
             if (r->flags & 16) f->freeze = v->freeze = THROW_FREEZE;   /* only where KOF froze (Ryo's forward+C) */
             f->impact = 1;                                       /* combat() hits the victim's teammates around it */
             snd_sfx(f->ch->sfx[SX_THROW_C + f->throw_id] ? f->ch->sfx[SX_THROW_C + f->throw_id] : SFX_HIT_CD);   /* Krauser's back breaker: $3D */
@@ -635,7 +646,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
  * motion, owner +$84, one at a time per thrower (+$E1 bit 5). It lives on whatever the thrower does (its routine never
  * reads the owner) and dies when its animation ends, when it leaves the screen (x - camera <= -64 or >= 384, the shared
  * test KOF98 $180B6) or, a travelling one (kind 1), on its first hit, into its end animation; an eruption (kind 3)
- * hits once and plays on. Neither it nor its thrower freezes on its hit (the victim does). Two projectiles that meet
+ * hits once and plays on (KOF's 1v1; the brawler's crowd rule: it hits every target it touches, each once). Neither it nor its thrower freezes on its hit (the victim does). Two projectiles that meet
  * (one's attack box on the other's own box) both spend their hit. Here: a pool entity driven by its bproj_t rows. */
 static void proj_row(fighter_t *p) {
     const bproj_t *d = p->pdef;
@@ -646,7 +657,7 @@ static void proj_row(fighter_t *p) {
     } else {
         const bprow_t *r = &d->rows[p->prow];
         p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y);
-        p->spec_atk = (r->flags & 1) && !p->pend ? &r->atk : 0;
+        p->spec_atk = (r->flags & 1) && (!p->pend || p->pend == 3) ? &r->atk : 0;   /* (3: an eruption that hit: live) */
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
     if (d->follow && p->owner) p->y += p->owner->y;              /* pinned to its thrower (Burn Knuckle's flame) */
@@ -677,6 +688,13 @@ static void proj_hit(fighter_t *p) {                             /* its hit land
         if (!p->pdef->nend) { projectile_reset(p); return; }
         p->pend = 1; p->prow = 0; p->throw_x0 = p->x; proj_row(p);
     } else { p->pend = 2; p->spec_atk = 0; p->pown = 0; }       /* an eruption plays on, its attack spent */
+}
+static void proj_crowd(fighter_t *p) {                          /* an eruption's hit on a fighter (crowd rule, Bruno
+                                                                    2026-10-06): its thrower signalled, its clash box
+                                                                    spent as KOF's (pend 3), its attack box live for
+                                                                    the others (combat: hit_mask, each target once) */
+    if (p->owner) p->owner->pflags |= (p->pdef->sig << 2) & (PF_SIG7 | PF_SIG6);
+    p->pend = 3; p->pown = 0;
 }
 static void proj_child(fighter_t *p) {                           /* its trail: an object it spawns where it is */
     const bproj_t *d = p->pdef;                                  /* (its rows hold their own height) */
@@ -769,7 +787,7 @@ static const struct { int32_t vx, vy, g, gf, vmin; uint16_t gfr, vfr; uint8_t de
 static void kof_react(fighter_t *v, int8_t away, uint8_t rc, int8_t slide) {   /* rc: R_* | 8 hittable */
     uint8_t hurt = rc & 8 ? KM_HURT : 0;
     rc &= 7;
-    if (v->hp <= 0 && rc < R_KNOCKDOWN) rc = R_KNOCKDOWN;
+    if (v->hp <= 0 && rc < R_KNOCKDOWN && !dancing(v)) rc = R_KNOCKDOWN;
     if (rc < R_HEAVY || rc > R_LIFT || !KOF_REACT[rc].delay) return;   /* the brawler's own (react): R_TRIP, R_BLOWBACK */
     if (rc == R_HEAVY && v->y > 0) rc = R_KNOCKDOWN;             /* no reel in the air: KOF's air hit sends it off */
     if (rc == R_HEAVY && v->state != S_HITSTUN) return;
@@ -1017,7 +1035,8 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     if (f->inv == INV_FURY) { if (f->state != S_SPECIAL || f->spec_id != BS_FURY) f->inv = 0; }   /* held for the fury's script */
     else if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
-    if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C)) {    /* out of trouble: a special while hit */
+    if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C) && !dancing(f)) {   /* out of trouble: a special
+                                                                    while hit (not in a fury's dance) */
         uint8_t k = special_for(f, in);                          /* costs double and flashes white (spend) */
         if (k != 0xFF && spend(f, gmeter.special, 0, 1)) {
             if (f->state == S_GRABBED && f->held) release(f->held);
@@ -1119,6 +1138,8 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     case S_HITSTUN:
         if (f->kdelay) f->kdelay--;                              /* KOF's shake after a special's hit: in place */
         else { f->x += f->vx; f->vx = f->kvfr ? fmul16(f->vx, f->kvfr) : f->vx - (f->vx >> 3); clamp(f); }
+        if (dancing(f)) break;                                   /* a fury's victim: in its reel until the fury ends */
+        if (f->hp <= 0) { react(f, f->facing > 0 ? -1 : 1, R_KNOCKDOWN, 0); break; }   /* its dance over, no life: it falls */
         if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT)) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends */
         break;
     case S_KNOCKDOWN:
@@ -1138,7 +1159,10 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         break;
     case S_DOWN:
         if (f->state_t >= DOWN_FRAMES) {
-            if (f->hp <= 0) { enter(f, S_DEAD); break; }         /* main decides: blink out, a life, or continue */
+            if (f->hp <= 0) {                                    /* the death: main decides (blink out, a life, or */
+                enter(f, S_DEAD); voice_play(f->ch, f->team, VK_KO);   /* continue); its KO voice, once, every death */
+                break;
+            }
             enter(f, S_GETUP); play(f, BA_GETUP); f->inv = INV_GETUP;
         }
         break;
@@ -1168,15 +1192,19 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         if ((a->spec_prev_hit & 16) && a->phit != 0xFF && !a->pcatch) {   /* a catch box: no damage, the victim held, */
             a->pcatch = 3; a->pflags |= PF_HOLD; a->phold = 0; damage = 0;   /* its routine after the hit-stop */
         }
-        if ((a->pflags & PF_HOLD) && (v == a->target || a->pcatch == 3)) rk = reaction = R_HEAVY;   /* held: a reel in place */
+        if ((a->pflags & PF_HOLD) && (v == a->target || a->pcatch == 3 || a->spec_id == BS_FURY)) rk = reaction = R_HEAVY;
+                                                                 /* held: a reel in place (a fury's hold: its whole crowd) */
     }
+    if (a->state == S_SPECIAL && a->spec_id == BS_FURY) v->dance = a;   /* a fury's victim (dance) */
     v->hp -= damage + (a->owner ? a->owner : a)->power;
-    voice_play(v->ch, v->team, v->hp > 0 ? VK_HIT : VK_KO);
+    if (v->hp > 0) voice_play(v->ch, v->team, VK_HIT);          /* the KO voice: once, at the death (S_DEAD) */
     v->freeze = HITSTOP;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
     a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
     if (a->state == S_SPECIAL) a->shrow = a->srow;               /* the special's row it landed on + 1 (follow-up windows) */
-    (a->owner ? a->owner : a)->target = v;
+    if (!(a->state == S_SPECIAL && (a->pflags & PF_HOLD) && a->target && a->target != v && a->target->dance == a &&
+          a->target->state == S_HITSTUN))
+        (a->owner ? a->owner : a)->target = v;                   /* (a hold keeps its caught victim: a crowd hit on the way) */
     lab_note(a->owner ? a->owner : a, LE_HIT, a->state == S_ATTACK || a->state == S_AIR_ATTACK ? a->node : 0xFF, v->idx, damage);
     react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, push);
     if (a->state == S_SPECIAL) kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* a special's body hit: KOF98's */
@@ -1208,11 +1236,11 @@ static uint8_t grabbable(const fighter_t *v) {
 #define AIR_BLOCK_Y 64            /* a special in the air below this height (px) is held by a standing body ahead */
 #define PUSH_DX 32                /* a special pushes an opponent standing in its path to keep it this far ahead (KOF's push
                                      boxes: the captured opponent stood 27-49 px ahead at the moves' first impacts) */
-void combat(fighter_t **fs, uint8_t n) {
+void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
     uint8_t i, j;
     for (i = 0; i < n; i++) {                                    /* specials push who stands in their path: a rush */
         fighter_t *a = fs[i];                                    /* reaches its hit as in the game, not past it */
-        if (a->state != S_SPECIAL || INT(a->y) >= AIR_BLOCK_Y) continue;
+        if (a->state != S_SPECIAL || INT(a->y) >= AIR_BLOCK_Y || (only && a != only)) continue;
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
             int16_t d, dz;
@@ -1232,7 +1260,7 @@ void combat(fighter_t **fs, uint8_t n) {
     for (i = 0; i < n; i++) {                                    /* a ROM special's opponent (KOF +$BC, PC_FAR before any hit): */
         fighter_t *a = fs[i];                                    /* the nearest one on its lane */
         int16_t best = 0x7FFF;
-        if (a->state != S_SPECIAL) continue;
+        if (a->state != S_SPECIAL || (only && a != only)) continue;
         a->popp = 0;
         for (j = 0; j < n; j++) {
             fighter_t *o = fs[j];
@@ -1246,7 +1274,7 @@ void combat(fighter_t **fs, uint8_t n) {
     }
     for (i = 0; i < n; i++) {                                    /* throw impacts: the victim's teammates close to it go down */
         fighter_t *a = fs[i], *v = a->held;
-        if (!a->impact) continue;
+        if (!a->impact || only) continue;
         a->impact = 0;
         if (!v) continue;
         for (j = 0; j < n; j++) {
@@ -1262,7 +1290,7 @@ void combat(fighter_t **fs, uint8_t n) {
     }
     for (i = 0; i < n; i++) {                                    /* grabs: walking forward into a standing opponent */
         fighter_t *a = fs[i];
-        if (!a->pushing || a->state != S_WALK || !a->ch->throws[BT_THROW_C].nrows) continue;
+        if (!a->pushing || a->state != S_WALK || !a->ch->throws[BT_THROW_C].nrows || only) continue;
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
             int16_t dz, d;
@@ -1276,7 +1304,7 @@ void combat(fighter_t **fs, uint8_t n) {
         fighter_t *a = fs[i];
         const bbox_t *atk;
         uint8_t sounded = 0;                                     /* one hit sound per attack, however many it hits */
-        if (a->freeze) continue;
+        if (a->freeze || (only && a != only)) continue;
         if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
             const bstep_t *sa = fighter_step(a);
             if (!(sa->flags & 1)) continue;
@@ -1335,13 +1363,17 @@ void combat(fighter_t **fs, uint8_t n) {
                     if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                 }
                 spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big */
-                if (a->pdef) { proj_hit(a); break; }             /* a projectile hits once */
+                if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */
+                    if (a->pdef->kind == 1) { proj_hit(a); break; }   /* fireball); any other (an eruption) hits every */
+                    proj_crowd(a);                                /* target it touches, each once (hit_mask): crowd */
+                }
             }
         }
     }
-    for (i = 0; i < NPJ; i++) {                                  /* projectiles meeting: both hits spent (KOF98 */
+    for (i = 0; i < NPJ && !only; i++) {                         /* projectiles meeting: both hits spent (KOF98 */
         fighter_t *a = &projectiles[i];                          /* measured: EX Ryo's Ko-ou-ken ended on Yuri's */
-        if (a->state != S_PROJ || !a->pdef || !a->spec_atk) continue;   /* eruption, whose attack went off) */
+        if (a->state != S_PROJ || !a->pdef || !a->spec_atk || a->pend == 3) continue;   /* eruption, whose attack went off;
+                                                                    one that hit a fighter: spent for clashes, as KOF's) */
         for (j = 0; j < NPJ; j++) {
             fighter_t *b = &projectiles[j];
             int16_t dz;
@@ -1351,6 +1383,31 @@ void combat(fighter_t **fs, uint8_t n) {
             proj_hit(a); proj_hit(b);
             break;
         }
+    }
+}
+
+/* a dance (see "dance"): from a fury's first hit until its victim is down, the victim stays inside the screen
+ * (DANCE_EDGE px in): the screen edge is a wall. The fury's attacker stays inside too and, while it plays, is held
+ * back by what its reeling target (the victim it holds / hit last) was held back: it stops advancing at the wall (a
+ * launched victim's flight into the wall moves nobody). The camera
+ * does not follow instead: the campaign locks it in the waves. */
+#define DANCE_EDGE 40              /* px from the screen edge to a dance victim's feet: its whole body shows (a fighter's
+                                     body is about 60 px wide; the players' own limit, 16 px, shows half of it) */
+void dance_update(fighter_t **fs, uint8_t n, int16_t cam_x) {
+    uint8_t i;
+    int32_t lo = FIX(cam_x + DANCE_EDGE), hi = FIX(cam_x + 320 - DANCE_EDGE);
+    for (i = 0; i < n; i++) {
+        fighter_t *v = fs[i], *a = v->dance;
+        int32_t x;
+        if (!a) continue;
+        if (v->state != S_HITSTUN && v->state != S_KNOCKDOWN) { v->dance = 0; continue; }   /* down (or free): over */
+        x = v->x < lo ? lo : v->x > hi ? hi : v->x;
+        if (!dancing(v)) { v->x = x; continue; }
+        if (x != v->x && a->target == v && v->state == S_HITSTUN) { a->x += x - v->x; a->throw_x0 += x - v->x; }   /* the
+                                                                    attacker held back (not by its finisher's launch) */
+        v->x = x;
+        if (a->x < lo) a->x = lo;
+        if (a->x > hi) a->x = hi;
     }
 }
 

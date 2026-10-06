@@ -193,7 +193,9 @@ typedef struct fighter {
     uint8_t  jump_dir;            /* its direction: 0 vertical, 1 forward, 2 back (facing kept) */
     /* independent projectile (S_PROJ entity spawned by a special's bspec_t.proj; fields added at the end: draw.s pins
      * the ones above). pdef: its definition; prow: row of its flight (or of its end); pend: 1 its end rows play (a
-     * travelling one hit), 2 its attack is spent (an eruption that hit plays on); pown: the clash box of the row */
+     * travelling one hit), 2 its attack is spent (an eruption that clashed plays on), 3 an eruption that hit a fighter:
+     * its attack box hits every other target it touches, each once (hit_mask: the crowd rule), its clash box spent;
+     * pown: the clash box of the row */
     const bproj_t *pdef;
     const bbox_t *pown;
     uint8_t  prow, pend;
@@ -245,6 +247,8 @@ typedef struct fighter {
     struct fighter *popp;         /* a ROM special's nearest opponent on its lane (PC_FAR before a hit sets target) */
     uint8_t  pdead, pdeadn;       /* a catch's dead frames left / to come (P_ONHIT a + 1: KOF counts the catching step's
                                    * hit-stop down at $1B402 before +$19C; TODO #79 / #84) */
+    struct fighter *dance;        /* the fury that hit this fighter (fighter.c "dance"): while it plays the victim stays
+                                   * in its reel (no recovery, no fall on death) and inside the screen (dance_update) */
 } fighter_t;
 
 
@@ -261,9 +265,12 @@ void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase,
 void fighter_update(fighter_t *f, const intent_t *in);
 void fighter_hit(fighter_t *atk, fighter_t *vic, uint8_t damage, uint8_t reaction, int8_t push);   /* attack connected */
 void spark_hit(int16_t wx, int16_t sy, uint8_t big, int8_t facing);   /* main.c: KOF98 hit spark at world x, screen y */
-void combat(fighter_t **fs, uint8_t n);                     /* attack boxes vs hurt boxes, every pair */
+void combat(fighter_t **fs, uint8_t n, const fighter_t *only);   /* attack boxes vs hurt boxes, every pair; only (not
+                                                               0): that attacker's own boxes and pushes alone (the super
+                                                               flash: its fury hits the frozen world, nothing else does) */
 void fighter_tiles(fighter_t *f);                           /* pass 1: tile runs when the frame changed */
 void fighter_place(const fighter_t *f, uint16_t *y, uint16_t *x, int16_t cam_x, uint8_t n);   /* pass 2: SCB3/SCB4 of n sprites (>= ncols; the rest height 0) */
+void dance_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: a fury's victims and the fury inside the screen */
 void super_flash(fighter_t *f);      /* main.c: the fury's super flash starts (fx.super_flash: the game freezes except f) */
 const char *fighter_state_name(uint8_t st);
 const bstep_t *fighter_step(const fighter_t *f);
