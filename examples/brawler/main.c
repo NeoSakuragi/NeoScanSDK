@@ -129,12 +129,20 @@ static void stage_pals(void) {                               /* the stage's pale
     uint8_t p;
     for (p = 0; p < stg->npal; p++) PAL_setPalette(STAGE_PAL + p, stg->pal + p * 16);
 }
+static uint8_t bd_on, bd_t;                      /* screen_fx: the stage hidden for a special's effect; its frames */
+static const uint16_t *bd_cols;                  /* its two colours */
 static void stage_hide(void) {                              /* title, select: no stage */
     uint8_t i;
+    bd_on = 0;
     for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);
+}
+static void stage_show(void) {
+    uint8_t s;
+    for (s = 0; s < BG_N; s++) cmd_push(VRAM_SCB3 + BG_SPR + s, ((496 - stg->y) << 7) | stg->rows);
 }
 static void stage_init(uint8_t n) {
     uint8_t s;
+    bd_on = 0;
     stg = &stages[n]; floor_top = stg->floor_top; world_w = stg->cols << 4;
     stage_pals();
     *(volatile uint16_t *)0x3C0006 = stg->lspcmode;                /* REG_LSPCMODE: auto-animation speed */
@@ -445,9 +453,30 @@ static void dbg_draw(void) {
     }
 }
 
+/* a special's screen effect (bspec_t.bd_*, Kizuna's Phoenix): while a fighter's special shows a row in [bd_first,
+ * bd_end) the stage is hidden and the backdrop alternates bd_col[0] / bd_col[1] every frame (Kizuna $1FC46: $27E6 /
+ * $27E4 by bit 0 of its counter $27E1); after, the stage and its backdrop come back */
+static void screen_fx(void) {
+    uint8_t i;
+    const bspec_t *sp = 0;
+    for (i = 0; i < nf && !sp; i++) {
+        const fighter_t *f = &fighters[i];
+        if (f->state == S_SPECIAL && f->srow) {
+            const bspec_t *s = &f->ch->specials[f->spec_ix];
+            if (s->bd_end && f->srow - 1 >= s->bd_first && f->srow - 1 < s->bd_end) sp = s;
+        }
+    }
+    if (sp) {                                                /* the stage's sprites go at the next vblank (cmd */
+        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* queue): the strobe starts the frame after, */
+        else PAL_setBackdrop(sp->bd_col[bd_t++ & 1]);            /* bd_col[0] first as Kizuna (measured) */
+        bd_cols = sp->bd_col;
+    } else if (bd_on == 1) { stage_show(); PAL_setBackdrop(bd_cols[bd_t & 1]); bd_on = 2; }   /* back the same way: the stage first, */
+    else if (bd_on == 2) { PAL_setBackdrop(stg->backdrop); bd_on = 0; }   /* its backdrop the frame after */
+}
+
 static void draw(void) {
     uint8_t i;
-    if (mode == 1) stage_draw();                             /* only the fight has a stage */
+    if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
     for (i = 0; i < nf; i++)
         if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF) && block_w(order[i])) {
             uint8_t bc = blk_cols;

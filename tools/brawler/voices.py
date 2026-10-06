@@ -519,8 +519,10 @@ def kizuna_list(rname, name, cid):
         vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
         vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
     print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
-    return {'game': 'kizuna', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
-                                                                        'bytes', 'ms', 'uses')} for vo in lst]}
+    for vo in lst:                                         # an effect (not his voice slot): Kizuna plays it on its
+        if int(vo['cmd'], 16) in own_fx: vo['channel'] = 'fx'   # effects channel, over his voice (the Phoenix's cry
+    return {'game': 'kizuna', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',   # with $1CD2)
+                                                                        'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
 
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
@@ -586,15 +588,39 @@ def mapping(field, sug):
         else: out.pop(k, None)
     return out
 
-def table(ks, sug, mp, nvoices):
+def extras(name, ks, sug, mp, pool):
+    """a special's other voices: the source game sends several in one move (Kizuna: the Phoenix's shouts $1CD1 / $1CD2
+    besides its cry, 236C's yell per part, [2]8C's shout before its effect); the table's [id, at] holds the key's first
+    (suggest), these the rest: [key index, voice id, at] (at = the script row as played), sorted. Only where the roster
+    keeps the suggestion for that key (a picked or silenced key plays what it was given). bchar_t.vmore, fighter.c voice_at"""
+    out = []
+    for inp, keep in pool:
+        k = 'special:' + inp
+        if k not in sug or mp.get(k) != sug[k][0]: continue
+        seen = {tuple(sug[k])}
+        for vo in bank(name):
+            for u in vo['uses']:
+                if u['kind'] != 'special' or u['input'] != inp: continue
+                e = (vo['id'], min(255, sum(1 for i in keep if i < u['at'])))
+                if e not in seen: seen.add(e); out.append([ks.index(k), e[0] | fx_bit(name, e[0]), e[1]])
+    return sorted(out)
+
+def table(ks, sug, mp, nvoices, nvoices_name=None):
     """the voice table bytes: [id, at] per key; at = the suggestion's place for that key (a picked voice starts where KOF's
     own did; a key KOF left silent: at its start)"""
     out = []
     for k in ks:
         i = mp.get(k, 0)
         assert 0 <= i <= nvoices, (k, i, nvoices)
-        out += [i, min(255, sug.get(k, [0, 0])[1]) if i else 0]
+        out += [i | fx_bit(nvoices_name, i), min(255, sug.get(k, [0, 0])[1]) if i else 0]
     return out
+
+FX = 0x80
+def fx_bit(name, i):
+    """bit 7 of a voice id in the tables: the voice is a sound effect of its game (voices.json channel 'fx': Kizuna's
+    own-effect sounds) played on the other voice slot so it does not cut the fighter's voice (fighter.c voice_play)"""
+    vs = bank(name) if name else []
+    return FX if i and i <= len(vs) and vs[i - 1].get('channel') == 'fx' else 0
 
 if __name__ == '__main__':
     cmd, names = sys.argv[1], sys.argv[2:] or None

@@ -62,13 +62,19 @@ static const uint8_t *const vcodes[BC_COUNT] = VOICE_CODES;
 static const uint8_t vncodes[BC_COUNT] = VOICE_NCODES;
 static uint8_t mute;                                         /* fighter_play / fighter_animate: previews */
 void voices_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) voice_tab[i] = bm_chars[i].voices; }
-void voice_play(const bchar_t *ch, uint8_t team, uint8_t key) {
-    uint8_t id = voice_tab[ch->id][key * 2];
+/* id bit 7: an effect of its game (voices.py fx_bit): the other voice slot, so it plays over the fighter's voice */
+static void voice_id(const bchar_t *ch, uint8_t team, uint8_t id) {
+    if (id & 0x80) { team ^= 1; id &= 0x7F; }
     if (id && id < vncodes[ch->id]) snd_voice(team ? VOICE_PREFIX_ENEMY : VOICE_PREFIX_PLAYER, vcodes[ch->id][id]);
 }
+void voice_play(const bchar_t *ch, uint8_t team, uint8_t key) { voice_id(ch, team, voice_tab[ch->id][key * 2]); }
 static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to) {   /* `at` in [from, to] */
     const uint8_t *e = voice_tab[f->ch->id] + key * 2;
-    if (!mute && e[0] && f->state != S_PROJ && e[1] >= from && e[1] <= to) voice_play(f->ch, f->team, key);
+    if (mute || f->state == S_PROJ) return;
+    if (e[0] && e[1] >= from && e[1] <= to) voice_play(f->ch, f->team, key);
+    if (voice_tab[f->ch->id] != f->ch->voices) return;           /* a pack's table: its own voices only */
+    for (e = f->ch->vmore; *e != 0xFF; e += 3)                   /* the key's further voices (bchar_t.vmore) */
+        if (e[0] == key && e[2] >= from && e[2] <= to) voice_id(f->ch, f->team, e[1]);
 }
 uint8_t spec_ix(const bchar_t *ch, uint8_t role) { uint8_t k = role == BS_FURY ? ch->fury : spec_tab[ch->id][role]; return k < ch->nspec ? k : 0xFF; }
 void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }

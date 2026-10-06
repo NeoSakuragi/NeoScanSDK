@@ -293,6 +293,9 @@ def special(B, inp, cap):
 #   421A  100 the lunge; a hit that caught: at once 101 (the whiff ends after 100).
 #   6246A 85 the rush; a hit that caught: at once 86 (rush hits, the launch, the flight in the Phoenix flames $508C /
 #         $508D), 88 the dive among flame feathers $5068 / $506B (random places in Kizuna: the captured ones), 89.
+#         'backdrop': from the launch (86's step event at the hit, $3AC5C) to 88 Kizuna hides the stage and its backdrop
+#         ($401FFE, routine $1FC46) alternates $27E6 / $27E4 = $7DFF / $4700 every frame ($27E1 = $80: bit 0 of the
+#         counter picks; cleared as 88 starts, $3ACDE); measured in our emulator: white first, 87 frames.
 # A part = (capture, Kim's animations in it); links (export_bm.special_parts): 'again' = the A+B input that started the
 # move; down+C -> down+A (A is the brawler's attack button). Connect parts (hit captures): Kizuna's hit-stop frames
 # removed (Kim and the victim both still: the brawler freezes on its own hits), the victim held where Kizuna had it
@@ -305,7 +308,8 @@ FOLLOW = {
     '421A': {'parts': [('421A_w', (0x100,), None), ('421A_h', (0x101,), None)],
              'links': [(0, 1, 'hit', None, 0x100, 'now')], 'carry': 1},
     '6246A': {'parts': [('6246A_w', (0x85,), None), ('6246A_h', (0x86, 0x88, 0x89), None)],
-              'links': [(0, 1, 'hit', None, 0x85, 'now')], 'carry': 1, 'objects': 1, 'damage': '6246A_h'},
+              'links': [(0, 1, 'hit', None, 0x85, 'now')], 'carry': 1, 'objects': 1, 'damage': '6246A_h',
+              'backdrop': {'part': 1, 'to': 0x88, 'colours': (0x7DFF, 0x4700)}},
 }
 FOLLOWUPS = '/data/neogeo_dict/kizuna/kim_followups.json'
 LIFE_KZ, LIFE_BRAWLER = 192, 60                        # full life: Kizuna (+$113), the brawler (fighter.c f->hp)
@@ -347,7 +351,7 @@ def multipart(B, inp, fc):
     F = FOLLOW[inp]; react = hit_reactions(fc)
     script, rboxes, rsteps, carry, rsrc, parts, links, spans = [], [], [], [], [], [], [], []
     chained = {}                                         # rows whose box became a held victim's: their same-hit flag
-    marks, grows = [], []
+    marks, grows, backdrop = [], [], None
     for pi, (rec, anims, nxt) in enumerate(F['parts']):
         fr = fc[rec]['frames']
         hitcap = rec.endswith('_h')
@@ -411,6 +415,12 @@ def multipart(B, inp, fc):
             nb = rboxes[j + 1] if j + 1 < len(script) else {}
             live = any(k_[0] == '1' for k_ in rboxes[j])
             rsteps[j][2] = (0x100 if live else 0) | (0x4000 if live and (nb == rboxes[j] or chained.get(j)) else 0)
+        bd = F.get('backdrop')
+        if bd and bd['part'] == pi:                      # the screen effect: from the hit that launches (its life drop:
+            drop = next(j for j in range(s0 + 1, e) if fr[j][1][6] < fr[j - 1][1][6])   # the same step event) to
+            to = next(j for j in range(s0, e) if fr[j][0][0] == bd['to'])              # the part's anim bd['to']
+            sel = [first + k for k, i in enumerate(rows) if drop <= i < to]
+            backdrop = {'rows': [sel[0], sel[-1] + 1], 'colours': list(bd['colours'])}
         parts.append({'first': first, 'end': len(script), 'next': nxt})
     for a, b, on, key, win, at in F['links']:
         an, st0 = win if isinstance(win, tuple) else (win, 0)
@@ -421,7 +431,7 @@ def multipart(B, inp, fc):
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
             'row_steps': rsteps, 'marks': marks, 'game_rows': grows, 'projectiles': [], 'anims': [a for _, an, _ in F['parts'] for a in an],
             'shape': [max(r[1] for r in p0), max(r[2] for r in p0), False], 'game_hits': sum(1 for r in rsrc if r), **game_damage(F, fc),
-            'parts': parts, 'links': links, 'carry_src': carry, 'react_src': rsrc}
+            'parts': parts, 'links': links, 'carry_src': carry, 'react_src': rsrc, **({'backdrop': backdrop} if backdrop else {})}
 
 VSTATE = {0xEF: (0x10C, 0xFA), 0xDE: (0x17A, 0xDE)}   # Hayate's victim animation -> (state, Kim's animation for it)
 POSES = json.load(open(os.path.join(HERE, 'victim_poses_kz.json')))['poses']

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Kim's Phoenix (6246A, C) in the brawler with its sound, in our emulator's core with the Z80 port tap (the build
 voice_proof.py uses): the Chain Lab training (Kim against a dummy at point blank, the move connects), every voice
-command the Z80 reads ($1C + code) with the ADPCM-A key-on it starts, the script row Kim was on, and the check: the
+command the Z80 reads ($1C + code, $1E + code for its effects: the other voice slot) with the ADPCM-A key-on it starts, the script row Kim was on, and the check: the
 sample keyed on = Kizuna's own sample of that voice (voices.json, from Kizuna's driver: kim_voices.json) byte for byte;
 Kizuna's own sounds for the move (export_kz.special_sounds: script row, word); the game's audio as a WAV.
 
@@ -61,7 +61,7 @@ def main():
         if f < f0: continue
         if kind == 'c':
             if want is not None:
-                if want == 0x1C: pending = (x, f)
+                if want in (0x1C, 0x1E): pending = (x, f)   # $1E: an effect voice on the other slot (voices.py fx_bit)
                 want = None
             elif 0x14 <= x <= 0x1E: want = x
             continue

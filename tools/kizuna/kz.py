@@ -250,6 +250,13 @@ def colorize(img, pal):
         if i & 15: lut[i] = color(pal[i])
     return lut[img]
 
+def draw_order(attr, parts, defs, offs):
+    """the parts in the order Kizuna draws them (later = in front): 0, 1, 2; attr bit 7 (the loader puts attr bits 5-7
+    in +$4F, $13AC6; the renderer tests +$4F bit 2, $149AC -> $14C9C) draws parts 1, 2 first and part 0 last, in front
+    (6C's staff behind the hand that holds it, steps 4 / 5; the frames README called "slid by code")"""
+    z = list(zip(parts, defs, offs))
+    return z[1:] + z[:1] if attr & 0x80 else z
+
 def render_step(img, a, X, Y, face_left=0, pal_add=0):
     """draw the step at a as the game does at full size: X / Y = the object's screen position (Y = the floor line for
     y 0); part offsets (dx, dy): left = X + dx, top = Y - dy; facing left (+$0F bit 1): left = X - dx - 16 cols + 1 and
@@ -257,7 +264,7 @@ def render_step(img, a, X, Y, face_left=0, pal_add=0):
     f, t, parts, defs, xy, attr, q = step_at(a)
     hflags = {0: f >> 7 & 1, 1: f >> 5 & 1, 2: t >> 7 & 1}
     vflags = {0: f >> 6 & 1, 1: f >> 4 & 1, 2: 0}
-    for i, w, (dx, dy) in zip(parts, defs, offsets(attr, parts, xy)):
+    for i, w, (dx, dy) in draw_order(attr, parts, defs, offsets(attr, parts, xy)):
         e = sdef_entry(w)
         if e is None: continue
         left = X - dx - 16 * e['cols'] + 1 if face_left else X + dx
@@ -303,7 +310,7 @@ def render_step_zoom(img, a, X, Y, z=0xFF):
     f, t, parts, defs, xy, attr, q = step_at(a)
     hfl = {0: f >> 7 & 1, 1: f >> 5 & 1, 2: t >> 7 & 1}; vfl = {0: f >> 6 & 1, 1: f >> 4 & 1, 2: 0}
     pat = u16(0x4D0C0 + 2 * (z & 15)); h0 = z >> 4
-    for i, w, (dx, dy) in zip(parts, defs, offsets(attr, parts, xy)):
+    for i, w, (dx, dy) in draw_order(attr, parts, defs, offsets(attr, parts, xy)):
         d = sdef(w)
         if not d: continue
         nc, nr = len(d['cols']), len(d['cols'][0])

@@ -395,7 +395,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   identical; regress no-bleed True. WAVs to compare: /data/tmp/ff3cursor/out.
   Done 2026-10-06: fury hits $9C, grab / command-grab catch $19, Krauser's back breaker $3D, Haohmaru's slashes $2B (game.json roster[].hit_sfx, bchar_t.sfx, export_bm move_fx); $17 not wired: the brawler has no guard.
 
-- [ ] 76. (0.0.53: his multipart moves + the Phoenix's on-connect sequence and flames play, one follow-up mechanism;
+- [x] 76. (0.0.53: his multipart moves + the Phoenix's on-connect sequence and flames play, one follow-up mechanism;
   left: the Phoenix's red backdrop (the brawler shows the empty stage ~12 frames while both fly off-screen), random
   flame feathers replayed as captured, j.2B > 2B follow-up 92 not played) Kim Young Mok leftovers (0.0.50, tools/kizuna, /data/neogeo_dict/kizuna/README.md): his voices into the
   sound ROM (the voice build path reads KOF / SS4 / WHP, not Kizuna's driver: tools/kizuna/voices_kz.py lists 40);
@@ -409,6 +409,25 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   tools/kizuna/kim_followups_proof.py (13 scenarios x facings vs Kizuna, contact sheets /data/tmp/kimseq/out),
   kim_proof.py (every frame of every part identical to Kizuna's render, both facings). Not played: j.2B's follow-up
   (2B again -> 92: j.2B is an air normal in the brawler); the red backdrop flash of the Phoenix.
+  Done 2026-10-06: (1) the Phoenix's screen effect: Kizuna hides the stage and strobes its backdrop $7DFF / $4700
+  every frame from the launch hit to the dive ($3AC5C sets $27E4 / $27E1, $1FC46 alternates, $3ACDE clears); export_kz
+  FOLLOW 'backdrop' -> bspec_t.bd_first / bd_end / bd_col, main.c screen_fx (stage hidden, strobe white first, stage
+  back): tools/kizuna/phoenix_backdrop_proof.py (Kizuna 87 strobe frames, the brawler 83: 76 rows + its own hit-stops).
+  (2) several voices per special: voices.py extras -> bchar_t.vmore [key, id, at] (fighter.c voice_at), a voice id's
+  bit 7 = its game's effect channel (voices.json channel 'fx': the Phoenix's cry $1A68, [2]8C's $1A67) played on the
+  other voice slot so it does not cut his shout: the Phoenix now says $1CD1 at the start and $1CD2 with the cry, 236C
+  its yells per part ($1CBB $1CB5 $1CB6 x2 $1CB9), [2]8C $1CCE; Kim's voices in the V ROM 13 -> 18 of 25 (+32000 bytes of V ROM).
+  (5) the "150 frames slid by code" are not a slide: step attr bit 7 (+$4F bit 2) draws parts 1 / 2 first and part 0
+  in front ($14C9C; 6C's staff behind his hand, A+B, C+D): kz.draw_order; check_frames 1005 / 1066 (was 916), the 61
+  left are other sprites in front of him (the hit 6C's victim) and the screen's bottom edge on landings (camera y).
+  (4) colour B = Kizuna's 2P palette RAM word for word ($1C0 / $1C1 at slots 48 / 49 in a Kim vs Kim colour B fight),
+  screenshot /data/tmp/kim76/out/colour_B.png. (6) Phoenix damage: Kizuna's drop is 61 of 192 = 19.06 of the brawler's
+  60, the brawler deals 19 over its 12 hits (unchanged: it already matches).
+  Left: (3) his stage song: Kizuna ties no stage to a character (vs: a random unplayed stage of 8, $E076; 1P: a random
+  remaining opponent slot -> stage $DFA6, stage -> song $4DD18: stages 0/1 $21, 2/3 $22, 4/5 $24, 6/7 $23, 8 $2B, 9 $2C;
+  the CPU team is picked apart from the stage), so nothing ported; 7 voices not mapped (alternate yells $1CBC $1CC4,
+  $1CC0, the heavy-hit $1CC5, dodge $1CC9, taunt $1CCB, $1CEF: one voice per animation key); j.2B follow-up 92; random
+  flame feathers (captured ones played).
 
 - [ ] 77. Every other Kizuna Encounter fighter extracted, NOT in the build (Bruno, 2026-10-05: "queue all characters, do
   not include them yet in the build"): Hayate, Eagle, Gozu, Mezu, Rosa, Joker, Chung (A Chun shares his animations),
