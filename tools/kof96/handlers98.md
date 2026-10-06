@@ -199,3 +199,9 @@ Every KOF-banked fighter's C fury (game.json roster `fury`) goes through the sam
   KOF: P2 jumps over it (`whiff_jump`: the first jump start with no hit and no catch, cached in
   `/data/tmp/romspecials/traces/whiff_jump.json`); where none exists (Robert's rush catches P2 anywhere, airborne too)
   `romspecials_check.py` compares the brawler with the decoded model, which matched KOF frame for frame on the hit side.
+
+Furies played from the ROM: Terry, Ryo, Robert, Ralf, Billy, Kyo, Mai, Yashiro (KOF98), Geese, Mr. Big, Krauser (KOF96),
+K' (KOF99): `romspecials_check.py ... fighter:C`, 0 frame mismatches whiff + close each, hits equal (/data/tmp/fury/out,
+out96). Still captured: Iori and Goenitz (their finisher is the engine's cinematic hit: KOF98 `$1EB20` box, `$3F8A`
+test, `$1E7E8` by +$F8; KOF96 `$17796` / `$3676`), Rugal (the catch grinds to the stage wall `$18092`, which a beat 'em
+up does not have), Yamazaki (a command grab whose hits come from the victim's own scripted states 433-442).
