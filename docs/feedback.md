@@ -83,7 +83,8 @@ drawing canvas (`Ink.kt`).
 - Pull down or press Refresh to reload.
 - **From the game screen (0.0.18):** the list button (three lines) sits next to the mic in portrait and under START
   in landscape. A tap opens the list; the game pauses while it is open and resumes on back. Its red badge counts the
-  notes in "Shipped: test it" plus the reopened ones, refreshed at launch and on every return to the game.
+  notes of the test queue (0.0.23: only those; see "The test queue"), refreshed at launch, on every return to the game
+  and after each verdict.
 - **The game version he runs (0.0.19)** comes from the ROM file itself, not a pref: a file whose sha256 is the last
   download's takes that download's version and build; any other file (pushed by hand) takes the "V0.0.x" of its own
   title screen (P ROM), build "local". Worked out once per file (size + mtime). The list's top line, its filters, the
@@ -91,8 +92,8 @@ drawing canvas (`Ink.kt`).
 
 **Threads (0.0.17).** The list answers back.
 - **At the top:** the build he runs (game version and build, player version).
-- **Filters** (remembered): **Open** (every status but shipped, won't do, duplicate and verified), **Shipped: test it**
-  (shipped in a release at or before the game version he runs) and **All**, each with its count.
+- **Filters** (remembered): **Open** (every status but shipped, won't do, duplicate and verified: reopened notes stay
+  here with their status), **Shipped: test it** (0.0.23: the test queue's notes, below) and **All**, each with its count.
 - **Under each note:** his replies, oldest first (a voice reply plays), and three buttons:
   - **👍 Fixed** (after a confirmation): status `verified`.
   - **👎 Still broken:** a reply box opens (optional); Send sets status `reopened` with the text and voice.
@@ -324,11 +325,21 @@ state of the published build set up to show the fix, with what to do and what to
     released: the transcript to correct, Send = status reopened + the voice + the attempt's replay), Next / Done, ✕.
     Leaving a loaded note without a verdict logs it as abandoned; leaving the mode soft-resets the game.
   - The test queue: the list's "▶ Test queue (N)" button, or the game screen's list button (a menu "My notes / Test
-    queue (N)" whenever notes can be tested): every note shipped in his build or reopened that has a state, oldest
-    first, one after the other.
+    queue (N)" whenever notes can be tested): every queue-eligible note that has a state for his build and system,
+    oldest first, one after the other.
+  - **The test queue rule (0.0.23, server.py queue_info, every /mine and /api/list row's `to_test` + `tested_on`):** a
+    note is eligible while its status is shipped and no verdict (a 👍 or 👎 test attempt, player or Lab) was given on
+    its release or a later build (`tested_on` = the game version of the last verdict); the player adds "release at or
+    before the build he runs". Any verdict takes it out at once (👍 verified, 👎 reopened: it stays in Open with its
+    status); it comes back only when a later ship gives it a release newer than `tested_on`. The "Shipped: test it"
+    filter and the badge are the queue (0.0.22 also served every reopened note, so a 👎 note came back on every run).
+  - **Abandoned** = he left a loaded note without a verdict (Next, Done, ✕, or the list started another queue): logged
+    once per note, never after a verdict or while one is being sent (0.0.22 logged Done twice). An abandoned note stays
+    in the queue: it was never judged.
   - Proven in AVD JanusPhone on 0.0.81 (test account): the banner, Restart, 👎 (reply + attempt replay, replayed
     byte-identical on the desktop by pull.py --replay), the queue moving on, 👍 setting verified
     (/data/feedback/proof_0022/).
 - **In the Lab:** a card's screenshot (or "▶ Test queue") runs the same state in the browser (the wasm core, arcade
   system) under the banner; keys WASD + U I O P or the arrows + Z X C V; Restart, Show expected (the recipe's own
-  inputs), 👍 / 👎 (a Lab attempt: verified / reopened), Next.
+  inputs), 👍 / 👎 (a Lab attempt: verified / reopened), Next. Its "▶ Test queue" and "Shipped: test it" use the same
+  `to_test` (the Lab runs the newest build, so no version check).

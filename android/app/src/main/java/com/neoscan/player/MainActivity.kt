@@ -173,22 +173,30 @@ class MainActivity : Activity() {
     }
     var testMode: TestMode? = null
     @Volatile private var rowsCache: org.json.JSONArray? = null
-    /** the notes he can test now (shipped in his build or reopened, with a state for his build and system), oldest first */
+    /** the notes he can test now (Feedback.wantsTest: shipped in his build, not yet judged on it; with a state for his
+     *  build and system), oldest first */
     private fun testQueue(): List<org.json.JSONObject> {
         val rows = rowsCache ?: return emptyList(); val e = emu ?: return emptyList()
         val rom = File(getExternalFilesDir(null), "brawler.neo"); val sha = Feedback.sha(rom); val key = Feedback.systemKey(e.hw)
         val running = RomFetch.installed(this)
         return (0 until rows.length()).map { rows.getJSONObject(it) }.filter { Feedback.wantsTest(it, running) && Feedback.testable(it, sha, key) }.reversed()
     }
-    /** the badge: his notes shipped in a build at or before the one he runs (to test) + the reopened ones */
+    /** a 👍 / 👎 just given in the test banner: the cached row leaves the queue now (the server's to_test agrees on
+     *  the next refresh), so neither the menu nor the badge serves it again */
+    fun judged(id: String, status: String) {
+        val rows = rowsCache ?: return
+        for (k in 0 until rows.length()) rows.getJSONObject(k).takeIf { it.optString("id") == id }
+            ?.put("status", status)?.put("to_test", false)?.put("tested_on", RomFetch.installed(this))
+        pad.badge = testQueue().size; pad.invalidate()
+    }
+    /** the badge: the notes of the test queue (0.0.23: only those; reopened ones wait in Open for a newer fix) */
     private fun refreshBadge() {
         if (!::pad.isInitialized) return
         Thread {
-            val running = RomFetch.installed(this)
             Feedback.mine(this).onSuccess { j ->
-                val rows = j.getJSONArray("rows"); rowsCache = rows
-                val n = (0 until rows.length()).map { rows.getJSONObject(it) }.count { Feedback.isReady(it, running) || it.optString("status") == "reopened" }
-                runOnUiThread { pad.badge = n }
+                rowsCache = j.getJSONArray("rows")
+                val n = testQueue().size
+                runOnUiThread { pad.badge = n; pad.invalidate() }
             }
         }.start()
     }

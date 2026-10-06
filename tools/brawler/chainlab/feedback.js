@@ -150,7 +150,9 @@
     return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
   const isOpen = r => !['shipped', 'wont_do', 'duplicate', 'verified'].includes(r.status);
-  const wants = r => r.status === 'shipped' || r.status === 'reopened';
+  // the test queue (docs/feedback.md "The test queue"): the server's to_test = shipped and no 👍 / 👎 yet on that release
+  // or a later build; a verdict takes it out (reopened stays in Open), a later ship with a newer release brings it back
+  const wants = r => !!r.to_test;
   const testable = r => !!(r.scenario && (r.scenario_builds || []).some(b => b.endsWith('/mvs-mvs')));
   const FILTERS = { open: ['Open', isOpen], ready: ['Shipped: test it', wants], all: ['All', () => true] };
 
