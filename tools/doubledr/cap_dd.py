@@ -4,6 +4,7 @@
 
     rows = run(seq1, seq2='', vram=False, wlog=None) -> [{'f', 'ram': 64 KB work RAM after frame f, 'vram', 'pal', 'snd'}]
     wlog = ['10xxxx', ...]: every 68000 write to those words, with its pc (-> rows[0]['wlog'] lines)
+    save = 'frame:path': a save state at that frame (transform_dd.py: the transformed Billy state)
 
 Sequence syntax: 'frames:keys,...' with keys U D L R a b c d s o (- = nothing)."""
 import os, subprocess, glob, shutil, tempfile
@@ -13,7 +14,7 @@ VS = '/data/neogeo_dict/doubledr/cap/vs.state'
 
 def nframes(seq): return sum(int(x.split(':')[0]) for x in seq.split(',') if x)
 
-def run(seq1, seq2='', load=VS, vram=False, wlog=None, n=None, pokes=None, snaps=None, ram=True):
+def run(seq1, seq2='', load=VS, vram=False, wlog=None, n=None, pokes=None, snaps=None, ram=True, save=None):
     n = n or max(nframes(seq1), nframes(seq2) if seq2 else 0)
     os.makedirs('/data/tmp/dd95', exist_ok=True)
     d = tempfile.mkdtemp(dir='/data/tmp/dd95')
@@ -25,6 +26,7 @@ def run(seq1, seq2='', load=VS, vram=False, wlog=None, n=None, pokes=None, snaps
     if wlog: env['WLOG'] = ','.join(wlog)
     if pokes: env['POKE'] = pokes
     if snaps: env.update(SNAPS=snaps, SNAPDIR=d)
+    if save: env['SAVE'] = save                                   # 'frame:path' (a vs state)
     subprocess.run([NGSDL, NEO, '--capture'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3600)
     snd = {}
     for l in open(f'{d}/snd.txt') if os.path.exists(f'{d}/snd.txt') else []:

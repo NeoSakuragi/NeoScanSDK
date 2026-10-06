@@ -315,3 +315,31 @@ For each move of a new character:
 
 Consequence for the 33 recorded moves in the game today: under this rule they are debt, retired by the plan above;
 the decoders retire 19 of them without any engine change.
+
+## Proposal: form change (Double Dragon 1995's transformation)
+
+Proposal only, not built. Source study: `/data/neogeo_dict/doubledr/README.md` ("Transformation"), tool
+`tools/doubledr/transform_dd.py`, proof sheets `/data/tmp/dd95/out/transform` (sequence, dragon effect, Billy vs the
+transformed form side by side).
+
+What the game does: Billy / Jimmy, powered (the power gauge has met the life bar), hold A+B+C+D on the ground: a
+62-frame move (no hurt box; a hit box on both sides while the dragons spin; rise to 193 px), the palette switches at
+frame 47, the character id becomes the transformed one (0 -> 1, 2 -> 3) at frame 61, he falls and lands with the new
+character's own fall / landing (idle at frame 103). Position, facing, life and the powered state carry over; the form
+keeps a +25 % damage bonus and a frozen meter; it lasts until the round ends (the round init sets the id back). The
+transformed form is a whole other character: own 127 animations and sprites, own command list (623 / 41236 / 236 /
+214, no super), own damage and defence rows, walk 2.5 px/f vs 2.25.
+
+| feature | parameters | semantics | needs |
+|---|---|---|---|
+| `form.change` | trigger (input chord, e.g. A+B+C+D held; ground only), cost (meter: full, or a gate like "powered"), transition (move id), form (fighter form id), at (transition step / frame that swaps), duration (round \| frames \| until KO \| until meter empty), exit (move id or none) | The fighter switches to another form: another move set (slots + fury), sprite bank, palette, stats row; position, facing, life and meter state kept. The transition is an ordinary move (anim, boxes, `inv.fury`-style untouchable, both-side `hit.box`), its marked step does the swap. | fighter_t: a form index; bchar_t: a list of forms (each = bank, palette, move table, stats); the swap at an `anim.event_marker` step |
+| `form.stats` | walk vx, jump vx, damage scale (normals, specials), defence scale, meter gain (on / off) | Per form numbers (DD: walk +11 %, normals +29 %, takes +5 %, damage +25 % while powered, no meter gain). | a stats row per form (today the fighter's numbers are global) |
+| `fx.form_effect` | layer (frames: def + offset per step), palette, anchor (feet), follows (bool) | The transition's effect drawn with the body (DD: the red / blue dragon spiral = group 1 of the move's own sprite definitions, palette 128, 3 frames per step, ~136 x 160 px, rises with him). | the shared effect library (`spawn.pinned_effect` covers it: follow the fighter, ended by the move) |
+| `fx.palette_cycle` | pen, colours, period | One pen cycling while in the form (DD: pen 9, 8 colours, 1 frame each: the glow outline). | palette animation per form |
+
+Mapping onto what exists: the transition move is expressible today (`anim.play`, `move.velocity` + `move.gravity`,
+`anim.no_hurt_step` for every step, `hit.box` on both sides, `spawn.pinned_effect` for the dragon, the meter cost as
+the fury's). The new parts are the swap itself (a per-fighter form table and the pointer switch at the event step), the
+per-form stats row, the duration / exit rule, and the export of a second bank per fighter (DD: Billy 196 frames +
+the transformed set; C ROM cost to be measured before adopting it). Brawler fit: a stage-long power-up (a beat 'em up
+"rage mode") rather than a per-round one; exit on duration or on meter empty, since a brawl has no rounds.
