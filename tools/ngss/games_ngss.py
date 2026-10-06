@@ -14,16 +14,18 @@ GAMES = {
         m1='doubledr_m1.bin', ident=b'SDC_NGSS\x01\x00',
         table=0x3C00, patches=0x2000, patches_ff=0x1BEE, a_tabs=0x2D00, b_inst=0x3900,
         fnum=0x1872, b_dn=0x18A2, ssg=0x19CE, carriers=0x1B4E, vol=0x1B56, bits=0x1BD6, voltab=0x1BDE,
+        pan_tab=0x0E34, v11=False,
         music=range(0xDC, 0xF0),
         block=845, send=900,  # the game's reset ($03) at frame 838, its first sound ($E2) at 1173 (measured)
     ),
     'sdodgeb': dict(
         name='Super Dodge Ball', rom='/data/roms/sdodgeb.neo', dir='/data/neogeo_dict/sound/sdodgeb',
         m1='sdodgeb_m1.bin', ident=b'SDC_NGSS\x01\x01',
-        table=0x3C00, patches=0x2000, patches_ff=0x1BEE, a_tabs=0x2D00, b_inst=0x3900,
-        fnum=0x1872, b_dn=0x18A2, ssg=0x19CE, carriers=0x1B4E, vol=0x1B56, bits=0x1BD6, voltab=0x1BDE,
-        music=None,
-        block=845, send=900,
+        table=0x3C00, patches=0x2000, patches_ff=0x1C3C, a_tabs=0x2D00, b_inst=0x3900,
+        fnum=0x18C0, b_dn=0x18F0, ssg=0x1A1C, carriers=0x1B9C, vol=0x1BA4, bits=0x1C24, voltab=0x1C2C,
+        pan_tab=0x0DB8, v11=True,     # version 1.1: docs/doubledr_sound_driver.md "Super Dodge Ball's build"
+        music=range(0x82, 0x91),      # the 15 entries with their own channels (class 5, priority 4, mask $38FF)
+        block=845, send=900,  # the game's reset ($03) at frame 840, its first sounds (F8 70, $90) at 1031 (measured)
     ),
 }
 
@@ -36,10 +38,11 @@ def m1_path(game):
     g = GAMES[game]; return g['dir'] + '/' + g['m1']
 
 def entry(data, cmd):
-    """the sound table entry of cmd -> None or dict(bank, addr (Z80), phys, kill (lo, hi), cls, prio, mask, streams
-    [(block index, Z80 address)])"""
+    """the sound table entry of cmd (Super Dodge Ball: page << 8 | cmd, pages 0-2) -> None or dict(bank, addr (Z80),
+    phys, kill (lo, hi), cls, prio, mask, streams [(block index, Z80 address)])"""
     g = GAMES[game_of(data)]
-    e = data[g['table'] + 3 * cmd:g['table'] + 3 * cmd + 3]
+    t = (g['table'] + 3 * cmd) & 0xFFFF
+    e = data[t:t + 3]
     off = e[0] << 8 | e[1]
     if off >= 0x8000: return None
     bank = e[2]; phys = (bank + 2) * 0x4000 + off
@@ -59,7 +62,7 @@ def music_cmds(data):
     g = GAMES[game_of(data)]
     if g['music'] is not None: return list(g['music'])
     out = []
-    for c in range(0xF0):
+    for c in [p << 8 | c for p in range(3 if g['v11'] else 1) for c in range(0xF0)]:
         e = entry(data, c)
-        if e and e['cls'] == 0: out.append(c)
+        if e and e['cls'] == 0 and e['mask'] != 0x100 and e['prio']: out.append(c)
     return out

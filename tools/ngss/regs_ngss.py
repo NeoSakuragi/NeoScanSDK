@@ -63,3 +63,52 @@ if __name__ == '__main__':
     data = open(sys.argv[1], 'rb').read()
     show = int(sys.argv[5]) if len(sys.argv) > 5 and sys.argv[4] == '--show' else 0
     compare(data, int(sys.argv[2], 16), sys.argv[3], show)
+
+def script(path):
+    """a capture with any number of commands -> (writes [(pass, port, reg, val)], commands [(pass, cmd)], passes):
+    pass = interrupt markers counted from the first command; a command read after marker k is pushed before pass
+    k + 1 (the NMI's ring write, taken by that pass's $16D4)"""
+    out, cmds = [], []; started = False; k = 0
+    for line in open(path):
+        p = line.split()
+        if not p or p[0] in ('f', 's', 'i'): continue
+        if p[0] == 'c':
+            if p[-1] == 'blocked': continue
+            if not started and len(cmds) == 0 and k == 0: started = True
+            if started: cmds.append((k + 1, int(p[1], 16)))
+            continue
+        r, v = int(p[1], 16), int(p[2], 16)
+        if p[0] == 'a' and r == 0x27 and v == 0x2A:
+            if started: k += 1
+            continue
+        if started: out.append((k, p[0], r, v))
+    return out, cmds, k
+
+def compare_script(data, path, show=0, first=None):
+    """every pass of a multi-command capture against the model fed the same commands at the same passes. first =
+    the first command of the run (earlier ones, e.g. the boot's, are skipped by starting at it)"""
+    from song_ngss import Driver
+    out, cmds, n = script(path)
+    if first is not None:
+        i = next(j for j, (q, c) in enumerate(cmds) if c == first)
+        q0 = cmds[i][0] - 1
+        cmds = [(q - q0, c) for q, c in cmds[i:]]; out = [(q - q0, p, r, v) for q, p, r, v in out if q > q0]; n -= q0
+    d = Driver(data); j = 0
+    for q in range(1, n):
+        while j < len(cmds) and cmds[j][0] <= q: d.push(cmds[j][1]); j += 1
+        d.pass_()
+    a, b = {}, {}
+    for q, p, r, v in out:
+        if 0 < q < n: a.setdefault(q, []).append((p, r, v))
+    for q, p, r, v in d.writes:
+        if q < n: b.setdefault(q, []).append((p, r, v))
+    ks = sorted(set(a) | set(b)); same = sum(1 for q in ks if a.get(q) == b.get(q))
+    print(f'{path}: {len(cmds)} commands, {n} passes, passes with writes {len(ks)}, identical {same}')
+    shown = 0
+    for q in ks:
+        if a.get(q) == b.get(q) or shown >= show: continue
+        shown += 1
+        near = [f'{c:02X}@{p}' for p, c in cmds if q - 400 < p <= q]
+        print(f'-- pass {q} (commands {near[-3:]})\n  cap   ' + ' '.join(f'{p}{r:02X}={v:02X}' for p, r, v in a.get(q, [])) +
+              '\n  model ' + ' '.join(f'{p}{r:02X}={v:02X}' for p, r, v in b.get(q, [])))
+    return same, len(ks)

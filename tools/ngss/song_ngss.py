@@ -58,6 +58,10 @@ def div(de, bc):
 class Driver:
     def __init__(self, data, listing=False):
         self.d = data; self.game = game_of(data); self.g = GAMES[self.game]
+        self.v11 = self.g['v11']
+        self.blocks = BLOCKS if not self.v11 else [0xF800 + 0x4F * i for i in range(14)]
+        self.VOL, self.VOLF = (0x0D, 0x0C) if self.v11 else (0x0E, 0x0D)   # volume (8.8: integer, fraction)
+        self.page = 0                                       # Super Dodge Ball: the sound's page ($FC5D, block +$4E)
         self.ram = bytearray(0x800)
         self.bank = 2                                       # port $0B window ($8000-$BFFF), 16 KB banks
         self.writes = []; self.npass = 0
@@ -66,10 +70,17 @@ class Driver:
         self.started = {}                                   # pass at which each sound command started
         self.ended = {}                                     # block -> pass its stream ended
         self.loops = {}                                     # block -> [(pass, tick, target)] jumps back
+        self.seen = {}                                      # (block, stream address) -> the tick it was first read
 
     # -- memory
     def r(self, a): return self.ram[a - 0xF800]
     def w(self, a, v): self.ram[a - 0xF800] = v & 0xFF
+    def G(self, a):
+        """a global by its Double Dragon address -> this build's (Super Dodge Ball: +$0E below $FC4F, +$0F from it:
+        the blocks grew to $4F bytes and the sound's page byte $FC5D was inserted)"""
+        return a if not self.v11 else a + (0x0E if a < 0xFC4F else 0x0F)
+    def gr(self, a): return self.r(self.G(a))
+    def gw(self, a, v): self.w(self.G(a), v)
     def rom(self, a):
         a &= 0xFFFF
         if a < 0x8000: return self.d[a]
@@ -92,55 +103,59 @@ class Driver:
 
     def note(self, text, pos=None):
         if self.listing:
-            b = BLOCKS.index(self.ix)
+            b = self.blocks.index(self.ix)
             self.log.append((self.npass, b, self.ticks[b], self.pos if pos is None else pos, text))
 
     # ------------------------------------------------------------------------------------------- commands
     def push(self, cmd):
         """$16A4: a byte into the command ring (what NMI does for the 68000's commands, and opcode $FF 3/4/5/B)"""
         if not cmd: return
-        i = self.r(0xFC4F); self.w(0xFC66 + i, cmd); self.w(0xFC4F, (i + 1) & 0x3F)
+        i = self.gr(0xFC4F); self.gw(0xFC66 + i, cmd); self.gw(0xFC4F, (i + 1) & 0x3F)
 
     def pop(self):
         """$16BA -> the next ring byte or 0"""
-        if self.r(0xFC4F) == self.r(0xFC51): return 0
-        i = self.r(0xFC51); self.w(0xFC51, (i + 1) & 0x3F); return self.r(0xFC66 + i)
+        if self.gr(0xFC4F) == self.gr(0xFC51): return 0
+        i = self.gr(0xFC51); self.gw(0xFC51, (i + 1) & 0x3F); return self.gr(0xFC66 + i)
 
     def command(self):
         """$16D4: one command per pass; $F0-$FF take the next ring byte as their argument"""
-        if not self.r(0xFC53):
+        if not self.gr(0xFC53):
             c = self.pop()
             if not c: return
             if c < 0xF0:
-                self.w(0xFC4E, c); self.start(); return
-            self.w(0xFC53, c)
+                self.gw(0xFC4E, c); self.page = 0; self.start(); return
+            self.gw(0xFC53, c)
         a = self.pop()
         if not a: return
-        c = self.r(0xFC53) & 0x0F; self.w(0xFC53, 0)
+        c = self.gr(0xFC53) & 0x0F; self.gw(0xFC53, 0)
+        if self.v11 and c in (0x0A, 0x0B):                  # $1754 / $175F: start a page-1 / page-2 sound
+            self.gw(0xFC4E, a); self.page = c - 9; self.start(); return
+        if self.v11 and c in (0, 0x0C, 0x0D):               # $176A ...: stop by sound id and page ($10AF)
+            self.gw(0xFC4E, a); self.stop_code(a, 0 if c == 0 else c - 0x0B); return
         if c == 0: self.stop_where(5, a)                    # $110D stop by sound id
         elif c == 1: self.stop_where(6, a, active=True)     # $11C7 by priority
         elif c == 2: self.stop_where(7, a, active=True)     # $12D4 by class
         elif c == 3: self.silence()                         # $1680
         elif c in (4, 8): self.atten(a)                     # $0C24
-        elif c == 5: self.w(0xFC4B, a); self.w(0xFC4C, 0)   # $0C39 fade speed
+        elif c == 5: self.gw(0xFC4B, a); self.gw(0xFC4C, 0)   # $0C39 fade speed
         elif c == 6: self.fade_reset()                      # $0C41
         elif c == 7: raise NotImplementedError('$F7 (sample test, $0C4F)')
         else: raise NotImplementedError('$F9-$FF ($0210: driver reset with a wait)')
 
     def atten(self, a):
-        self.w(0xFC65, ~a & 0x7F); self.dirty_all()
+        self.gw(0xFC65, ~a & 0x7F); self.dirty_all()
 
     def dirty_all(self):                                    # $0C2B: volume dirty on all 14 blocks
-        for b in BLOCKS: self.w(b + 8, self.r(b + 8) | 0x80)
+        for b in self.blocks: self.w(b + 8, self.r(b + 8) | 0x80)
 
     def fade_reset(self):                                   # $0C41
-        self.w(0xFC64, 0); self.w(0xFC65, 0); self.w(0xFC4B, 0); self.w(0xFC4C, 0); self.dirty_all()
+        self.gw(0xFC64, 0); self.gw(0xFC65, 0); self.gw(0xFC4B, 0); self.gw(0xFC4C, 0); self.dirty_all()
 
     def silence(self):
         """$1680: keys off and sample resets on every channel ($1698), every block inactive"""
         self.reset_chip()
-        self.w(0xFC61, 0); self.w(0xFC62, 0)
-        for b in BLOCKS: self.w(b + 5, 0)
+        self.gw(0xFC61, 0); self.gw(0xFC62, 0)
+        for b in self.blocks: self.w(b + 5, 0)
 
     def reset_chip(self):                                   # $1698 = $1765 $17BD $17C9 $17DF
         for c in (1, 2, 5, 6): self.ym('a', 0x28, c)
@@ -153,55 +168,64 @@ class Driver:
 
     def stop_where(self, k, v, active=False):
         """$110D / $11C7 / $12D4: every block whose byte k equals v ($110D does not test activity first)"""
-        for b in BLOCKS:
+        for b in self.blocks:
             if active and not self.r(b + 5): continue
             if self.r(b + k) == v: self.stop_block(b)
 
+    def stop_code(self, code, page):
+        """Super Dodge Ball $10AF: every block whose page and sound id match"""
+        for b in self.blocks:
+            if self.r(b + 0x4E) == page and self.r(b + 5) == code: self.stop_block(b)
+
     def stop_block(self, b):
         """$0FAD: inactive, reply bit cleared, key-off with fast release ($07A4)"""
-        self.w(b + 5, 0); self.w(0xFC61, self.r(0xFC61) & ~self.r(b + 0x43))
+        self.w(b + 5, 0); self.gw(0xFC61, self.gr(0xFC61) & ~self.r(b + 0x43))
         self.keyoff_stop(self.r(b + 4))
 
     def start(self):
         """$14CF: start sound $FC4E: its table entry, the kill range, the channels it claims ($1517 / $159E)"""
-        cmd = self.r(0xFC4E); t = self.g['table'] + 3 * cmd
+        cmd = self.gr(0xFC4E); t = (self.g['table'] + 3 * (self.page << 8 | cmd)) & 0xFFFF
         de = self.d[t] << 8 | self.d[t + 1]; a = self.d[t + 2]
         hl = 0x8000 + de
         if hl > 0xFFFF: return
         self.setbank(a)
         B, C, D, E = (self.rom(hl + i) for i in range(4))
         mask = self.rom(hl + 5) | self.rom(hl + 4) << 8      # $FC47 low, $FC48 high
-        self.w(0xFC47, mask); self.w(0xFC48, mask >> 8)
+        self.gw(0xFC47, mask); self.gw(0xFC48, mask >> 8)
         ptr = hl + 6
-        self.w(0xFC55, E); self.w(0xFC56, D); self.w(0xFC5B, a)
+        self.gw(0xFC55, E); self.gw(0xFC56, D); self.gw(0xFC5B, a)
         self.kill(B, C)
         self.started.setdefault(cmd, self.npass)
         if mask == 0x100:                                   # $159E: one of ADPCM-A 4-6
             iy = self.alloc_a46()
             if self.r(iy + 5) and E < self.r(iy + 6): return
             self.init_block(iy, ptr); ptr += 2
-            self.w(iy + 7, D); self.w(iy + 6, E); self.w(iy + 5, cmd); self.w(iy + 0x3A, a)
+            self.w(iy + 7, D); self.w(iy + 6, E); self.w(iy + 5, cmd)
+            if self.v11: self.w(iy + 0x4E, self.page)
+            self.w(iy + 0x3A, a)
             return
-        for i, b in enumerate(BLOCKS):
+        for i, b in enumerate(self.blocks):
             if not mask >> i & 1: continue
             if self.r(b + 5) and E < self.r(b + 6): ptr += 2; continue
             self.init_block(b, ptr); ptr += 2
             self.w(b + 7, D); self.w(b + 6, E); self.w(b + 0x3A, a); self.w(b + 5, cmd)
+            if self.v11: self.w(b + 0x4E, self.page)
         if D == 0: self.fade_reset()                        # $1554: class 0 (music) resets the fade
 
     def kill(self, lo, hi):
         """$1567: stop every active block whose class is in [lo, hi]"""
-        for b in BLOCKS:
+        for b in self.blocks:
             if self.r(b + 5) and lo <= self.r(b + 7) <= hi:
-                self.w(0xFC61, self.r(0xFC61) & ~self.r(b + 0x43))
+                self.gw(0xFC61, self.gr(0xFC61) & ~self.r(b + 0x43))
                 self.keyoff_stop(self.r(b + 4)); self.w(b + 5, 0)
 
     def alloc_a46(self):
         """$15C8: the first free of ADPCM-A 4-6, else the one with the lowest priority (ties: the lower block)"""
-        for b in BLOCKS[8:11]:
+        B = self.blocks
+        for b in B[8:11]:
             if self.r(b + 5) == 0: return b
-        best = BLOCKS[10]; a = self.r(best + 6)
-        for b in (BLOCKS[9], BLOCKS[8]):
+        best = B[10]; a = self.r(best + 6)
+        for b in (B[9], B[8]):
             if a >= self.r(b + 6): a = self.r(b + 6); best = b
         return best
 
@@ -210,16 +234,17 @@ class Driver:
         off = self.rom(ptr) << 8 | self.rom(ptr + 1)
         sp = (ptr + off) & 0xFFFF
         self.w(b + 0x0A, sp); self.w(b + 0x0B, sp >> 8)
-        for k, v in ((0x45, 1), (0x19, 0x7F), (0x0E, 0x7F), (0x1A, 8), (0x43, 8), (0x12, 0x49), (0x13, 0x30),
+        for k, v in ((0x45, 1), (0x19, 0x7F), (self.VOL, 0x7F), (0x1A, 8), (0x43, 8), (0x12, 0x49), (0x13, 0x30),
                      (0x42, 0xC0), (0x44, 0xC0), (0x08, 0x80), (0x33, 0), (0x48, 0), (0x17, 0), (0x18, 0), (0x29, 0),
                      (0x28, 0), (0x11, 0), (0x14, 0), (0x4B, 0), (0x1B, 1), (0x1D, 1)):
             self.w(b + k, v)
-        i = BLOCKS.index(b); self.ticks[i] = 0; self.ended.pop(i, None); self.loops.pop(i, None)
+        i = self.blocks.index(b); self.ticks[i] = 0; self.ended.pop(i, None); self.loops.pop(i, None)
+        for k in [k for k in self.seen if k[0] == i]: del self.seen[k]
 
     # ------------------------------------------------------------------------------------------- the pass
     def pass_(self):
         self.npass += 1
-        self.w(0xFC44, 0); self.w(0xFC62, 0)
+        self.gw(0xFC44, 0); self.gw(0xFC62, 0)
         self.command()
         for i in ORDER: self.update(i)
         self.fade()
@@ -227,22 +252,22 @@ class Driver:
     def fade(self):
         """$08F5: $FC64 += speed every pass; past $7FFF the fade ends and stops the blocks under the master
         attenuation ($13E1)"""
-        c = self.r(0xFC4B)
+        c = self.gr(0xFC4B)
         if not c: return
-        bc = c | self.r(0xFC4C) << 8
-        hl = (self.r(0xFC64) | self.r(0xFC65) << 8) + bc & 0xFFFF
+        bc = c | self.gr(0xFC4C) << 8
+        hl = (self.gr(0xFC64) | self.gr(0xFC65) << 8) + bc & 0xFFFF
         if hl & 0x8000:
-            self.w(0xFC4B, 0); self.w(0xFC4C, 0)
-            for b in BLOCKS:
+            self.gw(0xFC4B, 0); self.gw(0xFC4C, 0)
+            for b in self.blocks:
                 if self.r(b + 5) and self.r(b + 0x45) & 0x80: self.stop_block(b)
             return
-        self.w(0xFC64, hl); self.w(0xFC65, hl >> 8); self.dirty_all()
+        self.gw(0xFC64, hl); self.gw(0xFC65, hl >> 8); self.dirty_all()
 
     def update(self, i):
         """$0557 (ADPCM-A) / $02A9 (FM) / $02D8 (ADPCM-B) / $0307 (SSG)"""
-        self.ix = BLOCKS[i]
+        self.ix = self.blocks[i]
         if not self.f(5): return
-        self.w(0xFC62, self.f(5))
+        self.gw(0xFC62, self.f(5))
         acc = self.f(0x11) + self.f(0x12); self.sf(0x11, acc)
         if acc > 0xFF:
             self.ticks[i] += 1
@@ -258,7 +283,7 @@ class Driver:
         a = self.f(0x44)
         if a & 0x80: return
         a = (a - 1) & 0xFF; self.sf(0x44, a)
-        if a & 0x80: self.w(0xFC61, self.r(0xFC61) ^ self.f(0x43))
+        if a & 0x80: self.gw(0xFC61, self.gr(0xFC61) ^ self.f(0x43))
 
     def load_stream(self):
         self.setbank(self.f(0x3A))
@@ -277,7 +302,7 @@ class Driver:
         if not b & 0x20: self.sf(0x1C, self.rd() + 1)
         if b & 0x10: self.setb(8, 4)
         if b & 0x40:
-            self.w(0xFC61, self.r(0xFC61) | self.f(0x43)); self.sf(0x44, 7)
+            self.gw(0xFC61, self.gr(0xFC61) | self.f(0x43)); self.sf(0x44, 7)
         ln = self.f(0x1C); self.sf(0x1D, ln)
         hi, lo = mul(self.f(0x1A), ln)
         g = ((hi << 8 | lo) >> 3) & 0xFF
@@ -295,8 +320,10 @@ class Driver:
         if self.f(0x1D): self.cont(); return
         self.sf(8, self.f(8) & 0xE3)
         self.load_stream()
+        i = self.blocks.index(self.ix)
         while True:
             self.pos = self.hl; b = self.rd()
+            self.seen.setdefault((i, self.pos), self.ticks[i])
             if b < 0x80:
                 n = self.read_note(b, True)
                 if self.listing:
@@ -328,8 +355,10 @@ class Driver:
         if not self.f(0x1D):
             self.resb(8, 4)
             self.load_stream()
+            i = self.blocks.index(self.ix)
             while True:
                 self.pos = self.hl; b = self.rd()
+                self.seen.setdefault((i, self.pos), self.ticks[i])
                 if b < 0x80:
                     n = self.read_note(b, False)
                     self.note(f'sample {n} tab {self.f(0x41)} (${b:02X}) len {self.f(0x1C)} gate {self.f(0x1B)}' + (' tie' if b & 0x10 else ''))
@@ -350,10 +379,11 @@ class Driver:
     def volslide(self):
         if self.f(0x28):                                    # $04C3
             self.setb(8, 7)
-            v = (self.f(0x0D) | self.f(0x0E) << 8) + (self.f(0x26) | self.f(0x27) << 8)
-            self.sf(0x0D, v); self.sf(0x0E, v >> 8)
+            V, F = self.VOL, self.VOLF
+            v = (self.f(F) | self.f(V) << 8) + (self.f(0x26) | self.f(0x27) << 8)
+            self.sf(F, v); self.sf(V, v >> 8)
             self.sf(0x28, self.f(0x28) - 1)
-            if not self.f(0x28): self.sf(0x0E, self.f(0x25))
+            if not self.f(0x28): self.sf(V, self.f(0x25))
 
     def cont(self):
         """$04AD: a tick inside a note: volume slide, then the pitch slide or the portamento"""
@@ -386,26 +416,39 @@ class Driver:
     def op(self, k, code):
         name, n = OPS[k]
         pos = self.pos
+        if self.listing:                                    # the operands as read (a jump moves HL before the log)
+            args = ' '.join(f'${self.rom(pos + 1 + j):02X}' for j in range(n + (1 if k == 0x1F and self.rom(pos + 1) in (0, 3, 4, 5, 0x0B) else 0)))
         if k == 0x00: self.sf(0x12, self.rd())
         elif k == 0x01: self.sf(0x41, self.rd()); self.setb(8, 6)
         elif k == 0x02:
             a = self.rd(); i = (a - 256 if a & 0x80 else a) >> 5
-            self.sf(0x42, self.rom(0x0E34 + i if i >= 0 else 0x0E34 + (i & 0xFF))); self.sf(0x45, self.f(0x45) | 1)
+            self.sf(0x42, self.rom(self.g['pan_tab'] + (i & 0xFF))); self.sf(0x45, self.f(0x45) | 1)
         elif k == 0x03: self.rd(); self.rd()
-        elif k == 0x04: self.sf(0x0E, self.rd()); self.sf(0x28, 0); self.setb(8, 7)
+        elif k == 0x04:
+            a = self.rd()
+            if self.v11 and a & 0x80: self.sf(0x0E, a & 0x7F)  # $0DD6: the step of $E7 / $E8
+            else: self.sf(self.VOL, a); self.sf(0x28, 0); self.setb(8, 7)
         elif k == 0x05:
             n_ = self.rd(); self.sf(0x28, n_)
             v = self.rd(); self.sf(0x25, v)
-            diff = v - self.f(0x0E)
+            diff = v - self.f(self.VOL)
             if diff >= 0: q = div(diff << 8, n_)
             else: q = (-div(((-diff) & 0xFF) << 8, n_)) & 0xFFFF
-            self.sf(0x26, q); self.sf(0x27, q >> 8); self.sf(0x0D, 0)
+            self.sf(0x26, q); self.sf(0x27, q >> 8); self.sf(self.VOLF, 0)
         elif k == 0x06:
             a = self.rd()
             if not a & 0x80: a = self.rom(self.g['voltab'] + a)
-            self.sf(0x0E, a & 0x7F); self.setb(8, 7)
-        elif k == 0x07: self.sf(0x0E, self.f(0x0E) + 1); self.setb(8, 7)
-        elif k == 0x08: self.sf(0x0E, self.f(0x0E) - 1); self.setb(8, 7)
+            self.sf(self.VOL, a & 0x7F); self.setb(8, 7)
+        elif k == 0x07:
+            if self.v11:                                    # $0E33: + the step, $7F at most
+                a = self.f(0x0D) + self.f(0x0E); self.sf(0x0D, 0x7F if a & 0x80 else a)
+            else: self.sf(0x0E, self.f(0x0E) + 1)
+            self.setb(8, 7)
+        elif k == 0x08:
+            if self.v11:                                    # $0E46: - the step, 0 at least
+                a = self.f(0x0D) - self.f(0x0E); self.sf(0x0D, max(a, 0))
+            else: self.sf(0x0E, self.f(0x0E) - 1)
+            self.setb(8, 7)
         elif k == 0x09: self.sf(0x13, self.rd() * 12)
         elif k == 0x0A:
             if self.f(0x13) < 0x54: self.sf(0x13, self.f(0x13) + 12)
@@ -440,7 +483,7 @@ class Driver:
             de = hi << 8 | self.rd()
             target = (self.hl + de) & 0xFFFF
             if self.listing: self.note(f'jump ${target:04X}' + (f' x{cnt}' if cnt else ''), pos)
-            i = BLOCKS.index(self.ix); self.loops.setdefault(i, []).append((self.npass, self.ticks[i], target))
+            i = self.blocks.index(self.ix); self.loops.setdefault(i, []).append((self.npass, self.ticks[i], target))
             self.hl = target
             if not cnt: return False
             if not self.f(0x4B): self.sf(0x4B, cnt); return False
@@ -464,8 +507,7 @@ class Driver:
         elif k == 0x1E: self.sf(0x43, self.rom(self.g['bits'] + self.rd()))
         elif k == 0x1F: self.sys(self.rd(), code)
         if self.listing and k not in (0x13,):
-            end = self.hl
-            self.note(f'{name} ' + ' '.join(f'${self.rom(a):02X}' for a in range(pos + 1, end)) if end > pos + 1 else name, pos)
+            self.note(f'{name} {args}' if args else name, pos)
         return False
 
     def sys(self, a, code):
@@ -489,8 +531,8 @@ class Driver:
 
     def end(self, code):
         """$0F93: the block stops (inactive, reply bit cleared, key-off with fast release)"""
-        i = BLOCKS.index(self.ix); self.ended[i] = self.npass
-        self.sf(5, 0); self.w(0xFC61, self.r(0xFC61) & ~self.f(0x43))
+        i = self.blocks.index(self.ix); self.ended[i] = self.npass
+        self.sf(5, 0); self.gw(0xFC61, self.gr(0xFC61) & ~self.f(0x43))
         self.keyoff_stop(self.f(4))
         return True
 
@@ -518,7 +560,7 @@ class Driver:
             self.pitch(code); self.level(code)
             self.ym('a', 0x10, 0x80)
         elif code & 0x80:                                   # $0660 SSG
-            self.ym('a', 0x08 + (code & 0x0F), self.f(0x0E) >> 3)
+            self.ym('a', 0x08 + (code & 0x0F), (self.vol() if self.v11 else self.f(0x0E)) >> 3)  # SDB $05DF: attenuated
             self.pitch(code)
         else:
             self.ym('a', 0x28, code & 0x0F | 0xF0)
@@ -550,7 +592,7 @@ class Driver:
         """$0917: FM patch ($0944, 26 bytes) or ADPCM-B instrument ($0926, 6 bytes)"""
         self.resb(8, 6)
         if code & 0x10:
-            base = self.g['patches_ff'] if self.r(0xFC4E) == 0xFF else self.g['patches']
+            base = self.g['patches_ff'] if self.gr(0xFC4E) == 0xFF else self.g['patches']
             hl = (base + 26 * self.f(0x41)) & 0xFFFF
             fbalg = self.rom(hl) & 0x3F; self.sf(0x46, fbalg)
             e = self.rom(self.g['carriers'] + (fbalg & 7)); self.sf(0x47, e)
@@ -582,9 +624,9 @@ class Driver:
             p, o = self.fm_port(code); self.ym(p, 0xB4 + o, self.f(0x42))
 
     def vol(self):
-        a = self.f(0x0E)
+        a = self.f(self.VOL)
         if self.f(0x45) & 0x80:
-            a -= self.r(0xFC65)
+            a -= self.gr(0xFC65)
             if a < 0: a = 0
         return a
 
@@ -686,13 +728,14 @@ class Song:
     def __init__(self, data, cmd, listing=False):
         self.d = data; self.cmd = cmd
         self.drv = Driver(data, listing)
-        self.drv.push(cmd)
+        if cmd > 0xFF: self.drv.push(0xF9 + (cmd >> 8)); self.drv.push(cmd & 0xFF)   # SDB pages 1-2: $FA / $FB
+        else: self.drv.push(cmd)
         self.e = entry(data, cmd)
 
     def run(self, passes):
         for _ in range(passes):
             self.drv.pass_()
-            if not any(self.drv.r(b + 5) for b in BLOCKS) and self.drv.npass > 4 and self.drv.r(0xFC4F) == self.drv.r(0xFC51):
+            if not any(self.drv.r(b + 5) for b in self.drv.blocks) and self.drv.npass > 4 and self.drv.gr(0xFC4F) == self.drv.gr(0xFC51):
                 break
         return self
 
@@ -701,15 +744,20 @@ class Song:
     @property
     def log(self): return self.drv.log
 
-    def active(self): return any(self.drv.r(b + 5) for b in BLOCKS)
+    def active(self): return any(self.drv.r(b + 5) for b in self.drv.blocks)
 
-    def loop_info(self):
-        """block -> (pass of the first jump back, target): a channel loops when it jumps to an address it already
-        played"""
-        return {NAMES[i]: v[0] for i, v in self.drv.loops.items() if v}
+    def loop_ticks(self):
+        """channel name -> (loop tick, length): the first jump back to an address the channel already played (the
+        target's first tick, the jump's tick minus it)"""
+        out = {}
+        for i, js in self.drv.loops.items():
+            for q, t, target in js:
+                if (i, target) in self.drv.seen and self.drv.seen[(i, target)] < t:
+                    L = self.drv.seen[(i, target)]; out[NAMES[i]] = (L, t - L); break
+        return out
 
     def tempo(self):
-        return self.drv.r(BLOCKS[self.e['streams'][0][0]] + 0x12)
+        return self.drv.r(self.drv.blocks[self.e['streams'][0][0]] + 0x12)
 
 def loop_passes(data, cmd, limit=60000):
     """passes to the point where every looping channel has jumped back once (or the song ended), from a listing run"""

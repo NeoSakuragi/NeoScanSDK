@@ -27,7 +27,13 @@ def notes(data, cmd, passes=1):
     s = song98.Song(data, cmd).run(ticks=end)
     tick = {}
     for irq, t, *_ in s.out: tick.setdefault(irq, t)
-    ws = regs98.writes(s)
+    out = from_writes(regs98.writes(s), tick)
+    loops = {n: (a, b) for n, (a, b, _) in s.loop_at.items()}
+    return out, loops, 166.83 * s.tempo / 208, s
+
+def from_writes(ws, tick):
+    """register writes [(irq, port, reg, val)] + {irq: music tick} -> {channel: [Note]} (also the SDC_NGSS source,
+    ngss_notes.py)"""
     R = {'a': [0] * 256, 'b': [0] * 256}
     out = {n: [] for n in ('FM1', 'FM2', 'FM3', 'FM4', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'B')}
     cur = {}; key = {n: False for n in FM}
@@ -107,8 +113,7 @@ def notes(data, cmd, passes=1):
             if n in cur and cur[n].off is None and c not in a_on and any(p == 'b' and r == 0x08 + c for p, r, v in by_irq[irq]):
                 if R['b'][0x08 + c] != (cur[n].changes[-1][2] if cur[n].changes else cur[n].level):
                     cur[n].changes.append((t, 'alevel', R['b'][0x08 + c]))
-    loops = {n: (a, b) for n, (a, b, _) in s.loop_at.items()}
-    return {k: v for k, v in out.items() if v}, loops, 166.83 * s.tempo / 208, s
+    return {k: v for k, v in out.items() if v}
 
 def summary(ns, loops, hz, s):
     print(f'song ${s.cmd:02X}: {hz:.2f} ticks/s (tempo {s.tempo}), {s.tick} ticks modelled')
