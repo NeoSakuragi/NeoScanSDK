@@ -252,6 +252,9 @@ typedef struct fighter {
     uint8_t  fury_buf, scancel;   /* the cancel rule (fighter.c "cancels", TODO #143): D pressed during a normal or a
                                    * special that may cancel (0x80 | 1 = down+D, the MAX); scancel: the special playing
                                    * landed a hit (its own or its projectile's) = a fury may cancel it */
+    const bthrow_t *thr;          /* a thrown victim's paired script (TODO #146): it plays its rows itself once its */
+    struct fighter *thr_by;       /* thrower let go (fighter.c thrown_update); thr_by: who threw it (or holds it: a */
+    uint8_t  thr_skip, pad_thr;   /* hold hit); thr_skip: the frame of the hand-over, its update came after the thrower's */
 } fighter_t;
 
 

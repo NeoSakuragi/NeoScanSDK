@@ -102,7 +102,17 @@ def boxes(bx, reach=0):
     return h, a
 
 THROWS = ['throw_c', 'throw_d']                         # BT_* order: ground throws, close, forward+C / forward+D in KOF
-THROW_SPEED = 0x180                                     # every throw plays at 1.5x KOF's speed (Bruno 2026-10-04): bthrow_t.speed
+# Throw speed (TODO #146 rule 1: no global multiplier): per throw in data, game.json roster[].throws.speed {key: 8.8};
+# default 1x for a throw read from the ROM (tools/kof96/throwrom.py: the pilot), the captured scripts (pre-#146, the
+# rest of the roster until its pass) keep the pace they had (1.5x, Bruno 2026-10-04)
+THROW_SPEED, CAPTURED_THROW_SPEED = 0x100, 0x180
+# Hold hits (TODO #146 rule 3): each fighter's own blows in the hold, as paired scripts (bchar_t.holds: HOLDS order):
+# the move a hit takes its frames from (game.json roster[].throws.hold {hit, fin}; default close C / close D), its
+# startup squeezed to HOLD_STARTUP frames (the last two poses before the blow), the blow and its follow-through as the
+# game has them (at most HOLD_TAIL frames), the held victim reeling from the blow
+HOLDS = ['hit', 'fin']
+HOLD_DEFAULT = {'hit': 'atk_c_close', 'fin': 'atk_d_close'}
+HOLD_STARTUP, HOLD_TAIL = 3, 14
 
 def build(specs, outdir):
     """one export per game (the whole roster of that game at once, so every fighter has the frames of every victim
@@ -754,6 +764,71 @@ def throw_impacts(rows, game):
         if air and (r[2] <= 0 or st(r) == 309): return [i]
     return []
 
+THROW_FLIGHT = 380                                     # victim states below: off the throw list (KOF96-99's list poses are 385+)
+
+def throw_rows(game, n, th, pkeys, front=None):
+    """a throw's paired script rows (C initializers) and its points: ret (control return), rel (release), land. A throw
+    read from the ROM (tools/kof96/throwrom.py) brings them decoded, its flight states as the brawler's knockdown
+    animations by their place in the flight code (rows[6]; a posture of the vocabulary when the state has one); a
+    captured one (pre-#146) ends where it ended (ret = its last row) and gets rel / land from its rows: the first row
+    off the throw list after one on it, the first floor touch after that (the thrown-body rule is the engine's, for every
+    throw). front: [first, end) rows the victim is drawn in front of the thrower (a data override; else behind)"""
+    rows = th['victims'].get(n) or next(iter(th['victims'].values()))   # offsets of the mirror match (see README)
+    froze = set(th.get('impacts') or []) if not th.get('rom') else set()   # KOF froze there (Ryo's forward+C): the brawler's hit-stop too
+    imp = set(throw_impacts(rows, game)) | froze          # blows / floor touches: damage, no freeze (KOF's)
+    if th.get('rom'): imp = set(th['impacts']) | ({th['land']} if th.get('land') is not None else set())
+    st = lambda r: int(r[5].split('.')[0]) if r[5] and game != 'kizuna' else -1
+    if th.get('rom'): rel, land, ret = th['release'], th['land'], th['ret']
+    else:
+        rel = next((i for i in range(1, len(rows)) if 0 <= st(rows[i]) < THROW_FLIGHT and st(rows[i - 1]) >= THROW_FLIGHT), None)
+        land = next((i for i in range(rel + 1, len(rows)) if rows[i][2] + th['timeline'][min(i, len(th['timeline']) - 1)][2] <= 0), None) if rel is not None else None
+        ret = len(th['timeline'])
+    nrows = max(len(th['timeline']), len(rows)) if th.get('rom') else len(th['timeline'])
+    out = []
+    for i in range(nrows):
+        tf, tx, ty, *turned = th['timeline'][min(i, len(th['timeline']) - 1)]
+        r = rows[min(i, len(rows) - 1)]
+        vf, vx, vy, same, _front, key = r[:6]
+        role = r[6] if len(r) > 6 else None
+        v = vocab(game, key); fl = 0
+        if role and not (v in pkeys and vf is not None and vf >= 0): vp = MOVES.index(role); fl = 32   # its flight: a BA_* animation
+        else: vp = pkeys.index(v) if vf is not None and vf >= 0 and v in pkeys else 255
+        fl |= same | (2 if front and front[0] <= i < front[1] else 0) | (4 if i in imp else 0) | (8 if turned and turned[0] else 0) | (16 if i in froze else 0)
+        out.append(f'{{{tf if tf is not None and tf >= 0 else 0}, {tx}, {ty}, {vp}, {fl}, {vx}, {vy}}}')
+    nn = lambda x: 0xFFFF if x is None else x
+    return out, {'ret': min(ret, nrows), 'rel': nn(rel), 'land': nn(land)}
+
+def hold_rows(ch, n, game, k, move, pkeys):
+    """a hold hit (k 'hit', or 'fin' the finisher) as a paired script: the fighter's own `move` (a normal, its frames),
+    its startup squeezed to HOLD_STARTUP frames (the last poses before the active step, 1 + 2 frames), the active step
+    (impact on its first frame) and what follows, at most HOLD_TAIL frames; the victim held in the throw's grab pose
+    (forward+C row 0) until the blow, then reeling (BA_HIT_STAND_LIGHT; the finisher knocks it down: fighter.c)"""
+    a = source(ch, move); steps = a['steps']
+    act, live = None, None                             # its first active step (the normals' rule: $0100 with a box loaded)
+    for j, s_ in enumerate(steps):
+        ab = boxes(s_['boxes'], REACH)[1]
+        if ab: live = ab
+        if live and s_.get('flags', 0) & 0x100: act = j; break
+    if act is None: act = min(len(steps) - 1, 1)
+    pre = [(steps[act - 2]['frame'], 1)] if act >= 2 else []
+    pre += [(steps[act - 1]['frame'], HOLD_STARTUP - len(pre))] if act >= 1 else []
+    post = [(s_['frame'], s_['ticks'] + 1) for s_ in steps[act:]]
+    th = ch.get('throws', {}).get('throw_c')
+    if th:
+        r0 = (th['victims'].get(n) or next(iter(th['victims'].values())))[0]
+        v = vocab(game, r0[5]); held = (pkeys.index(v) if r0[0] is not None and r0[0] >= 0 and v in pkeys else 255, r0[1], r0[2], r0[3])
+    else: held = (255, 48, 0, 0)
+    rows = []
+    for fr, d in pre:
+        for _ in range(d): rows.append(f'{{{fr}, 0, 0, {held[0]}, {held[3]}, {held[1]}, {held[2]}}}')
+    hit = len(rows)
+    for fr, d in post:
+        for _ in range(d):
+            if len(rows) - hit >= HOLD_TAIL: break
+            first = len(rows) == hit
+            rows.append(f'{{{fr}, 0, 0, {MOVES.index("hit_stand_light")}, {32 | held[3] | (4 if first else 0)}, {held[1]}, {held[2]}}}')
+    return rows
+
 VICTIM_POSES = {g: json.load(open(os.path.join(HERE, '..', 'kof96', f'victim_poses{g[3:]}.json')))['poses']
                 for g in ('kof96', 'kof98', 'kof99')}
 VICTIM_POSES['kizuna'] = json.load(open(os.path.join(HERE, '..', 'kizuna', 'victim_poses_kz.json')))['poses']   # Kim's throw
@@ -829,8 +904,8 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx; uint8_t hy; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals; in a ROM special: 4 the victim reels without sliding, 8 event, 16 same hit, 32 window, 64 a catch box, 128 no hit-stop: KOF\'s class 4 barrage hits, TODO #139); dx: px the fighter moves forward as the step starts (KOF\'s $FB move); hy: height in px during the step (command normals that hop: export96.cmd_frames); in a ROM special\'s anims (bspec_t.anims) the victim\'s reaction to its attack box instead, packed R_* standing | juggled << 4 (KOF\'s reaction table: tools/kof96/handlers98.box_react; 0 = the P_ANIM reaction) */',
          'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx, hop_vy0, hop_gravity, hop_dx; uint8_t prejump, land; } bphys_t;   /* 16.16 px per frame (KOF ROM: export96 physics); jump_* = the regular jump (stick held), hop_* = the hop (stick tapped); jump_dx / hop_dx: horizontal speed of a forward or back jump; prejump: frames on the ground before take-off (KOF: the prejump animation, the frames in which a release makes the jump a hop); land: frames on the floor after a jump (KOF: the landing animation\'s steps at ticks + 1 frames each, + 1, measured: KOF98 4, Terry / Rugal / Goenitz 5) */',
-         'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame: thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front, 4 = impact (the blow lands / the victim hits the floor: damage, spark, splash), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',
-         'typedef struct { uint16_t nrows, speed; const bthrow_row_t *rows; } bthrow_t;   /* speed: 8.8 script rows a frame (fighter.c throw_update) */',
+         'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame of a paired script (vocabulary hold.paired_script): thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none; flags 32: a BA_* animation it plays instead, its flight: blowback, knockdown...) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front (a data override: game.json roster[].throws.front; else always behind the grabber, TODO #146), 4 = impact (the blow lands / the victim hits the floor: damage, spark, sound), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',
+         'typedef struct { uint16_t nrows, speed; const bthrow_row_t *rows; uint16_t ret, rel, land, pad; } bthrow_t;   /* speed: 8.8 script rows a frame (fighter.c throw_update); ret: the CONTROL RETURN row (the thrower acts again from it; the victim plays its rows on alone to nrows, then lies down); rel / land: the release row and the landing row (0xFFFF: none): from rel to land the victim is a thrown body (spawn.body: it knocks down the enemies it touches) */',
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown); box: none (an effect: what hits is the special\'s projectile, bspec_t.proj) */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int16_t vx; uint8_t vy, fx; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit (vx without 4: the px a reel slides the victim, fighter.c kof_react), 4 the target is carried at vx (forward from the fighter) / vy (height; grabs only), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk, own; uint8_t flags, pad; } bprow_t;   /* one frame of a projectile\'s flight: frame, x from its spawn point in 1/8 px (forward +), height px, attack box (live when flags & 1: the game\'s +$90 box while +$7C bit 0), own box (the box another projectile\'s attack meets: a clash; flags & 2) */',
@@ -842,7 +917,7 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t first, end; uint8_t next, pad; } bspart_t;   /* a special\'s part: script rows [first, end), the part played when it ends (0xFF: the move ends; fighter.c "follow-ups") */',
          'typedef struct { uint8_t from, to, trig, in, dir, at; uint16_t lo, hi; } bslink_t;   /* a follow-up: from part `from` to part `to`; trig 1 a hit landed (LK_HIT), 2 a press (LK_IN: buttons `in` IN_*, stick `dir` = a C role BS_* by d_input, 0xFE the role the move started with, 0xFF any) inside the window [lo, hi) (script rows); at 1 = switch at once (LK_NOW), 0 = when the part ends */',
          'typedef struct { uint16_t nrows, inv_rows, nparts, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; const bspart_t *parts; const bslink_t *links; uint16_t nlinks, bd_first, bd_end, bd_col[2]; int16_t sf_dx, sf_dy; uint8_t sf_anchor, sf_pad; } bspec_t;   /* sf_*: the super flash\'s optional anchor (fx.super_flash, TODO #139: an engine rule for every fury, gamedata.h gflash_t; main.c super_flash): sf_anchor 1 = the concentration plays sf_dx / sf_dy px from the fighter (KOF orientation: negative dx = forward; read from the move\'s KOF animation, handlers98.super_flash), 0 = the game-wide anchor; bd_*: its screen effect (Kizuna\'s Phoenix, export_kz FOLLOW \'backdrop\'): rows bd_first .. bd_end - 1 hide the stage and the backdrop alternates bd_col[0] / bd_col[1] every frame (main.c screen_fx; bd_end 0 = none); inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); parts / links: its follow-ups (nparts 0 = one part, the whole script; export_bm special_parts); proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, fury, sfx[7]; const uint8_t *vmore; uint8_t fury_max; } bchar_t;   /* fury_max: the index in specials of the fury\'s MAX version (down+D, TODO #139; 0xFF = none: down+D plays the fury); vmore: a key\'s further voices, [key, voice id, at] each, 0xFF ends (voices.py extras: a special that sends several, the Phoenix shouts; played with the ROM\'s voice table only); sfx: hit sounds by use (TODO #75, game.json roster[].hit_sfx): A B C D CD normals, throw C / D impacts, 0 = KOF\'s own (fighter.c hit_sound);  voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; fury: the fury\'s index in specials (button D, game.json roster fury; 0xFF = none); pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another, down-forward+D, up-forward+D: two more; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, fury, sfx[7]; const uint8_t *vmore; uint8_t fury_max; const bthrow_t *holds; } bchar_t;   /* holds: its hold hits (HOLDS: a hit, the finisher), paired scripts like its throws (TODO #146); fury_max: the index in specials of the fury\'s MAX version (down+D, TODO #139; 0xFF = none: down+D plays the fury); vmore: a key\'s further voices, [key, voice id, at] each, 0xFF ends (voices.py extras: a special that sends several, the Phoenix shouts; played with the ROM\'s voice table only); sfx: hit sounds by use (TODO #75, game.json roster[].hit_sfx): A B C D CD normals, throw C / D impacts, 0 = KOF\'s own (fighter.c hit_sound);  voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; fury: the fury\'s index in specials (button D, game.json roster fury; 0xFF = none); pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another, down-forward+D, up-forward+D: two more; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
@@ -892,20 +967,22 @@ def write_c(chars, outdir):
                 fwd = -s.get('dx', 0); assert -128 <= fwd <= 127, (n, m, fwd)   # KOF x: negative = forward
                 steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (4 if new else 0)}, {bb(hb)}, {bb(ab)}, {fwd}, {s.get('hy', 0)}}}')
             c.append(f'static const bstep_t {n}_{m}[] = {{' + ', '.join(steps) + '};')
+        tdata = (roster().get(n) or {}).get('throws') or {}
+        thr = []
         for t in THROWS:
             th = ch.get('throws', {}).get(t)
-            if not th: continue
-            rows = th['victims'].get(n) or next(iter(th['victims'].values()))   # offsets of the mirror match (see README)
-            froze = set(th.get('impacts') or [])        # KOF froze there (Ryo's forward+C): the brawler's hit-stop too
-            out = []; imp = set(throw_impacts(rows, game)) | froze   # blows / floor touches: damage, no freeze (KOF's)
-            for i, (tf, tx, ty, *turned) in enumerate(th['timeline']):
-                vf, vx, vy, same, front, key = rows[min(i, len(rows) - 1)]
-                v = vocab(game, key)
-                vp = pkeys.index(v) if vf >= 0 and v in pkeys else 255
-                out.append(f'{{{tf if tf >= 0 else 0}, {tx}, {ty}, {vp}, {same | front << 1 | (4 if i in imp else 0) | (8 if turned and turned[0] else 0) | (16 if i in froze else 0)}, {vx}, {vy}}}')
+            if not th: thr.append('{0, 0x100, 0, 0, 0xFFFF, 0xFFFF, 0}'); continue
+            out, info = throw_rows(game, n, th, pkeys, tdata.get('front', {}).get(t))
             c.append(f'static const bthrow_row_t {n}_{t}[] = {{' + ', '.join(out) + '};')
-        c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(
-            f'{{{len(ch["throws"][t]["timeline"])}, {THROW_SPEED}, {n}_{t}}}' if t in ch.get('throws', {}) else '{0, 0x100, 0}' for t in THROWS) + '};')
+            sp = tdata.get('speed', {}).get(t, THROW_SPEED if th.get('rom') else CAPTURED_THROW_SPEED)
+            thr.append(f'{{{len(out)}, {sp}, {n}_{t}, {info["ret"]}, {info["rel"]}, {info["land"]}, 0}}')
+        c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(thr) + '};')
+        hl = []
+        for k in HOLDS:
+            out = hold_rows(ch, n, game, k, (tdata.get('hold') or {}).get(k, HOLD_DEFAULT[k]), pkeys)
+            c.append(f'static const bthrow_row_t {n}_hold_{k}[] = {{' + ', '.join(out) + '};')
+            hl.append(f'{{{len(out)}, 0x100, {n}_hold_{k}, {len(out)}, 0xFFFF, 0xFFFF, 0}}')
+        c.append(f'static const bthrow_t {n}_holds[{len(HOLDS)}] = {{' + ', '.join(hl) + '};')
         # every special of its pool (special_pool) is in the ROM, in pool order (bm_spec.c, the first program MB): the four
         # roles (D, forward+D, down+D, up+D) pick from it through a map ({n}_spmap, game.json's specials; fighter.c
         # spec_tab in RAM, so the Brawler Lab's Characters tab remaps them live with a data pack)
@@ -1001,7 +1078,7 @@ def write_c(chars, outdir):
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
         land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna') else None   # SS4 / WHP: KOF's usual 4
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
-        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}}},')
+        c.append(f'  {{"{n.upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}, {n}_holds}},')
     c.append('};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')
