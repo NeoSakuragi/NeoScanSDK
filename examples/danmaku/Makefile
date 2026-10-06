@@ -6,7 +6,7 @@ ROM_NAME = danmaku
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
-CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(BUILD) -Wall
+CFLAGS   =-fno-store-merging  -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(BUILD) -Wall
 
 all: $(ROM_NAME).neo
 

@@ -9,7 +9,7 @@ SF_DIR   = /home/bruno/Downloads/neo-soccer
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
-CFLAGS   = -m68000 -Os -ffreestanding -nostdlib -I$(SDK)/include -I$(BUILD) -Wall
+CFLAGS   =-fno-store-merging  -m68000 -Os -ffreestanding -nostdlib -I$(SDK)/include -I$(BUILD) -Wall
 
 all: $(ROM_NAME).zip
 
