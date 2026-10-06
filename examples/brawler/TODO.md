@@ -824,7 +824,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   through a bank-select at use (or the special tables moved to banks, code + hot tables in MB1); prove every fighter
   in every bank (controls_proof) and the NeoCart flash board's banking matches (hardware/neocart).
 
-- [ ] 175. (+ HAOHMARU from SS2 in the same job, replacing the SS4 one: #148) GENJURO (Samurai Shodown II) INTO THE BRAWLER (Bruno, 2026-10-06; AFTER #174 bank switching): study
+- [ ] 175. (PRIORITY Bruno 2026-10-06: "I asked for haohmaru and kuroko": Haohmaru + Kuroko first, Genjuro parked out of the roster) (+ HAOHMARU from SS2 in the same job, replacing the SS4 one: #148) GENJURO (Samurai Shodown II) INTO THE BRAWLER (Bruno, 2026-10-06; AFTER #174 bank switching): study
   /data/neogeo_dict/samsho2/README.md + tools/samsho2 (the study recommends him: 99 px, Terry-sized, 1:1 no scaling);
   an exporter tools/samsho2/export_ss2.py in the export96 layout (like export_ss4 / export_kz / export_dd), every move
   decoded from SS2's data / handlers (no recorded moves), A / B / A+B as rows of the variant table, his rage-only
@@ -851,7 +851,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   flag that flies out and comes back: spawn.boomerang), 61236A / 126BC (a 9th / 10th palette). Unlock in SS2: not
   traced (his vs state pokes the selected-character byte $100D0B: mkvs_kuroko.py). Frames 358 / 364 identical.
 
-- [ ] 177. (found by #174) (a) the Lab deploy is broken since #163's merge: tools/brawler/chainlab/make_site.py
+- [x] 177. (done 2026-10-06: (a) make_site.py read a voice use's 'states' on the new 'prog' uses (#163): they name their input like a special; deploy_vps.sh rebuilds the wasm when any Geolith source is newer (one geo_m68k.c, desktop = Lab P2 latch); Lab live 0.0.78: Geese (bank 1) vs Kyo (bank 0) and back, every tab loads, note 20261006-155636-b3f3 on its 0.0.71 build replays byte-identical. (b) GCC 15 store merging joined byte stores at odd offsets into word / long moves (clr.w 97(a2): chain_t + spec_buf; lab+9 long) even with -m68000 -mstrict-align: -fno-store-merging in the brawler + SDK Makefiles; odd-access check core (/data/tmp/align177): 822 -> 0 over controls_proof, 637 -> 0 over campaign29 (log identical to the unfixed build's), 0 over regress + cancel_proof; regress no-bleed True, cancel_proof all 21 ok) (found by #174) (a) the Lab deploy is broken since #163's merge: tools/brawler/chainlab/make_site.py
   KeyError 'states' — fix and redeploy the Lab with 0.0.77+; (b) the game does unaligned word writes into `in[]`
   (Geolith logs them; a real 68000 raises an address error on an odd word access): find and fix (proof: no unaligned
   access logged over campaign29).

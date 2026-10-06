@@ -273,7 +273,8 @@ class MainActivity : Activity() {
                         if (notes.isEmpty()) { toast("No open notes to reply to"); return@onSuccess }
                         val labels = notes.map { n -> Feedback.local(n.optString("created")) + "  " +
                             (if (n.optString("status") == "shipped") "SHIPPED " + n.optString("release") else n.optString("status").uppercase()) + "\n" +
-                            n.optString("final_text").ifEmpty { n.optString("raw_transcript") }.take(90) }
+                            n.optString("title").takeIf { it.isNotEmpty() && it != "null" }
+                                ?: n.optString("final_text").ifEmpty { n.optString("raw_transcript") }.take(90) }
                         android.app.AlertDialog.Builder(this@MainActivity).setTitle("Reply to which note?")
                             .setItems(labels.toTypedArray()) { _, i ->
                                 feedback.replyTo(notes[i].optString("id"), edit.text.toString().trim(), raw) { err ->

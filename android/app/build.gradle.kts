@@ -11,8 +11,8 @@ android {
         applicationId = "com.neoscan.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "0.0.19"
+        versionCode = 20
+        versionName = "0.0.20"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         // where builds are published (examples/brawler make publish-vps)
         buildConfigField("String", "ROM_URL", "\"https://canneji.duckdns.org/brawler/download/\"")

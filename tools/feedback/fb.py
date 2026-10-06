@@ -8,7 +8,9 @@
     fb.py status <id> shipped --release 0.0.71 [--note "..."]
     fb.py status <id> duplicate --of <other id>
     (verified / reopened are normally set by the player himself: thumbs up / down in his list, Player 0.0.17)
-    fb.py set <id> [--category sound|graphics|gameplay|integration|scripting|other] [--fighters geese,terry] [--notes "..."]"""
+    fb.py set <id> [--category sound|graphics|gameplay|integration|scripting|other] [--fighters geese,terry] [--notes "..."]
+    fb.py set <id> --title "Krauser: Kaiser Wave impact drawn at floor level"   (the note's one-line headline, <= 70)
+"""
 import argparse, json, shlex, subprocess, sys
 
 HOST = 'root@195.201.91.211'
@@ -42,7 +44,7 @@ def money(v): return f'${v:.4f}' if v is not None else '-'
 
 
 def line(r, cost=False):
-    text = (r['final_text'] or r['raw_transcript'] or '').replace('\n', ' ')
+    text = r.get('title') or (r['final_text'] or r['raw_transcript'] or '').replace('\n', ' ')
     rel = f" {r['release']}" if r['status'] == 'shipped' else f" of {r['duplicate_of']}" if r['status'] == 'duplicate' else ''
     n = len(r.get('replies') or [])
     tags = ' '.join(x for x in (r['category'], r['fighters']) if x)
@@ -58,7 +60,7 @@ def main():
     p = sub.add_parser('show'); p.add_argument('id')
     p = sub.add_parser('status'); p.add_argument('id'); p.add_argument('status')
     p.add_argument('--release', default=None); p.add_argument('--note', default=''); p.add_argument('--of', default='')
-    p = sub.add_parser('set'); p.add_argument('id'); p.add_argument('--category'); p.add_argument('--fighters'); p.add_argument('--notes')
+    p = sub.add_parser('set'); p.add_argument('id'); p.add_argument('--category'); p.add_argument('--fighters'); p.add_argument('--notes'); p.add_argument('--title')
     a = ap.parse_args()
     try:
         if a.cmd == 'list':
@@ -73,7 +75,7 @@ def main():
         elif a.cmd == 'show':
             it = api('item/' + a.id); r = it['row']
             print(line(r))
-            for k in ('raw_transcript', 'final_text', 'notes', 'rom_sha', 'audio_path', 'bundle_path'): print(f'  {k}: {r[k]}')
+            for k in ('title', 'raw_transcript', 'final_text', 'notes', 'rom_sha', 'audio_path', 'bundle_path'): print(f'  {k}: {r[k]}')
             print(f"  from: {r.get('user') or '-'}, install {r.get('install_id') or '-'}, {r.get('device') or '-'} (Android {r.get('android') or '-'}), "
                   f"IP {r.get('ip') or '-'}, UA {r.get('user_agent') or '-'}")
             for t in it['transcriptions']:
@@ -90,7 +92,7 @@ def main():
             print(line(api('status', body)['row']))
         elif a.cmd == 'set':
             body = {'id': a.id, 'by': 'fb.py'}
-            for k in ('category', 'fighters', 'notes'):
+            for k in ('category', 'fighters', 'notes', 'title'):
                 if getattr(a, k) is not None: body[k] = getattr(a, k)
             print(line(api('set', body)['row']))
     except RuntimeError as e:
