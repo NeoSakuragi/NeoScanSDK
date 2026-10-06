@@ -99,7 +99,8 @@ class MainActivity : Activity() {
             override fun surfaceChanged(h: android.view.SurfaceHolder, f: Int, w: Int, ht: Int) {}
             override fun surfaceDestroyed(h: android.view.SurfaceHolder) {}
         })
-        pad = PadView(this, ::openSettings, ::downloadLatest, { emu?.resetReq = true }) { m -> touchMask = m; pushPads() }
+        feedback = Feedback(this, rom) { emu }
+        pad = PadView(this, ::openSettings, ::downloadLatest, { emu?.resetReq = true }, ::onFeedback) { m -> touchMask = m; pushPads() }
         root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))
         root.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
@@ -127,10 +128,74 @@ class MainActivity : Activity() {
         pollUpdates()
     }
 
-    /** every 5 s: is there a newer build than the installed one? the update button blinks while there is */
+    /** the mic button (docs/feedback.md): press = the game is captured and the voice records, release = the bundle is
+     *  sent (or queued). The microphone permission is asked once, on the first press (that press records nothing);
+     *  refused, bundles go without the voice. */
+    private lateinit var feedback: Feedback
+    private var noteOpen = false                                       // the note box is up: the game stays paused
+    private fun onFeedback(down: Boolean) {
+        val granted = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val fp = getSharedPreferences("feedback", 0)
+        if (down) {
+            if (!granted && !fp.getBoolean("micAsked", false)) {
+                fp.edit().putBoolean("micAsked", true).apply()
+                requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 1); return
+            }
+            emu?.paused = true; noteOpen = true                        // frozen at the press, until Send / Cancel
+            feedback.start(granted)
+        } else if (feedback.recording) {
+            val voice = feedback.stop() >= Feedback.MIN_MS
+            noteBox(voice)
+        }
+    }
+
+    /** the note box: the transcript (fetched now, ~2 s) to correct or extend with the keyboard, or empty for a typed
+     *  note (a tap) or when the transcription is unavailable; Send = the bundle goes, Cancel = dropped; both resume */
+    private fun noteBox(voice: Boolean) {
+        val dp = resources.displayMetrics.density
+        val edit = android.widget.EditText(this).apply {
+            minLines = 3; maxLines = 8; gravity = Gravity.TOP or Gravity.START
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            hint = if (voice) "Transcribing..." else "Type a note"
+        }
+        val info = TextView(this).apply { textSize = 13f; alpha = 0.7f; text = if (voice) "Transcribing your voice..." else "A note with the last minute's replay" }
+        val col = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL; val m = (16 * dp).toInt(); setPadding(m, m / 2, m, 0)
+            addView(info); addView(edit)
+        }
+        var raw = ""; var model = ""; var failed = false
+        val dlg = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Feedback").setView(col).setCancelable(false)
+            .setPositiveButton("Send") { _, _ ->
+                feedback.send(edit.text.toString().trim(), raw, model, failed) { sent -> runOnUiThread { toast(if (sent) "Feedback sent" else "Queued") } }
+                noteOpen = false; emu?.paused = false
+            }
+            .setNegativeButton("Cancel") { _, _ -> feedback.cancel(); noteOpen = false; emu?.paused = false }
+            .create()
+        dlg.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        dlg.show()
+        edit.requestFocus()
+        if (voice) Thread {
+            val r = feedback.transcribe()
+            runOnUiThread {
+                if (r != null) {
+                    raw = r.first; model = r.second
+                    if (edit.text.isEmpty()) { edit.setText(r.first); edit.setSelection(edit.text.length) }
+                    info.text = "Correct or add to it, then Send"
+                } else { failed = true; info.text = "Transcription unavailable: your voice goes with the bundle"; edit.hint = "Type a note (optional)" }
+            }
+        }.start()
+    }
+    private fun toast(t: String) = android.widget.Toast.makeText(this, t, android.widget.Toast.LENGTH_SHORT).show()
+
+    /** every 5 s: is there a newer build than the installed one? the update button blinks while there is; every minute:
+     *  send the queued feedback */
     @Volatile private var polling = true
     private fun pollUpdates() = Thread {
+        var n = 0
         while (polling) {
+            if (n++ % 12 == 0) Feedback.flush(this)
             val b = RomFetch.latest(this)
             if (b > 0) { val ready = b > RomFetch.installedBuild(this); runOnUiThread { if (::pad.isInitialized) pad.updateReady = ready } }
             try { Thread.sleep(5000) } catch (e: InterruptedException) { }
@@ -190,6 +255,6 @@ class MainActivity : Activity() {
 
     /** the game pauses (picture, sound, emulation) whenever the activity is not in front: settings, home, screen off */
     override fun onPause() { super.onPause(); emu?.paused = true; if (::gl.isInitialized) gl.onPause() }
-    override fun onResume() { super.onResume(); applySettings(); emu?.paused = false; if (::gl.isInitialized) gl.onResume() }
+    override fun onResume() { super.onResume(); applySettings(); emu?.paused = noteOpen; if (::gl.isInitialized) gl.onResume() }
     override fun onDestroy() { polling = false; emu?.running = false; super.onDestroy() }
 }

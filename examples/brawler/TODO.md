@@ -477,6 +477,44 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   falls inside it; fixed (the fury's own attacker may hit during the flash). The flash pose stays wanted for
   consistency. Bruno: for these fighters the concentration glow emphasizes the HEAD (anchor = the pose's head point).
 
+- [ ] 146. THROW SYSTEM REBUILT (Bruno, 2026-10-06: the mechanics are right — walk to grab, forward / back + A to
+  throw — the execution is wrong). Rules: (1) no global throw speed multiplier (the early "+50 %"): a per-throw speed
+  in data, sane default; (2) a throw ends a few frames after the victim lands: the source's recovery tail trimmed, the
+  thrower acts again; (3) dedicated HOLD-HIT animations per fighter with a 2-3 frame startup (a knee / elbow /
+  headbutt from the fighter's own frames); (4) HOLD rule, Final Fight style: hits keep the hold, the victim breaks free
+  after ~1.5 s without a hit (never while hitting), 3 hits max then the 3rd is a knockdown finisher; forward / back + A
+  throws any time; (5) the PAIRED attacker / victim script (vocabulary hold.paired_script, the debt list's top item):
+  per frame the victim's pose + offset relative to the attacker, checked visually throw by throw; grabbability from
+  the victim's current state (the Heidern rule). Proof: per fighter contact sheets of every throw (attacker + victim
+  together) and a 3-hit hold, timings logged; controls / cancel / fury proofs, regress, campaign29. NEXT after the
+  Hanzo remap. ALSO (Bruno): (6) the grabbed victim is always drawn BEHIND the grabbing player, catch to release
+  (data override only where a throw needs it in front); (7) NO RECORDED THROWS: today the thrower's timeline and the
+  approach / post-release flight are captured on Yuri (tools/kof96/throwscripts96.py), only the victim's list phase
+  comes from the ROM throw tables (throwtables96.py): decode the throw handlers' code + tables (handlers98 style) and
+  express each throw through the paired script; captures only for analysis and the fidelity proof. PILOT FIRST
+  (Bruno): Geese Howard and Terry only, made perfect and reviewed by Bruno, then the rest of the roster. (8) CONTROL
+  RETURN POINT, chosen from the decoded code, not a fixed rule: per throw, find where the thrower is really done (the
+  ROM's own release / "can act" transition, the last impact, the victim's landing) and give control back at the
+  earliest step after the last impact where the thrower's follow-through is complete, so the action isn't chopped
+  (no mid-pose cut) and no dead idle tail either; list the chosen frame per throw in its conversion sheet. (9) THROWN
+  BODIES HIT OTHERS (Bruno, e.g. Geese's back throw): from the release until it lands, the thrown victim is an attack
+  (a "body projectile": its body box as attack box) that knocks down every other enemy it touches, each once, with
+  modest damage; the knocked-down enemies fall in the throw's direction; standard engine rule for every throw
+  (vocabulary hold / spawn family), proof: a throw into a group of 3 enemies (how many fall).
+
+- [ ] 147. HANZO'S PROJECTILE VARIANTS (feedback 20261006-154517-b3f3, Bruno in play: "There are multiple versions of
+  this projectile from Hanzo, can you figure them out?"): decode his projectile special's handler in WHP (tools/whp
+  handlers_whp.py) and extract every variant (button A / B / A+B, hero version: speed, colour / palette, hits, size,
+  damage) per the extract-all-variants rule; store them in the variant table (the Billy job builds it), the brawler
+  plays its latched rule; sheet WHP vs brawler per variant. Close the feedback row as shipped with the release.
+
+- [ ] 148. HAOHMARU'S REAL FURY (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
+  Haohmaru in Samurai Shodown." The replay shows the fury = "BUST 236D", a powered single flaming slash). Find in
+  SAMURAI SHODOWN IV's code his true super moves (its own engine: tools/samsho4, /data/neogeo_dict/samsho4/README.md):
+  the Weapon Flipping Technique (rage-full super) and the Rage Explosion's Issen, their commands, conditions,
+  handlers, objects, variants; D = the WFT, down+D = the stronger one (Issen or the WFT's variant, say why); decoded,
+  not recorded; super flash, fury invincibility, crowd rules; sheet SS4 vs brawler. Close the feedback row as shipped.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into

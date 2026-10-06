@@ -54,7 +54,7 @@ object RomFetch {
             if (!tmp.renameTo(rom)) { tmp.delete(); return rom.exists() }
             // commit, not apply: the update button restarts the process right after (exit(0)) and an async write was
             // lost, so the restarted player fetched the same build again
-            prefs.edit().putLong("build", build).putString("version", version).commit()
+            prefs.edit().putLong("build", build).putString("version", version).putString("sha256", sha).commit()
             Log.i(TAG, "fetch: v$version (build $build) installed (${size / 1024} KB)")
         } catch (e: Exception) {
             Log.w(TAG, "fetch: ${e.message}; playing the cached ROM")

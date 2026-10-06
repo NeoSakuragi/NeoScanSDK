@@ -5,6 +5,7 @@
 #include <jni.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <android/log.h>
 #include "libretro.h"
@@ -28,6 +29,20 @@ static uint16_t pads[2];                  /* bit = libretro joypad id (B 0 = Neo
 static volatile uint16_t held[2], latch[2]; /* touch / pad state from the UI thread; latch keeps a press made and
                                               released between two frames until a frame has seen it */
 static int loaded;
+
+/* Feedback (docs/feedback.md): an exact replay of the last minute. Every frame's pads go into a ring (port 0, port 1;
+ * bit 15 of port 0 = a soft reset ran just before that frame), a save state is kept every SNAP_EVERY frames (the last
+ * NSNAP), and Native.feedback writes the oldest state + the inputs since + the state now (the press). frame_no counts
+ * the frames run since load; a state "at frame f" = taken before frame f runs. */
+#define RING 8192                      /* frames of inputs kept: > NSNAP * SNAP_EVERY */
+#define NSNAP 7
+#define SNAP_EVERY 600                 /* ~10 s */
+#define RESET_BIT 0x8000
+static uint16_t ring[RING][2];
+static uint64_t frame_no;
+static int reset_pending;
+static struct { uint64_t frame; uint8_t *data; int valid; } snaps[NSNAP];
+static size_t snap_size;
 
 static void log_cb(enum retro_log_level level, const char *fmt, ...) {
     va_list ap; va_start(ap, fmt);
@@ -121,6 +136,9 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_load(JNIEnv *env, jclass c
     retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
     retro_get_system_av_info(&av);
     loaded = 1;
+    frame_no = 0; reset_pending = 0;
+    {   int i; snap_size = retro_serialize_size();
+        for (i = 0; i < NSNAP; i++) { free(snaps[i].data); snaps[i].data = malloc(snap_size); snaps[i].valid = 0; } }
     __android_log_print(ANDROID_LOG_INFO, TAG, "loaded %s: %ux%u, %.3f fps, %.0f Hz", rom, av.geometry.base_width,
                         av.geometry.base_height, av.timing.fps, av.timing.sample_rate);
     return (jint)av.timing.sample_rate;
@@ -134,7 +152,15 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_runFrame(JNIEnv *env, jcla
     audio_n = 0;
     pads[0] = held[0] | latch[0]; pads[1] = held[1] | latch[1];
     latch[0] = latch[1] = 0;
+    if (frame_no % SNAP_EVERY == 0) {                  /* the state before this frame, into the oldest slot */
+        int i = (int)(frame_no / SNAP_EVERY % NSNAP);
+        if (snaps[i].data && retro_serialize(snaps[i].data, snap_size)) { snaps[i].frame = frame_no; snaps[i].valid = 1; }
+    }
+    ring[frame_no % RING][0] = (uint16_t)(pads[0] | (reset_pending ? RESET_BIT : 0));
+    ring[frame_no % RING][1] = pads[1];
+    reset_pending = 0;
     retro_run();
+    frame_no++;
     memcpy((*env)->GetDirectBufferAddress(env, video), fb, (size_t)fb_w * fb_h * 4);
     n = audio_n;
     if (n * 2 > (*env)->GetArrayLength(env, audioOut)) n = (*env)->GetArrayLength(env, audioOut) / 2;
@@ -177,4 +203,64 @@ JNIEXPORT void JNICALL Java_com_neoscan_player_Native_reset(JNIEnv *env, jclass 
     (void)env; (void)cls;
     if (!loaded) return;
     retro_reset();
+    reset_pending = 1;                                 /* logged with the next frame: the replay resets there too */
 }
+
+static int write_file(const char *path, const void *data, size_t n) {
+    FILE *f = fopen(path, "wb"); size_t k;
+    if (!f) return 0;
+    k = fwrite(data, 1, n, f);
+    return fclose(f) == 0 && k == n;
+}
+
+/* Feedback capture, emulation thread between frames: into dir writes
+ *   press.state                 the state now (frame P = frame_no)
+ *   snap_<f>.state              every kept state f (oldest = the replay's start W; the others = checkpoints)
+ *   inputs.bin                  "NSIN", u32 1, u64 W, u64 P, then P - W frames of (u16 port0, u16 port1), little endian
+ *   screen.raw                  not written: the picture comes from Native.screenshot
+ * returns {W, P} or null on a failure */
+JNIEXPORT jlongArray JNICALL Java_com_neoscan_player_Native_feedback(JNIEnv *env, jclass cls, jstring jdir) {
+    char path[700]; const char *d; uint8_t *press; uint64_t w = frame_no, f; int i, ok = 1; FILE *o;
+    jlongArray out; jlong v[2];
+    (void)cls;
+    if (!loaded) return NULL;
+    d = (*env)->GetStringUTFChars(env, jdir, 0);
+    press = malloc(snap_size);
+    if (!press || !retro_serialize(press, snap_size)) ok = 0;
+    snprintf(path, sizeof(path), "%s/press.state", d); if (ok) ok = write_file(path, press, snap_size);
+    free(press);
+    for (i = 0; i < NSNAP; i++)                         /* the oldest state the ring still covers */
+        if (snaps[i].valid && snaps[i].frame <= frame_no && frame_no - snaps[i].frame < RING && snaps[i].frame < w) w = snaps[i].frame;
+    for (i = 0; i < NSNAP && ok; i++)
+        if (snaps[i].valid && snaps[i].frame >= w && snaps[i].frame <= frame_no) {
+            snprintf(path, sizeof(path), "%s/snap_%llu.state", d, (unsigned long long)snaps[i].frame);
+            ok = write_file(path, snaps[i].data, snap_size);
+        }
+    snprintf(path, sizeof(path), "%s/inputs.bin", d);
+    if (ok && (o = fopen(path, "wb"))) {
+        uint32_t ver = 1; fwrite("NSIN", 1, 4, o); fwrite(&ver, 4, 1, o); fwrite(&w, 8, 1, o); fwrite(&frame_no, 8, 1, o);
+        for (f = w; f < frame_no; f++) fwrite(ring[f % RING], 2, 2, o);     /* little endian: arm64, x86_64 */
+        ok = fclose(o) == 0;
+    } else ok = 0;
+    (*env)->ReleaseStringUTFChars(env, jdir, d);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "feedback: frames %llu..%llu %s", (unsigned long long)w,
+                        (unsigned long long)frame_no, ok ? "written" : "FAILED");
+    if (!ok) return NULL;
+    out = (*env)->NewLongArray(env, 2); v[0] = (jlong)w; v[1] = (jlong)frame_no;
+    (*env)->SetLongArrayRegion(env, out, 0, 2, v);
+    return out;
+}
+
+/* the last frame's picture as ARGB ints (opaque), rows of width(); returns the pixels written */
+JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_screenshot(JNIEnv *env, jclass cls, jintArray jout) {
+    jint n = fb_w * fb_h, i; jint *p;
+    (void)cls;
+    if ((*env)->GetArrayLength(env, jout) < n) return 0;
+    p = (*env)->GetIntArrayElements(env, jout, 0);
+    for (i = 0; i < n; i++) p[i] = (jint)(fb[i] | 0xFF000000u);
+    (*env)->ReleaseIntArrayElements(env, jout, p, 0);
+    return n;
+}
+
+/* "mvs" / "aes" / "uni": the BIOS the core was told to boot (for the feedback bundle's versions) */
+JNIEXPORT jstring JNICALL Java_com_neoscan_player_Native_systemType(JNIEnv *env, jclass cls) { (void)cls; return (*env)->NewStringUTF(env, systype); }
