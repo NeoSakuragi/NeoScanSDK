@@ -712,7 +712,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   there, a roster override for Krauser's projectiles, Bruno's call); proof: a Blitz Ball hit -> the victim burns.
   Medium (the voice rule touches every ROM special).
 
-- [ ] 164. KRAUSER'S BLUE GROUND SHARDS (feedback 20261006-164245-5d29, Bruno, 0.0.72, no words, screenshot circled: a
+- [ ] 164. (SOLVED BY A 2ND NOTE: 20261006-190659-5d29, 0.0.76, typed: "Impact effect of kaizer wave too low" — the blue shards are Krauser's KAISER WAVE impact, drawn at floor level instead of at the wave's hit height: the projectile's end / impact object's y offset (spawn_y / the end rows) lost or relative to the floor; fix in the projectile export, check every projectile's impact height vs KOF) KRAUSER'S BLUE GROUND SHARDS (feedback 20261006-164245-5d29, Bruno, 0.0.72, no words, screenshot circled: a
   cloud of small blue shards on the ground in front of Krauser, beside a white flash, while he strikes Robert / an
   enemy in the air). Find which object draws them (replay the note: frames before the press) and whether it is right
   (KOF98's own effect with its palette?) or a stray / wrong-palette object; ask Bruno only if it matches KOF98.
