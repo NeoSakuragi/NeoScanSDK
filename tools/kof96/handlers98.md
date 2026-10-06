@@ -167,6 +167,10 @@ Every KOF-banked fighter's C fury (game.json roster `fury`) goes through the sam
 - **Hit-stop classes**: a step's flags bits 4-6 pick the attacker / victim hit-stop from a table (KOF98 `$1DCCC` via
   `$1DC52`, KOF96 `$16E20`, KOF99 `$19832`); class 4 is 0 / 0 (KOF96 also 6): barrage hits, nobody stops and the
   victim reels in place (Ralf's 164, Ryo's 181). bstep_t flag 128; the brawler skips its HITSTOP for them.
+- **Reel without slide**: a hit by a step whose byte 1 (+$7E) bits 0-1 are 3 sets the victim's +$12C bit 2 (KOF98
+  `$1AF0E`) and its reel (`$1BBD2`) keeps vx 0 (Yashiro's 173 / 174, Ryo's 184, Ralf's 164): bstep_t flag 4.
+- **Mash latch read as no mash**: a `bclr` on a bit the walk knows (Yashiro's +$D1 bit 7, set only by A / C pressed
+  again) is concrete.
 - **Event latch** (+$7D bit 7): the engine copies a step's flags to +$7C / +$7D at each step (`$5C4A`); code consumes
   the event with `bclr` or `tst` + `andi #$7F` (`('evclr',)`, `P_EVCLR`). The model and the brawler keep the latch
   (set or cleared per step, cleared when consumed): Mr. Big's Blaster Wave spawned a wave every frame of its step

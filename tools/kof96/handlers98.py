@@ -377,6 +377,10 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             a = nx; continue
         if mn == 'bclr':
             f = field(o[1]); b = imm(o[0])
+            if f is not None and f != 0x7D and b is not None and b < 8 and F.bit(f, b) is not None:   # a known bit (Yashiro's
+                cc = ('val', F.bit(f, b))                                   # mash latch +$D1 bit 7: no mash, clear)
+                F.setbits(f, 'and', 0xFF & ~(1 << b)) if f not in F.b else F.put(f, F.b[f] & ~(1 << b), 1)
+                a = nx; continue
             cc = ('event_z', 'Z') if f == 0x7D and b == 7 else ('f%X.%d' % (f or 0, b), 'Z')
             a = nx; continue
         if base == 'move' or base == 'movea' or mn.startswith('move'):
@@ -691,7 +695,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C'},
                 'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C', '214B', '236236C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C'},
                 'iori': {'236A', '623D', '214A'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
-                'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A'}, 'rugal': {'236A', '6426D', '6426B'},
+                'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B'},
                 'geese': {'236C', '623C', '623A', '236A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '41236B', '236D', '641236C'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B'},
                 'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D'}}
@@ -835,12 +839,16 @@ def export_rom(m, cid, inp, add, game='kof98'):
                                              for t, fi, fl, bx, raw, dx in steps]}
     live = None                                                # each step's reaction (box_react) by the attack box live
     for st in states:                                          # on it (the last one loaded: rom_c's rule), packed
+        aa = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); raws = [s_[4] for s_ in anim_steps(m, cid, st)[0]]
         for s in anims[st]['steps']:
             ids = [int(k[1:], 16) for k in s['boxes'] if k[0] == '1' and len(k) == 3]
             if ids: live = ids[-1]
             s['react'] = box_react(m, live, cid) if live is not None and s['flags'] & 0x100 else 0
             s['catch'] = 1 if is_catch(live, s['flags']) and s['flags'] & 0x100 else 0
             s['nostop'] = 1 if s['flags'] & 0x100 and no_stop(m, s['flags']) else 0
+            # the step's byte 1 (+$7E) bits 0-1 = 3: the victim's reel does not slide (KOF98 $1AF0E sets its +$12C bit 2,
+            # the reel $1BBD2 then keeps vx 0: Yashiro's 173 / 174, Ryo's 184, Ralf's 164)
+            s['noslide'] = 1 if s['flags'] & 0x100 and m.u8(aa + 6 * raws[anims[st]['steps'].index(s)] + 1) & 3 == 3 else 0
     per, last, peak, length = openings(m, cid, prog)
     links = FOLLOW_INPUTS.get(prog.get('follow'), [])
     for k in range(len(links)):                                # a follow-up's hits: the run with link k pressed throughout

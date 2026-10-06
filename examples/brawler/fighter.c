@@ -887,7 +887,7 @@ frame_done:
     s = &f->pan->steps[f->pstep];
     f->frame_ovr = s->frame;
     f->spec_atk = (s->flags & 1) ? &s->atk : 0;
-    f->spec_prev_hit = (s->flags & 1) ? 1 | (s->flags & 64 ? 16 : 0) | (s->flags & 128 ? 32 : 0) : 0;   /* 16 a catch box, 32 no hit-stop */
+    f->spec_prev_hit = (s->flags & 1) ? 1 | (s->flags & 64 ? 16 : 0) | (s->flags & 128 ? 32 : 0) | (s->flags & 4 ? 64 : 0) : 0;   /* 16 a catch box, 32 no hit-stop, 64 no slide */
     if ((f->pflags & PF_HOLD) && f->phold && f->target && f->target->state == S_HITSTUN && (f->x - x0) && ((f->x > x0) == (f->facing > 0)))
         f->x -= (f->x - x0) / 2;                                 /* walking into the held victim: KOF's bodies share the push */
     hold_apply(f);
@@ -1142,6 +1142,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
             v->freeze = a->freeze = 0;                           /* victim reels in place */
             if (v->state == S_HITSTUN) { v->vx = 0; v->kdelay = 0; }
         }
+        if ((a->spec_prev_hit & 64) && v->state == S_HITSTUN) v->vx = 0;   /* KOF's reel without its slide (step byte 1 = 3) */
         if (a->pflags & PF_HOLD) hold_apply(a);
     }
 }
