@@ -23,7 +23,8 @@ import romspecials98 as K, handlers98 as H
 FOLLOW_BLAG = 1                                          # the brawler's pad -> intent delay (frames; measured)
 from PIL import Image, ImageDraw
 
-ROLES = {'D': '4:ab', 'fD': '4:Rab', 'dD': '4:Dab', 'uD': '4:Uab', 'dfD': '4:DRab', 'ufD': '4:URab'}   # facing right (A+B: 0.0.48)
+ROLES = {'D': '4:ab', 'fD': '4:Rab', 'dD': '4:Dab', 'uD': '4:Uab', 'dfD': '4:DRab', 'ufD': '4:URab', 'C': '4:c'}   # facing right (A+B: 0.0.48;
+# C: the fury, game.json roster[].fury, TODO #139)
 KOF = {'kyo': 0, 'terry': 3, 'ryo': 6, 'robert': 7, 'ralf': 10, 'mai': 16, 'yashiro': 21, 'yamazaki': 24, 'billy': 26, 'iori': 27, 'rugal': 36,
        'geese': ('kof96', 24), 'mr_big': ('kof96', 26), 'krauser': ('kof96', 25), 'goenitz': ('kof96', 28), 'k_dash': ('kof99', 0)}   # KOF98 id or (game, id)
 # a follow-up's input in the game, facing right: [(frames from the button press, frames held, keys)]
@@ -113,7 +114,7 @@ def main(game, out, cases):
     summary = []
     for case in cases:
         name, role = case.split(':'); role, *fus = role.split('+'); role, _, inp = role.partition('=')
-        inp = inp or gj[name]['specials'][role]; cid = KOF[name]
+        inp = inp or (gj[name]['fury'] if role == 'C' else gj[name]['specials'][role]); cid = KOF[name]
         fus = [(fu.split('@')[0], int(fu.split('@')[1])) for fu in fus]
         pool = None
         if '=' in case:
@@ -126,33 +127,46 @@ def main(game, out, cases):
         for branch in BRANCHES:
             tag = f'{name}_{inp.replace(" ", "").replace("[", "c").replace("]", "")}' + ''.join(f'+{l}{t}' for l, t in fus) + f'_{branch}'
             shots = os.path.join(out, 'shots', tag); os.makedirs(shots, exist_ok=True)
-            try: res, game_rows, model, objs, prog = K.compare(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), quiet=True, game=kg, follow=kfol)
+            dm = role == 'C'                             # a fury: KOF96's from low life, P2 jumps over the whiff, 400 frames
+            try: res, game_rows, model, objs, prog = K.compare(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), quiet=True, game=kg, follow=kfol,
+                                                               dm=dm, frames=400 if dm else 200)
             except StopIteration as e:                   # KOF's trace never entered the special (a mash input: Ralf AAAA)
                 s = {'case': case, 'input': inp, 'branch': branch, 'error': f'no KOF trace {e!r}'}
                 summary.append(s); print(json.dumps(s), flush=True); continue
+            ref = 'kof'
+            if dm and branch == 'whiff' and (res['hit_frames'] or res.get('catch') is not None) and \
+                    K.whiff_jump(cid, inp.replace('EX ', ''), inp.startswith('EX '), kg) is None and res.get('catch') is not None:
+                # KOF catches P2 wherever it is, even in the air (Robert's Ryuko Ranbu): its whiff is the decoded program's
+                # (romspecials98's model, matched to KOF frame for frame on the catch side) -> the reference rows
+                ref = 'model'
+                model = H.run_model(K.rom96.Mem(K.rom96.load(K.rom96.GAMES[kg]['neo'])[0], kg), cid, prog, 400)[0]   # no hit
+                game_rows = [{'f': r[0], 'state': r[1], 'frame': r[2], 'x': r[3], 'h': r[4]} for r in model]
+                res = dict(res, frames_game=len(model) - 1, hit_frames=[], frozen_dropped=0, slowdown_dropped=0, objects_game=[])
             # KOF screenshots at the kept frames (every EVERY-th of the move after the dropped ones)
             want = [game_rows[i]['f'] for i in range(0, res['frames_game'], EVERY)][:30]
-            K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), snaps=[K.START + f for f in want], snapdir=shots, game=kg,
+            K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), 400 if dm else 200, snaps=[K.START + f for f in want], snapdir=shots, game=kg, dm=dm,
                     p2_seq=K.follow_spec(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), kg, [(t, ev) for t, ev, mk in kfol]) if kfol else '')
             # the opponent as far ahead as KOF's was when the special started (a charge move walked P1 back first)
             gap = round(game_rows[0]['p2x'] - game_rows[0]['x']) if branch in DIST else None
             bfol = [(pf,) + bp for pf, bp in zip(res['press_frames'], bpad)]   # the program frame KOF's handler read it on
-            br = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter, follow=bfol)
+            br = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter, follow=bfol, frames=500 if dm else 300)
             rec = lambda bf: int(frames[name][bf].split(':')[1]) if bf < len(frames[name]) and frames[name][bf] else -1
             n = min(len(br), res['frames_game'])
             gx0 = game_rows[0]['x'] - model[0][3]
             # the harness samples RAM when a video frame ends, inside a game tick (regress.py `near`): a sample may show
             # P1 before or after this tick's update; a sample matches when it equals KOF's at that frame or one either side
             near = lambda i: range(max(0, i - 1), min(n, i + 2))
-            dfr = sum(1 for i in range(n) if all(rec(br[i]['frame']) != game_rows[j]['frame'] for j in near(i)))
+            badf = [i for i in range(n) if all(rec(br[i]['frame']) != game_rows[j]['frame'] for j in near(i))]
+            dfr = len(badf)
             dx = max((min(abs(br[i]['x'] - (game_rows[j]['x'] - gx0)) for j in near(i)) for i in range(n)), default=0)
             dh = max((min(abs(br[i]['h'] - game_rows[j]['h']) for j in near(i)) for i in range(n)), default=0)
             bhits = [i for i in range(1, len(br)) if br[i]['hp2'] < br[i - 1]['hp2']]
             bp = next(((i, r['proj']) for i, r in enumerate(br) if r['proj']), None)
             seqk = [game_rows[i]['state'] for i in range(res['frames_game']) if i == 0 or game_rows[i]['state'] != game_rows[i - 1]['state']]
-            s = {'case': case, 'input': inp, 'branch': branch, 'kof_frames': res['frames_game'], 'brawler_frames': len(br),
+            s = {'x_trace': [(i, br[i]['x'], round(game_rows[i]['x'] - gx0, 2)) for i in range(0, n, 8)],
+                 'case': case, 'input': inp, 'branch': branch, 'reference': ref, 'kof_frames': res['frames_game'], 'brawler_frames': len(br),
                  'kof_states': seqk, 'brawler_parts': sorted({r['spart'] for r in br}),
-                 'frame_mismatch': dfr, 'max_dx': round(dx, 2), 'max_dh': round(dh, 2), 'kof_hits': res['hit_frames'],
+                 'frame_mismatch': dfr, 'bad_frames': [(i, rec(br[i]['frame']), game_rows[i]['frame']) for i in badf[:8]], 'max_dx': round(dx, 2), 'max_dh': round(dh, 2), 'kof_hits': res['hit_frames'],
                  'brawler_hits': bhits, 'kof_freeze_dropped': res['frozen_dropped'], 'kof_slowdown_dropped': res['slowdown_dropped'],
                  'kof_objects': res['objects_game'], 'brawler_proj_first': bp and [bp[0]] + [list(p) for p in bp[1]],
                  'brawler_proj_next': (br[bp[0] + 1]['proj'] if bp and bp[0] + 1 < len(br) else None)}

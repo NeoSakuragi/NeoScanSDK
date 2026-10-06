@@ -14,6 +14,10 @@ OUT = '/data/tmp/romspecials/traces'
 START = 40                                       # the try's first input frame (the state is reloaded at START - 4)
 PLACE = {'whiff': ('00', 'E0', '02', 'E0'), 'far': ('01', '00', '02', '60'), 'close': ('01', '80', '01', 'B0'), 'mid': ('01', '80', '01', 'F0')}
 
+# a fury whose capture try gives another special from the reload state (KOF96 Mr. Big 23623C: C on the last down-forward
+# reads as 236C first): the motion held 2 frames longer before the press, then the DM (state 133)
+DM_EVENTS = {('kof96', 26, '23623C'): [(0, 2, 'D'), (2, 2, 'DR'), (4, 2, 'R'), (6, 2, 'D'), (8, 2, 'DR'), (10, 2, 'DR'), (12, 4, 'DRc')]}
+
 def try_for(m, cid, inp, ex=False):
     """the specials96 try (events) whose notation (specials96.notation of its events, ground) is inp"""
     import importlib.util
@@ -29,19 +33,26 @@ def s16(o, a): return struct.unpack('>h', o[a:a + 2])[0]
 def s32(o, a): return struct.unpack('>i', o[a:a + 4])[0]
 def u32(o, a): return struct.unpack('>I', o[a:a + 4])[0]
 
-def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='kof98', snaps=(), snapdir=None):
+def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='kof98', snaps=(), snapdir=None, dm=False, wjump=None):
+    """dm: a desperation move (the brawler's fury, TODO #139): KOF96 gives it from low life (+$138 <= 32), as
+    specials96's capture did (life 24, +$E2 bit 1 as the capture had it); KOF98 / KOF99's reload
+    states hold a stock"""
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     tr = try_for(m, cid, inp, ex)
+    if dm and dist == 'whiff' and wjump is None:   # a fury's whiff: P2 jumps over it (whiff_jump)
+        j = whiff_jump(cid, inp, ex, game)
+        if j is not None: p2_seq = '; '.join(x for x in (p2_seq, f'p2 {START + j} 4 U') if x)
     os.makedirs(OUT, exist_ok=True)
-    tag = f'{cid}{"x" if ex else ""}_{inp.replace("[", "c").replace("]", "")}_{dist}'
+    if wjump is not None and wjump >= 0: p2_seq = f'p2 {START + wjump} 4 U'      # (-1: the plain whiff)
+    tag = f'{cid}{"x" if ex else ""}_{inp.replace("[", "c").replace("]", "")}_{dist}' + ('_dm' if dm and game == 'kof96' else '')
     out = os.path.join(OUT, tag + '.txt')
-    spec = [f'p1 {START + off} {n} {keys}' for off, n, keys in tr['events'] if keys]
+    spec = [f'p1 {START + off} {n} {keys}' for off, n, keys in DM_EVENTS.get((game, cid, inp), tr['events']) if keys]
     if p2_seq: spec.append(p2_seq)
     s1, s2 = C.seqs('; '.join(spec), START + frames)
     x1h, x1l, x2h, x2l = PLACE[dist]
-    pokes = [f'{START - 2}:108118={x1h},108119={x1l},108318={x2h},108319={x2l}']
+    pokes = [f'{START - 2}:108118={x1h},108119={x1l},108318={x2h},108319={x2l}' + (',108238=0,108239=18,108250=0,108251=18,1081E2=02,1082AD=0,1082AE=0' if dm and game == 'kof96' else '')]
     extra = {'WLOG': ','.join(f'{a:X}' for a in wlog)} if wlog else {}
-    C.emu.run(game, out, s1, s2, pokes, reload=f'c{cid}{"x" if ex else ""}', reload_frames=[START - 4], extra=extra,
+    C.emu.run(game, out, s1, s2, pokes, reload=f'c{cid}{"x" if ex else ""}', reload_frames=[START - (30 if dm and game == 'kof96' else 4)], extra=extra,
               snaps=snaps, snapdir=snapdir)
     rows = []
     rec0 = rom96.frame_record(m, cid, 0)
@@ -65,19 +76,40 @@ def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='
         wl = [l.split() for l in open(out + '.wlog')]
     return rows, wl, out
 
+WJUMP = os.path.join(OUT, 'whiff_jump.json')
+
+def whiff_jump(cid, inp, ex, game):
+    """a fury's whiff in the game (TODO #139): KOF keeps both fighters on one screen, so a rush or a catch reaches P2
+    from any distance; P2 jumps over it instead: the first jump start (frames from START, P2 pressing up 4 frames)
+    whose run has no hit (P2's life) and no catch (P1 never in the hit-stop) -> that frame (cached), None: none found"""
+    db = json.load(open(WJUMP)) if os.path.exists(WJUMP) else {}
+    key = f'{game}:{cid}:{inp}:{ex}'
+    if key in db: return db[key]
+    plain, _, _ = trace(cid, inp, 'whiff', ex, 300, game=game, dm=True, wjump=-1)
+    def clean(rows): return all(r['p2life'] == rows[0]['p2life'] for r in rows) and not any(r['pc'] in HITSTOP[game] for r in rows)
+    found = None
+    if not clean(plain):
+        for j in range(4, 160, 2):
+            rows, _, _ = trace(cid, inp, 'whiff', ex, 300, game=game, dm=True, wjump=j)
+            k0 = next((i for i, r in enumerate(rows) if special(r['state'])), None)
+            end = next((i for i in range(k0 + 4, len(rows)) if not special(rows[i]['state'])), None) if k0 is not None else None
+            if end is not None and clean(rows): found = j; break
+    db[key] = found; json.dump(db, open(WJUMP, 'w'), indent=1)
+    return found
+
 HITSTOP_PCS = range(0x1B2C4, 0x1B400)            # the hit-stop routine the engine swaps in (+$00) while the attacker freezes
 HITSTOP = {'kof98': HITSTOP_PCS, 'kof96': range(0x14B9E, 0x14CC0), 'kof99': range(0x164E0, 0x16600)}
 
 def special(st): return 128 <= st < 256 or st >= 480
 
-def follow_spec(cid, inp, dist, ex, game, follow):
+def follow_spec(cid, inp, dist, ex, game, follow, dm=False):
     """follow-up presses as trace input: follow = [(t, events)], t = the special's frame of the press's button, events
     [(offset from it, frames, keys)] (a dry run finds the special's first frame)"""
-    rows0, _, _ = trace(cid, inp, dist, ex, 60, game=game)
+    rows0, _, _ = trace(cid, inp, dist, ex, 60, game=game, dm=dm)
     f0 = rows0[next(i for i, r in enumerate(rows0) if special(r['state']))]['f']
     return '; '.join(f'p1 {START + f0 + t + o} {n} {k}' for t, ev in follow for o, n, k in ev)
 
-def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98', follow=None):
+def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98', follow=None, dm=False):
     """follow: follow-up presses [(t, events, link bits)] (follow_spec; the model sees each at t + FOLLOW_LAG)"""
     """the game (trace) against the decoded program's model (handlers98.run_model), frame by frame from the first
     special state: P1 state, ROM frame, x from the start, height; objects: first frame, state, frame, x, height.
@@ -85,9 +117,9 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
     model learns 'hit' on the frame the game's P2 life drops."""
     import handlers98 as H
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
-    spec = follow_spec(cid, inp, dist, ex, game, [(t, ev) for t, ev, mk in follow]) if follow else ''
-    rows, _, _ = trace(cid, inp, dist, ex, frames, p2_seq=spec, game=game)
-    try: h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex)
+    spec = follow_spec(cid, inp, dist, ex, game, [(t, ev) for t, ev, mk in follow], dm) if follow else ''
+    rows, _, _ = trace(cid, inp, dist, ex, frames, p2_seq=spec, game=game, dm=dm)
+    try: h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex, cid=cid)
     except KeyError: h = prog = None             # a captured special (no ROM handler): the game's rows only
     k0 = next(i for i, r in enumerate(rows) if special(r['state']))
     hs = HITSTOP[game]; gname = game
@@ -104,7 +136,10 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         while n_ < H.FOLLOW_LAG[gname] and j + 1 < len(rows):
             j += 1; n_ += not lost[j]
         i = next((q for q, r in enumerate(game) if r['f'] >= rows[j]['f']), len(game)); presses[i] = presses.get(i, 0) | mk; pf.append(i)
-    model, objs = H.run_model(m, cid, prog, frames, hit_at=hits[0] if hits else None, presses=presses) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
+    # a catch (a fury's rush / grab, TODO #139): the first frame P1 entered the hit-stop with a catch routine installed
+    catch = next((i for i, r in enumerate(game) if r['pc'] in hs and u32(r['raw'], 0x19C)), None)
+    model, objs = H.run_model(m, cid, prog, frames, hit_at=hits[0] if hits else None, presses=presses, hits=set(hits),
+                              catch_at=catch) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
     x0 = game[0]['x'] - model[0][3]               # aligned on the first frame
     end = next((i for i, r in enumerate(game) if not special(r['state'])), len(game))
     n = min(end, len(model)); bad = []; nb = {'frame': 0, 'x': 0, 'h': 0}
@@ -116,7 +151,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         if any(d.values()): bad.append((i, (g['state'], g['frame'], gx, gh), mo[1:5]))
     res = {'input': inp, 'dist': dist, 'ex': ex, 'handler': f'${h:X}' if h else None, 'frames_game': end, 'frames_model': len(model),
            'mismatch': len(bad), 'by': nb, 'first_bad': bad[:4], 'hits_game': len(hits), 'hit_frames': hits, 'frozen_dropped': frozen, 'slowdown_dropped': slow,
-           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf}
+           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf, 'catch': catch}
     before = {o['base'] for o in rows[k0 - 1]['objs']}
     born = {}
     rec0 = rom96.frame_record(m, cid, 0)

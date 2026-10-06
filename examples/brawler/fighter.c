@@ -603,6 +603,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
+        f->phit = 0xFF; f->pcatch = 0; f->phold = 0;
     }
 }
 
@@ -709,7 +710,8 @@ static uint8_t special_for(const fighter_t *f, const intent_t *in) { return spec
  * state starts counts as the first of its first step, past the last step the end flag is set, a hold stays on it).
  * Hits come from the animation (an attack box while the step is active, a new hit unless the active step before it
  * carries KOF's same-hit flag); the brawler's own hit-stop freezes it (fighter_update), no freeze is in the data. */
-enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8 };
+enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8, PF_HITANY = 16, PF_HOLD = 32 };   /* PF_EVENT: KOF's +$7D bit 7
+                                     (the step's $0080 until consumed), PF_HITANY +$E3 bit 7, PF_HOLD +$E4 bit 4 (TODO #139) */
 static int32_t fmul16(int32_t v, uint16_t k) {                   /* v * k / 65536 (KOF98 $36A0), sign kept */
     uint32_t a = v < 0 ? -v : v;
     a = (a >> 16) * k + (((a & 0xFFFF) * k + 0x8000) >> 16);
@@ -760,7 +762,7 @@ static void kof_fall(fighter_t *f) {                             /* S_KNOCKDOWN 
 static void pan_enter(fighter_t *f, uint8_t prev) {              /* a step starts: its $FB move, event, hit */
     const bstep_t *s = &f->pan->steps[f->pstep];
     if (s->dx) { f->x += dir_mul(f->facing, FIX(s->dx)); clamp(f); }
-    if (s->flags & 8) f->pflags |= PF_EVENT;
+    f->pflags = (f->pflags & ~PF_EVENT) | (s->flags & 8 ? PF_EVENT : 0);   /* the engine copies the step's flags ($5C4A) */
     if ((s->flags & 1) && !((prev & 1) && (prev & 16))) {        /* a new hit window */
         uint8_t k;
         f->hit_mask = 0; f->spec_dmg = f->pdmg; f->spec_react = f->preact & 7; f->spec_fx = f->pfx; f->spec_slide = -128;
@@ -788,7 +790,8 @@ static void pan_advance(fighter_t *f) {
 }
 static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     switch (c) {
-    case PC_STEPEV: return f->pan->steps[f->pstep].flags & 8 ? 1 : 0;   /* the step has KOF's $0080 (tst, not consumed) */
+    case PC_STEPEV: return f->pflags & PF_EVENT ? 1 : 0;        /* the step's KOF $0080, not consumed (tst) */
+    case PC_HITANY: return f->pflags & PF_HITANY ? 1 : 0;       /* a hit landed since P_HITCLR (KOF +$E3 bit 7) */
     case PC_WINDOW: return f->pan->steps[f->pstep].flags & 32 ? 1 : 0;  /* the step has KOF's $2000 (+$7C bit 5) */
     case PC_LINK: return f->plink & v ? 1 : 0;                   /* a follow-up of these links was pressed in the part */
     case PC_END: return f->pflags & PF_END ? 1 : 0;
@@ -796,7 +799,7 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     case PC_LAND: return f->pflags & PF_LAND ? 1 : 0;
     case PC_FALL: return f->pflags & PF_FALL ? 1 : 0;
     case PC_CNT: return f->pcnt < 0;
-    case PC_HIT: return f->landed;
+    case PC_HIT: return f->landed && f->pcatch != 2;            /* (a catch: KOF registers it after this frame's code) */
     case PC_OFF: return 0;
     }
     return 1;
@@ -815,9 +818,20 @@ static void prog_end(fighter_t *f) {
     special_end(f);
     if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
 }
+static void hold_apply(fighter_t *f) {                           /* a caught victim held (KOF +$E4 bit 4): in front of the */
+    fighter_t *t = f->target;                                    /* attacker (P_PUT's distance, else where it stands), */
+    if (!(f->pflags & PF_HOLD) || !t || t->state != S_HITSTUN) return;   /* reeling, facing it (a command grab: no stick rule) */
+    if (f->phold) { t->x = f->x + dir_mul(f->facing, FIX(f->phold)); t->y = 0; clamp(t); }
+    t->vx = 0; t->kdelay = 0; t->state_t = 0; t->facing = -f->facing;
+}
 static void prog_update(fighter_t *f, const bspec_t *sp) {
     const bstep_t *s;
     uint8_t n;
+    int32_t x0;
+    if (f->pcatch == 2) { f->pcatch = 1; f->srow++; hold_apply(f); return; }   /* a catch: KOF's dead frame ($1B412) */
+    if (f->pcatch == 1) { f->pcatch = 0xFE; f->pres = f->phit; }   /* then its routine (+$19C) */
+    if (f->pcatch == 3) f->pcatch = 2;                           /* (the frame after the hit-stop runs as it was) */
+    x0 = f->x;
     f->srow++;                                                   /* frames played (the reversal's invincibility) */
     if (f->spec_id == BS_DOWN_D && f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;
     f->ppc = f->pres;
@@ -827,7 +841,7 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_ANIM: f->pdmg = p->b & 0xFF; f->preact = p->b >> 8; f->pfx = p->v; pan_play(f, &sp->anims[p->a]); break;
         case P_SET:
             if (p->a == 0) f->vx = p->v; else if (p->a == 1) f->vy = p->v; else if (p->a == 2) f->pg = p->v;
-            else if (p->a == 3) f->pfric = p->v; else f->pcnt = p->v;
+            else if (p->a == 3) f->pfric = p->v; else if (p->a == 5) f->y = p->v; else f->pcnt = p->v;
             break;
         case P_MUL: f->vx = fmul16(f->vx, p->v); break;
         case P_FRICMOVE: f->vx = fmul16(f->vx, f->pfric);        /* fall through: then x += vx */
@@ -854,6 +868,12 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_ADV: pan_advance(f); break;                       /* the engine called again on the same state: one more step tick */
         case P_CHECK: f->plink |= f->spend & p->a; break;        /* the follow-up check: this frame's presses of links a */
         case P_PART: f->plink = 0; break;                        /* the handler cleared its request: a new part */
+        case P_EVCLR: f->pflags &= ~PF_EVENT; break;             /* the step's event consumed */
+        case P_ONHIT: if (!f->pcatch) f->phit = p->b; break;     /* its catch routine (KOF +$19C) */
+        case P_PUT: f->phold = p->v; hold_apply(f); break;     /* the caught victim put in front of it */
+        case P_HITCLR: f->pflags &= ~PF_HITANY; break;
+        case P_HOLD: f->pflags |= PF_HOLD; break;
+        case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
         default: prog_end(f); return;                            /* P_END */
         }
     }
@@ -867,7 +887,10 @@ frame_done:
     s = &f->pan->steps[f->pstep];
     f->frame_ovr = s->frame;
     f->spec_atk = (s->flags & 1) ? &s->atk : 0;
-    f->spec_prev_hit = (s->flags & 1) ? 1 : 0;
+    f->spec_prev_hit = (s->flags & 1) ? 1 | (s->flags & 64 ? 16 : 0) | (s->flags & 128 ? 32 : 0) : 0;   /* 16 a catch box, 32 no hit-stop */
+    if ((f->pflags & PF_HOLD) && f->phold && f->target && f->target->state == S_HITSTUN && (f->x - x0) && ((f->x > x0) == (f->facing > 0)))
+        f->x -= (f->x - x0) / 2;                                 /* walking into the held victim: KOF's bodies share the push */
+    hold_apply(f);
 }
 static void carry_drop(fighter_t *f) {                           /* a grab's carry ended: a target it left in the air */
     fighter_t *v = f->target;                                    /* falls (Ralf's 426B left it 4 px up for good) */
@@ -1096,6 +1119,13 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     if (reaction > 15) reaction = v->y > 0 ? reaction >> 4 : reaction & 15;   /* packed: standing | juggled << 4 */
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
     rk = reaction; reaction &= 7;
+    if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {   /* a ROM special (TODO #139): */
+        a->pflags |= PF_HITANY;
+        if ((a->spec_prev_hit & 16) && a->phit != 0xFF && !a->pcatch) {   /* a catch box: no damage, the victim held, */
+            a->pcatch = 3; a->pflags |= PF_HOLD; a->phold = 0; damage = 0;   /* its routine after the hit-stop */
+        }
+        if ((a->pflags & PF_HOLD) && (v == a->target || a->pcatch == 3)) rk = reaction = R_HEAVY;   /* held: a reel in place */
+    }
     v->hp -= damage + (a->owner ? a->owner : a)->power;
     fury_lock(a);
     voice_play(v->ch, v->team, v->hp > 0 ? VK_HIT : VK_KO);
@@ -1107,6 +1137,13 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     lab_note(a->owner ? a->owner : a, LE_HIT, a->state == S_ATTACK || a->state == S_AIR_ATTACK ? a->node : 0xFF, v->idx, damage);
     react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, push);
     if (a->state == S_SPECIAL) kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* a special's body hit: KOF98's */
+    if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {
+        if (a->spec_prev_hit & 32) {                             /* KOF's class 4 hit (a barrage): nobody stops, the */
+            v->freeze = a->freeze = 0;                           /* victim reels in place */
+            if (v->state == S_HITSTUN) { v->vx = 0; v->kdelay = 0; }
+        }
+        if (a->pflags & PF_HOLD) hold_apply(a);
+    }
 }
 
 /* ---- combat: every attacker's live attack box against every opponent's hurt box --------------------------------------- */

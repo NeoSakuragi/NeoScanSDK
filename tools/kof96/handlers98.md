@@ -144,3 +144,41 @@ Brute force in our emulator (`../brawler/followups_proof.py` part A, 184 runs): 
 K' 236C presses 7..21 (the $2000 steps 11..25 + 1: the check reads the step flags of the frame before; the switch at
 the animation's end, B -> 134, D -> 135), 623C 13..30 (the rise, until the apex: C version only, 146 / 147). Every other
 button / direction changes nothing. With a hit, KOF99's slowdown frames can move a window edge by a frame.
+
+## Furies (desperation moves) read from the ROM (TODO #139, 2026-10-06)
+Every KOF-banked fighter's C fury (game.json roster `fury`) goes through the same walk. What the DMs added:
+- **Power check**: the handler opens with `jsr $24D80` (KOF96 `$1AB70`, KOF99 `$1FC48`): d0 0 = no power (`jmp` out),
+  1 = a CPU's fallback special, 2 = DM, 3 = SDM (+$E4 bit 0). The walk takes 2 (`dmcheck`), so `btst #0, +$E4` picks the
+  DM side; `cmpi #1, d0` on the known register is concrete. A button's state pair is one long (`swap` picks C's word).
+- **Super flash** (`$19AB4` / `$19AE0` / `$25088`, screen darkening object): bookkeeping. P1 keeps animating during it
+  in the traces; only P2 freezes.
+- **Catch routine** (+$19C): the hit-stop routine `$1B2C4` sends the attacker to its +$19C after the hit when the
+  attack box (attacker +$AA) is `$37` on a step with `$4000` (`$1B9F6`) and +$E1 bit 6 is clear (the handler clears
+  it; the catch sets it). Boxes `$38` / `$39` clear the attacker's +$AA at the hit (`$3C00`): no routine (Kyo's 214A).
+  Op `('onhit', place)`; the model: the catch frame as usual, one dead frame (no code, no animation), then the routine.
+  Brawler: `P_ONHIT`, bstep_t flag 64 = a catch box, `fighter_t.pcatch` 3..1 (that frame's code does not see the hit:
+  KOF registers it after the code ran), the catch deals no damage (KOF's life does not drop).
+- **The caught victim**: `$25032` puts it d0 px in front, facing the attacker (`('place', px)`, `P_PUT`); +$E4 bit 4
+  (`ori` / `andi`: `('hold',)` / `('unhold',)`, `P_HOLD` / `P_UNHOLD`) keeps it reeling in place (the victim states
+  404-407; its reactions are a standing reel while held); the attacker walking into it shares the push (half its
+  forward move: KOF's bodies), as Ryo's rush measured (P1 and P2 both +1.25 a frame at vx 2.5).
+- **+$E3 bit 7**: a hit landed since the code cleared it (`andi #$7F`): `('hitclr',)` / condition `hitany`
+  (`P_HITCLR`, `PC_HITANY`). The rush's end tests it (finisher or the miss ending).
+- **Hit-stop classes**: a step's flags bits 4-6 pick the attacker / victim hit-stop from a table (KOF98 `$1DCCC` via
+  `$1DC52`, KOF96 `$16E20`, KOF99 `$19832`); class 4 is 0 / 0 (KOF96 also 6): barrage hits, nobody stops and the
+  victim reels in place (Ralf's 164, Ryo's 181). bstep_t flag 128; the brawler skips its HITSTOP for them.
+- **Event latch** (+$7D bit 7): the engine copies a step's flags to +$7C / +$7D at each step (`$5C4A`); code consumes
+  the event with `bclr` or `tst` + `andi #$7F` (`('evclr',)`, `P_EVCLR`). The model and the brawler keep the latch
+  (set or cleared per step, cleared when consumed): Mr. Big's Blaster Wave spawned a wave every frame of its step
+  before, and Terry's 236C, Geese's 236A / 236C, Iori's, Kyo's EX 236A, Mr. Big's / Ryo's 236A spawned extra objects
+  (their KOF traces have one).
+- **Loops on events**: a field stepped on an event (Blaster Wave's wave count and offset table, Power Geyser's pillar
+  table) re-keys the resume point at the yield (`yres`), at most once per event step of the state playing; a table read
+  through a1 / a2 (`move.w n(a1), d5`, `lea 12(a2), a2`) is concrete. A small count (<= 8) is unrolled.
+- **The yield's own animate**: a state written to +$72 and left to the yield routine's animate call (Ryo's 178) becomes
+  an `anim` at the resume point. A height write (`clr.l +$20`) is `('set', 'h', v)`.
+- **Traces** (`capture/romspecials98.py dm=True`): KOF96 gives DMs from low life (life 24, +$E2 bit 1 as specials96's
+  capture had it), Mr. Big's 23623C needs its last down-forward held 2 frames longer (`DM_EVENTS`); a fury's whiff in
+  KOF: P2 jumps over it (`whiff_jump`: the first jump start with no hit and no catch, cached in
+  `/data/tmp/romspecials/traces/whiff_jump.json`); where none exists (Robert's rush catches P2 anywhere, airborne too)
+  `romspecials_check.py` compares the brawler with the decoded model, which matched KOF frame for frame on the hit side.
