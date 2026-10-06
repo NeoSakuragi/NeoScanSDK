@@ -57,7 +57,7 @@ class FeedbackListActivity : Activity() {
         top.addView(Button(this).apply { text = "Refresh"; setOnClickListener { load() } })
         col.addView(top)
         col.addView(TextView(this).apply { textSize = 14f; setPadding(0, (4 * dp).toInt(), 0, 0)
-            text = "You run game v$running (build ${RomFetch.installedBuild(this@FeedbackListActivity)}), player ${BuildConfig.VERSION_NAME}" })
+            text = "You run game v$running (build ${RomFetch.loadedBuild(this@FeedbackListActivity).let { if (it == 0L) "local" else "$it" }}), player ${BuildConfig.VERSION_NAME}" })
         filter = getSharedPreferences("feedback", 0).getString("listFilter", "open") ?: "open"
         filters = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, (6 * dp).toInt(), 0, (6 * dp).toInt()) }
         col.addView(filters)

@@ -76,6 +76,7 @@ class MainActivity : Activity() {
         setContentView(msg)
         Thread {                                                       // fetch first (off the UI thread), then play
             val ok = if (Prefs(this).autoUpdate) RomFetch.update(this, rom) { t -> runOnUiThread { msg.text = t } } else rom.exists()
+            RomFetch.loaded(this)                                      // the ROM's version (hashes a new file): off the UI thread
             runOnUiThread { msg.text = "Brawler '27  v${RomFetch.installed(this)}\nplayer ${BuildConfig.VERSION_NAME}" }
             Thread.sleep(1200)                                         // the version, readable, before the game starts
             runOnUiThread {

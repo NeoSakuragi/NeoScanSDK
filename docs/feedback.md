@@ -84,6 +84,10 @@ drawing canvas (`Ink.kt`).
 - **From the game screen (0.0.18):** the list button (three lines) sits next to the mic in portrait and under START
   in landscape. A tap opens the list; the game pauses while it is open and resumes on back. Its red badge counts the
   notes in "Shipped: test it" plus the reopened ones, refreshed at launch and on every return to the game.
+- **The game version he runs (0.0.19)** comes from the ROM file itself, not a pref: a file whose sha256 is the last
+  download's takes that download's version and build; any other file (pushed by hand) takes the "V0.0.x" of its own
+  title screen (P ROM), build "local". Worked out once per file (size + mtime). The list's top line, its filters, the
+  badge and the bundle's `rom_version` (the note's game_version) all use it.
 
 **Threads (0.0.17).** The list answers back.
 - **At the top:** the build he runs (game version and build, player version).

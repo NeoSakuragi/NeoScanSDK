@@ -55,7 +55,8 @@ object RomFetch {
             if (!tmp.renameTo(rom)) { tmp.delete(); return rom.exists() }
             // commit, not apply: the update button restarts the process right after (exit(0)) and an async write was
             // lost, so the restarted player fetched the same build again
-            prefs.edit().putLong("build", build).putString("version", version).putString("sha256", sha).commit()
+            prefs.edit().putLong("build", build).putString("version", version).putString("sha256", sha)
+                .putString("id_key", key(rom)).putString("id_sha", sha).putString("id_version", version).putLong("id_build", build).commit()
             Log.i(TAG, "fetch: v$version (build $build) installed (${size / 1024} KB)")
         } catch (e: Exception) {
             Log.w(TAG, "fetch: ${e.message}; playing the cached ROM")
@@ -73,13 +74,47 @@ object RomFetch {
         } catch (e: Exception) { -1 }
     }
 
-    /** the build number of the installed ROM (0 = none fetched: pushed by hand or never) */
+    /** the build number of the last download (the update decision: is the server's newer?) */
     fun installedBuild(ctx: Context): Long = ctx.getSharedPreferences("fetch", 0).getLong("build", 0)
 
     fun base(ctx: Context): String? = ctx.getSharedPreferences("fetch", 0).getString("url", null)
         ?: BuildConfig.ROM_URL.ifEmpty { null }?.trimEnd('/')?.plus("/")
 
-    fun installed(ctx: Context): String = ctx.getSharedPreferences("fetch", 0).getString("version", null) ?: "?"
+    /** the version of the game actually in brawler.neo (Player 0.0.19): the "version" pref alone went stale when a ROM
+     *  was pushed by hand (it said 0.0.74 under a 0.0.77 ROM, so the list and the notes' game_version were wrong) */
+    fun installed(ctx: Context): String = loaded(ctx).version
+    /** the build number of the ROM actually there: the download's when its sha256 matches, else 0 (pushed by hand) */
+    fun loadedBuild(ctx: Context): Long = loaded(ctx).build
+
+    class Loaded(val sha: String, val version: String, val build: Long)
+    fun romFile(ctx: Context) = File(ctx.getExternalFilesDir(null), "brawler.neo")
+    private fun key(f: File) = "${f.length()}:${f.lastModified()}"
+    /** who the ROM file is, worked out once per file (size + mtime; a download records it directly): its sha256 equal to
+     *  the downloaded one = that download's version and build; any other file = the version on its own title screen
+     *  ("V" GAME_VERSION in the P ROM), build 0. Hashes the file (~40 MB) on a new file: first call off the UI thread. */
+    @Synchronized fun loaded(ctx: Context): Loaded {
+        val rom = romFile(ctx); val p = ctx.getSharedPreferences("fetch", 0)
+        if (!rom.exists()) return Loaded("", "?", 0)
+        if (p.getString("id_key", null) == key(rom))
+            return Loaded(p.getString("id_sha", "")!!, p.getString("id_version", "?")!!, p.getLong("id_build", 0))
+        val sha = Feedback.sha(rom)
+        val l = if (sha == p.getString("sha256", null)) Loaded(sha, p.getString("version", "?")!!, p.getLong("build", 0))
+                else Loaded(sha, versionInRom(rom) ?: "?", 0)
+        p.edit().putString("id_key", key(rom)).putString("id_sha", l.sha).putString("id_version", l.version).putLong("id_build", l.build).apply()
+        Log.i(TAG, "rom: v${l.version} build ${l.build} sha ${l.sha.take(12)}")
+        return l
+    }
+
+    /** the title screen's "V0.0.77" in the P ROM (.neo: P size at header 0x04, P from 0x1000, 16-bit words byte-swapped) */
+    fun versionInRom(rom: File): String? = try {
+        java.io.RandomAccessFile(rom, "r").use { f ->
+            val h = ByteArray(8); f.readFully(h)
+            val n = (h[4].toInt() and 255) or (h[5].toInt() and 255 shl 8) or (h[6].toInt() and 255 shl 16) or (h[7].toInt() and 255 shl 24)
+            val b = ByteArray(minOf(n, 8 shl 20)); f.seek(4096); f.readFully(b)
+            for (i in 0 until b.size - 1 step 2) { val t = b[i]; b[i] = b[i + 1]; b[i + 1] = t }
+            Regex("V(\\d+\\.\\d+\\.\\d+)\u0000").find(String(b, Charsets.ISO_8859_1))?.groupValues?.get(1)
+        }
+    } catch (e: Exception) { Log.w(TAG, "rom version: ${e.message}"); null }
 
     /** the builds are behind the Oros login since Player 0.0.15: every request carries the token ([Auth]) */
     private var ctx: Context? = null
