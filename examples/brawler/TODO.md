@@ -437,10 +437,19 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   render check per fighter, portraits, a starter routes file + six-slot / fury picks in a side file, banks exportable as
   `kizuna:<name>` -- but no game.json roster entry and no ROM growth until Bruno picks who goes in.
 
+- [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
+  review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
+  brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
+  standard features with parameters + which moves use each; the game-wide ruleset compared across sources (KOF96 /
+  98 / 99, Kizuna, SS4, WHP) with a proposed standard per rule; the missing-features tally (every recorded / blocked
+  move -> the feature it lacks); generated conversion sheets (ROM code -> understanding -> step mapping -> features
+  used / missing -> fidelity) for sample moves; then Bruno reviews it on an interactive page. The recorded specials /
+  furies below (#78-#138 still open) WAIT for the vocabulary: they need exactly the features it standardizes.
+
 - [ ] 141. Input path recorder for Bruno (2026-10-06: "I will record some paths and you can then analyze them",
   replaces brute-force sweeps): neogeo_sdl gets a record key that saves a start savestate + the pads per frame to a file
   replayable by --script (frame-exact), and an analysis tool that replays it with the capture on and lists the states /
-  inputs / windows that produced each follow-up (KOF98 / KOF99 / Kizuna). Waits for Bruno's OK to go first.
+  inputs / windows that produced each follow-up (KOF98 / KOF99 / Kizuna). LOW PRIORITY (Bruno, 2026-10-06).
 
 ### KOF slot specials still recorded: FIRST (Bruno, 2026-10-06: "prioritize")
 - [x] 79. (done 2026-10-06: KOF98 $48CCC from the ROM: a catch's dead frames are 1 + the catching step's hit-stop ($1B402 counts it down: class 2 = 3 frames), the held victim keeps KOF's held hurt box (states 404-407: $31 0, 192, 48, 64); 0 frame mismatches whiff + close, hits 12 / 12 on the same frames) Ryo up-fwd A+B = EX 646A (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
