@@ -501,12 +501,20 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   damage) per the extract-all-variants rule; store them in the variant table (the Billy job builds it), the brawler
   plays its latched rule; sheet WHP vs brawler per variant. Close the feedback row as shipped with the release.
 
-- [ ] 148. HAOHMARU'S REAL FURY (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
+- [ ] 148. HAOHMARU FROM SS4'S CODE: REAL FURY, SPECIALS, THROW (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
   Haohmaru in Samurai Shodown." The replay shows the fury = "BUST 236D", a powered single flaming slash). Find in
   SAMURAI SHODOWN IV's code his true super moves (its own engine: tools/samsho4, /data/neogeo_dict/samsho4/README.md):
   the Weapon Flipping Technique (rage-full super) and the Rage Explosion's Issen, their commands, conditions,
   handlers, objects, variants; D = the WFT, down+D = the stronger one (Issen or the WFT's variant, say why); decoded,
   not recorded; super flash, fury invincibility, crowd rules; sheet SS4 vs brawler. Close the feedback row as shipped.
+  WIDENED (3 more notes, 0.0.71): (a) 20261006-155636-b3f3: "The dragon punch, so down plus C, the movement is
+  separated from the special effect. Is this a recorded move or is it decoded from ROM?" — it IS recorded (all his
+  specials come from capture_ss4.py captures; the replay shows the 623 flame arc left on the ground while he lands
+  elsewhere): decode ALL of Haohmaru's specials from SS4's handlers (effects owned by / pinned to him); (b)
+  20261006-155708-b3f3 + 155732: SS4 has throws ("done with C plus D ... or by walking forward and pressing forward and
+  C"; "the opponent is kind of thrown on the other side"): decode SS4's throw command + Haohmaru's throw animation and
+  victim handling and express it through #146's standard throw (walk-in grab, forward / back + A, the paired script,
+  the rules) — after #146's Geese / Terry pilot is approved. Haohmaru = the first fully ROM-decoded non-KOF fighter.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
