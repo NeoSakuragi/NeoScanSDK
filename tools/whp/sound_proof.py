@@ -139,7 +139,7 @@ def main(od):
     ex = json.load(open(os.path.join(GAME, 'build', f'tmp_whp_{NAME}', 'kof95_export.json')))['characters'][NAME]
     exsp = {s['input']: s for s in ex['specials']}
     sps = [sp for sp in MW.specials(H.ROWS[NAME], H.CHARS[NAME]) if E.special_input(sp) in exsp]
-    with ThreadPoolExecutor(8) as tp:
+    with ThreadPoolExecutor(1) as tp:
         whp = dict(tp.map(whp_special, [(sp, r) for sp in sps for r in sp['rows']]))
         fury = dict(tp.map(whp_fury, ['sr_whiff', 'sr_hit', 'dmh_whiff', 'dmh_hit']))
     G = json.load(open(os.path.join(GAME, 'game.json'))); fury_inp = next(r for r in G['roster'] if r['name'] == NAME)['fury']
