@@ -324,6 +324,16 @@ recogniser rewrites whenever any command completes, even mid-move, and handlers 
 infinite (qcf B, 236D in the corner). KOF96/98/99 latch the button into +$1A4 at setup (study:
 `/data/neogeo_dict/kof95/variant_glitch.md`, tool `tools/kof95/variant_glitch.py`).
 
+**Rule: grabbability is computed from the victim's current state, every time.** A grab (normal throw or command grab)
+asks, at the moment it tests, whether the victim is on the ground, standing (not in a hit / knockdown / lying / get-up
+/ wake-up state), not held, not invulnerable and in range; never a flag latched by an earlier event. KOF94 shows why:
+its catch test accepts a victim in a reaction when the victim's "stun over, throwable" bit (+$E7 bit 3, set when a
+hit-stun runs out, cleared only by the reaction's end and the stand routine) is set; a grab landing in that window
+(close A cancelled into Heidern's Storm Bringer) replaces the victim's routine, so the bit survives the throw and the
+knockdown, and Storm Bringer catches the lying victim again and again (10 in a row, one every 154 frames; raw
+Storm Bringer: no catch until the victim stands). Study `/data/neogeo_dict/kof94/otg_grab.md`, tool
+`tools/kof94/otg_grab.py`.
+
 Consequence for the 33 recorded moves in the game today: under this rule they are debt, retired by the plan above;
 the decoders retire 19 of them without any engine change.
 
