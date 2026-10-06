@@ -30,7 +30,7 @@ AI_FIELDS = ['rest_shift', 'rest_random', 'rest_add', 'rest_start', 'rest_attack
              'bspec_dz', 'rush_dx', 'rest_bspec', 'jump_min', 'jump_max', 'jump_dz', 'jump_chance', 'rest_jump', 'air_b_dx', 'hop_dx', 'hop_chance']
 CHANCE_MASKS = {'follow_ups': 'follow_mask', 'rev_chance': 'rev_mask', 'bspec_chance': 'bspec_mask'}   # "1 in N" -> mask N-1
 MAX_ENEMIES = 6                                          # main.c NF - 2
-MAX_SLOTS = 19                                           # main.c NA (an actor per slot)
+MAX_SLOTS = 20                                           # main.c NA (an actor per slot)
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
 GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
 GD_VERSION, GD_MAX = 7, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*,
@@ -55,8 +55,8 @@ def roster_export(g):
     return [{'bank': r['bank'], 'name': r['name'], 'watch': [r['watch']['frame'], r['watch']['step']],
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
-             'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws')}
-            for r in g['roster']]
+             'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
+             **{k: r[k] for k in ('form', 'display', 'variant', 'scale') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -404,16 +404,18 @@ def tables(g, build):
     c.append('const gdrama_t gdramas[DR_COUNT ? DR_COUNT : 1] = {\n' + ('\n'.join(drows) if drows else '    { 0 }') + '\n};')
     names = M['names']; idx = {n: i for i, n in enumerate(names)}
     slots = g['select']['slots']
-    assert len(slots) <= MAX_SLOTS and sorted(idx[s['fighter']] for s in slots if s.get('fighter')) == list(range(len(names))), \
-        'select: every roster fighter in exactly one slot'
+    sel = [i for i, r in enumerate(g['roster']) if r.get('selectable', True)]   # (a form link's target: no slot)
+    assert len(slots) <= MAX_SLOTS and sorted(idx[s['fighter']] for s in slots if s.get('fighter')) == sel, \
+        'select: every selectable roster fighter in exactly one slot'
     c.append('const sel_slot_t SEL_SLOT[SEL_NSLOT] = {\n    ' + ', '.join(f'{{ {s["x"]}, {s["z"]}, {s["row"]} }}' for s in slots) + '\n};')
     c.append('const uint8_t sel_fighter[SEL_NSLOT] = { ' + ', '.join(str(idx[s['fighter']]) if s.get('fighter') else '0xFF' for s in slots) + ' };')
     unl = []
     for r in g['roster']:
         u = r.get('unlock', 'always')
-        unl.append(0 if u == 'always' else u['boss_of_stage'])
+        unl.append(0xFF if not r.get('selectable', True) else 0 if u == 'always' else u['boss_of_stage'])   # 0xFF: never
+                                                                 # picked (a form link's target, main.c char_locked)
         assert u == 'always' or 1 <= u['boss_of_stage'] <= len(g['stages']), f'{r["name"]}: unlock {u}'
-    c.append('const uint8_t roster_unlock[BC_COUNT] = { ' + ', '.join(map(str, unl)) + ' };   /* stage k + 1 whose boss unlocks it, 0 = always */')
+    c.append('const uint8_t roster_unlock[BC_COUNT] = { ' + ', '.join(map(str, unl)) + ' };   /* stage k + 1 whose boss unlocks it, 0 = always, 0xFF = never (a form) */')
     h.append('#endif')
     write_if_changed(os.path.join(build, 'game_tables.h'), '\n'.join(h) + '\n')
     write_if_changed(os.path.join(build, 'game_tables.c'), '\n'.join(c) + '\n')

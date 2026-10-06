@@ -11,11 +11,13 @@ android {
         applicationId = "com.neoscan.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.0.13"
+        versionCode = 15
+        versionName = "0.0.15"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         // where builds are published (examples/brawler make publish-vps)
         buildConfigField("String", "ROM_URL", "\"https://canneji.duckdns.org/brawler/download/\"")
+        // the Oros server: its /api/login gives the token every call carries (Auth.kt, Player 0.0.15)
+        buildConfigField("String", "AUTH_URL", "\"https://canneji.duckdns.org/oros/\"")
     }
     externalNativeBuild { ndkBuild { path = file("src/main/cpp/Android.mk") } }
     buildTypes { release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("debug") } }

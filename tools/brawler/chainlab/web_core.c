@@ -19,6 +19,7 @@ static int16_t audio[AUDIO_MAX * 2];
 static int audio_n;
 static uint16_t pads[2];                 /* bit = libretro joypad id (B 0 = Neo A, A 8 = Neo B, Y 1 = C, X 9 = D) */
 static char region[8] = "us";
+static char systype[8] = "mvs", hw[8] = "mvs";   /* wc_system: the feedback replay boots what the player booted */
 
 static void log_cb(enum retro_log_level level, const char *fmt, ...) {
     va_list ap; va_start(ap, fmt);
@@ -32,7 +33,6 @@ static bool environ_cb(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT: return *(unsigned *)data == RETRO_PIXEL_FORMAT_XRGB8888;
     case RETRO_ENVIRONMENT_GET_VARIABLE: {
         static const char *opts[][2] = {
-            {"geolith_system_type", "mvs"}, {"geolith_unibios_hw", "mvs"},
             {"geolith_memcard", "on"}, {"geolith_memcard_wp", "off"}, {"geolith_freeplay", "off"},
             {"geolith_settingmode", "off"}, {"geolith_4player", "off"}, {"geolith_overscan_t", "8"},
             {"geolith_overscan_b", "8"}, {"geolith_overscan_l", "8"}, {"geolith_overscan_r", "8"},
@@ -43,6 +43,8 @@ static bool environ_cb(unsigned cmd, void *data) {
         unsigned i;
         if (!v->key) return false;
         if (!strcmp(v->key, "geolith_region")) { v->value = region; return true; }
+        if (!strcmp(v->key, "geolith_system_type")) { v->value = systype; return true; }
+        if (!strcmp(v->key, "geolith_unibios_hw")) { v->value = hw; return true; }
         for (i = 0; i < sizeof(opts) / sizeof(opts[0]); i++)
             if (!strcmp(v->key, opts[i][0])) { v->value = opts[i][1]; return true; }
         v->value = NULL; return false;
@@ -83,6 +85,10 @@ static int16_t input_cb(unsigned port, unsigned dev, unsigned idx, unsigned id) 
     return (pads[port] >> id) & 1;
 }
 
+/* before wc_init: geolith_system_type (mvs / aes / uni) and geolith_unibios_hw (mvs / aes), as the bundle's meta.json */
+EMSCRIPTEN_KEEPALIVE void wc_system(const char *st, const char *h) {
+    snprintf(systype, sizeof(systype), "%s", st); snprintf(hw, sizeof(hw), "%s", h);
+}
 EMSCRIPTEN_KEEPALIVE int wc_init(void) {
     struct retro_game_info gi = { "/rom/game.neo", NULL, 0, NULL };
     retro_set_environment(environ_cb);

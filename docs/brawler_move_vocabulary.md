@@ -126,6 +126,7 @@ friction, px boxes from the feet, frames at 60 Hz).
 | feature | parameters | semantics | implemented by | moves |
 |---|---|---|---|---|
 | `variant.parameter_set` | variants ([input -> parameter set]: light / heavy / EX / MAX), selector (button, EX flag, MAX bit) | One behaviour (the program) with parameter sets chosen by the input that started it: KOF's handler tests the button (+$1A4 bits 4-7), the EX flag (+$1D6) and a DM's MAX bit (+$E4 bit 0) and writes other speeds, timers, state / spawn tables, counts and damage ids (Double Dragon 1995: 4 per special). | decoded, not played: `handlers98.decode_variants` forks at every selector test (each other way, the tests before it kept, decoded again until no new path), `export_rom` stores every version as `rom.variants`; the game plays the slot's own button | 94 (98 61 96 26 99 7) |
+| `variant.table` | rows (parameter rows: one per button), columns (the program's operands that differ: velocities, step counts, damage), default (the row played) | **Engine feature** (2026-10-06, Double Dragon's Billy Lee): one program + N parameter rows. The program's ops name a column instead of a value (`bprim_t.op` bit 7: the value is `vars[var * vcols + b]`), its animations and objects are per row (`anims[a + var * vanim]`, `robj[a + var * vobj]`), the hits' damage is a column (`vdmg`). The row is chosen by the brawler's rule and **latched at the move's start** (`fighter_t.var`): today the row `bspec_t.vdef` = game.json `roster[].variant[input]` (a button letter or a row), else the source's default, the heaviest (D). DD's four buttons: header velocity, the step list (length / loops, so the hits), the level (damage). | bspec_t vars / nvar / vdef / vanim / vobj / vcols / vdmg, fighter.c prog_update; export_dd.special (the columns found by comparing the four programs op by op); proof tools/doubledr/billy_proof.py (every row of every special = DD's model: travel / height) | 7 (DD: Billy 623 / 236 / 214, Super Billy 623 / 41236 / 236 / 214) |
 
 Every ROM move but one has versions: 73 two, 2 three, 19 four (Goenitz 41236A/B/C/D: one handler, four buttons;
 Terry 623A/C + EX 623A/C). Terry's seven: 623C = 623A / 623C / EX 623A / EX 623C (states 140-145 / 141-146 / 484-488
@@ -345,9 +346,25 @@ Storm Bringer: no catch until the victim stands). Study `/data/neogeo_dict/kof94
 Consequence for the 33 recorded moves in the game today: under this rule they are debt, retired by the plan above;
 the decoders retire 19 of them without any engine change.
 
+## Form link (built 2026-10-06: Double Dragon 1995's transformation, Billy Lee -> Super Billy)
+
+The proposal below, promoted to an engine feature, generic for any roster entry (Rugal -> Omega Rugal later):
+
+| feature | parameters | semantics | implemented by |
+|---|---|---|---|
+| `form.change` | trigger (`down+D full meter`), transition (a special of the fighter's bank), target (a roster entry), carry (life, position, facing, meter), exit (`life` / `stage`) | game.json `roster[].form`. The trigger starts the transition as role BS_FORM (untouchable from its first frame, not cancellable; its own steps have no hurt box). The transition's `P_FORM` op replaces the fighter's character data in place (`fighter_t.ch`: frames, animations, specials, routes, palettes, voices, the HUD face and name) and ends the special; everything in fighter_t stays (life, x / y / z, facing, meter, the enemies' targeting: they hold fighter_t pointers); in the air the new form falls with its own fall and lands with its own landing. Exit `life`: back to the base form when a life is lost (fighter_revive); every player is the base form again at a stage's start (fighter_init). The target is a roster entry with `selectable: false` (no select slot, roster_unlock 0xFF, never a pool pick of the attract demo / P2's join). | bchar_t form_to / form_spec / form_trig / form_exit, fighter_t.form_from, fighter.c "form" (form_swap, form_set), P_FORM |
+| `fx.form_effect` | - | Covered by the frame data: DD's dragons are group 1 of the transition's own sprite definitions (palette 128 / 129), exported as parts of its frames with their own palettes; the transformed colours from the step that switches the palette (DD attr bit 4) are a palette key of Billy's bank ('form': Super Billy's colour set). | export_dd Builder (palette keys) |
+
+Billy Lee's choices (for Bruno's review): trigger = down+D with a full meter (his down+D, the MAX slot, is free: DD has no
+MAX super; DD itself needs the powered state, life + gauge meeting, and A+B+C+D held), the whole meter spent (with
+meter.infinite 1 nothing is spent); exit = a lost life (a brawler has no rounds; DD keeps the form for the round);
+Super Billy has no fury (DD gives the form no super; its gauge freezes). Not taken over: DD's +25 % damage and frozen
+gauge while powered, the palette cycle of pen 9 (the glow outline: one colour of the eight kept), the camera following
+the 193 px rise (the brawler's camera does not scroll up: he leaves the top of the screen for ~0.5 s).
+
 ## Proposal: form change (Double Dragon 1995's transformation)
 
-Proposal only, not built. Source study: `/data/neogeo_dict/doubledr/README.md` ("Transformation"), tool
+The proposal as written before it was built (above). Source study: `/data/neogeo_dict/doubledr/README.md` ("Transformation"), tool
 `tools/doubledr/transform_dd.py`, proof sheets `/data/tmp/dd95/out/transform` (sequence, dragon effect, Billy vs the
 transformed form side by side).
 

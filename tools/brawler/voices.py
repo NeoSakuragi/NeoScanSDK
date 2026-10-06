@@ -524,7 +524,63 @@ def kizuna_list(rname, name, cid):
     return {'game': 'kizuna', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',   # with $1CD2)
                                                                         'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
 
+# ---- Double Dragon (Technos 1995, Billy Lee and his transformed form): every sound is a step's sound byte (the
+# animation sends it on the step's first frame, model_dd; no code-sent voices among Billy's moves), so the listing is
+# static: uses = the animations' steps, the specials' rows (the default row as the brawler plays it: export_dd's
+# script), the hit (pain $1C) and KO ($23, the fall) events; the sample = what DD's own driver keys on (tools/ngss model:
+# the ADPCM-A start / end and level registers of the command). Voices = Billy's range $1C-$2C (the sound test's map);
+# the effects only his specials send ($C2 / $C3 / $D5, the 236 / 623 / super effects) as 'fx' (over his voice).
+DD_VOICES, DD_FX = range(0x1C, 0x2D), (0xC2, 0xC3, 0xD5)
+def doubledr_capture(rname, name, cid):
+    print(rname, ': Double Dragon sounds are step data (static scan, voices.py list)', flush=True)
+
+def dd_sample(cmd):
+    sys.path.insert(0, os.path.join(TOOLS, 'ngss')); import song_ngss
+    m1 = open('/data/neogeo_dict/sound/doubledr/doubledr_m1.bin', 'rb').read()
+    w = [x for x in song_ngss.Song(m1, cmd).run(600).writes if x[1] == 'b']
+    on = next(x for x in w if x[2] == 0 and not x[3] & 0x80)          # the key-on: its channel
+    c = next(k for k in range(6) if on[3] >> k & 1)
+    reg = {x[2]: x[3] for x in w[:w.index(on)]}
+    st = reg[0x18 + c] << 8 | reg[0x10 + c]; en = reg[0x28 + c] << 8 | reg[0x20 + c]
+    lvl = next(x[3] for x in w if x[2] == 0x08 + c)
+    return [[st, en]], lvl
+
+def doubledr_list(rname, name, cid):
+    sys.path.insert(0, os.path.join(TOOLS, 'doubledr')); import dd, model_dd as M, export_dd as E
+    uses = []
+    for n in range(dd.anim_count(cid)):
+        try: _, st = dd.steps(cid, n)
+        except Exception: continue
+        for k, s_ in enumerate(st):
+            if s_['b5']: uses.append((s_['b5'], {'kind': 'anim', 'slot': n, 'states': [n], 'step': k}))
+    for inp, (anims, _) in E.SPECIALS[cid].items():
+        for i, r in enumerate(M.play(cid, anims[-1], limit=400)):
+            if r['snd']: uses.append((r['snd'], {'kind': 'special', 'input': inp, 'at': i}))
+    uses += [(0x1C, {'kind': 'event', 'event': 'hit_c', 'at': 0}), (0x1D, {'kind': 'event', 'event': 'ko', 'at': 0})]
+    for w in (0x22, 0x24, 0x26, 0x28):             # Billy's special shouts in both forms' lists (one voice actor: the
+        uses.append((w, None))                     # transformed form may share them, game.json voices.set)
+    spw = {}
+    for w, u in uses:
+        if u and u['kind'] == 'special': spw.setdefault(w, set()).add(u['input'])
+    own_fx = {w for w in DD_FX if w in spw}
+    v = v_rom('doubledr'); voices = {}
+    for w, u in uses:
+        if w not in DD_VOICES and w not in own_fx: continue
+        if w not in voices:
+            seg, lvl = dd_sample(w)
+            voices[w] = {'cmd': f'{w:04X}', 'cmds': [f'{w:04X}'], 'indices': [], 'segments': seg, 'level': lvl, 'uses': []}
+        if u and u not in voices[w]['uses']: voices[w]['uses'].append(u)
+    lst = [voices[w] for w in sorted(voices, key=lambda w: (w not in own_fx, w))]
+    for k, vo in enumerate(lst, 1):
+        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
+        vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
+        if int(vo['cmd'], 16) in own_fx: vo['channel'] = 'fx'
+    print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
+    return {'game': 'doubledr', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
+                                                                          'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
+
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
+       'doubledr': {'cast': {'billy': 0, 'billy_super': 1}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
        'kizuna': {'cast': {'kim': 5}, 'capture': kizuna_capture, 'list': kizuna_list}}
 
@@ -535,7 +591,7 @@ OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_
 # Keys: every brawler animation (BA_*), the throws (BT_*), the events, then the fighter's specials pool by input.
 EVENT_KEYS = ['hit', 'ko', 'select']
 INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355),
-         'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)], 'kizuna': []}   # SS4 / WHP: the pose animations (char_images)
+         'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)], 'kizuna': [], 'doubledr': []}   # SS4 / WHP: the pose animations (char_images)
 
 def keys(moves, throws, pool_inputs):
     return list(moves) + list(throws) + EVENT_KEYS + ['special:' + i for i in pool_inputs]

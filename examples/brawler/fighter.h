@@ -107,6 +107,11 @@ extern const rt_head_t *route_tab[BC_COUNT];
 #define BS_FURY BS_COUNT
 #define BS_FURY_MAX (BS_COUNT + 1)   /* spec_ix only (down+D): the fury's MAX version, bchar_t.fury_max (0xFF: none -> the fury);
                                      played with spec_id BS_FURY (a fury in every respect) */
+#define BS_FORM (BS_COUNT + 2)       /* the form link's transition (vocabulary form.change): bchar_t.form_spec, started by
+                                     its trigger (FT_*), untouchable while it plays, ended by its P_FORM (fighter.c "form") */
+enum { FT_NONE, FT_DOWN_D_FULL };    /* bchar_t.form_trig: down+D on the ground with a full meter */
+enum { FX_NONE, FX_LIFE, FX_STAGE }; /* bchar_t.form_exit: back to the base form when a life is lost (and at a stage's
+                                     start, as every player), or only at a stage's start */
 extern const uint8_t *spec_tab[BC_COUNT];
 uint8_t spec_ix(const bchar_t *ch, uint8_t role);   /* role -> index in ch->specials, 0xFF = none */
 void specs_init(void);
@@ -252,6 +257,8 @@ typedef struct fighter {
     uint8_t  fury_buf, scancel;   /* the cancel rule (fighter.c "cancels", TODO #143): D pressed during a normal or a
                                    * special that may cancel (0x80 | 1 = down+D, the MAX); scancel: the special playing
                                    * landed a hit (its own or its projectile's) = a fury may cancel it */
+    uint8_t  var;                 /* the special playing: its variant row (bspec_t.vars), latched at its start */
+    uint8_t  form_from;           /* the form link: the base form's bm_chars index + 1 while in another form (0 = none) */
     const bthrow_t *thr;          /* a thrown victim's paired script (TODO #146): it plays its rows itself once its */
     struct fighter *thr_by;       /* thrower let go (fighter.c thrown_update); thr_by: who threw it (or holds it: a */
     uint8_t  thr_skip, pad_thr;   /* hold hit); thr_skip: the frame of the hand-over, its update came after the thrower's; */

@@ -1,0 +1,13 @@
+{
+ "fighter": "billy_lee",
+ "note": "Billy Lee (Double Dragon 1995) and his transformed form (the same tree: both forms have the same normals, DD's animations 15-34): one attack button by position (TODO #71, tree v4). DD's buttons are four strengths (A punch, B kick, C strong punch, D strong kick), one normal each; a normal of DD hits once ($258EC) and DD has no chain table, so the routes go up the strengths as the brawler's weak-to-strong chain: far A > B > C > D (knockdown), close A > B > C > D (knockdown), crouch A > B > D (trip, DD's sweep 26). forward+A = far D, back+A = far C, down-forward+A = the sweep. One B link (close A, B: air C, then A: air B kick, knockdown), a brawler addition so B jump-cancels as the controls specify. Specials cancel from any normal that hit (the engine's rule). For Bruno to rearrange in the Chain Lab.",
+ "routes": [
+  [{"move": "atk_a_far", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_b_far", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_c_far", "weight": "strong", "effect": "none", "input": "A"}, {"move": "atk_d_far", "weight": "strong", "effect": "knockdown", "input": "A"}],
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_c_close", "weight": "strong", "effect": "none", "input": "A"}, {"move": "atk_d_close", "weight": "strong", "effect": "knockdown", "input": "A"}],
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_jump", "weight": "strong", "effect": "none", "input": "B"}, {"move": "atk_cd_jump", "weight": "strong", "effect": "knockdown", "input": "A"}],
+  [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_b_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_d_crouch", "weight": "strong", "effect": "trip", "input": "dA"}],
+  [{"move": "atk_d_far", "weight": "strong", "effect": "knockdown", "input": "fA"}],
+  [{"move": "atk_c_far", "weight": "strong", "effect": "none", "input": "bA"}],
+  [{"move": "atk_d_crouch", "weight": "strong", "effect": "trip", "input": "dfA"}]
+ ]
+}

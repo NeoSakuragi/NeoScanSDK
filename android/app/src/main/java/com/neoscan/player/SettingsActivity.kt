@@ -18,7 +18,7 @@ import android.widget.Switch
 import android.widget.TextView
 import java.io.File
 
-/** Settings, in sections: Display, Controls, Updates, About. Every change is stored at once ([Prefs]); the game
+/** Settings, in sections: Feedback (the list of his notes), Account (logout), System, Display, Controls, Updates, About. Every change is stored at once ([Prefs]); the game
  *  (paused meanwhile) applies them when it resumes. Built in code: no layout XML, no libraries. */
 class SettingsActivity : Activity() {
     private lateinit var col: LinearLayout
@@ -30,6 +30,21 @@ class SettingsActivity : Activity() {
         val prefs = Prefs(this)
         col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; val m = (16 * dp).toInt(); setPadding(m, m, m, m * 2) }
         col.addView(TextView(this).apply { text = "Settings"; textSize = 24f; setTypeface(typeface, Typeface.BOLD) })
+
+        section("Feedback")
+        col.addView(Button(this).apply { text = "My feedback notes"; setOnClickListener {
+            startActivity(android.content.Intent(this@SettingsActivity, FeedbackListActivity::class.java)) } },
+                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
+        note("Every note you sent, newest first: its status, the developer's notes, the screenshot and the voice.")
+
+        section("Account")
+        note("Signed in as ${Auth.user(this) ?: "?"} (Oros account). The builds and the feedback need it.")
+        col.addView(Button(this).apply { text = "Log out"; setOnClickListener {
+            Auth.logout(this@SettingsActivity)
+            startActivity(android.content.Intent(this@SettingsActivity, LoginActivity::class.java)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK))
+            Runtime.getRuntime().exit(0)                                 // the game process goes too: a fresh start after the login
+        } }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
 
         section("System")
         choice("Hardware", listOf("arcade" to "Arcade (MVS): the BIOS soft-dip settings", "console" to "Console (AES): the game's own options, memory card"),

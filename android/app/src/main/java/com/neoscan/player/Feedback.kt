@@ -35,15 +35,16 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
     val recording get() = dir != null
 
     /** button down: capture the game now, start the voice ([mic] = the permission is granted) */
-    fun start(mic: Boolean) {
+    fun start(mic: Boolean, onScreen: (Bitmap) -> Unit = {}) {
         val id = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + "-" + installId(ctx).take(4)
         val d = File(ctx.filesDir, "feedback/work/$id").apply { deleteRecursively(); mkdirs() }
-        dir = d; t0 = android.os.SystemClock.uptimeMillis(); frames = null
+        dir = d; t0 = android.os.SystemClock.uptimeMillis(); frames = null; txId = ""
         val latch = java.util.concurrent.CountDownLatch(1); captured = latch
         val e = emu()
         if (e != null) e.feedbackReq = d to { r, px, w, h ->
             frames = r
             Thread { try { Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888).also { b ->
+                onScreen(b)                                            // the scribble canvas shows it at once
                 File(d, "screen.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) } }
             } catch (x: Exception) { Log.w(TAG, "feedback: screenshot ${x.message}") }
                 latch.countDown() }.start()
@@ -61,6 +62,7 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
 
     private var work: File? = null                                   // the bundle being written (after stop, until send / cancel)
     private var heldMs = 0L
+    @Volatile private var txId = ""                                   // the server's id of this voice's transcription (its cost)
 
     /** button up: the voice stops; returns how long the button was held (shorter than [MIN_MS] = a tap: a text note) */
     fun stop(): Long {
@@ -80,15 +82,16 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
         val a = audio() ?: return null
         val u = url(ctx, "transcribe") ?: return null
         return try {
-            val c = (u.openConnection() as HttpURLConnection).apply {
+            val c = Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000; readTimeout = 60000; requestMethod = "POST"; doOutput = true
                 setFixedLengthStreamingMode(a.length())
                 setRequestProperty("Content-Type", "application/octet-stream"); setRequestProperty("X-Audio-Name", a.name)
                 setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
-            }
-            c.outputStream.use { o -> a.inputStream().use { it.copyTo(o) } }
+                if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+                outputStream.use { o -> a.inputStream().use { it.copyTo(o) } }
+            } }
             if (c.responseCode != 200) { Log.w(TAG, "feedback: transcribe HTTP ${c.responseCode}"); null }
-            else JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }).let { it.getString("text") to it.optString("model") }
+            else JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }).let { txId = it.optString("tx_id"); it.getString("text") to it.optString("model") }
         } catch (x: Exception) { Log.w(TAG, "feedback: transcribe ${x.message}"); null }
     }
 
@@ -96,14 +99,18 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
 
     /** Send: the final text (+ the server's transcript) goes with the bundle; zipped into the queue and sent in the
      *  background, [done] gets true = sent, false = queued (on that thread) */
-    fun send(text: String, raw: String, model: String, transcribeError: Boolean, done: (Boolean) -> Unit) {
+    fun send(text: String, raw: String, model: String, transcribeError: Boolean, ink: List<Ink.Stroke>, done: (Boolean) -> Unit) {
         val d = work ?: return; work = null
         val latch = captured
         Thread {
             latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+            val marked = ink.isNotEmpty() && try { Ink.write(d, ink) } catch (x: Exception) { Log.w(TAG, "feedback: scribble ${x.message}"); false }
             File(d, "meta.json").writeText(meta(d.name, heldMs).apply {
                 put("final_text", text); put("raw_transcript", raw); put("transcript_model", model)
-                put("transcribe_error", transcribeError); put("kind", if (d.listFiles()!!.any { it.name.startsWith("audio.") }) "voice" else "text")
+                put("transcribe_error", transcribeError); put("transcribe_tx", txId)
+                if (marked) put("annotation", JSONObject().put("strokes", ink.size).put("scale", Ink.SCALE)
+                    .put("files", org.json.JSONArray(listOf("annotation.png", "screen_marked.png"))))
+                put("kind", if (d.listFiles()!!.any { it.name.startsWith("audio.") }) "voice" else "text")
             }.toString(2))
             val q = File(ctx.filesDir, "feedback/queue").apply { mkdirs() }
             val zip = File(q, d.name + ".zip"); val part = File(q, d.name + ".zip.part")
@@ -158,19 +165,27 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
         /** send every queued bundle (blocking; off the UI thread); true when the queue is empty afterwards */
         @Synchronized fun flush(ctx: Context): Boolean {
             val q = File(ctx.filesDir, "feedback/queue")
+            // 0.0.15: the bundles an older player had queued and the server refused once it needed the login (401) go again
+            val fp = ctx.getSharedPreferences("feedback", 0)
+            if (!fp.getBoolean("requeued015", false)) {
+                q.listFiles { f -> f.name.endsWith(".zip.rejected") }?.forEach { it.renameTo(File(it.path.removeSuffix(".rejected"))) }
+                fp.edit().putBoolean("requeued015", true).apply()
+            }
             val zips = q.listFiles { f -> f.name.endsWith(".zip") }?.sortedBy { it.name } ?: return true
             val u = url(ctx) ?: return zips.isEmpty()
             for (z in zips) try {
-                val c = (u.openConnection() as HttpURLConnection).apply {
+                val c = Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
                     connectTimeout = 5000; readTimeout = 30000; requestMethod = "POST"; doOutput = true
                     setFixedLengthStreamingMode(z.length())
                     setRequestProperty("Content-Type", "application/zip"); setRequestProperty("X-Bundle", z.nameWithoutExtension)
                     setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
                     setRequestProperty("X-Device", "${Build.MANUFACTURER} ${Build.MODEL}")
-                }
-                c.outputStream.use { o -> z.inputStream().use { it.copyTo(o) } }
+                    if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+                    outputStream.use { o -> z.inputStream().use { it.copyTo(o) } }
+                } }
                 val code = c.responseCode
                 if (code == 200) { Log.i(TAG, "feedback: ${z.name} sent: " + c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }); z.delete() }
+                else if (code == 401) { Log.w(TAG, "feedback: ${z.name}: not signed in, kept queued"); return false }
                 else { Log.w(TAG, "feedback: ${z.name}: HTTP $code"); if (code in 400..499 && code != 408 && code != 429) z.renameTo(File(z.path + ".rejected")); return false }
             } catch (x: Exception) { Log.w(TAG, "feedback: ${z.name} queued (${x.message})"); return false }
             return true

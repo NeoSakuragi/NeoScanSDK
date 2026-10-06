@@ -43,10 +43,10 @@ static void mark(uint8_t sec) {
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
 #define FIGHT_SPRS (NF * MAX_COLS + NPJ * PJ_COLS)   /* a fight's blocks: a fighter's MAX_COLS, the projectile pool's
                                         PJ_SPRS = NPJ * PJ_COLS shared by width (block_w) */
-#define NA 19                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
+#define NA 20                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
                                         fighter: the group photo) */
-#define SEL_COLS 16                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 16 =
-                                        sprites 60-363 there (the banner's, the debug boxes' and the sparks' 300-379 are
+#define SEL_COLS 15                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 15 =
+                                        sprites 60-359 there (16 until NA 20, Billy Lee) (the banner's, the debug boxes' and the sparks' 300-379 are
                                         not in use on that screen); the watch / win poses and the walk-offs are narrower
                                         (2026-10-05: widest 13, a walk; win 11, watch 8) */
 uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
@@ -1003,7 +1003,7 @@ static void save_load(void) {
     if (!save_ok(&save)) save_reset();
     difficulty = save.difficulty;
 }
-static uint8_t char_locked(uint8_t c) { uint8_t k = roster_unlock[c]; return k && !(save.unlocked >> (k - 1) & 1); }
+static uint8_t char_locked(uint8_t c) { uint8_t k = roster_unlock[c]; return k == 0xFF || (k && !(save.unlocked >> (k - 1) & 1)); }   /* 0xFF: a form link's target, never picked */
 static uint8_t camp, camp_from;                  /* the stage in play; the one a new game starts at (title CONTINUE) */
 
 /* ---- title banner (tools/brawler/make_banner.py): one sticky sprite chain, BANNER_COLS columns of BANNER_ROWS tiles,
@@ -1198,7 +1198,7 @@ static void title_tick(void) {
  * fight cuts in (no fades: a palette fade cost ticks frames). Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
 #define SEL_BACK 2                       /* the bosses' row */
 #define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
-_Static_assert(BC_COUNT <= SEL_NSLOT && BC_COUNT <= NA, "group photo: a slot and an actor per fighter");
+_Static_assert(SEL_NSLOT <= NA, "group photo: an actor per slot (every selectable fighter has one: build_tables.py)");
 _Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 364, "sprite blocks: fight below the banner, select below the sparks");
 /* the slots (game.json "select", gamedata.h sel_slot_t): x (px), z (feet at SELECT_FLOOR + z), row (0 front: low on the
  * screen, drawn in front; 2 back, SEL_BACK: higher, behind); sel_fighter[slot] = who stands there (the generator checks

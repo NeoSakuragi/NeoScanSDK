@@ -13,6 +13,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".LoginActivity" android:exported="false" android:label="Sign in"
+            android:theme="@android:style/Theme.DeviceDefault" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".FeedbackListActivity" android:exported="false" android:label="My feedback"
+            android:theme="@android:style/Theme.DeviceDefault" />
         <activity android:name=".SettingsActivity" android:exported="false" android:label="Settings"
             android:theme="@android:style/Theme.DeviceDefault" />
     </application>
