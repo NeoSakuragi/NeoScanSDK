@@ -183,7 +183,7 @@ typedef struct fighter {
     uint8_t  ncols;               /* sprite columns of the shown frame (written by fighter_tiles) */
     uint8_t  landed;              /* the current attack connected (routes chain only on a hit) */
     uint8_t  chain_node, chain_t; /* Final Fight chain: the route step that hit, frames left to continue it from neutral */
-    uint8_t  spec_buf;            /* D pressed during a normal: 0x80 | RI_D.. (its direction), the node's special link cancels once it hits */
+    uint8_t  spec_buf;            /* C pressed during a normal: 0x80 | RI_S.. (its direction): the special it cancels into once it hits */
     uint8_t  still;               /* AI: frames walking without a walk intent (the walk holds AI_IDLE_DELAY frames) */            /* thrower X when the throw started (script X is relative to it) */
     uint8_t  spec_dmg, spec_react; /* special: damage and victim reaction (R_*) of the hit window open (bspec_row_t) */
     uint8_t  spec_fx;             /* special: KOF98 hit effect of the hit window open (bspec_row_t.fx: kind | burn << 6) */
@@ -249,6 +249,9 @@ typedef struct fighter {
                                    * hit-stop down at $1B402 before +$19C; TODO #79 / #84) */
     struct fighter *dance;        /* the fury that hit this fighter (fighter.c "dance"): while it plays the victim stays
                                    * in its reel (no recovery, no fall on death) and inside the screen (dance_update) */
+    uint8_t  fury_buf, scancel;   /* the cancel rule (fighter.c "cancels", TODO #143): D pressed during a normal or a
+                                   * special that may cancel (0x80 | 1 = down+D, the MAX); scancel: the special playing
+                                   * landed a hit (its own or its projectile's) = a fury may cancel it */
 } fighter_t;
 
 

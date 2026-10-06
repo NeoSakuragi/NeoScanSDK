@@ -213,7 +213,7 @@ static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
     uint8_t a = c->anim;
     snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_A_CROUCH || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR ||
             a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
-    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0;
+    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0;
     if (c->flags & RF_AIR) {                                     /* the jump in progress picks the air normal */
         if (a == BA_ATK_CD_JUMP) a = f->jump_kind ? BA_ATK_CD_HOP : BA_ATK_CD_JUMP;   /* KOF's 117, a KOF98 / 99 hop's 124 */
         else a = AIR_NORMAL[f->jump_kind][f->jump_dir != 0][a == BA_ATK_D_JUMP];
@@ -634,6 +634,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     if (k == BS_FURY) f->inv = INV_FURY;                         /* every fury, every fighter: invincible from the trigger
                                                                     to its end (special_end, fighter_update) */
     f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = 0;   /* its first part, no follow-up armed, no hit */
+    f->scancel = 0; f->fury_buf = 0;                             /* nothing landed yet: no fury cancel ("cancels") */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
@@ -752,6 +753,22 @@ static uint8_t special_pick(const fighter_t *f, uint8_t want) {   /* a role (BS_
 }
 /* C, forward / down / up / down-forward / up-forward + C (down / up = toward / away from the camera) -> BS_*, 0xFF = none */
 static uint8_t special_for(const fighter_t *f, const intent_t *in) { return special_pick(f, d_input(f, in) - RI_S); }
+/* ---- cancels (TODO #143, Bruno 2026-10-06; docs/brawler_move_vocabulary.md "cancel"): engine rules, every fighter,
+ * no per-move data. (1) A ground normal (any route node) that made contact (landed; the brawler has no guard, so a
+ * hit) cancels, from the end of its hit-stop to its last frame, into a special (C + the stick: the route's own special
+ * link when it has one, else the slot special_for picks) or the fury (D, down+D its MAX), each the moment its press
+ * is read (presses during the normal are buffered: spec_buf / fury_buf). (2) A special (not a fury) whose first hit
+ * landed (its body's or its projectile's: scancel) cancels into the fury on D, on the ground and not while it holds a
+ * caught victim (PF_HOLD / a catch: its routine owns the victim); a D before that first hit does nothing. The fury
+ * plays as from neutral: its meter, super flash, charge sound and invincibility. Air normals have no special cancel
+ * (no special starts in the air). Players only: enemies keep their routes' special links, nothing more. ---- */
+static uint8_t fury_cancel(fighter_t *f) {                       /* a buffered D: the fury now -> 1 */
+    uint8_t mx = f->fury_buf & 1, go = (f->fury_buf & 0x80) && spec_ix(f->ch, BS_FURY) != 0xFF;
+    f->fury_buf = 0;
+    if (!go || !spend(f, gmeter.fury, gmeter.fury_min, 0)) return 0;
+    lab_note(f, LE_SPECIAL, 0, LH_CANCEL, BS_FURY); start_special(f, mx ? BS_FURY_MAX : BS_FURY);
+    return 1;
+}
 /* ---- specials read from the ROM (tools/kof96/handlers98.py, handlers98.md) ---------------------------------------------
  * KOF98 runs a special as straight-line 68000 code: set speeds, start a state's animation, then a frame loop (the
  * coroutine resumes at +$00) that moves the body and waits for the animation's end / an event step / the landing.
@@ -1026,7 +1043,11 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         uint8_t ci = combo_input(f, in);
         if (ci) f->buffered = ci;
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
+        if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
     }
+    if (f->state == S_SPECIAL && f->spec_id != BS_FURY && f->scancel && (in->press & IN_D) && !f->team)
+        f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
+                                                                    before its first hit does nothing) */
     if (f->state == S_SPECIAL && in->press && f->ch->specials[f->spec_ix].nlinks) special_input(f, in);   /* a follow-up
                                                                     (presses in hit-stop count) */
     meter_tick(f);
@@ -1114,13 +1135,16 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         break;
     case S_ATTACK: {
         const rnode_t *c = NODE(f, f->node);
-        if (f->landed && f->spec_buf && !(c->flags & RF_AIR)) {  /* a special link cancels a normal that hit: cut short */
-            uint8_t d = f->spec_buf & 0x7F, nx = c->next[d], k;    /* the input's link, else (a diagonal) */
+        if (f->landed && !(c->flags & RF_AIR) && fury_cancel(f)) break;   /* the cancel rule: D on contact, the fury */
+        if (f->landed && f->spec_buf && !(c->flags & RF_AIR)) {  /* a special cancels a normal that hit: cut short */
+            uint8_t d = f->spec_buf & 0x7F, nx = c->next[d], k;    /* the route's link for the input, else (a diagonal) */
             if (!nx && d >= RI_DFS) nx = c->next[d == RI_DFS ? RI_DS : RI_US];   /* down / up's, else plain C's */
             if (!nx) nx = c->next[RI_S];
             f->spec_buf = 0;
-            k = nx ? special_pick(f, NODE(f, nx)->anim) : 0xFF;
-            if (k != 0xFF && spend(f, gmeter.special, 0, 0)) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); start_special(f, k); f->speed = NODE(f, nx)->speed; break; }
+            k = nx ? special_pick(f, NODE(f, nx)->anim) : f->team ? 0xFF : special_pick(f, d - RI_S);   /* no link: the
+                                                                    cancel rule, the special C + this stick picks
+                                                                    (players; enemies keep their routes' links) */
+            if (k != 0xFF && spend(f, gmeter.special, 0, 0)) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); start_special(f, k); if (nx) f->speed = NODE(f, nx)->speed; break; }
         }
         if (f->landed && f->buffered && !(c->flags & RF_KEEP)) {   /* cancel on hit: the next link now (after the hit-stop) */
             uint8_t nx = next_node(c, f->buffered);
@@ -1172,6 +1196,11 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     case S_GRAB: hold_update(f, in); break;
     case S_THROW: throw_update(f); break;
     case S_SPECIAL:
+        if (f->spec_id != BS_FURY && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && !f->pcatch && f->fury_buf) {
+            carry_drop(f); special_end(f); f->pflags = 0;        /* the super cancel ("cancels"): the special stops, */
+            if (fury_cancel(f)) break;                           /* the fury starts this frame */
+            to_neutral(f, 0); break;                             /* (no fury / no meter: the special played on to here) */
+        }
         special_update(f);
         if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start)
             super_flash(f);                                      /* every fury, MAX or not (fx.super_flash, game.json
@@ -1201,6 +1230,10 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     v->freeze = HITSTOP;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
     a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
+    {   fighter_t *o = a->owner ? a->owner : a;                  /* the cancel rule: a special that landed (its body, */
+        if (o->state == S_SPECIAL && o->spec_id != BS_FURY && (o == a || o->proj[0] == a || o->proj[1] == a || o->shot == a))
+            o->scancel = 1;                                      /* or a projectile it threw) may cancel into the fury */
+    }
     if (a->state == S_SPECIAL) a->shrow = a->srow;               /* the special's row it landed on + 1 (follow-up windows) */
     if (!(a->state == S_SPECIAL && (a->pflags & PF_HOLD) && a->target && a->target != v && a->target->dance == a &&
           a->target->state == S_HITSTUN))

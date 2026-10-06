@@ -447,7 +447,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   at the screen edge (victim upright to the finisher, both visible, one KO voice at the death), $1A $3A + key-on on the
   flash frame; romspecials_check furies = 0.0.66's frame mismatches (Goenitz's first hit now on KOF's frame).
 
-- [ ] 143. NEXT (Bruno, 2026-10-06): cancels as engine rules for every fighter: (1) any normal (A routes, air
+- [x] 143. (done 2026-10-06: fighter.c "cancels" (fury_cancel, fury_buf, scancel; players only, enemies keep their route links), documented as branch.cancel; cancel_proof.py all 19 ok (HEAD fails it), controls_proof / fury_inv_proof all ok, regress no-bleed True, campaign29 passes, attract + campaign RAM traces identical to HEAD) (Bruno, 2026-10-06): cancels as engine rules for every fighter: (1) any normal (A routes, air
   normals) cancels into a special (C + direction) or a fury (D / down+D MAX); (2) any special cancels into a fury.
   Defaults until Bruno says otherwise: a normal cancels on contact (hit or guard) during its active / cancel window, as
   KOF; a special cancels into a fury after its first hit lands (KOF's super cancel), the fury's flash and invincibility
