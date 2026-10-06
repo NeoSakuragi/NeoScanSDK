@@ -1187,7 +1187,8 @@ static void hold_apply(fighter_t *f) {                           /* a caught vic
     fighter_t *t = f->target;                                    /* attacker (P_PUT's distance, else where it stands), */
     if (!(f->pflags & PF_HOLD) || !t || t->state != S_HITSTUN) return;   /* reeling, facing it (a command grab: no stick rule) */
     if (f->phold) { t->x = f->x + dir_mul(f->facing, FIX(f->phold)); t->y = 0; clamp(t); }
-    t->vx = 0; t->kdelay = 0; t->state_t = 0; t->facing = -f->facing;
+    if (!t->vfly) t->vx = 0;                                     /* (a flying victim list keeps its flight) */
+    t->kdelay = 0; t->state_t = 0; t->facing = -f->facing;
 }
 /* a catch's victim script (vocabulary hold.victim_list, TODO #173; KOF98 $25372): the caught target placed every frame
  * at the attacker + the entry of the attacker's current step (offset its facing's way, height, posture, facing,
@@ -1202,11 +1203,19 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
     l = &sp->vlists[f->vlist - 1];
     if (!l->n) { f->vlist = 0; return; }                         /* (past its last list: n 0 ends the table) */
     e = &l->e[f->pstep < l->n ? f->pstep : l->n - 1];
-    t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z; clamp(t);
+    if (!(l->flags & VL_FLY) || f->vent == 0xFF) {               /* placed at the attacker + its entry (a flying list: */
+        t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z; clamp(t);   /* once) */
+    }
+    if (l->flags & VL_FLY) {                                     /* it flies on its own (SS2's rage victims): its */
+        if (f->vent == 0xFF) { t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8; }   /* velocities */
+        else { t->x += t->vx; t->y += t->vy; t->vy -= (int32_t)l->g << 8; if (t->y < 0) t->y = t->vy = 0; clamp(t); }
+        t->vfly = 2;                                             /* (its own update leaves the body to this list) */
+    }
     t->facing = (e->flags & VE_TURN) ? f->facing : -f->facing;
     t->frame_ovr = e->pose < VP_COUNT && t->ch->vposes[e->pose] != 0xFFFF ? t->ch->vposes[e->pose] : 0xFFFF;
     t->zfront = (e->flags & VE_FRONT) ? 1 : 0;
-    t->vx = t->vy = 0; t->kdelay = 0; t->state_t = 0; if (t->state == S_KNOCKDOWN) enter(t, S_HITSTUN);
+    if (!(l->flags & VL_FLY)) t->vx = t->vy = 0;
+    t->kdelay = 0; t->state_t = 0; if (t->state == S_KNOCKDOWN) enter(t, S_HITSTUN);
     if (f->vent == f->pstep) return;                             /* (KOF: the flags act when the attacker's step changes) */
     f->vent = f->pstep;
     if (e->flags & VE_BLOW) {                                    /* the blow: the move's damage, its hit sound */
@@ -1218,8 +1227,9 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
         f->pflags &= ~PF_HOLD; f->phold = 0; f->vlist = 0;
         t->frame_ovr = 0xFFFF; t->zfront = 0;
         react(t, f->facing, R_KNOCKDOWN, 0);
-        kof_react(t, f->facing, R_KNOCKDOWN, -128);
-    }
+        if (l->flags & VL_VEL) { t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8; }   /* its */
+        else kof_react(t, f->facing, R_KNOCKDOWN, -128);         /* game's flight (SS2: the victim's velocity entry), */
+    }                                                            /* the brawler's fall and landing from there */
 }
 /* ---- form (vocabulary form.change, Double Dragon's transformation; game.json roster[].form): a fighter declares a
  * trigger, a transition (one of its specials, role BS_FORM: untouchable while it plays) and a target roster entry; the
@@ -1553,6 +1563,7 @@ static void update(fighter_t *f, const intent_t *in) {
         break;
     }
     case S_HITSTUN:
+        if (f->vfly) { f->vfly--; break; }                       /* a victim list flies it (vlist_apply, VL_FLY) */
         if (f->y > 0) {                                          /* a dance's catch (TODO #150): down to the floor fast */
             f->y += f->vy; f->vy -= DANCE_DROP;
             if (f->y <= 0) f->y = f->vy = 0;
@@ -1661,6 +1672,9 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
             if (v->state == S_HITSTUN) { v->vx = 0; v->kdelay = 0; }
         }
         if ((a->spec_prev_hit & 64) && v->state == S_HITSTUN) v->vx = 0;   /* KOF's reel without its slide (step byte 1 = 3) */
+        if ((a->pflags & PF_HOLD) && a->spec_id == BS_FURY && v->state == S_HITSTUN) v->vx = 0;   /* a fury holding its caught
+                                                                    one: the crowd it hits reels in place (hold.dance (a): no
+                                                                    slide out of the dance's reach) */
         if (a->pflags & PF_HOLD) hold_apply(a);
     }
 }
@@ -1749,6 +1763,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (v->team == a->team || v->y || v->inv == INV_FURY || (v->state != S_IDLE && v->state != S_WALK && v->state != S_HITSTUN &&
                 v->state != S_ATTACK && v->state != S_SPECIAL)) continue;
             if (v == a->target && (a->spec_prev_hit & 4) && a->landed) continue;   /* its carried target: held where the game had it */
+            if (v == a->target && a->vlist && (a->pflags & PF_HOLD)) continue;   /* its caught one: where its victim list puts it */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
             if (d <= -8 || d >= PUSH_DX) continue;

@@ -1,11 +1,13 @@
 {
- "_doc": "Samurai Shodown II victim postures (export_bm.VICTIM_POSES['samsho2'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, ROM sprites face left, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'anim.step' of the thrown animations of handlers_ss2.throw (the victim's class 5 entries, in the thrower's own frames): Haohmaru's slash throw 508, kick throw 510 then 470, Genjuro's throw 514 (508 + 6: Haohmaru thrown by Genjuro); the flight 220 and lying 222 play the brawler's knockdown animations. Read by eye from the frames (sheet_ss2.py 0 508,510,470 / 12 514).",
+ "_doc": "Samurai Shodown II victim postures (export_bm.VICTIM_POSES['samsho2'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, ROM sprites face left, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'anim.step' of the thrown animations of handlers_ss2.throw (the victim's class 5 entries, in the thrower's own frames): Haohmaru's slash throw 508, kick throw 510 then 470, Genjuro's throw 514 (508 + 6: Haohmaru thrown by Genjuro); the flight 220 and lying 222 play the brawler's knockdown animations. Read by eye from the frames (sheet_ss2.py 0 508,510,470 / 12 514). The rage moves' caught victims (handlers_ss2.VL, the victim's own class 3 actions 36 / 115 / 116): Genjuro's WFT 464 (the flight) and 498 (carried in his spin), Kuroko's 580 (dazed at his place), 586 (dazed, his MAX's pose), 588 (the knock, 3 steps with his anim 7) (sheet_ss2.py 0 464,498,580,586,588).",
  "poses": {
   "508.0": ["grabbed", 0], "508.1": ["hunched", 30], "508.2": ["inverted_diagonal", -150], "508.3": ["inverted", 180],
   "510.0": ["grabbed", 0], "510.1": ["inverted_diagonal", -150], "510.2": ["inverted", 180],
   "470.0": ["inverted", 180], "470.1": ["horizontal", -90],
   "514.0": ["grabbed", 0], "514.1": ["grabbed", 0], "514.2": ["hunched", 0], "514.3": ["horizontal", -90],
   "514.4": ["inverted", 180], "514.5": ["inverted_diagonal", -150],
-  "220.0": ["horizontal", -90], "220.1": ["horizontal", -90], "222.1": ["lying", -90]
+  "220.0": ["horizontal", -90], "220.1": ["horizontal", -90], "222.1": ["lying", -90],
+  "464.0": ["horizontal", -90], "498.0": ["horizontal", -90],
+  "580.0": ["hunched", 0], "586.0": ["hunched", 30], "588.0": ["hunched", 0], "588.1": ["bent_back", -15], "588.2": ["launched", -45]
  }
 }

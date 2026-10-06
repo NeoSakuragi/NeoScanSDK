@@ -293,7 +293,9 @@ typedef struct fighter {
     uint8_t  pheld, wpad;         /* a special's button held this frame (PC_HELD: KOF's charge, Rugal's Kaiser Wave) */
     int32_t  py0;                 /* a projectile's height at its hit: its end rows' heights are from it (TODO #164) */
     const banim_t *fx_pan;        /* a step effect (bproj_t follow 8, anim.step_spawn): its owner's animation and step */
-    uint8_t  fx_step, fx_pad;     /* when it was born; it ends when they change (KOF98 $3751A) */
+    uint8_t  fx_step, vfly;       /* when it was born; it ends when they change (KOF98 $3751A); vfly: a caught victim
+                                   * a flying victim list moves (VL_FLY, fighter.c vlist_apply): its own S_HITSTUN update
+                                   * leaves its body alone while it counts down (refreshed every frame of the list) */
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */

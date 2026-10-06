@@ -41,7 +41,7 @@ import ss2, neo2 as N
 P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
      'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'adv': 16, 'check': 17, 'part': 18, 'evclr': 19,
      'onhit': 20, 'put': 21, 'hitclr': 22, 'hold': 23, 'unhold': 24, 'sigclr': 25, 'hitoff': 26, 'add': 27, 'form': 28,
-     'voice': 29}                                 # bm_chars.h P_*
+     'voice': 29, 'vsig': 30}                                 # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 PC = {'end': 0, 'event': 1, 'land': 2, 'fall': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'always': 7, 'stepev': 8, 'window': 9,
       'link': 10, 'hitany': 11}
@@ -71,9 +71,12 @@ def by(v): return -(v << 8)                       # 8.8 down -> 16.16 up
 # phys: 'ground' (x += vx), 'grav' (+$EE 1), 'air' (+$EE < 0, nothing added), ('custom', ax, ay) (+$EE < 0, the
 # routine adds +$D0 / +$D2), ('decel', dv) (the routine's $46C64 on vx); init: ('set', reg, v), ('spawn', k),
 # ('nudge', px), ('part',).
-def E(anim=None, init=(), conds=(), phys='ground', flags=None, part=None, react=None):
+def E(anim=None, init=(), conds=(), phys='ground', flags=None, part=None, react=None, catch=None):
+    """catch: the entry index of the catch routine: this entry's attack steps are catch boxes (no damage, the victim
+    held: fighter.c's catch, KOF +$19C), the routine starts after the hit-stop and the victim follows the move's victim
+    lists (VL below)"""
     return {'anim': anim, 'init': list(init), 'conds': list(conds), 'phys': phys, 'flags': flags or {}, 'part': part,
-            'react': react}
+            'react': react, 'catch': catch}
 
 def hao_236s(v):
     """Senpuu Retsu Zan, 2 3 6 + A / B / A+B -> results 41-43, descriptors $35470 / $3547C / $35488 [code]:
@@ -199,28 +202,61 @@ def gen_236s(v):
     out += [E(369, [('part',), ('set', 'vx', 0)], [('end', 'end')], part=2)]
     return out, []
 
+def VL(entries, fly=None, rel=None):
+    """a caught victim's list (vocabulary hold.victim_list; fighter.c vlist_apply): entries [(dx, dy, posture key
+    'anim.step' of victim_poses_ss2.json, flags)] one per attacker step (the last for later steps), placed at the
+    attacker + (dx forward, dy up) every frame; fly = (vx, vy, g) 8.8 SS2 words (vx forward of the attacker, vy DOWN,
+    g the reaction gravity): placed at its first entry once, then it flies on its own velocities (posture held); rel =
+    (vx, vy) the release's velocity (8.8, vy DOWN) for an entry flagged 64 (instead of KOF's blowback)"""
+    out = {'e': [dict(dx=dx, dy=dy, state=st, flags=fl) for dx, dy, st, fl in entries]}
+    if fly: out['fly'] = list(fly)
+    if rel: out['rel'] = list(rel)
+    return out
+
+def voff(a, k):
+    """the drawing offset (its $20 command: dx forward, dy up) of step k of the victim's animation a: the victim stands
+    at its place and is DRAWN there + the offset (SS2's art); a routine's $2B7D0 then moves the body by the last one.
+    The brawler's victims are not SS2 characters: Haohmaru's animations (table 0; every character has these victim
+    animations) are the reference [code]"""
+    mv = next((c for c in ss2.parse_anim(0, a, 400)[k]['cmds'] if c[0] == 'move'), ('move', 0, 0))
+    return mv[1], -mv[2]
+
+REACT_G = N.s16(N.u32(0x6A500) + 4 * 5)          # $277F2 / $2792C: a reaction (class 3) falls with word 0 of the
+                                                # gravity entry 5 (93 / 256 px), the others with word 1 (131) [code]
+
 def gen_wft(v):
     """the rage move, 6 3 2 1 4 6 + A in rage -> result 37 ($5613C) [code]:
     0 anim 12 $5616C: velocities 0; from step [$6B4F6] (8) on without a connect: the afterimages (5 objects 26),
-      next (1: $561F2 the end -> neutral); a connect before: the opponent caught (global +$8AD7, its +$D4 stages,
-      object 27 its body), animation 13 at once and entry 4
+      next (1: $561F2 the end -> neutral); a connect before ($2B958): the opponent caught (+$D4 = 0: its stage, object
+      27 the vortex on it), animation 13 at once and entry 4 (an opponent with +$FD (guarding) gets entry 2: anim 71,
+      no catch: the brawler has no guard)
     4 anim 13 $56218: its end -> the leap ($46C2E: vx / vy from $6B4E2, gravity), the count 16, next
     5 anim 14 $56238: the count runs out -> velocities 0, +$EE = $80 (he hangs: no gravity), the opponent's stage 1
     6 anim 24 $56262: the spin (its slashes: 5 attack steps); its end -> the fall ($6B4E6, gravity), voice $206, the
-      opponent's stage 2 (knocked down, disarmed: +$B8)
+      opponent's stage 2 (released, disarmed: +$B8)
     7 anim 261 $562D4 ($2B85A): landed -> the landing action (class 0 action 18), neutral here.
-    The brawler: the caught victim is launched by anim 12's hit (R_LAUNCH) and the spin's slashes juggle it (SS2
-    carries it in the air with him: the victim's class 3 action 33, not modelled)."""
+    The victim (its class 3 action 36, $28310 -> $56ABA, the same for every character) [code]:
+    0 anim 464 $56ABA: velocities 0, at its catcher's place ($2B7A2) + 80 px forward, 16 up, facing its way, its own
+      hit-stop +$FB = 12, the flight $6B4EA (vx -0.5: back toward him, vy 12 up) with the reaction gravity (93 / 256)
+    1 $56B04: flies until his stage 1 -> velocities 0, next   2 anim 498 $56B34: no gravity, at his place ($2B7A2)
+    3 $56B4A: at his place every frame until his stage 2 -> the flight $6B4EE (vx +1, vy 8 down), disarmed ($297D8)
+    4 anim 464: lands ($2B83A) -> the bounce $6B4F2, anim 466, then 468 and lying (the brawler's own landing).
+    The brawler: anim 12's attack steps catch (no damage), the victim lists = the victim's entries 0-1 (fly), 2-3 (at
+    him) and 4 (the release), his stages = P_VSIG."""
     lim = N.u16(0x6B4F6)
     jx, jy = N.s16(0x6B4E2), N.s16(0x6B4E4); fx, fy = N.s16(0x6B4E6), N.s16(0x6B4E8)
-    return [E(12, [('set', 'vx', 0)], [(('step', lim), 1), ('hit', 'now:2')], flags={k: 0x80 for k in range(lim, 64)}, react=R_LAUNCH),
+    ents = [E(12, [('set', 'vx', 0)], [(('step', lim), 1)], flags={k: 0x80 for k in range(lim, 64)}, catch=2),
             E(None, conds=[('end', 'end')]),
             E(13, [('set', 'vx', 0)], [('end', 3)]),
             E(14, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy)), ('set', 'cnt', 16)], [('cnt', 4)], phys='grav'),
-            E(None, [('set', 'vx', 0), ('set', 'vy', 0)], [('now', 5)], phys='air'),
+            E(None, [('set', 'vx', 0), ('set', 'vy', 0), ('vsig',)], [('now', 5)], phys='air'),
             E(24, conds=[('end', 6)], phys='air'),
-            E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(fy))], [('now', 7)], phys='grav'),
-            E(261, conds=[('land', 'end')], phys='grav')], []
+            E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(fy)), ('vsig',)], [('now', 7)], phys='grav'),
+            E(261, conds=[('land', 'end')], phys='grav')]
+    vl = [VL([(80, 16, '464.0', 0)], fly=(N.s16(0x6B4EA), N.s16(0x6B4EC), REACT_G)),   # $56AE2: + 80, - 16
+          VL([voff(498, 0) + ('498.0', 0)]),                       # at him, drawn at 498's offset
+          VL([voff(498, 1) + ('464.0', 64)], rel=(N.s16(0x6B4EE), N.s16(0x6B4F0)))]   # moved by it ($2B7D0), the flight
+    return ents, [], vl
 
 
 # ---- Kuroko (table 17, the referee: the hidden character; his specials are the other fighters' moves done with his
@@ -263,27 +299,40 @@ def kur_rage(maxv):
     def fn(v):
         """Kuroko's rage moves: 6 3 2 1 4 6 + A+B -> 37 ($591E0), 6 4 1 2 3 6 + C+D -> 38 ($59216) [code]:
         0 anim 58 $59258: vx $6BAFA (6 px), the count $6BAFC (32), sound $51; next
-        1 $5927C: a connect -> the victim held (global $8AD7), anim 60 at once (entry 3 here), the count $6BB00 (128);
-          the count runs out -> the deceleration $6BAFE, next
+        1 $5927C: a connect ($2B958) -> the victim caught (an opponent with +$FD, guarding: entry 3 checks its
+          reaction, the brawler has no guard), anim 60 at once (entry 4), the count $6BB00 (128), +$D6 = 0; the count
+          runs out -> the deceleration $6BAFE, next
         2 anim 68 $592E6: vx += -64 / 256 until it stops -> neutral (the whiff)
-        3 anim 60 $59326: the dance (13 attack steps); its end -> next
-        38 only: anim 13 $59346: the count (128 frames: the pose), then anim 60 again ($59326)
-        anim 7 $59358: the end -> next; anim 9 $59364: the leap ($46C2E: $6BB02), sound $B7, the opponent disarmed
-        (+$B8); $59392: the apex -> next; anim 11 $593A0: landed -> neutral."""
+        4 anim 60 $59326: the dance (13 attack steps); its end -> +$D6 = 1 (the victim's signal), next
+        38 only: anim 13 $59346: the count (128 frames: the pose) -> +$D6 = 0, then anim 60 again ($59326)
+        anim 7 $59358: the end -> next; anim 9 $59364: the leap ($46C2E: $6BB02), sound $B7, the screen flash;
+        $59392: the apex -> next; anim 11 $593A0: landed -> neutral.
+        The victim (class 3 action 115 / 116 = result + $34E, $28310 -> $5978C) [code]: 0 anim 580: velocities 0, AT
+        Kuroko's place ($2B7A2), facing his way; 1 $597C8: there every frame until his +$D6 -> next; (116: 2 anim 586
+        $59800: its count $6BB00 (his pose) -> next; 3 $597C8 anim 580 again); anim 588 $59814: its end -> disarmed
+        ($297D8), next; anim 464 $59828: the flight $6BB06 (4 px forward, 10 up) from its offset; landed -> the bounce
+        $6BB0A, anim 466, 468, lying (the brawler's own landing). Anim 588 (3 / 2 / 3 frames) plays with his anim 7
+        (3 / 2 / 3): one victim entry per step of it; the flight starts with his anim 9.
+        The brawler: anim 58's attack steps catch (no damage), his +$D6 signals = P_VSIG, the dance's hits on the
+        caught one keep it where the lists put it (and reel the crowd in place: fighter.c's hold)."""
         vx, cnt, dv = N.s16(0x6BAFA), N.s16(0x6BAFC), N.s16(0x6BAFE)
         jx, jy = N.s16(0x6BB02), N.s16(0x6BB04)
         n = decel_frames(vx, dv)
-        ents = [E(58, [('set', 'vx', bx(vx)), ('set', 'cnt', cnt)], [('now', 'next')]),
-                E(None, conds=[('hit', 'now:3'), ('cnt', 2)]),
+        ents = [E(58, [('set', 'vx', bx(vx)), ('set', 'cnt', cnt)], [('now', 'next')], catch=3),
+                E(None, conds=[('cnt', 2)]),
                 E(68, [('set', 'cnt', n)], [('cnt', 'end')], phys=('accel', bx(dv))),
                 E(60, [('set', 'vx', 0), ('set', 'cnt', N.s16(0x6BB00))], [('end', 'next')])]
+        vl = [VL([voff(580, 0) + ('580.0', 0)])]                   # at him, drawn at its animation's offset
         if maxv:
-            ents += [E(13, conds=[('cnt', 'next')]), E(60, conds=[('end', 'next')])]
-        ents += [E(7, conds=[('end', 'next')]),
-                 E(9, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy))], [('now', 'next')], phys='grav'),
+            ents += [E(13, [('vsig',)], conds=[('cnt', 'next')]), E(60, [('vsig',)], conds=[('end', 'next')])]
+            vl += [VL([voff(586, 0) + ('586.0', 0)]), VL([voff(580, 0) + ('580.0', 0)])]
+        ents += [E(7, [('vsig',)], conds=[('end', 'next')]),
+                 E(9, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy)), ('vsig',)], [('now', 'next')], phys='grav'),
                  E(None, conds=[('apex', 'next')], phys='grav'),
                  E(11, conds=[('land', 'end')], phys='grav')]
-        return ents, []
+        vl += [VL([voff(588, k) + ('588.%d' % k, 0) for k in range(3)]),
+               VL([voff(588, 2) + ('464.0', 64)], rel=(N.s16(0x6BB06), N.s16(0x6BB08)))]   # moved by 588's last ($2B7D0)
+        return ents, [], vl
     return fn
 
 # fighter -> its specials: input -> (decoder, buttons, the command results per button (moves/CC.json's entries))
@@ -345,11 +394,13 @@ def compile_prog(ents):
         ops += integrate(e, (i, 'e'))
         ops.append(('label', ('I', i)))               # an immediate switch (the routine sets +$66 itself) lands here
         if e['anim'] is not None: cur = e['anim']; ops.append(('anim', len(states))); states.append((i, e['anim']))
+        if e.get('catch') is not None: ops.append(('onhit', ('I', e['catch'])))   # its catch routine (P_ONHIT)
         for o in e['init']:
             if o[0] == 'set': ops.append(('set', o[1], o[2]))
             elif o[0] == 'spawn': ops.append(('spawn', o[1]))
             elif o[0] == 'part': ops.append(('part',))
             elif o[0] == 'move_now': ops.append(('move',))
+            elif o[0] == 'vsig': ops.append(('vsig',))
             else: raise ValueError(o)
         ops += [('resume_at', ('LP', i)), ('jmp', ('R', i)), ('label', ('LP', i))]
         for k, cnd in landc: ops.append(('br', 'land', 1, ('S', i, k)))
@@ -386,7 +437,7 @@ def assemble(ops):
     res = []
     for o in out:
         if o[0] == 'br': res.append(('br', o[1], o[2], -1 if o[3] == 'yield' else lab[o[3]]) + tuple(o[4:]))
-        elif o[0] in ('jmp', 'resume_at'): res.append((o[0], lab[o[1]]))
+        elif o[0] in ('jmp', 'resume_at', 'onhit'): res.append((o[0], lab[o[1]]))
         else: res.append(o)
     return res
 
@@ -397,6 +448,8 @@ def encode(o):
     if n in ('set', 'add'): return (P[n], REG[o[1]], 0, o[2])
     if n == 'br': return (P['br'], PC[o[1]] | (0x80 if o[2] else 0), o[3], o[4] if len(o) > 4 else 0)
     if n in ('jmp', 'resume_at'): return (P[n], 0, o[1], 0)
+    if n == 'onhit': return (P[n], 0, o[1], 0)       # a = the catch's dead frames - 1 (none: SS2 sets the routine's
+                                                    # animation in the frame of the connect)
     if n == 'spawn': return (P['spawn'], o[1], 0, 0)
     if n == 'check': return (P['check'], o[1], 0, 0)
     if n == 'nudge': return (P['nudge'], 0, o[1], 0)
@@ -569,12 +622,13 @@ def kghost(B, k):
 OBJECTS = {'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
-def rom_steps(B, ch, a, flags, react):
+def rom_steps(B, ch, a, flags, react, catch=False):
     import export_ss2 as X
     st = X.anim_steps(B, ch, a)
     for i, s in enumerate(st):
         s['flags'] |= flags.get(i, 0)
         if react and s['flags'] & 0x100: s['react'] = react
+        if catch and s['flags'] & 0x100: s['catch'] = True
     if len(st) > 1:
         st[0]['ticks'] += 1                           # the start frame shows the first step (see the module doc)
         if st[-1]['ticks']: st[-1]['ticks'] -= 1      # +$FA on the last step's last frame: the brawler's PF_END comes
@@ -592,7 +646,9 @@ def openings(steps):
 def special(B, ch, name, inp):
     fn, nv, results = SPECIALS[name][inp]
     CUR['ch'] = ch
-    progs = [fn(v) for v in range(nv)]
+    full = [fn(v) for v in range(nv)]
+    progs = [r[:2] for r in full]
+    vlists = full[-1][2] if len(full[-1]) > 2 else []
     comp = [compile_prog(e) for e, _ in progs]
     asm = [assemble(o) for o, _ in comp]
     assert all(len(x) == len(asm[0]) for x in asm), (name, inp, [len(x) for x in asm])
@@ -611,7 +667,7 @@ def special(B, ch, name, inp):
         h = 0
         for j, (ei, a) in enumerate(sts):
             k = f'{v}:{j}:{a}'; states.append(k)
-            steps = rom_steps(B, ch, a, ents[ei]['flags'], ents[ei]['react'])
+            steps = rom_steps(B, ch, a, ents[ei]['flags'], ents[ei]['react'], ents[ei].get('catch') is not None)
             anims_d[k] = {'mode': 'hold', 'steps': steps, 'ss2': a}
             h += sum(openings(steps))
         nh.append(h)
@@ -663,6 +719,7 @@ def special(B, ch, name, inp):
                       'default': default, 'vanim': nstate, 'vobj': nobj, 'vdmg': vdmg,
                       'buttons': ['A', 'B', 'AB'][:nv] if inp[-1] != 'K' else ['C', 'D', 'CD'][:nv], 'results': list(results),
                       'hits': nh}}
+    if vlists: rom['vlists'] = vlists                 # the caught victim's lists (VL), P_VSIG steps through them
     if parts:                                          # follow-ups (the slash chain): its parts, the press 'again'
         rom['parts'] = [{'states': [states[j] for j, (ei, a) in enumerate(sts0) if ents0[ei]['part'] == p]} for p in parts]
         rom['follow_links'] = [{'from': p, 'to': p + 1, 'input': 'again'} for p in parts[:-1]]
