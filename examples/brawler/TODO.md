@@ -817,6 +817,21 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   through a bank-select at use (or the special tables moved to banks, code + hot tables in MB1); prove every fighter
   in every bank (controls_proof) and the NeoCart flash board's banking matches (hardware/neocart).
 
+- [ ] 175. GENJURO (Samurai Shodown II) INTO THE BRAWLER (Bruno, 2026-10-06; AFTER #174 bank switching): study
+  /data/neogeo_dict/samsho2/README.md + tools/samsho2 (the study recommends him: 99 px, Terry-sized, 1:1 no scaling);
+  an exporter tools/samsho2/export_ss2.py in the export96 layout (like export_ss4 / export_kz / export_dd), every move
+  decoded from SS2's data / handlers (no recorded moves), A / B / A+B as rows of the variant table, his rage-only
+  move as the fury (D) and the strongest variant as MAX (down+D), the card wave projectile, the 236 slash chain with
+  its follow-ups (branch.followup), his throws (close + forward + A+B slash, + D / C+D kick) through #146's standard
+  throw; weapon loss not modelled yet (he keeps his sword; the weapon state is a later component); voices from SS2's
+  MAKOTO 3.0 driver (tools/makoto3) into the voice path; palettes; frame check vs SS2 both facings; the usual proofs.
+
+- [ ] 176. KUROKO (Samurai Shodown II, hidden table 17, 636 animations, 84 px) INTO THE BRAWLER (Bruno, 2026-10-06; after
+  #175): find what his table holds: a full fighter moveset (in SS2 he is the referee; a playable moveset there would be
+  a hidden one) or referee animations only (flags, judging); if a moveset: export like Genjuro (his flag moves as
+  specials); if referee animations only: propose to Bruno what he becomes (a stage actor / referee in the brawler,
+  or a fighter built from those frames) before building.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
