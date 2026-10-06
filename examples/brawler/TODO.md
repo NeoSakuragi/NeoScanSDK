@@ -962,6 +962,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   object that should not be drawn): find which object draws Kim's frames there (afterimage / pinned effect of #144
   with a wrong position or reference, or a capture leftover), fix the cause.
 
+- [ ] 181. HANZO'S SPECIALS LOST THEIR SOUND (regression of 0.0.86's WHP six-button import; 20261007-004411-5d29 "The
+  sound is no longer here for the special move." on 623P (the rising slash), 20261007-004426-5d29 "This special move
+  also has the sound missing." on 214K (the flying spin kick)): the new one-program-per-special exports dropped the
+  voice / sound keys the old Hanzo specials had (WHP's ADK driver sends); restore every WHP special's voice and sound
+  per row from WHP's code, per #163's rule (each send at its step, in order); voice_proof for hanzo vs WHP's sound log.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
