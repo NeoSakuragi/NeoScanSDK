@@ -1,0 +1,90 @@
+{
+ "fighter": "hayate",
+ "bank": "kizuna:hayate",
+ "specials": {
+  "D": "236C",
+  "fD": "41236A",
+  "dD": "623B",
+  "uD": "421A",
+  "dfD": "[2]8C",
+  "ufD": "[2]8B"
+ },
+ "fury": "6246A",
+ "why": {
+  "6246A": {
+   "whiff_dx": 141,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "4000",
+   "parts": 2
+  },
+  "421A": {
+   "whiff_dx": 161,
+   "whiff_height": 0,
+   "far_hits": 4,
+   "cond": "0600",
+   "parts": 2
+  },
+  "623B": {
+   "whiff_dx": 141,
+   "whiff_height": 120,
+   "far_hits": 0,
+   "cond": "0200",
+   "parts": 4
+  },
+  "41236A": {
+   "whiff_dx": 158,
+   "whiff_height": 0,
+   "far_hits": 3,
+   "cond": "0000",
+   "parts": 2
+  },
+  "236A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0240",
+   "parts": 1
+  },
+  "236C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 2
+  },
+  "[2]8C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0000",
+   "parts": 1
+  },
+  "[2]8B": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0000",
+   "parts": 1
+  },
+  "[2]8A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "63214C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 2
+  }
+ },
+ "not_used": [
+  "236A",
+  "[2]8A",
+  "63214C"
+ ]
+}
