@@ -34,7 +34,7 @@ JSON = os.path.join(HERE, 'voices.json')
 GAME_JSON = os.path.join(TOOLS, '..', 'examples', 'brawler', 'game.json')
 MAPPER = {'kof96': 0x6CAD4, 'kof98': 0xA9BCE, 'kof99': 0xB1B5C}          # index -> driver word
 SCRATCH = {'kof96': 0x10D936, 'kof98': 0x10D93C, 'kof99': 0x10D8F0}       # WLOG: the mapper's scratch word
-BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842}       # the driver probe: frame after the game's $07 (tap core frames)
+BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842, 'samsho2': 850}       # the driver probe: frame after the game's $07 (tap core frames)
 CAST = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}
 P1 = 0x108100
 FX_PREFIX = 0x1A
@@ -620,10 +620,67 @@ def doubledr_list(rname, name, cid):
     return {'game': 'doubledr', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
                                                                           'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
 
+# ---- Samurai Shodown II (MAKOTO Ver 3.0, tools/makoto3; read in the code 2026-10-06, tools/samsho2) ----
+# A sound = a 10-bit id -> word $5FD2[id] = [prefix][code] queued at $107000 and sent by $5F5E ($5FB0); a step's $08
+# command sends its id on the step's first frame, $0C the panned one (id, id + 1, id + 2 by screen x: the middle id + 1
+# here). Ids $000-$0FF are the game's common effects (swings, hits), $100 and up each fighter's own (Haohmaru $100-$116,
+# Genjuro $200-$218): the listing takes those, from every animation of the fighter (uses 'anim') and from the specials
+# as the brawler plays them (handlers_ss2: the frame each step starts, uses 'special'). An action entry's voice index
+# (descriptor word bit 14, $27A00: ids $200 + the pair at $27A4C[char]) sends prefix $15 words for Haohmaru (his
+# shouts' list): the driver plays nothing for them (measured: the game itself sends $15 $90 at Senpuu Retsu Zan's
+# step 11 and no ADPCM write follows, in the tap core from the fight state), so they are left out. A word's sample:
+# its own driver in the tap core (probe, after the boot's $07); prefix $1C = the fighter's voice slot, $18 / $1A =
+# effect slots (channel 'fx': played on the other voice slot so they do not cut his voice).
+SS2_FX = (0x18, 0x1A)
+def _ss2():
+    sys.path.insert(0, os.path.join(TOOLS, 'samsho2')); import ss2, neo2, handlers_ss2, export_ss2
+    return ss2, neo2, handlers_ss2, export_ss2
+
+def ss2_word(N, i): return N.u16(0x5FD2 + 2 * i)
+
+def samsho2_capture(rname, name, cid):
+    print(rname, ': Samurai Shodown II sounds are step data and the specials\' plays (voices.py list)', flush=True)
+
+def samsho2_list(rname, name, cid):
+    ss2, N, H, X = _ss2()
+    uses = []
+    for a in range(ss2.n_anims(cid)):
+        try: st = ss2.parse_anim(cid, a, 400)
+        except Exception: continue
+        for k, x in enumerate(st):
+            for c in x['cmds']:
+                if c[0] not in ('sound', 'sound_pan'): continue
+                i = c[1] + (1 if c[0] == 'sound_pan' else 0)
+                if i >= 0x100: uses.append((ss2_word(N, i), i, {'kind': 'anim', 'slot': a, 'states': [a], 'step': k}))
+    B = X.Builder(cid)
+    for sp in H.specials(B, cid, name):
+        for f, i in sp['ss2']['sounds']:
+            if i >= 0x100: uses.append((ss2_word(N, i), i, {'kind': 'special', 'input': sp['input'], 'at': f}))
+    words = {w for w, i, u in uses}
+    hits = probe('samsho2', words); v = v_rom('samsho2')
+    voices = {}
+    for w, i, u in uses:
+        if not hits.get(w): continue
+        h = hits[w]; key = tuple(map(tuple, h['segments']))
+        vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'indices': [], 'segments': h['segments'], 'level': h['level'], 'uses': []})
+        if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
+        if i not in vo['indices']: vo['indices'].append(i)
+        if u not in vo['uses']: vo['uses'].append(u)
+    lst = sorted(voices.values(), key=lambda x: (int(x['cmd'], 16) >> 8 in SS2_FX, x['cmd']))
+    for k, vo in enumerate(lst, 1):
+        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
+        vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
+        vo['indices'] = [f'{x:03X}' for x in sorted(vo['indices'])]; vo['cmds'].sort()
+        if int(vo['cmd'], 16) >> 8 in SS2_FX: vo['channel'] = 'fx'
+    print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
+    return {'game': 'samsho2', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
+                                                                          'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
+
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
        'doubledr': {'cast': {'billy': 0, 'billy_super': 1}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
-       'kizuna': {'cast': {'kim': 5}, 'capture': kizuna_capture, 'list': kizuna_list}}
+       'kizuna': {'cast': {'kim': 5}, 'capture': kizuna_capture, 'list': kizuna_list},
+       'samsho2': {'cast': {'haohmaru': 0, 'genjuro': 12}, 'capture': samsho2_capture, 'list': samsho2_list}}
 
 # ---- the brawler side (export_bm.py, build_snd.py, build_tables.py, the lab) ----
 # A fighter's voice table (bchar_t.voices, fighter.c voice_tab): one entry per voice key, 2 bytes [voice id, at]; id = the
@@ -632,7 +689,8 @@ OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_
 # Keys: every brawler animation (BA_*), the throws (BT_*), the events, then the fighter's specials pool by input.
 EVENT_KEYS = ['hit', 'ko', 'select']
 INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355),
-         'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)], 'kizuna': [], 'doubledr': []}   # SS4 / WHP: the pose animations (char_images)
+         'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)], 'kizuna': [], 'doubledr': [],
+         'samsho2': [*range(142, 150)]}   # SS4 / WHP: the pose animations (char_images); SS2: the intro / taunt poses after the win 140
 
 def keys(moves, throws, pool_inputs):
     return list(moves) + list(throws) + EVENT_KEYS + ['special:' + i for i in pool_inputs]

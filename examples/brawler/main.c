@@ -44,12 +44,12 @@ static void mark(uint8_t sec) {
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
 #define FIGHT_SPRS (NF * MAX_COLS + NPJ * PJ_COLS)   /* a fight's blocks: a fighter's MAX_COLS, the projectile pool's
                                         PJ_SPRS = NPJ * PJ_COLS shared by width (block_w) */
-#define NA 20                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
+#define NA 21                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
                                         fighter: the group photo) */
-#define SEL_COLS 15                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 15 =
-                                        sprites 60-359 there (16 until NA 20, Billy Lee) (the banner's, the debug boxes' and the sparks' 300-379 are
+#define SEL_COLS 14                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 14 =
+                                        sprites 60-353 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro) (the banner's, the debug boxes' and the sparks' 300-379 are
                                         not in use on that screen); the watch / win poses and the walk-offs are narrower
-                                        (2026-10-05: widest 13, a walk; win 11, watch 8) */
+                                        (2026-10-05: widest 13, a walk; win 11, watch 8; 2026-10-06 Genjuro's win 14) */
 uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
 #define SPR_BASE 60                  /* fighter blocks (stage 22-42, shadows 43-54 behind them; 1-21 free) */
 static fighter_t fighters[NF];
