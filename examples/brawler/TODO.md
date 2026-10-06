@@ -772,6 +772,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   fighter 9's 13 regress traces: some game code reads stack it never wrote. Find it (a read watch in our core on
   never-written work RAM during play) and initialise; real hardware RAM powers up random.
 
+- [ ] 172. BOSS DEATH SEQUENCE (20261006-174259-5d29, 0.0.74: "when the boss dies, as soon as he is being hit, that's
+  the end. So we stop the control of the player, we enter slow motion for five seconds, the boss screams, and everybody
+  else falls and dies, like in traditional beat'em all games."): a standard stage-end rule: the boss's killing hit ->
+  player input off, ~5 s slow motion (frame skip / half-rate game logic, music and voice kept), the boss's death voice,
+  every remaining enemy knocked down and dying (no score loss), then the stage clear. Sheet + timing log.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
