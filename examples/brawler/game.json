@@ -189,7 +189,7 @@
    "unlock": "always",
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH", "236S": "SLASH", "623S": "SLASH", "WFT": "SLASH"},
-   "variant": {"623S": "A"}
+   "variant": {"623S": "A", "236S": "A"}
   },
   {
    "name": "kuroko",

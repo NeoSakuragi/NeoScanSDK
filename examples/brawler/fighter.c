@@ -1163,6 +1163,8 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     case PC_WALL: return INT(f->x) >= wall_hi || INT(f->x) <= wall_lo;   /* at a wall (KOF98 $18092: either side) */
     case PC_HELD: return f->pheld;                               /* its button held (KOF and.b (fp): a charge) */
     case PC_CNTLE: return f->pcnt <= v;                          /* the counter at most v (KOF's charge level tests) */
+    case PC_PASSED: { fighter_t *t = f->target ? f->target : f->popp; if (!t) return 0;   /* its opponent no longer ahead */
+        return dir_mul(f->facing, INT(t->x) - INT(f->x)) <= v; }     /* (SS2 $563F4: Genjuro's slide stops at it) */
     }
     return 1;
 }
@@ -1761,6 +1763,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
     for (i = 0; i < n; i++) {                                    /* specials push who stands in their path: a rush */
         fighter_t *a = fs[i];                                    /* reaches its hit as in the game, not past it */
         if (a->state != S_SPECIAL || INT(a->y) >= AIR_BLOCK_Y || (only && a != only)) continue;
+        if (a->ch->specials[a->spec_ix].sflags & SF_NOPUSH) continue;   /* its source has no push box then (SS2 +$FF) */
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
             int16_t d, dz;

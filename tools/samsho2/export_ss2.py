@@ -55,10 +55,22 @@ MOVES = {
     'blowback': (220, 0, 0), 'blowback_n': (220, 0, 0), 'knockdown_flight': (220, 1, 1), 'knockdown_bounce': (222, 0, 0),
     'knockdown_fall': (222, 0, 0), 'down': (222, 1, 1), 'getup': (138, 1, None), 'trip': (120, 0, None), 'win_a': (140, 0, None),
 }
-# per fighter: Kuroko's jumps forward / back rise with 22 and fall with 26 (class 0 action 9: 22, 30, 26; the one-step
-# 28 / 32 / 34 / 38 of the others are placeholders in his table)
-MOVES_OF = {'kuroko': {'jump_fwd_rise': (22, 0, None), 'jump_fwd_fall': (26, 0, None),
-                       'jump_back_rise': (22, 0, None), 'jump_back_fall': (26, 0, None)}}
+def jump_moves(ch):
+    """the jumps' animations from the fighter's own class 0 actions [code] ($28310: 6 up, 8 forward, 9 back; a list =
+    the rise animation, parameter entries, the fall animation, then the same again for the other weapon mode): rise =
+    its first animation, fall = the last one before the list repeats its first handler. Haohmaru: 28 / 32 forward, 34 /
+    38 back; Genjuro and Kuroko jump forward / back with 22 / 26 like up (Genjuro's 28-38 are other things: his cards'
+    frames, empty steps). 2026-10-07 (feedback 20261007-004728-5d29: the fixed table drew Genjuro's diagonal jumps as
+    his hanafuda card and empty frames)"""
+    import commands_ss2 as K
+    out = {}
+    for key, sub in (('jump_up', 6), ('jump_fwd', 8), ('jump_back', 9)):
+        ents = K.descriptor(ch, 0, 0, sub)['entries']
+        half = next((i for i in range(1, len(ents)) if ents[i][1] == ents[0][1]), len(ents))
+        an = [w & 0x3FF for _, _, w in ents[:half] if not w & 0x8000]
+        out[key + '_rise'] = (an[0], 0, None); out[key + '_fall'] = (an[-1], 0, None)
+    return out
+
 LOOP = {'idle', 'walk_fwd', 'run'}
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',
@@ -225,7 +237,7 @@ def export(names, outdir, only=None, extra=None):
     for name in names:
         ch = CAST[name]; B = Builder(ch); B.tiles = allt; B.tile_map = tmap
         anims = {}
-        for mv, (a, f, l) in {**MOVES, **MOVES_OF.get(name, {})}.items():
+        for mv, (a, f, l) in {**MOVES, **jump_moves(ch)}.items():
             anims[mv] = {'slot': a, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': anim_steps(B, ch, a, f, l)}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
         w = (extra or {}).get(name, {}).get('watch')

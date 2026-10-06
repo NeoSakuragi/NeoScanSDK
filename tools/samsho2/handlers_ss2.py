@@ -44,7 +44,7 @@ P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge'
      'voice': 29, 'vsig': 30}                                 # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 PC = {'end': 0, 'event': 1, 'land': 2, 'fall': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'always': 7, 'stepev': 8, 'window': 9,
-      'link': 10, 'hitany': 11}
+      'link': 10, 'hitany': 11, 'passed': 20}
 R_HEAVY, R_KNOCKDOWN, R_LAUNCH = 1, 2, 3
 SPECIAL_DAMAGE = 8                                # export_bm.SPECIAL_DAMAGE
 GRAVITY = 131                                     # 8.8 px / frame^2: the table entry 5 ($46BAE $3205) [code]
@@ -181,12 +181,15 @@ def gen_236s(v):
     """the three-part slash, 2 3 6 + A / B / A+B -> results 41-43 ($563AA), then 2 1 4 / 2 3 6 + a button inside it:
     the type-5 cancel entries (results 44-46 from 41-43, 47-49 from 44-46: the allow table $6CA32) [code]:
     part 1: 0 anim 343 $563C2: +$D4 = b, vx = word $6B536[b] (8 px a frame), +$D6 = the count; next ($2B81A)
-            1 $563F4 (param): the count runs out (or the opponent is passed) -> vx + deceleration from $6B54E[b]
+            1 $563F4 (param): the opponent reached / passed (its x - his, his facing's way, >= 0), else the count runs out
+              -> vx + deceleration from $6B54E[b]
               ($46C4A), next
             2 anim 363 $56448: a connect -> the sparks (objects 23), the shout $200; the deceleration ($46C64) every
               frame; the end -> neutral; its steps 1-4 are the cancel window (+$74 bit 3: the flags word's $0800)
     part 2: the same from $564FA ($6B542[b]: 8 / 10 / 11 px a frame), anim 366 $5657C (window steps 1-5)
     part 3: anim 369 $5662E: velocities 0, $56664: the end -> neutral
+    No push between the players while it plays (descriptor byte 4 = $80 -> +$FF bit 7: $CC14 skipped): he slides
+    through his opponent (the brawler: SF_NOPUSH).
     The brawler: one special of three parts, the follow-up = C again (the cancel's press) inside a window step after a
     connect; the button row latched at the start serves the three parts."""
     out = []
@@ -195,7 +198,7 @@ def gen_236s(v):
         dvx, dd = N.s16(0x6B54E + 4 * v), N.s16(0x6B54E + 4 * v + 2)
         base = len(out)
         out += [E(343, ([('part',)] if k else []) + [('set', 'vx', bx(vx)), ('set', 'cnt', cnt)], [('now', base + 1)], part=k),
-                E(None, conds=[('cnt', base + 2)], part=k),
+                E(None, conds=[('passed', base + 2), ('cnt', base + 2)], part=k),
                 E(a, [('set', 'vx', bx(dvx)), ('set', 'cnt', decel_frames(dvx, dd))],
                   [(('link', 1), 'part%d' % (k + 1)), ('end', 'end')], phys=('decel', bx(dd)), part=k,
                   flags={i: 0x2000 for i, s in enumerate(ss2.parse_anim(12, a)) if s['flags'] & 0x0800})]
@@ -419,6 +422,8 @@ def compile_prog(ents):
                 ops += [('br', 'window', 0, ('NL', i, k)), ('br', 'hit', 0, ('NL', i, k)), ('check', c[1]),
                         ('br', 'link', 1, ('I', T[1]), c[1]), ('label', ('NL', i, k))]
                 continue
+            if c == 'passed':                         # its opponent reached / passed ($563F4): that frame's physics, then T
+                ops.append(('br', 'passed', 1, ('S', i, k), 0)); sw.append((('S', i, k), T, extra, True)); continue
             if c == 'cnt': ops.append(('dec',)); cond = 'cnt'
             else: cond = {'end': 'end', 'apex': 'fall', 'hit': 'hit'}.get(c) or ('stepev' if c[0] == 'step' else None)
             if c == 'end' and end_ev(cur): ops.append(('br', 'stepev', 1, ('S', i, k)))
@@ -484,7 +489,8 @@ class Play:
         s = self.an['steps'][self.pstep]
         return {PC['stepev']: 'event' in self.flags, PC['end']: 'end' in self.flags, PC['land']: 'land' in self.flags,
                 PC['fall']: 'fall' in self.flags, PC['cnt']: self.cnt < 0, PC['hit']: self.landed,
-                PC['window']: bool(s['flags'] & 0x2000), PC['link']: bool(self.plink & v), PC['always']: True}[c]
+                PC['window']: bool(s['flags'] & 0x2000), PC['link']: bool(self.plink & v), PC['always']: True,
+                PC['passed']: False}[c]                    # (alone: no opponent to pass)
     def frame(self):
         if self.done: return None
         self.srow += 1; ppc = self.pres
@@ -739,6 +745,9 @@ def special(B, ch, name, inp):
                       'buttons': ['A', 'B', 'AB'][:nv] if inp[-1] != 'K' else ['C', 'D', 'CD'][:nv], 'results': list(results),
                       'hits': nh}}
     if vlists: rom['vlists'] = vlists                 # the caught victim's lists (VL), P_VSIG steps through them
+    import commands_ss2 as K
+    if K.descriptor(ch, 0, 1, results[default])['b'][0] & 0x80: rom['nopush'] = True   # descriptor byte 4 bit 7 -> +$FF:
+                                                       # no push between the players ($CC14) while it plays [code]
     if parts:                                          # follow-ups (the slash chain): its parts, the press 'again'
         rom['parts'] = [{'states': [states[j] for j, (ei, a) in enumerate(sts0) if ents0[ei]['part'] == p]} for p in parts]
         rom['follow_links'] = [{'from': p, 'to': p + 1, 'input': 'again'} for p in parts[:-1]]
