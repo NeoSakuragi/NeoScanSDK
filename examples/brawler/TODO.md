@@ -811,7 +811,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   leftover entity) and fix. (c) 20261006-175904-5d29: "a blue effect that should be in the hand of Rugal, and it's not
   there" (Kaiser Wave's charge in the hand) -> the pinned hand effect from the ROM handler; its voice is in #163.
 
-- [ ] 174. P-ROM BANK SWITCHING (2026-10-06): 0.0.76 overflowed the first P MB by 14 bytes; main.o's tables moved
+- [ ] 174. (DONE ON BRANCH 2026-10-06, awaiting Bruno's review; docs/rom_packer_rules.md "P ROM", proof /data/tmp/bank174: each fighter's bulk (frames, tiles, special scripts / programs, projectile rows) in its P2 bank (tools/brawler/bank_pack.py), everything other fighters / combat / AI / HUD read in MB1; MB1 629 KB free, bank 0 12.8 KB free, bank 1 552 KB free, P ROM 3 MB; controls / cancel / fury_inv / campaign29 / romspecials JSON identical to the unbanked build, regress bleed same; 6 bank layouts (BANK_SPLIT, same-cycle builds) byte-identical; CPU busiest stage mean 66.2 -> 67.8 %, worst 96 -> 96 %; Android player and the Lab wasm core run it; NeoCart v3 chip map fixed in pboard_flash.py) P-ROM BANK SWITCHING (2026-10-06): 0.0.76 overflowed the first P MB by 14 bytes; main.o's tables moved
   to .p2data ($200000). Left: ~61 KB in MB1, ~88 KB in MB2. Before the next fighter: P2 bank switching (the cart's
   $2FFFF0 bank register, tools/neobuild.py limits), a bank per fighter group's tables with the code reading them
   through a bank-select at use (or the special tables moved to banks, code + hot tables in MB1); prove every fighter

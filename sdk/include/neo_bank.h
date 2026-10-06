@@ -15,7 +15,11 @@
 extern uint8_t neo_bank;
 static inline uint8_t BANK_set(uint8_t b) {
     uint8_t o = neo_bank;
+#ifdef NEO_BANK_ALWAYS_WRITE                 /* proofs only: the same cycles whatever the banks hold (bank_proof layouts) */
+    neo_bank = b; REG_P2BANK = b;
+#else
     if (b != o) { neo_bank = b; REG_P2BANK = b; }
+#endif
     __asm__ volatile ("" ::: "memory");
     return o;
 }

@@ -41,7 +41,9 @@ group = list(range(nbc))                                                    # un
 def root(i):
     while group[i] != i: i = group[i]
     return i
-for m in re.finditer(r'(\w+)_vmore, (\d+), (\d+), (\d+), (\d+), (\d+), (\w+)_holds\}', text):
+forms = list(re.finditer(r'(\w+)_vmore, (\d+), (\d+), (\d+), (\d+), (\d+), \1_holds\b', text))   # bchar_t: ..., vmore,
+assert len(forms) == nbc, f'bm_chars[]: the form fields read for {len(forms)} of {nbc} fighters (bchar_t changed?)'   # fury_max,
+for m in forms:                                                             # form_to, form_spec, form_trig, form_exit, holds
     i = prefixes.index(m.group(1)); to, trig = int(m.group(3)), int(m.group(5))
     if trig: group[root(i)] = root(to)
 by_len = sorted(range(nbc), key=lambda i: -len(prefixes[i]))
