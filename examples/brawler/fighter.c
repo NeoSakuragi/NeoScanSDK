@@ -707,22 +707,28 @@ static uint16_t last_impact(const bthrow_t *th) {               /* a throw's can
     }                                                            /* 0xFFFF none (Yamazaki's back throw) */
     return last;
 }
+/* the juggle window ("cancels" rule 5): a throw's impact / a catch's slam cancelled into a special or fury opens it on
+ * that victim, for the canceller's follow-up only (combat: hittable while thrown or airborne, until it lands) */
+static void juggle_open(fighter_t *f, fighter_t *v) { if (v && v != f && v->team != f->team) v->jug_by = f; }
 /* the thrower's side after the grab (TODO #146): the paired script up to the control return, then it acts again; a
  * throw's last impact / the hold finisher's landing cancel ("cancels" rule 4) */
 static void throw_update(fighter_t *f, const intent_t *in) {
     uint8_t k;
+    fighter_t *jv;
     (void)in;
     if (!f->team && (f->fury_buf || f->spec_buf) &&               /* the impact shown (srow: the row shown + 1): */
         (f->throw_id == BT_HOLD_FIN ? !f->held : f->throw_id < BT_COUNT && f->srow > last_impact(thr_of(f, f->throw_id))) &&
         (k = cancel_pick(f)) != 0xFF) {                          /* a buffered C / D fires now */
+        juggle_open(f, f->held ? f->held : f->target);           /* rule 5: its follow-up may hit the victim in flight */
         throw_free(f, 0); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return;
     }
     if (paired_update(f)) return;
+    jv = f->held ? f->held : f->target;
     throw_free(f, 1);
     if (!f->team && (f->fury_buf || f->spec_buf) && (f->throw_id >= BT_COUNT || last_impact(thr_of(f, f->throw_id)) != 0xFFFF) &&
-        (k = cancel_pick(f)) != 0xFF) {                          /* the control return before the last impact (Terry,
-                                                                    Geese): the first frame it may act, the press fires */
-        lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return;
+        (k = cancel_pick(f)) != 0xFF) {                          /* the control return before the last impact (a throw
+                                                                    whose only impact comes after it): the press fires */
+        juggle_open(f, jv); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return;
     }
     f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0; to_neutral(f, 0);
 }
@@ -1027,6 +1033,11 @@ static uint8_t special_for(const fighter_t *f, const intent_t *in) { return spec
  * (feedback 20261006-194211-5d29: a cancel at the landing came from neutral, after Ryo had flown away); a throw whose
  * only impact comes after the control return cancels from the control return. A throw
  * without an impact row (Yamazaki's back throw, Mai's forward throw: the damage at the script's end) has no cancel.
+ * (5) The juggle window (Bruno: "considered a regular hit so that I could cancel with a special or even a fury"): a
+ * throw cancelled (rule 4) or a catch's slam cancelled (rule 2) opens it on that victim (fighter_t.jug_by, juggle_open):
+ * the canceller's follow-up special / fury (its body or projectiles) hits it while it is still thrown (its script ends
+ * there, the throw's damage dealt) or in the air with no hurt box of its own (JUG_BOX); it closes when the victim lands.
+ * Every other attacker keeps the usual rules.
  * KOF98, measured (Kyo vs Yuri, close B / close C then 236A, every press frame: tools/brawler/throws166_proof.py k): a
  * normal's special cancel takes a press from the normal's startup until 8 (close C) / 9 (close B) frames after the
  * impact and fires at the end of the hit-stop. Air normals have no special cancel
@@ -1447,6 +1458,8 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->state == S_SPECIAL && in->press && f->ch->specials[f->spec_ix].nlinks) special_input(f, in);   /* a follow-up
                                                                     (presses in hit-stop count) */
     meter_tick(f);
+    if (f->jug_by && f->state != S_THROWN && f->state != S_KNOCKDOWN && f->state != S_HITSTUN) f->jug_by = 0;   /* landed:
+                                                                    the juggle window (rule 5) closes */
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
     if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
@@ -1619,6 +1632,7 @@ static void update(fighter_t *f, const intent_t *in) {
                 for (i = 0; i < NPJ; i++)                        /* MAX spawns whole (feedback 20261006-174005-5d29) */
                     if (projectiles[i].state == S_PROJ && projectiles[i].owner == f) projectile_reset(&projectiles[i]);
             }
+            if (f->pcatch == 0xFE) juggle_open(f, f->target);   /* a catch's slam: rule 5, its victim juggled */
             carry_drop(f); special_end(f); f->pflags = 0;        /* the super cancel ("cancels"): the special stops, */
             if (fury_cancel(f)) break;                           /* the fury starts this frame */
             to_neutral(f, 0); break;                             /* (no fury / no meter: the special played on to here) */
@@ -1642,6 +1656,10 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
     rk = reaction; reaction &= 7;
     v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
+    if (v->state == S_THROWN) {                                  /* rule 5: hit in its throw's flight: the script ends */
+        if (v->throw_id < BT_COUNT) v->hp -= THROW_DAMAGE - v->throw_dealt;   /* (the throw's damage still dealt) */
+        v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0;
+    }
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {   /* a ROM special (TODO #139): */
         a->pflags |= PF_HITANY;
         if ((a->spec_prev_hit & 16) && a->phit != 0xFF && !a->pcatch) {   /* a catch box: no damage, the victim held, */
@@ -1684,6 +1702,15 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
 /* ---- combat: every attacker's live attack box against every opponent's hurt box --------------------------------------- */
 static const bbox_t JUGGLE_BOX = { 0, -24, 28, 20 };       /* a falling fighter's body: KOF boxes (x, y up -, half w, h) */
 static const bbox_t LAUNCH_BOX = { 0, -64, 28, 28 };       /* KOF98's launched body (states 286 / 293: box $31 0, 192, 28, 28) */
+static const bbox_t JUG_BOX = { 0, -40, 32, 40 };          /* rule 5's victim, thrown or flying: a whole body */
+/* "cancels" rule 5: attacker a is the follow-up (the special / fury or its projectile) of the fighter that opened v's
+ * juggle window (juggle_open), and v is still thrown (before its script's landing row) or in the air */
+static uint8_t juggled(const fighter_t *a, const fighter_t *v) {
+    const fighter_t *o = a->owner ? a->owner : a;
+    if (!v->jug_by || v->jug_by != o || o->state != S_SPECIAL) return 0;
+    if (v->state == S_THROWN) return v->thr && (v->thr->land == 0xFFFF || v->srow <= v->thr->land);
+    return v->y > 0;
+}
 static const bbox_t HOLD_BOX = { 0, -64, 48, 64 };         /* a victim a ROM special holds: KOF98's held states 404-407, one
                                                               * box $31 0, 192, 48, 64 on every step (Ryo EX 646A's barrage) */
 static int16_t box_x(const fighter_t *f, int8_t bx) { return INT(f->x) + (f->facing > 0 ? -bx : bx); }   /* sprites face left */
@@ -1850,15 +1877,20 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             fighter_t *v = fs[j];
             const bstep_t *sv;
             int16_t dz, dx, dy;
+            uint8_t jug;
             const bbox_t *hb;
             if (v->team == a->team || (a->hit_mask & (1 << v->idx)) || v->inv || dead_body(v, a)) continue;
-            if (v->state == S_DOWN || v->state == S_GETUP || v->state == S_THROW ||
-                v->state == S_THROWN || v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
+            jug = juggled(a, v);                                 /* rule 5: the canceller's follow-up on its victim */
+            if (v->state == S_DOWN || v->state == S_GETUP || v->state == S_THROW || (v->state == S_THROWN && !jug) ||
+                v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
             if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls, no limit */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             sv = fighter_step(v);
-            if ((a->pflags & PF_HOLD) && v == a->target && v->state == S_HITSTUN) hb = &HOLD_BOX;
-            else if (v->state == S_KNOCKDOWN && v->kmode) { if (!(v->kmode & KM_HURT)) continue; hb = &LAUNCH_BOX; }   /* KOF's reaction: its box or none */
+            if (jug && v->state == S_THROWN) hb = &JUG_BOX;    /* thrown (rule 5): its body */
+            else if ((a->pflags & PF_HOLD) && v == a->target && v->state == S_HITSTUN) hb = &HOLD_BOX;
+            else if (v->state == S_KNOCKDOWN && v->kmode) {      /* KOF's reaction: its box or none (rule 5: a body) */
+                if (!(v->kmode & KM_HURT)) { if (!jug) continue; hb = &JUG_BOX; } else hb = &LAUNCH_BOX;
+            }
             else if (sv->flags & 2) hb = &sv->hurt;
             else if (v->state == S_KNOCKDOWN) hb = &JUGGLE_BOX;          /* the brawler's falls: KOF's have no hurt box */
             else continue;

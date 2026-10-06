@@ -8,7 +8,7 @@
    "gap": 40
   },
   "do": "Walk into Ryo to grab him, then forward + A to throw. Press D (the fury) or C (a special) during the throw, up to the kick that sends Ryo flying.",
-  "expect": "The moment Terry's kick lands, the fury (or the special) starts; Ryo flies on and lands on his own.",
+  "expect": "The moment Terry's kick lands, the fury (or the special) starts and hits Ryo while he flies.",
   "do_keys": "4:R,4:Ra,12:-,6:d",
   "proof": 70
  },
@@ -373,7 +373,7 @@
    "gap": 60
   },
   "do": "Press forward + C (the rushing strike) with Terry between you and the right edge; press D (the fury) any time after Rugal catches Terry.",
-  "expect": "Terry is pinned and slammed against the wall; as he comes off the wall, Rugal's fury starts at once.",
+  "expect": "Terry is pinned and slammed against the wall; as he comes off the wall, Rugal's fury starts at once and hits him.",
   "do_keys": "3:R,4:Rc,20:R,4:Rd",
   "proof": 150
  },
