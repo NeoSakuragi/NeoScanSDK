@@ -712,7 +712,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   there, a roster override for Krauser's projectiles, Bruno's call); proof: a Blitz Ball hit -> the victim burns.
   Medium (the voice rule touches every ROM special).
 
-- [ ] 164. KRAUSER'S BLUE GROUND SHARDS (feedback 20261006-164245-5d29, Bruno, 0.0.72, no words, screenshot circled: a
+- [ ] 164. (SOLVED BY A 2ND NOTE: 20261006-190659-5d29, 0.0.76, typed: "Impact effect of kaizer wave too low" — the blue shards are Krauser's KAISER WAVE impact, drawn at floor level instead of at the wave's hit height: the projectile's end / impact object's y offset (spawn_y / the end rows) lost or relative to the floor; fix in the projectile export, check every projectile's impact height vs KOF) KRAUSER'S BLUE GROUND SHARDS (feedback 20261006-164245-5d29, Bruno, 0.0.72, no words, screenshot circled: a
   cloud of small blue shards on the ground in front of Krauser, beside a white flash, while he strikes Robert / an
   enemy in the air). Find which object draws them (replay the note: frames before the press) and whether it is right
   (KOF98's own effect with its palette?) or a stray / wrong-palette object; ask Bruno only if it matches KOF98.
@@ -816,6 +816,21 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   $2FFFF0 bank register, tools/neobuild.py limits), a bank per fighter group's tables with the code reading them
   through a bank-select at use (or the special tables moved to banks, code + hot tables in MB1); prove every fighter
   in every bank (controls_proof) and the NeoCart flash board's banking matches (hardware/neocart).
+
+- [ ] 175. GENJURO (Samurai Shodown II) INTO THE BRAWLER (Bruno, 2026-10-06; AFTER #174 bank switching): study
+  /data/neogeo_dict/samsho2/README.md + tools/samsho2 (the study recommends him: 99 px, Terry-sized, 1:1 no scaling);
+  an exporter tools/samsho2/export_ss2.py in the export96 layout (like export_ss4 / export_kz / export_dd), every move
+  decoded from SS2's data / handlers (no recorded moves), A / B / A+B as rows of the variant table, his rage-only
+  move as the fury (D) and the strongest variant as MAX (down+D), the card wave projectile, the 236 slash chain with
+  its follow-ups (branch.followup), his throws (close + forward + A+B slash, + D / C+D kick) through #146's standard
+  throw; weapon loss not modelled yet (he keeps his sword; the weapon state is a later component); voices from SS2's
+  MAKOTO 3.0 driver (tools/makoto3) into the voice path; palettes; frame check vs SS2 both facings; the usual proofs.
+
+- [ ] 176. KUROKO (Samurai Shodown II, hidden table 17, 636 animations, 84 px) INTO THE BRAWLER AS A FIGHTER (Bruno,
+  2026-10-06: "I want the hidden character kuroko, he has tons of fun special moves"; after #175): his full moveset
+  from SS2's data (his special moves are parodies of other fighters' moves: decode every one, its command, its
+  objects; flag / referee gags included), exported like Genjuro (variant table, rage move = fury, strongest = MAX,
+  throws via #146), voices, palettes, frame check; how he is unlocked in SS2 noted (the brawler: selectable).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

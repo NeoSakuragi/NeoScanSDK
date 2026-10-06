@@ -18,6 +18,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
 import export96
+import handlers98 as H
 import routes as R
 import build_tables
 import voices as V
@@ -494,7 +495,8 @@ def move_fx(n, sp, hk):
     SDM IMPACT; roster[].hit_sfx[input]); the burn stays the KOF kind's (fire kinds 11, 13, 21: the crackle $2E only they)"""
     r = roster().get(n, {}); want = (r.get('hit_sfx') or {}).get(sp['input'])
     kind = KIND_OF[sfx_code(n, want)] if want else 29 if r.get('fury') and sp['input'] in (r['fury'], 'MAX ' + r['fury']) else hk
-    return kind | ((FIRE_COLOUR.get(n, 2) if hk in (11, 13, 21) else 0) << 6)
+    fire = hk in (11, 13, 21) or sp['input'] in (r.get('fire') or ())   # roster[].fire: specials whose hits burn though
+    return kind | ((FIRE_COLOUR.get(n, 2) if fire else 0) << 6)            # their game's kind is not a fire one (TODO #163)
 
 def char_sfx(n):
     """bchar_t.sfx: per SFX_KEYS the code roster[].hit_sfx gives (0: KOF's own)"""
@@ -546,7 +548,7 @@ def projectile_c(n, k, pjs, game, sp):
 
 P_OPS = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
          'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'adv': 16, 'check': 17, 'part': 18, 'evclr': 19,
-         'onhit': 20, 'place': 21, 'hitclr': 22, 'hold': 23, 'unhold': 24, 'sigclr': 25, 'hitoff': 26}   # bm_chars.h P_*
+         'onhit': 20, 'place': 21, 'hitclr': 22, 'hold': 23, 'unhold': 24, 'sigclr': 25, 'hitoff': 26, 'vsend': 29}   # bm_chars.h P_*
 P_REGS = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 
 def rom_ok(sp):
@@ -556,7 +558,7 @@ def rom_inv(sp):
     """bspec_t.inv_rows of a ROM special (frames): as down+D invincible up to its last hit or its apex"""
     r = sp['rom']; return max(r['last_hit'], r['apex']) + 1 if max(r['last_hit'], r['apex']) >= 0 else r['length']
 
-def rom_c(n, k, sp, game):
+def rom_c(n, k, sp, game, vres=None):
     """a special read from the ROM (tools/kof96/handlers98.export_rom) as C: its animations (bstep_t: flags 1 attack box
     live (KOF $0100, the last box loaded), 2 hurt box, 8 event ($0080), 16 same hit ($4000)), its program (bprim_t), its
     objects (bproj_t, projectile_c). Damage: SPECIAL_DAMAGE split over the hits the whiff model opens; the hits of its
@@ -610,10 +612,15 @@ def rom_c(n, k, sp, game):
         elif op[0] == 'onhit': ops.append((c, op[2] if len(op) > 2 else 0, op[1], 0))   # a: the catch's hit-stop (its dead frames - 1)
         elif op[0] == 'place': ops.append((c, 0, 0, round(op[1])))
         elif op[0] == 'spawn': ops.append((c, op[1], 0, 0))
+        elif op[0] == 'vsend': ops.append((c, vres(op[1]) if vres else 0, op[2], 0))   # P_VOICE: id (0 silent), frames later
         else: ops.append((c, 0, 0, 0))
     assert len(ops) < 255, (n, sp['input'])
     out.append(f'static const bprim_t {n}_sp{k}_prog[] = {{' + ', '.join(f'{{{a}, {b}, {c}, {d}}}' for a, b, c, d in ops) + '};')
     if r['objects']: out.append(projectile_c(n, f'{k}r', r['objects'], game, sp))
+    pv = [(j, i, vres(ix)) for j, st in enumerate(r['states']) for i, s in enumerate(r['anims'][st]['steps'])
+          for ix in s.get('voices', [])] if vres else []
+    sp['_pvox'] = [(k, j, i, v) for j, i, v in pv if v]   # its steps' voices (KOF's $FC records): bchar_t.pvox
+    assert all(j < 256 and i < 256 for _, j, i, _ in sp['_pvox']), n
     return '\n'.join(out)
 
 def special_shape(sp):
@@ -1000,9 +1007,43 @@ def voice_data(ch, n, game, pool, sps):
         throw_rows[t] = (ch['anims'][t]['slot'], rows)
     sug = V.suggest(n, game, slot_of, throw_rows, [(sp['input'], p['keep']) for sp, p in zip(pool, sps)])
     ks = V.keys(MOVES, THROWS, [sp['input'] for sp in pool])
+    pv = {sp['input']: prog_voices(n, game, p) for sp, p in zip(pool, sps) if kof_prog(p, game)}
+    for inp, vs in pv.items():                           # a KOF ROM special: its program's own voices (TODO #163), the
+        if vs: sug['special:' + inp] = [vs[0], 0]        # key's suggestion = the first it sends
+        else: sug.pop('special:' + inp, None)
     mp = V.mapping(roster()[n].get('voices'), sug)
-    more = V.extras(n, ks, sug, mp, [(sp['input'], p['keep']) for sp, p in zip(pool, sps)])
+    more = V.extras(n, ks, sug, mp, [(sp['input'], p['keep']) for sp, p in zip(pool, sps) if sp['input'] not in pv])
     return ks, sug, mp, V.table(ks, sug, mp, len(V.bank(n)), n), more
+
+def kof_prog(sp, game):
+    """a KOF96 / 98 / 99 special played from its ROM program (its voices sent by the program: TODO #163)"""
+    return game in H.SOUND_MAPPER and rom_ok(sp) and not sp['rom'].get('prims')
+
+def voice_of_index(n, game):
+    """sound index -> the fighter's voice id (voices.json, by driver word; 0: not one of its voices)"""
+    m = V.mem(game); of = {c: vo['id'] for vo in V.bank(n) for c in vo['cmds']}
+    return lambda ix: of.get(f'{H.sound_word(m, ix):04X}', 0)
+
+def prog_voices(n, game, sp):
+    """the voice ids a KOF ROM special's program sends, the first it sends first: its code's sends now, its steps'
+    $FC records (anim order), its code's sends later"""
+    vi = voice_of_index(n, game); r = sp['rom']
+    now = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and not op[2]]
+    steps = [vi(ix) for st in r['states'] for s in r['anims'][st]['steps'] for ix in s.get('voices', [])]
+    later = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and op[2]]
+    return [i for i in now + steps + later if i]
+
+def prog_voice_res(n, game, inp, sug, mp):
+    """a KOF ROM special's send -> the voice id it plays (fx bit included; 0: silent): the roster keeps the key's
+    suggestion (game.json voices "kof"): its own; another voice picked for the key: that one in place of the first
+    (suggested) voice, the others silent; the key silenced or no voices: none"""
+    vi = voice_of_index(n, game); key = 'special:' + inp
+    def res(ix):
+        i = vi(ix)
+        if not i or key not in mp: return 0
+        if mp[key] != sug.get(key, [None])[0]: i = mp[key] if i == sug.get(key, [None])[0] else 0
+        return i | V.fx_bit(n, i) if i else 0
+    return res
 
 def write_c(chars, outdir):
     pkeys, ptable = poses(chars)
@@ -1022,12 +1063,12 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height */',
          'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, follow; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, sig; int16_t child_dx, child_dy; const struct bproj *next; uint8_t hits, stop; } bproj_t;   /* next / hits / stop (vocabulary object.phase, TODO #152): the phase it becomes when its thrower sets +$D1 bit 7 (P_FXOFF: a pinned effect launched instead of ended, from where it is: Billy Kane\'s fire ring), that phase\'s hits before its end rows (0 / 1: its first hit ends it; KOF\'s +$138) and the frames it stays frozen after a hit with hits left (then re-armed); bprow_t flags 4: the row re-arms its hit (KOF: the object clears its +$E2 bit 7 on an event step: it hits again); sig (TODO #139): its thrower\'s +$D1 bits 7 / 6 (fighter_t.pflags PF_SIG7 / PF_SIG6) it sets at its end, bits 5 / 4 = the same at its hit (Raging Storm\'s side effects, K\'\'s shot); follow: 1 = an effect pinned to its thrower (3: it ends at its last row) (rows: offsets from it; a ROM special\'s, ended by P_FXOFF or the special\'s end: Burn Knuckle\'s flame); bit 4: its rows run with its thrower\'s script rows (row = the thrower\'s row - spawn_row: frozen with its hit-stop), it ends when the thrower leaves them (Kizuna\'s Hienzan pillar, TODO #144: a script special\'s pinned effect, not a shot); child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
          'typedef struct { uint8_t op, a; int16_t b; int32_t v; } bprim_t;   /* one primitive of a special read from the ROM (tools/kof96/handlers98.py, handlers98.md; export_bm rom_c): op P_*, operands a / b / v (fighter.c prog_update) */',
-         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END, P_ADV, P_CHECK, P_PART, P_EVCLR, P_ONHIT, P_PUT, P_HITCLR, P_HOLD, P_UNHOLD, P_SIGCLR, P_HITOFF, P_ADD, P_FORM };   /* P_ADD a = register (0 vx, 1 vy, 4 cnt) += v (16.16; gravity applied before the move: Double Dragon\'s order); P_FORM the form link\'s swap now (fighter.c form_swap: the special ends); P_MUL a = 1: vy *= v; (TODO #139) P_HITOFF its hit flag cleared (KOF +$E1 bit 7, PC_HIT); P_SIGCLR v = the +$D1 bits 7 / 6 kept (an andi: its objects\' signals cleared); P_EVCLR the step\'s event consumed (KOF: andi on +$7D); P_ONHIT b = the catch routine (KOF +$19C: a catch box\'s hit, bstep_t flags 64, runs it after a dead frame); P_PUT v = the caught victim put v px in front, facing the attacker (KOF $25032); P_HITCLR the any-hit flag cleared (KOF +$E3 bit 7, PC_HITANY); P_HOLD / P_UNHOLD the caught victim held in place / let go (KOF +$E4 bit 4: its reactions stay a standing reel while held); P_ADV the animation one more tick (the engine called again on the same state); P_CHECK a = the follow-up links read this frame (a press of link k this frame arms bit k: fighter_t.plink); P_PART the armed links cleared (a new part); bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
+         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END, P_ADV, P_CHECK, P_PART, P_EVCLR, P_ONHIT, P_PUT, P_HITCLR, P_HOLD, P_UNHOLD, P_SIGCLR, P_HITOFF, P_ADD, P_FORM, P_VOICE };   /* P_VOICE (TODO #163) a = voice id (0 silent), b = 0: now, else b frames later (KOF +$1B4 / +$1B6; fighter.c prog_voice); P_ADD a = register (0 vx, 1 vy, 4 cnt) += v (16.16; gravity applied before the move: Double Dragon\'s order); P_FORM the form link\'s swap now (fighter.c form_swap: the special ends); P_MUL a = 1: vy *= v; (TODO #139) P_HITOFF its hit flag cleared (KOF +$E1 bit 7, PC_HIT); P_SIGCLR v = the +$D1 bits 7 / 6 kept (an andi: its objects\' signals cleared); P_EVCLR the step\'s event consumed (KOF: andi on +$7D); P_ONHIT b = the catch routine (KOF +$19C: a catch box\'s hit, bstep_t flags 64, runs it after a dead frame); P_PUT v = the caught victim put v px in front, facing the attacker (KOF $25032); P_HITCLR the any-hit flag cleared (KOF +$E3 bit 7, PC_HITANY); P_HOLD / P_UNHOLD the caught victim held in place / let go (KOF +$E4 bit 4: its reactions stay a standing reel while held); P_ADV the animation one more tick (the engine called again on the same state); P_CHECK a = the follow-up links read this frame (a press of link k this frame arms bit k: fighter_t.plink); P_PART the armed links cleared (a new part); bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
          'enum { PC_END, PC_EVENT, PC_LAND, PC_FALL, PC_CNT, PC_HIT, PC_OFF, PC_ALWAYS, PC_STEPEV, PC_WINDOW, PC_LINK, PC_HITANY, PC_SIG7, PC_SIG7C, PC_SIG6, PC_FAR, PC_LOW };   /* PC_LOW the height below v px (KOF cmpi on +$20, Billy 623D); PC_FAR the target farther than v px (KOF +$BC, K\'\'s dash); PC_SIG7 / PC_SIG6 its object set +$D1 bit 7 / 6 (bproj_t sig), PC_SIG7C bit 7 consumed (bclr); PC_HITANY a hit landed since P_HITCLR; PC_STEPEV the step has KOF\'s $0080 (bstep_t flags 8, not consumed by P_EVCLR / PC_EVENT), PC_WINDOW $2000 (flags 32, a follow-up window), PC_LINK an armed link in the P_BR\'s v mask; P_BR conditions: animation over, an event step entered (consumed), landed, falling, counter < 0, the move hit, off screen, always */',
          'typedef struct { uint16_t first, end; uint8_t next, pad; } bspart_t;   /* a special\'s part: script rows [first, end), the part played when it ends (0xFF: the move ends; fighter.c "follow-ups") */',
          'typedef struct { uint8_t from, to, trig, in, dir, at; uint16_t lo, hi; } bslink_t;   /* a follow-up: from part `from` to part `to`; trig 1 a hit landed (LK_HIT), 2 a press (LK_IN: buttons `in` IN_*, stick `dir` = a C role BS_* by d_input, 0xFE the role the move started with, 0xFF any) inside the window [lo, hi) (script rows); at 1 = switch at once (LK_NOW), 0 = when the part ends */',
          'typedef struct { uint16_t nrows, inv_rows, nparts, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; const bspart_t *parts; const bslink_t *links; uint16_t nlinks, bd_first, bd_end, bd_col[2]; int16_t sf_dx, sf_dy; uint8_t sf_anchor, sf_pad; const int32_t *vars; uint8_t nvar, vdef, vanim, vobj, vcols, vdmg, pvoice, vpad; } bspec_t;   /* vars..vdmg: the variant table (vocabulary variant.parameter_set, export_dd): nvar parameter rows of vcols columns (vars, row-major), the row its rule plays (vdef, latched at the move\'s start: fighter_t.var), its program\'s animations / objects per row (anims[a + var * vanim], robj[a + var * vobj]), the damage column + 1 (vdmg, 0 none); a bprim_t op | 0x80 takes its value from column b; pvoice 1: its voice keys are timed by its frames (a program\'s, fighter.c); sf_*: the super flash\'s optional anchor (fx.super_flash, TODO #139: an engine rule for every fury, gamedata.h gflash_t; main.c super_flash): sf_anchor 1 = the concentration plays sf_dx / sf_dy px from the fighter (KOF orientation: negative dx = forward; read from the move\'s KOF animation, handlers98.super_flash), 0 = the game-wide anchor; bd_*: its screen effect (Kizuna\'s Phoenix, export_kz FOLLOW \'backdrop\'): rows bd_first .. bd_end - 1 hide the stage and the backdrop alternates bd_col[0] / bd_col[1] every frame (main.c screen_fx; bd_end 0 = none); inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); parts / links: its follow-ups (nparts 0 = one part, the whole script; export_bm special_parts); proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
-         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, fury, sfx[7]; const uint8_t *vmore; uint8_t fury_max, form_to, form_spec, form_trig, form_exit; const bthrow_t *holds; } bchar_t;   /* holds: its hold hits (HOLDS: a hit, the finisher), paired scripts like its throws (TODO #146); form_*: the form link (vocabulary form.change, game.json roster[].form): form_trig FT_* (0 = none) starts specials[form_spec] (the transition, role BS_FORM), whose P_FORM makes the fighter bm_chars[form_to] (life, place, facing, meter kept), back by form_exit FX_*; fury_max: the index in specials of the fury\'s MAX version (down+D, TODO #139; 0xFF = none: down+D plays the fury); vmore: a key\'s further voices, [key, voice id, at] each, 0xFF ends (voices.py extras: a special that sends several, the Phoenix shouts; played with the ROM\'s voice table only); sfx: hit sounds by use (TODO #75, game.json roster[].hit_sfx): A B C D CD normals, throw C / D impacts, 0 = KOF\'s own (fighter.c hit_sound);  voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; fury: the fury\'s index in specials (button D, game.json roster fury; 0xFF = none); pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another, down-forward+D, up-forward+D: two more; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
+         'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, fury, sfx[7]; const uint8_t *vmore; uint8_t fury_max, form_to, form_spec, form_trig, form_exit; const bthrow_t *holds; const uint8_t *pvox; } bchar_t;   /* pvox (TODO #163): its KOF ROM specials\' step voices, [special index, anim index, step, voice id] each, 0xFF ends: sent as the special\'s program enters that step (KOF\'s $FC records; its code\'s own sends are P_VOICE ops; fighter.c pan_voices); holds: its hold hits (HOLDS: a hit, the finisher), paired scripts like its throws (TODO #146); form_*: the form link (vocabulary form.change, game.json roster[].form): form_trig FT_* (0 = none) starts specials[form_spec] (the transition, role BS_FORM), whose P_FORM makes the fighter bm_chars[form_to] (life, place, facing, meter kept), back by form_exit FX_*; fury_max: the index in specials of the fury\'s MAX version (down+D, TODO #139; 0xFF = none: down+D plays the fury); vmore: a key\'s further voices, [key, voice id, at] each, 0xFF ends (voices.py extras: a special that sends several, the Phoenix shouts; played with the ROM\'s voice table only); sfx: hit sounds by use (TODO #75, game.json roster[].hit_sfx): A B C D CD normals, throw C / D impacts, 0 = KOF\'s own (fighter.c hit_sound);  voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; fury: the fury\'s index in specials (button D, game.json roster fury; 0xFF = none); pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another, down-forward+D, up-forward+D: two more; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
@@ -1099,6 +1140,7 @@ def write_c(chars, outdir):
         # spec_tab in RAM, so the Brawler Lab's Characters tab remaps them live with a data pack)
         pool = special_pool(ch, n)
         sps = [dict(special_play(sp), fighter=n) for sp in pool]
+        vk, vsug, vmp, vtab, vmore = voice_data(ch, n, game, pool, sps)   # (before the specials: their programs send voices)
         for k, sp in enumerate(sps):
             pjs = [dict(pj, spawn_row=sum(1 for i in sp['keep'] if i < pj['spawn_row']))   # spawn rows in the script as
                    for pj in played_projectiles(sp)]                                     # played (frozen rows dropped)
@@ -1146,7 +1188,7 @@ def write_c(chars, outdir):
                 cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + ', '.join(
                     '{%d, %d, %d, %d, %d, %d, %d, %d}' % ((l['from'], l['to']) + link_c(l) + (0, l['window'][0], l['window'][1]))
                     for l in sp['links']) + '};')
-            if rom_ok(sp): cs.append(rom_c(n, k, sp, game))   # read from the ROM: played by its program
+            if rom_ok(sp): cs.append(rom_c(n, k, sp, game, prog_voice_res(n, game, pool[k]['input'], vsug, vmp) if kof_prog(sp, game) else None))   # read from the ROM: played by its program
         assert len(sps) < 255, n
         pooldata[n] = [special_info(sp, game) for sp in sps]
         cs.append(f'const bspec_t {n}_specials[{max(1, len(sps))}] = {{' + (', '.join(
@@ -1157,10 +1199,14 @@ def write_c(chars, outdir):
             + ', %d, %d, %d, 0' % flash_c(sp) + var_c(n, k, sp) + '}'
             for k, sp in enumerate(sps)) or '{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}') + '};')
         c.append(f'extern const bspec_t {n}_specials[];')
+        c.append(f'static const uint8_t {n}_pvox[] = {{' + ''.join(f'{a}, {b}, {d}, {e}, ' for sp in sps for a, b, d, e in sp.get('_pvox', ())) + '0xFF};   /* its ROM specials\' step voices */')
         c.append(f'static const uint8_t {n}_spmap[BS_COUNT] = {{' + ', '.join(str(spec_index(pool, sp)) for sp in pick_specials(ch, n)) + '};')
-        vk, vsug, vmp, vtab, vmore = voice_data(ch, n, game, pool, sps)
         vdata[n] = {'keys': vk, 'suggest': vsug, 'map': vmp, 'nvoice': len(V.bank(n)),
-                    'at': {k: v[1] for k, v in vsug.items()}, 'more': vmore}
+                    'at': {k: v[1] for k, v in vsug.items()}, 'more': vmore,
+                    'prog': sorted({res(ix) & 0x7F for q, sp in zip(pool, sps) if kof_prog(sp, game)
+                                    for res in [prog_voice_res(n, game, q['input'], vsug, vmp)]
+                                    for ix in [op[1] for op in sp['rom']['ops'] if op[0] == 'vsend'] +
+                                              [x for st in sp['rom']['states'] for s_ in sp['rom']['anims'][st]['steps'] for x in s_.get('voices', [])]} - {0})}
         c.append(f'static const uint8_t {n}_voices[] = {{' + ', '.join(map(str, vtab)) + '};   /* voices.py table */')
         c.append(f'static const uint8_t {n}_vmore[] = {{' + ''.join(f'{a}, {b}, {d}, ' for a, b, d in vmore) + '0xFF};   /* voices.py extras */')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
@@ -1180,7 +1226,7 @@ def write_c(chars, outdir):
                                 'voices': vdata[n]})
     json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
     # the voices the ROM maps (build_snd.py brings only their samples into the V ROM: songs.json "voices")
-    json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']})} for game, n, ch, off in chars],
+    json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']} | set(vdata[n]['prog']))} for game, n, ch, off in chars],
               open(os.path.join(outdir, 'voice_map.json'), 'w'))
     json.dump({n: [fr.get('record') for fr in ch['frames']] for game, n, ch, off in chars},   # bm frame -> 'id:ROM frame'
               open(os.path.join(outdir, 'bm_frames.json'), 'w'))                          # (romspecials_check.py)
@@ -1194,7 +1240,7 @@ def write_c(chars, outdir):
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
         land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna', 'doubledr') else None   # SS4 / WHP: KOF's usual 4
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
-        c.append(f'  {{"{(roster()[n].get("display") or n).upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}{form_tail(chars, ch, n)}, {n}_holds}},')
+        c.append(f'  {{"{(roster()[n].get("display") or n).upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}{form_tail(chars, ch, n)}, {n}_holds, {n}_pvox}},')
     c.append('};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')

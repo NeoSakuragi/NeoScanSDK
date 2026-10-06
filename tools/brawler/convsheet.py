@@ -623,8 +623,8 @@ def kof_source(mv):
             model['catch_at'] = ca; model['caught'] = runs(r2); model['caught_frames'] = len(r2); break
     per, last, peak, n = H.openings(m, cid, d)
     model['openings'] = {str(k): v for k, v in per.items()}
-    # the exported program (bspec_t.prog) = the handler's ops minus DROP_OPS and hitkind (export_rom): op -> address
-    kept = [a for a, op in d['ops'] if op[0] not in H.DROP_OPS and op[0] != 'hitkind']
+    # the exported program (bspec_t.prog) = the handler's ops minus DROP_OPS (voice sends kept) and hitkind (export_rom): op -> address
+    kept = [a for a, op in d['ops'] if H.kept_op(m, op) and op[0] != 'hitkind']   # (+ its voice sends, TODO #163)
     br = branches(trace, h)
     extra = {'dead_stores': sorted(dead_at.values(), key=lambda r: (r['in'] != 'handler', r['addr'])), 'branches': br,
              'bit_writes': bitw, 'prog_addr': kept if len(kept) == len(mv['prog']) else None,

@@ -83,6 +83,20 @@ static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to
     for (e = f->ch->vmore; *e != 0xFF; e += 3)                   /* the key's further voices (bchar_t.vmore) */
         if (e[0] == key && e[2] >= from && e[2] <= to) voice_id(f->ch, f->team, e[1]);
 }
+/* a ROM special's voices (TODO #163, one rule for every KOF program): sent where the source's code sends them (P_VOICE:
+ * now, or b frames later as KOF's +$1B4 / +$1B6 countdown) and where its animation's steps carry KOF's $FC record
+ * (bspec_t.pvox: as the program enters the step), in the order the program reaches them; ids resolved by the export
+ * (the roster's mapping, export_bm prog_voice_res). A data pack's voice table plays its own voice for the key in place
+ * of the special's first (the ROM table's entry for the key), the others stay silent. */
+static void prog_voice(const fighter_t *f, uint8_t id) {
+    uint8_t key = VK_SPEC + f->spec_ix;
+    if (mute || !id) return;
+    if (voice_tab[f->ch->id] != f->ch->voices) {
+        if (id != f->ch->voices[key * 2]) return;
+        id = voice_tab[f->ch->id][key * 2];
+    }
+    voice_id(f->ch, f->team, id);
+}
 uint8_t spec_ix(const bchar_t *ch, uint8_t role) {
     uint8_t k = role == BS_FURY_MAX ? (ch->fury_max < ch->nspec ? ch->fury_max : ch->fury) : role == BS_FURY ? ch->fury :
                 role == BS_FORM ? (ch->form_trig ? ch->form_spec : 0xFF) : spec_tab[ch->id][role];
@@ -787,7 +801,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
-        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0;
+        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0;
     }
 }
 
@@ -1023,9 +1037,17 @@ static void pan_enter(fighter_t *f, uint8_t prev) {              /* a step start
                 if ((f->pan->steps[k].flags & 1) && !((f->pan->steps[k - 1].flags & 1) && (f->pan->steps[k - 1].flags & 16))) { f->spec_react = R_HEAVY; break; }
     }
 }
+static void pan_voices(fighter_t *f) {                           /* the step entered: its $FC voices (bchar_t.pvox) */
+    const bspec_t *sp;
+    const uint8_t *e;
+    if (f->state != S_SPECIAL) return;
+    sp = &f->ch->specials[f->spec_ix];
+    for (e = f->ch->pvox; *e != 0xFF; e += 4)
+        if (e[0] == f->spec_ix && e[2] == f->pstep && &sp->anims[e[1]] == f->pan) prog_voice(f, e[3]);
+}
 static void pan_play(fighter_t *f, const banim_t *an) {
     f->pan = an; f->pstep = 0; f->pleft = an->steps[0].ticks + 1; f->pflags &= ~(PF_END | PF_EVENT);
-    pan_enter(f, 0);
+    pan_enter(f, 0); pan_voices(f);
 }
 static void pan_advance(fighter_t *f) {
     uint8_t prev = f->pan->steps[f->pstep].flags;
@@ -1037,7 +1059,7 @@ static void pan_advance(fighter_t *f) {
         f->pstep = 0;
     }
     f->pleft = f->pan->steps[f->pstep].ticks + 1;
-    pan_enter(f, prev);
+    pan_enter(f, prev); pan_voices(f);
 }
 static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     switch (c) {
@@ -1131,6 +1153,7 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
             break;
         case P_MUL: if (p->a == 1) f->vy = fmul16(f->vy, v); else f->vx = fmul16(f->vx, v); break;
         case P_ADD: if (p->a == 0) f->vx += v; else if (p->a == 1) f->vy += v; else f->pcnt += v; break;
+        case P_VOICE: if (p->b) { f->pvl_id = p->a; f->pvl_n = (uint8_t)p->b; } else prog_voice(f, p->a); break;
         case P_FORM: form_swap(f); return;                       /* the form link: the fighter is its other form now */
         case P_FRICMOVE: f->vx = fmul16(f->vx, f->pfric);        /* fall through: then x += vx */
         case P_MOVE: f->x += dir_mul(f->facing, f->vx); clamp(f); break;
@@ -1166,10 +1189,14 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_HITCLR: f->pflags &= ~PF_HITANY; break;
         case P_HOLD: f->pflags |= PF_HOLD; break;
         case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
-        default: prog_end(f); return;                            /* P_END */
+        default:                                                 /* P_END (this frame still counts a voice to come) */
+            if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);
+            prog_end(f); return;
         }
     }
 frame_done:
+    if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);    /* a voice sent later: KOF counts +$1B6 down after the
+                                                                    code, the frame it was set included (KOF98 $17074) */
     f->spend = 0;                                                /* a press counts on the frame it is read */
     for (n = 0; n < 2; n++) {                                    /* its pinned effects follow this frame's move */
         fighter_t *p = f->proj[n];
@@ -1283,6 +1310,9 @@ static void update(fighter_t *f, const intent_t *in) {
     meter_tick(f);
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
+    if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
+                                                                    later counts on once the move ended (KOF $17074 runs
+                                                                    every frame; in the special: prog_update's frames) */
     if (f->inv == INV_FURY) { if (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM)) f->inv = 0; }   /* held for the fury's script (and a form's transition) */
     else if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
@@ -1464,6 +1494,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     if (reaction > 15) reaction = v->y > 0 ? reaction >> 4 : reaction & 15;   /* packed: standing | juggled << 4 */
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
     rk = reaction; reaction &= 7;
+    v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {   /* a ROM special (TODO #139): */
         a->pflags |= PF_HITANY;
         if ((a->spec_prev_hit & 16) && a->phit != 0xFF && !a->pcatch) {   /* a catch box: no damage, the victim held, */

@@ -134,7 +134,8 @@
    "fury": "641236C",
    "unlock": {"boss_of_stage": 2},
    "voices": "kof",
-   "hit_sfx": {"throw_c": "BACK BREAK"}
+   "hit_sfx": {"throw_c": "BACK BREAK"},
+   "fire": ["214A", "214B", "214C", "214D"]
   },
   {
    "name": "k_dash",
