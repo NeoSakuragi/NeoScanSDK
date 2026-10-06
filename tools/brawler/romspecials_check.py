@@ -99,7 +99,8 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
             if not ob or len(rows) >= obj_window: break
             rows.append({'tail': True, 'objs': ob}); continue
         sr = b.fget(0, 'srow')                           # the brawler's own hit-stop: frames its program did not run
-        if rows and sr == pfz: continue                  # (fighter.c prog_update counts srow; the hit's own frame runs)
+        if rows and sr == pfz and st == 'SPECIAL': continue   # (fighter.c prog_update counts srow; the hit's own frame runs;
+                                                         # past the move every frame counts: an object outliving it, TODO #152)
         pfz = sr
         pj = []
         for i in range(4):

@@ -767,6 +767,7 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
     if (!p) return 0;                                            /* pool full: no entity for it */
     p->pdef = d; p->prow = 0; p->pend = 0; p->facing = facing; p->z = z; p->throw_x0 = x0;
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
+    p->pcnt = d->hits; p->freeze = 0;                            /* its hits left (object.phase) */
     p->tick = 0; p->state_t = 0; p->node = d->child_b0;          /* tick 0: shown at row 0 this frame (the update after
                                                                     the fighters' advances it from the next); state_t:
                                                                     its frames alive; node: the next frame its child is born */
@@ -779,6 +780,9 @@ static void proj_spawn(fighter_t *f, const bproj_t *d) {         /* spawn point:
 }
 static void proj_hit(fighter_t *p) {                             /* its hit landed (a fighter or a clash) */
     if (p->owner) p->owner->pflags |= (p->pdef->sig << 2) & (PF_SIG7 | PF_SIG6);   /* its hit signals its thrower */
+    if (p->pdef->kind == 1 && p->pcnt > 1) {                     /* hits left (bproj_t hits, KOF +$138): frozen, then */
+        p->pcnt--; p->freeze = p->pdef->stop; return;            /* re-armed (projectiles_update) */
+    }
     if (p->pdef->kind == 1) {                                    /* travelling: its end animation where it hit */
         if (!p->pdef->nend) { projectile_reset(p); return; }
         p->pend = 1; p->prow = 0; p->throw_x0 = p->x; proj_row(p);
@@ -789,7 +793,7 @@ static void proj_crowd(fighter_t *p) {                          /* an eruption's
                                                                     spent as KOF's (pend 3), its attack box live for
                                                                     the others (combat: hit_mask, each target once) */
     if (p->owner) p->owner->pflags |= (p->pdef->sig << 2) & (PF_SIG7 | PF_SIG6);
-    p->pend = 3; p->pown = 0;
+    p->pend = 3; p->pown = 0; p->freeze = p->pdef->stop;        /* (stop: KOF's frame on the hit, object.phase) */
 }
 static void proj_child(fighter_t *p) {                           /* its trail: an object it spawns where it is */
     const bproj_t *d = p->pdef;                                  /* (its rows hold their own height) */
@@ -804,6 +808,12 @@ static void proj_child(fighter_t *p) {                           /* its trail: a
     p->node = p->state_t < d->child_b1 && d->child_b1 != 255 ? d->child_b1 : p->node + d->child_period;
     if (!d->child_period && p->state_t >= d->child_b1) p->node = 255;
 }
+static void proj_launch(fighter_t *p) {                          /* its next phase from where it is (object.phase) */
+    const bproj_t *d = p->pdef->next;
+    p->pdef = d; p->prow = 0; p->pend = 0; p->tick = 1; p->throw_x0 = p->x;
+    p->spec_react = d->react; p->spec_fx = d->fx; p->hit_mask = 0; p->pcnt = d->hits; p->freeze = 0;
+    proj_row(p);
+}
 void projectiles_update(int16_t cam_x) {
     uint8_t i;
     for (i = 0; i < NPJ; i++) {
@@ -812,8 +822,14 @@ void projectiles_update(int16_t cam_x) {
         int16_t sx;
         if (p->state != S_PROJ || !d) continue;
         if (!p->tick) { p->tick = 1; proj_child(p); continue; }  /* its first frame: row 0 */
+        if (p->freeze) {                                         /* after a hit (bproj_t stop): frozen, it moves on */
+            if (--p->freeze) continue;                           /* stop frames after it; with hits left it may hit */
+            if (d->kind == 1) p->hit_mask = 0;                   /* again then (object.phase; an eruption waits for */
+        }                                                        /* a re-arming row) */
         p->state_t++;
-        if (p->pend == 1) {
+        if (p->pend == 4) p->pend = 5;                           /* its thrower's signal: one more pinned frame (KOF */
+        else if (p->pend == 5) { proj_launch(p); proj_child(p); continue; }   /* runs the object before its thrower), */
+        if (p->pend == 1) {                                      /* then its next phase */
             if (++p->prow >= d->nend) { projectile_reset(p); continue; }
         } else if (d->follow && p->owner) {                      /* pinned: its rows cycle at the thrower's place */
             if (d->follow & 4) {                                 /* or run with its thrower's script rows (frozen with
@@ -832,6 +848,9 @@ void projectiles_update(int16_t cam_x) {
             p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
         }
         proj_row(p);
+        if ((p->pend == 0 || p->pend == 3) && (d->rows[p->prow].flags & 4)) {   /* a re-arming row */
+            p->hit_mask = 0; if (p->pend == 3) p->pend = 0;      /* (KOF: +$E2 bit 7 cleared on an event step) */
+        }
         sx = INT(p->x) - cam_x;
         if (sx <= -64 || sx >= 384) { projectile_reset(p); continue; }   /* off screen (KOF's test, its 320 px screen) */
         proj_child(p);
@@ -978,9 +997,15 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     }
     return 1;
 }
-static void prog_fxoff(fighter_t *f) {                           /* its pinned effects end (KOF: owner +$D1 bit 7) */
-    uint8_t k;
-    for (k = 0; k < 2; k++) if (f->proj[k] && f->proj[k]->pdef && f->proj[k]->pdef->follow) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
+static void prog_fxoff(fighter_t *f) {                           /* its pinned effects end (KOF: owner +$D1 bit 7), */
+    uint8_t k;                                                   /* or launch: an object with a next phase becomes it */
+    for (k = 0; k < 2; k++) {                                    /* where it is (vocabulary object.phase: Billy's fire */
+        fighter_t *p = f->proj[k];                               /* ring, pinned, then flying, TODO #152) */
+        if (!p || !p->pdef || !p->pdef->follow) continue;
+        if (p->pdef->next) p->pend = 4;                          /* launched from the next frame (proj_launch) */
+        else projectile_reset(p);
+        f->proj[k] = 0;
+    }
 }
 static void prog_spawn(fighter_t *f, const bproj_t *d) {
     fighter_t *p = proj_start(f, d, f->x, f->facing, f->z);      /* rows: from the thrower's place now */

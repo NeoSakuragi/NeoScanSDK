@@ -196,7 +196,7 @@ class Fields:
         if op == 'or': self.k[off] = (mk | v, bits | v)
         else: self.k[off] = (mk | (~v & 0xFF), bits & v)
 
-def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=None, sdm=False):
+def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=None, sdm=False, e4=None):
     """the handler at addr -> {'addr', 'ops': [(addr, op)], 'objects': [decoded object routines]}. fields: an object's
     inherited fields (spawn offsets +$D2 / +$D4, vx, end state +$D8, hit routine +$19C). sdm: a desperation move's
     power check ($24D80) returns the MAX / SDM version (+$E4 bit 0 set), else the plain DM (the brawler's fury)"""
@@ -208,6 +208,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
     for off, v, sz_ in [(0x31, 1, 1), (0x1A4, 0x10 << 'ABCD'.index(button), 1), (0x1D6, 1 if ex else 0, 1), (0xC8, 0, 2),
                         (0x170, 0, 1), (0x1AC, 0, 4)] + list(fields or []):
         F.put(off, v, sz_)
+    if e4 is not None: F.setbits(0xE4, 'or' if e4 else 'and', 1 if e4 else 0xFE)   # an object: its spawner's +$E4 bit 0
+                                                       # (the MAX flag: Billy's MAX fire ring tests its own copy, TODO #152)
     D = {}; A0 = None; ops = []; objects = []; seen = set(); cc = None
     latch = FOLLOW_LATCH.get((dec.game, addr)) if depth == 0 else None; res_val = [None]; follow = [None]
     if depth == 0: dec.top = addr
@@ -230,7 +232,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if pending_child is None: return
         ch, at = pending_child; pending_child = None
         if depth >= 3: emit(at, 'spawndeep', ch['routine']); return        # an object spawning itself (Kyo's fury)
-        objects.append(decode(m, ch['routine'], button, ex, ch['fields'], dec, depth + 1))
+        objects.append(decode(m, ch['routine'], button, ex, ch['fields'], dec, depth + 1, e4=F.bit(0xE4, 0)))
         sb = sigbits(objects[-1])                      # the bits it may set on its owner are unknown from now on
         if sb:
             if 0xD1 in F.b: F.k[0xD1] = (0xFF, F.b.pop(0xD1))
@@ -277,6 +279,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             emit(a, 'set', regs[f], x)
         elif f == 0x1B8: emit(a, 'hitkind', v)
         elif f == cnt_field: emit(a, 'set', 'cnt', v)
+        elif f == 0xF5 and depth > 0 and isinstance(v, int): emit(a, 'kind', v)   # an object's kind (+$F5) as it changes:
+                                                       # Billy's fire ring, 3 while pinned, 1 once launched (TODO #152)
     a = addr; budget = 4000; work = []; pos = {}
     # loops run at decode time: a field the handler steps once per pass (a repeat count `subq; bne` after the frame loop
     # ended, a state-table pointer `addq #2`) is concrete, so each pass is its own copy of the code: an op's place is
@@ -588,7 +592,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         hit = decode(m, hr, button, ex, keep + [(0x50, F.get(0x50, 4), 4), (-1, 0, 1)], dec, depth + 1)
     prune(ops, pos)
     return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1), 'follow': follow[0], 'links': lnames, 'hitlatch': hitlatch[0], 'link_lag': [llag[n_] for n_ in lnames],
-            'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8)}}
+            'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8)},
+            'f138': F.get(0x138, 2) if depth > 0 else None}
 
 def sigbits(d, hit=None):
     """the owner +$D1 bits an object's code sets (its main code, hit=False; its hit routine, hit=True; both: None)"""
@@ -602,7 +607,7 @@ def prune(ops, pos):
     """a branch on a test the decoder does not model whose two ways meet again before anything but bookkeeping (the
     follow-up / cancel checks with no input: both ways reach the same op) is no branch: dropped (('flag', 'pruned'))"""
     skip = {'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-            'ownerflag', 'flags', 'trail', 'random'}
+            'ownerflag', 'flags', 'trail', 'random', 'kind'}
     def lands(i):
         seen = set()
         while i < len(ops) and i not in seen:
@@ -761,8 +766,10 @@ class Obj:
             elif k == 'clrinput': self.clr = self.f
             elif k == 'part': self.links = 0
             elif k == 'follow' and self.owner is not None: self.x = self.owner.x + self.ofs[0]; self.h = self.owner.h + self.ofs[1]
+            elif k == 'kind': self.kind = op[1]
+            elif k == 'flag' and op[1] == 'andi' and op[2] == 0xE2 and isinstance(op[3], int) and not op[3] & 0x80: self.rearm = True
     def tick(self, cam=0):
-        self.spawned = []; self.noadv = False
+        self.spawned = []; self.noadv = False; self.rearm = False
         if self.dead:                                 # the catch's hit-stop frame: no code, no animation
             self.dead -= 1; self.f += 1
             if not self.dead: self.pc = self.resume = self.go
@@ -979,7 +986,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
 ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 'kof96', 'k_dash': 'kof99'}   # else kof98
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
             'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'place', 'hitclr', 'hold', 'unhold', 'sigclr', 'hitoff'}
-DROP_OPS = {'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
+DROP_OPS = {'kind', 'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
             'ownerflag', 'flags', 'trail', 'alloc', 'ownersig'}
 CONDS = {None: 7, 'end': 0, 'event': 1, 'land': 2, 'falling': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'evstep': 8, 'window': 9,
          'link': 10, 'hitany': 11, 'sig7': 12, 'sig7c': 13, 'sig6': 14, 'far': 15, 'low': 16}   # 'far:N' -> PC_FAR, N                     # fighter.h PC_*; 'link:<mask>' -> PC_LINK with the mask
@@ -1069,20 +1076,22 @@ def openings(m, cid, prog, frames=300, presses=None):
         if o.h > top: top, peak = o.h, f
     return per, last, peak, frames
 
-def object_rows(m, cid, ob, owner_x=0.0, frames=240, fxoff_at=None):
+def object_rows(m, cid, ob, owner_x=0.0, frames=240, fxoff_at=None, cycle=False, launch=False):
     """an object's flight from the model: rows [rom frame, x from the thrower's place at the spawn (forward +),
     height, live attack box (type x y w h) or None, own box (slot 1) or None], loop (row the flight repeats from, None:
     it ends), follow (pinned to its owner: x / height are offsets from it). fxoff_at: the object's frame on which its
     owner sets +$D1 bit 7 (P_FXOFF: a pinned effect that watches it plays its end then, Raging Storm's pillars)"""
-    c = Obj(m, cid, ob, x=0.0, h=0.0, vx=ob['vx']); c.resume = 0
+    c = Obj(m, cid, ob, x=0.0, h=0.0, vx=ob['vx']); c.resume = 0; c.kind = None; c.rearm = False
     follow = any(op[0] == 'follow' for a, op in ob['ops'])
-    offs = any(op[0] == 'offscreen' for a, op in ob['ops'])   # it flies until off screen: a looping flight repeats
+    offs = cycle or any(op[0] == 'offscreen' for a, op in ob['ops'])   # it flies until off screen: a looping flight repeats
+    # (cycle: a first phase that loops until its owner's signal, object_phases)
     # (one whose program ends it itself, a counter / its animations (Goenitz's Yonokaze), plays to its end)
     if follow: c.owner = Obj(m, cid, {'ops': [], 'objects': []}); c.ofs = (ob['dx'], ob['dy'])
     rows, live, seen = [], None, {}
     for f in range(frames):
         if follow and fxoff_at is not None and f == fxoff_at: c.owner.fxoff = True
-        if f == 0: c.frame(None)                      # never off screen: the brawler tests that itself
+        if f == 0 and not launch: c.frame(None)       # never off screen: the brawler tests that itself (launch: an
+                                                      # object already alive, its animation advanced that frame)
         else: c.tick(None)
         if c.over:
             if follow: follow = 3                     # pinned and ends itself (Raging Storm's side effects): bit 1
@@ -1091,11 +1100,31 @@ def object_rows(m, cid, ob, owner_x=0.0, frames=240, fxoff_at=None):
         atk = {k: v for k, v in bx.items() if k < 0x30 or k >= 0x100}
         if atk: live = next(iter(atk.items()))
         a = [live[0] & 0x3F if live[0] < 0x100 else live[0] & 0xFF] + list(live[1]) if live and fl & 0x100 else None
-        rows.append([fi, round(c.x, 3), round(c.h, 3), a, bx.get(0x31)])
+        rows.append([fi, round(c.x, 3), round(c.h, 3), a, bx.get(0x31), int(c.rearm and not (rows and rows[-1][5])), c.kind])
+        # (re-armed on an event step's first frame: the flag stays on its second, KOF's hit lands once per event)
         if offs and c.mode == 'loop' and c.done and c.step == 0 and c.left == c.steps[0][0] + 1:   # one full cycle played:
             cyc = sum(s[0] + 1 for s in c.steps)                                        # the flight repeats it
+            if launch: return rows, len(rows) - cyc, follow   # (launched mid-step: its first row is a step's second
+                                                              # frame, the cycle closes on the row just seen)
             return rows[:-1], len(rows) - 1 - cyc, follow
     return rows, None, follow
+
+PROJ_REHIT = 7    # KOF98: frames from an object's hit (hits left) to its next move, when it may hit again (Billy's MAX
+                  # fire ring: hits 7 frames apart, 6 of them frozen, measured in our emulator; the engine's +$124)
+PROJ_STOP3 = 2    # KOF98: an object without a hit routine (kind 3) stays one frame on its hit (2 frames to its next move) (the fire ring's frame shown
+                  # three ticks at each hit, measured: its hits 25 frames apart on a 24-frame re-arm)
+def object_phases(m, cid, ob):
+    """an object whose kind changes over its life (vocabulary object.phase, TODO #152: Billy's 23624C fire ring, pinned
+    around him as kind 3, re-armed on its event steps, then launched as kind 1 when he sets +$D1 bit 7): the phase
+    after the change as the model plays it once its owner's signal came -> (rows from the launch: x from there, loop,
+    the kind) or None (one kind all its life)"""
+    if not any(op[0] == 'br' and op[1] == 'owner_fxoff' for a, op in ob['ops']) or not any(op[0] == 'kind' for a, op in ob['ops']):
+        return None
+    k0 = next(op[1] for a, op in ob['ops'] if op[0] == 'kind')       # the kind it starts with
+    rows, loop, follow = object_rows(m, cid, ob, fxoff_at=0, launch=True)   # the signal already there: it launches on its first
+    if not rows or rows[0][6] in (None, k0): return None            # frame, the rows are the second phase's
+    x0 = rows[0][1]
+    return [[r[0], round(r[1] - x0, 3), r[2], r[3], r[4], r[5]] for r in rows], loop, rows[0][6]
 
 # ---- the super flash (TODO #139 / fx.super_flash, 2026-10-06; handlers98.md "Super flash") ----------------------------
 # KOF98 starts a desperation move's flash from its first state's animation, not from the handler: an animation command
@@ -1197,6 +1226,8 @@ def export_rom(m, cid, inp, add, game='kof98'):
     for k, ob in enumerate(prog['objects']):
         rows, loop, follow = object_rows(m, cid, ob)
         mc = next((c for c in mobjs if c.prog is ob), None)
+        ph = object_phases(m, cid, ob)                # a second phase (vocabulary object.phase): the launch
+        if ph: rows, loop, follow = object_rows(m, cid, ob, cycle=True)   # the first: its loop until the signal
         if follow == 1 and mc is not None and mc.over and getattr(mc.owner, 'fx_at', None) is not None:
             # pinned and ended by the move's P_FXOFF (the end it plays then included) while the thrower stands still
             # over its life (Raging Storm's pillars): an eruption (kind 3, not pinned) whose rows are its whole life
@@ -1216,9 +1247,22 @@ def export_rom(m, cid, inp, add, game='kof98'):
         se, sh = sigbits(ob, False), sigbits(ob, True)    # its owner signals: at its end / at its hit (TODO #139)
         box = next((r[3][0] for r in rows if r[3]), None)  # its victim's reaction by KOF's table (packed; 0: none)
         rx = box_react(m, box, cid) if box is not None else 0
-        objs.append({'rows': [[add(r[0])] + r[1:] for r in rows], 'loop': loop, 'end': end, 'kind': ob['kind'] or 3,
+        nxt = None
+        if ph:
+            prow, ploop, pkind = ph
+            pbox = next((r[3][0] for r in prow if r[3]), None)
+            hit_ops = [op for a_, op in ob['hit']['ops']] if ob.get('hit') else []
+            hits = ob.get('f138') if hit_ops and hit_ops[0][0] == 'dec' and ob.get('f138') else 1   # its hit routine
+            nxt = {'rows': [[add(r[0])] + r[1:6] for r in prow], 'loop': ploop, 'end': end, 'kind': pkind, 'follow': 0,   # counts
+                   'hit_kind': hitkind, 'react': (box_react(m, pbox, cid) if pbox is not None else 0) or 'knockdown',   # +$138
+                   'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'sig': 0, 'phase_hits': hits, 'stop': PROJ_REHIT, 'rearm': 1}
+            end = []                                   # the first phase: pinned, kind 3, no end (it plays on)
+        objs.append({'rows': [[add(r[0])] + r[1:6] for r in rows], 'loop': loop, 'end': end,
+                     'kind': (rows[0][6] if ph and rows and rows[0][6] else ob['kind']) or 3,
                      'follow': int(follow), 'hit_kind': hitkind, 'react': rx or 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
-                     'child': None, 'state': ob.get('state'), 'sig': se | (sh & ~se & 0xC0) >> 2})
+                     'child': None, 'state': ob.get('state'), 'sig': se | (sh & ~se & 0xC0) >> 2, 'next': nxt,
+                     'stop': PROJ_STOP3 if nxt else 0,
+                     'rearm': int(bool(nxt))})   # its re-arming rows (bprow_t flags 4): a phased object's (object.phase)
     variants = [variant_summary(m, cid, base, v) for v in decode_variants(m, h, b, ex, cid, sdm)]   # every version (stored;
     variants = variants if len(variants) > 1 else []                                          # the game plays this one)
     starts = list(dict.fromkeys(r[1] for r in mrows))            # the flash: the states as the whiff plays them
