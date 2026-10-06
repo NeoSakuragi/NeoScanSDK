@@ -1,0 +1,82 @@
+{
+ "fighter": "shishioh",
+ "bank": "kizuna:shishioh",
+ "specials": {
+  "D": "236C",
+  "fD": "214A",
+  "dD": "41236A",
+  "uD": "421A",
+  "dfD": "623A",
+  "ufD": "63214C"
+ },
+ "fury": "6246A",
+ "why": {
+  "6246A": {
+   "whiff_dx": 104,
+   "whiff_height": 0,
+   "far_hits": 6,
+   "cond": "4000",
+   "parts": 1
+  },
+  "421A": {
+   "whiff_dx": 150,
+   "whiff_height": 0,
+   "far_hits": 5,
+   "cond": "0600",
+   "parts": 2
+  },
+  "214A": {
+   "whiff_dx": 116,
+   "whiff_height": 0,
+   "far_hits": 6,
+   "cond": "0200",
+   "parts": 2
+  },
+  "236C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "236A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0240",
+   "parts": 1
+  },
+  "41236A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0200",
+   "parts": 1
+  },
+  "623A": {
+   "whiff_dx": 63,
+   "whiff_height": 0,
+   "far_hits": 2,
+   "cond": "0200",
+   "parts": 1
+  },
+  "63214C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 2,
+   "cond": "0000",
+   "parts": 1
+  },
+  "28C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  }
+ },
+ "not_used": [
+  "236A",
+  "28C"
+ ]
+}

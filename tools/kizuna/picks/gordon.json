@@ -9,8 +9,15 @@
   "dfD": "236C",
   "ufD": null
  },
- "fury": null,
+ "fury": "6246A",
  "why": {
+  "6246A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "C100",
+   "parts": 7
+  },
   "421A": {
    "whiff_dx": 150,
    "whiff_height": 0,

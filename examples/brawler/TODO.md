@@ -429,7 +429,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   $1CC0, the heavy-hit $1CC5, dodge $1CC9, taunt $1CCB, $1CEF: one voice per animation key); j.2B follow-up 92; random
   flame feathers (captured ones played).
 
-- [ ] 77. Every other Kizuna Encounter fighter extracted, NOT in the build (Bruno, 2026-10-05: "queue all characters, do
+- [x] 77. (done 2026-10-06: all 10 extracted, not in the build: tools/kizuna --char NAME, data /data/neogeo_dict/kizuna/<name>/, picks tools/kizuna/picks, routes tools/brawler/routes/<name>.json; every exported frame identical to Kizuna's render in a throwaway build, both facings; left: Gozu / Mezu / Joker / Gordon fury = a grab by code (no box: no hit), Chung no fury (A Chun's 6246A / 646C not captured), Hayate [2]8C boomerangs hit by code (not exported), R Shishi's 4264A / 214B not captured, projectiles drawn but no end rows) Every other Kizuna Encounter fighter extracted, NOT in the build (Bruno, 2026-10-05: "queue all characters, do
   not include them yet in the build"): Hayate, Eagle, Gozu, Mezu, Rosa, Joker, Chung (A Chun shares his animations),
   Gordon, Shishioh (R Shishi shares his), Jyazu (character ids 0-12 in /data/neogeo_dict/kizuna/README.md). Same as Kim:
   pre-scaled to Kizuna's widest zoom $CC (0.80, Bruno: "keep it at 0.80, it's on par with other characters"), every move

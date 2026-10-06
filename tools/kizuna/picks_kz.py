@@ -80,14 +80,14 @@ def routes(name, pk):
     for r in R:
         r = [dict(x) for x in r]; ok = True
         for j, x in enumerate(r):
-            key = tuple(y['input'] for y in r[:j + 1]); what = x.get('move') or 'sp ' + x['special']
+            key = tuple(y['input'] for y in r[:j + 1]); what = json.dumps({k: v for k, v in x.items() if k != 'input'})
             if seen.get(key, what) != what:
                 for alt in ('fA', 'dA', 'bA'):
                     k2 = key[:-1] + (alt,)
-                    if seen.get(k2, what) == what and 'move' in x: x['input'] = alt; key = k2; break
+                    if seen.get(k2, what) == what and 'move' in x: x['input'] = alt; key = k2; what = what; break
                 else: ok = False; break
         if not ok: continue
-        for j, x in enumerate(r): seen[tuple(y['input'] for y in r[:j + 1])] = x.get('move') or 'sp ' + x['special']
+        for j, x in enumerate(r): seen[tuple(y['input'] for y in r[:j + 1])] = json.dumps({k: v for k, v in x.items() if k != 'input'})
         out.append(r)
     R = out
     return {'fighter': name,

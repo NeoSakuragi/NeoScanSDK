@@ -49,6 +49,9 @@ def plan_move(name, mv, fc, recipes, neutral, starts, cmd, graph):
         r = recipes.get(rec)
         S.append((rec, sq, kind, r[4] if r and len(r) > 4 else [], r[5] if r and len(r) > 5 else []))
     W = next(s for s in S if s[2] == 'w'); H = next((s for s in S if s[2] == 'h'), None)
+    if not W[1] and H:                                   # a close-range move whiffing as nothing (Gordon's 6246A
+        S = [(H[0], H[1], 'w', H[3], H[4])] + [s for s in S if s[2] == 'c']   # grab): its near capture is the move
+        W, H = S[0], None
     an = lambda s: [a for a, n in s[1]]
     rep = {'whiff': [f'{a:X}' for a in an(W)], 'hit': [f'{a:X}' for a in an(H)] if H else None,
            'continuations': [{'rec': s[0], 'anims': [f'{a:X}' for a in an(s)], 'inputs': s[3], 'found_in': s[4]} for s in S if s[2] == 'c']}
@@ -123,6 +126,8 @@ def write(name):
         sw, near = f'sw_{n}{low}', f'cmd_{n}{low}_near'
         if sw not in cap: continue
         s = seq(cap[sw]['frames'], neutral, starts)
+        if not s and near in cap:                        # a close-range move (condition bit 8: Gordon's 6246A grab)
+            sw = near; s = seq(cap[sw]['frames'], neutral, starts)      # plays only next to P2: its near capture
         if not s: out['report'][n] = 'plays nothing'; continue
         out['specials'][n] = [sw, near, [a for a, k in s]]
     for mv in brute_kz.MOVES:
