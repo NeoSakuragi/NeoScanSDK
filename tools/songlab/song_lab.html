@@ -137,6 +137,7 @@ function keep(p, r, v, mute) {
   if (p === 0 && r === 0x28) return (v & 0xF0) && mute.has(FMKEY[v & 7]) ? -1 : v;
   if (p === 1 && r === 0x00 && !(v & 0x80)) { let m = v; for (let c = 0; c < 6; c++) if (v >> c & 1 && mute.has('A' + (c + 1))) m &= ~(1 << c); return m ? m : -1; }
   if (p === 0 && r === 0x10 && v & 0x80) return mute.has('B') ? -1 : v;
+  if (p === 0 && r >= 0x08 && r <= 0x0A && mute.has('SSG' + 'ABC'[r - 8])) return 0;   // SSG level (Double Dragon)
   return v;
 }
 onmessage = async e => {
