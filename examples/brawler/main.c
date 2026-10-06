@@ -17,7 +17,7 @@
 #include "game_tables.h"
 #include "portraits_big.h"
 
-static uint16_t TEXT_PAL[16] = { 0x8000, COLOR_WHITE, RGB(20, 25, 31), RGB(31, 31, 0), RGB(31, 6, 4), RGB(6, 6, 10) };   /* 6-15: life bar (hud.h) */
+static uint16_t TEXT_PAL[16] = { 0x8000, COLOR_WHITE };   /* 2-5: the font's gradient, 6-15: life bar (hud.h text_colours / bar_colours; 14 = the font's shadow) */
 #ifndef GAME_VERSION
 #define GAME_VERSION "0.0.0"
 #endif
@@ -1707,7 +1707,7 @@ static void dr_scene_start(void) {
         if (dr_pb < PB_COUNT) pb_show(dr_pb, sc->side); else dr_side = sc->side;
     }
     for (n = 0; name[n] && n < 16; n++) ;
-    for (l = 0; l < n; l++) dr_put((sc->side ? 37 - n : 3) + l, 21, name[l], 1);   /* the name plate, yellow */
+    for (l = 0; l < n; l++) dr_put((sc->side ? 37 - n : 3) + l, 21, name[l], 1);   /* the name plate, highlighted (palette 1) */
     for (dr_len = 0, l = 0; l < dr_nl; l++) for (n = 0; dr_lines[l][n]; n++) dr_len++;
     dr_chars = 0; dr_t = 0;
 }
@@ -1896,7 +1896,7 @@ static void boss_start(void) {
     if (k < DR_COUNT && !attract) drama_start(k, gs->boss_song); else snd_music(gs->boss_song);
     hud_wave();
 }
-static void go_sign(uint8_t on) { FIX_print(29, 3, on ? "GO -->" : "      ", 1); }   /* yellow, in the HUD's black band */
+static void go_sign(uint8_t on) { FIX_print(29, 3, on ? "GO -->" : "      ", 1); }   /* highlighted (palette 1), in the HUD's black band */
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
@@ -2378,6 +2378,7 @@ void game_init(void) {
     specs_init();                                            /* their specials by role (fighter.h spec_tab) */
     voices_init();                                           /* their voices (fighter.h voice_tab) */
     save_load();                                             /* MVS: the BIOS restored the block (a fresh one: reset) */
+    for (i = 0; i < 4; i++) TEXT_PAL[2 + i] = text_colours[i];   /* the font's colours (Kizuna's, TODO #182) */
     PAL_setPalette(0, TEXT_PAL);
     PAL_setBackdrop(stg->backdrop);
     for (i = 0; i < NA * SEL_COLS || i < FIGHT_SPRS; i++) cmd_push(VRAM_SCB2 + SPR_BASE + i, 0x0FFF);   /* full size, set once */
@@ -2393,7 +2394,8 @@ void game_enter(uint8_t request) {
     BANK_init();                                             /* the BIOS ran in between: the register and its copy agree */
     { uint8_t k; for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k];
       PAL_setPalette(0, TEXT_PAL);                           /* the BIOS's own screens overwrite palette 0 */
-      TEXT_PAL[1] = RGB(31, 28, 0); PAL_setPalette(1, TEXT_PAL); TEXT_PAL[1] = COLOR_WHITE;   /* 1: yellow text (GO); */
+      for (k = 0; k < 4; k++) TEXT_PAL[2 + k] = hilite_colours[k];   /* 1: highlighted text (GO, OPTIONS, drama names) */
+      PAL_setPalette(1, TEXT_PAL); for (k = 0; k < 4; k++) TEXT_PAL[2 + k] = text_colours[k];
       for (k = 6; k < 16; k++) { uint16_t c = bar_colours[k - 6];                        /* 4: the meter (red <-> blue) */
           TEXT_PAL[k] = (c & 0xA0F0) | ((c >> 8) & 0xF) | ((c & 0xF) << 8) | ((c >> 2) & 0x1000) | ((c << 2) & 0x4000); }
       PAL_setPalette(METER_PAL, TEXT_PAL);

@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
-"""Brawler HUD on the fix layer, patched into the S ROM after the ASCII font, and hud.h:
+"""Brawler S ROM (fix layer) and hud.h:
 
+0. The text font (TODO #182): Kizuna Encounter's outlined font, its S ROM tiles $D00 + ASCII ($20-$5F: punctuation,
+   digits, A-Z, \\ (R) (C) TM at $5B-$5F; read from /data/roms/kizuna.neo; its title / PUSH START / copyright text, fix
+   palette 11). Its style: a vertical gradient by row (pens 4 rows 0-1, 5 row 2, 6 rows 3-4, 7 rows 5-6) and a dark
+   drop shadow (pen 8) right of / under / diagonally below-right of each fill pixel; pen 1 white (the (R) (C) TM marks).
+   Pens mapped onto fix palette 0: 4-7 -> TEXT 2-5, 8 -> 14 (the bar's near-black EMPTY), 1 -> 1 (white).
+   Derived (not in Kizuna): lowercase a-z = its uppercase glyph (Kizuna's text is all caps; the drama lines are mixed),
+   '_' and the select screen's down arrow ($7F) drawn in the same style (kz_style); ` { | } ~ blank (unused).
 1. Life bar glyphs in the style of KOF94's (studied from its S ROM in a demo fight): one 8 px row, white outline,
    dark shadow line, a yellow-to-orange vertical gradient, rounded caps, 1 px steps; plus a red damage trail (KOF94 has
    none). Cells: left cap, middle, right cap; each with f px yellow from the left (0-8; caps 0-7: the cap's first
@@ -14,8 +21,8 @@
    one shared 2 px frame = 32x32, 15 colours, 16 fix tiles
    (row-major) from PORTRAIT_TILE + i * 16; colours portrait_pal[i], loaded into fix palette 2 + HUD side when shown (main.c portrait()).
 
-    python3 make_hud.py OUTDIR kof98:terry ...        (after font_encoder.py wrote OUTDIR/font.s1)  -> hud.h"""
-import os, sys
+    python3 make_hud.py OUTDIR kof98:terry ...        -> OUTDIR/font.s1 (128 KB), OUTDIR/hud.h"""
+import os, sys, struct
 from PIL import Image, ImageDraw
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -34,9 +41,36 @@ YEL = [6, 7, 8, 9, 10]; RED = [11, 11, 12, 12, 13]; EMPTY = 14; SHADOW = 15
 
 DRAMA_FONT = 0x300                           # + ASCII $20-$7F: the font on an opaque black cell (EMPTY), for the drama
                                              # mode's letterbox bars (DRAMA_FONT + ' ' = a solid black cell)
-ARROW_TILE = 0x7F                            # a down arrow: white, a shadow outline (TEXT_PAL 1 / 15)
-ARROW = [[{'.': 0, 'w': WHITE, 's': SHADOW}[ch] for ch in row] for row in (
-    '..www...', '..www...', '..www...', 'wwwwwww.', '.wwwww..', '..www...', '...w....', '........')]
+ARROW_TILE = 0x7F                            # a down arrow in the font's style (kz_style)
+ARROW = ['.###....', '.###....', '.###....', '#######.', '.#####..', '..###...', '...#....', '........']
+UNDERSCORE = ['........'] * 6 + ['#######.', '........']   # '_' (names: MR_BIG, K_DASH): Kizuna's $5F is TM's right half
+
+KIZUNA = '/data/roms/kizuna.neo'
+KZ_FONT = 0xD00                              # Kizuna's outlined font: tile $D00 + ASCII
+KZ_PEN = {0: 0, 1: WHITE, 4: 2, 5: 3, 6: 4, 7: 5, 8: EMPTY}   # its pens -> fix palette 0 (TEXT 2-5, the bar's EMPTY)
+KZ_ROW = [4, 4, 5, 6, 6, 7, 7, 7]            # its gradient pen per row
+# fix palette 0 entries 2-5 (Kizuna's palette 11 pens 4-7: $7FF8 $6FD0 $6F90 $6F60, light yellow to orange) and
+# palette 1's (highlighted text: GO, OPTIONS, the drama name plate): white to sky blue
+TEXT_COLOURS = [0x7FF8, 0x6FD0, 0x6F90, 0x6F60]
+HILITE_RGB = [(255, 255, 255), (200, 236, 255), (136, 200, 255), (80, 144, 248)]
+
+def kz_style(mask):
+    """1-bit 8x8 mask ('#' = fill) -> Kizuna-style pens: the row's gradient pen, the shadow right / below / below-right"""
+    f = lambda x, y: 0 <= x < 8 and 0 <= y < 8 and mask[y][x] == '#'
+    return [[KZ_PEN[KZ_ROW[y]] if f(x, y) else EMPTY if (f(x - 1, y) or f(x, y - 1) or f(x - 1, y - 1)) else 0
+             for x in range(8)] for y in range(8)]
+
+def kizuna_font(s):
+    """Kizuna's font into s at ASCII $20-$7E (+ the arrow at $7F)"""
+    d = open(KIZUNA, 'rb').read()
+    p, s_off = struct.unpack_from('<I', d, 4)[0], 0x1000
+    srom = d[s_off + p:s_off + p + struct.unpack_from('<I', d, 8)[0]]
+    glyph = lambda ch: [[KZ_PEN[v] for v in row] for row in sdecode(srom[(KZ_FONT + ch) * 32:(KZ_FONT + ch) * 32 + 32])]
+    for ch in range(0x20, 0x7F):
+        src = ch if ch < 0x60 else ch - 0x20 if 0x61 <= ch <= 0x7A else 0x20     # a-z: the capital; ` { | } ~ blank
+        s[ch * 32:ch * 32 + 32] = stile(glyph(src))
+    s[0x5F * 32:0x5F * 32 + 32] = stile(kz_style(UNDERSCORE))
+    s[ARROW_TILE * 32:ARROW_TILE * 32 + 32] = stile(kz_style(ARROW))
 
 def stile(px):
     """8x8 colour indices -> 32-byte S ROM tile"""
@@ -107,13 +141,13 @@ def frame28(face):
     return px, [tuple(pal[i * 3:i * 3 + 3]) for i in range(15)]
 
 def build(outdir, specs):
-    p = os.path.join(outdir, 'font.s1'); s = bytearray(open(p, 'rb').read())
+    p = os.path.join(outdir, 'font.s1'); s = bytearray(0x20000)
+    kizuna_font(s)
     for kind in range(3):
         for rest in range(2):
             for f in range(9):
                 o = (BAR_TILE + kind * 18 + rest * 9 + f) * 32; s[o:o + 32] = stile(bar_glyph(kind, f, rest))
                 o = (BAR_TILE_R + kind * 18 + rest * 9 + f) * 32; s[o:o + 32] = stile([row[::-1] for row in bar_glyph(kind, f, rest)])
-    o = ARROW_TILE * 32; s[o:o + 32] = stile(ARROW)  # the select screen's "1P" / "2P" arrow (ASCII $7F, unused)
     for ch in range(0x20, 0x80):                     # the drama font: each glyph on a black cell
         px = sdecode(s[ch * 32:ch * 32 + 32])
         o = (DRAMA_FONT + ch) * 32; s[o:o + 32] = stile([[v or EMPTY for v in row] for row in px])
@@ -134,6 +168,8 @@ def build(outdir, specs):
          f'#define ARROW_TILE 0x{ARROW_TILE:X}   /* a down arrow (select screen) */',
          f'#define DRAMA_FONT 0x{DRAMA_FONT:X}   /* + ASCII: the font on a black cell (drama bars; + \' \' = solid black) */',
          f'#define PORTRAIT_TILE 0x{PORTRAIT_TILE:X}   /* + fighter * 16 + row * 4 + col (32x32, colours portrait_pal[fighter] in fix palette 2 + side) */',
+         'static const uint16_t text_colours[4] = {' + ', '.join('0x%04X' % c for c in TEXT_COLOURS) + '};   /* fix palette 0, entries 2-5: the font (Kizuna) */',
+         'static const uint16_t hilite_colours[4] = {' + ', '.join('0x%04X' % neo_colour(*c) for c in HILITE_RGB) + '};   /* fix palette 1, entries 2-5: highlighted text */',
          'static const uint16_t bar_colours[10] = {' + ', '.join('0x%04X' % neo_colour(*BAR_PAL[k]) for k in range(6, 16)) + '};   /* palette 0, entries 6-15 */',
          f'static const uint16_t portrait_pal[{len(specs)}][16] = {{' + ', '.join('{' + ', '.join(f'0x{v:04X}' for v in pl) + '}' for pl in pals) + '};',
          '#endif']
