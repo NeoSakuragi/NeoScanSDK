@@ -547,7 +547,18 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   handlers. Proof /data/tmp/ss2/out: acceptance.json (fury = WFT, the crescent at offset 0, 0 every frame it lives,
   the throw: GRAB -> THROW -> THROWN -> DOWN), frames 542 / 582 identical vs SS2 both facings, specials_haohmaru.png.
 
-- [ ] 150. A DANCE FURY HITTING AN AIRBORNE VICTIM (feedback 20261006-160204-b3f3, Bruno in play, 0.0.71: "When the dance
+- [ ] 150. (DONE ON BRANCH 2026-10-06, awaiting Bruno's review; proof /data/tmp/boss172/out dance150.json +
+  dance150_3.png / dance150_1.png, tools/brawler/dance150_proof.py) Fix (vocabulary hold.dance (d)): fighter.c react checks the
+  dance before the juggle re-launch: a fury's reel hit on an airborne victim catches it (fighter_hit takes the packed
+  reaction's standing half for a fury's reel): S_HITSTUN, vx 0, down to the floor at DANCE_DROP (2x the knockdown gravity),
+  then the dance as on the ground; kof_react no longer turns that reel into an air knockdown. A dead body (life out) is no
+  target any more (KOF's way, dead_body: hits, thrown bodies, the hold crowd, grabs, a ROM special's nearest opponent),
+  only the fury still dancing it hits it on. Proof (AI_OFF build): Robert 23624C and Ryo's fury, victim put at 40 px 3
+  frames before the ground case's first hit: 14 / 14 dance hits land in both (= the ground case), HITSTUN from the first
+  hit to the finisher, vx 0; the group (the note's scene: + a dead body in its KO flight across the rush, + one standing
+  behind): the dead body 0 hits, falls, dies; fury_inv_proof ALL OK, cancel_proof all ok 23, controls_proof ok, regress
+  no-bleed, campaign29 through the 5 stages.
+  A DANCE FURY HITTING AN AIRBORNE VICTIM (feedback 20261006-160204-b3f3, Bruno in play, 0.0.71: "When the dance
   fury of Robert is already started and somebody is in the air, and there's an impact, the victim does not get kind of
   stuck to Robert, it just bounces away and Robert keeps doing the dance on his own."). Replay: Robert's A combo KOs two
   enemies at frames 34978-34999 (life -10 / -7) and launches them (KO flights up to y 108 / 94); D at 35023 starts his
@@ -809,7 +820,16 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   fighter 9's 13 regress traces: some game code reads stack it never wrote. Find it (a read watch in our core on
   never-written work RAM during play) and initialise; real hardware RAM powers up random.
 
-- [ ] 172. BOSS DEATH SEQUENCE (20261006-174259-5d29, 0.0.74: "when the boss dies, as soon as he is being hit, that's
+- [ ] 172. (DONE ON BRANCH 2026-10-06, awaiting Bruno's review; proof /data/tmp/boss172/out boss172.json +
+  boss172_sheet.png, tools/brawler/boss172_proof.py) Engine rule stage.boss_death (docs/brawler_move_vocabulary.md; main.c
+  boss_ko_start / boss_ko_tick): the tick the boss's life runs out every intent is off (players untouchable, no P2 join, no
+  trigger, queued spawns dropped), the logic runs 1 tick in 3 frames for 300 frames (music / voices / drawing full rate),
+  the boss's VK_KO on the kill frame, every enemy still up knocked down with no life at +45, +85, +125 ... (each its own
+  VK_KO as it falls, none again at S_DEAD: fighter_t.ko_voice), then PH_END -> STAGE CLEAR. Proof (Krauser + 3 minions,
+  Terry): kill frame 230 = input off, slow motion +0..+299 (logic ticks every 3 frames), voices +0 boss, +45 / +85 / +125
+  one per minion, minions down +44 / +84 / +124, PH_END +299, STAGE CLEAR +399, P1 pressing keys throughout: x and life
+  unchanged, idle once his attack in progress ended.
+  BOSS DEATH SEQUENCE (20261006-174259-5d29, 0.0.74: "when the boss dies, as soon as he is being hit, that's
   the end. So we stop the control of the player, we enter slow motion for five seconds, the boss screams, and everybody
   else falls and dies, like in traditional beat'em all games."): a standard stage-end rule: the boss's killing hit ->
   player input off, ~5 s slow motion (frame skip / half-rate game logic, music and voice kept), the boss's death voice,

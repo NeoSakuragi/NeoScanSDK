@@ -1589,7 +1589,23 @@ static uint8_t wave_on, waves_cleared, trig_held; /* the last wave spawned (nwav
 #define TQ_N 6
 static struct { const gtrigger_t *t; uint8_t k; uint16_t at; } tq[TQ_N];
 static uint8_t tq_n;
-static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; }
+/* ---- the boss's death (TODO #172, docs/brawler_move_vocabulary.md stage.boss_death; Bruno 2026-10-06: "as soon as he
+ * is being hit, that's the end", Final Fight / Streets of Rage): one rule for every stage's boss. The tick its life runs
+ * out (its killing hit, a throw's impact, a projectile) the fight is over: every intent is off from then on (players and
+ * enemies act no more, the players untouchable), the game logic runs one tick in KO_RATE frames for KO_SLOW frames (slow
+ * motion: the music, the voices and the drawing at full rate, snd_tick every frame), the boss's death voice (its VK_KO)
+ * at once, then every enemy still up is knocked down with no life left, one every KO_GAP frames from KO_FIRST, each with
+ * its own death voice as it falls (never a chorus; none again at its S_DEAD: fighter_t.ko_voice); at KO_SLOW full rate
+ * again (anyone still up goes down then), PH_END: the bodies blink out, STAGE CLEAR as before. No P2 join, no trigger,
+ * no queued spawn from the killing hit on. ---- */
+#define KO_SLOW  300                             /* frames of slow motion (5 s) */
+#define KO_RATE  3                               /* the logic's one tick in KO_RATE frames */
+#define KO_FIRST 45                              /* the first enemy falls this many frames after the scream */
+#define KO_GAP   40                              /* then one every KO_GAP frames (5 minions: the last at 205) */
+enum { KO_OFF, KO_SLOWMO, KO_DONE };
+static uint8_t ko_seq, ko_sub;                   /* KO_*; frames to the next logic tick */
+static uint16_t ko_t, ko_next;                   /* frames since the killing hit; the next fall */
+static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; }
 static void enemies_down(fighter_t *by) {        /* every enemy still up goes down (a boss beaten, TA_END) */
     uint8_t i;
     for (i = 2; i < NF; i++) {
@@ -1598,6 +1614,37 @@ static void enemies_down(fighter_t *by) {        /* every enemy still up goes do
         if (e->state == S_THROWN || e->state == S_DOWN || e->state == S_GETUP) { e->hp = 0; continue; }
         e->hp = 0; fighter_hit(by, e, 0, R_KNOCKDOWN, 0);
     }
+}
+static void ko_fall(fighter_t *e) {              /* an enemy goes down with no life, its death voice now */
+    e->hp = 0;
+    if (e->state != S_THROWN && e->state != S_DOWN && e->state != S_GETUP && e->state != S_KNOCKDOWN)
+        fighter_quake(&fighters[in_play(&fighters[0]) ? 0 : 1], e);   /* knocked down away from the player */
+    voice_play(e->ch, e->team, VK_KO); e->ko_voice = 1;
+}
+static void boss_ko_start(void) {                /* the boss's killing hit */
+    fighter_t *b = &fighters[BOSS_IDX];
+    ko_seq = KO_SLOWMO; ko_t = 0; ko_sub = 0; ko_next = KO_FIRST; tq_n = 0;
+    voice_play(b->ch, b->team, VK_KO); b->ko_voice = 1;
+}
+static uint8_t boss_ko_tick(void) {              /* every frame of the sequence; 1: a logic tick this frame */
+    uint8_t i;
+    for (i = 0; i < 2; i++) if (fighters[i].inv < 2) fighters[i].inv = 2;   /* the players: untouchable to the clear (2: still
+                                                             set in combat after their update counted one down) */
+    if (ko_seq != KO_SLOWMO) return 1;
+    if (++ko_t >= KO_SLOW) {                     /* full rate again: PH_END (campaign) */
+        ko_seq = KO_DONE;
+        for (i = 2; i < NF; i++) { fighter_t *e = &fighters[i]; if (e->state != S_OFF && e->state != S_DEAD && e->hp > 0) ko_fall(e); }
+        return 1;
+    }
+    if (ko_t >= ko_next) {                       /* the next enemy still up falls */
+        for (i = 2; i < NF; i++) {
+            fighter_t *e = &fighters[i];
+            if (i == BOSS_IDX || e->state == S_OFF || e->state == S_DEAD || e->hp <= 0) continue;
+            ko_fall(e); ko_next = ko_t + KO_GAP; break;
+        }
+    }
+    if (ko_sub) { ko_sub--; return 0; }
+    ko_sub = KO_RATE - 1; return 1;
 }
 static void trig_fire(const gtrigger_t *t) {
     uint8_t i;
@@ -1662,7 +1709,7 @@ static void boss_start(void) {
     uint8_t k, c, set = 0;
     if (gd_want) { gd_apply(); gs = &gstages[camp]; }   /* a lab's pack */
     be = &genemies[gs->boss]; c = be->base;
-    phase = PH_BOSS; phase_t = 0;
+    phase = PH_BOSS; phase_t = 0; ko_seq = KO_OFF;
     if (c == pl_ch[0] && !pl_set[0]) set = 1;           /* never in P1's colours */
     enemy_init(BOSS_IDX, c, set, gs->boss_x, gs->boss_z, 0, be);
     for (k = 0; k < NF - 3; k++) {
@@ -1754,7 +1801,7 @@ uint8_t game_start_accept(uint8_t flags) {
     if (lab.active) return 0;                                /* the Chain Lab's training: nobody joins */
     if (mode == 2 || attract) return opt_on ? 0 : flags;
     if (mode == 0) return sel_phase == SEL_CHOOSE && cursor[1] == 0xFF ? flags & 2 : 0;   /* the select: P2 joins */
-    if (mode != 1 || cont_ov == 2 || phase >= PH_END) return 0;
+    if (mode != 1 || cont_ov == 2 || phase >= PH_END || ko_seq) return 0;
     return flags & ((in_play(&fighters[0]) ? 0 : 1) | (in_play(&fighters[1]) ? 0 : 2));
 }
 static void unlock_start(uint8_t k);
@@ -1762,7 +1809,7 @@ static void ending_start(void);
 static void campaign(uint8_t left) {
     uint8_t i;
     phase_t++;
-    if (!attract) {
+    if (!attract && !ko_seq) {                               /* (the boss's death: no trigger any more) */
         triggers();
         left += tq_n;                                        /* queued spawns count as enemies */
         if (dr_on) return;                                   /* a trigger's scene: the campaign waits for it */
@@ -1782,8 +1829,8 @@ static void campaign(uint8_t left) {
         go_sign(0);
         if (wave < gs->nwaves) { phase = PH_WAVE; spawn_wave(); } else boss_start();
         break;
-    case PH_BOSS:
-        if (fighters[BOSS_IDX].state != S_DEAD && fighters[BOSS_IDX].state != S_OFF) break;
+    case PH_BOSS:                                            /* its death sequence played (boss_ko_tick), or gone */
+        if (ko_seq != KO_DONE && fighters[BOSS_IDX].state != S_OFF) break;
         enemies_down(&fighters[BOSS_IDX]);                   /* boss beaten: the minions go down with it */
         tq_n = 0; waves_cleared = gs->nwaves + 1;
         phase = PH_END; phase_t = 0;
@@ -2202,6 +2249,7 @@ void game_tick(void) {
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
     if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
     if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */
+    if (ko_seq && !boss_ko_tick()) { depth_sort(); draw(); hud(); return; }   /* the boss's death: slow motion (#172) */
     if (attract) {                                           /* the demo: a coin, 30 s or a game over ends it */
         if (bios_demo_end || ++attract_t > ATTRACT_DEMO) { SYS_return(); }
         if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); title_paid = 1; depth_sort(); draw(); return; }
@@ -2216,6 +2264,8 @@ void game_tick(void) {
 #if !AI_OFF
     if (lab.active != 1) ai_update(fighters, NF, 2, in);   /* not against the Chain Lab's dummy */
 #endif
+    if (ko_seq) for (i = 0; i < NF; i++) { in[i].dx = in[i].dz = 0; in[i].press = in[i].hold = in[i].run = in[i].grab = 0; in[i].face = 0; }
+                                                          /* the boss's death: nobody acts any more (#172) */
     mark(P_AI);
     close_marks();
     for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */
@@ -2226,6 +2276,8 @@ void game_tick(void) {
     if (!sf_who) { camera(); wall_update(order, nf, cam_x); projectiles_update(cam_x); }
     mark(P_UPDATE);
     combat(order, nf, sf_who);                               /* a super flash: its attacker's own boxes only */
+    if (!ko_seq && phase == PH_BOSS && !attract && !lab.active && fighters[BOSS_IDX].state != S_OFF && fighters[BOSS_IDX].hp <= 0)
+        boss_ko_start();                                     /* its killing hit: the death sequence (#172) */
     if (!sf_who) wall_update(order, nf, cam_x);              /* (again: a catch / a hit this frame placed its victim) */
     mark(P_COMBAT);
     depth_sort();

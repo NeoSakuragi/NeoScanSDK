@@ -277,8 +277,10 @@ typedef struct fighter {
                                    * cnc_buf: frames a C / D buffered in a throw / the hold finisher stays (fighter.c
                                    * "cancels" rule 4, CANCEL_BUF), 0 = gone; */
     uint32_t thr_pos;             /* thr_pos: its place in the script alone, 8.8 rows (acc is its animation's: its flight plays one) */
-    uint8_t  drop, pad_drop;      /* the respawn (fighter.c "death and respawn", TODO #166 e): 1 dropping from the air
-                                   * (untouchable, no control), 2 just landed (main.c knocks every enemy on screen down) */
+    uint8_t  drop, ko_voice;      /* the respawn (fighter.c "death and respawn", TODO #166 e): 1 dropping from the air
+                                   * (untouchable, no control), 2 just landed (main.c knocks every enemy on screen down);
+                                   * ko_voice: its death voice (VK_KO) already played (main.c's boss death sequence plays
+                                   * it at the fall, TODO #172): none again at S_DEAD */
     uint8_t  pvl_id, pvl_n;       /* a ROM special's voice sent later (P_VOICE b > 0, KOF +$1B4 / +$1B6; TODO #163): its id,
                                    * the frames left (0 = none; counted down by its program's frames, then by the
                                    * fighter's own once the move ended; dropped when it is hit) */

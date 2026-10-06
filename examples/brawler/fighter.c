@@ -23,6 +23,7 @@ _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offse
 
 #define GRAVITY_KD  0x5000        /* knockdown gravity 0.31 px/frame^2 (KOF95: 0.47): higher, slower falls to juggle */
 #define DOWN_FRAMES 40
+#define DANCE_DROP  (2 * GRAVITY_KD)   /* a dance's caught airborne victim falls at twice the knockdown gravity (TODO #150) */
 #define INV_GETUP   30
 #define INV_FURY    0xFF          /* a fury: untouchable (hits, grabs, pushes) from its trigger until it ends (Bruno
                                      2026-10-06; start_special) */
@@ -199,6 +200,11 @@ static void clamp(fighter_t *f) {
 static uint8_t dancing(const fighter_t *v) {                    /* its fury still plays */
     const fighter_t *a = v->dance;
     return a && a->state == S_SPECIAL && a->spec_id == BS_FURY;
+}
+/* a dead body (TODO #150, KOF's way): a fighter whose life is out is no target any more, its fall and its death play
+ * untouched; only the fury still dancing it (its reel, no life left: the finisher fells it) hits it on */
+static uint8_t dead_body(const fighter_t *v, const fighter_t *a) {
+    return v->hp <= 0 && !(dancing(v) && v->dance == (a->owner ? a->owner : a));
 }
 static void to_neutral(fighter_t *f, const intent_t *in) {
     if (in && (in->dx || in->dz)) { f->still = 0; enter(f, S_WALK); play_if_new(f, BA_WALK_FWD); }
@@ -421,6 +427,10 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
     else if (v->state == S_GRABBED) release(v->held);
     v->facing = -away;                                           /* turn toward the attacker */
     v->kmode = v->kdelay = 0; v->kvfr = 0;                       /* the brawler's own physics (kof_react sets KOF's) */
+    if (v->y > 0 && reaction <= R_HEAVY && dancing(v)) {         /* the dance's catch (TODO #150): an airborne victim a */
+        enter(v, S_HITSTUN); play(v, reaction == R_LIGHT ? BA_HIT_STAND_LIGHT : BA_HIT_STAND_HEAVY);   /* fury's reel hits */
+        v->vx = v->vy = 0; return;                               /* stops in its flight and drops to the floor in its reel */
+    }                                                            /* (S_HITSTUN: DANCE_DROP), the dance rules from there */
     if (v->y > 0) {                                              /* hit in the air (a juggle when falling): sent up again */
         enter(v, S_KNOCKDOWN); v->vy = reaction >= R_KNOCKDOWN ? FIX(5) : FIX(4); v->vx = dir_mul(away, FIX(1) + 0x8000);
         play(v, reaction == R_SLAM ? BA_KNOCKDOWN_FLIGHT : BA_BLOWBACK); return;   /* KOF's hit_air ends on standing frames (KOF96: none) */
@@ -1062,7 +1072,8 @@ static void kof_react(fighter_t *v, int8_t away, uint8_t rc, int8_t slide) {   /
     rc &= 7;
     if (v->hp <= 0 && rc < R_KNOCKDOWN && !dancing(v)) rc = R_KNOCKDOWN;
     if (rc < R_HEAVY || rc > R_LIFT || !KOF_REACT[rc].delay) return;   /* the brawler's own (react): R_TRIP, R_BLOWBACK */
-    if (rc == R_HEAVY && v->y > 0) rc = R_KNOCKDOWN;             /* no reel in the air: KOF's air hit sends it off */
+    if (rc == R_HEAVY && v->y > 0 && v->state != S_HITSTUN) rc = R_KNOCKDOWN;   /* no reel in the air: KOF's air hit sends
+                                                                    it off (a dance's catch reels: react) */
     if (rc == R_HEAVY && v->state != S_HITSTUN) return;
     v->vx = dir_mul(away, rc == R_HEAVY && slide != -128 ? fmul16(FIX(slide), 0x10000 - KOF_REACT[R_HEAVY].vfr) : KOF_REACT[rc].vx); v->kvfr = KOF_REACT[rc].vfr; v->kvmin = KOF_REACT[rc].vmin; v->kdelay = KOF_REACT[rc].delay;
     if (rc == R_HEAVY) return;
@@ -1542,11 +1553,15 @@ static void update(fighter_t *f, const intent_t *in) {
         break;
     }
     case S_HITSTUN:
+        if (f->y > 0) {                                          /* a dance's catch (TODO #150): down to the floor fast */
+            f->y += f->vy; f->vy -= DANCE_DROP;
+            if (f->y <= 0) f->y = f->vy = 0;
+        }
         if (f->kdelay) f->kdelay--;                              /* KOF's shake after a special's hit: in place */
         else { f->x += f->vx; f->vx = f->kvfr ? fmul16(f->vx, f->kvfr) : f->vx - (f->vx >> 3); clamp(f); }
         if (dancing(f)) break;                                   /* a fury's victim: in its reel until the fury ends */
         if (f->hp <= 0) { react(f, f->facing > 0 ? -1 : 1, R_KNOCKDOWN, 0); break; }   /* its dance over, no life: it falls */
-        if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT)) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends */
+        if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends */
         break;
     case S_KNOCKDOWN:
         if (f->kmode && f->kdelay) { f->kdelay--; break; }       /* KOF's shake after the hit-stop: in place */
@@ -1566,7 +1581,8 @@ static void update(fighter_t *f, const intent_t *in) {
     case S_DOWN:
         if (f->state_t >= DOWN_FRAMES) {
             if (f->hp <= 0) {                                    /* the death: main decides (blink out, a life, or */
-                enter(f, S_DEAD); voice_play(f->ch, f->team, VK_KO);   /* continue); its KO voice, once, every death */
+                enter(f, S_DEAD); if (!f->ko_voice) voice_play(f->ch, f->team, VK_KO);   /* continue); its KO voice, once, every death */
+                f->ko_voice = 0;
                 break;
             }
             enter(f, S_GETUP); play(f, BA_GETUP); f->inv = INV_GETUP;
@@ -1604,7 +1620,9 @@ static void update(fighter_t *f, const intent_t *in) {
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
-    if (reaction > 15) reaction = v->y > 0 ? reaction >> 4 : reaction & 15;   /* packed: standing | juggled << 4 */
+    if (reaction > 15) reaction = v->y > 0 && !(a->state == S_SPECIAL && a->spec_id == BS_FURY && (reaction & 7) <= R_HEAVY)
+                                  ? reaction >> 4 : reaction & 15;   /* packed: standing | juggled << 4 (a fury's reel: the
+                                                                    standing one, its dance catches the airborne, TODO #150) */
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
     rk = reaction; reaction &= 7;
     v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
@@ -1680,7 +1698,7 @@ static void hold_spark(fighter_t *a, fighter_t *v) {
     spark_hit(sx, sy, a->throw_id == BT_HOLD_FIN || hit_btn(hold_anim(a)) >= SX_C, a->facing);
 }
 static uint8_t grabbable(const fighter_t *v) {
-    return !v->inv && !v->y && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
+    return !v->inv && !v->y && v->hp > 0 && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
 }
 #define AIR_BLOCK_Y 64            /* a special in the air below this height (px) is held by a standing body ahead */
 #define PUSH_DX 32                /* a special pushes an opponent standing in its path to keep it this far ahead (KOF's push
@@ -1704,7 +1722,7 @@ static void hold_crowd(fighter_t **fs, uint8_t n, const fighter_t *only) {
             const bstep_t *sv;
             const bbox_t *hb;
             int16_t dz, sx, sy;
-            if (v == a || v->team == a->team || (a->hit_mask & (1 << v->idx)) || v->inv || v == a->held) continue;
+            if (v == a || v->team == a->team || (a->hit_mask & (1 << v->idx)) || v->inv || v == a->held || v->hp <= 0) continue;
             if (v->state != S_IDLE && v->state != S_WALK && v->state != S_RUN && v->state != S_ATTACK &&
                 v->state != S_HITSTUN && v->state != S_SPECIAL && v->state != S_LAND && v->state != S_PREJUMP) continue;
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
@@ -1749,7 +1767,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
         for (j = 0; j < n; j++) {
             fighter_t *o = fs[j];
             int16_t dx, dz;
-            if (o->team == a->team || o->state == S_PROJ || o->state == S_OFF || o->state == S_DEAD) continue;
+            if (o->team == a->team || o->state == S_PROJ || o->state == S_OFF || o->state == S_DEAD || dead_body(o, a)) continue;
             dx = INT(o->x) - INT(a->x); dz = INT(o->z) - INT(a->z);
             if (dx < 0) dx = -dx;
             if (dz < -Z_HIT || dz > Z_HIT || dx >= best) continue;
@@ -1769,7 +1787,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             const bbox_t *hb;
             int16_t dz;
             int8_t dir;
-            if (o == v || o->team != v->team || (v->hit_mask & (1 << o->idx)) || o->inv) continue;
+            if (o == v || o->team != v->team || (v->hit_mask & (1 << o->idx)) || o->inv || o->hp <= 0) continue;
             if (o->state != S_IDLE && o->state != S_WALK && o->state != S_RUN && o->state != S_ATTACK && o->state != S_HITSTUN &&
                 o->state != S_PREJUMP && o->state != S_LAND && o->state != S_SPECIAL && o->state != S_AIR && o->state != S_AIR_ATTACK) continue;
             dz = INT(o->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
@@ -1817,7 +1835,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             const bstep_t *sv;
             int16_t dz, dx, dy;
             const bbox_t *hb;
-            if (v->team == a->team || (a->hit_mask & (1 << v->idx)) || v->inv) continue;
+            if (v->team == a->team || (a->hit_mask & (1 << v->idx)) || v->inv || dead_body(v, a)) continue;
             if (v->state == S_DOWN || v->state == S_GETUP || v->state == S_THROW ||
                 v->state == S_THROWN || v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
             if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls, no limit */
