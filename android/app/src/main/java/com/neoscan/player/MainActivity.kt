@@ -129,6 +129,7 @@ class MainActivity : Activity() {
             override fun surfaceDestroyed(h: android.view.SurfaceHolder) {}
         })
         feedback = Feedback(this, rom) { emu }
+        testMode = TestMode(this, root, { emu }, feedback, rom) { refreshBadge() }
         pad = PadView(this, ::openSettings, ::chooseUpdate, { emu?.resetReq = true }, ::onFeedback, ::openList) { m -> touchMask = m; pushPads() }
         root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))
         root.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
@@ -160,14 +161,32 @@ class MainActivity : Activity() {
 
     /** the list button: his notes (FeedbackListActivity); the game pauses while it is in front (onPause) and resumes on
      *  back (onResume, which also refreshes the badge) */
-    private fun openList() { if (!noteOpen) startActivity(android.content.Intent(this, FeedbackListActivity::class.java)) }
+    private fun openList() {
+        if (noteOpen) return
+        val q = testQueue()
+        if (q.isEmpty() || testMode?.active == true) { startActivity(android.content.Intent(this, FeedbackListActivity::class.java)); return }
+        emu?.paused = true                                         // 0.0.22: his notes, or the test queue
+        android.app.AlertDialog.Builder(this).setTitle("Feedback")
+            .setItems(arrayOf("My notes", "Test queue (${q.size}): test each fixed note in turn")) { _, i ->
+                if (i == 0) startActivity(android.content.Intent(this, FeedbackListActivity::class.java)) else testMode?.start(q) }
+            .setOnDismissListener { if (testMode?.active != true) emu?.paused = noteOpen }.show()
+    }
+    var testMode: TestMode? = null
+    @Volatile private var rowsCache: org.json.JSONArray? = null
+    /** the notes he can test now (shipped in his build or reopened, with a state for his build and system), oldest first */
+    private fun testQueue(): List<org.json.JSONObject> {
+        val rows = rowsCache ?: return emptyList(); val e = emu ?: return emptyList()
+        val rom = File(getExternalFilesDir(null), "brawler.neo"); val sha = Feedback.sha(rom); val key = Feedback.systemKey(e.hw)
+        val running = RomFetch.installed(this)
+        return (0 until rows.length()).map { rows.getJSONObject(it) }.filter { Feedback.wantsTest(it, running) && Feedback.testable(it, sha, key) }.reversed()
+    }
     /** the badge: his notes shipped in a build at or before the one he runs (to test) + the reopened ones */
     private fun refreshBadge() {
         if (!::pad.isInitialized) return
         Thread {
             val running = RomFetch.installed(this)
             Feedback.mine(this).onSuccess { j ->
-                val rows = j.getJSONArray("rows")
+                val rows = j.getJSONArray("rows"); rowsCache = rows
                 val n = (0 until rows.length()).map { rows.getJSONObject(it) }.count { Feedback.isReady(it, running) || it.optString("status") == "reopened" }
                 runOnUiThread { pad.badge = n }
             }
@@ -317,7 +336,9 @@ class MainActivity : Activity() {
     }
     @Deprecated("the back key cancels an open note") override fun onBackPressed() {
         val sh = sheet
-        if (sh != null) { if (feedback.recording) feedback.stop(); feedback.cancel(); sh.close() } else @Suppress("DEPRECATION") super.onBackPressed()
+        if (sh != null) { if (feedback.recording) feedback.stop(); feedback.cancel(); sh.close() }
+        else if (testMode?.active == true) testMode?.end()
+        else @Suppress("DEPRECATION") super.onBackPressed()
     }
     private fun toast(t: String) = android.widget.Toast.makeText(this, t, android.widget.Toast.LENGTH_SHORT).show()
 
@@ -414,7 +435,8 @@ class MainActivity : Activity() {
 
     /** the game pauses (picture, sound, emulation) whenever the activity is not in front: settings, home, screen off */
     override fun onPause() { super.onPause(); emu?.paused = true; if (::gl.isInitialized) gl.onPause() }
-    override fun onResume() { super.onResume(); applySettings(); emu?.paused = noteOpen; if (::gl.isInitialized) gl.onResume(); refreshBadge() }
+    override fun onResume() { super.onResume(); applySettings(); emu?.paused = noteOpen || testMode?.active == true; if (::gl.isInitialized) gl.onResume(); refreshBadge()
+        TestQueue.pending?.let { q -> TestQueue.pending = null; testMode?.let { if (it.active) it.end(); it.start(q) } } }
     override fun onDestroy() { polling = false; emu?.running = false; super.onDestroy() }
 
     /** the notification OK asked before the self-update (PlayerUpdate): granted or not, the install goes on */

@@ -105,6 +105,7 @@ class FeedbackListActivity : Activity() {
         if (list.childCount == 0) msg("Loading...")
         Thread {
             val r = Feedback.mine(this)
+            if (romFile.exists()) romSha = Feedback.sha(romFile)
             runOnUiThread {
                 r.onFailure { msg(it.message ?: "?") }
                 r.onSuccess { j -> rows = j.getJSONArray("rows"); user = j.optString("user"); render() }
@@ -130,6 +131,9 @@ class FeedbackListActivity : Activity() {
         val shown = (0 until rows.length()).map { rows.getJSONObject(it) }.filter { matches(it, filter) }
         list.addView(TextView(this).apply { text = "$user: ${shown.size} of ${rows.length()} note" + (if (rows.length() == 1) "" else "s") + ", newest first"
             textSize = 13f; alpha = 0.7f; setPadding(0, (4 * dp).toInt(), 0, (8 * dp).toInt()) })
+        val q = (0 until rows.length()).map { rows.getJSONObject(it) }.filter { Feedback.wantsTest(it, running) && testable(it) }.reversed()
+        if (q.isNotEmpty()) list.addView(Button(this).apply { text = "▶ Test queue (${q.size}): test each fixed note in turn"; isAllCaps = false
+            setOnClickListener { verify(q) } }, LinearLayout.LayoutParams(-1, -2))
         if (rows.length() == 0) msg("No notes yet: hold the mic button in the game and talk, or tap it to type.")
         else if (shown.isEmpty()) list.addView(TextView(this).apply { textSize = 15f; setPadding(0, (16 * dp).toInt(), 0, 0)
             text = if (filter == "ready") "Nothing shipped to test in v$running." else "No open notes." })
@@ -149,82 +153,93 @@ class FeedbackListActivity : Activity() {
         else -> s.uppercase()
     }
 
+    /** the build he runs (its sha) and his system: which notes have a test state for him (0.0.22) */
+    private val romFile by lazy { java.io.File(getExternalFilesDir(null), "brawler.neo") }
+    private var romSha = ""
+    private val sysKey get() = Feedback.systemKey(if (Prefs(this).system == "console") "aes" else "mvs")
+    private fun testable(r: JSONObject) = romSha.isNotEmpty() && Feedback.testable(r, romSha, sysKey)
+    /** VERIFY mode on these notes: back to the game, which loads the first one's state under the banner */
+    private fun verify(notes: List<JSONObject>) { TestQueue.pending = notes; finish() }
+
+    /** Bruno's card (0.0.22): title / "44 min ago on 0.0.17" / the screenshot (tap = verify it; "no test yet" = full
+     *  screen) / [FIX 0.0.78] / the fix and its root cause / More (collapsed: his latest reply, the note, the voice, the
+     *  timeline, the origin) / Fixed - Broken - Reply */
     private fun card(r: JSONObject): View {
         val c = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; val m = (12 * dp).toInt(); setPadding(m, m, m, m)
             background = GradientDrawable().apply { setColor(Color.rgb(30, 30, 36)); setStroke(maxOf(1, dp.toInt()), Color.rgb(90, 90, 100)); cornerRadius = 8 * dp }
         }
-        val title = r.optString("title")                              // 0.0.20: the developer's one-line title heads the card
-        if (title.isNotEmpty() && title != "null") c.addView(TextView(this).apply {
-            text = title; textSize = 18f; setTypeface(typeface, Typeface.BOLD); setTextColor(Color.WHITE); setPadding(0, 0, 0, (6 * dp).toInt()) })
-        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        top.addView(TextView(this).apply { text = when_(r.optString("created")); textSize = 15f; setTypeface(typeface, Typeface.BOLD) }, LinearLayout.LayoutParams(0, -2, 1f))
+        val id = r.optString("id")
+        val text = r.optString("final_text").ifEmpty { r.optString("raw_transcript") }
+        val title = r.optString("title").takeIf { it.isNotEmpty() && it != "null" } ?: text.take(70).ifEmpty { "(no text)" }
+        c.addView(TextView(this).apply { this.text = title; textSize = 18f; setTypeface(typeface, Typeface.BOLD); setTextColor(Color.WHITE) })
+        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, (2 * dp).toInt(), 0, (6 * dp).toInt()) }
+        top.addView(TextView(this).apply { this.text = "${Feedback.ago(r.optString("created"))} on ${r.optString("game_version")}"; textSize = 14f; alpha = 0.8f
+            setOnLongClickListener { toast(when_(r.optString("created")) + "  (game v${r.optString("game_version")}, player ${r.optString("apk_version")})"); true } },
+            LinearLayout.LayoutParams(0, -2, 1f))
         top.addView(TextView(this).apply {                          // the status: a bordered label, the word itself carries it
-            text = statusText(r); textSize = 13f; setTypeface(typeface, Typeface.BOLD); setTextColor(Color.WHITE)
-            val m = (6 * dp).toInt(); setPadding(m, m / 2, m, m / 2)
+            this.text = statusText(r); textSize = 12f; setTypeface(typeface, Typeface.BOLD); setTextColor(Color.WHITE)
+            val m = (5 * dp).toInt(); setPadding(m, m / 2, m, m / 2)
             background = GradientDrawable().apply { setStroke(maxOf(2, (1.5f * dp).toInt()), Color.WHITE); cornerRadius = 4 * dp }
         })
         c.addView(top)
-        c.addView(small("game v${r.optString("game_version")}, player ${r.optString("apk_version")}"))
-        c.addView(small("sent from ${r.optString("device").ifEmpty { "?" }}" + r.optString("android").let { if (it.isEmpty() || it == "null") "" else ", Android $it" } +
-                        ", IP ${r.optString("ip").ifEmpty { "?" }.replace("null", "?")}, install ${r.optString("install_id").take(8)}"))
-        val text = r.optString("final_text").ifEmpty { r.optString("raw_transcript") }
-        c.addView(TextView(this).apply { this.text = text.ifEmpty { "(no text)" }; textSize = 16f; setPadding(0, (8 * dp).toInt(), 0, 0)
-            if (r.optString("final_text").isEmpty()) setTypeface(typeface, Typeface.ITALIC) })
-        val tags = listOfNotNull(r.optString("category").ifEmpty { null }?.let { "category: $it" },
-                                 r.optString("fighters").ifEmpty { null }?.let { "fighters: $it" })
-        if (tags.isNotEmpty()) c.addView(small(tags.joinToString("   ")))
-        if (r.optString("notes").isNotEmpty()) c.addView(TextView(this).apply {
-            this.text = "Developer's notes: " + r.optString("notes"); textSize = 14f; setPadding(0, (8 * dp).toInt(), 0, 0) })
         val shot = r.optString("screen")
+        val can = testable(r)
+        if (shot.isNotEmpty()) {
+            val frame = android.widget.FrameLayout(this)
+            val iv = ImageView(this).apply { adjustViewBounds = true; scaleType = ImageView.ScaleType.FIT_START; maxWidth = (420 * dp).toInt()
+                contentDescription = if (can) "verify this note" else "screenshot" }
+            frame.addView(iv, android.widget.FrameLayout.LayoutParams(minOf((420 * dp).toInt(), resources.displayMetrics.widthPixels - (60 * dp).toInt()), -2))
+            frame.addView(TextView(this).apply { this.text = if (can) "▶ TEST IT" else "no test yet"; textSize = if (can) 15f else 11f
+                setTypeface(typeface, Typeface.BOLD); setTextColor(if (can) Color.BLACK else Color.WHITE)
+                val m = (6 * dp).toInt(); setPadding(m, m / 2, m, m / 2)
+                background = GradientDrawable().apply { setColor(if (can) Color.WHITE else Color.argb(200, 0, 0, 0)); setStroke((1.5f * dp).toInt(), if (can) Color.BLACK else Color.WHITE); cornerRadius = 4 * dp }
+            }, android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.START).apply { val m = (6 * dp).toInt(); setMargins(m, m, m, m) })
+            image(id, shot, iv)
+            frame.setOnClickListener { if (can) verify(listOf(r)) else full(id, shot) }
+            c.addView(frame, LinearLayout.LayoutParams(-2, -2))
+        } else if (can) c.addView(Button(this).apply { this.text = "▶ TEST IT"; setOnClickListener { verify(listOf(r)) } })
+        val rel = r.optString("release")
+        if (rel.isNotEmpty() && r.optString("status") in setOf("shipped", "verified", "reopened")) c.addView(TextView(this).apply {
+            this.text = "[FIX $rel]"; textSize = 14f; setTypeface(Typeface.MONOSPACE, Typeface.BOLD); setTextColor(Color.WHITE); setPadding(0, (8 * dp).toInt(), 0, 0) })
+        r.optString("fix").takeIf { it.isNotEmpty() && it != "null" }?.let { c.addView(TextView(this).apply { this.text = "Fix: $it"; textSize = 14f; setPadding(0, (4 * dp).toInt(), 0, 0) }) }
+        r.optString("rca").takeIf { it.isNotEmpty() && it != "null" }?.let { c.addView(TextView(this).apply { this.text = "Cause: $it"; textSize = 14f; alpha = 0.85f; setPadding(0, (2 * dp).toInt(), 0, 0) }) }
+        // More (collapsed): his latest reply, the note as sent, the voice, the timeline, the origin
+        val more = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        val open = expanded.contains(id)
+        if (open) more.visibility = View.VISIBLE
+        c.addView(Button(this).apply { this.text = if (open) "▲ Less" else "▼ More"; isAllCaps = false; setOnClickListener {
+            if (more.visibility == View.GONE) { more.visibility = View.VISIBLE; this.text = "▲ Less"; expanded.add(id) }
+            else { more.visibility = View.GONE; this.text = "▼ More"; expanded.remove(id) } } },
+            LinearLayout.LayoutParams(-2, -2).apply { topMargin = (6 * dp).toInt() })
+        val rep = r.optJSONArray("replies")
+        val last = rep?.let { a -> (a.length() - 1 downTo 0).map { a.getJSONObject(it) }.firstOrNull { it.optString("text").isNotEmpty() } }
+        if (last != null) more.addView(TextView(this).apply { this.text = "Your latest reply (${Feedback.ago(last.optString("at"))}): ${last.optString("text")}"; textSize = 14f })
+        more.addView(TextView(this).apply { this.text = "Your note: " + text.ifEmpty { "(no text)" }; textSize = 14f; setPadding(0, (6 * dp).toInt(), 0, 0) })
+        val tags = listOfNotNull(r.optString("category").ifEmpty { null }?.let { "category: $it" }, r.optString("fighters").ifEmpty { null }?.let { "fighters: $it" })
+        if (tags.isNotEmpty()) more.addView(small(tags.joinToString("   ")))
+        if (r.optString("notes").isNotEmpty()) more.addView(small("Developer's notes: " + r.optString("notes")))
         val audio = r.optString("audio_path")
-        if (shot.isNotEmpty() || audio.isNotEmpty()) {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, (10 * dp).toInt(), 0, 0) }
-            if (shot.isNotEmpty()) {
-                val iv = ImageView(this).apply { adjustViewBounds = true; scaleType = ImageView.ScaleType.FIT_START; contentDescription = "screenshot"
-                    maxWidth = (360 * dp).toInt() }                    // a thumbnail: tap = full screen
-                row.addView(iv, LinearLayout.LayoutParams(-2, -2))
-                row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-                image(r.optString("id"), shot, iv)
-                iv.setOnClickListener { full(r.optString("id"), shot) }
-            }
-            if (audio.isNotEmpty()) row.addView(Button(this).apply { this.text = "▶ Voice"; setOnClickListener { play(this, r.optString("id"), audio) } },
-                                                LinearLayout.LayoutParams(-2, -2).apply { leftMargin = (8 * dp).toInt() })
-            c.addView(row)
+        if (audio.isNotEmpty()) more.addView(Button(this).apply { this.text = "▶ Voice"; setOnClickListener { play(this, id, audio) } }, LinearLayout.LayoutParams(-2, -2))
+        if (rep != null) for (k in 0 until rep.length()) { val x = rep.getJSONObject(k); val a = x.optString("audio_path")
+            if (a.isNotEmpty()) more.addView(Button(this).apply { this.text = "▶ Reply voice ${Feedback.ago(x.optString("at"))}"; isAllCaps = false; setOnClickListener { play(this, id, a) } }, LinearLayout.LayoutParams(-2, -2)) }
+        val tl = r.optJSONArray("timeline")
+        if (tl != null && tl.length() > 0) {
+            more.addView(small("Timeline").apply { setTypeface(typeface, Typeface.BOLD); setPadding(0, (8 * dp).toInt(), 0, 0) })
+            for (k in 0 until tl.length()) { val e = tl.getJSONObject(k)
+                more.addView(small("${when_(e.optString("at"))}  ${e.optString("kind").replace('_', ' ').uppercase()}  ${e.optString("text")}  (${e.optString("by")})")) }
         }
-        val h = r.optJSONArray("history")
-        if (h != null && h.length() > 0) {
-            c.addView(small("History").apply { setTypeface(typeface, Typeface.BOLD); setPadding(0, (10 * dp).toInt(), 0, 0) })
-            for (i in 0 until h.length()) {
-                val e = h.getJSONObject(i)
-                val from = e.optString("from_status"); val to = e.optString("to_status")
-                val what = if (from.isEmpty()) to else if (from == to) "" else "$from → $to"
-                val note = e.optString("note")
-                c.addView(small("${when_(e.optString("at"))}  " + listOf(what, note).filter { it.isNotEmpty() }.joinToString(": ") + "  (${e.optString("by")})"))
-            }
-        }
+        more.addView(small("sent from ${r.optString("device").ifEmpty { "?" }}" + r.optString("android").let { if (it.isEmpty() || it == "null") "" else ", Android $it" } +
+                           ", IP ${r.optString("ip").ifEmpty { "?" }.replace("null", "?")}, player ${r.optString("apk_version")}, install ${r.optString("install_id").take(8)}").apply { setPadding(0, (8 * dp).toInt(), 0, 0) })
+        c.addView(more)
         thread(c, r)
         return LinearLayout(this).apply { setPadding(0, 0, 0, (12 * dp).toInt()); addView(c, LinearLayout.LayoutParams(-1, -2)) }
     }
+    private val expanded = HashSet<String>()
 
-    /** the note's reply thread (oldest first) and its actions: thumbs up / thumbs down / Reply */
+    /** the note's actions: Fixed / Broken / Reply */
     private fun thread(c: LinearLayout, r: JSONObject) {
         val id = r.optString("id")
-        val rep = r.optJSONArray("replies")
-        if (rep != null && rep.length() > 0) {
-            c.addView(small("Your replies").apply { setTypeface(typeface, Typeface.BOLD); setPadding(0, (10 * dp).toInt(), 0, 0) })
-            for (i in 0 until rep.length()) {
-                val x = rep.getJSONObject(i)
-                val kind = when (x.optString("kind")) { "up" -> "👍 Fixed"; "down" -> "👎 Still broken"; "voice" -> "Voice"; else -> "Text" }
-                val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-                line.addView(TextView(this).apply { textSize = 14f; setPadding(0, (4 * dp).toInt(), 0, 0)
-                    text = "${when_(x.optString("at"))}  $kind" + x.optString("text").let { if (it.isEmpty()) "" else ": $it" } },
-                    LinearLayout.LayoutParams(0, -2, 1f))
-                val a = x.optString("audio_path")
-                if (a.isNotEmpty()) line.addView(Button(this).apply { text = "▶ Voice"; setOnClickListener { play(this, id, a) } })
-                c.addView(line)
-            }
-        }
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val acts = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, (8 * dp).toInt(), 0, 0) }
         fun act(t: String, f: () -> Unit) = Button(this).apply { text = t; isAllCaps = false; setOnClickListener { f() } }
@@ -232,7 +247,7 @@ class FeedbackListActivity : Activity() {
             android.app.AlertDialog.Builder(this).setMessage("Verified fixed in v$running?")
                 .setPositiveButton("Yes, fixed") { _, _ -> send(id, "up", "", "", "", null) }.setNegativeButton("No", null).show()
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        acts.addView(act("👎 Still broken") { composer(box, id, true) }, LinearLayout.LayoutParams(0, -2, 1f))
+        acts.addView(act("👎 Broken") { composer(box, id, true) }, LinearLayout.LayoutParams(0, -2, 1f))
         acts.addView(act("Reply") { composer(box, id, false) }, LinearLayout.LayoutParams(0, -2, 1f))
         c.addView(acts); c.addView(box)
     }

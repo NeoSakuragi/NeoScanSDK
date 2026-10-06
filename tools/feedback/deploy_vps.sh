@@ -7,7 +7,10 @@
 #                                                                   /data/brawler/feedback/legacy_open exists, user "legacy")
 #   POST /brawler/feedback/reply                                   a reply / thumbs up / down to one of the user's notes
 #                                                                   (Player 0.0.17; token only, no legacy), size + rate capped
-#   GET  /brawler/feedback/mine[/file/<id>/<name>]                  the player's list of the user's notes (Oros login)
+#   POST /brawler/feedback/test                                    a test attempt of a note (Player 0.0.22: test.json + the
+#                                                                   attempt's replay), token only, size + rate capped
+#   GET  /brawler/feedback/mine[/file/<id>/<name>]                  the player's list of the user's notes (Oros login);
+#        /brawler/feedback/mine/scenario/<id>/<sha>/<key>.state     a note's test state for a build (Player 0.0.22)
 #   /brawler-lab/feedback-api/  -> /api/                            behind the Oros login (the Brawler Lab's Feedback tab)
 #   /brawler/download/          the builds (ROM, latest.json): behind the Oros login since Player 0.0.15 (auth_request
 #                               to the service's /dlauth: the token, or a player < 0.0.15 while legacy_open exists); only
@@ -67,6 +70,10 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         client_max_body_size 12M;
 %s
     }
+    location = /brawler/feedback/test {
+        client_max_body_size 32M;
+%s
+    }
     location ^~ /brawler/feedback/mine {
         limit_except GET { deny all; }
         auth_request /jlpt-auth;
@@ -104,12 +111,12 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         proxy_read_timeout 30s;
     }
     # <<< brawler-feedback
-""" % (pub("upload"), pub("transcribe"), pub("reply"))
+""" % (pub("upload"), pub("transcribe"), pub("reply"), pub("test"))
 i = s.index("    location / {")
 open(p, "w").write(s[:i] + block + s[i:])
 PY
 if nginx -t 2>/dev/null; then systemctl reload nginx; else cp /root/kanji.nginx.bak-feedback $S; nginx -t; echo "nginx -t failed: restored"; exit 1; fi
 sleep 1; systemctl is-active brawler-feedback
 echo "signed out (expect 401 / 302 for every one but the APK):"
-for u in brawler/feedback/upload brawler/feedback/transcribe brawler/feedback/reply; do curl -s -X POST -o /dev/null -w "POST $u: %{http_code}\n" https://canneji.duckdns.org/$u; done
+for u in brawler/feedback/upload brawler/feedback/transcribe brawler/feedback/reply brawler/feedback/test; do curl -s -X POST -o /dev/null -w "POST $u: %{http_code}\n" https://canneji.duckdns.org/$u; done
 for u in brawler/feedback/mine brawler/download/latest.json brawler/download/brawler.neo brawler-lab/feedback-api/list brawler/download/neoscan-player.apk; do curl -s -o /dev/null -w "GET $u: %{http_code}\n" https://canneji.duckdns.org/$u; done'

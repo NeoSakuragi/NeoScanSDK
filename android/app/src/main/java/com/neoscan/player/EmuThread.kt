@@ -29,6 +29,9 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
     @Volatile var flushed = false                                   // the saves are on disk since the last pause began
     /** a feedback capture asked from the UI: done between frames (states + inputs into dir, then the picture); the
      *  callback gets {window frame, press frame} (null = failed) and the picture (ARGB, w, h), on this thread */
+    /** a test scenario's state to load between frames (Player 0.0.22, TestMode); the callback gets Native.loadState's code */
+    @Volatile var stepOne = false                                   // one frame while paused (the loaded state's picture)
+    @Volatile var stateReq: Pair<java.io.File, (Int) -> Unit>? = null
     @Volatile var feedbackReq: Pair<java.io.File, (LongArray?, IntArray, Int, Int) -> Unit>? = null
 
     override fun run() {
@@ -64,7 +67,8 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
                 val r = Native.feedback(dir.absolutePath)
                 val px = IntArray(Native.width() * Native.height()); Native.screenshot(px)
                 done(r, px, Native.width(), Native.height()) }
-            if (paused) {
+            stateReq?.let { (f, done) -> stateReq = null; done(Native.loadState(f.absolutePath)) }   // a test scenario (0.0.22)
+            if (paused && !stepOne) {
                 if (!flushed) { Native.flushSaves(); flushed = true }   // Android may kill the app any time now
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) { track.pause(); track.flush(); written = 0; started = false }
                 sleep(20); continue
@@ -75,6 +79,7 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
             if (resetReq) { resetReq = false; Native.reset() }
             val r0 = System.nanoTime()
             val n = Native.runFrame(back, audio)
+            stepOne = false
             val work = System.nanoTime() - r0
             runMax = maxOf(runMax, work); runSum += work; if (work > 16_666_667L) late++
             if (android.os.Build.VERSION.SDK_INT >= 31) hint?.reportActualWorkDuration(work)

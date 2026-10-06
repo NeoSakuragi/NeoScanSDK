@@ -22,6 +22,9 @@ object Native {
     /** feedback capture into [dir] (press.state, snap_<frame>.state, inputs.bin: see player.c); emu thread, between
      *  frames; returns {window start frame, press frame} or null */
     @JvmStatic external fun feedback(dir: String): LongArray?
+    /** a test scenario's save state in place of the game (0.0.22); emu thread, between frames; 0 = loaded, 1 unreadable,
+     *  2 another core build (size), 3 refused */
+    @JvmStatic external fun loadState(path: String): Int
     /** the last frame's picture as opaque ARGB, rows of [width]; returns the pixels written */
     @JvmStatic external fun screenshot(out: IntArray): Int
     /** the BIOS the core boots: mvs / aes / uni */

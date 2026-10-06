@@ -254,6 +254,30 @@ JNIEXPORT jlongArray JNICALL Java_com_neoscan_player_Native_feedback(JNIEnv *env
     return out;
 }
 
+/* Player 0.0.22 (docs/feedback.md "Scenarios"): a test scenario's save state (tools/brawler/scenario.py) loaded in place of
+ * the running game, emulation thread between frames. The replay ring starts again at frame 0 = this state (the next
+ * runFrame keeps it as the first snapshot), so a feedback capture made during the test replays from the scenario.
+ * Returns 0 = loaded, 1 = unreadable file, 2 = wrong size (another core build), 3 = the core refused it */
+JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_loadState(JNIEnv *env, jclass cls, jstring jpath) {
+    const char *p; FILE *f; uint8_t *buf; long n; int i, r = 0;
+    (void)cls;
+    if (!loaded) return 3;
+    p = (*env)->GetStringUTFChars(env, jpath, 0);
+    f = fopen(p, "rb");
+    (*env)->ReleaseStringUTFChars(env, jpath, p);
+    if (!f) return 1;
+    fseek(f, 0, SEEK_END); n = ftell(f); fseek(f, 0, SEEK_SET);
+    if (n != (long)snap_size) { fclose(f); return 2; }
+    buf = malloc(snap_size);
+    if (!buf || fread(buf, 1, snap_size, f) != snap_size) r = 1;
+    fclose(f);
+    if (!r && !retro_unserialize(buf, snap_size)) r = 3;
+    free(buf);
+    if (!r) { frame_no = 0; reset_pending = 0; for (i = 0; i < NSNAP; i++) snaps[i].valid = 0; }
+    __android_log_print(ANDROID_LOG_INFO, TAG, "loadState: %s", r ? "FAILED" : "loaded");
+    return r;
+}
+
 /* the last frame's picture as ARGB ints (opaque), rows of width(); returns the pixels written */
 JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_screenshot(JNIEnv *env, jclass cls, jintArray jout) {
     jint n = fb_w * fb_h, i; jint *p;

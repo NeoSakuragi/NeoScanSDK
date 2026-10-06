@@ -1,0 +1,393 @@
+{
+ "20261006-194211-5d29": {
+  "title": "Terry: cancel the throw's last hit into the fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, then forward + A to throw. While Ryo flies, press D (the fury) or C (a special).",
+  "expect": "As Terry finishes the throw, the fury (or the special) starts at once and hits Ryo.",
+  "do_keys": "4:R,4:Ra,30:-,6:d",
+  "proof": 70
+ },
+ "20261006-173012-5d29": {
+  "title": "Hold finisher: cancel it into a special or the fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, press A three times (the third hit is the finisher), and press D as the finisher hits.",
+  "expect": "The finisher knocks Ryo up and the fury cancels it straight away and juggles him.",
+  "do_keys": "4:R,3:a,14:-,3:a,14:-,3:a,6:-,6:d",
+  "proof": 80
+ },
+ "20261006-172919-5d29": {
+  "title": "Player death: blink, death voice, drop from the sky",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "hp": 1,
+   "lives": 2
+  },
+  "do": "Terry has 1 life point and 2 lives left. Stand still and let an enemy hit you.",
+  "expect": "Terry falls and blinks with his death voice, then drops from above the screen (untouchable) and every enemy on screen is knocked down as he lands; the lives go from 2 to 1.",
+  "do_keys": "",
+  "proof": 600
+ },
+ "20261006-172836-5d29": {
+  "title": "Terry's hold hit: the fast down-forward C",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him and press A once.",
+  "expect": "Terry hits the held Ryo with his down-forward C (the quick crouching blow), not his standing C.",
+  "do_keys": "4:R,3:a",
+  "proof": 40
+ },
+ "20261006-172758-5d29": {
+  "title": "Hold hits: the enemies around are hit too, with a spark",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "extra": [
+    62,
+    84
+   ]
+  },
+  "do": "Walk into the first Ryo to grab him, then press A three times.",
+  "expect": "Each hold hit shows a hit spark on the held Ryo and also hits the two Ryos standing behind him; the third hit knocks them all down.",
+  "do_keys": "4:R,3:a,14:-,3:a,14:-,3:a",
+  "proof": 70
+ },
+ "20261006-172727-5d29": {
+  "title": "Hold hits: the blow also hits the enemies around",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "extra": [
+    62,
+    84
+   ]
+  },
+  "do": "Walk into the first Ryo to grab him, then press A three times.",
+  "expect": "The two Ryos standing behind the held one are hit by every hold hit and knocked down by the third.",
+  "do_keys": "4:R,3:a,14:-,3:a,14:-,3:a",
+  "proof": 70
+ },
+ "20261006-172625-5d29": {
+  "title": "Throws: silent grab, throw sound + blue spark at the throw",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, wait a moment, then forward + A to throw. Listen.",
+  "expect": "The grab itself makes no sound. The throw sound and KOF's little blue spark come when the throw starts.",
+  "do_keys": "4:R,30:-,4:Ra",
+  "proof": 70
+ },
+ "20261006-175904-5d29": {
+  "title": "Rugal: Kaiser Wave, charge in the hand, one voice",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rugal",
+   "dummy": "terry",
+   "gap": 120
+  },
+  "do": "Press up + C (Kaiser Wave).",
+  "expect": "The blue charge shows in Rugal's hand and his voice says \"Kaiser Wave\" once (not \"Kaiser, Kaiser\").",
+  "do_keys": "3:U,4:Uc",
+  "proof": 100
+ },
+ "20261006-174212-5d29": {
+  "title": "Geese: voices of Raging Storm and Double Reppuken",
+  "setup": {
+   "mode": "lab",
+   "fighter": "geese",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press D (Raging Storm), wait for it to end, then press C (Double Reppuken). Listen.",
+  "expect": "Geese shouts his voice on the Double Reppuken and on the Raging Storm.",
+  "do_keys": "4:d,130:-,4:c",
+  "proof": 100
+ },
+ "20261006-173459-5d29": {
+  "title": "Samurai Shodown: Haohmaru throws",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, then forward + A to throw (back + A throws the other way).",
+  "expect": "Haohmaru grabs Ryo and throws him with his Samurai Shodown II throw; Ryo lands and gets up.",
+  "do_keys": "4:R,4:Ra",
+  "proof": 110
+ },
+ "20261006-164210-5d29": {
+  "title": "Krauser: Blitz Ball voice",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "terry",
+   "gap": 140
+  },
+  "do": "Press C (Blitz Ball). Listen.",
+  "expect": "Krauser shouts \"Blitz Ball\" as he throws it.",
+  "do_keys": "4:c",
+  "proof": 90
+ },
+ "20261006-162034-b3f3": {
+  "title": "Krauser: Blitz Ball voice, and it sets on fire",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "terry",
+   "gap": 110
+  },
+  "do": "Press C (Blitz Ball) and let it hit Terry.",
+  "expect": "Krauser shouts \"Blitz Ball\", and Terry burns when the ball hits him.",
+  "do_keys": "4:c",
+  "proof": 90
+ },
+ "20261006-162518-4fc5": {
+  "title": "[test] Terry's throw: the victim is not stuck",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "geese",
+   "gap": 40
+  },
+  "do": "Walk into Geese to grab him, then forward + A to throw.",
+  "expect": "Geese is thrown at once and lands; he is not left stuck in the grab.",
+  "do_keys": "4:R,4:Ra",
+  "proof": 90
+ },
+ "20261006-153324-4fc5": {
+  "title": "[test] Ryo's Ryuko Ranbu connects on Billy",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ryo",
+   "dummy": "billy",
+   "gap": 70
+  },
+  "do": "Press D (Ryuko Ranbu) with Billy in front of you.",
+  "expect": "Ryo rushes in and the whole Ryuko Ranbu hits Billy.",
+  "do_keys": "4:d",
+  "proof": 150
+ },
+ "20261006-162144-b3f3": {
+  "title": "Super Billy: his own dragon punch voice",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_super",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down + C (dragon punch). Listen.",
+  "expect": "Super Billy shouts his own dragon punch voice, not regular Billy's.",
+  "do_keys": "3:D,4:Dc",
+  "proof": 90
+ },
+ "20261006-161938-b3f3": {
+  "title": "Super Billy: the right voice on his ball",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_super",
+   "dummy": "terry",
+   "gap": 120
+  },
+  "do": "Press forward + C (the energy ball). Listen.",
+  "expect": "Super Billy shouts his own voice for the ball (Double Dragon's), not regular Billy's.",
+  "do_keys": "3:R,4:Rc",
+  "proof": 90
+ },
+ "20261006-161912-b3f3": {
+  "title": "Super Billy: the low dragon punch (A version)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_super",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down + C (dragon punch).",
+  "expect": "The dragon punch rises only a little (Double Dragon's A version) and Billy stays on the screen.",
+  "do_keys": "3:D,4:Dc",
+  "proof": 90
+ },
+ "20261006-161844-b3f3": {
+  "title": "Billy Lee: the transformation shout",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_lee",
+   "dummy": "terry",
+   "gap": 120,
+   "meter": "full"
+  },
+  "do": "With the meter full, press down + D (transform). Listen.",
+  "expect": "Billy shouts his transformation line while he turns into Super Billy.",
+  "do_keys": "3:D,4:Dd",
+  "proof": 160
+ },
+ "20261006-160855-b3f3": {
+  "title": "Billy Kane: the fire-ring fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy",
+   "dummy": "ryo",
+   "gap": 45
+  },
+  "do": "Press D (the fury) with Ryo in front of you.",
+  "expect": "Billy spins his pole in a ring of fire (KOF98's flaming ring), and it hits Ryo.",
+  "do_keys": "4:d",
+  "proof": 200
+ },
+ "20261006-160546-b3f3": {
+  "title": "Arcade game over: no \"card still inserted\" message",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "hp": 1,
+   "lives": 0
+  },
+  "do": "Terry has 1 life point and no lives left. Let an enemy hit you, let the continue count down to 0 and watch the game return to the title (arcade mode).",
+  "expect": "GAME OVER, then the game goes back to the title / demo; the arcade BIOS never shows \"YOUR CARD IS STILL INSERTED\".",
+  "do_keys": "",
+  "proof": 1500
+ },
+ "20261006-160257-b3f3": {
+  "title": "Robert: cancel the fury into the MAX fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 70
+  },
+  "do": "Press D (the fury); as soon as it hits Ryo, press down + D.",
+  "expect": "The fury is cancelled into the MAX fury, with its own orange flash, and it hits.",
+  "do_keys": "4:d,52:-,3:D,6:Dd",
+  "proof": 260
+ },
+ "20261006-155732-b3f3": {
+  "title": "Haohmaru: forward throw from Samurai Shodown",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, then forward + A.",
+  "expect": "Haohmaru throws Ryo with Samurai Shodown's own throw frames (a standard brawler throw: grab, throw, Ryo lands behind and gets up).",
+  "do_keys": "4:R,4:Ra",
+  "proof": 110
+ },
+ "20261006-155708-b3f3": {
+  "title": "Haohmaru: his throws (forward + A, back + A)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, then back + A (or forward + A).",
+  "expect": "Haohmaru throws Ryo (his Samurai Shodown throw); Ryo is thrown to the other side.",
+  "do_keys": "4:R,4:La",
+  "proof": 110
+ },
+ "20261006-155636-b3f3": {
+  "title": "Haohmaru: down + C, the slash stays on him",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press down + C (his rising slash).",
+  "expect": "The crescent effect stays on Haohmaru's sword for the whole move, it is not left behind where he started.",
+  "do_keys": "3:D,4:Dc",
+  "proof": 80
+ },
+ "20261006-155538-b3f3": {
+  "title": "Haohmaru: his Samurai Shodown fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 70
+  },
+  "do": "Press D (the fury).",
+  "expect": "Haohmaru plays Samurai Shodown II's weapon-flipping technique as his fury, not a flaming single slash.",
+  "do_keys": "4:d",
+  "proof": 130
+ },
+ "20261006-190659-5d29": {
+  "title": "Krauser: Kaiser Wave impact at the hit's height",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "terry",
+   "gap": 120
+  },
+  "do": "Press D (Kaiser Wave) and let it hit Terry.",
+  "expect": "The blue impact shards burst where the wave hits Terry, at his height, not down on the floor.",
+  "do_keys": "4:d",
+  "proof": 120
+ },
+ "20261006-164245-5d29": {
+  "title": "Krauser: no blue shards on the floor in Kaiser Wave",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "terry",
+   "gap": 120
+  },
+  "do": "Press D (Kaiser Wave) and watch where it hits Terry.",
+  "expect": "The blue shards are the wave's impact and show on Terry where it hits; nothing is left lying on the floor.",
+  "do_keys": "4:d",
+  "proof": 120
+ },
+ "20261006-175700-5d29": {
+  "title": "Rugal: the rush pins the victim against the wall",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rugal",
+   "dummy": "terry",
+   "x": 150,
+   "gap": 60
+  },
+  "do": "Press forward + C (the rushing strike) with Terry between you and the right edge.",
+  "expect": "Rugal stops at the screen edge and Terry is pinned against the wall, visibly; nobody slides off the screen.",
+  "do_keys": "3:R,4:Rc",
+  "proof": 120
+ },
+ "20261006-175740-5d29": {
+  "title": "Rugal: no second Rugal in a taunt pose",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rugal",
+   "dummy": "terry",
+   "gap": 70
+  },
+  "do": "Press forward + C (the rushing strike) and watch the whole screen.",
+  "expect": "Only one Rugal on screen for the whole move: no second Rugal with crossed arms at the left edge.",
+  "do_keys": "3:R,4:Rc",
+  "proof": 120
+ }
+}

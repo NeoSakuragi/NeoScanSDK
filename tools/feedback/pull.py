@@ -216,6 +216,16 @@ def report(d, row=None):
     if row and row.get('replies'):
         L += ['## Thread (his replies)', ''] + ['- ' + t.strip() for t in fb.thread(row['replies'], '')] + ['']
         L += [f"  voice: {os.path.join(d, x['audio_path'])}" for x in row['replies'] if x.get('audio_path')] + ['']
+    if row and (row.get('fix') or row.get('rca')):
+        L += ['## Fix' + (f" (shipped in {row['release']})" if row.get('release') else ''), '', f"- Fix: {row.get('fix') or '-'}",
+              f"- Root cause: {row.get('rca') or '-'}"] + ([f"- Commit: {row['fix_commit']}"] if row.get('fix_commit') else []) + ['']
+    if row and row.get('scenario'):
+        sc = row['scenario']
+        L += ['## Test scenario', '', f"**{sc['title']}**", '', f"- Do: {sc['do']}", f"- Expect: {sc['expect']}",
+              '- States: ' + (', '.join(b[:12] + b[64:] for b in row.get('scenario_builds') or []) or 'none yet'), '']
+    if row and row.get('timeline'):
+        L += ['## Timeline', '', '| When (UTC) | What | Who | |', '|---|---|---|---|'] + \
+             [f"| {e['at'][:16].replace('T', ' ')} | {e['kind']} | {e.get('by') or '-'} | {e['text'].replace('|', '/')} |" for e in row['timeline']] + ['']
     if tj: L += [f"_({tj.get('model')}, {tj.get('seconds')} s)_", '']
     elif meta.get('transcript_model'): L += [f"_({meta['transcript_model']}, in the player)_", '']
     L += ['## Versions', '', '| | |', '|---|---|',
@@ -271,7 +281,7 @@ def main():
 def overview(rows):
     """/data/feedback/report.md: every note with its status and thread, reopened first, then shipped (to verify), open,
     and the closed ones (verified, won't do, duplicate)"""
-    rank = lambda r: {'reopened': 0, 'shipped': 1, 'verified': 3, 'wont_do': 3, 'duplicate': 3}.get(r['status'], 2)
+    rank = lambda r: {'reopened': 0, 'shipped': 1, 'verified': 3, 'wont_do': 3, 'duplicate': 3}.get(r['status'], 2)   # fixed: open
     L = ['# Feedback overview', '', f'{len(rows)} notes; reopened first. Per note: /data/feedback/<id>/report.md', '']
     head = {0: 'Reopened (still broken)', 1: 'Shipped, to verify', 2: 'Open', 3: 'Closed (verified / won\'t do / duplicate)'}
     last = None
@@ -279,6 +289,7 @@ def overview(rows):
         if rank(r) != last: L += ([''] if last is not None else []) + [f'## {head[rank(r)]}', '']; last = rank(r)
         L.append('- ' + fb.line(r))
         L += ['  ' + t for t in fb.thread(r.get('replies'), '  ')]
+        L += ['  ' + t for t in fb.timeline(r.get('timeline'), '  ')]
     open(os.path.join(OUT, 'report.md'), 'w').write('\n'.join(L) + '\n')
     print('overview:', os.path.join(OUT, 'report.md'), f"({sum(r['status'] == 'reopened' for r in rows.values())} reopened)")
 

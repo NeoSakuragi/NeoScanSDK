@@ -18,6 +18,12 @@ checks the token again with Oros's /api/whoami, so it knows the user; no token =
                      with an optional text / voice); stored in the replies table with its origin, the status change
                      in status_history -> {"reply", "row"}. Every row of /mine, /api/list and /api/item carries its
                      thread ("replies", oldest first).
+  GET  /mine/scenario/<id>/<sha>/<key>.state   (Player 0.0.22) a note's test state for build <sha> on system <key>
+                     (mvs-mvs arcade, uni-aes console; tools/brawler/scenario.py); 404 = none for that build. /mine rows
+                     carry "scenario" {title, do, expect}, "scenario_builds" ["<sha>/<key>"] and "timeline"
+  POST /test         (Player 0.0.22) a test attempt: a zip with test.json {id, result up | down | abandoned, rom_sha,
+                     game_version, system, seconds, reply_id?, note?} + the attempt's replay (bundle files) -> tests table,
+                     DATA/attempts/<attempt id>/
   Notes sent before the login (no user) are claimed by the first account that calls from the same install id.
 Signed in (nginx /brawler-lab/feedback-api/ behind the Oros login, the Brawler Lab's Feedback tab; or over ssh on
 localhost: tools/feedback/fb.py, pull.py):
@@ -28,8 +34,15 @@ localhost: tools/feedback/fb.py, pull.py):
                                              browser): DATA/roms/<sha>.neo.gz, archived from the builds dir when the
                                              note arrives, so publish_vps.sh's pruning never loses a build with feedback
   POST /api/status {id, status, release?, note?, duplicate_of?, by?}
-  POST /api/set    {id, category?, fighters?, notes?, title?, by?}   title: the one-line headline I write at triage
-                   (<= 70 chars, one line; every change goes to status_history as 'title: "..."')
+  POST /api/set    {id, category?, fighters?, notes?, title?, todo?, fix?, rca?, by?}   title: the one-line headline I write at triage
+                   (<= 70 chars, one line; every change goes to status_history as 'title: "..."'); todo: its TODO item(s)
+  POST /api/status also takes commit (status fixed needs it: on the branch, not yet published)
+  GET  /api/scenario/<id>                    its test recipe + the states per build; POST /api/scenario {id, recipe}
+  POST /api/scenario_state {id, rom_sha, keys, version, state_sha256}   scenario.py, after the rsync of the states
+  GET  /api/scenario/<id>/<sha>/<file>       a state / the proof clip; GET /api/attempt/<aid>/<name> a test attempt's replay
+  POST /api/test {id, result, rom_sha?, game_version?, system?, note?}  a test attempt in the Lab (up / down set the status)
+  POST /api/event {id, kind, at, text, ref, todo?, fix_commit?}         a timeline event (backfill_history.py; idempotent)
+Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
 PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
 linked to its note (the player sends the tx_id it got back; cancelled notes' transcriptions stay unlinked but count
@@ -54,7 +67,13 @@ def old_player(v):
 MODELS = ('gpt-4o-mini-transcribe', 'whisper-1')         # the first that answers
 PROMPT = ('Neo Geo brawler game feedback, in English or French. Terms: Terry, Geese, Ryo, Ryuko Ranbu, Kim, Phoenix, '
           'Hanzo, Billy, fury, MAX, grab, throw, hold hits, Chain Lab, brawler, hitbox, combo, special, desperation.')
-STATUSES = ('new', 'read', 'in_progress', 'shipped', 'wont_do', 'duplicate', 'verified', 'reopened')
+STATUSES = ('new', 'read', 'in_progress', 'fixed', 'shipped', 'wont_do', 'duplicate', 'verified', 'reopened')   # fixed: on the
+                                                         # branch (its commit), not yet in a published build
+TEST_RESULTS = ('up', 'down', 'abandoned')               # a test attempt (Player 0.0.22 / the Lab): fixed / still broken / left
+SCENARIOS = os.path.join(DATA, 'scenarios')              # <id>/<rom sha>/<key>.state (+ clip.gif, sheet.png, <key>_start.png)
+ATTEMPTS = os.path.join(DATA, 'attempts')                # <attempt id>/ the replay of a test attempt (the bundle's files)
+SFILE = re.compile(r'^[a-z0-9_-]{1,40}\.(state|png|gif|json)$')
+SKEY = re.compile(r'^[a-z]{3}-[a-z]{3}$')               # the player's system: Native.systemType() + '-' + hw
 REPLY_KINDS = ('voice', 'text', 'up', 'down')            # up = verified fixed, down = still broken (reopened)
 MAX_REPLY = 12 << 20                                     # the JSON with the voice in base64 (MAX_AUDIO * 4 / 3)
 CATEGORIES = ('', 'sound', 'graphics', 'gameplay', 'integration', 'scripting', 'other')
@@ -102,9 +121,25 @@ def db_init():
             id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id TEXT, at TEXT, user TEXT, kind TEXT, text TEXT DEFAULT '',
             raw_transcript TEXT DEFAULT '', audio_path TEXT DEFAULT '', status_from TEXT DEFAULT '', status_to TEXT DEFAULT '',
             apk_version TEXT, install_id TEXT, device TEXT, android TEXT, ip TEXT, user_agent TEXT);
-        CREATE INDEX IF NOT EXISTS replies_fb ON replies(feedback_id);''')
+        CREATE INDEX IF NOT EXISTS replies_fb ON replies(feedback_id);
+        CREATE TABLE IF NOT EXISTS scenarios (
+            feedback_id TEXT PRIMARY KEY, recipe TEXT, updated TEXT, by TEXT);
+        CREATE TABLE IF NOT EXISTS scenario_states (
+            feedback_id TEXT, rom_sha TEXT, key TEXT, version TEXT DEFAULT '', state_sha256 TEXT DEFAULT '', created TEXT, by TEXT,
+            PRIMARY KEY (feedback_id, rom_sha, key));
+        CREATE TABLE IF NOT EXISTS tests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id TEXT, at TEXT, user TEXT, source TEXT, result TEXT,
+            rom_sha TEXT DEFAULT '', game_version TEXT DEFAULT '', system TEXT DEFAULT '', apk_version TEXT DEFAULT '',
+            device TEXT DEFAULT '', reply_id INTEGER, attempt TEXT DEFAULT '', seconds REAL, note TEXT DEFAULT '', ip TEXT);
+        CREATE INDEX IF NOT EXISTS tests_fb ON tests(feedback_id);
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id TEXT, at TEXT, by TEXT, kind TEXT, text TEXT DEFAULT '',
+            ref TEXT DEFAULT '', UNIQUE (feedback_id, kind, ref));
+        CREATE INDEX IF NOT EXISTS events_fb ON events(feedback_id);''')
         cols = {r[1] for r in c.execute('PRAGMA table_info(feedback)')}
-        for col in ('user', 'install_id', 'marked', 'title'):         # 0.0.15: the account, its install, a scribble; title: my one-liner
+        for col in ('user', 'install_id', 'marked', 'title', 'todo', 'fix_commit', 'fix', 'rca'):   # 0.0.15: the account, its install, a scribble;
+                                                                      # title: my one-liner; todo: the TODO item(s); fix_commit;
+                                                                      # fix / rca: the fix and its root cause, one or two plain sentences each
             if col not in cols: c.execute(f"ALTER TABLE feedback ADD COLUMN {col} TEXT DEFAULT ''")
         for col in ('ip', 'user_agent', 'android'):                   # who sent it from where (NULL = unknown)
             if col not in cols: c.execute(f"ALTER TABLE feedback ADD COLUMN {col} TEXT")
@@ -352,6 +387,60 @@ def replies(c, fid):
     return [row_dict(x) for x in c.execute('SELECT * FROM replies WHERE feedback_id=? ORDER BY id', (fid,))]
 
 
+def scenario(c, fid):
+    """the note's test scenario: {title, do, expect, ...} (the recipe, scenario.py) or None"""
+    r = c.execute('SELECT recipe FROM scenarios WHERE feedback_id=?', (fid,)).fetchone()
+    try: return json.loads(r['recipe']) if r else None
+    except ValueError: return None
+
+
+def scenario_builds(c, fid):
+    """the builds a state exists for: ["<rom sha>/<key>", ...] (key = the player's system, e.g. mvs-mvs)"""
+    return [f"{r['rom_sha']}/{r['key']}" for r in c.execute('SELECT rom_sha, key FROM scenario_states WHERE feedback_id=? ORDER BY created', (fid,))]
+
+
+def tests(c, fid):
+    return [row_dict(x) for x in c.execute('SELECT * FROM tests WHERE feedback_id=? ORDER BY id', (fid,))]
+
+
+TEST_TEXT = {'up': '👍 fixed', 'down': '👎 still broken', 'abandoned': 'left without a verdict'}
+
+
+def timeline(c, fid, public=False):
+    """the note's whole life, oldest first: [{at, by, kind, text, ref}] from the note itself (found), its status
+    history (triaged / in_progress / fixed / shipped / verified / reopened ...), the events (commits, releases,
+    scenario states, backfills), the test attempts and the replies. public: the player's own view (no IPs)"""
+    r = c.execute('SELECT * FROM feedback WHERE id=?', (fid,)).fetchone()
+    if not r: return []
+    out = [{'at': r['created'], 'by': r['user'] or '-', 'kind': 'found',
+            'text': f"note sent ({'voice' if r['audio_path'] else 'text'}): game v{r['game_version']}, player {r['apk_version']}, "
+                    f"{r['device'] or '?'}" + (f", Android {r['android']}" if r['android'] else '')}]
+    for h in c.execute('SELECT * FROM status_history WHERE feedback_id=? ORDER BY at', (fid,)):
+        if not h['from_status'] and h['to_status'] == 'new': continue          # = found
+        f, t, note = h['from_status'], h['to_status'], h['note'] or ''
+        if f == t:
+            kind = 'triaged' if note.startswith('set ') or re.search(r'TODO #\d+', note) else 'note'
+            text = note
+        else:
+            kind = t if t in ('in_progress', 'fixed', 'shipped', 'verified', 'reopened', 'wont_do', 'duplicate', 'read') else 'status'
+            text = f'{f} → {t}' + (': ' + note if note else '')
+            if t == 'shipped': text = f"{f} → shipped" + (': ' + note if note else '')
+        out.append({'at': h['at'], 'by': h['by'], 'kind': kind, 'text': text})
+    for e in c.execute('SELECT * FROM events WHERE feedback_id=? ORDER BY at', (fid,)):
+        out.append({'at': e['at'], 'by': e['by'], 'kind': e['kind'], 'text': e['text'], 'ref': e['ref']})
+    for t in c.execute('SELECT * FROM tests WHERE feedback_id=? ORDER BY id', (fid,)):
+        out.append({'at': t['at'], 'by': t['user'], 'kind': 'test', 'ref': t['attempt'] or '',
+                    'text': f"test from the {t['source']} on game v{t['game_version'] or '?'} ({(t['rom_sha'] or '?')[:12]}, {t['system'] or '?'})"
+                            f": {TEST_TEXT.get(t['result'], t['result'])}" + (f", {t['seconds']:.0f} s" if t['seconds'] else '') +
+                            (f", replay {t['attempt']}" if t['attempt'] else '') + (f": {t['note']}" if t['note'] else '')})
+    for x in c.execute('SELECT * FROM replies WHERE feedback_id=? ORDER BY id', (fid,)):
+        if x['status_to']: continue                                           # a thumbs up / down: in the status history
+        out.append({'at': x['at'], 'by': x['user'], 'kind': 'reply', 'ref': x['audio_path'] or '',
+                    'text': ('voice reply' if x['kind'] == 'voice' else 'reply') + (': ' + x['text'] if x['text'] else '')})
+    out.sort(key=lambda e: e['at'] or '')
+    return out
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, obj=None, body=None, ctype='application/json'):
         b = body if body is not None else (json.dumps(obj, ensure_ascii=False) + '\n').encode()
@@ -384,7 +473,9 @@ class H(http.server.BaseHTTPRequestHandler):
                     if q.get(k): conds.append(f'{k}=?'); args.append(q[k][0])
                 if conds: sql += ' WHERE ' + ' AND '.join(conds)
                 rows = [row_dict(r) for r in c.execute(sql + ' ORDER BY created DESC', args)]
-                for r in rows: r['replies'] = replies(c, r['id'])
+                for r in rows:
+                    r['replies'] = replies(c, r['id']); r['scenario'] = scenario(c, r['id'])
+                    r['scenario_builds'] = scenario_builds(c, r['id']); r['timeline'] = timeline(c, r['id'])
                 tot = c.execute("SELECT COUNT(*) n, ROUND(SUM(cost_usd), 6) usd, ROUND(SUM(CASE WHEN feedback_id != '' THEN cost_usd ELSE 0 END), 6) linked, "
                                 "ROUND(SUM(audio_seconds), 1) secs FROM transcriptions").fetchone()
                 return self.reply(200, {'rows': rows, 'statuses': STATUSES, 'categories': CATEGORIES[1:], 'user': account(self.headers),
@@ -396,7 +487,12 @@ class H(http.server.BaseHTTPRequestHandler):
                 hist = [row_dict(h) for h in c.execute('SELECT * FROM status_history WHERE feedback_id=? ORDER BY at', (parts[1],))]
                 txs = [row_dict(t) for t in c.execute('SELECT * FROM transcriptions WHERE feedback_id=? ORDER BY at', (parts[1],))]
                 d = os.path.join(BUNDLES, parts[1])
-                return self.reply(200, {'row': row_dict(r), 'history': hist, 'transcriptions': txs, 'replies': replies(c, parts[1]), 'files': sorted(os.listdir(d)) if os.path.isdir(d) else []})
+                return self.reply(200, {'row': row_dict(r), 'history': hist, 'transcriptions': txs, 'replies': replies(c, parts[1]),
+                                        'files': sorted(os.listdir(d)) if os.path.isdir(d) else [], 'timeline': timeline(c, parts[1]),
+                                        'tests': tests(c, parts[1]), 'scenario': scenario(c, parts[1]), 'scenario_builds': scenario_builds(c, parts[1])})
+            if len(parts) == 2 and parts[0] == 'scenario' and ID.match(parts[1]):
+                return self.reply(200, {'id': parts[1], 'recipe': scenario(c, parts[1]), 'states': [row_dict(x) for x in c.execute(
+                    'SELECT * FROM scenario_states WHERE feedback_id=? ORDER BY created', (parts[1],))]})
         if len(parts) == 2 and parts[0] == 'rom' and SHA.match(parts[1]):
             p = os.path.join(ROMS, parts[1] + '.neo.gz')
             if not os.path.exists(p): return self.reply(404, {'error': 'build not archived'})
@@ -406,6 +502,12 @@ class H(http.server.BaseHTTPRequestHandler):
             with open(p, 'rb') as f:
                 for b in iter(lambda: f.read(1 << 20), b''): self.wfile.write(b)
             return
+        if len(parts) == 4 and parts[0] == 'scenario' and ID.match(parts[1]) and SHA.match(parts[2]) and SFILE.match(parts[3]):
+            p = os.path.join(SCENARIOS, parts[1], parts[2], parts[3])
+            if os.path.exists(p): return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
+        if len(parts) == 3 and parts[0] == 'attempt' and re.match(r'^[0-9a-z-]{8,40}$', parts[1]) and NAME.match(parts[2]):
+            p = os.path.join(ATTEMPTS, parts[1], parts[2])
+            if os.path.exists(p): return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
         if len(parts) == 3 and parts[0] == 'file' and ID.match(parts[1]) and NAME.match(parts[2]):
             p = os.path.join(BUNDLES, parts[1], parts[2])
             if os.path.exists(p):
@@ -435,9 +537,16 @@ class H(http.server.BaseHTTPRequestHandler):
         dup = req.get('duplicate_of', '')
         if st == 'duplicate' and not c.execute('SELECT 1 FROM feedback WHERE id=?', (dup,)).fetchone():
             return 'duplicate needs duplicate_of = an existing feedback id'
-        c.execute('UPDATE feedback SET status=?, release=?, duplicate_of=?, updated=? WHERE id=?',
-                  (st, rel if st == 'shipped' else r['release'], dup if st == 'duplicate' else r['duplicate_of'], now(), r['id']))
-        c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (r['id'], now(), r['status'], st, by, req.get('note', '')))
+        commit = str(req.get('commit') or '').strip()
+        if commit and not re.match(r'^[0-9a-f]{7,40}$', commit): return 'commit: a git sha (hex)'
+        if st == 'fixed' and not commit: return 'fixed needs the commit (fb.py status ID fixed --commit SHA)'
+        c.execute('UPDATE feedback SET status=?, release=?, duplicate_of=?, fix_commit=?, updated=? WHERE id=?',
+                  (st, rel if st == 'shipped' else r['release'], dup if st == 'duplicate' else r['duplicate_of'],
+                   commit or r['fix_commit'] or '', now(), r['id']))
+        note = req.get('note', '')
+        if commit: note = (note + '; ' if note else '') + 'commit ' + commit
+        if st == 'shipped' and rel and f'in {rel}' not in note: note = (note + '; ' if note else '') + 'release ' + rel
+        c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (r['id'], now(), r['status'], st, by, note))
 
     @staticmethod
     def set_fields(c, r, req, by):
@@ -446,12 +555,71 @@ class H(http.server.BaseHTTPRequestHandler):
         fighters = ','.join(f.strip().lower() for f in str(req.get('fighters', r['fighters'])).split(',') if f.strip())
         title = ' '.join(str(req.get('title', r['title']) or '').split())
         if len(title) > 70: return f'title: one line of at most 70 characters ({len(title)} given)'
-        c.execute('UPDATE feedback SET category=?, fighters=?, notes=?, title=?, updated=? WHERE id=?',
-                  (cat, fighters, req.get('notes', r['notes']), title, now(), r['id']))
+        todo = ','.join(t.strip().lstrip('#') for t in str(req.get('todo', r['todo']) or '').split(',') if t.strip())
+        if todo and not re.match(r'^\d+(,\d+)*$', todo): return 'todo: TODO item numbers, e.g. 166 or 163,173'
+        fix = ' '.join(str(req.get('fix', r['fix']) or '').split()); rca = ' '.join(str(req.get('rca', r['rca']) or '').split())
+        if len(fix) > 400 or len(rca) > 400: return 'fix / rca: one or two sentences (<= 400 characters)'
+        c.execute('UPDATE feedback SET category=?, fighters=?, notes=?, title=?, todo=?, fix=?, rca=?, updated=? WHERE id=?',
+                  (cat, fighters, req.get('notes', r['notes']), title, todo, fix, rca, now(), r['id']))
         changed = [f'{k}={v}' for k, v in (('category', cat), ('fighters', fighters)) if v != r[k]]
+        if fix != (r['fix'] or ''): changed.append(f'fix: "{fix}"')
+        if rca != (r['rca'] or ''): changed.append(f'root cause: "{rca}"')
+        if todo != (r['todo'] or ''): changed.append('TODO #' + ', #'.join(todo.split(',')) if todo else 'TODO -')
         if 'notes' in req and req['notes'] != r['notes']: changed.append('notes')
         if title != (r['title'] or ''): changed.append(f'title: "{title}"')
         if changed: c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (r['id'], now(), r['status'], r['status'], by, 'set ' + ' '.join(changed)))
+
+    @staticmethod
+    def set_scenario(c, r, req, by):
+        """the note's test recipe (scenario.py put): title, do, expect, setup, do_keys ..."""
+        rec = req.get('recipe')
+        if not isinstance(rec, dict) or not all(isinstance(rec.get(k), str) and rec.get(k) for k in ('title', 'do', 'expect')):
+            return 'recipe: an object with title, do and expect'
+        old = c.execute('SELECT recipe FROM scenarios WHERE feedback_id=?', (r['id'],)).fetchone()
+        new = json.dumps(rec, ensure_ascii=False, sort_keys=True)
+        if old and old['recipe'] == new: return None
+        c.execute('INSERT OR REPLACE INTO scenarios VALUES (?,?,?,?)', (r['id'], new, now(), by))
+        c.execute('INSERT INTO events (feedback_id, at, by, kind, text, ref) VALUES (?,?,?,?,?,?)',
+                  (r['id'], now(), by, 'scenario', ('test recipe changed: ' if old else 'test recipe written: ') + rec['title'], now()))
+
+    @staticmethod
+    def add_state(c, r, req, by):
+        """scenario.py upload: the states of build rom_sha are in DATA/scenarios/<id>/<sha>/ (rsync), one row per key"""
+        sha, keys = req.get('rom_sha', ''), req.get('keys') or []
+        if not SHA.match(sha) or not keys or not all(SKEY.match(k) for k in keys): return 'rom_sha + keys'
+        d = os.path.join(SCENARIOS, r['id'], sha)
+        missing = [k for k in keys if not os.path.exists(os.path.join(d, k + '.state'))]
+        if missing: return 'not uploaded: ' + ', '.join(missing)
+        shas = req.get('state_sha256') or {}
+        for k in keys:
+            c.execute('INSERT OR REPLACE INTO scenario_states VALUES (?,?,?,?,?,?,?)', (r['id'], sha, k, req.get('version', ''), shas.get(k, ''), now(), by))
+        c.execute('INSERT OR REPLACE INTO events (feedback_id, at, by, kind, text, ref) VALUES (?,?,?,?,?,?)',
+                  (r['id'], now(), by, 'scenario', f"test state generated on game v{req.get('version') or '?'} ({sha[:12]}): " + ', '.join(keys), sha))
+        jobs.put('rom:' + sha)                               # the Lab's Test it loads that build: archived
+
+    @staticmethod
+    def add_event(c, r, req, by):
+        """a timeline event (backfill_history.py: commits, releases); idempotent on (kind, ref)"""
+        kind, at = str(req.get('kind') or ''), str(req.get('at') or now())
+        if not re.match(r'^[a-z_]{2,20}$', kind) or not re.match(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$', at): return 'kind + at (UTC ISO)'
+        c.execute('INSERT OR REPLACE INTO events (feedback_id, at, by, kind, text, ref) VALUES (?,?,?,?,?,?)',
+                  (r['id'], at, by, kind, str(req.get('text') or '')[:500], str(req.get('ref') or '')[:80]))
+        for k in ('todo', 'fix_commit'):
+            if req.get(k) and not r[k]: c.execute(f'UPDATE feedback SET {k}=? WHERE id=?', (str(req[k])[:80], r['id']))
+
+    @staticmethod
+    def lab_test(c, r, req, by):
+        """a test attempt from the Lab's Feedback tab: up / down also set verified / reopened"""
+        res = req.get('result')
+        if res not in TEST_RESULTS: return 'result: ' + ', '.join(TEST_RESULTS)
+        c.execute('INSERT INTO tests (feedback_id, at, user, source, result, rom_sha, game_version, system, note, seconds) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                  (r['id'], now(), by, 'lab', res, req.get('rom_sha', ''), req.get('game_version', ''), req.get('system', ''),
+                   str(req.get('note') or '')[:2000], req.get('seconds')))
+        to = {'up': 'verified', 'down': 'reopened'}.get(res)
+        if to and to != r['status']:
+            c.execute('UPDATE feedback SET status=?, updated=? WHERE id=?', (to, now(), r['id']))
+            c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (r['id'], now(), r['status'], to, by,
+                      ('thumbs up in the Lab: verified fixed' if res == 'up' else 'thumbs down in the Lab: still broken') + (': ' + req['note'] if req.get('note') else '')))
 
     def dlauth(self):
         """nginx auth_request for the builds (/brawler/download/): 204 = an Oros token or cookie; or, while
@@ -488,7 +656,7 @@ class H(http.server.BaseHTTPRequestHandler):
         with db() as c:
             if not parts or parts == ['']:
                 rows = [row_dict(r) for r in c.execute('SELECT id, created, apk_version, game_version, title, final_text, raw_transcript, category, '
-                        'fighters, status, release, duplicate_of, notes, updated, audio_path, marked, device, android, install_id, ip FROM feedback WHERE user=? ORDER BY created DESC', (user,))]
+                        'fighters, status, release, duplicate_of, notes, updated, audio_path, marked, device, android, install_id, ip, fix, rca FROM feedback WHERE user=? ORDER BY created DESC', (user,))]
                 for r in rows:
                     r['history'] = [row_dict(h) for h in c.execute('SELECT at, from_status, to_status, by, note FROM status_history '
                                                                    'WHERE feedback_id=? ORDER BY at', (r['id'],))]
@@ -496,7 +664,16 @@ class H(http.server.BaseHTTPRequestHandler):
                     r['replies'] = [{k: x[k] for k in ('id', 'at', 'kind', 'text', 'audio_path', 'status_from', 'status_to', 'device', 'apk_version')}
                                     for x in replies(c, r['id'])]
                     r['screen'] = 'screen_marked.png' if os.path.exists(os.path.join(d, 'screen_marked.png')) else 'screen.png' if os.path.exists(os.path.join(d, 'screen.png')) else ''
+                    sc = scenario(c, r['id'])                          # Player 0.0.22: TEST IT (older players ignore these)
+                    r['scenario'] = {k: sc.get(k, '') for k in ('title', 'do', 'expect')} if sc else None
+                    r['scenario_builds'] = scenario_builds(c, r['id']) if sc else []
+                    r['timeline'] = [{k: e.get(k, '') for k in ('at', 'by', 'kind', 'text')} for e in timeline(c, r['id'], True)]
                 return self.reply(200, {'user': user, 'rows': rows})
+            if len(parts) == 4 and parts[0] == 'scenario' and ID.match(parts[1]) and SHA.match(parts[2]) and SFILE.match(parts[3]):
+                if not c.execute('SELECT 1 FROM feedback WHERE id=? AND user=?', (parts[1], user)).fetchone(): return self.reply(404, {'error': 'not found'})
+                p = os.path.join(SCENARIOS, parts[1], parts[2], parts[3])
+                if not os.path.exists(p): return self.reply(404, {'error': 'no test state for this build'})
+                return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
             if len(parts) == 3 and parts[0] == 'file' and ID.match(parts[1]) and NAME.match(parts[2]) and not parts[2].endswith('.state'):
                 if c.execute('SELECT 1 FROM feedback WHERE id=? AND user=?', (parts[1], user)).fetchone():
                     p = os.path.join(BUNDLES, parts[1], parts[2])
@@ -509,9 +686,14 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/transcribe': return self.transcribe()
         if self.path == '/upload': return self.upload()
         if self.path == '/reply': return self.post_reply()
+        if self.path == '/test': return self.post_test()
         if not self.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         if self.path == '/api/status': return self.change(self.set_status)
         if self.path == '/api/set': return self.change(self.set_fields)
+        if self.path == '/api/scenario': return self.change(self.set_scenario)
+        if self.path == '/api/scenario_state': return self.change(self.add_state)
+        if self.path == '/api/event': return self.change(self.add_event)
+        if self.path == '/api/test': return self.change(self.lab_test)
         self.reply(404, {'error': 'not found'})
 
     def transcribe(self):
@@ -628,6 +810,43 @@ class H(http.server.BaseHTTPRequestHandler):
         log('reply', fid, rid, user, kind, (r['status'] + ' -> ' + to) if to else '', len(audio), 'bytes audio', len(text), 'chars')
         self.reply(200, out)
 
+    def post_test(self):
+        """Player 0.0.22: a test attempt of one of the user's notes, a zip: test.json {id, result (up / down / abandoned),
+        rom_sha, game_version, system, seconds?, reply_id? (the thumbs reply it went with), note?, device?} + optionally
+        the replay of the attempt (the feedback bundle's files: snap_*.state, inputs.bin, press.state, screen.png, meta.json),
+        unpacked into DATA/attempts/<attempt id>/"""
+        user = self.player()
+        if not user: return
+        body = self.body(MAX_BODY)
+        if body is None: return self.reply(413, {'error': 'size'})
+        try: z = zipfile.ZipFile(io.BytesIO(body)); infos = z.infolist(); t = json.loads(z.read('test.json'))
+        except Exception: return self.reply(400, {'error': 'a zip with test.json'})
+        if any(not NAME.match(i.filename) for i in infos) or sum(i.file_size for i in infos) > MAX_UNPACKED:
+            return self.reply(400, {'error': 'unexpected content'})
+        fid, res = t.get('id', ''), t.get('result')
+        if not ID.match(fid) or res not in TEST_RESULTS: return self.reply(400, {'error': 'id + result (' + ', '.join(TEST_RESULTS) + ')'})
+        w = self.who(user)
+        aid = ''
+        if any(i.filename != 'test.json' for i in infos):
+            aid = time.strftime('%Y%m%d-%H%M%S') + '-' + secrets.token_hex(3)
+            d = os.path.join(ATTEMPTS, aid); os.makedirs(d)
+            for i in infos:
+                with open(os.path.join(d, i.filename), 'wb') as f: f.write(z.read(i))
+        with lock, db() as c:
+            r = c.execute('SELECT * FROM feedback WHERE id=? AND user=?', (fid, user)).fetchone()
+            if not r: return self.reply(404, {'error': 'no such note of yours'})
+            rid = t.get('reply_id') if isinstance(t.get('reply_id'), int) else None
+            secs = t.get('seconds') if isinstance(t.get('seconds'), (int, float)) else None
+            cur = c.execute('INSERT INTO tests (feedback_id, at, user, source, result, rom_sha, game_version, system, apk_version, device, reply_id, '
+                            'attempt, seconds, note, ip) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                            (fid, now(), user, 'player', res, str(t.get('rom_sha') or '')[:64], str(t.get('game_version') or '')[:20],
+                             str(t.get('system') or '')[:10], self.headers.get('X-App-Version') or '', str(t.get('device') or '')[:80],
+                             rid, aid, secs, str(t.get('note') or '')[:2000], w['ip']))
+            out = row_dict(c.execute('SELECT * FROM tests WHERE id=?', (cur.lastrowid,)).fetchone())
+        if aid: jobs.put('rom:' + str(t.get('rom_sha') or ''))
+        log('test', fid, user, res, aid or 'no replay')
+        self.reply(200, {'test': out})
+
     def log_message(self, fmt, *a): pass
 
 
@@ -636,7 +855,7 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 if __name__ == '__main__':
-    os.makedirs(BUNDLES, exist_ok=True); db_init(); backfill()
+    os.makedirs(BUNDLES, exist_ok=True); os.makedirs(SCENARIOS, exist_ok=True); os.makedirs(ATTEMPTS, exist_ok=True); db_init(); backfill()
     try: backfill_origin()
     except Exception as e: log('backfill origin failed:', e)
     threading.Thread(target=worker, daemon=True).start()

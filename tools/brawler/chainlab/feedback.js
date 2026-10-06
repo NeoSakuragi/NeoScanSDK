@@ -1,4 +1,9 @@
-/* Brawler Lab, Feedback tab: the NeoScan Player's voice / text feedback (docs/feedback.md). The list comes from the
+/* Brawler Lab, Feedback tab: the NeoScan Player's voice / text feedback (docs/feedback.md). Since Player 0.0.22 the
+ * notes are CARDS, the same as the player's list (Bruno): title / "44 min ago on 0.0.17" / the screenshot (a click =
+ * Test it: the note's scenario state in the browser under the banner "Do / Expect", keyboard WASD + U I O P or the
+ * arrows + Z X C V, Restart, Show expected, 👍 / 👎 = a test attempt that sets verified / reopened) / [FIX 0.0.x] / the
+ * fix and its root cause / More (collapsed: the note, the voice, category + fighters, the bundle replay, the timeline,
+ * the origin, the cost) / Fixed - Broken - Reply; filters Open / Shipped: test it / All. The list comes from the
  * feedback service's API (tools/feedback/server.py) at feedback-api/ (nginx, behind the same Oros login as the Lab):
  * date, the user (Oros account, Player 0.0.15+), versions, the note's title (my one-liner, fb.py set --title) as its headline, the note as sent (the raw transcript under it), status and release as text, the voice (play),
  * the screenshot; filters by status and category; category (dropdown) and fighters editable here. Status changes go
@@ -16,7 +21,7 @@
   };
   while (!window.stagesTab && !window.labTab) await new Promise(r => setTimeout(r, 100));
   const API = 'feedback-api/';
-  const STATUS_TEXT = { new: 'NEW', read: 'read', in_progress: 'IN PROGRESS', shipped: 'SHIPPED', wont_do: "won't do", duplicate: 'duplicate', verified: 'VERIFIED', reopened: 'REOPENED' };
+  const STATUS_TEXT = { new: 'NEW', read: 'read', in_progress: 'IN PROGRESS', fixed: 'FIXED', shipped: 'SHIPPED', wont_do: "won't do", duplicate: 'duplicate', verified: 'VERIFIED', reopened: 'REOPENED' };
   const REPLY_KIND = { up: '👍 verified fixed', down: '👎 still broken', voice: 'voice', text: 'text' };
   // the player's reply thread (Player 0.0.17): oldest first, the voice playable, a status change shown
   const thread = r => (r.replies || []).length ? h('div', { class: 'small', style: 'margin-top:6px;border-top:1px solid #000;padding-top:4px' },
@@ -112,6 +117,43 @@
     } catch (e) { st.textContent = 'Replay unavailable: ' + e.message; R = null; }
   }
 
+  // ---- cards (the player's layout, Player 0.0.22) ------------------------------------------------------------------
+  const css = document.createElement('style');
+  css.textContent = `
+#fbcol .fbfilters { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+#fbcol .fbfilters button.on { font-weight: bold; outline: 3px solid #000; }
+#fbcol .fbcard { border: 2px solid #000; background: #fff; color: #000; padding: 10px 12px; margin: 0 0 12px; max-width: 760px; }
+#fbcol .fbcard h3 { margin: 0 0 2px; font-size: 18px; }
+#fbcol .fbmeta { display: flex; gap: 8px; align-items: center; font-size: 13.5px; margin-bottom: 6px; }
+#fbcol .fbmeta .sp { flex: 1; }
+#fbcol .fbstatus { border: 2px solid #000; padding: 1px 6px; font-weight: bold; font-size: 12px; }
+#fbcol .fbshot { position: relative; display: inline-block; cursor: pointer; }
+#fbcol .fbshot img { display: block; width: 456px; max-width: 100%; image-rendering: pixelated; border: 1px solid #000; }
+#fbcol .fbshot .lab { position: absolute; left: 6px; top: 6px; background: #fff; border: 2px solid #000; padding: 1px 6px; font-weight: bold; font-size: 13px; }
+#fbcol .fbshot .lab.none { font-weight: normal; font-size: 11px; }
+#fbcol .fbfix { font-family: ui-monospace, monospace; font-weight: bold; margin-top: 8px; }
+#fbcol .fbcard details { margin-top: 8px; border-top: 1px solid #000; padding-top: 4px; }
+#fbcol .fbcard summary { cursor: pointer; font-weight: bold; }
+#fbcol .fbtl { font-size: 12.5px; border-collapse: collapse; margin-top: 4px; }
+#fbcol .fbtl td { border-top: 1px solid #000; padding: 2px 6px 2px 0; vertical-align: top; }
+#fbcol .fbacts { display: flex; gap: 8px; margin-top: 8px; }
+#fbcol .fbacts button { flex: 1; }
+#fbcol .fbbanner { border: 3px solid #000; padding: 6px 8px; margin-bottom: 8px; background: #fff; }
+#fbcol .fbbanner b { font-size: 16px; }`;
+  document.head.append(css);
+  let view = 'open';
+  try { view = localStorage.getItem('fbview') || 'open'; } catch (e) { /* no storage */ }
+  const ago = iso => {
+    const s = (Date.now() - Date.parse(iso)) / 1000;
+    if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + ' min ago'; if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+    if (s < 2 * 86400) return 'yesterday'; if (s < 7 * 86400) return Math.floor(s / 86400) + ' days ago';
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+  const isOpen = r => !['shipped', 'wont_do', 'duplicate', 'verified'].includes(r.status);
+  const wants = r => r.status === 'shipped' || r.status === 'reopened';
+  const testable = r => !!(r.scenario && (r.scenario_builds || []).some(b => b.endsWith('/mvs-mvs')));
+  const FILTERS = { open: ['Open', isOpen], ready: ['Shipped: test it', wants], all: ['All', () => true] };
+
   async function load() {
     try {
       const r = await fetch(API + 'list', { cache: 'no-store', credentials: 'same-origin' });
@@ -121,68 +163,172 @@
     render();
   }
 
-  async function set(id, body) {
+  async function post(path, body, ok) {
     try {
-      const r = await fetch(API + 'set', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-                                           body: JSON.stringify(Object.assign({ id }, body)) });
+      const r = await fetch(API + path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
-      rows = rows.map(x => x.id === id ? j.row : x); msg = 'Saved ' + id + '.';
-    } catch (e) { msg = 'Not saved: ' + e.message; }
-    render();
+      if (j.row) rows = rows.map(x => x.id === body.id ? Object.assign({}, x, j.row) : x);
+      msg = ok || 'Saved ' + body.id + '.'; await load(); return true;
+    } catch (e) { msg = 'Not saved: ' + e.message; render(); return false; }
+  }
+  const set = (id, body) => post('set', Object.assign({ id }, body));
+
+  function play(btn, r, path) {
+    const old = btn.parentNode.querySelector('audio');
+    if (old) { old.remove(); btn.textContent = '▶ Voice'; return; }
+    const a = h('audio', { controls: true, src: API + 'file/' + r.id + '/' + (path || r.audio_path), preload: 'auto' });
+    btn.after(a); btn.textContent = '■ Close'; a.play().catch(() => {});
   }
 
-  function play(btn, r) {
-    const old = btn.parentNode.querySelector('audio');
-    if (old) { old.remove(); btn.textContent = '▶ Play'; return; }
-    const a = h('audio', { controls: true, src: API + 'file/' + r.id + '/' + r.audio_path, preload: 'auto' });
-    btn.after(a); btn.textContent = '■ Close'; a.play().catch(() => {});
+  function card(r) {
+    const can = testable(r);
+    const shot = r.marked ? 'screen_marked.png' : 'screen.png';
+    const last = (r.replies || []).filter(x => x.text).slice(-1)[0];
+    const tl = r.timeline || [];
+    return h('div', { class: 'fbcard' },
+      h('h3', {}, r.title || (r.final_text || r.raw_transcript || '(no text)').slice(0, 70)),
+      h('div', { class: 'fbmeta' }, h('span', { title: r.created.replace('T', ' ').slice(0, 19) + ' UTC, ' + r.id }, `${ago(r.created)} on ${r.game_version}`),
+        h('span', {}, '· ' + (r.user || '(before the login)')), h('span', { class: 'sp' }), h('span', { class: 'fbstatus' }, STATUS_TEXT[r.status] || r.status)),
+      h('div', { class: 'fbshot', title: can ? 'Test it: the scenario state in the browser' : 'the screenshot (no test yet)',
+                 onclick: () => { if (can) { testIt(r); col.scrollIntoView({ behavior: 'smooth' }); } else window.open(API + 'file/' + r.id + '/' + shot, '_blank'); } },
+        h('img', { src: API + 'file/' + r.id + '/' + shot, alt: 'the screenshot at the press', loading: 'lazy' }),
+        h('span', { class: 'lab' + (can ? '' : ' none') }, can ? '▶ TEST IT' : 'no test yet')),
+      r.release && ['shipped', 'verified', 'reopened'].includes(r.status) ? h('div', { class: 'fbfix' }, `[FIX ${r.release}]`) : null,
+      r.fix ? h('div', {}, 'Fix: ' + r.fix) : null,
+      r.rca ? h('div', {}, 'Cause: ' + r.rca) : null,
+      h('details', {}, h('summary', {}, 'More'),
+        last ? h('p', {}, `His latest reply (${ago(last.at)}): ${last.text}`) : null,
+        h('p', {}, 'The note: ' + (r.final_text || '(no text typed)')),
+        r.raw_transcript && !(r.final_text || '').includes(r.raw_transcript) ? h('p', { class: 'small' }, 'transcript: ' + r.raw_transcript) : null,
+        r.scenario ? h('p', { class: 'small' }, `Test: ${r.scenario.title}. Do: ${r.scenario.do} Expect: ${r.scenario.expect} States: ${(r.scenario_builds || []).map(b => b.slice(0, 12) + b.slice(64)).join(', ') || 'none yet'}`) : null,
+        h('div', { class: 'row' },
+          r.audio_path ? h('button', { onclick: e => play(e.target, r) }, '▶ Voice') : null,
+          h('button', { onclick: () => { openReplay(r); col.scrollIntoView({ behavior: 'smooth' }); } }, 'Replay the note'),
+          r.marked ? h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank' }, 'clean screenshot') : null),
+        h('div', { class: 'row' }, 'Category ',
+          h('select', { onchange: e => set(r.id, { category: e.target.value }) }, h('option', { value: '' }, '(none)'), cats.map(c => h('option', { value: c, selected: r.category === c }, c))),
+          ' fighters ', h('input', { type: 'text', value: r.fighters, size: 16, onchange: e => set(r.id, { fighters: e.target.value }) }),
+          r.todo ? ' TODO #' + r.todo.split(',').join(', #') : null),
+        r.notes ? h('p', { class: 'small' }, 'Developer\'s notes: ' + r.notes) : null,
+        thread(r),
+        h('b', {}, 'Timeline'),
+        h('table', { class: 'fbtl' }, tl.map(e => h('tr', {}, h('td', { class: 'mono' }, e.at.slice(0, 16).replace('T', ' ')), h('td', {}, h('b', {}, e.kind.replace('_', ' '))),
+          h('td', {}, e.by || '-'), h('td', {}, e.text)))),
+        h('p', { class: 'small mono' }, `player ${r.apk_version}, ${r.device || '?'}${r.android ? ', Android ' + r.android : ''}, install ${(r.install_id || '-').slice(0, 8)}, IP ${r.ip || '-'}, ${r.user_agent || ''}` +
+          (r.cost_usd == null ? '' : `, transcription $${r.cost_usd.toFixed(4)}${(r.cost_source || '').includes('duration') ? ' (estimated)' : ''}`))),
+      h('div', { class: 'fbacts' },
+        h('button', { onclick: () => { if (confirm('Verified fixed?')) post('test', { id: r.id, result: 'up' }, 'Verified ' + r.id); } }, '👍 Fixed'),
+        h('button', { onclick: () => { const t = prompt('Still broken: what is wrong (optional)?'); if (t !== null) post('test', { id: r.id, result: 'down', note: t }, 'Reopened ' + r.id); } }, '👎 Broken'),
+        h('button', { onclick: () => { const t = prompt('Reply (goes into the note\'s timeline):'); if (t) post('event', { id: r.id, kind: 'reply', text: t, ref: new Date().toISOString(), at: new Date().toISOString().slice(0, 19) + 'Z' }, 'Replied'); } }, 'Reply')));
   }
 
   function render() {
     if (!col) return;
     lbox.textContent = '';
-    const sel = (key, opts) => h('select', { onchange: e => { filt[key] = e.target.value; render(); } },
-      h('option', { value: '' }, 'all'), opts.map(o => h('option', { value: o, selected: filt[key] === o }, key === 'status' ? STATUS_TEXT[o] : o)));
-    rows.sort((a, b) => (b.status === 'reopened') - (a.status === 'reopened'));   // reopened first
-    const shown = rows.filter(r => (!filt.status || r.status === filt.status) && (!filt.category || r.category === filt.category));
+    rows.sort((a, b) => (b.status === 'reopened') - (a.status === 'reopened') || (b.created > a.created ? 1 : -1));
+    const shown = rows.filter(FILTERS[view][1]);
+    const queue = rows.filter(r => wants(r) && testable(r)).reverse();
     lbox.append(h('div', { class: 'box' },
-      h('h2', {}, 'Feedback from the player', h('span', { class: 'sp' }),
-        h('label', {}, 'Status ', sel('status', Object.keys(STATUS_TEXT))), h('label', {}, 'Category ', sel('category', cats)),
-        h('button', { onclick: load }, 'Reload')),
+      h('h2', {}, 'Feedback from the player', h('span', { class: 'sp' }), h('button', { onclick: load }, 'Reload')),
       h('div', { class: 'in' },
+        h('div', { class: 'fbfilters' }, Object.entries(FILTERS).map(([k, [t, f]]) => h('button', { class: view === k ? 'on' : '',
+          onclick: () => { view = k; try { localStorage.setItem('fbview', k); } catch (e) { /* no storage */ } render(); } }, `${t} (${rows.filter(f).length})`)),
+          queue.length ? h('button', { onclick: () => { testIt(queue[0], queue); col.scrollIntoView({ behavior: 'smooth' }); } }, `▶ Test queue (${queue.length})`) : null),
         msg ? h('p', { class: 'ok' }, msg) : null,
-        cost ? h('p', { class: 'note' }, `Transcription cost: $${cost.usd.toFixed(4)} in all (${cost.transcriptions} transcriptions, ${Math.round(cost.audio_seconds)} s of audio; $${cost.usd_in_notes.toFixed(4)} in sent notes, the rest cancelled). Prices: ${cost.prices.source}, checked ${cost.prices.checked}.`) : null,
-        h('p', { class: 'note' }, `${shown.length} of ${rows.length}. Status: NEW → read (pulled) → IN PROGRESS → SHIPPED (release) | won't do | duplicate; set with tools/feedback/fb.py. The player's 👍 = VERIFIED, 👎 = REOPENED (his thread under the note).`),
-        h('table', { class: 'fb' },
-          h('tr', {}, ['When / id', 'Versions', 'Note', 'Status', 'Category / fighters', 'Replay / voice / picture', 'Cost'].map(t => h('th', {}, t))),
-          shown.map(r => h('tr', {},
-            h('td', { class: 'mono' }, r.created.slice(0, 16).replace('T', ' '), h('br'), r.id),
-            h('td', {}, r.user ? h('b', {}, r.user) : h('span', { class: 'small' }, '(before the login)'), h('br'), 'player ' + r.apk_version, h('br'), 'game v' + r.game_version, h('br'),
-              h('span', { class: 'small' }, (r.device || '?') + (r.android ? ', Android ' + r.android : '')), h('br'),
-              h('span', { class: 'small mono', title: 'install id / client IP as nginx saw it / user agent (internal: behind the Lab login)' },
-                'install ' + (r.install_id || '-').slice(0, 8) + ', IP ' + (r.ip || '-'), h('br'), r.user_agent || '')),
-            h('td', { class: 'txt' }, r.title ? h('div', { style: 'font-weight:bold;font-size:1.05em;margin-bottom:4px' }, r.title) : null,
-              h('div', {}, r.final_text || '(no text typed)'),
-              r.raw_transcript && !(r.final_text || '').includes(r.raw_transcript) ? h('div', { class: 'small' }, 'transcript: ' + r.raw_transcript) : null,
-              r.notes ? h('div', { class: 'small' }, 'notes: ' + r.notes) : null, thread(r)),
-            h('td', {}, h('b', {}, STATUS_TEXT[r.status] || r.status), r.status === 'shipped' ? h('div', {}, 'in ' + r.release) : null,
-              r.status === 'duplicate' ? h('div', { class: 'small' }, 'of ' + r.duplicate_of) : null),
-            h('td', {},
-              h('select', { onchange: e => set(r.id, { category: e.target.value }) },
-                h('option', { value: '' }, '(none)'), cats.map(c => h('option', { value: c, selected: r.category === c }, c))),
-              h('br'),
-              h('input', { type: 'text', value: r.fighters, placeholder: 'fighters: geese,terry', size: 16,
-                           onchange: e => set(r.id, { fighters: e.target.value }) })),
-            h('td', {},
-              h('button', { onclick: () => { openReplay(r); col.scrollIntoView({ behavior: 'smooth' }); } }, 'Replay'), h('br'),
-              r.audio_path ? h('button', { onclick: e => play(e.target, r) }, '▶ Voice') : h('span', { class: 'small' }, 'no voice'),
-              h('br'), r.marked
-                ? h('a', { href: API + 'file/' + r.id + '/screen_marked.png', target: '_blank' },
-                    h('img', { src: API + 'file/' + r.id + '/screen_marked.png', alt: 'marked screenshot', loading: 'lazy', style: 'width:152px;display:block;border:1px solid #000' }), 'marked screenshot')
-                : h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank' }, 'screenshot'),
-              r.marked ? h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank', class: 'small' }, ' (clean)') : null),
-            h('td', { class: 'mono' }, r.cost_usd == null ? '-' : '$' + r.cost_usd.toFixed(4), (r.cost_source || '').includes('duration') ? h('div', { class: 'small' }, 'estimated') : null)))))));
+        cost ? h('p', { class: 'note' }, `Transcription cost: $${cost.usd.toFixed(4)} in all (${cost.transcriptions} transcriptions, ${Math.round(cost.audio_seconds)} s of audio). Status: NEW → read → IN PROGRESS → FIXED (commit) → SHIPPED (release) → 👍 VERIFIED / 👎 REOPENED; set with tools/feedback/fb.py.`) : null,
+        shown.length ? shown.map(card) : h('p', {}, view === 'ready' ? 'Nothing shipped to test.' : 'No notes here.'))));
+  }
+
+  // ---- Test it: a note's scenario state in the browser (the player's VERIFY mode) ----------------------------------
+  const KEYBITS = { U: 4, D: 5, L: 6, R: 7, a: 0, b: 8, c: 1, d: 9, s: 3, o: 2 };
+  const TKEYS = { KeyW: 'U', KeyA: 'L', KeyS: 'D', KeyD: 'R', KeyU: 'a', KeyI: 'b', KeyO: 'c', KeyP: 'd', ArrowLeft: 'L', ArrowRight: 'R',
+                  ArrowUp: 'U', ArrowDown: 'D', KeyZ: 'a', KeyX: 'b', KeyC: 'c', KeyV: 'd', Enter: 's' };
+  const held = new Set();
+  let T = null;                                       // the test running: {r, R, state, t0, queue, script}
+  addEventListener('keydown', e => { if (!T || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return; const k = TKEYS[e.code]; if (k) { held.add(k); e.preventDefault(); } });
+  addEventListener('keyup', e => { const k = TKEYS[e.code]; if (k) held.delete(k); });
+  const bits = s => [...s].reduce((m, k) => m | (KEYBITS[k] !== undefined ? 1 << KEYBITS[k] : 0), 0);
+  function stopTest(verdict) {
+    if (!T) return;
+    stopLoop(); const t = T; T = null;
+    if (!verdict && t.loaded) fetch(API + 'test', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: t.r.id, result: 'abandoned', rom_sha: t.sha, game_version: t.ver, system: 'mvs-mvs', seconds: (performance.now() - t.t0) / 1000 }) }).catch(() => {});
+  }
+  async function testIt(r, queue) {
+    stopTest(false); stopLoop();
+    rbox.textContent = '';
+    const sc = r.scenario || {};
+    const b = (r.scenario_builds || []).filter(x => x.endsWith('/mvs-mvs')).slice(-1)[0] || '';
+    const sha = b.slice(0, 64);
+    const ver = ((r.timeline || []).filter(e => e.kind === 'scenario' && e.ref === sha).map(e => (/v([\d.]+)/.exec(e.text) || [])[1]).filter(Boolean)[0]) || '?';
+    const st = h('span', { class: 'mono' }, 'Loading the test state and build ' + ver + ' (12 MB the first time)…');
+    const cv = h('canvas', { width: 304, height: 224, class: 'fbscreen', tabindex: 0 });
+    const bPlay = h('button', {}, '▶ Play');
+    const n = queue ? queue.indexOf(r) : -1;
+    const verdict = res => async () => {
+      let note = '';
+      if (res === 'down') { note = prompt('Still broken: what is wrong (optional)?'); if (note === null) return; }
+      const t = T; stopTest(true);
+      await post('test', { id: r.id, result: res, rom_sha: sha, game_version: ver, system: 'mvs-mvs', note, seconds: t ? (performance.now() - t.t0) / 1000 : null },
+                 res === 'up' ? 'Verified ' + r.id : 'Reopened ' + r.id);
+      if (queue && n + 1 < queue.length) testIt(queue[n + 1], queue); else rbox.textContent = '';
+    };
+    rbox.append(h('div', { class: 'box' },
+      h('h2', {}, 'Test it: ' + r.id + (queue ? ` (${n + 1} of ${queue.length})` : ''), h('span', { class: 'sp' }), h('button', { onclick: () => { stopTest(false); rbox.textContent = ''; } }, 'Close')),
+      h('div', { class: 'in' },
+        h('div', { class: 'fbbanner' }, h('b', {}, sc.title || r.title), h('div', {}, 'Do: ' + (sc.do || '')), h('div', {}, 'Expect: ' + (sc.expect || '')),
+          h('div', { class: 'small' }, 'Keys: WASD + U I O P (A B C D), or the arrows + Z X C V. Build ' + ver + ' (' + sha.slice(0, 12) + '), arcade.')),
+        cv,
+        h('div', { class: 'row' }, bPlay,
+          h('button', { onclick: () => { if (T && T.R) { T.R.load(T.state); T.script = null; T.t0 = performance.now(); start(); } } }, 'Restart'),
+          h('button', { onclick: () => { if (T && T.R) { T.R.load(T.state); T.script = expand(r.scenario.do_keys, r.scenario.proof); start(); } } }, 'Show expected'),
+          h('button', { onclick: verdict('up') }, '👍 Fixed'), h('button', { onclick: verdict('down') }, '👎 Broken'),
+          queue && n + 1 < queue.length ? h('button', { onclick: () => { stopTest(false); testIt(queue[n + 1], queue); } }, 'Next') : null),
+        st)));
+    const ctx = cv.getContext('2d');
+    let im = null;
+    const draw = () => { const p = T.R.rgba(im && im.data); if (cv.width !== p.w) { cv.width = p.w; cv.height = p.h; } if (!im || im.width !== p.w) im = new ImageData(p.data, p.w, p.h); ctx.putImageData(im, 0, 0); };
+    const expand = (s, proof) => { const out = []; for (const part of (s || '').split(',').filter(Boolean)) { const [k, v] = part.split(':'); for (let i = 0; i < +k; i++) out.push(v.replace('-', '')); }
+      for (let i = 0; i < (proof || 90); i++) out.push(''); return out; };
+    let ac = null, at = 0;
+    const sound = a => {
+      if (!a || !a.length) return;
+      if (!ac) { try { ac = new AudioContext({ sampleRate: Math.round(T.R.rate) }); } catch (e) { ac = new AudioContext(); } }
+      const k = a.length / 2, bf = ac.createBuffer(2, k, T.R.rate), L = bf.getChannelData(0), Rt = bf.getChannelData(1);
+      for (let i = 0; i < k; i++) { L[i] = a[2 * i] / 32768; Rt[i] = a[2 * i + 1] / 32768; }
+      const src = ac.createBufferSource(); src.buffer = bf; src.connect(ac.destination); at = Math.max(at, ac.currentTime + 0.05); src.start(at); at += k / T.R.rate;
+    };
+    const frame = () => {
+      const c = T.R.core; const keys = T.script ? (T.script.length ? T.script.shift() : '') : [...held].join('');
+      if (T.script && !T.script.length) T.script = null;
+      c._wc_pad(0, bits(keys)); c._wc_pad(1, 0); c._wc_run();
+      const k = c._wc_audio_n(), a = c._wc_audio() >> 1; sound(c.HEAP16.slice(a, a + 2 * k));
+    };
+    let accT = 0, lastT = 0;
+    function tick(t) {
+      if (!playing || !T) return;
+      accT += (t - lastT) / 1000 * T.R.fps; lastT = t;
+      let k = 0; while (accT >= 1 && k < 4) { frame(); accT -= 1; k++; }
+      if (accT > 4) accT = 0;
+      draw(); raf = requestAnimationFrame(tick);
+    }
+    const start = () => { stopLoop(); playing = true; bPlay.textContent = 'Pause'; st.textContent = T && T.script ? 'Showing the expected result with the recipe\'s own inputs…' : 'Playing: do it, then 👍 or 👎.'; lastT = performance.now(); accT = 0; at = 0; raf = requestAnimationFrame(tick); cv.focus(); };
+    bPlay.onclick = () => { if (!T || !T.R) return; if (playing) { stopLoop(); bPlay.textContent = '▶ Play'; } else start(); };
+    T = { r, sha, ver, t0: performance.now(), loaded: false, script: null };
+    try {
+      if (!sha) throw new Error('no state for the arcade system yet');
+      const [state, rom] = await Promise.all([get(API + 'scenario/' + r.id + '/' + sha + '/mvs-mvs.state', 'test state'), roms[sha] ? null : get(API + 'rom/' + sha, 'game build ' + ver)]);
+      if (!bios) bios = await get('neogeo.zip', 'BIOS');
+      if (rom) roms[sha] = rom;
+      const ck = sha + ':off';
+      const fake = { inputs: new Uint8Array([78, 83, 73, 78, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), snaps: {}, press: state };
+      if (!cores[ck]) cores[ck] = (await FeedbackReplay.create(window.GeoCore, { bios, rom: roms[sha], systype: 'mvs', hw: 'mvs', memcard: 'off' }, fake)).core;
+      if (!T || T.r !== r) return;
+      T.R = new FeedbackReplay(cores[ck], fake); T.state = state; T.R.load(state); T.loaded = true; T.t0 = performance.now();
+      frame(); draw();
+      st.textContent = 'Paused at the scenario\'s first frame: press Play (or Show expected).';
+    } catch (e) { st.textContent = 'Test unavailable: ' + e.message; }
   }
 
   const tab = $('tabFeedback');

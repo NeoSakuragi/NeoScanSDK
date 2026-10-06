@@ -4,12 +4,20 @@
 
     fb.py list [--status new|read|in_progress|shipped|wont_do|duplicate|verified|reopened] [--category gameplay] [--cost]
     fb.py show <id>
-    fb.py status <id> read|in_progress|wont_do|verified|reopened [--note "..."]
+    fb.py status <id> read|in_progress|wont_do|verified|reopened [--note "..."] [--commit SHA]
+    fb.py status <id> fixed --commit SHA [--note "..."]     (on the brawler branch, not yet in a published build)
     fb.py status <id> shipped --release 0.0.71 [--note "..."]
     fb.py status <id> duplicate --of <other id>
     (verified / reopened are normally set by the player himself: thumbs up / down in his list, Player 0.0.17)
     fb.py set <id> [--category sound|graphics|gameplay|integration|scripting|other] [--fighters geese,terry] [--notes "..."]
     fb.py set <id> --title "Krauser: Kaiser Wave impact drawn at floor level"   (the note's one-line headline, <= 70)
+    fb.py set <id> --todo 166                                (its TODO item(s): 163,173)
+    fb.py set <id> --fix "..." --rca "..."                   the fix and its root cause, one or two plain sentences each
+                                                             (the player's card and the Lab show them under [FIX 0.0.x])
+    fb.py timeline <id>                                      the note's whole life (found, triaged, in progress, fixed,
+                                                             shipped, test states, test attempts, verified / reopened, replies)
+Lifecycle: new -> read -> in_progress -> fixed (commit) -> shipped (release) -> tested on the player (👍 verified / 👎
+reopened); wont_do and duplicate close a note. Every step is a timestamped event with who (docs/feedback.md "Lifecycle").
 """
 import argparse, json, shlex, subprocess, sys
 
@@ -40,6 +48,11 @@ def thread(replies, indent='  '):
     return out
 
 
+def timeline(events, indent='  '):
+    """the note's life, oldest first: one line per event"""
+    return [f"{indent}{e['at'][:16].replace('T', ' ')}  {e['kind']:<11} {e.get('by') or '-':<14} {e['text']}" for e in events or []]
+
+
 def money(v): return f'${v:.4f}' if v is not None else '-'
 
 
@@ -60,7 +73,10 @@ def main():
     p = sub.add_parser('show'); p.add_argument('id')
     p = sub.add_parser('status'); p.add_argument('id'); p.add_argument('status')
     p.add_argument('--release', default=None); p.add_argument('--note', default=''); p.add_argument('--of', default='')
-    p = sub.add_parser('set'); p.add_argument('id'); p.add_argument('--category'); p.add_argument('--fighters'); p.add_argument('--notes'); p.add_argument('--title')
+    p.add_argument('--commit', default='')
+    p = sub.add_parser('set'); p.add_argument('id'); p.add_argument('--category'); p.add_argument('--fighters'); p.add_argument('--notes'); p.add_argument('--title'); p.add_argument('--todo')
+    p.add_argument('--fix'); p.add_argument('--rca')
+    p = sub.add_parser('timeline'); p.add_argument('id')
     a = ap.parse_args()
     try:
         if a.cmd == 'list':
@@ -83,16 +99,26 @@ def main():
                       f"tokens in text {t['input_text_tokens']} audio {t['input_audio_tokens']} out {t['output_tokens']}; "
                       f"from {t.get('user') or '-'}, install {t.get('install_id') or '-'}, IP {t.get('ip') or '-'}, UA {t.get('user_agent') or '-'}")
             for h in it['history']: print(f"  {h['at']}  {h['from_status'] or '-'} -> {h['to_status']}  by {h['by']}  {h['note']}")
+            if r.get('fix'): print(f"  fix: {r['fix']}")
+            if r.get('rca'): print(f"  root cause: {r['rca']}")
+            if r.get('todo') or r.get('fix_commit'): print(f"  TODO #{r.get('todo') or '-'}, fix commit {r.get('fix_commit') or '-'}")
+            if it.get('scenario'):
+                sc = it['scenario']; print(f"  test: {sc['title']}\n    do: {sc['do']}\n    expect: {sc['expect']}")
+                print('    states: ' + (', '.join(b[:12] + b[64:] for b in it.get('scenario_builds', [])) or 'none yet'))
             if it.get('replies'):
                 print('  thread:'); print('\n'.join(thread(it['replies'], '    ')))
+            print('  timeline:'); print('\n'.join(timeline(it.get('timeline'), '    ')))
+        elif a.cmd == 'timeline':
+            print('\n'.join(timeline(api('item/' + a.id).get('timeline'), '')))
         elif a.cmd == 'status':
             body = {'id': a.id, 'status': a.status, 'note': a.note, 'by': 'fb.py'}
             if a.release is not None: body['release'] = a.release
             if a.of: body['duplicate_of'] = a.of
+            if a.commit: body['commit'] = a.commit
             print(line(api('status', body)['row']))
         elif a.cmd == 'set':
             body = {'id': a.id, 'by': 'fb.py'}
-            for k in ('category', 'fighters', 'notes', 'title'):
+            for k in ('category', 'fighters', 'notes', 'title', 'todo', 'fix', 'rca'):
                 if getattr(a, k) is not None: body[k] = getattr(a, k)
             print(line(api('set', body)['row']))
     except RuntimeError as e:

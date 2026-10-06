@@ -126,6 +126,15 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
         }.start()
     }
 
+    /** a test attempt's replay (Player 0.0.22, TestMode's 👎): the bundle being written (states + inputs since the
+     *  scenario state, the screenshot, the voice) with its meta.json, handed over instead of sent as a note; null = none */
+    fun takeAttempt(text: String, raw: String): File? {
+        val d = work ?: return null; work = null
+        captured.await(3, java.util.concurrent.TimeUnit.SECONDS)
+        File(d, "meta.json").writeText(meta(d.name, heldMs).apply { put("final_text", text); put("raw_transcript", raw); put("kind", "test") }.toString(2))
+        return d
+    }
+
     /** Cancel: the bundle is dropped */
     fun cancel() { work?.deleteRecursively(); work = null }
 
@@ -237,10 +246,78 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
                 } }
                 val code = c.responseCode
                 val txt = (if (code == 200) c.inputStream else c.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
-                if (code == 200) Result.success(JSONObject(txt).getJSONObject("row"))
+                if (code == 200) JSONObject(txt).let { j -> Result.success(j.getJSONObject("row").put("last_reply_id", j.optJSONObject("reply")?.optInt("id", -1) ?: -1)) }
                 else Result.failure(Exception("HTTP $code " + (try { JSONObject(txt).optString("error") } catch (x: Exception) { "" })))
             } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
         }
+
+        /** a test attempt (Player 0.0.22, POST ../feedback/test): a zip of test.json ([t]: id, result up | down | abandoned,
+         *  rom_sha, game_version, system, seconds, reply_id, note) + the attempt's replay [dir] (optional). Blocking. */
+        fun postTest(ctx: Context, t: JSONObject, dir: File?): Result<JSONObject> {
+            val u = url(ctx, "test") ?: return Result.failure(Exception("no server"))
+            val bos = java.io.ByteArrayOutputStream()
+            ZipOutputStream(bos).use { z ->
+                t.put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
+                z.putNextEntry(ZipEntry("test.json")); z.write(t.toString().toByteArray()); z.closeEntry()
+                dir?.listFiles()?.sortedBy { it.name }?.forEach { f ->
+                    if (!Regex("^[a-z0-9_]{1,40}\\.(state|bin|png|json|m4a|wav|mp3|ogg|txt)$").matches(f.name) || f.name == "test.json") return@forEach
+                    z.putNextEntry(ZipEntry(f.name)); f.inputStream().use { it.copyTo(z) }; z.closeEntry() }
+            }
+            val body = bos.toByteArray()
+            return try {
+                val c = Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5000; readTimeout = 30000; requestMethod = "POST"; doOutput = true
+                    setFixedLengthStreamingMode(body.size); setRequestProperty("Content-Type", "application/zip")
+                    setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
+                    if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+                    outputStream.use { it.write(body) }
+                } }
+                val code = c.responseCode
+                val txt = (if (code == 200) c.inputStream else c.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
+                if (code == 200) Result.success(JSONObject(txt)) else Result.failure(Exception("HTTP $code $txt"))
+            } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+        }
+
+        /** a note's test state for this build and system (GET ../feedback/mine/scenario/<id>/<sha>/<key>.state), cached;
+         *  blocking; the file, or the reason it is not there */
+        fun scenarioState(ctx: Context, id: String, sha: String, key: String): Result<File> {
+            val f = File(ctx.cacheDir, "scenario/${id}_${sha.take(12)}_$key.state")
+            if (f.exists() && f.length() > 0) return Result.success(f)
+            val u = url(ctx, "mine/scenario/$id/$sha/$key.state") ?: return Result.failure(Exception("no server"))
+            return try {
+                val c = Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5000; readTimeout = 30000
+                    setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
+                    if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+                } }
+                if (c.responseCode == 404) return Result.failure(Exception("No test state for the build you run yet"))
+                if (c.responseCode != 200) return Result.failure(Exception("The server answered HTTP ${c.responseCode}"))
+                f.parentFile?.mkdirs(); val part = File(f.path + ".part")
+                c.inputStream.use { i -> part.outputStream().use { i.copyTo(it) } }
+                part.renameTo(f); Result.success(f)
+            } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+        }
+
+        /** the state key the player asks for: the BIOS it boots + its hardware (scenario.py SYSTEMS) */
+        fun systemKey(hw: String) = Native.systemType() + "-" + hw
+
+        /** a note can be tested on this build: it has a scenario with a state for [sha] / [key] */
+        fun testable(r: JSONObject, sha: String, key: String): Boolean {
+            val b = r.optJSONArray("scenario_builds") ?: return false
+            return r.optJSONObject("scenario") != null && (0 until b.length()).any { b.optString(it) == "$sha/$key" }
+        }
+        fun wantsTest(r: JSONObject, running: String) = isReady(r, running) || r.optString("status") == "reopened"
+
+        /** "44 min ago", "3 h ago", "yesterday", "Oct 3" (beyond 7 days) */
+        fun ago(iso: String): String = try {
+            val p = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+            val t = p.parse(iso)!!.time; val s = (System.currentTimeMillis() - t) / 1000
+            when {
+                s < 60 -> "just now"; s < 3600 -> "${s / 60} min ago"; s < 86400 -> "${s / 3600} h ago"
+                s < 2 * 86400 -> "yesterday"; s < 7 * 86400 -> "${s / 86400} days ago"
+                else -> SimpleDateFormat("MMM d", Locale.US).format(Date(t))
+            }
+        } catch (x: Exception) { iso.take(10) }
 
         /** his notes (GET ../feedback/mine): {user, rows: [... each with history + replies]}. Blocking. */
         fun mine(ctx: Context): Result<JSONObject> = try {

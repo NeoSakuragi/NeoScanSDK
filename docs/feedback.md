@@ -159,8 +159,14 @@ drawing canvas (`Ink.kt`).
     (`reply_<id>.m4a` in the note's bundle dir), status_from, status_to, and the origin: apk_version, install_id,
     device, android, ip, user_agent. A thumbs up / down also writes its status change to `status_history`. A voice
     reply's transcription is linked to the note (its cost).
-- **Statuses:** new → read (pulled) → in_progress → shipped (with a release, e.g. 0.0.71), wont_do, or duplicate (of
-  another id); then the player's own verdict: verified (thumbs up) or reopened (thumbs down).
+- **Statuses:** new → read (pulled) → in_progress → fixed (on the brawler branch, with its commit) → shipped (with a
+  release, e.g. 0.0.71), wont_do, or duplicate (of another id); then the player's own verdict: verified (thumbs up) or
+  reopened (thumbs down).
+- **More tables (Player 0.0.22):** `scenarios` (feedback_id, recipe JSON), `scenario_states` (feedback_id, rom_sha,
+  key, version, state_sha256), `tests` (one row per test attempt: who, when, source player / lab, result up / down /
+  abandoned, build sha + version, system, seconds, the thumbs reply id, the attempt's replay id), `events` (timeline
+  events: commits, releases, scenario states, backfills; unique per kind + ref). `feedback` gained todo, fix_commit,
+  fix and rca.
 - **Categories:** sound, graphics, gameplay, integration, scripting, other. They are set at triage; nothing is picked
   in the player.
 
@@ -253,3 +259,76 @@ the page.
 - **Proven:** byte-identical replays from an x86_64 Android emulator to the x86_64 desktop.
 - **Not yet proven:** an arm64 device (the tablet) replaying on the x86_64 desktop. The first real bundle will tell,
   in its report's Determinism line.
+
+## Lifecycle (every note's timeline)
+
+Every step of a note is a timestamped event with who did it; the tracker assembles them (server.py `timeline`) from
+the note, its status history, the events table, the test attempts and the replies, oldest first.
+
+| Event | Where it comes from |
+|---|---|
+| found | the note itself: player, game version, device, Android |
+| triaged | `fb.py set` (title, category, fighters, `--todo 166`, `--fix`, `--rca`) |
+| read / in_progress / wont_do / duplicate | `fb.py status` (pull.py sets read) |
+| commit, fixed | `fb.py status ID fixed --commit SHA` (on the branch, not yet published); backfill: the TODO item's commits |
+| released, shipped | `fb.py status ID shipped --release 0.0.78`; backfill: the "Brawler <version>:" commit |
+| scenario | scenario.py: the recipe written / changed, a state generated on a build (version + sha) |
+| test | each attempt from the player or the Lab: result 👍 / 👎 / left without a verdict, build, system, time spent, the replay id |
+| verified / reopened | the thumbs (player list, test banner, Lab) |
+| reply | his replies; Lab replies (Reply on a card) |
+
+- **Shown in:** `fb.py show ID` / `fb.py timeline ID`, the Lab card's More, the player card's More (newest last),
+  pull.py's per-note report.md (a Timeline table) and the overview.
+- **Fix and root cause:** `fb.py set ID --fix "..." --rca "..."`, one or two plain sentences each, written when the fix
+  ships; the cards show them under `[FIX 0.0.x]`.
+- **Backfill:** `tools/feedback/backfill_history.py [--dry] [--only ID]`: each note's TODO item(s) (TODO.md items that
+  quote its id, or "TODO #N" in its history), the item's commits on brawler, the fix commit (the last item commit that
+  touches code before the release) and the release commit; posted as events, idempotent. Run 2026-10-06 over all 65
+  notes; fix / rca written by hand for the 29 shipped ones.
+
+## Scenarios: verify an issue (Player 0.0.22)
+
+Bruno: "there is no save state for me to enter some sort of verify issue". Each fixed note gets a test scenario: a save
+state of the published build set up to show the fix, with what to do and what to expect.
+
+- **The recipe** (`tools/brawler/scenarios.json`, then the tracker's `scenarios` table): title, do, expect, setup, the
+  "do" as inputs (`do_keys`) and the proof length. Setup modes:
+  - `lab` (default): the Chain Lab through the lab mailbox (main.c lab_start: P1 against a standing dummy, no AI, P1's
+    life refilled, the dummy gets up): fighter, dummy, gap (px), x, face, extra dummies (copies of the dummy at dx);
+  - `stage`: campaign stage + wave (lab req 4: the enemies' AI on);
+  - pokes: meter, P1's hp, lives[0], and `pre` inputs played before the save. Nothing else is touched.
+- **`tools/brawler/scenario.py`** (our harness, the repo's Geolith core, the player's settings: region us, arcade =
+  SNK's MVS BIOS without a card = key `mvs-mvs`, console = UniBIOS in AES mode with the card = `uni-aes`):
+  - `gen ID [--upload]`: power on, setup, save the state for both systems, then play `do_keys` + `proof` frames:
+    `clip.gif`, `sheet.png`, `<key>_start.png` in /data/feedback/scenarios/<id>/<sha12>/;
+  - `verify ID`: two generations byte-identical, and the state loaded in a fresh core (after other frames) replays
+    do + proof to the same end state;
+  - `publish`: every shipped / reopened / fixed note with a recipe, on the current build, uploaded;
+  - `backfill`: every recipe of scenarios.json; `put ID`, `show ID`.
+  - The harness reads fighter_t's offsets and the symbols from the sources: scenario.py snapshots, per ROM sha,
+    examples/brawler + sdk at the release commit + build/rom.elf and headers (`/data/feedback/scenarios/_builds/`),
+    taken while the repo's brawler.neo is that build. A working tree that moved on cannot poke the wrong offsets.
+- **Server:** states in `DATA/scenarios/<id>/<sha>/<key>.state` (+ the proof files); the player gets
+  `/brawler/feedback/mine/scenario/<id>/<sha>/<key>.state` (404 = none for that build), the Lab `feedback-api/scenario/...`.
+  `/test` (player) and `/api/test` (Lab) log the attempts; a 👎 attempt's replay goes to `DATA/attempts/<id>/`.
+- **Publish routine:** after `tools/brawler/publish_vps.sh ROM VERSION`, run `python3 tools/brawler/scenario.py publish`
+  (about 5 s per note) so every testable note has its state on the new build. Proven 2026-10-06 on 0.0.81 (29 notes).
+- **In the player (0.0.22):**
+  - The card (Bruno's layout, the same in the Lab): title / "44 min ago on 0.0.17" (long press: the exact time) / the
+    screenshot (a tap = VERIFY when a state exists for the build and system he runs: "▶ TEST IT" in its corner; else
+    "no test yet" and a tap opens it full screen) / `[FIX 0.0.78]` / Fix and Cause / More (collapsed: his latest reply,
+    the note, the voices, the timeline, the origin) / Fixed - Broken - Reply.
+  - VERIFY mode (TestMode.kt): the state is downloaded (cached), loaded between frames (Native.loadState: the replay
+    ring restarts at it), one frame shown, paused, under a banner: "TEST n of N: title / Do / Expect" with Play,
+    Restart (the state again, running), 👍 Fixed, 👎 Broken (hold: the voice records and the attempt is captured;
+    released: the transcript to correct, Send = status reopened + the voice + the attempt's replay), Next / Done, ✕.
+    Leaving a loaded note without a verdict logs it as abandoned; leaving the mode soft-resets the game.
+  - The test queue: the list's "▶ Test queue (N)" button, or the game screen's list button (a menu "My notes / Test
+    queue (N)" whenever notes can be tested): every note shipped in his build or reopened that has a state, oldest
+    first, one after the other.
+  - Proven in AVD JanusPhone on 0.0.81 (test account): the banner, Restart, 👎 (reply + attempt replay, replayed
+    byte-identical on the desktop by pull.py --replay), the queue moving on, 👍 setting verified
+    (/data/feedback/proof_0022/).
+- **In the Lab:** a card's screenshot (or "▶ Test queue") runs the same state in the browser (the wasm core, arcade
+  system) under the banner; keys WASD + U I O P or the arrows + Z X C V; Restart, Show expected (the recipe's own
+  inputs), 👍 / 👎 (a Lab attempt: verified / reopened), Next.
