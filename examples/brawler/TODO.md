@@ -956,7 +956,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   special's program (decoded from the handler code vs captures replayed), play them in real fights vs SS2 in the same
   situations, re-derive every replayed part from SS2's code. In progress.
 
-- [ ] 180. KIM: A SECOND KIM DURING HIS FURY (20261007-002048-5d29, 0.0.85: "Why is there another instance of Kim on
+- [x] 180. (done 2026-10-07: the ghost was a script object of the Phoenix's export, Kim's frame 195 px behind him on rows 108-186: Kizuna's sound task 'SOUND' (code $1D270, slot 12) holding a dead PALETTE task's Kim animation $50A0 / step $AED1C, never drawn by Kizuna (screen scan), taken as Kim's object; cap_kz.new_objects skips a task whose +$40 / +$94 are still the dead slot's leftovers, captures regenerated (only stale $50A0 objects dropped). Proof tools/kizuna/kim180_proof.py: the Phoenix connecting in a fight, every sprite attributed, nothing of Kim's > 160 px behind him, all flames / feathers kept; sheets /data/tmp/kim180/out (phoenix_brawler.png vs phoenix_kizuna.png, objects.txt); kim_effects_check all ok, bank_proof ALL OK, controls_proof kim ok) KIM: A SECOND KIM DURING HIS FURY (20261007-002048-5d29, 0.0.85: "Why is there another instance of Kim on
   the left side of the screen as he's doing his fury?"; the replay at P-48 shows a partial Kim at the left edge while
   the real one rises in the centre, just before the Phoenix flame). Same family as Rugal's ghost (#173: a recorded
   object that should not be drawn): find which object draws Kim's frames there (afterimage / pinned effect of #144
