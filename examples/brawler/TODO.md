@@ -466,7 +466,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   default its TAUNT (Kim: Kizuna C+D taunt anim 21, ~92 f) cut to the freeze length (~28 f), a per-fighter data choice
   (taunt / charge / win pose; Billy: his power-up), then starts the fury. Concentration glow anchored on the pose's
   reference point (or the default). Proof: Kim's Phoenix, Haohmaru's and Hanzo's furies connecting on a dummy after the
-  flash, contact sheets.
+  flash, contact sheets. UPDATE 0.0.67: the whiff's cause was that nobody could hit during the flash and Kim's first hit
+  falls inside it; fixed (the fury's own attacker may hit during the flash). The flash pose stays wanted for
+  consistency. Bruno: for these fighters the concentration glow emphasizes the HEAD (anchor = the pose's head point).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
