@@ -454,7 +454,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   as usual. One rule in fighter.c (no per-move data), documented in docs/brawler_move_vocabulary.md; proofs: per fighter
   normal -> special, normal -> fury, special -> fury (hit and whiff), controls_proof, regress, campaign29.
 
-- [x] 146. (done 2026-10-06, 0.0.71) Billy Lee from Double Dragon (Technos 1995) with his transformation, the variant
+- [x] 149. (done 2026-10-06, 0.0.72) Billy Lee from Double Dragon (Technos 1995) with his transformation, the variant
        table and the form link as engine features (docs/brawler_move_vocabulary.md "variant.table", "Form link"):
        tools/doubledr model_dd / export_dd (everything from DD's data: specials as programs + 4-row variant tables),
        Super Billy reachable by down+D with a full meter (not selectable). Proofs: billy_proof.py (frames = DD's
@@ -623,7 +623,7 @@ One item per assigned special that still replays a capture (artifact grid https:
 - Form links beyond Billy: Rugal -> Omega Rugal (KOF95 data exists, a boss second phase), Iori -> Riot of the Blood (KOF97).
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
-- Billy Lee (#146) choices to review: the transformation's trigger (down+D, a full meter: his MAX slot, DD has no MAX
+- Billy Lee (#149) choices to review: the transformation's trigger (down+D, a full meter: his MAX slot, DD has no MAX
   super), its exit (a lost life; DD keeps it for the round), Super Billy without a fury (DD gives the form none), the
   C slots (C 214, forward 236, down 623; Super Billy C 41236, forward 236, down 623, up 214), the variant row played
   (the heaviest, D; game.json roster[].variant to change), his voices: only $26 / $28 / $1C fit (KOF98's 223 voice
