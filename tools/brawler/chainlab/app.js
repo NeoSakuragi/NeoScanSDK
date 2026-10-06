@@ -124,7 +124,8 @@
     for (let i = 0; i < w * h * 4; i += 4) { d[i] = src[i + 2]; d[i + 1] = src[i + 1]; d[i + 2] = src[i]; d[i + 3] = 255; }
     ctx.putImageData(img, 0, 0);
     const c = lab.combo();
-    if (window.labStatus) { $('status').textContent = window.labStatus() + (paused ? '  PAUSED' : ''); return; }
+    const ts = window.labStatus && window.labStatus();     // the other tabs' status line; null on the Chain Lab tab
+    if (ts !== null && ts !== undefined) { $('status').textContent = ts + (paused ? '  PAUSED' : ''); return; }
     $('status').textContent = `frame ${lab.labFrame()}  P1 ${lab.stateName(0)}  dummy ${lab.stateName(2)}  combo ${c.hits} hits ${c.dmg} damage${paused ? '  PAUSED' : ''}`;
   }
   function fit() {                        // pixel-exact: a whole number of screen pixels per game pixel
