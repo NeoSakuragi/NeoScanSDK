@@ -501,6 +501,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (a "body projectile": its body box as attack box) that knocks down every other enemy it touches, each once, with
   modest damage; the knocked-down enemies fall in the throw's direction; standard engine rule for every throw
   (vocabulary hold / spawn family), proof: a throw into a group of 3 enemies (how many fall).
+  FEEDBACK 20261006-161058-b3f3 (Bruno in play, 0.0.71: "Here's an example of how the throws can be not fun: the throw
+  of Billy Kane takes way too much time."): the replay shows Billy's forward throw (pole lift overhead, then the slam)
+  holding him in S_THROW for 173 frames (2.9 s: frame 65320 to press + 76), after a 15-frame S_GRAB (65305); the
+  frame before it in the window, another grab -> idle took 176 frames (65124-65300). Exactly rules (2) and (8): the
+  control return point from Billy's decoded throw code (KOF98), his recovery tail trimmed; Billy joins the pilot's
+  timing sheet as the worst case to measure (throw length per fighter, before / after).
 
 - [ ] 147. HANZO'S PROJECTILE VARIANTS (feedback 20261006-154517-b3f3, Bruno in play: "There are multiple versions of
   this projectile from Hanzo, can you figure them out?"): decode his projectile special's handler in WHP (tools/whp
@@ -522,6 +528,178 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   C"; "the opponent is kind of thrown on the other side"): decode SS4's throw command + Haohmaru's throw animation and
   victim handling and express it through #146's standard throw (walk-in grab, forward / back + A, the paired script,
   the rules) — after #146's Geese / Terry pilot is approved. Haohmaru = the first fully ROM-decoded non-KOF fighter.
+
+- [ ] 150. A DANCE FURY HITTING AN AIRBORNE VICTIM (feedback 20261006-160204-b3f3, Bruno in play, 0.0.71: "When the dance
+  fury of Robert is already started and somebody is in the air, and there's an impact, the victim does not get kind of
+  stuck to Robert, it just bounces away and Robert keeps doing the dance on his own."). Replay: Robert's A combo KOs two
+  enemies at frames 34978-34999 (life -10 / -7) and launches them (KO flights up to y 108 / 94); D at 35023 starts his
+  fury (23624C, the rush moves him 118 px in ~30 frames after the flash); at 35072 (P-20) the rush hits fighter 7 (Mai)
+  at height 41 px: she is sent up again (y 41 -> 93) and away, Robert dances alone to the press (35092). Cause:
+  fighter.c react(): `if (v->y > 0)` = a juggle re-launch (vy 4-5, vx 1.5 px) BEFORE any dance check; hold.dance only
+  holds a victim reeling on the ground. Fix (engine rule, vocabulary hold.dance (d), no per-move data): a dance hit on
+  an airborne victim catches it: its flight stops (vx 0), it drops to the ground fast (2x gravity, a few frames) and
+  reels there in front of the attacker as a ground victim, so the next dance hits connect and only the finisher
+  launches; a dead body still in its KO flight (life <= 0) is caught the same way (or, KOF's way, is no longer a target:
+  Bruno to pick). Proof: Robert's 23624C and Ryo's dance on a victim launched by a combo (alive and dead), every hit of
+  the dance landing (hit log), contact sheets; fury_inv_proof, cancel_proof, regress, campaign29.
+
+- [ ] 151. FURY -> MAX FURY CANCEL (feedback 20261006-160257-b3f3, Bruno in play, 0.0.71: "A steel cannot cancel a fury
+  into a MAX Fury." = "I still cannot..."). Replay: Robert's fury from D at frame 37971 (P-131), its rush lands on
+  Yamazaki (~38022); from 38044 (P-58) he presses down+D again and again (38044, 38054, 38063, ...): nothing happens, the
+  fury plays to its end. Cause: #143's rule (2) is `f->spec_id != BS_FURY` (fighter.c, the fury_buf buffering and the
+  S_SPECIAL cancel test): a fury never cancels. Fix: branch.cancel rule (3): a fury (not a MAX) whose first hit
+  landed cancels into the fighter's MAX fury on down+D (on the ground, not while it holds a caught victim), the MAX
+  from its start with its own flash (orange), charge sound, invincibility and meter cost (a MAX is never cancelled
+  further; a MAX is played with spec_id BS_FURY today, so the fury needs a "MAX" flag to tell them apart). Same rule
+  for every fighter, documented in docs/brawler_move_vocabulary.md branch.cancel; cancel_proof.py gains fury -> MAX
+  (hit and whiff) per fighter. Quick (< 1 h + proofs).
+
+- [ ] 152. BILLY KANE'S FURY = THE FIRE RING (feedback 20261006-160855-b3f3, Bruno in play, 0.0.71: "That's not the
+  standard fury I would like Billy Kane to have, I want this other one with the circle of fire."). Replay: D at frame
+  58693 (P-14) starts game.json's fury "236236C" (KOF98 slot 10: the leap with the red pole whirl, no fire; seen
+  continuing from the press state). Billy's other KOF98 DM is slot 11 "23624C" (MAX: "MAX 23624A"); played in a test
+  build (fury = 23624C, harness, a dummy at 70 px): it is the flaming ring, hits, ROM-decoded like the rest. Fix: game.json
+  billy fury "23624C"; down+D = its MAX: export_bm.fury_max_special looks for 'MAX 23624C', which KOF98's export
+  doesn't have (only 'MAX 23624A'): fall back to the same command's MAX on another button (or a roster "fury_max"
+  field) so down+D doesn't silently play the plain fury. Quick (< 1 h): data + the fallback, romspecials_check,
+  fury_inv_proof, a sheet for Bruno.
+
+- [ ] 153. BILLY KANE'S DIAGONAL SPECIAL (feedback 20261006-160912-b3f3, Bruno in play, 0.0.71: "The diagonal move,
+  that's not the one I expected."). Replay: up-forward + C at frame 59608 (P-20) plays slot ufD = "214B" (a step-in
+  overhead pole strike, ~60 frames to recovery, seen continuing from the press state). Billy's slots: C = CCCC (fire
+  pole spin), forward = 426C, down = 623C, up = 623D, down-forward = none (null), up-forward = 214B; his KOF98 moves not
+  in a slot: AAAA, 426A, 623A, 623B, 214D (other-button versions). NEEDS BRUNO: which move he expected on the diagonal
+  (and the empty down-forward slot): a pick round in the Lab's Characters tab (the specials mapping with impact pictures,
+  #54) or the interactive judging page; then a game.json change (quick).
+
+- [ ] 154. CONTINUE AND GAME OVER MUSIC (feedback 20261006-160529-b3f3: "The music is incorrect on the continue screen."
+  and 20261006-160539-b3f3: "The music is also incorrect on the game over screen."). Replay (driver command = RAM
+  snd_song): CONTINUE? opens at frame 46799 with $2F, GAME OVER at 47290 with $26: what game.json music / songs.json
+  ask. Both play exactly as in KOF98 (compare_port.py on the build: CONTINUE 8 / 8 chip events identical, GAME_OVER 1158
+  / 1165, 7 ADPCM-A2 level differences). So the CHOICE is wrong, not the port: $2F is an ambience (ADPCM-A only, 3
+  channels, no melody; kof98_songs.md: "$51 = $2F looped"), measured as the first command KOF98 sends on its continue
+  screen ("prefix $16") but likely not its continue music; $26 is KOF98's loser's-screen tune (KOF98's own GAME OVER plays
+  $2C, our stage-clear jingle). Fix: (1) re-measure KOF98's continue and GAME OVER screens in our emulator with the
+  REG_SOUND tap over the WHOLE screen (every command, not the first) to know what KOF98 really plays there; (2) an
+  audition page (Song Lab / interactive judging) with the candidates (KOF98's, KOF96/97's, Fatal Fury / AOF continue and
+  game-over themes) for Bruno to pick; (3) game.json music + songs.json (quick once picked). Our count is 10 s (9 -> 0
+  at 60 ticks a number); the pick should fit it.
+
+- [ ] 155. KOF2000'S MAX ACTIVATION SOUND FOR THE MAX FURY (feedback 20261006-155931-b3f3, Bruno in play, 0.0.71: "KOF
+  2000 has a special sound for triggering a MAX Fury, sort of a high-pitched whistling sound that is very
+  characteristic. See if you can track this down and include this, that would help us differentiate the MAX Fury from
+  the regular Fury in our game."). Today fx.super_flash plays KOF98's $1A $3A (FURY CHARGE) for a fury and a MAX
+  alike (game.json super_flash.sound; KOF98 sends the same $99 index for DM and SDM, measured). Plan: (1) find the
+  sound in KOF2000 (/data/roms/kof2000.neo; check its M1 is the decrypted one; its driver is the 1999-2000 SNK line,
+  next to garou in tools/kof98snd/games98.py): tap REG_SOUND in our emulator while doing a MAX super and while
+  activating MAX mode, isolate the command, the ADPCM sample(s) it plays; (2) bring the sample into our V ROM as a new
+  sfx (songs.json sfx from a second source game: build_snd.py today takes effects from KOF98 only); (3)
+  super_flash gets a "sound_max" played instead of $3A when the fury is the MAX (needs the MAX flag of #151). Proof: the
+  capture's WAV vs KOF2000's, the flash frame's command in a MAX. Big (a new sfx source in the sound build).
+
+- [ ] 156. "YOUR CARD IS STILL INSERTED." AFTER EVERY GAME (feedback 20261006-160546-b3f3, Bruno in play, 0.0.71: "I keep
+  having that message, your card is still inserted, each time the game resets. Why is that?"). Replay: GAME OVER, then
+  the game returns to the BIOS (SYSTEM_RETURN) and from ~frame 47786 (P-48) SNK's MVS BIOS shows the message to the
+  press. ANSWER: it is the MVS BIOS's own reminder when a game ends with a memory card in the slot; the NeoScan Player
+  runs Geolith with geolith_memcard "on" (android/.../cpp/player.c environ_cb), so the slot always reports a card. On
+  MVS the brawler never uses the card (main.c save_write: MVS = the backup RAM block; the card only on AES). Fix: the
+  player sets geolith_memcard "off" for system mvs (on for AES, where the save lives on the card), meta.json records
+  the setting and pull.py / fbreplay.js / replay_node.js read it (older bundles: on) so replays stay byte-identical;
+  proof: game over -> attract on the MVS BIOS without the message, an AES save still loads. Quick (< 1 h, player
+  release).
+
+- [ ] 157. CHARACTER SELECT LAYOUT: HEAD POINTS, THREE EVEN ROWS, KIM (feedback 20261006-160708-b3f3, Bruno, 0.0.71: "The
+  cursor is pointing down, but you can see that the cursor is far away from Yashiro's head. I would argue we could use
+  some metadata for each sprite of the character select, maybe a position of where the head is, and this would allow us
+  to maybe rearrange the character select in a way that the player's heads are kind of spaced equally, and we would
+  have three rows ... and we could have the bosses a bit higher. ... Yashiro and K are almost exactly on the same spot,
+  ... Hanzo [is] visible on the second row, Mai is barely visible. So yeah, I think we should reorganize the character
+  select, or if you have another idea, I'm all for it."; and 20261006-160617-b3f3: "I think we should change the way
+  Kim is presented on this character select."). Screens: the arrow (main.c select_arrows) is at slot x - 8 (Yashiro:
+  slot 160 -> x 152) and a fixed 120 px above the feet, but each watch pose's head is elsewhere: Yashiro's (KOF98 frame
+  340) is ~30 px right of the arrow, on top of K' (slot 200, pose leaning left): the two heads ~10 px apart. Kim sits in
+  the BOSSES' back row (row 2, x 280: no room left in the player rows) with Kizuna animation $37 step 0 as his pose (never
+  judged: added after the two judging rounds), behind Hanzo / Haohmaru, only his head and staff show. Fix: (1) a head
+  point per watch pose (export: the frame's top of head / head box, x and y from the feet) in the roster export; (2)
+  the arrow placed on the head point; (3) a generated layout: three rows of player fighters with heads equally spaced
+  (x by head, not by slot origin), the bosses' row higher behind them; Kim (and Billy Lee, 0.0.72) in a player row; (4)
+  Kim's pose: a judging round of Kizuna's intro / win / taunt frames (the interactive judging page); (5) the per-line
+  budget of #158 checked by the generator. Proof: screenshots of the cursor on every fighter, every head visible. Big.
+
+- [ ] 158. SELECT SCREEN BLINKING: THE LINE GUARD (feedback 20261006-161617-b3f3, Bruno in play, 0.0.72: "Mr. Big and
+  Billy from Double Dragon are blinking, which tells me that we've exceeded the amount of sprites per row."). Replay: on
+  the select screen nf = 20 actors (Billy Lee is the 20th, row 0 x 280); main.c line_guard counts EVERY actor's columns as
+  sharing one line (no per-line count) and hides the ones past 96; guard_hidden = 1 every frame of the replay (frames
+  1079-1109) and the priority order flips each frame (guard_parity): Mr. Big and Billy Lee are hidden on alternate
+  frames = the blink. The LSPC limit itself may not be reached: the rows are staggered vertically. Fix: on the select
+  screen (static) count per real line: each actor's watch frame gives its y span; a per-16-px-band count built once at
+  slot_show (no per-frame cost), an actor hidden only if a band it covers would pass 96; with #157's layout the
+  generator checks the budget per band. Proof: guard_hidden 0 on the select, a sprites-per-line histogram from VRAM
+  (SCB2-4) <= 96, no blink in a clip. Quick-to-medium.
+
+- [ ] 159. ROBO ARMY AREA 1: ANIMATED BLOCK WITH THE WRONG PALETTE (feedback 20261006-160946-b3f3, Bruno in play, 0.0.71:
+  "If you look in the background, there is some palette glitch in a small part of this background, so yeah, it looks
+  like there's some animation, some tile animation, but the palette is wrong."; and 20261006-161029-b3f3: "Here's
+  another instance of that background with animation that has the wrong palette."). The block: stage 1 (Robo Army area
+  1), columns 36-38 and 57-59, rows 2-5 (48 x 64 px of sky, screen y 32-95), auto-animated 4-frame tiles $68C-$6FC
+  (SCB1 bit 2) with palettes 32 / 33 from the per-tile byte table $5C1F2. make_stage_ra.render_rom, straight from Robo
+  Army's map words and its ROM palette table, shows the same white / brown / black block: the extraction rule is wrong,
+  not our runtime. Lead: /data/neogeo_dict/roboarmy/README.md: 237 of 245 palettes equal the ROM table in play, the
+  rest are runtime; palette RAM slot 32 holds three different contents across the attract captures (a/*.pal), so 32 /
+  33 are loaded (or cycled) by Robo Army's code. Fix: capture Robo Army in area 1 at those columns in our emulator, take
+  palette RAM 32 / 33 (and the SCB1 words) as shown in play (verify.py's frame palettes), find the routine that writes
+  them (cycling or not), use that in make_stage_ra.py (cycled = our runtime cycles it the same way); check every stage
+  for animated groups whose palette is a runtime one. Proof: stage 1 at those columns vs Robo Army's screen at the
+  same scroll, 0 px differ (verify.py). Medium.
+
+- [ ] 160. THE BLACK TOP OF THE STAGES (feedback 20261006-161004-b3f3, Bruno in play, 0.0.71: "Also I'm wondering why is
+  the top part black? Why don't we have graphics extending all the way up? Is this how Robo Army presented its
+  background?"). ANSWER: yes. Robo Army's map has no tiles in rows 0-1 (screen y 0-31) in every horizontal scene: its
+  HUD sits there on the black backdrop (palette RAM $401FFE = $0000, measured in all 14 scenes); make_stage_ra.py
+  copies that (stage art from y 32), and our HUD (portrait, life and meter bars) uses the same band. Options for Bruno:
+  (a) keep it (a HUD band, as Robo Army); (b) fill it: make_stage_ra.py repeats each column's top tile row upward where
+  it tiles (sky), 2 more tiles per column sprite, no extra sprites per line; (c) leave it to the final game's own art
+  (224 px tall). NEEDS BRUNO (pick); (b) is quick.
+
+- [ ] 161. BILLY LEE / SUPER BILLY VOICES FROM DOUBLE DRAGON'S OWN DATA (feedback 20261006-161844-b3f3, Bruno in play,
+  0.0.72: "The sound of the transformation is missing. Billy is shouting a characteristic Shoryuki-sya, some kind of
+  Japanese sentence. I would like the sound to be there."; 20261006-161938-b3f3: "That's not the right voice being
+  played in the game in that scenario." (Super Billy's 236 ball, frame ~10885); 20261006-162144-b3f3: "This is not the
+  right voice. There's a different voice for the dragon punch motion for Billy and Super Billy. This is the voice of
+  regular Billy." (Super Billy's 623, frames ~16845 and the press)). Cause (game.json, not the engine): billy_lee
+  voices = {"kof": false, "set": {special:236 13, special:623 14, hit 4}}: "kof": false drops every other key of the
+  suggestion, among them special:FORM = voice 15 (DD $002B, 2.0 s, at the transition's row 26, voices.json) = the
+  transformation shout; billy_super has the same set copied: 13 / 15 there are $0026 / $0028 = REGULAR Billy's 236 /
+  623 voices (in Super's list but used by none of his moves), while DD gives Super Billy his own: 236 -> 14 ($0027),
+  623 -> 16 ($0029), 41236 -> 12 ($0025), 214 -> 17 ($002A). Fix: both voices "kof": true (= Double Dragon's own voice
+  per move, voices.py suggest), or the set corrected (billy_lee + special:FORM 15; billy_super 236 14, 623 16, 41236 12,
+  214 17); voice_proof-style check: each DD special sends DD's own code on its frame (both forms), the transformation's
+  shout at row 26. Quick (< 1 h).
+
+- [ ] 162. SUPER BILLY'S DRAGON PUNCH: THE A VERSION (feedback 20261006-161912-b3f3, Bruno in play, 0.0.72: "this dragon
+  version goes really too high for this game. I would suggest to use the dragon punch done with the A button for that
+  particular mapping."). Replay: Super Billy's down + C = "623" (dD) from frame ~10197 (P-16); in 20261006-162144-b3f3 the
+  same move takes him off the top of the screen for ~30 frames (16877-16909). game.json billy_super has no "variant", so
+  the variant table plays the source's default row, the heaviest (D). Fix: game.json billy_super "variant": {"623":
+  "A"} (vocabulary variant.table, latched at the start); check Billy Lee's 623 the same way (same default) and show
+  Bruno both rows' heights (billy_proof's travel / height per row). Quick.
+
+- [ ] 163. KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
+  Krauser shouting Blitzball, Blitzball whenever he throws his projectiles? Also, the projectile should induce fire,
+  since these are literally fireballs."). Replay (boss Krauser = fighter 2, stage 2): his specials at frames 13392 and
+  13653 (role 0 = game.json "D" = 214A, the Blitz Ball): the game's sound queue sends NOTHING during 13653-13701 (no
+  voice, no effect). The voice exists and is mapped: voices.json krauser id 9 = KOF96 $1B7C (special 214A-D at row 1),
+  in the V ROM (vcode 174), in krauser_voices (key VK_SPEC + 0 -> 9 at 1). Cause: 214A is a ROM program special
+  (krauser_specials[0].prog = mai_sp0_prog), and fighter.c special_update plays a program special's voices only when
+  bspec_t.pvoice is set (Double Dragon's); KOF programs have pvoice 0, so their special voices are never sent. Likely
+  every KOF ROM-program special (the 0.0.72 replay of 20261006-160257-b3f3: Robert's fury sends the flash's $1A $3A,
+  then only the victims' hit voices, $1E xx, none of his own): check with voice_proof.py across the roster. Fix: KOF
+  program specials time their voice keys by their program's frames as DD's do (pvoice 1, the 'at' = the KOF animation
+  step that sends $FC 00 in the ROM, voices.py), one rule for every ROM special; proof voice_proof.py every fighter's
+  specials and furies (code + frame = the source's). FIRE: the hit reaction of a fire projectile = burn (fighter_t.burn,
+  set_burn): from the ROM's reaction for the Blitz Ball (KOF96's hit type of the projectile; if it is not a fire one
+  there, a roster override for Krauser's projectiles, Bruno's call); proof: a Blitz Ball hit -> the victim burns.
+  Medium (the voice rule touches every ROM special).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
