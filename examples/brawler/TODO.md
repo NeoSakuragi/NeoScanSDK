@@ -968,6 +968,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   voice / sound keys the old Hanzo specials had (WHP's ADK driver sends); restore every WHP special's voice and sound
   per row from WHP's code, per #163's rule (each send at its step, in order); voice_proof for hanzo vs WHP's sound log.
 
+- [ ] 182. HUD FONT FROM KIZUNA (20261007-005023-5d29, 0.0.87: "The bitmap font used to display level 4, credit,
+  etc. Can we actually leverage the bitmap font used in Kizuna? This particular one ... has the borders around the
+  text so that it contrasts with any kind of background."): extract Kizuna Encounter's outlined FIX-layer font (its S
+  ROM glyphs + the palette it uses), map it onto the brawler's HUD / system text (STAGE / WAVE / LEVEL / CREDIT /
+  version, select screen titles), check every string's glyphs exist (digits, letters, punctuation), sheet before /
+  after on the brightest and the darkest stage.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
