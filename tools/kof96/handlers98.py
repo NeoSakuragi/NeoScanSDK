@@ -687,7 +687,7 @@ def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=No
 # The specials played from the ROM in the brawler (prototype, 2026-10-05): KOF98 input per fighter. Everything else keeps
 # its captured script. A special qualifies when its program uses only the ops below (BODY_OPS) and its objects decode.
 ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B', '623A', '623B', '21416C'},
-                'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B'},
+                'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C'},
                 'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C', '214B'}, 'kyo': {'623C', '214A', 'EX 236A', '236C'},
                 'iori': {'236A', '623D', '214A'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A'},
