@@ -13,13 +13,18 @@ special's first frame: the frame shown (ROM frame index), x from the start (forw
 target's life drops) and the projectile (first frame, place, speed). KOF98 side: tools/kof96/capture/romspecials98.py
 (our emulator; the game's hit-stop and slowdown frames dropped: the brawler applies its own hit-stop instead). The
 brawler's own hit-stop frames (P1's program did not run: srow unchanged; the hit's own frame runs) are dropped the same
-way. KOF96 / KOF99 fighters: KOF = (game, id). Specials by C + the stick, furies by D (2026-10-06). Contact sheets: OUT_DIR/<fighter>_<input>
+way. Its objects (TODO #142, Raging Storm's pillars that never ended): every object KOF's P1 owns (its pool slots, a
+freed one = +$06 $FFFF) against the brawler's P1-owned entities, followed past the move's end until they die: per object
+its spawn frame, end frame and path (x, height) on the frames both show it; 'objects_ok' false when one is missing on
+either side, spawns or ends more than a frame apart, or is still alive when the brawler's window (KOF's + 60) ends.
+KOF96 / KOF99 fighters: KOF = (game, id). Specials by C + the stick, furies by D (2026-10-06). Contact sheets: OUT_DIR/<fighter>_<input>
 _<branch>.png, KOF98 left, brawler right, every 4th frame; OUT_DIR/summary.json."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..', 'kof96')); sys.path.insert(0, os.path.join(HERE, '..', 'kof96', 'capture'))
 from harness import Brawler
 import romspecials98 as K, handlers98 as H
+NPJ = 8                                                  # fighter.h: the projectile entities
 FOLLOW_BLAG = 1                                          # the brawler's pad -> intent delay (frames; measured)
 from PIL import Image, ImageDraw
 
@@ -44,7 +49,7 @@ def prog_links(game, cid, inp):
     h, bt = H.handler_of(cid, inp, inp.startswith('EX '), game)
     return H.decode(m, h, bt, inp.startswith('EX '), cid=cid)['links']
 
-def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follow=(), facing=1):
+def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follow=(), facing=1, obj_window=400):
     """follow: [(program frame that must read the press, keys, intent delay)]; facing -1: from the right, keys mirrored"""
     mir = (lambda ks: ks.translate(str.maketrans('RL', 'LR'))) if facing < 0 else (lambda ks: ks)
     b.pick(k, unlock=True)                              # Rugal / Goenitz are unlocked by play
@@ -64,7 +69,7 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
     if meter is not None: b.fset(0, 'meter', meter)       # a full special meter (0.0.48: a special costs meter)
     b.hits = []
     n, keys = ROLES[role].split(':')
-    rows, started, t, pfz = [], None, 0, 0
+    rows, started, t, pfz, done = [], None, 0, 0, None
     x0 = b.fget(0, 'x'); fc = -1 if b.fget(0, 'facing') in (255, -1) else 1
     fpress = {}
     for f in range(frames):
@@ -87,7 +92,12 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
         st = b.states[b.fget(0, 'state')]
         if started is None and st == 'SPECIAL' and b.fget(0, 'frame_ovr') != 0xFFFF: started = f; path = os.path.join(shots, 'b_000.png')
         if started is None: continue
-        if st != 'SPECIAL' and f > started + 2 and (not hit or b.states[b.fget(2, 'state')] not in ('KNOCKDOWN', 'HITSTUN') or len(rows) > 400): break
+        if done is None and st != 'SPECIAL' and f > started + 2 and (not hit or b.states[b.fget(2, 'state')] not in ('KNOCKDOWN', 'HITSTUN') or len(rows) > 400):
+            done = len(rows)                             # the move is over: its objects are followed on (objects_of)
+        if done is not None:
+            ob = live_objs(b, x0, fc)
+            if not ob or len(rows) >= obj_window: break
+            rows.append({'tail': True, 'objs': ob}); continue
         sr = b.fget(0, 'srow')                           # the brawler's own hit-stop: frames its program did not run
         if rows and sr == pfz: continue                  # (fighter.c prog_update counts srow; the hit's own frame runs)
         pfz = sr
@@ -95,10 +105,60 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
         for i in range(4):
             if b.pget(i, 'state') < len(b.states) and b.states[b.pget(i, 'state')] == 'PROJ' and b.pget(i, 'frame_ovr') != 0xFFFF:
                 pj.append((i, b.pget(i, 'frame_ovr'), round((b.pget(i, 'x') - x0) * fc, 2), round(b.pget(i, 'y'), 2)))
-        rows.append({'spart': b.fget(0, 'plink'), 'frame': b.fget(0, 'frame_ovr'), 'x': round((b.fget(0, 'x') - x0) * fc, 2), 'h': round(b.fget(0, 'y'), 2),
+        rows.append({'objs': live_objs(b, x0, fc), 'spart': b.fget(0, 'plink'), 'frame': b.fget(0, 'frame_ovr'), 'x': round((b.fget(0, 'x') - x0) * fc, 2), 'h': round(b.fget(0, 'y'), 2),
                      'hp2': b.fget(2, 'hp'), 'proj': pj, 'shot': path,
                      'vx': round((b.fget(2, 'x') - x0) * fc, 2), 'vh': round(b.fget(2, 'y'), 2), 'vst': b.states[b.fget(2, 'state')]})
-    return rows
+    return rows[:done] if done is not None else rows, rows
+
+def live_objs(b, x0, fc):
+    """P1's objects now (fighter.c projectiles[]): [(entity, frames alive, frame shown, x from the start (forward +),
+    height)]"""
+    out = []
+    for i in range(NPJ):
+        if b.pget(i, 'state') < len(b.states) and b.states[b.pget(i, 'state')] == 'PROJ' and b.pget(i, 'owner') == b.base \
+                and b.pget(i, 'frame_ovr') != 0xFFFF:
+            out.append((i, b.pget(i, 'state_t'), b.pget(i, 'frame_ovr'), round((b.pget(i, 'x') - x0) * fc, 2), round(b.pget(i, 'y'), 2)))
+    return out
+
+def lives(per_frame):
+    """[(key, ...) per frame] -> objects: [{'first', 'last', 'path': [(frame, x, h)], 'frame0'}]; a key present on
+    consecutive frames is one object (a slot freed and taken again leaves a frame out, or its age restarts)"""
+    open_, done = {}, []
+    for f, objs in enumerate(per_frame):
+        seen = set()
+        for key, age, fr, x, h in objs:
+            o = open_.get(key)
+            if o is not None and (o['last'] != f - 1 or (age is not None and age < o['age'])):
+                done.append(open_.pop(key)); o = None
+            if o is None: o = open_[key] = {'first': f, 'last': f, 'path': [], 'frame0': fr, 'age': age}
+            o['last'] = f; o['age'] = age; o['path'].append((f, x, h)); seen.add(key)
+        for key in [k for k in open_ if k not in seen]: done.append(open_.pop(key))
+    return sorted(done + list(open_.values()), key=lambda o: (o['first'], o['frame0']))
+
+def objects_check(kof, bra, nk, nb, rec):
+    """KOF's objects against the brawler's (TODO #142: Raging Storm's pillars lived on): per object its spawn and end
+    frame (the move's kept frames from its first; +-1: the samples' tick) and its path (x from the start, height) on
+    the frames both show it. nk / nb: the frames each side was followed; an object still alive at the end of the
+    brawler's window fails (it never ends), one at the end of KOF's is not judged past it"""
+    ko, bo = lives(kof), lives(bra)
+    res, used = [], set()
+    for k in ko:                                         # its brawler twin: the same spawn frame (+-1), the same first
+        cand = [j for j, o in enumerate(bo) if j not in used and abs(o['first'] - k['first']) <= 1]   # ROM frame first
+        cand.sort(key=lambda j: (rec(bo[j]['frame0']) != k['frame0'], abs(bo[j]['first'] - k['first'])))
+        if not cand: res.append({'kof': (k['first'], k['last'], k['frame0']), 'brawler': None, 'ok': False}); continue
+        j = cand[0]; used.add(j); o = bo[j]
+        kp = {f: (x, h) for f, x, h in k['path']}
+        both = [(f, x, h) for f, x, h in o['path'] if f in kp]
+        dx = max((min(abs(x - kp[g][0]) for g in (f - 1, f, f + 1) if g in kp) for f, x, h in both), default=0)
+        dh = max((min(abs(h - kp[g][1]) for g in (f - 1, f, f + 1) if g in kp) for f, x, h in both), default=0)
+        k_open, b_open = k['last'] >= nk - 1, o['last'] >= nb - 1
+        end_ok = not b_open and (k_open and o['last'] >= nk - 2 or not k_open and abs(o['last'] - k['last']) <= 1)
+        res.append({'kof': (k['first'], k['last'], k['frame0']), 'brawler': (o['first'], o['last'], rec(o['frame0'])),
+                    'kof_alive_at_end': k_open, 'brawler_alive_at_end': b_open, 'max_dx': round(dx, 2), 'max_dh': round(dh, 2),
+                    'ok': abs(o['first'] - k['first']) <= 1 and end_ok})
+    for j, o in enumerate(bo):
+        if j not in used: res.append({'kof': None, 'brawler': (o['first'], o['last'], rec(o['frame0'])), 'brawler_alive_at_end': o['last'] >= nb - 1, 'ok': False})
+    return res
 
 def sheet(pairs, path, title):
     W, H = 160, 112
@@ -160,8 +220,10 @@ def main(game, out, cases):
             bfol = [((None if q in res['press_latched'] else pf),) + bp for q, (pf, bp) in enumerate(zip(res['press_frames'], bpad))
                     if pf is not None]   # (a press KOF latched in its hit-stop: the brawler presses in its own)   # the program frame KOF's
                                                          # handler read it on (None: lost in KOF's hit-stop, not pressed)
-            br = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter, follow=bfol, frames=500 if dm else 300)
+            br, bro = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter, follow=bfol, frames=900 if dm else 700,
+                                  obj_window=len(game_rows) + 60)
             rec = lambda bf: int(frames[name][bf].split(':')[1]) if bf < len(frames[name]) and frames[name][bf] else -1
+            kcid = cid; rec0 = K.rom96.frame_record(K.rom96.Mem(K.rom96.load(K.rom96.GAMES[kg]['neo'])[0], kg), cid, 0)
             n = min(len(br), res['frames_game'])
             gx0 = game_rows[0]['x'] - model[0][3]
             # the harness samples RAM when a video frame ends, inside a game tick (regress.py `near`): a sample may show
@@ -181,6 +243,16 @@ def main(game, out, cases):
                  'brawler_hits': bhits, 'kof_freeze_dropped': res['frozen_dropped'], 'kof_slowdown_dropped': res['slowdown_dropped'],
                  'kof_objects': res['objects_game'], 'brawler_proj_first': bp and [bp[0]] + [list(p) for p in bp[1]],
                  'brawler_proj_next': (br[bp[0] + 1]['proj'] if bp and bp[0] + 1 < len(br) else None)}
+            if ref == 'kof':                             # its objects' lives (TODO #142)
+                before = set(res.get('objects_before', ()))
+                kof_pf = [[(o['base'], None, (o['rec'] - rec0) // 6, round(o['x'] - gx0, 2), o['h']) for o in g['objs'] if o['table'] == kcid
+                           and not (o['base'] in before and all(any(q['base'] == o['base'] for q in game_rows[j]['objs']) for j in range(i + 1)))]
+                          for i, g in enumerate(game_rows)]
+                s['objects'] = objects_check(kof_pf, [[((i_,), age, fr, x, h) for i_, age, fr, x, h in r['objs']] for r in bro],
+                                             len(game_rows), len(bro) if len(bro) >= len(game_rows) + 60 else 10 ** 9, rec)   # (the brawler's window
+                                             # ran out: what is still alive then never ends)
+                s['objects_ok'] = all(o['ok'] for o in s['objects'])
+                s['objects_bad'] = [o for o in s['objects'] if not o['ok']]
             if branch in DIST:                           # the victim (2026-10-05: KOF98's own reaction, no carry): its x
                 # x from where KOF's first hit found it (each side: the brawler at its hit nearest KOF's first; KOF's
                 # charge moves differ in their walk-up) and height per frame, to the end of its fall (KOF: the floor, 309)

@@ -19,7 +19,7 @@ def tup(r, x0, pre=()):
     objs = []
     if len(r) > 5 and r[5] != '-':
         for ob in r[5].split(';'):
-            b, i, st, sp, rec, x, h, fc = ob.split(':')
+            b, i, st, sp, rec, x, h, fc = ob.split(':')[:8]
             if f'{b}:{i}:{st}:{sp}:{rec}' in pre or (i, st, sp) == ('0', '0', '0'): continue     # the shadow: P1's frame a frame late
             objs.append((i, st, sp, rec, int(x) - x0, h, fc))
     return (W(o1, 0x72), W(o1, 0x80), W(o1, 0x28) & 0xFF, W(o1, 0x2A), S(W(o1, 0x18)) - x0, S(W(o1, 0x20)), W(o1, 0x30) & 1,

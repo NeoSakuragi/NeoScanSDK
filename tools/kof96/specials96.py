@@ -119,7 +119,7 @@ def load_file(m, cid, path, T, seen, tag, first_of):
             objs = []
             o = lines[i - 1].split()[-1]
             for x in ([] if o == '-' else o.split(';')):
-                base, tid, ost, steps, rec, ox, oy, of = x.split(':')
+                base, tid, ost, steps, rec, ox, oy, of = x.split(':')[:8]
                 if (tid, ost) == FLASH.get(m.game): super_ = True
                 key = (ost, steps, rec, ox, oy)
                 if base in ended:

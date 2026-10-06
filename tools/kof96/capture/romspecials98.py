@@ -65,7 +65,8 @@ def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='
         o = bytes.fromhex(p[3]); q = bytes.fromhex(p[4])
         objs = []
         for ob in (p[5].split(';') if len(p) > 5 and p[5] != '-' else []):
-            base, tab, st, steps, rec, x, h, fc = ob.split(':')
+            base, tab, st, steps, rec, x, h, fc = ob.split(':')[:8]
+            if ob.count(':') > 7 and ob.split(':')[8] == 'FFFF': continue   # freed (+$06 $FFFF): its slot keeps the rest
             objs.append({'base': base, 'table': int(tab), 'state': int(st), 'rec': int(rec, 16), 'x': int(x), 'h': int(h)})
         rows.append({'f': f - START, 'pc': u32(o, 0), 'state': w16(o, 0x72), 'step': w16(o, 0x74) // 6,
                      'frame': (u32(o, 0x28) - rec0) // 6 if 0x200000 <= u32(o, 0x28) < 0x300000 else -1,
@@ -170,6 +171,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
             if o['table'] != cid: continue
             born.setdefault(o['base'], []).append((i, o['state'], (o['rec'] - rec0) // 6, round(o['x'] - x0), o['h']))
     res['objects_game'] = [v[:2] for v in born.values()]
+    res['objects_before'] = sorted(before)            # P1's objects alive before the special (not its own)
     res['objects_model'] = [c.rows[:2] for c in objs if c.rows]
     if not quiet: print(json.dumps(res, default=str))
     return res, game, model, objs, prog

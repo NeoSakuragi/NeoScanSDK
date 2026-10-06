@@ -388,7 +388,8 @@ static unsigned frame_count = 0;
  *   SNAPS + SNAPDIR        frames to screenshot (PPM, SNAPDIR/snap_<frame>.ppm)
  *   OUT         one line per frame: "frame p1inputs p2inputs <P1 object hex> <P2 object hex> <objects>", P1/P2 =
  *               $108100/$108300 ($200 bytes); objects = P1-owned pool objects ($100100 + n*$200, owner long +$84 =
- *               $108100, frame record +$28 in $200000-$2FFFFF) "base:id:state:steps:record:x:height:facing" or "-" */
+ *               $108100, frame record +$28 in $200000-$2FFFFF) "base:id:state:steps:record:x:height:facing:link" or "-"; link
+ *               = +$06 (KOF96/98/99: $FFFF once the object is freed, its slot keeps the rest: a dead object) */
 static int capture_mode = 0;
 static int cap_n = 0;                                    /* frames completed: the frame number the write logs use */
 static FILE *cap_wlog, *cap_sndlog, *cap_qlog, *cap_vlog, *cap_vf;
@@ -1373,8 +1374,9 @@ static int capture_run(void) {
                 if (RD32(base + 0x84) != 0x108100) continue;
                 unsigned rec = RD32(base + 0x28) & 0xFFFFFF;
                 if (rec < 0x200000 || rec >= 0x300000) continue;
-                fprintf(out, "%c%06X:%u:%u:%u:%06X:%d:%d:%u", k++ ? ';' : ' ', base, RD16(base + 0x70), RD16(base + 0x72),
-                        RD16(base + 0x80), rec, (int16_t)RD16(base + 0x18), (int16_t)RD16(base + 0x20), R[base + 0x31 - 0x100000] & 1);
+                fprintf(out, "%c%06X:%u:%u:%u:%06X:%d:%d:%u:%04X", k++ ? ';' : ' ', base, RD16(base + 0x70), RD16(base + 0x72),
+                        RD16(base + 0x80), rec, (int16_t)RD16(base + 0x18), (int16_t)RD16(base + 0x20), R[base + 0x31 - 0x100000] & 1,
+                        RD16(base + 0x06));
             }
             if (!k) fputs(" -", out);
             fputc('\n', out);
