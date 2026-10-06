@@ -684,7 +684,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   "A"} (vocabulary variant.table, latched at the start); check Billy Lee's 623 the same way (same default) and show
   Bruno both rows' heights (billy_proof's travel / height per row). Quick.
 
-- [ ] 163. KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
+- [ ] 163. (+ note 20261006-164210-5d29, 0.0.72: "The jets are missing the voice for the blitz ball of Krauser.") KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
   Krauser shouting Blitzball, Blitzball whenever he throws his projectiles? Also, the projectile should induce fire,
   since these are literally fireballs."). Replay (boss Krauser = fighter 2, stage 2): his specials at frames 13392 and
   13653 (role 0 = game.json "D" = 214A, the Blitz Ball): the game's sound queue sends NOTHING during 13653-13701 (no
@@ -700,6 +700,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   set_burn): from the ROM's reaction for the Blitz Ball (KOF96's hit type of the projectile; if it is not a fire one
   there, a roster override for Krauser's projectiles, Bruno's call); proof: a Blitz Ball hit -> the victim burns.
   Medium (the voice rule touches every ROM special).
+
+- [ ] 164. KRAUSER'S BLUE GROUND SHARDS (feedback 20261006-164245-5d29, Bruno, 0.0.72, no words, screenshot circled: a
+  cloud of small blue shards on the ground in front of Krauser, beside a white flash, while he strikes Robert / an
+  enemy in the air). Find which object draws them (replay the note: frames before the press) and whether it is right
+  (KOF98's own effect with its palette?) or a stray / wrong-palette object; ask Bruno only if it matches KOF98.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
