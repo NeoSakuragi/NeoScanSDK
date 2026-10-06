@@ -36,7 +36,8 @@ def cost(c): return 0 if INF else c
 def st(i=0): return ST[b.fget(i, 'state')]
 def run(n, k=''): b.run(n, p1=k)
 def settle(meter=None):
-    for _ in range(600):
+    for _ in range(900):                                      # (Kuroko's MAX rage holds its dummy ~580 frames, then
+                                                              # its flight, landing and get-up: SS2's own length)
         if st(0) == 'IDLE' and st(2) in ('IDLE', 'WALK') and not b.fget(0, 'shot') and not b.fget(0, 'flash') and not b.fget(0, 'chain_t'): break
         run(1)
     else: raise RuntimeError('P1 never idle: ' + b.brief((0, 2)))
