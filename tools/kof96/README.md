@@ -113,6 +113,16 @@ hold. Same entry meaning, so one decoder (`throwtables96.py`). **Stage edge `$1B
 the stage, the thrower is moved so the list's widest offset fits x 32 … 736. Choi's hold uses no list (victim states
 432/433 at a fixed 16 px).
 
+**Throws read from the ROM** (`throwrom.py`, TODO #146, pilot KOF98 Terry / KOF96 Geese): one routine in the thrower's code
+serves both objects (`bclr #5, +$E0` tells them apart): the thrower plays its state to its end and jumps to neutral (a
+reverse throw turns on its event step: `eori #1, +$31`); the victim sets its list (KOF98 `$24B22`, KOF96 `$1A980`), is
+placed each frame (`$25372` / `$1AF72`), and at the `$40` entry jumps to a shared flight routine (KOF98 `$51284`,
+`$40906`; KOF96 `$2BF28`, `$2FB4C`: vx / gravity / vy from a table, `eori #1, +$12C` = thrown backward, fall, floor,
+bounce, lying, get-up). `throwrom.py` executes that code (a 68000 subset over the object's bytes, the engine routines as
+models) and writes the brawler's paired script with its decoded points (release, landing, lying, the code's end) and the
+control return row; `python3 throwrom.py check`: 0 mismatches against the captures for 3 throws, Geese's forward+D off only
+where the game's stage wall stops the victim's bounce (18 frames). Proof `../brawler/throws146_proof.py`.
+
 **Capture and validation** (`capture/throws96.py`, `capture/throws/tables.json`): forward+C, forward+D and an air
 forward+C for every fighter on Yuri; 62 throws by 28 throwers (+ Choi's hold). Every captured list reproduces Yuri's
 state and offset frame for frame up to the release (3625 / 3678 frames; the 53 others are Chin's victim after the

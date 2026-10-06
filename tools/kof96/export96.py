@@ -365,7 +365,11 @@ def export(names, outdir, game='kof96', only=None, extra=None):
     # throws for every victim exported here (throwscripts96.py): the thrower's own animation + a per-video-frame script
     have_throws = os.path.exists(os.path.join(HERE, 'capture', throwscripts96.TDIR.get(game, 'throws_' + game), 'tables.json'))
     if only is not None and not (only & {'throw_c', 'throw_d', 'air_throw'}): have_throws = False
-    for cid, d in (throwscripts96.all_throws(m, mp, [cast.index(n) for n in names]) if have_throws else {}).items():
+    found = throwscripts96.all_throws(m, mp, [cast.index(n) for n in names]) if have_throws else {}
+    if only is None or only & {'throw_c', 'throw_d'}:          # the pilot's throws read from the ROM (throwrom.py, TODO
+        import throwrom                                         # #146): they replace the captured scripts
+        found.update(throwrom.all_throws(m, game, [cast.index(n) for n in names]))
+    for cid, d in found.items():
         name = cast[cid]
         if name not in names: continue
         ch = out['characters'][name]
@@ -380,6 +384,8 @@ def export(names, outdir, game='kof96', only=None, extra=None):
                        for v, rows in b['victims'].items() if cast[v] in adders}
             ch['throws'][key] = {'slot': sl, 'inputs': b['inputs'], 'table': b['lists'], 'hold': b.get('hold', False),
                                  'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', [])}
+            if b.get('rom'):                                    # read from the ROM: its decoded points + conversion sheet
+                ch['throws'][key].update({k: b[k] for k in ('release', 'land', 'down', 'end', 'ret', 'sheet')}, rom=True)
         print(f'{name}: throws {list(d)}', flush=True)
     # specials captured in our emulator (capture/specials96.py): frames of the fighter and of its projectiles, both in its own list
     # (a filtered export takes them when `only` names 'specials'; each then carries frame_boxes: the boxes of every frame

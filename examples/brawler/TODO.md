@@ -477,7 +477,14 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   falls inside it; fixed (the fury's own attacker may hit during the flash). The flash pose stays wanted for
   consistency. Bruno: for these fighters the concentration glow emphasizes the HEAD (anchor = the pose's head point).
 
-- [ ] 146. THROW SYSTEM REBUILT (Bruno, 2026-10-06: the mechanics are right — walk to grab, forward / back + A to
+- [ ] 146. (PILOT DONE 2026-10-06, awaiting Bruno's review: Terry + Geese throws read from the ROM (tools/kof96/throwrom.py
+  executes the throw routine, the victim list and the flight routine: 0 frame mismatches vs the game in our emulator,
+  Geese forward+D off only where KOF's stage wall stops the bounce); control return rows Terry fC 56 (code end; lands 57),
+  fD 64 (code end; lands 71), Geese fC 59 (code end; lands 64), fD 71 (step after landing 58 + 3; code end 94 trimmed),
+  listed in the conversion sheets; 1x speed in data; hold hits from each fighter's own close C / close D (3-frame
+  startup), Final Fight hold rule, victim always behind, thrown bodies knock down (3 of 3 in each group test). Roster-wide
+  now: victim behind, thrown bodies, the hold rule + hold hits; the rest of the roster keeps its captured scripts at 1.5x
+  until its pass. Proof /data/tmp/throws146/out.) THROW SYSTEM REBUILT (Bruno, 2026-10-06: the mechanics are right — walk to grab, forward / back + A to
   throw — the execution is wrong). Rules: (1) no global throw speed multiplier (the early "+50 %"): a per-throw speed
   in data, sane default; (2) a throw ends a few frames after the victim lands: the source's recovery tail trimmed, the
   thrower acts again; (3) dedicated HOLD-HIT animations per fighter with a 2-3 frame startup (a knee / elbow /
@@ -506,7 +513,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   holding him in S_THROW for 173 frames (2.9 s: frame 65320 to press + 76), after a 15-frame S_GRAB (65305); the
   frame before it in the window, another grab -> idle took 176 frames (65124-65300). Exactly rules (2) and (8): the
   control return point from Billy's decoded throw code (KOF98), his recovery tail trimmed; Billy joins the pilot's
-  timing sheet as the worst case to measure (throw length per fighter, before / after).
+  timing sheet as the worst case to measure (throw length per fighter, before / after). STATUS 2026-10-06 (after the
+  pilot): the generic rules do NOT shorten it: Billy's forward+C is still a captured script, whose control return is
+  its last row (thrower 173 frames at 1.5x in the roster proof, victim down on the same frame); it is the roster pass's
+  first case: his KOF98 throw chains three victim lists (thrower states 198 -> 199 -> 200, tables.json: $282A78,
+  $282C40, $282E08), so throwrom.py needs the list-to-list hand-over before it can choose his return point.
 
 - [ ] 147. HANZO'S PROJECTILE VARIANTS (feedback 20261006-154517-b3f3, Bruno in play: "There are multiple versions of
   this projectile from Hanzo, can you figure them out?"): decode his projectile special's handler in WHP (tools/whp
