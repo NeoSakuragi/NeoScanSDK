@@ -285,7 +285,9 @@ and "fight" calls *(inferred)*).
 19, 22, 23, 27, 31, 33, 42; `$21` measured with his C), `$1E` (anim 100), `$22` super (anim 82), `$23` / `$2C` falls
 (anims 67-70, 119-120), `$24` 214 / jump 214 (anims 91-98), `$26` 236 (83-86), `$28` 623 (87-90), `$2B` (anim 81,
 which also plays `$ED`); `$25`, `$27`, `$29`, `$2A` are not in his animations (played by the 68000's code
-*(inferred)*). Jimmy's pain voices `$69` / `$6A` (measured on Billy's hits).
+*(inferred)*). Jimmy's pain voices `$69` / `$6A` (measured on Billy's hits). WAVs as the real driver plays them (our
+emulator, 3.4 s each): `/data/neogeo_dict/sound/doubledr/wav/XX.wav` for Billy's `$1C-$2C`, the hits / whooshes `$C2-$CE`,
+`$D5`, `$B7`, his name call `$A2`, the coin `$7F` and the cursor `$DA`.
 
 ## Validation (tools/ngss)
 
