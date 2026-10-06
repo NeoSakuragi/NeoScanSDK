@@ -25,7 +25,10 @@ corner). Opponent Ryo.
                                                   earliest timing that catches; table per grab
 Results 2026-10-06 (Heidern vs Ryo, corner): raw grab -> the next catch is only possible after the victim stood up
 (frame 231); close A cancelled into Storm Bringer -> 10 Storm Bringers in a row on the lying victim, one every 154
-frames (`chain kof94 0 cancel 10`)."""
+frames (`chain kof94 0 cancel 10`).
+KOF95 (game kof95, Heidern vs Joe): the same stale +$E7 bit 3, but the knockdown / lying animation steps set the
+get-up-invulnerable bit +$7D bit 3 (step byte 5 = 08/09 vs KOF94's 00/01), so the catch test's +$7D clause rejects
+the lying victim: next catch only after the wake-up protection (`chain kof95 0 cancel 3`: 29, 249, 469)."""
 import os, subprocess, sys
 import multiprocessing
 from multiprocessing import Pool
@@ -36,6 +39,8 @@ TMP = '/data/tmp/otg'
 GAMES = {
     'kof94': {'neo': '/data/roms/kof94.neo', 'sta': '/data/neogeo_dict/ngsdl_sta/kof94', 'base': 'vs', 'getup': 0x7B,
               'team': (0x108232, 6), 'width': 0x6C0F0},
+    'kof95': {'neo': '/data/roms/kof95.neo', 'sta': '/data/neogeo_dict/ngsdl_sta/kof95', 'base': 'vs_kyo', 'getup': 0x7D,
+              'team': (0x10A843, 3), 'width': 0x79FC0},
 }
 LIFE_POKE = '108420=00,108421=CF'            # P2 life refilled (every 30 frames) so the loop is not ended by a KO
 
@@ -86,7 +91,8 @@ def trace(game, out):
 # command grabs, P1 facing right (stick steps 2 frames, button 3)
 HCB = [('R', 2), ('DR', 2), ('D', 2), ('DL', 2), ('L', 2)]
 HCF = [('L', 2), ('DL', 2), ('D', 2), ('DR', 2), ('R', 2)]
-GRABS = {'kof94': {0: ('Heidern', 'Storm Bringer 63214C', HCB + [('Lc', 3)])}}   # other grapplers: not studied
+GRABS = {'kof94': {0: ('Heidern', 'Storm Bringer 63214C', HCB + [('Lc', 3)])},
+         'kof95': {0: ('Heidern', 'Storm Bringer 63214C', HCB + [('Lc', 3)])}}   # other grapplers: not studied
 
 def lane_run(game, cid, lane, refill=True, extra=''):
     pk = [f'{f}:{LIFE_POKE}' for f in range(1, len(lane), 30)] if refill else []
