@@ -15,6 +15,18 @@ the Geolith harness (harness.py) on a `make AI_OFF=1` build (the test drives the
      OUT/c_startups.txt), Terry's down-forward+C in the hold (OUT/c_terry_hold.png)
   d  the finisher is a normal hit: C (a special) and D (the fury) pressed in its hit-stop cancel it, the victim juggled
      (OUT/d_<fighter>_<special|fury>.png)
+  f  every throw's last impact is a normal hit ("cancels" rule 4, feedback 20261006-194211-5d29): per roster fighter and
+     throw (forward / back + A; its last impact row from build/bm_chars.c), C (a special) or D (the fury) pressed 12
+     frames before the first legal frame (buffered), C / down+D 2 frames after it, C CANCEL_BUF + 6 before it (too early:
+     nothing then): P1 SPECIAL on the first legal frame (the frame after the impact row shows, after its hit-stop: Ryo's
+     freeze; the control return when the impact comes after it: Terry, Geese), the victim plays its script on to its end;
+     a throw with no impact row: a C before its end does nothing (OUT/f_throws.txt, OUT/f_terry_throw_c_fury.png)
+  g  Bruno's own inputs (bundle 20261006-194211-5d29, Terry): each of his throws replayed with his pads frame for frame
+     from his forward / back + A to 75 frames on (mirrored when he faced left): the cancel fires on his own presses
+     (OUT/g_bruno.txt, OUT/g_bruno_<frame>.png)
+  k  KOF98's own special-cancel window on a normal (the model for f's window): Kyo vs Yuri (state c0), close B / close C
+     then 236A, the A press on every frame around the hit: which presses cancel and when the special starts
+     (OUT/k_kof98.txt)
   e  the death / respawn: P1 (Terry) on his last hit with lives left: down, blinking + the death voice, the drop from
      above the screen (untouchable), the landing knocks every enemy on screen down (OUT/e_respawn.png); with no life
      left: the blink, then the CONTINUE? overlay (OUT/e_continue.png)
@@ -258,6 +270,182 @@ def run_d():
                                          ok=bool(fin and sp and sp - fin <= 12 and after))
             save(); print(name, what, log[f'{name}:{what}'], flush=True)
 
+# ---- (f) every throw's last impact cancels -----------------------------------------------------------------------------
+CANCEL_BUF = 24                                                  # fighter.c
+def throw_data():
+    """build/bm_chars.c: per fighter and throw (nrows, ret, the last impact row: flags 4, None = none)"""
+    import re
+    src = open(os.path.join(GAME, 'build', 'bm_chars.c')).read(); rows = {}; out = {}
+    for m in re.finditer(r'static const bthrow_row_t (\w+)\[\] = \{(.*?)\};\n', src):
+        rows[m.group(1)] = [tuple(int(x) for x in r.split(',')) for r in re.findall(r'\{([-\d, ]+)\}', m.group(2))]
+    for m in re.finditer(r'static const bthrow_t (\w+)_throws\[BT_COUNT\] = \{(.*?)\};\n', src):
+        for t, (n, sp, name, ret) in zip(('throw_c', 'throw_d'), re.findall(r'\{(\d+), (\d+), (\w+), (\d+)', m.group(2))):
+            imp = [i for i, r in enumerate(rows[name]) if r[4] & 4]
+            out[(m.group(1), t)] = dict(nrows=int(n), ret=int(ret), last=imp[-1] if imp else None)
+    return out
+
+def throw_run(b, start, key_throw, press=None, at=None, n=260, shots=None):
+    """grab, the throw (key_throw: 'Ra' / 'La' on the first frame), press `press` on frame `at` (frames from the throw's
+    first frame); per frame (P1 state, spec_id, victim state, victim life, P1 srow, P1 freeze)"""
+    setup(b, start); walk_in(b); rows = []
+    for f in range(n):
+        keys = key_throw if f == 0 else (press if press and f == at else '')
+        if shots is not None: shots.append(crop(shot(b, os.path.join(OUT, '_tmp.png'), keys), screen_x(b, 0) + 20))
+        else: b.run(1, p1=keys)
+        rows.append((S(b, 0), b.fget(0, 'spec_id'), S(b, ENEMY), b.fget(ENEMY, 'hp'), b.fget(0, 'srow'), b.fget(0, 'freeze')))
+    return rows
+
+def run_f():
+    b = brawler(); log = summary.setdefault('f', {}); L = []; TD = throw_data()
+    roster = json.load(open(os.path.join(GAME, 'game.json')))['roster']
+    for k, r in enumerate(roster):
+        if r.get('selectable', True) is False: continue
+        name = r['name']
+        try: b.pick(k, unlock=True)
+        except RuntimeError as e: L.append(f'{name}: not on the select screen ({e})'); continue
+        start = b.save()
+        for tname, key in (('throw_c', 'Ra'), ('throw_d', 'La')):
+            td = TD.get((name, tname))
+            try: base = throw_run(b, start, key)
+            except RuntimeError as e: L.append(f'{name} {tname}: {e}'); print(L[-1]); break
+            thr = [f for f in range(len(base)) if base[f][0] == 'THROW']
+            if not thr or not td: L.append(f'{name} {tname}: no throw'); print(L[-1]); continue
+            ret = thr[-1] + 1                                    # the frame P1 acts again
+            if td['last'] is None:                               # no impact row: no cancel, a press before the end is dropped
+                rows = throw_run(b, start, key, 'c', ret - 12)
+                sp = next((f for f in range(len(rows)) if rows[f][0] == 'SPECIAL'), None)
+                out = dict(ok=sp is None, note='no impact row: C pressed 12 frames before the control return does nothing', special_from=sp)
+                log[f'{name}:{tname}'] = out; save(); L.append(f'{name} {tname}: no impact row, C +{ret - 12} -> SPECIAL {sp} {"ok" if out["ok"] else "FAIL"}'); print(L[-1]); continue
+            if td['last'] < td['ret']:                           # the impact: the frame P1 shows that row; legal after its hit-stop
+                imp = next(f for f in thr if base[f][4] - 1 >= td['last']); legal = imp + 1 + base[imp][5]
+            else:                                                # past the control return (Terry, Geese): the victim's hit
+                imp = [f for f in range(1, len(base)) if base[f][3] < base[f - 1][3]][-1]; legal = ret
+            out = dict(impact=imp, control_return=ret, first_legal=legal, last_row=td['last'], ret_row=td['ret'])
+            ok = True
+            for what, press, at in (('C_buffered', 'c', legal - 12), ('D_buffered', 'd', legal - 12), ('C_after', 'c', legal + 2),
+                                    ('D_after', 'Dd', legal + 2), ('C_too_early', 'c', legal - CANCEL_BUF - 6 - base[imp][5])):
+                if at < 1: out[what] = 'n/a (the press would fall before the throw)'; continue
+                rows = throw_run(b, start, key, press, at)
+                sp = next((f for f in range(len(rows)) if rows[f][0] == 'SPECIAL'), None)
+                if what == 'C_too_early': want = None; good = sp is None or sp > legal
+                else: want = max(legal, at + 1); good = sp == want and (rows[sp][1] == 6) == ('d' in press)   # BS_FURY = BS_COUNT = 6
+                vfree = rows[-1][2] != 'THROWN'                  # the victim's script went on to its end
+                good = good and vfree
+                out[what] = dict(press=at, special_from=sp, expected=want, spec_id=rows[sp][1] if sp is not None else None,
+                                 victim_end=rows[-1][2], victim_hp_min=min(r[3] for r in rows), ok=good)
+                ok = ok and good
+            out['ok'] = ok; log[f'{name}:{tname}'] = out; save()
+            L.append(f'{name} {tname}: last impact row {td["last"]} (control return row {td["ret"]}) shown +{imp}, P1 free +{ret}, first legal +{legal}; ' +
+                     '; '.join(f'{w} pressed +{v["press"]} -> SPECIAL +{v["special_from"]} ({"fury" if v["spec_id"] == 6 else v["spec_id"]}) '
+                               f'{"ok" if v["ok"] else "FAIL"}' for w, v in out.items() if isinstance(v, dict)))
+            print(L[-1], flush=True)
+    # Terry's forward throw cancelled into the fury: a sheet
+    b.pick(0, unlock=True); start = b.save(); base = throw_run(b, start, 'Ra')
+    ret = [f for f in range(len(base)) if base[f][0] == 'THROW'][-1] + 1
+    imgs = []; rows = throw_run(b, start, 'Ra', 'Dd', ret - 12, n=110, shots=imgs)
+    sp = next(f for f in range(len(rows)) if rows[f][0] == 'SPECIAL')
+    labels = [(f'frame {f}', f'P1 {rows[f][0][:6]} | 2: {rows[f][2][:6]} {rows[f][3]}' + (' [down+D]' if f == ret - 12 else ''),
+               f in (ret - 12, sp)) for f in range(len(rows))]
+    sel = list(range(max(0, ret - 16), min(len(rows), ret + 30)))
+    sheet(f'terry forward throw: down+D pressed on frame {ret - 12}, 12 before the control return (frame {ret}; the victim lands '
+          f'the frame after): the MAX fury from frame {sp}', [[imgs[f] for f in sel]], [labels[f] for f in sel],
+          os.path.join(OUT, 'f_terry_throw_c_fury.png'), ['brawler'], cols=8)
+    open(os.path.join(OUT, 'f_throws.txt'), 'w').write('\n'.join(L) + '\n')
+    log['all_ok'] = all(v['ok'] for kk, v in log.items() if isinstance(v, dict)); save(); print('f all ok', log['all_ok'])
+
+# ---- (g) Bruno's own inputs, his throws -----------------------------------------------------------------------------------
+BUNDLE = '/data/feedback/20261006-194211-5d29'
+PADKEYS = ((0, 'a'), (8, 'b'), (1, 'c'), (9, 'd'), (4, 'U'), (5, 'D'), (6, 'L'), (7, 'R'))
+def run_g():
+    raw = open(os.path.join(BUNDLE, 'inputs.bin'), 'rb').read()
+    _, _, W, P = struct.unpack_from('<4sIQQ', raw)
+    pads = [struct.unpack_from('<HH', raw, 24 + 4 * i)[0] for i in range(P - W)]
+    prep = os.path.join(OUT, 'g_throws_0077.json')               # his throws in his own replay (0.0.77): a process of
+    subprocess.run([sys.executable, __file__, OUT, 'gprep'], check=True)   # its own (one libretro core per process)
+    trace = json.load(open(prep))
+    b = brawler(); b.pick(0, unlock=True); start = b.save(); log = summary.setdefault('g', {}); L = []
+    for t in trace:
+        f0, face = t['start'], t['facing']                       # his forward / back + A frame, his facing
+        def keys(p):
+            k = ''.join(c for bit, c in PADKEYS if p >> bit & 1)
+            return k.translate(str.maketrans('LR', 'RL')) if face < 0 else k
+        seq = [keys(pads[f - W]) for f in range(f0, min(P, f0 + 75))]
+        imgs = []; setup(b, start); walk_in(b); rows = []
+        for f, k in enumerate(seq):
+            imgs.append(crop(shot(b, os.path.join(OUT, '_tmp.png'), k), screen_x(b, 0) + 20))
+            rows.append((S(b, 0), b.fget(0, 'spec_id'), S(b, ENEMY), b.fget(ENEMY, 'hp')))
+        sp = next((f for f in range(len(rows)) if rows[f][0] == 'SPECIAL'), None)
+        cd = [(f, seq[f]) for f in range(1, len(seq)) if ('c' in seq[f] and 'c' not in seq[f - 1]) or ('d' in seq[f] and 'd' not in seq[f - 1])]
+        out = dict(his_frame=f0, presses=cd, special_from=sp, spec_id=rows[sp][1] if sp is not None else None,
+                   in_0077=t['special_from'], ok=(sp is not None) == bool(cd) and (sp is None or t['special_from'] is None or sp < t['special_from']))
+        log[str(f0)] = out; save()
+        L.append(f'his throw at frame {f0} (facing {face}): C / D presses (frame from his A: keys) {cd}; fixed build: SPECIAL from +{sp} '
+                 f'({"fury" if out["spec_id"] == 6 else out["spec_id"]}); 0.0.77 (his replay): SPECIAL from +{t["special_from"]} {"ok" if out["ok"] else "FAIL"}')
+        print(L[-1], flush=True)
+        if cd:
+            labels = [(f'+{f} {seq[f]}', f'P1 {rows[f][0][:6]} | 2: {rows[f][2][:6]} {rows[f][3]}', f == sp or any(f == c[0] for c in cd)) for f in range(len(rows))]
+            sheet(f'Bruno\'s throw at frame {f0} of his bundle replayed with his own pads (thick: his C / D presses, the SPECIAL start +{sp})',
+                  [[imgs[f] for f in range(20, len(rows))]], labels[20:], os.path.join(OUT, f'g_bruno_{f0}.png'), ['brawler'], cols=10)
+    open(os.path.join(OUT, 'g_bruno.txt'), 'w').write('\n'.join(L) + '\n')
+    log['all_ok'] = all(v['ok'] for kk, v in log.items() if isinstance(v, dict)); save(); print('g all ok', log['all_ok'])
+
+def run_gprep():
+    """his bundle replayed on its own ROM (tools/feedback/pull.py's Core): each throw P1 starts (frame, facing) and the
+    frame from it P1 went SPECIAL in that build (None: not within 75 frames)"""
+    sys.path.insert(0, os.path.join(HERE, '..', 'feedback')); import pull, harness, ctypes as C
+    meta = json.load(open(os.path.join(BUNDLE, 'meta.json')))
+    raw = open(os.path.join(BUNDLE, 'inputs.bin'), 'rb').read(); _, _, W, P = struct.unpack_from('<4sIQQ', raw)
+    pads = [struct.unpack_from('<HH', raw, 24 + 4 * i) for i in range(P - W)]
+    elf = '/data/tmp/rom_0077.elf'                               # the 0.0.77 build's symbols (rebuilt from 8ab9fa0: same sha256)
+    lay, fsize, states, syms = harness._layout(GAME)              # (fighter_t is the same in both builds)
+    syms['fighters'] = int(next(l.split()[0] for l in subprocess.run(['m68k-linux-gnu-nm', elf], capture_output=True, text=True).stdout.split('\n') if l.endswith(' fighters')), 16)
+    core = pull.Core(pull.find_rom(meta), meta['system_type'], meta['hw'], meta.get('memcard', 'on'))
+    core.core.retro_get_memory_data.restype = C.c_void_p; core.core.retro_get_memory_size.restype = C.c_size_t
+    ram = (C.c_uint8 * core.core.retro_get_memory_size(2)).from_address(core.core.retro_get_memory_data(2))
+    core.load(open(os.path.join(BUNDLE, f'snap_{W}.state'), 'rb').read())
+    def fg(f):
+        off, sz = lay[f]; a = syms['fighters'] + off - 0x100000
+        v = int.from_bytes(bytes(ram[a:a + sz]), 'big'); return v - 256 if f == 'facing' and v > 127 else v
+    out = []; prev = None
+    for i, (p0, p1) in enumerate(pads):
+        core.frame(p0, p1); st = states[fg('state')]
+        if st == 'THROW' and prev == 'GRAB': out.append(dict(start=W + i - 1, facing=fg('facing'), special_from=None))
+        if out and st == 'SPECIAL' and out[-1]['special_from'] is None and W + i - out[-1]['start'] < 75: out[-1]['special_from'] = W + i - out[-1]['start']
+        prev = st
+    json.dump(out, open(os.path.join(OUT, 'g_throws_0077.json'), 'w'), indent=1)
+
+# ---- (k) KOF98's special-cancel window on a normal -------------------------------------------------------------------
+def run_k():
+    import emu
+    from timeline import seqs
+    L = ['KOF98 Kyo vs Yuri (c0), P1 x $180, P2 $1B0: the normal pressed on frame 0, 236 (2 frames each) then A on frame p;',
+         'P2 life drop = the hit; P1 state 98 / 89 = close C / B, 156 = 236A (the special). Frames from the normal\'s press.']
+    res = {}
+    for normal in ('c', 'b'):
+        spec, pokes, reload, starts, s = [], [], [], [], 40
+        for p in [None] + list(range(8, 26)):
+            starts.append((s, p)); reload.append(s - 4); pokes.append(f'{s - 2}:108118=01,108119=80,108318=01,108319=B0')
+            spec.append(f'p1 {s} 2 {normal}')
+            if p is not None: spec += [f'p1 {s + p - 6} 2 D', f'p1 {s + p - 4} 2 DR', f'p1 {s + p - 2} 2 R', f'p1 {s + p} 2 Ra']
+            s += 160
+        s1, s2 = seqs('; '.join(spec), s + 20); out = os.path.join(OUT, f'k_kof98_{normal}.cap')
+        emu.run('kof98', out, s1, s2, pokes, reload='c0', reload_frames=reload)
+        R = {}
+        for line in open(out):
+            q = line.split(); o = bytes.fromhex(q[3]); v = bytes.fromhex(q[4])
+            R[int(q[0])] = (int.from_bytes(o[0x72:0x74], 'big'), int.from_bytes(v[0x138:0x13A], 'big'))
+        rows = []
+        for s0, p in starts:
+            life = [R[f][1] for f in range(s0 - 1, s0 + 120)]
+            hit = next((i for i in range(1, len(life)) if life[i] < life[i - 1]), None)
+            sp = next((f - s0 for f in range(s0, s0 + 120) if R[f][0] == 156), None)
+            rows.append(dict(press=p, hit=hit, special_from=sp))
+            L.append(f'close {normal.upper()}: A on +{p}: hit +{hit}, special from +{sp}' + (f' (press {p - hit:+d} from the hit)' if p and hit else ''))
+        ok = [r['press'] - r['hit'] for r in rows if r['press'] is not None and r['special_from'] is not None and r['hit']]
+        res[normal] = dict(rows=rows, latest_after_hit=max(ok) if ok else None)
+        L.append(f'close {normal.upper()}: latest press that cancels: {res[normal]["latest_after_hit"]} frames after the hit')
+    open(os.path.join(OUT, 'k_kof98.txt'), 'w').write('\n'.join(L) + '\n'); summary['k'] = res; save(); print('\n'.join(L))
+
 # ---- (e) death -> respawn, and the last life -> continue ------------------------------------------------------------------
 def run_e():
     b = brawler(); log = summary.setdefault('e', {})
@@ -316,5 +504,9 @@ if __name__ == '__main__':
     if WHAT in ('c', 'all'): run_c()
     if WHAT in ('d', 'all'): run_d()
     if WHAT in ('e', 'all'): run_e()
+    if WHAT in ('f', 'all'): run_f()
+    if WHAT in ('g', 'all'): run_g()
+    if WHAT == 'gprep': run_gprep()
+    if WHAT in ('k', 'all'): run_k()
     p = os.path.join(OUT, '_tmp.png')
     if os.path.exists(p): os.remove(p)

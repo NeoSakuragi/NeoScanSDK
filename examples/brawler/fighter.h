@@ -273,7 +273,9 @@ typedef struct fighter {
     uint8_t  form_from;           /* the form link: the base form's bm_chars index + 1 while in another form (0 = none) */
     const bthrow_t *thr;          /* a thrown victim's paired script (TODO #146): it plays its rows itself once its */
     struct fighter *thr_by;       /* thrower let go (fighter.c thrown_update); thr_by: who threw it (or holds it: a */
-    uint8_t  thr_skip, pad_thr;   /* hold hit); thr_skip: the frame of the hand-over, its update came after the thrower's; */
+    uint8_t  thr_skip, cnc_buf;   /* hold hit); thr_skip: the frame of the hand-over, its update came after the thrower's;
+                                   * cnc_buf: frames a C / D buffered in a throw / the hold finisher stays (fighter.c
+                                   * "cancels" rule 4, CANCEL_BUF), 0 = gone; */
     uint32_t thr_pos;             /* thr_pos: its place in the script alone, 8.8 rows (acc is its animation's: its flight plays one) */
     uint8_t  drop, pad_drop;      /* the respawn (fighter.c "death and respawn", TODO #166 e): 1 dropping from the air
                                    * (untouchable, no control), 2 just landed (main.c knocks every enemy on screen down) */

@@ -620,6 +620,7 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
     f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); f->srow = 0; f->speed = th->speed; f->zfront = 1;
     enter(v, S_THROWN); v->throw_id = t; v->thr = th; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
     v->srow = 0; v->speed = th->speed; v->hit_mask = 0; v->grab_hits = 0; v->throw_dealt = 0; v->thr_skip = 0;
+    f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;              /* (a press before it: not for its cancel) */
     for (i = 0; i < th->nrows; i++) if (th->rows[i].flags & 4) v->grab_hits++;   /* its impacts share the throw's damage */
     if (f->team) stat_throws++;
     paired_update(f);                                            /* its first row now */
@@ -627,10 +628,8 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     const bthrow_row_t *r = f->ch->throws[BT_THROW_C].rows;
-    if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered, its */
-        if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);   /* cancel once it lands (#166 d, #143's rule 1) */
-        if (in->press & IN_D) f->fury_buf = 0x80 | (in->dz > 0);
-    } else if (in->press & IN_C) {                               /* C: the hold ends, the special at once (Bruno
+    if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered */
+    } else if (in->press & IN_C) {                               /* (fighter_update, "cancels" rule 4); else C: the hold ends, the special at once (Bruno
                                                                     2026-10-05); the victim reels in its held pose, free */
         uint8_t k = special_for(f, in);                          /* (only throws hold a victim), until its stun ends or */
         if (k != 0xFF && spend(f, gmeter.special, 0, 0)) {       /* the special hits it */
@@ -669,23 +668,40 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         release(f); v->x += dir_mul(f->facing, FIX(10)); clamp(v); v->inv = 20;
     }
 }
-/* the thrower's control return (TODO #146): it acts again; a victim still flying plays its rows on alone */
-static void throw_update(fighter_t *f, const intent_t *in) {
+/* the thrower lets go (its control return, or a cancel): a victim still in its script plays its rows on alone
+ * (thrown_update) from the row shown; done: this frame's row already played (paired_update), else it plays it itself */
+static void throw_free(fighter_t *f, uint8_t done) {
     fighter_t *v = f->held;
-    if (f->throw_id == BT_HOLD_FIN && !f->held && !f->team) {    /* the finisher landed: a normal hit (#166 d), so */
-        uint8_t k = 0xFF;                                        /* #143's rule 1: C + the stick a special, D the fury */
-        (void)in;
-        if (f->fury_buf || f->spec_buf) { f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->srow = 0; }
-        if (fury_cancel(f)) return;
-        if (f->spec_buf) { k = special_pick(f, (f->spec_buf & 0x7F) - RI_S); f->spec_buf = 0; }
-        if (k != 0xFF && spend(f, gmeter.special, 0, 0)) { lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return; }
+    if (v && v->held == f) {                                     /* its part goes on: row, time, speed */
+        v->held = 0; v->thr_pos = ((uint32_t)(f->srow - 1) << 8) + f->acc; v->speed = f->speed;
+        v->thr_skip = done && v->idx > f->idx;                   /* it updates later this frame: not twice */
+    }
+    f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->srow = 0; clamp(f);
+}
+static uint8_t cancel_pick(fighter_t *f);
+static uint16_t last_impact(const bthrow_t *th) {               /* a throw's cancel row ("cancels" rule 4): its last */
+    uint16_t i = th->nrows;                                      /* impact row, 0xFFFF none (Yamazaki's back throw) */
+    while (i--) if (th->rows[i].flags & 4) return i;
+    return 0xFFFF;
+}
+/* the thrower's side after the grab (TODO #146): the paired script up to the control return, then it acts again; a
+ * throw's last impact / the hold finisher's landing cancel ("cancels" rule 4) */
+static void throw_update(fighter_t *f, const intent_t *in) {
+    uint8_t k;
+    (void)in;
+    if (!f->team && (f->fury_buf || f->spec_buf) &&               /* the impact shown (srow: the row shown + 1): */
+        (f->throw_id == BT_HOLD_FIN ? !f->held : f->throw_id < BT_COUNT && f->srow > last_impact(thr_of(f, f->throw_id))) &&
+        (k = cancel_pick(f)) != 0xFF) {                          /* a buffered C / D fires now */
+        throw_free(f, 0); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return;
     }
     if (paired_update(f)) return;
-    if (f->held == v && v && v->held == f) {                     /* its part goes on (thrown_update): row, time, speed */
-        v->held = 0; v->thr_pos = ((uint32_t)(f->srow - 1) << 8) + f->acc; v->speed = f->speed;
-        v->thr_skip = v->idx > f->idx;                           /* it updates later this frame: not twice */
+    throw_free(f, 1);
+    if (!f->team && (f->fury_buf || f->spec_buf) && (f->throw_id >= BT_COUNT || last_impact(thr_of(f, f->throw_id)) != 0xFFFF) &&
+        (k = cancel_pick(f)) != 0xFF) {                          /* the control return before the last impact (Terry,
+                                                                    Geese): the first frame it may act, the press fires */
+        lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return;
     }
-    f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->srow = 0; f->spec_buf = f->fury_buf = 0; clamp(f); to_neutral(f, 0);
+    f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0; to_neutral(f, 0);
 }
 static void thrown_update(fighter_t *v) {                        /* a thrown victim whose thrower let go */
     const bthrow_t *th = v->thr;
@@ -959,8 +975,31 @@ static uint8_t special_for(const fighter_t *f, const intent_t *in) { return spec
  * plays as from neutral: its meter, super flash, charge sound and invincibility. (3) A fury (not a MAX) whose first hit
  * landed cancels the same way into the fighter's MAX fury on down+D (TODO #151; D alone does nothing): the MAX from its
  * start, its own flash (orange), charge sound, invincibility and meter; a MAX is never cancelled (may_cancel), nor a
- * fury of a fighter without a MAX. Air normals have no special cancel
+ * fury of a fighter without a MAX. (4) A throw's last impact (forward / back + A: the blow or the victim hitting the
+ * floor, bthrow_row_t flags 4: last_impact) and the hold finisher's landing are normal hits: from the frame after
+ * the impact (after its hit-stop, Ryo's freeze) to the thrower's control return, C + the stick cancels into the special,
+ * D into the fury (down+D the MAX); the thrower lets go, a victim still in the script plays it on alone. A C / D pressed
+ * up to CANCEL_BUF frames before the first legal frame (hit-stop frames not counted) is buffered and fires on it; when
+ * the last impact comes after the control return (Terry's and Geese's throws: the victim lands a few frames after the
+ * thrower acts again), the control return is that frame, and from it a press does the same from neutral. A throw
+ * without an impact row (Yamazaki's back throw, Mai's forward throw: the damage at the script's end) has no cancel.
+ * KOF98, measured (Kyo vs Yuri, close B / close C then 236A, every press frame: tools/brawler/throws166_proof.py k): a
+ * normal's special cancel takes a press from the normal's startup until 8 (close C) / 9 (close B) frames after the
+ * impact and fires at the end of the hit-stop. Air normals have no special cancel
  * (no special starts in the air). Players only: enemies keep their routes' special links, nothing more. ---- */
+#define CANCEL_BUF 24                 /* frames a C / D pressed before a throw's last impact stays buffered (rule 4) */
+static uint8_t cancel_pick(fighter_t *f) {                       /* a throw's buffered C / D: the role it cancels into,
+                                                                    its meter spent (0xFF: none, or no meter: dropped) */
+    uint8_t k = 0xFF;
+    if ((f->fury_buf & 0x80) && spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0))
+        k = (f->fury_buf & 1) ? BS_FURY_MAX : BS_FURY;
+    else if (f->spec_buf) {
+        uint8_t s = special_pick(f, (f->spec_buf & 0x7F) - RI_S);
+        if (s != 0xFF && spend(f, gmeter.special, 0, 0)) k = s;
+    }
+    f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;
+    return k;
+}
 static uint8_t fury_cancel(fighter_t *f) {                       /* a buffered D: the fury now -> 1 */
     uint8_t mx = f->fury_buf & 1, go = (f->fury_buf & 0x80) && spec_ix(f->ch, BS_FURY) != 0xFF;
     f->fury_buf = 0;
@@ -1297,9 +1336,13 @@ static void update(fighter_t *f, const intent_t *in) {
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
         if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
     }
-    if (f->state == S_THROW && f->throw_id == BT_HOLD_FIN && !f->held && !f->team) {   /* the hold's finisher: a normal */
-        if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);   /* hit (#166 d): presses in its hit-stop count */
-        if (in->press & IN_D) f->fury_buf = 0x80 | (in->dz > 0);
+    if ((f->state == S_THROW || (f->state == S_GRAB && f->srow && f->throw_id == BT_HOLD_FIN)) && !f->team) {   /* a throw /
+                                                                    the hold finisher: C / D buffered for its last
+                                                                    impact ("cancels" rule 4; presses in hit-stop count) */
+        if (in->press & IN_C) { f->spec_buf = 0x80 | d_input(f, in); f->cnc_buf = CANCEL_BUF; }
+        if (in->press & IN_D) { f->fury_buf = 0x80 | (in->dz > 0); f->cnc_buf = CANCEL_BUF; }
+        if (!(in->press & (IN_C | IN_D)) && !f->freeze && f->cnc_buf && !--f->cnc_buf) f->spec_buf = f->fury_buf = 0;   /* too
+                                                                    early: gone (a hit-stop does not age it) */
     }
     if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_D) && !f->team && (f->spec_id != BS_FURY || in->dz > 0))
         f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
