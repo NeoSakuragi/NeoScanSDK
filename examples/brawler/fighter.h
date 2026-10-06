@@ -287,6 +287,9 @@ typedef struct fighter {
     struct fighter *wall_by;      /* the wall rule (vocabulary stage.wall, TODO #173): the special (or its projectile)
                                    * whose hit this fighter reels / flies from; until it is down it stays inside the
                                    * walls and that special's attacker is held back with it (wall_update) */
+    struct fighter *jug_by;       /* the juggle window (branch.cancel rule 5): the fighter that cancelled a throw's
+                                   * impact / a catch's slam into a special or fury: its follow-up (body or projectile)
+                                   * may hit this victim while it is thrown or airborne, until it lands (0 none) */
     uint8_t  vlist, vent;         /* a ROM special's caught victim script (vocabulary hold.victim_list, TODO #173): the
                                    * list its target follows + 1 (0 none; bspec_t.vlists), the attacker step whose entry
                                    * was taken last (0xFF: none yet in this list) */
