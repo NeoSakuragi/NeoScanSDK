@@ -1362,6 +1362,11 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (may_cancel(f) && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && f->fury_buf &&
             (f->spec_id == BS_FURY ? f->pcatch == 0 || f->pcatch == 0xFE : !f->pcatch)) {   /* a fury: once its catch
                                                                     routine lets the victim go (PF_HOLD off), rule 3 */
+            if (f->spec_id == BS_FURY) {                         /* a fury -> its MAX (rule 3): the fury's objects go */
+                uint8_t i;                                       /* with it (shots, eruptions, pinned effects), so the */
+                for (i = 0; i < NPJ; i++)                        /* MAX spawns whole (feedback 20261006-174005-5d29) */
+                    if (projectiles[i].state == S_PROJ && projectiles[i].owner == f) projectile_reset(&projectiles[i]);
+            }
             carry_drop(f); special_end(f); f->pflags = 0;        /* the super cancel ("cancels"): the special stops, */
             if (fury_cancel(f)) break;                           /* the fury starts this frame */
             to_neutral(f, 0); break;                             /* (no fury / no meter: the special played on to here) */
