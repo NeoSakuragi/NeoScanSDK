@@ -838,6 +838,10 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
  * test KOF98 $180B6) or, a travelling one (kind 1), on its first hit, into its end animation; an eruption (kind 3)
  * hits once and plays on (KOF's 1v1; the brawler's crowd rule: it hits every target it touches, each once). Neither it nor its thrower freezes on its hit (the victim does). Two projectiles that meet
  * (one's attack box on the other's own box) both spend their hit. Here: a pool entity driven by its bproj_t rows. */
+static const fighter_t *pin_of(const fighter_t *p) {            /* what a pinned effect is pinned to: its thrower, */
+    const fighter_t *o = p->owner;                               /* or (follow 16) its thrower's caught victim (SS2's */
+    return (p->pdef->follow & 16) && o->target ? o->target : o;  /* WFT card wind on the victim, object 27) */
+}
 static void proj_row(fighter_t *p) {                            /* its rows: its fighter's bank (called from */
     const bproj_t *d = p->pdef;                                  /* its owner's update, the projectiles' and combat) */
     uint8_t ob = BANK_set(CH_BANK(p->ch));
@@ -852,7 +856,7 @@ static void proj_row(fighter_t *p) {                            /* its rows: its
         p->spec_atk = (r->flags & 1) && (!p->pend || p->pend == 3) ? &r->atk : 0;   /* (3: an eruption that hit: live) */
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
-    if (d->follow && p->owner) p->y += p->owner->y;              /* pinned to its thrower (Burn Knuckle's flame) */
+    if (d->follow && p->owner) p->y += pin_of(p)->y;             /* pinned to its thrower (Burn Knuckle's flame) */
     BANK_set(ob);
 }
 static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int8_t facing, int32_t z) {
@@ -953,7 +957,7 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
             if (d->follow & 2) { projectile_reset(p); return; }  /* (or end there: it frees itself) */
             p->prow = d->loop == 0xFF ? 0 : d->loop;
         }
-        p->throw_x0 = p->owner->x; p->facing = p->owner->facing;
+        p->throw_x0 = pin_of(p)->x; p->facing = p->owner->facing;
     } else if (++p->prow >= d->nrows) {
         if (d->loop == 0xFF) { projectile_reset(p); return; }    /* its animation is over */
         p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
@@ -1328,7 +1332,7 @@ frame_done:
     f->spend = 0;                                                /* a press counts on the frame it is read */
     for (n = 0; n < 2; n++) {                                    /* its pinned effects follow this frame's move */
         fighter_t *p = f->proj[n];
-        if (p && p->pdef && p->pdef->follow) { p->throw_x0 = f->x; p->facing = f->facing; proj_row(p); }
+        if (p && p->pdef && p->pdef->follow) { p->throw_x0 = pin_of(p)->x; p->facing = f->facing; proj_row(p); }
     }
     pan_advance(f);
     s = &f->pan->steps[f->pstep];

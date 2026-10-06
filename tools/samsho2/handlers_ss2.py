@@ -247,16 +247,16 @@ def gen_wft(v):
     jx, jy = N.s16(0x6B4E2), N.s16(0x6B4E4); fx, fy = N.s16(0x6B4E6), N.s16(0x6B4E8)
     ents = [E(12, [('set', 'vx', 0)], [(('step', lim), 1)], flags={k: 0x80 for k in range(lim, 64)}, catch=2),
             E(None, conds=[('end', 'end')]),
-            E(13, [('set', 'vx', 0)], [('end', 3)]),
+            E(13, [('set', 'vx', 0), ('spawn', 0)], [('end', 3)]),
             E(14, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy)), ('set', 'cnt', 16)], [('cnt', 4)], phys='grav'),
             E(None, [('set', 'vx', 0), ('set', 'vy', 0), ('vsig',)], [('now', 5)], phys='air'),
-            E(24, conds=[('end', 6)], phys='air'),
+            E(24, [('fxoff',), ('spawn', 1)], conds=[('end', 6)], phys='air'),
             E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(fy)), ('vsig',)], [('now', 7)], phys='grav'),
             E(261, conds=[('land', 'end')], phys='grav')]
     vl = [VL([(80, 16, '464.0', 0)], fly=(N.s16(0x6B4EA), N.s16(0x6B4EC), REACT_G)),   # $56AE2: + 80, - 16
           VL([voff(498, 0) + ('498.0', 0)]),                       # at him, drawn at 498's offset
           VL([voff(498, 1) + ('464.0', 64)], rel=(N.s16(0x6B4EE), N.s16(0x6B4F0)))]   # moved by it ($2B7D0), the flight
-    return ents, [], vl
+    return ents, [('wind', 0), ('wind2', 0)], vl
 
 
 # ---- Kuroko (table 17, the referee: the hidden character; his specials are the other fighters' moves done with his
@@ -401,6 +401,7 @@ def compile_prog(ents):
             elif o[0] == 'part': ops.append(('part',))
             elif o[0] == 'move_now': ops.append(('move',))
             elif o[0] == 'vsig': ops.append(('vsig',))
+            elif o[0] == 'fxoff': ops.append(('fxoff',))
             else: raise ValueError(o)
         ops += [('resume_at', ('LP', i)), ('jmp', ('R', i)), ('label', ('LP', i))]
         for k, cnd in landc: ops.append(('br', 'land', 1, ('S', i, k)))
@@ -619,7 +620,25 @@ def kghost(B, k):
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 1, 'travel': 0,
             'name': 'KGHOST', 'ss2': {'type': 26, 'anim': 73}}
 
-OBJECTS = {'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
+def wind(B, k):
+    """Genjuro's object 27 ($43A3C[27] = $4DAF8) in its first phase [code]: animation 38 then 39 (looping) of his table,
+    re-placed every frame at its +$D4 = the caught opponent + (0, 48 up) ($4DB6E): the card wind around the victim,
+    until his stage 1 (+$D8, $56272): pinned to the caught victim (follow 16), ended by P_FXOFF at his spin"""
+    first = play_anim(12, 38); cyc = play_anim(12, 39)
+    rows = obj_rows(B, 12, first + cyc, 0, 0, 48)
+    return {'kind': 3, 'rows': rows, 'loop': len(first), 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 1 | 16, 'travel': 0,
+            'name': 'WFTWIND', 'ss2': {'type': 27, 'anims': [38, 39]}}
+
+def wind2(B, k):
+    """object 27's second phase ($4DB4A): animation 32 placed once at its thrower + (80 forward, 64 up), ended by its
+    animation's end ($4EC98); he hangs still meanwhile: pinned to him, ended at its last row (follow 3)"""
+    rows = obj_rows(B, 12, play_anim(12, 32), 80, 0, 64)
+    return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 3, 'travel': 0,
+            'name': 'WFTCARDS', 'ss2': {'type': 27, 'anim': 32}}
+
+OBJECTS = {'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
 def rom_steps(B, ch, a, flags, react, catch=False):
