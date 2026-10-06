@@ -124,7 +124,7 @@ flash, stock, `cmp` / `$E4` branches).
   in 283 / 285 / 287). Brawler: `fighter.c kof_react` / `kof_fall`, reactions per hit from `export_bm.ROM_REACT`
   (Rising Tackle, Bakudan Punch: 286 on every hit) or the default (the last hit knocks down). Proof
   `../brawler/romspecials_check.py` (victim x / height per frame against these traces).
-- Supers / MAX (super flash, stock spend) not tried.
+- Supers / MAX: the furies since TODO #139, their MAX versions and the super flash since 2026-10-06 ("Super flash").
 
 ## Follow-ups read from the ROM (TODO #74, 2026-10-06)
 Iori's 214A/C Aoi Hana (KOF98 `$70E42`) and K''s 236A/C Ein Trigger (`$38F22`) / 623C Crow Bites (`$393A0`, KOF99)
@@ -180,8 +180,8 @@ Every KOF-banked fighter's C fury (game.json roster `fury`) goes through the sam
 - **Power check**: the handler opens with `jsr $24D80` (KOF96 `$1AB70`, KOF99 `$1FC48`): d0 0 = no power (`jmp` out),
   1 = a CPU's fallback special, 2 = DM, 3 = SDM (+$E4 bit 0). The walk takes 2 (`dmcheck`), so `btst #0, +$E4` picks the
   DM side; `cmpi #1, d0` on the known register is concrete. A button's state pair is one long (`swap` picks C's word).
-- **Super flash** (`$19AB4` / `$19AE0` / `$25088`, screen darkening object): bookkeeping. P1 keeps animating during it
-  in the traces; only P2 freezes.
+- **Super flash**: not in the handler (`$19AB4` / `$19AE0` / `$25088` are the afterimage trail, op `trail`): the DM's
+  first animation starts it with a `$FA` command (section "Super flash" below). P1 keeps animating during it; P2 freezes.
 - **Catch routine** (+$19C): the hit-stop routine `$1B2C4` sends the attacker to its +$19C after the hit when the
   attack box (attacker +$AA) is `$37` on a step with `$4000` (`$1B9F6`) and +$E1 bit 6 is clear (the handler clears
   it; the catch sets it). Boxes `$38` / `$39` clear the attacker's +$AA at the hit (`$3C00`): no routine (Kyo's 214A).
@@ -254,3 +254,73 @@ each frame from a table by `$25376` / `$25396`: the throw-victim model), Goenitz
 routine's step-effect table `$249E8`), Rugal 6426A / C (Kaiser Wave's multi-hit routine through +$C2 / +$138), Rugal
 624A (stage wall `$18092`, a branch on vx), Yamazaki 214A (`f-1`), Ralf AAAA / Billy CCCC (mash: no KOF trace of the
 repeat), Robert 426B (no capture try enters it).
+
+## Super flash (TODO #139 / brawler `fx.super_flash`, 2026-10-06)
+Correction first: `$19AB4` / `$19AE0` (and `$25088`, which picks `$19AB4` when +$E4 bit 0 is set, else `$19AE0`; `$19A88`
+/ `$19B06` the same with a lifetime +$D6 8 / 16) are **not** the flash: they allocate the afterimage object `$19898`
+(three delayed copies of the owner drawn from its position history, palette +$1AB, +29 for the MAX one; it frees itself
+when the owner sets +$E2 bit 1). They are op `trail` now (dropped, presentation). The power check `$24D80` spends the
+stock (`$15908`) and sets +$E4 bit 0 for an SDM; it starts nothing visible either.
+
+**The flash comes from the DM's first animation**, an animation command `$FA [id][dx:16][dy:16]` (animate engine
+`$5C28` table, entry `$5D1C`: an effect object from the init / routine tables `$36782[id]` / `$36382[id]`, owner +$84 =
+the fighter, its x / y = the fighter's +$18 / +$1C + dx / dy each frame (`$37556`: dx negated with the facing, like a frame
+part's dx: negative = forward), height copied). Every KOF98 DM / SDM state has it on its second step (after a first step
+of 2 frames), two commands at the same offset:
+| id | effect | what it does |
+|---|---|---|
+| `$38` | state 58 (table 38), priority +16 (in front) | routine `$370F0`: sound $99 (`$3906E`), then the controller `$37120` (priority $5001): `$10A787` bit 2 + the opponent's player bit ((+$170 & 3) + 1: bit 0 P1, bit 1 P2), `$10A782` = $5001, `$10A840` bit 4; every frame `$10A788` bit 7 (the stage planes drawn blank, `$7FB2` / `$8232`) and `$10D936` (the backdrop, written to `$401FFE` at `$A41A`) = $0000, or $FFFF (white) while state 58 shows its event step ($0080); it ends (bits cleared) when state 58's animation ends |
+| `$3E` | state 78 | the same with the SDM's animation |
+| `$3C` / `$5A` | state 72, priority -16 (behind) | the glow: one 10 x 10 frame ($291, palette 102) after a 3-frame placeholder; `$3729E` cycles palette 102 through 16 palettes of the ROM table (bank 2 `$2D77F0 + 32 n + 2`, n = 5152 + k blue for `$3C`, 5168 + k orange for `$5A`): k = 0 for 5 frames, then one further each frame (the rings shrink) |
+| `$39` / `$3F` | state 58 / 78 + controller `$371D2` | the same flash without the opponent bit (nothing but the objects freeze): Yamazaki 187 / 193, Yashiro 207 / 208 (second parts) |
+
+What freezes (`$A2C0`, `$332CA` / `$33332`): while `$10A787` bit 2 is set the object loop runs only the objects of
+priority `$10A782` ($5001: the flash's) and sets +$7B (hold the animation step) on every other object with +$3B bit 5;
+the player whose bit is set skips its code (draw only `$600E`). The attacker's own code runs: Terry keeps animating
+(state 166's steps advance through the flash). The animate routine itself (`$5BA6`) returns at once when `$10A787` bit 6
+is set (a separate, global freeze). State 58 / 78: an event step of 3 frames (white), 8 frames of a placeholder, then
+16 one-frame rays frames ($1E8-$1F7 palette 106 blue / $2A0-$2AF palette 107 orange: the same tiles), then holds;
+measured in our emulator (Terry 21416C, `/data/tmp/superflash`): the effects spawn on the DM's frame 1, the backdrop is
+white 4 frames, black 24 (the stage gone), the stage is back 28 frames after the spawn; P2 frozen throughout; the DM's
+rays are white-blue, the SDM's orange-yellow, the glow blue / orange; nothing else differs (same anchor, same timing).
+KOF99 (`$329EC` routine table): ids `$F1` DM / `$F2` SDM (+ `$F3`), the same `$3C` / `$5A` glows; screens identical in
+structure (black stage, blue glow + rays). **KOF96** (`$4ED0` -> `$24976[id]`): one id `$38` for DM and SDM (sound $91,
+effect state 58 of table 29: the glow + rays), no controller: nothing freezes, the stage stays (Geese 1632143C traced).
+
+Per move (`handlers98.super_flash`, the program's whiff model gives the state's start; dx / dy px, KOF orientation;
+at = the move's frame the effect spawns; colour 1 DM blue / 2 MAX orange). MAX versions: `decode_variants` finds a
+MAX path in every fury handler; Terry's tests +$E4 bit 0 (`$432AC`) before the button (`$432E2`), so 21416A and 21416C
+reach the same MAX path (one MAX version: three pillars 171-173, tables `$433A2` / `$433B0`, count 3, damage id 39);
+every other handler tests the button inside or after the MAX branch and has two MAX versions (MAX A / MAX C, or B / D
+for Mai) with the same states, differing in timings (Ryo / Robert whiff 95 vs 108 frames, Geese 71 / 98, Mr. Big 81 /
+99, Goenitz MAX A plays 158 / 171 / 160, MAX C 159 / 172 / 161). **Rule for the brawler (down+D)**: the MAX version
+with the fury's own button (the roster's C / D: the heavy one), as D picks the fury's own button.
+
+| fighter | fury (state, anchor dx, dy, at) | MAX version played (state, anchor, at) | MAX versions in the handler |
+|---|---|---|---|
+| Terry | 21416C (166, 0, -112, 1) | MAX 21416C (168, 0, -112, 1) | one (A and C share it) |
+| Ryo | 23624C (177, -12, -76, 1) | MAX 23624C (188, -12, -76, 1) | MAX A, MAX C |
+| Ralf | 23624C (161, -35, -80, 1) | MAX 23624C (167, -35, -80, 1) | MAX A, MAX C |
+| Robert | 23624C (177, 8, -100, 1) | MAX 23624C (188, 8, -100, 1) | MAX A, MAX C |
+| Yamazaki | 236236C (169, 18, -48, 1) | (captured fury: no MAX in the bank) | MAX A, MAX C (179) |
+| Billy | 236236C (179, 0, -104, 1) | MAX 236236C (183, 0, -104, 1) | MAX A, MAX C |
+| Kyo | 21426C (185, -24, -112, 1) | MAX 21426C (194, -24, -112, 1) | MAX A, MAX C |
+| Iori | 23624C (161, -20, -120, 1) | (captured fury) | MAX A, MAX C (167: 24, -88) |
+| Mai | 21426D (169, -4, -65, 1) | MAX 21426D (174, 0, -64, 1) | MAX B, MAX D |
+| Yashiro | 21426C (171, 26, -104, 1) | MAX 21426C (177, 26, -104, 1) | MAX A, MAX C |
+| Rugal | 23624C (195, 48, -104, 1) | (captured fury) | MAX A / C, EX too (203) |
+| Geese (KOF96) | 1632143C (177, 6, -124, 3) | MAX 1632143C (203, 6, -124, 3) | MAX A (202, at 2), MAX C |
+| Mr. Big (KOF96) | 23623C (133, 12, -68, 5) | MAX 23623C (135, 12, -68, 5) | MAX A (134), MAX C |
+| Krauser (KOF96) | 641236C (152, 8, -108, 7) | MAX 641236C (154, 8, -108, 7) | MAX A (153, at 5), MAX C |
+| Goenitz (KOF96) | 2141236C (148, -26, -134, 8) | (captured fury) | MAX A (158), MAX C (159) |
+| K' (KOF99) | 23624C (193, -1, -90, 2) | MAX 23624C (206, -1, -90, 2) | MAX A, MAX C |
+| Haohmaru (SS4), Kim (Kizuna) | no ROM flash: the game-wide anchor (game.json super_flash: 0, -96) | - | - |
+
+The brawler (`fx.super_flash`, docs/brawler_move_vocabulary.md, Bruno's design 2026-10-06): an **engine rule**, not
+per-move data. Every fury (D) and MAX fury (down+D) of every fighter flashes: game.json `super_flash` holds the timing
+and the colours once (start 1, freeze 28, white 4: KOF98's above; blue for a fury, orange for a MAX fury by role); the
+concentration is KOF98's (`make_sparks.py build_flash` -> `superflash.h`, the effects library: the glow frames 3-14, the
+rays 11-26, each +2 frames of the object's life). Per move only an **optional anchor**: `export96` stores `flash`
+(`super_flash` on its states), `export_bm` writes only its dx / dy into `bspec_t.sf_dx / sf_dy / sf_anchor`; a move
+without one (SS4, Kizuna, WHP, future fighters) plays at game.json's anchor. The export adds the MAX moves once:
+`MAX <fury>` (`export_rom` with the 'MAX ' prefix: `decode(sdm=True)`) for every ROM fury with a MAX path, `bchar_t.fury_max`.

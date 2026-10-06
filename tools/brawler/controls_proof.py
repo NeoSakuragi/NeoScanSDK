@@ -9,7 +9,9 @@ that hits P1, P1's meter set before a test (full, 59, 0).
 Per fighter: A from far / close / crouch / forward (the route tree's root link the game picked vs the tree), air A /
 down+A / up+A, B jumps (vertical / forward / back), A and B acting the frame they are pressed (no chord wait), a B
 jump-cancel link in a route (its air node played by A), C in each of the six slots (the stick picks it) and A+B together
-playing no special (the chord is retired), D fury with a full meter and refused at 59, meter drain / refill numbers, a special out of a hit (double cost, white flash)."""
+playing no special (the chord is retired), D fury and down+D its MAX version (TODO #139: bchar_t.fury_max, the fury
+when the fighter has none) with a full meter and at 59, meter drain / refill numbers, a special out of a hit (double cost,
+white flash). game.json meter.infinite (2026-10-06): nothing is spent, the gauge stays full, a fury plays at 59 too."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
@@ -27,6 +29,8 @@ only = sys.argv[2:] or names
 L = Lab(); b = L.b; ST = b.states
 SLOT_DIR = {'D': '', 'fD': 'R', 'dD': 'D', 'uD': 'U', 'dfD': 'DR', 'ufD': 'UR'}
 BS_FURY = 6
+INF = bool(M.get('infinite'))                                 # the meter spends nothing (game.json meter.infinite)
+def cost(c): return 0 if INF else c
 
 def st(i=0): return ST[b.fget(i, 'state')]
 def run(n, k=''): b.run(n, p1=k)
@@ -119,25 +123,37 @@ for ci, name in enumerate(names):
         out = {}
         settle(M['max']); setpos(80); run(1, dk + 'c'); run(1); sid = b.fget(0, 'spec_id')
         out['C'] = {'state': st(0), 'spec_id': sid, 'meter': b.fget(0, 'meter'),
-                    'ok': st(0) == 'SPECIAL' and (want is None or sid == want) and b.fget(0, 'meter') == M['max'] - M['special']}
+                    'ok': st(0) == 'SPECIAL' and (want is None or sid == want) and b.fget(0, 'meter') == M['max'] - cost(M['special'])}
         settle(M['max']); setpos(80); run(1, dk + 'ab'); seen = set()
         for _ in range(40): seen.add(st(0)); run(1)
         out['A+B (retired)'] = {'states': sorted(seen), 'ok': 'SPECIAL' not in seen}
         r['slots'][slot] = {'kof': F['specials'][slot], 'want': want, **out}
     # ---- D: the fury ------------------------------------------------------------------------------------------------------
     fury = G['roster'][ci].get('fury')
+    pool = [p['input'] for p in F['pool']]                   # the fighter's specials (bchar_t.specials order)
+    fix = pool.index(fury) if fury in pool else None
+    mix = pool.index('MAX ' + fury) if fury and 'MAX ' + fury in pool else fix   # down+D: the MAX version, else the fury
     settle(M['max']); setpos(60); run(1, 'd'); run(1); s = st(0)
-    r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'meter': b.fget(0, 'meter')}}
+    r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'spec_ix': b.fget(0, 'spec_ix'), 'meter': b.fget(0, 'meter')}}
     if fury:
         run(20); p = os.path.join(OUT, f'fury_{name}.png'); b.screenshot(p); fury_shots.append((name, fury, p))
+    settle(M['max']); setpos(60); run(1, 'Dd'); run(1); s2 = st(0)
+    r['fury']['max'] = {'kof': 'MAX ' + fury if mix != fix else fury, 'state': s2, 'spec_id': b.fget(0, 'spec_id'),
+                        'spec_ix': b.fget(0, 'spec_ix'), 'want_ix': mix, 'meter': b.fget(0, 'meter')}
+    if fury and mix != fix:
+        run(20); p = os.path.join(OUT, f'fury_max_{name}.png'); b.screenshot(p); fury_shots.append((name, 'MAX ' + fury, p))
     settle(M['fury_min'] - 1); run(3, 'd'); seen = set()
     for _ in range(20): seen.add(st(0)); run(1)
     r['fury']['at_59'] = {'states': sorted(seen), 'meter': b.fget(0, 'meter')}
-    r['fury']['ok'] = (s == 'SPECIAL' and r['fury']['full']['spec_id'] == BS_FURY and r['fury']['full']['meter'] == M['max'] - M['fury']
-                       and 'SPECIAL' not in seen) if fury else (s != 'SPECIAL' and 'SPECIAL' not in seen)
+    f_ok = s == 'SPECIAL' and r['fury']['full']['spec_id'] == BS_FURY and r['fury']['full']['spec_ix'] == fix and \
+        r['fury']['full']['meter'] == M['max'] - cost(M['fury'])
+    m_ok = s2 == 'SPECIAL' and r['fury']['max']['spec_id'] == BS_FURY and r['fury']['max']['spec_ix'] == mix and \
+        r['fury']['max']['meter'] == M['max'] - cost(M['fury'])
+    r['fury']['ok'] = (f_ok and m_ok and (('SPECIAL' in seen) if INF else ('SPECIAL' not in seen))) if fury else \
+        (s != 'SPECIAL' and s2 != 'SPECIAL' and 'SPECIAL' not in seen)
     # ---- meter numbers: refill ------------------------------------------------------------------------------------------
     settle(0); m0 = b.fget(0, 'meter'); run(100); r['meter']['refill_100_frames'] = b.fget(0, 'meter') - m0
-    r['meter']['ok'] = r['meter']['refill_100_frames'] in (100 // M['refill'], 100 // M['refill'] - 1)
+    r['meter']['ok'] = b.fget(0, 'meter') == M['max'] if INF else r['meter']['refill_100_frames'] in (100 // M['refill'], 100 // M['refill'] - 1)
     # ---- a special out of a hit: double cost, white flash -----------------------------------------------------------------
     hd = r['hit_special'] = {'ok': False}
     for dist in (26, 32, 20, 38):
@@ -145,7 +161,7 @@ for ci, name in enumerate(names):
         if watch(40, ('HITSTUN',))[0] != 'HITSTUN': continue
         while b.fget(0, 'freeze'): run(1)
         run(1, 'c'); run(1); s = st(0)
-        hd.update({'dist': dist, 'state': s, 'meter': b.fget(0, 'meter'), 'flash': b.fget(0, 'flash'), 'want_meter': M['max'] - M['hit_mul'] * M['special']})
+        hd.update({'dist': dist, 'state': s, 'meter': b.fget(0, 'meter'), 'flash': b.fget(0, 'flash'), 'want_meter': M['max'] - cost(M['hit_mul'] * M['special'])})
         if ci == 0 or name in ('ryo', 'haohmaru'): b.screenshot(os.path.join(OUT, f'flash_{name}.png'))
         run(M['flash'] + 2); hd['flash_after'] = b.fget(0, 'flash')
         hd['ok'] = s == 'SPECIAL' and hd['meter'] == hd['want_meter'] and hd['flash'] > 0 and hd['flash_after'] == 0

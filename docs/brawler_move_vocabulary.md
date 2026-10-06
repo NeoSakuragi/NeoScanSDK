@@ -17,7 +17,8 @@ are what the game plays today, not what the tools intended.
 ## Today in numbers
 
 Buttons (0.0.64): A attacks (normals by stick + distance), B jumps, **C plays a special, the stick picks one of six
-slots** (neutral, forward, down, up, down-forward, up-forward), **D plays the fury**; the A+B chord is retired. Slot
+slots** (neutral, forward, down, up, down-forward, up-forward), **D plays the fury, down+D its MAX version** (TODO #139:
+`MAX <fury>` in the bank, `bchar_t.fury_max`; none: the fury); the A+B chord is retired. Slot
 names in the data and below keep game.json's keys D / fD / dD / uD / dfD / ufD = C neutral / forward / down / up /
 down-forward / up-forward; a follow-up link's `again` = C with the move's own direction.
 
@@ -125,7 +126,8 @@ Terry 623A/C + EX 623A/C). Terry's seven: 623C = 623A / 623C / EX 623A / EX 623C
 / 485-489, vx 1 / 8, vy 7 / 11, g 0.32 / 0.51, rise counter 12 / 32, damage id 32 / 33); 214C = 214A / 214C (vx 7 / 9,
 vy 1 / 2, damage id 26 / 27); 214D = 214B / 214D; 426B = 426B / 426D; 623D = 623B / 623D; EX 236C = EX 236A / EX 236C
 (vx 4 / 7); 21416C = 21416A / 21416C (one pillar, tables $4339A / $4339E) / MAX 21416C (+$E4 bit 0: three pillars 171-173,
-tables $433A2 / $433B0, count 3, damage id 39).
+tables $433A2 / $433B0, count 3, damage id 39). Since TODO #139 the furies' MAX versions are also played (down+D): export96 adds `MAX <fury>`
+(`export_rom` with +$E4 bit 0 set, the fury's own button: the heavy one), the rest stays decoded only.
 
 ### presentation
 
@@ -135,6 +137,7 @@ tables $433A2 / $433B0, count 3, damage id 39).
 | `fx.voice_extra` | voices ([(id, at)]) | More than one voice line in a move. | bchar_t.vmore | 30 (98 24 96 3 KZ 3) |
 | `fx.hit_sound_override` | sfx (songs.json name) | The move's hits play a chosen sound instead of KOF's kind. | game.json roster[].hit_sfx | 2 (SS4 2) |
 | `fx.meter_flash` | frames (int, 8) | A special out of a hit spends double meter and flashes white. | gmeter.flash | 19 fighters |
+| `fx.super_flash` | anchor (optional: dx, dy px from the feet, KOF orientation) | **Engine rule** (TODO #139, 2026-10-06), every fury (D) and MAX fury (down+D) of every fighter: from the fury's frame `start` the game freezes except the attacker for `freeze` frames (enemies, projectiles, camera, waves / timers, other players; nobody hits), the stage hidden, the backdrop white `white` frames then dark; KOF98's concentration (glow + rays, the effects library) at the anchor, blue for a fury, orange for its MAX version. Timings / colours game-wide (game.json `super_flash`: KOF98's 1 / 28 / 4); per move only the optional anchor (read from its KOF animation's `$FA` command: handlers98.md "Super flash"), else game.json's. | gflash_t (game.json super_flash), bspec_t.sf_anchor / sf_dx / sf_dy, main.c super_flash, superflash.h (make_sparks.py build_flash) | every fury (anchors: 16 KOF furies + their MAX versions) |
 
 
 Notes from the inventory:
@@ -146,7 +149,8 @@ Notes from the inventory:
   cannot express them, which is why their gameplay differs (section 2).
 - Branch conditions with one user (`branch.on_distance` K', `branch.on_height` Billy 623D) and `branch.on_offscreen`
   (0 users: objects use it internally) are kept: they are cheap and general.
-- Missing from the vocabulary altogether: guard / block, armour (hit-through), a super flash, a juggle counter, a wall.
+- Missing from the vocabulary altogether: guard / block, armour (hit-through), a juggle counter, a wall (the super flash
+  is in since TODO #139: `fx.super_flash`).
 
 ## 2. Game-wide ruleset
 
@@ -225,7 +229,6 @@ shows which existing features the move would use). Machine-readable: `missing.js
 | kof99:k_dash 214D / 236B / 236D / 623A / 23624C follow-ups | 140 | decode.kof_trace | off build |
 | kof98:kyo 236C 6A after hit-stop | 140 | - | off build |
 | kof98:kyo 21426C held C | 140 | input.sustain | off build |
-| all furies: super flash | 139 | - | off build |
 
 | component | kind | extends (regression set size) | only blocker of (in game) | needed by |
 |---|---|---|---|---|

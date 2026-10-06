@@ -341,11 +341,16 @@ def tables(g, build):
     c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(
         '    { ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) + ' },   /* ' + n + ' */' for n, v in M['ai']) + '\n};')
     m = g['meter']                                       # the special meter (TODO #71): every value a frame / point count
-    for k in m: assert k in ('about', 'max', 'special', 'fury', 'fury_min', 'refill', 'hit_mul', 'flash'), f'meter: unknown field {k}'
+    for k in m: assert k in ('about', 'max', 'special', 'fury', 'fury_min', 'refill', 'hit_mul', 'flash', 'infinite'), f'meter: unknown field {k}'
     assert 0 < m['special'] <= m['max'] < 65536 and 0 < m['fury'] <= m['max'] and m['fury_min'] <= m['max'] and \
         1 <= m['refill'] <= 255 and 1 <= m['hit_mul'] <= 8 and 0 <= m['flash'] <= 255, 'meter values'
     c.append(f"const gmeter_t gmeter = {{ .max = {m['max']}, .special = {m['special']}, .fury = {m['fury']}, "
-             f".fury_min = {m['fury_min']}, .refill = {m['refill']}, .hit_mul = {m['hit_mul']}, .flash = {m['flash']} }};")
+             f".fury_min = {m['fury_min']}, .refill = {m['refill']}, .hit_mul = {m['hit_mul']}, .flash = {m['flash']}, .infinite = {1 if m.get('infinite') else 0} }};")
+    fl = g['super_flash']                                # the super flash (TODO #139): one rule for every fury
+    for k in fl: assert k in ('about', 'start', 'freeze', 'white', 'anchor', 'white_colour', 'dark_colour'), f'super_flash: unknown field {k}'
+    assert 1 <= fl['start'] <= 255 and 1 <= fl['white'] <= fl['freeze'] <= 255 and len(fl['anchor']) == 2, 'super_flash values'
+    c.append(f"const gflash_t gflash = {{ .start = {fl['start']}, .freeze = {fl['freeze']}, .white = {fl['white']}, .dx = {fl['anchor'][0]}, "
+             f".dy = {fl['anchor'][1]}, .white_col = {fl['white_colour']}, .dark_col = {fl['dark_colour']} }};")
     c.append('const gtint_t gtints[TINT_COUNT] = {\n    { 0, 0, 0, { 0, 0, 0 } },   /* none: its own colour set */\n' + '\n'.join(
         f'    {{ {t["mix"]}, {t["mul"]}, {t["shift"]}, {{ {", ".join(map(str, t["add"]))} }} }},   /* {n} */' for n, t in g['tints'].items()) + '\n};')
     erows = []

@@ -44,9 +44,22 @@ typedef struct {
     uint16_t fury, fury_min;      /* a fury's (C) cost; the meter it needs */
     uint8_t  refill;              /* frames per point regained */
     uint8_t  hit_mul;             /* a special out of a hit (hitstun / a hold on him) costs this many times as much */
-    uint8_t  flash, pad;          /* frames the palette flashes white when it did */
+    uint8_t  flash;               /* frames the palette flashes white when it did */
+    uint8_t  infinite;            /* 1: nothing is spent, the gauge stays full (game.json meter.infinite; for the time being, 2026-10-06) */
 } gmeter_t;
 extern const gmeter_t gmeter;
+
+/* ---- layer 2: the super flash (fx.super_flash, TODO #139; game.json "super_flash"): an engine rule, every fury (D) and
+ * MAX fury (down+D) of every fighter: from the fury's frame `start` the game freezes except the attacker for `freeze`
+ * frames, the stage is hidden, the backdrop `white_col` for `white` frames then `dark_col`; the concentration (the
+ * effects library, superflash.h: KOF98's) plays at the anchor, blue for a fury, orange for a MAX fury. The anchor: the
+ * special's bspec_t.sf_dx / sf_dy when it has one (sf_anchor), else dx / dy here (px from the feet, KOF orientation). */
+typedef struct {
+    uint8_t  start, freeze, white, pad;
+    int16_t  dx, dy;
+    uint16_t white_col, dark_col;
+} gflash_t;
+extern const gflash_t gflash;
 
 /* ---- the minion tints (fighter_colour): a colour pulled toward its luminance l = (5 R + 9 G + 2 B) / 16:
  * channel = ((l * mix + channel) * mul >> shift) + add[channel], clamped 0-31. Tint 0 = the colour set as it is. ---- */

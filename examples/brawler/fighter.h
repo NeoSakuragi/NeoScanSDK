@@ -105,6 +105,8 @@ extern const rt_head_t *route_tab[BC_COUNT];
  * main.c gd_apply) maps the six C slots (BS_*, BS_COUNT = 6; named D, fD, dD, uD, dfD, ufD after their old D inputs: neutral,
  * forward, down, up, down-forward, up-forward + C today) to one of them (0xFF = none). BS_FURY: the fury (D), bchar_t.fury (game.json roster fury). */
 #define BS_FURY BS_COUNT
+#define BS_FURY_MAX (BS_COUNT + 1)   /* spec_ix only (down+D): the fury's MAX version, bchar_t.fury_max (0xFF: none -> the fury);
+                                     played with spec_id BS_FURY (a fury in every respect) */
 extern const uint8_t *spec_tab[BC_COUNT];
 uint8_t spec_ix(const bchar_t *ch, uint8_t role);   /* role -> index in ch->specials, 0xFF = none */
 void specs_init(void);
@@ -262,6 +264,7 @@ void spark_hit(int16_t wx, int16_t sy, uint8_t big, int8_t facing);   /* main.c:
 void combat(fighter_t **fs, uint8_t n);                     /* attack boxes vs hurt boxes, every pair */
 void fighter_tiles(fighter_t *f);                           /* pass 1: tile runs when the frame changed */
 void fighter_place(const fighter_t *f, uint16_t *y, uint16_t *x, int16_t cam_x, uint8_t n);   /* pass 2: SCB3/SCB4 of n sprites (>= ncols; the rest height 0) */
+void super_flash(fighter_t *f);      /* main.c: the fury's super flash starts (fx.super_flash: the game freezes except f) */
 const char *fighter_state_name(uint8_t st);
 const bstep_t *fighter_step(const fighter_t *f);
 void fighter_play(fighter_t *f, uint8_t anim);              /* outside the state machine (select screen previews) */

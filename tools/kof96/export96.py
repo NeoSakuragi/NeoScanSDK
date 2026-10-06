@@ -390,9 +390,19 @@ def export(names, outdir, game='kof96', only=None, extra=None):
         for sp in specials96.load(m, cid):
             e = special_entry(m, cid, sp, add, slot_of, game)
             if sp['input'] in pdefs: e['projectiles'] = [projectile_entry(m, cid, d, add, slot_of) for d in pdefs[sp['input']]]
+            t0 = 0; starts = []                                      # the super flash its animations start (a DM's;
+            for s_, d_, sl_ in e['states']: starts.append((s_, t0)); t0 += d_   # handlers98.super_flash)
+            e['flash'] = handlers98.super_flash(m, cid, starts)
             if handlers98.ROM_GAME.get(name, 'kof98') == game and sp['input'] in handlers98.ROM_SPECIALS.get(name, ()):   # read from the ROM:
                 e['rom'] = handlers98.export_rom(m, cid, sp['input'], add)                  # its handler's program
+                e['flash'] = e['rom'].get('flash') or e['flash']
             sps.append(e)
+            if 'rom' in e and any(v['sdm'] for v in e['rom'].get('variants', [])) and not e['input'].startswith('MAX '):
+                # a DM's MAX version (TODO #139, down+D): the same handler with +$E4 bit 0 set, this button's path (the
+                # handler's own button test decides A / C: handlers98.md "Super flash"); its script = the DM's capture
+                # (the Lab's data; the game plays the program)
+                rom = handlers98.export_rom(m, cid, 'MAX ' + sp['input'], add)
+                if 'error' not in rom: sps.append(dict(e, input='MAX ' + sp['input'], rom=rom, flash=rom['flash'], max_of=sp['input']))
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not
             out['characters'][name]['commands'] = [commands96.notation(p) for k, p in

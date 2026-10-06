@@ -154,10 +154,10 @@
    ]
   },
   "+$E2.1": {
-   "name": "super flash ends",
+   "name": "afterimage trail ends",
    "effect": "none",
-   "brawler": "the super flash is not in the brawler (presentation, TODO #139)",
-   "meaning": "The super-flash routines ($19A88 / $19AB4 / $19AE0 / $19B06, 'superflash') spawn the flash object $19898 and clear the owner's bit; the flash frees itself when its owner sets it ($198BE / $19900). A desperation move sets it when its flash should end (Ryo's Ryuuko Ranbu $48382).",
+   "brawler": "no afterimage trail in the brawler (presentation; the super flash itself is fx.super_flash, handlers98.md 'Super flash')",
+   "meaning": "The afterimage routines ($19A88 / $19AB4 / $19AE0 / $19B06, handlers98 'trail'; $25088 picks $19AB4 on a MAX version, else $19AE0) spawn the trail object $19898 (three delayed copies of the owner drawn from its position history, palette +$1AB, +29 for the MAX one) and clear the owner's bit; the trail frees itself when its owner sets it ($198BE / $19900) or after +$D6 frames. A desperation move sets it when its trail should end (Ryo's Ryuuko Ranbu $48382). Not the super flash (2026-10-06 correction): that is the animation's step effect $FA $38 / $3E (handlers98.md).",
    "evidence": [
     "$19AA6 andi #$FD,+$E2",
     "$198BE btst #1,owner+$E2 -> free",

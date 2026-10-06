@@ -52,7 +52,7 @@ ROUTINES = {0x248A8: 'init', 0x7A98: 'sound', 0x155F4: 'gauge', 0x18C1C: 'stats'
             0x33A8: 'random', 0x1EB20: 'superflash', 0x3F8A: 'superflash', 0x1813A: 'superflash', 0x24A9A: 'ownerflag',
             0x24AA0: 'ownerflag', 0x24FF6: 'chain', 0x25002: 'chain', 0x2500E: 'chain', 0x2501A: 'chain', 0x25026: 'chain',
             0x24F2C: 'stats', 0x24F34: 'stats', 0x24F3C: 'stats', 0x250C6: 'flags', 0x24F52: 'clrinput',
-            0x24D80: 'dmcheck', 0x2505A: 'flags', 0x25032: 'place', 0x16034: 'voice', 0x1603A: 'voice', 0x16AC0: 'dist', 0x19AB4: 'superflash', 0x19AE0: 'superflash', 0x25088: 'superflash'}
+            0x24D80: 'dmcheck', 0x2505A: 'flags', 0x25032: 'place', 0x16034: 'voice', 0x1603A: 'voice', 0x16AC0: 'dist', 0x19AB4: 'trail', 0x19AE0: 'trail', 0x25088: 'trail'}   # trail: the afterimage (handlers98.md 'Super flash': not the flash)
 BOOKKEEPING = ('follow', 'inflight', 'release', 'land', 'stats', 'init', 'chain', 'face', 'clrinput', 'voice', 'superflash',
                'ownerflag', 'flags', 'trail', 'alloc')
 # KOF96 / KOF99: the same engine family, the same object fields; the routines at their own addresses (found by their
@@ -1097,14 +1097,48 @@ def object_rows(m, cid, ob, owner_x=0.0, frames=240, fxoff_at=None):
             return rows[:-1], len(rows) - 1 - cyc, follow
     return rows, None, follow
 
+# ---- the super flash (TODO #139 / fx.super_flash, 2026-10-06; handlers98.md "Super flash") ----------------------------
+# KOF98 starts a desperation move's flash from its first state's animation, not from the handler: an animation command
+# $FA [id][dx:16][dy:16] (animate engine $5D1C: an effect object from the routine table $36382[id], placed dx / dy from
+# the fighter's +$18 / +$1C, dx negated with the facing like a frame part's) on the step after the first one. Ids:
+# $38 = DM (effect state 58: the white flash + the blue rays; its controller $37120 freezes the opponent and every
+# other object and hides the stage until state 58's animation ends), $3E = SDM (state 78, the orange rays, the same
+# controller), $3C / $5A = the glow behind the fighter (state 72, palette 102 cycled through 16 palettes: blue
+# $2D77F0 + $28400 / orange + $28600). $39 / $3F: the same flash with $371D2, which freezes nobody (the second part
+# of Yamazaki's and Yashiro's DMs). KOF99 ($329EC): $F1 DM / $F2 SDM, the same $3C / $5A glows. KOF96 ($24976): one
+# id $38 for DM and SDM: the glow + rays only (no controller: nothing freezes, the stage stays).
+FLASH_IDS = {'kof98': {0x38: 1, 0x3E: 2, 0x39: 1, 0x3F: 2}, 'kof99': {0xF1: 1, 0xF2: 2}, 'kof96': {0x38: 0}}
+def super_flash(m, cid, states, sdm=False):
+    """the flash a move's animations start (the brawler keeps only dx / dy: the move's optional anchor of the engine's
+    fx.super_flash rule, game.json super_flash; the rest documents KOF): states = [(state, the frame it starts)] in play order -> {'at': the move's
+    frame the effect spawns (the frame its step after the $FA starts: KOF's engine reads the command when the step
+    before it ends), 'dx', 'dy' (px, KOF frame-part orientation: negative = forward), 'colour' (1 DM blue, 2 MAX
+    orange), 'id', 'state', 'step'} or None. KOF96's one id takes its colour from the version (sdm)."""
+    ids = FLASH_IDS.get(m.game, {})
+    for st, t0 in states:
+        try: a = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st))
+        except Exception: continue
+        t = 0
+        for i in range(200):
+            b0, b1 = m.u8(a + 6 * i), m.u8(a + 6 * i + 1)
+            if b0 in (0xFE, 0xFF): break
+            if b0 == 0xFA and b1 in ids:
+                col = ids[b1] or (2 if sdm else 1)
+                return {'at': t0 + max(t - 1, 0), 'dx': m.s16(a + 6 * i + 2), 'dy': m.s16(a + 6 * i + 4), 'colour': col,
+                        'id': b1, 'state': st, 'step': i, 'source': f'{m.game} ${a + 6 * i:06X}'}
+            if b0 < 0x80: t += b0 + 1
+    return None
+
 def export_rom(m, cid, inp, add, game='kof98'):
     """a special's ROM program in export terms (export96 calls it for ROM_SPECIALS; tools/brawler/export_bm.py compiles
     it): ops (bookkeeping dropped, branch targets as op indices), anims {state: steps (frame = export index via add,
     ticks, flags, dx, boxes)}, per state the hits it opens (whiff model), objects (flight rows for export_bm's
     projectile tables), hit kind, the frame of the last hit / the apex (the rising reversal's invincibility)"""
-    ex = inp.startswith('EX ')
-    h, b = handler_of(cid, inp, ex, m.game)
-    prog = decode(m, h, b, ex, cid=cid)
+    sdm = inp.startswith('MAX ')                       # 'MAX <input>': the handler's MAX version (+$E4 bit 0)
+    base = inp[4:] if sdm else inp
+    ex = base.startswith('EX ')
+    h, b = handler_of(cid, base, ex, m.game)
+    prog = decode(m, h, b, ex, cid=cid, sdm=sdm)
     bad = [op for a, op in prog['ops'] if op[0] not in BODY_OPS | DROP_OPS or (op[0] == 'br' and not cond_ok(op[1]))
            or (op[0] == 'anim' and op[1] is None)]
     if bad: return {'error': f'ops {bad[:3]}'}
@@ -1185,10 +1219,12 @@ def export_rom(m, cid, inp, add, game='kof98'):
         objs.append({'rows': [[add(r[0])] + r[1:] for r in rows], 'loop': loop, 'end': end, 'kind': ob['kind'] or 3,
                      'follow': int(follow), 'hit_kind': hitkind, 'react': rx or 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
                      'child': None, 'state': ob.get('state'), 'sig': se | (sh & ~se & 0xC0) >> 2})
-    variants = [variant_summary(m, cid, inp, v) for v in decode_variants(m, h, b, ex, cid)]   # every version (stored;
+    variants = [variant_summary(m, cid, base, v) for v in decode_variants(m, h, b, ex, cid, sdm)]   # every version (stored;
     variants = variants if len(variants) > 1 else []                                          # the game plays this one)
+    starts = list(dict.fromkeys(r[1] for r in mrows))            # the flash: the states as the whiff plays them
+    flash = super_flash(m, cid, [(st, next(r[0] for r in mrows if r[1] == st)) for st in starts if st is not None], sdm)
     return {'handler': h, 'button': b, 'ops': ops, 'states': states, 'anims': anims, 'openings': per, 'last_hit': last,
-            'variants': variants,
+            'variants': variants, 'sdm': sdm, 'flash': flash,
             'apex': peak, 'length': length, 'objects': objs, 'hit_kind': hitkind, 'links': links,
             **(dict(zip(('parts', 'follow_links'), follow_parts(m, cid, prog, links))) if links else {})}
 

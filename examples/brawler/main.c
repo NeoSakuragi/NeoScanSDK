@@ -11,6 +11,7 @@
 #include "sound.h"
 #include "banner.h"
 #include "sparks.h"
+#include "superflash.h"
 #include "hud.h"
 #include "game_tables.h"
 #include "portraits_big.h"
@@ -404,10 +405,89 @@ static void sparks_draw(void) {
     }
 }
 
+/* ---- the super flash (fx.super_flash, TODO #139; tools/kof96/handlers98.md "Super flash"): an engine rule, every fury
+ * (D) and MAX fury (down+D) of every fighter, timings and colours game-wide (game.json super_flash -> gamedata.h
+ * gflash). From the fury's frame gflash.start (fighter.c) for gflash.freeze frames the game freezes except the attacker
+ * (game_tick: no other fighter, projectile, camera, wave or timer moves; nobody hits), the stage is hidden and the
+ * backdrop is gflash.white_col for gflash.white frames, then gflash.dark_col (KOF98's controller $37120: $10A788 bit 7 =
+ * stage planes blank, $10D936 = backdrop); KOF98's concentration (the effects library: make_sparks.py build_flash ->
+ * superflash.h) plays at the anchor, following the attacker: the glow behind everything (sprites 1-10, its palette
+ * cycled), the rays in front of the fighters (sprites 348-363), blue for a fury, orange for its MAX version (the
+ * fighter's bchar_t.fury_max: KOF98 effect ids $38 + $3C / $3E + $5A). The anchor: the special's own (bspec_t.sf_anchor:
+ * read from its KOF animation's $FA command), else gflash.dx / dy. The concentration's frames start a frame after the
+ * dark stage: in KOF98's pictures the white backdrop shows with the fury's first pose and its effect sprites a frame
+ * after; the brawler's pictures lag both the same (tools/brawler/superflash_proof.py: the same pictures at the same
+ * fury frames as KOF98, start 1). ---- */
+#define SF_GLOW_SPR 1
+#define SF_RAYS_SPR 348
+#define SF_GLOW_PAL 249
+#define SF_RAYS_PAL 248
+_Static_assert(SF_GLOW_SPR + SF_GLOW_COLS <= BG_SPR && SF_RAYS_SPR + SF_RAYS_COLS <= SPARK_SPR,
+               "super flash sprites: the glow in 1-21, the rays between the debug boxes and the sparks");
+_Static_assert(SF_GLOW_COLS + SF_RAYS_COLS <= BG_N, "super flash: its columns per line fit in the hidden stage's");
+static fighter_t *sf_who;                /* the attacker while the flash runs (0: none) */
+static uint8_t sf_flash_t, sf_col, sf_glow_on, sf_ray;   /* frames since it started; 0 DM blue / 1 MAX orange; shown frames */
+static int16_t sf_dx, sf_dy;
+static const uint16_t SF_BD[2] = { 0x0000, 0x0000 };    /* the backdrop it leaves: black (screen_fx restores the stage's) */
+void super_flash(fighter_t *f) {
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+    if (mode != 1) return;
+    sf_who = f; sf_flash_t = 0; sf_glow_on = 0; sf_ray = 0xFF;
+    sf_col = f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max;   /* MAX: orange */
+    if (sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
+    PAL_setPalette(SF_RAYS_PAL, sf_ray_pal[sf_col]);
+}
+static void sf_reset(void) {
+    uint8_t c;
+    sf_who = 0; sf_glow_on = 0; sf_ray = 0xFF;
+    for (c = 0; c < SF_GLOW_COLS; c++) { cmd_push(VRAM_SCB2 + SF_GLOW_SPR + c, 0x0FFF); cmd_push(VRAM_SCB3 + SF_GLOW_SPR + c, 0); }
+    for (c = 0; c < SF_RAYS_COLS; c++) { cmd_push(VRAM_SCB2 + SF_RAYS_SPR + c, 0x0FFF); cmd_push(VRAM_SCB3 + SF_RAYS_SPR + c, 0); }
+}
+/* one frame of the effect: columns at spr (SCB1 written when new), placed from the anchor; KOF draws them facing left */
+static void sf_place(const sf_frame_t *fr, uint16_t spr, uint8_t pal, uint8_t ncols, uint8_t newf, int16_t ax, int16_t ay, int8_t facing) {
+    uint8_t c, r, flip = facing > 0;
+    int16_t x = ax + (flip ? -(fr->dx + fr->cols * 16) : fr->dx), y = ay + fr->dy;
+    for (c = 0; c < ncols; c++) {
+        if (c >= fr->cols) { cmd_push(VRAM_SCB3 + spr + c, 0); continue; }
+        if (newf) {
+            uint8_t col = flip ? fr->cols - 1 - c : c;                /* mirrored: columns right to left, tiles h-flipped */
+            uint16_t *w = cmd_run(VRAM_SCB1 + (spr + c) * 64, fr->rows * 2);
+            for (r = 0; r < fr->rows; r++) {
+                uint32_t t = fr->tiles[col * fr->rows + r];
+                w[r * 2] = (uint16_t)t;
+                w[r * 2 + 1] = (uint16_t)(pal << 8) | (uint16_t)((t >> 16) & 15) << 4 | flip;
+            }
+        }
+        cmd_push(VRAM_SCB3 + spr + c, c ? 0x40 : (uint16_t)((((496 - y) & 0x1FF) << 7) | fr->rows));
+    }
+    cmd_push(VRAM_SCB4 + spr, (uint16_t)(x & 0x1FF) << 7);
+}
+static void sf_draw(void) {
+    uint8_t c, k, newf, sf_t;
+    int16_t ax, ay;
+    if (!sf_who) return;
+    sf_t = (uint8_t)(sf_flash_t - 1);                       /* the concentration: from the frame after (see super_flash) */
+    ax = INT(sf_who->x) - cam_x + (sf_who->facing > 0 ? -sf_dx : sf_dx);   /* follows the attacker (KOF $37556) */
+    ay = floor_top + INT(sf_who->z) - INT(sf_who->y) + sf_dy;
+    if (sf_t >= sf_glow[0].at && sf_t < sf_glow[0].at + sf_glow[0].dur) {      /* the glow, its palette cycled: the first */
+        k = sf_t - sf_glow[0].at;                                          /* 5 frames palette 0, then one on a frame */
+        PAL_setPalette(SF_GLOW_PAL, sf_glow_pal[sf_col][(k < 5 ? 0 : k - 4) & 15]);   /* ($372FE) */
+        sf_place(&sf_glow[0], SF_GLOW_SPR, SF_GLOW_PAL, SF_GLOW_COLS, !sf_glow_on, ax, ay, sf_who->facing); sf_glow_on = 1;
+    } else if (sf_glow_on) { for (c = 0; c < SF_GLOW_COLS; c++) cmd_push(VRAM_SCB3 + SF_GLOW_SPR + c, 0); sf_glow_on = 0; }
+    for (k = 0; k < SF_RAYS_N && !(sf_t >= sf_rays[k].at && sf_t < sf_rays[k].at + sf_rays[k].dur); k++) ;
+    newf = k != sf_ray; sf_ray = k < SF_RAYS_N ? k : 0xFF;
+    if (k < SF_RAYS_N) sf_place(&sf_rays[k], SF_RAYS_SPR, SF_RAYS_PAL, SF_RAYS_COLS, newf, ax, ay, sf_who->facing);
+    else if (newf) for (c = 0; c < SF_RAYS_COLS; c++) cmd_push(VRAM_SCB3 + SF_RAYS_SPR + c, 0);
+}
+static void sf_tick(void) {                                  /* after the frame's draw: the flash's time */
+    if (sf_who && ++sf_flash_t >= gflash.freeze) sf_reset();
+}
+
 /* ---- debug boxes (P2 START toggles): the corners of every hurt box (green) and attack box (red) the hit test uses,
- * 8x8 brackets on sprites 300-363 (the banner's, free in a fight): 32 for hurt boxes, 32 for attack boxes. ---- */
+ * 8x8 brackets on sprites 300-347 (the banner's, free in a fight): 24 for hurt boxes, 24 for attack boxes. ---- */
 #define DBG_SPR 300
-#define DBG_BOXES 8                      /* per kind (sprites 300-363; 364-375 = hit sparks) */
+#define DBG_BOXES 6                      /* per kind (sprites 300-347; 348-363 = the super flash's rays, 364-375 = hit sparks) */
+_Static_assert(DBG_SPR + DBG_BOXES * 8 <= SF_RAYS_SPR, "debug boxes below the super flash's rays");
 #define DBG_HURT_PAL 252
 #define DBG_ATK_PAL 253
 static const uint16_t DBG_HURT_COL[16] = { 0x8000, RGB(4, 31, 12), 0x0000 };
@@ -466,7 +546,11 @@ static void screen_fx(void) {
             if (s->bd_end && f->srow - 1 >= s->bd_first && f->srow - 1 < s->bd_end) sp = s;
         }
     }
-    if (sp) {                                                /* the stage's sprites go at the next vblank (cmd */
+    if (sf_who) {                                            /* the super flash: the stage hidden, white then black */
+        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* the stage's sprites go at the next vblank: the */
+        else PAL_setBackdrop(sf_flash_t <= gflash.white ? gflash.white_col : gflash.dark_col);   /* backdrop (at once) from the frame after */
+        bd_cols = SF_BD;
+    } else if (sp) {                                         /* the stage's sprites go at the next vblank (cmd */
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* queue): the strobe starts the frame after, */
         else PAL_setBackdrop(sp->bd_col[bd_t++ & 1]);            /* bd_col[0] first as Kizuna (measured) */
         bd_cols = sp->bd_col;
@@ -504,6 +588,7 @@ static void draw(void) {
     }
     shadows();
     sparks_draw();
+    if (mode == 1) sf_draw();
     dbg_draw();
 }
 
@@ -1552,6 +1637,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
     snd_music(gs->music);
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
     sparks_init();
+    sf_reset();
     FIX_clear(); arcade_line_reset();
     stage_init(attract ? STAGE : gs->bg);             /* stage sprites back, every column rewritten */
     PAL_setBackdrop(stg->backdrop);
@@ -2042,6 +2128,7 @@ void game_tick(void) {
     snd_tick();
     lab_tick();
     if (!lab.active && !dr_on) arcade_line();
+    if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
@@ -2063,14 +2150,14 @@ void game_tick(void) {
 #endif
     mark(P_AI);
     close_marks();
-    for (i = 0; i < NF; i++) if (fighters[i].state != S_OFF) fighter_update(&fighters[i], &in[i]);
-    if (lab.active) lab_flow(); else flow();
+    for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */
+        if (fighters[i].state != S_OFF && (!sf_who || sf_who == &fighters[i])) fighter_update(&fighters[i], &in[i]);
+    if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
-    camera();
-    projectiles_update(cam_x);
+    if (!sf_who) { camera(); projectiles_update(cam_x); }
     mark(P_UPDATE);
-    combat(order, nf);
+    if (!sf_who) combat(order, nf);
     mark(P_COMBAT);
     depth_sort();
     mark(P_SORT);
@@ -2078,4 +2165,5 @@ void game_tick(void) {
     mark(P_PLACE);
     hud();
     mark(P_HUD);
+    sf_tick();
 }

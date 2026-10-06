@@ -35,10 +35,11 @@ def s16(o, a): return struct.unpack('>h', o[a:a + 2])[0]
 def s32(o, a): return struct.unpack('>i', o[a:a + 4])[0]
 def u32(o, a): return struct.unpack('>I', o[a:a + 4])[0]
 
-def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='kof98', snaps=(), snapdir=None, dm=False, wjump=None):
+def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='kof98', snaps=(), snapdir=None, dm=False, wjump=None, sdm=False):
     """dm: a desperation move (the brawler's fury, TODO #139): KOF96 gives it from low life (+$138 <= 32), as
     specials96's capture did (life 24, +$E2 bit 1 as the capture had it); KOF98 / KOF99's reload
-    states hold a stock"""
+    states hold a stock. sdm (TODO #139): the MAX version: KOF98's MAX mode held on (+$E0 bit 4 poked every frame up to
+    the move: the power check $24D80 then spends a stock and sets +$E4 bit 0; the reload states have +$E0 = $80)"""
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     tr = try_for(m, cid, inp, ex)
     if dm and dist == 'whiff' and wjump is None:   # a fury's whiff: P2 jumps over it (whiff_jump)
@@ -53,6 +54,9 @@ def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='
     s1, s2 = C.seqs('; '.join(spec), START + frames)
     x1h, x1l, x2h, x2l = PLACE[dist]
     pokes = [f'{START - 2}:108118={x1h},108119={x1l},108318={x2h},108319={x2l}' + (',108238=0,108239=18,108250=0,108251=18,1081E2=02,1082AD=0,1082AE=0' if dm and game == 'kof96' else '')]
+    if sdm:
+        assert game == 'kof98', 'sdm: KOF98 only'
+        pokes += [f'{f}:1081E0=90' for f in range(START - 4, START + 40)]; tag += '_max'; out = os.path.join(OUT, tag + '.txt')
     extra = {'WLOG': ','.join(f'{a:X}' for a in wlog)} if wlog else {}
     C.emu.run(game, out, s1, s2, pokes, reload=f'c{cid}{"x" if ex else ""}', reload_frames=[START - (30 if dm and game == 'kof96' else 4)], extra=extra,
               snaps=snaps, snapdir=snapdir)

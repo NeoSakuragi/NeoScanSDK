@@ -80,7 +80,10 @@ static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to
     for (e = f->ch->vmore; *e != 0xFF; e += 3)                   /* the key's further voices (bchar_t.vmore) */
         if (e[0] == key && e[2] >= from && e[2] <= to) voice_id(f->ch, f->team, e[1]);
 }
-uint8_t spec_ix(const bchar_t *ch, uint8_t role) { uint8_t k = role == BS_FURY ? ch->fury : spec_tab[ch->id][role]; return k < ch->nspec ? k : 0xFF; }
+uint8_t spec_ix(const bchar_t *ch, uint8_t role) {
+    uint8_t k = role == BS_FURY_MAX ? (ch->fury_max < ch->nspec ? ch->fury_max : ch->fury) : role == BS_FURY ? ch->fury : spec_tab[ch->id][role];
+    return k < ch->nspec ? k : 0xFF;
+}
 void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }
 void lab_install(void) {
     const rt_head_t *t = (const rt_head_t *)lab.buf;
@@ -250,7 +253,8 @@ static void route_go(fighter_t *f, uint8_t node, uint8_t b, const intent_t *in, 
  * Players only (enemies spend nothing): full at the start and at a new life, a point back every gmeter.refill frames.
  * A special (C) costs gmeter.special, a fury (D) gmeter.fury and needs gmeter.fury_min; a special out of a hit (in
  * hitstun, or held: "get out of trouble") costs gmeter.hit_mul times as much and the fighter's palettes flash fully
- * white for gmeter.flash frames. Not enough meter: the press does nothing. */
+ * white for gmeter.flash frames. Not enough meter: the press does nothing. gmeter.infinite (2026-10-06, for the time
+ * being): nothing is spent and the gauge stays full (the white flash still plays). */
 static const uint16_t WHITE_PAL[16] = { 0x8000, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF,
                                         0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF };
 static void set_burn(fighter_t *f, uint8_t burn);
@@ -259,8 +263,11 @@ static uint8_t spend(fighter_t *f, uint16_t cost, uint16_t need, uint8_t hit) {
     if (f->team) return 1;
     if (hit) { uint16_t c = cost; for (i = 1; i < gmeter.hit_mul; i++) cost += c; }
     if (need < cost) need = cost;
-    if (f->meter < need) return 0;
-    f->meter -= cost; f->meter_t = 0;
+    if (gmeter.infinite) f->meter = gmeter.max;                  /* infinite (game.json meter.infinite): nothing spent */
+    else {
+        if (f->meter < need) return 0;
+        f->meter -= cost; f->meter_t = 0;
+    }
     if (hit && gmeter.flash) {
         for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, WHITE_PAL);
         f->flash = gmeter.flash;
@@ -269,7 +276,8 @@ static uint8_t spend(fighter_t *f, uint16_t cost, uint16_t need, uint8_t hit) {
 }
 static void meter_tick(fighter_t *f) {
     if (f->flash && !--f->flash) { uint8_t b = f->burn; f->burn = 0xFF; set_burn(f, b); }   /* its colours back (burnt: the burn's) */
-    if (!f->team && f->meter < gmeter.max && ++f->meter_t >= gmeter.refill) { f->meter++; f->meter_t = 0; }
+    if (!f->team && gmeter.infinite) f->meter = gmeter.max;     /* the gauge stays full */
+    else if (!f->team && f->meter < gmeter.max && ++f->meter_t >= gmeter.refill) { f->meter++; f->meter_t = 0; }
 }
 
 void fighter_revive(fighter_t *f) {
@@ -608,7 +616,8 @@ static void special_end(fighter_t *f) {
 }
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
-    f->spec_id = k; f->spec_ix = spec_ix(f->ch, k); f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
+    f->spec_ix = spec_ix(f->ch, k); if (k == BS_FURY_MAX) k = BS_FURY;   /* the MAX fury: the fury's role, its own special */
+    f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     if (k == BS_FURY) f->inv = INV_FURY;                         /* every fury, every fighter: invincible from the trigger
@@ -643,7 +652,12 @@ static void proj_row(fighter_t *p) {
     if (d->follow && p->owner) p->y += p->owner->y;              /* pinned to its thrower (Burn Knuckle's flame) */
 }
 static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int8_t facing, int32_t z) {
-    fighter_t *p = proj_alloc(owner);
+    fighter_t *p;
+    if (!d->nrows) { if (owner) owner->pflags |= d->sig & (PF_SIG7 | PF_SIG6); return 0; }   /* no rows (Mr. Big's
+                                                                    23623C objects 0 / 1): over at once, its end signals
+                                                                    sent; its row 0 read past its table (a crash once the
+                                                                    tables moved, TODO #139) */
+    p = proj_alloc(owner);
     if (!p) return 0;                                            /* pool full: no entity for it */
     p->pdef = d; p->prow = 0; p->pend = 0; p->facing = facing; p->z = z; p->throw_x0 = x0;
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
@@ -1023,8 +1037,9 @@ void fighter_update(fighter_t *f, const intent_t *in) {
                                                                     window: the route's B link (a jump-cancel) */
         if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
         else if (in->face) f->facing = in->face;
-        if (b & IN_D) {                                          /* D: the fury, from half a gauge (gmeter) */
-            if (spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FURY); start_special(f, BS_FURY); }
+        if (b & IN_D) {                                          /* D: the fury, from half a gauge (gmeter); down+D: its MAX
+                                                                    version (bchar_t.fury_max; none: the fury) */
+            if (spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FURY); start_special(f, in->dz > 0 ? BS_FURY_MAX : BS_FURY); }
             break;
         }
         if (b & IN_C) {                                          /* C: the slot's special (the stick picks the slot) */
@@ -1132,7 +1147,12 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         break;
     case S_GRAB: hold_update(f, in); break;
     case S_THROW: throw_update(f); break;
-    case S_SPECIAL: special_update(f); break;
+    case S_SPECIAL:
+        special_update(f);
+        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start)
+            super_flash(f);                                      /* every fury, MAX or not (fx.super_flash, game.json
+                                                                    super_flash: state_t 1 = its first frame) */
+        break;
     default: break;
     }
 }
