@@ -43,6 +43,30 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import rom96, throwtables96 as T, handlers98 as H
 
 RET_AFTER_LAND = 3                       # frames after the victim's landing the throw may end (Bruno: "a few frames")
+
+# The throw-start effect (TODO #166 a, decoded 2026-10-06; the blue streaks over the victim as a throw starts). The
+# thrower's throw animation carries an effect command, record [$FA][kind][x:16][y:16] (Terry KOF98 198 / 199 and Geese
+# KOF96 174: $FA $34 after step 0; Geese's 175 has none). The animation engine's handler (KOF98 $5D1C) spawns an
+# effect object: routine = table $36382[kind] (kind $34 -> $3709E), owner = the thrower, x / y = the record's offsets
+# from it (sprite orientation: x -40 = 40 px forward, y -78 = 78 px up). Routine $3709E: sound index $80 through $7A98
+# (table $A9BCE[$80] = $1A $18), then effect id 38 (the shared effects bank) state 61 played once (8 steps, 27 frames,
+# palette 90), freed 2 frames after its last step. KOF96: the same command, kind and state (effects id 29), its own
+# sound code ($1A $31). Measured in our emulator (Terry forward+C / D, Geese forward+C): the object exists from the
+# throw's row 3 = the frame before the step after the command starts. Kind $35 = state 62, sound $81 ($1A $19).
+THROW_FX_KINDS = {'kof96': {0x34}, 'kof98': {0x34}}
+
+def throw_fx(m, game, cid, slot):
+    """the throw-start effect command of a throw animation -> {'row', 'dx' (px forward), 'dy' (px up), 'kind'} or None"""
+    kinds = THROW_FX_KINDS.get(game)
+    if not kinds: return None
+    a = rom96.anim_addr(m, cid, slot); t = 0
+    for i in range(300):
+        b0, b1 = m.u8(a + 6 * i), m.u8(a + 6 * i + 1)
+        if b0 in (0xFE, 0xFF): return None
+        if b0 == 0xFA and b1 in kinds:
+            return {'row': max(0, t - 1), 'dx': -s(m.u16(a + 6 * i + 2), 2), 'dy': -s(m.u16(a + 6 * i + 4), 2), 'kind': b1}
+        if b0 < 0x80: t += b0 + 1
+    return None
 # the engine per game: routines the walk models, the neutral routines that end the thrower, the list setters
 ENGINE = {
     'kof98': {'animate': 0x5BA6, 'fall': 0x37E0, 'mul': 0x36A0, 'place': 0x25372, 'setlist': 0x24B22, 'check': 0x24B6C,

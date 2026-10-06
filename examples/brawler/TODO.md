@@ -723,7 +723,21 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   /data/tmp/throws146/m). The feedback replays are byte-identical, so suspect the harness (state load / RNG seed /
   frame counter / an uninitialised RAM byte in the placement path). Find it: a proof that isn't repeatable is no proof.
 
-- [ ] 166. THROWS ROUND 2 (Bruno's notes on 0.0.73's Geese / Terry pilot, all Player 0.0.15):
+- [ ] 166. (DONE ON BRANCH 2026-10-06, awaiting Bruno's review; proof /data/tmp/throws166/out, tools/brawler/throws166_proof.py)
+  (a) the catch is silent; the throw-start effect decoded: the throw animation's $FA $34 command -> effect routine
+  KOF98 $3709E (table $36382[$34]): sound index $80 = $1A $18, shared effects id 38 (KOF96 29) state 61, palette 90;
+  played as fx.throw_start on every throw (row / offset from the throw's own command, throwrom.throw_fx; Geese's back
+  throw has none in KOF96: takes his forward one's), same frames as KOF98 / KOF96 from row 3 (a_*.png, a_sound.txt).
+  (b) hold crowd: the hold hit's attack box hits every other enemy in reach, each once per hit + the spark on the held
+  victim (Terry / Geese: both bystanders hit by all 3 hits, knocked down by the finisher, the far one untouched).
+  (c) bthrow_t.hanim: Terry = cmd_df_c (game.json), default = the fastest-startup close normal (c_startups.txt; Terry's
+  dfC and close C both start in 4 frames). (d) the finisher cancels into a special / the fury (C / D in its hit-stop:
+  SPECIAL 7 frames after the impact); whether it reconnects depends on the move (Terry's down+C and fury hit, his
+  Power Wave passes under the launched victim; Geese's C and fury hit, his down+C misses). (e) life.respawn: blink 60
+  frames + KO voice, then the continue or the drop from 224 px (invincible, no control, 31 frames), landing = every
+  enemy on screen knocked down; the continue drops him in the same way. controls / cancel / fury_inv ok (21 fighters),
+  #146's control returns unchanged on the deterministic harness (56 / 64 / 59 / 71).
+  THROWS ROUND 2 (Bruno's notes on 0.0.73's Geese / Terry pilot, all Player 0.0.15):
   (a) 20261006-172625-5d29: "There's a sound being played whenever I grab an opponent. I want that sound to be played
   only when an actual throw is being triggered." + "in King of Fighters 98 and also 96, there's a little blue special
   effect ... that goes along the throw. Can you locate it and integrate it as standard in Brawler?" -> the catch is

@@ -199,6 +199,16 @@ KOF98's two hit sparks (tools/brawler/make_sparks.py, data in sparks98.json, cap
 big for C / D / C+D, knockdowns and specials; at the midpoint of the attack and hurt boxes, mirrored with the attacker.
 Sprites 364-375 (4 at once), palette 254, C ROM tiles 700-796.
 
+## Throws, holds and the respawn (TODO #146 / #166)
+
+The walk-in catch is silent; a throw (forward / back + A in the hold) starts with KOF96/98's throw effect and its sound
+$1A $18 on the row its own animation spawns it (`fx.throw_start`, main.c throw_fx, sprites 376-379, palette 255). Hold
+hits play each fighter's chosen move (game.json roster[].throws.hold; default the fastest-startup close normal, the list in
+build/hold_hits.json), spark on the held enemy and hit every other enemy in reach (the hold crowd); the finisher is a normal
+hit that C / D cancel into a special / the fury. A dead player blinks 60 frames with its death voice, then continues or
+drops back in from above the screen (untouchable), its landing knocking every enemy on screen down. Proof:
+tools/brawler/throws166_proof.py.
+
 ## Sound (`songs.json`, `sound.c`)
 SNK's KOF98 sound driver (v1.7) in the M ROM. `songs.json` lists every song the game plays (name, source game,
 the song's command there) and the effect codes it sends (`$1A` prefix, slot 1). `make` runs
