@@ -51,7 +51,8 @@ ACTIONS = [('walk_L', '20:L,10:-'), ('walk_R', '20:R,10:-'), ('run_R', '3:R,3:-,
            ('A', '4:a,40:-'), ('down_A', '4:Da,40:-'), ('jump_up', '4:b,60:-'), ('jump_fwd', '4:Rb,60:-'), ('jump_back', '4:Lb,60:-'),
            ('C', '4:c,90:-'), ('fwd_C', '4:Rc,90:-'), ('down_C', '4:Dc,90:-'), ('up_C', '4:Uc,90:-')]   # C + the stick: the specials
 facing = {}
-NCHARS = len(json.load(open(os.path.join(game, "game.json")))["roster"])
+NCHARS = sum(1 for r in json.load(open(os.path.join(game, "game.json")))["roster"] if r.get("selectable", True))   # (a form
+                                                   # link's target has no slot: the selectable ones come first)
 for k in range(NCHARS):
     b.pick(k, unlock=True)                         # campaign builds: the bosses are locked until beaten
     b.run(10); st = b.save()

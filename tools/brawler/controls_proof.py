@@ -29,6 +29,7 @@ only = sys.argv[2:] or names
 L = Lab(); b = L.b; ST = b.states
 SLOT_DIR = {'D': '', 'fD': 'R', 'dD': 'D', 'uD': 'U', 'dfD': 'DR', 'ufD': 'UR'}
 BS_FURY = 6
+BS_FORM = 8                                                   # fighter.h: the form link's transition
 INF = bool(M.get('infinite'))                                 # the meter spends nothing (game.json meter.infinite)
 def cost(c): return 0 if INF else c
 
@@ -137,9 +138,19 @@ for ci, name in enumerate(names):
     r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'spec_ix': b.fget(0, 'spec_ix'), 'meter': b.fget(0, 'meter')}}
     if fury:
         run(20); p = os.path.join(OUT, f'fury_{name}.png'); b.screenshot(p); fury_shots.append((name, fury, p))
+    form = G['roster'][ci].get('form')                      # down+D with a full meter = its form link's transition
+    if form and form['trigger'] == 'down+D full meter':      # (docs/brawler_move_vocabulary.md "Form link"): BS_FORM
+        mix, BS_MAX = pool.index(form['transition']), BS_FORM   # (the training is started again for what follows)
+    else: BS_MAX = BS_FURY
     settle(M['max']); setpos(60); run(1, 'Dd'); run(1); s2 = st(0)
-    r['fury']['max'] = {'kof': 'MAX ' + fury if mix != fix else fury, 'state': s2, 'spec_id': b.fget(0, 'spec_id'),
+    r['fury']['max'] = {'kof': form['transition'] if form else 'MAX ' + fury if mix != fix else fury, 'state': s2, 'spec_id': b.fget(0, 'spec_id'),
                         'spec_ix': b.fget(0, 'spec_ix'), 'want_ix': mix, 'meter': b.fget(0, 'meter')}
+    if form:
+        for _ in range(200):
+            if b.char_of(0) != ci and st(0) == 'IDLE': break
+            run(1)
+        r['fury']['max']['became'] = names[b.char_of(0)]
+        L.start(ci, 1 if ci == 0 else 0); run(30)
     if fury and mix != fix:
         run(20); p = os.path.join(OUT, f'fury_max_{name}.png'); b.screenshot(p); fury_shots.append((name, 'MAX ' + fury, p))
     settle(M['fury_min'] - 1); run(3, 'd'); seen = set()
@@ -147,8 +158,9 @@ for ci, name in enumerate(names):
     r['fury']['at_59'] = {'states': sorted(seen), 'meter': b.fget(0, 'meter')}
     f_ok = s == 'SPECIAL' and r['fury']['full']['spec_id'] == BS_FURY and r['fury']['full']['spec_ix'] == fix and \
         r['fury']['full']['meter'] == M['max'] - cost(M['fury'])
-    m_ok = s2 == 'SPECIAL' and r['fury']['max']['spec_id'] == BS_FURY and r['fury']['max']['spec_ix'] == mix and \
-        r['fury']['max']['meter'] == M['max'] - cost(M['fury'])
+    m_ok = s2 == 'SPECIAL' and r['fury']['max']['spec_id'] == BS_MAX and r['fury']['max']['spec_ix'] == mix and \
+        r['fury']['max']['meter'] == M['max'] - cost(M['max'] if form else M['fury']) and \
+        (not form or r['fury']['max']['became'] == form['target'])
     r['fury']['ok'] = (f_ok and m_ok and (('SPECIAL' in seen) if INF else ('SPECIAL' not in seen))) if fury else \
         (s != 'SPECIAL' and s2 != 'SPECIAL' and 'SPECIAL' not in seen)
     # ---- meter numbers: refill ------------------------------------------------------------------------------------------

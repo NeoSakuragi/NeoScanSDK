@@ -59,7 +59,7 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 ## Layer 0: the bank
 
 One entry per fighter, read by `export_bm.py` from the game's dictionary (`tools/kof96/export96.py`, any of KOF96,
-KOF98, KOF99; `tools/kof94/export94.py`; `tools/samsho4/export_ss4.py` for Samurai Shodown IV, `tools/whp/export_whp.py` for World Heroes Perfect, `tools/kizuna/export_kz.py` for Kizuna Encounter (pre-scaled to its in-play zoom $CC), the same layout): every animation (6-byte step records: ticks, frame, flags, then commands), the frames (sprite parts and
+KOF98, KOF99; `tools/kof94/export94.py`; `tools/samsho4/export_ss4.py` for Samurai Shodown IV, `tools/whp/export_whp.py` for World Heroes Perfect, `tools/kizuna/export_kz.py` for Kizuna Encounter (pre-scaled to its in-play zoom $CC), `tools/doubledr/export_dd.py` for Double Dragon 1995 (Billy Lee + his transformed form, full size; specials as programs with variant tables), the same layout): every animation (6-byte step records: ticks, frame, flags, then commands), the frames (sprite parts and
 tiles), hit / hurt boxes, palettes (every colour set), physics, captured specials (scripts of rows) and throws
 (thrower and victim timelines), victim postures. The bank is addressed by a spec `game:name` (`kof98:terry`). It is
 never edited: layer 1 picks from it.
@@ -82,6 +82,11 @@ voice sample its KOF plays, with the moves that play it.
 | `hit_sfx` | `{"A": "SLASH", "623B": "SLASH", "throw_c": "BACK BREAK"}` (absent = KOF's own) | TODO #75: hit sounds by use, songs.json sfx names. Keys: a normal's button (`A` `B` `C` `D` `CD`: fighter.c `hit_sound`, `bchar_t.sfx`), a throw's impacts (`throw_c` / `throw_d`), a special's KOF input (export_bm `move_fx`: the KOF98 hit kind playing that code, burn kept). Rules without data: a fury's hits play $9C SDM IMPACT; a grab or a command grab's catch $19 GRAB START. Set: Haohmaru A/B/C/CD + 421C + 623B `SLASH` ($2B; D is his kick), Krauser `throw_c` `BACK BREAK` ($3D). No guard exists in the brawler, so $17 BLOCKED HIT has no event. Proof: /data/tmp/sfx75/sfx75_proof.py |
 | `unlock` | `"always"` or `{"boss_of_stage": 1}` | locked on the select screen until that stage's boss is beaten (save bit stage - 1) |
 | `voices` | absent, `"kof"` or `{"kof": true, "set": {"hit": 3, "special:236C": null}}` | absent = silent (none of its samples in the V ROM); `"kof"` = KOF's own voice on every move (the suggestion); an object = that base (`kof` false: none) with these keys changed to a voice id of its list (null: silent). Keys: every BA_* move name, `throw_c` / `throw_d`, `hit`, `ko`, `select`, `special:<input>` of its pool ("Voices" below) |
+| `display` | `"BILLY LEE"` | the name shown (HUD, select) when it differs from `name` upper-cased (at most 10 characters) |
+| `scale` | `1` | the fighter's size: 1 = its game's art at full size (Double Dragon's Billy Lee, 115 px, Bruno 2026-10-06; Kizuna's fighters are exported at 0.80 by their exporter); a per-fighter value so it can change later (export_dd accepts 1 today) |
+| `variant` | `{"623": "A"}` (absent = the source's default, the heaviest) | the row of a special's variant table played (vocabulary `variant.table`: DD's four buttons), latched at the move's start |
+| `form` | `{"trigger": "down+D full meter", "transition": "FORM", "target": "billy_super", "carry": ["life", "position", "facing", "meter"], "exit": "life"}` | the form link (vocabulary `form.change`): the trigger starts the transition (a special of its bank), which turns the fighter into the target roster entry; exit `life` (a lost life) or `stage` |
+| `selectable` | `false` (absent = true) | no select slot: a form link's target (Super Billy); never picked (roster_unlock 0xFF) |
 
 Later: `palettes` (custom colour sets), `moves` (a trimmed list).
 

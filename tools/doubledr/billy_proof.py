@@ -72,7 +72,7 @@ def frames_proof(b, idx, res):
         used = sorted({p.get('pal', 0) for fr in ex['frames'] for p in fr['parts']})
         lab_req(b, 1, idx[rname], 0); b.run(60)
         assert b.char_of(0) == idx[rname], (rname, b.char_of(0))
-        same = diff = 0; worst = []
+        same = diff = 0; worst = []; pairs = []
         for facing in (1, -1):
             cells = []
             for fi, fr in enumerate(ex['frames']):
@@ -87,11 +87,27 @@ def frames_proof(b, idx, res):
                 if fi % 2 == 0:
                     p = os.path.join(OUT, '_shot.png'); b.screenshot(p)
                     x = int(b.fget(0, 'x')) - b.r(b.syms['cam_x'], 2); im = Image.open(p)
-                    cells.append(im.crop((x - 110, 0, x + 110, im.height)).resize((110, 112)))
+                    crop = im.crop((x - 110, 0, x + 110, im.height))
+                    if facing < 0:                         # DD's own drawing beside it (its colours: palette RAM)
+                        pr = E.palram(); body = E.BODY[ex['id']][0]
+                        dl = Image.new('RGB', (220, im.height), (0, 0, 0))
+                        for w, ox, oy, key in fr['layers']:
+                            pal = body if key == 'body' else E.FORM_PAL[ex['id']][0] if key == 'form' else key
+                            a = dd.draw_def(w, pr, palette=pal, hflip=False, size=(220, im.height), origin=(110 + ox, im.height - 30 + oy))
+                            dl.paste(Image.fromarray(a[..., :3]), (0, 0), Image.fromarray(a[..., 3]))
+                        pairs.append((fr['record'], dl, crop))
+                    cells.append(crop.resize((110, 112)))
             cols = 20
             sheet = Image.new('RGB', (110 * cols, 112 * ((len(cells) + cols - 1) // cols)), 'white')
             for j, c in enumerate(cells): sheet.paste(c, ((j % cols) * 110, (j // cols) * 112))
             sheet.save(os.path.join(OUT, f'frames_{rname}_{"right" if facing > 0 else "left"}.png'))
+        cols = 6; W, H = 440, 240                          # DD | brawler, every other frame (facing left)
+        sheet = Image.new('RGB', (W * cols, (H + 14) * ((len(pairs) + cols - 1) // cols)), 'white'); d = ImageDraw.Draw(sheet)
+        for j, (rec, dl, cr) in enumerate(pairs):
+            x0, y0 = (j % cols) * W, (j // cols) * (H + 14)
+            sheet.paste(dl.resize((220, H)), (x0, y0 + 14)); sheet.paste(cr.resize((220, H)), (x0 + 220, y0 + 14))
+            d.text((x0 + 2, y0 + 1), f'def {rec}: DD (left) | brawler (right)', fill='black')
+        sheet.save(os.path.join(OUT, f'dd_vs_brawler_{rname}.png'))
         res['frames'][rname] = {'identical': same, 'differ': diff, 'frames': len(ex['frames']), 'both_facings': True, 'worst': worst[:8]}
         print(rname, 'frames vs DD:', same, 'identical,', diff, 'differ', worst[:4], flush=True)
         b.fset(0, 'frame_ovr', 0xFFFF)

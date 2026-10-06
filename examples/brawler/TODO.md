@@ -454,6 +454,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   as usual. One rule in fighter.c (no per-move data), documented in docs/brawler_move_vocabulary.md; proofs: per fighter
   normal -> special, normal -> fury, special -> fury (hit and whiff), controls_proof, regress, campaign29.
 
+- [x] 146. (done 2026-10-06, 0.0.71) Billy Lee from Double Dragon (Technos 1995) with his transformation, the variant
+       table and the form link as engine features (docs/brawler_move_vocabulary.md "variant.table", "Form link"):
+       tools/doubledr model_dd / export_dd (everything from DD's data: specials as programs + 4-row variant tables),
+       Super Billy reachable by down+D with a full meter (not selectable). Proofs: billy_proof.py (frames = DD's
+       drawing 644 / 644 both facings, every variant row = DD's model, the transformation in a campaign fight with the
+       enemies attacking), progcheck_dd, controls_proof 21 ok, cancel_proof 21 ok, fury_inv_proof (AI_OFF) ALL OK,
+       regress no-bleed True, campaign29 through; sheets /data/tmp/billy/out.
 - [x] 144. (done 2026-10-06: the pillar = task '503 EFFE' ($509F / $5084, palette 27) the captures missed (half the task pool read); exported with 214B / 236A ADH EFFE, 421A afterimages, the Phoenix's other feathers as pinned effects (bproj_t follow bit 4); kim_effects_check.py (Kizuna's screen, every tile attributed) all ok, kim144_proof / kim_proof 1262/1262 / kim_followups_proof / controls_proof all ok, regress no-bleed True; sheets /data/tmp/kim144/out) Kim's Hienzan ([2]8C, down C) is missing its BLUE effect (Bruno, 2026-10-06): find the effect object /
   palette Kizuna draws with the rising staff (spawned object or an extra sprite part on the steps, its palette =
   blue), export it through the effects library and play it; check Kim's other moves for missing effects the same way
@@ -578,6 +585,11 @@ One item per assigned special that still replays a capture (artifact grid https:
 - Form links beyond Billy: Rugal -> Omega Rugal (KOF95 data exists, a boss second phase), Iori -> Riot of the Blood (KOF97).
 
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
+- Billy Lee (#146) choices to review: the transformation's trigger (down+D, a full meter: his MAX slot, DD has no MAX
+  super), its exit (a lost life; DD keeps it for the round), Super Billy without a fury (DD gives the form none), the
+  C slots (C 214, forward 236, down 623; Super Billy C 41236, forward 236, down 623, up 214), the variant row played
+  (the heaviest, D; game.json roster[].variant to change), his voices: only $26 / $28 / $1C fit (KOF98's 223 voice
+  codes are taken: a bigger voice table or fewer voices elsewhere for the rest).
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.
 - AES BIOS: neo-epo.bin, from Bruno's own console / set, for the Console mode (UniBIOS-AES until then).
