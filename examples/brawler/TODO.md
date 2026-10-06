@@ -695,7 +695,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   "A"} (vocabulary variant.table, latched at the start); check Billy Lee's 623 the same way (same default) and show
   Bruno both rows' heights (billy_proof's travel / height per row). Quick.
 
-- [ ] 163. (+ note 20261006-164210-5d29, 0.0.72: "The jets are missing the voice for the blitz ball of Krauser.") KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
+- [ ] 163. (+ 20261006-174212-5d29, 0.0.74: "There's still no voice for Rising Storm and Double Repuken.") (+ note 20261006-164210-5d29, 0.0.72: "The jets are missing the voice for the blitz ball of Krauser.") KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
   Krauser shouting Blitzball, Blitzball whenever he throws his projectiles? Also, the projectile should induce fire,
   since these are literally fireballs."). Replay (boss Krauser = fighter 2, stage 2): his specials at frames 13392 and
   13653 (role 0 = game.json "D" = 214A, the Blitz Ball): the game's sound queue sends NOTHING during 13653-13701 (no
@@ -762,6 +762,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   reply thread: voice (transcribed, same flow minus the replay) or typed reply, and thumbs up = verified fixed (status
   verified) / thumbs down = still broken (reopens: status reopened); replies in the tracker (table replies), in fb.py
   show, the Lab tab and pull.py's report; pull.py lists reopened notes first.
+
+- [ ] 170. RAGING STORM BLINKING (20261006-174101-5d29, 0.0.74: blinking whenever Geese's Raging Storm plays): replay
+  the note; measure sprites per line during the storm (pillars x fighters x HUD) vs the 96 limit and the line guard
+  (main.c guard_hidden, cf. #158): fix by a sprite-budget rule for eruptions (fewer pillar columns drawn, or the
+  guard dropping background / far actors first, never the effect itself), sheet before / after.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
