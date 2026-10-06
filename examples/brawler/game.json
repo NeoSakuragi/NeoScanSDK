@@ -10,7 +10,7 @@
    "routes": "tools/brawler/routes/terry.json",
    "specials": {"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D", "dfD": "426B", "ufD": "623D"},
    "fury": "21416C",
-   "throws": {"speed": {"throw_c": 256, "throw_d": 256}, "hold": {"hit": "atk_c_close", "fin": "atk_d_close", "dx": 40}},
+   "throws": {"speed": {"throw_c": 256, "throw_d": 256}, "hold": {"hit": "cmd_df_c", "fin": "atk_d_close", "dx": 40}},
    "unlock": "always",
    "voices": "kof"
   },
@@ -111,7 +111,7 @@
    "routes": "default",
    "specials": {"D": "236C", "fD": "63214C", "dD": "623C", "uD": "63214A", "dfD": "623A", "ufD": "236A"},
    "fury": "1632143C",
-   "throws": {"speed": {"throw_c": 256, "throw_d": 256}, "hold": {"hit": "atk_c_close", "fin": "atk_d_close", "dx": 34}},
+   "throws": {"speed": {"throw_c": 256, "throw_d": 256}, "hold": {"fin": "atk_d_close", "dx": 34}},
    "unlock": {"boss_of_stage": 3},
    "voices": "kof"
   },

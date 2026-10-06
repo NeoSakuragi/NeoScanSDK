@@ -263,6 +263,8 @@ typedef struct fighter {
     struct fighter *thr_by;       /* thrower let go (fighter.c thrown_update); thr_by: who threw it (or holds it: a */
     uint8_t  thr_skip, pad_thr;   /* hold hit); thr_skip: the frame of the hand-over, its update came after the thrower's; */
     uint32_t thr_pos;             /* thr_pos: its place in the script alone, 8.8 rows (acc is its animation's: its flight plays one) */
+    uint8_t  drop, pad_drop;      /* the respawn (fighter.c "death and respawn", TODO #166 e): 1 dropping from the air
+                                   * (untouchable, no control), 2 just landed (main.c knocks every enemy on screen down) */
     uint8_t  pvl_id, pvl_n;       /* a ROM special's voice sent later (P_VOICE b > 0, KOF +$1B4 / +$1B6; TODO #163): its id,
                                    * the frames left (0 = none; counted down by its program's frames, dropped at its end) */
 } fighter_t;
@@ -293,6 +295,10 @@ const bstep_t *fighter_step(const fighter_t *f);
 void fighter_play(fighter_t *f, uint8_t anim);              /* outside the state machine (select screen previews) */
 void fighter_animate(fighter_t *f);
 void fighter_revive(fighter_t *f);
+void fighter_respawn(fighter_t *f);  /* a life used: full life, dropping from above the screen where it is (TODO #166 e) */
+void fighter_quake(const fighter_t *by, fighter_t *v);   /* the respawn's landing: v knocked down, away from by, no damage */
+void throw_fx(int16_t wx, int16_t sy, int8_t facing);    /* main.c: the throw-start effect (fx.throw_start) at world x,
+                                                            screen y (its anchor), mirrored for a thrower facing right */
 /* a colour of f's palettes as shown: its tint applied (minions, main.c): 1 shade (half desaturated, 69 %), 2 ash (3/4
  * desaturated, 88 %, cold), 3 rust (half desaturated, 75 %, warm); never one of the playable colour sets */
 uint16_t fighter_colour(const fighter_t *f, uint16_t c);

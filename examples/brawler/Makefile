@@ -29,7 +29,7 @@ $(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/buil
 # (tools/whp: /data/roms/whp.neo + /data/neogeo_dict/whp/hanzo_capture.json) and of Kizuna Encounter (tools/kizuna:
 # /data/roms/kizuna.neo + /data/neogeo_dict/kizuna/kim_capture.json) and of Double Dragon (tools/doubledr: /data/roms/doubledr.neo,
 # its palette RAM /data/neogeo_dict/doubledr/palram.json) ---
-$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py
+$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py
 	mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json
 	python3 $(TOOLS)/brawler/make_stage_ra.py $(CURDIR)/$(BUILD)   # needs /data/roms/roboarmy.neo
@@ -57,7 +57,7 @@ $(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h $(BUILD)/snd/voices
 # --- Compile ---
 $(BUILD)/stage_opt: FORCE                  # the -D options of the last build (STAGE, AI_OFF, PROFILE): every object is rebuilt
 	@mkdir -p $(BUILD); echo "$(STAGE) $(AI_OFF) $(PROFILE)" | cmp -s - $@ || echo "$(STAGE) $(AI_OFF) $(PROFILE)" > $@   # when one changes (an AI_OFF build no longer leaves main.o stale)
-$(BUILD)/%.o: %.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/%.o: %.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@

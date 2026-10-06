@@ -321,12 +321,30 @@ static void form_set(fighter_t *f, const bchar_t *to) {   /* the fighter's chara
     fighter_load_pals(f); f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF;
     f->node = 0; f->buffered = 0; f->spec_buf = f->fury_buf = 0; f->chain_t = 0; f->air_node = 0; f->landed = 0;
 }
+static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push);
 void fighter_revive(fighter_t *f) {
     if (f->form_from && bm_chars[f->form_from - 1].form_exit == FX_LIFE) {   /* a life lost: back to the base form */
         form_set(f, &bm_chars[f->form_from - 1]); f->form_from = 0;
     }
-    f->hp = 60; f->held = 0; f->thr = 0; f->frame_ovr = 0xFFFF; f->y = 0; f->vx = f->vy = f->vz = 0; f->meter = gmeter.max;
+    f->hp = 60; f->held = 0; f->thr = 0; f->frame_ovr = 0xFFFF; f->y = 0; f->vx = f->vy = f->vz = 0; f->meter = gmeter.max; f->drop = 0;
     enter(f, S_GETUP); play(f, BA_GETUP); f->inv = 90;
+}
+/* ---- death and respawn (TODO #166 e, Bruno 2026-10-06: Final Fight's sequence; an engine rule for every player) ------
+ * A player whose life is out falls and lies down like anyone (S_KNOCKDOWN, S_DOWN), then S_DEAD: it blinks for
+ * DEATH_BLINK frames (main.c draw) with its death voice (VK_KO, at S_DEAD's start); then main.c flow: no life left ->
+ * the continue; else a life is used: fighter_respawn drops it from above the screen where it lay (inside the screen),
+ * untouchable and without control while it falls (drop 1, S_AIR, its jump's falling pose), and its landing knocks every
+ * enemy on screen down (drop 2: main.c calls fighter_quake for each, no damage), RESPAWN_INV frames untouchable after. */
+#define RESPAWN_Y   FIX(224)      /* the drop's start: px above its feet' line (above the screen's top for any fighter) */
+#define RESPAWN_INV 60            /* untouchable frames after the landing (Final Fight: a moment) */
+void fighter_respawn(fighter_t *f) {
+    fighter_revive(f);
+    enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); f->jump_kind = 0; f->jump_dir = 0; f->air_node = 0;
+    f->y = RESPAWN_Y; f->vx = f->vy = f->vz = 0; f->drop = 1; f->inv = 2;
+}
+void fighter_quake(const fighter_t *by, fighter_t *v) {
+    v->freeze = 0;
+    react(v, INT(v->x) >= INT(by->x) ? 1 : -1, R_KNOCKDOWN, 0);
 }
 
 /* ---- reactions -------------------------------------------------------------------------------------------------------- */
@@ -449,6 +467,22 @@ enum { BT_HOLD_HIT = BT_COUNT, BT_HOLD_FIN };                   /* throw_id of a
 static const bbox_t BODY_BOX = { 0, -32, 32, 24 };              /* a thrown body as an attack box (centre, half extents) */
 
 static const bthrow_t *thr_of(const fighter_t *f, uint8_t id) { return id < BT_COUNT ? &f->ch->throws[id] : &f->ch->holds[id - BT_COUNT]; }
+/* a hold hit's move (bthrow_t.hanim: game.json roster[].throws.hold, default the fastest close normal; TODO #166 c) and
+ * the attack box of its active step (hstep), which hits the crowd around the held victim (combat, "hold crowd") */
+static uint8_t hold_anim(const fighter_t *a) {
+    const bthrow_t *th = thr_of(a, a->throw_id);
+    return th->hanim != 0xFF ? th->hanim : a->throw_id == BT_HOLD_FIN ? BA_ATK_D_CLOSE : BA_ATK_C_CLOSE;
+}
+static const bbox_t *hold_box(const fighter_t *a) {
+    const bthrow_t *th;
+    const bstep_t *st;
+    if (a->throw_id < BT_COUNT) return 0;
+    th = thr_of(a, a->throw_id);
+    if (th->hanim == 0xFF || th->hstep >= a->ch->anims[th->hanim].nsteps) return 0;
+    st = &a->ch->anims[th->hanim].steps[th->hstep];
+    return (st->flags & 1) ? &st->atk : 0;
+}
+static void hold_spark(fighter_t *a, fighter_t *v);
 static void show_pose(fighter_t *v, const bthrow_row_t *r) {
     if (r->flags & 32) {                                         /* a brawler animation (its flight, a hold hit's reel) */
         v->frame_ovr = 0xFFFF;
@@ -474,7 +508,7 @@ static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r
 static void grab(fighter_t *a, fighter_t *v) {
     const bthrow_row_t *r = a->ch->throws[BT_THROW_C].rows, *h = a->ch->holds[0].rows;   /* the thrower's grab pose, */
     enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0;
-    a->frame_ovr = r->tframe; snd_sfx(SFX_GRAB);                 /* KOF98's grab start (TODO #75) */
+    a->frame_ovr = r->tframe;                                    /* silent: the throw's sound comes with its start (#166) */
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0; v->thr = 0;   /* victim: presses mashed */
     show_pose(v, h); place_victim(a, v, h, a->facing);           /* the victim's: the hold hit's first row */
@@ -501,9 +535,10 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
         if (!(r->flags & 4)) continue;
         hit = 1;                                                 /* impact: the blow lands / the victim hits the floor */
         if (v->throw_id >= BT_COUNT) {                           /* a hold hit: the victim reels in place */
+            if (by) { by->impact = 1; hold_spark(by, v); }       /* its spark; its box hits the crowd (combat) */
             if (v->throw_id == BT_HOLD_FIN) continue;            /* (the finisher: its thrower knocks it down) */
             v->hp -= GRAB_DAMAGE; v->grab_hits = 0;              /* a hit: the escape count starts again */
-            if (by) { snd_sfx(hit_sound(by, BA_ATK_C_CLOSE, 0)); by->freeze = 4; }
+            if (by) { snd_sfx(hit_sound(by, hold_anim(by), 0)); by->freeze = 4; }
             v->freeze = 4;
             continue;
         }
@@ -522,6 +557,8 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
 }
 static void start_node(fighter_t *f, uint8_t node, uint8_t how);
 static uint8_t special_for(const fighter_t *f, const intent_t *in);
+static uint8_t special_pick(const fighter_t *f, uint8_t want);
+static uint8_t fury_cancel(fighter_t *f);
 static void start_special(fighter_t *f, uint8_t k);
 /* script rows (specials, throws): one row = one frame at 1x; f->srow = the row shown + 1, f->acc the time in it.
  * Advanced by f->speed like the animation player; stop(row) = a row the advance must not pass (a special's hit
@@ -552,12 +589,18 @@ static uint8_t paired_update(fighter_t *f) {
     const bthrow_row_t *r;
     uint16_t j = script_advance(f, th->nrows, 0), i = f->srow - 1;
     if (f->throw_id < BT_COUNT) voice_at(f, VK_THROW + f->throw_id, j, i);
+    if (f->throw_id < BT_COUNT && th->fx_row != 0xFFFF && th->fx_row >= j && th->fx_row <= i && !mute) {   /* the throw
+                                                                    starts: KOF96/98's effect + its sound (#166 a) */
+        throw_fx(INT(f->throw_x0) + (f->throw_face > 0 ? th->fx_dx : -th->fx_dx), floor_top + INT(f->z) - th->fx_dy, f->throw_face);
+        snd_sfx(SFX_THROW);
+    }
     if (v && v->held == f) {
         uint8_t hit = victim_rows(v, th, j, i);
         if (f->throw_id == BT_HOLD_FIN && hit) {                 /* the finisher lands: the victim goes down, the hold */
             f->held = 0; v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);   /* is over */
-            snd_sfx(hit_sound(f, BA_ATK_D_CLOSE, 1)); fighter_hit(f, v, NODE(f, TREE(f)->hold)->damage, R_KNOCKDOWN, 0);
-            v = 0; enter(f, S_THROW);                            /* its follow-through plays on (srow kept) */
+            snd_sfx(hit_sound(f, hold_anim(f), 1)); fighter_hit(f, v, NODE(f, TREE(f)->hold)->damage, R_KNOCKDOWN, 0);
+            v = 0; enter(f, S_THROW);                            /* its follow-through plays on (srow kept): a normal
+                                                                    hit, cancellable into a special / the fury (#166 d) */
         } else if (i >= th->nrows && f->throw_id < BT_COUNT) { victim_end(v); f->held = 0; v = 0; }   /* (a hold hit: held on) */
     }
     if (i >= th->ret) return 0;
@@ -584,7 +627,10 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     const bthrow_row_t *r = f->ch->throws[BT_THROW_C].rows;
-    if (in->press & IN_C) {                                      /* C: the hold ends, the special at once (Bruno
+    if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered, its */
+        if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);   /* cancel once it lands (#166 d, #143's rule 1) */
+        if (in->press & IN_D) f->fury_buf = 0x80 | (in->dz > 0);
+    } else if (in->press & IN_C) {                               /* C: the hold ends, the special at once (Bruno
                                                                     2026-10-05); the victim reels in its held pose, free */
         uint8_t k = special_for(f, in);                          /* (only throws hold a victim), until its stun ends or */
         if (k != 0xFF && spend(f, gmeter.special, 0, 0)) {       /* the special hits it */
@@ -611,7 +657,8 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         if (!f->buffered) return;
     }
     if (((in->press & IN_A) || f->buffered) && f->grab_hits < GRAB_HITS) {   /* A: a hold hit, the third the finisher */
-        f->buffered = 0; f->grab_hits++;
+        f->buffered = 0; f->grab_hits++; f->spec_buf = f->fury_buf = 0;
+        f->hit_mask = 1 << v->idx;                               /* the crowd rule: each other enemy once per hit */
         f->throw_id = f->grab_hits >= GRAB_HITS ? BT_HOLD_FIN : BT_HOLD_HIT;
         f->throw_x0 = f->x; f->throw_face = f->facing; f->speed = thr_of(f, f->throw_id)->speed;
         v->throw_id = f->throw_id; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
@@ -623,14 +670,22 @@ static void hold_update(fighter_t *f, const intent_t *in) {
     }
 }
 /* the thrower's control return (TODO #146): it acts again; a victim still flying plays its rows on alone */
-static void throw_update(fighter_t *f) {
+static void throw_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
+    if (f->throw_id == BT_HOLD_FIN && !f->held && !f->team) {    /* the finisher landed: a normal hit (#166 d), so */
+        uint8_t k = 0xFF;                                        /* #143's rule 1: C + the stick a special, D the fury */
+        (void)in;
+        if (f->fury_buf || f->spec_buf) { f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->srow = 0; }
+        if (fury_cancel(f)) return;
+        if (f->spec_buf) { k = special_pick(f, (f->spec_buf & 0x7F) - RI_S); f->spec_buf = 0; }
+        if (k != 0xFF && spend(f, gmeter.special, 0, 0)) { lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return; }
+    }
     if (paired_update(f)) return;
     if (f->held == v && v && v->held == f) {                     /* its part goes on (thrown_update): row, time, speed */
         v->held = 0; v->thr_pos = ((uint32_t)(f->srow - 1) << 8) + f->acc; v->speed = f->speed;
         v->thr_skip = v->idx > f->idx;                           /* it updates later this frame: not twice */
     }
-    f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->srow = 0; clamp(f); to_neutral(f, 0);
+    f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->srow = 0; f->spec_buf = f->fury_buf = 0; clamp(f); to_neutral(f, 0);
 }
 static void thrown_update(fighter_t *v) {                        /* a thrown victim whose thrower let go */
     const bthrow_t *th = v->thr;
@@ -1226,6 +1281,10 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
         if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
     }
+    if (f->state == S_THROW && f->throw_id == BT_HOLD_FIN && !f->held && !f->team) {   /* the hold's finisher: a normal */
+        if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);   /* hit (#166 d): presses in its hit-stop count */
+        if (in->press & IN_D) f->fury_buf = 0x80 | (in->dz > 0);
+    }
     if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_D) && !f->team && (f->spec_id != BS_FURY || in->dz > 0))
         f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
                                                                     before its first hit does nothing); a fury: down+D
@@ -1304,6 +1363,11 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         }
         break;
     case S_AIR: case S_AIR_ATTACK:
+        if (f->drop) {                                           /* the respawn's drop: no control, untouchable */
+            f->inv = 2; f->y += f->vy; f->vy -= ph->gravity;
+            if (f->y <= 0) { f->y = 0; f->vy = 0; f->drop = 2; f->inv = RESPAWN_INV; enter(f, S_LAND); play(f, BA_LAND); }
+            break;
+        }
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: a jump-cancel's node, else the stick: air A (KOF's */
             uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : in->dz < 0 ? TREE(f)->air_cd : TREE(f)->air_a;
             start_node(f, nx, f->air_node ? LH_CANCEL : LH_NEUTRAL); f->air_node = 0;   /* C), down+A air B (D), up+A air C+D */
@@ -1381,7 +1445,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         if (f->anim_done) to_neutral(f, 0);
         break;
     case S_GRAB: hold_update(f, in); break;
-    case S_THROW: throw_update(f); break;
+    case S_THROW: throw_update(f, in); break;
     case S_THROWN: thrown_update(f); break;                      /* its thrower let go: it plays its rows on alone */
     case S_SPECIAL:
         if (may_cancel(f) && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && f->fury_buf &&
@@ -1461,14 +1525,69 @@ static uint8_t boxes_meet(const fighter_t *a, const bbox_t *ab, const fighter_t 
     if (dy < 0) dy = -dy;
     return dx < ab->w + vb->w && dy < ab->h + vb->h;           /* KOF98 $4366: strictly inside */
 }
+/* a hit's spark point: the centre of the boxes' overlap, where they touch (the centres' midpoint drifted toward a long
+ * box's middle); world x, screen y */
+static void overlap_xy(const fighter_t *a, const bbox_t *atk, const fighter_t *v, const bbox_t *hb, int16_t *sx, int16_t *sy) {
+    int16_t ax = box_x(a, atk->x), vx = box_x(v, hb->x);
+    int16_t ay = floor_top + INT(a->z) - INT(a->y) + atk->y, vy = floor_top + INT(v->z) - INT(v->y) + hb->y;
+    *sx = ((ax - atk->w > vx - hb->w ? ax - atk->w : vx - hb->w) + (ax + atk->w < vx + hb->w ? ax + atk->w : vx + hb->w)) >> 1;
+    *sy = ((ay - atk->h > vy - hb->h ? ay - atk->h : vy - hb->h) + (ay + atk->h < vy + hb->h ? ay + atk->h : vy + hb->h)) >> 1;
+}
+static const bbox_t HELD_BOX = { 0, -56, 24, 40 };         /* a held victim's body when its pose has no hurt box */
+/* a hold hit lands (TODO #166 b): the standard hit spark on the held victim, where its move's attack box meets the
+ * victim's body (big: KOF98's C / D / C+D spark, the finisher always) */
+static void hold_spark(fighter_t *a, fighter_t *v) {
+    const bbox_t *atk = hold_box(a), *hb = &HELD_BOX;
+    const bstep_t *sv = fighter_step(v);
+    int16_t sx, sy;
+    if (v->frame_ovr == 0xFFFF && (sv->flags & 2)) hb = &sv->hurt;
+    if (atk) overlap_xy(a, atk, v, hb, &sx, &sy);
+    else { sx = INT(v->x) + (a->facing > 0 ? -16 : 16); sy = floor_top + INT(v->z) - INT(v->y) - 64; }
+    spark_hit(sx, sy, a->throw_id == BT_HOLD_FIN || hit_btn(hold_anim(a)) >= SX_C, a->facing);
+}
 static uint8_t grabbable(const fighter_t *v) {
     return !v->inv && !v->y && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
 }
 #define AIR_BLOCK_Y 64            /* a special in the air below this height (px) is held by a standing body ahead */
 #define PUSH_DX 32                /* a special pushes an opponent standing in its path to keep it this far ahead (KOF's push
                                      boxes: the captured opponent stood 27-49 px ahead at the moves' first impacts) */
+/* hold crowd (TODO #166 b; Final Fight / Streets of Rage): a hold hit's blow (its move's attack box on its impact
+ * frame, fighter_t.impact) also hits every other enemy it reaches, each once per hit (hit_mask, the held victim's bit
+ * set at the hit's start): a hold hit's damage and a light reel, the finisher's a knockdown, a spark each */
+static void hold_crowd(fighter_t **fs, uint8_t n, const fighter_t *only) {
+    uint8_t i, j;
+    for (i = 0; i < n; i++) {
+        fighter_t *a = fs[i];
+        const bbox_t *atk;
+        uint8_t fz, fin;
+        fighter_t *tg;
+        if (!a->impact) continue;
+        a->impact = 0;
+        if ((only && a != only) || !(atk = hold_box(a))) continue;
+        fz = a->freeze; tg = a->target; fin = a->throw_id == BT_HOLD_FIN;
+        for (j = 0; j < n; j++) {
+            fighter_t *v = fs[j];
+            const bstep_t *sv;
+            const bbox_t *hb;
+            int16_t dz, sx, sy;
+            if (v == a || v->team == a->team || (a->hit_mask & (1 << v->idx)) || v->inv || v == a->held) continue;
+            if (v->state != S_IDLE && v->state != S_WALK && v->state != S_RUN && v->state != S_ATTACK &&
+                v->state != S_HITSTUN && v->state != S_SPECIAL && v->state != S_LAND && v->state != S_PREJUMP) continue;
+            dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
+            sv = fighter_step(v);
+            if (!(sv->flags & 2)) continue;
+            hb = &sv->hurt;
+            if (!boxes_meet(a, atk, v, hb)) continue;
+            overlap_xy(a, atk, v, hb, &sx, &sy);
+            fighter_hit(a, v, GRAB_DAMAGE, fin ? R_KNOCKDOWN : R_LIGHT, 8);
+            spark_hit(sx, sy, fin || hit_btn(hold_anim(a)) >= SX_C, a->facing);
+        }
+        a->freeze = fz; a->target = tg;                          /* the hold's own rhythm and victim stay */
+    }
+}
 void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
     uint8_t i, j;
+    hold_crowd(fs, n, only);
     for (i = 0; i < n; i++) {                                    /* specials push who stands in their path: a rush */
         fighter_t *a = fs[i];                                    /* reaches its hit as in the game, not past it */
         if (a->state != S_SPECIAL || INT(a->y) >= AIR_BLOCK_Y || (only && a != only)) continue;
@@ -1577,12 +1696,10 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (dx < 0) dx = -dx;
             if (dy < 0) dy = -dy;
             if (dx >= atk->w + hb->w || dy >= atk->h + hb->h) continue;   /* KOF98 $4366: strictly inside */
-            {                                                /* spark: the centre of the boxes' overlap, where they */
-                int16_t ax = box_x(a, atk->x), vx = box_x(v, hb->x);    /* touch (the centres' midpoint drifted toward */
-                int16_t ay = floor_top + INT(a->z) - INT(a->y) + atk->y, vy = floor_top + INT(v->z) - INT(v->y) + hb->y;   /* a long box's middle) */
-                int16_t sx = ((ax - atk->w > vx - hb->w ? ax - atk->w : vx - hb->w) + (ax + atk->w < vx + hb->w ? ax + atk->w : vx + hb->w)) >> 1;
-                int16_t sy = ((ay - atk->h > vy - hb->h ? ay - atk->h : vy - hb->h) + (ay + atk->h < vy + hb->h ? ay + atk->h : vy + hb->h)) >> 1;
+            {
+                int16_t sx, sy;
                 uint8_t big = 1;
+                overlap_xy(a, atk, v, hb, &sx, &sy);
                 if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
                     const rnode_t *c = NODE(a, a->node);
                     const banim_t *an = &a->ch->anims[a->anim];
