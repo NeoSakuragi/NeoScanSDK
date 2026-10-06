@@ -1059,7 +1059,8 @@ def prog_voices(n, game, sp):
     now = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and not op[2]]
     steps = [vi(ix) for st in r['states'] for s in r['anims'][st]['steps'] for ix in s.get('voices', [])]
     later = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and op[2]]
-    return [i for i in now + steps + later if i]
+    ids = [i for i in now + steps + later if i]                    # its own effects (channel 'fx', TODO #168) after
+    return [i for i in ids if not V.fx_bit(n, i)] + [i for i in ids if V.fx_bit(n, i)]   # its voices: the key's suggestion is a voice
 
 def prog_voice_res(n, game, inp, sug, mp):
     """a KOF ROM special's send -> the voice id it plays (fx bit included; 0: silent): the roster keeps the key's

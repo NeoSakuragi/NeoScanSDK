@@ -162,7 +162,7 @@
    "bank": "kof96:goenitz",
    "watch": {"frame": 216, "step": -1},
    "routes": "default",
-   "specials": {"D": "41236A", "fD": "41236C", "dD": "214C", "uD": "214B", "dfD": "41236B", "ufD": "41236D"},
+   "specials": {"D": "41236A", "fD": "214B", "dD": "214C", "uD": "41236C", "dfD": "41236B", "ufD": "41236D"},
    "fury": "2141236C",
    "unlock": {"boss_of_stage": 5},
    "voices": "kof"

@@ -1037,7 +1037,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'iori': {'236A', '623D', '214A', '623C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
-                'krauser': {'214A', '214B', '41236B', '236D', '641236C', '623B', '623D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B'},
+                'krauser': {'214A', '214B', '41236B', '236D', '641236C', '623B', '623D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
                 'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D', '23624C'}}
 ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 'kof96', 'k_dash': 'kof99'}   # else kof98
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
@@ -1055,18 +1055,21 @@ SOUND_MAPPER = {'kof96': 0x6CAD4, 'kof98': 0xA9BCE, 'kof99': 0xB1B5C}
 def sound_word(m, ix):
     return m.u16(SOUND_MAPPER[m.game] + 2 * ix) if isinstance(ix, int) and m.game in SOUND_MAPPER else None
 
-def voice_send(m, op):
-    """a sound op that may send a voice -> (index, frames later) or None: $1A (hits, swings, fire) and bare driver
-    commands (prefix 0) are not voices"""
+def voice_send(m, op, fx=False):
+    """a sound op that may send a voice -> (index, frames later) or None: bare driver commands (prefix 0) are not
+    voices; $1A (hits, swings, fire: the effect slot) only with fx: the move's code sends its own effects too (TODO
+    #168: Goenitz's Yonokaze sends its wind $1AD1 with each tornado: the code's send, not a step record; voices.py
+    lists such a word as the fighter's 'fx' voice when it is not a common one)"""
     if op[0] == 'sound': ix, n = op[1], 0
     elif op[0] == 'vlater': ix, n = op[1], op[2]
     else: return None
     w = sound_word(m, ix)
-    return None if w is None or w >> 8 in (0, 0x1A) else (ix, n)
+    return None if w is None or w >> 8 == 0 or (w >> 8 == 0x1A and not fx) else (ix, n)
 
 def kept_op(m, op):
-    """an op the exported program keeps (bspec_t.prog; hitkind is removed after indexing): the body and the voice sends"""
-    return op[0] not in DROP_OPS or voice_send(m, op) is not None
+    """an op the exported program keeps (bspec_t.prog; hitkind is removed after indexing): the body and the sends of
+    its code (voices and its own effects: TODO #163 / #168)"""
+    return op[0] not in DROP_OPS or voice_send(m, op, fx=True) is not None
 
 def step_sounds(m, cid, st):
     """per step of a state's animation the sound indices of the $FC records before it (`FC 00 <index:16> 00 00`): the
@@ -1084,7 +1087,7 @@ def voice_sends(m, cid, prog):
     (detail: the frames) / 'step' (detail: (state, step))"""
     out = []
     for a, op in prog['ops']:
-        vs = voice_send(m, op)
+        vs = voice_send(m, op, fx=True)
         if vs: out.append(('later' if op[0] == 'vlater' else 'code', vs[0], sound_word(m, vs[0]), vs[1]))
         if op[0] == 'anim' and op[1] is not None:
             for k, ixs in enumerate(step_sounds(m, cid, op[1])):
@@ -1375,7 +1378,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
         elif k == 'anim':
             if op[1] not in states: states.append(op[1])
             ops.append(('anim', states.index(op[1]), op[1]))
-        elif voice_send(m, op): ops.append(('vsend',) + voice_send(m, op))   # a voice: now / n frames later
+        elif voice_send(m, op, fx=True): ops.append(('vsend',) + voice_send(m, op, fx=True))   # a voice / its own effect: now / n frames later
         else: ops.append(op)
     # hitkind ops were removed after indexing: re-index (they are never branch targets in the studied handlers)
     rem = [i for i, (a, op) in enumerate(kept) if op[0] == 'hitkind']

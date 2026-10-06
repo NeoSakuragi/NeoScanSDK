@@ -326,7 +326,11 @@ def build_list(names=None):
                         if s <= f < s + tr['gap'] - 4 and a4 == P1:
                             uses.append((w, ix, {'kind': 'event', 'event': tr['event'], 'at': f - s}))
             per[rname] = (cid, uses)
-        words = {w for cid, us in per.values() for w, ix, u in us if w >> 8 not in (0, FX_PREFIX)}
+        # a fighter's own effects (TODO #168): the $1A words its ROM specials' code sends (Goenitz's wind $1AD1 with
+        # each Yonokaze tornado), listed as voices of channel 'fx' (played on the other voice slot: fighter.c voice_id)
+        own_fx = {rname: {w for w, ix, u in us if w >> 8 == FX_PREFIX and u['kind'] == 'prog' and u['via'] in ('code', 'later')}
+                  for rname, (cid, us) in per.items()}
+        words = {w for rname, (cid, us) in per.items() for w, ix, u in us if w >> 8 != 0 and (w >> 8 != FX_PREFIX or w in own_fx[rname])}
         print(game, len(words), 'driver words to probe', flush=True)
         hits = probe(game, words)
         # a word several characters' animations use (3+ of the cast), or 3+ roster fighters' captures send, is common
@@ -338,7 +342,7 @@ def build_list(names=None):
             cid, uses = per[rname]
             voices = {}
             for w, ix, u in uses:
-                if w >> 8 in (0, FX_PREFIX) or not hits.get(w): continue
+                if w >> 8 == 0 or (w >> 8 == FX_PREFIX and w not in own_fx[rname]) or not hits.get(w): continue
                 if len(users.get(w, set())) >= 3 or len(sent.get(w, ())) >= 3 or w in COMMON.get(game, ()): continue
                 h = hits[w]; key = tuple(map(tuple, h['segments']))
                 vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'indices': [], 'segments': h['segments'],
@@ -353,12 +357,13 @@ def build_list(names=None):
             assert all(was.get(tuple(map(tuple, x['segments']))) in (None, k) for k, x in enumerate(lst, 1)), (rname, 'a voice of the list before is gone')
             for k, vo in enumerate(lst, 1):
                 vo['id'] = k
+                if int(vo['cmd'], 16) >> 8 == FX_PREFIX: vo['channel'] = 'fx'
                 vo['bytes'] = len(sample_bytes(v, vo['segments']))
                 vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
                 vo['indices'] = [f'{i:03X}' for i in sorted(vo['indices'])]
                 vo['cmds'].sort()
             res['fighters'][rname] = {'game': game, 'cid': cid, 'voices': [{k: vo[k] for k in (
-                'id', 'cmd', 'cmds', 'indices', 'segments', 'level', 'bytes', 'ms', 'uses')} for vo in lst]}
+                'id', 'cmd', 'cmds', 'indices', 'segments', 'level', 'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
             print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
     order = [r['name'] for r in json.load(open(GAME_JSON))['roster']]
     res['fighters'] = {k: res['fighters'][k] for k in order if k in res['fighters']}
