@@ -488,12 +488,58 @@ def whp_capture(rname, name, cid):
     json.dump(res, open(os.path.join(cap_dir('whp'), f'{name}.json'), 'w'))
     print(rname, len(res), 'recipes', sum(len(v) for v in res.values()), 'sound bytes', flush=True)
 
+def whp_cast_users(nchars=16, nanims=0x140):
+    """{word: {character}}: the step sound records (command 4) of every animation of WHP's cast (a word 3+ characters'
+    animations send is common: the landing $51, the swings $0A / $0B, the projectile's launch $65)"""
+    sys.path.insert(0, os.path.join(TOOLS, 'whp')); import handlers_whp as H
+    users = {}
+    for c in range(nchars):
+        for a in range(nanims):
+            try: es = H.entries(c, a)
+            except Exception: continue
+            for e in es:
+                for k, x in e.get('cmds') or []:
+                    if k == 4: users.setdefault(int(x, 16), set()).add(c)
+    return users
+
+def whp_special_uses(name):
+    """the exported specials' own sends (TODO #181): WHP's step command 4 (a sound word) of every step each special's
+    rows enter, read from the export (export_whp: the steps a program plays, the script rows of a scripted one). A
+    program special (one per input, its rows = low / mid / high): {'kind': 'prog', 'via': 'step', 'state': the row's
+    animation, 'step': the step index, 'row'}, sent as the program enters the step (bchar_t.pvox); a scripted one (the
+    fury, its MAX): {'kind': 'special', 'at': the script row where the step starts}"""
+    import tempfile, handlers_whp as H
+    _, _, E = _whp()
+    with tempfile.TemporaryDirectory(dir='/data/tmp') as d:
+        ch = E.export([name], d)['characters'][name]
+    uses = []
+    for sp in ch['specials']:
+        inp, r = sp['input'], sp.get('rom') or {}
+        if r.get('prims'):
+            for v, st in enumerate(r['states']):
+                for i, s_ in enumerate(r['anims'][st]['steps']):
+                    for w in s_.get('voices', []):
+                        uses.append((w, {'kind': 'prog', 'input': inp, 'via': 'step', 'state': int(st.split(':')[1], 16), 'step': i, 'row': v}))
+            continue
+        prev = None
+        for i, rs in enumerate(sp['row_steps']):
+            k = (rs[0], rs[1])
+            if k != prev:
+                e = H.entries(H.CHARS[name], rs[0])[rs[1]]
+                for c, x in e.get('cmds') or []:
+                    if c == 4: uses.append((int(x, 16), {'kind': 'special', 'input': inp, 'at': i}))
+            prev = k
+    return uses
+
 def whp_list(rname, name, cid):
+    """the voices: the captures' sends by animation step (normals, jumps: the brawler's moves by slot), the specials'
+    own step sends (whp_special_uses: every row of every exported special, the fury and its MAX; what the captures sent
+    in a special's animation ($100 up) is not used, it holds the victim's cries too). A word on channel 3 = a voice; a word on channel 5
+    one of his specials sends that fewer than 3 of the cast's animations send = his own effect (channel 'fx', TODO
+    #168's rule: the MAX's $39 / $62); the common ones (landing, swings, the launch $65) are not listed"""
     cap, C, E = _whp()
     capd = json.load(open(os.path.join(cap_dir('whp'), f'{name}.json')))
     frames = json.load(open(E.CAPTURE))
-    SP = {**E.SPECIALS, **getattr(E, 'ROM_SPECIALS', {})}   # (the ROM-read ones: their capture, TODO #147)
-    inputs = {rec: inp for inp, (rec, anims) in SP.items()}
     uses = []
     for rec, sent in capd.items():
         words, k = [], 0
@@ -502,28 +548,29 @@ def whp_list(rname, name, cid):
             if b == 0xFC and k + 1 < len(sent): words.append((f, 0xFC00 | sent[k + 1][1])); k += 2
             else: words.append((f, b)); k += 1
         p1 = [fr[0] for fr in frames[rec]['frames']]       # row i = frame i + 1; a write in frame n is logged as n - 1
-        inp = inputs.get(rec)
-        g0 = next((i for i, r in enumerate(p1) if r[0] == SP[inp][1][0]), None) if inp else None
         for f, w in words:
-            if inp:
-                if g0 is not None and f >= g0: uses.append((w, {'kind': 'special', 'input': inp, 'at': f - g0}))
-            elif f < len(p1): uses.append((w, {'kind': 'anim', 'slot': p1[f][0], 'states': [p1[f][0]], 'step': p1[f][1]}))
+            if f < len(p1) and p1[f][0] < 0x100:           # (a special's animation, $100 up: its steps', below)
+                uses.append((w, {'kind': 'anim', 'slot': p1[f][0], 'states': [p1[f][0]], 'step': p1[f][1]}))
+    spu = whp_special_uses(name); uses += spu
+    users = whp_cast_users()
+    own_fx = {w for w, u in spu if len(users.get(w, ())) < 3}
     hits = probe('whp', {w for w, u in uses}); v = v_rom('whp')
     voices = {}
     for w, u in uses:
         h = hits.get(w)
-        if not h or h['ch'] != WHP_VOICE_CH: continue
+        if not h or not (h['ch'] == WHP_VOICE_CH or w in own_fx): continue
         key = tuple(map(tuple, h['segments']))
         vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'indices': [], 'segments': h['segments'], 'level': h['level'], 'uses': []})
+        if h['ch'] != WHP_VOICE_CH: vo['channel'] = 'fx'
         if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
         if u not in vo['uses']: vo['uses'].append(u)
-    lst = sorted(voices.values(), key=lambda x: x['cmd'])
-    for k, vo in enumerate(lst, 1):
-        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
+    lst = sorted(voices.values(), key=lambda x: ('channel' in x, x['cmd']))   # his voices, then his effects: a step that
+    for k, vo in enumerate(lst, 1):                                           # sends both plays the voice first (the
+        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))      # MAX's $FCA8 $39: voices.extras' order)
         vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments']); vo['cmds'].sort()
     print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
     return {'game': 'whp', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
-                                                                      'bytes', 'ms', 'uses')} for vo in lst]}
+                                                                      'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
 
 # ---- Kizuna Encounter (Kim): its sounds are already captured with every move (tools/kizuna: capture_kz.py ->
 # kim_capture.json, followups_kz.py -> kim_followups.json: the bytes written to REG_SOUND each frame) and each word's

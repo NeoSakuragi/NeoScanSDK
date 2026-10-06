@@ -1064,8 +1064,9 @@ def voice_data(ch, n, game, pool, sps):
         throw_rows[t] = (ch['anims'][t]['slot'], rows)
     sug = V.suggest(n, game, slot_of, throw_rows, [(sp['input'], p['keep']) for sp, p in zip(pool, sps)])
     ks = V.keys(MOVES, THROWS, [sp['input'] for sp in pool])
-    pv = {sp['input']: prog_voices(n, game, p) for sp, p in zip(pool, sps) if kof_prog(p, game)}
-    for inp, vs in pv.items():                           # a KOF ROM special: its program's own voices (TODO #163), the
+    pv = {sp['input']: prog_voices(n, game, p) for sp, p in zip(pool, sps) if kof_prog(p, game) or step_voiced(p)}
+    for inp, vs in pv.items():                           # a ROM special (KOF's, or WHP's step-voiced programs: TODO #181):
+                                                         # its program's own voices (TODO #163), the
         if vs: sug['special:' + inp] = [vs[0], 0]        # key's suggestion = the first it sends
         else: sug.pop('special:' + inp, None)
     mp = V.mapping(roster()[n].get('voices'), sug)
@@ -1088,9 +1089,10 @@ def prog_voices(n, game, sp):
     """the voice ids a KOF ROM special's program sends, the first it sends first: its code's sends now, its steps'
     $FC records (anim order), its code's sends later"""
     vi = voice_of_index(n, game); r = sp['rom']
-    now = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and not op[2]]
+    ops = r.get('ops') or []                                       # (a program written by its exporter: no ops, its
+    now = [vi(op[1]) for op in ops if op[0] == 'vsend' and not op[2]]   # sends are its steps': WHP's, TODO #181)
     steps = [vi(ix) for st in r['states'] for s in r['anims'][st]['steps'] for ix in s.get('voices', [])]
-    later = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and op[2]]
+    later = [vi(op[1]) for op in ops if op[0] == 'vsend' and op[2]]
     ids = [i for i in now + steps + later if i]                    # its own effects (channel 'fx', TODO #168) after
     return [i for i in ids if not V.fx_bit(n, i)] + [i for i in ids if V.fx_bit(n, i)]   # its voices: the key's suggestion is a voice
 
@@ -1280,9 +1282,9 @@ def write_c(chars, outdir):
         c.append(f'static const uint8_t {n}_spmap[BS_COUNT] = {{' + ', '.join(str(spec_index(pool, sp)) for sp in pick_specials(ch, n)) + '};')
         vdata[n] = {'keys': vk, 'suggest': vsug, 'map': vmp, 'nvoice': len(V.bank(n)),
                     'at': {k: v[1] for k, v in vsug.items()}, 'more': vmore,
-                    'prog': sorted({res(ix) & 0x7F for q, sp in zip(pool, sps) if kof_prog(sp, game)
+                    'prog': sorted({res(ix) & 0x7F for q, sp in zip(pool, sps) if kof_prog(sp, game) or step_voiced(sp)
                                     for res in [prog_voice_res(n, game, q['input'], vsug, vmp)]
-                                    for ix in [op[1] for op in sp['rom']['ops'] if op[0] == 'vsend'] +
+                                    for ix in [op[1] for op in sp['rom'].get('ops') or [] if op[0] == 'vsend'] +
                                               [x for st in sp['rom']['states'] for s_ in sp['rom']['anims'][st]['steps'] for x in s_.get('voices', [])]} - {0})}
         c.append(f'static const uint8_t {n}_voices[] = {{' + ', '.join(map(str, vtab)) + '};   /* voices.py table */')
         c.append(f'static const uint8_t {n}_vmore[] = {{' + ''.join(f'{a}, {b}, {d}, ' for a, b, d in vmore) + '0xFF};   /* voices.py extras */')

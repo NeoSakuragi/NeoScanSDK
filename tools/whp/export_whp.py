@@ -418,6 +418,9 @@ def koryuuha(B):
         st = anim_steps(B, M['anim'], 0, None)
         for i, e in enumerate(M['steps']):
             st[i]['voices'] = [int(a, 16) for c, a in e['cmds'] if c == 4]
+        st[0]['ticks'] += 1                       # the start frame shows the first step (the brawler's clock counts
+                                                  # it: fighter.c pan_advance ends prog_update; handlers_ss2's rule): else
+                                                  # every later step, its sound and its spawn come a frame early (TODO #181)
         st[-1]['ticks'] -= 1                      # the held last step: the program sees its end a frame after it (the
                                                   # brawler's PF_END; export_ss2's rule): WHP's length, 47 / 46 / 47 frames
         anims_d[k] = {'mode': 'hold', 'steps': st}
@@ -654,6 +657,10 @@ def rom_special(B, name, sp):
         for j, s_ in enumerate(st):
             if s_['live'] is not None: s_['react'] = 2 if opens and j >= opens[-1] else R_HEAVY_   # the last hit knocks down
         for s_ in st: s_.pop('live')
+        if len(st) > 1: st[0]['ticks'] += 1                   # the start frame shows the first step (fighter.c's clock
+                                                              # counts it, handlers_ss2's rule; the program ends by its
+                                                              # count): else every later step, its hit and its sound come
+                                                              # a frame early (TODO #181)
         k = f'{v}:{r["rel"]:X}'; states.append(k); anims_d[k] = {'mode': 'hold', 'steps': st}
         nh.append(len(opens))
         # its projectile: an effect command whose routine is a Koryuu Ha-like object (handlers_whp.effect_object)
