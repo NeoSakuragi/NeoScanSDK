@@ -99,7 +99,8 @@ def ref_frame(ch, fr):
         sd = ss2.sprite_def(w & 0x7FFF); xo, yo = ss2.place(w & 0x7FFF); _, cells = ss2.sprite_cells(w & 0x7FFF)
         left = X - xo if not flip else X - sd['cols'] * 16 + xo
         ss2.blit(img, cells, left, Y - 16 - yo, flip, 0)
-    return img
+    if s['flags'] & 0x8000: img = img[:, ::-1]        # the step drawn turned (flags bit 15: SS2's $35E8 eori #1 on the
+    return img                                        # entry's flip), about its feet: the export's frame(mirror)
 
 def colour_img(img, ch):
     return Image.fromarray(ss2.colorize(img, ss2.fighter_palettes(ch, 0)))

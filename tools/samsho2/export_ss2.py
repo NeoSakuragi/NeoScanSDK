@@ -111,10 +111,13 @@ class Builder:
     def pal(self, p):
         if p not in self.pals: self.pals.append(p)
         return self.pals.index(p)
-    def frame(self, st, extra=(), mirror=0):
+    def frame(self, st, extra=(), mirror=None):
         """a step (ss2.parse_step) as a frame; extra: more steps drawn with it (objects pinned to the body), each
         (step, dx, dy, facing flip) in SS2's facing-right screen offsets; mirror: the step drawn turned (its flags
-        bit 15, SS2 draws the object mirrored about its feet: the throws' thrower, TODO #148 feedback; anim_steps)"""
+        bit 15, SS2 draws the object mirrored about its feet: the throws' thrower, TODO #148 feedback; anim_steps).
+        None (the default): the step's own bit 15, for every animation [code: $35E8 tst.w +$74, bpl; eori #1 on the
+        display entry's flip +$1C]; the boxes are not turned (the collision reads the object's facing +$7F)"""
+        if mirror is None: mirror = bool(st['flags'] & 0x8000)
         mv = next(((c[1], c[2]) for c in st['cmds'] if c[0] == 'move'), (0, 0))
         key = (tuple(st['layers']), st['flags'] & 0x4000, mv,
                tuple((tuple(s['layers']), s['flags'] & 0x4000, dx, dy, fl) for s, dx, dy, fl in extra)) + ((('mirror',) if mirror else ()))
@@ -198,10 +201,11 @@ def first_body(ch, a):
         if b: return b
     return []
 
-def anim_steps(B, ch, a, first=0, last=None, mirror=False):
+def anim_steps(B, ch, a, first=0, last=None, mirror=True):
     """animation a's steps first..last as brawler steps; mirror: a step whose flags have bit 15 is drawn turned (SS2's
     display list shows those steps h-flipped with the object's facing unchanged: Haohmaru's / Genjuro's throws 274 /
-    346, measured on moves/00.json, 12.json close_throw_*; only the throws pass it so far)"""
+    346, measured on moves/00.json, 12.json close_throw_*); every animation honours it (2026-10-07: Genjuro's 208 / 270,
+    Kuroko's 55 ...): mirror=False only to draw a step unturned on purpose"""
     st = ss2.parse_anim(ch, a, 400)
     body = first_body(ch, a); rows = []
     for i, s in enumerate(st):
