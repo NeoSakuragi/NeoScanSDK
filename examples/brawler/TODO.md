@@ -495,6 +495,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   modest damage; the knocked-down enemies fall in the throw's direction; standard engine rule for every throw
   (vocabulary hold / spawn family), proof: a throw into a group of 3 enemies (how many fall).
 
+- [ ] 147. HANZO'S PROJECTILE VARIANTS (feedback 20261006-154517-b3f3, Bruno in play: "There are multiple versions of
+  this projectile from Hanzo, can you figure them out?"): decode his projectile special's handler in WHP (tools/whp
+  handlers_whp.py) and extract every variant (button A / B / A+B, hero version: speed, colour / palette, hits, size,
+  damage) per the extract-all-variants rule; store them in the variant table (the Billy job builds it), the brawler
+  plays its latched rule; sheet WHP vs brawler per variant. Close the feedback row as shipped with the release.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
