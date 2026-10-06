@@ -717,6 +717,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   enemy in the air). Find which object draws them (replay the note: frames before the press) and whether it is right
   (KOF98's own effect with its palette?) or a stray / wrong-palette object; ask Bruno only if it matches KOF98.
 
+- [ ] 165. REGRESS HARNESS NON-DETERMINISM (found by #146, 2026-10-06): the same base ROM gives different regress.py
+  facing traces in two full runs (4 traces, fighter 11): right after the test places the enemy, it stays idle in one
+  run and walks in the other; fighter + AI fields at the start state match, the hidden input is not found (traces
+  /data/tmp/throws146/m). The feedback replays are byte-identical, so suspect the harness (state load / RNG seed /
+  frame counter / an uninitialised RAM byte in the placement path). Find it: a proof that isn't repeatable is no proof.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
