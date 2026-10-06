@@ -55,7 +55,7 @@ def roster_export(g):
     return [{'bank': r['bank'], 'name': r['name'], 'watch': [r['watch']['frame'], r['watch']['step']],
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
-             'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'),
+             'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
              **{k: r[k] for k in ('form', 'display', 'variant', 'scale') if k in r}} for r in g['roster']]
 
 

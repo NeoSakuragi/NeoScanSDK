@@ -89,6 +89,7 @@ friction, px boxes from the feet, frames at 60 Hz).
 | `spawn.trail` | child (library id), period (frames) | An object that leaves child objects (no box). | bproj_t.child / child_b0 / child_period | 0 |
 | `spawn.loop` | from (row), wrap (1/8 px) | The object's flight repeats from a row, moving on each repeat. | bproj_t.loop / wrap_x | 15 (98 8 96 3 99 2 SS4 1 WHP 1) |
 | `spawn.signal` | bits (end / hit) | The object signals its owner (end / hit) and the move branches on it. | bproj_t.sig, PC_SIG7 / SIG7C / SIG6, P_SIGCLR | 2 (96 1 99 1) |
+| `spawn.body` | rel / land (rows), damage (6) | **Engine rule** (TODO #146, Final Fight / Streets of Rage 2): a thrown victim, from its release to its landing, is an attack (its body, BODY_BOX): every other enemy it touches is knocked down the throw's way, each once (depth check |dZ| <= 12); the thrown victim takes its landing as an impact. | bthrow_t.rel / land, combat() "thrown bodies", fighter_t.thr / hit_mask | every throw |
 | `spawn.script_effect` | rows (per frame) | Up to 2 effect objects placed per row from a recording. | bspec_row_t.obj[2] (recorded) | 15 (98 11 96 2 SS4 1 KZ 1) |
 
 ### branch
@@ -117,7 +118,8 @@ friction, px boxes from the feet, frames at 60 Hz).
 | `hold.contact_grab` | - | A reach that catches without damage; the continuation hits. | bspec_row_t.hit bit 3 (recorded) | 1 (98 1) |
 | `hold.carry` | rows ((x, y) per row) | The victim is placed per row relative to the attacker (recorded cinematic). | bspec_row_t.hit bit 2 + vx / vy (recorded) | 7 (98 4 96 1 KZ 2) |
 | `hold.throw_script` | rows ((thrower frame, offset, victim pose, offset, flags) per frame), speed (8.8) | A paired attacker / victim script with impacts (the walk-in throws C / D). | bthrow_t / bthrow_row_t, throw_update | 17 fighters |
-| `hold.grab_hold` | hits (int, 3), time (frames, 90) | Walk into a standing enemy: hold, knee hits, throw, escape. | S_GRAB / S_GRABBED, GRAB_* (hold_update) | 17 fighters |
+| `hold.grab_hold` | hits (int, 3), time (frames, 90), hit / fin (moves), dx (px) | **Engine rule** (TODO #146, Final Fight): walk into a standing enemy (grabbable by its current state: idle, walk, reel); A = a hold hit (the fighter's own blow, startup squeezed to 3 frames, a paired script), the third the finisher (knockdown, the hold ends); hits keep the hold: free GRAB_TIME frames after the grab or the last hit, never during one; forward / back + A throws at any time; the victim always drawn behind the grabber. | S_GRAB / S_GRABBED, GRAB_* (hold_update), bchar_t.holds (export_bm hold_rows; game.json roster[].throws.hold) | every fighter |
+| `hold.paired_script` | rows (thrower frame + offset, victim posture or BA_* animation + offset + facing, impact / turn / front flags per frame), speed (8.8), ret (row), rel / land (rows) | The attacker and its victim played together from one table (TODO #146): the thrower to its CONTROL RETURN row (read from the throw's code: the earliest step start after the last impact, never past the code's own end), the victim on alone to its lying state; the victim drawn behind unless a row says front (data override). Pilot: Terry (KOF98), Geese (KOF96) throws read from the ROM (tools/kof96/throwrom.py: the throw routine, its victim list, its flight routine executed; 0 frame mismatches against the game); the rest of the roster still plays captured scripts through it. | bthrow_t (ret, rel, land) / bthrow_row_t (flags 32), fighter.c paired_update / victim_rows / thrown_update | 2 pilot fighters (4 throws) + 2 hold scripts every fighter |
 
 ### variant
 
