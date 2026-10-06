@@ -81,6 +81,9 @@ drawing canvas (`Ink.kt`).
   and the developer's notes.
 - The screenshot (the marked one; tap for full screen) and the voice (play / stop) come with the token.
 - Pull down or press Refresh to reload.
+- **From the game screen (0.0.18):** the list button (three lines) sits next to the mic in portrait and under START
+  in landscape. A tap opens the list; the game pauses while it is open and resumes on back. Its red badge counts the
+  notes in "Shipped: test it" plus the reopened ones, refreshed at launch and on every return to the game.
 
 **Threads (0.0.17).** The list answers back.
 - **At the top:** the build he runs (game version and build, player version).

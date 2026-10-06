@@ -12,11 +12,13 @@ import kotlin.math.hypot
 
 /** Touch controls, full screen over the picture: a d-pad (8 directions, dead zone) on the left, A B C D on the right in
  *  the Neo Geo arc (red, yellow, green, blue), COIN and START, settings (gear), soft reset (held 0.7 s), voice feedback (mic,
- *  next to reset: held = recording, [onFeedback] true on press, false on release) and download-the-latest-build (blinks when the server has a newer one). Portrait: in the space under the picture, on an opaque
+ *  next to reset: held = recording, [onFeedback] true on press, false on release), my feedback notes (a list, next to the mic in
+ *  portrait, under START in landscape: a tap = [onList]; [badge] = notes to test or reopened) and download-the-latest-build
+ *  (blinks when the server has a newer one). Portrait: in the space under the picture, on an opaque
  *  panel. Landscape: transparent, over the sides of the picture, drawn at [opacity]. Every pointer counts (hold a
  *  direction and press buttons); the mask goes to [onMask]; a short haptic tick on each new press. */
 class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUpdate: () -> Unit, private val onReset: () -> Unit,
-              private val onFeedback: (Boolean) -> Unit, private val onMask: (Int) -> Unit) : View(ctx) {
+              private val onFeedback: (Boolean) -> Unit, private val onList: () -> Unit, private val onMask: (Int) -> Unit) : View(ctx) {
     private class Btn(val bit: Int, val label: String, val color: Int) { var x = 0f; var y = 0f; var r = 0f }
     private val btns = listOf(Btn(Pad.A, "A", Color.rgb(220, 40, 40)), Btn(Pad.B, "B", Color.rgb(240, 200, 30)),
                               Btn(Pad.C, "C", Color.rgb(40, 180, 70)), Btn(Pad.D, "D", Color.rgb(40, 110, 230)))
@@ -28,6 +30,10 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     private val mic = Btn(0, "", Color.rgb(60, 60, 70))               // voice feedback: held = recording (glyph drawn)
     private var micId = -1                                             // the pointer holding it (-1 = none)
     private var micSince = 0L
+    private val fbl = Btn(0, "", Color.rgb(60, 60, 70))               // my feedback notes: the list (glyph drawn)
+    private var fblHit = false
+    var badge = 0                                                      // notes shipped to test + reopened: a count on the list button
+        set(v) { field = v; invalidate() }
     var updateReady = false                                            // a newer build is on the server: blink
         set(v) { field = v; invalidate() }
     var updateText: String? = null                                    // download progress ("45%") on the button
@@ -63,10 +69,11 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             arc(w - r * 1.25f, top + ph * 0.34f, r)
             coin.x = w * 0.40f; coin.y = top + ph * 0.12f; coin.r = r * 0.7f
             start.x = w * 0.60f; start.y = top + ph * 0.12f; start.r = r * 0.7f
-            gear.x = w * 0.92f; gear.y = top + ph * 0.12f; gear.r = r * 0.55f
-            upd.x = w * 0.80f; upd.y = gear.y; upd.r = gear.r
-            rst.x = w * 0.08f; rst.y = gear.y; rst.r = gear.r
-            mic.x = w * 0.20f; mic.y = gear.y; mic.r = gear.r
+            val y = top + ph * 0.12f; val g = r * 0.55f                 // the top row, left to right, evenly spaced: no
+            val row = listOf(rst to g, mic to g, fbl to g, coin to r * 0.7f, start to r * 0.7f, upd to g, gear to g)   // overlap at any size
+            val gap = (w - row.sumOf { (it.second * 2).toDouble() }.toFloat()) / (row.size + 1)
+            var x = 0f
+            for ((b, br) in row) { x += gap + br; b.x = x; b.y = y; b.r = br; x += br }
         } else {                                                       // over the picture's sides, thumbs' reach
             val side = maxOf(Screen.picture(w, h).left.toFloat(), h * 0.3f)   // the black bar, or at least 30 % of h
             dr = minOf(h * 0.2f, side * 0.62f) * k; dx = maxOf(side * 0.55f + dr * 0.15f, dr + h * 0.03f); dy = h * 0.66f
@@ -78,6 +85,8 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             upd.x = w - side * 0.4f - r * 1.6f; upd.y = gear.y; upd.r = gear.r
             rst.x = coin.x; rst.y = coin.y + r * 1.6f; rst.r = gear.r
             mic.x = gear.x; mic.y = rst.y; mic.r = gear.r
+            fbl.x = start.x; fbl.y = rst.y; fbl.r = gear.r                 // under START, the mirror of reset (under the left
+                                                                           // pair is the d-pad's reach)
         }
     }
 
@@ -116,7 +125,17 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         c.drawArc(mic.x - 3.6f * u, mic.y - 3.6f * u, mic.x + 3.6f * u, mic.y + 3.2f * u, 0f, 180f, false, paint)
         c.drawLine(mic.x, mic.y + 3.2f * u, mic.x, mic.y + 5.6f * u, paint); c.drawLine(mic.x - 2f * u, mic.y + 5.6f * u, mic.x + 2f * u, mic.y + 5.6f * u, paint)
         paint.style = Paint.Style.FILL
+        paint.color = if (fblHit) Color.WHITE else fbl.color; c.drawCircle(fbl.x, fbl.y, fbl.r, paint)   // the list: 3 bullets + lines
+        paint.color = if (fblHit) fbl.color else Color.WHITE; val v = fbl.r * 0.11f
+        for (i in -1..1) { val ly = fbl.y + i * 2.6f * v
+            c.drawCircle(fbl.x - 3.6f * v, ly, 0.8f * v, paint); c.drawRect(fbl.x - 1.9f * v, ly - 0.6f * v, fbl.x + 4.4f * v, ly + 0.6f * v, paint) }
         if (!portrait) c.restore()
+        if (badge > 0) {                                               // the count, always opaque (like the update button)
+            val br = fbl.r * 0.42f; val bx = fbl.x + fbl.r * 0.72f; val by = fbl.y - fbl.r * 0.72f; val t = if (badge > 99) "99+" else "$badge"
+            paint.alpha = 255; paint.color = Color.rgb(220, 30, 30); c.drawCircle(bx, by, br, paint)
+            paint.style = Paint.Style.STROKE; paint.strokeWidth = br * 0.16f; paint.color = Color.WHITE; c.drawCircle(bx, by, br, paint); paint.style = Paint.Style.FILL
+            paint.textSize = br * (if (t.length > 1) 0.95f else 1.25f); c.drawText(t, bx, by + paint.textSize * 0.36f, paint)
+        }
         if (rec) {                                                     // recording: a pulsing ring + the seconds held
             val t = android.os.SystemClock.uptimeMillis() - micSince
             paint.alpha = 255; paint.style = Paint.Style.STROKE; paint.strokeWidth = mic.r * 0.15f
@@ -157,11 +176,12 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
                 continue
             }
             if (e.getPointerId(i) == micId) continue                  // the finger holding the mic
-            val b = (btns + coin + start + gear + upd + rst + mic).minByOrNull { hypot(x - it.x, y - it.y) / it.r }
+            val b = (btns + coin + start + gear + upd + rst + mic + fbl).minByOrNull { hypot(x - it.x, y - it.y) / it.r }
             if (b != null && hypot(x - b.x, y - b.y) < b.r * 1.35f) {
                 val down = e.actionMasked == MotionEvent.ACTION_DOWN || e.actionMasked == MotionEvent.ACTION_POINTER_DOWN
                 if (b === gear) { if (down) gearHit = true }
                 else if (b === upd) { if (down) updHit = true }
+                else if (b === fbl) { if (down) { fblHit = true; invalidate() } }
                 else if (b === rst) { if (down) { rstSince = android.os.SystemClock.uptimeMillis(); invalidate() } }
                 else if (b === mic) { if (down && i == e.actionIndex && micId < 0) {
                     micId = e.getPointerId(i); micSince = android.os.SystemClock.uptimeMillis()
@@ -170,6 +190,8 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             }
         }
         if (gearHit && e.actionMasked == MotionEvent.ACTION_UP) { gearHit = false; onSettings() }
+        if (fblHit && (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL)) {
+            fblHit = false; invalidate(); if (e.actionMasked == MotionEvent.ACTION_UP) onList() }
         if (updHit && e.actionMasked == MotionEvent.ACTION_UP) { updHit = false; if (updateText == null) onUpdate() }
         if (rstSince != 0L && (e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL)) {
             val held = android.os.SystemClock.uptimeMillis() - rstSince; rstSince = 0L; invalidate()
