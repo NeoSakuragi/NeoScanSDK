@@ -99,7 +99,7 @@ class MainActivity : Activity() {
             override fun surfaceChanged(h: android.view.SurfaceHolder, f: Int, w: Int, ht: Int) {}
             override fun surfaceDestroyed(h: android.view.SurfaceHolder) {}
         })
-        pad = PadView(this, ::openSettings, ::downloadLatest) { m -> touchMask = m; pushPads() }
+        pad = PadView(this, ::openSettings, ::downloadLatest, { emu?.resetReq = true }) { m -> touchMask = m; pushPads() }
         root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))
         root.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
         setContentView(root)

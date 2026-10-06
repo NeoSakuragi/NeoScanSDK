@@ -17,6 +17,8 @@ object Native {
     @JvmStatic external fun setSystem(hw: String, aesBios: Boolean)
     /** write the core's NVRAM / memory card to the save dir (the core itself only does it on unload); emu thread */
     @JvmStatic external fun flushSaves()
+    /** soft reset (the core's retro_reset: the BIOS boots the cart again, NVRAM / memory card kept); emu thread */
+    @JvmStatic external fun reset()
 }
 
 /** Neo Geo pad bits as the core reads them (libretro ids; Geolith maps B->A, A->B, Y->C, X->D, SELECT->coin). */

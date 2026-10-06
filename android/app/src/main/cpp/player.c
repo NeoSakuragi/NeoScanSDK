@@ -171,3 +171,10 @@ JNIEXPORT void JNICALL Java_com_neoscan_player_Native_flushSaves(JNIEnv *env, jc
         if (st != 2) __android_log_print(ANDROID_LOG_INFO, TAG, "save %s: %s", name, st == 1 ? "written" : "FAILED");
     }
 }
+
+/* soft reset: Geolith's retro_reset (the system restarts through the BIOS; saves stay). Emulation thread, between frames. */
+JNIEXPORT void JNICALL Java_com_neoscan_player_Native_reset(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    if (!loaded) return;
+    retro_reset();
+}

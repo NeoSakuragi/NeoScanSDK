@@ -25,6 +25,7 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
     @Volatile var frontVsync = 0L                                   // the refresh that started the frame in [front]
     val lock = Object()
     @Volatile var fps = 0f
+    @Volatile var resetReq = false                                  // a soft reset asked from the UI: done between frames
     @Volatile var flushed = false                                   // the saves are on disk since the last pause began
 
     override fun run() {
@@ -62,6 +63,7 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
             flushed = false
             val vsync = VsyncPacer.next()                               // waits for the display (100 ms timeout)
             if (vsync < 0) continue
+            if (resetReq) { resetReq = false; Native.reset() }
             val r0 = System.nanoTime()
             val n = Native.runFrame(back, audio)
             val work = System.nanoTime() - r0
