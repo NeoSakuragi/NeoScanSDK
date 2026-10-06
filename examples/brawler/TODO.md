@@ -537,6 +537,13 @@ One item per assigned special that still replays a capture (artifact grid https:
 - [ ] 137. Kim down-fwd A+B = 236A (recorded, "off" per Bruno 0.0.55): play it from Kizuna's handler code (tools/kizuna/substates_kz.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [ ] 138. Kim C fury = 6246A (recorded, "off" per Bruno 0.0.55): play it from Kizuna's handler code (tools/kizuna/substates_kz.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 
+### Parked ideas (Bruno, 2026-10-06: kept for later, not queued)
+- CPS-2 / CPS-3 bug studies (both fully decrypted; CPS-2 = 68000, CPS-3 = SH-2): captures via the FinalBurn Neo libretro
+  core in our harness, an SH-2 disassembler for CPS-3.
+- Ryu and Ken from Street Fighter III 3rd Strike in the brawler: feasibility first (colours per 16x16 tile vs the Neo
+  Geo's 16-colour palettes, frame count / C ROM bytes, scale, parries as a new vocabulary feature).
+- Form links beyond Billy: Rugal -> Omega Rugal (KOF95 data exists, a boss second phase), Iori -> Riot of the Blood (KOF97).
+
 ### Needs Bruno (the loop never acts on these; it lists them in its report)
 - MVS save commit (#48): accept "MVS saves at the ending / game over", or investigate writing our block directly to
   battery RAM (SRAM unlock register) without a BIOS hand-back.
