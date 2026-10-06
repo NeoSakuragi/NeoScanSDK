@@ -64,13 +64,17 @@ object RomFetch {
         return rom.exists()
     }
 
+    /** the version string of the server's latest build, as the last [latest] call read it (the update button's "Game 0.0.x") */
+    @Volatile var latestVersion: String? = null
+
     /** the server's latest build number, -1 when it cannot be asked (offline, no URL); light: latest.json only */
     fun latest(ctx: Context): Long {
         val base = base(ctx) ?: return -1
         val id = ctx.getSharedPreferences("fetch", 0).getString("install", null) ?: "?"
         return try {
             val c = get(base + "latest.json", mapOf("X-Install-Id" to id, "X-Rom-Version" to installed(ctx), "X-Poll" to "1"))
-            JSONObject(c.inputStream.use { it.readBytes() }.toString(Charsets.UTF_8)).getLong("build")
+            val j = JSONObject(c.inputStream.use { it.readBytes() }.toString(Charsets.UTF_8))
+            latestVersion = j.optString("version", "?"); j.getLong("build")
         } catch (e: Exception) { -1 }
     }
 
@@ -118,14 +122,15 @@ object RomFetch {
 
     /** the builds are behind the Oros login since Player 0.0.15: every request carries the token ([Auth]) */
     private var ctx: Context? = null
-    private fun get(url: String, hdr: Map<String, String>): HttpURLConnection {
+    /** an authorised GET (also PlayerUpdate's player.json and APK: a Range request answers 206) */
+    fun get(url: String, hdr: Map<String, String>): HttpURLConnection {
         val open = { tok: String? -> (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 3000; readTimeout = 10000
             for ((k, v) in hdr) setRequestProperty(k, v)
             if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
         } }
         val c = ctx?.let { Auth.call(it, open) } ?: open(null)
-        if (c.responseCode != 200) throw java.io.IOException("$url: HTTP ${c.responseCode}")
+        if (c.responseCode != 200 && c.responseCode != 206) throw java.io.IOException("$url: HTTP ${c.responseCode}")
         return c
     }
 }

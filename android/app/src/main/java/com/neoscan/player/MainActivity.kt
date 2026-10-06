@@ -72,18 +72,39 @@ class MainActivity : Activity() {
         if (!bios.exists()) assets.open("neogeo.zip").use { i -> bios.outputStream().use { i.copyTo(it) } }
         val rom = File(getExternalFilesDir(null), "brawler.neo")
         RomFetch.configure(this, intent.getStringExtra("url"))
+        PlayerUpdate.setChannel(this, intent.getStringExtra("channel")); PlayerUpdate.cleanup(this)
         val msg = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER; text = "Checking for a new build..." }
-        setContentView(msg)
+        val launch = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        launch.addView(msg)
+        setContentView(launch)
         Thread {                                                       // fetch first (off the UI thread), then play
             val ok = if (Prefs(this).autoUpdate) RomFetch.update(this, rom) { t -> runOnUiThread { msg.text = t } } else rom.exists()
             RomFetch.loaded(this)                                      // the ROM's version (hashes a new file): off the UI thread
             runOnUiThread { msg.text = "Brawler '27  v${RomFetch.installed(this)}\nplayer ${BuildConfig.VERSION_NAME}" }
             Thread.sleep(1200)                                         // the version, readable, before the game starts
             runOnUiThread {
-                if (ok) startGame(sys, save, rom)
+                val pu = PlayerUpdate.ready(this)
+                if (ok && pu != null) updateBanner(launch, pu) { startGame(sys, save, rom) }
+                else if (ok) startGame(sys, save, rom)
                 else msg.text = "No game yet.\n\nCheck the connection (builds: canneji.duckdns.org/brawler), or\nadb push brawler.neo ${rom.absolutePath}"
             }
         }.start()
+    }
+
+    /** the launch screen (the title, before any fight): a newer player already downloaded = "Player 0.0.x is ready",
+     *  Update (the in-app install) or Play */
+    private fun updateBanner(launch: android.widget.LinearLayout, pu: PlayerUpdate.Info, play: () -> Unit) {
+        val dp = resources.displayMetrics.density
+        val box = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; gravity = Gravity.CENTER
+            val m = (16 * dp).toInt(); setPadding(m, m, m, m)
+            background = android.graphics.drawable.GradientDrawable().apply { setColor(android.graphics.Color.BLACK); setStroke((3 * dp).toInt(), android.graphics.Color.WHITE) } }
+        box.addView(TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER; setTextColor(android.graphics.Color.WHITE)
+            text = "Player ${pu.version} is ready" })
+        val row = android.widget.LinearLayout(this).apply { gravity = Gravity.CENTER }
+        row.addView(android.widget.Button(this).apply { text = "Update"; setOnClickListener { PlayerUpdate.install(this@MainActivity) } })
+        row.addView(android.widget.Button(this).apply { text = "Play"; setOnClickListener { play() } })
+        box.addView(row)
+        launch.addView(box, android.widget.LinearLayout.LayoutParams(-2, -2).apply { topMargin = (24 * dp).toInt() })
     }
 
     private fun toLogin() {
@@ -108,7 +129,7 @@ class MainActivity : Activity() {
             override fun surfaceDestroyed(h: android.view.SurfaceHolder) {}
         })
         feedback = Feedback(this, rom) { emu }
-        pad = PadView(this, ::openSettings, ::downloadLatest, { emu?.resetReq = true }, ::onFeedback, ::openList) { m -> touchMask = m; pushPads() }
+        pad = PadView(this, ::openSettings, ::chooseUpdate, { emu?.resetReq = true }, ::onFeedback, ::openList) { m -> touchMask = m; pushPads() }
         root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))
         root.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
@@ -300,20 +321,47 @@ class MainActivity : Activity() {
     }
     private fun toast(t: String) = android.widget.Toast.makeText(this, t, android.widget.Toast.LENGTH_SHORT).show()
 
-    /** every 5 s: is there a newer build than the installed one? the update button blinks while there is; every minute:
-     *  send the queued feedback */
+    /** every 5 s: is there a newer game build than the installed one? every hour (and at the start): a newer player
+     *  (PlayerUpdate: downloaded in the background, nothing on screen moves but the button); the update button blinks
+     *  while either is there; every minute: send the queued feedback */
     @Volatile private var polling = true
     private fun pollUpdates() = Thread {
         var n = 0
         while (polling) {
-            if (n++ % 12 == 0) Feedback.flush(this)
+            if (n % 12 == 0) Feedback.flush(this)
+            if (n % 720 == 0) PlayerUpdate.check(this)
+            n++
             val b = RomFetch.latest(this)
-            if (b > 0) { val ready = b > RomFetch.installedBuild(this); runOnUiThread { if (::pad.isInitialized) pad.updateReady = ready } }
+            gameNewer = b > 0 && b > RomFetch.installedBuild(this)
+            val ready = gameNewer || PlayerUpdate.available() != null
+            runOnUiThread { if (::pad.isInitialized) pad.updateReady = ready }
             try { Thread.sleep(5000) } catch (e: InterruptedException) { }
         }
     }.apply { isDaemon = true; start() }
 
-    /** the update button: download the latest build (checked: size + sha256), then restart the app on it (a fresh
+    @Volatile private var gameNewer = false
+    /** the update button (0.0.21): the game pauses and a list says what is newer, "Player 0.0.x" (the in-app install)
+     *  and / or "Game 0.0.x" (download + restart on it); nothing newer = "Up to date" with a Check now */
+    private fun chooseUpdate() {
+        emu?.paused = true
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        val pu = PlayerUpdate.ready(this); val pa = PlayerUpdate.available()
+        if (pu != null) items += "Player ${pu.version} is ready: Update" to { PlayerUpdate.install(this) }
+        else if (pa != null) items += "Player ${pa.version}: downloading ${maxOf(0, PlayerUpdate.progress)} %" to {
+            Thread { PlayerUpdate.check(this) }.start(); toast("Downloading Player ${pa.version}") }
+        if (gameNewer) items += "Game ${RomFetch.latestVersion ?: "?"}: download and restart" to { downloadLatest() }
+        val b = android.app.AlertDialog.Builder(this).setOnDismissListener { emu?.paused = noteOpen }
+        if (items.isEmpty()) b.setTitle("Up to date").setMessage("Player ${BuildConfig.VERSION_NAME}, game ${RomFetch.installed(this)}")
+            .setPositiveButton("Check now") { _, _ -> Thread {
+                val r = PlayerUpdate.check(this); val g = RomFetch.latest(this); gameNewer = g > 0 && g > RomFetch.installedBuild(this)
+                runOnUiThread { pad.updateReady = gameNewer || PlayerUpdate.available() != null
+                    toast(if (r != null) "Player ${r.version} is ready" else if (gameNewer) "A new game build is ready" else "Up to date") } }.start() }
+            .setNegativeButton("Back", null)
+        else b.setTitle("Update").setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.setNegativeButton("Back", null)
+        b.show()
+    }
+
+    /** the game update: download the latest build (checked: size + sha256), then restart the app on it (a fresh
      *  process: the core is loaded once per process) */
     private fun downloadLatest() {
         val rom = File(getExternalFilesDir(null), "brawler.neo")
@@ -368,4 +416,10 @@ class MainActivity : Activity() {
     override fun onPause() { super.onPause(); emu?.paused = true; if (::gl.isInitialized) gl.onPause() }
     override fun onResume() { super.onResume(); applySettings(); emu?.paused = noteOpen; if (::gl.isInitialized) gl.onResume(); refreshBadge() }
     override fun onDestroy() { polling = false; emu?.running = false; super.onDestroy() }
+
+    /** the notification OK asked before the self-update (PlayerUpdate): granted or not, the install goes on */
+    override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {
+        super.onRequestPermissionsResult(code, perms, res)
+        if (code == PlayerUpdate.NOTIFY_REQ) PlayerUpdate.install(this)
+    }
 }

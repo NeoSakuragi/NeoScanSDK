@@ -11,8 +11,11 @@ android {
         applicationId = "com.neoscan.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
-        versionName = "0.0.20"
+        versionCode = 21
+        versionName = "0.0.21"
+        // a test build of the self-update (PlayerUpdate.kt): ./gradlew assembleDebug -PplayerCode=22 -PplayerName=0.0.22
+        (project.findProperty("playerCode") as String?)?.let { versionCode = it.toInt() }
+        (project.findProperty("playerName") as String?)?.let { versionName = it }
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         // where builds are published (examples/brawler make publish-vps)
         buildConfigField("String", "ROM_URL", "\"https://canneji.duckdns.org/brawler/download/\"")

@@ -18,7 +18,7 @@ import android.widget.Switch
 import android.widget.TextView
 import java.io.File
 
-/** Settings, in sections: Feedback (the list of his notes), Account (logout), System, Display, Controls, Updates, About. Every change is stored at once ([Prefs]); the game
+/** Settings, in sections: Feedback (the list of his notes), Account (logout), System, Display, Controls, Updates (the game builds and the player's own self-update, PlayerUpdate), About. Every change is stored at once ([Prefs]); the game
  *  (paused meanwhile) applies them when it resumes. Built in code: no layout XML, no libraries. */
 class SettingsActivity : Activity() {
     private lateinit var col: LinearLayout
@@ -68,6 +68,24 @@ class SettingsActivity : Activity() {
              "START = start, HOME / MODE = these settings.")
 
         section("Updates")
+        val pl = TextView(this).apply { textSize = 15f; setPadding(0, (10 * dp).toInt(), 0, 0) }
+        col.addView(pl)
+        val upd = Button(this).apply { setOnClickListener { PlayerUpdate.install(this@SettingsActivity) } }
+        col.addView(upd, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
+        val show = {
+            val r = PlayerUpdate.ready(this); val a = PlayerUpdate.available()
+            pl.text = "Player ${BuildConfig.VERSION_NAME}" + (if (PlayerUpdate.channel(this) != "live") "  (channel ${PlayerUpdate.channel(this)})" else "") + ": " +
+                when { r != null -> "Player ${r.version} is ready"; a != null -> "Player ${a.version} " + (if (PlayerUpdate.progress >= 0) "downloading ${PlayerUpdate.progress} %" else "not downloaded yet")
+                       PlayerUpdate.error.isNotEmpty() -> PlayerUpdate.error; PlayerUpdate.latest != null -> "up to date"; else -> "not checked yet" }
+            upd.text = if (r != null) "Update to Player ${r.version}" else ""; upd.visibility = if (r != null) View.VISIBLE else View.GONE
+        }
+        show()
+        col.addView(Button(this).apply { text = "Check for update"; setOnClickListener { b ->
+            b.isEnabled = false; pl.text = "Checking..."
+            Thread { PlayerUpdate.check(this@SettingsActivity); runOnUiThread { b.isEnabled = true; show() } }.start() } },
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
+        note("The player checks at launch and every hour, downloads a new version in the background, and the update " +
+             "button on the game screen blinks. The update keeps the login, settings, notes and the game.")
         toggle("Fetch new builds on launch", prefs.autoUpdate) { prefs.autoUpdate = it }
         toggle("Show frame stats (also logged to files/frames.log)", prefs.frameStats) { prefs.frameStats = it }
         val rom = File(getExternalFilesDir(null), "brawler.neo")
@@ -115,5 +133,11 @@ class SettingsActivity : Activity() {
     private fun toggle(title: String, cur: Boolean, set: (Boolean) -> Unit) {
         col.addView(Switch(this).apply { text = title; textSize = 16f; isChecked = cur; gravity = Gravity.CENTER_VERTICAL
             setPadding(0, (12 * dp).toInt(), 0, 0); setOnCheckedChangeListener { _, v -> set(v) } }, ViewGroup.LayoutParams(-1, -2))
+    }
+
+    /** the notification OK asked before the self-update (PlayerUpdate): granted or not, the install goes on */
+    override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {
+        super.onRequestPermissionsResult(code, perms, res)
+        if (code == PlayerUpdate.NOTIFY_REQ) PlayerUpdate.install(this)
     }
 }

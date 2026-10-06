@@ -103,6 +103,32 @@ drawing canvas (`Ink.kt`).
   are dropped.
 - Everything goes to `POST /brawler/feedback/reply` (the Oros token only; no legacy access).
 
+**Self-update (Player 0.0.21, PlayerUpdate.kt).** The player updates itself, as it updates the game.
+- **Server:** `tools/brawler/publish_vps.sh` writes `player.json` = {version, code (the APK's versionCode, read with
+  aapt2), file, size, sha256} beside `latest.json` whenever it publishes an APK (behind the same Oros token). `--apk-only
+  APK VER` publishes the player without touching the ROM; `--channel test` writes `player-test.json` +
+  `neoscan-player-test-<ver>.apk` and leaves the public `neoscan-player.apk` link alone. A player follows the test
+  channel after `adb shell am start -n com.neoscan.player/.MainActivity --es channel test` (`--es channel live` back).
+- **When:** at launch and every hour while the game runs, plus Settings > Updates > Check for update. A newer
+  versionCode downloads in the background (Range-resumed from `files/update/player-<code>.apk.part`, size + sha256
+  checked). Nothing pops up during play.
+- **Shown:** the update button on the game screen (portrait: top row; landscape: left of START) pulses (a white ring
+  on / off every 600 ms, not colour-only) whenever a newer player or game build is on the server; still and grey = up to
+  date. A tap pauses the game and lists "Player 0.0.x is ready: Update" and / or "Game 0.0.x: download and restart"
+  ("Up to date" + Check now otherwise). The launch screen shows "Player 0.0.x is ready" (Update / Play) when one is
+  already downloaded; Settings > Updates has the same Update button.
+- **Install:** a PackageInstaller session. The first time Android needs "Install unknown apps" for the player (a dialog
+  explains it and opens the switch) and, on Android 13+, the notification permission (asked once). Android 12+:
+  `USER_ACTION_NOT_REQUIRED`, so the update installs without a prompt (proved on Android 14). Android 10 / 11 (the
+  Huawei) always shows Android's install confirmation.
+- **After:** the new player starts at once where Android allows it (9 and older); Android 10+ blocks an app starting
+  itself from the background (tested on 14), so a notification "NeoScan Player 0.0.x installed: Tap to play" comes up.
+  App data stays: login, settings, queued notes, the ROM.
+- **Signing:** every build so far, the published 0.0.21 included, is signed with the debug key of the build machine,
+  `~/.android/debug.keystore` on brunux (CN=Android Debug, SHA-256 34:E0:28:AE:DA:36:62:AF:EA:47:BF:E2:3F:1C:17:25:E8:B2:6A:57:83:52:C8:BB:FA:8C:FB:88:88:85:F8:DD).
+  An update must carry the same key. Back it up: if it is lost, or builds move to another machine or to a release
+  key, every installed player must be uninstalled and reinstalled by hand once (losing its local data).
+
 ## On the VPS (tools/feedback/server.py, deploy_vps.sh)
 
 - **Service:** the systemd unit `brawler-feedback`, on 127.0.0.1:8920. It runs nice'd with idle IO and uses only

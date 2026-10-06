@@ -13,8 +13,8 @@ import kotlin.math.hypot
 /** Touch controls, full screen over the picture: a d-pad (8 directions, dead zone) on the left, A B C D on the right in
  *  the Neo Geo arc (red, yellow, green, blue), COIN and START, settings (gear), soft reset (held 0.7 s), voice feedback (mic,
  *  next to reset: held = recording, [onFeedback] true on press, false on release), my feedback notes (a list, next to the mic in
- *  portrait, under START in landscape: a tap = [onList]; [badge] = notes to test or reopened) and download-the-latest-build
- *  (blinks when the server has a newer one). Portrait: in the space under the picture, on an opaque
+ *  portrait, under START in landscape: a tap = [onList]; [badge] = notes to test or reopened) and update (blinks
+ *  while a newer player or game build is on the server; a tap = [onUpdate], MainActivity's choice of the two). Portrait: in the space under the picture, on an opaque
  *  panel. Landscape: transparent, over the sides of the picture, drawn at [opacity]. Every pointer counts (hold a
  *  direction and press buttons); the mask goes to [onMask]; a short haptic tick on each new press. */
 class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUpdate: () -> Unit, private val onReset: () -> Unit,
@@ -150,13 +150,19 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             c.drawArc(rst.x - rst.r, rst.y - rst.r, rst.x + rst.r, rst.y + rst.r, -90f, 360f * f, false, paint)
             paint.style = Paint.Style.FILL; postInvalidateDelayed(30)
         }
-        // update button: always opaque so a waiting build is seen; orange / grey blink (2.5 Hz) while one is ready
-        val blink = updateReady && (android.os.SystemClock.uptimeMillis() / 200) % 2 == 0L
+        // update button (0.0.21: a newer player OR game build): always opaque so a waiting update is seen; a slow pulse
+        // that is not colour-only (e-ink safe): a thick white ring around it on / off every 600 ms, the fill orange with
+        // it; no ring, grey = up to date
+        val blink = updateReady && updateText == null && (android.os.SystemClock.uptimeMillis() / BLINK_MS) % 2 == 0L
         paint.alpha = 255; paint.color = if (updateText != null) Color.rgb(230, 130, 20) else if (blink) Color.rgb(255, 150, 0) else upd.color
         c.drawCircle(upd.x, upd.y, upd.r, paint)
+        if (blink) {
+            paint.style = Paint.Style.STROKE; paint.strokeWidth = upd.r * 0.22f; paint.color = Color.WHITE
+            c.drawCircle(upd.x, upd.y, upd.r * 1.12f, paint); paint.style = Paint.Style.FILL
+        }
         paint.color = Color.WHITE; val t = updateText ?: upd.label
         paint.textSize = upd.r * (if (t.length > 1) 0.55f else 0.9f); c.drawText(t, upd.x, upd.y + paint.textSize * 0.35f, paint)
-        if (updateReady && updateText == null) postInvalidateDelayed(200)
+        if (updateReady && updateText == null) postInvalidateDelayed(BLINK_MS - android.os.SystemClock.uptimeMillis() % BLINK_MS + 5)
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
@@ -204,5 +210,5 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         if (m != mask) { mask = m; onMask(m); invalidate() }
         return true
     }
-    companion object { const val RESET_MS = 700L }
+    companion object { const val RESET_MS = 700L; const val BLINK_MS = 600L }
 }
