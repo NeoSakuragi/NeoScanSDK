@@ -226,6 +226,11 @@ table.fb { border-collapse: collapse; width: 100%; font-size: 13px; }
 table.fb td, table.fb th { border: var(--thin); padding: 4px 6px; text-align: left; vertical-align: top; }
 table.fb td.mono { font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; }
 table.fb td.txt { min-width: 260px; }
+#fbcol .fbpair { display: flex; flex-wrap: wrap; gap: 12px; }
+#fbcol figure { margin: 0; }
+#fbcol figcaption { font-size: 12.5px; }
+.fbscreen { display: block; width: 456px; max-width: 100%; image-rendering: pixelated; border: var(--line); }
+#fbcol .mono { font-family: ui-monospace, monospace; font-size: 12.5px; }
 table.fb audio { display: block; margin-top: 4px; max-width: 220px; }
 ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-monospace, monospace; }
 </style>
@@ -305,6 +310,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <script src="enemypack.js"></script>
 <script src="enemies.js"></script>
 <script src="characters.js"></script>
+<script src="fbreplay.js"></script>
 <script src="feedback.js"></script>
 </body>
 </html>

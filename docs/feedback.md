@@ -112,6 +112,32 @@ cost comes from `tools/feedback/prices.json`, the price table with its source an
   - It filters by status and category.
   - Category and fighters can be edited in the row.
 
+## Replay in the browser (the Brawler Lab's Feedback tab)
+
+Each note's **Replay** button (or the link `brawler-lab/#fb=<id>`, with `&play` to start at once) plays the note in
+the page.
+- **The core:** Geolith compiled to WebAssembly (`tools/brawler/chainlab/build_wasm.sh`, the same tree, save states
+  v3). `web_core.c` gained `wc_system` so the replay boots what the player booted.
+- **The engine:** `chainlab/fbreplay.js`, shared with `tools/feedback/replay_node.js`, which runs the same proof in
+  Node.
+- **What the page loads:**
+  - the note's game build by sha256, from `feedback-api/rom/<sha>` (gzip, 12 MB in transit, cached for good by the
+    browser; one wasm instance per build);
+  - the Lab's BIOS (SNK's MVS BIOS files);
+  - the note's states and inputs.
+- **How it plays:** the page fast-forwards silently from the latest kept state at or before press - 600 frames (at
+  most 600 frames, about 20 ms), then plays the last ~10 s with sound.
+  - Pause, step one frame, speed 1x / 1/2 / 1/4 / 1/10 (sound only at 1x), and restart.
+  - The press screenshot is shown beside the replay.
+- **The check at the press:** the state is compared byte for byte with `press.state`, and the SHA-256s are shown
+  (https only). Kept states passed on the way are compared too.
+- **ROMs and BIOS stay behind the Lab's login.** The service archives each build a note was played on, so
+  publish_vps.sh's pruning to the last 3 builds never loses one.
+- **Proven 2026-10-06:**
+  - every pulled note was byte-identical in Node (wasm) from the window start, including Bruno's own Xiaomi notes;
+  - note 20261006-154517-b3f3 was byte-identical at the press in desktop Chrome (headless) and in Android Chrome
+    113 in the emulator, on a local copy of the page.
+
 ## Determinism
 
 - **The Geolith fix:** save states v3 (geolith commit fa094e0) add the 68K's pending reset cycles and the YM2610's

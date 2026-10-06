@@ -2,7 +2,8 @@
 # Publish a brawler build for the Android player's auto-fetch: canneji.duckdns.org/brawler/download/ =
 # /data/brawler/builds/ on the VPS (nginx, shared secret, log /var/log/nginx/brawler.log; set up 2026-10-03, see
 # examples/brawler/README.md). Uploads brawler-<VERSION>.neo, writes latest.json, points brawler.neo at it, keeps the
-# last 3 builds; with an APK argument also publishes neoscan-player-<version>.apk (+ neoscan-player.apk link).
+# last 3 builds (a build that has feedback is archived by the feedback service when the note arrives:
+# /data/brawler/feedback/roms/<sha>.neo.gz, tools/feedback/server.py, so this pruning never loses one); with an APK argument also publishes neoscan-player-<version>.apk (+ neoscan-player.apk link).
 #   tools/brawler/publish_vps.sh examples/brawler/brawler.neo 0.0.1 [android/app/build/outputs/apk/debug/app-debug.apk 0.0.1]
 set -e
 ROM=$1; VER=$2; APK=$3; APKVER=$4
