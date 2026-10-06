@@ -208,8 +208,9 @@ def special(B, inp, cap):
                 atk = next((box_kof(b)[1] for b in obx if b[1]), None)
                 own = next((box_kof(b)[1] for b in obx if not b[1]), None)
                 if oa in pj['flight']: pj['rows'].append((ofi, ox - pj['x0'], oy, [1] + atk if atk else None, own, oa))
-                elif oa in pj['end_anims']:
-                    pj.setdefault('xi', ox); pj['end'].append((ofi, ox - pj['xi'], oy))
+                elif oa in pj['end_anims']:                  # (x, height from the hit's: bpend_t, TODO #164)
+                    pj.setdefault('xi', ox); pj.setdefault('yi', pj['rows'][-1][2] if pj['rows'] else oy)
+                    pj['end'].append((ofi, ox - pj['xi'], oy - pj['yi']))
             else:
                 objs.append([ofi, ox - x, oy, 1])
         script.append([fi, x - x0, y, objs])

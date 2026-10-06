@@ -2223,9 +2223,10 @@ void game_tick(void) {
     if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
-    if (!sf_who) { camera(); dance_update(order, nf, cam_x); projectiles_update(cam_x); }
+    if (!sf_who) { camera(); wall_update(order, nf, cam_x); projectiles_update(cam_x); }
     mark(P_UPDATE);
     combat(order, nf, sf_who);                               /* a super flash: its attacker's own boxes only */
+    if (!sf_who) wall_update(order, nf, cam_x);              /* (again: a catch / a hit this frame placed its victim) */
     mark(P_COMBAT);
     depth_sort();
     mark(P_SORT);

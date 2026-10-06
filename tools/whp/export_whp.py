@@ -227,15 +227,15 @@ def special(B, inp, cap):
                 pj['last'] = ow
                 ab = whp.attack_boxes(obox)
                 pj['rows'].append((B.frame(ow), ox - pj['x0'], oy, [1] + box_kof(*ab[0]) if ab and olive else None, None, ow))
-            elif ow in PROJ_END:
-                if pj['xi'] is None: pj['xi'] = ox
-                pj['end'].append((B.frame(ow), ox - pj['xi'], oy))
+            elif ow in PROJ_END:                          # (x, height from the hit's: bpend_t, TODO #164)
+                if pj['xi'] is None: pj['xi'] = ox; pj['yi'] = pj['rows'][-1][2] if pj['rows'] else oy
+                pj['end'].append((B.frame(ow), ox - pj['xi'], oy - pj['yi']))
     if pj is not None and len(pj['end']) == 0:            # the impact comes after the move's last row: from the capture's
         for i in range(e, len(fr)):                       # later frames
             for o in fr[i][2]:
                 if o[0] == pj['k'] and o[2] in PROJ_END:
-                    if pj['xi'] is None: pj['xi'] = o[3]
-                    pj['end'].append((B.frame(o[2]), o[3] - pj['xi'], o[4]))
+                    if pj['xi'] is None: pj['xi'] = o[3]; pj['yi'] = pj['rows'][-1][2] if pj['rows'] else o[4]
+                    pj['end'].append((B.frame(o[2]), o[3] - pj['xi'], o[4] - pj['yi']))
     pjs = []
     if pj is not None:
         rows = pj['rows']; defs = [r[5] for r in rows]

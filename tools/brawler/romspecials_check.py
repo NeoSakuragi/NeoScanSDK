@@ -2,7 +2,8 @@
 """The ROM-read specials (tools/kof96/handlers98.py, export_bm rom_c, fighter.c prog_update) against KOF98, frame by frame.
 
     python3 romspecials_check.py GAME_DIR OUT_DIR [fighter:role[=INPUT] ...]     (an AI_OFF=1 build: the target stands still)
-    BRANCHES=whiff,close,mid (default whiff,close): mid = P2 112 px ahead (romspecials98.PLACE); =INPUT plays another
+    BRANCHES=whiff,close,mid,wall (default whiff,close): mid = P2 112 px ahead (romspecials98.PLACE), wall = close
+    with P1 as far from the wall as the brawler's start from its own (TODO #173); =INPUT plays another
     special of the fighter's pool from that slot; +LINK@T (repeatable) a follow-up press (TODO #74): LINK one of the
     special's links (its program's 'links': 'again', 'fA', 'fAB'), T the special's frame of KOF's button press
     (FOLLOW_KOF: the game's input; the brawler presses so its program reads it on the frame KOF's handler does, T +
@@ -40,7 +41,8 @@ FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   
 FOLLOW_PAD = {'fA': ('Ra', 0), 'fAB': ('Rc', 0)}        # the brawler's pad keys, the frames its intent waits (0: no chord)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = 4
-DIST = {'close': 48, 'mid': 112}                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
+DIST = {'close': 48, 'mid': 112, 'wall': 48}             # wall: KOF's P1 as far from its wall (x 736) as the brawler's from
+#                                                          its own (TODO #173: a catch that grinds to the wall)                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
 BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
 
 def prog_links(game, cid, inp):

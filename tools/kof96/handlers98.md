@@ -324,3 +324,26 @@ rays 11-26, each +2 frames of the object's life). Per move only an **optional an
 (`super_flash` on its states), `export_bm` writes only its dx / dy into `bspec_t.sf_dx / sf_dy / sf_anchor`; a move
 without one (SS4, Kizuna, WHP, future fighters) plays at game.json's anchor. The export adds the MAX moves once:
 `MAX <fury>` (`export_rom` with the 'MAX ' prefix: `decode(sdm=True)`) for every ROM fury with a MAX path, `bchar_t.fury_max`.
+
+## Rugal: the wall slams, the charge, the step effects (TODO #173, 2026-10-06)
+
+Rugal's four recorded moves are read from his handlers now; what they needed:
+
+| feature | ROM | decoded as | brawler |
+|---|---|---|---|
+| the stage wall | `jsr $18092; beq yield` (d0 0 inside, -1 / -2 at x <= 32 / >= 736) | `br wall` (was misread as a branch on vx: the cc of the call) | PC_WALL: the screen-edge walls (stage.wall, wall_lo / wall_hi) |
+| a frame counter at the resume point | `move #3, +$D2; move.l #R, (a4); R: subq #1, +$D2; bpl yield` | `set cnt`, `dec`, `br cnt` (only in the wall-slam handlers: `A3_RECORD`'s; elsewhere a small count at a resume point stays a decode-time repeat) | P_SET / P_DEC / PC_CNT |
+| the victim signal | `movea.l +$B6, a0; ori.b #$80, $D1(a0)` | `vsig` | P_VSIG: the victim's next list |
+| the victim's script | the catch installs the attacker's +$1A0 on the victim (`move.l #R, $1A0(a4)` before the catch); R: `lea list, a0; move #size, d0; jsr $24B22` then `jsr $25372` each frame until its +$D1 bit 7; a MAX test `btst #0, $E4(a0)` on the attacker | `victim_lists` (the lists in order, the MAX path by sdm), `victim_entries` (throwtables96.entries for the fighter itself as the victim: the brawler's throw rule) | bspec_t.vlists, fighter.c vlist_apply (entry of the attacker's step: offset, height, posture, facing, front; $01 a blow, $40 the release) |
+| the jump back | `move.l 30(a3), +$50` .. `42(a3), +$5C` | `set vx / fric / vy / g` from `A3_RECORD` (a3 is not a pointer the walk sees: the record measured in our emulator, $AC870: vx -10.3125, friction $E900, vy 4.125, gravity 0.6055) | P_SET |
+| the turn (MAX fury) | `eori.b #1, $31(a4)` (+ the victim's), `neg.l +$50` | `turn`; the speeds after it stay forward + | P_TURN |
+| the charge (Kaiser Wave $7EDAA) | `clr +$D2` at $7EE78, then while `move.b +$1A4, d0; andi #$50, d0; and.b (fp), d0` is not zero (its button held) each event step `addq #1, +$D2`; at the release `tst +$D2; beq`, `cmpi #1, +$D2; bls` pick the level's state list (+$C2) and damage (+$C6) | `CHARGE`: `set cnt 0`, `br held`, `add cnt 1`, `br cntle:0`, `br cntle:1`; each level's path walked with the count known (0, 1, 2) | PC_HELD (fighter_t.pheld), P_ADD, PC_CNTLE |
+| the multi-hit wave | its hit routine $7F004: `movea.l +$C2, a0; addq.l #2, +$C2; move.w (a0), +$72` (the list's next state), `subq #1, +$138` (hits left: frozen +$124 frames, then flies on in that state; none: the state plays in place, freed at its end) | export_rom: the object's `clist` + `f138` -> a phase per hit (`hitnext`), the last state as its end rows | bproj_t hitnext / next / stop (object.phase at hit) |
+| step effects | animation records `$FA kind x y` -> `$5D1C`: routine table `$36382[kind]` | `step_effects` / `fx_routine`: 'pinned' (`bra $37494`: kept at the owner + (x, y), freed when the owner's state / step changes from the one it saw on its first run) and 'once' (`bsr $36BAA; bra $36C54`: placed once, freed at its animation's end + 2 frames); the fighter's own table only; `STEP_FX` gates them (Rugal) | bchar_t.pfx, bproj_t follow 8, fighter.c pan_fx |
+
+Rugal's states: God Press 161 (start) 162 (rush, its catch box) 163 (recovery) / 167 push, 168 slam, 169 jump back, 170;
+Gigantic Pressure 195 / 196 / 198 / 201 push, 202 slam (+ object state 252, the explosion), 210, 211; its MAX 203-205,
+207 push, 208 the hits (list $29B128), the turn, 207 again, 209, 210, 211. Kaiser Wave 132 / 133 (A / C), 134 the
+charge, 135 / 136 the release; the wave 137 / 138 / 140 by level (A 4 px a frame, C 16), its hit states 139 / 141 / 142,
+its ends 143 / 144; the hand charge state 246 (kind $DF). Not exported: the effects of the shared bank (God Press's
+slam explosion kind $32, the fury's start $38 / $3C: table 38).

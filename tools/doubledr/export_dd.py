@@ -393,7 +393,7 @@ def projectile(B, spawn, var):
         a = bx.get('11')
         rows.append([B.frame(layers), round(x, 3), dy0, [1] + a if a else None, a])
     _, es = dd.steps(14, 53)
-    end = [[B.frame(((s['def_'], 0, 0, None),)), 0, dy0] for s in es for _ in range(s['ticks'] + 1)]
+    end = [[B.frame(((s['def_'], 0, 0, None),)), 0, 0] for s in es for _ in range(s['ticks'] + 1)]   # at the hit's height (bpend_t y: from it, TODO #164)
     return {'table': 0, 'state': an, 'kind': 1, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'loop': 0,
             'death': None, 'life': len(rows), 'travel': 300, 'vx': vx, 'rows': rows, 'end': end, 'react': 'knockdown',
             'child': None, 'hits': {}, 'sig': 0}

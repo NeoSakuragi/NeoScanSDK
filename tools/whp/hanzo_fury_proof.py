@@ -270,7 +270,7 @@ for key, inp, keys, fam, reach in MOVES:
                 exp_dx, exp_y = r[1], max(0, r[2])
                 if t['fo'] != r[0] or abs(t['y'] - exp_y) > 1: mism.append((t['row'], t['fo'], r[0], t['dx'], exp_dx, t['y'], exp_y))
                 elif abs(t['dx'] - exp_dx) > 1:
-                    if t['wall']: wall += 1                   # the dance's screen wall held him (fighter.c dance_update)
+                    if t['wall']: wall += 1                   # the dance's screen wall held him (fighter.c wall_update)
                     else: mism.append((t['row'], t['fo'], r[0], t['dx'], exp_dx, t['y'], exp_y))
                 exp_o = [o[0] for o in r[3]]
                 if sorted(fo for _, fo in t['objs']) != sorted(exp_o): objbad.append((t['row'], [fo for _, fo in t['objs']], exp_o))
