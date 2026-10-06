@@ -109,7 +109,7 @@ def proof_all(out, game=harness.GAME, names=None):
     each played twice in the Chain Lab (the dummy out of reach: the whiff; at point blank: the hit path), every voice
     command the Z80 reads (player prefix + code -> the fighter's voice id, snd_report) with its frame from the special's
     first frame; against the source game's sound log for that input (voices.json: the captured plays, $14 stops left
-    out, 'at' 1 = its first frame) and the program's own sends (voices.json 'prog' uses, KOF ROM specials). A special is
+    out, 'at' 0 = its first frame) and the program's own sends (voices.json 'prog' uses, KOF ROM specials). A special is
     played as role D (spec_tab repointed to a map in the lab's pack buffer, C pressed), a fury with D, a MAX with
     down+D (meter full). -> OUT/voices_all.json, a line per move"""
     G = json.load(open(os.path.join(game, 'game.json'))); names_all = [r['name'] for r in G['roster']]
@@ -148,23 +148,34 @@ def proof_all(out, game=harness.GAME, names=None):
                 if case == 'close': b.place(2, x=b.fget(0, 'x') + 34, z=b.fget(0, 'z'))
                 else: b.place(2, x=b.fget(0, 'x') + 260, z=b.fget(0, 'z') + 40)
                 b.run(2)
-                log.clear(); f0 = None; end = None
+                log.clear(); f0 = None; end = None; sent = []; oqt = b.r(S['qt'], 1)
                 for f in range(700):
                     b.run(1, p1=keys if f < 3 else '')
+                    qt = b.r(S['qt'], 1)                 # the bytes the game queued this frame (sound.c q[]: the frame
+                    while oqt != qt:                     # it sent them; the Z80 reads one a frame after)
+                        sent.append((b.frame, b.r(S['q'] + oqt, 1))); oqt = (oqt + 1) & 31
                     sname = st[b.fget(0, 'state')]
                     if f0 is None and sname == 'SPECIAL': f0 = b.frame
                     if f0 is not None and end is None and sname != 'SPECIAL': end = b.frame
                     if end is not None and b.frame > end + 40: break
-                got, want = [], None
+                got, want = [], None                     # the voices the game sent (prefix + code queued), with the
+                for fr, v in sent:                       # frame it queued them in
+                    if want is not None:
+                        i = code_of.get(v | want[0])
+                        if i and f0 is not None: got.append([want[1] - f0 - 1, i])   # (frame 0 = the special's first
+                                                                    # update: start_special's frame + 1, KOF's handler's first)
+                        want = None
+                    elif v in P1: want = (P1[v], fr)
+                heard = []                               # and the ones the Z80 read (the driver got them)
                 for fr, v in log:
                     if want is not None:
-                        i = code_of.get(v | want)
-                        if i and f0 is not None: got.append([fr - f0, i])
+                        i = code_of.get(v | want[0])
+                        if i and f0 is not None: heard.append(i)
                         want = None
-                    elif v in P1: want = P1[v]
-                runs[case] = {'voices': got, 'played': f0 is not None, 'frames': (end or b.frame) - (f0 or 0),
+                    elif v in P1: want = (P1[v], fr)
+                runs[case] = {'voices': got, 'z80_read': heard == [i for _, i in got], 'played': f0 is not None, 'frames': (end or b.frame) - (f0 or 0),
                               'spec_ix': b.fget(0, 'spec_ix')}
-            cap = sorted([u['at'] - 1, x['id']] for x in vo for u in x['uses'] if u['kind'] == 'special' and u['input'] == inp)
+            cap = sorted([u['at'], x['id']] for x in vo for u in x['uses'] if u['kind'] == 'special' and u['input'] == inp)
             prog = sorted({x['id'] for x in vo for u in x['uses'] if u['kind'] == 'prog' and u['input'] == inp})
             ours = {i for r in runs.values() for _, i in r['voices']}
             src = {i for _, i in cap} | set(prog)

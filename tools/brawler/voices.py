@@ -309,7 +309,8 @@ def build_list(names=None):
                 s = tr['start']; end = s + tr.get('gap', 220) - 4
                 for f, w, ix, a4 in W:
                     if s <= f < end and a4 == P1 and f >= g0 - 2:
-                        uses.append((w, ix, {'kind': 'special', 'input': e['input'], 'at': max(0, f - g0 + 1)}))
+                        uses.append((w, ix, {'kind': 'special', 'input': e['input'], 'at': max(0, f - g0)}))   # (0 = its first frame, as the
+                                                                    # other games' lists; was f - g0 + 1: a frame late, TODO #163)
             for inp, sends in prog_sends(rname, game, m, cid):   # the ROM specials' programs: every voice they may send
                 for via, ix, w, det in sends:                         # (a hit-only path, a DM the captures missed: TODO #163)
                     u = {'kind': 'prog', 'input': inp, 'via': via}

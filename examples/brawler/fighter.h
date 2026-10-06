@@ -266,7 +266,8 @@ typedef struct fighter {
     uint8_t  drop, pad_drop;      /* the respawn (fighter.c "death and respawn", TODO #166 e): 1 dropping from the air
                                    * (untouchable, no control), 2 just landed (main.c knocks every enemy on screen down) */
     uint8_t  pvl_id, pvl_n;       /* a ROM special's voice sent later (P_VOICE b > 0, KOF +$1B4 / +$1B6; TODO #163): its id,
-                                   * the frames left (0 = none; counted down by its program's frames, dropped at its end) */
+                                   * the frames left (0 = none; counted down by its program's frames, then by the
+                                   * fighter's own once the move ended; dropped when it is hit) */
 } fighter_t;
 
 

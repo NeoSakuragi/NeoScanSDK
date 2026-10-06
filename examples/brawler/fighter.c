@@ -1294,6 +1294,9 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     meter_tick(f);
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
+    if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
+                                                                    later counts on once the move ended (KOF $17074 runs
+                                                                    every frame; in the special: prog_update's frames) */
     if (f->inv == INV_FURY) { if (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM)) f->inv = 0; }   /* held for the fury's script (and a form's transition) */
     else if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
@@ -1475,6 +1478,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     if (reaction > 15) reaction = v->y > 0 ? reaction >> 4 : reaction & 15;   /* packed: standing | juggled << 4 */
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
     rk = reaction; reaction &= 7;
+    v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {   /* a ROM special (TODO #139): */
         a->pflags |= PF_HITANY;
         if ((a->spec_prev_hit & 16) && a->phit != 0xFF && !a->pcatch) {   /* a catch box: no damage, the victim held, */
