@@ -179,7 +179,10 @@ def replay(d):
         step = max(1, len(sel) // 15); sel = sel[::step][-15:]
         tw, th = sel[0][1].size
         sheet = Image.new('RGB', (tw * 4, (th + 14) * 4), (255, 255, 255)); dr = ImageDraw.Draw(sheet)
-        tiles = [(f'frame {f} (P-{P - f})', im) for f, im in sel] + ([('press screenshot', Image.open(shot).convert('RGB'))] if os.path.exists(shot) else [])
+        marked = os.path.join(d, 'screen_marked.png')         # 0.0.15: his drawing over the screenshot (screen.png stays clean)
+        press = (('press screenshot, his drawing', Image.open(marked).convert('RGB').resize((tw, th), Image.LANCZOS)) if os.path.exists(marked)
+                 else ('press screenshot', Image.open(shot).convert('RGB')) if os.path.exists(shot) else None)
+        tiles = [(f'frame {f} (P-{P - f})', im) for f, im in sel][-(15 if press else 16):] + ([press] if press else [])
         for k, (lab, im) in enumerate(tiles[:16]):
             x, y = k % 4 * tw, k // 4 * (th + 14)
             sheet.paste(im, (x, y + 14)); dr.text((x + 3, y + 1), lab, fill=(0, 0, 0))
@@ -203,6 +206,7 @@ def report(d, row=None):
     raw = (row or {}).get('raw_transcript') or meta.get('raw_transcript', '')
     if raw: tx = raw
     L = [f"# Feedback {meta['id']}", '']
+    if row and row.get('user'): L += [f"From: {row['user']}", '']
     if row: L += [f"Status: {row['status']}" + (f" (release {row['release']})" if row['release'] else '') +
                   (f", category {row['category']}" if row['category'] else '') + (f", fighters {row['fighters']}" if row['fighters'] else ''), '']
     L += ['## Note (as sent)', '', final or '(none typed)', '', '## Transcript (raw)', '', tx, '']
@@ -219,10 +223,12 @@ def report(d, row=None):
         L.append(f"- Window: frames {rp['window_frame']}..{rp['press_frame']} ({rp['frames']} frames, {rp['seconds']} s), soft resets in it: {rp['resets']}")
     if 'screen_match' in rp: L.append(f"- Last replayed picture = the player's screenshot: {'yes' if rp['screen_match'] else 'NO'}")
     if rp.get('sheet'): L += [f"- Contact sheet: {rp['sheet']}", f"- Clip (last {CLIP_S} s): {rp['clip']}", f"- Screenshot: {os.path.join(d, 'screen.png')}"]
-    L += ['', '![sheet](sheet.png)', '']
+    marked = os.path.exists(os.path.join(d, 'screen_marked.png'))
+    if marked: L.append(f"- Marked screenshot (drawn on in the player; the replay checks the clean screen.png): {os.path.join(d, 'screen_marked.png')}")
+    L += [''] + (['![marked screenshot](screen_marked.png)', ''] if marked else []) + ['![sheet](sheet.png)', '']
     open(os.path.join(d, 'report.md'), 'w').write('\n'.join(L))
     short = (final or tx).replace('\n', ' ')[:70]
-    return f"{meta['id']}  player {meta.get('app_version')}  game v{meta.get('rom_version')}  {det.split(':')[0]}  \"{short}\""
+    return f"{meta['id']}  {(row or {}).get('user') or '-'}  {'marked  ' if marked else ''}player {meta.get('app_version')}  game v{meta.get('rom_version')}  {det.split(':')[0]}  \"{short}\""
 
 
 def main():

@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """Brawler voice-feedback service (VPS, docs/feedback.md). Stdlib only, 127.0.0.1:8920, unit brawler-feedback.
 
-Public (nginx: exact locations, POST only, size + rate capped; the request carries X-Public):
+The player (Player 0.0.15+: nginx /brawler/feedback/, every call behind the Oros login: auth_request /jlpt-auth on the
+Authorization: Bearer <Oros JWT> the player got from /oros/api/login; the request carries X-Public, and this service
+checks the token again with Oros's /api/whoami, so it knows the user; no token = 401):
   POST /transcribe   the audio (body; X-Audio-Name = its file name): transcribed at once with OpenAI's API
                      (gpt-4o-mini-transcribe, whisper-1 on error; the game terms as the prompt) -> {"text", "model"}
   POST /upload       the bundle zip (X-Bundle = its id): unpacked into DATA/bundles/<id>/, a row in the tracker DB
-                     (status new); its audio transcribed in the background when the player sent no transcript
+                     (status new, user = the signed-in account); its audio transcribed in the background when the
+                     player sent no transcript
+  GET  /dlauth       nginx's auth_request for /brawler/download/ (the token, or a pre-0.0.15 player in the transition)
+  GET  /mine         the user's notes, newest first, each with its status history and its files (the player's list)
+  GET  /mine/file/<id>/<name>   a file of one of the user's notes (screen_marked.png, audio.m4a ...)
+  Notes sent before the login (no user) are claimed by the first account that calls from the same install id.
 Signed in (nginx /brawler-lab/feedback-api/ behind the Oros login, the Brawler Lab's Feedback tab; or over ssh on
 localhost: tools/feedback/fb.py, pull.py):
   GET  /api/list[?status=&category=]        the tracker rows, newest first
@@ -30,6 +37,13 @@ PORT = int(os.environ.get('FEEDBACK_PORT', '8920'))
 PRICES = os.environ.get('FEEDBACK_PRICES', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'prices.json'))
 KEY_FILE = os.environ.get('FEEDBACK_OPENAI_KEY', '/data/oros/secrets/openai.key')
 WHOAMI = os.environ.get('FEEDBACK_WHOAMI', 'http://127.0.0.1:8900/api/whoami')
+INSTALL = re.compile(r'^[0-9a-f-]{8,40}$')
+LEGACY_FLAG = os.path.join(DATA, 'legacy_open')   # exists = players < 0.0.15 may still send without the login (transition)
+
+
+def old_player(v):
+    try: return tuple(int(x) for x in v.split('.')) < (0, 0, 15)
+    except ValueError: return False
 MODELS = ('gpt-4o-mini-transcribe', 'whisper-1')         # the first that answers
 PROMPT = ('Neo Geo brawler game feedback, in English or French. Terms: Terry, Geese, Ryo, Ryuko Ranbu, Kim, Phoenix, '
           'Hanzo, Billy, fury, MAX, grab, throw, hold hits, Chain Lab, brawler, hitbox, combo, special, desperation.')
@@ -75,6 +89,69 @@ def db_init():
             input_text_tokens INTEGER, input_audio_tokens INTEGER, output_tokens INTEGER, usage_json TEXT,
             cost_usd REAL, cost_source TEXT, prices_checked TEXT, by TEXT);
         CREATE INDEX IF NOT EXISTS transcriptions_fb ON transcriptions(feedback_id);''')
+        cols = {r[1] for r in c.execute('PRAGMA table_info(feedback)')}
+        for col in ('user', 'install_id', 'marked'):                  # 0.0.15: the account, its install, a scribble
+            if col not in cols: c.execute(f"ALTER TABLE feedback ADD COLUMN {col} TEXT DEFAULT ''")
+        for col in ('ip', 'user_agent', 'android'):                   # who sent it from where (NULL = unknown)
+            if col not in cols: c.execute(f"ALTER TABLE feedback ADD COLUMN {col} TEXT")
+        tcols = {r[1] for r in c.execute('PRAGMA table_info(transcriptions)')}
+        for col in ('user', 'install_id', 'ip', 'user_agent'):
+            if col not in tcols: c.execute(f"ALTER TABLE transcriptions ADD COLUMN {col} TEXT")
+        for r in c.execute("SELECT id FROM feedback WHERE install_id = ''").fetchall():
+            try: inst = json.load(open(os.path.join(BUNDLES, r['id'], 'received.json'))).get('install', '')
+            except Exception: inst = ''
+            if inst: c.execute('UPDATE feedback SET install_id=? WHERE id=?', (inst, r['id']))
+
+
+NGINX_LOGS = os.environ.get('FEEDBACK_NGINX_LOG', '/var/log/nginx/brawler.log')
+LOGLINE = re.compile(r'^(\S+) (\S+) "(/brawler/feedback/(?:upload|transcribe))" 200 .*? install="([^"]*)" ua="([^"]*)"')
+
+
+def backfill_origin():
+    """notes and transcriptions from before the origin columns: their IP + user agent (+ install) from nginx's
+    brawler log (log rotations included) by time (and install for a note); no match = left NULL"""
+    import glob, gzip, datetime
+    with db() as c:
+        fb = c.execute("SELECT id, install_id, created FROM feedback WHERE ip IS NULL").fetchall()
+        tx = c.execute("SELECT tx_id, at FROM transcriptions WHERE ip IS NULL AND by='player'").fetchall()
+        miss = c.execute("SELECT id FROM feedback WHERE android IS NULL").fetchall()
+    for r in miss:                                            # the device's Android version, from the bundle's meta.json
+        try: a = json.load(open(os.path.join(BUNDLES, r['id'], 'meta.json'))).get('android')
+        except Exception: a = None
+        if a:
+            with lock, db() as c: c.execute('UPDATE feedback SET android=? WHERE id=?', (a, r['id']))
+    with lock, db() as c:                                     # a linked transcription's user = its note's
+        c.execute("UPDATE transcriptions SET user=(SELECT NULLIF(f.user, '') FROM feedback f WHERE f.id=transcriptions.feedback_id) "
+                  "WHERE user IS NULL AND feedback_id != ''")
+    if not fb and not tx: return
+    hits = {'/brawler/feedback/upload': [], '/brawler/feedback/transcribe': []}
+    for p in glob.glob(NGINX_LOGS + '*'):
+        try:
+            with (gzip.open(p, 'rt', errors='replace') if p.endswith('.gz') else open(p, errors='replace')) as f:
+                for line in f:
+                    m = LOGLINE.match(line)
+                    if m: hits[m[3]].append((datetime.datetime.fromisoformat(m[1]).timestamp(), m[2], m[4] if m[4] != '-' else None, m[5]))
+        except OSError as e: log('backfill origin: cannot read', p, e)
+    ts = lambda iso: datetime.datetime.strptime(iso, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc).timestamp()
+    n = 0
+    for r in fb:
+        try: t = ts(json.load(open(os.path.join(BUNDLES, r['id'], 'received.json')))['received'])
+        except Exception: continue
+        c_ = [h for h in hits['/brawler/feedback/upload'] if abs(h[0] - t) <= 120 and (not r['install_id'] or h[2] == r['install_id'])]
+        if not c_: continue
+        h = min(c_, key=lambda h: abs(h[0] - t))
+        with lock, db() as c: c.execute('UPDATE feedback SET ip=?, user_agent=?, install_id=COALESCE(NULLIF(install_id, \'\'), ?) WHERE id=?', (h[1], h[3], h[2] or '', r['id']))
+        n += 1
+    k = 0
+    for r in tx:
+        try: t = ts(r['at'])
+        except Exception: continue
+        c_ = [h for h in hits['/brawler/feedback/transcribe'] if abs(h[0] - t) <= 15]
+        if not c_: continue
+        h = min(c_, key=lambda h: abs(h[0] - t))
+        with lock, db() as c: c.execute('UPDATE transcriptions SET ip=?, user_agent=?, install_id=? WHERE tx_id=?', (h[1], h[3], h[2], r['tx_id']))
+        k += 1
+    log(f'backfill origin: {n} of {len(fb)} notes, {k} of {len(tx)} transcriptions matched in the nginx log')
 
 
 def backup():
@@ -118,12 +195,16 @@ def cost_of(model, usage, seconds):
     return (secs or 0) / 60 * rate, 'usage' if usage.get('type') == 'duration' else 'duration', P['checked'], None, None, None
 
 
-def log_tx(model, usage, seconds, feedback_id='', by='player', at=None, source=None):
+def log_tx(model, usage, seconds, feedback_id='', by='player', at=None, source=None, who=None):
+    """[who] = the caller of a player transcription: {user, install_id, ip, user_agent} ([H.who])"""
     usd, src, checked, ti, ai, out = cost_of(model, usage, seconds)
     tx = secrets.token_hex(8)
+    w = who or {}
     with lock, db() as c:
-        c.execute('INSERT INTO transcriptions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', (tx, at or now(), feedback_id, model, seconds, ti, ai, out,
-                  json.dumps(usage) if usage else '', round(usd, 6), source or src, checked, by))
+        c.execute('INSERT INTO transcriptions (tx_id, at, feedback_id, model, audio_seconds, input_text_tokens, input_audio_tokens, output_tokens, '
+                  'usage_json, cost_usd, cost_source, prices_checked, by, user, install_id, ip, user_agent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                  (tx, at or now(), feedback_id, model, seconds, ti, ai, out, json.dumps(usage) if usage else '', round(usd, 6), source or src,
+                   checked, by, w.get('user'), w.get('install_id'), w.get('ip'), w.get('user_agent')))
     return tx, usd
 
 
@@ -223,17 +304,30 @@ def worker():
 
 
 def account(headers):
-    """who is asking: the Oros user behind the Lab's cookie, else the caller's own "by" (ssh = root on the box)"""
-    cookie = headers.get('Cookie', '')
-    if not cookie: return None
-    hit = ACCOUNTS.get(cookie)
+    """who is asking: the Oros user behind the player's token (Authorization: Bearer) or the Lab's cookie, checked
+    with Oros's /api/whoami (cached 5 min); None = nobody signed in (ssh on localhost: the caller's own "by")"""
+    auth = headers.get('Authorization', '')
+    key, hdr = (auth, {'Authorization': auth}) if auth.startswith('Bearer ') else (headers.get('Cookie', ''), {'Cookie': headers.get('Cookie', '')})
+    if not key: return None
+    hit = ACCOUNTS.get(key)
     if hit and hit[1] > time.time(): return hit[0]
     try:
-        with urllib.request.urlopen(urllib.request.Request(WHOAMI, headers={'Cookie': cookie}), timeout=5) as r:
+        with urllib.request.urlopen(urllib.request.Request(WHOAMI, headers=hdr), timeout=5) as r:
             name = json.load(r).get('username') or None
     except Exception: name = None
-    if name: ACCOUNTS[cookie] = (name, time.time() + 300)
+    if name:
+        if len(ACCOUNTS) > 1000: ACCOUNTS.clear()
+        ACCOUNTS[key] = (name, time.time() + 300)
     return name
+
+
+def claim(user, install):
+    """notes sent from this install before the login (no user) become this account's"""
+    if not user or not INSTALL.match(install or ''): return
+    with lock, db() as c:
+        n = c.execute("UPDATE feedback SET user=? WHERE user IN ('', 'legacy') AND install_id=?", (user, install)).rowcount
+        c.execute("UPDATE transcriptions SET user=? WHERE (user IS NULL OR user='legacy') AND install_id=?", (user, install))
+    if n: log('claimed', n, 'notes of install', install[:8], 'for', user)
 
 
 def row_dict(r): return {k: r[k] for k in r.keys()}
@@ -258,6 +352,8 @@ class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         u = urllib.parse.urlparse(self.path); q = urllib.parse.parse_qs(u.query)
         if u.path in ('/', '/health'): return self.reply(200, {'ok': True})
+        if u.path == '/mine' or u.path.startswith('/mine/'): return self.mine(u.path.split('/')[2:])
+        if u.path == '/dlauth': return self.dlauth()
         if not u.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         parts = u.path.split('/')[2:]
         with db() as c:
@@ -334,6 +430,55 @@ class H(http.server.BaseHTTPRequestHandler):
         if 'notes' in req and req['notes'] != r['notes']: changed.append('notes')
         if changed: c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (r['id'], now(), r['status'], r['status'], by, 'set ' + ' '.join(changed)))
 
+    def dlauth(self):
+        """nginx auth_request for the builds (/brawler/download/): 204 = an Oros token or cookie; or, while
+        LEGACY_FLAG exists, a player older than 0.0.15 (X-App-Version < 0.0.15; its 5 s poll of latest.json sends only
+        X-Install-Id, no version and no token)"""
+        if account(self.headers): return self.reply(204, body=b'')
+        h = self.headers
+        if os.path.exists(LEGACY_FLAG) and not h.get('Authorization') and (
+                old_player(h.get('X-App-Version', '')) or (not h.get('X-App-Version') and INSTALL.match(h.get('X-Install-Id', '')))):
+            return self.reply(204, body=b'')
+        self.reply(401, {'error': 'sign in with your Oros account'})
+
+    # ---- the player's own notes (signed in) ---------------------------------------------------------------------
+    def player(self, legacy=False):
+        """the signed-in account of a player call, or None (401 sent). Transition (until LEGACY_FLAG is removed):
+        a player older than 0.0.15 (no login yet) may still upload and transcribe, logged as user 'legacy'"""
+        user = account(self.headers)
+        if not user and legacy and os.path.exists(LEGACY_FLAG) and old_player(self.headers.get('X-App-Version', '')):
+            return 'legacy'
+        if not user: self.reply(401, {'error': 'sign in with your Oros account'}); return None
+        claim(user, self.headers.get('X-Install-Id', ''))
+        return user
+
+    def who(self, user):
+        """who sent this and from where: the account (or 'legacy'), the install, the client's address as nginx saw
+        it (X-Real-IP, set by the proxy over anything the client sent) and its user agent"""
+        inst = self.headers.get('X-Install-Id', '')
+        return {'user': user, 'install_id': inst if INSTALL.match(inst) else None,
+                'ip': self.headers.get('X-Real-IP') or None, 'user_agent': self.headers.get('User-Agent') or None}
+
+    def mine(self, parts):
+        user = self.player()
+        if not user: return
+        with db() as c:
+            if not parts or parts == ['']:
+                rows = [row_dict(r) for r in c.execute('SELECT id, created, apk_version, game_version, final_text, raw_transcript, category, '
+                        'fighters, status, release, duplicate_of, notes, updated, audio_path, marked, device, android, install_id, ip FROM feedback WHERE user=? ORDER BY created DESC', (user,))]
+                for r in rows:
+                    r['history'] = [row_dict(h) for h in c.execute('SELECT at, from_status, to_status, by, note FROM status_history '
+                                                                   'WHERE feedback_id=? ORDER BY at', (r['id'],))]
+                    d = os.path.join(BUNDLES, r['id'])
+                    r['screen'] = 'screen_marked.png' if os.path.exists(os.path.join(d, 'screen_marked.png')) else 'screen.png' if os.path.exists(os.path.join(d, 'screen.png')) else ''
+                return self.reply(200, {'user': user, 'rows': rows})
+            if len(parts) == 3 and parts[0] == 'file' and ID.match(parts[1]) and NAME.match(parts[2]) and not parts[2].endswith('.state'):
+                if c.execute('SELECT 1 FROM feedback WHERE id=? AND user=?', (parts[1], user)).fetchone():
+                    p = os.path.join(BUNDLES, parts[1], parts[2])
+                    if os.path.exists(p):
+                        return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
+        self.reply(404, {'error': 'not found'})
+
     # ---- POST ---------------------------------------------------------------------------------------------------
     def do_POST(self):
         if self.path == '/transcribe': return self.transcribe()
@@ -344,6 +489,8 @@ class H(http.server.BaseHTTPRequestHandler):
         self.reply(404, {'error': 'not found'})
 
     def transcribe(self):
+        user = self.player(legacy=True)
+        if not user: return
         data = self.body(MAX_AUDIO)
         if data is None: return self.reply(413, {'error': 'size'})
         name = self.headers.get('X-Audio-Name', 'audio.m4a')
@@ -351,11 +498,14 @@ class H(http.server.BaseHTTPRequestHandler):
         t0 = time.time()
         try: text, model, dt, usage = openai_transcribe(name, data)
         except RuntimeError as e: return self.reply(502, {'error': 'transcription unavailable'})
-        tx, usd = log_tx(model, usage, audio_seconds(data=data), '', 'player')
-        log('transcribe (player)', len(data), 'bytes', model, f'{time.time() - t0:.1f}s', len(text), 'chars', f'${usd:.5f}', json.dumps(usage))
+        tx, usd = log_tx(model, usage, audio_seconds(data=data), '', 'player', who=self.who(user))
+        log('transcribe (player)', user, len(data), 'bytes', model, f'{time.time() - t0:.1f}s', len(text), 'chars', f'${usd:.5f}', json.dumps(usage))
         self.reply(200, {'text': text, 'model': model, 'seconds': dt, 'tx_id': tx})
 
     def upload(self):
+        user = self.player(legacy=True)
+        if not user: return
+        who = self.who(user)
         body = self.body(MAX_BODY)
         if body is None: return self.reply(413, {'error': 'size'})
         try: z = zipfile.ZipFile(io.BytesIO(body))
@@ -382,10 +532,13 @@ class H(http.server.BaseHTTPRequestHandler):
             with open(os.path.join(d, 'transcript.txt'), 'w') as f: f.write(raw + '\n')
         with lock, db() as c:
             c.execute('INSERT INTO feedback (id, created, apk_version, game_version, rom_sha, device, raw_transcript, final_text, '
-                      'audio_path, bundle_path, status, updated, transcript_model) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                      'audio_path, bundle_path, status, updated, transcript_model, user, install_id, marked, ip, user_agent, android) '
+                      'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                       (bid, meta.get('created') or now(), meta.get('app_version', ''), meta.get('rom_version', ''), meta.get('rom_sha256', ''),
-                       meta.get('device', ''), raw, meta.get('final_text', ''), audio, d, 'new', now(), meta.get('transcript_model', '')))
-            c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (bid, now(), '', 'new', 'player', meta.get('kind', '')))
+                       meta.get('device', ''), raw, meta.get('final_text', ''), audio, d, 'new', now(), meta.get('transcript_model', ''),
+                       user, self.headers.get('X-Install-Id', '') if INSTALL.match(self.headers.get('X-Install-Id', '')) else '',
+                       '1' if os.path.exists(os.path.join(d, 'screen_marked.png')) else '', who['ip'], who['user_agent'], meta.get('android')))
+            c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (bid, now(), '', 'new', user, meta.get('kind', '')))
         tx = meta.get('transcribe_tx', '')
         if tx and re.match(r'^[0-9a-f]{16}$', tx):
             with lock, db() as c: c.execute("UPDATE transcriptions SET feedback_id=? WHERE tx_id=? AND feedback_id=''", (bid, tx))
@@ -398,7 +551,7 @@ class H(http.server.BaseHTTPRequestHandler):
             if not t: log_tx(meta.get('transcript_model') or MODELS[0], None, secs, bid, 'estimate')
         if audio and not raw: jobs.put(bid)
         jobs.put('rom:' + meta.get('rom_sha256', ''))
-        log('bundle', bid, len(body), 'bytes', meta.get('device'), meta.get('app_version'), 'text' if meta.get('final_text') else 'no text')
+        log('bundle', bid, user, len(body), 'bytes', meta.get('device'), meta.get('app_version'), 'text' if meta.get('final_text') else 'no text')
         self.reply(200, {'id': bid})
 
     def log_message(self, fmt, *a): pass
@@ -410,6 +563,8 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 if __name__ == '__main__':
     os.makedirs(BUNDLES, exist_ok=True); db_init(); backfill()
+    try: backfill_origin()
+    except Exception as e: log('backfill origin failed:', e)
     threading.Thread(target=worker, daemon=True).start()
     with db() as c:                                          # transcripts missed while down
         for r in c.execute("SELECT id FROM feedback WHERE audio_path != '' AND raw_transcript = ''"): jobs.put(r['id'])

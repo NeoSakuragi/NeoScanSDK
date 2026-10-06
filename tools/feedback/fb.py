@@ -32,7 +32,7 @@ def line(r, cost=False):
     text = (r['final_text'] or r['raw_transcript'] or '').replace('\n', ' ')
     rel = f" {r['release']}" if r['status'] == 'shipped' else f" of {r['duplicate_of']}" if r['status'] == 'duplicate' else ''
     tags = ' '.join(x for x in (r['category'], r['fighters']) if x)
-    return f"{r['id']}  {r['created'][:16]}  player {r['apk_version']}  game v{r['game_version']}  {r['status']}{rel}" + \
+    return f"{r['id']}  {r['created'][:16]}  {r.get('user') or '-'}  player {r['apk_version']}  game v{r['game_version']}  {r['status']}{rel}" + \
            (f"  [{tags}]" if tags else '') + (f"  {money(r.get('cost_usd'))}" + (' (est.)' if 'duration' in (r.get('cost_source') or '') else '') if cost else '') + \
            f"  \"{text[:80]}\""
 
@@ -59,10 +59,13 @@ def main():
         elif a.cmd == 'show':
             it = api('item/' + a.id); r = it['row']
             print(line(r))
-            for k in ('raw_transcript', 'final_text', 'notes', 'rom_sha', 'device', 'audio_path', 'bundle_path'): print(f'  {k}: {r[k]}')
+            for k in ('raw_transcript', 'final_text', 'notes', 'rom_sha', 'audio_path', 'bundle_path'): print(f'  {k}: {r[k]}')
+            print(f"  from: {r.get('user') or '-'}, install {r.get('install_id') or '-'}, {r.get('device') or '-'} (Android {r.get('android') or '-'}), "
+                  f"IP {r.get('ip') or '-'}, UA {r.get('user_agent') or '-'}")
             for t in it['transcriptions']:
                 print(f"  cost {money(t['cost_usd'])} ({t['cost_source']}, prices {t['prices_checked']}): {t['model']}, {t['audio_seconds']} s audio, "
-                      f"tokens in text {t['input_text_tokens']} audio {t['input_audio_tokens']} out {t['output_tokens']}")
+                      f"tokens in text {t['input_text_tokens']} audio {t['input_audio_tokens']} out {t['output_tokens']}; "
+                      f"from {t.get('user') or '-'}, install {t.get('install_id') or '-'}, IP {t.get('ip') or '-'}, UA {t.get('user_agent') or '-'}")
             for h in it['history']: print(f"  {h['at']}  {h['from_status'] or '-'} -> {h['to_status']}  by {h['by']}  {h['note']}")
         elif a.cmd == 'status':
             body = {'id': a.id, 'status': a.status, 'note': a.note, 'by': 'fb.py'}

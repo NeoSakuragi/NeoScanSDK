@@ -1,6 +1,6 @@
 /* Brawler Lab, Feedback tab: the NeoScan Player's voice / text feedback (docs/feedback.md). The list comes from the
  * feedback service's API (tools/feedback/server.py) at feedback-api/ (nginx, behind the same Oros login as the Lab):
- * date, versions, the note as sent (the raw transcript under it), status and release as text, the voice (play),
+ * date, the user (Oros account, Player 0.0.15+), versions, the note as sent (the raw transcript under it), status and release as text, the voice (play),
  * the screenshot; filters by status and category; category (dropdown) and fighters editable here. Status changes go
  * through tools/feedback/fb.py. Replay (fbreplay.js): the note's game build (feedback-api/rom/<sha>, cached by the
  * browser), the page's BIOS, the kept state before the last 10 s, then the logged inputs to the press with sound;
@@ -32,7 +32,8 @@
     rbox.textContent = '';
     const st = h('p', { class: 'mono' }, 'Loading the note and the game build (12 MB the first time)…');
     const cv = h('canvas', { width: 304, height: 224, class: 'fbscreen' });
-    const shot = h('img', { src: API + 'file/' + r.id + '/screen.png', class: 'fbscreen', alt: 'press screenshot' });
+    // Player 0.0.15: his drawing over the press screenshot (screen_marked.png); the replay's check stays on the clean screen.png
+    const shot = h('img', { src: API + 'file/' + r.id + (r.marked ? '/screen_marked.png' : '/screen.png'), class: 'fbscreen', alt: 'press screenshot' });
     const pos = h('span', { class: 'mono' }, '');
     const res = h('p', { class: 'mono' }, '');
     const bPlay = h('button', { onclick: () => toggle() }, 'Play');
@@ -73,7 +74,7 @@
       h('div', { class: 'in' },
         h('p', {}, (r.final_text || r.raw_transcript || '').slice(0, 300)),
         h('div', { class: 'fbpair' }, h('figure', {}, cv, h('figcaption', {}, 'replay (the last 10 s before the press)')),
-                                      h('figure', {}, shot, h('figcaption', {}, 'the player\'s screen at the press'))),
+                                      h('figure', {}, shot, h('figcaption', {}, r.marked ? 'the player\'s screen at the press, with his drawing' : 'the player\'s screen at the press'))),
         h('div', { class: 'row' }, bPlay,
           h('button', { onclick: () => { if (!R || playing || R.frame >= R.P) return; sound(null); R.step(); R.checkSnap(); draw(); if (R.frame >= R.P) atPress(); } }, 'Step 1 frame'),
           h('label', {}, 'Speed ', h('select', { onchange: e => { speed = +e.target.value; } },
@@ -147,7 +148,10 @@
           h('tr', {}, ['When / id', 'Versions', 'Note', 'Status', 'Category / fighters', 'Replay / voice / picture', 'Cost'].map(t => h('th', {}, t))),
           shown.map(r => h('tr', {},
             h('td', { class: 'mono' }, r.created.slice(0, 16).replace('T', ' '), h('br'), r.id),
-            h('td', {}, 'player ' + r.apk_version, h('br'), 'game v' + r.game_version, h('br'), h('span', { class: 'small' }, r.device)),
+            h('td', {}, r.user ? h('b', {}, r.user) : h('span', { class: 'small' }, '(before the login)'), h('br'), 'player ' + r.apk_version, h('br'), 'game v' + r.game_version, h('br'),
+              h('span', { class: 'small' }, (r.device || '?') + (r.android ? ', Android ' + r.android : '')), h('br'),
+              h('span', { class: 'small mono', title: 'install id / client IP as nginx saw it / user agent (internal: behind the Lab login)' },
+                'install ' + (r.install_id || '-').slice(0, 8) + ', IP ' + (r.ip || '-'), h('br'), r.user_agent || '')),
             h('td', { class: 'txt' }, h('div', {}, r.final_text || '(no text typed)'),
               r.raw_transcript && !(r.final_text || '').includes(r.raw_transcript) ? h('div', { class: 'small' }, 'transcript: ' + r.raw_transcript) : null,
               r.notes ? h('div', { class: 'small' }, 'notes: ' + r.notes) : null),
@@ -162,7 +166,11 @@
             h('td', {},
               h('button', { onclick: () => { openReplay(r); col.scrollIntoView({ behavior: 'smooth' }); } }, 'Replay'), h('br'),
               r.audio_path ? h('button', { onclick: e => play(e.target, r) }, '▶ Voice') : h('span', { class: 'small' }, 'no voice'),
-              h('br'), h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank' }, 'screenshot')),
+              h('br'), r.marked
+                ? h('a', { href: API + 'file/' + r.id + '/screen_marked.png', target: '_blank' },
+                    h('img', { src: API + 'file/' + r.id + '/screen_marked.png', alt: 'marked screenshot', loading: 'lazy', style: 'width:152px;display:block;border:1px solid #000' }), 'marked screenshot')
+                : h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank' }, 'screenshot'),
+              r.marked ? h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank', class: 'small' }, ' (clean)') : null),
             h('td', { class: 'mono' }, r.cost_usd == null ? '-' : '$' + r.cost_usd.toFixed(4), (r.cost_source || '').includes('duration') ? h('div', { class: 'small' }, 'estimated') : null)))))));
   }
 

@@ -62,6 +62,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        if (!Auth.signedIn(this)) { toLogin(); return }                // Player 0.0.15: the Oros login first
+        Auth.onSignedOut = { runOnUiThread { toLogin() } }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -83,8 +85,13 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    private fun toLogin() {
+        emu?.paused = true
+        startActivity(android.content.Intent(this, LoginActivity::class.java)); finish()
+    }
+
     private fun startGame(sys: File, save: File, rom: File) {
-        val root = android.widget.FrameLayout(this)
+        val root = android.widget.FrameLayout(this); this.root = root
         gl = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
             renderer = EmuRenderer { emu }
@@ -130,62 +137,120 @@ class MainActivity : Activity() {
 
     /** the mic button (docs/feedback.md): press = the game is captured and the voice records, release = the bundle is
      *  sent (or queued). The microphone permission is asked once, on the first press (that press records nothing);
-     *  refused, bundles go without the voice. */
+     *  refused, bundles go without the voice. From the press the frozen screenshot is a drawing canvas ([Ink]): red /
+     *  green pen, undo, clear, while he talks; at the release the note box comes under it (the canvas stays live). */
     private lateinit var feedback: Feedback
-    private var noteOpen = false                                       // the note box is up: the game stays paused
+    private lateinit var root: android.widget.FrameLayout
+    private var noteOpen = false                                       // the scribble + note box is up: the game stays paused
+    private var sheet: Sheet? = null
+    private var pending: android.graphics.Bitmap? = null               // the screenshot, if it came before the sheet
     private fun onFeedback(down: Boolean) {
         val granted = checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val fp = getSharedPreferences("feedback", 0)
         if (down) {
+            if (noteOpen) return
             if (!granted && !fp.getBoolean("micAsked", false)) {
                 fp.edit().putBoolean("micAsked", true).apply()
                 requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 1); return
             }
             emu?.paused = true; noteOpen = true                        // frozen at the press, until Send / Cancel
-            feedback.start(granted)
+            var sh: Sheet? = null
+            feedback.start(granted) { b -> runOnUiThread { sh?.ink?.shot = b; if (sh == null) pending = b } }
+            sh = Sheet().also { sheet = it; pending?.let { b -> it.ink.shot = b }; pending = null }
         } else if (feedback.recording) {
             val voice = feedback.stop() >= Feedback.MIN_MS
-            noteBox(voice)
+            sheet?.noteBox(voice)
         }
     }
 
-    /** the note box: the transcript (fetched now, ~2 s) to correct or extend with the keyboard, or empty for a typed
-     *  note (a tap) or when the transcription is unavailable; Send = the bundle goes, Cancel = dropped; both resume */
-    private fun noteBox(voice: Boolean) {
+    /** the scribble sheet over the whole screen: a tool row (pen colour, undo, clear, the recording time), the
+     *  screenshot canvas, and after the release the note box (the transcript to correct, or a typed note) with Send /
+     *  Cancel; both resume the game */
+    private inner class Sheet {
         val dp = resources.displayMetrics.density
-        val edit = android.widget.EditText(this).apply {
-            minLines = 3; maxLines = 8; gravity = Gravity.TOP or Gravity.START
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-                android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-            hint = if (voice) "Transcribing..." else "Type a note"
-        }
-        val info = TextView(this).apply { textSize = 13f; alpha = 0.7f; text = if (voice) "Transcribing your voice..." else "A note with the last minute's replay" }
-        val col = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL; val m = (16 * dp).toInt(); setPadding(m, m / 2, m, 0)
-            addView(info); addView(edit)
-        }
+        val ink = Ink.View(this@MainActivity)
+        val col = android.widget.LinearLayout(this@MainActivity).apply { orientation = android.widget.LinearLayout.VERTICAL; setBackgroundColor(android.graphics.Color.BLACK) }
+        val status = TextView(this@MainActivity).apply { textSize = 15f; setTextColor(android.graphics.Color.rgb(255, 90, 90)); setPadding((10 * dp).toInt(), 0, 0, 0) }
+        val panel = android.widget.LinearLayout(this@MainActivity).apply { orientation = android.widget.LinearLayout.VERTICAL; visibility = View.GONE
+            val m = (12 * dp).toInt(); setPadding(m, m / 2, m, m / 2); setBackgroundColor(android.graphics.Color.rgb(28, 28, 34)) }
         var raw = ""; var model = ""; var failed = false
-        val dlg = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Feedback").setView(col).setCancelable(false)
-            .setPositiveButton("Send") { _, _ ->
-                feedback.send(edit.text.toString().trim(), raw, model, failed) { sent -> runOnUiThread { toast(if (sent) "Feedback sent" else "Queued") } }
-                noteOpen = false; emu?.paused = false
+        lateinit var edit: android.widget.EditText
+        private val ticker = object : Runnable { override fun run() {
+            if (!feedback.recording) return
+            status.text = "\u25CF Recording ${(android.os.SystemClock.uptimeMillis() - t0) / 1000}s: draw on the picture, release the mic to finish"
+            status.postDelayed(this, 250) } }
+        private val t0 = android.os.SystemClock.uptimeMillis()
+
+        init {
+            val bar = android.widget.LinearLayout(this@MainActivity).apply { orientation = android.widget.LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                val m = (6 * dp).toInt(); setPadding(m, m, m, m) }
+            val sz = (52 * dp).toInt()
+            val pen = object : View(this@MainActivity) {
+                val pt = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+                override fun onDraw(c: android.graphics.Canvas) {
+                    pt.style = android.graphics.Paint.Style.FILL; pt.color = ink.color; c.drawCircle(width / 2f, height / 2f, width * 0.36f, pt)
+                    pt.style = android.graphics.Paint.Style.STROKE; pt.strokeWidth = 3 * dp; pt.color = android.graphics.Color.WHITE
+                    c.drawCircle(width / 2f, height / 2f, width * 0.42f, pt)
+                }
+            }.apply { contentDescription = "pen colour"; setOnClickListener { ink.color = if (ink.color == Ink.RED) Ink.GREEN else Ink.RED; invalidate() } }
+            fun btn(t: String, f: () -> Unit) = android.widget.Button(this@MainActivity).apply { text = t; textSize = 15f; setOnClickListener { f() } }
+            bar.addView(pen, android.widget.LinearLayout.LayoutParams(sz, sz))
+            bar.addView(btn("Undo") { ink.undo() }, android.widget.LinearLayout.LayoutParams(-2, sz).apply { leftMargin = (8 * dp).toInt() })
+            bar.addView(btn("Clear") { ink.clear() }, android.widget.LinearLayout.LayoutParams(-2, sz))
+            bar.addView(status, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+            col.addView(bar, android.widget.LinearLayout.LayoutParams(-1, -2))
+            col.addView(ink, android.widget.LinearLayout.LayoutParams(-1, 0, 1f))
+            col.addView(panel, android.widget.LinearLayout.LayoutParams(-1, -2))
+            col.isClickable = true                                        // nothing under the sheet gets a touch
+            root.addView(col, android.widget.FrameLayout.LayoutParams(-1, -1))
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN or WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN)
+            if (feedback.recording) ticker.run() else status.text = "Draw on the picture"
+        }
+
+        /** the release: the note box under the canvas; the transcript (fetched now, ~2 s) to correct or extend, or empty
+         *  for a typed note (a tap) or when the transcription is unavailable */
+        fun noteBox(voice: Boolean) {
+            status.removeCallbacks(ticker); status.setTextColor(android.graphics.Color.rgb(200, 200, 210))
+            status.text = "Draw on the picture"
+            edit = android.widget.EditText(this@MainActivity).apply {
+                minLines = 2; maxLines = 5; gravity = Gravity.TOP or Gravity.START
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                    android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                hint = if (voice) "Transcribing..." else "Type a note"
             }
-            .setNegativeButton("Cancel") { _, _ -> feedback.cancel(); noteOpen = false; emu?.paused = false }
-            .create()
-        dlg.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-        dlg.show()
-        edit.requestFocus()
-        if (voice) Thread {
-            val r = feedback.transcribe()
-            runOnUiThread {
-                if (r != null) {
-                    raw = r.first; model = r.second
-                    if (edit.text.isEmpty()) { edit.setText(r.first); edit.setSelection(edit.text.length) }
-                    info.text = "Correct or add to it, then Send"
-                } else { failed = true; info.text = "Transcription unavailable: your voice goes with the bundle"; edit.hint = "Type a note (optional)" }
-            }
-        }.start()
+            val info = TextView(this@MainActivity).apply { textSize = 13f; alpha = 0.7f; text = if (voice) "Transcribing your voice..." else "A note with the last minute's replay" }
+            // the buttons share the line above the box: the keyboard (pan mode) never hides them
+            val row = android.widget.LinearLayout(this@MainActivity).apply { orientation = android.widget.LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            row.addView(info, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(android.widget.Button(this@MainActivity).apply { text = "Cancel"; setOnClickListener { feedback.cancel(); close() } })
+            row.addView(android.widget.Button(this@MainActivity).apply { text = "Send"; setOnClickListener {
+                feedback.send(edit.text.toString().trim(), raw, model, failed, ArrayList(ink.strokes)) { sent -> runOnUiThread { toast(if (sent) "Feedback sent" else "Queued") } }
+                close() } })
+            panel.addView(row, android.widget.LinearLayout.LayoutParams(-1, -2)); panel.addView(edit, android.widget.LinearLayout.LayoutParams(-1, -2))
+            panel.visibility = View.VISIBLE
+            if (voice) Thread {
+                val r = feedback.transcribe()
+                runOnUiThread {
+                    if (r != null) {
+                        raw = r.first; model = r.second
+                        if (edit.text.isEmpty()) { edit.setText(r.first); edit.setSelection(edit.text.length) }
+                        info.text = "Correct or add to it, then Send"
+                    } else { failed = true; info.text = "Transcription unavailable: your voice goes with the bundle"; edit.hint = "Type a note (optional)" }
+                }
+            }.start()
+        }
+
+        fun close() {
+            status.removeCallbacks(ticker)
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(col.windowToken, 0)
+            root.removeView(col); sheet = null
+            noteOpen = false; emu?.paused = false
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        }
+    }
+    @Deprecated("the back key cancels an open note") override fun onBackPressed() {
+        val sh = sheet
+        if (sh != null) { if (feedback.recording) feedback.stop(); feedback.cancel(); sh.close() } else @Suppress("DEPRECATION") super.onBackPressed()
     }
     private fun toast(t: String) = android.widget.Toast.makeText(this, t, android.widget.Toast.LENGTH_SHORT).show()
 

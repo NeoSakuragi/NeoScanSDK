@@ -43,7 +43,44 @@ minute. Built 2026-10-06, Player 0.0.13.
 | `audio.m4a` | the voice |
 | `meta.json` | versions: player name and code, game version, build and ROM sha256 (of the loaded file), the sha256 latest.json gave, BIOS sha256, hardware (mvs / aes), BIOS type, region, device, Android, install id, frames; `raw_transcript`, `final_text`, `kind` (voice or text) |
 
-No login is needed, like the ROM download. The public calls are size capped and rate limited by nginx.
+**The Oros login (Player 0.0.15).** Every player call needs an Oros account (the same as canneji.duckdns.org/oros/).
+- **First start:** a sign-in screen (`LoginActivity`). The username and password go to `/oros/api/login`, which gives a
+  JWT valid 30 days. `Auth.kt` keeps the token and the password in SharedPreferences `auth`, AES/GCM-encrypted with an
+  Android Keystore key, the same way Oros's SecureStore does. Without a keystore, nothing is saved.
+- **Refresh, as the Oros app does** (its server has no refresh call): a new login with the saved password when the
+  token is within 7 days of expiry, or when a call is refused (401). A password the server rejects is dropped and the
+  sign-in screen comes back. A network failure keeps everything, so the cached build still plays offline.
+- **Logout:** in the settings (Account). It clears the stored sign-in and restarts on the sign-in screen.
+- **Every call carries `Authorization: Bearer <token>`:** latest.json, the ROM, transcribe, upload and the note list.
+  The server ties each note to the account. Notes an install sent before the login are claimed by the first account
+  that calls from the same install id.
+- **Queued bundles:** 0.0.15 sends again, once, the bundles an older player had marked `.rejected`.
+- **Public:** only `/brawler/download/neoscan-player.apk`, so a new user can install the player.
+- **Transition:** while `/data/brawler/feedback/legacy_open` exists on the VPS, players older than 0.0.15 may still
+  upload, transcribe and fetch builds without a token (user "legacy"). Deleting the file ends the transition; no
+  restart is needed.
+
+**Origin of every note and transcription:**
+- the user (Oros account or "legacy"), the install id, and the device and Android version (meta.json);
+- the client IP as nginx saw it (`X-Real-IP`, set by the proxy over anything the client sends) and the user agent.
+
+These are columns in `feedback` and `transcriptions`. Rows from before were filled from nginx's `brawler.log` by time
+and install. They show in `fb.py show`, the Lab tab and the player's own list (its user's notes only). They never
+appear on a public page.
+
+**Scribble (0.0.15).** From the mic press (or the typed-note tap), the frozen screenshot fills the screen as a
+drawing canvas (`Ink.kt`).
+- One finger draws while another holds the mic. Pen: red / green (the round button), Undo, Clear.
+- At the release, the note box comes up under the canvas, and the canvas stays live until Send or Cancel.
+- The bundle keeps `screen.png` clean (the replay checks it). `annotation.png` holds the strokes alone, on
+  transparent. `screen_marked.png` is the screenshot with the strokes. Both are 4x the screenshot.
+- pull.py's report and contact sheet use the marked picture, and so does the Lab tab, with the clean one linked.
+
+**My feedback (0.0.15, Settings > My feedback notes):** his notes, newest first, from `GET /brawler/feedback/mine`.
+- Each card has the date, the versions, the origin, the note, category and fighters, and the status with its history
+  and the developer's notes.
+- The screenshot (the marked one; tap for full screen) and the voice (play / stop) come with the token.
+- Pull down or press Refresh to reload. The list is read-only.
 
 ## On the VPS (tools/feedback/server.py, deploy_vps.sh)
 
@@ -59,12 +96,17 @@ No login is needed, like the ROM download. The public calls are size capped and 
   - Measured: a 60 s clip takes 2.0–2.5 s, from the upload to the text coming back.
 - **nginx:** in `sites-enabled/kanji`, the block between the `brawler-feedback` markers. `deploy_vps.sh` rewrites it
   on every deploy.
-  - `POST /brawler/feedback/upload` and `POST /brawler/feedback/transcribe` are public.
+  - `POST /brawler/feedback/upload` and `POST /brawler/feedback/transcribe` are size and rate capped. The service
+    requires the Oros token (see the transition above). `GET /brawler/feedback/mine[/file/<id>/<name>]` is behind
+    the Oros login.
+  - `/brawler/download/` (the builds) uses `auth_request` to the service's `/dlauth` (the token, or a player older
+    than 0.0.15 during the transition). The APK link is public.
   - `/brawler-lab/feedback-api/` maps to `/api/`, behind the Oros login (`auth_request /jlpt-auth`). The Lab's tab
     uses it.
 - **Tracker tables:**
   - `feedback`: id, created, apk_version, game_version, rom_sha, device, raw_transcript, final_text, audio_path,
-    bundle_path, status, release, notes, updated, category, fighters, duplicate_of.
+    bundle_path, status, release, notes, updated, category, fighters, duplicate_of, user, install_id, marked, ip,
+    user_agent, android.
   - `status_history`: feedback_id, at, from_status, to_status, by, note.
 - **Statuses:** new → read (pulled) → in_progress → shipped (with a release, e.g. 0.0.71), wont_do, or duplicate (of
   another id).

@@ -11,7 +11,7 @@ import java.net.URL
 import java.security.MessageDigest
 
 /** Auto-fetch of the latest build: <base>/latest.json = {version, build, file, size, sha256} (examples/brawler
- *  `make publish-vps`), base = canneji.duckdns.org/brawler/download/ (public); every request carries X-Device /
+ *  `make publish-vps`), base = canneji.duckdns.org/brawler/download/ (behind the Oros login since 0.0.15: [Auth]); every request carries X-Device /
  *  X-Android / X-App-Version / X-Rom-Version / X-Install-Id for the server's update log.
  *  A newer build than the one installed is downloaded next to the ROM, checked (size + sha256) and swapped in; any
  *  failure (offline, server down, bad file) keeps the cached ROM. Base URL: BuildConfig.ROM_URL, or another one set
@@ -20,6 +20,7 @@ object RomFetch {
     private const val TAG = "NeoScanPlayer"
 
     fun configure(ctx: Context, url: String?) {
+        this.ctx = ctx.applicationContext
         if (url != null) ctx.getSharedPreferences("fetch", 0).edit().putString("url", url.trimEnd('/') + "/").apply()
     }
 
@@ -80,10 +81,16 @@ object RomFetch {
 
     fun installed(ctx: Context): String = ctx.getSharedPreferences("fetch", 0).getString("version", null) ?: "?"
 
-    private fun get(url: String, hdr: Map<String, String>): HttpURLConnection =
-        (URL(url).openConnection() as HttpURLConnection).apply {
+    /** the builds are behind the Oros login since Player 0.0.15: every request carries the token ([Auth]) */
+    private var ctx: Context? = null
+    private fun get(url: String, hdr: Map<String, String>): HttpURLConnection {
+        val open = { tok: String? -> (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 3000; readTimeout = 10000
             for ((k, v) in hdr) setRequestProperty(k, v)
-            if (responseCode != 200) throw java.io.IOException("$url: HTTP $responseCode")
-        }
+            if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+        } }
+        val c = ctx?.let { Auth.call(it, open) } ?: open(null)
+        if (c.responseCode != 200) throw java.io.IOException("$url: HTTP ${c.responseCode}")
+        return c
+    }
 }
