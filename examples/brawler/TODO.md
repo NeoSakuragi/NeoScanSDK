@@ -501,6 +501,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   damage) per the extract-all-variants rule; store them in the variant table (the Billy job builds it), the brawler
   plays its latched rule; sheet WHP vs brawler per variant. Close the feedback row as shipped with the release.
 
+- [ ] 148. HAOHMARU'S REAL FURY (feedback 20261006-155538-b3f3, Bruno in play, 0.0.71: "I'm not sure that's the fury of
+  Haohmaru in Samurai Shodown." The replay shows the fury = "BUST 236D", a powered single flaming slash). Find in
+  SAMURAI SHODOWN IV's code his true super moves (its own engine: tools/samsho4, /data/neogeo_dict/samsho4/README.md):
+  the Weapon Flipping Technique (rage-full super) and the Rage Explosion's Issen, their commands, conditions,
+  handlers, objects, variants; D = the WFT, down+D = the stronger one (Issen or the WFT's variant, say why); decoded,
+  not recorded; super flash, fury invincibility, crowd rules; sheet SS4 vs brawler. Close the feedback row as shipped.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
