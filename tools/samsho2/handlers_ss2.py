@@ -527,7 +527,7 @@ def cards(B, v):
     cyc = play_anim(12, 264)
     fl = [cyc[k % len(cyc)] for k in range(life + 2)]
     rows = obj_rows(B, 12, fl, 76 + vx, vx, 59) + [r[:3] + [None, None] for r in obj_rows(B, 12, play_anim(12, brk), 76 + vx * (life + 2), 0, 59)]
-    endr = [[r[0], 0, 59] for r in obj_rows(B, 12, play_anim(12, brk))]
+    endr = [[r[0], 0, 0] for r in obj_rows(B, 12, play_anim(12, brk))]   # in place: at the hit's height (bpend_t y from it, TODO #164)
     return {'kind': 1, 'rows': rows, 'loop': None, 'end': endr, 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': vx * (life + 2),
             'vx': vx, 'name': 'CARDS', 'ss2': {'type': 10, 'anim': 264, 'break': brk}}
@@ -542,7 +542,7 @@ def kparody(B, k):
     vx = N.s16(0x6BB0E + 2 * k) / 256
     cyc = play_anim(17, a)
     rows = obj_rows(B, 17, cyc, dx + vx, vx, -dy)
-    endr = [[r[0], 0, -dy] for r in obj_rows(B, 17, play_anim(17, end))]
+    endr = [[r[0], 0, 0] for r in obj_rows(B, 17, play_anim(17, end))]   # in place: at the hit's height (bpend_t y from it, TODO #164)
     return {'kind': 1, 'rows': rows, 'loop': 0, 'end': endr, 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 300, 'vx': vx,
             'name': f'PARODY{k}', 'ss2': {'type': 25, 'which': k, 'anim': a, 'end': end}}
@@ -553,7 +553,7 @@ def kcrescent(B, k):
     vx = N.s16(0x6BB20) / 256
     first = play_anim(17, 46); cyc = play_anim(17, 49)
     rows = obj_rows(B, 17, first, 72, 0, 56) + obj_rows(B, 17, cyc, 72 + vx, vx, 56)
-    endr = [[r[0], 0, 56] for r in obj_rows(B, 17, play_anim(17, 55))]
+    endr = [[r[0], 0, 0] for r in obj_rows(B, 17, play_anim(17, 55))]   # in place: at the hit's height (bpend_t y from it, TODO #164)
     return {'kind': 1, 'rows': rows, 'loop': len(first), 'end': endr, 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 300, 'vx': vx,
             'name': 'KCRESCENT', 'ss2': {'type': 24}}
