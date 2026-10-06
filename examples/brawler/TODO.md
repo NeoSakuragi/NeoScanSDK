@@ -832,6 +832,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   objects; flag / referee gags included), exported like Genjuro (variant table, rage move = fury, strongest = MAX,
   throws via #146), voices, palettes, frame check; how he is unlocked in SS2 noted (the brawler: selectable).
 
+- [ ] 177. (found by #174) (a) the Lab deploy is broken since #163's merge: tools/brawler/chainlab/make_site.py
+  KeyError 'states' — fix and redeploy the Lab with 0.0.77+; (b) the game does unaligned word writes into `in[]`
+  (Geolith logs them; a real 68000 raises an address error on an odd word access): find and fix (proof: no unaligned
+  access logged over campaign29).
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
