@@ -22,9 +22,9 @@ slots** (neutral, forward, down, up, down-forward, up-forward), **D plays the fu
 names in the data and below keep game.json's keys D / fD / dD / uD / dfD / ufD = C neutral / forward / down / up /
 down-forward / up-forward; a follow-up link's `again` = C with the move's own direction.
 
-128 moves are in the game (19 fighters x 6 C slots + fury, minus empty slots; Haohmaru's BUST 236D is both his up+C and
-his fury): **95 played from the ROM** (KOF98 / 96 / 99 programs, `bspec_t.prog`) and **33 recorded** (a captured
-per-frame script). By source: KOF98 76, KOF96 28, KOF99 7, Kizuna 6, WHP 6, SS4 5. Every SS4, WHP and Kizuna move is
+129 moves are in the game (19 fighters x 6 C slots + fury, minus empty slots; Haohmaru's BUST 236D is both his up+C and
+his fury): **95 played from the ROM** (KOF98 / 96 / 99 programs, `bspec_t.prog`) and **34 recorded** (a
+per-frame script). By source: KOF98 76, KOF96 28, KOF99 7, Kizuna 6, WHP 7, SS4 5. Every SS4, WHP and Kizuna move is
 recorded; so are 16 KOF moves.
 
 ## 1. The standard features
@@ -74,7 +74,7 @@ friction, px boxes from the feet, frames at 60 Hz).
 
 | feature | parameters | semantics | implemented by | moves |
 |---|---|---|---|---|
-| `inv.fury` | - | Untouchable from the trigger to the end (hits, grabs, pushes). | INV_FURY (start_special, every fury) | 18 (98 11 96 4 99 1 SS4 1 KZ 1) |
+| `inv.fury` | - | Untouchable from the trigger to the end (hits, grabs, pushes). | INV_FURY (start_special, every fury) | 19 (98 11 96 4 99 1 SS4 1 KZ 1 WHP 1) |
 | `hold.dance` | - | **Engine rule** (Bruno 2026-10-06, 0.0.67), every fury: a fighter a fury hits is its dance victim (`fighter_t.dance`). While the fury plays: (a) the victim stays in its reel (no recovery, no special out of the hit) and does not fall when its life runs out: a hit whose reaction is a reel keeps it up, the knockdown / launch comes only with a hit that has one (the finisher); a fury holding its caught victim (`hold.held_reel`) holds the whole crowd it hits (every hit a reel in place, its caught target kept); when the fury ends, a victim still reeling with no life left falls; (c) from the first hit until the victim is down, the victim and the fury stay on screen: the screen edge is a wall (`DANCE_EDGE` 40 px in: the whole body shows), the attacker held back by what its reeling target was held back (it stops advancing), a launched victim's flight moves nobody. Chosen over a camera that follows: the campaign locks the camera in the waves. | fighter.c dancing / dance_update (after main.c camera) | every fury |
 | `fx.death_voice` | - | **Engine rule** (Bruno 2026-10-06, 0.0.67): the KO voice plays once per death, when the fighter dies (enters S_DEAD: it lies dead and blinks out, or a player loses a life), never on the hits: a hit plays the hit voice only while the victim has life left (a dance that kills mid-sequence used to repeat the KO voice on every later hit). | fighter.c (S_DOWN -> S_DEAD, fighter_hit, throw impacts) | every fighter |
 | `inv.reversal` | frames (int, 0..nrows) | Invincible for the first N frames (up to the last hit or apex). | bspec_t.inv_rows, applied on the down+C slot only (fighter.c) | 19 (98 11 96 4 99 1 SS4 1 WHP 1 KZ 1) |
@@ -221,6 +221,7 @@ shows which existing features the move would use). Machine-readable: `missing.js
 | hanzo 623B [dD] | 129 | decode.whp | a (after analysis) |
 | hanzo 214C [uD] | 130 | decode.whp | a (after analysis) |
 | hanzo 214D [ufD] | 132 | decode.whp | a (after analysis) |
+| hanzo 65426AC [fury] + MAX (hero) | - | none: script generated from the ROM model (tools/whp/handlers_whp.py, frame-identical to WHP, hanzo_fury_proof.py); parts dive / landing / ninja sequence, carry | done |
 | kim 236C [fD] | 134 | decode.kizuna | a (after analysis) |
 | kim 214B [D] | 133 | decode.kizuna | a (after analysis) |
 | kim [2]8C [dD] | 135 | decode.kizuna | a (after analysis) |

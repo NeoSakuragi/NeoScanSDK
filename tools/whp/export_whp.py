@@ -16,7 +16,7 @@ y up negative); a step's attack box is live when its flags have $0800 (the game'
 last command 8 of the animation; body boxes are the def's (box 0, the broad box, left out).
 Colour sets: A = palette $10, B = $11 (the navy costume); the effect palettes (the projectile cycles $80 / $82 / $83,
 its impact $9D / $9E / $9F / $3E) the same in both: 8 palettes, the brawler's MAX_PALS.
-Known limits: the desperation moves (WHP's hero gauge, a full gauge needed) and throws are not captured; no hop
+The desperation move and its hero version: fury() (from tools/whp/handlers_whp.py's model). Known limits: throws are not captured; no hop
 (WHP has one jump height: hop_* = jump_*); no trip reaction in WHP (a sweep gives the standing heavy reaction):
 trip = the knockdown's start."""
 import json, os, sys
@@ -249,6 +249,67 @@ def special(B, inp, cap):
             'shape': [max(r[1] for r in script), max(r[2] for r in script), bool(pjs)],
             'game_hits': sum(1 for j in range(s0 + 1, e) if fr[j][1][0] != fr[j - 1][1][0] and fr[j - 1][1][0] in (4, 5))}
 
+# The desperation move (tools/whp/handlers_whp.py: the command, the hooks, the model; README "Desperation move"):
+# 6 5 4 2 6 + A+C with the life under half. $128 crouch, jump back to the screen bound, hang, dive (box $A2); a dive
+# that lands a hit goes on to the ninja sequence (steps 13.. + $129: vanish, five strikes placed from the victim, the
+# last with a mirrored clone), a whiff lands ($128 steps 10..11, $1B). Hero version (the gauge full: down+D, the MAX):
+# $12A / $12B, one more rising strike. Played from the model (the ROM's steps + Hanzou's hooks, frame-identical to WHP,
+# handlers_whp.py --check); the brawler has no fixed screen bound: the hang comes after EDGE_AFTER frames of flight
+# (the reference geometry: the vs. state's round-start places), the hero DM's 56-frame freeze (fp+$4141) is WHP's own
+# super flash (the brawler's engine rule stands in for it), WHP's one-frame white backdrop at each teleport and the hit
+# sparks are left to the brawler. The victim is held where WHP held it (its floating reel FF, carry) until the last
+# strike; the effects (the kanji, the smoke at the victim, the clone) as WHP drew them in the reference run.
+DM_INPUT = '65426AC'
+EDGE_AFTER = 8
+
+def fury(B, hero=False):
+    import handlers_whp as H
+    refs = json.load(open(H.REF))
+    rec = 'dmh' if hero else 'dm'
+    rel = 0x12A if hero else 0x128
+    hit = refs[rec + '_hit']; fr = hit['frames']
+    vic = lambda k: tuple(fr[min(k, len(fr) - 1)]['p2'])
+    mw = H.play('hanzo', rel, edge_after=EDGE_AFTER)                                   # the dive whiffs
+    mh = H.play('hanzo', rel, victim=vic, hit_frames=set(hit['hits'][:1]), edge_after=EDGE_AFTER)   # the dive connects
+    land = next(k for k, r in enumerate(mw) if r['anim'] == rel and r['step'] == 10)    # the landing row (step 10)
+    for k in range(land + 1):
+        assert (mw[k]['defw'], mw[k]['x'], mw[k]['y']) == (mh[k]['defw'], mh[k]['x'], mh[k]['y']), k
+    dive = [k for k in range(land) if mw[k]['live'] is not None]
+    rows = mw[:land + 1] + mw[land + 1:] + mh[land + 1:]
+    parts = [{'first': 0, 'end': land + 1, 'next': 1}, {'first': land + 1, 'end': len(mw), 'next': None},
+             {'first': len(mw), 'end': len(rows), 'next': None}]
+    links = [{'from': 0, 'to': 2, 'on': 'hit', 'input': None, 'window': [dive[0], land + 1], 'at': 'end'}]
+    script, rboxes, rsteps, carry = [], [], [], []
+    hk = [k for k in range(land + 1, len(mh)) if mh[k]['live'] is not None and (k == 0 or mh[k - 1]['live'] is None)]
+    last = hk[-1] if hk else len(mh)                      # the last strike's first row: the victim is let go there
+    for i, r in enumerate(rows):
+        pi = 0 if i < parts[1]['first'] else 1 if i < parts[2]['first'] else 2
+        k = i if pi < 2 else i - len(mw) + land + 1      # the frame in its own model run
+        x0 = 0.0 if pi == 0 else rows[land]['x']
+        objs = []
+        if pi == 2 and k < len(fr):                       # WHP's effects that frame (priority: the clones, kanji, smoke)
+            fx = sorted(fr[k]['fx'], key=lambda o: [0x7A, 0x71, 0x5A, 0x5D, 0x77].index(o[0]) if o[0] in (0x7A, 0x71, 0x5A, 0x5D, 0x77) else 9)
+            for task, dw, ox, oy, of in fx:
+                if dw == whp.BLANK or len(objs) == 2: continue
+                objs.append([B.frame(dw), round(ox - x0), round(oy), 1 if of == 0 else 0])
+        script.append([B.frame(r['defw']), round(r['x'] - x0), round(r['y']), objs])
+        atk = whp.attack_boxes(r['live']) if r['live'] is not None else None
+        rboxes.append(kof_boxes(r['defw'], atk))
+        nxt = next((q for q in rows[i + 1:] if (q['anim'], q['step']) != (r['anim'], r['step'])), None)   # the next step
+        same = atk is not None and nxt is not None and nxt['live'] == r['live']   # it goes on with this box: one hit
+        rsteps.append([r['anim'], r['step'], (0x100 if atk else 0) | (0x4000 if same else 0), 0xFF])
+        if pi == 2 and k < last and k < len(fr):          # held where WHP had it (x; WHP's held reel FF floats 9 px:
+            vx, vy = fr[k]['p2']                          # the brawler's reel stays on the floor, a height would make
+            carry.append((max(-32000, min(32000, round(vx - r['x']))), 0))   # it an air hit)
+        else: carry.append(None)
+    n = len(script)
+    inp = ('MAX ' if hero else '') + DM_INPUT
+    return {'input': inp, 'condition': 'desperation', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
+            'row_steps': rsteps, 'marks': [''] * n, 'projectiles': [], 'anims': [rel, rel + 1, 0x1B],
+            'shape': [max(r[1] for r in script[:land + 1]), max(r[2] for r in script[:land + 1]), False],
+            'game_hits': len(hit['hits']), 'parts': parts, 'links': links, 'carry_src': carry,
+            'whp': {'rel': rel, 'land_row': land, 'dive_rows': dive, 'edge_after': EDGE_AFTER}}
+
 def drawn_steps(cid, a):
     """an animation's steps that draw a def of their own (the held poses' step numbering)"""
     return [s for s in whp.steps_of(cid, a) if not s['ctrl'] and s['defw'] is not None]
@@ -269,7 +330,8 @@ def export(names, outdir, only=None, extra=None):
         for mv, (a, k) in (extra or {}).get(name, {}).items():   # held poses (export96's extra): the roster's watch, the
             st = drawn_steps(cid, a); k = k if k >= 0 else len(st) - 1   # lab's pose candidates: (animation, step; -1 = its last)
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': [step(B, st[k]['defw'], st[k]['ticks'])]}
-        sps = [special(B, inp, cap) for inp in SPECIALS]
+        sps = [special(B, inp, cap) for inp in SPECIALS] + [fury(B), fury(B, hero=True)]
+        assert len(B.pals) <= 8, f'{len(B.pals)} palettes (MAX_PALS 8)'
         sets = [[[0] + whp.palette(p)[1:] for p in [s] + B.pals[1:]] for s in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0],
