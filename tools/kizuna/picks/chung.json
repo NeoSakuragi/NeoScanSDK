@@ -1,0 +1,58 @@
+{
+ "fighter": "chung",
+ "bank": "kizuna:chung",
+ "specials": {
+  "D": "63214C",
+  "fD": "623A",
+  "dD": "623C",
+  "uD": "236C",
+  "dfD": "214A",
+  "ufD": "236A"
+ },
+ "fury": null,
+ "why": {
+  "623A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0200",
+   "parts": 1
+  },
+  "63214C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "623C": {
+   "whiff_dx": 174,
+   "whiff_height": 64,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "236C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "214A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0200",
+   "parts": 2
+  },
+  "236A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0240",
+   "parts": 1
+  }
+ },
+ "not_used": []
+}

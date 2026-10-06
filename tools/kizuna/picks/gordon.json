@@ -1,0 +1,51 @@
+{
+ "fighter": "gordon",
+ "bank": "kizuna:gordon",
+ "specials": {
+  "D": "[2]8C",
+  "fD": "623A",
+  "dD": "236A",
+  "uD": "421A",
+  "dfD": "236C",
+  "ufD": null
+ },
+ "fury": null,
+ "why": {
+  "421A": {
+   "whiff_dx": 150,
+   "whiff_height": 0,
+   "far_hits": 4,
+   "cond": "0600",
+   "parts": 2
+  },
+  "[2]8C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "623A": {
+   "whiff_dx": 213,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0200",
+   "parts": 1
+  },
+  "236A": {
+   "whiff_dx": 95,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0200",
+   "parts": 5
+  },
+  "236C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0000",
+   "parts": 1
+  }
+ },
+ "not_used": []
+}
