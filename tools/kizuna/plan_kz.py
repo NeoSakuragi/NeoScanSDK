@@ -90,6 +90,9 @@ def plan_move(name, mv, fc, recipes, neutral, starts, cmd, graph):
                         ninp += 1
             prev = p
     victim = any('victim phase' in d for ps in graph.values() for p in ps for d in p['do']) if graph else False
+    held = set(range(0x100, 0x120))                      # Hayate's held / thrown states (a grab: Eagle's 6246A, $105)
+    sm0 = FK.smap(0)
+    victim = victim or (H is not None and any(f[1][0] in sm0 and sm0.index(f[1][0]) in held for f in fc[H[0]]['frames']))
     hitparts = [i for i, (rec, a) in enumerate(parts) if rec.endswith('_h')]
     F = {'parts': [[rec, a, nexts[i]] for i, (rec, a) in enumerate(parts)], 'links': [l[:6] for l in links],
          'inputs': [l[6] if len(l) > 6 else None for l in links]}

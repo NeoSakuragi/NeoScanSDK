@@ -14,6 +14,7 @@ import json, os, sys, numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import kz, cap_kz, export_kz, fighters_kz as FK
 NAME = 'kim'
+CHK = {}
 
 EXP = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') else os.path.join(HERE, '..', '..', 'examples', 'brawler', 'build', 'tmp_kizuna_kim')
 MOVES = ('2:-,70:-,' + ','.join(f'{s},40:-' for s in ['3:a', '3:b', '3:c', '3:bc', '6:R,3:Rb', '6:R,3:Rc', '6:D,3:Da,20:D',
@@ -37,11 +38,20 @@ def setup(name):
 def check_vram(d='/data/tmp/kizuna/check'):
     n = cap_kz.nframes(MOVES)
     pk = '1:108224=01,108225=40;' + ';'.join(f'{f}:108424=02,108425=80' for f in range(n))   # P1 x 320 once, P2 640
-    rows = cap_kz.run(MOVES, '', vram=True, keep=d, pokes=pk, load=FK.state(NAME))
-    same = diff = skipped = 0; bad = []
+    rows = cap_kz.run(MOVES, '', vram=True, keep=d, pokes=pk, load=FK.state(NAME), pool=0x8000 if NAME != 'kim' else 0x4000)
+    same = diff = skipped = 0; bad = []; CHK['objects'] = 0
+    ch = FK.CAST[NAME]
+    base = {k for k in range(0x80) if rows[0]['pool'][k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}
+    def own_objects(r):                              # the fighter's own objects alive (projectiles, effects drawn in
+        for k in range(0x80):                        # its palettes: not in the ROM render of its step), but the ones
+            if k in base: continue                   # there from the start (Eagle's, all fight long)
+            o = r['pool'][k * 0x100:(k + 1) * 0x100]
+            if len(o) == 0x100 and cap_kz.u16(o, 0x40) >> 12 == ch and o[0x10] and cap_kz.u32(o, 0x94): return True
+        return False
     for i in range(1, len(rows)):
         r = rows[i]; z = r['cam'][0x2A]
         if z != export_kz.Z: skipped += 1; continue
+        if NAME != 'kim' and own_objects(r): CHK['objects'] += 1; continue
         o = cap_kz.obj(rows[i - 1], 0x108200)
         v = kz.vram_words(r['vram'])
         vi = kz.vram_index_shrink(v)
@@ -80,9 +90,9 @@ if __name__ == '__main__' and '--char' in sys.argv:
     i = sys.argv.index('--char'); setup(sys.argv[i + 1]); EXP = sys.argv[i + 2]
     s, d, k, bad = check_vram(f'/data/tmp/kz77/check_{NAME}')
     s2, d2, bad2 = check_export()
-    print(f'{NAME}: ROM render at $CC vs Kizuna VRAM {s} identical, {d} differ ({k} at another zoom); export vs ROM render {s2} / {s2 + d2}')
+    print(f'{NAME}: ROM render at $CC vs Kizuna VRAM {s} identical, {d} differ ({k} at another zoom, {CHK["objects"]} with its own objects on screen); export vs ROM render {s2} / {s2 + d2}')
     os.makedirs('/data/tmp/kz77/out', exist_ok=True)
-    json.dump({'vram_same': s, 'vram_differ': d, 'vram_skipped': k, 'vram_bad': bad, 'export_same': s2, 'export_differ': d2,
+    json.dump({'vram_same': s, 'vram_differ': d, 'vram_skipped': k, 'vram_with_objects': CHK['objects'], 'vram_bad': bad, 'export_same': s2, 'export_differ': d2,
                'export_bad': bad2}, open(f'/data/tmp/kz77/out/check_{NAME}.json', 'w'), default=str)
     import shutil; shutil.rmtree(f'/data/tmp/kz77/check_{NAME}', ignore_errors=True)
     sys.exit(0)

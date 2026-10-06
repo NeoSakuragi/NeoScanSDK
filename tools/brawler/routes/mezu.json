@@ -1,11 +1,11 @@
 {
- "fighter": "hayate",
- "note": "Hayate's starter routes (TODO #77, tree v4; not in the build): Kim's tree for his normals, chain steps kept where Kizuna's capture plays them (close A > B > C), special endings where Kizuna cancels that normal into the special (tools/kizuna/cancels_kz.py), the slots of tools/kizuna/picks. For Bruno to rearrange in the Chain Lab.",
+ "fighter": "mezu",
+ "note": "Mezu's starter routes (TODO #77, tree v4; not in the build): Kim's tree for his normals, chain steps kept where Kizuna's capture plays them (close A > B > C), special endings where Kizuna cancels that normal into the special (tools/kizuna/cancels_kz.py), the slots of tools/kizuna/picks. For Bruno to rearrange in the Chain Lab.",
  "routes": [
   [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "input": "A"}],
-  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "A"}, {"special": "dD", "input": "dAB"}],
-  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_close", "weight": "strong", "effect": "none", "input": "fA"}, {"special": "dD", "input": "dAB"}],
-  [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_c_crouch", "weight": "strong", "effect": "none", "input": "A"}, {"special": "dD", "input": "dAB"}],
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "A"}, {"special": "D", "input": "AB"}],
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_close", "weight": "strong", "effect": "none", "input": "fA"}, {"special": "D", "input": "AB"}],
+  [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_c_crouch", "weight": "strong", "effect": "none", "input": "A"}, {"special": "D", "input": "AB"}],
   [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_jump", "weight": "strong", "effect": "none", "input": "B"}, {"move": "atk_cd_jump", "weight": "strong", "effect": "knockdown", "input": "A"}],
   [{"move": "atk_b_far", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_c_far", "weight": "strong", "effect": "knockdown", "input": "A"}],
   [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_b_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_d_crouch", "weight": "strong", "effect": "trip", "input": "dA"}],

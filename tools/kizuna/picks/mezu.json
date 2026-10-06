@@ -1,0 +1,90 @@
+{
+ "fighter": "mezu",
+ "bank": "kizuna:mezu",
+ "specials": {
+  "D": "41236B",
+  "fD": "236C",
+  "dD": "214C",
+  "uD": "421A",
+  "dfD": "BBBBB",
+  "ufD": "623B"
+ },
+ "fury": "6246A",
+ "why": {
+  "41236B": {
+   "whiff_dx": -43,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "236C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "BBBBB": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "8200",
+   "parts": 6
+  },
+  "6246A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 8,
+   "cond": "4200",
+   "parts": 1
+  },
+  "623B": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 2,
+   "cond": "0200",
+   "parts": 1
+  },
+  "63214B": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "51B": {
+   "whiff_dx": -51,
+   "whiff_height": 56,
+   "far_hits": 0,
+   "cond": "0200",
+   "parts": 1
+  },
+  "421A": {
+   "whiff_dx": 160,
+   "whiff_height": 0,
+   "far_hits": 4,
+   "cond": "0600",
+   "parts": 2
+  },
+  "214C": {
+   "whiff_dx": 136,
+   "whiff_height": 132,
+   "far_hits": 4,
+   "cond": "0000",
+   "parts": 3
+  },
+  "236A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0240",
+   "parts": 1
+  }
+ },
+ "not_used": [
+  "63214B",
+  "51B",
+  "236A"
+ ]
+}

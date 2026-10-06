@@ -74,6 +74,22 @@ def routes(name, pk):
     R.append([L('atk_b_far', 'A'), L('atk_c_far', 'A', 'strong', 'knockdown')] if chain('chain_bc', [ka(0x52), ka(0x5B)]) else [L('atk_b_far', 'A')])
     R.append([L('atk_a_crouch', 'dA'), L('atk_b_crouch', 'dA'), L('atk_d_crouch', 'dA', 'strong', 'trip')])
     R += [[L('cmd_fwd_b', 'fA', 'strong', 'knockdown')], [L('cmd_df_c', 'dfA', 'light', 'trip')], [L('atk_d_far', 'bA', 'strong', 'knockdown')]]
+    # one tree (routes.py): the same inputs must lead to the same hit; a route that parts from another on an input
+    # another one already took gets the next free one of fA / dA / bA there, else it is left out
+    seen, out = {}, []
+    for r in R:
+        r = [dict(x) for x in r]; ok = True
+        for j, x in enumerate(r):
+            key = tuple(y['input'] for y in r[:j + 1]); what = x.get('move') or 'sp ' + x['special']
+            if seen.get(key, what) != what:
+                for alt in ('fA', 'dA', 'bA'):
+                    k2 = key[:-1] + (alt,)
+                    if seen.get(k2, what) == what and 'move' in x: x['input'] = alt; key = k2; break
+                else: ok = False; break
+        if not ok: continue
+        for j, x in enumerate(r): seen[tuple(y['input'] for y in r[:j + 1])] = x.get('move') or 'sp ' + x['special']
+        out.append(r)
+    R = out
     return {'fighter': name,
             'note': f"{FK.NAMES[ch]}'s starter routes (TODO #77, tree v4; not in the build): Kim's tree for his normals, chain steps kept where "
                     "Kizuna's capture plays them (close A > B > C), special endings where Kizuna cancels that normal into the special "

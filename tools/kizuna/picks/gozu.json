@@ -1,0 +1,106 @@
+{
+ "fighter": "gozu",
+ "bank": "kizuna:gozu",
+ "specials": {
+  "D": "623A",
+  "fD": "623B",
+  "dD": "[2]8C",
+  "uD": "421A",
+  "dfD": "623C",
+  "ufD": "41236A"
+ },
+ "fury": "6246A",
+ "why": {
+  "623A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 3,
+   "cond": "0000",
+   "parts": 1
+  },
+  "623B": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0000",
+   "parts": 1
+  },
+  "623C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0000",
+   "parts": 1
+  },
+  "41236A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0000",
+   "parts": 1
+  },
+  "236C": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  },
+  "AAAAA": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "8200",
+   "parts": 6
+  },
+  "6246A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 8,
+   "cond": "4200",
+   "parts": 1
+  },
+  "[2]8A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 1,
+   "cond": "0200",
+   "parts": 1
+  },
+  "421A": {
+   "whiff_dx": 160,
+   "whiff_height": 0,
+   "far_hits": 4,
+   "cond": "0600",
+   "parts": 2
+  },
+  "214C": {
+   "whiff_dx": 9,
+   "whiff_height": 214,
+   "far_hits": 2,
+   "cond": "0000",
+   "parts": 1
+  },
+  "236A": {
+   "whiff_dx": 0,
+   "whiff_height": 0,
+   "far_hits": 0,
+   "cond": "0208",
+   "parts": 1
+  },
+  "[2]8C": {
+   "whiff_dx": 252,
+   "whiff_height": 289,
+   "far_hits": 1,
+   "cond": "0000",
+   "parts": 1
+  }
+ },
+ "not_used": [
+  "236C",
+  "AAAAA",
+  "[2]8A",
+  "214C",
+  "236A"
+ ]
+}

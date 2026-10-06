@@ -4,7 +4,7 @@
  "routes": [
   [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "A"}, {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "input": "A"}],
   [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_b_close", "weight": "light", "effect": "none", "input": "A"}, {"special": "fD", "input": "fAB"}],
-  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_close", "weight": "strong", "effect": "none", "input": "A"}, {"special": "fD", "input": "fAB"}],
+  [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_close", "weight": "strong", "effect": "none", "input": "fA"}, {"special": "fD", "input": "fAB"}],
   [{"move": "atk_b_far", "weight": "light", "effect": "none", "input": "A"}, {"special": "fD", "input": "fAB"}],
   [{"move": "atk_a_crouch", "weight": "light", "effect": "none", "input": "dA"}, {"move": "atk_c_crouch", "weight": "strong", "effect": "none", "input": "A"}, {"special": "fD", "input": "fAB"}],
   [{"move": "atk_a_close", "weight": "light", "effect": "none", "input": "cA"}, {"move": "atk_c_jump", "weight": "strong", "effect": "none", "input": "B"}, {"move": "atk_cd_jump", "weight": "strong", "effect": "knockdown", "input": "A"}],

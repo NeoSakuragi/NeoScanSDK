@@ -72,8 +72,8 @@ def setup(name):
     RECIPES.clear()
     br = json.load(open(FK.path(name, 'brute')))
     for mv, (seq0, pokes) in brute_kz.MOVES.items():
-        RECIPES[f'{mv}_w'] = (560, '2:-,' + seq0 + '200:-', pokes)
-        RECIPES[f'{mv}_h'] = (300, '2:-,' + seq0 + '200:-', pokes)
+        RECIPES[f'{mv}_w'] = (560, '2:-,' + seq0 + '400:-', pokes)      # 400: Eagle's 6246A holds its victim
+        RECIPES[f'{mv}_h'] = (300, '2:-,' + seq0 + '400:-', pokes)      # some 300 frames
         for k, (situ, inp, situs) in enumerate(continuations(mv, br)):
             RECIPES[f'{mv}_c{k}_{situ[0]}'] = (brute_kz.SITU[situ][0], lane(mv, inp), pokes, brute_kz.SITU[situ][1], inp, situs)
 
@@ -105,7 +105,7 @@ def lane(mv, inps):
     for inp, t in inps:
         i = brute_kz.press(inp[:-1], inp[-1].lower()); l = cap.nframes(i) - 3
         seq += f'{max(1, t - t0 - 3 - l)}:-,' + i; t0 = t
-    return seq + '250:-'
+    return seq + '400:-'
 
 def fighter(r, a):
     o = cap.obj(r, a); w = o['raw']

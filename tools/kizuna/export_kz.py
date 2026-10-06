@@ -289,7 +289,7 @@ def projectile_run(fr, s0):
 
 def projectile(B, fr, s0, x0, hf):
     """the special's projectile (export96.projectile_entry's layout; projectile_run): rows [frame, x from its spawn point
-    (forward +), height, its attack box [1, x, y, w, h] or None, None]; spawned at script row spawn_row, spawn_x / spawn_y
+    (forward +), its height (px above the floor), its attack box [1, x, y, w, h] or None, None]; spawned at script row spawn_row, spawn_x / spawn_y
     from the script's origin; kind 1 (travelling: its hit ends it), hits = the near capture's life drops while one of its
     objects lived"""
     run = projectile_run(fr, s0)
@@ -298,7 +298,7 @@ def projectile(B, fr, s0, x0, hf):
     rows = []
     for i, o in run:
         ab = next((b for b in step_boxes(o[6]) if attack(b)), None)
-        rows.append([B.frame(o[6]), sc(o[3] - sx), sc(o[4] - sy), [1] + box_kof(ab) if ab else None, None])
+        rows.append([B.frame(o[6]), sc(o[3] - sx), sc(o[4]), [1] + box_kof(ab) if ab else None, None])
     hits = sum(1 for j in range(1, len(hf)) if hf[j][1][6] < hf[j - 1][1][6] and any(q[1] >> 12 == CH and not q[7].startswith('\0') for q in hf[j][2]))
     return {'table': 0, 'state': o0[1] & 0xFFF, 'kind': 1, 'hit_kind': 1, 'spawn_row': i0 - s0, 'spawn_x': sc(sx - x0),
             'spawn_y': sc(sy), 'loop': None, 'death': None, 'life': len(rows), 'travel': max(abs(r[1]) for r in rows),
