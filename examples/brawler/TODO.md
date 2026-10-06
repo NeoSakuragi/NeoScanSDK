@@ -654,6 +654,15 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (x by head, not by slot origin), the bosses' row higher behind them; Kim (and Billy Lee, 0.0.72) in a player row; (4)
   Kim's pose: a judging round of Kizuna's intro / win / taunt frames (the interactive judging page); (5) the per-line
   budget of #158 checked by the generator. Proof: screenshots of the cursor on every fighter, every head visible. Big.
+  Points (1), (2), (4) done on branch 2026-10-06 (awaiting Bruno); (3) the regenerated layout and (5) not done.
+  (1) head point per watch pose: tools/brawler/head_point.py (the first row from the top with an opaque run >= 8 px,
+  x = the middle of the head under it; data override game.json roster[].watch.head: Robert's raised fist, Mai's fan,
+  Haohmaru's arm), export_bm.py writes bm_head[BC_COUNT]; (2) main.c select_arrows centres the arrow's 8 px fix cell on
+  the head point (mirrored for actors facing right), ending ~2 px above it (row 4 at the highest, under the name).
+  Yashiro's arrow is now on Yashiro, not on K'. (4) Kim: Kizuna anim $21 (the C+D taunt), last step: upright, staff
+  on the shoulder (kim_select_candidates.png: old $37 s0, A $21 s13 picked, B $38 s17, C $37 s11).
+  Proof /data/tmp/polish157/out: new_select.png / old_select.png (every slot, frames n / n+1),
+  new_select_every_slot_full.png. Known: the white arrow is hard to see over light grey fighters (Kuroko's slot).
 
 - [ ] 158. SELECT SCREEN BLINKING: THE LINE GUARD (feedback 20261006-161617-b3f3, Bruno in play, 0.0.72: "Mr. Big and
   Billy from Double Dragon are blinking, which tells me that we've exceeded the amount of sprites per row."). Replay: on
@@ -685,6 +694,16 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   them (cycling or not), use that in make_stage_ra.py (cycled = our runtime cycles it the same way); check every stage
   for animated groups whose palette is a runtime one. Proof: stage 1 at those columns vs Robo Army's screen at the
   same scroll, 0 px differ (verify.py). Medium.
+  Done on branch 2026-10-06 (awaiting Bruno): 32 / 33 are not cycled: Robo Army's area load ($756A) copies palette
+  lists ($30000[i], 16-word records, word 0 = the palette number, loader $6002) over its global table: area 0 list 27,
+  area a lists a - 1, a + 8 (area 6: a + 7), 8; area 1's list 9 holds 32 / 33 (the smoke column's colours). The same
+  rule fixes area 4's 179 / 180 (stage 4). Robo Army's palette cycles ($6568, id $10407A set by its area scripts;
+  table $65CE): 196 (lists 18 / 19, 10 frames each: stage 1's columns 0-7, 132-139) and 240 (22 / 23 / 24 x 16:
+  stage 5) now cycle in the brawler too (stage_t.cyc, main.c stage_cycle; Robo Army runs them only while that art is
+  on screen). make_stage_ra.py palette(n, area) / area_lists / cycles; every palette a stage uses = Robo Army's palette
+  RAM in all /data/neogeo_dict/roboarmy/ver captures and in a walk of scene 2 in our emulator. Proof
+  /data/tmp/polish157/out/bg159_before_after_roboarmy.png (camera 432 / 561 vs Robo Army at the same scroll) and
+  bg159_check.txt: the block below Robo Army's HUD 0 px differ (at the matching auto-animation frame), all 27 colours.
 
 - [ ] 160. THE BLACK TOP OF THE STAGES (feedback 20261006-161004-b3f3, Bruno in play, 0.0.71: "Also I'm wondering why is
   the top part black? Why don't we have graphics extending all the way up? Is this how Robo Army presented its
@@ -794,6 +813,8 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 
 - [ ] 167. HUD VERSION LABEL (20261006-173317-5d29: "The version that is displayed at the bottom is a bit too close
   from the level 4 label ... I would push this on the bottom left."): move the version text to the bottom-left corner.
+  Done on branch 2026-10-06 (awaiting Bruno): main.c arcade_line prints "V0.0.x" at fix column 1 (the bottom-left
+  corner), LEVEL-n / CREDIT nn stay where they were. Proof /data/tmp/polish157/out/hud167_before_after.png.
 
 - [ ] 168. (DONE ON BRANCH 2026-10-06, awaiting Bruno's review; proofs /data/tmp/var147/out: voice_goenitz, romspecials, goenitz_kof96_soundlog.json) Sounds: KOF96's 41236A-D handler sends $1BBA (voice) at frame 0 and $1AD1 (the wind, effect slot) with each tornado's spawn at frame 19; #163's rule dropped every $1A word. Rule now (handlers98.voice_send fx): a ROM special's code sends its own effect words too, listed by voices.py as the fighter's channel 'fx' voices unless common (43 new over 16 KOF fighters, ~370 KB of V ROM; ids of the old list kept); the brawler sends $1AD1 at 19 like KOF. Not reproduced: KOF stops the wind when the tornado hits ($14 + $1AD1). Teleport: 214B / 214D = Hyouga (handler $4E4A4; B slides 200 px along the floor, D arcs 184 px; states 185 / 186 flicker a blank def = the vanish). 214B was on up+C, which the boss AI never presses: now on forward+C (the boss's rush pick; 41236C moved to up+C); 214D read from the ROM too (pool, Lab). romspecials_check fD: frame, x, objects identical to KOF96 whiff / close / mid. Known: 214D stops at a standing body in the brawler (KOF passes over it). GOENITZ (20261006-173139-5d29: "What is the sound effect of Goenitz? He has like sound effects that he should
   make with every tornado, and he also should have another special move, like a teleport."): decode his KOF96/98

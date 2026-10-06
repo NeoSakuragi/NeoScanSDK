@@ -37,7 +37,7 @@
   {
    "name": "robert",
    "bank": "kof98:robert",
-   "watch": {"frame": 340, "step": -1},
+   "watch": {"frame": 340, "step": -1, "head": [-17, -117]},
    "routes": "default",
    "specials": {"D": "EX 236C", "fD": "624D", "dD": "623C", "uD": "426B", "dfD": "623D", "ufD": "EX 646D"},
    "fury": "23624C",
@@ -87,7 +87,7 @@
   {
    "name": "mai",
    "bank": "kof98:mai",
-   "watch": {"frame": 338, "step": -1},
+   "watch": {"frame": 338, "step": -1, "head": [-8, -109]},
    "routes": "default",
    "specials": {"D": "236A", "fD": "426D", "dD": "623D", "uD": "EX 214D", "dfD": "623A", "ufD": "214C"},
    "fury": "21426D",
@@ -170,7 +170,7 @@
   {
    "name": "haohmaru",
    "bank": "samsho2:haohmaru",
-   "watch": {"frame": 140, "step": -1},
+   "watch": {"frame": 140, "step": -1, "head": [5, -87]},
    "routes": "default",
    "specials": {"D": "236S", "fD": "623K", "dD": "623S", "uD": "214A", "dfD": "236K", "ufD": null},
    "fury": "WFT",
@@ -215,7 +215,7 @@
   {
    "name": "kim",
    "bank": "kizuna:kim",
-   "watch": {"frame": 55, "step": 0},
+   "watch": {"frame": 33, "step": -1},
    "routes": "tools/brawler/routes/kim.json",
    "specials": {"D": "214B", "fD": "236C", "dD": "[2]8C", "uD": "421A", "dfD": "236A", "ufD": null},
    "fury": "6246A",

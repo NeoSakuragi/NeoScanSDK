@@ -52,7 +52,7 @@ def chars(g): return [r['bank'] for r in g['roster']]
 
 def roster_export(g):
     """what the fighter export (export_bm.py) needs of each roster fighter, in bm_chars order"""
-    return [{'bank': r['bank'], 'name': r['name'], 'watch': [r['watch']['frame'], r['watch']['step']],
+    return [{'bank': r['bank'], 'name': r['name'], 'watch': [r['watch']['frame'], r['watch']['step']], 'head': r['watch'].get('head'),
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),

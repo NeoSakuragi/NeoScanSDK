@@ -100,7 +100,7 @@ static void arcade_line(void) {                               /* bottom line, ev
     uint8_t l = level(), c = CREDITS_P1;
     char t[3];
     if (l != shown_level) {
-        FIX_print(8, 27, "V" GAME_VERSION, 0);                /* the build (VERSION), left of the level */
+        FIX_print(1, 27, "V" GAME_VERSION, 0);                /* the build (VERSION): the bottom-left corner (TODO #167) */
         FIX_print(16, 27, "LEVEL-", 0); t[0] = '0' + l; t[1] = 0; FIX_print(22, 27, t, 0); shown_level = l;
     }
     if (c != shown_credits) {
@@ -129,9 +129,18 @@ static int16_t cam_x, lock_x;                    /* lock_x: how far right the ca
 static const stage_t *stg = &stages[STAGE];
 int16_t floor_top = SELECT_FLOOR, world_w;
 
+static uint8_t cyc_t, cyc_k;                    /* the stage's palette cycle: frames left on this step, the step */
 static void stage_pals(void) {                               /* the stage's palettes */
     uint8_t p;
     for (p = 0; p < stg->npal; p++) PAL_setPalette(STAGE_PAL + p, stg->pal + p * 16);
+    cyc_t = stg->cyc_ticks; cyc_k = 0;
+    if (stg->cyc_pal != 0xFF) PAL_setPalette(STAGE_PAL + stg->cyc_pal, stg->cyc);
+}
+static void stage_cycle(void) {      /* Robo Army's palette cycle (make_stage_ra.py cycles, TODO #159): the next step */
+    if (stg->cyc_pal == 0xFF || --cyc_t) return;
+    cyc_t = stg->cyc_ticks;
+    if (++cyc_k == stg->cyc_n) cyc_k = 0;
+    PAL_setPalette(STAGE_PAL + stg->cyc_pal, stg->cyc + cyc_k * 16);
 }
 static uint8_t bd_on, bd_t;                      /* screen_fx: the stage hidden for a special's effect; its frames */
 static const uint16_t *bd_cols;                  /* its two colours */
@@ -159,6 +168,7 @@ static void stage_init(uint8_t n) {
 static void stage_draw(void) {
     uint8_t first = (uint8_t)(cam_x >> 4), s = first, k, r, n = stg->rows * 2;
     uint16_t *x = cmd_run(VRAM_SCB4 + BG_SPR, BG_N), *w;
+    stage_cycle();
     while (s >= BG_N) s -= BG_N;
     for (k = 0; k < BG_N; k++) {
         uint8_t c = first + k;
@@ -1468,10 +1478,13 @@ static void select_arrows(void) {                           /* "1P" / "2P" + arr
         uint8_t s = cursor[p];
         col[p] = 0xFF; row[p] = 0;
         if (s != 0xFF) {
-            int16_t sx = SEL_SLOT[s].x - 8 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
-            col[p] = sx < 0 ? 0 : (uint8_t)(sx >> 3);
-            row[p] = (uint8_t)((SELECT_FLOOR + SEL_SLOT[s].z - 120) >> 3);   /* FIX_print row r is screen y r * 8:
-                                                                 the arrow ends 120 px above the feet (tallest head) */
+            /* the pose's head point (bm_head, TODO #157: export_bm.py / head_point.py, facing left; the actor faces
+             * the middle: mirrored when it faces right); the arrow's 8 px cell centred on it, ending 2 px above it */
+            const int8_t *hd = bm_head[slot_ch[s]];
+            int16_t sx = SEL_SLOT[s].x + (SEL_SLOT[s].x < 160 ? -hd[0] : hd[0]) - 4 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
+            int16_t sy = SELECT_FLOOR + SEL_SLOT[s].z + hd[1] - 10;
+            col[p] = sx < 0 ? 0 : (uint8_t)((sx + 4) >> 3);        /* FIX_print col c / row r = screen x c * 8, y r * 8 */
+            row[p] = sy < 32 ? 4 : (uint8_t)((sy + 4) >> 3);       /* (rows 1-2: the title and the name; "1P" one row above) */
         }
     }
     if (col[0] == arrow_col[0] && row[0] == arrow_row[0] && col[1] == arrow_col[1] && row[1] == arrow_row[1]) return;

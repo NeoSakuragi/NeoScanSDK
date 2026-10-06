@@ -21,7 +21,7 @@ bm_c1/bm_c2.bin, which grow); each map word carries its tile bits 16-19 (attribu
 STAGE_PAL + k in the order of Robo Army's palette numbers, loaded when the stage starts (one stage in use at a time).
 
     python3 make_stage_ra.py OUTDIR      (after export_bm.py OUTDIR ...)  -> stage.h, stage<n>.png, patched bm_c*.bin"""
-import os, struct, sys
+import functools, os, struct, sys
 import numpy as np
 from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -72,7 +72,48 @@ def tile_px(t):
                 px[y, x0 + x] = ((b0 >> x) & 1) | ((b1 >> x) & 1) << 1 | ((b2 >> x) & 1) << 2 | ((b3 >> x) & 1) << 3
     return px
 
-def palette(n): return [u16(PALS + n * 32 + 2 * k) for k in range(16)]
+def palette(n, area=None):
+    """palette n as Robo Army's palette RAM holds it in that area: the global table ($313F4), then the area's load lists
+    on top (area_lists), a cycled palette at its cycle's first step (cycles); area None: the table alone"""
+    p = [u16(PALS + n * 32 + 2 * k) for k in range(16)]
+    if area is None: return p
+    for l in area_lists(area): p = plist(l).get(n, p)
+    for ps, seq in cycles():
+        if n in ps: p = plist(seq[0][0])[n]
+    return p
+
+# Palette lists (TODO #159, read from Robo Army's code 2026-10-06): pointer table $30000[i] -> 16-word records, word 0 =
+# the palette number (bit 15 ends the list), copied into palette RAM by $6002 (list index $10402C). Robo Army's area
+# load ($756A) sets them over the global table: area 0 list 27; any other area a (7 = 1) lists a - 1, a + 8 (area 6:
+# a + 7), 8. Area 1's palettes 32 / 33 (the animated sky block, columns 36-38 / 57-59) and area 4's 179 / 180 come from
+# them; measured in our emulator (Robo Army scene 2 walked to x 688, palette RAM) and in every capture of
+# /data/neogeo_dict/roboarmy/ver: every palette a stage uses equals this rule, except the cycled ones below.
+PLISTS = 0x30000
+@functools.lru_cache(None)
+def plist(i):
+    a = struct.unpack_from('>I', P, PLISTS + 4 * i)[0]; out = {}
+    while not u16(a) & 0x8000:
+        out[u16(a)] = [u16(a + 2 * k) for k in range(16)]; a += 32
+    return out
+def area_lists(area):
+    if area == 0: return [27]
+    a = 1 if area == 7 else area
+    return [a - 1, a + 7 if area == 6 else a + 8, 8]
+# Palette cycles ($6568, every frame): cycle id $10407A (set by the area scripts, $85D6) -> $65CE[id - 1] -> a list of
+# (palette list, frames) words ending $FFFF, played in a loop: 1 = lists 18 / 19 x 10 frames (palette 196, area 1's
+# columns 0-7 and 132-139), 2 = 20 / 21 x 12 (222), 3 = 22 / 23 / 24 x 16 (240, area 6). Robo Army runs a cycle while
+# its art is on screen (its script starts / stops it); the brawler cycles it all the time (stage_t.cyc, main.c
+# stage_cycle): the same picture wherever it is seen.
+CYCLES = 0x65CE
+@functools.lru_cache(None)
+def cycles():
+    """[(palette numbers, [(list, frames)])] for each of Robo Army's palette cycles"""
+    out = []
+    for k in range(3):
+        a = struct.unpack_from('>I', P, CYCLES + 4 * k)[0]; seq = []
+        while u16(a) != 0xFFFF: seq.append((u16(a), u16(a + 2))); a += 4
+        out.append((set().union(*[plist(l) for l, _ in seq]), seq))
+    return out
 
 def rgb(w):
     r = ((w >> 7) & 0x1E) | ((w >> 14) & 1); g = ((w >> 3) & 0x1E) | ((w >> 13) & 1); b = ((w << 1) & 0x1E) | ((w >> 12) & 1)
@@ -97,8 +138,8 @@ def stage_cells(st):
     return [col[r0:] for col in cells], r0
 
 def render_rom(st, anim=0):
-    """the stage as Robo Army's LSPC shows it (straight from its map words and palettes), auto-animation counter anim;
-    None where nothing is drawn (backdrop)"""
+    """the stage as Robo Army's LSPC shows it (straight from its map words and its area's palettes, cycles at their first
+    step), auto-animation counter anim; None where nothing is drawn (backdrop)"""
     cells, r0 = stage_cells(st); rows = len(cells[0])
     img = np.zeros((SCREEN_ROWS * 16, len(cells) * 16, 3), np.int16); img[:] = -1
     for c, col in enumerate(cells):
@@ -107,7 +148,7 @@ def render_rom(st, anim=0):
             pn = u8(PTAB + t)
             if a & 8: t = (t & ~7) | (anim & 7)
             elif a & 4: t = (t & ~3) | (anim & 3)
-            px = flip(tile_px(t), a & 3); lut = np.array([rgb(w) for w in palette(pn)], np.int16)
+            px = flip(tile_px(t), a & 3); lut = np.array([rgb(w) for w in palette(pn, st[0])], np.int16)
             m = px != 0; y = (r0 + r) * 16; sub = img[y:y + 16, c * 16:c * 16 + 16]; sub[m] = lut[px[m]]
     return img
 
@@ -139,7 +180,7 @@ def build(outdir):
          '#ifndef STAGE_H', '#define STAGE_H', f'#define STAGE_PAL {STAGE_PAL}',
          '/* a stage: SCB1 words {tile bits 0-15, attribute} per cell, column-major, rows from screen y y; palettes',
          ' * STAGE_PAL .. + npal - 1; floor_top = screen y of the feet at Z = 0; REG_LSPCMODE value (auto-animation speed) */',
-         'typedef struct { const uint16_t *map, *pal; uint16_t cols; uint8_t rows, npal; int16_t y, floor_top; uint16_t backdrop, lspcmode; } stage_t;']
+         'typedef struct { const uint16_t *map, *pal; uint16_t cols; uint8_t rows, npal; int16_t y, floor_top; uint16_t backdrop, lspcmode; const uint16_t *cyc; uint8_t cyc_pal, cyc_n, cyc_ticks, cyc_pad; } stage_t;   /* cyc: a palette cycle (Robo Army $6568): palette STAGE_PAL + cyc_pal steps through cyc_n palettes of cyc, cyc_ticks frames each (cyc_pal 0xFF: none) */']
     table, info, maxpal, maxrows = [], [], 0, 0
     for n, st in enumerate(STAGES):
         area, i0, cols, floor = st
@@ -170,12 +211,21 @@ def build(outdir):
                 else:
                     tn, f = ours(t)
                 out += [tn & 0xFFFF, pn << 8 | (tn >> 16) << 4 | (a ^ f)]
-        pal_words = [w for p in pals for w in palette(p)]
+        pal_words = [w for p in pals for w in palette(p, area)]
+        cyc = [(p, seq) for ps, seq in cycles() for p in pals if p in ps]   # a cycled palette: its steps, the first
+        assert len(cyc) <= 1, cyc                                           # loaded with the others
+        cyc_words, cyc_info = [], '0, 0xFF, 0, 0'
+        if cyc:
+            p, seq = cyc[0]; k = pals.index(p); steps = [plist(l)[p] for l, _ in seq]
+            assert len({t for _, t in seq}) == 1
+            cyc_words = [w for st_ in steps for w in st_]
+            h.append(f'static const uint16_t stage{n}_cyc[{len(cyc_words)}] = {{' + ', '.join(f'0x{v:04X}' for v in cyc_words) + '};')
+            cyc_info = f'stage{n}_cyc, {k}, {len(steps)}, {seq[0][1]}'
         h.append(f'/* stage {n}: Robo Army area {area}, ids ${i0:02X}-${i0 + (cols - 1) // 16:02X}, {cols} columns ({cols * 16} px), rows {r0}-{r0 + rows - 1}, '
                  f'palettes {", ".join(map(str, pals))} */')
         h.append(f'static const uint16_t stage{n}_pal[{len(pal_words)}] = {{' + ', '.join(f'0x{v:04X}' for v in pal_words) + '};')
         h.append(f'static const uint16_t stage{n}_map[{len(out)}] = {{' + ', '.join(map(str, out)) + '};')
-        table.append(f'{{stage{n}_map, stage{n}_pal, {cols}, {rows}, {len(pals)}, {r0 * 16}, {floor}, 0x{BACKDROP:04X}, 0x{LSPCMODE:04X}}}')
+        table.append(f'{{stage{n}_map, stage{n}_pal, {cols}, {rows}, {len(pals)}, {r0 * 16}, {floor}, 0x{BACKDROP:04X}, 0x{LSPCMODE:04X}, {cyc_info}}}')
         maxpal, maxrows = max(maxpal, len(pals)), max(maxrows, rows)
         info.append((n, area, cols * 16, rows, r0, len(pals), floor, out))
     # tiles into the C ROM image (grown past the fighters as needed)
@@ -190,7 +240,7 @@ def build(outdir):
     # previews: our words, our tiles (as stored in the image), our palettes
     for n, area, w, rows, r0, npal, floor, out in info:
         pals = sorted({u8(PTAB + t) for col in stage_cells(STAGES[n])[0] for t, a in col if t is not None})
-        luts = [np.array([rgb(v) for v in palette(p)], np.uint8) for p in pals]
+        luts = [np.array([rgb(v) for v in palette(p, area)], np.uint8) for p in pals]
         img = np.zeros((SCREEN_ROWS * 16, w, 3), np.uint8)
         for i in range(0, len(out), 2):
             tn, aw = out[i] | ((out[i + 1] >> 4) & 15) << 16, out[i + 1]
