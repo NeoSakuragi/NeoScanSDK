@@ -10,7 +10,10 @@ Signed in (nginx /brawler-lab/feedback-api/ behind the Oros login, the Brawler L
 localhost: tools/feedback/fb.py, pull.py):
   GET  /api/list[?status=&category=]        the tracker rows, newest first
   GET  /api/item/<id>                        a row + its status history + the bundle's files
-  GET  /api/file/<id>/<name>                 a bundle file (the audio, screen.png)
+  GET  /api/file/<id>/<name>                 a bundle file (the audio, screen.png, the states, inputs.bin)
+  GET  /api/rom/<sha256>                     the game build a note was played on (gzip, cached for good by the
+                                             browser): DATA/roms/<sha>.neo.gz, archived from the builds dir when the
+                                             note arrives, so publish_vps.sh's pruning never loses a build with feedback
   POST /api/status {id, status, release?, note?, duplicate_of?, by?}
   POST /api/set    {id, category?, fighters?, notes?, by?}
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
@@ -38,6 +41,9 @@ MAX_UNPACKED = 96 << 20
 NAME = re.compile(r'^[a-z0-9_]{1,40}\.(state|bin|png|json|m4a|wav|mp3|ogg|txt)$')
 ID = re.compile(r'^\d{8}-\d{6}-[0-9a-f]{4}(-\d+)?$')
 BUNDLES = os.path.join(DATA, 'bundles')
+ROMS = os.path.join(DATA, 'roms')
+BUILDS = os.environ.get('FEEDBACK_BUILDS', '/data/brawler/builds')
+SHA = re.compile(r'^[0-9a-f]{64}$')
 DB = os.path.join(DATA, 'feedback.db')
 lock = threading.Lock()
 jobs = queue.Queue()
@@ -187,13 +193,32 @@ def transcribe_bundle(bid):
     log('transcribed', bid, model, f'{time.time() - t0:.1f}s', len(text), 'chars')
 
 
+def archive_rom(sha):
+    """DATA/roms/<sha>.neo.gz from the published build with that sha256 (if it is still there)"""
+    import gzip, hashlib, shutil
+    if not SHA.match(sha or '') or os.path.exists(os.path.join(ROMS, sha + '.neo.gz')): return
+    os.makedirs(ROMS, exist_ok=True)
+    for f in sorted(os.listdir(BUILDS)):
+        p = os.path.join(BUILDS, f)
+        if not f.endswith('.neo') or os.path.islink(p): continue
+        h = hashlib.sha256()
+        with open(p, 'rb') as i:
+            for b in iter(lambda: i.read(1 << 20), b''): h.update(b)
+        if h.hexdigest() != sha: continue
+        tmp = os.path.join(ROMS, sha + '.neo.gz.part')
+        with open(p, 'rb') as i, gzip.open(tmp, 'wb', 6) as o: shutil.copyfileobj(i, o, 1 << 20)
+        os.replace(tmp, os.path.join(ROMS, sha + '.neo.gz')); log('rom archived', f, sha[:12]); return
+    log('rom NOT archived (not in the builds any more)', sha[:12])
+
+
 def worker():
     while True:
         try: bid = jobs.get(timeout=3600)
         except queue.Empty: bid = None
         try:
             backup()
-            if bid: transcribe_bundle(bid)
+            if bid and bid.startswith('rom:'): archive_rom(bid[4:])
+            elif bid: transcribe_bundle(bid)
         except Exception as e: log('worker', bid, 'error', e)
 
 
@@ -256,6 +281,15 @@ class H(http.server.BaseHTTPRequestHandler):
                 txs = [row_dict(t) for t in c.execute('SELECT * FROM transcriptions WHERE feedback_id=? ORDER BY at', (parts[1],))]
                 d = os.path.join(BUNDLES, parts[1])
                 return self.reply(200, {'row': row_dict(r), 'history': hist, 'transcriptions': txs, 'files': sorted(os.listdir(d)) if os.path.isdir(d) else []})
+        if len(parts) == 2 and parts[0] == 'rom' and SHA.match(parts[1]):
+            p = os.path.join(ROMS, parts[1] + '.neo.gz')
+            if not os.path.exists(p): return self.reply(404, {'error': 'build not archived'})
+            n = os.path.getsize(p)
+            self.send_response(200); self.send_header('Content-Type', 'application/octet-stream'); self.send_header('Content-Encoding', 'gzip')
+            self.send_header('Cache-Control', 'private, max-age=31536000, immutable'); self.send_header('Content-Length', str(n)); self.end_headers()
+            with open(p, 'rb') as f:
+                for b in iter(lambda: f.read(1 << 20), b''): self.wfile.write(b)
+            return
         if len(parts) == 3 and parts[0] == 'file' and ID.match(parts[1]) and NAME.match(parts[2]):
             p = os.path.join(BUNDLES, parts[1], parts[2])
             if os.path.exists(p):
@@ -363,6 +397,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 if t: c.execute('UPDATE transcriptions SET feedback_id=? WHERE tx_id=?', (bid, t['tx_id']))
             if not t: log_tx(meta.get('transcript_model') or MODELS[0], None, secs, bid, 'estimate')
         if audio and not raw: jobs.put(bid)
+        jobs.put('rom:' + meta.get('rom_sha256', ''))
         log('bundle', bid, len(body), 'bytes', meta.get('device'), meta.get('app_version'), 'text' if meta.get('final_text') else 'no text')
         self.reply(200, {'id': bid})
 
@@ -378,5 +413,6 @@ if __name__ == '__main__':
     threading.Thread(target=worker, daemon=True).start()
     with db() as c:                                          # transcripts missed while down
         for r in c.execute("SELECT id FROM feedback WHERE audio_path != '' AND raw_transcript = ''"): jobs.put(r['id'])
+        for r in c.execute("SELECT DISTINCT rom_sha FROM feedback"): jobs.put('rom:' + r['rom_sha'])
     log('listening on 127.0.0.1:%d, data %s' % (PORT, DATA))
     Server(('127.0.0.1', PORT), H).serve_forever()

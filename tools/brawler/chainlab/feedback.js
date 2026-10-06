@@ -2,7 +2,9 @@
  * feedback service's API (tools/feedback/server.py) at feedback-api/ (nginx, behind the same Oros login as the Lab):
  * date, versions, the note as sent (the raw transcript under it), status and release as text, the voice (play),
  * the screenshot; filters by status and category; category (dropdown) and fighters editable here. Status changes go
- * through tools/feedback/fb.py. */
+ * through tools/feedback/fb.py. Replay (fbreplay.js): the note's game build (feedback-api/rom/<sha>, cached by the
+ * browser), the page's BIOS, the kept state before the last 10 s, then the logged inputs to the press with sound;
+ * pause / step / slow motion / restart, the press screenshot beside, and the press state's SHA-256 checked. */
 (async function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -17,6 +19,88 @@
   const STATUS_TEXT = { new: 'NEW', read: 'read', in_progress: 'IN PROGRESS', shipped: 'SHIPPED', wont_do: "won't do", duplicate: 'duplicate' };
   let rows = [], cats = [], cost = null, filt = { status: '', category: '' }, msg = '';
   const col = $('fbcol');
+  const rbox = h('div'), lbox = h('div');
+  if (col) col.append(rbox, lbox);
+
+  // ---- replay -------------------------------------------------------------------------------------------------------
+  const cores = {};                                     // rom sha -> the wasm core with that build loaded (one each)
+  let bios = null, R = null, raf = 0, playing = false, speed = 1, acc = 0, last = 0, ac = null, at = 0, startState = null, img = null;
+  const get = async (url, what) => { const r = await fetch(url, { credentials: 'same-origin' }); if (!r.ok) throw new Error(what + ': HTTP ' + r.status); return new Uint8Array(await r.arrayBuffer()); };
+  function stopLoop() { playing = false; cancelAnimationFrame(raf); }
+  async function openReplay(r) {
+    stopLoop();
+    rbox.textContent = '';
+    const st = h('p', { class: 'mono' }, 'Loading the note and the game build (12 MB the first time)…');
+    const cv = h('canvas', { width: 304, height: 224, class: 'fbscreen' });
+    const shot = h('img', { src: API + 'file/' + r.id + '/screen.png', class: 'fbscreen', alt: 'press screenshot' });
+    const pos = h('span', { class: 'mono' }, '');
+    const res = h('p', { class: 'mono' }, '');
+    const bPlay = h('button', { onclick: () => toggle() }, 'Play');
+    const toggle = () => { if (!R) return; if (playing) { stopLoop(); bPlay.textContent = 'Play'; } else if (R.frame < R.P) { playing = true; bPlay.textContent = 'Pause'; last = performance.now(); acc = 0; raf = requestAnimationFrame(tick); } };
+    const draw = () => {
+      const p = R.rgba(img && img.data); if (cv.width !== p.w) { cv.width = p.w; cv.height = p.h; }
+      if (!img || img.width !== p.w) img = new ImageData(p.data, p.w, p.h); cv.getContext('2d').putImageData(img, 0, 0);
+      const left = R.P - R.frame;
+      pos.textContent = left ? `frame ${R.frame}, the press in ${left} frames (${(left / R.fps).toFixed(2)} s)` : `frame ${R.frame} = the press`;
+    };
+    const sound = a => {
+      if (!a || !a.length || speed !== 1) return;
+      if (!ac) { try { ac = new AudioContext({ sampleRate: Math.round(R.rate) }); } catch (e) { ac = new AudioContext(); } }
+      const n = a.length / 2, b = ac.createBuffer(2, n, R.rate), L = b.getChannelData(0), Rt = b.getChannelData(1);
+      for (let i = 0; i < n; i++) { L[i] = a[2 * i] / 32768; Rt[i] = a[2 * i + 1] / 32768; }
+      const src = ac.createBufferSource(); src.buffer = b; src.connect(ac.destination);
+      at = Math.max(at, ac.currentTime + 0.05); src.start(at); at += n / R.rate;
+    };
+    const atPress = async () => {
+      stopLoop(); bPlay.textContent = 'Play';
+      const c = await R.check();
+      res.textContent = (c.same ? 'Press state: byte-identical to the player\'s' : 'Press state: DIFFERENT from the player\'s') +
+        (c.sha ? ` (SHA-256 ${c.sha.slice(0, 16)}… vs ${c.want.slice(0, 16)}…)` : ' (compared byte for byte)') + (R.mismatch ? `; first differing kept state: frame ${R.mismatch.frame}` : '');
+    };
+    function tick(t) {
+      if (!playing) return;
+      acc += (t - last) / 1000 * R.fps * speed; last = t;
+      let n = 0;
+      while (acc >= 1 && R.frame < R.P && n < 4) { sound(R.step()); R.checkSnap(); acc -= 1; n++; }
+      if (acc > 4) acc = 0;
+      draw();
+      if (R.frame >= R.P) { atPress(); return; }
+      raf = requestAnimationFrame(tick);
+    }
+    const restart = () => { stopLoop(); bPlay.textContent = 'Play'; R.load(startState); R.frame = R.start; R.mismatch = null; res.textContent = ''; at = 0; draw(); };
+    rbox.append(h('div', { class: 'box' },
+      h('h2', {}, 'Replay ' + r.id, h('span', { class: 'sp' }), h('button', { onclick: () => { stopLoop(); rbox.textContent = ''; } }, 'Close')),
+      h('div', { class: 'in' },
+        h('p', {}, (r.final_text || r.raw_transcript || '').slice(0, 300)),
+        h('div', { class: 'fbpair' }, h('figure', {}, cv, h('figcaption', {}, 'replay (the last 10 s before the press)')),
+                                      h('figure', {}, shot, h('figcaption', {}, 'the player\'s screen at the press'))),
+        h('div', { class: 'row' }, bPlay,
+          h('button', { onclick: () => { if (!R || playing || R.frame >= R.P) return; sound(null); R.step(); R.checkSnap(); draw(); if (R.frame >= R.P) atPress(); } }, 'Step 1 frame'),
+          h('label', {}, 'Speed ', h('select', { onchange: e => { speed = +e.target.value; } },
+            h('option', { value: 1 }, '1× (sound)'), h('option', { value: 0.5 }, '½×'), h('option', { value: 0.25 }, '¼×'), h('option', { value: 0.1 }, '1/10×'))),
+          h('button', { onclick: restart }, 'Restart'), pos),
+        st, res)));
+    try {
+      const [item, rom] = await Promise.all([
+        fetch(API + 'item/' + r.id, { credentials: 'same-origin' }).then(x => x.json()),
+        cores[r.rom_sha] ? null : get(API + 'rom/' + r.rom_sha, 'game build ' + r.game_version)]);
+      if (!bios) bios = await get('neogeo.zip', 'BIOS');
+      const snaps = {};
+      const names = item.files.filter(f => /^snap_\d+\.state$/.test(f));
+      const [inputs, press, meta, ...snapData] = await Promise.all([get(API + 'file/' + r.id + '/inputs.bin', 'inputs'), get(API + 'file/' + r.id + '/press.state', 'press state'),
+        fetch(API + 'file/' + r.id + '/meta.json', { credentials: 'same-origin' }).then(x => x.json()), ...names.map(f => get(API + 'file/' + r.id + '/' + f, f))]);
+      names.forEach((f, i) => { snaps[+f.slice(5, -6)] = snapData[i]; });
+      const bundle = { inputs, snaps, press };
+      if (!cores[r.rom_sha]) cores[r.rom_sha] = (await FeedbackReplay.create(window.GeoCore, { bios, rom, systype: meta.system_type, hw: meta.hw }, bundle)).core;
+      R = new FeedbackReplay(cores[r.rom_sha], bundle);
+      const t0 = performance.now();
+      R.start = Math.max(R.W, R.P - 600);
+      R.seek(R.start); startState = R.save(); draw();
+      if (r.autoplay) toggle();
+      st.textContent = `Ready: fast-forwarded silently from the kept state at frame ${R.startFor(R.start)} in ${Math.round(performance.now() - t0)} ms; ` +
+        `the window holds frames ${R.W}..${R.P} (${((R.P - R.W) / R.fps).toFixed(1)} s). Play runs the last ${((R.P - R.start) / R.fps).toFixed(1)} s to the press.`;
+    } catch (e) { st.textContent = 'Replay unavailable: ' + e.message; R = null; }
+  }
 
   async function load() {
     try {
@@ -47,11 +131,11 @@
 
   function render() {
     if (!col) return;
-    col.textContent = '';
+    lbox.textContent = '';
     const sel = (key, opts) => h('select', { onchange: e => { filt[key] = e.target.value; render(); } },
       h('option', { value: '' }, 'all'), opts.map(o => h('option', { value: o, selected: filt[key] === o }, key === 'status' ? STATUS_TEXT[o] : o)));
     const shown = rows.filter(r => (!filt.status || r.status === filt.status) && (!filt.category || r.category === filt.category));
-    col.append(h('div', { class: 'box' },
+    lbox.append(h('div', { class: 'box' },
       h('h2', {}, 'Feedback from the player', h('span', { class: 'sp' }),
         h('label', {}, 'Status ', sel('status', Object.keys(STATUS_TEXT))), h('label', {}, 'Category ', sel('category', cats)),
         h('button', { onclick: load }, 'Reload')),
@@ -60,7 +144,7 @@
         cost ? h('p', { class: 'note' }, `Transcription cost: $${cost.usd.toFixed(4)} in all (${cost.transcriptions} transcriptions, ${Math.round(cost.audio_seconds)} s of audio; $${cost.usd_in_notes.toFixed(4)} in sent notes, the rest cancelled). Prices: ${cost.prices.source}, checked ${cost.prices.checked}.`) : null,
         h('p', { class: 'note' }, `${shown.length} of ${rows.length}. Status: NEW → read (pulled) → IN PROGRESS → SHIPPED (release) | won't do | duplicate; set with tools/feedback/fb.py.`),
         h('table', { class: 'fb' },
-          h('tr', {}, ['When / id', 'Versions', 'Note', 'Status', 'Category / fighters', 'Voice / picture', 'Cost'].map(t => h('th', {}, t))),
+          h('tr', {}, ['When / id', 'Versions', 'Note', 'Status', 'Category / fighters', 'Replay / voice / picture', 'Cost'].map(t => h('th', {}, t))),
           shown.map(r => h('tr', {},
             h('td', { class: 'mono' }, r.created.slice(0, 16).replace('T', ' '), h('br'), r.id),
             h('td', {}, 'player ' + r.apk_version, h('br'), 'game v' + r.game_version, h('br'), h('span', { class: 'small' }, r.device)),
@@ -76,7 +160,8 @@
               h('input', { type: 'text', value: r.fighters, placeholder: 'fighters: geese,terry', size: 16,
                            onchange: e => set(r.id, { fighters: e.target.value }) })),
             h('td', {},
-              r.audio_path ? h('button', { onclick: e => play(e.target, r) }, '▶ Play') : h('span', { class: 'small' }, 'no voice'),
+              h('button', { onclick: () => { openReplay(r); col.scrollIntoView({ behavior: 'smooth' }); } }, 'Replay'), h('br'),
+              r.audio_path ? h('button', { onclick: e => play(e.target, r) }, '▶ Voice') : h('span', { class: 'small' }, 'no voice'),
               h('br'), h('a', { href: API + 'file/' + r.id + '/screen.png', target: '_blank' }, 'screenshot')),
             h('td', { class: 'mono' }, r.cost_usd == null ? '-' : '$' + r.cost_usd.toFixed(4), (r.cost_source || '').includes('duration') ? h('div', { class: 'small' }, 'estimated') : null)))))));
   }
@@ -84,4 +169,11 @@
   const tab = $('tabFeedback');
   if (tab) tab.onclick = () => window.labTab('feedback');
   window.addEventListener('labtab', e => { if (e.detail === 'feedback') load(); });
+  // a link to one note's replay: brawler-lab/#fb=<id> (#fb=<id>&play starts it)
+  const m = /#fb=([0-9a-f-]+)(&play)?/.exec(location.hash);
+  if (m) {
+    window.labTab('feedback'); await load();
+    const r = rows.find(x => x.id === m[1]);
+    if (r) openReplay(Object.assign({}, r, { autoplay: !!m[2] }));
+  }
 })();

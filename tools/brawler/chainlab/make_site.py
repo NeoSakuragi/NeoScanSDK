@@ -88,5 +88,5 @@ for f in lab['fighters']:
     chars['voices'][n] = dict(f['voices'], game=f['game'], list=[{'id': vo['id'], 'cmd': vo['cmd'], 'ms': vo['ms'], 'what': what(vo, f['voices']['suggest'])} for vo in vl],
                               inrom=sorted(int(i) for i, c in srep['fighters'].get(n, {}).get('codes', {}).items() if c))
 json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
-for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'feedback.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'fbreplay.js', 'feedback.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)
