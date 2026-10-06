@@ -695,7 +695,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   "A"} (vocabulary variant.table, latched at the start); check Billy Lee's 623 the same way (same default) and show
   Bruno both rows' heights (billy_proof's travel / height per row). Quick.
 
-- [ ] 163. (+ 20261006-174212-5d29, 0.0.74: "There's still no voice for Rising Storm and Double Repuken.") (+ note 20261006-164210-5d29, 0.0.72: "The jets are missing the voice for the blitz ball of Krauser.") KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
+- [ ] 163. (+ 20261006-175904-5d29: "the voices repeats Kaiser, Kaiser two times instead of Kaiser wave. I think that's a general issue with special moves having various sounds throughout the special moves, for example Kaiser wave, double repuken, power geyser": a move's voice sends at each of its ROM steps, in order) (+ 20261006-174212-5d29, 0.0.74: "There's still no voice for Rising Storm and Double Repuken.") (+ note 20261006-164210-5d29, 0.0.72: "The jets are missing the voice for the blitz ball of Krauser.") KRAUSER'S BLITZ BALL: NO VOICE, NO FIRE (feedback 20261006-162034-b3f3, Bruno in play, 0.0.72: "Why isn't
   Krauser shouting Blitzball, Blitzball whenever he throws his projectiles? Also, the projectile should induce fire,
   since these are literally fireballs."). Replay (boss Krauser = fighter 2, stage 2): his specials at frames 13392 and
   13653 (role 0 = game.json "D" = 214A, the Blitz Ball): the game's sound queue sends NOTHING during 13653-13701 (no
@@ -784,6 +784,18 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   else falls and dies, like in traditional beat'em all games."): a standard stage-end rule: the boss's killing hit ->
   player input off, ~5 s slow motion (frame skip / half-rate game logic, music and voice kept), the boss's death voice,
   every remaining enemy knocked down and dying (no score loss), then the stage clear. Sheet + timing log.
+
+- [ ] 173. RUGAL (3 notes, 0.0.74): (a) 20261006-175700-5d29: "This move slides and travels for way too long, it
+  feels like as though it was recorded. This move should detect whether we are on the edge of the screen, and then as
+  soon as we're on the edge, actually push the character on the wall, and we should be able to actually see the victim
+  being pushed on the wall ... look at the real game." (replay: Rugal's rushing strike carries Terry past the right
+  edge) -> decode the move from KOF98's handler (is it recorded today? say), and a STANDARD rule for every travelling
+  special / rush: at the screen edge (the wall rule of the dance furies) the attacker stops and the victim is pinned
+  against the wall, visibly, as KOF does in the corner. (b) 20261006-175740-5d29: "in that special move there's another
+  instance of Rugal ... in this taunt pose ... definitely a glitch" (screenshot: a second Rugal, arms crossed, at the
+  left edge) -> find the object drawing Rugal's frames (a ghost / afterimage object with the wrong frame, or a
+  leftover entity) and fix. (c) 20261006-175904-5d29: "a blue effect that should be in the hand of Rugal, and it's not
+  there" (Kaiser Wave's charge in the hand) -> the pinned hand effect from the ROM handler; its voice is in #163.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
