@@ -313,6 +313,14 @@ For each move of a new character:
 4. **Tally**: an unresolved move goes into `missing.json` under the component that would retire it, so engine work
    is ordered by `debt_plan`.
 
+**Rule: variants are latched at move start.** The weak / strong (button) variant of a move is chosen once, when the
+move starts, and every phase uses it. A source handler that re-reads its variant later is a source quirk, flagged in
+the conversion sheet, not reproduced. KOF94 / KOF95 do this: the variant is a bit (+$E3 bit 0) that the command
+recogniser rewrites whenever any command completes, even mid-move, and handlers re-read it at each phase start
+($4D22 / $5264) and in per-frame code. That gives the mid-move flip to the weak version and Kyo's KOF95 75 Shiki Kai
+infinite (qcf B, 236D in the corner). KOF96/98/99 latch the button into +$1A4 at setup (study:
+`/data/neogeo_dict/kof95/variant_glitch.md`, tool `tools/kof95/variant_glitch.py`).
+
 Consequence for the 33 recorded moves in the game today: under this rule they are debt, retired by the plan above;
 the decoders retire 19 of them without any engine change.
 
