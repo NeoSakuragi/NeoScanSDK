@@ -283,44 +283,14 @@ static void depth_sort(void) {
     }
 }
 
-/* ---- per-line sprite guard: the LSPC shows at most 96 sprites on a line and drops the highest-numbered ones, i.e. the
- * fighters in front. All fighters are counted as sharing the same lines (standing bodies all cover y 100-150; counting
- * per band cost 2k cycles a fighter): the stage plane's 21 + every shown fighter's columns stay <= 96, and a fighter that
- * would go past is hidden this frame.
- * Priority: players, then enemies front to back, reversed every other frame so the dropped ones flicker in turn.
- * Conservative only when fighters are vertically apart (high jump vs lying down). ---- */
+/* ---- the sprite budget (TODO #158 / #170, docs/brawler_move_vocabulary.md "Sprite budget"): line_guard, before draw().
+ * hidden[i]: order[i] is not drawn this frame; noshadow[i]: drawn without its ground shadow (its band was full);
+ * guard_hidden: how many the budget hid. ---- */
 #define LINE_MAX 96
-#define SH_RESERVE NE                    /* sprites per line kept for the ground shadows (half of NE entities x 2) */
-#define SPARK_RESERVE 6                  /* and for hit sparks (two 3-column sparks on one line) */
-static uint8_t hidden[NA], guard_hidden;
+static uint8_t hidden[NA], noshadow[NA], guard_hidden, guard_thinned;
 static uint8_t dr_cols;                  /* the drama portrait's sprites on screen (main.c "drama mode"): kept per line */
-static uint8_t guard_parity, shadow_parity;   /* the frame alternations (line_guard's team order, shadows' halves): set
-                                            at a stage's start (stage_begin), not left by whatever ran before (regress bleed) */
-static void line_guard(void) {
-    uint8_t prio[NA], n = 0, i, k, used = mode == 1 ? BG_N + SH_RESERVE + SPARK_RESERVE + dr_cols : 0;   /* the select: actors only */
-    for (i = 0; i < nf; i++) if (!order[i]->team) prio[n++] = i;
-    guard_parity ^= 1;
-    for (i = 0; i < nf; i++) {
-        uint8_t j = guard_parity ? nf - 1 - i : i;                 /* order[] is back to front */
-        if (order[j]->team) prio[n++] = j;
-    }
-    guard_hidden = 0;
-    for (k = 0; k < nf; k++) {
-        fighter_t *f = order[prio[k]];
-        int16_t sx = INT(f->x) - cam_x;
-        uint8_t cols;
-        if (f->state == S_OFF || (f->state == S_PROJ && f->frame_ovr == 0xFFFF) ||
-            (f->state == S_DEAD && (f->state_t & 4)) || !block_w(f)) { hidden[prio[k]] = 1; continue; }   /* the dead
-                                                             blink; a pool entity without a block (no room) */
-        if (sx < -128 || sx > 448) { hidden[prio[k]] = 1; continue; }   /* well off screen: placed, its 9-bit X would
-                                                             wrap it onto the screen (a wave walking in from 512 px) */
-        if (floor_top + INT(f->z) - INT(f->y) < 0) { hidden[prio[k]] = 1; continue; }   /* feet above the screen's top
-                                                             (Kim's Phoenix flies out): its 9-bit Y would wrap it onto the screen */
-        cols = f->ncols;
-        if (used + cols > LINE_MAX) { hidden[prio[k]] = 1; guard_hidden++; }
-        else { hidden[prio[k]] = 0; used += cols; }
-    }
-}
+static uint8_t guard_parity, shadow_parity;   /* the frame alternations (line_guard's order inside a tier, shadows' halves):
+                                            set at a stage's start (stage_begin), not left by whatever ran before (regress bleed) */
 
 /* draw: tiles for the frames that changed, then per entity block one SCB3 and one SCB4 run covering the columns its frame
  * uses and those the block showed last frame (to clear them); a hidden block is cleared once. */
@@ -349,7 +319,7 @@ static void shadows(void) {
     for (i = shadow_parity; i < NE; i += 2, y += 2, x += 2) {
         fighter_t *f = order[i];
         int16_t sx, gy;
-        if (mode != 1 || i >= nf || hidden[i] || f->state == S_OFF ||
+        if (mode != 1 || i >= nf || hidden[i] || noshadow[i] || f->state == S_OFF ||
             (f->state == S_PROJ && f->frame_ovr == 0xFFFF)) { y[0] = y[1] = x[0] = x[1] = 0; continue; }
         sx = INT(f->x) - cam_x - 16; gy = floor_top + INT(f->z) - 8;
         y[0] = (uint16_t)((((496 - gy) & 0x1FF) << 7) | 1); y[1] = 0x40;      /* 1 tile high, second column sticky */
@@ -605,13 +575,179 @@ static void screen_fx(void) {
     else if (bd_on == 2) { PAL_setBackdrop(stg->backdrop); bd_on = 0; }   /* its backdrop the frame after */
 }
 
+/* ---- the sprite budget (TODO #158 / #170, Bruno 2026-10-06: the select screen's actors and Geese's Raging Storm
+ * blinked). The LSPC shows at most 96 sprites on a line and drops the highest-numbered ones (the front). Measured
+ * (tools/brawler/budget_proof.py, the LSPC's own per-line count): the Raging Storm with 6 enemies never reached 96 on a
+ * real line, the blink was this guard, which counted every actor as sharing one line; the select screen's 22 actors did
+ * pass it (108 on the lines of the bodies). Two rules:
+ * 1. Trimmed columns (draw.s): each sprite column shows only its rows from its first to its last non-empty tile (its
+ *    trim: 3 words after the part's tiles, export_bm.py; fighter_tiles copies it to col_trim[f->idx]: t[c] for the
+ *    SCB3, top[c] from the feet): a sprite counts on a line only when the line is in its height, so the empty tops
+ *    and bottoms of the columns no longer count (the select's worst line 108 -> 93, the Raging Storm's 87 -> 82).
+ * 2. The guard counts per band of the screen what each band will show: each entity's shown columns, a ground shadow 2
+ *    on the band(s) under the feet when it shows this frame, and what the guard does not place: the stage plane's BG_N
+ *    (or the super flash's glow + rays, which replace it), the throw effect and the drama portrait (every band), the
+ *    hit sparks alive (their frame's span +-16 px). Three steps, each only when the one before is past LINE_MAX:
+ *    a. the whole scene as one line (the sum of everything);
+ *    b. per 16-px band, each entity as a box (its columns' highest top to lowest bottom) with all its columns:
+ *       conservative, cheap (a crowd of 6 enemies under a fury passes here);
+ *    c. per 8-px band (16 px: the select screen one sprite over), each column on the bands its trim covers, the
+ *       entities by priority: an entity is hidden only when a band it covers would pass LINE_MAX; a fury's effect that
+ *       does not fit is first thinned (every other column, the others the next frame: their t[] zeroed, the tiles and
+ *       trims rewritten the next frame); a
+ *       shadow that does not fit is left out (its entity stays).
+ * Priority (placed first; the hidden ones come from the end): 0 the players, 1 their held / hit victims (GRABBED,
+ * THROWN, HITSTUN, KNOCKDOWN), 2 the players' objects and the effects of a fury playing (anyone's), 3 the other enemies
+ * and objects, in order[] (back to front) one frame and reversed the next, so that a crowd past the budget flickers in
+ * turn (the select screen's actors are all tier 3). ---- */
+#define BANDS 28                          /* c: 224 visible lines / 8 */
+#define BOXES 14                          /* b: / 16 */
+typedef struct { uint16_t t[MAX_COLS]; int16_t top[MAX_COLS]; } col_trim_t;   /* draw.s: t then top, MAX_COLS each */
+static col_trim_t col_trim[NA];
+col_trim_t *trim_cur;                     /* draw.s fighter_tiles / fighter_place: the entity's columns */
+static uint8_t band_used[BANDS];
+static uint8_t span(int16_t top, int16_t bot, uint8_t sh, uint8_t *b1) {   /* screen y [top, bot) -> bands of 1 << sh
+                                                                            px: b0 (returned) - *b1, b0 > *b1: none */
+    if (top < 0) top = 0;
+    if (bot > 224) bot = 224;
+    if (bot <= top) { *b1 = 0; return 1; }
+    *b1 = (uint8_t)((bot - 1) >> sh);
+    return (uint8_t)(top >> sh);
+}
+static void bands_add(uint8_t b0, uint8_t b1, int8_t n) { uint8_t *u = band_used + b0; for (; b0 <= b1; b0++) *u++ += n; }
+static uint8_t bands_over(uint8_t b0, uint8_t b1) {
+    const uint8_t *u = band_used + b0;
+    for (; b0 <= b1; b0++) if (*u++ > LINE_MAX) return 1;
+    return 0;
+}
+/* step c: an entity's shown columns on the 8-px bands (sign -1: taken back; th: thinned, its columns th - 1, th + 1,
+ * ...); its band range in *lo / *hi */
+static void cols_add(const fighter_t *f, int16_t oy, int8_t sign, uint8_t th, uint8_t *lo, uint8_t *hi) {
+    const col_trim_t *c = &col_trim[f->idx];
+    uint8_t k, b0, b1, rows;
+    *lo = BANDS; *hi = 0;
+    for (k = th ? th - 1 : 0; k < f->ncols; k += th ? 2 : 1) {
+        if (!(rows = c->t[k] & 63)) continue;
+        b0 = span(oy + c->top[k], oy + c->top[k] + (int16_t)(rows << 4), 3, &b1);
+        if (b0 > b1) continue;
+        bands_add(b0, b1, sign);
+        if (b0 < *lo) *lo = b0;
+        if (b1 > *hi) *hi = b1;
+    }
+}
+static uint8_t guard_tier(const fighter_t *f) {
+    const fighter_t *o;
+    if (f < projectiles || f >= projectiles + NPJ) {
+        if (mode != 1) return 3;                                 /* the select screen's actors */
+        if (!f->team) return 0;
+        return f->state == S_GRABBED || f->state == S_THROWN || f->state == S_HITSTUN || f->state == S_KNOCKDOWN ? 1 : 3;
+    }
+    o = f->owner;
+    return o && (!o->team || (o->state == S_SPECIAL && o->spec_id == BS_FURY)) ? 2 : 3;
+}
+/* what the guard does not place, on bands of 1 << sh px: base on all, the sparks alive on theirs */
+static void bands_base(uint8_t base, uint8_t sh, uint8_t nb) {
+    uint8_t k, b0, b1;
+    for (k = 0; k < nb; k++) band_used[k] = base;
+    if (mode == 1)
+        for (k = 0; k < SPARK_N; k++)
+            if (spk[k].on) {
+                const spark_frame_t *sf = &sparks[spk[k].kind].f[spk[k].frame];
+                b0 = span(spk[k].y + sf->dy - 16, spk[k].y + sf->dy + sf->rows * 16 + 16, sh, &b1);
+                if (b0 <= b1) bands_add(b0, b1, sf->cols);
+            }
+}
+static void line_guard(void) {
+    uint8_t prio[NA], n = 0, i, k, t, base, sh = shadow_parity ^ 1;   /* sh: the shadows' half shown this frame */
+    uint16_t total;
+    guard_parity ^= 1;
+    guard_hidden = guard_thinned = 0;
+    base = mode == 1 ? BG_N + dr_cols + (tfx_on ? TFX_COLS : 0) : 0;
+    total = base;
+    for (i = 0; i < nf; i++) {                                    /* who is drawn at all; the scene's columns */
+        fighter_t *f = order[i];
+        int16_t sx = INT(f->x) - cam_x;
+        hidden[i] = 1; noshadow[i] = 0;
+        if (f->state == S_OFF || (f->state == S_PROJ && f->frame_ovr == 0xFFFF) ||
+            (f->state == S_DEAD && (f->state_t & 4)) || !block_w(f)) continue;   /* the dead blink; a pool entity
+                                                             without a block (no room) */
+        if (sx < -128 || sx > 448) continue;                     /* well off screen: placed, its 9-bit X would wrap it
+                                                             onto the screen (a wave walking in from 512 px) */
+        if (floor_top + INT(f->z) - INT(f->y) < 0) continue;     /* feet above the screen's top (Kim's Phoenix flies
+                                                             out): its 9-bit Y would wrap it onto the screen */
+        hidden[i] = 0; prio[n++] = i;
+        total += f->ncols + (mode == 1 && (i & 1) == sh ? 2 : 0);
+    }
+    if (mode == 1)
+        for (k = 0; k < SPARK_N; k++) if (spk[k].on) total += sparks[spk[k].kind].f[spk[k].frame].cols;
+    if (total <= LINE_MAX) return;                                /* a: everything fits even on one line */
+    bands_base(base, 4, BOXES);                                   /* b: boxes on 16-px bands */
+    for (k = 0; k < n; k++) {
+        const fighter_t *f = order[i = prio[k]];
+        const col_trim_t *c = &col_trim[f->idx];
+        int16_t oy = floor_top + INT(f->z) - INT(f->y), lo = 0x7FFF, hi = -0x7FFF, e;
+        uint8_t j, b0, b1;
+        for (j = 0; j < f->ncols; j++)
+            if (c->t[j] & 63) {
+                if (c->top[j] < lo) lo = c->top[j];
+                if ((e = c->top[j] + (int16_t)((c->t[j] & 63) << 4)) > hi) hi = e;
+            }
+        b0 = span(oy + lo, oy + hi, 4, &b1);
+        if (b0 <= b1) bands_add(b0, b1, f->ncols);
+        if (mode == 1 && (i & 1) == sh) {
+            int16_t gy = floor_top + INT(f->z) - 8;
+            b0 = span(gy, gy + 16, 4, &b1);
+            if (b0 <= b1) bands_add(b0, b1, 2);
+        }
+    }
+    if (!bands_over(0, BOXES - 1)) return;
+    bands_base(base, 3, BANDS);                                   /* c: columns on 8-px bands, by priority */
+    {                                                             /* by tier; tier 3 in order[] or reversed */
+        uint8_t m = 0, tmp[NA];
+        for (t = 0; t < 4; t++)
+            for (k = 0; k < n; k++) {
+                i = prio[guard_parity && t == 3 ? n - 1 - k : k];
+                if (guard_tier(order[i]) == t) tmp[m++] = i;
+            }
+        for (k = 0; k < n; k++) prio[k] = tmp[k];
+    }
+    for (k = 0; k < n; k++) {
+        fighter_t *f = order[i = prio[k]];
+        int16_t oy = floor_top + INT(f->z) - INT(f->y);
+        uint8_t lo, hi;
+        cols_add(f, oy, 1, 0, &lo, &hi);                          /* tried: taken back when a band passes */
+        if (lo <= hi && bands_over(lo, hi)) {
+            uint8_t th = 0;
+            cols_add(f, oy, -1, 0, &lo, &hi);
+            if (guard_tier(f) == 2) {                             /* a fury's effect: thinned before it is hidden, */
+                th = 1 + ((guard_parity ^ i) & 1);                 /* every other column, the others the next frame */
+                cols_add(f, oy, 1, th, &lo, &hi);
+                if (lo <= hi && bands_over(lo, hi)) { cols_add(f, oy, -1, th, &lo, &hi); th = 0; }
+            }
+            if (!th) { hidden[i] = 1; guard_hidden++; continue; }
+            {                                                     /* the other columns: height 0 this frame (their */
+                col_trim_t *c = &col_trim[f->idx];                /* trims come back with the tiles rewritten next frame) */
+                uint8_t j;
+                for (j = 2 - th; j < f->ncols; j += 2) c->t[j] = 0;
+                f->shown_frame = 0xFFFF; guard_thinned++;
+            }
+        }
+        if (mode == 1 && (i & 1) == sh) {                         /* its shadow, this frame */
+            int16_t gy = floor_top + INT(f->z) - 8;
+            uint8_t b0, b1;
+            b0 = span(gy, gy + 16, 3, &b1);
+            if (b0 <= b1) { bands_add(b0, b1, 2); if (bands_over(b0, b1)) { bands_add(b0, b1, -2); noshadow[i] = 1; } }
+        }
+    }
+}
+
 static void draw(void) {
     uint8_t i;
     if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
     for (i = 0; i < nf; i++)
         if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF) && block_w(order[i])) {
             uint8_t bc = blk_cols, ob = BANK_set(CH_BANK(order[i]->ch));   /* its frames: its bank (fighter.h) */
-            blk_cols = block_w(order[i]); fighter_tiles(order[i]); blk_cols = bc;   /* clipped to its block */
+            blk_cols = block_w(order[i]); trim_cur = &col_trim[order[i]->idx]; fighter_tiles(order[i]); blk_cols = bc;   /* clipped to its block */
             BANK_set(ob);
         }
     mark(P_TILES);
@@ -629,7 +765,7 @@ static void draw(void) {
         uint16_t spr = slot_spr[i], *y, *x;
         if (m) {
             y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
-            if (vis) { uint8_t ob = BANK_set(CH_BANK(f->ch)); fighter_place(f, y, x, cam_x, m); BANK_set(ob); }
+            if (vis) { uint8_t ob = BANK_set(CH_BANK(f->ch)); trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m); BANK_set(ob); }
             else { uint8_t c; for (c = 0; c < m; c++) y[c] = x[c] = 0; }
         }
         block_placed[i] = n; block_spr[i] = spr;

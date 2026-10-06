@@ -665,6 +665,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   slot_show (no per-frame cost), an actor hidden only if a band it covers would pass 96; with #157's layout the
   generator checks the budget per band. Proof: guard_hidden 0 on the select, a sprites-per-line histogram from VRAM
   (SCB2-4) <= 96, no blink in a clip. Quick-to-medium.
+  Fixed 2026-10-06 with #170 (docs/brawler_move_vocabulary.md `draw.sprite_budget`): the 22 actors really reached 108
+  sprites on the bodies' lines, so per-line counting alone was not enough: every sprite column is now trimmed to its
+  non-empty rows (trims from export_bm.py, draw.s), select worst line 93; the guard counts per 8-px band, column by
+  column. Bruno's bundle replayed from power-on (tools/brawler/budget_bundle.py): guard hid 4-5 actors on all 408
+  select frames before, 0 after. Proof /data/tmp/budget170/out (budget.txt, *_select.png, bundle158_*.png).
 
 - [ ] 159. ROBO ARMY AREA 1: ANIMATED BLOCK WITH THE WRONG PALETTE (feedback 20261006-160946-b3f3, Bruno in play, 0.0.71:
   "If you look in the background, there is some palette glitch in a small part of this background, so yeah, it looks
@@ -815,6 +820,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   the note; measure sprites per line during the storm (pillars x fighters x HUD) vs the 96 limit and the line guard
   (main.c guard_hidden, cf. #158): fix by a sprite-budget rule for eruptions (fewer pillar columns drawn, or the
   guard dropping background / far actors first, never the effect itself), sheet before / after.
+  Fixed 2026-10-06 (with #158): the LSPC never passed 96 during the storm (worst real line 87, our core's own per-line
+  count); the blink was the line guard hiding an enemy (46 of 109 frames, alternating). Now trimmed columns + a per-band
+  guard with a priority (players > held / hit victims > fury effects > enemies, a fury effect thinned before hidden):
+  Raging Storm fury / MAX, Kuroko's and Genjuro's furies with 6 enemies: nobody hidden, worst line 83. Proof
+  tools/brawler/budget_proof.py -> /data/tmp/budget170/out.
 
 - [ ] 171. UNINITIALISED STACK READ (lead from #165): poking $10F289 (a stack byte the BIOS leaves) changes 1 of
   fighter 9's 13 regress traces: some game code reads stack it never wrote. Find it (a read watch in our core on
