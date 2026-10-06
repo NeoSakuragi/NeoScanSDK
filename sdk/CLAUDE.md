@@ -42,10 +42,14 @@ make          # builds sdk/lib/libneoscan.a
   database, which disconnects joystick 2.
 - No libgcc: a 32-bit multiply/divide in C fails at link time (`__mulsi3`); use 16-bit operands, shifts or pointer steps.
 - `make` tracks header dependencies (`-MMD`).
-- **Program ROM past 1 MB**: sections named `.p2data` link at $200000 (bank 0 of the P2 window, mapped at reset, no
-  switching); rename an object's `.rodata` with `objcopy --rename-section .rodata=.p2data` (examples/brawler/Makefile).
-  `tools/neobuild.py` lays the P ROM out as the first MB then the $200000 data, sizes it to fit (1 or 2 MB) and refuses
-  more (past $2FFFFF needs P2 bank switching). C ROM is sized to fit too; nothing is truncated silently any more.
+- **Program ROM past 1 MB: P2 banks** (`neo_bank.h`, 2026-10-06): sections named `.p2bankN` (N 0-6; `.p2data` =
+  bank 0) link at $200000 and load at $200000 + N MB (`boot/neoscan.ld`); move data there with `objcopy
+  --rename-section` (examples/brawler/Makefile, tools/brawler/bank_pack.py). `BANK_set(n)` maps bank n (a word write
+  to $2FFFF0, skipped when it is already mapped) and returns the one it replaced: put it back after the read. Nothing in
+  an interrupt may read the window. `tools/neobuild.py` lays the P ROM out as the first MB, then bank 0, 1, ... (1 + N
+  MB) and refuses more than 7 banks (our cart's latch). The banks share their addresses: the linker cannot see a
+  pointer into the wrong bank (docs/rom_packer_rules.md "P ROM"). C ROM is sized to fit too; nothing is truncated
+  silently any more.
 - **MVS attract / title / game** (crt0.s, measured with Unibios 4.0 in our emulator): USER request 0 = init (game_init),
   2 = demo and 3 = title both enter the frame loop through `game_enter(request)` (weak default: game_init, the old
   behaviour). DEMO_END (coin during the demo) must not return to the BIOS's SYSTEM_IO (that hangs the game): crt0's

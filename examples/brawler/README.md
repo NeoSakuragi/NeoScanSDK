@@ -506,9 +506,12 @@ keeps Omega Rugal's EX specials out) and KOF96 Goenitz (no rush or rising specia
 role he has), 16 fighters. The bosses are not selectable in their games: the captures put them on P1 the way every
 capture swaps fighters, by writing the id (KOF98 36, KOF96 28) into P1's team record (`capture/emu.py swap_pokes`).
 C ROM: 118,779 tiles used = 14.5 MB of the 16 MB image. HUD portraits use fix palette 2 + side, loaded when drawn
-(4-bit fix palettes: 16 fighters cannot keep one each). The fighter tables (556 KB) live at $200000
-(objcopy renames bm_chars.o's .rodata to .p2data), the code (22 KB) at $000000: P ROM 2 MB, no bank switching, room for
-about 45 fighters' tables; past that, P2 bank switching. Tile numbers are 20 bits: each game's block sits inside one 64K page
+(4-bit fix palettes: 16 fighters cannot keep one each). P ROM (TODO #174, docs/rom_packer_rules.md "P ROM"):
+the code and every table another fighter, combat, the AI or the HUD reads (animations with their boxes, throws,
+postures, palettes, routes, voices, special / projectile headers) in the first MB; each fighter's bulk (frames, tile
+numbers, special scripts and programs, projectile rows) in its P2 bank (tools/brawler/bank_pack.py, bm_bank[]), mapped
+by fighter_update, projectiles_update, the drawing and combat (fighter.h "banks"). 0.0.77: first MB 419 KB used, banks
+0 / 1 1.04 MB / 0.50 MB (build/banks.txt), P ROM 3 MB. Tile numbers are 20 bits: each game's block sits inside one 64K page
 (padded to the next page when it would cross one) and starts with a blank tile, tables keep the low 16 bits and
 `bchar_t.tile_hi` gives bits 16-19, which draw.s puts in SCB1 attribute bits 4-7. Here KOF98 is page 0, KOF96 + KOF99
 page 1. Only the palettes a fighter's frames use are kept (1-5). Widest frame 19 columns (Billy), inside the 20-column
