@@ -25,7 +25,7 @@ The engine [code]:
                vx and its deceleration +$D0; $46C64: vx += +$D0 until it crosses 0; $31306: spawn an object of type d0
                (table $313A8: per type a routine; the object starts at its thrower's place, +$F0 = the variant).
   cancels      a command of type 5 ($319A6) is taken during a move when the move connected (+$103, kept from action to
-               action within class 1) and the shown step has bit 3 of its flags (the cancel window), unless the
+               action within class 1) and the shown step has +$74 bit 3 (its flags word's $0800: the cancel window), unless the
                allow table $6CA32 forbids that pair: Genjuro's slash chain.
   -> brawler   an entry = P_ANIM (its animation, when it has one) + its once-only writes + P_RESUME, then the frame
                loop: its conditions (P_BR), the physics (P_ADD vy: the gravity before the move, as SS2; P_MOVE;
@@ -181,7 +181,7 @@ def gen_236s(v):
             1 $563F4 (param): the count runs out (or the opponent is passed) -> vx + deceleration from $6B54E[b]
               ($46C4A), next
             2 anim 363 $56448: a connect -> the sparks (objects 23), the shout $200; the deceleration ($46C64) every
-              frame; the end -> neutral; its steps 1-4 are the cancel window (flags bit 3)
+              frame; the end -> neutral; its steps 1-4 are the cancel window (+$74 bit 3: the flags word's $0800)
     part 2: the same from $564FA ($6B542[b]: 8 / 10 / 11 px a frame), anim 366 $5657C (window steps 1-5)
     part 3: anim 369 $5662E: velocities 0, $56664: the end -> neutral
     The brawler: one special of three parts, the follow-up = C again (the cancel's press) inside a window step after a
@@ -195,7 +195,7 @@ def gen_236s(v):
                 E(None, conds=[('cnt', base + 2)], part=k),
                 E(a, [('set', 'vx', bx(dvx)), ('set', 'cnt', decel_frames(dvx, dd))],
                   [(('link', 1), 'part%d' % (k + 1)), ('end', 'end')], phys=('decel', bx(dd)), part=k,
-                  flags={i: 0x2000 for i, s in enumerate(ss2.parse_anim(12, a)) if s['flags'] & 8})]
+                  flags={i: 0x2000 for i, s in enumerate(ss2.parse_anim(12, a)) if s['flags'] & 0x0800})]
     out += [E(369, [('part',), ('set', 'vx', 0)], [('end', 'end')], part=2)]
     return out, []
 
