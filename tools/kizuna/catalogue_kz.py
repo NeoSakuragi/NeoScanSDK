@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Kim's move catalogue: every animation of his table (ROM) and every move (an input, what it plays, measured in our
+"""A fighter's move catalogue (Kim's first): every animation of his table (ROM) and every move (an input, what it plays, measured in our
 emulator) with its metadata.
 
-    python3 catalogue_kz.py [OUT.json]      (default /data/neogeo_dict/kizuna/kim_moves.json)
+    python3 catalogue_kz.py [--char NAME] [OUT.json]      (default Kim: /data/neogeo_dict/kizuna/kim_moves.json;
+                                                           fighters_kz.path(NAME, 'moves'))
 
 Per animation (ROM, kz.parse_anim): steps [ticks, sprite defs, part offsets, boxes in force (a step's trailer bit 4
 keeps the previous step's), sound word, command: stop / move / velocity / acceleration / spawn], frames (sum of ticks),
@@ -14,11 +15,17 @@ the hits (P2's life drops: damage, P2's reaction animation), Kim's travel (dx, h
 (cancels_kz.json)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
-import kz, commands_kz
+import kz, commands_kz, fighters_kz as FK
 CH = 5
 CAP = '/data/neogeo_dict/kizuna/kim_capture.json'
 OUT = '/data/neogeo_dict/kizuna/kim_moves.json'
 IDLE = {0xA0, 0x0}
+NONMOVE = (7, 0xA3, 1, 2, 9, 0xA, 0xB, 0x81, 0x82)     # Kim's numbers: crouch, walks, jumps, landing (not a move start)
+def setup(name):
+    """another fighter: its id, files, idle / non-move animations (Kim's moved through the state map)"""
+    global CH, CAP, OUT, IDLE, NONMOVE
+    CH = FK.CAST[name]; CAP = FK.path(name, 'capture'); OUT = FK.path(name, 'moves')
+    IDLE = {FK.kim_anim(CH, 0xA0), 0x0}; NONMOVE = tuple(FK.kim_anim(CH, a) for a in NONMOVE)
 
 def anim_info(n):
     st = kz.parse_anim(CH << 12 | n)
@@ -51,7 +58,7 @@ def runs(rows, i=0, key=0):
 
 def move_info(rec, frames, A, step_boxes):
     p1 = [f[0] for f in frames]
-    start = next((i for i, p in enumerate(p1) if p[0] not in IDLE and p[0] not in (7, 0xA3, 1, 2, 9, 0xA, 0xB, 0x81, 0x82)), None)
+    start = next((i for i, p in enumerate(p1) if p[0] not in IDLE and p[0] not in NONMOVE), None)
     if start is None: return None
     end = next((i for i in range(start, len(p1)) if p1[i][0] in IDLE), len(p1))
     anims = []
@@ -98,7 +105,7 @@ MOVE_SOURCES = {
 def build():
     cap = json.load(open(CAP))
     A = {}
-    for n in range(1, kz.anim_count(CH)):
+    for n in range(0, kz.anim_count(CH)):
         try: A[n] = anim_info(n)
         except Exception as e: A[n] = {'n': n, 'error': str(e)}
     step_boxes = {s['addr']: s['boxes'] for a in A.values() for s in a.get('steps', [])}
@@ -130,7 +137,7 @@ def build():
     for s in range(0x1E0):
         a = kz.u16(smap + 2 * s) & 0xFFF
         if a: states.setdefault(f'{a:X}', []).append(f'{s:X}')
-    return {'character': 'Kim (ROM debug name "KIM", character 5)', 'anim_table': f'{kz.anim_table(CH):06X}',
+    return {'character': f'{FK.NAMES[CH]} (character {CH})', 'anim_table': f'{kz.anim_table(CH):06X}',
             'anim_count': kz.anim_count(CH) - 1, 'state_map': f'{smap:06X}',
             'commands': [{'notation': c['notation'], 'cond': f"{c['cond']:04X}", 'command': f"{c['command']:02X}",
                           'steps': c['steps']} for c in commands_kz.commands(CH)],
@@ -138,9 +145,11 @@ def build():
             'moves': moves, 'reactions': react}
 
 if __name__ == '__main__':
-    out = sys.argv[1] if len(sys.argv) > 1 else OUT
+    av = sys.argv[1:]; name = 'kim'
+    if '--char' in av: i = av.index('--char'); name = av[i + 1]; setup(name); del av[i:i + 2]
+    out = av[0] if av else OUT
     cat = build()
-    canc = '/data/neogeo_dict/kizuna/cancels_kz.json'
+    canc = FK.path(name, 'cancels')
     if os.path.exists(canc): cat['cancels'] = json.load(open(canc))
     json.dump(cat, open(out, 'w'), indent=0)
     A = cat['animations']

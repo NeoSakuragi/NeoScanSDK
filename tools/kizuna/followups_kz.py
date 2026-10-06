@@ -4,6 +4,18 @@ and connect, P2 (Hayate) pinned at its start place only until the move starts (i
 the parts of each move, what triggers each part, every step of attacker and victim, objects (the Phoenix's flames).
 
     python3 followups_kz.py [OUT.json] [names...]     (default /data/neogeo_dict/kizuna/kim_followups.json)
+    python3 followups_kz.py --char NAME               (any fighter: its recipes and plan from its brute force)
+
+Any other fighter (setup / plan, after brute_kz.py --char NAME and --level2): its recipes are made from its brute force:
+per special <move>_w (whiff, P2 at 560) and <move>_h (P2 at 300) with no further input, and per continuation the brute
+force found (an animation the move's plain sequences do not play, not a normal's) one capture with the first input that
+gave it (whiff before block before hit, the earliest moment; a second level's after the first's): <move>_c<k>_<situ>.
+The plan (fighters_kz.path(NAME, 'follow')) turns those sequences into export_kz's FOLLOW: parts = the runs of
+animations between the points where two sequences part; the whiff's own order = each part's next; a turn the hit
+sequence takes = a 'hit' link, one an input takes = an 'input' link ('hit+input' when found only on hits), its input
+'again' when it is the move's own command, else the stick of its motion's end + A (the brawler's attack button); 'now'
+when the turn cuts the animation before short of what the plain sequence plays, else 'end'; a move whose handler drives
+its victim (victim phases, substates_kz) carries it in its first hit part.
 
 Per frame: P1 / P2 [anim n, step, x, y (up +), flip, step pointer, life, zoom, char, cam x, tick acc +$48 word,
 cancel window +$10C bit 3, follow-up command +$1EB, cam y $10965E], the objects that were not there at the start [slot, anim id, step,
@@ -17,7 +29,7 @@ part that follows are measured here (MOVES)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import cap_kz as cap
+import cap_kz as cap, fighters_kz as FK
 
 OUT = '/data/neogeo_dict/kizuna/kim_followups.json'
 LOW = '108313=14,108315=14,108391=14'                 # P1 life 20 of 192: the desperation moves (cond life <= 96)
@@ -49,19 +61,66 @@ POOL = 0x8000                                          # task pool $100000-$107F
                                                        # 508B live at $104100 / $105A00, past the first $4000 [meas]
 PIN = 6                                                # P2 pinned before the move starts (its first frames)
 
+NAME, STATE, CH = 'kim', cap.VS, 5
+
+def setup(name):
+    global NAME, STATE, CH
+    NAME, STATE, CH = name, FK.state(name), FK.CAST[name]
+    if name == 'kim': return
+    import brute_kz
+    brute_kz.setup(name)
+    RECIPES.clear()
+    br = json.load(open(FK.path(name, 'brute')))
+    for mv, (seq0, pokes) in brute_kz.MOVES.items():
+        RECIPES[f'{mv}_w'] = (560, '2:-,' + seq0 + '200:-', pokes)
+        RECIPES[f'{mv}_h'] = (300, '2:-,' + seq0 + '200:-', pokes)
+        for k, (situ, inp, situs) in enumerate(continuations(mv, br)):
+            RECIPES[f'{mv}_c{k}_{situ[0]}'] = (brute_kz.SITU[situ][0], lane(mv, inp), pokes, brute_kz.SITU[situ][1], inp, situs)
+
+def continuations(mv, br):
+    """[(situation, input, the situations it was found in)]: one run per continuation sequence the brute force found for move mv (level 1, then level 2:
+    'IN@t then IN2', t of IN2 the run's own), the first run of each in whiff / block / hit order, earliest moment"""
+    import brute_kz
+    out = []
+    for key in (mv, mv + ' L2'):
+        res = br.get(key, {})
+        for k, v in res.items():
+            if key == mv and not brute_kz.followup(br[mv], k): continue
+            if key == mv and len(v) > 100: continue
+            if key != mv and not brute_kz.followup(br[mv], k): continue
+            runs = [r for r in v if r[1]]
+            if not runs: continue
+            s, inp, t = min(runs, key=lambda r: (('whiff', 'block', 'hit').index(r[0]), r[2]))
+            if key != mv:
+                a, b = inp.split(' then '); i1, t1 = a.split('@'); inp = [(i1, int(t1)), (b, t)]
+            else: inp = [(inp, t)]
+            situs = sorted({r[0] for r in runs})
+            if (s, tuple(map(tuple, inp))) not in [(o[0], tuple(map(tuple, o[1]))) for o in out]: out.append((s, inp, situs))
+    return out
+
+def lane(mv, inps):
+    """the brute force's input lane (brute_kz run1 / run2) for move mv then the inputs [(motion + button, t)]"""
+    import brute_kz
+    seq = '2:-,' + brute_kz.MOVES[mv][0]; t0 = 0
+    for inp, t in inps:
+        i = brute_kz.press(inp[:-1], inp[-1].lower()); l = cap.nframes(i) - 3
+        seq += f'{max(1, t - t0 - 3 - l)}:-,' + i; t0 = t
+    return seq + '250:-'
+
 def fighter(r, a):
     o = cap.obj(r, a); w = o['raw']
     return [o['anim'] & 0xFFF, o['step'], o['x'], o['y'], o['flags'] >> 1 & 1, o['ptr'], w[0x113], r['cam'][0x2A],
             o['anim'] >> 12, cap.s16(r['cam'], 0x1A), cap.u16(w, 0x48), w[0x10C] >> 3 & 1, w[0x1EB], cap.s16(r['cam'], 0x1E)]
 
 def capture(name):
-    p2x, seq, pokes = RECIPES[name]
+    p2x, seq, pokes = RECIPES[name][:3]
+    hold = RECIPES[name][3] if len(RECIPES[name]) > 3 else ''
     n = cap.nframes(seq)
     pk = []
     for f in range(n):
         s = ([f'108424={p2x >> 8:02X},108425={p2x & 255:02X}'] if f < PIN else []) + ([pokes] if pokes else [])
         if s: pk.append(f'{f}:' + ','.join(s))
-    rows = cap.run(seq, '', pokes=';'.join(pk) or None, pool=POOL)
+    rows = cap.run(seq, f'{n}:{hold}' if hold else '', pokes=';'.join(pk) or None, pool=POOL, load=STATE)
     base = {k for k in range(POOL >> 8) if rows[0]['pool'][k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}
     out = []
     for r in rows:
@@ -82,12 +141,17 @@ def runs(fr, i=0):
     return out
 
 if __name__ == '__main__':
-    path = sys.argv[1] if len(sys.argv) > 1 else OUT
-    names = sys.argv[2:] or list(RECIPES)
-    data = json.load(open(path)) if os.path.exists(path) and sys.argv[2:] else {}
+    av = sys.argv[1:]
+    if '--char' in av: i = av.index('--char'); setup(av[i + 1]); del av[i:i + 2]
+    path = av[0] if av else FK.path(NAME, 'followups')
+    names = av[1:] or list(RECIPES)
+    data = json.load(open(path)) if os.path.exists(path) and av[1:] else {}
     for k in names:
         fr = capture(k)
         data[k] = {'recipe': RECIPES[k], 'frames': fr}
         print(k, ' '.join(f'{a}:{n:X}' for a, n in runs(fr)), '| P2', ' '.join(f'{a}:{n:X}' for a, n in runs(fr, 1)),
               '| life', fr[0][1][6], '->', fr[-1][1][6])
     json.dump(data, open(path, 'w'))
+    if NAME != 'kim':
+        import plan_kz
+        plan_kz.write(NAME)

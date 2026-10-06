@@ -56,6 +56,21 @@ def run(seq1, seq2='', extra=None, load=VS, pokes=None, keep=None, vram=False, n
     if not keep: shutil.rmtree(d)
     return rows
 
+def p1_anims(seq1, seq2='', load=VS, pokes=None):
+    """P1's animation id per frame only (the OUT line's P1 object, $108100 + $200: its +$140 = $108240), no RAM dumps:
+    the brute force's fast capture"""
+    os.makedirs('/data/tmp/kizuna', exist_ok=True)
+    d = tempfile.mkdtemp(dir='/data/tmp/kizuna')
+    env = dict(os.environ, SEQ=seq1, SEQ2=seq2, OUT=f'{d}/cap.txt', LOAD=load)
+    if pokes: env['POKE'] = pokes
+    subprocess.run([NGSDL, NEO, '--capture'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3600)
+    out = []
+    for l in open(f'{d}/cap.txt'):
+        w = l.split()
+        if len(w) > 3 and len(w[3]) >= 0x284: out.append(int(w[3][0x280:0x284], 16))
+    shutil.rmtree(d)
+    return out
+
 def u16(b, o): return b[o] << 8 | b[o + 1]
 def s16(b, o): v = u16(b, o); return v - 65536 if v & 0x8000 else v
 def u32(b, o): return u16(b, o) << 16 | u16(b, o + 2)

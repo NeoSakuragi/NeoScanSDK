@@ -5,6 +5,9 @@ Made from tools/whp/hanzo_proof.py (same steps; the reference is Kizuna's own re
 kz.render_step_zoom: pixel-identical to Kizuna's VRAM with its camera zoomed out to $CC, tools/kizuna/check_frames.py).
 
     python3 kim_proof.py [OUTDIR]          (default /data/tmp/kizuna/out/proof)
+    python3 kim_proof.py --char NAME GAME_DIR OUTDIR   any Kizuna fighter in a build of GAME_DIR (TODO #77: a throwaway
+                                           build with it in the roster; P1 picked as the first select slot, then made
+                                           NAME by the lab request) -> OUTDIR, and /data/tmp/kz77/out/harness_NAME.json
 
 1. Every move and every frame of every special's parts (and its objects: the Phoenix's flames), both facings: in the Chain Lab training (lab req 1: P1 = Kim against a standing dummy) each step of
    each of his BA_* animations is shown through the game's renderer (fighter_t.frame_ovr), the screen cropped around him
@@ -26,6 +29,8 @@ import ctypes as C
 OUT = sys.argv[1] if len(sys.argv) > 1 else '/data/tmp/kizuna/out/proof'
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
 HAO = 'kim'
+if '--char' in sys.argv:
+    i = sys.argv.index('--char'); HAO, GAME, OUT = sys.argv[i + 1], sys.argv[i + 2], sys.argv[i + 3]
 
 def lab_req(b, req, fighter, dummy):
     L = b.syms['lab']
@@ -80,7 +85,7 @@ def crop_nz(img):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    b = Brawler()
+    b = Brawler(game=GAME)
     ex = json.load(open(os.path.join(GAME, 'build', f'tmp_kizuna_{HAO}', 'kof95_export.json')))['characters'][HAO]
     pals = [int(p, 16) for p in ex['modes']['palettes']]
     used = sorted({p.get('pal', 0) for fr in ex['frames'] for p in fr['parts']})
@@ -91,10 +96,10 @@ def main():
     crom = tiles_of(b.rom)
     b.core.retro_get_memory_data.restype = C.c_void_p
     vram = (C.c_uint16 * 65536).from_address(b.core.retro_get_memory_data(101))
-    b.pick(k)                                         # power on, coin, START, the cursor to his slot, A, the fight
+    b.pick(k if HAO == 'kim' else 0)                 # power on, coin, START, the cursor to his slot, A, the fight
     print('picked', b.char_of(0), 'BC index', k)
     lab_req(b, 1, k, 0); b.run(60)
-    assert b.char_of(0) == k, 'P1 is not Kim in the lab'
+    assert b.char_of(0) == k, f'P1 is not {HAO} in the lab'
     # 1. every move, both facings
     anims = {m: ex['anims'][m] for m in moves if m in ex['anims']}
     same = diff = 0; worst = []
@@ -156,6 +161,10 @@ def main():
         for j, c in enumerate(cells): sheet.paste(c, (80 + j * 160, i * 112))
     sheet.save(os.path.join(OUT, 'specials.png'))
     json.dump({'frames_same': same, 'frames_differ': diff, 'differ': worst, 'specials': res}, open(os.path.join(OUT, 'proof.json'), 'w'), default=str)
+    if HAO != 'kim':
+        os.makedirs('/data/tmp/kz77/out', exist_ok=True)
+        json.dump({'frames_same': same, 'frames_total': same + diff, 'both_facings': True, 'differ': worst[:10],
+                   'specials_hits': {k: len(v['hits']) for k, v in res.items()}}, open(f'/data/tmp/kz77/out/harness_{HAO}.json', 'w'), default=str)
 
 if __name__ == '__main__':
     main()

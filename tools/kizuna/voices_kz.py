@@ -5,13 +5,14 @@ tap core (tools/brawler/voices.py probe: our core with a Z80 port tap, the game'
 frame 872): the ADPCM-A channel it keys on, the level, the sample's start / end; the WAV = those V ROM bytes decoded.
 
     python3 voices_kz.py          -> /data/neogeo_dict/kizuna/kim_voices.json, /data/neogeo_dict/voices/wav/kim/<word>.wav
+    python3 voices_kz.py --char NAME   any fighter: fighters_kz.path(NAME, 'voices'), /data/neogeo_dict/voices/wav/kizuna_NAME/
 
 A word several moves share (the swings, hits) is an effect; the voices are the words only Kim's moves send (prefix $1C
 here: P1's voice slot)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, '..', 'brawler')); sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
-import voices, rom96, kz
+import voices, rom96, kz, fighters_kz as FK
 
 CAP = '/data/neogeo_dict/kizuna/kim_capture.json'
 OUT = '/data/neogeo_dict/kizuna/kim_voices.json'
@@ -28,7 +29,14 @@ def words_of(frames):
         else: k += 1
     return out
 
+def setup(name):
+    global CAP, OUT, WAV
+    if name == 'kim': return
+    CAP, OUT, WAV = FK.path(name, 'capture'), FK.path(name, 'voices'), f'/data/neogeo_dict/voices/wav/kizuna_{name}'
+
 def main():
+    if '--char' in sys.argv: setup(sys.argv[sys.argv.index('--char') + 1])
+    os.makedirs(WAV, exist_ok=True)
     cap = json.load(open(CAP))
     per_move = {rec: words_of(d['frames']) for rec, d in cap.items()}
     words = sorted({w for v in per_move.values() for _, w in v})

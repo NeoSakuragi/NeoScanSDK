@@ -3,6 +3,12 @@
 (layer 0 of docs/brawler_data_model.md, one code path), the way tools/samsho4 and tools/whp do (spec `kizuna:kim`).
 
     python3 export_kz.py OUTDIR [kim]          -> OUTDIR/kof95_export.json, kof95_c1.bin, kof95_c2.bin
+    python3 export_kz.py OUTDIR NAME           any fighter of fighters_kz.CAST (spec `kizuna:NAME`)
+
+Any fighter (setup(name), one code path): Kim's tables below moved to its animations through the state map
+(fighters_kz.kim_anim: the same states, other animation numbers), its own colour sets ($1438 / $1458[char]), its
+captures (fighters_kz.path), its specials from plan_kz.py (the multipart ones as FOLLOW entries made from its brute
+force); its down+A in the air = its air special (plan 'air') or else its j.B. Kim keeps his hand-written tables.
 
 Sources: the ROM through kz.py (the study /data/neogeo_dict/kizuna/README.md: animations $80000[char], steps,
 13 sprite-definition formats, boxes, palettes $70000 + 32 n) and the captures of capture_kz.py (our emulator: which
@@ -33,11 +39,12 @@ attacks in Kizuna (D = tag): the brawler's D normals use his strong kick (B+C, $
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import kz
+import kz, fighters_kz as FK
 import numpy as np
 
 TILE_BASE = 256                                   # = export96.TILE_BASE (export_bm slices from it)
-CAST = {'kim': 5}
+CAST = FK.CAST
+CH, NAME = 5, 'kim'
 CAPTURE = '/data/neogeo_dict/kizuna/kim_capture.json'
 Z = 0xCC                                          # Kizuna's widest in-play zoom ($10966A, measured: zoom_probe.py)
 S = (Z + 1) / 256
@@ -123,20 +130,21 @@ def kof_boxes(boxes):
 def boxes_in_force(n):
     """per ROM step of animation n: the boxes in force (a step's trailer bit 4 keeps the previous step's)"""
     out, cur = [], []
-    for s in kz.parse_anim(0x5000 | n):
+    for s in kz.parse_anim(CH << 12 | n):
         if s['boxes'] is not None: cur = s['boxes']
         elif not s['trailer'] & 0x10 and not s['nboxes']: cur = []
         out.append((s, cur))
     return out
 
-STEP_BOXES = {}
+STEP_BOXES = {}                                      # per character: step address -> boxes in force
 def step_boxes(addr):
-    if not STEP_BOXES:
-        for n in range(1, kz.anim_count(5)):
+    if CH not in STEP_BOXES:
+        sb_ = STEP_BOXES[CH] = {}
+        for n in range(1 if CH == 5 else 0, kz.anim_count(CH)):
             try:
-                for s, b in boxes_in_force(n): STEP_BOXES[s['addr']] = b
+                for s, b in boxes_in_force(n): sb_[s['addr']] = b
             except Exception: pass
-    return STEP_BOXES.get(addr, [])
+    return STEP_BOXES[CH].get(addr, [])
 
 class Builder:
     def __init__(self):
@@ -232,9 +240,9 @@ def cap_steps(B, cap, rec, anims, sel):
 
 def physics(cap):
     def run(k, a): return [f[0] for f in cap[k]['frames'] if f[0][0] == a]
-    w = run('walk_fwd', 0x1); walk = (w[-1][2] - w[0][2]) / (len(w) - 1)
-    wb = run('walk_back', 0x2); back = abs(wb[-1][2] - wb[0][2]) / (len(wb) - 1)
-    ju = [f[0] for f in cap['jump_up']['frames'] if f[0][0] in (0x9, 0x81)]
+    w = run('walk_fwd', FK.kim_anim(CH, 0x1)); walk = (w[-1][2] - w[0][2]) / (len(w) - 1)
+    wb = run('walk_back', FK.kim_anim(CH, 0x2)); back = abs(wb[-1][2] - wb[0][2]) / (len(wb) - 1)
+    ju = [f[0] for f in cap['jump_up']['frames'] if f[0][0] in (FK.kim_anim(CH, 0x9), FK.kim_anim(CH, 0x81))]
     t0 = next(i for i, f in enumerate(ju) if f[3] > 0) - 1
     ys = [f[3] for f in ju[t0:]]
     n = ys.index(max(ys)); vy0 = 2 * max(ys) / n; g = vy0 / n
@@ -263,6 +271,40 @@ def special_sounds(inp, cap, fc):
         base += len(rows)
     return out
 
+def projectile_run(fr, s0):
+    """[(capture frame, object row)] of the special's projectile: the first object of the fighter's own (its animation
+    table, a task name) with a live attack box in a step, from the frame it appears while its slot stays alive"""
+    lives = {}
+    for i in range(s0, len(fr)):
+        for o in fr[i][2]:
+            if o[1] >> 12 == CH and not o[7].startswith('\0'): lives.setdefault(o[0], []).append((i, o))
+    for slot, seen in sorted(lives.items(), key=lambda kv: kv[1][0][0]):
+        if not any(attack(b) for i, o in seen for b in step_boxes(o[6])): continue
+        run = [seen[0]]
+        for i, o in seen[1:]:
+            if i != run[-1][0] + 1: break                # the slot freed (a later object in it is another)
+            run.append((i, o))
+        return run
+    return None
+
+def projectile(B, fr, s0, x0, hf):
+    """the special's projectile (export96.projectile_entry's layout; projectile_run): rows [frame, x from its spawn point
+    (forward +), height, its attack box [1, x, y, w, h] or None, None]; spawned at script row spawn_row, spawn_x / spawn_y
+    from the script's origin; kind 1 (travelling: its hit ends it), hits = the near capture's life drops while one of its
+    objects lived"""
+    run = projectile_run(fr, s0)
+    if not run: return None
+    i0, o0 = run[0]; sx, sy = o0[3], o0[4]
+    rows = []
+    for i, o in run:
+        ab = next((b for b in step_boxes(o[6]) if attack(b)), None)
+        rows.append([B.frame(o[6]), sc(o[3] - sx), sc(o[4] - sy), [1] + box_kof(ab) if ab else None, None])
+    hits = sum(1 for j in range(1, len(hf)) if hf[j][1][6] < hf[j - 1][1][6] and any(q[1] >> 12 == CH and not q[7].startswith('\0') for q in hf[j][2]))
+    return {'table': 0, 'state': o0[1] & 0xFFF, 'kind': 1, 'hit_kind': 1, 'spawn_row': i0 - s0, 'spawn_x': sc(sx - x0),
+            'spawn_y': sc(sy), 'loop': None, 'death': None, 'life': len(rows), 'travel': max(abs(r[1]) for r in rows),
+            'vx': rows[1][1] - rows[0][1] if len(rows) > 1 else 0, 'rows': rows, 'end': [], 'react': 'knockdown',
+            'child': None, 'hits': {'near': {'hits': hits}}}
+
 def special(B, inp, cap):
     rec, hitrec, anims = SPECIALS[inp]; fr = cap[rec]['frames']
     s0, e, _ = part_rows(fr, anims, False)
@@ -280,8 +322,9 @@ def special(B, inp, cap):
     hf = cap[hitrec]['frames']
     game_hits = sum(1 for j in range(1, len(hf)) if hf[j][1][6] < hf[j - 1][1][6])
     n = len(script)
+    pj = projectile(B, fr, s0, x0, hf)
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rboxes,
-            'row_steps': rsteps, 'marks': [''] * n, 'projectiles': [], 'anims': anims,
+            'row_steps': rsteps, 'marks': [''] * n, 'projectiles': [pj] if pj else [], 'anims': anims,
             'shape': [max(r[1] for r in script), max(r[2] for r in script), False], 'game_hits': game_hits}
 
 # Multipart moves: the logic decoded from the 68000 code (substates_kz.py, README "Move sub-states"), cross-checked by
@@ -365,7 +408,7 @@ def multipart(B, inp, fc):
             if F.get('objects'):                         # Kim's own objects (the flames), alive; the ones at one place
                 grp = {}                                 # (x, y, flip) are one frame; the first two places by task slot
                 for o in sorted(fr[i][2]):
-                    if o[1] >> 12 == 5 and not o[7].startswith('\0'): grp.setdefault((o[3], o[4], o[5]), []).append(o[6])
+                    if o[1] >> 12 == CH and not o[7].startswith('\0'): grp.setdefault((o[3], o[4], o[5]), []).append(o[6])
                 for (ox, oy, of), st in list(grp.items())[:2]:
                     objs.append([B.frame(tuple(sorted(st)) if len(st) > 1 else st[0]), sc(ox - x0), sc(oy), 1 if of == p[4] else 0])
             script.append([B.frame(p[5]), sc(p[2] - x0), sc(p[3]), objs])
@@ -434,46 +477,86 @@ def multipart(B, inp, fc):
             'parts': parts, 'links': links, 'carry_src': carry, 'react_src': rsrc, **({'backdrop': backdrop} if backdrop else {})}
 
 VSTATE = {0xEF: (0x10C, 0xFA), 0xDE: (0x17A, 0xDE)}   # Hayate's victim animation -> (state, Kim's animation for it)
+def vstate(a):
+    """the victim's (Hayate's) animation -> (its state: the first one Hayate plays it in, the thrower's animation there)"""
+    st = FK.smap(0).index(a)
+    return st, FK.smap(CH)[st]
 POSES = json.load(open(os.path.join(HERE, 'victim_poses_kz.json')))['poses']
 KIM_POSE = {'grabbed': (0x24, 3), 'curled': (0x32, 2), 'inverted': (0x32, 2), 'horizontal': (0x32, 2),
             'falling': (0x32, 2), 'lying': (0x2B, 5)}    # Kim's own (feet-centred) frame for each posture he is thrown in
 
 def vcentre(n, k):
     """Kim's frame of animation n step k drawn facing right at x 0: (centre x, height of its lowest pixel)"""
-    img = np.zeros((H, W), np.uint16); kz.render_step(img, kz.parse_anim(0x5000 | n)[k]['addr'], X0, Y0)
+    img = np.zeros((H, W), np.uint16); kz.render_step(img, kz.parse_anim(CH << 12 | n)[k]['addr'], X0, Y0)
     ys, xs = np.nonzero(img)
     return (xs.min() + xs.max()) / 2 - X0, Y0 - 1 - ys.max()
 
 def throw(B, cap):
     """Kim's throw (6C, $6F) in export96's throw layout: per frame from the grab to the victim's landing, the thrower
     [frame, dx, dy, turned] and the victim [Kim's frame for the posture, x forward, height, same facing, in front, key]"""
-    fr = cap['throw_fc']['frames']
-    s0 = next(i for i, f in enumerate(fr) if f[0][0] == 0x6F)
-    e = next(i for i in range(s0, len(fr)) if fr[i][1][0] == 0xDE and fr[i][1][1] == 1) + 1
+    fr = cap['throw_fc']['frames']; TH = FK.kim_anim(CH, 0x6F)
+    s0 = next(i for i, f in enumerate(fr) if f[0][0] == TH)
+    e = next((i for i in range(s0, len(fr)) if fr[i][1][0] == 0xDE and fr[i][1][1] == 1), None)
+    if e is None:                                    # the victim does not end lying: up to its first neutral frame
+        e = next((i for i in range(s0 + 1, len(fr)) if fr[i][1][0] in (0, 0x1B) and fr[i][0][0] != TH), len(fr) - 1)
+    e += 1
     x0 = fr[s0][0][2]
     timeline, rows, steps = [], [], []
     for i in range(s0, e):
         a, b = fr[i][0], fr[i][1]
         fi = B.frame(a[5])
         timeline.append([fi, sc(a[2] - x0), sc(a[3]), a[4]])
-        if a[0] == 0x6F and (not steps or steps[-1][0] != a[5]): steps.append([a[5], 0])
-        if a[0] == 0x6F: steps[-1][1] += 1
-        st, kn = VSTATE[b[0]]
+        if a[0] == TH and (not steps or steps[-1][0] != a[5]): steps.append([a[5], 0])
+        if a[0] == TH: steps[-1][1] += 1
+        st, kn = vstate(b[0])
         key = f'{st:X}.{b[1]}'
-        cx, bot = vcentre(kn, b[1])
-        vn, vk = KIM_POSE[POSES[key][0]]
-        vf = B.frame(kz.parse_anim(0x5000 | vn)[vk]['addr'])
+        nst = len(kz.parse_anim(CH << 12 | kn))
+        cx, bot = vcentre(kn, min(b[1], nst - 1))
+        # the posture: the frame of it read by eye for Kim's throw (victim_poses_kz.json), else the thrower's own frame
+        # of the victim's state and step (every fighter has its frame for that state: what Kizuna draws for him there)
+        vn, vk = (FK.kim_anim(CH, KIM_POSE[POSES[key][0]][0]), KIM_POSE[POSES[key][0]][1]) if key in POSES else (kn, min(b[1], nst - 1))
+        vf = B.frame(kz.parse_anim(CH << 12 | vn)[vk]['addr'])
         rows.append([vf, sc(b[2] - a[2] - cx), sc(b[3] + bot), 0, 0, key])
-    anim = {'slot': 0x6F, 'mode': 'hold', 'steps': [step(B, ad, n, step_boxes(ad)) for ad, n in steps]}
-    return {'slot': 0x6F, 'inputs': '6C / 4C (close)', 'table': [], 'hold': False, 'timeline': timeline,
-            'victims': {'kim': rows}, 'impacts': [], 'anim': anim}
+    anim = {'slot': TH, 'mode': 'hold', 'steps': [step(B, ad, n, step_boxes(ad)) for ad, n in steps]}
+    return {'slot': TH, 'inputs': '6C / 4C (close)', 'table': [], 'hold': False, 'timeline': timeline,
+            'victims': {NAME: rows}, 'impacts': [], 'anim': anim}
 
 def rom_palette(n): return [kz.u16(0x70000 + 32 * n + 2 * i) for i in range(16)]
 
+KIM = {}
+def setup(name):
+    """fighter name's tables (module doc): Kim's as written, another's moved to its animations + its plan_kz specials"""
+    global CH, NAME, CAPTURE, FOLLOWUPS, SETS, MOVES, SPECIALS, FOLLOW, CAP_OF
+    if not KIM: KIM.update(CAPTURE=CAPTURE, FOLLOWUPS=FOLLOWUPS, SETS=SETS, MOVES=MOVES, SPECIALS=SPECIALS, FOLLOW=FOLLOW, CAP_OF=CAP_OF)
+    NAME, CH = name, FK.CAST[name]
+    if name == 'kim':
+        CAPTURE, FOLLOWUPS, SETS, MOVES, SPECIALS, FOLLOW, CAP_OF = (KIM[k] for k in ('CAPTURE', 'FOLLOWUPS', 'SETS', 'MOVES', 'SPECIALS', 'FOLLOW', 'CAP_OF'))
+        return
+    CAPTURE, FOLLOWUPS = FK.path(name, 'capture'), FK.path(name, 'followups')
+    SETS = [kz.u16(0x1438 + 2 * CH), kz.u16(0x1458 + 2 * CH)]
+    plan = json.load(open(FK.path(name, 'follow')))
+    ka = lambda n: FK.kim_anim(CH, n)
+    air = plan['air']['anim'] if plan.get('air') else ka(0x58)          # its air special, else j.B
+    def clamp(n, first, last):                       # Kim's step ranges cut to the fighter's own animation
+        k = len(kz.parse_anim(CH << 12 | n)) - 1
+        return min(first, k), None if last is None else max(min(last, k), min(first, k))
+    MOVES = {}
+    for mv, src in KIM['MOVES'].items():
+        if src[0] == 'anim':
+            n = air if src[1] == 0x8F else ka(src[1]); MOVES[mv] = ('anim', n, *clamp(n, src[2], src[3]))
+        else: MOVES[mv] = ('cap', src[1], tuple(ka(a) for a in src[2]), src[3])
+    CAP_OF = {ka(k): v for k, v in KIM['CAP_OF'].items()}
+    SPECIALS = {k: (v[0], v[1], v[2]) for k, v in plan['specials'].items()}
+    FOLLOW = {}
+    for k, F in plan['follow'].items():
+        FOLLOW[k] = {**F, 'parts': [(r, tuple(a), n) for r, a, n in F['parts']],
+                     'links': [tuple(l) for l in F['links']]}
+
 def export(names, outdir, only=None, extra=None):
-    cap = json.load(open(CAPTURE))
     B = Builder(); out = {'game': 'kizuna', 'tile_base': TILE_BASE, 'characters': {}}
     for name in names:
+        setup(name)
+        cap = json.load(open(CAPTURE))
         cid = CAST[name]
         anims = {}
         for mv, src in MOVES.items():
@@ -489,8 +572,13 @@ def export(names, outdir, only=None, extra=None):
         th = throw(B, cap)
         anims['throw_c'] = th.pop('anim')
         fc = json.load(open(FOLLOWUPS))
-        sps = [multipart(B, inp, fc) if inp in FOLLOW else special(B, inp, cap) for inp in SPECIALS]
-        sets = [[[0] + rom_palette(s + p - 16)[1:] for p in B.pals] for s in SETS]
+        def thrown(inp):                                 # a move whose only branch is the hit (the thrower's recovery
+            F = FOLLOW[inp]                              # when its projectile hits, Hayate's 236C) plays as one part
+            if F.get('carry') or any(l[2] != 'hit' for l in F['links']): return False     # with its projectile
+            fr = cap[SPECIALS[inp][0]]['frames']
+            return projectile_run(fr, part_rows(fr, SPECIALS[inp][2], False)[0]) is not None
+        sps = [multipart(B, inp, fc) if inp in FOLLOW and not thrown(inp) else special(B, inp, cap) for inp in SPECIALS]
+        sets = [[[0] + rom_palette(s_ + p - 16)[1:] for p in B.pals] for s_ in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0],
                                    'physics': physics(cap), 'throws': {'throw_c': th}, 'specials': sps,

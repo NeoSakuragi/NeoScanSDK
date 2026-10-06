@@ -3,6 +3,7 @@
 (the README's "Move sub-states"), for any character.
 
     python3 substates_kz.py [char] [--json OUT]     (default Kim, 5)
+    python3 substates_kz.py --char NAME [--check BRUTE.json]   (any fighter: fighters_kz.path(NAME, 'substates' / 'check'))
 
 The model [code]: a fighter is a task whose long +$00 is the routine it runs next frame (a coroutine: each sub-state ends
 `movel #next,%a4@` + rts). A command the COMND scan accepts (commands_kz.py, $2D948) is written to +$20 as group << 8 |
@@ -22,7 +23,7 @@ current part ends; HIT: on a landed hit, at once if ANIM_END is not also require
 import json, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import kz, commands_kz
+import kz, commands_kz, fighters_kz as FK
 
 PBIN = '/data/tmp/kizuna/p.bin'
 NEUTRAL = {0x377E4: 'neutral (stand)', 0x37914: 'neutral'}
@@ -61,22 +62,38 @@ def handlers(ch, group=2, air=False):
     out = {}
     for c in range(0x20, 0x40):
         r = kz.u32(T + 4 * c) & 0xFFFFFF
-        if r and r != 0x37DFC: out[c] = r
+        if r: out[c] = r                             # $37DFC: the shared one-state handler (state 400: Hayate's 236C)
     return out
 
-def paths(ins, start):
+def paths(ins, start, fld0=None):
     """every path through a routine: (conditions [(atom, value)], actions [...]) until rts / a jump away"""
     res = []
-    def walk(a, conds, acts, last, depth):
+    def walk(a, conds, acts, last, depth, sym=None, tbl=None, fld={}):
         while a in ins and depth < 200:
             mn, op, nx = ins[a]; depth += 1
             key = f'{mn} {op}'
-            if mn == 'rts': res.append((conds, acts)); return
+            if mn == 'rts': res.append((conds, acts + [('FLD', fld)])); return
             if key in VOCAB: last = VOCAB[key]
             elif mn.startswith('btst') or mn.startswith('tst') or mn.startswith('cmp'): last = key
             if key in ACTS: acts = acts + [ACTS[key]]
             m = re.match(r'#(-?\d+),%d0', op)
             if mn == 'movew' and m: d0 = int(m.group(1)) & 0xFFFF; acts = acts + [('d0', d0)]
+            # states kept in the fighter's own words: movel ROM,+$N (two words) ... movew +$N,d0 (Hayate's 623B, $37FC4)
+            m = re.match(r'0x([0-9a-f]+),%a4@\((\d+)\)$', op)
+            if mn == 'movel' and m:
+                fld = dict(fld); a_ = int(m.group(1), 16); n_ = int(m.group(2)); fld[n_] = kz.u16(a_); fld[n_ + 2] = kz.u16(a_ + 2)
+            m = re.match(r'%a4@\((\d+)\),%d0$', op)
+            if mn == 'movew' and m and int(m.group(1)) in fld: acts = acts + [('d0', fld[int(m.group(1))])]
+            # a state picked by the command (+$20) from a table: moveq #127,d0; andw +$20,d0; subiw #k,d0; addw d0,d0
+            # (x2 or x4); lea TABLE,a0; movew a0@(0,d0:w),d0 (Gozu's 623A / B / C share one handler, $39108)
+            if mn == 'andw' and op == '%a4@(32),%d0': sym = [0, 1]
+            elif sym is not None and mn == 'subiw' and op.endswith(',%d0'): sym[0] = int(op[1:].split(',')[0])
+            elif sym is not None and mn == 'addw' and op == '%d0,%d0': sym[1] *= 2
+            m = re.match(r'0x([0-9a-f]+),%a0$', op)
+            if mn == 'lea' and m: tbl = int(m.group(1), 16); acts = acts + [('LEA', tbl)]
+            if mn == 'movew' and op == '%a0@(0,%d0:w),%d0' and sym is not None and tbl is not None and CMD[0] is not None:
+                acts = acts + [('d0', kz.u16(tbl + (CMD[0] - sym[0]) * sym[1]))]
+            if mn == 'jsr' and op == '0x29738' and tbl is not None: acts = acts + [('SPAWN', tbl)]
             m = re.match(r'%pc@\(0x([0-9a-f]+),%d0:w\),%d0', op)
             if mn == 'movew' and m:                      # a state picked at random from a table (421A: 16 words)
                 tb = int(m.group(1), 16); ws = []
@@ -98,12 +115,12 @@ def paths(ins, start):
                 cc = mn[1:3]
                 t = int(op, 16)
                 # taken / not taken with the condition's value: Z (eq) or not, y <= 0 (le) ...
-                walk(t, conds + [(last, cc)], acts, last, depth)
+                walk(t, conds + [(last, cc)], acts, last, depth, list(sym) if sym else None, tbl, fld)
                 inv = {'eq': 'ne', 'ne': 'eq', 'le': 'gt', 'gt': 'le', 'lt': 'ge', 'ge': 'lt', 'cc': 'cs', 'cs': 'cc', 'mi': 'pl', 'pl': 'mi', 'hi': 'ls', 'ls': 'hi'}[cc]
                 conds = conds + [(last, inv)]
             a = nx
-        res.append((conds, acts))
-    walk(start, [], [], None, 0)
+        res.append((conds, acts + [('FLD', fld)]))
+    walk(start, [], [], None, 0, fld=fld0 or {})
     return res
 
 def meaning(atom, cc):
@@ -116,16 +133,18 @@ def meaning(atom, cc):
     if atom in t: return t[atom][0] if cc == t[atom][1] else 'not ' + t[atom][0]
     return f'{atom} {cc}'
 
+CMD = [None]                                                # the command being decoded (a state table indexed by it)
 def decode(ch, cmd, entry, limit=40):
     """the sub-state graph of one handler: {routine: [{'if': [...], 'do': [...], 'next': routine}]}"""
-    graph, todo, seen = {}, [entry], set()
+    CMD[0] = cmd
+    graph, todo, seen, flds = {}, [entry], set(), {}
     while todo and len(seen) < limit:
         r = todo.pop(0)
         if r in seen or r in NEUTRAL: continue
         seen.add(r)
         ins = dis(r, r + 0x200)
         out = []
-        for conds, acts in paths(ins, r):
+        for conds, acts in paths(ins, r, flds.get(r)):
             do, nxt = [], None
             for x in acts:
                 if isinstance(x, tuple) and x[0] == 'STATE' and x[1] is not None:
@@ -135,7 +154,8 @@ def decode(ch, cmd, entry, limit=40):
                 elif isinstance(x, tuple) and x[0] == 'SPAWN': do.append(f'spawn task {x[1]:X}')
                 elif isinstance(x, str): do.append(x)
             ifs = [meaning(a, c) for a, c in conds if a]
-            if nxt and nxt not in NEUTRAL and nxt not in seen: todo.append(nxt)
+            fl = next((x[1] for x in acts if isinstance(x, tuple) and x[0] == 'FLD'), {})
+            if nxt and nxt not in NEUTRAL and nxt not in seen: todo.append(nxt); flds.setdefault(nxt, fl)
             out.append({'if': ifs, 'do': do, 'next': (NEUTRAL.get(nxt) or f'{nxt:X}') if nxt else 'same'})
         graph[f'{r:X}'] = out
     return graph
@@ -191,7 +211,8 @@ def check(ch, brute_path, moves):
             sits = sorted({s for s, i in rs})
             if fu:
                 ins = sorted({i.split(' then ')[-1] for s, i in rs})
-                (ok if set(ins) <= set(follow) else bad).append(f'{name}: {a:X} after the follow-up {follow} (window command): brute inputs {ins}, situations {sits}')
+                n5 = lambda x: x[1:] if x.startswith('5') and len(x) > 2 else x    # 56B = neutral, then 6B
+                (ok if {n5(i) for i in ins} <= {n5(f) for f in follow} else bad).append(f'{name}: {a:X} after the follow-up {follow} (window command): brute inputs {ins}, situations {sits}')
             elif hit:
                 (ok if set(sits) <= ({'hit'} if caught else {'hit', 'block'}) else bad).append(
                     f'{name}: {a:X} only on a hit{" that caught" if caught else ""}: brute situations {sits}')
@@ -200,16 +221,29 @@ def check(ch, brute_path, moves):
             bad.append(f'{name}: anim {a:X} seen by the brute force, not set by the decoded handler')
     return ok, bad
 
-if __name__ == '__main__' and '--check' in sys.argv:
-    ok, bad = check(5, sys.argv[sys.argv.index('--check') + 1], {'236C': 0x25, '[2]8C': 0x28, '214B': 0x27, '421A': 0x2A, '6246A': 0x29})
-    for l in ok: print('agree   ', l)
-    for l in bad: print('DISAGREE', l)
-    sys.exit(0)
+def check_moves(name):
+    """{notation: command} of the specials the brute force plays for fighter name (brute_kz.setup)"""
+    import brute_kz
+    brute_kz.setup(name)
+    if name == 'kim': return {'236C': 0x25, '[2]8C': 0x28, '214B': 0x27, '421A': 0x2A, '6246A': 0x29}
+    cm = {}
+    for c in commands_kz.commands(FK.CAST[name]):          # the entry brute_kz plays (ground, not a follow-up)
+        if c['command'] >= 0x24 and not c['cond'] & 0x6C: cm.setdefault(c['notation'], c['command'])
+    return {n: cm[n] for n in brute_kz.MOVES}
 
 if __name__ == '__main__':
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    ch = int(args[0]) if args else 5
-    jo = sys.argv[sys.argv.index('--json') + 1] if '--json' in sys.argv else None
+    av = sys.argv[1:]; name = 'kim'
+    if '--char' in av: i = av.index('--char'); name = av[i + 1]; del av[i:i + 2]
+    if '--check' in av:
+        ch = FK.CAST[name]
+        ok, bad = check(ch, av[av.index('--check') + 1], check_moves(name))
+        lines = [f'agree    {l}' for l in ok] + [f'DISAGREE {l}' for l in bad]
+        print('\n'.join(lines))
+        if name != 'kim': open(FK.path(name, 'check', 'txt'), 'w').write('\n'.join(lines) + '\n')
+        sys.exit(0)
+    args = [a for a in av if not a.startswith('--') and not a.endswith('.json')]
+    ch = FK.CAST[name] if name != 'kim' or not args else int(args[0])
+    jo = av[av.index('--json') + 1] if '--json' in av else (FK.path(name, 'substates') if name != 'kim' else None)
     cmds = {c['command']: c['notation'] for c in commands_kz.commands(ch)}
     res = {}
     for cmd, r in handlers(ch).items():
