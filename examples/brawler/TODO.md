@@ -754,7 +754,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   tornado specials' sound sends (each tornado's wind sound) and his teleport special(s) from the ROM handlers; give
   the teleport a C slot; sheets + sound log vs KOF.
 
-- [ ] 169. FEEDBACK THREADS IN THE APK (20261006-173524-5d29 + 173615: "list the status of every open feedback,
+- [x] 169. FEEDBACK THREADS IN THE APK (20261006-173524-5d29 + 173615: "list the status of every open feedback,
   whether it's been treated or fixed in the current build ... provide feedback against that particular feedback to keep
   a trail and a history, and either say ... resolved or ... still here ... adding the voice feedback"; "provide myself a
   feedback in the form of another voice feedback or just a thumbs up, thumbs down"): the APK list (0.0.15, Settings ->
@@ -762,6 +762,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   reply thread: voice (transcribed, same flow minus the replay) or typed reply, and thumbs up = verified fixed (status
   verified) / thumbs down = still broken (reopens: status reopened); replies in the tracker (table replies), in fb.py
   show, the Lab tab and pull.py's report; pull.py lists reopened notes first.
+  Done (Player 0.0.17, docs/feedback.md "Threads"): the list shows the build he runs and filters Open / Shipped: test
+  it / All; per note his thread + 👍 Fixed (verified) / 👎 Still broken (reopened, optional reply) / Reply (hold to
+  talk -> transcribed, editable; or typed); the in-game note box has "Reply to..." (picks an open / testable note, no
+  bundle). Server: POST /brawler/feedback/reply, table replies (origin columns), status change in the history;
+  fb.py show, pull.py (report.md thread + /data/feedback/report.md overview, reopened first), Lab tab (thread,
+  reopened first). Proven in JanusPhone with brawler-test: text, voice, 👍 shipped -> verified, 👎 verified ->
+  reopened, filters 4/1/7 -> 5/0/7, in-game text + voice replies.
 
 - [ ] 170. RAGING STORM BLINKING (20261006-174101-5d29, 0.0.74: blinking whenever Geese's Raging Storm plays): replay
   the note; measure sprites per line during the storm (pillars x fighters x HUD) vs the 96 limit and the line guard

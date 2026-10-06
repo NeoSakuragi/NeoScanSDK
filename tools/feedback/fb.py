@@ -2,11 +2,12 @@
 """The feedback tracker from the desktop (docs/feedback.md): every call goes to the service's API on the VPS
 (tools/feedback/server.py, 127.0.0.1:8920 over ssh = authenticated by the ssh key); never a direct DB edit.
 
-    fb.py list [--status new|read|in_progress|shipped|wont_do|duplicate] [--category gameplay] [--cost]
+    fb.py list [--status new|read|in_progress|shipped|wont_do|duplicate|verified|reopened] [--category gameplay] [--cost]
     fb.py show <id>
-    fb.py status <id> read|in_progress|wont_do [--note "..."]
+    fb.py status <id> read|in_progress|wont_do|verified|reopened [--note "..."]
     fb.py status <id> shipped --release 0.0.71 [--note "..."]
     fb.py status <id> duplicate --of <other id>
+    (verified / reopened are normally set by the player himself: thumbs up / down in his list, Player 0.0.17)
     fb.py set <id> [--category sound|graphics|gameplay|integration|scripting|other] [--fighters geese,terry] [--notes "..."]"""
 import argparse, json, shlex, subprocess, sys
 
@@ -25,16 +26,29 @@ def api(path, body=None):
     return out
 
 
+def thread(replies, indent='  '):
+    """the player's replies to a note (Player 0.0.17), oldest first: one line each"""
+    KIND = {'up': 'THUMBS UP (verified fixed)', 'down': 'THUMBS DOWN (still broken)', 'voice': 'voice', 'text': 'text'}
+    out = []
+    for x in replies or []:
+        st = f" [{x['status_from']} -> {x['status_to']}]" if x.get('status_to') else ''
+        au = f" (audio {x['audio_path']})" if x.get('audio_path') else ''
+        out.append(f"{indent}{x['at'][:16].replace('T', ' ')}  {x.get('user') or '-'}  {KIND.get(x['kind'], x['kind'])}{st}{au}" +
+                   (f": \"{x['text']}\"" if x.get('text') else ''))
+    return out
+
+
 def money(v): return f'${v:.4f}' if v is not None else '-'
 
 
 def line(r, cost=False):
     text = (r['final_text'] or r['raw_transcript'] or '').replace('\n', ' ')
     rel = f" {r['release']}" if r['status'] == 'shipped' else f" of {r['duplicate_of']}" if r['status'] == 'duplicate' else ''
+    n = len(r.get('replies') or [])
     tags = ' '.join(x for x in (r['category'], r['fighters']) if x)
     return f"{r['id']}  {r['created'][:16]}  {r.get('user') or '-'}  player {r['apk_version']}  game v{r['game_version']}  {r['status']}{rel}" + \
            (f"  [{tags}]" if tags else '') + (f"  {money(r.get('cost_usd'))}" + (' (est.)' if 'duration' in (r.get('cost_source') or '') else '') if cost else '') + \
-           f"  \"{text[:80]}\""
+           f"  \"{text[:80]}\"" + (f"  ({n} repl{'y' if n == 1 else 'ies'})" if n else '')
 
 
 def main():
@@ -67,6 +81,8 @@ def main():
                       f"tokens in text {t['input_text_tokens']} audio {t['input_audio_tokens']} out {t['output_tokens']}; "
                       f"from {t.get('user') or '-'}, install {t.get('install_id') or '-'}, IP {t.get('ip') or '-'}, UA {t.get('user_agent') or '-'}")
             for h in it['history']: print(f"  {h['at']}  {h['from_status'] or '-'} -> {h['to_status']}  by {h['by']}  {h['note']}")
+            if it.get('replies'):
+                print('  thread:'); print('\n'.join(thread(it['replies'], '    ')))
         elif a.cmd == 'status':
             body = {'id': a.id, 'status': a.status, 'note': a.note, 'by': 'fb.py'}
             if a.release is not None: body['release'] = a.release
