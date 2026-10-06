@@ -623,7 +623,8 @@ def doubledr_list(rname, name, cid):
 # ---- Samurai Shodown II (MAKOTO Ver 3.0, tools/makoto3; read in the code 2026-10-06, tools/samsho2) ----
 # A sound = a 10-bit id -> word $5FD2[id] = [prefix][code] queued at $107000 and sent by $5F5E ($5FB0); a step's $08
 # command sends its id on the step's first frame, $0C the panned one (id, id + 1, id + 2 by screen x: the middle id + 1
-# here). Ids $000-$0FF are the game's common effects (swings, hits), $100 and up each fighter's own (Haohmaru $100-$116,
+# here). Ids $000-$0FF are the game's common effects (swings, hits; but a routine's own send with its move: Kuroko's
+# parody shouts $AC-$AF, $DE), $100 and up each fighter's own (Haohmaru $100-$116,
 # Genjuro $200-$218): the listing takes those, from every animation of the fighter (uses 'anim') and from the specials
 # as the brawler plays them (handlers_ss2: the frame each step starts, uses 'special'). An action entry's voice index
 # (descriptor word bit 14, $27A00: ids $200 + the pair at $27A4C[char]) sends prefix $15 words for Haohmaru (his
@@ -655,7 +656,7 @@ def samsho2_list(rname, name, cid):
     B = X.Builder(cid)
     for sp in H.specials(B, cid, name):
         for f, i in sp['ss2']['sounds']:
-            if i >= 0x100: uses.append((ss2_word(N, i), i, {'kind': 'special', 'input': sp['input'], 'at': f}))
+            if i >= 0x100 or i in sp['ss2'].get('code_sounds', ()): uses.append((ss2_word(N, i), i, {'kind': 'special', 'input': sp['input'], 'at': f}))
     words = {w for w, i, u in uses}
     hits = probe('samsho2', words); v = v_rom('samsho2')
     voices = {}
@@ -680,7 +681,7 @@ OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_
        'doubledr': {'cast': {'billy': 0, 'billy_super': 1}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
        'kizuna': {'cast': {'kim': 5}, 'capture': kizuna_capture, 'list': kizuna_list},
-       'samsho2': {'cast': {'haohmaru': 0, 'genjuro': 12}, 'capture': samsho2_capture, 'list': samsho2_list}}
+       'samsho2': {'cast': {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}, 'capture': samsho2_capture, 'list': samsho2_list}}
 
 # ---- the brawler side (export_bm.py, build_snd.py, build_tables.py, the lab) ----
 # A fighter's voice table (bchar_t.voices, fighter.c voice_tab): one entry per voice key, 2 bytes [voice id, at]; id = the

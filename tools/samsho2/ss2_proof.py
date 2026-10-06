@@ -25,9 +25,9 @@ from PIL import Image, ImageDraw
 import ctypes as C
 
 OUT = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].startswith('/') else '/data/tmp/ss2/out'
-NAMES = [a for a in sys.argv[1:] if not a.startswith('/')] or ['haohmaru', 'genjuro']
+NAMES = [a for a in sys.argv[1:] if not a.startswith('/')] or ['haohmaru', 'genjuro', 'kuroko']
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
-CHAR = {'haohmaru': 0, 'genjuro': 12}
+CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}
 CAPS = '/data/neogeo_dict/samsho2/moves'
 
 def lab_req(b, req, fighter, dummy):
@@ -179,6 +179,7 @@ def main():
         r = roster[name]; slots = [('C', '', 'D'), ('fwd+C', 'R', 'fD'), ('down+C', 'D', 'dD'), ('up+C', 'U', 'uD'),
                                    ('df+C', 'DR', 'dfD'), ('uf+C', 'UR', 'ufD')]
         plays = [(lab, st + 'c', r['specials'].get(key)) for lab, st, key in slots if r['specials'].get(key)] + [('D (fury)', 'd', r['fury'])]
+        if 'MAX ' + r['fury'] in HS.SPECIALS[name]: plays.append(('down+D (MAX)', 'Dd', 'MAX ' + r['fury']))
         sres, strips = {}, []
         for lab, keys, inp in plays:
             lab_req(b, 1, k, 0); b.run(40)
@@ -191,7 +192,7 @@ def main():
                 if f % 4 == 0 and len(cells) < 26:
                     p = os.path.join(OUT, '_shot.png'); b.screenshot(p); cells.append(Image.open(p).resize((160, 112)))
             fn, nv, results = HS.SPECIALS[name][inp]
-            cap = (rage if inp == 'WFT' else caps).get(results[-1])
+            cap = (rage if inp == 'WFT' or 'RAGE' in inp else caps).get(results[-1])
             sres[inp] = {'slot': lab, 'hits': [(h[1], h[2], h[3]) for h in b.hits[h0:]], 'projectiles_seen': proj}
             strips.append((f'{lab} {inp} brawler', cells))
             if cap: strips.append((f'{inp} SS2 ({"ABC"[nv - 1] if nv > 1 else ""})', ss2_strip(ch, cap, n=26)))

@@ -222,14 +222,83 @@ def gen_wft(v):
             E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(fy))], [('now', 7)], phys='grav'),
             E(261, conds=[('land', 'end')], phys='grav')], []
 
+
+# ---- Kuroko (table 17, the referee: the hidden character; his specials are the other fighters' moves done with his
+# flags, the "parodies") [code] -------------------------------------------------------------------------------------
+# results 39-46 share one descriptor ($593A6): anim 29 (the flag throw), routine $593B2: velocities 0, from step 7 the
+# result's own object(s) through the table $593E2 (one routine per result), and its sound; $593DC: the end -> neutral.
+# The objects: type 25 ($4C12A, +$D4 = which: its animation / end animation / place from the table $4C182, its vx from
+# $6BB0E) and type 24 ($4C07C: animation 46 at 72 px, 56 up, then 49 flying at $6BB20).
+KUR_PARODY = {39: ([4], 175), 40: ([0, 1], 173), 41: ([5], 174), 42: ([6], 172), 43: ([7], 175), 44: (['crescent'], 174),
+              45: ([2, 3], 222), 46: ([8], 174)}     # result -> the type 25 objects' +$D4 (or type 24), the sound id
+
+def kur_parody(result):
+    def fn(v):
+        objs, snd = KUR_PARODY[result]
+        os_ = [('kcrescent', 0) if o == 'crescent' else ('kparody', o) for o in objs]
+        return [E(29, [('set', 'vx', 0)], [(('step', 7), 'next', [('spawn', k) for k in range(len(os_))] + [('snd', snd)])], flags={7: 0x80}),
+                E(None, conds=[('end', 'end')])], os_
+    fn.__doc__ = f"Kuroko's result {result} ($593B2 + $593E2[{result - 39}]): anim 29, objects {KUR_PARODY[result][0]}, sound ${KUR_PARODY[result][1]:02X}"
+    return fn
+
+def kur_flag(anim):
+    def fn(v):
+        """Kuroko 6 + A+B+C / B+C+D -> results 48 / 49 ($59546 / $5954C): anim 3 / 5 (the flag sweep with its arc),
+        routine $59552: velocities 0, the end -> neutral"""
+        return [E(anim, [('set', 'vx', 0)], [('end', 'end')])], []
+    return fn
+
+def kur_ccccc(v):
+    """Kuroko C C C C C -> result 47 ($594E4) [code]: 0 anim 25 $59502: velocities 0, the shout object 78 ($2FB), next;
+    1 $59518: the end -> next; 2 anim 67 $5951E: spawn object type 26 (the ghost: anim 73 pinned to him while this
+    action lasts, $4C248; its attack steps hit), the count $6BB22 (49), next; 3 $59532: the count -> next;
+    4 anim 79 $59540: the end -> neutral"""
+    return [E(25, [('set', 'vx', 0)], [('now', 'next')]),
+            E(None, conds=[('end', 'next')]),
+            E(67, [('spawn', 0), ('set', 'cnt', N.s16(0x6BB22))], [('now', 'next')]),
+            E(None, conds=[('cnt', 'next')]),
+            E(79, conds=[('end', 'end')])], [('kghost', 0)]
+
+def kur_rage(maxv):
+    def fn(v):
+        """Kuroko's rage moves: 6 3 2 1 4 6 + A+B -> 37 ($591E0), 6 4 1 2 3 6 + C+D -> 38 ($59216) [code]:
+        0 anim 58 $59258: vx $6BAFA (6 px), the count $6BAFC (32), sound $51; next
+        1 $5927C: a connect -> the victim held (global $8AD7), anim 60 at once (entry 3 here), the count $6BB00 (128);
+          the count runs out -> the deceleration $6BAFE, next
+        2 anim 68 $592E6: vx += -64 / 256 until it stops -> neutral (the whiff)
+        3 anim 60 $59326: the dance (13 attack steps); its end -> next
+        38 only: anim 13 $59346: the count (128 frames: the pose), then anim 60 again ($59326)
+        anim 7 $59358: the end -> next; anim 9 $59364: the leap ($46C2E: $6BB02), sound $B7, the opponent disarmed
+        (+$B8); $59392: the apex -> next; anim 11 $593A0: landed -> neutral."""
+        vx, cnt, dv = N.s16(0x6BAFA), N.s16(0x6BAFC), N.s16(0x6BAFE)
+        jx, jy = N.s16(0x6BB02), N.s16(0x6BB04)
+        n = decel_frames(vx, dv)
+        ents = [E(58, [('set', 'vx', bx(vx)), ('set', 'cnt', cnt)], [('now', 'next')]),
+                E(None, conds=[('hit', 'now:3'), ('cnt', 2)]),
+                E(68, [('set', 'cnt', n)], [('cnt', 'end')], phys=('accel', bx(dv))),
+                E(60, [('set', 'vx', 0), ('set', 'cnt', N.s16(0x6BB00))], [('end', 'next')])]
+        if maxv:
+            ents += [E(13, conds=[('cnt', 'next')]), E(60, conds=[('end', 'next')])]
+        ents += [E(7, conds=[('end', 'next')]),
+                 E(9, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy))], [('now', 'next')], phys='grav'),
+                 E(None, conds=[('apex', 'next')], phys='grav'),
+                 E(11, conds=[('land', 'end')], phys='grav')]
+        return ents, []
+    return fn
+
 # fighter -> its specials: input -> (decoder, buttons, the command results per button (moves/CC.json's entries))
 SPECIALS = {
     'haohmaru': {'236S': (hao_236s, 3, (41, 42, 43)), '623S': (hao_623s, 3, (38, 39, 40)), '623K': (hao_623k, 3, (48, 49, 50)),
                  '236K': (hao_236k, 1, (44,)), '214A': (hao_214a, 1, (47,)), 'WFT': (hao_wft, 1, (37,))},
     'genjuro': {'214S': (gen_214s, 3, (38, 39, 40)), '236S': (gen_236s, 3, (41, 42, 43)), '623S': (gen_623s, 3, (50, 51, 52)),
                 'WFT': (gen_wft, 1, (37,))},
+    'kuroko': {'236A': (kur_parody(39), 1, (39,)), '16A': (kur_parody(40), 1, (40,)), '214161BC': (kur_parody(41), 1, (41,)),
+               '126BC': (kur_parody(42), 1, (42,)), '236B': (kur_parody(43), 1, (43,)), '2363214A': (kur_parody(44), 1, (44,)),
+               '214A': (kur_parody(45), 1, (45,)), '61236A': (kur_parody(46), 1, (46,)), 'CCCCC': (kur_ccccc, 1, (47,)),
+               '6ABC': (kur_flag(3), 1, (48,)), '6BCD': (kur_flag(5), 1, (49,)), 'RAGE': (kur_rage(False), 1, (37,)),
+               'MAX RAGE': (kur_rage(True), 1, (38,))},
 }
-CHAR = {'haohmaru': 0, 'genjuro': 12}
+CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}
 
 # ---- the program: entries -> ops --------------------------------------------------------------------------------------
 CUR = {'ch': 0}
@@ -263,6 +332,7 @@ def compile_prog(ents):
         p = e['phys']
         if p == 'grav': return [('add', 'vy', by(GRAVITY))]
         if isinstance(p, tuple) and p[0] == 'custom': return [('add', 'vx', bx(p[1])), ('add', 'vy', by(p[2]))]
+        if isinstance(p, tuple) and p[0] == 'accel': return [('add', 'vx', p[1])]
         if isinstance(p, tuple) and p[0] == 'decel':
             return [('dec',), ('br', 'cnt', 0, ('D', tag)), ('set', 'vx', 0), ('jmp', ('M', tag)), ('label', ('D', tag)),
                     ('add', 'vx', p[1]), ('label', ('M', tag))]
@@ -287,7 +357,7 @@ def compile_prog(ents):
         ops.append(('label', ('R', i)))
         sw = []; now = None
         for k, cnd in enumerate(e['conds']):
-            c, t = cnd[:2]; extra = [('spawn', o[1]) for o in (cnd[2] if len(cnd) > 2 else [])]
+            c, t = cnd[:2]; extra = [('spawn', o[1]) for o in (cnd[2] if len(cnd) > 2 else []) if o[0] == 'spawn']
             T = tgt(i, t)
             if c == 'land': sw.append((('S', i, k), T, extra, False)); continue
             if c == 'now': now = (T, extra); break
@@ -462,7 +532,41 @@ def cards(B, v):
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': vx * (life + 2),
             'vx': vx, 'name': 'CARDS', 'ss2': {'type': 10, 'anim': 264, 'break': brk}}
 
-OBJECTS = {'tornado': tornado, 'crescent': crescent, 'cards': cards}
+
+def kparody(B, k):
+    """Kuroko's object type 25 ($4C12A) [code]: +$D4 = k picks [animation][end animation][dx][dy] at $4C182 + 8 k (its
+    place from his: dx forward, dy up), vx = word $6BB0E[k]; it flies looping its animation until off screen ($4C1CA);
+    a hit: velocity 0, the end animation in place ($4C1E0)"""
+    a, end, dx, dy = (N.u16(0x4C182 + 8 * k + 2 * i) for i in range(4))
+    dy = dy - 65536 if dy & 0x8000 else dy
+    vx = N.s16(0x6BB0E + 2 * k) / 256
+    cyc = play_anim(17, a)
+    rows = obj_rows(B, 17, cyc, dx + vx, vx, -dy)
+    endr = [[r[0], 0, -dy] for r in obj_rows(B, 17, play_anim(17, end))]
+    return {'kind': 1, 'rows': rows, 'loop': 0, 'end': endr, 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 300, 'vx': vx,
+            'name': f'PARODY{k}', 'ss2': {'type': 25, 'which': k, 'anim': a, 'end': end}}
+
+def kcrescent(B, k):
+    """Kuroko's object type 24 ($4C07C) [code]: animation 46 72 px ahead, 56 up; at its end ($4C0B4) animation 49
+    flying at word $6BB20 (8 px), until off screen; a hit: animation 55 in place ($4C0EE)"""
+    vx = N.s16(0x6BB20) / 256
+    first = play_anim(17, 46); cyc = play_anim(17, 49)
+    rows = obj_rows(B, 17, first, 72, 0, 56) + obj_rows(B, 17, cyc, 72 + vx, vx, 56)
+    endr = [[r[0], 0, 56] for r in obj_rows(B, 17, play_anim(17, 55))]
+    return {'kind': 1, 'rows': rows, 'loop': len(first), 'end': endr, 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 300, 'vx': vx,
+            'name': 'KCRESCENT', 'ss2': {'type': 24}}
+
+def kghost(B, k):
+    """Kuroko's object type 26 ($4C21C) [code]: animation 73 at his place, following him ($4C248: his x / y every frame)
+    while his action is C C C C C's; its attack steps hit (an effect pinned to him: follow 1, ended with the move)"""
+    rows = obj_rows(B, 17, play_anim(17, 73))
+    return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 1, 'travel': 0,
+            'name': 'KGHOST', 'ss2': {'type': 26, 'anim': 73}}
+
+OBJECTS = {'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
 def rom_steps(B, ch, a, flags, react):
@@ -539,6 +643,9 @@ def special(B, ch, name, inp):
     rs = [[r[0], r[1], anims_l[r[0]]['steps'][r[1]]['flags'], 0xFF] for r in rows] or [[0, 0, 0, 0xFF]]
     opens = [i for i, r in enumerate(rows) if (i == 0 or rows[i - 1][:2] != r[:2]) and openings(anims_l[r[0]]['steps'])[r[1]]]
     snd = []                                           # the step sounds ($08 / $0C: id, the middle pan) by frame, as played
+    spawn_snd = [o[1] for e in ents0 for c in e['conds'] if len(c) > 2 for o in c[2] if o[0] == 'snd']
+    for (srow, a_, x_) in pl.spawns[:1]:               # a routine's own send with its spawn (Kuroko's parodies)
+        snd += [[srow, i_] for i_ in spawn_snd]
     for i, r in enumerate(rows):
         if i and rows[i - 1][:2] == r[:2]: continue
         st = ss2.parse_anim(ch, anims_d[states[r[0]]]['ss2'], 400)[r[1]]
@@ -563,16 +670,21 @@ def special(B, ch, name, inp):
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
             'marks': [''] * len(script), 'projectiles': pj, 'anims': [a for _, a in sts0],
             'shape': [max(r[1] for r in script), max(r[2] for r in script), bool(pj)], 'game_hits': len(opens),
-            'rom': rom, 'ss2': {'results': list(results), 'sounds': snd}}
+            'rom': rom, 'ss2': {'results': list(results), 'sounds': snd, 'code_sounds': spawn_snd}}
+
+# decoded but not exported: a fighter's palettes must fit the brawler's 8 (MAX_PALS); Kuroko's moves need 10 together:
+# the smoke dud (61236A: palette 178) and the energy ball (126BC: palette 39) stay out (their decode is above)
+NOT_EXPORTED = {'kuroko': {'61236A', '126BC'}}
 
 def specials(B, ch, name):
-    return [special(B, ch, name, inp) for inp in SPECIALS[name]]
+    return [special(B, ch, name, inp) for inp in SPECIALS[name] if inp not in NOT_EXPORTED.get(name, ())]
 
 # ---- throws ------------------------------------------------------------------------------------------------------------
 # class 4 action -> (the thrower's animation, the victim's class 5 action): Haohmaru close + forward + A+B (action 1:
 # the slash throw, anim 274) and + D / C+D (2 / 3: the kick throw, anim 346); Genjuro: the slash throw for all three
 # (descriptors $28310 class 4: $2E38C / $2D420 / $2E3A4 + $2D1EC) [code]
-THROWS = {'haohmaru': {'throw_c': (274, 1), 'throw_d': (346, 2)}, 'genjuro': {'throw_c': (274, 1), 'throw_d': (274, 1)}}
+THROWS = {'haohmaru': {'throw_c': (274, 1), 'throw_d': (346, 2)}, 'genjuro': {'throw_c': (274, 1), 'throw_d': (274, 1)},
+          'kuroko': {'throw_c': (27, 1), 'throw_d': (27, 1)}}   # Kuroko: one throw (class 4 actions 0-3: anim 27)
 
 def victim_list(ch, sub):
     """the victim's class 5 action `sub` entries: the THROWER's list ($28310 class 5 of its character: Haohmaru thrown by
@@ -668,7 +780,7 @@ def check(names=('haohmaru', 'genjuro')):
             sp = special(B, ch, name, inp); r = sp['rom']
             cols = r['vtable']['ncol']; vars_ = [v for row in r['vtable']['rows'] for v in row] if cols else None
             for v in range(nv):
-                cap = (rage if inp == 'WFT' else caps).get(results[v])
+                cap = (rage if inp == 'WFT' or 'RAGE' in inp else caps).get(results[v])
                 if cap is None: res[f'{name} {inp} {v}'] = 'no capture'; continue
                 stidx = {}
                 def sidx(a, addr):

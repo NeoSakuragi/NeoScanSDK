@@ -44,12 +44,14 @@ static void mark(uint8_t sec) {
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
 #define FIGHT_SPRS (NF * MAX_COLS + NPJ * PJ_COLS)   /* a fight's blocks: a fighter's MAX_COLS, the projectile pool's
                                         PJ_SPRS = NPJ * PJ_COLS shared by width (block_w) */
-#define NA 21                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
+#define NA 22                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
                                         fighter: the group photo) */
 #define SEL_COLS 14                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 14 =
-                                        sprites 60-353 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro) (the banner's, the debug boxes' and the sparks' 300-379 are
-                                        not in use on that screen); the watch / win poses and the walk-offs are narrower
-                                        (2026-10-05: widest 13, a walk; win 11, watch 8; 2026-10-06 Genjuro's win 14) */
+                                        sprites 60-367 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro; NA 22:
+                                        Kuroko) (the banner's, the debug boxes', the sparks' and the throw effect's 300-379
+                                        are not in use on that screen: sparks_draw / tfx_draw return there); the watch /
+                                        win poses and the walk-offs are narrower (2026-10-05: widest 13, a walk; win 11,
+                                        watch 8; 2026-10-06 Genjuro's win 14) */
 uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
 #define SPR_BASE 60                  /* fighter blocks (stage 22-42, shadows 43-54 behind them; 1-21 free) */
 static fighter_t fighters[NF];
@@ -1243,7 +1245,7 @@ static void title_tick(void) {
 #define SEL_BACK 2                       /* the bosses' row */
 #define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
 _Static_assert(SEL_NSLOT <= NA, "group photo: an actor per slot (every selectable fighter has one: build_tables.py)");
-_Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 364, "sprite blocks: fight below the banner, select below the sparks");
+_Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 380, "sprite blocks: fight below the banner, select within the 380 sprites (sparks / throw effect idle there)");
 /* the slots (game.json "select", gamedata.h sel_slot_t): x (px), z (feet at SELECT_FLOOR + z), row (0 front: low on the
  * screen, drawn in front; 2 back, SEL_BACK: higher, behind); sel_fighter[slot] = who stands there (the generator checks
  * every roster fighter has one). Today: front rows 48 px apart inside x 16-304 (the 304 px a TV shows; the watch poses

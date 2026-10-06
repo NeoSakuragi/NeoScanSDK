@@ -192,6 +192,16 @@
    "variant": {"623S": "A"}
   },
   {
+   "name": "kuroko",
+   "bank": "samsho2:kuroko",
+   "watch": {"frame": 0, "step": 0},
+   "routes": "default",
+   "specials": {"D": "236A", "fD": "214161BC", "dD": "6ABC", "uD": "2363214A", "dfD": "214A", "ufD": "CCCCC"},
+   "fury": "RAGE",
+   "unlock": "always",
+   "voices": "kof"
+  },
+  {
    "name": "hanzo",
    "bank": "whp:hanzo",
    "watch": {"frame": 0, "step": 0},
@@ -246,13 +256,14 @@
  ],
  "select": {
   "slots": [
-   {"x": 40, "z": 48, "row": 0, "fighter": "terry"},
-   {"x": 80, "z": 48, "row": 0, "fighter": "ryo"},
-   {"x": 120, "z": 48, "row": 0, "fighter": "ralf"},
-   {"x": 160, "z": 48, "row": 0, "fighter": "robert"},
-   {"x": 200, "z": 48, "row": 0, "fighter": "yamazaki"},
-   {"x": 240, "z": 48, "row": 0, "fighter": "billy"},
-   {"x": 280, "z": 48, "row": 0, "fighter": "billy_lee"},
+   {"x": 26, "z": 48, "row": 0, "fighter": "terry"},
+   {"x": 64, "z": 48, "row": 0, "fighter": "ryo"},
+   {"x": 102, "z": 48, "row": 0, "fighter": "ralf"},
+   {"x": 140, "z": 48, "row": 0, "fighter": "robert"},
+   {"x": 178, "z": 48, "row": 0, "fighter": "yamazaki"},
+   {"x": 216, "z": 48, "row": 0, "fighter": "billy"},
+   {"x": 254, "z": 48, "row": 0, "fighter": "billy_lee"},
+   {"x": 292, "z": 48, "row": 0, "fighter": "kuroko"},
    {"x": 26, "z": 24, "row": 1, "fighter": "kyo"},
    {"x": 64, "z": 24, "row": 1, "fighter": "iori"},
    {"x": 102, "z": 24, "row": 1, "fighter": "mai"},

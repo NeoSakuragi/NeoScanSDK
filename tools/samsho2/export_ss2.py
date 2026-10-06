@@ -26,7 +26,7 @@ import numpy as np
 import ss2, neo2 as N
 
 TILE_BASE = 256                                   # = export96.TILE_BASE (export_bm slices from it)
-CAST = {'haohmaru': 0, 'genjuro': 12}
+CAST = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}
 COLOURS = 2                                       # colour sets per fighter in $FD10 (P1 / the second player's)
 FEET = 16                                         # the feet's screen line = Y - 16 ($3368: top = Y - 16 - y offset)
 
@@ -55,6 +55,10 @@ MOVES = {
     'blowback': (220, 0, 0), 'blowback_n': (220, 0, 0), 'knockdown_flight': (220, 1, 1), 'knockdown_bounce': (222, 0, 0),
     'knockdown_fall': (222, 0, 0), 'down': (222, 1, 1), 'getup': (138, 1, None), 'trip': (120, 0, None), 'win_a': (140, 0, None),
 }
+# per fighter: Kuroko's jumps forward / back rise with 22 and fall with 26 (class 0 action 9: 22, 30, 26; the one-step
+# 28 / 32 / 34 / 38 of the others are placeholders in his table)
+MOVES_OF = {'kuroko': {'jump_fwd_rise': (22, 0, None), 'jump_fwd_fall': (26, 0, None),
+                       'jump_back_rise': (22, 0, None), 'jump_back_fall': (26, 0, None)}}
 LOOP = {'idle', 'walk_fwd', 'run'}
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',
@@ -68,8 +72,15 @@ def flip_tile(t, hf, vf):
     if hf: halves = [bytes(int(f'{v:08b}'[::-1], 2) for v in h) for h in halves[::-1]]
     return halves[0] + halves[1]
 
+# palettes past the effect table: palette RAM of a fight (Kuroko's ghost, palette 250: not in $216400's table, where
+# 178 / 183 are and match the RAM) [meas: /data/neogeo_dict/samsho2/cap/p1_17.state, both frames 10 and 50]
+RAM_PALS = {250: [0x0000, 0x7FFF, 0x2060, 0x7FD9, 0x6FA5, 0x0D61, 0x0830, 0x20FC, 0x00C6, 0x0082, 0x4FD0, 0x2C70, 0x30FD,
+                  0x7AAA, 0x7777, 0x0000]}
+
 def fixed_palette(p):
-    """a palette the game loads once: 32-143 the effects ($FBD4: $216400), 0-15 the HUD ($214000)"""
+    """a palette the game loads once: 32-143 the effects ($FBD4: $216400; the table goes on past 143: 178 / 183 match the
+    RAM), 0-15 the HUD ($214000)"""
+    if p in RAM_PALS: return RAM_PALS[p]
     base = 0x216400 + 32 * (p - 32) if p >= 32 else 0x214000 + 32 * p
     return [N.u16(base + 2 * k) for k in range(16)]
 
@@ -214,7 +225,7 @@ def export(names, outdir, only=None, extra=None):
     for name in names:
         ch = CAST[name]; B = Builder(ch); B.tiles = allt; B.tile_map = tmap
         anims = {}
-        for mv, (a, f, l) in MOVES.items():
+        for mv, (a, f, l) in {**MOVES, **MOVES_OF.get(name, {})}.items():
             anims[mv] = {'slot': a, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': anim_steps(B, ch, a, f, l)}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
         w = (extra or {}).get(name, {}).get('watch')
@@ -239,7 +250,7 @@ def export(names, outdir, only=None, extra=None):
     return out
 
 if __name__ == '__main__':
-    names = sys.argv[2:] or ['haohmaru', 'genjuro']
+    names = sys.argv[2:] or ['haohmaru', 'genjuro', 'kuroko']
     ex = export(names, sys.argv[1], extra={n: {'watch': (140, -1)} for n in names})
     for n, ch in ex['characters'].items():
         print(n, len(ch['frames']), 'frames', len(ch['anims']), 'moves', ch['physics'], 'palettes', ch['modes']['palettes'])
