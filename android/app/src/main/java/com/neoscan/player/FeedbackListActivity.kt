@@ -154,6 +154,9 @@ class FeedbackListActivity : Activity() {
             orientation = LinearLayout.VERTICAL; val m = (12 * dp).toInt(); setPadding(m, m, m, m)
             background = GradientDrawable().apply { setColor(Color.rgb(30, 30, 36)); setStroke(maxOf(1, dp.toInt()), Color.rgb(90, 90, 100)); cornerRadius = 8 * dp }
         }
+        val title = r.optString("title")                              // 0.0.20: the developer's one-line title heads the card
+        if (title.isNotEmpty() && title != "null") c.addView(TextView(this).apply {
+            text = title; textSize = 18f; setTypeface(typeface, Typeface.BOLD); setTextColor(Color.WHITE); setPadding(0, 0, 0, (6 * dp).toInt()) })
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         top.addView(TextView(this).apply { text = when_(r.optString("created")); textSize = 15f; setTypeface(typeface, Typeface.BOLD) }, LinearLayout.LayoutParams(0, -2, 1f))
         top.addView(TextView(this).apply {                          // the status: a bordered label, the word itself carries it

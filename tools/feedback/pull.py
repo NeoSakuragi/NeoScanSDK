@@ -13,7 +13,8 @@ server's transcript.txt). The replay loads the same ROM (by sha256: cache, the r
 builds), unserializes W, feeds the inputs frame by frame and checks every checkpoint and the press state byte for byte
 (determinism) and the last picture against screen.png; then a contact sheet + a clip of the last seconds and
 report.md (with the player's reply thread, Player 0.0.17). One line per bundle on stdout, reopened notes first, and
-/data/feedback/report.md: every note in the tracker with its thread, the reopened ones first."""
+/data/feedback/report.md: every note in the tracker with its thread, the reopened ones first. A note's title (my one-liner,
+fb.py set --title) heads its report.md and is its line in the overview."""
 import ctypes as C, glob, hashlib, json, os, struct, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -206,7 +207,8 @@ def report(d, row=None):
     final = (row or {}).get('final_text') or meta.get('final_text', '')
     raw = (row or {}).get('raw_transcript') or meta.get('raw_transcript', '')
     if raw: tx = raw
-    L = [f"# Feedback {meta['id']}", '']
+    title = (row or {}).get('title') or ''
+    L = [f"# {title}" if title else f"# Feedback {meta['id']}", ''] + ([f"Feedback {meta['id']}", ''] if title else [])
     if row and row.get('user'): L += [f"From: {row['user']}", '']
     if row: L += [f"Status: {row['status']}" + (f" (release {row['release']})" if row['release'] else '') +
                   (f", category {row['category']}" if row['category'] else '') + (f", fighters {row['fighters']}" if row['fighters'] else ''), '']
@@ -231,7 +233,7 @@ def report(d, row=None):
     if marked: L.append(f"- Marked screenshot (drawn on in the player; the replay checks the clean screen.png): {os.path.join(d, 'screen_marked.png')}")
     L += [''] + (['![marked screenshot](screen_marked.png)', ''] if marked else []) + ['![sheet](sheet.png)', '']
     open(os.path.join(d, 'report.md'), 'w').write('\n'.join(L))
-    short = (final or tx).replace('\n', ' ')[:70]
+    short = title or (final or tx).replace('\n', ' ')[:70]
     return f"{meta['id']}  {(row or {}).get('user') or '-'}  {'marked  ' if marked else ''}player {meta.get('app_version')}  game v{meta.get('rom_version')}  {det.split(':')[0]}  \"{short}\""
 
 

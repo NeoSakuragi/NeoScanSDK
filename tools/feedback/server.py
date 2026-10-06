@@ -28,7 +28,8 @@ localhost: tools/feedback/fb.py, pull.py):
                                              browser): DATA/roms/<sha>.neo.gz, archived from the builds dir when the
                                              note arrives, so publish_vps.sh's pruning never loses a build with feedback
   POST /api/status {id, status, release?, note?, duplicate_of?, by?}
-  POST /api/set    {id, category?, fighters?, notes?, by?}
+  POST /api/set    {id, category?, fighters?, notes?, title?, by?}   title: the one-line headline I write at triage
+                   (<= 70 chars, one line; every change goes to status_history as 'title: "..."')
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
 PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
 linked to its note (the player sends the tx_id it got back; cancelled notes' transcriptions stay unlinked but count
@@ -103,7 +104,7 @@ def db_init():
             apk_version TEXT, install_id TEXT, device TEXT, android TEXT, ip TEXT, user_agent TEXT);
         CREATE INDEX IF NOT EXISTS replies_fb ON replies(feedback_id);''')
         cols = {r[1] for r in c.execute('PRAGMA table_info(feedback)')}
-        for col in ('user', 'install_id', 'marked'):                  # 0.0.15: the account, its install, a scribble
+        for col in ('user', 'install_id', 'marked', 'title'):         # 0.0.15: the account, its install, a scribble; title: my one-liner
             if col not in cols: c.execute(f"ALTER TABLE feedback ADD COLUMN {col} TEXT DEFAULT ''")
         for col in ('ip', 'user_agent', 'android'):                   # who sent it from where (NULL = unknown)
             if col not in cols: c.execute(f"ALTER TABLE feedback ADD COLUMN {col} TEXT")
@@ -443,10 +444,13 @@ class H(http.server.BaseHTTPRequestHandler):
         cat = req.get('category', r['category'])
         if cat not in CATEGORIES: return 'category: one of ' + ', '.join(CATEGORIES[1:])
         fighters = ','.join(f.strip().lower() for f in str(req.get('fighters', r['fighters'])).split(',') if f.strip())
-        c.execute('UPDATE feedback SET category=?, fighters=?, notes=?, updated=? WHERE id=?',
-                  (cat, fighters, req.get('notes', r['notes']), now(), r['id']))
+        title = ' '.join(str(req.get('title', r['title']) or '').split())
+        if len(title) > 70: return f'title: one line of at most 70 characters ({len(title)} given)'
+        c.execute('UPDATE feedback SET category=?, fighters=?, notes=?, title=?, updated=? WHERE id=?',
+                  (cat, fighters, req.get('notes', r['notes']), title, now(), r['id']))
         changed = [f'{k}={v}' for k, v in (('category', cat), ('fighters', fighters)) if v != r[k]]
         if 'notes' in req and req['notes'] != r['notes']: changed.append('notes')
+        if title != (r['title'] or ''): changed.append(f'title: "{title}"')
         if changed: c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (r['id'], now(), r['status'], r['status'], by, 'set ' + ' '.join(changed)))
 
     def dlauth(self):
@@ -483,7 +487,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if not user: return
         with db() as c:
             if not parts or parts == ['']:
-                rows = [row_dict(r) for r in c.execute('SELECT id, created, apk_version, game_version, final_text, raw_transcript, category, '
+                rows = [row_dict(r) for r in c.execute('SELECT id, created, apk_version, game_version, title, final_text, raw_transcript, category, '
                         'fighters, status, release, duplicate_of, notes, updated, audio_path, marked, device, android, install_id, ip FROM feedback WHERE user=? ORDER BY created DESC', (user,))]
                 for r in rows:
                     r['history'] = [row_dict(h) for h in c.execute('SELECT at, from_status, to_status, by, note FROM status_history '

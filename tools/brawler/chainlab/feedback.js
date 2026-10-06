@@ -1,6 +1,6 @@
 /* Brawler Lab, Feedback tab: the NeoScan Player's voice / text feedback (docs/feedback.md). The list comes from the
  * feedback service's API (tools/feedback/server.py) at feedback-api/ (nginx, behind the same Oros login as the Lab):
- * date, the user (Oros account, Player 0.0.15+), versions, the note as sent (the raw transcript under it), status and release as text, the voice (play),
+ * date, the user (Oros account, Player 0.0.15+), versions, the note's title (my one-liner, fb.py set --title) as its headline, the note as sent (the raw transcript under it), status and release as text, the voice (play),
  * the screenshot; filters by status and category; category (dropdown) and fighters editable here. Status changes go
  * through tools/feedback/fb.py. Replay (fbreplay.js): the note's game build (feedback-api/rom/<sha>, cached by the
  * browser), the page's BIOS, the kept state before the last 10 s, then the logged inputs to the press with sound;
@@ -77,7 +77,7 @@
     }
     const restart = () => { stopLoop(); bPlay.textContent = 'Play'; R.load(startState); R.frame = R.start; R.mismatch = null; res.textContent = ''; at = 0; draw(); };
     rbox.append(h('div', { class: 'box' },
-      h('h2', {}, 'Replay ' + r.id, h('span', { class: 'sp' }), h('button', { onclick: () => { stopLoop(); rbox.textContent = ''; } }, 'Close')),
+      h('h2', {}, 'Replay ' + r.id + (r.title ? ' — ' + r.title : ''), h('span', { class: 'sp' }), h('button', { onclick: () => { stopLoop(); rbox.textContent = ''; } }, 'Close')),
       h('div', { class: 'in' },
         h('p', {}, (r.final_text || r.raw_transcript || '').slice(0, 300)),
         h('div', { class: 'fbpair' }, h('figure', {}, cv, h('figcaption', {}, 'replay (the last 10 s before the press)')),
@@ -162,7 +162,8 @@
               h('span', { class: 'small' }, (r.device || '?') + (r.android ? ', Android ' + r.android : '')), h('br'),
               h('span', { class: 'small mono', title: 'install id / client IP as nginx saw it / user agent (internal: behind the Lab login)' },
                 'install ' + (r.install_id || '-').slice(0, 8) + ', IP ' + (r.ip || '-'), h('br'), r.user_agent || '')),
-            h('td', { class: 'txt' }, h('div', {}, r.final_text || '(no text typed)'),
+            h('td', { class: 'txt' }, r.title ? h('div', { style: 'font-weight:bold;font-size:1.05em;margin-bottom:4px' }, r.title) : null,
+              h('div', {}, r.final_text || '(no text typed)'),
               r.raw_transcript && !(r.final_text || '').includes(r.raw_transcript) ? h('div', { class: 'small' }, 'transcript: ' + r.raw_transcript) : null,
               r.notes ? h('div', { class: 'small' }, 'notes: ' + r.notes) : null, thread(r)),
             h('td', {}, h('b', {}, STATUS_TEXT[r.status] || r.status), r.status === 'shipped' ? h('div', {}, 'in ' + r.release) : null,

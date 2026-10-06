@@ -127,7 +127,7 @@ drawing canvas (`Ink.kt`).
 - **Tracker tables:**
   - `feedback`: id, created, apk_version, game_version, rom_sha, device, raw_transcript, final_text, audio_path,
     bundle_path, status, release, notes, updated, category, fighters, duplicate_of, user, install_id, marked, ip,
-    user_agent, android.
+    user_agent, android, title (0.0.20).
   - `status_history`: feedback_id, at, from_status, to_status, by, note.
   - `replies` (0.0.17): id, feedback_id, at, user, kind (voice / text / up / down), text, raw_transcript, audio_path
     (`reply_<id>.m4a` in the note's bundle dir), status_from, status_to, and the origin: apk_version, install_id,
@@ -175,6 +175,16 @@ cost comes from `tools/feedback/prices.json`, the price table with its source an
   - `fb.py status ID shipped --release 0.0.71`
   - `fb.py status ID duplicate --of ID2`
   - `fb.py set ID --category gameplay --fighters geese,terry [--notes ...]`
+  - `fb.py set ID --title "Krauser: Kaiser Wave impact drawn at floor level"`
+- **Titles (Player 0.0.20):** each note gets a one-line title (at most 70 characters), written by me when I pick the
+  note up: a factual summary naming the fighter / feature and the problem; test-account notes start with "[test]".
+  - Column `title` in `feedback`; set only with `fb.py set --title`; every change is a `status_history` entry
+    (`set title: "..."`).
+  - `fb.py list` shows it in place of the raw text, `fb.py show` prints it; pull.py's per-note `report.md` uses it
+    as its heading and the overview `/data/feedback/report.md` lists it.
+  - The Lab's Feedback tab shows it as the note's headline (and in the replay box's heading); the player's list
+    shows it in bold at the top of each card, and the in-game "Reply to..." picker lists the titles. The full text
+    stays below.
 - **The Brawler Lab's Feedback tab** (`tools/brawler/chainlab/feedback.js`) lists the feedback. Each row shows the
   date, versions, the note as sent with the raw transcript under it, and the status and release as text. A play
   button plays the voice, and the screenshot opens from the row.
