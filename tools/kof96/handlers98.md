@@ -205,3 +205,22 @@ K' (KOF99): `romspecials_check.py ... fighter:C`, 0 frame mismatches whiff + clo
 out96). Still captured: Iori and Goenitz (their finisher is the engine's cinematic hit: KOF98 `$1EB20` box, `$3F8A`
 test, `$1E7E8` by +$F8; KOF96 `$17796` / `$3676`), Rugal (the catch grinds to the stage wall `$18092`, which a beat 'em
 up does not have), Yamazaki (a command grab whose hits come from the victim's own scripted states 433-442).
+
+## Slot specials read from the ROM (TODO #79-#119, 2026-10-06)
+Ten more slot specials play from the ROM, each 0 frame mismatches whiff + close with KOF's hit count on the same frames
+(`../brawler/romspecials_check.py`, /data/tmp/slot20/out*): Ryo EX 646A, Robert EX 646D, Billy 623D, Kyo 421B / EX 421D,
+Iori 623C (KOF98), Geese 63214A / C, Krauser 623B / D (KOF96). What they added:
+- **A catch's dead frames**: the hit-stop routine's catch path ($1B3D6) loads the attacker's hit-stop of the catching
+  step's class (`stop_frames`, the class table's first byte, zeroed by +$E5 bit 7) and counts it down at `$1B402` before
+  jumping to +$19C: 1 + that hit-stop dead frames (`catch_dead`; the furies' class 4: 1, Ryo / Robert EX class 2: 3).
+  Export: `('onhit', target, hit-stop)`; brawler P_ONHIT a, `fighter_t.pdead` / `pdeadn`.
+- **The held victim's hurt box**: KOF's held states 404-407 have one box, $31 0, 192, 48, 64, on every step; the
+  brawler's held victim (PF_HOLD, the target) uses it (`HOLD_BOX`) instead of its reel's (Ryo EX's barrage: 10 / 12 -> 12).
+- **Height compare**: `cmpi.w #N, +$20; bcs` = `low:N` (Billy 623D rises to 192 px), PC_LOW. `addi #N, +$20` = a nudge.
+- **Near**: `cmpi #N, +$BC; bcs / bcc` = `far:N-1` negated / taken (Iori 624B / D); the brawler's PC_FAR measures the target,
+  before any hit the nearest opponent on its lane (`fighter_t.popp`, the combat pass).
+Still captured, with the reason: Iori 624B / D (the catch puts the victim into KOF's held victim states 432-435, placed
+each frame from a table by `$25376` / `$25396`: the throw-victim model), Goenitz 214C (wind objects from the animate
+routine's step-effect table `$249E8`), Rugal 6426A / C (Kaiser Wave's multi-hit routine through +$C2 / +$138), Rugal
+624A (stage wall `$18092`, a branch on vx), Yamazaki 214A (`f-1`), Ralf AAAA / Billy CCCC (mash: no KOF trace of the
+repeat), Robert 426B (no capture try enters it).

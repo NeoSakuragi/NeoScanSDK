@@ -237,6 +237,9 @@ typedef struct fighter {
     uint8_t  phit, pcatch;        /* a ROM special's catch (TODO #139, KOF +$19C): its routine's op (0xFF none); 3..1 the
                                    * frames after a catch box hit (a normal one, a dead one, then the routine), 0xFE spent */
     int16_t  phold;               /* the caught victim (target) held this many px in front (P_PLACE), 0 = where it stands */
+    struct fighter *popp;         /* a ROM special's nearest opponent on its lane (PC_FAR before a hit sets target) */
+    uint8_t  pdead, pdeadn;       /* a catch's dead frames left / to come (P_ONHIT a + 1: KOF counts the catching step's
+                                   * hit-stop down at $1B402 before +$19C; TODO #79 / #84) */
 } fighter_t;
 
 

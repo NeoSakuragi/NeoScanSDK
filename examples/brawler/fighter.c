@@ -611,7 +611,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
-        f->phit = 0xFF; f->pcatch = 0; f->phold = 0;
+        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0;
     }
 }
 
@@ -806,7 +806,8 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     case PC_SIG7: return f->pflags & PF_SIG7 ? 1 : 0;           /* its object's signal (KOF +$D1 bit 7: tst) */
     case PC_SIG7C: { uint8_t e = f->pflags & PF_SIG7 ? 1 : 0; f->pflags &= ~PF_SIG7; return e; }   /* (bclr) */
     case PC_SIG6: return f->pflags & PF_SIG6 ? 1 : 0;
-    case PC_FAR: { int16_t d; if (!f->target) return 1; d = INT(f->target->x) - INT(f->x); return (d < 0 ? -d : d) > v; }   /* (KOF +$BC) */
+    case PC_FAR: { int16_t d; fighter_t *t = f->target ? f->target : f->popp; if (!t) return 1; d = INT(t->x) - INT(f->x); return (d < 0 ? -d : d) > v; }   /* (KOF +$BC; before a hit the nearest opponent on its lane) */
+    case PC_LOW: return INT(f->y) < v;                           /* the height below v px (KOF cmpi.w #v, +$20; bcs) */
     case PC_WINDOW: return f->pan->steps[f->pstep].flags & 32 ? 1 : 0;  /* the step has KOF's $2000 (+$7C bit 5) */
     case PC_LINK: return f->plink & v ? 1 : 0;                   /* a follow-up of these links was pressed in the part */
     case PC_END: return f->pflags & PF_END ? 1 : 0;
@@ -843,7 +844,11 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
     const bstep_t *s;
     uint8_t n;
     int32_t x0;
-    if (f->pcatch == 2) { f->pcatch = 1; f->srow++; hold_apply(f); return; }   /* a catch: KOF's dead frame ($1B412) */
+    if (f->pcatch == 2) {                                        /* a catch: KOF's dead frames ($1B402: the catching */
+        if (!f->pdead) f->pdead = f->pdeadn;                     /* step's hit-stop + 1) */
+        if (!--f->pdead) f->pcatch = 1;
+        f->srow++; hold_apply(f); return;
+    }
     if (f->pcatch == 1) { f->pcatch = 0xFE; f->pres = f->phit; }   /* then its routine (+$19C) */
     if (f->pcatch == 3) f->pcatch = 2;                           /* (the frame after the hit-stop runs as it was) */
     x0 = f->x;
@@ -886,7 +891,7 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_CHECK: f->plink |= f->spend & p->a; break;        /* the follow-up check: this frame's presses of links a */
         case P_PART: f->plink = 0; break;                        /* the handler cleared its request: a new part */
         case P_EVCLR: f->pflags &= ~PF_EVENT; break;             /* the step's event consumed */
-        case P_ONHIT: if (!f->pcatch) f->phit = p->b; break;     /* its catch routine (KOF +$19C) */
+        case P_ONHIT: if (!f->pcatch) { f->phit = p->b; f->pdeadn = p->a + 1; } break;   /* its catch routine (KOF +$19C) */
         case P_PUT: f->phold = p->v; hold_apply(f); break;     /* the caught victim put in front of it */
         case P_HITCLR: f->pflags &= ~PF_HITANY; break;
         case P_HOLD: f->pflags |= PF_HOLD; break;
@@ -1167,6 +1172,8 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
 /* ---- combat: every attacker's live attack box against every opponent's hurt box --------------------------------------- */
 static const bbox_t JUGGLE_BOX = { 0, -24, 28, 20 };       /* a falling fighter's body: KOF boxes (x, y up -, half w, h) */
 static const bbox_t LAUNCH_BOX = { 0, -64, 28, 28 };       /* KOF98's launched body (states 286 / 293: box $31 0, 192, 28, 28) */
+static const bbox_t HOLD_BOX = { 0, -64, 48, 64 };         /* a victim a ROM special holds: KOF98's held states 404-407, one
+                                                              * box $31 0, 192, 48, 64 on every step (Ryo EX 646A's barrage) */
 static int16_t box_x(const fighter_t *f, int8_t bx) { return INT(f->x) + (f->facing > 0 ? -bx : bx); }   /* sprites face left */
 static uint8_t boxes_meet(const fighter_t *a, const bbox_t *ab, const fighter_t *v, const bbox_t *vb) {
     int16_t dx = box_x(a, ab->x) - box_x(v, vb->x), dy = (ab->y - INT(a->y)) - (vb->y - INT(v->y));
@@ -1199,6 +1206,21 @@ void combat(fighter_t **fs, uint8_t n) {
                 int32_t back = dir_mul(a->facing, FIX(PUSH_DX - d));   /* held 30 px before P2 at y 10-51, then */
                 a->throw_x0 -= back; a->x -= back; clamp(a);     /* its landing slash hits), never carries it */
             }
+        }
+    }
+    for (i = 0; i < n; i++) {                                    /* a ROM special's opponent (KOF +$BC, PC_FAR before any hit): */
+        fighter_t *a = fs[i];                                    /* the nearest one on its lane */
+        int16_t best = 0x7FFF;
+        if (a->state != S_SPECIAL) continue;
+        a->popp = 0;
+        for (j = 0; j < n; j++) {
+            fighter_t *o = fs[j];
+            int16_t dx, dz;
+            if (o->team == a->team || o->state == S_PROJ || o->state == S_OFF || o->state == S_DEAD) continue;
+            dx = INT(o->x) - INT(a->x); dz = INT(o->z) - INT(a->z);
+            if (dx < 0) dx = -dx;
+            if (dz < -Z_HIT || dz > Z_HIT || dx >= best) continue;
+            best = dx; a->popp = o;
         }
     }
     for (i = 0; i < n; i++) {                                    /* throw impacts: the victim's teammates close to it go down */
@@ -1251,7 +1273,8 @@ void combat(fighter_t **fs, uint8_t n) {
             if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls, no limit */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             sv = fighter_step(v);
-            if (v->state == S_KNOCKDOWN && v->kmode) { if (!(v->kmode & KM_HURT)) continue; hb = &LAUNCH_BOX; }   /* KOF's reaction: its box or none */
+            if ((a->pflags & PF_HOLD) && v == a->target && v->state == S_HITSTUN) hb = &HOLD_BOX;
+            else if (v->state == S_KNOCKDOWN && v->kmode) { if (!(v->kmode & KM_HURT)) continue; hb = &LAUNCH_BOX; }   /* KOF's reaction: its box or none */
             else if (sv->flags & 2) hb = &sv->hurt;
             else if (v->state == S_KNOCKDOWN) hb = &JUGGLE_BOX;          /* the brawler's falls: KOF's have no hurt box */
             else continue;
@@ -1317,7 +1340,7 @@ void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase,
     for (i = 0; i < ch->npal && i < MAX_PALS; i++) PAL_setPalette(palbase + i, ch->pals + ((set * ch->npal + i) << 4));
     f->x = FIX(x); f->z = FIX(z); f->y = 0; f->vx = f->vy = f->vz = 0;
     f->facing = team ? -1 : 1; f->hp = 60; f->freeze = f->inv = 0; f->held = 0;
-    f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF; f->zfront = 0; f->pushing = 0; f->target = 0; f->spec_atk = 0; f->proj[0] = f->proj[1] = 0; f->owner = 0; f->ncols = 0; f->burn = 0; f->spec_fx = 0;
+    f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF; f->zfront = 0; f->pushing = 0; f->target = 0; f->popp = 0; f->spec_atk = 0; f->proj[0] = f->proj[1] = 0; f->owner = 0; f->ncols = 0; f->burn = 0; f->spec_fx = 0;
     f->jump_kind = f->jump_dir = 0; f->meter = gmeter.max;
     enter(f, S_IDLE); play(f, BA_IDLE);
 }

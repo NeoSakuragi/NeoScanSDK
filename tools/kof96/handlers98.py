@@ -354,6 +354,16 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 if tgt != 'yield': push(t)
                 else: yielded = True; yres(a)
                 emit(a, 'br', cc[0], cond == 'hi', tgt); a = nx; continue
+            if cc and cc[1] == 'HI' and cond in ('cs', 'cc'):              # bcs: the opponent nearer than N px = not
+                tgt = 'yield' if dec.is_yield(t) else K(t)                  # farther than N - 1 (Iori 624B / 624D)
+                if tgt != 'yield': push(t)
+                else: yielded = True; yres(a)
+                emit(a, 'br', f'far:{int(cc[0][4:]) - 1}', cond == 'cc', tgt); a = nx; continue
+            if cc and cc[1] == 'CS' and cond in ('cs', 'cc'):              # low:N (unsigned <): the height below N px
+                tgt = 'yield' if dec.is_yield(t) else K(t)
+                if tgt != 'yield': push(t)
+                else: yielded = True; yres(a)
+                emit(a, 'br', cc[0], cond == 'cs', tgt); a = nx; continue
             if cc is None or cond not in ('eq', 'ne', 'mi', 'pl'):        # a test this decoder does not model
                 tgt = ('yieldn' if dec.is_yield(t) == 'n' else 'yield') if dec.is_yield(t) else K(t)
                 if tgt not in ('yield', 'yieldn'): push(t)
@@ -438,7 +448,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if re.match(r'^%d\d$', dst):
                 D[dst] = v if not isinstance(v, tuple) or v[0] != 'f' else ('f', v[1]); a = nx; continue
             a = nx; continue
-        if base in ('add', 'addq', 'sub') and len(o) == 2:
+        if base in ('add', 'addq', 'addi', 'sub') and len(o) == 2:
             fd = field(o[1]); v = val(o[0], sz)
             if base == 'sub' and fd == 0x58: a = nx; continue
             if fd == 0x18:
@@ -515,6 +525,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if base == 'cmpi':
             if field(o[1]) == 0xBC and D.get('_dist') and isinstance(imm(o[0]), int):   # the distance to the opponent
                 cc = (f'far:{imm(o[0])}', 'HI'); a = nx; continue
+            if field(o[1]) == 0x20 and mn == 'cmpiw' and isinstance(imm(o[0]), int):   # the height (Billy 623D rises
+                cc = (f'low:{imm(o[0])}', 'CS'); a = nx; continue                        # until 192 px: bcs = below)
             if o[1].startswith('%d') and isinstance(D.get(o[1]), int) and isinstance(imm(o[0]), int):   # a known register
                 cc = ('val', (D[o[1]] & 0xFFFF) - imm(o[0])); a = nx; continue                        # (dmcheck's d0)
             a = nx; cc = ('cmp', 'Z'); continue
@@ -633,6 +645,7 @@ class Obj:
         if c == 'hitany': return self.hitany
         if isinstance(c, str) and c.startswith('far:'):   # the opponent farther than N px (the game's P2 x, else far)
             return self.opp is None or abs(self.opp(self.f) - self.x) > int(c[4:])
+        if isinstance(c, str) and c.startswith('low:'): return self.h < int(c[4:])   # the height below N px
         if c in ('sig7', 'sig6'): return bool(self.sig & (0x80 if c == 'sig7' else 0x40))
         if c == 'sig7c':
             e = bool(self.sig & 0x80); self.sig &= 0x7F; return e
@@ -714,7 +727,7 @@ def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=No
         if hit_at is not None and f == hit_at: o.hit = True
         if f in hits: o.hitany = True                 # +$E3 bit 7: every hit (the game's life drops)
         if catch_at is not None and f == catch_at + 1 and o.hitpc is not None:   # a catch box connected at catch_at:
-            o.dead = 1; o.go = o.hitpc; o.hitpc = None                             # one dead frame, then its routine
+            o.dead = catch_dead(m, o); o.go = o.hitpc; o.hitpc = None              # its dead frames, then its routine
         o.tick(cam)
         sp = []
         for k, dx, dy in o.spawned:
@@ -756,7 +769,7 @@ BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'b
 DROP_OPS = {'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
             'ownerflag', 'flags', 'trail', 'alloc', 'ownersig'}
 CONDS = {None: 7, 'end': 0, 'event': 1, 'land': 2, 'falling': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'evstep': 8, 'window': 9,
-         'link': 10, 'hitany': 11, 'sig7': 12, 'sig7c': 13, 'sig6': 14, 'far': 15}   # 'far:N' -> PC_FAR, N                     # fighter.h PC_*; 'link:<mask>' -> PC_LINK with the mask
+         'link': 10, 'hitany': 11, 'sig7': 12, 'sig7c': 13, 'sig6': 14, 'far': 15, 'low': 16}   # 'far:N' -> PC_FAR, N                     # fighter.h PC_*; 'link:<mask>' -> PC_LINK with the mask
 HITSTOP_TABLES = {'kof98': 0x1DCCC, 'kof96': 0x16E20, 'kof99': 0x19832}   # by the step's flags bits 4-6 (KOF98 $1DC52):
 def no_stop(m, fl):                                    # attacker / victim hit-stop frames; all 0 (class 4, KOF96 also
     t = HITSTOP_TABLES.get(m.game)                     # 6): a barrage hit, nobody stops and the victim reels in place
@@ -765,10 +778,19 @@ def no_stop(m, fl):                                    # attacker / victim hit-s
 # attacker's +$AA: on a step with $4000 (+$7C bit 6: Ryo's 178) at once, else after tests on the victim (its hurt box id
 # not 9, $1A496), taken as a standing victim: K''s 201; boxes $38 / $39 clear the attacker's +$AA at the hit, $3C00:
 # Kyo's 214A hits on in KOF's trace)
+def stop_frames(m, fl):
+    """the attacker's hit-stop frames of a step's class (the table's first byte; KOF98 $1DC52 -> +$124)"""
+    t = HITSTOP_TABLES.get(m.game)
+    return m.u8(t + 4 * ((fl & 0x70) >> 4)) if t is not None else 0
+def catch_dead(m, o):
+    """a catch's dead frames (no code, no animation): the hit-stop routine counts the attacker's hit-stop of the
+    catching step's class down at $1B402 (+$124 to -1), then jumps to +$19C: 1 + that hit-stop (the furies' catches,
+    class 4: 1; Ryo EX 646A / Robert EX 646D, class 2: 3, TODO #79 / #84)"""
+    return 1 + stop_frames(m, o.steps[o.step][2]) if o.steps is not None else 1
 def is_catch(box, fl):
     return box == 0x37
 def cond_id(c): return CONDS[c.split(':')[0]] if isinstance(c, str) and ':' in c else CONDS[c]
-def cond_ok(c): return c in CONDS or isinstance(c, str) and c.split(':')[0] in ('link', 'far')
+def cond_ok(c): return c in CONDS or isinstance(c, str) and c.split(':')[0] in ('link', 'far', 'low')
 
 def anim_steps(m, cid, st):
     return rom96.parse_anim(m, rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)))
@@ -808,7 +830,7 @@ def openings(m, cid, prog, frames=300, presses=None):
     live, caught = None, None                          # a catch (TODO #139): its routine counted as if every hit lands
     for f in range(frames):
         st0, step0 = o.state, o.step
-        if caught is not None and f == caught + 1: o.dead = 1; o.go = o.hitpc; o.hitpc = None
+        if caught is not None and f == caught + 1: o.dead = catch_dead(m, o); o.go = o.hitpc; o.hitpc = None
         o.tick()
         for k_, dx_, dy_ in o.spawned:                 # its objects hit: their hit signals (K''s shot: +$D1 bit 7)
             o.sig |= sigbits(prog['objects'][k_], True) & ~sigbits(prog['objects'][k_], False)
@@ -907,6 +929,8 @@ def export_rom(m, cid, inp, add, game='kof98'):
             # the step's byte 1 (+$7E) bits 0-1 = 3: the victim's reel does not slide (KOF98 $1AF0E sets its +$12C bit 2,
             # the reel $1BBD2 then keeps vx 0: Yashiro's 173 / 174, Ryo's 184, Ralf's 164)
             s['noslide'] = 1 if s['flags'] & 0x100 and m.u8(aa + 6 * raws[anims[st]['steps'].index(s)] + 1) & 3 == 3 else 0
+    cst = next((s_ for st in states for s_ in anims[st]['steps'] if s_['catch']), None)   # the catch's dead frames
+    if cst is not None: ops = [o_ + (stop_frames(m, cst['flags']),) if o_[0] == 'onhit' else o_ for o_ in ops]   # - 1
     per, last, peak, length = openings(m, cid, prog)
     links = FOLLOW_INPUTS.get(prog.get('follow'), [])
     for k in range(len(links)):                                # a follow-up's hits: the run with link k pressed throughout
