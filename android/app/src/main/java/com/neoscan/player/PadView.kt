@@ -13,7 +13,7 @@ import kotlin.math.hypot
 /** Touch controls, full screen over the picture: a d-pad (8 directions, dead zone) on the left, A B C D on the right in
  *  the Neo Geo arc (red, yellow, green, blue), COIN and START, settings (gear), soft reset (held 0.7 s), voice feedback (mic,
  *  next to reset: held = recording, [onFeedback] true on press, false on release), my feedback notes (a list, next to the mic in
- *  portrait, under START in landscape: a tap = [onList]; [badge] = notes to test or reopened) and update (blinks
+ *  portrait, under START in landscape: a tap = [onList]; [badge] = the notes of the test queue) and update (blinks
  *  while a newer player or game build is on the server; a tap = [onUpdate], MainActivity's choice of the two). Portrait: in the space under the picture, on an opaque
  *  panel. Landscape: transparent, over the sides of the picture, drawn at [opacity]. Every pointer counts (hold a
  *  direction and press buttons); the mask goes to [onMask]; a short haptic tick on each new press. */
@@ -32,7 +32,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     private var micSince = 0L
     private val fbl = Btn(0, "", Color.rgb(60, 60, 70))               // my feedback notes: the list (glyph drawn)
     private var fblHit = false
-    var badge = 0                                                      // notes shipped to test + reopened: a count on the list button
+    var badge = 0                                                      // the notes of the test queue: a count on the list button
         set(v) { field = v; invalidate() }
     var updateReady = false                                            // a newer build is on the server: blink
         set(v) { field = v; invalidate() }

@@ -46,7 +46,16 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'atk_c_hop', 'atk_d_hop', 'atk_c_hop_diag', 'atk_d_hop_diag',
          'atk_cd_jump', 'atk_cd_hop',                   # air C+D: KOF state 117, KOF98 / KOF99 hops 124 (capture/aircd.py)
          'watch',                                       # the group photo's pose (select screen): roster watch
-         'atk_a_crouch', 'atk_b_crouch']                # crouch A / B (KOF 88 / 97): chain routes (Chain Lab, routes.py)
+         'atk_a_crouch', 'atk_b_crouch',                # crouch A / B (KOF 88 / 97): chain routes (Chain Lab, routes.py)
+         # World Heroes Perfect's six buttons (tools/whp/moves_whp.py, 2026-10-06): A+B = strong punch, C+D = strong kick
+         # in every stance, the air A / B / A+B / C+D (vertical, diagonal), forward + C / C+D where the game has its own
+         # animation, the running normals (the move + 3 / + $1B with down). Route cards (routes.MOVE_NAMES) for any
+         # fighter that has them; the others never play them (routes.encode: has)
+         'atk_ab_close', 'atk_ab_far', 'atk_ab_crouch', 'atk_cd_close', 'atk_cd_crouch', 'cmd_fwd_c', 'cmd_fwd_cd',
+         'atk_a_jump', 'atk_a_jump_diag', 'atk_b_jump', 'atk_b_jump_diag', 'atk_ab_jump', 'atk_ab_jump_diag',
+         'atk_cd_jump_diag',
+         'atk_a_run', 'atk_b_run', 'atk_ab_run', 'atk_c_run', 'atk_d_run', 'atk_cd_run',
+         'atk_a_run_low', 'atk_b_run_low', 'atk_ab_run_low', 'atk_c_run_low', 'atk_d_run_low', 'atk_cd_run_low']
 # The group photo's 'watch' pose (TODO #51, 2026-10-05): a front-facing, standing frame, one per fighter (game, name) ->
 # (KOF game state, step; -1 = the animation's last, held frame). KOF94 / KOF95 had real "watching" sprites: the waiting
 # teammates on the stage's edge are fighter objects (+$70 = the fighter id) in KOF95 states 155 watch, 156 / 157 react,
@@ -64,7 +73,13 @@ CMDS = ['cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # bchar_t.cmds bit k
 # one per button, every direction); KOF96 has none, its hop plays the regular jump's normals by direction.
 SOURCES = {'atk_c_hop': ['atk_c_hop', 'atk_c_jump'], 'atk_d_hop': ['atk_d_hop', 'atk_d_jump'],
            'atk_c_hop_diag': ['atk_c_hop', 'atk_c_jump_diag'], 'atk_d_hop_diag': ['atk_d_hop', 'atk_d_jump_diag'],
-           'atk_cd_hop': ['atk_cd_hop', 'atk_cd_jump']}
+           'atk_cd_hop': ['atk_cd_hop', 'atk_cd_jump'],
+           # the six-button air normals on a fighter without them (an air node is played whatever the fighter has:
+           # fighter.c start_node): the jump's C / D / C+D
+           'atk_a_jump': ['atk_a_jump', 'atk_c_jump'], 'atk_a_jump_diag': ['atk_a_jump_diag', 'atk_c_jump_diag'],
+           'atk_b_jump': ['atk_b_jump', 'atk_d_jump'], 'atk_b_jump_diag': ['atk_b_jump_diag', 'atk_d_jump_diag'],
+           'atk_ab_jump': ['atk_ab_jump', 'atk_d_jump'], 'atk_ab_jump_diag': ['atk_ab_jump_diag', 'atk_d_jump_diag'],
+           'atk_cd_jump_diag': ['atk_cd_jump_diag', 'atk_cd_jump']}
 def source(ch, m):
     """the KOF animation a brawler move plays (idle when the fighter has none)"""
     return next((ch['anims'][k] for k in SOURCES.get(m, [m]) if k in ch['anims']), None) or ch['anims']['idle']
@@ -779,7 +794,8 @@ def var_c(n, k, sp):
     if not vt.get('nvar') and not r.get('voice_frames'): return ''
     if not vt.get('nvar'): return ', 0, 0, 0, 0, 0, 0, 0, 1'
     want = (roster().get(n, {}).get('variant') or {}).get(sp['input'])
-    vdef = vt['buttons'].index(want) if isinstance(want, str) else want if want is not None else vt['default']
+    names = vt['buttons'] if not isinstance(want, str) or want in vt['buttons'] else vt.get('strengths') or vt['buttons']   # a button letter, or a
+    vdef = names.index(want) if isinstance(want, str) else want if want is not None else vt['default']   # strength (low / mid / high: WHP)
     assert 0 <= vdef < vt['nvar'], (n, sp['input'], want)
     return f', {n}_sp{k}_vars, {vt["nvar"]}, {vdef}, {vt["vanim"]}, {vt["vobj"]}, {vt["ncol"]}, {vt["vdmg"]}, {1 if r.get("voice_frames") else 0}'
 
@@ -987,24 +1003,26 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None):
     pre += [(steps[act - 1]['frame'], HOLD_STARTUP - len(pre))] if act >= 1 else []
     post = [(s_['frame'], s_['ticks'] + 1) for s_ in steps[act:]]
     th = ch.get('throws', {}).get('throw_c')
-    if th:
+    turned = 8 if th and th.get('turned') else 0       # SS2's grab turns the thrower (its victim behind him, -33 px):
+    if th:                                              # the hold hits too, row flag 8, so they strike the held victim
         r0 = (th['victims'].get(n) or next(iter(th['victims'].values())))[0]
         v = vocab(game, r0[5]); held = (pkeys.index(v) if r0[0] is not None and r0[0] >= 0 and v in pkeys else 255, min(r0[1], dx), r0[2], r0[3])
     else: held = (255, dx, 0, 0)
     rows = []
     for fr, d in pre:
-        for _ in range(d): rows.append(f'{{{fr}, 0, 0, {held[0]}, {held[3]}, {held[1]}, {held[2]}}}')
+        for _ in range(d): rows.append(f'{{{fr}, 0, 0, {held[0]}, {held[3] | turned}, {held[1]}, {held[2]}}}')
     hit = len(rows)
     for fr, d in post:
         for _ in range(d):
             if len(rows) - hit >= HOLD_TAIL: break
             first = len(rows) == hit
-            rows.append(f'{{{fr}, 0, 0, {MOVES.index("hit_stand_light")}, {32 | held[3] | (4 if first else 0)}, {held[1]}, {held[2]}}}')
+            rows.append(f'{{{fr}, 0, 0, {MOVES.index("hit_stand_light")}, {32 | held[3] | turned | (4 if first else 0)}, {held[1]}, {held[2]}}}')
     return rows, (MOVES.index(move) if move in MOVES else 0xFF, hstep)
 
 VICTIM_POSES = {g: json.load(open(os.path.join(HERE, '..', 'kof96', f'victim_poses{g[3:]}.json')))['poses']
                 for g in ('kof96', 'kof98', 'kof99')}
 VICTIM_POSES['kizuna'] = json.load(open(os.path.join(HERE, '..', 'kizuna', 'victim_poses_kz.json')))['poses']   # Kim's throw
+VICTIM_POSES['whp'] = json.load(open(os.path.join(HERE, '..', 'whp', 'victim_poses_whp.json')))['poses']   # Hanzou's throws (TODO whp6)
 VICTIM_POSES['samsho2'] = json.load(open(os.path.join(HERE, '..', 'samsho2', 'victim_poses_ss2.json')))['poses']   # SS2's throws
 
 FAMILY = {'grabbed': 'standing', 'hunched': 'standing', 'hit_reel': 'standing', 'bent_back': 'standing', 'standing': 'standing',
@@ -1064,8 +1082,9 @@ def voice_data(ch, n, game, pool, sps):
         throw_rows[t] = (ch['anims'][t]['slot'], rows)
     sug = V.suggest(n, game, slot_of, throw_rows, [(sp['input'], p['keep']) for sp, p in zip(pool, sps)])
     ks = V.keys(MOVES, THROWS, [sp['input'] for sp in pool])
-    pv = {sp['input']: prog_voices(n, game, p) for sp, p in zip(pool, sps) if kof_prog(p, game)}
-    for inp, vs in pv.items():                           # a KOF ROM special: its program's own voices (TODO #163), the
+    pv = {sp['input']: prog_voices(n, game, p) for sp, p in zip(pool, sps) if kof_prog(p, game) or step_voiced(p)}
+    for inp, vs in pv.items():                           # a ROM special (KOF's, or WHP's step-voiced programs: TODO #181):
+                                                         # its program's own voices (TODO #163), the
         if vs: sug['special:' + inp] = [vs[0], 0]        # key's suggestion = the first it sends
         else: sug.pop('special:' + inp, None)
     mp = V.mapping(roster()[n].get('voices'), sug)
@@ -1088,9 +1107,10 @@ def prog_voices(n, game, sp):
     """the voice ids a KOF ROM special's program sends, the first it sends first: its code's sends now, its steps'
     $FC records (anim order), its code's sends later"""
     vi = voice_of_index(n, game); r = sp['rom']
-    now = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and not op[2]]
+    ops = r.get('ops') or []                                       # (a program written by its exporter: no ops, its
+    now = [vi(op[1]) for op in ops if op[0] == 'vsend' and not op[2]]   # sends are its steps': WHP's, TODO #181)
     steps = [vi(ix) for st in r['states'] for s in r['anims'][st]['steps'] for ix in s.get('voices', [])]
-    later = [vi(op[1]) for op in r['ops'] if op[0] == 'vsend' and op[2]]
+    later = [vi(op[1]) for op in ops if op[0] == 'vsend' and op[2]]
     ids = [i for i in now + steps + later if i]                    # its own effects (channel 'fx', TODO #168) after
     return [i for i in ids if not V.fx_bit(n, i)] + [i for i in ids if V.fx_bit(n, i)]   # its voices: the key's suggestion is a voice
 
@@ -1174,8 +1194,11 @@ def write_c(chars, outdir):
                 for pi, p in enumerate(fr['parts'])) + '};' if fr['parts'] else f'static const bpart_t {n}_f{fi}[1];')
         c.append(f'static const bframe_t {n}_frames[] = {{' + ', '.join(
             f'{{{len(fr["parts"])}, {sum(len(p["tiles"]) for p in fr["parts"])}, {n}_f{fi}}}' for fi, fr in enumerate(ch['frames'])) + '};')
-        for m in MOVES:
+        arr = {}                                                 # one step array per source animation: a move the
+        for m in MOVES:                                          # fighter lacks shares its fallback's (idle)
             a = source(ch, m)
+            if id(a) in arr: continue
+            arr[id(a)] = f'{n}_{m}'
             steps, live, prev_act, prev_chain = [], None, False, False
             for s in a['steps']:
                 hb, ab = boxes(s['boxes'], REACH)
@@ -1279,15 +1302,15 @@ def write_c(chars, outdir):
         c.append(f'static const uint8_t {n}_spmap[BS_COUNT] = {{' + ', '.join(str(spec_index(pool, sp)) for sp in pick_specials(ch, n)) + '};')
         vdata[n] = {'keys': vk, 'suggest': vsug, 'map': vmp, 'nvoice': len(V.bank(n)),
                     'at': {k: v[1] for k, v in vsug.items()}, 'more': vmore,
-                    'prog': sorted({res(ix) & 0x7F for q, sp in zip(pool, sps) if kof_prog(sp, game)
+                    'prog': sorted({res(ix) & 0x7F for q, sp in zip(pool, sps) if kof_prog(sp, game) or step_voiced(sp)
                                     for res in [prog_voice_res(n, game, q['input'], vsug, vmp)]
-                                    for ix in [op[1] for op in sp['rom']['ops'] if op[0] == 'vsend'] +
+                                    for ix in [op[1] for op in sp['rom'].get('ops') or [] if op[0] == 'vsend'] +
                                               [x for st in sp['rom']['states'] for s_ in sp['rom']['anims'][st]['steps'] for x in s_.get('voices', [])]} - {0})}
         c.append(f'static const uint8_t {n}_voices[] = {{' + ', '.join(map(str, vtab)) + '};   /* voices.py table */')
         c.append(f'static const uint8_t {n}_vmore[] = {{' + ''.join(f'{a}, {b}, {d}, ' for a, b, d in vmore) + '0xFF};   /* voices.py extras */')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
-            f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')
+            f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {arr[id(source(ch, m))]}}}' for m in MOVES) + '};')
     lab = {'ba': MOVES, 'route_moves': R.MOVE_NAMES, 'inputs': R.INPUTS, 'fighters': []}
     for ci, (game, n, ch, off) in enumerate(chars):           # chain routes: tools/brawler/routes/<n>.json or the default
         has = {m for m in MOVES if any(k in ch['anims'] for k in SOURCES.get(m, [m]))}

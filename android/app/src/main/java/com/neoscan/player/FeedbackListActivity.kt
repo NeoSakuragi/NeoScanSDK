@@ -114,7 +114,7 @@ class FeedbackListActivity : Activity() {
     }
 
     private fun matches(r: JSONObject, f: String) = when (f) {
-        "open" -> Feedback.isOpen(r); "ready" -> Feedback.isReady(r, running); else -> true }
+        "open" -> Feedback.isOpen(r); "ready" -> Feedback.wantsTest(r, running); else -> true }
 
     /** the filter buttons (with their counts) and the cards they keep; the scroll position stays */
     private fun render() {

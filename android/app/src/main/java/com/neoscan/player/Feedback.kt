@@ -306,7 +306,10 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
             val b = r.optJSONArray("scenario_builds") ?: return false
             return r.optJSONObject("scenario") != null && (0 until b.length()).any { b.optString(it) == "$sha/$key" }
         }
-        fun wantsTest(r: JSONObject, running: String) = isReady(r, running) || r.optString("status") == "reopened"
+        /** the test queue and "Shipped: test it" (0.0.23, docs/feedback.md "The test queue"): the server's to_test (shipped,
+         *  and no 👍 / 👎 yet on that release or a later build) and the release at or before the build he runs. A
+         *  verdict takes the note out (reopened ones stay in Open); a later ship with a newer release brings it back. */
+        fun wantsTest(r: JSONObject, running: String) = r.optBoolean("to_test", false) && isReady(r, running)
 
         /** "44 min ago", "3 h ago", "yesterday", "Oct 3" (beyond 7 days) */
         fun ago(iso: String): String = try {

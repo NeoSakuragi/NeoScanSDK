@@ -21,9 +21,10 @@ const fs = require('fs'), R = require(process.argv[2]);
 const D = JSON.parse(fs.readFileSync(process.argv[3])), jobs = JSON.parse(fs.readFileSync(process.argv[4]));
 const out = [];
 for (const j of jobs) {
-  const r = R.render(D, D.layout, { cursor: j.cursor, unlocked: j.unlocked });
+  const r = R.render(D, j.layout, { cursor: j.cursor, unlocked: j.unlocked });
+  let h = 2166136261 >>> 0; for (const v of r.rgba) { h ^= v; h = Math.imul(h, 16777619) >>> 0; }   // = selectTab.hash()
   fs.writeFileSync(j.raw, Buffer.from(r.rgba.buffer));
-  out.push({ counts: Array.from(r.counts), worst: r.worst, cursor: r.cursor, arrow: r.arrow });
+  out.push({ counts: Array.from(r.counts), worst: r.worst, cursor: r.cursor, arrow: r.arrow, hash: h.toString(16) });
 }
 fs.writeFileSync(process.argv[5], JSON.stringify(out));
 """
@@ -37,7 +38,8 @@ def main(game, out, sel_json=None):
         sel_json = os.path.join(out, 'select.json'); json.dump(select_images.select_data(game, b=b), open(sel_json, 'w'))
     D = json.load(open(sel_json))
     L = build_tables.select_layout(json.load(open(os.path.join(game, 'game.json'))))
-    assert D['layout'] == L, 'select.json is not this build\'s layout'
+    for n, v in L.items():                        # (a site's select.json from an older build: the game's poses must be among its frames)
+        assert any(v['pose'] in p['alias'] for p in D['fighters'][n]['poses']), f'{n}: pose {v["pose"]} not in {sel_json}'
     order = sorted(L, key=lambda n: L[n]['slot'])
     stat = b.core.retro_get_memory_data(106)
     import ctypes as C
@@ -55,7 +57,7 @@ def main(game, out, sel_json=None):
             tag = f'{"beaten" if unl else "fresh"}_{len(seen):02d}_{c}'
             b.run(30); p = os.path.join(out, f'game_{tag}.png'); b.screenshot(p)
             lspc = [T[l * 34] for l in range(16, 240)] if T else None
-            shots.append((tag, p, lspc)); jobs.append({'cursor': c, 'unlocked': bool(unl), 'raw': os.path.join(out, f'editor_{tag}.raw')})
+            shots.append((tag, p, lspc)); jobs.append({'cursor': c, 'unlocked': bool(unl), 'raw': os.path.join(out, f'editor_{tag}.raw'), 'layout': L})
             b.run(4, 'R'); b.run(12)
     njs = os.path.join(out, 'render.js'); open(njs, 'w').write(NODE)
     jf, rf = os.path.join(out, 'jobs.json'), os.path.join(out, 'res.json')
@@ -74,7 +76,7 @@ def main(game, out, sel_json=None):
         bad += bool(nd) + bool(cm)
         lines.append(f'{tag:28s} pixels differing {nd:6d}   lines whose sprite count differs {cm}   worst line y {r["worst"]}: '
                      f'{r["counts"][r["worst"]]} (LSPC {lspc[r["worst"]] if lspc else "?"}, LSPC max {max(lspc) if lspc else "?"})'
-                     f'   arrow col {r["arrow"]["col"]} row {r["arrow"]["row"]}{" over " + ",".join(r["arrow"]["hits"]) if r["arrow"]["hits"] else ""}')
+                     f'   editor hash {r["hash"]}   arrow col {r["arrow"]["col"]} row {r["arrow"]["row"]}{" over " + ",".join(r["arrow"]["hits"]) if r["arrow"]["hits"] else ""}')
     lines.append(f'{len(shots)} screens, {bad} mismatch(es)')
     open(os.path.join(out, 'select_proof.txt'), 'w').write('\n'.join(lines) + '\n')
     print('\n'.join(lines))

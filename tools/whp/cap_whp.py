@@ -27,7 +27,7 @@ def run(seq1, seq2='', extra=None, load=VS, pokes=None, keep=None, vram=False, n
     d = keep or tempfile.mkdtemp(dir='/data/tmp')
     os.makedirs(d, exist_ok=True)
     for f in glob.glob(f'{d}/cap.txt*') + glob.glob(f'{d}/vram*.bin') + glob.glob(f'{d}/pal*.bin'): os.remove(f)
-    rd = ';'.join(f'{f}:100000:{span:X};{f}:106000:{span:X};{f}:108200:40' for f in range(1, n))
+    rd = ';'.join(f'{f}:100000:{span:X};{f}:106000:{span:X};{f}:108200:40;{f}:10C100:8' for f in range(1, n))
     env = dict(os.environ, SEQ=seq1, SEQ2=seq2, OUT=f'{d}/cap.txt', LOAD=load, RAMDUMP=rd, **(extra or {}))
     if vram:
         env['VRAMDUMP'] = ';'.join(f'{f}:{d}/vram{f}.bin' for f in range(1, n))
@@ -40,7 +40,11 @@ def run(seq1, seq2='', extra=None, load=VS, pokes=None, keep=None, vram=False, n
         g = glob.glob(f'{d}/cap.txt.ram{f}_108200')
         if not a or not b: continue
         glb = parse(open(g[0]).read()) if g else bytes(0x40)
+        c = glob.glob(f'{d}/cap.txt.ram{f}_10C100')
+        flo = parse(open(c[0]).read()) if c else b''
         rows.append({'f': f, 'obj': parse(open(a[0]).read()), 'anim': parse(open(b[0]).read()), 'cam': s16(glb, 0x32),
+                     'floor': u16(flo, 2) if len(flo) >= 4 else 0x4800,   # fp+$4102: the floor's y word (the camera's
+                                                                         # vertical scroll moves it, handlers_whp.world)
                      'vram': f'{d}/vram{f}.bin' if vram else None, 'pal': f'{d}/pal{f}.bin' if vram else None})
     if not keep: shutil.rmtree(d)
     return rows

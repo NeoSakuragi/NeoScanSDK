@@ -952,6 +952,29 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (/data/tmp/rugal173/regress_*_fresh.json). Find the timing dependency in the harness (pokes / samples mid-tick): a
   regression check must not move with the RAM layout.
 
+- [ ] 179. SS2 SPECIALS FEEL RECORDED (Bruno in chat, 0.0.85: "they all seem garbage recorded"): audit every SS2
+  special's program (decoded from the handler code vs captures replayed), play them in real fights vs SS2 in the same
+  situations, re-derive every replayed part from SS2's code. In progress.
+
+- [x] 180. (done 2026-10-07: the ghost was a script object of the Phoenix's export, Kim's frame 195 px behind him on rows 108-186: Kizuna's sound task 'SOUND' (code $1D270, slot 12) holding a dead PALETTE task's Kim animation $50A0 / step $AED1C, never drawn by Kizuna (screen scan), taken as Kim's object; cap_kz.new_objects skips a task whose +$40 / +$94 are still the dead slot's leftovers, captures regenerated (only stale $50A0 objects dropped). Proof tools/kizuna/kim180_proof.py: the Phoenix connecting in a fight, every sprite attributed, nothing of Kim's > 160 px behind him, all flames / feathers kept; sheets /data/tmp/kim180/out (phoenix_brawler.png vs phoenix_kizuna.png, objects.txt); kim_effects_check all ok, bank_proof ALL OK, controls_proof kim ok) KIM: A SECOND KIM DURING HIS FURY (20261007-002048-5d29, 0.0.85: "Why is there another instance of Kim on
+  the left side of the screen as he's doing his fury?"; the replay at P-48 shows a partial Kim at the left edge while
+  the real one rises in the centre, just before the Phoenix flame). Same family as Rugal's ghost (#173: a recorded
+  object that should not be drawn): find which object draws Kim's frames there (afterimage / pinned effect of #144
+  with a wrong position or reference, or a capture leftover), fix the cause.
+
+- [x] 181. (done 2026-10-07: 0.0.86 renamed his specials (623A / 214C ... -> 623P / 214K ...) while voices.json still keyed their voices to the old captured inputs, so every program special resolved its step sends to silence. Now voices.py whp_list reads each exported special's sends from WHP's step command 4 (every row; the fury / MAX at their script rows; his own effects $39 / $62 as fx; captures for normals only) and export_bm plays WHP programs through #163's program voice path (pvox). Also: the first step of a WHP program was a frame short (handlers_ss2's start-frame rule missing), so every later step, hit, spawn and sound came a frame early. Proof tools/whp/sound_proof.py -> /data/tmp/whp181/out/sound_proof.json: 15 / 15 rows same words at the same frames as WHP's SNDLOG and every step frame-identical to the model, fury + MAX whiff / hit same words on the same WHP steps; voice_proof --all hanzo 6 / 7 (MAX: FC9E on its step, row 88 played at frame 70 after the hit-link jump), bank_proof, controls_proof hanzo, regress no-bleed True) HANZO'S SPECIALS LOST THEIR SOUND (regression of 0.0.86's WHP six-button import; 20261007-004411-5d29 "The
+  sound is no longer here for the special move." on 623P (the rising slash), 20261007-004426-5d29 "This special move
+  also has the sound missing." on 214K (the flying spin kick)): the new one-program-per-special exports dropped the
+  voice / sound keys the old Hanzo specials had (WHP's ADK driver sends); restore every WHP special's voice and sound
+  per row from WHP's code, per #163's rule (each send at its step, in order); voice_proof for hanzo vs WHP's sound log.
+
+- [ ] 182. HUD FONT FROM KIZUNA (20261007-005023-5d29, 0.0.87: "The bitmap font used to display level 4, credit,
+  etc. Can we actually leverage the bitmap font used in Kizuna? This particular one ... has the borders around the
+  text so that it contrasts with any kind of background."): extract Kizuna Encounter's outlined FIX-layer font (its S
+  ROM glyphs + the palette it uses), map it onto the brawler's HUD / system text (STAGE / WAVE / LEVEL / CREDIT /
+  version, select screen titles), check every string's glyphs exist (digits, letters, punctuation), sheet before /
+  after on the brightest and the darkest stage.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into

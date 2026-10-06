@@ -24,15 +24,17 @@ object TestQueue {
  *  "Do: ..." and "Expect: ...". Buttons: Play / Pause, Restart (the state again, at once), 👍 Fixed (status verified),
  *  👎 Broken (hold: his voice records while held, the replay of his attempt since the state is captured; released: the
  *  text to correct, then Send = status reopened with the voice and the replay), Next (the next note of the queue), ✕.
- *  Each attempt goes to ../feedback/test (up / down / abandoned when he leaves without a verdict). Leaving the mode
- *  soft-resets the game. */
+ *  Each attempt goes to ../feedback/test (up / down; abandoned only when he leaves a loaded note without a verdict:
+ *  Next / Done / ✕ before 👍 or 👎, once per note, never after a verdict or while one is being sent). A verdict takes
+ *  the note out of the queue at once (MainActivity.judged; the server's to_test agrees). Leaving the mode soft-resets
+ *  the game. */
 class TestMode(private val act: MainActivity, private val root: FrameLayout, private val emu: () -> EmuThread?,
                private val feedback: Feedback, private val rom: File, private val onEnd: () -> Unit) {
     private val dp = act.resources.displayMetrics.density
     private var queue: List<JSONObject> = emptyList()
     private var i = 0
     private var state: File? = null
-    private var verdict = false                                     // a 👍 / 👎 was sent for the note on screen
+    private var verdict = false                                     // a 👍 / 👎 was sent (or is being sent) for the note on screen
     private var t0 = 0L
     private var banner: LinearLayout? = null
     private lateinit var status: TextView
@@ -118,15 +120,16 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
     private fun up() {
         if (state == null) { toast("Nothing loaded to judge"); return }
         emu()?.paused = true
+        if (verdict) return
         val id = note.optString("id"); val t = base("up")
-        status.text = "Sending 👍..."
+        verdict = true; status.text = "Sending 👍..."
         Thread {
             val r = Feedback.reply(act, id, "up", "")
             r.onSuccess { t.put("reply_id", latestReply(it)) }
             val p = Feedback.postTest(act, t, null)
             act.runOnUiThread {
-                if (r.isSuccess) { verdict = true; toast("Marked verified fixed" + if (p.isFailure) " (attempt not logged: ${p.exceptionOrNull()?.message})" else ""); next() }
-                else status.text = "Not sent: ${r.exceptionOrNull()?.message}"
+                if (r.isSuccess) { act.judged(id, "verified"); toast("Marked verified fixed" + if (p.isFailure) " (attempt not logged: ${p.exceptionOrNull()?.message})" else ""); next() }
+                else { verdict = false; status.text = "Not sent: ${r.exceptionOrNull()?.message}" }
             }
         }.start()
     }
@@ -167,7 +170,7 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
         row.addView(Button(act).apply { text = "Cancel"; setOnClickListener { feedback.cancel(); banner?.removeView(c); box = null; status.text = "Paused" } })
         row.addView(Button(act).apply { text = "Send 👎"; isAllCaps = false; setOnClickListener {
-            isEnabled = false; info.text = "Sending..."
+            isEnabled = false; info.text = "Sending..."; verdict = true
             val text = edit.text.toString().trim()
             val dir = feedback.takeAttempt(text, raw)
             val audio = dir?.listFiles()?.firstOrNull { it.name.startsWith("audio.") }
@@ -178,9 +181,9 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
                 val p = Feedback.postTest(act, t, dir)
                 dir?.deleteRecursively()
                 act.runOnUiThread {
-                    if (r.isSuccess) { verdict = true; banner?.removeView(c); box = null
+                    if (r.isSuccess) { act.judged(id, "reopened"); banner?.removeView(c); box = null
                         toast("Reopened: still broken" + if (p.isFailure) " (replay not sent: ${p.exceptionOrNull()?.message})" else ", with your attempt's replay"); next() }
-                    else { isEnabled = true; info.text = "Not sent: ${r.exceptionOrNull()?.message}" }
+                    else { verdict = false; isEnabled = true; info.text = "Not sent: ${r.exceptionOrNull()?.message}" }
                 }
             }.start()
         } })
@@ -192,16 +195,17 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         }.start()
     }
 
-    /** a note left without a verdict once its state was loaded: logged as abandoned */
+    /** a note left without a verdict once its state was loaded: logged as abandoned (once: [verdict] then blocks it) */
     private fun leaving() {
         if (verdict || state == null) return
+        verdict = true
         val t = base("abandoned")
         Thread { Feedback.postTest(act, t, null) }.start()
     }
 
+    /** Next / Done, or the queue moving on after a verdict; the last note ends the mode (end() logs the abandon) */
     private fun next() {
-        leaving()
-        if (i + 1 < queue.size) { i++; show() } else end()
+        if (i + 1 < queue.size) { leaving(); i++; show() } else end()
     }
 
     fun end() {

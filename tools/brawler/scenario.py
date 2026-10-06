@@ -67,6 +67,8 @@ def snapshot(rom):
     b = os.path.join(d + '.part', 'examples', 'brawler', 'build'); os.makedirs(b, exist_ok=True)
     for f in os.listdir(os.path.join(GAME, 'build')):
         if f == 'rom.elf' or f.endswith('.h'): subprocess.run(['cp', '-p', os.path.join(GAME, 'build', f), b], check=True)
+    for f in os.listdir(GAME):                              # the headers the ROM was built from (a build between releases:
+        if f.endswith('.h'): subprocess.run(['cp', '-p', os.path.join(GAME, f), os.path.dirname(b)], check=True)   # fighter.h's layout)
     json.dump({'rom_sha256': sha, 'version': ver, 'commit': commit}, open(os.path.join(d + '.part', 'build.json'), 'w'))
     os.replace(d + '.part', d)
     return game
@@ -235,7 +237,7 @@ def main():
         print(json.dumps(api('scenario/' + a.id), indent=1, ensure_ascii=False))
     elif a.cmd == 'put':
         rec = json.load(open(a.file)) if a.file else get_recipe(a.id)
-        print(api('scenario', {'id': a.id, 'recipe': rec, 'by': 'scenario.py'})['ok'])
+        r = api('scenario', {'id': a.id, 'recipe': rec, 'by': 'scenario.py'}); print(r.get('ok', 'row' in r))   # the server answers the row
     elif a.cmd == 'gen':
         out, sha, res = gen(a.id, a.rom)
         for k, v in res.items(): print(k, v['state_sha256'][:16], v['size'], 'bytes; end', v['end'])

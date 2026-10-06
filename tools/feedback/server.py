@@ -20,7 +20,8 @@ checks the token again with Oros's /api/whoami, so it knows the user; no token =
                      thread ("replies", oldest first).
   GET  /mine/scenario/<id>/<sha>/<key>.state   (Player 0.0.22) a note's test state for build <sha> on system <key>
                      (mvs-mvs arcade, uni-aes console; tools/brawler/scenario.py); 404 = none for that build. /mine rows
-                     carry "scenario" {title, do, expect}, "scenario_builds" ["<sha>/<key>"] and "timeline"
+                     carry "scenario" {title, do, expect}, "scenario_builds" ["<sha>/<key>"] and "timeline"; (0.0.23) every
+                     row of /mine and /api/list carries "to_test" + "tested_on" (queue_info: the test queue's rule)
   POST /test         (Player 0.0.22) a test attempt: a zip with test.json {id, result up | down | abandoned, rom_sha,
                      game_version, system, seconds, reply_id?, note?} + the attempt's replay (bundle files) -> tests table,
                      DATA/attempts/<attempt id>/
@@ -407,6 +408,24 @@ def tests(c, fid):
     return [row_dict(x) for x in c.execute('SELECT * FROM tests WHERE feedback_id=? ORDER BY id', (fid,))]
 
 
+def vkey(v):
+    """a version as a sortable tuple ('0.0.86' -> (0, 0, 86)); None when it is not one"""
+    try: return tuple(int(x) for x in str(v).split('.')) if v else None
+    except ValueError: return None
+
+
+def queue_info(c, r):
+    """the test queue rule (docs/feedback.md "The test queue"): a note waits for a test (to_test) while its status is
+    shipped (with a release) and no verdict (a 👍 / 👎 test attempt, player or Lab) was given on that release or a later
+    build: tested_on = the build of the last verdict. A verdict takes it out (👍 verified, 👎 reopened: it stays in Open);
+    it comes back only when a later ship has a release > tested_on. An abandoned attempt is no verdict: it stays queued.
+    The player adds "release <= the build he runs"."""
+    t = c.execute("SELECT game_version FROM tests WHERE feedback_id=? AND result IN ('up', 'down') ORDER BY id DESC LIMIT 1", (r['id'],)).fetchone()
+    tested = t['game_version'] if t else ''
+    rel, tv = vkey(r['release']), vkey(tested)
+    return {'tested_on': tested, 'to_test': bool(r['status'] == 'shipped' and rel and (tv is None or rel > tv))}
+
+
 TEST_TEXT = {'up': '👍 fixed', 'down': '👎 still broken', 'abandoned': 'left without a verdict'}
 
 
@@ -480,6 +499,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 for r in rows:
                     r['replies'] = replies(c, r['id']); r['scenario'] = scenario(c, r['id'])
                     r['scenario_builds'] = scenario_builds(c, r['id']); r['timeline'] = timeline(c, r['id'])
+                    r.update(queue_info(c, r))
                 tot = c.execute("SELECT COUNT(*) n, ROUND(SUM(cost_usd), 6) usd, ROUND(SUM(CASE WHEN feedback_id != '' THEN cost_usd ELSE 0 END), 6) linked, "
                                 "ROUND(SUM(audio_seconds), 1) secs FROM transcriptions").fetchone()
                 return self.reply(200, {'rows': rows, 'statuses': STATUSES, 'categories': CATEGORIES[1:], 'user': account(self.headers),
@@ -675,6 +695,7 @@ class H(http.server.BaseHTTPRequestHandler):
                     r['scenario'] = {k: sc.get(k, '') for k in ('title', 'do', 'expect')} if sc else None
                     r['scenario_builds'] = scenario_builds(c, r['id']) if sc else []
                     r['timeline'] = [{k: e.get(k, '') for k in ('at', 'by', 'kind', 'text')} for e in timeline(c, r['id'], True)]
+                    r.update(queue_info(c, r))                       # Player 0.0.23: the test queue's rule
                 return self.reply(200, {'user': user, 'rows': rows})
             if len(parts) == 4 and parts[0] == 'scenario' and ID.match(parts[1]) and SHA.match(parts[2]) and SFILE.match(parts[3]):
                 if not c.execute('SELECT 1 FROM feedback WHERE id=? AND user=?', (parts[1], user)).fetchone(): return self.reply(404, {'error': 'not found'})

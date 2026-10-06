@@ -43,9 +43,15 @@ SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD']                                
 SLOT_OF = dict(zip(SPECIAL_INPUTS, SPECIALS))                                            # a C input -> the slot it plays
 MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
               'atk_c_close', 'atk_c_far', 'atk_c_crouch', 'atk_d_close', 'atk_d_far', 'atk_d_crouch', 'body_toss',
-              'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']                          # ground moves a route may play
+              'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d',                          # ground moves a route may play
+              # World Heroes Perfect's six buttons (tools/whp/moves_whp.py; docs/brawler_data_model.md): the strong
+              # punch A+B / strong kick C+D, forward + C / C+D, the running normals
+              'atk_ab_close', 'atk_ab_far', 'atk_ab_crouch', 'atk_cd_close', 'atk_cd_crouch', 'cmd_fwd_c', 'cmd_fwd_cd',
+              'atk_a_run', 'atk_b_run', 'atk_ab_run', 'atk_c_run', 'atk_d_run', 'atk_cd_run',
+              'atk_a_run_low', 'atk_b_run_low', 'atk_ab_run_low', 'atk_c_run_low', 'atk_d_run_low', 'atk_cd_run_low']
 AIR_MOVES = {'air_a': 'atk_c_jump', 'air_b': 'atk_d_jump', 'air_cd': 'atk_cd_jump'}     # the jump picks the animation
-AIR_MOVE_NAMES = list(AIR_MOVES.values())                                                # an air node's moves (B links, air links)
+AIR_MOVE_NAMES = list(AIR_MOVES.values()) + ['atk_a_jump', 'atk_b_jump', 'atk_ab_jump']  # an air node's moves (B links, air
+                                                 # links); the jump picks the vertical / diagonal one (fighter.c start_node)
 ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd']
 WEIGHTS = ['light', 'strong']
 EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback']                            # fighter.h RE_*

@@ -92,15 +92,21 @@ def new_objects(rows, pool=POOL):
     not alive at the start, or one that died during the capture (its step pointer +$94 moved since the start: its death
     frames kept, name byte 0 = 0). Dead slots at the start keep stale animations and pointers (slot 12: Kim's $50A0)
     and live start tasks (stage, partners, shadows) are not the move's. The first captures (until 2026-10-06) read
-    only $100000-$103FFF and dropped every slot with an animation at the start: the Hienzan pillar was lost."""
+    only $100000-$103FFF and dropped every slot with an animation at the start: the Hienzan pillar was lost.
+    A task that took a dead slot and never loaded a step (its animation +$40 and step pointer +$94 still the slot's
+    leftovers from the start) is no object of the move either (TODO #180): Kizuna's sound task 'SOUND' (code $1D270)
+    in slot 12 keeps the dead PALETTE's Kim $50A0 / $AED1C at x 43, y 44 and draws nothing [meas: the screen scan
+    kim_screen.json 'fol 6246A_h' attributes no tile to it], yet the Phoenix's export drew it as a second Kim."""
     r0 = rows[0]['pool']
     live0 = {k for k in range(pool >> 8) if r0[k * 0x100 + 0x10] and r0[k * 0x100 + 0x40:k * 0x100 + 0x42] != b'\0\0'}
+    stale = {k: (r0[k * 0x100 + 0x40:k * 0x100 + 0x42], u32(r0, k * 0x100 + 0x94)) for k in range(pool >> 8)}
     out = []
     for r in rows:
         ks = []
         for k in range(pool >> 8):
             o = r['pool'][k * 0x100:(k + 1) * 0x100]
             if not u32(o, 0x94) or k in live0: continue
+            if (o[0x40:0x42], u32(o, 0x94)) == stale[k]: continue        # no step of its own: leftovers (SOUND)
             if o[0x10] or u32(o, 0x94) != u32(r0, k * 0x100 + 0x94): ks.append(k)
         out.append(ks)
     return out
