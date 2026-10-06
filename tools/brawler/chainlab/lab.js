@@ -29,9 +29,13 @@
   const SLOT_OF = Object.fromEntries(SPECIAL_INPUTS.map((k, i) => [k, SPECIALS[i]]));
   const MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
     'atk_c_close', 'atk_c_far', 'atk_c_crouch', 'atk_d_close', 'atk_d_far', 'atk_d_crouch', 'body_toss',
-    'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d'];
+    'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d',
+    // World Heroes Perfect's six buttons (routes.py MOVE_NAMES)
+    'atk_ab_close', 'atk_ab_far', 'atk_ab_crouch', 'atk_cd_close', 'atk_cd_crouch', 'cmd_fwd_c', 'cmd_fwd_cd',
+    'atk_a_run', 'atk_b_run', 'atk_ab_run', 'atk_c_run', 'atk_d_run', 'atk_cd_run',
+    'atk_a_run_low', 'atk_b_run_low', 'atk_ab_run_low', 'atk_c_run_low', 'atk_d_run_low', 'atk_cd_run_low'];
   const AIR_MOVES = { air_a: 'atk_c_jump', air_b: 'atk_d_jump', air_cd: 'atk_cd_jump' };
-  const AIR_MOVE_NAMES = Object.values(AIR_MOVES);
+  const AIR_MOVE_NAMES = Object.values(AIR_MOVES).concat(['atk_a_jump', 'atk_b_jump', 'atk_ab_jump']);   // routes.py
   const ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd'];
   const WEIGHTS = ['light', 'strong'];
   const EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback'];

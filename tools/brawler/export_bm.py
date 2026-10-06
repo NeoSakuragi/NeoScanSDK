@@ -46,7 +46,16 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'atk_c_hop', 'atk_d_hop', 'atk_c_hop_diag', 'atk_d_hop_diag',
          'atk_cd_jump', 'atk_cd_hop',                   # air C+D: KOF state 117, KOF98 / KOF99 hops 124 (capture/aircd.py)
          'watch',                                       # the group photo's pose (select screen): roster watch
-         'atk_a_crouch', 'atk_b_crouch']                # crouch A / B (KOF 88 / 97): chain routes (Chain Lab, routes.py)
+         'atk_a_crouch', 'atk_b_crouch',                # crouch A / B (KOF 88 / 97): chain routes (Chain Lab, routes.py)
+         # World Heroes Perfect's six buttons (tools/whp/moves_whp.py, 2026-10-06): A+B = strong punch, C+D = strong kick
+         # in every stance, the air A / B / A+B / C+D (vertical, diagonal), forward + C / C+D where the game has its own
+         # animation, the running normals (the move + 3 / + $1B with down). Route cards (routes.MOVE_NAMES) for any
+         # fighter that has them; the others never play them (routes.encode: has)
+         'atk_ab_close', 'atk_ab_far', 'atk_ab_crouch', 'atk_cd_close', 'atk_cd_crouch', 'cmd_fwd_c', 'cmd_fwd_cd',
+         'atk_a_jump', 'atk_a_jump_diag', 'atk_b_jump', 'atk_b_jump_diag', 'atk_ab_jump', 'atk_ab_jump_diag',
+         'atk_cd_jump_diag',
+         'atk_a_run', 'atk_b_run', 'atk_ab_run', 'atk_c_run', 'atk_d_run', 'atk_cd_run',
+         'atk_a_run_low', 'atk_b_run_low', 'atk_ab_run_low', 'atk_c_run_low', 'atk_d_run_low', 'atk_cd_run_low']
 # The group photo's 'watch' pose (TODO #51, 2026-10-05): a front-facing, standing frame, one per fighter (game, name) ->
 # (KOF game state, step; -1 = the animation's last, held frame). KOF94 / KOF95 had real "watching" sprites: the waiting
 # teammates on the stage's edge are fighter objects (+$70 = the fighter id) in KOF95 states 155 watch, 156 / 157 react,
@@ -64,7 +73,13 @@ CMDS = ['cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # bchar_t.cmds bit k
 # one per button, every direction); KOF96 has none, its hop plays the regular jump's normals by direction.
 SOURCES = {'atk_c_hop': ['atk_c_hop', 'atk_c_jump'], 'atk_d_hop': ['atk_d_hop', 'atk_d_jump'],
            'atk_c_hop_diag': ['atk_c_hop', 'atk_c_jump_diag'], 'atk_d_hop_diag': ['atk_d_hop', 'atk_d_jump_diag'],
-           'atk_cd_hop': ['atk_cd_hop', 'atk_cd_jump']}
+           'atk_cd_hop': ['atk_cd_hop', 'atk_cd_jump'],
+           # the six-button air normals on a fighter without them (an air node is played whatever the fighter has:
+           # fighter.c start_node): the jump's C / D / C+D
+           'atk_a_jump': ['atk_a_jump', 'atk_c_jump'], 'atk_a_jump_diag': ['atk_a_jump_diag', 'atk_c_jump_diag'],
+           'atk_b_jump': ['atk_b_jump', 'atk_d_jump'], 'atk_b_jump_diag': ['atk_b_jump_diag', 'atk_d_jump_diag'],
+           'atk_ab_jump': ['atk_ab_jump', 'atk_d_jump'], 'atk_ab_jump_diag': ['atk_ab_jump_diag', 'atk_d_jump_diag'],
+           'atk_cd_jump_diag': ['atk_cd_jump_diag', 'atk_cd_jump']}
 def source(ch, m):
     """the KOF animation a brawler move plays (idle when the fighter has none)"""
     return next((ch['anims'][k] for k in SOURCES.get(m, [m]) if k in ch['anims']), None) or ch['anims']['idle']
@@ -764,7 +779,8 @@ def var_c(n, k, sp):
     if not vt.get('nvar') and not r.get('voice_frames'): return ''
     if not vt.get('nvar'): return ', 0, 0, 0, 0, 0, 0, 0, 1'
     want = (roster().get(n, {}).get('variant') or {}).get(sp['input'])
-    vdef = vt['buttons'].index(want) if isinstance(want, str) else want if want is not None else vt['default']
+    names = vt['buttons'] if not isinstance(want, str) or want in vt['buttons'] else vt.get('strengths') or vt['buttons']   # a button letter, or a
+    vdef = names.index(want) if isinstance(want, str) else want if want is not None else vt['default']   # strength (low / mid / high: WHP)
     assert 0 <= vdef < vt['nvar'], (n, sp['input'], want)
     return f', {n}_sp{k}_vars, {vt["nvar"]}, {vdef}, {vt["vanim"]}, {vt["vobj"]}, {vt["ncol"]}, {vt["vdmg"]}, {1 if r.get("voice_frames") else 0}'
 
@@ -988,6 +1004,7 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None):
 VICTIM_POSES = {g: json.load(open(os.path.join(HERE, '..', 'kof96', f'victim_poses{g[3:]}.json')))['poses']
                 for g in ('kof96', 'kof98', 'kof99')}
 VICTIM_POSES['kizuna'] = json.load(open(os.path.join(HERE, '..', 'kizuna', 'victim_poses_kz.json')))['poses']   # Kim's throw
+VICTIM_POSES['whp'] = json.load(open(os.path.join(HERE, '..', 'whp', 'victim_poses_whp.json')))['poses']   # Hanzou's throws (TODO whp6)
 VICTIM_POSES['samsho2'] = json.load(open(os.path.join(HERE, '..', 'samsho2', 'victim_poses_ss2.json')))['poses']   # SS2's throws
 
 FAMILY = {'grabbed': 'standing', 'hunched': 'standing', 'hit_reel': 'standing', 'bent_back': 'standing', 'standing': 'standing',
@@ -1155,8 +1172,11 @@ def write_c(chars, outdir):
                 for pi, p in enumerate(fr['parts'])) + '};' if fr['parts'] else f'static const bpart_t {n}_f{fi}[1];')
         c.append(f'static const bframe_t {n}_frames[] = {{' + ', '.join(
             f'{{{len(fr["parts"])}, {sum(len(p["tiles"]) for p in fr["parts"])}, {n}_f{fi}}}' for fi, fr in enumerate(ch['frames'])) + '};')
-        for m in MOVES:
+        arr = {}                                                 # one step array per source animation: a move the
+        for m in MOVES:                                          # fighter lacks shares its fallback's (idle)
             a = source(ch, m)
+            if id(a) in arr: continue
+            arr[id(a)] = f'{n}_{m}'
             steps, live, prev_act, prev_chain = [], None, False, False
             for s in a['steps']:
                 hb, ab = boxes(s['boxes'], REACH)
@@ -1268,7 +1288,7 @@ def write_c(chars, outdir):
         c.append(f'static const uint8_t {n}_vmore[] = {{' + ''.join(f'{a}, {b}, {d}, ' for a, b, d in vmore) + '0xFF};   /* voices.py extras */')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
-            f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {n}_{m}}}' for m in MOVES) + '};')
+            f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {arr[id(source(ch, m))]}}}' for m in MOVES) + '};')
     lab = {'ba': MOVES, 'route_moves': R.MOVE_NAMES, 'inputs': R.INPUTS, 'fighters': []}
     for ci, (game, n, ch, off) in enumerate(chars):           # chain routes: tools/brawler/routes/<n>.json or the default
         has = {m for m in MOVES if any(k in ch['anims'] for k in SOURCES.get(m, [m]))}

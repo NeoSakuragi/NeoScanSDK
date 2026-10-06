@@ -411,7 +411,7 @@
     const [dd, dp] = CL.defaultDamage(nd);
     const dmg = nd.damage !== undefined ? nd.damage : dd;
     const sv = spd(nd), d = fd(nd.move, sv), w = nd.weight || 'light', eff = nd.effect || 'none';
-    const pick = () => air ? (nd.move = CL.AIR_MOVE_NAMES[(CL.AIR_MOVE_NAMES.indexOf(nd.move) + 1) % 3], edited())   // air: C, D, C+D in turn
+    const pick = () => air ? (nd.move = CL.AIR_MOVE_NAMES[(CL.AIR_MOVE_NAMES.indexOf(nd.move) + 1) % CL.AIR_MOVE_NAMES.length], edited())   // air: C, D, C+D, A, B, A+B in turn
                            : picker(nd.move, v => { nd.move = v; edited(); });
     const stat = (ic, text, title, onclick) => h('button', { class: 'st', title, onclick }, icon(ic), h('span', {}, text));
     const num = (field, def) => h('input', { type: 'number', value: nd[field] !== undefined ? nd[field] : '', placeholder: String(def),
