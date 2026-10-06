@@ -459,6 +459,15 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   blue), export it through the effects library and play it; check Kim's other moves for missing effects the same way
   (kim_proof frame-identical incl. effect objects vs Kizuna's screen, not just Kim's body).
 
+- [ ] 145. Furies from non-KOF98 sources (Kim / Kizuna, Haohmaru / SS4, Hanzo / WHP, later Double Dragon) have no
+  built-in wind-up under the super flash, so they whiff (Bruno, 2026-10-06: e.g. Kim). First confirm the cause (the
+  rush moving during the freeze, or no pre-pose before the motion). Rule: a fury whose source has its own flash pose
+  (KOF98's $FA flash step) keeps it; otherwise the engine plays the fighter's "flash pose" during the freeze, by
+  default its TAUNT (Kim: Kizuna C+D taunt anim 21, ~92 f) cut to the freeze length (~28 f), a per-fighter data choice
+  (taunt / charge / win pose; Billy: his power-up), then starts the fury. Concentration glow anchored on the pose's
+  reference point (or the default). Proof: Kim's Phoenix, Haohmaru's and Hanzo's furies connecting on a dummy after the
+  flash, contact sheets.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
