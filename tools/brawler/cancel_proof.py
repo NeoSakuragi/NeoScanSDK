@@ -159,7 +159,11 @@ def mash_max(ix0, n=300):
     for k in range(n):
         if st(0) != 'SPECIAL': return {'cancelled': False, 'ended_after': k}
         if b.fget(0, 'spec_ix') != ix0:
-            ix = b.fget(0, 'spec_ix'); inv = b.fget(0, 'inv'); sid = b.fget(0, 'spec_id'); fl = flash_who()
+            ix = b.fget(0, 'spec_ix'); inv = b.fget(0, 'inv'); sid = b.fget(0, 'spec_id')
+            for _ in range(12):                          # the MAX's own flash (state_t = gflash.start): a fury whose
+                if b.fget(0, 'state_t') >= 1: break      # hit lands inside its flash (Kuroko's dash, Kim's Phoenix)
+                run(1)                                   # still shows the fury's (blue) on the cancel frame
+            fl = flash_who()
             col = b.r(SFC, 1) if SFC and fl else None
             return {'cancelled': True, 'after_frames': k, 'spec_ix': ix, 'spec_id': sid, 'inv': inv, 'flash_p1': fl, 'flash_orange': col == 1}
         run(1, 'Dd' if k % 2 == 0 else '')
