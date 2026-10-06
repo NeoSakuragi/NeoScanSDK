@@ -712,7 +712,16 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   there, a roster override for Krauser's projectiles, Bruno's call); proof: a Blitz Ball hit -> the victim burns.
   Medium (the voice rule touches every ROM special).
 
-- [ ] 164. (SOLVED BY A 2ND NOTE: 20261006-190659-5d29, 0.0.76, typed: "Impact effect of kaizer wave too low" — the blue shards are Krauser's KAISER WAVE impact, drawn at floor level instead of at the wave's hit height: the projectile's end / impact object's y offset (spawn_y / the end rows) lost or relative to the floor; fix in the projectile export, check every projectile's impact height vs KOF) KRAUSER'S BLUE GROUND SHARDS (feedback 20261006-164245-5d29, Bruno, 0.0.72, no words, screenshot circled: a
+- [ ] 164. (DONE ON BRANCH 2026-10-06, awaiting Bruno's review; TODO #173's branch; proof tools/brawler/impact164.py ->
+  /data/tmp/rugal173/out/impact164.json, scene_20261006-190659-5d29.png, romspecials_krauser) The end (impact) of an
+  object read from the ROM was exported at height 0 (handlers98 export_rom: its hit routine's animation as [frame, 0, 0])
+  and bpend_t's height was absolute: drawn on the floor. Rule now: an end plays where its hit was, bpend_t x / y from the
+  impact's (fighter.c proj_hit p->py0, proj_row; the captured ones converted: projectiles96 end_rows, export_whp,
+  export_ss4, export_dd). Every projectile with an end (46): 5 drew their impact away from the hit before, all ROM
+  objects: Krauser's Kaiser Wave A / C (0 under its 96 px flight), Blitz Ball high / low (0 under 88 / 40), K''s shot (0
+  under 88-111); now at the hit's height. Mai's fan rises 7 px over its flight in KOF98 too (unchanged). Krauser's Kaiser
+  Wave vs KOF96 (romspecials_check mid): the end at 96 px, KOF's height.
+  THE NOTES: (SOLVED BY A 2ND NOTE: 20261006-190659-5d29, 0.0.76, typed: "Impact effect of kaizer wave too low" — the blue shards are Krauser's KAISER WAVE impact, drawn at floor level instead of at the wave's hit height: the projectile's end / impact object's y offset (spawn_y / the end rows) lost or relative to the floor; fix in the projectile export, check every projectile's impact height vs KOF) KRAUSER'S BLUE GROUND SHARDS (feedback 20261006-164245-5d29, Bruno, 0.0.72, no words, screenshot circled: a
   cloud of small blue shards on the ground in front of Krauser, beside a white flash, while he strikes Robert / an
   enemy in the air). Find which object draws them (replay the note: frames before the press) and whether it is right
   (KOF98's own effect with its palette?) or a stray / wrong-palette object; ask Bruno only if it matches KOF98.
@@ -799,7 +808,37 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   player input off, ~5 s slow motion (frame skip / half-rate game logic, music and voice kept), the boss's death voice,
   every remaining enemy knocked down and dying (no score loss), then the stage clear. Sheet + timing log.
 
-- [ ] 173. RUGAL (3 notes, 0.0.74): (a) 20261006-175700-5d29: "This move slides and travels for way too long, it
+- [ ] 173. (DONE ON BRANCH 2026-10-06, awaiting Bruno's review; proof /data/tmp/rugal173/out, tools/brawler/rugal173_proof.py,
+  romspecials_check BRANCHES=wall)
+  (a) Rugal's 624A God Press WAS RECORDED (a capture: the push followed KOF's stage, 768 px, past the brawler's screen):
+  now from KOF98's handler $7F4A8: the rush 162 (8 px a frame, 16 frames), its catch box -> the catch routine (+$19C):
+  167 pushes at 8 px a frame until the wall (KOF $18092 -> PC_WALL; the "branch on vx" of #115 was that test's d0), 4
+  frames, the victim signalled (P_VSIG), the slam 168, the jump back 169 (KOF's a3 record: vx -10.31, friction $E900,
+  vy 4.125, gravity 0.605), 170. The victim follows the catch's own script (vocabulary hold.victim_list: KOF's +$1A0
+  routine, lists $299378 pushed / $299410 the slam: grabbed, the blow, the release 283 = its blowback against the
+  wall). THE WALL RULE (vocabulary stage.wall, fighter.c wall_update, docs/brawler_move_vocabulary.md): the screen edges
+  are walls 40 px in for every special and fury of every fighter (the dance wall made general): from a special's hit
+  (body or projectile) until its victim is down it stays inside the walls, its attacker held back by it while the
+  special plays; catches that grind to KOF's stage wall test these walls. Proof: romspecials_check rugal:fD wall (KOF98's
+  P1 as far from its wall as the brawler's) 0 frame mismatches, the hit on KOF's frame (43); whiff 0; wall.json: Rugal
+  624A, Terry 214C, Billy 426C at both edges, 6 / 6: the victim never past its wall, pinned 29-61 frames, the attacker
+  stopped (wall_<fighter>_<side>.png).
+  (b) the second Rugal in a taunt pose = a projectile-pool entity drawing Rugal's frames 243 / 247 at -202 px from the
+  move's start: the RECORDED scripts of 624A, 6426A, 6426C and 23624C all carried it: KOF98's capture took P1's two
+  waiting teammates (table 36 states 464 / 469, standing at x 132 / 188 of KOF's stage, off KOF's screen) as the move's
+  objects; the brawler replayed them on screen. Fixed by the cause: none of Rugal's moves is recorded now (all eight
+  slot moves + the MAX play KOF98's programs), no capture object left; scene check: no Rugal-owned object in God Press.
+  (c) Kaiser Wave 6426A / 6426C WERE RECORDED: now from $7EDAA: the charge (C held through 134: the count of its event
+  steps, frames 30 / 54 -> levels 0-2; vocabulary input.sustain, PC_HELD / PC_CNTLE), the wave of the level (states 137
+  / 138 / 140, 1 / 2 / 3 hits, each hit switching to the list's next state: object.phase at hit, bproj_t hitnext), and
+  the blue charge in his hand = the animations' $FA records (kind $DF -> state 246, pinned for its step, 60-66 px back,
+  65-90 px up; the capture had kept its height 0: it was drawn on the floor): vocabulary anim.step_spawn (bchar_t.pfx;
+  Rugal only for now: handlers98.STEP_FX). Proof: charge.json (C held 0 / 70 / 95 frames -> 1 / 2 / 3 hits), romspecials
+  rugal:uD / ufD 0 frame mismatches whiff / close, every hand effect spawned and ended on KOF's frames.
+  The fury 23624C Gigantic Pressure (WAS RECORDED) from $7FD1A (+ its MAX, down+D: the turn and the push back): 0 frame
+  mismatches whiff (1) / wall (0), hits on KOF's frames; the MAX's second push runs to the screen's other wall, 240 px
+  away (KOF's 700: frames differ from the turn on). Voices: the programs' own sends (#163).
+  THE NOTES: RUGAL (3 notes, 0.0.74): (a) 20261006-175700-5d29: "This move slides and travels for way too long, it
   feels like as though it was recorded. This move should detect whether we are on the edge of the screen, and then as
   soon as we're on the edge, actually push the character on the wall, and we should be able to actually see the victim
   being pushed on the wall ... look at the real game." (replay: Rugal's rushing strike carries Terry past the right
@@ -868,9 +907,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 102. (done 2026-10-06: KOF96 $4A010 from the ROM: 0 frame mismatches whiff + close, hits 3 / 3) Geese up A+B = 63214A (recorded, "off" per Bruno 0.0.55): play it from KOF96's handler code (handlers98.py, KOF96 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 105. (done 2026-10-06: KOF96 $4B186 from the ROM: 0 frame mismatches whiff + close, hits 1 / 1) Krauser up A+B = 623B (recorded, "off" per Bruno 0.0.55): play it from KOF96's handler code (handlers98.py, KOF96 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 106. (done 2026-10-06: KOF96 $4B186 from the ROM: 0 frame mismatches whiff + close, hits 1 / 1) Krauser up-fwd A+B = 623D (recorded, "off" per Bruno 0.0.55): play it from KOF96's handler code (handlers98.py, KOF96 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
-- [ ] 115. (still recorded 2026-10-06: the handler calls the stage-wall test $18092 (as his fury, #118) and branches on vx (+$50)) Rugal fwd A+B = 624A (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
-- [ ] 116. (still recorded 2026-10-06: Kaiser Wave's hit routine steps a state list through +$C2 and counts its hits in +$138 (a multi-hit object): not modelled) Rugal up A+B = 6426A (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
-- [ ] 117. (still recorded 2026-10-06: as 6426A (#116)) Rugal up-fwd A+B = 6426C (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
+- [x] 115. (done 2026-10-06, TODO #173: God Press played from KOF98's handler; see #173) (still recorded 2026-10-06: the handler calls the stage-wall test $18092 (as his fury, #118) and branches on vx (+$50)) Rugal fwd A+B = 624A (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
+- [x] 116. (done 2026-10-06, TODO #173: Kaiser Wave A played from KOF98's handler; see #173) (still recorded 2026-10-06: Kaiser Wave's hit routine steps a state list through +$C2 and counts its hits in +$138 (a multi-hit object): not modelled) Rugal up A+B = 6426A (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
+- [x] 117. (done 2026-10-06, TODO #173: Kaiser Wave C played from KOF98's handler; see #173) (still recorded 2026-10-06: as 6426A (#116)) Rugal up-fwd A+B = 6426C (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [ ] 119. (still recorded 2026-10-06: KOF96 $4E3DE's body plays with 0 frame mismatches whiff + close (0 / 0 hits, as KOF), but its wind objects (states 179-181, picked at random) come from the animate routine's step-effect table ($249E8, init $253D2), not from the handler: the ROM program would drop them) Goenitz down A+B = 214C (recorded, "off" per Bruno 0.0.55): play it from KOF96's handler code (handlers98.py, KOF96 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 
 - [ ] 140. Every multipart / follow-up special of Kyo, Iori and K' (Bruno, 2026-10-06): #74 only did Iori 214A and K'
@@ -916,7 +955,7 @@ One item per assigned special that still replays a capture (artifact grid https:
 - [x] 112. (done 2026-10-06, #74: K' 623A played from the ROM, 0 frame mismatches whiff + hit) K' down-fwd A+B = 623A (recorded, "off" per Bruno 0.0.55): play it from KOF99's handler code (handlers98.py, KOF99 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 113. (done 2026-10-06, #74: K' 236D played from the ROM, 0 frame mismatches whiff + hit) K' up-fwd A+B = 236D (recorded, "off" per Bruno 0.0.55): play it from KOF99's handler code (handlers98.py, KOF99 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 114. (done 2026-10-06: KOF99 $39B10 from the ROM: the shot's hit (+$D1 bit 7) starts the dash (while the target is over 224 px away) and the lunge's catch, 11-hit rush, finisher; 0 frame mismatches whiff (vs the decoded model: KOF's shot reaches P2 anywhere) + close, hits 13 / 13) K' C fury = 23624C (recorded, "off" per Bruno 0.0.55): play it from KOF99's handler code (handlers98.py, KOF99 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
-- [ ] 118. (still recorded 2026-10-06: the catch decodes, but its routine grinds the victim until the stage wall ($18092: x <= 32 / >= 736 of KOF's 768 px stage); the brawler has no such wall (the screen edge clamps), so its length can't match KOF; connects) Rugal C fury = 23624C (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
+- [x] 118. (done 2026-10-06, TODO #173: Gigantic Pressure played from KOF98's handler; see #173) (still recorded 2026-10-06: the catch decodes, but its routine grinds the victim until the stage wall ($18092: x <= 32 / >= 736 of KOF's 768 px stage); the brawler has no such wall (the screen edge clamps), so its length can't match KOF; connects) Rugal C fury = 23624C (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [ ] 120. (still recorded 2026-10-06: as Iori's: the catch and rush decode, the finisher is the engine's cinematic hit (KOF96 $17796 box + $3676 test); connects) Goenitz C fury = 2141236C (recorded, "off" per Bruno 0.0.55): play it from KOF96's handler code (handlers98.py, KOF96 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [ ] 121. Haohmaru A+B = 236C (recorded, "off" per Bruno 0.0.55): play it from SS4's 68000 code (tools/samsho4: no handler decoder yet); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [ ] 122. Haohmaru fwd A+B = 421C (recorded, "off" per Bruno 0.0.55): play it from SS4's 68000 code (tools/samsho4: no handler decoder yet); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).

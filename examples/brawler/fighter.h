@@ -265,7 +265,7 @@ typedef struct fighter {
     uint8_t  pdead, pdeadn;       /* a catch's dead frames left / to come (P_ONHIT a + 1: KOF counts the catching step's
                                    * hit-stop down at $1B402 before +$19C; TODO #79 / #84) */
     struct fighter *dance;        /* the fury that hit this fighter (fighter.c "dance"): while it plays the victim stays
-                                   * in its reel (no recovery, no fall on death) and inside the screen (dance_update) */
+                                   * in its reel (no recovery, no fall on death) and inside the screen (the wall rule: wall_update) */
     uint8_t  fury_buf, scancel;   /* the cancel rule (fighter.c "cancels", TODO #143): D pressed during a normal or a
                                    * special that may cancel (0x80 | 1 = down+D, the MAX); scancel: the special playing
                                    * landed a hit (its own or its projectile's) = a fury may cancel it */
@@ -282,7 +282,19 @@ typedef struct fighter {
     uint8_t  pvl_id, pvl_n;       /* a ROM special's voice sent later (P_VOICE b > 0, KOF +$1B4 / +$1B6; TODO #163): its id,
                                    * the frames left (0 = none; counted down by its program's frames, then by the
                                    * fighter's own once the move ended; dropped when it is hit) */
+    struct fighter *wall_by;      /* the wall rule (vocabulary stage.wall, TODO #173): the special (or its projectile)
+                                   * whose hit this fighter reels / flies from; until it is down it stays inside the
+                                   * walls and that special's attacker is held back with it (wall_update) */
+    uint8_t  vlist, vent;         /* a ROM special's caught victim script (vocabulary hold.victim_list, TODO #173): the
+                                   * list its target follows + 1 (0 none; bspec_t.vlists), the attacker step whose entry
+                                   * was taken last (0xFF: none yet in this list) */
+    uint8_t  pheld, wpad;         /* a special's button held this frame (PC_HELD: KOF's charge, Rugal's Kaiser Wave) */
+    int32_t  py0;                 /* a projectile's height at its hit: its end rows' heights are from it (TODO #164) */
+    const banim_t *fx_pan;        /* a step effect (bproj_t follow 8, anim.step_spawn): its owner's animation and step */
+    uint8_t  fx_step, fx_pad;     /* when it was born; it ends when they change (KOF98 $3751A) */
 } fighter_t;
+extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
+                                     (WALL_EDGE px in; wall_update), PC_WALL's test */
 
 
 
@@ -303,7 +315,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only);   /* attack boxes
                                                                flash: its fury hits the frozen world, nothing else does) */
 void fighter_tiles(fighter_t *f);                           /* pass 1: tile runs when the frame changed */
 void fighter_place(const fighter_t *f, uint16_t *y, uint16_t *x, int16_t cam_x, uint8_t n);   /* pass 2: SCB3/SCB4 of n sprites (>= ncols; the rest height 0) */
-void dance_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: a fury's victims and the fury inside the screen */
+void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: the wall rule (a special's victims and
+                                                                  their attacker inside the screen's walls) */
 void super_flash(fighter_t *f);      /* main.c: the fury's super flash starts (fx.super_flash: the game freezes except f) */
 const char *fighter_state_name(uint8_t st);
 const bstep_t *fighter_step(const fighter_t *f);

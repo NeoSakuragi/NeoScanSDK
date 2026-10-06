@@ -20,7 +20,7 @@ whose attack box slot is live at some frame (+$7C bit 0 with a box in +$90). Per
   hit_kind           +$1B8: the victim's hit sounds (tools/kof96/hitsfx.py)
   hits               per distance d (P2 standing d px ahead of the fighter): {frame, x, hits (drops of P2's life
                      while it lives), reaction (P2's states after), end_rows (after the hit: [table, state, raw, x from
-                     the impact, height]), owner_frozen (the fighter's hit-stop counter at the impact)}"""
+                     the impact, height from the impact's (TODO #164: the end plays where the hit was)]), owner_frozen (the fighter's hit-stop counter at the impact)}"""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -134,7 +134,7 @@ def definition(game, t, free, dist_tries, m=None):
             d['hits'][dist] = {'frame': k - (_g0(game, dt) or 0), 'x': round(imp[5] - o['frames'][0][5], 2), 'hits': len(drops),
                                'damage': life[k - 1] - life[k], 'reaction': sorted(set(p2)), 'victim_stop': dt['rows'][k][1][5],
                                'owner_frozen': dt['rows'][k][0][5] != 255,
-                               'end_rows': [[f[1], f[2], f[3], round(f[5] - imp[5], 3), round(f[6], 2)] for f in end],
+                               'end_rows': [[f[1], f[2], f[3], round(f[5] - imp[5], 3), round(f[6] - imp[6], 2)] for f in end],   # (x, height from the hit's: TODO #164)
                                'after_hit_live': sum(1 for f in after if _live(f) and (f[1], f[2]) in flight)}
         out.append(d)
     return out
