@@ -66,8 +66,43 @@ songs and sound-effect codes play, every sample record rewritten to the new addr
 ## P ROM (68000 program)
 
 - 1 MB fixed (P1, $000000) + a 1 MB window ($200000) switched by a bank register on the cart. **[hw]**
-- **Tables the code reads in one go must not straddle a bank edge**; code that reads banked data switches the bank
-  first. Today the brawler fits in 2 MB without banking (~1.7 MB used). **[ours]**
+- **The bank register**: a word write of n to $2FFFF0 maps P ROM MB 1 + n at $200000 (SNK's standard latch).
+  Geolith (geo_m68k.c, default board): any write at $2FFFF0-$2FFFFF, n masked to the banks the P ROM has, bank 0 at
+  reset, saved in its save states. NeoCart PROG v3 (hardware/neocart/pboard): a 3-bit latch on D0-D2 clocked by
+  /PORTWEL, cleared by /RESET, banks 0-6 at flash MB 0-6, P1 at MB 7 (sim_pboard.py; pboard_flash.py writes that map).
+  The scheme both do: **banks 0-6, a word write to $2FFFF0, nothing read from the window in an interrupt**
+  (`sdk/include/neo_bank.h`: BANK_set keeps a copy, the register is write-only). **[hw + ours]**
+- **Link**: sections `.p2bankN` sit at $200000 and load at $200000 + N MB (`sdk/boot/neoscan.ld`; `.p2data` = bank 0);
+  tools/neobuild.py drops the $100000-$1FFFFF gap: P ROM = MB1, bank 0, bank 1, ... (1 + N MB, no power of two; more
+  than 7 banks refused). A bank keeps its last 16 bytes free (the register's addresses). The linker does not check a
+  pointer from one bank into another (the banks share their addresses): tools/brawler/bank_pack.py does. **[ours]**
+- **The brawler's rule (TODO #174, 2026-10-06): a fighter's bulk in its bank, everything shared in MB1.** The decision
+  was between (a) copying the hot per-frame tables of the fighters in play to work RAM at stage start, (b) grouping a
+  stage's cast in one bank, (c) selecting the bank at each access. (a) does not fit: 64 KB of work RAM, 26 KB used,
+  and a fighter's tables are 34-117 KB, 8 fighters on screen. (b) cannot
+  hold: the players pick any of the roster and the minion pool is 11 fighters. (c) alone would put a bank switch in
+  every cross-fighter read (combat: attack box vs hurt box, throws: thrower's script vs victim's postures, the AI).
+  Chosen: (c) on a split of the data by who reads it. MB1 keeps every table another fighter, combat, the AI or the HUD
+  reads (bchar_t, animations + steps with their boxes, normal and special, throws / holds, postures, palettes, routes,
+  voices, the bspec_t / bproj_t headers: 264 KB for 21 fighters, ~12.5 KB a fighter); a fighter's bank holds what only
+  its own code reads: frames, parts, tile numbers, its specials' script rows, programs, parts, links, variant columns,
+  its projectiles' rows (1.53 MB, ~73 KB a fighter). The bank is then needed in four places only: the fighter's update
+  (fighter_update), its projectiles (projectiles_update, proj_row), its drawing (main.c draw: draw.s fighter_tiles /
+  fighter_place) and an attacker's box from a script row (combat, dbg_draw: copied out under its bank); each switch
+  is BANK_set(CH_BANK(ch)) ... BANK_set(old). Cost: one compare per select, a 16-bit write when the bank changes,
+  at most ~3 switches per entity per frame. **[ours]**
+- **bank_pack.py** (between the compile of bm_chars.c / bm_spec.c with -fdata-sections and the link): a table of a
+  banked type goes to its fighter's bank when that fighter is the only one whose data reaches it (contexts from
+  bm_chars[i] down every relocation); shared tables (KOF's common projectile end rows: 7 tables, 1.4 KB) and all they
+  lead to stay in MB1. A fighter and its form link's target share a bank (form_set swaps bchar_t in place). Fighters
+  whole, first fit by decreasing size, each bank 1 MB - 16. Refuses any pointer from a bank into another bank, and
+  from an MB1 table into a bank unless it is a holder (bchar_t element, bspec_t, bproj_t) of the same fighter. Writes
+  build/bm_bank.c (bm_bank[]: each fighter's bank), build/banks.txt / banks.json (per bank: used, free, fighters).
+  BANK_SPLIT=mask: proof layouts (bank = parity of the fighter index's bits in the mask). **[ours]**
+- Brawler 0.0.76 + #174: MB1 419 KB used (code ~90 KB, main.c's stage / HUD tables 61 KB back from $200000, fighter
+  tables 264 KB), 629 KB free; bank 0 1,030,942 bytes (17,618 free: 13 fighters), bank 1 497,724 bytes (550,836 free:
+  8 fighters); P ROM 3 MB. **Tables the code reads in one go must not straddle a bank edge** (a table is never split:
+  sections are whole). **[ours]**
 
 ## Descriptor
 

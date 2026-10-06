@@ -75,15 +75,17 @@ def main():
         'm68k-linux-gnu-objcopy', '-O', 'binary', args.elf, p_bin
     ])
     p_raw = open(p_bin, 'rb').read()
-    if len(p_raw) > 0x200000:                                        # .p2data linked at $200000 (sdk/boot/neoscan.ld)
-        if len(p_raw) > 0x300000:
-            sys.exit(f'neobuild: program reaches ${len(p_raw):X}: past $2FFFFF needs P2 bank switching')
+    if len(p_raw) > 0x200000:                                        # P2 banks: .p2bankN linked at $200000, loaded at
+        nbanks = (len(p_raw) - 0x200000 + 0xFFFFF) >> 20             # $200000 + N MB (sdk/boot/neoscan.ld, neo_bank.h)
+        if nbanks > 7:
+            sys.exit(f'neobuild: {nbanks} P2 banks: our cart (NeoCart PROG v3) latches 3 bits, banks 0-6')
         if any(p_raw[0x100000:0x200000]):
             sys.exit('neobuild: program data between $100000 and $1FFFFF (work RAM / unmapped)')
-        p_raw = p_raw[:0x100000].ljust(0x100000, b'\0') + p_raw[0x200000:]   # P ROM = first MB, then the $200000 window
-    p_size = pow2_at_least(len(p_raw), args.p_size)                  # --p-size is the minimum
-    if p_size > 0x200000:
-        sys.exit(f'neobuild: {len(p_raw):,}-byte program: past 2 MB needs P2 bank switching')
+        p_raw = p_raw[:0x100000].ljust(0x100000, b'\0') + p_raw[0x200000:]   # P ROM = first MB, then bank 0, 1, ...
+        p_size = 0x100000 * (1 + nbanks)                             # P ROM MB 1 + N = bank N (Geolith: any whole MB)
+        print(f'P ROM: first MB + {nbanks} P2 bank(s)')
+    else:
+        p_size = pow2_at_least(len(p_raw), args.p_size)              # --p-size is the minimum
     p_data = pad_rom(p_raw, p_size)
     p_data = byte_swap_16(p_data)
     p_path = os.path.join(rom_dir, f'{ngh}-p1.p1')

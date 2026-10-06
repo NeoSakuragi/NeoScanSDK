@@ -6,8 +6,9 @@
   pboard_flash.py flash game.neo [--port /dev/ttyACM0] [--groups P,VA,VB]
   pboard_flash.py verify game.neo
 
-Chip images (see DESIGN.md): P (8 MB, 16-bit words, little-endian as the 68K reads them): P1 (first 1 MB of the .neo P region)
-at 0, P2 bank n (each following 1 MB) at 4 MB + n*1 MB. VA (16 MB over two chips) = V1 region; VB = V2 region, or V1 again
+Chip images (see DESIGN.md): P (8 MB, 16-bit words, little-endian as the 68K reads them): the v3 board's map (DESIGN.md
+"P side", PROGRAMMING.md, sim_pboard.py): P1 (first 1 MB of the .neo P region) at MB 7, P2 bank n (the .neo's MB 1 + n,
+mapped at $200000 after a write of n to $2FFFF0; sdk/include/neo_bank.h) at MB n, n = 0..6. VA (16 MB over two chips) = V1 region; VB = V2 region, or V1 again
 when V2 is empty (MVS games read ADPCM-B from the same samples).
 """
 import sys, struct, os, time, argparse
@@ -29,12 +30,12 @@ def images(path):
     # words). The firmware assembles flash words as d[2i] | d[2i+1] << 8, so the region goes into the image unchanged:
     # the 68K then reads $000000 as 00 10 F3 00 (initial SP 0x0010F300).
     def to_flash(chunk): return chunk
-    P[0:min(len(p), 1 << 20)] = to_flash(p[:1 << 20])
+    P[7 << 20:(7 << 20) + min(len(p), 1 << 20)] = to_flash(p[:1 << 20])   # P1: flash A19-A21 all 1 outside the P2 window
     banks = (len(p) - (1 << 20) + (1 << 20) - 1) // (1 << 20) if len(p) > (1 << 20) else 0
-    assert banks <= 4, f'P region {len(p)} bytes needs {banks} banks, board holds 4'
+    assert banks <= 7, f'P region {len(p)} bytes needs {banks} banks, the board holds 7 (3-bit latch, MB 7 = P1)'
     for n in range(banks):
         chunk = p[(1 + n) << 20:(2 + n) << 20]
-        P[(4 + n) << 20:((4 + n) << 20) + len(chunk)] = to_flash(chunk)
+        P[n << 20:(n << 20) + len(chunk)] = to_flash(chunk)
     v1 = r['V1']; v2 = r['V2'] or v1
     assert len(v1) <= 16 << 20 and len(v2) <= 16 << 20
     VA = bytearray(b'\xff' * (16 << 20)); VA[:len(v1)] = v1

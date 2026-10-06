@@ -40,10 +40,11 @@ void *prog_thread(void *arg) {
     while (running) {
         if (!(__atomic_load_n(&shm[PROG_CTRL], __ATOMIC_SEQ_CST) & PROG_ROMOE_n)) {
             uint32_t a = shm[PROG_ADDR_LO] | (shm[PROG_ADDR_MID]<<8) | (shm[PROG_ADDR_HI]<<16);
-            /* P board chip map: P1 (first MB) at 0, P2 bank n (= linear MB 1+n) at 4 MB + n MB; more than 4 banks = open bus */
+            /* P board v3 chip map (DESIGN.md, pboard_flash.py): P1 (first MB) at MB 7, P2 bank n (= linear MB 1+n) at MB n,
+               n = 0..6; more than 7 banks = open bus */
             uint32_t chip; uint16_t d;
-            if (a < 0x100000) chip = a;
-            else { uint32_t n = (a >> 20) - 1; bank_hits[n & 7]++; chip = (n < 4) ? ((4 + n) << 20) | (a & 0xFFFFF) : 0xFFFFFFFF; }
+            if (a < 0x100000) chip = (7u << 20) | a;
+            else { uint32_t n = (a >> 20) - 1; bank_hits[n & 7]++; chip = (n < 7) ? (n << 20) | (a & 0xFFFFF) : 0xFFFFFFFF; }
             d = (chip != 0xFFFFFFFF && chip + 1 < pimg_size) ? (pimg[chip] | (pimg[chip + 1] << 8)) : 0xFFFF;
             shm[PROG_DATA_LO] = d & 0xFF;
             shm[PROG_DATA_HI] = (d >> 8) & 0xFF;
@@ -228,7 +229,7 @@ int main(int argc, char **argv) {
     pthread_cancel(t_stats);
 
     printf("\nP:%lu V:%lu C:%lu S:%lu M:%lu\n", pc, vc, cc, sc, mc);
-    printf("P2 bank reads: bank0 %lu bank1 %lu bank2 %lu bank3 %lu beyond %lu\n", bank_hits[0], bank_hits[1], bank_hits[2], bank_hits[3], bank_hits[4]+bank_hits[5]+bank_hits[6]+bank_hits[7]);
+    printf("P2 bank reads: bank0 %lu bank1 %lu bank2 %lu bank3 %lu bank4 %lu bank5 %lu bank6 %lu beyond %lu\n", bank_hits[0], bank_hits[1], bank_hits[2], bank_hits[3], bank_hits[4], bank_hits[5], bank_hits[6], bank_hits[7]);
     unlink(NEOCART_SHM_PATH);
     free(pr); free(crom); free(srom); free(mrom); free(v1);
     return 0;

@@ -220,7 +220,7 @@ static void pj_measure(void) {
     uint16_t r;
     for (i = 0; i < BC_COUNT; i++) {
         const bchar_t *c = &bm_chars[i];
-        uint8_t m = 0;
+        uint8_t m = 0, ob = BANK_set(CH_BANK(c));               /* its rows, programs, frames: its bank (fighter.h) */
         for (s = 0; s < c->nspec; s++) {
             const bspec_t *sp = &c->specials[s];
             for (r = 0; r < sp->nrows; r++)                  /* the script's objects (effects: Kim's flames) */
@@ -235,6 +235,7 @@ static void pj_measure(void) {
             }
         }
         pj_cols[i] = m > MAX_COLS ? MAX_COLS : m;
+        BANK_set(ob);
     }
     for (i = 0; i < NPJ; i++) projectiles[i].idx = NF + i;   /* block_w's index (also set by the fight's setup) */
 }
@@ -565,11 +566,14 @@ static void dbg_draw(void) {
         fighter_t *f = order[i];
         const bstep_t *st;
         const bbox_t *atk = 0;
+        bbox_t ab;
         if (f->state == S_OFF || hidden[i] || (f->state == S_PROJ && f->frame_ovr == 0xFFFF)) continue;
         st = fighter_step(f);
         if (f->state != S_PROJ && (st->flags & 2) && nh < DBG_BOXES) { dbg_box(y + nh * 4, x + nh * 4, f, &st->hurt); nh++; }
         if ((f->state == S_ATTACK || f->state == S_AIR_ATTACK) && (st->flags & 1)) atk = &st->atk;
-        else if ((f->state == S_SPECIAL || f->state == S_PROJ) && f->spec_atk) atk = f->spec_atk;
+        else if ((f->state == S_SPECIAL || f->state == S_PROJ) && f->spec_atk) {   /* a script row's: its bank */
+            uint8_t ob = BANK_set(CH_BANK(f->ch)); ab = *f->spec_atk; BANK_set(ob); atk = &ab;
+        }
         if (atk && na < DBG_BOXES) { dbg_box(y + DBG_BOXES * 4 + na * 4, x + DBG_BOXES * 4 + na * 4, f, atk); na++; }
     }
 }
@@ -604,8 +608,9 @@ static void draw(void) {
     if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
     for (i = 0; i < nf; i++)
         if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF) && block_w(order[i])) {
-            uint8_t bc = blk_cols;
+            uint8_t bc = blk_cols, ob = BANK_set(CH_BANK(order[i]->ch));   /* its frames: its bank (fighter.h) */
             blk_cols = block_w(order[i]); fighter_tiles(order[i]); blk_cols = bc;   /* clipped to its block */
+            BANK_set(ob);
         }
     mark(P_TILES);
     line_guard();
@@ -622,7 +627,7 @@ static void draw(void) {
         uint16_t spr = slot_spr[i], *y, *x;
         if (m) {
             y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
-            if (vis) fighter_place(f, y, x, cam_x, m);
+            if (vis) { uint8_t ob = BANK_set(CH_BANK(f->ch)); fighter_place(f, y, x, cam_x, m); BANK_set(ob); }
             else { uint8_t c; for (c = 0; c < m; c++) y[c] = x[c] = 0; }
         }
         block_placed[i] = n; block_spr[i] = spr;
@@ -2144,6 +2149,7 @@ static void select_tick(void) {
 
 void game_init(void) {
     uint16_t i;
+    BANK_init();                                             /* P2 bank 0, its copy agrees (neo_bank.h) */
     gdata_init();                                            /* the game's tables (game.json) */
     routes_init();                                           /* the fighters' chain route trees (fighter.h) */
     specs_init();                                            /* their specials by role (fighter.h spec_tab) */
@@ -2161,6 +2167,7 @@ void game_init(void) {
 static void attract_start(void);
 void game_enter(uint8_t request) {
     BIOS_USER_MODE = 1;                                      /* title / demo (game_init ran on request 0) */
+    BANK_init();                                             /* the BIOS ran in between: the register and its copy agree */
     { uint8_t k; for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k];
       PAL_setPalette(0, TEXT_PAL);                           /* the BIOS's own screens overwrite palette 0 */
       TEXT_PAL[1] = RGB(31, 28, 0); PAL_setPalette(1, TEXT_PAL); TEXT_PAL[1] = COLOR_WHITE;   /* 1: yellow text (GO); */

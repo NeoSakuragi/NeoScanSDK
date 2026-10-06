@@ -5,7 +5,6 @@ ENTRY(_start)
 MEMORY
 {
     rom (rx)   : ORIGIN = 0x000000, LENGTH = 1M
-    p2 (rx)    : ORIGIN = 0x200000, LENGTH = 1M    /* second program MB: bank 0 of the P2 window, mapped at reset */
     wram (rwx) : ORIGIN = 0x100000, LENGTH = 64K
 }
 
@@ -21,11 +20,21 @@ SECTIONS
         . = ALIGN(2);
     } > rom
 
-    /* big read-only data (a game's tables): sections named .p2data go to $200000 (objcopy --rename-section on an
-       object, see examples/brawler/Makefile); tools/neobuild.py appends it after the first MB of the P ROM */
-    .p2data : {
-        *(.p2data .p2data.*)
-    } > p2
+    /* the P2 window ($200000-$2FFFFF), bank-switched (neo_bank.h): sections named .p2bankN link at $200000 and load at
+       $200000 + N MB, i.e. P ROM MB 1 + N once tools/neobuild.py drops the $100000-$1FFFFF gap; .p2data = bank 0 (the
+       one mapped at reset). Data moves there by objcopy --rename-section (examples/brawler/Makefile,
+       tools/brawler/bank_pack.py). The banks share their addresses: nothing checks a reference from one bank into
+       another here (bank_pack.py does). A bank keeps its last 16 bytes free ($2FFFF0-$2FFFFF: the bank register). */
+    .p2bank0 0x200000 : AT(0x200000) { *(.p2data .p2data.* .p2bank0 .p2bank0.*) }
+    .p2bank1 0x200000 : AT(0x300000) { *(.p2bank1 .p2bank1.*) }
+    .p2bank2 0x200000 : AT(0x400000) { *(.p2bank2 .p2bank2.*) }
+    .p2bank3 0x200000 : AT(0x500000) { *(.p2bank3 .p2bank3.*) }
+    .p2bank4 0x200000 : AT(0x600000) { *(.p2bank4 .p2bank4.*) }
+    .p2bank5 0x200000 : AT(0x700000) { *(.p2bank5 .p2bank5.*) }
+    .p2bank6 0x200000 : AT(0x800000) { *(.p2bank6 .p2bank6.*) }
+    ASSERT(SIZEOF(.p2bank0) <= 0xFFFF0 && SIZEOF(.p2bank1) <= 0xFFFF0 && SIZEOF(.p2bank2) <= 0xFFFF0 &&
+           SIZEOF(.p2bank3) <= 0xFFFF0 && SIZEOF(.p2bank4) <= 0xFFFF0 && SIZEOF(.p2bank5) <= 0xFFFF0 &&
+           SIZEOF(.p2bank6) <= 0xFFFF0, "a P2 bank is over 1 MB - 16 bytes")
 
     /* initialised variables: live in work RAM, initial values stored in ROM, copied by crt0 (copy_data) */
     .data : {
