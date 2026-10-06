@@ -480,7 +480,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   per frame the victim's pose + offset relative to the attacker, checked visually throw by throw; grabbability from
   the victim's current state (the Heidern rule). Proof: per fighter contact sheets of every throw (attacker + victim
   together) and a 3-hit hold, timings logged; controls / cancel / fury proofs, regress, campaign29. NEXT after the
-  Hanzo remap.
+  Hanzo remap. ALSO (Bruno): (6) the grabbed victim is always drawn BEHIND the grabbing player, catch to release
+  (data override only where a throw needs it in front); (7) NO RECORDED THROWS: today the thrower's timeline and the
+  approach / post-release flight are captured on Yuri (tools/kof96/throwscripts96.py), only the victim's list phase
+  comes from the ROM throw tables (throwtables96.py): decode the throw handlers' code + tables (handlers98 style) and
+  express each throw through the paired script; captures only for analysis and the fidelity proof.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
