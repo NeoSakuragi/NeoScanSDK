@@ -314,7 +314,8 @@ def run_roster():
     """every roster fighter: grab, both throws, a 3-hit hold: the thrower acts again, the victim lies down, the victim
     behind the grabber on every held / thrown frame (the generic rules apply roster-wide)"""
     b = brawler(); log = summary.setdefault('roster', {})
-    names = [r['name'] for r in json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))['roster']]
+    names = [r['name'] for r in json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))['roster']
+             if r.get('selectable', True)]                          # (a form link's target: no select slot)
     for k, name in enumerate(names):
         if os.environ.get('ONLY') and name not in os.environ['ONLY'].split(','): continue
         b.pick(k, unlock=True); start = b.save(); out = {}

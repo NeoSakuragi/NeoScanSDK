@@ -513,7 +513,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   holding him in S_THROW for 173 frames (2.9 s: frame 65320 to press + 76), after a 15-frame S_GRAB (65305); the
   frame before it in the window, another grab -> idle took 176 frames (65124-65300). Exactly rules (2) and (8): the
   control return point from Billy's decoded throw code (KOF98), his recovery tail trimmed; Billy joins the pilot's
-  timing sheet as the worst case to measure (throw length per fighter, before / after).
+  timing sheet as the worst case to measure (throw length per fighter, before / after). STATUS 2026-10-06 (after the
+  pilot): the generic rules do NOT shorten it: Billy's forward+C is still a captured script, whose control return is
+  its last row (thrower 173 frames at 1.5x in the roster proof, victim down on the same frame); it is the roster pass's
+  first case: his KOF98 throw chains three victim lists (thrower states 198 -> 199 -> 200, tables.json: $282A78,
+  $282C40, $282E08), so throwrom.py needs the list-to-list hand-over before it can choose his return point.
 
 - [ ] 147. HANZO'S PROJECTILE VARIANTS (feedback 20261006-154517-b3f3, Bruno in play: "There are multiple versions of
   this projectile from Hanzo, can you figure them out?"): decode his projectile special's handler in WHP (tools/whp
