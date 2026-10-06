@@ -8,8 +8,8 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
      "entries": {"dash": NODE, "nospecial": NODE, "hold": NODE, "air_a": NODE, "air_b": NODE, "air_cd": NODE}}   # optional
     NODE = {"move": "atk_a_close",                           # one of the fighter's moves (MOVE_NAMES; an air node:
                                                              # AIR_MOVE_NAMES), or
-            "special": "dD",                                 # a special slot (D, fD, dD, uD, dfD, ufD: the A+B slots, named
-                                                             # by their old D inputs): a route ender, A+B inputs only
+            "special": "dD",                                 # a special slot (D, fD, dD, uD, dfD, ufD: the C slots, named
+                                                             # by their old D inputs): a route ender, C inputs only
             "weight": "light" | "strong",                    # the victim's hit animation and hit stun (effect none)
             "effect": "none" | "knockdown" | "launch" | "trip" | "blowback",
             "keep": true,                                    # optional: keep the full animation on hit (it plays to its
@@ -22,11 +22,11 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
             "links": {"A": NODE, "dfA": NODE, "AB": NODE, ...}}
     inputs (TODO #71, tree version 4: A is the only attack button; INPUTS = the game's RI_* order): A, B, dA (down), cA
     (close: an opponent within CLOSE_X, KOF's close normals), fA (forward), bA (back), dfA (down-forward); AB fAB dAB
-    uAB dfAB ufAB (A+B: the specials, slots D fD dD uD dfD ufD). An A falls back in the game: down-forward -> forward ->
-    down -> back -> close -> plain; a diagonal A+B: its link, else down's / up's, else plain A+B's. B is a jump-cancel
+    uAB dfAB ufAB (button C + the stick since 2026-10-06, the old A+B names kept: the specials, slots D fD dD uD dfD ufD). An A falls back in the game: down-forward -> forward ->
+    down -> back -> close -> plain; a diagonal C: its link, else down's / up's, else plain C's. B is a jump-cancel
     (on hit, like every link): its node is an air move (atk_c_jump / atk_d_jump / atk_cd_jump), played by the first A in
     that jump (the stick picks the jump's direction), and an air node's A links chain in the same jump (an air
-    sub-route). A route never starts with B (B from neutral is the jump) nor with A+B (the slot's special).
+    sub-route). A route never starts with B (B from neutral is the jump) nor with C (the slot's special).
 
 A fighter without a routes file gets default_tree(): the brawler's single table before the Chain Lab (fighter.c's
 old COMBO), byte for byte the same behaviour. encode() turns a tree into the blob fighter.h describes (rt_head_t +
@@ -40,7 +40,7 @@ NORMAL_INPUTS = ['A', 'B', 'dA', 'cA', 'fA', 'bA', 'dfA']                       
 SPECIAL_INPUTS = ['AB', 'fAB', 'dAB', 'uAB', 'dfAB', 'ufAB']                             # RI_S .. RI_UFS
 INPUTS = NORMAL_INPUTS + [None, None] + SPECIAL_INPUTS                                  # fighter.h RI_* (slots 7, 8 unused)
 SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD']                                         # BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D
-SLOT_OF = dict(zip(SPECIAL_INPUTS, SPECIALS))                                            # an A+B input -> the slot it plays
+SLOT_OF = dict(zip(SPECIAL_INPUTS, SPECIALS))                                            # a C input -> the slot it plays
 MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
               'atk_c_close', 'atk_c_far', 'atk_c_crouch', 'atk_d_close', 'atk_d_far', 'atk_d_crouch', 'body_toss',
               'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']                          # ground moves a route may play
@@ -72,11 +72,11 @@ def default_tree():
     """every fighter without a routes file (TODO #71, one attack button): far A, far A, close C, close D, C+D (knockdown);
     close A: close B, far C, crouch D (trip); down+A: the sweep; forward+A = body toss (knockdown) and down+A = sweep inside
     any window; far A, far A, down-forward+A = far D (launch); B after a far A that hit = a jump-cancel (air C, then A:
-    air C+D); every A+B = the special its input picks, cancelling a normal that hit. Air: A air C (A again on hit: air
+    air C+D); every C = the special its input picks, cancelling a normal that hit. Air: A air C (A again on hit: air
     C+D), down+A air D, up+A air C+D. (Shared nodes repeated; encode() shares them again.)"""
     def n(move, dmg, w, eff, push, **links):
         return {'move': move, 'weight': w, 'effect': eff, 'damage': dmg, 'push': push,
-                'links': {**links, **{k: {'special': SLOT_OF[k]} for k in SPECIAL_INPUTS}}}   # any A+B: the special its input picks
+                'links': {**links, **{k: {'special': SLOT_OF[k]} for k in SPECIAL_INPUTS}}}   # any C: the special its input picks
     air = lambda m, dmg, w, eff, push, **links: dict({'move': m, 'weight': w, 'effect': eff, 'damage': dmg, 'push': push}, **({'links': links} if links else {}))
     aircd = lambda: air('atk_cd_jump', 10, 'strong', 'knockdown', 0)
     airc = lambda: air('atk_c_jump', 6, 'strong', 'none', 4, A=aircd())                  # an air route: C, then C+D on hit
@@ -155,7 +155,7 @@ def merge_routes(routes):
         for si, st in enumerate(r):
             k = st['input']
             assert k in INPUTS and k is not None, f'route {ri + 1} step {si + 1}: unknown input {k}'
-            assert si or k not in ('B',) + tuple(SPECIAL_INPUTS), f'route {ri + 1}: a route starts with an A (B from neutral jumps, A+B is the special)'
+            assert si or k not in ('B',) + tuple(SPECIAL_INPUTS), f'route {ri + 1}: a route starts with an A (B from neutral jumps, C is the special)'
             hit = {f: st[f] for f in HIT_FIELDS if f in st}
             ch = (nd.get('links') or {}).get(k)
             if ch is None:
@@ -207,7 +207,7 @@ def encode(tree, moves, has=None, specials_have=None):
         for k, ch in (nd.get('links') or {}).items():
             assert k in INPUTS and k is not None, f'{where}: unknown input {k}'
             if k in SPECIAL_INPUTS:
-                assert 'special' in ch, f'{where} {k}: an A+B input leads to a special'
+                assert 'special' in ch, f'{where} {k}: a C input leads to a special'
                 assert not air, f'{where} {k}: no special in the air'
             else: assert 'move' in ch, f'{where} {k}: an A / B input leads to a move'
             assert not (air and k == 'B'), f'{where}: no jump-cancel in the air'

@@ -38,10 +38,12 @@ enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_SLAM, R_LI
                                      303 slam down / the launch straight up (fighter.c kof_react). A special's reaction
                                      may come packed: standing | juggled << 4 (KOF's reaction table by attack box,
                                      tools/kof96/handlers98.box_react; fighter_hit picks by the victim's height) */
-/* buttons by meaning (TODO #71, Bruno 2026-10-05): A attack (every normal: the route trees, stick + position pick the
- * move), B jump (stick = direction; a route's B link = a jump-cancel on hit), A+B the special (main.c read_player: A and
- * B pressed within CHORD frames of each other), C the fury (the fighter's desperation move), D tag (read, unused yet) */
-enum { IN_A = 1, IN_B = 2, IN_C = 4, IN_D = 8, IN_SP = 16 };
+/* buttons by meaning (TODO #71, Bruno 2026-10-05; 2026-10-06: C / D): A attack (every normal: the route trees, stick +
+ * position pick the move), B jump (stick = direction; a route's B link = a jump-cancel on hit), C the special (the stick
+ * picks the slot: neutral, forward, down, up, down-forward, up-forward; the A+B chord is gone), D the fury (the
+ * fighter's desperation move). Tag mode (reserved, not built) has no button any more. Every press acts the frame it
+ * comes. */
+enum { IN_A = 1, IN_B = 2, IN_C = 4, IN_D = 8 };
 
 typedef struct {                  /* what the controller wants this frame (player input or AI) */
     int8_t dx, dz;                /* stick: -1/0/1 (dz -1 = away from the camera) */
@@ -65,8 +67,8 @@ enum { RI_A, RI_B, RI_DA, RI_CA, RI_FA, RI_BA, RI_DFA,             /* normal lin
                                                                               attack A plays in that jump), down+A, close A
                                                                               (an opponent within CLOSE_X), forward+A, back+A,
                                                                               down-forward+A (tree version 4) */
-       RI_S = 9, RI_FS, RI_DS, RI_US, RI_DFS, RI_UFS,                      /* special links (enders): A+B, forward / down / up /
-                                                                              down-forward / up-forward + A+B (slots 7, 8 unused) */
+       RI_S = 9, RI_FS, RI_DS, RI_US, RI_DFS, RI_UFS,                      /* special links (enders): C, forward / down / up /
+                                                                              down-forward / up-forward + C (slots 7, 8 unused) */
        RI_N = 15 };
 enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4 };     /* rnode_t.flags: anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
                                                          D_JUMP / CD_JUMP = KOF's air C / D / C+D, the jump picks the
@@ -91,7 +93,7 @@ typedef struct {
     char    magic[2];             /* "RT" */
     uint8_t version, nnodes;      /* version 4 (TODO #71: one attack button; older trees are refused) */
     uint8_t root;                 /* the links from neutral (its own move unused) */
-    uint8_t dash, nospec, hold;   /* run + A; A+B when the fighter has no special for it; the hold's third hit (C+D) */
+    uint8_t dash, nospec, hold;   /* run + A; C when the fighter has no special for it; the hold's third hit (C+D) */
     uint8_t air_a, air_b, air_cd; /* air normals: A, down+A, up+A in a jump (a jump-cancel: its B link's node instead) */
     uint8_t pad[5];
 } rt_head_t;
@@ -100,8 +102,8 @@ typedef struct {
 extern const rt_head_t *route_tab[BC_COUNT];
 /* specials by role (Brawler Lab Characters tab, 2026-10-05): every fighter's whole special pool is in the ROM
  * (bchar_t.specials); spec_tab[fighter] (RAM, set at boot from bchar_t.spmap; a data pack's roster section repoints it,
- * main.c gd_apply) maps the six A+B slots (BS_*, BS_COUNT = 6; named by their old D inputs: A+B, forward, down, up,
- * down-forward, up-forward) to one of them (0xFF = none). BS_FURY: the fury (C), bchar_t.fury (game.json roster fury). */
+ * main.c gd_apply) maps the six C slots (BS_*, BS_COUNT = 6; named D, fD, dD, uD, dfD, ufD after their old D inputs: neutral,
+ * forward, down, up, down-forward, up-forward + C today) to one of them (0xFF = none). BS_FURY: the fury (D), bchar_t.fury (game.json roster fury). */
 #define BS_FURY BS_COUNT
 extern const uint8_t *spec_tab[BC_COUNT];
 uint8_t spec_ix(const bchar_t *ch, uint8_t role);   /* role -> index in ch->specials, 0xFF = none */
@@ -156,7 +158,7 @@ typedef struct fighter {
     uint16_t state_t;
     uint8_t  anim, step, tick, anim_done;
     uint8_t  node;                /* combo node while attacking */
-    uint8_t  buffered;            /* next combo input pressed during the current link (IN_* | 0x80 forward | 0x40 down | 0x20 A+B) */
+    uint8_t  buffered;            /* next combo input pressed during the current link (IN_* | 0x80 forward | 0x40 down | 0x20 back | 0x10 close) */
     uint8_t  hit_mask;            /* fighters already hit by the current attack (bit per index) */
     uint8_t  freeze;              /* hit-stop frames */
     uint8_t  inv;                 /* invulnerable frames */

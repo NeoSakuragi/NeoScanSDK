@@ -21,7 +21,7 @@
 
   // ---- route trees (tools/brawler/routes.py: the same format and the same encoder) ----------------------------------
   // TODO #71 (tree version 4): A the only attack button (cA = close: an opponent within 40 px), B a jump-cancel (its
-  // node is an air move, its A links an air sub-route), A+B the specials (slots D fD dD uD dfD ufD)
+  // node is an air move, its A links an air sub-route), C + the stick the specials (slots D fD dD uD dfD ufD; inputs AB .. ufAB, the old names)
   const INPUTS = ['A', 'B', 'dA', 'cA', 'fA', 'bA', 'dfA', 'AB', 'fAB', 'dAB', 'uAB', 'dfAB', 'ufAB'];
   const SPECIAL_INPUTS = INPUTS.slice(7);
   const RI = k => { const i = INPUTS.indexOf(k); return i < 7 ? i : i + 2; };   // fighter.h RI_* (slots 7, 8 unused)
@@ -88,7 +88,7 @@
       for (const [k, ch] of Object.entries(nd.links || {})) {
         if (!INPUTS.includes(k)) throw new Error(`${where}: unknown input ${k}`);
         if (SPECIAL_INPUTS.includes(k)) {
-          if (!('special' in ch)) throw new Error(`${where} ${k}: an A+B input leads to a special`);
+          if (!('special' in ch)) throw new Error(`${where} ${k}: a C input leads to a special`);
           if (air) throw new Error(`${where} ${k}: no special in the air`);
         } else if (!('move' in ch)) throw new Error(`${where} ${k}: an A / B input leads to a move`);
         if (air && k === 'B') throw new Error(`${where}: no jump-cancel in the air`);
@@ -281,7 +281,7 @@
       for (let si = 0; si < r.length; si++) {
         const st = r[si], k = st.input, hit = pick(st, HIT_FIELDS);
         if (!INPUTS.includes(k)) throw new Error(`route ${ri + 1} step ${si + 1}: unknown input ${k}`);
-        if (!si && (k === 'B' || SPECIAL_INPUTS.includes(k))) throw new Error(`route ${ri + 1}: a route starts with an A (B from neutral jumps, A+B is the special)`);
+        if (!si && (k === 'B' || SPECIAL_INPUTS.includes(k))) throw new Error(`route ${ri + 1}: a route starts with an A (B from neutral jumps, C is the special)`);
         let ch = nd.links && nd.links[k];
         if (!ch) {
           if ('special' in nd) throw new Error(`route ${ri + 1} step ${si + 1}: a special ends its route`);

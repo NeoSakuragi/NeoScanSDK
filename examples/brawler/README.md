@@ -226,15 +226,17 @@ Stick walks on the floor (up/down = depth), forward twice = run.
 - **B = jump**: tap = hop, hold = regular jump, the stick picks vertical / forward / back (see Jumps). Inside a route, a
   node's B link is a **jump-cancel** (on hit, as every link): the fighter jumps and its next A plays the link's air move,
   whose A links chain in the same jump (an air sub-route).
-- **A+B = special**: the six slots by direction (A+B, forward, down, up, down-forward, up-forward + A+B: game.json
-  `specials`), from neutral, cancelling a normal that hit (a route's A+B link), out of a hold, and out of a hit (below).
-  A and B pressed within **2 frames** of each other (A then B or B then A, `CHORD` in main.c) are A+B; a lone A or B
-  acts 2 frames after its press (while it waits the fighter does not turn, so back + B is still KOF's back jump).
-- **C = fury**: the fighter's desperation move (game.json roster `fury`: a KOF DM / SDM, SS4's rage move).
-- **D = tag**: read, does nothing yet.
+- **C = special**: the six slots by direction (neutral, forward, down, up, down-forward, up-forward + C: game.json
+  `specials`), from neutral, cancelling a normal that hit (a route's special link), out of a hold, and out of a hit
+  (below). Since 2026-10-06 (Bruno): the old A+B chord is gone, so a lone A or B acts the frame it is pressed. The
+  route / Chain Lab data still names the slot inputs `AB`, `fAB`, `dAB`, `uAB`, `dfAB`, `ufAB` (shown as C + arrow).
+- **D = fury**: the fighter's desperation move (game.json roster `fury`: a KOF DM / SDM, SS4's rage move). Every fury,
+  for every fighter (players, enemies, bosses; ROM-driven or recorded), is fully invincible (hits, grabs, pushes) from
+  the frame it is triggered until it ends (`INV_FURY`, fighter.c start_special).
+- Tag mode (reserved, not built) has no button any more.
 
 **Special meter** (game.json `meter`, HUD: the blue bar under the name): full at the start and at a new life, a point
-back every 10 frames (empty to full 20 s); an A+B special costs 30 of 120, a fury 60 and needs 60; a special out of a hit
+back every 10 frames (empty to full 20 s); a special (C) costs 30 of 120, a fury (D) 60 and needs 60; a special out of a hit
 (hitstun, or held by an enemy: "get out of trouble") costs double and the fighter flashes fully white for 8 frames. Not
 enough meter: the press does nothing. Enemies have no meter.
 
@@ -245,14 +247,14 @@ enough meter: the press does nothing. Enemies have no meter.
 | A B A / A A B A | far A (, far A), jump-cancel: air C, A: air C+D | knockdown |
 | close A A A | close B, far C, crouch D | trip |
 | ↓A / any link + →A / ↓A | sweep / C+D / sweep | trip / knockdown / trip |
-| any link + A+B (+ stick) | the slot's special, cancelling a normal that hit | the special's |
+| any link + C (+ stick) | the slot's special, cancelling a normal that hit | the special's |
 | run + A | C+D | knockdown |
 | air A (A on hit: air C+D) / air ↓A / air ↑A | the jump kind's C / D / C+D air normal (see Jumps) | heavy / knockdown / knockdown |
 
 **Hold:** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it. A = down+C, then close D (3 damage each,
 landing on the move's attack frame); the third hit is always C+D, which knocks it down and ends the hold. Forward+A = the
 forward throw (KOF's forward+C), back+A = the reverse throw (KOF98's forward+D throw), 12 damage, played from its
-per-frame script; A+B = the special at once; after 90 frames it breaks free. The thrower can't be hit during a throw; a
+per-frame script; C = the special at once; after 90 frames it breaks free. The thrower can't be hit during a throw; a
 held enemy hit by someone else ends the hold.
 
 Links chain only when the previous one hit: pressed during the move (remembered, the last press wins) or Final Fight
@@ -266,15 +268,15 @@ Each fighter has a **route tree** (fighter.h "chain routes"): a node = one hit (
 B and the command normals, an air normal after a jump-cancel, or a special slot as a route ender; the hit weight light /
 strong; the effect none / knockdown / launch / trip / blowback; damage and push, defaulted from weight / effect; its
 speed; the keep flag) and its links by input (tree version 4, TODO #71): A, B (jump-cancel), ↓A, close A, →A, ←A, ↘A,
-A+B, →A+B, ↓A+B, ↑A+B, ↘A+B, ↗A+B (down = toward the camera, forward = the way the fighter faces; an A falls back ↘ -> →
--> ↓ -> ← -> close -> plain; a diagonal A+B: its link, else ↓ / ↑'s, else plain A+B's). A route starts with an A (B from
-neutral is the jump, A+B the slot's special). Every node cancels on hit: the next link starts as soon as its input comes,
+C, →C, ↓C, ↑C, ↘C, ↗C (the special slots; data keys AB .. ufAB; down = toward the camera, forward = the way the
+fighter faces; an A falls back ↘ -> → -> ↓ -> ← -> close -> plain; a diagonal C: its link, else ↓ / ↑'s, else plain C's).
+A route starts with an A (B from neutral is the jump, C the slot's special). Every node cancels on hit: the next link starts as soon as its input comes,
 after the hit-stop; the **keep** flag makes the move play to its end and the buffered input then take its link. Trees are
 written in `tools/brawler/routes/<fighter>.json` (format: `tools/brawler/routes.py`); `export_bm.py` encodes each
 fighter's tree (`bchar_t.routes`), identical subtrees shared, and a fighter without a file gets `routes.default_tree()`.
 At boot `route_tab[]` (RAM) points at the ROM trees; the lab mailbox (`lab_t lab`) can point a fighter at a tree in RAM
 while the game runs. Terry: Bruno's 10 routes re-authored for one button (close jab rush cA A A A, cA A ↓A, cA A ←A →A,
-cA A ↘A ↓A+B, the jump-cancel cA A B A, cA →A A A, cA →A ↓A A+B, far kick chain A A A, A A →A, A →A →A+B, low line ↓A x4).
+cA A ↘A ↓C, the jump-cancel cA A B A, cA →A A A, cA →A ↓A C, far kick chain A A A, A A →A, A →A →C, low line ↓A x4).
 
 **Chain Lab** (`tools/brawler/chainlab/`, live at canneji.duckdns.org/brawler-lab/ behind the Oros login): the Geolith core
 compiled to WebAssembly (`build_wasm.sh`, emsdk in /data/emsdk; `web_core.c`) runs this ROM with SNK's MVS BIOS in the
@@ -346,7 +348,7 @@ lands from ~100 px. Box rule fix (2026-10-04): a box command on an inactive step
 hits as in KOF98; also K' crouch D 2 -> 1, KOF99 measured 1; Mr. Big crouch C and Krauser close D 2 -> 1, not measured).
 
 ## Specials
-D (or A+B) = a projectile, forward+D = a move travelling forward, down+D (toward the camera) = a rising reversal,
+D (now C) = a projectile, forward+D = a move travelling forward, down+D (toward the camera) = a rising reversal,
 invincible from its first frame through its last hit or apex. `pick_specials` in export_bm.py picks from each fighter's
 captured ground specials; a KOF98 fighter and its EX version are one fighter (Bruno 2026-10-04: same normals, the EX
 adds specials), so the pool is both versions' ('EX ...' inputs). D = the fighter's real projectile (below: a travelling

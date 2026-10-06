@@ -188,7 +188,7 @@ class Brawler:
         return v
     def intent(self, i, press=0, dx=0, dz=0, face=0):
         """the intent of fighter i for the next frame (main.c in[]; in an AI_OFF build nothing else writes the enemies'
-        intents: the test drives them): press = IN_* bits (1 A attack, 2 B jump, 4 C fury, 8 D tag, 16 A+B special), dx / dz stick, face = turn this way"""
+        intents: the test drives them): press = IN_* bits (1 A attack, 2 B jump, 4 C special, 8 D fury), dx / dz stick, face = turn this way"""
         a = self.syms['in'] + i * self.syms['sizeof_intent']
         for off, v in ((0, dx), (1, dz), (2, press), (4, face)): self.w(a + off, 1, v)
     def _rom_id(self):

@@ -21,19 +21,19 @@ GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
 # animations per part (to read its part sequence), the brawler parts expected)
 KZ_PARTS = {'236C': [(0x97, 0x8E), (0x99,), (0x98,), (0x9A,)], '[2]8C': [(0x9B,), (0x9C, 0x9E), (0x9D, 0x9E)],
             '421A': [(0x100,), (0x101,)], '6246A': [(0x85,), (0x86, 0x88, 0x89)]}
-SC = [('236C whiff', '236C', 'Rab', 250, [], '236C_w', [0, 1]),
-      ('236C hit', '236C', 'Rab', 60, [], '236C_h', [0, 1]),
-      ('236C x2 whiff', '236C', 'Rab', 250, [(0, 'Rab', 0)], '236C2_w', [0, 2, 1]),
-      ('236C x2 hit', '236C', 'Rab', 60, [(0, 'Rab', 0)], '236C2_h', [0, 2, 1]),
-      ('236C x3 whiff', '236C', 'Rab', 250, [(0, 'Rab', 0), (2, 'Rab', 0)], '236C3_w', [0, 2, 3, 1]),
-      ('236C x3 hit', '236C', 'Rab', 60, [(0, 'Rab', 0), (2, 'Rab', 0)], '236C3_h', [0, 2, 3, 1]),
-      ('[2]8C hit', '[2]8C', 'Dab', 50, [], '28C_h', [0, 1]),
-      ('[2]8C down+A whiff', '[2]8C', 'Dab', 250, [(0, 'Da', 0)], '28C2_w', [0, 1]),
-      ('[2]8C down+A hit', '[2]8C', 'Dab', 50, [(0, 'Da', 1)], '28C2_h', [0, 2]),
-      ('421A whiff', '421A', 'Uab', 250, [], '421A_w', [0]),
-      ('421A hit', '421A', 'Uab', 70, [], '421A_h', [0, 1]),
-      ('6246A whiff', '6246A', 'c', 250, [], '6246A_w', [0]),
-      ('6246A hit', '6246A', 'c', 60, [], '6246A_h', [0, 1])]
+SC = [('236C whiff', '236C', 'Rc', 250, [], '236C_w', [0, 1]),
+      ('236C hit', '236C', 'Rc', 60, [], '236C_h', [0, 1]),
+      ('236C x2 whiff', '236C', 'Rc', 250, [(0, 'Rc', 0)], '236C2_w', [0, 2, 1]),
+      ('236C x2 hit', '236C', 'Rc', 60, [(0, 'Rc', 0)], '236C2_h', [0, 2, 1]),
+      ('236C x3 whiff', '236C', 'Rc', 250, [(0, 'Rc', 0), (2, 'Rc', 0)], '236C3_w', [0, 2, 3, 1]),
+      ('236C x3 hit', '236C', 'Rc', 60, [(0, 'Rc', 0), (2, 'Rc', 0)], '236C3_h', [0, 2, 3, 1]),
+      ('[2]8C hit', '[2]8C', 'Dc', 50, [], '28C_h', [0, 1]),
+      ('[2]8C down+A whiff', '[2]8C', 'Dc', 250, [(0, 'Da', 0)], '28C2_w', [0, 1]),
+      ('[2]8C down+A hit', '[2]8C', 'Dc', 50, [(0, 'Da', 1)], '28C2_h', [0, 2]),
+      ('421A whiff', '421A', 'Uc', 250, [], '421A_w', [0]),
+      ('421A hit', '421A', 'Uc', 70, [], '421A_h', [0, 1]),
+      ('6246A whiff', '6246A', 'd', 250, [], '6246A_w', [0]),
+      ('6246A hit', '6246A', 'd', 60, [], '6246A_h', [0, 1])]
 
 def lab_req(b, req, fighter, dummy):
     L = b.syms['lab']
@@ -96,7 +96,7 @@ def main():
                     for j, (fp, fk, needhit) in enumerate(follow):
                         lk = next(l for l in sp['links'] if l['from'] == fp)
                         if j not in pressed and part == fp and lk['window'][0] + (0 if needhit else 2) <= row < lk['window'][1] - 2 and (not needhit or b.fget(0, 'shrow') > lk['window'][0]):   # after a hit inside the window (Kizuna: the window opens on it)
-                            pressed.add(j); p = fk.replace('R', R); t = 4   # held 4 frames (A waits 2 for a chord)
+                            pressed.add(j); p = fk.replace('R', R); t = 4   # held 4 frames
                     cv = sp['carry_src'][row] if 0 <= row < len(sp['carry_src']) else None
                     if cv and b.fget(0, 'landed') and b.states[b.fget(dm, 'state')] in ('KNOCKDOWN', 'HITSTUN') and 24 < int(b.fget(dm, 'x')) < 296:   # not held by the lab's screen edges
                         vdev.append(abs((b.fget(dm, 'x') - b.fget(0, 'x')) * facing - cv[0]) + abs(b.fget(dm, 'y') - cv[1]))

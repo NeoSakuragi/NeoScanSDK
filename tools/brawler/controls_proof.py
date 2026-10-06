@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TODO #71 proof: the controls revamp (A attack, B jump / jump-cancel, A+B special, C fury) and the special meter, per
+"""TODO #71 proof: the controls (A attack, B jump / jump-cancel, C special, D fury: Bruno 2026-10-06) and the special meter, per
 roster fighter, in the Chain Lab's training mode (labdrive: P1 = the fighter, a dummy that never attacks unless this
 script drives it), our emulator's core (harness). Test-only pokes: the dummy's position, its intent for the one press
 that hits P1, P1's meter set before a test (full, 59, 0).
@@ -7,9 +7,9 @@ that hits P1, P1's meter set before a test (full, 59, 0).
     python3 controls_proof.py OUT_DIR [FIGHTER ...]     -> OUT_DIR/controls71.json, shots, sheet_fury.png
 
 Per fighter: A from far / close / crouch / forward (the route tree's root link the game picked vs the tree), air A /
-down+A / up+A, B jumps (vertical / forward / back), a B jump-cancel link in a route (its air node played by A), A+B in
-each of the six slots chorded A-then-B and B-then-A inside the window and A, B outside it (no special), C fury with a
-full meter and refused at 59, meter drain / refill numbers, a special out of a hit (double cost, white flash)."""
+down+A / up+A, B jumps (vertical / forward / back), A and B acting the frame they are pressed (no chord wait), a B
+jump-cancel link in a route (its air node played by A), C in each of the six slots (the stick picks it) and A+B together
+playing no special (the chord is retired), D fury with a full meter and refused at 59, meter drain / refill numbers, a special out of a hit (double cost, white flash)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
@@ -108,28 +108,29 @@ for ci, name in enumerate(names):
                        'ok': s in ('PREJUMP', 'AIR') and an != 0 and bool(mv) and mv.startswith(bnode['move'].replace('_jump', ''))})
             break
         else: jc['ok'] = False; jc['note'] = 'the route never hit the dummy'
-    # ---- A+B: six slots, both chord orders, and outside the window ----------------------------------------------------
+    # ---- A / B at once: the state one frame after the press frame (the pad's own latency; the chord waited 2 more) ------------------------------------------------
+    nd = r['no_delay'] = {}
+    for k, want in (('a', ('ATTACK',)), ('b', ('PREJUMP', 'AIR'))):
+        settle(M['max']); setpos(70); run(1, k); run(1); nd[k] = {'state': st(0), 'ok': st(0) in want}
+    nd['ok'] = all(v['ok'] for v in nd.values())
+    # ---- C: six slots by the stick, and A+B no special ------------------------------------------------------------------
     for slot, dk in SLOT_DIR.items():
         want = RT.SPECIALS.index(slot) if F['specials'][slot] else None
         out = {}
-        for order, seq in (('A-B +1', [(1, 'a'), (1, 'ab')]), ('B-A +1', [(1, 'b'), (1, 'ab')]), ('A-B +2', [(2, 'a'), (1, 'ab')]),
-                           ('B-A +2', [(2, 'b'), (1, 'ab')])):
-            settle(M['max']); setpos(80)
-            for n, k in seq: run(n, dk + k)
-            s, _, _ = watch(6, ('SPECIAL',)); sid = b.fget(0, 'spec_id')
-            out[order] = {'state': s, 'spec_id': sid, 'meter': b.fget(0, 'meter'),
-                          'ok': s == 'SPECIAL' and (want is None or sid == want) and b.fget(0, 'meter') == M['max'] - M['special']}
-        settle(M['max']); setpos(80); run(1, dk + 'a'); run(2, dk + 'a'); run(1, dk + 'ab'); seen = set()
+        settle(M['max']); setpos(80); run(1, dk + 'c'); run(1); sid = b.fget(0, 'spec_id')
+        out['C'] = {'state': st(0), 'spec_id': sid, 'meter': b.fget(0, 'meter'),
+                    'ok': st(0) == 'SPECIAL' and (want is None or sid == want) and b.fget(0, 'meter') == M['max'] - M['special']}
+        settle(M['max']); setpos(80); run(1, dk + 'ab'); seen = set()
         for _ in range(40): seen.add(st(0)); run(1)
-        out['A then B +3 (outside)'] = {'states': sorted(seen), 'ok': 'SPECIAL' not in seen and 'ATTACK' in seen}
+        out['A+B (retired)'] = {'states': sorted(seen), 'ok': 'SPECIAL' not in seen}
         r['slots'][slot] = {'kof': F['specials'][slot], 'want': want, **out}
-    # ---- C: the fury ------------------------------------------------------------------------------------------------------
+    # ---- D: the fury ------------------------------------------------------------------------------------------------------
     fury = G['roster'][ci].get('fury')
-    settle(M['max']); setpos(60); run(3, 'c'); s, _, _ = watch(6, ('SPECIAL',))
+    settle(M['max']); setpos(60); run(1, 'd'); run(1); s = st(0)
     r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'meter': b.fget(0, 'meter')}}
     if fury:
         run(20); p = os.path.join(OUT, f'fury_{name}.png'); b.screenshot(p); fury_shots.append((name, fury, p))
-    settle(M['fury_min'] - 1); run(3, 'c'); seen = set()
+    settle(M['fury_min'] - 1); run(3, 'd'); seen = set()
     for _ in range(20): seen.add(st(0)); run(1)
     r['fury']['at_59'] = {'states': sorted(seen), 'meter': b.fget(0, 'meter')}
     r['fury']['ok'] = (s == 'SPECIAL' and r['fury']['full']['spec_id'] == BS_FURY and r['fury']['full']['meter'] == M['max'] - M['fury']
@@ -143,7 +144,7 @@ for ci, name in enumerate(names):
         settle(M['max']); setpos(dist); b.intent(2, press=1, face=-1); run(1)
         if watch(40, ('HITSTUN',))[0] != 'HITSTUN': continue
         while b.fget(0, 'freeze'): run(1)
-        run(1, 'a'); run(1, 'ab'); s, _, _ = watch(4, ('SPECIAL',))
+        run(1, 'c'); run(1); s = st(0)
         hd.update({'dist': dist, 'state': s, 'meter': b.fget(0, 'meter'), 'flash': b.fget(0, 'flash'), 'want_meter': M['max'] - M['hit_mul'] * M['special']})
         if ci == 0 or name in ('ryo', 'haohmaru'): b.screenshot(os.path.join(OUT, f'flash_{name}.png'))
         run(M['flash'] + 2); hd['flash_after'] = b.fget(0, 'flash')
@@ -151,7 +152,7 @@ for ci, name in enumerate(names):
         break
     if ci == 0: settle(70); setpos(120); run(10); b.screenshot(os.path.join(OUT, 'hud_meter.png'))
     oks = {'normals': all(v['ok'] for v in r['normals'].values()), 'air': all(v['ok'] for v in r['air'].values()),
-           'jumps': all(v['ok'] for v in r['jumps'].values()), 'jump_cancel': jc.get('ok'),
+           'jumps': all(v['ok'] for v in r['jumps'].values()), 'no_delay': nd['ok'], 'jump_cancel': jc.get('ok'),
            'slots': all(o['ok'] for v in r['slots'].values() for k, o in v.items() if isinstance(o, dict)),
            'fury': r['fury']['ok'], 'meter': r['meter']['ok'], 'hit_special': hd['ok']}
     r['ok'] = oks

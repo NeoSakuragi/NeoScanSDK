@@ -14,8 +14,8 @@ res = {}
 def p1():
     return (b.states[b.fget(0, 'state')], round(b.fget(0, 'x'), 2), round(b.fget(0, 'z'), 2), round(b.fget(0, 'y'), 2),
             b.fget(0, 'facing'), b.fget(0, 'hp'), b.fget(0, 'anim'), b.fget(0, 'step'))
-SCRIPT = ('30:R,10:-,4:a,10:-,4:a,10:-,4:Ra,30:-,20:L,4:b,60:-,4:ab,80:-,30:Rab,60:-,40:D,4:Da,60:-,4:Ra,40:-,4:Uab,100:-,'
-          '4:c,150:-')                                     # TODO #71: A attack, B jump, A+B special, C fury
+SCRIPT = ('30:R,10:-,4:a,10:-,4:a,10:-,4:Ra,30:-,20:L,4:b,60:-,4:c,80:-,30:Rc,60:-,40:D,4:Da,60:-,4:Ra,40:-,4:Uc,100:-,'
+          '4:d,150:-')                                     # A attack, B jump, C special, D fury (2026-10-06)
 bleed = {}; ticks = {}                                     # ticks: game ticks done since the fight start, per frame
 for n in (0, 1500, 2600, 3700):
     b.core.retro_reset(); b.frame = 0
@@ -49,7 +49,7 @@ if not strict:
 res['bleed_same'] = same; res['bleed_strict'] = strict; res['bleed_trace'] = bleed[0]
 ACTIONS = [('walk_L', '20:L,10:-'), ('walk_R', '20:R,10:-'), ('run_R', '3:R,3:-,20:R,10:-'), ('run_L', '3:L,3:-,20:L,10:-'),
            ('A', '4:a,40:-'), ('down_A', '4:Da,40:-'), ('jump_up', '4:b,60:-'), ('jump_fwd', '4:Rb,60:-'), ('jump_back', '4:Lb,60:-'),
-           ('AB', '4:ab,90:-'), ('fwd_AB', '4:Rab,90:-'), ('down_AB', '4:Dab,90:-'), ('up_AB', '4:Uab,90:-')]   # TODO #71 buttons
+           ('C', '4:c,90:-'), ('fwd_C', '4:Rc,90:-'), ('down_C', '4:Dc,90:-'), ('up_C', '4:Uc,90:-')]   # C + the stick: the specials
 facing = {}
 NCHARS = len(json.load(open(os.path.join(game, "game.json")))["roster"])
 for k in range(NCHARS):

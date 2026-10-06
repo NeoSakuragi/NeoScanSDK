@@ -508,13 +508,10 @@ static void draw(void) {
 }
 
 static intent_t in[NF];                          /* this frame's intent per fighter (player pad or AI) */
-#define CHORD 2                                  /* A+B (TODO #71): the second button up to 2 frames after the first; a lone
-                                                    A / B counts 2 frames after its press */
-static uint8_t chord_btn[2], chord_t[2];         /* per player: the A / B press waiting for its partner, frames waited */
 static void inputs_reset(void) {                 /* a select / fight starts: nothing of the demo or the last game */
     uint8_t i;
     for (i = 0; i < NF; i++) in[i] = (intent_t){ 0 };
-    for (i = 0; i < 2; i++) { tap_t[i] = 255; tap_dir[i] = 0; chord_btn[i] = 0; }
+    for (i = 0; i < 2; i++) { tap_t[i] = 255; tap_dir[i] = 0; }
 }
 static void close_marks(void) {                 /* intent.close: an opponent within CLOSE_X (A takes a route's close link) */
     uint8_t i, j;
@@ -536,18 +533,8 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
                                                                   the AI wrote (the attract demo drives P1's slot) */
     in->dx = (held & JOY_RIGHT) ? 1 : (held & JOY_LEFT) ? -1 : 0;
     in->dz = (held & JOY_DOWN) ? 1 : (held & JOY_UP) ? -1 : 0;
-    in->press = ((pressed & JOY_C) ? IN_C : 0) | ((pressed & JOY_D) ? IN_D : 0);
-    {                                                          /* A / B wait CHORD frames for the other: A+B = the special */
-        uint8_t a = (pressed & JOY_A) ? IN_A : 0, b = (pressed & JOY_B) ? IN_B : 0;
-        if (chord_btn[p]) {                                    /* one is waiting: the other within the window = A+B */
-            if ((a | b) & ~chord_btn[p]) { in->press |= IN_SP; chord_btn[p] = 0; }
-            else if (++chord_t[p] >= CHORD) { in->press |= chord_btn[p]; chord_btn[p] = 0; }   /* alone: the attack / the jump */
-        } else if (a && b) in->press |= IN_SP;                 /* the same frame */
-        else if (a | b) { chord_btn[p] = a | b; chord_t[p] = 0; }
-        if (chord_btn[p] && in->dx == -f->facing) in->dx = 0;   /* waiting: no turn yet, so back + B is KOF's back jump
-                                                                  and back + A a route's back link (a walk turns the
-                                                                  fighter: it takes the stick and the press together) */
-    }
+    in->press = ((pressed & JOY_A) ? IN_A : 0) | ((pressed & JOY_B) ? IN_B : 0) |   /* A attack, B jump, C special, */
+                ((pressed & JOY_C) ? IN_C : 0) | ((pressed & JOY_D) ? IN_D : 0);   /* D fury: each at once */
     in->hold = ((held & JOY_A) ? IN_A : 0) | ((held & JOY_B) ? IN_B : 0) | ((held & JOY_C) ? IN_C : 0) | ((held & JOY_D) ? IN_D : 0);
     if (pressed & (JOY_LEFT | JOY_RIGHT)) {                     /* forward tapped twice within 12 frames */
         uint8_t d = (pressed & JOY_RIGHT) ? 1 : 2;

@@ -13,7 +13,7 @@ special's first frame: the frame shown (ROM frame index), x from the start (forw
 target's life drops) and the projectile (first frame, place, speed). KOF98 side: tools/kof96/capture/romspecials98.py
 (our emulator; the game's hit-stop and slowdown frames dropped: the brawler applies its own hit-stop instead). The
 brawler's own hit-stop frames (P1's program did not run: srow unchanged; the hit's own frame runs) are dropped the same
-way. KOF96 / KOF99 fighters: KOF = (game, id). Specials by A+B (0.0.48). Contact sheets: OUT_DIR/<fighter>_<input>
+way. KOF96 / KOF99 fighters: KOF = (game, id). Specials by C + the stick, furies by D (2026-10-06). Contact sheets: OUT_DIR/<fighter>_<input>
 _<branch>.png, KOF98 left, brawler right, every 4th frame; OUT_DIR/summary.json."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -23,8 +23,8 @@ import romspecials98 as K, handlers98 as H
 FOLLOW_BLAG = 1                                          # the brawler's pad -> intent delay (frames; measured)
 from PIL import Image, ImageDraw
 
-ROLES = {'D': '4:ab', 'fD': '4:Rab', 'dD': '4:Dab', 'uD': '4:Uab', 'dfD': '4:DRab', 'ufD': '4:URab', 'C': '4:c'}   # facing right (A+B: 0.0.48;
-# C: the fury, game.json roster[].fury, TODO #139)
+ROLES = {'D': '4:c', 'fD': '4:Rc', 'dD': '4:Dc', 'uD': '4:Uc', 'dfD': '4:DRc', 'ufD': '4:URc', 'C': '4:d'}   # facing right (C + the stick:
+# 2026-10-06; role 'C' = the fury, button D, game.json roster[].fury, TODO #139)
 KOF = {'kyo': 0, 'terry': 3, 'ryo': 6, 'robert': 7, 'ralf': 10, 'mai': 16, 'yashiro': 21, 'yamazaki': 24, 'billy': 26, 'iori': 27, 'rugal': 36,
        'geese': ('kof96', 24), 'mr_big': ('kof96', 26), 'krauser': ('kof96', 25), 'goenitz': ('kof96', 28), 'k_dash': ('kof99', 0)}   # KOF98 id or (game, id)
 # a follow-up's input in the game, facing right: [(frames from the button press, frames held, keys)]
@@ -32,7 +32,7 @@ FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   
               ('kyo', 'again'): [(-8, 2, 'R'), (-6, 2, 'DR'), (-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   # 63214A (236C)
               ('kyo', 'fA'): [(-2, 2, 'R'), (0, 6, 'Ra')],                                          # 6A (236C's 2nd)
               ('k_dash', 'fA'): [(-2, 2, 'R'), (0, 6, 'Rb')], ('k_dash', 'fAB'): [(-2, 2, 'R'), (0, 6, 'Rd')]}
-FOLLOW_PAD = {'fA': ('Ra', 2), 'fAB': ('Rab', 0)}       # the brawler's pad keys, the frames its intent waits (CHORD)
+FOLLOW_PAD = {'fA': ('Ra', 0), 'fAB': ('Rc', 0)}        # the brawler's pad keys, the frames its intent waits (0: no chord)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = 4
 DIST = {'close': 48, 'mid': 112}                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
@@ -61,7 +61,7 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
     b.run(2)
     w = 0
     while b.states[b.fget(0, 'state')] != 'IDLE' and w < 300: b.run(1); w += 1
-    if meter is not None: b.fset(0, 'meter', meter)       # a full special meter (0.0.48: A+B costs meter)
+    if meter is not None: b.fset(0, 'meter', meter)       # a full special meter (0.0.48: a special costs meter)
     b.hits = []
     n, keys = ROLES[role].split(':')
     rows, started, t, pfz = [], None, 0, 0

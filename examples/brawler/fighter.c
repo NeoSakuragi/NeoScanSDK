@@ -24,7 +24,8 @@ _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offse
 #define GRAVITY_KD  0x5000        /* knockdown gravity 0.31 px/frame^2 (KOF95: 0.47): higher, slower falls to juggle */
 #define DOWN_FRAMES 40
 #define INV_GETUP   30
-#define INV_FURY    0xFF          /* the fury connected: untouchable (hits, pushes) until it ends (Bruno 2026-10-05) */
+#define INV_FURY    0xFF          /* a fury: untouchable (hits, grabs, pushes) from its trigger until it ends (Bruno
+                                     2026-10-06; start_special) */
 enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8, PF_HITANY = 16, PF_HOLD = 32, PF_SIG6 = 64, PF_SIG7 = 128 };   /* PF_EVENT: KOF's +$7D bit 7
                                      (the step's $0080 until consumed), PF_HITANY +$E3 bit 7, PF_HOLD +$E4 bit 4, PF_SIG7 /
                                      PF_SIG6 +$D1 bits 7 / 6: its objects' signals (bproj_t sig) and P_FXOFF (TODO #139) */
@@ -49,7 +50,7 @@ const char *fighter_state_name(uint8_t st) { return NAMES[st]; }
  * The default tree (routes.py default_tree, every fighter without a routes file; TODO #71: one attack button): far A -A->
  * far A -A-> close C -A-> close D -A-> C+D (knockdown); far A, far A -down-forward+A-> far D (launch); far A -B-> a
  * jump-cancel (air C -A-> air C+D); close A: close B -A-> far C -A-> sweep (trip); forward+A = body toss, down+A = sweep
- * inside any window; the six A+B slots = the special the input picks, cancelling a normal that hit. Air: A / down+A /
+ * inside any window; the six C slots = the special the input picks, cancelling a normal that hit. Air: A / down+A /
  * up+A. */
 const rt_head_t *route_tab[BC_COUNT];
 lab_t lab;
@@ -229,7 +230,7 @@ static uint8_t next_node(const rnode_t *c, uint8_t b) {
     return c->next[RI_A];
 }
 static uint8_t has_links(const rnode_t *c) { uint8_t k, n = 0; for (k = RI_A; k <= RI_DFA; k++) n |= c->next[k]; return n; }
-static uint8_t d_input(const fighter_t *f, const intent_t *in) {  /* A+B's direction, as special_for reads it: a diagonal */
+static uint8_t d_input(const fighter_t *f, const intent_t *in) {  /* C's direction, as special_for reads it: a diagonal */
     uint8_t fwd = in->dx == f->facing;                           /* only with the stick toward the facing (down-back = down) */
     return in->dz > 0 ? (fwd ? RI_DFS : RI_DS) : in->dz < 0 ? (fwd ? RI_UFS : RI_US) : in->dx ? RI_FS : RI_S;
 }
@@ -247,7 +248,7 @@ static void route_go(fighter_t *f, uint8_t node, uint8_t b, const intent_t *in, 
 
 /* ---- the special meter (TODO #71, Bruno 2026-10-05; gamedata.h gmeter_t <- game.json "meter") -----------------------
  * Players only (enemies spend nothing): full at the start and at a new life, a point back every gmeter.refill frames.
- * An A+B special costs gmeter.special, a fury (C) gmeter.fury and needs gmeter.fury_min; a special out of a hit (in
+ * A special (C) costs gmeter.special, a fury (D) gmeter.fury and needs gmeter.fury_min; a special out of a hit (in
  * hitstun, or held: "get out of trouble") costs gmeter.hit_mul times as much and the fighter's palettes flash fully
  * white for gmeter.flash frames. Not enough meter: the press does nothing. */
 static const uint16_t WHITE_PAL[16] = { 0x8000, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF,
@@ -414,7 +415,7 @@ static void start_special(fighter_t *f, uint8_t k);
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     const bthrow_row_t *r = f->ch->throws[BT_THROW_C].rows;
-    if (in->press & IN_SP) {                                     /* A+B: the hold ends, the special at once (Bruno
+    if (in->press & IN_C) {                                      /* C: the hold ends, the special at once (Bruno
                                                                     2026-10-05); the victim reels in its held pose, free */
         uint8_t k = special_for(f, in);                          /* (only throws hold a victim), until its stun ends or */
         if (k != 0xFF && spend(f, gmeter.special, 0, 0)) {       /* the special hits it */
@@ -532,7 +533,7 @@ static void throw_update(fighter_t *f) {
  * reach) only catch the victim.
  * Follow-ups (one mechanism, data: bspec_t.parts / links, export_bm special_play): a special's script is made of parts
  * (row ranges); a part that ends goes on to its `next` part (0xFF: the move ends) unless a link from it fired: a link
- * fires on a hit landed inside its window (LK_HIT; fighter_t.shrow), on a press (LK_IN: the button IN_* + the stick as A+B's role, d_input; LK_AGAIN = the
+ * fires on a hit landed inside its window (LK_HIT; fighter_t.shrow), on a press (LK_IN: the button IN_* + the stick as C's role, d_input; LK_AGAIN = the
  * role the move started with) or both, inside its window (script rows [lo, hi)), and switches to its part at once
  * (LK_NOW) or when the current part ends. A new part plays from where the fighter is. Kim's 236C (236C again: 98, again:
  * 9A), [2]8C (down+A on hit: the dive), 421A / 6246A (the hit's sequence), the KOF continuations (Geese's Jaei-ken,
@@ -601,7 +602,7 @@ static fighter_t *proj_alloc(fighter_t *owner) {
 }
 static void special_end(fighter_t *f) {
     uint8_t k;
-    if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's lock: hittable again at once */
+    if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's invincibility: hittable again at once */
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
 }
@@ -610,6 +611,8 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->spec_id = k; f->spec_ix = spec_ix(f->ch, k); f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
+    if (k == BS_FURY) f->inv = INV_FURY;                         /* every fury, every fighter: invincible from the trigger
+                                                                    to its end (special_end, fighter_update) */
     f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = 0;   /* its first part, no follow-up armed, no hit */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
@@ -715,7 +718,7 @@ static uint8_t special_pick(const fighter_t *f, uint8_t want) {   /* a role (BS_
     }
     return 0xFF;
 }
-/* A+B, forward / down / up / down-forward / up-forward + A+B (down / up = toward / away from the camera) -> BS_*, 0xFF = none */
+/* C, forward / down / up / down-forward / up-forward + C (down / up = toward / away from the camera) -> BS_*, 0xFF = none */
 static uint8_t special_for(const fighter_t *f, const intent_t *in) { return special_pick(f, d_input(f, in) - RI_S); }
 /* ---- specials read from the ROM (tools/kof96/handlers98.py, handlers98.md) ---------------------------------------------
  * KOF98 runs a special as straight-line 68000 code: set speeds, start a state's animation, then a frame loop (the
@@ -990,7 +993,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     if (f->state == S_ATTACK || f->state == S_AIR_ATTACK) {      /* presses in hit-stop count */
         uint8_t ci = combo_input(f, in);
         if (ci) f->buffered = ci;
-        if (in->press & IN_SP) f->spec_buf = 0x80 | d_input(f, in);
+        if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
     }
     if (f->state == S_SPECIAL && in->press && f->ch->specials[f->spec_ix].nlinks) special_input(f, in);   /* a follow-up
                                                                     (presses in hit-stop count) */
@@ -1000,7 +1003,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
     if (f->inv == INV_FURY) { if (f->state != S_SPECIAL || f->spec_id != BS_FURY) f->inv = 0; }   /* held for the fury's script */
     else if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
-    if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_SP)) {   /* out of trouble: a special while hit */
+    if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C)) {    /* out of trouble: a special while hit */
         uint8_t k = special_for(f, in);                          /* costs double and flashes white (spend) */
         if (k != 0xFF && spend(f, gmeter.special, 0, 1)) {
             if (f->state == S_GRABBED && f->held) release(f->held);
@@ -1020,11 +1023,11 @@ void fighter_update(fighter_t *f, const intent_t *in) {
                                                                     window: the route's B link (a jump-cancel) */
         if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
         else if (in->face) f->facing = in->face;
-        if (b & IN_C) {                                          /* C: the fury, from half a gauge (gmeter) */
+        if (b & IN_D) {                                          /* D: the fury, from half a gauge (gmeter) */
             if (spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FURY); start_special(f, BS_FURY); }
             break;
         }
-        if (b & IN_SP) {                                         /* A+B: the slot's special (the stick picks the slot) */
+        if (b & IN_C) {                                          /* C: the slot's special (the stick picks the slot) */
             uint8_t k = special_for(f, in);
             if (k == 0xFF) start_node(f, TREE(f)->nospec, LH_NEUTRAL);
             else if (spend(f, gmeter.special, 0, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k); }
@@ -1079,7 +1082,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {
         const rnode_t *c = NODE(f, f->node);
         if (f->landed && f->spec_buf && !(c->flags & RF_AIR)) {  /* a special link cancels a normal that hit: cut short */
             uint8_t d = f->spec_buf & 0x7F, nx = c->next[d], k;    /* the input's link, else (a diagonal) */
-            if (!nx && d >= RI_DFS) nx = c->next[d == RI_DFS ? RI_DS : RI_US];   /* down / up's, else plain A+B's */
+            if (!nx && d >= RI_DFS) nx = c->next[d == RI_DFS ? RI_DS : RI_US];   /* down / up's, else plain C's */
             if (!nx) nx = c->next[RI_S];
             f->spec_buf = 0;
             k = nx ? special_pick(f, NODE(f, nx)->anim) : 0xFF;
@@ -1135,12 +1138,6 @@ void fighter_update(fighter_t *f, const intent_t *in) {
 }
 
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
-static void fury_lock(fighter_t *a) {                            /* a fury's first connect (its body, its effect or its
-                                                                    projectile; Kim: the rush's hit that starts the scripted
-                                                                    part): the attacker can't be hit or pushed until it ends */
-    fighter_t *o = a->owner ? a->owner : a;
-    if (o->state == S_SPECIAL && o->spec_id == BS_FURY) o->inv = INV_FURY;
-}
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
     if (reaction > 15) reaction = v->y > 0 ? reaction >> 4 : reaction & 15;   /* packed: standing | juggled << 4 */
@@ -1154,7 +1151,6 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         if ((a->pflags & PF_HOLD) && (v == a->target || a->pcatch == 3)) rk = reaction = R_HEAVY;   /* held: a reel in place */
     }
     v->hp -= damage + (a->owner ? a->owner : a)->power;
-    fury_lock(a);
     voice_play(v->ch, v->team, v->hp > 0 ? VK_HIT : VK_KO);
     v->freeze = HITSTOP;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
@@ -1207,7 +1203,7 @@ void combat(fighter_t **fs, uint8_t n) {
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
             if (d <= -8 || d >= PUSH_DX) continue;
             if (!a->y) { v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v); }
-            else if (a->inv != INV_FURY) {                       /* a low leap stops at the body (SS4's 421C: P1 */
+            else if (a->spec_id != BS_FURY || !a->landed) {      /* a low leap stops at the body (SS4's 421C: P1 */
                 int32_t back = dir_mul(a->facing, FIX(PUSH_DX - d));   /* held 30 px before P2 at y 10-51, then */
                 a->throw_x0 -= back; a->x -= back; clamp(a);     /* its landing slash hits), never carries it */
             }
@@ -1309,7 +1305,7 @@ void combat(fighter_t **fs, uint8_t n) {
                     if (!sounded++) snd_sfx(hit_sound(a, c->anim, rc >= R_KNOCKDOWN));
                     fighter_hit(a, v, dmg, rc, c->push);
                 } else if (a->spec_prev_hit & 8) {       /* a running grab's reach: it catches, the continuation hits */
-                    a->hit_mask |= 1 << v->idx; a->landed = 1; a->shrow = a->srow; a->target = v; v->freeze = HITSTOP; fury_lock(a);
+                    a->hit_mask |= 1 << v->idx; a->landed = 1; a->shrow = a->srow; a->target = v; v->freeze = HITSTOP;
                     if (!sounded++) snd_sfx(SFX_GRAB);           /* the command grab connects: KOF98's grab start */
                     if (v->state == S_WALK) to_neutral(v, 0);
                     continue;

@@ -4,17 +4,18 @@
   'use strict';
   const CL = window.ChainLab;
   const $ = id => document.getElementById(id);
-  // TODO #71: A attack (close A: an opponent within 40 px), B jump (in a route: the jump-cancel), A+B special, C fury
+  // A attack (close A: an opponent within 40 px), B jump (in a route: the jump-cancel), C special (the stick picks the
+  // slot; the data keys AB .. ufAB keep the old A+B names), D fury (Bruno 2026-10-06)
   const IN_LABEL = { A: 'A', B: 'B (jump-cancel)', dA: '↓A', cA: 'close A', fA: '→A', bA: '←A', dfA: '↘A',
-                     AB: 'A+B', fAB: '→A+B', dAB: '↓A+B', uAB: '↑A+B', dfAB: '↘A+B', ufAB: '↗A+B' };
+                     AB: 'C', fAB: '→C', dAB: '↓C', uAB: '↑C', dfAB: '↘C', ufAB: '↗C' };
   const MOVE_LABEL = {
     atk_a_close: 'close A', atk_a_far: 'far A', atk_a_crouch: 'crouch A', atk_b_close: 'close B', atk_b_far: 'far B',
     atk_b_crouch: 'crouch B', atk_c_close: 'close C', atk_c_far: 'far C', atk_c_crouch: 'crouch C', atk_d_close: 'close D',
     atk_d_far: 'far D', atk_d_crouch: 'crouch D (sweep)', body_toss: 'C+D (blowback)', cmd_fwd_a: 'forward+A (command)',
     cmd_fwd_b: 'forward+B (command)', cmd_df_c: 'down-forward+C (command)', cmd_df_d: 'down-forward+D (command)',
     atk_c_jump: 'air C', atk_d_jump: 'air D', atk_cd_jump: 'air C+D' };
-  const SPECIAL_LABEL = { D: 'A+B special', fD: 'forward A+B special', dD: 'down A+B special', uD: 'up A+B special', dfD: 'down-forward A+B special', ufD: 'up-forward A+B special' };
-  const ENTRY_LABEL = { dash: 'Dash attack (run + A)', nospecial: 'A+B without a special for it', hold: "The hold's third hit (C+D)",
+  const SPECIAL_LABEL = { D: 'C special', fD: 'forward C special', dD: 'down C special', uD: 'up C special', dfD: 'down-forward C special', ufD: 'up-forward C special' };
+  const ENTRY_LABEL = { dash: 'Dash attack (run + A)', nospecial: 'C without a special for it', hold: "The hold's third hit (C+D)",
                         air_a: 'Air A (A in a jump; A again on hit: its links)', air_b: 'Air down+A', air_cd: 'Air up+A' };
   const HOW_LABEL = ['start (from neutral)', 'after the move ended', 'cancel on hit', 'tapped in the chain window'];
   const clone = x => JSON.parse(JSON.stringify(x));
@@ -83,7 +84,7 @@
   // touch pad (shown on touch screens)
   if (matchMedia('(pointer: coarse)').matches) $('touch').classList.add('show');
   for (const b of document.querySelectorAll('#touch button')) {
-    const ks = b.dataset.k === 'ab' ? ['a', 'b'] : [b.dataset.k];
+    const ks = [b.dataset.k];
     b.addEventListener('pointerdown', e => { ks.forEach(k => touch.add(k)); b.classList.add('on'); e.preventDefault(); });
     for (const t of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(t, () => { ks.forEach(k => touch.delete(k)); b.classList.remove('on'); });
   }
@@ -234,8 +235,8 @@
   function linkLabel(l) {
     const info = built && built.fi === fi ? built.info.get(l.idx) : null;
     const speed = info ? spdText(CL.speedFx(info.node)) : '?';
-    if (l.special === CL.SPECIALS.length) return { speed, input: 'C', move: 'fury' };   // BS_FURY (fighter.h)
-    if (l.special !== null) return { speed, input: info ? info.path.join(' ') : 'A+B', move: SPECIAL_LABEL[CL.SPECIALS[l.special]] + (F[fi].specials[CL.SPECIALS[l.special]] ? ' ' + F[fi].specials[CL.SPECIALS[l.special]] : '') };
+    if (l.special === CL.SPECIALS.length) return { speed, input: 'D', move: 'fury' };   // BS_FURY (fighter.h)
+    if (l.special !== null) return { speed, input: info ? info.path.join(' ') : 'C', move: SPECIAL_LABEL[CL.SPECIALS[l.special]] + (F[fi].specials[CL.SPECIALS[l.special]] ? ' ' + F[fi].specials[CL.SPECIALS[l.special]] : '') };
     if (!info) return { speed, input: '?', move: 'node ' + l.idx + (built ? '' : ' (press Build or "own tree" to name the nodes)') };
     return { speed, input: info.path.join(' '), move: MOVE_LABEL[info.node.move] || info.node.move };
   }
@@ -311,7 +312,7 @@
     e.setAttribute('width', w); e.setAttribute('height', hgt); if (cls) e.setAttribute('class', cls); e.innerHTML = body; return e; };
   // the input that reaches a node: stick direction (-1/0/1 x, y; forward drawn right: P1 faces right) + buttons
   const INPUT_GLYPH = { A: [0, 0, 'A'], B: [0, 0, 'B'], dA: [0, 1, 'A'], cA: [0, 0, 'A', 'close'], fA: [1, 0, 'A'], bA: [-1, 0, 'A'],
-    dfA: [1, 1, 'A'], AB: [0, 0, 'AB'], fAB: [1, 0, 'AB'], dAB: [0, 1, 'AB'], uAB: [0, -1, 'AB'], dfAB: [1, 1, 'AB'], ufAB: [1, -1, 'AB'] };
+    dfA: [1, 1, 'A'], AB: [0, 0, 'C'], fAB: [1, 0, 'C'], dAB: [0, 1, 'C'], uAB: [0, -1, 'C'], dfAB: [1, 1, 'C'], ufAB: [1, -1, 'C'] };
   const BTN_COL = { A: '#d01818', B: '#e8b800', C: '#139a2c', D: '#1f4fd0' };
   // the input: a plain arrow for the stick, in the game's facing-relative sense (forward = →; N = neutral),
   // then the four buttons: pressed = filled in its Neo Geo colour with a solid border, unused = grey outline

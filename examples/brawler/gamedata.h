@@ -40,7 +40,7 @@ typedef struct {
 /* ---- layer 2: the special meter (TODO #71, fighter.c "special meter"): game.json "meter"; players only ---- */
 typedef struct {
     uint16_t max;                 /* a full gauge (every player starts full) */
-    uint16_t special;             /* an A+B special's cost */
+    uint16_t special;             /* a special's cost (C) */
     uint16_t fury, fury_min;      /* a fury's (C) cost; the meter it needs */
     uint8_t  refill;              /* frames per point regained */
     uint8_t  hit_mul;             /* a special out of a hit (hitstun / a hold on him) costs this many times as much */
