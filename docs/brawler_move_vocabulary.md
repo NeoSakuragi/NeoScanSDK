@@ -16,6 +16,11 @@ are what the game plays today, not what the tools intended.
 
 ## Today in numbers
 
+Buttons (0.0.64): A attacks (normals by stick + distance), B jumps, **C plays a special, the stick picks one of six
+slots** (neutral, forward, down, up, down-forward, up-forward), **D plays the fury**; the A+B chord is retired. Slot
+names in the data and below keep game.json's keys D / fD / dD / uD / dfD / ufD = C neutral / forward / down / up /
+down-forward / up-forward; a follow-up link's `again` = C with the move's own direction.
+
 128 moves are in the game (19 fighters x 6 C slots + fury, minus empty slots; Haohmaru's BUST 236D is both his up+C and
 his fury): **95 played from the ROM** (KOF98 / 96 / 99 programs, `bspec_t.prog`) and **33 recorded** (a captured
 per-frame script). By source: KOF98 76, KOF96 28, KOF99 7, Kizuna 6, WHP 6, SS4 5. Every SS4, WHP and Kizuna move is
