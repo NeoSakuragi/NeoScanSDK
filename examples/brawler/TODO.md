@@ -437,6 +437,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   render check per fighter, portraits, a starter routes file + six-slot / fury picks in a side file, banks exportable as
   `kizuna:<name>` -- but no game.json roster entry and no ROM growth until Bruno picks who goes in.
 
+- [ ] 140. Every multipart / follow-up special of Kyo, Iori and K' (Bruno, 2026-10-06): #74 only did Iori 214A and K'
+  236C / 623C. Search every slot special of the three (Kyo: EX 236A, 236C, 623C, 421B, 214A, EX 421D; Iori: 236A, 624D,
+  623C, 623D, 624B; K': 214D, 236B, 236D, 623A) for follow-ups: decoded from the handlers (handlers98.py P_CHECK) AND
+  brute force (every button / direction / motion at every frame, whiff / hit / block), then play them through the
+  follow-up mechanism; proof followups_proof.py + romspecials_check 0 frame mismatches. FIRST after the furies job.
+
 - [ ] 139. Geese's fury (1632143C Raging Storm) and Krauser's (641236C) never hit a standing enemy at any distance (no
   attack box on the body or its objects in the export), so they never connect (and never get the fury invincibility,
   b04a9e8). Found by tools/brawler/fury_inv_proof.py; fix with their ROM reading (#78+ items for them).
