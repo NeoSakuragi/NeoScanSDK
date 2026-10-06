@@ -768,6 +768,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (main.c guard_hidden, cf. #158): fix by a sprite-budget rule for eruptions (fewer pillar columns drawn, or the
   guard dropping background / far actors first, never the effect itself), sheet before / after.
 
+- [ ] 171. UNINITIALISED STACK READ (lead from #165): poking $10F289 (a stack byte the BIOS leaves) changes 1 of
+  fighter 9's 13 regress traces: some game code reads stack it never wrote. Find it (a read watch in our core on
+  never-written work RAM during play) and initialise; real hardware RAM powers up random.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
