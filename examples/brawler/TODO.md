@@ -489,7 +489,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   RETURN POINT, chosen from the decoded code, not a fixed rule: per throw, find where the thrower is really done (the
   ROM's own release / "can act" transition, the last impact, the victim's landing) and give control back at the
   earliest step after the last impact where the thrower's follow-through is complete, so the action isn't chopped
-  (no mid-pose cut) and no dead idle tail either; list the chosen frame per throw in its conversion sheet.
+  (no mid-pose cut) and no dead idle tail either; list the chosen frame per throw in its conversion sheet. (9) THROWN
+  BODIES HIT OTHERS (Bruno, e.g. Geese's back throw): from the release until it lands, the thrown victim is an attack
+  (a "body projectile": its body box as attack box) that knocks down every other enemy it touches, each once, with
+  modest damage; the knocked-down enemies fall in the throw's direction; standard engine rule for every throw
+  (vocabulary hold / spawn family), proof: a throw into a group of 3 enemies (how many fall).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
