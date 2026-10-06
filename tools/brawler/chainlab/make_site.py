@@ -74,7 +74,7 @@ srep = json.load(open(os.path.join(game, 'build', 'snd', 'snd_report.json'))).ge
 def what(vo, sug):
     u = [k.replace('special:', '').replace('_', ' ') for k, v in sug.items() if v[0] == vo['id']]   # the moves it is KOF's own for
     for x in ([] if u else vo['uses']):                                                             # else where KOF plays it
-        t = x['input'] if x['kind'] == 'special' else x['event'] if x['kind'] == 'event' else \
+        t = x['input'] if x['kind'] in ('special', 'prog') else x['event'] if x['kind'] == 'event' else \
             ('intro' if any(st in V.INTRO[lab_g[n]] for st in x['states']) else 'win' if any(336 <= st < 344 for st in x['states']) else f"anim {x['slot']}")
         if t not in u: u.append(t)
     return ', '.join(u[:4]) + (' ...' if len(u) > 4 else '')

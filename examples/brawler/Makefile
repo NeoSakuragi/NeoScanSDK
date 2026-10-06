@@ -6,10 +6,12 @@ ROM_NAME = brawler
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
-CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(SDK)/src -I$(BUILD) -I. -Wall -DPROFILE_HUD=$(PROFILE) -DAI_OFF=$(AI_OFF) -DSTAGE=$(STAGE)
+CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(SDK)/src -I$(BUILD) -I. -Wall -fno-store-merging -DPROFILE_HUD=$(PROFILE) -DAI_OFF=$(AI_OFF) -DSTAGE=$(STAGE)
 PROFILE ?= 0
 AI_OFF ?= 0
 STAGE ?= 0                # the stage the fight starts on (stage.h stages[], tools/brawler/make_stage_ra.py STAGES)
+# -fno-store-merging (TODO #177): GCC 15's store merging joins byte stores at an odd offset into one word / long move
+# (clr.w 97(a2)) even under -m68000 -mstrict-align; a real 68000 takes an address error there (an odd word access)
 VERSION := $(shell cat VERSION)
 CFLAGS += -DGAME_VERSION='"$(VERSION)"'
 
