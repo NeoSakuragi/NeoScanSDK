@@ -1424,6 +1424,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   colors, but just much darker. Like Kim in Kizuna when he's in the background waiting to be tagged"): measure Kizuna's
   waiting-partner palette transform (our emulator), use it for unselected fighters (main.c col_grey + selectrender.js).
 
+- [ ] 211. HANZO SS2'S AIR FIRE (20261007-145409-5d29, 0.2.6, Hanzo SS2 jumping: "There's a mid-air projectile that you
+  could add."): #193 left it out (no special could start in the air); #200 added air_special (a special from a jump):
+  decode SS2's air fire handler and play it from a jump.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
