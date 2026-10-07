@@ -21,7 +21,22 @@
   {"name": "BOSS_KRAUSER", "source": "fatfursp", "cmd": "3B", "what": "Fatal Fury Special, Krauser's stage, Kaiser Wave (68K stage table index 14 = Krauser)"},
   {"name": "BOSS_GEESE", "source": "fatfursp", "cmd": "43", "what": "Fatal Fury Special, Geese's stage (68K stage table index 13 = Geese)"},
   {"name": "BOSS_RUGAL", "source": "kof98", "cmd": "3B", "what": "KOF98, Rugal's stage (68K $93020: character 36 -> slot 14 -> $3B)"},
-  {"name": "BOSS_GOENITZ", "source": "kof96", "cmd": "2D", "what": "KOF96, Goenitz's stage (68K stage table $4FC48 index 10 = team 10)"}
+  {"name": "BOSS_GOENITZ", "source": "kof96", "cmd": "2D", "what": "KOF96, Goenitz's stage (68K stage table $4FC48 index 10 = team 10)"},
+  {"name": "THEME_KYO", "source": "kof98", "cmd": "30", "what": "TODO #219: Kyo's theme, KOF98's Hero team stage (68K $93020[0] = slot 0 -> $93046[0] = $30)"},
+  {"name": "THEME_TERRY", "source": "kof98", "cmd": "31", "what": "TODO #219: Terry's theme, KOF98's Fatal Fury team stage ($93020[3] = slot 1 -> $31; heard on the attract demo's Joe stage)"},
+  {"name": "THEME_RYO_ROBERT", "source": "kof98", "cmd": "32", "what": "TODO #219: Ryo's and Robert's theme, KOF98's Art of Fighting team stage ($93020[6] / [7] = slot 2 -> $32)"},
+  {"name": "THEME_RALF", "source": "kof98", "cmd": "33", "what": "TODO #219: Ralf's theme, KOF98's Ikari team stage ($93020[10] = slot 3 -> $33)"},
+  {"name": "THEME_MAI", "source": "kof98", "cmd": "35", "what": "TODO #219: Mai's theme, KOF98's Women team stage ($93020[16] = slot 5 -> $35)"},
+  {"name": "THEME_YASHIRO", "source": "kof98", "cmd": "37", "what": "TODO #219: Yashiro's theme, KOF98's Orochi team stage ($93020[21] = slot 7 -> $37)"},
+  {"name": "THEME_IORI", "source": "kof98", "cmd": "38", "what": "TODO #219: Iori's theme, KOF98's Yagami team stage ($93020[27] = slot 11 -> $38)"},
+  {"name": "THEME_YAMAZAKI", "source": "kof98", "cmd": "3C", "what": "TODO #219: Yamazaki's theme, KOF98's own stage theme for him ($93020[24] = slot 8 -> $3C)"},
+  {"name": "THEME_BILLY", "source": "kof98", "cmd": "3E", "what": "TODO #219: Billy's theme, KOF98's own stage theme for him ($93020[26] = slot 10 -> $3E)"},
+  {"name": "THEME_BOSS_TEAM", "source": "kof96", "cmd": "2A", "what": "TODO #219: Geese's, Krauser's and Mr. Big's theme, KOF96's Boss team stage (stage = P2's first fighter id / 3, $1D820: ids 24-26 -> stage 8; measured in our emulator, P2 = the Boss team: $2A)"},
+  {"name": "THEME_K_DASH", "source": "kof99", "cmd": "22", "what": "TODO #219: K''s theme, KOF99's Hero team stage (song = $C6FA0[$C6FB8[fighter]], $A7566: K' id 0 -> 0 -> $22; measured in our emulator: K' team vs Shingo, $22)"},
+  {"name": "THEME_HAOHMARU", "source": "samsho2", "cmd": "21", "what": "TODO #219: Haohmaru's stage theme (docs/samsho2_songs.md: stage 0, measured)"},
+  {"name": "THEME_GENJURO", "source": "samsho2", "cmd": "28", "what": "TODO #219: Genjuro's stage theme (docs/samsho2_songs.md: stage 12, measured)"},
+  {"name": "THEME_HANZO_SS2", "source": "samsho2", "cmd": "31", "what": "TODO #219: Hanzo's stage theme in Samurai Shodown II (docs/samsho2_songs.md: stage 2, stage table)"},
+  {"name": "THEME_KIM", "source": "kizuna", "cmd": "24", "what": "TODO #219: Kim's theme, Kizuna Encounter's stage 5 (stage = fighter id, table $DFA6; stage 5 measured in our emulator: $24, the harbour market; Rosa's stage 4 plays it too)"}
  ],
  "ssg": {"what": "menu sounds (TODO #63): SSG cues on KOF98's own generated-sound path (command type 5), free commands $74-$77, data in the fixed area's free bytes (tools/port/ssg_cues.py); voices = SSG A, B, C: [note, ticks (13.9 ms), level 0-15]; build/snd/songs.h SSG_<name>",
   "cues": [

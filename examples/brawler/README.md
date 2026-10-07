@@ -232,6 +232,44 @@ Goenitz KOF96 `$2D`). A new effect code must be added to `songs.json` or it play
 Checks: `tools/port/compare_port.py build/snd NAME` (port vs original, both drivers' models, chip events),
 `tools/port/capture_snd.py --check build/snd` (each song in this ROM in our emulator vs the model, interrupt by
 interrupt), `capture_snd.py GAME CMD SECONDS OUT` (a WAV of any song from its own game).
+### Fighter themes (TODO #219, 2026-10-07)
+Each roster fighter's theme in his source game, found in our emulator or in the game's 68000 tables, and whether
+our sound path plays it. The playable ones are in `songs.json` as `THEME_*` (MUSIC PLAYER: "THEME KYO" ...); no game
+code plays them yet (where a theme plays is Bruno's call). Proof: `tools/port/theme219_proof.py build/snd OUT`
+(source game vs this ROM in our emulator, WAVs + similarity), `compare_port.py`, `capture_snd.py --check`.
+
+| Fighter | Source: theme | How it was found | Driver | In the brawler |
+|---|---|---|---|---|
+| Kyo | KOF98 `$30` (Hero team) | 68K `$93020`[id] = team slot -> `$93046`[slot] = song (KOF98's stage theme by the opponent) | SNK v1.7 = ours | `THEME_KYO` `$30`, kept as is (bank set 0) |
+| Terry | KOF98 `$31` (Fatal Fury team) | same table; attract demo on Joe's stage | ours | `THEME_TERRY` `$31` (KOF98's bank set 1 kept) |
+| Ryo, Robert | KOF98 `$32` (AOF team) | same table; demo / arcade | ours | `THEME_RYO_ROBERT` `$32` (set 1) |
+| Ralf | KOF98 `$33` (Ikari team) | same table; demo | ours | `THEME_RALF` `$33` (set 1) |
+| Mai | KOF98 `$35` (Women team) | same table; demo | ours | `THEME_MAI` `$35` (set 1) |
+| Yashiro | KOF98 `$37` (Orochi team) | same table | ours | `THEME_YASHIRO` `$37` (set 2) |
+| Iori | KOF98 `$38` (Yagami team) | same table | ours | `THEME_IORI` `$38` (set 2) |
+| Yamazaki | KOF98 `$3C` | same table; demo | ours | `THEME_YAMAZAKI` `$3C` (set 2) |
+| Billy | KOF98 `$3E` | same table | ours | `THEME_BILLY` `$3E` (KOF98's set 3 kept) |
+| Rugal | KOF98 `$3B` | same table | ours | `BOSS_RUGAL` (already) |
+| Geese, Krauser, Mr. Big | KOF96 `$2A` (Boss team stage) | measured: stage = P2's first fighter id / 3 (`$1D820`), P2 = ids 24-26 -> stage 8 -> `$2A` | SNK Ver 0.1, ported | `THEME_BOSS_TEAM` |
+| Goenitz | KOF96 `$2D` (stage 10) | stage 10's init (`$527E0`: sound ID 45 = `$2D`) | SNK Ver 0.1, ported | `BOSS_GOENITZ` (already) |
+| K' | KOF99 `$22` (Hero team) | measured (K' team fight: `$22`); code `$A7566`: `$C6FA0`[`$C6FB8`[id]] | SNK v1.7 (KOF98's code, own tables: `games98.py` 'kof99'), ported | `THEME_K_DASH` |
+| Haohmaru | Samurai Shodown II `$21` | docs/samsho2_songs.md (measured) | MAKOTO v3, ported | `THEME_HAOHMARU` |
+| Genjuro | Samurai Shodown II `$28` | docs/samsho2_songs.md (measured) | MAKOTO v3, ported | `THEME_GENJURO` |
+| Hanzo (SS2) | Samurai Shodown II `$31` | docs/samsho2_songs.md (stage table) | MAKOTO v3, ported | `THEME_HANZO_SS2` |
+| Kim | Kizuna Encounter `$24` (stage 5) | measured: stage forced to 5 -> `$24`; a fighter's home stage = his id (table `$DFA6`, 10 entries; the select keeps the stage of a P1 fighter) | SNK Ver 0.0, ported | `THEME_KIM` |
+| Hanzo (WHP) | World Heroes Perfect `$FC $0E` (Japan stage, stage 6) | measured: song = `$10F24`[stage]; stages come from a random route (`$110BE`), not from the fighters: Japan inferred from the stage | ADK 8.8.7 | **needs a driver port**: port98 has no ADK source (tools/adksnd models Ninja Master's 8.8.9) |
+| Billy Lee, Super Billy | Double Dragon `$E1` (Billy's stage) | docs/doubledr_songs.md (68K tables) | SDC_NGSS (DD songs `$E3` / `$E9` port exactly) | **not yet**: port98 stops at F-number `$24CE` (a slide step needs detune +128, KOF98's range ends at +127) |
+| Cheng Fu | Double Dragon `$DC` | docs/doubledr_songs.md | SDC_NGSS | **not yet**: its ADPCM-B pitches need more kit records than KOF98 has |
+
+M ROM room (2026-10-07): KOF98's driver has 7 bank sets (`$2708`) and the NEO-ZMC's 16 KB window takes a 4-bit bank
+(256 KB, Geolith `geo_z80_bankswap`), so the M ROM stays 256 KB. To fit the themes, `build_snd.py` places ports
+(best fit) in the room the KOF98 songs it drops leave inside the bank sets it keeps (each song's data = one run from
+its header to the last byte song98's model reads), then in new sets. With the 15 themes: all 7 sets used, 50 KB left
+in pieces, the largest 10 KB: **the next ported theme needs a set freed** (e.g. a native theme ported instead of its
+whole KOF98 set kept). V ROM 9.3 MB of 16 MB; ADPCM-B records: 6 of 117 free (ports with many ADPCM-B pitches use
+kit records). KOF98's songs key ADPCM-A codes `$F0-$FF` of tables 0-5 too (`$32`, `$26`): those records are now
+relocated like the others (GAME_OVER's 7 wrong samples fixed).
+
 Voices (2026-10-05, docs/brawler_data_model.md "Voices"): each fighter's KOF voices (`tools/brawler/voices.json`)
 on its moves as KOF plays them (game.json `roster[].voices`: `"kof"` for all 16), only the mapped samples in the V ROM
 (148, 1.1 MB: V 3.9 MB), players on `$1C`, enemies on `$1E`; the Brawler Lab's Characters tab lists, plays and remaps them.
