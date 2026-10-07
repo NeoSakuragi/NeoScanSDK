@@ -940,6 +940,17 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   6 4 1 2 3 6 C+D: the dance twice); his throw (27); voices incl. the parody shouts. Not in the build: 6 3 2 1 4 A (the
   flag that flies out and comes back: spawn.boomerang), 61236A / 126BC (a 9th / 10th palette). Unlock in SS2: not
   traced (his vs state pokes the selected-character byte $100D0B: mkvs_kuroko.py). Frames 358 / 364 identical.
+  PROGRESS 2026-10-07 (branch fix/176-kuroko-boomerang): (a) the flag boomerang 6 3 2 1 4 A (result 50, object 27
+  $4C274 decoded + measured, tools/samsho2/boomerang_ss2.py) = the new spawn.boomerang (bproj_t kind 4, fighter.c
+  boom_update): out 8 px a frame from 107 to 220 px, 17 hover frames, back to 104 px, the catch signals Kuroko, 2 frames
+  in his hand; its pole = 2 segments 48 / 96 behind, never nearer than 64. SS2's flag hits only going out (its animation
+  holds a box-less step from its 16th frame; its first hit spends it): measured with P2 put in its return path, not hit,
+  so the brawler's does the same. (b) 1 2 6 BC (palettes 38 + 39) and 2 1 4 1 6 BC (178) exported: export_ss2.
+  pack_palettes folds palettes into others with exact colours (shared colours share pens, the rest move to free pens,
+  the folded parts' tiles copied with renumbered pens): 10 -> 8 (52 + 250, 38 + 39), no runtime palette loading. The
+  results 41 / 46 inputs were swapped in the export (61236A = 41, 214161BC = 46): fixed, game.json keeps the same move
+  on fD. Slots: D = 63214A, uD = 126BC, dfD = 214161BC (236A, 2363214A, 214A stay in the pool for the Lab). Proof
+  /data/tmp/kuroko176/out (kuroko176.json + sheets, ss2proof frames 398 / 404, controls, cancel, regress no-bleed).
 
 - [x] 177. (done 2026-10-06: (a) make_site.py read a voice use's 'states' on the new 'prog' uses (#163): they name their input like a special; deploy_vps.sh rebuilds the wasm when any Geolith source is newer (one geo_m68k.c, desktop = Lab P2 latch); Lab live 0.0.78: Geese (bank 1) vs Kyo (bank 0) and back, every tab loads, note 20261006-155636-b3f3 on its 0.0.71 build replays byte-identical. (b) GCC 15 store merging joined byte stores at odd offsets into word / long moves (clr.w 97(a2): chain_t + spec_buf; lab+9 long) even with -m68000 -mstrict-align: -fno-store-merging in the brawler + SDK Makefiles; odd-access check core (/data/tmp/align177): 822 -> 0 over controls_proof, 637 -> 0 over campaign29 (log identical to the unfixed build's), 0 over regress + cancel_proof; regress no-bleed True, cancel_proof all 21 ok) (found by #174) (a) the Lab deploy is broken since #163's merge: tools/brawler/chainlab/make_site.py
   KeyError 'states' — fix and redeploy the Lab with 0.0.77+; (b) the game does unaligned word writes into `in[]`
@@ -1020,6 +1031,24 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   BURN_RAMP); Billy Kane's ring burns (KOF98 measured). (c) 9f71205: SS2's WFT connect = red backdrop 48 f, hold 40,
   half speed 30, victim thrown 76 f after the hit (SF_BIGHIT); still missing: weapon loss, throw height 74 vs 52.
   Proofs /data/tmp/b188/out.
+
+- [ ] 189. (DONE ON BRANCH fix/189-ss2-rage-pose 2026-10-07, awaiting Bruno's review) SS2'S RAGE ANIMATION AS THE FLASH
+  POSE (Bruno: "in Samurai Shodown II there is an animation that is triggered automatically whenever the power bar gets
+  full ... it's standard for all characters"). Found [code + meas, study README "The rage-full moment"]: at POW = 32
+  ($25CD2) the fighter, once idle ($26A3A), plays class 0 action 46 = **animation 140** for every one of the 16
+  fighters (20-93 frames, his shout on an early step, red rage palette, POW sign; no freeze), measured in our emulator
+  for all 15 + Kuroko (tools/samsho2/rage_ss2.py -> /data/neogeo_dict/samsho2/rage.json, also filled by real hits).
+  Brawler: export_bm FLASH_POSES samsho2 'rage' (now SS2's default; game.json roster haohmaru / genjuro / kuroko
+  flash_pose "rage") = anim 140 timed to the 28-frame freeze ('fit': each step scaled, Haohmaru 12 steps, Genjuro 18,
+  Kuroko 23 with his flame aura), the shout sent on its step ('voice': bfpose_t.voice, fighter.c flash_pose; Haohmaru
+  $1A $99, Genjuro $1A $D2, Kuroko $1A $E3 = SS2's samples byte for byte), the glow on the first step's head. Other
+  poses unchanged (Kim / Hanzo / Billy Lee silent as in 0.0.96). Proof /data/tmp/rage189/out (tools/brawler/
+  rage189_proof.py): ALL OK (SS2's moment vs the brawler's flash: <name>_ss2_vs_brawler.png; flash145 checks for the
+  three; voices); controls_proof 3/3 ok, fury_inv_proof (AI_OFF copy) ALL OK, bank_proof ALL OK, regress no-bleed True;
+  scenario todo189-haohmaru-rage-pose (lint 0). Open: the glow stays at the first step's head while Haohmaru drops into
+  his low stance; SS2's red rage palette is not shown. Other sources (report only): WHP no animation at a full hero
+  gauge [meas: P1's object identical to a run without the fill]; Double Dragon none (powered = the bars meet, "CHARGE";
+  the power-up anim 81 is the player's A+B+C+D, already Billy's pose); KOF96 / 98 / 99, Kizuna, SS4 not checked here.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

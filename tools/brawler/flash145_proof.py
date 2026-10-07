@@ -35,7 +35,7 @@ bmc = open(os.path.join(game_dir, 'build', 'bm_chars.c')).read()
 def fpose(n):
     m = re.search(r'static const bfpose_t %s_fpose\[\d+\] = \{(.*?)\};' % n, bmc)
     if not m: return []
-    st = [tuple(map(int, x)) for x in re.findall(r'\{(\d+), (\d+)\}', m.group(1))]
+    st = [tuple(map(int, x)) for x in re.findall(r'\{(\d+), (\d+)(?:, \d+)?\}', m.group(1))]
     return [fr for fr, k in st for _ in range(k) if k]
 
 def fhead(n):

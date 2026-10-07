@@ -622,5 +622,58 @@
   "expect": "The MAX fury's white flash plays KOF 2000's MAX sound: the high-pitched whistle of its SDMs. The normal fury's flash keeps its own sound, KOF98's charge, so the two are told apart by ear.",
   "do_keys": "3:Dd",
   "proof": 120
+ },
+ "todo176-kuroko-flag-boomerang": {
+  "title": "Kuroko: the flag boomerang (C)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kuroko",
+   "dummy": "ryo",
+   "gap": 157
+  },
+  "do": "Press C (no direction) with Ryo standing in front of you. Then put Ryo about a screen away (out of reach) and press C again.",
+  "expect": "Kuroko throws his flag on its pole: it flies out, hits Ryo once (a light reel), stops where it hit, hovers a moment, flies back and he catches it, then he finishes his pose. Out of reach it flies about 220 px, hovers, and comes back the same way. As in SS2 it never hits on the way back. The pole stretches between him and the flag.",
+  "do_keys": "4:c",
+  "proof": 120
+ },
+ "todo176-kuroko-126BC": {
+  "title": "Kuroko: the 1 2 6 BC parody (up + C)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kuroko",
+   "dummy": "ryo",
+   "gap": 157
+  },
+  "do": "Press up + C with Ryo standing in front of you.",
+  "expect": "Kuroko waves his flags and throws SS2's 1 2 6 BC parody shot in SS2's own colours (no wrong colours anywhere on it); it knocks Ryo down.",
+  "do_keys": "4:Uc",
+  "proof": 90
+ },
+ "todo176-kuroko-214161BC": {
+  "title": "Kuroko: the 2 1 4 1 6 BC parody (down-forward + C)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kuroko",
+   "dummy": "ryo",
+   "gap": 157
+  },
+  "do": "Press down-forward + C with Ryo standing in front of you.",
+  "expect": "Kuroko waves his flags and throws SS2's 2 1 4 1 6 BC parody shot in SS2's own colours; it travels to Ryo and knocks him down.",
+  "do_keys": "4:DRc",
+  "proof": 90
+ },
+ "todo189-haohmaru-rage-pose": {
+  "title": "Haohmaru's fury: Samurai Shodown II's rage animation under the super flash",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D.",
+  "expect": "The screen flashes and Haohmaru plays his SS2 rage animation (sword raised, then the crouched stance) with his rage shout while everything is frozen; then his weapon-flipping fury starts and hits Ryo.",
+  "do_keys": "3:d",
+  "proof": 200
  }
 }

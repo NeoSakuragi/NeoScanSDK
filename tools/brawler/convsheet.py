@@ -381,7 +381,8 @@ COMPONENTS = {
     'period, each with damage / reaction, a hit counter, a state list.'),
  'anim.step_spawn': ('enh', ['anim.event_marker', 'spawn.eruption'], 'Steps spawn objects from a table (optionally a '
     'random pick among N), instead of the move code.'),
- 'spawn.boomerang': ('enh', ['spawn.projectile'], 'A projectile whose path returns to the thrower and hits on the way back.'),
+ 'spawn.boomerang': ('enh', ['spawn.projectile'], 'A projectile whose path returns to the thrower (built, TODO #176: bproj_t kind 4, SS2 Kuroko\'s flag; its hit rule '
+    'is data: the rows\' boxes).'),
  'decode.ss4': ('analysis', [], 'Samurai Shodown IV handler decoder (tools/samsho4 has captures only).'),
  'decode.whp': ('analysis', [], 'World Heroes Perfect handler decoder (tools/whp has captures only).'),
  'decode.kizuna': ('analysis', [], 'Kizuna handler decoder (tools/kizuna/substates_kz.py: sub-state tables, not programs yet).'),
@@ -709,7 +710,8 @@ def prog_mapping(mv, model=None, extra=None):
             feat = {'feature': fmap[c], 'params': {'when': c + (' true' if a & 0x80 else ' false'), 'goto': 'next frame' if b == -1 else f'op {b}', **({'v': v} if v else {})}}
         elif op == P['SPAWN']:
             o = mv['robj'][a] if a < len(mv['robj']) else {}
-            k = 'spawn.pinned_effect' if o.get('follow', 0) & 1 else 'spawn.projectile' if o.get('kind') == 1 else 'spawn.eruption'
+            k = 'spawn.pinned_effect' if o.get('follow', 0) & 1 else 'spawn.projectile' if o.get('kind') == 1 else \
+                'spawn.boomerang' if o.get('kind') == 4 else 'spawn.eruption'
             feat = {'feature': k, 'params': {'object': a, 'frames': o.get('nrows'), 'react': R[o['react'] & 7] if o else None}}
         elif op == P['FXOFF']: feat = {'feature': 'spawn.pinned_effect', 'params': {'end': True}}
         elif op == P['ONHIT']: feat = {'feature': 'hold.catch', 'params': {'routine_op': b, 'dead_frames': a + 1}}
