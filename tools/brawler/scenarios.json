@@ -1483,5 +1483,111 @@
   "expect": "After the flash Iori dashes, grabs Terry and claws him seven times while Terry stays held in front of him; then Iori grabs him by the head, a purple flame flares, and the explosion's yellow flame and purple smoke burst as Terry is blown away burning purple: the same moves, hits and timing as KOF98.",
   "do_keys": "4:d",
   "proof": 260
+ },
+ "todo213-rosa-236C": {
+  "title": "Rosa: C is Kizuna's 236C, a shockwave along the floor",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "kim",
+   "gap": 120
+  },
+  "do": "Press C, then again from across the screen.",
+  "expect": "Rosa strikes the floor; a dark shockwave runs along the ground, hits the dummy (it reels) and bursts. From far it travels about 240 px and vanishes.",
+  "do_keys": "3:c",
+  "proof": 90
+ },
+ "todo213-rosa-214B": {
+  "title": "Rosa: forward + C is Kizuna's 214B, its two follow-ups",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "kim",
+   "gap": 56
+  },
+  "do": "Press forward + C next to the dummy; again, then press forward + C once more during the hits; again, then forward + A during the hits.",
+  "expect": "A lunging three-hit sword combo. With forward + C again: she grabs the dummy and throws it far behind her onto the floor (it lies, then gets up). With forward + A: a fourth upward slash that knocks it down. Without a follow-up she recovers.",
+  "do_keys": "3:Rc,11:-,3:Rc",
+  "proof": 160
+ },
+ "todo213-rosa-623C": {
+  "title": "Rosa: down + C is Kizuna's 623C rising kick, A for the second kick",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "kim",
+   "gap": 56
+  },
+  "do": "Press down + C next to the dummy, then A while it is in the air.",
+  "expect": "A rising kick that launches the dummy (three hits); with A after the hit a second kick in the air knocks it down; she floats down and lands.",
+  "do_keys": "3:Dc,14:-,3:a",
+  "proof": 120
+ },
+ "todo213-rosa-421C": {
+  "title": "Rosa: up + C is Kizuna's 421C, a back-hop slash",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "kim",
+   "gap": 56
+  },
+  "do": "Press up + C next to the dummy.",
+  "expect": "She hops back with a downward slash; the dummy reels; she lands and recovers.",
+  "do_keys": "3:Uc",
+  "proof": 70
+ },
+ "todo213-rosa-63214C": {
+  "title": "Rosa: down-forward + C is Kizuna's 63214C barrier",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "kim",
+   "gap": 56
+  },
+  "do": "Press down-forward + C next to the dummy.",
+  "expect": "A blue crescent barrier forms in front of her and drifts forward; it knocks the dummy down.",
+  "do_keys": "3:DRc",
+  "proof": 80
+ },
+ "todo213-rosa-6246A": {
+  "title": "Rosa: D is Kizuna's 6246A, the grab, the throw and the aerial chase",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "kim",
+   "gap": 40,
+   "meter": "full"
+  },
+  "do": "Press D next to the dummy (full meter), with room behind Rosa.",
+  "expect": "The flash pose, a rush; on the hit she grabs the dummy and flips it over her shoulder high into the air behind her, turns, leaps after it and kicks it five times, then dives onto it: the screen goes black until she lands; it crashes down and gets up.",
+  "do_keys": "3:d",
+  "proof": 320
+ },
+ "todo213-rosa-421A": {
+  "title": "Rosa: down + D is Kizuna's 421A, the lunge and the held victim",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "kim",
+   "gap": 56,
+   "meter": "full"
+  },
+  "do": "Press down + D next to the dummy (full meter).",
+  "expect": "The flash pose, a lunging slash; on the hit the dummy freezes where it was struck, her next blows launch it high. Three hits (in Kizuna her tag partner adds two: the brawler has no partner).",
+  "do_keys": "3:Dd",
+  "proof": 150
+ },
+ "todo213-rosa-j2C": {
+  "title": "Rosa: down + A in a jump is Kizuna's j.2C dive, down + A again for the rising kick",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "kim",
+   "gap": 130
+  },
+  "do": "Jump forward toward the dummy, press down + A near the top, then down + A again as it hits.",
+  "expect": "She dives at 45 degrees with her sword; on the hit she keeps diving and strikes again; with down + A again she stops, rises with a kick that knocks the dummy down and lands. Without a hit she lands and recovers.",
+  "do_keys": "3:Rb,12:-,3:Da,8:-,3:Da",
+  "proof": 90
  }
 }

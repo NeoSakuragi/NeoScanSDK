@@ -740,7 +740,10 @@ def vlists_c(n, k, r, game):
             c = 4 if l.get('catch') else 0             # VL_CATCH (TODO #216): started by P_CATCH only (the cine's list)
             if l.get('fly'): vx, vy, g = l['fly']; return l['e'], 1 | c, vx, -vy, g
             if l.get('rel'): vx, vy, *g = l['rel']; return l['e'], 2 | c, vx, -vy, g[0] if g else 0   # (g: its own fall, KOF's victim routine)
-            if l.get('stand'): return l['e'], 8 | c, 0, 0, 0   # VL_STAND (TODO #220): its release leaves the victim standing, held
+            if l.get('frames'):                        # (TODO #213, Kizuna's command grabs: tools/kizuna/rosa_kz.py)
+                return l['e'], 8 | (16 if l.get('sreact') else 0) | (32 if l.get('down') else 0), \
+                    SR_BASE[n][l['sreact'] - 1] + 1 if l.get('sreact') else 0, 0, 0   # VL_FRAMES, VL_SREACT (vx = bm_sreact + 1), VL_DOWN
+            if l.get('stand'): return l['e'], 64 | c, 0, 0, 0   # VL_STAND (TODO #220): its release leaves the victim standing, held
             return l['e'], c, 0, 0, 0
         for j, l in enumerate(r['vlists']):
             l = vl_parts(l)[0]
@@ -757,12 +760,14 @@ def hspk_rows(k, r):
     assert all(k < 0xFE and j < 256 and i < 256 for k, j, i, _ in out), k
     return out
 SREACTS = []                                       # the game's source reactions (bm_sreact, TODO #136): every fighter's
-SR_BASE = {}                                       # export 'sreacts' list appended (write_c), its offset by fighter
+SR_BASE = {}                                       # export 'sreacts' list (write_c), one entry per distinct motion (TODO
+                                                   # #213: Rosa's are mostly Kim's, Kizuna's victim code is the same for
+                                                   # all): per fighter its list's index -> bm_sreact's (0-based)
 def sr_hy(n, v):
     """a source-reaction step's hy (the fighter's sreacts indexes + 1, standing | airborne << 4) in bm_sreact"""
     if not v: return 0
     lo, hi = v & 15, v >> 4
-    lo, hi = (lo + SR_BASE[n] if lo else 0), (hi + SR_BASE[n] if hi else 0)
+    lo, hi = (SR_BASE[n][lo - 1] + 1 if lo else 0), (SR_BASE[n][hi - 1] + 1 if hi else 0)
     assert lo <= 15 and hi <= 15, (n, 'bm_sreact: more than 15 source reactions')
     return lo | hi << 4
 
@@ -1358,7 +1363,10 @@ def write_c(chars, outdir):
     pkeys, ptable = poses(chars); PKEYS[:] = pkeys
     SREACTS.clear(); SR_BASE.clear()
     for _, n_, ch_, _ in chars:                          # the source reactions (TODO #136): one table, each fighter's
-        SR_BASE[n_] = len(SREACTS); SREACTS.extend(ch_.get('sreacts') or [])   # at its offset
+        SR_BASE[n_] = []                                 # entries mapped into it, a motion already there shared (#213)
+        for r_ in ch_.get('sreacts') or []:
+            if r_ not in SREACTS: SREACTS.append(r_)
+            SR_BASE[n_].append(SREACTS.index(r_))
     # KOF's shared effects bank (TODO #214): its frames' palettes are absolute (KOF98 palette RAM 80-127), one budget
     # for every fighter (SFX_NPAL at fighter.h SFX_PAL), not the fighter's MAX_PALS: a part keeps 0x80 | its index
     sfx_cols = {(game, int(k)): v for game, n, ch, off in chars for k, v in (ch.get('shared_palettes') or {}).items()}
@@ -1389,7 +1397,7 @@ def write_c(chars, outdir):
          'typedef struct { uint8_t from, to, trig, in, dir, at; uint16_t lo, hi; } bslink_t;   /* a follow-up: from part `from` to part `to`; trig 1 a hit landed (LK_HIT), 2 a press (LK_IN: buttons `in` IN_*, stick `dir` = a C role BS_* by d_input, 0xFE the role the move started with, 0xFF any) inside the window [lo, hi) (script rows); at 1 = switch at once (LK_NOW), 0 = when the part ends */',
          'typedef struct { int8_t dx, dy; uint8_t pose, flags; } bvent_t;   /* a caught victim\'s place for one attacker step (KOF98 $25372 lists, TODO #173): px from the attacker (its facing\'s way), height, posture VP_* (0xFF: its reel), flags VE_* */',
          'typedef struct { uint8_t n, flags; const bvent_t *e; int16_t vx, vy, g; } bvlist_t;   /* one list: entry k for the attacker\'s step k (the last for later steps); n 0 ends the table; flags VL_FLY: placed at its first entry once, then the victim flies on its own (vx forward of the attacker, vy up, g its gravity: 8.8 px / frame), posture held (SS2\'s rage-move victims, handlers_ss2.VL); VL_VEL: its release entry sends the victim off at vx / vy (else KOF\'s blowback) */',
-         'enum { VL_FLY = 1, VL_VEL = 2, VL_CATCH = 4, VL_STAND = 8 };   /* VL_CATCH (TODO #216): a list P_CATCH starts (KOF98\'s engine throw on the held victim), never a catch routine\'s start; VL_STAND (TODO #220): its release entry leaves the victim standing in its reel, still held (PF_HOLD) until a hit lets it go (KOF98 Yamazaki MAX 236236C: state 329, its routine idles until the last strike\'s hold hit) */',
+         'enum { VL_FLY = 1, VL_VEL = 2, VL_CATCH = 4, VL_FRAMES = 8, VL_SREACT = 16, VL_DOWN = 32, VL_STAND = 64 };   /* VL_STAND (TODO #220): its release entry leaves the victim standing in its reel, still held (PF_HOLD) until a hit lets it go (KOF98 Yamazaki MAX 236236C: state 329); VL_CATCH (TODO #216): a list P_CATCH starts (KOF98\'s engine throw on the held victim), never a catch routine\'s start; (TODO #213, Kizuna\'s command grabs: tools/kizuna/rosa_kz.py) VL_FRAMES: entry k for the k-th frame of the list (from the P_VPHASE VA_LIST that started it), not the attacker\'s step; VL_SREACT: its release sends the victim into source reaction vx (bm_sreact index + 1: Kizuna\'s thrown flight, hittable when its source\'s steps carry boxes); VL_DOWN: its release lays it down (S_DOWN, then it gets up: Kizuna\'s thrown victim lying at its animation\'s end) */',
          '#define HY_HOLD 0x80   /* bstep_t.hy of a ROM special: KOF\'s hold hit (attack box $36, TODO #220; handlers98.HOLD_BOX): its victim held in place by the attacker (PF_HOLD), reeling; a later hit by another box lets it go with that hit\'s reaction */',
          'enum { SF_NOPUSH = 1, SF_BIGHIT = 2, SF_NOW = 4, SF_SHARE = 8, SF_INV = 16, SF_SREACT = 32 };   /* bspec_t.sflags (SF_SREACT (TODO #136, vocabulary reaction.source_motion): its anims\' bstep_t.hy are source reactions, bm_sreact index + 1 standing | airborne << 4 (fighter.c src_react: Kizuna\'s reaction animations\' motions); SF_INV: invincible from its first frame to its end, the fury\'s rule (INV_FURY): game.json roster[].invincible, Bruno\'s call per move (TODO #202: Kyo\'s EX 421D), fighter.c start_special; SF_SHARE: its body and a standing opponent ahead share the push, half each: Kizuna\'s j.2B dives on pushing its victim (TODO #200), on the ground too since TODO #136 (Kizuna\'s push for every program of Kim\'s: the Phoenix\'s rush at half speed), fighter.c combat; SF_BIGHIT: SS2\'s big hit on its connect, fighter.c big_hit; SF_NOW: its program runs from the special\'s start frame, SS2\'s action routine in the frame the action is set: fighter.c start_special, TODO #191) */',
          'enum { VE_BLOW = 1, VE_KO = 2, VE_TURN = 4, VE_FRONT = 8, VE_BURN = 48, VE_REL = 64 };   /* bvent_t.flags: a blow (damage, hit sound), the KO check, faces the attacker\'s way, drawn in front, the burn of its blow (bits 4-5: BURN_RAMP colour 1 purple / 2 orange, KOF\'s victim routine $17AC0: Iori 624), the release (its flight) */',
@@ -1406,7 +1414,7 @@ def write_c(chars, outdir):
          'extern const bhspark_t bm_hspark[BC_COUNT];   /* by bchar_t.id (bm_spec.c: the first program MB; outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef struct { int32_t vx, ax, vy, g, bvx, bvy, bg; uint8_t r, n, land, anim; } bsreact_t;   /* a source reaction (TODO #136, vocabulary reaction.source_motion; tools/kizuna/export_kz.sr_motion: Kizuna\'s reaction animations\' step commands, decoded from its hit code): the victim\'s motion when a SF_SREACT special\'s step hits it, 16.16 px a frame, x away from the attacker: vx += ax a frame while a reel slides (n frames), a flight vy -= g a frame to the floor (it lands where its next move would take it under, without moving), land frames on the floor (0xFF: none, the brawler\'s own landing), then the bounce bvx / bvy / bg; r: the victim\'s posture R_* (| 8: hittable in its flight, its source\'s reaction steps carry boxes); anim: the source\'s reaction animation (Hayate\'s, for reading) */',
          'extern const bsreact_t bm_sreact[];',
-         'enum { VA_SNAP = 1, VA_FREEZE = 2, VA_THAW = 4, VA_MIRROR = 8, VA_UNMIRROR = 16 };   /* P_VPHASE bits (fighter.c vphase) */',
+         'enum { VA_SNAP = 1, VA_FREEZE = 2, VA_THAW = 4, VA_MIRROR = 8, VA_UNMIRROR = 16, VA_LIST = 32 };   /* P_VPHASE bits (fighter.c vphase); VA_LIST (TODO #213): its caught target follows the special\'s victim list b (1-based, bspec_t.vlists) from now, held (PF_HOLD) */',
          'extern const bchar_t bm_chars[BC_COUNT];',
          f'#define SFX_NPAL {len(sfx_keys)}   /* KOF\'s shared effects bank (TODO #214): its palettes the exported frames use, '
          + ', '.join(f'{g} {k}' for g, k in sfx_keys) + ' (main.c loads them at SFX_PAL, fighter.h; a part\'s pal | 0x80 = one of them) */',

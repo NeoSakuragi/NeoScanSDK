@@ -582,6 +582,9 @@ def whp_list(rname, name, cid):
 # special sends (prefix $1A: [2]8C's $1A67, the Phoenix's cry $1A68, Kizuna plays it with the launch), listed first:
 # a special's own effect is its sound (voices.py suggest takes a key's first voice in list order). ----
 KZ_EVENTS = {'react_a': 'hit_c', 'react_b': 'hit_d', 'react_ko': 'ko'}
+KZ_VOICE = {'kim': (0x1C, 0xB0), 'rosa': (0x1E, 0xA0)}   # each one's voice bank: prefix, first code (TODO #213: Rosa's
+                                                         # yells are $1EA6-$1ED4 in her captures; $1CBC / $1CEF there are
+                                                         # her tag partner Kim's, in 421D)
 def _kz():
     sys.path.insert(0, os.path.join(TOOLS, 'kizuna')); import export_kz, voices_kz
     return export_kz, voices_kz
@@ -591,7 +594,9 @@ def kizuna_capture(rname, name, cid):
 
 def kizuna_list(rname, name, cid):
     E, VK = _kz()
-    cap = json.load(open(E.CAPTURE)); fc = json.load(open(E.FOLLOWUPS)); snd = json.load(open(VK.OUT))['sounds']
+    E.setup(name)                                          # (TODO #213: Rosa's captures, her specials / air special)
+    cap = json.load(open(E.CAPTURE)); fc = json.load(open(E.FOLLOWUPS))
+    snd = json.load(open(VK.OUT if name == 'kim' else E.FK.path(name, 'voices')))['sounds']
     uses = []                                              # (word, use)
     spw = {}                                               # word -> the specials that send it
     for inp in E.SPECIALS:
@@ -599,13 +604,14 @@ def kizuna_list(rname, name, cid):
             uses.append((w, {'kind': 'special', 'input': inp, 'at': row})); spw.setdefault(w, set()).add(inp)
     for inp in E.AIR:                                      # the air special (TODO #200, j.2B): its voice by its
         for f, w in E.air_sounds(inp, fc):                 # program's frames (bspec_t.pvoice); his voices only (its
-            if w >> 8 == 0x1C: uses.append((w, {'kind': 'special', 'input': inp, 'at': f}))   # swing effect: none)
+            if w >> 8 == KZ_VOICE.get(name, (0x1C,))[0]: uses.append((w, {'kind': 'special', 'input': inp, 'at': f}))   # swing effect: none)
     for rec, d in cap.items():
         for f, w in VK.words_of(d['frames']):
             if rec in KZ_EVENTS: uses.append((w, {'kind': 'event', 'event': KZ_EVENTS[rec], 'at': 0}))
             else: p = d['frames'][f][0]; uses.append((w, {'kind': 'anim', 'slot': p[0], 'states': [p[0]], 'step': p[1]}))
     own_fx = {w for w, s in spw.items() if w >> 8 == FX_PREFIX and len(s) == 1}
-    def is_voice(w): return (w >> 8 == 0x1C and w & 0xFF >= 0xB0) or w in own_fx
+    vp, vlo = KZ_VOICE.get(name, (0x1C, 0xB0))
+    def is_voice(w): return (w >> 8 == vp and w & 0xFF >= vlo) or w in own_fx
     v = v_rom('kizuna'); voices = {}
     for w, u in uses:
         if not is_voice(w) or f'{w:04X}' not in snd or 'segments' not in snd[f'{w:04X}']: continue
@@ -742,7 +748,7 @@ def samsho2_list(rname, name, cid):
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
        'doubledr': {'cast': {'billy': 0, 'billy_super': 1, 'cheng_fu': 10}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
-       'kizuna': {'cast': {'kim': 5}, 'capture': kizuna_capture, 'list': kizuna_list},
+       'kizuna': {'cast': {'kim': 5, 'rosa': 4}, 'capture': kizuna_capture, 'list': kizuna_list},
        'samsho2': {'cast': {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo': 2}, 'capture': samsho2_capture, 'list': samsho2_list}}
 
 # ---- the brawler side (export_bm.py, build_snd.py, build_tables.py, the lab) ----

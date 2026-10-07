@@ -44,14 +44,16 @@ static void mark(uint8_t sec) {
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
 #define FIGHT_SPRS (NF * MAX_COLS + NPJ * PJ_COLS)   /* a fight's blocks: a fighter's MAX_COLS, the projectile pool's
                                         PJ_SPRS = NPJ * PJ_COLS shared by width (block_w) */
-#define NA 23                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
+#define NA 24                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
                                         fighter: the group photo) */
-#define SEL_COLS 14                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 14 =
-                                        sprites 59-380 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro; NA 22:
-                                        Kuroko; NA 23: SS2's Hanzo, the blocks from sprite 59, the last one 380) (the banner's, the debug boxes', the sparks' and the throw effect's 300-379
+#define SEL_COLS 13                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 13 =
+                                        sprites 59-370 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro; NA 22:
+                                        Kuroko; 14 at NA 23: SS2's Hanzo, the blocks from sprite 59, the last one 380; 13 at
+                                        NA 24: Rosa, TODO #213) (the banner's, the debug boxes', the sparks' and the throw effect's 300-379
                                         are not in use on that screen: sparks_draw / tfx_draw return there); the watch /
-                                        win poses and the walk-offs are narrower (2026-10-05: widest 13, a walk; win 11,
-                                        watch 8; 2026-10-06 Genjuro's win 14) */
+                                        win poses and the walk-offs are narrower (2026-10-07, build/bm_chars.c ncols of every
+                                        selectable fighter's BA_WATCH / BA_WIN / BA_WALK_FWD frames: widest 11, Haohmaru's
+                                        watch and Genjuro's win; Rosa 7 / 9 / 9) */
 uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
 _Static_assert(16 + NA * MAX_PALS <= SFX_PAL && STAGE_PAL + STAGE_MAXPAL <= SFX_PAL && SFX_PAL + SFX_NPAL_MAX <= 240, "palettes: the select screen's actors, the stages, KOF's shared effects (TODO #214), the big portraits (PB_PALN)");
 #define SPR_BASE 59                  /* fighter blocks (stage 22-42, shadows 43-58 behind them; 1-21 free) (60 until
@@ -625,12 +627,17 @@ static void dbg_draw(void) {
 static void screen_fx(void) {
     uint8_t i;
     const bspec_t *sp = 0;
+    uint8_t mode = 1;
     for (i = 0; i < nf && !sp; i++) {
-        const fighter_t *f = &fighters[i];
+        fighter_t *f = &fighters[i];
         if (f->state == S_SPECIAL && f->srow) {
             const bspec_t *s = &f->ch->specials[f->spec_ix];
             if (s->bd_end && (s->bd_first == 0xFFFF ? f->pbd : f->srow - 1 >= s->bd_first && f->srow - 1 < s->bd_end)) sp = s;   /* (bd_first
                                                                  0xFFFF: its program switches it, P_SCREEN, TODO #136) */
+            if (sp && s->bd_first == 0xFFFF) {           /* P_SCREEN's value (TODO #213, Kizuna $27E1): 1 the strobe, 2 its */
+                mode = f->pbd;                           /* first colour held (Rosa's 6246A: black from her dive's hit), */
+                if (f->pbd & 0x80) f->pbd = (f->pbd & 0x7F) ? f->pbd - 1 : 0;   /* $80 | n: the strobe n frames more */
+            }                                            /* (her kicks' $27E1 = $10: 16 frames from each hit) */
         }
     }
     /* (TODO #217) every colour here goes through bd_set: written at the next vblank with the stage's sprites (cmd
@@ -654,7 +661,7 @@ static void screen_fx(void) {
         bd_set((uint8_t)(sf_flash_t + 1) <= gflash.white ? gflash.white_col : gflash.dark_col);
     } else if (sp) {                                         /* Kizuna's strobe, bd_col[0] first (measured) */
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
-        bd_set(sp->bd_col[bd_t++ & 1]);
+        bd_set(mode == 2 ? sp->bd_col[0] : sp->bd_col[bd_t++ & 1]);
     } else if (bd_on) { stage_show(); bd_set(stg->backdrop); bd_on = 0; }   /* after: the stage and its backdrop back */
 }
 

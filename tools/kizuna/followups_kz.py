@@ -80,6 +80,19 @@ def setup(name):
         RECIPES[f'{mv}_h'] = (300, '2:-,' + seq0 + '400:-', pokes)      # some 300 frames
         for k, (situ, inp, situs) in enumerate(continuations(mv, br)):
             RECIPES[f'{mv}_c{k}_{situ[0]}'] = (brute_kz.SITU[situ][0], lane(mv, inp), pokes, brute_kz.SITU[situ][1], inp, situs)
+    RECIPES.update(EXTRA.get(name, {}))
+
+# (TODO #213) captures the brute force does not make: the air-only specials (its moves skip condition bit 5) and a
+# continuation found on block played on a hit (the proofs compare the brawler's hit with Kizuna's)
+J2C = '2:-,3:UR,12:-,3:Dc,'
+EXTRA = {'rosa': {
+    'j2C_w': (FAR, J2C + '90:-', None),                       # j.2C (command $29, 2C in a jump 80 px up or more): the dive
+    'j2C_h': (390, J2C + '90:-', None),                       # to the floor / onto P2
+    'j2C2_h': (390, J2C + '12:-,3:Dc,90:-', None),            # 2C again after its hit: D2 (the rising kick), D3
+    'j2C2_w': (FAR, J2C + '12:-,3:Dc,90:-', None),            # 2C again without a hit: nothing (no window)
+    '421C_m': (420, '2:-,3:L,3:D,3:DL,3:c,3:c,400:-', None),   # 421C's whiff where Kizuna's camera does not hold her back
+    '623C2_h': (NEAR, '2:-,3:R,3:D,3:DR,3:c,3:c,1:-,3:D,3:DL,3:L,3:c,400:-', None),   # 623C then 214C on a hit: A2
+}}
 
 def continuations(mv, br):
     """[(situation, input, the situations it was found in)]: one run per continuation sequence the brute force found for move mv (level 1, then level 2:
@@ -116,14 +129,23 @@ def fighter(r, a):
     return [o['anim'] & 0xFFF, o['step'], o['x'], o['y'], o['flags'] >> 1 & 1, o['ptr'], w[0x113], r['cam'][0x2A],
             o['anim'] >> 12, cap.s16(r['cam'], 0x1A), cap.u16(w, 0x48), w[0x10C] >> 3 & 1, w[0x1EB], cap.s16(r['cam'], 0x1E)]
 
+P1X = {}                                               # recipe -> P1's x during the pin (TODO #213: room behind her)
+def pokes_of(name, n):
+    """the recipe's pokes per frame: P2 (and P1, P1X) pinned for its first PIN frames, its own pokes every frame"""
+    p2x, seq, pokes = RECIPES[name][:3]
+    p1x = P1X.get(name)
+    pk = []
+    for f in range(n):
+        s = ([f'108424={p2x >> 8:02X},108425={p2x & 255:02X}'] if f < PIN else []) + \
+            ([f'108224={p1x >> 8:02X},108225={p1x & 255:02X}'] if p1x and f < PIN else []) + ([pokes] if pokes else [])
+        if s: pk.append(f'{f}:' + ','.join(s))
+    return pk
+
 def capture(name, raw=False, vram=False, keep=None):
     p2x, seq, pokes = RECIPES[name][:3]
     hold = RECIPES[name][3] if len(RECIPES[name]) > 3 else ''
     n = cap.nframes(seq)
-    pk = []
-    for f in range(n):
-        s = ([f'108424={p2x >> 8:02X},108425={p2x & 255:02X}'] if f < PIN else []) + ([pokes] if pokes else [])
-        if s: pk.append(f'{f}:' + ','.join(s))
+    pk = pokes_of(name, n)
     rows = cap.run(seq, f'{n}:{hold}' if hold else '', pokes=';'.join(pk) or None, pool=POOL, vram=vram, keep=keep, load=STATE)
     if raw: return rows                                  # (kim_effects_check.py: with VRAM / palette dumps)
     new = cap.new_objects(rows, POOL)
