@@ -130,10 +130,13 @@ extern const rt_head_t *route_tab[BC_COUNT];
                                      played with spec_id BS_FURY (a fury in every respect) */
 #define BS_FORM (BS_COUNT + 2)       /* the form link's transition (vocabulary form.change): bchar_t.form_spec, started by
                                      its trigger (FT_*), untouchable while it plays, ended by its P_FORM (fighter.c "form") */
-#define BS_AIR (BS_COUNT + 3)        /* the air special (vocabulary air special, TODO #200: game.json roster air_special):
-                                     bchar_t.air_spec, down+A in a jump plays it in the air normal's place (no meter); its
-                                     program plays from the jump and lands (Kizuna's j.2B dive; SS2 Hanzo's shuriken, TODO
-                                     #211: one projectile at a time, else the air normal); no cancels out of it */
+#define BS_AIR (BS_COUNT + 3)        /* an air special (vocabulary air.special, TODO #200 / #221: game.json roster
+                                     air_specials, bm_air[id]): a press in a jump, its button (A or C) and the stick's
+                                     slot (the ground's six C slots) as its table entry says (fighter.c air_pick); an A one
+                                     in the air normal's place (no meter), a C one a C special's meter; its program plays
+                                     from the jump and lands (Kizuna's j.2B / j.2C / j.623C / j.421C; SS2 Hanzo's shuriken,
+                                     TODO #211: one projectile at a time, else the air normal); no cancels out of it;
+                                     fighter_t.spec_ix = the entry's special (spec_ix(ch, BS_AIR) = 0xFF) */
 #define BS_DOWNATK (BS_COUNT + 4)    /* the down attack (vocabulary attack.down, TODO #218: game.json roster down_attack,
                                      bchar_t.down_spec): up / down + A on the ground with an opponent lying in reach
                                      (intent_t.lie) plays it at that opponent (fighter_t.dtgt): its program's P_HOME leaps

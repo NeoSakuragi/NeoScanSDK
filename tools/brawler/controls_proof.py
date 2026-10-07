@@ -65,6 +65,15 @@ def bpath(tree):
         if 'B' in (nd.get('links') or {}): return p, nd['links']['B']
         q += [(p + [k], c) for k, c in (nd.get('links') or {}).items() if k != 'B' and 'move' in c]
     return None, None
+AIR_DIR = {'': '', 'f': 'forward', 'd': 'down', 'u': 'up', 'df': 'down-forward', 'uf': 'up-forward'}
+AIR_KEYS = {'': '', 'f': 'R', 'd': 'D', 'u': 'U', 'df': 'DR', 'uf': 'UR'}
+def air_table(name):
+    """build/bm_chars.c {name}_air (TODO #221): {key: special index}"""
+    import re
+    src = open(os.path.join(GAME, 'build', 'bm_chars.c')).read()
+    m = re.search(r'static const uint8_t %s_air\[\] = \{([^}]*)\}' % name, src)
+    v = [int(x, 0) for x in m.group(1).split(',')] if m else [0xFF]
+    return {('', 'f', 'd', 'u', 'df', 'uf')[v[i] & 15] + ('A' if v[i] & 0x10 else 'C'): v[i + 1] for i in range(0, len(v) - 1, 2)}
 KEYS = {'A': 'a', 'cA': 'a', 'dA': 'Da', 'fA': 'Ra', 'bA': 'La', 'dfA': 'DRa'}
 
 res = {}; fury_shots = []
@@ -79,12 +88,16 @@ for ci, name in enumerate(names):
                                   ('forward far', 70, 'Ra', ['fA', 'A'])):
         settle(M['max']); setpos(dist); run(3, keys); s, mv, _ = watch(12, ('ATTACK',))
         r['normals'][pos] = {'got': mv, 'want': expect(tree, cand), 'ok': mv == expect(tree, cand)}
-    for pos, keys, ent in (('air A', 'a', 'air_a'), ('air down+A', 'Da', 'air_b'), ('air up+A', 'Ua', 'air_cd')):
+    airsp = G['roster'][ci].get('air_specials') or {}            # (TODO #221: its air special table)
+    airix = air_table(name)
+    for pos, keys, ent in (('air A', 'a', 'air_a'), ('air down+A', 'Da', 'air_b'), ('air up+A', 'Ua', 'air_cd')) + \
+            tuple((f'air {AIR_DIR[k[:-1]] or "neutral"}+C', AIR_KEYS[k[:-1]] + 'c', k) for k in airsp if k.endswith('C')):
         settle(M['max']); setpos(90); run(10, 'b'); watch(30, ('AIR',)); run(6); run(3, keys)
-        if ent == 'air_b' and G['roster'][ci].get('air_special'):   # its air special in the air normal's place (TODO #200)
-            s, _, _ = watch(10, ('SPECIAL',)); sid = b.fget(0, 'spec_id')
-            r['air'][pos] = {'got': f'{s} role {sid}', 'want': f'SPECIAL role {BS_AIR} (air special {G["roster"][ci]["air_special"]})',
-                             'ok': s == 'SPECIAL' and sid == BS_AIR}
+        key = {'air_a': 'A', 'air_b': 'dA', 'air_cd': 'uA'}.get(ent, ent)
+        if key in airsp:                                          # its air special (TODO #200 / #221): in the air normal's
+            s, _, _ = watch(10, ('SPECIAL',)); sid = b.fget(0, 'spec_id'); six = b.fget(0, 'spec_ix')   # place (A), or C's
+            r['air'][pos] = {'got': f'{s} role {sid} special {six}', 'want': f'SPECIAL role {BS_AIR} special {airix[key]} (air special {airsp[key]})',
+                             'ok': s == 'SPECIAL' and sid == BS_AIR and six == airix[key]}
             continue
         s, mv, _ = watch(10, ('AIR_ATTACK',))
         want = (tree['entries'].get(ent) or RT.default_tree()['entries'][ent])['move'].replace('_jump', '')

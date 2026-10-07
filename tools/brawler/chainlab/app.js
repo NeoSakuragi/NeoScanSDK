@@ -237,7 +237,7 @@
     const info = built && built.fi === fi ? built.info.get(l.idx) : null;
     const speed = info ? spdText(CL.speedFx(info.node)) : '?';
     if (l.special === CL.SPECIALS.length) return { speed, input: 'D', move: 'fury' };   // BS_FURY (fighter.h)
-    if (l.special === CL.SPECIALS.length + 3) return { speed, input: 'jump, ↓A', move: 'air special' };   // BS_AIR (fighter.h, TODO #200)
+    if (l.special === CL.SPECIALS.length + 3) return { speed, input: 'jump, A / C', move: 'air special' };   // BS_AIR (fighter.h, TODO #200; #221: a table, A or C + the stick)
     if (l.special !== null) return { speed, input: info ? info.path.join(' ') : 'C', move: SPECIAL_LABEL[CL.SPECIALS[l.special]] + (F[fi].specials[CL.SPECIALS[l.special]] ? ' ' + F[fi].specials[CL.SPECIALS[l.special]] : '') };
     if (!info) return { speed, input: '?', move: 'node ' + l.idx + (built ? '' : ' (press Build or "own tree" to name the nodes)') };
     return { speed, input: info.path.join(' '), move: MOVE_LABEL[info.node.move] || info.node.move };

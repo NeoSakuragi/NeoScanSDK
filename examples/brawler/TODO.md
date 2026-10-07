@@ -1666,6 +1666,17 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   KOF MAX VERSIONS STILL RECORDED (found by #216): Iori's down+D (MAX 23624C) is still the old recorded script,
   Yamazaki has no MAX; also Yamazaki 236236C lands 11 of KOF's 12 hits (the last strike also hits the held victim)
   and his swirl ends 7 frames early; Ralf AAAA's mash repeat isn't modelled. Decode from KOF98's handlers.
+- [ ] 221. AIR-SPECIAL TABLE + ROSA'S j.623C / j.421C (follow-up to #213). STEP 1 DONE ON BRANCH fix/221-air-specials
+  2026-10-07, awaiting Bruno's review: the single slot `air_special` became the table game.json roster[].air_specials
+  {slot + button: input} (keys as the ground C slots: "", f, d, u, df, uf + A or C; bchar_t.air [input, special] per
+  entry, fighter.c air_pick: an A entry in the air normal's place, no meter; a C entry at a C special's meter; a diagonal
+  without an entry plays its vertical's), Kim dA j.2B / Hanzo SS2 dA j.4123S / Rosa dA j.2C migrated unchanged (proofs
+  /data/tmp/air221: base vs new). STEP 2 OPEN: Rosa's j.623C (down+C in a jump, as 623C is down+C on the ground) and
+  j.421C (up+C, as 421C): Kizuna's handlers $39E30 (state 407 anim A3 -> A3 ended: 408 A4, FLAG_E4 -> the floor + step
+  event: neutral) and $3A192 in the air (state 419 anim AA, as 421C's program with AA: AA.5 the 0-tick floor wait);
+  both call $29164 first, which clears +$28 (y) — measure in our emulator whether she drops to the floor first. To do:
+  capture j623C_w/h + j421C_w/h (followups_kz EXTRA rosa; draft /tmp scratch cap221.py), add rosa_kz AIR programs +
+  export_kz sps, game.json "dC": "j.623C", "uC": "j.421C", rosa_proof scenarios + real-fight sheets, a scenario each.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

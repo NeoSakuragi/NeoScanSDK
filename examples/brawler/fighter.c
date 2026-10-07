@@ -114,9 +114,35 @@ static void prog_voice(const fighter_t *f, uint8_t id) {
 }
 uint8_t spec_ix(const bchar_t *ch, uint8_t role) {
     uint8_t k = role == BS_FURY_MAX ? (ch->fury_max < ch->nspec ? ch->fury_max : ch->fury) : role == BS_FURY ? ch->fury :
-                role == BS_FORM ? (ch->form_trig ? ch->form_spec : 0xFF) : role == BS_AIR ? ch->air_spec :
+                role == BS_FORM ? (ch->form_trig ? ch->form_spec : 0xFF) : role == BS_AIR ? 0xFF :   /* (the air specials: a
+                                                                    table, air_pick; start_special keeps the pick) */
                 role == BS_DOWNATK ? ch->down_spec : spec_tab[ch->id][role];
     return k < ch->nspec ? k : 0xFF;
+}
+/* the air specials (TODO #221, vocabulary air.special, game.json roster[].air_specials): bm_air[id] (bchar_t.nair entries), [input, special
+ * index] each, 0xFF ends; input = the stick's slot as the ground's six C slots read it (BS_D .. BS_UF_D: neutral,
+ * forward, down, up, down-forward, up-forward; d_input) | AIR_A when the button is A (else C). A press in a jump plays the
+ * entry of its button and the stick's slot, a diagonal without one its vertical's (down-forward -> down, up-forward ->
+ * up; down-back = down as on the ground). An A entry takes the air normal's place (no meter; not while a jump-cancel's
+ * node waits: air_node); a C entry costs a C special's meter (spend). A projectile special while the fighter's
+ * projectile flies: none (special_pick's rule; the press is then the air normal / nothing). -> the special's index in
+ * specials, 0xFF = none */
+static uint8_t d_input(const fighter_t *f, const intent_t *in);
+static uint8_t air_pick(const fighter_t *f, const intent_t *in) {
+    const uint8_t *e;
+    uint8_t d = d_input(f, in) - RI_S, v = d == BS_DF_D ? BS_DOWN_D : d == BS_UF_D ? BS_UP_D : d, k = 0xFF, q = 0;
+    for (e = bm_air[f->ch->id]; *e != 0xFF; e += 2) {
+        uint8_t a = e[0] & AIR_A, s = e[0] & 15, m = s == d ? 2 : s == v ? 1 : 0;
+        if (!(in->press & (a ? IN_A : IN_C)) || (a && f->air_node) || m <= q || e[1] >= f->ch->nspec) continue;
+        if (f->ch->specials[e[1]].proj && f->shot) continue;
+        k = e[1]; q = m;
+    }
+    return k;
+}
+static uint8_t air_button(const bchar_t *ch, uint8_t ix) {      /* the button of the air special ix (PC_HELD) */
+    const uint8_t *e;
+    for (e = bm_air[ch->id]; *e != 0xFF; e += 2) if (e[1] == ix) return e[0] & AIR_A ? IN_A : IN_C;
+    return IN_A;
 }
 /* the special playing may be cancelled ("cancels" rules 2 / 3): a special (not a form's transition), or a fury (not a
  * MAX) when the fighter has a MAX fury of its own (bchar_t.fury_max: the cancel's only target then) */
@@ -983,7 +1009,8 @@ static void special_end(fighter_t *f) {
 }
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
-    f->spec_ix = spec_ix(f->ch, k); if (k == BS_FURY_MAX) k = BS_FURY;   /* the MAX fury: the fury's role, its own special */
+    if (k != BS_AIR) f->spec_ix = spec_ix(f->ch, k);            /* (an air special: air_pick's, set by the caller) */
+    if (k == BS_FURY_MAX) k = BS_FURY;                           /* the MAX fury: the fury's role, its own special */
     f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->var = f->ch->specials[f->spec_ix].vdef;                   /* its variant row: the rule's, latched for the whole move
                                                                     (vocabulary "variants are latched at move start") */
@@ -2069,12 +2096,14 @@ static void update(fighter_t *f, const intent_t *in) {
             if (f->y <= 0) { f->y = 0; f->vy = 0; f->drop = 2; f->inv = RESPAWN_INV; enter(f, S_LAND); play(f, BA_LAND); }
             break;
         }
-        if (f->state == S_AIR && (in->press & IN_A) && !f->air_node && in->dz > 0 && spec_ix(f->ch, BS_AIR) != 0xFF &&
-            !(f->ch->specials[spec_ix(f->ch, BS_AIR)].proj && f->shot)) {   /* (one projectile at a time, as special_pick:
-                                                                    SS2's b4 bit 1, Hanzo's shuriken, TODO #211; else the air normal) */
-            lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_AIR);      /* down+A: the fighter's air special, when it has one */
-            start_special(f, BS_AIR); break;                     /* (TODO #200: Kim's j.2B dive, #211: Hanzo SS2's
-                                                                    shuriken; its program from here) */
+        if (f->state == S_AIR && (in->press & (IN_A | IN_C))) {  /* an air special (air_pick, TODO #221): A / C with the */
+            uint8_t k = air_pick(f, in);                         /* stick's slot (TODO #200: Kim's j.2B dive, #211: Hanzo */
+            if (k != 0xFF && (air_button(f->ch, k) == IN_A || spend(f, gmeter.special, 0, 0))) {   /* SS2's shuriken,
+                                                                    #213 / #221: Rosa's j.2C, j.623C, j.421C; its program
+                                                                    from here) */
+                lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_AIR);
+                f->spec_ix = k; start_special(f, BS_AIR); break;
+            }
         }
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: a jump-cancel's node, else the stick: air A (KOF's */
             uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : in->dz < 0 ? TREE(f)->air_cd : TREE(f)->air_a;
@@ -2184,7 +2213,7 @@ static void update(fighter_t *f, const intent_t *in) {
             if (fury_cancel(f)) break;                           /* the fury starts this frame */
             to_neutral(f, 0); break;                             /* (no fury / no meter: the special played on to here) */
         }
-        f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? IN_A : f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
+        f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? air_button(f->ch, f->spec_ix) : f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
         if (flash_pose(f)) break;                                /* a fury's flash pose: the freeze shows it ("flash pose") */
         special_update(f);
         if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose)

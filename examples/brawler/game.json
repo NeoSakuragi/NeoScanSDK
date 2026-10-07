@@ -233,7 +233,7 @@
    "routes": "default",
    "specials": {"D": "6321S", "fD": "623K", "dD": null, "uD": null, "dfD": null, "ufD": null},
    "fury": "WFT",
-   "air_special": "j.4123S",
+   "air_specials": {"dA": "j.4123S"},
    "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",
@@ -247,7 +247,7 @@
    "routes": "tools/brawler/routes/kim.json",
    "specials": {"D": "214B", "fD": "236C", "dD": "[2]8C", "uD": "421A", "dfD": "236A", "ufD": null},
    "fury": "6246A",
-   "air_special": "j.2B",
+   "air_specials": {"dA": "j.2B"},
    "voices": "kof",
    "unlock": "always"
   },
@@ -259,7 +259,7 @@
    "specials": {"D": "236C", "fD": "214B", "dD": "623C", "uD": "421C", "dfD": "63214C", "ufD": null},
    "fury": "6246A",
    "max": "421A",
-   "air_special": "j.2C",
+   "air_specials": {"dA": "j.2C"},
    "voices": "kof",
    "unlock": "always"
   },
