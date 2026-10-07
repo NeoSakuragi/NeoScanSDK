@@ -1198,8 +1198,21 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   haohmaru / genjuro / kuroko ok with the new checks fury_palette (rage colours every fury frame) and palette_back (the
   colour set the frame after). Scenarios 20261007-113032-b3f3 / 20261007-112936-b3f3 (verify: identical states).
 
-- [ ] 196. THROW HITCH (found by #194): every throw's victim appears one frame late at the moment the thrower can act
-  again (control return): a 6 px hitch in the flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.
+- [ ] 196. (DONE ON BRANCH fix/196-throw-hitch 2026-10-07, awaiting Bruno's review) THROW HITCH (found by #194): every
+  throw's victim appears one frame late at the moment the thrower can act again (control return): a 6 px hitch in the
+  flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.
+  Cause (traced per frame, harness): on the control-return row paired_update played the victim's rows (its pose) but
+  returned before placing it, so that frame the victim showed row `ret`'s pose at row ret-1's place, then thrown_update
+  went on from row ret+1: one frame stalled + one double step (Billy Lee 6 / 0 / 12 / 6 px, Terry 8 / 0 / 8, Geese
+  4 / 0 / 8). Fix: the control-return row places the victim too (thrown_place, now the one placement thrown_update
+  uses), then it plays on alone from it (throw_free unchanged; #204's hold path kept). Proof tools/brawler/
+  throw196_proof.py, /data/tmp/t196/out: before.json (all 6 throws HITCH, 1 misplaced frame each) / after.json (ALL OK:
+  every thrown frame at its row's place, release steps = the script's own: Billy 6 6 6 6, Terry 8 8 3 0, Geese 4 4 4 5);
+  kof98.json: KOF98 Terry's forward throw on Yuri moves 6.5 / 7 / 7.5 / 8 / 3.3 px across Terry's return (no hitch in
+  the game); throw194 brawler handover_lag [] (place mismatches 0, all 4 ok), throws166 f terry / geese / billy_lee ok
+  (billy_super D n/a: no fury, by design), hold204 ALL OK (24 fighters), controls_proof terry / geese / billy_lee ok,
+  bank_proof ALL OK, regress bleed_same / strict True, campaign29 through. Scenario todo196-throw-hitch (verify
+  identical, lint 0).
 
 - [ ] 197. (DONE ON BRANCH fix/197-fire-hit-sound 2026-10-07, awaiting Bruno's review) KOF96'S FIRE HIT SOUND
   (20261006-162034-b3f3 reopened: "find the specific sound effect of the fire ... dig into KOF96's code: there's a specific

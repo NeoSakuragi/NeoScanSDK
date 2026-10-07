@@ -576,6 +576,10 @@ static void place_at(fighter_t *v, int32_t x, int32_t y, int32_t z, int8_t face,
     v->facing = (r->flags & 1) ? face : -face;
     v->zfront = (r->flags & 2) != 0;                             /* behind the grabber unless the data says otherwise */
 }
+static void thrown_place(fighter_t *v, const bthrow_row_t *r) {   /* a thrown victim's place from the throw's origin */
+    place_at(v, v->throw_x0 + dir_mul(v->throw_face, FIX(r->tx + r->vx)), FIX(r->ty), v->z, v->throw_face, r);
+    clamp(v);
+}
 static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r, int8_t face) {   /* face: the */
     place_at(v, a->x + dir_mul(face, FIX(r->vx)), a->y, a->z, face, r);   /* thrower's facing the offsets are in */
 }
@@ -687,7 +691,10 @@ static uint8_t paired_update(fighter_t *f) {
                                                                     hit, cancellable into a special / the fury (#166 d) */
         } else if (i >= th->nrows && f->throw_id < BT_COUNT) { victim_end(v); f->held = 0; v = 0; }   /* (a hold hit: held on) */
     }
-    if (i >= th->ret) return 0;
+    if (i >= th->ret) {                                          /* the control return: the victim still in the script */
+        if (v && i < th->nrows) thrown_place(v, &th->rows[i]);   /* shows this row's place with its pose, then plays on */
+        return 0;                                                /* alone from it (throw_free); unplaced, it held last */
+    }                                                            /* row's place a frame: a hitch in its flight (#196) */
     r = &th->rows[i];
     f->frame_ovr = r->tframe;
     f->x = f->throw_x0 + dir_mul(f->throw_face, FIX(r->tx)); f->y = FIX(r->ty);
@@ -797,7 +804,6 @@ static void throw_update(fighter_t *f, const intent_t *in) {
 }
 static void thrown_update(fighter_t *v) {                        /* a thrown victim whose thrower let go */
     const bthrow_t *th = v->thr;
-    const bthrow_row_t *r;
     uint16_t j, i;
     if (!th || v->held) return;                                  /* its thrower plays it */
     if (v->thr_skip) { v->thr_skip = 0; return; }
@@ -805,9 +811,7 @@ static void thrown_update(fighter_t *v) {                        /* a thrown vic
     if (j > i) return;
     victim_rows(v, th, j, i);
     if (i >= th->nrows) { victim_end(v); return; }
-    r = &th->rows[i];
-    place_at(v, v->throw_x0 + dir_mul(v->throw_face, FIX(r->tx + r->vx)), FIX(r->ty), v->z, v->throw_face, r);
-    clamp(v);
+    thrown_place(v, &th->rows[i]);
 }
 
 /* ---- specials ------------------------------------------------------------------------------------------------------------
