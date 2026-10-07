@@ -148,6 +148,160 @@
      "caption": "Yashiro's fury, mashed: 13 hits"
     }
    ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Steer a throw after starting it",
+   "do": "Grab, press forward+B, then hold UP (or the other direction) while the throw animates: the enemy is thrown BEHIND you instead of in front (lands 160 px behind instead of 218 px ahead).",
+   "happens": "",
+   "why": "The throw reads the stick at its release frame, not at the press: holding UP flips the facing, LEFT/RIGHT set it ($1a88c).",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/quirks/throw_steer_up.png",
+     "caption": "Steer a throw after starting it"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Landing lag disappears if you hold a direction",
+   "do": "A neutral jump lands with 7 frames of recovery; holding any direction as you land skips them and you walk at once.",
+   "happens": "",
+   "why": "The landing state hands over to the walk code whenever the stick is not neutral.",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/sheets/guanyu_whiff.png",
+     "caption": "Landing lag disappears if you hold a direction"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Enemies take less damage as they get weaker",
+   "do": "The same jab does 10 to a full-life soldier, 9 at 40 life, 7 at 20, 4 at 7: the last hits on any enemy do less.",
+   "happens": "",
+   "why": "Below 64 life the victim gets a damage reduction from a small table (20/32 at life < 8), applied as if it were extra defense ($1be0).",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/quirks/lowlife_jab.png",
+     "caption": "Enemies take less damage as they get weaker"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Desperation damage for everyone",
+   "do": "At 16 life or less, attacks gain random bonus damage (jab 10 -> 10 or 11, bigger moves up to +14). Enemies with <= 16 life hit harder too.",
+   "happens": "",
+   "why": "Each attack record has two variance rows; the code picks the second one when the ATTACKER's life is <= 16 ($7eee).",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/quirks/lowlife_jab.png",
+     "caption": "Desperation damage for everyone"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "The 3-hit chain has a hole",
+   "do": "Between chain link 1 and link 2 the soldier is back in its normal state for 3 frames, so the 'combo' is not guaranteed.",
+   "happens": "",
+   "why": "Link 1's flinch ends 11 f after contact, link 2 needs 14 f to connect (buffered press + 4 f startup).",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/quirks/chain_gap.png",
+     "caption": "The 3-hit chain has a hole"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Stun meter that forgets to refresh",
+   "do": "Any 3 quick hits knock a soldier down, but hits spread out never do, and two hits just before the meter expires plus one after do not either.",
+   "happens": "",
+   "why": "The decay timer is only set by the first hit (50/60/80 f); later hits add to the meter without resetting the timer ($17b2).",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/sheets/guanyu_combo.png",
+     "caption": "Stun meter that forgets to refresh"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Specials make the game easier",
+   "do": "Every special that hits costs 6 life but also lowers the hidden difficulty rank (enemy damage and toughness).",
+   "happens": "",
+   "why": "The special code subtracts 32/256 from the rank word $FF7FA6 when it connects ($1a216).",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/sheets/guanyu_combo.png",
+     "caption": "Specials make the game easier"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Random command window",
+   "do": "The DOWN-then-UP command sometimes works with a slow UP and sometimes not.",
+   "happens": "",
+   "why": "After the DOWN charge the window for UP is drawn at random (8-15 frames, table $1F5C) on every attempt.",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/sheets/guanyu_whiff.png",
+     "caption": "Random command window"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Arrows weaken in flight",
+   "do": "Huang Zhong's arrows do 10 close up, 9 after ~8 frames of flight, 8 after ~14.",
+   "happens": "",
+   "why": "The arrow object swaps its attack record (rec $6F0 -> $700 -> $710) as it flies.",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/sheets/huangzhong_whiff.png",
+     "caption": "Arrows weaken in flight"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Command move out of a grab",
+   "do": "Charging DOWN while holding an enemy, then UP+B, drops the enemy and does the rising command attack (Wei Yan gets a different 2-hit version from a hold).",
+   "happens": "",
+   "why": "The command detector ($1f7c) runs every frame for every state, and the hold code checks it.",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/sheets/guanyu_grab.png",
+     "caption": "Command move out of a grab"
+    }
+   ]
+  },
+  {
+   "game": "Warriors of Fate (Capcom, 1992)",
+   "title": "Debug leftovers",
+   "do": "Two RAM bytes left from development: $FF6391 picks the starting round (a stage select) and $FF6393 bit 0 makes players untouchable.",
+   "happens": "",
+   "why": "Read at game start ($ae40) and in every enemy-vs-player hit loop ($8730, $91da).",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "wof/tmp/stages.png",
+     "caption": "Debug leftovers"
+    }
+   ]
   }
  ]
 }
