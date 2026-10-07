@@ -2141,7 +2141,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
         const bbox_t *atk;
         bbox_t abox;                                             /* a script row's box: in the attacker's bank, copied */
         uint8_t sounded = 0;                                     /* one hit sound per attack, however many it hits */
-        if (a->freeze || (only && a != only)) continue;
+        if (a->freeze || (only && a != only && a->owner != only)) continue;   /* (a super flash: its attacker and its
+                                                                    objects, which run through it: K''s Heat Drive shot, #202) */
         if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
             const bstep_t *sa = fighter_step(a);
             if (!(sa->flags & 1)) continue;

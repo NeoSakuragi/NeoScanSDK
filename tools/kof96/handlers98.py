@@ -1522,8 +1522,10 @@ def export_rom(m, cid, inp, add, game='kof98'):
                 follow = int(follow) | 32              # nothing: it never reads the bit (Kyo's Orochinagi flame
             elif not end:                              # $3D83E: it ends at its animation's end or when he is hit)
                 rf, _, _ = object_rows(m, cid, ob, fxoff_at=FXOFF_AT)   # its end animation, in place, when it has
-                if len(rf) > FXOFF_AT:                 # one (the release's glow $3D7E6: 243, then 244 to its end)
-                    end = [[add(r[0]), 0, 0] for r in rf[FXOFF_AT:]]; follow = int(follow) | 64
+                if len(rf) > FXOFF_AT and [r[0] for r in rf[FXOFF_AT:]] != [r[0] for r in rows[FXOFF_AT:len(rf)]]:   # one
+                    end = [[add(r[0]), 0, 0] for r in rf[FXOFF_AT:]]; follow = int(follow) | 64   # (the release's glow
+                                                       # $3D7E6: 243, then 244 to its end; one that only stops following and
+                                                       # plays on, Rugal 6426B's $7F1CC, keeps P_FXOFF's end: it ends there)
         objs.append({'child': obj_chain(m, cid, ob, add, hitkind),   # the copy it spawns of itself (Kyo's MAX flames)
                      'rows': [[add(r[0])] + r[1:6] for r in rows], 'loop': loop, 'end': end,
                      'kind': (rows[0][6] if ph and rows and rows[0][6] else ob['kind']) or 3,

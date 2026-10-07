@@ -1305,11 +1305,39 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   work). Proposal (not built): drop from the export the frames only an unpooled special shows (Rugal's Omega EX moves:
   the 40 / 42 palettes and their tiles go with them).
 
-- [ ] 202. KYO, 3 NOTES ON 0.1.8 (20261007-124338: "the flame effect disappears too fast ... in the game the flame stays a
+- [ ] 202. (DONE ON BRANCH fix/202-kyo-flames 2026-10-07, awaiting Bruno's review) KYO, 3 NOTES ON 0.1.8 (20261007-124338: "the flame effect disappears too fast ... in the game the flame stays a
   bit longer, or maybe there's another one being spawned. Check the code." — the Orochinagi release; 124409: "Here Kyo
   is missing his fire effect in his hand."; 124437: "make this move invincible" — identify the move from the replay's
   inputs): decode the flame objects' lifetimes / extra spawns and the hand-fire effect from KOF98's code; the move's
   invincibility: KOF98's own invincible frames if it has them, else make it invincible as Bruno asks (a roster flag).
+  DONE [code + meas] (tools/kof96/handlers98.md "Kyo's flames"). His replays (0.1.8 build, pull.Core): 124338 = the DM
+  Orochinagi held then released, the big flame shown 9 frames; 124409 = forward + C = 236C (states 168 / 169), no fire on
+  the fist; 124437 = up-forward + C = EX 421D (R.E.D. Kick, handler $3E0A6, frames 774-777). (1) KOF98's flame object
+  $3D83E never reads its owner's +$D1 bit 7 (it ends at its animation's end or when Kyo is hit, +$E2 bit 2): the
+  brawler's P_FXOFF at 189's end killed it; export_rom flags such pinned objects (bproj_t follow bit 32: prog_fxoff
+  leaves them), 43 frames now = KOF98 ([46, 88] / [46, 89]); the release's glow $3D7E6 plays its end animation 244 in
+  place (follow bit 64). The "other one being spawned": the MAX version chains 3 flames ($3D83E spawns itself at its
+  event step, 16 px ahead, states 199 / 200 / 201 by +$C2): bproj_t children (handlers98.obj_chain; an object's cmpi on
+  a field it knows is concrete: only Kyo's MAX changes among 210 ROM programs), and the end of the move's last hand flame
+  ($42, state 255). (2) The hand fire = the animations' $FA step effects (kinds $40 / $41 / $42 / $45-$48, a third
+  routine shape `bra $3770C` -> $36C12): STEP_FX + Kyo; 236C's fist fire 249 [17, 43] / [17, 44] at KOF's x (0.25 px);
+  step effects are objects of their own (pan_fx: never the shot, never ended by P_FXOFF); in a super flash the
+  attacker's effects born in it run and hit (KOF98's flash priority $5001; projectiles_update skip mask, combat's flash
+  filter), so the fury's charge hand fire matches KOF98 frame for frame. (3) KOF98's EX 421D has no hurt box for its
+  first 11 frames only (491, 493's first step); Bruno wants it invincible: game.json roster kyo "invincible": ["EX 421D"]
+  -> bspec_t.sflags SF_INV = INV_FURY from its first frame to its end (docs/brawler_data_model.md, vocabulary inv.move).
+  Found (engine, not changed): during a ROM special combat() reads the hurt box of the animation played before it
+  (fighter_step), not the program's step, so KOF's no-hurt-box steps do not protect (0.1.9: EX 421D hit at frames 2-9).
+  Proof /data/tmp/kyo202/out: romspecials_check kyo (10 cases x whiff / close, romspecials/): 0 frame mismatches, DM / MAX
+  / 236C / EX 421D / 214A / 421B objects all within a frame (left: EX 236A's flight end, 623C's flames 2 frames short, as
+  on 0.1.9; the MAX's third flame 2 frames late after two hits and the victim launched out of its reach: 2 hits, KOF 3);
+  frame-by-frame sheets frames_DM / frames_MAX / frames_236C (KOF98 | brawler); 0.1.9 (romspecials_base/) had 16 / 18
+  objects missing or cut in the furies and the fist fire missing; others_base / others_new (+ others_fix): 37 cases of
+  the fighters whose objects changed (deaf pinned objects, flash effects): same or better, Geese's Raging Storm objects
+  all within a frame (14 off before), K''s Heat Drive first hit 19 (KOF99 21, was 28); kyo202_proof.py inv: 4 minions
+  jabbing from move frame 0-7, 0.1.9 hit at frames 2-9, now never (INV_FURY every frame, hittable 1 frame after);
+  bruno: his own pads on this build, the flame alive 44 frames, the end hand fire 21; fury_inv / controls / cancel kyo
+  ok, bank_proof ALL OK, regress bleed_same / strict True. Scenarios 20261007-124338 / 124409 / 124437 (verify identical).
 
 - [ ] 203. SS2 DAMAGE (20261007-130138-b3f3: "The damage is fairly low on Genjuro, I think you can triple the amount of
   damage per hit."): measure each SS2 fighter's hit damage vs the brawler's scale (KOF fighters' damage per hit), set
