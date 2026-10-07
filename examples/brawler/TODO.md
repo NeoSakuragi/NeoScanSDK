@@ -1428,6 +1428,14 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   could add."): #193 left it out (no special could start in the air); #200 added air_special (a special from a jump):
   decode SS2's air fire handler and play it from a jump.
 
+- [ ] 212. NEW FIGHTER: CHENG FU from Double Dragon (Bruno, 2026-10-07), the way Billy Lee came in (tools/doubledr):
+  every normal / special / throw / fury decoded from the ROM, his select pose, win pose, voices. Same job: REMOVE
+  KUROKO from the roster "for now" (Bruno) — out of game.json's roster and the select screen; keep his data / exporter.
+
+- [ ] 213. NEW FIGHTER: ROSA from Kizuna Encounter (Bruno, 2026-10-07; extracted in #77: /data/neogeo_dict/kizuna/rosa),
+  the way Kim came in (tools/kizuna): moves from Kizuna's handlers, effects, voices, select / win pose. After the Kim
+  job (#136) leaves tools/kizuna.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
