@@ -466,7 +466,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   blue), export it through the effects library and play it; check Kim's other moves for missing effects the same way
   (kim_proof frame-identical incl. effect objects vs Kizuna's screen, not just Kim's body).
 
-- [ ] 145. Furies from non-KOF98 sources (Kim / Kizuna, Haohmaru / SS4, Hanzo / WHP, later Double Dragon) have no
+- [ ] 145. (DONE ON BRANCH fix/145-flash-pose 2026-10-07, awaiting Bruno's review; vocabulary fx.super_flash "flash pose": fighter.c flash_pose, export_bm FLASH_POSES (each exporter exports a whole source animation on request), game.json roster[].flash_pose taunt / charge / win / intro or {anim, first, last, head}, bchar_t.fpose / fhead; poses: Kim Kizuna taunt $21, Haohmaru / Genjuro / Kuroko SS2 taunt 88, Hanzo WHP win $00 (WHP has no taunt), Billy Lee DD power-up 81 steps 0-5; the freeze shows the pose, the fury starts from its first frame after it, the glow on the pose's head point. Proof /data/tmp/flash145/out (tools/brawler/flash145_proof.py, real fights): ALL OK, the 6 fighters pose frame for frame, still, no hit in the freeze, anchor = head, fury connects after the flash; Terry's trace identical to 0.0.95's; controls / cancel ok 7 fighters, fury_inv_proof (AI_OFF copy) ALL OK, bank_proof ALL OK, regress no-bleed True, scenario lint 0; scenario145.json + clip.gif: Kim's taunt under the flash, then the Phoenix hits) Furies from non-KOF98 sources (Kim / Kizuna, Haohmaru / SS4, Hanzo / WHP, later Double Dragon) have no
   built-in wind-up under the super flash, so they whiff (Bruno, 2026-10-06: e.g. Kim). First confirm the cause (the
   rush moving during the freeze, or no pre-pose before the motion). Rule: a fury whose source has its own flash pose
   (KOF98's $FA flash step) keeps it; otherwise the engine plays the fighter's "flash pose" during the freeze, by
@@ -940,6 +940,17 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   6 4 1 2 3 6 C+D: the dance twice); his throw (27); voices incl. the parody shouts. Not in the build: 6 3 2 1 4 A (the
   flag that flies out and comes back: spawn.boomerang), 61236A / 126BC (a 9th / 10th palette). Unlock in SS2: not
   traced (his vs state pokes the selected-character byte $100D0B: mkvs_kuroko.py). Frames 358 / 364 identical.
+  PROGRESS 2026-10-07 (branch fix/176-kuroko-boomerang): (a) the flag boomerang 6 3 2 1 4 A (result 50, object 27
+  $4C274 decoded + measured, tools/samsho2/boomerang_ss2.py) = the new spawn.boomerang (bproj_t kind 4, fighter.c
+  boom_update): out 8 px a frame from 107 to 220 px, 17 hover frames, back to 104 px, the catch signals Kuroko, 2 frames
+  in his hand; its pole = 2 segments 48 / 96 behind, never nearer than 64. SS2's flag hits only going out (its animation
+  holds a box-less step from its 16th frame; its first hit spends it): measured with P2 put in its return path, not hit,
+  so the brawler's does the same. (b) 1 2 6 BC (palettes 38 + 39) and 2 1 4 1 6 BC (178) exported: export_ss2.
+  pack_palettes folds palettes into others with exact colours (shared colours share pens, the rest move to free pens,
+  the folded parts' tiles copied with renumbered pens): 10 -> 8 (52 + 250, 38 + 39), no runtime palette loading. The
+  results 41 / 46 inputs were swapped in the export (61236A = 41, 214161BC = 46): fixed, game.json keeps the same move
+  on fD. Slots: D = 63214A, uD = 126BC, dfD = 214161BC (236A, 2363214A, 214A stay in the pool for the Lab). Proof
+  /data/tmp/kuroko176/out (kuroko176.json + sheets, ss2proof frames 398 / 404, controls, cancel, regress no-bleed).
 
 - [x] 177. (done 2026-10-06: (a) make_site.py read a voice use's 'states' on the new 'prog' uses (#163): they name their input like a special; deploy_vps.sh rebuilds the wasm when any Geolith source is newer (one geo_m68k.c, desktop = Lab P2 latch); Lab live 0.0.78: Geese (bank 1) vs Kyo (bank 0) and back, every tab loads, note 20261006-155636-b3f3 on its 0.0.71 build replays byte-identical. (b) GCC 15 store merging joined byte stores at odd offsets into word / long moves (clr.w 97(a2): chain_t + spec_buf; lab+9 long) even with -m68000 -mstrict-align: -fno-store-merging in the brawler + SDK Makefiles; odd-access check core (/data/tmp/align177): 822 -> 0 over controls_proof, 637 -> 0 over campaign29 (log identical to the unfixed build's), 0 over regress + cancel_proof; regress no-bleed True, cancel_proof all 21 ok) (found by #174) (a) the Lab deploy is broken since #163's merge: tools/brawler/chainlab/make_site.py
   KeyError 'states' — fix and redeploy the Lab with 0.0.77+; (b) the game does unaligned word writes into `in[]`

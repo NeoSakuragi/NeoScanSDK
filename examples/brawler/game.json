@@ -197,7 +197,7 @@
    "bank": "samsho2:kuroko",
    "watch": {"frame": 0, "step": 0},
    "routes": "default",
-   "specials": {"D": "236A", "fD": "214161BC", "dD": "6ABC", "uD": "2363214A", "dfD": "214A", "ufD": "CCCCC"},
+   "specials": {"D": "63214A", "fD": "61236A", "dD": "6ABC", "uD": "126BC", "dfD": "214161BC", "ufD": "CCCCC"},
    "fury": "RAGE",
    "unlock": "always",
    "voices": "kof"

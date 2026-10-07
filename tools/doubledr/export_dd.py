@@ -533,6 +533,8 @@ def export(names, outdir, only=None, extra=None):
             st = dd.steps(ch, w[0])[1]; k = w[1] if w[1] >= 0 else len(st) - 1
             anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': [{'frame': B.frame(st[k]['def_']), 'ticks': 0, 'flags': 0, 'dx': 0, 'boxes': {}}]}
         if only is not None: anims = {k: v for k, v in anims.items() if k in only}
+        for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, ch, a, f, l, moving=False)}
         sps = [special(B, ch, inp, an, kn, form=inp == 'FORM') for inp, (an, kn) in SPECIALS[ch].items()]
         def colours(key, s):
             slot = BODY[ch][s] if key == 'body' else FORM_PAL[ch][s] if key == 'form' else key

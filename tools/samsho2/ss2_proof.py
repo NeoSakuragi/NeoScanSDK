@@ -137,7 +137,13 @@ def main():
         ch = CHAR[name]; k = bcs.index('BC_' + name.upper())
         ex = json.load(open(os.path.join(GAME, 'build', f'tmp_samsho2_{name}', 'kof95_export.json')))['characters'][name]
         used = sorted({p.get('pal', 0) for fr in ex['frames'] for p in fr['parts']})
-        palmap = [int(ex['modes']['palettes'][u]) for u in used]
+        palmap = [int(ex['modes']['palettes'][u].split('+')[0]) for u in used]   # (a packed palette: its host's number)
+        def packed(img):                              # SS2's pens of a folded palette as the pack renumbered them
+            for ka, kb, m in ex.get('ss2_packed', []):    # (export_ss2.pack_palettes: kb's pen q -> ka's pen m[q])
+                out = img.copy()
+                for q, r in m.items(): out[img == kb * 16 + int(q)] = ka * 16 + r
+                img = out
+            return img
         b.pick(k)
         lab_req(b, 1, k, 0); b.run(60)
         assert b.char_of(0) == k, f'P1 is not {name} in the lab'
@@ -153,7 +159,7 @@ def main():
                 for _ in range(2):
                     b.fset(0, 'facing', facing & 0xFF); b.fset(0, 'frame_ovr', fi); b.fset(0, 'shown_frame', 0xFFFF); b.run(1)
                 got = crop_nz(unwrap(block_image(b, vram, crom, palmap)))
-                ref = ref_frame(ch, fr); ref = crop_nz(ref if facing > 0 else ref[:, ::-1])
+                ref = packed(ref_frame(ch, fr)); ref = crop_nz(ref if facing > 0 else ref[:, ::-1])
                 if got.shape == ref.shape and (got == ref).all(): res['same'] += 1
                 else:
                     res['differ'] += 1

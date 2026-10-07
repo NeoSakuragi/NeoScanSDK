@@ -404,7 +404,9 @@ static void sparks_draw(void) {
  * superflash.h) plays at the anchor, following the attacker: the glow behind everything (sprites 1-10, its palette
  * cycled), the rays in front of the fighters (sprites 348-363), blue for a fury, orange for its MAX version (the
  * fighter's bchar_t.fury_max: KOF98 effect ids $38 + $3C / $3E + $5A). The anchor: the special's own (bspec_t.sf_anchor:
- * read from its KOF animation's $FA command), else gflash.dx / dy. The concentration's frames start a frame after the
+ * read from its KOF animation's $FA command), else gflash.dx / dy; a fighter with a flash pose (bchar_t.nfpose, TODO
+ * #145: a fury from a source without a flash step; fighter.c "flash pose" shows it through the freeze, the fury after)
+ * has the glow on the pose's head point (bchar_t.fhead). The concentration's frames start a frame after the
  * dark stage: in KOF98's pictures the white backdrop shows with the fury's first pose and its effect sprites a frame
  * after; the brawler's pictures lag both the same (tools/brawler/superflash_proof.py: the same pictures at the same
  * fury frames as KOF98, start 1). ---- */
@@ -424,7 +426,8 @@ void super_flash(fighter_t *f) {
     if (mode != 1) return;
     sf_who = f; sf_flash_t = 0; sf_glow_on = 0; sf_ray = 0xFF;
     sf_col = f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max;   /* MAX: orange */
-    if (sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
+    if (f->ch->nfpose) { sf_dx = f->ch->fhead[0]; sf_dy = f->ch->fhead[1]; }   /* a flash pose (TODO #145): its head */
+    else if (sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
     PAL_setPalette(SF_RAYS_PAL, sf_ray_pal[sf_col]);
     snd_sfx(sf_col ? gflash.sound_max : gflash.sound);      /* a fury: KOF98's charge sound ($370F0 -> $3906E: index
                                                                 $99 = $1A $3A, DM and SDM alike); a MAX: KOF2000's

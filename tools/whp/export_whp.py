@@ -809,7 +809,9 @@ def export(names, outdir, only=None, extra=None):
             throws[THROW_KEYS[t['dir']]] = th; anims[THROW_KEYS[t['dir']]] = an
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
         if only is not None: anims = {k: v for k, v in anims.items() if k in only or k in throws}
-        for mv, (a, k) in (extra or {}).get(name, {}).items():   # held poses (export96's extra): the roster's watch, the
+        for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, a, f, l, cid)}
+        for mv, (a, k) in ((mv, v) for mv, v in (extra or {}).get(name, {}).items() if mv != 'anims'):   # held poses (export96's extra): the roster's watch, the
             st = drawn_steps(cid, a); k = k if k >= 0 else len(st) - 1   # lab's pose candidates: (animation, step; -1 = its last)
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': [step(B, st[k]['defw'], st[k]['ticks'])]}
         sps, sp_inv = [], []

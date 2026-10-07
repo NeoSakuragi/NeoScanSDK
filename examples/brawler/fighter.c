@@ -831,10 +831,20 @@ static void special_input(fighter_t *f, const intent_t *in) {    /* a press duri
 fighter_t projectiles[NPJ];
 uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;
 
+enum { PK_BOOM = 4, PK_SEG = 5 };    /* bproj_t kind: spawn.boomerang (TODO #176) and its pole segments (boom_update) */
+enum { BM_OUT, BM_HOVER, BM_BACK, BM_HELD };   /* a boomerang's phase (its fighter_t pstep; pcnt its count, vx its velocity) */
 void projectile_reset(fighter_t *p) {
     if (p->owner && p->owner->shot == p) p->owner->shot = 0;   /* KOF: the thrower may throw again (+$E1 bit 5 off) */
-    if (p->owner && p->pdef) {                                   /* its end signals its thrower (bproj_t sig, TODO #139) */
-        p->owner->pflags |= p->pdef->sig & (PF_SIG7 | PF_SIG6);
+    if (p->pdef && p->pdef->kind == PK_BOOM) {                   /* a boomerang: its pole segments end with it */
+        uint8_t k;
+        for (k = 0; k < 2; k++) {                                /* (still its own: not reset and taken since) */
+            fighter_t *s = p->proj[k];
+            p->proj[k] = 0;
+            if (s && s->state == S_PROJ && s->pdef == p->pdef->child) projectile_reset(s);
+        }
+    }
+    if (p->owner && p->pdef) {                                   /* its end signals its thrower (bproj_t sig, TODO #139; */
+        if (p->pdef->kind != PK_BOOM) p->owner->pflags |= p->pdef->sig & (PF_SIG7 | PF_SIG6);   /* a boomerang: at its catch) */
         if (p->owner->proj[0] == p) p->owner->proj[0] = 0;       /* a pinned effect that ended itself */
         if (p->owner->proj[1] == p) p->owner->proj[1] = 0;
     }
@@ -874,6 +884,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
                                                                     to its end (special_end, fighter_update) */
     f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = 0;   /* its first part, no follow-up armed, no hit */
     f->scancel = 0; f->fury_buf = 0;                             /* nothing landed yet: no fury cancel ("cancels") */
+    f->fpose = 0;                                                /* a fury's flash pose: not yet ("flash pose") */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
@@ -909,6 +920,64 @@ static void proj_row(fighter_t *p) {                            /* its rows: its
     if (d->follow && p->owner) p->y += pin_of(p)->y;             /* pinned to its thrower (Burn Knuckle's flame) */
     BANK_set(ob);
 }
+/* spawn.boomerang (TODO #176; SS2 Kuroko's flag, object 27 $4C274, measured: tools/samsho2/boomerang_ss2.py): its pole
+ * segments (SS2's effect objects 40, $4EC50) gap, 2 gap.. px behind it on its line, never nearer its thrower than
+ * bsegmin px: placed by it every frame, after its move */
+static void boom_segs(fighter_t *p) {
+    const bproj_t *d = p->pdef;
+    uint8_t k;
+    for (k = 0; k < 2; k++) {
+        fighter_t *s = p->proj[k];
+        int32_t x, lo;
+        if (!s) continue;
+        x = p->x - dir_mul(p->facing, FIX((int16_t)d->bgap * (k + 1)));
+        lo = p->owner->x + dir_mul(p->facing, FIX(d->bsegmin));
+        if (dir_mul(p->facing, x - lo) < 0) x = lo;
+        s->throw_x0 = x; s->facing = p->facing; s->z = p->z;
+        proj_row(s);
+    }
+}
+static void boom_start(fighter_t *p) {                           /* placed spawn_x px ahead of its thrower, flying out */
+    const bproj_t *d = p->pdef;                                  /* at wrap_x (1/8 px) a frame; bseg pole segments */
+    uint8_t k;
+    p->throw_x0 += dir_mul(p->facing, FIX(d->spawn_x)); proj_row(p);
+    p->vx = dir_mul(p->facing, (int32_t)d->wrap_x << 13); p->pstep = BM_OUT; p->pcnt = d->bhover;
+    for (k = 0; k < 2; k++) {
+        fighter_t *s = k < d->bseg && d->child ? proj_alloc(p->owner) : 0;
+        p->proj[k] = s;
+        if (!s) continue;
+        s->pdef = d->child; s->prow = 0; s->pend = 2; s->facing = p->facing; s->z = p->z; s->tick = 1;
+    }
+    boom_segs(p);
+}
+/* one frame of a boomerang (SS2's routines $4C2F8 / $4C358 / $4C398 / $4C410, their tests on its next place |x + vx - his
+ * x|): out until brange px from its thrower (placed there), hover its count, back at the same speed until bcatch px from
+ * him (placed there: the catch, its signal sent), bheld more frames in his hand; its rows play on (their last held) */
+static void boom_update(fighter_t *p) {
+    const bproj_t *d = p->pdef;
+    int32_t nx = p->x + p->vx, dist = nx - p->owner->x;
+    if (dist < 0) dist = -dist;
+    switch (p->pstep) {
+    case BM_OUT:
+        if (dist >= FIX(d->brange)) { p->x = p->owner->x + dir_mul(p->facing, FIX(d->brange)); p->vx = 0; p->pstep = BM_HOVER; }
+        else p->x = nx;
+        break;
+    case BM_HOVER:                                               /* (its count: decremented, < 0 = back, moving that frame) */
+        if (--p->pcnt < 0) { p->vx = dir_mul(p->facing, -((int32_t)d->wrap_x << 13)); p->x += p->vx; p->pstep = BM_BACK; }
+        break;
+    case BM_BACK:
+        if (dist <= FIX(d->bcatch)) {
+            p->x = p->owner->x + dir_mul(p->facing, FIX(d->bcatch)); p->vx = 0; p->pstep = BM_HELD; p->pcnt = d->bheld;
+            p->owner->pflags |= d->sig & (PF_SIG7 | PF_SIG6);    /* caught: its thrower goes on (SS2: his +$D4) */
+        } else p->x = nx;
+        break;
+    default:
+        if (--p->pcnt < 0) { projectile_reset(p); return; }
+    }
+    if (++p->prow >= d->nrows) p->prow = d->loop == 0xFF ? d->nrows - 1 : d->loop;
+    p->throw_x0 = p->x; proj_row(p);
+    boom_segs(p);
+}
 static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int8_t facing, int32_t z) {
     fighter_t *p;
     if (!d->nrows) { if (owner) owner->pflags |= d->sig & (PF_SIG7 | PF_SIG6); return 0; }   /* no rows (Mr. Big's
@@ -924,6 +993,7 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
                                                                     the fighters' advances it from the next); state_t:
                                                                     its frames alive; node: the next frame its child is born */
     proj_row(p);
+    if (d->kind == PK_BOOM) boom_start(p);
     return p;
 }
 static void proj_spawn(fighter_t *f, const bproj_t *d) {         /* spawn point: the script's origin + offset */
@@ -933,6 +1003,11 @@ static void proj_spawn(fighter_t *f, const bproj_t *d) {         /* spawn point:
 static void proj_launch(fighter_t *p);
 static void proj_hit(fighter_t *p) {                             /* its hit landed (a fighter or a clash) */
     if (p->owner) p->owner->pflags |= (p->pdef->sig << 2) & (PF_SIG7 | PF_SIG6);   /* its hit signals its thrower */
+    if (p->pdef->kind == PK_BOOM) {                              /* a boomerang stops where it hit, its attack spent; */
+        p->vx = 0; p->pend = 2; p->spec_atk = 0; p->pown = 0;    /* it hovers the count it has left, then flies back */
+        if (p->pstep == BM_OUT) p->pstep = BM_HOVER;             /* (SS2 $4C47E / $4C440 -> $4C358) */
+        return;
+    }
     if (p->pdef->hitnext && p->pdef->next) {                     /* its next phase at its hit (Rugal's Kaiser Wave: the */
         uint8_t m = p->hit_mask, st = p->pdef->stop;             /* list's next state, TODO #173): from where it is, */
         proj_launch(p);                                          /* frozen its hit-stop, then re-armed (proj_update) */
@@ -958,7 +1033,7 @@ static void proj_crowd(fighter_t *p) {                          /* an eruption's
 static void proj_child(fighter_t *p) {                           /* its trail: an object it spawns where it is */
     const bproj_t *d = p->pdef;                                  /* (its rows hold their own height) */
     uint8_t i, nfree = 0;
-    if (!d->child || p->pend || p->state_t != p->node) return;
+    if (!d->child || p->pend || p->state_t != p->node || d->kind == PK_BOOM) return;   /* (a boomerang's child: its segments) */
     for (i = 0; i < NPJ; i++) nfree += projectiles[i].state == S_OFF;
     if (nfree < 2) { p->node = p->state_t < d->child_b1 && d->child_b1 != 255 ? d->child_b1 : p->node + d->child_period; return; }
                                                                  /* a trail never takes the last free entity (a thrown
@@ -977,6 +1052,7 @@ static void proj_launch(fighter_t *p) {                          /* its next pha
 static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of an entity (its bank mapped) */
     const bproj_t *d = p->pdef;
     int16_t sx;
+    if (d->kind == PK_SEG) return;                               /* a boomerang's pole segment: placed by it */
     if (!p->tick) {                                              /* its first frame: row 0; a step effect takes its */
         p->tick = 1;                                             /* owner's animation and step as they are now, after */
         if ((d->follow & 8) && p->owner) { p->fx_pan = p->owner->pan; p->fx_step = p->owner->pstep; }   /* the owner's code
@@ -989,6 +1065,7 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
         if (d->kind == 1) p->hit_mask = 0;                       /* again then (object.phase; an eruption waits for */
     }                                                            /* a re-arming row) */
     p->state_t++;
+    if (d->kind == PK_BOOM) { boom_update(p); return; }          /* (no off-screen end: it comes back) */
     if (p->pend == 4) p->pend = 5;                               /* its thrower's signal: one more pinned frame (KOF */
     else if (p->pend == 5) { proj_launch(p); proj_child(p); return; }   /* runs the object before its thrower), */
     if (p->pend == 1) {                                          /* then its next phase */
@@ -1241,7 +1318,8 @@ static void prog_spawn(fighter_t *f, const bproj_t *d) {
     fighter_t *p = proj_start(f, d, f->x, f->facing, f->z);      /* rows: from the thrower's place now */
     if (!p) return;
     if (d->follow & 8) return;                                   /* a step effect: it ends itself (proj_update) */
-    if (d->follow) { if (!f->proj[0]) f->proj[0] = p; else if (!f->proj[1]) f->proj[1] = p; }
+    if (d->follow || d->kind == PK_BOOM) { if (!f->proj[0]) f->proj[0] = p; else if (!f->proj[1]) f->proj[1] = p; }   /* (a
+                                                                    boomerang ends with the special: SS2 $4C434) */
     else f->shot = p;
 }
 static void prog_end(fighter_t *f) {
@@ -1471,6 +1549,31 @@ static void special_update(fighter_t *f) {
     }
 }
 
+/* ---- the flash pose (TODO #145, vocabulary fx.super_flash "flash pose") -----------------------------------------------
+ * A fury whose source game has no flash step of its own (bchar_t.nfpose: Kizuna, SS2, WHP, Double Dragon; KOF's furies
+ * start with their $FA flash step and play under the flash as before) shows the fighter's flash pose for the whole
+ * freeze: the super flash starts on the fury's frame gflash.start, the pose's steps (export_bm fpose_steps: its taunt /
+ * charge / win animation cut to gflash.freeze frames) show one by one, nothing of the fury runs; on the first frame
+ * after the freeze the fury starts from its first frame (state_t gflash.start again, as it had under the flash) with
+ * the world moving. Returns 1 while the pose shows (special_update waits). */
+static uint8_t flash_pose(fighter_t *f) {
+    const bchar_t *ch = f->ch;
+    uint8_t k, i, at;
+    if (f->spec_id != BS_FURY || !ch->nfpose || f->fpose == 0xFF) return 0;
+    if (!f->fpose) {
+        if (f->state_t != gflash.start) return 0;
+        super_flash(f); f->fpose = 1; f->vx = f->vy = f->vz = 0;
+    }
+    k = f->fpose - 1;
+    if (k >= gflash.freeze) {                                    /* the freeze is over: the fury from its first frame */
+        f->fpose = 0xFF; f->frame_ovr = 0xFFFF; f->state_t = gflash.start;
+        return 0;
+    }
+    for (i = 0, at = 0; i + 1 < ch->nfpose && k >= at + ch->fpose[i].n; i++) at += ch->fpose[i].n;
+    f->frame_ovr = ch->fpose[i].frame; f->fpose++;
+    return 1;
+}
+
 /* ---- state machine --------------------------------------------------------------------------------------------- */
 static void update(fighter_t *f, const intent_t *in);
 void fighter_update(fighter_t *f, const intent_t *in) {         /* its bank mapped (fighter.h "banks"): its special's */
@@ -1688,8 +1791,9 @@ static void update(fighter_t *f, const intent_t *in) {
             to_neutral(f, 0); break;                             /* (no fury / no meter: the special played on to here) */
         }
         f->pheld = in && (in->hold & (f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
+        if (flash_pose(f)) break;                                /* a fury's flash pose: the freeze shows it ("flash pose") */
         special_update(f);
-        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start)
+        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose)
             super_flash(f);                                      /* every fury, MAX or not (fx.super_flash, game.json
                                                                     super_flash: state_t 1 = its first frame) */
         break;
@@ -1985,7 +2089,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                 }
                 spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big */
                 if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */
-                    if (a->pdef->kind == 1) { proj_hit(a); break; }   /* fireball); any other (an eruption) hits every */
+                    if (a->pdef->kind == 1 || a->pdef->kind == PK_BOOM) { proj_hit(a); break; }   /* fireball, a boomerang); any other (an eruption) hits every */
                     proj_crowd(a);                                /* target it touches, each once (hit_mask): crowd */
                 }
             }

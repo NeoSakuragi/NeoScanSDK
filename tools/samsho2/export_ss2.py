@@ -235,12 +235,136 @@ def physics(ch):
     return {'walk_fwd': walk, 'walk_back': back, 'jump_vy0': vy0, 'gravity': g, 'jump_dx': jdx, 'prejump': 2}
 
 def colours(B, ch):
-    """the colour sets: per set every palette key of the frames (16 colours, pen 0 transparent)"""
+    """the colour sets: per set every palette key of the frames (16 colours, pen 0 transparent); a packed palette
+    (pack_palettes) with the pens it took from the palettes folded into it"""
     sets = []
     for s in range(COLOURS):
         body = ss2.fighter_palettes(ch, s)
-        sets.append([[0] + (body[p - 16] if 16 <= p < 24 else fixed_palette(p))[1:] for p in B.pals])
+        row = []
+        for p in B.pals:
+            c = [0] + (body[p - 16] if 16 <= p < 24 else fixed_palette(p))[1:]
+            for q, col in getattr(B, 'packed', {}).get(p, {}).items(): c[q] = col[s]
+            row.append(c)
+        sets.append(row)
     return sets
+
+# ---- the palette budget (TODO #176 follow-up) --------------------------------------------------------------------------
+# The brawler reserves MAX_PALS palettes per fighter (fighter.h: 16 + slot * 8). SS2 draws Kuroko's moves with 10: his
+# colour set (16) and 9 of the game's fixed effect palettes, most of them using a few pens. pack_palettes folds the
+# smallest into others until 8 remain, with the exact colours: a pen of the folded palette whose colour (in every colour
+# set) the host already has maps to that pen, any other goes to a pen the host leaves unused; the folded palette's tiles
+# are copied with their pens renumbered (a pen = the 4 bitplanes of a pixel: .neo bytes bp0 bp2 bp1 bp3). Nothing at
+# run time: every frame shows the colours SS2 shows (proof: pack_check).
+MAX_PALS = 8
+
+def tile_pens(raw):
+    """the pens of a 128-byte .neo C tile, pixel by pixel (32 groups of 4 bytes x 8 pixels; the bytes hold pen bits
+    0, 2, 1, 3: neo2.tile)"""
+    out = []
+    for g in range(0, 128, 4):
+        b0, b2, b1, b3 = raw[g:g + 4]
+        out += [(b0 >> i & 1) | (b1 >> i & 1) << 1 | (b2 >> i & 1) << 2 | (b3 >> i & 1) << 3 for i in range(8)]
+    return out
+
+def tile_recolour(raw, m):
+    """the tile with pen q drawn as pen m[q] (pens not in m unchanged)"""
+    pens = tile_pens(raw); out = bytearray(128)
+    for g in range(32):
+        for i in range(8):
+            q = pens[g * 8 + i]; q = m.get(q, q)
+            out[g * 4] |= (q & 1) << i; out[g * 4 + 1] |= (q >> 2 & 1) << i
+            out[g * 4 + 2] |= (q >> 1 & 1) << i; out[g * 4 + 3] |= (q >> 3 & 1) << i
+    return bytes(out)
+
+def pack_palettes(B, ch, limit=MAX_PALS):
+    """fold palettes until B.pals has at most `limit` (see above): -> [(host key, folded key, pen map)]"""
+    B.packed = getattr(B, 'packed', {})
+    def pens_of():
+        use = {}
+        for fr in B.frames:
+            for pt in fr['parts']:
+                u = use.setdefault(pt['pal'], set())
+                for col in pt['tiles']:
+                    for t in col:
+                        if t: u.update(q for q in tile_pens(B.tiles[t - TILE_BASE]) if q)
+        return use
+    done = []
+    while len(B.pals) > limit:
+        use = pens_of(); cols = colours(B, ch)
+        colour = lambda i, q: tuple(cols[s][i][q] for s in range(COLOURS))
+        best = None
+        for a in range(len(B.pals)):
+            for b in range(1, len(B.pals)):
+                if a == b: continue
+                taken = {q: colour(a, q) for q in use.get(a, ())}
+                m = {}; ok = True
+                for q in sorted(use.get(b, ())):
+                    c = colour(b, q)
+                    same = next((r for r, cr in taken.items() if cr == c), None)
+                    if same is not None: m[q] = same; continue
+                    if q not in taken: m[q] = q; taken[q] = c; continue
+                    free = next((r for r in range(1, 16) if r not in taken), None)
+                    if free is None: ok = False; break
+                    m[q] = free; taken[free] = c
+                if not ok: continue
+                moved = sum(1 for q, r in m.items() if q != r)
+                cost = (moved, len(taken), -b)
+                if best is None or cost < best[0]: best = (cost, a, b, m, taken)
+        assert best, f'{ch}: no palette folds into another ({[B.pals[i] for i in range(len(B.pals))]})'
+        _, a, b, m, taken = best
+        ka, kb = B.pals[a], B.pals[b]
+        B.packed.setdefault(ka, {})
+        for q, r in m.items(): B.packed[ka][r] = colour(b, q)
+        cache = {}
+        for fr in B.frames:
+            for pt in fr['parts']:
+                if pt['pal'] != b: continue
+                if any(q != r for q, r in m.items()):
+                    def re(t):
+                        if not t: return 0
+                        if t not in cache:
+                            cache[t] = TILE_BASE + len(B.tiles); B.tiles.append(tile_recolour(B.tiles[t - TILE_BASE], m))
+                        return cache[t]
+                    pt['tiles'] = [[re(t) for t in col] for col in pt['tiles']]
+                pt['pal'] = a
+        for fr in B.frames:
+            for pt in fr['parts']:
+                if pt['pal'] > b: pt['pal'] -= 1
+        del B.pals[b]
+        done.append((ka, kb, m))
+    return done
+
+def render_frame(B, sets, fr, s=0):
+    """a frame's parts as {(x, y): colour} (colour set s; later parts on top)"""
+    img = {}
+    for pt in fr['parts']:
+        for ci, col in enumerate(pt['tiles']):
+            for ri, t in enumerate(col):
+                if not t: continue
+                pens = tile_pens(B.tiles[t - TILE_BASE])
+                for r in range(16):
+                    for c in range(16):
+                        q = pens[(1 if c < 8 else 0) * 128 + r * 8 + c % 8]
+                        if q: img[(pt['dx'] + 16 * ci + c, pt['dy'] + 16 * ri + r)] = sets[s][pt['pal']][q]
+    return img
+
+def pack_check(name):
+    """every frame of a fighter's export with its palettes packed vs unpacked, pixel colours in every colour set ->
+    (frames, frames identical)"""
+    import handlers_ss2 as H
+    res = []
+    for lim in (99, MAX_PALS):
+        ch = CAST[name]; B = Builder(ch)
+        for mv, (a, f, l) in {**MOVES, **jump_moves(ch)}.items(): anim_steps(B, ch, a, f, l)
+        H.specials(B, ch, name); H.throws(B, ch, name)
+        pack_palettes(B, ch, lim); res.append((B, colours(B, ch)))
+    (B0, s0), (B1, s1) = res
+    assert len(B0.frames) == len(B1.frames)
+    for (code, hf, vf), t in B0.tile_map.items():     # the pen decoder = neo2's (the study's, = SS2's VRAM)
+        assert sorted(tile_pens(B0.tiles[t - TILE_BASE])) == sorted(N.tile(code).flatten().tolist()), code
+    same = sum(all(render_frame(B0, s0, f0, s) == render_frame(B1, s1, f1, s) for s in range(COLOURS))
+               for f0, f1 in zip(B0.frames, B1.frames))
+    return len(B0.frames), same, len(B0.pals), len(B1.pals)
 
 def export(names, outdir, only=None, extra=None):
     import handlers_ss2 as H
@@ -258,14 +382,18 @@ def export(names, outdir, only=None, extra=None):
             st = ss2.parse_anim(ch, w[0], 400); k = w[1] if w[1] >= 0 else len(st) - 1
             anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': anim_steps(B, ch, w[0], k, k)}
         if only is not None: anims = {k: v for k, v in anims.items() if k in only or k == 'watch'}
+        for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, ch, a, f, l)}
         sps = H.specials(B, ch, name)
         throws = H.throws(B, ch, name)
         for t, th in throws.items(): anims[t] = th.pop('anim')
+        packed = pack_palettes(B, ch)
         sets = colours(B, ch)
         out['characters'][name] = {'id': ch, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0], 'physics': physics(ch),
                                    'throws': throws, 'specials': sps,
-                                   'modes': {'sets': ['A', 'B'], 'palettes': [str(p) for p in B.pals]}}
+                                   'modes': {'sets': ['A', 'B'], 'palettes': [str(p) + ''.join(f'+{kb}' for ka, kb, _ in packed if ka == p) for p in B.pals]},
+                                   'ss2_packed': [[ka, kb, {str(q): r for q, r in m.items()}] for ka, kb, m in packed]}
     out['tiles'] = len(allt)
     os.makedirs(outdir, exist_ok=True)
     region = bytearray(128 * TILE_BASE) + b''.join(allt)
