@@ -42,7 +42,9 @@ FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   
               ('k_dash', 'fA'): [(-2, 2, 'R'), (0, 6, 'Rb')], ('k_dash', 'fAB'): [(-2, 2, 'R'), (0, 6, 'Rd')]}
 FOLLOW_PAD = {'fA': ('Ra', 0), 'fAB': ('Rc', 0)}        # the brawler's pad keys, the frames its intent waits (0: no chord)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
-EVERY = 4
+EVERY = int(os.environ.get('EVERY', 4))             # the sheets: every EVERY-th frame from SHEET_FROM, at most NSHOT
+SHEET_FROM = int(os.environ.get('SHEET_FROM', 0))   # (TODO #202: frame by frame over a window, EVERY=1 SHEET_FROM=40)
+NSHOT = int(os.environ.get('NSHOT', 30))
 DIST = {'close': 48, 'mid': 112, 'wall': 48}             # wall: KOF's P1 as far from its wall (x 736) as the brawler's from
 #                                                          its own (TODO #173: a catch that grinds to the wall)                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
 BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
@@ -88,11 +90,11 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
                 # (pf None: pressed in its hit-stop, Iori 623D's latch)
                 if fpress.get(j, 0) > 0: b.pad = [set(mir(fk)), set()]; fpress[j] -= 1
         st = b.states[b.fget(0, 'state')]
-        want = started is not None and (len(rows) % EVERY == 0)
+        want = started is not None and len(rows) >= SHEET_FROM and ((len(rows) - SHEET_FROM) % EVERY == 0)
         path = None
         if started is None:                              # row 0's picture (its frame is known only after it)
             path = os.path.join(shots, 'b_000.png'); b.screenshot(path)
-        elif want and len(rows) // EVERY < 30:
+        elif want and (len(rows) - SHEET_FROM) // EVERY < NSHOT:
             path = os.path.join(shots, f'b_{len(rows):03d}.png'); b.screenshot(path)
         else: b.core.retro_run(); b.frame += 1
         st = b.states[b.fget(0, 'state')]
@@ -221,7 +223,7 @@ def main(game, out, cases):
                 game_rows = [{'f': r[0], 'state': r[1], 'frame': r[2], 'x': r[3], 'h': r[4]} for r in model]
                 res = dict(res, frames_game=len(model) - 1, hit_frames=[], frozen_dropped=0, slowdown_dropped=0, objects_game=[])
             # KOF screenshots at the kept frames (every EVERY-th of the move after the dropped ones)
-            want = [game_rows[i]['f'] for i in range(0, res['frames_game'], EVERY)][:30]
+            want = [game_rows[i]['f'] for i in range(SHEET_FROM, res['frames_game'], EVERY)][:NSHOT]
             K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), 400 if dm else 200, snaps=[K.START + f for f in want], snapdir=shots, game=kg, dm=dm, sdm=sdm, hold=hold,
                     p2_seq=K.follow_spec(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), kg, [(t, ev) for t, ev, mk in kfol]) if kfol else '')
             # the opponent as far ahead as KOF's was when the special started (a charge move walked P1 back first)
@@ -276,10 +278,10 @@ def main(game, out, cases):
                 s['victim'] = [(i, br[i]['vx'], br[i]['vh'], vg[i][0], vg[i][1]) for i in range(vend)]
             summary.append(s); json.dump(summary, open(os.path.join(out, 'summary.json'), 'w'), indent=1); print(json.dumps({k: v for k, v in s.items() if k != 'victim'}), flush=True)
             pairs = []
-            for i in range(0, min(len(br), res['frames_game']), EVERY):
+            for i in range(SHEET_FROM, min(len(br), res['frames_game']), EVERY):
                 kp = os.path.join(shots, f'snap_{K.START + game_rows[i]["f"]}.ppm')
                 pairs.append((i, kp, br[i]['shot']))
-            sheet(pairs[:30], os.path.join(out, tag + '.png'), f'{name} {inp} ({role}) {branch}: KOF98 (our emulator, freezes dropped) | brawler (ROM program)')
+            sheet(pairs[:NSHOT], os.path.join(out, tag + '.png'), f'{name} {inp} ({role}) {branch}: KOF98 (our emulator, freezes dropped) | brawler (ROM program)')
     json.dump(summary, open(os.path.join(out, 'summary.json'), 'w'), indent=1)
 
 if __name__ == '__main__':

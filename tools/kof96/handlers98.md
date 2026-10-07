@@ -344,6 +344,25 @@ KOF98 vs model (`romspecials98.compare(0, '21426C', ..., dm=True, hold=H)`), whi
 89 / 200: 0 frame mismatches (x mismatches only where the hold changes nothing: the whiff's screen edge, the close
 push, as with H = 0); the hold caps at 90 frames of 187 (DM whiff: 125 / 154 / 184 frames at H = 60 / 89 / 200).
 
+## Kyo's flames: their lifetimes, the MAX chain, the hand fire (TODO #202, 2026-10-07)
+
+Bruno's notes on 0.1.8 (the Orochinagi's flame gone too fast, 236C's punch without its fire). KOF98 in our emulator
+(`../brawler/romspecials_check.py`, every object P1 owns) against the brawler showed what was missing:
+
+| what | ROM | decoded as | brawler |
+|---|---|---|---|
+| the flame's life | object $3D83E (state 193, MAX 199 / 200 / 201) frees itself at its animation's end or when its owner is hit (`btst #2, owner +$E2`: set by the victim hit routine `$1B48A`); it never reads owner +$D1 bit 7, the handler's `fxoff` at 189's end | export_rom: a pinned object without `br owner_fxoff` = follow bit 32 | `prog_fxoff` leaves it: 43 frames ([46, 88] in KOF98, [46, 89]); it was cut at the fxoff, 9 frames |
+| the release's glow | object $3D7E6 (243) reads +$D1 bit 7 and then plays 244 in place to its end | `object_rows(fxoff_at=FXOFF_AT)`: the rows after the bit = its end rows when they are another animation, follow bit 64 (Rugal 6426B's $7F1CC only stops following and plays on: unchanged, it ends at the bit as before, = KOF98) | `prog_fxoff` -> pend 6 / 7: the end rows in place from the next frame ([43, 70] / [43, 71]) |
+| the MAX chain | +$C2 = owner +$34 (3); each flame `subq #1, +$C2`, at its event step (step 5, frame 10) spawns $3D83E again 16 px ahead (`d5 = -16`) in +$D6 (200) when +$C2 = 2, else +$D8 (201); only the first follows Kyo (`cmpi #2, +$C2`) | `cmpi` on a field an object knows is concrete (`CMP_KNOWN`, depth > 0: only Kyo's MAX changes among the 210 ROM programs); `obj_chain`: the copy as the object's child (births = its event frame, dx 16) | bproj_t child, child of its own (export_bm `child_c`); an eruption that hit (pend 2 / 3) keeps spawning: 3 flames [47, 77], [57, 87], [67, 109] = KOF98's (whiff, within a frame); close: KOF98 3 hits, the brawler 2 (its victim, launched by the second, is out of the third's reach: the reaction, not the flames) |
+| the hand fire | animation records `$FA` kinds $40 / $41 (pinned, states 253 / 254), $42 (once, 255), $45-$48 (once, 249-252) on Kyo's 168 / 170 (236C), 185 / 188-192 (the fury's charge and release), EX 236A's 205 / 213 | `fx_routine` follows the kinds' tails ($37488 falls into $37494; $3770C -> `bra $36C12`, the 'once' placement inline); `STEP_FX` + Kyo (0) | `pan_fx` spawns them as effect objects of their own (never the shot, never ended by P_FXOFF); in a super flash the attacker's effects born in it run (KOF98 runs P1 and what it spawns at the flash's priority $5001), the rest stay frozen (`projectiles_update` skip mask), and they hit (combat's flash filter takes its objects: K''s Heat Drive shot's first hit at 19, KOF99 21, was 28; Geese's Raging Storm objects all within a frame now, 14 off before) |
+
+Measured (whiff, KOF98 | brawler, spawn / end frame of the move): DM 21426C all 16 objects within a frame; MAX 18 / 18;
+236C's fist fire [17, 43] / [17, 44] at KOF's x (0.25 px). Found, not changed: in a ROM special the brawler's victim
+test uses the hurt box of the animation the fighter played before the special (combat `fighter_step`, not the program's
+step): KOF98's steps without a hurt box (EX 421D's first 11 frames, 491 and 493's first step) are hittable in the
+brawler (Kyo hit at frames 2-9 on 0.1.9); Kyo's EX 421D is now invincible throughout by Bruno's call (game.json roster
+`invincible`), which covers them.
+
 ## Rugal: the wall slams, the charge, the step effects (TODO #173, 2026-10-06)
 
 Rugal's four recorded moves are read from his handlers now; what they needed:

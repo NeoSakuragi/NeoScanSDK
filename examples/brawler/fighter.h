@@ -325,7 +325,10 @@ extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by en
 #define PJ_COLS 10                /* the projectile pool's sprites per entity on average: NPJ * PJ_COLS shared by width (main.c block_w) */
 extern fighter_t projectiles[NPJ];
 void projectile_reset(fighter_t *p);
-void projectiles_update(int16_t cam_x);   /* the independent projectiles' flight, after the fighters' update */
+void projectiles_update(int16_t cam_x, uint16_t skip);   /* the independent projectiles' flight, after the fighters' update;
+                                     skip: entities not updated, bit k = projectiles[k], bit 8 = in a super flash (the ones alive
+                                     when it started, frozen; its attacker's effects born in it run, KOF98's priority $5001 objects) */
+uint8_t projectiles_alive(void);          /* bit k: projectiles[k] is in use */
 
 void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase, uint8_t team, int16_t x, int16_t z);
 void fighter_update(fighter_t *f, const intent_t *in);
