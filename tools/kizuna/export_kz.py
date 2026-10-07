@@ -606,6 +606,8 @@ def export(names, outdir, only=None, extra=None):
             st = boxes_in_force(w[0]); k = w[1] if w[1] >= 0 else len(st) - 1
             anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': [step(B, st[k][0]['addr'], st[k][0]['ticks'], [])]}
         if only is not None: anims = {k: v for k, v in anims.items() if k in only}
+        for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, a, f, l)}
         th = throw(B, cap)
         anims['throw_c'] = th.pop('anim')
         fc = json.load(open(FOLLOWUPS))
