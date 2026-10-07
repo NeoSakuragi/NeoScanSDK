@@ -302,6 +302,120 @@
      "caption": "Debug leftovers"
     }
    ]
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$19930: x += table $19962[direction] (0,16,32,16,0,-16,-32,-16) when the dive starts; +$C2 = $FFFF",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$95FC8: if the victim is not attacker+$F0 the damage is halved before the defence multiplier; the Mega Crash (reaction $80) skips this and hits everyone for the same flat 16",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "punisher/quirks/crowd_jab.png",
+     "caption": ""
+    }
+   ]
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$189A0: life = max(life - 10, 0); death is only checked when an enemy hit lands; $1891A branches to the grenade at 0 life",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "punisher/quirks/special_zero_life_after.png",
+     "caption": ""
+    }
+   ]
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$20C1A / $20C80: the air attack adds $100 to the x speed in the facing direction, even with no jump direction",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$96C8C: the victim shakes for 6 frames (+$4C) before its own hit-stop counter starts",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "punisher/sheets/punisher_combo.png",
+     "caption": ""
+    }
+   ]
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$18114: +$D5 records jump presses as a shift register during the fall; any of the last 4 frames set -> immediate re-jump",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$202AC: in the air, a fresh press with a direction tests the map 4 px ahead ($ACF0E == $80 wall) and jumps to $1A124",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$1D104: only direction code 4 (down) / none goes to the knee, everything else to $1D2F6",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$1D200: damage is subtracted directly, no box test, counter +$A2",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "$17CBE: chain credit >= 40, victim standing and grabbable -> forced grab state with the throw selected",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "The Punisher (Capcom, 1993)",
+   "title": "",
+   "do": "",
+   "happens": "",
+   "why": "act $14 handler $184F4 is never set by the input code I traced; anims 71/72 sit on +$0E values no code writes",
+   "brawler": "",
+   "shots": []
   }
  ]
 }
