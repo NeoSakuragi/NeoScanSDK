@@ -1368,6 +1368,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   find why his hurt box / grab state is gone (an invincibility flag stuck after a move, a depth / z mismatch, a state
   that never ends), fix at the cause.
 
+- [ ] 205. HURT BOX OF A ROM-PLAYED SPECIAL (found by #202): during a special read from the ROM, hits are checked against the
+  hurt box of the animation played BEFORE the move, not the move's own frames, so KOF98's steps without a hurt box don't
+  protect (EX 421D on 0.1.9 got hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D,
+  Terry, Iori invincible starts vs KOF98; campaign29.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
