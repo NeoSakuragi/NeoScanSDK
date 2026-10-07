@@ -15,6 +15,9 @@ select screen pixel for pixel (selectrender.js) while Bruno places the fighters.
   lut       Geolith's resnet palette LUT (geo_lspc_palgen_resnet, the option harness.py / web_core.c / neogeo_sdl set):
             6-bit channel (5 bits << 1 | the dark bit) -> 8 bits
   layout    the build's layout (build_tables.select_layout: game.json select_layout, else the first layout)
+  stick     game.json select.stick: 'positions' (the cursor graph from the places) or 'order' (left / right = the list)
+  graph     the build's cursor graph {fighter: {right, left, up, down}} (build_tables.select_stick; the page computes
+            its own from the layout being edited, selectrender.js stick)
 
     python3 select_images.py GAME_DIR OUT.json     (standalone: the ROM poses only, no candidates)"""
 import base64, json, os, re, sys
@@ -150,7 +153,9 @@ def select_data(game, cand=None, b=None):
             poses.append(dict(t['frame'], pose=t['poses'][0], alias=t['poses'], head=t['head'], pals=cand[n]['pals'], rom=False))
         u = r.get('unlock', 'always')
         fighters[n] = {'name': disp.get(n, n.upper()), 'locked': u != 'always', 'poses': poses, 'wide': wide}
-    return {'layout': L, 'roster': names, 'fighters': fighters, 'lut': LUT, 'floor': floor, 'sel_cols': sel_cols, 'na': na, 'line_max': 96,
+    stick = G.get('select', {}).get('stick', 'positions')   # the cursor graph (TODO #187): the build's (game_tables.c sel_stick)
+    graph = build_tables.select_stick(L, build_tables.bm_heads(build, G), stick)
+    return {'layout': L, 'stick': stick, 'graph': graph, 'roster': names, 'fighters': fighters, 'lut': LUT, 'floor': floor, 'sel_cols': sel_cols, 'na': na, 'line_max': 96,
             'fix': fix_capture(game, b), 'version': open(os.path.join(game, 'VERSION')).read().strip()}
 
 

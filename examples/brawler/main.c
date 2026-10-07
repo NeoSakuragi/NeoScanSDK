@@ -1412,8 +1412,9 @@ static void title_tick(void) {
  * pose (export_bm.WATCH: a front-facing frame from its intros / win poses), facing as the layout says. The places are
  * slots (SEL_SLOT: x, y, z, face), independent of who stands in them (sel_fighter: the fighter of each slot), so moving
  * someone on screen is a change to game.json's select_layout only. The cursor's fighter shows its colours, the others shades of grey
- * (their own palettes in luminance). "1P" / "2P" with an arrow above the selected head (fix layer). Stick left / right
- * steps through the layout's stick order, up / down to the nearest fighter higher / lower; A/B/C/D picks that colour set
+ * (their own palettes in luminance). "1P" / "2P" with an arrow above the selected head (fix layer). The stick follows
+ * the cursor graph computed from the places (sel_stick, TODO #187: left / right along the row, up / down to the
+ * nearest row above / below); A/B/C/D picks that colour set
  * (KOF style) and plays the win pose. P2 joins here with START (a credit) and picks too; the two can't pick the same
  * fighter. When everyone in has picked, the others walk off the screen outward, then the
  * fight cuts in (no fades: a palette fade cost ticks frames). Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
@@ -1476,25 +1477,26 @@ static void slot_show(uint8_t s, uint8_t set) {             /* (re)binds slot s'
     fighter_play(f, BA_WATCH);
     fighter_pals(f, slot_look(s));
 }
-/* the cursor from slot s: left / right = the selectable slot before / after it in the stick's order (the slots' order,
- * no wrap); up / down = the selectable slot whose feet are at least 8 px higher / lower, the nearest (|dx| + |dy|) */
+/* the cursor from slot s (TODO #187): the build's cursor graph, from the fighters' places (build_tables.py
+ * select_stick: rows by body centre). Right / left: sel_stick[s] = the next / previous along the row and on to the next
+ * row (one loop through everyone), followed on past a locked slot. Up / down: sel_vert[s] = the slots of the rows that
+ * way in preference (the nearest row first, each by x distance; wrapping), the first selectable one. None: stay. */
 static uint8_t sel_move(uint8_t s, uint16_t pr) {
-    int8_t dx = (pr & JOY_RIGHT) ? 1 : (pr & JOY_LEFT) ? -1 : 0, dr = (pr & JOY_UP) ? 1 : (pr & JOY_DOWN) ? -1 : 0;
-    uint8_t t, best = 0xFF;
-    int16_t bd = 0x7FFF, d, e;
-    if (dx) {
-        for (t = s + dx; t < SEL_NSLOT; t += dx)                 /* (uint8_t: below 0 wraps past SEL_NSLOT) */
+    uint8_t d = (pr & JOY_RIGHT) ? 0 : (pr & JOY_LEFT) ? 1 : (pr & JOY_UP) ? 2 : (pr & JOY_DOWN) ? 3 : 4, t = s, n;
+    if (d < 2) {
+        for (n = 0; n < SEL_NSLOT; n++) {
+            t = sel_stick[t][d];
+            if (t == s) break;
             if (selectable(t)) return t;
-    } else if (dr) {
-        for (t = 0; t < SEL_NSLOT; t++) {
-            if (!selectable(t)) continue;
-            e = (SEL_SLOT[s].y - SEL_SLOT[t].y) * dr;            /* > 0: that way */
-            if (e < 8) continue;
-            d = SEL_SLOT[t].x - SEL_SLOT[s].x; if (d < 0) d = -d;
-            if (d + e < bd) { bd = d + e; best = t; }
+        }
+    } else if (d < 4) {
+        for (n = 0; n < SEL_NSLOT - 1; n++) {
+            t = sel_vert[s][d - 2][n];
+            if (t == 0xFF) break;
+            if (selectable(t)) return t;
         }
     }
-    return best == 0xFF ? s : best;
+    return s;
 }
 static void select_arrows(void) {                           /* "1P" / "2P" + arrow over the selected head */
     uint8_t p, col[2], row[2];

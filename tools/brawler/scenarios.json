@@ -514,9 +514,9 @@
    "unlock": true,
    "cursor": "yashiro"
   },
-  "do": "The cursor is on Yashiro. Look at the arrow, then move it right onto K' and back left onto Yashiro.",
-  "expect": "The arrow points down at Yashiro's own head, not at K' next to him; on K' it sits on K's head.",
-  "do_keys": "4:R,40:-,4:L",
+  "do": "The cursor is on Yashiro. Look at the arrow, then move it right onto Kim, right again onto K', and back left twice onto Yashiro.",
+  "expect": "The arrow points down at Yashiro's own head, not at Kim or K' next to him; on Kim and on K' it sits on their own heads.",
+  "do_keys": "4:R,30:-,4:R,40:-,4:L,30:-,4:L",
   "proof": 60
  },
  "20261006-160617-b3f3": {
@@ -557,5 +557,16 @@
   "expect": "The light (A) Koryuu Ha from World Heroes Perfect: slow (3 px a frame), with its two trailing tail parts behind it that vanish when it hits Ryo. Only one can fly at a time. The medium (B, 5.25 px) and fast (A+B, 7.5 px) versions are in the data; one word in game.json picks them, none is on a button in this build.",
   "do_keys": "4:c",
   "proof": 150
+ },
+ "20261007-012550-5d29": {
+  "title": "Select screen: the stick follows the places",
+  "setup": {
+   "mode": "select",
+   "cursor": "robert"
+  },
+  "do": "The cursor is on Robert (front row, a fresh game: the bosses are locked). Press right once, then keep pressing right to walk the front row to its end; then try up and down from a few fighters.",
+  "expect": "Right from Robert lands on Terry, his right neighbour (not Yamazaki at the top). Then Billy, Haohmaru, Kuroko, Genjuro; past Genjuro, the back row's first selectable fighter (Yamazaki: the bosses are locked), then the middle row from the left (Iori, Kyo, Yashiro...). Up / down go to the nearest fighter in the row above / below; every fighter can be reached.",
+  "do_keys": "4:R,40:-,4:R,30:-,4:R,30:-,4:R,30:-,4:R,30:-,4:R,30:-,4:R,30:-",
+  "proof": 60
  }
 }

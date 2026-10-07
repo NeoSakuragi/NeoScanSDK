@@ -49,6 +49,49 @@
     return { col: sx < 0 ? 0 : (sx + 4) >> 3, row: sy < 32 ? 4 : (sy + 4) >> 3 };
   }
 
+  /* the cursor graph (TODO #187): build_tables.py select_stick, the same rules (select_proof.py checks both agree):
+   * each fighter's body centre = the middle of its feet and its pose's head point (doubled: whole numbers); rows by
+   * centre y, a new row past a ROW_GAP px gap; right / left = the next / previous by centre x along the row, on to the
+   * next row (one loop through everyone); up / down = the nearest by x (then y, then the list) in the row above /
+   * below, wrapping; ups / downs = the preference behind it (every other row that way, each by distance: a locked one is
+   * passed over). override 'order' (game.json select.stick): left / right through the list instead.
+   * -> {graph: {fighter: {right, left, up, down}}, rows: [[fighter]], centre: {fighter: [x2, y2]}} */
+  const ROW_GAP = 16, DIRS = ['right', 'left', 'up', 'down'];
+  function stick(D, L, override) {
+    const ord = order(L), C = {};
+    for (const n of ord) {
+      const v = L[n], hd = poseOf(D, n, v.pose).head;
+      C[n] = [2 * v.x + (v.facing === 'right' ? -hd[0] : hd[0]), 2 * v.y + hd[1]];
+    }
+    const cmp = (...keys) => (a, b) => { for (const k of keys) { const d = k(a) - k(b); if (d) return d; } return 0; };
+    const rows = [];
+    for (const n of ord.slice().sort(cmp(n => C[n][1], n => L[n].slot))) {
+      if (rows.length && C[n][1] - C[rows[rows.length - 1][rows[rows.length - 1].length - 1]][1] <= 2 * ROW_GAP) rows[rows.length - 1].push(n);
+      else rows.push([n]);
+    }
+    rows.forEach(r => r.sort(cmp(n => C[n][0], n => C[n][1], n => L[n].slot)));
+    const loop = override === 'order' ? ord : rows.flat(), rowOf = {};
+    rows.forEach((r, k) => r.forEach(n => { rowOf[n] = k; }));
+    const graph = {}, N = loop.length, R = rows.length;
+    loop.forEach((n, i) => {
+      const pref = step => {                     // the other rows that way (wrapping), each by distance
+        const out = [];
+        for (let j = 1; j < R; j++) out.push(...rows[((rowOf[n] + step * j) % R + R) % R].slice().sort(cmp(m => Math.abs(C[m][0] - C[n][0]), m => Math.abs(C[m][1] - C[n][1]), m => L[m].slot)));
+        return out;
+      };
+      const ups = pref(-1), downs = pref(1);
+      graph[n] = { right: loop[(i + 1) % N], left: loop[(i + N - 1) % N], up: ups.length ? ups[0] : n, down: downs.length ? downs[0] : n, ups, downs };
+    });
+    return { graph, rows, centre: C };
+  }
+  /* main.c sel_move: right / left followed on past locked fighters, up / down the first selectable of ups / downs; none: stay */
+  function stickMove(D, G, n, dir, o) {
+    if (dir === 'up' || dir === 'down') return G[n][dir + 's'].find(t => !locked(D, t, o || {})) || n;
+    let t = n;
+    for (let k = 0; k < Object.keys(G).length; k++) { t = G[t][dir]; if (t === n) break; if (!locked(D, t, o || {})) return t; }
+    return n;
+  }
+
   function render(D, L, o) {
     o = o || {};
     prepare(D);
@@ -111,6 +154,6 @@
              arrow: { col: a.col, row: a.row, hits: [...hits], text, off: a.col > 38 || a.row >= ROWS } };
   }
 
-  const api = { render, prepare, rgb, grey, poseOf, order, firstCursor, arrowCell, W, H };
+  const api = { render, prepare, rgb, grey, poseOf, order, firstCursor, arrowCell, stick, stickMove, DIRS, W, H };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SelectRender = api;
 })(typeof window !== 'undefined' ? window : globalThis);
