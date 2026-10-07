@@ -82,6 +82,63 @@ def select_layout(g):
     return L
 
 
+SEL_ROW_GAP = 16                                         # select_stick: body centres more than this apart (y) = another row
+SEL_DIRS = ('right', 'left', 'up', 'down')               # the stick's four ways (main.c sel_move: sel_stick right / left, sel_vert up / down)
+
+
+def select_stick(L, heads, override=None):
+    """the select screen's cursor graph (TODO #187, Bruno 2026-10-07: "automatic computation of sequencing based on
+    coordinates on the screen"), from the fighters' places: {fighter: {right, left, up, down: fighter}}.
+    Each fighter's body centre on the screen = the middle of its feet (x, y) and its head point (heads[n]: px from the
+    feet, facing left, mirrored when it faces right; export_bm bm_head / select.json, what the cursor's arrow uses).
+    Rows: the centres sorted by y, a new row past a gap of SEL_ROW_GAP px. right / left = the next / previous fighter by
+    centre x in the row; past the row's end the first of the next row (the last row's end: the first row), so right
+    and left each walk one loop through everyone (a locked one: on past it). up / down = the fighter of the row above /
+    below whose centre x is the nearest (ties: the nearer y, then the stick order); the top row's up = the bottom row,
+    the bottom's down = the top; 'ups' / 'downs' = the preference behind it (every other row that way, nearest row
+    first, each by that distance): a locked one is passed over for the next (main.c sel_move, the game's sel_vert).
+    No dead ends, every fighter reachable. override 'order' (game.json select.stick): left / right step through the
+    slots' order instead (the Lab's list, looping); up / down as above.
+    The Lab computes the same (chainlab/selectrender.js stick); select_proof.py checks the two agree."""
+    order = sorted(L, key=lambda n: L[n]['slot'])
+    C = {}                                               # the centres, doubled (whole numbers): feet + head
+    for n in order:
+        v, h = L[n], heads[n]
+        C[n] = (2 * v['x'] + (-h[0] if v['facing'] == 'right' else h[0]), 2 * v['y'] + h[1])
+    rows = []
+    for n in sorted(order, key=lambda n: (C[n][1], L[n]['slot'])):
+        if rows and C[n][1] - C[rows[-1][-1]][1] <= 2 * SEL_ROW_GAP: rows[-1].append(n)
+        else: rows.append([n])
+    rows = [sorted(r, key=lambda n: (C[n][0], C[n][1], L[n]['slot'])) for r in rows]
+    loop = order if override == 'order' else [n for r in rows for n in r]
+    row_of = {n: k for k, r in enumerate(rows) for n in r}
+    G = {}
+    for i, n in enumerate(loop):
+        def pref(step):                                  # the other rows that way (wrapping), each by distance
+            out = []
+            for j in range(1, len(rows)):
+                out += sorted(rows[(row_of[n] + step * j) % len(rows)], key=lambda m: (abs(C[m][0] - C[n][0]), abs(C[m][1] - C[n][1]), L[m]['slot']))
+            return out
+        ups, downs = pref(-1), pref(1)
+        G[n] = {'right': loop[(i + 1) % len(loop)], 'left': loop[i - 1], 'up': ups[0] if ups else n, 'down': downs[0] if downs else n,
+                'ups': ups, 'downs': downs}
+    for a in ('right', 'left'):                          # one loop through everyone: no dead end, every fighter reachable
+        seen, n = set(), order[0]
+        while n not in seen: seen.add(n); n = G[n][a]
+        assert seen == set(L), f'select_stick: {a} misses {set(L) - seen}'
+    return G
+
+
+def bm_heads(build, g):
+    """the select poses' head points of the build (export_bm.py -> bm_chars.c bm_head, roster order): {name: [x, y]}"""
+    import re
+    t = open(os.path.join(build, 'bm_chars.c')).read().split('bm_head[BC_COUNT][2] =', 1)[1].split(';', 1)[0]
+    hd = [[int(a), int(b)] for a, b in re.findall(r'\{(-?\d+), (-?\d+)\}', t)]
+    names = [r['name'] for r in g['roster']]
+    assert len(hd) == len(names), f'bm_head: {len(hd)} entries, roster {len(names)}'
+    return dict(zip(names, hd))
+
+
 def watch_of(g, r):
     """a roster fighter's select pose [frame, step] and its head point (None: head_point.py finds it): the select layout's
     pose; roster[].watch.head (a hand-set point) only while the pose is the one it was set for"""
@@ -374,7 +431,7 @@ def tables(g, build):
          'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
-         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];',
+         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
          f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
          'extern const gstagex_t gstagex_rom[GS_COUNT];', 'extern const uint8_t pb_of_fighter[BC_COUNT];', 'extern const gdrama_t gdramas[DR_COUNT ? DR_COUNT : 1];']
@@ -448,6 +505,14 @@ def tables(g, build):
     c.append('const sel_slot_t SEL_SLOT[SEL_NSLOT] = {   /* game.json select_layout: x, y (feet), z (draw order), face */\n    ' + '\n    '.join(
         f'{{ {L[n]["x"]}, {L[n]["y"]}, {L[n]["z"]}, {1 if L[n]["facing"] == "right" else -1} }},   /* {n} */' for n in slots) + '\n};')
     c.append('const uint8_t sel_fighter[SEL_NSLOT] = { ' + ', '.join(str(idx[n]) for n in slots) + ' };')
+    stick = g.get('select', {}).get('stick', 'positions')
+    assert stick in ('positions', 'order'), f'game.json select.stick: {stick!r} (positions | order)'
+    G = select_stick(L, bm_heads(build, g), stick)       # TODO #187: the cursor graph from the places
+    c.append('const uint8_t sel_stick[SEL_NSLOT][2] = {   /* the cursor from each slot: right, left (build_tables.py select_stick, select.stick ' + stick + '; locked: on past it) */\n    ' + '\n    '.join(
+        f'{{ {L[G[n]["right"]]["slot"]}, {L[G[n]["left"]]["slot"]} }},   /* {n}: ' + ' '.join(f'{d} {G[n][d]}' for d in SEL_DIRS) + ' */' for n in slots) + '\n};')
+    vert = lambda n, k: ', '.join([str(L[m]['slot']) for m in G[n][k]] + ['0xFF'] * (len(L) - 1 - len(G[n][k])))
+    c.append('const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1] = {   /* up / down from each slot: the slots that way in preference (the first selectable wins), 0xFF none */\n    ' + '\n    '.join(
+        f'{{ {{ {vert(n, "ups")} }}, {{ {vert(n, "downs")} }} }},   /* {n} */' for n in slots) + '\n};')
     unl = []
     for r in g['roster']:
         u = r.get('unlock', 'always')

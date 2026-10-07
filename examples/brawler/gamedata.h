@@ -148,8 +148,9 @@ typedef struct {
 typedef struct { uint8_t n, pad; uint16_t pad2; const gscene_t *scene; } gdrama_t;
 
 /* ---- layer 1: the select screen's group photo (game.json select_layout, the Brawler Lab's Select screen tab): one slot
- * per selectable fighter, in the stick's order (left / right = the slot before / after); x, y = its feet on the screen
- * (px), z = its draw order (0 the back), face = 1 facing right, -1 left; sel_fighter[] = who stands there ---- */
+ * per selectable fighter, in the layout's slot order (the cursor starts on the first; the stick: sel_stick / sel_vert,
+ * the cursor graph build_tables.py computes from the places); x, y = its feet on the screen (px), z = its draw order
+ * (0 the back), face = 1 facing right, -1 left; sel_fighter[] = who stands there ---- */
 typedef struct { int16_t x, y; uint8_t z; int8_t face; } sel_slot_t;
 
 /* ---- a data pack (Brawler Lab write path, docs/brawler_data_model.md "Live install"): stages, enemies and AI rows in

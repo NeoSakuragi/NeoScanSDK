@@ -224,7 +224,7 @@ class Brawler:
         sum is not updated, so it lasts until the next power-on)"""
         if 'save' in self.syms: self.w(self.syms['save'] + 7, 1, 0xFF)
     def sel_slots(self):
-        """the select screen's slot table (main.c SEL_SLOT, P ROM, in the stick's order): [(x, y, z, face)], read from the
+        """the select screen's slot table (main.c SEL_SLOT, P ROM, in the layout's slot order): [(x, y, z, face)], read from the
         .neo (P word-swapped)"""
         if not hasattr(self, '_slots'):
             d = open(self.rom, 'rb').read(); a = 0x1000 + self.syms['SEL_SLOT']; out = []
@@ -233,15 +233,29 @@ class Brawler:
                 out.append(struct.unpack('>hhBb', w))
             self._slots = out
         return self._slots
+    def sel_stick(self):
+        """the select screen's right / left loop (main.c sel_stick, build_tables.py select_stick: from the places, TODO
+        #187), read from the .neo (P word-swapped): [(right, left)] per slot"""
+        if not hasattr(self, '_stick'):
+            d = open(self.rom, 'rb').read(); a = self.syms['sel_stick']
+            b = bytes(d[0x1000 + ((a + i) ^ 1)] for i in range(2 * self.nslot))
+            self._stick = [(b[2 * i], b[2 * i + 1]) for i in range(self.nslot)]
+        return self._stick
     def sel_goto(self, k, p=0):
-        """on the select screen: move player p's cursor to fighter k (bm_chars index) with the stick: left / right step
-        through the slots (the stick's order, main.c sel_move); returns the slot"""
+        """on the select screen: move player p's cursor to fighter k (bm_chars index) with the stick: right / left walk
+        the select screen's loop (main.c sel_move: one loop through everyone, locked ones passed), the shorter way;
+        returns the slot"""
         sc = [self.r(self.syms['slot_ch'] + i, 1) for i in range(self.nslot)]
-        t = sc.index(k)
-        for _ in range(40):
+        t = sc.index(k); st = self.sel_stick()
+        def dist(c, d):
+            n = 0
+            while c != t and n <= self.nslot: c = st[c][d]; n += 1
+            return n
+        c = self.r(self.syms['cursor'] + p, 1)
+        key = 'R' if dist(c, 0) <= dist(c, 1) else 'L'
+        for _ in range(2 * self.nslot):
             c = self.r(self.syms['cursor'] + p, 1)
             if c == t: return t
-            key = 'R' if t > c else 'L'
             self.run(4, *([key] if not p else ['', key])); self.run(12)
         raise RuntimeError(f'cursor never reached fighter {k} (slot {t})')
     def pick(self, k, button='a', cache=True, unlock=False):
