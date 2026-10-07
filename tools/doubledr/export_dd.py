@@ -432,8 +432,16 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
             anims_d[k] = {'mode': 'hold' if dd.steps(ch, a)[0][1] & 2 else 'loop' if dd.steps(ch, a)[0][1] & 1 else 'once',
                           'steps': rom_steps(B, ch, a, key_of)}
             hits_last = [x for x in st if hits[v][x]]
-            for s in anims_d[k]['steps']:
-                if s['flags'] & 0x100: s['react'] = R_KNOCKDOWN if knock and hits_last and a == hits_last[-1] else R_HEAVY
+            # the knockdown belongs to the move's LAST hit only (TODO #186): from the last step that opens a hit in the
+            # last animation with hits; every earlier hit reels (R_HEAVY). 0.0.92 gave the whole last animation the
+            # knockdown, so the super's (anim 82, 5 hits) first hit already launched the victim and the rest whiffed.
+            # DD itself (captured in our emulator, /data/tmp/b188/out/c186_dd_capture.json): hits 1-2 reel (anims
+            # 56 / 57), hits 3-5 hold the victim in its knockdown pose 69 carried 10-13 px off the floor with Billy's
+            # dash, the fall (71) after the 5th; the brawler keeps hits 3-4 as reels on the floor (no low carry)
+            op = openings(ch, a); lastop = max((i for i, o in enumerate(op) if o), default=None)
+            for i, s in enumerate(anims_d[k]['steps']):
+                if s['flags'] & 0x100:
+                    s['react'] = R_KNOCKDOWN if knock and hits_last and a == hits_last[-1] and lastop is not None and i >= lastop else R_HEAVY
         objects += [projectile(B, s, v) for s in sp_]
     nstate = len(progs[0][1]); nobj = len(progs[0][2])
     # the dmg / reaction operand of P_ANIM (rows without a table: SPECIAL_DAMAGE split over its hits)

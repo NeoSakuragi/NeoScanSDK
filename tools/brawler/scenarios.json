@@ -161,7 +161,7 @@
    "gap": 110
   },
   "do": "Press C (Blitz Ball) and let it hit Terry.",
-  "expect": "Krauser shouts \"Blitz Ball\", and Terry burns when the ball hits him.",
+  "expect": "Krauser shouts \"Blitz Ball\"; when the ball hits, Terry burns the KOF98 way: his own sprite turns golden orange with a flickering flame cycle until he lands, then his colours come back.",
   "do_keys": "4:c",
   "proof": 90
  },
@@ -253,7 +253,7 @@
    "gap": 45
   },
   "do": "Press D (the fury) with Ryo in front of you.",
-  "expect": "Billy spins his pole in a ring of fire (KOF98's flaming ring), and it hits Ryo.",
+  "expect": "Billy spins his pole in KOF98's ring of fire; Ryo burns the KOF98 way (his sprite golden orange with a flickering flame cycle) from the first ring hit until he lands.",
   "do_keys": "4:d",
   "proof": 200
  },
@@ -570,5 +570,18 @@
   "expect": "The camera never moves up: the stage and the floor stay where they are; Genjuro's spin happens low enough that he and Ryo stay on screen under the HUD.",
   "do_keys": "4:d",
   "proof": 200
+ },
+ "20261007-014003-5d29": {
+  "title": "Billy Lee: fury hits keep the victim down until the last",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_lee",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press D (Billy Lee's dragon rush fury) with Ryo in front of you.",
+  "expect": "Billy rushes forward hitting several times; Ryo reels on his feet at each hit and is only knocked into the air by the last one.",
+  "do_keys": "4:d",
+  "proof": 150
  }
 }
