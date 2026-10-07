@@ -1589,5 +1589,60 @@
   "expect": "She dives at 45 degrees with her sword; on the hit she keeps diving and strikes again; with down + A again she stops, rises with a kick that knocks the dummy down and lands. Without a hit she lands and recovers.",
   "do_keys": "3:Rb,12:-,3:Da,8:-,3:Da",
   "proof": 90
+ },
+ "todo220-iori-max": {
+  "title": "Iori's MAX fury (down+D, MAX 23624C): ten strikes from KOF98's handler",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "terry",
+   "gap": 48,
+   "meter": "full"
+  },
+  "do": "With a full meter, hold down and press D with Terry standing close in front of you.",
+  "expect": "After the orange flash Iori dashes, grabs Terry and strikes him ten times in a row while Terry stays held in front of him; the last strike sets off the yellow flame and purple smoke explosion and Terry is blown away burning purple: the same strikes, hits and timing as KOF98's MAX version.",
+  "do_keys": "4:Dd",
+  "proof": 420
+ },
+ "todo220-yamazaki-max": {
+  "title": "Yamazaki's MAX fury (down+D, MAX 236236C): from KOF98's handler, the long guillotine at the end",
+  "setup": {
+   "mode": "lab",
+   "fighter": "yamazaki",
+   "dummy": "terry",
+   "gap": 48,
+   "meter": "full"
+  },
+  "do": "With a full meter, hold down and press D with Terry standing close in front of you.",
+  "expect": "After the orange flash Yamazaki leaps on Terry, lands with him and drags him in three long pulls, striking him on each; Terry is left standing, Yamazaki's snake arm takes him again and lashes him several more times, and the last lash launches Terry high into the air: the same moves, hits and timing as KOF98's MAX version.",
+  "do_keys": "4:Dd",
+  "proof": 420
+ },
+ "todo220-yamazaki-fury": {
+  "title": "Yamazaki's fury (D, 236236C): all of KOF98's hits, the catch's pause as short as KOF's",
+  "setup": {
+   "mode": "lab",
+   "fighter": "yamazaki",
+   "dummy": "terry",
+   "gap": 48,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D with Terry standing close in front of you.",
+  "expect": "Yamazaki leaps at Terry with a dark swirl, catches him and drags him in two pulls; Terry takes 12 hits in all (two at once as the second pull starts, one as the drag ends) before the last blow sends him flying, as in KOF98; Yamazaki moves on right as the swirl fades.",
+  "do_keys": "4:d",
+  "proof": 260
+ },
+ "todo220-ralf-mash": {
+  "title": "Ralf's C (AAAA): pressing C again during the punches repeats them, as in KOF98",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ralf",
+   "dummy": "terry",
+   "gap": 80
+  },
+  "do": "Press C with Terry a step in front of you, then press C once more right away while Ralf punches.",
+  "expect": "Ralf's flurry of punches plays a second time before he recovers (ten dust clouds instead of five); a press later than about a third of a second after the first does nothing, as in KOF98.",
+  "do_keys": "4:c,12:-,3:c",
+  "proof": 160
  }
 }

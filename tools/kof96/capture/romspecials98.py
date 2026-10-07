@@ -48,7 +48,7 @@ def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     tr = try_for(m, cid, inp, ex)
     if dm and dist == 'whiff' and wjump is None:   # a fury's whiff: P2 jumps over it (whiff_jump)
-        j = whiff_jump(cid, inp, ex, game)
+        j = whiff_jump(cid, inp, ex, game, sdm)
         if j is not None: p2_seq = '; '.join(x for x in (p2_seq, f'p2 {START + j} 4 U') if x)
     os.makedirs(OUT, exist_ok=True)
     if wjump is not None and wjump >= 0: p2_seq = f'p2 {START + wjump} 4 U'      # (-1: the plain whiff)
@@ -94,19 +94,19 @@ def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='
 
 WJUMP = os.path.join(OUT, 'whiff_jump.json')
 
-def whiff_jump(cid, inp, ex, game):
+def whiff_jump(cid, inp, ex, game, sdm=False):
     """a fury's whiff in the game (TODO #139): KOF keeps both fighters on one screen, so a rush or a catch reaches P2
     from any distance; P2 jumps over it instead: the first jump start (frames from START, P2 pressing up 4 frames)
     whose run has no hit (P2's life) and no catch (P1 never in the hit-stop) -> that frame (cached), None: none found"""
     db = json.load(open(WJUMP)) if os.path.exists(WJUMP) else {}
-    key = f'{game}:{cid}:{inp}:{ex}'
+    key = f'{game}:{cid}:{inp}:{ex}' + (':max' if sdm else '')   # (the MAX version: its own run, TODO #220)
     if key in db: return db[key]
-    plain, _, _ = trace(cid, inp, 'whiff', ex, 300, game=game, dm=True, wjump=-1)
+    plain, _, _ = trace(cid, inp, 'whiff', ex, 300, game=game, dm=True, wjump=-1, sdm=sdm)
     def clean(rows): return all(r['p2life'] == rows[0]['p2life'] for r in rows) and not any(r['pc'] in HITSTOP[game] for r in rows)
     found = None
     if not clean(plain):
         for j in range(4, 160, 2):
-            rows, _, _ = trace(cid, inp, 'whiff', ex, 300, game=game, dm=True, wjump=j)
+            rows, _, _ = trace(cid, inp, 'whiff', ex, 300, game=game, dm=True, wjump=j, sdm=sdm)
             k0 = next((i for i, r in enumerate(rows) if special(r['state'])), None)
             end = next((i for i in range(k0 + 4, len(rows)) if not special(rows[i]['state'])), None) if k0 is not None else None
             if end is not None and clean(rows): found = j; break
@@ -146,7 +146,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
     hits = [i for i in range(1, len(game)) if game[i]['p2life'] < game[i - 1]['p2life']]
     # a follow-up press is read FOLLOW_LAG game ticks after its button (the hit-stop ticks count, a frame the game lost
     # does not): the model's frame = the kept frame the handler runs then (the first one at or after it)
-    presses, pf, hl = {}, [], []
+    presses, pf, hl, hf = {}, [], [], []
     for t, ev, mk in follow or []:
         j = next(j for j, r in enumerate(rows) if r['f'] >= rows[k0]['f'] + t); n_ = 0
         lag = max((prog['link_lag'][b_] for b_ in range(len(prog.get('link_lag', []))) if mk >> b_ & 1), default=H.FOLLOW_LAG[gname])
@@ -156,7 +156,10 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         if prog and prog.get('hitlatch') and rows[j]['pc'] in hs:   # read inside a hit-stop: latched on the hit's frame
             i = max(q for q, r in enumerate(game) if r['f'] <= rows[j]['f']); i = next((h_ for h_ in hits if h_ >= i), i)
             hl.append(len(pf))
-        if froze[j] and lag in H.FOLLOW_LAG_KIND.values(): mk = 0   # an input-record check ($1ED30: the press of this
+        if prog and prog.get('follow') == 'mash' and not froze[j] and froze[j - lag]:   # a mash press made in the hit-stop,
+            hf.append(len(pf))                         # read after it (TODO #220): the brawler presses in its own hit-stop's
+                                                       # last frames (fighter.c MASH_LAG)
+        if froze[j] and (lag in H.FOLLOW_LAG_KIND.values() or (prog or {}).get('follow') == 'mash'): mk = 0   # an input-record check ($1ED30: the press of this
         presses[i] = presses.get(i, 0) | mk; pf.append(i if mk else None)   # frame) read inside the hit-stop: lost (#140)
     # a catch (a fury's rush / grab, TODO #139): the first frame P1 entered the hit-stop with a catch routine installed
     catch = next((i for i, r in enumerate(game) if r['pc'] in hs and u32(r['raw'], 0x19C)), None)
@@ -178,7 +181,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         if any(d.values()): bad.append((i, (g['state'], g['frame'], gx, gh), mo[1:5]))
     res = {'input': inp, 'dist': dist, 'ex': ex, 'handler': f'${h:X}' if h else None, 'frames_game': end, 'frames_model': len(model),
            'mismatch': len(bad), 'by': nb, 'first_bad': bad[:4], 'hits_game': len(hits), 'hit_frames': hits, 'frozen_dropped': frozen, 'slowdown_dropped': slow,
-           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf, 'press_latched': hl, 'catch': catch,
+           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf, 'press_latched': hl, 'press_infreeze': hf, 'catch': catch,
            'held': held}                          # the model frames the button counts as held (hold)
     before = {o['base'] for o in rows[k0 - 1]['objs']}
     born = {}

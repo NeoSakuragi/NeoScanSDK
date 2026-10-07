@@ -1624,7 +1624,28 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   SS2, WHP, Kizuna, Double Dragon), per source driver: playable now / needs its driver ported. Every new-fighter job
   checks its theme from now on.
 
-- [ ] 220. KOF MAX VERSIONS STILL RECORDED (found by #216): Iori's down+D (MAX 23624C) is still the old recorded script,
+- [ ] 220. (DONE ON BRANCH fix/220-kof-max 2026-10-07 on 0.3.8 except Goenitz, awaiting Bruno's review; proofs
+  /data/tmp/max220/out, romspecials_check rs_final*) Iori MAX 23624C from KOF98's code ($719DE: ten strikes from the
+  state list +$C2 by +$D2; the victim's lists picked by the attacker's +$D2, handlers98.victim_lists 'idx'): 0 frame
+  mismatches whiff / close, hits 9 / 9; at the explosion KOF has 9 objects at once, the brawler's pool 8 (one yellow
+  flame 774 dropped). Yamazaki MAX 236236C ($6AB7A MAX path: three drags, the last list's release leaves the victim
+  standing, VL_STAND; the strike 185's hold hits = KOF's box $36, HY_HOLD; its last lash = KOF's high launch, reactions
+  56 / 57 vy 30 g 4.625, RK_HIGH, also Ralf 23624C / MAX and Yashiro MAX's box $2E): 0 mismatches, hits 22 / 22, launch
+  height = KOF's. Yamazaki 236236C: 12 / 12 hits (the 12th was KOF's victim routine placing the OLD list at the
+  attacker's new step before the signal's new list, same frame: fighter.c vlist_apply), the swirl ok (it was the
+  brawler's 7-frame hit-stop stacked on KOF's 12 dead frames of the catch: CATCH_STOP, a catch's pause = max(HITSTOP,
+  KOF's)). Ralf AAAA's mash (vocabulary input.mash, P_CHECK b 2, MASH_GAP 22 / MASH_LAG 4: KOF's tap chain, 20 frames;
+  presses read in the hit-stop lost): whiff / near with a second press at 4 / 16 replay as KOF, 8 / 12 / 17 / 24 match
+  KOF; near @17 differs (KOF's window closes inside its longer hit-stop: 11 vs 7 frames). Also: down+D now prefers the
+  ROM MAX over a captured one; romspecials98 whiff_jump per MAX. Ryo / Robert / K' / Ralf / Yashiro furies + MAX re-run:
+  0 mismatches, hits equal; bank_proof ALL OK, regress no-bleed True (frame-exact); scenarios todo220-* lint 0. Not run
+  (wind-down): controls / cancel / fury_inv proofs. AUDIT of down+D: KOF MAX recorded before this: Iori (fixed),
+  Yamazaki none (fixed); still recorded: Goenitz (KOF96: his fury 2141236C is the captured script, down+D plays it;
+  TODO #120: its finisher is KOF96's engine throw $17796 / $3676, table $17526 id $6F -> $4EA16: handlers98 'cine'
+  needs CINE_TABLE per game; NOT DONE); Hanzo (WHP: HERO 623AB / MAX from handlers_whp's model, not a capture). Rugal
+  23624C / 624A close in romspecials_check: 57 / 53 mismatches with or without this branch's fighter.c (KOF's P1 is in
+  283 from frame 64: the reference, not the brawler; rugal173_proof is his proof).
+  KOF MAX VERSIONS STILL RECORDED (found by #216): Iori's down+D (MAX 23624C) is still the old recorded script,
   Yamazaki has no MAX; also Yamazaki 236236C lands 11 of KOF's 12 hits (the last strike also hits the held victim)
   and his swirl ends 7 frames early; Ralf AAAA's mash repeat isn't modelled. Decode from KOF98's handlers.
 

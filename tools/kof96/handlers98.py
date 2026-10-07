@@ -100,7 +100,13 @@ TEST_FIELDS = {0x7C: 'end', 0x7D: 'evstep', 0xE1: 'hit', 0xE3: 'hitany'}   # +$E
 FOLLOW_CHECKS = {'kof98': {0x710F2: 'latch', 0x71466: 'hitlatch', 0x3CB1C: 'hcbP', 0x1ED30: 'fP'}, 'kof99': {0x1ADBE: 'fwdBD'}}
 FOLLOW_SCOPE = {('kof98', 0x1ED30): {0x3CFE0}}                    # a shared routine: the handlers whose call is a check
 FOLLOW_LATCH = {('kof98', 0x70E42): 0xD1, ('kof98', 0x712F4): 0xD1}
-FOLLOW_INPUTS = {'latch': ['again'], 'hitlatch': ['again'], 'fwdBD': ['fA', 'fAB'], 'hcbP': ['again'], 'fP': ['fA']}   # the brawler's press per
+# a mash (TODO #220, vocabulary input.mash): a handler's own frame loop reads its button pressed this frame (`btst #b,
+# fp@(5)`) and latches it in a field (`move #1, +F`; `clr +F` as the repeat starts): Ralf's AAAA (Vulcan Punch $4FD46: a
+# press while a punch plays replays it, at most twice, +$D2; the press's button (+$1A4) picks the A / C list again, the
+# brawler's is the move's own). The btst becomes ('check', mask) of link 'again' (the move's own button pressed again,
+# export_bm link_c) and the branch on it a link test; the clear ('part',) empties the armed set (a new press is needed)
+FOLLOW_MASH = {('kof98', 0x4FD46): {'at': 0x4FE2E, 'field': 0xD6}}
+FOLLOW_INPUTS = {'latch': ['again'], 'hitlatch': ['again'], 'fwdBD': ['fA', 'fAB'], 'hcbP': ['again'], 'fP': ['fA'], 'mash': ['again']}   # the brawler's press per
                                                                   # link (export_bm link_c)
 FOLLOW_LAG = {'kof98': 4, 'kof99': 5}
 # KOF98's $1ED30 reads the stick and the buttons of the input record (fp), 6 frames after the button (brute force, TODO
@@ -278,6 +284,10 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             return 0 if resumed[0] else F.get(0x1A4, 1, False)           # special's own on its first frame, then none
         if o == '%a0@' and isinstance(A0, int) and A0 < 0x100000:       # a ROM table (a state list: +$32 / +$C2 pointers)
             return int.from_bytes(m.p[A0:A0 + size], 'big')
+        mt = re.match(r'^%a0@\((-?\d+),(%d\d):w\)$', o)                 # a ROM table indexed by a known data register
+        if mt and isinstance(A0, int) and A0 < 0x100000 and isinstance(D.get(mt.group(2)), int):   # (TODO #220: Iori's
+            r_ = A0 + int(mt.group(1)) + D[mt.group(2)]                  # MAX 23624C, its strikes' states from the list
+            return int.from_bytes(m.p[r_:r_ + size], 'big')              # +$C2 by +$D2: `move (0, a0, d0.w), +$72`)
         for r_ in ('a0', 'a1', 'a2'):                                   # the same through a1 / a2 (Power Geyser's pillar
             base_ = A0 if r_ == 'a0' else D.get('%' + r_)                # states, Blaster Wave's offsets, Raging Storm's
             d_ = field(o, r_)                                           # records: (aN) / n(aN))
@@ -506,6 +516,13 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             elif o[0].startswith('%d') and isinstance(D.get(o[0]), int): cc = ('val', D[o[0]])
             else: cc = ('f%X' % (f if f is not None else -1), 'N')
             a = nx; continue
+        mash = FOLLOW_MASH.get((dec.game, dec.top)) if depth == 0 else None
+        if mn == 'btst' and mash and a == mash['at']:            # the mash check (FOLLOW_MASH): a press of its button now
+            follow[0] = follow[0] or 'mash'; mk = lmask('mash'); emit(a, 'check', mk, 'now')   # (this frame's press:
+                                                       # one made while the move is frozen in its hit-stop is never read)
+            cc = (f'link:{mk}', 'Zinv'); a = nx; continue
+        if base == 'clr' and mash and field(o[0]) == mash['field']:   # its latch cleared: a new press needed
+            store(mash['field'], 0, sz, a); emit(a, 'part'); a = nx; continue
         if mn == 'btst':
             b = imm(o[0]); f = field(o[1])
             if o[1] == '%d1' and b == 7 and isinstance(D.get('%d1'), tuple) and D['%d1'][0] == 'linkd1': cc = (f'link:{D["%d1"][1]}', 'Zinv')   # fwdBD: D, not B
@@ -528,6 +545,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if base == 'move' or base == 'movea' or mn.startswith('move'):
             if mn == 'moveq': D[o[1]] = imm(o[0]); a = nx; continue
             src, dst = o
+            if mash and field(dst) == 0x1A4 and field(src, 'a3') is not None:   # the mash press's button (a3: its
+                a = nx; continue                                     # command): the move's own in the brawler
             v = val(src, sz)
             if not dst.startswith('%a') or dst.startswith('%a4@') or dst.startswith('%a1@'):   # move sets N / Z
                 cc = ('val', v) if isinstance(v, int) else (f'mv{src}', 'N')
@@ -848,7 +867,7 @@ class Obj:
             elif k == 'hitclr': self.hitany = False
             elif k == 'hitoff': self.hit = False
             elif k == 'adv': self.advance()
-            elif k == 'check' and len(op) > 2: self.links |= self.hl & op[1]   # the presses latched in a hit-stop
+            elif k == 'check' and len(op) > 2 and op[2] == 'hl': self.links |= self.hl & op[1]   # the presses latched in a hit-stop
             elif k == 'check':
                 pr = self.presses.get(self.f, 0) & op[1]; lags = self.prog.get('link_lag', [])
                 for b_ in range(len(lags)):            # a press made before the last input clear: dropped
@@ -1076,11 +1095,10 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'krauser': {'214A', '214B', '41236B', '236D', '641236C', '623B', '623D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
                 'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D', '23624C'}}
 # furies read from the ROM whose MAX path is not modelled yet (no 'MAX <fury>' export: down+D plays the fury, as before):
-# Yamazaki 236236C (TODO #216): in the MAX the drag's last list leaves the victim standing (state 329) and the final
-# strike's catch box takes it again (+$19C $6B126, its victim routine $6B138: the hits counted by +$1A5), a second catch
-# Iori 23624C (TODO #216): the MAX plays a list of ten strikes after the claw, each signalling the victim's held loop
-# ($719DE, state list $71A3E), not the cine
-MAX_LATER = {('yamazaki', '236236C'), ('iori', '23624C')}
+# none since TODO #220 (2026-10-07): Iori 23624C's MAX (ten strikes from the state list +$C2 by +$D2, the victim's lists
+# picked by the attacker's +$D2: victim_lists 'idx') and Yamazaki 236236C's (three drags, the last list's release leaves
+# the victim standing, VL_STAND, the strike 185's hold hits, HOLD_BOX) are read from their handlers
+MAX_LATER = set()
 ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 'kof96', 'k_dash': 'kof99'}   # else kof98
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
             'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'cine', 'place', 'hitclr', 'hold', 'unhold', 'sigclr', 'hitoff',
@@ -1158,6 +1176,14 @@ def catch_dead(m, o):
     return 1 + stop_frames(m, o.steps[o.step][2]) if o.steps is not None else 1
 def is_catch(box, fl):
     return box == 0x37
+# the hold hit (TODO #220): attack box id $36 has no entry in KOF98's reaction tables (index 83, past their 0-81): its
+# hit hands the victim to the attacker's victim routine (+$1A0, set by the move: held in place in its held state, its
+# hits counted by +$1A5; Yamazaki MAX 236236C's 185 $6B138: 371, Iori 23624C's claw 165 $718AE) and the attacker's code
+# goes on (no +$19C: that is $37's, the catch). A later hit by another box takes its own reaction (Yamazaki's last
+# strike, box $2E: the launch 299). The brawler: bstep_t.hy = HY_HOLD (fighter.c: the attacker holds its victim, PF_HOLD,
+# reeling in place; a hit by another box lets it go with its own reaction)
+HOLD_BOX = 0x36
+HY_HOLD = 0x80                                         # (a packed reaction box_react never gives: R_LIGHT both, hurt)
 def cond_id(c): return CONDS[c.split(':')[0]] if isinstance(c, str) and ':' in c else CONDS[c]
 def cond_ok(c): return c in CONDS or isinstance(c, str) and c.split(':')[0] in ('link', 'far', 'low', 'cntle')
 
@@ -1173,16 +1199,32 @@ def victim_lists(m, addr, sdm=False, nsig=None):
     back to it: Yamazaki 236236C's drag, once per drag, TODO #216) is repeated so that the lists number nsig + 1 (nsig:
     the attacker program's signals; None: played once)"""
     dec = Decoder(m); a = addr; out = []; a0 = None; d0 = None; n = 0; maxtest = False; at = {}; rep = None; tstd2 = False
+    ptab = stab = None; idx = False; cmpd2 = None
     while a is not None and n < 200:
         n += 1
         mn, o, nx = dec.at(a)
         at.setdefault(a, len(out))                     # (the lists appended before each address: a loop's start)
-        if mn == 'lea' and o[1] == '%a0': a0 = imm(o[0]); a = nx; continue
+        if mn == 'lea' and o[1] == '%a0': a0 = imm(o[0]); idx = False; a = nx; continue
         if mn == 'movew' and o[0].startswith('#') and o[1] == '%d0': d0 = imm(o[0]); a = nx; continue
-        if mn == 'jsr' and imm(o[0]) == 0x24B22: out.append((a0, d0)); a = nx; continue
+        # lists picked by the attacker's counter (TODO #220, Iori's MAX 23624C $71A52: `move.l #P, +$CA; move.l #S,
+        # +$32`, then per pass list P[+$D2 - 1] of size S[+$D2 - 1] (the attacker's +$D2 via +$B6), until `cmpi #k,
+        # $D2(a0); bne` back: one list per strike, the attacker counting +$D2 down from nsig after each signal)
+        if mn == 'movel' and o[0].startswith('#') and o[1] == '%a4@(202)': ptab = imm(o[0]); a = nx; continue
+        if mn == 'movel' and o[0].startswith('#') and o[1] == '%a4@(50)': stab = imm(o[0]); a = nx; continue
+        if mn == 'moveal' and ptab is not None and re.match(r'^%a0@\(0,%d1:w\)$', o[0]): idx = True; a = nx; continue
+        if mn == 'jsr' and imm(o[0]) == 0x24B22:
+            out.append(('idx', ptab, stab) if idx else (a0, d0)); idx = False; a = nx; continue
+        if mn == 'cmpiw' and o[1] == '%a0@(210)': cmpd2 = imm(o[0]); a = nx; continue
+        if mn.startswith('bne') and cmpd2 is not None and imm(o[0]) in at and out and out[-1][0] == 'idx':
+            k0 = at[imm(o[0])]; ent = out[k0]; d2 = nsig if nsig is not None else 2   # the attacker's +$D2 at the start
+            out = out[:k0] + [(m.u32(ent[1] + 4 * (d - 1)), m.u16(ent[2] + 2 * (d - 1))) for d in range(d2, cmpd2, -1)]
+            cmpd2 = None; a = nx; continue
+        cmpd2 = None
         if mn == 'btst' and o in (['#0', '%a0@(228)'], ['#0', '%a1@(228)']): maxtest = True; a = nx; continue
         if mn.startswith('beq') and maxtest:          # the attacker's MAX bit clear: the plain path
             maxtest = False; a = nx if sdm else imm(o[0]); continue
+        if mn.startswith('bne') and maxtest:          # (the MAX path branched to: Iori 23624C's victim $718AE)
+            maxtest = False; a = imm(o[0]) if sdm else nx; continue
         if mn == 'tstw' and o == ['%a0@(210)']: tstd2 = True; a = nx; continue
         if mn.startswith('bne') and tstd2 and imm(o[0]) in at:   # the attacker's counter: back to the loop's list
             rep = at[imm(o[0])]; tstd2 = False; a = nx; continue
@@ -1203,17 +1245,30 @@ def victim_lists(m, addr, sdm=False, nsig=None):
 # byte +$3A = $F9, Iori's purple flames, measured: P2 burns from the release to its landing). -> {'blow': bool, 'fly':
 # (vx, vy, g) px, 'burn': BURN_OF colour} or {}
 RELEASE_BURN = {0x17AC0: 1, 0x17ADE: 1, 0x17AE6: 2}   # +$3A = $F9 purple / $F8 orange (fighter.c BURN_RAMP 1 / 2)
-def victim_release(m, addr):
-    dec = Decoder(m); a = addr; n = 0; rel = False; out = {}; tab = None; a0tab = False
+def victim_release(m, addr, sdm=False):
+    dec = Decoder(m); a = addr; n = 0; rel = False; out = {}; tab = None; a0tab = False; maxtest = False; c2 = a0c2 = None
     while a is not None and n < 200:
         n += 1
         mn, o, nx = dec.at(a)
         if not rel:
+            if mn == 'btst' and o in (['#0', '%a0@(228)'], ['#0', '%a1@(228)']): maxtest = True; a = nx; continue
+            if mn[:3] in ('beq', 'bne') and maxtest:   # the attacker's MAX bit (TODO #220): the version's own path
+                maxtest = False; a = imm(o[0]) if sdm == (mn[:3] == 'bne') else nx; continue
+            maxtest = False
             if mn.startswith('btst') and o == ['#6', '%a4@(212)']: rel = True
             elif mn in ('jmp', 'rts'): return {}
             elif mn.startswith('bra'): a = imm(o[0]); continue
             a = nx; continue
+        if mn == 'btst' and o in (['#0', '%a0@(228)'], ['#0', '%a1@(228)']): maxtest = True; a = nx; continue
+        if mn[:3] in ('beq', 'bne') and maxtest:       # the attacker's MAX bit past the release (TODO #220, Yamazaki
+            maxtest = False; a = imm(o[0]) if sdm == (mn[:3] == 'bne') else nx; continue   # 236236C $6AFB0)
+        maxtest = False
         if mn.startswith('beq'): a = nx; continue      # (the test's own branch: not yet released)
+        if mn == 'movel' and o[1] == '%a4@(194)' and o[0].startswith('#'): c2 = imm(o[0])
+        elif mn == 'moveal' and o == ['%a4@(194)', '%a0']: a0c2 = c2
+        elif mn == 'movew' and o == ['%a0@', '%a4@(114)'] and a0c2 is not None and not out:
+            out['stand'] = m.u16(a0c2)                 # its release: a state from its list, no blow, no flight (the
+                                                       # MAX's $6B100: 329, it stands until the next strike takes it)
         if mn == 'jsr' and imm(o[0]) == 0x18C6C: out['blow'] = True
         elif mn == 'jsr' and imm(o[0]) in RELEASE_BURN: out['burn'] = RELEASE_BURN[imm(o[0])]
         elif mn == 'movel' and o[1] == '%a4@(198)' and o[0].startswith('#'): tab = imm(o[0])
@@ -1583,15 +1638,16 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
     nsig = sum(1 for a_, op in prog['ops'] if op[0] == 'vsig')
     vlists = victim_entries(m, victim_lists(m, prog['victim'], sdm, nsig), cid) if prog.get('victim') else []   # the caught
                                                        # victim's script (its lists for the fighter itself as the victim)
-    vrel = victim_release(m, prog['victim']) if vlists else {}   # its routine's own release: a blow, its own flight
+    vrel = victim_release(m, prog['victim'], sdm) if vlists else {}   # its routine's own release: a blow, its own flight
     if vrel:                                           # (TODO #94 / #96: Iori's explosion and arc)
         last = [dict(e, flags=e['flags'] | 1, burn=vrel.get('burn', 0)) if e['flags'] & 64 and vrel.get('blow') else e
                 for e in vlists[-1]]                   # (the release entry: a blow too, its burn)
         vx, vy, g = vrel.get('fly', (0, 0, 0))
-        vlists[-1] = {'e': last, 'rel': (round(vx * 256), round(-vy * 256), round(g * 256))} if 'fly' in vrel else last
+        vlists[-1] = {'e': last, 'rel': (round(vx * 256), round(-vy * 256), round(g * 256))} if 'fly' in vrel else \
+            {'e': last, 'stand': vrel['stand']} if 'stand' in vrel else last   # (VL_STAND: released standing, TODO #220)
     cl = victim_entries(m, victim_lists(m, prog['cine_victim'], sdm), cid) if prog.get('cine_victim') else []   # the
     if cl:                                             # cine's victim list (TODO #216): after the catch's, P_CATCH v
-        crel = victim_release(m, prog['cine_victim'])  # starts it; its release: a blow, its burn
+        crel = victim_release(m, prog['cine_victim'], sdm)  # starts it; its release: a blow, its burn
         if crel.get('blow'):
             cl[-1] = [dict(e, flags=e['flags'] | 1, burn=crel.get('burn', 0)) if e['flags'] & 64 else e for e in cl[-1]]
     cine_list = len(vlists) + 1 if cl else 0
@@ -1599,6 +1655,9 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
     if cl and prog.get('victim') and not vlists[:cine_list - 1]:   # a catch whose victim routine holds it with no list
         held_by_routine(prog)                          # before the cine (Iori 23624C's claw, $718AE): held throughout
                                                        # (only with a cine: Ryo's / Robert's furies keep their unhold)
+    elif not cl and prog.get('victim') and vlists:     # a catch whose victim routine places it by its lists (TODO #220:
+        held_by_routine(prog)                          # Iori's MAX 23624C, `andi #$EF, +$E4` as its strikes start): the
+                                                       # lists hold it (vlist_apply needs PF_HOLD) until their release
     bad = [op for a, op in prog['ops'] if op[0] not in BODY_OPS | DROP_OPS or (op[0] == 'br' and not cond_ok(op[1]))
            or (op[0] == 'anim' and op[1] is None)]
     if bad: return {'error': f'ops {bad[:3]}'}
@@ -1652,6 +1711,7 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
             ids = [int(k[1:], 16) for k in s['boxes'] if k[0] == '1' and len(k) == 3]
             if ids: live = ids[-1]
             s['react'] = box_react(m, live, cid) if live is not None and s['flags'] & 0x100 else 0
+            if live == HOLD_BOX and s['flags'] & 0x100: s['react'] = HY_HOLD   # KOF's hold hit (TODO #220)
             s['catch'] = 1 if is_catch(live, s['flags']) and s['flags'] & 0x100 else 0
             s['nostop'] = 1 if s['flags'] & 0x100 and no_stop(m, s['flags']) else 0
             # the step's byte 1 (+$7E) bits 0-1 = 3: the victim's reel does not slide (KOF98 $1AF0E sets its +$12C bit 2,
@@ -1828,8 +1888,15 @@ def box_react(m, box, cid):
     for k, air in ((0, False), (4, True)):
         rx = react_index(m, box, air)
         if rx is None: return 0
-        out |= (react_class(rx) | (8 if react_hurt(m, cid, rx) else 0)) << k
+        out |= (RK_HIGH if rx in HIGH_LAUNCH else react_class(rx) | (8 if react_hurt(m, cid, rx) else 0)) << k
     return out
+# the high launch (TODO #220): reactions 56 / 57 (handler $1BFCE, state 299) fly on KOF98's record $1C17A: vx 2, vy 30,
+# gravity 4.625 (x $DF00 a frame to the top, then 0.625), where the launch's ($1BF76, 286) has vy 17.25, gravity 2.6875;
+# measured in our emulator (Yamazaki MAX 236236C's last strike, box $2E: P2 +$58 = 30.0 at $1C008, peak 203 px). In the
+# roster's ROM specials: box $2E (Ralf 23624C / MAX, Yashiro MAX 21426C, Yamazaki MAX 236236C). Packed as R_LIGHT | 8
+# (a nibble react_class never gives): fighter.c RK_HIGH -> R_LAUNCH on KOF_HIGH
+HIGH_LAUNCH = (56, 57)
+RK_HIGH = 8
 
 CLEAN_CONDS = {None, 'end', 'event', 'land', 'falling', 'cnt', 'off', 'hit', 'owner_fxoff'}
 
