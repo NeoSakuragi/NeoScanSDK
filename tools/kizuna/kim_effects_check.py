@@ -182,6 +182,8 @@ def drawn_in(s, rec, anims, capf):
 def main():
     global FRAMES
     s = scan() if '--scan' in sys.argv or not os.path.exists(SCAN) else json.load(open(SCAN))
+    air = {('fol ' + A[k]) for A in export_kz.AIR.values() for k in ('whiff', 'hit', 'hit2')}   # (TODO #200: j.2B's
+    if air - set(s): s = scan(sorted(air - set(s)))                                            # captures, scanned once)
     ex = json.load(open(os.path.join(EXP, 'kof95_export.json')))['characters']['kim']
     FRAMES = ex['frames']
     capj = json.load(open(export_kz.CAPTURE)); folj = json.load(open(export_kz.FOLLOWUPS))
@@ -190,7 +192,9 @@ def main():
     ok = True
     for sp in ex['specials']:
         inp = sp['input']
-        if inp in export_kz.FOLLOW:
+        if inp in export_kz.AIR:                         # the air special (TODO #200): its whiff and hit captures
+            A = export_kz.AIR[inp]; srcs = [('fol ' + A[k], (A['dive'], A['land'], A['again'])) for k in ('whiff', 'hit', 'hit2')]
+        elif inp in export_kz.FOLLOW:
             srcs = [('fol ' + rec, anims) for rec, anims, _ in export_kz.FOLLOW[inp]['parts']]
         else:
             rec, _, anims = export_kz.SPECIALS[inp]; srcs = [('cap ' + rec, tuple(anims))]
@@ -212,7 +216,7 @@ def main():
         res['normals'][mv] = {'kizuna_objects': d, 'ok': not d}
         ok &= not d
         if d: print(f'normal {mv}: Kizuna draws {sorted(d)}: MISSING')
-    used = {('fol ' + r) for F in export_kz.FOLLOW.values() for r, _, _ in F['parts']} | {('cap ' + v[0]) for v in export_kz.SPECIALS.values()}
+    used = {('fol ' + r) for F in export_kz.FOLLOW.values() for r, _, _ in F['parts']} | {('cap ' + v[0]) for v in export_kz.SPECIALS.values()} | air
     for k, v in s.items():
         if v['kim_objects'] and k not in used: res['other'][k] = sorted(v['kim_objects'])
         if v['unexplained']: res['unexplained'][k] = v['unexplained']

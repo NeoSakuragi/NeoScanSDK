@@ -121,6 +121,9 @@ extern const rt_head_t *route_tab[BC_COUNT];
                                      played with spec_id BS_FURY (a fury in every respect) */
 #define BS_FORM (BS_COUNT + 2)       /* the form link's transition (vocabulary form.change): bchar_t.form_spec, started by
                                      its trigger (FT_*), untouchable while it plays, ended by its P_FORM (fighter.c "form") */
+#define BS_AIR (BS_COUNT + 3)        /* the air special (vocabulary air special, TODO #200: game.json roster air_special):
+                                     bchar_t.air_spec, down+A in a jump plays it in the air normal's place (no meter); its
+                                     program dives and lands (Kizuna's j.2B); no cancels out of it */
 enum { FT_NONE, FT_DOWN_D_FULL };    /* bchar_t.form_trig: down+D on the ground with a full meter */
 enum { FX_NONE, FX_LIFE, FX_STAGE }; /* bchar_t.form_exit: back to the base form when a life is lost (and at a stage's
                                      start, as every player), or only at a stage's start */

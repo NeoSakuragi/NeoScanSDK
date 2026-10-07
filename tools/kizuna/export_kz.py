@@ -515,6 +515,134 @@ def multipart(B, inp, fc):
             'shape': [max(r[1] for r in p0), max(r[2] for r in p0), False], 'game_hits': sum(1 for r in rsrc if r), **game_damage(F, fc),
             'parts': parts, 'links': links, 'carry_src': carry, 'react_src': rsrc, **({'backdrop': backdrop} if backdrop else {})}
 
+# ---- the air special (TODO #200, vocabulary `air special`: game.json roster[].air_special, down+A in a jump) --------
+# Kim's j.2B is a special of Kizuna's (command $26, group 2, handler $3A79E), not an air normal: read from the 68000 code
+# [code] and measured in our emulator [meas] (followups_kz.py j2B_w / j2B_apex_w / j2B_up_w whiff, j2B_h / j2B2_h hit):
+#   $3A79E: state $19D (anim 8F); 8F step 0's command 9 sets the velocity (6, -6) px / frame = a 45-degree dive
+#     forward and down from wherever the jump is (rising or falling, vertical jump too), no gravity, the jump's own
+#     speed dropped [meas: x +6 / y -6 every frame from 8F's first frame to the floor]. Step 1 (ticks 0) waits with the
+#     staff's attack box live; a hit (trailer bit 15 = a new hit) moves the animation on: steps 2-21, the blue effect
+#     (part 2) at his feet and a new hit every 4 steps (6, 10, 14, 18) while he keeps diving [meas: 4 hits, 22 = a reel].
+#     The whiff shows no effect: step 1 until the floor.
+#   $3A7C2 each frame: a hit landed (+$106 bit 0) -> the follow-up window opens (+$10C bit 3), earlier presses dropped;
+#     the floor ($29432) -> $3A84A. $3A802 (after the hit): the floor -> $3A84A; 64 px up or more and 2B accepted again
+#     -> state $1A0 (anim 92: the second dive kick, velocity (6, -6) again, one hit that knocks down: 2C) -> $3A84A.
+#   $3A84A: on the floor: state $19F (anim 91, the landing, 14 frames) then neutral ($377E4) [meas: 8F shown 2 frames on
+#     the floor first].
+# Played by a program (export_bm rom 'prims', fighter.c prog_update), no recorded rows: the anims are ROM steps, the
+# motion the velocity (scaled by S), the hits the steps' boxes; 2B again = down+A again (A is the attack button).
+AIR = {'j.2B': {'dive': 0x8F, 'land': 0x91, 'again': 0x92, 'again_from': 64, 'vel': (6.0, -6.0),
+                'whiff': 'j2B_w', 'hit': 'j2B_h', 'hit2': 'j2B2_h'}}
+P = {'anim': 1, 'set': 2, 'move': 4, 'fall': 6, 'br': 9, 'resume': 10, 'resume_at': 11, 'end': 15, 'check': 17, 'part': 18,
+     'hitclr': 22}   # bm_chars.h P_*
+PC = {'end': 0, 'land': 2, 'hit': 5, 'always': 7, 'link': 10, 'hitany': 11, 'low': 16}                                    # PC_*
+REG = {'vx': 0, 'vy': 1, 'g': 2}
+SPECIAL_DAMAGE = 8                                   # export_bm.SPECIAL_DAMAGE
+
+def rom_steps(B, n, first, last, new_hit=True):
+    """ROM steps first..last of Kim's animation n as a program's steps (export_bm rom_c: flags $100 attack box live,
+    $4000 the next step goes on with this hit): a step opens a new hit where Kizuna's does (its trailer bit 15) or where
+    a live box follows a dead one; new_hit False: the first steps continue a hit already landed (no box until the next
+    opening: the brawler's program starts a new animation there)"""
+    st = boxes_in_force(n)[first:last + 1]
+    live = [any(attack(b) for b in bx) for _, bx in st]
+    if not new_hit:
+        k = next((i for i, (s, _) in enumerate(st) if s['trailer'] & 0x8000), len(st))
+        live[:k] = [False] * k
+    out = []
+    for i, (s, bx) in enumerate(st):
+        cont = i + 1 < len(st) and live[i] and live[i + 1] and not st[i + 1][0]['trailer'] & 0x8000
+        d = step(B, s['addr'], s['ticks'] + (i == 0), bx if live[i] else [b for b in bx if not attack(b)])   # (the
+        d['flags'] = (0x100 if live[i] else 0) | (0x4000 if cont else 0)   # program's P_ANIM frame counts one of
+                                                                             # its first step's: Kizuna shows it ticks)
+        out.append(d)
+    return out
+
+def air_special(B, inp, fc):
+    """the air special inp (AIR) as a special read from the ROM: its anims, its program, the follow-up link, the Brawler
+    Lab's script (the whiff as the program plays it)"""
+    A = AIR[inp]
+    last = lambda n: len(kz.parse_anim(CH << 12 | n)) - 1
+    hits = [i for i, s in enumerate(kz.parse_anim(CH << 12 | A['dive'])) if s['trailer'] & 0x8000]
+    again = kz.parse_anim(CH << 12 | A['again'])
+    a_hit = next(i for i, s in enumerate(again) if s['trailer'] & 0x8000)
+    anims = {'dive': {'mode': 'hold', 'steps': rom_steps(B, A['dive'], 0, hits[0])},
+             'dive_hit': {'mode': 'hold', 'steps': rom_steps(B, A['dive'], hits[0] + 1, last(A['dive']), new_hit=False)},
+             'again': {'mode': 'hold', 'steps': rom_steps(B, A['again'], 0, a_hit)},
+             'land': {'mode': 'hold', 'steps': rom_steps(B, A['land'], 0, last(A['land']))}}
+    states = list(anims)
+    # damage: SPECIAL_DAMAGE over the dive's hits as Kizuna dealt them (j2B_h: 4 hits), the second kick by Kizuna's ratio
+    def drops(rec):
+        fr = fc[rec]['frames']; return [fr[j - 1][1][6] - fr[j][1][6] for j in range(1, len(fr)) if fr[j][1][6] < fr[j - 1][1][6]]
+    d1, d2 = drops(A['hit']), drops(A['hit2'])
+    each = max(1, round(SPECIAL_DAMAGE / len(d1)))
+    dmg2 = max(1, round(d2[-1] * SPECIAL_DAMAGE / sum(d1)))
+    def first_react(rec, anim):                      # the victim's reaction to the first hit of anim
+        fr = fc[rec]['frames']
+        j = next(j for j in range(1, len(fr)) if fr[j][1][6] < fr[j - 1][1][6] and fr[j - 1][0][0] == anim)
+        return react_of(fr[j][1][0])
+    r1, r2 = first_react(A['hit'], A['dive']), first_react(A['hit2'], A['again'])
+    vx, vy = (round(v * S * 65536) for v in A['vel'])
+    low = sc(A['again_from'])
+    L = {}
+    # frame order as Kizuna's [meas]: the dive moves from its first frame; the frame after a hit's hit-stop shows step 2
+    # in place (the handler's hit path, then on); the second kick and the landing start the frame after their test
+    ops = [('set', REG['g'], 0), ('set', REG['vx'], vx), ('set', REG['vy'], vy),
+           ('anim', 0, each | r1 << 8), ('resume',),
+           ('br', PC['hit'], 'HIT'), ('move',), ('fall',), ('br', PC['land'], 'LAND0'), ('br', PC['always'], None),
+           'HIT', ('anim', 1, each | r1 << 8), ('part',), ('check', 1), ('hitclr',),  # the window opens: the presses of
+           ('resume_at', 'DIVE'), ('br', PC['always'], None),                       # its hit-stop count, earlier ones not
+           'DIVE', ('check', 1), ('br', PC['hitany'], 'STILL'),                     # (each later hit's hit-stop: then a
+           ('move',), ('fall',), ('br', PC['land'], 'LAND0'),                        # frame in place, as the first's)
+           ('br', PC['low'], None, low), ('br', PC['link'], 'AGAIN', 1), ('br', PC['always'], None),
+           'STILL', ('hitclr',), ('br', PC['low'], None, low), ('br', PC['link'], 'AGAIN', 1), ('br', PC['always'], None),
+           'AGAIN', ('anim', 2, dmg2 | r2 << 8), ('set', REG['vx'], vx), ('set', REG['vy'], vy),
+           ('resume_at', 'KICK'), ('br', PC['always'], None),
+           'KICK', ('move',), ('fall',), ('br', PC['land'], 'LAND0'), ('br', PC['always'], None),
+           'LAND0', ('resume_at', 'LAND0B'), ('br', PC['always'], None),            # [meas] 8F 2 frames on the floor
+           'LAND0B', ('resume_at', 'LAND1'), ('br', PC['always'], None),
+           'LAND1', ('anim', 3, 0), ('resume',), ('br', PC['end'], 'END'), ('br', PC['always'], None),
+           'END', ('end',)]
+    k = 0
+    for o in ops:
+        if isinstance(o, str): L[o] = k
+        else: k += 1
+    prims = []
+    for o in ops:
+        if isinstance(o, str): continue
+        c = o[0]
+        if c == 'set': prims.append([P['set'], o[1], 0, o[2]])
+        elif c == 'anim': prims.append([P['anim'], o[1], o[2], None])      # (hit effect: export_bm move_fx)
+        elif c == 'check': prims.append([P['check'], o[1], 0, 0])
+        elif c == 'br': prims.append([P['br'], o[1] | 0x80, -1 if o[2] is None else L[o[2]], o[3] if len(o) > 3 else 0])
+        elif c == 'resume_at': prims.append([P['resume_at'], 0, L[o[1]], 0])
+        else: prims.append([P[c], 0, 0, 0])
+    # the Lab's script: the whiff as Kizuna plays it from the dive's first frame (rows = frames)
+    fr = fc[A['whiff']]['frames']
+    s0 = next(i for i, f in enumerate(fr) if f[0][0] == A['dive'])
+    e = next(i for i in range(s0, len(fr)) if fr[i][0][0] not in (A['dive'], A['land']))
+    x0 = fr[s0 - 1][0][2]
+    script, rb, rs = [], [], []
+    for i in range(s0, e):
+        p = fr[i][0]; bx = step_boxes(p[5])
+        script.append([B.frame(p[5]), sc(p[2] - x0), sc(p[3]), []]); rb.append(kof_boxes(bx))
+        rs.append([p[0], p[1], 0x100 if any(attack(b) for b in bx) else 0, 0xFF])
+    rom = {'states': states, 'anims': anims, 'prims': prims, 'objects': [], 'openings': {}, 'hit_kind': 1,
+           'last_hit': -1, 'apex': -1, 'length': len(script), 'voice_frames': True, 'now': True, 'sharepush': True,
+           'parts': [{'states': ['dive', 'dive_hit']}, {'states': ['again']}],
+           'follow_links': [{'from': 0, 'to': 1, 'input': 'dA'}], 'links': ['dA']}
+    return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'air': True, 'script': script, 'row_boxes': rb,
+            'row_steps': rs, 'marks': [''] * len(script), 'projectiles': [], 'anims': [A['dive'], A['land'], A['again']],
+            'shape': [max(r[1] for r in script), max(r[2] for r in script), False], 'game_hits': len(d1), 'rom': rom}
+
+def air_sounds(inp, fc):
+    """[(frame of the program, sound word)]: what Kizuna sent while the air special's whiff played (from its first frame)"""
+    import voices_kz
+    A = AIR[inp]; fr = fc[A['whiff']]['frames']
+    s0 = next(i for i, f in enumerate(fr) if f[0][0] == A['dive'])
+    e = next(i for i in range(s0, len(fr)) if fr[i][0][0] not in (A['dive'], A['land']))
+    return [(f - s0, w) for f, w in voices_kz.words_of(fr) if s0 <= f < e]
+
 VSTATE = {0xEF: (0x10C, 0xFA), 0xDE: (0x17A, 0xDE)}   # Hayate's victim animation -> (state, Kim's animation for it)
 def vstate(a):
     """the victim's (Hayate's) animation -> (its state: the first one Hayate plays it in, the thrower's animation there)"""
@@ -619,6 +747,7 @@ def export(names, outdir, only=None, extra=None):
             fr = cap[SPECIALS[inp][0]]['frames']
             return projectile_run(fr, part_rows(fr, SPECIALS[inp][2], False)[0]) is not None
         sps = [multipart(B, inp, fc) if inp in FOLLOW and not thrown(inp) else special(B, inp, cap) for inp in SPECIALS]
+        sps += [air_special(B, inp, fc) for inp in (AIR if name == 'kim' else ())]   # (TODO #200: Kim's j.2B)
         sets = [[[0] + rom_palette(s_ + p - 16)[1:] for p in B.pals] for s_ in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0],

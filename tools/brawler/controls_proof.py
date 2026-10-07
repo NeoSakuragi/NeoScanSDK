@@ -30,6 +30,7 @@ L = Lab(); b = L.b; ST = b.states
 SLOT_DIR = {'D': '', 'fD': 'R', 'dD': 'D', 'uD': 'U', 'dfD': 'DR', 'ufD': 'UR'}
 BS_FURY = 6
 BS_FORM = 8                                                   # fighter.h: the form link's transition
+BS_AIR = 9                                                    # fighter.h: the air special (TODO #200)
 INF = bool(M.get('infinite'))                                 # the meter spends nothing (game.json meter.infinite)
 def cost(c): return 0 if INF else c
 
@@ -80,6 +81,11 @@ for ci, name in enumerate(names):
         r['normals'][pos] = {'got': mv, 'want': expect(tree, cand), 'ok': mv == expect(tree, cand)}
     for pos, keys, ent in (('air A', 'a', 'air_a'), ('air down+A', 'Da', 'air_b'), ('air up+A', 'Ua', 'air_cd')):
         settle(M['max']); setpos(90); run(10, 'b'); watch(30, ('AIR',)); run(6); run(3, keys)
+        if ent == 'air_b' and G['roster'][ci].get('air_special'):   # its air special in the air normal's place (TODO #200)
+            s, _, _ = watch(10, ('SPECIAL',)); sid = b.fget(0, 'spec_id')
+            r['air'][pos] = {'got': f'{s} role {sid}', 'want': f'SPECIAL role {BS_AIR} (air special {G["roster"][ci]["air_special"]})',
+                             'ok': s == 'SPECIAL' and sid == BS_AIR}
+            continue
         s, mv, _ = watch(10, ('AIR_ATTACK',))
         want = (tree['entries'].get(ent) or RT.default_tree()['entries'][ent])['move'].replace('_jump', '')
         r['air'][pos] = {'got': mv, 'want': want + '_*', 'ok': bool(mv) and mv.startswith(want)}
