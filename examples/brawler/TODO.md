@@ -1501,6 +1501,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   fighter's own) are missing: Iori 624D / 624B release's purple explosion (state 140), Rugal's slam. Export the
   shared bank's graphics the moves use (only those), with their palettes, and play them.
 
+- [ ] 215. CHENG FU'S HIT EFFECTS (seen on #212's sheets): DD draws pink rings / yellow sparks / green-blue slashes on
+  his super hits and flashes the screen red on each Super 623 hit; the brawler plays none of them (only its generic
+  spark). Decode DD's effect objects for his moves and play them. Also open from #212: his 421 counter stance (no
+  counter mechanism yet) and the down-attack on a lying opponent.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
