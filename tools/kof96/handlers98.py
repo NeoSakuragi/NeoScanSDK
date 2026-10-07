@@ -597,8 +597,9 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if base == 'ori' and field(o[1], 'a0') == 0xD1 and A0 == 'owner' and depth > 0 and isinstance(imm(o[0]), int):
             emit(a, 'ownersig', imm(o[0]) & 0xC0); a = nx; continue    # an object signals its owner (+$D1 bits 7 / 6:
                                                                          # Geese's side effects end, K''s shot hit / gone)
-        if base == 'and' and o[0] == '%fp@' and charging[0] and o[1].startswith('%d'):   # its button held (the charge)
-            cc = ('held', 'Zinv'); D[o[1]] = None; a = nx; continue
+        if base == 'and' and o[0] == '%fp@' and (charging[0] or resumed[0] and depth == 0) and o[1].startswith('%d'):
+            cc = ('held', 'Zinv'); D[o[1]] = None; a = nx; continue  # its button held past the first frame (a charge, a
+                                                       # hold: Kyo's Orochinagi $3D696, TODO #198): a run-time test
         if base in ('ori', 'andi', 'or', 'and'):
             fd = field(o[1]); v = imm(o[0]) if o[0].startswith('#') else val(o[0], sz)   # and.b (fp), d0: the buttons held
             v = v if isinstance(v, int) else None                                         # (none past the first frame)
@@ -715,6 +716,7 @@ class Obj:
         self.sig = 0                                  # +$D1 bits 7 / 6 its objects set (ownersig)
         self.facing = 1                               # -1 after a 'turn' (Rugal's MAX fury): forward is the other way
         self.opp = None                               # frame -> the opponent's x (forward +), for 'far:N'
+        self.held = 0                                 # the special's button held for its first `held` frames ('held')
         self.presses = {}; self.f = 0; self.links = 0            # follow-ups: {frame: link bits seen then}, the armed set,
         self.switch = 0; self.parts = [[]]; self.pmask = [0]; self.clr = -999; self.hl = 0                   # the states per part (a taken link branch: the next anim
                                                                  # starts a part)
@@ -744,7 +746,7 @@ class Obj:
         if c == 'falling': return self.falling
         if c == 'cnt': return self.cnt < 0
         if c == 'wall': return False                  # the whiff model: no wall reached (the catch never plays here)
-        if c == 'held': return False                  # the button not held (a charge released at once)
+        if c == 'held': return self.f < self.held     # the button held up to model frame `held` (0: released at once)
         if isinstance(c, str) and c.startswith('cntle:'): return self.cnt <= int(c[6:])
         if c == 'off': return self.off
         if c == 'hit': return self.hit
@@ -836,10 +838,10 @@ class Obj:
         if self.steps is None: return None
         return self.steps[self.step][1]
 
-def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=None, hits=(), catch_at=None, opp=None):
+def run_model(m, cid, prog, frames=200, x=0.0, hit_at=None, cam=-160, presses=None, hits=(), catch_at=None, opp=None, held=0):
     """the program played alone (a whiff): per frame (state, ROM frame index, x, height, spawns [(object, x, h, vx)]);
     its objects played as their own Obj from their spawn frame (rows per object: frame, state, ROM frame, x, height)"""
-    o = Obj(m, cid, prog, x=x); o.resume = 0; rows = []; objs = []; o.presses = presses or {}; o.opp = opp
+    o = Obj(m, cid, prog, x=x); o.resume = 0; rows = []; objs = []; o.presses = presses or {}; o.opp = opp; o.held = held
     for f in range(frames):
         if hit_at is not None and f == hit_at: o.hit = True
         if f in hits: o.hitany = True; o.hl = o.presses.get(f, 0)   # +$E3 bit 7: every hit (the game's life drops);
@@ -1231,11 +1233,12 @@ def follow_parts(m, cid, prog, links, frames=300):
                     out.append({'from': a_, 'to': b_, 'input': inp})
     return parts, out
 
-def openings(m, cid, prog, frames=300, presses=None):
+def openings(m, cid, prog, frames=300, presses=None, held=0):
     """the whiff model run: per state the hit windows it opens (an active step, $0100, entered when the step before
     was not active-and-chained ($4000), a state's first step counting as new), the frame of the last opening, the apex
-    frame, the frames played. presses: the follow-up presses ({frame: link bits})"""
-    o = Obj(m, cid, prog); o.resume = 0; o.presses = presses or {}
+    frame, the frames played. presses: the follow-up presses ({frame: link bits}); held: its button held for the
+    first `held` frames ('held')"""
+    o = Obj(m, cid, prog); o.resume = 0; o.presses = presses or {}; o.held = held
     o.hl = max(o.presses.values(), default=0)          # (a hit-stop's latch: as if pressed in one)
     o.opp = lambda f: o.x                              # the opponent next to it (K''s dash ends at once)
     per, last, prev, peak, top = {}, -1, None, 0, -1
@@ -1411,6 +1414,9 @@ def export_rom(m, cid, inp, add, game='kof98'):
     for k in range(len(links)):                                # a follow-up's hits: the run with link k pressed throughout
         pk = openings(m, cid, prog, presses={f: 1 << k for f in range(300)})[0]
         for st, n_ in pk.items(): per[st] = max(per.get(st, 0), n_)
+    if any(op[0] == 'br' and op[1] == 'held' for a, op in prog['ops']):   # a hold's hits (TODO #198: Kyo's MAX Orochinagi
+        for st, n_ in openings(m, cid, prog, held=300)[0].items():   # burns while C is held): the run with it held throughout
+            per[st] = max(per.get(st, 0), n_)
     objs = []
     mrows, mobjs = run_model(m, cid, prog, 300)                 # the whiff: when its pinned effects end
     for k, ob in enumerate(prog['objects']):

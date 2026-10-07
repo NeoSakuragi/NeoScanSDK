@@ -7,7 +7,9 @@
     special of the fighter's pool from that slot; +LINK@T (repeatable) a follow-up press (TODO #74): LINK one of the
     special's links (its program's 'links': 'again', 'fA', 'fAB'), T the special's frame of KOF's button press
     (FOLLOW_KOF: the game's input; the brawler presses so its program reads it on the frame KOF's handler does, T +
-    FOLLOW_LAG); e.g. iori:ufD+again@5+again@13, k_dash:D+fAB@12
+    FOLLOW_LAG); e.g. iori:ufD+again@5+again@13, k_dash:D+fAB@12; ~H (TODO #198) the move's button held H frames past
+    KOF's try (romspecials98 hold): the brawler holds it until its program has played the frames KOF's handler saw it
+    held (PC_HELD), e.g. kyo:C~60, kyo:M~200
 
 Per special and branch (whiff: nobody near; hit: an enemy standing 48 px ahead, KOF98's close-range distance), from the
 special's first frame: the frame shown (ROM frame index), x from the start (forward +), height, the hits (frames the
@@ -51,8 +53,9 @@ def prog_links(game, cid, inp):
     h, bt = H.handler_of(cid, inp, inp.startswith('EX '), game)
     return H.decode(m, h, bt, inp.startswith('EX '), cid=cid)['links']
 
-def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follow=(), facing=1, obj_window=400):
-    """follow: [(program frame that must read the press, keys, intent delay)]; facing -1: from the right, keys mirrored"""
+def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follow=(), facing=1, obj_window=400, held=0):
+    """follow: [(program frame that must read the press, keys, intent delay)]; facing -1: from the right, keys mirrored;
+    held: the button stays down until the program has played `held` frames (its PC_HELD reads it held on those)"""
     mir = (lambda ks: ks.translate(str.maketrans('RL', 'LR'))) if facing < 0 else (lambda ks: ks)
     b.pick(k, unlock=True)                              # Rugal / Goenitz are unlocked by play
     b.run(10)
@@ -76,6 +79,7 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
     fpress = {}
     for f in range(frames):
         if f < int(n): b.pad = [set(mir(keys)), set()]
+        elif held and (started is None or b.fget(0, 'srow') < held - FOLLOW_BLAG): b.pad = [{keys[-1]}, set()]   # the button
         else: b.pad = [set(), set()]
         if started is not None:                          # a follow-up: pressed so that prog_update reads it at its frame
             sr = b.fget(0, 'srow')                       # (srow = the program frames played: the next one is srow)
@@ -185,7 +189,8 @@ def main(game, out, cases):
     b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
     summary = []
     for case in cases:
-        name, role = case.split(':'); role, *fus = role.split('+'); role, _, inp = role.partition('=')
+        name, role = case.split(':'); role, *fus = role.split('+'); role, _, hold = role.partition('~'); role, _, inp = role.partition('=')
+        hold = int(hold or 0)                            # ~H: the button held H frames more (KOF's try)
         inp = inp or (gj[name]['fury'] if role in ('C', 'M') else gj[name]['specials'][role]); cid = KOF[name]
         sdm = role == 'M'                                # KOF98's MAX version of the fury (romspecials98 sdm)
         fus = [(fu.split('@')[0], int(fu.split('@')[1])) for fu in fus]
@@ -198,11 +203,11 @@ def main(game, out, cases):
         kfol = [(t, FOLLOW_KOF[(name, l)], 1 << links.index(l)) for l, t in fus]
         bpad = [((ROLES[role].split(':')[1], 0) if l == 'again' else FOLLOW_PAD[l]) for l, t in fus]
         for branch in BRANCHES:
-            tag = f'{name}_{"MAX" if sdm else ""}{inp.replace(" ", "").replace("[", "c").replace("]", "")}' + ''.join(f'+{l}{t}' for l, t in fus) + f'_{branch}'
+            tag = f'{name}_{"MAX" if sdm else ""}{inp.replace(" ", "").replace("[", "c").replace("]", "")}' + ''.join(f'+{l}{t}' for l, t in fus) + (f'_h{hold}' if hold else '') + f'_{branch}'
             shots = os.path.join(out, 'shots', tag); os.makedirs(shots, exist_ok=True)
             dm = role in ('C', 'M')                      # a fury: KOF96's from low life, P2 jumps over the whiff, 400 frames
             try: res, game_rows, model, objs, prog = K.compare(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), quiet=True, game=kg, follow=kfol,
-                                                               dm=dm, frames=400 if dm else 200, sdm=sdm)
+                                                               dm=dm, frames=400 if dm else 200, sdm=sdm, hold=hold)
             except StopIteration as e:                   # KOF's trace never entered the special (a mash input: Ralf AAAA)
                 s = {'case': case, 'input': inp, 'branch': branch, 'error': f'no KOF trace {e!r}'}
                 summary.append(s); print(json.dumps(s), flush=True); continue
@@ -217,7 +222,7 @@ def main(game, out, cases):
                 res = dict(res, frames_game=len(model) - 1, hit_frames=[], frozen_dropped=0, slowdown_dropped=0, objects_game=[])
             # KOF screenshots at the kept frames (every EVERY-th of the move after the dropped ones)
             want = [game_rows[i]['f'] for i in range(0, res['frames_game'], EVERY)][:30]
-            K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), 400 if dm else 200, snaps=[K.START + f for f in want], snapdir=shots, game=kg, dm=dm, sdm=sdm,
+            K.trace(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), 400 if dm else 200, snaps=[K.START + f for f in want], snapdir=shots, game=kg, dm=dm, sdm=sdm, hold=hold,
                     p2_seq=K.follow_spec(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), kg, [(t, ev) for t, ev, mk in kfol]) if kfol else '')
             # the opponent as far ahead as KOF's was when the special started (a charge move walked P1 back first)
             gap = round(game_rows[0]['p2x'] - game_rows[0]['x']) if branch in DIST else None
@@ -225,7 +230,7 @@ def main(game, out, cases):
                     if pf is not None]   # (a press KOF latched in its hit-stop: the brawler presses in its own)   # the program frame KOF's
                                                          # handler read it on (None: lost in KOF's hit-stop, not pressed)
             br, bro = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter, follow=bfol, frames=900 if dm else 700,
-                                  obj_window=len(game_rows) + 60)
+                                  obj_window=len(game_rows) + 60, held=res.get('held', 0))
             rec = lambda bf: int(frames[name][bf].split(':')[1]) if bf < len(frames[name]) and frames[name][bf] else -1
             kcid = cid; rec0 = K.rom96.frame_record(K.rom96.Mem(K.rom96.load(K.rom96.GAMES[kg]['neo'])[0], kg), cid, 0)
             n = min(len(br), res['frames_game'])
@@ -241,7 +246,7 @@ def main(game, out, cases):
             bp = next(((i, r['proj']) for i, r in enumerate(br) if r['proj']), None)
             seqk = [game_rows[i]['state'] for i in range(res['frames_game']) if i == 0 or game_rows[i]['state'] != game_rows[i - 1]['state']]
             s = {'x_trace': [(i, br[i]['x'], round(game_rows[i]['x'] - gx0, 2)) for i in range(0, n, 8)],
-                 'case': case, 'input': inp, 'branch': branch, 'reference': ref, 'kof_frames': res['frames_game'], 'brawler_frames': len(br),
+                 'case': case, 'input': inp, 'branch': branch, 'reference': ref, 'hold': hold, 'held_frames': res.get('held', 0), 'kof_frames': res['frames_game'], 'brawler_frames': len(br),
                  'kof_states': seqk, 'brawler_parts': sorted({r['spart'] for r in br}),
                  'frame_mismatch': dfr, 'bad_frames': [(i, rec(br[i]['frame']), game_rows[i]['frame']) for i in badf[:8]], 'max_dx': round(dx, 2), 'max_dh': round(dh, 2), 'kof_hits': res['hit_frames'],
                  'brawler_hits': bhits, 'kof_freeze_dropped': res['frozen_dropped'], 'kof_slowdown_dropped': res['slowdown_dropped'],

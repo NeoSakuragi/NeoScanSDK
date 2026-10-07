@@ -14,7 +14,7 @@ one hurt box = union of KOF's hurt boxes, the attack box when the step has one),
 one per palette index), physics (16.16 px/frame). Boxes are KOF's: centre offset from the feet (y < 0 = up) and half
 extents, in the sprites' own orientation (ROM sprites face LEFT: mirror x when the fighter faces right).
 Tile numbers start at TILE_BASE (1 .. TILE_BASE - 1 hold the stage, banner and sparks)."""
-import json, os, sys
+import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
 import export96
@@ -606,6 +606,25 @@ def char_sfx(n):
 FIRE_COLOUR = {'iori': 1}
 
 R_CODE = {'heavy': R_HEAVY, 'knockdown': R_KNOCKDOWN}
+
+MAX_PALS = int(re.search(r'#define MAX_PALS\s+(\d+)', open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'fighter.h')).read()).group(1))
+
+class pal_slots:
+    """a fighter's palette slots (TODO #198): the export's palettes its frames use, those with the same colours in every
+    colour set as one slot (KOF98 Kyo's effect palette $B81 = his body palette 18: 9 -> 8). `keys` = one export palette
+    per slot, in order; `index(p)` = the slot of export palette p. The game loads MAX_PALS slots per fighter (fighter.h):
+    a part past them is drawn with the next fighter's colours (Kyo's EX 236A flame, palette 37: Bruno's
+    20261007-114149-b3f3), so the export says so."""
+    def __init__(self, n, used, sets):
+        self.keys, self.slot = [], {}
+        for k in used:
+            same = next((j for j, q in enumerate(self.keys) if all(st[q] == st[k] for st in sets)), None)
+            if same is None: self.keys.append(k); same = len(self.keys) - 1
+            self.slot[k] = same
+        if len(self.keys) > MAX_PALS:
+            print(f'{n}: {len(self.keys)} palettes, the game loads {MAX_PALS}: slots {MAX_PALS}+ show other colours', flush=True)
+    def index(self, k): return self.slot[k]
+    def __len__(self): return len(self.keys)
 
 def projectile_c(n, k, pjs, game, sp):
     """C tables of a special's projectiles (export96.projectile_entry, in spawn order): per projectile its flight
@@ -1261,9 +1280,9 @@ def write_c(chars, outdir):
     pooldata = {}                                        # per fighter its pool's frame / hit data (chainlab.json)
     vdata = {}                                           # per fighter its voice keys, suggestion, mapping (chainlab.json)
     for game, n, ch, off in chars:
-        used[n] = sorted({p.get('pal', 0) for fr in ch['frames'] for p in fr['parts']}) or [0]
         sets = ch['block_palettes']
-        c.append(f'static const uint16_t {n}_pals[] = {{' + ', '.join(f'0x{v:04X}' for st in sets for k in used[n] for v in st[k]) + '};')
+        used[n] = pal_slots(n, sorted({p.get('pal', 0) for fr in ch['frames'] for p in fr['parts']}) or [0], sets)
+        c.append(f'static const uint16_t {n}_pals[] = {{' + ', '.join(f'0x{v:04X}' for st in sets for k in used[n].keys for v in st[k]) + '};')
         for fi, fr in enumerate(ch['frames']):
             for pi, p in enumerate(fr['parts']):
                 assert len(p['tiles'][0]) <= 32, f'{n} frame {fi}: {len(p["tiles"][0])} rows (SCB3 height and draw.s stop at 32)'

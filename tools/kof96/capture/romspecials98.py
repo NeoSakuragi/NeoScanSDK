@@ -36,11 +36,13 @@ def s16(o, a): return struct.unpack('>h', o[a:a + 2])[0]
 def s32(o, a): return struct.unpack('>i', o[a:a + 4])[0]
 def u32(o, a): return struct.unpack('>I', o[a:a + 4])[0]
 
-def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='kof98', snaps=(), snapdir=None, dm=False, wjump=None, sdm=False):
+def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='kof98', snaps=(), snapdir=None, dm=False, wjump=None, sdm=False,
+          hold=0):
     """dm: a desperation move (the brawler's fury, TODO #139): KOF96 gives it from low life (+$138 <= 32), as
     specials96's capture did (life 24, +$E2 bit 1 as the capture had it); KOF98 / KOF99's reload
     states hold a stock. sdm (TODO #139): the MAX version: KOF98's MAX mode held on (+$E0 bit 4 poked every frame up to
-    the move: the power check $24D80 then spends a stock and sets +$E4 bit 0; the reload states have +$E0 = $80)"""
+    the move: the power check $24D80 then spends a stock and sets +$E4 bit 0; the reload states have +$E0 = $80).
+    hold (TODO #198): the move's button kept held `hold` frames past the try's last event (a charge / Orochinagi's hold)"""
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     tr = try_for(m, cid, inp, ex)
     if dm and dist == 'whiff' and wjump is None:   # a fury's whiff: P2 jumps over it (whiff_jump)
@@ -50,7 +52,11 @@ def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='
     if wjump is not None and wjump >= 0: p2_seq = f'p2 {START + wjump} 4 U'      # (-1: the plain whiff)
     tag = f'{cid}{"x" if ex else ""}_{inp.replace("[", "c").replace("]", "")}_{dist}' + ('_dm' if dm and game == 'kof96' else '')
     out = os.path.join(OUT, tag + '.txt')
-    spec = [f'p1 {START + off} {n} {keys}' for off, n, keys in DM_EVENTS.get((game, cid, inp), tr['events']) if keys]
+    evs = DM_EVENTS.get((game, cid, inp), tr['events'])
+    spec = [f'p1 {START + off} {n} {keys}' for off, n, keys in evs if keys]
+    if hold:                                         # the button (the last event's lower-case keys) held on
+        off, n, keys = evs[-1]; spec.append(f'p1 {START + off + n} {hold} {"".join(k for k in keys if k.islower())}')
+        tag += f'_h{hold}'; out = os.path.join(OUT, tag + '.txt')
     if p2_seq: spec.append(p2_seq)
     s1, s2 = C.seqs('; '.join(spec), START + frames)
     x1h, x1l, x2h, x2l = PLACE[dist]
@@ -117,7 +123,7 @@ def follow_spec(cid, inp, dist, ex, game, follow, dm=False):
     f0 = rows0[next(i for i, r in enumerate(rows0) if special(r['state']))]['f']
     return '; '.join(f'p1 {START + f0 + t + o} {n} {k}' for t, ev in follow for o, n, k in ev)
 
-def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98', follow=None, dm=False, sdm=False):
+def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof98', follow=None, dm=False, sdm=False, hold=0):
     """follow: follow-up presses [(t, events, link bits)] (follow_spec; the model sees each at t + FOLLOW_LAG)"""
     """the game (trace) against the decoded program's model (handlers98.run_model), frame by frame from the first
     special state: P1 state, ROM frame, x from the start, height; objects: first frame, state, frame, x, height.
@@ -126,7 +132,7 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
     import handlers98 as H
     m = rom96.Mem(rom96.load(rom96.GAMES[game]['neo'])[0], game)
     spec = follow_spec(cid, inp, dist, ex, game, [(t, ev) for t, ev, mk in follow], dm) if follow else ''
-    rows, _, _ = trace(cid, inp, dist, ex, frames, p2_seq=spec, game=game, dm=dm, sdm=sdm)   # sdm: its MAX version
+    rows, _, _ = trace(cid, inp, dist, ex, frames, p2_seq=spec, game=game, dm=dm, sdm=sdm, hold=hold)   # sdm: its MAX version
     try: h, b = H.handler_of(cid, inp, ex, game); prog = H.decode(m, h, b, ex, cid=cid, sdm=sdm)
     except KeyError: h = prog = None             # a captured special (no ROM handler): the game's rows only
     k0 = next(i for i, r in enumerate(rows) if special(r['state']))
@@ -153,8 +159,12 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
     # a catch (a fury's rush / grab, TODO #139): the first frame P1 entered the hit-stop with a catch routine installed
     catch = next((i for i, r in enumerate(game) if r['pc'] in hs and u32(r['raw'], 0x19C)), None)
     opp = lambda f: game[min(f, len(game) - 1)]['p2x'] - game[0]['x']          # P2's x from P1's start (K''s 'far:N')
+    held = 0                                      # the button held (hold): the handler's and.b (fp) sees a pad 2
+    if hold:                                      # frames late (the input path; measured: Kyo 21426C, TODO #198): held
+        evs = DM_EVENTS.get((gname, cid, inp), try_for(m, cid, inp, ex)['events']); off, n_, _ = evs[-1]   # on the kept
+        held = sum(1 for r in game if r['f'] <= off + n_ + hold + 1)                  # frames to its last held one + 2
     model, objs = H.run_model(m, cid, prog, frames, hit_at=hits[0] if hits else None, presses=presses, hits=set(hits),
-                              catch_at=catch, opp=opp) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
+                              catch_at=catch, opp=opp, held=held) if prog else ([(0, game[0]['state'], game[0]['frame'], 0.0, 0.0)], [])
     x0 = game[0]['x'] - model[0][3]               # aligned on the first frame
     end = next((i for i, r in enumerate(game) if not special(r['state'])), len(game))
     n = min(end, len(model)); bad = []; nb = {'frame': 0, 'x': 0, 'h': 0}
@@ -166,7 +176,8 @@ def compare(cid, inp, dist='whiff', ex=False, frames=200, quiet=False, game='kof
         if any(d.values()): bad.append((i, (g['state'], g['frame'], gx, gh), mo[1:5]))
     res = {'input': inp, 'dist': dist, 'ex': ex, 'handler': f'${h:X}' if h else None, 'frames_game': end, 'frames_model': len(model),
            'mismatch': len(bad), 'by': nb, 'first_bad': bad[:4], 'hits_game': len(hits), 'hit_frames': hits, 'frozen_dropped': frozen, 'slowdown_dropped': slow,
-           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf, 'press_latched': hl, 'catch': catch}
+           'states': sorted({r['state'] for r in game[:end]}), 'press_frames': pf, 'press_latched': hl, 'catch': catch,
+           'held': held}                          # the model frames the button counts as held (hold)
     before = {o['base'] for o in rows[k0 - 1]['objs']}
     born = {}
     rec0 = rom96.frame_record(m, cid, 0)
