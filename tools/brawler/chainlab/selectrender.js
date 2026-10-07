@@ -27,10 +27,10 @@
     return [D.lut[r], D.lut[g], D.lut[b]];
   }
   const RGB5 = (r, g, b) => ((r & 1) << 14) | ((r >> 1) << 8) | ((g & 1) << 13) | ((g >> 1) << 4) | ((b & 1) << 12) | (b >> 1);
-  function grey(c) {                             /* main.c col_grey: luminance (5 R + 9 G + 2 B) / 16, a cold grey */
+  function grey(c) {                             /* main.c col_grey: half way to the luminance grey (5 R + 9 G + 2 B) / 16 */
     const r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
     const l = ((r * 5 + g * 9 + b * 2) >> 4) & 0xFF;
-    return RGB5(l, l, l + (l < 31 ? 1 : 0));
+    return RGB5((r + l) >> 1, (g + l) >> 1, (b + l + (l < 31 ? 1 : 0)) >> 1);
   }
   const SILHOUETTE = RGB5(4, 4, 5);
   const samePose = (a, b) => a[0] === b[0] && a[1] === b[1];

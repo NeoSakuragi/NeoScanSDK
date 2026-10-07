@@ -1435,10 +1435,10 @@ static void slots_build(void) {
 static uint8_t selectable(uint8_t s) { return slot_ch[s] != 0xFF && !char_locked(slot_ch[s]); }
 static uint8_t arrow_col[2] = { 0xFF, 0xFF }, arrow_row[2];
 
-static uint16_t col_grey(uint16_t c) {                      /* luminance (5 R + 9 G + 2 B) / 16, a cold grey */
+static uint16_t col_grey(uint16_t c) {                      /* half way to the luminance grey (5 R + 9 G + 2 B) / 16 (Bruno: "less grey") */
     uint8_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
     uint8_t l = (uint8_t)((r * 5 + g * 9 + b * 2) >> 4);
-    return RGB(l, l, l + (l < 31));
+    return RGB((r + l) >> 1, (g + l) >> 1, (b + l + (l < 31)) >> 1);
 }
 #define SILHOUETTE RGB(4, 4, 5)
 /* an entity's palettes: its own colours (1), greys (0) or a silhouette (2) */
