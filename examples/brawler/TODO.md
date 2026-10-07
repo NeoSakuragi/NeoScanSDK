@@ -1134,6 +1134,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   only the known wide / grab-pose differences), controls 3/3 ok, cancel all ok 3, bank_proof ALL OK, regress no-bleed
   True (strict). Scenario todo191-haohmaru-rage-palette (lint 0).
 
+- [ ] 194. BILLY LEE: THROWS + SMALL DRAGON PUNCH (20261007-110922-b3f3 "Billy does not have any throws yet";
+  20261007-111015-b3f3 "For the down + C special move, use the version of the dragon punch that is actually with A, so
+  the small" one): Double Dragon's throws decoded (command, animations, victim handling) through #146's standard
+  throw, for Billy Lee and Super Billy; down+C = the 623 A row (variant table).
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
