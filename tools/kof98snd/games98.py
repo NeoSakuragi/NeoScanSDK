@@ -192,7 +192,8 @@ GAMES = {
         overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=False,
         types=0x3038,
         nop=0x60,             # KOF98's NMI: a blocked command becomes $60 (type 0), not $00 (a stale ring slot replays)
-        block=340, send=400,  # our emulator: the game sends $07 at frame 338 and its first song ($45) at 352 (measured)
+        block=478, send=500,  # the tap core (capture.Sound): the game's boot commands ($01 / $03 resets) end at 455, $07 at
+                              # 461, its first song ($45) at 475 (measured)
     ),
 }
 

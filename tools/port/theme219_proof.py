@@ -10,7 +10,9 @@ OUT_DIR gets src_<name>.wav / .txt (the source game) and bra_<name>.wav / .txt (
 Similarity (both WAVs mixed to mono, 55,555 Hz): aligned on their first sound (the first sample above 1 % of full scale),
 then cut in 1 s windows; each window's normalized cross-correlation with the other WAV at the best lag within +-60 ms
 of the previous window's lag (a port's tempo differs by up to 0.1 %: the lag drifts, measured as 'drift_ms'); per song
-the windows' median / 10th percentile / minimum correlation and the level ratio (RMS brawler / source, dB). A KOF98 song
+the windows' median / 10th percentile / minimum correlation, the same for the windows' log-magnitude spectrograms
+(46 ms frames to 8 kHz, dB: what is heard, insensitive to the few-ms timing of each channel's writes inside a driver
+tick and to oscillator phase) and the level ratio (RMS brawler / source, dB). A KOF98 song
 the brawler keeps (native) plays KOF98's own song data: 'bit_identical' tells whether the two WAVs are the same samples
 after the alignment."""
 import json, os, subprocess, sys, wave
@@ -27,13 +29,20 @@ def onset(x):
     i = np.flatnonzero(np.abs(x) > 327)
     return int(i[0]) if len(i) else 0
 
+def spectrum(x, n=2048, hop=512):
+    """log-magnitude spectrogram (dB, floor -80) of a window, bins to 8 kHz"""
+    fr = np.lib.stride_tricks.sliding_window_view(x, n)[::hop] * np.hanning(n)
+    mag = np.abs(np.fft.rfft(fr, axis=1))[:, :int(8000 * n / RATE)]
+    db = 20 * np.log10(mag / (n * 32768) + 1e-9)
+    return np.maximum(db, db.max() - 80)
+
 def similarity(src, bra):
     a, b = load(src), load(bra)
     a, b = a[onset(a):], b[onset(b):]
     n = min(len(a), len(b))
     exact = n > 0 and np.array_equal(a[:n], b[:n])
     W, L = RATE, int(0.06 * RATE)
-    lag, cors, lags = 0, [], []
+    lag, cors, lags, specs = 0, [], [], []
     for s in range(0, n - W - 2 * L, W):
         x = a[s:s + W]
         if np.sqrt(np.mean(x * x)) < 30: continue                  # silence: nothing to compare
@@ -49,11 +58,15 @@ def similarity(src, bra):
             c = float(np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y) + 1e-9))
             if c > best[0]: best = (c, d)
         cors.append(best[0]); lag = best[1]; lags.append(lag)
+        sx, sy = spectrum(x), spectrum(b[s + lag:s + lag + W])
+        if sx.std() > 0 and sy.std() > 0: specs.append(float(np.corrcoef(sx.ravel(), sy.ravel())[0, 1]))
     rms = lambda v: float(np.sqrt(np.mean(v[:n] * v[:n])) + 1e-9)
     c = np.array(cors) if cors else np.array([0.0])
+    sp = np.array(specs) if specs else np.array([0.0])
     return {'seconds_compared': round(n / RATE, 1), 'windows': len(cors), 'bit_identical': bool(exact),
             'corr_median': round(float(np.median(c)), 4), 'corr_p10': round(float(np.percentile(c, 10)), 4),
-            'corr_min': round(float(c.min()), 4), 'level_db': round(20 * np.log10(rms(b) / rms(a)), 2),
+            'corr_min': round(float(c.min()), 4), 'spec_median': round(float(np.median(sp)), 4),
+            'spec_p10': round(float(np.percentile(sp, 10)), 4), 'level_db': round(20 * np.log10(rms(b) / rms(a)), 2),
             'drift_ms': round((lags[-1] - lags[0]) / RATE * 1000, 1) if lags else 0.0}
 
 def main():
@@ -65,7 +78,7 @@ def main():
     only = set(opt('--only').split(',')) if opt('--only') else None
     res = {}
     for s in rep['songs']:
-        if not s['name'].startswith('THEME_') or (only and s['name'] not in only): continue
+        if (s['name'] not in only) if only else not s['name'].startswith('THEME_'): continue   # --only: any song (reference)
         game, scmd = s['source'].split(' $')
         cmd = s['cmd'] if isinstance(s['cmd'], int) else int(s['cmd'], 16)
         loops = s.get('loops') or {}
@@ -81,7 +94,7 @@ def main():
         r.update(source=s['source'], brawler_cmd=f'${cmd:02X}', native=bool(s.get('native')), seconds=round(sec, 1))
         res[s['name']] = r
         print(f"{s['name']:18s} {s['source']:12s} -> ${cmd:02X}  {r['seconds_compared']:6.1f} s  corr median {r['corr_median']:.4f}"
-              f" p10 {r['corr_p10']:.4f} min {r['corr_min']:.4f}  level {r['level_db']:+.2f} dB  drift {r['drift_ms']:+.1f} ms"
+              f" p10 {r['corr_p10']:.4f} min {r['corr_min']:.4f}  spectrum median {r['spec_median']:.4f} p10 {r['spec_p10']:.4f}  level {r['level_db']:+.2f} dB  drift {r['drift_ms']:+.1f} ms"
               f"{'  BIT-IDENTICAL' if r['bit_identical'] else ''}", flush=True)
     old = json.load(open(f'{out}/theme219.json')) if os.path.exists(f'{out}/theme219.json') else {}
     old.update(res)
