@@ -9,6 +9,7 @@
 #                                                                   (Player 0.0.17; token only, no legacy), size + rate capped
 #   POST /brawler/feedback/test                                    a test attempt of a note (Player 0.0.22: test.json + the
 #                                                                   attempt's replay), token only, size + rate capped
+#   POST /brawler/feedback/review                                  (Player 0.0.24) his answer to a decision (token only), size + rate capped
 #   GET  /brawler/feedback/mine[/file/<id>/<name>]                  the player's list of the user's notes (Oros login);
 #        /brawler/feedback/mine/scenario/<id>/<sha>/<key>.state     a note's test state for a build (Player 0.0.22)
 #   /brawler-lab/feedback-api/  -> /api/                            behind the Oros login (the Brawler Lab's Feedback tab)
@@ -74,6 +75,10 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         client_max_body_size 32M;
 %s
     }
+    location = /brawler/feedback/review {
+        client_max_body_size 12M;
+%s
+    }
     location ^~ /brawler/feedback/mine {
         limit_except GET { deny all; }
         auth_request /jlpt-auth;
@@ -111,12 +116,12 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         proxy_read_timeout 30s;
     }
     # <<< brawler-feedback
-""" % (pub("upload"), pub("transcribe"), pub("reply"), pub("test"))
+""" % (pub("upload"), pub("transcribe"), pub("reply"), pub("test"), pub("review"))
 i = s.index("    location / {")
 open(p, "w").write(s[:i] + block + s[i:])
 PY
 if nginx -t 2>/dev/null; then systemctl reload nginx; else cp /root/kanji.nginx.bak-feedback $S; nginx -t; echo "nginx -t failed: restored"; exit 1; fi
 sleep 1; systemctl is-active brawler-feedback
 echo "signed out (expect 401 / 302 for every one but the APK):"
-for u in brawler/feedback/upload brawler/feedback/transcribe brawler/feedback/reply brawler/feedback/test; do curl -s -X POST -o /dev/null -w "POST $u: %{http_code}\n" https://canneji.duckdns.org/$u; done
+for u in brawler/feedback/upload brawler/feedback/transcribe brawler/feedback/reply brawler/feedback/test brawler/feedback/review; do curl -s -X POST -o /dev/null -w "POST $u: %{http_code}\n" https://canneji.duckdns.org/$u; done
 for u in brawler/feedback/mine brawler/download/latest.json brawler/download/brawler.neo brawler-lab/feedback-api/list brawler/download/neoscan-player.apk; do curl -s -o /dev/null -w "GET $u: %{http_code}\n" https://canneji.duckdns.org/$u; done'

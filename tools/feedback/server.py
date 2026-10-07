@@ -47,6 +47,19 @@ localhost: tools/feedback/fb.py, pull.py):
                                              DATA/select_layout/<time>.json); tools/brawler/select_layout.py pulls it
                                              into game.json "select_layout" 
   POST /api/event {id, kind, at, text, ref, todo?, fix_commit?}         a timeline event (backfill_history.py; idempotent)
+Decisions (reviews, Player 0.0.24; docs/feedback.md "Decisions"): a visual choice put to Bruno (before / after of a fix, a
+pick between options, one picture to ship or not), stored in the reviews table + review_history, its images in
+DATA/reviews/<id>/. kind before_after (answers "Ship AFTER" / "Stay with BEFORE" / "Needs work"), pick (the options given,
+else the image labels), single ("Ship it" / "Needs work"); status open -> answered (a new answer replaces the last one,
+the history keeps every one); each linked note gets "decision" events in its timeline.
+  POST /api/review {title, question, kind, images: [{label, name, b64}], options?, todo?, notes?, audience?, by?}   fb.py review add
+  GET  /api/reviews[?status=open|answered]  GET /api/review/<id>  GET /api/review/<id>/file/<name>
+  POST /api/review_answer {id, answer, text?, source?, by?}   the Lab's Decisions filter (the signed-in user); over ssh
+                                                (fb.py review answer) an answer he gave elsewhere: source artifact | chat
+  POST /api/review_delete {id}                  the row, its history, its files and its events on the linked notes
+  GET  /mine -> "reviews": the decisions put to the signed-in user (audience = the user, or '' = every account)
+  GET  /mine/review/<id>/<name>                 an image or an answer's voice
+  POST /review {id, answer, text, raw_transcript?, tx_id?, audio_b64?, audio_name?, device?, android?}   the player's answer
 Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
 PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
@@ -76,6 +89,13 @@ STATUSES = ('new', 'read', 'in_progress', 'fixed', 'shipped', 'wont_do', 'duplic
                                                          # branch (its commit), not yet in a published build
 TEST_RESULTS = ('up', 'down', 'abandoned')               # a test attempt (Player 0.0.22 / the Lab): fixed / still broken / left
 SCENARIOS = os.path.join(DATA, 'scenarios')              # <id>/<rom sha>/<key>.state (+ clip.gif, sheet.png, <key>_start.png)
+REVIEWS = os.path.join(DATA, 'reviews')                  # <review id>/ its images + the voices of its answers
+REVIEW_KINDS = ('before_after', 'pick', 'single')       # the card's layout only: the buttons are always the decision's own
+VAGUE = {'keep', 'change', 'yes', 'no', 'ok', 'okay', 'ship it', 'ship after', 'stay with before', 'needs work', 'approve', 'reject',
+         'accept', 'good', 'bad', 'fine', 'other', 'neither', 'both', 'before', 'after', 'a', 'b', 'c', 'option a', 'option b'}
+IMG = re.compile(r'^[a-z0-9_-]{1,60}\.(png|jpg|jpeg|gif|webp)$')
+RFILE = re.compile(r'^([a-z0-9_-]{1,60}\.(png|jpg|jpeg|gif|webp)|answer_\d+\.(m4a|wav|mp3|ogg))$')
+MAX_REVIEW = 48 << 20                                    # the create call: every image in base64
 ATTEMPTS = os.path.join(DATA, 'attempts')                # <attempt id>/ the replay of a test attempt (the bundle's files)
 SFILE = re.compile(r'^[a-z0-9_-]{1,40}\.(state|png|gif|json)$')
 SKEY = re.compile(r'^[a-z]{3}-[a-z]{3}$')               # the player's system: Native.systemType() + '-' + hw
@@ -140,7 +160,16 @@ def db_init():
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id TEXT, at TEXT, by TEXT, kind TEXT, text TEXT DEFAULT '',
             ref TEXT DEFAULT '', UNIQUE (feedback_id, kind, ref));
-        CREATE INDEX IF NOT EXISTS events_fb ON events(feedback_id);''')
+        CREATE INDEX IF NOT EXISTS events_fb ON events(feedback_id);
+        CREATE TABLE IF NOT EXISTS reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, created TEXT, updated TEXT, by TEXT, audience TEXT DEFAULT '',
+            title TEXT, question TEXT, kind TEXT, images TEXT, options TEXT, todo TEXT DEFAULT '', notes TEXT DEFAULT '',
+            status TEXT DEFAULT 'open', answer TEXT DEFAULT '', answer_text TEXT DEFAULT '', answer_raw TEXT DEFAULT '',
+            answer_audio TEXT DEFAULT '', answered_at TEXT DEFAULT '', answered_by TEXT DEFAULT '', answer_source TEXT DEFAULT '',
+            answer_origin TEXT DEFAULT '');
+        CREATE TABLE IF NOT EXISTS review_history (
+            review_id INTEGER, at TEXT, by TEXT, kind TEXT, text TEXT DEFAULT '', audio TEXT DEFAULT '');
+        CREATE INDEX IF NOT EXISTS review_history_id ON review_history(review_id);''')
         cols = {r[1] for r in c.execute('PRAGMA table_info(feedback)')}
         for col in ('user', 'install_id', 'marked', 'title', 'todo', 'fix_commit', 'fix', 'rca'):   # 0.0.15: the account, its install, a scribble;
                                                                       # title: my one-liner; todo: the TODO item(s); fix_commit;
@@ -464,6 +493,69 @@ def timeline(c, fid, public=False):
     return out
 
 
+def check_review(question, imgs, opts):
+    """Bruno's clarity rules for a decision (docs/feedback.md "Decisions"): -> the broken rule, or None"""
+    q = ' '.join(question.split())
+    if not q.endswith('?') or q.count('?') != 1 or re.search(r'[.!;]\s', q) or len(q) > 200:
+        return 'question: ONE question, one sentence ending in "?" (<= 200 characters); the context goes into each button\'s effect'
+    for i in imgs:
+        lab = ' '.join(str(i.get('label') or '').split())
+        if len(lab.split()) < 2 or len(lab) > 120:
+            return f'image label "{lab}": say what it is, e.g. "BEFORE: 0.0.88, system font" (two words at least, <= 120)'
+    if not isinstance(opts, list) or not 2 <= len(opts) <= 5: return 'options: 2 to 5 buttons, each LABEL=EFFECT'
+    seen = set()
+    for o in opts:
+        if not isinstance(o, dict): return 'options: {label, effect}'
+        lab = ' '.join(str(o.get('label') or '').split()); eff = ' '.join(str(o.get('effect') or '').split())
+        bare = re.sub(r'[^a-z ]', '', lab.lower()).strip()
+        if bare in VAGUE or len(lab.split()) < 2 or len(lab) > 70:
+            return f'button "{lab}": name its exact outcome in game terms ("Ship Kizuna\'s font", "Keep the old font"), never Keep / Change / Yes / No alone (2 words at least, <= 70)'
+        if not eff or len(eff) > 160: return f'button "{lab}": its effect = one line saying what changes in the game if he picks it (<= 160)'
+        if lab.lower() in seen: return f'button "{lab}" twice'
+        seen.add(lab.lower())
+    return None
+
+
+def review_dict(c, r, public=False):
+    """a decision with its images, options, history; public: the player's view (no IPs)"""
+    d = row_dict(r)
+    for k in ('images', 'options'):
+        try: d[k] = json.loads(d[k] or '[]')
+        except ValueError: d[k] = []
+    d['history'] = [row_dict(h) for h in c.execute('SELECT at, by, kind, text, audio FROM review_history WHERE review_id=? ORDER BY rowid', (r['id'],))]
+    if public: d.pop('answer_origin', None)
+    return d
+
+
+def review_event(c, rv, by, text, ref):
+    """a "decision" event on every note the decision is linked to (their timelines)"""
+    for fid in [x for x in (rv['notes'] or '').split(',') if x]:
+        if c.execute('SELECT 1 FROM feedback WHERE id=?', (fid,)).fetchone():
+            c.execute('INSERT OR REPLACE INTO events (feedback_id, at, by, kind, text, ref) VALUES (?,?,?,?,?,?)',
+                      (fid, now(), by, 'decision', text[:500], ref[:80]))
+
+
+def answer_review(c, rid, user, answer, text, raw='', audio=b'', ext='m4a', source='player', origin=None):
+    """-> (review dict, None) or (None, error); the caller holds the lock"""
+    r = c.execute('SELECT * FROM reviews WHERE id=?', (rid,)).fetchone()
+    if not r: return None, 'no such decision'
+    labels = [o['label'] for o in json.loads(r['options'] or '[]')]
+    if answer not in labels: return None, 'answer: one of ' + ' / '.join(labels)
+    if answer.lower().startswith('needs work') and not text: return None, 'this answer needs your note: say or type what to change'
+    at = now(); name = ''
+    if audio:
+        k = c.execute('SELECT COUNT(*) FROM review_history WHERE review_id=? AND audio != \'\'', (rid,)).fetchone()[0] + 1
+        name = f'answer_{k}.{ext}'
+        os.makedirs(os.path.join(REVIEWS, str(rid)), exist_ok=True)
+        with open(os.path.join(REVIEWS, str(rid), name), 'wb') as f: f.write(audio)
+    c.execute('UPDATE reviews SET status=?, answer=?, answer_text=?, answer_raw=?, answer_audio=?, answered_at=?, answered_by=?, answer_source=?, '
+              'answer_origin=?, updated=? WHERE id=?', ('answered', answer, text, raw, name, at, user, source, json.dumps(origin or {}), at, rid))
+    prev = f' (was: {r["answer"]})' if r['answer'] else ''
+    c.execute('INSERT INTO review_history VALUES (?,?,?,?,?,?)', (rid, at, user, 'answered', f'{answer}{prev}' + (f': {text}' if text else ''), name))
+    review_event(c, r, user, f'decision #{rid} "{r["title"]}" answered from the {source}: {answer}' + (f': {text}' if text else ''), f'review{rid}:{at}')
+    return review_dict(c, c.execute('SELECT * FROM reviews WHERE id=?', (rid,)).fetchone()), None
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, obj=None, body=None, ctype='application/json'):
         b = body if body is not None else (json.dumps(obj, ensure_ascii=False) + '\n').encode()
@@ -517,6 +609,16 @@ class H(http.server.BaseHTTPRequestHandler):
             if len(parts) == 2 and parts[0] == 'scenario' and ID.match(parts[1]):
                 return self.reply(200, {'id': parts[1], 'recipe': scenario(c, parts[1]), 'states': [row_dict(x) for x in c.execute(
                     'SELECT * FROM scenario_states WHERE feedback_id=? ORDER BY created', (parts[1],))]})
+            if parts == ['reviews']:
+                st = (q.get('status') or [''])[0]
+                rs = c.execute('SELECT * FROM reviews' + (' WHERE status=?' if st else '') + ' ORDER BY id DESC', (st,) if st else ())
+                return self.reply(200, {'reviews': [review_dict(c, r) for r in rs.fetchall()], 'kinds': REVIEW_KINDS})
+            if len(parts) == 2 and parts[0] == 'review' and parts[1].isdigit():
+                r = c.execute('SELECT * FROM reviews WHERE id=?', (int(parts[1]),)).fetchone()
+                return self.reply(200, {'review': review_dict(c, r)}) if r else self.reply(404, {'error': 'no such decision'})
+        if len(parts) == 4 and parts[0] == 'review' and parts[1].isdigit() and parts[2] == 'file' and RFILE.match(parts[3]):
+            p = os.path.join(REVIEWS, parts[1], parts[3])
+            if os.path.exists(p): return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
         if parts == ['select_layout']:
             p = os.path.join(DATA, 'select_layout.json')
             return self.reply(200, body=open(p, 'rb').read()) if os.path.exists(p) else self.reply(404, {'error': 'no layout saved'})
@@ -696,7 +798,13 @@ class H(http.server.BaseHTTPRequestHandler):
                     r['scenario_builds'] = scenario_builds(c, r['id']) if sc else []
                     r['timeline'] = [{k: e.get(k, '') for k in ('at', 'by', 'kind', 'text')} for e in timeline(c, r['id'], True)]
                     r.update(queue_info(c, r))                       # Player 0.0.23: the test queue's rule
-                return self.reply(200, {'user': user, 'rows': rows})
+                revs = [review_dict(c, x, True) for x in c.execute("SELECT * FROM reviews WHERE audience IN ('', ?) ORDER BY id DESC", (user,)).fetchall()]
+                return self.reply(200, {'user': user, 'rows': rows, 'reviews': revs})   # reviews: Player 0.0.24's Decisions
+            if len(parts) == 3 and parts[0] == 'review' and parts[1].isdigit() and RFILE.match(parts[2]):
+                if c.execute("SELECT 1 FROM reviews WHERE id=? AND audience IN ('', ?)", (int(parts[1]), user)).fetchone():
+                    p = os.path.join(REVIEWS, parts[1], parts[2])
+                    if os.path.exists(p): return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
+                return self.reply(404, {'error': 'not found'})
             if len(parts) == 4 and parts[0] == 'scenario' and ID.match(parts[1]) and SHA.match(parts[2]) and SFILE.match(parts[3]):
                 if not c.execute('SELECT 1 FROM feedback WHERE id=? AND user=?', (parts[1], user)).fetchone(): return self.reply(404, {'error': 'not found'})
                 p = os.path.join(SCENARIOS, parts[1], parts[2], parts[3])
@@ -715,6 +823,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/upload': return self.upload()
         if self.path == '/reply': return self.post_reply()
         if self.path == '/test': return self.post_test()
+        if self.path == '/review': return self.post_review_answer()
         if not self.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         if self.path == '/api/status': return self.change(self.set_status)
         if self.path == '/api/set': return self.change(self.set_fields)
@@ -723,6 +832,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/api/event': return self.change(self.add_event)
         if self.path == '/api/test': return self.change(self.lab_test)
         if self.path == '/api/select_layout': return self.save_layout()
+        if self.path == '/api/review': return self.create_review()
+        if self.path == '/api/review_answer': return self.lab_review_answer()
+        if self.path == '/api/review_delete': return self.delete_review()
         self.reply(404, {'error': 'not found'})
 
     def save_layout(self):
@@ -748,6 +860,108 @@ class H(http.server.BaseHTTPRequestHandler):
             os.replace(p + '.tmp', p)
         log('select layout saved by', doc['by'], len(L), 'fighters')
         self.reply(200, {'ok': True, 'saved': doc['saved'], 'by': doc['by']})
+
+    def json_body(self, limit):
+        b = self.body(limit)
+        if b is None: self.reply(413, {'error': 'size'}); return None
+        try: req = json.loads(b)
+        except ValueError: self.reply(400, {'error': 'json'}); return None
+        if not isinstance(req, dict): self.reply(400, {'error': 'json object'}); return None
+        return req
+
+    def create_review(self):
+        """a decision (fb.py review add): its images written to DATA/reviews/<id>/, the options fixed by its kind"""
+        import base64
+        req = self.json_body(MAX_REVIEW)
+        if req is None: return
+        by = account(self.headers) or req.get('by') or 'ssh'
+        title = ' '.join(str(req.get('title') or '').split()); question = str(req.get('question') or '').strip()
+        kind = req.get('kind'); imgs = req.get('images') or []
+        if not title or len(title) > 90 or not question: return self.reply(400, {'error': 'title (<= 90) + question'})
+        if kind not in REVIEW_KINDS: return self.reply(400, {'error': 'kind: ' + ', '.join(REVIEW_KINDS)})
+        if not isinstance(imgs, list) or not imgs or len(imgs) > 40: return self.reply(400, {'error': 'images: 1 to 40'})
+        names = [str(i.get('name') or '') for i in imgs]
+        if any(not IMG.match(n) for n in names) or len(set(names)) != len(names): return self.reply(400, {'error': 'image names: distinct, [a-z0-9_-].png'})
+        try: data = [base64.b64decode(i['b64'], validate=True) for i in imgs]
+        except Exception: return self.reply(400, {'error': 'images: b64'})
+        opts = req.get('options')
+        err = check_review(question, imgs, opts)
+        if err: return self.reply(400, {'error': err})
+        opts = [{'label': ' '.join(str(o['label']).split()), 'effect': ' '.join(str(o['effect']).split())} for o in opts]
+        todo = ','.join(t.strip().lstrip('#') for t in str(req.get('todo') or '').split(',') if t.strip())
+        if todo and not re.match(r'^\d+(,\d+)*$', todo): return self.reply(400, {'error': 'todo: item numbers'})
+        notes = ','.join(n.strip() for n in str(req.get('notes') or '').split(',') if n.strip())
+        if notes and not all(ID.match(n) for n in notes.split(',')): return self.reply(400, {'error': 'notes: feedback ids'})
+        audience = str(req.get('audience') or '').strip()
+        if audience and not re.match(r'^[A-Za-z0-9_.@-]{1,40}$', audience): return self.reply(400, {'error': 'audience: an Oros username'})
+        meta = [{'label': ' '.join(str(i['label']).split()), 'file': n} for i, n in zip(imgs, names)]
+        with lock, db() as c:
+            cur = c.execute('INSERT INTO reviews (created, updated, by, audience, title, question, kind, images, options, todo, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                            (now(), now(), by, audience, title, question, kind, json.dumps(meta, ensure_ascii=False), json.dumps(opts, ensure_ascii=False), todo, notes))
+            rid = cur.lastrowid
+            d = os.path.join(REVIEWS, str(rid)); os.makedirs(d, exist_ok=True)
+            for n, b in zip(names, data):
+                with open(os.path.join(d, n), 'wb') as f: f.write(b)
+            c.execute('INSERT INTO review_history VALUES (?,?,?,?,?,?)', (rid, now(), by, 'created', f'{kind}, {len(meta)} images, for {audience or "every account"}', ''))
+            r = c.execute('SELECT * FROM reviews WHERE id=?', (rid,)).fetchone()
+            review_event(c, r, by, f'decision #{rid} asked: "{title}"', f'review{rid}:created')
+            out = review_dict(c, r)
+        log('review', rid, 'created by', by, kind, len(meta), 'images')
+        self.reply(200, {'review': out})
+
+    def lab_review_answer(self):
+        req = self.json_body(1 << 16)
+        if req is None: return
+        by = account(self.headers) or req.get('by') or 'ssh'
+        with lock, db() as c:
+            src = req.get('source') if req.get('source') in ('lab', 'artifact', 'chat') else 'lab'   # fb.py review answer: where he answered
+            out, err = answer_review(c, int(req.get('id') or 0), by, str(req.get('answer') or ''), str(req.get('text') or '').strip()[:4000], source=src)
+        if err: return self.reply(400 if 'answer' in err else 404, {'error': err})
+        log('review', out['id'], 'answered from the', out['answer_source'], 'by', by, out['answer'])
+        self.reply(200, {'review': out})
+
+    def delete_review(self):
+        import shutil
+        req = self.json_body(1 << 16)
+        if req is None: return
+        rid = int(req.get('id') or 0)
+        with lock, db() as c:
+            if not c.execute('SELECT 1 FROM reviews WHERE id=?', (rid,)).fetchone(): return self.reply(404, {'error': 'no such decision'})
+            c.execute('DELETE FROM reviews WHERE id=?', (rid,)); c.execute('DELETE FROM review_history WHERE review_id=?', (rid,))
+            c.execute("DELETE FROM events WHERE kind='decision' AND ref LIKE ?", (f'review{rid}:%',))
+        shutil.rmtree(os.path.join(REVIEWS, str(rid)), ignore_errors=True)
+        log('review', rid, 'deleted by', account(self.headers) or req.get('by') or 'ssh')
+        self.reply(200, {'deleted': rid})
+
+    def post_review_answer(self):
+        """Player 0.0.24: his answer to a decision put to him (the token only), with an optional note: text and / or voice
+        (transcribed by /transcribe first, like a reply)"""
+        import base64
+        user = self.player()
+        if not user: return
+        req = self.json_body(MAX_REPLY)
+        if req is None: return
+        try: rid = int(req.get('id') or 0)
+        except (TypeError, ValueError): rid = 0
+        try: audio = base64.b64decode(req['audio_b64'], validate=True) if req.get('audio_b64') else b''
+        except ValueError: return self.reply(400, {'error': 'audio_b64'})
+        if len(audio) > MAX_AUDIO: return self.reply(413, {'error': 'size'})
+        ext = (req.get('audio_name') or 'a.m4a').rsplit('.', 1)[-1]
+        if ext not in ('m4a', 'wav', 'mp3', 'ogg'): ext = 'm4a'
+        w = self.who(user)
+        origin = {'apk_version': self.headers.get('X-App-Version'), 'install_id': w['install_id'], 'device': str(req.get('device') or '')[:80],
+                  'android': str(req.get('android') or '')[:40], 'ip': w['ip'], 'user_agent': w['user_agent']}
+        with lock, db() as c:
+            if not c.execute("SELECT 1 FROM reviews WHERE id=? AND audience IN ('', ?)", (rid, user)).fetchone():
+                return self.reply(404, {'error': 'no such decision for you'})
+            out, err = answer_review(c, rid, user, str(req.get('answer') or ''), str(req.get('text') or '').strip()[:4000],
+                                     str(req.get('raw_transcript') or '')[:4000], audio, ext, 'player', origin)
+            if err: return self.reply(400, {'error': err})
+            tx = req.get('tx_id', '')
+            if tx and re.match(r'^[0-9a-f]{16}$', tx): c.execute("UPDATE transcriptions SET feedback_id=? WHERE tx_id=? AND feedback_id=''", (f'review{rid}', tx))
+        out.pop('answer_origin', None)
+        log('review', rid, 'answered by', user, out['answer'], len(audio), 'bytes audio')
+        self.reply(200, {'review': out})
 
     def transcribe(self):
         user = self.player(legacy=True)
@@ -908,7 +1122,7 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 if __name__ == '__main__':
-    os.makedirs(BUNDLES, exist_ok=True); os.makedirs(SCENARIOS, exist_ok=True); os.makedirs(ATTEMPTS, exist_ok=True); db_init(); backfill()
+    os.makedirs(BUNDLES, exist_ok=True); os.makedirs(SCENARIOS, exist_ok=True); os.makedirs(ATTEMPTS, exist_ok=True); os.makedirs(REVIEWS, exist_ok=True); db_init(); backfill()
     try: backfill_origin()
     except Exception as e: log('backfill origin failed:', e)
     threading.Thread(target=worker, daemon=True).start()

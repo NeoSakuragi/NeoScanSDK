@@ -16,10 +16,20 @@
                                                              (the player's card and the Lab show them under [FIX 0.0.x])
     fb.py timeline <id>                                      the note's whole life (found, triaged, in progress, fixed,
                                                              shipped, test states, test attempts, verified / reopened, replies)
+Decisions (Player 0.0.24, docs/feedback.md "Decisions"): a visual choice put to Bruno, answered in the player / the Lab.
+    fb.py review add --title "HUD font" --question "Which font should the HUD and system text use?" --kind before_after \
+        --image "BEFORE: 0.0.88, system font=/path/before.png" --image "AFTER: Kizuna's font=/path/after.png" \
+        --option "Kizuna's font (gradient + shadow), as shown=EFFECT" --option "The old font=EFFECT" [--todo 182] [--note ID] [--for bruno]
+        Rules (the server refuses otherwise): ONE question ending in "?"; each image labelled with what it is; 2 to 5
+        buttons LABEL=EFFECT, the label = the exact outcome in game terms (never Keep / Change / Yes / No / Ship it alone),
+        the effect = one line saying what changes in the game if he picks it; a "Needs work: ..." button requires his note.
+        --kind before_after | pick | single: the card's layout only. --for: the Oros account it is put to (default bruno).
+    fb.py review list [--status open|answered]      fb.py review show <id>      fb.py review delete <id>
+    fb.py review answer <id> --answer "LABEL" --by bruno --source artifact|chat [--text "..."]   an answer he gave elsewhere
 Lifecycle: new -> read -> in_progress -> fixed (commit) -> shipped (release) -> tested on the player (👍 verified / 👎
 reopened); wont_do and duplicate close a note. Every step is a timestamped event with who (docs/feedback.md "Lifecycle").
 """
-import argparse, json, shlex, subprocess, sys
+import argparse, base64, json, os, re, shlex, subprocess, sys
 
 HOST = 'root@195.201.91.211'
 BASE = 'http://127.0.0.1:8920/api/'
@@ -53,6 +63,56 @@ def timeline(events, indent='  '):
     return [f"{indent}{e['at'][:16].replace('T', ' ')}  {e['kind']:<11} {e.get('by') or '-':<14} {e['text']}" for e in events or []]
 
 
+def review_line(v):
+    a = f"  -> {v['answer']}" if v.get('answer') else ''
+    return f"#{v['id']}  {v['created'][:16]}  {v['kind']}  for {v.get('audience') or 'everyone'}  {v['status'].upper()}{a}  \"{v['title']}\"" + \
+           (f"  TODO #{v['todo']}" if v.get('todo') else '')
+
+
+def review_cmd(a):
+    if a.rcmd == 'add':
+        imgs = []
+        for spec in a.image:
+            lab, _, path = spec.rpartition('=')
+            if not lab or not os.path.isfile(path): sys.exit(f'fb.py: --image "LABEL=path": {spec!r}')
+            base = re.sub(r'[^a-z0-9_-]+', '_', lab.lower()).strip('_')[:50] or 'image'
+            name, k = base, 2
+            while any(i['name'].rsplit('.', 1)[0] == name for i in imgs): name = f'{base}_{k}'; k += 1
+            ext = os.path.splitext(path)[1].lower().lstrip('.') or 'png'
+            imgs.append({'label': lab, 'name': f'{name}.{ext}', 'b64': base64.b64encode(open(path, 'rb').read()).decode()})
+        opts = []
+        for spec in a.option:
+            lab, sep, eff = spec.partition('=')
+            if not sep: sys.exit(f'fb.py: --option "LABEL=EFFECT" (what changes in the game if he picks it): {spec!r}')
+            opts.append({'label': lab.strip(), 'effect': eff.strip()})
+        body = {'title': a.title, 'question': a.question, 'kind': a.kind, 'images': imgs, 'options': opts, 'todo': a.todo or '',
+                'notes': ','.join(a.note or []), 'audience': a.for_, 'by': 'fb.py'}
+        v = api('review', body)['review']; print(review_line(v))
+    elif a.rcmd == 'list':
+        vs = api('reviews' + (f'?status={a.status}' if a.status else ''))['reviews']
+        for v in vs: print(review_line(v))
+        if not vs: print('(none)')
+    elif a.rcmd == 'show':
+        v = api(f'review/{a.id}')['review']
+        print(review_line(v)); print(f"  question: {v['question']}")
+        for o in v['options']: print(f"  button: {o['label']}  ->  {o['effect']}")
+        for i in v['images']: print(f"  image: {i['label']}  ({i['file']})")
+        if v.get('notes') or v.get('todo'): print(f"  linked: TODO #{v.get('todo') or '-'}, notes {v.get('notes') or '-'}")
+        if v['status'] == 'answered':
+            print(f"  ANSWER: {v['answer']}  by {v['answered_by']} from the {v['answer_source']} at {v['answered_at']}")
+            if v.get('answer_text'): print(f"  note: {v['answer_text']}")
+            if v.get('answer_raw') and v['answer_raw'] != v.get('answer_text'): print(f"  transcript: {v['answer_raw']}")
+            if v.get('answer_audio'): print(f"  voice: DATA/reviews/{v['id']}/{v['answer_audio']}")
+            if v.get('answer_origin') and v['answer_origin'] != '{}': print(f"  origin: {v['answer_origin']}")
+        print('  history:')
+        for h in v['history']: print(f"    {h['at'][:16].replace('T', ' ')}  {h['kind']:<9} {h['by'] or '-':<14} {h['text']}" + (f" (voice {h['audio']})" if h.get('audio') else ''))
+    elif a.rcmd == 'answer':
+        v = api('review_answer', {'id': int(a.id), 'answer': a.answer, 'text': a.text or '', 'source': a.source, 'by': a.by})['review']
+        print(review_line(v))
+    elif a.rcmd == 'delete':
+        print('deleted #%s' % api('review_delete', {'id': int(a.id), 'by': 'fb.py'})['deleted'])
+
+
 def money(v): return f'${v:.4f}' if v is not None else '-'
 
 
@@ -77,8 +137,21 @@ def main():
     p = sub.add_parser('set'); p.add_argument('id'); p.add_argument('--category'); p.add_argument('--fighters'); p.add_argument('--notes'); p.add_argument('--title'); p.add_argument('--todo')
     p.add_argument('--fix'); p.add_argument('--rca')
     p = sub.add_parser('timeline'); p.add_argument('id')
+    p = sub.add_parser('review'); rs = p.add_subparsers(dest='rcmd', required=True)
+    q = rs.add_parser('add'); q.add_argument('--title', required=True); q.add_argument('--question', required=True)
+    q.add_argument('--kind', required=True, choices=('before_after', 'pick', 'single'))
+    q.add_argument('--image', action='append', required=True, help='"LABEL=path" (repeat; in display order)')
+    q.add_argument('--option', action='append', default=[], help='"LABEL=EFFECT" (repeat, 2 to 5)')
+    q.add_argument('--todo'); q.add_argument('--note', action='append', help='a linked feedback note id (repeat)')
+    q.add_argument('--for', dest='for_', default='bruno', help='the Oros account it is put to ("" = every account)')
+    q = rs.add_parser('list'); q.add_argument('--status', choices=('open', 'answered'))
+    q = rs.add_parser('show'); q.add_argument('id')
+    q = rs.add_parser('delete'); q.add_argument('id')
+    q = rs.add_parser('answer'); q.add_argument('id'); q.add_argument('--answer', required=True); q.add_argument('--by', required=True)
+    q.add_argument('--source', required=True, choices=('artifact', 'chat', 'lab')); q.add_argument('--text')
     a = ap.parse_args()
     try:
+        if a.cmd == 'review': return review_cmd(a)
         if a.cmd == 'list':
             q = '&'.join(f'{k}={v}' for k, v in (('status', a.status), ('category', a.category)) if v)
             res = api('list' + ('?' + q if q else '')); rows = res['rows']

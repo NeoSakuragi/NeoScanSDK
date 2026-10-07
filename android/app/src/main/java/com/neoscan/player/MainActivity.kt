@@ -163,16 +163,23 @@ class MainActivity : Activity() {
      *  back (onResume, which also refreshes the badge) */
     private fun openList() {
         if (noteOpen) return
-        val q = testQueue()
-        if (q.isEmpty() || testMode?.active == true) { startActivity(android.content.Intent(this, FeedbackListActivity::class.java)); return }
-        emu?.paused = true                                         // 0.0.22: his notes, or the test queue
+        val q = testQueue(); val d = openDecisions()
+        val list = { f: String? -> startActivity(android.content.Intent(this, FeedbackListActivity::class.java).apply { if (f != null) putExtra("filter", f) }) }
+        if ((q.isEmpty() && d == 0) || testMode?.active == true) { list(null); return }
+        emu?.paused = true                                         // 0.0.22: his notes, or the test queue; 0.0.24: the decisions
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        if (d > 0) items.add("Decisions ($d): pictures waiting for your answer" to { list("decisions") })
+        items.add("My notes" to { list(null) })
+        if (q.isNotEmpty()) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
         android.app.AlertDialog.Builder(this).setTitle("Feedback")
-            .setItems(arrayOf("My notes", "Test queue (${q.size}): test each fixed note in turn")) { _, i ->
-                if (i == 0) startActivity(android.content.Intent(this, FeedbackListActivity::class.java)) else testMode?.start(q) }
+            .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
             .setOnDismissListener { if (testMode?.active != true) emu?.paused = noteOpen }.show()
     }
     var testMode: TestMode? = null
     @Volatile private var rowsCache: org.json.JSONArray? = null
+    @Volatile private var reviewsCache: org.json.JSONArray? = null
+    /** 0.0.24: the decisions waiting for his answer (Decisions.kt); the badge counts them with the test queue */
+    private fun openDecisions(): Int { val v = reviewsCache ?: return 0; return (0 until v.length()).count { Decisions.isOpen(v.getJSONObject(it)) } }
     /** the notes he can test now (Feedback.wantsTest: shipped in his build, not yet judged on it; with a state for his
      *  build and system), oldest first */
     private fun testQueue(): List<org.json.JSONObject> {
@@ -187,15 +194,16 @@ class MainActivity : Activity() {
         val rows = rowsCache ?: return
         for (k in 0 until rows.length()) rows.getJSONObject(k).takeIf { it.optString("id") == id }
             ?.put("status", status)?.put("to_test", false)?.put("tested_on", RomFetch.installed(this))
-        pad.badge = testQueue().size; pad.invalidate()
+        pad.badge = testQueue().size + openDecisions(); pad.invalidate()
     }
-    /** the badge: the notes of the test queue (0.0.23: only those; reopened ones wait in Open for a newer fix) */
+    /** the badge: the notes of the test queue (0.0.23: only those; reopened ones wait in Open for a newer fix) + the
+     *  decisions waiting for his answer (0.0.24) */
     private fun refreshBadge() {
         if (!::pad.isInitialized) return
         Thread {
             Feedback.mine(this).onSuccess { j ->
-                rowsCache = j.getJSONArray("rows")
-                val n = testQueue().size
+                rowsCache = j.getJSONArray("rows"); reviewsCache = j.optJSONArray("reviews")
+                val n = testQueue().size + openDecisions()
                 runOnUiThread { pad.badge = n; pad.invalidate() }
             }
         }.start()

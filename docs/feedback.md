@@ -343,3 +343,68 @@ state of the published build set up to show the fix, with what to do and what to
   system) under the banner; keys WASD + U I O P or the arrows + Z X C V; Restart, Show expected (the recipe's own
   inputs), 👍 / 👎 (a Lab attempt: verified / reopened), Next. Its "▶ Test queue" and "Shipped: test it" use the same
   `to_test` (the Lab runs the newest build, so no version check).
+
+## Decisions (Player 0.0.24)
+
+Bruno: "what about serving the arti-feedback directly in the APK?" A visual choice (before / after of a fix, a pick
+between options, one picture to ship or not) is a first-class tracker item, answered in the player or the Lab
+instead of on a claude.ai artifact page.
+
+**Clarity rules** (Bruno, 2026-10-07: "make sure it's not ambiguous, the questions have to be very clear"). The
+server refuses a decision that breaks one (server.py `check_review`, so every path is held to them):
+- **One question per decision:** a single concrete choice, one sentence ending in "?" (no second sentence, no "?" in
+  the middle).
+- **Every image labelled with what it is:** "BEFORE, title screen: 0.0.87, the old system font" / "AFTER, title
+  screen: Kizuna's font" (two words at least).
+- **Every answer button names its exact outcome in game terms:** "Kizuna's font (gradient + shadow), as shown", "The
+  old font". Never Keep / Change / Yes / No / Ship it / Needs work alone. 2 to 5 buttons.
+- **Each button carries its effect:** one line saying what changes in the game if he picks it. The card lists them
+  under the question ("What each answer does"), and the confirmation repeats the picked one.
+- A button whose label starts with "Needs work" needs his note (typed or spoken); the player and the server refuse
+  it without one.
+
+**The tracker (server.py):**
+- `reviews`: id, created, updated, by, audience (the Oros account it is put to; '' = every account), title, question,
+  kind (before_after | pick | single: the card's layout only), images (JSON [{label, file}], the files in
+  `DATA/reviews/<id>/`), options (JSON [{label, effect}]), todo, notes (linked feedback ids), status (open | answered),
+  answer, answer_text, answer_raw (the transcript), answer_audio (`answer_<n>.m4a`), answered_at, answered_by,
+  answer_source (player | lab | artifact | chat), answer_origin (JSON: player version, install, device, Android, IP, UA).
+- `review_history`: review_id, at, by, kind (created | answered), text, audio. A new answer replaces the current one;
+  the history keeps every answer.
+- Every linked note gets `decision` events in its timeline (asked, each answer).
+- API: `POST /api/review` (create), `GET /api/reviews[?status=]`, `GET /api/review/<id>[/file/<name>]`,
+  `POST /api/review_answer {id, answer, text?, source?}` (the Lab; over ssh an answer given elsewhere),
+  `POST /api/review_delete {id}`. The player: `/mine` carries `reviews` (the decisions put to the user; older players
+  ignore it), `GET /brawler/feedback/mine/review/<id>/<name>`, `POST /brawler/feedback/review {id, answer, text,
+  raw_transcript?, tx_id?, audio_b64?, audio_name?}` (token only, size + rate capped like /reply).
+
+**fb.py:**
+- `fb.py review add --title T --question "...?" --kind before_after --image "LABEL=path" ... --option "LABEL=EFFECT" ...
+  [--todo 182] [--note ID] [--for bruno]` (images in display order; for before_after give BEFORE, AFTER per pair)
+- `fb.py review list [--status open|answered]`, `fb.py review show ID` (the answer, note, transcript, voice, origin,
+  history), `fb.py review delete ID`
+- `fb.py review answer ID --answer LABEL --by bruno --source artifact|chat [--text ...]`: an answer he gave elsewhere.
+
+**In the player (0.0.24):**
+- The game screen's feedback button: its badge counts the test queue plus the open decisions. When either is
+  non-empty, the tap opens a menu: "Decisions (N): pictures waiting for your answer" / My notes / Test queue.
+- The list has a second filter row: **Decisions to answer (N)** / **Answered (N)**.
+- **The card:** DECISION #n: title / asked when, TODO / WAITING FOR YOU or ANSWERED / the question (large) / "What
+  each answer does" / the images, each under its label.
+  - Phone portrait: one per line, full width. Landscape: a before / after pair side by side. Every picture stays
+    within 72 % of the screen height.
+  - Pictures scale nearest-neighbour (`Decisions.PixelView`), so a game screenshot stays pixel-exact.
+  - A tap opens it full screen (`Decisions.ZoomView`): pinch zoom up to 16x the fit, drag, double tap = fit / 4x.
+    ◀ Previous / Next ▶ flip through the decision's images at the same zoom and position, so the BEFORE / AFTER
+    pixels line up.
+- **Answering:** a note box (type, or "Hold to talk": recorded and transcribed like a reply), then one big button per
+  answer. A confirmation shows the effect and the note, then "Send this answer". The card moves to Answered, showing
+  his answer, note, voice (play) and "Change my answer".
+- **Lab (Feedback tab):** the same two filters. The card has the images full width (`image-rendering: pixelated`; a
+  click opens one at full size), a note, the answer buttons and the history. Answered cards have "Change the answer".
+- **Proven 2026-10-07** in AVD JanusPhone (test account, a separate test decision, deleted afterwards). The proof
+  covered: the badge (1), the menu entry, the card with both pictures side by side, full screen with double-tap
+  zoom, a pan, and ◀ keeping the zoom on the other picture. It then sent a "Needs work" answer with a note and a
+  voice (the test-audio hook, transcribed). The card moved to Answered, the badge cleared, and `fb.py review show`
+  read the answer, transcript, voice and origin back. Pinch itself was not driven (adb has no multi-touch);
+  ScaleGestureDetector handles it. Screenshots: `/data/feedback/proof_0024/`.

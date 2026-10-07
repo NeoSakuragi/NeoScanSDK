@@ -32,7 +32,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     private var micSince = 0L
     private val fbl = Btn(0, "", Color.rgb(60, 60, 70))               // my feedback notes: the list (glyph drawn)
     private var fblHit = false
-    var badge = 0                                                      // the notes of the test queue: a count on the list button
+    var badge = 0                                                      // the test queue + the open decisions (0.0.24): a count on the list button
         set(v) { field = v; invalidate() }
     var updateReady = false                                            // a newer build is on the server: blink
         set(v) { field = v; invalidate() }

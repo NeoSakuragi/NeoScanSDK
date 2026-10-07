@@ -9,7 +9,10 @@
  * the screenshot; filters by status and category; category (dropdown) and fighters editable here. Status changes go
  * through tools/feedback/fb.py. Replay (fbreplay.js): the note's game build (feedback-api/rom/<sha>, cached by the
  * browser), the page's BIOS, the kept state before the last 10 s, then the logged inputs to the press with sound;
- * pause / step / slow motion / restart, the press screenshot beside, and the press state's SHA-256 checked. */
+ * pause / step / slow motion / restart, the press screenshot beside, and the press state's SHA-256 checked.
+ * Decisions (Player 0.0.24, docs/feedback.md "Decisions"): the filters "Decisions to answer" / "Answered" list the visual
+ * choices put to Bruno (feedback-api/reviews): the question, what each answer does, the images full width and
+ * pixel-exact (a click opens one at full size), a note, one button per answer (POST review_answer). */
 (async function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -29,6 +32,7 @@
       x.at.slice(0, 16).replace('T', ' ') + ' ' + (x.user || '') + ' — ' + (REPLY_KIND[x.kind] || x.kind) +
         (x.status_to ? ' [' + x.status_from + ' → ' + x.status_to + ']' : '') + (x.text ? ': ' + x.text : ''),
       x.audio_path ? h('audio', { controls: true, preload: 'none', src: API + 'file/' + r.id + '/' + x.audio_path, style: 'display:block;height:28px' }) : null))) : null;
+  let reviews = [];
   let rows = [], cats = [], cost = null, filt = { status: '', category: '' }, msg = '';
   const col = $('fbcol');
   const rbox = h('div'), lbox = h('div');
@@ -139,7 +143,14 @@
 #fbcol .fbacts { display: flex; gap: 8px; margin-top: 8px; }
 #fbcol .fbacts button { flex: 1; }
 #fbcol .fbbanner { border: 3px solid #000; padding: 6px 8px; margin-bottom: 8px; background: #fff; }
-#fbcol .fbbanner b { font-size: 16px; }`;
+#fbcol .fbbanner b { font-size: 16px; }
+#fbcol .fbdec { border-width: 3px; }
+#fbcol .fbdec .q { font-size: 20px; font-weight: bold; margin: 4px 0 6px; }
+#fbcol .fbdec figure { margin: 10px 0 0; }
+#fbcol .fbdec figcaption { font-weight: bold; font-size: 14px; margin-bottom: 2px; }
+#fbcol .fbdec img { display: block; width: 100%; image-rendering: pixelated; border: 1px solid #000; cursor: zoom-in; }
+#fbcol .fbdec .answers button { display: block; width: 100%; font-size: 16px; font-weight: bold; padding: 10px; margin-top: 6px; text-align: left; }
+#fbcol .fbdec textarea { width: 100%; box-sizing: border-box; font-size: 14px; }`;
   document.head.append(css);
   let view = 'open';
   try { view = localStorage.getItem('fbview') || 'open'; } catch (e) { /* no storage */ }
@@ -155,12 +166,50 @@
   const wants = r => !!r.to_test;
   const testable = r => !!(r.scenario && (r.scenario_builds || []).some(b => b.endsWith('/mvs-mvs')));
   const FILTERS = { open: ['Open', isOpen], ready: ['Shipped: test it', wants], all: ['All', () => true] };
+  const DFILTERS = { decisions: ['Decisions to answer', v => v.status === 'open'], answered: ['Answered', v => v.status === 'answered'] };
+
+  // a decision (fb.py review add): the question, what each answer does, the images, the answer buttons with a note
+  function decisionCard(v) {
+    const file = f => API + 'review/' + v.id + '/file/' + f;
+    const note = h('textarea', { rows: 2, placeholder: 'Note (optional; needed for "Needs work")' });
+    const answers = h('div', { class: 'answers' }, v.options.map(o => h('button', { title: o.effect, onclick: async () => {
+      const t = note.value.trim();
+      if (/^needs work/i.test(o.label) && !t) { msg = '"' + o.label + '" needs a note: what to change.'; render(); return; }
+      if (!confirm(o.label + '\n\n' + o.effect + (t ? '\n\nNote: ' + t : ''))) return;
+      try {
+        const r = await fetch(API + 'review_answer', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: v.id, answer: o.label, text: t }) });
+        const j = await r.json(); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+        msg = 'Decision #' + v.id + ' answered: ' + o.label; await load();
+      } catch (e) { msg = 'Not saved: ' + e.message; render(); }
+    } }, o.label)));
+    const open = v.status === 'open';
+    const box = h('div', {}, h('b', {}, 'Your answer'), note, answers);
+    if (!open) box.style.display = 'none';
+    return h('div', { class: 'fbcard fbdec' },
+      h('h3', {}, `Decision #${v.id}: ${v.title}`),
+      h('div', { class: 'fbmeta' }, h('span', { title: v.created }, `asked ${ago(v.created)}` + (v.todo ? `, TODO #${v.todo}` : '') + ` · for ${v.audience || 'every account'}`),
+        h('span', { class: 'sp' }), h('span', { class: 'fbstatus' }, open ? 'WAITING' : 'ANSWERED')),
+      h('div', { class: 'q' }, v.question),
+      h('div', { class: 'small' }, h('b', {}, 'What each answer does:'), v.options.map(o => h('div', {}, `• ${o.label}: ${o.effect}`))),
+      v.images.map(i => h('figure', {}, h('figcaption', {}, i.label), h('img', { src: file(i.file), alt: i.label, loading: 'lazy', onclick: () => window.open(file(i.file), '_blank') }))),
+      open ? null : h('div', { style: 'margin-top:10px' }, h('b', { style: 'font-size:17px' }, 'Answer: ' + v.answer),
+        h('div', { class: 'small' }, `${ago(v.answered_at)} by ${v.answered_by} from the ${v.answer_source}`),
+        v.answer_text ? h('p', {}, 'Note: ' + v.answer_text) : null,
+        v.answer_audio ? h('audio', { controls: true, preload: 'none', src: file(v.answer_audio) }) : null,
+        h('button', { onclick: e => { e.target.remove(); box.style.display = ''; } }, 'Change the answer')),
+      box,
+      h('details', {}, h('summary', {}, 'History'), h('table', { class: 'fbtl' }, v.history.map(x => h('tr', {}, h('td', { class: 'mono' }, x.at.slice(0, 16).replace('T', ' ')),
+        h('td', {}, h('b', {}, x.kind)), h('td', {}, x.by || '-'), h('td', {}, x.text))))),
+      v.notes ? h('p', { class: 'small' }, 'Linked notes: ' + v.notes) : null);
+  }
 
   async function load() {
     try {
       const r = await fetch(API + 'list', { cache: 'no-store', credentials: 'same-origin' });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const j = await r.json(); rows = j.rows; cats = j.categories; cost = j.cost; msg = '';
+      const v = await fetch(API + 'reviews', { cache: 'no-store', credentials: 'same-origin' });
+      reviews = v.ok ? (await v.json()).reviews : [];
     } catch (e) { msg = 'The feedback list is unavailable (' + e.message + ').'; }
     render();
   }
@@ -229,17 +278,23 @@
     if (!col) return;
     lbox.textContent = '';
     rows.sort((a, b) => (b.status === 'reopened') - (a.status === 'reopened') || (b.created > a.created ? 1 : -1));
-    const shown = rows.filter(FILTERS[view][1]);
+    if (!FILTERS[view] && !DFILTERS[view]) view = 'open';
+    const dec = !!DFILTERS[view];
+    const shown = dec ? [] : rows.filter(FILTERS[view][1]);
+    const dshown = dec ? reviews.filter(DFILTERS[view][1]) : [];
     const queue = rows.filter(r => wants(r) && testable(r)).reverse();
     lbox.append(h('div', { class: 'box' },
       h('h2', {}, 'Feedback from the player', h('span', { class: 'sp' }), h('button', { onclick: load }, 'Reload')),
       h('div', { class: 'in' },
         h('div', { class: 'fbfilters' }, Object.entries(FILTERS).map(([k, [t, f]]) => h('button', { class: view === k ? 'on' : '',
           onclick: () => { view = k; try { localStorage.setItem('fbview', k); } catch (e) { /* no storage */ } render(); } }, `${t} (${rows.filter(f).length})`)),
+          Object.entries(DFILTERS).map(([k, [t, f]]) => h('button', { class: view === k ? 'on' : '',
+          onclick: () => { view = k; try { localStorage.setItem('fbview', k); } catch (e) { /* no storage */ } render(); } }, `${t} (${reviews.filter(f).length})`)),
           queue.length ? h('button', { onclick: () => { testIt(queue[0], queue); col.scrollIntoView({ behavior: 'smooth' }); } }, `▶ Test queue (${queue.length})`) : null),
         msg ? h('p', { class: 'ok' }, msg) : null,
         cost ? h('p', { class: 'note' }, `Transcription cost: $${cost.usd.toFixed(4)} in all (${cost.transcriptions} transcriptions, ${Math.round(cost.audio_seconds)} s of audio). Status: NEW → read → IN PROGRESS → FIXED (commit) → SHIPPED (release) → 👍 VERIFIED / 👎 REOPENED; set with tools/feedback/fb.py.`) : null,
-        shown.length ? shown.map(card) : h('p', {}, view === 'ready' ? 'Nothing shipped to test.' : 'No notes here.'))));
+        dec ? (dshown.length ? dshown.map(decisionCard) : h('p', {}, view === 'decisions' ? 'Nothing to decide right now.' : 'No answered decisions yet.'))
+            : shown.length ? shown.map(card) : h('p', {}, view === 'ready' ? 'Nothing shipped to test.' : 'No notes here.'))));
   }
 
   // ---- Test it: a note's scenario state in the browser (the player's VERIFY mode) ----------------------------------
