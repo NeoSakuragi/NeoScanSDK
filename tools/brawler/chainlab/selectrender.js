@@ -1,6 +1,6 @@
 /* Brawler Lab, Select screen tab: the game's select screen drawn from a layout, pixel for pixel, in the page (and in
  * Node for the proof, tools/brawler/select_proof.py). The same rules as examples/brawler/main.c (select_start,
- * slot_show, fighter_pals, col_grey, select_arrows, select_name, depth_sort) and draw.s (fighter_place: the ROM sprites
+ * slot_show, fighter_pals, col_dark, select_arrows, select_name, depth_sort) and draw.s (fighter_place: the ROM sprites
  * face left, facing right mirrors x -> 2 ox - 1 - x; a sprite column's height = its trim), and Geolith's LSPC (the
  * resnet palette LUT, the fix layer over the sprites, a sprite counted on the lines of its height) on select.json
  * (chainlab/select_images.py). Layout: {fighter: {x, y, z, facing, pose, slot}} (build_tables.py select_layout).
@@ -27,10 +27,9 @@
     return [D.lut[r], D.lut[g], D.lut[b]];
   }
   const RGB5 = (r, g, b) => ((r & 1) << 14) | ((r >> 1) << 8) | ((g & 1) << 13) | ((g >> 1) << 4) | ((b & 1) << 12) | (b >> 1);
-  function grey(c) {                             /* main.c col_grey: half way to the luminance grey (5 R + 9 G + 2 B) / 16 */
+  function dark(c) {                             /* main.c col_dark: its own colour, each 5-bit channel halved */
     const r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
-    const l = ((r * 5 + g * 9 + b * 2) >> 4) & 0xFF;
-    return RGB5((r + l) >> 1, (g + l) >> 1, (b + l + (l < 31 ? 1 : 0)) >> 1);
+    return RGB5(r >> 1, g >> 1, b >> 1);
   }
   const SILHOUETTE = RGB5(4, 4, 5);
   const samePose = (a, b) => a[0] === b[0] && a[1] === b[1];
@@ -102,10 +101,10 @@
     const names = Object.keys(L).sort((a, b) => L[a].z - L[b].z);   /* depth_sort: the layout's z, the back first */
     names.forEach((n, k) => {
       const v = L[n], P = poseOf(D, n, v.pose);
-      const look = locked(D, n, o) ? 2 : n === cursor ? 1 : 0;     /* slot_look: silhouette, colour, grey */
+      const look = locked(D, n, o) ? 2 : n === cursor ? 1 : 0;     /* slot_look: silhouette, colour, dark */
       const cols = [];
       for (let i = 0; i < P.pals.length; i++) {
-        const w = i % 16 === 0 ? P.pals[i] : look === 2 ? SILHOUETTE : look ? P.pals[i] : grey(P.pals[i]);
+        const w = i % 16 === 0 ? P.pals[i] : look === 2 ? SILHOUETTE : look ? P.pals[i] : dark(P.pals[i]);
         cols.push(rgb(D, w));
       }
       const right = v.facing === 'right';
@@ -154,6 +153,6 @@
              arrow: { col: a.col, row: a.row, hits: [...hits], text, off: a.col > 38 || a.row >= ROWS } };
   }
 
-  const api = { render, prepare, rgb, grey, poseOf, order, firstCursor, arrowCell, stick, stickMove, DIRS, W, H };
+  const api = { render, prepare, rgb, dark, poseOf, order, firstCursor, arrowCell, stick, stickMove, DIRS, W, H };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SelectRender = api;
 })(typeof window !== 'undefined' ? window : globalThis);
