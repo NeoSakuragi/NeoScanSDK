@@ -248,7 +248,8 @@ typedef struct fighter {
      * in it), op index / resume point, flags PF_*, the damage / reaction / effect of the hits it opens, its counter,
      * friction (0.16) and gravity (16.16; vx / vy are the fighter's) */
     const banim_t *pan;
-    uint8_t  pstep, pleft, ppc, pres, pflags, pdmg, preact, pfx;
+    uint8_t  pstep, pleft, pflags, pdmg, preact, pfx;
+    uint16_t ppc, pres;           /* (16 bits since TODO #136: the Phoenix's program has 300+ ops) */
     int16_t  pcnt;
     uint16_t pfric;
     int32_t  pg;
@@ -316,6 +317,18 @@ typedef struct fighter {
                                    * frame of the freeze it shows, 0xFF over (the fury plays from its first frame) */
     uint16_t dizzy;               /* a stun strike's victim (bthrow_t.stun, TODO #212: Cheng-Fu's throw): its S_HITSTUN
                                    * lasts this many frames, open to any hit; a hit (enter) ends it (0 none) */
+    int32_t  kax;                 /* a source reaction (TODO #136, vocabulary reaction.source_motion, fighter.c src_react):
+                                   * the reel's x acceleration (16.16, world) */
+    uint8_t  ksr, ksn;            /* the source reaction playing (bm_sreact index + 1, 0 none), the frames its reel still
+                                   * slides / its landing still pauses */
+    uint8_t  vph, pbd;            /* vph: the victim phases a special's P_VPHASE holds this fighter in (VPH_*, fighter.c
+                                   * vphase; Kizuna's +$1AF); pbd: its special's screen effect on (P_SCREEN) */
+    struct fighter *vph_by, *vtgt;  /* vph_by: the special that holds it in them (they end when it no longer plays);
+                                   * vtgt: the victim its own P_VPHASE took first (its later phases go to that one, not
+                                   * to a crowd member hit since) */
+    uint8_t  spec_sr, pstill;     /* special: the source reactions of the hit window open (bstep_t.hy under SF_SREACT);
+                                   * pstill: the first frame after its hit-stop, its program's P_MOVE / P_FALL skipped
+                                   * (Kizuna's: the attacker, as its victim, still that frame [meas: kim136]) */
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */
@@ -330,6 +343,11 @@ extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x 
 #define BIGHIT_COL  0x4F00         /* SS2 $2B9DE: (31, 0, 0) through its table $2BA16 */
 extern uint8_t bighit_red, bighit_slow;   /* frames left of them (main.c screen_fx / game_tick) */
 extern uint16_t bighit_col;               /* its backdrop colour (fighter.c big_hit) */
+#define HITFLASH 10                /* Double Dragon's super hit strobe (fighter.c hit_spark, TODO #215): its frames from the */
+extern uint8_t hitflash;           /* hit (main.c screen_fx: red 2, 3, 6, 7 frames after the spark shows, as DD's screen),
+                                      frames left; BIGHIT_COL = DD's red */
+#define PK_FX 6                    /* bproj_t kind: a source game's hit spark (vocabulary fx.hit_spark, TODO #215): no box, no
+                                      shadow, its rows from the hit point (fighter.c hit_spark: x, height py0) */
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */
 #define NPJ 8                     /* projectile entities: fighter_t too, so one renderer / sort / guard / hit test; 8 = a
                                      Blitz Ball and its 4 live trail objects (KOF96 measured) + 3 for other throwers */

@@ -23,7 +23,8 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else '/data/tmp/kim133/out'
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
 QUICK = bool(os.environ.get('QUICK'))                       # (development: no Kizuna pictures)
 EVERY = 3
-ANIMS = {'214B': (0x93,), '236A': (0x126,), '236C': (0x97, 0x8E, 0x98, 0x9A, 0x99), '[2]8C': (0x9B, 0x9C, 0x9D, 0x9E)}
+ANIMS = {'214B': (0x93,), '236A': (0x126,), '236C': (0x97, 0x8E, 0x98, 0x9A, 0x99), '[2]8C': (0x9B, 0x9C, 0x9D, 0x9E),
+         '421A': (0x100, 0x101), '6246A': (0x85, 0x86, 0x88, 0x89)}   # (TODO #136 / #138: their programs too, kim136_proof)
 # (name, move, brawler keys, source, Kizuna recipe, follow-up presses [(Kizuna anim it is pressed in, keys, needs a hit)])
 SC = [('214B whiff', '214B', 'c', 'cap', 'sw_214B', []),
       ('214B hit', '214B', 'c', 'fol', '214B_h', []),

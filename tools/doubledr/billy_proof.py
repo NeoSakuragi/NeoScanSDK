@@ -35,8 +35,8 @@ def ref_image(layers, pals):
     pw = [(i & 0x0FFF) for i in range(4096)]                       # a colour per (slot, pen): the drawing decodes back
     key_of = {v: k for k, v in FAKE.items()}
     img = np.zeros((640, 640), np.uint16)
-    for w, ox, oy, key in layers:
-        a = dd.draw_def(w, pw, palette=FAKE.get(key, key), hflip=False, size=(640, 640), origin=(320 + ox, 400 + oy))
+    for w, ox, oy, key, *mir in layers:                            # (mir: a throw hold picture mirrored, export_dd Builder)
+        a = dd.draw_def(w, pw, palette=FAKE.get(key, key), hflip=bool(mir and mir[0]), size=(640, 640), origin=(320 + ox, 400 + oy))
         m = a[..., 3] > 0
         if not m.any(): continue
         c5 = a[..., :3].astype(int) >> 3
@@ -91,9 +91,9 @@ def frames_proof(b, idx, res):
                     if facing < 0:                         # DD's own drawing beside it (its colours: palette RAM)
                         pr = E.palram(); body = E.BODY[ex['id']][0]
                         dl = Image.new('RGB', (220, im.height), (0, 0, 0))
-                        for w, ox, oy, key in fr['layers']:
+                        for w, ox, oy, key, *mir in fr["layers"]:
                             pal = body if key == 'body' else E.FORM_PAL[ex['id']][0] if key == 'form' else key
-                            a = dd.draw_def(w, pr, palette=pal, hflip=False, size=(220, im.height), origin=(110 + ox, im.height - 30 + oy))
+                            a = dd.draw_def(w, pr, palette=pal, hflip=bool(mir and mir[0]), size=(220, im.height), origin=(110 + ox, im.height - 30 + oy))
                             dl.paste(Image.fromarray(a[..., :3]), (0, 0), Image.fromarray(a[..., 3]))
                         pairs.append((fr['record'], dl, crop))
                     cells.append(crop.resize((110, 112)))
