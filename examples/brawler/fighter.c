@@ -985,7 +985,7 @@ static void proj_row(fighter_t *p) {                            /* its rows: its
         p->spec_atk = 0; p->pown = 0;
     } else {
         const bprow_t *r = &d->rows[p->prow];
-        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y);
+        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y) + (d->air ? p->py0 : 0);
         p->spec_atk = (r->flags & 1) && (!p->pend || p->pend == 3) ? &r->atk : 0;   /* (3: an eruption that hit: live) */
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
@@ -1059,6 +1059,8 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
     p = proj_alloc(owner);
     if (!p) return 0;                                            /* pool full: no entity for it */
     p->pdef = d; p->prow = 0; p->pend = 0; p->facing = facing; p->z = z; p->throw_x0 = x0;
+    p->py0 = d->air && owner ? owner->y : 0;                     /* an air projectile: its rows count from its thrower's
+                                                                    height (bproj_t air, TODO #211) */
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
     p->pcnt = d->hits; p->freeze = 0;                            /* its hits left (object.phase) */
     p->tick = 0; p->state_t = 0; p->node = d->child_b0;          /* tick 0: shown at row 0 this frame (the update after
@@ -1164,6 +1166,12 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
             p->prow = d->loop == 0xFF ? 0 : d->loop;
         }
         p->throw_x0 = pin_of(p)->x; p->facing = p->owner->facing;
+    } else if (d->air && !p->pend && p->y <= 0) {                /* an air projectile on the floor (SS2's shuriken, TODO
+                                                                    #211: $30404 tests y >= 224 before its move, so the
+                                                                    frame that reached the floor shows it there or below):
+                                                                    its next phase from where it is, on the floor */
+        if (!d->next) { projectile_reset(p); return; }
+        proj_launch(p); return;
     } else if (++p->prow >= d->nrows) {
         if (d->loop == 0xFF) { projectile_reset(p); return; }    /* its animation is over */
         p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
@@ -1831,9 +1839,12 @@ static void update(fighter_t *f, const intent_t *in) {
             if (f->y <= 0) { f->y = 0; f->vy = 0; f->drop = 2; f->inv = RESPAWN_INV; enter(f, S_LAND); play(f, BA_LAND); }
             break;
         }
-        if (f->state == S_AIR && (in->press & IN_A) && !f->air_node && in->dz > 0 && spec_ix(f->ch, BS_AIR) != 0xFF) {
+        if (f->state == S_AIR && (in->press & IN_A) && !f->air_node && in->dz > 0 && spec_ix(f->ch, BS_AIR) != 0xFF &&
+            !(f->ch->specials[spec_ix(f->ch, BS_AIR)].proj && f->shot)) {   /* (one projectile at a time, as special_pick:
+                                                                    SS2's b4 bit 1, Hanzo's shuriken, TODO #211; else the air normal) */
             lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_AIR);      /* down+A: the fighter's air special, when it has one */
-            start_special(f, BS_AIR); break;                     /* (TODO #200: Kim's j.2B dive; its program from here) */
+            start_special(f, BS_AIR); break;                     /* (TODO #200: Kim's j.2B dive, #211: Hanzo SS2's
+                                                                    shuriken; its program from here) */
         }
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: a jump-cancel's node, else the stick: air A (KOF's */
             uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : in->dz < 0 ? TREE(f)->air_cd : TREE(f)->air_a;
