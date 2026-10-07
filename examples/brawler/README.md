@@ -245,6 +245,8 @@ Stick walks on the floor (up/down = depth), forward twice = run.
 - **A = attack**, the only one: every normal comes from the fighter's route tree (below); the stick and the position pick
   the move: neutral (far), **close** (an opponent within `CLOSE_X` 40 px, |dZ| <= 12: KOF's close normals), down (crouch),
   forward, back, down-forward; in a jump: A, down+A, up+A (KOF's air C / D / C+D; a jump-cancel's own node instead).
+  Up / down + A with an opponent lying on the floor within `DOWN_REACH` (160 px, any depth) = the fighter's **down
+  attack** when it has one (game.json `down_attack`, TODO #218: Cheng Fu's Double Dragon leap-stomp).
 - **B = jump**: tap = hop, hold = regular jump, the stick picks vertical / forward / back (see Jumps). Inside a route, a
   node's B link is a **jump-cancel** (on hit, as every link): the fighter jumps and its next A plays the link's air move,
   whose A links chain in the same jump (an air sub-route).
