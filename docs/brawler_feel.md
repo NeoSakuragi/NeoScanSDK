@@ -87,6 +87,30 @@ backwards; that helps escape difficult situations, because the player is usually
   knocks down enemies it meets (spawn.body).
 - The Lab tool shows which purposes a fighter's chains cover, so gaps are visible.
 
+## 8c. The recipe, archetypes, juggles (Bruno, 2026-10-07, thinking aloud)
+
+**Bruno:**
+- The revamp is about finding the magic recipe for a good beat 'em up: a blend of good combos, good eye candy for the
+  characters, something fun and challenging, with depth in the routes, without becoming too crazy like Killer Instinct
+  (the game).
+- Archetypes: a character doesn't have to cover every purpose; what matters is coherence within one character. A very
+  fast one: lower damage, faster startup on every move, maybe faster movement too. A bigger one, e.g. Krauser, is a
+  good candidate for a wrestler type: slow moves, big damage, impacts very satisfying to land.
+- Juggles are fun: eject the opponent into the air, follow up with nice juggle moves, then finish with special moves
+  or into a super.
+- Best example of the recipe well executed: Streets of Rage 2. Axel balanced; Blaze faster, a bit less damage, more
+  agility; Max much slower, much heavier, many more startup frames per move, yet smooth and a joy to play, deals a ton
+  of damage — Bruno's personal favourite.
+
+**Data extracted (to use as targets):**
+- Three archetypes on SOR2's model: **balanced** (Axel), **fast** (Blaze: faster startup + movement, less damage),
+  **heavy** (Max / Krauser as a wrestler: slow startup, big damage, big impact feedback: hit-stop, shake, sound).
+- Heavy must still feel *smooth*: slow startup does not mean stiff — animation quality and responsiveness of inputs
+  (buffering, no dropped presses) carry it.
+- Depth = routes (branches, juggles, finishers into specials / supers), bounded: no KI-style combo breakers / long
+  memorised strings.
+- Juggle route: launcher -> juggle follow-ups -> special or super finisher.
+
 ## 9. Iterate fast: an exploration tool, no build in the loop
 
 **Bruno:** we want to iterate quickly. "I want a tool that allows me to explore new things, so I don't want to wait for
