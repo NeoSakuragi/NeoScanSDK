@@ -192,7 +192,11 @@ zero_bss:
 vblank_handler:
     btst    #7, 0x10FD80        /* BIOS_SYSTEM_MODE */
     bne.s   .Lgame_vblank
-    | During BIOS init — let BIOS handle it
+    | During BIOS init — let BIOS handle it. game_active is .bss: until boot_init has cleared it (init_magic set
+    | after zero_bss) it holds whatever the RAM held (TODO #171: read here at power-on before the game's first USER
+    | call; 0 only because the BIOS happened to clear it)
+    cmpil   #0x4E454F21, init_magic
+    bne.s   .Lbios_vblank
     tstb    game_active
     beq.s   .Lbios_vblank
     | Game was running but BIOS stole mode bit — take it back

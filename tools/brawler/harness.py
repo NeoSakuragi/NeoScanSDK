@@ -15,7 +15,17 @@ addresses from build/rom.elf, so the harness follows the struct when it changes.
 (geolith/libretro/geolith_libretro.so, the one the feedback replays use; BRAWLER_CORE overrides): its save states (v3,
 geolith fa094e0) carry the 68000's pending cycles and the YM2610 pacing. The installed retroarch core predates that:
 a state loaded right after power-on and the same state loaded after any frame played differently (TODO #165). Saves go to a fresh scratch dir per instance
-(WORK/save_*, removed at exit), never the user's."""
+(WORK/save_*, removed at exit), never the user's.
+
+Tick sync (Brawler(tick_sync=True), TODO #178): a video frame ends at a fixed cycle of the frame, which falls inside the
+game's tick, so a RAM read between frames sees some fighters before and some after this tick's update, and a RAM write
+lands in the middle of a tick (the rest of the tick sees it, the part before does not). Where in the tick the frame
+ends moves with the tick's cycle count, i.e. with any code / data change: a build with 3000 idle cycles before each tick
+(no logic change) moved 31 of 286 regress facing traces. With tick_sync the harness sees the game only at tick
+boundaries: a write tap on crt0's `game_ticks` (written just before game_tick runs: the previous tick is complete)
+copies work RAM there, and r() / fget() read that copy (the state after the last whole tick); w() / fset() / place()
+queue their bytes and the tap writes them at that same boundary (reads see the queued bytes at once). Save states
+carry the copy and the queue. Off by default: the existing proofs keep their frame-end semantics."""
 import ctypes as C, os, re, struct, subprocess, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -75,10 +85,21 @@ def _layout(game):
     syms['sizeof_intent'] = eq['INTENT']; syms['sizeof_bchar'] = eq['CHSIZE']
     return layout, eq['SIZEOF'], states, syms
 
+TAP_CB = C.CFUNCTYPE(None, C.c_uint32, C.c_uint32, C.c_int)
+SYNC_MAGIC = b'TICKSYNC'
+
+class _Core:
+    """the core's functions, with retro_reset / unserialize telling the harness (tick sync: the tick-boundary copy is
+    stale until the next tick starts)"""
+    def __init__(self, dll, on_reset): self.__dict__['_dll'] = dll; self.__dict__['_on_reset'] = on_reset
+    def __getattr__(self, n): return getattr(self._dll, n)
+    def __setattr__(self, n, v): setattr(self._dll, n, v)
+    def retro_reset(self): self._on_reset(); return self._dll.retro_reset()
+
 class Brawler:
     _core = None                                     # one core per process (libretro cores are global)
 
-    def __init__(self, rom=None, game=GAME):
+    def __init__(self, rom=None, game=GAME, tick_sync=False):
         self.rom = rom or os.path.join(game, 'brawler.neo')
         self.layout, self.fsize, self.states, self.syms = _layout(game)
         m = re.search(r'#define SEL_NSLOT (\d+)', open(os.path.join(game, 'build', 'game_tables.h')).read())
@@ -106,7 +127,27 @@ class Brawler:
         self.ram = (C.c_uint8 * n).from_address(core.retro_get_memory_data(2))   # live: writes land in the 68000's RAM
         self.core = core
         self.base = self.syms['fighters']
+        self.tick_sync = tick_sync
+        if tick_sync: self._sync_init()
         self._pin_clock()
+
+    # tick sync (module docstring)
+    def _sync_init(self):
+        self._gt = self.syms['game_ticks']; n = len(self.ram)
+        self._snap = (C.c_uint8 * n)(); self._snap_ok = False; self._queue = []
+        self.core = _Core(self.core, self._sync_stale)
+        def tap(addr, val, size):
+            if addr != self._gt + 2: return                    # addql #1, game_ticks: high word, then this one
+            try:
+                for o, data in self._queue: self.ram[o:o + len(data)] = list(data)
+                self._queue = []
+                C.memmove(self._snap, self.ram, n)
+                o = self._gt + 2 - RAM_BASE; self._snap[o] = (val >> 8) & 0xFF; self._snap[o + 1] = val & 0xFF
+                self._snap_ok = True
+            except Exception as e: print('harness tick tap:', e, flush=True)
+        self._tap = TAP_CB(tap)
+        self.core.retro_neoscan_m68k_write_tap(self._tap)
+    def _sync_stale(self): self._snap_ok = False; self._queue = []
 
     # libretro callbacks
     def _env(self, cmd, data):
@@ -129,6 +170,7 @@ class Brawler:
 
     def power_cycle(self):
         """power off (the core writes NVRAM / memory card to save_dir) and on again (it loads them)"""
+        if self.tick_sync: self._sync_stale()
         self.core.retro_unload_game()
         if not self.core.retro_load_game(C.byref(GameInfo(self.rom.encode(), None, 0, None))): raise RuntimeError('reload failed')
         self.ram = (C.c_uint8 * self.core.retro_get_memory_size(2)).from_address(self.core.retro_get_memory_data(2))
@@ -141,7 +183,7 @@ class Brawler:
         fight state made at another minute played differently: TODO #165). Pinned to CLOCK at every power-on, through
         the save state (geo_rtc_state_save: 7 big-endian words year, month, weekday, day, hour, minute, second)"""
         import time
-        blob = bytearray(self.save())
+        blob = bytearray(self._save_core())
         for dt in (0, -1, -2):                      # the core read the clock a moment ago (a second / minute may have turned)
             t = time.localtime(time.time() + dt)
             key = struct.pack('>4I', t.tm_year % 100, t.tm_mon, (t.tm_wday + 1) % 7, t.tm_mday)   # C: Sunday = 0
@@ -149,7 +191,7 @@ class Brawler:
             if len(at) == 1: break
         else: raise RuntimeError('calendar not found in the save state (geo_rtc_state_save layout changed?)')
         blob[at[0]:at[0] + 28] = struct.pack('>7I', *self.CLOCK)
-        self.load(bytes(blob))
+        self._load_core(bytes(blob))
 
     # frames
     _want_video = False
@@ -171,14 +213,32 @@ class Brawler:
             n, k = part.split(':'); self.run(int(n), *(['', k] if p else [k]))
 
     # save states
-    def save(self):
+    def _save_core(self):
         n = self.core.retro_serialize_size(); buf = C.create_string_buffer(n)
         assert self.core.retro_serialize(buf, C.c_size_t(n)); return buf.raw
-    def load(self, blob):
+    def _load_core(self, blob):
         buf = C.create_string_buffer(blob, len(blob)); assert self.core.retro_unserialize(buf, C.c_size_t(len(blob)))
+    def save(self):
+        blob = self._save_core()
+        if not self.tick_sync: return blob
+        q = b''.join(struct.pack('>IH', o, len(d)) + bytes(d) for o, d in self._queue)
+        extra = bytes([self._snap_ok]) + bytes(self._snap) + struct.pack('>I', len(self._queue)) + q
+        return blob + extra + SYNC_MAGIC + struct.pack('>I', len(extra))
+    def load(self, blob):
+        extra = None
+        if blob[-12:-4] == SYNC_MAGIC:
+            k = struct.unpack('>I', blob[-4:])[0]; extra = blob[-12 - k:-12]; blob = blob[:-12 - k]
+        self._load_core(blob)
+        if not self.tick_sync: return
+        self._sync_stale()
+        if extra:
+            n = len(self.ram); self._snap_ok = bool(extra[0]); C.memmove(self._snap, extra[1:1 + n], n)
+            p = 1 + n; cnt = struct.unpack('>I', extra[p:p + 4])[0]; p += 4
+            for _ in range(cnt):
+                o, ln = struct.unpack('>IH', extra[p:p + 6]); p += 6; self._queue.append((o, extra[p:p + ln])); p += ln
     def to_fight(self, cache=True):
         """power on -> coin -> START -> pick the cursor's fighter (Terry) -> the fight, 20 frames in"""
-        path = os.path.join(WORK, 'fight_%08x.state' % self._rom_id())
+        path = os.path.join(WORK, 'fight_%08x%s.state' % (self._rom_id(), 't' if self.tick_sync else ''))
         if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
         self.core.retro_reset()
         self.seq('600:-,4:o,100:-,4:s,100:-,4:a,270:-')
@@ -186,10 +246,19 @@ class Brawler:
 
     # RAM
     def r(self, addr, size):
-        o = addr - RAM_BASE; v = bytes(self.ram[o:o + size])
+        o = addr - RAM_BASE
+        if self.tick_sync and self._snap_ok:                  # the last tick boundary + the writes queued since
+            v = bytearray(self._snap[o:o + size])
+            for qo, d in self._queue:
+                for i in range(len(d)):
+                    if o <= qo + i < o + size: v[qo + i - o] = d[i]
+            v = bytes(v)
+        else: v = bytes(self.ram[o:o + size])
         return {1: lambda: v[0], 2: lambda: struct.unpack('>H', v)[0], 4: lambda: struct.unpack('>I', v)[0]}[size]()
     def w(self, addr, size, val):
-        o = addr - RAM_BASE; self.ram[o:o + size] = list(struct.pack({1: '>B', 2: '>H', 4: '>I'}[size], val & (1 << 8 * size) - 1))
+        o = addr - RAM_BASE; data = struct.pack({1: '>B', 2: '>H', 4: '>I'}[size], val & (1 << 8 * size) - 1)
+        if self.tick_sync: self._queue.append((o, data)); return     # written at the next tick boundary
+        self.ram[o:o + size] = list(data)
     def fget(self, i, field):
         off, sz = self.layout[field]; v = self.r(self.base + i * self.fsize + off, sz)
         if field in ('x', 'z', 'y', 'vx', 'vz', 'vy'): return (v - (1 << 32) if v & 0x80000000 else v) / 65536
@@ -261,7 +330,8 @@ class Brawler:
     def pick(self, k, button='a', cache=True, unlock=False):
         """power on -> coin -> START -> the select screen's fighter k (bm_chars index = game.json roster order; the cursor walked
         there with the stick: the real select path) -> the fight, 20 frames in; unlock: every boss selectable"""
-        path = os.path.join(WORK, 'fight_%08x_%d%s%s.state' % (self._rom_id(), k, button, 'u' if unlock else ''))
+        path = os.path.join(WORK, 'fight_%08x_%d%s%s%s.state' % (self._rom_id(), k, button, 'u' if unlock else '',
+                                                                  't' if self.tick_sync else ''))
         if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
         self.core.retro_reset()                       # from power on, whatever ran before in this process
         self.seq('600:-,4:o,100:-')

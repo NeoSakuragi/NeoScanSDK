@@ -9,7 +9,8 @@ import sys, json, re
 import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from harness import Brawler
 game, out = sys.argv[1], sys.argv[2]
-b = Brawler(rom=game + '/brawler.neo', game=game)
+b = Brawler(rom=game + '/brawler.neo', game=game, tick_sync=True)   # reads / pokes at tick boundaries (TODO #178:
+                                                                    # the frame's end falls mid-tick, where it moves with the build)
 res = {}
 def p1():
     return (b.states[b.fget(0, 'state')], round(b.fget(0, 'x'), 2), round(b.fget(0, 'z'), 2), round(b.fget(0, 'y'), 2),
@@ -38,6 +39,9 @@ for n in (0, 1500, 2600, 3700):
 # one either side, and the game ticks done per frame (hud_tick) are exactly the same (a lag frame more or less, e.g.
 # a slow first tick depending on what the demo left, shifts every later sample: caught here) = `same`; `strict` is the
 # frame-exact comparison, kept for information. A bleed of state shows as a lasting difference, also caught.
+# Since TODO #178 the harness runs with tick_sync (harness.py): every sample is the RAM at a tick boundary and every poke
+# (place) is written there, so the samples no longer depend on where in the tick the frame ends (`strict` holds; the
+# facing traces are identical between builds that differ only in timing or RAM layout).
 def near(a, b):                    # frame by frame: one side's sample is the other's at that frame or one either side
     return len(a) == len(b) and all(a[i] in b[max(0, i - 1):i + 2] or b[i] in a[max(0, i - 1):i + 2] for i in range(len(a)))
 strict = all(bleed[n] == bleed[0] for n in bleed)
@@ -55,7 +59,8 @@ NCHARS = sum(1 for r in json.load(open(os.path.join(game, "game.json")))["roster
                                                    # link's target has no slot: the selectable ones come first)
 for k in range(NCHARS):
     b.pick(k, unlock=True)                         # campaign builds: the bosses are locked until beaten
-    b.run(10); st = b.save()
+    while b.r(b.syms['stage_tk'], 2) < 180: b.run(1)   # the stage's tick 180, not a frame count: a slower build reaches the
+    st = b.save()                                      # fight a lag frame later (pick ends at frame 1242 on tick 158 or 159) (#178)
     name = b.char_of(0)
     for an, seq in ACTIONS:
         b.load(st)
