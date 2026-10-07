@@ -1139,6 +1139,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   the small" one): Double Dragon's throws decoded (command, animations, victim handling) through #146's standard
   throw, for Billy Lee and Super Billy; down+C = the 623 A row (variant table).
 
+- [ ] 195. HAOHMARU'S FURY TONED (20261007-113032-b3f3: "the red screen is too much and there shouldn't be so much freeze
+  on impact" — the 0.0.93 SS2 hit sequence: red screen 48 f, hold 40 f, slow motion 30 f; 20261007-112936-b3f3: keep
+  SS2's red rage palette through the motion after the charge, the big fireball): shorten / soften the red screen and
+  the impact freeze (one short flash, a standard hit-stop), keep the rage palette until the fury ends.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
