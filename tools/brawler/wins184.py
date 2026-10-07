@@ -57,8 +57,10 @@ GAMES = {
     'kz': ('/data/roms/kizuna.neo', {'kim': '/data/neogeo_dict/kizuna/cap/vs.state'},
            lambda st: ('10:-,3:a', [f'{f}:108424=01,108425=18' for f in range(1, 14)] + ['2:108513=01']), anim_kz),
     'dd': ('/data/roms/doubledr.neo', {'billy_lee': '/data/neogeo_dict/doubledr/cap/vs.state',
-                                       'billy_super': '/data/neogeo_dict/doubledr/cap/p1_01.state'},
-           lambda st: ('30:R,3:a', ['2:100550=67,100551=F0']), anim_dd),
+                                       'billy_super': '/data/neogeo_dict/doubledr/cap/p1_01.state',
+                                       'cheng_fu': '/data/neogeo_dict/doubledr/cap/p1_10.state'},   # (TODO #212)
+           lambda st: ('45:R,3:a' if 'p1_10' in st else '30:R,3:a', ['2:100550=67,100551=F0']), anim_dd),   # (Cheng-Fu
+                                                                          # walks slower: 45 frames to reach P2)
 }
 
 def run(state, seq, pokes, d, dump=None, snaps=None, neo=None):

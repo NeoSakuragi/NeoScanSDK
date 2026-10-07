@@ -314,6 +314,8 @@ typedef struct fighter {
                                    * leaves its body alone while it counts down (refreshed every frame of the list) */
     uint8_t  fpose, fpad;         /* the fury's flash pose (TODO #145, fighter.c "flash pose"): 0 not started, 1 + the
                                    * frame of the freeze it shows, 0xFF over (the fury plays from its first frame) */
+    uint16_t dizzy;               /* a stun strike's victim (bthrow_t.stun, TODO #212: Cheng-Fu's throw): its S_HITSTUN
+                                   * lasts this many frames, open to any hit; a hit (enter) ends it (0 none) */
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */
