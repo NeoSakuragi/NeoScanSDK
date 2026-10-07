@@ -1575,6 +1575,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   OK, controls_proof + fury_inv_proof (AI_OFF copy) cheng_fu ok, bank_proof ALL OK, regress no-bleed True (frame-exact).
   Scenarios todo218-cheng-far-d / -down-attack (lint 0).
 
+- [ ] 219. CHARACTER MUSIC THEMES (Bruno, 2026-10-07: "every time you ingest a character, see if you can also prepare
+  the character's music theme"): a per-fighter theme (game.json roster[].theme, played where? stage of his boss fight /
+  his select / P1's choice — Bruno decides) + back-fill: each roster fighter's theme from his source game (KOF94-99,
+  SS2, WHP, Kizuna, Double Dragon), per source driver: playable now / needs its driver ported. Every new-fighter job
+  checks its theme from now on.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
