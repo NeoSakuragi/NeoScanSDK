@@ -1274,6 +1274,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   identify the move from the replay's inputs, decode Kizuna's handler for it (the dive's descent vector, its follow-up
   input / auto-trigger), play it like Kizuna in a real fight.
 
+- [ ] 202. KYO, 3 NOTES ON 0.1.8 (20261007-124338: "the flame effect disappears too fast ... in the game the flame stays a
+  bit longer, or maybe there's another one being spawned. Check the code." — the Orochinagi release; 124409: "Here Kyo
+  is missing his fire effect in his hand."; 124437: "make this move invincible" — identify the move from the replay's
+  inputs): decode the flame objects' lifetimes / extra spawns and the hand-fire effect from KOF98's code; the move's
+  invincibility: KOF98's own invincible frames if it has them, else make it invincible as Bruno asks (a roster flag).
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
