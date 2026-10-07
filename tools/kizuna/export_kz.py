@@ -817,7 +817,7 @@ class KzProg:
     def emit(self, *ops): self.ops += ops
 
     def block(self, label, key, n, b, ends=None, branches=(), extras=(), enter=(), spawns=None, state=None,
-              extra_end=0, at=None, extras_from=0, step_ops=None, first=0, last=None):
+              extra_end=0, at=None, extras_from=0, step_ops=None, first=0, last=None, on_hit=()):
         """animation n as one block from label: P_ANIM (b = damage | reaction << 8), the enter ops, then frame by
         frame: branches [(op tuple)...] (the handler's tests), the clock (a step's command on its first frame, spawns
         {step: object index}), the move, extras (per-frame ops: follow-up checks; a function of the program when they
@@ -826,7 +826,8 @@ class KzProg:
         not static)}; returns the state at its end. at: the block's first frame (static entries: effects pinned to
         the program's frames). step_ops {step: [ops]}: run on that step's first frame (the handler's acts on a step
         event: its phase writes, the screen effect). first / last: its steps first..last only (TODO #213; spawns /
-        step_ops / extras_from count from first)"""
+        step_ops / extras_from count from first). on_hit: ops run on the frame after a hit's hit-stop, where the step
+        it landed in ends (TODO #213: Rosa's 6246A screen at each kick)"""
         st = dict(state or {'ax': 0.0, 'ay': 0.0, 'y': 0.0, 'vx': 0.0, 'vy': 0.0})
         if at is not None: self.entry[label] = at
         steps = kz.parse_anim(CH << 12 | n)[first:None if last is None else last + 1]
@@ -902,7 +903,7 @@ class KzProg:
             if H:
                 Lp = self.L()
                 assert 4 * dur[kl] + 60 < 255, (n, kl, 'fighter.c prog_update: a frame runs 255 ops at most')   # (TODO #136)
-                self.emit(H, ('hitclr',), ('dec',), Lp, ('br', PC['cntle'], 1, nxt, th), ('adv',), ('dec',), ('jmp', Lp))
+                self.emit(H, ('hitclr',), *on_hit, ('dec',), Lp, ('br', PC['cntle'], 1, nxt, th), ('adv',), ('dec',), ('jmp', Lp))
         return st
 
     def prims(self):

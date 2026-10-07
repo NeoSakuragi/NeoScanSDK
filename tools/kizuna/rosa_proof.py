@@ -286,16 +286,17 @@ def real_fight(b, k):
             en = [i for i in range(1, 8) if b.states[b.fget(i, 'state')] not in ('OFF', 'DEAD') and b.fget(i, 'team') == 1]
             if not en: out[f'{move} {label}'] = {'ok': False, 'why': 'no enemy'}; continue
             e = en[0]; cam = b.r(b.syms['cam_x'], 2)
-            b.place(0, x=cam + 40, z=b.fget(e, 'z')); b.place(e, x=cam + 40 + gap); b.fset(0, 'facing', 1); b.fset(e, 'hp', 60)
+            px = cam + (150 if move in ('6246A', '214B grab') and label == 'hit' else 40)   # (her throws: room behind her)
+            b.place(0, x=px, z=b.fget(e, 'z')); b.place(e, x=px + gap); b.fset(0, 'facing', 1); b.fset(e, 'hp', 60)
             h0 = len(b.hits); cells = []; specs = set(); n_sp = 0
-            for f in range(200):
+            for f in range(360 if move == '6246A' else 200):   # (the fury: its dive's hit about 300 frames in)
                 kk = keys if f < 3 else next((m for t, m in more for j in range(3) if f == t + j), '')
                 if label == 'whiff':
                     for i in en: b.place(i, x=b.fget(0, 'x') + gap)
                 if f % 4 == 0: pth = os.path.join(OUT, '_shot.png'); b.screenshot(pth); cells.append(Image.open(pth).convert('RGB'))
                 else: b.run(1, p1=kk)
                 if b.states[b.fget(0, 'state')] == 'SPECIAL': specs.add(b.fget(0, 'spec_id')); n_sp += 1
-            hits = [h for h in b.hits[h0:] if h[1] != 0]
+            hits = [h for h in b.hits[h0:] if h[1] != 0]   # (the campaign: no Lab log; a hit = a life drop or a hit-stop)
             ok = bool(specs) and (bool(hits) if label == 'hit' else (not hits or move == '236C'))
             out[f'{move} {label}'] = {'ok': ok, 'roles': sorted(specs), 'special_frames': n_sp, 'hits': len(hits), 'damage': sum(h[2] for h in hits)}
             sh = Image.new('RGB', (10 + 160 * 10, 30 + 115 * ((len(cells) + 9) // 10)), 'white'); d = ImageDraw.Draw(sh)

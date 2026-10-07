@@ -266,14 +266,16 @@ def prog(B, inp, cap, fc, rec):
         K.emit('CATCH', ('resume_at', 'CATCH1'), ('yield',))   # (the victim's handler confirms the grab: +$124 bit 0)
         K.emit('CATCH1', ('resume_at', 'THROW'), ('yield',))
         st = K.block('THROW', 'D7', 0xD7, 0, ends='JUMP', enter=STOP + (('vphase', VA_LIST, 1),), state=dict(E.MERGE))
-        st = K.block('JUMP', 'D8', 0xD8, 0 | R_KNOCKDOWN << 8, ends='DIVE', enter=(('turn',),), state=st)
-        def black(K_):                                   # a hit in the air: the screen black, FIX EFFE
-            g = K_.L(); return [('br', PC['hit'], 0, g), ('screen', 1), g]
-        st = K.block('DIVE', 'D9a', 0xD9, total | R_KNOCKDOWN << 8, ends='D9W', enter=(('hitoff',),), extras=black,
+        # each kick's hit ($3A576): $27E4 = $4F00 / $0000, $27E1 = $10: the stage hidden, black / red every frame,
+        # 16 frames [meas: 6246A_h screens, black first]; the dive's hit in the air ($3A518): $27E4 = 0, $27E1 = $80:
+        # black until she lands (+ the FIX EFFE picture: not drawn, a screen-fixed object)
+        st = K.block('JUMP', 'D8', 0xD8, 0 | R_KNOCKDOWN << 8, ends='DIVE', enter=(('turn',),), state=st,
+                     on_hit=(('screen', 0x80 | 16),))
+        st = K.block('DIVE', 'D9a', 0xD9, total | R_KNOCKDOWN << 8, ends='D9W', enter=(('hitoff',),), on_hit=(('screen', 2),),
                      state=st, first=0, last=15)
         K.block('D9W', 'D9w', 0xD9, 0, branches=(('br', PC['land'], 1, 'LAND'),), state=st, first=16, last=16)
         K.block('LAND', '119', 0x119, 0, enter=(('screen', 0),), ends='END', state=dict(E.MERGE), extra_end=last(0x119))
-        extra['backdrop'] = {'rows': [0xFFFF, 1], 'colours': [0x0000, 0x0000]}
+        extra['backdrop'] = {'rows': [0xFFFF, 1], 'colours': [0x0000, 0x4F00]}   # (black first, then red)
     K.emit('END', ('end',))
     rom = {'states': K.states, 'anims': {k: {'mode': a['mode'], 'steps': a['steps'], 'kz_anim': a['n'], 'kz_first': a['first']}
                                          for k, a in K.anims.items()},

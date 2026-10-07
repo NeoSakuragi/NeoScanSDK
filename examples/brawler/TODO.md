@@ -1493,7 +1493,29 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   step 8). Scenarios todo212-cheng-specials / -furies / -throw (lint 0; gen at publish). Makefile: the HUD (make_hud)
   now rebuilds when the roster changes (it kept Kuroko's face).
 
-- [ ] 213. NEW FIGHTER: ROSA from Kizuna Encounter (Bruno, 2026-10-07; extracted in #77: /data/neogeo_dict/kizuna/rosa),
+- [x] 213. (done 2026-10-07 on fix/213-rosa: Rosa in the roster (game.json, bank kizuna:rosa, slot 23 of the select,
+  NA 24 / SEL_COLS 13: every select pose measured <= 11 columns), her normals / jumps (export_kz: her jumps fall in their
+  own animations, $80 / $6A / $6B) / throw / palettes A B (9 folded into 8) / win $37 / select pose $37.12 / flash pose
+  (taunt $21) / voices (her bank $1EA6-$1ED4, voices.py KZ_VOICE) / HUD face; every special a program from Kizuna's
+  handlers (tools/kizuna/rosa_kz.py, the module doc lists each handler): C = 236C (5D + the SHOCKWAV object from its task
+  $2AB04: AD / AE / AF, 304 px range), forward+C = 214B (A5, C2; follow-ups forward+C again = the grab D5, forward+A =
+  236B's D4), down+C = 623C (A0, A1; A after a hit = 214C's A2), up+C = 421C (A6), down-forward+C = 63214C (AB + the
+  BARRIER object $3A280), D = 6246A (D6, DE; the grab D7 / D8 / D9 / 119 with Kizuna's red / black strobe per kick and
+  black after the dive's hit), down+D = 421A (Kim's handler $3AEE0: DB, DC), down+A in a jump = j.2C (A7, A8, A9; down+A
+  again after its hit = D2 / D3). Engine (vocabulary hold.victim_list): P_VPHASE VA_LIST + bvlist_t VL_FRAMES /
+  VL_SREACT / VL_DOWN (her grabs' victims placed frame by frame from the victim's thrown animation 101 / 106 decoded
+  from the ROM, released lying or into its flight as a source reaction), P_SCREEN 2 (held first colour) / $80 | n (n
+  frames); export_kz: KzProg sub-range blocks, on_hit ops, Kizuna's trailer bit 13 rule (one hit per animation, Rosa
+  only: Kim's 93.6 / 126.6 have it too, left as he was); bm_sreact shared by motion (Rosa's reuse Kim's: 14 entries).
+  Proofs /data/tmp/rosa213: rosa_proof (Kizuna vs brawler, 20 scenarios whiff / hit / every follow-up, all ok: whiffs
+  frame-identical, hits pictures in order + hit counts + reactions as Kizuna; real fight per move ok), kim_proof
+  --char rosa 2988 / 2990 frames identical (the 2: j.2C's A7.1, its palette folded by pal_pack, exact colours),
+  controls / cancel / fury_inv (AI_OFF) all ok, Kim's kim_proof 3110 / 3110, kim133 / kim136 / kim200 ALL OK, kim144 /
+  kim_followups / phoenix_backdrop ok, select_proof 0 px (43 screens, stick 302 / 302, walk 172 / 172), bank_proof ALL OK,
+  voice_proof rosa bytes equal, campaign29 through, regress no-bleed True; scenarios todo213-rosa-* lint 0. Not in:
+  j.623C / j.421C (air variants: one air special slot), j.4B (needs the stage wall, +$104 bit 0), 236A (the tag-in
+  strike, cond bit 6), 421D (tag desperation), 421A's last two hits (her tag partner's, as Kim's), the FIX EFFE picture
+  of the 6246A dive (a screen-fixed object). NEW FIGHTER: ROSA from Kizuna Encounter (Bruno, 2026-10-07; extracted in #77: /data/neogeo_dict/kizuna/rosa),
   the way Kim came in (tools/kizuna): moves from Kizuna's handlers, effects, voices, select / win pose. After the Kim
   job (#136) leaves tools/kizuna.
 

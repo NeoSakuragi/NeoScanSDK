@@ -626,12 +626,17 @@ static void dbg_draw(void) {
 static void screen_fx(void) {
     uint8_t i;
     const bspec_t *sp = 0;
+    uint8_t mode = 1;
     for (i = 0; i < nf && !sp; i++) {
-        const fighter_t *f = &fighters[i];
+        fighter_t *f = &fighters[i];
         if (f->state == S_SPECIAL && f->srow) {
             const bspec_t *s = &f->ch->specials[f->spec_ix];
             if (s->bd_end && (s->bd_first == 0xFFFF ? f->pbd : f->srow - 1 >= s->bd_first && f->srow - 1 < s->bd_end)) sp = s;   /* (bd_first
                                                                  0xFFFF: its program switches it, P_SCREEN, TODO #136) */
+            if (sp && s->bd_first == 0xFFFF) {           /* P_SCREEN's value (TODO #213, Kizuna $27E1): 1 the strobe, 2 its */
+                mode = f->pbd;                           /* first colour held (Rosa's 6246A: black from her dive's hit), */
+                if (f->pbd & 0x80) f->pbd = (f->pbd & 0x7F) ? f->pbd - 1 : 0;   /* $80 | n: the strobe n frames more */
+            }                                            /* (her kicks' $27E1 = $10: 16 frames from each hit) */
         }
     }
     /* (TODO #217) every colour here goes through bd_set: written at the next vblank with the stage's sprites (cmd
@@ -655,7 +660,7 @@ static void screen_fx(void) {
         bd_set((uint8_t)(sf_flash_t + 1) <= gflash.white ? gflash.white_col : gflash.dark_col);
     } else if (sp) {                                         /* Kizuna's strobe, bd_col[0] first (measured) */
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
-        bd_set(sp->bd_col[bd_t++ & 1]);
+        bd_set(mode == 2 ? sp->bd_col[0] : sp->bd_col[bd_t++ & 1]);
     } else if (bd_on) { stage_show(); bd_set(stg->backdrop); bd_on = 0; }   /* after: the stage and its backdrop back */
 }
 
