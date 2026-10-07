@@ -314,6 +314,17 @@ state of the published build set up to show the fix, with what to do and what to
   `/test` (player) and `/api/test` (Lab) log the attempts; a 👎 attempt's replay goes to `DATA/attempts/<id>/`.
 - **Publish routine:** after `tools/brawler/publish_vps.sh ROM VERSION`, run `python3 tools/brawler/scenario.py publish`
   (about 5 s per note) so every testable note has its state on the new build. Proven 2026-10-06 on 0.0.81 (29 notes).
+- **Every fix ships with its scenario (2026-10-07).** A note marked shipped without a recipe never reaches his test
+  queue (the queue serves only notes with a state for his build): 0.0.83-0.0.92 shipped 13 fixes that way and the player
+  showed them as shipped with "no test yet". So, with each fix, before the release: write its recipe in
+  `tools/brawler/scenarios.json` (setup, Do with the exact input, Expect what he should see / hear; select-screen and
+  title cases use the `select` / `title` modes and start at that screen), `scenario.py put ID`, `scenario.py verify ID`
+  (byte-identical twice, replayed the same in a fresh core), look at its `sheet.png`; the publish routine then generates
+  and uploads it. `scenario.py lint` checks every shipped / reopened / fixed note's recipe (texts, roster names, stage,
+  input syntax) and lists every shipped note without one; `publish` runs it first and prints each as a WARNING.
+  Setup modes added for these: `select` (the title, a coin, START: the select screen as a player reaches it; `cursor`
+  walks the cursor to a fighter with the stick, `unlock` shows every boss) and `title`; `stage` takes `cam` (the camera
+  short of the wave's lock point, for a place in the scenery).
 - **In the player (0.0.22):**
   - The card (Bruno's layout, the same in the Lab): title / "44 min ago on 0.0.17" (long press: the exact time) / the
     screenshot (a tap = VERIFY when a state exists for the build and system he runs: "▶ TEST IT" in its corner; else

@@ -389,5 +389,173 @@
   "expect": "Only one Rugal on screen for the whole move: no second Rugal with crossed arms at the left edge.",
   "do_keys": "3:R,4:Rc",
   "proof": 120
+ },
+ "20261007-005023-5d29": {
+  "title": "HUD text in Kizuna Encounter's font",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0
+  },
+  "do": "Stage 1, Terry, the first wave walking in. Look at the text at the bottom of the screen: STAGE 1 WAVE 1, the version, LEVEL-n, CREDIT nn (and the name under the life bar).",
+  "expect": "Every letter is Kizuna Encounter's font: a yellow-to-orange gradient with a dark drop shadow, readable over the bright floor; the layout is where it was.",
+  "do_keys": "",
+  "proof": 120
+ },
+ "20261007-004749-5d29": {
+  "title": "Genjuro: forward C slides through, the light version",
+  "setup": {
+   "mode": "lab",
+   "fighter": "genjuro",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Ryo stands close in front of Genjuro. Press forward + C (Genjuro's slide).",
+  "expect": "A short slide (the light version, about 60 px) that ends on Ryo's spot: Genjuro's body does not shove Ryo ahead of him (no push while it slides) and the slide stops on reaching him, as in Samurai Shodown II. Ryo only reels back from the cut itself.",
+  "do_keys": "3:R,4:Rc",
+  "proof": 90
+ },
+ "20261007-004728-5d29": {
+  "title": "Genjuro: diagonal jumps show Genjuro",
+  "setup": {
+   "mode": "lab",
+   "fighter": "genjuro",
+   "dummy": "ryo",
+   "gap": 200
+  },
+  "do": "Jump forward (forward + B), land, then jump back (back + B).",
+  "expect": "Both diagonal jumps show Genjuro jumping (his own Samurai Shodown II jump frames), never his hanafuda card and never an invisible frame.",
+  "do_keys": "3:R,4:Rb,60:-,3:L,4:Lb",
+  "proof": 70
+ },
+ "20261007-004426-5d29": {
+  "title": "Hanzo: up + C (214K flying spin kick) has its sound",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Sound on. Press up + C (Hanzo's flying spin kick).",
+  "expect": "Hanzo shouts as in World Heroes Perfect when the spin kick starts; the move is no longer silent.",
+  "do_keys": "3:U,4:Uc",
+  "proof": 90
+ },
+ "20261007-004411-5d29": {
+  "title": "Hanzo: down + C (623P rising slash) has its sound",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Sound on. Press down + C (Hanzo's rising slash).",
+  "expect": "Hanzo shouts as in World Heroes Perfect as he rises; the move is no longer silent.",
+  "do_keys": "3:D,4:Dc",
+  "proof": 90
+ },
+ "20261007-002048-5d29": {
+  "title": "Kim: the Phoenix fury without a second Kim",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "Kim's meter is full. Press D (the fury, his Phoenix) and watch the whole screen, the left edge too.",
+  "expect": "Only one Kim on screen for the whole fury: no second Kim frame appears behind him at the left edge.",
+  "do_keys": "4:d",
+  "proof": 320
+ },
+ "20261006-161617-b3f3": {
+  "title": "Select screen: nobody blinks",
+  "setup": {
+   "mode": "select",
+   "unlock": true
+  },
+  "do": "The select screen with every fighter and boss on it. Watch Mr. Big and Billy Lee (and everyone else) for a few seconds.",
+  "expect": "Every fighter is drawn on every frame: Mr. Big and Billy Lee no longer blink, nobody disappears.",
+  "do_keys": "",
+  "proof": 180
+ },
+ "20261006-160946-b3f3": {
+  "title": "Robo Army scenery: the smoke column's colours (stage 2, wave 2)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "billy",
+   "stage": 1,
+   "wave": 1
+  },
+  "do": "Stage 2 (Robo Army's area 1, the street where the note was sent), wave 2. Look at the animated smoke column in the purple sky above the wall, left of the middle of the screen.",
+  "expect": "The column is dark smoke in the sky's colours, animated, as in Robo Army: no white / brown / black block.",
+  "do_keys": "",
+  "proof": 120
+ },
+ "20261006-161029-b3f3": {
+  "title": "Robo Army scenery: the second smoke column (stage 2, wave 3)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "billy",
+   "stage": 1,
+   "wave": 2,
+   "cam": 848
+  },
+  "do": "Stage 2, a little further right (the PARKING AREA sign at the left edge, where the second note was sent). Look at the animated smoke column in the sky above the sign.",
+  "expect": "This column too is dark smoke in the sky's colours, animated, as in Robo Army: no wrong-palette block.",
+  "do_keys": "",
+  "proof": 120
+ },
+ "20261006-160708-b3f3": {
+  "title": "Select screen: the arrow on Yashiro's head",
+  "setup": {
+   "mode": "select",
+   "unlock": true,
+   "cursor": "yashiro"
+  },
+  "do": "The cursor is on Yashiro. Look at the arrow, then move it right onto K' and back left onto Yashiro.",
+  "expect": "The arrow points down at Yashiro's own head, not at K' next to him; on K' it sits on K's head.",
+  "do_keys": "4:R,40:-,4:L",
+  "proof": 60
+ },
+ "20261006-160617-b3f3": {
+  "title": "Select screen: Kim's new pose",
+  "setup": {
+   "mode": "select",
+   "unlock": true,
+   "cursor": "kim"
+  },
+  "do": "The cursor is on Kim. Look at Kim's pose.",
+  "expect": "Kim stands upright with his staff on his shoulder (the end of his Kizuna taunt), no longer hunched over.",
+  "do_keys": "",
+  "proof": 60
+ },
+ "20261006-160204-b3f3": {
+  "title": "Robert: the dance fury catches an airborne victim",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full"
+  },
+  "do": "Robert's meter is full. Walk into Ryo to grab him, press forward + A to throw him, then press D (the fury) at once, while the throw is still on.",
+  "expect": "Robert rushes after Ryo; the dance's first blow catches Ryo in the air: he stops, drops to the floor in his hit reel and takes every blow of the dance (the HUD ends at 15 hits with the throw), the last one knocks him down. Ryo never bounces away and Robert never dances alone.",
+  "do_keys": "4:R,4:Ra,12:-,6:d",
+  "proof": 300
+ },
+ "20261006-154517-b3f3": {
+  "title": "Hanzo: the Koryuu Ha projectile, light version with its two tails",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo",
+   "dummy": "ryo",
+   "gap": 160
+  },
+  "do": "Press C (neutral: Hanzo's projectile).",
+  "expect": "The light (A) Koryuu Ha from World Heroes Perfect: slow (3 px a frame), with its two trailing tail parts behind it that vanish when it hits Ryo. Only one can fly at a time. The medium (B, 5.25 px) and fast (A+B, 7.5 px) versions are in the data; one word in game.json picks them, none is on a button in this build.",
+  "do_keys": "4:c",
+  "proof": 150
  }
 }

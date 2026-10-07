@@ -14,6 +14,9 @@ load it under a banner "Do: ... / Expect: ...", and his 👍 / 👎 closes or re
     scenario.py publish [--rom R] [--dry]       every note in shipped / reopened / fixed with a recipe: gen + upload on the
                                                 CURRENT build (the publish routine runs it after publish_vps.sh)
     scenario.py backfill [--only ID,...]        every recipe of scenarios.json: put + gen + upload
+    scenario.py lint [--rom R]                  every shipped / reopened / fixed note's recipe checked (texts, roster
+                                                names, stage, input syntax) + every SHIPPED note without one listed;
+                                                exit 1 on any warning (publish runs it first and prints the warnings)
 
 A recipe (scenarios.json, keyed by note id):
   title       the test's one-line headline (the banner's first line)
@@ -22,13 +25,17 @@ A recipe (scenarios.json, keyed by note id):
                   life refilled, the dummy stands and gets up); fighter / dummy = game.json roster names;
                   gap = the dummy's distance in front of P1 (px, default the lab's 80); extra = [dx, ...] more standing
                   dummies (copies of the dummy, dx from P1; they stay down once beaten);
-              mode "stage": campaign stage `stage` from wave `wave` (lab req 4: P1 alone, the enemies' AI on);
+              mode "stage": campaign stage `stage` from wave `wave` (lab req 4: P1 alone, the enemies' AI on); cam = the
+                  camera's left edge (px, short of the wave's lock point: a place in the scenery; P1 put at cam + 60);
+              mode "title": power on, the title screen (as the player reaches it, no mailbox);
+              mode "select": the title, a coin, START: the select screen; cursor = the roster name the cursor walks to
+                  with the stick (harness sel_goto); unlock = every boss on the select (save.unlocked, until power-off);
               meter (0..120, "full"), hp (P1's life), lives (P1's), face (+1 / -1), pre = "frames:keys,..." inputs played
               before the save (e.g. walking into the grab: the state then starts mid-hold)
   do_keys     the "do" as inputs ("frames:keys,..." with the harness keys U D L R a b c d), for the proof clip
   proof       frames to keep running after do_keys (default 90)
-Every poke used is listed here: fighter_t.x / z / facing / hp / meter (harness offsets from fighter.h), lives[0], and the
-lab mailbox (fighter.h lab_t). The state is the frame after the setup; the player loads it paused."""
+Every poke used is listed here: fighter_t.x / z / facing / hp / meter (harness offsets from fighter.h), lives[0], cam_x,
+save.unlocked (select's unlock), and the lab mailbox (fighter.h lab_t). The state is the frame after the setup; the player loads it paused."""
 import argparse, hashlib, json, os, shlex, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, '..', '..'))
@@ -86,6 +93,25 @@ def setup(b, rec):
     b.core.retro_reset(); b.frame = 0
     for _ in range(BOOT): b.core.retro_run()
     b.frame = BOOT
+    if s.get('mode') in ('title', 'select'):              # the game's own screens, reached as a player does: no mailbox
+        def wait(cond, what):
+            for _ in range(3000):
+                if cond(): return
+                b.run(1)
+            raise RuntimeError('never reached ' + what)
+        wait(lambda: b.r(b.syms['mode'], 1) == 2, 'the title')
+        b.run(200)
+        if s['mode'] == 'select':
+            b.seq('4:o,100:-')                             # a coin (arcade; the console's BIOS ignores it), then START
+            if s.get('unlock'): b.unlock_all()
+            for _ in range(6):                             # START: out of the attract to the title, then the game
+                if b.r(b.syms['mode'], 1) == 0: break
+                b.seq('4:s,60:-')
+            wait(lambda: b.r(b.syms['mode'], 1) == 0 and b.r(b.syms['sel_phase'], 1) == 0, 'the select screen')
+            b.run(60)
+            if s.get('cursor'): b.sel_goto(names.index(s['cursor'])); b.run(30)
+        if s.get('pre'): b.seq(s['pre'])
+        return
     fi = names.index(s.get('fighter', 'terry'))
     if s.get('mode', 'lab') == 'lab':
         poke(0, b'LAB1'); poke(LAB_FIGHTER, [fi, names.index(s.get('dummy', 'ryo'))]); poke(LAB_REQ, [1])
@@ -98,6 +124,8 @@ def setup(b, rec):
         if want(): break
     else: raise RuntimeError('the game never took the lab request')
     b.run(2)
+    if s.get('mode') == 'stage' and 'cam' in s:            # the camera short of the wave's lock point (it never scrolls
+        b.w(b.syms['cam_x'], 2, int(s['cam'])); b.fset(0, 'x', int(s['cam']) + 60); b.run(1)   # back; P1 at its left)
     cam = b.r(b.syms['cam_x'], 2); cam = cam - 65536 if cam > 32767 else cam
     if s.get('mode', 'lab') == 'lab':
         x0 = b.fget(0, 'x')
@@ -215,6 +243,43 @@ def upload(rid, out, sha, res, version):
                                   'state_sha256': {k: v['state_sha256'] for k, v in res.items()}})
 
 
+KEYS = set('UDLRabcdso-')
+def lint_recipe(rid, rec, game):
+    """a recipe's problems (empty = fine): the banner's texts, the setup's names / indexes, the inputs' syntax"""
+    bad, s = [], rec.get('setup', {}) or {}
+    for k in ('title', 'do', 'expect'):
+        if not str(rec.get(k) or '').strip(): bad.append(f'no {k}')
+    mode = s.get('mode', 'lab'); names = roster(game)
+    if mode not in ('lab', 'stage', 'title', 'select'): bad.append(f'unknown mode {mode!r}')
+    for k in ('fighter', 'dummy', 'cursor'):
+        if k in s and s[k] not in names: bad.append(f'{k} {s[k]!r} is not in the roster')
+    if mode == 'stage':
+        n = len(json.load(open(os.path.join(game, 'game.json')))['stages'])
+        if not 0 <= int(s.get('stage', 0)) < n: bad.append(f'stage {s.get("stage")} (the game has {n})')
+    for field in ('do_keys', 'pre'):
+        src = rec.get(field) if field == 'do_keys' else s.get('pre')
+        for part in [q for q in (src or '').split(',') if q]:
+            n, _, k = part.partition(':')
+            if not n.isdigit() or not set(k) <= KEYS: bad.append(f'{field}: bad step {part!r}')
+    return bad
+
+
+def lint(rom):
+    """every shipped note: its recipe in the tracker linted; the shipped notes WITHOUT a recipe listed (each fix ships with
+    its scenario: docs/feedback.md). Returns (ids with a usable recipe, warnings)"""
+    game = snapshot(rom); rows = api('list')['rows']; ok, warn = [], []
+    for r in rows:
+        if r['status'] not in ('shipped', 'reopened', 'fixed'): continue
+        rec = api('scenario/' + r['id']).get('recipe')
+        if not rec:
+            if r['status'] == 'shipped': warn.append(f"{r['id']} shipped without a scenario: {r.get('title') or ''}")
+            continue
+        bad = lint_recipe(r['id'], rec, game)
+        if bad: warn.append(f"{r['id']} recipe: " + '; '.join(bad))
+        else: ok.append(r['id'])
+    return ok, warn
+
+
 def version_of(rom):
     return json.load(open(os.path.join(os.path.dirname(os.path.dirname(snapshot(rom))), 'build.json')))['version']
 
@@ -230,11 +295,16 @@ def main():
         p = sub.add_parser(n); p.add_argument('id'); p.add_argument('--rom', default=os.path.join(GAME, 'brawler.neo'))
         p.add_argument('--upload', action='store_true')
     p = sub.add_parser('publish'); p.add_argument('--rom', default=os.path.join(GAME, 'brawler.neo')); p.add_argument('--dry', action='store_true')
+    p = sub.add_parser('lint'); p.add_argument('--rom', default=os.path.join(GAME, 'brawler.neo'))
     p = sub.add_parser('backfill'); p.add_argument('--only', default=''); p.add_argument('--rom', default=os.path.join(GAME, 'brawler.neo'))
     p.add_argument('--no-upload', action='store_true')
     a = ap.parse_args()
     if a.cmd == 'show':
         print(json.dumps(api('scenario/' + a.id), indent=1, ensure_ascii=False))
+    elif a.cmd == 'lint':
+        todo, warn = lint(a.rom)
+        for w in warn: print('WARNING', w)
+        print(f'{len(todo)} notes with a usable recipe, {len(warn)} warnings'); sys.exit(1 if warn else 0)
     elif a.cmd == 'put':
         rec = json.load(open(a.file)) if a.file else get_recipe(a.id)
         r = api('scenario', {'id': a.id, 'recipe': rec, 'by': 'scenario.py'}); print(r.get('ok', 'row' in r))   # the server answers the row
@@ -260,11 +330,9 @@ def main():
     elif a.cmd in ('publish', 'backfill'):
         ver = version_of(a.rom)
         if a.cmd == 'publish':
-            rows = api('list')['rows']
-            ids = [r['id'] for r in rows if r['status'] in ('shipped', 'reopened', 'fixed')]
-            have = {i for i in ids if api('scenario/' + i).get('recipe')}
-            todo = [i for i in ids if i in have]
-            print(f'{len(todo)} of {len(ids)} shipped / reopened / fixed notes have a recipe; build {ver} {sha_file(a.rom)[:12]}')
+            todo, warn = lint(a.rom)
+            for w in warn: print('WARNING', w)
+            print(f'{len(todo)} notes with a usable recipe, {len(warn)} warnings; build {ver} {sha_file(a.rom)[:12]}')
         else:
             R = recipes(); todo = [i for i in R if not a.only or i in a.only.split(',')]
         for rid in todo:
