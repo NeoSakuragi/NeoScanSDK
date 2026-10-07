@@ -153,7 +153,7 @@
   "proof": 90
  },
  "20261006-162034-b3f3": {
-  "title": "Krauser: Blitz Ball voice, and it sets on fire",
+  "title": "Krauser: Blitz Ball hit plays KOF96's fire sound and burns",
   "setup": {
    "mode": "lab",
    "fighter": "krauser",
@@ -161,7 +161,7 @@
    "gap": 110
   },
   "do": "Press C (Blitz Ball) and let it hit Terry.",
-  "expect": "Krauser shouts \"Blitz Ball\"; when the ball hits, Terry burns the KOF98 way: his own sprite turns golden orange with a flickering flame cycle until he lands, then his colours come back.",
+  "expect": "Krauser shouts \"Blitz Ball\"; when the ball hits, you hear KOF96's fire-hit sound (the one KOF96 plays when a fireball or a flame hits) instead of a plain hit, and Terry burns: his sprite turns golden orange with a flickering flame cycle until he lands.",
   "do_keys": "4:c",
   "proof": 90
  },
@@ -734,5 +734,60 @@
   "expect": "The dragon punch rises only a little (Double Dragon's A version, about 73 px, not the 140 px D version) and Billy lands back in about 52 frames.",
   "do_keys": "3:D,4:Dc",
   "proof": 90
+ },
+ "20261007-113856-b3f3": {
+  "title": "Coin: KOF94's coin-inserted sound",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "Press COIN (on the title screen; then try one on the select screen and in a fight).",
+  "expect": "Each coin plays KOF94's coin sound (a chord rising in three steps, then fading, about one second) and the CREDIT count goes up.",
+  "do_keys": "4:o",
+  "proof": 90
+ },
+ "20261007-113032-b3f3": {
+  "title": "Haohmaru's fury: a short red flash and a normal hit-stop on its impact",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D and watch the moment the big slash hits Ryo.",
+  "expect": "The screen flashes red for a moment only (8 frames), both freeze for the usual short hit-stop, and the game goes on at full speed (no long freeze, no slow motion); Ryo is thrown when the slash ends.",
+  "do_keys": "3:d",
+  "proof": 200
+ },
+ "20261007-112936-b3f3": {
+  "title": "Haohmaru's fury: SS2's red rage colours through the whole fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D and watch Haohmaru's clothes until the fury ends.",
+  "expect": "His clothes turn SS2's red rage colours with the charge pose and stay red through the whole big fireball / slash motion; they go back to his normal colours when the fury ends.",
+  "do_keys": "3:d",
+  "proof": 220
+ },
+ "todo193-hanzo-ss2": {
+  "title": "Samurai Shodown II's Hanzo: his fire (C) and his rage flame fury (D)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 100,
+   "extra": [
+    95
+   ],
+   "meter": "full"
+  },
+  "do": "With a full meter and two Ryos in front of you, press C, wait until the first Ryo is down, then press D.",
+  "expect": "Hanzo (SS2's masked ninja, his blade glinting) slams the floor and a flame arc runs along the ground in 80 px hops (a burst where it lands each time) and knocks the first Ryo down in fire. D: the screen flashes while he stands in SS2's rage pose in flames and red colours; then he crouches, a fire line runs forward along the floor and bursts into a flame column that hits the second Ryo with a short dark flash and a normal hit-stop and throws him away; Hanzo stays red until the fury ends.",
+  "do_keys": "4:c,100:-,3:d",
+  "proof": 220
  }
 }

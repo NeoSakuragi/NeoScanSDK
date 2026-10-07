@@ -20,8 +20,9 @@ void snd_voice(uint8_t prefix, uint8_t code);   /* a voice: prefix (snd/voices.h
  * holds only the samples of the codes listed there */
 enum { SFX_SWING_LIGHT = 0x1E, SFX_SWING_HEAVY = 0x1F, SFX_HIT_A = 0x11, SFX_HIT_B = 0x12, SFX_HIT_C = 0x13,
        SFX_HIT_D = 0x14, SFX_HIT_CD = 0x15, SFX_GRAB = 0x19,   /* $19 GRAB START: a command grab connects (TODO #75) */
-       SFX_THROW = 0x18 };       /* $18 THROW START: the throw-start effect's own sound (KOF98 $3709E: index $80 -> $1A $18;
+       SFX_THROW = 0x18,         /* $18 THROW START: the throw-start effect's own sound (KOF98 $3709E: index $80 -> $1A $18;
                                     TODO #166 a: a throw starts, never the walk-in catch) */
+       SFX_FIRE = 0x2E };        /* $2E FIRE HIT: KOF96's fire hit, its $1A $1F (songs.json sfx "from", TODO #197) */
 /* Music: build/snd/songs.h, generated from songs.json by tools/port/build_snd.py: MUS_<name> = the driver command of
  * each song the build carries (MUS_SELECT, MUS_FIGHT, MUS_JINGLE, MUS_BOSS_MR_BIG, MUS_BOSS_KRAUSER, MUS_BOSS_GEESE,
  * MUS_BOSS_RUGAL, MUS_BOSS_GOENITZ) and BOSS_SONGS, the boss themes in songs.json's "bosses" order */

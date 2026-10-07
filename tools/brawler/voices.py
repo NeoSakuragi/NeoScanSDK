@@ -734,7 +734,7 @@ OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_
        'doubledr': {'cast': {'billy': 0, 'billy_super': 1}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
        'kizuna': {'cast': {'kim': 5}, 'capture': kizuna_capture, 'list': kizuna_list},
-       'samsho2': {'cast': {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}, 'capture': samsho2_capture, 'list': samsho2_list}}
+       'samsho2': {'cast': {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo': 2}, 'capture': samsho2_capture, 'list': samsho2_list}}
 
 # ---- the brawler side (export_bm.py, build_snd.py, build_tables.py, the lab) ----
 # A fighter's voice table (bchar_t.voices, fighter.c voice_tab): one entry per voice key, 2 bytes [voice id, at]; id = the
