@@ -576,10 +576,11 @@ def air_special(B, inp, fc):
     hits = [i for i, s in enumerate(kz.parse_anim(CH << 12 | A['dive'])) if s['trailer'] & 0x8000]
     again = kz.parse_anim(CH << 12 | A['again'])
     a_hit = next(i for i, s in enumerate(again) if s['trailer'] & 0x8000)
-    anims = {'dive': {'mode': 'hold', 'steps': rom_steps(B, A['dive'], 0, hits[0])},
-             'dive_hit': {'mode': 'hold', 'steps': rom_steps(B, A['dive'], hits[0] + 1, last(A['dive']), new_hit=False)},
-             'again': {'mode': 'hold', 'steps': rom_steps(B, A['again'], 0, a_hit)},
-             'land': {'mode': 'hold', 'steps': rom_steps(B, A['land'], 0, last(A['land']))}}
+    anims = {'dive': {'mode': 'hold', 'steps': sr_mark(rom_steps(B, A['dive'], 0, hits[0]), A['dive'])},   # (TODO #136:
+             'dive_hit': {'mode': 'hold', 'steps': sr_mark(rom_steps(B, A['dive'], hits[0] + 1, last(A['dive']), new_hit=False),   # its
+                                                           A['dive'], hits[0] + 1)},   # victims' reactions Kizuna's too)
+             'again': {'mode': 'hold', 'steps': sr_mark(rom_steps(B, A['again'], 0, a_hit), A['again'])},
+             'land': {'mode': 'hold', 'steps': sr_mark(rom_steps(B, A['land'], 0, last(A['land'])), A['land'])}}
     states = list(anims)
     # damage: SPECIAL_DAMAGE over the dive's hits as Kizuna dealt them (j2B_h: 4 hits), the second kick by Kizuna's ratio
     def drops(rec):
@@ -638,7 +639,7 @@ def air_special(B, inp, fc):
         script.append([B.frame(p[5]), sc(p[2] - x0), sc(p[3]), []]); rb.append(kof_boxes(bx))
         rs.append([p[0], p[1], 0x100 if any(attack(b) for b in bx) else 0, 0xFF])
     rom = {'states': states, 'anims': anims, 'prims': prims, 'objects': [], 'openings': {}, 'hit_kind': 1,
-           'last_hit': -1, 'apex': -1, 'length': len(script), 'voice_frames': True, 'now': True, 'sharepush': True,
+           'last_hit': -1, 'apex': -1, 'length': len(script), 'voice_frames': True, 'now': True, 'sharepush': True, 'sreact': True,
            'parts': [{'states': ['dive', 'dive_hit']}, {'states': ['again']}],
            'follow_links': [{'from': 0, 'to': 1, 'input': 'dA'}], 'links': ['dA']}
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'air': True, 'script': script, 'row_boxes': rb,
@@ -754,6 +755,16 @@ def sr_index(btype, air):
     if m not in SREACT: SREACT.append(m)
     return SREACT.index(m) + 1
 
+def sr_mark(steps, n, first=0):
+    """rom_steps' steps of animation n (from its step first) marked for SF_SREACT: each hit window's opening step its
+    source reactions (sr_pair: Kizuna's reaction code for the box that opens it, its own slide / flight), each step whose
+    boxes in force hold a push box (type 5: Kizuna's push [meas: kim136], bstep_t flag 4 under SF_SREACT)"""
+    bif = boxes_in_force(n)[first:]
+    for k, s_ in enumerate(steps):
+        if s_['flags'] & 0x100 and (k == 0 or not steps[k - 1]['flags'] & 0x4000): s_['react'] = sr_pair(bif[k][1])
+        if any(b[0] == 5 for b in bif[k][1]): s_['push'] = 1
+    return steps
+
 def sr_pair(boxes):
     """a step's attack box -> the packed source reactions standing | airborne << 4 (fighter.c: bstep_t.hy under
     SF_SREACT); the first attack box in force (Kizuna's two-box steps: [2]8C's 9B.6 types 49 / 41 hit as 49 -> 32,
@@ -775,13 +786,8 @@ class KzProg:
     def anim(self, key, n):
         if key not in self.anims:
             last = len(kz.parse_anim(CH << 12 | n)) - 1
-            steps = rom_steps(self.B, n, 0, last)
-            bif = boxes_in_force(n)
-            for k, s in enumerate(steps):                # the victim's reaction to a hit window (TODO #136): Kizuna's
-                if s['flags'] & 0x100 and (k == 0 or not steps[k - 1]['flags'] & 0x4000):   # reaction code for the
-                    s['react'] = sr_pair(bif[k][1])      # box that opens it (sr_pair: SF_SREACT, its own slide / flight)
-                if any(b[0] == 5 for b in bif[k][1]): s['push'] = 1   # its push box (type 5, the body box Kizuna's
-                                                         # push reads [meas: kim136]; bstep_t flag 4 under SF_SREACT)
+            steps = sr_mark(rom_steps(self.B, n, 0, last), n)
+            for k, s in enumerate(steps):
                 vs = self.voices.get((n, k))
                 if vs: s['voices'] = vs
             if kz.parse_anim(CH << 12 | n)[-1]['end'] == 'loop':   # a looping animation (the Phoenix's dive 88): its
@@ -882,6 +888,7 @@ class KzProg:
                       ('br', PC['cntle'], 1, nxt, th), *body(ax, on))
             if H:
                 Lp = self.L()
+                assert 4 * dur[kl] + 60 < 255, (n, kl, 'fighter.c prog_update: a frame runs 255 ops at most')   # (TODO #136)
                 self.emit(H, ('hitclr',), ('dec',), Lp, ('br', PC['cntle'], 1, nxt, th), ('adv',), ('dec',), ('jmp', Lp))
         return st
 
@@ -1041,8 +1048,10 @@ def prog_special(B, inp, cap, fc, rec):
         # step's ticks again and sees the end once more [meas: 100.6 1 tick shown 3 frames, 101.11 6 ticks 13, 85.10
         # 4 ticks 9]: last = 1 + its ticks)
         last = lambda n: 1 + kz.parse_anim(CH << 12 | n)[-1]['ticks']
-        K.block('START', '100', 0x100, each | R_HEAVY << 8, ends='END', branches=(('br', PC['hit'], 1, 'CATCH'),),
+        K.block('START', '100', 0x100, each | R_HEAVY << 8, ends='END', branches=(('br', PC['hit'], 1, 'CATCH0'),),
                 spawns={k: v for (a, k), v in sp0.items()}, extra_end=last(0x100), at=0)
+        K.emit('CATCH0', ('resume_at', 'CATCH'), ('yield',))   # (the step after the hit shows one frame first [meas:
+                                                                # 421A_h 100.4, then 101])
         def thaw(K_):                                    # (each frame of 101: his next hit thaws the victim)
             g = K_.L(); return [('br', PC['hit'], 0, g), ('vphase', VA['thaw']), g]
         stop = (('set', REG['vx'], 0), ('set', REG['vy'], 0), ('set', REG['g'], 0))   # (the new state: Kim's velocity 0 [meas:

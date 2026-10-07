@@ -446,7 +446,8 @@ def special_parts(sp, keep, n):
         js = [i for i, mk in enumerate(sp.get('marks') or []) if 'j' in mk] or [0]
         parts = [{'first': 0, 'end': cont, 'next': None}, {'first': cont, 'end': n, 'next': None}]
         links = [{'from': 0, 'to': 1, 'on': 'hit', 'window': [js[0], js[-1] + 1], 'at': 'now'}]
-    bd = {'backdrop': dict(sp['backdrop'], rows=[rm(r) for r in sp['backdrop']['rows']])} if sp.get('backdrop') else {}
+    bd = {'backdrop': dict(sp['backdrop'], rows=[rm(r) for r in sp['backdrop']['rows']] if sp['backdrop']['rows'][0] != 0xFFFF
+                           else sp['backdrop']['rows'])} if sp.get('backdrop') else {}   # (0xFFFF: its program's P_SCREEN, TODO #138)
     if not parts: return {'parts': [], 'links': [], **bd}
     return {**bd, 'parts': [dict(p, first=rm(p['first']), end=rm(p['end'])) for p in parts],
             'links': [dict(l, window=[rm(l['window'][0]), rm(l['window'][1])]) for l in links or []],

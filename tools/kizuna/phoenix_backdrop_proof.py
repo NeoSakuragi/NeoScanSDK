@@ -6,7 +6,8 @@ Kizuna hides the stage and its backdrop alternates $7DFF / $4700 every frame ($1
     python3 phoenix_backdrop_proof.py [OUTDIR]        (default /data/tmp/kim76/out)
 
 Per frame of each game: the share of the screen in the backdrop's two colours (RGB as the core shows $4700 / $7DFF).
-Checks: the brawler strobes as many frames as its export's rows (bd_end - bd_first, frozen rows dropped), white first,
+Checks: the brawler strobes as many frames as its export's rows (bd_end - bd_first, frozen rows dropped; since TODO #138
+the program switches it, P_SCREEN, bd_first 0xFFFF: as many as Kizuna's run, within 2 frames), white first,
 alternating every frame, then the stage back; Kizuna's run length measured the same way. Sheet OUT/phoenix_backdrop.png:
 top Kizuna, bottom the brawler, 2 frames before the strobe .. 2 after its start, and around its end."""
 import json, os, sys
@@ -64,7 +65,7 @@ def brawler(d):
     ims, rows, hits = [], [], len(b.hits)
     os.makedirs(d, exist_ok=True)
     for f in range(460):
-        if f < 3: b.run(1, p1='c'); continue
+        if f < 3: b.run(1, p1='d'); continue                # (the fury: D since 2026-10-06)
         p = os.path.join(d, '_b.png'); b.screenshot(p)
         im = Image.open(p).convert('RGB'); ims.append(im)
         st = b.states[b.fget(0, 'state')]
@@ -80,6 +81,8 @@ def main():
     kr, br = runs([s for s, _ in ks]), runs([s for s, _ in bs])
     kseq = ''.join(s for s, _ in ks); bseq = ''.join(s for s, _ in bs)
     want = sp['backdrop']['rows'][1] - sp['backdrop']['rows'][0]
+    if sp['backdrop']['rows'][0] == 0xFFFF:              # (TODO #138: the program switches it, P_SCREEN: Kizuna's own
+        want = kr[0][1] - 2 if kr else 1                 # run, within 2 frames)
     ok_alt = all(c != d for c, d in zip(bseq.strip('-'), bseq.strip('-')[1:]))
     b0 = br[0][0] if br else None
     res = {'kizuna_runs': kr, 'brawler_runs': br, 'export_rows': sp['backdrop'],

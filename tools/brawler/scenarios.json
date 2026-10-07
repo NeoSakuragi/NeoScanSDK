@@ -1189,5 +1189,32 @@
   "expect": "Cheng-Fu strikes Ryo's chest with his palm and blows the dust off his fingers; Ryo stands stunned, staggers back and stays dizzy about two seconds (no damage from the throw itself, as in Double Dragon); the A hits him while he is dizzy.",
   "do_keys": "4:R,4:Ra,150:-,4:a",
   "proof": 260
+ },
+ "todo136-kim-421A": {
+  "title": "Kim: up + C is Kizuna's 421A, the dummy held where it was caught",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 56
+  },
+  "do": "Press up + C next to the dummy, then once from far away.",
+  "expect": "Kim lunges with the staff. On the hit the dummy stays frozen where he struck it while he is pushed back, then his two blows launch it: up into a short arc, then kicked high and away; it lands and bounces down. Three hits (in Kizuna his tag partner jumps in for two more: the brawler has no partner). From far away he lunges and recovers.",
+  "do_keys": "3:Uc",
+  "proof": 150
+ },
+ "todo138-kim-6246A": {
+  "title": "Kim: D is Kizuna's Phoenix (6246A), its victim moved by Kizuna's own reaction code",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 30,
+   "meter": "full"
+  },
+  "do": "Press D next to the dummy (full meter).",
+  "expect": "The flash pose, then the rush; on the hit a flurry of staff blows keeps the dummy reeling in place, a launch and a rising kick throw it up, Kim chases it into the air (the white / red strobing screen) and hits it twice more; it freezes at the top while Kim dives down in flames, then falls the rest of the way and bounces once he has landed. Twelve hits.",
+  "do_keys": "3:d",
+  "proof": 330
  }
 }

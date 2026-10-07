@@ -316,6 +316,9 @@ typedef struct fighter {
                                    * slides / its landing still pauses */
     uint8_t  vph, pbd;            /* vph: the victim phases a special's P_VPHASE holds this fighter in (VPH_*, fighter.c
                                    * vphase; Kizuna's +$1AF); pbd: its special's screen effect on (P_SCREEN) */
+    struct fighter *vph_by, *vtgt;  /* vph_by: the special that holds it in them (they end when it no longer plays);
+                                   * vtgt: the victim its own P_VPHASE took first (its later phases go to that one, not
+                                   * to a crowd member hit since) */
     uint8_t  spec_sr, pstill;     /* special: the source reactions of the hit window open (bstep_t.hy under SF_SREACT);
                                    * pstill: the first frame after its hit-stop, its program's P_MOVE / P_FALL skipped
                                    * (Kizuna's: the attacker, as its victim, still that frame [meas: kim136]) */

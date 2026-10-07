@@ -939,7 +939,8 @@ static fighter_t *proj_alloc(fighter_t *owner) {
 static void special_end(fighter_t *f) {
     uint8_t k;
     if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's invincibility: hittable again at once */
-    if (f->target && f->target->vph) f->target->vph = 0;         /* its victim phases end with it (vphase) */
+    if (f->vtgt && f->vtgt->vph_by == f) { f->vtgt->vph = 0; f->vtgt->vph_by = 0; }   /* its victim phases end with it */
+    f->vtgt = 0;
     f->pbd = 0; f->spec_sr = 0; f->pstill = 0;                   /* its screen effect (P_SCREEN), its source reactions */
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
@@ -954,7 +955,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->var = f->ch->specials[f->spec_ix].vdef;                   /* its variant row: the rule's, latched for the whole move
                                                                     (vocabulary "variants are latched at move start") */
     if (k == BS_FORM) f->inv = INV_FURY;                         /* the transition: untouchable (no hurt box either) */
-    f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0; f->spec_sr = 0; f->pbd = 0;
+    f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0; f->spec_sr = 0; f->pbd = 0; f->vtgt = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     if (k == BS_FURY) f->inv = INV_FURY;                         /* every fury, every fighter: invincible from the trigger
                                                                     to its end (special_end, fighter_update) */
@@ -1458,8 +1459,8 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     case PC_CNTLE: return f->pcnt <= v;                          /* the counter at most v (KOF's charge level tests) */
     case PC_PASSED: { fighter_t *t = f->target ? f->target : f->popp; if (!t) return 0;   /* its opponent no longer ahead */
         return dir_mul(f->facing, INT(t->x) - INT(f->x)) <= v; }     /* (SS2 $563F4: Genjuro's slide stops at it) */
-    case PC_THIGH: return f->target && !f->target->vph && INT(f->target->y) > v;   /* its target above v px, not held by a
-                                                                    victim phase (Kizuna $3AC92, the Phoenix's ceiling) */
+    case PC_THIGH: { fighter_t *t = f->vtgt ? f->vtgt : f->target;   /* its (phased) target above v px, not held by a */
+        return t && !t->vph && INT(t->y) > v; }                  /* victim phase (Kizuna $3AC92, the Phoenix's ceiling) */
     case PC_CAUGHT: return f->pcatch != 0 && f->pcatch != 0xFE;   /* its catch box caught, its routine not started yet
                                                                     (SS2 Hanzo's Mozu Otoshi: the grab outranks the whiff's
                                                                     end, TODO #193) */
@@ -1566,8 +1567,9 @@ static void form_swap(fighter_t *f) {
  * $37A20: its velocity = -the attacker's) instead of its own; VA_THAW / VA_UNMIRROR end them; they end with the special
  * too (special_end) and when the victim leaves its reaction (enter). Its hits keep them [meas: 421A_h, 6246A_h]. */
 static void vphase(fighter_t *f, uint8_t a) {
-    fighter_t *t = f->target;
+    fighter_t *t = f->vtgt ? f->vtgt : f->target;               /* (the one it took first: Kizuna's a3, the caught victim) */
     if (!t || (t->state != S_HITSTUN && t->state != S_KNOCKDOWN)) return;
+    f->vtgt = t; t->vph_by = f;
     if (a & VA_SNAP) { t->x = f->x; t->y = f->y; t->z = f->z; clamp(t); }
     if (a & VA_FREEZE) t->vph |= VPH_FREEZE;
     if (a & VA_THAW) t->vph &= ~VPH_FREEZE;
@@ -1592,7 +1594,9 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
     f->srow++;                                                   /* frames played (the reversal's invincibility) */
     if (f->spec_id == BS_DOWN_D && f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;
     f->ppc = f->pres;
-    for (n = 0; n < 96; n++) {
+    for (n = 0; n < 255; n++) {                                  /* (a frame's op budget: 255 since TODO #136, a Kizuna
+                                                                    hit ending a 23-tick step runs its ticks out in one
+                                                                    frame, 4 ops a tick: 421A's 100.3; was 96) */
         const bprim_t *p = &sp->prog[f->ppc++];
         int32_t v = p->v;
         uint8_t op = p->op;
@@ -1675,9 +1679,9 @@ frame_done:
         f->x -= (f->x - x0) / 2;                                 /* walking into the held victim: KOF's bodies share the push */
     hold_apply(f);
     vlist_apply(f, sp);
-    if (f->target && (f->target->vph & VPH_MIRROR) && !(f->target->vph & VPH_FREEZE)) {   /* a mirrored victim: the */
-        f->target->x -= dir_mul(f->facing, f->vx); clamp(f->target);   /* attacker's velocity, the other way (its steps' */
-    }                                                            /* moves and pushes are no velocity: Kizuna $37A20) */
+    if (f->vtgt && f->vtgt->vph_by == f && (f->vtgt->vph & VPH_MIRROR) && !(f->vtgt->vph & VPH_FREEZE)) {   /* a mirrored */
+        f->vtgt->x -= dir_mul(f->facing, f->vx); clamp(f->vtgt);   /* victim: the attacker's velocity, the other way (its */
+    }                                                            /* steps' moves and pushes are no velocity: Kizuna $37A20) */
 }
 static void carry_drop(fighter_t *f) {                           /* a grab's carry ended: a target it left in the air */
     fighter_t *v = f->target;                                    /* falls (Ralf's 426B left it 4 px up for good) */
@@ -1973,6 +1977,7 @@ static void update(fighter_t *f, const intent_t *in) {
         break;
     }
     case S_HITSTUN:
+        if (f->vph && (!f->vph_by || f->vph_by->state != S_SPECIAL)) f->vph = 0;   /* (its holder's special over) */
         if (f->vph) break;                                       /* held by a special's victim phase (vphase): still, no recovery */
         if (f->vfly) { f->vfly--; break; }                       /* a victim list flies it (vlist_apply, VL_FLY) */
         if (f->y > 0) {                                          /* a dance's catch (TODO #150): down to the floor fast */
@@ -1989,6 +1994,7 @@ static void update(fighter_t *f, const intent_t *in) {
         if (f->state_t >= (f->dizzy ? f->dizzy : f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends (a stun strike's dizziness: f->dizzy) */
         break;
     case S_KNOCKDOWN:
+        if (f->vph && (!f->vph_by || f->vph_by->state != S_SPECIAL)) f->vph = 0;
         if (f->vph) break;                                       /* held by a special's victim phase (vphase) */
         if ((f->kmode || f->ksr) && f->kdelay) { f->kdelay--; break; }   /* KOF's shake after the hit-stop: in place */
         if (f->ksr) { if (src_fall(f)) break; }                  /* a source reaction (src_react) */
@@ -2215,7 +2221,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
             pd = PUSH_DX;
-            if (v->vph && v == a->target && a->pan) {            /* its victim in a phase (vphase, TODO #136): Kizuna's
+            if (v->vph && v->vph_by == a && a->pan) {            /* its victim in a phase (vphase, TODO #136): Kizuna's
                                                                     push, to its body box's front + the victim's 12 px
                                                                     (Kizuna 15) [meas: 421A_h 47, 6246A_h 35 / 51 px] */
                 const bstep_t *sa = &a->pan->steps[a->pstep];
@@ -2223,7 +2229,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                 pd = -sa->hurt.x + sa->hurt.w + 12;
             }
             if (d <= -8 || d >= pd) continue;
-            if (v->vph && v == a->target) {                      /* (that victim: half the overlap a side, 8 px a frame
+            if (v->vph && v->vph_by == a) {                      /* (that victim: half the overlap a side, 8 px a frame
                                                                     at most, a frozen body not moved: $2B644 skipped)
                                                                     [meas: 421A_h 101.0 Kim -8 x5 -4 -2 -1, 6246A_h
                                                                     86.2 -9 / +8, 86.16 -8 / +8] */
