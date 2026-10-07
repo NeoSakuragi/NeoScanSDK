@@ -1280,9 +1280,18 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   inputs): decode the flame objects' lifetimes / extra spawns and the hand-fire effect from KOF98's code; the move's
   invincibility: KOF98's own invincible frames if it has them, else make it invincible as Bruno asks (a roster flag).
 
-- [ ] 203. SS2 DAMAGE (20261007-130138-b3f3: "The damage is fairly low on Genjuro, I think you can triple the amount of
+- [ ] 203. (DONE ON BRANCH fix/203-ss2-damage 2026-10-07, awaiting Bruno's review) SS2 DAMAGE (20261007-130138-b3f3: "The damage is fairly low on Genjuro, I think you can triple the amount of
   damage per hit."): measure each SS2 fighter's hit damage vs the brawler's scale (KOF fighters' damage per hit), set
   the SS2 export's damage scale so Genjuro's hits do about 3x (and check Haohmaru, Kuroko, Hanzo SS2 for the same).
+  DONE [meas]: the SS2 export maps no damage at all: every fighter's normals are its route nodes' (the default tree:
+  light 3, strong 6, finishers 7-10 on life 60), specials SPECIAL_DAMAGE 8 split over the hits the program opens, so
+  the SS2 fighters dealt exactly what the KOF fighters do (Genjuro's 236S / 623S: 8 over 3 openings, one lands = 2).
+  Sources measured in our emulator: KOF98 (Kyo vs Yuri, life 103): A 5, B 4, C / D 10, specials 4-16 = the brawler's
+  scale (life 60: 3 / 6 / 8); SS2 (Genjuro vs Haohmaru, life 128, P2 +$BB): A slash 9, B 20, A+B 26, kicks 4-10,
+  specials 9-16: a slash 1.4-4x a KOF hit's share of the life. Fix: game.json roster[].damage (1-4, build_tables
+  roster_damage), fighter.c fighter_hit multiplies the hit's damage of the fighter's normals, specials and their
+  objects; a fury's hits, throws and hold hits keep the engine's numbers; the four SS2 fighters at 3. Genjuro's 3-hit
+  chain 12 -> 36, specials 8 -> 24, 2 -> 6; KOF fighters unchanged. Proofs /data/tmp/dmg203/out (table.txt, fight/).
 
 - [ ] 204. UNHITTABLE BILLY KANE (20261007-125822-b3f3: "there is a glitch where Billy Kane cannot be hit anymore ...
   Everything whiffs and I cannot grab him." — Super Billy vs the Billy Kane boss, stage 1 wave 5): replay the note,

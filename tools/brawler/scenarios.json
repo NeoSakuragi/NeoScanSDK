@@ -830,5 +830,18 @@
   "expect": "Kim dives diagonally down and forward at 45 degrees from wherever he is in the jump (rising too) until he lands, then a short landing pose. No blue effect on a miss; on a hit the blue flash shows at his feet and the kick hits up to 4 times as he keeps diving. Down + A again after a hit (while still high) plays the second dive kick, which knocks the opponent down.",
   "do_keys": "3:Rb,3:b,7:-,3:Da",
   "proof": 90
+ },
+ "20261007-130138-b3f3": {
+  "title": "Genjuro: three times the damage per hit (SS2 fighters x3)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "genjuro",
+   "dummy": "ryo",
+   "gap": 70
+  },
+  "do": "Press A three times (a 3-hit chain). Then try his specials (C, forward + C, down + C) and the other Samurai Shodown II fighters (Haohmaru, Kuroko, Hanzo).",
+  "expect": "The chain takes 36 of the dummy's 60 life (hits of 9, 9 and 18), three times the 12 it took in 0.1.9 (3, 3, 6). His specials hit three times as hard as before (24 instead of 8 a single hit); his rage move (D) and throws deal what they did. Haohmaru, Kuroko and Hanzo are on the same x3 scale; the KOF fighters are unchanged.",
+  "do_keys": "3:a,9:-,3:a,9:-,3:a",
+  "proof": 90
  }
 }

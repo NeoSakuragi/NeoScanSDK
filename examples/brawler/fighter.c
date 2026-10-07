@@ -1910,6 +1910,13 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     }
     if (a->state == S_SPECIAL && a->spec_id == BS_FURY) v->dance = a;   /* a fury's victim (dance) */
     if (a->state == S_SPECIAL || a->state == S_PROJ) v->wall_by = a;   /* a special's victim: the wall rule (wall_update) */
+    {   const fighter_t *o = a->owner ? a->owner : a;           /* the attacker's damage scale (game.json roster[].damage,
+                                                                    TODO #203: SS2's sword hits x 3): its normals, specials
+                                                                    and their objects; a fury's hits, throws and holds as they are */
+        if ((a->state == S_ATTACK || a->state == S_AIR_ATTACK || a->state == S_PROJ || (a->state == S_SPECIAL && a->spec_id != BS_FURY))
+            && !(o->state == S_SPECIAL && o->spec_id == BS_FURY))
+            damage *= roster_damage[o->ch - bm_chars];
+    }
     v->hp -= damage + (a->owner ? a->owner : a)->power;
     if (v->hp > 0) voice_play(v->ch, v->team, VK_HIT);          /* the KO voice: once, at the death (S_DEAD) */
     v->freeze = HITSTOP;

@@ -171,6 +171,7 @@
   {
    "name": "haohmaru",
    "bank": "samsho2:haohmaru",
+   "damage": 3,
    "watch": {"frame": 140, "step": -1, "head": [5, -87]},
    "routes": "default",
    "specials": {"D": "236S", "fD": "623K", "dD": "623S", "uD": "214A", "dfD": "236K", "ufD": null},
@@ -184,6 +185,7 @@
   {
    "name": "genjuro",
    "bank": "samsho2:genjuro",
+   "damage": 3,
    "watch": {"frame": 140, "step": -1},
    "routes": "default",
    "specials": {"D": "214S", "fD": "236S", "dD": "623S", "uD": null, "dfD": null, "ufD": null},
@@ -197,6 +199,7 @@
   {
    "name": "kuroko",
    "bank": "samsho2:kuroko",
+   "damage": 3,
    "watch": {"frame": 0, "step": 0},
    "routes": "default",
    "specials": {"D": "63214A", "fD": "61236A", "dD": "6ABC", "uD": "126BC", "dfD": "214161BC", "ufD": "CCCCC"},
@@ -220,6 +223,7 @@
    "name": "hanzo_ss2",
    "display": "HANZO",
    "bank": "samsho2:hanzo",
+   "damage": 3,
    "watch": {"frame": 140, "step": -1},
    "routes": "default",
    "specials": {"D": "6321S", "fD": "623K", "dD": null, "uD": null, "dfD": null, "ufD": null},
