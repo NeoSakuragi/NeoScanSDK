@@ -596,6 +596,9 @@ def kizuna_list(rname, name, cid):
     for inp in E.SPECIALS:
         for row, w in E.special_sounds(inp, cap, fc):
             uses.append((w, {'kind': 'special', 'input': inp, 'at': row})); spw.setdefault(w, set()).add(inp)
+    for inp in E.AIR:                                      # the air special (TODO #200, j.2B): its voice by its
+        for f, w in E.air_sounds(inp, fc):                 # program's frames (bspec_t.pvoice); his voices only (its
+            if w >> 8 == 0x1C: uses.append((w, {'kind': 'special', 'input': inp, 'at': f}))   # swing effect: none)
     for rec, d in cap.items():
         for f, w in VK.words_of(d['frames']):
             if rec in KZ_EVENTS: uses.append((w, {'kind': 'event', 'event': KZ_EVENTS[rec], 'at': 0}))

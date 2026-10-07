@@ -53,9 +53,13 @@ RECIPES = {   # name: (P2 x, P1 inputs, pokes every frame)
     '6246A_h': (NEAR, '2:-,3:R,3:D,3:L,3:R,3:a,3:a,400:-', LOW),
     '214B_h': (NEAR, '2:-,3:D,3:DL,3:L,3:b,3:b,150:-', None),
     # the air dive j.2B ($8F) and its follow-up: 2B again after its hit, while still 64 px up or more: $92 (a second
-    # dive kick, knocks down); the brawler plays j.2B as an air normal (atk_d_jump), so this one is captured only
+    # dive kick, knocks down); TODO #200: the brawler plays it as Kim's air special (export_kz AIR, a program)
     'j2B_h': (330, '2:-,3:UR,10:-,3:Db,90:-', None),
     'j2B2_h': (330, '2:-,3:UR,10:-,3:Db,4:-,3:Db,90:-', None),
+    'j2B_w': (FAR, '2:-,3:UR,10:-,3:Db,90:-', None),               # (TODO #200) the whiff: the dive to the floor
+    'j2B2_w': (FAR, '2:-,3:UR,10:-,3:Db,4:-,3:Db,90:-', None),     # 2B again without a hit: nothing (no window)
+    'j2B_apex_w': (FAR, '2:-,3:UR,28:-,3:Db,90:-', None),          # from the apex: the longest dive
+    'j2B_up_w': (FAR, '2:-,3:U,24:-,3:Db,90:-', None),             # from a vertical jump
 }
 POOL = 0x8000                                          # task pool $100000-$107FFF: the Phoenix's PHOELX halves 508A /
                                                        # 508B live at $104100 / $105A00, past the first $4000 [meas]

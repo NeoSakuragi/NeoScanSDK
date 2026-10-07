@@ -831,5 +831,18 @@
   "expect": "Rugal grabs Terry and a tall red energy pillar bursts up with a red skull in it, as in KOF98, both times; no brown and white pillar (that was another fighter's colours).",
   "do_keys": "4:d,260:-,4:Dd",
   "proof": 220
+ },
+ "20261007-120054-b3f3": {
+  "title": "Kim: down + A in a jump is Kizuna's diving kick (j.2B)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 100
+  },
+  "do": "Jump forward (B with forward), then press down + A in the air. Try it again from a vertical jump, and once pressing down + A again right after it hits.",
+  "expect": "Kim dives diagonally down and forward at 45 degrees from wherever he is in the jump (rising too) until he lands, then a short landing pose. No blue effect on a miss; on a hit the blue flash shows at his feet and the kick hits up to 4 times as he keeps diving. Down + A again after a hit (while still high) plays the second dive kick, which knocks the opponent down.",
+  "do_keys": "3:Rb,3:b,7:-,3:Da",
+  "proof": 90
  }
 }

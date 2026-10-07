@@ -1269,7 +1269,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   writes) for a coin ending the attract demo, on the title, the select screen, in a fight and on CONTINUE?;
   ssg_cues.py --check all 5 OK.
 
-- [ ] 200. KIM: THE DESCENDING DIVE (20261007-120054-b3f3, 0.1.5: "That is not the logic of this special move in the game.
+- [x] 200. (done 2026-10-07 on fix/200-kim-dive: his replay = jump forward, down+A in the air = Kizuna's j.2B (command $26, a special there, handler $3A79E), which the brawler played as an air normal on the jump's arc with every 8F step (the blue effect too). Decoded: 8F step 0 sets velocity (6, -6) = a 45-degree dive from wherever the jump is (rising too, vertical jump too), no gravity, to the floor; step 1 waits with the staff box live; a hit moves 8F on (the blue effect at his feet, a new hit every 4 steps, a frame in place after each hit-stop); down+A again after a hit at 64 px or more = $92 the second kick (knockdown); 2 frames on the floor, then the landing $91. Vocabulary air.special: game.json roster air_special "j.2B", bchar_t.air_spec, role BS_AIR (fighter.c: down+A in a jump plays it, no meter, no cancels), export_kz AIR = a program (no recorded rows), bspec_t SF_SHARE (its body and the victim share the push in the air, as Kizuna's). Proof /data/tmp/kim200/out (tools/kizuna/kim200_proof.py): whiffs (forward, apex, vertical, down+A again) frame / height / x identical to Kizuna, the hit 4 hits like Kizuna's (pictures and heights identical, x within 3.4 px), the second kick identical pictures / heights, a real campaign fight whiff + hit, Bruno's own pads: both dives descend every frame and land; kim_proof 3110/3110 (retroarch core: the repo core has no VRAM id 101), kim_followups_proof all ok, kim_effects_check all ok, controls / cancel kim ok, bank_proof ALL OK, regress no-bleed True, scenario + lint 0) KIM: THE DESCENDING DIVE (20261007-120054-b3f3, 0.1.5: "That is not the logic of this special move in the game.
   There should be a descending motion here." Replay: Kim rises with the blue Hienzan effect then lands straight down):
   identify the move from the replay's inputs, decode Kizuna's handler for it (the dive's descent vector, its follow-up
   input / auto-trigger), play it like Kizuna in a real fight.
@@ -1304,6 +1304,12 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   palette bytes 16 / 17 / 40 / 42 (his 40 / 42 are empty, $4553), so they do not match KOF98's Omega (unchanged by this
   work). Proposal (not built): drop from the export the frames only an unpooled special shows (Rugal's Omega EX moves:
   the 40 / 42 palettes and their tiles go with them).
+
+- [ ] 202. KYO, 3 NOTES ON 0.1.8 (20261007-124338: "the flame effect disappears too fast ... in the game the flame stays a
+  bit longer, or maybe there's another one being spawned. Check the code." — the Orochinagi release; 124409: "Here Kyo
+  is missing his fire effect in his hand."; 124437: "make this move invincible" — identify the move from the replay's
+  inputs): decode the flame objects' lifetimes / extra spawns and the hand-fire effect from KOF98's code; the move's
+  invincibility: KOF98's own invincible frames if it has them, else make it invincible as Bruno asks (a roster flag).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

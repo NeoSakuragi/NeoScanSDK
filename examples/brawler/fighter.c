@@ -100,13 +100,13 @@ static void prog_voice(const fighter_t *f, uint8_t id) {
 }
 uint8_t spec_ix(const bchar_t *ch, uint8_t role) {
     uint8_t k = role == BS_FURY_MAX ? (ch->fury_max < ch->nspec ? ch->fury_max : ch->fury) : role == BS_FURY ? ch->fury :
-                role == BS_FORM ? (ch->form_trig ? ch->form_spec : 0xFF) : spec_tab[ch->id][role];
+                role == BS_FORM ? (ch->form_trig ? ch->form_spec : 0xFF) : role == BS_AIR ? ch->air_spec : spec_tab[ch->id][role];
     return k < ch->nspec ? k : 0xFF;
 }
 /* the special playing may be cancelled ("cancels" rules 2 / 3): a special (not a form's transition), or a fury (not a
  * MAX) when the fighter has a MAX fury of its own (bchar_t.fury_max: the cancel's only target then) */
 static uint8_t may_cancel(const fighter_t *f) {
-    if (f->spec_id == BS_FORM) return 0;
+    if (f->spec_id == BS_FORM || f->spec_id == BS_AIR) return 0;
     if (f->spec_id != BS_FURY) return 1;
     return f->ch->fury_max < f->ch->nspec && f->spec_ix != f->ch->fury_max;
 }
@@ -1773,6 +1773,10 @@ static void update(fighter_t *f, const intent_t *in) {
             if (f->y <= 0) { f->y = 0; f->vy = 0; f->drop = 2; f->inv = RESPAWN_INV; enter(f, S_LAND); play(f, BA_LAND); }
             break;
         }
+        if (f->state == S_AIR && (in->press & IN_A) && !f->air_node && in->dz > 0 && spec_ix(f->ch, BS_AIR) != 0xFF) {
+            lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_AIR);      /* down+A: the fighter's air special, when it has one */
+            start_special(f, BS_AIR); break;                     /* (TODO #200: Kim's j.2B dive; its program from here) */
+        }
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: a jump-cancel's node, else the stick: air A (KOF's */
             uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : in->dz < 0 ? TREE(f)->air_cd : TREE(f)->air_a;
             start_node(f, nx, f->air_node ? LH_CANCEL : LH_NEUTRAL); f->air_node = 0;   /* C), down+A air B (D), up+A air C+D */
@@ -1872,7 +1876,7 @@ static void update(fighter_t *f, const intent_t *in) {
             if (fury_cancel(f)) break;                           /* the fury starts this frame */
             to_neutral(f, 0); break;                             /* (no fury / no meter: the special played on to here) */
         }
-        f->pheld = in && (in->hold & (f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
+        f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? IN_A : f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
         if (flash_pose(f)) break;                                /* a fury's flash pose: the freeze shows it ("flash pose") */
         special_update(f);
         if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose)
@@ -2040,7 +2044,11 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
             if (d <= -8 || d >= PUSH_DX) continue;
             if (!a->y) { v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v); }
-            else if (a->spec_id != BS_FURY || !a->landed) {      /* a low leap stops at the body (SS4's 421C: P1 */
+            else if (a->ch->specials[a->spec_ix].sflags & SF_SHARE) {   /* the bodies share the push (Kizuna: Kim's j.2B */
+                int32_t over = FIX(PUSH_DX - d), back = over >> 1;      /* goes on diving, its victim pushed ahead, */
+                a->throw_x0 -= dir_mul(a->facing, back); a->x -= dir_mul(a->facing, back); clamp(a);   /* TODO #200) */
+                v->x += dir_mul(a->facing, over - back); clamp(v);
+            } else if (a->spec_id != BS_FURY || !a->landed) {      /* a low leap stops at the body (SS4's 421C: P1 */
                 int32_t back = dir_mul(a->facing, FIX(PUSH_DX - d));   /* held 30 px before P2 at y 10-51, then */
                 a->throw_x0 -= back; a->x -= back; clamp(a);     /* its landing slash hits), never carries it */
             }
