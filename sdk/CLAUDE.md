@@ -33,9 +33,8 @@ make          # builds sdk/lib/libneoscan.a
 - **VRAM queue** (`src/neo_internal.h`): runs `{addr, count, words}`; `cmd_run(addr, n)` reserves n consecutive VRAM words
   and returns where to store them, `cmd_push(addr, data)` is a 1-word run. `SYS_vblankFlush` writes them with
   VRAMMOD = 1 (22 cycles a word) and leaves VRAMMOD at 0. A full queue (4096 words) is flushed early, never dropped.
-  Flush at the START of the tick, not at the end: a flush after the game logic lands in active display and tears.
-  crt0's frame loop flushes first thing after the vblank (before SYSTEM_IO / JOY_update: 8 scanlines earlier, TODO
-  #216); a game_tick's own SYS_vblankFlush then finds the queue empty.
+  Flush at the START of the tick (crt0 calls game_tick right after vblank), not at the end: a flush after the game
+  logic lands in active display and tears.
 - **`.data` is copied to work RAM** by crt0 (`copy_data`). Before this, initialised non-const globals lived in ROM and
   silently ignored writes.
 - **P2 joystick** is `$10FD9C` (BIOS P2CURRENT); the SDK read `$10FD98` (P1's repeat byte) until 2026-10-03.

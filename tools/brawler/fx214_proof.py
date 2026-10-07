@@ -14,10 +14,10 @@ palette words) equal for every shown effect frame, and palette RAM SFX_PAL.. = K
 which the sprite-per-line guard acted (main.c guard_hidden / guard_thinned: an entity hidden, a fury's effect thinned)
 may show a part of the frame: there every drawn (tile, palette) must be one of KOF's ('budget' frames, counted apart;
 a wrong tile or colour fails anywhere). The flush (TODO #216): the harness frame ends at scanline 0 (geolith); the
-vblank IRQ comes at 249 and crt0's frame loop flushes the last tick's VRAM queue first (before SYSTEM_IO); the LSPC
+vblank IRQ comes at 249 and the tick (after the BIOS's SYSTEM_IO) flushes the last tick's VRAM queue from 257; the LSPC
 reads the sprite tables for the first time on scanline 6 (geo_lspc.c LSPC_LINE_BUFSTART). A flush still running when
 the frame ends (neo_cmd_count > 0: the rest of the queue, the positions, not written yet; the frames several entities
-spawn on and every block moves, before #216's crt0 flush) is read from the rows its tiles were written with (main.c
+spawn on and every block moves: 300-440 words, done by scanline 5) is read from the rows its tiles were written with (main.c
 col_trim, RAM), and a tap on the CPU's writes reads the line counter ($3C0006) where it ends (neo_cmd_count cleared):
 ended before scanline 6 = drawn on time ('flush_past_frame_end'), at 6 or later = the frame's first lines show the
 last frame's sprites ('late_flush', must be 0). A tick that missed its vblank ('tick_overruns': the move's video

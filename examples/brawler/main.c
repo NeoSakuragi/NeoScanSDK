@@ -2534,9 +2534,7 @@ void game_enter(uint8_t request) {
 void game_tick(void) {
     uint8_t i;
     prof_t = LINE();
-    vblank_flush();                 /* we are in vblank: last tick's backdrop goes out now, tear-free (1 frame latency); its
-                                       VRAM commands went first, crt0's flush at the top of vblank (TODO #216: the queue
-                                       here is empty unless crt0 is an older one) */
+    vblank_flush();                 /* we are in vblank: last tick's VRAM commands and backdrop go out now, tear-free (1 frame latency) */
     mark(P_FLUSH);
     SYS_kickWatchdog();
     snd_tick();

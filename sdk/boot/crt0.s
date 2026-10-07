@@ -269,9 +269,6 @@ do_game:                        /* d0 = USER request (2 demo, 3 title) */
     addl    #1, wait_cycles     /* count each spin: tstb+beq+addl = ~20 cycles */
     tstb    vblank_flag
     beq.s   .Lwait
-    jsr     SYS_vblankFlush     /* the last tick's VRAM commands first, at the top of vblank (TODO #216: after SYSTEM_IO
-                                   and JOY_update a long queue, 8 effects born on one tick, ran to scanline 5, one line
-                                   before the LSPC's first read of the sprite tables; game_tick's own flush finds it empty) */
     jsr     0xC0044A            /* SYSTEM_IO */
     orib    #0x80, 0x10FD80
     jsr     JOY_update
