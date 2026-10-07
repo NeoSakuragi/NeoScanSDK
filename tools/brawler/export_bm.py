@@ -744,6 +744,11 @@ def vlists_c(n, k, r, game):
             f'{{{len(e)}, {fl}, {n}_sp{k}_ve{j}, {vx}, {vy}, {g}}}' for j, (e, fl, vx, vy, g) in enumerate(map(vl_parts, r['vlists']))) + ', {0, 0, 0, 0, 0, 0}};')   # (n 0: the end)
     return out
 
+def hspk_rows(k, r):
+    """bchar_t.hspk entries of a ROM special k (TODO #215): [k, state index, step, spark code] of its steps with one"""
+    out = [(k, j, i, s_['spark']) for j, st in enumerate(r['states']) for i, s_ in enumerate(r['anims'][st]['steps']) if s_.get('spark')]
+    assert all(k < 0xFE and j < 256 and i < 256 for k, j, i, _ in out), k
+    return out
 SREACTS = []                                       # the game's source reactions (bm_sreact, TODO #136): every fighter's
 SR_BASE = {}                                       # export 'sreacts' list (write_c), one entry per distinct motion (TODO
                                                    # #213: Rosa's are mostly Kim's, Kizuna's victim code is the same for
@@ -801,6 +806,7 @@ def rom_c(n, k, sp, game, vres=None):
         sp['_pvox'] = [(k, j, i, v) for j, st in enumerate(r['states']) for i, s_ in enumerate(r['anims'][st]['steps'])
                        for v in [vres(w) if vres else 0 for w in s_.get('voices', [])] if v]
         sp['_pfx'] = [(k, j, i, o) for j, i, o in r.get('step_fx', [])]
+        sp['_hspk'] = hspk_rows(k, r)
         return '\n'.join(out)
     total = sum(r['openings'].values())
     each = max(1, SPECIAL_DAMAGE // total) if total else 0
@@ -836,6 +842,7 @@ def rom_c(n, k, sp, game, vres=None):
           for ix in s.get('voices', [])] if vres else []
     sp['_pvox'] = [(k, j, i, v) for j, i, v in pv if v]   # its steps' voices (KOF's $FC records): bchar_t.pvox
     sp['_pfx'] = [(k, j, i, o) for j, i, o in r.get('step_fx', [])]   # its steps' effects (KOF's $FA records): bchar_t.pfx
+    sp['_hspk'] = hspk_rows(k, r)
     assert all(j < 256 and i < 256 for _, j, i, _ in sp['_pvox']), n
     return '\n'.join(out)
 
@@ -1376,6 +1383,8 @@ def write_c(chars, outdir):
          'enum { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D, BS_COUNT };',
          f'enum {{ VP_COUNT = {len(pkeys)} }};   /* victim postures: ' + ' '.join(pkeys) + ' */',
          'enum { VK_THROW = BA_COUNT, VK_HIT = BA_COUNT + BT_COUNT, VK_KO, VK_SELECT, VK_SPEC };   /* voice keys (voices.py keys): BA_*, VK_THROW + BT_*, the events, VK_SPEC + its special\'s index in the pool */',
+         'typedef struct { const uint8_t *map; const bproj_t *sparks; } bhspark_t;   /* (TODO #215, vocabulary fx.hit_spark) a fighter\'s source game\'s own hit sparks (Double Dragon: tools/doubledr/sparks_dd.py; map 0 = none: the engine\'s KOF98 spark): map = [where (its special index, 0xFE a normal: its BA_ animation), animation index (a special\'s anims), step, spark] each, 0xFF ends, in its bank; a hit landing on that step spawns sparks[(spark & 0x3F) - 1] (an effect object, bproj_t kind PK_FX) at its game\'s hit point (fighter.c hit_spark); spark 0x40 = turned (the other way), 0x80 = the screen strobe (DD\'s super hits: fighter.c hitflash) */',
+         'extern const bhspark_t bm_hspark[BC_COUNT];   /* by bchar_t.id (bm_spec.c: the first program MB; outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef struct { int32_t vx, ax, vy, g, bvx, bvy, bg; uint8_t r, n, land, anim; } bsreact_t;   /* a source reaction (TODO #136, vocabulary reaction.source_motion; tools/kizuna/export_kz.sr_motion: Kizuna\'s reaction animations\' step commands, decoded from its hit code): the victim\'s motion when a SF_SREACT special\'s step hits it, 16.16 px a frame, x away from the attacker: vx += ax a frame while a reel slides (n frames), a flight vy -= g a frame to the floor (it lands where its next move would take it under, without moving), land frames on the floor (0xFF: none, the brawler\'s own landing), then the bounce bvx / bvy / bg; r: the victim\'s posture R_* (| 8: hittable in its flight, its source\'s reaction steps carry boxes); anim: the source\'s reaction animation (Hayate\'s, for reading) */',
          'extern const bsreact_t bm_sreact[];',
          'enum { VA_SNAP = 1, VA_FREEZE = 2, VA_THAW = 4, VA_MIRROR = 8, VA_UNMIRROR = 16, VA_LIST = 32 };   /* P_VPHASE bits (fighter.c vphase); VA_LIST (TODO #213): its caught target follows the special\'s victim list b (1-based, bspec_t.vlists) from now, held (PF_HOLD) */',
@@ -1523,6 +1532,12 @@ def write_c(chars, outdir):
         c.append(f'extern const bspec_t {n}_specials[];')
         c.append(f'static const uint8_t {n}_pvox[] = {{' + ''.join(f'{a}, {b}, {d}, {e}, ' for sp in sps for a, b, d, e in sp.get('_pvox', ())) + '0xFF};   /* its ROM specials\' step voices */')
         c.append(f'static const uint8_t {n}_pfx[] = {{' + ''.join(f'{a}, {b}, {d}, {e}, ' for sp in sps for a, b, d, e in sp.get('_pfx', ())) + '0xFF};   /* its ROM specials\' step effects */')
+        hsk = [(0xFE, mi, i, st_['spark']) for mi, m in enumerate(MOVES) for i, st_ in enumerate(source(ch, m)['steps']) if st_.get('spark')] + \
+              [e for sp in sps for e in sp.get('_hspk', ())]    # its source's hit sparks (TODO #215): normals, then specials
+        if ch.get('hit_sparks'):
+            assert hsk and all(0 < (e[3] & 0x3F) <= len(ch['hit_sparks']) for e in hsk), n
+            c.append(f'const uint8_t {n}_hspk[] = {{' + ''.join(f'{a}, {b}, {d}, {e}, ' for a, b, d, e in hsk) + '0xFF};   /* its hit sparks: where, animation, step, spark */')
+            cs.append(projectile_c(n, 'hs', ch['hit_sparks'], game, {'input': 'HIT SPARK'}) + f'\nextern const uint8_t {n}_hspk[];')
         c.append(f'static const uint8_t {n}_spmap[BS_COUNT] = {{' + ', '.join(str(spec_index(pool, sp)) for sp in pick_specials(ch, n)) + '};')
         vdata[n] = {'keys': vk, 'suggest': vsug, 'map': vmp, 'nvoice': len(V.bank(n)),
                     'at': {k: v[1] for k, v in vsug.items()}, 'more': vmore,
@@ -1578,6 +1593,8 @@ def write_c(chars, outdir):
     c.append('const int8_t bm_head[BC_COUNT][2] = {' + ', '.join(f'{{{ch["head"][0]}, {ch["head"][1]}}}' for _, _, ch, _ in chars) + '};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')
+    cs.append('const bhspark_t bm_hspark[BC_COUNT] = {' + ', '.join(f'{{{n}_hspk, {n}_pjhs}}' if ch.get('hit_sparks') else '{0, 0}'
+                                                              for _, n, ch, _ in chars) + '};   /* (TODO #215) */')
     open(os.path.join(outdir, 'bm_spec.c'), 'w').write(dedupe_c('\n'.join(cs)) + '\n')
 
 if __name__ == '__main__':

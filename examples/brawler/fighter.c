@@ -1000,7 +1000,7 @@ static void proj_row(fighter_t *p) {                            /* its rows: its
         p->spec_atk = 0; p->pown = 0;
     } else {
         const bprow_t *r = &d->rows[p->prow];
-        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y) + (d->air ? p->py0 : 0);
+        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y) + (d->air || d->kind == PK_FX ? p->py0 : 0);
         p->spec_atk = (r->flags & 1) && (!p->pend || p->pend == 3) ? &r->atk : 0;   /* (3: an eruption that hit: live) */
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
@@ -2167,6 +2167,42 @@ static void overlap_xy(const fighter_t *a, const bbox_t *atk, const fighter_t *v
     *sx = ((ax - atk->w > vx - hb->w ? ax - atk->w : vx - hb->w) + (ax + atk->w < vx + hb->w ? ax + atk->w : vx + hb->w)) >> 1;
     *sy = ((ay - atk->h > vy - hb->h ? ay - atk->h : vy - hb->h) + (ay + atk->h < vy + hb->h ? ay + atk->h : vy + hb->h)) >> 1;
 }
+/* a source game's own hit spark (vocabulary fx.hit_spark, TODO #215; bm_hspark: Double Dragon's, read in its code:
+ * tools/doubledr/sparks_dd.py, = DD frame for frame): a hit landing on a step its table names spawns that spark, an effect
+ * object (bproj_t kind PK_FX: no box, no shadow, its own frames / palettes and motion in its rows) where its game puts it:
+ * DD $26AE8, x = the victim's body box's centre + half its half width toward the attacker, the height of the attack box's
+ * centre; the attacker's facing (spark 0x40: the other way, DD's height class 3); in front of both. Spark 0x80: the
+ * screen strobes red (DD's super hits, $25EF2: main.c screen_fx). 0: the step has none (the engine's KOF98 spark). A
+ * spark never takes the last free entity (a projectile needs it); no entity: no spark (the hit stays). */
+uint8_t hitflash;
+static uint8_t hit_spark(fighter_t *a, const fighter_t *v, const bbox_t *atk, const bbox_t *hb) {
+    const bhspark_t *hs = &bm_hspark[a->ch->id];
+    const uint8_t *e;
+    const banim_t *pa = 0;
+    uint8_t where, an = 0, st, code = 0, ob, i, nfree = 0;
+    if (!hs->map || a->pdef) return 0;                       /* (a projectile's hit: its own end plays, DD's too) */
+    if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) { where = 0xFE; an = a->anim; st = a->step; }
+    else if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog && a->pan) {
+        where = a->spec_ix; pa = a->ch->specials[a->spec_ix].anims; st = a->pstep;   /* (its animation by address, as */
+    } else return 0;                                                                 /* pan_fx: no division) */
+    ob = BANK_set(CH_BANK(a->ch));                               /* (its table: its bank) */
+    for (e = hs->map; *e != 0xFF; e += 4)
+        if (e[0] == where && e[2] == st && (pa ? &pa[e[1]] == a->pan : e[1] == an)) { code = e[3]; break; }
+    BANK_set(ob);
+    if (!code) return 0;
+    if (code & 0x80) hitflash = HITFLASH;
+    for (i = 0; i < NPJ; i++) nfree += projectiles[i].state == S_OFF;
+    if (nfree >= 2) {
+        int16_t hx = box_x(v, hb->x) - (a->facing > 0 ? hb->w >> 1 : -(hb->w >> 1));
+        fighter_t *p = proj_start(a, &hs->sparks[(code & 0x3F) - 1], FIX(hx), code & 0x40 ? -a->facing : a->facing,
+                                  v->z > a->z ? v->z : a->z);
+        if (p) {
+            p->py0 = FIX(INT(a->y) - atk->y); proj_row(p);       /* (its rows from the hit's height) */
+            p->zfront = 1; p->tick = 1;                          /* combat runs after the entities' update: its row 0 is */
+        }                                                        /* this frame's, row 1 the next */
+    }
+    return 1;
+}
 static const bbox_t HELD_BOX = { 0, -56, 24, 40 };         /* a held victim's body when its pose has no hurt box */
 /* a hold hit lands (TODO #166 b): the standard hit spark on the held victim, where its move's attack box meets the
  * victim's body (big: KOF98's C / D / C+D spark, the finisher always) */
@@ -2395,7 +2431,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                     else if (a->pdef && a->owner && a->owner->state == S_SPECIAL && (a->owner->ch->specials[a->owner->spec_ix].sflags & SF_BIGHIT))
                         big_hit(a->owner, v);                    /* its object's hit (SS2 Hanzo's rage flame, object 7 $30752) */
                 }
-                spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big */
+                if (!hit_spark(a, v, atk, hb)) spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big;
+                                                                    its source's own (DD, TODO #215) */
                 if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */
                     if (a->pdef->kind == 1 || a->pdef->kind == PK_BOOM) { proj_hit(a); break; }   /* fireball, a boomerang); any other (an eruption) hits every */
                     proj_crowd(a);                                /* target it touches, each once (hit_mask): crowd */

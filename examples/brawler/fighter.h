@@ -344,6 +344,11 @@ extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x 
 #define BIGHIT_COL  0x4F00         /* SS2 $2B9DE: (31, 0, 0) through its table $2BA16 */
 extern uint8_t bighit_red, bighit_slow;   /* frames left of them (main.c screen_fx / game_tick) */
 extern uint16_t bighit_col;               /* its backdrop colour (fighter.c big_hit) */
+#define HITFLASH 10                /* Double Dragon's super hit strobe (fighter.c hit_spark, TODO #215): its frames from the */
+extern uint8_t hitflash;           /* hit (main.c screen_fx: red 2, 3, 6, 7 frames after the spark shows, as DD's screen),
+                                      frames left; BIGHIT_COL = DD's red */
+#define PK_FX 6                    /* bproj_t kind: a source game's hit spark (vocabulary fx.hit_spark, TODO #215): no box, no
+                                      shadow, its rows from the hit point (fighter.c hit_spark: x, height py0) */
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */
 #define NPJ 8                     /* projectile entities: fighter_t too, so one renderer / sort / guard / hit test; 8 = a
                                      Blitz Ball and its 4 live trail objects (KOF96 measured) + 3 for other throwers */

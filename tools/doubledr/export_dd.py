@@ -487,6 +487,80 @@ def dd_reactions(ch, states):
             out.append((a, i, d0, r, air)); air = air or r in AIRBORNE
     return out
 
+# ---- the hit sparks and the super-hit flash (TODO #215, sparks_dd.py: the spark type = byte[$265F2 + 4 index + height],
+# index = the reaction index above; a held victim (+$F3 bit 5: the states after a catch, Cheng-Fu's flurry) adds 2
+# instead of the combo stun ($25DCE); a super's / the transformation's hits flash the screen red: +$F3 bit 3, $25EF2)
+def spark_codes(ch, states, caught=(), flash=False):
+    """{(state, step): (spark type, turned, flash)} for every attack step of the move: the spark a hit landing on that
+    step spawns (its opening's combo stun, every opening assumed to connect, as dd_reactions)"""
+    import sparks_dd as SK
+    acc, out = 0, {}
+    for a in states:
+        hdr, st = dd.steps(ch, a); op = openings(ch, a); cat = hdr[1] & 0x60; run = acc
+        for i, s in enumerate(st):
+            if not attacks(s['w6']): continue
+            if op[i]: run = acc                    # (a run's later steps: the combo stun before its hit)
+            b1 = hit_record(s['w6'])['type'] & 0xFF; lv = (s['attr'] & 0x30) >> 4
+            d0, nacc = lv, run
+            if a in caught: d0 += 2
+            else:
+                if nacc: d0 += nacc - 1; nacc -= 1
+                nacc += lv
+            df = cat >> 5 if not (cat and b1 & 0x10) else 0
+            if df:
+                if not hdr[1] & 4: d0 += 4
+            elif cat and b1 & 0x10:
+                d0 += 1
+                if a not in caught: nacc += 1
+            t, turned = SK.spark_type(min(d0, 7), b1 >> 2 & 3)
+            out[(a, i)] = (t, turned, bool(flash))
+            if op[i]: acc = nacc
+    return out
+
+def special_states(ch, a0):
+    """(states, caught states) of the special starting with a0, as program() orders them"""
+    _, states, _ = program(ch, a0)
+    caught = set()
+    for a in states:
+        h0 = dd.steps(ch, a)[0][0]
+        if h0 in CATCH: caught |= set(chain(ch, CATCH[h0]))
+    return states, caught
+
+def is_super(ch, a0):
+    """a super's or the transformation's first animation (+$F3 bit 3 through the move: its hits flash)"""
+    return any(n.startswith('SUPER') or n == 'FORM' for n, (an, _) in SPECIALS.get(ch, {}).items() if a0 in an)
+
+def spark_code(t, turned, flash, index):
+    """bstep 'spark' byte (bchar_t.hspk): 1 + the spark's index in the fighter's hit_sparks, 0x40 turned, 0x80 flash"""
+    return (index + 1) | (0x40 if turned else 0) | (0x80 if flash else 0)
+
+def spark_finish(B, ch, anims, sps):
+    """the fighter's hit sparks (TODO #215): the normals' attack steps get their spark (DD's rule, the victim fresh: a
+    normal's index = its level), then every step's [type, turned, flash] becomes its code (spark_code) and each type used
+    an effect object (bproj kind 6 = PK_FX, no box), in first-use order: one row a frame, DD's definition in palette
+    128 + (frames alive & 3), x forward / height from the hit point (sparks_dd.track; the engine places it at DD's
+    point: fighter.c hit_spark). Billy's 'watch' / win steps and throws hit nothing: none"""
+    import sparks_dd as SK
+    for mv, an in anims.items():
+        for s in an['steps']:
+            if s.get('flags', 0) & 0x100 and s.get('dd') and 'spark' not in s:
+                a, i = s['dd']
+                s['spark'] = spark_codes(ch, [a]).get((a, i))
+    used, out = [], []
+    steps = [s for an in anims.values() for s in an['steps']] + \
+            [s for sp in sps for an in sp['rom']['anims'].values() for s in an['steps']]
+    for s in steps:
+        if not s.get('spark') or isinstance(s['spark'], int): continue
+        t, turned, flash = s['spark']
+        if t not in used: used.append(t)
+        s['spark'] = spark_code(t, turned, flash, used.index(t))
+    for t in used:
+        rows = [[B.frame(((w, 0, 0, pal),)), x, -y, None, None] for w, pal, x, y in SK.track(t)]
+        out.append({'table': 0, 'state': t, 'kind': 6, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
+                    'loop': None, 'death': None, 'life': len(rows), 'travel': 0, 'vx': 0, 'rows': rows, 'end': [],
+                    'react': 'knockdown', 'child': None, 'hits': {}, 'sig': 0, 'spark': t})
+    return out
+
 def brawler_react(r, last):
     """DD's reaction animation -> the brawler's reaction (fighter.h R_*, packed standing | juggled << 4: the same both
     ways, DD's tables do not look at the height from index 4 on): a reel R_HEAVY; 66 / 67 (the blowback) R_KNOCKDOWN;
@@ -577,6 +651,10 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
     for v, (_, st, sp_) in enumerate(progs):
         rv = dd_reactions(ch, st)
         rx = {(r[0], r[1]): brawler_react(r[3], j == len(rv) - 1) for j, r in enumerate(rv)}
+        caught = set()                             # (the states after a catch: a held victim, spark_codes)
+        for a in st:
+            if dd.steps(ch, a)[0][0] in CATCH: caught |= set(chain(ch, CATCH[dd.steps(ch, a)[0][0]]))
+        sk = spark_codes(ch, st, caught, flash=form or nv == 1 and inp.startswith('SUPER'))   # its hits' sparks (TODO #215)
         for a in st:
             k = f'{v}:{a}'; states.append(k)
             anims_d[k] = {'mode': 'hold' if dd.steps(ch, a)[0][1] & 2 else 'loop' if dd.steps(ch, a)[0][1] & 1 else 'once',
@@ -590,6 +668,7 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
             for i, s in enumerate(anims_d[k]['steps']):
                 cur = rx.get((a, i), cur)
                 if s['flags'] & 0x100: s['react'] = cur
+                if s['flags'] & 0x100 and (a, i) in sk: s['spark'] = sk[(a, i)]   # (finished in export: spark_finish)
         gh = {}                                    # the afterimages' heights: the model's place before the move
         for r in M.play(ch, anims[v], limit=400):
             for e in r['ev']:
@@ -690,11 +769,12 @@ def export(names, outdir, only=None, extra=None):
         def colours(key, s):
             slot = BODY[ch][s] if key == 'body' else FORM_PAL[ch][s] if key == 'form' else key
             return [0] + pr[16 * slot + 1:16 * slot + 16]
+        hs = spark_finish(B, ch, anims, sps)       # the hit sparks (TODO #215): its effect objects, steps' codes
         sets = [[colours(k, s) for k in B.pals] for s in range(2)]
         assert all(any(c) for st_ in sets for c in st_), (name, 'an empty palette', B.pals)
         out['characters'][name] = {'id': ch, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0], 'physics': physics(ch),
-                                   'throws': throws, 'specials': sps,
+                                   'throws': throws, 'specials': sps, 'hit_sparks': hs,
                                    'modes': {'sets': ['P1', 'P2'], 'palettes': [str(k) for k in B.pals], 'autoanim_tiles': B.autoanim}}
     out['tiles'] = len(allt)
     os.makedirs(outdir, exist_ok=True)
