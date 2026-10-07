@@ -525,7 +525,7 @@ by fighter_update, projectiles_update, the drawing and combat (fighter.h "banks"
 0 / 1 1.04 MB / 0.50 MB (build/banks.txt), P ROM 3 MB. Tile numbers are 20 bits: each game's block sits inside one 64K page
 (padded to the next page when it would cross one) and starts with a blank tile, tables keep the low 16 bits and
 `bchar_t.tile_hi` gives bits 16-19, which draw.s puts in SCB1 attribute bits 4-7. Here KOF98 is page 0, KOF96 + KOF99
-page 1. Only the palettes a fighter's frames use are kept (1-5). Widest frame 19 columns (Billy), inside the 20-column
+page 1. Only the palettes a fighter's frames use are kept, those with the same colours in every colour set as one slot (export_bm `pal_slots`, TODO #198); the game loads MAX_PALS = 8 slots a fighter (a 9th showed the next fighter's colours: Kyo's EX 236A flame), the build names any fighter over it (Rugal: 11). Widest frame 19 columns (Billy), inside the 20-column
 block. Players pick on the select screen; the others are the enemies, six a wave in turn. Throws work across games:
 victim poses are mapped by posture name (see Engine).
 

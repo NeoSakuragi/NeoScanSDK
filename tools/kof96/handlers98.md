@@ -336,6 +336,10 @@ Handler $3D4EA (21426A / C; the MAX version = the same code with +$E4 bit 0, `de
 | the burning body (MAX) | state 195 (frames 481-488) has attack box $23 live on every other step (flags $1F21 / $1E21, no $4000: a new hit each time); damage table +$EF = 55 while held, 56 from the release ($3D6CA) | the hold's states are counted with the button held throughout (`openings(held=300)`: 195 opens 16 hits) | `bstep_t` attack box: an enemy that walks in burns (KOF98: 11 life of 103, P2 launched, state 286); the brawler's rule: SPECIAL_DAMAGE split over the openings -> 1 a hit |
 | the flames | object 2 ($3D83E, state 193, frames 469-480) in Kyo's effect palette 33 ($B81); +$34 (1, MAX 3) = how many flames chain (`spawndeep`) | - | (colours: TODO #198 c, the ground flame of EX 236A, palette 37: export_bm `pal_slots`) |
 
+KOF96 (Bruno's note cites "Kyo 96"): Orochinagi $298CA is the same code (+$CA = 90, the hold test, start 188, hold 190,
+release 191), decoded the same way now; neither 190 nor its hand flame (object state 286) has an attack box: the
+burning body is KOF98's MAX only (state 195; KOF96 has no MAX version).
+
 KOF98 vs model (`romspecials98.compare(0, '21426C', ..., dm=True, hold=H)`), whiff and close, DM and MAX, H = 30 / 60 /
 89 / 200: 0 frame mismatches (x mismatches only where the hold changes nothing: the whiff's screen edge, the close
 push, as with H = 0); the hold caps at 90 frames of 187 (DM whiff: 125 / 154 / 184 frames at H = 60 / 89 / 200).

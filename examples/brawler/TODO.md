@@ -1221,11 +1221,33 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   brawler_*.wav; voice_proof --all krauser / billy / kyo: 39 of 44 OK, the 5 others (Billy 426C / 623A / 623B / 214B,
   Kyo 236A: voice timing) fail the same on the 0.1.5 build; bank_proof ALL OK; regress bleed_same / strict True.
 
-- [ ] 198. KYO'S OROCHINAGI (20261007-114101-b3f3: "you can hold the button to keep it for longer, and in the MAX version
+- [ ] 198. (DONE ON BRANCH fix/198-kyo-orochinagi 2026-10-07, awaiting Bruno's review) KYO'S OROCHINAGI (20261007-114101-b3f3: "you can hold the button to keep it for longer, and in the MAX version
   there's a hitbox from the very start as you maintain ... Kyo is on fire ... reverse engineer the code to include both
   the holding mechanism and the hitbox in the MAX version"; 20261007-114149-b3f3: "the palette of the fireball seems
   wrong"): decode from KOF98's (and KOF96's) handler: the hold-C delay (charge until release / max), the MAX's
   burning-body hit box during the charge, and the flame object's palette; play them in the brawler.
+  DONE [code + meas] (a) the hold, KOF98 $3D4EA (handlers98.md "Kyo's Orochinagi"): +$CA = 90 at the start; from the
+  hold state's first frame (187, MAX 195) `and.b (fp)` on its button: held -> `subq #1, +$CA; bpl yield` (up to 90
+  frames), released -> the release that frame. The decoder read every past-the-first-frame `and.b (fp)` as released;
+  it is now the run-time test `held` everywhere (one path: only Kyo's fury + MAX change among the 146 exported ROM
+  programs), so the program is `set cnt 90`, `br held`, `dec`, `br cnt` = PC_HELD (D held) / P_DEC / PC_CNT, no engine
+  change. KOF96's $298CA is the same code (no body hit box: KOF96 has no MAX). (b) the burn: MAX state 195 carries
+  attack box $23 on every other step (a new hit each, KOF98: 11 life on P2); it plays now because the hold plays; its
+  hits are counted with the button held (`openings(held=)`: 16) -> 1 damage a hit by the SPECIAL_DAMAGE rule (was 0:
+  the body had no opening). (c) the note's flame is C's EX 236A ground flame (its sheet), not Orochinagi's: frames
+  800-804 use Kyo's effect palette 37, his 9th palette; the game loads MAX_PALS = 8 a fighter, so the 9th showed the
+  next slot's colours. export_bm `pal_slots`: palettes with the same colours in every set share a slot (Kyo 9 -> 8: $B81
+  = body 18; Mai 9 -> 8, Ryo / Robert 7 -> 4, Yamazaki 5 -> 4; slot 0 untouched), the build prints a fighter still over
+  8: Rugal 11 (slots 8-10 drawn in other colours: needs export_ss2.pack_palettes for KOF exports or a larger palette
+  budget; the select screen's 22 actors x 8 leave no room). Measured in our emulator, KOF98 vs model
+  (`romspecials98.compare(hold=H)`, the pad reaches the handler 2 frames later): 0 frame mismatches DM / MAX, whiff /
+  close, H 30 / 60 / 89 / 200. Proof /data/tmp/kyo198/out: romspecials (romspecials_check ~H: KOF98 | brawler sheets
+  kyo_21426C_h60 / _h200, kyo_MAX21426C_h60 / _h200, whiff + close): 0 frame mismatches, hits on KOF's frames (MAX held:
+  the burn at 30 / KOF 31); Kyo's 8 tapped slots identical before / after (romspecials_base / romspecials_kyo);
+  walkin_MAX.png (an enemy walking in from 150 px is burnt at frame 60 of the charge, Kyo still charging), walkin_DM.png
+  (no burn, the flame hits after the release); colours.png (EX 236A flame: KOF98 | before, slot 8 = the next fighter's
+  colours | this build, slot 7 = KOF98's palette 37 word for word); controls / cancel / fury_inv kyo ok, bank_proof ok,
+  regress bleed none.
 
 - [ ] 199. (DONE ON BRANCH fix/197-fire-hit-sound 2026-10-07, awaiting Bruno's review) COIN SOUND (20261007-113856-b3f3:
   "a specific sound whenever I'm pressing coin or credit, just like the coin

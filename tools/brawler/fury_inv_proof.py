@@ -10,7 +10,7 @@ of the fury from its trigger, 0 life lost / no hitstun while it plays, a hit tak
 the enemy side: an enemy with a fury fired by its intent (D) is INV_FURY from its first frame to its end.
 Kim: OUT/kim_phoenix.png, his Phoenix with the minions swinging through him.
 
-    python3 fury_inv_proof.py [OUTDIR]        (default /data/tmp/furyinv/out)"""
+    python3 fury_inv_proof.py [OUTDIR [FIGHTER ...]]        (default /data/tmp/furyinv/out, every fighter)"""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -107,7 +107,7 @@ def main():
     roster = json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))['roster']
     b = Brawler(); res = {}
     for k, r in enumerate(roster):
-        if not r.get('fury'): continue
+        if not r.get('fury') or (sys.argv[2:] and r['name'] not in sys.argv[2:]): continue
         b.pick(k, unlock=True); start = b.save()
         out = dict(fury=r['fury'])
         for case, whiff in (('connect', False), ('whiff', True)):
