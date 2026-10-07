@@ -1467,12 +1467,16 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
         fighter_hit(f, t, f->pdmg, R_HEAVY, 0);
         f->freeze = t->freeze = 0; t->vx = 0; t->kdelay = 0;
         hit_sfx(f->pfx);
+        if (e->flags & VE_BURN) set_burn(t, (e->flags & VE_BURN) >> 4);   /* its burn (KOF $17AC0: Iori 624's purple) */
     }
     if (e->flags & VE_REL) {                                     /* the release: its flight (KOF 283, the blowback) */
         f->pflags &= ~PF_HOLD; f->phold = 0; f->vlist = 0;
         t->frame_ovr = 0xFFFF; t->zfront = 0;
         react(t, f->facing, R_KNOCKDOWN, 0);
-        if (l->flags & VL_VEL) { t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8; }   /* its */
+        if (l->flags & VL_VEL) {                                 /* its */
+            t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8;
+            if (l->g) { t->kmode = 2; t->kg = t->kgf = (int32_t)l->g << 8; t->kgfr = 0; t->kvfr = 0; t->kdelay = 0; }   /* g: */
+        }                                                        /* its own gravity (KOF's routine, Iori 624: kof_fall) */
         else kof_react(t, f->facing, R_KNOCKDOWN, -128);         /* game's flight (SS2: the victim's velocity entry), */
     }                                                            /* the brawler's fall and landing from there */
 }
