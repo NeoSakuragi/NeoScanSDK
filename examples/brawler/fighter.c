@@ -38,6 +38,13 @@ enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8, PF_HITANY = 16, PF_HO
                                      PF_SIG6 +$D1 bits 7 / 6: its objects' signals (bproj_t sig) and P_FXOFF (TODO #139) */
 enum { VPH_FREEZE = 1, VPH_MIRROR = 2 };   /* fighter_t.vph: a special's victim phases (P_VPHASE, fighter.c vphase) */
 #define HITSTOP     7             /* hit-stop frames, the same for every hit (Bruno 2026-10-04; KOF98 counts +$124 from 7 to 11 by move) */
+#define CATCH_STOP  1             /* a ROM special's catch (a catch box's hit, TODO #220): KOF's hit-stop routine runs one
+                                     frame ($1B2C4), then the catch's dead frames ($1B402: the catching step's hit-stop
+                                     counted down, prog_update pcatch 2, pdeadn) are its pause. The brawler's: its HITSTOP
+                                     and the dead frames past KOF's first, at least HITSTOP in all (Bruno's every-hit rule),
+                                     KOF's own when longer: the hit-stop is max(CATCH_STOP, HITSTOP - (pdeadn - 1)). A catch
+                                     with one dead frame (the furies', class 4) keeps HITSTOP; Yamazaki 236236C's (12) held
+                                     7 + 12 frames where KOF holds 1 + 12: his swirl ended 7 frames before he moved again */
 #define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
 #define STUN_HEAVY  54
 #define AI_IDLE_DELAY 10          /* AI fighters stop walking into idle only after this many frames without a walk intent */
@@ -892,6 +899,17 @@ static uint8_t link_in(const fighter_t *f, const bslink_t *l, const intent_t *in
     d = d_input(f, in) - RI_S;
     return l->dir == LK_AGAIN ? d == f->spec_id || f->spec_id == BS_FURY : d == l->dir;
 }
+/* a mash (vocabulary input.mash, TODO #220; KOF98 Ralf's AAAA $4FD46: `btst #2, fp@(5)` in the punch's frame loop
+ * replays it): the move's button pressed again while its program checks (P_CHECK b 2) counts only within MASH_GAP frames
+ * of the press before (KOF's tap chain: the recogniser takes a tap 20 frames after the last one, not 21; measured in
+ * our emulator, a press at the special's frame 16 replays the punch, 17 does not: the command's last tap is 4 frames
+ * before the special starts; the brawler's window from start_special, calibrated on romspecials_check ralf:D+again@T,
+ * T 16 replays, 17 does not, as in KOF) and, in its hit-stop, only one made in its last MASH_LAG frames (the handler
+ * reads this frame's press, which reaches it MASH_LAG frames after it was made: KOF98's input path, handlers98
+ * FOLLOW_LAG; one made earlier in the hit-stop is read inside it, never); the window counts real frames from the
+ * special's start, again from each press read */
+#define MASH_GAP 22
+#define MASH_LAG 4
 static void special_input(fighter_t *f, const intent_t *in) {    /* a press during a special: a follow-up link armed */
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     uint16_t row = f->srow ? f->srow - 1 : 0;
@@ -900,6 +918,7 @@ static void special_input(fighter_t *f, const intent_t *in) {    /* a press duri
                                                                     on the frames the game's handler calls its check */
         for (k = 0; k < sp->nlinks && k < 8; k++) if (link_in(f, &sp->links[k], in)) {
             f->spend |= 1 << k;
+            if (f->mash && f->freeze <= MASH_LAG) f->spmash |= 1 << k;   /* (inside the mash window) */
             if (f->freeze) f->phl |= 1 << k;                     /* made in a hit-stop: latched (P_CHECK b) */
         }
         return;
@@ -983,7 +1002,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = f->vz = 0;   /* (vz: P_MOVE's
                                                                     depth, only P_HOME sets it) */
-        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0; f->vlist = 0;
+        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0; f->vlist = 0; f->vsigp = 0; f->phh = 0; f->mash = MASH_GAP; f->spmash = 0;
         if ((f->ch->specials[f->spec_ix].sflags & SF_NOW) && k != BS_FURY) {   /* SF_NOW (SS2): its first frame is this
                                                                     one (the action routine runs in the frame the action
                                                                     is set; else every SS2 move ran a frame long, TODO
@@ -1329,6 +1348,10 @@ static const struct { int32_t vx, vy, g, gf, vmin; uint16_t gfr, vfr; uint8_t de
     [R_SLAM] =      { 0x60000, -0xA0000, 0, 0, 0, 0, 0, 2 },                     /* 303: $1CD4C vx 6, vy -10 to the floor */
     [R_LIFT] =      { 0, 0x114000, 0x2B000, 0xA000, 0, 0xDF00, 0, 2 },           /* 286: $1BFA2, the launch without vx */
 };
+#define RK_HIGH 8                 /* a packed reaction nibble (R_LIGHT | 8: never a KOF one): KOF98's high launch (TODO
+                                     #220, reactions 56 / 57, state 299: handlers98.HIGH_LAUNCH), R_LAUNCH on KOF_HIGH */
+static const struct { int32_t vx, vy, g, gf, vmin; uint16_t gfr, vfr; uint8_t delay; } KOF_HIGH =
+    { 0x20000, 0x1E0000, 0x4A000, 0xA000, 0, 0xDF00, 0, 2 };                     /* 299: $1C17A vx 2, vy 30, g 4.625 */
 static void kof_react(fighter_t *v, int8_t away, uint8_t rc, int8_t slide) {   /* rc: R_* | 8 hittable */
     uint8_t hurt = rc & 8 ? KM_HURT : 0;
     if ((rc == (R_TRIP | 8) || rc == (R_BLOWBACK | 8)) && v->state == S_KNOCKDOWN) {   /* Double Dragon's knockdown hop */
@@ -1339,7 +1362,14 @@ static void kof_react(fighter_t *v, int8_t away, uint8_t rc, int8_t slide) {   /
         v->kg = v->kgf = 0x6000; v->kgfr = 0; v->kvfr = 0xE000; v->kvmin = FIX(5); v->kdelay = 0;   /* hit's down knock */
         v->kmode = 1 | KM_HURT; return;                          /* $25B3A eats the rise), gravity 0.375, 5 px a frame away */
     }                                                            /* (its header) + the push (4.25 / 11.25 x 7/8, $204DE) */
-    rc &= 7;
+    {   uint8_t hi = (rc & 16) && (rc & 7) == R_LAUNCH;       /* the high launch (RK_HIGH, fighter_hit) */
+        rc &= 7;
+        if (hi && v->state == S_KNOCKDOWN) {
+            v->vx = dir_mul(away, KOF_HIGH.vx); v->kvfr = KOF_HIGH.vfr; v->kvmin = KOF_HIGH.vmin; v->kdelay = KOF_HIGH.delay;
+            v->vy = KOF_HIGH.vy; v->kg = KOF_HIGH.g; v->kgf = KOF_HIGH.gf; v->kgfr = KOF_HIGH.gfr;
+            v->kmode = 1 | hurt; return;
+        }
+    }
     if (v->hp <= 0 && rc < R_KNOCKDOWN && !dancing(v)) rc = R_KNOCKDOWN;
     if (rc < R_HEAVY || rc > R_LIFT || !KOF_REACT[rc].delay) return;   /* the brawler's own (react): R_TRIP, R_BLOWBACK */
     if (rc == R_HEAVY && v->y > 0 && v->state != S_HITSTUN) rc = R_KNOCKDOWN;   /* no reel in the air: KOF's air hit sends
@@ -1410,6 +1440,7 @@ static void pan_enter(fighter_t *f, uint8_t prev) {              /* a step start
             f->spec_sr = s->hy;                                  /* reactions (src_react), its postures packed as KOF's */
             f->spec_react = (s->hy & 15 ? bm_sreact[(s->hy & 15) - 1].r : R_HEAVY) | (s->hy >> 4 ? bm_sreact[(s->hy >> 4) - 1].r : R_KNOCKDOWN) << 4;
         }
+        else if (s->hy == HY_HOLD) f->spec_react = R_HEAVY;     /* KOF's hold hit (box $36, TODO #220): a reel, held */
         else if (s->hy) f->spec_react = s->hy;                   /* KOF's own reaction to this step's attack box (packed) */
         else if (f->spec_react == R_KNOCKDOWN)                   /* a knockdown state's earlier hits keep the victim */
             for (k = f->pstep + 1; k < f->pan->nsteps; k++)      /* standing (KOF98 Gatling Attack 138: 258, then 283) */
@@ -1546,7 +1577,21 @@ static void vlist_wall(fighter_t *f, fighter_t *t, const bvlist_t *l, const bven
     f->x += d0; f->throw_x0 += d0;                               /* (its objects' anchor moves with it) */
     t->x = f->x + off;
 }
-static void vlist_apply(fighter_t *f, const bspec_t *sp) {
+static void vlist_place(fighter_t *f, const bspec_t *sp);
+static void vlist_apply(fighter_t *f, const bspec_t *sp) {      /* KOF's victim routine (Yamazaki 236236C $6AF14, TODO
+                                                                    #220): each frame the place ($25372) by the list it
+                                                                    follows at the attacker's step (this frame's: a new
+                                                                    animation's first), then the attacker's signal: the
+                                                                    next list and its place at once (the routine falls
+                                                                    into it), its entry's flags again (+$D2 = -1): the
+                                                                    old list's and the new one's blows on the same frame */
+    vlist_place(f, sp);
+    while (f->vsigp) {
+        f->vsigp--;
+        if (f->vlist && !(f->vlist & 0x80)) { f->vlist++; f->vent = 0xFF; vlist_place(f, sp); }
+    }
+}
+static void vlist_place(fighter_t *f, const bspec_t *sp) {
     fighter_t *t = f->target;
     const bvlist_t *l;
     const bvent_t *e;
@@ -1576,7 +1621,13 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
         hit_sfx(f->pfx);
         if (e->flags & VE_BURN) set_burn(t, (e->flags & VE_BURN) >> 4);   /* its burn (KOF $17AC0: Iori 624's purple) */
     }
-    if (e->flags & VE_REL) {                                     /* the release: its flight (KOF 283, the blowback) */
+    if ((e->flags & VE_REL) && (l->flags & VL_STAND)) {          /* a release that leaves it standing (TODO #220, KOF98
+                                                                    Yamazaki MAX 236236C: 329 until the strike's hold
+                                                                    hit takes it): still held, reeling in place, until
+                                                                    a hit by another box (phh) */
+        f->vlist = 0; f->phh = 1; f->phold = 0;
+        t->frame_ovr = 0xFFFF; t->zfront = 0;
+    } else if (e->flags & VE_REL) {                              /* the release: its flight (KOF 283, the blowback) */
         f->pflags &= ~PF_HOLD; f->phold = 0; f->vlist = 0;
         t->frame_ovr = 0xFFFF; t->zfront = 0;
         react(t, f->facing, R_KNOCKDOWN, 0);
@@ -1699,7 +1750,14 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_SIGCLR: f->pflags &= ~(~p->v & (PF_SIG7 | PF_SIG6)); break;
         case P_HITOFF: f->landed = 0; break;                     /* KOF +$E1 bit 7 cleared */
         case P_ADV: pan_advance(f); break;                       /* the engine called again on the same state: one more step tick */
-        case P_CHECK: f->plink |= (p->b ? f->phl : f->spend) & p->a; break;   /* the follow-up check: this frame's presses
+        case P_CHECK:                                            /* (b 2, a mash: KOF's fp@(5), this frame's press: */
+            if (p->b == 2) {                                     /* one made early in its hit-stop is never read, nor */
+                uint8_t m = f->spmash & p->a;                    /* one past the mash window, TODO #220) */
+                f->plink |= m;
+                if (m) f->mash = MASH_GAP;
+                break;
+            }
+            f->plink |= (p->b ? f->phl : f->spend) & p->a; break;   /* the follow-up check: this frame's presses
                                                                     of links a (b: those made in its last hit-stop, KOF
                                                                     +$1AC: Iori 623D's landing, TODO #140) */
         case P_PART: f->plink = 0; break;                        /* the handler cleared its request: a new part */
@@ -1708,7 +1766,8 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_PUT: f->phold = p->v; hold_apply(f); break;     /* the caught victim put in front of it */
         case P_HITCLR: f->pflags &= ~PF_HITANY; break;
         case P_HOLD: f->pflags |= PF_HOLD; break;
-        case P_VSIG: if (f->vlist) { f->vlist++; f->vent = 0xFF; } break;   /* its caught victim's next list (KOF +$D1 bit 7) */
+        case P_VSIG: if (f->vlist) f->vsigp++; break;            /* its caught victim's next list (KOF +$D1 bit 7; taken
+                                                                    by vlist_apply after this frame's place) */
         case P_CATCH:                                            /* the engine's throw on its held victim (TODO #216, */
             f->pcatch = p->a ? 2 : 1; f->phit = p->b; f->pdeadn = p->a; f->pdead = 0;   /* KOF98 $3F8A: Iori 23624C's */
             f->vlist = 0x80 | (uint8_t)v; break;                 /* finisher): a dead frames, then routine b, list v
@@ -1727,7 +1786,7 @@ frame_done:
     f->pstill = 0;
     if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);    /* a voice sent later: KOF counts +$1B6 down after the
                                                                     code, the frame it was set included (KOF98 $17074) */
-    f->spend = 0;                                                /* a press counts on the frame it is read */
+    f->spend = f->spmash = 0;                                    /* a press counts on the frame it is read */
     for (n = 0; n < 2; n++) {                                    /* its pinned effects follow this frame's move */
         fighter_t *p = f->proj[n];
         if (p && p->pdef && p->pdef->follow) { p->throw_x0 = pin_of(p)->x; p->facing = f->facing; proj_row(p); }
@@ -1736,7 +1795,8 @@ frame_done:
     s = &f->pan->steps[f->pstep];
     f->frame_ovr = s->frame;
     f->spec_atk = (s->flags & 1) ? &s->atk : 0;
-    f->spec_prev_hit = (s->flags & 1) ? 1 | (s->flags & 64 ? 16 : 0) | (s->flags & 128 ? 32 : 0) | ((s->flags & 4) && !(sp->sflags & SF_SREACT) ? 64 : 0) : 0;   /* 16 a catch box, 32 no hit-stop, 64 no slide (under SF_SREACT flag 4 is its push box) */
+    f->spec_prev_hit = (s->flags & 1) ? 1 | (s->flags & 64 ? 16 : 0) | (s->flags & 128 ? 32 : 0) | ((s->flags & 4) && !(sp->sflags & SF_SREACT) ? 64 : 0)
+                                        | (s->hy == HY_HOLD && !(sp->sflags & SF_SREACT) ? 128 : 0) : 0;   /* 16 a catch box, 32 no hit-stop, 64 no slide (under SF_SREACT flag 4 is its push box) */
     if ((f->pflags & PF_HOLD) && f->phold && f->target && f->target->state == S_HITSTUN && (f->x - x0) && ((f->x > x0) == (f->facing > 0)))
         f->x -= (f->x - x0) / 2;                                 /* walking into the held victim: KOF's bodies share the push */
     hold_apply(f);
@@ -1900,6 +1960,7 @@ static void update(fighter_t *f, const intent_t *in) {
         f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
                                                                     before its first hit does nothing); a fury: down+D
                                                                     its MAX (rule 3) */
+    if (f->mash && (f->state != S_SPECIAL || !--f->mash)) f->mash = 0;   /* the mash window (real frames, MASH_GAP) */
     if (f->state == S_SPECIAL && in->press && f->ch->specials[f->spec_ix].nlinks) special_input(f, in);   /* a follow-up
                                                                     (presses in hit-stop count) */
     meter_tick(f);
@@ -2124,6 +2185,7 @@ static void update(fighter_t *f, const intent_t *in) {
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
+    uint8_t caught = 0;                                          /* a ROM special's catch box took it (CATCH_STOP) */
     uint8_t sr = a->state == S_SPECIAL && a->spec_sr ? (v->y > 0 ? a->spec_sr >> 4 : a->spec_sr & 15) : 0;   /* its source
                                                                     reaction (standing / airborne: Kizuna's situation) */
     if (reaction > 15) reaction = v->y > 0 && (sr || !(a->state == S_SPECIAL && a->spec_id == BS_FURY && (reaction & 7) <= R_HEAVY))
@@ -2131,7 +2193,8 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
                                                                     standing one, its dance catches the airborne, TODO #150;
                                                                     a source reaction: its own airborne one) */
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
-    rk = reaction; reaction &= 7;
+    rk = reaction == RK_HIGH ? R_LAUNCH | 16 : reaction;         /* (KOF's high launch, 299: kof_react) */
+    reaction = reaction == RK_HIGH ? R_LAUNCH : reaction & 7;
     v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
     if (v->state == S_THROWN) {                                  /* rule 5: hit in its throw's flight: the script ends */
         if (v->throw_id < BT_COUNT) v->hp -= THROW_DAMAGE - v->throw_dealt;   /* (the throw's damage still dealt) */
@@ -2140,7 +2203,12 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {   /* a ROM special (TODO #139): */
         a->pflags |= PF_HITANY;
         if ((a->spec_prev_hit & 16) && a->phit != 0xFF && !a->pcatch) {   /* a catch box: no damage, the victim held, */
-            a->pcatch = 3; a->pflags |= PF_HOLD; a->phold = 0; damage = 0;   /* its routine after the hit-stop */
+            a->pcatch = 3; a->pflags |= PF_HOLD; a->phold = 0; damage = 0; caught = 1;   /* its routine after the hit-stop */
+        }
+        if (a->spec_prev_hit & 128) {                            /* a hold hit (KOF's box $36, TODO #220): its victim */
+            a->pflags |= PF_HOLD; a->phold = 0; a->phh = 1;      /* held by the attacker's victim routine (+$1A0) */
+        } else if (a->phh && (a->pflags & PF_HOLD) && v == a->target && !caught) {   /* another box on it: let go, its */
+            a->pflags &= ~PF_HOLD; a->phh = 0;                   /* own reaction (Yamazaki MAX's last strike: the launch) */
         }
         if ((a->pflags & PF_HOLD) && (v == a->target || a->pcatch == 3 || a->spec_id == BS_FURY)) rk = reaction = R_HEAVY;
                                                                  /* held: a reel in place (a fury's hold: its whole crowd) */
@@ -2156,7 +2224,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     }
     v->hp -= damage + (a->owner ? a->owner : a)->power;
     if (v->hp > 0) voice_play(v->ch, v->team, VK_HIT);          /* the KO voice: once, at the death (S_DEAD) */
-    v->freeze = HITSTOP;
+    v->freeze = !caught ? HITSTOP : a->pdeadn > HITSTOP - CATCH_STOP + 1 ? CATCH_STOP : HITSTOP + 1 - a->pdeadn;
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
     a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
     {   fighter_t *o = a->owner ? a->owner : a;                  /* the cancel rule: a special that landed (its body, */

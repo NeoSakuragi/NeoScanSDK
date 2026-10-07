@@ -30,6 +30,7 @@ from harness import Brawler
 import romspecials98 as K, handlers98 as H
 NPJ = 8                                                  # fighter.h: the projectile entities
 FOLLOW_BLAG = 1                                          # the brawler's pad -> intent delay (frames; measured)
+MASH_LAG = 4                                             # fighter.c MASH_LAG (a mash press in the hit-stop's last frames)
 from PIL import Image, ImageDraw
 
 ROLES = {'D': '4:c', 'fD': '4:Rc', 'dD': '4:Dc', 'uD': '4:Uc', 'dfD': '4:DRc', 'ufD': '4:URc', 'C': '4:d', 'M': '4:Dd'}   # M: the MAX fury (down+D, TODO #152)   # facing right (C + the stick:
@@ -40,7 +41,8 @@ KOF = {'kyo': 0, 'terry': 3, 'ryo': 6, 'robert': 7, 'ralf': 10, 'mai': 16, 'yash
 FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],                       # 214A (214A, 623D)
               ('kyo', 'again'): [(-8, 2, 'R'), (-6, 2, 'DR'), (-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   # 63214A (236C)
               ('kyo', 'fA'): [(-2, 2, 'R'), (0, 6, 'Ra')],                                          # 6A (236C's 2nd)
-              ('k_dash', 'fA'): [(-2, 2, 'R'), (0, 6, 'Rb')], ('k_dash', 'fAB'): [(-2, 2, 'R'), (0, 6, 'Rd')]}
+              ('k_dash', 'fA'): [(-2, 2, 'R'), (0, 6, 'Rb')], ('k_dash', 'fAB'): [(-2, 2, 'R'), (0, 6, 'Rd')],
+              ('ralf', 'again'): [(0, 3, 'a')]}                                                    # AAAA's mash (TODO #220)
 FOLLOW_PAD = {'fA': ('Ra', 0), 'fAB': ('Rc', 0)}        # the brawler's pad keys, the frames its intent waits (0: no chord)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = int(os.environ.get('EVERY', 4))             # the sheets: every EVERY-th frame from SHEET_FROM, at most NSHOT
@@ -92,8 +94,10 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
         if started is not None:                          # a follow-up: pressed so that prog_update reads it at its frame
             sr = b.fget(0, 'srow')                       # (srow = the program frames played: the next one is srow)
             for j, (pf, fk, dl) in enumerate(follow):
-                if j not in fpress and (b.fget(0, 'freeze') > 1 if pf is None else sr >= pf - dl - FOLLOW_BLAG): fpress[j] = 3
-                # (pf None: pressed in its hit-stop, Iori 623D's latch)
+                if j not in fpress and (b.fget(0, 'freeze') > 1 if pf is None else 0 < b.fget(0, 'freeze') <= MASH_LAG if pf == 'late'
+                                        else sr >= pf - dl - FOLLOW_BLAG): fpress[j] = 3
+                # (pf None: pressed in its hit-stop, Iori 623D's latch; 'late': a mash press KOF made in its hit-stop and
+                #  read after it, TODO #220: in the brawler's own hit-stop's last MASH_LAG frames)
                 if fpress.get(j, 0) > 0: b.pad = [set(mir(fk)), set()]; fpress[j] -= 1
         st = b.states[b.fget(0, 'state')]
         want = started is not None and len(rows) >= SHEET_FROM and ((len(rows) - SHEET_FROM) % EVERY == 0)
@@ -235,8 +239,8 @@ def main(game, out, cases):
                     p2_seq=K.follow_spec(cid, inp.replace('EX ', ''), branch, inp.startswith('EX '), kg, [(t, ev) for t, ev, mk in kfol]) if kfol else '')
             # the opponent as far ahead as KOF's was when the special started (a charge move walked P1 back first)
             gap = round(game_rows[0]['p2x'] - game_rows[0]['x']) if branch in DIST else None
-            bfol = [((None if q in res['press_latched'] else pf),) + bp for q, (pf, bp) in enumerate(zip(res['press_frames'], bpad))
-                    if pf is not None]   # (a press KOF latched in its hit-stop: the brawler presses in its own)   # the program frame KOF's
+            bfol = [(('late' if q in res.get('press_infreeze', ()) else None if q in res['press_latched'] else pf),) + bp
+                    for q, (pf, bp) in enumerate(zip(res['press_frames'], bpad)) if pf is not None]   # (a press KOF latched in its hit-stop: the brawler presses in its own)   # the program frame KOF's
                                                          # handler read it on (None: lost in KOF's hit-stop, not pressed)
             br, bro = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter, follow=bfol, frames=900 if dm else 700,
                                   obj_window=len(game_rows) + 60, held=res.get('held', 0))

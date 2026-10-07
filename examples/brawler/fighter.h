@@ -316,15 +316,18 @@ typedef struct fighter {
     uint8_t  vlist, vent;         /* a ROM special's caught victim script (vocabulary hold.victim_list, TODO #173): the
                                    * list its target follows + 1 (0 none; bspec_t.vlists), the attacker step whose entry
                                    * was taken last (0xFF: none yet in this list) */
-    uint8_t  pheld, wpad;         /* a special's button held this frame (PC_HELD: KOF's charge, Rugal's Kaiser Wave) */
+    uint8_t  pheld, vsigp;        /* a special's button held this frame (PC_HELD: KOF's charge, Rugal's Kaiser Wave);
+                                   * vsigp: its P_VSIG signals this frame, taken by vlist_apply after its placement (TODO #220) */
     int32_t  py0;                 /* a projectile's height at its hit: its end rows' heights are from it (TODO #164); an air
                                      projectile's (bproj_t air) thrower's height at its spawn: its rows' heights count from it (TODO #211) */
     const banim_t *fx_pan;        /* a step effect (bproj_t follow 8, anim.step_spawn): its owner's animation and step */
     uint8_t  fx_step, vfly;       /* when it was born; it ends when they change (KOF98 $3751A); vfly: a caught victim
                                    * a flying victim list moves (VL_FLY, fighter.c vlist_apply): its own S_HITSTUN update
                                    * leaves its body alone while it counts down (refreshed every frame of the list) */
-    uint8_t  fpose, fpad;         /* the fury's flash pose (TODO #145, fighter.c "flash pose"): 0 not started, 1 + the
-                                   * frame of the freeze it shows, 0xFF over (the fury plays from its first frame) */
+    uint8_t  fpose, phh;          /* the fury's flash pose (TODO #145, fighter.c "flash pose"): 0 not started, 1 + the
+                                   * frame of the freeze it shows, 0xFF over (the fury plays from its first frame); phh:
+                                   * its hold (PF_HOLD) came from a hold hit or a standing release (HY_HOLD / VL_STAND,
+                                   * TODO #220): a hit by another box lets the victim go with that hit's reaction */
     uint16_t dizzy;               /* a stun strike's victim (bthrow_t.stun, TODO #212: Cheng-Fu's throw): its S_HITSTUN
                                    * lasts this many frames, open to any hit; a hit (enter) ends it (0 none) */
     int32_t  kax;                 /* a source reaction (TODO #136, vocabulary reaction.source_motion, fighter.c src_react):
@@ -343,6 +346,9 @@ typedef struct fighter {
                                    * one lying fighter its hit reaches; cleared by its hit and special_end */
     uint8_t  dpin;                /* down attacks coming at this lying fighter: it stays down meanwhile (S_DOWN, at most
                                    * DOWN_PIN frames more: Double Dragon's victim lies dizzy) */
+    uint8_t  mash, spmash;        /* a mash (vocabulary input.mash, TODO #220, fighter.c MASH_GAP): frames left for the
+                                   * next press to count as one (from the special's start, again from each one read);
+                                   * spmash: this frame's link presses made inside that window (P_CHECK b 2) */
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */
