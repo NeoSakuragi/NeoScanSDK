@@ -984,15 +984,22 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   stage."): after the stage clear (and the boss death sequence), the player plays his own win pose from his source
   game (KOF win poses 336-343 etc., SS2 / Kizuna / WHP / DD equivalents), then the stage transition.
 
-- [ ] 185. CAMERA RISING IN FURIES (20261007-020507-5d29, 0.0.92: "Why is the camera going up? That is weird."): the SS2
+- [x] 185. CAMERA RISING IN FURIES (20261007-020507-5d29, 0.0.92: "Why is the camera going up? That is weird."): the SS2
   audit (0.0.91) made the camera rise during any fury so Genjuro's spin (126 px up) shows. Revert the generic rise;
   keep the action on screen another way (Genjuro's victim carried at a height that fits, or a rise only when an
   object would leave the top, eased, never for ground furies).
+  DONE (d8fe6d5): camera_y removed, the camera never moves vertically; Genjuro's WFT heights x WFT_FIT 0.33 (velocities
+  and gravity, same timing: spin 42 px, victim 90, under the HUD). Proof /data/tmp/b188/out/c185_*.
 
-- [ ] 186. BILLY KANE'S FURY (20261007-014003-5d29: "seems recorded, not decoded ... a multi-hit fury with the movement
+- [x] 186. BILLY KANE'S FURY (20261007-014003-5d29: "seems recorded, not decoded ... a multi-hit fury with the movement
   of the character moving forward ... the hits should not make the opponent leave the ground unless it's the final
   one"): check the fire-ring fury's victim handling vs KOF98 (each ring hit's reaction: stagger in place, launch only
   on the last), decoded from the ring object's hit code; say plainly if any part is replayed.
+  DONE (634cec6): the note is Billy LEE (Double Dragon; its bundle shows BILLY LEE's SUPER 236). export_dd gave the
+  knockdown to every hit of the move's last animation: the first hit launched. Now only the last hit-opening step
+  knocks down. DD (our emulator): hits 1-2 reel, 3-5 carry the victim 10-13 px up in its knockdown pose, fall after
+  the 5th; the brawler reels on the floor to its 4th (last) hit (4 openings vs DD's 5 hits: not modelled). Nothing
+  replayed. Billy Kane's ring: already reel x5 then launch on the 6th, as KOF98 (measured).
 
 - [ ] 187. SELECT STICK ORDER FROM POSITIONS (20261007-012550-5d29: "the layout is awesome ... however the sequencing
   is now messed up ... from Robert going right I end up on Yamazaki top left ... there should be some kind of automatic
@@ -1001,12 +1008,18 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   up / down = nearest above / below), at layout save time in the Lab and at build time; the Lab shows the arrows;
   the manual order list becomes an override only.
 
-- [ ] 188. REOPENED (0.0.92 tests): (a) Haohmaru SS2 grab: "the throws are okay ... however the grabbing motion sets the
+- [x] 188. REOPENED (0.0.92 tests): (a) Haohmaru SS2 grab: "the throws are okay ... however the grabbing motion sets the
   player and the victim in a reverse orientation" / "Haohmaru and Ryo are both facing right" (173459, 155732, 155708):
   the hold / grab phase's facing (SS2's mirrored steps in the hold, the victim's facing); (b) the burn palette
   (162034 Blitz Ball, 160855 Billy's ring): "looks nothing like when Terry ... gets engulfed in flame in KOF98": use
   KOF98's own burn palette and its cycle (decoded), for every fire hit; (c) 155538 Haohmaru's fury "still broken" (no
   details: compare his SS2 WFT with SS2 and say what differs).
+  DONE: (a) baebd6f: SS2 has no hold, its throw swaps the victim behind on frame 1; the hold is now that picture
+  mirrored (face to face, victim in front: bthrow_t.gframe), the throw unchanged. (b) d12b0de: KOF98's burn decoded:
+  the victim's own sprite in palette $F8 / $F9, a 5-colour ramp over pens 1-15 rotated every 4 frames (fighter.c
+  BURN_RAMP); Billy Kane's ring burns (KOF98 measured). (c) 9f71205: SS2's WFT connect = red backdrop 48 f, hold 40,
+  half speed 30, victim thrown 76 f after the hit (SF_BIGHIT); still missing: weapon loss, throw height 74 vs 52.
+  Proofs /data/tmp/b188/out.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
