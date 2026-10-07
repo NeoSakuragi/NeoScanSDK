@@ -251,6 +251,7 @@
    "fury": "SUPER 236",
    "unlock": "always",
    "voices": {"kof": false, "set": {"special:236": 13, "special:623": 14, "special:FORM": 15, "hit": 4, "win": 7}},
+   "variant": {"623": "A"},
    "form": {
     "trigger": "down+D full meter",
     "transition": "FORM",

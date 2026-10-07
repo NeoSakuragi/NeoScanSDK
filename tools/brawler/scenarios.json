@@ -709,6 +709,32 @@
   "do_keys": "3:d",
   "proof": 200
  },
+ "20261007-110922-b3f3": {
+  "title": "Billy Lee: Double Dragon's throws (forward / back + A)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_lee",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, then forward + A. Again with back + A.",
+  "expect": "Billy grabs Ryo face to face; forward + A: as in Double Dragon he pulls Ryo behind him, swings him over his head and throws him ahead (Ryo lands about 170 px away, bounces, lies down); back + A: the same throw the other way. Billy can act again while Ryo still flies.",
+  "do_keys": "4:R,2:Ra,90:-",
+  "proof": 60
+ },
+ "20261007-111015-b3f3": {
+  "title": "Billy Lee: the small dragon punch (A version) on down + C",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_lee",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down + C (dragon punch).",
+  "expect": "The dragon punch rises only a little (Double Dragon's A version, about 73 px, not the 140 px D version) and Billy lands back in about 52 frames.",
+  "do_keys": "3:D,4:Dc",
+  "proof": 90
+ },
  "20261007-113032-b3f3": {
   "title": "Haohmaru's fury: a short red flash and a normal hit-stop on its impact",
   "setup": {

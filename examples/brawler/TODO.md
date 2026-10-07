@@ -1127,19 +1127,6 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   = the 0.1.4 run but the line-up's 23rd fighter, fury195 flash pose ok (it connects from ~60 px: the column's reach).
   Scenario todo193-hanzo-ss2 (gen at publish: needs a build with him).
 
-- [ ] 195. (DONE ON BRANCH fix/193-hanzo-ss2 2026-10-07, awaiting Bruno's review) HAOHMARU'S FURY: THE IMPACT AND THE
-  RAGE COLOURS (20261007-113032-b3f3: "the red screen is too much and there shouldn't be so much freeze on impact";
-  20261007-112936-b3f3: keep SS2's red rage skin through the motion after the charge, the big fireball). (a) the 0.0.93
-  SS2 hit sequence (#188 c: red backdrop 48 frames, both held 40, slow motion 30) cut to a short red flash (BIGHIT_RED 8)
-  and the brawler's own hit-stop (BIGHIT_STOP 7 = HITSTOP), no slow motion (BIGHIT_SLOW 0); the victim still held to the
-  slash's throw (BIGHIT_HOLD = 7 + the 21 ticks of slash SS2 plays after its stop). (b) the flash pose's rage palette
-  (#191, bchar_t.fpal) stays on through the fury's motion and the colour set comes back when the fury ends
-  (special_end), as SS2 keeps its rage colours through the WFT; every SS2 fury the same (Genjuro, Kuroko, SS2 Hanzo:
-  his flame's hit is the same big hit, his backdrop $0002). Measured (harness, lab vs Ryo at 80 px): bighit_red 8 frames,
-  attacker freeze 7, victim held 28 then thrown, bighit_slow never counts; flash145_proof (/data/tmp/hanzo193/out/fury195):
-  haohmaru / genjuro / kuroko ok with the new checks fury_palette (rage colours every fury frame) and palette_back (the
-  colour set the frame after). Scenarios 20261007-113032-b3f3 / 20261007-112936-b3f3 (verify: identical states).
-
 - [ ] 191. (DONE ON BRANCH fix/191-ss2-timing-rage 2026-10-07, awaiting Bruno's review) SS2 TIMING + RAGE PALETTE (found by the Kuroko boomerang job and #189): (a) every Samurai Shodown II move
   (Haohmaru, Genjuro, Kuroko: specials, furies, normals?) runs 2 frames LONGER in the brawler than in SS2 (e.g. Kuroko
   6ABC): find the cause (step-length conversion SS2 ticks -> brawler frames, a first / last step off by one like
@@ -1174,6 +1161,55 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   measured colours pen for pen, flash145 anchor_is_head frame by frame; <name>_ss2_vs_brawler.png), ss2_proof/ (frames:
   only the known wide / grab-pose differences), controls 3/3 ok, cancel all ok 3, bank_proof ALL OK, regress no-bleed
   True (strict). Scenario todo191-haohmaru-rage-palette (lint 0).
+
+- [ ] 194. (DONE ON BRANCH fix/194-billy-lee-throws 2026-10-07, awaiting Bruno's review) BILLY LEE: THROWS + SMALL DRAGON PUNCH (20261007-110922-b3f3 "Billy does not have any throws yet";
+  20261007-111015-b3f3 "For the down + C special move, use the version of the dragon punch that is actually with A, so
+  the small" one): Double Dragon's throws decoded (command, animations, victim handling) through #146's standard
+  throw, for Billy Lee and Super Billy; down+C = the 623 A row (variant table).
+  DONE [code + meas] (tools/doubledr/throw_dd.py, study README "Throws"): DD's normal throw = a button with the stick
+  left OR right, close (box gap < 10 / 8 / 6 px for B / C / D), from the THROW TABLE $23C2A + 48 x char (range, the
+  thrower's animation 110-112, the VICTIM's 113-115 from its own table, the direction by the stick: not holding toward
+  = the thrower turns = the back throw, damage $1000-$1400); the victim's handler 13 ($21AF0) copies the thrower's step
+  each frame and places it from table $21B76 (pulled behind the turned thrower, over his head, in front), its step 4 =
+  the release (damage, then handler 2's flight from its header: vx 6, vy 2, g 0.375), landing -> 71 bounce / 73. The
+  script = DD row for row (victim step, place, height, release = DD's damage frame, landing, thrower end) for both forms
+  x B / C / D x forward / back (0 mismatches; D forward: 11 rows at DD's stage edge). Brawler: throw_c = forward + A =
+  DD's forward C throw, throw_d = back + A = its back throw (row flag 8), control return 35 rows (DD's own: Billy acts
+  while the victim flies), release 25, land 49; the hold = DD's first picture mirrored (gframe, SS2's rule #188 a: the
+  victim in front facing him), forward + A then plays DD's swap; victim_poses_dd.json; export_bm keys a throw's
+  own-victim rows by the roster name (Billy Lee = doubledr:billy). game.json billy_lee "variant": {"623": "A"}: down+C
+  peaks 73.1 px in 53 frames (DD's 623 A 73.1 / 52; D 140). Not modelled: DD's 16-frame dragon pause after the forward
+  throw's release. Found (engine, all throws, not changed): fighter.c paired_update returns at the control return before
+  placing the victim, so its row `ret` shows a frame late (one 6 px hitch in Billy's flight). Proof /data/tmp/billy194/out:
+  throw194.json + summary194.json, sheet_<form>_<throw>.png (DD | brawler), hold_*.png, rise.txt; throws166 f (FIGHTERS=,
+  forms by poke): Billy Lee all ok, Super Billy C ok / D n/a (no fury, by design); controls + cancel ok, bank_proof ALL
+  OK, regress bleed_same / strict True. Scenarios 20261007-110922-b3f3 / 111015 (verify identical, lint 0).
+
+- [ ] 195. (DONE ON BRANCH fix/193-hanzo-ss2 2026-10-07, awaiting Bruno's review) HAOHMARU'S FURY: THE IMPACT AND THE
+  RAGE COLOURS (20261007-113032-b3f3: "the red screen is too much and there shouldn't be so much freeze on impact";
+  20261007-112936-b3f3: keep SS2's red rage skin through the motion after the charge, the big fireball). (a) the 0.0.93
+  SS2 hit sequence (#188 c: red backdrop 48 frames, both held 40, slow motion 30) cut to a short red flash (BIGHIT_RED 8)
+  and the brawler's own hit-stop (BIGHIT_STOP 7 = HITSTOP), no slow motion (BIGHIT_SLOW 0); the victim still held to the
+  slash's throw (BIGHIT_HOLD = 7 + the 21 ticks of slash SS2 plays after its stop). (b) the flash pose's rage palette
+  (#191, bchar_t.fpal) stays on through the fury's motion and the colour set comes back when the fury ends
+  (special_end), as SS2 keeps its rage colours through the WFT; every SS2 fury the same (Genjuro, Kuroko, SS2 Hanzo:
+  his flame's hit is the same big hit, his backdrop $0002). Measured (harness, lab vs Ryo at 80 px): bighit_red 8 frames,
+  attacker freeze 7, victim held 28 then thrown, bighit_slow never counts; flash145_proof (/data/tmp/hanzo193/out/fury195):
+  haohmaru / genjuro / kuroko ok with the new checks fury_palette (rage colours every fury frame) and palette_back (the
+  colour set the frame after). Scenarios 20261007-113032-b3f3 / 20261007-112936-b3f3 (verify: identical states).
+
+- [ ] 196. THROW HITCH (found by #194): every throw's victim appears one frame late at the moment the thrower can act
+  again (control return): a 6 px hitch in the flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.
+
+- [ ] 198. KYO'S OROCHINAGI (20261007-114101-b3f3: "you can hold the button to keep it for longer, and in the MAX version
+  there's a hitbox from the very start as you maintain ... Kyo is on fire ... reverse engineer the code to include both
+  the holding mechanism and the hitbox in the MAX version"; 20261007-114149-b3f3: "the palette of the fireball seems
+  wrong"): decode from KOF98's (and KOF96's) handler: the hold-C delay (charge until release / max), the MAX's
+  burning-body hit box during the charge, and the flame object's palette; play them in the brawler.
+
+- [ ] 199. COIN SOUND (20261007-113856-b3f3: "a specific sound whenever I'm pressing coin or credit, just like the coin
+  inserted sound in Neo Geo games ... take the one from KOF 94"): find KOF94's coin-insert sound (its driver's command
+  at a credit), port the sample, play it on every coin / credit in the brawler.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
