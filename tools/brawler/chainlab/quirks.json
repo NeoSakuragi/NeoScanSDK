@@ -1,0 +1,77 @@
+{
+ "intro": "Glitches and odd mechanics found while studying the games behind the brawler: what the player does, what happens, and why in the game's own code. Measured in emulators from each game's program. Some of these made the games what they are.",
+ "quirks": [
+  {
+   "game": "Final Fight (Capcom, 1989)",
+   "title": "The thrown body refills your chain",
+   "do": "With Haggar: jab, jab, back + punch (backdrop) — then on another enemy just one jab and back + punch throws again.",
+   "happens": "The second throw comes after a single jab instead of two.",
+   "why": "The throw resets the chain, but when the thrown body lands on another enemy or object the game credits that hit to the thrower: his 45-frame chain credit refills, so the next jab already counts as link 2 and the following press is the final link (the throw). Never on the same enemy (the downed one is untouchable ~150 frames). Haggar's backdrop drops the body ~70 px behind him, often onto someone; Guy and Cody throw ~186 px, so it happens less.",
+   "brawler": "Proposed to keep on purpose: a hit by your thrown body counts as your hit.",
+   "shots": [{"src": "ffight/sheets/haggar_backthrow.png", "caption": "Haggar's backdrop from the chain (every 2 frames)"}]
+  },
+  {
+   "game": "Final Fight (Capcom, 1989)",
+   "title": "The 'half second' before an enemy hits",
+   "do": "Stand near an enemy and watch it.",
+   "happens": "It seems to start attacking but the hit takes a long time to come.",
+   "why": "Before most attacks the enemy holds its ordinary stance for a random wait taken from a table (1 to 60 frames, about half a second on average), then swings with a short wind-up (3-6 frames for punches, 12-15 for knives and charges, 20-50 for special moves). The warning you can read is only on the big hits.",
+   "brawler": "Proposed: keep the random wait but show a distinct ready pose during it.",
+   "shots": [{"src": "ffight/enemies/tele_bred_jab.png", "caption": "Bred: hold, wind-up, active"}, {"src": "ffight/enemies/tele_sp30dd0_3007a.png", "caption": "Andore: 49-frame clinch before the throw"}]
+  },
+  {
+   "game": "Final Fight (Capcom, 1989)",
+   "title": "A hidden difficulty rank",
+   "do": "Nothing visible.",
+   "happens": "Enemy count, health and damage change during play.",
+   "why": "A RAM byte ($FF80A8) is a hidden rank that sets how many enemies spawn and their health and damage; each enemy also reads its damage table from a later start point as the game goes on (Bred's punch 4, 5, 6, 7, 8...).",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "Streets of Rage 2 (Sega, 1992)",
+   "title": "Fast or slow finisher, decided by timing",
+   "do": "Press the 4th attack of the combo right as the 3rd hit recovers, or a little later.",
+   "happens": "Pressed within 2 frames: a 2-hit finisher; later: a single-hit finisher.",
+   "why": "The combo code checks how soon the 4th press comes after recovery; all four fighters have both versions (Axel 10 + 14 vs 10).",
+   "brawler": "Proposed as a rhythm reward: one extra route for a sharp press.",
+   "shots": [{"src": "sor2/sheets/axel_combo.png", "caption": "Axel's combo"}]
+  },
+  {
+   "game": "Streets of Rage 2 (Sega, 1992)",
+   "title": "Max and Axel share the same jump, bit for bit",
+   "do": "Jump forward with Axel and with Max.",
+   "happens": "Axel seems to move forward a frame or two sooner.",
+   "why": "Their arcs and air acceleration are identical to the sub-pixel; the only difference is the sub-pixel fraction each starts from (Axel walks 1.25 px per frame, so he can carry 0.75 px into the jump; Max walks 1.0 and stays on whole pixels). Both cover 69 px.",
+   "brawler": "",
+   "shots": []
+  },
+  {
+   "game": "Alien vs. Predator (Capcom, 1994)",
+   "title": "Dutch's buffer is a trap",
+   "do": "With Dutch, press the next attack during the hit freeze.",
+   "happens": "The next hit comes out later than if you had pressed just after the freeze.",
+   "why": "Dutch is the only character whose presses during hit-stop are kept — but they fire at the end of the animation, not at the first frame you could act.",
+   "brawler": "Proposed: a buffer for everyone, firing at the first possible frame.",
+   "shots": [{"src": "avsp/sheets/dutch_combo.png", "caption": "Dutch's combo"}]
+  },
+  {
+   "game": "Alien vs. Predator (Capcom, 1994)",
+   "title": "Juggles with a brake",
+   "do": "Launch an alien and keep hitting it in the air.",
+   "happens": "After 3 air hits it can't be touched; the more juggle hits it took, the faster it gets up.",
+   "why": "A stun meter per enemy fills with hits and the finisher always launches; each air hit pops the alien a little and adds 1 to a juggle counter capped at 3; lying time shrinks with the counter.",
+   "brawler": "Proposed: the same launch model, a built-in brake against endless juggles.",
+   "shots": [{"src": "avsp/sheets/linn_launcher_juggle.png", "caption": "Linn: chain, launch, 3 juggle hits to the cap"}]
+  },
+  {
+   "game": "The King of Fighters '98 (SNK, 1998)",
+   "title": "Mash to extend Yashiro's fury",
+   "do": "During Yashiro's punch-rush super, keep pressing A or C.",
+   "happens": "More hits: 5 unmashed, 13 mashed (MAX: 7 vs 23).",
+   "why": "Every frame of the flurry the code reads a new A / C press and sets a latch; when the flurry ends, a set latch replays it, at most 4 times (MAX 8). Ralf's Vulcan Punch, Billy's CCCC spins and Mr. Big's punches (KOF96) work the same way.",
+   "brawler": "Yashiro plays the maxed-out rush as standard since 0.4.0 (Bruno's call); the others are left as they are.",
+   "shots": [{"src": "mash/yashiro_DM_mashC.png", "caption": "Yashiro's fury, mashed: 13 hits"}]
+  }
+ ]
+}

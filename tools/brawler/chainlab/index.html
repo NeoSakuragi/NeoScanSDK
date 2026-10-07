@@ -124,6 +124,18 @@ main { display: grid; grid-template-columns: minmax(0, 660px) minmax(0, 1fr); ga
 #touch .btns { display: grid; grid-template-columns: repeat(2, 60px); gap: 6px; }
 #touch button { min-height: 52px; touch-action: none; }
 #loading { padding: 24px 16px; font-size: 16px; }
+#quirkcol { padding: 12px 16px; min-width: 0; max-width: 1100px; }
+#quirkcol .q { border: var(--line); margin: 12px 0; }
+#quirkcol .q > h2 { font-size: 16px; margin: 0; padding: 6px 8px; border-bottom: var(--line); }
+#quirkcol .q > h2 small { font-weight: 400; }
+#quirkcol .q .in { padding: 8px; }
+#quirkcol .q dt { font-weight: 700; margin-top: 6px; }
+#quirkcol .q dd { margin: 2px 0 0 0; }
+#quirkcol .q .shots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+#quirkcol .q figure { margin: 0; border: var(--line); }
+#quirkcol .q figure img { display: block; max-width: 100%; image-rendering: pixelated; }
+#quirkcol .q figcaption { font-size: 12px; padding: 2px 6px; border-top: var(--line); }
+#quirkcol code { font-size: 12px; }
 nav.tabs { display: flex; gap: 0; }
 nav.tabs button { border-width: 2px; margin-right: -2px; }
 #stagecol { padding: 12px 16px; min-width: 0; }
@@ -264,7 +276,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <body>
 <header>
   <h1>Brawler Lab</h1>
-  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabSelect">Select screen</button><button id="tabFeedback">Feedback</button></nav>
+  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabSelect">Select screen</button><button id="tabFeedback">Feedback</button><button id="tabQuirks">Oldies quirks</button></nav>
   <span id="clhead" class="row" style="margin:0">
   <label>Fighter <select id="fighter"></select></label>
   <label>Dummy <select id="dummy"></select></label>
@@ -328,6 +340,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
   <section id="charcol" hidden></section>
   <section id="selcol" hidden></section>
   <section id="fbcol" hidden></section>
+  <section id="quirkcol" hidden></section>
 </main>
 <script src="lab.js"></script>
 <script src="core.js"></script>
@@ -341,5 +354,6 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <script src="selectscreen.js"></script>
 <script src="fbreplay.js"></script>
 <script src="feedback.js"></script>
+<script src="quirks.js"></script>
 </body>
 </html>

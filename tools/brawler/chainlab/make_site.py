@@ -95,5 +95,17 @@ json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
 # the Select screen tab: the build's select screen as data (select_images.py: the ROM's pictures, the fix layer from our
 # emulator, the pose candidates above as palette indices) for selectrender.js
 json.dump(select_images.select_data(game, poses), open(os.path.join(out, 'select.json'), 'w'))
-for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)
+
+# "Oldies quirks" tab: quirks.json + its images (paths in quirks.json are relative to QUIRK_SRC; copied under quirks/)
+QUIRK_SRC = '/data/study'
+qj = os.path.join(HERE, 'quirks.json')
+if os.path.exists(qj):
+    Q = json.load(open(qj))
+    for q in Q.get('quirks', []):
+        for sh in q.get('shots', []):
+            src = os.path.join(QUIRK_SRC, sh['src'])
+            if os.path.exists(src):
+                dst = os.path.join(out, 'quirks', sh['src']); os.makedirs(os.path.dirname(dst), exist_ok=True); shutil.copy(src, dst)
+    shutil.copy(qj, os.path.join(out, 'quirks.json'))
