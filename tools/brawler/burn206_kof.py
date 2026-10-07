@@ -35,7 +35,7 @@ def main(dst):
         for inp in sorted(inps):
             for sdm in ((False, True) if inp in FURY else (False,)):
                 ex = inp.startswith('EX '); k = ('MAX ' if sdm else '') + inp
-                rom = H.export_rom(m, cid, k, lambda fi: fi)
+                rom = H.export_rom(m, cid, k, lambda fi, tab=None: fi)
                 pred = sorted({e for e in [rom.get('elements', {}).get(st) for st in rom.get('states', [])] +
                                [e for e in H.object_elements(rom.get('objects', []))] if e})
                 row = {'predicted_burn': sorted({COLOUR[H.BURN_OF[e]] for e in pred if e in H.BURN_OF})}

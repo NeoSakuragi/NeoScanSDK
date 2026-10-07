@@ -1188,40 +1188,83 @@ def victim_release(m, addr):
 #     charge in his hand, 132-134: kind $DF state 246; Gigantic Pressure's push, 201: kind $E1 state 250);
 #   'once' (`move #T, +$70; move #S, +$72; move #n, +$2C; bsr $36BAA; bra $36C54`): placed once at the owner + (x, -y
 #     up), plays its animation, freed at its end.
-# Only effects drawn from the fighter's own table (T = its id) are exported (the shared effects bank, T 38, is not in
-# its frames). STEP_FX: the fighters whose ROM specials play them (Rugal, TODO #173; the rest after review).
+# Effects drawn from the fighter's own table (T = its id): STEP_FX fighters; from the shared effects bank (T 38): every
+# fighter, SHARED_FX below (TODO #214). STEP_FX: the fighters whose ROM specials play their own (Rugal, TODO #173).
 #   'once' also as `move #S, +$72; bra $3770C` -> `move #0, +$70; move #16, +$2C; movea.l +$84, a3; move.b +$1AB(a3),
 #     +$30; bra $36C12` (Kyo's hand fire, kinds $45-$48: states 249-252, TODO #202): $36C12 is the same placement inline
 #     (x + the owner's, the record's y added to +$1C, the owner's height) then $36C54's loop: freed at its animation's end.
 # STEP_FX: the fighters whose ROM specials play them (Rugal, TODO #173; Kyo, TODO #202: his hand fire on 236C / the
 # furies' release, Bruno's review; the rest after review).
 STEP_FX = {'kof98': {36, 0}}
-STEP_FX_SHAPES = {0x37494: 'pinned', 0x36C54: 'once', 0x36C12: 'once'}
-def fx_routine(m, kind):
-    """kind -> (shape, table, state) or None"""
+STEP_FX_SHAPES = {0x37494: 'pinned', 0x36C54: 'once', 0x36C12: 'once', 0x36C16: 'once'}
+# KOF'S SHARED EFFECTS BANK (TODO #214, read 2026-10-07): the kinds whose routine sets T = 38 draw from the common
+# effects table (every fighter's, not one's own: the explosions, dust, smoke), with ABSOLUTE palettes (their sprite
+# definitions' palette bytes 80-127 are palette RAM slots, loaded once per fight from the palette ROM at the same index:
+# palette n = slot n, measured in our emulator, palette RAM during Iori's 624D = $2D77F0 + 32 n for every slot 80-127,
+# constant). The routines read here besides the shapes above: the state from the kind (`move +$C2, d0; addi #N, d0;
+# move d0, +$72`: the spawner $5D1C stores the kind in +$C3: $18 -> 35, $19 -> 36, $0B / $0C -> 23 / 24, $23 / $24 ->
+# 59 / 60, $17 -> 34), or `move #N, +$C2` then $36CD2 (`move +$C2, +$72`; +3 in MAX mode: owner +$E0 bit 4, Rugal's
+# $32 -> 2 / 5); a sound (`move #n, d0; jsr $7A98`, not exported: the step voices are $FC records); the draw priority
+# +$2C (16 in front of the owner, -16 behind: $17 / $19 / $55); `bsr $36BB4` = $36BAA without the owner's palette.
+# MAX mode is taken off (the brawler's specials have none). Every KOF98 fighter's ROM specials play the shared ones
+# (SHARED_FX); kinds that only shake the screen ($28 / $29 / $2A: an object $36320 with +$D2 frames / +$D4 amplitude)
+# or set a flag ($25) draw nothing and are not read.
+SHARED_FX = {'kof98': 38}
+SHAKE_FX = {0x1E128, 0x1E14A, 0x1E16C}                 # (kinds $28 / $29 / $2A: the screen shake object, not drawn)
+def fx_decode(m, kind):
+    """kind -> {'shape', 'table', 'state', 'prio' (+$2C: < 0 behind its owner), 'sound'} or None (a routine not read)"""
     dec = Decoder(m); a = m.u32(0x36382 + 4 * kind); T = S = None; sub = None
-    for _ in range(12):
+    c2, d0, prio, snd = kind, None, 16, None              # +$C2 = the kind (its low byte $C3 set by the spawner)
+    for _ in range(40):
         if a == 0x37494:                                 # reached by falling through ($37488: Kyo's $40 / $41)
-            return ('pinned', T, S) if T is not None and S is not None else None
+            return {'shape': 'pinned', 'table': T, 'state': S, 'prio': prio, 'sound': snd} if T is not None and S is not None else None
+        if a in (0x36C12, 0x36C16) or (a == 0x36C54 and sub in (0x36BAA, 0x36BB4)):
+            return {'shape': 'once', 'table': T, 'state': S, 'prio': prio, 'sound': snd} if T is not None and S is not None else None
         mn, o, nx = dec.at(a)
-        if mn == 'movew' and o[1] == '%a4@(112)': T = imm(o[0])
-        elif mn == 'movew' and o[1] == '%a4@(114)': S = imm(o[0])
-        elif mn == 'movew' and o[1] in ('%a4@(198)', '%a4@(44)'): pass
+        f1 = field(o[1]) if len(o) > 1 else None
+        if mn == 'movew' and f1 == 112: T = imm(o[0])
+        elif mn == 'movew' and o[0] == '%d0' and f1 == 114: S = d0
+        elif mn == 'movew' and f1 == 114: S = imm(o[0]) if field(o[0]) is None else c2 if field(o[0]) == 194 else None
+        elif mn == 'movew' and o[1] == '%d0':
+            d0 = imm(o[0]) if field(o[0]) is None else c2 if field(o[0]) == 194 else None
+        elif mn == 'addiw' and o[1] == '%d0' and d0 is not None: d0 += imm(o[0])
+        elif mn == 'movew' and f1 == 194: c2 = imm(o[0])
+        elif mn == 'movew' and f1 == 44: prio = imm(o[0])
+        elif mn == 'movew' and f1 == 198: pass
+        elif mn in ('addqw', 'subqw', 'addiw') and f1 in (114, 194):
+            v = imm(o[0]) * (-1 if mn == 'subqw' else 1)
+            if f1 == 114: S = None if S is None else S + v
+            else: c2 += v
+        elif mn == 'jsr' and imm(o[0]) == 0x7A98: snd = d0
+        elif mn == 'jsr' and imm(o[0]) in SHAKE_FX: return None
         elif (mn, o) in (('moveal', ['%a4@(132)', '%a3']), ('moveb', ['%a3@(427)', '%a4@(48)'])): pass   # the owner's palette
+        elif mn == 'btst' and o == ['#4', '%a3@(224)']:  # MAX mode (owner +$E0 bit 4): off -> Z set
+            mb, ob, nb = dec.at(nx)
+            if mb.startswith('beq'): a = imm(ob[0]); continue
+            if mb.startswith('bne'): a = nb; continue
+            return None
+        elif mn == 'nop': pass
         elif mn.startswith('bsr'): sub = imm(o[0])
         elif mn.startswith('bra'):
-            t = imm(o[0]); shape = STEP_FX_SHAPES.get(t)
-            if shape is None and t in (0x3770C, 0x37488): a = t; continue   # the kinds' shared tails (above)
-            if shape == 'once' and t == 0x36C54 and sub != 0x36BAA: return None
-            return (shape, T, S) if shape and T is not None and S is not None else None
+            t = imm(o[0])
+            if t == 0x36C54 and sub not in (0x36BAA, 0x36BB4): return None
+            a = t; continue                              # a shared tail ($3770C, $37488, $36E50, $36CD2, $36FFE...)
         else: return None
         a = nx
     return None
 
-def step_effects(m, cid, states):
+def fx_routine(m, kind):
+    """kind -> (shape, table, state) or None"""
+    d = fx_decode(m, kind)
+    return (d['shape'], d['table'], d['state']) if d else None
+
+def step_effects(m, cid, states, shared=True):
     """the $FA effect records of a special's states: [{'state', 'step' (the step it starts with), 'kind', 'dx' (px
-    forward), 'dy' (px up), 'shape', 'fstate'}], the fighter's own table only"""
-    if cid not in STEP_FX.get(m.game, ()): return []
+    forward), 'dy' (px up), 'shape', 'fstate', 'table', 'back' (drawn behind its owner)}]: the fighter's own table
+    (STEP_FX fighters) and KOF's shared effects bank (SHARED_FX, every fighter: TODO #214; shared False: not those, a
+    special the brawler does not play: only the frames used are exported)"""
+    own = cid in STEP_FX.get(m.game, ()); shared = SHARED_FX.get(m.game) if shared else None
+    if not own and shared is None: return []
     out = []
     for st in states:
         a = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); k = 0
@@ -1229,11 +1272,12 @@ def step_effects(m, cid, states):
             b0 = m.u8(a + 6 * i)
             if b0 in (0xFE, 0xFF): break
             if b0 == 0xFA:
-                kind = m.u8(a + 6 * i + 1); r = fx_routine(m, kind)
-                if r and r[1] == cid:
+                kind = m.u8(a + 6 * i + 1); r = fx_decode(m, kind)
+                if r and (own and r['table'] == cid or r['table'] == shared and r['shape'] == 'once'):
                     x, y = m.u16(a + 6 * i + 2), m.u16(a + 6 * i + 4)
                     x, y = x - 0x10000 if x > 0x7FFF else x, y - 0x10000 if y > 0x7FFF else y
-                    out.append({'state': st, 'step': k, 'kind': kind, 'dx': -x, 'dy': -y, 'shape': r[0], 'fstate': r[2]})
+                    out.append({'state': st, 'step': k, 'kind': kind, 'dx': -x, 'dy': -y, 'shape': r['shape'], 'fstate': r['state'],
+                                'table': r['table'], 'back': r['prio'] < 0})
             elif b0 < 0x80: k += 1
     return out
 
@@ -1440,7 +1484,7 @@ def super_flash(m, cid, states, sdm=False):
             if b0 < 0x80: t += b0 + 1
     return None
 
-def export_rom(m, cid, inp, add, game='kof98'):
+def export_rom(m, cid, inp, add, game='kof98', shared=True):
     """a special's ROM program in export terms (export96 calls it for ROM_SPECIALS; tools/brawler/export_bm.py compiles
     it): ops (bookkeeping dropped, branch targets as op indices), anims {state: steps (frame = export index via add,
     ticks, flags, dx, boxes)}, per state the hits it opens (whiff model), objects (flight rows for export_bm's
@@ -1598,18 +1642,20 @@ def export_rom(m, cid, inp, add, game='kof98'):
                      'rearm': int(bool(nxt))})   # its re-arming rows (bprow_t flags 4): a phased object's (object.phase)
     step_fx = []                                       # its animations' effect records (anim.step_spawn, TODO #173): an
     fxdefs = {}                                        # object each (deduped by state / offset), spawned as its step starts
-    for e in step_effects(m, cid, states):
-        key = (e['fstate'], e['dx'], e['dy'], e['shape'])
+    for e in step_effects(m, cid, states, shared):
+        key = (e['table'], e['fstate'], e['dx'], e['dy'], e['shape'])
         if key not in fxdefs:
-            fsteps, fmode = anim_steps(m, cid, e['fstate'])
-            rows = [[add(fi), e['dx'], e['dy'], None, None, 0] for t, fi, fl, bx, raw, dx in fsteps for _ in range(t + 1)]
+            fsteps, fmode = anim_steps(m, e['table'], e['fstate'])   # (the shared bank's frames: export96 add_frame tab)
+            fadd = add if e['table'] == cid else (lambda fi, t=e['table']: add(fi, tab=t))
+            rows = [[fadd(fi), e['dx'], e['dy'], None, None, 0] for t, fi, fl, bx, raw, dx in fsteps for _ in range(t + 1)]
             if e['shape'] == 'once': rows += rows[-1:] * 2   # its animation's end flag frame + the frame it frees itself
                                                              # (measured: Rugal 236A's state 247, 39 frames = its 37 + 2)
             fxdefs[key] = len(objs)
             objs.append({'rows': rows, 'loop': 0 if e['shape'] == 'pinned' else None, 'end': [], 'kind': 3,
                          'follow': 9 if e['shape'] == 'pinned' else 0, 'hit_kind': hitkind, 'react': 'knockdown',
                          'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'state': e['fstate'], 'sig': 0,
-                         'next': None, 'stop': 0, 'rearm': 0, 'step_fx': e['kind']})   # follow 9: pinned for its step
+                         'next': None, 'stop': 0, 'rearm': 0, 'step_fx': e['kind'],   # follow 9: pinned for its step
+                         'table': e['table'], 'back': e['back']})   # (the shared bank's: TODO #214; back: KOF's +$2C < 0)
         step_fx.append((states.index(e['state']), e['step'], fxdefs[key]))
     variants = [variant_summary(m, cid, base, v) for v in decode_variants(m, h, b, ex, cid, sdm)]   # every version (stored;
     variants = variants if len(variants) > 1 else []                                          # the game plays this one)
@@ -1617,7 +1663,7 @@ def export_rom(m, cid, inp, add, game='kof98'):
     flash = super_flash(m, cid, [(st, next(r[0] for r in mrows if r[1] == st)) for st in starts if st is not None], sdm)
     def mark(ob):                                      # each object's burn element (its own state's steps, TODO #206)
         while ob:
-            ob['element'] = fire_element(m, cid, ob.get('state'))
+            ob['element'] = fire_element(m, ob.get('table', cid), ob.get('state'))   # (a shared-bank effect: its table)
             c = ob.get('child')
             while c: c['element'] = fire_element(m, cid, c.get('state')); c = c.get('child')
             ob = ob.get('next')

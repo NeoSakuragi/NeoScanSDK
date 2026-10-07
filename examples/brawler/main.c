@@ -53,6 +53,7 @@ static void mark(uint8_t sec) {
                                         win poses and the walk-offs are narrower (2026-10-05: widest 13, a walk; win 11,
                                         watch 8; 2026-10-06 Genjuro's win 14) */
 uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
+_Static_assert(16 + NA * MAX_PALS <= SFX_PAL && STAGE_PAL + STAGE_MAXPAL <= SFX_PAL && SFX_PAL + SFX_NPAL_MAX <= 240, "palettes: the select screen's actors, the stages, KOF's shared effects (TODO #214), the big portraits (PB_PALN)");
 #define SPR_BASE 59                  /* fighter blocks (stage 22-42, shadows 43-58 behind them; 1-21 free) (60 until
                                         NA 23, TODO #193: SH_SPR + NE = 59 is the lowest it can be) */
 static fighter_t fighters[NF];
@@ -233,6 +234,8 @@ static uint16_t slot_spr[NA];                    /* each depth slot's first spri
 #define PJ_SPRS (NPJ * PJ_COLS)                  /* the projectile pool's sprites, shared by width: 80 */
 static uint8_t pj_cols[BC_COUNT];                /* per character: its widest projectile / effect frame (pj_measure) */
 static uint8_t pj_w[NPJ];                        /* per pool entity: its block this frame (0: free, or no room) */
+static const bproj_t *pj_def[NPJ];               /* per pool entity: the definition pj_dw was measured for (TODO #214) */
+static uint8_t pj_dw[NPJ];                       /* its widest frame (pj_scan of its own definition and trail) */
 static uint8_t pj_scan(const bchar_t *c, const bproj_t *d) {   /* a projectile's rows, end rows and its trail's */
     uint8_t w = 0, k;
     for (; d; d = d->child) {
@@ -290,11 +293,23 @@ static void depth_sort(void) {
             fighter_t *t = order[j]; order[j] = order[j - 1]; order[j - 1] = t;
         }
     blocks_layout(nf > NE ? SEL_COLS : MAX_COLS);
-    if (blk_cols == MAX_COLS) {                  /* the pool's widths: in use = its thrower's widest, within PJ_SPRS */
+    if (blk_cols == MAX_COLS) {                  /* the pool's widths: in use = its own widest frame, within PJ_SPRS */
         uint8_t used = 0;
         for (i = 0; i < NPJ; i++) {
             const fighter_t *p = &projectiles[i];
-            uint8_t w = p->state == S_OFF ? 0 : pj_cols[p->ch->id];
+            uint8_t w = 0;
+            /* (TODO #214) an object's own widest frame, measured when its definition changes: KOF's shared effects come
+               several at once (Iori 624D's 7, Ralf [2]8A's 8, up to 8 columns), past PJ_SPRS at their thrower's widest;
+               the step effects (bchar_t.pfx) were not in pj_cols at all */
+            if (p->state != S_OFF) {
+                if (p->pdef != pj_def[i]) {
+                    uint8_t ob = BANK_set(CH_BANK(p->ch));   /* (its rows and frames: its bank) */
+                    pj_def[i] = p->pdef; pj_dw[i] = p->pdef ? pj_scan(p->ch, p->pdef) : 0;
+                    if (pj_dw[i] > MAX_COLS) pj_dw[i] = MAX_COLS;
+                    BANK_set(ob);
+                }
+                w = pj_dw[i] ? pj_dw[i] : pj_cols[p->ch->id];   /* (a script's effect, no definition: its thrower's widest) */
+            }
             if (used + w > PJ_SPRS) w = 0;               /* no room left in the pool's sprites: not drawn */
             used += w;
             if (w != pj_w[i]) { pj_w[i] = w; projectiles[i].shown_frame = 0xFFFF; }   /* re-clipped: tiles again */
@@ -374,6 +389,8 @@ void spark_hit(int16_t wx, int16_t sy, uint8_t big, int8_t facing) {
 static void sparks_init(void) {
     uint8_t i;
     PAL_setPalette(SPARK_PAL, spark_pal);
+    for (i = 0; i < SFX_NPAL; i++) PAL_setPalette(SFX_PAL + i, bm_sfx_pals + (i << 4));   /* KOF's shared effects bank's
+                                                                    palettes (TODO #214: Iori 624D's explosion, Rugal's slam) */
     for (i = 0; i < SPARK_N * 3; i++) { cmd_push(VRAM_SCB2 + SPARK_SPR + i, 0x0FFF); cmd_push(VRAM_SCB3 + SPARK_SPR + i, 0); }
     for (i = 0; i < SPARK_N; i++) spk[i].on = 0;
 }

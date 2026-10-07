@@ -18,6 +18,7 @@
 |   looking the frame up again.
 
     .equ    MAX_COLS, 20
+    .equ    SFX_PAL, 232            | fighter.h: KOF's shared effects bank's palettes (TODO #214; fighter.c pins it)
     .equ    CMD_BUF_SIZE, 4096
     | fighter_t
     .equ    F_CH, 0
@@ -133,11 +134,15 @@ fighter_tiles:
     sub.w   %d7, %d1
     moveq   #0, %d5
     move.b  PT_ROWS(%a3), %d5
-    | attribute: (palbase + pal) << 8 | vflip << 1 | hflip ^ (facing > 0)   (ROM sprites face left)
+    | attribute: (palbase + pal) << 8 | vflip << 1 | hflip ^ (facing > 0)   (ROM sprites face left); pal | 0x80: KOF's
+    | shared effects bank (TODO #214), the absolute palette SFX_PAL + (pal & 0x7F), not its owner's
     moveq   #0, %d4
-    move.b  F_PALBASE(%a2), %d4
-    add.b   PT_PAL(%a3), %d4
-    lsl.w   #8, %d4
+    move.b  PT_PAL(%a3), %d4
+    bmi.s   3f
+    add.b   F_PALBASE(%a2), %d4
+    bra.s   4f
+3:  add.b   #SFX_PAL - 0x80, %d4
+4:  lsl.w   #8, %d4
     move.b  PT_VFLIP(%a3), %d0
     add.b   %d0, %d0
     or.b    %d0, %d4
