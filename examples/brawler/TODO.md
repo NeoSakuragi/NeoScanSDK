@@ -1292,7 +1292,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   9 / 8, Ryo 7 / 4, Robert 7 / 4, Terry 7, SS2 / WHP 7-8, ...), Rugal 12 / 11 -> 8; none over 8, the warning is gone (so
   no per-animation swap is needed). Measured in our emulator, KOF98 palette RAM with Rugal in colour sets A-D (team
   record +4..6 poked with the swap) and during his Gigantic Pressure (effect palettes held as loaded on all 50 frames
-  sampled). Proof /data/tmp/pal201/out (tools/brawler/pal201_proof.py): counts.json; pixels.json: all 8242 exported frames
+  sampled). Proof /data/tmp/pal201/out (tools/brawler/pal201_proof.py): counts.json; pixels.json: all 8249 exported frames
   of the 24 fighters drawn from the game's data (bm_chars.c + C tiles), every colour set, before = after on every pixel,
   no part past slot 7; kof.json: the 24 frames of his own moves that were on slots 8+ (the fury's / MAX's pillar and
   skull) = KOF98's colours on every pixel in all 4 sets; game_sheet.png / game_new.json: the fury and MAX in the game,
