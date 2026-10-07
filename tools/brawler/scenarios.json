@@ -982,5 +982,39 @@
   "expect": "Like neutral C's slide but quicker to start (Kizuna's tag-in version): the slide and the rising swing, the dummy launched.",
   "do_keys": "3:DRc",
   "proof": 90
+ },
+ "20261006-155421-b3f3": {
+  "title": "WHP Hanzo: throws on A+B",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo",
+   "dummy": "ryo",
+   "gap": 20
+  },
+  "do": "Walk into Ryo, then press A+B (also try forward + A+B and back + A+B).",
+  "expect": "Hanzo grabs Ryo and throws him (forward throw, back throw over his shoulder), as in World Heroes Perfect.",
+  "do_keys": "",
+  "proof": 120
+ },
+ "20261006-155218-b3f3": {
+  "title": "Select screen: Yashiro not hidden behind K'",
+  "setup": {
+   "mode": "select",
+   "unlock": true
+  },
+  "do": "Look at the select screen, then move the cursor onto Yashiro and onto K'.",
+  "expect": "Yashiro and K' stand apart, both fully visible, each arrow over its own fighter.",
+  "do_keys": "",
+  "proof": 120
+ },
+ "20261006-155158-b3f3": {
+  "title": "COIN inserts a credit",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "Press COIN once (not START).",
+  "expect": "The CREDIT count goes up by one with KOF94's coin sound; START then starts the game.",
+  "do_keys": "",
+  "proof": 120
  }
 }
