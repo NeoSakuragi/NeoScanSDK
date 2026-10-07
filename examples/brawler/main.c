@@ -149,15 +149,14 @@ static void stage_hide(void) {                              /* title, select: no
     bd_on = 0;
     for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);
 }
-static int16_t cam_y;                             /* the camera's rise (vocabulary hold.dance (c)): px the scene shows lower */
 static void stage_show(void) {
     uint8_t s;
-    for (s = 0; s < BG_N; s++) cmd_push(VRAM_SCB3 + BG_SPR + s, ((496 - stg->y - cam_y) << 7) | stg->rows);
+    for (s = 0; s < BG_N; s++) cmd_push(VRAM_SCB3 + BG_SPR + s, ((496 - stg->y) << 7) | stg->rows);
 }
 static void stage_init(uint8_t n) {
     uint8_t s;
     bd_on = 0;
-    stg = &stages[n]; cam_y = 0; floor_top = stg->floor_top; world_w = stg->cols << 4;
+    stg = &stages[n]; floor_top = stg->floor_top; world_w = stg->cols << 4;
     stage_pals();
     *(volatile uint16_t *)0x3C0006 = stg->lspcmode;                /* REG_LSPCMODE: auto-animation speed */
     for (s = 0; s < BG_N; s++) {
@@ -186,31 +185,9 @@ static void stage_draw(void) {
         if (++s == BG_N) s = 0;
     }
 }
-/* the camera's rise (vocabulary hold.dance (c), 2026-10-07): a fury and its dance victims stay on screen upward too.
- * While a fury plays, the scene (stage plane and floor: floor_top) moves down so the highest of its attacker and its
- * dance victims shows its whole body (CAM_BODY px above its feet, CAM_TOP px from the screen's top), 4 px a frame at
- * most, CAM_Y_MAX at most, back down the same way when it ends (SS2's rage moves rise 126 - 175 px: SS2's own camera
- * follows them up). Normal jumps and the other specials keep the fixed framing. */
-#define CAM_BODY  100
-#define CAM_TOP   16
-#define CAM_Y_MAX 128
-static void camera_y(void) {
-    uint8_t i;
-    int16_t goal = 0, need, y;
-    for (i = 0; i < NF; i++) {
-        const fighter_t *f = &fighters[i], *a = f->dance;
-        if (f->state == S_OFF) continue;
-        if (!(f->state == S_SPECIAL && f->spec_id == BS_FURY) && !(a && a->state == S_SPECIAL && a->spec_id == BS_FURY &&
-                                                                  (f->state == S_HITSTUN || f->state == S_KNOCKDOWN))) continue;
-        need = INT(f->y) + CAM_BODY + CAM_TOP - (stg->floor_top + INT(f->z));
-        if (need > goal) goal = need;
-    }
-    if (goal > CAM_Y_MAX) goal = CAM_Y_MAX;
-    y = goal > cam_y + 4 ? cam_y + 4 : goal < cam_y - 4 ? cam_y - 4 : goal;
-    if (y == cam_y) return;
-    cam_y = y; floor_top = stg->floor_top + cam_y;
-    if (bd_on != 1) stage_show();                            /* (a hidden stage, screen_fx: shown back there, lower) */
-}
+/* the camera never moves vertically (TODO #185, Bruno 2026-10-07: "Why is the camera going up? That is weird."): the
+ * 0.0.91 rise during furies is gone; a move that goes high fits the fixed framing itself (Genjuro's spin: its carry
+ * height, handlers_ss2 gen_wft) */
 /* camera: toward the players' midpoint, 4 px a frame at most, inside the stage; players stay in view */
 static uint8_t in_play(const fighter_t *f) { return f->state != S_OFF; }
 static void camera(void) {
@@ -229,7 +206,6 @@ static void camera(void) {
         if (f->x < FIX(cam_x + 16)) f->x = FIX(cam_x + 16);
         if (f->x > FIX(cam_x + 304)) f->x = FIX(cam_x + 304);
     }
-    camera_y();
 }
 
 /* Neo Geo draws higher sprite numbers on top: fighters further back get the lower blocks. A fighter whose block changed

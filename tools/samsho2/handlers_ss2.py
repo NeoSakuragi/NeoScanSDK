@@ -227,6 +227,8 @@ def voff(a, k):
 REACT_G = N.s16(N.u32(0x6A500) + 4 * 5)          # $277F2 / $2792C: a reaction (class 3) falls with word 0 of the
                                                 # gravity entry 5 (93 / 256 px), the others with word 1 (131) [code]
 
+WFT_FIT = 0.33                                    # Genjuro's WFT heights in the brawler (gen_wft)
+
 def gen_wft(v):
     """the rage move, 6 3 2 1 4 6 + A in rage -> result 37 ($5613C) [code]:
     0 anim 12 $5616C: velocities 0; from step [$6B4F6] (8) on without a connect: the afterimages (5 objects 26),
@@ -248,15 +250,19 @@ def gen_wft(v):
     him) and 4 (the release), his stages = P_VSIG."""
     lim = N.u16(0x6B4F6)
     jx, jy = N.s16(0x6B4E2), N.s16(0x6B4E4); fx, fy = N.s16(0x6B4E6), N.s16(0x6B4E8)
+    # the carry height (TODO #185): SS2's camera follows the spin up (126 px, the victim 175 - 220); the brawler's camera
+    # never moves vertically, so every vertical velocity and gravity of the move is scaled by WFT_FIT: the same timing
+    # (the count 16, the stages), every height x WFT_FIT (the spin at 42 px, its victim on screen under the HUD)
+    q = lambda v: round(v * WFT_FIT); g = ('custom', 0, q(GRAVITY))
     ents = [E(12, [('set', 'vx', 0)], [(('step', lim), 1)], flags={k: 0x80 for k in range(lim, 64)}, catch=2),
             E(None, conds=[('end', 'end')]),
             E(13, [('set', 'vx', 0), ('spawn', 0)], [('end', 3)]),
-            E(14, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy)), ('set', 'cnt', 16)], [('cnt', 4)], phys='grav'),
+            E(14, [('set', 'vx', bx(jx)), ('set', 'vy', by(q(jy))), ('set', 'cnt', 16)], [('cnt', 4)], phys=g),
             E(None, [('set', 'vx', 0), ('set', 'vy', 0), ('vsig',)], [('now', 5)], phys='air'),
             E(24, [('fxoff',), ('spawn', 1)], conds=[('end', 6)], phys='air'),
-            E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(fy)), ('vsig',)], [('now', 7)], phys='grav'),
-            E(261, conds=[('land', 'end')], phys='grav')]
-    vl = [VL([(80, 16, '464.0', 0)], fly=(N.s16(0x6B4EA), N.s16(0x6B4EC), REACT_G)),   # $56AE2: + 80, - 16
+            E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(q(fy))), ('vsig',)], [('now', 7)], phys=g),
+            E(261, conds=[('land', 'end')], phys=g)]
+    vl = [VL([(80, 16, '464.0', 0)], fly=(N.s16(0x6B4EA), q(N.s16(0x6B4EC)), q(REACT_G))),   # $56AE2: + 80, - 16
           VL([voff(498, 0) + ('498.0', 0)]),                       # at him, drawn at 498's offset
           VL([voff(498, 1) + ('464.0', 64)], rel=(N.s16(0x6B4EE), N.s16(0x6B4F0)))]   # moved by it ($2B7D0), the flight
     return ents, [('wind', 0), ('wind2', 0)], vl

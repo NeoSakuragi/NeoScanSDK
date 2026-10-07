@@ -557,5 +557,18 @@
   "expect": "The light (A) Koryuu Ha from World Heroes Perfect: slow (3 px a frame), with its two trailing tail parts behind it that vanish when it hits Ryo. Only one can fly at a time. The medium (B, 5.25 px) and fast (A+B, 7.5 px) versions are in the data; one word in game.json picks them, none is on a button in this build.",
   "do_keys": "4:c",
   "proof": 150
+ },
+ "20261007-020507-5d29": {
+  "title": "No camera rise during furies",
+  "setup": {
+   "mode": "lab",
+   "fighter": "genjuro",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press D (Genjuro's fury): he catches Ryo, leaps and spins with him. Try Ralf's fury (D) too.",
+  "expect": "The camera never moves up: the stage and the floor stay where they are; Genjuro's spin happens low enough that he and Ryo stay on screen under the HUD.",
+  "do_keys": "4:d",
+  "proof": 200
  }
 }
