@@ -205,6 +205,7 @@ typedef struct fighter {
     uint8_t  spec_dmg, spec_react; /* special: damage and victim reaction (R_*) of the hit window open (bspec_row_t) */
     uint8_t  spec_fx;             /* special: KOF98 hit effect of the hit window open (bspec_row_t.fx: kind | burn << 6) */
     uint8_t  burn;                /* burnt by a fire hit: 1 purple, 2 orange (its palettes show KOF98's burn ramp) */
+    uint8_t  burn_t;              /* the burn cycle's step its palettes show (fighter.c burn_show) */
     int8_t   throw_face;          /* throw: the thrower's facing at the grab (the script's offsets are in it) */
     uint8_t  jump_kind;           /* the jump in progress: 0 regular (C held), 1 hop (C tapped) */
     uint8_t  jump_dir;            /* its direction: 0 vertical, 1 forward, 2 back (facing kept) */
@@ -305,6 +306,13 @@ extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x 
 
 
 
+#define BIGHIT_STOP 40             /* SS2's big hit (fighter.c big_hit): both held, then */
+#define BIGHIT_SLOW 30             /* the game at half speed; the red backdrop from the hit */
+#define BIGHIT_RED  48
+#define BIGHIT_HOLD 61             /* the victim: held in its hit pose until thrown 76 frames after the hit (SS2 [meas]: 40
+                                      + 30 at half speed = 15 ticks + 6) */
+#define BIGHIT_COL  0x4F00         /* SS2 $2B9DE: (31, 0, 0) through its table $2BA16 */
+extern uint8_t bighit_red, bighit_slow;   /* frames left of them (main.c screen_fx / game_tick) */
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */
 #define NPJ 8                     /* projectile entities: fighter_t too, so one renderer / sort / guard / hit test; 8 = a
                                      Blitz Ball and its 4 live trail objects (KOF96 measured) + 3 for other throwers */

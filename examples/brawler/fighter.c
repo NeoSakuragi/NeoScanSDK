@@ -363,6 +363,14 @@ void fighter_quake(const fighter_t *by, fighter_t *v) {
     react(v, INT(v->x) >= INT(by->x) ? 1 : -1, R_KNOCKDOWN, 0);
 }
 
+/* SS2's big hit (TODO #188 c, Haohmaru's WFT: handlers_ss2 BIGHIT, bspec_t.sflags SF_BIGHIT): on its connect both hold
+ * BIGHIT_STOP frames, the stage goes and the backdrop is red for BIGHIT_RED frames (main.c screen_fx), then the whole
+ * game plays at half speed for BIGHIT_SLOW frames (main.c game_tick: every other logic tick skipped) */
+uint8_t bighit_red, bighit_slow;
+static void big_hit(fighter_t *a, fighter_t *v) {
+    a->freeze = BIGHIT_STOP; v->freeze = BIGHIT_HOLD;          /* SS2: the victim in its hit pose to the slash's end */
+    bighit_red = BIGHIT_RED; bighit_slow = BIGHIT_STOP + BIGHIT_SLOW;
+}
 /* ---- reactions -------------------------------------------------------------------------------------------------------- */
 static void release(fighter_t *a);
 static void special_end(fighter_t *f);
@@ -379,20 +387,36 @@ static void hit_sfx(uint8_t fx) {
     const uint8_t *s = HIT_SFX[(fx & 0x3F) < 33 ? fx & 0x3F : 1];
     snd_sfx(s[0]); if (s[1]) snd_sfx(s[1]);
 }
-/* burn: the victim of a fire hit shows KOF98's burn palette in its attacker's flame colour (palette RAM $5F purple,
- * Iori; $58 orange, Kyo; both loaded for the whole fight: VRAM during their Oniyaki hits) in place of its own, colour
- * index for colour index, through its hit reaction and its fall until it hits the floor (screenshots: burnt in 262,
- * 285, 287, its own colours from 309 on) */
-static const uint16_t BURN_PAL[2][16] = {
-    { 0x0000, 0x2CA9, 0x7975, 0x3864, 0x0764, 0x1653, 0x4443, 0x4332, 0x5221, 0x6111, 0x4011, 0x7FFF, 0x3FCF, 0x7C9F, 0x385F, 0x143A },
-    { 0x0000, 0x7FC7, 0x0A85, 0x1974, 0x1863, 0x5652, 0x4542, 0x4431, 0x5320, 0x4210, 0x6100, 0x7FFF, 0x4FF9, 0x0FA4, 0x6C60, 0x6830 } };
+/* burn (TODO #188 b, decoded from KOF98 in our emulator: Kyo's 623C on Terry / Yuri, VRAM + palette RAM every frame):
+ * the burnt victim keeps its own frames and draws them, every part, with palette $F8 (orange) / $F9 (purple, Iori),
+ * not its own: a 5-colour flame ramp repeated over pens 1-15 (pen k = ramp[(k - 1 - step) mod 5]), and a global task
+ * (object $101100) copies the next step every 4 frames (the ROM's steps: palettes $3F0-$3F4 at $3FF5F0 orange, $400-
+ * at $3FF7F0 purple; the cycle stops with the game in a super flash). Burnt through its hit reaction and its fall,
+ * its own colours back at the floor (states 262 / 285 / 287 burnt, 309 not). Here: BURN_RAMP = step 0's pens 1-5; the
+ * step = burn_clock / BURN_TICKS mod 5 (burn_clock: projectiles_update, once a frame outside the super flash); every
+ * burnt fighter reloads its palettes when the step changes (burn_show). 0.0.92 and before showed the flames' own
+ * palette $58 colour index for colour index (a static dark ramp: "looks nothing like Terry engulfed in flame") */
+#define BURN_TICKS 4
+static const uint16_t BURN_RAMP[2][5] = {
+    { 0x1FDF, 0x1DAF, 0x796E, 0x065C, 0x7349 },                  /* 1 purple ($3FF7F0, Iori) */
+    { 0x6FFC, 0x7FD6, 0x4FA3, 0x0E61, 0x0B30 } };                /* 2 orange ($3FF5F0) */
+static uint16_t burn_clock;
+static uint8_t burn_step(void) { uint16_t t = burn_clock / BURN_TICKS; return t % 5; }
+static void burn_show(fighter_t *f) {
+    uint16_t pal[16];
+    const uint16_t *r = BURN_RAMP[f->burn - 1];
+    uint8_t i, k = 5 - burn_step();                              /* pen 1 = ramp[(0 - step) mod 5] */
+    pal[0] = 0;
+    for (i = 1; i < 16; i++) { if (k >= 5) k -= 5; pal[i] = r[k++]; }
+    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, pal);
+    f->burn_t = burn_step();
+}
 static void set_burn(fighter_t *f, uint8_t burn) {
-    uint8_t i;
     if (f->burn == burn) return;
     f->burn = burn;
     if (f->flash) return;                                        /* white: its colours come back when the flash ends */
     if (!burn) { fighter_load_pals(f); return; }
-    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, BURN_PAL[burn - 1]);
+    burn_show(f);
 }
 /* minion tints (Bruno 2026-10-05: minions never in a playable colour set): the set's colour pulled toward its luminance
  * (5 R + 9 G + 2 B) / 16 by the tint's numbers (gamedata.h gtint_t, game.json "tints": shade, ash, rust); colour 0
@@ -525,13 +549,19 @@ static void place_at(fighter_t *v, int32_t x, int32_t y, int32_t z, int8_t face,
 static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r, int8_t face) {   /* face: the */
     place_at(v, a->x + dir_mul(face, FIX(r->vx)), a->y, a->z, face, r);   /* thrower's facing the offsets are in */
 }
+/* the thrower's hold pose: its forward throw's first frame, or its own (bthrow_t.gframe: SS2's grab is drawn turned
+ * with the victim swapped behind; the brawler's hold is that picture mirrored, both kept as they met, TODO #188 a) */
+static uint16_t grab_frame(const fighter_t *a) {
+    const bthrow_t *th = &a->ch->throws[BT_THROW_C];
+    return th->gframe != 0xFFFF ? th->gframe : th->rows->tframe;
+}
 static void grab(fighter_t *a, fighter_t *v) {
-    const bthrow_row_t *r = a->ch->throws[BT_THROW_C].rows, *h = a->ch->holds[0].rows;   /* the thrower's grab pose, */
+    const bthrow_row_t *h = a->ch->holds[0].rows;                /* the victim's pose: the hold hit's first row */
     enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0;
-    a->frame_ovr = r->tframe;                                    /* silent: the throw's sound comes with its start (#166) */
+    a->frame_ovr = grab_frame(a);                                /* silent: the throw's sound comes with its start (#166) */
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0; v->thr = 0;   /* victim: presses mashed */
-    show_pose(v, h); place_victim(a, v, h, a->facing);           /* the victim's: the hold hit's first row */
+    show_pose(v, h); place_victim(a, v, h, a->facing);
 }
 static void release(fighter_t *a) {                              /* both free where they stand */
     fighter_t *v = a->held;
@@ -647,7 +677,6 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
 }
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
-    const bthrow_row_t *r = f->ch->throws[BT_THROW_C].rows;
     if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered */
     } else if (in->press & IN_C) {                               /* (fighter_update, "cancels" rule 4); else C: the hold ends, the special at once (Bruno
                                                                     2026-10-05); the victim reels in its held pose, free */
@@ -672,7 +701,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         }
         f->srow = 0; f->state_t = 0;                             /* back to the hold; the escape time starts again */
         f->x = f->throw_x0; f->y = 0; f->facing = f->throw_face;
-        f->frame_ovr = r->tframe; show_pose(v, f->ch->holds[0].rows); place_victim(f, v, f->ch->holds[0].rows, f->facing);
+        f->frame_ovr = grab_frame(f); show_pose(v, f->ch->holds[0].rows); place_victim(f, v, f->ch->holds[0].rows, f->facing);
         if (!f->buffered) return;
     }
     if (((in->press & IN_A) || f->buffered) && f->grab_hits < GRAB_HITS) {   /* A: a hold hit, the third the finisher */
@@ -991,6 +1020,7 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
 }
 void projectiles_update(int16_t cam_x) {
     uint8_t i;
+    burn_clock++;                                                /* the burn cycle's clock (once a frame, not in a super flash) */
     for (i = 0; i < NPJ; i++) {
         fighter_t *p = &projectiles[i];
         uint8_t ob;
@@ -1477,6 +1507,7 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->jug_by && f->state != S_THROWN && f->state != S_KNOCKDOWN && f->state != S_HITSTUN) f->jug_by = 0;   /* landed:
                                                                     the juggle window (rule 5) closes */
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
+    else if (f->burn && !f->flash && f->burn_t != burn_step()) burn_show(f);   /* the flame cycle's next step */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
     if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
                                                                     later counts on once the move ended (KOF $17074 runs
@@ -1948,6 +1979,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                     if (!sounded++) { if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD); }
                     fighter_hit(a, v, a->spec_dmg, a->spec_react, 0);
                     if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
+                    if (a->state == S_SPECIAL && (a->ch->specials[a->spec_ix].sflags & SF_BIGHIT)) big_hit(a, v);
                 }
                 spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big */
                 if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */

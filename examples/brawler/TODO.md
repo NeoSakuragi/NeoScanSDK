@@ -614,7 +614,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   game-over themes) for Bruno to pick; (3) game.json music + songs.json (quick once picked). Our count is 10 s (9 -> 0
   at 60 ticks a number); the pick should fit it.
 
-- [ ] 155. KOF2000'S MAX ACTIVATION SOUND FOR THE MAX FURY (feedback 20261006-155931-b3f3, Bruno in play, 0.0.71: "KOF
+- [x] 155. (done 2026-10-07: measured in our emulator (KOF2000 fight states /data/neogeo_dict/ngsdl_sta/kof2000, Terry and K' with three stocks; tap core): every DM flash sends $1E $BC, every SDM flash $1E $8F = slot 3 record $541E [53][1908][1936][DB], one ADPCM-A key-on, 12,032 bytes, 1.3 s, peak 3 kHz: the whistle. build_snd.py: songs.json sfx "from" (a code playing another SNK 1.x game's effect: its record + sample copied, enable bit set); the brawler sends it as $1A $8F; game.json super_flash.sound_max = 8F, played by main.c super_flash when the fury is the MAX (sf_col), the fury keeps $3A. V ROM: +12,032 sample bytes (used 5,843,968 -> 5,855,232: it fills a gap), ROM size unchanged 5,898,240. Proof tools/brawler/max155_proof.py: Terry and Ryo MAX queue $1A $8F at the flash frame, its key-on bytes = KOF2000's SDM flash key-on bytes; fury $1A $3A; WAVs /data/tmp/max155/out; voice_proof --all terry ryo identical to the unchanged build, bank_proof ALL OK; scenarios for both notes) KOF2000'S MAX ACTIVATION SOUND FOR THE MAX FURY (+ 20261007-021452-5d29) (feedback 20261006-155931-b3f3, Bruno in play, 0.0.71: "KOF
   2000 has a special sound for triggering a MAX Fury, sort of a high-pitched whistling sound that is very
   characteristic. See if you can track this down and include this, that would help us differentiate the MAX Fury from
   the regular Fury in our game."). Today fx.super_flash plays KOF98's $1A $3A (FURY CHARGE) for a fury and a MAX
@@ -984,29 +984,42 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   stage."): after the stage clear (and the boss death sequence), the player plays his own win pose from his source
   game (KOF win poses 336-343 etc., SS2 / Kizuna / WHP / DD equivalents), then the stage transition.
 
-- [ ] 185. CAMERA RISING IN FURIES (20261007-020507-5d29, 0.0.92: "Why is the camera going up? That is weird."): the SS2
+- [x] 185. CAMERA RISING IN FURIES (20261007-020507-5d29, 0.0.92: "Why is the camera going up? That is weird."): the SS2
   audit (0.0.91) made the camera rise during any fury so Genjuro's spin (126 px up) shows. Revert the generic rise;
   keep the action on screen another way (Genjuro's victim carried at a height that fits, or a rise only when an
   object would leave the top, eased, never for ground furies).
+  DONE (d8fe6d5): camera_y removed, the camera never moves vertically; Genjuro's WFT heights x WFT_FIT 0.33 (velocities
+  and gravity, same timing: spin 42 px, victim 90, under the HUD). Proof /data/tmp/b188/out/c185_*.
 
-- [ ] 186. BILLY KANE'S FURY (20261007-014003-5d29: "seems recorded, not decoded ... a multi-hit fury with the movement
+- [x] 186. BILLY KANE'S FURY (20261007-014003-5d29: "seems recorded, not decoded ... a multi-hit fury with the movement
   of the character moving forward ... the hits should not make the opponent leave the ground unless it's the final
   one"): check the fire-ring fury's victim handling vs KOF98 (each ring hit's reaction: stagger in place, launch only
   on the last), decoded from the ring object's hit code; say plainly if any part is replayed.
+  DONE (634cec6): the note is Billy LEE (Double Dragon; its bundle shows BILLY LEE's SUPER 236). export_dd gave the
+  knockdown to every hit of the move's last animation: the first hit launched. Now only the last hit-opening step
+  knocks down. DD (our emulator): hits 1-2 reel, 3-5 carry the victim 10-13 px up in its knockdown pose, fall after
+  the 5th; the brawler reels on the floor to its 4th (last) hit (4 openings vs DD's 5 hits: not modelled). Nothing
+  replayed. Billy Kane's ring: already reel x5 then launch on the 6th, as KOF98 (measured).
 
-- [ ] 187. SELECT STICK ORDER FROM POSITIONS (20261007-012550-5d29: "the layout is awesome ... however the sequencing
+- [x] 187. (done 2026-10-07: the stick is a cursor graph computed from the places, build_tables.py select_stick at build time -> game_tables.c sel_stick (right / left) + sel_vert (up / down preferences), main.c sel_move reads it; rows by body centre (feet + head point, a new row past 16 px), right / left along the row and on to the next row (one loop through everyone, locked bosses passed), up / down the nearest by x in the row above / below (wrapping; a locked one: the next nearest). The Lab's Select screen tab computes the same (selectrender.js stick), draws the arrows and a table of the four ways; the list is the start order, and left / right's path only with game.json select.stick "order". harness sel_goto walks the loop. Proof: select_proof.py 39 screens 0 px, editor graph = build graph on 302 layouts, walk 156 presses in our emulator all on the graph (Robert -> right = Terry), /data/tmp/sel187/out select_walk.txt + lab_*.png; bank_proof ALL OK) SELECT STICK ORDER FROM POSITIONS (20261007-012550-5d29: "the layout is awesome ... however the sequencing
   is now messed up ... from Robert going right I end up on Yamazaki top left ... there should be some kind of automatic
   computation of sequencing based on coordinates ... whenever I modify or export a new layout"): compute the cursor
   graph from the fighters' screen positions (right = nearest fighter to the right in roughly the same row, else wrap;
   up / down = nearest above / below), at layout save time in the Lab and at build time; the Lab shows the arrows;
   the manual order list becomes an override only.
 
-- [ ] 188. REOPENED (0.0.92 tests): (a) Haohmaru SS2 grab: "the throws are okay ... however the grabbing motion sets the
+- [x] 188. REOPENED (0.0.92 tests): (a) Haohmaru SS2 grab: "the throws are okay ... however the grabbing motion sets the
   player and the victim in a reverse orientation" / "Haohmaru and Ryo are both facing right" (173459, 155732, 155708):
   the hold / grab phase's facing (SS2's mirrored steps in the hold, the victim's facing); (b) the burn palette
   (162034 Blitz Ball, 160855 Billy's ring): "looks nothing like when Terry ... gets engulfed in flame in KOF98": use
   KOF98's own burn palette and its cycle (decoded), for every fire hit; (c) 155538 Haohmaru's fury "still broken" (no
   details: compare his SS2 WFT with SS2 and say what differs).
+  DONE: (a) baebd6f: SS2 has no hold, its throw swaps the victim behind on frame 1; the hold is now that picture
+  mirrored (face to face, victim in front: bthrow_t.gframe), the throw unchanged. (b) d12b0de: KOF98's burn decoded:
+  the victim's own sprite in palette $F8 / $F9, a 5-colour ramp over pens 1-15 rotated every 4 frames (fighter.c
+  BURN_RAMP); Billy Kane's ring burns (KOF98 measured). (c) 9f71205: SS2's WFT connect = red backdrop 48 f, hold 40,
+  half speed 30, victim thrown 76 f after the hit (SF_BIGHIT); still missing: weapon loss, throw height 74 vs 52.
+  Proofs /data/tmp/b188/out.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

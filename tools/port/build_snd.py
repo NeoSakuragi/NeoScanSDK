@@ -7,7 +7,9 @@ and a V ROM with only the samples those songs and the game's sound effects use.
 Manifest (examples/brawler/songs.json):
     {"driver": "kof98",
      "sfx": {"slot": 1, "prefix": "1A", "codes": ["11", ...],   the effect codes the game sends ($1A prefix = slot 1)
-             "names": {"11": "HIT A", ...}},                   short names (the options screen's SOUND PLAYER)
+             "names": {"11": "HIT A", ...},                    short names (the options screen's SOUND PLAYER)
+             "from": {"8F": {"game": "kof2000", "cmd": "1E8F"}}},  codes playing another SNK 1.x driver game's
+                                                                effect (its ADPCM-A record and sample)
      "songs": [{"name": "FIGHT", "source": "fatfury3", "cmd": "2F", "what": "...",
                 "label": "FIGHT"}, ...],                      label: the MUSIC PLAYER's name (default: name, _ = space)
      "bosses": ["BOSS_MR_BIG", ...],                          song names, in the campaign's boss order
@@ -22,7 +24,10 @@ first-fit. Song pointers of the commands not in the manifest are cleared (the dr
 V ROM: built from nothing: the samples of the kept songs' notes (song98.py's model of each song to its loop end) and of
 the manifest's effect codes, then each port's samples; ADPCM-A samples never cross a 1 MB boundary (the YM2610's
 ADPCM-A address counter is 20 bits: docs/rom_packer_rules.md). Every sample record (ADPCM-A tables slots 0-7, ADPCM-B
-records) is rewritten to the new addresses; records nobody uses are emptied and become the ports' free entries."""
+records) is rewritten to the new addresses; records nobody uses are emptied and become the ports' free entries.
+An effect code in sfx "from" (TODO #155: KOF2000's MAX flash) does not keep KOF98's record: its record in the effect
+slot becomes the source game's (the 1.x drivers share the 6-byte layout [priority][start][end][level]; found through the
+source driver's own table list, $2E0E + 2 * slot), its sample is copied from that game's V ROM, its enable bit set."""
 import json, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); TOOLS = os.path.dirname(HERE)
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(TOOLS, 'kof98snd'))
@@ -192,6 +197,31 @@ def voices(t, man, mdir, out):
           + (f" (after slots {groups[0][0]} full)" if g else ''), flush=True)
     return rep
 
+def sfx_imports(t, slot, imports, rep):
+    """sfx "from": each code plays another SNK 1.x driver game's effect: the source record (its prefix -> slot as KOF98's
+    $0D7B, the slot's table from the source driver's list at $2E0E + 2 * slot) with the new sample addresses, the sample
+    copied from that game's V ROM, the code's enable bit set. -> the fixed-area ranges written (the slot's enable map)"""
+    rep['sfx_from'] = {}; bits = t.w(0x2E20 + 2 * slot)
+    for c, f in imports.items():
+        code = int(c, 16); pre, scode = int(f['cmd'][:2], 16), int(f['cmd'][2:], 16)
+        sm, sv = roms(f'/data/roms/{f["game"]}.neo')
+        assert bytes(sm[0x3E:0x56]).startswith(b'Sound Driver(ROM)Ver 1.'), f'{f["game"]}: not an SNK 1.x sound driver'
+        ssl = PREFIX_SLOT[pre]; tab = sm[0x2E0E + 2 * ssl] | sm[0x2E0F + 2 * ssl] << 8
+        rec = sm[tab + 6 * scode:tab + 6 * scode + 6]
+        st, en = rec[1] | rec[2] << 8, rec[3] | rec[4] << 8
+        assert st and en >= st, (c, f, rec.hex())
+        ns, ne = t.place(f['game'], st, en, sv, adpcm_a=True)
+        r = A_TABLES[slot] + 6 * code
+        t.m1[r:r + 6] = bytes([rec[0]]) + w16(ns) + w16(ne) + bytes([rec[5]])
+        t.m1[bits + code // 8] |= 0x80 >> (code % 8)
+        t.keep_a.add((slot, code))
+        assert t.v[ns << 8:(ne + 1) << 8] == sv[st << 8:(en + 1) << 8]
+        rep['sfx_from'][c] = {'game': f['game'], 'cmd': f['cmd'], 'source_record': f'${tab + 6 * scode:04X}',
+                              'source_pages': [st, en], 'pages': [ns, ne], 'bytes': (en - st + 1) << 8,
+                              'record': t.m1[r:r + 6].hex()}
+        print(f"sfx ${c}: {f['game']} ${f['cmd']} (record ${tab + 6 * scode:04X} {rec.hex()}), {(en - st + 1) << 8} bytes", flush=True)
+    return [(bits, bits + 32)]
+
 def build(manifest, out):
     man = json.load(open(manifest))
     assert man['driver'] == 'kof98'
@@ -208,7 +238,9 @@ def build(manifest, out):
         a, b, nloops[s['name']] = native_samples(old, int(s['cmd'], 16))
         keep_a |= {(tabaddr[ta], c) for ta, c in a}; keep_b_rng |= b
     sl = man['sfx']['slot']
-    keep_a |= {(sl, int(c, 16)) for c in man['sfx']['codes']}
+    imports = man['sfx'].get('from', {})
+    assert all(c in man['sfx']['codes'] for c in imports), 'sfx from: every code must be in sfx codes'
+    keep_a |= {(sl, int(c, 16)) for c in man['sfx']['codes'] if c not in imports}
     # 2. bank sets: set 0 stays; each other set a kept song uses is copied to the next free number
     newset = {0: 0}
     for s in natives:
@@ -252,6 +284,7 @@ def build(manifest, out):
             old[r + 5:r + size] or kind == 'b' or size == 11, (kind, sl_, c)
     rep['kept_records_checked'] = len(jobs)
     v_natives = len(t.v)
+    imp_ranges = sfx_imports(t, sl, imports, rep) if imports else []
     vrep = voices(t, man, os.path.dirname(os.path.abspath(manifest)), out) if man.get('voices') else None
     for s in natives:
         rep['songs'].append({'name': s['name'], 'cmd': int(s['cmd'], 16), 'source': f"kof98 ${s['cmd'].upper()}",
@@ -277,7 +310,7 @@ def build(manifest, out):
     # 6. the fixed 32 KB changed only where the build writes: sample tables, song pointers / bank bytes, $2440, cues
     ok = [(A_TABLES[sl], A_TABLES[sl] + 6 * A_CODES[sl]) for sl in range(7)] + [(SLOT7, SLOT7 + SLOT7_SIZE * CODES),
           (t.brecs, t.brecs + 13 * t.n_brecs), (0x329E, 0x329E + 2 * 0x60), (t.bt, t.bt + 0x60), (0x2440, 0x2442)] + \
-         [tuple(r) for r in (vrep or {}).get('enable_maps', [])] + cue_ranges
+         [tuple(r) for r in (vrep or {}).get('enable_maps', [])] + cue_ranges + imp_ranges
     bad = [i for i in range(0x8000) if m1[i] != old[i] and not any(a <= i < b for a, b in ok)]
     assert not bad, f'fixed area changed outside the tables: {[hex(i) for i in bad[:8]]}'
     # 7. sizes, files

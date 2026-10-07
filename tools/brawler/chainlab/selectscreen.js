@@ -2,7 +2,9 @@
  * myself, and you will apply the positioning in the game"). The game's select screen drawn by selectrender.js from
  * select.json (select_images.py: the ROM's pictures, palettes, fix layer), pixel for pixel as our emulator shows it.
  * Drag a fighter (whole pixels; the arrow keys nudge the selected one 1 px, Shift 8 px), change its draw order, flip
- * it, pick its pose; drag the stick's order. Indicators: sprites per line (the LSPC's 96), what the cursor's arrow
+ * it, pick its pose. The stick's cursor graph is computed from the places (TODO #187, selectrender.js stick = build_tables.py
+ * select_stick) and drawn as arrows on the picture; the list's order is where the cursor starts and, only with game.json
+ * select.stick "order", left / right's path (an override). Indicators: sprites per line (the LSPC's 96), what the cursor's arrow
  * lands on. Save = the feedback service (feedback-api/select_layout, server.py), which
  * tools/brawler/select_layout.py pulls into game.json "select_layout" for the build. */
 (async function () {
@@ -24,7 +26,8 @@
   const API = 'feedback-api/select_layout';
   const GAME = clone(D.layout);                  // the build's layout (select.json)
   const DRAFT = 'brawlerlab.select.' + D.version;
-  let L = clone(GAME), sel = null, cursor = null, unlocked = false, last = null, scale = 3, saved = null;
+  let L = clone(GAME), sel = null, cursor = null, unlocked = false, last = null, scale = 3, saved = null, S = null, arrows = 'cursor';
+  let stickMode = D.stick || 'positions';        // game.json select.stick (the build's): 'positions', or 'order' = the list's override
   try { const d = JSON.parse(localStorage.getItem(DRAFT)); if (d && Object.keys(d).length === Object.keys(GAME).length && Object.keys(d).every(n => GAME[n])) L = d; } catch (e) { /* none */ }
   const undo = [];
   const keep = () => { try { localStorage.setItem(DRAFT, JSON.stringify(L)); } catch (e) { /* private window */ } };
@@ -37,13 +40,18 @@
   const cv = h('canvas', { id: 'selScreen', width: 320, height: 224 });        // the game's pixels, 1:1 (the proof reads it)
   const view = h('canvas', { id: 'selView', tabindex: 0 });                     // scaled, + the editor's marks
   const strip = h('canvas', { id: 'selLines' });                                // sprites per line
-  const side = h('div', { id: 'selSide' }), orderBox = h('div', { id: 'selOrder' }), checks = h('div', { id: 'selChecks' });
+  const side = h('div', { id: 'selSide' }), orderBox = h('div', { id: 'selOrder' }), checks = h('div', { id: 'selChecks' }), stickBox = h('div', { id: 'selStick' });
   const worstLine = h('div', { id: 'selWorst' });
   const cursorSel = h('select', { onchange: e => { cursor = e.target.value; draw(); } });
   const bossSel = h('select', { onchange: e => { unlocked = e.target.value === '1'; draw(); } },
     h('option', { value: '0' }, 'locked (a fresh game: silhouettes)'), h('option', { value: '1' }, 'beaten (in colour / grey)'));
   const scaleSel = h('select', { onchange: e => { scale = Number(e.target.value); draw(); } }, [2, 3, 4].map(s => h('option', { value: s }, s + 'x')));
   scaleSel.value = String(scale);
+  const arrowSel = h('select', { onchange: e => { arrows = e.target.value; draw(); } },
+    h('option', { value: 'cursor' }, 'the cursor\'s fighter (4 ways)'), h('option', { value: 'right' }, 'everyone: right'), h('option', { value: 'all' }, 'everyone: 4 ways'), h('option', { value: 'none' }, 'none'));
+  const modeSel = h('select', { onchange: e => { stickMode = e.target.value; draw(); } },
+    h('option', { value: 'positions' }, 'computed from the places'), h('option', { value: 'order' }, 'left / right = the list (override)'));
+  modeSel.value = stickMode;
   col.append(
     h('div', { class: 'box' },
       h('h2', {}, h('span', {}, 'Select screen: the group photo'),
@@ -52,14 +60,17 @@
         h('button', { onclick: () => { snapshot(); L = clone(GAME); edited(); } }, 'Load current game layout'),
         h('button', { onclick: () => { if (undo.length) { L = JSON.parse(undo.pop()); edited(); } } }, 'Undo')),
       h('div', { class: 'in' },
-        h('div', { class: 'row' }, h('label', {}, 'Cursor on ', cursorSel), h('label', {}, 'Bosses ', bossSel), h('label', {}, 'Scale ', scaleSel), status),
+        h('div', { class: 'row' }, h('label', {}, 'Cursor on ', cursorSel), h('label', {}, 'Bosses ', bossSel), h('label', {}, 'Scale ', scaleSel), h('label', {}, 'Stick arrows ', arrowSel), status),
         h('div', { id: 'selStage' }, h('div', { id: 'selWrap' }, view), h('div', { id: 'selStripWrap' }, strip)),
         worstLine,
         h('div', { class: 'note' }, 'The 8 px hatched at each side are outside a TV picture (the LSPC line is 320 px, a TV shows 304). ' +
           'The strip on the right counts the sprites on each line as the LSPC does (96 at most; past it the later sprites vanish): ' +
           'lines past 96 are hatched across the picture and the strip.'))),
     h('div', { class: 'box' }, h('h2', {}, h('span', {}, 'Selected fighter')), side),
-    h('div', { class: 'box' }, h('h2', {}, h('span', {}, 'The stick\'s order'), h('span', { class: 'note' }, 'left / right step through this list (drag a row, or ↑ ↓); up / down go to the nearest fighter higher / lower')), orderBox),
+    h('div', { class: 'box' }, h('h2', {}, h('span', {}, 'The stick'), h('span', { class: 'note' }, 'computed from the places at every change, again by the build from the saved layout (the same rules): ' +
+      'rows by body centre (feet + head); right / left along the row, past its end on to the next row (one loop through everyone); up / down the nearest by x in the row above / below (the top and bottom rows wrap). A locked boss is skipped in the same direction.'),
+      h('span', { class: 'sp' }), h('label', {}, 'Left / right ', modeSel)), stickBox),
+    h('div', { class: 'box' }, h('h2', {}, h('span', {}, 'The list: the start order'), h('span', { class: 'note' }, 'the cursor starts on the first selectable one; an override only: with game.json select.stick "order" left / right step through this list instead of the places (drag a row, or ↑ ↓)')), orderBox),
     h('div', { class: 'box' }, h('h2', {}, h('span', {}, 'Where the cursor\'s arrow lands'), h('span', { class: 'note' }, '"1P" and the arrow are drawn over the sprites: a fighter listed here has part of him covered')), checks));
   cv.hidden = true; col.append(cv);
 
@@ -72,6 +83,7 @@
     cursorSel.replaceChildren(...order.map(n => h('option', { value: n }, disp(n) + (D.fighters[n].locked && !unlocked ? ' (locked: not selectable)' : ''))));
     cursorSel.value = cursor;
     last = R.render(D, L, { cursor, unlocked });
+    S = R.stick(D, L, stickMode);
     const cx = cv.getContext('2d'); cx.putImageData(new ImageData(last.rgba, 320, 224), 0, 0);
     view.width = 320 * scale; view.height = 224 * scale;
     const v = view.getContext('2d'); v.imageSmoothingEnabled = false;
@@ -88,6 +100,7 @@
       v.strokeStyle = '#000'; v.lineWidth = 3; v.beginPath(); v.moveTo((f.x - 4) * scale, f.y * scale); v.lineTo((f.x + 4) * scale, f.y * scale); v.moveTo(f.x * scale, (f.y - 4) * scale); v.lineTo(f.x * scale, (f.y + 4) * scale); v.stroke();
       v.strokeStyle = '#fff'; v.lineWidth = 1; v.stroke();
     }
+    drawStick(v);
     // the strip: a bar per line, the 96 limit a solid line, lines past it hatched
     const SW = 120; strip.width = SW; strip.height = 224 * scale;
     const s = strip.getContext('2d'); s.fillStyle = '#fff'; s.fillRect(0, 0, SW, strip.height);
@@ -103,11 +116,52 @@
     const w = last.worst, over = [...last.counts].filter(c => c > D.line_max).length;
     worstLine.replaceChildren(h('b', {}, `Worst line: y ${w}, ${last.counts[w]} sprites of 96`),
       over ? h('span', { class: 'warn' }, ` · ${over} line${over > 1 ? 's' : ''} PAST 96: the game hides fighters there (line guard) or the LSPC drops sprites`) : ' · every line within 96');
-    renderSide(); renderOrder(); renderChecks();
+    renderSide(); renderOrder(); renderStick(); renderChecks();
     const ch = same(L, GAME) ? 'the current game layout' : saved && same(L, saved.layout) ? `the saved layout (${saved.saved})` : 'edited (not saved)';
     status.textContent = ch;
   }
   function edited() { keep(); draw(); }
+
+  // ---- the stick: arrows on the picture (body centre to body centre), black with a white edge (e-ink) --------------------
+  const LBL = { right: '→', left: '←', up: '↑', down: '↓' };
+  function arrow(v, a, b, width, dash, label) {
+    const [x0, y0] = [a[0] / 2 * scale, a[1] / 2 * scale], [x1, y1] = [b[0] / 2 * scale, b[1] / 2 * scale];
+    const len = Math.hypot(x1 - x0, y1 - y0); if (len < 1) return;
+    const ux = (x1 - x0) / len, uy = (y1 - y0) / len, cut = Math.min(4 * scale, len / 4);
+    const sx = x0 + ux * cut, sy = y0 + uy * cut, ex = x1 - ux * cut, ey = y1 - uy * cut, hl = 4 * scale;
+    const path = () => { v.beginPath(); v.moveTo(sx, sy); v.lineTo(ex, ey); v.moveTo(ex - ux * hl - uy * hl / 2, ey - uy * hl + ux * hl / 2); v.lineTo(ex, ey); v.lineTo(ex - ux * hl + uy * hl / 2, ey - uy * hl - ux * hl / 2); };
+    v.save(); v.lineCap = 'round'; v.lineJoin = 'round'; v.setLineDash(dash ? [3 * scale, 2 * scale] : []);
+    path(); v.strokeStyle = '#fff'; v.lineWidth = width + 3; v.stroke();
+    path(); v.strokeStyle = '#000'; v.lineWidth = width; v.stroke();
+    if (label) { const mx = (sx + ex) / 2, my = (sy + ey) / 2; v.setLineDash([]); v.font = `bold ${5 * scale}px system-ui`; v.textAlign = 'center'; v.textBaseline = 'middle';
+      const w = v.measureText(label).width + 4; v.fillStyle = '#fff'; v.fillRect(mx - w / 2, my - 3 * scale, w, 6 * scale); v.strokeStyle = '#000'; v.lineWidth = 1; v.strokeRect(mx - w / 2, my - 3 * scale, w, 6 * scale); v.fillStyle = '#000'; v.fillText(label, mx, my); }
+    v.restore();
+  }
+  function drawStick(v) {
+    if (!S || arrows === 'none') return;
+    const C = S.centre, G = S.graph;
+    const ways = arrows === 'right' ? ['right'] : R.DIRS;
+    const from = arrows === 'cursor' ? [cursor] : Object.keys(G);
+    for (const n of from) for (const d of ways) {
+      const t = arrows === 'cursor' ? R.stickMove(D, G, n, d, { unlocked }) : G[n][d];
+      if (t === n) continue;
+      const wrap = d === 'right' || d === 'left' ? S.rows.findIndex(r => r.includes(n)) !== S.rows.findIndex(r => r.includes(t)) : Math.abs((C[t][1] - C[n][1])) > 0 && (d === 'up') !== (C[t][1] < C[n][1]);
+      arrow(v, C[n], C[t], arrows === 'cursor' ? 3 : 2, wrap, arrows === 'right' ? null : LBL[d]);
+    }
+  }
+  // ---- the stick: a table, every fighter's four ways (with the bosses as the picture shows them) -------------------------
+  function renderStick() {
+    if (!S) return;
+    const ok = ['right', 'left'].every(d => { const seen = new Set(); let n = R.order(L)[0]; while (!seen.has(n)) { seen.add(n); n = S.graph[n][d]; } return seen.size === Object.keys(L).length; });
+    stickBox.replaceChildren(h('div', { class: 'in' },
+      h('div', { class: 'note' }, `Rows (top to bottom, left to right): ${S.rows.map(r => r.map(disp).join(', ')).join(' / ')}. ` +
+        (ok ? 'Every fighter is reachable; no dead end.' : 'A FIGHTER IS NOT REACHABLE (report it)') +
+        (stickMode !== (D.stick || 'positions') ? ` Preview: the build uses "${D.stick || 'positions'}" (game.json select.stick).` : '') +
+        ' Dashed arrows wrap to another row. Bosses ' + (unlocked ? 'beaten' : 'locked: skipped') + ' here, as the Bosses choice above.'),
+      h('table', { class: 'sp' }, h('tr', {}, h('th', {}, 'From'), R.DIRS.map(d => h('th', {}, LBL[d] + ' ' + d))),
+        R.order(L).map(n => h('tr', { class: n === cursor ? 'on' : '' }, h('td', {}, h('span', { class: 'nm', style: 'cursor:pointer', onclick: () => { cursor = n; draw(); } }, disp(n))),
+          R.DIRS.map(d => h('td', {}, disp(R.stickMove(D, S.graph, n, d, { unlocked })))))))));
+  }
 
   // ---- the selected fighter: place, facing, draw order, pose -------------------------------------------------------------
   function poseThumb(n, P) {                    // the pose in colour, 1x, on the page's white
@@ -210,7 +264,9 @@
     try {
       const r = await fetch(API, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layout: L, game_version: D.version }) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
-      saved = { layout: clone(L), saved: j.saved, by: j.by }; draw(); status.textContent = `saved ${j.saved} (${j.by}): tell Claude to apply it (select_layout.py pull, build)`;
+      saved = { layout: clone(L), saved: j.saved, by: j.by }; draw();
+      const G = R.stick(D, L, D.stick || 'positions').graph;   // the stick the build will compute from these places
+      status.textContent = `saved ${j.saved} (${j.by}): tell Claude to apply it (select_layout.py pull, build); the stick: ` + R.order(L).map(n => `${disp(n)} → ${disp(G[n].right)}`).join(', ');
     } catch (e) { status.textContent = 'Save failed: ' + e.message; }
   }
   async function loadSaved() {
@@ -234,6 +290,6 @@
     if (C) { if (on && !C.paused) { C.togglePause(); pausedByUs = true; } else if (!on && pausedByUs) { if (C.paused) C.togglePause(); pausedByUs = false; } }
     if (on) draw();
   });
-  window.selectTab = { get layout() { return L; }, set layout(x) { L = clone(x); edited(); }, get result() { return last; }, draw,
+  window.selectTab = { get layout() { return L; }, set layout(x) { L = clone(x); edited(); }, get result() { return last; }, get stick() { return S; }, draw,
     hash() { let a = 2166136261 >>> 0; for (const v of new Uint8Array(cv.getContext('2d').getImageData(0, 0, 320, 224).data.buffer)) { a ^= v; a = Math.imul(a, 16777619) >>> 0; } return a.toString(16); } };
 })();

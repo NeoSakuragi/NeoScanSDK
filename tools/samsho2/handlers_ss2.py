@@ -136,6 +136,13 @@ def hao_214a(v):
     the end -> next (the first) / neutral"""
     return [E(328, [('set', 'vx', 0)], [('end', 'next')]), E(329, [('set', 'vx', 0)], [('end', 'end')])], []
 
+# SS2's big hit (TODO #188 c): Haohmaru's WFT routine on a connect ($354E8 $2B958 -> $354FA) calls $2B9DE with
+# $6A672 = (31, 0, 0, 48): the backdrop ($108A86 -> $401FFE every frame, $172C) red for 48 frames ($8AE2), and its hit
+# (the hit routine's big-hit branch $26CB0: +$FB = 32 to both, the slow-motion counter $8AC8 = 30) holds both 40
+# frames, then the whole game runs at half speed for 30 [meas: our emulator, /data/tmp/b188/out/c_ss2_*: his step
+# held frames 63-103, then a step every 4 frames to 133; the victim in its hit pose 414 until 139, then thrown]
+BIGHIT = {('haohmaru', 'WFT')}
+
 def hao_wft(v):
     """Tenha Seiou Zan (the weapon-flipping technique), 6 3 2 1 4 6 + A in rage -> result 37 ($354D0) [code]:
     anim 333 $354DC: velocities 0, the end -> neutral; a connect ($2B958) flashes the screen ($2B9DE, colours
@@ -227,6 +234,8 @@ def voff(a, k):
 REACT_G = N.s16(N.u32(0x6A500) + 4 * 5)          # $277F2 / $2792C: a reaction (class 3) falls with word 0 of the
                                                 # gravity entry 5 (93 / 256 px), the others with word 1 (131) [code]
 
+WFT_FIT = 0.33                                    # Genjuro's WFT heights in the brawler (gen_wft)
+
 def gen_wft(v):
     """the rage move, 6 3 2 1 4 6 + A in rage -> result 37 ($5613C) [code]:
     0 anim 12 $5616C: velocities 0; from step [$6B4F6] (8) on without a connect: the afterimages (5 objects 26),
@@ -248,15 +257,19 @@ def gen_wft(v):
     him) and 4 (the release), his stages = P_VSIG."""
     lim = N.u16(0x6B4F6)
     jx, jy = N.s16(0x6B4E2), N.s16(0x6B4E4); fx, fy = N.s16(0x6B4E6), N.s16(0x6B4E8)
+    # the carry height (TODO #185): SS2's camera follows the spin up (126 px, the victim 175 - 220); the brawler's camera
+    # never moves vertically, so every vertical velocity and gravity of the move is scaled by WFT_FIT: the same timing
+    # (the count 16, the stages), every height x WFT_FIT (the spin at 42 px, its victim on screen under the HUD)
+    q = lambda v: round(v * WFT_FIT); g = ('custom', 0, q(GRAVITY))
     ents = [E(12, [('set', 'vx', 0)], [(('step', lim), 1)], flags={k: 0x80 for k in range(lim, 64)}, catch=2),
             E(None, conds=[('end', 'end')]),
             E(13, [('set', 'vx', 0), ('spawn', 0)], [('end', 3)]),
-            E(14, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy)), ('set', 'cnt', 16)], [('cnt', 4)], phys='grav'),
+            E(14, [('set', 'vx', bx(jx)), ('set', 'vy', by(q(jy))), ('set', 'cnt', 16)], [('cnt', 4)], phys=g),
             E(None, [('set', 'vx', 0), ('set', 'vy', 0), ('vsig',)], [('now', 5)], phys='air'),
             E(24, [('fxoff',), ('spawn', 1)], conds=[('end', 6)], phys='air'),
-            E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(fy)), ('vsig',)], [('now', 7)], phys='grav'),
-            E(261, conds=[('land', 'end')], phys='grav')]
-    vl = [VL([(80, 16, '464.0', 0)], fly=(N.s16(0x6B4EA), N.s16(0x6B4EC), REACT_G)),   # $56AE2: + 80, - 16
+            E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(q(fy))), ('vsig',)], [('now', 7)], phys=g),
+            E(261, conds=[('land', 'end')], phys=g)]
+    vl = [VL([(80, 16, '464.0', 0)], fly=(N.s16(0x6B4EA), q(N.s16(0x6B4EC)), q(REACT_G))),   # $56AE2: + 80, - 16
           VL([voff(498, 0) + ('498.0', 0)]),                       # at him, drawn at 498's offset
           VL([voff(498, 1) + ('464.0', 64)], rel=(N.s16(0x6B4EE), N.s16(0x6B4F0)))]   # moved by it ($2B7D0), the flight
     return ents, [('wind', 0), ('wind2', 0)], vl
@@ -748,6 +761,7 @@ def special(B, ch, name, inp):
     import commands_ss2 as K
     if K.descriptor(ch, 0, 1, results[default])['b'][0] & 0x80: rom['nopush'] = True   # descriptor byte 4 bit 7 -> +$FF:
                                                        # no push between the players ($CC14) while it plays [code]
+    if (name, inp) in BIGHIT: rom['bighit'] = True        # its connect: SS2's big-hit pause (export_bm SF_BIGHIT)
     if parts:                                          # follow-ups (the slash chain): its parts, the press 'again'
         rom['parts'] = [{'states': [states[j] for j, (ei, a) in enumerate(sts0) if ents0[ei]['part'] == p]} for p in parts]
         rom['follow_links'] = [{'from': p, 'to': p + 1, 'input': 'again'} for p in parts[:-1]]
@@ -845,7 +859,12 @@ def throw(B, ch, name, key):
     return {'slot': a, 'inputs': 'close + forward + ' + ('A+B' if key == 'throw_c' else 'D / C+D'), 'table': [], 'hold': False,
             'rom': True, 'timeline': timeline, 'victims': {name: rows}, 'impacts': sorted(set(impacts)),
             'release': rel, 'land': land, 'ret': ret, 'anim': anim, 'ss2': {'anim': a, 'victim_action': sub},
-            'turned': bool(tst[0]['flags'] & 0x8000)}         # the grab drawn turned: the victim behind him (export_bm hold_rows)
+            'turned': bool(tst[0]['flags'] & 0x8000),          # the grab drawn turned: the victim behind him (export_bm hold_rows)
+            # the brawler's hold (TODO #188 a): SS2 has none (its throw swaps the victim behind the thrower on its first
+            # frame and is over in ~50); a hold drawn that way kept both swapped for seconds ("reverse orientation"). The
+            # hold is SS2's grab picture mirrored: this step unturned, the victim in front facing him; forward / back + A
+            # then plays the throw from its first row (the swap) exactly as SS2
+            'grab_frame': B.frame(tst[0], mirror=False) if tst[0]['flags'] & 0x8000 else None}
 
 def throws(B, ch, name):
     return {k: throw(B, ch, name, k) for k in THROWS[name]}
