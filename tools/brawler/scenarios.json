@@ -1644,5 +1644,18 @@
   "expect": "Ralf's flurry of punches plays a second time before he recovers (ten dust clouds instead of five); a press later than about a third of a second after the first does nothing, as in KOF98.",
   "do_keys": "4:c,12:-,3:c",
   "proof": 160
+ },
+ "todo222-yashiro-max-rush": {
+  "title": "Yashiro's fury and MAX always play the full punch rush, no mashing needed",
+  "setup": {
+   "mode": "lab",
+   "fighter": "yashiro",
+   "dummy": "terry",
+   "gap": 48
+  },
+  "do": "With Terry right in front of you and a full meter, press D and let go. When Yashiro has recovered and Terry is back up, press down+D.",
+  "expect": "D: the full punch rush, 13 hits (five flurries, then the finisher) without pressing anything else. Down+D (MAX): 23 hits (nine flurries, then the MAX finisher).",
+  "do_keys": "4:d,500:-,3:D,4:Dd",
+  "proof": 1000
  }
 }

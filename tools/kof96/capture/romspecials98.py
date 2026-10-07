@@ -38,8 +38,17 @@ def s16(o, a): return struct.unpack('>h', o[a:a + 2])[0]
 def s32(o, a): return struct.unpack('>i', o[a:a + 4])[0]
 def u32(o, a): return struct.unpack('>I', o[a:a + 4])[0]
 
+MASH_EVERY = 4                                   # TODO #222: the KOF side of a maxed-out mash presses its button every 4
+                                                 # frames (the study /data/study/mash: 13 / 23 hits, the replay cap)
+
+def maxed(m, cid, inp, ex, game):
+    """the special's handler is a mash the brawler plays maxed out (handlers98.FOLLOW_MAXED: Yashiro 21426C)"""
+    import handlers98 as H
+    try: return (game, H.handler_of(cid, inp, ex, game)[0]) in H.FOLLOW_MAXED
+    except (KeyError, FileNotFoundError): return False
+
 def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='kof98', snaps=(), snapdir=None, dm=False, wjump=None, sdm=False,
-          hold=0):
+          hold=0, mash=None):
     """dm: a desperation move (the brawler's fury, TODO #139): KOF96 gives it from low life (+$138 <= 32), as
     specials96's capture did (life 24, +$E2 bit 1 as the capture had it); KOF98 / KOF99's reload
     states hold a stock. sdm (TODO #139): the MAX version: KOF98's MAX mode held on (+$E0 bit 4 poked every frame up to
@@ -59,6 +68,12 @@ def trace(cid, inp, dist='far', ex=False, frames=200, wlog=(), p2_seq='', game='
     if hold:                                         # the button (the last event's lower-case keys) held on
         off, n, keys = evs[-1]; spec.append(f'p1 {START + off + n} {hold} {"".join(k for k in keys if k.islower())}')
         tag += f'_h{hold}'; out = os.path.join(OUT, tag + '.txt')
+    if mash is None: mash = maxed(m, cid, inp, ex, game)
+    if mash:                                         # a mash played maxed out (handlers98.FOLLOW_MAXED, TODO #222): the
+        off, n, keys = evs[-1]                       # move's button pressed every MASH_EVERY frames from the try's end
+        btn = ''.join(k for k in keys if k.islower())
+        spec += [f'p1 {START + f} 2 {btn}' for f in range(off + n + 4, frames, MASH_EVERY)]
+        tag += '_mash'; out = os.path.join(OUT, tag + '.txt')
     if p2_seq: spec.append(p2_seq)
     s1, s2 = C.seqs('; '.join(spec), START + frames)
     x1h, x1l, x2h, x2l = PLACE[dist]

@@ -1677,6 +1677,21 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   both call $29164 first, which clears +$28 (y) — measure in our emulator whether she drops to the floor first. To do:
   capture j623C_w/h + j421C_w/h (followups_kz EXTRA rosa; draft /tmp scratch cap221.py), add rosa_kz AIR programs +
   export_kz sps, game.json "dC": "j.623C", "uC": "j.421C", rosa_proof scenarios + real-fight sheets, a scenario each.
+- [ ] 222. (DONE ON BRANCH fix/222-yashiro-max-rush 2026-10-07 on 0.3.9, awaiting Bruno's review) YASHIRO'S FURY / MAX
+  ALWAYS MAXED OUT (Bruno: "For Yashiro: don't implement the button detection — just apply the maxed-out version as
+  standard"). KOF98 $64B9C (study /data/study/mash): start 171, dash 173, flurry 174 (MAX 177 / 178 / 179); every frame
+  of the flurry $64E36 latches a new A / C press (fp@(1) & $50) into +$D1 bit 7; at its end the handler clears the
+  latch (`bclr #7, +$D1`) and, if set, replays the flurry, +$32 capping the replays at 4 (DM) / 8 (MAX); then the
+  finisher 176 (MAX 180-183). The brawler (0.3.9, TODO #100) read the latch as "no mash": 5 / 7 hits. Now
+  handlers98.FOLLOW_MAXED: the decoder reads that latch test as set every time (no button read): the flurry plays
+  1 + 4 / 1 + 8 times, unrolled at decode time; romspecials98.trace presses the move's button every 4 frames on the
+  KOF side of such a handler (the reference = KOF mashed). Proofs /data/tmp/y222/out: romspecials_check yashiro C / M
+  vs KOF mashed: 0 frame mismatches whiff + close, hits 13 / 13 and 23 / 23 (x differs where KOF's P1 pushes the
+  victim / is held by the screen, as before); tools/brawler/yashiro222_proof.py in a real fight (AI on, D / down+D
+  once, no other button): DM 13 hits / 13 damage / 326 frames (KOF mashed 13 / 31 / 366, KOF unmashed 5 / 23 / 211),
+  MAX 23 / 23 / 407 (KOF mashed 23 / 47 / 360), sheets brawler_DM.png / brawler_MAX.png; controls_proof + fury_inv_proof
+  yashiro ok (AI_OFF build), bank_proof ALL OK, regress no-bleed True (strict); scenario todo222-yashiro-max-rush
+  (lab HUD: 13 then 23 hits), lint 0.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

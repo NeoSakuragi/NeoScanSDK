@@ -106,6 +106,12 @@ FOLLOW_LATCH = {('kof98', 0x70E42): 0xD1, ('kof98', 0x712F4): 0xD1}
 # brawler's is the move's own). The btst becomes ('check', mask) of link 'again' (the move's own button pressed again,
 # export_bm link_c) and the branch on it a link test; the clear ('part',) empties the armed set (a new press is needed)
 FOLLOW_MASH = {('kof98', 0x4FD46): {'at': 0x4FE2E, 'field': 0xD6}}
+# a mash played maxed out (TODO #222, Bruno's rule: "don't implement the button detection, apply the maxed-out version
+# as standard"): Yashiro's 21426A/C (DM and MAX, $64B9C). Each frame of the flurry (174 / MAX 179) its $64E36 latches a
+# new A / C press into +$D1 bit 7; at the flurry's end the handler clears the latch (`bclr #7, +$D1`) and, if it was
+# set, replays the flurry, +$32 counting the replays down (4 DM / 8 MAX), then the finisher. The decode reads the latch
+# as set at every test: the flurry plays 1 + 4 / 1 + 8 times (KOF98 mashed: 13 hits DM, 23 MAX), no button read
+FOLLOW_MAXED = {('kof98', 0x64B9C): (0xD1, 7)}
 FOLLOW_INPUTS = {'latch': ['again'], 'hitlatch': ['again'], 'fwdBD': ['fA', 'fAB'], 'hcbP': ['again'], 'fP': ['fA'], 'mash': ['again']}   # the brawler's press per
                                                                   # link (export_bm link_c)
 FOLLOW_LAG = {'kof98': 4, 'kof99': 5}
@@ -536,6 +542,9 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             a = nx; continue
         if mn == 'bclr':
             f = field(o[1]); b = imm(o[0])
+            if depth == 0 and FOLLOW_MAXED.get((dec.game, dec.top)) == (f, b):   # a maxed-out mash latch: always set
+                cc = ('val', 1); F.setbits(f, 'and', 0xFF & ~(1 << b)) if f not in F.b else F.put(f, F.b[f] & ~(1 << b), 1)
+                a = nx; continue
             if f is not None and f != 0x7D and b is not None and b < 8 and F.bit(f, b) is not None:   # a known bit (Yashiro's
                 cc = ('val', F.bit(f, b))                                   # mash latch +$D1 bit 7: no mash, clear)
                 F.setbits(f, 'and', 0xFF & ~(1 << b)) if f not in F.b else F.put(f, F.b[f] & ~(1 << b), 1)
