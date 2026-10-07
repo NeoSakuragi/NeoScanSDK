@@ -367,11 +367,17 @@ void fighter_quake(const fighter_t *by, fighter_t *v) {
 
 /* SS2's big hit (TODO #188 c, Haohmaru's WFT: handlers_ss2 BIGHIT, bspec_t.sflags SF_BIGHIT): on its connect both hold
  * BIGHIT_STOP frames, the stage goes and the backdrop is red for BIGHIT_RED frames (main.c screen_fx), then the whole
- * game plays at half speed for BIGHIT_SLOW frames (main.c game_tick: every other logic tick skipped) */
+ * game plays at half speed for BIGHIT_SLOW frames (main.c game_tick: every other logic tick skipped). TODO #195 (Bruno
+ * 2026-10-07: "the red screen is too much and there shouldn't be so much freeze on impact"): a short flash and the
+ * brawler's own hit-stop, no slow motion; the victim still held to the slash's throw (21 frames of it after the stop) */
 uint8_t bighit_red, bighit_slow;
+uint16_t bighit_col;                                             /* its backdrop: the special's bd_col[0] (SS2 $2B9DE's colour:
+                                                                    Hanzo's flame $0002, TODO #193), 0 = Haohmaru's red */
 static void big_hit(fighter_t *a, fighter_t *v) {
+    const bspec_t *sp = &a->ch->specials[a->spec_ix];
     a->freeze = BIGHIT_STOP; v->freeze = BIGHIT_HOLD;          /* SS2: the victim in its hit pose to the slash's end */
     bighit_red = BIGHIT_RED; bighit_slow = BIGHIT_STOP + BIGHIT_SLOW;
+    bighit_col = sp->bd_end == 0 && sp->bd_col[0] ? sp->bd_col[0] : BIGHIT_COL;
 }
 /* ---- reactions -------------------------------------------------------------------------------------------------------- */
 static void release(fighter_t *a);
@@ -389,7 +395,12 @@ static const uint8_t HIT_SFX[33][2] = {
     {0x42, 0}, {0x9C, 0}, {0x42, 0}, {0x42, 0}, {0xEB, 0} };
 static void hit_sfx(uint8_t fx) {
     const uint8_t *s = HIT_SFX[(fx & 0x3F) < 33 ? fx & 0x3F : 1];
-    snd_sfx(s[0]); if (s[1]) snd_sfx(s[1]);
+    uint8_t c0 = s[0], c1 = s[1];                                /* $2E = KOF96's fire hit (TODO #197: its kind 11 = */
+    if (fx >> 6 && c0 != SFX_FIRE && c1 != SFX_FIRE) {           /* $13 + $1F, 21 = $1F alone: the Blitz Ball) */
+        if (c0 >= SFX_HIT_A && c0 <= SFX_HIT_CD) c0 = SFX_FIRE;  /* a burning hit of another kind: the plain hit */
+        else c1 = SFX_FIRE;                                      /* becomes the fire hit, a kind's own sound gets it */
+    }
+    snd_sfx(c0); if (c1) snd_sfx(c1);
 }
 /* burn (TODO #188 b, decoded from KOF98 in our emulator: Kyo's 623C on Terry / Yuri, VRAM + palette RAM every frame):
  * the burnt victim keeps its own frames and draws them, every part, with palette $F8 (orange) / $F9 (purple, Iori),
@@ -443,6 +454,21 @@ uint16_t fighter_colour(const fighter_t *f, uint16_t c) { return f->tint ? tint_
                                                              untinted path stays as cheap as before (the select screen calls it per colour) */
 const uint16_t *fighter_src_pal(const fighter_t *f, uint8_t i) {
     return i == 0 && f->cpal ? f->cpal : f->ch->pals + ((f->set * f->ch->npal + i) << 4);
+}
+/* SS2's second-layer flicker (TODO #193, export_ss2 "the second layer's flicker"): Samurai Shodown II draws a step's
+ * second layer with palette p and p + 1 on alternate frames (the object's +$82 = the frame counter's bit 0, $25D3E):
+ * Hanzo's blade glints. The fighter's palette flk_ix shows its own colours on even frames of the burn clock (once a
+ * frame, held in a super flash) and bchar_t.flk's on odd ones; a white flash or a burn owns the palettes meanwhile */
+static void flicker(const fighter_t *f) {
+    const bchar_t *ch = f->ch;
+    uint16_t buf[16];
+    const uint16_t *src;
+    uint8_t j;
+    if (ch->flk_ix == 0xFF || ch->flk_ix >= MAX_PALS || f->flash || f->burn) return;
+    src = (burn_clock & 1) ? ch->flk + (f->set << 4) : fighter_src_pal(f, ch->flk_ix);
+    buf[0] = src[0];
+    for (j = 1; j < 16; j++) buf[j] = fighter_colour(f, src[j]);
+    PAL_setPalette(f->palbase + ch->flk_ix, buf);
 }
 void fighter_load_pals(const fighter_t *f) {
     uint16_t buf[16];
@@ -872,7 +898,9 @@ static void special_end(fighter_t *f) {
     if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's invincibility: hittable again at once */
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
-    if (f->fpose && f->fpose != 0xFF) { f->fpose = 0xFF; fpose_pal(f, 0); }   /* ended in its flash pose: its colours back */
+    if (f->fpose) { f->fpose = 0xFF; fpose_pal(f, 0); }       /* the fury over (or ended in its flash pose): its colours
+                                                                    back (TODO #195: SS2's rage colours stay through the
+                                                                    fury's motion, as SS2's rage lasts through the WFT) */
 }
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
@@ -1318,6 +1346,9 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     case PC_CNTLE: return f->pcnt <= v;                          /* the counter at most v (KOF's charge level tests) */
     case PC_PASSED: { fighter_t *t = f->target ? f->target : f->popp; if (!t) return 0;   /* its opponent no longer ahead */
         return dir_mul(f->facing, INT(t->x) - INT(f->x)) <= v; }     /* (SS2 $563F4: Genjuro's slide stops at it) */
+    case PC_CAUGHT: return f->pcatch != 0 && f->pcatch != 0xFE;   /* its catch box caught, its routine not started yet
+                                                                    (SS2 Hanzo's Mozu Otoshi: the grab outranks the whiff's
+                                                                    end, TODO #193) */
     }
     return 1;
 }
@@ -1599,8 +1630,8 @@ static uint8_t flash_pose(fighter_t *f) {
     }
     k = f->fpose - 1;
     if (k >= gflash.freeze) {                                    /* the freeze is over: the fury from its first frame */
-        f->fpose = 0xFF; f->frame_ovr = 0xFFFF; f->state_t = gflash.start;
-        fpose_pal(f, 0);
+        f->fpose = 0xFF; f->frame_ovr = 0xFFFF; f->state_t = gflash.start;   /* (its colours kept to the fury's end:
+                                                                    special_end, TODO #195) */
         return 0;
     }
     for (i = 0, at = 0; i + 1 < ch->nfpose && k >= at + ch->fpose[i].n; i++) at += ch->fpose[i].n;
@@ -1630,6 +1661,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {         /* its bank mapp
     uint8_t ob = BANK_set(CH_BANK(f->ch));                       /* rows, program, parts, links, its objects' rows; a */
     update(f, in);                                               /* form link swaps f->ch for a fighter of the same bank */
     BANK_set(ob);                                                /* (bank_pack.py) */
+    flicker(f);
 }
 static void update(fighter_t *f, const intent_t *in) {
     const bphys_t *ph = &f->ch->phys;
@@ -1895,7 +1927,10 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
           a->target->state == S_HITSTUN))
         (a->owner ? a->owner : a)->target = v;                   /* (a hold keeps its caught victim: a crowd hit on the way) */
     lab_note(a->owner ? a->owner : a, LE_HIT, a->state == S_ATTACK || a->state == S_AIR_ATTACK ? a->node : 0xFF, v->idx, damage);
-    react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, push);
+    {   const fighter_t *from = a->pdef && (a->pdef->ppad & 1) && a->owner ? a->owner : a;   /* (an object whose victims fly
+                                                                    away from its thrower: bproj_t.ppad 1, TODO #193) */
+        react(v, INT(v->x) >= INT(from->x) ? 1 : -1, reaction, push);
+    }
     if (a->state == S_SPECIAL) kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* a special's body hit: KOF98's */
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {
         if (a->spec_prev_hit & 32) {                             /* KOF's class 4 hit (a barrage): nobody stops, the */
@@ -2144,6 +2179,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                     fighter_hit(a, v, a->spec_dmg, a->spec_react, 0);
                     if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                     if (a->state == S_SPECIAL && (a->ch->specials[a->spec_ix].sflags & SF_BIGHIT)) big_hit(a, v);
+                    else if (a->pdef && a->owner && a->owner->state == S_SPECIAL && (a->owner->ch->specials[a->owner->spec_ix].sflags & SF_BIGHIT))
+                        big_hit(a->owner, v);                    /* its object's hit (SS2 Hanzo's rage flame, object 7 $30752) */
                 }
                 spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big */
                 if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */

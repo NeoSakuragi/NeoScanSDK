@@ -205,7 +205,10 @@ def sfx_imports(t, slot, imports, rep):
     for c, f in imports.items():
         code = int(c, 16); pre, scode = int(f['cmd'][:2], 16), int(f['cmd'][2:], 16)
         sm, sv = roms(f'/data/roms/{f["game"]}.neo')
-        assert bytes(sm[0x3E:0x56]).startswith(b'Sound Driver(ROM)Ver 1.'), f'{f["game"]}: not an SNK 1.x sound driver'
+        assert bytes(sm[0x3E:0x56]).startswith((b'Sound Driver(ROM)Ver 1.', b'Sound Driver Ver 0.1')), \
+            f'{f["game"]}: not an SNK 1.x / KOF96 Ver 0.1 sound driver'
+        # (KOF96's Ver 0.1, TODO #197: the same table list at $2E0E, prefix -> slot and 6-byte records: its $1A $1F is
+        # record $4536 = slot 1's table $447C + 6 * $1F, pages $4F8-$521 = the pages its own driver keys on, tap core)
         ssl = PREFIX_SLOT[pre]; tab = sm[0x2E0E + 2 * ssl] | sm[0x2E0F + 2 * ssl] << 8
         rec = sm[tab + 6 * scode:tab + 6 * scode + 6]
         st, en = rec[1] | rec[2] << 8, rec[3] | rec[4] << 8

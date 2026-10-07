@@ -311,13 +311,14 @@ extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x 
 
 
 
-#define BIGHIT_STOP 40             /* SS2's big hit (fighter.c big_hit): both held, then */
-#define BIGHIT_SLOW 30             /* the game at half speed; the red backdrop from the hit */
-#define BIGHIT_RED  48
-#define BIGHIT_HOLD 61             /* the victim: held in its hit pose until thrown 76 frames after the hit (SS2 [meas]: 40
-                                      + 30 at half speed = 15 ticks + 6) */
+#define BIGHIT_STOP 7              /* SS2's big hit (fighter.c big_hit): both held (the brawler's HITSTOP; SS2 40, TODO #195), */
+#define BIGHIT_SLOW 0              /* then the game at half speed (SS2 30: none since TODO #195); the red backdrop from the */
+#define BIGHIT_RED  8              /* hit (SS2 48: a short flash since TODO #195) */
+#define BIGHIT_HOLD (BIGHIT_STOP + 21)   /* the victim: held in its hit pose until the slash throws it (SS2 [meas]: 76 frames
+                                      after the hit = 40 stopped + 30 at half speed (15 ticks) + 6: 21 ticks of the slash) */
 #define BIGHIT_COL  0x4F00         /* SS2 $2B9DE: (31, 0, 0) through its table $2BA16 */
 extern uint8_t bighit_red, bighit_slow;   /* frames left of them (main.c screen_fx / game_tick) */
+extern uint16_t bighit_col;               /* its backdrop colour (fighter.c big_hit) */
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */
 #define NPJ 8                     /* projectile entities: fighter_t too, so one renderer / sort / guard / hit test; 8 = a
                                      Blitz Ball and its 4 live trail objects (KOF96 measured) + 3 for other throwers */

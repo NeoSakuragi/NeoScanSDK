@@ -44,16 +44,17 @@ static void mark(uint8_t sec) {
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
 #define FIGHT_SPRS (NF * MAX_COLS + NPJ * PJ_COLS)   /* a fight's blocks: a fighter's MAX_COLS, the projectile pool's
                                         PJ_SPRS = NPJ * PJ_COLS shared by width (block_w) */
-#define NA 22                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
+#define NA 23                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
                                         fighter: the group photo) */
 #define SEL_COLS 14                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 14 =
-                                        sprites 60-367 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro; NA 22:
-                                        Kuroko) (the banner's, the debug boxes', the sparks' and the throw effect's 300-379
+                                        sprites 59-380 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro; NA 22:
+                                        Kuroko; NA 23: SS2's Hanzo, the blocks from sprite 59, the last one 380) (the banner's, the debug boxes', the sparks' and the throw effect's 300-379
                                         are not in use on that screen: sparks_draw / tfx_draw return there); the watch /
                                         win poses and the walk-offs are narrower (2026-10-05: widest 13, a walk; win 11,
                                         watch 8; 2026-10-06 Genjuro's win 14) */
 uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
-#define SPR_BASE 60                  /* fighter blocks (stage 22-42, shadows 43-54 behind them; 1-21 free) */
+#define SPR_BASE 59                  /* fighter blocks (stage 22-42, shadows 43-58 behind them; 1-21 free) (60 until
+                                        NA 23, TODO #193: SH_SPR + NE = 59 is the lowest it can be) */
 static fighter_t fighters[NF];
 static fighter_t *order[NA];                     /* back (small Z) to front, the nf entities in play */
 static uint8_t nf;                               /* entities in play: the previews on the select screen, NE in the fight */
@@ -93,6 +94,17 @@ static uint8_t diff(void) { return BIOS_MVS_FLAG ? (level() - 1) >> 1 : difficul
 static int16_t life(int16_t b) {                         /* a spawn's life at this difficulty: shifts and adds only */
     switch (diff()) { case 0: return b >> 1; case 2: return b + (b >> 1); case 3: return b << 1; }
     return b;
+}
+/* the coin sound (TODO #199): KOF94's $7F (SSG cue COIN, songs.json), sent by KOF94 at every credit; here whenever
+ * a player's credit count goes up (MVS: the BIOS counts the coins in backup RAM), on every screen; a coin taken while
+ * the BIOS ran (the attract demo's coin: request 3) sounds once the title's song started (game_enter) */
+static uint8_t seen_credits[2];
+static uint8_t coin_in(void) {                                /* 1: a credit came in since the last call */
+    uint8_t c1 = CREDITS_P1, c2 = CREDITS_P2, up;
+    if (!BIOS_MVS_FLAG) return 0;
+    up = c1 > seen_credits[0] || c2 > seen_credits[1];         /* (BCD: the byte order is the count's) */
+    seen_credits[0] = c1; seen_credits[1] = c2;
+    return up;
 }
 static uint8_t shown_level, shown_credits;               /* 0 / 0xFF after a FIX_clear: rewrite */
 static void arcade_line_reset(void) { shown_level = 0; shown_credits = 0xFF; }
@@ -585,9 +597,10 @@ static void screen_fx(void) {
         }
     }
     if (bighit_red) {                                        /* SS2's big hit (fighter.c big_hit): red, no stage */
-        static const uint16_t BH_BD[2] = { BIGHIT_COL, BIGHIT_COL };
+        static uint16_t BH_BD[2];
+        BH_BD[0] = BH_BD[1] = bighit_col;
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
-        else PAL_setBackdrop(BIGHIT_COL);
+        else PAL_setBackdrop(bighit_col);
         bd_cols = BH_BD; bighit_red--;
     } else if (sf_who) {                                     /* the super flash: the stage hidden, white then black */
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* the stage's sprites go at the next vblank: the */
@@ -1407,7 +1420,7 @@ static void title_tick(void) {
  * fight cuts in (no fades: a palette fade cost ticks frames). Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
 #define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
 _Static_assert(SEL_NSLOT <= NA, "group photo: an actor per slot (every selectable fighter has one: build_tables.py)");
-_Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 380, "sprite blocks: fight below the banner, select within the 380 sprites (sparks / throw effect idle there)");
+_Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 381, "sprite blocks: fight below the banner, select within the 381 sprites (sparks / throw effect idle there)");
 /* the slots (game.json select_layout, placed by Bruno in the Brawler Lab's Select screen tab; build_tables.py
  * select_layout, gamedata.h sel_slot_t), in the stick's order: x, y (the feet, px), z (the draw order, 0 the back:
  * depth_sort), face (1 right, -1 left), sel_fighter[slot] = who stands there (the generator checks every selectable
@@ -2421,6 +2434,7 @@ static void select_tick(void) {
 void game_init(void) {
     uint16_t i;
     BANK_init();                                             /* P2 bank 0, its copy agrees (neo_bank.h) */
+    coin_in();                                               /* the credits kept from before the power-on: no sound */
     gdata_init();                                            /* the game's tables (game.json) */
     routes_init();                                           /* the fighters' chain route trees (fighter.h) */
     specs_init();                                            /* their specials by role (fighter.h spec_tab) */
@@ -2453,6 +2467,7 @@ void game_enter(uint8_t request) {
     dbg_init();
     snd_reset();                                             /* the BIOS reset the sound CPU before handing over */
     if (request == 3) title_start(); else attract_start();
+    if (coin_in()) snd_ssg(SSG_COIN);                       /* the coin that ended the demo: after the song start */
     depth_sort();
     draw();
     SYS_vblankFlush();
@@ -2465,6 +2480,7 @@ void game_tick(void) {
     mark(P_FLUSH);
     SYS_kickWatchdog();
     snd_tick();
+    if (coin_in()) snd_ssg(SSG_COIN);                       /* KOF94's coin sound (TODO #199) */
     lab_tick();
     if (!lab.active && !dr_on) arcade_line();
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */

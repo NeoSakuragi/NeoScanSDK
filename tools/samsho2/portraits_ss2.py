@@ -4,12 +4,14 @@
 (boot.py's boot, frame 830 of the study: /data/tmp/samsho2/sel2/snap_830.ppm, our emulator's screenshot, 304 px wide;
 re-made with --boot), the 28x28 inside its white border. Kuroko (the hidden referee) has no square: his face is the top of
 his idle frame (anim 0 step 0, colour set A) drawn by the decoder, 28x28 from the top of his hood.
-    python3 portraits_ss2.py [--boot]      -> samsho2_haohmaru_square.png, samsho2_genjuro_square.png, samsho2_kuroko_square.png"""
+    python3 portraits_ss2.py [--boot]      -> samsho2_haohmaru_square.png, samsho2_genjuro_square.png, samsho2_hanzo_square.png,
+                                              samsho2_kuroko_square.png"""
 import os, sys
 from PIL import Image
 OUT = '/data/neogeo_dict/portraits'
 SNAP = '/data/tmp/samsho2/sel2/snap_830.ppm'
-CELLS = {'haohmaru': (103, 170), 'genjuro': (155, 135)}   # the face's top left on the grid (bottom row 3rd, top row 5th)
+CELLS = {'haohmaru': (103, 170), 'genjuro': (155, 135),   # the face's top left on the grid (bottom row 3rd, top row 5th,
+         'hanzo': (189, 137)}                              # top row 6th: inside its white border at 187 / 135, TODO #193)
 
 if __name__ == '__main__':
     if '--boot' in sys.argv:

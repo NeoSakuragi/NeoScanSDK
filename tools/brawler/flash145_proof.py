@@ -25,7 +25,7 @@ if '--game' in args: i = args.index('--game'); GAME = args[i + 1]; del args[i:i 
 if '--only' in args: i = args.index('--only'); ONLY = args[i + 1].split(','); del args[i:i + 2]
 OUT = args[0] if args else '/data/tmp/flash145/out'
 os.makedirs(OUT, exist_ok=True)
-FIGHTERS = ['kim', 'haohmaru', 'genjuro', 'kuroko', 'hanzo', 'billy_lee', 'terry']
+FIGHTERS = ['kim', 'haohmaru', 'genjuro', 'kuroko', 'hanzo', 'hanzo_ss2', 'billy_lee', 'terry']
 game_dir = GAME or os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
 gj = json.load(open(os.path.join(game_dir, 'game.json')))
 ROSTER = [r['name'] for r in gj['roster']]
@@ -46,12 +46,12 @@ def fpose_heads(n):
     return [(st[3], st[4]) for st in fpose_steps(n) for _ in range(st[1]) if st[1]]
 
 def fhead(n):
-    m = re.search(r'\{"[^"]*", .*?%s_fpose, (\d+), \{(-?\d+), (-?\d+)\}(?:, \w+_fpal, (\d+))?\}' % n, bmc)
+    m = re.search(r'\{"[^"]*", .*?%s_fpose, (\d+), \{(-?\d+), (-?\d+)\}(?:, \w+_fpal, (\d+))?[,}]' % n, bmc)   # (bchar_t goes on after fpal_ix: flk, TODO #193)
     return (int(m.group(2)), int(m.group(3))) if m and int(m.group(1)) else None
 
 def fpal(n):
     """(palette index, [16 colours per colour set]) of the pose's own palette (TODO #191: SS2's rage), or None"""
-    m = re.search(r'\{"[^"]*", .*?%s_fpose, \d+, \{-?\d+, -?\d+\}, \w+_fpal, (\d+)\}' % n, bmc)
+    m = re.search(r'\{"[^"]*", .*?%s_fpose, \d+, \{-?\d+, -?\d+\}, \w+_fpal, (\d+)[,}]' % n, bmc)
     if not m or int(m.group(1)) == 255: return None
     v = [int(x, 16) for x in re.search(r'static const uint16_t %s_fpal\[\d+\] = \{(.*?)\};' % n, bmc).group(1).split(', ')]
     return int(m.group(1)), [v[i:i + 16] for i in range(0, len(v), 16)]
@@ -159,12 +159,14 @@ for name in FIGHTERS:
             heads = fpose_heads(name)                    # the anchor = the head of the pose step shown, frame by frame
             r['anchor_is_head'] = [(x['sf_dx'], x['sf_dy']) for x in fl] == heads   # (TODO #191; one head: #145's fhead)
             r['anchor_heads'] = sorted(set(heads)); HEADS[name] = {x['f']: h for x, h in zip(fl, heads)}
-            if FPAL:                                     # the pose's own colours on its palette through the freeze, the
-                ix, rows_ = FPAL                         # colour set's back on the fury's first frame (TODO #191)
-                sp = set_pals(name)
+            if FPAL:                                     # the pose's own colours on its palette through the freeze and
+                ix, rows_ = FPAL                         # the fury's motion (TODO #195; #191 had the colour set back on
+                sp = set_pals(name)                      # the fury's first frame), the colour set's back when it ends
                 r['pose_palette'] = all(x['pal'][1:] == rows_[x['set']][1:] for x in fl)
-                r['palette_back'] = rows[flash_end + 1]['pal'][1:] == sp[rows[flash_end + 1]['set']][ix][1:]
-                r['pose_palette_ok'] = r['pose_palette'] and r['palette_back']
+                fu = [x for x in rows[flash_end + 1:end or len(rows)] if x['st'] == 'SPECIAL']
+                r['fury_palette'] = bool(fu) and all(x['pal'][1:] == rows_[x['set']][1:] for x in fu)
+                r['palette_back'] = end is not None and end + 1 < len(rows) and rows[end + 1]['pal'][1:] == sp[rows[end + 1]['set']][ix][1:]
+                r['pose_palette_ok'] = r['pose_palette'] and r['fury_palette'] and r['palette_back']
             r['fury_after_freeze'] = rows[flash_end + 1]['fpose'] == 0xFF and rows[flash_end + 1]['state_t'] == gj['super_flash']['start'] \
                 and rows[flash_end + 1]['frame'] not in pose   # the frame after the freeze: the fury's first, as under a KOF flash
             r['head'] = head

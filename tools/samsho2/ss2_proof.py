@@ -27,7 +27,12 @@ import ctypes as C
 OUT = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].startswith('/') else '/data/tmp/ss2/out'
 NAMES = [a for a in sys.argv[1:] if not a.startswith('/')] or ['haohmaru', 'genjuro', 'kuroko']
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
-CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}
+CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo_ss2': 2}
+BANK = {'hanzo_ss2': 'hanzo'}                     # roster name -> its SS2 export name (samsho2:hanzo, TODO #193)
+GAP = {'623K': 50}                                # the dummy's distance for a special that needs it (Mozu Otoshi: a grab
+                                                  # within 69 px), else 120
+EXTRA_CAPS = {('hanzo_ss2', '623K'): ('/data/tmp/hanzo193/cap_mozu.json', ['close_623c', 'close_623d', 'close_623cd'])}   # (SS2 caught
+                                                  # at 56 px: the study's capture is a whiff at 160)
 CAPS = '/data/neogeo_dict/samsho2/moves'
 
 def lab_req(b, req, fighter, dummy):
@@ -134,10 +139,11 @@ def main():
     roster = {r['name']: r for r in json.load(open(os.path.join(GAME, 'game.json')))['roster']}
     acc = {}
     for name in NAMES:
-        ch = CHAR[name]; k = bcs.index('BC_' + name.upper())
-        ex = json.load(open(os.path.join(GAME, 'build', f'tmp_samsho2_{name}', 'kof95_export.json')))['characters'][name]
+        ch = CHAR[name]; k = bcs.index('BC_' + name.upper()); bn = BANK.get(name, name)
+        ex = json.load(open(os.path.join(GAME, 'build', f'tmp_samsho2_{bn}', 'kof95_export.json')))['characters'][bn]
         used = sorted({p.get('pal', 0) for fr in ex['frames'] for p in fr['parts']})
-        palmap = [int(ex['modes']['palettes'][u].split('+')[0]) for u in used]   # (a packed palette: its host's number)
+        palmap = [int(ex['modes']['palettes'][u].split('+')[0]) % 1000 for u in used]   # (a packed palette: its host's number;
+                                                      # a flicker palette 1000 + p, TODO #193: p)
         def packed(img):                              # SS2's pens of a folded palette as the pack renumbered them
             for ka, kb, m in ex.get('ss2_packed', []):    # (export_ss2.pack_palettes: kb's pen q -> ka's pen m[q])
                 out = img.copy()
@@ -186,23 +192,26 @@ def main():
         r = roster[name]; slots = [('C', '', 'D'), ('fwd+C', 'R', 'fD'), ('down+C', 'D', 'dD'), ('up+C', 'U', 'uD'),
                                    ('df+C', 'DR', 'dfD'), ('uf+C', 'UR', 'ufD')]
         plays = [(lab, st + 'c', r['specials'].get(key)) for lab, st, key in slots if r['specials'].get(key)] + [('D (fury)', 'd', r['fury'])]
-        if 'MAX ' + r['fury'] in HS.SPECIALS[name]: plays.append(('down+D (MAX)', 'Dd', 'MAX ' + r['fury']))
+        if 'MAX ' + r['fury'] in HS.SPECIALS[bn]: plays.append(('down+D (MAX)', 'Dd', 'MAX ' + r['fury']))
         sres, strips = {}, []
         for lab, keys, inp in plays:
             lab_req(b, 1, k, 0); b.run(40)
             dm = next(i for i in range(1, 8) if b.states[b.fget(i, 'state')] != 'OFF')
-            b.place(0, x=b.fget(dm, 'x') - 120, z=b.fget(dm, 'z')); b.fset(0, 'facing', 1); b.run(5)
+            b.place(0, x=b.fget(dm, 'x') - GAP.get(inp, 120), z=b.fget(dm, 'z')); b.fset(0, 'facing', 1); b.run(5)
             h0 = len(b.hits); cells = []; proj = 0
             for f in range(120):
                 b.run(1, p1=keys if f < 4 else '')
                 proj = max(proj, sum(1 for i in range(4) if b.pget(i, 'state') == b.states.index('PROJ')))
                 if f % 4 == 0 and len(cells) < 26:
                     p = os.path.join(OUT, '_shot.png'); b.screenshot(p); cells.append(Image.open(p).resize((160, 112)))
-            fn, nv, results = HS.SPECIALS[name][inp]
-            cap = (rage if inp == 'WFT' or 'RAGE' in inp else caps).get(results[-1])
+            fn, nv, results = HS.SPECIALS[bn][inp]
+            vw = (r.get('variant') or {}).get(inp); vi = 'ABC'.index(vw) if vw in ('A', 'B') else 'CD'.index(vw) if vw in ('C', 'D') and nv > 1 and inp.endswith('K') else nv - 1
+            cap = (rage if inp == 'WFT' or 'RAGE' in inp else caps).get(results[vi])
+            if (name, inp) in EXTRA_CAPS:
+                f_, nm_ = EXTRA_CAPS[(name, inp)]; cap = next(m for m in json.load(open(f_)) if m['name'] == nm_[vi])
             sres[inp] = {'slot': lab, 'hits': [(h[1], h[2], h[3]) for h in b.hits[h0:]], 'projectiles_seen': proj}
             strips.append((f'{lab} {inp} brawler', cells))
-            if cap: strips.append((f'{inp} SS2 ({"ABC"[nv - 1] if nv > 1 else ""})', ss2_strip(ch, cap, n=26)))
+            if cap: strips.append((f'{inp} SS2 ({"ABC"[vi] if nv > 1 else ""})', ss2_strip(ch, cap, n=26)))
             print(name, lab, inp, 'hits', sres[inp]['hits'], 'projectiles', proj, flush=True)
         Wc = 160 * max(len(c) for _, c in strips) + 150
         sheet = Image.new('RGB', (Wc, 112 * len(strips)), 'white'); d = ImageDraw.Draw(sheet)

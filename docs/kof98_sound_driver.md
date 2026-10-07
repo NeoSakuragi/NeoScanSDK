@@ -496,6 +496,18 @@ G5 falling, 236 ms), UNLOCK `$77` (C6-C8 arpeggio over a C5 / G5 bass, 637 ms). 
 (sound.c): title (cursor, start, options), options (rows, values, EXIT / B back), select (cursor, pick), BOSS
 UNLOCKED. A cue sent just before a song start has its first note stretched ~4 interrupts by the song start's work,
 so the game sends the cue after the song command.
+COIN `$78` (TODO #199) = KOF94's coin sound, its SSG effect song `$7F` (KOF94 sends it at every credit, from its
+sound routine `$6556`; measured in our emulator) brought over by `ssg_cues.py --import` of its capture: a 3-voice
+chord stepping 226 / 165 / 126 -> 103 / 102 / 79 -> 47 / 56 / 41 (periods), struck at level 11 then decaying, the
+voices 4 KOF94 interrupts apart, 1.04 s. Its periods are not on the note table, so they are **raw periods** ("P226"):
+each takes a table word (`$2AC8` + 8n (+4)) that no named note of any cue uses, written with the period itself and
+read with octave shift 0 (no KOF98 song nor port writes the SSG: the table is the cues' alone; KOF98's own cues, never
+sent by the brawler, would read those words). Its steps start on the nearest cue tick (13.85 ms; KOF94's interrupt is
+9.12 ms): every step within 9.7 ms of KOF94's in our emulator, the same SSG states in the same order. To fit, the
+streams use running status (a note after a note leaves out its `$EA` when the note byte is < `$C0`: the four former
+cues write the same SSG registers as before) and the COIN header sits in the cue table's words for `$66-$6F` (type-0
+commands: those words are never read). The game sends it (main.c `coin_in`) whenever a credit count in backup RAM
+goes up (MVS), on every screen; the coin that ends the attract demo sounds after the title's song start.
 Measured (`ssg_cues.py --check`): each cue alone writes SSG registers only, its notes / levels / periods in order,
 each step within 2 interrupts of its length. `--mix` (song + `$1A` hits with and without the 8 cues over them): every
 song and effect write identical in value and order; in the select song's run one more timer interrupt dropped by the

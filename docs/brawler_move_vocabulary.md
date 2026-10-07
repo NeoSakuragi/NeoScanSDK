@@ -110,7 +110,7 @@ friction, px boxes from the feet, frames at 60 Hz).
 | `branch.on_hit` | scope (this attack | any since clear) | Branch when the move connected. | PC_HIT / PC_HITANY, P_HITCLR, P_HITOFF; bslink_t trig LK_HIT (parts) | 17 (98 11 96 3 99 1 KZ 2) |
 | `branch.on_input` | input (stick + button | again), window (frames), at (now | part end), needs_hit (bool) | A follow-up: a press inside a window switches to another part. | P_CHECK / PC_LINK / PC_WINDOW / P_PART + bslink_t LK_IN (ROM), bspart_t / bslink_t (recorded) | 9 (98 4 99 3 KZ 2) |
 | `branch.on_distance` | px (int, 0..400) | Branch on the opponent's distance. | PC_FAR (fighter_t.popp) | 1 (99 1) |
-| `input.sustain` | button (the special's), levels (ROM count) | **Implemented** (TODO #173, Rugal's Kaiser Wave $7EDAA): a charge: while the special's button is held (KOF `and.b (fp), d0` on its button mask), the program counts its charge animation's event steps (134: frames 30 and 54); released, or the animation over, it picks the level's path by the count (`tst; beq`, `cmpi #1; bls`). The decode keeps the count a run-time counter and walks each level's path with it known (handlers98.CHARGE). | PC_HELD (fighter_t.pheld: C held, D for a fury), P_SET / P_ADD cnt, PC_CNTLE; proof rugal173_proof.py charge (C held 0 / 70 / 95 frames: 1 / 2 / 3 hits) | Rugal 6426A, 6426C |
+| `input.sustain` | button (the special's), levels (ROM count) | **Implemented** (TODO #173, Rugal's Kaiser Wave $7EDAA): a charge: while the special's button is held (KOF `and.b (fp), d0` on its button mask), the program counts its charge animation's event steps (134: frames 30 and 54); released, or the animation over, it picks the level's path by the count (`tst; beq`, `cmpi #1; bls`). The decode keeps the count a run-time counter and walks each level's path with it known (handlers98.CHARGE). A hold (TODO #198, Kyo's Orochinagi $3D4EA): the button held keeps the charge state playing until a frame counter runs out (+$CA = 90: `subq; bpl yield`), released it goes on at once; every `and.b (fp)` past the move's first frame is this run-time test (handlers98 decode). | PC_HELD (fighter_t.pheld: C held, D for a fury), P_SET / P_ADD cnt, PC_CNTLE / PC_CNT; proof rugal173_proof.py charge (C held 0 / 70 / 95 frames: 1 / 2 / 3 hits), kyo198_proof.py | Rugal 6426A, 6426C; Kyo 21426C + MAX (D / down+D held: up to 90 frames; the MAX burns, KOF's 195 attack box) |
 | `branch.on_height` | px (int, 0..255) | Branch on the body's height. | PC_LOW | 1 (98 1) |
 | `branch.on_offscreen` | - | Branch when off screen. | PC_OFF | 0 |
 | `branch.parts` | parts ([rows]), next (part | end) | A move made of parts that chain. | bspart_t (recorded), the program's own flow (ROM) | 19 (98 10 96 2 99 3 KZ 4) |
@@ -250,7 +250,6 @@ shows which existing features the move would use). Machine-readable: `missing.js
 | kizuna:projectiles | 77 | decode.kizuna | off build |
 | kof99:k_dash 214D / 236B / 236D / 623A / 23624C follow-ups | 140 | decode.kof_trace | off build |
 | kof98:kyo 236C 6A after hit-stop | 140 | - | off build |
-| kof98:kyo 21426C held C | 140 | input.sustain | off build |
 
 | component | kind | extends (regression set size) | only blocker of (in game) | needed by |
 |---|---|---|---|---|
@@ -263,7 +262,7 @@ shows which existing features the move would use). Machine-readable: `missing.js
 | `stage.wall` | new | - (0) | 0 | built (TODO #173) |
 | `anim.step_spawn` | enh | anim.event_marker, spawn.eruption (53) | 1 | goenitz 214C [dD] |
 | `spawn.boomerang` | enh | spawn.projectile (19) | 1 | built (TODO #176: Kuroko 63214A); kizuna:hayate [2]8C |
-| `input.sustain` | new | - (0) | 0 | ralf AAAA [D]; billy CCCC [D]; kof98:kyo 21426C held C |
+| `input.sustain` | new | - (0) | 0 | ralf AAAA [D]; billy CCCC [D]; built (TODO #173 Rugal's charge, #198 Kyo's Orochinagi hold) |
 | `branch.on_velocity` | enh | branch.on_distance, branch.on_height (2) | 0 | not needed (624A's test was the wall's) |
 
 Debt plan (which component retires the most recorded moves first):
