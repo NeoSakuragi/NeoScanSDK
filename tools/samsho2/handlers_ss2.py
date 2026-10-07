@@ -44,7 +44,7 @@ P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge'
      'voice': 29, 'vsig': 30}                                 # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 PC = {'end': 0, 'event': 1, 'land': 2, 'fall': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'always': 7, 'stepev': 8, 'window': 9,
-      'link': 10, 'hitany': 11, 'sig7c': 13, 'passed': 20}
+      'link': 10, 'hitany': 11, 'sig7c': 13, 'passed': 20, 'caught': 21}
 R_HEAVY, R_KNOCKDOWN, R_LAUNCH = 1, 2, 3
 SPECIAL_DAMAGE = 8                                # export_bm.SPECIAL_DAMAGE
 GRAVITY = 131                                     # 8.8 px / frame^2: the table entry 5 ($46BAE $3205) [code]
@@ -421,7 +421,7 @@ def han_623k(v):
     top = (vy / 256) ** 2 / (2 * GRAVITY / 256)
     q = min(1.0, MOZU_TOP / top); f = lambda w: round(w * q); g = ('custom', 0, f(GRAVITY))
     return [E(296, [('set', 'vx', 0)], [('now', 'next')], catch=2, grab=GRAB_BOX),
-            E(None, conds=[('end', 'end')]),
+            E(None, conds=[('caught', None), ('end', 'end')]),
             E(58, [('set', 'vx', 0)], [('end', 'next')]),
             E(None, [('set', 'vy', by(f(vy)))], [('now', 'next')], phys=g),
             E(60, [('vsig',)], conds=[('apex', 'next')], phys=g),
@@ -472,6 +472,7 @@ def compile_prog(ents):
     """[(op, operands...)] with labels; anims (SS2 animation of each state, in P_ANIM order); spawns"""
     ops, states = [], []
     def tgt(i, t):
+        if t is None: return None
         if t == 'next': return ('E', i + 1)
         if t == 'end': return 'END'
         if isinstance(t, str) and t.startswith('part'):
@@ -524,6 +525,7 @@ def compile_prog(ents):
             c, t = cnd[:2]; extra = [('spawn', o[1]) for o in (cnd[2] if len(cnd) > 2 else []) if o[0] == 'spawn']
             T = tgt(i, t)
             if c == 'land': sw.append((('S', i, k), T, extra, False)); continue
+            if c == 'caught': ops.append(('br', 'caught', 1, 'yield')); continue   # caught: wait for the catch routine
             if c == 'now': now = (T, extra); break
             if isinstance(t, str) and t.startswith('now:'):
                 ops.append(('br', {'hit': 'hit'}[c], 1, ('I', int(t[4:])))); continue
@@ -606,6 +608,7 @@ class Play:
                 PC['fall']: 'fall' in self.flags, PC['cnt']: self.cnt < 0, PC['hit']: self.landed,
                 PC['window']: bool(s['flags'] & 0x2000), PC['link']: bool(self.plink & v), PC['always']: True,
                 PC['passed']: False,                       # (alone: no opponent to pass)
+                PC['caught']: False,                       # (alone: nobody caught)
                 PC['sig7c']: self.sig_at is not None and self.srow - 1 >= self.sig_at}[c]
     def frame(self):
         if self.done: return None
@@ -846,8 +849,9 @@ def wftflame(B, k):
     frames, his 292 lasts 128 frames for its 74]"""
     rows = obj_rows(B, 2, play_anim(2, 293) + play_anim(2, 294), 105)
     return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
-            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 0,
-            'name': 'WFTFLAME', 'ss2': {'type': 7, 'anims': [293, 294]}}
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 0, 'away': True,
+            'name': 'WFTFLAME', 'ss2': {'type': 7, 'anims': [293, 294]}}   # away: its victim thrown on away from him [meas:
+                                                                       # cap_mozu.json close_rage_wft, P2 at 43 / 147 px]
 
 def mozufire(B, k):
     """Mozu Otoshi's slam: effect 14 ($4509A) [code]: Hanzo's anim 244 (the fire columns) where he lands, sound $14D,

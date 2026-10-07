@@ -736,5 +736,22 @@
   "expect": "His clothes turn SS2's red rage colours with the charge pose and stay red through the whole big fireball / slash motion; they go back to his normal colours when the fury ends.",
   "do_keys": "3:d",
   "proof": 220
+ },
+ "todo193-hanzo-ss2": {
+  "title": "Samurai Shodown II's Hanzo: his fire (C) and his rage flame fury (D)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 100,
+   "extra": [
+    95
+   ],
+   "meter": "full"
+  },
+  "do": "With a full meter and two Ryos in front of you, press C, wait until the first Ryo is down, then press D.",
+  "expect": "Hanzo (SS2's masked ninja, his blade glinting) slams the floor and a flame arc runs along the ground in 80 px hops (a burst where it lands each time) and knocks the first Ryo down in fire. D: the screen flashes while he stands in SS2's rage pose in flames and red colours; then he crouches, a fire line runs forward along the floor and bursts into a flame column that hits the second Ryo with a short dark flash and a normal hit-stop and throws him away; Hanzo stays red until the fury ends.",
+  "do_keys": "4:c,100:-,3:d",
+  "proof": 220
  }
 }

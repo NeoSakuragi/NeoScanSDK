@@ -1341,6 +1341,9 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     case PC_CNTLE: return f->pcnt <= v;                          /* the counter at most v (KOF's charge level tests) */
     case PC_PASSED: { fighter_t *t = f->target ? f->target : f->popp; if (!t) return 0;   /* its opponent no longer ahead */
         return dir_mul(f->facing, INT(t->x) - INT(f->x)) <= v; }     /* (SS2 $563F4: Genjuro's slide stops at it) */
+    case PC_CAUGHT: return f->pcatch != 0 && f->pcatch != 0xFE;   /* its catch box caught, its routine not started yet
+                                                                    (SS2 Hanzo's Mozu Otoshi: the grab outranks the whiff's
+                                                                    end, TODO #193) */
     }
     return 1;
 }
@@ -1915,7 +1918,10 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
           a->target->state == S_HITSTUN))
         (a->owner ? a->owner : a)->target = v;                   /* (a hold keeps its caught victim: a crowd hit on the way) */
     lab_note(a->owner ? a->owner : a, LE_HIT, a->state == S_ATTACK || a->state == S_AIR_ATTACK ? a->node : 0xFF, v->idx, damage);
-    react(v, INT(v->x) >= INT(a->x) ? 1 : -1, reaction, push);
+    {   const fighter_t *from = a->pdef && (a->pdef->ppad & 1) && a->owner ? a->owner : a;   /* (an object whose victims fly
+                                                                    away from its thrower: bproj_t.ppad 1, TODO #193) */
+        react(v, INT(v->x) >= INT(from->x) ? 1 : -1, reaction, push);
+    }
     if (a->state == S_SPECIAL) kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* a special's body hit: KOF98's */
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {
         if (a->spec_prev_hit & 32) {                             /* KOF's class 4 hit (a barrage): nobody stops, the */
