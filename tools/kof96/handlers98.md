@@ -461,3 +461,4 @@ now (pj_scan of its definition): the step effects were not in pj_cols, and 7-8 o
 Proofs (/data/tmp/fx214/out): `../brawler/romspecials_check.py` objects (spawn / end frames = KOF's +-1, the table-38
 objects of the move's states compared too), `../brawler/fx214_proof.py` colour-exact (every effect frame shown: the
 sprites draw.s wrote, tiles and palette RAM, = KOF98's data with KOF98's palette RAM).
+Open: Rugal's slam burst sits at KOF's +104 px from Rugal, but the brawler's wall (TODO #173) leaves Rugal 92 px from the screen edge where KOF's is 124 px from its stage edge: the burst lands 12 px past the screen edge (KOF: 20 px inside, cut by it). The ticks where 4-8 effects spawn and every pool block moves overrun their video frame (the positions written a frame late: fx214_proof 'late_flush').
