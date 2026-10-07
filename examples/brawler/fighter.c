@@ -15,7 +15,7 @@ _Static_assert(offsetof(fighter_t, x) == 8 && offsetof(fighter_t, z) == 12 && of
 _Static_assert(offsetof(fighter_t, facing) == 32 && offsetof(fighter_t, anim) == 38 && offsetof(fighter_t, step) == 39, "draw.s F_FACING/F_ANIM/F_STEP");
 _Static_assert(offsetof(fighter_t, shown_frame) == 56 && offsetof(fighter_t, shown_facing) == 58 && offsetof(fighter_t, frame_ovr) == 60, "draw.s F_SHOWN_*/F_FRAME_OVR");
 _Static_assert(offsetof(fighter_t, ncols) == 94, "draw.s F_NCOLS");
-_Static_assert(SFX_PAL == 232 && SFX_NPAL <= SFX_NPAL_MAX, "draw.s SFX_PAL (KOF's shared effects bank, TODO #214)");
+_Static_assert(SFX_PAL == 224 && SFX_NPAL <= SFX_NPAL_MAX, "draw.s SFX_PAL (KOF's shared effects bank, TODO #214)");
 _Static_assert(offsetof(bchar_t, frames) == 10 && offsetof(bchar_t, anims) == 14 && offsetof(bchar_t, tile_hi) == 60, "draw.s CH_*");
 _Static_assert(offsetof(banim_t, steps) == 2 && offsetof(bframe_t, nparts) == 0 && offsetof(bframe_t, parts) == 2, "draw.s AN_STEPS/FR_*");
 _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offsetof(bpart_t, cols) == 4 && offsetof(bpart_t, rows) == 5 &&

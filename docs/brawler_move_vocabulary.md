@@ -213,7 +213,7 @@ shows which existing features the move would use). Machine-readable: `missing.js
 
 | move [slot] | TODO | needs | class |
 |---|---|---|---|
-| ralf AAAA [D] | 81 | input.sustain, decode.kof_trace | c |
+| ralf AAAA [D] | 81 | done 2026-10-07 (TODO #216): read from KOF98's handler $4FD46 (the state list +$C2 concrete: 128, 129, 131; no further press: the mash's repeat is a press the walk does not make), its dust clouds from the shared bank | done |
 | robert 426B [uD] | 83 | decode.kof_trace | a (after analysis) |
 | yamazaki 214A [ufD] | 86 | decode.kof_trace | a (after analysis) |
 | yamazaki 214B [fD] | - | decode.kof_trace | a (after analysis) |

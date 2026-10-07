@@ -1294,5 +1294,18 @@
   "expect": "Cheng-Fu strikes Ryo's chest with his palm and blows the dust off his fingers; Ryo stands stunned, staggers back and stays dizzy about two seconds (no damage from the throw itself, as in Double Dragon); the A hits him while he is dizzy.",
   "do_keys": "4:R,4:Ra,150:-,4:a",
   "proof": 260
+ },
+ "todo216-ralf-AAAA": {
+  "title": "Ralf's C (AAAA, Vulcan Punch): played from KOF98's handler, with its dust clouds",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ralf",
+   "dummy": "terry",
+   "gap": 80
+  },
+  "do": "Press C with Terry standing a step in front of you.",
+  "expect": "Ralf winds up, then throws a long flurry of punches: a brown dust cloud puffs from his fists every few frames (five in all) and Terry, caught by the first punches, is blown away burning; Ralf then recovers: the same timing and clouds as KOF98.",
+  "do_keys": "4:c",
+  "proof": 120
  }
 }

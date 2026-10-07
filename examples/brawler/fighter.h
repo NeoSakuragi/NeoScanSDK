@@ -31,12 +31,12 @@ extern int16_t floor_top;         /* screen y of the feet at Z = 0: the stage's 
 #define CLOSE_X   40              /* an opponent this close (|dX|, |dZ| <= Z_HIT): A takes a route's close link (KOF's close normals) */
 #define MAX_COLS  20              /* hardware sprites reserved per fighter (Billy's widest frame: 19) */
 #define MAX_PALS  8               /* palettes reserved per fighter (Terry with his effects: 5) */
-#define SFX_PAL   232             /* KOF's shared effects bank (TODO #214): its palettes SFX_PAL .. + SFX_NPAL - 1 (bm_chars.h,
+#define SFX_PAL   224             /* KOF's shared effects bank (TODO #214): its palettes SFX_PAL .. + SFX_NPAL - 1 (bm_chars.h,
                                      at most SFX_NPAL_MAX; main.c sparks_init loads bm_sfx_pals), absolute like KOF98's
                                      palette RAM 80-127: a frame part's pal | 0x80 draws with SFX_PAL + (pal & 0x7F)
                                      (draw.s), never with its owner's palettes (the white flash, the burn leave them) */
-#define SFX_NPAL_MAX 8            /* (232-239: past the select screen's 23 actors x MAX_PALS from 16, below the big
-                                     portraits' 240) */
+#define SFX_NPAL_MAX 16           /* (224-239: past the select screen's 23 actors x MAX_PALS from 16, below the big
+                                     portraits' 240; TODO #216: 11 with Ralf's AAAA, Iori's and Yamazaki's furies) */
 extern int16_t world_w;           /* the stage's width in px (stage_t.cols * 16); fighters stay 16 px inside it */
 
 enum {                            /* states: the state machine alone decides what happens next */

@@ -2,7 +2,8 @@
 """The ROM-read specials (tools/kof96/handlers98.py, export_bm rom_c, fighter.c prog_update) against KOF98, frame by frame.
 
     python3 romspecials_check.py GAME_DIR OUT_DIR [fighter:role[=INPUT] ...]     (an AI_OFF=1 build: the target stands still)
-    BRANCHES=whiff,close,mid,wall (default whiff,close): mid = P2 112 px ahead (romspecials98.PLACE), wall = close
+    BRANCHES=whiff,close,mid,wall,near (default whiff,close): mid = P2 112 px ahead (romspecials98.PLACE), near = 80
+    px (TODO #216: Ralf's AAAA, whose A presses are a close normal at 48 px and out of reach at 112), wall = close
     with P1 as far from the wall as the brawler's start from its own (TODO #173); =INPUT plays another
     special of the fighter's pool from that slot; +LINK@T (repeatable) a follow-up press (TODO #74): LINK one of the
     special's links (its program's 'links': 'again', 'fA', 'fAB'), T the special's frame of KOF's button press
@@ -45,7 +46,7 @@ CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = int(os.environ.get('EVERY', 4))             # the sheets: every EVERY-th frame from SHEET_FROM, at most NSHOT
 SHEET_FROM = int(os.environ.get('SHEET_FROM', 0))   # (TODO #202: frame by frame over a window, EVERY=1 SHEET_FROM=40)
 NSHOT = int(os.environ.get('NSHOT', 30))
-DIST = {'close': 48, 'mid': 112, 'wall': 48}             # wall: KOF's P1 as far from its wall (x 736) as the brawler's from
+DIST = {'close': 48, 'mid': 112, 'wall': 48, 'near': 80}             # wall: KOF's P1 as far from its wall (x 736) as the brawler's from
 #                                                          its own (TODO #173: a catch that grinds to the wall)                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
 BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
 WHIFF_MODEL = {'iori': {'624D'}}                         # specials whose KOF whiff reaches P2 from any distance (KOF keeps
