@@ -1274,6 +1274,37 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   identify the move from the replay's inputs, decode Kizuna's handler for it (the dive's descent vector, its follow-up
   input / auto-trigger), play it like Kizuna in a real fight.
 
+- [ ] 201. (DONE ON BRANCH fix/201-kof-palette-packer 2026-10-07, awaiting Bruno's review) KOF PALETTE PACKER (found by
+  #198): the game loads MAX_PALS = 8 palettes a fighter, Rugal's export needs 11 (after #198's identical-colour merge),
+  so his frames on slots 8-10 showed the next fighter's colours (the build's warning). Make a real palette packer for the
+  KOF exports: fold palettes whose used colours fit together (pens remapped), exact colours, per colour set; a fighter
+  still over 8: report its frames per palette and propose (not build) a per-animation palette swap.
+  DONE [code + meas] tools/brawler/pal_pack.py, run by export_bm.build on every export before its tiles are placed (one
+  path for every source game; a fighter inside the budget is untouched; SS2 keeps export_ss2.pack_palettes, which now
+  uses pal_pack's pen codec): a palette's colour = its words in every colour set; a palette folds into a host when the
+  colours its tiles' pens use plus the host's are at most 15 (a pen whose colour the host uses maps there, else it keeps
+  its number when free, else the lowest free pen); its tiles are copied with the pens renumbered (only when a pen moves),
+  its parts take the host, the host's unused pens take its colours. Exact search: the partition into <= 8 with the fewest
+  copied tiles; the body palette (an enemy's custom palette / tint replace slot 0), a flash pose's and a flicker palette
+  never fold. Rugal 11 -> 8: KOF98 byte 47 (Gigantic Pressure's pillar) hosts 33 (one colour, $4900, already in 47) and
+  40 / 42 (one colour $4553); 32 hosts 35 (15 colours with the shared $7FFF); 1174 tiles copied (C ROM 19.80 -> 20.40 MB
+  with the page padding). Counts (palettes used / slots before -> after): every other fighter unchanged (Kyo 9 / 8, Mai
+  9 / 8, Ryo 7 / 4, Robert 7 / 4, Terry 7, SS2 / WHP 7-8, ...), Rugal 12 / 11 -> 8; none over 8, the warning is gone (so
+  no per-animation swap is needed). Measured in our emulator, KOF98 palette RAM with Rugal in colour sets A-D (team
+  record +4..6 poked with the swap) and during his Gigantic Pressure (effect palettes held as loaded on all 50 frames
+  sampled). Proof /data/tmp/pal201/out (tools/brawler/pal201_proof.py): counts.json; pixels.json: all 8249 exported frames
+  of the 24 fighters drawn from the game's data (bm_chars.c + C tiles), every colour set, before = after on every pixel,
+  no part past slot 7; kof.json: the 24 frames of his own moves that were on slots 8+ (the fury's / MAX's pillar and
+  skull) = KOF98's colours on every pixel in all 4 sets; game_sheet.png / game_new.json: the fury and MAX in the game,
+  each colour set, every frame that was past slot 7: slots < 8 and palette RAM = the data (before: 0 / 8, the pillar
+  brown and white; now red as kof98_gp_sheet.png); select_proof 41 screens 0 px, controls_proof rugal ok, bank_proof ALL
+  OK, regress bleed none + the facing traces identical to the build before; scenario todo201-rugal-palettes (lint 0,
+  verify identical, scenario_sheet.png). Found: the other 38 frames on slots 8+ belong only to Omega Rugal's EX moves
+  (KOF98 c36x: EX = another character, export_bm NO_EX, never played); the export colours them with regular Rugal's
+  palette bytes 16 / 17 / 40 / 42 (his 40 / 42 are empty, $4553), so they do not match KOF98's Omega (unchanged by this
+  work). Proposal (not built): drop from the export the frames only an unpooled special shows (Rugal's Omega EX moves:
+  the 40 / 42 palettes and their tiles go with them).
+
 - [ ] 202. KYO, 3 NOTES ON 0.1.8 (20261007-124338: "the flame effect disappears too fast ... in the game the flame stays a
   bit longer, or maybe there's another one being spawned. Check the code." — the Orochinagi release; 124409: "Here Kyo
   is missing his fire effect in his hand."; 124437: "make this move invincible" — identify the move from the replay's
