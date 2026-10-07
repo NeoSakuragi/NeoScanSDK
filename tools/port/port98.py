@@ -244,6 +244,11 @@ class Port:
             if t == L and label_at is None and mo[1] != 'patch' or (t > L and label_at is None):
                 label_at = base_addr + len(out)                          # every state field but the patch (planned
                 st = {'patch': st.get('patch'), 'smp': st.get('smp')}    # for both ways in) re-emitted after it
+                if name.startswith('A'):     # an ADPCM-A sample sounding across the label: its level is the
+                    ins = [n_ for n_ in lst if n_.tick < t]                  # base of a level change after it (TODO
+                    ends = [n_ for n_ in lst if n_.tick < end]               # #219, Samurai Shodown II $28) when both
+                    if ins and ends and ins[-1].level & 0x1F == ends[-1].level & 0x1F:   # ways in leave the same
+                        st['vel'] = ins[-1].level & 0x1F
             kind = mo[1]
             if kind == 'patch':
                 out += ev(None, 0x34, *mo[2][:28], mo[2][28], mo[2][29] & 0x3F, *([0] * 11)); st['patch'] = mo[2]

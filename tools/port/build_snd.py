@@ -41,6 +41,16 @@ A_CODES = [CODES] * 6 + [(SLOT7 - A_TABLES[6]) // 6]      # slot 6's table ends 
 EMPTY_A = bytes([0x01, 0, 0, 0, 0, 0xDC])
 EMPTY_B = bytes.fromhex('01 0000 ffff 00 0000 ffff b36e 80'.replace(' ', ''))
 MB = 4096                                                 # 1 MB in 256-byte pages
+# bank sets (TODO #219): KOF98's table at $2708 holds 7 (fixed 64 KB + 6 x 32 KB = its 256 KB M1); the build moves it to
+# slot 7's last ADPCM-A records (11-byte looping records nobody plays: no kept song uses slot 7, ports and voices never
+# take it) and points the driver's one reader at it ($1131 LD HL,$2708 -> the new address; song98.M1 follows it), with
+# 15 sets: set n = M1 $8000 * (n + 1) through the four windows [2 KB $F000][4 KB $E000][8 KB $C000][16 KB $8000]; the
+# 2 KB window's 8-bit bank register ends there (set 14: bank $FE), M ROM up to 512 KB
+N_SETS = 15
+SETS_AT = SLOT7 + SLOT7_SIZE * (CODES - 6)                # codes $EA-$EF of slot 7: 66 bytes for 60
+def bankset_bytes(n):
+    base = 0x8000 * (n + 1)
+    return bytes([(base + 0x7000) // 0x800, (base + 0x6000) // 0x1000, (base + 0x4000) // 0x2000, base // 0x4000])
 
 class Target:
     def __init__(self):
@@ -108,7 +118,7 @@ class Target:
             z = self.sets[b]
             if z is not None and z + size <= port98.SONG_Z80_END: self.sets[b] = z + size; return b, z
         b = max(self.sets) + 1
-        if b > 6: raise ValueError('no free bank set (KOF98 has 7: $2708 table)')
+        if b >= N_SETS: raise ValueError(f'no free bank set ({N_SETS}: the moved bank-set table, TODO #219)')
         self.sets[b] = port98.SONG_Z80 + size
         return b, port98.SONG_Z80
 
@@ -251,7 +261,7 @@ def build(manifest, out):
         if b not in newset: newset[b] = len(newset)
         m1[t.bt + i] = newset[b]
     blocks = {nb: old[0x8000 * (b + 1):0x8000 * (b + 2)] for b, nb in newset.items() if b}
-    m1[0x10000:] = bytes([0xFF]) * (len(m1) - 0x10000)
+    m1[0x10000:] = bytes([0xFF]) * (0x8000 * (N_SETS + 1) - 0x10000)   # room for every set (written: the used ones)
     for nb, blk in blocks.items(): m1[0x8000 * (nb + 1):0x8000 * (nb + 2)] = blk; t.sets[nb] = None
     # 3. song pointers: only the kept commands
     keep_cmds = {int(s['cmd'], 16) for s in natives}
@@ -286,6 +296,11 @@ def build(manifest, out):
         assert t.v[ns << 8:(ne + 1) << 8] == t.v_src[st << 8:(en + 1) << 8] and m1[r] == old[r] and m1[r + 5:r + size] == \
             old[r + 5:r + size] or kind == 'b' or size == 11, (kind, sl_, c)
     rep['kept_records_checked'] = len(jobs)
+    # 4b. the bank-set table, moved (N_SETS above): KOF98's 7 sets kept as they were, 8 more
+    assert all(bankset_bytes(n) == old[0x2708 + 4 * n:0x270C + 4 * n] for n in range(7))
+    assert old[0x1131:0x1135] == bytes([0x21, 0x08, 0x27, 0x19]) and not any((7, c) in t.keep_a for c in range(CODES - 6, CODES))
+    m1[SETS_AT:SETS_AT + 4 * N_SETS] = b''.join(bankset_bytes(n) for n in range(N_SETS))
+    m1[0x1132:0x1134] = w16(SETS_AT)
     v_natives = len(t.v)
     imp_ranges = sfx_imports(t, sl, imports, rep) if imports else []
     vrep = voices(t, man, os.path.dirname(os.path.abspath(manifest)), out) if man.get('voices') else None
@@ -312,7 +327,7 @@ def build(manifest, out):
         print(f"ssg cues: {', '.join(f'{n} ${c:02X}' for n, c in cue_cmds.items())} ({rep['ssg']['bytes']} bytes)", flush=True)
     # 6. the fixed 32 KB changed only where the build writes: sample tables, song pointers / bank bytes, $2440, cues
     ok = [(A_TABLES[sl], A_TABLES[sl] + 6 * A_CODES[sl]) for sl in range(7)] + [(SLOT7, SLOT7 + SLOT7_SIZE * CODES),
-          (t.brecs, t.brecs + 13 * t.n_brecs), (0x329E, 0x329E + 2 * 0x60), (t.bt, t.bt + 0x60), (0x2440, 0x2442)] + \
+          (t.brecs, t.brecs + 13 * t.n_brecs), (0x329E, 0x329E + 2 * 0x60), (t.bt, t.bt + 0x60), (0x2440, 0x2442), (0x1132, 0x1134)] + \
          [tuple(r) for r in (vrep or {}).get('enable_maps', [])] + cue_ranges + imp_ranges
     bad = [i for i in range(0x8000) if m1[i] != old[i] and not any(a <= i < b for a, b in ok)]
     assert not bad, f'fixed area changed outside the tables: {[hex(i) for i in bad[:8]]}'

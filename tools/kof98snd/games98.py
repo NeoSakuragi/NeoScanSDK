@@ -176,6 +176,24 @@ GAMES = {
         block=431, send=500,  # the game sends $07 at frame 430 and its first song ($5D) at 431 (measured): $5D is
         # blocked, so every song starts from the driver's power-on state (its FM TL shadows carry over between songs)
     ),
+    'kof99': dict(
+        name="The King of Fighters '99", rom='/data/roms/kof99.neo',
+        m1='/data/neogeo_dict/sound/kof99/kof99_m1.bin', dir='/data/neogeo_dict/sound/kof99',
+        id=b'Sound Driver(ROM)Ver 1.7',                      # KOF98's build: $0000-$2E0D byte-identical to KOF98's
+        sig=(0x2E0E, bytes.fromhex('2f432f49')),               # (TODO #219, 2026-10-07; $2E0E on = the game's tables):
+        songs=0x329E, song20=0x2BA2, banksets=0x2708,           # every table address as 'kof98'
+        notes=0x2BC8, fnum=0x2A68,
+        lv_fm=0x311D, lv_a=0x319D, lv_b=0x321D,
+        b_dn=0x2B2A, b_rec=0x2E1E, fx6=0x2E32,
+        big_slot=7, guard=0xFD9B,
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87),
+               ('a', 0x1C, 0x00)],
+        overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=False,
+        types=0x3038,
+        nop=0x60,             # KOF98's NMI: a blocked command becomes $60 (type 0), not $00 (a stale ring slot replays)
+        block=340, send=400,  # our emulator: the game sends $07 at frame 338 and its first song ($45) at 352 (measured)
+    ),
 }
 
 def game_of(data):
