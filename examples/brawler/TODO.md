@@ -1537,7 +1537,28 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   D is DD's 22 > 43 (a hop kick follows), the brawler plays 22 only. (DONE in #218 on fix/218-cheng-far-d: the chain
   22 > 43 > 41 is automatic in DD, played whole, both hits with DD's sparks; the down attack too.)
 
-- [ ] 216. FOUND BY #214: (a) Rugal's slam burst lands 12 px off screen: the #173 wall leaves him 92 px from the edge
+- [ ] 216. (DONE ON BRANCH fix/216-kof-effects-leftovers 2026-10-07, awaiting Bruno's review; proofs /data/tmp/k216/out,
+  tools/kof96/handlers98.md "The last recorded KOF98 specials" and "KOF's shared effects bank") (a) KOF's rule for a
+  victim list at the wall (KOF98 $255B0, the end of every list place $25372): an entry past a wall moves the ATTACKER
+  to the wall minus the list's farthest offset, the victim placed again (fighter.c vlist_wall, vocabulary stage.wall):
+  Rugal stops at the wall, the slam steps him back 80 px (KOF 92), the burst 16 px inside the screen (KOF 20), on
+  KOF's frames (zoom_rugal sheet); romspecials wall: 0 frame mismatches, x within 9.6 px (was 37.6). (b) measured with
+  a tap on the CPU's writes reading the line counter: the spawn tick took 252 of the 256 scanlines a tick has (Ralf
+  [2]8A), 46 of them depth_sort scanning each new definition's rows: now bproj_t.cols from the export (211 / Iori 624D
+  191); the next frame's VRAM flush ends by scanline 5, before the LSPC's first sprite read (6): the effects were on
+  their frame, fx214_proof's 'late_flush' was its read at the harness frame's end (now flush_past_frame_end; late_flush
+  = after scanline 6: 0, tick_overruns 0, all ok). A flush before the BIOS's SYSTEM_IO (crt0) was tried and dropped:
+  it moves the pad's read across a frame (regress bleed). (c) all three from KOF98's handlers: Ralf AAAA (its five
+  dust clouds; romspecials near 80 px: 0 mismatches, 1 / 1 hit; the mash's replay not modelled: the walk presses
+  nothing), Yamazaki 236236C (victim lists A, B, B, C; his jump's swirl, shape 'follow'; 0 frame mismatches whiff /
+  close / wall, 11 hits vs KOF's 12: KOF's last strike also hits the held victim; the swirl freezes in KOF's catch
+  hit-stop, ends 7 frames sooner here), Iori 23624C (the claw held by its victim routine, the finisher = KOF's engine
+  throw $3F8A -> P_CATCH + its list (VL_CATCH), the claw's slot-1 hit box; 0 frame mismatches whiff / close, 8 / 8 hits,
+  every object incl. the explosion on KOF's frames +-1). Shared-effect palettes 224-239 (11 used). Their MAX versions
+  stay as they were (handlers98.MAX_LATER: Yamazaki none, Iori's captured MAX on down+D). Every other ROM special of
+  the four identical to 0.3.5 (romspecials summaries equal); controls / cancel / fury_inv (AI_OFF) ok for the four,
+  rugal173 wall 6 / 6, bank_proof ALL OK, regress bleed True (frame-exact), campaign29 through, scenarios
+  todo216-* lint 0. FOUND BY #214: (a) Rugal's slam burst lands 12 px off screen: the #173 wall leaves him 92 px from the edge
   (KOF 124) and the burst sits at +104; (b) 4-8 effects spawned on one frame overrun it and appear 1-3 frames late
   (Iori 624D, Ralf); (c) Iori 23624C, Ralf AAAA, Yamazaki 236236C are still recorded scripts.
 
@@ -1580,6 +1601,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   his select / P1's choice — Bruno decides) + back-fill: each roster fighter's theme from his source game (KOF94-99,
   SS2, WHP, Kizuna, Double Dragon), per source driver: playable now / needs its driver ported. Every new-fighter job
   checks its theme from now on.
+
+- [ ] 220. KOF MAX VERSIONS STILL RECORDED (found by #216): Iori's down+D (MAX 23624C) is still the old recorded script,
+  Yamazaki has no MAX; also Yamazaki 236236C lands 11 of KOF's 12 hits (the last strike also hits the held victim)
+  and his swirl ends 7 frames early; Ralf AAAA's mash repeat isn't modelled. Decode from KOF98's handlers.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

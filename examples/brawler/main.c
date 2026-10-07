@@ -244,7 +244,8 @@ static uint16_t slot_spr[NA];                    /* each depth slot's first spri
 static uint8_t pj_cols[BC_COUNT];                /* per character: its widest projectile / effect frame (pj_measure) */
 static uint8_t pj_w[NPJ];                        /* per pool entity: its block this frame (0: free, or no room) */
 static const bproj_t *pj_def[NPJ];               /* per pool entity: the definition pj_dw was measured for (TODO #214) */
-static uint8_t pj_dw[NPJ];                       /* its widest frame (pj_scan of its own definition and trail) */
+static uint8_t pj_dw[NPJ];                       /* its widest frame (its definition's cols: the export's pj_scan of
+                                                    its rows, end rows and trail) */
 static uint8_t pj_scan(const bchar_t *c, const bproj_t *d) {   /* a projectile's rows, end rows and its trail's */
     uint8_t w = 0, k;
     for (; d; d = d->child) {
@@ -317,11 +318,11 @@ static void depth_sort(void) {
                several at once (Iori 624D's 7, Ralf [2]8A's 8, up to 8 columns), past PJ_SPRS at their thrower's widest;
                the step effects (bchar_t.pfx) were not in pj_cols at all */
             if (p->state != S_OFF) {
-                if (p->pdef != pj_def[i]) {
-                    uint8_t ob = BANK_set(CH_BANK(p->ch));   /* (its rows and frames: its bank) */
-                    pj_def[i] = p->pdef; pj_dw[i] = p->pdef ? pj_scan(p->ch, p->pdef) : 0;
+                if (p->pdef != pj_def[i]) {              /* (TODO #216: measured by the export, bproj_t cols; scanning
+                                                            its rows here cost the tick 8 effects are born on 46 raster
+                                                            lines, Ralf [2]8A's landing: 252 of the frame's 256) */
+                    pj_def[i] = p->pdef; pj_dw[i] = p->pdef ? p->pdef->cols : 0;
                     if (pj_dw[i] > MAX_COLS) pj_dw[i] = MAX_COLS;
-                    BANK_set(ob);
                 }
                 w = pj_dw[i] ? pj_dw[i] : pj_cols[p->ch->id];   /* (a script's effect, no definition: its thrower's widest) */
             }

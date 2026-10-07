@@ -15,7 +15,7 @@ _Static_assert(offsetof(fighter_t, x) == 8 && offsetof(fighter_t, z) == 12 && of
 _Static_assert(offsetof(fighter_t, facing) == 32 && offsetof(fighter_t, anim) == 38 && offsetof(fighter_t, step) == 39, "draw.s F_FACING/F_ANIM/F_STEP");
 _Static_assert(offsetof(fighter_t, shown_frame) == 56 && offsetof(fighter_t, shown_facing) == 58 && offsetof(fighter_t, frame_ovr) == 60, "draw.s F_SHOWN_*/F_FRAME_OVR");
 _Static_assert(offsetof(fighter_t, ncols) == 94, "draw.s F_NCOLS");
-_Static_assert(SFX_PAL == 232 && SFX_NPAL <= SFX_NPAL_MAX, "draw.s SFX_PAL (KOF's shared effects bank, TODO #214)");
+_Static_assert(SFX_PAL == 224 && SFX_NPAL <= SFX_NPAL_MAX, "draw.s SFX_PAL (KOF's shared effects bank, TODO #214)");
 _Static_assert(offsetof(bchar_t, frames) == 10 && offsetof(bchar_t, anims) == 14 && offsetof(bchar_t, tile_hi) == 60, "draw.s CH_*");
 _Static_assert(offsetof(banim_t, steps) == 2 && offsetof(bframe_t, nparts) == 0 && offsetof(bframe_t, parts) == 2, "draw.s AN_STEPS/FR_*");
 _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offsetof(bpart_t, cols) == 4 && offsetof(bpart_t, rows) == 5 &&
@@ -983,7 +983,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = f->vz = 0;   /* (vz: P_MOVE's
                                                                     depth, only P_HOME sets it) */
-        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0;
+        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0; f->vlist = 0;
         if ((f->ch->specials[f->spec_ix].sflags & SF_NOW) && k != BS_FURY) {   /* SF_NOW (SS2): its first frame is this
                                                                     one (the action routine runs in the frame the action
                                                                     is set; else every SS2 move ran a frame long, TODO
@@ -1523,16 +1523,40 @@ static void hold_apply(fighter_t *f) {                           /* a caught vic
  * drawn in front or behind); a step's first frame on a blow entry deals the move's hit (no hit-stop: KOF's victim
  * routine strikes, the attacker plays on), a release entry lets it go into its flight (KOF's 283: the blowback, its
  * x then held by the wall rule). The attacker's P_VSIG moves the victim to its next list (KOF +$D1 bit 7). */
+/* the list's wall (vocabulary stage.wall "a victim list at the wall", TODO #216; KOF98 $255B0, the end of every list
+ * place $25372): an entry that would put the victim at or past a wall ($18092 on the VICTIM: KOF's stage x 32 / 736,
+ * the brawler's wall_lo / wall_hi) moves the ATTACKER instead, to the wall minus the list's farthest offset on that
+ * side (the entries whose dx has this entry's sign), and places the victim again from there: every entry of the list
+ * then fits inside the walls, the farthest one on the wall. Rugal's God Press slam: he stops at the wall, the slam's
+ * list reaches 92 px ahead, so he stands 92 px from it (KOF: 736 -> 644) and the burst at +104 shows on screen. */
+static void vlist_wall(fighter_t *f, fighter_t *t, const bvlist_t *l, const bvent_t *e) {
+    int16_t x = INT(t->x);
+    int32_t off, w, d0;
+    uint8_t k, m = 0;
+    if (x > wall_lo && x < wall_hi) return;
+    for (k = 0; k < l->n; k++) {                                 /* the farthest entry on this entry's side */
+        int8_t d = l->e[k].dx;
+        if ((d < 0) != (e->dx < 0)) continue;
+        if (d < 0) d = -d;
+        if ((uint8_t)d > m) m = d;
+    }
+    off = dir_mul(f->facing, FIX(e->dx));                        /* (the victim's side of the attacker, world x) */
+    w = FIX(x >= wall_hi ? wall_hi : wall_lo);
+    d0 = (off >= 0 ? w - FIX(m) : w + FIX(m)) - f->x;
+    f->x += d0; f->throw_x0 += d0;                               /* (its objects' anchor moves with it) */
+    t->x = f->x + off;
+}
 static void vlist_apply(fighter_t *f, const bspec_t *sp) {
     fighter_t *t = f->target;
     const bvlist_t *l;
     const bvent_t *e;
-    if (!f->vlist || !t || !(f->pflags & PF_HOLD)) return;
+    if (!f->vlist || (f->vlist & 0x80) || !t || !(f->pflags & PF_HOLD)) return;   /* (0x80: P_CATCH's, from its routine) */
     l = &sp->vlists[f->vlist - 1];
     if (!l->n) { f->vlist = 0; return; }                         /* (past its last list: n 0 ends the table) */
     e = &l->e[f->pstep < l->n ? f->pstep : l->n - 1];
     if (!(l->flags & VL_FLY) || f->vent == 0xFF) {               /* placed at the attacker + its entry (a flying list: */
-        t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z; clamp(t);   /* once) */
+        t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z;   /* once) */
+        vlist_wall(f, t, l, e); clamp(t);                        /* (past a wall: the attacker steps back, KOF's rule) */
     }
     if (l->flags & VL_FLY) {                                     /* it flies on its own (SS2's rage victims): its */
         if (f->vent == 0xFF) { t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8; }   /* velocities */
@@ -1605,7 +1629,10 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
     }
     if (f->pcatch == 1) {                                        /* then its routine (+$19C); its victim runs the */
         f->pcatch = 0xFE; f->pres = f->phit;                     /* routine the catch gave it (+$1A0): the first */
-        if (sp->vlists) { f->vlist = 1; f->vent = 0xFF; }        /* list of its script (bspec_t.vlists) */
+        if (f->vlist & 0x80) {                                   /* (P_CATCH: the list it named, held by it from */
+            f->vlist &= 0x7F; f->vent = 0xFF; f->pflags |= PF_HOLD; f->phold = 0;   /* now: KOF's throw routine) */
+        } else if (sp->vlists && !(sp->vlists[0].flags & VL_CATCH)) { f->vlist = 1; f->vent = 0xFF; }   /* list of its
+                                                                    script (bspec_t.vlists; VL_CATCH: P_CATCH's alone) */
     }
     if (f->pcatch == 3) f->pcatch = 2;                           /* (the frame after the hit-stop runs as it was) */
     x0 = f->x;
@@ -1682,6 +1709,11 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_HITCLR: f->pflags &= ~PF_HITANY; break;
         case P_HOLD: f->pflags |= PF_HOLD; break;
         case P_VSIG: if (f->vlist) { f->vlist++; f->vent = 0xFF; } break;   /* its caught victim's next list (KOF +$D1 bit 7) */
+        case P_CATCH:                                            /* the engine's throw on its held victim (TODO #216, */
+            f->pcatch = p->a ? 2 : 1; f->phit = p->b; f->pdeadn = p->a; f->pdead = 0;   /* KOF98 $3F8A: Iori 23624C's */
+            f->vlist = 0x80 | (uint8_t)v; break;                 /* finisher): a dead frames, then routine b, list v
+                                                                    (KOF98: the frame of the call is the throw's hit-stop
+                                                                    frame, the routine runs the next: a 0) */
         case P_TURN: f->facing = -f->facing; break;              /* turned around: forward is the other way (KOF eori +$31) */
         case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
         case P_VPHASE: vphase(f, p->a); break;                   /* its target's victim phases (TODO #136) */
