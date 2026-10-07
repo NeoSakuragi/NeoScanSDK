@@ -1079,5 +1079,18 @@
   "expect": "Forward + C plays his triple kick (EX R.E.D. Kick: three kicks hitting Ryo three times). Up-forward + C now plays the punch rush that forward + C played before (236C, its follow-ups unchanged).",
   "do_keys": "4:Rc,120:-",
   "proof": 60
+ },
+ "20261007-145409-5d29": {
+  "title": "Samurai Shodown II's Hanzo: down + A in a jump throws SS2's air shuriken",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "terry",
+   "gap": 90
+  },
+  "do": "Near the Terry in front of you, jump straight up (B), then press down + A in the air. Then jump and press down + A again while a missed shuriken is still stuck in the floor.",
+  "expect": "Hanzo stops in the air, throws a spinning shuriken that flies down and forward at a steep angle and hits Terry (a light reel), then hops a little back and up and lands. A shuriken that misses sticks in the floor, blinks and disappears about a second later; while it is still there, down + A in a jump is the ordinary jumping attack.",
+  "do_keys": "3:b,3:b,7:-,3:Da",
+  "proof": 100
  }
 }

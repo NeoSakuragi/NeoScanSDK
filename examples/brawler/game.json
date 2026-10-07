@@ -230,6 +230,7 @@
    "routes": "default",
    "specials": {"D": "6321S", "fD": "623K", "dD": null, "uD": null, "dfD": null, "ufD": null},
    "fury": "WFT",
+   "air_special": "j.4123S",
    "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",
