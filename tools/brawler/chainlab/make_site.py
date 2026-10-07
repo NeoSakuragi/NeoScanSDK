@@ -95,7 +95,7 @@ json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
 # the Select screen tab: the build's select screen as data (select_images.py: the ROM's pictures, the fix layer from our
 # emulator, the pose candidates above as palette indices) for selectrender.js
 json.dump(select_images.select_data(game, poses), open(os.path.join(out, 'select.json'), 'w'))
-for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js', 'expose.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)
 
 # "Oldies quirks" tab: quirks.json + its images (paths in quirks.json are relative to QUIRK_SRC; copied under quirks/)
@@ -109,3 +109,12 @@ if os.path.exists(qj):
             if os.path.exists(src):
                 dst = os.path.join(out, 'quirks', sh['src']); os.makedirs(os.path.dirname(dst), exist_ok=True); shutil.copy(src, dst)
     shutil.copy(qj, os.path.join(out, 'quirks.json'))
+
+# "Classic Brawlers' Exposé" tab: the encyclopedia JSONs (/data/study/encyclopedia/<set>.json) -> expose/ + index.json
+ENC = '/data/study/encyclopedia'
+if os.path.isdir(ENC):
+    os.makedirs(os.path.join(out, 'expose'), exist_ok=True)
+    games = sorted(f for f in os.listdir(ENC) if f.endswith('.json'))
+    for f in games: shutil.copy(os.path.join(ENC, f), os.path.join(out, 'expose', f))
+    json.dump({'games': games, 'intro': "The beat 'em ups behind the brawler's gameplay revamp, measured: every playable character's movement, jump arc and moves (startup / active / recovery, damage, hit-stop, boxes), each game's system rules, and the enemies' AI."},
+              open(os.path.join(out, 'expose', 'index.json'), 'w'))

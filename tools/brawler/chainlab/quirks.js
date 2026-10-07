@@ -5,7 +5,7 @@
   const $ = id => document.getElementById(id);
   const tab = $('tabQuirks'), col = $('quirkcol');
   if (!tab || !col) return;
-  const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) e.setAttribute(k, v); for (const c of kids.flat()) if (c != null) e.append(c); return e; };
+  const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) e.setAttribute(k, v); for (const c of kids.flat(Infinity)) if (c != null) e.append(c); return e; };
   let loaded = false;
   async function load() {
     if (loaded) return; loaded = true;
@@ -27,5 +27,7 @@
   }
   tab.onclick = () => window.labTab('quirks');
   window.addEventListener('labtab', e => { if (e.detail === 'quirks') load(); });
-  if (location.hash === '#quirks') { window.labTab('quirks'); load(); }
+  const deep = () => { if (location.hash === '#quirks') { window.labTab('quirks'); load(); } };
+  window.addEventListener('hashchange', deep);
+  if (document.readyState === 'complete') setTimeout(deep, 300); else window.addEventListener('load', () => setTimeout(deep, 300));
 })();

@@ -43,7 +43,7 @@
   // ---- tabs -------------------------------------------------------------------------------------------------------------
   // three tabs share the game column: the Chain Lab (its tree and readout), Stages, Enemies (enemies.js)
   let active = false;
-  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']], chars: ['tabChars', ['charcol']], select: ['tabSelect', ['selcol']], feedback: ['tabFeedback', ['fbcol']], quirks: ['tabQuirks', ['quirkcol']] };
+  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']], chars: ['tabChars', ['charcol']], select: ['tabSelect', ['selcol']], feedback: ['tabFeedback', ['fbcol']], quirks: ['tabQuirks', ['quirkcol']], expose: ['tabExpose', ['exposecol']] };
   window.labTab = name => {
     for (const [k, [b, els]] of Object.entries(TABS)) {
       if ($(b)) $(b).classList.toggle('on', k === name);
