@@ -861,17 +861,20 @@ static void inputs_reset(void) {                 /* a select / fight starts: not
     for (i = 0; i < NF; i++) in[i] = (intent_t){ 0 };
     for (i = 0; i < 2; i++) { tap_t[i] = 255; tap_dir[i] = 0; }
 }
-static void close_marks(void) {                 /* intent.close: an opponent within CLOSE_X (A takes a route's close link) */
-    uint8_t i, j;
-    for (i = 0; i < NF; i++) {
+static void close_marks(void) {                 /* intent.close: an opponent within CLOSE_X (A takes a route's close link); */
+    uint8_t i, j;                               /* intent.lie: the nearest opponent lying within DOWN_REACH (up / down + A: */
+    for (i = 0; i < NF; i++) {                  /* the down attack at it, TODO #218) */
         const fighter_t *f = &fighters[i];
-        in[i].close = 0;
+        int16_t best = DOWN_REACH + 1;
+        in[i].close = 0; in[i].lie = 0;
         if (f->state == S_OFF) continue;
         for (j = 0; j < NF; j++) {
-            const fighter_t *o = &fighters[j];
+            fighter_t *o = &fighters[j];
             int16_t dx = INT(o->x) - INT(f->x), dz = INT(o->z) - INT(f->z);
             if (o->team == f->team || o->state == S_OFF || o->state == S_DEAD) continue;
-            if (dx >= -CLOSE_X && dx <= CLOSE_X && dz >= -Z_HIT && dz <= Z_HIT) { in[i].close = 1; break; }
+            if (dx >= -CLOSE_X && dx <= CLOSE_X && dz >= -Z_HIT && dz <= Z_HIT) in[i].close = 1;
+            if (dx < 0) dx = -dx;
+            if (o->state == S_DOWN && o->hp > 0 && dx < best) { best = dx; in[i].lie = o; }
         }
     }
 }

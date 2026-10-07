@@ -31,7 +31,7 @@ def run(sp, var, limit=400):
         st['left'] = a['steps'][st['step']]['ticks'] + 1
     for f in range(limit):
         pc = st['pres']; over = False
-        for _ in range(96):
+        for _ in range(255):
             op, a, b, v = prims[pc]; pc += 1
             if op & 0x80: op &= 0x7F; v = vt['rows'][var][b]
             name = P.get(op)
@@ -40,6 +40,8 @@ def run(sp, var, limit=400):
                 key = {0: 'vx', 1: 'vy', 2: 'g', 3: 'fric', 4: 'cnt'}[a]; st[key] = v
             elif name == 'mul': key = 'vx' if a == 0 else 'vy'; st[key] = fmul16(st[key], v)
             elif name == 'add': key = {0: 'vx', 1: 'vy', 4: 'cnt'}[a]; st[key] += v
+            elif name == 'home': st['vx'] = (M.Obj(0, 0).home << 16) >> a   # (the down attack's leap: the model's
+                                                                         # distance, TODO #218)
             elif name == 'move': st['x'] += st['vx']
             elif name == 'fall':
                 v0 = st['vy']; st['vy'] -= st['g']; st['y'] += v0; st['land'] = False
@@ -47,7 +49,8 @@ def run(sp, var, limit=400):
                 elif st['y'] <= 0: st['y'] = 0; st['land'] = True
             elif name == 'dec': st['cnt'] -= 1
             elif name == 'br':
-                c = a & 0x7F; val = {0: st['end'], 2: st['land'], 4: st['cnt'] < 0, 5: False, 7: True}[c]   # (5 a hit: a whiff here)
+                c = a & 0x7F; val = {0: st['end'], 2: st['land'], 4: st['cnt'] < 0, 5: False, 7: True, 23: True}[c]   # (5 a hit:
+                                                                         # a whiff here; 23 its down-attack target lies)
                 if val == bool(a >> 7):
                     if b < 0: break
                     pc = b
