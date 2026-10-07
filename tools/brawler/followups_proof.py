@@ -45,7 +45,7 @@ MOVES = [('iori', 'kof98', 27, '214A', 'ufD', [([], 'again', range(3, 32)), ([('
           [([], 10)]),
          ('iori', 'kof98', 27, '623D', 'uD', [([], 'again', range(16, 46)), ([('again', 30)], 'again', range(46, 92, 2)),
                                                 ([('again', 30), ('again', 70)], 'again', range(80, 116, 2))], [([], 32)], 'close'),
-         ('kyo', 'kof98', 0, '236C', 'fD', [([], 'again', range(6, 34)), ([('again', 10)], 'fA', range(14, 50))],
+         ('kyo', 'kof98', 0, '236C', 'ufD', [([], 'again', range(6, 34)), ([('again', 10)], 'fA', range(14, 50))],
           [([], 10), ([('again', 10)], 30)]),
          ('k_dash', 'kof99', 0, '236C', 'D', [([], 'fA', range(4, 26)), ([], 'fAB', range(4, 26))], [([], 14)]),
          ('k_dash', 'kof99', 0, '623C', 'dD', [([], 'fA', range(10, 56, 3)), ([], 'fAB', range(10, 56, 3))], [([], 30)]),

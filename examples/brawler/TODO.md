@@ -1373,12 +1373,31 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   protect (EX 421D on 0.1.9 got hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D,
   Terry, Iori invincible starts vs KOF98; campaign29.
 
-- [ ] 206. KYO'S FURY BURNS (20261007-114307-b3f3: "The opponent should be on fire whenever hit by the Fury of Kyo.";
+- [ ] 206. (DONE ON BRANCH fix/206-kyo-fury-burn 2026-10-07, awaiting Bruno's review) KYO'S FURY BURNS (20261007-114307-b3f3: "The opponent should be on fire whenever hit by the Fury of Kyo.";
   114326: "The impact sound should be the fire sound impact. Look at the code"): KOF98's fury hit kind (burn) + KOF96's
   fire-hit sound (#197's code $2E) on Kyo's fury and MAX hits; check his other flame moves the same way.
+  DONE [code + meas] KOF98 does not burn by the hit kind: Orochinagi hits with kind 7 ($37 flame roar) and burns. The
+  burn is the hit's ELEMENT: animation step byte 1 -> the hitter's +$7E, bits 4-6; the hit ($1AF44) copies it to the
+  victim's +$132 and $17764 picks the victim's colours by it ($20 orange $F8, $30 purple $F9, $50 orange in one reaction
+  group; tools/kof96/handlers98.md "The victim's burn"). handlers98.fire_element / export_rom 'elements' (per body state)
+  + 'element' (per object, copies, phases); export_bm move_fx burns a P_ANIM / object hit by it (else by the fire kinds
+  as before). Measured over all 81 KOF98 ROM specials / MAX versions (tools/brawler/burn206_kof.py, P2's +$3A after the
+  hits, close + 112 px): 81 / 81 agree. Newly burning: Kyo's fury + MAX (flames, MAX body), EX 236A (ground flame); also
+  Ralf [2]8A / [2]8C (the explosion), 23624C / MAX (last punch), Billy MAX 236236C, Mai 21426D / MAX, 214C, 623D, Iori
+  236A (purple: KOF98 burns it; #197 had called it no fire hit). Sound: game.json kyo hit_sfx 21426C / MAX = FIRE HIT
+  ($2E alone, kind 21; was $9C SDM IMPACT). Proof /data/tmp/kyo206/out: burn_kof98.json; fire/ (fire197_proof: Kyo
+  fury, MAX, EX 236A, 623C, 236C burn, code $1A2E, the Z80 keys KOF96's $1F sample byte for byte); fire_others/,
+  fire_ralf/; romspecials/ (KOF98 | brawler sheets, AI_OFF build: fury / MAX close, the victim burns in both; 0 frame
+  mismatches); controls kyo ok, fury_inv kyo ok, bank_proof ALL OK, regress bleed_same / strict True.
 
-- [ ] 207. KYO'S TRIPLE KICK ON FORWARD+C (20261007-114458-b3f3: "Kyo has this triple kick, I would like you to map it to
+- [ ] 207. (DONE ON BRANCH fix/206-kyo-fury-burn 2026-10-07, awaiting Bruno's review) KYO'S TRIPLE KICK ON FORWARD+C (20261007-114458-b3f3: "Kyo has this triple kick, I would like you to map it to
   forward plus C"): remap in game.json (find which special is the triple kick, what forward+C held before, move it).
+  DONE: the triple kick = EX 421D (EX R.E.D. Kick, 3 hits: KOF98 12 / 28 / 51, brawler 11 / 27 / 50; his replay on
+  0.1.4 used it as spec 5 at frame 16847). game.json: fD = EX 421D, ufD (up-forward + C, the slot it left) = 236C
+  (what forward + C held). Proof: controls kyo slots (fD -> EX 421D, ufD -> 236C), romspecials kyo:fD / kyo:ufD and
+  ufD+again@10 (follow-up) 0 frame mismatches. followups_proof.py crashes in its own comparison (TypeError at line
+  126) before reaching Kyo: not run.
+
 
 - [ ] 208. FURY WHILE GRABBING (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D
   button. Make it standard that you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a
