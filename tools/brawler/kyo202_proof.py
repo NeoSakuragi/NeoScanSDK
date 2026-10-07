@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """TODO #202 proofs (Kyo, Bruno's notes on 0.1.8), harness.py on `make AI_OFF=1` builds (the test drives the enemies).
 
-    python3 kyo202_proof.py inv GAME_DIR [BASE_DIR] [OUT]   EX 421D (up-forward + C, game.json roster kyo "invincible")
+    python3 kyo202_proof.py inv GAME_DIR [BASE_DIR] [OUT]   EX 421D (its C slot in game.json: forward + C since #207, up-forward + C before; game.json roster kyo "invincible")
                                                     with two minions jabbing (A every frame, re-stood when knocked) on
                                                     each side of Kyo through the move from its frame 0..7 (8 runs): per
                                                     frame of the move Kyo's inv / life / state; the build before
@@ -50,7 +50,9 @@ def inv_run(game, out, tag):
     from harness import Brawler
     roster = [r['name'] for r in json.load(open(os.path.join(game, 'game.json')))['roster']]
     frames = json.load(open(os.path.join(game, 'build', 'bm_frames.json')))['kyo']
-    b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
+    kyo = json.load(open(os.path.join(game, 'game.json')))['roster'][roster.index('kyo')]['specials']
+    ex_keys = {'D': '', 'fD': 'R', 'dD': 'D', 'uD': 'U', 'dfD': 'DR', 'ufD': 'UR'}[next(k for k, v in kyo.items() if v == 'EX 421D')]   # its
+    b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)                     # slot (forward + C since #207)
     meter = json.load(open(os.path.join(game, 'game.json')))['meter']['max']
     b.pick(roster.index('kyo'), unlock=True); b.run(10)
     for i in range(1, 8): b.place(i, x=1000, z=0)
@@ -68,7 +70,7 @@ def inv_run(game, out, tag):
         for i in MINIONS: b.place(i, x=1000, z=30); b.intent(i)
         rows, started, end = [], None, None
         for f in range(260):
-            if started is None and f >= 4 + (phase or 0): keys = 'URc' if f < 8 + (phase or 0) else ''
+            if started is None and f >= 4 + (phase or 0): keys = ex_keys + 'c' if f < 8 + (phase or 0) else ''
             else: keys = ''
             s0 = st[b.fget(0, 'state')]
             if started is None and s0 == 'SPECIAL': started = f
@@ -119,7 +121,7 @@ def inv(game, base, out):
         d = json.load(open(p)); R[tag] = d['res']
         hit = sorted({h for r in d['res'] for h in r.get('hit_at_move_frames', [])})
         sheet(d['cells'], os.path.join(out, f'inv_{tag}.png'),
-              f'Kyo EX 421D (up-forward + C), 4 minions jabbing every frame, {tag} build: Kyo hit at move frames {hit or "none"}')
+              f'Kyo EX 421D, 4 minions jabbing every frame, {tag} build: Kyo hit at move frames {hit or "none"}')
     new = R.get('new', [])
     R['new_ok'] = bool(new) and all(r.get('move_frames') and r['frames_inv_fury'] >= r['move_frames'] - 1 and not r['hit_at_move_frames']
                                     and r['life_lost_in_move'] == 0 and r['minion_swing_frames'] > 0 and r['first_hit_after_end'] is not None

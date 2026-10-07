@@ -1401,6 +1401,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   a hurt box; frame-by-frame vs the capture equal but where KOF98's capture connected (Iori 623C, Kyo 236C: its hit-stops
   offset the rest) or the MAX's longer charge (Terry). Scenario todo205-hurt-box (Terry's 623D in a fight; verify
   identical).
+  #208 + #205 on 0.2.6 merged (/data/tmp/f208/out/final): fury208 ALL OK (23 fighters), hurt205 ALL OK, kyo202_proof inv
+  (now reads EX 421D's slot from game.json: forward + C since #207) flag build OK (INV_FURY whole) / no-flag build hit
+  at [11] from every phase, fury_inv ALL OK, controls 24 / 24 ok, cancel all ok 24 fighters, throw196 ALL OK, hold204
+  ALL OK, bank_proof ALL OK, regress bleed_same / strict True, campaign29 through; scenarios verify identical, lint 0.
 
 - [ ] 206. (DONE ON BRANCH fix/206-kyo-fury-burn 2026-10-07, awaiting Bruno's review) KYO'S FURY BURNS (20261007-114307-b3f3: "The opponent should be on fire whenever hit by the Fury of Kyo.";
   114326: "The impact sound should be the fire sound impact. Look at the code"): KOF98's fury hit kind (burn) + KOF96's
