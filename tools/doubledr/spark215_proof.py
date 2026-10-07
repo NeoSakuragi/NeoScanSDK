@@ -127,13 +127,15 @@ def br_play(b, start, keys, label, sf, pre=None, gap=GAP):
         first = rows[i]['sparks']
         new = [s for s in first if not any(q[4] == s[4] for q in (rows[i - 1]['sparks'] if i else []))]
         life = []
-        if new:
-            k = new[0][4]
-            for j in range(i, min(i + 24, len(rows))):
+        lag = 0
+        if new:                                            # its rows by its own clock (state_t): a lag frame (the
+            k = new[0][4]                                  # game's tick not done in that video frame) shows a row
+            for j in range(i, min(i + 30, len(rows))):     # twice, counted apart (lag)
                 s = next((q for q in rows[j]['sparks'] if q[4] == k), None)
-                if not s or s[5] != j - i: break           # (its entity taken by the next spark: a new life)
+                if not s or s[5] < len(life) - 1 or s[5] > len(life): break   # (its entity taken by the next spark)
+                if s[5] == len(life) - 1: lag += 1; continue
                 life.append(s[:2])
-        out.append({'frame': h[0], 'screen': visible([rows[i + k]['im'] if 0 <= i + k < len(rows) else None for k in range(-1, 13)]),
+        out.append({'frame': h[0], 'lag_frames': lag, 'screen': visible([rows[i + k]['im'] if 0 <= i + k < len(rows) else None for k in range(-1, 13)]),
                     'life': life, 'point': new[0][2:4] if new else None, 'from_victim': new[0][6] if new else None,
                     'red': [j - i for j in range(i, min(i + 12, len(rows))) if rows[j]['red']]})
     return {'hits': out, 'sparks': sum(1 for j, r in enumerate(rows) for s in r['sparks'] if not j or not any(q[4] == s[4] for q in rows[j - 1]['sparks'])),
@@ -181,7 +183,7 @@ def main():
                 for gap in (GAP, 90, 40, 120):             # (a move that whiffs from 58 px in the brawler: Super
                     br, rows = br_play(b, start, keys_, label, sf, pre, gap)   # Billy's flying kick)
                     if label == 'whiff' or br['hits']: break
-                ok = True; why = []; pairs = []; unmatched = []; off = 0
+                ok = True; why = []; pairs = []; unmatched = []; off = None; lags = 0
                 if label == 'whiff':
                     ok = ddr['sparks'] == br['sparks'] == 0 and ddr['red_frames'] == br['red_frames'] == 0
                 else:                                      # each DD hit with the brawler's hit spawning the same
@@ -191,11 +193,13 @@ def main():
                         if j is None: unmatched.append(f'DD hit {k} ({hd["life"][:1]}): no such hit in the brawler'); continue
                         hb = left[j]; left = left[j + 1:]; pairs.append((hd, hb))
                         if hd['life'] != hb['life']: why.append(f'hit {k}: spark DD {hd["life"]} brawler {hb["life"]}')
-                        if k == 0: off = (hd['screen']['spark'] or 0) - (hb['screen']['spark'] or 0)   # (DD's picture: a frame later)
-                        if k == 0 and hd['screen']['red_from_spark'] != hb['screen']['red_from_spark'] or \
-                                hd['screen']['red'] != [r + off for r in hb['screen']['red']]: why.append(f'hit {k}: on screen DD {hd["screen"]} brawler {hb["screen"]}')
+                        if hb['lag_frames']: lags += 1; continue   # (a lag frame in it: the picture's timing not compared)
+                        first = off is None                # (the spark's first showing: measured on the first hit,
+                        if first: off = (hd['screen']['spark'] or 0) - (hb['screen']['spark'] or 0)   # no spark before it;
+                        if hd['screen']['red'] != [r + off for r in hb['screen']['red']] or (   # DD's picture a frame later)
+                                first and hd['screen']['red_from_spark'] != hb['screen']['red_from_spark']): why.append(f'hit {k}: on screen DD {hd["screen"]} brawler {hb["screen"]}')
                     ok = not why and bool(pairs)
-                br['gap'] = gap; br['matched_hits'] = len(pairs); br['unmatched'] = unmatched   # (Cheng-Fu's 236 D: 5 of DD's 6, TODO #212's reach)
+                br['gap'] = gap; br['matched_hits'] = len(pairs); br['lagged_hits'] = lags; br['unmatched'] = unmatched   # (Cheng-Fu's 236 D: 5 of DD's 6, TODO #212's reach)
                 res['moves'][f'{rname} {move} {label}'] = {'ok': ok, 'why': why, 'dd': ddr, 'brawler': br}
                 print(f'{rname:12s} {move:10s} {label:5s} {"ok" if ok else "FAIL"} DD {len(ddr["hits"])} hits {ddr["sparks"]} sparks {ddr["red_frames"]} red | '
                       f'brawler {len(br["hits"])} hits {br["sparks"]} sparks {br["red_frames"]} red, {len(pairs)} matched (gap {gap}) {why[:3]} {unmatched}', flush=True)

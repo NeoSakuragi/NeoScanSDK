@@ -1510,7 +1510,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   release's purple explosion (state 140), Rugal's slam. Export the shared bank's graphics the moves use (only those),
   with their palettes, and play them.
 
-- [ ] 215. (EFFECTS DONE ON BRANCH fix/215-dd-effects 2026-10-07 on 0.3.1, awaiting Bruno's review; still open: the 421
+- [ ] 215. (EFFECTS DONE ON BRANCH fix/215-dd-effects 2026-10-07 on 0.3.1, every proof re-run after merging 0.3.3, awaiting Bruno's review; still open: the 421
   counter and the down attack, below) CHENG FU'S HIT EFFECTS (seen on #212's sheets): DD draws pink rings / yellow sparks / green-blue slashes on
   his super hits and flashes the screen red on each Super 623 hit; the brawler plays none of them (only its generic
   spark). Decode DD's effect objects for his moves and play them. Also open from #212: his 421 counter stance (no
@@ -1528,7 +1528,8 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   screen_fx beside the big hit's (stage hidden + BIGHIT_COL $4F00: DD's red, 2 + 2 frames twice). Proofs
   /data/tmp/dd215/out: spark215_proof.py (a real fight per move, hit + whiff, DD vs brawler per hit: the spark's 19
   frames identical frame by frame, red 2/3/6/7 frames after the spark shows on both screens, strip_*.png every frame;
-  whiffs 0 sparks 0 red; Cheng-Fu's 236 D: 5 of DD's 6 hits as in #212, Billy's 623 D one extra jab hit (distance));
+  whiffs 0 sparks 0 red; Cheng-Fu's 236 D: 5 of DD's 6 hits as in #212, Billy's 623 D one extra jab hit (distance);
+  on 0.3.3 the super 623's catch has one lag frame in the harness (every entity holds a frame), timing not compared there);
   frames 700 (Cheng-Fu) / 830 / 684 (Billy / Super Billy) identical to DD's drawing incl. every spark frame, palettes
   128-131 = DD's palette RAM; cheng_proof fight all ok; controls_proof / fury_inv_proof (AI_OFF copy) ok; bank_proof ok;
   regress no-bleed frame-exact, every roster trace = 0.3.1's. Scenarios todo215-* (6, lint 0). Seen: Cheng-Fu's far
