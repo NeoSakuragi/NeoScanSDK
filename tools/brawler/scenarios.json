@@ -694,5 +694,19 @@
   "expect": "The boss falls in slow motion, STAGE CLEAR shows, then Terry turns toward the middle of the screen and plays his KOF98 win pose once, with his voice; the buttons do nothing. The next screen comes after the pose.",
   "do_keys": "3:a",
   "proof": 700
+ },
+ "todo191-haohmaru-rage-palette": {
+  "title": "Haohmaru's fury: the rage pose in SS2's red rage palette, the glow on his head",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D.",
+  "expect": "While everything is frozen Haohmaru plays his SS2 rage animation with his clothes in SS2's red rage colours (back to normal when the fury starts); the flash's glow stays on his head as he raises the sword and drops into the low stance.",
+  "do_keys": "3:d",
+  "proof": 200
  }
 }

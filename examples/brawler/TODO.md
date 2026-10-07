@@ -1099,7 +1099,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   form none) and Billy's MAX is the transformation (its hit: 67, unchanged). Checks: controls_proof / cancel_proof
   billy_lee + billy_super ok, bank_proof ALL OK, regress no-bleed True (frame-exact), scenario lint 0.
 
-- [ ] 191. SS2 TIMING + RAGE PALETTE (found by the Kuroko boomerang job and #189): (a) every Samurai Shodown II move
+- [ ] 191. (DONE ON BRANCH fix/191-ss2-timing-rage 2026-10-07, awaiting Bruno's review) SS2 TIMING + RAGE PALETTE (found by the Kuroko boomerang job and #189): (a) every Samurai Shodown II move
   (Haohmaru, Genjuro, Kuroko: specials, furies, normals?) runs 2 frames LONGER in the brawler than in SS2 (e.g. Kuroko
   6ABC): find the cause (step-length conversion SS2 ticks -> brawler frames, a first / last step off by one like
   #181's WHP start-frame rule, the program's end condition) and fix it for every SS2 animation; (b) the SS2 rage flash
@@ -1108,6 +1108,31 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   glow anchor with each frame's head point. Proof /data/tmp/ss2t191/out: frame counts per SS2 move vs SS2 (before /
   after), ss2_proof frames, rage flash sheet SS2 vs brawler; controls_proof + cancel_proof haohmaru / genjuro / kuroko;
   bank_proof; regress no-bleed.
+  DONE (a) [code + meas]: two frames, one at each end, for every SS2 program special / fury (normals were already
+  exact: anim_tick plays them from their start frame). Start: SS2's action routine runs in the frame the action is set
+  (the class, the animation, its first velocities / counts); the brawler ran no program in start_special's frame, so
+  the whole move came a frame late. Now bspec_t.sflags SF_NOW (handlers_ss2 rom['now'] -> export_bm): fighter.c
+  start_special runs the program's first frame in the start frame (a fury still after its flash pose). End: an SS2
+  routine going back to neutral clears the class in the frame its condition holds; the program yielded one more frame
+  before P_END: compile_prog now jumps to P_END in that frame. Also found: SS2's landing is y > 224 ($27802 cmpi #224 /
+  beq: the floor line itself is not a landing): P_FALL a = 1 (fighter.c, only SS2 programs set it) -> Haohmaru /
+  Genjuro 623S A land on SS2's frame; Haohmaru's Sake Kougeki (214A) played the other weapon mode's anim 329 after 328
+  (102 frames, SS2 52): one animation now. handlers_ss2 check: lengths = SS2's, the same 3 rows with mismatches as
+  before (they were 5). Table tools/samsho2/timing191.py -> /data/tmp/ss2t191/out/timing191.txt (41 rows: specials
+  every button row, furies, normals): before +2 everywhere (214A +50), after 0 except Haohmaru 623S A+B (+2: its rise
+  above 240 px, SS2's height rule not decoded, pre-existing y error) and Genjuro 236S A at 300 px (-3: SS2 holds its
+  slash 3 frames there, unexplained; the 160 px capture hits first). Note: SS2's rise depends on the players' distance
+  (623S 68 / 74 / 99 frames at 160 px, 66 / 71 / 97 at 200-300), so airborne rows are checked at 160 px only.
+  (b) [code + meas]: SS2's display code adds the object's +$81 to the first layer's palette ($35C6 / $3656) and $25D3E
+  sets it from POW ($25D72: 2 at 32): anim 140's body (palette 16, first layer only) shows the colour set's palette 18
+  (tools/samsho2/ragepal_ss2.py: palette RAM unchanged, +$81 = 2 every frame of the pose). export_ss2.rage_palette ->
+  bchar_t.fpal / fpal_ix, fighter.c fpose_pal: on through the freeze, the colour set back on the fury's first frame (or
+  at special_end). The glow: bfpose_t hx / hy = each pose step's head (head_point on the body palette's parts only:
+  Kuroko's aura excluded; other sources keep the one fhead), main.c sf_draw reads fighter_pose_head every frame.
+  Proofs /data/tmp/ss2t191/out: timing191.txt / .json, rage/ (rage189_proof: ALL OK incl. rage_palette_ok = SS2's
+  measured colours pen for pen, flash145 anchor_is_head frame by frame; <name>_ss2_vs_brawler.png), ss2_proof/ (frames:
+  only the known wide / grab-pose differences), controls 3/3 ok, cancel all ok 3, bank_proof ALL OK, regress no-bleed
+  True (strict). Scenario todo191-haohmaru-rage-palette (lint 0).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
