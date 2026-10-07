@@ -1280,6 +1280,15 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   inputs): decode the flame objects' lifetimes / extra spawns and the hand-fire effect from KOF98's code; the move's
   invincibility: KOF98's own invincible frames if it has them, else make it invincible as Bruno asks (a roster flag).
 
+- [ ] 203. SS2 DAMAGE (20261007-130138-b3f3: "The damage is fairly low on Genjuro, I think you can triple the amount of
+  damage per hit."): measure each SS2 fighter's hit damage vs the brawler's scale (KOF fighters' damage per hit), set
+  the SS2 export's damage scale so Genjuro's hits do about 3x (and check Haohmaru, Kuroko, Hanzo SS2 for the same).
+
+- [ ] 204. UNHITTABLE BILLY KANE (20261007-125822-b3f3: "there is a glitch where Billy Kane cannot be hit anymore ...
+  Everything whiffs and I cannot grab him." — Super Billy vs the Billy Kane boss, stage 1 wave 5): replay the note,
+  find why his hurt box / grab state is gone (an invincibility flag stuck after a move, a depth / z mismatch, a state
+  that never ends), fix at the cause.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
