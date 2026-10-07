@@ -1175,6 +1175,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   inserted sound in Neo Geo games ... take the one from KOF 94"): find KOF94's coin-insert sound (its driver's command
   at a credit), port the sample, play it on every coin / credit in the brawler.
 
+- [ ] 200. KIM: THE DESCENDING DIVE (20261007-120054-b3f3, 0.1.5: "That is not the logic of this special move in the game.
+  There should be a descending motion here." Replay: Kim rises with the blue Hienzan effect then lands straight down):
+  identify the move from the replay's inputs, decode Kizuna's handler for it (the dive's descent vector, its follow-up
+  input / auto-trigger), play it like Kizuna in a real fight.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
