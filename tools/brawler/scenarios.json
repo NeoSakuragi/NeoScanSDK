@@ -917,5 +917,18 @@
   "expect": "From the start of the kick to Kyo's landing no enemy hit, grab or push reaches him (his life does not drop); he can be hit again right after he lands.",
   "do_keys": "60:-,4:URc",
   "proof": 120
+ },
+ "todo196-throw-hitch": {
+  "title": "Terry's throw: the thrown enemy flies in one smooth arc",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, then forward + A (Terry's forward throw). Watch Ryo's flight, especially the moment Terry can move again.",
+  "expect": "Ryo flies in one smooth arc and lands: no stop and jump in his flight at the moment Terry is free to act (before the fix he stalled one frame there, then jumped two steps).",
+  "do_keys": "4:R,2:Ra,90:-",
+  "proof": 60
  }
 }
