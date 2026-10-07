@@ -1381,10 +1381,26 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   find why his hurt box / grab state is gone (an invincibility flag stuck after a move, a depth / z mismatch, a state
   that never ends), fix at the cause.
 
-- [ ] 205. HURT BOX OF A ROM-PLAYED SPECIAL (found by #202): during a special read from the ROM, hits are checked against the
-  hurt box of the animation played BEFORE the move, not the move's own frames, so KOF98's steps without a hurt box don't
-  protect (EX 421D on 0.1.9 got hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D,
-  Terry, Iori invincible starts vs KOF98; campaign29.
+- [ ] 205. (DONE ON BRANCH fix/208-fury-in-grab 2026-10-07, awaiting Bruno's review) HURT BOX OF A ROM-PLAYED SPECIAL
+  (found by #202): during a special read from the ROM, hits are checked against the hurt box of the animation played
+  BEFORE the move, not the move's own frames, so KOF98's steps without a hurt box don't protect (EX 421D on 0.1.9 got
+  hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D, Terry, Iori invincible starts
+  vs KOF98; campaign29.
+  Cause, two parts: (1) every hurt test read fighter_step (f->anim: the animation before the move; a ROM special plays
+  its program's own animation, pan / pstep); (2) export_bm rom_c gave a KOF step a hurt box whenever a hurt box was
+  loaded, but KOF keeps the boxes loaded across steps and its $0200 step flag says whether the step has one (KOF98's
+  776, EX 421D's third step, has the box loaded and no $0200; handlers98.react_hurt already read $0200 that way). Fix:
+  fighter.c fighter_hurt_step (a ROM special from its first program frame: its own step) in combat, the hold crowd and
+  thrown bodies, main.c's debug boxes; rom_c: a KOF96 / 98 / 99 program step has a hurt box only with $0200 (the other
+  sources' generated programs unchanged). Roster `invincible` (Kyo's EX 421D) kept: still INV_FURY whole (kyo202_proof
+  inv, flag build: OK). Proof tools/brawler/hurt205_proof.py (AI_OFF builds; KOF98's per-frame $0200 captured in KOF98,
+  the export's row_steps), /data/tmp/f208/out/h205: without the flag (noflag.json) Kyo's EX 421D is unhittable exactly
+  KOF98's 11 frames (first hit at frame 11, kyo202_proof inv: hit at [11] from every phase; 0.2.4: [2..9]), Terry's
+  623D and Iori's 623D 9 frames as KOF98 (0.2.4: hit at frame 1, before.json); every Kyo / Terry / Iori ROM special +
+  furies: 0 frames where the engine's hurt box differs from KOF98's ROM step, the first jab lands on the first frame with
+  a hurt box; frame-by-frame vs the capture equal but where KOF98's capture connected (Iori 623C, Kyo 236C: its hit-stops
+  offset the rest) or the MAX's longer charge (Terry). Scenario todo205-hurt-box (Terry's 623D in a fight; verify
+  identical).
 
 - [ ] 206. KYO'S FURY BURNS (20261007-114307-b3f3: "The opponent should be on fire whenever hit by the Fury of Kyo.";
   114326: "The impact sound should be the fire sound impact. Look at the code"): KOF98's fury hit kind (burn) + KOF96's

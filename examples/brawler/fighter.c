@@ -175,6 +175,13 @@ static void anim_tick(fighter_t *f) {
     }
 }
 const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
+/* the step whose hurt box the fighter has now (TODO #205): a special read from the ROM shows its program's animation
+ * step (pan / pstep, from its first frame played: srow), with that step's own hurt box or none (KOF98's steps without
+ * $0200: Kyo's EX 421D frames 0-10); everything else its brawler animation's step. Steps are in the first MB: no bank */
+const bstep_t *fighter_hurt_step(const fighter_t *f) {
+    if (f->state == S_SPECIAL && f->srow && f->pan && f->ch->specials[f->spec_ix].prog) return &f->pan->steps[f->pstep];
+    return fighter_step(f);
+}
 void fighter_play(fighter_t *f, uint8_t anim) { mute = 1; play(f, anim); mute = 0; }
 void fighter_animate(fighter_t *f) { mute = 1; anim_tick(f); mute = 0; }
 void fighter_pose(fighter_t *f, uint8_t anim) { play(f, anim); }       /* the same, with the animation's voices (the */
@@ -2069,7 +2076,7 @@ static void hold_crowd(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (v->state != S_IDLE && v->state != S_WALK && v->state != S_RUN && v->state != S_ATTACK &&
                 v->state != S_HITSTUN && v->state != S_SPECIAL && v->state != S_LAND && v->state != S_PREJUMP) continue;
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
-            sv = fighter_step(v);
+            sv = fighter_hurt_step(v);
             if (!(sv->flags & 2)) continue;
             hb = &sv->hurt;
             if (!boxes_meet(a, atk, v, hb)) continue;
@@ -2140,7 +2147,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (o->state != S_IDLE && o->state != S_WALK && o->state != S_RUN && o->state != S_ATTACK && o->state != S_HITSTUN &&
                 o->state != S_PREJUMP && o->state != S_LAND && o->state != S_SPECIAL && o->state != S_AIR && o->state != S_AIR_ATTACK) continue;
             dz = INT(o->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
-            so = fighter_step(o);
+            so = fighter_hurt_step(o);
             hb = (so->flags & 2) ? &so->hurt : &JUGGLE_BOX;
             if (!boxes_meet(v, &BODY_BOX, o, hb)) continue;
             dir = v->vx > 0 ? 1 : v->vx < 0 ? -1 : (INT(o->x) >= INT(v->x) ? 1 : -1);   /* the throw's way */
@@ -2192,7 +2199,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                 v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
             if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls, no limit */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
-            sv = fighter_step(v);
+            sv = fighter_hurt_step(v);
             if (jug && v->state == S_THROWN) hb = &JUG_BOX;    /* thrown (rule 5): its body */
             else if ((a->pflags & PF_HOLD) && v == a->target && v->state == S_HITSTUN) hb = &HOLD_BOX;
             else if (v->state == S_KNOCKDOWN && v->kmode) {      /* KOF's reaction: its box or none (rule 5: a body) */

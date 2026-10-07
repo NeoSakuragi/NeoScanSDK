@@ -944,5 +944,19 @@
   "expect": "The hold ends at once and Terry's fury (Power Geyser) starts and hits Ryo, who reels free out of the hold; nothing can hit Terry while the fury plays. Every fighter does the same.",
   "do_keys": "4:R,6:-,4:d,120:-",
   "proof": 90
+ },
+ "todo205-hurt-box": {
+  "title": "Terry's Rising Tackle start can't be hit (KOF98's own frames)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 1,
+   "meter": "full"
+  },
+  "do": "In a fight, let enemies come close and attack you, then press up-forward + C (Terry's Rising Tackle, 623D) in the middle of them, several times.",
+  "expect": "The first moments of the move (its first 9 frames, the crouch before he rises, as in KOF98) no enemy blow lands on Terry; once he rises he can be hit like in KOF98 (before the fix he could be hit from its first frame).",
+  "do_keys": "60:-,4:URc",
+  "proof": 90
  }
 }
