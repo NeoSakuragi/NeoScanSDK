@@ -1381,10 +1381,30 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   find why his hurt box / grab state is gone (an invincibility flag stuck after a move, a depth / z mismatch, a state
   that never ends), fix at the cause.
 
-- [ ] 205. HURT BOX OF A ROM-PLAYED SPECIAL (found by #202): during a special read from the ROM, hits are checked against the
-  hurt box of the animation played BEFORE the move, not the move's own frames, so KOF98's steps without a hurt box don't
-  protect (EX 421D on 0.1.9 got hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D,
-  Terry, Iori invincible starts vs KOF98; campaign29.
+- [ ] 205. (DONE ON BRANCH fix/208-fury-in-grab 2026-10-07, awaiting Bruno's review) HURT BOX OF A ROM-PLAYED SPECIAL
+  (found by #202): during a special read from the ROM, hits are checked against the hurt box of the animation played
+  BEFORE the move, not the move's own frames, so KOF98's steps without a hurt box don't protect (EX 421D on 0.1.9 got
+  hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D, Terry, Iori invincible starts
+  vs KOF98; campaign29.
+  Cause, two parts: (1) every hurt test read fighter_step (f->anim: the animation before the move; a ROM special plays
+  its program's own animation, pan / pstep); (2) export_bm rom_c gave a KOF step a hurt box whenever a hurt box was
+  loaded, but KOF keeps the boxes loaded across steps and its $0200 step flag says whether the step has one (KOF98's
+  776, EX 421D's third step, has the box loaded and no $0200; handlers98.react_hurt already read $0200 that way). Fix:
+  fighter.c fighter_hurt_step (a ROM special from its first program frame: its own step) in combat, the hold crowd and
+  thrown bodies, main.c's debug boxes; rom_c: a KOF96 / 98 / 99 program step has a hurt box only with $0200 (the other
+  sources' generated programs unchanged). Roster `invincible` (Kyo's EX 421D) kept: still INV_FURY whole (kyo202_proof
+  inv, flag build: OK). Proof tools/brawler/hurt205_proof.py (AI_OFF builds; KOF98's per-frame $0200 captured in KOF98,
+  the export's row_steps), /data/tmp/f208/out/h205: without the flag (noflag.json) Kyo's EX 421D is unhittable exactly
+  KOF98's 11 frames (first hit at frame 11, kyo202_proof inv: hit at [11] from every phase; 0.2.4: [2..9]), Terry's
+  623D and Iori's 623D 9 frames as KOF98 (0.2.4: hit at frame 1, before.json); every Kyo / Terry / Iori ROM special +
+  furies: 0 frames where the engine's hurt box differs from KOF98's ROM step, the first jab lands on the first frame with
+  a hurt box; frame-by-frame vs the capture equal but where KOF98's capture connected (Iori 623C, Kyo 236C: its hit-stops
+  offset the rest) or the MAX's longer charge (Terry). Scenario todo205-hurt-box (Terry's 623D in a fight; verify
+  identical).
+  #208 + #205 on 0.2.6 merged (/data/tmp/f208/out/final): fury208 ALL OK (23 fighters), hurt205 ALL OK, kyo202_proof inv
+  (now reads EX 421D's slot from game.json: forward + C since #207) flag build OK (INV_FURY whole) / no-flag build hit
+  at [11] from every phase, fury_inv ALL OK, controls 24 / 24 ok, cancel all ok 24 fighters, throw196 ALL OK, hold204
+  ALL OK, bank_proof ALL OK, regress bleed_same / strict True, campaign29 through; scenarios verify identical, lint 0.
 
 - [ ] 206. (DONE ON BRANCH fix/206-kyo-fury-burn 2026-10-07, awaiting Bruno's review) KYO'S FURY BURNS (20261007-114307-b3f3: "The opponent should be on fire whenever hit by the Fury of Kyo.";
   114326: "The impact sound should be the fire sound impact. Look at the code"): KOF98's fury hit kind (burn) + KOF96's
@@ -1412,9 +1432,20 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   126) before reaching Kyo: not run.
 
 
-- [ ] 208. FURY WHILE GRABBING (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D
-  button. Make it standard that you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a
-  hold (paired state) releases the hold and starts the fury, every fighter (fighter.c).
+- [ ] 208. (DONE ON BRANCH fix/208-fury-in-grab 2026-10-07, awaiting Bruno's review) FURY WHILE GRABBING
+  (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D button. Make it standard that
+  you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a hold (paired state) releases
+  the hold and starts the fury, every fighter (fighter.c).
+  Cause: hold_update read C (the special out of the hold, 2026-10-05) and A, never D; the D in neutral lived in the
+  S_IDLE case only. Fix (fighter.c): one rule for D, fury_press (the fury, down+D its MAX, down+D full the form link),
+  used from neutral and from the hold; in the hold D ends it the way C does (the victim reels free in its held pose,
+  HITSTUN, not held) and the fury starts that frame with its INV_FURY; a D pressed in a hold hit's hit-stop is kept
+  (fury_buf) and fires as the hit-stop ends; the hold finisher keeps rule 4's buffered cancel; grab() clears presses
+  buffered before the hold. Proof tools/brawler/fury208_proof.py (AI_OFF build), /data/tmp/f208/out/f208: all 23
+  fighters with a fury x (D in the idle hold, down+D, D during a hold hit): ALL OK (SPECIAL with the neutral fury's / MAX's
+  special, INV_FURY every frame with two minions jabbing, 0 life lost, victim HITSTUN + free the same frame and hit by
+  the fury; Hanzo SS2's WFT whiffs the released victim at 15 px, as it whiffs a standing enemy there from neutral);
+  sheet_terry.png. Scenario 20261007-124603-b3f3 (verify identical).
 
 - [ ] 209. (DONE ON BRANCH fix/209-credits-select-dark 2026-10-07, awaiting Bruno's review: SNK's MVS BIOS never ends the attract on a coin (no DEMO_END; UniBIOS does), so the logo / demo kept INSERT COIN with credits; main.c attract_leave: START or any credit (MVS) -> the title, PRESS START in INSERT COIN's place, as KOF98 measured in our emulator (coin on its logo or in its demo -> its title, PRESS 1P START; in a fight KOF98 blinks INSERT COIN / PRESS START above P2's bar by P2's own credits: the brawler has had no in-game P2 prompt since the HUD redesign, not added). Proof /data/tmp/sel209/out (209_*: logo / demo, 0 and 1 credit, SNK MVS, UniBIOS MVS, AES), scenario + lint 0) CREDITS -> PRESS START (20261007-140259-5d29: "There are coins inserted, but we are still on the insert coin
   screen, and also in-game there is the insert coin message even though there is more than zero credit ... switch to

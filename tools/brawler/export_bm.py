@@ -736,11 +736,13 @@ def rom_c(n, k, sp, game, vres=None):
     r = sp['rom']; out = []
     def bb(b): return '{0, 0, 0, 0}' if b is None else f'{{{b[0]}, {b[1]}, {b[2]}, {b[3]}}}'
     live = None
-    for j, st in enumerate(r['states']):
-        a = r['anims'][st]; steps = []
-        for s in a['steps']:
+    kof = kof_prog(sp, game)                           # KOF96 / 98 / 99: a step's hurt box counts only with its $0200 flag
+    for j, st in enumerate(r['states']):               # (TODO #205: the boxes stay loaded across steps, $0200 says the
+        a = r['anims'][st]; steps = []                 # step has one; Kyo's EX 421D 774 / 775 / 776 have none: KOF98's
+        for s in a['steps']:                           # 11 untouchable frames; tools/kof96/handlers98.react_hurt's rule)
             hb, ab = boxes(s['boxes'])
             fl = s['flags']
+            if kof and not fl & 0x200: hb = None
             if ab: live = ab
             ab = live if fl & 0x100 else None
             steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (8 if fl & 0x80 else 0) | (16 if fl & 0x4000 else 0) | (32 if fl & 0x2000 else 0) | (64 if ab and s.get("catch") else 0) | (128 if ab and s.get("nostop") else 0) | (4 if ab and s.get("noslide") else 0)}, '
