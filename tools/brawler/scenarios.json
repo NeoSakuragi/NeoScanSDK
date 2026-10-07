@@ -875,5 +875,60 @@
   "expect": "The second hold hit takes his last life: he is knocked down at once, lies on the floor, blinks and goes. He never stands up again with an empty life bar.",
   "do_keys": "8:R,4:-,2:a,30:-,2:a",
   "proof": 220
+ },
+ "20261007-124338-b3f3": {
+  "title": "Kyo's Orochinagi flame stays as long as in KOF98 (and the MAX throws three)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 260,
+   "meter": "full"
+  },
+  "do": "With a full meter and Ryo far away, press D (Orochinagi) and let go, then watch the flame until it is gone. Then do the MAX version: down+D.",
+  "expect": "The big flame burns for about three quarters of a second after it comes out (not a few frames), Kyo keeps fire in his raised hand afterwards, and a last small flame pops in his hand at the end of the move. The MAX version (down+D) throws three flames one after another, each a step further forward.",
+  "do_keys": "4:d,150:-",
+  "proof": 60
+ },
+ "20261007-124409-b3f3": {
+  "title": "Kyo's 236C punch has its fire in the hand",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 200,
+   "meter": "full"
+  },
+  "do": "Press forward + C (Kyo's dashing 236C punch) with Ryo out of reach and watch his fist at the end of the punch.",
+  "expect": "A burst of fire shows on Kyo's fist as the punch reaches out, as in KOF98, and dies out by itself.",
+  "do_keys": "4:Rc",
+  "proof": 90
+ },
+ "20261007-124437-b3f3": {
+  "title": "Kyo's up-forward + C (EX 421D flying kick) is invincible",
+  "setup": {
+   "mode": "stage",
+   "fighter": "kyo",
+   "stage": 0,
+   "wave": 1,
+   "meter": "full"
+  },
+  "do": "In a fight, let enemies come close and attack you, then press up-forward + C in the middle of them, several times.",
+  "expect": "From the start of the kick to Kyo's landing no enemy hit, grab or push reaches him (his life does not drop); he can be hit again right after he lands.",
+  "do_keys": "60:-,4:URc",
+  "proof": 120
+ },
+ "todo196-throw-hitch": {
+  "title": "Terry's throw: the thrown enemy flies in one smooth arc",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, then forward + A (Terry's forward throw). Watch Ryo's flight, especially the moment Terry can move again.",
+  "expect": "Ryo flies in one smooth arc and lands: no stop and jump in his flight at the moment Terry is free to act (before the fix he stalled one frame there, then jumped two steps).",
+  "do_keys": "4:R,2:Ra,90:-",
+  "proof": 60
  }
 }

@@ -1198,8 +1198,21 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   haohmaru / genjuro / kuroko ok with the new checks fury_palette (rage colours every fury frame) and palette_back (the
   colour set the frame after). Scenarios 20261007-113032-b3f3 / 20261007-112936-b3f3 (verify: identical states).
 
-- [ ] 196. THROW HITCH (found by #194): every throw's victim appears one frame late at the moment the thrower can act
-  again (control return): a 6 px hitch in the flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.
+- [ ] 196. (DONE ON BRANCH fix/196-throw-hitch 2026-10-07, awaiting Bruno's review) THROW HITCH (found by #194): every
+  throw's victim appears one frame late at the moment the thrower can act again (control return): a 6 px hitch in the
+  flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.
+  Cause (traced per frame, harness): on the control-return row paired_update played the victim's rows (its pose) but
+  returned before placing it, so that frame the victim showed row `ret`'s pose at row ret-1's place, then thrown_update
+  went on from row ret+1: one frame stalled + one double step (Billy Lee 6 / 0 / 12 / 6 px, Terry 8 / 0 / 8, Geese
+  4 / 0 / 8). Fix: the control-return row places the victim too (thrown_place, now the one placement thrown_update
+  uses), then it plays on alone from it (throw_free unchanged; #204's hold path kept). Proof tools/brawler/
+  throw196_proof.py, /data/tmp/t196/out: before.json (all 6 throws HITCH, 1 misplaced frame each) / after.json (ALL OK:
+  every thrown frame at its row's place, release steps = the script's own: Billy 6 6 6 6, Terry 8 8 3 0, Geese 4 4 4 5);
+  kof98.json: KOF98 Terry's forward throw on Yuri moves 6.5 / 7 / 7.5 / 8 / 3.3 px across Terry's return (no hitch in
+  the game); throw194 brawler handover_lag [] (place mismatches 0, all 4 ok), throws166 f terry / geese / billy_lee ok
+  (billy_super D n/a: no fury, by design), hold204 ALL OK (24 fighters), controls_proof terry / geese / billy_lee ok,
+  bank_proof ALL OK, regress bleed_same / strict True, campaign29 through. Scenario todo196-throw-hitch (verify
+  identical, lint 0).
 
 - [ ] 197. (DONE ON BRANCH fix/197-fire-hit-sound 2026-10-07, awaiting Bruno's review) KOF96'S FIRE HIT SOUND
   (20261006-162034-b3f3 reopened: "find the specific sound effect of the fire ... dig into KOF96's code: there's a specific
@@ -1305,11 +1318,39 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   work). Proposal (not built): drop from the export the frames only an unpooled special shows (Rugal's Omega EX moves:
   the 40 / 42 palettes and their tiles go with them).
 
-- [ ] 202. KYO, 3 NOTES ON 0.1.8 (20261007-124338: "the flame effect disappears too fast ... in the game the flame stays a
+- [ ] 202. (DONE ON BRANCH fix/202-kyo-flames 2026-10-07, awaiting Bruno's review) KYO, 3 NOTES ON 0.1.8 (20261007-124338: "the flame effect disappears too fast ... in the game the flame stays a
   bit longer, or maybe there's another one being spawned. Check the code." — the Orochinagi release; 124409: "Here Kyo
   is missing his fire effect in his hand."; 124437: "make this move invincible" — identify the move from the replay's
   inputs): decode the flame objects' lifetimes / extra spawns and the hand-fire effect from KOF98's code; the move's
   invincibility: KOF98's own invincible frames if it has them, else make it invincible as Bruno asks (a roster flag).
+  DONE [code + meas] (tools/kof96/handlers98.md "Kyo's flames"). His replays (0.1.8 build, pull.Core): 124338 = the DM
+  Orochinagi held then released, the big flame shown 9 frames; 124409 = forward + C = 236C (states 168 / 169), no fire on
+  the fist; 124437 = up-forward + C = EX 421D (R.E.D. Kick, handler $3E0A6, frames 774-777). (1) KOF98's flame object
+  $3D83E never reads its owner's +$D1 bit 7 (it ends at its animation's end or when Kyo is hit, +$E2 bit 2): the
+  brawler's P_FXOFF at 189's end killed it; export_rom flags such pinned objects (bproj_t follow bit 32: prog_fxoff
+  leaves them), 43 frames now = KOF98 ([46, 88] / [46, 89]); the release's glow $3D7E6 plays its end animation 244 in
+  place (follow bit 64). The "other one being spawned": the MAX version chains 3 flames ($3D83E spawns itself at its
+  event step, 16 px ahead, states 199 / 200 / 201 by +$C2): bproj_t children (handlers98.obj_chain; an object's cmpi on
+  a field it knows is concrete: only Kyo's MAX changes among 210 ROM programs), and the end of the move's last hand flame
+  ($42, state 255). (2) The hand fire = the animations' $FA step effects (kinds $40 / $41 / $42 / $45-$48, a third
+  routine shape `bra $3770C` -> $36C12): STEP_FX + Kyo; 236C's fist fire 249 [17, 43] / [17, 44] at KOF's x (0.25 px);
+  step effects are objects of their own (pan_fx: never the shot, never ended by P_FXOFF); in a super flash the
+  attacker's effects born in it run and hit (KOF98's flash priority $5001; projectiles_update skip mask, combat's flash
+  filter), so the fury's charge hand fire matches KOF98 frame for frame. (3) KOF98's EX 421D has no hurt box for its
+  first 11 frames only (491, 493's first step); Bruno wants it invincible: game.json roster kyo "invincible": ["EX 421D"]
+  -> bspec_t.sflags SF_INV = INV_FURY from its first frame to its end (docs/brawler_data_model.md, vocabulary inv.move).
+  Found (engine, not changed): during a ROM special combat() reads the hurt box of the animation played before it
+  (fighter_step), not the program's step, so KOF's no-hurt-box steps do not protect (0.1.9: EX 421D hit at frames 2-9).
+  Proof /data/tmp/kyo202/out: romspecials_check kyo (10 cases x whiff / close, romspecials/): 0 frame mismatches, DM / MAX
+  / 236C / EX 421D / 214A / 421B objects all within a frame (left: EX 236A's flight end, 623C's flames 2 frames short, as
+  on 0.1.9; the MAX's third flame 2 frames late after two hits and the victim launched out of its reach: 2 hits, KOF 3);
+  frame-by-frame sheets frames_DM / frames_MAX / frames_236C (KOF98 | brawler); 0.1.9 (romspecials_base/) had 16 / 18
+  objects missing or cut in the furies and the fist fire missing; others_base / others_new (+ others_fix): 37 cases of
+  the fighters whose objects changed (deaf pinned objects, flash effects): same or better, Geese's Raging Storm objects
+  all within a frame (14 off before), K''s Heat Drive first hit 19 (KOF99 21, was 28); kyo202_proof.py inv: 4 minions
+  jabbing from move frame 0-7, 0.1.9 hit at frames 2-9, now never (INV_FURY every frame, hittable 1 frame after);
+  bruno: his own pads on this build, the flame alive 44 frames, the end hand fire 21; fury_inv / controls / cancel kyo
+  ok, bank_proof ALL OK, regress bleed_same / strict True. Scenarios 20261007-124338 / 124409 / 124437 (verify identical).
 
 - [ ] 203. (DONE ON BRANCH fix/203-ss2-damage 2026-10-07, awaiting Bruno's review) SS2 DAMAGE (20261007-130138-b3f3: "The damage is fairly low on Genjuro, I think you can triple the amount of
   damage per hit."): measure each SS2 fighter's hit damage vs the brawler's scale (KOF fighters' damage per hit), set
@@ -1339,6 +1380,30 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   Everything whiffs and I cannot grab him." — Super Billy vs the Billy Kane boss, stage 1 wave 5): replay the note,
   find why his hurt box / grab state is gone (an invincibility flag stuck after a move, a depth / z mismatch, a state
   that never ends), fix at the cause.
+
+- [ ] 205. HURT BOX OF A ROM-PLAYED SPECIAL (found by #202): during a special read from the ROM, hits are checked against the
+  hurt box of the animation played BEFORE the move, not the move's own frames, so KOF98's steps without a hurt box don't
+  protect (EX 421D on 0.1.9 got hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D,
+  Terry, Iori invincible starts vs KOF98; campaign29.
+
+- [ ] 206. KYO'S FURY BURNS (20261007-114307-b3f3: "The opponent should be on fire whenever hit by the Fury of Kyo.";
+  114326: "The impact sound should be the fire sound impact. Look at the code"): KOF98's fury hit kind (burn) + KOF96's
+  fire-hit sound (#197's code $2E) on Kyo's fury and MAX hits; check his other flame moves the same way.
+
+- [ ] 207. KYO'S TRIPLE KICK ON FORWARD+C (20261007-114458-b3f3: "Kyo has this triple kick, I would like you to map it to
+  forward plus C"): remap in game.json (find which special is the triple kick, what forward+C held before, move it).
+
+- [ ] 208. FURY WHILE GRABBING (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D
+  button. Make it standard that you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a
+  hold (paired state) releases the hold and starts the fury, every fighter (fighter.c).
+
+- [ ] 209. CREDITS -> PRESS START (20261007-140259-5d29: "There are coins inserted, but we are still on the insert coin
+  screen, and also in-game there is the insert coin message even though there is more than zero credit ... switch to
+  press start, like other Neo Geo games"): title / attract and the in-game join prompt show PRESS START when credits > 0.
+
+- [ ] 210. SELECT: DARK REAL COLOURS (20261007-140341-5d29: "instead of having washed out colors, they should have their real
+  colors, but just much darker. Like Kim in Kizuna when he's in the background waiting to be tagged"): measure Kizuna's
+  waiting-partner palette transform (our emulator), use it for unselected fighters (main.c col_grey + selectrender.js).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

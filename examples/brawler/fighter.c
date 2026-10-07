@@ -576,6 +576,10 @@ static void place_at(fighter_t *v, int32_t x, int32_t y, int32_t z, int8_t face,
     v->facing = (r->flags & 1) ? face : -face;
     v->zfront = (r->flags & 2) != 0;                             /* behind the grabber unless the data says otherwise */
 }
+static void thrown_place(fighter_t *v, const bthrow_row_t *r) {   /* a thrown victim's place from the throw's origin */
+    place_at(v, v->throw_x0 + dir_mul(v->throw_face, FIX(r->tx + r->vx)), FIX(r->ty), v->z, v->throw_face, r);
+    clamp(v);
+}
 static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r, int8_t face) {   /* face: the */
     place_at(v, a->x + dir_mul(face, FIX(r->vx)), a->y, a->z, face, r);   /* thrower's facing the offsets are in */
 }
@@ -687,7 +691,10 @@ static uint8_t paired_update(fighter_t *f) {
                                                                     hit, cancellable into a special / the fury (#166 d) */
         } else if (i >= th->nrows && f->throw_id < BT_COUNT) { victim_end(v); f->held = 0; v = 0; }   /* (a hold hit: held on) */
     }
-    if (i >= th->ret) return 0;
+    if (i >= th->ret) {                                          /* the control return: the victim still in the script */
+        if (v && i < th->nrows) thrown_place(v, &th->rows[i]);   /* shows this row's place with its pose, then plays on */
+        return 0;                                                /* alone from it (throw_free); unplaced, it held last */
+    }                                                            /* row's place a frame: a hitch in its flight (#196) */
     r = &th->rows[i];
     f->frame_ovr = r->tframe;
     f->x = f->throw_x0 + dir_mul(f->throw_face, FIX(r->tx)); f->y = FIX(r->ty);
@@ -797,7 +804,6 @@ static void throw_update(fighter_t *f, const intent_t *in) {
 }
 static void thrown_update(fighter_t *v) {                        /* a thrown victim whose thrower let go */
     const bthrow_t *th = v->thr;
-    const bthrow_row_t *r;
     uint16_t j, i;
     if (!th || v->held) return;                                  /* its thrower plays it */
     if (v->thr_skip) { v->thr_skip = 0; return; }
@@ -805,9 +811,7 @@ static void thrown_update(fighter_t *v) {                        /* a thrown vic
     if (j > i) return;
     victim_rows(v, th, j, i);
     if (i >= th->nrows) { victim_end(v); return; }
-    r = &th->rows[i];
-    place_at(v, v->throw_x0 + dir_mul(v->throw_face, FIX(r->tx + r->vx)), FIX(r->ty), v->z, v->throw_face, r);
-    clamp(v);
+    thrown_place(v, &th->rows[i]);
 }
 
 /* ---- specials ------------------------------------------------------------------------------------------------------------
@@ -917,6 +921,9 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     if (k == BS_FURY) f->inv = INV_FURY;                         /* every fury, every fighter: invincible from the trigger
                                                                     to its end (special_end, fighter_update) */
+    if (f->ch->specials[f->spec_ix].sflags & SF_INV) f->inv = INV_FURY;   /* a move the roster makes invincible (game.json
+                                                                    roster[].invincible, Bruno: Kyo's EX 421D, TODO #202):
+                                                                    the fury's rule, from its first frame to its end */
     f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = 0;   /* its first part, no follow-up armed, no hit */
     f->scancel = 0; f->fury_buf = 0;                             /* nothing landed yet: no fury cancel ("cancels") */
     f->fpose = 0;                                                /* a fury's flash pose: not yet ("flash pose") */
@@ -1074,7 +1081,9 @@ static void proj_crowd(fighter_t *p) {                          /* an eruption's
 static void proj_child(fighter_t *p) {                           /* its trail: an object it spawns where it is */
     const bproj_t *d = p->pdef;                                  /* (its rows hold their own height) */
     uint8_t i, nfree = 0;
-    if (!d->child || p->pend || p->state_t != p->node || d->kind == PK_BOOM) return;   /* (a boomerang's child: its segments) */
+    if (!d->child || p->pend == 1 || p->pend >= 4 || p->state_t != p->node || d->kind == PK_BOOM) return;   /* (a boomerang's
+                                                                    child: its segments; an eruption that hit (pend 2 / 3)
+                                                                    spawns on: Kyo's MAX flames, TODO #202) */
     for (i = 0; i < NPJ; i++) nfree += projectiles[i].state == S_OFF;
     if (nfree < 2) { p->node = p->state_t < d->child_b1 && d->child_b1 != 255 ? d->child_b1 : p->node + d->child_period; return; }
                                                                  /* a trail never takes the last free entity (a thrown
@@ -1109,6 +1118,11 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
     if (d->kind == PK_BOOM) { boom_update(p); return; }          /* (no off-screen end: it comes back) */
     if (p->pend == 4) p->pend = 5;                               /* its thrower's signal: one more pinned frame (KOF */
     else if (p->pend == 5) { proj_launch(p); proj_child(p); return; }   /* runs the object before its thrower), */
+    if (p->pend == 6) p->pend = 7;                               /* (follow 64: the same frame, then its end rows */
+    else if (p->pend == 7) {                                     /* in place: KOF's object plays its end animation, */
+        p->pend = 1; p->prow = 0; p->throw_x0 = p->x; p->py0 = p->y - pin_of(p)->y;   /* no longer pinned) */
+        proj_row(p); return;
+    }
     if (p->pend == 1) {                                          /* then its next phase */
         if (++p->prow >= d->nend) { projectile_reset(p); return; }
     } else if (d->follow && p->owner) {                          /* pinned: its rows cycle at the thrower's place */
@@ -1138,13 +1152,18 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
     if (sx <= -64 || sx >= 384) { projectile_reset(p); return; }   /* off screen (KOF's test, its 320 px screen) */
     proj_child(p);
 }
-void projectiles_update(int16_t cam_x) {
+uint8_t projectiles_alive(void) {
+    uint8_t i, m = 0;
+    for (i = 0; i < NPJ; i++) if (projectiles[i].state != S_OFF) m |= 1 << i;
+    return m;
+}
+void projectiles_update(int16_t cam_x, uint16_t skip) {
     uint8_t i;
-    burn_clock++;                                                /* the burn cycle's clock (once a frame, not in a super flash) */
+    if (!(skip & 0x100)) burn_clock++;                                     /* the burn cycle's clock (once a frame, not in a super flash) */
     for (i = 0; i < NPJ; i++) {
         fighter_t *p = &projectiles[i];
         uint8_t ob;
-        if (p->state != S_PROJ || !p->pdef) continue;
+        if (p->state != S_PROJ || !p->pdef || (skip >> i & 1)) continue;
         ob = BANK_set(CH_BANK(p->ch));                           /* its rows: its fighter's bank (fighter.h "banks") */
         proj_update(p, cam_x);
         BANK_set(ob);
@@ -1309,7 +1328,10 @@ static void pan_fx(fighter_t *f) {                               /* the step ent
     if (f->state != S_SPECIAL || !f->ch->pfx) return;
     sp = &f->ch->specials[f->spec_ix];
     for (e = f->ch->pfx; *e != 0xFF; e += 4)
-        if (e[0] == f->spec_ix && e[2] == f->pstep && &sp->anims[e[1]] == f->pan) prog_spawn(f, &sp->robj[e[3]]);
+        if (e[0] == f->spec_ix && e[2] == f->pstep && &sp->anims[e[1]] == f->pan)
+            proj_start(f, &sp->robj[e[3]], f->x, f->facing, f->z);   /* an effect object of its own: never the shot nor
+                                                                    one P_FXOFF ends (KOF's $FA effects: no +$E1 bit 5;
+                                                                    Kyo's hand fire, TODO #202) */
 }
 static void pan_play(fighter_t *f, const banim_t *an) {
     f->pan = an; f->pstep = 0; f->pleft = an->steps[0].ticks + 1; f->pflags &= ~(PF_END | PF_EVENT);
@@ -1361,7 +1383,11 @@ static void prog_fxoff(fighter_t *f) {                           /* its pinned e
     for (k = 0; k < 2; k++) {                                    /* where it is (vocabulary object.phase: Billy's fire */
         fighter_t *p = f->proj[k];                               /* ring, pinned, then flying, TODO #152) */
         if (!p || !p->pdef || !p->pdef->follow) continue;
+        if (p->pdef->follow & 32) continue;                      /* it never reads the bit: it plays on (KOF98 Kyo's
+                                                                    Orochinagi flame $3D83E, TODO #202) */
         if (p->pdef->next) p->pend = 4;                          /* launched from the next frame (proj_launch) */
+        else if (p->pdef->follow & 64) p->pend = 6;              /* its end animation in place from the next frame (the
+                                                                    release's glow $3D7E6: 244, TODO #202) */
         else projectile_reset(p);
         f->proj[k] = 0;
     }
@@ -1703,7 +1729,10 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
                                                                     later counts on once the move ended (KOF $17074 runs
                                                                     every frame; in the special: prog_update's frames) */
-    if (f->inv == INV_FURY) { if (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM)) f->inv = 0; }   /* held for the fury's script (and a form's transition) */
+    if (f->inv == INV_FURY) {                                    /* held for the fury's script (and a form's transition, */
+        if (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM &&   /* a move with SF_INV) */
+                                      !(f->ch->specials[f->spec_ix].sflags & SF_INV))) f->inv = 0;
+    }
     else if (f->inv) f->inv--;
     if (f->chain_t) f->chain_t--;
     if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C) && !dancing(f)) {   /* out of trouble: a special
@@ -2127,7 +2156,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
         const bbox_t *atk;
         bbox_t abox;                                             /* a script row's box: in the attacker's bank, copied */
         uint8_t sounded = 0;                                     /* one hit sound per attack, however many it hits */
-        if (a->freeze || (only && a != only)) continue;
+        if (a->freeze || (only && a != only && a->owner != only)) continue;   /* (a super flash: its attacker and its
+                                                                    objects, which run through it: K''s Heat Drive shot, #202) */
         if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
             const bstep_t *sa = fighter_step(a);
             if (!(sa->flags & 1)) continue;

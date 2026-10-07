@@ -154,7 +154,7 @@ def run_case(form, key):
         if abs(want[0] - got[0]) > 1 or abs(want[1] - got[1]) > 1:
             prev = (srows[i - 1][5], max(0, srows[i - 1][6]))
             if i == pts['ret'] and abs(prev[0] - got[0]) <= 1 and abs(prev[1] - got[1]) <= 1:
-                lag.append(i); continue           # the engine's hand-over (fighter.c paired_update returns at the control
+                lag.append(i); continue           # the engine's hand-over before TODO #196 (paired_update returned at the control
             bad += 1; first = first or (i, want, got)   # return before placing the victim: its row ret shows a frame later)
     ret = next((i for i, r in enumerate(th) if r['p1'] != 'THROW'), None)
     dmg = [i for i in range(1, len(th)) if th[i]['hp'] < th[i - 1]['hp']]
