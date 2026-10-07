@@ -1623,6 +1623,24 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   his select / P1's choice — Bruno decides) + back-fill: each roster fighter's theme from his source game (KOF94-99,
   SS2, WHP, Kizuna, Double Dragon), per source driver: playable now / needs its driver ported. Every new-fighter job
   checks its theme from now on.
+  Back-fill done 2026-10-07 (branch fix/219-fighter-themes; table + method in README.md "Fighter themes"): 15 themes in
+  songs.json as THEME_* (MUSIC PLAYER only; no game code plays them, the mechanism waits for Bruno):
+  - KOF98 natives, kept byte for byte (68K $93020 fighter -> team slot -> $93046 song): Kyo $30, Terry $31, Ryo / Robert
+    $32, Ralf $33, Mai $35, Yashiro $37, Iori $38, Yamazaki $3C, Billy $3E (Rugal $3B = BOSS_RUGAL already).
+  - ported: KOF96 Boss team $2A = Geese / Krauser / Mr. Big (measured: stage = P2 id / 3, $1D820; Goenitz $2D =
+    BOSS_GOENITZ already), KOF99 K' $22 (measured; $C6FA0[$C6FB8[id]]; games98 'kof99' = KOF98's code, own tables),
+    SS2 Haohmaru $21 / Genjuro $28 / Hanzo $31 (docs/samsho2_songs.md), Kizuna Kim $24 (measured: his stage 5).
+  - not playable yet: WHP Hanzou (song follows the stage, `$10F24`, stages from a random route; Japan stage = $FC $0E;
+    ADK 8.8.7 driver: needs an ADK source in port98), Double Dragon Billy $E1 (port98: F-number $24CE needs detune +128)
+    and Cheng Fu $DC (out of ADPCM-B kit records).
+  Proofs: compare_port chip events: 9 natives identical, ports identical but Genjuro 5777/5778 (a looping drone keyed
+  again at the loop) and Hanzo 1364/1367 (a key-off across the loop point, the same drone); capture_snd --check: every
+  song of the build register-identical to the model on the real driver; theme219_proof.py (WAVs source game vs brawler,
+  /data/tmp/th219/out): spectrum similarity natives 0.94-0.98, ports 0.84-0.93 (the 5 earlier ports measure 0.85-0.94);
+  KOF96 sources play 0.6 % fast (as Goenitz). Found on the way: KOF98 songs key ADPCM-A codes $F0-$FF (now relocated:
+  GAME_OVER's 7 wrong samples fixed). Room: M ROM full at 256 KB (KOF98's 7 bank sets, the ZMC's 4-bit 16 KB bank):
+  ports now fill what dropped KOF98 songs leave in kept sets, 50 KB left in pieces (largest 10 KB): the next theme
+  needs room made (port a native instead of keeping its whole set); ADPCM-B records 6 / 117 free; V 9.4 / 16 MB.
 
 - [ ] 220. KOF MAX VERSIONS STILL RECORDED (found by #216): Iori's down+D (MAX 23624C) is still the old recorded script,
   Yamazaki has no MAX; also Yamazaki 236236C lands 11 of KOF's 12 hits (the last strike also hits the held victim)
