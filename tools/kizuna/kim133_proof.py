@@ -180,10 +180,41 @@ def main():
                 if i < len(cells): sh.paste(cells[i].resize((W_, H_)), (xx, y0 + H_ + 4))
                 d.text((xx + 2, y0 + 2 * H_ + 6), f'+{i * EVERY}', fill='black')
             sh.save(os.path.join(OUT, re.sub(r'[^A-Za-z0-9]+', '_', name) + '.png'))
+    if not QUICK: res['real_fight'] = real_fight(b, k)
     res['all_ok'] = bool(ok_all)
     if os.path.exists(os.path.join(OUT, '_shot.png')): os.remove(os.path.join(OUT, '_shot.png'))
     json.dump(res, open(os.path.join(OUT, 'proof_quick.json' if QUICK else 'proof.json'), 'w'), indent=1)
     print('ALL OK' if ok_all else 'FAILURES')
+
+FIGHT = [('214B', 'c', []), ('236A', 'DRc', []), ('236C', 'Rc', [(30, 'Rc'), (60, 'Rc')]), ('[2]8C', 'Dc', [(16, 'Da')])]
+def real_fight(b, k):
+    """a real fight (the campaign's first wave, AI on): each move at an enemy kept away (whiff), then at one 50 px in
+    front (hit); the program plays (SPECIAL, its role), the hits it lands; sheets OUT/fight_<move>_<whiff|hit>.png"""
+    b.pick(k); b.run(200); start = b.save(); out = {}
+    for move, keys, more in FIGHT:
+        for label, gap in (('whiff', 300), ('hit', 50)):
+            b.load(start); b.run(30)
+            en = [i for i in range(1, 8) if b.states[b.fget(i, 'state')] not in ('OFF', 'DEAD') and b.fget(i, 'team') == 1]
+            if not en: out[f'{move} {label}'] = {'ok': False, 'why': 'no enemy'}; continue
+            e = en[0]; cam = b.r(b.syms['cam_x'], 2)
+            b.place(0, x=cam + 40, z=b.fget(e, 'z')); b.place(e, x=cam + 40 + gap); b.fset(0, 'facing', 1); b.fset(e, 'hp', 60)
+            h0 = len(b.hits); cells = []; specs = set(); n_sp = 0
+            for f in range(150):
+                kk = keys if f < 3 else next((m for t, m in more for j in range(3) if f == t + j), '')
+                if label == 'whiff':
+                    for i in en: b.place(i, x=b.fget(0, 'x') + gap)
+                if f % 4 == 0: pth = os.path.join(OUT, '_shot.png'); b.screenshot(pth); cells.append(Image.open(pth).convert('RGB'))
+                else: b.run(1, p1=kk)
+                if b.states[b.fget(0, 'state')] == 'SPECIAL': specs.add(b.fget(0, 'spec_id')); n_sp += 1
+            hits = [h for h in b.hits[h0:] if h[1] != 0]
+            ok = bool(specs) and (bool(hits) if label == 'hit' else not hits)
+            out[f'{move} {label}'] = {'ok': ok, 'roles': sorted(specs), 'special_frames': n_sp, 'hits': len(hits), 'damage': sum(h[2] for h in hits)}
+            sh = Image.new('RGB', (10 + 160 * 10, 30 + 115 * ((len(cells) + 9) // 10)), 'white'); d = ImageDraw.Draw(sh)
+            d.text((4, 2), f'real fight (campaign, AI on): Kim {move} {label}: {len(hits)} hits (every 4 frames)', fill='black')
+            for i, c in enumerate(cells): sh.paste(c.resize((160, 112)), (10 + 160 * (i % 10), 20 + 115 * (i // 10)))
+            sh.save(os.path.join(OUT, f'fight_{re.sub(r"[^A-Za-z0-9]+", "", move)}_{label}.png'))
+            print('real fight', move, label, out[f'{move} {label}'], flush=True)
+    return out
 
 if __name__ == '__main__':
     main()

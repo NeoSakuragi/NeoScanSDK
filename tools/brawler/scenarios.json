@@ -930,5 +930,57 @@
   "expect": "Ryo flies in one smooth arc and lands: no stop and jump in his flight at the moment Terry is free to act (before the fix he stalled one frame there, then jumped two steps).",
   "do_keys": "4:R,2:Ra,90:-",
   "proof": 60
+ },
+ "todo133-kim-214B": {
+  "title": "Kim: C (neutral) is Kizuna's 214B, played from its handler",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press C (no direction) next to the dummy, then again from far away.",
+  "expect": "Kim crouches, then slides forward with the staff (about 85 px when it misses) and swings it up: two hits on the dummy, the last one launching. From far away the whole slide plays and he recovers in place.",
+  "do_keys": "3:c",
+  "proof": 90
+ },
+ "todo134-kim-236C": {
+  "title": "Kim: forward + C is Kizuna's 236C rush with its two follow-ups",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press forward + C next to the dummy, then forward + C again during the rush, and once more during the second part.",
+  "expect": "A 3-hit staff rush; the second press adds a lunging strike (98), the third a spinning finish that knocks down (9A). Without the extra presses he ends after the rush.",
+  "do_keys": "3:Rc,30:-,3:Rc,25:-,3:Rc",
+  "proof": 120
+ },
+ "todo135-kim-28C": {
+  "title": "Kim: down + C is Kizuna's rising staff ([2]8C), down + A after a hit dives",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 50
+  },
+  "do": "Press down + C next to the dummy; on a second try, press down + A while he is high in the air after the hit.",
+  "expect": "Kim rises straight up with the staff and the blue pillar, then falls back and lands. With down + A after a hit he dives forward onto the dummy instead (a blue flash at his feet) and lands.",
+  "do_keys": "3:Dc,14:-,3:Da",
+  "proof": 120
+ },
+ "todo137-kim-236A": {
+  "title": "Kim: down-forward + C is Kizuna's tag-in strike (236A)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down-forward + C next to the dummy.",
+  "expect": "Like neutral C's slide but quicker to start (Kizuna's tag-in version): the slide and the rising swing, the dummy launched.",
+  "do_keys": "3:DRc",
+  "proof": 90
  }
 }

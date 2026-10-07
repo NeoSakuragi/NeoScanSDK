@@ -411,11 +411,8 @@ MISSING = {
  'hanzo:214C': (130, ['decode.whp'], ''), 'hanzo:623A': (131, ['decode.whp'], ''), 'hanzo:214D': (132, ['decode.whp'], ''),
  'yamazaki:214B': (None, ['decode.kof_trace'], 'captured since #73 (its own state path 128 -> 132); no open TODO item; likely the snake-arm handler of 214A (#86)'),
  'yamazaki:214C': (None, ['decode.kof_trace'], 'captured since #73 (state path 128 -> 133); no open TODO item; as 214B'),
- 'kim:214B': (133, ['decode.kizuna'], ''), 'kim:236C': (134, ['decode.kizuna'], 'multipart: again / again links (covered features)'),
- 'kim:[2]8C': (135, ['decode.kizuna'], 'hit + down+A link to the dive (covered features)'),
- 'kim:421A': (136, ['decode.kizuna', 'hold.paired_script'], 'hit sequence with the victim placed per row (carry)'),
- 'kim:236A': (137, ['decode.kizuna'], ''),
- 'kim:6246A': (138, ['decode.kizuna', 'hold.paired_script'], 'cinematic with carry + backdrop (fx.backdrop exists)'),
+ 'kim:421A': (136, ['decode.kizuna', 'hold.paired_script'], 'hit sequence with the victim placed per row (carry); Kim\'s side decodable (export_kz KzProg), the victim\'s flight is Kizuna\'s reaction code'),
+ 'kim:6246A': (138, ['decode.kizuna', 'hold.paired_script'], 'cinematic with carry + backdrop (fx.backdrop exists); as 421A'),
 }
 # fighters extracted but not in the build (#77) and follow-up leftovers (#140): their gaps, counted apart
 OFF_BUILD = [
