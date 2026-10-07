@@ -267,7 +267,10 @@ def main(game, out, cases):
                 sh = H.SHARED_FX.get(kg)                 # + the effects of KOF's shared bank its states spawn (TODO #214;
                 shs = {e['fstate'] for e in H.step_effects(km, kcid, res['states']) if e['table'] == sh} if sh is not None else set()
                 rec0s = K.rom96.frame_record(km, sh, 0) if shs else 0   # not the bank's other objects: sparks, shadows)
-                mine = lambda o: o['table'] == kcid or (o['table'] == sh and o['state'] in shs)
+                mine = lambda o: (o['table'] == kcid and o['state'] < 0x400) or (o['table'] == sh and o['state'] in shs)
+                # (state < $400, TODO #216: the afterimage object $19898, op 'trail', keeps the owner's position history
+                #  in +$70.. : read as table / state it is 'the fighter's' on the frames its +$70 happens to hold its
+                #  id, with a state word of $6000 (Yamazaki 236236C); the brawler draws no afterimage)
                 kof_pf = [[(o['base'], None, (o['rec'] - (rec0 if o['table'] == kcid else rec0s)) // 6, round(o['x'] - gx0, 2), o['h']) for o in g['objs'] if mine(o)
                            and not (o['base'] in before and all(any(q['base'] == o['base'] for q in game_rows[j]['objs']) for j in range(i + 1)))]
                           for i, g in enumerate(game_rows)]

@@ -218,7 +218,7 @@ shows which existing features the move would use). Machine-readable: `missing.js
 | yamazaki 214A [ufD] | 86 | decode.kof_trace | a (after analysis) |
 | yamazaki 214B [fD] | - | decode.kof_trace | a (after analysis) |
 | yamazaki 214C [dfD] | - | decode.kof_trace | a (after analysis) |
-| yamazaki 236236C [fury] | 87 | hold.paired_script | b |
+| yamazaki 236236C [fury] | 87 | done 2026-10-07 (TODO #216): read from KOF98's handler $6AB7A: the jump's catch box (hold.catch), the victim lists of its +$1A0 routine $6AEE6 (hold.victim_list; the drag's list replayed while his counter +$D2 runs: A, B, B, C), the drag held at the wall by stage.wall's list rule, its $A5 swirl (anim.step_spawn, shape 'follow'); its MAX not exported yet (a second catch, handlers98.MAX_LATER) | done |
 | billy CCCC [D] | 88 | input.sustain, decode.kof_trace | c |
 | iori 624B [dfD] | 96 | hold.paired_script | b |
 | iori 624D [fD] | 94 | hold.paired_script | b |

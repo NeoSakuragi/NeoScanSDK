@@ -1307,5 +1307,19 @@
   "expect": "Ralf winds up, then throws a long flurry of punches: a brown dust cloud puffs from his fists every few frames (five in all) and Terry, caught by the first punches, is blown away burning; Ralf then recovers: the same timing and clouds as KOF98.",
   "do_keys": "4:c",
   "proof": 120
+ },
+ "todo216-yamazaki-fury": {
+  "title": "Yamazaki's fury (D, Guillotine 236236C): played from KOF98's handler",
+  "setup": {
+   "mode": "lab",
+   "fighter": "yamazaki",
+   "dummy": "terry",
+   "gap": 48,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D with Terry standing close in front of you.",
+  "expect": "After the flash Yamazaki leaps at Terry, a dark swirl trailing his jump, catches him in the air and lands with him, then drags him along the floor in two long pulls, striking him four times on each, and ends with a last blow that sends Terry flying: the same moves and timing as KOF98 (no purple afterimages: the brawler draws none).",
+  "do_keys": "4:d",
+  "proof": 240
  }
 }
