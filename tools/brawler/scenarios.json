@@ -734,5 +734,15 @@
   "expect": "The dragon punch rises only a little (Double Dragon's A version, about 73 px, not the 140 px D version) and Billy lands back in about 52 frames.",
   "do_keys": "3:D,4:Dc",
   "proof": 90
+ },
+ "20261007-113856-b3f3": {
+  "title": "Coin: KOF94's coin-inserted sound",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "Press COIN (on the title screen; then try one on the select screen and in a fight).",
+  "expect": "Each coin plays KOF94's coin sound (a chord rising in three steps, then fading, about one second) and the CREDIT count goes up.",
+  "do_keys": "4:o",
+  "proof": 90
  }
 }

@@ -1191,9 +1191,25 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   wrong"): decode from KOF98's (and KOF96's) handler: the hold-C delay (charge until release / max), the MAX's
   burning-body hit box during the charge, and the flame object's palette; play them in the brawler.
 
-- [ ] 199. COIN SOUND (20261007-113856-b3f3: "a specific sound whenever I'm pressing coin or credit, just like the coin
+- [ ] 199. (DONE ON BRANCH fix/197-fire-hit-sound 2026-10-07, awaiting Bruno's review) COIN SOUND (20261007-113856-b3f3:
+  "a specific sound whenever I'm pressing coin or credit, just like the coin
   inserted sound in Neo Geo games ... take the one from KOF 94"): find KOF94's coin-insert sound (its driver's command
   at a credit), port the sample, play it on every coin / credit in the brawler.
+  DONE [code + meas] KOF94 in our emulator (neogeo_sdl --capture SNDLOG, coins in the attract demo and on the title):
+  every coin sends $7F from the game's sound routine $6556 (the BIOS only resets the sound CPU, $03). $7F is no sample:
+  it is an SSG effect song of KOF94's MAKOTO driver (tools/makoto3 capture: SSG registers only), a 3-voice chord
+  stepping periods 226 / 165 / 126 -> 103 / 102 / 79 -> 47 / 56 / 41, struck at level 11 then decaying, the voices 4
+  interrupts apart, 1.04 s. Brawler: SSG cue COIN $78 (songs.json "ssg", made by ssg_cues.py --import of the capture):
+  its periods / levels register for register (new "P<n>" raw periods: free note-table words), each step on the nearest
+  KOF98 cue tick (KOF94's interrupt 9.12 ms, the cue tick 13.85 ms). Fitting it in the free 426 bytes: running status in
+  every cue stream (no behaviour change) + its header in the cue table's never-read words for $66-$6F; no driver code
+  changed. main.c coin_in: whenever a credit count goes up (MVS backup RAM $D00034 / $D00035, P1 / P2) the game sends
+  $78, on every screen (the coin that ends the attract demo: after the title song's start). AES has no coin: nothing.
+  M ROM only (no V ROM bytes). Proof /data/tmp/coin199/out (tools/brawler/coin199_proof.py): KOF94 $7F vs brawler $78
+  the same SSG states per voice in order, every step start within 9.7 ms (kof94_7F.wav / brawler_78.wav); the 4 former
+  cues' SSG writes identical to a build without #199; in the game (MVS, tap core) the Z80 reads $78 and plays it (268 SSG
+  writes) for a coin ending the attract demo, on the title, the select screen, in a fight and on CONTINUE?;
+  ssg_cues.py --check all 5 OK.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

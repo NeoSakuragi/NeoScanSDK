@@ -37,7 +37,11 @@
                                                ["C8", 6, 13], ["C8", 6, 9], ["C8", 6, 6], ["C8", 6, 3], ["C8", 4, 1]],
                                               [["-", 2, 0], ["C6", 3, 7], ["E6", 3, 7], ["G6", 3, 7], ["C7", 3, 7], ["E7", 3, 7], ["G7", 3, 7],
                                                ["C8", 6, 8], ["C8", 6, 5], ["C8", 6, 3], ["C8", 4, 1]],
-                                              [["C5", 18, 9], ["G5", 6, 9], ["G5", 6, 6], ["G5", 6, 3], ["G5", 4, 1]]]}
+                                              [["C5", 18, 9], ["G5", 6, 9], ["G5", 6, 6], ["G5", 6, 3], ["G5", 4, 1]]]},
+   {"name": "COIN", "cmd": "78", "what": "TODO #199: KOF94's coin sound, its SSG effect song $7F (the game sends it at every credit, measured in our emulator: attract and title coins); its periods and levels register for register (raw periods), each step's start within 6.5 ms of KOF94's (its timer A 9.12 ms, the cue tick 13.85 ms): ssg_cues.py --import of the capture",
+    "voices": [[["P226", 5, 11], ["P226", 6, 7], ["P103", 5, 11], ["P103", 5, 7], ["P47", 5, 11], ["P47", 6, 7], ["P47", 6, 9], ["P47", 5, 5], ["P47", 5, 7], ["P47", 5, 4], ["P47", 6, 5], ["P47", 10, 3], ["P47", 6, 2]],
+               [["-", 3, 0], ["P165", 5, 11], ["P165", 5, 7], ["P102", 5, 11], ["P102", 6, 7], ["P56", 6, 11], ["P56", 5, 7], ["P56", 5, 9], ["P56", 5, 5], ["P56", 6, 7], ["P56", 5, 4], ["P56", 5, 5], ["P56", 11, 3], ["P56", 3, 2]],
+               [["-", 5, 0], ["P126", 6, 11], ["P126", 5, 5], ["P79", 5, 11], ["P79", 5, 7], ["P41", 6, 11], ["P41", 6, 5], ["P41", 5, 9], ["P41", 5, 5], ["P41", 5, 7], ["P41", 6, 4], ["P41", 5, 5], ["P41", 11, 3]]]}
   ]},
  "bosses": ["BOSS_MR_BIG", "BOSS_KRAUSER", "BOSS_GEESE", "BOSS_RUGAL", "BOSS_GOENITZ"],
  "voices": {"bank": "../../tools/brawler/voices.json", "map": "build/voice_map.json", "slots": [2, 3], "prefixes": ["1C", "1E"], "overflow": {"slots": [4, 5], "prefixes": ["1B", "17"]},

@@ -94,6 +94,17 @@ static int16_t life(int16_t b) {                         /* a spawn's life at th
     switch (diff()) { case 0: return b >> 1; case 2: return b + (b >> 1); case 3: return b << 1; }
     return b;
 }
+/* the coin sound (TODO #199): KOF94's $7F (SSG cue COIN, songs.json), sent by KOF94 at every credit; here whenever
+ * a player's credit count goes up (MVS: the BIOS counts the coins in backup RAM), on every screen; a coin taken while
+ * the BIOS ran (the attract demo's coin: request 3) sounds once the title's song started (game_enter) */
+static uint8_t seen_credits[2];
+static uint8_t coin_in(void) {                                /* 1: a credit came in since the last call */
+    uint8_t c1 = CREDITS_P1, c2 = CREDITS_P2, up;
+    if (!BIOS_MVS_FLAG) return 0;
+    up = c1 > seen_credits[0] || c2 > seen_credits[1];         /* (BCD: the byte order is the count's) */
+    seen_credits[0] = c1; seen_credits[1] = c2;
+    return up;
+}
 static uint8_t shown_level, shown_credits;               /* 0 / 0xFF after a FIX_clear: rewrite */
 static void arcade_line_reset(void) { shown_level = 0; shown_credits = 0xFF; }
 static void arcade_line(void) {                               /* bottom line, every screen; writes only changes */
@@ -2421,6 +2432,7 @@ static void select_tick(void) {
 void game_init(void) {
     uint16_t i;
     BANK_init();                                             /* P2 bank 0, its copy agrees (neo_bank.h) */
+    coin_in();                                               /* the credits kept from before the power-on: no sound */
     gdata_init();                                            /* the game's tables (game.json) */
     routes_init();                                           /* the fighters' chain route trees (fighter.h) */
     specs_init();                                            /* their specials by role (fighter.h spec_tab) */
@@ -2453,6 +2465,7 @@ void game_enter(uint8_t request) {
     dbg_init();
     snd_reset();                                             /* the BIOS reset the sound CPU before handing over */
     if (request == 3) title_start(); else attract_start();
+    if (coin_in()) snd_ssg(SSG_COIN);                       /* the coin that ended the demo: after the song start */
     depth_sort();
     draw();
     SYS_vblankFlush();
@@ -2465,6 +2478,7 @@ void game_tick(void) {
     mark(P_FLUSH);
     SYS_kickWatchdog();
     snd_tick();
+    if (coin_in()) snd_ssg(SSG_COIN);                       /* KOF94's coin sound (TODO #199) */
     lab_tick();
     if (!lab.active && !dr_on) arcade_line();
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
