@@ -389,7 +389,12 @@ static const uint8_t HIT_SFX[33][2] = {
     {0x42, 0}, {0x9C, 0}, {0x42, 0}, {0x42, 0}, {0xEB, 0} };
 static void hit_sfx(uint8_t fx) {
     const uint8_t *s = HIT_SFX[(fx & 0x3F) < 33 ? fx & 0x3F : 1];
-    snd_sfx(s[0]); if (s[1]) snd_sfx(s[1]);
+    uint8_t c0 = s[0], c1 = s[1];                                /* $2E = KOF96's fire hit (TODO #197: its kind 11 = */
+    if (fx >> 6 && c0 != SFX_FIRE && c1 != SFX_FIRE) {           /* $13 + $1F, 21 = $1F alone: the Blitz Ball) */
+        if (c0 >= SFX_HIT_A && c0 <= SFX_HIT_CD) c0 = SFX_FIRE;  /* a burning hit of another kind: the plain hit */
+        else c1 = SFX_FIRE;                                      /* becomes the fire hit, a kind's own sound gets it */
+    }
+    snd_sfx(c0); if (c1) snd_sfx(c1);
 }
 /* burn (TODO #188 b, decoded from KOF98 in our emulator: Kyo's 623C on Terry / Yuri, VRAM + palette RAM every frame):
  * the burnt victim keeps its own frames and draws them, every part, with palette $F8 (orange) / $F9 (purple, Iori),

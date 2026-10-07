@@ -1165,6 +1165,26 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 196. THROW HITCH (found by #194): every throw's victim appears one frame late at the moment the thrower can act
   again (control return): a 6 px hitch in the flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.
 
+- [ ] 197. (DONE ON BRANCH fix/197-fire-hit-sound 2026-10-07, awaiting Bruno's review) KOF96'S FIRE HIT SOUND
+  (20261006-162034-b3f3 reopened: "find the specific sound effect of the fire ... dig into KOF96's code: there's a specific
+  sound effect played whenever somebody is getting hit by a fireball"): every burning hit plays KOF96's fire-hit sample.
+  DONE [code + meas] KOF96's hit dispatcher ($16F7A: the victim's +$131 = the attacker's +$1B8 hit kind) calls the
+  kind's handler from table $16FD6 (tools/kof96/hitsfx.py): kind 11 = $1A $13 + $1A $1F, 13 = the heavy hit + $1F, 21 =
+  $1A $1F alone. Measured in our emulator (WLOG on the sound mapper's word, /data/tmp/fire197/cap96): Kyo's and Iori's
+  623C hits send $1A13 + $1A1F, Iori's 236A and Krauser's Blitz Ball hits $1A1F alone. The sample: KOF96 M1 record
+  $4536 (slot 1's table $447C + 6 x $1F) [51][$04F8][$0521][$DA], 10752 bytes, one key-on (its own driver in the tap
+  core). KOF98 does not use it: its fire kinds play $1A $2E, another sample (7680 bytes). Brawler: songs.json sfx "from"
+  $2E = kof96 $1A1F (build_snd.py now takes KOF96's Ver 0.1 driver: same table list $2E0E and record layout), named
+  FIRE HIT (sound player); fighter.c hit_sfx: HIT_SFX's fire kinds already send $2E; a burning hit of another kind
+  (roster[].fire: Blitz Ball, Billy Kane's ring) plays $2E in place of its plain hit (KOF96's kind 21), a kind's own
+  sound (a fury's SDM IMPACT) gets $2E after it. V ROM used +10,240 bytes (5,976,320 -> 5,986,560), the padded V ROM
+  unchanged (6,029,312). Not changed: KOF98's Yami Barai (Iori 236A) is no fire hit in the brawler's KOF98 data (no
+  burn), so it keeps $13 (KOF96 sends $1F there). Proof /data/tmp/fire197/out (tools/brawler/fire197_proof.py):
+  Kyo 623C, Iori 623C ($13 + $2E), Krauser 214A ($2E alone, as KOF96), Billy 23624C ($9C + $2E): each burns its victim,
+  the Z80 keys $2E's pages $1636-$165F whose bytes = KOF96's $4F8-$521 byte for byte; WAVs kof96_1A1F.wav and
+  brawler_*.wav; voice_proof --all krauser / billy / kyo: 39 of 44 OK, the 5 others (Billy 426C / 623A / 623B / 214B,
+  Kyo 236A: voice timing) fail the same on the 0.1.5 build; bank_proof ALL OK; regress bleed_same / strict True.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
