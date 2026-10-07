@@ -23,10 +23,12 @@ def tile(reg, code):
 
 X0, Y0, SIZE = 160, 300, 320                   # the feet's place in the picture
 
-def pens(ch, reg, fi):
-    """frame fi of an export (parts at dx / dy from the feet, as draw.s places them) -> pens[SIZE][SIZE]"""
+def pens(ch, reg, fi, pal=None):
+    """frame fi of an export (parts at dx / dy from the feet, as draw.s places them) -> pens[SIZE][SIZE]; pal: only the
+    parts drawn with that palette (the body without its effects: SS2's rage pose, Kuroko's flame aura)"""
     img = np.zeros((SIZE, SIZE), np.uint8)
     for p in ch['frames'][fi]['parts']:
+        if pal is not None and p.get('pal', 0) != pal: continue
         rows = len(p['tiles'][0]); top = -p['dy'] - rows * 16 if p['vflip'] else p['dy']
         for c, col in enumerate(p['tiles']):
             for r, t in enumerate(col):

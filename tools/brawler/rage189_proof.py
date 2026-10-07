@@ -14,7 +14,10 @@ Our emulator only.
 4. The voice (tap core, voice_proof's parser): the lab, a full meter, D: the voice command sent on the flash's first frame
    is the fighter's voice of anim 140 (voices.json), its key-on plays SS2's sample byte for byte.
 5. Sheets: OUT/<name>_ss2_vs_brawler.png: SS2's rage (every 4th frame of action 46) above the brawler's freeze
-   (flash145's <name>_flash.png)."""
+   (flash145's <name>_flash.png).
+6. TODO #191: the pose in SS2's rage palette (ragepal_ss2.py: the body = the colour set's palette 16 + 2 while anim 140
+   plays; the brawler's {name}_fpal = it pen for pen, on its palette through the freeze and the colour set back after:
+   flash145 pose_palette_ok) and the glow on each pose step's head (flash145 anchor_is_head, frame by frame)."""
 import json, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); TOOLS = os.path.dirname(HERE)
 OUT = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith('--') else '/data/tmp/rage189/out'
@@ -44,6 +47,10 @@ def main():
                        capture_output=True, text=True, check=True)
     print(r.stdout, end='')
     ss2 = json.load(open('/data/neogeo_dict/samsho2/rage.json'))
+    r = subprocess.run([sys.executable, 'ragepal_ss2.py', *map(str, NAMES.values())], cwd=os.path.join(TOOLS, 'samsho2'),
+                       capture_output=True, text=True, check=True)   # SS2's palettes through the rage (TODO #191)
+    print(r.stdout, end='')
+    rp = json.load(open('/data/neogeo_dict/samsho2/ragepal.json'))
     # 2. the brawler's pose in a real fight
     r = subprocess.run([sys.executable, os.path.join(HERE, 'flash145_proof.py'), OUT, '--only', ','.join(NAMES)],
                        capture_output=True, text=True)
@@ -57,7 +64,7 @@ def main():
     allok = True
     for n, cid in NAMES.items():
         e = {'ss2': {k: ss2[str(cid)].get(k) for k in ('full', 'start', 'frames', 'anim', 'time', 'snd', 'rom_frames', 'rom_sounds')}}
-        st = [tuple(map(int, x)) for x in re.findall(r'\{(\d+), (\d+), (\d+)\}', re.search(r'%s_fpose\[\d+\] = \{(.*?)\};' % n, bmc).group(1))]
+        st = [tuple(map(int, x.split(', ')))[:3] for x in re.findall(r'\{(-?\d+(?:, -?\d+)*)\}', re.search(r'%s_fpose\[\d+\] = \{(.*?)\};' % n, bmc).group(1))]
         e['pose'] = st
         e['pose_frames'] = sum(k for _, k, _ in st)
         steps = S.parse_anim(cid, 140)
@@ -77,7 +84,14 @@ def main():
         e['voice_ok'] = bool(hit and hit[0].get('bytes_equal') and at is not None and 0 <= hit[0]['frame'] - at <= 3)   # code
         # 1-3 frames later (sound.c sends one queued byte a frame: the flash's charge $1A $3A, then the voice's prefix + code)
         e['flash145'] = f145.get(n)
-        e['ok'] = bool(e['flash145'] and e['flash145']['ok'] and e['pose_frames'] == freeze and e['voice_ok']
+        # 6. the rage palette (TODO #191): the brawler's pose colours (bm_chars.c {name}_fpal, colour set 0) = SS2's body as
+        # its palette RAM shows it through anim 140 (ragepal_ss2.py: palette 16 + its +$81 = 2), pen for pen
+        fp = [int(x, 16) for x in re.search(r'static const uint16_t %s_fpal\[\d+\] = \{(.*?)\};' % n, bmc).group(1).split(', ')]
+        body = rp[str(cid)]['body']
+        e['rage_palette'] = {'brawler': ['%04X' % v for v in fp[:16]], 'ss2': ['%04X' % v for v in body],
+                             'pens_differ': [k for k in range(1, 16) if fp[k] != body[k]]}
+        e['rage_palette_ok'] = not e['rage_palette']['pens_differ'] and bool(e['flash145'] and e['flash145'].get('pose_palette_ok'))
+        e['ok'] = bool(e['flash145'] and e['flash145']['ok'] and e['pose_frames'] == freeze and e['voice_ok'] and e['rage_palette_ok']
                        and e['ss2']['anim'] == 140 and e['ss2']['frames'] == e['ss2']['rom_frames'])
         allok = allok and e['ok']; rep[n] = e
         # 5. the sheet: SS2's rage moment, the brawler's freeze below
@@ -93,7 +107,8 @@ def main():
         dr.text((4, y + 4), f'the brawler: the fury\'s super flash ({freeze} frames), anim 140 timed to it: {len(st)} steps, voice {want} sent on frame {e["voice"]["sent_frame"]} (pose from {start}), SS2 sample bytes equal: {e["voice"]["bytes_equal_ss2"]}', fill='black')
         if bimg: sh.paste(bimg, (0, y + 22))
         sh.save(os.path.join(OUT, f'{n}_ss2_vs_brawler.png'))
-        print(n, 'ok' if e['ok'] else 'FAIL', json.dumps({k: e[k] for k in ('pose_frames', 'ss2_steps', 'voice', 'voice_ok')}))
+        print(n, 'ok' if e['ok'] else 'FAIL', json.dumps({k: e[k] for k in ('pose_frames', 'ss2_steps', 'voice', 'voice_ok', 'rage_palette_ok')}),
+              'anchors', (e['flash145'] or {}).get('anchor_heads'))
     rep['ok'] = allok
     json.dump(rep, open(os.path.join(OUT, 'rage189.json'), 'w'), indent=1)
     print('ALL OK' if allok else 'FAIL')

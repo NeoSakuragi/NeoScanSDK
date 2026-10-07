@@ -463,6 +463,8 @@ static void sf_draw(void) {
     int16_t ax, ay;
     if (!sf_who) return;
     sf_t = (uint8_t)(sf_flash_t - 1);                       /* the concentration: from the frame after (see super_flash) */
+    fighter_pose_head(sf_who, &sf_dx, &sf_dy);               /* a flash pose: its step's head (TODO #191: the glow moves
+                                                                with the pose, Haohmaru dropping into his stance) */
     ax = INT(sf_who->x) - cam_x + (sf_who->facing > 0 ? -sf_dx : sf_dx);   /* follows the attacker (KOF $37556) */
     ay = floor_top + INT(sf_who->z) - INT(sf_who->y) + sf_dy;
     if (sf_t >= sf_glow[0].at && sf_t < sf_glow[0].at + sf_glow[0].dur) {      /* the glow, its palette cycled: the first */

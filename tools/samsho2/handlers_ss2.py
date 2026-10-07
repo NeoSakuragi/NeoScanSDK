@@ -132,9 +132,12 @@ def hao_236k(v):
     return [E(293, [('set', 'vx', 0)], [('end', 'end')])], []
 
 def hao_214a(v):
-    """Sake Kougeki, 2 1 4 + A -> result 47 ($35550) [code]: anim 328 then 329, routine $3555C each: velocities 0,
-    the end -> next (the first) / neutral"""
-    return [E(328, [('set', 'vx', 0)], [('end', 'next')]), E(329, [('set', 'vx', 0)], [('end', 'end')])], []
+    """Sake Kougeki, 2 1 4 + A -> result 47 ($35550) [code]: anim 328, routine $3555C: at step 6 +$118 = -1,
+    velocities 0 ($2B81E), the end -> neutral ($2B802). The list's second entry (anim 329, the same routine) is the
+    other weapon mode's (descriptor lists hold both: jump_moves), never reached from the first: SS2 is neutral the
+    frame after 328 ends (moves/00.json result 47: class 1 for 52 frames = 328's length; TODO #191 found the brawler
+    playing 329 after it, 99 frames)"""
+    return [E(328, [('set', 'vx', 0)], [('end', 'end')])], []
 
 # SS2's big hit (TODO #188 c): Haohmaru's WFT routine on a connect ($354E8 $2B958 -> $354FA) calls $2B9DE with
 # $6A672 = (31, 0, 0, 48): the backdrop ($108A86 -> $401FFE every frame, $172C) red for 48 frames ($8AE2), and its hit
@@ -453,10 +456,12 @@ def compile_prog(ents):
             else: cond = {'end': 'end', 'apex': 'fall', 'hit': 'hit', 'sig': 'sig7c'}.get(c) or ('stepev' if c[0] == 'step' else None)
             if c == 'end' and end_ev(cur): ops.append(('br', 'stepev', 1, ('S', i, k)))
             ops.append(('br', cond, 1, ('S', i, k))); sw.append((('S', i, k), T, extra, True))
-        if now: ops += now[1] + routine_phys(e, (i, 'n')) + [('resume_at', now[0]), ('br', 'always', 1, 'yield')]
+        # back to neutral (target 'END'): SS2's routine clears the class (+$E6 = 0) in the frame its condition holds, so
+        # the program ends in that frame (P_END: prog_end), not on the next one (TODO #191: one of the two extra frames)
+        if now: ops += now[1] + (routine_phys(e, (i, 'n')) + [('resume_at', now[0]), ('br', 'always', 1, 'yield')] if now[0] != 'END' else [('jmp', 'END')])
         else: ops += routine_phys(e, (i, 'loop')) + [('br', 'always', 1, 'yield')]
         for lab, T, extra, ph in sw:
-            ops += [('label', lab)] + extra + (routine_phys(e, lab) if ph else []) + [('resume_at', T), ('br', 'always', 1, 'yield')]
+            ops += [('label', lab)] + extra + ((routine_phys(e, lab) if ph else []) + [('resume_at', T), ('br', 'always', 1, 'yield')] if T != 'END' else [('jmp', 'END')])
     ops += [('label', ('E', len(ents))), ('label', 'END'), ('end',)]
     return ops, states
 
@@ -481,6 +486,8 @@ def encode(o):
     if n in ('jmp', 'resume_at'): return (P[n], 0, o[1], 0)
     if n == 'onhit': return (P[n], 0, o[1], 0)       # a = the catch's dead frames - 1 (none: SS2 sets the routine's
                                                     # animation in the frame of the connect)
+    if n == 'fall': return (P['fall'], 1, 0, 0)          # a 1: SS2's landing ($27802: y > 224, the floor line itself is
+                                                        # not a landing; fighter.c P_FALL, TODO #191)
     if n == 'spawn': return (P['spawn'], o[1], 0, 0)
     if n == 'check': return (P['check'], o[1], 0, 0)
     if n == 'nudge': return (P['nudge'], 0, o[1], 0)
@@ -539,8 +546,9 @@ class Play:
             elif op == P['move']: self.x += self.vx
             elif op == P['fall']:
                 v0 = self.vy; self.vy -= self.pg; self.y += v0; self.flags -= {'land', 'fall'}
-                if self.y <= 0: self.y = 0; self.flags.add('land')
-                elif self.vy < 0: self.flags.add('fall')
+                if self.y <= 0 and a and self.y > -65536: self.y = 0     # (SS2's floor line: not a landing, fighter.c)
+                elif self.y <= 0: self.y = 0; self.flags.add('land')
+                if 'land' not in self.flags and self.vy < 0: self.flags.add('fall')
             elif op == P['nudge']: self.x += b << 16; self.y += v << 16
             elif op == P['dec']: self.cnt -= 1
             elif op == P['br']:
@@ -837,6 +845,8 @@ def special(B, ch, name, inp):
     if K.descriptor(ch, 0, 1, results[default])['b'][0] & 0x80: rom['nopush'] = True   # descriptor byte 4 bit 7 -> +$FF:
                                                        # no push between the players ($CC14) while it plays [code]
     if (name, inp) in BIGHIT: rom['bighit'] = True        # its connect: SS2's big-hit pause (export_bm SF_BIGHIT)
+    rom['now'] = True                                  # its program's first frame = the special's first (export_bm SF_NOW:
+                                                       # SS2's action routine runs in the frame the action is set; TODO #191)
     if parts:                                          # follow-ups (the slash chain): its parts, the press 'again'
         rom['parts'] = [{'states': [states[j] for j, (ei, a) in enumerate(sts0) if ents0[ei]['part'] == p]} for p in parts]
         rom['follow_links'] = [{'from': p, 'to': p + 1, 'input': 'again'} for p in parts[:-1]]
@@ -970,12 +980,13 @@ def check(names=('haohmaru', 'genjuro')):
                 x0 = cr[s0]['p1']['x']                   # (frame 0 still moves by the walk's last velocity)
                 anims_l = [{'steps': r['anims'][s]['steps'], 'hold': True, 'ss2': r['anims'][s]['ss2']} for s in r['states']]
                 pl = Play(r['prims'], anims_l, vars_, v, cols, r['vtable']['vanim'])
-                n = bad = 0; ex = ey = 0; first_bad = None
-                for i in range(s0, len(cr)):
+                n = bad = over = 0; ex = ey = 0; first_bad = None
+                for i in range(s0, len(cr)):           # (the program's first frame = SS2's first: rom['now'], SF_NOW)
                     q = cr[i]['p1']
                     if cr[i]['p2']['cls'] == 3: break
                     f = pl.frame()
-                    if f is None or q['cls'] != 1: break
+                    if f is None: break
+                    if q['cls'] != 1: over += 1; break           # (SS2 is back to neutral: the program still runs)
                     a_b = anims_l[f[0]]['ss2']; st_b = f[1]
                     n += 1
                     if (a_b, st_b) != (q['a'], sidx(q['a'], q['st'])):
@@ -983,7 +994,9 @@ def check(names=('haohmaru', 'genjuro')):
                         if first_bad is None: first_bad = (i - s0, (a_b, st_b), (q['a'], sidx(q['a'], q['st'])))
                     ex = max(ex, abs(f[2] - (q['x'] - x0))); ey = max(ey, abs(f[3] - (224 - q['y'])))
                 game_end = next((i for i in range(s0, len(cr)) if cr[i]['p1']['cls'] != 1 or cr[i]['p2']['cls'] == 3), len(cr)) - s0
-                res[f'{name} {inp} {"ABC"[v] if nv > 1 else ""}'] = dict(frames=n, game_frames=game_end, mismatch=bad,
+                ln = n + over
+                while pl.frame() is not None and ln < 2000: ln += 1   # its length: the program to its end
+                res[f'{name} {inp} {"ABC"[v] if nv > 1 else ""}'] = dict(frames=n, length=ln, game_frames=game_end, mismatch=bad,
                                                                          first=first_bad, x_err=round(ex, 2), y_err=round(ey, 2))
     return res
 

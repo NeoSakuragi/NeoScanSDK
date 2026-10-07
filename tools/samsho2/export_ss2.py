@@ -366,6 +366,35 @@ def pack_check(name):
                for f0, f1 in zip(B0.frames, B1.frames))
     return len(B0.frames), same, len(B0.pals), len(B1.pals)
 
+RAGE_POW = 32                                     # +$F0 when the rage is full (the flash pose: anim 140, TODO #189)
+
+def rage_palette(B, ch, a, sets):
+    """the colours SS2 shows anim a (the rage-full animation 140) in [code + meas, TODO #191]: the display code ($35C6)
+    adds the object's +$81 to the palette of a step's first layer ($3656: layer slots 0 / 1 / 2 -> +$81 / +$82 / +$83,
+    the fourth none) and $25D3E sets +$81 = $25D72[+$F0] every frame: 2 at a full POW (1 from 10, 2 from 20), +$82 /
+    +$83 stay 0 (measured: ragepal_ss2.py, +$81 = 2 through the whole animation, palette RAM 16-23 = the colour set,
+    unchanged). So the body (the first layer: palette 16 in every step of anim 140, Haohmaru / Genjuro / Kuroko) shows
+    the colour set's palette 16 + 2 (Haohmaru / Genjuro: the clothes red, Kuroko: the robe dark red).
+    -> {'key': SS2 palette, 'index': its palette in this export, 'sets': per colour set its 16 colours as the pose
+    shows them} (the pens another palette was folded into keep their colours: pack_palettes), or None"""
+    add = N.u8(0x25D72 + RAGE_POW)
+    first, other = set(), set()
+    for s in ss2.parse_anim(ch, a, 400):
+        for li, w in enumerate(s['layers']):
+            _, cells = ss2.sprite_cells(w & 0x7FFF)
+            ps = {cell[1] >> 8 for col in cells for cell in col if cell is not None and cell[0]}
+            (first if li == 0 else other).update(ps)
+    if not add or not first: return None
+    assert len(first) == 1 and not first & other, (ch, a, first, other)   # one body palette, drawn by the first layer only
+    p = first.pop()
+    assert 16 <= p and p + add < 24, (ch, p, add)
+    i = B.pals.index(p); packed = getattr(B, 'packed', {}).get(p, {})
+    rows = []
+    for s in range(COLOURS):
+        q = ss2.fighter_palettes(ch, s)[p + add - 16]
+        rows.append([0] + [sets[s][i][k] if k in packed else q[k] for k in range(1, 16)])
+    return {'key': p, 'index': i, 'sets': rows}
+
 def export(names, outdir, only=None, extra=None):
     import handlers_ss2 as H
     out = {'game': 'samsho2', 'tile_base': TILE_BASE, 'characters': {}}
@@ -389,11 +418,13 @@ def export(names, outdir, only=None, extra=None):
         for t, th in throws.items(): anims[t] = th.pop('anim')
         packed = pack_palettes(B, ch)
         sets = colours(B, ch)
+        rage = rage_palette(B, ch, anims['flash']['slot'], sets) if 'flash' in anims and anims['flash']['slot'] == 140 else None
         out['characters'][name] = {'id': ch, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0], 'physics': physics(ch),
                                    'throws': throws, 'specials': sps,
                                    'modes': {'sets': ['A', 'B'], 'palettes': [str(p) + ''.join(f'+{kb}' for ka, kb, _ in packed if ka == p) for p in B.pals]},
                                    'ss2_packed': [[ka, kb, {str(q): r for q, r in m.items()}] for ka, kb, m in packed]}
+        if rage: out['characters'][name]['flash_pal'] = rage      # the rage palette of the flash pose (TODO #191)
     out['tiles'] = len(allt)
     os.makedirs(outdir, exist_ok=True)
     region = bytearray(128 * TILE_BASE) + b''.join(allt)

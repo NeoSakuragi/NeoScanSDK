@@ -1061,6 +1061,16 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   gauge [meas: P1's object identical to a run without the fill]; Double Dragon none (powered = the bars meet, "CHARGE";
   the power-up anim 81 is the player's A+B+C+D, already Billy's pose); KOF96 / 98 / 99, Kizuna, SS4 not checked here.
 
+- [ ] 191. SS2 TIMING + RAGE PALETTE (found by the Kuroko boomerang job and #189): (a) every Samurai Shodown II move
+  (Haohmaru, Genjuro, Kuroko: specials, furies, normals?) runs 2 frames LONGER in the brawler than in SS2 (e.g. Kuroko
+  6ABC): find the cause (step-length conversion SS2 ticks -> brawler frames, a first / last step off by one like
+  #181's WHP start-frame rule, the program's end condition) and fix it for every SS2 animation; (b) the SS2 rage flash
+  pose (anim 140, #189) lacks SS2's red rage palette and its head glow stays at the first frame's head height while
+  Haohmaru crouches: show SS2's rage palette (decoded: the palette it switches to) during the flash pose and move the
+  glow anchor with each frame's head point. Proof /data/tmp/ss2t191/out: frame counts per SS2 move vs SS2 (before /
+  after), ss2_proof frames, rage flash sheet SS2 vs brawler; controls_proof + cancel_proof haohmaru / genjuro / kuroko;
+  bank_proof; regress no-bleed.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into

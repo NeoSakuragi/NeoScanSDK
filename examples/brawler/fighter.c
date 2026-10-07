@@ -376,6 +376,8 @@ static void big_hit(fighter_t *a, fighter_t *v) {
 /* ---- reactions -------------------------------------------------------------------------------------------------------- */
 static void release(fighter_t *a);
 static void special_end(fighter_t *f);
+static void special_update(fighter_t *f);
+static void fpose_pal(fighter_t *f, uint8_t on);
 /* KOF98's hit effects (P-ROM, decoded 2026-10-04): a move sets its hit kind in the attacker (+$1B8) and the victim
  * plays the kind's handler (jump table $1E208) on the hit: sound indices through the table at $A9BCE, all $1A + code.
  * Two codes (the second 0: one); kinds 4, 5, 17 pick one of two at random in the game (the first kept here); 0, 6
@@ -870,6 +872,7 @@ static void special_end(fighter_t *f) {
     if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's invincibility: hittable again at once */
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
+    if (f->fpose && f->fpose != 0xFF) { f->fpose = 0xFF; fpose_pal(f, 0); }   /* ended in its flash pose: its colours back */
 }
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
@@ -889,6 +892,12 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
         f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0;
+        if ((f->ch->specials[f->spec_ix].sflags & SF_NOW) && k != BS_FURY) {   /* SF_NOW (SS2): its first frame is this
+                                                                    one (the action routine runs in the frame the action
+                                                                    is set; else every SS2 move ran a frame long, TODO
+                                                                    #191); a fury starts after its flash pose */
+            f->pheld = 0; special_update(f);
+        }
     }
 }
 
@@ -1429,7 +1438,11 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_FALL: {
             int32_t v0 = f->vy;
             f->vy -= f->pg; f->y += v0; f->pflags &= ~(PF_LAND | PF_FALL);
-            if (f->y <= 0) { f->y = 0; f->pflags |= PF_LAND; } else if (f->vy < 0) f->pflags |= PF_FALL;
+            if (f->y <= 0 && p->a && f->y > -FIX(1)) f->y = 0;   /* a 1: SS2's floor ($27802 cmpi #224 / beq: a body on */
+                                                                 /* the floor line itself has not landed; the next whole */
+                                                                 /* pixel down lands it, TODO #191) */
+            else if (f->y <= 0) { f->y = 0; f->pflags |= PF_LAND; }
+            if (!(f->pflags & PF_LAND) && f->vy < 0) f->pflags |= PF_FALL;
             break;
         }
         case P_NUDGE: f->x += dir_mul(f->facing, FIX(p->b)); f->y += FIX(p->v); clamp(f); break;
@@ -1557,6 +1570,16 @@ static void special_update(fighter_t *f) {
  * after the freeze the fury starts from its first frame (state_t gflash.start again, as it had under the flash) with
  * the world moving. A step that carries a voice (bfpose_t.voice, TODO #189) sends it as it shows. Returns 1 while the
  * pose shows (special_update waits). */
+static void fpose_pal(fighter_t *f, uint8_t on) {               /* the pose's own colours (bchar_t.fpal, TODO #191: */
+    const bchar_t *ch = f->ch;                                   /* SS2's rage palette) on its palette while it shows */
+    uint16_t buf[16];
+    uint8_t j;
+    if (ch->fpal_ix == 0xFF || f->flash || f->burn) return;     /* (a white flash / a burn own the colours) */
+    if (!on) { fighter_load_pals(f); return; }
+    buf[0] = 0;
+    for (j = 1; j < 16; j++) buf[j] = fighter_colour(f, ch->fpal[(f->set << 4) + j]);
+    PAL_setPalette(f->palbase + ch->fpal_ix, buf);
+}
 static uint8_t flash_pose(fighter_t *f) {
     const bchar_t *ch = f->ch;
     uint8_t k, i, at;
@@ -1564,16 +1587,32 @@ static uint8_t flash_pose(fighter_t *f) {
     if (!f->fpose) {
         if (f->state_t != gflash.start) return 0;
         super_flash(f); f->fpose = 1; f->vx = f->vy = f->vz = 0;
+        fpose_pal(f, 1);
     }
     k = f->fpose - 1;
     if (k >= gflash.freeze) {                                    /* the freeze is over: the fury from its first frame */
         f->fpose = 0xFF; f->frame_ovr = 0xFFFF; f->state_t = gflash.start;
+        fpose_pal(f, 0);
         return 0;
     }
     for (i = 0, at = 0; i + 1 < ch->nfpose && k >= at + ch->fpose[i].n; i++) at += ch->fpose[i].n;
     f->frame_ovr = ch->fpose[i].frame; f->fpose++;
     if (k == at && ch->fpose[i].voice && !mute) voice_id(ch, f->team, ch->fpose[i].voice);   /* its source's voice on this
                                                                     step (TODO #189: SS2's rage shout) */
+    return 1;
+}
+
+/* the head point of the flash pose step showing now (bfpose_t hx / hy, TODO #191: the super flash's glow follows it;
+ * main.c sf_draw): 0 when no pose shows. flash_pose shows step i for pose frame k = fpose - 2 after its update. */
+uint8_t fighter_pose_head(const fighter_t *f, int16_t *dx, int16_t *dy) {
+    const bchar_t *ch = f->ch;
+    uint8_t i, at, k, ob;
+    if (f->state != S_SPECIAL || f->spec_id != BS_FURY || !ch->nfpose || f->fpose < 2 || f->fpose == 0xFF) return 0;
+    k = f->fpose - 2;
+    ob = BANK_set(CH_BANK(ch));                                  /* (its pose table: wherever bank_pack put it) */
+    for (i = 0, at = 0; i + 1 < ch->nfpose && k >= at + ch->fpose[i].n; i++) at += ch->fpose[i].n;
+    *dx = ch->fpose[i].hx; *dy = ch->fpose[i].hy;
+    BANK_set(ob);
     return 1;
 }
 

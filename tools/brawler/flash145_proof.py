@@ -32,15 +32,42 @@ ROSTER = [r['name'] for r in gj['roster']]
 FREEZE = gj['super_flash']['freeze']
 bmc = open(os.path.join(game_dir, 'build', 'bm_chars.c')).read()
 
-def fpose(n):
+def fpose_steps(n):
+    """bm_chars.c's {n}_fpose: [(frame, frames shown, voice, head x, head y)] (the head: TODO #191, each step's own)"""
     m = re.search(r'static const bfpose_t %s_fpose\[\d+\] = \{(.*?)\};' % n, bmc)
     if not m: return []
-    st = [tuple(map(int, x)) for x in re.findall(r'\{(\d+), (\d+)(?:, \d+)?\}', m.group(1))]
-    return [fr for fr, k in st for _ in range(k) if k]
+    return [tuple(map(int, x.split(', '))) for x in re.findall(r'\{(-?\d+(?:, -?\d+)*)\}', m.group(1))]
+
+def fpose(n):
+    return [st[0] for st in fpose_steps(n) for _ in range(st[1]) if st[1]]
+
+def fpose_heads(n):
+    """the glow's anchor per frame of the freeze: the head of the pose step shown (TODO #191)"""
+    return [(st[3], st[4]) for st in fpose_steps(n) for _ in range(st[1]) if st[1]]
 
 def fhead(n):
-    m = re.search(r'\{"[^"]*", .*?%s_fpose, (\d+), \{(-?\d+), (-?\d+)\}\}' % n, bmc)
+    m = re.search(r'\{"[^"]*", .*?%s_fpose, (\d+), \{(-?\d+), (-?\d+)\}(?:, \w+_fpal, (\d+))?\}' % n, bmc)
     return (int(m.group(2)), int(m.group(3))) if m and int(m.group(1)) else None
+
+def fpal(n):
+    """(palette index, [16 colours per colour set]) of the pose's own palette (TODO #191: SS2's rage), or None"""
+    m = re.search(r'\{"[^"]*", .*?%s_fpose, \d+, \{-?\d+, -?\d+\}, \w+_fpal, (\d+)\}' % n, bmc)
+    if not m or int(m.group(1)) == 255: return None
+    v = [int(x, 16) for x in re.search(r'static const uint16_t %s_fpal\[\d+\] = \{(.*?)\};' % n, bmc).group(1).split(', ')]
+    return int(m.group(1)), [v[i:i + 16] for i in range(0, len(v), 16)]
+
+def set_pals(n):
+    """{n}_pals: per colour set its palettes (16 colours each)"""
+    m = re.search(r'\{"[^"]*", (\d+), (\d+), %s_pals,' % n, bmc); npal, nsets = int(m.group(1)), int(m.group(2))
+    v = [int(x, 16) for x in re.search(r'static const uint16_t %s_pals\[\] = \{(.*?)\};' % n, bmc).group(1).split(', ')]
+    return [[v[(s * npal + i) * 16:(s * npal + i + 1) * 16] for i in range(npal)] for s in range(nsets)]
+
+import ctypes as _C
+def palram(slot):
+    """palette RAM (bank 0: the brawler's) palette slot's 16 colours (the core's region 104)"""
+    b.core.retro_get_memory_data.restype = _C.c_void_p
+    w = (_C.c_uint16 * 8192).from_address(b.core.retro_get_memory_data(104))
+    return [w[slot * 16 + k] for k in range(16)]
 
 def s16(v): return v - 0x10000 if v & 0x8000 else v
 
@@ -49,7 +76,11 @@ ST = b.states
 def keep(bb): bb.fset(0, 'hp', 60)
 def enemies(): return [i for i in range(2, 8) if ST[b.fget(i, 'state')] not in ('OFF', 'DEAD')]
 
+FPAL = None
+HEADS = {}
 def run_one(name):
+    global FPAL
+    FPAL = fpal(name)
     k = ROSTER.index(name)
     b.pick(k, unlock=True)
     for _ in range(900):                                 # walk right until an enemy is on screen near P1
@@ -72,7 +103,8 @@ def run_one(name):
                    x=round(b.fget(0, 'x'), 3), y=round(b.fget(0, 'y'), 3), spec_id=b.fget(0, 'spec_id'), sf=sf,
                    sf_t=b.r(b.syms['sf_flash_t'], 1), sf_dx=s16(b.r(b.syms['sf_dx'], 2)), sf_dy=s16(b.r(b.syms['sf_dy'], 2)),
                    cam=b.r(b.syms['cam_x'], 2), z=round(b.fget(0, 'z'), 3), facing=b.fget(0, 'facing'),
-                   ft=s16(b.r(b.syms['floor_top'], 2)), hp={i: b.fget(i, 'hp') for i in hp0})
+                   ft=s16(b.r(b.syms['floor_top'], 2)), hp={i: b.fget(i, 'hp') for i in hp0},
+                   pal=palram(b.fget(0, 'palbase') + FPAL[0]) if FPAL else None, set=b.fget(0, 'set'))
         rows.append(row)
         if started is None and st == 'SPECIAL' and row['spec_id'] == 6: started = f
         if started is not None and flash_end is None and not sf and row['sf_t'] >= FREEZE: flash_end = f   # a row = RAM
@@ -100,7 +132,8 @@ def sheet(shots, out, title, head=None):
         x, y = (n % cols) * (w + 4), 16 + (n // cols) * (h + 14)
         S.paste(im, (x, y + 14)); d.text((x + 2, y + 1), f'frame {r["f"]}  flash t {r["sf_t"]}' if r['sf'] else f'frame {r["f"]}', fill='black')
         if head is not None and r['sf']:                 # the expected head point: red ticks on the picture's edges
-            hx = r['x'] - r['cam'] + (-head[0] if r['facing'] == 1 else head[0]); hy = r['ft'] + r['z'] - r['y'] + head[1]
+            hd = head.get(r['f'], (0, 0)) if isinstance(head, dict) else head   # (per row: each picture's step's own, TODO #191)
+            hx = r['x'] - r['cam'] + (-hd[0] if r['facing'] == 1 else hd[0]); hy = r['ft'] + r['z'] - r['y'] + hd[1]
             d.line([x + hx, y + 14, x + hx, y + 18], fill='red'); d.line([x + hx, y + 14 + h - 4, x + hx, y + 14 + h], fill='red')
             d.line([x, y + 14 + hy, x + 4, y + 14 + hy], fill='red'); d.line([x + w - 4, y + 14 + hy, x + w, y + 14 + hy], fill='red')
         os.remove(p)
@@ -123,16 +156,25 @@ for name in FIGHTERS:
             r['pose_frames_ok'] = [x['frame'] for x in fl] == pose
             r['still_in_freeze'] = len({(x['x'], x['y']) for x in fl}) == 1
             r['no_hit_in_freeze'] = all(x['hp'] == fl[0]['hp'] for x in fl)
-            r['anchor_is_head'] = r['anchor'] == [tuple(head)]
+            heads = fpose_heads(name)                    # the anchor = the head of the pose step shown, frame by frame
+            r['anchor_is_head'] = [(x['sf_dx'], x['sf_dy']) for x in fl] == heads   # (TODO #191; one head: #145's fhead)
+            r['anchor_heads'] = sorted(set(heads)); HEADS[name] = {x['f']: h for x, h in zip(fl, heads)}
+            if FPAL:                                     # the pose's own colours on its palette through the freeze, the
+                ix, rows_ = FPAL                         # colour set's back on the fury's first frame (TODO #191)
+                sp = set_pals(name)
+                r['pose_palette'] = all(x['pal'][1:] == rows_[x['set']][1:] for x in fl)
+                r['palette_back'] = rows[flash_end + 1]['pal'][1:] == sp[rows[flash_end + 1]['set']][ix][1:]
+                r['pose_palette_ok'] = r['pose_palette'] and r['palette_back']
             r['fury_after_freeze'] = rows[flash_end + 1]['fpose'] == 0xFF and rows[flash_end + 1]['state_t'] == gj['super_flash']['start'] \
                 and rows[flash_end + 1]['frame'] not in pose   # the frame after the freeze: the fury's first, as under a KOF flash
             r['head'] = head
         else:
             r['fpose_never_set'] = all(x['fpose'] in (0, None) for x in rows[started:end or len(rows)])
     r['connects'] = first_hit is not None
-    r['ok'] = bool(r['connects'] and r.get('flash_frames') == FREEZE and (all(r[k] for k in ('pose_frames_ok', 'still_in_freeze', 'no_hit_in_freeze', 'anchor_is_head', 'fury_after_freeze')) if pose else r.get('fpose_never_set', True)))
+    r['ok'] = bool(r['connects'] and r.get('flash_frames') == FREEZE and (all(r[k] for k in ('pose_frames_ok', 'still_in_freeze', 'no_hit_in_freeze', 'anchor_is_head', 'fury_after_freeze')) if pose else r.get('fpose_never_set', True))
+                   and r.get('pose_palette_ok', True))
     res[name] = r
-    sheet(sh_f, os.path.join(OUT, f'{name}_flash.png'), f'{name}: the super flash (every 2nd frame): the flash pose, the glow on its head (red ticks: the head point)' if pose else f'{name}: the super flash (KOF98: its own flash step, unchanged)', head)
+    sheet(sh_f, os.path.join(OUT, f'{name}_flash.png'), f'{name}: the super flash (every 2nd frame): the flash pose, the glow on its head (red ticks: the head point)' if pose else f'{name}: the super flash (KOF98: its own flash step, unchanged)', HEADS.get(name) or head)
     sheet(sh_u, os.path.join(OUT, f'{name}_fury.png'), f'{name}: after the flash, the fury in a real fight (first hit at frame {first_hit})')
     print(name, 'ok' if r['ok'] else 'FAIL', json.dumps(r), flush=True)
 json.dump(res, open(os.path.join(OUT, 'flash145.json' if not GAME else 'flash145_game.json'), 'w'), indent=1)
