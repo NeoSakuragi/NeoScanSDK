@@ -845,7 +845,12 @@ def throw(B, ch, name, key):
     return {'slot': a, 'inputs': 'close + forward + ' + ('A+B' if key == 'throw_c' else 'D / C+D'), 'table': [], 'hold': False,
             'rom': True, 'timeline': timeline, 'victims': {name: rows}, 'impacts': sorted(set(impacts)),
             'release': rel, 'land': land, 'ret': ret, 'anim': anim, 'ss2': {'anim': a, 'victim_action': sub},
-            'turned': bool(tst[0]['flags'] & 0x8000)}         # the grab drawn turned: the victim behind him (export_bm hold_rows)
+            'turned': bool(tst[0]['flags'] & 0x8000),          # the grab drawn turned: the victim behind him (export_bm hold_rows)
+            # the brawler's hold (TODO #188 a): SS2 has none (its throw swaps the victim behind the thrower on its first
+            # frame and is over in ~50); a hold drawn that way kept both swapped for seconds ("reverse orientation"). The
+            # hold is SS2's grab picture mirrored: this step unturned, the victim in front facing him; forward / back + A
+            # then plays the throw from its first row (the swap) exactly as SS2
+            'grab_frame': B.frame(tst[0], mirror=False) if tst[0]['flags'] & 0x8000 else None}
 
 def throws(B, ch, name):
     return {k: throw(B, ch, name, k) for k in THROWS[name]}

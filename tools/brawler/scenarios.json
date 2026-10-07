@@ -134,9 +134,9 @@
    "dummy": "ryo",
    "gap": 40
   },
-  "do": "Walk into Ryo to grab him, then forward + A to throw (back + A throws the other way).",
-  "expect": "Haohmaru turns to face Ryo as he grabs him (Ryo behind him), as in Samurai Shodown II; his A hits in the hold strike Ryo; the throw sends Ryo over his head and Ryo lands in front.",
-  "do_keys": "4:R,4:Ra",
+  "do": "Walk into Ryo to grab him, wait a moment, press A once, then forward + A to throw (back + A throws the other way).",
+  "expect": "While Haohmaru holds Ryo, both stay as they met: Haohmaru faces Ryo, Ryo in front of him faces Haohmaru (no swap); his A hits strike Ryo. Forward + A then plays Samurai Shodown II's throw: Ryo is pulled behind him and thrown over his head.",
+  "do_keys": "4:R,30:-,4:a,30:-,4:Ra",
   "proof": 110
  },
  "20261006-164210-5d29": {
@@ -294,7 +294,7 @@
    "gap": 40
   },
   "do": "Walk into Ryo to grab him, then forward + A.",
-  "expect": "Haohmaru throws Ryo with Samurai Shodown's own throw frames (a standard brawler throw: grab, throw, Ryo lands behind and gets up).",
+  "expect": "During the hold Haohmaru and Ryo face each other, Ryo in front; forward + A throws him with Samurai Shodown II's throw frames and Ryo lands in front and gets up.",
   "do_keys": "4:R,4:Ra",
   "proof": 110
  },
@@ -307,7 +307,7 @@
    "gap": 40
   },
   "do": "Walk into Ryo to grab him, then back + A (or forward + A).",
-  "expect": "Haohmaru throws Ryo (his Samurai Shodown throw); Ryo is thrown to the other side.",
+  "expect": "During the hold Haohmaru and Ryo face each other, Ryo in front; back + A throws Ryo to the other side with Samurai Shodown II's frames.",
   "do_keys": "4:R,4:La",
   "proof": 110
  },

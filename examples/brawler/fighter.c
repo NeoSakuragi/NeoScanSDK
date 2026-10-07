@@ -525,13 +525,19 @@ static void place_at(fighter_t *v, int32_t x, int32_t y, int32_t z, int8_t face,
 static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r, int8_t face) {   /* face: the */
     place_at(v, a->x + dir_mul(face, FIX(r->vx)), a->y, a->z, face, r);   /* thrower's facing the offsets are in */
 }
+/* the thrower's hold pose: its forward throw's first frame, or its own (bthrow_t.gframe: SS2's grab is drawn turned
+ * with the victim swapped behind; the brawler's hold is that picture mirrored, both kept as they met, TODO #188 a) */
+static uint16_t grab_frame(const fighter_t *a) {
+    const bthrow_t *th = &a->ch->throws[BT_THROW_C];
+    return th->gframe != 0xFFFF ? th->gframe : th->rows->tframe;
+}
 static void grab(fighter_t *a, fighter_t *v) {
-    const bthrow_row_t *r = a->ch->throws[BT_THROW_C].rows, *h = a->ch->holds[0].rows;   /* the thrower's grab pose, */
+    const bthrow_row_t *h = a->ch->holds[0].rows;                /* the victim's pose: the hold hit's first row */
     enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0;
-    a->frame_ovr = r->tframe;                                    /* silent: the throw's sound comes with its start (#166) */
+    a->frame_ovr = grab_frame(a);                                /* silent: the throw's sound comes with its start (#166) */
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0; v->thr = 0;   /* victim: presses mashed */
-    show_pose(v, h); place_victim(a, v, h, a->facing);           /* the victim's: the hold hit's first row */
+    show_pose(v, h); place_victim(a, v, h, a->facing);
 }
 static void release(fighter_t *a) {                              /* both free where they stand */
     fighter_t *v = a->held;
@@ -647,7 +653,6 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
 }
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
-    const bthrow_row_t *r = f->ch->throws[BT_THROW_C].rows;
     if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered */
     } else if (in->press & IN_C) {                               /* (fighter_update, "cancels" rule 4); else C: the hold ends, the special at once (Bruno
                                                                     2026-10-05); the victim reels in its held pose, free */
@@ -672,7 +677,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         }
         f->srow = 0; f->state_t = 0;                             /* back to the hold; the escape time starts again */
         f->x = f->throw_x0; f->y = 0; f->facing = f->throw_face;
-        f->frame_ovr = r->tframe; show_pose(v, f->ch->holds[0].rows); place_victim(f, v, f->ch->holds[0].rows, f->facing);
+        f->frame_ovr = grab_frame(f); show_pose(v, f->ch->holds[0].rows); place_victim(f, v, f->ch->holds[0].rows, f->facing);
         if (!f->buffered) return;
     }
     if (((in->press & IN_A) || f->buffered) && f->grab_hits < GRAB_HITS) {   /* A: a hold hit, the third the finisher */
