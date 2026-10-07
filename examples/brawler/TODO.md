@@ -1393,9 +1393,20 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 207. KYO'S TRIPLE KICK ON FORWARD+C (20261007-114458-b3f3: "Kyo has this triple kick, I would like you to map it to
   forward plus C"): remap in game.json (find which special is the triple kick, what forward+C held before, move it).
 
-- [ ] 208. FURY WHILE GRABBING (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D
-  button. Make it standard that you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a
-  hold (paired state) releases the hold and starts the fury, every fighter (fighter.c).
+- [ ] 208. (DONE ON BRANCH fix/208-fury-in-grab 2026-10-07, awaiting Bruno's review) FURY WHILE GRABBING
+  (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D button. Make it standard that
+  you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a hold (paired state) releases
+  the hold and starts the fury, every fighter (fighter.c).
+  Cause: hold_update read C (the special out of the hold, 2026-10-05) and A, never D; the D in neutral lived in the
+  S_IDLE case only. Fix (fighter.c): one rule for D, fury_press (the fury, down+D its MAX, down+D full the form link),
+  used from neutral and from the hold; in the hold D ends it the way C does (the victim reels free in its held pose,
+  HITSTUN, not held) and the fury starts that frame with its INV_FURY; a D pressed in a hold hit's hit-stop is kept
+  (fury_buf) and fires as the hit-stop ends; the hold finisher keeps rule 4's buffered cancel; grab() clears presses
+  buffered before the hold. Proof tools/brawler/fury208_proof.py (AI_OFF build), /data/tmp/f208/out/f208: all 23
+  fighters with a fury x (D in the idle hold, down+D, D during a hold hit): ALL OK (SPECIAL with the neutral fury's / MAX's
+  special, INV_FURY every frame with two minions jabbing, 0 life lost, victim HITSTUN + free the same frame and hit by
+  the fury; Hanzo SS2's WFT whiffs the released victim at 15 px, as it whiffs a standing enemy there from neutral);
+  sheet_terry.png. Scenario 20261007-124603-b3f3 (verify identical).
 
 - [ ] 209. CREDITS -> PRESS START (20261007-140259-5d29: "There are coins inserted, but we are still on the insert coin
   screen, and also in-game there is the insert coin message even though there is more than zero credit ... switch to

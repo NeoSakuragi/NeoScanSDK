@@ -930,5 +930,19 @@
   "expect": "Ryo flies in one smooth arc and lands: no stop and jump in his flight at the moment Terry is free to act (before the fix he stalled one frame there, then jumped two steps).",
   "do_keys": "4:R,2:Ra,90:-",
   "proof": 60
+ },
+ "20261007-124603-b3f3": {
+  "title": "Terry's fury straight out of a hold (D while grabbing)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full"
+  },
+  "do": "Walk into Ryo to grab him, then press D while you hold him (down + D for the MAX fury; it works in the middle of a hold hit too).",
+  "expect": "The hold ends at once and Terry's fury (Power Geyser) starts and hits Ryo, who reels free out of the hold; nothing can hit Terry while the fury plays. Every fighter does the same.",
+  "do_keys": "4:R,6:-,4:d,120:-",
+  "proof": 90
  }
 }

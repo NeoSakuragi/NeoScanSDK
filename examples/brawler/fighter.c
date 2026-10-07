@@ -592,6 +592,7 @@ static uint16_t grab_frame(const fighter_t *a) {
 static void grab(fighter_t *a, fighter_t *v) {
     const bthrow_row_t *h = a->ch->holds[0].rows;                /* the victim's pose: the hold hit's first row */
     enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0;
+    a->spec_buf = a->fury_buf = 0; a->cnc_buf = 0;               /* (presses before the hold: not for it) */
     a->frame_ovr = grab_frame(a);                                /* silent: the throw's sound comes with its start (#166) */
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0; v->thr = 0;   /* victim: presses mashed */
@@ -702,6 +703,16 @@ static uint8_t paired_update(fighter_t *f) {
     if (v) place_victim(f, v, r, f->throw_face);
     return 1;
 }
+/* D pressed from neutral or in a hold (TODO #208: one rule): the fury, from half a gauge (gmeter); down+D its MAX
+ * version (bchar_t.fury_max; none: the fury); down+D with a full meter: the form link's transition when the fighter's
+ * trigger is FT_DOWN_D_FULL (all of the meter). Spends the meter, returns the role to start (BS_FORM / BS_FURY /
+ * BS_FURY_MAX); 0xFF: nothing (no fury, not enough meter) */
+static uint8_t fury_press(fighter_t *f, uint8_t max) {         /* max: down held (down+D) */
+    if (max && f->ch->form_trig == FT_DOWN_D_FULL && spec_ix(f->ch, BS_FORM) != 0xFF &&
+        (f->team || gmeter.infinite || f->meter >= gmeter.max) && spend(f, gmeter.max, gmeter.max, 0)) return BS_FORM;
+    if (spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0)) return max ? BS_FURY_MAX : BS_FURY;
+    return 0xFF;
+}
 static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / back+A in the hold */
     fighter_t *v = f->held;
     const bthrow_t *th;
@@ -719,14 +730,20 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered */
-    } else if (in->press & IN_C) {                               /* (fighter_update, "cancels" rule 4); else C: the hold ends, the special at once (Bruno
-                                                                    2026-10-05); the victim reels in its held pose, free */
-        uint8_t k = special_for(f, in);                          /* (only throws hold a victim), until its stun ends or */
-        if (k != 0xFF && spend(f, gmeter.special, 0, 0)) {       /* the special hits it */
+    } else if ((in->press & IN_C) || (f->fury_buf & 0x80)) {     /* (fighter_update, "cancels" rule 4); else C: the hold
+                                                                    ends, the special at once (Bruno 2026-10-05); D (its
+                                                                    press kept through a hold hit's hit-stop: fury_buf,
+                                                                    fighter_update): the fury (down+D its MAX) as from
+                                                                    neutral, fury_press (TODO #208, every fighter); the
+                                                                    victim reels in its held pose, free (only throws hold
+                                                                    a victim), until its stun ends or the move hits it */
+        uint8_t d = (f->fury_buf & 0x80) != 0, k = d ? fury_press(f, f->fury_buf & 1) : special_for(f, in);
+        f->fury_buf = 0;
+        if (k != 0xFF && (d || spend(f, gmeter.special, 0, 0))) {
             f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->buffered = 0; f->srow = 0;
             v->held = 0; v->zfront = 0; v->vx = v->vy = v->vz = 0; v->y = 0;
             enter(v, S_HITSTUN); play(v, BA_HIT_STAND_LIGHT);    /* STUN_LIGHT frames; frame_ovr: the held pose */
-            lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k);
+            lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, d && k != BS_FORM ? BS_FURY : k); start_special(f, k);
             return;
         }
     }
@@ -1706,6 +1723,8 @@ static void update(fighter_t *f, const intent_t *in) {
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
         if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
     }
+    if (f->state == S_GRAB && !(f->srow && f->throw_id == BT_HOLD_FIN) && (in->press & IN_D))   /* the hold: D for the */
+        f->fury_buf = 0x80 | (in->dz > 0);                       /* fury (hold_update; presses in hit-stop count, TODO #208) */
     if ((f->state == S_THROW || (f->state == S_GRAB && f->srow && f->throw_id == BT_HOLD_FIN)) && !f->team) {   /* a throw /
                                                                     the hold finisher: C / D buffered for its last
                                                                     impact ("cancels" rule 4; presses in hit-stop count) */
@@ -1756,14 +1775,9 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     window: the route's B link (a jump-cancel) */
         if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
         else if (in->face) f->facing = in->face;
-        if (b & IN_D) {                                          /* D: the fury, from half a gauge (gmeter); down+D: its MAX
-                                                                    version (bchar_t.fury_max; none: the fury) */
-            if (in->dz > 0 && f->ch->form_trig == FT_DOWN_D_FULL && spec_ix(f->ch, BS_FORM) != 0xFF &&
-                (f->team || gmeter.infinite || f->meter >= gmeter.max) && spend(f, gmeter.max, gmeter.max, 0)) {
-                lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FORM); start_special(f, BS_FORM); break;   /* the form link's
-                                                                    trigger: its transition (a full meter, all of it) */
-            }
-            if (spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FURY); start_special(f, in->dz > 0 ? BS_FURY_MAX : BS_FURY); }
+        if (b & IN_D) {                                          /* D: the fury (fury_press) */
+            uint8_t k = fury_press(f, in->dz > 0);
+            if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k); }
             break;
         }
         if (b & IN_C) {                                          /* C: the slot's special (the stick picks the slot) */
