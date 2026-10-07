@@ -36,7 +36,9 @@ def bm_tables():
     src = open(os.path.join(GAME, 'build', 'bm_spec.c')).read()
     chs = open(os.path.join(GAME, 'build', 'bm_chars.c')).read()
     line = next(l for l in chs.splitlines() if '"HANZO", ' in l and 'hanzo_ss2_pals' in l)
-    k = int(re.search(r', (\d+)\},\s*$', line).group(1))     # bchar_t.air_spec (the last field)
+    m = re.search(r'static const uint8_t hanzo_ss2_air\[\] = \{(\d+), (\d+)', chs)   # bchar_t.air (TODO #221: the
+    k = int(m.group(2)) if m else int(re.search(r', (\d+), (\d+)\},\s*$', line).group(1))   # table; before it air_spec,
+                                                             # down_spec's field before it since TODO #218)
     an = re.search(rf'hanzo_ss2_sp{k}_an\[\] = \{{(.*?)\}};', src).group(1)
     names = re.findall(r'\{\d+, \d+, (\w+)\}', an)
     def frames(name):
