@@ -50,6 +50,58 @@ That is our unifying technique.
 - ROM-decoded programs (KOF handlers with their own frame counters, SS2 timers) need their counters scaled too: the
   exporter does it per program at build time, not the engine at run time.
 
+## 7. Chains are authored, not imported
+
+**Bruno:** don't rely too much on the source game's chaining system. A great chain combo = each individual piece is very
+appealing on its own, and put together they make a great sequence. It doesn't have to be what the original game did —
+most of these games had no chain combos at all (Kizuna is the exception).
+
+**Proposals (mine, to agree):**
+- The source games give a *library of pieces* (every normal, command normal, special, with its drawings, boxes,
+  sounds); the chain is a sequence *we compose* from that library per fighter.
+- A piece qualifies on its own merit first (principle 3: visually complete, readable contact frame, good box).
+- A sequence is judged on flow between pieces: the end pose of one leads into the start pose of the next (no pop),
+  spacing keeps the victim in reach, rhythm and intensity rise toward the finisher, some variety of height / limb.
+- Composition is proposed by me from measurable criteria and judged by Bruno visually (tap-to-judge, outcome-named
+  buttons), not hand-tuned frame by frame.
+
+## 8. Bread and butter first, specials as side branches
+
+**Bruno:** we could be creative and use animations of special moves in side-chain combos, but the bread and butter must
+be regular hits players often see, so they feel at home with these moves. Visual appeal drives the selection of each
+piece. Every piece scalable (slow down / speed up) to fit a frame-data adjustment.
+
+## 8b. Every chain serves a purpose
+
+**Bruno:** good chains serve a purpose. Some start facing one way and end facing the other, to deal with enemies both in
+front and behind. Some include a throw: in Final Fight, punch, punch, then back + punch makes the third action a throw
+backwards; that helps escape difficult situations, because the player is usually invincible during the throw animation.
+
+**Proposals (mine, to agree):**
+- Each fighter's chain set covers a small list of *purposes*, and each branch is tagged with one: damage (the plain
+  string), crowd clear (wide / multi-hit finisher), turn-around (ends facing back, or hits behind), escape (a throw or
+  move with invincibility, e.g. back + A at link 3 = throw backwards), reposition (carries the victim / the player).
+- The direction held at a link picks the branch (neutral = damage finisher, back = throw backwards / turn-around,
+  forward = push or launcher), the same scheme for every fighter (consistency) with each fighter's own pieces (variety).
+- The throw branch grants invincibility for its whole animation (as the existing fury rule does), and its thrown body
+  knocks down enemies it meets (spawn.body).
+- The Lab tool shows which purposes a fighter's chains cover, so gaps are visible.
+
+## 9. Iterate fast: an exploration tool, no build in the loop
+
+**Bruno:** we want to iterate quickly. "I want a tool that allows me to explore new things, so I don't want to wait for
+a new build to be created for a new combo."
+
+**Proposals (mine, to agree):**
+- Two layers, one data format:
+  1. **Preview in the Lab (browser, instant):** pick pieces from a fighter's library, drag the startup / active /
+     recovery handles, see the chain play at once from the exported frames (the Lab already draws our sprites with
+     the game's palettes), with boxes, spacing against a dummy, damage and frame advantage computed live.
+  2. **Push to the running game (seconds):** the same chain data written into the running emulator's RAM (a debug
+     override table the game reads before its ROM tables), so it plays in a real fight, no rebuild. A build only
+     bakes what was kept.
+- The same format feeds the exporter, so what you tuned is exactly what ships.
+
 ## Open: to discuss with Bruno
 
 (filled as the discussion goes on)
