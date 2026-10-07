@@ -1061,6 +1061,19 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   gauge [meas: P1's object identical to a run without the fill]; Double Dragon none (powered = the bars meet, "CHARGE";
   the power-up anim 81 is the player's A+B+C+D, already Billy's pose); KOF96 / 98 / 99, Kizuna, SS4 not checked here.
 
+- [ ] 190. (DONE ON BRANCH fix/190-bank-headroom 2026-10-07, awaiting Bruno's review) P ROM BANK HEADROOM: after 0.0.98 +
+  #184 bank 0 had 12,182 bytes free (packer bound 2,073), bank 1 153,042: the next fighter / animation would not fit
+  bank 0. tools/brawler/bank_pack.py now packs balanced with a margin: the fewest banks in which every bank keeps
+  BANK_MARGIN free (default 128 KB > the largest fighter's bulk, Rugal 125 KB), fighters (form groups whole) largest
+  first into the emptiest bank; full 1 MB - 16 packing only when 7 banks cannot keep the margin. Result: 3 banks, P ROM
+  4 MB (+1 MB): bank 0 415,832 free, bank 1 414,786, bank 2 383,166; MB1 unchanged. 4 MB P checked: Geolith masks the
+  register to 3 banks (geo_calc_mask), the Android player and the Lab's core.wasm build that Geolith, NeoCart PROG v3
+  latch = banks 0-6 (bank_proof: chip image banks 0-2 at flash MB 0-2, P1 at MB 7). docs/rom_packer_rules.md "P ROM".
+  Proofs /data/tmp/bank190: bank_proof ALL OK, controls_proof 23/23 ok, cancel_proof all ok 23, regress no-bleed True
+  (frame-exact), campaign29 campaign.json identical to /data/tmp/campaign/out29, Lab core.wasm (Node, make_site)
+  vs desktop core 0 ticks differ (Robert stage 5, Ralf stage 1 wave 2, Terry stage 3 boss), Player (AVD JanusPhone,
+  APK 0.0.24) loads the 4 MB-P ROM: title + stage 1 fight drawn (player_1.png / player_2.png).
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
