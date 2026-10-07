@@ -557,5 +557,33 @@
   "expect": "The light (A) Koryuu Ha from World Heroes Perfect: slow (3 px a frame), with its two trailing tail parts behind it that vanish when it hits Ryo. Only one can fly at a time. The medium (B, 5.25 px) and fast (A+B, 7.5 px) versions are in the data; one word in game.json picks them, none is on a button in this build.",
   "do_keys": "4:c",
   "proof": 150
+ },
+ "20261006-155931-b3f3": {
+  "title": "MAX fury: KOF 2000's MAX sound at the flash",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 160,
+   "meter": "full"
+  },
+  "do": "Terry's meter is full. Press down + D (the MAX fury), then, once the meter is full again, D alone (the normal fury) to compare.",
+  "expect": "The MAX fury's white flash plays KOF 2000's MAX sound: the high-pitched whistle of its SDMs. The normal fury's flash keeps its own sound, KOF98's charge, so the two are told apart by ear.",
+  "do_keys": "3:Dd",
+  "proof": 120
+ },
+ "20261007-021452-5d29": {
+  "title": "MAX fury: KOF 2000's MAX sound at the flash",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 160,
+   "meter": "full"
+  },
+  "do": "Terry's meter is full. Press down + D (the MAX fury), then, once the meter is full again, D alone (the normal fury) to compare.",
+  "expect": "The MAX fury's white flash plays KOF 2000's MAX sound: the high-pitched whistle of its SDMs. The normal fury's flash keeps its own sound, KOF98's charge, so the two are told apart by ear.",
+  "do_keys": "3:Dd",
+  "proof": 120
  }
 }
