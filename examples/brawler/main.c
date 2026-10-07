@@ -156,7 +156,16 @@ static void stage_cycle(void) {      /* Robo Army's palette cycle (make_stage_ra
     PAL_setPalette(STAGE_PAL + stg->cyc_pal, stg->cyc + cyc_k * 16);
 }
 static uint8_t bd_on, bd_t;                      /* screen_fx: the stage hidden for a special's effect; its frames */
-static const uint16_t *bd_cols;                  /* its two colours */
+/* the backdrop ($401FFE, TODO #217): every change in the game goes through bd_set and is written by vblank_flush,
+ * right after the VRAM queue in vblank. Written at once (mid-frame: game_tick runs into the active display) the frame
+ * showed the old colour above that line and the new one below it (Kim's Phoenix strobe: half red / half white) */
+static uint16_t bd_next;
+static uint8_t bd_pend;
+static void bd_set(uint16_t c) { bd_next = c; bd_pend = 1; }
+static void vblank_flush(void) {
+    SYS_vblankFlush();
+    if (bd_pend) { PAL_setBackdrop(bd_next); bd_pend = 0; }
+}
 static void stage_hide(void) {                              /* title, select: no stage */
     uint8_t i;
     bd_on = 0;
@@ -458,7 +467,6 @@ static fighter_t *sf_who;                /* the attacker while the flash runs (0
 static uint8_t sf_flash_t, sf_col, sf_glow_on, sf_ray;   /* frames since it started; 0 DM blue / 1 MAX orange; shown frames */
 static uint8_t sf_frozen;                /* the projectile entities alive when it started: frozen through it (TODO #202) */
 static int16_t sf_dx, sf_dy;
-static const uint16_t SF_BD[2] = { 0x0000, 0x0000 };    /* the backdrop it leaves: black (screen_fx restores the stage's) */
 void super_flash(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     if (mode != 1) return;
@@ -624,33 +632,29 @@ static void screen_fx(void) {
                                                                  0xFFFF: its program switches it, P_SCREEN, TODO #136) */
         }
     }
+    /* (TODO #217) every colour here goes through bd_set: written at the next vblank with the stage's sprites (cmd
+       queue), so the stage and its backdrop change on the same frame and no frame shows two backdrops */
     if (bighit_red) {                                        /* SS2's big hit (fighter.c big_hit): red, no stage */
-        static uint16_t BH_BD[2];
-        BH_BD[0] = BH_BD[1] = bighit_col;
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
-        else PAL_setBackdrop(bighit_col);
-        bd_cols = BH_BD; bighit_red--;
+        bd_set(bighit_col); bighit_red--;
     } else if (hitflash) {                                   /* Double Dragon's super hit (fighter.c hit_spark, TODO #215;
                                                                 DD $3A8A: every 2 frames the stage's palettes and the
                                                                 backdrop filled red / restored; on DD's screen red 2, 3, 6
                                                                 and 7 frames after its spark shows, tools/doubledr/
-                                                                spark215_proof.py): the stage's sprites go / come back at
-                                                                the next vblank, the red backdrop (under them) is set the
-                                                                frame before they go and kept until they are back */
+                                                                spark215_proof.py): the red backdrop (under the stage)
+                                                                the frame before the stage's sprites go, kept until they
+                                                                are back */
         uint8_t k = HITFLASH - hitflash--;
-        if (k == 2 || k == 6) { stage_hide(); bd_on = 1; PAL_setBackdrop(BIGHIT_COL); }
-        else if (k == 4 || k == 8) stage_show();
-        else if (k == 5 || k == 9) { PAL_setBackdrop(stg->backdrop); bd_on = 0; }
-    } else if (sf_who) {                                     /* the super flash: the stage hidden, white then black */
-        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* the stage's sprites go at the next vblank: the */
-        else PAL_setBackdrop(sf_flash_t <= gflash.white ? gflash.white_col : gflash.dark_col);   /* backdrop (at once) from the frame after */
-        bd_cols = SF_BD;
-    } else if (sp) {                                         /* the stage's sprites go at the next vblank (cmd */
-        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* queue): the strobe starts the frame after, */
-        else PAL_setBackdrop(sp->bd_col[bd_t++ & 1]);            /* bd_col[0] first as Kizuna (measured) */
-        bd_cols = sp->bd_col;
-    } else if (bd_on == 1) { stage_show(); PAL_setBackdrop(bd_cols[bd_t & 1]); bd_on = 2; }   /* back the same way: the stage first, */
-    else if (bd_on == 2) { PAL_setBackdrop(stg->backdrop); bd_on = 0; }   /* its backdrop the frame after */
+        if (k == 1 || k == 5) bd_set(BIGHIT_COL);
+        else if (k == 2 || k == 6) { stage_hide(); bd_on = 1; }
+        else if (k == 4 || k == 8) { stage_show(); bd_set(stg->backdrop); bd_on = 0; }
+    } else if (sf_who) {                                     /* the super flash: the stage hidden, white then black (the */
+        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* colour of the frame shown: sf_tick counts after) */
+        bd_set((uint8_t)(sf_flash_t + 1) <= gflash.white ? gflash.white_col : gflash.dark_col);
+    } else if (sp) {                                         /* Kizuna's strobe, bd_col[0] first (measured) */
+        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
+        bd_set(sp->bd_col[bd_t++ & 1]);
+    } else if (bd_on) { stage_show(); bd_set(stg->backdrop); bd_on = 0; }   /* after: the stage and its backdrop back */
 }
 
 /* ---- the sprite budget (TODO #158 / #170, Bruno 2026-10-06: the select screen's actors and Geese's Raging Storm
@@ -1321,7 +1325,7 @@ static void title_screen(void) {
 static void title_start(void) {
     uint8_t i;
     mode = 2; nf = 0; attract = 0; title_t = 0; cam_x = 0; opt_on = 0;
-    PAL_setBackdrop(COLOR_BLACK);
+    bd_set(COLOR_BLACK);
     stage_hide();
     for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
@@ -1583,7 +1587,7 @@ static void select_start(void) {
     inputs_reset();
     snd_music(GAME_MUS_SELECT);
     FIX_clear(); arcade_line_reset();
-    PAL_setBackdrop(RGB8(72, 76, 84));                       /* the photo's wall */
+    bd_set(RGB8(72, 76, 84));                                /* the photo's wall */
     stage_hide();                                            /* stage sprites hidden */
     floor_top = SELECT_FLOOR;
     dbg_init();
@@ -2014,7 +2018,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
     tfx_reset();
     FIX_clear(); arcade_line_reset();
     stage_init(attract ? STAGE : gs->bg);             /* stage sprites back, every column rewritten */
-    PAL_setBackdrop(stg->backdrop);
+    bd_set(stg->backdrop);
     lock_x = lock_at(gs->waves[0].lock);
     power = gs->power;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
@@ -2053,7 +2057,7 @@ static void attract_fight(void) {
 static void attract_start(void) {                      /* the logo: the title screen without its menu, INSERT COIN */
     uint8_t i;
     mode = 2; nf = 0; title_t = 0; cam_x = 0; opt_on = 0;
-    PAL_setBackdrop(COLOR_BLACK);
+    bd_set(COLOR_BLACK);
     stage_hide();
     for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
@@ -2388,7 +2392,7 @@ static void show_start(uint8_t m, uint8_t c, uint8_t set, uint16_t wall) {
     FIX_clear(); arcade_line_reset();
     stage_hide();
     floor_top = SELECT_FLOOR;
-    PAL_setBackdrop(wall);
+    bd_set(wall);
     for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     fighter_init(&fighters[0], &bm_chars[c], set, 16, 0, 160, SHOW_Z);
@@ -2498,7 +2502,7 @@ void game_init(void) {
     save_load();                                             /* MVS: the BIOS restored the block (a fresh one: reset) */
     for (i = 0; i < 4; i++) TEXT_PAL[2 + i] = text_colours[i];   /* the font's colours (Kizuna's, TODO #182) */
     PAL_setPalette(0, TEXT_PAL);
-    PAL_setBackdrop(stg->backdrop);
+    bd_set(stg->backdrop);
     for (i = 0; i < NA * SEL_COLS || i < FIGHT_SPRS; i++) cmd_push(VRAM_SCB2 + SPR_BASE + i, 0x0FFF);   /* full size, set once */
     for (i = 0; i < NA; i++) { block_placed[i] = blk_cols; block_spr[i] = slot_spr[i] = SPR_BASE + i * blk_cols; }   /* clear every block once */
     stage_init(STAGE);
@@ -2526,13 +2530,13 @@ void game_enter(uint8_t request) {
     if (coin_in()) snd_ssg(SSG_COIN);                       /* the coin that ended the demo: after the song start */
     depth_sort();
     draw();
-    SYS_vblankFlush();
+    vblank_flush();
 }
 
 void game_tick(void) {
     uint8_t i;
     prof_t = LINE();
-    SYS_vblankFlush();              /* we are in vblank: last tick's VRAM commands go out now, tear-free (1 frame latency) */
+    vblank_flush();                 /* we are in vblank: last tick's VRAM commands and backdrop go out now, tear-free (1 frame latency) */
     mark(P_FLUSH);
     SYS_kickWatchdog();
     snd_tick();
