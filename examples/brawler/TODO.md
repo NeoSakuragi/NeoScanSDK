@@ -1099,6 +1099,34 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   form none) and Billy's MAX is the transformation (its hit: 67, unchanged). Checks: controls_proof / cancel_proof
   billy_lee + billy_super ok, bank_proof ALL OK, regress no-bleed True (frame-exact), scenario lint 0.
 
+- [ ] 193. (DONE ON BRANCH fix/193-hanzo-ss2 2026-10-07, awaiting Bruno's review; drop the WHP Hanzo or keep both: his
+  call) HATTORI HANZO FROM SAMURAI SHODOWN II as a separate fighter (roster hanzo_ss2, display HANZO, bank samsho2:hanzo,
+  SS2's select-grid face; the WHP Hanzo unchanged), the Haohmaru / Genjuro / Kuroko way (tools/samsho2). Frames 1:1 (win
+  198, select pose 140, flash pose = SS2's rage anim 140 + its shout). SS2's "one layer one palette number off" solved
+  [code + meas]: the display code adds +$82 to a step's second layer and $25D3E sets it every frame to the frame
+  counter's bit 0 ($1089F9): that layer shows palette p and p + 1 on alternate frames (Hanzo's blade glint, pens 8-10);
+  export_ss2 flicker_key -> bchar_t.flk, fighter.c flicker (same rule for every SS2 fighter: Haohmaru / Genjuro get their
+  glint too; packing drops a flicker only when 8 palettes cannot hold it). Specials decoded from his handlers:
+  6321S (A / B / A+B, object 6: a flame arc 12 px ahead stepping 80 px each time its animation ends, burst effect 13 as
+  its trail, the hit = fire columns 244 where it hits; bproj_t wrap 160) on C; 623K Mozu Otoshi (the MOZU-SPS task: a
+  grab within 69 px -> GRAB_BOX catch box; anims 58 / 60 / 62, the victim's own class 3 action 33 (490 / 492 / 494 at
+  his place, his facing) as victim lists, the slam = a blow + SS2's hold (+$D7) in his landing pose, fire 244, the
+  release at 38 burning (460), the second leap; leaps x MOZU_TOP 64 px, same timing; new PC_CAUGHT: the grab outranks
+  the 1-frame whiff's end) on forward+C, row C; WFT (rage 6 3 2 1 4 6 D: anim 292 + object 7, the fire line then the
+  flame column 105 px ahead, SS2's big hit with its own backdrop $0002 now also from an object's hit, the victim thrown
+  away from him: bproj_t.ppad 1) on D, no MAX (one rage entry: down+D = the fury). Throws: slash throw 274 then his leap
+  back (throw_leap, height fitted), kick throw 346. Not exported (named): the air 4123S fire (no special starts in the
+  air), 641236S decoy (Hanzo reappears at a screen edge, a hittable dummy: a new mechanism), 63214 BCD / 646464 2 BCD
+  secrets, result 47 (a counter while being hit, BCD held). Select: actor 23 (NA 23, SPR_BASE 59), at the back right
+  (294, 112), nobody else losing more than 13 % of what shows (Yamazaki), every line <= 79 sprites. Proofs
+  /data/tmp/hanzo193/out: ss2proof (frames 536 / 554 identical both facings: the 8 tall fire-column frames above the
+  screen top and the unturned grab pose differ, as Haohmaru's; specials sheets brawler vs SS2: 6321S, 623K caught, WFT
+  hit), handlers_ss2 check (6321S / 623K / WFT = SS2's frames), select (41 screens 0 px, stick 302 agree, walk 164 / 164),
+  controls 24 ok, cancel all ok 24, fury_inv (AI_OFF) ALL OK, voice (his 18 voices; the same one-frame reference
+  offset as Haohmaru's / Genjuro's), bank_proof ALL OK (bank 2: hanzo_ss2), regress no-bleed True (strict), campaign29
+  = the 0.1.4 run but the line-up's 23rd fighter, fury195 flash pose ok (it connects from ~60 px: the column's reach).
+  Scenario todo193-hanzo-ss2 (gen at publish: needs a build with him).
+
 - [ ] 191. (DONE ON BRANCH fix/191-ss2-timing-rage 2026-10-07, awaiting Bruno's review) SS2 TIMING + RAGE PALETTE (found by the Kuroko boomerang job and #189): (a) every Samurai Shodown II move
   (Haohmaru, Genjuro, Kuroko: specials, furies, normals?) runs 2 frames LONGER in the brawler than in SS2 (e.g. Kuroko
   6ABC): find the cause (step-length conversion SS2 ticks -> brawler frames, a first / last step off by one like
@@ -1157,10 +1185,18 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   forms by poke): Billy Lee all ok, Super Billy C ok / D n/a (no fury, by design); controls + cancel ok, bank_proof ALL
   OK, regress bleed_same / strict True. Scenarios 20261007-110922-b3f3 / 111015 (verify identical, lint 0).
 
-- [ ] 195. HAOHMARU'S FURY TONED (20261007-113032-b3f3: "the red screen is too much and there shouldn't be so much freeze
-  on impact" — the 0.0.93 SS2 hit sequence: red screen 48 f, hold 40 f, slow motion 30 f; 20261007-112936-b3f3: keep
-  SS2's red rage palette through the motion after the charge, the big fireball): shorten / soften the red screen and
-  the impact freeze (one short flash, a standard hit-stop), keep the rage palette until the fury ends.
+- [ ] 195. (DONE ON BRANCH fix/193-hanzo-ss2 2026-10-07, awaiting Bruno's review) HAOHMARU'S FURY: THE IMPACT AND THE
+  RAGE COLOURS (20261007-113032-b3f3: "the red screen is too much and there shouldn't be so much freeze on impact";
+  20261007-112936-b3f3: keep SS2's red rage skin through the motion after the charge, the big fireball). (a) the 0.0.93
+  SS2 hit sequence (#188 c: red backdrop 48 frames, both held 40, slow motion 30) cut to a short red flash (BIGHIT_RED 8)
+  and the brawler's own hit-stop (BIGHIT_STOP 7 = HITSTOP), no slow motion (BIGHIT_SLOW 0); the victim still held to the
+  slash's throw (BIGHIT_HOLD = 7 + the 21 ticks of slash SS2 plays after its stop). (b) the flash pose's rage palette
+  (#191, bchar_t.fpal) stays on through the fury's motion and the colour set comes back when the fury ends
+  (special_end), as SS2 keeps its rage colours through the WFT; every SS2 fury the same (Genjuro, Kuroko, SS2 Hanzo:
+  his flame's hit is the same big hit, his backdrop $0002). Measured (harness, lab vs Ryo at 80 px): bighit_red 8 frames,
+  attacker freeze 7, victim held 28 then thrown, bighit_slow never counts; flash145_proof (/data/tmp/hanzo193/out/fury195):
+  haohmaru / genjuro / kuroko ok with the new checks fury_palette (rage colours every fury frame) and palette_back (the
+  colour set the frame after). Scenarios 20261007-113032-b3f3 / 20261007-112936-b3f3 (verify: identical states).
 
 - [ ] 196. THROW HITCH (found by #194): every throw's victim appears one frame late at the moment the thrower can act
   again (control return): a 6 px hitch in the flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.

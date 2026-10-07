@@ -26,7 +26,7 @@ import numpy as np
 import ss2, neo2 as N
 
 TILE_BASE = 256                                   # = export96.TILE_BASE (export_bm slices from it)
-CAST = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}
+CAST = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo': 2}
 COLOURS = 2                                       # colour sets per fighter in $FD10 (P1 / the second player's)
 FEET = 16                                         # the feet's screen line = Y - 16 ($3368: top = Y - 16 - y offset)
 
@@ -57,8 +57,9 @@ MOVES = {
 }
 # the round win (TODO #184): the animation SS2 plays for the winner, read in our emulator (tools/brawler/wins184.py: P1
 # lands a slash, the clock runs out with P1 ahead; P1's +$66 after it): Haohmaru 200 (facing the camera, the sword on his shoulder;
-# its step 2 sends his voice $1A98), Genjuro 198 (his back turned; step 11 $1CD8), Kuroko 198
-WIN = {'haohmaru': 200, 'genjuro': 198, 'kuroko': 198}
+# its step 2 sends his voice $1A98), Genjuro 198 (his back turned; step 11 $1CD8), Kuroko 198, Hanzo 198 (TODO #193:
+# 0 -> 230 (his slash) -> 2 -> 198, /data/tmp/hanzo193/win/wins184.json)
+WIN = {'haohmaru': 200, 'genjuro': 198, 'kuroko': 198, 'hanzo': 198}
 def jump_moves(ch):
     """the jumps' animations from the fighter's own class 0 actions [code] ($28310: 6 up, 8 forward, 9 back; a list =
     the rise animation, parameter entries, the fall animation, then the same again for the other weapon mode): rise =
@@ -131,15 +132,16 @@ class Builder:
                                                          dy + next(((c[2]) for c in s['cmds'] if c[0] == 'move'), 0), fl) for s, dx, dy, fl in extra]:
             nl = len(s['layers'])
             for li in ss2.ORDER[bool(s['flags'] & 0x4000)][nl - 1]:
-                parts += self.layer(s['layers'][li], ox, oy, fl)
+                parts += self.layer(s['layers'][li], ox, oy, fl, li)
         self.index[key] = len(self.frames)
         self.frames.append({'record': ' '.join(f'{w:04X}' for w in st['layers']), 'parts': parts, 'weapon': None,
                             'ss2': {'layers': st['layers'], 'flags': st['flags'], 'move': list(mv),
                                     'extra': [[s['layers'], s['flags'], dx, dy, fl] for s, dx, dy, fl in extra]}})
         return self.index[key]
-    def layer(self, w, ox, oy, facing):
+    def layer(self, w, ox, oy, facing, li=0):
         """one sprite definition drawn at (ox, oy) from the object (SS2 screen offsets, facing right) -> brawler parts
-        (facing left: mirrored about the feet). facing 1: the definition drawn facing left in SS2 (an object turned)"""
+        (facing left: mirrored about the feet). facing 1: the definition drawn facing left in SS2 (an object turned).
+        li: its place in the step's layer list (the second one flickers: flicker_key)"""
         flip = facing ^ (w >> 15)
         sd = ss2.sprite_def(w & 0x7FFF); xo, yo = ss2.place(w & 0x7FFF)
         _, cells = ss2.sprite_cells(w & 0x7FFF)
@@ -151,7 +153,7 @@ class Builder:
         bleft = -(left + wpx)                         # the mirrored left edge
         cols = []                                     # (x, top, palette, {row: tile})
         for ci, col in enumerate(bcols):
-            byp = {}
+            byp, byc = {}, {}
             for r, cell in enumerate(col):
                 if cell is None: continue
                 t, at = cell
@@ -159,8 +161,9 @@ class Builder:
                 code = t | (at >> 4 & 0xF) << 16
                 if not code: continue
                 tn = self.tile(code, (at & 1) ^ 1, at >> 1 & 1)   # mirrored: every cell flipped once more
-                if tn: byp.setdefault(at >> 8, {})[r] = tn
+                if tn: byp.setdefault(at >> 8, {})[r] = tn; byc.setdefault(at >> 8, set()).add(code)
             for p, rows in byp.items():
+                if li == 1: p = flicker_key(self.ch, p, byc[p])
                 cols.append((bleft + 16 * ci, top, p, [rows.get(r, 0) for r in range(len(col))]))
         parts = []
         for x, tp, p, t in cols:                      # adjacent columns with the same palette and top: one part
@@ -234,6 +237,41 @@ def physics(ch):
     vy0 = -vtab(ch, 4)[1] / 256; g = vtab(ch, 5)[1] / 256; jdx = vtab(ch, 2)[0] / 256
     return {'walk_fwd': walk, 'walk_back': back, 'jump_vy0': vy0, 'gravity': g, 'jump_dx': jdx, 'prejump': 2}
 
+# ---- the second layer's flicker (TODO #193) ----------------------------------------------------------------------------
+# The display code adds the object's +$82 to the palette of a step's second layer ($35C6 / $3656: the layer list's
+# entries 0 / 1 / 2 get +$81 / +$82 / +$83) and $25D3E sets +$82 every frame to the player's colour block (0, P2 8) + bit 0
+# of the frame counter $1089F9 [code]: that layer is drawn with palette p and p + 1 on alternate frames. Measured in our
+# emulator (Hanzo's fight state, /data/tmp/hanzo193/pal): his sword (the idle's second layer, palette 19) is 20 every
+# other frame in VRAM, and P2 Haohmaru's second layer 27 / 28 the same (the study's "one layer one palette off" for
+# Hanzo / Sieger / Nicotine: their stages do not switch SCB3 banks, so every frame was compared; the others' captures
+# skipped every other frame). Palette 19 / 20 differ in pens 8-10 (the blade's greys): a glint. The brawler: such a
+# part gets the palette key FLK + p, its colours p, and every other frame p + 1 (bchar_t.flk, fighter.c flicker); a part
+# whose pens are the same in p and p + 1 keeps p (no flicker to show).
+FLK = 1000
+
+def key_colours(ch, s, p):
+    """the 16 colours of SS2 palette key p in colour set s (FLK + p: palette p's, the flicker's base)"""
+    p %= FLK
+    return ss2.fighter_palettes(ch, s)[p - 16] if 16 <= p < 24 else fixed_palette(p)
+
+def flicker_key(ch, p, tiles):
+    """the key of a second-layer part drawn with palette p (tiles: its C tile codes): FLK + p when palette p + 1 shows
+    any of its pens in another colour in some colour set, else p"""
+    pens = set()
+    for t in tiles: pens.update(int(q) for q in N.tile(t).flatten() if q)
+    assert p + 1 < 24 or p >= 32, (ch, p)
+    same = all(key_colours(ch, s, p)[q] == key_colours(ch, s, p + 1)[q] for s in range(COLOURS) for q in pens)
+    return p if same else FLK + p
+
+def flicker(B, ch, sets):
+    """bchar_t.flk: [{'index': brawler palette, 'key': SS2 palette, 'sets': the other frame's colours per colour set}]
+    (pens another palette was folded into keep their colours: pack_palettes never folds into a flicker palette)"""
+    out = []
+    for i, k in enumerate(B.pals):
+        if k < FLK: continue
+        out.append({'index': i, 'key': k - FLK, 'sets': [[0] + key_colours(ch, s, k - FLK + 1)[1:] for s in range(COLOURS)]})
+    return out
+
 def colours(B, ch):
     """the colour sets: per set every palette key of the frames (16 colours, pen 0 transparent); a packed palette
     (pack_palettes) with the pens it took from the palettes folded into it"""
@@ -242,7 +280,7 @@ def colours(B, ch):
         body = ss2.fighter_palettes(ch, s)
         row = []
         for p in B.pals:
-            c = [0] + (body[p - 16] if 16 <= p < 24 else fixed_palette(p))[1:]
+            c = [0] + key_colours(ch, s, p)[1:]
             for q, col in getattr(B, 'packed', {}).get(p, {}).items(): c[q] = col[s]
             row.append(c)
         sets.append(row)
@@ -296,6 +334,9 @@ def pack_palettes(B, ch, limit=MAX_PALS):
         for a in range(len(B.pals)):
             for b in range(1, len(B.pals)):
                 if a == b: continue
+                ka_, kb_ = B.pals[a], B.pals[b]
+                if ka_ >= FLK: continue               # a flicker palette hosts nothing (its pens change every frame)
+                if kb_ >= FLK and ka_ != kb_ - FLK: continue   # one folds only into its own base: that flicker dropped
                 taken = {q: colour(a, q) for q in use.get(a, ())}
                 m = {}; ok = True
                 for q in sorted(use.get(b, ())):
@@ -308,7 +349,7 @@ def pack_palettes(B, ch, limit=MAX_PALS):
                     m[q] = free; taken[free] = c
                 if not ok: continue
                 moved = sum(1 for q, r in m.items() if q != r)
-                cost = (moved, len(taken), -b)
+                cost = (kb_ >= FLK, moved, len(taken), -b)   # a flicker dropped only when nothing else folds
                 if best is None or cost < best[0]: best = (cost, a, b, m, taken)
         assert best, f'{ch}: no palette folds into another ({[B.pals[i] for i in range(len(B.pals))]})'
         _, a, b, m, taken = best
@@ -425,6 +466,8 @@ def export(names, outdir, only=None, extra=None):
                                    'modes': {'sets': ['A', 'B'], 'palettes': [str(p) + ''.join(f'+{kb}' for ka, kb, _ in packed if ka == p) for p in B.pals]},
                                    'ss2_packed': [[ka, kb, {str(q): r for q, r in m.items()}] for ka, kb, m in packed]}
         if rage: out['characters'][name]['flash_pal'] = rage      # the rage palette of the flash pose (TODO #191)
+        flk = flicker(B, ch, sets)
+        if flk: out['characters'][name]['flicker'] = flk          # the second layer's flicker palette (TODO #193)
     out['tiles'] = len(allt)
     os.makedirs(outdir, exist_ok=True)
     region = bytearray(128 * TILE_BASE) + b''.join(allt)
