@@ -201,6 +201,41 @@ def anim_steps(B, ch, a, first=0, last=None, key='body', moving=True):
                     'dx': -dx, 'boxes': kof_boxes(s['w6']), 'dd': [a, first + i]})
     return out
 
+def chained(ch, a):
+    """an animation whose header's next is another move (not idle / the walks / the crouch DD leaves at once): DD plays
+    the chain whatever the buttons do (TODO #218, measured: Cheng-Fu's far D 22 > 43 > 41 tapped / held / one frame, hit
+    and whiff: chain218_dd.py)"""
+    nx = dd.steps(ch, a)[0][7]
+    return bool(nx) and nx not in (0, 1, 2, 3, 13)
+
+def chain_steps(B, ch, a0):
+    """a normal that is several of DD's animations (TODO #218: Cheng-Fu's far D = 22, its header's next 43 = a hop kick,
+    landing 41): the chain as the model plays it (model_dd.play = DD frame for frame). A grounded step stays one step
+    (its ticks, its travel as the step starts, as anim_steps); an airborne animation (step handler 2 / 3 / 21) one step
+    a frame with its height (bstep_t.hy: the brawler's hop normals, fighter.c step_move) and travel. Hits: each
+    animation's openings (a new hit where DD clears +$1F bit 6), a step split in frames one hit; sparks by DD's rule over
+    the chain (spark_codes: the combo stun of the first hit counts in the second, as sparks_dd.predict)"""
+    rec = M.play(ch, a0)
+    sk = spark_codes(ch, chain(ch, a0))
+    runs = []
+    for i, r in enumerate(rec):
+        air = dd.steps(ch, r['anim'])[0][0] in AIRH
+        if runs and not air and runs[-1][:2] == [r['anim'], r['step']]: runs[-1][2].append(i)
+        else: runs.append([r['anim'], r['step'], [i], air])
+    out, acc, x0 = [], 0.0, 0.0
+    for k, (a, i, ix, air) in enumerate(runs):
+        s = dd.steps(ch, a)[1][i]; atk = attacks(s['w6'])
+        nx = runs[k + 1] if k + 1 < len(runs) else None
+        ns = dd.steps(ch, nx[0])[1][nx[1]] if nx else None
+        chain_ = atk and nx is not None and attacks(ns['w6']) and (nx[:2] == [a, i] or not openings(ch, nx[0])[nx[1]])
+        x1 = rec[ix[-1]]['x']; acc += x1 - x0; x0 = x1; dx = int(round(acc)); acc -= dx
+        st = {'frame': B.frame(((s['def_'], 0, 0, 'body'),)), 'ticks': len(ix) - 1,
+              'flags': (0x100 if atk else 0) | (0x4000 if chain_ else 0), 'dx': -dx, 'boxes': kof_boxes(s['w6']), 'dd': [a, i]}
+        if air: st['hy'] = int(round(rec[ix[0]]['y']))
+        if atk and (a, i) in sk: st['spark'] = sk[(a, i)]
+        out.append(st)
+    return out
+
 # brawler move -> (DD animation, first step, last step); both forms number their animations alike (README): idle 0,
 # walk 1, jumps 5 / 7 / 9, landing 11, close A-D 15 17 19 21, far 16 18 20 22, crouch 23-26, jump up 27-30, jump forward
 # 31-34, reactions 50-75 (captured: idmoves, sheet react.png)
@@ -271,9 +306,9 @@ def physics(ch):
 # ---- specials: the program (bprim_t) from the animation chain -------------------------------------------------------
 P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
      'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'put': 21, 'hold': 23, 'unhold': 24, 'add': 27,
-     'form': 28}                                    # bm_chars.h P_*
+     'form': 28, 'home': 34}                        # bm_chars.h P_* (P_HOME: the down attack's leap, TODO #218)
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4}
-PC = {'end': 0, 'land': 2, 'cnt': 4, 'hit': 5, 'always': 7}
+PC = {'end': 0, 'land': 2, 'cnt': 4, 'hit': 5, 'always': 7, 'tdown': 23}   # PC_TDOWN: its down attack's target lies
 R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK = 1, 2, 3, 4, 5   # fighter.h R_*
 SPECIAL_DAMAGE = 8                                 # export_bm.SPECIAL_DAMAGE (a special's damage, the default row)
 DAMAGE = 0x266AA
@@ -282,7 +317,9 @@ def hdr_v(hdr):
     vx = int.from_bytes(hdr[2:4], 'big', signed=True); vy = int.from_bytes(hdr[4:6], 'big', signed=True)
     return -(vx << 8), vy << 8                     # 16.16, forward +, up +
 
-AIRH = (2, 3, 21)                                  # step handlers of an airborne animation (21: 2 + afterimages)
+AIRH = (2, 3, 21, 28)                              # step handlers of an airborne animation (21: 2 + afterimages; 28:
+                                                   # the down attack's leap, TODO #218)
+HOME_SHIFT = 6                                     # handler 28: vx = the distance << 10 = the distance >> 6 px a frame
 
 def mode_of(h, s, prev_attr, first_set):
     """(mode, sets velocity on its first frame) of a step under handler h (model_dd)"""
@@ -291,6 +328,7 @@ def mode_of(h, s, prev_attr, first_set):
     if h == 22: h = 0                               # (0's motion, its catch: program's CATCH block)
     if h == 23: return ('stop' if a & 8 else 'const'), False   # ($20E6C: the header velocity every frame)
     if h == 4: return ('h4' if a & 4 else 'stop'), False       # (the header words as whole px on the step's last frame)
+    if h == 28: return ('stop', False) if a & 4 else ('home', not first_set)   # (the down attack's leap, TODO #218)
     if h == 0:
         if not a & 4: return 'stop', False
         return ('keep' if a & 8 else 'fric'), not first_set
@@ -356,9 +394,11 @@ def program(ch, a0, objs_of=None):
         set_done = False; prev = None
         for i, s in enumerate(st):
             mode, vset = mode_of(h, s, prev, set_done)
-            if hm == 2 and s['attr'] & 4: set_done = False
+            if hm in (2, 28) and s['attr'] & 4: set_done = False
             entry = []
-            if vset:                                # (handler 0 writes only the non-zero header words: a 0 keeps
+            if vset and h == 28:                    # the leap: vx at the target (P_HOME, turned to face it), vy
+                set_done = True; entry += [('home', HOME_SHIFT), ('set', 'vy', W)]   # the header's ($23070)
+            elif vset:                              # (handler 0 writes only the non-zero header words: a 0 keeps
                 set_done = True                     # the velocity it came with, Super Billy's 214 landing slides)
                 entry += [('set', 'vx', V)] if V or hm != 0 else []
                 entry += [('set', 'vy', W)] if W or hm != 0 else []
@@ -380,6 +420,19 @@ def program(ch, a0, objs_of=None):
             last = q == len(segs) - 1
             win = ('catchwin',) in entry; entry = [e for e in entry if e != ('catchwin',)]
             ops += entry
+            if mode == 'home':                      # handler 28's flight (TODO #218): per frame vy += g, its
+                fl = [r for r in M.play(ch, a, limit=400) if r['anim'] == a and not st[r['step']]['attr'] & 4]
+                for k, r in enumerate(fl):          # afterimage on the model's frames (DD: its counter +$3B & 3 = 0),
+                    ops.append(('label', ('H', a, k)))   # the target no longer lying: the special ends (DD: the fall,
+                    ops.append(('add', 'vy', -g))   # anim 35), the move, landed: the next animation (125)
+                    for e in r['ev']:
+                        if e[0] == 'ghost':
+                            ops.append(('spawn', len(spawns))); spawns.append(('ghost', e[1], a, r['step'], int(round(e[3]))))
+                    ops += [('br', 'tdown', 0, 'END'), ('move',), ('fall',), ('br', 'land', 1, land),
+                            ('resume_at', ('H', a, k + 1 if k + 1 < len(fl) else 'L')), ('br', 'always', 1, 'yield')]
+                ops += [('label', ('H', a, 'L')), ('add', 'vy', -g), ('br', 'tdown', 0, 'END'), ('move',), ('fall',),
+                        ('br', 'land', 1, land), ('br', 'always', 1, 'yield')]   # (past the model's flight: on until landed)
+                break
             if mode == 'stop' and not any(e[0] == 'set' for e in entry): ops += [('set', 'vx', 0), ('set', 'vy', 0)]
             if ('form',) in entry: break
             until_land = last and hold and mode in ('air', 'airup')
@@ -431,6 +484,7 @@ def encode(o):
     if n == 'put': return (P['put'], 0, 0, o[1])
     if n in ('jmp', 'resume_at'): return (P[n], 0, o[1], 0)
     if n == 'spawn': return (P['spawn'], o[1], 0, 0)
+    if n == 'home': return (P['home'], o[1], 0, 0)  # a = a shift (DD: distance << 10 = >> 6 in 16.16)
     if n == 'fall': return (P['fall'], 1, 0, 0)    # a = 1: DD's floor (TODO #212): landed at a whole px under it ($2065E:
     return (P[n], 0, 0, 0)                         # y >= 489), as model_dd; a height in (-1, 0] stays airborne at 0
 
@@ -614,7 +668,7 @@ GHOST_FRAMES = 15                                  # character 14's animation 86
 def ghost(B, ch, spawn, height):
     """an afterimage (step handlers 21 / 23, TODO #212): the fighter's picture of the step that spawned it, left where he
     stood (the place before that frame's move) for GHOST_FRAMES frames, his colours, no box"""
-    _, d, a, i = spawn
+    _, d, a, i = spawn[:4]
     fr = B.frame(((d, 0, 0, 'body'),))
     return {'table': 0, 'state': 86, 'kind': 0, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'loop': None,
             'death': None, 'life': GHOST_FRAMES, 'travel': 0, 'vx': 0, 'rows': [[fr, 0, height, None, None]] * GHOST_FRAMES,
@@ -666,14 +720,16 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
             # away low), as captured (fury_dd.py). (TODO #186 had the knockdown on the last hit, reels before.)
             cur = R_HEAVY
             for i, s in enumerate(anims_d[k]['steps']):
-                cur = rx.get((a, i), cur)
+                cur = rx.get((a, i), cur) if not inp.startswith('DOWN') else R_HEAVY | R_HEAVY << 4   # (the down
+                                                   # attack's victim lies: fighter.c react's pop, DD's 119, TODO #218)
                 if s['flags'] & 0x100: s['react'] = cur
                 if s['flags'] & 0x100 and (a, i) in sk: s['spark'] = sk[(a, i)]   # (finished in export: spark_finish)
         gh = {}                                    # the afterimages' heights: the model's place before the move
         for r in M.play(ch, anims[v], limit=400):
             for e in r['ev']:
                 if e[0] == 'ghost': gh.setdefault((r['anim'], r['step']), int(round(e[3])))
-        objects += [ghost(B, ch, s, gh.get((s[2], s[3]), 0)) if s[0] == 'ghost' else projectile(B, s, v) for s in sp_]
+        objects += [ghost(B, ch, s, s[4] if len(s) > 4 else gh.get((s[2], s[3]), 0)) if s[0] == 'ghost' else projectile(B, s, v)
+                    for s in sp_]                  # (handler 28's: their own heights, TODO #218)
     nstate = len(progs[0][1]); nobj = len(progs[0][2])
     # the dmg / reaction operand of P_ANIM (rows without a table: SPECIAL_DAMAGE split over its hits)
     each = max(1, SPECIAL_DAMAGE // max(1, nh[default]))
@@ -700,7 +756,7 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
            'vtable': {'rows': [list(r) for r in zip(*cols)] if cols else [], 'ncol': len(cols), 'nvar': nv if nv > 1 else 0,
                       'default': default, 'vanim': nstate, 'vobj': nobj, 'vdmg': vdmg,
                       'buttons': 'ABCD'[:nv], 'anims': anims, 'hits': nh, 'dd_damage': dmg_dd}}
-    return {'input': inp, 'condition': 'form' if form else 'super' if nv == 1 else 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
+    return {'input': inp, 'condition': 'form' if form else 'down' if inp.startswith('DOWN') else 'super' if nv == 1 else 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
             'marks': [''] * len(script), 'projectiles': pj, 'anims': anims,
             'shape': [max(r[1] for r in script), max(r[2] for r in script), False], 'game_hits': len(opens),
             'rom': rom, 'model_events': [[i, e] for i, r in enumerate(rec) for e in r['ev']]}
@@ -718,7 +774,11 @@ SPECIALS = {0: {'623': ([87, 88, 89, 90], True), '236': ([83, 84, 85, 86], True)
             # meeting his front body record is caught: the throw 130 with the victim's 113-115), the brawler has no
             # counter / guard mechanism; 8 / 2 + button (124): DD's down attack on a lying opponent.
             10: {'623': ([83, 84, 85, 86], True), '236': ([87, 88, 89, 90], True), '214': ([91, 92, 93, 94], True),
-                 'SUPER 236': ([111], False), 'SUPER 623': ([95], True)}}
+                 'SUPER 236': ([111], False), 'SUPER 623': ([95], True),
+                 # the down attack (TODO #218; every DD fighter's 8 / 2 + any button, anim 124 > 125, step handler 28:
+                 # the homing leap onto the dizzy opponent lying in 71-74; game.json roster[].down_attack, fighter.c
+                 # BS_DOWNATK: up / down + A with an enemy lying in reach)
+                 'DOWN 8/2': ([124], False)}}
 
 def export(names, outdir, only=None, extra=None):
     pr = palram()
@@ -732,7 +792,9 @@ def export(names, outdir, only=None, extra=None):
         B.tiles = allt; B.tile_map = {bytes(t): TILE_BASE + i for i, t in enumerate(allt)}
         anims = {}
         for mv, src in MOVES.items():
-            st = anim_steps(B, ch, src[0], *(src[1:] if len(src) > 1 else ()))
+            if len(src) == 1 and (mv.startswith('atk_') or mv == 'body_toss') and chained(ch, src[0]):
+                st = chain_steps(B, ch, src[0])          # (DD plays its next animations too: TODO #218)
+            else: st = anim_steps(B, ch, src[0], *(src[1:] if len(src) > 1 else ()))
             anims[mv] = {'slot': src[0], 'mode': 'loop' if mv in LOOP else 'hold', 'steps': st}
         for j, a in JUMPS.items():
             pre, rise, fall = jump_steps(B, ch, a)

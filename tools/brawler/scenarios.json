@@ -1417,6 +1417,32 @@
   "do_keys": "3:d",
   "proof": 330
  },
+ "todo218-cheng-far-d": {
+  "title": "Cheng-Fu's far D: Double Dragon's two moves, the hop kick after the first",
+  "setup": {
+   "mode": "lab",
+   "fighter": "cheng_fu",
+   "dummy": "ryo",
+   "gap": 70
+  },
+  "do": "Press forward + A (his far D) with Ryo in front of him, then again with nobody in reach.",
+  "expect": "Cheng-Fu steps in with a low strike, then at once hops forward with a flying kick, as in Double Dragon: two hits on Ryo (the first makes him reel, the kick knocks him down), each with Double Dragon's spark; with nobody in reach he plays both moves the same way.",
+  "do_keys": "4:Ra,150:-,40:L,4:Ra",
+  "proof": 90
+ },
+ "todo218-cheng-down-attack": {
+  "title": "Cheng-Fu's down attack: up / down + A leaps onto a lying enemy (Double Dragon's 8 / 2 + button)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "cheng_fu",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press C (his flying kick knocks Ryo down), then as soon as Cheng-Fu stands, while Ryo still lies, press down + A (or up + A).",
+  "expect": "Cheng-Fu crouches, leaps high in a spinning somersault leaving afterimages, and lands feet first on the lying Ryo: one hit with Double Dragon's spark that bounces Ryo off the floor; Cheng-Fu then hops back. Ryo stays down until the stomp lands. Down + A with nobody lying is his normal crouch attack.",
+  "do_keys": "4:c,72:-,2:Da,2:D,2:Da,2:D,2:Da,2:D,2:Da",
+  "proof": 160
+ },
  "todo216-ralf-AAAA": {
   "title": "Ralf's C (AAAA, Vulcan Punch): played from KOF98's handler, with its dust clouds",
   "setup": {
