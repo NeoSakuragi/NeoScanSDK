@@ -643,6 +643,284 @@ def air_sounds(inp, fc):
     e = next(i for i in range(s0, len(fr)) if fr[i][0][0] not in (A['dive'], A['land']))
     return [(f - s0, w) for f, w in voices_kz.words_of(fr) if s0 <= f < e]
 
+# ---- the ground specials as programs (TODO #133-#138: no recorded rows; Kizuna's handlers read from the 68000 code) --
+# A Kizuna special = its handler's sub-states (substates_kz.py) + the animations they set; an animation's steps carry
+# their own motion (kz.CMD_NAMES, the step loader $139EA -> handlers $14082[cmd]) [code], and the measured order of a
+# frame [meas, our emulator, kim_capture.json / kim_followups.json]: the handler's tests (on the state of the frame
+# before), then the animation's clock (a step entered runs its command: 1 stop = every velocity and acceleration 0,
+# 5 / 6 stop + move [dx w][dy w] px, 9 [vx w][vy w], 10 [vx][ax][vy], 11 [vx][vy][ay], 12 [vx][ax][vy][ay], 13 [ax],
+# 14 [ay], 15 [ax][ay]; velocities 1/256 px a frame, accelerations 1/4096 px a frame^2: 214B's ax $FF00 = -1/16 [meas:
+# 106 px over its 11 moving frames], [2]8C's fall ay $F000 = -1 [meas: 3 3 5 5 7 7 ...]), then the move: x += vx + ax / 2,
+# vx += ax (the same for y: 9C falls 2.5, 3.5, 4.5 ...). A step shows max(1, ticks) frames.
+# The brawler plays it as a program (export_bm 'prims', fighter.c prog_update): each animation a block that runs its
+# frames by a counter from its P_ANIM (KzProg.block: the steps' frame offsets are static, the hit-stop freezes the
+# program and the animation alike), its steps' commands as register writes on their first frame (vx / vy hold
+# v + a / 2, g = -ay: P_MOVE then P_ADD ax, P_FALL), the handler's tests as branches at the frame's start.
+P = {**P, 'mul': 3, 'nudge': 7, 'dec': 8, 'jmp': 12, 'spawn': 13, 'adv': 16, 'evclr': 19, 'add': 27}       # bm_chars.h P_* (more of them)
+PC = {**PC, 'cnt': 4, 'event': 1, 'cntle': 19}
+REG.update(h=5, cnt=4)
+
+def step_motion(s):
+    """a ROM step's command as motion [code]: {vx, vy (px / frame), ax, ay (px / frame^2), nudge (dx, dy px)}, the
+    registers it writes only"""
+    c, a = s['cmd'], s['args']
+    w = lambda i: kz.sw(int.from_bytes(a[2 * i:2 * i + 2], 'big'))
+    m = {}
+    if c in (1, 3, 4, 5, 6, 7, 8): m.update(vx=0.0, vy=0.0, ax=0.0, ay=0.0)
+    if c in (5, 6): m['nudge'] = (w(0), w(1))
+    if c in (7, 8): m['nudge'] = (kz.sb(a[0]), kz.sb(a[1]))
+    if c == 9: m.update(vx=w(0) / 256, vy=w(1) / 256)
+    if c == 10: m.update(vx=w(0) / 256, ax=w(1) / 4096, vy=w(2) / 256)
+    if c == 11: m.update(vx=w(0) / 256, vy=w(1) / 256, ay=w(2) / 4096)
+    if c == 12: m.update(vx=w(0) / 256, ax=w(1) / 4096, vy=w(2) / 256, ay=w(3) / 4096)
+    if c == 13: m['ax'] = w(0) / 4096
+    if c == 14: m['ay'] = w(0) / 4096
+    if c == 15: m.update(ax=w(0) / 4096, ay=w(1) / 4096)
+    return m
+
+def fx16(v): return int(round(v * 65536))
+MERGE = {'ax': 0.0, 'ay': 0.0, 'y': 0.0, 'vx': None, 'vy': None}   # a block entered from several paths: velocities written
+
+class KzProg:
+    """one special's program: its animations (rom_steps, each step's reaction and voices), its objects (effects) and
+    its ops, written as blocks (one per animation the handler sets) joined by labels"""
+    def __init__(self, B, react, voices):
+        self.B, self.react, self.voices = B, react, voices
+        self.anims, self.states, self.ops, self.objects = {}, [], [], []
+        self.entry = {}                                  # block label -> its first frame (static entries only)
+        self.labels = 0
+
+    def anim(self, key, n):
+        if key not in self.anims:
+            last = len(kz.parse_anim(CH << 12 | n)) - 1
+            steps = rom_steps(self.B, n, 0, last)
+            win = None                                   # the reaction of a hit window: on the step that opens it
+            for k, s in enumerate(steps):
+                if s['flags'] & 0x100 and (k == 0 or not steps[k - 1]['flags'] & 0x4000): win = k
+                if not s['flags'] & 0x100: win = None
+                r = self.react.get((n, k))
+                if win is not None and r and not steps[win].get('react'): steps[win]['react'] = r
+                if s['flags'] & 0x100: s['noslide'] = 1      # Kizuna's reel does not slide its victim: Kim's body
+                                                             # pushes it on [meas: 236C_h, the victim 4-5 px a frame with him]
+                vs = self.voices.get((n, k))
+                if vs: s['voices'] = vs
+            self.anims[key] = {'mode': 'hold', 'steps': steps, 'n': n}
+            self.states.append(key)
+        return self.states.index(key)
+
+    def L(self):
+        self.labels += 1; return f'_{self.labels}'
+
+    def emit(self, *ops): self.ops += ops
+
+    def block(self, label, key, n, b, ends=None, branches=(), extras=(), enter=(), spawns=None, state=None,
+              extra_end=0, at=None, extras_from=0):
+        """animation n as one block from label: P_ANIM (b = damage | reaction << 8), the enter ops, then frame by
+        frame: branches [(op tuple)...] (the handler's tests), the clock (a step's command on its first frame, spawns
+        {step: object index}), the move, extras (per-frame ops: follow-up checks; a function of the program when they
+        hold labels; from the segment of step extras_from on). ends: the label its last frame
+        goes on to (None: it holds until a branch leaves). state: the motion in force at entry {ax, ay, y (None:
+        not static)}; returns the state at its end. at: the block's first frame (static entries: effects pinned to
+        the program's frames)"""
+        st = dict(state or {'ax': 0.0, 'ay': 0.0, 'y': 0.0, 'vx': 0.0, 'vy': 0.0})
+        if at is not None: self.entry[label] = at
+        steps = kz.parse_anim(CH << 12 | n)
+        dur = [max(1, s['ticks']) for s in steps]
+        t0 = [sum(dur[:k]) for k in range(len(steps))]
+        D = sum(dur) + extra_end
+        spawns = spawns or {}
+        ix = self.anim(key, n)
+        self.emit(label, ('anim', ix, b))
+        if label == 'START': self.emit(('set', REG['vx'], 0), ('set', REG['vy'], 0), ('set', REG['g'], 0))   # (his walk's speed dropped)
+        self.emit(*enter)
+        # the events: the steps whose command changes the motion in force (a stop when still writes nothing), and the
+        # step after each attack step: Kizuna's hit ends the step it lands in (after the hit-stop the next step
+        # shows, its ticks from 0 [meas: 236C_h 8E.1 t3 hit on its 2nd frame -> 8E.2], j.2B's 'a hit moves 8F on')
+        live = [bool(s_['flags'] & 0x100) for s_ in self.anims[key]['steps']]
+        evs = []
+        for k, s_ in enumerate(steps):
+            m = step_motion(s_); ops = []
+            ax0, ay0 = st['ax'], st['ay']
+            ax, ay = m.get('ax', ax0), m.get('ay', ay0)
+            if 'vx' in m and (st['vx'] != m['vx'] or ax != ax0): ops.append(('set', REG['vx'], fx16((m['vx'] + ax / 2) * S)))
+            elif 'vx' not in m and ax != ax0: ops.append(('add', REG['vx'], fx16((ax - ax0) / 2 * S)))
+            if 'vy' in m and (st['vy'] != m['vy'] or ay != ay0): ops.append(('set', REG['vy'], fx16((m['vy'] + ay / 2) * S)))
+            elif 'vy' not in m and ay != ay0: ops.append(('add', REG['vy'], fx16((ay - ay0) / 2 * S)))
+            if ay != ay0: ops.append(('set', REG['g'], fx16(-ay * S)))
+            st['ax'], st['ay'] = ax, ay
+            if 'vx' in m: st['vx'] = m['vx']
+            if 'vy' in m: st['vy'] = m['vy']
+            if ax: st['vx'] = None                       # (no longer static)
+            if ay: st['vy'] = None
+            if 'nudge' in m:
+                dx, dy = m['nudge']
+                if dx: ops.append(('nudge', sc(dx), 0))
+                if dy:
+                    if st['y'] is not None: st['y'] = max(0.0, st['y'] + dy); ops.append(('set', REG['h'], fx16(st['y'] * S)))
+                    else: ops.append(('nudge', 0, sc(dy)))
+            if st['vy'] is None or st['vy']: st['y'] = None   # (the height is no longer static)
+            for o in spawns.get(k, ()): ops.append(('spawn', o))
+            if k == 0 or ops or k == extras_from or live[k - 1]: evs.append((k, ops, st['ax']))
+        ground = st['y'] == 0.0 and all(not (set(step_motion(s_)) & {'vy', 'ay'}) and not step_motion(s_).get('nudge', (0, 0))[1]
+                                         for s_ in steps)   # (no P_FALL: on the floor all along)
+        bodies, pend = {}, []
+        def body(ax, on):                                # one frame: the handler's tests, the move, the extras
+            if (ax, on) in bodies: return [('jmp', bodies[(ax, on)])]
+            bodies[(ax, on)] = bl = self.L()             # (its first use: the ops follow on)
+            return [bl, *branches, ('move',), *([('add', REG['vx'], fx16(ax * S))] if ax else []), *([] if ground else [('fall',)]),
+                    *((extras(self) if callable(extras) else extras) if on else ()), ('yield',)]
+        # the clock: P_DEC every frame of the block, the frame an event runs once more (its ops fall into the next
+        # segment's stub): in segment i at frame t cnt = -(t + i + 1); segment i's stub tests the next event's frame
+        # (PC_CNTLE), the event's ops then run and resume at the next stub. A hit in a segment ending on an attack
+        # step (Kizuna: the step ends, the next one shows after the hit-stop with its full ticks): the clock and the
+        # animation run on (P_DEC, P_ADV) to that step's last tick, so the frame's own advance enters the next step,
+        # whose event runs now
+        self.emit(('set', REG['cnt'], 0))
+        Es = [None] + [self.L() for _ in evs[1:]]
+        for i, (k, ops, ax) in enumerate(evs):
+            last = i + 1 == len(evs)
+            if i: self.emit(Es[i])
+            self.emit(*ops)
+            on = k >= extras_from
+            if last and not ends:
+                if (ax, on) in bodies: self.emit(('resume_at', bodies[(ax, on)]), ('jmp', bodies[(ax, on)]))
+                else: bd = body(ax, on); self.emit(('resume_at', bd[0]), *bd)
+                continue
+            stub = self.L()
+            nxt, T = (Es[i + 1], t0[evs[i + 1][0]]) if not last else (ends, D)
+            th = -(T + i + 1)
+            kl = (evs[i + 1][0] if not last else len(steps)) - 1    # the segment's last step
+            H = self.L() if live[kl] else None
+            self.emit(('resume_at', stub), stub, *([('br', PC['hitany'], 1, H)] if H else []), ('dec',),
+                      ('br', PC['cntle'], 1, nxt, th), *body(ax, on))
+            if H:
+                Lp = self.L()
+                self.emit(H, ('hitclr',), ('dec',), Lp, ('br', PC['cntle'], 1, nxt, th), ('adv',), ('dec',), ('jmp', Lp))
+        return st
+
+    def prims(self):
+        """the ops as bprim_t rows [op, a, b, v] (labels resolved; v None = export_bm's hit effect)"""
+        at, k = {}, 0
+        for o in self.ops:
+            if isinstance(o, str): at[o] = k
+            else: k += 1
+        out = []
+        for o in self.ops:
+            if isinstance(o, str): continue
+            c = o[0]
+            if c == 'anim': out.append([P['anim'], o[1], o[2], None])
+            elif c == 'set': out.append([P['set'], o[1], 0, o[2]])
+            elif c == 'add': out.append([P['add'], o[1], 0, o[2]])
+            elif c == 'nudge': out.append([P['nudge'], 0, o[1], o[2]])
+            elif c == 'check': out.append([P['check'], o[1], 1 if len(o) > 2 else 0, 0])
+            elif c == 'br': out.append([P['br'], o[1] | o[2] << 7, -1 if o[3] is None else at[o[3]], o[4] if len(o) > 4 else 0])
+            elif c == 'yield': out.append([P['br'], PC['always'] | 0x80, -1, 0])
+            elif c in ('resume_at', 'jmp'): out.append([P[c], 0, at[o[1]], 0])
+            elif c == 'spawn': out.append([P['spawn'], o[1], 0, 0])
+            else: out.append([P[c], 0, 0, 0])
+        assert len(out) < 255, len(out)
+        return out
+
+def step_voices(fcs):
+    """{(Kim's anim, step): [sound words]} sent as that step showed (a word goes out the frame after its step's first
+    one: voices_kz.words_of), from the move's captures; export_bm keeps his voices (voices.json), the rest is silent"""
+    import voices_kz
+    out = {}
+    for fr in fcs:
+        for f, w in voices_kz.words_of(fr):
+            p = fr[max(0, f - 1)][0]
+            ws = out.setdefault((p[0], p[1]), [])
+            kind = lambda x: 1 if x >> 8 == 0x1C and x & 0xFF >= 0xB0 else 2 if x >> 8 == 0x1A else 0
+            if w not in ws and not (kind(w) and any(kind(x) == kind(w) for x in ws)): ws.append(w)   # (one voice a
+    return out                                           # step: Kizuna's alternate yells, the first kept)
+
+# The moves [code: substates_kz.py, the handlers below]; 'caps' = the captures their voices / effects / reactions come
+# from (whiff first). Kizuna's 'animation ended' test sees the end the frame after its last step's frames
+# [meas: 9B -> 9C, 97 -> 8E]; a move whose handler went back to neutral ($377E4) plays its animation to the end there
+# (214B: 93's last step one frame more [meas]).
+PROG_MOVES = ('214B', '236A', '236C', '[2]8C')
+def prog_special(B, inp, cap, fc, rec):
+    """special inp as a program (TODO #133-#138): rec = its recorded export (special / multipart: the Brawler Lab's
+    rows); -> rec with 'rom'"""
+    E_ = (cap | fc)
+    react = hit_reactions(fc)
+    if inp in ('214B', '236A'):
+        # $3A872 (command $27, 214B; 236A = the same command with +$105 bit 6, the tag-in strike: state 432, anim 126):
+        # state 417 / 432, bsr $3B032 spawns the 'ADH EFFE' task (state 419 / 434: the effect), then waits while
+        # still (vx 0) for the step-2 slide (cmd 10: vx 10, ax -1/16), then for vx 0 again (step 6 stops it) -> neutral
+        # ($377E4), where the animation plays on to its end (93 / 126 hold the last step) [meas: one frame more]
+        n = 0x93 if inp == '214B' else 0x126
+        caps = [cap[SPECIALS[inp][0]]['frames']] + ([fc['214B_h']['frames']] if inp == '214B' else [])
+        K = KzProg(B, react, step_voices(caps))
+        fr = caps[0]; s0, e, rows = part_rows(fr, [n], False)
+        K.objects = effects(B, fr, rows, 0, fr[s0][0][2])
+        for o in K.objects: o['spawn_row'] = 0
+        K.block('START', 'a', n, SPECIAL_DAMAGE // max(1, rec['game_hits'] or 1) | R_KNOCKDOWN << 8, ends='END',
+                spawns={0: list(range(len(K.objects)))}, extra_end=1, at=0)
+        parts, links, flinks = [], [], []
+    elif inp == '236C':
+        # $3A650 (command $25): state 400 (anim 97); $3A68A: 97 ended -> on the ground state 429 (8E, the 3-hit rush),
+        # the request cleared, the window opened (+$10C bit 3) -> $3A6D6: 8E ended -> 236C again came: state 402
+        # (98), cleared -> $3A720: 98 ended -> again: state 403 (9A) -> $3A76A: 9A ended -> 99; no request: 99
+        # (state 420, the window closed) -> neutral. The brawler: 'again' = its own direction + C (P_CHECK each
+        # frame of 8E / 98, its hit-stop's presses included: Kizuna's command scan runs in the hit-stop too)
+        caps = [fc[r]['frames'] for r in ('236C_w', '236C2_w', '236C3_w', '236C_h', '236C2_h', '236C3_h')]
+        K = KzProg(B, react, step_voices(caps))
+        hits = lambda n: sum(1 for s in kz.parse_anim(CH << 12 | n) if s['trailer'] & 0x8000)
+        d = lambda n: max(1, SPECIAL_DAMAGE // max(1, hits(n)))
+        chk = (('check', 1),)                            # (a press in a hit-stop counts: fighter_t.spend keeps it)
+        st = K.block('START', '97', 0x97, 0, ends='R1', at=0)
+        st = K.block('R1', '8E', 0x8E, d(0x8E) | R_HEAVY << 8, ends='J1', enter=(('part',),), extras=chk, state=st)
+        K.emit('J1', ('br', PC['link'], 1, 'C2', 1), ('jmp', 'END99'))
+        st2 = K.block('C2', '98', 0x98, d(0x98) | R_HEAVY << 8, ends='J2', enter=(('part',),), extras=chk, state=st)
+        K.emit('J2', ('br', PC['link'], 1, 'C3', 1), ('jmp', 'END99'))
+        K.block('C3', '9A', 0x9A, d(0x9A) | R_KNOCKDOWN << 8, ends='END99', state=st2)
+        K.block('END99', '99', 0x99, 0, ends='END', state=dict(MERGE), extra_end=1)
+        parts = [{'states': ['97', '8E']}, {'states': ['98']}, {'states': ['9A']}]
+        flinks = [{'from': 0, 'to': 1, 'input': 'again'}, {'from': 1, 'to': 2, 'input': 'again'}]; links = ['again']
+    elif inp == '[2]8C':
+        # $3A904 (command $28): state 421 (9B, the rising staff), the request cleared; $3A93E: waits until airborne;
+        # $3A966: 9B ended -> 9C (the fall); a hit landed first -> the window opens ($3A994): at 9B's end 2C came ->
+        # 9D (the dive) else 9C; $3A9D4: on the floor -> 9E (state 424) -> neutral. The brawler: 2C = down+A, read
+        # each frame once airborne (9B step 2 on) after a hit; the pillar '503 EFFE' with 9B, its second with 9D
+        caps = [fc[r]['frames'] for r in ('28C_w', '28C_h', '28C2_h', '28C2_w')]
+        K = KzProg(B, react, step_voices(caps))
+        fr = caps[0]; s0, e, rows = part_rows(fr, [0x9B], False)
+        K.objects = effects(B, fr, rows, 0, fr[s0][0][2])
+        fr2 = fc['28C2_h']['frames']; s2 = next(i for i, f in enumerate(fr2) if f[0][0] == 0x9D)
+        e2 = next(i for i in range(s2, len(fr2)) if fr2[i][0][0] not in (0x9D, 0x9E))
+        dive_fx = effects(B, fr2, [i for i in range(s2, e2) if not frozen(fr2, i)], 0, fr2[s2 - 1][0][2])
+        D9B = sum(max(1, s['ticks']) for s in kz.parse_anim(CH << 12 | 0x9B))
+        for o in K.objects: o['spawn_row'] = 0
+        for o in dive_fx: o['spawn_row'] = D9B
+        K.objects += dive_fx
+        nh = sum(1 for s in kz.parse_anim(CH << 12 | 0x9B) if s['trailer'] & 0x8000)
+        each = max(1, SPECIAL_DAMAGE // max(1, nh))
+        def chk(K_):                                     # the window: a hit landed (PC_HIT), then the press; from
+            g = K_.L(); return [('br', PC['hit'], 0, g), ('check', 1), g]   # 9B step 2 (airborne: $3A93E)
+        st = K.block('START', '9B', 0x9B, each | R_HEAVY << 8, ends='J', enter=(('part',),), extras=chk, extras_from=2,
+                     at=0, spawns={0: list(range(len(K.objects) - len(dive_fx)))})
+        K.emit('J', ('br', PC['link'], 1, 'DIVE', 1), ('jmp', 'FALL'))
+        K.block('FALL', '9C', 0x9C, 0, branches=(('br', PC['land'], 1, 'LAND'),), state=st)
+        K.block('DIVE', '9D', 0x9D, SPECIAL_DAMAGE | R_KNOCKDOWN << 8, branches=(('br', PC['land'], 1, 'LAND'),), state=st,
+                spawns={0: list(range(len(K.objects) - len(dive_fx), len(K.objects)))}, at=D9B)
+        K.block('LAND', '9E', 0x9E, 0, ends='END', state=dict(MERGE), extra_end=1)
+        parts = [{'states': ['9B']}, {'states': ['9C', '9E']}, {'states': ['9D']}]
+        flinks = [{'from': 0, 'to': 2, 'input': 'dA'}]; links = ['dA']
+    K.emit('END', ('end',))
+    rom = {'states': K.states, 'anims': {k: {'mode': a['mode'], 'steps': a['steps'], 'kz_anim': a['n']} for k, a in K.anims.items()},
+           'prims': K.prims(), 'objects': K.objects, 'openings': {}, 'hit_kind': 1, 'last_hit': -1, 'apex': -1,
+           'length': len(rec['script']), 'now': True}
+    if parts: rom.update(parts=parts, follow_links=flinks, links=links)
+    # as down+D (the rising reversal, export_bm rom_inv): invincible to its last hit or its apex on the whiff path (the
+    # recorded rows of its first parts: the same frames as the program's)
+    wp = rec['parts'][1]['end'] if rec.get('parts') else len(rec['script'])
+    live = [i for i in range(wp) if any(k_[0] == '1' for k_ in rec['row_boxes'][i])]
+    rom['last_hit'] = live[-1] if live else -1
+    peak = max(range(wp), key=lambda i: rec['script'][i][2])
+    rom['apex'] = peak if rec['script'][peak][2] > 0 else -1
+    return {**rec, 'parts': [], 'links': [], 'rom': rom}   # (its follow-ups: the program's, rom parts / follow_links)
+
 VSTATE = {0xEF: (0x10C, 0xFA), 0xDE: (0x17A, 0xDE)}   # Hayate's victim animation -> (state, Kim's animation for it)
 def vstate(a):
     """the victim's (Hayate's) animation -> (its state: the first one Hayate plays it in, the thrower's animation there)"""
@@ -748,6 +1026,8 @@ def export(names, outdir, only=None, extra=None):
             return projectile_run(fr, part_rows(fr, SPECIALS[inp][2], False)[0]) is not None
         sps = [multipart(B, inp, fc) if inp in FOLLOW and not thrown(inp) else special(B, inp, cap) for inp in SPECIALS]
         sps += [air_special(B, inp, fc) for inp in (AIR if name == 'kim' else ())]   # (TODO #200: Kim's j.2B)
+        if name == 'kim':                                # (TODO #133-#138: his specials played by their programs)
+            sps = [prog_special(B, sp['input'], cap, fc, sp) if sp['input'] in PROG_MOVES else sp for sp in sps]
         sets = [[[0] + rom_palette(s_ + p - 16)[1:] for p in B.pals] for s_ in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0],
