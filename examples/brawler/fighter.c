@@ -176,6 +176,13 @@ static void anim_tick(fighter_t *f) {
     }
 }
 const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
+/* the step whose hurt box the fighter has now (TODO #205): a special read from the ROM shows its program's animation
+ * step (pan / pstep, from its first frame played: srow), with that step's own hurt box or none (KOF98's steps without
+ * $0200: Kyo's EX 421D frames 0-10); everything else its brawler animation's step. Steps are in the first MB: no bank */
+const bstep_t *fighter_hurt_step(const fighter_t *f) {
+    if (f->state == S_SPECIAL && f->srow && f->pan && f->ch->specials[f->spec_ix].prog) return &f->pan->steps[f->pstep];
+    return fighter_step(f);
+}
 void fighter_play(fighter_t *f, uint8_t anim) { mute = 1; play(f, anim); mute = 0; }
 void fighter_animate(fighter_t *f) { mute = 1; anim_tick(f); mute = 0; }
 void fighter_pose(fighter_t *f, uint8_t anim) { play(f, anim); }       /* the same, with the animation's voices (the */
@@ -184,7 +191,7 @@ void fighter_pose_tick(fighter_t *f) { anim_tick(f); }                 /* stage 
 /* ---- helpers --------------------------------------------------------------------------------------------------- */
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
 static void enter(fighter_t *f, uint8_t st) {
-    f->state = st; f->state_t = 0;
+    f->state = st; f->state_t = 0; f->dizzy = 0;                 /* (a stun strike's dizziness: a new state ends it) */
     if (st != S_KNOCKDOWN && st != S_HITSTUN) { f->kmode = f->kdelay = 0; f->kvfr = 0; f->ksr = 0; f->vph = 0; }   /* KOF's
                                                                     reaction (kof_react) ends, a source reaction (src_react)
                                                                     and the victim phases of a special (vphase) too */
@@ -596,6 +603,7 @@ static uint16_t grab_frame(const fighter_t *a) {
 static void grab(fighter_t *a, fighter_t *v) {
     const bthrow_row_t *h = a->ch->holds[0].rows;                /* the victim's pose: the hold hit's first row */
     enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0;
+    a->spec_buf = a->fury_buf = 0; a->cnc_buf = 0;               /* (presses before the hold: not for it) */
     a->frame_ovr = grab_frame(a);                                /* silent: the throw's sound comes with its start (#166) */
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0; v->thr = 0;   /* victim: presses mashed */
@@ -607,6 +615,13 @@ static void release(fighter_t *a) {                              /* both free wh
     if (v) { v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; to_neutral(v, 0); }
 }
 static void victim_end(fighter_t *v) {                           /* its script over: it lies where it landed */
+    const bthrow_t *th = v->thr;
+    if (th && th->stun && v->throw_id < BT_COUNT) {              /* a stun strike (bthrow_t.stun, TODO #212: Double */
+        v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; v->vx = 0; v->y = 0; clamp(v);   /* Dragon's */
+        enter(v, S_HITSTUN); play(v, BA_HIT_STAND_HEAVY);        /* Cheng-Fu, $23B74: no damage, the victim stands */
+        v->dizzy = th->stun;                                     /* dizzy, its +$FE frames, open to any hit; a hit ends */
+        return;                                                  /* it: enter) */
+    }
     if (v->throw_id < BT_COUNT) v->hp -= THROW_DAMAGE - v->throw_dealt;
     v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; v->vx = 0; v->y = 0; clamp(v);
     enter(v, S_DOWN); play(v, BA_DOWN);
@@ -706,6 +721,16 @@ static uint8_t paired_update(fighter_t *f) {
     if (v) place_victim(f, v, r, f->throw_face);
     return 1;
 }
+/* D pressed from neutral or in a hold (TODO #208: one rule): the fury, from half a gauge (gmeter); down+D its MAX
+ * version (bchar_t.fury_max; none: the fury); down+D with a full meter: the form link's transition when the fighter's
+ * trigger is FT_DOWN_D_FULL (all of the meter). Spends the meter, returns the role to start (BS_FORM / BS_FURY /
+ * BS_FURY_MAX); 0xFF: nothing (no fury, not enough meter) */
+static uint8_t fury_press(fighter_t *f, uint8_t max) {         /* max: down held (down+D) */
+    if (max && f->ch->form_trig == FT_DOWN_D_FULL && spec_ix(f->ch, BS_FORM) != 0xFF &&
+        (f->team || gmeter.infinite || f->meter >= gmeter.max) && spend(f, gmeter.max, gmeter.max, 0)) return BS_FORM;
+    if (spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0)) return max ? BS_FURY_MAX : BS_FURY;
+    return 0xFF;
+}
 static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / back+A in the hold */
     fighter_t *v = f->held;
     const bthrow_t *th;
@@ -723,14 +748,20 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered */
-    } else if (in->press & IN_C) {                               /* (fighter_update, "cancels" rule 4); else C: the hold ends, the special at once (Bruno
-                                                                    2026-10-05); the victim reels in its held pose, free */
-        uint8_t k = special_for(f, in);                          /* (only throws hold a victim), until its stun ends or */
-        if (k != 0xFF && spend(f, gmeter.special, 0, 0)) {       /* the special hits it */
+    } else if ((in->press & IN_C) || (f->fury_buf & 0x80)) {     /* (fighter_update, "cancels" rule 4); else C: the hold
+                                                                    ends, the special at once (Bruno 2026-10-05); D (its
+                                                                    press kept through a hold hit's hit-stop: fury_buf,
+                                                                    fighter_update): the fury (down+D its MAX) as from
+                                                                    neutral, fury_press (TODO #208, every fighter); the
+                                                                    victim reels in its held pose, free (only throws hold
+                                                                    a victim), until its stun ends or the move hits it */
+        uint8_t d = (f->fury_buf & 0x80) != 0, k = d ? fury_press(f, f->fury_buf & 1) : special_for(f, in);
+        f->fury_buf = 0;
+        if (k != 0xFF && (d || spend(f, gmeter.special, 0, 0))) {
             f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->buffered = 0; f->srow = 0;
             v->held = 0; v->zfront = 0; v->vx = v->vy = v->vz = 0; v->y = 0;
             enter(v, S_HITSTUN); play(v, BA_HIT_STAND_LIGHT);    /* STUN_LIGHT frames; frame_ovr: the held pose */
-            lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k);
+            lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, d && k != BS_FORM ? BS_FURY : k); start_special(f, k);
             return;
         }
     }
@@ -967,7 +998,7 @@ static void proj_row(fighter_t *p) {                            /* its rows: its
         p->spec_atk = 0; p->pown = 0;
     } else {
         const bprow_t *r = &d->rows[p->prow];
-        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y);
+        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y) + (d->air ? p->py0 : 0);
         p->spec_atk = (r->flags & 1) && (!p->pend || p->pend == 3) ? &r->atk : 0;   /* (3: an eruption that hit: live) */
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
@@ -1041,6 +1072,8 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
     p = proj_alloc(owner);
     if (!p) return 0;                                            /* pool full: no entity for it */
     p->pdef = d; p->prow = 0; p->pend = 0; p->facing = facing; p->z = z; p->throw_x0 = x0;
+    p->py0 = d->air && owner ? owner->y : 0;                     /* an air projectile: its rows count from its thrower's
+                                                                    height (bproj_t air, TODO #211) */
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
     p->pcnt = d->hits; p->freeze = 0;                            /* its hits left (object.phase) */
     p->tick = 0; p->state_t = 0; p->node = d->child_b0;          /* tick 0: shown at row 0 this frame (the update after
@@ -1146,6 +1179,12 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
             p->prow = d->loop == 0xFF ? 0 : d->loop;
         }
         p->throw_x0 = pin_of(p)->x; p->facing = p->owner->facing;
+    } else if (d->air && !p->pend && p->y <= 0) {                /* an air projectile on the floor (SS2's shuriken, TODO
+                                                                    #211: $30404 tests y >= 224 before its move, so the
+                                                                    frame that reached the floor shows it there or below):
+                                                                    its next phase from where it is, on the floor */
+        if (!d->next) { projectile_reset(p); return; }
+        proj_launch(p); return;
     } else if (++p->prow >= d->nrows) {
         if (d->loop == 0xFF) { projectile_reset(p); return; }    /* its animation is over */
         p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
@@ -1492,12 +1531,16 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
         fighter_hit(f, t, f->pdmg, R_HEAVY, 0);
         f->freeze = t->freeze = 0; t->vx = 0; t->kdelay = 0;
         hit_sfx(f->pfx);
+        if (e->flags & VE_BURN) set_burn(t, (e->flags & VE_BURN) >> 4);   /* its burn (KOF $17AC0: Iori 624's purple) */
     }
     if (e->flags & VE_REL) {                                     /* the release: its flight (KOF 283, the blowback) */
         f->pflags &= ~PF_HOLD; f->phold = 0; f->vlist = 0;
         t->frame_ovr = 0xFFFF; t->zfront = 0;
         react(t, f->facing, R_KNOCKDOWN, 0);
-        if (l->flags & VL_VEL) { t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8; }   /* its */
+        if (l->flags & VL_VEL) {                                 /* its */
+            t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8;
+            if (l->g) { t->kmode = 2; t->kg = t->kgf = (int32_t)l->g << 8; t->kgfr = 0; t->kvfr = 0; t->kdelay = 0; }   /* g: */
+        }                                                        /* its own gravity (KOF's routine, Iori 624: kof_fall) */
         else kof_react(t, f->facing, R_KNOCKDOWN, -128);         /* game's flight (SS2: the victim's velocity entry), */
     }                                                            /* the brawler's fall and landing from there */
 }
@@ -1777,6 +1820,8 @@ static void update(fighter_t *f, const intent_t *in) {
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
         if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
     }
+    if (f->state == S_GRAB && !(f->srow && f->throw_id == BT_HOLD_FIN) && (in->press & IN_D))   /* the hold: D for the */
+        f->fury_buf = 0x80 | (in->dz > 0);                       /* fury (hold_update; presses in hit-stop count, TODO #208) */
     if ((f->state == S_THROW || (f->state == S_GRAB && f->srow && f->throw_id == BT_HOLD_FIN)) && !f->team) {   /* a throw /
                                                                     the hold finisher: C / D buffered for its last
                                                                     impact ("cancels" rule 4; presses in hit-stop count) */
@@ -1833,14 +1878,9 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     window: the route's B link (a jump-cancel) */
         if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
         else if (in->face) f->facing = in->face;
-        if (b & IN_D) {                                          /* D: the fury, from half a gauge (gmeter); down+D: its MAX
-                                                                    version (bchar_t.fury_max; none: the fury) */
-            if (in->dz > 0 && f->ch->form_trig == FT_DOWN_D_FULL && spec_ix(f->ch, BS_FORM) != 0xFF &&
-                (f->team || gmeter.infinite || f->meter >= gmeter.max) && spend(f, gmeter.max, gmeter.max, 0)) {
-                lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FORM); start_special(f, BS_FORM); break;   /* the form link's
-                                                                    trigger: its transition (a full meter, all of it) */
-            }
-            if (spec_ix(f->ch, BS_FURY) != 0xFF && spend(f, gmeter.fury, gmeter.fury_min, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_FURY); start_special(f, in->dz > 0 ? BS_FURY_MAX : BS_FURY); }
+        if (b & IN_D) {                                          /* D: the fury (fury_press) */
+            uint8_t k = fury_press(f, in->dz > 0);
+            if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k); }
             break;
         }
         if (b & IN_C) {                                          /* C: the slot's special (the stick picks the slot) */
@@ -1883,9 +1923,12 @@ static void update(fighter_t *f, const intent_t *in) {
             if (f->y <= 0) { f->y = 0; f->vy = 0; f->drop = 2; f->inv = RESPAWN_INV; enter(f, S_LAND); play(f, BA_LAND); }
             break;
         }
-        if (f->state == S_AIR && (in->press & IN_A) && !f->air_node && in->dz > 0 && spec_ix(f->ch, BS_AIR) != 0xFF) {
+        if (f->state == S_AIR && (in->press & IN_A) && !f->air_node && in->dz > 0 && spec_ix(f->ch, BS_AIR) != 0xFF &&
+            !(f->ch->specials[spec_ix(f->ch, BS_AIR)].proj && f->shot)) {   /* (one projectile at a time, as special_pick:
+                                                                    SS2's b4 bit 1, Hanzo's shuriken, TODO #211; else the air normal) */
             lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_AIR);      /* down+A: the fighter's air special, when it has one */
-            start_special(f, BS_AIR); break;                     /* (TODO #200: Kim's j.2B dive; its program from here) */
+            start_special(f, BS_AIR); break;                     /* (TODO #200: Kim's j.2B dive, #211: Hanzo SS2's
+                                                                    shuriken; its program from here) */
         }
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: a jump-cancel's node, else the stick: air A (KOF's */
             uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : in->dz < 0 ? TREE(f)->air_cd : TREE(f)->air_a;
@@ -1943,7 +1986,7 @@ static void update(fighter_t *f, const intent_t *in) {
         else { f->x += f->vx; f->vx = f->kvfr ? fmul16(f->vx, f->kvfr) : f->vx - (f->vx >> 3); clamp(f); }
         if (dancing(f)) break;                                   /* a fury's victim: in its reel until the fury ends */
         if (f->hp <= 0) { react(f, f->facing > 0 ? -1 : 1, R_KNOCKDOWN, 0); break; }   /* its dance over, no life: it falls */
-        if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends */
+        if (f->state_t >= (f->dizzy ? f->dizzy : f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends (a stun strike's dizziness: f->dizzy) */
         break;
     case S_KNOCKDOWN:
         if (f->vph) break;                                       /* held by a special's victim phase (vphase) */
@@ -2144,7 +2187,7 @@ static void hold_crowd(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (v->state != S_IDLE && v->state != S_WALK && v->state != S_RUN && v->state != S_ATTACK &&
                 v->state != S_HITSTUN && v->state != S_SPECIAL && v->state != S_LAND && v->state != S_PREJUMP) continue;
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
-            sv = fighter_step(v);
+            sv = fighter_hurt_step(v);
             if (!(sv->flags & 2)) continue;
             hb = &sv->hurt;
             if (!boxes_meet(a, atk, v, hb)) continue;
@@ -2234,7 +2277,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (o->state != S_IDLE && o->state != S_WALK && o->state != S_RUN && o->state != S_ATTACK && o->state != S_HITSTUN &&
                 o->state != S_PREJUMP && o->state != S_LAND && o->state != S_SPECIAL && o->state != S_AIR && o->state != S_AIR_ATTACK) continue;
             dz = INT(o->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
-            so = fighter_step(o);
+            so = fighter_hurt_step(o);
             hb = (so->flags & 2) ? &so->hurt : &JUGGLE_BOX;
             if (!boxes_meet(v, &BODY_BOX, o, hb)) continue;
             dir = v->vx > 0 ? 1 : v->vx < 0 ? -1 : (INT(o->x) >= INT(v->x) ? 1 : -1);   /* the throw's way */
@@ -2286,7 +2329,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                 v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
             if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls, no limit */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
-            sv = fighter_step(v);
+            sv = fighter_hurt_step(v);
             if (jug && v->state == S_THROWN) hb = &JUG_BOX;    /* thrown (rule 5): its body */
             else if ((a->pflags & PF_HOLD) && v == a->target && v->state == S_HITSTUN) hb = &HOLD_BOX;
             else if (v->state == S_KNOCKDOWN && v->kmode) {      /* KOF's reaction: its box or none (rule 5: a body) */

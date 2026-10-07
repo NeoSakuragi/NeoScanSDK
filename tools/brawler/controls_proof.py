@@ -141,6 +141,8 @@ for ci, name in enumerate(names):
     pool = [p['input'] for p in F['pool']]                   # the fighter's specials (bchar_t.specials order)
     fix = pool.index(fury) if fury in pool else None
     mix = pool.index('MAX ' + fury) if fury and 'MAX ' + fury in pool else fix   # down+D: the MAX version, else the fury
+    mx = G['roster'][ci].get('max')                          # (game.json roster[].max: the source names its own, TODO #212)
+    if mx in pool: mix = pool.index(mx)
     settle(M['max']); setpos(60); run(1, 'd'); run(1); s = st(0)
     r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'spec_ix': b.fget(0, 'spec_ix'), 'meter': b.fget(0, 'meter')}}
     if fury:
@@ -150,7 +152,7 @@ for ci, name in enumerate(names):
         mix, BS_MAX = pool.index(form['transition']), BS_FORM   # (the training is started again for what follows)
     else: BS_MAX = BS_FURY
     settle(M['max']); setpos(60); run(1, 'Dd'); run(1); s2 = st(0)
-    r['fury']['max'] = {'kof': form['transition'] if form else 'MAX ' + fury if mix != fix else fury, 'state': s2, 'spec_id': b.fget(0, 'spec_id'),
+    r['fury']['max'] = {'kof': form['transition'] if form else mx if mx in pool else 'MAX ' + fury if mix != fix else fury, 'state': s2, 'spec_id': b.fget(0, 'spec_id'),
                         'spec_ix': b.fget(0, 'spec_ix'), 'want_ix': mix, 'meter': b.fget(0, 'meter')}
     if form:
         for _ in range(200):

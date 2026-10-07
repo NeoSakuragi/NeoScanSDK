@@ -250,8 +250,7 @@ Iori 623C (KOF98), Geese 63214A / C, Krauser 623B / D (KOF96). What they added:
 - **Height compare**: `cmpi.w #N, +$20; bcs` = `low:N` (Billy 623D rises to 192 px), PC_LOW. `addi #N, +$20` = a nudge.
 - **Near**: `cmpi #N, +$BC; bcs / bcc` = `far:N-1` negated / taken (Iori 624B / D); the brawler's PC_FAR measures the target,
   before any hit the nearest opponent on its lane (`fighter_t.popp`, the combat pass).
-Still captured, with the reason: Iori 624B / D (the catch puts the victim into KOF's held victim states 432-435, placed
-each frame from a table by `$25376` / `$25396`: the throw-victim model), Goenitz 214C (wind objects from the animate
+Still captured, with the reason (Iori 624B / D since TODO #94 / #96: section below): Goenitz 214C (wind objects from the animate
 routine's step-effect table `$249E8`), Rugal 6426A / C (Kaiser Wave's multi-hit routine through +$C2 / +$138), Rugal
 624A (stage wall `$18092`, a branch on vx), Yamazaki 214A (`f-1`), Ralf AAAA / Billy CCCC (mash: no KOF trace of the
 repeat), Robert 426B (no capture try enters it).
@@ -407,3 +406,26 @@ Gigantic Pressure 195 / 196 / 198 / 201 push, 202 slam (+ object state 252, the 
 charge, 135 / 136 the release; the wave 137 / 138 / 140 by level (A 4 px a frame, C 16), its hit states 139 / 141 / 142,
 its ends 143 / 144; the hand charge state 246 (kind $DF). Not exported: the effects of the shared bank (God Press's
 slam explosion kind $32, the fury's start $38 / $3C: table 38).
+
+## Iori's 624B / 624D: the catch's victim script and its own release (TODO #94 / #96, 2026-10-07)
+
+Handler $70A6C (B: dash 16 frames, D: 24; both button variants exported). Its catch was the blocker of 2026-10-06 (the
+victim held in states 432-435, placed each frame by a table); that is the victim-script model Rugal's moves brought in
+(TODO #173: the catch installs +$1A0 = $70CBC on the victim, `lea $283528, a0; move #20, d0; jsr $24B22`, then `jsr
+$25372` each frame until the release entry). What was still missing was the routine's own release:
+
+| what | ROM | decoded as | brawler |
+|---|---|---|---|
+| the program | 134 start; 135 dash (`move`, cnt 16 / 24) until `cmpi #88, +$BC; bcs` (near) -> 137 the strike (a normal hit, P2 262) whose `+$E1` hit test -> 138 (its catch box $37) -> catch routine $70C6A: 140 the explosion; cnt out -> 136 | as before (0 frame mismatches whiff + close since #95) | ROM program, `P_ONHIT`, `bspec_t.vlists` |
+| the blow at the release | past `btst #6, +$D4` the victim's routine calls `$18C6C` + `$1ACD8` (the pair `$25372` calls for a blow entry): KOF98 P2 life 98 -> 86 | `victim_release`: 'blow' -> the release entry gets flag 1 | VE_BLOW + VE_REL on one entry: damage then the flight |
+| its burn | `jsr $17AC0`: victim +$3A = $F9 (purple; measured: from the release to the landing) | `RELEASE_BURN` -> entry key 'burn' | bvent_t flags bits 4-5 (VE_BURN): `set_burn` with the blow |
+| its own flight | `move.l #$70E32, +$C6`: vx 4 (away), gravity 0.5, vy 6 (+$50 / +$5C / +$58), states $70E28 (313, 309, 313 bounce at vy 2.5, 326, 72) | 'fly' -> the last list `{'e', 'rel': (vx, vy, g)}` 8.8 | VL_VEL with g: `kmode` 2, `kg` = g (kof_fall), not KOF's blowback |
+
+Rugal's victim routines have neither (their release jumps to the blowback): unchanged. Not exported: state 140's
+explosion effects ($FA kinds $18-$5D: the shared bank, as Rugal's slam). KOF98 vs brawler (`../brawler/romspecials_check.py`,
+/data/tmp/iori94/out): 0 frame mismatches whiff, close (48 px) and mid (112 px: the dash first), hits 2 / 2 on both
+(KOF [18, 61], brawler [17, 62]: the strike, the release blow); the victim's flight height identical frame for frame
+(one frame later: the release follows the attacker's step), its x off by the victim row (the brawler plays every victim
+with the attacker's own row, KOF P2's own) and the screen edge. 624D's whiff never exists in KOF (its 24-frame dash
+reaches P2 from any distance on KOF's one screen): its reference is the decoded model (`WHIFF_MODEL`), the same code as
+624B's whiff, which matches KOF.

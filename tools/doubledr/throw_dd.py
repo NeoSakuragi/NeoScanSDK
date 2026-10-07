@@ -150,6 +150,60 @@ def brawler_throw(B, ch, key, mirror_frame):
                    'damage': s['entry']['damage']},
             'grab_frame': g0}
 
+# ---- Cheng-Fu's throw (TODO #212): the stun strike ------------------------------------------------------------------------
+# His table row (character 10): B / C / D ranges 12 / 10 / 8, thrower 110 for every button (10 steps, 87 frames: the
+# palm to the chest, his voice $3F on step 2, the dust blown off his fingers), victim 121 face to face (bit 15 clear),
+# damage 0. $23A76's special case for a victim animation 121 ($23B74): the victim is NOT held (+$F3 bit 4 cleared; bits 2
+# and 1 set), placed t3e = 48 px in front of the thrower, and its +$FE = the vrow field = 96 / 128 / 160 (B / C / D).
+# 121 (every character's, handler 0): 52 frames stunned holding its chest (Billy's 984), then it staggers back bent
+# (878-880, header vx 4.5 px with friction: 31 px), next 76 = the DIZZY animation (6 steps looping), which counts +$FE
+# down one a frame and stands the victim up at 0: open to any hit meanwhile. Measured (cap_dd, Cheng-Fu C vs Jimmy):
+# 121 from the press frame for 87 frames, x +31, 76 for 129 frames (+$FE 128 -> 0), no damage at any point.
+# Brawler: throw_c (and back + A: DD has no back throw for him, by_stick clear) = the C row: the victim rows = 121 from
+# the thrower's place (48 px + the stagger), postures '121.k' (victim_poses_dd.json); then bthrow_t.stun = 128 frames:
+# fighter.c victim_end leaves the victim standing in its heavy reel, hittable (fighter_t.dizzy), no throw damage.
+STUN_ANIM = 121
+
+def is_stun(ch): return table(ch).get('C', {}).get('victim') == STUN_ANIM
+
+def stun_script(ch, button='C', vch=VICTIM_REF):
+    e = table(ch)[button]
+    _, tst = dd.steps(ch, e['thrower'])
+    tl = []
+    for i, st_ in enumerate(tst): tl += [i] * (st_['ticks'] + (0 if i == 0 else 1))   # DD's start-frame clock
+    rec = M.play(vch, STUN_ANIM, until=(0, 1, 2, 3, 76))
+    rows = [dict(t=[e['thrower'], tl[min(i, len(tl) - 1)]], v=[STUN_ANIM, r['step'], r['def_']], x=e['t3e'] - r['x'], y=0.0, ev=[])
+            for i, r in enumerate(rec)]
+    return dict(button=button, back=False, entry=e, timeline=tl, rows=rows, release=None, land=None, ret=len(tl),
+                stun=e['vrow'], face=-1)
+
+def brawler_stun(B, ch):
+    """Cheng-Fu's stun strike as the brawler's paired script (export_dd: characters[].throws['throw_c'])"""
+    s = stun_script(ch)
+    _, tst = dd.steps(ch, s['entry']['thrower'])
+    th_steps = [{'frame': B.frame(((t['def_'], 0, 0, 'body'),)), 'ticks': t['ticks'], 'flags': 0, 'dx': 0, 'boxes': {}, 'dd': [s['entry']['thrower'], i]}
+                for i, t in enumerate(tst)]
+    timeline = [[th_steps[k]['frame'], 0, 0, 0] for k in s['timeline']]
+    _, vst = dd.steps(ch, STUN_ANIM)                  # (his own pictures as the victim: a mirror match)
+    rows = [[B.frame(((vst[r['v'][1]]['def_'], 0, 0, 'body'),)), round(r['x']), 0, 0, 0, f"{STUN_ANIM}.{r['v'][1]}", None] for r in s['rows']]
+    return {'slot': s['entry']['thrower'], 'inputs': 'forward / back + A (DD: close, left / right + C: the stun strike)',
+            'table': [], 'hold': False, 'rom': True, 'timeline': timeline, 'victims': {}, 'victim_rows': rows,
+            'impacts': [], 'release': None, 'land': None, 'ret': s['ret'], 'stun': s['stun'],
+            'anim': {'slot': s['entry']['thrower'], 'mode': 'hold', 'steps': th_steps},
+            'dd': {'thrower': s['entry']['thrower'], 'victim': STUN_ANIM, 'button': 'C', 'back': False, 'damage': s['entry']['damage']},
+            'grab_frame': None}
+
+def victim_pose_rows(B, ch):
+    """the fighter's own pictures of every victim posture DD's throws use (victim_poses_dd.json keys): rows of a pseudo
+    throw 'victim_poses' (export_bm.poses takes a fighter's posture frames from the throws that have it as the victim:
+    Cheng-Fu's own throw holds only the stun postures, Billy's throws need his frames of 113-115)"""
+    keys = json.load(open(os.path.join(HERE, 'victim_poses_dd.json')))['poses']
+    rows = []
+    for k in sorted(keys, key=lambda k: tuple(map(int, k.split('.')))):
+        a, i = map(int, k.split('.'))
+        rows.append([B.frame(((dd.steps(ch, a)[1][i]['def_'], 0, 0, 'body'),)), 0, 0, 0, 0, k, None])
+    return rows
+
 # ---- check: the scripts against the game ---------------------------------------------------------------------------------
 P1, P2 = 0x10042A, 0x10052A
 WALL = 576                                       # the vs stage's right edge for a body (x of the victim held there)

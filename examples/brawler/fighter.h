@@ -123,7 +123,8 @@ extern const rt_head_t *route_tab[BC_COUNT];
                                      its trigger (FT_*), untouchable while it plays, ended by its P_FORM (fighter.c "form") */
 #define BS_AIR (BS_COUNT + 3)        /* the air special (vocabulary air special, TODO #200: game.json roster air_special):
                                      bchar_t.air_spec, down+A in a jump plays it in the air normal's place (no meter); its
-                                     program dives and lands (Kizuna's j.2B); no cancels out of it */
+                                     program plays from the jump and lands (Kizuna's j.2B dive; SS2 Hanzo's shuriken, TODO
+                                     #211: one projectile at a time, else the air normal); no cancels out of it */
 enum { FT_NONE, FT_DOWN_D_FULL };    /* bchar_t.form_trig: down+D on the ground with a full meter */
 enum { FX_NONE, FX_LIFE, FX_STAGE }; /* bchar_t.form_exit: back to the base form when a life is lost (and at a stage's
                                      start, as every player), or only at a stage's start */
@@ -299,13 +300,16 @@ typedef struct fighter {
                                    * list its target follows + 1 (0 none; bspec_t.vlists), the attacker step whose entry
                                    * was taken last (0xFF: none yet in this list) */
     uint8_t  pheld, wpad;         /* a special's button held this frame (PC_HELD: KOF's charge, Rugal's Kaiser Wave) */
-    int32_t  py0;                 /* a projectile's height at its hit: its end rows' heights are from it (TODO #164) */
+    int32_t  py0;                 /* a projectile's height at its hit: its end rows' heights are from it (TODO #164); an air
+                                     projectile's (bproj_t air) thrower's height at its spawn: its rows' heights count from it (TODO #211) */
     const banim_t *fx_pan;        /* a step effect (bproj_t follow 8, anim.step_spawn): its owner's animation and step */
     uint8_t  fx_step, vfly;       /* when it was born; it ends when they change (KOF98 $3751A); vfly: a caught victim
                                    * a flying victim list moves (VL_FLY, fighter.c vlist_apply): its own S_HITSTUN update
                                    * leaves its body alone while it counts down (refreshed every frame of the list) */
     uint8_t  fpose, fpad;         /* the fury's flash pose (TODO #145, fighter.c "flash pose"): 0 not started, 1 + the
                                    * frame of the freeze it shows, 0xFF over (the fury plays from its first frame) */
+    uint16_t dizzy;               /* a stun strike's victim (bthrow_t.stun, TODO #212: Cheng-Fu's throw): its S_HITSTUN
+                                   * lasts this many frames, open to any hit; a hit (enter) ends it (0 none) */
     int32_t  kax;                 /* a source reaction (TODO #136, vocabulary reaction.source_motion, fighter.c src_react):
                                    * the reel's x acceleration (16.16, world) */
     uint8_t  ksr, ksn;            /* the source reaction playing (bm_sreact index + 1, 0 none), the frames its reel still
@@ -354,6 +358,7 @@ void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camer
 void super_flash(fighter_t *f);      /* main.c: the fury's super flash starts (fx.super_flash: the game freezes except f) */
 const char *fighter_state_name(uint8_t st);
 const bstep_t *fighter_step(const fighter_t *f);
+const bstep_t *fighter_hurt_step(const fighter_t *f);       /* the step whose hurt box counts (a ROM special's own step) */
 void fighter_play(fighter_t *f, uint8_t anim);              /* outside the state machine (select screen previews) */
 void fighter_animate(fighter_t *f);
 void fighter_pose(fighter_t *f, uint8_t anim);             /* fighter_play / fighter_animate with the animation's voices */

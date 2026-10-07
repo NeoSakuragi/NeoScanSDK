@@ -388,6 +388,26 @@ def han_wft(v):
     return [E(292, [('set', 'vx', 0), ('spawn', 0)], [('now', 'next')]),
             E(None, conds=[('end', 'end')])], [('wftflame', 0)]
 
+def han_j4123s(v):
+    """the air special (TODO #211), 4 1 2 3 + A / B / A+B in a jump (type 2 entries 9-11, one projectile at a time: b4 bit 1)
+    -> results 48-50, one list $36BF2 [code]; the three buttons differ only by the shuriken's flight [meas: shuriken_ss2.py]:
+    0 anim 287 $36C3A: velocities 0 ($2B81E), +$EE = $80 (no gravity: he hangs where the jump was), the end -> next
+    1 anim 249 $36C4E: at step 1 (+$7C == 1) spawn object type 5 (the shuriken, its +$F0 = the button) unless his
+      projectile is out (+$112), next      2 $36C76 (param): the end -> next
+    3 anim 26 $36C7E: +$118 = -1; $46BAE($0800 | $36CB6[b]) = entry 24 / 26 / 28 (the same for every button): the recoil
+      hop, vx -304 (backward) vy -796 (up), next (bit 11); the next entry's pair -> +$D4 / +$D6 (0, 76), +$EE = $80
+    4 $36CBA (param): landed (+$EE 0) -> next, else vx += +$D4, vy += +$D6 (his own gravity)
+    5 anim 3 $36CD8 (the landing): the end -> neutral ($2B802)
+    The jump's own speed is dropped at entry 0 (a forward jump stops: the hop goes back from where he threw)."""
+    e = N.u8(0x36CB6 + v) + 16
+    (rx, ry), (ax, ay) = vtab(2, e), vtab(2, e + 1)
+    return [E(287, [('set', 'vx', 0), ('set', 'vy', 0)], [('end', 'next')], phys='air'),
+            E(249, conds=[(('step', 1), 'next', [('spawn', 0)])], phys='air', flags={1: 0x80}),
+            E(None, conds=[('end', 'next')], phys='air'),
+            E(26, [('set', 'vx', bx(rx)), ('set', 'vy', by(ry))], [('now', 'next')], phys='air'),
+            E(None, conds=[('land', 'next')], phys=('custom', ax, ay)),
+            E(3, conds=[('end', 'end')])], [('shuriken', v)]
+
 # Mozu Otoshi's grab [code]: the MOZU-SPS task ($36E74 -> $3702E, every frame while it lives) catches the opponent when
 # |his x - its x| < word $6A8AA[2 b + its posture] (69 px for every button and posture) and both stand on the floor,
 # free ($37288). The brawler's catch is a box against the victim's hurt box: GRAB_BOX reaches 69 px from his x to the
@@ -447,7 +467,8 @@ SPECIALS = {
                  '236K': (hao_236k, 1, (44,)), '214A': (hao_214a, 1, (47,)), 'WFT': (hao_wft, 1, (37,))},
     'genjuro': {'214S': (gen_214s, 3, (38, 39, 40)), '236S': (gen_236s, 3, (41, 42, 43)), '623S': (gen_623s, 3, (50, 51, 52)),
                 'WFT': (gen_wft, 1, (37,))},
-    'hanzo': {'6321S': (han_6321s, 3, (38, 39, 40)), '623K': (han_623k, 3, (43, 44, 45)), 'WFT': (han_wft, 1, (37,))},
+    'hanzo': {'6321S': (han_6321s, 3, (38, 39, 40)), '623K': (han_623k, 3, (43, 44, 45)), 'WFT': (han_wft, 1, (37,)),
+              'j.4123S': (han_j4123s, 3, (48, 49, 50))},     # (j.: an air special, TODO #211: game.json air_special)
     # (input = the recogniser's own: commands_ss2.py 17; 2026-10-07: 61236A is result 41 and 214161BC result 46, the
     # export had them swapped)
     'kuroko': {'236A': (kur_parody(39), 1, (39,)), '16A': (kur_parody(40), 1, (40,)), '61236A': (kur_parody(41), 1, (41,)),
@@ -603,7 +624,8 @@ class Play:
             self.pstep = 0
         self.pleft = self.an['steps'][self.pstep]['ticks'] + 1; self.pan_enter()
     def cond(self, c, v):
-        s = self.an['steps'][self.pstep]
+        s = self.an['steps'][self.pstep] if hasattr(self, 'an') else {'flags': 0}   # (an air program tests its landing
+                                                                                       # before its first P_ANIM)
         return {PC['stepev']: 'event' in self.flags, PC['end']: 'end' in self.flags, PC['land']: 'land' in self.flags,
                 PC['fall']: 'fall' in self.flags, PC['cnt']: self.cnt < 0, PC['hit']: self.landed,
                 PC['window']: bool(s['flags'] & 0x2000), PC['link']: bool(self.plink & v), PC['always']: True,
@@ -853,6 +875,51 @@ def wftflame(B, k):
             'name': 'WFTFLAME', 'ss2': {'type': 7, 'anims': [293, 294]}}   # away: its victim thrown on away from him [meas:
                                                                        # cap_mozu.json close_rage_wft, P2 at 43 / 147 px]
 
+def loop_frames(ch, a, n):
+    """[(a, step)] for n frames of a looping animation (its last step's end command 'loop') as SS2 shows it [meas:
+    shuriken_ss2.py, the shuriken's 265 in flight: steps 0-6 two frames each, step 7 one, then step 0 three, 1-6 two,
+    7 one, ...]: the loop's step shows one frame less, the first step one more from the second pass on (the cycle keeps
+    its length)"""
+    st = ss2.parse_anim(ch, a, 400); out = []; again = False
+    while len(out) < n:
+        for i, s_ in enumerate(st):
+            out += [(a, i)] * (s_['ticks'] + 1 - (i == len(st) - 1) + (i == 0 and again))
+        again = True
+    return out[:n]
+
+SHURIKEN_DROP = 320                               # px the flight's rows reach below its spawn (a jump's height + more)
+def shuriken(B, v):
+    """Hanzo's air special's shuriken, object type 5 ($30396) [code] + [meas: shuriken_ss2.py, /data/tmp/hz211]:
+    born at his place + (12 forward, 31 up) ($2B77E with $303C2 / $303C6), animation $303FA[b] = 265 (8 steps of 2
+    frames: the spinning star, its attack box on steps 1-7, looping as SS2 loops: loop_frames); velocity $46BAE($30400[b]) = entry 30 / 32 / 34
+    ((192, 1024) / (192, 1104) / (192, 960): 0.75 px forward, 4.0 / 4.3 / 3.75 px down a frame) and the next entry's
+    pair as its acceleration +$D0 / +$D2 ((67, 28) / (67, 7) / (67, 3) / 256 px a frame); every frame v += a, then
+    p += v (8.8, its spawn frame too: the first frame shows it moved once). Routine $30404: a hit ($C670) -> $30504
+    (gone; SS2's blood is its generic hit effect: the brawler's own hit effect here); on the floor (y >= 224, tested
+    before the move: one frame shows it below the floor) -> anim 269 (stuck in the floor, no box) at 224 in place
+    ($30458: its 2 frames), then +$22 = $80 / +$24 = 60 ($3047A): shown on frames 0-3 of the floor, then every other
+    frame, gone at frame 62 (+$112 cleared: the next shuriken may fly). The victim: class 3 action 1 (anim 104, the
+    light standing reel). The brawler: 'air' rows (heights from his height at the spawn: an air projectile, fighter.c
+    proj_row), its floor phase as 'next' (fighter.c proj_update: started where the flight reached the floor)"""
+    a = N.u16(0x303FA + 2 * v); e = N.u8(0x30400 + v) + 16
+    (vx, vy), (ax, ay) = vtab(2, e), vtab(2, e + 1); v0 = [vx, vy]
+    sx, sy = N.s16(0x303C2), N.s16(0x303C6)             # (12, -31): forward, down
+    anim = loop_frames(2, a, 250)
+    X, Y, rows = sx << 8, sy << 8, []
+    while True:
+        vx += ax; vy += ay; X += vx; Y += vy
+        f_, i_ = anim[len(rows)]
+        r = obj_rows(B, 2, [(f_, i_)])[0]
+        rows.append([r[0], X >> 8, -(Y >> 8)] + r[3:])
+        if (Y >> 8) > SHURIKEN_DROP or len(rows) >= 250: break
+    fl = obj_rows(B, 2, [(269, 0)] * 62)
+    floor = [[0xFFFF if k > 3 and k % 2 == 0 else r[0], 0, 0, None, None] for k, r in enumerate(fl)]
+    nxt = {'kind': 1, 'rows': floor, 'loop': None, 'end': [], 'react': 0, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0,
+           'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 0, 'name': 'SHURIKENFL'}
+    return {'kind': 1, 'rows': rows, 'loop': None, 'end': [], 'react': 0, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0,
+            'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 300, 'air': True, 'next': nxt,
+            'name': 'SHURIKEN', 'ss2': {'type': 5, 'anim': a, 'floor': 269, 'v': v0, 'a': [ax, ay]}}
+
 def mozufire(B, k):
     """Mozu Otoshi's slam: effect 14 ($4509A) [code]: Hanzo's anim 244 (the fire columns) where he lands, sound $14D,
     gone at its end; no box (the blow is the victim list's)"""
@@ -861,7 +928,7 @@ def mozufire(B, k):
             'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0,
             'travel': 0, 'name': 'MOZUFIRE', 'ss2': {'effect': 14, 'anim': 244}}
 
-OBJECTS = {'bakuen': bakuen, 'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
+OBJECTS = {'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
 def rom_steps(B, ch, a, flags, react, catch=False, grab=None):
@@ -982,7 +1049,8 @@ def special(B, ch, name, inp):
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
             'marks': [''] * len(script), 'projectiles': pj, 'anims': [a for _, a in sts0],
             'shape': [max(r[1] for r in script), max(r[2] for r in script), bool(pj)], 'game_hits': len(opens),
-            'rom': rom, 'ss2': {'results': list(results), 'sounds': snd, 'code_sounds': spawn_snd}}
+            'rom': rom, 'ss2': {'results': list(results), 'sounds': snd, 'code_sounds': spawn_snd},
+            **({'air': True} if inp.startswith('j.') else {})}   # an air special (j.: export_bm air_special, TODO #211)
 
 # decoded but not exported (none since 2026-10-07: Kuroko's 10 palettes fit the brawler's 8 by export_ss2.pack_palettes)
 NOT_EXPORTED = {}
@@ -1138,14 +1206,18 @@ def check(names=('haohmaru', 'genjuro')):
         ch = CHAR[name]; B = X.Builder(ch)
         caps = {m['entry']['result']: m for m in json.load(open(f'/data/neogeo_dict/samsho2/moves/{ch:02d}.json')) if m['entry']}
         rage = {m['entry']['result']: m for m in json.load(open(f'/data/neogeo_dict/samsho2/moves/{ch:02d}_rage.json')) if m['entry']}
+        air_p = f'/data/neogeo_dict/samsho2/moves/{ch:02d}_air.json'   # the air specials from a vertical jump (shuriken_ss2.py:
+        air = json.load(open(air_p)) if os.path.exists(air_p) else {}   # +$7C is the step index there, TODO #211)
         for inp, (fn, nv, results) in SPECIALS[name].items():
             sp = special(B, ch, name, inp); r = sp['rom']
             cols = r['vtable']['ncol']; vars_ = [v for row in r['vtable']['rows'] for v in row] if cols else None
             for v in range(nv):
-                cap = (rage if inp == 'WFT' or 'RAGE' in inp else caps).get(results[v])
+                jair = inp.startswith('j.')
+                cap = air.get('up_' + ('a', 'b', 'ab')[v]) if jair else (rage if inp == 'WFT' or 'RAGE' in inp else caps).get(results[v])
                 if cap is None: res[f'{name} {inp} {v}'] = 'no capture'; continue
                 stidx = {}
                 def sidx(a, addr):
+                    if jair: return addr                 # (the air capture holds the step index)
                     if a not in stidx: stidx[a] = {s['addr']: i for i, s in enumerate(ss2.parse_anim(ch, a, 400))}
                     return stidx[a].get(addr)
                 cr = cap['rows']
@@ -1153,6 +1225,9 @@ def check(names=('haohmaru', 'genjuro')):
                 x0 = cr[s0]['p1']['x']                   # (frame 0 still moves by the walk's last velocity)
                 anims_l = [{'steps': r['anims'][s]['steps'], 'hold': True, 'ss2': r['anims'][s]['ss2']} for s in r['states']]
                 pl = Play(r['prims'], anims_l, vars_, v, cols, r['vtable']['vanim'])
+                if jair:                                 # from the jump: its height where the move starts (fighter.c
+                    pl.y = (224 - cr[s0]['p1']['y']) << 16   # start_special drops the jump's speed: SS2 moves once more
+                                                             # with it in that frame, the brawler starts where SS2 is then)
                 n = bad = over = 0; ex = ey = 0; first_bad = None
                 for i in range(s0, len(cr)):           # (the program's first frame = SS2's first: rom['now'], SF_NOW)
                     q = cr[i]['p1']
@@ -1175,4 +1250,4 @@ def check(names=('haohmaru', 'genjuro')):
 
 if __name__ == '__main__':
     if sys.argv[1:2] == ['check']:
-        for k, v in check().items(): print(k, v)
+        for k, v in check(tuple(sys.argv[2:]) or ('haohmaru', 'genjuro')).items(): print(k, v)

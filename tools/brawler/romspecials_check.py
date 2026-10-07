@@ -48,6 +48,11 @@ NSHOT = int(os.environ.get('NSHOT', 30))
 DIST = {'close': 48, 'mid': 112, 'wall': 48}             # wall: KOF's P1 as far from its wall (x 736) as the brawler's from
 #                                                          its own (TODO #173: a catch that grinds to the wall)                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
 BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
+WHIFF_MODEL = {'iori': {'624D'}}                         # specials whose KOF whiff reaches P2 from any distance (KOF keeps
+                                                         # both on one screen; Iori's 624D dashes 24 frames, its near test
+                                                         # +$BC fires even past a jumping P2): the whiff's reference is the
+                                                         # decoded program's model (TODO #94; its handler's 624B whiff, the
+                                                         # same code with a 16-frame dash, matches KOF frame for frame)
 
 def prog_links(game, cid, inp):
     """the link names of a ROM special's program (bit k = links[k])"""
@@ -214,7 +219,8 @@ def main(game, out, cases):
                 s = {'case': case, 'input': inp, 'branch': branch, 'error': f'no KOF trace {e!r}'}
                 summary.append(s); print(json.dumps(s), flush=True); continue
             ref = 'kof'
-            if dm and branch == 'whiff' and (res['hit_frames'] or res.get('catch') is not None) and \
+            if branch == 'whiff' and inp in WHIFF_MODEL.get(name, ()) or \
+                    dm and branch == 'whiff' and (res['hit_frames'] or res.get('catch') is not None) and \
                     K.whiff_jump(cid, inp.replace('EX ', ''), inp.startswith('EX '), kg) is None and res.get('catch') is not None:
                 # KOF catches P2 wherever it is, even in the air (Robert's Ryuko Ranbu): its whiff is the decoded program's
                 # (romspecials98's model, matched to KOF frame for frame on the catch side) -> the reference rows
@@ -271,7 +277,8 @@ def main(game, out, cases):
                 bh = min(bhits, key=lambda i: abs(i - kh)) if bhits else kh
                 vg = [(round(g['p2x'] - game_rows[kh]['p2x'] + (br[bh]['vx'] if bh < len(br) else 0), 2), g['p2h']) for g in game_rows]
                 m = min(len(br), len(vg))
-                vend = next((i for i in range(1, m) if game_rows[i]['p2state'] >= 300 and game_rows[i - 1]['p2h'] > 0), m)
+                vend = next((i for i in range(1, m) if 300 <= game_rows[i]['p2state'] < 400 and game_rows[i]['p2h'] <= 0 and game_rows[i - 1]['p2h'] > 0), m)   # (400+:
+                # a catch's held victim states, placed by its script: Iori 624's 432-435, TODO #94)
                 s['victim_frames'] = vend
                 s['victim_max_dx'] = max((min(abs(br[i]['vx'] - vg[j][0]) for j in range(max(0, i - 1), min(m, i + 2))) for i in range(kh, vend)), default=0)
                 s['victim_max_dh'] = max((min(abs(br[i]['vh'] - vg[j][1]) for j in range(max(0, i - 1), min(m, i + 2))) for i in range(kh, vend)), default=0)

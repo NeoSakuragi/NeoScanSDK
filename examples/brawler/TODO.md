@@ -1381,10 +1381,30 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   find why his hurt box / grab state is gone (an invincibility flag stuck after a move, a depth / z mismatch, a state
   that never ends), fix at the cause.
 
-- [ ] 205. HURT BOX OF A ROM-PLAYED SPECIAL (found by #202): during a special read from the ROM, hits are checked against the
-  hurt box of the animation played BEFORE the move, not the move's own frames, so KOF98's steps without a hurt box don't
-  protect (EX 421D on 0.1.9 got hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D,
-  Terry, Iori invincible starts vs KOF98; campaign29.
+- [ ] 205. (DONE ON BRANCH fix/208-fury-in-grab 2026-10-07, awaiting Bruno's review) HURT BOX OF A ROM-PLAYED SPECIAL
+  (found by #202): during a special read from the ROM, hits are checked against the hurt box of the animation played
+  BEFORE the move, not the move's own frames, so KOF98's steps without a hurt box don't protect (EX 421D on 0.1.9 got
+  hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D, Terry, Iori invincible starts
+  vs KOF98; campaign29.
+  Cause, two parts: (1) every hurt test read fighter_step (f->anim: the animation before the move; a ROM special plays
+  its program's own animation, pan / pstep); (2) export_bm rom_c gave a KOF step a hurt box whenever a hurt box was
+  loaded, but KOF keeps the boxes loaded across steps and its $0200 step flag says whether the step has one (KOF98's
+  776, EX 421D's third step, has the box loaded and no $0200; handlers98.react_hurt already read $0200 that way). Fix:
+  fighter.c fighter_hurt_step (a ROM special from its first program frame: its own step) in combat, the hold crowd and
+  thrown bodies, main.c's debug boxes; rom_c: a KOF96 / 98 / 99 program step has a hurt box only with $0200 (the other
+  sources' generated programs unchanged). Roster `invincible` (Kyo's EX 421D) kept: still INV_FURY whole (kyo202_proof
+  inv, flag build: OK). Proof tools/brawler/hurt205_proof.py (AI_OFF builds; KOF98's per-frame $0200 captured in KOF98,
+  the export's row_steps), /data/tmp/f208/out/h205: without the flag (noflag.json) Kyo's EX 421D is unhittable exactly
+  KOF98's 11 frames (first hit at frame 11, kyo202_proof inv: hit at [11] from every phase; 0.2.4: [2..9]), Terry's
+  623D and Iori's 623D 9 frames as KOF98 (0.2.4: hit at frame 1, before.json); every Kyo / Terry / Iori ROM special +
+  furies: 0 frames where the engine's hurt box differs from KOF98's ROM step, the first jab lands on the first frame with
+  a hurt box; frame-by-frame vs the capture equal but where KOF98's capture connected (Iori 623C, Kyo 236C: its hit-stops
+  offset the rest) or the MAX's longer charge (Terry). Scenario todo205-hurt-box (Terry's 623D in a fight; verify
+  identical).
+  #208 + #205 on 0.2.6 merged (/data/tmp/f208/out/final): fury208 ALL OK (23 fighters), hurt205 ALL OK, kyo202_proof inv
+  (now reads EX 421D's slot from game.json: forward + C since #207) flag build OK (INV_FURY whole) / no-flag build hit
+  at [11] from every phase, fury_inv ALL OK, controls 24 / 24 ok, cancel all ok 24 fighters, throw196 ALL OK, hold204
+  ALL OK, bank_proof ALL OK, regress bleed_same / strict True, campaign29 through; scenarios verify identical, lint 0.
 
 - [ ] 206. (DONE ON BRANCH fix/206-kyo-fury-burn 2026-10-07, awaiting Bruno's review) KYO'S FURY BURNS (20261007-114307-b3f3: "The opponent should be on fire whenever hit by the Fury of Kyo.";
   114326: "The impact sound should be the fire sound impact. Look at the code"): KOF98's fury hit kind (burn) + KOF96's
@@ -1412,9 +1432,20 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   126) before reaching Kyo: not run.
 
 
-- [ ] 208. FURY WHILE GRABBING (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D
-  button. Make it standard that you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a
-  hold (paired state) releases the hold and starts the fury, every fighter (fighter.c).
+- [ ] 208. (DONE ON BRANCH fix/208-fury-in-grab 2026-10-07, awaiting Bruno's review) FURY WHILE GRABBING
+  (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D button. Make it standard that
+  you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a hold (paired state) releases
+  the hold and starts the fury, every fighter (fighter.c).
+  Cause: hold_update read C (the special out of the hold, 2026-10-05) and A, never D; the D in neutral lived in the
+  S_IDLE case only. Fix (fighter.c): one rule for D, fury_press (the fury, down+D its MAX, down+D full the form link),
+  used from neutral and from the hold; in the hold D ends it the way C does (the victim reels free in its held pose,
+  HITSTUN, not held) and the fury starts that frame with its INV_FURY; a D pressed in a hold hit's hit-stop is kept
+  (fury_buf) and fires as the hit-stop ends; the hold finisher keeps rule 4's buffered cancel; grab() clears presses
+  buffered before the hold. Proof tools/brawler/fury208_proof.py (AI_OFF build), /data/tmp/f208/out/f208: all 23
+  fighters with a fury x (D in the idle hold, down+D, D during a hold hit): ALL OK (SPECIAL with the neutral fury's / MAX's
+  special, INV_FURY every frame with two minions jabbing, 0 life lost, victim HITSTUN + free the same frame and hit by
+  the fury; Hanzo SS2's WFT whiffs the released victim at 15 px, as it whiffs a standing enemy there from neutral);
+  sheet_terry.png. Scenario 20261007-124603-b3f3 (verify identical).
 
 - [ ] 209. (DONE ON BRANCH fix/209-credits-select-dark 2026-10-07, awaiting Bruno's review: SNK's MVS BIOS never ends the attract on a coin (no DEMO_END; UniBIOS does), so the logo / demo kept INSERT COIN with credits; main.c attract_leave: START or any credit (MVS) -> the title, PRESS START in INSERT COIN's place, as KOF98 measured in our emulator (coin on its logo or in its demo -> its title, PRESS 1P START; in a fight KOF98 blinks INSERT COIN / PRESS START above P2's bar by P2's own credits: the brawler has had no in-game P2 prompt since the HUD redesign, not added). Proof /data/tmp/sel209/out (209_*: logo / demo, 0 and 1 credit, SNK MVS, UniBIOS MVS, AES), scenario + lint 0) CREDITS -> PRESS START (20261007-140259-5d29: "There are coins inserted, but we are still on the insert coin
   screen, and also in-game there is the insert coin message even though there is more than zero credit ... switch to
@@ -1423,6 +1454,52 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 210. (DONE ON BRANCH fix/209-credits-select-dark 2026-10-07, awaiting Bruno's review: Kizuna measured in our emulator (palette RAM + VRAM, three teams, waiting vs tagged in): the waiting partner's palette is his active one word for word, no transform; col_grey -> col_dark = each 5-bit channel halved, selectrender.js dark() the same; select_proof 41 screens 0 px, bank_proof ALL OK, regress no-bleed True) SELECT: DARK REAL COLOURS (20261007-140341-5d29: "instead of having washed out colors, they should have their real
   colors, but just much darker. Like Kim in Kizuna when he's in the background waiting to be tagged"): measure Kizuna's
   waiting-partner palette transform (our emulator), use it for unselected fighters (main.c col_grey + selectrender.js).
+
+- [ ] 211. (DONE ON BRANCH fix/211-hanzo-air-fire 2026-10-07, awaiting Bruno's review) It is a SHURIKEN, not fire: SS2's 4 1 2 3 + A / B / A+B in a jump (command entries 9-11, type 2 air, one projectile at a time; results 48-50, list $36BF2) decoded from its handlers [code] and measured in our emulator (tools/samsho2/shuriken_ss2.py -> /data/neogeo_dict/samsho2/moves/02_air.json): he hangs in the air (287, velocities 0, no gravity), throws at 249's step 1 (object type 5 $30396: 12 px ahead / 31 up, 0.75 px forward and 4.0 / 4.3 / 3.75 px down a frame with SS2's acceleration (67, 28 / 7 / 3) / 256, the spinning star 265 looping as SS2 loops it: step 7 one frame, step 0 three), hops back and up (26: vx -1.19, vy 3.1 px, his own gravity 76/256) and lands (3); a hit = the light reel (class 3 action 1, anim 104), the shuriken gone; a miss sticks in the floor (269) 62 frames, shown 4 then every other frame, his projectile slot busy until then. Brawler input: down+A in a jump (the roster's air_special convention, Kim's j.2B), game.json air_special "j.4123S", the A+B row (the export's default: the shallowest, longest throw). New: bproj_t air (an air projectile: rows' heights from his height at the throw, its floor phase = next, fighter.c proj_start / proj_row / proj_update); BS_AIR refused while his projectile is out (as special_pick: the air normal plays). handlers_ss2 han_j4123s / shuriken / loop_frames, `check hanzo` j.4123S 82/82 frames identical (x / height within 1 px). Proof /data/tmp/hz211/out (tools/samsho2/hanzo211_proof.py, a real campaign fight, AI on): up / forward whiffs: Hanzo 82 / 83 frames pictures identical (dx / height <= 0.94 px), shuriken spawn frame, 37 / 38 flight frames identical pictures and places (0 px), floor frame, floor blink and gone frame identical; up / forward hits: the same pictures (SS2's hit-stop / slow motion frames dropped), one hit, HITSTUN; one-projectile rule ok; unpoked jumps (3rd / 11th / 25th airborne frame, up / forward) ok. controls + cancel hanzo_ss2 ok, kim200_proof ALL OK, bank_proof ALL OK, regress no-bleed True (strict), scenario 20261007-145409-5d29 + lint 0. HANZO SS2'S AIR FIRE (20261007-145409-5d29, 0.2.6, Hanzo SS2 jumping: "There's a mid-air projectile that you
+  could add."): #193 left it out (no special could start in the air); #200 added air_special (a special from a jump):
+  decode SS2's air fire handler and play it from a jump.
+
+- [ ] 212. (DONE ON BRANCH fix/212-cheng-fu 2026-10-07 on 0.2.9, every proof below re-run after the merge, awaiting Bruno's review) NEW FIGHTER: CHENG FU from Double
+  Dragon (Bruno, 2026-10-07), the way Billy Lee came in (tools/doubledr):
+  every normal / special / throw / fury decoded from the ROM, his select pose, win pose, voices. Same job: REMOVE
+  KUROKO from the roster "for now" (Bruno) — out of game.json's roster and the select screen; keep his data / exporter.
+  Done: roster cheng_fu (display CHENG FU, bank doubledr:cheng_fu = DD character 10, full size), select slot 7 = Kuroko's
+  place (249, 183; pose 99.7, his kata stance: Bruno arranges in the Lab). Kuroko: out of roster / select, his entry
+  kept in game.json roster_benched (data, exporter, voices.json list, scenarios kept; his 3 todo176 scenarios noted
+  "benched"). Read in the 68000 code for him: step handlers 4 (a one-frame jump of the header's px), 21 / 23 (handler
+  2 / constant motion + an AFTERIMAGE: object 14 anim 86 = the fighter's own picture left 15 frames; brawler: effect
+  objects), 22 (the super 623's landing strike CATCHES on its hit: victim held 48 px in front, the 97 flurry, 98 the
+  leap; brawler P_HOLD / P_PUT / P_UNHOLD), 34 (the 421 counter, not exported); the crouch 13 after a special (DD stands
+  up at once). model_dd = DD frame for frame on all 18 of his entries x buttons (compare_dd.py 10 --far: P2 poked away,
+  0 mismatches). C = 214 flying kick, forward+C = 236 palm rush (3-6 hits by row), down+C = 623 (variant tables A-D,
+  the D row played); D = SUPER 236 (7 hits, afterimages), down+D = SUPER 623 (the bigger one: roster[].max, new field:
+  a source without KOF's MAX names its down+D fury; 9 hits, the catch). Throw = DD's STUN STRIKE (table $23C2A row 10,
+  victim anim 121, $23B74): no damage, the victim staggers back then stands dizzy DD's 128 frames, open to any hit:
+  bthrow_t.stun / fighter_t.dizzy (fighter.c victim_end); no back throw in DD (back+A = the same). Flash pose 99.0-5
+  (his crane kata), win pose 99 (his shout $3F), voices "kof" = DD's own (12: $39-$44 + the $D5 effect), HUD face from
+  DD's select grid. One engine-wide DD fix: P_FALL with DD's floor (a = 1: landed a whole px under it, as model_dd):
+  progcheck_dd now frame-exact for Billy too (was "landings a frame early"). Not exported (named): 421 (126-129) a
+  COUNTER stance (an attack meeting his front body record is caught into the throw 130 + victim 113-115: the brawler
+  has no counter / guard mechanism), 8 / 2 + button (124: DD's down attack on a lying opponent). Proofs
+  /data/tmp/cheng212 (tools/doubledr/cheng_proof.py): frames 320 / 320 identical to DD's drawing (both facings),
+  progcheck_dd every row = the model (one picture a frame early at the super 623's landing), real fight per move vs DD
+  (fight_*.png, DD above): hits 214 1/1, 623 1/1, 236D 5 vs 6 (DD's victim stays nearer: the brawler's reel slide puts
+  it out of the last kick), SUPER 236 7/7, SUPER 623 9/9 (DD's red dragon pauses not modelled), whiffs 0/0; variant rows
+  = the model (214 B-D stopped by the screen edge: 253-361 px); stun: 88 rows, dizzy 128 frames, 0 damage, A lands;
+  controls 24 ok (controls_proof reads roster[].max), cancel all ok 24, fury_inv (AI_OFF) ALL OK, select 41 screens 0 px
+  (stick 302 agree, walk 164 / 164), bank_proof ALL OK (on 0.2.9 merged: cheng_fu in bank 1, 380,739 bytes free at least; banks 0 / 2
+  355,113 / 408,086), voice_proof cheng_fu: 623 / 236 / 214 / SUPER 623 = DD's, SUPER 236 = DD's +28 frames (the flash
+  pose), regress no-bleed True (frame-exact), campaign29 through (23-fighter line-up), win184 (pose 12 steps, shout at
+  step 8). Scenarios todo212-cheng-specials / -furies / -throw (lint 0; gen at publish). Makefile: the HUD (make_hud)
+  now rebuilds when the roster changes (it kept Kuroko's face).
+
+- [ ] 213. NEW FIGHTER: ROSA from Kizuna Encounter (Bruno, 2026-10-07; extracted in #77: /data/neogeo_dict/kizuna/rosa),
+  the way Kim came in (tools/kizuna): moves from Kizuna's handlers, effects, voices, select / win pose. After the Kim
+  job (#136) leaves tools/kizuna.
+
+- [ ] 214. KOF'S SHARED EFFECTS BANK (found by #94 and #173): effects drawn from KOF98's common effects bank (not a
+  fighter's own) are missing: Iori 624D / 624B release's purple explosion (state 140), Rugal's slam. Export the
+  shared bank's graphics the moves use (only those), with their palettes, and play them.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
@@ -1448,9 +1525,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] 89. (done 2026-10-06: KOF98 $6F642 from the ROM: the rise's `cmpi #192, +$20; bcs` = PC_LOW (height below N); 0 frame mismatches whiff + close, hits 5 / 5) Billy up A+B = 623D (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 91. (done 2026-10-06: KOF98 $3C262 from the ROM: `addi #16, +$20` = a height nudge; 0 frame mismatches whiff + close, hits 1 / 1) Kyo up A+B = 421B (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 92. (done 2026-10-06: KOF98 $3E0A6 from the ROM (the drift went with the event latch, #139): 0 frame mismatches whiff + close, hits 3 / 3) Kyo up-fwd A+B = EX 421D (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
-- [ ] 94. (still recorded 2026-10-06: KOF98 $70A6C decodes (`bcs` on the distance +$BC = near; the brawler's PC_FAR takes the nearest opponent on the lane before a hit) and plays with 0 frame mismatches whiff + close, but its catch sends the victim into KOF's held victim states 432-435, placed each frame from a table ($25376 / $25396, offsets at $2835CA), which the brawler does not model: the explosion misses, hits 1 / 2) Iori fwd A+B = 624D (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
+- [x] 94. (done 2026-10-07: KOF98 $70A6C from the ROM with its catch's victim script (Rugal's #173 model: the lists of $70CBC) and that routine's own release, read from the code: the blow $18C6C (damage), the purple burn $17AC0, its own flight $70E32 (vx 4, vy 6, gravity 0.5); 0 frame mismatches whiff / close / mid, hits 2 / 2 (KOF [18, 61], brawler [17, 62]), the victim's arc frame for frame; proof /data/tmp/iori94/out, scenario todo94-iori-624D) Iori fwd A+B = 624D (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 95. (done 2026-10-06: KOF98 $70872 from the ROM, its flames 254 / 255 too: 0 frame mismatches whiff + close, hits 3 / 3) Iori down A+B = 623C (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
-- [ ] 96. (still recorded 2026-10-06: the same handler as 624D (#94), the same blocker: hits 1 / 2) Iori down-fwd A+B = 624B (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
+- [x] 96. (done 2026-10-07: the same handler as 624D (#94), its B variant (16-frame dash): 0 frame mismatches whiff / close / mid, hits 2 / 2; scenario todo96-iori-624B) Iori down-fwd A+B = 624B (recorded, "off" per Bruno 0.0.55): play it from KOF98's handler code (tools/kof96/handlers98.py); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 101. (done 2026-10-06: KOF96 $4A010 from the ROM: 0 frame mismatches whiff + close, hits 3 / 3) Geese fwd A+B = 63214C (recorded, "off" per Bruno 0.0.55): play it from KOF96's handler code (handlers98.py, KOF96 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 102. (done 2026-10-06: KOF96 $4A010 from the ROM: 0 frame mismatches whiff + close, hits 3 / 3) Geese up A+B = 63214A (recorded, "off" per Bruno 0.0.55): play it from KOF96's handler code (handlers98.py, KOF96 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).
 - [x] 105. (done 2026-10-06: KOF96 $4B186 from the ROM: 0 frame mismatches whiff + close, hits 1 / 1) Krauser up A+B = 623B (recorded, "off" per Bruno 0.0.55): play it from KOF96's handler code (handlers98.py, KOF96 routine table); proof romspecials_check-style 0 frame mismatches whiff + hit vs the original game, victim per its reaction table, no stick (holds / command grabs excepted).

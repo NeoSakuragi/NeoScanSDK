@@ -365,7 +365,8 @@ def build_list(names=None):
             res['fighters'][rname] = {'game': game, 'cid': cid, 'voices': [{k: vo[k] for k in (
                 'id', 'cmd', 'cmds', 'indices', 'segments', 'level', 'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
             print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
-    order = [r['name'] for r in json.load(open(GAME_JSON))['roster']]
+    g = json.load(open(GAME_JSON))                   # roster order; a benched fighter's list kept after them (TODO #212:
+    order = [r['name'] for r in g['roster'] + g.get('roster_benched', {}).get('fighters', [])]   # Kuroko, out for now)
     res['fighters'] = {k: res['fighters'][k] for k in order if k in res['fighters']}
     with open(JSON, 'w') as f:
         f.write('{"about": ' + json.dumps(res['about']) + ',\n "rate": ' + str(RATE) + ',\n "fighters": {\n')
@@ -628,6 +629,10 @@ def kizuna_list(rname, name, cid):
 # the ADPCM-A start / end and level registers of the command). Voices = Billy's range $1C-$2C (the sound test's map);
 # the effects only his specials send ($C2 / $C3 / $D5, the 236 / 623 / super effects) as 'fx' (over his voice).
 DD_VOICES, DD_FX = range(0x1C, 0x2D), (0xC2, 0xC3, 0xD5)
+# per character: its voice range (the sound test's map, README "Sound"), its pain / KO voices (the range's first two:
+# Billy $1C / $1D; Cheng-Fu $39 / $3A, his 121's step 1 as Billy's $1D, TODO #212), the shared shouts of a form pair
+DD_CAST = {0: (DD_VOICES, 0x1C, 0x1D, (0x22, 0x24, 0x26, 0x28)), 1: (DD_VOICES, 0x1C, 0x1D, (0x22, 0x24, 0x26, 0x28)),
+           10: (range(0x39, 0x45), 0x39, 0x3A, ())}
 def doubledr_capture(rname, name, cid):
     print(rname, ': Double Dragon sounds are step data (static scan, voices.py list)', flush=True)
 
@@ -653,8 +658,9 @@ def doubledr_list(rname, name, cid):
     for inp, (anims, _) in E.SPECIALS[cid].items():
         for i, r in enumerate(M.play(cid, anims[-1], limit=400)):
             if r['snd']: uses.append((r['snd'], {'kind': 'special', 'input': inp, 'at': i}))
-    uses += [(0x1C, {'kind': 'event', 'event': 'hit_c', 'at': 0}), (0x1D, {'kind': 'event', 'event': 'ko', 'at': 0})]
-    for w in (0x22, 0x24, 0x26, 0x28):             # Billy's special shouts in both forms' lists (one voice actor: the
+    rng, pain, ko, shared = DD_CAST[cid]
+    uses += [(pain, {'kind': 'event', 'event': 'hit_c', 'at': 0}), (ko, {'kind': 'event', 'event': 'ko', 'at': 0})]
+    for w in shared:                               # Billy's special shouts in both forms' lists (one voice actor: the
         uses.append((w, None))                     # transformed form may share them, game.json voices.set)
     spw = {}
     for w, u in uses:
@@ -662,7 +668,7 @@ def doubledr_list(rname, name, cid):
     own_fx = {w for w in DD_FX if w in spw}
     v = v_rom('doubledr'); voices = {}
     for w, u in uses:
-        if w not in DD_VOICES and w not in own_fx: continue
+        if w not in rng and w not in own_fx: continue
         if w not in voices:
             seg, lvl = dd_sample(w)
             voices[w] = {'cmd': f'{w:04X}', 'cmds': [f'{w:04X}'], 'indices': [], 'segments': seg, 'level': lvl, 'uses': []}
@@ -734,7 +740,7 @@ def samsho2_list(rname, name, cid):
                                                                           'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
 
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
-       'doubledr': {'cast': {'billy': 0, 'billy_super': 1}, 'capture': doubledr_capture, 'list': doubledr_list},
+       'doubledr': {'cast': {'billy': 0, 'billy_super': 1, 'cheng_fu': 10}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
        'kizuna': {'cast': {'kim': 5}, 'capture': kizuna_capture, 'list': kizuna_list},
        'samsho2': {'cast': {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo': 2}, 'capture': samsho2_capture, 'list': samsho2_list}}

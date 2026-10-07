@@ -1042,7 +1042,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D'},
                 'yamazaki': {'623C', '623D', '623B'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B'},
-                'iori': {'236A', '623D', '214A', '623C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
+                'iori': {'236A', '623D', '214A', '623C', '624D', '624B'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '41236B', '236D', '641236C', '623B', '623D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
@@ -1147,6 +1147,36 @@ def victim_lists(m, addr, sdm=False):
         if mn.startswith('btst') and o[0] == '#6' and o[1] == '%a4@(212)': break   # the release test: the last list
         if mn in ('jmp', 'rts'): break
         if mn.startswith('bra'): a = imm(o[0]); continue
+        a = nx
+    return out
+
+# The release of a victim script (TODO #94 / #96, Iori's 624B / D $70CBC): past the release test (`btst #6, +$D4`) the
+# victim's own routine may strike (`jsr $18C6C` + `$1ACD8`, the pair $25372 calls for a blow entry: the explosion's
+# damage, KOF98 P2 life -12) and fly on its own speeds (`move.l #T, +$C6; movea.l +$C6, a0; move.l (a0), +$50;
+# 4(a0) -> +$5C; 8(a0) -> +$58`: vx 4 away from the attacker, gravity 0.5, vy 6; Iori's T $70E32) instead of the
+# engine's blowback (Rugal's lists: neither, they jump to the blowback); its burn (`jsr $17AC0`: the victim's palette
+# byte +$3A = $F9, Iori's purple flames, measured: P2 burns from the release to its landing). -> {'blow': bool, 'fly':
+# (vx, vy, g) px, 'burn': BURN_OF colour} or {}
+RELEASE_BURN = {0x17AC0: 1, 0x17ADE: 1, 0x17AE6: 2}   # +$3A = $F9 purple / $F8 orange (fighter.c BURN_RAMP 1 / 2)
+def victim_release(m, addr):
+    dec = Decoder(m); a = addr; n = 0; rel = False; out = {}; tab = None; a0tab = False
+    while a is not None and n < 200:
+        n += 1
+        mn, o, nx = dec.at(a)
+        if not rel:
+            if mn.startswith('btst') and o == ['#6', '%a4@(212)']: rel = True
+            elif mn in ('jmp', 'rts'): return {}
+            elif mn.startswith('bra'): a = imm(o[0]); continue
+            a = nx; continue
+        if mn.startswith('beq'): a = nx; continue      # (the test's own branch: not yet released)
+        if mn == 'jsr' and imm(o[0]) == 0x18C6C: out['blow'] = True
+        elif mn == 'jsr' and imm(o[0]) in RELEASE_BURN: out['burn'] = RELEASE_BURN[imm(o[0])]
+        elif mn == 'movel' and o[1] == '%a4@(198)' and o[0].startswith('#'): tab = imm(o[0])
+        elif mn == 'moveal' and o == ['%a4@(198)', '%a0']: a0tab = tab is not None
+        elif mn == 'movel' and a0tab and o == ['%a0@', '%a4@(80)']:
+            s32 = lambda v: (v - (1 << 32) if v & 0x80000000 else v) / 65536
+            out['fly'] = (s32(m.u32(tab)), s32(m.u32(tab + 8)), s32(m.u32(tab + 4)))
+        elif mn in ('jmp', 'rts') or (mn == 'jsr' and imm(o[0]) == 0x5BA6): break
         a = nx
     return out
 
@@ -1422,6 +1452,12 @@ def export_rom(m, cid, inp, add, game='kof98'):
     prog = decode(m, h, b, ex, cid=cid, sdm=sdm)
     vlists = victim_entries(m, victim_lists(m, prog['victim'], sdm), cid) if prog.get('victim') else []   # the caught
                                                        # victim's script (its lists for the fighter itself as the victim)
+    vrel = victim_release(m, prog['victim']) if vlists else {}   # its routine's own release: a blow, its own flight
+    if vrel:                                           # (TODO #94 / #96: Iori's explosion and arc)
+        last = [dict(e, flags=e['flags'] | 1, burn=vrel.get('burn', 0)) if e['flags'] & 64 and vrel.get('blow') else e
+                for e in vlists[-1]]                   # (the release entry: a blow too, its burn)
+        vx, vy, g = vrel.get('fly', (0, 0, 0))
+        vlists[-1] = {'e': last, 'rel': (round(vx * 256), round(-vy * 256), round(g * 256))} if 'fly' in vrel else last
     bad = [op for a, op in prog['ops'] if op[0] not in BODY_OPS | DROP_OPS or (op[0] == 'br' and not cond_ok(op[1]))
            or (op[0] == 'anim' and op[1] is None)]
     if bad: return {'error': f'ops {bad[:3]}'}
