@@ -980,6 +980,34 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   emulation thread a single process-wide instance (or guard MainActivity's start), prove with repeated reinstall /
   relaunch / rotate cycles in the AVD.
 
+- [ ] 184. STAGE END WIN POSE (20261007-021017-5d29: "Maybe we can shoot a little winning pose here at the end of the
+  stage."): after the stage clear (and the boss death sequence), the player plays his own win pose from his source
+  game (KOF win poses 336-343 etc., SS2 / Kizuna / WHP / DD equivalents), then the stage transition.
+
+- [ ] 185. CAMERA RISING IN FURIES (20261007-020507-5d29, 0.0.92: "Why is the camera going up? That is weird."): the SS2
+  audit (0.0.91) made the camera rise during any fury so Genjuro's spin (126 px up) shows. Revert the generic rise;
+  keep the action on screen another way (Genjuro's victim carried at a height that fits, or a rise only when an
+  object would leave the top, eased, never for ground furies).
+
+- [ ] 186. BILLY KANE'S FURY (20261007-014003-5d29: "seems recorded, not decoded ... a multi-hit fury with the movement
+  of the character moving forward ... the hits should not make the opponent leave the ground unless it's the final
+  one"): check the fire-ring fury's victim handling vs KOF98 (each ring hit's reaction: stagger in place, launch only
+  on the last), decoded from the ring object's hit code; say plainly if any part is replayed.
+
+- [ ] 187. SELECT STICK ORDER FROM POSITIONS (20261007-012550-5d29: "the layout is awesome ... however the sequencing
+  is now messed up ... from Robert going right I end up on Yamazaki top left ... there should be some kind of automatic
+  computation of sequencing based on coordinates ... whenever I modify or export a new layout"): compute the cursor
+  graph from the fighters' screen positions (right = nearest fighter to the right in roughly the same row, else wrap;
+  up / down = nearest above / below), at layout save time in the Lab and at build time; the Lab shows the arrows;
+  the manual order list becomes an override only.
+
+- [ ] 188. REOPENED (0.0.92 tests): (a) Haohmaru SS2 grab: "the throws are okay ... however the grabbing motion sets the
+  player and the victim in a reverse orientation" / "Haohmaru and Ryo are both facing right" (173459, 155732, 155708):
+  the hold / grab phase's facing (SS2's mirrored steps in the hold, the victim's facing); (b) the burn palette
+  (162034 Blitz Ball, 160855 Billy's ring): "looks nothing like when Terry ... gets engulfed in flame in KOF98": use
+  KOF98's own burn palette and its cycle (decoded), for every fire hit; (c) 155538 Haohmaru's fury "still broken" (no
+  details: compare his SS2 WFT with SS2 and say what differs).
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
