@@ -1315,7 +1315,18 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   damage per hit."): measure each SS2 fighter's hit damage vs the brawler's scale (KOF fighters' damage per hit), set
   the SS2 export's damage scale so Genjuro's hits do about 3x (and check Haohmaru, Kuroko, Hanzo SS2 for the same).
 
-- [ ] 204. UNHITTABLE BILLY KANE (20261007-125822-b3f3: "there is a glitch where Billy Kane cannot be hit anymore ...
+- [x] 204. (done 2026-10-07 on fix/204-unhittable-billy: his replay on 0.1.9 (trace /data/tmp/b204/trace019.json) =
+  Billy Kane is a wave 5 minion (fighter 6) with 6 life; Super Billy grabs him at 27721 and lands two hold hits
+  (GRAB_DAMAGE 3 each: life 6 -> 3 -> 0) but no third; the hold went on with a lifeless victim, timed out at 27870
+  (GRAB_TIME) and release() stood him up (IDLE, inv 20) with 0 life; every hit test (hittable, the hold crowd,
+  grabbable) skips a fighter without life, so he walked and attacked untouchable until the press. Fix (fighter.c
+  paired_update): a hold hit that takes the last life ends the hold like the finisher (knocked down: S_DOWN -> S_DEAD;
+  its damage already dealt). Same path for every fighter and for an enemy holding a player. Proof
+  tools/brawler/hold204_proof.py, /data/tmp/b204/out: Bruno's case on 0.1.9's code = standing with 0 life, 0 hits
+  taken after (base_a.png); fixed = KNOCKDOWN -> DOWN -> DEAD (fixed_a.png); all 24 roster fighters' killing hold hit
+  -> DEAD; life to spare unchanged (2 hits + escape: standing, hittable; 3 = finisher, gets up); scenario sheet
+  scenario_sheet.png; controls_proof + cancel_proof billy / billy_lee / billy_super ok, regress bleed True,
+  bank_proof ALL OK, campaign29 through) UNHITTABLE BILLY KANE (20261007-125822-b3f3: "there is a glitch where Billy Kane cannot be hit anymore ...
   Everything whiffs and I cannot grab him." — Super Billy vs the Billy Kane boss, stage 1 wave 5): replay the note,
   find why his hurt box / grab state is gone (an invincibility flag stuck after a move, a depth / z mismatch, a state
   that never ends), fix at the cause.

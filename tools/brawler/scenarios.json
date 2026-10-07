@@ -844,5 +844,23 @@
   "expect": "Kim dives diagonally down and forward at 45 degrees from wherever he is in the jump (rising too) until he lands, then a short landing pose. No blue effect on a miss; on a hit the blue flash shows at his feet and the kick hits up to 4 times as he keeps diving. Down + A again after a hit (while still high) plays the second dive kick, which knocks the opponent down.",
   "do_keys": "3:Rb,3:b,7:-,3:Da",
   "proof": 90
+ },
+ "20261007-125822-b3f3": {
+  "title": "Billy Kane: a hold hit that takes his last life knocks him down",
+  "setup": {
+   "mode": "stage",
+   "fighter": "billy_super",
+   "stage": 0,
+   "wave": 4,
+   "wait": 240,
+   "alone": true,
+   "foe": 6,
+   "foe_hp": 6,
+   "gap": 40
+  },
+  "do": "Stage 1 wave 5, Super Billy next to Billy Kane, who has 6 life left. Walk into him to grab him, press A twice (two hold hits), then leave the stick and buttons alone.",
+  "expect": "The second hold hit takes his last life: he is knocked down at once, lies on the floor, blinks and goes. He never stands up again with an empty life bar.",
+  "do_keys": "8:R,4:-,2:a,30:-,2:a",
+  "proof": 220
  }
 }
