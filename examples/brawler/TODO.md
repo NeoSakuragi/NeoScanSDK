@@ -1099,6 +1099,19 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   form none) and Billy's MAX is the transformation (its hit: 67, unchanged). Checks: controls_proof / cancel_proof
   billy_lee + billy_super ok, bank_proof ALL OK, regress no-bleed True (frame-exact), scenario lint 0.
 
+- [ ] 195. (DONE ON BRANCH fix/193-hanzo-ss2 2026-10-07, awaiting Bruno's review) HAOHMARU'S FURY: THE IMPACT AND THE
+  RAGE COLOURS (20261007-113032-b3f3: "the red screen is too much and there shouldn't be so much freeze on impact";
+  20261007-112936-b3f3: keep SS2's red rage skin through the motion after the charge, the big fireball). (a) the 0.0.93
+  SS2 hit sequence (#188 c: red backdrop 48 frames, both held 40, slow motion 30) cut to a short red flash (BIGHIT_RED 8)
+  and the brawler's own hit-stop (BIGHIT_STOP 7 = HITSTOP), no slow motion (BIGHIT_SLOW 0); the victim still held to the
+  slash's throw (BIGHIT_HOLD = 7 + the 21 ticks of slash SS2 plays after its stop). (b) the flash pose's rage palette
+  (#191, bchar_t.fpal) stays on through the fury's motion and the colour set comes back when the fury ends
+  (special_end), as SS2 keeps its rage colours through the WFT; every SS2 fury the same (Genjuro, Kuroko, SS2 Hanzo:
+  his flame's hit is the same big hit, his backdrop $0002). Measured (harness, lab vs Ryo at 80 px): bighit_red 8 frames,
+  attacker freeze 7, victim held 28 then thrown, bighit_slow never counts; flash145_proof (/data/tmp/hanzo193/out/fury195):
+  haohmaru / genjuro / kuroko ok with the new checks fury_palette (rage colours every fury frame) and palette_back (the
+  colour set the frame after). Scenarios 20261007-113032-b3f3 / 20261007-112936-b3f3 (verify: identical states).
+
 - [ ] 191. (DONE ON BRANCH fix/191-ss2-timing-rage 2026-10-07, awaiting Bruno's review) SS2 TIMING + RAGE PALETTE (found by the Kuroko boomerang job and #189): (a) every Samurai Shodown II move
   (Haohmaru, Genjuro, Kuroko: specials, furies, normals?) runs 2 frames LONGER in the brawler than in SS2 (e.g. Kuroko
   6ABC): find the cause (step-length conversion SS2 ticks -> brawler frames, a first / last step off by one like

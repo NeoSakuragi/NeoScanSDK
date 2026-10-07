@@ -708,5 +708,33 @@
   "expect": "While everything is frozen Haohmaru plays his SS2 rage animation with his clothes in SS2's red rage colours (back to normal when the fury starts); the flash's glow stays on his head as he raises the sword and drops into the low stance.",
   "do_keys": "3:d",
   "proof": 200
+ },
+ "20261007-113032-b3f3": {
+  "title": "Haohmaru's fury: a short red flash and a normal hit-stop on its impact",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D and watch the moment the big slash hits Ryo.",
+  "expect": "The screen flashes red for a moment only (8 frames), both freeze for the usual short hit-stop, and the game goes on at full speed (no long freeze, no slow motion); Ryo is thrown when the slash ends.",
+  "do_keys": "3:d",
+  "proof": 200
+ },
+ "20261007-112936-b3f3": {
+  "title": "Haohmaru's fury: SS2's red rage colours through the whole fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D and watch Haohmaru's clothes until the fury ends.",
+  "expect": "His clothes turn SS2's red rage colours with the charge pose and stay red through the whole big fireball / slash motion; they go back to his normal colours when the fury ends.",
+  "do_keys": "3:d",
+  "proof": 220
  }
 }

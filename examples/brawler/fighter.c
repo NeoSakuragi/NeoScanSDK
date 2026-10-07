@@ -367,7 +367,9 @@ void fighter_quake(const fighter_t *by, fighter_t *v) {
 
 /* SS2's big hit (TODO #188 c, Haohmaru's WFT: handlers_ss2 BIGHIT, bspec_t.sflags SF_BIGHIT): on its connect both hold
  * BIGHIT_STOP frames, the stage goes and the backdrop is red for BIGHIT_RED frames (main.c screen_fx), then the whole
- * game plays at half speed for BIGHIT_SLOW frames (main.c game_tick: every other logic tick skipped) */
+ * game plays at half speed for BIGHIT_SLOW frames (main.c game_tick: every other logic tick skipped). TODO #195 (Bruno
+ * 2026-10-07: "the red screen is too much and there shouldn't be so much freeze on impact"): a short flash and the
+ * brawler's own hit-stop, no slow motion; the victim still held to the slash's throw (21 frames of it after the stop) */
 uint8_t bighit_red, bighit_slow;
 uint16_t bighit_col;                                             /* its backdrop: the special's bd_col[0] (SS2 $2B9DE's colour:
                                                                     Hanzo's flame $0002, TODO #193), 0 = Haohmaru's red */
@@ -891,7 +893,9 @@ static void special_end(fighter_t *f) {
     if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's invincibility: hittable again at once */
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
-    if (f->fpose && f->fpose != 0xFF) { f->fpose = 0xFF; fpose_pal(f, 0); }   /* ended in its flash pose: its colours back */
+    if (f->fpose) { f->fpose = 0xFF; fpose_pal(f, 0); }       /* the fury over (or ended in its flash pose): its colours
+                                                                    back (TODO #195: SS2's rage colours stay through the
+                                                                    fury's motion, as SS2's rage lasts through the WFT) */
 }
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
@@ -1618,8 +1622,8 @@ static uint8_t flash_pose(fighter_t *f) {
     }
     k = f->fpose - 1;
     if (k >= gflash.freeze) {                                    /* the freeze is over: the fury from its first frame */
-        f->fpose = 0xFF; f->frame_ovr = 0xFFFF; f->state_t = gflash.start;
-        fpose_pal(f, 0);
+        f->fpose = 0xFF; f->frame_ovr = 0xFFFF; f->state_t = gflash.start;   /* (its colours kept to the fury's end:
+                                                                    special_end, TODO #195) */
         return 0;
     }
     for (i = 0, at = 0; i + 1 < ch->nfpose && k >= at + ch->fpose[i].n; i++) at += ch->fpose[i].n;
