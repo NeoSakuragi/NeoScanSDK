@@ -2,10 +2,13 @@
 """Double Dragon (Technos 1995) fighters in the export96 layout: the brawler's export_bm.py reads them like a KOF96/98/99
 export (layer 0 of docs/brawler_data_model.md, one code path), the way tools/kizuna and tools/whp do.
 
-    python3 export_dd.py OUTDIR [billy billy_super]   -> OUTDIR/kof95_export.json, kof95_c1.bin, kof95_c2.bin
+    python3 export_dd.py OUTDIR [billy billy_super cheng_fu]   -> OUTDIR/kof95_export.json, kof95_c1.bin, kof95_c2.bin
 
 Banks: `doubledr:billy` = Billy Lee (character 0), `doubledr:billy_super` = the transformed Billy (character 1: own
-animations, sprites, commands, damage rows; reached through the form link, docs/brawler_move_vocabulary.md "form").
+animations, sprites, commands, damage rows; reached through the form link, docs/brawler_move_vocabulary.md "form"),
+`doubledr:cheng_fu` = Cheng-Fu (character 10, TODO #212: the same numbering of the normals / reactions / jumps; his
+specials' step handlers 4 / 21 / 22 / 23 read in model_dd, the afterimages as objects, the super 623's catch, the stun
+strike as his throw).
 Everything comes from the ROM (study /data/neogeo_dict/doubledr/README.md, decoder dd.py, the frame model model_dd.py,
 which equals the game frame for frame: compare_dd.py); captures are proofs only, nothing is recorded:
 - frames: the sprite definitions at full size (1:1: DD shows its fighters unscaled at close range), each definition
@@ -36,11 +39,12 @@ import numpy as np
 import dd, model_dd as M, throw_dd as TD
 
 TILE_BASE = 256                                   # = export96.TILE_BASE
-CAST = {'billy': 0, 'billy_super': 1}
+CAST = {'billy': 0, 'billy_super': 1, 'cheng_fu': 10}
 FEET = -4                                         # the anchor's row + 3 is the soles' last row (idle): part dy = yo + FEET
 STATES = {'vs': '/data/neogeo_dict/doubledr/cap/vs.state', 'bb': '/data/neogeo_dict/doubledr/cap/bb.state',
           't': '/data/neogeo_dict/doubledr/cap/p1_01.state'}
-BODY = {0: (18, 34), 1: (16, 32)}                 # colour sets A / B: palette slots (P1 / P2)
+BODY = {0: (18, 34), 1: (16, 32), 10: (24, 40)}   # colour sets A / B: palette slots (P1 / P2; Cheng-Fu: P1 24, P2
+                                                  # 40 in a mirror match, cap/cc.state, the same colours in palram.json)
 FORM_PAL = {0: (16, 32), 1: (18, 34)}             # the transformation's colours (key 'form'); the transformed form's
                                                   # 'form' = Billy's own (its win pose turns them back, WIN)
 PALRAM = '/data/neogeo_dict/doubledr/palram.json'
@@ -215,7 +219,8 @@ MOVES = {'idle': (0,), 'walk_fwd': (1,), 'run': (1,), 'land': (11,),
 # Pieces: (animation, first step, last step, palette key); last 'air': the animation is airborne (Billy's 99: a back
 # flip, 38 px up, 54 px back), played frame by frame from the model (model_dd.play): one step a frame, its height (hy)
 # and travel (dx) as DD moves the object (main.c's win pose applies them)
-WIN = {0: [(99, 0, 'air', 'body'), (42, 0, None, 'body')], 1: [(99, 0, 1, 'body'), (99, 2, None, 'form')]}
+WIN = {0: [(99, 0, 'air', 'body'), (42, 0, None, 'body')], 1: [(99, 0, 1, 'body'), (99, 2, None, 'form')],
+       10: [(99, 0, None, 'body')]}              # Cheng-Fu (TODO #212, wins184.py): 99, the crane kata, his shout $3F
 
 def air_steps(B, ch, a, key='body'):
     """an airborne animation as one step per frame: its definition, the height and the forward travel of DD's own
@@ -265,9 +270,10 @@ def physics(ch):
 
 # ---- specials: the program (bprim_t) from the animation chain -------------------------------------------------------
 P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
-     'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'add': 27, 'form': 28}       # bm_chars.h P_*
+     'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'put': 21, 'hold': 23, 'unhold': 24, 'add': 27,
+     'form': 28}                                    # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4}
-PC = {'end': 0, 'land': 2, 'cnt': 4, 'always': 7}
+PC = {'end': 0, 'land': 2, 'cnt': 4, 'hit': 5, 'always': 7}
 R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK = 1, 2, 3, 4, 5   # fighter.h R_*
 SPECIAL_DAMAGE = 8                                 # export_bm.SPECIAL_DAMAGE (a special's damage, the default row)
 DAMAGE = 0x266AA
@@ -276,9 +282,15 @@ def hdr_v(hdr):
     vx = int.from_bytes(hdr[2:4], 'big', signed=True); vy = int.from_bytes(hdr[4:6], 'big', signed=True)
     return -(vx << 8), vy << 8                     # 16.16, forward +, up +
 
+AIRH = (2, 3, 21)                                  # step handlers of an airborne animation (21: 2 + afterimages)
+
 def mode_of(h, s, prev_attr, first_set):
     """(mode, sets velocity on its first frame) of a step under handler h (model_dd)"""
     a = s['attr']
+    if h == 21: h = 2                               # (2's motion, its afterimages: program's ghost spawns)
+    if h == 22: h = 0                               # (0's motion, its catch: program's CATCH block)
+    if h == 23: return ('stop' if a & 8 else 'const'), False   # ($20E6C: the header velocity every frame)
+    if h == 4: return ('h4' if a & 4 else 'stop'), False       # (the header words as whole px on the step's last frame)
     if h == 0:
         if not a & 4: return 'stop', False
         return ('keep' if a & 8 else 'fric'), not first_set
@@ -291,7 +303,7 @@ def mode_of(h, s, prev_attr, first_set):
     if h in (5, 12): return 'stop', False
     raise NotImplementedError(f'handler {h} in a special')
 
-def chain(ch, a0, stop=(0, 1, 2, 3)):
+def chain(ch, a0, stop=(0, 1, 2, 3, 13)):
     """the animations a special plays: its first, each one's next (end, or a landing for airborne ones)"""
     out, todo = [], [a0]
     while todo:
@@ -299,49 +311,74 @@ def chain(ch, a0, stop=(0, 1, 2, 3)):
         if a in out or a in stop: continue
         out.append(a)
         hdr, st = dd.steps(ch, a); nx = hdr[7]
-        if hdr[0] in (2, 3): todo.append(M.landing_anim(nx))
+        if hdr[0] in AIRH: todo.append(M.landing_anim(nx))
         if nx: todo.append(nx)
     return out
 
+CATCH = {22: 97}                                   # step handler -> the attacker's animation of its catch ($22B08)
+CATCH_DX = 48                                      # px between the two after the catch ($22B66: x = victim x -/+ 48)
+END_ANIMS = (0, 1, 2, 3, 13)                       # a chain ends there (13: the crouch DD leaves at once, model_dd)
+
 def program(ch, a0, objs_of=None):
     """ops of the special starting with animation a0: [(op name, operands...)] with labels; anims (DD numbers, the
-    states), spawns [(object animation, second object?, dx, dy)]"""
+    states), spawns [(object animation, second object?, dx, dy)] or ('ghost', definition, dx, height) (the afterimages of
+    step handlers 21 / 23, TODO #212). A step handler with a catch (22, Cheng-Fu's super 623 landing strike): its steps
+    0-1 test the hit at the frame's start (DD: +$1F bit 6 the next frame) -> the catch block: the victim held CATCH_DX px
+    in front (P_HOLD, P_PUT), the catch's animation chain (97 > 98 > ...: appended to the states), let go at the
+    first airborne animation (98, the uppercut leap)"""
     states = chain(ch, a0)
+    for a in list(states):                          # the catch's chain (its states after the whiff's)
+        h0 = dd.steps(ch, a)[0][0]
+        if h0 in CATCH:
+            for b in chain(ch, CATCH[h0]):
+                if b not in states: states.append(b)
     ops = [('set', 'g', 0), ('set', 'vx', 0), ('set', 'vy', 0)]
     spawns = []
+    caught = set()
+    for a in states:
+        h0 = dd.steps(ch, a)[0][0]
+        if h0 in CATCH: caught |= set(chain(ch, CATCH[h0]))
     switch = set()                                 # anims entered from a land / an end: their switch blocks
     for j, a in enumerate(states):
         hdr, st = dd.steps(ch, a); h = hdr[0]; nx = hdr[7]
         V, W = hdr_v(hdr); s_ = hdr[6] & 15; g = (hdr[6] & 0xF0) << 8
         k = 0 if s_ == 0 else 0x10000 - (0x10000 >> s_)
-        land = ('SW', M.landing_anim(nx)) if h in (2, 3) else None
-        if land and land[1] not in (0, 1, 2, 3): switch.add(land[1])
+        land = ('SW', M.landing_anim(nx)) if h in AIRH else None
+        if land and land[1] not in END_ANIMS: switch.add(land[1])
         elif land: land = 'END'
-        endt = ('SW', nx) if nx and nx not in (0, 1, 2, 3) else 'END'
+        endt = ('SW', nx) if nx and nx not in END_ANIMS else 'END'
         if endt != 'END': switch.add(nx)
         ops.append(('label', ('B', a)))             # an animation started by the previous one's end or a landing
+        if a in caught and h in AIRH: ops.append(('unhold',))   # (the catch's leap: its victim let go)
         ops.append(('anim', j))                     # ($20836) shows its first step in that frame (the switch blocks
         segs = []                                   # below) and counts its ticks from the next: played again here
+        hm = {21: 2, 22: 0}.get(h, h)               # (the motion's handler: 21 = 2's, 22 = 0's, TODO #212)
         set_done = False; prev = None
         for i, s in enumerate(st):
             mode, vset = mode_of(h, s, prev, set_done)
-            if h == 2 and s['attr'] & 4: set_done = False
+            if hm == 2 and s['attr'] & 4: set_done = False
             entry = []
             if vset:                                # (handler 0 writes only the non-zero header words: a 0 keeps
                 set_done = True                     # the velocity it came with, Super Billy's 214 landing slides)
-                entry += [('set', 'vx', V)] if V or h != 0 else []
-                entry += [('set', 'vy', W)] if W or h != 0 else []
+                entry += [('set', 'vx', V)] if V or hm != 0 else []
+                entry += [('set', 'vy', W)] if W or hm != 0 else []
             if h in (5, 12) and s['attr'] & 4:
                 entry.append(('spawn', len(spawns))); spawns.append((hdr[6], h == 12, -int.from_bytes(hdr[2:4], 'big', signed=True), -int.from_bytes(hdr[4:6], 'big', signed=True)))
             if h == 11 and s['attr'] & 0x20: entry.append(('form',))
+            if (h == 21 and not s['attr'] & 4) or (h == 23 and s['attr'] & 4):   # an afterimage on its first frame:
+                entry.append(('spawn', len(spawns))); spawns.append(('ghost', s['def_'], a, i))   # (placed below)
+            if h in CATCH and i < 2: entry.append(('catchwin',))   # (its own segment: the hit test below)
             fr = s['ticks'] + 1
-            if segs and not entry and segs[-1][0] == mode: segs[-1][1] += fr
+            if mode == 'h4' and fr > 1:             # handler 4: still, then the jump on the step's last frame
+                segs.append(['stop', fr - 1, entry]); segs.append(['h4', 1, []])
+            elif segs and not entry and segs[-1][0] == mode and not (h in CATCH and i == 2): segs[-1][1] += fr
             else: segs.append([mode, fr, entry])
             prev = s['attr']
         hold = bool(hdr[1] & 2); loop = bool(hdr[1] & 1)
         assert not loop, (ch, a, 'a looping animation in a special')
         for q, (mode, n, entry) in enumerate(segs):
             last = q == len(segs) - 1
+            win = ('catchwin',) in entry; entry = [e for e in entry if e != ('catchwin',)]
             ops += entry
             if mode == 'stop' and not any(e[0] == 'set' for e in entry): ops += [('set', 'vx', 0), ('set', 'vy', 0)]
             if ('form',) in entry: break
@@ -349,11 +386,15 @@ def program(ch, a0, objs_of=None):
             if last and hold and not until_land: n += 1           # a grounded hold: one more frame, then its next
             if not until_land: ops.append(('set', 'cnt', n - 1 if last else n))
             ops.append(('resume',))
+            if win: ops.append(('br', 'hit', 1, ('C', h)))   # its hit last frame: the catch now
             if not until_land and not last: ops += [('dec',), ('br', 'cnt', 1, ('S', a, q + 1))]
             if mode == 'keep': ops += [('move',)] + ([('fall',)] if W else [])
             elif mode == 'fric':
                 ops += [('mul', 'vx', k)] + ([('mul', 'vy', k)] if W or h in (1, 11) else []) + [('move',)] + ([('fall',)] if W else [])
             elif mode == 'const': ops += [('set', 'vx', V), ('set', 'vy', W), ('move',)] + ([('fall',)] if W else [])
+            elif mode == 'h4':                      # the header words as whole px forward / up, one frame
+                assert not hdr[4:6] or not int.from_bytes(hdr[4:6], 'big', signed=True), (ch, a, 'handler 4 with vy')
+                ops += [('set', 'vx', -int.from_bytes(hdr[2:4], 'big', signed=True) << 16), ('move',)]
             elif mode in ('air', 'airup'):
                 ops += [('add', 'vy', g if mode == 'airup' else -g)] + ([('mul', 'vx', k)] if s_ else []) + [('move',), ('fall',), ('br', 'land', 1, land)]
             if not until_land and last: ops += [('dec',), ('br', 'cnt', 1, endt)]   # its last frame: the next now
@@ -361,6 +402,10 @@ def program(ch, a0, objs_of=None):
             ops.append(('label', ('S', a, q + 1)))
     for a in sorted(switch):                       # the next animation starts this frame, its frames from the next
         ops += [('label', ('SW', a)), ('anim', states.index(a)), ('resume_at', ('B', a)), ('br', 'always', 1, 'yield')]
+    for h0, ca in CATCH.items():                   # the catch ($22B08): held CATCH_DX px in front, its animation now
+        if any(dd.steps(ch, a)[0][0] == h0 for a in states):
+            ops += [('label', ('C', h0)), ('hold',), ('put', CATCH_DX), ('set', 'vx', 0), ('set', 'vy', 0),
+                    ('jmp', ('B', ca))]
     ops.append(('label', 'END')); ops.append(('end',))
     return ops, states, spawns
 
@@ -383,9 +428,11 @@ def encode(o):
     if n == 'anim': return (P['anim'], o[1], 0, 0)
     if n in ('set', 'mul', 'add'): return (P[n], REG[o[1]], 0, o[2])
     if n == 'br': return (P['br'], PC[o[1]] | (0x80 if o[2] else 0), o[3], 0)
+    if n == 'put': return (P['put'], 0, 0, o[1])
     if n in ('jmp', 'resume_at'): return (P[n], 0, o[1], 0)
     if n == 'spawn': return (P['spawn'], o[1], 0, 0)
-    return (P[n], 0, 0, 0)
+    if n == 'fall': return (P['fall'], 1, 0, 0)    # a = 1: DD's floor (TODO #212): landed at a whole px under it ($2065E:
+    return (P[n], 0, 0, 0)                         # y >= 489), as model_dd; a height in (-1, 0] stays airborne at 0
 
 def hit_runs(ch, states):
     """per state: the hits it opens (openings) with the damage row of each ([category, level] of the step)"""
@@ -488,6 +535,17 @@ def projectile(B, spawn, var):
             'death': None, 'life': len(rows), 'travel': 300, 'vx': vx, 'rows': rows, 'end': end, 'react': 'knockdown',
             'child': None, 'hits': {}, 'sig': 0}
 
+GHOST_FRAMES = 15                                  # character 14's animation 86: one step, ticks 14 (model_dd handler 21)
+
+def ghost(B, ch, spawn, height):
+    """an afterimage (step handlers 21 / 23, TODO #212): the fighter's picture of the step that spawned it, left where he
+    stood (the place before that frame's move) for GHOST_FRAMES frames, his colours, no box"""
+    _, d, a, i = spawn
+    fr = B.frame(((d, 0, 0, 'body'),))
+    return {'table': 0, 'state': 86, 'kind': 0, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'loop': None,
+            'death': None, 'life': GHOST_FRAMES, 'travel': 0, 'vx': 0, 'rows': [[fr, 0, height, None, None]] * GHOST_FRAMES,
+            'end': [], 'react': 'knockdown', 'child': None, 'hits': {}, 'sig': 0, 'ghost': [a, i]}
+
 def special(B, ch, inp, anims, knock, default=None, form=False):
     """a command entry (anims: its animation per button; one = a super) as a special with its variant table"""
     nv = len(anims); default = nv - 1 if default is None else default
@@ -532,7 +590,11 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
             for i, s in enumerate(anims_d[k]['steps']):
                 cur = rx.get((a, i), cur)
                 if s['flags'] & 0x100: s['react'] = cur
-        objects += [projectile(B, s, v) for s in sp_]
+        gh = {}                                    # the afterimages' heights: the model's place before the move
+        for r in M.play(ch, anims[v], limit=400):
+            for e in r['ev']:
+                if e[0] == 'ghost': gh.setdefault((r['anim'], r['step']), int(round(e[3])))
+        objects += [ghost(B, ch, s, gh.get((s[2], s[3]), 0)) if s[0] == 'ghost' else projectile(B, s, v) for s in sp_]
     nstate = len(progs[0][1]); nobj = len(progs[0][2])
     # the dmg / reaction operand of P_ANIM (rows without a table: SPECIAL_DAMAGE split over its hits)
     each = max(1, SPECIAL_DAMAGE // max(1, nh[default]))
@@ -551,7 +613,8 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
         if (r['anim'], r['step']) != prev and openings(ch, r['anim'])[r['step']]: opens.append(i)
         prev = (r['anim'], r['step'])
     apex = max(range(len(rec)), key=lambda i: rec[i]['y'])
-    pj = [dict(objects[default * nobj], spawn_row=next((i for i, r in enumerate(rec) if any(e[0] == 'spawn' for e in r['ev'])), 0))] if nobj else []
+    pj = [dict(objects[default * nobj], spawn_row=next((i for i, r in enumerate(rec) if any(e[0] == 'spawn' for e in r['ev'])), 0))] \
+        if nobj and not objects[default * nobj].get('ghost') else []   # (afterimages: the program's only)
     rom = {'states': states, 'anims': anims_d, 'prims': [list(p) for p in prims], 'objects': objects, 'openings': {},
            'hit_kind': 1, 'last_hit': opens[-1] if opens else -1, 'apex': apex if rec[apex]['y'] > 0 else -1,
            'length': len(rec), 'voice_frames': True,
@@ -568,7 +631,15 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
 SPECIALS = {0: {'623': ([87, 88, 89, 90], True), '236': ([83, 84, 85, 86], True), '214': ([91, 92, 93, 94], False),
                 'SUPER 236': ([82], True), 'FORM': ([81], True)},
             1: {'623': ([91, 92, 93, 94], True), '41236': ([87, 88, 89, 90], True), '236': ([83, 84, 85, 86], True),
-                '214': ([95, 96, 97, 98], True)}}
+                '214': ([95, 96, 97, 98], True)},
+            # Cheng-Fu (TODO #212, commands_dd 10; the specials capture's victim: 623 / 214 knock down (67), the 236's
+            # 3-6 hits end in the hop 69, the super 623 (95: the leap, 96 the landing strike that catches: 97 the rush
+            # on the held victim, 98 the uppercut leap) ends in 67, the super 236 (111, the rush with afterimages: 7
+            # hits) leaves him reeling (55). Not exported: 421 (126-129, step handler 34): a COUNTER stance (an attack
+            # meeting his front body record is caught: the throw 130 with the victim's 113-115), the brawler has no
+            # counter / guard mechanism; 8 / 2 + button (124): DD's down attack on a lying opponent.
+            10: {'623': ([83, 84, 85, 86], True), '236': ([87, 88, 89, 90], True), '214': ([91, 92, 93, 94], True),
+                 'SUPER 236': ([111], False), 'SUPER 623': ([95], True)}}
 
 def export(names, outdir, only=None, extra=None):
     pr = palram()
@@ -607,10 +678,15 @@ def export(names, outdir, only=None, extra=None):
         sps = [special(B, ch, inp, an, kn, form=inp == 'FORM') for inp, (an, kn) in SPECIALS[ch].items()]
         throws = {}                                      # DD's C throw forward / back (throw_dd.py, TODO #194)
         for t in TD.THROWS:                              # (whatever `only` asks: export_bm reads them from 'throws')
-            th = TD.brawler_throw(B, ch, t, lambda w: B.frame(((w, 0, 0, 'body', 1),)))
+            if TD.is_stun(ch):                           # Cheng-Fu: the stun strike, no back throw (TODO #212)
+                if t != 'throw_c': continue
+                th = TD.brawler_stun(B, ch)
+            else: th = TD.brawler_throw(B, ch, t, lambda w: B.frame(((w, 0, 0, 'body', 1),)))
             anims[t] = th.pop('anim'); th['victims'] = {name: th.pop('victim_rows')}
             if th['grab_frame'] is None: th.pop('grab_frame')
             throws[t] = th
+        if TD.is_stun(ch):                               # his frames of the postures of Billy's throws (export_bm.poses)
+            throws['victim_poses'] = {'victims': {name: TD.victim_pose_rows(B, ch)}, 'pseudo': True}
         def colours(key, s):
             slot = BODY[ch][s] if key == 'body' else FORM_PAL[ch][s] if key == 'form' else key
             return [0] + pr[16 * slot + 1:16 * slot + 16]

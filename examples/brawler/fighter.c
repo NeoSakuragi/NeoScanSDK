@@ -190,7 +190,7 @@ void fighter_pose_tick(fighter_t *f) { anim_tick(f); }                 /* stage 
 /* ---- helpers --------------------------------------------------------------------------------------------------- */
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
 static void enter(fighter_t *f, uint8_t st) {
-    f->state = st; f->state_t = 0;
+    f->state = st; f->state_t = 0; f->dizzy = 0;                 /* (a stun strike's dizziness: a new state ends it) */
     if (st != S_KNOCKDOWN && st != S_HITSTUN) { f->kmode = f->kdelay = 0; f->kvfr = 0; }   /* KOF's reaction (kof_react) ends */
 }
 static void clamp(fighter_t *f) {
@@ -611,6 +611,13 @@ static void release(fighter_t *a) {                              /* both free wh
     if (v) { v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; to_neutral(v, 0); }
 }
 static void victim_end(fighter_t *v) {                           /* its script over: it lies where it landed */
+    const bthrow_t *th = v->thr;
+    if (th && th->stun && v->throw_id < BT_COUNT) {              /* a stun strike (bthrow_t.stun, TODO #212: Double */
+        v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; v->vx = 0; v->y = 0; clamp(v);   /* Dragon's */
+        enter(v, S_HITSTUN); play(v, BA_HIT_STAND_HEAVY);        /* Cheng-Fu, $23B74: no damage, the victim stands */
+        v->dizzy = th->stun;                                     /* dizzy, its +$FE frames, open to any hit; a hit ends */
+        return;                                                  /* it: enter) */
+    }
     if (v->throw_id < BT_COUNT) v->hp -= THROW_DAMAGE - v->throw_dealt;
     v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; v->vx = 0; v->y = 0; clamp(v);
     enter(v, S_DOWN); play(v, BA_DOWN);
@@ -1898,7 +1905,7 @@ static void update(fighter_t *f, const intent_t *in) {
         else { f->x += f->vx; f->vx = f->kvfr ? fmul16(f->vx, f->kvfr) : f->vx - (f->vx >> 3); clamp(f); }
         if (dancing(f)) break;                                   /* a fury's victim: in its reel until the fury ends */
         if (f->hp <= 0) { react(f, f->facing > 0 ? -1 : 1, R_KNOCKDOWN, 0); break; }   /* its dance over, no life: it falls */
-        if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends */
+        if (f->state_t >= (f->dizzy ? f->dizzy : f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends (a stun strike's dizziness: f->dizzy) */
         break;
     case S_KNOCKDOWN:
         if (f->kmode && f->kdelay) { f->kdelay--; break; }       /* KOF's shake after the hit-stop: in place */

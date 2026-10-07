@@ -1459,9 +1459,39 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   could add."): #193 left it out (no special could start in the air); #200 added air_special (a special from a jump):
   decode SS2's air fire handler and play it from a jump.
 
-- [ ] 212. NEW FIGHTER: CHENG FU from Double Dragon (Bruno, 2026-10-07), the way Billy Lee came in (tools/doubledr):
+- [ ] 212. (DONE ON BRANCH fix/212-cheng-fu 2026-10-07 on 0.2.9, every proof below re-run after the merge, awaiting Bruno's review) NEW FIGHTER: CHENG FU from Double
+  Dragon (Bruno, 2026-10-07), the way Billy Lee came in (tools/doubledr):
   every normal / special / throw / fury decoded from the ROM, his select pose, win pose, voices. Same job: REMOVE
   KUROKO from the roster "for now" (Bruno) — out of game.json's roster and the select screen; keep his data / exporter.
+  Done: roster cheng_fu (display CHENG FU, bank doubledr:cheng_fu = DD character 10, full size), select slot 7 = Kuroko's
+  place (249, 183; pose 99.7, his kata stance: Bruno arranges in the Lab). Kuroko: out of roster / select, his entry
+  kept in game.json roster_benched (data, exporter, voices.json list, scenarios kept; his 3 todo176 scenarios noted
+  "benched"). Read in the 68000 code for him: step handlers 4 (a one-frame jump of the header's px), 21 / 23 (handler
+  2 / constant motion + an AFTERIMAGE: object 14 anim 86 = the fighter's own picture left 15 frames; brawler: effect
+  objects), 22 (the super 623's landing strike CATCHES on its hit: victim held 48 px in front, the 97 flurry, 98 the
+  leap; brawler P_HOLD / P_PUT / P_UNHOLD), 34 (the 421 counter, not exported); the crouch 13 after a special (DD stands
+  up at once). model_dd = DD frame for frame on all 18 of his entries x buttons (compare_dd.py 10 --far: P2 poked away,
+  0 mismatches). C = 214 flying kick, forward+C = 236 palm rush (3-6 hits by row), down+C = 623 (variant tables A-D,
+  the D row played); D = SUPER 236 (7 hits, afterimages), down+D = SUPER 623 (the bigger one: roster[].max, new field:
+  a source without KOF's MAX names its down+D fury; 9 hits, the catch). Throw = DD's STUN STRIKE (table $23C2A row 10,
+  victim anim 121, $23B74): no damage, the victim staggers back then stands dizzy DD's 128 frames, open to any hit:
+  bthrow_t.stun / fighter_t.dizzy (fighter.c victim_end); no back throw in DD (back+A = the same). Flash pose 99.0-5
+  (his crane kata), win pose 99 (his shout $3F), voices "kof" = DD's own (12: $39-$44 + the $D5 effect), HUD face from
+  DD's select grid. One engine-wide DD fix: P_FALL with DD's floor (a = 1: landed a whole px under it, as model_dd):
+  progcheck_dd now frame-exact for Billy too (was "landings a frame early"). Not exported (named): 421 (126-129) a
+  COUNTER stance (an attack meeting his front body record is caught into the throw 130 + victim 113-115: the brawler
+  has no counter / guard mechanism), 8 / 2 + button (124: DD's down attack on a lying opponent). Proofs
+  /data/tmp/cheng212 (tools/doubledr/cheng_proof.py): frames 320 / 320 identical to DD's drawing (both facings),
+  progcheck_dd every row = the model (one picture a frame early at the super 623's landing), real fight per move vs DD
+  (fight_*.png, DD above): hits 214 1/1, 623 1/1, 236D 5 vs 6 (DD's victim stays nearer: the brawler's reel slide puts
+  it out of the last kick), SUPER 236 7/7, SUPER 623 9/9 (DD's red dragon pauses not modelled), whiffs 0/0; variant rows
+  = the model (214 B-D stopped by the screen edge: 253-361 px); stun: 88 rows, dizzy 128 frames, 0 damage, A lands;
+  controls 24 ok (controls_proof reads roster[].max), cancel all ok 24, fury_inv (AI_OFF) ALL OK, select 41 screens 0 px
+  (stick 302 agree, walk 164 / 164), bank_proof ALL OK (on 0.2.9 merged: cheng_fu in bank 1, 380,739 bytes free at least; banks 0 / 2
+  355,113 / 408,086), voice_proof cheng_fu: 623 / 236 / 214 / SUPER 623 = DD's, SUPER 236 = DD's +28 frames (the flash
+  pose), regress no-bleed True (frame-exact), campaign29 through (23-fighter line-up), win184 (pose 12 steps, shout at
+  step 8). Scenarios todo212-cheng-specials / -furies / -throw (lint 0; gen at publish). Makefile: the HUD (make_hud)
+  now rebuilds when the roster changes (it kept Kuroko's face).
 
 - [ ] 213. NEW FIGHTER: ROSA from Kizuna Encounter (Bruno, 2026-10-07; extracted in #77: /data/neogeo_dict/kizuna/rosa),
   the way Kim came in (tools/kizuna): moves from Kizuna's handlers, effects, voices, select / win pose. After the Kim

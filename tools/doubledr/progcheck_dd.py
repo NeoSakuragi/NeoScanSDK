@@ -43,17 +43,18 @@ def run(sp, var, limit=400):
             elif name == 'move': st['x'] += st['vx']
             elif name == 'fall':
                 v0 = st['vy']; st['vy'] -= st['g']; st['y'] += v0; st['land'] = False
-                if st['y'] <= 0: st['y'] = 0; st['land'] = True
+                if st['y'] <= 0 and a and st['y'] > -65536: st['y'] = 0   # (fighter.c P_FALL a 1: DD's floor)
+                elif st['y'] <= 0: st['y'] = 0; st['land'] = True
             elif name == 'dec': st['cnt'] -= 1
             elif name == 'br':
-                c = a & 0x7F; val = {0: st['end'], 2: st['land'], 4: st['cnt'] < 0, 7: True}[c]
+                c = a & 0x7F; val = {0: st['end'], 2: st['land'], 4: st['cnt'] < 0, 5: False, 7: True}[c]   # (5 a hit: a whiff here)
                 if val == bool(a >> 7):
                     if b < 0: break
                     pc = b
             elif name == 'resume': st['pres'] = pc
             elif name == 'jmp': pc = b
             elif name == 'resume_at': st['pres'] = b
-            elif name in ('spawn',): pass
+            elif name in ('spawn', 'put', 'hold', 'unhold'): pass   # (the afterimages, the catch: Cheng-Fu, TODO #212)
             elif name in ('end', 'form'): over = True; break
             else: raise ValueError(name)
         if over: break
@@ -86,7 +87,8 @@ def main(exdir):
                 key = f'{name} {sp["input"]} {"ABCD"[v] if vt["nvar"] else "-"}'
                 res[key] = dict(frames_prog=len(got), frames_model=len(ref) - 1, max_dx=round(dx, 2), max_dy=round(dy, 2), def_mismatch=bad)
                 print(key, res[key], flush=True)
-    json.dump(res, open('/data/neogeo_dict/doubledr/progcheck.json', 'w'), indent=1)
+    tag = '' if set(ex['characters']) <= {'billy', 'billy_super'} else '_' + '_'.join(ex['characters'])
+    json.dump(res, open(f'/data/neogeo_dict/doubledr/progcheck{tag}.json', 'w'), indent=1)
 
 if __name__ == '__main__':
     main(sys.argv[1] if len(sys.argv) > 1 else '/data/tmp/billy/ex')
