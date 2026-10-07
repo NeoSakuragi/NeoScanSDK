@@ -170,7 +170,8 @@ Model: a part starts at the first animation after any link test found its link a
 `follow_parts` runs every set of links pressed throughout (Kyo's second link exists only in the part the first starts)
 and drops a run that plays what the no-press run plays (K' 623A: the check runs, the A version has no follow-up).
 No follow-up input in Kyo EX 236A / 623C / 421B / 214A / EX 421D, Iori 236A / 624D / 623C / 624B, K' 214D / 236B / 236D
-/ 623A or the three furies (Kyo's 21426C reads the held button: holding A / C delays the release, not a follow-up).
+/ 623A or the three furies (Kyo's 21426C reads the held button: holding A / C delays the release, not a follow-up:
+TODO #198, "Kyo's Orochinagi: the hold" below).
 Brute force results: /data/tmp/fu140/out/brute_<fighter>.json (summary `summ.py`: the divergences whose states are not
 the move's own; the rest were the press overlapping the special's own input, normals after its end, or the hit / block
 branches' run-to-run jitter, which a rerun does not reproduce).
@@ -324,6 +325,24 @@ rays 11-26, each +2 frames of the object's life). Per move only an **optional an
 (`super_flash` on its states), `export_bm` writes only its dx / dy into `bspec_t.sf_dx / sf_dy / sf_anchor`; a move
 without one (SS4, Kizuna, WHP, future fighters) plays at game.json's anchor. The export adds the MAX moves once:
 `MAX <fury>` (`export_rom` with the 'MAX ' prefix: `decode(sdm=True)`) for every ROM fury with a MAX path, `bchar_t.fury_max`.
+
+## Kyo's Orochinagi: the hold, the MAX's burning body (TODO #198, 2026-10-07)
+
+Handler $3D4EA (21426A / C; the MAX version = the same code with +$E4 bit 0, `decode(sdm=True)`):
+
+| what | ROM | decoded as | brawler |
+|---|---|---|---|
+| the hold | +$CA = 90 at the start ($3D586; a CPU player, +$170 bit 7: a random 0-63, $3D676); after the start animation (185, MAX 194) the hold state (187, MAX 195) starts and from its first frame `move.b +$1A4, d0; andi #$50, d0; and.b (fp), d0; beq release` then `subq #1, +$CA; bpl yield`: held, it stays up to 90 frames; released, the release (188, MAX 196) starts that frame | `set cnt 90`, `br held False -> release`, `dec`, `br cnt False yield`: every `and.b (fp)` past a move's first frame is the run-time test `held` (it was read as released: a tap). Measured in our emulator: the pad reaches the handler's (fp) 2 frames later (`romspecials98.compare(hold=)`) | PC_HELD (D held: a fury's button), P_SET / P_DEC cnt, PC_CNT |
+| the burning body (MAX) | state 195 (frames 481-488) has attack box $23 live on every other step (flags $1F21 / $1E21, no $4000: a new hit each time); damage table +$EF = 55 while held, 56 from the release ($3D6CA) | the hold's states are counted with the button held throughout (`openings(held=300)`: 195 opens 16 hits) | `bstep_t` attack box: an enemy that walks in burns (KOF98: 11 life of 103, P2 launched, state 286); the brawler's rule: SPECIAL_DAMAGE split over the openings -> 1 a hit |
+| the flames | object 2 ($3D83E, state 193, frames 469-480) in Kyo's effect palette 33 ($B81); +$34 (1, MAX 3) = how many flames chain (`spawndeep`) | - | (colours: TODO #198 c, the ground flame of EX 236A, palette 37: export_bm `pal_slots`) |
+
+KOF96 (Bruno's note cites "Kyo 96"): Orochinagi $298CA is the same code (+$CA = 90, the hold test, start 188, hold 190,
+release 191), decoded the same way now; neither 190 nor its hand flame (object state 286) has an attack box: the
+burning body is KOF98's MAX only (state 195; KOF96 has no MAX version).
+
+KOF98 vs model (`romspecials98.compare(0, '21426C', ..., dm=True, hold=H)`), whiff and close, DM and MAX, H = 30 / 60 /
+89 / 200: 0 frame mismatches (x mismatches only where the hold changes nothing: the whiff's screen edge, the close
+push, as with H = 0); the hold caps at 90 frames of 187 (DM whiff: 125 / 154 / 184 frames at H = 60 / 89 / 200).
 
 ## Rugal: the wall slams, the charge, the step effects (TODO #173, 2026-10-06)
 

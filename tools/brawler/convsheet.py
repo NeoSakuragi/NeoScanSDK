@@ -425,7 +425,6 @@ OFF_BUILD = [
  ('kizuna:projectiles', 77, ['decode.kizuna'], 'drawn, no end rows'),
  ('kof99:k_dash 214D / 236B / 236D / 623A / 23624C follow-ups', 140, ['decode.kof_trace'], 'decoded only, wait for Bruno\'s recorded paths'),
  ('kof98:kyo 236C 6A after hit-stop', 140, [], 'ruleset: follow-up input timing (KOF misses presses right after hit-stop)'),
- ('kof98:kyo 21426C held C', 140, ['input.sustain'], 'holding C delays the release'),
  ('all furies: super flash', 139, [], 'presentation: KOF\'s super flash dropped as bookkeeping (fx.super_flash not in the vocabulary)'),
 ]
 

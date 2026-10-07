@@ -789,5 +789,33 @@
   "expect": "Hanzo (SS2's masked ninja, his blade glinting) slams the floor and a flame arc runs along the ground in 80 px hops (a burst where it lands each time) and knocks the first Ryo down in fire. D: the screen flashes while he stands in SS2's rage pose in flames and red colours; then he crouches, a fire line runs forward along the floor and bursts into a flame column that hits the second Ryo with a short dark flash and a normal hit-stop and throws him away; Hanzo stays red until the fury ends.",
   "do_keys": "4:c,100:-,3:d",
   "proof": 220
+ },
+ "20261007-114101-b3f3": {
+  "title": "Kyo's Orochinagi: hold D to keep the charge; the MAX version burns while held",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 50,
+   "meter": "full"
+  },
+  "do": "With a full meter and Ryo standing right in front of Kyo, press down+D and keep D held for about one second, then let go.",
+  "expect": "Kyo stays in his burning charge pose as long as D is held (up to about one and a half seconds) and throws the flame only when you let go. In this MAX version (down+D) his body is on fire while he charges and burns Ryo: Ryo is hit and knocked down during the charge, before the flame comes out. D alone (no down) also waits for the release, without burning.",
+  "do_keys": "4:Dd,60:d",
+  "proof": 150
+ },
+ "20261007-114149-b3f3": {
+  "title": "Kyo's ground flame (C, EX 236A) in KOF98's orange",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 200,
+   "meter": "full"
+  },
+  "do": "Press C with no direction and watch the flame that bursts from the ground in front of Kyo.",
+  "expect": "The ground flame is orange and yellow fire as in KOF98, no longer pale white and grey.",
+  "do_keys": "4:c",
+  "proof": 90
  }
 }
