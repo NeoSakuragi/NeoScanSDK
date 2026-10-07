@@ -1373,6 +1373,25 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   protect (EX 421D on 0.1.9 got hit at frames 2-9). Use each played frame's own hurt box (fighter.c); prove on Kyo 421D,
   Terry, Iori invincible starts vs KOF98; campaign29.
 
+- [ ] 206. KYO'S FURY BURNS (20261007-114307-b3f3: "The opponent should be on fire whenever hit by the Fury of Kyo.";
+  114326: "The impact sound should be the fire sound impact. Look at the code"): KOF98's fury hit kind (burn) + KOF96's
+  fire-hit sound (#197's code $2E) on Kyo's fury and MAX hits; check his other flame moves the same way.
+
+- [ ] 207. KYO'S TRIPLE KICK ON FORWARD+C (20261007-114458-b3f3: "Kyo has this triple kick, I would like you to map it to
+  forward plus C"): remap in game.json (find which special is the triple kick, what forward+C held before, move it).
+
+- [ ] 208. FURY WHILE GRABBING (20261007-124603-b3f3: "I can't trigger a fury while grabbing the opponent, using the D
+  button. Make it standard that you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a
+  hold (paired state) releases the hold and starts the fury, every fighter (fighter.c).
+
+- [ ] 209. CREDITS -> PRESS START (20261007-140259-5d29: "There are coins inserted, but we are still on the insert coin
+  screen, and also in-game there is the insert coin message even though there is more than zero credit ... switch to
+  press start, like other Neo Geo games"): title / attract and the in-game join prompt show PRESS START when credits > 0.
+
+- [ ] 210. SELECT: DARK REAL COLOURS (20261007-140341-5d29: "instead of having washed out colors, they should have their real
+  colors, but just much darker. Like Kim in Kizuna when he's in the background waiting to be tagged"): measure Kizuna's
+  waiting-partner palette transform (our emulator), use it for unselected fighters (main.c col_grey + selectrender.js).
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
