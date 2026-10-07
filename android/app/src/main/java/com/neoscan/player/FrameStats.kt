@@ -28,7 +28,9 @@ object FrameStats : Choreographer.FrameCallback {
     private var t0 = 0L; private var p0 = 0L; private var u0 = 0
     private val iv = ArrayList<Long>()
 
+    private var started = false
     fun start(dir: File) {
+        if (started) return; started = true                      // once per process (a second MainActivity: TODO #183)
         log = File(dir, "frames.log").also { it.writeText("time,emu_fps,vsyncs,hz,hold1,hold2,hold3,hold4p,skipped,underruns,audio_ms,vsync_ms_min,vsync_ms_max\n") }
         Choreographer.getInstance().postFrameCallback(this)
     }

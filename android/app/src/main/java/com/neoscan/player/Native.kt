@@ -2,11 +2,14 @@ package com.neoscan.player
 
 import java.nio.ByteBuffer
 
-/** The Geolith core + JNI front end (src/main/cpp/player.c). One thread drives it: [EmuThread]. */
+/** The Geolith core + JNI front end (src/main/cpp/player.c). One thread drives it: [EmuThread] (one per process). */
 object Native {
     init { System.loadLibrary("neoplayer") }
-    /** BIOS dir, save dir, .neo path -> audio sample rate (0 = failed) */
+    /** BIOS dir, save dir, .neo path -> audio sample rate (0 = failed, or refused: the core is live on another
+     *  thread, TODO #183); the calling thread owns the core until [unload] */
     @JvmStatic external fun load(systemDir: String, saveDir: String, rom: String): Int
+    /** the core's owner thread lets it go (saves written, retro_unload_game + retro_deinit); a no-op elsewhere */
+    @JvmStatic external fun unload()
     /** one frame: picture into [video] (XRGB8888, rows of [width]), audio frames into [audio]; returns audio frames */
     @JvmStatic external fun runFrame(video: ByteBuffer, audio: ShortArray): Int
     @JvmStatic external fun width(): Int

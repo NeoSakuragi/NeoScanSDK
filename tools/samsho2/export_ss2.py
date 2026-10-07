@@ -253,6 +253,8 @@ def export(names, outdir, only=None, extra=None):
             st = ss2.parse_anim(ch, w[0], 400); k = w[1] if w[1] >= 0 else len(st) - 1
             anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': anim_steps(B, ch, w[0], k, k)}
         if only is not None: anims = {k: v for k, v in anims.items() if k in only or k == 'watch'}
+        for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, ch, a, f, l)}
         sps = H.specials(B, ch, name)
         throws = H.throws(B, ch, name)
         for t, th in throws.items(): anims[t] = th.pop('anim')

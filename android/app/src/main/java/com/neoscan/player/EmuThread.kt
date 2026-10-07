@@ -14,9 +14,14 @@ import java.nio.ByteOrder
  *  rate follows the emulation speed (rate * frames per second / the core's own fps), nudged by the buffer fill so the
  *  queue stays near [TARGET_MS]: a ~1% pitch change at 60 Hz, inaudible. The picture is swapped into [front] for the
  *  GL thread. */
-class EmuThread(private val sysDir: String, private val saveDir: String, private val rom: String,
+class EmuThread private constructor(private val sysDir: String, private val saveDir: String, private val rom: String,
                 private val hints: android.os.PerformanceHintManager?, val hw: String,
-                private val onFrame: () -> Unit, private val onError: (String) -> Unit) : Thread("emu") {
+                @Volatile var onFrame: () -> Unit, @Volatile var onError: (String) -> Unit,
+                private var prev: EmuThread?) : Thread("emu") {
+    /** the activity driving this thread now (TODO #183): the last one that claimed it ([claim]); only it pauses /
+     *  stops it */
+    @Volatile private var owner: java.lang.ref.WeakReference<Any>? = null
+    fun ownedBy(a: Any) = owner?.get() === a
     @Volatile var running = true
     @Volatile var paused = false                                    // app in the background / settings open
     private var back: ByteBuffer = ByteBuffer.allocateDirect(512 * 512 * 4).order(ByteOrder.nativeOrder())
@@ -35,6 +40,14 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
     @Volatile var feedbackReq: Pair<java.io.File, (LongArray?, IntArray, Int, Int) -> Unit>? = null
 
     override fun run() {
+        // a stopping predecessor (another ROM / system, or its activity gone): the core is free once it has returned
+        prev?.let { p -> p.running = false; Log.i(TAG, "EmuThread ${hashCode()} waits for ${p.hashCode()} to stop"); p.join() }
+        prev = null
+        Log.i(TAG, "EmuThread ${hashCode()} starting (tid ${android.os.Process.myTid()})")
+        try { loop() } finally { Native.unload(); Log.i(TAG, "EmuThread ${hashCode()} stopped") }
+    }
+
+    private fun loop() {
         Native.setSystem(hw, aesBios(java.io.File(sysDir, "neogeo.zip")))
         val rate = Native.load(sysDir, saveDir, rom)
         if (rate <= 0) { onError("Could not load $rom"); return }
@@ -115,6 +128,27 @@ class EmuThread(private val sysDir: String, private val saveDir: String, private
     }
     companion object {
         const val TARGET_MS = 60
+        private const val TAG = "NeoScanPlayer"
+        private var live: EmuThread? = null
+        /** TODO #183: ONE emulation thread per process. Right after a reinstall MainActivity can start twice in one
+         *  process; each started its own EmuThread and two threads ran the core at once (a crash in the 68k core). Now
+         *  every activity claims the process's thread: a live one for the same game + system is handed over (its
+         *  picture goes to the claiming activity's view); otherwise (none, stopping, or another ROM / system) a new one
+         *  starts, which first waits for the old one to stop and release the core (Native.unload; player.c refuses a
+         *  second load while one is live). UI thread. */
+        @Synchronized fun claim(owner: Any, sysDir: String, saveDir: String, rom: String, hints: android.os.PerformanceHintManager?,
+                                hw: String, onFrame: () -> Unit, onError: (String) -> Unit): EmuThread {
+            val cur = live
+            val t = if (cur != null && cur.isAlive && cur.running && cur.sysDir == sysDir && cur.saveDir == saveDir && cur.rom == rom && cur.hw == hw) {
+                cur.onFrame = onFrame; cur.onError = onError
+                if (!cur.ownedBy(owner)) Log.i(TAG, "EmuThread ${cur.hashCode()} handed over to ${owner.javaClass.simpleName} ${owner.hashCode()}")
+                cur
+            } else EmuThread(sysDir, saveDir, rom, hints, hw, onFrame, onError, cur?.takeIf { it.isAlive }).also { cur?.running = false; live = it; it.start() }
+            t.owner = java.lang.ref.WeakReference(owner)
+            return t
+        }
+        /** the activity is going away: its thread stops, unless another activity has claimed it since */
+        @Synchronized fun release(owner: Any) { live?.let { if (it.ownedBy(owner)) { it.running = false; it.owner = null } } }
         /** the BIOS set has SNK's AES BIOS (neo-epo.bin) */
         fun aesBios(zip: java.io.File) = try { java.util.zip.ZipFile(zip).use { it.getEntry("neo-epo.bin") != null } } catch (e: Exception) { false }
     }
