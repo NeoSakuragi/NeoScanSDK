@@ -65,6 +65,8 @@ def main():
     fc = json.load(open(FK.OUT))
     ex = json.load(open(os.path.join(GAME, 'build', 'tmp_kizuna_kim', 'kof95_export.json')))['characters']['kim']
     carry = {sp['input']: sp for sp in ex['specials']}
+    import kim133_proof                                  # (TODO #133-#138: the moves played by their programs: the
+    pf = kim133_proof.prog_frames(ex)                    # part = the Kizuna animation its frame shows)
     b = Brawler()
     import re
     hdr = open(os.path.join(GAME, 'build', 'bm_chars.h')).read()
@@ -91,13 +93,26 @@ def main():
                 st = b.states[b.fget(0, 'state')]
                 if st == 'SPECIAL':
                     started = True
-                    part, row = b.fget(0, 'spart'), b.fget(0, 'srow') - 1
-                    if not parts or parts[-1] != part: parts.append(part)
-                    for j, (fp, fk, needhit) in enumerate(follow):
+                    if move in pf:                       # a program: its part from the animation shown
+                        inv = {v: a for (a, s_), v in pf[move][0].items()}
+                        an = inv.get(b.fget(0, 'frame_ovr'))
+                        if an not in sum(KZ_PARTS[move], ()): an = None
+                        part = next((i for i, pa in enumerate(KZ_PARTS[move]) if an in pa and (an != 0x9E or not parts)), parts[-1] if parts else 0)
+                        row = b.fget(0, 'srow') - 1
+                        if not parts or parts[-1] != part: parts.append(part); pstart = row
+                        for j, (fp, fk, needhit) in enumerate(follow):   # pressed in the part's last animation (its
+                            if j not in pressed and part == fp and an == KZ_PARTS[move][fp][-1] \
+                               and (not needhit or len(b.hits) > h0) and (move != '[2]8C' or b.fget(0, 'y') > 60):   # window), after a hit when it needs one
+                                pressed.add(j); p = fk.replace('R', R); t = 4
+                        cv = None
+                    else:
+                        part, row = b.fget(0, 'spart'), b.fget(0, 'srow') - 1
+                        if not parts or parts[-1] != part: parts.append(part)
+                    for j, (fp, fk, needhit) in enumerate(follow if move not in pf else ()):
                         lk = next(l for l in sp['links'] if l['from'] == fp)
                         if j not in pressed and part == fp and lk['window'][0] + (0 if needhit else 2) <= row < lk['window'][1] - 2 and (not needhit or b.fget(0, 'shrow') > lk['window'][0]):   # after a hit inside the window (Kizuna: the window opens on it)
                             pressed.add(j); p = fk.replace('R', R); t = 4   # held 4 frames
-                    cv = sp['carry_src'][row] if 0 <= row < len(sp['carry_src']) else None
+                    if move not in pf: cv = sp['carry_src'][row] if 0 <= row < len(sp['carry_src']) else None
                     if cv and b.fget(0, 'landed') and b.states[b.fget(dm, 'state')] in ('KNOCKDOWN', 'HITSTUN') and 24 < int(b.fget(dm, 'x')) < 296:   # not held by the lab's screen edges
                         vdev.append(abs((b.fget(dm, 'x') - b.fget(0, 'x')) * facing - cv[0]) + abs(b.fget(dm, 'y') - cv[1]))
                     log.append((f, part, row, int(b.fget(0, 'x')), int(b.fget(0, 'y')), b.states[b.fget(dm, 'state')], int(b.fget(dm, 'x')), int(b.fget(dm, 'y'))))

@@ -27,6 +27,8 @@ his fury): **95 played from the ROM** (KOF98 / 96 / 99 programs, `bspec_t.prog`)
 per-frame script). By source: KOF98 76, KOF96 28, KOF99 7, Kizuna 6, WHP 7, SS4 5. Every SS4, WHP and Kizuna move is
 recorded; so are 16 KOF moves. (2026-10-06, TODO #173: Rugal's last four recorded moves, 624A God Press, 6426A / 6426C
 Kaiser Wave and the fury 23624C Gigantic Pressure, + its MAX, are read from KOF98's handlers now: 12 KOF moves recorded.)
+(2026-10-07, TODO #133-#138: Kim's 214B, 236A, 236C and [2]8C are programs read from Kizuna's handlers and step commands
+(export_kz KzProg); his 421A and 6246A stay recorded: their victims follow Kizuna's reaction code.)
 
 ## 1. The standard features
 
