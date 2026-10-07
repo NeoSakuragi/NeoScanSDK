@@ -205,6 +205,7 @@ typedef struct fighter {
     uint8_t  spec_dmg, spec_react; /* special: damage and victim reaction (R_*) of the hit window open (bspec_row_t) */
     uint8_t  spec_fx;             /* special: KOF98 hit effect of the hit window open (bspec_row_t.fx: kind | burn << 6) */
     uint8_t  burn;                /* burnt by a fire hit: 1 purple, 2 orange (its palettes show KOF98's burn ramp) */
+    uint8_t  burn_t;              /* the burn cycle's step its palettes show (fighter.c burn_show) */
     int8_t   throw_face;          /* throw: the thrower's facing at the grab (the script's offsets are in it) */
     uint8_t  jump_kind;           /* the jump in progress: 0 regular (C held), 1 hop (C tapped) */
     uint8_t  jump_dir;            /* its direction: 0 vertical, 1 forward, 2 back (facing kept) */

@@ -527,7 +527,8 @@ def char_sfx(n):
 
 # the burn's colour: the attacker's flames (KOF98 VRAM during Kyo's and Iori's Oniyaki hits: the victim's sprites
 # leave its own palette for palette $58, orange, with Kyo, $5F, purple, with Iori; both always loaded). Purple = 1,
-# orange = 2 (fighter.c BURN_PAL); every fire user but Iori burns orange (inference: one flame colour per fighter)
+# orange = 2 (fighter.c BURN_RAMP: TODO #188 b, the burnt victim is drawn with the cycled ramp $F8 / $F9, measured in
+# our emulator: Kyo on Terry and Yuri, Billy Kane's 23624C ring on Yuri); every fire user but Iori burns orange (inference: one flame colour per fighter)
 FIRE_COLOUR = {'iori': 1}
 
 R_CODE = {'heavy': R_HEAVY, 'knockdown': R_KNOCKDOWN}

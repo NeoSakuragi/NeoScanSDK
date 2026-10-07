@@ -379,20 +379,36 @@ static void hit_sfx(uint8_t fx) {
     const uint8_t *s = HIT_SFX[(fx & 0x3F) < 33 ? fx & 0x3F : 1];
     snd_sfx(s[0]); if (s[1]) snd_sfx(s[1]);
 }
-/* burn: the victim of a fire hit shows KOF98's burn palette in its attacker's flame colour (palette RAM $5F purple,
- * Iori; $58 orange, Kyo; both loaded for the whole fight: VRAM during their Oniyaki hits) in place of its own, colour
- * index for colour index, through its hit reaction and its fall until it hits the floor (screenshots: burnt in 262,
- * 285, 287, its own colours from 309 on) */
-static const uint16_t BURN_PAL[2][16] = {
-    { 0x0000, 0x2CA9, 0x7975, 0x3864, 0x0764, 0x1653, 0x4443, 0x4332, 0x5221, 0x6111, 0x4011, 0x7FFF, 0x3FCF, 0x7C9F, 0x385F, 0x143A },
-    { 0x0000, 0x7FC7, 0x0A85, 0x1974, 0x1863, 0x5652, 0x4542, 0x4431, 0x5320, 0x4210, 0x6100, 0x7FFF, 0x4FF9, 0x0FA4, 0x6C60, 0x6830 } };
+/* burn (TODO #188 b, decoded from KOF98 in our emulator: Kyo's 623C on Terry / Yuri, VRAM + palette RAM every frame):
+ * the burnt victim keeps its own frames and draws them, every part, with palette $F8 (orange) / $F9 (purple, Iori),
+ * not its own: a 5-colour flame ramp repeated over pens 1-15 (pen k = ramp[(k - 1 - step) mod 5]), and a global task
+ * (object $101100) copies the next step every 4 frames (the ROM's steps: palettes $3F0-$3F4 at $3FF5F0 orange, $400-
+ * at $3FF7F0 purple; the cycle stops with the game in a super flash). Burnt through its hit reaction and its fall,
+ * its own colours back at the floor (states 262 / 285 / 287 burnt, 309 not). Here: BURN_RAMP = step 0's pens 1-5; the
+ * step = burn_clock / BURN_TICKS mod 5 (burn_clock: projectiles_update, once a frame outside the super flash); every
+ * burnt fighter reloads its palettes when the step changes (burn_show). 0.0.92 and before showed the flames' own
+ * palette $58 colour index for colour index (a static dark ramp: "looks nothing like Terry engulfed in flame") */
+#define BURN_TICKS 4
+static const uint16_t BURN_RAMP[2][5] = {
+    { 0x1FDF, 0x1DAF, 0x796E, 0x065C, 0x7349 },                  /* 1 purple ($3FF7F0, Iori) */
+    { 0x6FFC, 0x7FD6, 0x4FA3, 0x0E61, 0x0B30 } };                /* 2 orange ($3FF5F0) */
+static uint16_t burn_clock;
+static uint8_t burn_step(void) { uint16_t t = burn_clock / BURN_TICKS; return t % 5; }
+static void burn_show(fighter_t *f) {
+    uint16_t pal[16];
+    const uint16_t *r = BURN_RAMP[f->burn - 1];
+    uint8_t i, k = 5 - burn_step();                              /* pen 1 = ramp[(0 - step) mod 5] */
+    pal[0] = 0;
+    for (i = 1; i < 16; i++) { if (k >= 5) k -= 5; pal[i] = r[k++]; }
+    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, pal);
+    f->burn_t = burn_step();
+}
 static void set_burn(fighter_t *f, uint8_t burn) {
-    uint8_t i;
     if (f->burn == burn) return;
     f->burn = burn;
     if (f->flash) return;                                        /* white: its colours come back when the flash ends */
     if (!burn) { fighter_load_pals(f); return; }
-    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, BURN_PAL[burn - 1]);
+    burn_show(f);
 }
 /* minion tints (Bruno 2026-10-05: minions never in a playable colour set): the set's colour pulled toward its luminance
  * (5 R + 9 G + 2 B) / 16 by the tint's numbers (gamedata.h gtint_t, game.json "tints": shade, ash, rust); colour 0
@@ -996,6 +1012,7 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
 }
 void projectiles_update(int16_t cam_x) {
     uint8_t i;
+    burn_clock++;                                                /* the burn cycle's clock (once a frame, not in a super flash) */
     for (i = 0; i < NPJ; i++) {
         fighter_t *p = &projectiles[i];
         uint8_t ob;
@@ -1482,6 +1499,7 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->jug_by && f->state != S_THROWN && f->state != S_KNOCKDOWN && f->state != S_HITSTUN) f->jug_by = 0;   /* landed:
                                                                     the juggle window (rule 5) closes */
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
+    else if (f->burn && !f->flash && f->burn_t != burn_step()) burn_show(f);   /* the flame cycle's next step */
     if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
     if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
                                                                     later counts on once the move ended (KOF $17074 runs

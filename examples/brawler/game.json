@@ -62,7 +62,8 @@
    "specials": {"D": "CCCC", "fD": "426C", "dD": "623C", "uD": "623D", "dfD": null, "ufD": "214B"},
    "fury": "23624C",
    "unlock": "always",
-   "voices": "kof"
+   "voices": "kof",
+   "fire": ["23624C", "MAX 23624C", "MAX 23624A"]
   },
   {
    "name": "kyo",
