@@ -398,14 +398,14 @@ Rugal's four recorded moves are read from his handlers now; what they needed:
 | the turn (MAX fury) | `eori.b #1, $31(a4)` (+ the victim's), `neg.l +$50` | `turn`; the speeds after it stay forward + | P_TURN |
 | the charge (Kaiser Wave $7EDAA) | `clr +$D2` at $7EE78, then while `move.b +$1A4, d0; andi #$50, d0; and.b (fp), d0` is not zero (its button held) each event step `addq #1, +$D2`; at the release `tst +$D2; beq`, `cmpi #1, +$D2; bls` pick the level's state list (+$C2) and damage (+$C6) | `CHARGE`: `set cnt 0`, `br held`, `add cnt 1`, `br cntle:0`, `br cntle:1`; each level's path walked with the count known (0, 1, 2) | PC_HELD (fighter_t.pheld), P_ADD, PC_CNTLE |
 | the multi-hit wave | its hit routine $7F004: `movea.l +$C2, a0; addq.l #2, +$C2; move.w (a0), +$72` (the list's next state), `subq #1, +$138` (hits left: frozen +$124 frames, then flies on in that state; none: the state plays in place, freed at its end) | export_rom: the object's `clist` + `f138` -> a phase per hit (`hitnext`), the last state as its end rows | bproj_t hitnext / next / stop (object.phase at hit) |
-| step effects | animation records `$FA kind x y` -> `$5D1C`: routine table `$36382[kind]` | `step_effects` / `fx_routine`: 'pinned' (`bra $37494`: kept at the owner + (x, y), freed when the owner's state / step changes from the one it saw on its first run) and 'once' (`bsr $36BAA; bra $36C54`: placed once, freed at its animation's end + 2 frames); the fighter's own table only; `STEP_FX` gates them (Rugal) | bchar_t.pfx, bproj_t follow 8, fighter.c pan_fx |
+| step effects | animation records `$FA kind x y` -> `$5D1C`: routine table `$36382[kind]` | `step_effects` / `fx_routine`: 'pinned' (`bra $37494`: kept at the owner + (x, y), freed when the owner's state / step changes from the one it saw on its first run) and 'once' (`bsr $36BAA; bra $36C54`: placed once, freed at its animation's end + 2 frames); the fighter's own table (`STEP_FX` gates them: Rugal, Kyo) and the shared bank's (`SHARED_FX`, every fighter: section "KOF's shared effects bank") | bchar_t.pfx, bproj_t follow 8, fighter.c pan_fx |
 
 Rugal's states: God Press 161 (start) 162 (rush, its catch box) 163 (recovery) / 167 push, 168 slam, 169 jump back, 170;
 Gigantic Pressure 195 / 196 / 198 / 201 push, 202 slam (+ object state 252, the explosion), 210, 211; its MAX 203-205,
 207 push, 208 the hits (list $29B128), the turn, 207 again, 209, 210, 211. Kaiser Wave 132 / 133 (A / C), 134 the
 charge, 135 / 136 the release; the wave 137 / 138 / 140 by level (A 4 px a frame, C 16), its hit states 139 / 141 / 142,
-its ends 143 / 144; the hand charge state 246 (kind $DF). Not exported: the effects of the shared bank (God Press's
-slam explosion kind $32, the fury's start $38 / $3C: table 38).
+its ends 143 / 144; the hand charge state 246 (kind $DF). The shared bank's God Press slam (kind $32, table 38 state 2)
+since TODO #214 (section below); the fury's start $38 / $3C is the super flash (main.c).
 
 ## Iori's 624B / 624D: the catch's victim script and its own release (TODO #94 / #96, 2026-10-07)
 
@@ -421,11 +421,44 @@ $25372` each frame until the release entry). What was still missing was the rout
 | its burn | `jsr $17AC0`: victim +$3A = $F9 (purple; measured: from the release to the landing) | `RELEASE_BURN` -> entry key 'burn' | bvent_t flags bits 4-5 (VE_BURN): `set_burn` with the blow |
 | its own flight | `move.l #$70E32, +$C6`: vx 4 (away), gravity 0.5, vy 6 (+$50 / +$5C / +$58), states $70E28 (313, 309, 313 bounce at vy 2.5, 326, 72) | 'fly' -> the last list `{'e', 'rel': (vx, vy, g)}` 8.8 | VL_VEL with g: `kmode` 2, `kg` = g (kof_fall), not KOF's blowback |
 
-Rugal's victim routines have neither (their release jumps to the blowback): unchanged. Not exported: state 140's
-explosion effects ($FA kinds $18-$5D: the shared bank, as Rugal's slam). KOF98 vs brawler (`../brawler/romspecials_check.py`,
+Rugal's victim routines have neither (their release jumps to the blowback): unchanged. State 140's explosion
+effects ($FA kinds $18 / $19 / $5B-$5D: the shared bank) since TODO #214 (section below). KOF98 vs brawler (`../brawler/romspecials_check.py`,
 /data/tmp/iori94/out): 0 frame mismatches whiff, close (48 px) and mid (112 px: the dash first), hits 2 / 2 on both
 (KOF [18, 61], brawler [17, 62]: the strike, the release blow); the victim's flight height identical frame for frame
 (one frame later: the release follows the attacker's step), its x off by the victim row (the brawler plays every victim
 with the attacker's own row, KOF P2's own) and the screen edge. 624D's whiff never exists in KOF (its 24-frame dash
 reaches P2 from any distance on KOF's one screen): its reference is the decoded model (`WHIFF_MODEL`), the same code as
 624B's whiff, which matches KOF.
+
+## KOF's shared effects bank (TODO #214, 2026-10-07)
+
+Animation records `$FA kind x y` whose routine (`$36382[kind]`) sets `+$70 = 38` draw from table 38, the common effects
+of every fighter (KOF98's explosions, dust, smoke; the super flash and the hit sparks are its other users, played by the
+brawler's own code). Read by `fx_decode` (the shapes of `step_effects` plus the state from the kind: the spawner `$5D1C`
+stores the kind in +$C3, `move +$C2, d0; addi #N, d0; move d0, +$72`; or `move #N, +$C2` then `$36CD2`, +3 in MAX mode =
+owner +$E0 bit 4, taken off; a sound `move #n, d0; jsr $7A98`, not exported; the priority +$2C, -16 = behind its owner;
+`bsr $36BB4` = `$36BAA` without the owner's palette). Kinds that only shake the screen ($28 / $29 / $2A: an object
+`$36320`, +$D2 frames, +$D4 amplitude) or set a flag ($25) draw nothing and are not read.
+
+Their sprite definitions name ABSOLUTE palettes, 80-127: palette RAM slot n = the palette ROM entry n (bank 2
+`$2D77F0 + 32 n`), measured in our emulator for every slot 80-127 during Iori's 624D, constant through the move. The
+brawler gives them one budget for every fighter (fighter.h SFX_PAL 232, SFX_NPAL_MAX 8; export_bm `bm_sfx_pals`, a
+part's pal | 0x80, draw.s), not the fighter's MAX_PALS (pal_pack leaves them out), so the white flash and the burn never
+touch them, as in KOF. Exported for the moves the roster plays only (its slots and fury: export_bm.played_inputs):
+
+| fighter / move | state, step | kinds -> table 38 state (palettes) |
+|---|---|---|
+| Iori 624D / 624B (fD / dfD) | 140 (the release), step 1 / 3 | $18 -> 35 (85, 92), $19 -> 36 behind (85, sound 117); $5B -> 65, $5C x2 -> 66 (95), $5D x2 -> 67 (111); shakes $29 / $2A |
+| Rugal 624A (fD) | 168 (the slam), step 1 | $32 -> 2 (81; MAX mode 5, sound 104 / 105); shake $29 |
+| Ralf [2]8A / [2]8C (dD / dfD) | 148 (the landing), step 0 | $0B x2 -> 23 (88), $0C x2 -> 24 (110), $23 x2 -> 59, $24 x2 -> 60 (108); shake $2A |
+| Ralf [4]6B / [4]6D (uD / ufD) | 151 / 152, step 3 | $55 -> 34 behind (81) |
+| Terry 21416C (fury) | 166, step 8 | $17 -> 34 behind (81, sound 117); shake $28 |
+
+8 palettes in all (81, 85, 88, 92, 95, 108, 110, 111): the budget is full. Not played (recorded scripts, which drop every
+table-38 object): Iori's fury 23624C ($35 -> 62, $54, $5B-$5D; its MAX $33 / $53), Ralf AAAA ($4F -> 79), Yamazaki
+236236C ($A5); they come with their programs. The pool's blocks (main.c depth_sort) take each object's own widest frame
+now (pj_scan of its definition): the step effects were not in pj_cols, and 7-8 of them at once passed PJ_SPRS.
+Proofs (/data/tmp/fx214/out): `../brawler/romspecials_check.py` objects (spawn / end frames = KOF's +-1, the table-38
+objects of the move's states compared too), `../brawler/fx214_proof.py` colour-exact (every effect frame shown: the
+sprites draw.s wrote, tiles and palette RAM, = KOF98's data with KOF98's palette RAM).
+Open: Rugal's slam burst sits at KOF's +104 px from Rugal, but the brawler's wall (TODO #173) leaves Rugal 92 px from the screen edge where KOF's is 124 px from its stage edge: the burst lands 12 px past the screen edge (KOF: 20 px inside, cut by it). The ticks where 4-8 effects spawn and every pool block moves overrun their video frame (the positions written a frame late: fx214_proof 'late_flush').

@@ -57,11 +57,16 @@ def pen_set(reg, t):
     pen = bits[:, 0] | bits[:, 2] << 1 | bits[:, 1] << 2 | bits[:, 3] << 3
     return {int(q) for q in np.unique(pen) if q}
 
+def own_parts(fr):
+    """a frame's parts drawn with the fighter's palettes: a part of KOF's shared effects bank ('spal', TODO #214) has an
+    absolute palette of the shared budget (export_bm SFX_PAL), never folded"""
+    return [p for p in fr['parts'] if 'spal' not in p]
+
 def usage(ch, reg):
     """{palette: (pens its parts' tiles use, tiles, frames)}"""
     use, pens_of = {}, {}
     for fi, fr in enumerate(ch['frames']):
-        for p in fr['parts']:
+        for p in own_parts(fr):
             k = p.get('pal', 0); u = use.setdefault(k, (set(), set(), set())); u[2].add(fi)
             for col in p['tiles']:
                 for t in col:
@@ -143,13 +148,13 @@ def pack(name, ch, tmp, limit, n_tiles, tile_base):
     palettes, the host colours (ch['block_palettes']) and appends the recoloured tiles to tmp's C files ->
     {'name', 'used', 'slots', 'packed', 'tiles_added', 'groups', 'over': {palette: frames} when it still does not fit}"""
     sets = ch['block_palettes']
-    used = sorted({p.get('pal', 0) for fr in ch['frames'] for p in fr['parts']}) or [0]
+    used = sorted({p.get('pal', 0) for fr in ch['frames'] for p in own_parts(fr)}) or [0]
     sl = slots(used, sets)
     res = {'name': name, 'used': len(used), 'slots': len(sl), 'packed': len(sl), 'tiles_added': 0, 'groups': []}
     if len(sl) <= limit: return res, n_tiles
     rep = {k: g[0] for g in sl for k in g}                     # identical palettes: their slot's first
     for fr in ch['frames']:
-        for p in fr['parts']: p['pal'] = rep[p.get('pal', 0)]
+        for p in own_parts(fr): p['pal'] = rep[p.get('pal', 0)]
     reg = load_region(tmp)
     assert len(reg) >= 128 * (tile_base + n_tiles), (name, len(reg) // 128, tile_base + n_tiles)
     del reg[128 * (tile_base + n_tiles):]                      # (export_bm.build copies the tiles up to there)
@@ -180,7 +185,7 @@ def pack(name, ch, tmp, limit, n_tiles, tile_base):
                     reg.extend(tile_recolour(reg[t * 128:(t + 1) * 128], m))
                 return cache[t]
             for fr in ch['frames']:
-                for p in fr['parts']:
+                for p in own_parts(fr):
                     if p['pal'] != k: continue
                     p['tiles'] = [[copy(t) for t in col] for col in p['tiles']]
                     p['pal'] = host

@@ -1497,9 +1497,27 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   the way Kim came in (tools/kizuna): moves from Kizuna's handlers, effects, voices, select / win pose. After the Kim
   job (#136) leaves tools/kizuna.
 
-- [ ] 214. KOF'S SHARED EFFECTS BANK (found by #94 and #173): effects drawn from KOF98's common effects bank (not a
-  fighter's own) are missing: Iori 624D / 624B release's purple explosion (state 140), Rugal's slam. Export the
-  shared bank's graphics the moves use (only those), with their palettes, and play them.
+- [x] 214. (done 2026-10-07, tools/kof96/handlers98.md "KOF's shared effects bank": `$FA` kinds drawing from table 38
+  read for every KOF98 fighter (handlers98.SHARED_FX / fx_decode), only for the moves the roster plays; their frames in
+  the fighter's own (records 38:n), their palettes ABSOLUTE as in KOF98 (palette RAM 80-127 = palette ROM n): one budget
+  for every fighter, 8 at palette 232 (fighter.h SFX_PAL, draw.s pal | 0x80), never folded or flashed; +$2C < 0 drawn
+  behind (bproj_t back); the pool's blocks by each object's own widest frame (main.c: the step effects were not
+  counted, 7-8 at once passed it). Moves: Iori 624D / 624B (35 / 36 / 65-67), Rugal 624A (2), Ralf [2]8A / [2]8C (23 /
+  24 / 59 / 60), Ralf [4]6B / [4]6D + Terry's fury (34); recorded, not played: Iori 23624C, Ralf AAAA, Yamazaki
+  236236C. Proof /data/tmp/fx214/out: romspecials_check objects = KOF's (spawn / end +-1), fx214_proof.py colour-exact
+  (every shown effect frame's tiles + palette RAM = KOF98's); scenarios todo214-*. OPEN: Rugal's slam burst is placed as KOF's (+104 px from Rugal) but #173's wall leaves Rugal 92 px from the screen edge (KOF: 124 from its stage edge), so it lands 12 px past the screen edge and is never seen; the bursts of 4-8 effects at once overrun one tick (Iori 2, Ralf 2-3 frames: drawn a frame late)) KOF'S SHARED EFFECTS BANK (found by
+  #94 and #173): effects drawn from KOF98's common effects bank (not a fighter's own) are missing: Iori 624D / 624B
+  release's purple explosion (state 140), Rugal's slam. Export the shared bank's graphics the moves use (only those),
+  with their palettes, and play them.
+
+- [ ] 215. CHENG FU'S HIT EFFECTS (seen on #212's sheets): DD draws pink rings / yellow sparks / green-blue slashes on
+  his super hits and flashes the screen red on each Super 623 hit; the brawler plays none of them (only its generic
+  spark). Decode DD's effect objects for his moves and play them. Also open from #212: his 421 counter stance (no
+  counter mechanism yet) and the down-attack on a lying opponent.
+
+- [ ] 216. FOUND BY #214: (a) Rugal's slam burst lands 12 px off screen: the #173 wall leaves him 92 px from the edge
+  (KOF 124) and the burst sits at +104; (b) 4-8 effects spawned on one frame overrun it and appear 1-3 frames late
+  (Iori 624D, Ralf); (c) Iori 23624C, Ralf AAAA, Yamazaki 236236C are still recorded scripts.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
