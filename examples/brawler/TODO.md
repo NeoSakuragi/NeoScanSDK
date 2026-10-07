@@ -1467,6 +1467,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   the way Kim came in (tools/kizuna): moves from Kizuna's handlers, effects, voices, select / win pose. After the Kim
   job (#136) leaves tools/kizuna.
 
+- [ ] 214. KOF'S SHARED EFFECTS BANK (found by #94 and #173): effects drawn from KOF98's common effects bank (not a
+  fighter's own) are missing: Iori 624D / 624B release's purple explosion (state 140), Rugal's slam. Export the
+  shared bank's graphics the moves use (only those), with their palettes, and play them.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
