@@ -585,7 +585,7 @@ static void dbg_draw(void) {
 }
 
 /* a special's screen effect (bspec_t.bd_*, Kizuna's Phoenix): while a fighter's special shows a row in [bd_first,
- * bd_end) the stage is hidden and the backdrop alternates bd_col[0] / bd_col[1] every frame (Kizuna $1FC46: $27E6 /
+ * bd_end) (bd_first 0xFFFF: while its program has it on, P_SCREEN) the stage is hidden and the backdrop alternates bd_col[0] / bd_col[1] every frame (Kizuna $1FC46: $27E6 /
  * $27E4 by bit 0 of its counter $27E1); after, the stage and its backdrop come back */
 static void screen_fx(void) {
     uint8_t i;
@@ -594,7 +594,8 @@ static void screen_fx(void) {
         const fighter_t *f = &fighters[i];
         if (f->state == S_SPECIAL && f->srow) {
             const bspec_t *s = &f->ch->specials[f->spec_ix];
-            if (s->bd_end && f->srow - 1 >= s->bd_first && f->srow - 1 < s->bd_end) sp = s;
+            if (s->bd_end && (s->bd_first == 0xFFFF ? f->pbd : f->srow - 1 >= s->bd_first && f->srow - 1 < s->bd_end)) sp = s;   /* (bd_first
+                                                                 0xFFFF: its program switches it, P_SCREEN, TODO #136) */
         }
     }
     if (bighit_red) {                                        /* SS2's big hit (fighter.c big_hit): red, no stage */

@@ -240,7 +240,8 @@ typedef struct fighter {
      * in it), op index / resume point, flags PF_*, the damage / reaction / effect of the hits it opens, its counter,
      * friction (0.16) and gravity (16.16; vx / vy are the fighter's) */
     const banim_t *pan;
-    uint8_t  pstep, pleft, ppc, pres, pflags, pdmg, preact, pfx;
+    uint8_t  pstep, pleft, pflags, pdmg, preact, pfx;
+    uint16_t ppc, pres;           /* (16 bits since TODO #136: the Phoenix's program has 300+ ops) */
     int16_t  pcnt;
     uint16_t pfric;
     int32_t  pg;
@@ -305,6 +306,15 @@ typedef struct fighter {
                                    * leaves its body alone while it counts down (refreshed every frame of the list) */
     uint8_t  fpose, fpad;         /* the fury's flash pose (TODO #145, fighter.c "flash pose"): 0 not started, 1 + the
                                    * frame of the freeze it shows, 0xFF over (the fury plays from its first frame) */
+    int32_t  kax;                 /* a source reaction (TODO #136, vocabulary reaction.source_motion, fighter.c src_react):
+                                   * the reel's x acceleration (16.16, world) */
+    uint8_t  ksr, ksn;            /* the source reaction playing (bm_sreact index + 1, 0 none), the frames its reel still
+                                   * slides / its landing still pauses */
+    uint8_t  vph, pbd;            /* vph: the victim phases a special's P_VPHASE holds this fighter in (VPH_*, fighter.c
+                                   * vphase; Kizuna's +$1AF); pbd: its special's screen effect on (P_SCREEN) */
+    uint8_t  spec_sr, pstill;     /* special: the source reactions of the hit window open (bstep_t.hy under SF_SREACT);
+                                   * pstill: the first frame after its hit-stop, its program's P_MOVE / P_FALL skipped
+                                   * (Kizuna's: the attacker, as its victim, still that frame [meas: kim136]) */
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */

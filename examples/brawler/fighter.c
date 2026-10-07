@@ -30,6 +30,7 @@ _Static_assert(offsetof(bpart_t, dx) == 0 && offsetof(bpart_t, dy) == 2 && offse
 enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8, PF_HITANY = 16, PF_HOLD = 32, PF_SIG6 = 64, PF_SIG7 = 128 };   /* PF_EVENT: KOF's +$7D bit 7
                                      (the step's $0080 until consumed), PF_HITANY +$E3 bit 7, PF_HOLD +$E4 bit 4, PF_SIG7 /
                                      PF_SIG6 +$D1 bits 7 / 6: its objects' signals (bproj_t sig) and P_FXOFF (TODO #139) */
+enum { VPH_FREEZE = 1, VPH_MIRROR = 2 };   /* fighter_t.vph: a special's victim phases (P_VPHASE, fighter.c vphase) */
 #define HITSTOP     7             /* hit-stop frames, the same for every hit (Bruno 2026-10-04; KOF98 counts +$124 from 7 to 11 by move) */
 #define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
 #define STUN_HEAVY  54
@@ -184,7 +185,9 @@ void fighter_pose_tick(fighter_t *f) { anim_tick(f); }                 /* stage 
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
 static void enter(fighter_t *f, uint8_t st) {
     f->state = st; f->state_t = 0;
-    if (st != S_KNOCKDOWN && st != S_HITSTUN) { f->kmode = f->kdelay = 0; f->kvfr = 0; }   /* KOF's reaction (kof_react) ends */
+    if (st != S_KNOCKDOWN && st != S_HITSTUN) { f->kmode = f->kdelay = 0; f->kvfr = 0; f->ksr = 0; f->vph = 0; }   /* KOF's
+                                                                    reaction (kof_react) ends, a source reaction (src_react)
+                                                                    and the victim phases of a special (vphase) too */
 }
 static void clamp(fighter_t *f) {
     if (f->x < FIX(X_MIN)) f->x = FIX(X_MIN);
@@ -490,7 +493,8 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
     if (v->state == S_GRAB) release(v);                          /* hit while holding or while held: the hold ends */
     else if (v->state == S_GRABBED) release(v->held);
     v->facing = -away;                                           /* turn toward the attacker */
-    v->kmode = v->kdelay = 0; v->kvfr = 0;                       /* the brawler's own physics (kof_react sets KOF's) */
+    v->kmode = v->kdelay = 0; v->kvfr = 0; v->ksr = 0;           /* the brawler's own physics (kof_react sets KOF's,
+                                                                    src_react a source's) */
     if (v->y > 0 && reaction <= R_HEAVY && dancing(v)) {         /* the dance's catch (TODO #150): an airborne victim a */
         enter(v, S_HITSTUN); play(v, reaction == R_LIGHT ? BA_HIT_STAND_LIGHT : BA_HIT_STAND_HEAVY);   /* fury's reel hits */
         v->vx = v->vy = 0; return;                               /* stops in its flight and drops to the floor in its reel */
@@ -904,6 +908,8 @@ static fighter_t *proj_alloc(fighter_t *owner) {
 static void special_end(fighter_t *f) {
     uint8_t k;
     if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's invincibility: hittable again at once */
+    if (f->target && f->target->vph) f->target->vph = 0;         /* its victim phases end with it (vphase) */
+    f->pbd = 0; f->spec_sr = 0; f->pstill = 0;                   /* its screen effect (P_SCREEN), its source reactions */
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
     if (f->fpose) { f->fpose = 0xFF; fpose_pal(f, 0); }       /* the fury over (or ended in its flash pose): its colours
@@ -917,7 +923,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->var = f->ch->specials[f->spec_ix].vdef;                   /* its variant row: the rule's, latched for the whole move
                                                                     (vocabulary "variants are latched at move start") */
     if (k == BS_FORM) f->inv = INV_FURY;                         /* the transition: untouchable (no hurt box either) */
-    f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0;
+    f->spec_dmg = SPECIAL_DAMAGE; f->spec_react = R_KNOCKDOWN; f->spec_slide = 0; f->spec_sr = 0; f->pbd = 0;
     f->proj[0] = f->proj[1] = 0;                                 /* script objects: taken when a row shows one */
     if (k == BS_FURY) f->inv = INV_FURY;                         /* every fury, every fighter: invincible from the trigger
                                                                     to its end (special_end, fighter_update) */
@@ -1300,6 +1306,42 @@ static void kof_fall(fighter_t *f) {                             /* S_KNOCKDOWN 
         if (f->kvfr) f->vx = fmul16(f->vx, f->kvfr);
     }
 }
+/* a source reaction (TODO #136, vocabulary reaction.source_motion; bm_sreact, export_kz.sr_motion): the motion the
+ * source game's reaction code gives the victim of a SF_SREACT special's hit, Kizuna's: the attack box's type picks the
+ * victim's reaction animation ($2D4F2: $5FBEE by type and standing / airborne, the group-4 handler's state) and that
+ * animation's step commands move it (the physics $2B644). A reel slides n frames (vx += ax), a flight rises and falls
+ * (vy -= g) to the floor: it lands where its next move would take it under, without moving ($29432 before the move),
+ * pauses land frames, bounces (bvx / bvy / bg) and lies down; it stands still the frame after the hit-stop (kdelay 1)
+ * [meas: kim136_proof, 214B_h / 28C_h / 421A_h / 6246A_h]. The posture is the brawler's own (reel, blowback, flight). */
+static void src_react(fighter_t *v, int8_t away, uint8_t k) {
+    const bsreact_t *r = &bm_sreact[k - 1];
+    v->ksr = k; v->kdelay = 1; v->kvfr = 0; v->kgfr = 0; v->facing = -away;
+    v->vx = dir_mul(away, r->vx); v->kax = dir_mul(away, r->ax);
+    if (v->state == S_HITSTUN) { v->ksn = r->n; v->kmode = 0; v->vy = 0; return; }
+    if (v->state != S_KNOCKDOWN || !r->vy) { v->ksr = 0; return; }   /* (a reel's motion on a falling victim: the brawler's) */
+    v->vy = r->vy; v->kg = v->kgf = r->g; v->ksn = 0;
+    v->kmode = 1 | (r->r & 8 ? KM_HURT : 0);                     /* (hittable in its flight when its source's reaction
+                                                                    steps carry boxes: Kizuna's 32 / 33 / 9B, not 2C) */
+}
+static uint8_t src_fall(fighter_t *f) {                          /* S_KNOCKDOWN in a source reaction: one frame; 0 = its */
+    const bsreact_t *r = &bm_sreact[f->ksr - 1];                 /* landing is the brawler's own (no bounce in the data) */
+    if (f->anim == BA_KNOCKDOWN_BOUNCE) {                        /* on the floor: the pause, then the bounce */
+        if (f->ksn) { f->ksn--; return 1; }
+        f->vx = dir_mul(-f->facing, r->bvx); f->vy = r->bvy; f->kg = r->bg; play(f, BA_KNOCKDOWN_FALL);
+        f->kmode = 1;                                            /* (its bounce: no box, Kizuna's lying steps) */
+    }
+    if (f->y + f->vy <= 0) {                                     /* the floor */
+        f->y = 0; f->vy = 0; f->kmode = 0;
+        if (r->land == 0xFF) { f->ksr = 0; return 0; }
+        f->vx = 0;
+        if (f->anim == BA_KNOCKDOWN_FALL) { f->ksr = 0; enter(f, S_DOWN); play(f, BA_DOWN); return 1; }
+        f->ksn = r->land ? r->land - 1 : 0; play(f, BA_KNOCKDOWN_BOUNCE); set_burn(f, 0);
+        return 1;
+    }
+    f->x += f->vx; f->y += f->vy; f->vy -= f->kg; clamp(f);
+    if (f->vy < 0 && (f->anim == BA_BLOWBACK || f->anim == BA_BLOWBACK_N)) play(f, BA_KNOCKDOWN_FLIGHT);
+    return 1;
+}
 static void pan_enter(fighter_t *f, uint8_t prev) {              /* a step starts: its $FB move, event, hit */
     const bstep_t *s = &f->pan->steps[f->pstep];
     if (s->dx) { f->x += dir_mul(f->facing, FIX(s->dx)); clamp(f); }
@@ -1307,7 +1349,12 @@ static void pan_enter(fighter_t *f, uint8_t prev) {              /* a step start
     if ((s->flags & 1) && !((prev & 1) && (prev & 16))) {        /* a new hit window */
         uint8_t k;
         f->hit_mask = 0; f->spec_dmg = f->pdmg; f->spec_react = f->preact & 7; f->spec_fx = f->pfx; f->spec_slide = -128;
-        if (s->hy) f->spec_react = s->hy;                        /* KOF's own reaction to this step's attack box (packed) */
+        f->spec_sr = 0;
+        if (s->hy && f->state == S_SPECIAL && (f->ch->specials[f->spec_ix].sflags & SF_SREACT)) {   /* its source's */
+            f->spec_sr = s->hy;                                  /* reactions (src_react), its postures packed as KOF's */
+            f->spec_react = (s->hy & 15 ? bm_sreact[(s->hy & 15) - 1].r : R_HEAVY) | (s->hy >> 4 ? bm_sreact[(s->hy >> 4) - 1].r : R_KNOCKDOWN) << 4;
+        }
+        else if (s->hy) f->spec_react = s->hy;                   /* KOF's own reaction to this step's attack box (packed) */
         else if (f->spec_react == R_KNOCKDOWN)                   /* a knockdown state's earlier hits keep the victim */
             for (k = f->pstep + 1; k < f->pan->nsteps; k++)      /* standing (KOF98 Gatling Attack 138: 258, then 283) */
                 if ((f->pan->steps[k].flags & 1) && !((f->pan->steps[k - 1].flags & 1) && (f->pan->steps[k - 1].flags & 16))) { f->spec_react = R_HEAVY; break; }
@@ -1372,6 +1419,8 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     case PC_CNTLE: return f->pcnt <= v;                          /* the counter at most v (KOF's charge level tests) */
     case PC_PASSED: { fighter_t *t = f->target ? f->target : f->popp; if (!t) return 0;   /* its opponent no longer ahead */
         return dir_mul(f->facing, INT(t->x) - INT(f->x)) <= v; }     /* (SS2 $563F4: Genjuro's slide stops at it) */
+    case PC_THIGH: return f->target && !f->target->vph && INT(f->target->y) > v;   /* its target above v px, not held by a
+                                                                    victim phase (Kizuna $3AC92, the Phoenix's ceiling) */
     case PC_CAUGHT: return f->pcatch != 0 && f->pcatch != 0xFE;   /* its catch box caught, its routine not started yet
                                                                     (SS2 Hanzo's Mozu Otoshi: the grab outranks the whiff's
                                                                     end, TODO #193) */
@@ -1467,6 +1516,21 @@ static void form_swap(fighter_t *f) {
     f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0;
     if (f->y > 0) { enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
 }
+/* victim phases (TODO #136, vocabulary hold.victim_phase; Kizuna's +$1AF bits 4-7 + $1AE bit 0 on the victim, read by
+ * its $2CD06 every frame): a special's P_VPHASE acts on its target while it reels or flies: VA_SNAP puts it at the
+ * attacker's place ($2CE56: x / y copied), VA_FREEZE holds its body still (its +$106 bit 3: no move, no recovery, its
+ * reaction's velocity kept for after), VA_MIRROR moves it by the attacker's own moves mirrored in x (+$107 bit 2,
+ * $37A20: its velocity = -the attacker's) instead of its own; VA_THAW / VA_UNMIRROR end them; they end with the special
+ * too (special_end) and when the victim leaves its reaction (enter). Its hits keep them [meas: 421A_h, 6246A_h]. */
+static void vphase(fighter_t *f, uint8_t a) {
+    fighter_t *t = f->target;
+    if (!t || (t->state != S_HITSTUN && t->state != S_KNOCKDOWN)) return;
+    if (a & VA_SNAP) { t->x = f->x; t->y = f->y; t->z = f->z; clamp(t); }
+    if (a & VA_FREEZE) t->vph |= VPH_FREEZE;
+    if (a & VA_THAW) t->vph &= ~VPH_FREEZE;
+    if (a & VA_MIRROR) t->vph |= VPH_MIRROR;
+    if (a & VA_UNMIRROR) t->vph &= ~VPH_MIRROR;
+}
 static void prog_update(fighter_t *f, const bspec_t *sp) {
     const bstep_t *s;
     uint8_t n;
@@ -1503,9 +1567,10 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_VOICE: if (p->b) { f->pvl_id = p->a; f->pvl_n = (uint8_t)p->b; } else prog_voice(f, p->a); break;
         case P_FORM: form_swap(f); return;                       /* the form link: the fighter is its other form now */
         case P_FRICMOVE: f->vx = fmul16(f->vx, f->pfric);        /* fall through: then x += vx */
-        case P_MOVE: f->x += dir_mul(f->facing, f->vx); clamp(f); break;
+        case P_MOVE: if (!f->pstill) { f->x += dir_mul(f->facing, f->vx); clamp(f); } break;
         case P_FALL: {
             int32_t v0 = f->vy;
+            if (f->pstill) break;
             f->vy -= f->pg; f->y += v0; f->pflags &= ~(PF_LAND | PF_FALL);
             if (f->y <= 0 && p->a && f->y > -FIX(1)) f->y = 0;   /* a 1: SS2's floor ($27802 cmpi #224 / beq: a body on */
                                                                  /* the floor line itself has not landed; the next whole */
@@ -1542,12 +1607,15 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_VSIG: if (f->vlist) { f->vlist++; f->vent = 0xFF; } break;   /* its caught victim's next list (KOF +$D1 bit 7) */
         case P_TURN: f->facing = -f->facing; break;              /* turned around: forward is the other way (KOF eori +$31) */
         case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
+        case P_VPHASE: vphase(f, p->a); break;                   /* its target's victim phases (TODO #136) */
+        case P_SCREEN: f->pbd = p->a; break;                     /* its screen effect on / off (main.c screen_fx) */
         default:                                                 /* P_END (this frame still counts a voice to come) */
             if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);
             prog_end(f); return;
         }
     }
 frame_done:
+    f->pstill = 0;
     if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);    /* a voice sent later: KOF counts +$1B6 down after the
                                                                     code, the frame it was set included (KOF98 $17074) */
     f->spend = 0;                                                /* a press counts on the frame it is read */
@@ -1559,11 +1627,14 @@ frame_done:
     s = &f->pan->steps[f->pstep];
     f->frame_ovr = s->frame;
     f->spec_atk = (s->flags & 1) ? &s->atk : 0;
-    f->spec_prev_hit = (s->flags & 1) ? 1 | (s->flags & 64 ? 16 : 0) | (s->flags & 128 ? 32 : 0) | (s->flags & 4 ? 64 : 0) : 0;   /* 16 a catch box, 32 no hit-stop, 64 no slide */
+    f->spec_prev_hit = (s->flags & 1) ? 1 | (s->flags & 64 ? 16 : 0) | (s->flags & 128 ? 32 : 0) | ((s->flags & 4) && !(sp->sflags & SF_SREACT) ? 64 : 0) : 0;   /* 16 a catch box, 32 no hit-stop, 64 no slide (under SF_SREACT flag 4 is its push box) */
     if ((f->pflags & PF_HOLD) && f->phold && f->target && f->target->state == S_HITSTUN && (f->x - x0) && ((f->x > x0) == (f->facing > 0)))
         f->x -= (f->x - x0) / 2;                                 /* walking into the held victim: KOF's bodies share the push */
     hold_apply(f);
     vlist_apply(f, sp);
+    if (f->target && (f->target->vph & VPH_MIRROR) && !(f->target->vph & VPH_FREEZE)) {   /* a mirrored victim: the */
+        f->target->x -= dir_mul(f->facing, f->vx); clamp(f->target);   /* attacker's velocity, the other way (its steps' */
+    }                                                            /* moves and pushes are no velocity: Kizuna $37A20) */
 }
 static void carry_drop(fighter_t *f) {                           /* a grab's carry ended: a target it left in the air */
     fighter_t *v = f->target;                                    /* falls (Ralf's 426B left it 4 px up for good) */
@@ -1725,7 +1796,13 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     the juggle window (rule 5) closes */
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     else if (f->burn && !f->flash && f->burn_t != burn_step()) burn_show(f);   /* the flame cycle's next step */
-    if (f->freeze) { f->freeze--; return; }                      /* hit-stop: nothing moves, nothing animates */
+    if (f->freeze) {                                             /* hit-stop: nothing moves, nothing animates */
+        if (!--f->freeze && f->state == S_SPECIAL && (f->ch->specials[f->spec_ix].sflags & SF_SREACT)) f->pstill = 1;   /* (a
+                                                                    source reaction's game: Kizuna's attacker stands the
+                                                                    frame after too, $2B644 not run [meas: 6246A_h 86.56,
+                                                                    214B_h 93.5]) */
+        return;
+    }
     if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
                                                                     later counts on once the move ended (KOF $17074 runs
                                                                     every frame; in the special: prog_update's frames) */
@@ -1853,20 +1930,26 @@ static void update(fighter_t *f, const intent_t *in) {
         break;
     }
     case S_HITSTUN:
+        if (f->vph) break;                                       /* held by a special's victim phase (vphase): still, no recovery */
         if (f->vfly) { f->vfly--; break; }                       /* a victim list flies it (vlist_apply, VL_FLY) */
         if (f->y > 0) {                                          /* a dance's catch (TODO #150): down to the floor fast */
             f->y += f->vy; f->vy -= DANCE_DROP;
             if (f->y <= 0) f->y = f->vy = 0;
         }
         if (f->kdelay) f->kdelay--;                              /* KOF's shake after a special's hit: in place */
+        else if (f->ksr) {                                       /* a source reaction's reel: its slide, n frames */
+            if (f->ksn) { f->ksn--; f->x += f->vx; f->vx += f->kax; clamp(f); } else f->vx = 0;
+        }
         else { f->x += f->vx; f->vx = f->kvfr ? fmul16(f->vx, f->kvfr) : f->vx - (f->vx >> 3); clamp(f); }
         if (dancing(f)) break;                                   /* a fury's victim: in its reel until the fury ends */
         if (f->hp <= 0) { react(f, f->facing > 0 ? -1 : 1, R_KNOCKDOWN, 0); break; }   /* its dance over, no life: it falls */
         if (f->state_t >= (f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends */
         break;
     case S_KNOCKDOWN:
-        if (f->kmode && f->kdelay) { f->kdelay--; break; }       /* KOF's shake after the hit-stop: in place */
-        if (f->kmode) kof_fall(f);                               /* a special's hit: KOF98's reaction */
+        if (f->vph) break;                                       /* held by a special's victim phase (vphase) */
+        if ((f->kmode || f->ksr) && f->kdelay) { f->kdelay--; break; }   /* KOF's shake after the hit-stop: in place */
+        if (f->ksr) { if (src_fall(f)) break; }                  /* a source reaction (src_react) */
+        else if (f->kmode) kof_fall(f);                          /* a special's hit: KOF98's reaction */
         else { f->y += f->vy; f->vy -= GRAVITY_KD; f->x += f->vx; clamp(f); }
         /* KOF98's fall (a C+D captured on Yuri: 285 / 283 counter rising 26 frames, 287 falling 13, 309 hitting the floor
          * 4, 313 a 2 px bounce 10, 328 down): blowback up, flight down, bounce on the floor, the small hop, down */
@@ -1923,9 +2006,12 @@ static void update(fighter_t *f, const intent_t *in) {
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
-    if (reaction > 15) reaction = v->y > 0 && !(a->state == S_SPECIAL && a->spec_id == BS_FURY && (reaction & 7) <= R_HEAVY)
+    uint8_t sr = a->state == S_SPECIAL && a->spec_sr ? (v->y > 0 ? a->spec_sr >> 4 : a->spec_sr & 15) : 0;   /* its source
+                                                                    reaction (standing / airborne: Kizuna's situation) */
+    if (reaction > 15) reaction = v->y > 0 && (sr || !(a->state == S_SPECIAL && a->spec_id == BS_FURY && (reaction & 7) <= R_HEAVY))
                                   ? reaction >> 4 : reaction & 15;   /* packed: standing | juggled << 4 (a fury's reel: the
-                                                                    standing one, its dance catches the airborne, TODO #150) */
+                                                                    standing one, its dance catches the airborne, TODO #150;
+                                                                    a source reaction: its own airborne one) */
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
     rk = reaction; reaction &= 7;
     v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
@@ -1972,6 +2058,9 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         react(v, INT(v->x) >= INT(from->x) ? 1 : -1, reaction, push);
     }
     if (a->state == S_SPECIAL) kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* a special's body hit: KOF98's */
+    if (sr) src_react(v, a->facing, sr);                         /* or its source's (SF_SREACT): sent the way the
+                                                                    attacker faces, facing it (Kizuna: the victim behind
+                                                                    Kim at the Phoenix's 86.55 flies on forward) */
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {
         if (a->spec_prev_hit & 32) {                             /* KOF's class 4 hit (a barrage): nobody stops, the */
             v->freeze = a->freeze = 0;                           /* victim reels in place */
@@ -2075,20 +2164,39 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
         if (a->ch->specials[a->spec_ix].sflags & SF_NOPUSH) continue;   /* its source has no push box then (SS2 +$FF) */
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
-            int16_t d, dz;
+            int16_t d, dz, pd;
             if (v->team == a->team || v->y || v->inv == INV_FURY || (v->state != S_IDLE && v->state != S_WALK && v->state != S_HITSTUN &&
                 v->state != S_ATTACK && v->state != S_SPECIAL)) continue;
             if (v == a->target && (a->spec_prev_hit & 4) && a->landed) continue;   /* its carried target: held where the game had it */
             if (v == a->target && a->vlist && (a->pflags & PF_HOLD)) continue;   /* its caught one: where its victim list puts it */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
-            if (d <= -8 || d >= PUSH_DX) continue;
-            if (!a->y) { v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v); }
+            pd = PUSH_DX;
+            if (v->vph && v == a->target && a->pan) {            /* its victim in a phase (vphase, TODO #136): Kizuna's
+                                                                    push, to its body box's front + the victim's 12 px
+                                                                    (Kizuna 15) [meas: 421A_h 47, 6246A_h 35 / 51 px] */
+                const bstep_t *sa = &a->pan->steps[a->pstep];
+                if (!(sa->flags & 4) || !(a->ch->specials[a->spec_ix].sflags & SF_SREACT)) continue;   /* (its push box: flag 4) */
+                pd = -sa->hurt.x + sa->hurt.w + 12;
+            }
+            if (d <= -8 || d >= pd) continue;
+            if (v->vph && v == a->target) {                      /* (that victim: half the overlap a side, 8 px a frame
+                                                                    at most, a frozen body not moved: $2B644 skipped)
+                                                                    [meas: 421A_h 101.0 Kim -8 x5 -4 -2 -1, 6246A_h
+                                                                    86.2 -9 / +8, 86.16 -8 / +8] */
+                int32_t over = FIX(pd - d), mine = (v->vph & VPH_FREEZE) ? over : over >> 1;
+                if (mine > FIX(8)) mine = FIX(8);
+                if (over - mine > FIX(8)) over = mine + FIX(8);
+                a->throw_x0 -= dir_mul(a->facing, mine); a->x -= dir_mul(a->facing, mine); clamp(a);
+                if (!(v->vph & VPH_FREEZE)) { v->x += dir_mul(a->facing, over - mine); clamp(v); }
+            }
             else if (a->ch->specials[a->spec_ix].sflags & SF_SHARE) {   /* the bodies share the push (Kizuna: Kim's j.2B */
                 int32_t over = FIX(PUSH_DX - d), back = over >> 1;      /* goes on diving, its victim pushed ahead, */
-                a->throw_x0 -= dir_mul(a->facing, back); a->x -= dir_mul(a->facing, back); clamp(a);   /* TODO #200) */
-                v->x += dir_mul(a->facing, over - back); clamp(v);
-            } else if (a->spec_id != BS_FURY || !a->landed) {      /* a low leap stops at the body (SS4's 421C: P1 */
+                a->throw_x0 -= dir_mul(a->facing, back); a->x -= dir_mul(a->facing, back); clamp(a);   /* TODO #200; on */
+                v->x += dir_mul(a->facing, over - back); clamp(v);      /* the ground too, TODO #136: the Phoenix's rush */
+            }                                                    /* 85 pushes at half its speed [meas: 6246A_h, +2 a frame] */
+            else if (!a->y) { v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v); }
+            else if (a->spec_id != BS_FURY || !a->landed) {      /* a low leap stops at the body (SS4's 421C: P1 */
                 int32_t back = dir_mul(a->facing, FIX(PUSH_DX - d));   /* held 30 px before P2 at y 10-51, then */
                 a->throw_x0 -= back; a->x -= back; clamp(a);     /* its landing slash hits), never carries it */
             }
