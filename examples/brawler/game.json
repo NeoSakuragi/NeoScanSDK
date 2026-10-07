@@ -175,6 +175,7 @@
    "routes": "default",
    "specials": {"D": "236S", "fD": "623K", "dD": "623S", "uD": "214A", "dfD": "236K", "ufD": null},
    "fury": "WFT",
+   "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH", "236S": "SLASH", "623S": "SLASH", "214A": "SLASH"},
@@ -187,6 +188,7 @@
    "routes": "default",
    "specials": {"D": "214S", "fD": "236S", "dD": "623S", "uD": null, "dfD": null, "ufD": null},
    "fury": "WFT",
+   "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH", "236S": "SLASH", "623S": "SLASH", "WFT": "SLASH"},
@@ -199,6 +201,7 @@
    "routes": "default",
    "specials": {"D": "63214A", "fD": "61236A", "dD": "6ABC", "uD": "126BC", "dfD": "214161BC", "ufD": "CCCCC"},
    "fury": "RAGE",
+   "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof"
   },

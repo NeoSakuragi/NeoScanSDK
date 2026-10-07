@@ -1032,6 +1032,24 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   half speed 30, victim thrown 76 f after the hit (SF_BIGHIT); still missing: weapon loss, throw height 74 vs 52.
   Proofs /data/tmp/b188/out.
 
+- [ ] 189. (DONE ON BRANCH fix/189-ss2-rage-pose 2026-10-07, awaiting Bruno's review) SS2'S RAGE ANIMATION AS THE FLASH
+  POSE (Bruno: "in Samurai Shodown II there is an animation that is triggered automatically whenever the power bar gets
+  full ... it's standard for all characters"). Found [code + meas, study README "The rage-full moment"]: at POW = 32
+  ($25CD2) the fighter, once idle ($26A3A), plays class 0 action 46 = **animation 140** for every one of the 16
+  fighters (20-93 frames, his shout on an early step, red rage palette, POW sign; no freeze), measured in our emulator
+  for all 15 + Kuroko (tools/samsho2/rage_ss2.py -> /data/neogeo_dict/samsho2/rage.json, also filled by real hits).
+  Brawler: export_bm FLASH_POSES samsho2 'rage' (now SS2's default; game.json roster haohmaru / genjuro / kuroko
+  flash_pose "rage") = anim 140 timed to the 28-frame freeze ('fit': each step scaled, Haohmaru 12 steps, Genjuro 18,
+  Kuroko 23 with his flame aura), the shout sent on its step ('voice': bfpose_t.voice, fighter.c flash_pose; Haohmaru
+  $1A $99, Genjuro $1A $D2, Kuroko $1A $E3 = SS2's samples byte for byte), the glow on the first step's head. Other
+  poses unchanged (Kim / Hanzo / Billy Lee silent as in 0.0.96). Proof /data/tmp/rage189/out (tools/brawler/
+  rage189_proof.py): ALL OK (SS2's moment vs the brawler's flash: <name>_ss2_vs_brawler.png; flash145 checks for the
+  three; voices); controls_proof 3/3 ok, fury_inv_proof (AI_OFF copy) ALL OK, bank_proof ALL OK, regress no-bleed True;
+  scenario todo189-haohmaru-rage-pose (lint 0). Open: the glow stays at the first step's head while Haohmaru drops into
+  his low stance; SS2's red rage palette is not shown. Other sources (report only): WHP no animation at a full hero
+  gauge [meas: P1's object identical to a run without the fill]; Double Dragon none (powered = the bars meet, "CHARGE";
+  the power-up anim 81 is the player's A+B+C+D, already Billy's pose); KOF96 / 98 / 99, Kizuna, SS4 not checked here.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into

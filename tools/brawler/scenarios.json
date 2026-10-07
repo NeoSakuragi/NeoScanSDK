@@ -661,5 +661,19 @@
   "expect": "Kuroko waves his flags and throws SS2's 2 1 4 1 6 BC parody shot in SS2's own colours; it travels to Ryo and knocks him down.",
   "do_keys": "4:DRc",
   "proof": 90
+ },
+ "todo189-haohmaru-rage-pose": {
+  "title": "Haohmaru's fury: Samurai Shodown II's rage animation under the super flash",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D.",
+  "expect": "The screen flashes and Haohmaru plays his SS2 rage animation (sword raised, then the crouched stance) with his rage shout while everything is frozen; then his weapon-flipping fury starts and hits Ryo.",
+  "do_keys": "3:d",
+  "proof": 200
  }
 }

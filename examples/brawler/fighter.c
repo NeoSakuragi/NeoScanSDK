@@ -1553,7 +1553,8 @@ static void special_update(fighter_t *f) {
  * freeze: the super flash starts on the fury's frame gflash.start, the pose's steps (export_bm fpose_steps: its taunt /
  * charge / win animation cut to gflash.freeze frames) show one by one, nothing of the fury runs; on the first frame
  * after the freeze the fury starts from its first frame (state_t gflash.start again, as it had under the flash) with
- * the world moving. Returns 1 while the pose shows (special_update waits). */
+ * the world moving. A step that carries a voice (bfpose_t.voice, TODO #189) sends it as it shows. Returns 1 while the
+ * pose shows (special_update waits). */
 static uint8_t flash_pose(fighter_t *f) {
     const bchar_t *ch = f->ch;
     uint8_t k, i, at;
@@ -1569,6 +1570,8 @@ static uint8_t flash_pose(fighter_t *f) {
     }
     for (i = 0, at = 0; i + 1 < ch->nfpose && k >= at + ch->fpose[i].n; i++) at += ch->fpose[i].n;
     f->frame_ovr = ch->fpose[i].frame; f->fpose++;
+    if (k == at && ch->fpose[i].voice && !mute) voice_id(ch, f->team, ch->fpose[i].voice);   /* its source's voice on this
+                                                                    step (TODO #189: SS2's rage shout) */
     return 1;
 }
 

@@ -141,10 +141,17 @@ HOLD_STARTUP, HOLD_TAIL, HOLD_DX = 3, 14, 40
 # source game, by kind (game.json roster[].flash_pose: "taunt" / "charge" / "win" / "intro", or {"anim", "first",
 # "last", "head"}; absent = the game's default kind), cut to the freeze length (its last step held when shorter); the
 # concentration glow is anchored on the pose's head point (head_point.py on its first step, or "head" [x, y]).
-# Per source game: (animation, first step, last step or None), picked on renders of every candidate (2026-10-07):
+# Per source game: (animation, first step, last step or None[, flags 'fit' / 'voice']), picked on renders of every candidate (2026-10-07).
+# 'fit' (TODO #189): the whole animation timed to the freeze (every step's length scaled by freeze / its length, a step
+# that rounds to 0 frames dropped) instead of cut. 'voice' (TODO #189): a step that sends one of the fighter's voices in
+# the source (voices.json, an 'anim' use of that animation) sends it as the pose shows that step (bfpose_t.voice); the
+# other poses stay silent as in 0.0.96 (the charge sound only). SS2's rage (TODO #189, /data/neogeo_dict/samsho2/README.md "The rage-full moment"): when the POW
+# gauge fills, every SS2 fighter plays class 0 action 46 = animation 140 (20-93 frames, its shout on an early step):
+# the game's own "meter full" animation, the SS2 fighters' default pose.
 FLASH_POSES = {
     'kizuna': {'default': 'taunt', 'taunt': (0x21, 0, None)},       # C+D taunt (README: anim 21)
-    'samsho2': {'default': 'taunt', 'taunt': (88, 0, None),         # A+C held: posing with the sword (Kuroko: beckons)
+    'samsho2': {'default': 'rage', 'rage': (140, 0, None, 'fit', 'voice'),   # the rage-full animation (TODO #189), timed to the freeze
+                'taunt': (88, 0, None),                             # A+C held: posing with the sword (Kuroko: beckons)
                 'win': (95, 0, None)},                              # the bow (4 1 2 3 6 unarmed)
     'whp': {'default': 'win', 'win': (0x00, 0, None),               # WHP has no taunt: the win pose (arms raised)
             'intro': (0x26, 0, None)},                              # the intro (arms crossed, scarf)
@@ -155,20 +162,38 @@ def flash_pose(game, n):
     """the roster fighter n's flash pose: {'anim', 'first', 'last', 'head'} or None (a KOF source: its own flash step)"""
     if game not in FLASH_POSES or not (roster().get(n) or {}).get('fury'): return None   # (no fury: no pose)
     t = FLASH_POSES[game]; v = (roster().get(n) or {}).get('flash_pose') or t['default']
-    if isinstance(v, str): a, f, l = t[v]; return {'anim': a, 'first': f, 'last': l, 'head': None}
-    return {'anim': v['anim'], 'first': v.get('first', 0), 'last': v.get('last'), 'head': v.get('head')}
+    if isinstance(v, str): a, f, l, *m = t[v]; return {'anim': a, 'first': f, 'last': l, 'head': None, 'fit': 'fit' in m, 'voice': 'voice' in m}
+    return {'anim': v['anim'], 'first': v.get('first', 0), 'last': v.get('last'), 'head': v.get('head'), 'fit': bool(v.get('fit')), 'voice': bool(v.get('voice'))}
 def flash_extra(game, n):
     """the exporter's extra for the flash pose: {'anims': {'flash': (anim, first, last)}}"""
     fp = flash_pose(game, n)
     return {'anims': {'flash': (fp['anim'], fp['first'], fp['last'])}} if fp else {}
+def flash_voices(game, n, fp):
+    """{pose step index: voice id (| the fx bit)}: the fighter's voices its source sends on the pose's steps (TODO #189)"""
+    out = {}
+    for vo in (V.bank(n) if fp['voice'] else []):
+        for u in vo['uses']:
+            k = u.get('step', -1) - fp['first']
+            if u['kind'] == 'anim' and u['slot'] == fp['anim'] and k >= 0 and (fp['last'] is None or u['step'] <= fp['last']):
+                out.setdefault(k, vo['id'] | V.fx_bit(n, vo['id']))
+    return out
 def fpose_steps(ch):
-    """the flash pose as [(frame, frames shown)], cut to the super flash's freeze (its last step fills it); [] = none"""
+    """the flash pose as [(frame, frames shown, voice)] filling the super flash's freeze: cut to it (its last step fills
+    it when shorter), or with 'fit' every step scaled to it (TODO #189); a dropped step's voice goes to the next shown; [] = none"""
     if 'flash' not in ch['anims']: return []
-    left, out = json.load(open(GAME_JSON))['super_flash']['freeze'], []
-    for s in ch['anims']['flash']['steps']:
-        k = min(s['ticks'] + 1, left); out.append((s['frame'], k)); left -= k
+    T, out = json.load(open(GAME_JSON))['super_flash']['freeze'], []
+    st, vo = ch['anims']['flash']['steps'], {int(k): v for k, v in (ch.get('flash_voice') or {}).items()}
+    if ch.get('flash_fit'):
+        tot, cum, b0, carry = sum(s['ticks'] + 1 for s in st), 0, 0, 0
+        for i, s in enumerate(st):
+            cum += s['ticks'] + 1; b = (cum * T + tot // 2) // tot; carry = carry or vo.get(i, 0)
+            if b > b0: out.append((s['frame'], b - b0, carry)); b0, carry = b, 0
+        return out
+    left = T
+    for i, s in enumerate(st):
+        k = min(s['ticks'] + 1, left); out.append((s['frame'], k, vo.get(i, 0))); left -= k
         if not left: break
-    if left: out[-1] = (out[-1][0], out[-1][1] + left)
+    if left: out[-1] = (out[-1][0], out[-1][1] + left, out[-1][2])
     return out
 
 def build(specs, outdir):
@@ -244,6 +269,7 @@ def build(specs, outdir):
             if fp and 'flash' in hch['anims']:
                 ex['characters'][name]['flash_head'] = tuple(fp['head']) if fp.get('head') else \
                     HP.head_of(HP.pens(hch, hreg, hch['anims']['flash']['steps'][0]['frame']))
+                ex['characters'][name]['flash_fit'] = fp['fit']; ex['characters'][name]['flash_voice'] = flash_voices(game, rname(game, name), fp)
             chars.append((game, rname(game, name), ex['characters'][name], start - SRC_BASE))
     tile_next = TILE_BASE + len(c1) // 64
     assert tile_next <= 0x100000, f'{tile_next} tiles: past the 20-bit tile number'
@@ -1204,7 +1230,7 @@ def write_c(chars, outdir):
          'enum { SF_NOPUSH = 1, SF_BIGHIT = 2 };   /* bspec_t.sflags (SF_BIGHIT: SS2\'s big hit on its connect, fighter.c big_hit) */',
          'enum { VE_BLOW = 1, VE_KO = 2, VE_TURN = 4, VE_FRONT = 8, VE_REL = 64 };   /* bvent_t.flags: a blow (damage, hit sound), the KO check, faces the attacker\'s way, drawn in front, the release (its flight) */',
          'typedef struct { uint16_t nrows, inv_rows, nparts, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; const bspart_t *parts; const bslink_t *links; uint16_t nlinks, bd_first, bd_end, bd_col[2]; int16_t sf_dx, sf_dy; uint8_t sf_anchor, sf_pad; const int32_t *vars; uint8_t nvar, vdef, vanim, vobj, vcols, vdmg, pvoice, sflags; const bvlist_t *vlists; } bspec_t;   /* sflags SF_NOPUSH: its attacker pushes nobody standing in its path (SS2: the action descriptor\'s byte 4 bit 7 -> +$FF, the players\' push $CC14 skipped: Genjuro\'s 236S slides through); vlists (TODO #173, vocabulary hold.victim_list): a catch\'s victim script, its lists in the order the program\'s P_VSIG steps through them (list 0 from the catch routine\'s start; fighter.c vlist_apply); vars..vdmg: the variant table (vocabulary variant.parameter_set, export_dd): nvar parameter rows of vcols columns (vars, row-major), the row its rule plays (vdef, latched at the move\'s start: fighter_t.var), its program\'s animations / objects per row (anims[a + var * vanim], robj[a + var * vobj]), the damage column + 1 (vdmg, 0 none); a bprim_t op | 0x80 takes its value from column b; pvoice 1: its voice keys are timed by its frames (a program\'s, fighter.c); sf_*: the super flash\'s optional anchor (fx.super_flash, TODO #139: an engine rule for every fury, gamedata.h gflash_t; main.c super_flash): sf_anchor 1 = the concentration plays sf_dx / sf_dy px from the fighter (KOF orientation: negative dx = forward; read from the move\'s KOF animation, handlers98.super_flash), 0 = the game-wide anchor; bd_*: its screen effect (Kizuna\'s Phoenix, export_kz FOLLOW \'backdrop\'): rows bd_first .. bd_end - 1 hide the stage and the backdrop alternates bd_col[0] / bd_col[1] every frame (main.c screen_fx; bd_end 0 = none); inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); parts / links: its follow-ups (nparts 0 = one part, the whole script; export_bm special_parts); proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
-         'typedef struct { uint16_t frame; uint8_t n, pad; } bfpose_t;   /* a flash pose step (TODO #145): its frame, the frames it shows */\n',
+         'typedef struct { uint16_t frame; uint8_t n, voice; } bfpose_t;   /* a flash pose step (TODO #145): its frame, the frames it shows, the voice sent as it shows (TODO #189: its source sends it on that step; id | fx bit, 0 none) */\n',
          'typedef struct { const char *name; uint8_t npal, nsets; const uint16_t *pals; const bframe_t *frames; const banim_t *anims; bphys_t phys; const bthrow_t *throws; const uint16_t *vposes; const bspec_t *specials; uint8_t tile_hi, cmds; const uint8_t *routes; uint8_t id, nspec; const uint8_t *spmap; const uint8_t *voices; uint8_t nvoice, fury, sfx[7]; const uint8_t *vmore; uint8_t fury_max, form_to, form_spec, form_trig, form_exit; const bthrow_t *holds; const uint8_t *pvox; const uint8_t *pfx; const bfpose_t *fpose; uint8_t nfpose; int8_t fhead[2]; } bchar_t;   /* fpose (TODO #145, fx.super_flash "flash pose"): its flash pose, nfpose steps [frame, frames shown] filling the super flash\'s freeze (0 = none: the fury plays under the flash, KOF\'s own flash step), fhead the pose\'s head point (px from the feet, facing left): the concentration\'s anchor; pfx (TODO #173, vocabulary anim.step_spawn): its KOF ROM specials\' step effects, [special index, anim index, step, robj index] each, 0xFF ends: the effect object the animation\'s $FA record spawns as the program enters that step (fighter.c pan_fx); pvox (TODO #163): its KOF ROM specials\' step voices, [special index, anim index, step, voice id] each, 0xFF ends: sent as the special\'s program enters that step (KOF\'s $FC records; its code\'s own sends are P_VOICE ops; fighter.c pan_voices); holds: its hold hits (HOLDS: a hit, the finisher), paired scripts like its throws (TODO #146); form_*: the form link (vocabulary form.change, game.json roster[].form): form_trig FT_* (0 = none) starts specials[form_spec] (the transition, role BS_FORM), whose P_FORM makes the fighter bm_chars[form_to] (life, place, facing, meter kept), back by form_exit FX_*; fury_max: the index in specials of the fury\'s MAX version (down+D, TODO #139; 0xFF = none: down+D plays the fury); vmore: a key\'s further voices, [key, voice id, at] each, 0xFF ends (voices.py extras: a special that sends several, the Phoenix shouts; played with the ROM\'s voice table only); sfx: hit sounds by use (TODO #75, game.json roster[].hit_sfx): A B C D CD normals, throw C / D impacts, 0 = KOF\'s own (fighter.c hit_sound);  voices: its voice table, VK_SPEC + nspec entries of [voice id, at] (tools/brawler/voices.py table: id 1..nvoice = its voices.json list, 0 = silent; at = the step / script row it starts on), the ROM\'s default for fighter.c voice_tab; fury: the fury\'s index in specials (button D, game.json roster fury; 0xFF = none); pals: nsets * npal * 16 colours; throws: BT_COUNT (nrows 0 = none); vposes: VP_COUNT frames (0xFFFF = none); specials: its nspec specials (export_bm special_pool order; nspec, spmap last: draw.s reads the offsets before them); spmap: the special each role plays, BS_COUNT entries (D projectile, forward+D rush, down+D rising reversal, up+D another, down-forward+D, up-forward+D: two more; 0xFF = none), the ROM\'s default for fighter.c spec_tab; tile_hi: tile number bits 16-19 of all its tiles; routes: its chain route tree (fighter.h rt_head_t, routes.py); id: its index in bm_chars; cmds: command normals it has, bit k = BA_CMD_FWD_A + k (forward+A, forward+B, down-forward+C, down-forward+D) */\n',
          'enum { ' + ', '.join(f'BA_{m.upper()}' for m in MOVES) + ', BA_COUNT };',
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
@@ -1361,7 +1387,7 @@ def write_c(chars, outdir):
         c.append(f'static const uint8_t {n}_vmore[] = {{' + ''.join(f'{a}, {b}, {d}, ' for a, b, d in vmore) + '0xFF};   /* voices.py extras */')
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         fps = fpose_steps(ch)                                    # the flash pose (TODO #145)
-        c.append(f'static const bfpose_t {n}_fpose[{max(1, len(fps))}] = {{' + (', '.join(f'{{{a}, {k}}}' for a, k in fps) or '{0, 0}') + '};')
+        c.append(f'static const bfpose_t {n}_fpose[{max(1, len(fps))}] = {{' + (', '.join(f'{{{a}, {k}, {v}}}' for a, k, v in fps) or '{0, 0, 0}') + '};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
             f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {arr[id(source(ch, m))]}}}' for m in MOVES) + '};')
     lab = {'ba': MOVES, 'route_moves': R.MOVE_NAMES, 'inputs': R.INPUTS, 'fighters': []}
@@ -1378,7 +1404,7 @@ def write_c(chars, outdir):
                                 'voices': vdata[n]})
     json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
     # the voices the ROM maps (build_snd.py brings only their samples into the V ROM: songs.json "voices")
-    json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']} | set(vdata[n]['prog']))} for game, n, ch, off in chars],
+    json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']} | set(vdata[n]['prog']) | {v & 0x7F for _, _, v in fpose_steps(ch) if v})} for game, n, ch, off in chars],
               open(os.path.join(outdir, 'voice_map.json'), 'w'))
     json.dump({n: [fr.get('record') for fr in ch['frames']] for game, n, ch, off in chars},   # bm frame -> 'id:ROM frame'
               open(os.path.join(outdir, 'bm_frames.json'), 'w'))                          # (romspecials_check.py)
