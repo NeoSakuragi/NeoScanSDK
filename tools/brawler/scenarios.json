@@ -917,5 +917,26 @@
   "expect": "From the start of the kick to Kyo's landing no enemy hit, grab or push reaches him (his life does not drop); he can be hit again right after he lands.",
   "do_keys": "60:-,4:URc",
   "proof": 120
+ },
+ "20261007-140259-5d29": {
+  "title": "Credits in: PRESS START replaces INSERT COIN",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "The logo with INSERT COIN blinking and CREDIT 00. Press COIN once. Then try it again from the attract demo fight (wait about 20 s on the logo without a coin, then a coin during the demo fight).",
+  "expect": "With the coin the CREDIT count goes to 01 and the screen turns into the title: PRESS START blinks where INSERT COIN was (as KOF98: a coin on its logo or in its demo goes to its title with PRESS 1P START). The demo fight ends on a coin the same way. START then takes the credit and opens the select screen.",
+  "do_keys": "60:-,4:o",
+  "proof": 150
+ },
+ "20261007-140341-5d29": {
+  "title": "Select screen: the others in their own colours, darker",
+  "setup": {
+   "mode": "select",
+   "cursor": "robert"
+  },
+  "do": "The cursor is on Robert. Look at the fighters around him, then move the cursor right a few times.",
+  "expect": "Every fighter not under the cursor keeps his real colours (Terry's red cap, Ryo's orange gi, Billy's blue) at half brightness, no longer washed out towards grey; the cursor's fighter is in full colour. Locked bosses stay dark silhouettes.",
+  "do_keys": "4:R,30:-,4:R,30:-,4:R",
+  "proof": 90
  }
 }
