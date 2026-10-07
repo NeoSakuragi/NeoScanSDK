@@ -1165,6 +1165,16 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] 196. THROW HITCH (found by #194): every throw's victim appears one frame late at the moment the thrower can act
   again (control return): a 6 px hitch in the flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.
 
+- [ ] 198. KYO'S OROCHINAGI (20261007-114101-b3f3: "you can hold the button to keep it for longer, and in the MAX version
+  there's a hitbox from the very start as you maintain ... Kyo is on fire ... reverse engineer the code to include both
+  the holding mechanism and the hitbox in the MAX version"; 20261007-114149-b3f3: "the palette of the fireball seems
+  wrong"): decode from KOF98's (and KOF96's) handler: the hold-C delay (charge until release / max), the MAX's
+  burning-body hit box during the charge, and the flame object's palette; play them in the brawler.
+
+- [ ] 199. COIN SOUND (20261007-113856-b3f3: "a specific sound whenever I'm pressing coin or credit, just like the coin
+  inserted sound in Neo Geo games ... take the one from KOF 94"): find KOF94's coin-insert sound (its driver's command
+  at a credit), port the sample, play it on every coin / credit in the brawler.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
