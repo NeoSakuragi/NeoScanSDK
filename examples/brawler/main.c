@@ -575,7 +575,8 @@ static void dbg_draw(void) {
         bbox_t ab;
         if (f->state == S_OFF || hidden[i] || (f->state == S_PROJ && f->frame_ovr == 0xFFFF)) continue;
         st = fighter_step(f);
-        if (f->state != S_PROJ && (st->flags & 2) && nh < DBG_BOXES) { dbg_box(y + nh * 4, x + nh * 4, f, &st->hurt); nh++; }
+        { const bstep_t *sh = fighter_hurt_step(f);              /* (a ROM special: its own step, #205) */
+          if (f->state != S_PROJ && (sh->flags & 2) && nh < DBG_BOXES) { dbg_box(y + nh * 4, x + nh * 4, f, &sh->hurt); nh++; } }
         if ((f->state == S_ATTACK || f->state == S_AIR_ATTACK) && (st->flags & 1)) atk = &st->atk;
         else if ((f->state == S_SPECIAL || f->state == S_PROJ) && f->spec_atk) {   /* a script row's: its bank */
             uint8_t ob = BANK_set(CH_BANK(f->ch)); ab = *f->spec_atk; BANK_set(ob); atk = &ab;

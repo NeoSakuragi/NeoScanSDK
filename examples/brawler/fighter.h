@@ -346,6 +346,7 @@ void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camer
 void super_flash(fighter_t *f);      /* main.c: the fury's super flash starts (fx.super_flash: the game freezes except f) */
 const char *fighter_state_name(uint8_t st);
 const bstep_t *fighter_step(const fighter_t *f);
+const bstep_t *fighter_hurt_step(const fighter_t *f);       /* the step whose hurt box counts (a ROM special's own step) */
 void fighter_play(fighter_t *f, uint8_t anim);              /* outside the state machine (select screen previews) */
 void fighter_animate(fighter_t *f);
 void fighter_pose(fighter_t *f, uint8_t anim);             /* fighter_play / fighter_animate with the animation's voices */
