@@ -1501,10 +1501,29 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   fighter's own) are missing: Iori 624D / 624B release's purple explosion (state 140), Rugal's slam. Export the
   shared bank's graphics the moves use (only those), with their palettes, and play them.
 
-- [ ] 215. CHENG FU'S HIT EFFECTS (seen on #212's sheets): DD draws pink rings / yellow sparks / green-blue slashes on
+- [ ] 215. (EFFECTS DONE ON BRANCH fix/215-dd-effects 2026-10-07 on 0.3.1, awaiting Bruno's review; still open: the 421
+  counter and the down attack, below) CHENG FU'S HIT EFFECTS (seen on #212's sheets): DD draws pink rings / yellow sparks / green-blue slashes on
   his super hits and flashes the screen red on each Super 623 hit; the brawler plays none of them (only its generic
   spark). Decode DD's effect objects for his moves and play them. Also open from #212: his 421 counter stance (no
   counter mechanism yet) and the down-attack on a lying opponent.
+  Done: read in DD's code (tools/doubledr/sparks_dd.py, study README "Hit sparks"): EVERY body hit of every DD fighter
+  spawns one spark object of the effects module ($52302 via $263F4), type = $265F2[4 x reaction index + height class]
+  (18 types: rings / crescents, 19 frames, palettes 128-131 cycling a frame each, flying off with 0.25 px friction; a
+  held victim adds 2 to the index: the super 623 flurry); a super's (and the transformation's) hits set bit 7 of both
+  hit-stops: the stage palettes and the backdrop filled red every other 2 frames. Billy / Super Billy had the same gap
+  (every hit). Rule = DD on every hit of the three fighters' specials / supers / far normals (36 moves: type, facing,
+  the 19 frames' definition / palette / place, the red frames; /data/neogeo_dict/doubledr/sparks215.json). Brawler:
+  new vocabulary fx.hit_spark (minimal, generic): bm_hspark (a fighter's own sparks: [where, anim, step, spark] per
+  attack step + the sparks as effect objects, bproj_t kind PK_FX: no box, no shadow), fighter.c hit_spark (at DD's
+  hit point, in place of the KOF98 spark; projectiles / holds / throws keep the engine's), the strobe in main.c
+  screen_fx beside the big hit's (stage hidden + BIGHIT_COL $4F00: DD's red, 2 + 2 frames twice). Proofs
+  /data/tmp/dd215/out: spark215_proof.py (a real fight per move, hit + whiff, DD vs brawler per hit: the spark's 19
+  frames identical frame by frame, red 2/3/6/7 frames after the spark shows on both screens, strip_*.png every frame;
+  whiffs 0 sparks 0 red; Cheng-Fu's 236 D: 5 of DD's 6 hits as in #212, Billy's 623 D one extra jab hit (distance));
+  frames 700 (Cheng-Fu) / 830 / 684 (Billy / Super Billy) identical to DD's drawing incl. every spark frame, palettes
+  128-131 = DD's palette RAM; cheng_proof fight all ok; controls_proof / fury_inv_proof (AI_OFF copy) ok; bank_proof ok;
+  regress no-bleed frame-exact, every roster trace = 0.3.1's. Scenarios todo215-* (6, lint 0). Seen: Cheng-Fu's far
+  D is DD's 22 > 43 (a hop kick follows), the brawler plays 22 only.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

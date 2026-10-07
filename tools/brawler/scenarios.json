@@ -1189,5 +1189,86 @@
   "expect": "Cheng-Fu strikes Ryo's chest with his palm and blows the dust off his fingers; Ryo stands stunned, staggers back and stays dizzy about two seconds (no damage from the throw itself, as in Double Dragon); the A hits him while he is dizzy.",
   "do_keys": "4:R,4:Ra,150:-,4:a",
   "proof": 260
+ },
+ "todo215-cheng-super623": {
+  "title": "Cheng-Fu's down + D: Double Dragon's hit sparks and red flashes",
+  "setup": {
+   "mode": "lab",
+   "fighter": "cheng_fu",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter press down + D next to Ryo.",
+  "expect": "The leap, the catch and the flurry: on every hit the screen flashes red twice (the stage turns solid red for 2 frames, back for 2, red for 2 more), as in Double Dragon; each hit draws Double Dragon's own spark at the impact (rings / crescents that flicker pink, yellow, green and blue and fly a little away from Cheng-Fu), not the round white-orange KOF spark; the final uppercut a bigger burst.",
+  "do_keys": "4:Dd",
+  "proof": 300
+ },
+ "todo215-cheng-super236": {
+  "title": "Cheng-Fu's D: seven palm strikes with Double Dragon's sparks and red flashes",
+  "setup": {
+   "mode": "lab",
+   "fighter": "cheng_fu",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter press D next to Ryo.",
+  "expect": "After the flash pose, the rush of seven palm strikes: on every hit the screen flashes red twice (the stage turns solid red for 2 frames, back for 2, red for 2 more), as in Double Dragon; each strike draws Double Dragon's flickering ring spark at Ryo's chest.",
+  "do_keys": "4:d",
+  "proof": 260
+ },
+ "todo215-cheng-specials": {
+  "title": "Cheng-Fu's specials and normals: Double Dragon's hit sparks, no red",
+  "setup": {
+   "mode": "lab",
+   "fighter": "cheng_fu",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press C, wait until Ryo is up, forward + C, wait, down + C, wait, then A A A.",
+  "expect": "Every hit draws Double Dragon's spark (rings / crescents flickering pink, yellow, green, blue; bigger for the heavy hits), never the KOF spark; the screen never turns red (only supers do that).",
+  "do_keys": "4:c,120:-,4:Rc,150:-,4:Dc,120:-,4:a,20:-,4:a,20:-,4:a",
+  "proof": 120
+ },
+ "todo215-billy-super236": {
+  "title": "Billy Lee's D: Double Dragon's hit sparks and red flashes",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_lee",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter press D next to Ryo.",
+  "expect": "The five-hit rush: on every hit the screen flashes red twice (the stage turns solid red for 2 frames, back for 2, red for 2 more), as in Double Dragon; each hit draws Double Dragon's spark, growing bigger hit after hit.",
+  "do_keys": "4:d",
+  "proof": 220
+ },
+ "todo215-billy-specials": {
+  "title": "Billy Lee's specials and normals: Double Dragon's hit sparks, no red",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_lee",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press C, wait until Ryo is up, forward + C, wait, down + C, wait, then A A A.",
+  "expect": "Every hit draws Double Dragon's flickering spark, never the KOF spark; no red screen.",
+  "do_keys": "4:c,150:-,4:Rc,150:-,4:Dc,120:-,4:a,20:-,4:a,20:-,4:a",
+  "proof": 120
+ },
+ "todo215-billy-super-specials": {
+  "title": "Super Billy's specials: Double Dragon's hit sparks",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_super",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press down + C next to Ryo, wait until he is up, then up + C.",
+  "expect": "The rising double hit and the flying kick each draw Double Dragon's spark at the impact (no KOF spark, no red).",
+  "do_keys": "4:Dc,150:-,4:Uc",
+  "proof": 150
  }
 }

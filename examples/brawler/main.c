@@ -167,7 +167,7 @@ static void stage_show(void) {
 }
 static void stage_init(uint8_t n) {
     uint8_t s;
-    bd_on = 0; bighit_red = bighit_slow = 0;
+    bd_on = 0; bighit_red = bighit_slow = 0; hitflash = 0;
     stg = &stages[n]; floor_top = stg->floor_top; world_w = stg->cols << 4;
     stage_pals();
     *(volatile uint16_t *)0x3C0006 = stg->lspcmode;                /* REG_LSPCMODE: auto-animation speed */
@@ -261,6 +261,12 @@ static void pj_measure(void) {
                 for (p = sp->prog; p->op != P_END; p++) if (p->op == P_SPAWN && (w = pj_scan(c, &sp->robj[p->a])) > m) m = w;
             }
         }
+        if (bm_hspark[i].map) {                              /* its source's hit sparks (TODO #215): each kind once */
+            const uint8_t *e;
+            uint8_t n = 0;
+            for (e = bm_hspark[i].map; *e != 0xFF; e += 4) if ((e[3] & 0x3F) > n) n = e[3] & 0x3F;
+            for (k = 0; k < n; k++) if ((w = pj_scan(c, &bm_hspark[i].sparks[k])) > m) m = w;
+        }
         pj_cols[i] = m > MAX_COLS ? MAX_COLS : m;
         BANK_set(ob);
     }
@@ -347,7 +353,9 @@ static void shadows(void) {
         fighter_t *f = order[i];
         int16_t sx, gy;
         if (mode != 1 || i >= nf || hidden[i] || noshadow[i] || f->state == S_OFF ||
-            (f->state == S_PROJ && f->frame_ovr == 0xFFFF)) { y[0] = y[1] = x[0] = x[1] = 0; continue; }
+            (f->state == S_PROJ && (f->frame_ovr == 0xFFFF || (f->pdef && f->pdef->kind == PK_FX)))) {   /* (a hit spark: */
+            y[0] = y[1] = x[0] = x[1] = 0; continue;             /* none, TODO #215) */
+        }
         sx = INT(f->x) - cam_x - 16; gy = floor_top + INT(f->z) - 8;
         y[0] = (uint16_t)((((496 - gy) & 0x1FF) << 7) | 1); y[1] = 0x40;      /* 1 tile high, second column sticky */
         x[0] = (uint16_t)(sx & 0x1FF) << 7; x[1] = 0;
@@ -604,6 +612,17 @@ static void screen_fx(void) {
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
         else PAL_setBackdrop(bighit_col);
         bd_cols = BH_BD; bighit_red--;
+    } else if (hitflash) {                                   /* Double Dragon's super hit (fighter.c hit_spark, TODO #215;
+                                                                DD $3A8A: every 2 frames the stage's palettes and the
+                                                                backdrop filled red / restored; on DD's screen red 2, 3, 6
+                                                                and 7 frames after its spark shows, tools/doubledr/
+                                                                spark215_proof.py): the stage's sprites go / come back at
+                                                                the next vblank, the red backdrop (under them) is set the
+                                                                frame before they go and kept until they are back */
+        uint8_t k = HITFLASH - hitflash--;
+        if (k == 2 || k == 6) { stage_hide(); bd_on = 1; PAL_setBackdrop(BIGHIT_COL); }
+        else if (k == 4 || k == 8) stage_show();
+        else if (k == 5 || k == 9) { PAL_setBackdrop(stg->backdrop); bd_on = 0; }
     } else if (sf_who) {                                     /* the super flash: the stage hidden, white then black */
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* the stage's sprites go at the next vblank: the */
         else PAL_setBackdrop(sf_flash_t <= gflash.white ? gflash.white_col : gflash.dark_col);   /* backdrop (at once) from the frame after */
