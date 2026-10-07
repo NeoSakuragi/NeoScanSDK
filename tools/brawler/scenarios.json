@@ -1037,5 +1037,47 @@
   "expect": "Every fighter not under the cursor keeps his real colours (Terry's red cap, Ryo's orange gi, Billy's blue) at half brightness, no longer washed out towards grey; the cursor's fighter is in full colour. Locked bosses stay dark silhouettes.",
   "do_keys": "4:R,30:-,4:R,30:-,4:R",
   "proof": 90
+ },
+ "20261007-114307-b3f3": {
+  "title": "Kyo's fury sets Ryo on fire",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter and Ryo close in front, press D (Orochinagi). Then the MAX version: down+D.",
+  "expect": "When the flame hits, Ryo is drawn in flickering orange flames through his fall, as in KOF98, and gets his own colours back on the floor. Same for the MAX version's flames.",
+  "do_keys": "4:d,150:-",
+  "proof": 60
+ },
+ "20261007-114326-b3f3": {
+  "title": "Kyo's fury hit plays the fire hit sound",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter and Ryo close in front, press D (Orochinagi) and listen to the hit.",
+  "expect": "The flame's hit plays KOF96's fire hit sound (the crackling burn, the same as Kyo's 623C fire hit), not the generic fury impact.",
+  "do_keys": "4:d,150:-",
+  "proof": 60
+ },
+ "20261007-114458-b3f3": {
+  "title": "Kyo's triple kick is on forward + C",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "Press forward + C. Then up-forward + C.",
+  "expect": "Forward + C plays his triple kick (EX R.E.D. Kick: three kicks hitting Ryo three times). Up-forward + C now plays the punch rush that forward + C played before (236C, its follow-ups unchanged).",
+  "do_keys": "4:Rc,120:-",
+  "proof": 60
  }
 }

@@ -70,8 +70,9 @@
    "bank": "kof98:kyo",
    "watch": {"frame": 345, "step": -1},
    "routes": "default",
-   "specials": {"D": "EX 236A", "fD": "236C", "dD": "623C", "uD": "421B", "dfD": "214A", "ufD": "EX 421D"},
+   "specials": {"D": "EX 236A", "fD": "EX 421D", "dD": "623C", "uD": "421B", "dfD": "214A", "ufD": "236C"},
    "fury": "21426C",
+   "hit_sfx": {"21426C": "FIRE HIT", "MAX 21426C": "FIRE HIT"},
    "invincible": ["EX 421D"],
    "unlock": "always",
    "voices": "kof"

@@ -49,7 +49,7 @@ def main(out, game=harness.GAME):
     for n, inp, dist in MOVES:
         fi = names.index(n); k = [p['input'] for p in lab[n]['pool']].index(inp)
         rf = next(r for r in G['roster'] if r['name'] == n); fury = rf.get('fury')
-        keys = 'd' if inp == fury else 'c'
+        keys = 'Dd' if inp == f'MAX {fury}' else 'd' if inp == fury else 'c'   # the MAX version: down+D (TODO #206)
         b.w(L + 5, 1, fi); b.w(L + 6, 1, names.index('terry')); b.w(L + 4, 1, 1); b.run(30)
         b.w(S['spec_tab'] + 4 * fi, 4, MAP)
         for j in range(6): b.w(MAP + j, 1, k if j == 0 else 0xFF)
@@ -85,4 +85,6 @@ def main(out, game=harness.GAME):
     return all(r['ok'] for r in res)
 
 if __name__ == '__main__':
+    if len(sys.argv) > 2:                                     # fighter:input:dist ... (TODO #206: Kyo's fury / MAX)
+        MOVES[:] = [(a, b, int(c)) for a, b, c in (x.split(':') for x in sys.argv[2:])]
     sys.exit(0 if main(sys.argv[1]) else 1)
