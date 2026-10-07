@@ -1522,7 +1522,10 @@ static void hold_apply(fighter_t *f) {                           /* a caught vic
  * at the attacker + the entry of the attacker's current step (offset its facing's way, height, posture, facing,
  * drawn in front or behind); a step's first frame on a blow entry deals the move's hit (no hit-stop: KOF's victim
  * routine strikes, the attacker plays on), a release entry lets it go into its flight (KOF's 283: the blowback, its
- * x then held by the wall rule). The attacker's P_VSIG moves the victim to its next list (KOF +$D1 bit 7). */
+ * x then held by the wall rule). The attacker's P_VSIG moves the victim to its next list (KOF +$D1 bit 7).
+ * A frame list (VL_FRAMES, TODO #213: Kizuna's command grabs, the victim's thrown animation decoded frame by frame,
+ * tools/kizuna/rosa_kz.py) takes entry k on the k-th frame since the P_VPHASE VA_LIST that started it; its release
+ * lays the victim down (VL_DOWN) or sends it into a source reaction (VL_SREACT: Kizuna's thrown flight). */
 /* the list's wall (vocabulary stage.wall "a victim list at the wall", TODO #216; KOF98 $255B0, the end of every list
  * place $25372): an entry that would put the victim at or past a wall ($18092 on the VICTIM: KOF's stage x 32 / 736,
  * the brawler's wall_lo / wall_hi) moves the ATTACKER instead, to the wall minus the list's farthest offset on that
@@ -1550,10 +1553,13 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
     fighter_t *t = f->target;
     const bvlist_t *l;
     const bvent_t *e;
+    uint8_t k;
     if (!f->vlist || (f->vlist & 0x80) || !t || !(f->pflags & PF_HOLD)) return;   /* (0x80: P_CATCH's, from its routine) */
     l = &sp->vlists[f->vlist - 1];
     if (!l->n) { f->vlist = 0; return; }                         /* (past its last list: n 0 ends the table) */
-    e = &l->e[f->pstep < l->n ? f->pstep : l->n - 1];
+    k = (l->flags & VL_FRAMES) ? f->vfr : f->pstep;              /* its entry: this frame's of the list, else the step's */
+    if ((l->flags & VL_FRAMES) && f->vfr < 255) f->vfr++;
+    e = &l->e[k < l->n ? k : l->n - 1];
     if (!(l->flags & VL_FLY) || f->vent == 0xFF) {               /* placed at the attacker + its entry (a flying list: */
         t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z;   /* once) */
         vlist_wall(f, t, l, e); clamp(t);                        /* (past a wall: the attacker steps back, KOF's rule) */
@@ -1568,8 +1574,8 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
     t->zfront = (e->flags & VE_FRONT) ? 1 : 0;
     if (!(l->flags & VL_FLY)) t->vx = t->vy = 0;
     t->kdelay = 0; t->state_t = 0; if (t->state == S_KNOCKDOWN) enter(t, S_HITSTUN);
-    if (f->vent == f->pstep) return;                             /* (KOF: the flags act when the attacker's step changes) */
-    f->vent = f->pstep;
+    if (f->vent == k) return;                                    /* (KOF: the flags act when the attacker's step changes) */
+    f->vent = k;
     if (e->flags & VE_BLOW) {                                    /* the blow: the move's damage, its hit sound */
         fighter_hit(f, t, f->pdmg, R_HEAVY, 0);
         f->freeze = t->freeze = 0; t->vx = 0; t->kdelay = 0;
@@ -1579,8 +1585,12 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
     if (e->flags & VE_REL) {                                     /* the release: its flight (KOF 283, the blowback) */
         f->pflags &= ~PF_HOLD; f->phold = 0; f->vlist = 0;
         t->frame_ovr = 0xFFFF; t->zfront = 0;
+        if (l->flags & VL_DOWN) {                                /* laid down where it is (Kizuna's thrown victim at its */
+            t->vx = t->vy = 0; t->y = 0; enter(t, S_DOWN); play(t, BA_DOWN); return;   /* animation's end, $33BA6) */
+        }
         react(t, f->facing, R_KNOCKDOWN, 0);
-        if (l->flags & VL_VEL) {                                 /* its */
+        if (l->flags & VL_SREACT) src_react(t, f->facing, (uint8_t)l->vx);   /* its source's flight (Kizuna's thrown */
+        else if (l->flags & VL_VEL) {                            /* animation's motion); its */
             t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8;
             if (l->g) { t->kmode = 2; t->kg = t->kgf = (int32_t)l->g << 8; t->kgfr = 0; t->kvfr = 0; t->kdelay = 0; }   /* g: */
         }                                                        /* its own gravity (KOF's routine, Iori 624: kof_fall) */
@@ -1607,10 +1617,13 @@ static void form_swap(fighter_t *f) {
  * attacker's place ($2CE56: x / y copied), VA_FREEZE holds its body still (its +$106 bit 3: no move, no recovery, its
  * reaction's velocity kept for after), VA_MIRROR moves it by the attacker's own moves mirrored in x (+$107 bit 2,
  * $37A20: its velocity = -the attacker's) instead of its own; VA_THAW / VA_UNMIRROR end them; they end with the special
- * too (special_end) and when the victim leaves its reaction (enter). Its hits keep them [meas: 421A_h, 6246A_h]. */
-static void vphase(fighter_t *f, uint8_t a) {
+ * too (special_end) and when the victim leaves its reaction (enter). Its hits keep them [meas: 421A_h, 6246A_h].
+ * VA_LIST (TODO #213, Kizuna's command grabs: the victim's request $043B / $043C, its handler places it from the grab
+ * on): the target follows the special's victim list b from now, held (vlist_apply). */
+static void vphase(fighter_t *f, uint8_t a, int16_t b) {
     fighter_t *t = f->vtgt ? f->vtgt : f->target;               /* (the one it took first: Kizuna's a3, the caught victim) */
     if (!t || (t->state != S_HITSTUN && t->state != S_KNOCKDOWN)) return;
+    if (a & VA_LIST) { f->target = t; t->vph = 0; f->vlist = (uint8_t)b; f->vent = 0xFF; f->vfr = 0; f->pflags |= PF_HOLD; return; }
     f->vtgt = t; t->vph_by = f;
     if (a & VA_SNAP) { t->x = f->x; t->y = f->y; t->z = f->z; clamp(t); }
     if (a & VA_FREEZE) t->vph |= VPH_FREEZE;
@@ -1716,7 +1729,7 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
                                                                     frame, the routine runs the next: a 0) */
         case P_TURN: f->facing = -f->facing; break;              /* turned around: forward is the other way (KOF eori +$31) */
         case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
-        case P_VPHASE: vphase(f, p->a); break;                   /* its target's victim phases (TODO #136) */
+        case P_VPHASE: vphase(f, p->a, p->b); break;             /* its target's victim phases (TODO #136; VA_LIST: TODO #213) */
         case P_SCREEN: f->pbd = p->a; break;                     /* its screen effect on / off (main.c screen_fx) */
         default:                                                 /* P_END (this frame still counts a voice to come) */
             if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);
