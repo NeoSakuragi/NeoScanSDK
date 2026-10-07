@@ -1162,6 +1162,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   SS2's red rage palette through the motion after the charge, the big fireball): shorten / soften the red screen and
   the impact freeze (one short flash, a standard hit-stop), keep the rage palette until the fury ends.
 
+- [ ] 196. THROW HITCH (found by #194): every throw's victim appears one frame late at the moment the thrower can act
+  again (control return): a 6 px hitch in the flight. fighter.c throw / release code; prove on Terry, Geese, Billy Lee.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
