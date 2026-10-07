@@ -18,7 +18,11 @@ import java.io.File
  *  sensor; no restart on rotation (configChanges), the views just get their new size. BIOS (neogeo.zip, APK assets)
  *  copied to files/system once; the game = brawler.neo in the app's external files dir (fetched by RomFetch). */
 class MainActivity : Activity() {
-    private var emu: EmuThread? = null
+    /** the process's emulation thread (EmuThread.claim, TODO #183), seen only while this activity owns it: an older
+     *  MainActivity still around after a newer one claimed the thread neither pauses nor drives it */
+    private var mine: EmuThread? = null
+    private val emu: EmuThread? get() = mine?.takeIf { it.ownedBy(this) }
+    private var game: Array<File>? = null                              // sys, save, rom once the game started here
     private lateinit var gl: GLSurfaceView
     private lateinit var renderer: EmuRenderer
     private lateinit var pad: PadView
@@ -83,6 +87,8 @@ class MainActivity : Activity() {
             runOnUiThread { msg.text = "Brawler '27  v${RomFetch.installed(this)}\nplayer ${BuildConfig.VERSION_NAME}" }
             Thread.sleep(1200)                                         // the version, readable, before the game starts
             runOnUiThread {
+                // replaced meanwhile (after a reinstall the update receiver and the launcher both start one: TODO #183)
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 val pu = PlayerUpdate.ready(this)
                 if (ok && pu != null) updateBanner(launch, pu) { startGame(sys, save, rom) }
                 else if (ok) startGame(sys, save, rom)
@@ -151,12 +157,22 @@ class MainActivity : Activity() {
         VsyncPacer.start()
         applySettings()
         FrameStats.start(getExternalFilesDir(null)!!)
-        val hints = if (android.os.Build.VERSION.SDK_INT >= 31) getSystemService(android.os.PerformanceHintManager::class.java) else null
-        emu = EmuThread(sys.absolutePath, save.absolutePath, rom.absolutePath, hints, hwOf(Prefs(this)), { if (VsyncPacer.perFrame < 2) gl.requestRender() }) { msg ->
-            runOnUiThread { setContentView(TextView(this).apply { text = msg; gravity = Gravity.CENTER }) }
-        }.also { it.start() }
+        game = arrayOf(sys, save, rom)
+        claimEmu(); emu?.paused = false                            // a thread handed over may have been paused by its last owner
         pollUpdates()
         refreshBadge()
+    }
+
+    /** take the process's emulation thread (a new one, or the live one handed over from another MainActivity of this
+     *  process: TODO #183); at the game's start and on every resume, so the activity in front always drives it */
+    private fun claimEmu() {
+        val (sys, save, rom) = game ?: return
+        val hints = if (android.os.Build.VERSION.SDK_INT >= 31) getSystemService(android.os.PerformanceHintManager::class.java) else null
+        mine = EmuThread.claim(this, sys.absolutePath, save.absolutePath, rom.absolutePath, hints, hwOf(Prefs(this)),
+            { if (VsyncPacer.perFrame < 2) gl.requestRender() }) { msg ->
+            runOnUiThread { setContentView(TextView(this).apply { text = msg; gravity = Gravity.CENTER }) }
+        }
+        VsyncPacer.draw = { gl.requestRender() }
     }
 
     /** the list button: his notes (FeedbackListActivity); the game pauses while it is in front (onPause) and resumes on
@@ -416,8 +432,9 @@ class MainActivity : Activity() {
     }
 
     /** a fresh process (new ROM, other system): the game pauses, its saves are written (flushSaves), then restart */
+    @Volatile private var restarting = false
     private fun restart() {
-        emu?.paused = true
+        restarting = true; emu?.paused = true
         Thread {
             val t0 = System.currentTimeMillis()
             while (emu?.flushed == false && System.currentTimeMillis() - t0 < 1500) Thread.sleep(10)
@@ -433,7 +450,7 @@ class MainActivity : Activity() {
     private fun hwOf(p: Prefs) = if (p.system == "console") "aes" else "mvs"
     private fun applySettings() {
         val p = Prefs(this)
-        emu?.let { if (it.hw != hwOf(p)) { restart(); return } }    // arcade <-> console: the core reloads
+        mine?.let { if (it.hw != hwOf(p)) { restart(); return } }   // arcade <-> console: the core reloads
         requestedOrientation = when (p.orientation) {
             "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
             "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -451,9 +468,9 @@ class MainActivity : Activity() {
 
     /** the game pauses (picture, sound, emulation) whenever the activity is not in front: settings, home, screen off */
     override fun onPause() { super.onPause(); emu?.paused = true; if (::gl.isInitialized) gl.onPause() }
-    override fun onResume() { super.onResume(); applySettings(); emu?.paused = noteOpen || testMode?.active == true; if (::gl.isInitialized) gl.onResume(); refreshBadge()
+    override fun onResume() { super.onResume(); applySettings(); if (game != null && !isFinishing && !restarting) claimEmu(); emu?.paused = noteOpen || testMode?.active == true; if (::gl.isInitialized) gl.onResume(); refreshBadge()
         TestQueue.pending?.let { q -> TestQueue.pending = null; testMode?.let { if (it.active) it.end(); it.start(q) } } }
-    override fun onDestroy() { polling = false; emu?.running = false; super.onDestroy() }
+    override fun onDestroy() { polling = false; EmuThread.release(this); super.onDestroy() }
 
     /** the notification OK asked before the self-update (PlayerUpdate): granted or not, the install goes on */
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {

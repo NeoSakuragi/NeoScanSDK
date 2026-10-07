@@ -975,7 +975,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   version, select screen titles), check every string's glyphs exist (digits, letters, punctuation), sheet before /
   after on the brightest and the darkest stage.
 
-- [ ] 183. PLAYER: TWO EMULATION THREADS AT ONCE (found by the 0.0.24 job): right after a reinstall MainActivity started
+- [x] 183. (done 2026-10-07, Player 0.0.25: one EmuThread per process, EmuThread.claim hands the live one to the resumed MainActivity, a replaced activity no longer starts a game, player.c refuses a second load while one is live; AVD JanusPhone: 20 cycles install-over / relaunch / rotate / background-foreground, 20 processes, never more than one EmuThread, no crash) PLAYER: TWO EMULATION THREADS AT ONCE (found by the 0.0.24 job): right after a reinstall MainActivity started
   twice in one process, each starting an EmuThread loading the core: an intermittent crash in the 68k core. Make the
   emulation thread a single process-wide instance (or guard MainActivity's start), prove with repeated reinstall /
   relaunch / rotate cycles in the AVD.
