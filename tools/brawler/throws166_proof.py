@@ -300,11 +300,17 @@ def throw_run(b, start, key_throw, press=None, at=None, n=260, shots=None):
 def run_f():
     b = brawler(); log = summary.setdefault('f', {}); L = []; TD = throw_data()
     roster = json.load(open(os.path.join(GAME, 'game.json')))['roster']
+    only = [x for x in os.environ.get('FIGHTERS', '').split(',') if x]   # FIGHTERS=a,b: only these (TODO #194)
+    names = [r['name'] for r in roster]
     for k, r in enumerate(roster):
-        if r.get('selectable', True) is False: continue
         name = r['name']
-        try: b.pick(k, unlock=True)
+        if only and name not in only: continue
+        base = next((j for j, q in enumerate(roster) if (q.get('form') or {}).get('target') == name), None)
+        if r.get('selectable', True) is False and not (only and base is not None): continue
+        try: b.pick(k if r.get('selectable', True) is not False else base, unlock=True)
         except RuntimeError as e: L.append(f'{name}: not on the select screen ({e})'); continue
+        if r.get('selectable', True) is False:            # a form (Super Billy): its base picked, P1's bchar poked
+            b.fset(0, 'ch', b.syms['bm_chars'] + k * b.syms['sizeof_bchar'])
         start = b.save()
         for tname, key in (('throw_c', 'Ra'), ('throw_d', 'La')):
             td = TD.get((name, tname))

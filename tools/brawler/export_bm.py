@@ -275,6 +275,9 @@ def build(specs, outdir):
                 # stance): the body's parts only when the source names its palette (SS2's rage: flash_pal), else the frame
                 ex['characters'][name]['flash_heads'] = {str(s_['frame']): HP.head_of(HP.pens(hch, hreg, s_['frame'], bp))
                                                          for s_ in hch['anims']['flash']['steps']} if not fp.get('head') and bp is not None else {}
+            for th in ex['characters'][name].get('throws', {}).values():   # a throw's own-victim rows under the roster's
+                if name in th.get('victims', {}) and rname(game, name) != name:   # name (poses(): Billy Lee = doubledr:billy)
+                    th['victims'][rname(game, name)] = th['victims'].pop(name)
             chars.append((game, rname(game, name), ex['characters'][name], start - SRC_BASE))
     tile_next = TILE_BASE + len(c1) // 64
     assert tile_next <= 0x100000, f'{tile_next} tiles: past the 20-bit tile number'
@@ -1105,6 +1108,7 @@ VICTIM_POSES = {g: json.load(open(os.path.join(HERE, '..', 'kof96', f'victim_pos
 VICTIM_POSES['kizuna'] = json.load(open(os.path.join(HERE, '..', 'kizuna', 'victim_poses_kz.json')))['poses']   # Kim's throw
 VICTIM_POSES['whp'] = json.load(open(os.path.join(HERE, '..', 'whp', 'victim_poses_whp.json')))['poses']   # Hanzou's throws (TODO whp6)
 VICTIM_POSES['samsho2'] = json.load(open(os.path.join(HERE, '..', 'samsho2', 'victim_poses_ss2.json')))['poses']   # SS2's throws
+VICTIM_POSES['doubledr'] = json.load(open(os.path.join(HERE, '..', 'doubledr', 'victim_poses_dd.json')))['poses']   # Billy Lee's throws (TODO #194)
 
 FAMILY = {'grabbed': 'standing', 'hunched': 'standing', 'hit_reel': 'standing', 'bent_back': 'standing', 'standing': 'standing',
           'launched': 'air', 'horizontal': 'air', 'curled': 'air',

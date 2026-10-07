@@ -26,12 +26,14 @@ which equals the game frame for frame: compare_dd.py); captures are proofs only,
   bit 4) its frames take the transformed colours (palette key 'form').
 - palettes: palette RAM of the vs states (the ROM's palette source is not decoded): Billy A slot 18 (P1), B 34 (P2 in a
   mirror match); the transformed form A 16, B 32 (both preloaded by the game); effects their own slots.
+- throws (TODO #194): DD's C throw forward / back as #146's paired scripts (throw_dd.py, decoded from the throw table
+  $23C2A and the victim's step handler 13; 0 row mismatches vs DD), the hold = its first picture mirrored (grab_frame).
 - voices: tools/brawler/voices.py 'doubledr' (step sound bytes + the NGSS model's samples)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import numpy as np
-import dd, model_dd as M
+import dd, model_dd as M, throw_dd as TD
 
 TILE_BASE = 256                                   # = export96.TILE_BASE
 CAST = {'billy': 0, 'billy_super': 1}
@@ -88,16 +90,19 @@ class Builder:
         if isinstance(layers, int): layers = ((layers, 0, 0, 'body'),)
         if layers in self.index: return self.index[layers]
         cols = []                                         # (x, top, palette key, [tile numbers per row])
-        for w, ox, oy, key in layers:
-            d = dd.sdef(w)
+        for w, ox, oy, key, *mir in layers:               # mir (1): the definition mirrored about the anchor (the
+            mir = bool(mir and mir[0])                    # throws' hold pose, throw_dd: the $8626 writer's picture)
+            d = dd.sdef(w); lc = []
             for c in d['cols'] if d else []:
                 byk = {}
                 for r, (code, at) in enumerate(c['tiles']):
                     k = key if c['group'] == 0 and key is not None else at >> 8
-                    byk.setdefault(k, {})[r] = self.tile(code, at)
+                    byk.setdefault(k, {})[r] = self.tile(code, at ^ 1 if mir else at)
                 for k, rows in byk.items():
                     if any(rows.values()):
-                        cols.append((ox + c['xo'], oy + c['yo'], k, [rows.get(r, 0) for r in range(c['rows'])]))
+                        x = ox + (-c['xo'] - 16 if mir else c['xo'])
+                        lc.append((x, oy + c['yo'], k, [rows.get(r, 0) for r in range(c['rows'])]))
+            cols += sorted(lc, key=lambda q: q[0]) if mir else lc
         parts = []
         for x, top, k, t in cols:                         # columns side by side, same top and palette: one part
             while t and not t[-1]: t = t[:-1]
@@ -600,6 +605,12 @@ def export(names, outdir, only=None, extra=None):
         for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, ch, a, f, l, moving=False)}
         sps = [special(B, ch, inp, an, kn, form=inp == 'FORM') for inp, (an, kn) in SPECIALS[ch].items()]
+        throws = {}                                      # DD's C throw forward / back (throw_dd.py, TODO #194)
+        for t in TD.THROWS:                              # (whatever `only` asks: export_bm reads them from 'throws')
+            th = TD.brawler_throw(B, ch, t, lambda w: B.frame(((w, 0, 0, 'body', 1),)))
+            anims[t] = th.pop('anim'); th['victims'] = {name: th.pop('victim_rows')}
+            if th['grab_frame'] is None: th.pop('grab_frame')
+            throws[t] = th
         def colours(key, s):
             slot = BODY[ch][s] if key == 'body' else FORM_PAL[ch][s] if key == 'form' else key
             return [0] + pr[16 * slot + 1:16 * slot + 16]
@@ -607,7 +618,7 @@ def export(names, outdir, only=None, extra=None):
         assert all(any(c) for st_ in sets for c in st_), (name, 'an empty palette', B.pals)
         out['characters'][name] = {'id': ch, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0], 'physics': physics(ch),
-                                   'throws': {}, 'specials': sps,
+                                   'throws': throws, 'specials': sps,
                                    'modes': {'sets': ['P1', 'P2'], 'palettes': [str(k) for k in B.pals], 'autoanim_tiles': B.autoanim}}
     out['tiles'] = len(allt)
     os.makedirs(outdir, exist_ok=True)

@@ -1134,10 +1134,28 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   only the known wide / grab-pose differences), controls 3/3 ok, cancel all ok 3, bank_proof ALL OK, regress no-bleed
   True (strict). Scenario todo191-haohmaru-rage-palette (lint 0).
 
-- [ ] 194. BILLY LEE: THROWS + SMALL DRAGON PUNCH (20261007-110922-b3f3 "Billy does not have any throws yet";
+- [ ] 194. (DONE ON BRANCH fix/194-billy-lee-throws 2026-10-07, awaiting Bruno's review) BILLY LEE: THROWS + SMALL DRAGON PUNCH (20261007-110922-b3f3 "Billy does not have any throws yet";
   20261007-111015-b3f3 "For the down + C special move, use the version of the dragon punch that is actually with A, so
   the small" one): Double Dragon's throws decoded (command, animations, victim handling) through #146's standard
   throw, for Billy Lee and Super Billy; down+C = the 623 A row (variant table).
+  DONE [code + meas] (tools/doubledr/throw_dd.py, study README "Throws"): DD's normal throw = a button with the stick
+  left OR right, close (box gap < 10 / 8 / 6 px for B / C / D), from the THROW TABLE $23C2A + 48 x char (range, the
+  thrower's animation 110-112, the VICTIM's 113-115 from its own table, the direction by the stick: not holding toward
+  = the thrower turns = the back throw, damage $1000-$1400); the victim's handler 13 ($21AF0) copies the thrower's step
+  each frame and places it from table $21B76 (pulled behind the turned thrower, over his head, in front), its step 4 =
+  the release (damage, then handler 2's flight from its header: vx 6, vy 2, g 0.375), landing -> 71 bounce / 73. The
+  script = DD row for row (victim step, place, height, release = DD's damage frame, landing, thrower end) for both forms
+  x B / C / D x forward / back (0 mismatches; D forward: 11 rows at DD's stage edge). Brawler: throw_c = forward + A =
+  DD's forward C throw, throw_d = back + A = its back throw (row flag 8), control return 35 rows (DD's own: Billy acts
+  while the victim flies), release 25, land 49; the hold = DD's first picture mirrored (gframe, SS2's rule #188 a: the
+  victim in front facing him), forward + A then plays DD's swap; victim_poses_dd.json; export_bm keys a throw's
+  own-victim rows by the roster name (Billy Lee = doubledr:billy). game.json billy_lee "variant": {"623": "A"}: down+C
+  peaks 73.1 px in 53 frames (DD's 623 A 73.1 / 52; D 140). Not modelled: DD's 16-frame dragon pause after the forward
+  throw's release. Found (engine, all throws, not changed): fighter.c paired_update returns at the control return before
+  placing the victim, so its row `ret` shows a frame late (one 6 px hitch in Billy's flight). Proof /data/tmp/billy194/out:
+  throw194.json + summary194.json, sheet_<form>_<throw>.png (DD | brawler), hold_*.png, rise.txt; throws166 f (FIGHTERS=,
+  forms by poke): Billy Lee all ok, Super Billy C ok / D n/a (no fury, by design); controls + cancel ok, bank_proof ALL
+  OK, regress bleed_same / strict True. Scenarios 20261007-110922-b3f3 / 111015 (verify identical, lint 0).
 
 - [ ] 195. HAOHMARU'S FURY TONED (20261007-113032-b3f3: "the red screen is too much and there shouldn't be so much freeze
   on impact" — the 0.0.93 SS2 hit sequence: red screen 48 f, hold 40 f, slow motion 30 f; 20261007-112936-b3f3: keep
