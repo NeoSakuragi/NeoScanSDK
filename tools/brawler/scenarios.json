@@ -1120,5 +1120,31 @@
   "expect": "Hanzo stops in the air, throws a spinning shuriken that flies down and forward at a steep angle and hits Terry (a light reel), then hops a little back and up and lands. A shuriken that misses sticks in the floor, blinks and disappears about a second later; while it is still there, down + A in a jump is the ordinary jumping attack.",
   "do_keys": "3:b,3:b,7:-,3:Da",
   "proof": 100
+ },
+ "todo94-iori-624D": {
+  "title": "Iori's forward + C (624D, Kuzukaze): the catch, played from KOF98's code",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press forward + C with Terry standing close in front of you. Then again with Terry farther away (about half a screen) and once with nobody in reach.",
+  "expect": "Iori dashes in, strikes Terry once (a reel), grabs him, Terry crumples at his feet, then a purple explosion throws Terry up in a low arc (burning purple until he lands): his life drops twice, the strike and the explosion, as in KOF98 (the lab's HITS counter also counts the grab). From farther away Iori dashes until he is close, then the same; with nobody in reach he dashes his full length and stops.",
+  "do_keys": "4:Rc",
+  "proof": 150
+ },
+ "todo96-iori-624B": {
+  "title": "Iori's down-forward + C (624B, Kuzukaze, short version): the catch, played from KOF98's code",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down-forward + C with Terry standing close in front of you. Then again with Terry farther away and once with nobody in reach.",
+  "expect": "The same catch as forward + C (a strike, the grab, Terry crumples, the purple explosion throws him up, burning until he lands: his life drops twice, as in KOF98), with a shorter dash: with nobody in reach Iori stops sooner than with forward + C.",
+  "do_keys": "4:DRc",
+  "proof": 150
  }
 }
