@@ -174,6 +174,7 @@ def victim_list(state, vanim, rosa, frames_max, release_at, release, rosa_offset
         dy = vy_ + low - (ry + rosa_offset[1])
         e = {'dx': E.sc(dx), 'dy': E.sc(max(-ry, dy)), 'state': f'{state:X}.{k}', 'flags': 0}
         if t == release_at: e['flags'] = release
+        assert -128 <= e['dx'] <= 127 and -128 <= e['dy'] <= 127, (state, t, e)   # (bvent_t dx / dy: int8_t)
         out.append(e)
     return out
 

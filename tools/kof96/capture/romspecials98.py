@@ -12,8 +12,10 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.jo
 import rom96, emu, specials96 as C
 OUT = '/data/tmp/romspecials/traces'
 START = 40                                       # the try's first input frame (the state is reloaded at START - 4)
-PLACE = {'whiff': ('00', 'E0', '02', 'E0'), 'far': ('01', '00', '02', '60'), 'close': ('01', '80', '01', 'B0'), 'mid': ('01', '80', '01', 'F0'), 'wall': ('02', '04', '02', '34')}   # wall (TODO #173): P1 220 px from KOF's wall (x 736),
-# P2 48 ahead = the brawler's training start (x 60) from its wall (the screen edge 40 px in: x 280)
+PLACE = {'whiff': ('00', 'E0', '02', 'E0'), 'far': ('01', '00', '02', '60'), 'close': ('01', '80', '01', 'B0'), 'mid': ('01', '80', '01', 'F0'), 'wall': ('02', '04', '02', '34'), 'near': ('01', '80', '01', 'D0')}   # wall (TODO #173): P1 220 px from KOF's wall (x 736),
+# P2 48 ahead = the brawler's training start (x 60) from its wall (the screen edge 40 px in: x 280); near (TODO #216): P2
+# 80 px ahead, where Ralf's AAAA (Vulcan Punch) lands and its A presses are not a close normal (close: a close A hits
+# first and no AAAA follows; mid: out of its reach)
 
 # a fury whose capture try gives another special from the reload state (KOF96 Mr. Big 23623C: C on the last down-forward
 # reads as 236C first): the motion held 2 frames longer before the press, then the DM (state 133); Geese's 1632143C the same

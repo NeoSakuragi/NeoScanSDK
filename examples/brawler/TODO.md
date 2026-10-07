@@ -1480,7 +1480,8 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   DD's select grid. One engine-wide DD fix: P_FALL with DD's floor (a = 1: landed a whole px under it, as model_dd):
   progcheck_dd now frame-exact for Billy too (was "landings a frame early"). Not exported (named): 421 (126-129) a
   COUNTER stance (an attack meeting his front body record is caught into the throw 130 + victim 113-115: the brawler
-  has no counter / guard mechanism), 8 / 2 + button (124: DD's down attack on a lying opponent). Proofs
+  has no counter / guard mechanism), 8 / 2 + button (124: DD's down attack on a lying opponent; DONE in #218 on fix/218-cheng-far-d: up / down + A, the
+  homing leap-stomp, vocabulary attack.down). Proofs
   /data/tmp/cheng212 (tools/doubledr/cheng_proof.py): frames 320 / 320 identical to DD's drawing (both facings),
   progcheck_dd every row = the model (one picture a frame early at the super 623's landing), real fight per move vs DD
   (fight_*.png, DD above): hits 214 1/1, 623 1/1, 236D 5 vs 6 (DD's victim stays nearer: the brawler's reel slide puts
@@ -1555,13 +1556,77 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   frames 700 (Cheng-Fu) / 830 / 684 (Billy / Super Billy) identical to DD's drawing incl. every spark frame, palettes
   128-131 = DD's palette RAM; cheng_proof fight all ok; controls_proof / fury_inv_proof (AI_OFF copy) ok; bank_proof ok;
   regress no-bleed frame-exact, every roster trace = 0.3.1's. Scenarios todo215-* (6, lint 0). Seen: Cheng-Fu's far
-  D is DD's 22 > 43 (a hop kick follows), the brawler plays 22 only.
+  D is DD's 22 > 43 (a hop kick follows), the brawler plays 22 only. (DONE in #218 on fix/218-cheng-far-d: the chain
+  22 > 43 > 41 is automatic in DD, played whole, both hits with DD's sparks; the down attack too.)
 
-- [ ] 216. FOUND BY #214: (a) Rugal's slam burst lands 12 px off screen: the #173 wall leaves him 92 px from the edge
+- [ ] 216. (DONE ON BRANCH fix/216-kof-effects-leftovers 2026-10-07, awaiting Bruno's review; proofs /data/tmp/k216/out,
+  tools/kof96/handlers98.md "The last recorded KOF98 specials" and "KOF's shared effects bank") (a) KOF's rule for a
+  victim list at the wall (KOF98 $255B0, the end of every list place $25372): an entry past a wall moves the ATTACKER
+  to the wall minus the list's farthest offset, the victim placed again (fighter.c vlist_wall, vocabulary stage.wall):
+  Rugal stops at the wall, the slam steps him back 80 px (KOF 92), the burst 16 px inside the screen (KOF 20), on
+  KOF's frames (zoom_rugal sheet); romspecials wall: 0 frame mismatches, x within 9.6 px (was 37.6). (b) measured with
+  a tap on the CPU's writes reading the line counter: the spawn tick took 252 of the 256 scanlines a tick has (Ralf
+  [2]8A), 46 of them depth_sort scanning each new definition's rows: now bproj_t.cols from the export (211 / Iori 624D
+  191); the next frame's VRAM flush ends by scanline 5, before the LSPC's first sprite read (6): the effects were on
+  their frame, fx214_proof's 'late_flush' was its read at the harness frame's end (now flush_past_frame_end; late_flush
+  = after scanline 6: 0, tick_overruns 0, all ok). A flush before the BIOS's SYSTEM_IO (crt0) was tried and dropped:
+  it moves the pad's read across a frame (regress bleed). (c) all three from KOF98's handlers: Ralf AAAA (its five
+  dust clouds; romspecials near 80 px: 0 mismatches, 1 / 1 hit; the mash's replay not modelled: the walk presses
+  nothing), Yamazaki 236236C (victim lists A, B, B, C; his jump's swirl, shape 'follow'; 0 frame mismatches whiff /
+  close / wall, 11 hits vs KOF's 12: KOF's last strike also hits the held victim; the swirl freezes in KOF's catch
+  hit-stop, ends 7 frames sooner here), Iori 23624C (the claw held by its victim routine, the finisher = KOF's engine
+  throw $3F8A -> P_CATCH + its list (VL_CATCH), the claw's slot-1 hit box; 0 frame mismatches whiff / close, 8 / 8 hits,
+  every object incl. the explosion on KOF's frames +-1). Shared-effect palettes 224-239 (11 used). Their MAX versions
+  stay as they were (handlers98.MAX_LATER: Yamazaki none, Iori's captured MAX on down+D). Every other ROM special of
+  the four identical to 0.3.5 (romspecials summaries equal); controls / cancel / fury_inv (AI_OFF) ok for the four,
+  rugal173 wall 6 / 6, bank_proof ALL OK, regress bleed True (frame-exact), campaign29 through, scenarios
+  todo216-* lint 0. FOUND BY #214: (a) Rugal's slam burst lands 12 px off screen: the #173 wall leaves him 92 px from the edge
   (KOF 124) and the burst sits at +104; (b) 4-8 effects spawned on one frame overrun it and appear 1-3 frames late
   (Iori 624D, Ralf); (c) Iori 23624C, Ralf AAAA, Yamazaki 236236C are still recorded scripts.
 
 - [x] 217. (done 2026-10-07 on fix/217-backdrop-tear: the cause was ours: game_tick runs into the active display and main.c screen_fx wrote the backdrop ($401FFE) at once, mid-frame: the frame showed the old colour above that line and the new one below (the Phoenix's strobe: frames 198, 206 and its last, 263, torn); now every backdrop change in the game goes through bd_set and is written by vblank_flush right after the VRAM queue, so it changes on the same frame as the stage's sprites; screen_fx retimed one tick earlier for it (the same frames on screen: super flash = KOF98's per frame, DD red = DD's per hit, the big hit's 8 red frames, the strobe white first). Kizuna 87 vs ours 90 strobe frames is not the backdrop: our strobe covers the same rows 76..152 of the program, the 3 extra are hit-stop holds of its hits (rows 76 x7, 94 x8). Proofs /data/tmp/bd217/out: phoenix_backdrop_proof ok, tools/brawler/backdrop217_proof.py (per-line colours per frame, Phoenix / Terry fury / Haohmaru WFT / Cheng Fu super 623) 0 torn frames (the old build: 3 on the Phoenix), spark215_proof ALL OK, superflash_proof dm + max identical to KOF98, bank_proof ALL OK, regress no-bleed True; scenario todo217-kim-phoenix-strobe, lint 0) KIM'S PHOENIX BACKDROP TEAR (found by #136 on 0.3.2): phoenix_backdrop_proof failed on one frame: the strobe's last frame torn half red / half white. Also from #136: in Kizuna 421A's last two hits come from Kim's tag partner (no partner in the brawler: Kim's 3 hits only).
+
+- [ ] 218. (DONE ON BRANCH fix/218-cheng-far-d 2026-10-07 on 0.3.5, every proof re-run after the merge, awaiting Bruno's
+  review) CHENG FU'S FAR D CHAIN AND DOWN ATTACK (found by #215 / #212). Read in DD and measured in our emulator
+  (tools/doubledr/chain218_dd.py, study README "The far D chain and the down attack"): (a) the far D = anim 22 whose
+  header next is 43 (a hop kick: vx 2.5, vy 3.5, gravity 0.375) then 41 (landing): AUTOMATIC (tapped, one frame, held
+  60 frames: the same chain, hit and whiff; no input, no distance test), two hits. Brawler: export_dd.chain_steps (a
+  normal whose header chains to another attack: the chain as model_dd plays it, the hop one step a frame with its
+  height, bstep_t.hy); Cheng's route nodes for far D got push 18 (the first hit now reels: with the old push 0 the
+  victim stood still and his 24 px step jump went past it; with 18 it slides like DD's and the kick lands 25 frames
+  later, DD 26). (b) the down attack = every DD fighter's 8 / 2 + any button -> anim 124 > 125, step handler 28 $23012:
+  DD fires it only at a DIZZY opponent lying in 71-74 (+$F3 bit 2, the damage accumulator +$FC >= $3400); 10 frames
+  still, then a leap AT the opponent: vx = distance << 10 (= / 64 px: 64 frames whatever the distance, peak 217 px), an
+  afterimage every 4th frame, the fall if the opponent stops being dizzy; it lands on it: 125's stomp (5120 vs Jimmy,
+  spark 15), the victim popped (119: 2 px away, 4 up, g 0.375) then a hop back. NEW STANDARD MOVE (vocabulary
+  attack.down, generic, any fighter: game.json roster[].down_attack, bchar_t.down_spec, role BS_DOWNATK): up / down + A
+  on the ground with an opponent lying (S_DOWN, alive) within DOWN_REACH 160 px (any depth; main.c close_marks ->
+  intent_t.lie) plays it at that opponent (fighter_t.dtgt); new op P_HOME (vx = distance >> a, turned to face it, vz =
+  its depth >> a: the band), PC_TDOWN (target no longer lying: the special ends, he falls), combat lets the hit reach
+  only that lying target (LIE_BOX = DD's lying record), react pops a lying victim as DD's 119 (then the brawler's
+  bounce / get-up), the target stays down while the attack comes (dpin, at most 96 frames past DOWN_FRAMES: DD's victim
+  lies dizzy; without it the 74-frame leap never met the brawler's 40-frame lie). Differences from DD, named: any
+  lying opponent qualifies (no dizzy in the brawler), the abort falls with the brawler's jump fall (DD: anim 35), the
+  hit-stop is the brawler's 7. Set for Cheng Fu ("DOWN 8/2"); Billy Lee / Super Billy have the same move in DD (not
+  set: one line each in game.json); KOF96/98/99, SS2, WHP, Kizuna: none found in our studies (KOF94's Storm Bringer
+  catches a lying victim: kof94/otg_grab.md, not in the roster). Proofs /data/tmp/cf218/out: cf218_proof.py ALL OK
+  (real fight, DD above / brawler below, sheet_* and strip_*): far D whiff pictures identical frame for frame, hop
+  heights within 1 px; far D hit 2 / 2 hits (+7 / +33 DD, +8 / +33 brawler), each spark's 19 frames = DD's; down hit:
+  leap pictures + heights identical, 16 / 16 afterimages, 1 / 1 hit, spark = DD's, the victim's pop heights = DD's to
+  its landing; down abort (target up 20 frames into the leap): both fall, no hit. progcheck_dd DOWN 8/2 = the model
+  (131 frames, 0 px), cheng_proof fight / variants / stun ok, frames 726 identical (retroarch core), spark215_proof ALL
+  OK, controls_proof + fury_inv_proof (AI_OFF copy) cheng_fu ok, bank_proof ALL OK, regress no-bleed True (frame-exact).
+  Scenarios todo218-cheng-far-d / -down-attack (lint 0).
+
+- [ ] 219. CHARACTER MUSIC THEMES (Bruno, 2026-10-07: "every time you ingest a character, see if you can also prepare
+  the character's music theme"): a per-fighter theme (game.json roster[].theme, played where? stage of his boss fight /
+  his select / P1's choice — Bruno decides) + back-fill: each roster fighter's theme from his source game (KOF94-99,
+  SS2, WHP, Kizuna, Double Dragon), per source driver: playable now / needs its driver ported. Every new-fighter job
+  checks its theme from now on.
+
+- [ ] 220. KOF MAX VERSIONS STILL RECORDED (found by #216): Iori's down+D (MAX 23624C) is still the old recorded script,
+  Yamazaki has no MAX; also Yamazaki 236236C lands 11 of KOF's 12 hits (the last strike also hits the held victim)
+  and his swirl ends 7 frames early; Ralf AAAA's mash repeat isn't modelled. Decode from KOF98's handlers.
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the

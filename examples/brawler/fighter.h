@@ -31,12 +31,12 @@ extern int16_t floor_top;         /* screen y of the feet at Z = 0: the stage's 
 #define CLOSE_X   40              /* an opponent this close (|dX|, |dZ| <= Z_HIT): A takes a route's close link (KOF's close normals) */
 #define MAX_COLS  20              /* hardware sprites reserved per fighter (Billy's widest frame: 19) */
 #define MAX_PALS  8               /* palettes reserved per fighter (Terry with his effects: 5) */
-#define SFX_PAL   232             /* KOF's shared effects bank (TODO #214): its palettes SFX_PAL .. + SFX_NPAL - 1 (bm_chars.h,
+#define SFX_PAL   224             /* KOF's shared effects bank (TODO #214): its palettes SFX_PAL .. + SFX_NPAL - 1 (bm_chars.h,
                                      at most SFX_NPAL_MAX; main.c sparks_init loads bm_sfx_pals), absolute like KOF98's
                                      palette RAM 80-127: a frame part's pal | 0x80 draws with SFX_PAL + (pal & 0x7F)
                                      (draw.s), never with its owner's palettes (the white flash, the burn leave them) */
-#define SFX_NPAL_MAX 8            /* (232-239: past the select screen's 23 actors x MAX_PALS from 16, below the big
-                                     portraits' 240) */
+#define SFX_NPAL_MAX 16           /* (224-239: past the select screen's 23 actors x MAX_PALS from 16, below the big
+                                     portraits' 240; TODO #216: 11 with Ralf's AAAA, Iori's and Yamazaki's furies) */
 extern int16_t world_w;           /* the stage's width in px (stage_t.cols * 16); fighters stay 16 px inside it */
 
 enum {                            /* states: the state machine alone decides what happens next */
@@ -63,6 +63,7 @@ enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_SLAM, R_LI
  * comes. */
 enum { IN_A = 1, IN_B = 2, IN_C = 4, IN_D = 8 };
 
+struct fighter;
 typedef struct {                  /* what the controller wants this frame (player input or AI) */
     int8_t dx, dz;                /* stick: -1/0/1 (dz -1 = away from the camera) */
     uint8_t press;                /* IN_* pressed this frame */
@@ -73,6 +74,8 @@ typedef struct {                  /* what the controller wants this frame (playe
     uint8_t slow;                 /* walk at half speed (16.16: sub-pixel steps every frame; the AI's positioning walk) */
     uint8_t hold;                 /* IN_* held this frame (B held through the prejump = the regular jump, released = a hop) */
     uint8_t close;                /* an opponent within CLOSE_X (main.c close_marks): A picks the route's close link */
+    struct fighter *lie;          /* the nearest opponent lying (S_DOWN, alive) within DOWN_REACH (main.c close_marks): up /
+                                     down + A leaps at it with the fighter's down attack (BS_DOWNATK, TODO #218) */
 } intent_t;
 
 /* ---- chain routes (Chain Lab, 2026-10-05): one route tree per fighter, data only ---------------------------------------
@@ -131,6 +134,13 @@ extern const rt_head_t *route_tab[BC_COUNT];
                                      bchar_t.air_spec, down+A in a jump plays it in the air normal's place (no meter); its
                                      program plays from the jump and lands (Kizuna's j.2B dive; SS2 Hanzo's shuriken, TODO
                                      #211: one projectile at a time, else the air normal); no cancels out of it */
+#define BS_DOWNATK (BS_COUNT + 4)    /* the down attack (vocabulary attack.down, TODO #218: game.json roster down_attack,
+                                     bchar_t.down_spec): up / down + A on the ground with an opponent lying in reach
+                                     (intent_t.lie) plays it at that opponent (fighter_t.dtgt): its program's P_HOME leaps
+                                     at it, its hit reaches it lying (combat: LIE_BOX) and pops it off the floor (react);
+                                     the target stays down while it comes (dpin); no meter, no cancels out of it */
+#define DOWN_REACH 160               /* px (x) to a lying opponent the down attack leaps at (any lane of the band); Double
+                                     Dragon has no limit (one opponent, its leap = 64 frames whatever the distance) */
 enum { FT_NONE, FT_DOWN_D_FULL };    /* bchar_t.form_trig: down+D on the ground with a full meter */
 enum { FX_NONE, FX_LIFE, FX_STAGE }; /* bchar_t.form_exit: back to the base form when a life is lost (and at a stage's
                                      start, as every player), or only at a stage's start */
@@ -330,6 +340,10 @@ typedef struct fighter {
     uint8_t  spec_sr, pstill;     /* special: the source reactions of the hit window open (bstep_t.hy under SF_SREACT);
                                    * pstill: the first frame after its hit-stop, its program's P_MOVE / P_FALL skipped
                                    * (Kizuna's: the attacker, as its victim, still that frame [meas: kim136]) */
+    struct fighter *dtgt;         /* its down attack's target (BS_DOWNATK, TODO #218): P_HOME's aim, PC_TDOWN's test, the
+                                   * one lying fighter its hit reaches; cleared by its hit and special_end */
+    uint8_t  dpin;                /* down attacks coming at this lying fighter: it stays down meanwhile (S_DOWN, at most
+                                   * DOWN_PIN frames more: Double Dragon's victim lies dizzy) */
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */

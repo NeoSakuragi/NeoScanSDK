@@ -441,7 +441,8 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None):
                                                  shared=shared_fx is None or sp['input'] in shared_fx.get(name, ()))
                 e['flash'] = e['rom'].get('flash') or e['flash']
             sps.append(e)
-            if 'rom' in e and any(v['sdm'] for v in e['rom'].get('variants', [])) and not e['input'].startswith('MAX '):
+            if ('rom' in e and any(v['sdm'] for v in e['rom'].get('variants', [])) and not e['input'].startswith('MAX ')
+                    and (name, sp['input']) not in handlers98.MAX_LATER):
                 # a DM's MAX version (TODO #139, down+D): the same handler with +$E4 bit 0 set, this button's path (the
                 # handler's own button test decides A / C: handlers98.md "Super flash"); its script = the DM's capture
                 # (the Lab's data; the game plays the program)

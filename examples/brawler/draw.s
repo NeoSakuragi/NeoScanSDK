@@ -18,7 +18,7 @@
 |   looking the frame up again.
 
     .equ    MAX_COLS, 20
-    .equ    SFX_PAL, 232            | fighter.h: KOF's shared effects bank's palettes (TODO #214; fighter.c pins it)
+    .equ    SFX_PAL, 224            | fighter.h: KOF's shared effects bank's palettes (TODO #214; fighter.c pins it)
     .equ    CMD_BUF_SIZE, 4096
     | fighter_t
     .equ    F_CH, 0

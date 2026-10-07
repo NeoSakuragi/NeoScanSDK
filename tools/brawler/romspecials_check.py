@@ -2,7 +2,8 @@
 """The ROM-read specials (tools/kof96/handlers98.py, export_bm rom_c, fighter.c prog_update) against KOF98, frame by frame.
 
     python3 romspecials_check.py GAME_DIR OUT_DIR [fighter:role[=INPUT] ...]     (an AI_OFF=1 build: the target stands still)
-    BRANCHES=whiff,close,mid,wall (default whiff,close): mid = P2 112 px ahead (romspecials98.PLACE), wall = close
+    BRANCHES=whiff,close,mid,wall,near (default whiff,close): mid = P2 112 px ahead (romspecials98.PLACE), near = 80
+    px (TODO #216: Ralf's AAAA, whose A presses are a close normal at 48 px and out of reach at 112), wall = close
     with P1 as far from the wall as the brawler's start from its own (TODO #173); =INPUT plays another
     special of the fighter's pool from that slot; +LINK@T (repeatable) a follow-up press (TODO #74): LINK one of the
     special's links (its program's 'links': 'again', 'fA', 'fAB'), T the special's frame of KOF's button press
@@ -45,7 +46,7 @@ CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = int(os.environ.get('EVERY', 4))             # the sheets: every EVERY-th frame from SHEET_FROM, at most NSHOT
 SHEET_FROM = int(os.environ.get('SHEET_FROM', 0))   # (TODO #202: frame by frame over a window, EVERY=1 SHEET_FROM=40)
 NSHOT = int(os.environ.get('NSHOT', 30))
-DIST = {'close': 48, 'mid': 112, 'wall': 48}             # wall: KOF's P1 as far from its wall (x 736) as the brawler's from
+DIST = {'close': 48, 'mid': 112, 'wall': 48, 'near': 80}             # wall: KOF's P1 as far from its wall (x 736) as the brawler's from
 #                                                          its own (TODO #173: a catch that grinds to the wall)                         # P2 ahead of P1 (px): romspecials98.PLACE close / mid
 BRANCHES = os.environ.get('BRANCHES', 'whiff,close').split(',')
 WHIFF_MODEL = {'iori': {'624D'}}                         # specials whose KOF whiff reaches P2 from any distance (KOF keeps
@@ -266,7 +267,10 @@ def main(game, out, cases):
                 sh = H.SHARED_FX.get(kg)                 # + the effects of KOF's shared bank its states spawn (TODO #214;
                 shs = {e['fstate'] for e in H.step_effects(km, kcid, res['states']) if e['table'] == sh} if sh is not None else set()
                 rec0s = K.rom96.frame_record(km, sh, 0) if shs else 0   # not the bank's other objects: sparks, shadows)
-                mine = lambda o: o['table'] == kcid or (o['table'] == sh and o['state'] in shs)
+                mine = lambda o: (o['table'] == kcid and o['state'] < 0x400) or (o['table'] == sh and o['state'] in shs)
+                # (state < $400, TODO #216: the afterimage object $19898, op 'trail', keeps the owner's position history
+                #  in +$70.. : read as table / state it is 'the fighter's' on the frames its +$70 happens to hold its
+                #  id, with a state word of $6000 (Yamazaki 236236C); the brawler draws no afterimage)
                 kof_pf = [[(o['base'], None, (o['rec'] - (rec0 if o['table'] == kcid else rec0s)) // 6, round(o['x'] - gx0, 2), o['h']) for o in g['objs'] if mine(o)
                            and not (o['base'] in before and all(any(q['base'] == o['base'] for q in game_rows[j]['objs']) for j in range(i + 1)))]
                           for i, g in enumerate(game_rows)]

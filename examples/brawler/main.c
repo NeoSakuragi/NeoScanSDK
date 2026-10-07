@@ -246,7 +246,8 @@ static uint16_t slot_spr[NA];                    /* each depth slot's first spri
 static uint8_t pj_cols[BC_COUNT];                /* per character: its widest projectile / effect frame (pj_measure) */
 static uint8_t pj_w[NPJ];                        /* per pool entity: its block this frame (0: free, or no room) */
 static const bproj_t *pj_def[NPJ];               /* per pool entity: the definition pj_dw was measured for (TODO #214) */
-static uint8_t pj_dw[NPJ];                       /* its widest frame (pj_scan of its own definition and trail) */
+static uint8_t pj_dw[NPJ];                       /* its widest frame (its definition's cols: the export's pj_scan of
+                                                    its rows, end rows and trail) */
 static uint8_t pj_scan(const bchar_t *c, const bproj_t *d) {   /* a projectile's rows, end rows and its trail's */
     uint8_t w = 0, k;
     for (; d; d = d->child) {
@@ -319,11 +320,11 @@ static void depth_sort(void) {
                several at once (Iori 624D's 7, Ralf [2]8A's 8, up to 8 columns), past PJ_SPRS at their thrower's widest;
                the step effects (bchar_t.pfx) were not in pj_cols at all */
             if (p->state != S_OFF) {
-                if (p->pdef != pj_def[i]) {
-                    uint8_t ob = BANK_set(CH_BANK(p->ch));   /* (its rows and frames: its bank) */
-                    pj_def[i] = p->pdef; pj_dw[i] = p->pdef ? pj_scan(p->ch, p->pdef) : 0;
+                if (p->pdef != pj_def[i]) {              /* (TODO #216: measured by the export, bproj_t cols; scanning
+                                                            its rows here cost the tick 8 effects are born on 46 raster
+                                                            lines, Ralf [2]8A's landing: 252 of the frame's 256) */
+                    pj_def[i] = p->pdef; pj_dw[i] = p->pdef ? p->pdef->cols : 0;
                     if (pj_dw[i] > MAX_COLS) pj_dw[i] = MAX_COLS;
-                    BANK_set(ob);
                 }
                 w = pj_dw[i] ? pj_dw[i] : pj_cols[p->ch->id];   /* (a script's effect, no definition: its thrower's widest) */
             }
@@ -872,17 +873,20 @@ static void inputs_reset(void) {                 /* a select / fight starts: not
     for (i = 0; i < NF; i++) in[i] = (intent_t){ 0 };
     for (i = 0; i < 2; i++) { tap_t[i] = 255; tap_dir[i] = 0; }
 }
-static void close_marks(void) {                 /* intent.close: an opponent within CLOSE_X (A takes a route's close link) */
-    uint8_t i, j;
-    for (i = 0; i < NF; i++) {
+static void close_marks(void) {                 /* intent.close: an opponent within CLOSE_X (A takes a route's close link); */
+    uint8_t i, j;                               /* intent.lie: the nearest opponent lying within DOWN_REACH (up / down + A: */
+    for (i = 0; i < NF; i++) {                  /* the down attack at it, TODO #218) */
         const fighter_t *f = &fighters[i];
-        in[i].close = 0;
+        int16_t best = DOWN_REACH + 1;
+        in[i].close = 0; in[i].lie = 0;
         if (f->state == S_OFF) continue;
         for (j = 0; j < NF; j++) {
-            const fighter_t *o = &fighters[j];
+            fighter_t *o = &fighters[j];
             int16_t dx = INT(o->x) - INT(f->x), dz = INT(o->z) - INT(f->z);
             if (o->team == f->team || o->state == S_OFF || o->state == S_DEAD) continue;
-            if (dx >= -CLOSE_X && dx <= CLOSE_X && dz >= -Z_HIT && dz <= Z_HIT) { in[i].close = 1; break; }
+            if (dx >= -CLOSE_X && dx <= CLOSE_X && dz >= -Z_HIT && dz <= Z_HIT) in[i].close = 1;
+            if (dx < 0) dx = -dx;
+            if (o->state == S_DOWN && o->hp > 0 && dx < best) { best = dx; in[i].lie = o; }
         }
     }
 }
