@@ -44,17 +44,8 @@ A_RECS = [0x100] * 6 + A_CODES[6:]
 EMPTY_A = bytes([0x01, 0, 0, 0, 0, 0xDC])
 EMPTY_B = bytes.fromhex('01 0000 ffff 00 0000 ffff b36e 80'.replace(' ', ''))
 MB = 4096                                                 # 1 MB in 256-byte pages
-# bank sets (TODO #219): KOF98's table at $2708 holds 7 (fixed 64 KB + 6 x 32 KB = its 256 KB M1); the build moves it to
-# slot 7's last ADPCM-A records (11-byte looping records nobody plays: no kept song uses slot 7, ports and voices never
-# take it) and points the driver's one reader at it ($1131 LD HL,$2708 -> the new address; song98.M1 follows it), with
-# 15 sets: set n = M1 $8000 * (n + 1) through the four windows [2 KB $F000][4 KB $E000][8 KB $C000][16 KB $8000]; the
-# 2 KB window's 8-bit bank register ends there (set 14: bank $FE), M ROM up to 512 KB
-N_SETS = 15
-SETS_AT = SLOT7 + SLOT7_SIZE * (CODES - 6)                # codes $EA-$EF of slot 7: 66 bytes for 60
-def bankset_bytes(n):
-    base = 0x8000 * (n + 1)
-    return bytes([(base + 0x7000) // 0x800, (base + 0x6000) // 0x1000, (base + 0x4000) // 0x2000, base // 0x4000])
-
+N_SETS = 7                                                # KOF98's bank-set table ($2708): sets 0-6 = its 256 KB M1;
+# the NEO-ZMC's 16 KB window takes a 4-bit bank (Geolith geo_z80_bankswap: 256 KB at most), so no more (TODO #219)
 class Target:
     def __init__(self):
         m1, v = roms(KOF98)
@@ -66,6 +57,7 @@ class Target:
         self.n_brecs = 0                                  # the ADPCM-B records: 13 bytes ending in $80 (KOF98: 117,
         while self.m1[self.brecs + 13 * self.n_brecs + 12] == 0x80: self.n_brecs += 1   # then other tables)
         self.sets = {0: None}                             # bank set -> free Z80 address (None: no room / KOF98's own)
+        self.holes = []                                   # (kept KOF98 set, Z80 from, to): free inside it (TODO #219)
 
     # -- V ROM
     def place(self, src, st, en, src_v, adpcm_a):
@@ -117,11 +109,17 @@ class Target:
     # -- M ROM bank sets
     def m1_offset(self, bank, z): return 0x8000 * (bank + 1) + z - 0x8000
     def reserve(self, size):
-        for b in sorted(self.sets):
-            z = self.sets[b]
-            if z is not None and z + size <= port98.SONG_Z80_END: self.sets[b] = z + size; return b, z
+        """(bank set, Z80 address) for a song of `size` bytes: best fit (the smallest room that holds it) among the holes
+        dropped KOF98 songs leave in kept sets and the ends of the port sets, else a new set"""
+        room = [(z1 - z0, ('hole', i)) for i, (b, z0, z1) in enumerate(self.holes) if z0 + size <= z1] + \
+               [(port98.SONG_Z80_END - z, ('set', b)) for b, z in self.sets.items() if z is not None and z + size <= port98.SONG_Z80_END]
+        if room:
+            kind, k = min(room)[1]
+            if kind == 'hole':
+                b, z0, z1 = self.holes[k]; self.holes[k] = (b, z0 + size, z1); return b, z0
+            z = self.sets[k]; self.sets[k] = z + size; return k, z
         b = max(self.sets) + 1
-        if b >= N_SETS: raise ValueError(f'no free bank set ({N_SETS}: the moved bank-set table, TODO #219)')
+        if b >= N_SETS: raise ValueError(f'no free bank set (KOF98 has {N_SETS}: $2708 table; the ZMC reaches 256 KB)')
         self.sets[b] = port98.SONG_Z80 + size
         return b, port98.SONG_Z80
 
@@ -130,13 +128,18 @@ def native_samples(m1, cmd):
     and its loops {channel: (loop tick, length)} (an ending song: {'end': (tick, 0)})"""
     s = song98.Song(bytes(m1), cmd).run(ticks=20000)
     end = max((a + b for a, b, _ in s.loop_at.values()), default=s.tick) + 1
-    s = song98.Song(bytes(m1), cmd).run(ticks=end)
+    s = song98.Song(bytes(m1), cmd)
+    reads = []; rd = s.m.rd
+    def track(addr): reads.append(addr & 0xFFFF); return rd(addr)
+    s.m.rd = track; s.run(ticks=end)
+    win = [x for x in reads if x >= 0x8000] + [s.ptr + i for i in range(0x24)]   # + the header (read at Song())
+    s.window = (min(win), max(win) + 1) if win else None
     a, b = set(), set()
     for irq, t, ch, kind, kw in s.out:
         if kind == 'akey': a.add((kw['table'], kw['sample']))
         elif kind == 'bkey': b.add((kw['start'], kw['end']))
     loops = {k: [a_, b_] for k, (a_, b_, _) in s.loop_at.items()} or {'end': [s.tick, 0]}
-    return a, b, loops
+    return a, b, loops, s.window
 
 PREFIX_SLOT = {0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4, 0x17: 5, 0x16: 6, 0x1D: 7}   # KOF98 $0D7B: effect prefix -> slot
 VOICE_PRIO = 0x50                                         # KOF98's voice records (110 of slot 2's 223 used ones)
@@ -249,9 +252,9 @@ def build(manifest, out):
     # 1. what the kept KOF98 songs and the effects use
     keep_a, keep_b_rng = set(), set()
     tabaddr = {t_: sl for sl, t_ in enumerate(A_TABLES)}; tabaddr[SLOT7] = 7
-    nloops = {}
+    nloops, win = {}, {}                                  # win: the Z80 window range each kept song reads
     for s in natives:
-        a, b, nloops[s['name']] = native_samples(old, int(s['cmd'], 16))
+        a, b, nloops[s['name']], win[s['name']] = native_samples(old, int(s['cmd'], 16))
         keep_a |= {(tabaddr[ta], c) for ta, c in a}; keep_b_rng |= b
     sl = man['sfx']['slot']
     imports = man['sfx'].get('from', {})
@@ -264,8 +267,16 @@ def build(manifest, out):
         if b not in newset: newset[b] = len(newset)
         m1[t.bt + i] = newset[b]
     blocks = {nb: old[0x8000 * (b + 1):0x8000 * (b + 2)] for b, nb in newset.items() if b}
-    m1[0x10000:] = bytes([0xFF]) * (0x8000 * (N_SETS + 1) - 0x10000)   # room for every set (written: the used ones)
+    m1[0x10000:] = bytes([0xFF]) * (len(m1) - 0x10000)
     for nb, blk in blocks.items(): m1[0x8000 * (nb + 1):0x8000 * (nb + 2)] = blk; t.sets[nb] = None
+    # (TODO #219) a kept set's songs the manifest drops leave room: every song's data is one run [header, last byte
+    # read] (song98's model to the loop end), the kept songs' runs stay, the rest of $8000-$F7FF takes ports
+    for b, nb in newset.items():                          # (set 0 too: KOF98's menu songs at M1 $8000-$F7FF)
+        used = sorted(win[s['name']] for s in natives if old[t.bt + int(s['cmd'], 16) - 0x20] == b)
+        z = port98.SONG_Z80
+        for lo, hi in used + [(port98.SONG_Z80_END, port98.SONG_Z80_END)]:
+            if lo - z >= 1024: t.holes.append((nb, z, lo))
+            z = max(z, hi)
     # 3. song pointers: only the kept commands
     keep_cmds = {int(s['cmd'], 16) for s in natives}
     for c in music:
@@ -299,11 +310,6 @@ def build(manifest, out):
         assert t.v[ns << 8:(ne + 1) << 8] == t.v_src[st << 8:(en + 1) << 8] and m1[r] == old[r] and m1[r + 5:r + size] == \
             old[r + 5:r + size] or kind == 'b' or size == 11, (kind, sl_, c)
     rep['kept_records_checked'] = len(jobs)
-    # 4b. the bank-set table, moved (N_SETS above): KOF98's 7 sets kept as they were, 8 more
-    assert all(bankset_bytes(n) == old[0x2708 + 4 * n:0x270C + 4 * n] for n in range(7))
-    assert old[0x1131:0x1135] == bytes([0x21, 0x08, 0x27, 0x19]) and not any((7, c) in t.keep_a for c in range(CODES - 6, CODES))
-    m1[SETS_AT:SETS_AT + 4 * N_SETS] = b''.join(bankset_bytes(n) for n in range(N_SETS))
-    m1[0x1132:0x1134] = w16(SETS_AT)
     v_natives = len(t.v)
     imp_ranges = sfx_imports(t, sl, imports, rep) if imports else []
     vrep = voices(t, man, os.path.dirname(os.path.abspath(manifest)), out) if man.get('voices') else None
@@ -330,7 +336,7 @@ def build(manifest, out):
         print(f"ssg cues: {', '.join(f'{n} ${c:02X}' for n, c in cue_cmds.items())} ({rep['ssg']['bytes']} bytes)", flush=True)
     # 6. the fixed 32 KB changed only where the build writes: sample tables, song pointers / bank bytes, $2440, cues
     ok = [(A_TABLES[sl], A_TABLES[sl] + 6 * A_RECS[sl]) for sl in range(7)] + [(SLOT7, SLOT7 + SLOT7_SIZE * CODES),
-          (t.brecs, t.brecs + 13 * t.n_brecs), (0x329E, 0x329E + 2 * 0x60), (t.bt, t.bt + 0x60), (0x2440, 0x2442), (0x1132, 0x1134)] + \
+          (t.brecs, t.brecs + 13 * t.n_brecs), (0x329E, 0x329E + 2 * 0x60), (t.bt, t.bt + 0x60), (0x2440, 0x2442)] + \
          [tuple(r) for r in (vrep or {}).get('enable_maps', [])] + cue_ranges + imp_ranges
     bad = [i for i in range(0x8000) if m1[i] != old[i] and not any(a <= i < b for a, b in ok)]
     assert not bad, f'fixed area changed outside the tables: {[hex(i) for i in bad[:8]]}'
@@ -359,11 +365,15 @@ def build(manifest, out):
                 + ', '.join(f'{{ 0x{c.upper()}, "{names.get(c, "EFFECT " + c.upper())[:16].upper()}" }}' for c in man['sfx']['codes']) + ' }\n')
         h.write('#endif\n')
     if vrep: rep['voices'] = vrep
+    rep['m_room'] = sorted([[b, z1 - z0] for b, z0, z1 in t.holes if z1 > z0] +            # free bytes left: holes in
+                           [[b, port98.SONG_Z80_END - z] for b, z in t.sets.items() if z is not None],   # kept sets, the
+                           key=lambda r: -r[1])                                              # port sets' ends
     rep.update(m_bytes=m_size, bank_sets=nsets, v_bytes=v_size, v_used=v_used, v_kof98_kept=v_natives,
                kept_adpcm_a_records=len(keep_a), kept_adpcm_b_records=len(t.keep_b),
                v_gaps=[[a << 8, b << 8] for a, b in t.gaps])
     json.dump(rep, open(f'{out}/snd_report.json', 'w'), indent=1)
-    print(f'M ROM {m_size // 1024} KB ({nsets} bank sets), V ROM {v_size / 2**20:.2f} MB '
+    print(f'M ROM {m_size // 1024} KB ({nsets} bank sets; room left {sum(r[1] for r in rep["m_room"]) // 1024} KB, '
+          f'largest {max((r[1] for r in rep["m_room"]), default=0)} bytes), V ROM {v_size / 2**20:.2f} MB '
           f'({v_used} bytes used, KOF98 kept {v_natives // 1024} KB)')
     return rep
 

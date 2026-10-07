@@ -40,8 +40,6 @@ def b_note_name(n):
 
 class M1:
     def __init__(self, data, banksets=0x2708):
-        if banksets == 0x2708 and data[0x1131] == 0x21 and data[0x1134] == 0x19:   # KOF98's code: the table the driver
-            banksets = data[0x1132] | data[0x1133] << 8          # loads ($1131 LD HL,nn; the brawler moves it, TODO #219)
         self.d = data; self.sets = banksets; self.win = {0x8000: 0x8000, 0xC000: 0xC000, 0xE000: 0xE000, 0xF000: 0xF000}
     def bankset(self, n):
         b = self.d[self.sets + 4 * n:self.sets + 4 * n + 4]     # values for ports $08, $09, $0A, $0B
