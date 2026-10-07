@@ -36,8 +36,11 @@ from port98 import roms, w16, A_TABLES, A_SLOTS
 
 KOF98 = '/data/roms/kof98.neo'
 SLOT7, SLOT7_SIZE = 0x65FA, 11                           # 11-byte looping records (slot 7)
-CODES = 0xF0                                              # codes from $F0 on never read a table ($311B, $0618)
+CODES = 0xF0                                              # effect codes from $F0 on never read a table ($311B, $0618)
 A_CODES = [CODES] * 6 + [(SLOT7 - A_TABLES[6]) // 6]      # slot 6's table ends where slot 7's starts: 237 codes
+# ... but a song's ADPCM-A note reads its table at any code: slots 0-5 hold 256 records ($600 apart; KOF98 $32, the AOF
+# team's stage, plays slot 0's $FB: TODO #219), the effect path alone sends $F0-$FF elsewhere. Relocated / emptied: all
+A_RECS = [0x100] * 6 + A_CODES[6:]
 EMPTY_A = bytes([0x01, 0, 0, 0, 0, 0xDC])
 EMPTY_B = bytes.fromhex('01 0000 ffff 00 0000 ffff b36e 80'.replace(' ', ''))
 MB = 4096                                                 # 1 MB in 256-byte pages
@@ -93,7 +96,7 @@ class Target:
     # -- sample records
     def a_records(self):
         for sl, t in enumerate(A_TABLES):
-            for c in range(A_CODES[sl]): yield sl, c, t + 6 * c, 6
+            for c in range(A_RECS[sl]): yield sl, c, t + 6 * c, 6
         for c in range(CODES): yield 7, c, SLOT7 + SLOT7_SIZE * c, SLOT7_SIZE
 
     def free_acode(self):
@@ -326,7 +329,7 @@ def build(manifest, out):
         cue_ranges, cue_cmds, rep['ssg'] = ssg_cues.build(m1, man['ssg'])
         print(f"ssg cues: {', '.join(f'{n} ${c:02X}' for n, c in cue_cmds.items())} ({rep['ssg']['bytes']} bytes)", flush=True)
     # 6. the fixed 32 KB changed only where the build writes: sample tables, song pointers / bank bytes, $2440, cues
-    ok = [(A_TABLES[sl], A_TABLES[sl] + 6 * A_CODES[sl]) for sl in range(7)] + [(SLOT7, SLOT7 + SLOT7_SIZE * CODES),
+    ok = [(A_TABLES[sl], A_TABLES[sl] + 6 * A_RECS[sl]) for sl in range(7)] + [(SLOT7, SLOT7 + SLOT7_SIZE * CODES),
           (t.brecs, t.brecs + 13 * t.n_brecs), (0x329E, 0x329E + 2 * 0x60), (t.bt, t.bt + 0x60), (0x2440, 0x2442), (0x1132, 0x1134)] + \
          [tuple(r) for r in (vrep or {}).get('enable_maps', [])] + cue_ranges + imp_ranges
     bad = [i for i in range(0x8000) if m1[i] != old[i] and not any(a <= i < b for a, b in ok)]
