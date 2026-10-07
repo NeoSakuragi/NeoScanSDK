@@ -872,6 +872,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
                                                                     to its end (special_end, fighter_update) */
     f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = 0;   /* its first part, no follow-up armed, no hit */
     f->scancel = 0; f->fury_buf = 0;                             /* nothing landed yet: no fury cancel ("cancels") */
+    f->fpose = 0;                                                /* a fury's flash pose: not yet ("flash pose") */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
@@ -1469,6 +1470,31 @@ static void special_update(fighter_t *f) {
     }
 }
 
+/* ---- the flash pose (TODO #145, vocabulary fx.super_flash "flash pose") -----------------------------------------------
+ * A fury whose source game has no flash step of its own (bchar_t.nfpose: Kizuna, SS2, WHP, Double Dragon; KOF's furies
+ * start with their $FA flash step and play under the flash as before) shows the fighter's flash pose for the whole
+ * freeze: the super flash starts on the fury's frame gflash.start, the pose's steps (export_bm fpose_steps: its taunt /
+ * charge / win animation cut to gflash.freeze frames) show one by one, nothing of the fury runs; on the first frame
+ * after the freeze the fury starts from its first frame (state_t gflash.start again, as it had under the flash) with
+ * the world moving. Returns 1 while the pose shows (special_update waits). */
+static uint8_t flash_pose(fighter_t *f) {
+    const bchar_t *ch = f->ch;
+    uint8_t k, i, at;
+    if (f->spec_id != BS_FURY || !ch->nfpose || f->fpose == 0xFF) return 0;
+    if (!f->fpose) {
+        if (f->state_t != gflash.start) return 0;
+        super_flash(f); f->fpose = 1; f->vx = f->vy = f->vz = 0;
+    }
+    k = f->fpose - 1;
+    if (k >= gflash.freeze) {                                    /* the freeze is over: the fury from its first frame */
+        f->fpose = 0xFF; f->frame_ovr = 0xFFFF; f->state_t = gflash.start;
+        return 0;
+    }
+    for (i = 0, at = 0; i + 1 < ch->nfpose && k >= at + ch->fpose[i].n; i++) at += ch->fpose[i].n;
+    f->frame_ovr = ch->fpose[i].frame; f->fpose++;
+    return 1;
+}
+
 /* ---- state machine --------------------------------------------------------------------------------------------- */
 static void update(fighter_t *f, const intent_t *in);
 void fighter_update(fighter_t *f, const intent_t *in) {         /* its bank mapped (fighter.h "banks"): its special's */
@@ -1686,8 +1712,9 @@ static void update(fighter_t *f, const intent_t *in) {
             to_neutral(f, 0); break;                             /* (no fury / no meter: the special played on to here) */
         }
         f->pheld = in && (in->hold & (f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
+        if (flash_pose(f)) break;                                /* a fury's flash pose: the freeze shows it ("flash pose") */
         special_update(f);
-        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start)
+        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose)
             super_flash(f);                                      /* every fury, MAX or not (fx.super_flash, game.json
                                                                     super_flash: state_t 1 = its first frame) */
         break;

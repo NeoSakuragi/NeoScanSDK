@@ -300,6 +300,8 @@ typedef struct fighter {
     uint8_t  fx_step, vfly;       /* when it was born; it ends when they change (KOF98 $3751A); vfly: a caught victim
                                    * a flying victim list moves (VL_FLY, fighter.c vlist_apply): its own S_HITSTUN update
                                    * leaves its body alone while it counts down (refreshed every frame of the list) */
+    uint8_t  fpose, fpad;         /* the fury's flash pose (TODO #145, fighter.c "flash pose"): 0 not started, 1 + the
+                                   * frame of the freeze it shows, 0xFF over (the fury plays from its first frame) */
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */
