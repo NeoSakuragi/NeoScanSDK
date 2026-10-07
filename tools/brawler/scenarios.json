@@ -1402,5 +1402,19 @@
   "expect": "The rising double hit and the flying kick each draw Double Dragon's spark at the impact (no KOF spark, no red).",
   "do_keys": "4:Dc,150:-,4:Uc",
   "proof": 150
+ },
+ "todo217-kim-phoenix-strobe": {
+  "title": "Kim's Phoenix: the white / red strobe flashes whole frames",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 30,
+   "meter": "full"
+  },
+  "do": "Press D next to the dummy (full meter): the Phoenix.",
+  "expect": "While Kim chases the dummy into the air the whole screen strobes white / red every frame, never a frame half red / half white, also its last one before the stage comes back.",
+  "do_keys": "3:d",
+  "proof": 330
  }
 }
