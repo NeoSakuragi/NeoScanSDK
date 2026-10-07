@@ -306,7 +306,8 @@ typedef struct fighter {
     uint8_t  vlist, vent;         /* a ROM special's caught victim script (vocabulary hold.victim_list, TODO #173): the
                                    * list its target follows + 1 (0 none; bspec_t.vlists), the attacker step whose entry
                                    * was taken last (0xFF: none yet in this list) */
-    uint8_t  pheld, wpad;         /* a special's button held this frame (PC_HELD: KOF's charge, Rugal's Kaiser Wave) */
+    uint8_t  pheld, vfr;          /* a special's button held this frame (PC_HELD: KOF's charge, Rugal's Kaiser Wave);
+                                   * vfr: the frames its victim list has run (VL_FRAMES: the entry, TODO #213) */
     int32_t  py0;                 /* a projectile's height at its hit: its end rows' heights are from it (TODO #164); an air
                                      projectile's (bproj_t air) thrower's height at its spawn: its rows' heights count from it (TODO #211) */
     const banim_t *fx_pan;        /* a step effect (bproj_t follow 8, anim.step_spawn): its owner's animation and step */

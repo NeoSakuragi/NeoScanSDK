@@ -1,8 +1,14 @@
 {
- "_doc": "Kizuna Encounter victim postures (export_bm.VICTIM_POSES['kizuna'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, ROM sprites face left, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'state.step' of the victim states Kim's throw ($6F) puts its victim in: $10C (Kim's own frames: animation $FA) and $17A ($DE); read by eye from Kim's frames (tools/kizuna/anim_sheet.py FA DE).",
+ "_doc": "Kizuna Encounter victim postures (export_bm.VICTIM_POSES['kizuna'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, ROM sprites face left, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'state.step' of the victim states Kim's throw ($6F) puts its victim in: $10C (Kim's own frames: animation $FA) and $17A ($DE); read by eye from Kim's frames (tools/kizuna/anim_sheet.py FA DE). TODO #213 (Rosa's command grabs, tools/kizuna/rosa_kz.py): the victim states her grabs' requests put it in, $10A (214B's grab D5: Hayate's thrown animation 101) and $10B (6246A: 106), read by eye from Hayate's frames.",
  "poses": {
   "10C.0": ["grabbed", 0], "10C.1": ["grabbed", 0], "10C.2": ["curled", 0], "10C.3": ["inverted", 180],
   "10C.4": ["horizontal", 90], "10C.5": ["falling", 135], "10C.6": ["lying", 90],
-  "17A.0": ["lying", 90], "17A.1": ["lying", 90]
+  "17A.0": ["lying", 90], "17A.1": ["lying", 90],
+  "10A.0": ["grabbed", 0], "10A.1": ["grabbed", 0], "10A.2": ["curled", 0], "10A.3": ["horizontal", 90],
+  "10A.4": ["horizontal", 90], "10A.5": ["horizontal", 90], "10A.6": ["falling", 135], "10A.7": ["falling", 135],
+  "10A.8": ["falling", 135], "10A.9": ["lying", 90],
+  "10B.0": ["grabbed", 0], "10B.1": ["grabbed", 0], "10B.2": ["curled", 0], "10B.3": ["horizontal", 90],
+  "10B.4": ["horizontal", 90], "10B.5": ["inverted", 180], "10B.6": ["inverted", 180], "10B.7": ["falling", 135],
+  "10B.8": ["lying", 90]
  }
 }

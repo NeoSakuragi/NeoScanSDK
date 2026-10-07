@@ -30,7 +30,7 @@ AI_FIELDS = ['rest_shift', 'rest_random', 'rest_add', 'rest_start', 'rest_attack
              'bspec_dz', 'rush_dx', 'rest_bspec', 'jump_min', 'jump_max', 'jump_dz', 'jump_chance', 'rest_jump', 'air_b_dx', 'hop_dx', 'hop_chance']
 CHANCE_MASKS = {'follow_ups': 'follow_mask', 'rev_chance': 'rev_mask', 'bspec_chance': 'bspec_mask'}   # "1 in N" -> mask N-1
 MAX_ENEMIES = 6                                          # main.c NF - 2
-MAX_SLOTS = 23                                           # main.c NA (an actor per slot)
+MAX_SLOTS = 24                                           # main.c NA (an actor per slot)
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
 GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
 GD_VERSION, GD_MAX = 7, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*,

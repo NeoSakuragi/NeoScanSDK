@@ -539,21 +539,26 @@ PC = {'end': 0, 'land': 2, 'hit': 5, 'always': 7, 'link': 10, 'hitany': 11, 'low
 REG = {'vx': 0, 'vy': 1, 'g': 2}
 SPECIAL_DAMAGE = 8                                   # export_bm.SPECIAL_DAMAGE
 
-def rom_steps(B, n, first, last, new_hit=True):
+def rom_steps(B, n, first, last, new_hit=True, once13=False):
     """ROM steps first..last of Kim's animation n as a program's steps (export_bm rom_c: flags $100 attack box live,
     $4000 the next step goes on with this hit): a step opens a new hit where Kizuna's does (its trailer bit 15) or where
     a live box follows a dead one; new_hit False: the first steps continue a hit already landed (no box until the next
-    opening: the brawler's program starts a new animation there)"""
+    opening: the brawler's program starts a new animation there). once13 (TODO #213, Rosa's programs): Kizuna's hit with
+    the step's trailer bit 13 sets the attacker's +$0C bit 4 ($21188), which the hit test ($20AF6) holds against any
+    further hit until its animation changes ($2B506): from a live step with bit 13 on, the live steps that follow go on
+    with that one hit [meas: 214B_h A5.6-8 / 214B_c1_h D4.2-4 / j2C_h A8.2-3 never hit again]"""
     st = boxes_in_force(n)[first:last + 1]
     live = [any(attack(b) for b in bx) for _, bx in st]
     if not new_hit:
         k = next((i for i, (s, _) in enumerate(st) if s['trailer'] & 0x8000), len(st))
         live[:k] = [False] * k
     out = []
+    seen13 = False
     for i, (s, bx) in enumerate(st):
         nxt = st[i + 1][0] if i + 1 < len(st) else None
-        cont = i + 1 < len(st) and live[i] and live[i + 1] and not nxt['trailer'] & 0x8000 and \
-            not (nxt['nboxes'] and not nxt['trailer'] & 0x10)   # (TODO #136: a step with its own attack box list hits
+        seen13 |= once13 and live[i] and bool(s['trailer'] & 0x2000)
+        cont = i + 1 < len(st) and live[i] and live[i + 1] and (seen13 or not nxt['trailer'] & 0x8000 and
+            not (nxt['nboxes'] and not nxt['trailer'] & 0x10))   # (TODO #136: a step with its own attack box list hits
                                                                  # anew: the Phoenix's 86.43 -> 86.44, 32 then 9B [meas:
                                                                  # 6246A_h]; the only such pair in Kim's programs)
         d = step(B, s['addr'], s['ticks'] + (i == 0), bx if live[i] else [b for b in bx if not attack(b)])   # (the
@@ -783,19 +788,26 @@ class KzProg:
         self.entry = {}                                  # block label -> its first frame (static entries only)
         self.labels = 0
 
-    def anim(self, key, n):
+    def anim(self, key, n, first=0, last=None):
+        """animation n (its steps first..last: TODO #213, a block that ends on a step the handler waits on) as the
+        program's animation key"""
         if key not in self.anims:
-            last = len(kz.parse_anim(CH << 12 | n)) - 1
-            steps = sr_mark(rom_steps(self.B, n, 0, last), n)
+            whole = first == 0 and last is None
+            if last is None: last = len(kz.parse_anim(CH << 12 | n)) - 1
+            once13 = getattr(self, 'once13', False)
+            steps = sr_mark(rom_steps(self.B, n, first, last, once13=once13), n, first)
             for k, s in enumerate(steps):
-                vs = self.voices.get((n, k))
+                vs = self.voices.get((n, first + k))
                 if vs: s['voices'] = vs
-            if kz.parse_anim(CH << 12 | n)[-1]['end'] == 'loop':   # a looping animation (the Phoenix's dive 88): its
+            if whole and kz.parse_anim(CH << 12 | n)[-1]['end'] == 'loop':   # a looping animation (the Phoenix's dive 88): its
+                if once13 and steps[0]['flags'] & 0x100 and steps[-1]['flags'] & 0x100 and \
+                        any(s_['trailer'] & 0x2000 for s_ in kz.parse_anim(CH << 12 | n)):
+                    steps[-1]['flags'] |= 0x4000          # (once13: the loop goes on with its one hit, TODO #213: j.2C's A7)
                 one = [dict(s_) for s_ in steps]          # steps again and again, unrolled (240 frames, held after): only
                 one[0]['ticks'] -= 1                      # the first pass has rom_steps' one more tick on step 0 [meas:
                 while sum(s_['ticks'] + 1 for s_ in steps) < 240:   # 6246A_h 88.0 / 88.1 five frames each]
                     steps += [dict(s_) for s_ in one]
-            self.anims[key] = {'mode': 'hold', 'steps': steps, 'n': n}
+            self.anims[key] = {'mode': 'hold', 'steps': steps, 'n': n, 'first': first}
             self.states.append(key)
         return self.states.index(key)
 
@@ -805,7 +817,7 @@ class KzProg:
     def emit(self, *ops): self.ops += ops
 
     def block(self, label, key, n, b, ends=None, branches=(), extras=(), enter=(), spawns=None, state=None,
-              extra_end=0, at=None, extras_from=0, step_ops=None):
+              extra_end=0, at=None, extras_from=0, step_ops=None, first=0, last=None):
         """animation n as one block from label: P_ANIM (b = damage | reaction << 8), the enter ops, then frame by
         frame: branches [(op tuple)...] (the handler's tests), the clock (a step's command on its first frame, spawns
         {step: object index}), the move, extras (per-frame ops: follow-up checks; a function of the program when they
@@ -813,15 +825,16 @@ class KzProg:
         goes on to (None: it holds until a branch leaves). state: the motion in force at entry {ax, ay, y (None:
         not static)}; returns the state at its end. at: the block's first frame (static entries: effects pinned to
         the program's frames). step_ops {step: [ops]}: run on that step's first frame (the handler's acts on a step
-        event: its phase writes, the screen effect)"""
+        event: its phase writes, the screen effect). first / last: its steps first..last only (TODO #213; spawns /
+        step_ops / extras_from count from first)"""
         st = dict(state or {'ax': 0.0, 'ay': 0.0, 'y': 0.0, 'vx': 0.0, 'vy': 0.0})
         if at is not None: self.entry[label] = at
-        steps = kz.parse_anim(CH << 12 | n)
+        steps = kz.parse_anim(CH << 12 | n)[first:None if last is None else last + 1]
         dur = [max(1, s['ticks']) for s in steps]
         t0 = [sum(dur[:k]) for k in range(len(steps))]
         D = sum(dur) + extra_end
         spawns = spawns or {}
-        ix = self.anim(key, n)
+        ix = self.anim(key, n, first, last)
         self.emit(label, ('anim', ix, b))
         if label == 'START': self.emit(('set', REG['vx'], 0), ('set', REG['vy'], 0), ('set', REG['g'], 0))   # (his walk's speed dropped)
         self.emit(*enter)
@@ -860,7 +873,7 @@ class KzProg:
         def body(ax, on):                                # one frame: the handler's tests, the move, the extras
             if (ax, on) in bodies: return [('jmp', bodies[(ax, on)])]
             bodies[(ax, on)] = bl = self.L()             # (its first use: the ops follow on)
-            return [bl, *branches, ('move',), *([('add', REG['vx'], fx16(ax * S))] if ax else []), *([] if ground else [('fall',)]),
+            return [bl, *(branches(self) if callable(branches) else branches), ('move',), *([('add', REG['vx'], fx16(ax * S))] if ax else []), *([] if ground else [('fall',)]),
                     *((extras(self) if callable(extras) else extras) if on else ()), ('yield',)]
         # the clock: P_DEC every frame of the block, the frame an event runs once more (its ops fall into the next
         # segment's stub): in segment i at frame t cnt = -(t + i + 1); segment i's stub tests the next event's frame
@@ -911,7 +924,7 @@ class KzProg:
             elif c == 'yield': out.append([P['br'], PC['always'] | 0x80, -1, 0])
             elif c in ('resume_at', 'jmp'): out.append([P[c], 0, at[o[1]], 0])
             elif c == 'spawn': out.append([P['spawn'], o[1], 0, 0])
-            elif c in ('vphase', 'screen'): out.append([P[c], o[1], 0, 0])
+            elif c in ('vphase', 'screen'): out.append([P[c], o[1], o[2] if len(o) > 2 else 0, 0])   # (vphase b: VA_LIST's list, TODO #213)
             else: out.append([P[c], 0, 0, 0])
         assert len(out) < 0x7FFF, len(out)
         return out
@@ -1096,7 +1109,7 @@ def prog_special(B, inp, cap, fc, rec):
         K.block('LAND', '89', 0x89, 0, enter=(('vphase', VA['thaw']),), ends='END', state=dict(MERGE), extra_end=1)
         parts, links, flinks = [], [], []
     K.emit('END', ('end',))
-    rom = {'states': K.states, 'anims': {k: {'mode': a['mode'], 'steps': a['steps'], 'kz_anim': a['n']} for k, a in K.anims.items()},
+    rom = {'states': K.states, 'anims': {k: {'mode': a['mode'], 'steps': a['steps'], 'kz_anim': a['n'], 'kz_first': a['first']} for k, a in K.anims.items()},
            'prims': K.prims(), 'objects': K.objects, 'openings': {}, 'hit_kind': 1, 'last_hit': -1, 'apex': -1,
            'length': len(rec['script']), 'now': True, 'sreact': True, 'sharepush': True}   # (TODO #136: Kizuna's
                                                      # bodies share the push, $2B644's +$0C bit 6 path: SF_SHARE)
@@ -1163,13 +1176,15 @@ def rom_palette(n): return [kz.u16(0x70000 + 32 * n + 2 * i) for i in range(16)]
 KIM = {}
 def setup(name):
     """fighter name's tables (module doc): Kim's as written, another's moved to its animations + its plan_kz specials"""
-    global CH, NAME, CAPTURE, FOLLOWUPS, SETS, MOVES, SPECIALS, FOLLOW, CAP_OF
-    if not KIM: KIM.update(CAPTURE=CAPTURE, FOLLOWUPS=FOLLOWUPS, SETS=SETS, MOVES=MOVES, SPECIALS=SPECIALS, FOLLOW=FOLLOW, CAP_OF=CAP_OF)
+    global CH, NAME, CAPTURE, FOLLOWUPS, SETS, MOVES, SPECIALS, FOLLOW, CAP_OF, AIR
+    if not KIM: KIM.update(CAPTURE=CAPTURE, FOLLOWUPS=FOLLOWUPS, SETS=SETS, MOVES=MOVES, SPECIALS=SPECIALS, FOLLOW=FOLLOW, CAP_OF=CAP_OF, AIR=AIR)
     NAME, CH = name, FK.CAST[name]
     if name == 'kim':
-        CAPTURE, FOLLOWUPS, SETS, MOVES, SPECIALS, FOLLOW, CAP_OF = (KIM[k] for k in ('CAPTURE', 'FOLLOWUPS', 'SETS', 'MOVES', 'SPECIALS', 'FOLLOW', 'CAP_OF'))
+        CAPTURE, FOLLOWUPS, SETS, MOVES, SPECIALS, FOLLOW, CAP_OF, AIR = (KIM[k] for k in ('CAPTURE', 'FOLLOWUPS', 'SETS', 'MOVES', 'SPECIALS', 'FOLLOW', 'CAP_OF', 'AIR'))
         return
     CAPTURE, FOLLOWUPS = FK.path(name, 'capture'), FK.path(name, 'followups')
+    if name == 'rosa': import rosa_kz; AIR = rosa_kz.AIR          # (TODO #213: her air special, j.2C)
+    else: AIR = {}
     SETS = [kz.u16(0x1438 + 2 * CH), kz.u16(0x1458 + 2 * CH)]
     plan = json.load(open(FK.path(name, 'follow')))
     ka = lambda n: FK.kim_anim(CH, n)
@@ -1178,12 +1193,20 @@ def setup(name):
         k = len(kz.parse_anim(CH << 12 | n)) - 1
         return min(first, k), None if last is None else max(min(last, k), min(first, k))
     MOVES = {}
+    cap = json.load(open(CAPTURE))
+    def jump_anims(rec):                             # (TODO #213) the animations its jump capture plays from the
+        seen = []                                    # prejump to the landing: Kim falls in one ($81), Rosa in one per
+        for f in cap[rec]['frames']:                 # jump (up $80, forward $6A, back $6B: the state map's $81 is
+            a = f[0][0]                              # only her forward one)
+            if a not in (ka(0xA0), ka(0x82)) and a not in seen and (seen or a == ka(src[2][0])): seen.append(a)
+        return tuple(seen)
     for mv, src in KIM['MOVES'].items():
         if src[0] == 'anim':
             n = air if src[1] == 0x8F else ka(src[1]); MOVES[mv] = ('anim', n, *clamp(n, src[2], src[3]))
-        else: MOVES[mv] = ('cap', src[1], tuple(ka(a) for a in src[2]), src[3])
+        else: MOVES[mv] = ('cap', src[1], jump_anims(src[1]), src[3])
     CAP_OF = {ka(k): v for k, v in KIM['CAP_OF'].items()}
     SPECIALS = {k: (v[0], v[1], v[2]) for k, v in plan['specials'].items()}
+    if name == 'rosa': SPECIALS.pop('236A', None)    # (TODO #213: the tag-in strike, cond bit 6: needs a tag partner)
     FOLLOW = {}
     for k, F in plan['follow'].items():
         FOLLOW[k] = {**F, 'parts': [(r, tuple(a), n) for r, a, n in F['parts']],
@@ -1220,6 +1243,10 @@ def export(names, outdir, only=None, extra=None):
         sps += [air_special(B, inp, fc) for inp in (AIR if name == 'kim' else ())]   # (TODO #200: Kim's j.2B)
         if name == 'kim':                                # (TODO #133-#138: his specials played by their programs)
             sps = [prog_special(B, sp['input'], cap, fc, sp) if sp['input'] in PROG_MOVES else sp for sp in sps]
+        if name == 'rosa':                               # (TODO #213: hers, tools/kizuna/rosa_kz.py, and j.2C)
+            import rosa_kz; rosa_kz.bind(sys.modules[__name__])
+            sps = [rosa_kz.prog(B, sp['input'], cap, fc, sp) if sp['input'] in rosa_kz.PROG_MOVES else sp for sp in sps]
+            sps.append(rosa_kz.air(B, fc))
         sets = [[[0] + rom_palette(s_ + p - 16)[1:] for p in B.pals] for s_ in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0],
