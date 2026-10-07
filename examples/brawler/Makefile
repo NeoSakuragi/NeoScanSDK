@@ -45,7 +45,7 @@ $(BUILD)/rom_c1.bin $(BUILD)/rom_c2.bin $(BUILD)/portraits_big.h &: $(BUILD)/bm_
 	python3 $(TOOLS)/brawler/big_portraits.py build game.json $(CURDIR)/$(BUILD)
 
 # --- S ROM: Kizuna Encounter's outlined font (needs /data/roms/kizuna.neo), life bar glyphs, HUD portraits ---
-$(BUILD)/font.s1 $(BUILD)/hud.h &: $(TOOLS)/brawler/make_hud.py
+$(BUILD)/font.s1 $(BUILD)/hud.h &: $(TOOLS)/brawler/make_hud.py $(BUILD)/roster.json   # (the roster: its portraits, TODO #212)
 	mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/make_hud.py $(CURDIR)/$(BUILD) $(CHARS)
 

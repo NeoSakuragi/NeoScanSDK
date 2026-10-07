@@ -636,7 +636,8 @@
   "do": "Press C (no direction) with Ryo standing in front of you. Then put Ryo about a screen away (out of reach) and press C again.",
   "expect": "Kuroko throws his flag on its pole: it flies out, hits Ryo once (a light reel), stops where it hit, hovers a moment, flies back and he catches it, then he finishes his pose. Out of reach it flies about 220 px, hovers, and comes back the same way. As in SS2 it never hits on the way back. The pole stretches between him and the flag.",
   "do_keys": "4:c",
-  "proof": 120
+  "proof": 120,
+  "note": "Kuroko benched (TODO #212, Bruno 2026-10-07 'remove Kuroko for now': game.json roster_benched): kept as history; generating it needs him back in the roster."
  },
  "todo176-kuroko-126BC": {
   "title": "Kuroko: the 1 2 6 BC parody (up + C)",
@@ -649,7 +650,8 @@
   "do": "Press up + C with Ryo standing in front of you.",
   "expect": "Kuroko waves his flags and throws SS2's 1 2 6 BC parody shot in SS2's own colours (no wrong colours anywhere on it); it knocks Ryo down.",
   "do_keys": "4:Uc",
-  "proof": 90
+  "proof": 90,
+  "note": "Kuroko benched (TODO #212, Bruno 2026-10-07 'remove Kuroko for now': game.json roster_benched): kept as history; generating it needs him back in the roster."
  },
  "todo176-kuroko-214161BC": {
   "title": "Kuroko: the 2 1 4 1 6 BC parody (down-forward + C)",
@@ -662,7 +664,8 @@
   "do": "Press down-forward + C with Ryo standing in front of you.",
   "expect": "Kuroko waves his flags and throws SS2's 2 1 4 1 6 BC parody shot in SS2's own colours; it travels to Ryo and knocks him down.",
   "do_keys": "4:DRc",
-  "proof": 90
+  "proof": 90,
+  "note": "Kuroko benched (TODO #212, Bruno 2026-10-07 'remove Kuroko for now': game.json roster_benched): kept as history; generating it needs him back in the roster."
  },
  "todo189-haohmaru-rage-pose": {
   "title": "Haohmaru's fury: Samurai Shodown II's rage animation under the super flash",
@@ -1146,5 +1149,45 @@
   "expect": "The same catch as forward + C (a strike, the grab, Terry crumples, the purple explosion throws him up, burning until he lands: his life drops twice, as in KOF98), with a shorter dash: with nobody in reach Iori stops sooner than with forward + C.",
   "do_keys": "4:DRc",
   "proof": 150
+ },
+ "todo212-cheng-specials": {
+  "title": "Cheng-Fu (Double Dragon): his three specials",
+  "setup": {
+   "mode": "lab",
+   "fighter": "cheng_fu",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press C, wait until Ryo is up again, press forward + C, wait, then down + C.",
+  "expect": "C: Double Dragon's flying kick (214), a long low leap that knocks Ryo down. Forward + C: the rapid palm strikes (236), Cheng-Fu sliding forward striking again and again with rings at his fist, the last one sending Ryo off. Down + C: the rising uppercut (623) that knocks Ryo down. Each looks and moves as in Double Dragon.",
+  "do_keys": "4:c,120:-,4:Rc,150:-,4:Dc",
+  "proof": 420
+ },
+ "todo212-cheng-furies": {
+  "title": "Cheng-Fu: his two supers (D and down + D)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "cheng_fu",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter press D next to Ryo; when both stand again press down + D.",
+  "expect": "D: the screen flashes while he starts his crane kata, then the rush of seven palm strikes (DD's 236 super) with afterimages left behind him. Down + D (orange flash): a low leap with a trail of afterimages; the landing strike catches Ryo, Cheng-Fu holds him and lands a fast flurry, then leaps with the final uppercut that knocks Ryo down (nine hits, as in Double Dragon).",
+  "do_keys": "4:d,220:-,4:Dd",
+  "proof": 460
+ },
+ "todo212-cheng-throw": {
+  "title": "Cheng-Fu: his throw is Double Dragon's stun strike",
+  "setup": {
+   "mode": "lab",
+   "fighter": "cheng_fu",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Walk into Ryo to grab him, then forward + A. While Ryo staggers dizzy, press A.",
+  "expect": "Cheng-Fu strikes Ryo's chest with his palm and blows the dust off his fingers; Ryo stands stunned, staggers back and stays dizzy about two seconds (no damage from the throw itself, as in Double Dragon); the A hits him while he is dizzy.",
+  "do_keys": "4:R,4:Ra,150:-,4:a",
+  "proof": 260
  }
 }

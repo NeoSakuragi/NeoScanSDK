@@ -19,6 +19,22 @@ Per frame ($2048A, one object):
                  character + 1 (transform_dd.py); then handler 1's motion
       12 $219E0  v = 0; on the first frame of a step with attr bit 2: two effect objects (character 14, animation b6,
                  the second with palette $83 at step 4; Super Billy's 41236 rings)
+      21 $22A6C  handler 2, then on the first frame (+$20 = 0) of a step WITHOUT attr bit 2: an afterimage (TODO #212,
+                 Cheng-Fu's super 623 rise): an object (character 14, animation 86 = one step of 15 frames, palette base
+                 96) with the fighter's palette (+$03), definition (+$04), place (+$06 / +$0A) and facing copied: the
+                 fighter's picture of that frame left where it stands for 15 frames (measured: the trail of copies)
+      22 $22B08  handler 0; +$1F bit 6 (its hit landed) in steps 0-1 and the victim free: the CATCH (Cheng-Fu's super 623
+                 landing strike, anim 96): the victim stands in its animation 122 (one step: the held pose, def 2676
+                 for Billy), on the floor, +$F3 bit 5; the attacker placed 48 px from it (x = victim x -/+ 48) and
+                 animation 97 (the rush on the held victim) from step 0
+      23 $22B9E  attr bit 3: v = 0, else the header velocity every frame ($20E6C: handler 1 without its friction
+                 test); then on the first frame of a step WITH attr bit 2 the afterimage of handler 21 (Cheng-Fu's
+                 super 236 rush)
+      34 $2371A  v = 0; attr bit 2: +$F7 bit 4 = the COUNTER stance (Cheng-Fu's 421, anims 126-129): an attack that
+                 overlaps his body record of type $40 hits nothing ($258AA: both +$1F bit 6, +$2E 22 / 20, sound $D1)
+                 and the next frame here: the victim takes the throw victim's animation 113 + level (row 14), damage
+                 table $237EE by level ($2000 / $2400 / $2800 / $3200), he goes to the header's next animation at
+                 step 1 (the throw); unmatched it plays on (the whiff: 126 > 130 > 134)
      (velocities: header vx 8.8 in the art's facing (left: negative = forward), vy 8.8 up; world y grows downward)
   3. x += vx, y += vy; on the ground below y 488 -> airborne; airborne at y >= 489 -> landed: y = 488, vy = 0 and the
      header's next animation (11 / 12 when next is 0, 11, 12, 79 or 80) at once ($2065E)
@@ -73,6 +89,15 @@ def handler(o, h, hdr, s, ev):
     elif h == 4:
         if not attr & 4 or o.cnt < s['ticks']: o.vx = o.vy = 0; return
         o.vx = (-(vxw << 16) if o.right else vxw << 16); o.vy = vyw << 16
+    elif h in (21, 22, 23, 34):
+        if h == 21: handler(o, 2, hdr, s, ev)
+        elif h == 22: handler(o, 0, hdr, s, ev)              # (the catch needs a hit: never in the model)
+        elif h == 23:
+            if attr & 8: o.vx = o.vy = 0
+            else: o.vx = fwd(o, vxw); o.vy = -(vyw << 8)
+        else: o.vx = o.vy = 0                                # (the counter needs an attacker: never in the model)
+        if o.cnt == 0 and ((h == 21 and not attr & 4) or (h == 23 and attr & 4)):
+            ev.append(('ghost', s['def_'], o.x / 65536, (FLOOR - o.y) / 65536))   # the place before this frame's move
     elif h in (5, 12):
         o.vx = o.vy = 0
         if o.cnt == 0 and attr & 4:
@@ -83,6 +108,8 @@ def handler(o, h, hdr, s, ev):
 
 def start(o, n):
     o.anim, o.step, o.cnt, o.f1f, o.hold = n, 0, 0, o.f1f & 0x20, False
+    if n == 13 and not o.air:                                # (the crouch out of a special: see frame's hold rule)
+        o.step = 1; o.cnt = dd.steps(o.ch, 13)[1][1]['ticks']; o.hold = True
 
 def landing_anim(nx): return 11 if nx in (0, 11, 12, 79, 80) else nx
 
@@ -102,7 +129,12 @@ def frame(o, stop=None):
     if landed:
         start(o, landing_anim(nx)); rec['next'] = o.anim; return rec
     if o.hold:
-        if o.air or not nx: return rec
+        if o.air: return rec
+        if not nx and o.anim == 13:                          # the crouch (13, a hold, steps accepting commands) after a
+            start(o, 0); rec['next'] = 0; return rec         # special: with the stick neutral the control code stands
+                                                             # the fighter up at once: its step 1 a frame, then idle
+                                                             # (measured, compare_dd --far: Cheng-Fu's 623 > 102 > 13 > 0)
+        if not nx: return rec
         start(o, nx); rec['next'] = nx; return rec
     c0 = o.cnt; o.cnt += 1
     if c0 >= s['ticks']:
