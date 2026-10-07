@@ -58,7 +58,7 @@ MOVES = {
     # (flight), on the floor (bounce: head-first steps 5-8), the roll over (fall), then lying (down)
     'blowback': (256, 0, 2, 'hold'), 'blowback_n': (256, 0, 2, 'hold'), 'knockdown_flight': (256, 3, 4, 'hold'),
     'knockdown_bounce': (256, 5, 8, 'hold'), 'knockdown_fall': (256, 9, 11, 'hold'), 'down': (101, 0, None, 'hold'),
-    'getup': (105, 0, None, 'hold'), 'trip': (224, 0, 3, 'hold'), 'win_a': (140, 0, None, 'hold'),
+    'getup': (105, 0, None, 'hold'), 'trip': (224, 0, 3, 'hold'), 'win': (140, 0, None, 'hold'),
 }
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',

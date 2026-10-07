@@ -74,6 +74,18 @@ MOVES98.update({'hop_up_rise': 15, 'hop_up_fall': 16, 'hop_fwd_rise': 17, 'hop_f
                 'win_a': 336, 'win_a_hold': 337, 'win_b': 338, 'win_b_hold': 339,
                 'win_c': 340, 'win_c_hold': 341, 'win_d': 342, 'win_d_hold': 343})
 
+# The round win (brawler 'win', TODO #184): the states the winner goes through after the KO, as the game plays them
+# (tools/kof98/capture/wins98.py, GAME=kof96 / kof98 / kof99: A held at the KO, as the brawler's pick): KOF98 / KOF99
+# 336 then 337 (its end) for every fighter; KOF96 209 (slot 65), Geese 209 then 232. One animation: the states' steps
+# one after the other, 'parts' = [slot, first step, steps] (the voices' places, brawler/voices.py)
+WINS = {g: os.path.join(HERE, '..', 'kof98', 'capture', d, 'wins.json') for g, d in
+        (('kof96', 'wins_kof96'), ('kof98', 'wins'), ('kof99', 'wins_kof99'))}
+def win_states(game, cid):
+    p = WINS.get(game)
+    seq = (json.load(open(p)).get(str(cid)) or {}).get('A') if p and os.path.exists(p) else None
+    if seq: return [st for st, _ in seq[1:] if st]           # the attack that won it first, idle (0) between / after
+    return [209] if game == 'kof96' else [336, 337]
+
 PAL_ROM = {'kof98': 0x2D77F0, 'kof99': 0x2D77F0, 'kof97': 0x2CFFF0}   # bank 2; KOF97's from its copy of KOF98's loader ($4AD6)
 def pal_rom98(m, n): return [0] + [m.u16(PAL_ROM[m.game] + n * 32 + 2 * i, 2) for i in range(1, 16)]
 def palettes98(m, cid, used):
@@ -333,6 +345,14 @@ def export(names, outdir, game='kof96', only=None, extra=None):
             except Exception: continue
             anims[move] = {'slot': slot, 'state': state, 'mode': mode, 'steps': [
                 {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
+        if game != 'kof97' and (only is None or 'win' in only):
+            parts, wsteps = [], []
+            for st in win_states(game, cid):
+                slot = slot_of(cid, st); steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
+                parts.append([slot, len(wsteps), len(steps)])
+                wsteps += [{'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}}
+                           for t, fi, fl, b, ri, dx in steps]
+            anims['win'] = {'slot': parts[0][0], 'state': win_states(game, cid)[0], 'parts': parts, 'mode': 'hold', 'steps': wsteps}
         for move, (state, step) in (extra or {}).get(name, {}).items():
             slot = slot_of(cid, state); steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
             t, fi, fl, b, ri, dx = steps[step]

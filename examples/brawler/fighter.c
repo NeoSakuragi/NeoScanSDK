@@ -177,6 +177,8 @@ static void anim_tick(fighter_t *f) {
 const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
 void fighter_play(fighter_t *f, uint8_t anim) { mute = 1; play(f, anim); mute = 0; }
 void fighter_animate(fighter_t *f) { mute = 1; anim_tick(f); mute = 0; }
+void fighter_pose(fighter_t *f, uint8_t anim) { play(f, anim); }       /* the same, with the animation's voices (the */
+void fighter_pose_tick(fighter_t *f) { anim_tick(f); }                 /* stage clear's win pose, main.c win_tick) */
 
 /* ---- helpers --------------------------------------------------------------------------------------------------- */
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }

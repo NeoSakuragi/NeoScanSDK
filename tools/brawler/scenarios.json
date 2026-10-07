@@ -675,5 +675,22 @@
   "expect": "The screen flashes and Haohmaru plays his SS2 rage animation (sword raised, then the crouched stance) with his rage shout while everything is frozen; then his weapon-flipping fury starts and hits Ryo.",
   "do_keys": "3:d",
   "proof": 200
+ },
+ "20261007-021017-5d29": {
+  "title": "Stage clear: the player's win pose before the next stage",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss (Mr. Big) alone with 1 life point, Terry in front of him. Hit him with A, then press any buttons during the stage clear.",
+  "expect": "The boss falls in slow motion, STAGE CLEAR shows, then Terry turns toward the middle of the screen and plays his KOF98 win pose once, with his voice; the buttons do nothing. The next screen comes after the pose.",
+  "do_keys": "3:a",
+  "proof": 700
  }
 }

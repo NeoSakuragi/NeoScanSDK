@@ -11,7 +11,8 @@ import analyze as A, specials96
 from timeline import seqs
 GAP, START = 540, 40
 
-GAME = os.environ.get('GAME', 'kof98')                  # GAME=kof99: same capture in our emulator
+GAME = os.environ.get('GAME', 'kof98')                  # GAME=kof99 / kof96: same capture in our emulator (KOF96: every
+                                                        # button plays 209, Geese 209 then 232: TODO #184)
 
 def run(cid):
     import emu

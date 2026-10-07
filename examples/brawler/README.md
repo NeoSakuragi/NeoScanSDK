@@ -91,6 +91,17 @@ starts as it comes in. Beaten: its minions go down with it, STAGE CLEAR, the sav
 portrait and name) when its fighter was locked, then the next stage; after stage 5 CONGRATULATIONS, then back to the
 BIOS (the title while credits remain, else the attract demo; this return is also what commits the MVS save).
 
+Win pose (TODO #184): at STAGE CLEAR the input is off; each player in play (both in a 2-player game) finishes what he
+is doing, turns toward the middle of the screen and plays his fighter's `win` animation once, with the voices its
+source sends, held on its last frame; the next screen comes 45 frames after the last pose ends (never before STAGE
+CLEAR's 200 frames, at most 720: main.c `win_tick`). `win` (export_bm MOVES) is each source game's round-win
+animation, read in our emulator after a KO: KOF98 / KOF99 states 336 + 337 (A held at the KO: tools/kof98/capture/
+wins98.py), KOF96 209 (Geese 209 + 232; `GAME=kof96 wins98.py`), Samurai Shodown II 200 (Haohmaru) / 198 (Genjuro,
+Kuroko), World Heroes Perfect $26, Kizuna Encounter $37 (voice $1CCA), Double Dragon 99 + 42 (Billy Lee: a back flip,
+its height and travel from model_dd) / 99 (transformed: the colours back to Billy's at its step 2)
+(tools/brawler/wins184.py). The select screen's pick and BOSS UNLOCKED play the same animation. Proof:
+tools/brawler/win184_proof.py.
+
 | stage | boss | enemy base / stand-in | theme (songs.json) |
 |---|---|---|---|
 | 1 | Mr. Big | MR_BIG | AOF2 |

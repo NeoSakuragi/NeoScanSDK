@@ -991,9 +991,20 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   emulation thread a single process-wide instance (or guard MainActivity's start), prove with repeated reinstall /
   relaunch / rotate cycles in the AVD.
 
-- [ ] 184. STAGE END WIN POSE (20261007-021017-5d29: "Maybe we can shoot a little winning pose here at the end of the
+- [ ] 184. (DONE ON BRANCH fix/184-win-pose 2026-10-07, awaiting Bruno's review; proof tools/brawler/win184_proof.py ->
+  /data/tmp/win184/out) STAGE END WIN POSE (20261007-021017-5d29: "Maybe we can shoot a little winning pose here at the end of the
   stage."): after the stage clear (and the boss death sequence), the player plays his own win pose from his source
   game (KOF win poses 336-343 etc., SS2 / Kizuna / WHP / DD equivalents), then the stage transition.
+  DONE: STAGE CLEAR turns the input off; each player in play (both in 2P) stands, turns toward the middle of the screen
+  and plays his fighter's `win` animation once with the voices its source sends, held; the next screen 45 frames after
+  the last pose (never before STAGE CLEAR's 200, at most 720; main.c win_tick). `win` = each source's round-win
+  animation read in our emulator after a KO (wins98.py GAME=kof96/98/99, tools/brawler/wins184.py): KOF98 / KOF99 336 +
+  337 (A held: Terry Ryo Ralf Robert Yamazaki Billy Kyo Iori Mai Yashiro Rugal, K'), KOF96 209 (Mr. Big, Krauser,
+  Goenitz; Geese 209 + 232), SS2 200 (Haohmaru) / 198 (Genjuro, Kuroko; 140 was the sheathing, not the win), WHP $26
+  (Hanzou), Kizuna $37 (Kim; $80 was not it; his voice $1CCA captured and added), DD 99 + 42 (Billy Lee: the back flip
+  with DD's height / travel, model_dd) / 99 (transformed: Billy's colours back at its step 2). Silent where the source
+  is: KOF98 Billy, K', Kuroko, Hanzou. The select pick / BOSS UNLOCKED play the same animation. Known: a win's
+  separate effect objects are not played (K''s KOF99 glove flame).
 
 - [x] 185. CAMERA RISING IN FURIES (20261007-020507-5d29, 0.0.92: "Why is the camera going up? That is weird."): the SS2
   audit (0.0.91) made the camera rise during any fury so Genjuro's spin (126 px up) shows. Revert the generic rise;

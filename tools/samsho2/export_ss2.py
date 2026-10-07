@@ -40,7 +40,7 @@ def sb(v): return v - 256 if v > 127 else v
 # 306 / 310, D 322 / 324 / 326 / 330, A+B 276 / 278 / 280 / 284 (the heavy slash: body_toss, the brawler's C+D),
 # C+D 348 / 350 / 352 / 356; reactions (class 3, read on P2 in the captures): reel 110 (light) / 106 (heavy), the
 # crouching reel 120 (trip), the knockdown flight 220 (2 steps) and its landing / lying 222, the get-up 138 (from
-# its kneeling step 1), win 140 (the sheathing pose).
+# its kneeling step 1). 140 (the sheathing pose) is not the round win: WIN below.
 MOVES = {
     'idle': (0, 0, None), 'walk_fwd': (4, 0, None), 'run': (66, 0, None),
     'prejump': (22, 0, 0), 'jump_up_rise': (22, 0, None), 'jump_up_fall': (26, 0, None),
@@ -53,8 +53,12 @@ MOVES = {
     'atk_cd_jump': (284, 0, None), 'body_toss': (278, 0, None),
     'hit_stand_light': (110, 0, None), 'hit_stand_heavy': (106, 0, None), 'hit_air': (220, 0, 0),
     'blowback': (220, 0, 0), 'blowback_n': (220, 0, 0), 'knockdown_flight': (220, 1, 1), 'knockdown_bounce': (222, 0, 0),
-    'knockdown_fall': (222, 0, 0), 'down': (222, 1, 1), 'getup': (138, 1, None), 'trip': (120, 0, None), 'win_a': (140, 0, None),
+    'knockdown_fall': (222, 0, 0), 'down': (222, 1, 1), 'getup': (138, 1, None), 'trip': (120, 0, None),
 }
+# the round win (TODO #184): the animation SS2 plays for the winner, read in our emulator (tools/brawler/wins184.py: P1
+# lands a slash, the clock runs out with P1 ahead; P1's +$66 after it): Haohmaru 200 (facing the camera, the sword on his shoulder;
+# its step 2 sends his voice $1A98), Genjuro 198 (his back turned; step 11 $1CD8), Kuroko 198
+WIN = {'haohmaru': 200, 'genjuro': 198, 'kuroko': 198}
 def jump_moves(ch):
     """the jumps' animations from the fighter's own class 0 actions [code] ($28310: 6 up, 8 forward, 9 back; a list =
     the rise animation, parameter entries, the fall animation, then the same again for the other weapon mode): rise =
@@ -372,6 +376,7 @@ def export(names, outdir, only=None, extra=None):
         for mv, (a, f, l) in {**MOVES, **jump_moves(ch)}.items():
             anims[mv] = {'slot': a, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': anim_steps(B, ch, a, f, l)}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
+        if name in WIN: anims['win'] = {'slot': WIN[name], 'mode': 'hold', 'steps': anim_steps(B, ch, WIN[name])}
         w = (extra or {}).get(name, {}).get('watch')
         if w:
             st = ss2.parse_anim(ch, w[0], 400); k = w[1] if w[1] >= 0 else len(st) - 1

@@ -62,7 +62,7 @@ MOVES = {
     'down': ('cap', 'react_knockdown', 0x1C, [(0x674, 30)]),
     'getup': ('cap', 'react_knockdown', 0x1C, [(0x638, None), (0x63C, None), (0x640, None), (0x644, None), (0x648, None), (0x734, None)]),
     'trip': ('cap', 'react_knockdown', 0xBE, [(0x61C, 2), (0x66C, None), (0x670, None)]),
-    'win_a': ('anim', 0x26, 0, None),
+    'win': ('anim', 0x26, 0, None),      # the round win: $26 (the headband), read in our emulator (wins184.py, TODO #184)
 }
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',

@@ -1765,7 +1765,64 @@ static uint8_t tq_n;
 enum { KO_OFF, KO_SLOWMO, KO_DONE };
 static uint8_t ko_seq, ko_sub;                   /* KO_*; frames to the next logic tick */
 static uint16_t ko_t, ko_next;                   /* frames since the killing hit; the next fall */
-static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; }
+/* ---- the stage clear's win pose (TODO #184, Bruno 2026-10-07: "a little winning pose here at the end of the stage"):
+ * when every enemy is gone (after the boss's death sequence), STAGE CLEAR and the input off as before; each player in
+ * play (both in a 2-player game) first finishes what he is doing with no input (an attack, a fall, a landing: until
+ * he stands, S_IDLE), then turns toward the middle of the screen (the source games' winner faces the opponent he
+ * beat, who stood toward the middle) and plays his fighter's 'win' animation once, its voices as the source sends
+ * them (export_bm MOVES 'win': each source game's round-win animation, read in our emulator: tools/kof98/capture/
+ * wins98.py, tools/brawler/wins184.py), held on its last frame; the next screen comes WIN_HOLD frames after the last
+ * pose ended (and never before STAGE CLEAR's 200 frames; at most WIN_MAX). The fighter's state machine is not run
+ * while it poses (fighter_pose_tick only), the players untouchable. ---- */
+#define WIN_HOLD   45                            /* frames held on the pose's last frame before the next screen */
+#define WIN_SETTLE 180                           /* a player not standing by then does not pose */
+#define WIN_MAX    720                           /* the next screen at the latest (Iori's KOF98 win: 305 frames) */
+enum { WIN_NONE, WIN_WAIT, WIN_POSE };
+static uint8_t win_st[2];                        /* WIN_* per player */
+static uint16_t win_t[2];                        /* WIN_WAIT: frames waited; WIN_POSE: frames since the pose ended */
+static uint8_t win_step[2];                      /* the pose's step last applied (0xFF: none yet) */
+static void win_start(void) {
+    uint8_t i;
+    for (i = 0; i < 2; i++) {
+        const fighter_t *f = &fighters[i];
+        win_st[i] = f->state != S_OFF && f->state != S_DEAD && f->hp > 0 ? WIN_WAIT : WIN_NONE; win_t[i] = 0;
+    }
+}
+static uint8_t win_posing(uint8_t i) { return i < 2 && win_st[i] == WIN_POSE; }
+static void win_tick(void) {                     /* every fight frame after the fighters' update */
+    uint8_t i;
+    for (i = 0; i < 2; i++) {
+        fighter_t *f = &fighters[i];
+        if (win_st[i] == WIN_NONE) continue;
+        if (f->inv < 2) f->inv = 2;
+        if (win_st[i] == WIN_WAIT) {
+            if (f->state == S_IDLE && f->y == 0) {
+                f->facing = INT(f->x) - cam_x < 160 ? 1 : -1;
+                f->frame_ovr = 0xFFFF; f->vx = f->vz = 0;
+                fighter_pose(f, BA_WIN); win_st[i] = WIN_POSE; win_t[i] = 0; win_step[i] = 0xFF;
+            } else if (++win_t[i] >= WIN_SETTLE || f->state == S_DEAD || f->state == S_OFF) win_st[i] = WIN_NONE;
+        } else if (f->anim_done && win_t[i] < 0xFFFF) win_t[i]++;
+        if (win_st[i] == WIN_POSE) {                 /* the source's own motion: each step's travel as it starts (KOF's
+                                                        $FB), its height (Billy Lee's back flip, export_dd air_steps) */
+            const bstep_t *s = fighter_step(f);
+            if (f->step != win_step[i]) {
+                win_step[i] = f->step;
+                if (s->dx) {                         /* kept inside the screen, 24 px in (the camera is held at the stage end) */
+                    int16_t sx;
+                    f->x += f->facing > 0 ? FIX(s->dx) : -FIX(s->dx); sx = INT(f->x) - cam_x;
+                    if (sx < 24) f->x = FIX(cam_x + 24); else if (sx > 296) f->x = FIX(cam_x + 296);
+                }
+            }
+            f->y = FIX(s->hy);
+        }
+    }
+}
+static uint8_t win_done(void) {                  /* every pose played and held WIN_HOLD frames */
+    uint8_t i;
+    for (i = 0; i < 2; i++) if (win_st[i] == WIN_WAIT || (win_st[i] == WIN_POSE && win_t[i] < WIN_HOLD)) return 0;
+    return 1;
+}
+static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; win_st[0] = win_st[1] = WIN_NONE; }
 static void enemies_down(fighter_t *by) {        /* every enemy still up goes down (a boss beaten, TA_END) */
     uint8_t i;
     for (i = 2; i < NF; i++) {
@@ -1999,13 +2056,15 @@ static void campaign(uint8_t left) {
         if (left) break;
         FIX_print(14, 13, "STAGE CLEAR", 0); snd_music(GAME_MUS_CLEAR);
         phase = PH_CLEAR; phase_t = 0; unlock_k = 0;
+        win_start();                                         /* the players' win poses (#184) */
         if (attract) break;
         if (camp + 1 < GS_COUNT && save.furthest < camp + 1) save.furthest = camp + 1;
         if (gs->unlock && !(save.unlocked >> camp & 1)) { save.unlocked |= 1 << camp; unlock_k = camp + 1; }
         save_write();
         break;
     case PH_CLEAR:
-        if (phase_t < 200) break;                            /* then the next screen: a cut (no fades) */
+        if (phase_t < 200 || (!win_done() && phase_t < WIN_MAX)) break;   /* the win poses played, then the next screen: a
+                                                                cut (no fades) */
         for (i = 0; i < 2; i++)
             if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = char_index(fighters[i].ch); pl_set[i] = fighters[i].set; }
         if (unlock_k) unlock_start(unlock_k - 1);
@@ -2263,7 +2322,7 @@ static void show_start(uint8_t m, uint8_t c, uint8_t set, uint16_t wall) {
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     fighter_init(&fighters[0], &bm_chars[c], set, 16, 0, 160, SHOW_Z);
     fighters[0].idx = 0; fighters[0].facing = 1;
-    fighter_play(&fighters[0], BA_WIN_A);
+    fighter_play(&fighters[0], BA_WIN);
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
     for (i = 0; i < NPJ; i++) order[NF + i] = &projectiles[i];
 }
@@ -2323,7 +2382,7 @@ static void select_tick(void) {
             if ((pr & (JOY_A | JOY_B | JOY_C | JOY_D)) && !(picked[p ^ 1] && cursor[p ^ 1] == cursor[p])) {
                 pick_set[p] = (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3;
                 slot_show(cursor[p], pick_set[p]);
-                fighter_play(actor(slot_act[cursor[p]]), BA_WIN_A);
+                fighter_play(actor(slot_act[cursor[p]]), BA_WIN);
                 voice_play(actor(slot_act[cursor[p]])->ch, 0, VK_SELECT);   /* its select voice (KOF's intro line) */
                 actor(slot_act[cursor[p]])->team = 0;       /* the line guard keeps the picked ones first */
                 picked[p] = 1; snd_ssg(SSG_CONFIRM);
@@ -2427,14 +2486,18 @@ void game_tick(void) {
 #if !AI_OFF
     if (lab.active != 1) ai_update(fighters, NF, 2, in);   /* not against the Chain Lab's dummy */
 #endif
-    if (ko_seq) for (i = 0; i < NF; i++) { in[i].dx = in[i].dz = 0; in[i].press = in[i].hold = in[i].run = in[i].grab = 0; in[i].face = 0; }
-                                                          /* the boss's death: nobody acts any more (#172) */
+    if (ko_seq || (!attract && !lab.active && phase >= PH_END))
+        for (i = 0; i < NF; i++) { in[i].dx = in[i].dz = 0; in[i].press = in[i].hold = in[i].run = in[i].grab = 0; in[i].face = 0; }
+                                                          /* the boss's death: nobody acts any more (#172); the stage
+                                                             clear: the input off (#184) */
     mark(P_AI);
     close_marks();
     if (bighit_slow && --bighit_slow < BIGHIT_SLOW && (bighit_slow & 1)) { depth_sort(); draw(); hud(); return; }
                                                           /* SS2's big hit's slow motion: every other tick held */
     for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */
-        if (fighters[i].state != S_OFF && (!sf_who || sf_who == &fighters[i])) fighter_update(&fighters[i], &in[i]);
+        if (win_posing(i)) fighter_pose_tick(&fighters[i]);  /* the stage clear's win pose (#184) */
+        else if (fighters[i].state != S_OFF && (!sf_who || sf_who == &fighters[i])) fighter_update(&fighters[i], &in[i]);
+    if (!attract && !lab.active && phase == PH_CLEAR) win_tick();
     if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */

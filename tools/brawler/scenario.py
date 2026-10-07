@@ -30,11 +30,14 @@ A recipe (scenarios.json, keyed by note id):
               mode "title": power on, the title screen (as the player reaches it, no mailbox);
               mode "select": the title, a coin, START: the select screen; cursor = the roster name the cursor walks to
                   with the stick (harness sel_goto); unlock = every boss on the select (save.unlocked, until power-off);
+              stage mode, the boss (wave >= the stage's waves): wait = frames run first (the boss walks in), alone =
+                  true: its minions taken off (state OFF: the boss is the last enemy), foe_hp = the boss's life, gap =
+                  P1 put this far in front of it (its lane, facing it);
               meter (0..120, "full"), hp (P1's life), lives (P1's), face (+1 / -1), pre = "frames:keys,..." inputs played
               before the save (e.g. walking into the grab: the state then starts mid-hold)
   do_keys     the "do" as inputs ("frames:keys,..." with the harness keys U D L R a b c d), for the proof clip
   proof       frames to keep running after do_keys (default 90)
-Every poke used is listed here: fighter_t.x / z / facing / hp / meter (harness offsets from fighter.h), lives[0], cam_x,
+Every poke used is listed here: fighter_t.x / z / facing / hp / meter / state (the minions' OFF) (harness offsets from fighter.h), lives[0], cam_x,
 save.unlocked (select's unlock), and the lab mailbox (fighter.h lab_t). The state is the frame after the setup; the player loads it paused."""
 import argparse, hashlib, json, os, shlex, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -139,6 +142,14 @@ def setup(b, rec):
             src = base + 2 * b.fsize; dst = base + i * b.fsize
             for o in range(b.fsize): b.w(dst + o, 1, b.r(src + o, 1))
             b.fset(i, 'idx', i); b.fset(i, 'x', x0 + dx); b.fset(i, 'z', z); b.fset(i, 'facing', (1 if dx < 0 else -1) & 0xFF)
+    if s.get('mode') == 'stage' and ('wait' in s or 'foe_hp' in s or s.get('alone')):   # the boss (TODO #184's test)
+        b.run(int(s.get('wait', 0)))
+        if s.get('alone'):
+            for i in range(3, 8): b.fset(i, 'state', b.states.index('OFF'))
+        if 'foe_hp' in s: b.fset(2, 'hp', int(s['foe_hp']))
+        if 'gap' in s:
+            bx = b.fget(2, 'x'); b.fset(0, 'x', bx - s['gap']); b.fset(0, 'z', b.fget(2, 'z')); b.fset(0, 'facing', 1)
+        b.run(1)
     if 'meter' in s: b.fset(0, 'meter', 120 if s['meter'] == 'full' else int(s['meter']))
     if 'hp' in s: b.fset(0, 'hp', int(s['hp']))
     if 'lives' in s: b.w(b.syms['lives'], 1, int(s['lives']))
