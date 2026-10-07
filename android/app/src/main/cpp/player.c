@@ -3,6 +3,7 @@
  * the core runs one frame, the picture lands in a direct ByteBuffer (XRGB8888 words, the GL side swizzles) and the
  * audio frames in a short[] the caller writes to its AudioTrack (whose blocking write paces the emulation). */
 #include <jni.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +30,13 @@ static uint16_t pads[2];                  /* bit = libretro joypad id (B 0 = Neo
 static volatile uint16_t held[2], latch[2]; /* touch / pad state from the UI thread; latch keeps a press made and
                                               released between two frames until a frame has seen it */
 static int loaded;
+/* TODO #183: one core per process, driven by one thread. load claims the core for the calling thread (refused while
+ * another load is live: two EmuThreads once ran the core at once and crashed the 68k core), unload releases it; the
+ * calls that run the core (runFrame, reset, flushSaves, feedback, loadState) do nothing on any other thread. */
+static pthread_mutex_t core_mx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t owner;
+static int claimed;                       /* under core_mx: a thread owns the core (from the start of load to unload) */
+static int mine(void) { return loaded && pthread_equal(owner, pthread_self()); }
 
 /* Feedback (docs/feedback.md): an exact replay of the last minute. Every frame's pads go into a ring (port 0, port 1;
  * bit 15 of port 0 = a soft reset ran just before that frame), a save state is kept every SNAP_EVERY frames (the last
@@ -122,7 +130,14 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_load(JNIEnv *env, jclass c
     (void)cls;
     snprintf(sys_dir, sizeof(sys_dir), "%s", s); snprintf(save_dir, sizeof(save_dir), "%s", v); snprintf(rom, sizeof(rom), "%s", r);
     (*env)->ReleaseStringUTFChars(env, jsys, s); (*env)->ReleaseStringUTFChars(env, jsave, v); (*env)->ReleaseStringUTFChars(env, jrom, r);
-    if (loaded) { retro_unload_game(); retro_deinit(); loaded = 0; }
+    pthread_mutex_lock(&core_mx);
+    if (claimed) {
+        pthread_mutex_unlock(&core_mx);
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "load refused: the core is live on another thread (TODO #183)");
+        return 0;
+    }
+    claimed = 1; owner = pthread_self();
+    pthread_mutex_unlock(&core_mx);
     retro_set_environment(environ_cb);
     retro_set_video_refresh(video_cb);
     retro_set_audio_sample(audio_cb);
@@ -134,7 +149,8 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_load(JNIEnv *env, jclass c
     {   const char *b = strrchr(rom, '/'); char *dot;
         snprintf(game_base, sizeof(game_base), "%s", b ? b + 1 : rom);
         if ((dot = strrchr(game_base, '.'))) *dot = 0; }
-    if (!retro_load_game(&info)) { __android_log_print(ANDROID_LOG_ERROR, TAG, "load failed: %s", rom); retro_deinit(); return 0; }
+    if (!retro_load_game(&info)) { __android_log_print(ANDROID_LOG_ERROR, TAG, "load failed: %s", rom); retro_deinit();
+        pthread_mutex_lock(&core_mx); claimed = 0; pthread_mutex_unlock(&core_mx); return 0; }
     retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
     retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
     retro_get_system_av_info(&av);
@@ -147,11 +163,21 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_load(JNIEnv *env, jclass c
     return (jint)av.timing.sample_rate;
 }
 
+/* the owner lets the core go: the saves written (Geolith's retro_unload_game), deinit; any other thread: nothing */
+JNIEXPORT void JNICALL Java_com_neoscan_player_Native_unload(JNIEnv *env, jclass cls) {
+    (void)env; (void)cls;
+    if (!mine()) return;
+    loaded = 0;
+    retro_unload_game(); retro_deinit();
+    pthread_mutex_lock(&core_mx); claimed = 0; pthread_mutex_unlock(&core_mx);
+    __android_log_print(ANDROID_LOG_INFO, TAG, "core unloaded");
+}
+
 /* one frame: picture -> video (direct buffer, MAXW*MAXH*4 bytes, rows of width()), audio -> audioOut; returns frames */
 JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_runFrame(JNIEnv *env, jclass cls, jobject video, jshortArray audioOut) {
     jint n;
     (void)cls;
-    if (!loaded) return 0;
+    if (!mine()) return 0;
     audio_n = 0;
     pads[0] = held[0] | latch[0]; pads[1] = held[1] | latch[1];
     latch[0] = latch[1] = 0;
@@ -181,8 +207,12 @@ JNIEXPORT void JNICALL Java_com_neoscan_player_Native_setPad(JNIEnv *env, jclass
  * best compatibility): arcade = SNK's MVS BIOS; console = SNK's AES BIOS (neo-epo.bin) when the BIOS set has it,
  * else UniBIOS in AES mode (it tells AES from MVS by the coin 3-4 bits geolith_unibios_hw sets) */
 JNIEXPORT void JNICALL Java_com_neoscan_player_Native_setSystem(JNIEnv *env, jclass cls, jstring jhw, jboolean aes_bios) {
-    const char *h = (*env)->GetStringUTFChars(env, jhw, 0);
-    (void)cls; snprintf(hw, sizeof(hw), "%s", h); (*env)->ReleaseStringUTFChars(env, jhw, h);
+    const char *h;
+    (void)cls;
+    pthread_mutex_lock(&core_mx);
+    if (claimed) { pthread_mutex_unlock(&core_mx); __android_log_print(ANDROID_LOG_ERROR, TAG, "setSystem refused: the core is live"); return; }
+    pthread_mutex_unlock(&core_mx);
+    h = (*env)->GetStringUTFChars(env, jhw, 0); snprintf(hw, sizeof(hw), "%s", h); (*env)->ReleaseStringUTFChars(env, jhw, h);
     snprintf(systype, sizeof(systype), "%s", strcmp(hw, "aes") ? "mvs" : aes_bios ? "aes" : "uni");
     __android_log_print(ANDROID_LOG_INFO, TAG, "system: %s BIOS, %s hardware", systype, hw);
 }
@@ -194,7 +224,7 @@ JNIEXPORT void JNICALL Java_com_neoscan_player_Native_flushSaves(JNIEnv *env, jc
     static const char *ext[] = { "nv", "srm", "mcr", "brm" };
     char name[700]; unsigned i;
     (void)env; (void)cls;
-    if (!loaded) return;
+    if (!mine()) return;
     for (i = 0; i < 4; i++) {
         int st; snprintf(name, sizeof(name), "%s/%s.%s", save_dir, game_base, ext[i]); st = geo_savedata_save(i, name);
         if (st != 2) __android_log_print(ANDROID_LOG_INFO, TAG, "save %s: %s", name, st == 1 ? "written" : "FAILED");
@@ -204,7 +234,7 @@ JNIEXPORT void JNICALL Java_com_neoscan_player_Native_flushSaves(JNIEnv *env, jc
 /* soft reset: Geolith's retro_reset (the system restarts through the BIOS; saves stay). Emulation thread, between frames. */
 JNIEXPORT void JNICALL Java_com_neoscan_player_Native_reset(JNIEnv *env, jclass cls) {
     (void)env; (void)cls;
-    if (!loaded) return;
+    if (!mine()) return;
     retro_reset();
     reset_pending = 1;                                 /* logged with the next frame: the replay resets there too */
 }
@@ -226,7 +256,7 @@ JNIEXPORT jlongArray JNICALL Java_com_neoscan_player_Native_feedback(JNIEnv *env
     char path[700]; const char *d; uint8_t *press; uint64_t w = frame_no, f; int i, ok = 1; FILE *o;
     jlongArray out; jlong v[2];
     (void)cls;
-    if (!loaded) return NULL;
+    if (!mine()) return NULL;
     d = (*env)->GetStringUTFChars(env, jdir, 0);
     press = malloc(snap_size);
     if (!press || !retro_serialize(press, snap_size)) ok = 0;
@@ -261,7 +291,7 @@ JNIEXPORT jlongArray JNICALL Java_com_neoscan_player_Native_feedback(JNIEnv *env
 JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_loadState(JNIEnv *env, jclass cls, jstring jpath) {
     const char *p; FILE *f; uint8_t *buf; long n; int i, r = 0;
     (void)cls;
-    if (!loaded) return 3;
+    if (!mine()) return 3;
     p = (*env)->GetStringUTFChars(env, jpath, 0);
     f = fopen(p, "rb");
     (*env)->ReleaseStringUTFChars(env, jpath, p);
