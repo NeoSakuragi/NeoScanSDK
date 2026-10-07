@@ -23,6 +23,8 @@ import routes as R
 import build_tables
 import voices as V
 import head_point as HP
+import pal_pack as PP
+PACKED = {}                                             # per fighter its palette packing (pal_pack.pack's report)
 GAME_JSON = os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')
 _ROSTER = None
 def roster(path=None):
@@ -250,6 +252,12 @@ def build(specs, outdir):
         for name in names:
             tmp = os.path.join(outdir, f'tmp_{game}_{name}')
             ex = export(game, [name], tmp)
+            pk, n = PP.pack(name, ex['characters'][name], tmp, MAX_PALS, ex['tiles'], SRC_BASE)   # (TODO #201)
+            if pk['packed'] != pk['slots']:              # its palettes folded: the tiles and the export it was read from
+                ex['tiles'] = n; json.dump(ex, open(os.path.join(tmp, 'kof95_export.json'), 'w'))
+                print(f'{name}: {pk["slots"]} palettes folded into {pk["packed"]} (pal_pack: exact colours, '
+                      f'{pk["tiles_added"]} tiles recoloured)', flush=True)
+            PACKED[rname(game, name)] = pk
             assert ex['tiles'] < 0x10000, f'{game}:{name}: {ex["tiles"]} tiles (a fighter must fit one 64K tile page)'
             blocks.append((game, name, ex, tmp))
     pages = [[TILE_BASE, []]]                           # per page: next free tile number, [(block, first tile)]
@@ -619,7 +627,8 @@ class pal_slots:
     colour set as one slot (KOF98 Kyo's effect palette $B81 = his body palette 18: 9 -> 8). `keys` = one export palette
     per slot, in order; `index(p)` = the slot of export palette p. The game loads MAX_PALS slots per fighter (fighter.h):
     a part past them is drawn with the next fighter's colours (Kyo's EX 236A flame, palette 37: Bruno's
-    20261007-114149-b3f3), so the export says so."""
+    20261007-114149-b3f3), so the export says so. A fighter over it has had its palettes folded before (pal_pack.py,
+    TODO #201: Rugal 11 -> 8); one that still does not fit is named with the frames of each palette."""
     def __init__(self, n, used, sets):
         self.keys, self.slot = [], {}
         for k in used:
@@ -628,6 +637,8 @@ class pal_slots:
             self.slot[k] = same
         if len(self.keys) > MAX_PALS:
             print(f'{n}: {len(self.keys)} palettes, the game loads {MAX_PALS}: slots {MAX_PALS}+ show other colours', flush=True)
+            for k, frs in ((PACKED.get(n) or {}).get('over') or {}).items():
+                print(f'  palette {k}: frames {frs}', flush=True)
     def index(self, k): return self.slot[k]
     def __len__(self): return len(self.keys)
 
