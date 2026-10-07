@@ -768,9 +768,10 @@ def suggest(name, game, slot_of, throw_rows, pool):
                 r = pred(u)
                 if r is not None: return vo['id'], r
         return None
-    for m, (slot, nsteps) in slot_of.items():
-        f = first(lambda u: min(u['step'], nsteps - 1) if u['kind'] == 'anim' and u['slot'] == slot else None)
-        if f: out[m] = list(f)
+    for m, v in slot_of.items():
+        for slot, off, nsteps in parts_of(v):          # an animation made of several (the win: KOF's 336 + 337)
+            f = first(lambda u: off + min(u['step'], nsteps - 1) if u['kind'] == 'anim' and u['slot'] == slot else None)
+            if f: out[m] = list(f); break
     for t, (slot, steps) in throw_rows.items():         # the throw's animation record, else what its capture sent
         f = first(lambda u: next((i for i, k in enumerate(steps) if k >= u['step']), 0) if u['kind'] == 'anim' and u['slot'] == slot else None) \
             or first(lambda u: 0 if u['kind'] == 'event' and u['event'] == t else None)
@@ -778,12 +779,29 @@ def suggest(name, game, slot_of, throw_rows, pool):
     for ev, src in (('hit', ('hit_c', 'hit_d')), ('ko', ('ko',))):
         f = first(lambda u: 0 if u['kind'] == 'event' and u['event'] in src else None)
         if f: out[ev] = list(f)
-    win = slot_of.get('win_a', (None,))[0]
+    win = parts_of(slot_of['win'])[0][0] if 'win' in slot_of else None
     f = first(lambda u: 0 if u['kind'] == 'anim' and u['slot'] != win and any(s in INTRO[game] for s in u['states']) else None)
     if f: out['select'] = list(f)
     for inp, keep in pool:
         f = first(lambda u: sum(1 for i in keep if i < u['at']) if u['kind'] == 'special' and u['input'] == inp else None)
         if f: out['special:' + inp] = list(f)
+    return out
+
+def parts_of(v):
+    """slot_of's value -> [(slot, first step, steps)]: (slot, steps), or ('parts', [[slot, first step, steps], ...])"""
+    return [tuple(p) for p in v[1]] if v[0] == 'parts' else [(v[0], 0, v[1])]
+
+def anim_extras(name, ks, sug, mp, key, v):
+    """a move's other voices (TODO #184: the win pose: Iori's three shouts in KOF98's 336): every voice its animation
+    steps send besides the key's first (suggest), [key index, voice id, at = step], where the roster keeps the suggestion"""
+    if key not in sug or mp.get(key) != sug[key][0]: return []
+    out, seen = [], {tuple(sug[key])}
+    for slot, off, nsteps in parts_of(v):
+        for vo in bank(name):
+            for u in vo['uses']:
+                if u['kind'] != 'anim' or u['slot'] != slot: continue
+                e = (vo['id'], off + min(u['step'], nsteps - 1))
+                if e not in seen: seen.add(e); out.append([ks.index(key), e[0] | fx_bit(name, e[0]), e[1]])
     return out
 
 def mapping(field, sug):

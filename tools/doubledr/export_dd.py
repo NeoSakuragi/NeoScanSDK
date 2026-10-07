@@ -39,7 +39,8 @@ FEET = -4                                         # the anchor's row + 3 is the 
 STATES = {'vs': '/data/neogeo_dict/doubledr/cap/vs.state', 'bb': '/data/neogeo_dict/doubledr/cap/bb.state',
           't': '/data/neogeo_dict/doubledr/cap/p1_01.state'}
 BODY = {0: (18, 34), 1: (16, 32)}                 # colour sets A / B: palette slots (P1 / P2)
-FORM_PAL = {0: (16, 32)}                          # the transformation's colours (key 'form')
+FORM_PAL = {0: (16, 32), 1: (18, 34)}             # the transformation's colours (key 'form'); the transformed form's
+                                                  # 'form' = Billy's own (its win pose turns them back, WIN)
 PALRAM = '/data/neogeo_dict/doubledr/palram.json'
 
 def palram():
@@ -186,7 +187,27 @@ MOVES = {'idle': (0,), 'walk_fwd': (1,), 'run': (1,), 'land': (11,),
          'atk_cd_jump': (28,), 'body_toss': (22,),
          'hit_stand_light': (50,), 'hit_stand_heavy': (52,), 'hit_air': (62,), 'blowback': (67, 0, 1), 'blowback_n': (67, 0, 1),
          'knockdown_flight': (66, 0, 0), 'knockdown_bounce': (71,), 'knockdown_fall': (67, 1, 1), 'down': (73,), 'getup': (75,),
-         'trip': (69,), 'win_a': (100,)}
+         'trip': (69,)}
+# the round win (TODO #184), read in our emulator (tools/brawler/wins184.py: P2 one hit from the KO, P1's +$1C from the
+# KO on): Billy (character 0) plays 99 (a back flip, its header's next = 42) then 42 (the raised fist, its step 4 sends his
+# shout $1F); transformed (character 1) 99 (the power leaves him, 94 frames: its step 0 sends the effect $C3, step 2
+# turns the palette back to Billy's own (slot 18, the README's transformation notes), step 9 his voice $20).
+# Pieces: (animation, first step, last step, palette key); last 'air': the animation is airborne (Billy's 99: a back
+# flip, 38 px up, 54 px back), played frame by frame from the model (model_dd.play): one step a frame, its height (hy)
+# and travel (dx) as DD moves the object (main.c's win pose applies them)
+WIN = {0: [(99, 0, 'air', 'body'), (42, 0, None, 'body')], 1: [(99, 0, 1, 'body'), (99, 2, None, 'form')]}
+
+def air_steps(B, ch, a, key='body'):
+    """an airborne animation as one step per frame: its definition, the height and the forward travel of DD's own
+    motion (model_dd.play, read in the 68000 code and checked against the game: compare_dd.py); dx in KOF's sign
+    (negative = forward), as anim_steps"""
+    _, st = dd.steps(ch, a); out, x0 = [], 0.0
+    for r in M.play(ch, a):
+        if r['anim'] != a: break
+        s = st[r['step']]; dx = int(round(r['x'] - x0)); x0 += dx
+        out.append({'frame': B.frame(((s['def_'], 0, 0, key),)), 'ticks': 0, 'flags': 0, 'dx': -dx, 'hy': int(round(r['y'])),
+                    'boxes': kof_boxes(s['w6']), 'dd': [a, r['step']]})
+    return out
 LOOP = {'idle', 'walk_fwd', 'run'}
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',
@@ -500,6 +521,13 @@ def export(names, outdir, only=None, extra=None):
             anims[j + '_rise'] = {'slot': a, 'mode': 'hold', 'steps': rise}
             anims[j + '_fall'] = {'slot': a, 'mode': 'hold', 'steps': fall}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
+        parts, st = [], []                               # parts: [animation, first step here, steps] (the voices)
+        for a, f, l, key in WIN[ch]:
+            k = air_steps(B, ch, a, key) if l == 'air' else anim_steps(B, ch, a, f, l, key=key)
+            if parts and parts[-1][0] == a: parts[-1][2] += len(k)
+            else: parts.append([a, len(st), len(k)])
+            st += k
+        anims['win'] = {'slot': WIN[ch][0][0], 'parts': parts, 'mode': 'hold', 'steps': st}
         w = (extra or {}).get(name, {}).get('watch')
         if w:
             st = dd.steps(ch, w[0])[1]; k = w[1] if w[1] >= 0 else len(st) - 1

@@ -82,7 +82,9 @@ MOVES = {
     'blowback': ('anim', 0x32, 0, 1), 'blowback_n': ('anim', 0x32, 0, 1), 'knockdown_flight': ('anim', 0x32, 2, 2),
     'knockdown_bounce': ('anim', 0x32, 3, 4), 'knockdown_fall': ('anim', 0x32, 4, 4), 'down': ('anim', 0x2B, 5, 5),
     'getup': ('anim', 0x1B, 0, None), 'trip': ('anim', 0x2C, 0, 2),
-    'win_a': ('anim', 0x80, 0, None),
+    # the round win (TODO #184): $37 (a hand to his brow), what Kizuna plays after a KO (tools/brawler/wins184.py; $80 was
+    # not it); its voice $1CCA is sent 53 frames in (the 'win' capture, voices_kz)
+    'win': ('anim', 0x37, 0, None),
 }
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',

@@ -82,6 +82,9 @@ def setup(name='kim'):
            ('chain_ac', '2:-,3:a,6:-,3:c,80:-'), ('chain_bc', '2:-,3:b,10:-,3:c,80:-'))},
         # the KO: P1 at life 1 hit by P2's close C
         'react_ko': (NEAR, '2:-,200:-', '2:-,3:c,195:-'),
+        # the round win (TODO #184): P2 at life 1 (EXTRA), P1's close A ends the round; his win animation ($37) and its
+        # voice ($1CCA, 53 frames in) come ~270 frames after the KO
+        'win': (NEAR, '2:-,3:a,420:-', ''),
     })
     CMDS = commands_kz.commands(FK.CAST[name])
     for c in CMDS:                                     # its command list read from the ROM: each played on the ground
@@ -102,6 +105,7 @@ def setup(name='kim'):
     for c in CMDS:
         if c['cond'] & 0x40: EXTRA[f"cmd_{c['notation']}"] = EXTRA[f"cmd_{c['notation']}_near"] = EXTRA[f"sw_{c['notation']}"] = TAGIN
     EXTRA['react_ko'] = '108313=01,108315=01,108391=01'
+    EXTRA['win'] = '108513=01'
     # whiffs for the export: P2 walks away first (AWAY: 40 frames back, nothing pinned)
     for c in CMDS:
         k = f"cmd_{c['notation']}"

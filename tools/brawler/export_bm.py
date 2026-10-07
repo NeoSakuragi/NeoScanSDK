@@ -36,7 +36,7 @@ def roster(path=None):
 MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', 'jump_fwd_rise', 'jump_fwd_fall', 'land',
          'atk_a_close', 'atk_a_far', 'atk_b_close', 'atk_b_far', 'atk_c_close', 'atk_c_far', 'atk_d_close', 'atk_d_far',
          'atk_d_crouch', 'atk_c_jump', 'atk_d_jump', 'body_toss', 'hit_stand_light', 'hit_stand_heavy', 'hit_air',
-         'blowback', 'knockdown_flight', 'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip', 'win_a', 'atk_c_crouch',
+         'blowback', 'knockdown_flight', 'knockdown_bounce', 'knockdown_fall', 'down', 'getup', 'trip', 'win', 'atk_c_crouch',
          'cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d',   # command normals (KOF97+: forward+A / B, down-forward+C / D)
          'blowback_n',                                 # KOF98's blowback when not a counter hit (285; blowback = 283)
          # the two jump heights (tools/kof96/capture/jumps.py, 2026-10-04): jump_* = stick held (KOF states 4/5, 8/9,
@@ -1072,7 +1072,8 @@ def poses(chars):
 def voice_data(ch, n, game, pool, sps):
     """the fighter's voice keys, KOF's own voice per key (voices.py suggest), the roster's mapping (game.json voices) and
     its voice table bytes"""
-    slot_of = {m: (source(ch, m).get('slot'), len(source(ch, m)['steps'])) for m in MOVES}
+    slot_of = {m: ('parts', source(ch, m)['parts']) if source(ch, m).get('parts') else (source(ch, m).get('slot'), len(source(ch, m)['steps']))
+               for m in MOVES}
     throw_rows = {}
     for t in THROWS:
         th = ch.get('throws', {}).get(t)
@@ -1091,6 +1092,7 @@ def voice_data(ch, n, game, pool, sps):
         else: sug.pop('special:' + inp, None)
     mp = V.mapping(roster()[n].get('voices'), sug)
     more = V.extras(n, ks, sug, mp, [(sp['input'], p['keep']) for sp, p in zip(pool, sps) if sp['input'] not in pv])
+    more = sorted(more + V.anim_extras(n, ks, sug, mp, 'win', slot_of['win']))   # the win pose's further voices (#184)
     return ks, sug, mp, V.table(ks, sug, mp, len(V.bank(n)), n), more
 
 def kof_prog(sp, game):
