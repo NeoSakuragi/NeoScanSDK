@@ -1515,6 +1515,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   spark). Decode DD's effect objects for his moves and play them. Also open from #212: his 421 counter stance (no
   counter mechanism yet) and the down-attack on a lying opponent.
 
+- [ ] 216. FOUND BY #214: (a) Rugal's slam burst lands 12 px off screen: the #173 wall leaves him 92 px from the edge
+  (KOF 124) and the burst sits at +104; (b) 4-8 effects spawned on one frame overrun it and appear 1-3 frames late
+  (Iori 624D, Ralf); (c) Iori 23624C, Ralf AAAA, Yamazaki 236236C are still recorded scripts.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
