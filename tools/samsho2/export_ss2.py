@@ -294,25 +294,11 @@ def colours(B, ch):
 # are copied with their pens renumbered (a pen = the 4 bitplanes of a pixel: .neo bytes bp0 bp2 bp1 bp3). Nothing at
 # run time: every frame shows the colours SS2 shows (proof: pack_check).
 MAX_PALS = 8
-
-def tile_pens(raw):
-    """the pens of a 128-byte .neo C tile, pixel by pixel (32 groups of 4 bytes x 8 pixels; the bytes hold pen bits
-    0, 2, 1, 3: neo2.tile)"""
-    out = []
-    for g in range(0, 128, 4):
-        b0, b2, b1, b3 = raw[g:g + 4]
-        out += [(b0 >> i & 1) | (b1 >> i & 1) << 1 | (b2 >> i & 1) << 2 | (b3 >> i & 1) << 3 for i in range(8)]
-    return out
-
-def tile_recolour(raw, m):
-    """the tile with pen q drawn as pen m[q] (pens not in m unchanged)"""
-    pens = tile_pens(raw); out = bytearray(128)
-    for g in range(32):
-        for i in range(8):
-            q = pens[g * 8 + i]; q = m.get(q, q)
-            out[g * 4] |= (q & 1) << i; out[g * 4 + 1] |= (q >> 2 & 1) << i
-            out[g * 4 + 2] |= (q >> 1 & 1) << i; out[g * 4 + 3] |= (q >> 3 & 1) << i
-    return bytes(out)
+# the pen codec of a 128-byte .neo C tile (tile_pens: pixel by pixel, 32 groups of 4 bytes x 8 pixels holding pen bits
+# 0, 2, 1, 3: neo2.tile; tile_recolour: pens renumbered) is the brawler export's palette packer's (TODO #201), which folds
+# every other game's fighters the same way
+sys.path.append(os.path.join(HERE, '..', 'brawler'))
+from pal_pack import tile_pens, tile_recolour
 
 def pack_palettes(B, ch, limit=MAX_PALS):
     """fold palettes until B.pals has at most `limit` (see above): -> [(host key, folded key, pen map)]"""

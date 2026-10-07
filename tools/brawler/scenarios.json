@@ -817,5 +817,19 @@
   "expect": "The ground flame is orange and yellow fire as in KOF98, no longer pale white and grey.",
   "do_keys": "4:c",
   "proof": 90
+ },
+ "todo201-rugal-palettes": {
+  "title": "Rugal's Gigantic Pressure in his own colours (KOF98's red pillar)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rugal",
+   "dummy": "terry",
+   "gap": 50,
+   "meter": "full"
+  },
+  "do": "With a full meter and Terry right in front of Rugal, press D (Gigantic Pressure). When Terry is back up, hold down and press D (its MAX version).",
+  "expect": "Rugal grabs Terry and a tall red energy pillar bursts up with a red skull in it, as in KOF98, both times; no brown and white pillar (that was another fighter's colours).",
+  "do_keys": "4:d,260:-,4:Dd",
+  "proof": 220
  }
 }
