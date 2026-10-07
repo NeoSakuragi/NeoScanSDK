@@ -363,6 +363,28 @@ step): KOF98's steps without a hurt box (EX 421D's first 11 frames, 491 and 493'
 brawler (Kyo hit at frames 2-9 on 0.1.9); Kyo's EX 421D is now invincible throughout by Bruno's call (game.json roster
 `invincible`), which covers them.
 
+## The victim's burn: the hit's element (TODO #206, 2026-10-07)
+
+Bruno's note on Kyo's fury ("the opponent should be on fire whenever hit by the Fury of Kyo"): KOF98's Orochinagi hits
+with kind 7 ($1A $37, the flame roar; its charge sets 21 first) and its victim burns, so the hit kind (+$1B8, the
+sounds) does not decide the burn. Read in the code and measured in our emulator:
+
+| what | where | |
+|---|---|---|
+| the element | animation step byte 1 -> the object's +$7E; bits 4-6 | Kyo: $20 on 623C 129 / 131, 236C 168-173, the fury flame 193, MAX body 195, MAX flames 199 / 201, $50 on 200 (the chain's middle flame), EX 236A's ground flame 482; Iori $30 |
+| the hit | `$1AF44`: victim +$132 = hitter +$7E & $70 | (the hitter: the object that hit, a flame for the fury) |
+| the colours | `$17764`: index = element / 4 (+2 in MAX mode, +1 in a no-effect case) into one of four byte tables by reaction group (`$17E2A` / `$17E4A` / `$17E6A` / `$17E8A`), -> `$177F4` handlers | $20: `$17896` palette byte +$3A = $F8 (orange) + the flame object; $30: `$17910` $F9 (purple); $50: `$178FE` $F8 in the `$17E8A` group only; $10 / $40: other effects (no burn) |
+| the sound | `$1E28C` by +$132 / 16 (elements $20 / $30 / $50: index 110 = $1A $2E) besides the kind's | the brawler plays KOF96's fire hit ($2E, TODO #197) on every burning hit |
+
+`handlers98.fire_element(m, cid, state)` = the first burning element (`BURN_OF`: $20 / $50 orange, $30 purple) of a
+state's live attack steps; `export_rom` gives it per body state (`elements`) and per object (`element`: copies and
+phases too); export_bm `move_fx` burns a P_ANIM / object hit by it (else by the fire kinds 11 / 13 / 21 as before).
+Measured over every KOF98 ROM special (`tools/brawler/burn206_kof.py`, P2 48 / 112 px ahead, P2's +$3A after the hits):
+the moves whose states carry a burning element burn in KOF98 (victim +$3A $F8 / $F9) and the others never do.
+Newly burning in the brawler: Kyo 21426C / MAX (the flames), EX 236A (its ground flame), Ralf [2]8A / [2]8C, 23624C /
+MAX (the last punch), Billy MAX 236236C, Mai 21426D / MAX, 214C, 623D; already burning by their kinds: Kyo 623C /
+236C, Iori 236A / 623C / 623D, Billy 23624C / MAX.
+
 ## Rugal: the wall slams, the charge, the step effects (TODO #173, 2026-10-06)
 
 Rugal's four recorded moves are read from his handlers now; what they needed:

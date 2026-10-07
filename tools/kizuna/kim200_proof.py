@@ -32,7 +32,10 @@ QUICK = bool(os.environ.get('QUICK'))                       # (development: (a) 
 def bm_steps():
     """the program's anims as built (bm_spec.c kim_spN_aJ): [[frame of each step]] in AIR's state order"""
     src = open(os.path.join(GAME, 'build', 'bm_spec.c')).read()
-    k = re.search(r'kim_sp(\d+)_prog\[\]', src).group(1)
+    ex = json.load(open(os.path.join(GAME, 'build', 'tmp_kizuna_kim', 'kof95_export.json')))['characters']['kim']
+    dive = [s_['frame'] for s_ in next(sp for sp in ex['specials'] if sp['input'] == 'j.2B')['rom']['anims']['dive']['steps']]
+    k = next(m.group(1) for m in re.finditer(r'static const bstep_t kim_sp(\d+)_a0\[\] = \{(.*)\};', src)   # (TODO #133: Kim has
+             if [int(x) for x in re.findall(r'\{(\d+), \d+, \d+, \{', m.group(2))] == dive)           # more programs now)
     out = []
     for j in range(4):
         body = re.search(rf'static const bstep_t kim_sp{k}_a{j}\[\] = \{{(.*)\}};', src).group(1)

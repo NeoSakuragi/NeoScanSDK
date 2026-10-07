@@ -592,20 +592,23 @@ def hit_fx(sp, i, game):
 # a throw (throw_c / throw_d: its impacts) by songs.json sfx name: Haohmaru's sword slashes $2B SLASH, Krauser's back
 # breaker $3D BACK BREAK. A special's sound is a KOF98 hit kind (fighter.c HIT_SFX): the kind playing that code alone.
 SFX_NAMES = {v: int(k, 16) for k, v in json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'songs.json')))['sfx']['names'].items()}
-KIND_OF = {0x9C: 29, 0x19: 15, 0x3D: 16, 0x2B: 20, 0x17: 24}   # HIT_SFX rows {code, 0}
+KIND_OF = {0x9C: 29, 0x19: 15, 0x3D: 16, 0x2B: 20, 0x17: 24, 0x2E: 21}   # HIT_SFX rows {code, 0} ($2E FIRE HIT: Kyo's fury, TODO #206)
 SFX_KEYS = ['A', 'B', 'C', 'D', 'CD', 'throw_c', 'throw_d']    # bchar_t.sfx order (fighter.c SX_*)
 
 def sfx_code(n, name):
     assert name in SFX_NAMES, f'{n}: hit_sfx {name!r} is no songs.json sfx name'
     return SFX_NAMES[name]
 
-def move_fx(n, sp, hk):
+def move_fx(n, sp, hk, element=0):
     """bspec_row_t / bproj_t / P_ANIM fx of a special's hit: kind hk (KOF's), or the sound its use asks for (a fury:
-    SDM IMPACT; roster[].hit_sfx[input]); the burn stays the KOF kind's (fire kinds 11, 13, 21: the crackle $2E only they)"""
+    SDM IMPACT; roster[].hit_sfx[input]); the burn: the hitting animation's element when it has one (a ROM program's
+    state / object: handlers98.fire_element, KOF98's own rule, TODO #206: Kyo's Orochinagi hits with kind 7 and burns),
+    else the KOF kind's (fire kinds 11, 13, 21: the crackle $2E only they)"""
     r = roster().get(n, {}); want = (r.get('hit_sfx') or {}).get(sp['input'])
     kind = KIND_OF[sfx_code(n, want)] if want else 29 if r.get('fury') and sp['input'] in (r['fury'], 'MAX ' + r['fury']) else hk
     fire = hk in (11, 13, 21) or sp['input'] in (r.get('fire') or ())   # roster[].fire: specials whose hits burn though
-    return kind | ((FIRE_COLOUR.get(n, 2) if fire else 0) << 6)            # their game's kind is not a fire one (TODO #163)
+    burn = H.BURN_OF.get(element) or (FIRE_COLOUR.get(n, 2) if fire else 0)   # their game's kind is not a fire one (TODO #163)
+    return kind | burn << 6
 
 def char_sfx(n):
     """bchar_t.sfx: per SFX_KEYS the code roster[].hit_sfx gives (0: KOF's own)"""
@@ -659,7 +662,7 @@ def projectile_c(n, k, pjs, game, sp):
         bm = pj.get('boom')                              # spawn.boomerang (kind 4): wrap_x = its speed (1/8 px a frame)
         if bm: wrap = q(bm['speed'])
         hk = pj.get('hit_kind', 1); hk = hk if 0 < hk <= 32 else 1
-        fx = move_fx(n, sp, hk)
+        fx = move_fx(n, sp, hk, pj.get('element', 0))
         assert len(pj['rows']) < 256 and len(pj.get('end', [])) < 256 and pj.get('spawn_row', 0) < 256, n
         out.append(f'static const bprow_t {name}_r[] = {{{rows}}};\nstatic const bpend_t {name}_e[] = {{{end}}};')
         return (f'{{{len(pj["rows"])}, {loop}, {len(pj.get("end", []))}, {pj.get("kind", 0)}, {pj.get("spawn_row", 0)}, '
@@ -767,13 +770,12 @@ def rom_c(n, k, sp, game, vres=None):
     each = max(1, SPECIAL_DAMAGE // total) if total else 0
     hitting = [st for st in r['states'] if r['openings'].get(st)]
     hk = r['hit_kind'] if 0 < r['hit_kind'] <= 32 else 1
-    fx = move_fx(n, sp, hk)
     ops = []
     for op in r['ops']:
         c = P_OPS[op[0]]
         if op[0] == 'anim':
             st = op[2]; react = ROM_REACT.get((n, sp['input'])) or (R_KNOCKDOWN if hitting and st == hitting[-1] else R_HEAVY)
-            ops.append((c, op[1], each | react << 8, fx))
+            ops.append((c, op[1], each | react << 8, move_fx(n, sp, hk, (r.get('elements') or {}).get(st, 0))))
         elif op[0] == 'set':
             v = op[2]; reg = P_REGS[op[1]]
             ops.append((c, reg, 0, round(v * 65536) if reg < 3 or reg == 5 else int(v)))   # 5: the height (16.16)

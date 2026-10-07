@@ -36,7 +36,8 @@ menu, INSERT COIN blinking) 1020 frames (17 s), then the attract demo = a fight 
 grabs, down+D reversal when threatened) against weak enemies (AI preset `minion_attract`), a new fighter each time,
 INSERT COIN blinking, 1800 frames (30 s, KOF98's demo fight from ROUND 1); then it hands back to the BIOS, which starts
 the cycle again. KOF98 also plays its intro before the logo and its ranking (240 frames) after the fight, and its header
-asks for the game's own eye-catcher (request 1, the NEOGEO logo, 466 frames between cycles); ours skips it (header 2). Coin (keyboard 3): title screen (banner, PRESS START; NEW GAME / CONTINUE STAGE n when a save is
+asks for the game's own eye-catcher (request 1, the NEOGEO logo, 466 frames between cycles); ours skips it (header 2). Coin (keyboard 3), or any credit in the count during the logo / demo (KOF98 does the same;
+SNK's MVS BIOS does not end the demo by itself, TODO #209): title screen (banner, PRESS START in INSERT COIN's place; NEW GAME / CONTINUE STAGE n when a save is
 past stage 1); START (keyboard 1) takes a credit -> character select -> the campaign. Game over / the ending: back to
 the BIOS (attract, or the title while credits remain). AES (Unibios AES mode, no coin): START in the demo -> the title.
 
@@ -56,7 +57,7 @@ independent of who stands in them: game.json `select.slots` (x, z = feet at `SEL
 fighter standing there): swapping two fighters on screen = swapping two names there (the generator checks every roster
 fighter has a slot). Everyone holds a 'watch' pose (`BA_WATCH`, game.json `roster[].watch`: one held,
 front-facing frame of its intros / win poses), turned toward the middle. The cursor's fighter shows its colours, the
-others shades of grey (luminance of their own palettes). Stick left / right moves within a row, up / down to the row
+others their own colours at half brightness. Stick left / right moves within a row, up / down to the row
 behind / in front (the nearest fighter in x); A/B/C/D picks that colour set, KOF style, and plays the win pose. P2
 joins on this screen with START (a credit: `game_start_accept`), starting on the last fighter of P1's row, and picks
 too (not the fighter P1 picked); "1P" / "2P" with a down arrow (fix tile $7F) above the selected head (side by side
@@ -178,8 +179,8 @@ never fired in either.
 
 Arcade conventions (SNK MVS; the game draws them, not the BIOS): "LEVEL-n" and "CREDIT nn" on the bottom line of
 every screen. LEVEL = the DIFFICULTY setting (LEVEL 1-8, default 4) of the game's soft DIP table (`soft_dip` in
-main.c, BIOS game settings menu); CREDIT = backup RAM $D00034. P2 joins mid-fight: "INSERT COIN" / "PRESS START"
-blinks above the empty side; START with a credit brings a fighter nobody on screen is. The BIOS PLAYER_START request
+main.c, BIOS game settings menu); CREDIT = backup RAM $D00034. P2 joins mid-fight (no prompt on
+the HUD since its fighting-game layout; KOF98 blinks INSERT COIN / PRESS START above P2's bar): START with a credit brings a fighter nobody on screen is. The BIOS PLAYER_START request
 goes through `game_start_accept` (crt0 hook): only a player not in play may take a credit, never on the select screen
 or under a STAGE CLEAR / GAME OVER banner.
 

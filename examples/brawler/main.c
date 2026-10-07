@@ -1410,11 +1410,11 @@ static void title_tick(void) {
 
 /* ---- character select: a group photo (Bruno 2026-10-05, TODO #51). The whole roster stands in rows like a school
  * photo, everyone at once: the front rows the playable fighters, the back row the campaign bosses (a locked boss is a
- * dark silhouette, not selectable; once beaten it is in colour / grey like the others). Each fighter holds its 'watch'
+ * dark silhouette, not selectable; once beaten it is in colour / dark like the others). Each fighter holds its 'watch'
  * pose (export_bm.WATCH: a front-facing frame from its intros / win poses), facing as the layout says. The places are
  * slots (SEL_SLOT: x, y, z, face), independent of who stands in them (sel_fighter: the fighter of each slot), so moving
- * someone on screen is a change to game.json's select_layout only. The cursor's fighter shows its colours, the others shades of grey
- * (their own palettes in luminance). "1P" / "2P" with an arrow above the selected head (fix layer). The stick follows
+ * someone on screen is a change to game.json's select_layout only. The cursor's fighter shows its colours, the others their own
+ * colours at half brightness (col_dark). "1P" / "2P" with an arrow above the selected head (fix layer). The stick follows
  * the cursor graph computed from the places (sel_stick, TODO #187: left / right along the row, up / down to the
  * nearest row above / below); A/B/C/D picks that colour set
  * (KOF style) and plays the win pose. P2 joins here with START (a credit) and picks too; the two can't pick the same
@@ -1450,13 +1450,16 @@ static void slots_build(void) {
 static uint8_t selectable(uint8_t s) { return slot_ch[s] != 0xFF && !char_locked(slot_ch[s]); }
 static uint8_t arrow_col[2] = { 0xFF, 0xFF }, arrow_row[2];
 
-static uint16_t col_grey(uint16_t c) {                      /* half way to the luminance grey (5 R + 9 G + 2 B) / 16 (Bruno: "less grey") */
+static uint16_t col_dark(uint16_t c) {                      /* its own colour at half brightness: each 5-bit channel
+                                                             halved (TODO #210, Bruno: "their real colors, but just much
+                                                             darker"; was half way to the luminance grey). Kizuna's
+                                                             waiting partner, measured in our emulator: its palette RAM
+                                                             = its active palette (no transform to copy) */
     uint8_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
-    uint8_t l = (uint8_t)((r * 5 + g * 9 + b * 2) >> 4);
-    return RGB((r + l) >> 1, (g + l) >> 1, (b + l + (l < 31)) >> 1);
+    return RGB(r >> 1, g >> 1, b >> 1);
 }
 #define SILHOUETTE RGB(4, 4, 5)
-/* an entity's palettes: its own colours (1), greys (0) or a silhouette (2) */
+/* an entity's palettes: its own colours (1), darkened (0) or a silhouette (2) */
 static void fighter_pals(const fighter_t *f, uint8_t colour) {
     uint16_t buf[16];
     uint8_t i, j;
@@ -1464,7 +1467,7 @@ static void fighter_pals(const fighter_t *f, uint8_t colour) {
         const uint16_t *src = fighter_src_pal(f, i);
         buf[0] = src[0];
         for (j = 1; j < 16; j++)
-            buf[j] = colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_grey(src[j]);
+            buf[j] = colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_dark(src[j]);
         PAL_setPalette(f->palbase + i, buf);
     }
 }
@@ -2019,12 +2022,23 @@ static void attract_start(void) {                      /* the logo: the title sc
     snd_music(GAME_MUS_SELECT);
     attract = 2; attract_t = 0;
 }
+/* the attract (logo or demo) ends on the title (TODO #209): START with a credit (AES: START; MVS: the BIOS took the
+ * credit: NEW GAME / CONTINUE then confirmed with START or A, no second credit; 2026-10-05: on SNK's MVS BIOS the title
+ * waited for another coin), or a credit in the BIOS's count (MVS): the title's PRESS START. KOF98, measured in our
+ * emulator on SNK's MVS BIOS: a coin on its attract logo or in its demo -> its title, PRESS 1P START. Our MVS BIOS
+ * calls DEMO_END on a coin (UniBIOS: request 3 = the title anyway), SNK's does not: the credit count decides. */
+static uint8_t attract_leave(void) {
+    uint8_t paid = bios_start != 0;
+    if (!attract || !(paid || (BIOS_MVS_FLAG && (CREDITS_P1 || CREDITS_P2)))) return 0;
+    BIOS_USER_MODE = 1; title_start(); title_paid = paid;
+    return 1;
+}
 static void attract_logo_tick(void) {
-    if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); title_paid = 1; return; }   /* as in the demo */
     if (bios_demo_end) { SYS_return(); return; }
     if (!title_t) banner_show((320 - BANNER_COLS * 16) / 2, 56);   /* again: power-on's first draw clears every block's
                                                              sprites once (game_init), the banner's 300-379 among them */
-    if (!(title_t & 31)) FIX_print(14, 18, (title_t & 32) ? "           " : "INSERT COIN", 0);
+    if (!(title_t & 31)) FIX_print(15, 18, (title_t & 32) ? "           " : "INSERT COIN", 0);   /* = the title's
+                                                             PRESS START: a credit swaps the words in place */
     if (++title_t >= ATTRACT_LOGO) { FIX_clear(); arcade_line_reset(); banner_hide(); attract_fight(); }
 }
 static void select_start(void);
@@ -2482,7 +2496,10 @@ void game_tick(void) {
     mark(P_FLUSH);
     SYS_kickWatchdog();
     snd_tick();
-    if (coin_in()) snd_ssg(SSG_COIN);                       /* KOF94's coin sound (TODO #199) */
+    i = coin_in();                                           /* KOF94's coin sound (TODO #199) */
+    if (attract_leave()) { if (i) snd_ssg(SSG_COIN); depth_sort(); draw(); return; }   /* the coin after the title's
+                                                             song start, as game_enter's */
+    if (i) snd_ssg(SSG_COIN);
     lab_tick();
     if (!lab.active && !dr_on) arcade_line();
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
@@ -2493,12 +2510,7 @@ void game_tick(void) {
     if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */
     if (ko_seq && !boss_ko_tick()) { depth_sort(); draw(); hud(); return; }   /* the boss's death: slow motion (#172) */
     if (attract) {                                           /* the demo: a coin, 30 s or a game over ends it */
-        if (bios_demo_end || ++attract_t > ATTRACT_DEMO) { SYS_return(); }
-        if (bios_start) { BIOS_USER_MODE = 1; attract = 0; title_start(); title_paid = 1; depth_sort(); draw(); return; }
-                                                          /* START in the demo (AES: no coin; MVS: the BIOS took the
-                                                             credit): the title, NEW GAME / CONTINUE confirmed with
-                                                             START or A, no second credit (2026-10-05: on SNK's MVS BIOS
-                                                             the title waited for another coin) */
+        if (bios_demo_end || ++attract_t > ATTRACT_DEMO) { SYS_return(); }   /* (START or a credit: attract_leave) */
         ai_bot(fighters, NF, 0, &in[0]);
         if (!(attract_t & 31)) FIX_print(14, 13, (attract_t & 32) ? "           " : "INSERT COIN", 0);
     } else read_player(0, &in[0], &fighters[0]);

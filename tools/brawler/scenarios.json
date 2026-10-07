@@ -931,6 +931,155 @@
   "do_keys": "4:R,2:Ra,90:-",
   "proof": 60
  },
+ "todo133-kim-214B": {
+  "title": "Kim: C (neutral) is Kizuna's 214B, played from its handler",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press C (no direction) next to the dummy, then again from far away.",
+  "expect": "Kim crouches, then slides forward with the staff (about 85 px when it misses) and swings it up: two hits on the dummy, the last one launching. From far away the whole slide plays and he recovers in place.",
+  "do_keys": "3:c",
+  "proof": 90
+ },
+ "todo134-kim-236C": {
+  "title": "Kim: forward + C is Kizuna's 236C rush with its two follow-ups",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press forward + C next to the dummy, then forward + C again during the rush, and once more during the second part.",
+  "expect": "A 3-hit staff rush; the second press adds a lunging strike (98), the third a spinning finish that knocks down (9A). Without the extra presses he ends after the rush.",
+  "do_keys": "3:Rc,30:-,3:Rc,25:-,3:Rc",
+  "proof": 120
+ },
+ "todo135-kim-28C": {
+  "title": "Kim: down + C is Kizuna's rising staff ([2]8C), down + A after a hit dives",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 50
+  },
+  "do": "Press down + C next to the dummy; on a second try, press down + A while he is high in the air after the hit.",
+  "expect": "Kim rises straight up with the staff and the blue pillar, then falls back and lands. With down + A after a hit he dives forward onto the dummy instead (a blue flash at his feet) and lands.",
+  "do_keys": "3:Dc,14:-,3:Da",
+  "proof": 120
+ },
+ "todo137-kim-236A": {
+  "title": "Kim: down-forward + C is Kizuna's tag-in strike (236A)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down-forward + C next to the dummy.",
+  "expect": "Like neutral C's slide but quicker to start (Kizuna's tag-in version): the slide and the rising swing, the dummy launched.",
+  "do_keys": "3:DRc",
+  "proof": 90
+ },
+ "20261006-155421-b3f3": {
+  "title": "WHP Hanzo: throws on A+B",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo",
+   "dummy": "ryo",
+   "gap": 20
+  },
+  "do": "Walk into Ryo, then press A+B (also try forward + A+B and back + A+B).",
+  "expect": "Hanzo grabs Ryo and throws him (forward throw, back throw over his shoulder), as in World Heroes Perfect.",
+  "do_keys": "",
+  "proof": 120
+ },
+ "20261006-155218-b3f3": {
+  "title": "Select screen: Yashiro not hidden behind K'",
+  "setup": {
+   "mode": "select",
+   "unlock": true
+  },
+  "do": "Look at the select screen, then move the cursor onto Yashiro and onto K'.",
+  "expect": "Yashiro and K' stand apart, both fully visible, each arrow over its own fighter.",
+  "do_keys": "",
+  "proof": 120
+ },
+ "20261006-155158-b3f3": {
+  "title": "COIN inserts a credit",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "Press COIN once (not START).",
+  "expect": "The CREDIT count goes up by one with KOF94's coin sound; START then starts the game.",
+  "do_keys": "",
+  "proof": 120
+ },
+ "20261007-140259-5d29": {
+  "title": "Credits in: PRESS START replaces INSERT COIN",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "The logo with INSERT COIN blinking and CREDIT 00. Press COIN once. Then try it again from the attract demo fight (wait about 20 s on the logo without a coin, then a coin during the demo fight).",
+  "expect": "With the coin the CREDIT count goes to 01 and the screen turns into the title: PRESS START blinks where INSERT COIN was (as KOF98: a coin on its logo or in its demo goes to its title with PRESS 1P START). The demo fight ends on a coin the same way. START then takes the credit and opens the select screen.",
+  "do_keys": "60:-,4:o",
+  "proof": 150
+ },
+ "20261007-140341-5d29": {
+  "title": "Select screen: the others in their own colours, darker",
+  "setup": {
+   "mode": "select",
+   "cursor": "robert"
+  },
+  "do": "The cursor is on Robert. Look at the fighters around him, then move the cursor right a few times.",
+  "expect": "Every fighter not under the cursor keeps his real colours (Terry's red cap, Ryo's orange gi, Billy's blue) at half brightness, no longer washed out towards grey; the cursor's fighter is in full colour. Locked bosses stay dark silhouettes.",
+  "do_keys": "4:R,30:-,4:R,30:-,4:R",
+  "proof": 90
+ },
+ "20261007-114307-b3f3": {
+  "title": "Kyo's fury sets Ryo on fire",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter and Ryo close in front, press D (Orochinagi). Then the MAX version: down+D.",
+  "expect": "When the flame hits, Ryo is drawn in flickering orange flames through his fall, as in KOF98, and gets his own colours back on the floor. Same for the MAX version's flames.",
+  "do_keys": "4:d,150:-",
+  "proof": 60
+ },
+ "20261007-114326-b3f3": {
+  "title": "Kyo's fury hit plays the fire hit sound",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter and Ryo close in front, press D (Orochinagi) and listen to the hit.",
+  "expect": "The flame's hit plays KOF96's fire hit sound (the crackling burn, the same as Kyo's 623C fire hit), not the generic fury impact.",
+  "do_keys": "4:d,150:-",
+  "proof": 60
+ },
+ "20261007-114458-b3f3": {
+  "title": "Kyo's triple kick is on forward + C",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 80,
+   "meter": "full"
+  },
+  "do": "Press forward + C. Then up-forward + C.",
+  "expect": "Forward + C plays his triple kick (EX R.E.D. Kick: three kicks hitting Ryo three times). Up-forward + C now plays the punch rush that forward + C played before (236C, its follow-ups unchanged).",
+  "do_keys": "4:Rc,120:-",
+  "proof": 60
+ },
  "20261007-124603-b3f3": {
   "title": "Terry's fury straight out of a hold (D while grabbing)",
   "setup": {

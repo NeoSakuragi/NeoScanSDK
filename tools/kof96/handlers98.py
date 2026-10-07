@@ -1217,6 +1217,33 @@ def victim_entries(m, lists, victim):
 def anim_steps(m, cid, st):
     return rom96.parse_anim(m, rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)))
 
+# The victim's burn (TODO #206, read 2026-10-07 in KOF98's code, measured in our emulator: tools/brawler/burn206_kof.py):
+# an animation step's byte 1 goes to the object's +$7E; its bits 4-6 are the hit's element. The hit ($1AF44) copies
+# the hitter's +$7E & $70 to the victim's +$132, and $17764 picks the victim's colour effect from a table by element
+# (x 4: + 2 in MAX mode, + 1 for a case without effect), per reaction group ($17E2A / $17E4A / $17E6A / $17E8A):
+# $20 -> $17896 palette $F8 (orange flames) for every group, $30 -> $17910 $F9 (purple, Iori), $50 -> $178FE $F8 in
+# the group $17E8A only, $10 / $40 other effects (no burn). The hit kind (+$1B8, the sounds) does not decide it: Kyo's
+# Orochinagi hits with kind 7 ($37) and burns (its flame object's steps are element $20). BURN_OF: element -> the
+# brawler's burn (fighter.c BURN_RAMP: 1 purple, 2 orange)
+BURN_OF = {0x20: 2, 0x30: 1, 0x50: 2}
+
+def fire_element(m, cid, st):
+    """the burning element of state st's live attack steps (BURN_OF's keys; 0: none)"""
+    if st is None: return 0
+    try:
+        aa = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); steps, _ = rom96.parse_anim(m, aa)
+    except Exception: return 0
+    return next((e for e in (m.u8(aa + 6 * s[4] + 1) & 0x70 for s in steps if s[2] & 0x100) if e in BURN_OF), 0)
+
+def object_elements(objs):
+    """the elements of a program's objects, their copies and phases (export_rom's 'element')"""
+    for ob in objs or []:
+        while ob:
+            yield ob.get('element', 0)
+            for c in (ob.get('child'),):
+                while c: yield c.get('element', 0); c = c.get('child')
+            ob = ob.get('next')
+
 def follow_parts(m, cid, prog, links, frames=300):
     """a follow-up special's parts and links as the brawler lists them (bspart_t / bslink_t; the program decides at run
     time): the model run with no press (part 0) and with each link pressed throughout; a part = the states played
@@ -1552,7 +1579,15 @@ def export_rom(m, cid, inp, add, game='kof98'):
     variants = variants if len(variants) > 1 else []                                          # the game plays this one)
     starts = list(dict.fromkeys(r[1] for r in mrows))            # the flash: the states as the whiff plays them
     flash = super_flash(m, cid, [(st, next(r[0] for r in mrows if r[1] == st)) for st in starts if st is not None], sdm)
-    return {'handler': h, 'button': b, 'ops': ops, 'states': states, 'anims': anims, 'openings': per, 'last_hit': last,
+    def mark(ob):                                      # each object's burn element (its own state's steps, TODO #206)
+        while ob:
+            ob['element'] = fire_element(m, cid, ob.get('state'))
+            c = ob.get('child')
+            while c: c['element'] = fire_element(m, cid, c.get('state')); c = c.get('child')
+            ob = ob.get('next')
+    for ob in objs: mark(ob)
+    return {'elements': {st: fire_element(m, cid, st) for st in states},   # the body's burn element per state
+'handler': h, 'button': b, 'ops': ops, 'states': states, 'anims': anims, 'openings': per, 'last_hit': last,
             'vlists': vlists, 'step_fx': step_fx,
             'variants': variants, 'sdm': sdm, 'flash': flash,
             'apex': peak, 'length': length, 'objects': objs, 'hit_kind': hitkind, 'links': links,
