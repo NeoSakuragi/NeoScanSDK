@@ -905,7 +905,7 @@
   "proof": 90
  },
  "20261007-124437-b3f3": {
-  "title": "Kyo's up-forward + C (EX 421D flying kick) is invincible",
+  "title": "Kyo's forward + C (EX 421D flying kick) is invincible",
   "setup": {
    "mode": "stage",
    "fighter": "kyo",
@@ -913,9 +913,9 @@
    "wave": 1,
    "meter": "full"
   },
-  "do": "In a fight, let enemies come close and attack you, then press up-forward + C in the middle of them, several times.",
+  "do": "In a fight, let enemies come close and attack you, then press forward + C in the middle of them, several times.",
   "expect": "From the start of the kick to Kyo's landing no enemy hit, grab or push reaches him (his life does not drop); he can be hit again right after he lands.",
-  "do_keys": "60:-,4:URc",
+  "do_keys": "60:-,4:Rc",
   "proof": 120
  },
  "todo196-throw-hitch": {
