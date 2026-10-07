@@ -1072,7 +1072,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   Proofs /data/tmp/bank190: bank_proof ALL OK, controls_proof 23/23 ok, cancel_proof all ok 23, regress no-bleed True
   (frame-exact), campaign29 campaign.json identical to /data/tmp/campaign/out29, Lab core.wasm (Node, make_site)
   vs desktop core 0 ticks differ (Robert stage 5, Ralf stage 1 wave 2, Terry stage 3 boss), Player (AVD JanusPhone,
-  APK 0.0.24) loads the 4 MB-P ROM: title + stage 1 fight drawn (player_1.png / player_2.png).
+  APK 0.0.24) loads the 4 MB-P ROM: title + stage 1 fight drawn (player_1.png / player_2.png); after merging brawler 0.1.0
+  (/data/tmp/bank190/final): the same bank layout, bank_proof / controls / cancel / regress / campaign29 / core.wasm
+  (Robert stage 5) all the same results (the Player run was on the pre-merge ROM, same banks).
 
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
