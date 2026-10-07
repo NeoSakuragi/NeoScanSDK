@@ -1457,6 +1457,29 @@ static void hold_apply(fighter_t *f) {                           /* a caught vic
  * drawn in front or behind); a step's first frame on a blow entry deals the move's hit (no hit-stop: KOF's victim
  * routine strikes, the attacker plays on), a release entry lets it go into its flight (KOF's 283: the blowback, its
  * x then held by the wall rule). The attacker's P_VSIG moves the victim to its next list (KOF +$D1 bit 7). */
+/* the list's wall (vocabulary stage.wall "a victim list at the wall", TODO #216; KOF98 $255B0, the end of every list
+ * place $25372): an entry that would put the victim at or past a wall ($18092 on the VICTIM: KOF's stage x 32 / 736,
+ * the brawler's wall_lo / wall_hi) moves the ATTACKER instead, to the wall minus the list's farthest offset on that
+ * side (the entries whose dx has this entry's sign), and places the victim again from there: every entry of the list
+ * then fits inside the walls, the farthest one on the wall. Rugal's God Press slam: he stops at the wall, the slam's
+ * list reaches 92 px ahead, so he stands 92 px from it (KOF: 736 -> 644) and the burst at +104 shows on screen. */
+static void vlist_wall(fighter_t *f, fighter_t *t, const bvlist_t *l, const bvent_t *e) {
+    int16_t x = INT(t->x);
+    int32_t off, w, d0;
+    uint8_t k, m = 0;
+    if (x > wall_lo && x < wall_hi) return;
+    for (k = 0; k < l->n; k++) {                                 /* the farthest entry on this entry's side */
+        int8_t d = l->e[k].dx;
+        if ((d < 0) != (e->dx < 0)) continue;
+        if (d < 0) d = -d;
+        if ((uint8_t)d > m) m = d;
+    }
+    off = dir_mul(f->facing, FIX(e->dx));                        /* (the victim's side of the attacker, world x) */
+    w = FIX(x >= wall_hi ? wall_hi : wall_lo);
+    d0 = (off >= 0 ? w - FIX(m) : w + FIX(m)) - f->x;
+    f->x += d0; f->throw_x0 += d0;                               /* (its objects' anchor moves with it) */
+    t->x = f->x + off;
+}
 static void vlist_apply(fighter_t *f, const bspec_t *sp) {
     fighter_t *t = f->target;
     const bvlist_t *l;
@@ -1466,7 +1489,8 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
     if (!l->n) { f->vlist = 0; return; }                         /* (past its last list: n 0 ends the table) */
     e = &l->e[f->pstep < l->n ? f->pstep : l->n - 1];
     if (!(l->flags & VL_FLY) || f->vent == 0xFF) {               /* placed at the attacker + its entry (a flying list: */
-        t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z; clamp(t);   /* once) */
+        t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z;   /* once) */
+        vlist_wall(f, t, l, e); clamp(t);                        /* (past a wall: the attacker steps back, KOF's rule) */
     }
     if (l->flags & VL_FLY) {                                     /* it flies on its own (SS2's rage victims): its */
         if (f->vent == 0xFF) { t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8; }   /* velocities */
