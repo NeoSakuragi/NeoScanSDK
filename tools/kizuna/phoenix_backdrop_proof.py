@@ -85,7 +85,7 @@ def main():
         want = kr[0][1] - 2 if kr else 1                 # run, within 2 frames)
     ok_alt = all(c != d for c, d in zip(bseq.strip('-'), bseq.strip('-')[1:]))
     b0 = br[0][0] if br else None
-    res = {'kizuna_runs': kr, 'brawler_runs': br, 'export_rows': sp['backdrop'],
+    res = {'kizuna_runs': kr, 'brawler_runs': br, 'export_rows': sp['backdrop'], 'brawler_sequence': bseq.strip('-'), 'kizuna_sequence': kseq.strip('-'),
            'kizuna_first': kseq.strip('-')[:1], 'brawler_first': bseq.strip('-')[:1], 'brawler_alternates': ok_alt,
            'brawler_rows_at_start': rows[b0] if b0 is not None else None, 'brawler_hits': len(hits),
            'brawler_damage': sum(h[2] for h in hits) if hits and isinstance(hits[0][2], int) else None}
