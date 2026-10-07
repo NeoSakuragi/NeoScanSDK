@@ -1397,11 +1397,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   button. Make it standard that you should be able to trigger a fury or a MAX fury while grabbing"): D / MAX D during a
   hold (paired state) releases the hold and starts the fury, every fighter (fighter.c).
 
-- [ ] 209. CREDITS -> PRESS START (20261007-140259-5d29: "There are coins inserted, but we are still on the insert coin
+- [ ] 209. (DONE ON BRANCH fix/209-credits-select-dark 2026-10-07, awaiting Bruno's review: SNK's MVS BIOS never ends the attract on a coin (no DEMO_END; UniBIOS does), so the logo / demo kept INSERT COIN with credits; main.c attract_leave: START or any credit (MVS) -> the title, PRESS START in INSERT COIN's place, as KOF98 measured in our emulator (coin on its logo or in its demo -> its title, PRESS 1P START; in a fight KOF98 blinks INSERT COIN / PRESS START above P2's bar by P2's own credits: the brawler has had no in-game P2 prompt since the HUD redesign, not added). Proof /data/tmp/sel209/out (209_*: logo / demo, 0 and 1 credit, SNK MVS, UniBIOS MVS, AES), scenario + lint 0) CREDITS -> PRESS START (20261007-140259-5d29: "There are coins inserted, but we are still on the insert coin
   screen, and also in-game there is the insert coin message even though there is more than zero credit ... switch to
   press start, like other Neo Geo games"): title / attract and the in-game join prompt show PRESS START when credits > 0.
 
-- [ ] 210. SELECT: DARK REAL COLOURS (20261007-140341-5d29: "instead of having washed out colors, they should have their real
+- [ ] 210. (DONE ON BRANCH fix/209-credits-select-dark 2026-10-07, awaiting Bruno's review: Kizuna measured in our emulator (palette RAM + VRAM, three teams, waiting vs tagged in): the waiting partner's palette is his active one word for word, no transform; col_grey -> col_dark = each 5-bit channel halved, selectrender.js dark() the same; select_proof 41 screens 0 px, bank_proof ALL OK, regress no-bleed True) SELECT: DARK REAL COLOURS (20261007-140341-5d29: "instead of having washed out colors, they should have their real
   colors, but just much darker. Like Kim in Kizuna when he's in the background waiting to be tagged"): measure Kizuna's
   waiting-partner palette transform (our emulator), use it for unselected fighters (main.c col_grey + selectrender.js).
 
