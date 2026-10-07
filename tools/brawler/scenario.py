@@ -32,7 +32,8 @@ A recipe (scenarios.json, keyed by note id):
                   with the stick (harness sel_goto); unlock = every boss on the select (save.unlocked, until power-off);
               stage mode, the boss (wave >= the stage's waves): wait = frames run first (the boss walks in), alone =
                   true: its minions taken off (state OFF: the boss is the last enemy), foe_hp = the boss's life, gap =
-                  P1 put this far in front of it (its lane, facing it);
+                  P1 put this far in front of it (its lane, facing it); foe = the fighter index these four mean
+                  instead of the boss's 2 (a wave's enemy: alone keeps only it);
               meter (0..120, "full"), hp (P1's life), lives (P1's), face (+1 / -1), pre = "frames:keys,..." inputs played
               before the save (e.g. walking into the grab: the state then starts mid-hold)
   do_keys     the "do" as inputs ("frames:keys,..." with the harness keys U D L R a b c d), for the proof clip
@@ -144,11 +145,13 @@ def setup(b, rec):
             b.fset(i, 'idx', i); b.fset(i, 'x', x0 + dx); b.fset(i, 'z', z); b.fset(i, 'facing', (1 if dx < 0 else -1) & 0xFF)
     if s.get('mode') == 'stage' and ('wait' in s or 'foe_hp' in s or s.get('alone')):   # the boss (TODO #184's test)
         b.run(int(s.get('wait', 0)))
+        fo = int(s.get('foe', 2))                          # the enemy meant (fighter index; default the boss, 2)
         if s.get('alone'):
-            for i in range(3, 8): b.fset(i, 'state', b.states.index('OFF'))
-        if 'foe_hp' in s: b.fset(2, 'hp', int(s['foe_hp']))
+            for i in range(2, 8):
+                if i != fo: b.fset(i, 'state', b.states.index('OFF'))
+        if 'foe_hp' in s: b.fset(fo, 'hp', int(s['foe_hp']))
         if 'gap' in s:
-            bx = b.fget(2, 'x'); b.fset(0, 'x', bx - s['gap']); b.fset(0, 'z', b.fget(2, 'z')); b.fset(0, 'facing', 1)
+            bx = b.fget(fo, 'x'); b.fset(0, 'x', bx - s['gap']); b.fset(0, 'z', b.fget(fo, 'z')); b.fset(0, 'facing', 1)
         b.run(1)
     if 'meter' in s: b.fset(0, 'meter', 120 if s['meter'] == 'full' else int(s['meter']))
     if 'hp' in s: b.fset(0, 'hp', int(s['hp']))

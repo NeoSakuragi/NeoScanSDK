@@ -676,9 +676,13 @@ static uint8_t paired_update(fighter_t *f) {
     }
     if (v && v->held == f) {
         uint8_t hit = victim_rows(v, th, j, i);
-        if (f->throw_id == BT_HOLD_FIN && hit) {                 /* the finisher lands: the victim goes down, the hold */
-            f->held = 0; v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);   /* is over */
-            snd_sfx(hit_sound(f, hold_anim(f), 1)); fighter_hit(f, v, NODE(f, TREE(f)->hold)->damage, R_KNOCKDOWN, 0);
+        if (hit && (f->throw_id == BT_HOLD_FIN || v->hp <= 0)) { /* the finisher lands, or a hold hit took the last life
+                                                                    (TODO #204: held on, it broke free standing with none,
+                                                                    and nothing could hit or grab it): the victim goes */
+            uint8_t fin = f->throw_id == BT_HOLD_FIN;            /* down, the hold is over */
+            f->held = 0; v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);
+            if (fin) snd_sfx(hit_sound(f, hold_anim(f), 1));     /* (a hold hit's sound and damage: already dealt) */
+            fighter_hit(f, v, fin ? NODE(f, TREE(f)->hold)->damage : 0, R_KNOCKDOWN, 0);
             v = 0; enter(f, S_THROW);                            /* its follow-through plays on (srow kept): a normal
                                                                     hit, cancellable into a special / the fury (#166 d) */
         } else if (i >= th->nrows && f->throw_id < BT_COUNT) { victim_end(v); f->held = 0; v = 0; }   /* (a hold hit: held on) */
