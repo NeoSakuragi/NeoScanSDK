@@ -155,7 +155,7 @@ static void stage_show(void) {
 }
 static void stage_init(uint8_t n) {
     uint8_t s;
-    bd_on = 0;
+    bd_on = 0; bighit_red = bighit_slow = 0;
     stg = &stages[n]; floor_top = stg->floor_top; world_w = stg->cols << 4;
     stage_pals();
     *(volatile uint16_t *)0x3C0006 = stg->lspcmode;                /* REG_LSPCMODE: auto-animation speed */
@@ -578,7 +578,12 @@ static void screen_fx(void) {
             if (s->bd_end && f->srow - 1 >= s->bd_first && f->srow - 1 < s->bd_end) sp = s;
         }
     }
-    if (sf_who) {                                            /* the super flash: the stage hidden, white then black */
+    if (bighit_red) {                                        /* SS2's big hit (fighter.c big_hit): red, no stage */
+        static const uint16_t BH_BD[2] = { BIGHIT_COL, BIGHIT_COL };
+        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
+        else PAL_setBackdrop(BIGHIT_COL);
+        bd_cols = BH_BD; bighit_red--;
+    } else if (sf_who) {                                     /* the super flash: the stage hidden, white then black */
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* the stage's sprites go at the next vblank: the */
         else PAL_setBackdrop(sf_flash_t <= gflash.white ? gflash.white_col : gflash.dark_col);   /* backdrop (at once) from the frame after */
         bd_cols = SF_BD;
@@ -2420,6 +2425,8 @@ void game_tick(void) {
                                                           /* the boss's death: nobody acts any more (#172) */
     mark(P_AI);
     close_marks();
+    if (bighit_slow && --bighit_slow < BIGHIT_SLOW && (bighit_slow & 1)) { depth_sort(); draw(); hud(); return; }
+                                                          /* SS2's big hit's slow motion: every other tick held */
     for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */
         if (fighters[i].state != S_OFF && (!sf_who || sf_who == &fighters[i])) fighter_update(&fighters[i], &in[i]);
     if (!sf_who) { if (lab.active) lab_flow(); else flow(); }

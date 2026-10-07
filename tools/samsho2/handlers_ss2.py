@@ -136,6 +136,13 @@ def hao_214a(v):
     the end -> next (the first) / neutral"""
     return [E(328, [('set', 'vx', 0)], [('end', 'next')]), E(329, [('set', 'vx', 0)], [('end', 'end')])], []
 
+# SS2's big hit (TODO #188 c): Haohmaru's WFT routine on a connect ($354E8 $2B958 -> $354FA) calls $2B9DE with
+# $6A672 = (31, 0, 0, 48): the backdrop ($108A86 -> $401FFE every frame, $172C) red for 48 frames ($8AE2), and its hit
+# (the hit routine's big-hit branch $26CB0: +$FB = 32 to both, the slow-motion counter $8AC8 = 30) holds both 40
+# frames, then the whole game runs at half speed for 30 [meas: our emulator, /data/tmp/b188/out/c_ss2_*: his step
+# held frames 63-103, then a step every 4 frames to 133; the victim in its hit pose 414 until 139, then thrown]
+BIGHIT = {('haohmaru', 'WFT')}
+
 def hao_wft(v):
     """Tenha Seiou Zan (the weapon-flipping technique), 6 3 2 1 4 6 + A in rage -> result 37 ($354D0) [code]:
     anim 333 $354DC: velocities 0, the end -> neutral; a connect ($2B958) flashes the screen ($2B9DE, colours
@@ -754,6 +761,7 @@ def special(B, ch, name, inp):
     import commands_ss2 as K
     if K.descriptor(ch, 0, 1, results[default])['b'][0] & 0x80: rom['nopush'] = True   # descriptor byte 4 bit 7 -> +$FF:
                                                        # no push between the players ($CC14) while it plays [code]
+    if (name, inp) in BIGHIT: rom['bighit'] = True        # its connect: SS2's big-hit pause (export_bm SF_BIGHIT)
     if parts:                                          # follow-ups (the slash chain): its parts, the press 'again'
         rom['parts'] = [{'states': [states[j] for j, (ei, a) in enumerate(sts0) if ents0[ei]['part'] == p]} for p in parts]
         rom['follow_links'] = [{'from': p, 'to': p + 1, 'input': 'again'} for p in parts[:-1]]

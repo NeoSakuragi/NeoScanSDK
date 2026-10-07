@@ -363,6 +363,14 @@ void fighter_quake(const fighter_t *by, fighter_t *v) {
     react(v, INT(v->x) >= INT(by->x) ? 1 : -1, R_KNOCKDOWN, 0);
 }
 
+/* SS2's big hit (TODO #188 c, Haohmaru's WFT: handlers_ss2 BIGHIT, bspec_t.sflags SF_BIGHIT): on its connect both hold
+ * BIGHIT_STOP frames, the stage goes and the backdrop is red for BIGHIT_RED frames (main.c screen_fx), then the whole
+ * game plays at half speed for BIGHIT_SLOW frames (main.c game_tick: every other logic tick skipped) */
+uint8_t bighit_red, bighit_slow;
+static void big_hit(fighter_t *a, fighter_t *v) {
+    a->freeze = BIGHIT_STOP; v->freeze = BIGHIT_HOLD;          /* SS2: the victim in its hit pose to the slash's end */
+    bighit_red = BIGHIT_RED; bighit_slow = BIGHIT_STOP + BIGHIT_SLOW;
+}
 /* ---- reactions -------------------------------------------------------------------------------------------------------- */
 static void release(fighter_t *a);
 static void special_end(fighter_t *f);
@@ -1971,6 +1979,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                     if (!sounded++) { if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD); }
                     fighter_hit(a, v, a->spec_dmg, a->spec_react, 0);
                     if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
+                    if (a->state == S_SPECIAL && (a->ch->specials[a->spec_ix].sflags & SF_BIGHIT)) big_hit(a, v);
                 }
                 spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big */
                 if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */

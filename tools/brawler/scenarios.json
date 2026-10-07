@@ -333,9 +333,9 @@
    "gap": 70
   },
   "do": "Press D (the fury).",
-  "expect": "Haohmaru plays Samurai Shodown II's weapon-flipping technique as his fury, not a flaming single slash.",
+  "expect": "Samurai Shodown II's weapon-flipping technique: when the slash connects the screen turns red and the action holds, then plays on in slow motion with the big slash; Ryo stays in his hit pose until the slash ends, then is thrown.",
   "do_keys": "4:d",
-  "proof": 130
+  "proof": 190
  },
  "20261006-190659-5d29": {
   "title": "Krauser: Kaiser Wave impact at the hit's height",
