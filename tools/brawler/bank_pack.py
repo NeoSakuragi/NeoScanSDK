@@ -10,7 +10,8 @@ rest (bchar_t, animation steps with their boxes, throws, postures, palettes, rou
 headers: the tables other fighters, combat, the AI and the HUD read every frame) stays in the first MB. A table goes
 to the first MB too when a fighter other than its owner refers to it (KOF's shared projectile end rows), and with it
 everything it leads to. A fighter and its form link's target share a bank (fighter.c form_set swaps them in place).
-Banks are filled first-fit by decreasing fighter size, a fighter whole in one bank, each bank 1 MB - 16 bytes.
+Banks (TODO #190): the fewest banks (up to 7) in which every bank keeps MARGIN bytes free (BANK_MARGIN, default 128 KB),
+filled balanced: fighters (a form group whole) by decreasing size, each into the emptiest bank; each bank 1 MB - 16.
 
 Writes BUILD_DIR/bank_rename.txt (objcopy options: .rodata.<symbol> -> .p2bankN), BUILD_DIR/bm_bank.c (bm_bank[]:
 each fighter's bank) and BUILD_DIR/banks.json / banks.txt (per bank: used, free, fighters; the first MB's share).
@@ -24,6 +25,8 @@ SRC = ['bm_chars.c', 'bm_spec.c']
 OBJ = ['bm_chars.o', 'bm_spec.o']
 CAP = 0x100000 - 16                     # $2FFFF0-$2FFFFF: the bank register (neoscan.ld ASSERT)
 MAX_BANKS = 7                           # NeoCart PROG v3: banks 0-6 (tools/neobuild.py)
+MARGIN = int(os.environ.get('BANK_MARGIN', '0x20000'), 0)   # TODO #190: free bytes every bank keeps (> the largest
+                                                           # fighter's bulk, Rugal 125 KB: room for one more anywhere)
 BANKED = {'bframe_t', 'bpart_t', 'bspec_row_t', 'bprow_t', 'bpend_t', 'bprim_t', 'bspart_t', 'bslink_t', 'int32_t'}
 TILES = re.compile(r'_f\d+_p\d+$')      # uint16_t: a frame part's tile numbers (palettes and postures are uint16_t too)
 HOLDERS = {'bchar_t', 'bspec_t', 'bproj_t'}
@@ -120,12 +123,23 @@ if split is not None:                                                       # of
         bins[k][0] += gsize[g]; bins[k][1].append(g); gbank[g] = k
     for k, b in enumerate(bins):
         if b[0] > CAP: sys.exit(f'bank_pack: BANK_SPLIT={split}: bank {k} needs {b[0]:,} bytes')
-else:
-    for g in order:
-        for k, b in enumerate(bins):
-            if b[0] + gsize[g] <= CAP: b[0] += gsize[g]; b[1].append(g); gbank[g] = k; break
-        else:
-            bins.append([gsize[g], [g]]); gbank[g] = len(bins) - 1
+else:                                                                       # TODO #190: balanced, with headroom
+    def balance(n, cap):                                                    # largest fighter first into the emptiest
+        b = [[0, []] for _ in range(n)]                                     # bank (ties: the lowest bank)
+        for g in order:
+            k = min(range(n), key=lambda k: (b[k][0], k))
+            if b[k][0] + gsize[g] > cap: return None
+            b[k][0] += gsize[g]; b[k][1].append(g)
+        return b
+    for cap in (CAP - MARGIN, CAP):                                         # the fewest banks that each keep MARGIN
+        for n in range(1, MAX_BANKS + 1):                                   # free; without the margin only when 7
+            bins = balance(n, cap)                                          # banks cannot keep it
+            if bins: break
+        if bins: break
+        print(f'bank_pack: WARNING: {MAX_BANKS} banks cannot each keep {MARGIN:,} bytes free')
+    if not bins: sys.exit(f'bank_pack: the fighters need more than {MAX_BANKS} banks')
+    for k, b in enumerate(bins):
+        for g in b[1]: gbank[g] = k
 if len(bins) > MAX_BANKS: sys.exit(f'bank_pack: {len(bins)} banks needed, the cart has {MAX_BANKS}')
 for g, n in gsize.items():
     if n > CAP: sys.exit(f'bank_pack: {prefixes[g]} needs {n:,} bytes, more than a bank')

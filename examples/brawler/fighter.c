@@ -1218,6 +1218,14 @@ static const struct { int32_t vx, vy, g, gf, vmin; uint16_t gfr, vfr; uint8_t de
 };
 static void kof_react(fighter_t *v, int8_t away, uint8_t rc, int8_t slide) {   /* rc: R_* | 8 hittable */
     uint8_t hurt = rc & 8 ? KM_HURT : 0;
+    if ((rc == (R_TRIP | 8) || rc == (R_BLOWBACK | 8)) && v->state == S_KNOCKDOWN) {   /* Double Dragon's knockdown hop */
+        if (v->wall_by) away = v->wall_by->facing;               /* (TODO #192, export_dd brawler_react): its reaction 69 */
+        v->facing = -away; play(v, BA_TRIP);                     /* ($26076), on the floor or again in the air, sent the */
+        v->vy = v->y <= 0 ? FIX(3) + 0x8000 : rc == (R_TRIP | 8) ? 0 : FIX(1) + 0x8000;   /* attacker's facing way ($25AD0), */
+        v->vx = dir_mul(away, FIX(5) + (rc == (R_TRIP | 8) ? 0x44000 : 0xB4000));   /* up 3.5 px (its header; in the air the */
+        v->kg = v->kgf = 0x6000; v->kgfr = 0; v->kvfr = 0xE000; v->kvmin = FIX(5); v->kdelay = 0;   /* hit's down knock */
+        v->kmode = 1 | KM_HURT; return;                          /* $25B3A eats the rise), gravity 0.375, 5 px a frame away */
+    }                                                            /* (its header) + the push (4.25 / 11.25 x 7/8, $204DE) */
     rc &= 7;
     if (v->hp <= 0 && rc < R_KNOCKDOWN && !dancing(v)) rc = R_KNOCKDOWN;
     if (rc < R_HEAVY || rc > R_LIFT || !KOF_REACT[rc].delay) return;   /* the brawler's own (react): R_TRIP, R_BLOWBACK */

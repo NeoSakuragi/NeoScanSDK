@@ -97,7 +97,12 @@ songs and sound-effect codes play, every sample record rewritten to the new addr
   banked type goes to its fighter's bank when that fighter is the only one whose data reaches it (contexts from
   bm_chars[i] down every relocation); shared tables (KOF's common projectile end rows: 2 tables, 16 bytes) and all they
   lead to stay in MB1. A fighter and its form link's target share a bank (form_set swaps bchar_t in place). Fighters
-  whole, first fit by decreasing size, each bank 1 MB - 16. Refuses any pointer from a bank into another bank, and
+  whole (a form group whole), each bank 1 MB - 16. **Headroom (TODO #190, 2026-10-07)**: the fewest banks in which
+  every bank keeps `BANK_MARGIN` bytes free (default 128 KB: more than the largest fighter's bulk, Rugal 125 KB, so one
+  more fighter fits in any bank), filled balanced (largest first, each into the emptiest bank, ties to the lowest);
+  only when 7 banks cannot keep the margin does it pack to the full 1 MB - 16 (with a warning). A new bank costs 1 MB
+  of P ROM and nothing else: Geolith masks the register to the P ROM's banks (geo_calc_mask: 3 banks -> mask 3), the
+  Android player and the Lab's core.wasm are that Geolith, the NeoCart PROG v3 latch holds banks 0-6. Refuses any pointer from a bank into another bank, and
   from an MB1 table into a bank unless it is a holder (bchar_t element, bspec_t, bproj_t) of the same fighter. Writes
   build/bm_bank.c (bm_bank[]: each fighter's bank), build/banks.txt / banks.json (per bank: used, free, fighters).
   BANK_SPLIT=mask: proof layouts (bank = parity of the fighter index's bits in the mask). **[ours]**
@@ -111,7 +116,10 @@ songs and sound-effect codes play, every sample record rewritten to the new addr
   the .neo and the NeoCart v3 chip image. **[ours]**
 - Brawler 0.0.77 + #174: MB1 419,308 bytes used (code ~90 KB, main.c's stage / HUD tables 61 KB back from $200000,
   fighter tables 262 KB), 629,268 free; bank 0 1,035,800 bytes (12,760 free: 12 fighters), bank 1 496,914 bytes
-  (551,646 free: 9 fighters); P ROM 3 MB. **Tables the code reads in one go must not straddle a bank edge** (a table is never split:
+  (551,646 free: 9 fighters); P ROM 3 MB.
+- Brawler 0.0.98 + #184 (before #190, first fit): bank 0 1,036,378 bytes (12,182 free), bank 1 895,518 (153,042 free).
+  #190 (balanced, 128 KB margin -> 3 banks, P ROM 4 MB): bank 0 632,728 (415,832 free: 7 fighters), bank 1 633,774
+  (414,786 free: 7), bank 2 665,394 (383,166 free: 9 incl. Billy Lee's two forms); MB1 unchanged (463,358 used). **Tables the code reads in one go must not straddle a bank edge** (a table is never split:
   sections are whole). **[ours]**
 
 ## Descriptor
