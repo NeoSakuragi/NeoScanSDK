@@ -572,17 +572,19 @@
   "proof": 200
  },
  "20261007-014003-5d29": {
-  "title": "Billy Lee: fury hits keep the victim down until the last",
+  "title": "Billy Lee: fury lands 5 hits, Ryo lifted from the 3rd, launched on the last",
   "setup": {
    "mode": "lab",
    "fighter": "billy_lee",
    "dummy": "ryo",
-   "gap": 60
+   "gap": 60,
+   "x": 20,
+   "meter": "full"
   },
   "do": "Press D (Billy Lee's dragon rush fury) with Ryo in front of you.",
-  "expect": "Billy rushes forward hitting several times; Ryo reels on his feet at each hit and is only knocked into the air by the last one.",
+  "expect": "5 hits, as in Double Dragon: Ryo reels on his feet at the first two, is lifted slightly (about 15 px) in his knocked-down pose from the 3rd and kept up by the 4th, and the 5th sends him away low; he lands, bounces and falls on his back (in the lab the screen's edge stops his flight).",
   "do_keys": "4:d",
-  "proof": 150
+  "proof": 190
  },
  "20261007-012550-5d29": {
   "title": "Select screen: the stick follows the places",

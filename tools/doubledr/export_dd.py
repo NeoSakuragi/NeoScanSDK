@@ -127,15 +127,30 @@ def dd_boxes(w6):
         out.append(b)
     return out
 
+def clear_walk(w6):
+    """the records $207C8 tests for the hit-clear bit: from the set's first, a record of low byte $FF skipped, the walk
+    ends after the record whose high byte is 0"""
+    a = dd.BOX_BASE + 2 * dd.u16(dd.BOX_BASE + 2 * w6); out = []
+    for _ in range(16):
+        t = dd.u16(a)
+        if t & 0xFF != 0xFF: out.append({'type': t, 'b1': t & 0xFF})
+        if not t >> 8: break
+        a += 10
+    return out
+
 def openings(ch, a):
     """per step of animation a: True where a new hit can open ($258EC: a hit sets +$1F bit 6 and nothing hits again
-    until it is cleared: at the animation's start, and, in an animation with header flag bit 4 (+$1F bit 3), on entering
-    a step one of whose box records has type bit 5 ($207B8): a run of attack steps is one hit, the 214 kicks and the
-    super's punches hit again at each such step)"""
+    until it is cleared: at the animation's start, and, in an animation with header flag bit 4 (+$1F bit 3), when the
+    step clock LEAVES a step one of whose box records has type bit 5 ($207B8: the step index is already incremented,
+    +$2C still holds the step being left; records of low byte $FF skipped, the list ends after the record whose high
+    byte is 0): a run of attack steps is one hit, the 214 kicks and the super's punches hit again after each such step.
+    TODO #192: read as 'entering' before, the super's 5th hit (step 14, after step 11's $2B9) never opened (4 vs DD's 5)
+    and the 623's rising hit (step 3, after step 2's $B5) was one hit with its low jab (DD: 2 when both reach; captured
+    by fury_dd.py: 5 / 5 and 2 / 2)"""
     hdr, st = dd.steps(ch, a); allowed = True; out = []
     for i, s in enumerate(st):
         bx = dd_boxes(s['w6'])
-        if i and hdr[1] & 0x10 and any(b['type'] & 0x20 for b in bx): allowed = True
+        if i and hdr[1] & 0x10 and any(b['type'] & 0x20 for b in clear_walk(st[i - 1]['w6'])): allowed = True
         atk = any(b['type'] & 0x80 for b in bx)
         out.append(atk and allowed)
         if atk: allowed = False
@@ -248,7 +263,7 @@ P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge'
      'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'add': 27, 'form': 28}       # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4}
 PC = {'end': 0, 'land': 2, 'cnt': 4, 'always': 7}
-R_HEAVY, R_KNOCKDOWN, R_LAUNCH = 1, 2, 3
+R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK = 1, 2, 3, 4, 5   # fighter.h R_*
 SPECIAL_DAMAGE = 8                                 # export_bm.SPECIAL_DAMAGE (a special's damage, the default row)
 DAMAGE = 0x266AA
 
@@ -382,6 +397,55 @@ def hit_runs(ch, states):
         out[a] = hs
     return out
 
+# ---- the victim's reaction per hit (TODO #192), read in the hit code ($258EC-$26076; captured: fury_dd.py) -----------
+# index = the attacking step's level (attr bits 4-5) + the victim's combo stun +$38 - 1 (+$38 then - 1 + level: it
+# grows hit after hit, cleared when the victim acts again, $201F0 / $202F8 / $20930); + 1 (and +$38 + 1) when the move's
+# category (header flags & $60) is set and the hitting record's byte 1 has bit 4 (+$DF cleared then), else + 4 when
+# +$DF (the category) stays and header flag bit 2 is clear; at most 7. The table: d6 = 1 when the record's reaction class
+# (byte 1 bits 0-1, +$E1) is 1 or 2 or its height class (bits 2-3, +$E0) is 2: $26672 (54-57 reels, 69 the knockdown
+# hop), else $2666A (50-53, 67 the blowback); an airborne victim under index 4: $26682 (62-65, the air reels).
+REACT_TABLES = {'d6': 0x26672, 'plain': 0x2666A, 'air': 0x26682}
+AIRBORNE = {66, 67, 69}                            # reaction animations that leave the floor (headers: handler 2)
+
+def hit_record(w6):
+    """the step's first attack record (the one DD's overlap test meets first, $26AE8)"""
+    return next((b for b in dd_boxes(w6) if b['type'] & 0x80), None)
+
+def dd_reactions(ch, states):
+    """per hit the move opens (states in order, every opening assumed to connect, the victim fresh and standing): (state,
+    step, index, DD's reaction animation, airborne before the hit)"""
+    acc, air, out = 0, False, []
+    for a in states:
+        hdr, st = dd.steps(ch, a); op = openings(ch, a); cat = hdr[1] & 0x60
+        for i, o in enumerate(op):
+            if not o: continue
+            b1 = hit_record(st[i]['w6'])['type'] & 0xFF; lv = (st[i]['attr'] & 0x30) >> 4
+            d0 = lv
+            if acc: d0 += acc - 1; acc -= 1
+            acc += lv
+            df = cat >> 5 if not (cat and b1 & 0x10) else 0
+            if df:
+                if not hdr[1] & 4: d0 += 4
+            elif cat and b1 & 0x10: d0 += 1; acc += 1
+            d0 = min(d0, 7)
+            e1, e0 = b1 & 3, b1 >> 2 & 3
+            d6 = 1 if e1 in (1, 2) or e0 == 2 else 0
+            tab = REACT_TABLES['air'] if air and d0 < 4 else REACT_TABLES['d6' if d6 else 'plain']
+            r = dd.u8(tab + d0)
+            out.append((a, i, d0, r, air)); air = air or r in AIRBORNE
+    return out
+
+def brawler_react(r, last):
+    """DD's reaction animation -> the brawler's reaction (fighter.h R_*, packed standing | juggled << 4: the same both
+    ways, DD's tables do not look at the height from index 4 on): a reel R_HEAVY; 66 / 67 (the blowback) R_KNOCKDOWN;
+    69 (DD's knockdown hop, the brawler's trip pose BA_TRIP) R_TRIP | 8, on the move's last hit R_BLOWBACK | 8 (the hop
+    with the level's big push: sent away low). The hittable bit (8) on a trip / blowback = DD's hop (fighter.c kof_react,
+    TODO #192: 3.5 px up, gravity 0.375, again in the air, 5 px a frame + the push away, hittable)"""
+    if r == 69: c = (R_BLOWBACK if last else R_TRIP) | 8
+    elif r in (66, 67): c = R_KNOCKDOWN
+    else: return R_HEAVY
+    return c | c << 4
+
 def rom_steps(B, ch, a, key_of=None):
     hdr, st = dd.steps(ch, a); out = []; op = openings(ch, a)
     key = 'body'
@@ -448,21 +512,21 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
         def key_of(i, s, key): return 'form' if s['attr'] & 0x10 or key == 'form' else 'body'
     states, anims_d, objects = [], {}, []
     for v, (_, st, sp_) in enumerate(progs):
+        rv = dd_reactions(ch, st)
+        rx = {(r[0], r[1]): brawler_react(r[3], j == len(rv) - 1) for j, r in enumerate(rv)}
         for a in st:
             k = f'{v}:{a}'; states.append(k)
             anims_d[k] = {'mode': 'hold' if dd.steps(ch, a)[0][1] & 2 else 'loop' if dd.steps(ch, a)[0][1] & 1 else 'once',
                           'steps': rom_steps(B, ch, a, key_of)}
-            hits_last = [x for x in st if hits[v][x]]
-            # the knockdown belongs to the move's LAST hit only (TODO #186): from the last step that opens a hit in the
-            # last animation with hits; every earlier hit reels (R_HEAVY). 0.0.92 gave the whole last animation the
-            # knockdown, so the super's (anim 82, 5 hits) first hit already launched the victim and the rest whiffed.
-            # DD itself (captured in our emulator, /data/tmp/b188/out/c186_dd_capture.json): hits 1-2 reel (anims
-            # 56 / 57), hits 3-5 hold the victim in its knockdown pose 69 carried 10-13 px off the floor with Billy's
-            # dash, the fall (71) after the 5th; the brawler keeps hits 3-4 as reels on the floor (no low carry)
-            op = openings(ch, a); lastop = max((i for i, o in enumerate(op) if o), default=None)
+            # each hit's reaction = DD's own (dd_reactions, TODO #192: the hit code's index into its reaction tables, the
+            # combo stun growing hit after hit), every opening assumed to connect; an attack step continuing a hit takes
+            # its opening's. Super 236 (anim 82): 56 / 57 reels, 69 the knockdown hop at hits 3-4 (R_TRIP: the victim
+            # lifted ~10-15 px in DD's pose, kept up by the next hit), 69 with the big push at the 5th (R_BLOWBACK: sent
+            # away low), as captured (fury_dd.py). (TODO #186 had the knockdown on the last hit, reels before.)
+            cur = R_HEAVY
             for i, s in enumerate(anims_d[k]['steps']):
-                if s['flags'] & 0x100:
-                    s['react'] = R_KNOCKDOWN if knock and hits_last and a == hits_last[-1] and lastop is not None and i >= lastop else R_HEAVY
+                cur = rx.get((a, i), cur)
+                if s['flags'] & 0x100: s['react'] = cur
         objects += [projectile(B, s, v) for s in sp_]
     nstate = len(progs[0][1]); nobj = len(progs[0][2])
     # the dmg / reaction operand of P_ANIM (rows without a table: SPECIAL_DAMAGE split over its hits)

@@ -1076,6 +1076,29 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   (/data/tmp/bank190/final): the same bank layout, bank_proof / controls / cancel / regress / campaign29 / core.wasm
   (Robert stage 5) all the same results (the Player run was on the pre-merge ROM, same banks).
 
+- [ ] 192. (DONE ON BRANCH fix/192-billy-lee-fury 2026-10-07, awaiting Bruno's review) BILLY LEE'S FURY = DD'S VICTIM
+  HANDLING PER HIT (20261007-014003-5d29, after #186: DD lifts the victim 10-13 px from hit 3 on and lands 5 hits where
+  the brawler landed 4). Found in DD's code [code + meas, tools/doubledr/fury_dd.py -> /data/neogeo_dict/doubledr/
+  fury192.json]: (a) the hit-clear test ($207B8) runs as the step clock LEAVES a step (+$2C still the old step's box set),
+  not on entering one: export_dd.openings read it as entering, so the super's 5th punch (step 14, after step 11's $2B9
+  record) never opened; fixed: 5 openings = DD's 5 hits (captured 5 / 5); the 623's rising hit (step 3, after the low
+  jab's $B5) opens again too (DD close: 2 hits 55 reel + 67 launch, captured). (b) the reaction per hit ($258EC-$26076):
+  index = the step's level + the victim's combo stun +$38 - 1 (+1 for a special record with byte 1 bit 4, +4 for a plain
+  category hit), tables $2666A / $26672 / $26682 -> the super: 56, 57 reels, 69 (the knockdown hop) at hits 3, 4, 5;
+  every Billy special's predicted reactions = the specials.json captures (623 55/67, 236 69, 214 55/51). export_dd
+  dd_reactions / brawler_react now give every special hit DD's reaction: reel R_HEAVY, 67 R_KNOCKDOWN, 69 R_TRIP | 8
+  (the last hit R_BLOWBACK | 8). fighter.c kof_react: a trip / blowback with the hittable bit = DD's hop (its pose
+  BA_TRIP, up 3.5 px gravity 0.375, again in the air with the rise eaten by the hit's down knock $25B3A, 5 px a frame +
+  the push 4.25 / 11.25 x 7/8 the attacker's facing way, hittable); no other fighter's data has the bit on a trip.
+  Result (lab, Billy at x 20, Ryo 60 px ahead, proof /data/tmp/billy192/out, tools/doubledr/fury192_proof.py): 5 hits
+  (DD 5); reels at 1-2; lifted to 13.8 after hit 3 (DD 12), 15.4 at hit 4 (DD 13), 7.9 at hit 5 (DD 8); the launch
+  peaks at 11.6 (DD 12) and carries Ryo 101 px with the camera free (DD 155 incl. its 17-frame dragon pause), against
+  the screen edge in the lab (DD in a corner: the same). Side effect (DD's data): Billy's 236 dash now sends the victim
+  in DD's low hop (18 px up, 148 px away) instead of KOF's high blowback; 623 lands 2 hits up close. Not modelled: DD's
+  global 17-frame pause with the dragon effect ($D6) after the 3rd and 5th hits. Super Billy has no fury (DD gives the
+  form none) and Billy's MAX is the transformation (its hit: 67, unchanged). Checks: controls_proof / cancel_proof
+  billy_lee + billy_super ok, bank_proof ALL OK, regress no-bleed True (frame-exact), scenario lint 0.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
