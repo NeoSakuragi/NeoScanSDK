@@ -113,6 +113,7 @@ A3_RECORD = {('kof98', 0x7F4A8): 0xAC870, ('kof98', 0x7FD1A): 0xAC870}
 # count a run-time counter (P_SET / P_ADD cnt, PC_HELD, PC_CNTLE) and walks each level's path with the count known.
 CHARGE = {('kof98', 0x7EDAA): {'field': 0xD2, 'start': 0x7EE78, 'max': 2}}
 PROBE = []                                                       # the walk's reads of player input (follow-up search)
+CMP_KNOWN = True                                                 # an object's cmpi on a field it knows is concrete (TODO #202)
 
 class Decoder:
     def __init__(self, m):
@@ -630,6 +631,11 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 cc = (f'low:{imm(o[0])}', 'CS'); a = nx; continue                        # until 192 px: bcs = below)
             if o[1].startswith('%d') and isinstance(D.get(o[1]), int) and isinstance(imm(o[0]), int):   # a known register
                 cc = ('val', (D[o[1]] & 0xFFFF) - imm(o[0])); a = nx; continue                        # (dmcheck's d0)
+            fk = field(o[1]); szk = {'cmpiw': 2, 'cmpib': 1}.get(mn)
+            if CMP_KNOWN and depth > 0 and fk is not None and szk and isinstance(F.get(fk, szk, False), int) and isinstance(imm(o[0]), int):
+                cc = ('val', F.get(fk, szk, False) - imm(o[0])); a = nx; continue   # an object's field its spawner set (Kyo's
+                                                       # MAX flames $3D894 / $3D91E: +$C2 = the flames left picks the
+                                                       # next one's state and whether it follows him, TODO #202)
             a = nx; cc = ('cmp', 'Z'); continue
         emit(a, 'unknown', mn, o); a = nx
     if pending_child is not None: flush_child()
@@ -1154,20 +1160,29 @@ def victim_lists(m, addr, sdm=False):
 #     up), plays its animation, freed at its end.
 # Only effects drawn from the fighter's own table (T = its id) are exported (the shared effects bank, T 38, is not in
 # its frames). STEP_FX: the fighters whose ROM specials play them (Rugal, TODO #173; the rest after review).
-STEP_FX = {'kof98': {36}}
-STEP_FX_SHAPES = {0x37494: 'pinned', 0x36C54: 'once'}
+#   'once' also as `move #S, +$72; bra $3770C` -> `move #0, +$70; move #16, +$2C; movea.l +$84, a3; move.b +$1AB(a3),
+#     +$30; bra $36C12` (Kyo's hand fire, kinds $45-$48: states 249-252, TODO #202): $36C12 is the same placement inline
+#     (x + the owner's, the record's y added to +$1C, the owner's height) then $36C54's loop: freed at its animation's end.
+# STEP_FX: the fighters whose ROM specials play them (Rugal, TODO #173; Kyo, TODO #202: his hand fire on 236C / the
+# furies' release, Bruno's review; the rest after review).
+STEP_FX = {'kof98': {36, 0}}
+STEP_FX_SHAPES = {0x37494: 'pinned', 0x36C54: 'once', 0x36C12: 'once'}
 def fx_routine(m, kind):
     """kind -> (shape, table, state) or None"""
     dec = Decoder(m); a = m.u32(0x36382 + 4 * kind); T = S = None; sub = None
-    for _ in range(8):
+    for _ in range(12):
+        if a == 0x37494:                                 # reached by falling through ($37488: Kyo's $40 / $41)
+            return ('pinned', T, S) if T is not None and S is not None else None
         mn, o, nx = dec.at(a)
         if mn == 'movew' and o[1] == '%a4@(112)': T = imm(o[0])
         elif mn == 'movew' and o[1] == '%a4@(114)': S = imm(o[0])
         elif mn == 'movew' and o[1] in ('%a4@(198)', '%a4@(44)'): pass
+        elif (mn, o) in (('moveal', ['%a4@(132)', '%a3']), ('moveb', ['%a3@(427)', '%a4@(48)'])): pass   # the owner's palette
         elif mn.startswith('bsr'): sub = imm(o[0])
         elif mn.startswith('bra'):
             t = imm(o[0]); shape = STEP_FX_SHAPES.get(t)
-            if shape == 'once' and sub != 0x36BAA: return None
+            if shape is None and t in (0x3770C, 0x37488): a = t; continue   # the kinds' shared tails (above)
+            if shape == 'once' and t == 0x36C54 and sub != 0x36BAA: return None
             return (shape, T, S) if shape and T is not None and S is not None else None
         else: return None
         a = nx
@@ -1297,6 +1312,28 @@ def object_rows(m, cid, ob, owner_x=0.0, frames=240, fxoff_at=None, cycle=False,
             return rows[:-1], len(rows) - 1 - cyc, follow
     return rows, None, follow
 
+def obj_chain(m, cid, ob, add, hitkind, depth=0):
+    """the copy an object spawns of itself at its event step (TODO #202, Kyo's MAX Orochinagi $3D83E: +$C2 = 3 flames,
+    each 16 px further at the event step of the one before; states +$D6 / +$D8 by the count left, only the first
+    pinned), as export_bm's projectile child (bproj_t child: born on the parent's frame `births`, dx px forward from
+    it, its own rows, child of its own): None when it spawns none"""
+    sp_ = [op for a_, op in ob['ops'] if op[0] == 'spawn']
+    if not ob.get('objects') or not sp_ or depth > 4 or ob.get('state') is None: return None
+    ch = ob['objects'][sp_[0][1]]
+    if ch.get('addr') != ob.get('addr'): return None   # (a trail of another routine: the captured projectiles' child)
+    steps, _ = anim_steps(m, cid, ob['state'])
+    ev = next((k for k, s in enumerate(steps) if s[2] & 0x80), None)
+    if ev is None: return None
+    rows, loop, follow = object_rows(m, cid, ch)
+    if not rows: return None
+    x0 = rows[0][1]; box = next((r[3][0] for r in rows if r[3]), None)
+    return {'rows': [[add(r[0]), r[1] - x0] + r[2:6] for r in rows], 'loop': loop, 'end': [], 'kind': ch.get('kind') or 3,
+            'follow': 0, 'hit_kind': hitkind, 'react': (box_react(m, box, cid) if box is not None else 0) or 'knockdown',
+            'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'sig': 0, 'next': None, 'stop': 0, 'rearm': 0, 'state': ch.get('state'),
+            'births': [sum(s[0] + 1 for s in steps[:ev])], 'dx': sp_[0][2], 'dy': sp_[0][3],
+            'child': obj_chain(m, cid, ch, add, hitkind, depth + 1)}
+
+FXOFF_AT = 4      # (export_rom: the model's frame its owner sets +$D1 bit 7 when reading a pinned object's end animation)
 PROJ_REHIT = 7    # KOF98: frames from an object's hit (hits left) to its next move, when it may hit again (Billy's MAX
                   # fire ring: hits 7 frames apart, 6 of them frozen, measured in our emulator; the engine's +$124)
 PROJ_STOP3 = 2    # KOF98: an object without a hit routine (kind 3) stays one frame on its hit (2 frames to its next move) (the fire ring's frame shown
@@ -1480,10 +1517,18 @@ def export_rom(m, cid, inp, add, game='kof98'):
                    'hit_kind': hitkind, 'react': (box_react(m, pbox, cid) if pbox is not None else 0) or 'knockdown',   # +$138
                    'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'sig': 0, 'phase_hits': hits, 'stop': PROJ_REHIT, 'rearm': 1}
             end = []                                   # the first phase: pinned, kind 3, no end (it plays on)
-        objs.append({'rows': [[add(r[0])] + r[1:6] for r in rows], 'loop': loop, 'end': end,
+        elif follow:                                   # pinned (TODO #202): what its owner's P_FXOFF (+$D1 bit 7) does
+            if not any(op[0] == 'br' and op[1] == 'owner_fxoff' for a_, op in ob['ops']):
+                follow = int(follow) | 32              # nothing: it never reads the bit (Kyo's Orochinagi flame
+            elif not end:                              # $3D83E: it ends at its animation's end or when he is hit)
+                rf, _, _ = object_rows(m, cid, ob, fxoff_at=FXOFF_AT)   # its end animation, in place, when it has
+                if len(rf) > FXOFF_AT:                 # one (the release's glow $3D7E6: 243, then 244 to its end)
+                    end = [[add(r[0]), 0, 0] for r in rf[FXOFF_AT:]]; follow = int(follow) | 64
+        objs.append({'child': obj_chain(m, cid, ob, add, hitkind),   # the copy it spawns of itself (Kyo's MAX flames)
+                     'rows': [[add(r[0])] + r[1:6] for r in rows], 'loop': loop, 'end': end,
                      'kind': (rows[0][6] if ph and rows and rows[0][6] else ob['kind']) or 3,
                      'follow': int(follow), 'hit_kind': hitkind, 'react': rx or 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
-                     'child': None, 'state': ob.get('state'), 'sig': se | (sh & ~se & 0xC0) >> 2, 'next': nxt,
+                     'state': ob.get('state'), 'sig': se | (sh & ~se & 0xC0) >> 2, 'next': nxt,
                      'stop': PROJ_STOP3 if nxt else 0,
                      'rearm': int(bool(nxt))})   # its re-arming rows (bprow_t flags 4): a phased object's (object.phase)
     step_fx = []                                       # its animations' effect records (anim.step_spawn, TODO #173): an

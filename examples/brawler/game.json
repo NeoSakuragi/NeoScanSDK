@@ -72,6 +72,7 @@
    "routes": "default",
    "specials": {"D": "EX 236A", "fD": "236C", "dD": "623C", "uD": "421B", "dfD": "214A", "ufD": "EX 421D"},
    "fury": "21426C",
+   "invincible": ["EX 421D"],
    "unlock": "always",
    "voices": "kof"
   },

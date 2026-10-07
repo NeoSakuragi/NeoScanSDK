@@ -431,12 +431,13 @@ _Static_assert(SF_GLOW_SPR + SF_GLOW_COLS <= BG_SPR && SF_RAYS_SPR + SF_RAYS_COL
 _Static_assert(SF_GLOW_COLS + SF_RAYS_COLS <= BG_N, "super flash: its columns per line fit in the hidden stage's");
 static fighter_t *sf_who;                /* the attacker while the flash runs (0: none) */
 static uint8_t sf_flash_t, sf_col, sf_glow_on, sf_ray;   /* frames since it started; 0 DM blue / 1 MAX orange; shown frames */
+static uint8_t sf_frozen;                /* the projectile entities alive when it started: frozen through it (TODO #202) */
 static int16_t sf_dx, sf_dy;
 static const uint16_t SF_BD[2] = { 0x0000, 0x0000 };    /* the backdrop it leaves: black (screen_fx restores the stage's) */
 void super_flash(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     if (mode != 1) return;
-    sf_who = f; sf_flash_t = 0; sf_glow_on = 0; sf_ray = 0xFF;
+    sf_who = f; sf_flash_t = 0; sf_glow_on = 0; sf_ray = 0xFF; sf_frozen = projectiles_alive();
     sf_col = f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max;   /* MAX: orange */
     if (f->ch->nfpose) { sf_dx = f->ch->fhead[0]; sf_dy = f->ch->fhead[1]; }   /* a flash pose (TODO #145): its head */
     else if (sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
@@ -2519,7 +2520,10 @@ void game_tick(void) {
     if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
-    if (!sf_who) { camera(); wall_update(order, nf, cam_x); projectiles_update(cam_x); }
+    if (!sf_who) { camera(); wall_update(order, nf, cam_x); projectiles_update(cam_x, 0); }
+    else projectiles_update(cam_x, 0x100 | sf_frozen);   /* the flash: only its attacker's effects born in it
+                                                                (KOF98: P1 runs at the flash's priority $5001 and so do the
+                                                                objects it spawns, $5D1C; the rest hold: Kyo's hand fire, #202) */
     mark(P_UPDATE);
     combat(order, nf, sf_who);                               /* a super flash: its attacker's own boxes only */
     if (!ko_seq && phase == PH_BOSS && !attract && !lab.active && fighters[BOSS_IDX].state != S_OFF && fighters[BOSS_IDX].hp <= 0)

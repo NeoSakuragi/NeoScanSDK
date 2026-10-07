@@ -830,5 +830,47 @@
   "expect": "Kim dives diagonally down and forward at 45 degrees from wherever he is in the jump (rising too) until he lands, then a short landing pose. No blue effect on a miss; on a hit the blue flash shows at his feet and the kick hits up to 4 times as he keeps diving. Down + A again after a hit (while still high) plays the second dive kick, which knocks the opponent down.",
   "do_keys": "3:Rb,3:b,7:-,3:Da",
   "proof": 90
+ },
+ "20261007-124338-b3f3": {
+  "title": "Kyo's Orochinagi flame stays as long as in KOF98 (and the MAX throws three)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 260,
+   "meter": "full"
+  },
+  "do": "With a full meter and Ryo far away, press D (Orochinagi) and let go, then watch the flame until it is gone. Then do the MAX version: down+D.",
+  "expect": "The big flame burns for about three quarters of a second after it comes out (not a few frames), Kyo keeps fire in his raised hand afterwards, and a last small flame pops in his hand at the end of the move. The MAX version (down+D) throws three flames one after another, each a step further forward.",
+  "do_keys": "4:d,150:-",
+  "proof": 60
+ },
+ "20261007-124409-b3f3": {
+  "title": "Kyo's 236C punch has its fire in the hand",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 200,
+   "meter": "full"
+  },
+  "do": "Press forward + C (Kyo's dashing 236C punch) with Ryo out of reach and watch his fist at the end of the punch.",
+  "expect": "A burst of fire shows on Kyo's fist as the punch reaches out, as in KOF98, and dies out by itself.",
+  "do_keys": "4:Rc",
+  "proof": 90
+ },
+ "20261007-124437-b3f3": {
+  "title": "Kyo's up-forward + C (EX 421D flying kick) is invincible",
+  "setup": {
+   "mode": "stage",
+   "fighter": "kyo",
+   "stage": 0,
+   "wave": 1,
+   "meter": "full"
+  },
+  "do": "In a fight, let enemies come close and attack you, then press up-forward + C in the middle of them, several times.",
+  "expect": "From the start of the kick to Kyo's landing no enemy hit, grab or push reaches him (his life does not drop); he can be hit again right after he lands.",
+  "do_keys": "60:-,4:URc",
+  "proof": 120
  }
 }
