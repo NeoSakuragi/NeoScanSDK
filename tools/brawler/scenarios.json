@@ -1150,6 +1150,111 @@
   "do_keys": "4:DRc",
   "proof": 150
  },
+ "todo214-iori-624D": {
+  "title": "Iori's forward + C (624D): the release's explosion from KOF's shared effects",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press forward + C with Terry standing close in front of you and watch the moment Terry is thrown off.",
+  "expect": "As Iori lets go, a yellow-white flame flashes along the floor in front of him (part of it behind him), then dark smoke with purple flames bursts around Terry and drifts away while Terry flies off burning purple: the same explosion, colours and timing as KOF98.",
+  "do_keys": "4:Rc",
+  "proof": 160
+ },
+ "todo214-iori-624B": {
+  "title": "Iori's down-forward + C (624B): the release's explosion from KOF's shared effects",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down-forward + C with Terry standing close in front of you and watch the moment Terry is thrown off.",
+  "expect": "The same explosion as forward + C: a yellow-white floor flame, then dark smoke with purple flames around Terry as he flies off, as in KOF98.",
+  "do_keys": "4:DRc",
+  "proof": 160
+ },
+ "todo214-rugal-624A": {
+  "title": "Rugal's forward + C (624A, God Press): the slam's burst from KOF's shared effects",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rugal",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press forward + C with Terry standing close in front of you.",
+  "expect": "Rugal rushes, grabs Terry and drives him into the screen's edge; as he slams him against it a white-yellow burst flashes at Terry's chest, then Rugal jumps back: the same burst, colours and timing as KOF98.",
+  "do_keys": "4:Rc",
+  "proof": 150
+ },
+ "todo214-ralf-28A": {
+  "title": "Ralf's down + C ([2]8A): the landing explosion from KOF's shared effects",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ralf",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down + C with Terry standing in front of you and watch Ralf land.",
+  "expect": "Ralf flies up and punches down; where he lands, fire bursts and brown dust clouds roll out on both sides of him and fade: the same explosion, colours and timing as KOF98.",
+  "do_keys": "4:Dc",
+  "proof": 150
+ },
+ "todo214-ralf-28C": {
+  "title": "Ralf's down-forward + C ([2]8C): the landing explosion from KOF's shared effects",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ralf",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press down-forward + C with Terry standing in front of you and watch Ralf land.",
+  "expect": "The higher dive of down + C: where Ralf lands, fire bursts and brown dust clouds roll out on both sides of him and fade, as in KOF98.",
+  "do_keys": "4:DRc",
+  "proof": 170
+ },
+ "todo214-ralf-46B": {
+  "title": "Ralf's up + C ([4]6B): the dust behind his kick from KOF's shared effects",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ralf",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press up + C with Terry standing in front of you.",
+  "expect": "As Ralf's kick starts, a pale yellow dust cloud puffs up behind his feet (drawn behind him) and fades: the same cloud as KOF98.",
+  "do_keys": "4:Uc",
+  "proof": 120
+ },
+ "todo214-ralf-46D": {
+  "title": "Ralf's up-forward + C ([4]6D): the dust behind his kick from KOF's shared effects",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ralf",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Press up-forward + C with Terry standing in front of you.",
+  "expect": "As Ralf's kick starts, a pale yellow dust cloud puffs up behind his feet (drawn behind him) and fades, as in KOF98.",
+  "do_keys": "4:URc",
+  "proof": 120
+ },
+ "todo214-terry-fury": {
+  "title": "Terry's fury (D, Power Geyser 21416C): the dust of the blast from KOF's shared effects",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "terry",
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D with Terry (the dummy) standing in front of you.",
+  "expect": "As Terry punches the ground and the geyser erupts, a pale yellow dust cloud puffs up behind him (drawn behind him) and fades: the same cloud as KOF98.",
+  "do_keys": "4:d",
+  "proof": 150
+ },
  "todo212-cheng-specials": {
   "title": "Cheng-Fu (Double Dragon): his three specials",
   "setup": {
@@ -1189,6 +1294,33 @@
   "expect": "Cheng-Fu strikes Ryo's chest with his palm and blows the dust off his fingers; Ryo stands stunned, staggers back and stays dizzy about two seconds (no damage from the throw itself, as in Double Dragon); the A hits him while he is dizzy.",
   "do_keys": "4:R,4:Ra,150:-,4:a",
   "proof": 260
+ },
+ "todo136-kim-421A": {
+  "title": "Kim: up + C is Kizuna's 421A, the dummy held where it was caught",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 56
+  },
+  "do": "Press up + C next to the dummy, then once from far away.",
+  "expect": "Kim lunges with the staff. On the hit the dummy stays frozen where he struck it while he is pushed back, then his two blows launch it: up into a short arc, then kicked high and away; it lands and bounces down. Three hits (in Kizuna his tag partner jumps in for two more: the brawler has no partner). From far away he lunges and recovers.",
+  "do_keys": "3:Uc",
+  "proof": 150
+ },
+ "todo138-kim-6246A": {
+  "title": "Kim: D is Kizuna's Phoenix (6246A), its victim moved by Kizuna's own reaction code",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 30,
+   "meter": "full"
+  },
+  "do": "Press D next to the dummy (full meter).",
+  "expect": "The flash pose, then the rush; on the hit a flurry of staff blows keeps the dummy reeling in place, a launch and a rising kick throw it up, Kim chases it into the air (the white / red strobing screen) and hits it twice more; it freezes at the top while Kim dives down in flames, then falls the rest of the way and bounces once he has landed. Twelve hits.",
+  "do_keys": "3:d",
+  "proof": 330
  },
  "todo215-cheng-super623": {
   "title": "Cheng-Fu's down + D: Double Dragon's hit sparks and red flashes",

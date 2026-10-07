@@ -31,6 +31,12 @@ extern int16_t floor_top;         /* screen y of the feet at Z = 0: the stage's 
 #define CLOSE_X   40              /* an opponent this close (|dX|, |dZ| <= Z_HIT): A takes a route's close link (KOF's close normals) */
 #define MAX_COLS  20              /* hardware sprites reserved per fighter (Billy's widest frame: 19) */
 #define MAX_PALS  8               /* palettes reserved per fighter (Terry with his effects: 5) */
+#define SFX_PAL   232             /* KOF's shared effects bank (TODO #214): its palettes SFX_PAL .. + SFX_NPAL - 1 (bm_chars.h,
+                                     at most SFX_NPAL_MAX; main.c sparks_init loads bm_sfx_pals), absolute like KOF98's
+                                     palette RAM 80-127: a frame part's pal | 0x80 draws with SFX_PAL + (pal & 0x7F)
+                                     (draw.s), never with its owner's palettes (the white flash, the burn leave them) */
+#define SFX_NPAL_MAX 8            /* (232-239: past the select screen's 23 actors x MAX_PALS from 16, below the big
+                                     portraits' 240) */
 extern int16_t world_w;           /* the stage's width in px (stage_t.cols * 16); fighters stay 16 px inside it */
 
 enum {                            /* states: the state machine alone decides what happens next */
@@ -190,7 +196,8 @@ typedef struct fighter {
     struct fighter *held;         /* grab partner */
     uint16_t shown_frame; int8_t shown_facing;   /* what the sprite block's tiles show (0xFFFF = rewrite) */
     uint16_t frame_ovr;           /* frame shown instead of the animation's (holds and throw scripts), 0xFFFF = none */
-    uint8_t  zfront;              /* drawn in front of a fighter at the same Z (throw victims) */
+    int8_t   zfront;              /* drawn in front of a fighter at the same Z (throw victims, 1), behind (-1: an effect
+                                     KOF draws behind its owner, bproj_t back, TODO #214) */
     uint8_t  pushing;             /* walked forward this frame (grabs on contact) */
     uint8_t  throw_id, grab_hits; /* grab_hits: hits in the hold; during a throw, the throw's impacts */
     uint8_t  throw_dealt, impact; /* throw damage dealt at its impacts; an impact this frame (combat() resolves it) */
@@ -241,7 +248,8 @@ typedef struct fighter {
      * in it), op index / resume point, flags PF_*, the damage / reaction / effect of the hits it opens, its counter,
      * friction (0.16) and gravity (16.16; vx / vy are the fighter's) */
     const banim_t *pan;
-    uint8_t  pstep, pleft, ppc, pres, pflags, pdmg, preact, pfx;
+    uint8_t  pstep, pleft, pflags, pdmg, preact, pfx;
+    uint16_t ppc, pres;           /* (16 bits since TODO #136: the Phoenix's program has 300+ ops) */
     int16_t  pcnt;
     uint16_t pfric;
     int32_t  pg;
@@ -309,6 +317,18 @@ typedef struct fighter {
                                    * frame of the freeze it shows, 0xFF over (the fury plays from its first frame) */
     uint16_t dizzy;               /* a stun strike's victim (bthrow_t.stun, TODO #212: Cheng-Fu's throw): its S_HITSTUN
                                    * lasts this many frames, open to any hit; a hit (enter) ends it (0 none) */
+    int32_t  kax;                 /* a source reaction (TODO #136, vocabulary reaction.source_motion, fighter.c src_react):
+                                   * the reel's x acceleration (16.16, world) */
+    uint8_t  ksr, ksn;            /* the source reaction playing (bm_sreact index + 1, 0 none), the frames its reel still
+                                   * slides / its landing still pauses */
+    uint8_t  vph, pbd;            /* vph: the victim phases a special's P_VPHASE holds this fighter in (VPH_*, fighter.c
+                                   * vphase; Kizuna's +$1AF); pbd: its special's screen effect on (P_SCREEN) */
+    struct fighter *vph_by, *vtgt;  /* vph_by: the special that holds it in them (they end when it no longer plays);
+                                   * vtgt: the victim its own P_VPHASE took first (its later phases go to that one, not
+                                   * to a crowd member hit since) */
+    uint8_t  spec_sr, pstill;     /* special: the source reactions of the hit window open (bstep_t.hy under SF_SREACT);
+                                   * pstill: the first frame after its hit-stop, its program's P_MOVE / P_FALL skipped
+                                   * (Kizuna's: the attacker, as its victim, still that frame [meas: kim136]) */
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */

@@ -299,10 +299,12 @@ def game_hits(e):
     life = [ps[3] for ps in e.get('steps', []) if len(ps) > 3]
     return sum(1 for i in range(1, len(life)) if life[i] < life[i - 1])
 
-def export(names, outdir, game='kof96', only=None, extra=None):
+def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
     extra: {name: {move: (state, step)}} more moves for one fighter, each a single held frame (the animation's step
-    `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH)"""
+    `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH).
+    shared_fx: {name: inputs} the ROM specials whose effects from KOF's shared bank are exported (TODO #214: the
+    brawler's slots and fury, export_bm.export; None = every special's)"""
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
     k98 = game in ('kof97', 'kof98', 'kof99')           # KOF97 and KOF99 use KOF98's layout
     cast, moves = {'kof97': (CAST97, MOVES97), 'kof98': (CAST98, MOVES98), 'kof99': (CAST99, MOVES99)}.get(game, (CAST, MOVES))
@@ -316,8 +318,21 @@ def export(names, outdir, game='kof96', only=None, extra=None):
     adders = {}
     for name in names:
         cid = cast.index(name)
-        frames, index, used = [], {}, []
-        def add_frame(fidx, cid=cid, frames=frames, index=index, used=used):
+        frames, index, used, shared_pals = [], {}, [], {}
+        def add_frame(fidx, cid=cid, frames=frames, index=index, used=used, tab=None, shared_pals=shared_pals):
+            if tab is not None and tab != cid:      # a frame of KOF's shared effects bank (TODO #214: handlers98.SHARED_FX):
+                key = (tab, fidx)                   # absolute palettes (palette RAM slot = palette ROM index, 80-127):
+                if key not in index:                # each part keeps its slot as 'spal' (no fighter palette: export_bm
+                    index[key] = len(frames); parts = []   # gives them the shared budget, pal_pack leaves them out)
+                    for p in rom96.frame_parts(m, tab, fidx):
+                        sd = rom96.sdef(m, tab, p['sdef'])
+                        if not sd['cols']: continue
+                        assert 80 <= sd['pal'] < 128, (tab, fidx, sd['pal'])
+                        parts.append({'dx': p['dx'], 'dy': p['dy'], 'hflip': p['hflip'], 'vflip': p['vflip'], 'spal': sd['pal'],
+                                      'tiles': [[our_tile(t) for t in col] for col in sd['cols']]})
+                        shared_pals.setdefault(sd['pal'], pal_rom98(m, sd['pal']))
+                    frames.append({'record': f'{tab}:{fidx}', 'parts': parts})
+                return index[key]
             if fidx not in index:
                 index[fidx] = len(frames); parts = []
                 for p in rom96.frame_parts(m, cid, fidx):
@@ -377,7 +392,7 @@ def export(names, outdir, game='kof96', only=None, extra=None):
             except Exception: continue
             anims[f'slot_{slot}'] = {'slot': slot, 'states': inv.get(slot, []), 'mode': mode, 'steps': [
                 {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
-        out['characters'][name] = {'id': cid, 'effect_palettes': {}, 'frames': frames, 'anims': anims,
+        out['characters'][name] = {'id': cid, 'effect_palettes': {}, 'frames': frames, 'anims': anims, 'shared_palettes': shared_pals,
                                    'physics': (physics98 if k98 else physics)(m, cid, prejump_frames(m, cid, slot_of(cid, 3))), 'throws': {}, 'specials': [],
                                    'palette_bytes': used}
         adders[name] = add_frame
@@ -422,14 +437,15 @@ def export(names, outdir, game='kof96', only=None, extra=None):
             for s_, d_, sl_ in e['states']: starts.append((s_, t0)); t0 += d_   # handlers98.super_flash)
             e['flash'] = handlers98.super_flash(m, cid, starts)
             if handlers98.ROM_GAME.get(name, 'kof98') == game and sp['input'] in handlers98.ROM_SPECIALS.get(name, ()):   # read from the ROM:
-                e['rom'] = handlers98.export_rom(m, cid, sp['input'], add)                  # its handler's program
+                e['rom'] = handlers98.export_rom(m, cid, sp['input'], add,                  # its handler's program
+                                                 shared=shared_fx is None or sp['input'] in shared_fx.get(name, ()))
                 e['flash'] = e['rom'].get('flash') or e['flash']
             sps.append(e)
             if 'rom' in e and any(v['sdm'] for v in e['rom'].get('variants', [])) and not e['input'].startswith('MAX '):
                 # a DM's MAX version (TODO #139, down+D): the same handler with +$E4 bit 0 set, this button's path (the
                 # handler's own button test decides A / C: handlers98.md "Super flash"); its script = the DM's capture
                 # (the Lab's data; the game plays the program)
-                rom = handlers98.export_rom(m, cid, 'MAX ' + sp['input'], add)
+                rom = handlers98.export_rom(m, cid, 'MAX ' + sp['input'], add, shared=shared_fx is None or sp['input'] in shared_fx.get(name, ()))
                 if 'error' not in rom: sps.append(dict(e, input='MAX ' + sp['input'], rom=rom, flash=rom['flash'], max_of=sp['input']))
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not

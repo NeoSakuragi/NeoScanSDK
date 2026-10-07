@@ -262,9 +262,15 @@ def main(game, out, cases):
                  'brawler_proj_next': (br[bp[0] + 1]['proj'] if bp and bp[0] + 1 < len(br) else None)}
             if ref == 'kof':                             # its objects' lives (TODO #142)
                 before = set(res.get('objects_before', ()))
-                kof_pf = [[(o['base'], None, (o['rec'] - rec0) // 6, round(o['x'] - gx0, 2), o['h']) for o in g['objs'] if o['table'] == kcid
+                km = K.rom96.Mem(K.rom96.load(K.rom96.GAMES[kg]['neo'])[0], kg)
+                sh = H.SHARED_FX.get(kg)                 # + the effects of KOF's shared bank its states spawn (TODO #214;
+                shs = {e['fstate'] for e in H.step_effects(km, kcid, res['states']) if e['table'] == sh} if sh is not None else set()
+                rec0s = K.rom96.frame_record(km, sh, 0) if shs else 0   # not the bank's other objects: sparks, shadows)
+                mine = lambda o: o['table'] == kcid or (o['table'] == sh and o['state'] in shs)
+                kof_pf = [[(o['base'], None, (o['rec'] - (rec0 if o['table'] == kcid else rec0s)) // 6, round(o['x'] - gx0, 2), o['h']) for o in g['objs'] if mine(o)
                            and not (o['base'] in before and all(any(q['base'] == o['base'] for q in game_rows[j]['objs']) for j in range(i + 1)))]
                           for i, g in enumerate(game_rows)]
+                s['kof_shared_states'] = sorted(shs)
                 s['objects'] = objects_check(kof_pf, [[((i_,), age, fr, x, h) for i_, age, fr, x, h in r['objs']] for r in bro],
                                              len(game_rows), len(bro) if len(bro) >= len(game_rows) + 60 else 10 ** 9, rec)   # (the brawler's window
                                              # ran out: what is still alive then never ends)
