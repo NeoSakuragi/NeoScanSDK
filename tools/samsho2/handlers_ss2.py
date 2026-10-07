@@ -44,7 +44,7 @@ P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge'
      'voice': 29, 'vsig': 30}                                 # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 PC = {'end': 0, 'event': 1, 'land': 2, 'fall': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'always': 7, 'stepev': 8, 'window': 9,
-      'link': 10, 'hitany': 11, 'passed': 20}
+      'link': 10, 'hitany': 11, 'sig7c': 13, 'passed': 20}
 R_HEAVY, R_KNOCKDOWN, R_LAUNCH = 1, 2, 3
 SPECIAL_DAMAGE = 8                                # export_bm.SPECIAL_DAMAGE
 GRAVITY = 131                                     # 8.8 px / frame^2: the table entry 5 ($46BAE $3205) [code]
@@ -311,6 +311,16 @@ def kur_ccccc(v):
             E(None, conds=[('cnt', 'next')]),
             E(79, conds=[('end', 'end')])], [('kghost', 0)]
 
+def kur_boomerang(v):
+    """Kuroko's flag boomerang, 6 3 2 1 4 + A -> result 50 ($5955E) [code]: 0 anim 15 $59576: velocities 0, the end ->
+    next; 1 anim 17 $59582: spawn object type 27 (the flag: kboomerang), sound $E8, his +$D4 = 0, next at once;
+    2 $595A2 (param): his +$D4 set (the flag's catch, $4C3F4) -> next; 3 anim 24 $595B0: the end -> neutral. Measured
+    (boomerang_ss2.py, whiff): anim 17 and the flag from frame 43, the catch at 89, anim 24 from 91, neutral at 118"""
+    return [E(15, [('set', 'vx', 0)], [('end', 'next')]),
+            E(17, [('spawn', 0)], [('now', 'next')]),
+            E(None, conds=[('sig', 'next')]),
+            E(24, conds=[('end', 'end')])], [('kboomerang', 0)]
+
 def kur_rage(maxv):
     def fn(v):
         """Kuroko's rage moves: 6 3 2 1 4 6 + A+B -> 37 ($591E0), 6 4 1 2 3 6 + C+D -> 38 ($59216) [code]:
@@ -357,11 +367,13 @@ SPECIALS = {
                  '236K': (hao_236k, 1, (44,)), '214A': (hao_214a, 1, (47,)), 'WFT': (hao_wft, 1, (37,))},
     'genjuro': {'214S': (gen_214s, 3, (38, 39, 40)), '236S': (gen_236s, 3, (41, 42, 43)), '623S': (gen_623s, 3, (50, 51, 52)),
                 'WFT': (gen_wft, 1, (37,))},
-    'kuroko': {'236A': (kur_parody(39), 1, (39,)), '16A': (kur_parody(40), 1, (40,)), '214161BC': (kur_parody(41), 1, (41,)),
+    # (input = the recogniser's own: commands_ss2.py 17; 2026-10-07: 61236A is result 41 and 214161BC result 46, the
+    # export had them swapped)
+    'kuroko': {'236A': (kur_parody(39), 1, (39,)), '16A': (kur_parody(40), 1, (40,)), '61236A': (kur_parody(41), 1, (41,)),
                '126BC': (kur_parody(42), 1, (42,)), '236B': (kur_parody(43), 1, (43,)), '2363214A': (kur_parody(44), 1, (44,)),
-               '214A': (kur_parody(45), 1, (45,)), '61236A': (kur_parody(46), 1, (46,)), 'CCCCC': (kur_ccccc, 1, (47,)),
-               '6ABC': (kur_flag(3), 1, (48,)), '6BCD': (kur_flag(5), 1, (49,)), 'RAGE': (kur_rage(False), 1, (37,)),
-               'MAX RAGE': (kur_rage(True), 1, (38,))},
+               '214A': (kur_parody(45), 1, (45,)), '214161BC': (kur_parody(46), 1, (46,)), 'CCCCC': (kur_ccccc, 1, (47,)),
+               '6ABC': (kur_flag(3), 1, (48,)), '6BCD': (kur_flag(5), 1, (49,)), '63214A': (kur_boomerang, 1, (50,)),
+               'RAGE': (kur_rage(False), 1, (37,)), 'MAX RAGE': (kur_rage(True), 1, (38,))},
 }
 CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}
 
@@ -438,7 +450,7 @@ def compile_prog(ents):
             if c == 'passed':                         # its opponent reached / passed ($563F4): that frame's physics, then T
                 ops.append(('br', 'passed', 1, ('S', i, k), 0)); sw.append((('S', i, k), T, extra, True)); continue
             if c == 'cnt': ops.append(('dec',)); cond = 'cnt'
-            else: cond = {'end': 'end', 'apex': 'fall', 'hit': 'hit'}.get(c) or ('stepev' if c[0] == 'step' else None)
+            else: cond = {'end': 'end', 'apex': 'fall', 'hit': 'hit', 'sig': 'sig7c'}.get(c) or ('stepev' if c[0] == 'step' else None)
             if c == 'end' and end_ev(cur): ops.append(('br', 'stepev', 1, ('S', i, k)))
             ops.append(('br', cond, 1, ('S', i, k))); sw.append((('S', i, k), T, extra, True))
         if now: ops += now[1] + routine_phys(e, (i, 'n')) + [('resume_at', now[0]), ('br', 'always', 1, 'yield')]
@@ -482,6 +494,8 @@ class Play:
         self.x = self.y = self.vx = self.vy = self.pg = self.cnt = 0
         self.flags = set(); self.pres = 0; self.done = False; self.spawns = []; self.rows = []; self.srow = 0
         self.landed = False; self.plink = 0; self.spend = 0
+        self.sig_after = {}                               # spawn index -> frames from its spawn to its signal (alone:
+        self.sig_at = None                                # a boomerang's catch, boomerang_model); the frame it is seen
     def pan_enter(self):
         s = self.an['steps'][self.pstep]
         self.flags.discard('event')
@@ -503,7 +517,8 @@ class Play:
         return {PC['stepev']: 'event' in self.flags, PC['end']: 'end' in self.flags, PC['land']: 'land' in self.flags,
                 PC['fall']: 'fall' in self.flags, PC['cnt']: self.cnt < 0, PC['hit']: self.landed,
                 PC['window']: bool(s['flags'] & 0x2000), PC['link']: bool(self.plink & v), PC['always']: True,
-                PC['passed']: False}[c]                    # (alone: no opponent to pass)
+                PC['passed']: False,                       # (alone: no opponent to pass)
+                PC['sig7c']: self.sig_at is not None and self.srow - 1 >= self.sig_at}[c]
     def frame(self):
         if self.done: return None
         self.srow += 1; ppc = self.pres
@@ -535,7 +550,10 @@ class Play:
             elif op == P['resume']: self.pres = ppc
             elif op == P['resume_at']: self.pres = b
             elif op == P['jmp']: ppc = b
-            elif op == P['spawn']: self.spawns.append((self.srow - 1, a, self.x))
+            elif op == P['spawn']:
+                self.spawns.append((self.srow - 1, a, self.x))
+                if a in self.sig_after: self.sig_at = self.srow - 1 + self.sig_after[a] + 1   # (its update after his: seen
+                                                                                               # the next frame)
             elif op == P['check']: self.plink |= self.spend & a
             elif op == P['part']: self.plink = 0
             elif op == P['end']: self.done = True; return None
@@ -614,6 +632,8 @@ def kparody(B, k):
     dy = dy - 65536 if dy & 0x8000 else dy
     vx = N.s16(0x6BB0E + 2 * k) / 256
     cyc = play_anim(17, a)
+    if len(cyc) < 2: cyc = cyc * 2                # a one-frame animation (object 8: anim 41) as two rows: the loop's
+                                                  # wrap is the rows' own step (export_bm), one row stood still
     rows = obj_rows(B, 17, cyc, dx + vx, vx, -dy)
     endr = [[r[0], 0, 0] for r in obj_rows(B, 17, play_anim(17, end))]   # in place: at the hit's height (bpend_t y from it, TODO #164)
     return {'kind': 1, 'rows': rows, 'loop': 0, 'end': endr, 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
@@ -639,6 +659,59 @@ def kghost(B, k):
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 1, 'travel': 0,
             'name': 'KGHOST', 'ss2': {'type': 26, 'anim': 73}}
 
+# Kuroko's flag (object type 27, $4C274) [code] + [meas: boomerang_ss2.py, /data/tmp/kuroko176/ss2]: the brawler's
+# spawn.boomerang (bproj_t kind 4, fighter.c boom_update)
+BOOM = dict(speed=N.s16(0x6BB26) / 256,           # vx = word $6BB26 (8 px a frame; back: the same, negated: $4C37A)
+            spawn=99 + 8,                         # placed 99 px ahead ($4C2A8), shown after its first move: 107 [meas]
+            range=220, catch=104,                 # $4C326 cmpi #220 (out), $4C3C0 cmpi #104 (back), both on |x + vx - his x|
+            hover=N.s16(0x6BB28),                 # +$D6 = word $6BB28 (16): subq / bpl: 17 frames, then back
+            held=1,                               # +$D6 = 1 at the catch ($4C400): 2 more frames in his hand ($4C42C)
+            height=32,                            # y - 32 ($4C2B8)
+            segs=2, gap=48, seg_min=64)           # 2 objects 40 (+$D4 48 / 96) behind it, never nearer him than 64 ($4EC50)
+
+def boomerang_model(hit=None):
+    """the flag's distance from its thrower per frame from its first shown frame (its phases, as fighter.c boom_update
+    and SS2's routines): hit = the frame index of its hit (None: a whiff) -> (dists, the catch frame index)"""
+    b = BOOM; x = b['spawn']; v = b['speed']; ph = 'out'; cnt = b['hover']; out = [x]; catch = None; t = 0
+    while True:
+        t += 1; nx = x + v
+        if ph == 'out':
+            if abs(nx) >= b['range']: x, v, ph = b['range'], 0, 'hover'
+            else: x = nx
+        elif ph == 'hover':
+            cnt -= 1
+            if cnt < 0: v = -b['speed']; x += v; ph = 'back'
+        elif ph == 'back':
+            if abs(nx) <= b['catch']: x, v, ph, cnt, catch = b['catch'], 0, 'held', b['held'], t
+            else: x = nx
+        else:
+            cnt -= 1
+            if cnt < 0: return out, catch
+        if hit is not None and t == hit and ph == 'out': v, ph = 0, 'hover'
+        out.append(x)
+
+def kboomerang(B, k):
+    """Kuroko's flag, 6 3 2 1 4 A (object type 27, $4C274) [code]: animation 19 of his table (4 steps with the attack
+    record $B113: [-6][10][-4][4] x 4 px, then a held step without one: live 15 frames, the out leg) 32 px up; it flies out
+    8 px a frame from 107 px ahead to 220 px from him ($4C2F8), hovers 17 frames ($4C358), flies back at 8 px ($4C398) to
+    104 px from him: the catch (his +$D4: his routine goes on), 2 more frames, gone ($4C410). Its hit ($31478[27] =
+    $4C47E) or clash ($316E8[27] = $4C440): stopped where it is, the hover again with its count, then back. Its attack
+    is spent by its first hit (+$102 bit 7 survives its steps; cleared only by a new animation, which never comes) and
+    its animation holds its last step (no attack record) from the 16th frame on: SS2's flag hits only on its way out
+    [meas: /data/tmp/kuroko176/ss2 back.json: P2 put in its return path, not hit]. Kuroko out of the move: gone at once
+    ($4C434). The pole: 2 segments (effect objects 40, $4E72E: animation 23) 48 / 96 px behind it, never nearer him than
+    64 px ($4EC50)"""
+    b = BOOM
+    rows = obj_rows(B, 17, play_anim(17, 19), 0, 0, b['height'])
+    seg = obj_rows(B, 17, play_anim(17, 23)[:1], 0, 0, b['height'])
+    segd = {'kind': 5, 'rows': [r[:3] + [None, None] for r in seg], 'loop': 0, 'end': [], 'react': 'knockdown', 'hit_kind': 1,
+            'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 0,
+            'name': 'KFLAGPOLE', 'ss2': {'type': 40, 'anim': 23}}
+    return {'kind': 4, 'rows': rows, 'loop': len(rows) - 1, 'end': [], 'react': 0, 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': b['spawn'], 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 128, 'follow': 0, 'travel': b['range'],
+            'vx': b['speed'], 'name': 'KFLAG', 'boom': dict(b, seg=segd),
+            'ss2': {'type': 27, 'anim': 19, 'pole': 23}}
+
 def wind(B, k):
     """Genjuro's object 27 ($43A3C[27] = $4DAF8) in its first phase [code]: animation 38 then 39 (looping) of his table,
     re-placed every frame at its +$D4 = the caught opponent + (0, 48 up) ($4DB6E): the card wind around the victim,
@@ -657,7 +730,7 @@ def wind2(B, k):
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 3, 'travel': 0,
             'name': 'WFTCARDS', 'ss2': {'type': 27, 'anim': 32}}
 
-OBJECTS = {'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
+OBJECTS = {'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
 def rom_steps(B, ch, a, flags, react, catch=False):
@@ -727,6 +800,8 @@ def special(B, ch, name, inp):
     # the brawler's player on the default row: length, apex, last hit (bspec_t inv_rows), the script for the Lab
     anims_l = [{'steps': anims_d[s]['steps'], 'hold': True} for s in states]
     pl = Play(prims, anims_l, [v for row in zip(*cols) for v in row] if cols else None, default, len(cols), nstate)
+    for a_, o_ in enumerate(objects[default * nobj:(default + 1) * nobj]):
+        if o_['kind'] == 4: pl.sig_after[a_] = boomerang_model()[1]   # alone: its whiff's catch
     rows = []
     while len(rows) < 600:
         r = pl.frame()
@@ -771,9 +846,8 @@ def special(B, ch, name, inp):
             'shape': [max(r[1] for r in script), max(r[2] for r in script), bool(pj)], 'game_hits': len(opens),
             'rom': rom, 'ss2': {'results': list(results), 'sounds': snd, 'code_sounds': spawn_snd}}
 
-# decoded but not exported: a fighter's palettes must fit the brawler's 8 (MAX_PALS); Kuroko's moves need 10 together:
-# the smoke dud (61236A: palette 178) and the energy ball (126BC: palette 39) stay out (their decode is above)
-NOT_EXPORTED = {'kuroko': {'61236A', '126BC'}}
+# decoded but not exported (none since 2026-10-07: Kuroko's 10 palettes fit the brawler's 8 by export_ss2.pack_palettes)
+NOT_EXPORTED = {}
 
 def specials(B, ch, name):
     return [special(B, ch, name, inp) for inp in SPECIALS[name] if inp not in NOT_EXPORTED.get(name, ())]
