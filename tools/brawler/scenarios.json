@@ -1321,5 +1321,19 @@
   "expect": "After the flash Yamazaki leaps at Terry, a dark swirl trailing his jump, catches him in the air and lands with him, then drags him along the floor in two long pulls, striking him four times on each, and ends with a last blow that sends Terry flying: the same moves and timing as KOF98 (no purple afterimages: the brawler draws none).",
   "do_keys": "4:d",
   "proof": 240
+ },
+ "todo216-iori-fury": {
+  "title": "Iori's fury (D, Ura 23624C): played from KOF98's handler, its finisher and explosion",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "terry",
+   "gap": 48,
+   "meter": "full"
+  },
+  "do": "With a full meter, press D with Terry standing close in front of you.",
+  "expect": "After the flash Iori dashes, grabs Terry and claws him seven times while Terry stays held in front of him; then Iori grabs him by the head, a purple flame flares, and the explosion's yellow flame and purple smoke burst as Terry is blown away burning purple: the same moves, hits and timing as KOF98.",
+  "do_keys": "4:d",
+  "proof": 260
  }
 }

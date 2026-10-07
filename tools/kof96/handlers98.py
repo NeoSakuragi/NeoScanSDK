@@ -45,11 +45,16 @@ P1S = {'kof98': '/data/tmp/romspecials/kof98_p.bin', 'kof96': '/data/tmp/romspec
        'kof99': '/data/tmp/romspecials/kof99_p.bin'}       # the de-swapped P1 per game (written on first use)
 P1 = P1S['kof98']
 
+# the engine's throws by id (KOF98 $1E7E8: +$F8 / +$FA -> $1E834[id]), started on a held opponent by $3F8A after $1EB20
+# set the record (TODO #216, op 'cine'); KOF98 measured (Iori 23624C): the frame of the call ends in the engine's
+# hit-stop routine ($1B2C4 at its end) and the throw routine runs from the next frame: no dead frame between
+CINE_TABLE = 0x1E834
+CINE_DEAD = 0
 ROUTINES = {0x248A8: 'init', 0x7A98: 'sound', 0x155F4: 'gauge', 0x18C1C: 'stats', 0x37E0: 'fall', 0x36A0: 'mulfn',
             0x24A2A: 'fricmove', 0x24944: 'spawnfn', 0x24A02: 'follow', 0x24A7C: 'inflight', 0x24A5E: 'release',
             0x180B6: 'offfn', 0x15F2C: 'land', 0x24FE4: 'chain', 0x25182: 'end', 0x34A8: 'free', 0x5BA6: 'animfn',
             0x24926: 'init', 0x248AE: 'init', 0x16B26: 'face', 0x16AEC: 'face', 0x176AE: 'clrinput', 0x1B03C: 'voice',
-            0x33A8: 'random', 0x1EB20: 'superflash', 0x3F8A: 'superflash', 0x1813A: 'superflash', 0x24A9A: 'ownerflag',
+            0x33A8: 'random', 0x1EB20: 'cinerec', 0x3F8A: 'cine', 0x1813A: 'superflash', 0x24A9A: 'ownerflag',
             0x24AA0: 'ownerflag', 0x24FF6: 'chain', 0x25002: 'chain', 0x2500E: 'chain', 0x2501A: 'chain', 0x25026: 'chain',
             0x24F2C: 'stats', 0x24F34: 'stats', 0x24F3C: 'stats', 0x250C6: 'flags', 0x24F52: 'clrinput',
             0x24D80: 'dmcheck', 0x2505A: 'flags', 0x25032: 'place', 0x16034: 'voice', 0x1603A: 'voice', 0x16AC0: 'dist', 0x19AB4: 'trail', 0x19AE0: 'trail', 0x25088: 'trail',
@@ -234,7 +239,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if n_ not in lnames: lnames.append(n_)
             llag[n_] = FOLLOW_LAG_KIND.get(kind, FOLLOW_LAG.get(dec.game, 4))
         return sum(1 << lnames.index(n_) for n_ in set(FOLLOW_INPUTS[kind]))
-    cnt_field = None; work = [addr]; pending_child = None; vroutine = [None]
+    cnt_field = None; work = [addr]; pending_child = None; vroutine = [None]; vcine = [None]
     chg = CHARGE.get((dec.game, addr)) if depth == 0 else None; charging = [False]   # a charge's run-time count
     # dec.trace (a list, tools/brawler/convsheet.py): the walk's field stores / reads / calls / frame boundaries / the
     # branches decided by a known field (button, EX flag, facing), per decode (ctx), in walk order. Analysis only.
@@ -404,12 +409,27 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             elif name == 'dmcheck':                    # a desperation move's power check (TODO #139): the brawler's
                 D['%d0'] = 2; cc = ('val', 2)                  # fury = a plain DM (2; no SDM: +$E4 bit 0)
                 F.setbits(0xE4, 'or', 1) if sdm else F.setbits(0xE4, 'and', 0xFE)   # (decode_variants: sdm = the MAX one)
+            elif name == 'cinerec':                    # the engine's throw record a0 -> +$188.. (KOF98 $1EB20): its first
+                r_ = D.get('_lea_a0')                  # byte is the throw's id (+$192 -> +$F8)
+                D['_cine'] = m.u8(r_) if isinstance(r_, int) else None
+            elif name == 'cine' and D.get('_cine') is not None and dec.game == 'kof98':
+                # the engine's throw on the opponent (TODO #216, $3F8A: +$E0 bit 5 on the attacker, +$F8 = the record's
+                # id; Iori's 23624C finisher, id $6B): the hit-stop frame after it, then both run routine $1E834[id]
+                # ($1E7E8): the attacker with +$E0 bit 5 set (`bclr #5, +$E0; beq` -> its part), the victim the other
+                # way (its list, cine_victim). The caught victim is always in reach here: it connects.
+                t2 = m.u32(CINE_TABLE + 4 * D['_cine'])
+                m1, o1, n1 = dec.at(t2); m2, o2, n2 = dec.at(n1)
+                if m1 == 'bclr' and o1 == ['#5', '%a4@(224)'] and m2.startswith('beq'): vcine[0] = imm(o2[0])
+                F.setbits(0xE0, 'or', 0x20)
+                emit(a, 'cine', K(t2), CINE_DEAD); push(t2)
             elif name in BOOKKEEPING: emit(a, name)
-            else: emit(a, 'call', t)
+            else: emit(a, 'call', t)                   # (a 'cine' without its record: not modelled, the export refuses)
             a = nx; continue
         if mn == 'lea':
             mt = re.match(r'%pc@\((0x[0-9a-f]+)\)', o[0])
             if mt and o[1] == '%a0': A0 = int(mt.group(1), 16)
+            if re.match(r'^0x[0-9a-f]+$', o[0]) and o[1] == '%a0': D['_lea_a0'] = int(o[0], 16)   # (an absolute record:
+                                                                      # the cine's, TODO #216; A0 kept as before)
             mt = re.match(r'^%(a[12])@\((-?\d+)\)$', o[0])                    # lea n(a2), a2: a record pointer steps
             if mt and o[1] == '%' + mt.group(1) and isinstance(D.get(o[1]), int): D[o[1]] += int(mt.group(2))
             a = nx; continue
@@ -652,7 +672,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
     prune(ops, pos)
     return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1), 'follow': follow[0], 'links': lnames, 'hitlatch': hitlatch[0], 'link_lag': [llag[n_] for n_ in lnames],
             'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8)},
-            'f138': F.get(0x138, 2) if depth > 0 else None, 'victim': vroutine[0],
+            'f138': F.get(0x138, 2) if depth > 0 else None, 'victim': vroutine[0], 'cine_victim': vcine[0],
             'clist': F.get(0xC2, 4, False) if depth > 0 else None}         # (its +$C2: a state list, Kaiser Wave's hits)
 
 def sigbits(d, hit=None):
@@ -822,6 +842,9 @@ class Obj:
             elif k == 'sigclr': self.sig &= op[1] | 0x3F
             elif k == 'evclr': self.event = False
             elif k == 'onhit': self.hitpc = self.prog['pos'][op[1]]
+            elif k == 'cine':                          # (op[2] dead frames, then the routine)
+                if op[2]: self.dead = op[2]; self.go = self.prog['pos'][op[1]]
+                else: self.resume = self.prog['pos'][op[1]]
             elif k == 'hitclr': self.hitany = False
             elif k == 'hitoff': self.hit = False
             elif k == 'adv': self.advance()
@@ -1047,7 +1070,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C', 'AAAA'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D'},
                 'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B'},
-                'iori': {'236A', '623D', '214A', '623C', '624D', '624B'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
+                'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '41236B', '236D', '641236C', '623B', '623D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
@@ -1055,13 +1078,15 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
 # furies read from the ROM whose MAX path is not modelled yet (no 'MAX <fury>' export: down+D plays the fury, as before):
 # Yamazaki 236236C (TODO #216): in the MAX the drag's last list leaves the victim standing (state 329) and the final
 # strike's catch box takes it again (+$19C $6B126, its victim routine $6B138: the hits counted by +$1A5), a second catch
-MAX_LATER = {('yamazaki', '236236C')}
+# Iori 23624C (TODO #216): the MAX plays a list of ten strikes after the claw, each signalling the victim's held loop
+# ($719DE, state list $71A3E), not the cine
+MAX_LATER = {('yamazaki', '236236C'), ('iori', '23624C')}
 ROM_GAME = {'geese': 'kof96', 'mr_big': 'kof96', 'krauser': 'kof96', 'goenitz': 'kof96', 'k_dash': 'kof99'}   # else kof98
 BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resume_at', 'jmp',
-            'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'place', 'hitclr', 'hold', 'unhold', 'sigclr', 'hitoff',
+            'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'cine', 'place', 'hitclr', 'hold', 'unhold', 'sigclr', 'hitoff',
             'vsig', 'turn', 'add'}
 DROP_OPS = {'kind', 'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-            'ownerflag', 'flags', 'trail', 'alloc', 'ownersig', 'vlater', 'floorsnd', 'wallhold'}
+            'ownerflag', 'flags', 'trail', 'alloc', 'ownersig', 'vlater', 'floorsnd', 'wallhold', 'vheld'}
 # ---- voices (TODO #163): every voice the move's code sends, at its place in the program ----
 # KOF96 / KOF98 / KOF99 send a sound through one mapper (index -> driver word, tools/brawler/voices.py MAPPER): the code
 # now ('sound', index), or n frames later ('vlater', index, n: +$1B4 / +$1B6), or the animation as a step starts (its $FC
@@ -1511,6 +1536,40 @@ def super_flash(m, cid, states, sdm=False):
             if b0 < 0x80: t += b0 + 1
     return None
 
+def slot_attacks(m, cid, st):
+    """the steps of state st whose flags make a box in slot 1-3 live (bit 8 + slot: KOF98's collision $3ACC tests the
+    attacker's +$7C bit k for slot k) while that slot holds an attack type ($0C-$37: the handler $3D54 of the type
+    table $3C54; types below $0C are body boxes): {step: (type, [x, y, w, h])}. rom96.parse_anim keys slots 1-3 as hurt
+    boxes; among the roster's ROM specials only Iori 23624C's claw (165, step 36: slot 1, type $36) has one
+    (TODO #216: KOF98's seventh claw hit)"""
+    if m.game != 'kof98': return {}                     # (KOF98's collision read; KOF96 / KOF99 not)
+    a = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); slots = {}; out = {}; k = 0
+    for i in range(300):
+        b0, b1 = m.u8(a + 6 * i), m.u8(a + 6 * i + 1)
+        if b0 in (0xFE, 0xFF): break
+        if b0 == 0xFD: slots[b1 & 3] = (b1 >> 2, [m.u8(a + 6 * i + j) for j in range(2, 6)]); continue
+        if b0 >= 0x80: continue
+        fl = m.u16(a + 6 * i + 4)
+        for sl in (1, 2, 3):
+            if fl & (0x100 << sl) and sl in slots and 0x0C <= slots[sl][0] < 0x38: out[k] = slots[sl]
+        k += 1
+    return out
+
+def held_by_routine(prog):
+    """a catch routine whose victim routine (+$1A0) holds the victim by its own code, with no list (Iori 23624C: $718AE
+    keeps it in the held states 404-407 by the hits it takes, +$1A5; TODO #216): the routine's `andi #$EF, +$E4` (op
+    'unhold', the attacker's hold bit) does not let it go, its routine does not. The brawler's hold is PF_HOLD: the
+    routine's 'unhold' ops up to its cine / end become 'vheld' (dropped), so P_PUT keeps the victim in front and its
+    hits reel it in place"""
+    for a, op in list(prog['ops']):
+        if op[0] != 'onhit': continue
+        i = prog['pos'].get(op[1])
+        while i is not None and i < len(prog['ops']):
+            a_, o_ = prog['ops'][i]
+            if o_[0] in ('cine', 'end', 'free', 'jmp', 'rts'): break
+            if o_[0] == 'unhold': prog['ops'][i] = (a_, ('vheld',))
+            i += 1
+
 def export_rom(m, cid, inp, add, game='kof98', shared=True):
     """a special's ROM program in export terms (export96 calls it for ROM_SPECIALS; tools/brawler/export_bm.py compiles
     it): ops (bookkeeping dropped, branch targets as op indices), anims {state: steps (frame = export index via add,
@@ -1530,6 +1589,16 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
                 for e in vlists[-1]]                   # (the release entry: a blow too, its burn)
         vx, vy, g = vrel.get('fly', (0, 0, 0))
         vlists[-1] = {'e': last, 'rel': (round(vx * 256), round(-vy * 256), round(g * 256))} if 'fly' in vrel else last
+    cl = victim_entries(m, victim_lists(m, prog['cine_victim'], sdm), cid) if prog.get('cine_victim') else []   # the
+    if cl:                                             # cine's victim list (TODO #216): after the catch's, P_CATCH v
+        crel = victim_release(m, prog['cine_victim'])  # starts it; its release: a blow, its burn
+        if crel.get('blow'):
+            cl[-1] = [dict(e, flags=e['flags'] | 1, burn=crel.get('burn', 0)) if e['flags'] & 64 else e for e in cl[-1]]
+    cine_list = len(vlists) + 1 if cl else 0
+    vlists = vlists + [{'e': l_, 'catch': True} for l_ in cl]   # (VL_CATCH: not a catch routine's first list)
+    if cl and prog.get('victim') and not vlists[:cine_list - 1]:   # a catch whose victim routine holds it with no list
+        held_by_routine(prog)                          # before the cine (Iori 23624C's claw, $718AE): held throughout
+                                                       # (only with a cine: Ryo's / Robert's furies keep their unhold)
     bad = [op for a, op in prog['ops'] if op[0] not in BODY_OPS | DROP_OPS or (op[0] == 'br' and not cond_ok(op[1]))
            or (op[0] == 'anim' and op[1] is None)]
     if bad: return {'error': f'ops {bad[:3]}'}
@@ -1550,6 +1619,7 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
         elif k == 'jmp': ops.append(('br', CONDS[None], 1, 'yield') if op[1] == 'resume' else ('jmp', idx[prog['pos'][op[1]]]))
         elif k == 'resume_at': ops.append(('resume_at', idx[prog['pos'][op[1]]]))
         elif k == 'onhit': ops.append(('onhit', idx[prog['pos'][op[1]]]))
+        elif k == 'cine': ops.append(('cine', idx[prog['pos'][op[1]]], op[2], cine_list))   # (target, dead frames - 1, list)
         elif k == 'anim':
             if op[1] not in states: states.append(op[1])
             ops.append(('anim', states.index(op[1]), op[1]))
@@ -1558,7 +1628,8 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
     # hitkind ops were removed after indexing: re-index (they are never branch targets in the studied handlers)
     rem = [i for i, (a, op) in enumerate(kept) if op[0] == 'hitkind']
     def fix(t): return t if t == 'yield' else t - sum(1 for r in rem if r < t)
-    ops = [(o[0], o[1], o[2], fix(o[3])) + tuple(o[4:]) if o[0] == 'br' else (o[0], fix(o[1])) if o[0] in ('jmp', 'resume_at', 'onhit') else o for o in ops]
+    ops = [(o[0], o[1], o[2], fix(o[3])) + tuple(o[4:]) if o[0] == 'br' else (o[0], fix(o[1])) if o[0] in ('jmp', 'resume_at', 'onhit')
+           else (o[0], fix(o[1])) + tuple(o[2:]) if o[0] == 'cine' else o for o in ops]
     anims = {}
     for st in states + [ob.get('state') for ob in prog['objects']] + ([prog['objects'][0]['hit']['fields'].get(0x72)] if False else []):
         if st is None or st in anims: continue
@@ -1567,6 +1638,13 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
         anims[st] = {'mode': mode, 'steps': [{'frame': add(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k_:02X}': v for k_, v in bx.items()},
                                               'voices': [ix for ix in (ss[k_s] if k_s < len(ss) else []) if voice_send(m, ('sound', ix))]}
                                              for k_s, (t, fi, fl, bx, raw, dx) in enumerate(steps)]}
+    for st in states:                                          # an attack box in slots 1-3 (TODO #216: Iori 23624C's
+        for k_s, (t_, b_) in slot_attacks(m, cid, st).items():   # claw, 165 step 36: slot 1, type $36): the step's
+            s_ = anims[st]['steps'][k_s]                       # live attack box (bit 8 + slot of its flags: KOF98's
+            s_['boxes'][f'{(0x10 | t_) if t_ < 16 else (0x100 | t_):02X}'] = b_   # collision $3ACC tests +$7C bit k
+            s_['flags'] |= 0x100                               # for slot k, the attacker's box by its type $3C54;
+            s_['boxes'].pop(f'{0x30 + [sl for sl in (1, 2, 3) if s_["flags"] & (0x100 << sl)][0]:02X}', None)   # not a
+                                                               # hurt box then: parse_anim keyed the slot as one)
     live = None                                                # each step's reaction (box_react) by the attack box live
     for st in states:                                          # on it (the last one loaded: rom_c's rule), packed
         aa = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); raws = [s_[4] for s_ in anim_steps(m, cid, st)[0]]

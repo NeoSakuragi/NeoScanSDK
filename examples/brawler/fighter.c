@@ -962,7 +962,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = 0;
-        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0;
+        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0; f->vlist = 0;
         if ((f->ch->specials[f->spec_ix].sflags & SF_NOW) && k != BS_FURY) {   /* SF_NOW (SS2): its first frame is this
                                                                     one (the action routine runs in the frame the action
                                                                     is set; else every SS2 move ran a frame long, TODO
@@ -1484,7 +1484,7 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {
     fighter_t *t = f->target;
     const bvlist_t *l;
     const bvent_t *e;
-    if (!f->vlist || !t || !(f->pflags & PF_HOLD)) return;
+    if (!f->vlist || (f->vlist & 0x80) || !t || !(f->pflags & PF_HOLD)) return;   /* (0x80: P_CATCH's, from its routine) */
     l = &sp->vlists[f->vlist - 1];
     if (!l->n) { f->vlist = 0; return; }                         /* (past its last list: n 0 ends the table) */
     e = &l->e[f->pstep < l->n ? f->pstep : l->n - 1];
@@ -1547,7 +1547,10 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
     }
     if (f->pcatch == 1) {                                        /* then its routine (+$19C); its victim runs the */
         f->pcatch = 0xFE; f->pres = f->phit;                     /* routine the catch gave it (+$1A0): the first */
-        if (sp->vlists) { f->vlist = 1; f->vent = 0xFF; }        /* list of its script (bspec_t.vlists) */
+        if (f->vlist & 0x80) {                                   /* (P_CATCH: the list it named, held by it from */
+            f->vlist &= 0x7F; f->vent = 0xFF; f->pflags |= PF_HOLD; f->phold = 0;   /* now: KOF's throw routine) */
+        } else if (sp->vlists && !(sp->vlists[0].flags & VL_CATCH)) { f->vlist = 1; f->vent = 0xFF; }   /* list of its
+                                                                    script (bspec_t.vlists; VL_CATCH: P_CATCH's alone) */
     }
     if (f->pcatch == 3) f->pcatch = 2;                           /* (the frame after the hit-stop runs as it was) */
     x0 = f->x;
@@ -1609,6 +1612,11 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_HITCLR: f->pflags &= ~PF_HITANY; break;
         case P_HOLD: f->pflags |= PF_HOLD; break;
         case P_VSIG: if (f->vlist) { f->vlist++; f->vent = 0xFF; } break;   /* its caught victim's next list (KOF +$D1 bit 7) */
+        case P_CATCH:                                            /* the engine's throw on its held victim (TODO #216, */
+            f->pcatch = p->a ? 2 : 1; f->phit = p->b; f->pdeadn = p->a; f->pdead = 0;   /* KOF98 $3F8A: Iori 23624C's */
+            f->vlist = 0x80 | (uint8_t)v; break;                 /* finisher): a dead frames, then routine b, list v
+                                                                    (KOF98: the frame of the call is the throw's hit-stop
+                                                                    frame, the routine runs the next: a 0) */
         case P_TURN: f->facing = -f->facing; break;              /* turned around: forward is the other way (KOF eori +$31) */
         case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
         default:                                                 /* P_END (this frame still counts a voice to come) */
