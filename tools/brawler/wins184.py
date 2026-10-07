@@ -49,7 +49,8 @@ GAMES = {
     # game: (neo, fighter -> state, setup(state) -> (seq, pokes), anim reader)
     'ss2': ('/data/roms/samsho2.neo', {'haohmaru': '/data/neogeo_dict/samsho2/cap/p1_00.state',
                                        'genjuro': '/data/neogeo_dict/samsho2/cap/p1_12.state',
-                                       'kuroko': '/data/neogeo_dict/samsho2/cap/p1_17.state'}, ss2_setup, anim_ss2),
+                                       'kuroko': '/data/neogeo_dict/samsho2/cap/p1_17.state',
+                                       'hanzo': '/data/neogeo_dict/samsho2/cap/p1_02.state'}, ss2_setup, anim_ss2),
     'whp': ('/data/roms/whp.neo', {'hanzo': '/data/neogeo_dict/whp/cap/vs.state'},
             lambda st: ('10:-,3:a', [f'{f}:100102={240 * 128 >> 8 & 255:02X},100103={240 * 128 & 255:02X}' for f in range(1, 14)] +
                         ['2:10610C=01']), anim_whp),

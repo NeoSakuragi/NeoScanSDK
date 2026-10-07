@@ -369,9 +369,13 @@ void fighter_quake(const fighter_t *by, fighter_t *v) {
  * BIGHIT_STOP frames, the stage goes and the backdrop is red for BIGHIT_RED frames (main.c screen_fx), then the whole
  * game plays at half speed for BIGHIT_SLOW frames (main.c game_tick: every other logic tick skipped) */
 uint8_t bighit_red, bighit_slow;
+uint16_t bighit_col;                                             /* its backdrop: the special's bd_col[0] (SS2 $2B9DE's colour:
+                                                                    Hanzo's flame $0002, TODO #193), 0 = Haohmaru's red */
 static void big_hit(fighter_t *a, fighter_t *v) {
+    const bspec_t *sp = &a->ch->specials[a->spec_ix];
     a->freeze = BIGHIT_STOP; v->freeze = BIGHIT_HOLD;          /* SS2: the victim in its hit pose to the slash's end */
     bighit_red = BIGHIT_RED; bighit_slow = BIGHIT_STOP + BIGHIT_SLOW;
+    bighit_col = sp->bd_end == 0 && sp->bd_col[0] ? sp->bd_col[0] : BIGHIT_COL;
 }
 /* ---- reactions -------------------------------------------------------------------------------------------------------- */
 static void release(fighter_t *a);
@@ -443,6 +447,21 @@ uint16_t fighter_colour(const fighter_t *f, uint16_t c) { return f->tint ? tint_
                                                              untinted path stays as cheap as before (the select screen calls it per colour) */
 const uint16_t *fighter_src_pal(const fighter_t *f, uint8_t i) {
     return i == 0 && f->cpal ? f->cpal : f->ch->pals + ((f->set * f->ch->npal + i) << 4);
+}
+/* SS2's second-layer flicker (TODO #193, export_ss2 "the second layer's flicker"): Samurai Shodown II draws a step's
+ * second layer with palette p and p + 1 on alternate frames (the object's +$82 = the frame counter's bit 0, $25D3E):
+ * Hanzo's blade glints. The fighter's palette flk_ix shows its own colours on even frames of the burn clock (once a
+ * frame, held in a super flash) and bchar_t.flk's on odd ones; a white flash or a burn owns the palettes meanwhile */
+static void flicker(const fighter_t *f) {
+    const bchar_t *ch = f->ch;
+    uint16_t buf[16];
+    const uint16_t *src;
+    uint8_t j;
+    if (ch->flk_ix == 0xFF || ch->flk_ix >= MAX_PALS || f->flash || f->burn) return;
+    src = (burn_clock & 1) ? ch->flk + (f->set << 4) : fighter_src_pal(f, ch->flk_ix);
+    buf[0] = src[0];
+    for (j = 1; j < 16; j++) buf[j] = fighter_colour(f, src[j]);
+    PAL_setPalette(f->palbase + ch->flk_ix, buf);
 }
 void fighter_load_pals(const fighter_t *f) {
     uint16_t buf[16];
@@ -1630,6 +1649,7 @@ void fighter_update(fighter_t *f, const intent_t *in) {         /* its bank mapp
     uint8_t ob = BANK_set(CH_BANK(f->ch));                       /* rows, program, parts, links, its objects' rows; a */
     update(f, in);                                               /* form link swaps f->ch for a fighter of the same bank */
     BANK_set(ob);                                                /* (bank_pack.py) */
+    flicker(f);
 }
 static void update(fighter_t *f, const intent_t *in) {
     const bphys_t *ph = &f->ch->phys;
@@ -2136,6 +2156,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                     fighter_hit(a, v, a->spec_dmg, a->spec_react, 0);
                     if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                     if (a->state == S_SPECIAL && (a->ch->specials[a->spec_ix].sflags & SF_BIGHIT)) big_hit(a, v);
+                    else if (a->pdef && a->owner && a->owner->state == S_SPECIAL && (a->owner->ch->specials[a->owner->spec_ix].sflags & SF_BIGHIT))
+                        big_hit(a->owner, v);                    /* its object's hit (SS2 Hanzo's rage flame, object 7 $30752) */
                 }
                 spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big */
                 if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */
