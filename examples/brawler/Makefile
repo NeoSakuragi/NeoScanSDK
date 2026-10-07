@@ -111,7 +111,7 @@ publish: $(ROM_NAME).zip
 APK = ../../android/app/build/outputs/apk/debug/app-debug.apk
 APKVER = $(shell sed -n 's/.*versionName = "\(.*\)".*/\1/p' ../../android/app/build.gradle.kts)   # the player's own version, not the game's
 publish-vps: $(ROM_NAME).zip
-	../../tools/brawler/publish_vps.sh $(ROM_NAME).neo $(VERSION) $(if $(wildcard $(APK)),$(APK) $(APKVER))
+	../../tools/brawler/publish_vps.sh $(ROM_NAME).neo $(VERSION)   # the game only: the player is published on its own (publish_vps.sh --apk-only)
 
 # --- version (VERSION, 0.0.1 style, shown on the title screen): make bump = last number + 1 ---
 bump:

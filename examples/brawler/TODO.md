@@ -975,6 +975,11 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   version, select screen titles), check every string's glyphs exist (digits, letters, punctuation), sheet before /
   after on the brightest and the darkest stage.
 
+- [ ] 183. PLAYER: TWO EMULATION THREADS AT ONCE (found by the 0.0.24 job): right after a reinstall MainActivity started
+  twice in one process, each starting an EmuThread loading the core: an intermittent crash in the 68k core. Make the
+  emulation thread a single process-wide instance (or guard MainActivity's start), prove with repeated reinstall /
+  relaunch / rotate cycles in the AVD.
+
 - [ ] 142. FOCUS (Bruno, 2026-10-06): the Brawler move vocabulary, rationalizing every special move, and an efficient
   review pipeline (memory project_brawler_engine_vision). Step 1, no engine change: inventory of every mechanism the
   brawler has (prog ops, follow-ups, projectiles / effects, reactions, hit-stop, holds, screen fx, voices) grouped into
