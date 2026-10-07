@@ -446,11 +446,12 @@ def tables(g, build):
     c.append(f"const gmeter_t gmeter = {{ .max = {m['max']}, .special = {m['special']}, .fury = {m['fury']}, "
              f".fury_min = {m['fury_min']}, .refill = {m['refill']}, .hit_mul = {m['hit_mul']}, .flash = {m['flash']}, .infinite = {1 if m.get('infinite') else 0} }};")
     fl = g['super_flash']                                # the super flash (TODO #139): one rule for every fury
-    for k in fl: assert k in ('about', 'start', 'freeze', 'white', 'anchor', 'white_colour', 'dark_colour', 'sound'), f'super_flash: unknown field {k}'
+    for k in fl: assert k in ('about', 'start', 'freeze', 'white', 'anchor', 'white_colour', 'dark_colour', 'sound', 'sound_max'), f'super_flash: unknown field {k}'
     assert 1 <= fl['start'] <= 255 and 1 <= fl['white'] <= fl['freeze'] <= 255 and len(fl['anchor']) == 2, 'super_flash values'
     sfx = json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['codes']   # (build = the game's build/)
-    assert fl['sound'].upper() in [x.upper() for x in sfx], f"super_flash sound {fl['sound']}: not in songs.json sfx codes (the V ROM has no sample for it)"
-    c.append(f"const gflash_t gflash = {{ .start = {fl['start']}, .freeze = {fl['freeze']}, .white = {fl['white']}, .sound = 0x{fl['sound']}, .dx = {fl['anchor'][0]}, "
+    for k in ('sound', 'sound_max'):                     # sound_max: the MAX fury's (TODO #155), else sound
+        assert fl.get(k, fl['sound']).upper() in [x.upper() for x in sfx], f"super_flash {k} {fl.get(k)}: not in songs.json sfx codes (the V ROM has no sample for it)"
+    c.append(f"const gflash_t gflash = {{ .start = {fl['start']}, .freeze = {fl['freeze']}, .white = {fl['white']}, .sound = 0x{fl['sound']}, .sound_max = 0x{fl.get('sound_max', fl['sound'])}, .dx = {fl['anchor'][0]}, "
              f".dy = {fl['anchor'][1]}, .white_col = {fl['white_colour']}, .dark_col = {fl['dark_colour']} }};")
     c.append('const gtint_t gtints[TINT_COUNT] = {\n    { 0, 0, 0, { 0, 0, 0 } },   /* none: its own colour set */\n' + '\n'.join(
         f'    {{ {t["mix"]}, {t["mul"]}, {t["shift"]}, {{ {", ".join(map(str, t["add"]))} }} }},   /* {n} */' for n, t in g['tints'].items()) + '\n};')

@@ -426,8 +426,9 @@ void super_flash(fighter_t *f) {
     sf_col = f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max;   /* MAX: orange */
     if (sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
     PAL_setPalette(SF_RAYS_PAL, sf_ray_pal[sf_col]);
-    snd_sfx(gflash.sound);                                   /* KOF98's charge sound ($370F0 -> $3906E: index $99 =
-                                                                $1A $3A, DM and SDM alike) */
+    snd_sfx(sf_col ? gflash.sound_max : gflash.sound);      /* a fury: KOF98's charge sound ($370F0 -> $3906E: index
+                                                                $99 = $1A $3A, DM and SDM alike); a MAX: KOF2000's
+                                                                SDM flash whistle ($1E $8F there, $1A $8F here: TODO #155) */
 }
 static void sf_reset(void) {
     uint8_t c;

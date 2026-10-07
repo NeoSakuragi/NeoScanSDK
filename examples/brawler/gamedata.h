@@ -56,6 +56,7 @@ extern const gmeter_t gmeter;
  * special's bspec_t.sf_dx / sf_dy when it has one (sf_anchor), else dx / dy here (px from the feet, KOF orientation). */
 typedef struct {
     uint8_t  start, freeze, white, sound;   /* sound: the effect code ($1A prefix) played at the start: KOF98's charge */
+    uint8_t  sound_max;                     /* the MAX fury's instead (TODO #155: KOF2000's SDM flash whistle) */
     int16_t  dx, dy;
     uint16_t white_col, dark_col;
 } gflash_t;

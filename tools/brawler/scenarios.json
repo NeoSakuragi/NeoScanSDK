@@ -594,5 +594,33 @@
   "expect": "Right from Robert lands on Terry, his right neighbour (not Yamazaki at the top). Then Billy, Haohmaru, Kuroko, Genjuro; past Genjuro, the back row's first selectable fighter (Yamazaki: the bosses are locked), then the middle row from the left (Iori, Kyo, Yashiro...). Up / down go to the nearest fighter in the row above / below; every fighter can be reached.",
   "do_keys": "4:R,40:-,4:R,30:-,4:R,30:-,4:R,30:-,4:R,30:-,4:R,30:-,4:R,30:-",
   "proof": 60
+ },
+ "20261006-155931-b3f3": {
+  "title": "MAX fury: KOF 2000's MAX sound at the flash",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 160,
+   "meter": "full"
+  },
+  "do": "Terry's meter is full. Press down + D (the MAX fury), then, once the meter is full again, D alone (the normal fury) to compare.",
+  "expect": "The MAX fury's white flash plays KOF 2000's MAX sound: the high-pitched whistle of its SDMs. The normal fury's flash keeps its own sound, KOF98's charge, so the two are told apart by ear.",
+  "do_keys": "3:Dd",
+  "proof": 120
+ },
+ "20261007-021452-5d29": {
+  "title": "MAX fury: KOF 2000's MAX sound at the flash",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 160,
+   "meter": "full"
+  },
+  "do": "Terry's meter is full. Press down + D (the MAX fury), then, once the meter is full again, D alone (the normal fury) to compare.",
+  "expect": "The MAX fury's white flash plays KOF 2000's MAX sound: the high-pitched whistle of its SDMs. The normal fury's flash keeps its own sound, KOF98's charge, so the two are told apart by ear.",
+  "do_keys": "3:Dd",
+  "proof": 120
  }
 }
