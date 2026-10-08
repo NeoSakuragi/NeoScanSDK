@@ -160,8 +160,11 @@ def chain_cfg(g, r):
     assert a in ('fast', 'balanced', 'heavy'), f"roster {r['name']}: archetype {a} (fast / balanced / heavy)"
     fin = r.get('finishers') or {}
     for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move'), f"roster {r['name']}: finishers.{k}"
+    own = r.get('chain') or {}                     # (revamp 5, the chain tool's save) links: the moves before the finisher,
+    for k in own: assert k in ('links', 'hitstop'), f"roster {r['name']}: chain.{k} (links / hitstop)"   # hitstop: per link + the finisher
     return {'archetype': a, 'length': c['lengths'][a], 'total': c['totals'][a], 'hitstop': c['hitstop'], 'finishers': fin,
-            'damage': r.get('damage', 1)}
+            'damage': r.get('damage', 1), **({'links': own['links']} if 'links' in own else {}),
+            **({'hitstops': own['hitstop']} if 'hitstop' in own else {})}
 
 
 def roster_export(g):

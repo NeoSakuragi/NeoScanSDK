@@ -156,11 +156,35 @@ static uint8_t may_cancel(const fighter_t *f) {
     return f->ch->fury_max < f->ch->nspec && f->spec_ix != f->ch->fury_max;
 }
 void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }
+/* lab.load 5 (revamp phase 5, the chain tool: fighter.h lab_t, tools/brawler/chainlab/chaintool.js): buf = a chain
+ * override, the fighter's tree (chain, finishers, per-node hit-stop) and after it a retime table (gretime_t rows, each
+ * t an offset from buf, fixed up here into a pointer; fighter 0xFF ends it). Checked, then route_tab[fighter] and rt_tab
+ * point into buf; refused (lab.pack_stat untouched, both back to the ROM's) when the tree or a row falls outside buf.
+ * Any tree load (1, 2, 5) first drops a load 5's rt_tab (its table lives in buf); 2 or a refused 5 puts the ROM's
+ * tree back. Without a load 5 nothing here touches rt_tab (retime_proof.py's own tables stay as they were). */
+static uint8_t rt_lab;                                    /* rt_tab points into lab.buf (a load 5) */
+static const gretime_t *lab_retime(const rt_head_t *t) {
+    uint16_t at = sizeof(rt_head_t) + (uint16_t)t->nnodes * sizeof(rnode_t), n = 0;
+    gretime_t *e;
+    if (at + sizeof(gretime_t) > LAB_BUF) return 0;
+    for (e = (gretime_t *)(lab.buf + at); ; e++, n++) {
+        uint32_t o;
+        if ((uint8_t *)(e + 1) > lab.buf + LAB_BUF) return 0;
+        if (e->fighter == 0xFF) return (const gretime_t *)(lab.buf + at);
+        o = (uint32_t)e->t;
+        if (o < at || o + 2u * e->nseg > LAB_BUF || (o & 1)) return 0;
+        e->t = (const uint16_t *)(lab.buf + o);
+    }
+}
 void lab_install(void) {
     const rt_head_t *t = (const rt_head_t *)lab.buf;
+    uint8_t ok;
     if (!lab.load) return;
     if (lab.fighter < BC_COUNT) {
-        if (lab.load == 1 && t->magic[0] == 'R' && t->magic[1] == 'T' && t->version == TREE_VERSION) route_tab[lab.fighter] = t;
+        if (rt_lab) { rt_tab = 0; rt_lab = 0; }              /* buf is rewritten: a load 5's table goes with it */
+        ok = (lab.load == 1 || lab.load == 5) && t->magic[0] == 'R' && t->magic[1] == 'T' && t->version == TREE_VERSION;
+        if (ok && lab.load == 5) { const gretime_t *r = lab_retime(t); ok = r != 0; if (ok) { rt_tab = r; rt_lab = 1; } }
+        if (ok) route_tab[lab.fighter] = t;
         else route_tab[lab.fighter] = (const rt_head_t *)bm_chars[lab.fighter].routes;
     }
     lab.load = 0;

@@ -1,6 +1,236 @@
 {
  "sets": [
   {
+   "id": "terry2",
+   "title": "Terry: follow-up",
+   "intro": "Seven points from your Terry review. Piece names as on the review page.",
+   "sections": [
+    {
+     "title": "The chain",
+     "questions": [
+      {
+       "id": "chain",
+       "title": "Terry's main chain (balanced: 4 hits), after your drops",
+       "context": "Kept: far A (starter), far D (intermediate), down-forward C (chain + grab punch), far C, close C, close D. Dropped: far B, my first proposal.",
+       "options": [
+        "far A > down-forward C > far D > close D",
+        "far A > close C > far D > far C",
+        "far A > far D > down-forward C > far C"
+       ],
+       "pieces": [
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "atk_d_close"
+        ],
+        [
+         "atk_a_far",
+         "atk_c_close",
+         "atk_d_far",
+         "atk_c_far"
+        ],
+        [
+         "atk_a_far",
+         "atk_d_far",
+         "cmd_df_c",
+         "atk_c_far"
+        ]
+       ]
+      },
+      {
+       "id": "neutral",
+       "title": "The neutral finisher (you dropped mine: too short)",
+       "context": "The last hit when no direction is held.",
+       "options": [
+        "close D",
+        "far C",
+        "close C"
+       ],
+       "pieces": [
+        [
+         "atk_d_close"
+        ],
+        [
+         "atk_c_far"
+        ],
+        [
+         "atk_c_close"
+        ]
+       ]
+      },
+      {
+       "id": "up",
+       "title": "Up on the last link",
+       "context": "You wrote that my up finisher is better as an intermediate chain move.",
+       "options": [
+        "Up = Rising Tackle's (623C) first hit as the launcher",
+        "Up = crouch C",
+        "No up finisher for Terry (falls back to neutral)"
+       ],
+       "pieces": [
+        [
+         "sp-623c"
+        ],
+        [
+         "atk_c_crouch"
+        ],
+        []
+       ]
+      },
+      {
+       "id": "down",
+       "title": "\"Down finisher: keep but make it at least 3 chain\"",
+       "context": "Your note on the down finisher.",
+       "options": [
+        "The down finisher only comes after at least 3 hits",
+        "The down finisher itself should hit 3 times"
+       ],
+       "pieces": [
+        [
+         "fin-down"
+        ],
+        [
+         "fin-down"
+        ]
+       ]
+      },
+      {
+       "id": "min3",
+       "title": "\"No chain under 3\"",
+       "context": "Your general note.",
+       "options": [
+        "Every fighter's main chain has at least 3 hits before its finisher",
+        "No route at all (side branches included) shorter than 3 hits",
+        "Heavy fighters' 3 links is the minimum: keep the archetype lengths"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Your notes that were cut off",
+     "questions": [
+      {
+       "id": "sp623d",
+       "title": "623D: \"Make sure the end part of the anim is…\"",
+       "context": "The note stopped there.",
+       "options": [
+        "…played to the end (not cut)",
+        "…sped up (shorter recovery)"
+       ],
+       "pieces": [
+        [
+         "sp-623d"
+        ],
+        [
+         "sp-623d"
+        ]
+       ]
+      },
+      {
+       "id": "throwback",
+       "title": "Back throw: \"Just let the natural…\"",
+       "context": "The note stopped there.",
+       "options": [
+        "…direction the throw already goes (don't force the victim behind)",
+        "…animation play, no changes"
+       ],
+       "pieces": [
+        [
+         "throw-back"
+        ],
+        [
+         "throw-back"
+        ]
+       ]
+      }
+     ]
+    }
+   ],
+   "fighter": "terry"
+  },
+  {
+   "id": "kim2",
+   "title": "Kim: follow-up",
+   "intro": "Two points from your Kim review. Piece names as on the review page.",
+   "sections": [
+    {
+     "title": "The chain (fast: 5 hits)",
+     "questions": [
+      {
+       "id": "chain",
+       "title": "Kim's chain, rebuilt with your starter",
+       "context": "You kept the chain but asked for close A as the starter; you dropped crouch A, crouch B and far B. Intermediates you liked: down-forward C (perfect), forward + B, close C, close D.",
+       "options": [
+        "close A > forward + B > close C > down-forward C > neutral finisher",
+        "close A > close C > forward + B > down-forward C > neutral finisher",
+        "close A > down-forward C > forward + B > close C > neutral finisher"
+       ],
+       "pieces": [
+        [
+         "atk_a_close",
+         "cmd_fwd_b",
+         "atk_c_close",
+         "cmd_df_c"
+        ],
+        [
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_fwd_b",
+         "cmd_df_c"
+        ],
+        [
+         "atk_a_close",
+         "cmd_df_c",
+         "cmd_fwd_b",
+         "atk_c_close"
+        ]
+       ]
+      },
+      {
+       "id": "neutral",
+       "title": "Kim's neutral finisher",
+       "context": "My pick was close D, but you called close D a good intermediate.",
+       "options": [
+        "close D stays the finisher",
+        "far D",
+        "crouch D"
+       ],
+       "pieces": [
+        [
+         "atk_d_close"
+        ],
+        [
+         "atk_d_far"
+        ],
+        [
+         "atk_d_crouch"
+        ]
+       ]
+      },
+      {
+       "id": "down",
+       "title": "Kim's down finisher",
+       "context": "You kept my down finisher and said down-forward D is good for crumpling.",
+       "options": [
+        "Down-forward D (crumple) as the down finisher",
+        "Keep my down finisher as it is"
+       ],
+       "pieces": [
+        [
+         "cmd_df_d"
+        ],
+        [
+         "fin-down"
+        ]
+       ]
+      }
+     ]
+    }
+   ],
+   "fighter": "kim"
+  },
+  {
    "id": "revamp2",
    "title": "Brawler revamp: follow-up",
    "intro": "Seven follow-ups from your answers. Tap an answer, type or speak a note.",

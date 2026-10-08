@@ -62,6 +62,11 @@ one. Each phase merges into `brawler` and ships as a release so Bruno can feel i
 ## Phase 5 — the chain tool
 - Lab preview (pieces, startup / active / recovery handles, live boxes / damage / advantage) and push into the running
   game; the same in the Player.
+- Built 2026-10-08 (docs/brawler_data_model.md "The chain tool"): the Chain Lab tab's chain tool (chainlab/chaintool.js:
+  archetype, links and finishers from the piece catalogue, hit-stop per link, segment handles 0.5x-2x, readouts, push,
+  autoplay per finisher, a fight with it, Save to the feedback store -> tools/brawler/chain_save.py -> game.json); the
+  game's one hook: `lab.load` 5 (fighter.c lab_install: tree + retime table in lab.buf -> route_tab, rt_tab). The Player:
+  a written plan (same bytes, a writeRam JNI call + a service endpoint), not built.
 
 ## Proofs per phase
 Build, bank_proof, regress no-bleed (the attract is expected to change in phase 1: a new baseline is recorded once,

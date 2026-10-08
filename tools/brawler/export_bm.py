@@ -1688,7 +1688,8 @@ def write_c(chars, outdir):
     for ci, (game, n, ch, off) in enumerate(chars):           # chain routes: tools/brawler/routes/<n>.json or the default
         has = {m for m in MOVES if any(k in ch['anims'] for k in SOURCES.get(m, [m]))}
         sps = pick_specials(ch, n)
-        tree = R.chain_tree(n, R.load(n, roster()[n]['routes']), roster()[n].get('chain'), has)   # the chain core (revamp 1A)
+        base = R.load(n, roster()[n]['routes'])
+        tree = R.chain_tree(n, base, roster()[n].get('chain'), has)   # the chain core (revamp 1A)
         blob = R.encode(tree, MOVES, has, [sp is not None for sp in sps])
         c.append(f'static const uint8_t {n}_routes[] = {{' + ', '.join(map(str, blob)) + '};')
         lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': roster()[n]['routes'] is not None,
@@ -1696,7 +1697,10 @@ def write_c(chars, outdir):
                                 'segs': {'moves': {m: v for m, v in zip(MOVES, SEGS[n][:len(MOVES)]) if v}, 'specials': SEGS[n][len(MOVES):]},
                                 'specials': {k: (sp['input'] if sp else None) for k, sp in zip(R.SPECIALS, sps)},
                                 'pool': pooldata[n], 'suggest': [sp['input'] if sp else None for sp in suggest_specials(ch, n)],
-                                'voices': vdata[n]})
+                                'voices': vdata[n],
+                                # the chain tool (revamp 5, chainlab/chaintool.js): the chain's config and per move the
+                                # base node a named link takes (routes.chain_piece), so the page assembles chains as chain_tree
+                                'chain_cfg': roster()[n].get('chain'), 'chain_base': R.chain_base(base, has)})
     json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
     # the voices the ROM maps (build_snd.py brings only their samples into the V ROM: songs.json "voices")
     json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']} | set(vdata[n]['prog']) | {v & 0x7F for _, _, v in fpose_steps(ch) if v})} for game, n, ch, off in chars],

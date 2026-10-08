@@ -32,7 +32,7 @@ A fighter without a routes file gets default_tree(): the brawler's single table 
 old COMBO), byte for byte the same behaviour. encode() turns a tree into the blob fighter.h describes (rt_head_t +
 rnode_t[]), identical subtrees shared; the Chain Lab page has the same encoder in JavaScript (tools/brawler/chainlab/,
 checked against this one by chainlab/check_encode.py)."""
-import json, os
+import json, os, re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROUTES_DIR = os.path.join(HERE, 'routes')
@@ -131,7 +131,7 @@ def enemy_preset(name, own):
 # before): routes that start with the same inputs AND the same hits there share those nodes (a trunk); two routes with
 # the same inputs up to a step but a different hit there cannot both be in the game (it picks the next hit by input
 # alone): a conflict, reported (which routes, which step, what differs) and the build refused.
-HIT_FIELDS = ('move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push')
+HIT_FIELDS = ('move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push', 'throw', 'hitstop')   # (throw, hitstop: a chain tree's nodes)
 
 
 def hit_of(nd):
@@ -364,6 +364,48 @@ def _scale(weights, total):
     return out
 
 
+STRONG_BUTTONS = ('c', 'd', 'ab', 'cd')
+
+
+def piece_weight(m):
+    """a move's hit weight when no tree gives it one (pieces.py's rule): strong for C / D / A+B / C+D and the body toss"""
+    b = re.match(r'(?:atk|cmd)_(?:fwd_|df_)?([a-d]+)', m)
+    return 'strong' if m == 'body_toss' or (b and b.group(1) in STRONG_BUTTONS) else 'light'
+
+
+def _main_line(base, ok):
+    """the chain generator's main line: the plain-A path from the root's A or close-A link with the most no-effect pieces"""
+    noeff = lambda nd: nd.get('effect', 'none') == 'none'
+    lines = []
+    for k in ('A', 'cA'):
+        nd = (base.get('links') or {}).get(k); line = []
+        while nd and 'move' in nd and ok(nd['move']):
+            line.append(nd); nd = (nd.get('links') or {}).get('A')
+        if line: lines.append(line)
+    return max(lines, key=lambda l: sum(map(noeff, l))) if lines else []
+
+
+def chain_base(base, has):
+    """per move the node a link named by the chain tool takes (game.json roster[].chain.links; build/chainlab.json
+    fighters[].chain_base, the Lab assembles chains with the same table): the main line's node of that move, else the
+    base tree's first ground node playing it (breadth first), so a named link is the piece the generator would take;
+    its weight, speed, push and damage (the damage = its weight in the chain's damage scaling)"""
+    ok = lambda m: m in has
+    out = {}
+    for nd in _main_line(base, ok) + [nd for _, nd in _ground_pieces(base)]:
+        if ok(nd['move']) and nd['move'] not in out:
+            out[nd['move']] = {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage') if k in nd}
+    return out
+
+
+def chain_piece(m, table, has, name):
+    """a named link (chain_base's table): that node with no effect, else the move with piece_weight"""
+    assert m in MOVE_NAMES and m in has, f'{name}: chain.links: {m}: not a ground move the fighter has'
+    out = dict(table[m]) if m in table else {'move': m, 'weight': piece_weight(m)}
+    out['effect'] = 'none'
+    return out
+
+
 def chain_tree(name, base, cfg, has):
     """the chain the game plays (see above): base = the fighter's tree (load()), cfg = build_tables.chain_cfg's entry
     {archetype, length, total, hitstop [lo, hi], finishers {launcher, down, neutral?, forward?, up?, down_move?}, damage},
@@ -376,16 +418,13 @@ def chain_tree(name, base, cfg, has):
     pieces = [(p, nd) for p, nd in _ground_pieces(base) if ok(nd['move'])]
     clean = lambda nd: {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage') if k in nd}
     noeff = lambda nd: nd.get('effect', 'none') == 'none'
-    lines = []
-    for k in ('A', 'cA'):
-        nd = (base.get('links') or {}).get(k); line = []
-        while nd and 'move' in nd and ok(nd['move']):
-            line.append(nd); nd = (nd.get('links') or {}).get('A')
-        if line: lines.append(line)
-    main = max(lines, key=lambda l: sum(map(noeff, l))) if lines else []
+    main = _main_line(base, ok)
     pool = [nd for nd in main if noeff(nd)]
     if cfg['archetype'] == 'heavy': pool = pool[-(N - 1):] if len(pool) > N - 1 else pool
     builders = [clean(nd) for nd in pool[:N - 1]]
+    if cfg.get('links') is not None:                                # (revamp 5, the chain tool) game.json roster[].chain.links
+        assert len(cfg['links']) == N - 1, f"{name}: chain.links: {len(cfg['links'])} links, the {cfg['archetype']} chain has {N - 1} before its finisher"
+        builders = [chain_piece(m, chain_base(base, has), has, name) for m in cfg['links']]
     used = {b['move'] for b in builders}
     for _, nd in pieces:
         if len(builders) >= N - 1: break
@@ -396,8 +435,10 @@ def chain_tree(name, base, cfg, has):
     allp = [nd for _, nd in pieces]
     def first(pred, src, avoid=()):
         return next((clean(nd) for nd in src if pred(nd) and nd['move'] not in avoid), None)
-    def named(m, eff, w='strong'):
+    tool = chain_base(base, has) if cfg.get('links') is not None else None   # a chain tool's chain: its finishers too
+    def named(m, eff, w='strong'):                                  # take the piece its links would (chain_base)
         assert m in has, f'{name}: chain finisher {m}: the fighter has no such move'
+        if tool is not None and m in tool: return dict(tool[m], effect=eff)
         return {'move': m, 'weight': w, 'effect': eff}
     def cand(ms, eff, avoid=()):                                    # the first of these moves it has (not in avoid)
         return next((named(m, eff) for m in ms if ok(m) and m not in avoid), None)
@@ -445,13 +486,16 @@ def chain_tree(name, base, cfg, has):
 
     dm = _scale([_dmg(b) for b in builders] + [_dmg(neutral)], total)
     hs = [lo + ((hi - lo) * k * 2 + (N - 1)) // (2 * (N - 1)) for k in range(N)] if N > 1 else [hi]
+    if cfg.get('hitstops') is not None:                             # (revamp 5) game.json roster[].chain.hitstop: per link, the finisher last
+        hs = list(cfg['hitstops'])
+        assert len(hs) == N and all(isinstance(v, int) and 1 <= v <= 60 for v in hs), f'{name}: chain.hitstop {hs}: {N} values, 1-60 frames'
     for k, b in enumerate(builders): b['damage'] = dm[k]; b['hitstop'] = hs[k]
     finals = {'A': neutral, 'fA': forward, 'uA': up, 'dA': down}
     for k, f in list(finals.items()):
         if f is None: del finals[k]; continue
-        finals[k] = dict(f, damage=dm[-1], hitstop=hi)
+        finals[k] = dict(f, damage=dm[-1], hitstop=hs[-1])
         finals[k].setdefault('weight', 'strong')
-    finals['bA'] = {'move': neutral['move'], 'throw': 'back', 'weight': 'strong', 'effect': 'knockdown', 'damage': 0, 'hitstop': hi}
+    finals['bA'] = {'move': neutral['move'], 'throw': 'back', 'weight': 'strong', 'effect': 'knockdown', 'damage': 0, 'hitstop': hs[-1]}
     spl = lambda: {k: {'special': SLOT_OF[k]} for k in SPECIAL_INPUTS}
     def cls(nd, scale):                                              # an entry / jump-cancel: its own damage x the scale,
         nd = json.loads(json.dumps(nd))                              # hit-stop by class

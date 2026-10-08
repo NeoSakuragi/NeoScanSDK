@@ -13,7 +13,7 @@
   const LAB = { magic: 0, req: 4, fighter: 5, dummy: 6, load: 7, active: 8, nev: 9, frame: 10, hits: 12, wave: 13, dmg: 14, ev: 16, buf: 400,
                 packStat: 3488, pack: 3490 };
   const GD_MAX = 4096, GD_STAT = ['none', 'pending', 'installed', 'rom'];   // lab.pack_stat (gamedata.h GD_*; 0x80 | n: check n failed)
-  const EV_N = 64, EV_SIZE = 6;
+  const EV_N = 64, EV_SIZE = 6, LAB_BUF = 16 + 128 * 24;   // fighter.h LAB_BUF
   const KINDS = ['START', 'HIT', 'END', 'SPECIAL', 'CHAINWIN'];
   const HOW = ['neutral', 'after end', 'cancel', 'window'];
   const BOOT_FRAMES = 400;
@@ -22,9 +22,10 @@
   // ---- route trees (tools/brawler/routes.py: the same format and the same encoder) ----------------------------------
   // TODO #71 (tree version 4): A the only attack button (cA = close: an opponent within 40 px), B a jump-cancel (its
   // node is an air move, its A links an air sub-route), C + the stick the specials (slots D fD dD uD dfD ufD; inputs AB .. ufAB, the old names)
-  const INPUTS = ['A', 'B', 'dA', 'cA', 'fA', 'bA', 'dfA', 'AB', 'fAB', 'dAB', 'uAB', 'dfAB', 'ufAB'];
-  const SPECIAL_INPUTS = INPUTS.slice(7);
-  const RI = k => { const i = INPUTS.indexOf(k); return i < 7 ? i : i + 2; };   // fighter.h RI_* (slots 7, 8 unused)
+  // revamp 1A: up+A (uA, slot 7: the chain's up finisher)
+  const INPUTS = ['A', 'B', 'dA', 'cA', 'fA', 'bA', 'dfA', 'uA', 'AB', 'fAB', 'dAB', 'uAB', 'dfAB', 'ufAB'];
+  const SPECIAL_INPUTS = INPUTS.slice(8);
+  const RI = k => { const i = INPUTS.indexOf(k); return i < 8 ? i : i + 1; };   // fighter.h RI_* (slot 8 unused)
   const SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD'];
   const SLOT_OF = Object.fromEntries(SPECIAL_INPUTS.map((k, i) => [k, SPECIALS[i]]));
   const MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
@@ -38,7 +39,9 @@
   const AIR_MOVE_NAMES = Object.values(AIR_MOVES).concat(['atk_a_jump', 'atk_b_jump', 'atk_ab_jump']);   // routes.py
   const ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd'];
   const WEIGHTS = ['light', 'strong'];
-  const EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback'];
+  const EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback', 'slam'];   // fighter.h RE_* (slam: revamp 1A)
+  const ARCHETYPES = ['fast', 'balanced', 'heavy'];                             // rt_head_t.arch - 1 (revamp 1A)
+  const RF_THROW = 8;
   const NODE_SIZE = 24, HEAD_SIZE = 16, RI_N = 15, TREE_VERSION = 4, MAX_NODES = 128, SPEED_MIN = 0x40, SPEED_MAX = 0x400;
   // a node's speed as the game's 8.8 (routes.speed_fx: round half up)
   function speedFx(nd) { const v = Math.floor((nd.speed === undefined ? 1 : Number(nd.speed)) * 256 + 0.5); if (!(v >= SPEED_MIN && v <= SPEED_MAX)) throw new Error('speed outside 0.25-4'); return v; }
@@ -68,7 +71,7 @@
 
   function defaultDamage(n) {
     const e = n.effect || 'none';
-    if (e !== 'none') return [{ knockdown: 8, launch: 9, trip: 7, blowback: 10 }[e], 0];
+    if (e !== 'none') return [{ knockdown: 8, launch: 9, trip: 7, blowback: 10, slam: 9 }[e], 0];
     return n.weight === 'strong' ? [6, 4] : [3, 3];
   }
   // Python's json.dumps(x, sort_keys=True): the memo key that shares identical subtrees (same order as routes.py)
@@ -94,7 +97,7 @@
         if (SPECIAL_INPUTS.includes(k)) {
           if (!('special' in ch)) throw new Error(`${where} ${k}: a C input leads to a special`);
           if (air) throw new Error(`${where} ${k}: no special in the air`);
-        } else if (!('move' in ch)) throw new Error(`${where} ${k}: an A / B input leads to a move`);
+        } else if (!('move' in ch)) throw new Error(`${where} ${k}: an A / B input leads to a move (a back throw: "throw" + its shown move)`);
         if (air && k === 'B') throw new Error(`${where}: no jump-cancel in the air`);
         if (where === 'root' && (k === 'B' || SPECIAL_INPUTS.includes(k))) throw new Error(`root ${k}: a route starts with an A`);
         nxt[RI(k)] = node(ch, `${where} ${k}`, air || k === 'B');
@@ -110,14 +113,19 @@
         if (!(air ? AIR_MOVE_NAMES : MOVE_NAMES).includes(nd.move)) throw new Error(`${where}: ${nd.move} is not an ${air ? 'air' : 'ground'} move`);
         if (has && !air && !has.includes(nd.move)) throw new Error(`${where}: the fighter has no ${nd.move}`);
         anim = moves.indexOf(nd.move); flags = (air ? 2 : 0) | (nd.keep ? 4 : 0);
+        if (nd.throw) {                                   // the chain's back throw (revamp 1A, fighter.c chain_throw)
+          if (air || (nd.links && Object.keys(nd.links).length)) throw new Error(`${where}: a throw ends a ground chain`);
+          flags |= RF_THROW;
+        }
       }
       const w = nd.weight || 'light', e = nd.effect || 'none';
       if (!WEIGHTS.includes(w) || !EFFECTS.includes(e)) throw new Error(`${where}: weight ${w} / effect ${e}`);
       const [dd, dp] = defaultDamage(nd);
       const dmg = nd.damage !== undefined ? nd.damage : dd, push = nd.push !== undefined ? nd.push : dp;
       if (!(dmg >= 0 && dmg <= 255 && push >= -128 && push <= 127)) throw new Error(where + ': damage / push');
-      const sp = speedFx(nd);
-      nodes[i] = Uint8Array.from([anim, flags, WEIGHTS.indexOf(w), EFFECTS.indexOf(e), dmg, push & 0xFF, sp >> 8, sp & 0xFF, ...nxt, 0]);
+      const sp = speedFx(nd), hs = nd.hitstop || 0;                 // hit-stop: 0 = the engine's HITSTOP
+      if (!(hs >= 0 && hs <= 60)) throw new Error(`${where}: hitstop ${hs}`);
+      nodes[i] = Uint8Array.from([anim, flags, WEIGHTS.indexOf(w), EFFECTS.indexOf(e), dmg, push & 0xFF, sp >> 8, sp & 0xFF, ...nxt, hs]);
       return i;
     }
     const rootI = node({ links: tree.links || {} }, 'root', false);
@@ -127,7 +135,8 @@
     });
     if (nodes.length > MAX_NODES) throw new Error(`${nodes.length} nodes (at most ${MAX_NODES})`);
     const out = new Uint8Array(HEAD_SIZE + nodes.length * NODE_SIZE);
-    out.set([82, 84, TREE_VERSION, nodes.length, rootI, ...ent, 0, 0, 0, 0, 0]);
+    const arch = tree.archetype ? ARCHETYPES.indexOf(tree.archetype) + 1 : 0;
+    out.set([82, 84, TREE_VERSION, nodes.length, rootI, ...ent, arch, tree.chain_links || 0, 0, 0, 0]);
     nodes.forEach((n, i) => out.set(n, HEAD_SIZE + i * NODE_SIZE));
     return out;
   }
@@ -191,6 +200,20 @@
       if (fighter !== undefined) this.w8(this.lab + LAB.fighter, fighter);
       if (dummy !== undefined) this.w8(this.lab + LAB.dummy, dummy);
       this.w8(this.lab + LAB.req, req);
+    }
+    /* the chain tool (revamp 5): a chain override (encodeOverride: the tree, then the retime table) for `fighter`, taken
+       on the game's next tick (fighter.c lab_install, load 5); null = the ROM's tree and retime table back (load 2) */
+    installChain(fighter, bytes) {
+      if (bytes) { if (bytes.length > LAB_BUF) throw new Error(`the override is ${bytes.length} bytes (lab.buf holds ${LAB_BUF})`); this.wbytes(this.lab + LAB.buf, bytes); }
+      this.wbytes(this.lab + LAB.magic, [76, 65, 66, 49]);
+      this.w8(this.lab + LAB.fighter, fighter);
+      this.w8(this.lab + LAB.load, bytes ? 5 : 2);
+    }
+    /* what the game reads now: route_tab[fighter] and rt_tab (0 = the ROM's), as addresses and as "lab" / "rom" */
+    overrideState(fighter) {
+      const y = this.layout.syms, buf = this.lab + LAB.buf;
+      const tree = y.route_tab ? this.r32(y.route_tab + 4 * fighter) : null, rt = y.rt_tab !== undefined ? this.r32(y.rt_tab) : null;
+      return { tree, rt, treeInLab: tree === buf, rtInLab: rt !== null && rt >= buf && rt < buf + LAB_BUF, buf };
     }
     installTree(fighter, blob) {                 // the game takes it on its next tick (lab_install)
       this.wbytes(this.lab + LAB.buf, blob);
@@ -258,7 +281,7 @@
   }
 
   // ---- routes as the source (routes.py merge_routes / tree_to_routes: the same merge) ---------------------------------
-  const HIT_FIELDS = ['move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push'];
+  const HIT_FIELDS = ['move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push', 'throw', 'hitstop'];   // (throw, hitstop: a chain tree's nodes)
   function hitOf(nd) {                 // a step's hit as the game plays it (defaults applied)
     if ('special' in nd) return { special: nd.special, speed: speedFx(nd) };
     const [dd, dp] = defaultDamage(nd);
@@ -306,7 +329,161 @@
     return { tree: root, conflicts, paths };
   }
 
-  const api = { Lab, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  // ---- the chain tool (revamp 5): chains assembled exactly as routes.py chain_tree with named links / finishers ---------
+  // A spec (what the tool edits and what "Save" writes to game.json): {archetype, links: [move x N-1], hitstop: [N] | null,
+  // finishers: {launcher: 'up' | 'forward', down: 'sweep' | 'slam' | null, neutral, forward, up, down_move},
+  // retime: {move: [targets per segment]}}. f = the fighter's chainlab.json entry (tree, chain_base, segs), rules =
+  // chainlab.json "chain" (game.json chain).
+  const SPL = () => Object.fromEntries(SPECIAL_INPUTS.map(k => [k, { special: SLOT_OF[k] }]));
+  const dmgOf = nd => nd.damage !== undefined ? nd.damage : defaultDamage(nd)[0];
+  function pyRound6(x) { return Math.round(x * 1e6) / 1e6; }
+  function scaleTo(weights, total) {                            // routes._scale: largest remainder, ties to the later link
+    const tw = weights.reduce((a, b) => a + b, 0), raw = weights.map(w => w * total / tw), out = raw.map(x => Math.max(1, Math.floor(x)));
+    const order = raw.map((_, i) => i).sort((i, j) => (-pyRound6(raw[i] - Math.floor(raw[i]))) - (-pyRound6(raw[j] - Math.floor(raw[j]))) || j - i);
+    const sum = () => out.reduce((a, b) => a + b, 0);
+    let k = 0;
+    while (sum() < total) { out[order[k % out.length]]++; k++; }
+    while (sum() > total) { let m = 0; out.forEach((v, i) => { if (v > out[m]) m = i; }); out[m]--; }
+    return out;
+  }
+  function pieceWeight(m) {                                     // routes.piece_weight
+    const b = /^(?:atk|cmd)_(?:fwd_|df_)?([a-d]+)/.exec(m);
+    return m === 'body_toss' || (b && ['c', 'd', 'ab', 'cd'].includes(b[1])) ? 'strong' : 'light';
+  }
+  function chainPiece(f, m) {                                   // routes.chain_piece
+    if (!MOVE_NAMES.includes(m) || !f.has.includes(m)) throw new Error(`${m}: not a ground move ${f.name} has`);
+    const nd = (f.chain_base || {})[m];
+    const out = nd ? JSON.parse(JSON.stringify(nd)) : { move: m, weight: pieceWeight(m) };
+    out.effect = 'none';
+    return out;
+  }
+  function chainLength(rules, arch) { return rules.lengths[arch]; }
+  function defaultHitstops(rules, N) {
+    const [lo, hi] = rules.hitstop;
+    return N > 1 ? Array.from({ length: N }, (_, k) => lo + Math.floor(((hi - lo) * k * 2 + (N - 1)) / (2 * (N - 1)))) : [hi];
+  }
+  function chainTree(f, spec, rules) {
+    const arch = spec.archetype, N = rules.lengths[arch], total = rules.totals[arch];
+    if (!N) throw new Error('archetype ' + arch);
+    if (spec.links.length !== N - 1) throw new Error(`the ${arch} chain has ${N - 1} links before its finisher (${spec.links.length} given)`);
+    if (sameChain(spec, specOf(f, rules))) return JSON.parse(JSON.stringify(f.tree));   // unedited: the ROM's own chain
+    const fin = spec.finishers || {}, named = (m, eff, what) => {        // (chain_tree's named in a tool chain)
+      if (!m) throw new Error(`the ${what} finisher needs a move`);
+      if (!MOVE_NAMES.includes(m) || !f.has.includes(m)) throw new Error(`${what} finisher ${m}: not a ground move ${f.name} has`);
+      const nd = (f.chain_base || {})[m];
+      return nd ? Object.assign(JSON.parse(JSON.stringify(nd)), { effect: eff }) : { move: m, weight: 'strong', effect: eff };
+    };
+    const builders = spec.links.map(m => chainPiece(f, m));
+    let neutral = named(fin.neutral, 'knockdown', 'neutral');
+    const where = fin.launcher || 'up';
+    if (where !== 'up' && where !== 'forward') throw new Error('the launcher goes on up or forward');
+    const launch = named(fin[where], 'launch', where);
+    const forward = where === 'forward' ? launch : named(fin.forward, 'blowback', 'forward');
+    const up = where === 'up' ? launch : (fin.up ? named(fin.up, 'knockdown', 'up') : null);
+    const dk = fin.down === undefined ? 'sweep' : fin.down;
+    if (dk !== 'sweep' && dk !== 'slam' && dk !== null) throw new Error('down: sweep, slam or none');
+    const down = dk ? named(fin.down_move, dk === 'sweep' ? 'trip' : 'slam', 'down') : null;
+    const dm = scaleTo(builders.map(dmgOf).concat([dmgOf(neutral)]), total);
+    const hs = spec.hitstop ? spec.hitstop.slice() : defaultHitstops(rules, N);
+    if (hs.length !== N || !hs.every(v => Number.isInteger(v) && v >= 1 && v <= 60)) throw new Error(`hit-stop: ${N} values of 1-60 frames`);
+    builders.forEach((b, k) => { b.damage = dm[k]; b.hitstop = hs[k]; });
+    const finals = {};
+    for (const [k, x] of [['A', neutral], ['fA', forward], ['uA', up], ['dA', down]]) {
+      if (!x) continue;
+      finals[k] = Object.assign({}, x, { damage: dm[dm.length - 1], hitstop: hs[N - 1] });
+      if (!finals[k].weight) finals[k].weight = 'strong';
+    }
+    finals.bA = { move: neutral.move, throw: 'back', weight: 'strong', effect: 'knockdown', damage: 0, hitstop: hs[N - 1] };
+    const link1 = f.tree.links.A, bnode = JSON.parse(JSON.stringify(link1.links.B));   // the chain's jump-cancel (chain_tree's)
+    for (const x of Object.values(finals)) if (!x.throw) x.links = SPL();
+    let nxt = finals;
+    for (let k = N - 2; k >= 0; k--) nxt = Object.assign({}, builders[k], { links: Object.assign({}, k < N - 2 ? { A: nxt } : nxt, { B: bnode }, SPL()) });
+    const names = { A: 'neutral', fA: 'forward', uA: 'up', dA: 'down', bA: 'back' };
+    return { fighter: f.name, links: { A: nxt }, entries: JSON.parse(JSON.stringify(f.tree.entries)), archetype: arch, chain_links: N,
+             chain: { archetype: arch, length: N, total, links: builders.map(b => b.move), damage: dm, hitstop: hs,
+                      finishers: Object.fromEntries(Object.entries(finals).map(([k, x]) => [names[k], x.throw ? 'throw' : x.move + ' (' + x.effect + ')'])) } };
+  }
+  // the chain part of two specs (archetype, links, finishers, hit-stops) the same: the retime aside
+  function sameChain(a, b) {
+    const fk = x => { const o = x.finishers || {}; return JSON.stringify([o.launcher || 'up', o.down === undefined ? 'sweep' : o.down, o.neutral, o.forward || null, o.up || null, o.down ? o.down_move : null]); };
+    return a.archetype === b.archetype && JSON.stringify(a.links) === JSON.stringify(b.links) && fk(a) === fk(b) &&
+      JSON.stringify(a.hitstop || null) === JSON.stringify(b.hitstop || null);
+  }
+  // the spec a built chain tree plays (the starting point of an edit): its links, finishers, hit-stops (null = the scale),
+  // the ROM's retime targets of its moves (retimeRom: chainlab.json retime_rom)
+  function specOf(f, rules, retimeRom) {
+    const t = f.tree, arch = t.archetype || (f.chain_cfg || {}).archetype, N = t.chain_links || rules.lengths[arch];
+    const links = []; let nd = t.links.A;
+    for (let k = 0; k < N - 1 && nd; k++) { links.push(nd.move); if (k < N - 2) nd = nd.links.A; }
+    const last = nd, L = last.links || {}, hs = links.map((_, k) => k).map(k => { let x = t.links.A; for (let j = 0; j < k; j++) x = x.links.A; return x.hitstop; });
+    hs.push((L.A || {}).hitstop);
+    const fin = { neutral: L.A && L.A.move, forward: L.fA && L.fA.move, up: L.uA && L.uA.move };
+    fin.launcher = L.fA && L.fA.effect === 'launch' ? 'forward' : 'up';
+    fin.down = L.dA ? (L.dA.effect === 'slam' ? 'slam' : 'sweep') : null;
+    fin.down_move = L.dA ? L.dA.move : null;
+    const def = defaultHitstops(rules, N);
+    const retime = {};
+    for (const r of retimeRom || []) if (r.fighter === f.name && f.segs.moves[r.move]) retime[r.move] = r.targets.slice();
+    return { archetype: arch, links, finishers: fin, hitstop: hs.every((v, k) => v === def[k]) ? null : hs, retime };
+  }
+  // the source segments of a move (chainlab.json segs: startup, then each window and the recovery after it)
+  function segsOf(f, move) { return (f.segs && f.segs.moves && f.segs.moves[move]) || null; }
+  /* the override the tool writes into lab.buf: the tree (encodeTree), then the retime table (fighter.h gretime_t rows, 8
+     bytes big-endian: fighter, nseg, move u16, t u32 = an offset from buf; fighter 0xFF ends it; then the targets, u16
+     each). rows: [{fighter, move (BA_* index), targets}] (the ROM's other rows + the edited fighter's) */
+  function encodeOverride(treeBytes, rows) {
+    const head = treeBytes.length, tab = 8 * (rows.length + 1);
+    let off = head + tab;
+    const ts = rows.map(r => { const o = off; off += 2 * r.targets.length; return o; });
+    const out = new Uint8Array(off), dv = new DataView(out.buffer);
+    out.set(treeBytes, 0);
+    rows.forEach((r, i) => {
+      const a = head + 8 * i;
+      if (r.targets.length > 255 || r.targets.some(t => !(t >= 1 && t <= 0xFFFF))) throw new Error('retime targets');
+      out[a] = r.fighter; out[a + 1] = r.targets.length; dv.setUint16(a + 2, r.move); dv.setUint32(a + 4, ts[i]);
+      r.targets.forEach((t, k) => dv.setUint16(ts[i] + 2 * k, t));
+    });
+    out[head + 8 * rows.length] = 0xFF;
+    if (out.length > LAB_BUF) throw new Error(`the override is ${out.length} bytes (lab.buf holds ${LAB_BUF})`);
+    return out;
+  }
+  // the retime rows for a push: the ROM's rows of the other fighters (chainlab.json retime_rom) + this fighter's spec
+  function retimeRows(data, f, spec) {
+    const rows = (data.retime_rom || []).filter(r => r.fighter !== f.name).map(r => ({ fighter: data.fighters.find(x => x.name === r.fighter).id, move: r.index, targets: r.targets }));
+    for (const [m, T] of Object.entries(spec.retime || {})) {
+      const s = segsOf(f, m);
+      if (!s) throw new Error(`retime ${m}: no segments`);
+      if (T.length !== s.length) throw new Error(`retime ${m}: ${s.length} segments`);
+      if (T.every((t, i) => t === s[i])) continue;              // the source's timing: no row
+      rows.push({ fighter: f.id, move: data.ba.indexOf(m), targets: T.map((t, i) => s[i] ? t : 0) });
+    }
+    return rows;
+  }
+  /* the game.json entry a spec saves as (roster[] keys; build_tables.py chain_cfg / retime_tables read them): archetype,
+     finishers (all named, so the build picks nothing), chain {links, hitstop?}, retime {move: targets} (moves at their
+     source timing left out) */
+  function saveEntry(f, spec, rules) {
+    const out = {};
+    const rt = {};
+    for (const [m, T] of Object.entries(spec.retime || {})) { const s = segsOf(f, m); if (s && !T.every((t, i) => t === s[i])) rt[m] = T.slice(); }
+    out.retime = rt;                                            // the fighter's whole retime map ({} = none)
+    if (sameChain(spec, specOf(f, rules))) return out;          // the chain unchanged: the generator's, as in the ROM
+    const fin = spec.finishers;
+    Object.assign(out, { archetype: spec.archetype, finishers: { launcher: fin.launcher || 'up', down: fin.down === undefined ? 'sweep' : fin.down } });
+    out.finishers.neutral = fin.neutral;
+    if ((fin.launcher || 'up') === 'up') { out.finishers.up = fin.up; out.finishers.forward = fin.forward; }
+    else { out.finishers.forward = fin.forward; if (fin.up) out.finishers.up = fin.up; }
+    if (fin.down) out.finishers.down_move = fin.down_move;
+    out.chain = { links: spec.links.slice() };
+    if (spec.hitstop) out.chain.hitstop = spec.hitstop.slice();
+    return out;
+  }
+
+  /* the chain tool's autoplay (the page and chaintool_proof_node.js): frame i's keys, A every other frame, the stick held
+     once the last builder has started (the finisher's press), nothing once the finisher started */
+  function autoKeys(i, starts, N, stick, done) { return done ? '' : (starts >= N - 1 ? stick : '') + (i % 2 ? '' : 'a'); }
+
+  const api = { Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);
