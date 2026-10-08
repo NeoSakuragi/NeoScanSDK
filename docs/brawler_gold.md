@@ -74,7 +74,7 @@ specials (Bruno: overkill for now).
   meter's 2 chunks; the fury gauge itself is never drawn.
 - Loose thread: the phase-3 super throw — keep it (cost a special chunk) or drop it. TBD.
 
-### Terry (gold)
+### Terry (gold) — DONE: Bruno 2026-10-08 on 0.8.7, "Terry feels great"
 - **Blitz**: ff+A Body Toss, dd+A Power Charge (= 426B), du+A Power Wave (= 236C), uu+A Crack Shoot (= 214D) (swapped by Bruno, 0.8.4 note).
 - **Specials (C + dir)** — FINAL (Bruno 2026-10-08): forward + C = Power Dunk (623D), down + C = Burn Knuckle (214C),
   C in any other direction = Rising Tackle (623C, the upside-down spin; checked on the clips).
