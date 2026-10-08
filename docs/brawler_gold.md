@@ -34,3 +34,32 @@ A golded fighter has:
 
 All Terry/Kim chain-order and finisher picks here are my first pass, marked provisional: Bruno finalizes live in the
 Lab chain tool or via the terry2 / kim2 follow-ups.
+
+## Bruno's live redesign (2026-10-08) — supersedes phase 2's meter and the Blitz-name opens
+
+### Inputs (four buttons, no fireball motions)
+- A attack / chain. B jump. C special (+ direction). D fury (down+D MAX).
+- NEW: **Blitz** = a free, meterless special family on DOUBLE-DIRECTION + A: forward,forward+A / down,down+A /
+  up,up+A / down,up+A. Genre-standard (TMNT, Battletoads, Golden Axe, SOR2 blitz). Free, spammable, a little recovery,
+  NOT invincible. Not every fighter fills all four slots. (Name: still "Blitz" provisionally — Bruno to confirm.)
+
+### The combo ladder (each step cancels into the next)
+chain → chain finisher → **Blitz** (free) → **special** (1 cooldown chunk, invincible) → **another, different special**
+(a 2nd chunk) → **fury** (fury bar full) → **MAX fury** (fury bar full + low-life red). A special can cancel into any
+OTHER special (not itself); with the 2-chunk bar that means two specials back to back, emptying it. No EX specials
+(Bruno: overkill for now).
+
+### Two meter bars (replaces the 3-stock / 300-point meter and the old breaker path)
+- **Special cooldown bar — 2 chunks, SOR3-style**: starts full, refills over time. Regular special = 1 chunk (two
+  available). **Counter special** (the invincible escape done while being hit) = both chunks at once.
+- **Fury bar**: fills as you DEAL and as you TAKE damage. Full → fury available AND the character blinks (one frame
+  normal, one frame a shiny white palette, KOF95-style). Low life (red blinking) → fury always available; fury + red
+  = the MAX fury.
+- Life bar as before (red low-life state unchanged).
+- Loose thread: the phase-3 super throw — keep it (cost a special chunk) or drop it. TBD.
+
+### Terry (gold)
+- **Blitz**: ff+A Body Toss, dd+A Power Charge (= 426B), du+A Crack Shoot (= 214D), uu+A Power Wave (= 236C).
+- **Specials (C + dir)**: down = Power Dunk, forward = Burn Knuckle, else = Rising Tackle. (Verify which decoded 623
+  clip is Power Dunk vs Rising Tackle.)
+- Chain / finishers / roles / retimes: per the earlier Terry gold section + review (more changes may follow).
