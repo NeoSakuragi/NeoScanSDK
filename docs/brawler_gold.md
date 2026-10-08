@@ -91,3 +91,13 @@ specials (Bruno: overkill for now).
   into the other in the air, like Final Fight (order: question on the jumps page). Active frames (Bruno): the standard
   jump attack active ~12 frames or more; down+A active for the whole rest of the jump. Picked per fighter from its jump normals (Terry's review: jump
   A dropped, jump B and jump CD kept).
+
+### Walk and run (Bruno 2026-10-08) — proposed numbers, waiting for his OK
+- Today: fighter.c moves whole pixels (`whole(ph->walk)`), run = walk x 2 (RUN_MUL). Terry walks 3 px/f (KOF 3.17
+  rounded), Kim 2, Krauser 3; runs 6 / 4 / 6.
+- Bruno: Terry walks at Cody's speed. Final Fight walk 2.10 / 1.95 / 1.85 CPS1 px/f (Guy / Cody / Haggar, 8d).
+  Same time to cross the screen: x 320/384 → 1.75 / 1.625 / 1.54 Neo Geo px/f. Proposal: by archetype — fast (Kim) =
+  Guy 1.75, balanced (Terry) = Cody 1.625, heavy (Krauser) = Haggar 1.54; sub-pixel movement (drop the whole-pixel
+  rounding for the walk).
+- Run: Final Fight has none; Bruno suggested 1.8x. My proposal 2x (Captain Commando's dash / walk = 3.875 / 1.9 = 2.04,
+  the closest Capcom reference) → Terry runs 3.25 px/f.
