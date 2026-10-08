@@ -1,6 +1,651 @@
 {
  "sets": [
   {
+   "id": "kim-gold",
+   "fighter": "kim",
+   "proposal_first": true,
+   "title": "Kim: gold questions",
+   "intro": "Kim Young Mok (Kizuna Encounter), rebuilt the way Terry was. Every question: my proposal first, then the alternatives; NONE lets you say your own in the note. Each option plays its moves as small looping clips, left to right; tap a clip for quarter speed. Specials play whole, as they come out on a hit. You can also just answer in chat against the list below.",
+   "proposal_title": "My whole proposal (what each input does)",
+   "proposal": [
+    "Size: scale 0.92 (a little taller than Terry, shorter than Krauser).",
+    "Chain (A A A A A): close A > close A > close C > down-forward C > close D (5 hits).",
+    "Last hit with forward: forward + B (the long lunge). With up: far C (launches). With down: down-forward D (crumples). With back: his throw.",
+    "Blitz (free): forward, forward + A = 236A; down, down + A = 214B; down, up + A = nothing; up, up + A = nothing.",
+    "C specials (1 drive chunk, invincible): C = [2]8C rising flip (also the combo breaker); forward + C = 236C rush; down + C = 421A lunge.",
+    "Fury (D) = 6246A. MAX (D at low life with the fury ready) = the same 6246A, stronger.",
+    "Air: forward jump + A = jump D; straight jump + A = jump C; down + A = j.2B dive (only flinches, hits until he lands).",
+    "Hit while holding the enemy: close B.",
+    "Animations: [2]8C, 421A, jump C, jump CD, down-forward D, 236A to check; far D and close D are one animation.",
+    "Walk back: his walk played backwards (Kizuna has none)."
+   ],
+   "names": {
+    "atk_a_close": "close A",
+    "atk_a_far": "far A",
+    "atk_c_close": "close C",
+    "cmd_df_c": "down-fwd C",
+    "atk_d_close": "close D",
+    "atk_d_far": "far D",
+    "cmd_fwd_b": "fwd + B",
+    "atk_c_far": "far C",
+    "cmd_df_d": "down-fwd D",
+    "atk_d_crouch": "crouch D",
+    "throw-back": "throw",
+    "body_toss": "dash attack",
+    "full-236a": "236A",
+    "full-214b": "214B",
+    "full-236c": "236C",
+    "full-2-8c": "[2]8C",
+    "full-421a": "421A",
+    "full-6246a": "6246A",
+    "full-j-2b": "j.2B",
+    "atk_d_jump": "jump D",
+    "atk_cd_jump": "jump CD",
+    "atk_c_jump": "jump C",
+    "atk_b_close": "close B",
+    "walk-back": "walk back"
+   },
+   "sections": [
+    {
+     "title": "Size",
+     "questions": [
+      {
+       "id": "size",
+       "title": "How tall should Kim stand?",
+       "context": "In-game standing height (shadow included): Terry 100 px, Ryo 106, Kim 115, Billy Lee 118, Krauser 121. Kim now towers over Terry. The picture: Terry, Billy Lee, Kim, Krauser, Ryo as each game draws them. It is one number per fighter (game.json roster \"scale\").",
+       "options": [
+        "Scale 0.92: a little taller than Terry (106 px)",
+        "Scale 0.87: as tall as Terry (100 px)",
+        "Keep his size (115 px)"
+       ],
+       "image": "kim_size.png",
+       "image_alt": "Terry, Billy Lee, Kim, Krauser and Ryo standing side by side, 3x"
+      }
+     ]
+    },
+    {
+     "title": "Chain (press A five times)",
+     "questions": [
+      {
+       "id": "chain",
+       "title": "What do five A presses do?",
+       "context": "Kim is fast: 5 hits, the 5th is the last hit (stick neutral). Your review: close A the perfect starter, down-forward C perfect, close C and close D good; far A, far B, close B, crouch A and crouch B dropped.",
+       "options": [
+        "close A > close A > close C > down-forward C > close D",
+        "close A > close C > down-forward C > close D > far D",
+        "close A > far A > close C > down-forward C > close D (far A was dropped)"
+       ],
+       "pieces": [
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "atk_d_close"
+        ],
+        [
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "atk_d_close",
+         "atk_d_far"
+        ],
+        [
+         "atk_a_close",
+         "atk_a_far",
+         "atk_c_close",
+         "cmd_df_c",
+         "atk_d_close"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "The last hit with the stick held",
+     "questions": [
+      {
+       "id": "fwd",
+       "title": "Hold FORWARD on the 5th press: what comes out?",
+       "context": "The first 4 hits as in my chain, then this. Forward + B is a 74 px lunge: bad mid-chain, fine as an ender.",
+       "options": [
+        "Forward + B (long lunge)",
+        "Far D",
+        "Close D (the same as the neutral last hit)"
+       ],
+       "pieces": [
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "cmd_fwd_b"
+        ],
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "atk_d_far"
+        ],
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "atk_d_close"
+        ]
+       ]
+      },
+      {
+       "id": "up",
+       "title": "Hold UP on the 5th press (sends the enemy up for a juggle)",
+       "context": "The launcher.",
+       "options": [
+        "Far C (launches)",
+        "Close D"
+       ],
+       "pieces": [
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "atk_c_far"
+        ],
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "atk_d_close"
+        ]
+       ]
+      },
+      {
+       "id": "down",
+       "title": "Hold DOWN on the 5th press",
+       "context": "Your review: down-forward D is good for crumpling.",
+       "options": [
+        "Down-forward D (the enemy crumples)",
+        "Crouch D (sweeps him off his feet)"
+       ],
+       "pieces": [
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "cmd_df_d"
+        ],
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "atk_d_crouch"
+        ]
+       ]
+      },
+      {
+       "id": "back",
+       "title": "Hold BACK on the 5th press",
+       "context": "He grabs and throws the enemy behind him (you kept it).",
+       "options": [
+        "His throw"
+       ],
+       "pieces": [
+        [
+         "atk_a_close",
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_df_c",
+         "throw-back"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Blitz (double-tap + A, free, not invincible)",
+     "questions": [
+      {
+       "id": "bz_ff",
+       "title": "Forward, forward + A",
+       "context": "A move used as a Blitz can't also be one of his C specials.",
+       "options": [
+        "236A strike",
+        "214B lunge",
+        "His dash attack"
+       ],
+       "pieces": [
+        [
+         "full-236a"
+        ],
+        [
+         "full-214b"
+        ],
+        [
+         "body_toss"
+        ]
+       ]
+      },
+      {
+       "id": "bz_dd",
+       "title": "Down, down + A",
+       "context": "",
+       "options": [
+        "214B lunge",
+        "Nothing"
+       ],
+       "pieces": [
+        [
+         "full-214b"
+        ],
+        []
+       ]
+      },
+      {
+       "id": "bz_du",
+       "title": "Down, up + A",
+       "context": "",
+       "options": [
+        "Nothing",
+        "236A strike"
+       ],
+       "pieces": [
+        [],
+        [
+         "full-236a"
+        ]
+       ]
+      },
+      {
+       "id": "bz_uu",
+       "title": "Up, up + A",
+       "context": "",
+       "options": [
+        "Nothing",
+        "[2]8C rising flip"
+       ],
+       "pieces": [
+        [],
+        [
+         "full-2-8c"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "C specials (1 drive chunk, invincible)",
+     "questions": [
+      {
+       "id": "c_neutral",
+       "title": "C with the stick neutral (also the combo breaker: C while being hit)",
+       "context": "Your review: make [2]8C an invincible move.",
+       "options": [
+        "[2]8C rising flip",
+        "236C rush"
+       ],
+       "pieces": [
+        [
+         "full-2-8c"
+        ],
+        [
+         "full-236c"
+        ]
+       ]
+      },
+      {
+       "id": "c_fwd",
+       "title": "Forward + C",
+       "context": "",
+       "options": [
+        "236C rush (a string of hits)",
+        "214B lunge"
+       ],
+       "pieces": [
+        [
+         "full-236c"
+        ],
+        [
+         "full-214b"
+        ]
+       ]
+      },
+      {
+       "id": "c_down",
+       "title": "Down + C",
+       "context": "Your review on 421A: keep the animation, build on it, maybe the start of his MAX.",
+       "options": [
+        "421A lunge (hits several times)",
+        "214B lunge",
+        "236A strike"
+       ],
+       "pieces": [
+        [
+         "full-421a"
+        ],
+        [
+         "full-214b"
+        ],
+        [
+         "full-236a"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Fury (D) and MAX",
+     "questions": [
+      {
+       "id": "fury",
+       "title": "D with the fury ready",
+       "context": "Shown whole, as it plays on a hit.",
+       "options": [
+        "6246A as his fury"
+       ],
+       "pieces": [
+        [
+         "full-6246a"
+        ]
+       ]
+      },
+      {
+       "id": "max",
+       "title": "D at low life with the fury ready (the MAX)",
+       "context": "Each fighter has one fury; the MAX is that fury made stronger. You once said 421A could start his MAX.",
+       "options": [
+        "The 6246A, stronger (more damage, same move)",
+        "421A as the MAX"
+       ],
+       "pieces": [
+        [
+         "full-6246a"
+        ],
+        [
+         "full-421a"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Air",
+     "questions": [
+      {
+       "id": "air_fwd",
+       "title": "A in a forward jump (knocks down)",
+       "context": "",
+       "options": [
+        "Jump D",
+        "Jump CD"
+       ],
+       "pieces": [
+        [
+         "atk_d_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      },
+      {
+       "id": "air_up",
+       "title": "A in a straight jump (knocks down)",
+       "context": "",
+       "options": [
+        "Jump C",
+        "Jump D"
+       ],
+       "pieces": [
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_d_jump"
+        ]
+       ]
+      },
+      {
+       "id": "air_down",
+       "title": "Down + A in a jump (only flinches, hits until he lands)",
+       "context": "",
+       "options": [
+        "j.2B: the 45° dive",
+        "Jump CD"
+       ],
+       "pieces": [
+        [
+         "full-j-2b"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Hit while holding the enemy",
+     "questions": [
+      {
+       "id": "hold",
+       "title": "A while you hold the enemy",
+       "context": "The data marks close B as the hold hit (you dropped it from the chain only).",
+       "options": [
+        "Close B",
+        "Close A"
+       ],
+       "pieces": [
+        [
+         "atk_b_close"
+        ],
+        [
+         "atk_a_close"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Animations to look at",
+     "questions": [
+      {
+       "id": "an_28c",
+       "title": "[2]8C rising flip",
+       "context": "The scorer calls it choppy: big pose changes between few drawings.",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "full-2-8c"
+        ],
+        [
+         "full-2-8c"
+        ],
+        [
+         "full-2-8c"
+        ],
+        [
+         "full-2-8c"
+        ]
+       ]
+      },
+      {
+       "id": "an_421a",
+       "title": "421A lunge",
+       "context": "The scorer calls it choppy.",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "full-421a"
+        ],
+        [
+         "full-421a"
+        ],
+        [
+         "full-421a"
+        ],
+        [
+         "full-421a"
+        ]
+       ]
+      },
+      {
+       "id": "an_jc",
+       "title": "Jump C",
+       "context": "Low appeal score (48 of 100): few drawings.",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_c_jump"
+        ]
+       ]
+      },
+      {
+       "id": "an_jcd",
+       "title": "Jump CD",
+       "context": "Lowest appeal score (47 of 100).",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "atk_cd_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      },
+      {
+       "id": "an_dfd",
+       "title": "Down-forward D (the crumple)",
+       "context": "Low appeal score (60 of 100).",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "cmd_df_d"
+        ],
+        [
+         "cmd_df_d"
+        ],
+        [
+         "cmd_df_d"
+        ],
+        [
+         "cmd_df_d"
+        ]
+       ]
+      },
+      {
+       "id": "an_236a",
+       "title": "236A strike",
+       "context": "Low appeal score (60 of 100).",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "full-236a"
+        ],
+        [
+         "full-236a"
+        ],
+        [
+         "full-236a"
+        ],
+        [
+         "full-236a"
+        ]
+       ]
+      },
+      {
+       "id": "an_fard",
+       "title": "Far D and close D are the same animation",
+       "context": "Kizuna gives Kim one animation for both; my chain uses close D.",
+       "options": [
+        "Keep both",
+        "Drop far D"
+       ],
+       "pieces": [
+        [
+         "atk_d_close",
+         "atk_d_far"
+        ],
+        [
+         "atk_d_close"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Walk",
+     "questions": [
+      {
+       "id": "walk",
+       "title": "Walking backwards",
+       "context": "Kizuna has no walk-back for Kim, so he walks backwards with his walk played in reverse (the clip). His backdash (44) is not in our export yet: picking it means I add it.",
+       "options": [
+        "Fine",
+        "Use his backdash animation (44) instead"
+       ],
+       "pieces": [
+        [
+         "walk-back"
+        ],
+        []
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "terry-gold",
    "fighter": "terry",
    "title": "Terry: last questions",

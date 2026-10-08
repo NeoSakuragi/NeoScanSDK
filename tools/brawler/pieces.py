@@ -61,6 +61,7 @@ EFFECT_TAG = {'none': 'reel', 'knockdown': 'knockdown', 'launch': 'launcher', 't
 PURPOSE = {'chain': 'damage: the plain string', 'neutral': 'damage: knocks down', 'forward': 'reposition: pushes the victim away',
            'up': 'juggle: launches for air hits', 'down': 'knockdown: crumple / sweep', 'down_slam': 'juggle: slams, the victim bounces',
            'back': 'escape: invincible throw behind'}
+WALK = {'fast': 1.75, 'balanced': 1.625, 'heavy': 1.54}   # px / frame by archetype (docs/brawler_gold.md, Final Fight)
 FPS = 59.18                                       # the Neo Geo's frame rate (the clips play at it)
 
 

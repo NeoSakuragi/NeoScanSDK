@@ -48,22 +48,35 @@
     if (!m) ctx.drawImage(sheet, sx, sy, w, hh, fx - ox, fy - oy, w, hh);
     else { ctx.save(); ctx.translate(fx, 0); ctx.scale(-1, 1); ctx.drawImage(sheet, sx, sy, w, hh, -ox, fy - oy, w, hh); ctx.restore(); }
   }
-  function makeClip(key, title) {
+  // a clip's canvas and its painter (every clip shares it: the full player below and the compact follow-up row)
+  function painter(key, title, S) {
     const C = D.clips[key];
     if (!C) return null;
     const frames = C.frames, [x0, x1, y0, y1] = bounds(frames);
-    const W = x1 - x0, H = y1 - y0, S = 2;
+    const W = x1 - x0, H = y1 - y0;
     const cv = h('canvas', { width: W * S, height: H * S, role: 'img', 'aria-label': 'Clip: ' + title + ', ' + frames.length + ' frames' });
     const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
-    const fc = h('span', { class: 'fcount' });
-    const st = { key, frames, i: 0, acc: 0, played: 0, ms: 0, speed: 1, playing: true, visible: false, boxes: false, links: C.links || null };
-    st.draw = () => {
+    const st = { key, frames, i: 0, acc: 0, played: 0, ms: 0, speed: 1, playing: true, visible: false, boxes: false, links: C.links || null, H };
+    st.paint = () => {
       const [fl, spr, b] = frames[st.i];
       ctx.setTransform(S, 0, 0, S, 0, 0); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
       ctx.fillStyle = '#000'; ctx.fillRect(0, -y0, W, 1);                          // the floor line at the feet
       ctx.fillRect(-x0, -y0, 1, 4);                                                // the start's feet
       for (const [ci, x, y, m] of spr) drawSprite(ctx, ci, x - x0, -y - y0, m);
       if (st.boxes && b) { ctx.setLineDash([3, 2]); ctx.lineWidth = 1; ctx.strokeStyle = '#000'; ctx.strokeRect(b[0] - x0 + .5, b[1] - y0 + .5, b[2] - b[0], b[3] - b[1]); ctx.setLineDash([]); }
+      return fl;
+    };
+    st.draw = st.paint;
+    clips.push(st); io.observe(cv); cv._clip = st;
+    return { cv, st };
+  }
+  function makeClip(key, title) {
+    const pc = painter(key, title, 2);
+    if (!pc) return null;
+    const { cv, st } = pc, frames = st.frames;
+    const fc = h('span', { class: 'fcount' });
+    st.draw = () => {
+      const fl = st.paint();
       const link = st.links ? st.links.filter(v => v <= st.i).length : 0;
       fc.textContent = `frame ${st.i + 1} / ${frames.length}` + (link ? ` · link ${link}` : '') + (fl & 4 ? ' · hit-stop' : fl & 2 ? ' · contact' : fl & 1 ? ' · hitting' : '');
     };
@@ -75,7 +88,6 @@
     bStep.onclick = () => { st.playing = false; bPlay.textContent = 'Play'; bPlay.setAttribute('aria-pressed', 'true'); st.i = (st.i + 1) % frames.length; st.draw(); };
     const bBox = h('button', { type: 'button', 'aria-pressed': 'false', text: 'Hit boxes' });
     bBox.onclick = () => { st.boxes = !st.boxes; bBox.setAttribute('aria-pressed', String(st.boxes)); st.draw(); };
-    clips.push(st); io.observe(cv); cv._clip = st;
     sheet.complete && st.draw();
     return h('div', { class: 'clip' }, cv, h('div', { class: 'ctl' }, bPlay, bSlow, bStep, bBox, fc));
   }
@@ -192,6 +204,26 @@
     let fa = {}; try { fa = await get(API + 'decisions/' + QSET, { cache: 'no-store' }); } catch (e) { /* none */ }
     const fpost = async body => { const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ set: QSET }, body)) }); if (!r.ok) throw new Error('HTTP ' + r.status); };
     const out = [h('h1', { text: set.title }), h('p', { class: 'intro', text: set.intro || '' })];
+    if (set.proposal) out.push(h('section', { class: 'card plan' }, h('h3', { text: set.proposal_title || 'My whole proposal' }), h('ul', {}, set.proposal.map(t => h('li', { text: t })))));
+    // compact clip (Bruno: "tons of scrolling on mobile"): 1x, at most 90 css px high, looping; a tap toggles ¼ speed
+    const NAMES = set.names || {};
+    const nameOf = id => NAMES[id] || (P[id] && P[id].label) || (id.startsWith('full-') ? id.slice(5).toUpperCase() + ' (whole)' : id);
+    // one scale for every clip of the page, so the fighter is the same size in all of them: a standing move's clip
+    // (the median piece) 90 css px high at most; a jump / rising move's clip is taller by what it rises
+    const hs = D.pieces.filter(p => p.kind === 'normal' && D.clips[p.id]).map(p => { const b = bounds(D.clips[p.id].frames); return b[3] - b[2]; }).sort((a, b) => a - b);
+    const MS = Math.min(1, 90 / (hs[hs.length >> 1] || 90));
+    const mini = id => {
+      const pc = painter(id, nameOf(id), 1);
+      if (!pc) return h('figure', { class: 'mini' }, h('figcaption', { text: nameOf(id) + ' (no clip)' }));
+      const { cv, st } = pc;
+      cv.style.height = Math.round(st.H * MS) + 'px';
+      const cap = h('figcaption', { text: nameOf(id) });
+      const fig = h('figure', { class: 'mini', tabindex: '0', role: 'button', 'aria-pressed': 'false', title: 'Tap: ¼ speed' }, cv, cap);
+      const flip = () => { st.speed = st.speed === 1 ? 0.25 : 1; fig.setAttribute('aria-pressed', String(st.speed !== 1)); cap.textContent = nameOf(id) + (st.speed !== 1 ? ' · ¼' : ''); };
+      fig.onclick = flip; fig.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } };
+      sheet.complete && st.draw();
+      return fig;
+    };
     const qcard = q => {
       const a = fa[q.id] || {};
       const saved = h('div', { class: 'dsaved', text: a.at ? 'Saved' : '' });
@@ -205,11 +237,12 @@
         b.onclick = () => { btns.forEach((x, j) => { x.setAttribute('aria-pressed', String(i === j)); x.querySelector('.mark').textContent = i === j ? '✓' : '○'; }); save({ choice: i, label: o }); if (o === NONE) ta.focus(); };
         btns.push(b);
         const ids = (q.pieces && q.pieces[i]) || [];
-        const vis = ids.length ? h('div', { class: 'fuseq' }, ids.map((id, k) => [k ? h('span', { class: 'arrow', text: '→' }) : null,
-          h('div', { class: 'fupiece' }, h('div', { class: 'funame', text: (P[id] && P[id].label) || id }), makeClip(id, id), strip({ id }))])) : null;
-        return h('div', { class: 'fuopt' }, b, vis);
+        const vis = ids.length ? h('div', { class: 'fuseq' }, ids.map((id, k) => [k ? h('span', { class: 'arrow', 'aria-hidden': 'true', text: '→' }) : null, mini(id)])) : null;
+        const tag = i === 0 && set.proposal_first ? h('div', { class: 'mine', text: 'My proposal' }) : null;
+        return h('div', { class: 'fuopt' + (tag ? ' first' : '') }, tag, b, vis);
       });
       return h('section', { class: 'card' }, h('h3', { text: q.title }), q.context ? h('p', { class: 'ctx', text: q.context }) : null,
+        q.image ? h('img', { class: 'qimg', src: q.image, alt: q.image_alt || q.title }) : null,
         h('div', { class: 'dopts' }, cards), h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
     };
     for (const sec of set.sections) out.push(h('h2', { text: sec.title }), sec.questions.map(qcard));

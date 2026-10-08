@@ -10,6 +10,10 @@ colour set 1) and OUT/review/<fighter>.json:
   clips   {id: {frames: [[flags, [cell, x, y, mirror], ...], ...], box: [[x0, y0, x1, y1] | 0 per frame], links}}
           one entry per game frame at 1x (59.18 Hz): the drawings shown, x forward / y up px from the start's feet;
           flags 1 a live attack box, 2 a hit window's first frame (contact), 4 the hit-stop (frozen), 8 a new link
+          full-<input slug>  every special of the pool played WHOLE (its first-hit piece being sp-<slug>): as the
+          brawler plays it on hit when build/full_clips.json has it (full_clips.py: follow-ups pressed, hit-stops kept,
+          a drawing over OFFSCREEN px up hidden: the fury leaves the screen), else its program alone (pieces.py special(),
+          its whiff); walk-back  the walk-back animation (gold pages, 2026-10-08)
   checks  the frame counts the proof compares with the data (chainlab.json totals and 1C segments)
 The chain clip: every link from its first frame to its last hit's contact frame, held for its hit-stop (the next
 press on the first possible frame: the chain core takes it as the hit-stop ends), then the next link; the neutral
@@ -30,6 +34,7 @@ REVIEW = 'all'               # every roster fighter (4b, 2026-10-08; phase 4's f
 ROUND = 2                    # the proposal's round: 2 = pieces.py's round-2 score (Bruno's three reviews); the page keys
                              # the proposal's answers by it (chain-r2, fin-up-r2...) so round 1's answers stay apart
 SHEET_W = 2048
+OFFSCREEN = 200             # px up: a drawing higher is off the screen (the whole-special clips hide it)
 
 
 def hitstops(G, N):
@@ -97,6 +102,8 @@ def build(out, game, names, rom=None, lab=None, G=None):
     G = G or json.load(open(os.path.join(game, 'game.json')))
     os.makedirs(os.path.join(out, 'review'), exist_ok=True)
     if names in ('all', None): names = [r['name'] for r in G['roster']]
+    fp = os.path.join(game, 'build', 'full_clips.json')
+    full = json.load(open(fp)) if os.path.exists(fp) else {}
     index = []
     for name in names:
         F, ranked, prop = PC.review(game, name, rom, lab, G)
@@ -110,6 +117,19 @@ def build(out, game, names, rom=None, lab=None, G=None):
             elif p['kind'] == 'throw': c['want'] = -(-c['rows'] * 256 // c['speed'])     # rows at speed / 256 a frame
             else: c['want'] = c['data_total'] if c['data_total'] is not None else sum(c['data_segs'] or [])
             checks[p['id']] = c
+        onhit = full.get(name, {})
+        for k, sp in enumerate(F.lab['pool']):                 # whole specials (the gold pages: "see each move end to end")
+            fr = onhit.get(sp['input']) or F.special(k)
+            if not fr: continue
+            cf = C.frames({'frames': fr})
+            for e, f in zip(cf, fr):
+                if f['y'] > OFFSCREEN: e[1] = []
+            clips['full-' + PC.re.sub(r'[^a-z0-9]+', '-', sp['input'].lower()).strip('-')] = {'frames': cf, 'onhit': sp['input'] in onhit}
+        wb = PC.steps_of(F.src, f'{name}_walk_back')
+        if wb:
+            wf = [dict(f) for f in PC.frames_normal(F, wb) * 2]
+            for i, f in enumerate(wf): f['x'] = -round(i * PC.WALK.get(prop['archetype'], 1.6))
+            clips['walk-back'] = {'frames': C.frames({'frames': wf})}
         links = [by[i] for i in prop['chain']['links']]
         N = prop['chain']['length']; hs = hitstops(G, N)
         fins = prop['finishers']

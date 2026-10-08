@@ -59,6 +59,19 @@ button:focus-visible, a:focus-visible { outline: 3px dashed #000; outline-offset
 .fupiece { border: 1px solid #000; padding: 4px; min-width: 0; max-width: 100%; }
 .funame { font-weight: 700; font-size: 13px; }
 .fuseq .arrow { font-size: 22px; font-weight: 700; }
+/* the compact follow-up row (Bruno: "tons of scrolling on mobile"): small 1x clips, a tap = ¼ speed */
+.fuopt { padding: 6px; gap: 5px; }
+.fuopt > button { padding: 6px 9px; }
+.fuopt.first { border-width: 3px; }
+.fuopt .mine { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.fuseq { gap: 2px 3px; align-items: flex-end; }
+.fuseq .arrow { font-size: 16px; padding-bottom: 18px; }
+figure.mini { margin: 0; display: flex; flex-direction: column; align-items: center; cursor: pointer; max-width: 100%; }
+figure.mini canvas { display: block; width: auto; max-width: 100%; image-rendering: pixelated; border: 1px solid #000; background: #fff; }
+figure.mini[aria-pressed="true"] canvas { border: 3px solid #000; }
+figure.mini figcaption { font-size: 12px; line-height: 1.2; text-align: center; max-width: 120px; }
+.plan ul { margin: 0; padding-left: 20px; font-size: 15px; }
+.qimg { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; }
 </style>
 </head>
 <body>
