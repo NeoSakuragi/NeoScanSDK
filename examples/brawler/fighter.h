@@ -94,8 +94,12 @@ enum { RI_A, RI_B, RI_DA, RI_CA, RI_FA, RI_BA, RI_DFA,             /* normal lin
                                                                               down-forward+A (tree version 4) */
        RI_UA = 7,                                                          /* up+A (revamp 1A: the chain's up finisher; a tree
                                                                               without it: 0, the fallback below) */
+       RI_THEN = 8,                                                        /* not an input (Kim gold, 2026-10-08): the node
+                                                                              played as this one's move ends, whatever
+                                                                              happened: a finisher of several moves back to
+                                                                              back (routes.py: a finisher named as a list) */
        RI_S = 9, RI_FS, RI_DS, RI_US, RI_DFS, RI_UFS,                      /* special links (enders): C, forward / down / up /
-                                                                              down-forward / up-forward + C (slot 8 unused) */
+                                                                              down-forward / up-forward + C (slot 8: RI_THEN) */
        RI_N = 15 };
 enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4, RF_THROW = 8 };   /* rnode_t.flags (RF_THROW, revamp 1A: the chain's back
                                                          finisher, the fighter's back throw on the victim the last link hit,

@@ -40,6 +40,9 @@ NORMAL_INPUTS = ['A', 'B', 'dA', 'cA', 'fA', 'bA', 'dfA']                       
 SPECIAL_INPUTS = ['AB', 'fAB', 'dAB', 'uAB', 'dfAB', 'ufAB']                             # RI_S .. RI_UFS
 INPUTS = NORMAL_INPUTS + ['uA', None] + SPECIAL_INPUTS                                  # fighter.h RI_* (slot 7: up+A, revamp 1A,
                                                                                          # the chain's up finisher; slot 8 unused)
+RI_THEN = 8                                                                              # fighter.h RI_THEN: a node's 'then' (Kim
+                                                                                         # gold: a finisher of several moves played
+                                                                                         # back to back, rnode_t.next[RI_THEN])
 SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD']                                         # BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D
 SLOT_OF = dict(zip(SPECIAL_INPUTS, SPECIALS))                                            # a C input -> the slot it plays
 MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
@@ -224,6 +227,9 @@ def encode(tree, moves, has=None, specials_have=None):
             assert not (air and k == 'B'), f'{where}: no jump-cancel in the air'
             assert not (where == 'root' and (k == 'B' or k in SPECIAL_INPUTS)), f'root {k}: a route starts with an A'
             nxt[INPUTS.index(k)] = node(ch, f'{where} {k}', air or k == 'B')   # B: a jump-cancel, its node in the air
+        if nd.get('then'):                                                   # (Kim gold) the move played as this one
+            assert 'move' in nd and 'move' in nd['then'], f'{where}: then: moves only'   # ends, whatever happened
+            nxt[RI_THEN] = node(nd['then'], f'{where} then', air)
         if 'special' in nd:
             assert nd['special'] in SPECIALS, f'{where}: unknown special {nd["special"]}'
             assert not nd.get('links'), f'{where}: a special ends the route (no links)'
@@ -409,6 +415,12 @@ def chain_piece(m, table, has, name):
     return out
 
 
+def _then(nd):
+    out = [nd]
+    while out[-1].get('then'): out.append(out[-1]['then'])
+    return out
+
+
 def chain_tree(name, base, cfg, has):
     """the chain the game plays (see above): base = the fighter's tree (load()), cfg = build_tables.chain_cfg's entry
     {archetype, length, total, hitstop [lo, hi], finishers {launcher, down, neutral?, forward?, up?, down_move?}, damage},
@@ -443,12 +455,20 @@ def chain_tree(name, base, cfg, has):
     def spec_slot(m):                                                        # a finisher named as a special (its input or
         return m if m in SPECIALS else sp_in.get(m)                          # its slot) -> the slot, else None
     def named(m, eff, w='strong'):                                  # take the piece its links would (chain_base)
+        if isinstance(m, list):                                     # (Kim gold) several moves played back to back: the
+            assert m, f'{name}: an empty finisher list'               # head and its 'then' chain, the effect on the last
+            nd = named(m[-1], eff, w)
+            for x in reversed(m[:-1]): nd = dict(named(x, 'none', w), then=nd)
+            return nd
         sl = spec_slot(m)
         if sl: return {'special': sl, 'effect': eff, 'weight': w}           # a special played as the finisher (free, like
                                                                              # the built-in ones: fighter.c route_go)
         assert m in has, f'{name}: chain finisher {m}: the fighter has no such move'
         if tool is not None and m in tool: return dict(tool[m], effect=eff)
         return {'move': m, 'weight': w, 'effect': eff}
+    def last(nd):                                                   # the last move of a 'then' chain
+        while nd.get('then'): nd = nd['then']
+        return nd
     def cand(ms, eff, avoid=()):                                    # the first of these moves it has (not in avoid)
         return next((named(m, eff) for m in ms if ok(m) and m not in avoid), None)
     by = lambda e: (lambda nd: nd.get('effect') == e)
@@ -491,7 +511,7 @@ def chain_tree(name, base, cfg, has):
         sl = ('atk_d_close', 'atk_c_close', 'atk_cd_close', 'atk_c_far', 'atk_d_far')
         down = cand(sl, 'slam', usedm) or cand(sl, 'slam')
     else: down = None
-    if down: down['effect'] = 'trip' if dk == 'sweep' else 'slam'
+    if down: last(down)['effect'] = 'trip' if dk == 'sweep' else 'slam'
 
     dm = _scale([_dmg(b) for b in builders] + [_dmg(neutral)], total)
     hs = [lo + ((hi - lo) * k * 2 + (N - 1)) // (2 * (N - 1)) for k in range(N)] if N > 1 else [hi]
@@ -504,6 +524,12 @@ def chain_tree(name, base, cfg, has):
         if f is None: del finals[k]; continue
         finals[k] = dict(f, damage=dm[-1], hitstop=hs[-1])
         finals[k].setdefault('weight', 'strong')
+        if f.get('then'):                                           # (Kim gold) a finisher of several moves: its damage
+            seq = [finals[k]]                                       # shared by them (the first ones floor, the last the rest)
+            while seq[-1].get('then'): seq[-1]['then'] = dict(seq[-1]['then']); seq.append(seq[-1]['then'])
+            for j, x in enumerate(seq):
+                x['damage'] = dm[-1] // len(seq) if j < len(seq) - 1 else dm[-1] - dm[-1] // len(seq) * (len(seq) - 1)
+                x['hitstop'] = hs[-1]; x.setdefault('weight', 'strong')
     finals['bA'] = {'move': neutral['move'], 'throw': 'back', 'weight': 'strong', 'effect': 'knockdown', 'damage': 0, 'hitstop': hs[-1]}
     spl = lambda: {k: {'special': SLOT_OF[k]} for k in SPECIAL_INPUTS}
     def cls(nd, scale):                                              # an entry / jump-cancel: its own damage x the scale,
@@ -515,7 +541,9 @@ def chain_tree(name, base, cfg, has):
             for c in (x.get('links') or {}).values(): walk(c)
         walk(nd); return nd
     for f in finals.values():
-        if 'throw' not in f and 'special' not in f: f['links'] = spl()   # (a special finisher ends the route: no links)
+        while f is not None:                                       # (each move of a 'then' chain: the C cancels)
+            if 'throw' not in f and 'special' not in f: f['links'] = spl()
+            f = f.get('then')   # (a special finisher ends the route: no links)
     nxt = finals
     for k in range(N - 2, -1, -1):
         nd = dict(builders[k], links={**({'A': nxt} if k < N - 2 else nxt), **spl()})   # (no B link: the jump-cancel is
@@ -534,7 +562,7 @@ def chain_tree(name, base, cfg, has):
     summary = {'archetype': cfg['archetype'], 'length': N, 'total': total,
                'links': [b['move'] for b in builders], 'damage': dm, 'hitstop': hs,
                'finishers': {{'A': 'neutral', 'fA': 'forward', 'uA': 'up', 'dA': 'down', 'bA': 'back'}[k]:
-                             ('throw' if 'throw' in f else ('special ' + f['special'] if 'special' in f else f['move']) + ' (' + f['effect'] + ')') for k, f in finals.items()}}
+                             ('throw' if 'throw' in f else ('special ' + f['special'] if 'special' in f else ' > '.join(x['move'] for x in _then(f))) + ' (' + _then(f)[-1]['effect'] + ')') for k, f in finals.items()}}
     return {'fighter': name, 'links': {'A': nxt}, 'entries': entries, 'archetype': cfg['archetype'], 'chain_links': N, 'chain': summary}
 
 if __name__ == '__main__':

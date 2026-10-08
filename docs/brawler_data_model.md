@@ -243,6 +243,22 @@ fury_inv_proof (AI_OFF build) ALL OK; bank_proof ALL OK; regress no-bleed True (
 recorded and a second run identical; campaign29 through. Scenarios rv1a-* (tools/brawler/chain_scenarios_check.py plays
 each), scenario.py lint 0.
 
+### Kim gold (2026-10-08, docs/brawler_gold.md "Kim (fast)"): the engine features it added
+- `roster[].finishers` may name a LIST of moves (Kim's down: `["cmd_df_c", "cmd_df_d"]` = $4D then $57): played back to
+  back, hit or not (routes.py `named`: the head node's `then` -> `rnode_t.next[RI_THEN]`, slot 8; fighter.c S_ATTACK starts
+  it as the move ends); the effect on the last, the finisher's damage shared (floor, the last the rest), each the C cancels.
+- A Kizuna fighter's `roster[].scale` = x its $CC size through the same LSPC path (export_kz `set_zoom`: Kim 0.92 -> $BC,
+  189 / 256; every distance scaled; the source reactions stay at $CC, world motion, so Kim and Rosa share bm_sreact).
+- `roster[].moves` {brawler move: "$NN"}: the move plays his Kizuna animation $NN (ROM steps, boxes, timing; travel from
+  the steps' motion commands, export_kz `rom_travel`). Kim: $56 atk_b_far, $96 atk_ab_close, $98 atk_ab_far, $54
+  cmd_fwd_c, $9A atk_cd_close, $6D atk_b_close (the hold hit), $59 atk_d_jump(_diag).
+- `roster[].anim_specials` {"$NN": heavy | launch | knockdown | reset}: an animation as a special of the pool (one-block
+  program, export_kz `anim_special`), so a Blitz / C slot can name it; `reset` = a reel in place (no slide) whose stun
+  (stun_heavy 32) outlasts the move: Kim's forward + C $101 leaves him +14 frames, down + C $4D +21 (measured: victim free
+  minus Kim free after the last hit), a new chain lands while the victim still reels.
+- fighter.c `hits_to_come`: the step just entered that opens a hit counts until it is tested (anim_tick runs before
+  combat), so a buffered press no longer cancels a multi-hit link on the frame its last hit starts ($96's third).
+
 ## Meter, breaker, damage tiers (revamp phase 2, 2026-10-08; docs/brawler_feel.md 8h follow-up, docs/brawler_revamp_plan.md 2)
 
 **The meter** (fighter.c "the meter", game.json `meter` -> `gmeter_t`; players only, enemies pay nothing). 3 stocks =

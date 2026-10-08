@@ -48,8 +48,15 @@ TILE_BASE = 256                                   # = export96.TILE_BASE (export
 CAST = FK.CAST
 CH, NAME = 5, 'kim'
 CAPTURE = '/data/neogeo_dict/kizuna/kim_capture.json'
-Z = 0xCC                                          # Kizuna's widest in-play zoom ($10966A, measured: zoom_probe.py)
+Z0 = 0xCC                                         # Kizuna's widest in-play zoom ($10966A, measured: zoom_probe.py)
+Z = Z0
 S = (Z + 1) / 256
+def set_zoom(scale=1):
+    """game.json roster[].scale for a Kizuna fighter: x its $CC size, drawn through the same LSPC path at the shrink value
+    closest to it (Kim gold, Bruno 2026-10-08: 0.92 -> $BC, 189 / 256 = 0.738 = 0.80 x 0.92), every distance scaled by S"""
+    global Z, S
+    Z = Z0 if scale == 1 else int(round((Z0 + 1) * scale)) - 1
+    S = (Z + 1) / 256
 SETS = [0x88, 0x1C0]                              # colour A / B: ROM palette of slot 16 (+ k for slot 16 + k)
 W, H, X0, Y0 = 640, 640, 320, 520                 # render canvas, the feet at (X0, Y0)
 
@@ -207,9 +214,9 @@ def step(B, addr, ticks, boxes, chain=False, dx=0):
     return {'frame': B.frame(addr), 'ticks': max(0, min(ticks - 1, HOLD)), 'flags': (0x100 if atk else 0) | (0x4000 if atk and chain else 0),
             'dx': dx, 'boxes': kof_boxes(boxes), 'kz_step': addr}
 
-def anim_steps(B, n, first, last, cap=None):
+def anim_steps(B, n, first, last, cap=None, rom=False):
     st = boxes_in_force(n)[first:None if last is None else last + 1]
-    travel = step_travel(cap, n) if cap else {}
+    travel = rom_travel(n) if rom else step_travel(cap, n) if cap else {}
     out = []
     for i, (s, bx) in enumerate(st):
         nxt = i + 1 < len(st) and any(attack(b) for b in st[i + 1][1]) and st[i + 1][1] == bx
@@ -226,6 +233,19 @@ def step_travel(cap, n):
     for i, p in enumerate(fr):
         if p[0] != n: continue
         if i + 1 < len(fr): out[p[5]] = out.get(p[5], 0) + (fr[i + 1][2] - p[2])
+    return out
+
+def rom_travel(n):
+    """forward px (Kizuna's, unscaled) Kim moves during each ROM step of animation n by its steps' own motion commands
+    [code] (a move with no capture: the gold moves, roster[].moves): KzProg's frame order, the step's command on its first
+    frame, then x += vx + ax / 2, vx += ax; a step shows max(1, ticks) frames"""
+    vx = ax = 0.0; out = {}
+    for s in kz.parse_anim(CH << 12 | n):
+        m = step_motion(s)
+        vx, ax = m.get('vx', vx), m.get('ax', ax)
+        d = m.get('nudge', (0, 0))[0]
+        for _ in range(max(1, s['ticks'])): d += vx + ax / 2; vx += ax
+        out[s['addr']] = out.get(s['addr'], 0) + d
     return out
 
 def cap_steps(B, cap, rec, anims, sel):
@@ -1127,6 +1147,45 @@ def prog_special(B, inp, cap, fc, rec):
     if out.get('backdrop'): out['backdrop'] = {'rows': [0xFFFF, 1], 'colours': out['backdrop']['colours']}   # (P_SCREEN)
     return out
 
+# ---- animation specials (Kim gold, Bruno 2026-10-08, docs/brawler_gold.md "Kim (fast)"): one of his animations played as
+# a special of his pool, input '$NN' (game.json roster[].anim_specials {"$NN": how}): a program of one block (its ROM steps,
+# boxes, timing and its steps' own motion commands, KzProg), so a Blitz slot or a C slot can name it. how = the victim's
+# reaction (no source reaction: the brawler's): 'heavy' a reel, 'launch', 'knockdown', or 'reset' = a reel in place (no
+# slide, bstep_t flag 4) whose stun outlasts the move's recovery: the victim stays in front, the attacker recovers first
+# and starts a new chain (Kim's Kizuna infinite, "comprendra qui pourra"). Damage: an unmeasured special at the special
+# tier (game.json tiers.special 12), split over its hits.
+ANIM_SPECIAL_DAMAGE = 12
+ANIM_REACT = {'heavy': R_HEAVY, 'launch': R_LAUNCH, 'knockdown': R_KNOCKDOWN, 'reset': R_HEAVY}
+
+def anim_special(B, inp, how, cap):
+    """animation int(inp[1:], 16) as a special (above) -> an export special with its 'rom' program"""
+    n = int(inp.lstrip('$'), 16)
+    assert how in ANIM_REACT, f'anim_specials {inp}: {how} ({" / ".join(ANIM_REACT)})'
+    caps = [v['frames'] for v in cap.values() if any(f[0][0] == n for f in v['frames'])][:2]   # (its voices, where captured)
+    K = KzProg(B, {}, step_voices(caps))
+    n0 = len(SREACT); K.anim('a', n); del SREACT[n0:]   # (no source reaction: the ones its steps met are not exported)
+    steps = K.anims['a']['steps']
+    for s_ in steps:
+        s_.pop('react', None)                            # (the brawler's reaction: P_ANIM's, not a source one)
+        if how == 'reset' and s_['flags'] & 0x100: s_['noslide'] = 1
+    nh = max(1, sum(1 for k, s_ in enumerate(steps) if s_['flags'] & 0x100 and (k == 0 or not steps[k - 1]['flags'] & 0x4000)))
+    K.block('START', 'a', n, max(1, ANIM_SPECIAL_DAMAGE // nh) | ANIM_REACT[how] << 8, ends='END', extra_end=1, at=0)
+    K.emit('END', ('end',))
+    tr = rom_travel(n); x = 0.0
+    script, rb, rs = [], [], []                          # (the Brawler Lab's rows: the whiff as the program plays it)
+    for k, (s_, bx) in enumerate(boxes_in_force(n)):
+        for _ in range(max(1, s_['ticks'])):
+            script.append([B.frame(s_['addr']), sc(x), 0, []]); rb.append(kof_boxes(bx))
+            rs.append([n, k, 0x100 if any(attack(b) for b in bx) else 0, 0xFF])
+        x += tr.get(s_['addr'], 0)
+    live = [i for i, r in enumerate(rs) if r[2]]
+    rom = {'states': K.states, 'anims': {k: {'mode': a['mode'], 'steps': a['steps'], 'kz_anim': a['n'], 'kz_first': a['first']} for k, a in K.anims.items()},
+           'prims': K.prims(), 'objects': [], 'openings': {}, 'hit_kind': 1, 'last_hit': live[-1] if live else -1, 'apex': -1,
+           'length': len(script), 'now': True, 'sreact': False, 'sharepush': True}
+    return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
+            'marks': [''] * len(script), 'projectiles': [], 'anims': [n], 'shape': [max(r[1] for r in script), 0, False],
+            'game_hits': nh, 'parts': [], 'links': [], 'rom': rom}
+
 VSTATE = {0xEF: (0x10C, 0xFA), 0xDE: (0x17A, 0xDE)}   # Hayate's victim animation -> (state, Kim's animation for it)
 def vstate(a):
     """the victim's (Hayate's) animation -> (its state: the first one Hayate plays it in, the thrower's animation there)"""
@@ -1217,6 +1276,8 @@ def export(names, outdir, only=None, extra=None):
     B = Builder(); out = {'game': 'kizuna', 'tile_base': TILE_BASE, 'characters': {}}
     for name in names:
         setup(name); SREACT.clear()
+        X = (extra or {}).get(name, {})
+        set_zoom(X.get('scale', 1))                      # (game.json roster[].scale: x the $CC size)
         cap = json.load(open(CAPTURE))
         cid = CAST[name]
         anims = {}
@@ -1230,6 +1291,13 @@ def export(names, outdir, only=None, extra=None):
             st = boxes_in_force(w[0]); k = w[1] if w[1] >= 0 else len(st) - 1
             anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': [step(B, st[k][0]['addr'], st[k][0]['ticks'], [])]}
         if only is not None: anims = {k: v for k, v in anims.items() if k in only}
+        mv_over = X.get('moves') or {}                   # (Kim gold: game.json roster[].moves {brawler move: "$NN"}: the
+        for mv, a in mv_over.items():                    # move plays his animation $NN, its ROM steps, boxes, timing
+            assert only is None or mv in only, f'{name}: moves.{mv}: not a brawler move'   # and travel (rom_travel))
+            n_ = int(a.lstrip('$'), 16)
+            anims[mv] = {'slot': n_, 'mode': 'hold', 'steps': anim_steps(B, n_, 0, None, rom=True)}
+        for mv, src in ALIAS.items():
+            if src in mv_over and (only is None or mv in only): anims[mv] = anims[src]
         for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, a, f, l)}
         th = throw(B, cap)
@@ -1248,11 +1316,14 @@ def export(names, outdir, only=None, extra=None):
             import rosa_kz; rosa_kz.bind(sys.modules[__name__])
             sps = [rosa_kz.prog(B, sp['input'], cap, fc, sp) if sp['input'] in rosa_kz.PROG_MOVES else sp for sp in sps]
             sps.append(rosa_kz.air(B, fc))
+        sps += [anim_special(B, inp, how, cap) for inp, how in (X.get('anim_specials') or {}).items()]   # (Kim gold)
         sets = [[[0] + rom_palette(s_ + p - 16)[1:] for p in B.pals] for s_ in SETS]
         out['characters'][name] = {'id': cid, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0],
                                    'physics': physics(cap), 'throws': {'throw_c': th}, 'specials': sps,
-                                   'sreacts': [{**r, **{k: r[k] * S for k in ('vx', 'ax', 'vy', 'ay', 'bvx', 'bvy', 'bay')}} for r in SREACT],
+                                   'sreacts': [{**r, **{k: r[k] * (Z0 + 1) / 256 for k in ('vx', 'ax', 'vy', 'ay', 'bvx', 'bvy', 'bay')}} for r in SREACT],   # (the
+                                   # victim's motion in the world: at the $CC scale whatever the attacker's size, roster[].scale;
+                                   # Kim's and Rosa's then share bm_sreact's 15 entries)
                                    'modes': {'sets': ['colour A', 'colour B'], 'palettes': [f'{p:02X}' for p in B.pals],
                                              'zoom': Z}}
     out['tiles'] = len(B.tiles)
