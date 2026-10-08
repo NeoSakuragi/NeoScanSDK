@@ -14,7 +14,7 @@
    "blitz": {"ff": "dash", "dd": "426B", "du": "214D", "uu": "236C"},
    "air": {"forward": "atk_d_jump", "straight": "atk_cd_jump", "down": "atk_a_jump"},
    "fury": "21416C",
-   "throws": {"speed": {"throw_c": 256, "throw_d": 256}, "hold": {"hit": "atk_b_close", "fin": "atk_d_close", "dx": 40}},
+   "throws": {"speed": {"throw_c": 256, "throw_d": 256}, "hold": {"hit": "atk_b_close", "fin": "atk_d_close", "dx": 40, "startup": {"hit": 2}, "sfx": {"hit": "A"}}},
    "retime": {"atk_cd_jump": [8, null, null], "623D": [null, null, null, null, "1.25x"]},
    "chain": {"links": ["atk_a_far", "atk_a_far", "atk_c_close"]},
    "unlock": "always",
