@@ -123,4 +123,8 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
   (Bruno: "yes, let's have some fun").
 - Air: jump + A = $59; jump + down + A = $60.
 - Hold: hit = $6D; the throw-out finisher = $6E.
-- Open (not on the sheet): forward + C, down + C, fury / MAX, size.
+- forward + C = $101, the double kick that does NOT eject the enemy: a RESET — Kim lands back standing with the frame
+  advantage to start another combo (a tribute to his Kizuna infinite; "comprendra qui pourra"). down + C = $4D, the same
+  concept: a double hit that leaves Kim net positive for a reset.
+- Fury = the Phoenix (6246A). MAX = the same Phoenix for now ("we'll build an even crazier custom dance" later).
+- Size: 0.92 of today's (115 -> ~106 px; Terry 100).
