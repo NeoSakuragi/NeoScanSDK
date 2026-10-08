@@ -536,6 +536,8 @@ static void chain_throw(fighter_t *f, uint8_t node, uint8_t how);
 static uint8_t hits_to_come(const fighter_t *f) {               /* a normal's hits (steps opening one) after this step */
     const banim_t *an = &f->ch->anims[f->anim];
     uint8_t k;
+    if ((an->steps[f->step].flags & 4) && !f->hit_mask) return 1;   /* (Kim gold) the step just entered opens a hit not
+                                                                    tested yet (anim_tick runs before combat): $96's third */
     for (k = f->step + 1; k < an->nsteps; k++) if (an->steps[k].flags & 4) return 1;
     return 0;
 }
@@ -2747,6 +2749,11 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     hit came: the link's whole damage, "chain core") */
             uint8_t nx = chain_next(f, c, f->buffered);
             if (nx) { lab_note(f, LE_END, f->node, LH_CANCEL, 1); route_go(f, nx, f->buffered, in, LH_CANCEL); break; }
+        }
+        if (f->anim_done && c->next[RI_THEN]) {                  /* (Kim gold) a finisher of several moves: the next one
+                                                                    now, back to back, hit or not (RI_THEN) */
+            lab_note(f, LE_END, f->node, LH_AFTER_END, f->landed);
+            start_node(f, c->next[RI_THEN], LH_AFTER_END); break;
         }
         if (f->anim_done) {                                     /* played to its end (keep flag, or no input yet) */
             uint8_t nx = f->buffered && f->landed ? chain_next(f, c, f->buffered) : 0;   /* routes chain only on a hit */
