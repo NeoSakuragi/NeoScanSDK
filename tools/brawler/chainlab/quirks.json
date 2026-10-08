@@ -528,6 +528,160 @@
      "caption": "Special is free on whiff and can't kill you"
     }
    ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Commands cancel the hit-stop",
+   "do": "land a chain link, then input →A / ↓↘A / ↓↑A / A+J during the 8-frame freeze",
+   "happens": "the freeze ends at once and the special starts on the next frame",
+   "why": "command handlers ($3733C, $37366, $373F4) clear the attacker hit-stop byte +$53 before switching state; the recognizer ($F157C) runs before the hit-stop skip in the player loop ($352F4)",
+   "brawler": "a cancel that also skips the freeze makes routes feel fast; if we copy the cancel rule, decide explicitly whether hit-stop is kept",
+   "shots": [
+    {
+     "src": "ddsom/quirks/hitstop_cancel.png",
+     "caption": "Commands cancel the hit-stop"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Running is an attack (0-damage tackle)",
+   "do": "run (→→) into an enemy",
+   "happens": "no damage, the enemy is knocked off its feet and the runner hops back",
+   "why": "every frame of the run animation carries attack box $2D with attack type 3; the hit code ($26316/$263FC) turns a type-3 contact into ctx 18 (bounce, T1 anim 31/28/25) and a knockdown on the victim",
+   "brawler": "a free knock-down on contact is a strong crowd tool; we would need a cost (no damage already) or a cooldown",
+   "shots": [
+    {
+     "src": "ddsom/quirks/run_tackle.png",
+     "caption": "Running is an attack (0-damage tackle)"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Hold attack = push-away follow-up",
+   "do": "keep A held through a chain link that hits",
+   "happens": "instead of the next link the character does a slow shove/strike (2-3 dmg, attack type 2) that blows the enemy away",
+   "why": "+$74 = 6-frame hold window, +$75 set if A is released; link end with +$75=0 and +$70 hit flag -> state +7=4, anim T1 26 ($3E8DE)",
+   "brawler": "a cheap \"ring-out\" option inside the chain; reads as a deliberate spacing tool",
+   "shots": [
+    {
+     "src": "ddsom/quirks/hold_followup.png",
+     "caption": "Hold attack = push-away follow-up"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Air hits freeze the victim at its height",
+   "do": "hit an airborne enemy (↓↑A then A in the air, or a ground link on a falling enemy)",
+   "happens": "the enemy hangs in the air for the whole hit-stun (y stays e.g. 120), then continues/relaunches",
+   "why": "hit reaction sets +4=4/+6=2 (stagger) without gravity; only launch reactions (+6=4) move it",
+   "brawler": "this is what makes DDSOM juggles readable without a juggle counter: the limit is drift and fall time, not a cap",
+   "shots": [
+    {
+     "src": "ddsom/quirks/air_freeze.png",
+     "caption": "Air hits freeze the victim at its height"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Plunge re-hits the same enemy",
+   "do": "jump and press ↓+A over an enemy",
+   "happens": "the plunge hits once, keeps its box out to the floor and hits the same enemy again when its stun ends",
+   "why": "one hit per hit-id per victim is enforced through the victim slot +$58[attacker]; the enemy reaction clears +$58 when its stun ends ($74212 clrl +$58), so the same box can land again",
+   "brawler": "long-lived boxes become multi-hit automatically; we must reset hit memory per move, not per stun",
+   "shots": [
+    {
+     "src": "ddsom/quirks/plunge_rehit.png",
+     "caption": "Plunge re-hits the same enemy"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Mega Crush only costs life on contact, never kills",
+   "do": "A+J with an enemy in range vs in the air",
+   "happens": "12 life is removed at the end of the first hit-stop; whiffed Mega Crush is free; life is floored at 1; the Cleric never pays",
+   "why": "$3F00C: if +$58 bit0 (hit landed) and +$1EC not yet set: life -= 12, if <= 0 then 1",
+   "brawler": "a desperation move that cannot kill you and is free on whiff = an invincible (whole move has no hurt box) panic button",
+   "shots": [
+    {
+     "src": "ddsom/quirks/megacrush_cost.png",
+     "caption": "Mega Crush only costs life on contact, never kills"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Magic-User glides on a run-jump",
+   "do": "run (→→) then jump with the Magic-User",
+   "happens": "the jump lasts 70+ air frames instead of 47 (slow fall)",
+   "why": "measured: same peak 63 px, the fall stretches (runjump capture); MU-specific jump code",
+   "brawler": "per-character air control is cheap variety",
+   "shots": [
+    {
+     "src": "ddsom/quirks/mu_float.png",
+     "caption": "Magic-User glides on a run-jump"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Thief and Magic-User back hop is fully invulnerable",
+   "do": "J, J quickly (second press during the pre-jump)",
+   "happens": "Thief / Magic-User flip back with no hurt box for 30-32 frames (Fighter/Cleric/Elf hop keeps theirs)",
+   "why": "their back-hop animation records carry hurt id 0",
+   "brawler": "a defensive escape with a real invincibility window gives the light characters an identity",
+   "shots": [
+    {
+     "src": "ddsom/quirks/thief_backhop.png",
+     "caption": "Thief and Magic-User back hop is fully invulnerable"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Vary your specials for loot",
+   "do": "land different specials in a row (↓↘A, then ↓↑A, then Mega Crush) on one enemy",
+   "happens": "that enemy is more likely to drop an item when it goes down",
+   "why": "each special hit whose ctx differs from the attacker's previous special (+$5B) adds 1 to the victim's +$9C; the drop check $B648 rolls rand(32) against a mask with +$9C bits set (n/32)",
+   "brawler": "a reward for variety instead of a penalty for repetition",
+   "shots": [
+    {
+     "src": "ddsom/quirks/special_loot.png",
+     "caption": "Vary your specials for loot"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "A changes meaning next to tall or downed enemies",
+   "do": "press A next to a tall enemy (probe box 1, 96-128 px up) or next to a downed one (probe box 2, 0-24 px up)",
+   "happens": "vs tall enemies the chain switches to high slashes (ctx 2, T1 5/6, code only); next to a downed Goblin the Fighter kneels over it (ctx 4, T0 39, 18 f, no attack box): lying enemies cannot be hit",
+   "why": "$371A tests attack boxes 1 and 2 of the character box set against every enemy hurt box (box 2 only against enemies flagged down +$86) before choosing the context",
+   "brawler": "context-sensitive normals make one button cover everything; DDSOM also uses it to make lying enemies untouchable (no OTG)",
+   "shots": [
+    {
+     "src": "ddsom/quirks/downed_no_hit.png",
+     "caption": "A changes meaning next to tall or downed enemies"
+    }
+   ]
+  },
+  {
+   "game": "D&D: Shadow over Mystara (Capcom, 1996)",
+   "title": "Two-handed weapon halves the Fighter chain",
+   "do": "Fighter with weapon slot B (+$10E) below 40 (no shield)",
+   "happens": "the chain becomes 2 heavy links (T1 38/39, 2 hits each) instead of 4",
+   "why": "$3E8C0: anim = 38 + link if +$10E < 40, max link index 2 instead of 4",
+   "brawler": "equipment that rewrites the chain: a real build choice",
+   "shots": [
+    {
+     "src": "ddsom/quirks/two_handed_chain.png",
+     "caption": "Two-handed weapon halves the Fighter chain"
+    }
+   ]
   }
  ]
 }
