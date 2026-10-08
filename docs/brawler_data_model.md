@@ -52,7 +52,7 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 | tints | `gtint_t gtints[]` | 6 bytes each | ROM | not yet (a pointer when the lab needs it) |
 | select slots | `sel_slot_t SEL_SLOT[]`, `sel_fighter[]` | 4 + 1 bytes each | ROM; `slot_ch[]` RAM copy made on each select screen | `slot_ch` yes (RAM) |
 | unlocks | `roster_unlock[BC_COUNT]` | 1 byte each | ROM | no (save bits follow the stage order) |
-| chain routes | `rt_head_t` + `rnode_t[]` (fighter.h) | 16 + 24 bytes a node (tree version 4; revamp 1A: link slot 7 = up+A, `RF_THROW`, the node's last byte its hit-stop, the head's `arch` / `links`; older trees read the same: those bytes were 0) | ROM, `route_tab[]` in RAM | yes: the Chain Lab (lab.buf, `lab.load`) |
+| chain routes | `rt_head_t` + `rnode_t[]` (fighter.h) | 16 + 24 bytes a node (tree version 4; revamp 1A: link slot 7 = up+A, `RF_THROW`, the node's last byte its hit-stop, the head's `arch` / `links`; older trees read the same: those bytes were 0) | ROM, `route_tab[]` in RAM | yes: the Chain Lab (lab.buf, `lab.load` 1), the chain tool with its retime table (`lab.load` 5, "The chain tool") |
 | chain core rules | `gchain_t gchain` (gamedata.h) | 8 bytes | ROM | no (game.json `chain`, "Chains" below) |
 | meter | `gmeter_t gmeter` (gamedata.h) | 20 bytes | ROM | no (game.json `meter`, "Meter, breaker, damage tiers" below) |
 | damage tiers | `dtier_rom[BC_COUNT]` (game_tables.h): per fighter [nspec + 2] 8.8 scales | 2 bytes a special | ROM; `dtier_off` RAM test switch | no (game.json `tiers` + tools/brawler/damage_raw.json) |
@@ -301,6 +301,75 @@ now); rv2-* scenarios 8 / 8 (scenario lint 0); controls_proof 25 / 25; cancel_pr
 0.5.0); chain_proof all but Mr. Big's back throw (as on 0.5.0); retime_proof 25 / 25; fury_inv_proof (AI_OFF build)
 ALL OK; bank_proof ALL OK; regress no-bleed True (frame-exact), the new facing baseline recorded and a second run
 identical; campaign29 through.
+
+## The chain tool (revamp phase 5, 2026-10-08; docs/brawler_feel.md 9, docs/brawler_revamp_plan.md 5)
+
+Bruno: "a tool that allows me to explore new things, so I don't want to wait for a new build for a new combo". One data
+format, three places: the Lab edits it, the running game reads it from RAM, game.json bakes it.
+
+**The spec** (lab.js `chainTree` / routes.py `chain_tree`): `archetype` (the chain's length and damage total), `links`
+(the N-1 moves before the finisher), `finishers` {`launcher` up / forward, `down` sweep / slam / null, `neutral`,
+`forward`, `up`, `down_move`} (back = the throw, the chain core's rule), `hitstop` (N values, the finisher's last; null
+= the 6 -> 12 scale), `retime` {move: targets per segment} (1C). A named link or finisher takes the piece the generator
+would (routes.py `chain_base`: the main line's node of that move, else the base tree's first, breadth first; its
+weight, speed, push and its damage as the scaling weight; exported per fighter in chainlab.json `chain_base`); damage
+scaled to the archetype's total as before. An unedited chain is the ROM's own tree (lab.js `sameChain`).
+
+**The page** (tools/brawler/chainlab/chaintool.js, the Chain Lab tab above the routes editor; data from make_site.py:
+chainlab.json `chain` (game.json chain), `retime_rom` (build/retime.json), per fighter `pieces` (pieces.py catalogue:
+tags, appeal, reach, segments, travel to contact)): archetype, launcher side, each link and finisher picked from the
+catalogue (sorted by appeal, tags shown), hit-stop per link, each used move's segments as a bar with a handle per
+segment (drag or arrow keys, 0.5x-2x of the source; the number beside it), readouts per row: frames S / A / R = total
+(source), damage, advantage on hit (the victim's stun light 28 / heavy 32 minus the frames after contact), reach and the
+spacing margin (pieces.py's rule; < 0 = WHIFF). Buttons: Push to the game, Play neutral / forward / up / down / back
+(the autoplay, lab.js `autoKeys`: positions reset, A every other frame, the stick on the last link's press; the game's
+own events then listed: each link's contact frame vs its target startup, damage), Fight with it (campaign stage 1 with
+the override), ROM's tables back, Save, Download the entry. Drafts stay in the browser (localStorage).
+
+**The RAM override** (the one game hook, fighter.c `lab_install`, `lab.load` = 5; main.c `lab_tick` keeps 3 / 4 for packs):
+lab.buf (3088 bytes) = the tree (rt_head_t + nodes, lab.js `encodeTree`, now tree version 4 complete: up+A slot 7, the
+throw flag, per-node hit-stop, the head's archetype / links), then a retime table: `gretime_t` rows of 8 bytes
+big-endian {fighter, nseg, move u16 (BA_*), t u32 = an offset from buf}, fighter 0xFF ends it, then the u16 targets
+(lab.js `encodeOverride`; the ROM's rows of the other fighters are copied in, the table replaces gretime_rom while it is
+pointed at). The game checks the tree (magic, version) and every row inside buf, turns the offsets into pointers and
+sets `route_tab[fighter]` = buf and `rt_tab` = the table on its next tick; a bad override puts the ROM's back. Any later
+tree load (1, 2, 5) first drops it (`rt_lab`); `lab.load = 2` = the ROM's tree and `rt_tab = 0`. Without a load 5 the
+game never touches rt_tab (byte-identical behaviour: proof below). `route_tab` / `rt_tab` are in layout.json, so the
+page reads back what the game uses ("Push" prints both addresses).
+
+**Save** (the path to the ROM): "Save" POSTs feedback-api/decision {set `chain-tool`, id = the fighter, choice `save`,
+label = a one-line summary, note = {fighter, game_version, entry, spec}} into the feedback service's decisions store
+(/data/brawler/feedback/decisions/chain-tool.json on the VPS; no server change). I pull it (`tools/brawler/chain_save.py
+pull`), apply it (`chain_save.py apply examples/brawler/game.json SET.json FIGHTER`: when the chain changed the roster
+keys `archetype`, `finishers` (all named), `chain` {links, hitstop}; `retime` = the fighter's whole map ({} removes it);
+the file in build_tables' canonical layout, the diff printed), Bruno accepts the diff, I commit. A downloaded entry
+applies the same way (`chain_save.py entry`). build_tables `chain_cfg` passes `chain.links` / `chain.hitstop` to
+routes.py `chain_tree` (`links`, `hitstops`), the retime map goes through `retime_tables` as before.
+
+**The Player app** (not built in this phase, the plan): (1) player.c: `Native.writeRam(addr, bytes)` (Geolith's
+RETRO_MEMORY_SYSTEM_RAM, big-endian as the core keeps it, called on the emulation thread between two frames like
+`setPad`); (2) the feedback service: `POST /api/chain_push` from the Lab's Push stores the last override per user
+{game_version, lab address (layout.json `syms.lab`), fighter, bytes base64} and `GET /brawler/feedback/mine/chain_push`
+(the Oros token) hands it to the player; (3) the player (Feedback menu, "Load the Lab's chain"): fetches it, refuses
+it unless game_version = the running ROM's, writes the bytes at lab + 400, then `LAB1` at lab + 0, fighter at lab + 5,
+5 at lab + 7 (the page's exact writes, lab.js `installChain`); the game takes it on its next tick in any mode (the
+campaign included), until a reset. Shared format = the bytes above; nothing in the game changes for it.
+
+**Proof** (2026-10-08, our emulator, /data/tmp/rv5: `chainlab/chaintool_proof_node.js SITE GAME OUT SPEC FIGHTER` = the
+page's lab.js + core.wasm; spec /data/tmp/rv5/terry_spec.json: Terry's links close A > far B > close C, hit-stops 6 9
+11 14, close A startup 4 -> 8, far B 6/3/10 -> 3/3/5, close D startup 4 -> 6): the page's encoder = the ROM's trees
+25 / 25, its chain assembly of every fighter's own chain = the ROM's tree 25 / 25; pushed: route_tab[terry] = lab.buf,
+rt_tab inside it, P1 retimed (rt_flags) on every finisher's run, every finisher's 4 links hit, each contact at its
+target startup (8, 3, 4, 6 frames after the link's start; the ROM's run 4, 4, 4, 4: offset 0), the dummy frozen the
+spec's hit-stops, 23 damage = the balanced total; load 2: the ROM's tree and rt_tab 0 back. The page itself (headless
+Chrome, the site served locally): the same spec pushed and "Play up" -> contacts 8 / 3 / 4 / 14, 23 damage, the
+override read back (out/page_edit*.png, page_phone.png). No override = no change: regress.py on this build = the
+brawler 0.6.0 build's JSON identical (bleed frame-exact, every fighter's facing traces); bm_chars.c identical. Save
+round trip: the entry the page saves applied by chain_save.py to a copy of game.json (only Terry's object changed) and
+built: its ROM tree = the pushed tree byte for byte (544 bytes), gretime_rom = the pushed rows ({0, 3, 9 / 12 / 15});
+played without an override on that build (`--rom-only`), every finisher's run = the pushed run (P1 / dummy state,
+anim, step, node, freeze, rt_flags, hp per frame and the lab events, from the run's start; the lab frame counter
+sampled one off on one row of two runs, the tick boundary).
 
 ## Layer 2: enemies, AI presets, tints
 

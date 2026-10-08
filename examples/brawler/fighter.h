@@ -183,7 +183,10 @@ typedef struct {
     uint8_t  fighter, dummy;      /* bm_chars indices (req 1); req 3: dummy = a genemies index (EN_*); req 4: a stage */
     uint8_t  load;                /* page: 1 = buf holds a tree for `fighter`: install it (the game clears it); 2 = back to
                                      the fighter's own tree; 3 = pack holds a data pack (gamedata.h gdpack_t): checked
-                                     now, installed at the next safe point (pack_stat); 4 = back to the ROM's tables */
+                                     now, installed at the next safe point (pack_stat); 4 = back to the ROM's tables;
+                                     5 = buf holds a chain override for `fighter` (revamp 5, the chain tool): its tree,
+                                     then a retime table (gretime_t rows, t = an offset from buf): route_tab[fighter]
+                                     and rt_tab point at them (fighter.c lab_install; 2 = both back to the ROM's) */
     uint8_t  active;              /* game: 1 while the training runs, 2 the enemy test */
     uint8_t  nev;                 /* game: events written (ring index = nev % LAB_NEV) */
     uint16_t frame;               /* game: training frames */

@@ -2395,7 +2395,7 @@ static void lab_flow(void) {
 }
 static void lab_tick(void) {                                  /* the page's requests, before the frame's game logic */
     if (lab.magic[0] != 'L' || lab.magic[1] != 'A' || lab.magic[2] != 'B' || lab.magic[3] != '1') return;
-    if (lab.load >= 3) {                                      /* a data pack (3) or the ROM's tables (4): at the safe point */
+    if (lab.load == 3 || lab.load == 4) {                   /* a data pack (3) or the ROM's tables (4): at the safe point (5: lab_install) */
         uint8_t e = lab.load == 3 ? gd_check(lab.pack) : 0;
         lab.pack_stat = e ? GD_BAD | e : GD_PENDING; gd_want = e ? 0 : lab.load; lab.load = 0;
     }

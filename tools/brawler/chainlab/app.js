@@ -6,7 +6,7 @@
   const $ = id => document.getElementById(id);
   // A attack (close A: an opponent within 40 px), B jump (in a route: the jump-cancel), C special (the stick picks the
   // slot; the data keys AB .. ufAB keep the old A+B names), D fury (Bruno 2026-10-06)
-  const IN_LABEL = { A: 'A', B: 'B (jump-cancel)', dA: '↓A', cA: 'close A', fA: '→A', bA: '←A', dfA: '↘A',
+  const IN_LABEL = { A: 'A', B: 'B (jump-cancel)', dA: '↓A', cA: 'close A', fA: '→A', bA: '←A', dfA: '↘A', uA: '↑A (up finisher)',
                      AB: 'C', fAB: '→C', dAB: '↓C', uAB: '↑C', dfAB: '↘C', ufAB: '↗C' };
   const MOVE_LABEL = {
     atk_a_close: 'close A', atk_a_far: 'far A', atk_a_crouch: 'crouch A', atk_b_close: 'close B', atk_b_far: 'far B',
@@ -339,13 +339,14 @@
     launch: '<path d="M7 13V2M3 6l4-4 4 4" stroke="#000" stroke-width="1.8" fill="none"/>',                                        // up arrow
     trip: '<path d="M2 11 Q7 14 12 8M10 8h2.3v2.3" stroke="#000" stroke-width="1.6" fill="none"/><path d="M1 5h4" stroke="#000" stroke-width="1.5"/>',   // sweep curve
     blowback: '<path d="M2 7h10M8.5 3.5 12 7l-3.5 3.5" stroke="#000" stroke-width="1.8" fill="none"/><path d="M1 3.5h3M1 10.5h3" stroke="#000" stroke-width="1.2"/>',   // arrow + speed lines
+    slam: '<path d="M7 1v8M3.5 5.5 7 9l3.5-3.5M1 12.5h12" stroke="#000" stroke-width="1.6" fill="none"/>',   // down onto the floor (revamp 1A)
     damage: '<path d="M7 1l1.5 3.6L12.5 3l-1.8 3.6L13 9l-3.8-.2L8.5 13 7 9.6 5.2 13 4.6 8.8 1 9l2.4-2.5L1.5 3l3.9 1.6Z" fill="#000"/>',   // burst
     keep_on: '<rect x="1" y="2" width="12" height="10" fill="#000"/><path d="M3.5 4.5v5M6 4.5v5M8.5 4.5v5M11 4.5v5" stroke="#fff" stroke-width="1.2"/>',   // film strip, lit
     keep_off: '<rect x="1.5" y="2.5" width="11" height="9" fill="#fff" stroke="#000" stroke-width="1.2"/><path d="M4.5 4.5v5M7 4.5v5" stroke="#000" stroke-width="1"/><path d="M9.5 7h3" stroke="#000" stroke-width="1" stroke-dasharray="1 1"/>',   // film strip, open
     speed: '<path d="M1.5 10.5a5.5 5.5 0 0 1 11 0" fill="none" stroke="#000" stroke-width="1.6"/><path d="M7 10.5 10 5.5" stroke="#000" stroke-width="1.8"/><circle cx="7" cy="10.5" r="1.4" fill="#000"/>',   // gauge
     toend: '<path d="M1.5 7h8M6.5 3.5 10 7l-3.5 3.5" stroke="#000" stroke-width="1.6" fill="none"/><path d="M12 2.5v9" stroke="#000" stroke-width="2"/>' };   // arrow to a stop bar
   const icon = n => svg(14, 14, ICON[n], 'ic');
-  const EFFECT_NAME = { none: 'stands', knockdown: 'knockdown', launch: 'launch', trip: 'trip', blowback: 'blowback' };
+  const EFFECT_NAME = { none: 'stands', knockdown: 'knockdown', launch: 'launch', trip: 'trip', blowback: 'blowback', slam: 'slam' };
   const ART_H = 132, ART_W = 150;
   function art(move, big) {           // the move's first impact frame (moves/<fighter>.png), scaled to the art box
     const P = data.pics && data.pics[F[fi].name], c = P && P.moves[move] && P.moves[move][0];
