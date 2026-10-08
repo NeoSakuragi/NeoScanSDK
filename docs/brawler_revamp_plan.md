@@ -27,11 +27,13 @@ one. Each phase merges into `brawler` and ships as a release so Bruno can feel i
 - Wind-up proportional to damage (light 3-6 f, heavy 12-15 f, special 20+ f).
 - A hidden difficulty rank raising aggression / damage as the player does well.
 
-**1C. Retiming** (tools/brawler exporter, game.json `retime` per move)
-- Phase detection per move (startup / active windows / recovery) from the decoded data.
-- Retime = remap each phase's frames: drawing order kept, durations scaled, motion scaled so travel is unchanged, boxes /
-  effects / sounds attached to their drawing; hit-stop and victim reactions not scaled; ROM programs' counters scaled.
-- Bound 0.5x-2x (beyond: flagged for a hand check). No behaviour change until a move is given a retime.
+**1C. Retiming** (done 2026-10-08, Bruno's design change: at run time, the data keeps the source timing; docs/brawler_data_model.md "Retiming")
+- Segments per move from the exported data: startup, then each active window and the recovery after it (a single hit
+  = 3, two hits = 5); the export adds them (bm_seg, chainlab.json), no frame data changes.
+- game.json `retime` per move = target frames per segment; fighter.c plays each segment on its own clock (every source
+  frame played in order: boxes, effects, sounds, program ops; each window's contact frame shown; travel unchanged);
+  hit-stop and victim reactions not scaled; `fighter_retime()` for other systems (archetype defaults, situations).
+- Bound 0.5x-2x (beyond: built, printed as a hand check). No behaviour change until a move is given a retime.
 
 ## Phase 2 — meter, breaker, damage tiers (after 1A; fighter.c meter + main.c HUD)
 - Meter: 3 stocks = 300 points, HUD bar with 3 dots. Special 100. Breaker (a special out of hit-stun) 200 with the

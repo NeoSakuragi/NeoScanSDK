@@ -189,9 +189,11 @@ static void step_move(fighter_t *f) {                         /* KOF's per-step 
     if (dx && (f->state == S_ATTACK || f->state == S_AIR_ATTACK)) { f->x += f->facing > 0 ? FIX(dx) : -FIX(dx); clamp(f); }
     if (f->state == S_ATTACK) f->y = FIX(f->ch->anims[f->anim].steps[f->step].hy);   /* ground attacks: 0, hops: the game's */
 }
+static void rt_arm(fighter_t *f, uint16_t move);
 static void play(fighter_t *f, uint8_t anim) {
     f->anim = anim; f->step = 0; f->anim_done = 0; f->acc = 0; f->speed = 0x100;
     step_move(f); voice_at(f, anim, 0, 0);
+    rt_arm(f, anim);                                             /* its targets, if it has some (retiming) */
 }
 static void play_if_new(fighter_t *f, uint8_t anim) { if (f->anim != anim) play(f, anim); }
 static void anim_tick(fighter_t *f) {
@@ -227,6 +229,71 @@ void fighter_play(fighter_t *f, uint8_t anim) { mute = 1; play(f, anim); mute = 
 void fighter_animate(fighter_t *f) { mute = 1; anim_tick(f); mute = 0; }
 void fighter_pose(fighter_t *f, uint8_t anim) { play(f, anim); }       /* the same, with the animation's voices (the */
 void fighter_pose_tick(fighter_t *f) { anim_tick(f); }                 /* stage clear's win pose, main.c win_tick) */
+
+/* ---- retiming (revamp 1C; docs/brawler_data_model.md "Retiming", tools/brawler/retime.py) ----------------------------
+ * The data keeps every move's source timing; a move given targets (game.json roster[].retime -> gretime_rom, a lab's
+ * table at rt_tab, or fighter_retime) plays its segments (bm_seg: startup, then each active window and the recovery
+ * after it) in its target lengths. One clock per segment of S source frames played in T game frames: each game frame
+ * err += S, one source frame due each time err passes T, so the segment ends exactly on its T-th frame with its S
+ * source frames played, and every segment's first frame shows its own first source frame (each window's contact frame
+ * is shown). Source frames are played whole and in order by the move's own player (anim_tick at 1x, prog_update), so
+ * every step entry, step move, box, effect, sound and program op of them happens: several in one game frame when
+ * T < S (a frame that enters a new hit window stops there, the rest carried as rt_debt and paid by the segment's last
+ * frame at the latest), none when T > S (a ROM program's motion is then spread over the frames its source frame shows:
+ * rt_hold, rt_dx, rt_dy; a step animation's moves are its steps' own, at their entry). The route node's speed does not
+ * apply to a retimed move. Hit-stop (freeze) stops the clock; the victim's reaction, projectiles, the catch of a ROM
+ * special (its dead frames and routine: 1x from the catch on) and the engine keep their own time. rt_flags 0: none of
+ * this runs. */
+const gretime_t *rt_tab;
+static const uint16_t *rt_segs(const fighter_t *f, uint16_t move) {   /* [n, source frames...] or 0 */
+    const uint16_t *t = bm_seg[f->ch->id];
+    if (move >= t[0] || !t[1 + move]) return 0;
+    return t + t[1 + move];
+}
+static void rt_skip(fighter_t *f) {                              /* the next segment with frames */
+    while (f->rt_p < f->rt_nseg && !f->rt_S[f->rt_p]) f->rt_p++;
+    f->rt_n = f->rt_err = 0;
+}
+static uint8_t rt_set(fighter_t *f, uint16_t move, const uint16_t *targets, uint8_t n) {
+    const uint16_t *s = rt_segs(f, move);
+    f->rt_flags = 0; f->rt_hold = 0; f->rt_debt = 0;
+    if (!s || !targets || n != s[0]) return 0;
+    f->rt_S = s + 1; f->rt_T = targets; f->rt_nseg = n; f->rt_p = 0;
+    f->rt_flags = RT_ON | (move >= BA_COUNT ? RT_FIRST : 0); rt_skip(f);
+    return 1;
+}
+uint8_t fighter_retime(fighter_t *f, const uint16_t *targets, uint8_t n) {
+    return rt_set(f, f->state == S_SPECIAL ? BA_COUNT + f->spec_ix : f->anim, targets, n);
+}
+static void rt_arm(fighter_t *f, uint16_t move) {                /* a move starts: its targets from the table */
+    const gretime_t *e = rt_tab ? rt_tab : gretime_rom;
+    f->rt_flags = 0; f->rt_hold = 0;
+    for (; e->fighter != 0xFF; e++)
+        if (e->fighter == f->ch->id && e->move == move) { rt_set(f, move, e->t, e->nseg); return; }
+}
+static uint8_t rt_adv(fighter_t *f) {                            /* source frames due this game frame */
+    uint8_t k = 0;
+    uint16_t S, T;
+    f->rt_flags &= ~RT_END;
+    if (f->rt_flags & RT_FIRST) { f->rt_flags &= ~RT_FIRST; return 1; }   /* a program's first frame plays its first */
+    if (f->rt_p >= f->rt_nseg) return 1;                         /* past its segments: 1x */
+    S = f->rt_S[f->rt_p]; T = f->rt_T[f->rt_p] ? f->rt_T[f->rt_p] : S;
+    f->rt_n++; f->rt_err += S;
+    while (f->rt_err >= T) { f->rt_err -= T; k++; }
+    if (f->rt_n >= T) { f->rt_p++; rt_skip(f); f->rt_flags |= RT_END; }
+    return k;
+}
+static void rt_anim(fighter_t *f) {                              /* anim_tick, retimed */
+    uint8_t end;
+    f->rt_debt += rt_adv(f); end = f->rt_flags & RT_END;
+    while (f->rt_debt) {
+        uint8_t st = f->step, an = f->anim;
+        f->speed = 0x100; anim_tick(f); f->rt_debt--;
+        if (!f->rt_flags) { f->rt_debt = 0; break; }
+        if (f->rt_debt && !end && an == f->anim && st != f->step && (fighter_step(f)->flags & 4)) break;   /* a new hit
+                                                                    window: shown, the rest carried */
+    }
+}
 
 /* ---- helpers --------------------------------------------------------------------------------------------------- */
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
@@ -1026,6 +1093,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     f->scancel = 0; f->fury_buf = 0;                             /* nothing landed yet: no fury cancel ("cancels") */
     f->fpose = 0;                                                /* a fury's flash pose: not yet ("flash pose") */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
+    rt_arm(f, BA_COUNT + f->spec_ix);                            /* its targets, if it has some (retiming) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = f->vz = 0;   /* (vz: P_MOVE's
                                                                     depth, only P_HOME sets it) */
@@ -1850,12 +1918,50 @@ static void carry_drop(fighter_t *f) {                           /* a grab's car
     if (!(f->spec_prev_hit & 4) || !v || v->y <= 0 || (v->state != S_HITSTUN && v->state != S_KNOCKDOWN)) return;
     enter(v, S_KNOCKDOWN); v->vx = v->vy = 0; play(v, BA_KNOCKDOWN_FLIGHT);
 }
+static int32_t rt_div(int32_t v, uint8_t d) {                   /* v / d (no libgcc: a long division) */
+    uint32_t a = v < 0 ? -v : v, q = 0, r = 0;
+    int8_t i;
+    for (i = 31; i >= 0; i--) { r = (r << 1) | ((a >> i) & 1); if (r >= d) { r -= d; q |= 1UL << i; } }
+    return v < 0 ? -(int32_t)q : (int32_t)q;
+}
+static void rt_prog(fighter_t *f, const bspec_t *sp) {           /* a ROM special's frame, retimed (see "retiming") */
+    int32_t x0, y0;
+    uint8_t end, h = 0;
+    f->rt_debt += rt_adv(f); end = f->rt_flags & RT_END;
+    if (!f->rt_debt) {                                           /* its source frame shown again: a share of its motion */
+        if (f->rt_hold) { f->rt_hold--; f->x += f->rt_dx; f->y += f->rt_dy; clamp(f); }
+        return;
+    }
+    while (f->rt_hold) { uint8_t k = f->rt_hold - 1; __asm__("" : "+d"(k)); f->rt_hold = k; f->x += f->rt_dx; f->y += f->rt_dy; }   /* (the last frame's share left: now) */
+    x0 = f->x; y0 = f->y;
+    while (f->rt_debt) {
+        const banim_t *an = f->pan;
+        uint8_t ps = f->pstep, prev = an ? an->steps[ps].flags : 0;
+        prog_update(f, sp);
+        if (sp->pvoice && f->state == S_SPECIAL) voice_at(f, VK_SPEC + f->spec_ix, f->srow - 1, f->srow - 1);
+        f->rt_debt--;
+        if (f->state != S_SPECIAL || f->pcatch) { f->rt_flags = 0; f->rt_debt = 0; return; }   /* over, or its catch: 1x */
+        if (f->rt_debt && !end && (an != f->pan || ps != f->pstep) && (f->pan->steps[f->pstep].flags & 1) &&
+            !((prev & 1) && (prev & 16))) break;                 /* a new hit window: shown, the rest carried */
+    }
+    if (!end && !f->rt_debt && f->rt_p < f->rt_nseg) {           /* stretched: this source frame shows 1 + h frames, */
+        uint16_t S = f->rt_S[f->rt_p], T = f->rt_T[f->rt_p] ? f->rt_T[f->rt_p] : S, e = f->rt_err;   /* its motion */
+        while (e + S < T) { e += S; h++; }                       /* spread over them (the first takes the remainder) */
+        if (h) {
+            int32_t dx = f->x - x0, dy = f->y - y0;
+            uint8_t i;
+            f->rt_dx = rt_div(dx, h + 1); f->rt_dy = rt_div(dy, h + 1); f->rt_hold = h;
+            for (i = 0; i < h; i++) { __asm__("" : "+d"(i)); f->x -= f->rt_dx; f->y -= f->rt_dy; }   /* (no __mulsi3) */
+        }
+    }
+}
 static void special_update(fighter_t *f) {
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     const bspec_row_t *r;
     uint8_t k;
     uint16_t from;
     if (sp->prog) {                                              /* read from the ROM: its program */
+        if (f->rt_flags) { rt_prog(f, sp); return; }            /* retimed (see "retiming") */
         prog_update(f, sp);
         if (sp->pvoice && f->state == S_SPECIAL) voice_at(f, VK_SPEC + f->spec_ix, f->srow - 1, f->srow - 1);   /* its
                                                                     voices by its frames (bspec_t.pvoice: Double Dragon's) */
@@ -2036,7 +2142,7 @@ static void update(fighter_t *f, const intent_t *in) {
     }
     f->state_t++;
     f->pushing = 0;
-    if (f->state != S_SPECIAL && f->state != S_THROW && f->state != S_GRAB) anim_tick(f);   /* this frame's time first (see the animation player);
+    if (f->state != S_SPECIAL && f->state != S_THROW && f->state != S_GRAB) { if (f->rt_flags) rt_anim(f); else anim_tick(f); }   /* this frame's time first (see the animation player);
                                                                     a script (special, throw) keeps its own in acc */
     switch (f->state) {
     case S_IDLE: case S_WALK: case S_RUN: {

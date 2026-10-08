@@ -414,6 +414,41 @@ def layout_asserts():
 def c_str(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
+def retime_tables(g, build):
+    """game.json roster[].retime -> gretime_rom[] (fighter.h gretime_t; fighter.c "retiming"): each move's targets, one
+    per segment (retime.py: its segments from build/chainlab.json, the export's); a segment outside retime.BOUND is
+    built and printed as a hand check; build/retime.json lists every entry (the Lab)"""
+    import retime as RT
+    lab_p = os.path.join(build, 'chainlab.json')
+    want = [(i, r) for i, r in enumerate(g['roster']) if r.get('retime')]
+    labj = json.load(open(lab_p)) if want and os.path.exists(lab_p) else {'fighters': [], 'ba': []}
+    lab = {f['name']: f for f in labj['fighters']}; ba = labj['ba']
+    c, rows, rep = [], [], []
+    for i, r in want:
+        if r['name'] not in lab:
+            print(f'retime: {r["name"]}: no build/chainlab.json yet (the fighters\' export): its targets wait for it'); continue
+        L = lab[r['name']]; pool = [p['input'] for p in L['pool']]
+        for move, spec in r['retime'].items():
+            if spec is None: continue
+            if move in ba: idx, segs = ba.index(move), L['segs']['moves'].get(move) or []
+            else:
+                assert move in pool, f'{r["name"]}: retime "{move}": not a brawler move nor one of its specials ({", ".join(pool)})'
+                idx = len(ba) + pool.index(move); segs = L['segs']['specials'][pool.index(move)]
+            assert segs, f'{r["name"]}: retime "{move}": no segments (no active frame, or a captured script: not retimed)'
+            T = RT.targets(spec, segs)
+            assert all(t >= 1 for t, s_ in zip(T, segs) if s_), f'{r["name"]}: retime "{move}": a segment of 0 frames {T}'
+            warn = RT.hand_checks(f'{r["name"]} {move}', segs, T)
+            for w in warn: print('retime:', w)
+            k = len(rows)
+            c.append(f'static const uint16_t gretime_t{k}[] = {{ {", ".join(map(str, T))} }};   /* {r["name"]} {move}: {segs} -> {T} */')
+            rows.append(f'    {{ {i}, {len(T)}, {idx}, gretime_t{k} }},')
+            rep.append({'fighter': r['name'], 'move': move, 'index': idx, 'segments': segs, 'targets': T, 'spec': spec, 'hand_check': warn})
+    c.append('const gretime_t gretime_rom[] = {   /* (fighter.c "retiming") the moves given targets: fighter, segments, move, targets */\n'
+             + ''.join(x + '\n' for x in rows) + '    { 0xFF, 0, 0, 0 }\n};')
+    json.dump(rep, open(os.path.join(build, 'retime.json'), 'w'), indent=1)
+    return c
+
+
 def tables(g, build):
     M = model(g, build)
     presets = M['presets']
@@ -525,6 +560,7 @@ def tables(g, build):
     dmul = [r.get('damage', 1) for r in g['roster']]          # TODO #203: the fighter's damage scale (fighter.c fighter_hit)
     for r, k in zip(g['roster'], dmul): assert isinstance(k, int) and 1 <= k <= 4, f'{r["name"]}: damage {k} (1-4)'
     c.append('const uint8_t roster_damage[BC_COUNT] = { ' + ', '.join(map(str, dmul)) + ' };   /* x the damage of its normals, specials and their objects (not furies, throws, holds) */')
+    c += retime_tables(g, build)
     h.append('#endif')
     write_if_changed(os.path.join(build, 'game_tables.h'), '\n'.join(h) + '\n')
     write_if_changed(os.path.join(build, 'game_tables.c'), '\n'.join(c) + '\n')

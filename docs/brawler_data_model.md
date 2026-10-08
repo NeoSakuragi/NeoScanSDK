@@ -128,6 +128,7 @@ voice sample its KOF plays, with the moves that play it.
 | `form` | `{"trigger": "down+D full meter", "transition": "FORM", "target": "billy_super", "carry": ["life", "position", "facing", "meter"], "exit": "life"}` | the form link (vocabulary `form.change`): the trigger starts the transition (a special of its bank), which turns the fighter into the target roster entry; exit `life` (a lost life) or `stage` |
 | `flash_pose` | `"rage"` / `"taunt"` / `"charge"` / `"win"` / `"intro"`, or `{"anim": 88, "first": 0, "last": null, "head": [x, y], "fit": false, "voice": false}` (absent = the source game's default) | TODO #145, vocabulary fx.super_flash "flash pose": what a fury from a source without a flash step (Kizuna, SS2, WHP, Double Dragon) shows during the super flash's freeze; kinds per game in export_bm FLASH_POSES (Kizuna taunt; SS2 rage (default, TODO #189: the game's own POW-full animation 140, timed to the freeze, its shout sent on its step) / taunt / win; WHP win / intro; Double Dragon charge / win); cut to the freeze (`fit`: timed to it); the glow on its head point (`head` overrides head_point.py). KOF fighters: ignored (their own flash step) |
 | `selectable` | `false` (absent = true) | no select slot: a form link's target (Super Billy); never picked (roster_unlock 0xFF) |
+| `retime` | `{"214C": [40, 38, 40], "atk_b_far": {"scale": 0.75}, "214B": [16, 1, 8, 6, 30]}` (absent = every move at its source timing) | revamp 1C: target frames per segment of a move, played at run time ("Retiming" below); the data keeps the source timing |
 
 Later: `palettes` (custom colour sets), `moves` (a trimmed list).
 
@@ -273,6 +274,61 @@ pick 3w + k + s, set w + k, wave 0 at x 200 + 30k, later waves walking in (odd k
 seed $1D2B + w + 8s; lock points w x (width - 320) / 5 (448 px on the 2560 px stages, 256 on the last); the boss at
 the stage end with min(2 + s, 5) minions (pick 3k + s, not the boss, set k + s, tint 1 + (k + s) mod 3, z 6 + 13k),
 seed $5B05 + s; life 100 + 4s, power stage + 1.
+
+## Retiming (revamp phase 1C, 2026-10-08; docs/brawler_feel.md 6 and 8h)
+
+Bruno's design: the brawler embeds every move's ORIGINAL timing exactly as in its source game; the animation player
+retimes a move dynamically at run time. Nothing of the exported frames, steps or programs changes; the export only
+adds each move's segments.
+
+**Segments** (tools/brawler/retime.py, the export's `move_segments`): a move played alone, frame by frame as the
+engine plays it (no opponent, no hit, no button held: its whiff): `startup` = the frames before its first frame with a
+live attack box (bstep_t flags 1), then for each active window (a run of frames with one) the window and the recovery
+after it (to the next window; the last to the move's end, the frame the fighter acts again). A single-hit move has 3
+segments, left punch / pause / right punch 5, Cheng-Fu's 236 13. A move whose body never strikes takes the step it
+spawns its object on as its window. Brawler moves: from their animation's steps (a step shows ticks + 1 frames). ROM
+specials (KOF handlers, SS2 / Double Dragon / Kizuna / WHP programs): their program played by retime.Prog, a port of
+fighter.c prog_update (the variant row the roster plays). Captured scripts (Yamazaki's 214A/B/C, Goenitz's 214C, ...):
+no segments, not retimed.
+
+| table | type | size | in | live-swappable |
+|---|---|---|---|---|
+| segments | `bm_seg[BC_COUNT]` (bm_chars.h `bseg_t`): per fighter [BA_COUNT + nspec, offset per move (0 = none)], then per move [n, source frames of its n segments] | ~0.5 KB a fighter | ROM, first MB | no (the export) |
+| targets | `gretime_rom[]` (fighter.h `gretime_t` {fighter = bchar_t.id, nseg, move = BA_* or BA_COUNT + special index, const uint16_t *t}, fighter 0xFF ends) | 8 bytes + 2 a segment | ROM (game_tables.c), read through `rt_tab` | yes: a table in RAM (lab.buf), `rt_tab` pointed at it (0 = the ROM's; tools/brawler/retime_proof.py does it) |
+
+`chainlab.json` lists the segments for the Lab: `fighters[].segs` = {`moves`: {move: [lengths]}, `specials`: [lengths
+per pool special, [] none]}; `build/retime.json` every entry built (fighter, move, segments, targets, hand checks).
+
+**game.json** `roster[].retime` = {MOVE: TARGETS}. MOVE: a brawler move (`atk_c_close`) or a special's input as the
+roster names it (`214C`, `EX 236C`, `MAX 21416C`). TARGETS: a list, one per segment (`null` = that segment's source
+length, `"1.5x"` a ratio); or `[startup, active, recovery]` applied to every window / recovery of a longer move; or
+`{"scale": s, "startup": .., "active": .. or [per window], "recovery": .. or [per window]}`; `null` = the original.
+build_tables.py checks the move has segments and every segment at least 1 frame; a segment outside 0.5x-2x is built
+and printed as `retime: hand check: ...` (and listed in build/retime.json).
+
+**The player** (fighter.c "retiming"): `play()` (a brawler move) and `start_special` look their move up in `rt_tab`
+(`fighter_retime(f, targets, n)` sets them for the move playing: archetype defaults, situations). Per segment of S
+source frames played in T game frames, a Bresenham clock: each game frame `err += S`, one source frame due each time
+`err` passes T, so the segment ends exactly on its T-th frame with its S source frames played and every segment's
+first frame shows its own first source frame (each window's contact frame is shown). Source frames are played whole
+and in order by the move's own player (anim_tick at 1x, prog_update + its frame voices), so every step entry, step
+move, box, effect, sound and program op happens; several in one game frame when T < S (a frame that enters a new hit
+window stops there and the rest is carried, paid by the segment's last frame at the latest), none when T > S: a ROM
+program's motion of that source frame is then spread over the game frames that show it (`rt_hold`, `rt_dx`, `rt_dy`:
+travel per segment unchanged, the place equal to the source's at every frame where its source frame is complete); a
+brawler move's travel is its steps' own moves, at their entry. Not scaled: hit-stop (`freeze` stops the clock), the
+victim's reaction, projectiles, a ROM special's catch (its dead frames and routine: 1x from the catch on), the route
+node's speed (ignored by a retimed move), the engine. Collisions are checked once a game frame: when T < S a source
+frame played inside a game frame has its box live for no collision check (its events still happen).
+Without an entry nothing of this runs (`rt_flags` 0).
+
+**Proof** (2026-10-08, our emulator, /data/tmp/rv1c/out): build without entries = the brawler branch's in behaviour
+(regress.py bleed + facing traces identical); `retime_proof.py OUT` (targets installed in RAM at run time): Terry's B
+far (KOF98 normal), Terry's 214C (KOF ROM special, a flight), Haohmaru's 623S (SS2 program), Cheng-Fu's 236 (DD
+program, 13 segments), Kim's 214B (Kizuna program, 5 segments with their own targets) at 0.5x / 0.75x / 1.5x / 2x and
+odd targets: 25 / 25 exact segments, source frames in order, every segment's first source frame shown, the place equal
+to the source's on every settled frame and after the move, hit-stops 7 and the dummy's reaction unchanged;
+`retime_rom_check.py` the same from the ROM's own table (a build with entries).
 
 ## Live install: data packs (the Brawler Lab's write path)
 

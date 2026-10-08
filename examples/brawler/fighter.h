@@ -353,7 +353,25 @@ typedef struct fighter {
                                    * next press to count as one (from the special's start, again from each one read);
                                    * spmash: this frame's link presses made inside that window (P_CHECK b 2) */
     uint8_t  vsigp, vspad;        /* its P_VSIG signals this frame, taken by vlist_apply after its placement (TODO #220) */
+    const uint16_t *rt_S, *rt_T;  /* retiming (fighter.c "retiming"): the move's segments' source lengths (bm_seg) and
+                                   * targets (0 = the source's), rt_nseg of them; rt_p the segment playing, rt_n its game
+                                   * frames so far, rt_err its clock; rt_debt source frames due, not played yet (a hit
+                                   * window stopped the frame); rt_hold / rt_dx / rt_dy a stretched ROM program's motion
+                                   * still to spread over the frames its source frame shows; rt_flags RT_* (0: no retime) */
+    uint16_t rt_n, rt_err;
+    uint8_t  rt_nseg, rt_p, rt_debt, rt_flags, rt_hold, rt_pad;
+    int32_t  rt_dx, rt_dy;
 } fighter_t;
+enum { RT_ON = 1, RT_FIRST = 2, RT_END = 4 };   /* rt_flags: retimed; a program's first frame (one source frame, not
+                                   * counted); a segment ended this frame */
+typedef struct { uint8_t fighter, nseg; uint16_t move; const uint16_t *t; } gretime_t;   /* a move's targets (build_tables.py
+                                   * from game.json roster[].retime): fighter = bchar_t.id (0xFF ends the table), move = BA_*
+                                   * or BA_COUNT + its special's index, t = nseg target frames (0 = the source's) */
+extern const gretime_t gretime_rom[];   /* game_tables.c */
+extern const gretime_t *rt_tab;   /* the table the moves read (0 = gretime_rom; a lab writes one in RAM and points here) */
+uint8_t fighter_retime(fighter_t *f, const uint16_t *targets, uint8_t n);   /* the move playing (its start) given these
+                                   * targets, one per segment (n = its segments, bm_seg); 0 = refused (no segments, wrong
+                                   * n); targets 0 = back to the source's timing */
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */
 
