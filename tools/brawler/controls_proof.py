@@ -79,8 +79,8 @@ KEYS = {'A': 'a', 'cA': 'a', 'dA': 'Da', 'fA': 'Ra', 'bA': 'La', 'dfA': 'DRa'}
 res = {}; fury_shots = []
 for ci, name in enumerate(names):
     if name not in only: continue
-    F = CL['fighters'][ci]; tree = RT.load(name, os.path.join(HERE, '..', '..', G['roster'][ci]['routes'])
-                                            if G['roster'][ci].get('routes', 'default') != 'default' else None)
+    F = CL['fighters'][ci]; tree = F['tree']                 # the tree the game plays (revamp 1A: the chain core's,
+                                                              # routes.py chain_tree, as export_bm encoded it)
     L.start(ci, 1 if ci == 0 else 0); run(30)
     r = res[name] = {'normals': {}, 'air': {}, 'jumps': {}, 'slots': {}, 'fury': {}, 'meter': {}}
     # ---- A from each position -------------------------------------------------------------------------------------
