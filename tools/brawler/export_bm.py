@@ -1278,7 +1278,7 @@ def hold_move(ch, n, tdata, k):
     HOLD_LOG.setdefault(n, {'startups': {m: v for m, v in st.items() if v is not None}})[k] = {'move': want, 'why': how}
     return want
 
-def hold_rows(ch, n, game, k, move, pkeys, dx=None):
+def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None):
     """a hold hit (k 'hit', or 'fin' the finisher) as a paired script: the fighter's own `move` (a normal, its frames),
     its startup squeezed to HOLD_STARTUP frames (the last poses before the active step, 1 + 2 frames), the active step
     (impact on its first frame) and what follows, at most HOLD_TAIL frames; the victim held in the throw's grab pose
@@ -1286,12 +1286,13 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None):
     in front (game.json roster[].throws.hold.dx; default the throw's row 0, at most HOLD_DX: in contact, Final Fight);
     the first row's victim is also the hold's own pose (fighter.c grab)"""
     dx = HOLD_DX if dx is None else dx
+    su = HOLD_STARTUP if startup is None else startup   # game.json roster[].throws.hold.startup {k: frames} (Terry's hit: 2)
     a = source(ch, move); steps = a['steps']
     act = active_step(steps)
     hstep = act if act is not None else 0xFF
     if act is None: act = min(len(steps) - 1, 1)
-    pre = [(steps[act - 2]['frame'], 1)] if act >= 2 else []
-    pre += [(steps[act - 1]['frame'], HOLD_STARTUP - len(pre))] if act >= 1 else []
+    pre = [(steps[act - 2]['frame'], 1)] if act >= 2 and su >= 2 else []
+    pre += [(steps[act - 1]['frame'], su - len(pre))] if act >= 1 and su > len(pre) else []
     post = [(s_['frame'], s_['ticks'] + 1) for s_ in steps[act:]]
     th = ch.get('throws', {}).get('throw_c')
     if th:
@@ -1467,7 +1468,7 @@ def write_c(chars, outdir):
          'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx, hop_vy0, hop_gravity, hop_dx; uint8_t prejump, land; } bphys_t;   /* 16.16 px per frame (KOF ROM: export96 physics); jump_* = the regular jump (stick held), hop_* = the hop (stick tapped); jump_dx / hop_dx: horizontal speed of a forward or back jump; prejump: frames on the ground before take-off (KOF: the prejump animation, the frames in which a release makes the jump a hop); land: frames on the floor after a jump (KOF: the landing animation\'s steps at ticks + 1 frames each, + 1, measured: KOF98 4, Terry / Rugal / Goenitz 5) */',
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame of a paired script (vocabulary hold.paired_script): thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none; flags 32: a BA_* animation it plays instead, its flight: blowback, knockdown...) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front (a data override: game.json roster[].throws.front; else always behind the grabber, TODO #146), 4 = impact (the blow lands / the victim hits the floor: damage, spark, sound), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',
-         'typedef struct { uint16_t nrows, speed; const bthrow_row_t *rows; uint16_t ret, rel, land, fx_row; int16_t fx_dx, fx_dy; uint8_t hanim, hstep; uint16_t gframe, stun; } bthrow_t;   /* speed: 8.8 script rows a frame (fighter.c throw_update); ret: the CONTROL RETURN row (the thrower acts again from it; the victim plays its rows on alone to nrows, then lies down); rel / land: the release row and the landing row (0xFFFF: none): from rel to land the victim is a thrown body (spawn.body: it knocks down the enemies it touches); fx_row / fx_dx / fx_dy: the throw-start effect (fx.throw_start, TODO #166: KOF96/98\'s effect state 61 + its sound) on that row, px forward / up from the thrower (0xFFFF: none: the hold hits); hanim / hstep: a hold hit\'s move (BA_*) and its active step, whose attack box hits the crowd around the held victim (0xFF: none); gframe: the thrower\'s hold pose (throw C only; 0xFFFF: the throw\'s first row: SS2\'s turned grab has its own, TODO #188 a); stun: a stun strike (TODO #212, Double Dragon\'s Cheng-Fu: no damage, no impact): at its end the victim stands dizzy in its heavy reel for stun frames, open to any hit (fighter.c victim_end, fighter_t.dizzy; 0 = a throw) */',
+         'typedef struct { uint16_t nrows, speed; const bthrow_row_t *rows; uint16_t ret, rel, land, fx_row; int16_t fx_dx, fx_dy; uint8_t hanim, hstep; uint16_t gframe, stun; uint8_t hsfx, hpad; } bthrow_t;   /* hsfx: a hold hit\'s sound, a normal button\'s (SX_A + 1 .. SX_CD + 1; 0 = its move\'s own: game.json roster[].throws.hold.sfx);  speed: 8.8 script rows a frame (fighter.c throw_update); ret: the CONTROL RETURN row (the thrower acts again from it; the victim plays its rows on alone to nrows, then lies down); rel / land: the release row and the landing row (0xFFFF: none): from rel to land the victim is a thrown body (spawn.body: it knocks down the enemies it touches); fx_row / fx_dx / fx_dy: the throw-start effect (fx.throw_start, TODO #166: KOF96/98\'s effect state 61 + its sound) on that row, px forward / up from the thrower (0xFFFF: none: the hold hits); hanim / hstep: a hold hit\'s move (BA_*) and its active step, whose attack box hits the crowd around the held victim (0xFF: none); gframe: the thrower\'s hold pose (throw C only; 0xFFFF: the throw\'s first row: SS2\'s turned grab has its own, TODO #188 a); stun: a stun strike (TODO #212, Double Dragon\'s Cheng-Fu: no damage, no impact): at its end the victim stands dizzy in its heavy reel for stun frames, open to any hit (fighter.c victim_end, fighter_t.dizzy; 0 = a throw) */',
          'typedef struct { uint16_t frame; int16_t x, y; uint8_t same, react; bbox_t box; } bsobj_t;   /* special\'s object (projectile): frame (0xFFFF = none), offset from the fighter\'s start, faces the fighter\'s way, react: the victim\'s reaction R_* + 1 measured in the game (0: knockdown); box: none (an effect: what hits is the special\'s projectile, bspec_t.proj) */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk; uint8_t hit, dmg; bsobj_t obj[2]; int16_t vx; uint8_t vy, fx; } bspec_row_t;   /* one video frame of a special: fighter frame + offset from its start (forward +, up +), body attack box; hit: 1 box live, 2 opens a new hit (vx without 4: the px a reel slides the victim, fighter.c kof_react), 4 the target is carried at vx (forward from the fighter) / vy (height; grabs only), 8 contact (no damage), 16 a hit here goes on to the continuation, bits 5-7 the victim\'s reaction R_* (export_bm special_rows); dmg: damage of the hit it opens; fx (rows opening a hit): KOF98 hit effect, bits 0-5 the hit kind (the victim\'s hit sounds, fighter.c HIT_SFX), bits 6-7 the burn (1 purple, 2 orange) */',
          'typedef struct { uint16_t frame; int16_t x, y; bbox_t atk, own; uint8_t flags, pad; } bprow_t;   /* one frame of a projectile\'s flight: frame, x from its spawn point in 1/8 px (forward +), height px, attack box (live when flags & 1: the game\'s +$90 box while +$7C bit 0), own box (the box another projectile\'s attack meets: a clash; flags & 2) */',
@@ -1585,9 +1586,12 @@ def write_c(chars, outdir):
             c.append(f'static const bthrow_t {n}_xthrow = {{{len(out)}, {sp}, {n}_{THROW_X}, {info["ret"]}, {info["rel"]}, {info["land"]}, {tfx["row"]}, {tfx["dx"]}, {tfx["dy"]}, 0xFF, 0xFF, 0xFFFF, 0}};')
         hl = []
         for k in HOLDS:
-            out, (ha, hs) = hold_rows(ch, n, game, k, hold_move(ch, n, tdata, k), pkeys, (tdata.get('hold') or {}).get('dx'))
+            hd = tdata.get('hold') or {}
+            out, (ha, hs) = hold_rows(ch, n, game, k, hold_move(ch, n, tdata, k), pkeys, hd.get('dx'), (hd.get('startup') or {}).get(k))
             c.append(f'static const bthrow_row_t {n}_hold_{k}[] = {{' + ', '.join(out) + '};')
-            hl.append(f'{{{len(out)}, 0x100, {n}_hold_{k}, {len(out)}, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0, {ha}, {hs}, 0xFFFF}}')
+            hsx = (hd.get('sfx') or {}).get(k)          # its hit sound as a normal button's (game.json hold.sfx {k: 'A'}): SX_* + 1
+            hsx = 0 if hsx is None else ['A', 'B', 'C', 'D', 'CD'].index(hsx) + 1
+            hl.append(f'{{{len(out)}, 0x100, {n}_hold_{k}, {len(out)}, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0, {ha}, {hs}, 0xFFFF, 0, {hsx}}}')
         c.append(f'static const bthrow_t {n}_holds[{len(HOLDS)}] = {{' + ', '.join(hl) + '};')
         # every special of its pool (special_pool) is in the ROM, in pool order (bm_spec.c, the first program MB): the four
         # roles (D, forward+D, down+D, up+D) pick from it through a map ({n}_spmap, game.json's specials; fighter.c

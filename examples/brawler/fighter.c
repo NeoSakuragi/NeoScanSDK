@@ -923,10 +923,11 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
  * A throw or a hold hit is a PAIRED SCRIPT (bthrow_t, vocabulary hold.paired_script): per row the thrower's frame and
  * offset, the victim's posture (or a BA_* animation it plays: its flight) and offset from the thrower, impacts. The
  * thrower plays its rows up to the CONTROL RETURN row (bthrow_t.ret: the pilot's chosen from the throw's code,
- * tools/kof96/throwrom.py) and acts again; the victim plays its rows on alone (thrown_update) to the end, then lies down
- * (S_DOWN). From the release row to the landing row (bthrow_t.rel / land) it is a THROWN BODY (spawn.body): combat()
- * knocks down every other enemy it touches, each once (BODY_DAMAGE, falling the throw's way). A throw's damage is shared
- * by its impact rows (blows, the landing). Postures are KOF's shared victim states; each fighter has its own frame for
+ * tools/kof96/throwrom.py) and acts again; the victim plays its rows on alone (thrown_update) to its RELEASE row
+ * (bthrow_t.rel), then it is the engine's knocked-down body (thrown_release: S_KNOCKDOWN with its script's velocity there;
+ * no release row: to the end, then it lies down, S_DOWN). From the release to its landing it is a THROWN BODY (spawn.body,
+ * tb_by): combat() knocks down every other enemy it touches, each once (BODY_DAMAGE, falling the throw's way). A throw's
+ * damage is shared by its impact rows before the release (the landing is no impact: thrown_release). Postures are KOF's shared victim states; each fighter has its own frame for
  * them (bchar_t.vposes).
  * Revamp phase 3 (Bruno 2026-10-08, docs/brawler_feel.md 8h: no command-grab inputs ever; grab specials become throws;
  * with meter a throw becomes a super throw). A throw is invincible for its whole animation (the thrower: INV_FURY + cthrow
@@ -1037,16 +1038,68 @@ static void victim_end(fighter_t *v) {                           /* its script o
     v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; v->vx = 0; v->y = 0; clamp(v);
     enter(v, S_DOWN); play(v, BA_DOWN);
 }
+/* THE RELEASE (Bruno 2026-10-08, every throw: "as soon as the victim goes out of the hands, give it back to the regular
+ * physics of the engine"): a throw's script for its victim ends at its release row (bthrow_t.rel): from there it is an
+ * ordinary knocked-down body (S_KNOCKDOWN with the velocity its script had at the release: it flies, lands, bounces,
+ * lies and gets up as any knockdown), a thrown body (tb_by, spawn.body) until it touches the floor. Its impact rows
+ * after the release (the landing) are no impacts any more: the throw's damage is shared by its impacts before the
+ * release; a throw whose only impacts came after it (the landing: Ryo's / Geese's back throw, Billy Lee's) has its
+ * release row as its impact. impacts_before: the impact rows before the release (all of them without one). */
+static uint16_t impacts_before(const bthrow_t *th) {
+    uint16_t i, n = 0, end = th->rel < th->nrows ? th->rel : th->nrows;
+    for (i = 0; i < end; i++) if (th->rows[i].flags & 4) n++;
+    return n;
+}
+static uint8_t thr_impact(const bthrow_t *th, uint16_t i, uint8_t moved) {   /* moved: the release is the impact */
+    if (th->rel == 0xFFFF || i < th->rel) return (th->rows[i].flags & 4) != 0;
+    return i == th->rel && moved;
+}
+static uint8_t release_moved(const bthrow_t *th) {             /* its landing impact moves onto the release row */
+    uint16_t i;
+    if (th->rel == 0xFFFF || impacts_before(th)) return 0;
+    for (i = th->rel; i < th->nrows; i++) if (th->rows[i].flags & 4) return 1;
+    return 0;
+}
+/* its launch: the engine's knockdown velocity that lands it where and when the script did (its landing row, else its
+ * last), from where it is at the release: vx = the distance / the flight's frames, vy = the gravity's (GRAVITY_KD) for that
+ * flight from that height. (The script's own speed at the release row overshoots: Terry's forward throw left at 10 px a
+ * frame, a 600 px flight under the knockdown's gravity, which has no air drag; KOF's throw flights slow down.) */
+static void thrown_release(fighter_t *v, const bthrow_t *th) {
+    uint16_t le = th->land < th->nrows && th->land > th->rel ? th->land : th->nrows - 1;   /* its landing row */
+    const bthrow_row_t *r = &th->rows[th->rel], *e = &th->rows[le];
+    int16_t dx = (e->tx + e->vx) - (r->tx + r->vx), y0 = r->ty + r->vy;   /* px */
+    uint16_t t = le > th->rel ? div16((uint32_t)(le - th->rel) << 8, th->speed ? th->speed : 0x100) : 1;   /* its flight, frames */
+    int32_t vx, vy;
+    if (!t) t = 1;
+    vx = (int32_t)div16((uint32_t)(dx < 0 ? -dx : dx) << 8, t) << 8; if (dx < 0) vx = -vx;   /* (16.16; divu.w, mulu.w: */
+    vy = (int32_t)((uint32_t)t * (uint16_t)(GRAVITY_KD >> 1));                              /*  no libgcc) */
+    if (y0 > 0) vy -= (int32_t)div16((uint32_t)y0 << 8, t) << 8;
+    if (IS_THROW(v->throw_id) && v->thr_dmg > v->throw_dealt) {  /* (the impacts' division's rest) */
+        uint8_t d = v->thr_dmg - v->throw_dealt;
+        v->hp -= d; v->throw_dealt += d;
+        if (v->thr_by) gauge_add(v->thr_by, (uint16_t)d * gmeter.fury_dealt);
+        gauge_add(v, (uint16_t)d * gmeter.fury_taken);
+    }
+    thrown_place(v, r);
+    v->held = 0; v->thr = 0; v->zfront = 0;
+    enter(v, S_KNOCKDOWN);
+    v->vx = dir_mul(v->throw_face, vx); v->vy = vy;
+    if (v->frame_ovr != 0xFFFF || (v->anim != BA_BLOWBACK && v->anim != BA_BLOWBACK_N && v->anim != BA_KNOCKDOWN_FLIGHT)) {
+        v->frame_ovr = 0xFFFF; play(v, v->vy > 0 ? BA_BLOWBACK : BA_KNOCKDOWN_FLIGHT);
+    }
+    if (v->thr_by && v->thr_by != v) v->tb_by = v->thr_by;       /* a thrown body until it lands (combat) */
+}
 /* the victim's side of rows j..i (passed or reached this frame): postures, impacts (damage, sound, spark, freeze);
- * returns 1 when an impact was passed */
+ * returns bit 0 when an impact was passed, bit 1 when the victim was released (it is no longer in the script) */
 static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_t i) {
     fighter_t *by = v->thr_by;
-    uint8_t hit = 0;
+    uint8_t hit = 0, moved = IS_THROW(v->throw_id) && release_moved(th);
     if (i >= th->nrows) i = th->nrows - 1;
+    if (IS_THROW(v->throw_id) && th->rel != 0xFFFF && i > th->rel) i = th->rel;
     for (; j <= i; j++) {
         const bthrow_row_t *r = &th->rows[j];
         if (r->vpose != 0xFF) show_pose(v, r);                   /* a pose set on a passed row still applies */
-        if (!(r->flags & 4)) continue;
+        if (IS_THROW(v->throw_id) ? !thr_impact(th, j, moved) : !(r->flags & 4)) continue;
         hit = 1;                                                 /* impact: the blow lands / the victim hits the floor */
         if (IS_HOLD(v->throw_id)) {                              /* a hold hit: the victim reels in place */
             if (by) { by->impact = 1; hold_spark(by, v); }       /* its spark; its box hits the crowd (combat) */
@@ -1054,7 +1107,11 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
             v->hp -= GRAB_DAMAGE; v->grab_hits = 0;              /* a hit: the escape count starts again */
             if (by) gauge_add(by, GRAB_DAMAGE * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
             gauge_add(v, GRAB_DAMAGE * gmeter.fury_taken);
-            if (by) { snd_sfx(hit_sound(by, hold_anim(by), 0)); by->freeze = 4; }
+            if (by) {                                            /* its sound: a button's (bthrow_t.hsfx, Terry's kick */
+                uint8_t hx = thr_of(by, by->throw_id)->hsfx;     /* sounds as a punch: Bruno 2026-10-08) or its move's */
+                snd_sfx(hx ? (by->ch->sfx[hx - 1] ? by->ch->sfx[hx - 1] : SFX_HIT_A + hx - 1) : hit_sound(by, hold_anim(by), 0));
+                by->freeze = 4;
+            }
             v->freeze = 4;
             continue;
         }
@@ -1072,6 +1129,7 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
         spark_hit(INT(v->throw_x0) + dir_mul(v->throw_face, r->vx + r->tx), floor_top + INT(v->z) - r->ty - r->vy - 40, 1, v->throw_face);
     }
     v->srow = i + 1;
+    if (IS_THROW(v->throw_id) && th->rel != 0xFFFF && i == th->rel) { thrown_release(v, th); return hit | 2; }
     return hit;
 }
 static void start_node(fighter_t *f, uint8_t node, uint8_t how);
@@ -1115,7 +1173,8 @@ static uint8_t paired_update(fighter_t *f) {
     }
     if (v && v->held == f) {
         uint8_t hit = victim_rows(v, th, j, i);
-        if (hit && (f->throw_id == BT_HOLD_FIN || v->hp <= 0)) { /* the finisher lands, or a hold hit took the last life
+        if (hit & 2) { f->held = 0; v = 0; }                    /* released: the engine's knockdown from here */
+        else if ((hit & 1) && (f->throw_id == BT_HOLD_FIN || v->hp <= 0)) { /* the finisher lands, or a hold hit took the last life
                                                                     (TODO #204: held on, it broke free standing with none,
                                                                     and nothing could hit or grab it): the victim goes */
             uint8_t fin = f->throw_id == BT_HOLD_FIN;            /* down, the hold is over */
@@ -1158,7 +1217,6 @@ static uint8_t fury_press(fighter_t *f, uint8_t max) {         /* max: down held
 static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / back+A in the hold (any BT_*: the extra */
     fighter_t *v = f->held;                                      /* paired throw too, revamp 3) */
     const bthrow_t *th;
-    uint16_t i;
     if (t < BT_COUNT && !f->ch->throws[t].nrows) t = BT_THROW_C;
     th = thr_of(f, t);
     f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); f->srow = 0; f->speed = th->speed; f->zfront = 1;
@@ -1168,7 +1226,8 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
     v->thr_dmg = THROW_DAMAGE;                                   /* (the super throw: its tier, super_throw) */
     f->inv = INV_FURY; f->cthrow = 1;                            /* invincible to its control return (revamp 3: every
                                                                     throw, as the chain's back throw was) */
-    for (i = 0; i < th->nrows; i++) if (th->rows[i].flags & 4) v->grab_hits++;   /* its impacts share the throw's damage */
+    v->grab_hits = impacts_before(th);                           /* its impacts share the throw's damage (the release */
+    if (!v->grab_hits && release_moved(th)) v->grab_hits = 1;    /* rule: those before it, else the release row) */
     if (f->team) stat_throws++;
     paired_update(f);                                            /* its first row now */
 }
@@ -1292,7 +1351,8 @@ static void throw_free(fighter_t *f, uint8_t done) {
 static uint8_t cancel_pick(fighter_t *f);
 static uint16_t last_impact(const bthrow_t *th) {               /* a throw's cancel row ("cancels" rule 4): its last */
     uint16_t i = th->nrows, last = 0xFFFF;                       /* impact row before the control return (the blow: */
-    while (i--) if (th->rows[i].flags & 4) {                     /* Terry's / Geese's victim lands after it, a cancel */
+    uint8_t moved = release_moved(th);                           /* (the release rule's impacts) */
+    while (i--) if (thr_impact(th, i, moved)) {                     /* Terry's / Geese's victim lands after it, a cancel */
         if (i < th->ret) return i;                               /* there would come from neutral, feedback */
         if (last == 0xFFFF) last = i;                            /* 20261006-194211-5d29), else its last impact row; */
     }                                                            /* 0xFFFF none (Yamazaki's back throw) */
@@ -1334,7 +1394,7 @@ static void thrown_update(fighter_t *v) {                        /* a thrown vic
     if (v->thr_skip) { v->thr_skip = 0; return; }
     j = v->srow; v->thr_pos += th->speed; i = v->thr_pos >> 8;   /* (v->srow: the row shown + 1, victim_rows) */
     if (j > i) return;
-    victim_rows(v, th, j, i);
+    if (victim_rows(v, th, j, i) & 2) return;                    /* released: the engine's knockdown from here */
     if (i >= th->nrows) { victim_end(v); return; }
     thrown_place(v, &th->rows[i]);
 }
