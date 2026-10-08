@@ -62,7 +62,7 @@ def _layout(game):
               'air_node', 'flash', 'meter', 'meter_t', 'spart', 'sarm', 'shrow', 'spend', 'plink', 'throw_x0', 'var', 'form_from', 'pstep',
               'pflags', 'pcatch', 'scancel', 'fury_buf', 'spec_buf', 'impact', 'drop', 'wall_by', 'vlist', 'vent', 'pheld', 'pcnt', 'zfront', 'fpose', 'pres', 'vph', 'ksr', 'ksn', 'pbd', 'dizzy', 'dtgt', 'dpin',
               'buf_age', 'jug_n', 'kfloor', 'kslam', 'guard', 'cthrow', 'guard_by',
-'pan', 'rt_p', 'rt_n', 'rt_flags', 'rt_debt', 'rt_hold', 'rt_nseg']
+              'pan', 'rt_p', 'rt_n', 'rt_flags', 'rt_debt', 'rt_hold', 'rt_nseg']
     hdr = open(os.path.join(game, 'fighter.h')).read()
     fields = [f for f in fields if re.search(r'\b%s\b' % f, hdr)]   # an older build may lack the newer fields
     src = '#include <stddef.h>\n#include "fighter.h"\nvoid offs(void) {\n' + ''.join(
