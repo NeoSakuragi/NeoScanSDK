@@ -15,7 +15,7 @@ installs stages, enemies and AI rows into the running game (data packs), proofs 
 | layer | what | where it lives | edited by |
 |---|---|---|---|
 | 0, the bank | KOF94 / 96 / 98 / 99, Samurai Shodown IV (tools/samsho4), World Heroes Perfect (tools/whp) and Kizuna Encounter (tools/kizuna) fighters as extracted: animations, frames, hit boxes, timing, palettes, captured specials and throws, sound commands per move | /data/neogeo_dict (dictionaries), tools/kof96 (export96), never edited | nobody: templates |
-| 1, roster | the playable characters: which bank fighter, select pose, specials mapping, chain routes, unlock, throws (`throws`: per throw `speed` 8.8, `front` [first, end) rows the victim is drawn in front, `hold` {hit, fin: the hold hits' moves (default: hit = the fastest-startup close normal, fin = close D; TODO #166), dx: px in front}; TODO #146); the select screen | game.json `roster`, `select` | Brawler Lab: Characters tab (+ the Chain Lab for the routes) |
+| 1, roster | the playable characters: which bank fighter, select pose, specials mapping, chain routes, unlock, throws (`throws`: per throw `speed` 8.8, `front` [first, end) rows the victim is drawn in front, `hold` {hit, fin: the hold hits' moves (default: hit = the fastest-startup close normal, fin = close D; TODO #166), dx: px in front}; TODO #146; revamp 3: `extra` {u, d} the hold's up / down + A throws and `super` the super throw, "Throws" below); the select screen | game.json `roster`, `select` | Brawler Lab: Characters tab (+ the Chain Lab for the routes) |
 | 2, enemies | named enemies on a bank fighter (or a pool of them), life, power, AI preset; the AI presets; the minion tints | game.json `enemies`, `ai`, `tints` | Brawler Lab: Enemies tab |
 | 3, stages | background, music, waves (lock points + spawns), the boss with its minions, song and scene, triggers; dramas and big portraits | game.json `stages`, `dramas`, `portraits` | Brawler Lab: Stages / Waves tab |
 
@@ -54,8 +54,8 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 | unlocks | `roster_unlock[BC_COUNT]` | 1 byte each | ROM | no (save bits follow the stage order) |
 | chain routes | `rt_head_t` + `rnode_t[]` (fighter.h) | 16 + 24 bytes a node (tree version 4; revamp 1A: link slot 7 = up+A, `RF_THROW`, the node's last byte its hit-stop, the head's `arch` / `links`; older trees read the same: those bytes were 0) | ROM, `route_tab[]` in RAM | yes: the Chain Lab (lab.buf, `lab.load` 1), the chain tool with its retime table (`lab.load` 5, "The chain tool") |
 | chain core rules | `gchain_t gchain` (gamedata.h) | 8 bytes | ROM | no (game.json `chain`, "Chains" below) |
-| meter | `gmeter_t gmeter` (gamedata.h) | 20 bytes | ROM | no (game.json `meter`, "Meter, breaker, damage tiers" below) |
-| damage tiers | `dtier_rom[BC_COUNT]` (game_tables.h): per fighter [nspec + 2] 8.8 scales | 2 bytes a special | ROM; `dtier_off` RAM test switch | no (game.json `tiers` + tools/brawler/damage_raw.json) |
+| meter | `gmeter_t gmeter` (gamedata.h) | 24 bytes (revamp 3: the super throw) | ROM | no (game.json `meter`, "Meter, breaker, damage tiers" below) |
+| damage tiers | `dtier_rom[BC_COUNT]` (game_tables.h): per fighter [nspec + 3] 8.8 scales (revamp 3: + the super throw) | 2 bytes a special | ROM; `dtier_off` RAM test switch | no (game.json `tiers` + tools/brawler/damage_raw.json) |
 | specials by role | `bchar_t.spmap` (4 bytes: an index in the fighter's `specials`, 0xFF none) via `spec_tab[]` | 4 bytes a fighter | ROM, `spec_tab[]` in RAM | yes: a data pack's roster section (version 2) |
 | fighters | `bchar_t bm_chars[]` + everything it points at | ~35 KB each | ROM ($200000) + C ROM | no: new content = a ROM build |
 
@@ -370,6 +370,68 @@ built: its ROM tree = the pushed tree byte for byte (544 bytes), gretime_rom = t
 played without an override on that build (`--rom-only`), every finisher's run = the pushed run (P1 / dummy state,
 anim, step, node, freeze, rt_flags, hp per frame and the lab events, from the run's start; the lab frame counter
 sampled one off on one row of two runs, the tick boundary).
+
+## Throws (revamp phase 3, 2026-10-08; docs/brawler_feel.md 8h, docs/brawler_revamp_plan.md 3)
+
+Bruno's rules: no command-grab inputs, ever; each fighter has throw scripts; grab specials become throws (from the hold,
+the chain or the meter super throw, case by case); with meter a throw becomes its super version; a throw is invincible
+for its whole animation; a thrown body knocks others down (no chain credit).
+
+**The hold's options** (fighter.c "hold and throws", hold_update), every fighter:
+
+| press in the hold | plays | cost |
+|---|---|---|
+| A (x3) | the hold hits, the third the finisher (as before) | - |
+| forward / back + A | its forward / back throw (paired scripts, as before) | - |
+| up / down + A | its extra throw (`bm_xthr[id]` up / down) when it has one, else the hold hit | - |
+| forward / back + C | the super throw: `bm_xthr[id]` sup at the super tier | `meter.super_throw` 100 (one stock); short of it the plain throw pressed, no life paid |
+| C, up / down + C | the slot's special out of the hold (as before) | `meter.special` |
+| D | the fury (as before) | `meter.fury` |
+
+**game.json** `roster[].throws` (beside `speed`, `front`, `hold`): `extra` {`u`, `d`}: an input of its bank (a grab special
+read from the ROM) or `"throw_x"` (its extra paired throw); `super`: the same, absent = the throw pressed (forward / back)
+played at the super tier. The specials named are appended to the fighter's pool when not in it (export_bm
+`throw_specials`). `meter.super_throw` = its cost, `tiers.super_throw` = its damage (18, between the special 12 and the
+fury 30; build_tables checks nothing more than the meter range).
+
+**Generated**: `bm_xthr[BC_COUNT]` (bm_chars.c, `bxthr_t {x, up, down, sup, pad}`, outside bchar_t whose 128 bytes index
+by a shift): `x` = its extra paired throw (`bthrow_t`, 0 none), up / down / sup = a special's index in its pool, `XT_PAIRED`
+(0xFE) its `x`, `XT_FWD` (0xFD, sup only) the throw pressed, `XT_NONE` (0xFF). `gmeter.sthrow` / `sthrow_dmg`;
+`dtier_rom[fighter]` gains a third tail entry: [pool..., fury, MAX, super throw] (the super special's scale = 18 / its own
+measured total, looked up by input in damage_raw.json whichever role measured it; the fury's and MAX's are now looked up
+by input too: Rosa's fury 421A was measured as her MAX).
+
+**Engine** (fighter.c): a grab special as a throw = the hold lets go (the victim reels where it stood, `hold_special`, the
+one path the hold's C already took) and the special starts with role `BS_THROW` (BS_COUNT + 5: index from the table, no
+meter, INV_FURY to its end, no cancel out of it) or, the super throw, as a fury (`BS_FURY`, `fighter_t.sthr` 2: its super
+flash / flash pose, INV_FURY, its own tier `dtier_rom[nspec + 2]`, no MAX cancel); its catch takes the reeling victim.
+A paired super throw shows the super flash over the hold first (`fighter_t.xwait` = the freeze, the world stopped),
+then the throw starts with `thr_dmg` = 18. The extra paired throw is `BT_XTHROW` (= BT_COUNT + 2, after the hold hits:
+`thr_of`; `IS_THROW` / `IS_HOLD` tell throws from hold hits: damage, voice VK_THROW, sound SX_THROW_C, the throw-start
+effect). Every throw (paired) sets INV_FURY + `cthrow` to its control return (the chain's back throw's rule, now every
+throw's). A throw special's victim is a thrown body (`fighter_t.tb_by`, set at its hits) while it falls in its
+knockdown until it touches the floor: the same body rule as a paired throw's release-to-landing rows (BODY_DAMAGE,
+knockdown, the thrower's target = the one it hit, no chain window).
+
+**Ralf's 426B / D** (KOF98's only command grab, /data/study/grabs/REPORT.md): decoded from KOF98's code by
+tools/kof96/throwrom.py (PILOT `('kof98', 10)` key `throw_x`: the throw routine $50334, thrower $5033E states 208 / 209 /
+210, victim $50410 lists $25E8C0 and $25EC50; the walk gained `cmpi` with unsigned branches, unknown base registers read
+as ROM, blows of a list set after a release). 150 rows: the toss (release 38, height 324), the catch from above (row 96,
+impact), the slam (second release = landing 131, impact), control return 145; damage 12 in 2 impacts; the thrown body
+from the slam (row 131) to the lying state (150) (throwrom `body`). export96 merges ROM throws into a fighter's captured
+ones key by key.
+
+**Placements** (Bruno reviews each; the audit: every special whose program catches, /data/tmp/rv3/out/audit.md): Rosa
+214B -> up + A, 6246A -> super (her fury -> 421A, MAX = the fury); Iori 624B -> up + A, 624D -> super (Ya Otome stays:
+strikes first); Rugal 624A God Press -> up + A, 23624C Gigantic Pressure -> super (no fury left); Hanzo (SS2) 623K Mozu
+Otoshi -> up + A and super; Cheng-Fu SUPER 623 -> super (MAX = his fury); Yamazaki 236236C Guillotine -> super (no fury
+left); Genjuro WFT -> super (no fury left); Ralf 426B -> up + A and super. Strike rushes whose catch box only locks a
+barrage stay (Ryo / Robert / K' furies, Ryo EX 646A, Robert EX 646D). Freed slots with nothing decoded left to fill
+them: Iori fD + dfD, Rugal fD, Hanzo (SS2) fD, Rosa fD. Everyone else's super = its forward / back throw at 18.
+
+Proof (our emulator, /data/tmp/rv3/out): tools/brawler/throws_rv3_proof.py (every fighter, every hold option, both
+facings: what played, damage, meter, INV_FURY on every throw frame, a second enemy where the body comes down knocked
+down with no chain window; sheets throws_<fighter>.png); meter_scenarios_check.py rv3-* scenarios.
 
 ## Layer 2: enemies, AI presets, tints
 

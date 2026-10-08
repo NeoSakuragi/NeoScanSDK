@@ -1956,5 +1956,98 @@
   "expect": "The plain fury (Power Geyser, blue flash, 30 damage) plays, not the MAX: no red blinking, no MAX mark.",
   "do_keys": "3:Dd",
   "proof": 200
+ },
+ "rv3-ralf-426": {
+  "title": "Ralf: hold + up + A is KOF98's 426 backbreaker",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ralf",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full",
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo. Press up + A.",
+  "expect": "Ralf tosses Ryo off the top of the screen, catches him coming down and slams him behind him (two impacts, 12 of the dummy's 60). Ralf cannot be hit while he throws. No meter spent.",
+  "do_keys": "3:Ua",
+  "proof": 200
+ },
+ "rv3-super-throw": {
+  "title": "Super throw: hold + forward + C with a stock",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full",
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo, meter full (three dots). Press forward + C.",
+  "expect": "The blue super flash over the hold, then Terry's forward throw dealing 18 (not 12); one dot empties.",
+  "do_keys": "3:Rc",
+  "proof": 150
+ },
+ "rv3-super-throw-empty": {
+  "title": "Super throw without meter: the plain throw",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": 0,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo with an empty meter. Press forward + C.",
+  "expect": "No flash: Terry's ordinary forward throw (12 damage); no life paid.",
+  "do_keys": "3:Rc",
+  "proof": 120
+ },
+ "rv3-rosa-super": {
+  "title": "Rosa: her 6246A grab is now her super throw",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rosa",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full",
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo, meter full. Press forward + C.",
+  "expect": "Rosa lets go, the super flash, then her 6246A grab, throw and aerial chase on Ryo (18 damage); one dot empties. Her D is now 421A.",
+  "do_keys": "3:Rc",
+  "proof": 380
+ },
+ "rv3-iori-extra": {
+  "title": "Iori: hold + up + A plays 624B as a throw",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full",
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo. Press up + A.",
+  "expect": "Iori lets go and his 624B catch takes Ryo at once (12 damage, no meter). Forward + C (super throw) plays 624D. Forward + C (the special slot) no longer plays 624D.",
+  "do_keys": "3:Ua",
+  "proof": 120
+ },
+ "rv3-throw-body": {
+  "title": "A thrown body knocks the others down",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full",
+   "pre": "20:R,4:-",
+   "extra": [
+    140
+   ]
+  },
+  "do": "You hold Ryo; a second Ryo stands 140 px ahead. Press forward + A.",
+  "expect": "Terry throws Ryo forward; the flying body knocks the second Ryo down. Terry cannot be hit during the throw.",
+  "do_keys": "3:Ra",
+  "proof": 120
  }
 }
