@@ -61,6 +61,8 @@
    "archetype": "balanced",
    "finishers": {"launcher": "up", "down": "sweep"},
    "specials": {"D": "623C", "fD": "214B", "dD": "623D", "uD": "623B", "dfD": "214C", "ufD": "214A"},
+   "fury": "236236C",
+   "fury_grab": true,
    "unlock": "always",
    "voices": "kof",
    "throws": {"super": "236236C"}
@@ -160,13 +162,21 @@
    "watch": {"frame": 226, "step": -1},
    "routes": "default",
    "archetype": "heavy",
-   "finishers": {"launcher": "up", "down": "slam"},
+   "finishers": {
+    "launcher": "up",
+    "down": "sweep",
+    "neutral": "atk_c_crouch",
+    "forward": "atk_c_far",
+    "up": "atk_d_close",
+    "down_move": "atk_d_crouch"
+   },
    "specials": {"D": "214A", "fD": "41236B", "dD": "236D", "uD": "623B", "dfD": "214B", "ufD": "623D"},
    "fury": "641236C",
    "unlock": {"boss_of_stage": 2},
    "voices": "kof",
    "hit_sfx": {"throw_c": "BACK BREAK"},
-   "fire": ["214A", "214B", "214C", "214D"]
+   "fire": ["214A", "214B", "214C", "214D"],
+   "chain": {"links": ["atk_c_close", "atk_d_far"]}
   },
   {
    "name": "k_dash",
@@ -188,6 +198,8 @@
    "archetype": "heavy",
    "finishers": {"launcher": "up", "down": "slam"},
    "specials": {"D": "236A", "fD": null, "dD": "6426D", "uD": "6426A", "dfD": "6426B", "ufD": "6426C"},
+   "fury": "23624C",
+   "fury_grab": true,
    "unlock": {"boss_of_stage": 4},
    "voices": "kof",
    "throws": {"extra": {"u": "624A"}, "super": "23624C"}
@@ -229,6 +241,8 @@
    "archetype": "balanced",
    "finishers": {"launcher": "up", "down": "sweep"},
    "specials": {"D": "214S", "fD": "236S", "dD": "623S", "uD": null, "dfD": null, "ufD": null},
+   "fury": "WFT",
+   "fury_grab": true,
    "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",

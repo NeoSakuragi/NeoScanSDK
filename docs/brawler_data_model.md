@@ -229,7 +229,8 @@ specials; the root's A -> link 1 (any stick, close or far). The tree carries a `
 links, 21) Robert, Iori, Mai, K', Hanzo (WHP), Hanzo (SS2), Kim, Rosa: light, quick fighters, the ninjas and the
 kickers; balanced (4, 23) Terry, Ryo, Yamazaki, Billy, Kyo, Geese, Goenitz, Genjuro, Billy Lee: the all-rounders;
 heavy (3, 27) Ralf, Yashiro, Mr. Big, Krauser, Rugal, Haohmaru, Cheng-Fu, Super Billy: the big bodies, the slow big
-sword, the power form. Heavies' down finisher is the slam, everyone else's the sweep; every launcher on up.
+sword, the power form. Heavies' down finisher is the slam, everyone else's the sweep; every launcher on up. Reviewed fighters' own chains
+(game.json `chain` + named finishers, the chain tool's format): Krauser since revamp 3b (docs/brawler_review/krauser.md).
 
 Proof (our emulator, /data/tmp/rv1a/out): tools/brawler/chain_proof.py (every rule above, the whole roster's chains,
 finishers and damage totals; sheets), chain_reach.py (every finisher reaches), controls_proof / cancel_proof /
@@ -423,15 +424,33 @@ ones key by key.
 
 **Placements** (Bruno reviews each; the audit: every special whose program catches, /data/tmp/rv3/out/audit.md): Rosa
 214B -> up + A, 6246A -> super (her fury -> 421A, MAX = the fury); Iori 624B -> up + A, 624D -> super (Ya Otome stays:
-strikes first); Rugal 624A God Press -> up + A, 23624C Gigantic Pressure -> super (no fury left); Hanzo (SS2) 623K Mozu
-Otoshi -> up + A and super; Cheng-Fu SUPER 623 -> super (MAX = his fury); Yamazaki 236236C Guillotine -> super (no fury
-left); Genjuro WFT -> super (no fury left); Ralf 426B -> up + A and super. Strike rushes whose catch box only locks a
+strikes first); Rugal 624A God Press -> up + A, 23624C Gigantic Pressure -> super (and still his fury: 3b below); Hanzo (SS2) 623K Mozu
+Otoshi -> up + A and super; Cheng-Fu SUPER 623 -> super (MAX = his fury); Yamazaki 236236C Guillotine -> super (and still
+his fury); Genjuro WFT -> super (and still his fury); Ralf 426B -> up + A and super. Strike rushes whose catch box only locks a
 barrage stay (Ryo / Robert / K' furies, Ryo EX 646A, Robert EX 646D). Freed slots with nothing decoded left to fill
 them: Iori fD + dfD, Rugal fD, Hanzo (SS2) fD, Rosa fD. Everyone else's super = its forward / back throw at 18.
 
 Proof (our emulator, /data/tmp/rv3/out): tools/brawler/throws_rv3_proof.py (every fighter, every hold option, both
 facings: what played, damage, meter, INV_FURY on every throw frame, a second enemy where the body comes down knocked
 down with no chain window; sheets throws_<fighter>.png); meter_scenarios_check.py rv3-* scenarios.
+
+**Bruno's answers (decisions set throws1, 2026-10-08; applied in 3b):** the hold mapping ships as is (up + A the extra
+throw, free; forward / back + C the super throw, one stock, 18 damage). For the three fighters whose only decoded fury
+was a grab he answered "none of these" with no note, so nothing is decided yet and none is left without a fury: Rugal
+(23624C Gigantic Pressure), Yamazaki (236236C Guillotine) and Genjuro (WFT, his rage grab) keep that grab as their D fury
+(300 meter, INV_FURY to its end like any fury, the fury tier 30) while it stays their super throw (hold + forward / back
++ C, one stock, 18). game.json flags them `roster[].fury_grab: true` (build_tables checks the fury is the super throw's
+grab). **Provisional**, pending Bruno's choice (a striking super decoded from KOF98 / SS2 would replace it). On D the grab
+connects as its program does: Yamazaki's and Genjuro's full 30 from 24 px on; Rugal's Gigantic Pressure lands both
+crushes (30) only at some spacings (measured 90, 110, 115, 135 px; one crush = 15 at the others), and from the hold as
+his super throw one crush (9 of the 18): open, to look at with his fury's choice. Proof: tools/brawler/rv3b_proof.py `furies` (/data/tmp/rv3b/out:
+furies_grab.png, rv3b.json).
+Results 3b (2026-10-08, our emulator, /data/tmp/rv3b/out): rv3b_proof ALL OK (Krauser's chain 10 / 10 cases, the grab
+furies 6 / 6); throws_rv3_proof ALL OK (25 fighters, both facings); chain_proof all but Mr. Big's back throw (as before);
+controls_proof 25 / 25; cancel_proof all but K''s fury -> MAX (as before); fury_inv_proof (AI_OFF build) ALL OK incl.
+Rugal / Yamazaki / Genjuro; meter_proof ALL OK; bank_proof ALL OK; rv1a / rv3b / rv2 / rv3 scenarios as expected
+(rv1a-slam and rv1a-juggle-cap moved from Krauser to Ralf: Krauser no longer slams); regress no-bleed True
+(frame-exact), two runs identical; campaign29 through (stage 2's boss Krauser: one more ATTACK entry, his new tree).
 
 ## Layer 2: enemies, AI presets, tints
 

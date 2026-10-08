@@ -40,7 +40,7 @@ one. Each phase merges into `brawler` and ships as a release so Bruno can feel i
   sprite blinking; no meter → life; neither → no breaker. Fury 300. MAX 300 + low life (red blinking state).
 - Damage tiers unified across fighters: specials (±15 %), furies (±20 %), MAX (±20 %); special < fury < MAX.
 
-## Phase 3 — throws (after 2; fighter.c throws, exporters) (done 2026-10-08: docs/brawler_data_model.md "Throws"; the placements for Bruno's review: /data/tmp/rv3/out/audit.md)
+## Phase 3 — throws (after 2; fighter.c throws, exporters) (done 2026-10-08: docs/brawler_data_model.md "Throws"; the placements for Bruno's review: /data/tmp/rv3/out/audit.md; 3b: Bruno's answers applied (hold mapping as is; Rugal / Yamazaki / Genjuro keep their grab as a provisional D fury, `fury_grab`))
 - No command-grab inputs. Each fighter's throw scripts: forward + back; grab specials (Rosa 6246A / 214B, Iori 624D/B,
   Rugal God Press, Hanzo SS2 Mozu Otoshi, Cheng Fu's Super 623 catch, Ralf's KOF98 grab…) become throws, from the
   hold, the chain's back branch, or the meter super throw — case by case.

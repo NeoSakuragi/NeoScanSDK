@@ -169,6 +169,10 @@ def chain_cfg(g, r):
 
 def roster_export(g):
     """what the fighter export (export_bm.py) needs of each roster fighter, in bm_chars order"""
+    for r in g['roster']:                          # (revamp 3b) a grab fury: provisional, Bruno's choice pending (throws1)
+        if r.get('fury_grab'):
+            assert r.get('fury') and r['fury'] == (r.get('throws') or {}).get('super'), \
+                f"roster {r['name']}: fury_grab: its fury must be its super throw's grab (throws.super)"
     return [{'bank': r['bank'], 'name': r['name'], 'watch': watch_of(g, r)[0], 'head': watch_of(g, r)[1], 'chain': chain_cfg(g, r),
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),

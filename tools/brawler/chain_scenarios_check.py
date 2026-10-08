@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 
 OUT = sys.argv[1]; os.makedirs(OUT, exist_ok=True)
 R = json.load(open(os.path.join(HERE, 'scenarios.json')))
-ids = sys.argv[2:] or [k for k in R if k.startswith('rv1a-')]
+ids = sys.argv[2:] or [k for k in R if k.startswith(('rv1a-', 'rv3b-'))]   # (rv3b: Krauser's chain, the grab furies)
 res = {}
 b = H.Brawler(); b.game = H.GAME; ST = b.states
 for rid in ids:

@@ -1798,26 +1798,26 @@
   "title": "A heavy's down finisher: a ground slam that bounces",
   "setup": {
    "mode": "lab",
-   "fighter": "krauser",
+   "fighter": "ralf",
    "dummy": "ryo",
    "gap": 30
   },
-  "do": "A, A, then hold down and press A for the last hit.",
+  "do": "A, A, then hold down and press A for the last hit (Ralf: Krauser's down finisher is his crouch D sweep since revamp 3b).",
   "expect": "The dummy is slammed to the floor at once and bounces up high, where it can be juggled before it falls.",
-  "do_keys": "3:a,12:-,3:a,12:-,2:D,3:Da",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,4:D,2:Da,4:D,2:Da,4:D,2:Da,4:D,2:Da,4:D,2:Da,4:D,2:Da",
   "proof": 90
  },
  "rv1a-juggle-cap": {
   "title": "Juggles stop at 5 air hits; a fighter on the floor cannot be hit",
   "setup": {
    "mode": "lab",
-   "fighter": "krauser",
+   "fighter": "ralf",
    "dummy": "ryo",
    "gap": 30
   },
-  "do": "Krauser: A, A, then down + A (the slam: the dummy bounces up), then keep tapping A at it in the air, and keep tapping once it lies down.",
+  "do": "Ralf: A, A, then down + A (the slam: the dummy bounces up), then keep tapping A at it in the air, and keep tapping once it lies down. (Ralf since revamp 3b: Krauser's down finisher is now his crouch D sweep.)",
   "expect": "The slam bounces the dummy up; whatever reaches it in the air lands, never more than five hits in one juggle (then your attacks pass through it until it lands; the default chains seldom reach five, tools/brawler/chain_proof.py proves the cap). Once it has touched the floor nothing hits it until it is standing again.",
-  "do_keys": "3:a,12:-,3:a,12:-,2:D,3:Da,6:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,4:D,2:Da,4:D,2:Da,4:D,2:Da,4:D,2:Da,4:D,2:Da,4:D,2:Da,6:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-",
   "proof": 120
  },
  "rv1a-player-stun": {
@@ -2049,5 +2049,99 @@
   "expect": "Terry throws Ryo forward; the flying body knocks the second Ryo down. Terry cannot be hit during the throw.",
   "do_keys": "3:Ra",
   "proof": 120
+ },
+ "rv3b-krauser-chain": {
+  "title": "Krauser's chain: close C, far D, crouch C",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "Tap A three times, a tap on each hit, no direction.",
+  "expect": "Three hits: the close punch, the far kick, then the crouching uppercut that knocks the dummy down. 27 damage in all. None of the light pieces (far A / B, close B, crouch A / B) ever plays.",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,4:-,2:a,4:-,2:a,4:-,2:a,4:-,2:a",
+  "proof": 90
+ },
+ "rv3b-krauser-forward": {
+  "title": "Krauser forward finisher: far C push",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "A, A, then hold forward and press A for the third hit.",
+  "expect": "The third hit is his far C punch; it pushes the dummy away to a knockdown.",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,4:R,2:Ra,4:R,2:Ra,4:R,2:Ra,4:R,2:Ra,4:R,2:Ra",
+  "proof": 90
+ },
+ "rv3b-krauser-up": {
+  "title": "Krauser up finisher: close D launcher",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "A, A, then hold up and press A for the third hit.",
+  "expect": "The third hit is his close D, the kick that points up: the dummy is launched high (juggle it).",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,4:U,2:Ua,4:U,2:Ua,4:U,2:Ua,4:U,2:Ua,4:U,2:Ua",
+  "proof": 90
+ },
+ "rv3b-krauser-down": {
+  "title": "Krauser down finisher: crouch D sweep",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "A, A, then hold down and press A for the third hit.",
+  "expect": "The third hit is his crouching D sweep: the dummy is knocked down at once.",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,4:D,2:Da,4:D,2:Da,4:D,2:Da,4:D,2:Da,4:D,2:Da",
+  "proof": 90
+ },
+ "rv3b-krauser-back": {
+  "title": "Krauser back finisher: his throw",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "A, A, then hold back and press A for the third hit.",
+  "expect": "Krauser grabs the dummy and throws it behind him; nothing can hit him during the throw.",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,4:L,2:La,4:L,2:La,4:L,2:La,4:L,2:La,4:L,2:La",
+  "proof": 120
+ },
+ "rv3b-grab-fury": {
+  "title": "Rugal's fury on D is still Gigantic Pressure (a grab, provisional)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rugal",
+   "dummy": "ryo",
+   "gap": 115,
+   "meter": "full"
+  },
+  "do": "Meter full (three dots), the dummy a few steps away. Press D.",
+  "expect": "The super flash, Rugal leaps onto the dummy and crushes it (30 damage when both crushes land; at some spacings only one lands: 15). All three dots spent; nothing can hit Rugal during it. Yamazaki (Guillotine) and Genjuro (his rage grab) keep theirs on D the same way.",
+  "do_keys": "3:d",
+  "proof": 150
+ },
+ "rv3b-grab-super": {
+  "title": "Yamazaki's super throw: hold + forward + C = the Guillotine",
+  "setup": {
+   "mode": "lab",
+   "fighter": "yamazaki",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full",
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo, meter full. Press forward + C.",
+  "expect": "The super flash, then the Guillotine on Ryo for 18 damage; one dot empties (on D the same grab is his fury, all three dots).",
+  "do_keys": "3:Rc",
+  "proof": 280
  }
 }
