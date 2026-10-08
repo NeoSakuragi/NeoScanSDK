@@ -217,7 +217,7 @@ def terry():
     # the Blitz: each slot from neutral (free, not invincible)
     bz = res['blitz'] = {}
     for slot, q, want, dist in (('ff', '1:R,1:-,1:R,1:Ra', 'ATTACK body_toss', 60), ('dd', '1:D,1:-,1:D,1:Da', 'SPECIAL blitz 426B', 70),
-                                ('du', '1:D,1:-,1:U,1:Ua', 'SPECIAL blitz 214D', 70), ('uu', '1:U,1:-,1:U,1:Ua', 'SPECIAL blitz 236C', 120)):
+                                ('du', '1:D,1:-,1:U,1:Ua', 'SPECIAL blitz 236C', 120), ('uu', '1:U,1:-,1:U,1:Ua', 'SPECIAL blitz 214D', 70)):
         reset('terry', dist=dist)
         r = Rec(every=3, tag=f'blitz_{slot}'); r.seq(q); r.until(lambda: st(0) in ('ATTACK', 'SPECIAL'), 10)
         started = what(); invs = []
