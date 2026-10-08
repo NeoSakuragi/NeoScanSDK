@@ -13,10 +13,11 @@ colour set 1) and OUT/review/<fighter>.json:
   checks  the frame counts the proof compares with the data (chainlab.json totals and 1C segments)
 The chain clip: every link from its first frame to its last hit's contact frame, held for its hit-stop (the next
 press on the first possible frame: the chain core takes it as the hit-stop ends), then the next link; the neutral
-finisher played to its end. A finisher's clip: the last link (to its contact, its hit-stop) then the finisher.
+finisher played to its end. A finisher's clip: the whole chain the same way with that finisher (round 2: "too short,
+nothing under 3 hits"; round 1 showed only the last link before it); the back throw's held for no hit-stop.
 OUT/review/index.json lists the fighters built.
 
-    python3 tools/brawler/review_build.py OUT GAME_DIR [FIGHTER ...]     (default: REVIEW, the fighters under review)"""
+    python3 tools/brawler/review_build.py OUT GAME_DIR [FIGHTER ...]     (default: REVIEW, every roster fighter)"""
 import json, os, sys
 import numpy as np
 from PIL import Image
@@ -25,7 +26,9 @@ sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
 import pieces as PC
 from move_images import Rom, colours
 
-REVIEW = ['kim', 'terry', 'krauser']          # phase 4's first three (a fast, a balanced, a heavy); the rest follow
+REVIEW = 'all'               # every roster fighter (4b, 2026-10-08; phase 4's first three were kim, terry, krauser)
+ROUND = 2                    # the proposal's round: 2 = pieces.py's round-2 score (Bruno's three reviews); the page keys
+                             # the proposal's answers by it (chain-r2, fin-up-r2...) so round 1's answers stay apart
 SHEET_W = 2048
 
 
@@ -93,6 +96,7 @@ def build(out, game, names, rom=None, lab=None, G=None):
     lab = lab or json.load(open(os.path.join(game, 'build', 'chainlab.json')))
     G = G or json.load(open(os.path.join(game, 'game.json')))
     os.makedirs(os.path.join(out, 'review'), exist_ok=True)
+    if names in ('all', None): names = [r['name'] for r in G['roster']]
     index = []
     for name in names:
         F, ranked, prop = PC.review(game, name, rom, lab, G)
@@ -117,11 +121,9 @@ def build(out, game, names, rom=None, lab=None, G=None):
             pid = fins[k]['pick']
             if not pid: continue
             p = by[pid]
-            if k == 'back':                                          # the throw: the chain's last link, then the grab
-                fr, marks = C.seq([links[-1]], p, [hs[-2] if N > 1 else hs[-1], 0])
-            else:
-                fr, marks = C.seq([links[-1]], p, [hs[-2] if N > 1 else hs[-1], hs[-1]])
+            fr, marks = C.seq(links, p, hs[:-1] + [0 if k == 'back' else hs[-1]])   # the whole chain, then it
             clips['fin-' + k] = {'frames': fr, 'links': marks}
+            checks['fin-' + k] = {'clip': len(fr), 'hits': sum(max(1, q['hits']) for q in links + [p])}
         # the sheet: every drawing once, rows of SHEET_W px
         pals = F.pals
         imgs = []
@@ -143,9 +145,9 @@ def build(out, game, names, rom=None, lab=None, G=None):
         slim = [{k: v for k, v in p.items() if k not in ('frames', 'check')} for p in ranked]
         data = {'fighter': name, 'display': F.ros.get('display') or name.upper().replace('_', ' '), 'game': F.src_game,
                 'archetype': prop['archetype'], 'fps': PC.FPS, 'sheet': f'review/{name}.png', 'cells': place,
-                'pieces': slim, 'proposal': prop, 'clips': clips, 'checks': checks, 'hitstops': hs}
+                'pieces': slim, 'proposal': prop, 'clips': clips, 'checks': checks, 'hitstops': hs, 'round': ROUND}
         json.dump(data, open(os.path.join(out, 'review', f'{name}.json'), 'w'), separators=(',', ':'))
-        index.append({'fighter': name, 'display': data['display'], 'archetype': prop['archetype'], 'pieces': len(ranked)})
+        index.append({'fighter': name, 'display': data['display'], 'game': F.src_game, 'archetype': prop['archetype'], 'pieces': len(ranked)})
         print(name, len(ranked), 'pieces', len(place), 'drawings', 'chain', ' > '.join(prop['chain']['links']))
     old = []
     ip = os.path.join(out, 'review', 'index.json')

@@ -58,6 +58,19 @@ one. Each phase merges into `brawler` and ships as a release so Bruno can feel i
   sprite sheet per fighter; `REVIEW` = the fighters built); `tools/brawler/chainlab/review.html` + `review.js` (the
   page, answers in the decisions store, set `review-<fighter>`); `tools/brawler/review_proof.py` (frame counts vs the
   data, headless pages at phone / desktop width, 59.18 frames a second). Page: canneji.duckdns.org/brawler-lab/review.html.
+- 4b (2026-10-08): round 2, learned from Bruno's Terry / Kim / Krauser answers (each rule and its source in
+  `pieces.look` / `propose` docstrings): a SCORE = appeal - 15 for a light hit on a heavy ("too weak") - 15 for a
+  crouching light poke (6 of 6 dropped) - up to 15 for choppiness (big pose changes between few drawings, x1.5 on a
+  heavy) + 5 for a role; a crouch move's joins against its own crouch; ROLES marked from the data: starter (standing,
+  range = the drawing's reach past the idle pose >= half a body, quick; heavy: strong, <= 15 f), intermediate, launcher
+  (rises >= 12 px), crumple (strong kick from a crouch / down-forward = the down finisher), hit while holding, dash
+  attack (>= 32 px forward before contact); the proposal scores links + neutral finisher as one sequence, link 1 must be
+  a starter, the best launcher / crumple stay free for the up / down finishers, never under 3 hits; every finisher clip
+  plays the whole chain. Krauser's own chain (close C > far D > crouch C) comes out on top. `review_agree.py`: his
+  Keep / Drop vs the score at 60: 48 / 74 before, 58 / 74 after; his named roles 13 / 13 marked. Pages for all 25
+  (nav by archetype, a roles card, the proposal's answers keyed by round: chain-r2, fin-up-r2...; round 1's kept
+  apart); `review_proof.py` also checks every finisher clip and an answer round trip through the real store (deleted
+  after). Proof: /data/tmp/rv4b/out.
 
 ## Phase 5 — the chain tool
 - Lab preview (pieces, startup / active / recovery handles, live boxes / damage / advantage) and push into the running

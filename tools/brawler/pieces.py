@@ -59,7 +59,7 @@ GAME_LIMBS = {'kof94': 'kof', 'kof96': 'kof', 'kof98': 'kof', 'kof99': 'kof', 'k
               'samsho2': 'samsho', 'samsho4': 'samsho', 'whp': 'whp'}
 EFFECT_TAG = {'none': 'reel', 'knockdown': 'knockdown', 'launch': 'launcher', 'trip': 'sweep', 'blowback': 'push', 'slam': 'slam'}
 PURPOSE = {'chain': 'damage: the plain string', 'neutral': 'damage: knocks down', 'forward': 'reposition: pushes the victim away',
-           'up': 'juggle: launches for air hits', 'down': 'knockdown: sweep', 'down_slam': 'juggle: slams, the victim bounces',
+           'up': 'juggle: launches for air hits', 'down': 'knockdown: crumple / sweep', 'down_slam': 'juggle: slams, the victim bounces',
            'back': 'escape: invincible throw behind'}
 FPS = 59.18                                       # the Neo Geo's frame rate (the clips play at it)
 
@@ -147,6 +147,16 @@ class Fighter:
 
     def mask(self, fi, dx=0, size=(360, 720), feet=(270, 240)):
         """frame fi's silhouette on a fixed canvas, feet at `feet` (row, col), dx px forward -> (bool array, front col)"""
+        key = (fi, dx)
+        if size == (360, 720) and feet == (270, 240):
+            mc = self.__dict__.setdefault('_mk', {})
+            if key not in mc:
+                if len(mc) > 600: mc.clear()
+                mc[key] = self._mask(fi, dx, size, feet)
+            return mc[key]
+        return self._mask(fi, dx, size, feet)
+
+    def _mask(self, fi, dx, size, feet):
         r = self.index(fi)
         out = np.zeros(size, bool)
         if r is None: return out, None
@@ -249,7 +259,7 @@ def iou(a, b):
     return float((a & b).sum()) / u if u else 0.0
 
 
-def appeal(F, frames, contact, air=False):
+def appeal(F, frames, contact, air=False, crouch=False):
     """frames (per frame: frame, x, live...), contact = index of the first live frame -> (score, parts, notes)"""
     hl = holds(frames)
     seq = [h[0] for h in hl]
@@ -282,8 +292,11 @@ def appeal(F, frames, contact, air=False):
         if F.has_effect_part(cf) or frames_have_voice(F, frames): pc += 0.3; why.append('effect / voice')
     p_cont = pc
     # joins with idle
-    home = F.air_mask if air else F.idle_mask[0]
-    j0 = iou(F.mask(seq[0])[0], home); j1 = iou(F.mask(seq[-1])[0], home)
+    if crouch:                                        # (round 2) a crouching move's home is the crouch: it joins
+        j0 = j1 = iou(F.mask(seq[0])[0], F.mask(seq[-1])[0])   # cleanly when it ends in the pose it started from
+    else:
+        home = F.air_mask if air else F.idle_mask[0]
+        j0 = iou(F.mask(seq[0])[0], home); j1 = iou(F.mask(seq[-1])[0], home)
     p_join = max(0.0, min(1.0, ((j0 + j1) / 2 - 0.25) / 0.5))
     parts = {k: round(float(v), 2) for k, v in (('drawings', p_draw), ('evenness', p_even), ('travel', p_trav), ('contact', p_cont), ('joins', p_join))}
     raw = {'drawings': distinct, 'longest_hold': int(max(hs)), 'median_hold': float(med), 'travel': round(float(trav), 2), 'contact': why,
@@ -316,7 +329,7 @@ def normal_piece(F, move):
     kind = 'air' if move in AIR else 'command' if move in COMMANDS else 'normal'
     height = 'air' if kind == 'air' else 'low' if move.endswith('_crouch') and height_of(F, [f['atk'] for f in live]) != 'high' else height_of(F, [f['atk'] for f in live])
     btn = button_of(move)
-    sc, parts, raw = appeal(F, fr, contact, kind == 'air')
+    sc, parts, raw = appeal(F, fr, contact, kind == 'air', move.endswith('_crouch'))
     return {'id': move, 'kind': kind, 'move': move, 'label': label_of(move), 'button': (btn or '').upper(),
             'limb': F.limbs.get(btn, 'body') if move != 'body_toss' else 'body', 'height': height, 'weight': w,
             'reaction': EFFECT_TAG[eff], 'effect': eff, 'reach': int(reach), 'segs': sg,
@@ -411,14 +424,105 @@ def catalogue(F):
         if p and all(q['id'] != p['id'] for q in out): out.append(p)
     t = throw_piece(F)
     if t: out.append(t)
+    look(F, out)
     return out
+
+
+# ---- round 2: what Bruno's first three reviews taught (docs/brawler_review/{terry,kim,krauser}.md) -------------------
+# Each constant names the answers it comes from. The appeal stays the animation's own measure; SCORE = appeal minus
+# these penalties plus the role bonus is what ranks the pieces and builds the proposal.
+LIGHT_HEAVY = 15      # a light hit on a heavy: "too weak", "too weak feeling" (Krauser far A, far B; 6 of his 8 lights dropped)
+CROUCH_POKE = 15      # a crouching light poke (crouch A / B): all 6 dropped on the three fighters ("not visually appealing")
+CHOP = 15             # x chop (x 1.5 on a heavy): Terry far B "animation too choppy", Krauser close A "too choppy for a heavy hitter"
+ROLE_BONUS = 5        # a piece fit for a role he named (starter, intermediate, launcher, crumple, hold hit, dash attack)
+RESERVE = 8          # a sequence using the best launcher / crumple loses them for the up / down finishers (Krauser:
+                     # close D up, crouch D down, his chain close C > far D > crouch C around them)
+MIN_HITS = 3          # "no chain under 3", "too short, nothing under 3 hits": every proposed sequence has 3 hits or more
+ROLE_NAME = {'starter': 'starter', 'intermediate': 'intermediate', 'launcher': 'launcher', 'crumple': 'crumple (down finisher)',
+             'hold': 'hit while holding', 'dash': 'dash attack (forward, forward + A)'}
+
+
+def clamp(v):
+    return max(0.0, min(1.0, float(v)))
+
+
+def look(F, cat):
+    """round 2 measures, roles and the score, added to each piece:
+      vreach  px the drawing reaches past the idle pose's front edge on its live frames (the step's travel included):
+              the look of range (the brawler's attack boxes are mostly the generic 96 px, so the box says little)
+      range   vreach / the body's width (the standing hurt box): 0.5 = half a body past the idle front
+      up      px the contact drawing (or its attack box) rises above the idle's top: a rising hit
+      dash    px the fighter travels forward before the contact frame
+      chop    0..1: big pose changes between few drawings: the mean change per drawing change (in idle silhouettes)
+              over 0.5 (1 at 1.0), times the drawings short of 6 (1 at 3 or fewer)
+    ROLES (each 0..1 fit; the page marks them, the proposal uses them):
+      starter       a standing ground normal / command (a chain starts standing: no crouch move), not choppy (< 0.5), range >= 0.5, startup <= 6
+                    (heavy: <= 15 and a strong hit): fit = half range (full at 1), half speed (full at 3 f; heavy 6 f).
+                    Kim close A "perfect starter", Terry far A "good starter jab", Krauser "starter is missing range"
+                    (close D: range 0.19) and close C / far C "could be a starter"
+      intermediate  a strong ground hit or a command normal, not choppy: mid-chain, not a starter, not a launcher
+                    (Kim forward B, close C, close D, down-forward C; Terry far D, down-forward C); fit 0.5 + range / 2
+      launcher      a strong ground hit rising >= 12 px (Krauser close D "points up", his up finisher); fit up / 36
+      crumple       a strong kick from a crouch or down-forward, low or mid (Kim down-forward D, Krauser crouch D "good for
+                    crumpling" = the down finisher); fit 1
+      hold          a close standing normal, startup <= 6, 20 frames or less, no step forward, a clear pose change
+                    (travel >= 1.5): Terry close B "perfect for hit while grabbing"; fit travel / 3.5
+      dash          a command, special or body toss travelling >= 32 px forward before contact, startup <= 14: Terry 426B
+                    "perfect for the fwd fwd+A motion"; fit dash / 64
+    SCORE = appeal - LIGHT_HEAVY (a light hit on a heavy) - CROUCH_POKE - CHOP x chop (x 1.5 heavy) + ROLE_BONUS (any role)"""
+    heavy = F.ros['archetype'] == 'heavy'
+    rows = np.where(F.idle_mask[0].any(1))[0]; itop = int(rows.min()) if len(rows) else 0
+    ifront = F.idle_mask[1] or 0
+    bw = 2 * max(8, F.body[2])
+    for p in cat:
+        fr = p['frames']
+        live = [f for f in fr if f['live']] or fr
+        vreach = max((F.mask(f['frame'], f['x'])[1] or 0) for f in live) - ifront
+        c = fr[p['startup']] if p['segs'] and p['startup'] < len(fr) else fr[0]
+        r = np.where(F.mask(c['frame'], c['x'])[0].any(1))[0]
+        rise = itop - int(r.min()) if len(r) else 0
+        boxtop = -(c['atk'][1] - c['atk'][3]) if any(c['atk']) else 0
+        up = max(rise, boxtop - F.body_h)
+        dash = max((f['x'] for f in fr[:p['startup'] + 1]), default=0) if p['segs'] else 0
+        per = p['raw']['travel'] / max(1, len(holds(fr)) - 1)
+        chop = clamp((per - 0.5) / 0.5) * clamp((6 - p['raw']['drawings']) / 3)
+        ground = p['kind'] in ('normal', 'command') and p.get('move') != 'body_toss'
+        crouch_poke = p['kind'] == 'normal' and p.get('move', '').endswith('_crouch') and p['weight'] == 'light'
+        rng = vreach / bw
+        roles = {}
+        if (ground and not p['move'].endswith('_crouch') and chop < 0.5 and rng >= 0.5 and p['startup'] <= (15 if heavy else 6)
+                and (not heavy or p['weight'] == 'strong')):
+            roles['starter'] = 0.5 * clamp(rng) + 0.5 * clamp(1 - (p['startup'] - (6 if heavy else 3)) / (9 if heavy else 4))
+        if ground and not crouch_poke and chop < 0.5 and (p['weight'] == 'strong' or p['kind'] == 'command'):
+            roles['intermediate'] = 0.5 + 0.5 * clamp(rng)
+        if ground and p['weight'] == 'strong' and up >= 12: roles['launcher'] = clamp(up / 36)
+        if (ground and p['weight'] == 'strong' and p['limb'] == 'kick' and p['height'] in ('low', 'mid')
+                and (p['move'].endswith('_crouch') or p['move'].startswith('cmd_df'))): roles['crumple'] = 1.0
+        if (p['kind'] == 'normal' and p['move'].endswith('_close') and p['startup'] <= 6 and len(fr) <= 20 and dash < 8
+                and p['raw']['travel'] >= 1.5): roles['hold'] = clamp(p['raw']['travel'] / 3.5)
+        if (p['kind'] in ('command', 'special') or p.get('move') == 'body_toss') and dash >= 32 and p['startup'] <= 14:
+            roles['dash'] = clamp(dash / 64)
+        notes = []
+        pen = 0.0
+        if heavy and p['weight'] == 'light' and p['kind'] in ('normal', 'command', 'air'):
+            pen += LIGHT_HEAVY; notes.append('a light hit on a heavy: weak looking')
+        if crouch_poke: pen += CROUCH_POKE; notes.append('a crouching light poke')
+        if chop > 0: pen += CHOP * chop * (1.5 if heavy else 1)
+        if chop >= 0.25: notes.append(f'choppy ({chop:.2f}): big pose changes between few drawings')
+        p.update(vreach=int(vreach), range=round(rng, 2), up=int(up), dash=int(dash), chop=round(chop, 2),
+                 roles={k: round(v, 2) for k, v in roles.items()}, notes=notes,
+                 score=int(round(p['appeal'] - pen + (ROLE_BONUS if roles else 0))))
 
 
 # ---- the proposal --------------------------------------------------------------------------------------------------
 def join(F, a, b):
     """a link's contact drawing (the next press cancels it there) -> the next link's first drawing: silhouette overlap"""
-    ca = a['frames'][a['startup']]['frame'] if a['segs'] else a['frames'][-1]['frame']
-    return iou(F.mask(ca)[0], F.mask(b['frames'][0]['frame'])[0])
+    k = (a['id'], b['id'])
+    jc = F.__dict__.setdefault('_jc', {})
+    if k not in jc:
+        ca = a['frames'][a['startup']]['frame'] if a['segs'] else a['frames'][-1]['frame']
+        jc[k] = iou(F.mask(ca)[0], F.mask(b['frames'][0]['frame'])[0])
+    return jc[k]
 
 
 HW = 16                                               # the dummy victim's half width (px): a standing hurt box
@@ -437,85 +541,130 @@ def spacing(seq):
 
 
 def rank_pieces(F, cat, arch):
-    """my ranking of the catalogue (the page's order): appeal, then a snappy first hit for fast / balanced fighters,
-    ground pieces before air / specials / the throw"""
+    """my ranking of the catalogue (the page's order): the score (round 2), then a snappy first hit for fast / balanced
+    fighters, ground pieces before air / specials / the throw"""
     pen = {'normal': 0, 'command': 0, 'special': 15, 'air': 25, 'throw': 10}
-    return sorted(cat, key=lambda p: -(p['appeal'] - pen[p['kind']] - (0 if arch == 'heavy' else max(0, p['startup'] - 6))))
+    return sorted(cat, key=lambda p: -(p['score'] - pen[p['kind']] - (0 if arch == 'heavy' else max(0, p['startup'] - 6))))
 
 
-def propose(F, cat):
-    arch = F.ros['archetype']
+def hits_of(seq):
+    return sum(max(1, p['hits']) for p in seq)
+
+
+def propose(F, cat, top=5):
+    """the chain = N pieces (the archetype's length): N - 1 links then the neutral finisher, scored as one sequence
+    (round 2; before, the links alone, the finisher picked after):
+      mean piece score + 25 x mean join (contact pose -> next start pose) - 12 per strong -> light step + limb / height
+      variety (4 per limb change up to 2, 3 per height up to 3) + 20 x link 1's starter fit (no starter role: -15) +
+      5 x the share of middle links fit as intermediates + the finisher's fit as one (an intermediate / launcher /
+      crumple: 5) - RESERVE per piece it takes from the up / down finishers (the best launcher, the best crumple); heavy +6 per strong hit, else -3 per frame link 1 is slower than the quickest light, fast -1 per
+      frame of the others' mean startup. Never a link that whiffs (spacing), never under MIN_HITS hits in all, a
+      fast / balanced chain starts on a light when one is a starter. The finishers by stick then replace the neutral
+      one on the same links, each scored by its role fit (forward: a push / dash, up: a launcher, down: a crumple)."""
+    arch = F.ros['archetype']; heavy = arch == 'heavy'
     N = F.G['chain']['lengths'][arch]
     ground = [p for p in cat if p['kind'] in ('normal', 'command')]
-    reel = [p for p in ground if p['effect'] == 'none' and p['move'] != 'body_toss']   # builders: plain reels (the toss is a finisher)
-    lights = [p for p in reel if p['weight'] == 'light']
-    best_start = min((p['startup'] for p in (lights or reel)), default=0)
-    def score(seq):
-        m = spacing(seq)
-        if min(m) < 0: return None
-        s = sum(p['appeal'] for p in seq) / len(seq)
-        jn = [join(F, a, b) for a, b in zip(seq, seq[1:])]
-        s += 25 * (sum(jn) / len(jn) if jn else 1)
-        w = [p['weight'] == 'strong' for p in seq]
-        s -= 12 * sum(1 for a, b in zip(w, w[1:]) if a and not b)          # rising intensity: never strong -> light
-        lv = sum(1 for a, b in zip(seq, seq[1:]) if a['limb'] != b['limb'])
-        hv = len({p['height'] for p in seq})
-        s += 4 * min(lv, 2) + 3 * min(hv, 3)                                 # height / limb variety
-        if arch == 'heavy':
-            s += 6 * sum(w)                                                   # the heavy: fewer, stronger hits
-        else:
-            s -= 3 * max(0, seq[0]['startup'] - best_start)                   # snappy first hit (feel 1)
-            if arch == 'fast': s -= 1.0 * sum(p['startup'] for p in seq[1:]) / len(seq)
-        return s, m, jn
-    best = None
-    pool = sorted(reel, key=lambda p: -p['appeal'])[:12]
-    for seq in itertools.permutations(pool, N - 1):
-        if arch != 'heavy' and seq[0]['weight'] != 'light' and lights: continue
-        r = score(list(seq))
-        if r and (best is None or r[0] > best[0]): best = (r[0], list(seq), r[1], r[2])
-    if best is None:                                  # nothing keeps the victim in reach: the best appeal, flagged
-        seq = pool[:N - 1]; best = (0, seq, spacing(seq), [join(F, a, b) for a, b in zip(seq, seq[1:])])
-    _, builders, margins, joins = best
-    used = {p['id'] for p in builders}
-    last = builders[-1]
+    linkable = [p for p in ground if p['move'] != 'body_toss']
+    strong = [p for p in linkable if p['weight'] == 'strong']
+    lights = [p for p in linkable if p['weight'] == 'light' and 'starter' in p['roles']]
+    best_start = min((p['startup'] for p in (lights or linkable)), default=0)
+    keep = set()                                      # the best launcher and crumple stay free for the up / down finishers
+    for r in ('launcher', 'crumple'):
+        c = sorted((p for p in linkable if r in p['roles']), key=lambda p: -(p['roles'][r] * 50 + p['score']))
+        if c: keep.add(c[0]['id'])
 
-    def pick(cands, why):
-        """finisher candidates -> ranked [(piece, margin, join, score)]: reach after the builders, appeal, join"""
+    def score(S):
+        m = spacing(S)
+        if min(m) < 0 or hits_of(S) < MIN_HITS: return None
+        s = sum(p['score'] for p in S) / len(S)
+        jn = [join(F, a, b) for a, b in zip(S, S[1:])]
+        s += 25 * (sum(jn) / len(jn) if jn else 1)
+        w = [p['weight'] == 'strong' for p in S]
+        s -= 12 * sum(1 for a, b in zip(w, w[1:]) if a and not b)
+        s += 4 * min(sum(1 for a, b in zip(S, S[1:]) if a['limb'] != b['limb']), 2) + 3 * min(len({p['height'] for p in S}), 3)
+        st = S[0]['roles'].get('starter')
+        s += 20 * st if st is not None else -15
+        mid = S[1:-1]
+        s -= RESERVE * sum(1 for p in S if p['id'] in keep)
+        if mid: s += 5 * sum(1 for p in mid if 'intermediate' in p['roles']) / len(mid)
+        if any(k in S[-1]['roles'] for k in ('intermediate', 'launcher', 'crumple')): s += 5
+        if heavy: s += 6 * sum(w)
+        else:
+            s -= 3 * max(0, S[0]['startup'] - best_start)
+            if arch == 'fast': s -= 1.0 * sum(p['startup'] for p in S[1:]) / len(S)
+        return s, m, jn
+
+    pool = sorted(linkable, key=lambda p: -p['score'])[:12]
+    fpool = sorted(strong, key=lambda p: -p['score'])[:10] or pool
+    found = []
+    for B in itertools.permutations(pool, N - 1):
+        if not heavy and lights and B[0]['weight'] != 'light': continue
+        for f in fpool:
+            if f in B: continue
+            r = score(list(B) + [f])
+            if r: found.append((r[0], list(B), f, r[1], r[2]))
+    found.sort(key=lambda t: -t[0])
+    if not found:                                     # nothing keeps the victim in reach: the best scores, flagged
+        S = pool[:N - 1] + [next((f for f in fpool if f not in pool[:N - 1]), pool[-1])]
+        found = [(0, S[:-1], S[-1], spacing(S), [join(F, a, b) for a, b in zip(S, S[1:])])]
+    _, builders, nfin, margins, joins = found[0]
+    used = {p['id'] for p in builders}
+    alts, seen = [], set()
+    for sc, B, f, m, jn in found:
+        key = tuple(p['id'] for p in B) + (f['id'],)
+        if key in seen: continue
+        seen.add(key); alts.append({'links': [p['id'] for p in B], 'finisher': f['id'], 'score': round(sc, 1), 'margins': [int(x) for x in m]})
+        if len(alts) >= top: break
+
+    def pick(cands, why, role=None, n=4):
+        """finisher candidates on the chosen links -> ranked [{id, margin, join, score, why}]"""
         out = []
         for p in cands:
             if p['id'] in used: continue
-            m = spacing(builders + [p])[-1]
-            j = join(F, last, p)
-            out.append((p, m, j, p['appeal'] + 25 * j - (40 if m < 0 else 0)))
+            S = builders + [p]
+            if hits_of(S) < MIN_HITS: continue
+            m = spacing(S)[-1]
+            j = join(F, builders[-1], p)
+            out.append((p, m, j, p['score'] + 25 * j - (40 if m < 0 else 0) + (20 * p['roles'].get(role, 0) if role else 0)))
         out.sort(key=lambda t: -t[3])
-        return [{'id': p['id'], 'margin': int(m), 'join': round(j, 2), 'score': round(sc, 1), 'why': why} for p, m, j, sc in out[:4]]
-    strong = [p for p in ground if p['weight'] == 'strong']
+        return [{'id': p['id'], 'margin': int(m), 'join': round(j, 2), 'score': round(sc, 1), 'why': why} for p, m, j, sc in out[:n]]
     fins = {}
-    fins['neutral'] = pick([p for p in strong if p['effect'] in ('none', 'knockdown') and p['move'] != 'body_toss'] or strong, 'a strong hit that reads as an ender')
+    fins['neutral'] = pick(strong, 'a strong hit that reads as an ender: the 3rd hit or later', n=99)
+    ix = next((i for i, x in enumerate(fins['neutral']) if x['id'] == nfin['id']), None)   # the chain's own finisher first
+    if ix is not None: fins['neutral'].insert(0, fins['neutral'].pop(ix))
+    del fins['neutral'][4:]
     fins['forward'] = pick([p for p in ground if p['effect'] == 'blowback' or p['move'].startswith('cmd_fwd') or p['move'] == 'body_toss'
-                            or (p['weight'] == 'strong' and max(f['x'] for f in p['frames']) > 8)] or strong, 'a push: forward travel or a blowback')
-    fins['up'] = pick([p for p in strong if p['effect'] == 'launch' or p['height'] == 'high'] or strong, 'a launcher: a rising, high strong hit')
-    if (F.ros.get('finishers') or {}).get('down', 'sweep') == 'slam' or arch == 'heavy':
+                            or 'dash' in p['roles'] or (p['weight'] == 'strong' and max(f['x'] for f in p['frames']) > 8)] or strong,
+                           'a push: forward travel or a blowback', 'dash')
+    fins['up'] = pick([p for p in strong if 'launcher' in p['roles']] or [p for p in strong if p['effect'] == 'launch' or p['height'] == 'high'] or strong,
+                      'a launcher: a strong hit that rises', 'launcher')
+    crumple = pick([p for p in ground if 'crumple' in p['roles']], 'a crumple: a strong kick from low, the victim folds / is swept', 'crumple')
+    if crumple:                                       # (none free of the chain: the sweep / slam as before)
+        fins['down'] = crumple; down_kind = 'down'
+    elif (F.ros.get('finishers') or {}).get('down', 'sweep') == 'slam' or heavy:
         fins['down'] = pick([p for p in strong if p['height'] != 'low' and p['move'].endswith(('_close', '_far'))] or strong, 'a slam: a strong close hit downward')
         down_kind = 'down_slam'
     else:
         fins['down'] = pick([p for p in ground if p['height'] == 'low' and (p['weight'] == 'strong' or p['effect'] == 'trip')] or strong, 'a sweep: a low strong kick')
         down_kind = 'down'
-    # one piece per finisher where possible: each slot in turn takes its best candidate no earlier slot took (none
-    # left in its own list: its best, shared, as the chain core allows: Krauser's up and down are both far D today)
-    taken = set()
+    taken = set()                                     # one piece per finisher where possible (the neutral keeps the chain's)
     for k in ('neutral', 'forward', 'up', 'down'):
         c = fins[k]
         if not c: continue
-        ix = next((i for i, x in enumerate(c) if x['id'] not in taken), 0)
+        ix = 0 if k == 'neutral' else next((i for i, x in enumerate(c) if x['id'] not in taken), 0)
         c.insert(0, c.pop(ix)); taken.add(c[0]['id'])
     thr = next((p for p in cat if p['kind'] == 'throw'), None)
+    roles = {}                                        # the best piece per role he named outside the chain
+    for r in ('hold', 'dash'):
+        c = sorted((p for p in cat if r in p['roles']), key=lambda p: -(p['roles'][r] * 50 + p['score']))
+        roles[r] = [p['id'] for p in c[:3]]
     chain = {'archetype': arch, 'length': N, 'links': [p['id'] for p in builders], 'margins': [int(m) for m in margins],
-             'joins': [round(float(j), 2) for j in joins], 'purpose': PURPOSE['chain'],
-             'current': F.lab['tree'].get('chain', {})}
+             'joins': [round(float(j), 2) for j in joins], 'purpose': PURPOSE['chain'], 'hits': hits_of(builders + [nfin]),
+             'top': alts, 'current': F.lab['tree'].get('chain', {})}
     fin = {k: {'pick': v[0]['id'] if v else None, 'alternatives': v, 'purpose': PURPOSE[down_kind if k == 'down' else k]} for k, v in fins.items()}
     fin['back'] = {'pick': thr['id'] if thr else None, 'alternatives': [], 'purpose': PURPOSE['back']}
-    return {'archetype': arch, 'chain': chain, 'finishers': fin, 'down_kind': 'slam' if down_kind == 'down_slam' else 'sweep'}
+    return {'archetype': arch, 'chain': chain, 'finishers': fin, 'roles': roles,
+            'down_kind': 'slam' if down_kind == 'down_slam' else 'sweep'}
 
 
 def review(game, name, rom=None, lab=None, G=None):
@@ -529,10 +678,12 @@ def review(game, name, rom=None, lab=None, G=None):
 def text(F, cat, prop):
     out = [f"{F.name} ({F.src_game}), archetype {prop['archetype']}, {len(cat)} pieces"]
     for p in cat:
-        out.append(f"  {p['appeal']:3d}  {p['id']:14s} {p['label'][:34]:34s} {p['limb']:7s} {str(p['height']):5s} {p['reaction']:9s} "
-                   f"reach {p['reach']:4d}  {p['startup']:3d}/{p['active']:3d}/{p['recovery']:3d}  dmg {p['damage']:2d}  {p['parts']}")
+        out.append(f"  {p['score']:3d} ({p['appeal']:3d})  {p['id']:14s} {p['label'][:34]:34s} {p['limb']:7s} {str(p['height']):5s} {p['reaction']:9s} "
+                   f"reach {p['reach']:4d}  {p['startup']:3d}/{p['active']:3d}/{p['recovery']:3d}  dmg {p['damage']:2d}  range {p['range']} up {p['up']} chop {p['chop']} {p['roles']}")
     c = prop['chain']
-    out.append(f"  chain: {' > '.join(c['links'])}  margins {c['margins']} joins {c['joins']}")
+    out.append(f"  chain: {' > '.join(c['links'])}  margins {c['margins']} joins {c['joins']} hits {c['hits']}")
+    for t in c['top']: out.append(f"    {t['score']:6.1f}  {' > '.join(t['links'] + [t['finisher']])}")
+    out.append(f"  roles: {prop['roles']}")
     for k, v in prop['finishers'].items():
         out.append(f"  {k:8s} {v['pick']}  ({v['purpose']})  alt: {[a['id'] for a in v['alternatives'][1:]]}")
     return '\n'.join(out)

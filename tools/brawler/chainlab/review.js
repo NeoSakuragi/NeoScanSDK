@@ -23,6 +23,9 @@
   const sheet = new Image(); sheet.src = D.sheet;
   await new Promise((ok, ko) => { sheet.onload = ok; sheet.onerror = () => ko(new Error('sheet')); }).catch(() => {});
   const P = Object.fromEntries(D.pieces.map(p => [p.id, p]));
+  const RID = id => (D.round || 1) > 1 ? id + '-r' + D.round : id;   // the proposal's answers per round (round 1's stay apart)
+  const ROLE = { starter: 'starter', intermediate: 'intermediate', launcher: 'launcher', crumple: 'crumple (down finisher)', hold: 'hit while holding', dash: 'dash attack (forward, forward + A)' };
+  const roleTxt = p => Object.entries(p.roles || {}).map(([k, v]) => `${ROLE[k] || k} ${Math.round(v * 100)} %`).join(', ');
 
   // ---- the frame player: every visible clip on one clock, one game frame = 1000 / fps ms ----
   const FMS = 1000 / D.fps;
@@ -153,7 +156,9 @@
     return h('dl', { class: 'tags' },
       row('Input', p.kind === 'special' ? p.special + ' on ' + p.label.split('(on ')[1].split(')')[0] : p.kind === 'throw' ? 'back + A on the last link' : p.label + (p.button ? ` (button ${p.button})` : '')),
       row('Limb', p.limb), row('Height', p.height || '-'), row('Victim', p.reaction),
-      row('Reach', p.kind === 'throw' ? 'a grab' : p.reach + ' px'),
+      row('Reach', p.kind === 'throw' ? 'a grab' : p.reach + ' px (hit box); the drawing ' + p.vreach + ' px past the idle pose = ' + p.range + ' body widths'),
+      row('Suits', roleTxt(p) || '-'),
+      p.notes && p.notes.length ? row('Against it', p.notes.join('; ')) : null,
       row('Startup / active / recovery', segTxt(p)),
       row('Damage', p.kind === 'throw' ? 'the throw\'s own' : String(p.damage)));
   }
@@ -170,7 +175,7 @@
     const q = (p.kind === 'special' ? p.special + ' first hit' : p.label);
     return h('section', { class: 'card', id: 'p-' + p.id },
       h('header', {}, h('span', { class: 'rank', text: '#' + rank }), h('h3', { text: p.label }),
-        h('span', { class: 'score' }, 'appeal ', h('b', { text: String(p.appeal) }), ' / 100')),
+        h('span', { class: 'score' }, 'score ', h('b', { text: String(p.score) }), ' · appeal ' + p.appeal)),
       makeClip(p.id, q), strip(p), tags(p),
       h('details', {}, h('summary', { text: 'Why this appeal score' }), parts(p)),
       answer(p.id, `${D.display}: keep ${q} as a chain piece?`));
@@ -216,10 +221,14 @@
   const pr = D.proposal, ch = pr.chain, fin = pr.finishers;
   const name = id => (P[id] || {}).label || id;
   const parts_ = [];
-  parts_.push(h('nav', { class: 'who', 'aria-label': 'Fighters' }, index.fighters.map(f => h('a', { href: '?f=' + f.fighter, 'aria-current': f.fighter === D.fighter ? 'page' : 'false', text: f.display + ' (' + f.archetype + ')' }))));
+  const GROUPS = [['fast', 'Fast (5 hits)'], ['balanced', 'Balanced (4 hits)'], ['heavy', 'Heavy (3 hits)']];
+  parts_.push(h('nav', { class: 'who', 'aria-label': 'Fighters by archetype' }, GROUPS.map(([a, t]) => h('div', { class: 'group', role: 'group', 'aria-label': t },
+    h('span', { class: 'glabel', text: t }),
+    index.fighters.filter(f => f.archetype === a).map(f => h('a', { href: '?f=' + f.fighter, 'aria-current': f.fighter === D.fighter ? 'page' : 'false',
+      text: f.display + (index.fighters.some(g => g !== f && g.display === f.display) && f.game ? ' (' + f.game.toUpperCase() + ')' : '') }))))));
   parts_.push(h('h1', { text: `${D.display}: pieces and chain` }));
   parts_.push(status);
-  parts_.push(h('p', { class: 'intro', text: `Every piece ${D.display} could use in a chain, from the game's data: its tags and my appeal score, ranked; then my proposal for the ${pr.archetype} archetype (${ch.length} links). Each clip loops at the game's speed (¼ speed, Step and the hit boxes are under it); the strip under it shows each drawing with the frames it is held, the contact drawing outlined. Keep, Drop, or "None of these" with your own answer in the note.` }));
+  parts_.push(h('p', { class: 'intro', text: `Every piece ${D.display} could use in a chain, from the game's data: its tags and my appeal score, ranked; then my proposal for the ${pr.archetype} archetype (${ch.length} links). Each clip loops at the game's speed (¼ speed, Step and the hit boxes are under it); the strip under it shows each drawing with the frames it is held, the contact drawing outlined. Keep, Drop, or "None of these" with your own answer in the note.` + ((D.round || 1) > 1 ? ` Round ${D.round}: the ranking and the proposal learned from your Terry, Kim and Krauser reviews (score below); the chain and every finisher are shown as the whole chain, never under 3 hits.` : '') }));
   parts_.push(h('details', { class: 'formula' }, h('summary', { text: 'How the appeal score is made (0-100)' }),
     h('p', { text: '20 points each, read from the animation itself:' }),
     h('ul', {},
@@ -228,7 +237,9 @@
       h('li', { text: 'Pose travel: how much the silhouette changes from drawing to drawing, summed, against the idle silhouette; 6x = full.' }),
       h('li', { text: 'Contact: the hit lands on a new drawing (35 %), that drawing snaps forward (up to 35 % for 24 px), an effect or a voice on it (30 %).' }),
       h('li', { text: 'Joins: how much the first and last drawings overlap the idle pose; 25 % overlap = none, 75 % = full.' })),
-    h('p', { text: 'Tags: limb by the source button, height from the attack box on the standing body, victim reaction as the brawler plays it, reach = the attack box\'s front edge, startup / active / recovery = the retiming segments.' })));
+    h('p', { text: 'Tags: limb by the source button, height from the attack box on the standing body, victim reaction as the brawler plays it, reach = the attack box\'s front edge, startup / active / recovery = the retiming segments.' }),
+    h('p', { text: 'Score (round 2, from your Terry / Kim / Krauser answers) = appeal, minus 15 for a light hit on a heavy ("too weak"), minus 15 for a crouching light poke (all six dropped), minus up to 15 for choppiness (big pose changes between few drawings; x 1.5 on a heavy: "too choppy"), plus 5 for a role you named. A crouching move\'s joins are now measured against its own crouch, not the standing pose.' }),
+    h('p', { text: 'Roles: starter = standing, reaches at least half a body past the idle pose, quick (heavy: a strong hit, 15 f or less); intermediate = a strong hit or a command normal, mid-chain; launcher = a strong hit rising 12 px or more; crumple = a strong kick from a crouch or down-forward (the down finisher); hit while holding = a short close normal with a clear pose change; dash attack = travels 32 px or more forward before it hits.' })));
 
   parts_.push(h('h2', { text: `Pieces (${D.pieces.length}), my ranking` }));
   const rest = [];
@@ -245,16 +256,17 @@
     answer('archetype', `${D.display}: keep the ${pr.archetype} archetype?`)));
   const cur = ch.current || {};
   parts_.push(h('section', { class: 'card', id: 'p-chain' },
-    h('header', {}, h('h3', { text: 'The chain: ' + ch.links.map(name).join(' > ') + ' > ' + name(fin.neutral.pick) }), h('span', { class: 'rank', text: ch.purpose })),
+    h('header', {}, h('h3', { text: 'The chain: ' + ch.links.map(name).join(' > ') + ' > ' + name(fin.neutral.pick) }), h('span', { class: 'rank', text: ch.purpose + (ch.hits ? ' · ' + ch.hits + ' hits' : '') })),
     makeClip('chain', 'the chain'),
     h('p', { class: 'ctx', text: `Played with each press on the first possible frame: every link to its hit, its hit-stop (${D.hitstops.join(', ')} f), then the next; the neutral finisher at the end.` }),
     h('ul', { class: 'parts' }, ch.links.map((id, k) => {
       const p = P[id];
       return h('li', { text: `Link ${k + 1}: ${p.label}, ${p.limb} ${p.height}, startup ${p.startup} f, appeal ${p.appeal}; victim margin ${ch.margins[k]} px` + (k < ch.joins.length ? `; join into the next ${ch.joins[k]}` : '') });
     })),
-    h('p', { class: 'ctx', text: 'Why: picked for appeal and flow: the contact pose leads into the next start pose, the victim stays in reach (margin = px of reach left; it slides back a little each hit), strong hits never fall back to light ones, varied limbs and heights' + (pr.archetype === 'heavy' ? ', strong hits first (heavy).' : ', the quickest first hit (feel principle 1).') }),
-    cur.links ? h('p', { class: 'ctx', text: 'Today\'s chain (1A\'s generator): ' + cur.links.join(' > ') + ' > ' + (cur.finishers || {}).neutral }) : null,
-    answer('chain', `${D.display}: keep this chain?`)));
+    h('p', { class: 'ctx', text: 'Why: link 1 is a starter (it reaches past the body and comes out quick; a heavy\'s is a strong hit), the best launcher and crumple are left for the up and down finishers, then the score and flow: the contact pose leads into the next start pose, the victim stays in reach (margin = px of reach left; it slides back a little each hit), strong hits never fall back to light ones, varied limbs and heights' + (pr.archetype === 'heavy' ? ', strong hits first (heavy).' : ', the quickest first hit (feel principle 1).') }),
+    ch.top && ch.top.length > 1 ? h('p', { class: 'ctx', text: 'My next chains: ' + ch.top.slice(1).map(t => t.links.concat([t.finisher]).map(name).join(' > ')).join(' · ') }) : null,
+    cur.links ? h('p', { class: 'ctx', text: 'Today\'s chain in the game: ' + cur.links.join(' > ') + ' > ' + (cur.finishers || {}).neutral }) : null,
+    answer(RID('chain'), `${D.display}: keep this chain?`)));
   const STICK = { neutral: 'Neutral (A)', forward: 'Forward + A', up: 'Up + A', down: 'Down + A', back: 'Back + A' };
   for (const k of ['neutral', 'forward', 'up', 'down', 'back']) {
     const f = fin[k]; if (!f || !f.pick) continue;
@@ -262,10 +274,16 @@
     parts_.push(h('section', { class: 'card', id: 'p-fin-' + k },
       h('header', {}, h('h3', { text: `${STICK[k]} finisher: ${p.label}` }), h('span', { class: 'rank', text: f.purpose })),
       makeClip('fin-' + k, STICK[k] + ' finisher'),
-      h('p', { class: 'ctx', text: `Shown after the last link (${name(ch.links[ch.links.length - 1])}). ` + (f.alternatives.length ? `${f.alternatives[0].why}; reach margin ${f.alternatives[0].margin} px, join ${f.alternatives[0].join}. My next picks: ${f.alternatives.slice(1).map(a => name(a.id)).join(', ') || 'none'}.` : (k === 'back' ? (p.mirrored ? 'Its throw played mirrored (no throw of its own ends behind).' : 'The throw whose victim ends behind.') + ' Invincible for the whole throw.' : '')) }),
+      h('p', { class: 'ctx', text: `Shown after the whole chain (${ch.links.map(name).join(' > ')}). ` + (f.alternatives.length ? `${f.alternatives[0].why}; reach margin ${f.alternatives[0].margin} px, join ${f.alternatives[0].join}. My next picks: ${f.alternatives.slice(1).map(a => name(a.id)).join(', ') || 'none'}.` : (k === 'back' ? (p.mirrored ? 'Its throw played mirrored (no throw of its own ends behind).' : 'The throw whose victim ends behind.') + ' Invincible for the whole throw.' : '')) }),
       tags(p),
-      answer('fin-' + k, `${D.display}: keep ${p.label} as the ${STICK[k].toLowerCase()} finisher?`)));
+      answer(RID('fin-' + k), `${D.display}: keep ${p.label} as the ${STICK[k].toLowerCase()} finisher?`)));
   }
+  const rl = pr.roles || {};
+  const roleLine = (k, t) => h('li', {}, t + ': ', (rl[k] || []).length ? (rl[k] || []).map((id, i) => [i ? ', ' : '', h('a', { href: '#p-' + id, text: name(id) })]) : 'none fits');
+  parts_.push(h('section', { class: 'card', id: 'p-roles' }, h('header', {}, h('h3', { text: 'Other roles' })),
+    h('p', { class: 'ctx', text: 'The pieces that fit the roles you named outside the chain, best first (their cards are above).' }),
+    h('ul', { class: 'parts' }, roleLine('hold', 'Hit while holding (the hold\'s A)'), roleLine('dash', 'Dash attack (forward, forward + A)')),
+    answer(RID('roles'), `${D.display}: keep these for the hold hit and the dash attack?`)));
   const gen = { id: 'general', q: 'Anything else for this fighter?' };
   parts_.push(h('section', { class: 'card', id: 'p-general' }, h('header', {}, h('h3', { text: gen.q })), answer('general', `${D.display}: ${gen.q}`).filter((x, i) => i > 0)));
   total.splice(total.indexOf('general'), 1);
