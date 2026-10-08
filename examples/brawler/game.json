@@ -258,7 +258,7 @@
   {
    "name": "cheng_fu",
    "display": "CHENG FU",
-   "scale": 1,
+   "scale": 0.8,
    "bank": "doubledr:cheng_fu",
    "watch": {"frame": 0, "step": 0},
    "routes": "tools/brawler/routes/cheng_fu.json",
@@ -334,7 +334,7 @@
   {
    "name": "billy_lee",
    "display": "BILLY LEE",
-   "scale": 1,
+   "scale": 0.8,
    "bank": "doubledr:billy",
    "watch": {"frame": 0, "step": 0},
    "routes": "tools/brawler/routes/billy_lee.json",
@@ -356,7 +356,7 @@
   {
    "name": "billy_super",
    "display": "SUPERBILLY",
-   "scale": 1,
+   "scale": 0.8,
    "bank": "doubledr:billy_super",
    "watch": {"frame": 0, "step": 0},
    "routes": "tools/brawler/routes/billy_lee.json",

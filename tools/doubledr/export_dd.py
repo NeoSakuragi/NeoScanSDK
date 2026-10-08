@@ -49,6 +49,45 @@ FORM_PAL = {0: (16, 32), 1: (18, 34)}             # the transformation's colours
                                                   # 'form' = Billy's own (its win pose turns them back, WIN)
 PALRAM = '/data/neogeo_dict/doubledr/palram.json'
 
+# ---- size: game.json roster[].scale (Bruno 2026-10-08: 80 % for every Double Dragon fighter, 118 px -> ~95 px). Scale
+# 0.8 = the LSPC's own shrink Z = $CC, exactly as tools/kizuna/export_kz.py pre-renders Kim: each definition group (one
+# sticky sprite chain) at its offset x (Z + 1) / 256 from the anchor, its columns hshrink Z >> 4 or one less by the
+# pattern word $7F77 (DD has no camera zoom of its own: Kizuna's $4D0C0[Z & 15], 12.75 px a column = 0.797, so the
+# width shrinks like the height), vshrink Z through the BIOS L0 table, size ceil(rows (Z + 1) / 256) tiles; then re-cut
+# into 16x16 tiles, exact dedupe. Every distance (boxes, travel, heights, velocities, gravity, object / spark / throw
+# offsets, the catch's distance) is scaled by S = (Z + 1) / 256 with it. S = 1: the definitions as they are (1:1).
+ZOOM = {0.8: 0xCC}
+PATTERN = {0xCC: 0x7F77}
+FEET_Z = {0xCC: -2}                               # FEET at that shrink: Billy's idle soles end on the anchor's row + 1
+                                                  # (L0 drops lines): -2 keeps their last row on the floor's row - 1
+S = 1.0                                           # the fighter being exported's factor (export() sets it)
+def sc(v): return int(round(v * S))
+
+_kz = []
+def lspc():
+    """(HSHRINK, l0) from tools/kizuna/kz.py (Geolith's lut_hshrink, the BIOS L0 ROM): one copy of the tables"""
+    if not _kz:
+        import importlib.util
+        sp = importlib.util.spec_from_file_location('kz', os.path.join(HERE, '..', 'kizuna', 'kz.py'))
+        m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); _kz.append((m.HSHRINK, m.l0()))
+    return _kz[0]
+
+def draw_sprite(img, x, top, cells, h, v, size):
+    """one hardware sprite as the LSPC draws it (kz.draw_sprite with DD's tiles): cells = [(pen 16x16, value base)|None]
+    top to bottom, flips baked; hshrink h (h + 1 px wide), vshrink v, size tiles tall; -> its width"""
+    HS, L = lspc(); H, W = img.shape
+    cols = [p for p in range(16) if HS[h][p]]
+    for i in range(size * 16):
+        y = top + i
+        if not 0 <= y < H: continue
+        srow = L[v * 256 + i] if i < 256 else L[v * 256 + (i & 255 ^ 255)] ^ 0x1FF
+        t, line = srow >> 4, srow & 15
+        if t >= len(cells) or not cells[t]: continue
+        pen, base = cells[t]; row = pen[line]
+        for k, p in enumerate(cols):
+            if 0 <= x + k < W and row[p]: img[y, x + k] = base | int(row[p])
+    return h + 1
+
 def palram():
     """palette RAM (4096 words) of the vs states, merged (a slot empty in one taken from the next): cached"""
     if os.path.exists(PALRAM): return json.load(open(PALRAM))
@@ -78,6 +117,7 @@ class Builder:
     def __init__(self, ch):
         self.ch = ch; self.tiles, self.tile_map, self.frames, self.index = [], {}, [], {}
         self.pals = ['body']; self.autoanim = 0
+        self.z = None                                     # LSPC shrink of the pre-render (None: full size)
     def tile(self, code, attr):
         pen = dd.tile(code | (attr >> 4 & 15) << 16)
         if attr & 1: pen = pen[:, ::-1]
@@ -93,6 +133,7 @@ class Builder:
     def frame(self, layers):
         if isinstance(layers, int): layers = ((layers, 0, 0, 'body'),)
         if layers in self.index: return self.index[layers]
+        if self.z is not None: return self.frame_shrunk(layers)
         cols = []                                         # (x, top, palette key, [tile numbers per row])
         for w, ox, oy, key, *mir in layers:               # mir (1): the definition mirrored about the anchor (the
             mir = bool(mir and mir[0])                    # throws' hold pose, throw_dd: the $8626 writer's picture)
@@ -127,6 +168,77 @@ class Builder:
         self.frames.append({'record': '+'.join(f'{w}' for w, *_ in layers), 'parts': out, 'weapon': None,
                             'layers': [list(l) for l in layers]})   # (billy_proof.py: DD's drawing of the same)
         return self.index[layers]
+
+    def frame_shrunk(self, layers):
+        """the layers drawn by the LSPC at shrink self.z (draw_sprite), anchor at (X0, Y0), a mirrored layer flipped about
+        the anchor (u -> -u - 1, as the full-size path); later layers / columns in front; cut into 16x16 tiles, one part
+        per palette key and run of non-empty columns (export_kz.Builder.frame)"""
+        z = self.z; pat = PATTERN[z]; h0 = z >> 4
+        Wc, Hc, X0, Y0 = 512, 512, 256, 400
+        img = np.zeros((Hc, Wc), np.uint16)
+        for w, ox, oy, key, *mir in layers:
+            d = dd.sdef(w)
+            if not d: continue
+            li = np.zeros_like(img); groups = {}
+            for c in d['cols']: groups.setdefault(c['group'], []).append(c)
+            for g, cs in groups.items():
+                x = X0 + ((ox + cs[0]['xo']) * (z + 1) >> 8); top = Y0 + ((oy + cs[0]['yo']) * (z + 1) >> 8)
+                size = (max(c['rows'] for c in cs) * (z + 1) + 255) >> 8
+                for k, c in enumerate(cs):
+                    cells = []
+                    for code, at in c['tiles']:
+                        pen = dd.tile(code | (at >> 4 & 15) << 16)
+                        if at & 1: pen = pen[:, ::-1]
+                        if at & 2: pen = pen[::-1]
+                        if at & 0xC: self.autoanim += 1
+                        kk = key if c['group'] == 0 and key is not None else at >> 8
+                        cells.append((pen, (self.pal(kk) + 1) << 4) if pen.any() else None)
+                    h = h0 if (pat >> (15 - k % 16)) & 1 else h0 - 1
+                    x += draw_sprite(li, x, top, cells, h, z, size)
+            if mir and mir[0]: li = _mirror(li, X0)       # (the hold pose: u -> -u - 1 about the anchor column)
+            img = np.where(li > 0, li, img)
+        parts = []
+        for pv in sorted({int(p) for p in np.unique(img >> 4) if p}):
+            m = (img >> 4) == pv
+            ys, xs = np.nonzero(m); top, left = ys.min(), xs.min()
+            ncol = (xs.max() - left) // 16 + 1; nrow = (ys.max() - top) // 16 + 1
+            cols = []
+            for c in range(ncol):
+                col = []
+                for r in range(nrow):
+                    blk = img[top + 16 * r:top + 16 * r + 16, left + 16 * c:left + 16 * c + 16]
+                    pen = np.where((blk >> 4) == pv, blk & 15, 0).astype(np.uint8)
+                    pen = np.pad(pen, ((0, 16 - pen.shape[0]), (0, 16 - pen.shape[1])))
+                    col.append(self.tile_pen(pen))
+                cols.append(col)
+            run = []
+            for c in range(ncol + 1):
+                if c < ncol and any(cols[c]): run.append(c); continue
+                if run:
+                    tc = [cols[k] for k in run]
+                    while not any(t[-1] for t in tc): tc = [t[:-1] for t in tc]
+                    lead = 0
+                    while not any(t[0] for t in tc): tc = [t[1:] for t in tc]; lead += 1
+                    assert len(tc[0]) <= 32, (layers, len(tc[0]))
+                    parts.append({'dx': int(left + 16 * run[0] - X0), 'dy': int(top + 16 * lead - Y0) + FEET_Z[z], 'hflip': 0,
+                                  'vflip': 0, 'pal': pv - 1, 'tiles': tc})
+                    run = []
+        self.index[layers] = len(self.frames)
+        self.frames.append({'record': '+'.join(f'{w}' for w, *_ in layers), 'parts': parts, 'weapon': None,
+                            'layers': [list(l) for l in layers], 'zoom': z})
+        return self.index[layers]
+    def tile_pen(self, pen):
+        if not pen.any(): return 0
+        b = encode_tile(np.ascontiguousarray(pen))
+        if b not in self.tile_map: self.tile_map[b] = TILE_BASE + len(self.tiles); self.tiles.append(b)
+        return self.tile_map[b]
+
+def _mirror(img, X0):
+    """column u (from the anchor X0) -> -u - 1"""
+    out = np.zeros_like(img); W = img.shape[1]
+    src = np.arange(W); dst = 2 * X0 - 1 - src
+    ok = (dst >= 0) & (dst < W); out[:, dst[ok]] = img[:, src[ok]]
+    return out
 
 def dd_boxes(w6):
     """the step's box records up to the end marker (a record whose type's low byte is $FF: the list walk $207C8)"""
@@ -167,9 +279,9 @@ def openings(ch, a):
 
 def kof_boxes(w6):
     """DD box set -> KOF keys: '31' the body union (type bit 6), '11' the attack union (bit 7)"""
-    def union(bs):
-        l = min(b['x'] - b['hw'] for b in bs); r = max(b['x'] + b['hw'] for b in bs)
-        t = min(b['y'] - b['hh'] for b in bs); bt = max(b['y'] + b['hh'] for b in bs)
+    def union(bs):                                       # (scaled by S: the pre-rendered size)
+        l = sc(min(b['x'] - b['hw'] for b in bs)); r = sc(max(b['x'] + b['hw'] for b in bs))
+        t = sc(min(b['y'] - b['hh'] for b in bs)); bt = sc(max(b['y'] + b['hh'] for b in bs))
         return [max(-128, min(127, (l + r) // 2)), max(-128, min(127, (t + bt) // 2)), min(255, (r - l + 1) // 2), min(255, (bt - t + 1) // 2)]
     bx = dd_boxes(w6); out = {}
     hurt = [b for b in bx if b['type'] & 0x40]; atk = [b for b in bx if b['type'] & 0x80]
@@ -196,7 +308,7 @@ def anim_steps(B, ch, a, first=0, last=None, key='body', moving=True):
     for i, s in enumerate(st):
         atk = attacks(s['w6']); nx = st[i + 1] if i + 1 < len(st) else None
         chain = atk and nx is not None and attacks(nx['w6']) and not op[i + 1]   # the next attack step continues this hit
-        acc += tr.get(first + i, 0.0); dx = int(round(acc)); acc -= dx
+        acc += tr.get(first + i, 0.0) * S; dx = int(round(acc)); acc -= dx
         out.append({'frame': B.frame(((s['def_'], 0, 0, key),)), 'ticks': s['ticks'], 'flags': (0x100 if atk else 0) | (0x4000 if chain else 0),
                     'dx': -dx, 'boxes': kof_boxes(s['w6']), 'dd': [a, first + i]})
     return out
@@ -228,10 +340,10 @@ def chain_steps(B, ch, a0):
         nx = runs[k + 1] if k + 1 < len(runs) else None
         ns = dd.steps(ch, nx[0])[1][nx[1]] if nx else None
         chain_ = atk and nx is not None and attacks(ns['w6']) and (nx[:2] == [a, i] or not openings(ch, nx[0])[nx[1]])
-        x1 = rec[ix[-1]]['x']; acc += x1 - x0; x0 = x1; dx = int(round(acc)); acc -= dx
+        x1 = rec[ix[-1]]['x']; acc += (x1 - x0) * S; x0 = x1; dx = int(round(acc)); acc -= dx
         st = {'frame': B.frame(((s['def_'], 0, 0, 'body'),)), 'ticks': len(ix) - 1,
               'flags': (0x100 if atk else 0) | (0x4000 if chain_ else 0), 'dx': -dx, 'boxes': kof_boxes(s['w6']), 'dd': [a, i]}
-        if air: st['hy'] = int(round(rec[ix[0]]['y']))
+        if air: st['hy'] = sc(rec[ix[0]]['y'])
         if atk and (a, i) in sk: st['spark'] = sk[(a, i)]
         out.append(st)
     return out
@@ -264,8 +376,8 @@ def air_steps(B, ch, a, key='body'):
     _, st = dd.steps(ch, a); out, x0 = [], 0.0
     for r in M.play(ch, a):
         if r['anim'] != a: break
-        s = st[r['step']]; dx = int(round(r['x'] - x0)); x0 += dx
-        out.append({'frame': B.frame(((s['def_'], 0, 0, key),)), 'ticks': 0, 'flags': 0, 'dx': -dx, 'hy': int(round(r['y'])),
+        s = st[r['step']]; dx = int(round(r['x'] * S - x0)); x0 += dx
+        out.append({'frame': B.frame(((s['def_'], 0, 0, key),)), 'ticks': 0, 'flags': 0, 'dx': -dx, 'hy': sc(r['y']),
                     'boxes': kof_boxes(s['w6']), 'dd': [a, r['step']]})
     return out
 LOOP = {'idle', 'walk_fwd', 'run'}
@@ -301,7 +413,7 @@ def physics(ch):
     jdx = -int.from_bytes(h7[2:4], 'big', signed=True) / 256
     rec = M.play(ch, 5, limit=200, until=(0, 11, 12))
     pre = next(i for i, r in enumerate(rec) if r['y'] > 0)
-    return {'walk_fwd': walk, 'walk_back': walk, 'jump_vy0': vy0, 'gravity': g, 'jump_dx': jdx, 'prejump': pre}
+    return {'walk_fwd': walk * S, 'walk_back': walk * S, 'jump_vy0': vy0 * S, 'gravity': g * S, 'jump_dx': jdx * S, 'prejump': pre}
 
 # ---- specials: the program (bprim_t) from the animation chain -------------------------------------------------------
 P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
@@ -479,9 +591,10 @@ def encode(o):
     """(op, a, b, v) of one assembled op (values: ints, 16.16 / 0.16 / counts)"""
     n = o[0]
     if n == 'anim': return (P['anim'], o[1], 0, 0)
+    if n in ('set', 'add') and o[1] in ('vx', 'vy', 'g'): return (P[n], REG[o[1]], 0, sc(o[2]))   # (16.16 px: scaled)
     if n in ('set', 'mul', 'add'): return (P[n], REG[o[1]], 0, o[2])
     if n == 'br': return (P['br'], PC[o[1]] | (0x80 if o[2] else 0), o[3], 0)
-    if n == 'put': return (P['put'], 0, 0, o[1])
+    if n == 'put': return (P['put'], 0, 0, sc(o[1]))
     if n in ('jmp', 'resume_at'): return (P[n], 0, o[1], 0)
     if n == 'spawn': return (P['spawn'], o[1], 0, 0)
     if n == 'home': return (P['home'], o[1], 0, 0)  # a = a shift (DD: distance << 10 = >> 6 in 16.16)
@@ -609,7 +722,7 @@ def spark_finish(B, ch, anims, sps):
         if t not in used: used.append(t)
         s['spark'] = spark_code(t, turned, flash, used.index(t))
     for t in used:
-        rows = [[B.frame(((w, 0, 0, pal),)), x, -y, None, None] for w, pal, x, y in SK.track(t)]
+        rows = [[B.frame(((w, 0, 0, pal),)), x * S, -y * S, None, None] for w, pal, x, y in SK.track(t)]
         out.append({'table': 0, 'state': t, 'kind': 6, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
                     'loop': None, 'death': None, 'life': len(rows), 'travel': 0, 'vx': 0, 'rows': rows, 'end': [],
                     'react': 'knockdown', 'child': None, 'hits': {}, 'sig': 0, 'spark': t})
@@ -645,8 +758,8 @@ def projectile(B, spawn, var):
     palette $83 at step 4) drawn as one object"""
     an, pair, dx0, dy0 = spawn
     hdr, st = dd.steps(14, an)
-    vx = -int.from_bytes(hdr[2:4], 'big', signed=True) / 256
-    rows = []; x = float(dx0); fr = 0
+    vx = -int.from_bytes(hdr[2:4], 'big', signed=True) / 256 * S
+    rows = []; x = float(dx0) * S; dy0 = sc(dy0); fr = 0
     seq = [(i, s) for i, s in enumerate(st) for _ in range(s['ticks'] + 1)]
     for t, (i, s) in enumerate(seq):
         x += vx
@@ -660,7 +773,7 @@ def projectile(B, spawn, var):
     _, es = dd.steps(14, 53)
     end = [[B.frame(((s['def_'], 0, 0, None),)), 0, 0] for s in es for _ in range(s['ticks'] + 1)]   # at the hit's height (bpend_t y: from it, TODO #164)
     return {'table': 0, 'state': an, 'kind': 1, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'loop': 0,
-            'death': None, 'life': len(rows), 'travel': 300, 'vx': vx, 'rows': rows, 'end': end, 'react': 'knockdown',
+            'death': None, 'life': len(rows), 'travel': sc(300), 'vx': vx, 'rows': rows, 'end': end, 'react': 'knockdown',
             'child': None, 'hits': {}, 'sig': 0}
 
 GHOST_FRAMES = 15                                  # character 14's animation 86: one step, ticks 14 (model_dd handler 21)
@@ -671,7 +784,7 @@ def ghost(B, ch, spawn, height):
     _, d, a, i = spawn[:4]
     fr = B.frame(((d, 0, 0, 'body'),))
     return {'table': 0, 'state': 86, 'kind': 0, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'loop': None,
-            'death': None, 'life': GHOST_FRAMES, 'travel': 0, 'vx': 0, 'rows': [[fr, 0, height, None, None]] * GHOST_FRAMES,
+            'death': None, 'life': GHOST_FRAMES, 'travel': 0, 'vx': 0, 'rows': [[fr, 0, sc(height), None, None]] * GHOST_FRAMES,
             'end': [], 'react': 'knockdown', 'child': None, 'hits': {}, 'sig': 0, 'ghost': [a, i]}
 
 def special(B, ch, inp, anims, knock, default=None, form=False):
@@ -741,7 +854,7 @@ def special(B, ch, inp, anims, knock, default=None, form=False):
     script, rb, rs = [], [], []
     for r in rec:
         s = dd.steps(ch, r['anim'])[1][r['step']]
-        script.append([B.frame(((s['def_'], 0, 0, 'body'),)), int(round(r['x'])), int(round(r['y'])), []])
+        script.append([B.frame(((s['def_'], 0, 0, 'body'),)), sc(r['x']), sc(r['y']), []])
         rb.append(kof_boxes(s['w6'])); rs.append([r['anim'], r['step'], 0x100 if attacks(s['w6']) else 0, 0xFF])
     opens = []; prev = None
     for i, r in enumerate(rec):
@@ -786,9 +899,10 @@ def export(names, outdir, only=None, extra=None):
     allt = []
     for name in names:
         ch = CAST[name]; B = Builder(ch)
-        scale = (extra or {}).get(name, {}).get('scale', 1)    # game.json roster[].scale (Bruno 2026-10-06: full
-        assert scale == 1, f'{name}: scale {scale}: only 1 is exported so far'   # size, 115 px; another scale: the
-                                                       # definitions through the LSPC shrink tables first, as export_kz)
+        global S                                         # game.json roster[].scale: 1 = full size, 0.8 = the LSPC
+        scale = (extra or {}).get(name, {}).get('scale', 1)    # pre-render at Z $CC (ZOOM, Bruno 2026-10-08)
+        assert scale == 1 or scale in ZOOM, f'{name}: scale {scale}: 1 or one of {sorted(ZOOM)}'
+        B.z = None if scale == 1 else ZOOM[scale]; S = 1.0 if scale == 1 else (B.z + 1) / 256
         B.tiles = allt; B.tile_map = {bytes(t): TILE_BASE + i for i, t in enumerate(allt)}
         anims = {}
         for mv, src in MOVES.items():
@@ -821,8 +935,8 @@ def export(names, outdir, only=None, extra=None):
         for t in TD.THROWS:                              # (whatever `only` asks: export_bm reads them from 'throws')
             if TD.is_stun(ch):                           # Cheng-Fu: the stun strike, no back throw (TODO #212)
                 if t != 'throw_c': continue
-                th = TD.brawler_stun(B, ch)
-            else: th = TD.brawler_throw(B, ch, t, lambda w: B.frame(((w, 0, 0, 'body', 1),)))
+                th = TD.brawler_stun(B, ch, scale=S)
+            else: th = TD.brawler_throw(B, ch, t, lambda w: B.frame(((w, 0, 0, 'body', 1),)), scale=S)
             anims[t] = th.pop('anim'); th['victims'] = {name: th.pop('victim_rows')}
             if th['grab_frame'] is None: th.pop('grab_frame')
             throws[t] = th
@@ -836,7 +950,7 @@ def export(names, outdir, only=None, extra=None):
         assert all(any(c) for st_ in sets for c in st_), (name, 'an empty palette', B.pals)
         out['characters'][name] = {'id': ch, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0], 'physics': physics(ch),
-                                   'throws': throws, 'specials': sps, 'hit_sparks': hs,
+                                   'throws': throws, 'specials': sps, 'hit_sparks': hs, 'scale': S,
                                    'modes': {'sets': ['P1', 'P2'], 'palettes': [str(k) for k in B.pals], 'autoanim_tiles': B.autoanim}}
     out['tiles'] = len(allt)
     os.makedirs(outdir, exist_ok=True)
