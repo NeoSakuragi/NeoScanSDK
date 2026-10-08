@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 /* ---- layer 2: AI presets (ai.c). Every distance is px, every rest frames, chances "1 in mask + 1" ---- */
-enum { AIF_TOKEN = 1,             /* always holds an attack token (a boss), on top of the dealt ones */
+enum { AIF_TOKEN = 1,             /* a boss: one of the gai.attackers tokens is kept free for it, it takes it when rested */
        AIF_GRAB = 2,              /* an approach may end in a grab (grab_plan of 8) */
        AIF_PROJECTILE = 4,        /* fires its D special at mid range (spec_min-spec_max, 1 in proj_mask chance a frame) */
        AIF_REVERSAL = 8,          /* reaction to attacks: down+D (its rising reversal) against an attack (rev_*) */
@@ -36,6 +36,27 @@ typedef struct {
     uint8_t proj_mask, proj_mask2;    /* the projectile: (random & proj_mask) == 0 and (random & proj_mask2) == 0 in a frame
                                          (game.json proj_chance "1 in N a frame": 512 = 255 and 1) */
 } ai_preset_t;
+
+/* ---- layer 2: the enemies' shared rules (revamp 1B, docs/brawler_data_model.md "Enemy rules"; game.json ai.rules, ROM
+ * only, ai.c): attack tokens, the ready pose and its random wait, wind-up by damage, the hidden difficulty rank ---- */
+typedef struct {
+    uint8_t attackers;            /* at most this many enemies hold an attack token (approach, ready, attack) at once */
+    uint8_t approach_max;         /* frames a token holder may take to reach its range; then it gives the token back */
+    uint8_t pulse;                /* the ready pose's tint pulse (a fighter with no stance frame): a white flash every pulse frames */
+    uint8_t ready_anim2, ready_step2;   /* the stance frame when the fighter's own (ai_ready) has no such step: BA_*, step */
+    uint8_t light_lo, light_hi;   /* wind-up targets (frames from the attack's first frame to its first live frame) */
+    uint8_t heavy_lo, heavy_hi, heavy_from;   /* a normal of route damage >= heavy_from is heavy */
+    uint8_t spec_lo, spec_hi;     /* a special's hold (its first frame held this long on top of its own startup) */
+    uint8_t rank_start, rank_max; /* the rank at a new game; its ceiling (0-31) */
+    uint8_t rank_death;           /* rank lost when a player loses a life */
+    uint8_t rank_fast, rank_clean;   /* rank gained by a wave cleared in under fast_clear frames; by one cleared untouched */
+    uint8_t rank_wait, rank_rest; /* aggression: the ready wait and the rests shrink by rank * k / 1024 (k 16: rank 31 = x0.52) */
+    uint8_t rank_dmg;             /* damage: a spawned enemy hits rank / rank_dmg harder (0 = never) */
+    uint16_t rank_every;          /* rank + 1 every this many frames of fighting without a hit taken */
+    uint16_t fast_clear;
+    uint8_t wait[32];             /* the ready wait (frames), random & 31 picks one: Final Fight's table $2245E */
+} gairules_t;
+extern const gairules_t gai;      /* (game_tables.h: ai_ready[BC_COUNT][2], each fighter's ready stance: BA_*, step; 0xFF the tint pulse) */
 
 /* ---- layer 2: the special meter (TODO #71, fighter.c "special meter"): game.json "meter"; players only ---- */
 typedef struct {

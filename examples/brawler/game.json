@@ -374,7 +374,15 @@
   "rust": {"mix": 1, "mul": 12, "shift": 5, "add": [3, 0, -2]}
  },
  "ai": {
-  "tokens": 1,
+  "rules": {
+   "about": "Every enemy's shared rules (revamp 1B, docs/brawler_data_model.md 'Enemy rules', ai.c): attack tokens, the ready pose during the random wait, wind-up by damage, the hidden difficulty rank.",
+   "attackers": 3,
+   "approach_max": 150,
+   "ready": {"pose": ["atk_c_close", 0], "fallback": ["atk_a_close", 0], "by_fighter": {"yamazaki": ["atk_c_close", 1], "krauser": ["atk_c_far", 0], "geese": ["atk_c_close", 1], "rugal": ["atk_c_close", 1], "goenitz": ["atk_c_close", 1], "mr_big": ["atk_c_far", 0]}, "pulse": 12,
+             "wait": [1, 1, 10, 10, 10, 10, 20, 20, 20, 20, 20, 20, 30, 30, 30, 30, 30, 30, 30, 30, 40, 40, 40, 40, 40, 40, 50, 50, 50, 50, 60, 60]},
+   "windup": {"light": [3, 6], "heavy": [12, 15], "heavy_from": 5, "special_hold": [12, 15]},
+   "rank": {"start": 8, "max": 31, "every": 600, "fast_clear": 1200, "fast": 1, "clean": 1, "death": 4, "wait": 16, "rest": 16, "damage": 11}
+  },
   "presets": {
    "minion": {
     "flags": ["grab", "projectile"],
