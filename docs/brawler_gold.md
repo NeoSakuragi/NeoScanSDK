@@ -130,7 +130,7 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 - Size: 0.92 of today's (115 -> ~106 px; Terry 100). Kept against the official-height 0.86 (docs/brawler_heights.md): Bruno, "Kizuna has this big SNK sprites feel anyways".
 
 ### Kim — queued changes (Bruno 2026-10-09, NOT built yet; build together on his go)
-- forward + C: $101 -> $53.
+- forward + C: $101 -> $53, keeping the RESET behaviour (no eject, Kim recovers with frame advantage; Bruno: yes).
 - chain: the second A $56 -> $5D.
 - $96 (the triple kick, chain link 4): keep the shape of each of its three kicks, but play them at the pace of three FAST
   attacks (retime: short startup / recovery per kick), each with a STRONG impact sound and the regular push back.
