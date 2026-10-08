@@ -53,12 +53,19 @@ specials (Bruno: overkill for now).
 ### Two meter bars (replaces the 3-stock / 300-point meter and the old breaker path)
 - **Drive meter** (internal name, after KOF XIII's Drive gauge; the screen need not say "drive") **— 2 chunks, SOR3-style**, the one bar shown on the HUD: starts full, refills over time. Regular special = 1 chunk (two
   available). **Counter special** (the invincible escape done while being hit) = both chunks at once.
-- **Fury gauge — HIDDEN** (like KOF98's guard-crush gauge: runs in the program, never drawn): fills as you DEAL and as you TAKE damage. Full → fury available AND the character blinks (one frame
-  normal, one frame a shiny white palette, KOF95-style). Low life (red blinking) → fury always available; fury + red
-  = the MAX fury.
-- Life bar as before (red low-life state unchanged). On screen: life bar + the drive meter's 2 chunks. The fury's only
-  readout is the fighter's own blink: white = fury ready; red (low life) = fury always ready and it comes out as the
-  MAX. Red overrides white (a red fighter never blinks white).
+- **Fury gauge — HIDDEN** (like KOF98's guard-crush gauge: runs in the program, never drawn): fills as you DEAL and as you TAKE damage. Gauge full → D does the fury. Gauge full AND low life → D does the MAX.
+  Low life alone grants nothing (Bruno 2026-10-08: the earlier "infinite fury at low life" is withdrawn).
+- **Signals — one meaning per place** (Bruno, confirmed):
+
+  | State | Life bar | Fighter sprite |
+  |---|---|---|
+  | normal life, gauge not full | normal | normal |
+  | normal life, gauge full (fury ready) | normal | blinks WHITE (1 frame normal, 1 frame shiny white palette, KOF95-style) |
+  | low life, gauge not full | blinks RED (like KOF94 / KOF95: capture their low-life bar in our emulator and match it) | normal |
+  | low life + gauge full (MAX ready) | blinks red | blinks RED, same 1/1 rhythm |
+
+  The sprite only ever says "D does something now"; danger lives on the HUD. On screen: the life bar + the drive
+  meter's 2 chunks; the fury gauge itself is never drawn.
 - Loose thread: the phase-3 super throw — keep it (cost a special chunk) or drop it. TBD.
 
 ### Terry (gold)
