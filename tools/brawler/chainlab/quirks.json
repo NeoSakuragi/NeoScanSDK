@@ -416,6 +416,118 @@
    "why": "act $14 handler $184F4 is never set by the input code I traced; anims 71/72 sit on +$0E values no code writes",
    "brawler": "",
    "shots": []
+  },
+  {
+   "game": "Cadillacs and Dinosaurs (Capcom, 1993)",
+   "title": "Apex dive kick",
+   "do": "Neutral jump and press B exactly at the top of the jump (height >= 76 px for Jack, 75 Mustapha, 93 Hannah, 72 Mess).",
+   "happens": "Instead of the normal jump attack the character dives forward 130-190 px with the attack box out until landing (15 damage, hit-stop 6). Forward jumps of Jack, Hannah and Mess never reach the threshold, so only a neutral jump (or Mustapha's forward jump) can do it.",
+   "why": "The air code compares the height above ground with a per-character pair of words ($1A734: 16 / threshold): >= threshold picks the dive state 0200/04/0A ($1A9A4), else the low attack. The threshold sits within 1-2 px of each character's neutral apex.",
+   "brawler": "A one-button 'timing' move: same input, different attack by height. Cheap to copy and gives jumps skill depth.",
+   "shots": [
+    {
+     "src": "dino/quirks/apex_dive.png",
+     "caption": "Apex dive kick"
+    }
+   ]
+  },
+  {
+   "game": "Cadillacs and Dinosaurs (Capcom, 1993)",
+   "title": "Holding B fires the jump attack by itself",
+   "do": "Hold B and press A (or keep B held from a special attempt) and stay holding.",
+   "happens": "The jump attack comes out automatically as soon as the character is 16 px above the ground.",
+   "why": "The jump-attack check tests the HELD attack bit (+$A0 bit 4), not the fresh press ($1A704).",
+   "brawler": "Accidental auto-attacks; if copying, test the fresh-press bit.",
+   "shots": [
+    {
+     "src": "dino/quirks/hold_B_jump_attack.png",
+     "caption": "Holding B fires the jump attack by itself"
+    }
+   ]
+  },
+  {
+   "game": "Cadillacs and Dinosaurs (Capcom, 1993)",
+   "title": "Combo throw out of the chain",
+   "do": "Hold UP or DOWN while pressing B for the 4th link of the punch chain.",
+   "happens": "Instead of the finisher the character grabs and throws the enemy (throw damage, invulnerable during the throw).",
+   "why": "Link 4 checks the victim: if it is already back in its normal state and the stick is UP or DOWN without left/right, the code jumps into the throw handler ($195B2 -> $1D888).",
+   "brawler": "Same branch idea as Warriors of Fate (UP/DOWN at link 2), here at link 4.",
+   "shots": [
+    {
+     "src": "dino/quirks/combo_throw_up.png",
+     "caption": "Combo throw out of the chain"
+    }
+   ]
+  },
+  {
+   "game": "Cadillacs and Dinosaurs (Capcom, 1993)",
+   "title": "The chain survives a pause",
+   "do": "Hit with a jab, let go, wait more than half a second (up to ~38 frames) after the recoil ends, press B again.",
+   "happens": "The next link (not link 1) comes out: you can space the chain out and still get the finisher.",
+   "why": "After each connected link a 40-frame chain credit (+$AE) runs while idle; any B press inside it resumes at the stored hit count (+$B2) ($191B4 -> $194D4). Walking is only blocked for the first 4 frames.",
+   "brawler": "A forgiving combo rule; lets players re-position on depth between links.",
+   "shots": [
+    {
+     "src": "dino/quirks/chain_after_pause.png",
+     "caption": "The chain survives a pause"
+    }
+   ]
+  },
+  {
+   "game": "Cadillacs and Dinosaurs (Capcom, 1993)",
+   "title": "Jab cancel spam on whiff",
+   "do": "Mash B in the air (no enemy) every 3 frames.",
+   "happens": "Jack, Hannah and Mustapha restart the jab continuously from its recovery frames; Mess's jab plays out fully each time.",
+   "why": "Recovery records with byte 4 = 1 allow a fresh B to restart the jab with anim 1 ($19446 -> $193DE); Mess's jab script lacks that record flag in the window the mash hits.",
+   "brawler": "Whiff cancels make the light attack a wall; decide deliberately per character.",
+   "shots": [
+    {
+     "src": "dino/quirks/jab_cancel_spam.png",
+     "caption": "Jab cancel spam on whiff"
+    }
+   ]
+  },
+  {
+   "game": "Cadillacs and Dinosaurs (Capcom, 1993)",
+   "title": "Command move from a hold kills a common enemy",
+   "do": "Grab an enemy, then DOWN, UP + B.",
+   "happens": "The character releases the hold into the full multi-hit command move; a 44-life Ferris dies every time (more than a throw, which does 20-30).",
+   "why": "The hold handler checks the command flag (+$F1 = 2, set by the input reader $6AC8) before anything else and jumps to the command move ($1D652 -> $1B6EC); all its hits land on the released victim.",
+   "brawler": "A strong 'throw variant' for free; no life cost unlike the A+B special.",
+   "shots": [
+    {
+     "src": "dino/quirks/cmd_from_hold.png",
+     "caption": "Command move from a hold kills a common enemy"
+    }
+   ]
+  },
+  {
+   "game": "Cadillacs and Dinosaurs (Capcom, 1993)",
+   "title": "Only Mess has a real back throw",
+   "do": "Grab with each character and press away + B.",
+   "happens": "Jack, Hannah and Mustapha turn round and play their forward throw; Mess plays a different, longer back-throw animation (47 f vs 41 f).",
+   "why": "The throw code picks anim 4 vs 3 only for character 3 ($1D854); the others set the facing from the stick and use anim 3.",
+   "brawler": "Unique throws are a cheap way to give the heavy his identity.",
+   "shots": [
+    {
+     "src": "dino/quirks/mess_back_throw.png",
+     "caption": "Only Mess has a real back throw"
+    }
+   ]
+  },
+  {
+   "game": "Cadillacs and Dinosaurs (Capcom, 1993)",
+   "title": "Special is free on whiff and can't kill you",
+   "do": "Use A+B with nobody in reach, then with one enemy in reach, at 100 life.",
+   "happens": "Whiff: life stays 100. One contact: 100 -> 90. Further contacts cost 4 each, at most 18 per special, and never take the last point.",
+   "why": "The cost is applied in the hit handler (class 6 attacks, $10B08) from a 20-point budget +$EE (10 first, then 4); life is clamped to 1.",
+   "brawler": "Captain Commando-like 'pay on contact' rule; make the special a safe escape.",
+   "shots": [
+    {
+     "src": "dino/quirks/special_whiff_free.png",
+     "caption": "Special is free on whiff and can't kill you"
+    }
+   ]
   }
  ]
 }
