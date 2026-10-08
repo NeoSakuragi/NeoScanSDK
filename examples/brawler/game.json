@@ -561,11 +561,11 @@
    "attract_ai": "minion_attract",
    "hud": "fighter"
   },
-  {"name": "MR_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 100, "power": 1, "ai": "boss", "hud": "fighter"},
-  {"name": "KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 104, "power": 1, "ai": "boss", "hud": "fighter"},
-  {"name": "GEESE", "base": "geese", "stand_in": "geese", "life": 108, "power": 1, "ai": "boss", "hud": "fighter"},
-  {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 112, "power": 1, "ai": "boss", "hud": "fighter"},
-  {"name": "GOENITZ", "base": "goenitz", "stand_in": "iori", "life": 116, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "MR_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 200, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 208, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "GEESE", "base": "geese", "stand_in": "geese", "life": 216, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 224, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "GOENITZ", "base": "goenitz", "stand_in": "iori", "life": 232, "power": 1, "ai": "boss", "hud": "fighter"},
   {
    "name": "YAKUZA",
    "base": "yamazaki",
