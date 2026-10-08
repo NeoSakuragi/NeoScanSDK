@@ -391,7 +391,7 @@ static uint8_t dead_body(const fighter_t *v, const fighter_t *a) {
     return v->hp <= 0 && !(dancing(v) && v->dance == (a->owner ? a->owner : a));
 }
 static void to_neutral(fighter_t *f, const intent_t *in) {
-    if (in && (in->dx || in->dz)) { f->still = 0; enter(f, S_WALK); play_if_new(f, BA_WALK_FWD); f->speed = f->wrate; }   /* (its
+    if (in && (in->dx || in->dz)) { f->still = 0; enter(f, S_WALK); play_if_new(f, in->dx && in->dx == -f->facing ? BA_WALK_BACK : BA_WALK_FWD); f->speed = f->wrate; }   /* (its
                                                                     stride at the walk's speed: walk_rate) */
     else if (in && in->ai && f->state == S_WALK && ++f->still < AI_IDLE_DELAY) { }   /* AI: no walk/idle flicker */
     else { enter(f, S_IDLE); play_if_new(f, BA_IDLE); }
@@ -2620,8 +2620,9 @@ static void update(fighter_t *f, const intent_t *in) {
         if (b & IN_B) { jump_start(f, in, f->chain_t ? NODE(f, f->chain_node)->next[RI_B] : 0); break; }   /* inside a chain
                                                                     window: the route's B link (a jump-cancel; the chain
                                                                     trees have none since 2026-10-08) */
-        if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
-        else if (in->face) f->facing = in->face;
+        if (in->ai && in->face) f->facing = in->face;            /* an AI fighter faces its target, always: moving away it */
+        else if (in->dx) f->facing = in->dx;                     /* walks backwards (Bruno 2026-10-08); a player: beat 'em */
+        else if (in->face) f->facing = in->face;                 /* up, face where you walk */
         if (b & IN_D) {                                          /* D: the fury (fury_press) */
             uint8_t k = fury_press(f, in->dz > 0);
             if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k); }

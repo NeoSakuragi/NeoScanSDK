@@ -58,7 +58,10 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'atk_a_jump', 'atk_a_jump_diag', 'atk_b_jump', 'atk_b_jump_diag', 'atk_ab_jump', 'atk_ab_jump_diag',
          'atk_cd_jump_diag',
          'atk_a_run', 'atk_b_run', 'atk_ab_run', 'atk_c_run', 'atk_d_run', 'atk_cd_run',
-         'atk_a_run_low', 'atk_b_run_low', 'atk_ab_run_low', 'atk_c_run_low', 'atk_d_run_low', 'atk_cd_run_low']
+         'atk_a_run_low', 'atk_b_run_low', 'atk_ab_run_low', 'atk_c_run_low', 'atk_d_run_low', 'atk_cd_run_low',
+         'walk_back']                                   # an AI fighter walking away from its target (it always faces
+                                                        # it, Bruno 2026-10-08): KOF's walk-back (state 2), else source()'s
+                                                        # walk played backwards
 # The group photo's 'watch' pose (TODO #51, 2026-10-05): a front-facing, standing frame, one per fighter (game, name) ->
 # (KOF game state, step; -1 = the animation's last, held frame). KOF94 / KOF95 had real "watching" sprites: the waiting
 # teammates on the stage's edge are fighter objects (+$70 = the fighter id) in KOF95 states 155 watch, 156 / 157 react,
@@ -84,7 +87,12 @@ SOURCES = {'atk_c_hop': ['atk_c_hop', 'atk_c_jump'], 'atk_d_hop': ['atk_d_hop', 
            'atk_ab_jump': ['atk_ab_jump', 'atk_d_jump'], 'atk_ab_jump_diag': ['atk_ab_jump_diag', 'atk_d_jump_diag'],
            'atk_cd_jump_diag': ['atk_cd_jump_diag', 'atk_cd_jump']}
 def source(ch, m):
-    """the KOF animation a brawler move plays (idle when the fighter has none)"""
+    """the KOF animation a brawler move plays (idle when the fighter has none; walk_back without its own: the walk's
+    steps in reverse order, one object per fighter so its step array is shared)"""
+    if m == 'walk_back' and 'walk_back' not in ch['anims'] and 'walk_fwd' in ch['anims']:
+        w = ch['anims']['walk_fwd']
+        if '_walk_rev' not in ch: ch['_walk_rev'] = dict(w, steps=list(reversed(w['steps'])))
+        return ch['_walk_rev']
     return next((ch['anims'][k] for k in SOURCES.get(m, [m]) if k in ch['anims']), None) or ch['anims']['idle']
 TILE_BASE = 2048                               # our first fighter tile; 1-2047: stage (1-1535, make_stage_ra.py), banner,
                                                # shadow, corners (make_banner.py), sparks (make_sparks.py); 0 empty
