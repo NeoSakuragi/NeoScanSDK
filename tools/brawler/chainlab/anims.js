@@ -1,4 +1,4 @@
-// The animation dictionary page (anims.html?f=kim): every animation of a fighter's table as a small looping clip at the
+// The animation dictionary page (anims.html?f=kim, ?f=krauser; data tools/brawler/animdict.py): every animation of a fighter's table as a small looping clip at the
 // game's speed (one scale for all), filters, and a larger view per animation (¼ speed, step by step, the boxes, the
 // step / box / sound data) with "I want this one", the flags (anims_core.js FLAGS) and a note with the microphone.
 // Answers: the decisions store, set "<fighter>-anims", id = the animation's hex.
@@ -64,8 +64,9 @@
   const st = D.anims, cnt = fn => st.filter(fn).length;
   root.replaceChildren(
     h('h1', { text: `${D.display}: animation dictionary` }),
-    h('p', { class: 'intro' }, `All ${D.count} animations of ${D.display}'s table in ${D.source.replace(/^Kizuna Encounter/, 'Kizuna Encounter')}, drawn from the ROM at the game's zoom $${D.zoom} (×${D.scale}, the size the brawler shows him). ` +
-      `${cnt(a => a.attack)} have attack boxes, ${cnt(a => a.moves && a.moves.length)} are played by a move I captured, ${cnt(a => a.exported.length)} are in the brawler. ` +
+    h('p', { class: 'intro' }, `All ${D.count} animations of ${D.display}'s table in ${D.source}, ${D.drawn || `drawn from the ROM at the game's zoom $${D.zoom} (×${D.scale}, the size the brawler shows him)`}. ` +
+      (D.game === 'kof96' ? 'Flags suggested from KOF\'s buttons (A / B light, C / D heavy; A / C punch, B / D kick), a projectile, a knockdown the capture saw, a throw. ' : '') +
+      `${cnt(a => a.attack)} have attack boxes, ${cnt(a => a.moves && a.moves.length)} are played by a move I captured or named, ${cnt(a => a.exported.length)} are in the brawler. ` +
       'Each clip loops at the game speed; tap one for the larger view (¼ speed, step by step, boxes, data), "I want this one", flags and a note. ',
       h('a', { href: 'review.html?f=' + f, text: 'Back to the fighter review' })),
     h('div', { class: 'bar', role: 'group', 'aria-label': 'Show' }, h('span', { class: 'lbl', text: 'Show' }), fbtns),
@@ -113,7 +114,7 @@
     } else kids.push(h('p', { text: a.status === 'ok' ? 'No frames.' : 'This animation is ' + a.status + (a.error ? ': ' + a.error : '') + '.' }));
     const row = (k, v) => [h('dt', { text: k }), h('dd', { text: v })];
     kids.push(h('h3', { text: 'Data' }), h('dl', { class: 'meta' },
-      row('Index', '$' + a.id + ' (' + a.n + ')'), row('What', a.desc || '-'), row('Frames', a.frames + ' (' + (a.steps || []).length + ' steps' + (a.end ? ', ' + a.end : '') + ')'),
+      row('Index', '$' + a.id + ' (' + a.n + ')' + (a.slots && a.slots.length > 1 ? ', also slots ' + a.slots.slice(1).join(' ') : '')), a.states ? row('Game states', a.states.join(' ') || 'none') : null, row('What', a.desc || '-'), row('Frames', a.frames + ' (' + (a.steps || []).length + ' steps' + (a.end ? ', ' + a.end : '') + ')'),
       row('Moves', (a.moves || []).join(', ') || 'none captured'), row('Reactions', (a.reactions || []).join(', ') || '-'),
       row('In the brawler', (a.exported || []).join(', ') || 'not exported'), row('Sounds', (a.sounds || []).join(' ') || '-'),
       row('Palettes', (a.pals || []).join(', ')), row('Travel', (a.travel || 0) + ' px by step commands' + (a.rises ? ', rises' : ''))));

@@ -1,6 +1,664 @@
 {
  "sets": [
   {
+   "id": "krauser-gold",
+   "fighter": "krauser",
+   "proposal_first": true,
+   "title": "Krauser: gold questions",
+   "intro": "Wolfgang Krauser (KOF96), the third fighter golded after Terry and Kim, the heavy one (Haggar). My proposal keeps only the pieces your review kept, and what ships for him today wherever it still fits the new system. Every question: my proposal first, then the alternatives; NONE lets you say your own in the note. Each option plays its moves as small looping clips, left to right; tap a clip for quarter speed, tap a clip in a sequence to replace it with any move (tab 'All animations' = his whole KOF96 table). Specials play whole, as they come out on a hit (projectiles and the victim are not drawn). You can also just answer in chat against the list below.",
+   "proposal_title": "My whole proposal (what each input does)",
+   "proposal": [
+    "Size: scale 0.91 (his official 200 cm: 110 px next to Terry's 101).",
+    "Chain (A A A, 3 hits in all): close C > far D > crouch C, as you chose.",
+    "Last hit with the stick: neutral crouch C; forward far C (blows him away); up close D (launches); down crouch D (crumples, plays as a trip); back his throw.",
+    "Blitz (free, spammable, not invincible): forward, forward + A = his dash attack (the C+D dropkick, today's); down, down + A = Leg Tomahawk B (236B, the short overhead kick); down, up + A = Blitz Ball (214A, a projectile: free and spammable, like Terry's Power Wave); up, up + A = Kaiser Kick B (623B, the dropkick).",
+    "C specials (1 drive chunk, invincible): C = Kaiser Kick D (623D, the long dropkick; also the combo breaker); forward + C = Kaiser Duel Sobat D (41236D, a hop and two kicks); down + C = Leg Tomahawk D (236D, your \"dragon move\", as today). Light versions free on the Blitz, heavy versions paid on C.",
+    "Fury (D) = Kaiser Wave (641236C, today's). MAX (D at low life with the fury ready) = the same Kaiser Wave, stronger.",
+    "Air: forward jump + A = jump D; straight jump + A = jump C (both knock down); down + A = jump A (only flinches, hits until he lands).",
+    "Holding the enemy: A = close C (today close A, which you called too choppy for a heavy hitter); the throw-out finisher = close D (today's).",
+    "His jumping command grab (Kaiser Suplex, 632146 A / C in KOF96: the leaping German suplex): forward / back + C while holding the enemy, in place of his normal throw (a custom move, built later).",
+    "Animations to look at: close A (choppy), Leg Tomahawk D (uneven timing), Kaiser Duel Sobat B, jump C, jump CD.",
+    "Walk: Haggar's speed (1.54 px a frame, run 2x), already in."
+   ],
+   "names": {
+    "atk_c_close": "close C",
+    "atk_d_far": "far D",
+    "atk_c_crouch": "crouch C",
+    "atk_c_far": "far C",
+    "atk_d_close": "close D",
+    "atk_d_crouch": "crouch D",
+    "atk_a_close": "close A",
+    "throw-back": "throw",
+    "body_toss": "dash attack (C+D)",
+    "full-214a": "Blitz Ball 214A",
+    "full-214c": "Blitz Ball 214C",
+    "full-236b": "Leg Tomahawk B",
+    "full-236d": "Leg Tomahawk D",
+    "full-623b": "Kaiser Kick B",
+    "full-623d": "Kaiser Kick D",
+    "full-41236b": "Duel Sobat B",
+    "full-41236d": "Duel Sobat D",
+    "full-641236c": "Kaiser Wave",
+    "full-max-641236c": "Kaiser Wave MAX",
+    "atk_d_jump": "jump D",
+    "atk_c_jump": "jump C",
+    "atk_a_jump": "jump A",
+    "atk_cd_jump": "jump CD",
+    "anim-B2": "Suplex: grab",
+    "anim-B3": "Suplex: jump",
+    "anim-A5": "Inferno: start",
+    "anim-A3": "Inferno: cartwheel",
+    "anim-A6": "Inferno: dive",
+    "anim-AC": "Inferno: belly flop"
+   },
+   "sections": [
+    {
+     "title": "Size",
+     "questions": [
+      {
+       "id": "size",
+       "title": "How tall should Krauser stand?",
+       "context": "Standing height (shadow included): Terry 101 px, Krauser 121 today. His official height is 200 cm (Terry 182 cm): 110 px, scale 0.91 (docs/brawler_heights.md). The picture: Terry and Krauser at each choice. One number (game.json roster \"scale\").",
+       "options": [
+        "Scale 0.91: his official height (110 px)",
+        "Keep his size (121 px)",
+        "Scale 0.95 (115 px)"
+       ],
+       "pieces": [
+        [],
+        [],
+        []
+       ],
+       "image": "krauser_size.png",
+       "image_alt": "Terry and Krauser side by side at scale 0.91, 1.0 and 0.95"
+      }
+     ]
+    },
+    {
+     "title": "Chain (press A three times)",
+     "questions": [
+      {
+       "id": "chain",
+       "title": "What do three A presses do?",
+       "context": "Heavy: 3 hits in all, the 3rd is the last hit (stick neutral). Your answer: close C > far D > crouch C. Your review: far C 'love this, almost overpowered', crouch C 'perfect'; far A, far B, close B, crouch A / B dropped.",
+       "options": [
+        "close C > far D > crouch C (yours)",
+        "far C > far D > crouch C (the starter with range you loved)",
+        "close C > crouch C > far D (far D last, see the next question)"
+       ],
+       "pieces": [
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "atk_c_crouch"
+        ],
+        [
+         "atk_c_far",
+         "atk_d_far",
+         "atk_c_crouch"
+        ],
+        [
+         "atk_c_close",
+         "atk_c_crouch",
+         "atk_d_far"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "The last hit with the stick held",
+     "questions": [
+      {
+       "id": "neutral",
+       "title": "Stick NEUTRAL on the 3rd press",
+       "context": "Your two answers clash: the chain close C > far D > crouch C makes crouch C the neutral last hit, and you also answered 'neutral = far D', which is already the 2nd hit (far D twice in a row). Applied today: crouch C.",
+       "options": [
+        "Crouch C (the chain as you chose it)",
+        "Far D last: the chain becomes close C > crouch C > far D"
+       ],
+       "pieces": [
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "atk_c_crouch"
+        ],
+        [
+         "atk_c_close",
+         "atk_c_crouch",
+         "atk_d_far"
+        ]
+       ]
+      },
+      {
+       "id": "fwd",
+       "title": "Hold FORWARD on the 3rd press",
+       "context": "Applied today: far C, the enemy blown away.",
+       "options": [
+        "Far C (blows him away)",
+        "His dash attack (the C+D dropkick)"
+       ],
+       "pieces": [
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "atk_c_far"
+        ],
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "body_toss"
+        ]
+       ]
+      },
+      {
+       "id": "up",
+       "title": "Hold UP on the 3rd press (sends the enemy up for a juggle)",
+       "context": "Applied today: close D, your note 'Close D (points up)'.",
+       "options": [
+        "Close D (launches)",
+        "Kaiser Kick B (623B)"
+       ],
+       "pieces": [
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "atk_d_close"
+        ],
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "full-623b"
+        ]
+       ]
+      },
+      {
+       "id": "down",
+       "title": "Hold DOWN on the 3rd press",
+       "context": "Your review: crouch D 'good for crumpling'. Today it plays as a trip (the engine has no separate crumple).",
+       "options": [
+        "Crouch D (the enemy crumples)",
+        "Crouch C"
+       ],
+       "pieces": [
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "atk_d_crouch"
+        ],
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "atk_c_crouch"
+        ]
+       ]
+      },
+      {
+       "id": "back",
+       "title": "Hold BACK on the 3rd press",
+       "context": "He grabs and throws the enemy behind him (you kept it).",
+       "options": [
+        "His throw"
+       ],
+       "pieces": [
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "throw-back"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Blitz (double-tap + A, free, spammable, not invincible)",
+     "questions": [
+      {
+       "id": "bz_ff",
+       "title": "Forward, forward + A (also run + A)",
+       "context": "Today: his dash attack. My split: light (B) versions free on the Blitz, heavy (D) versions paid on C.",
+       "options": [
+        "His dash attack (the C+D dropkick)",
+        "Leg Tomahawk B",
+        "Kaiser Duel Sobat B"
+       ],
+       "pieces": [
+        [
+         "body_toss"
+        ],
+        [
+         "full-236b"
+        ],
+        [
+         "full-41236b"
+        ]
+       ]
+      },
+      {
+       "id": "bz_dd",
+       "title": "Down, down + A",
+       "context": "Leg Tomahawk hits overhead in KOF.",
+       "options": [
+        "Leg Tomahawk B (236B)",
+        "Kaiser Duel Sobat B (41236B)",
+        "Nothing"
+       ],
+       "pieces": [
+        [
+         "full-236b"
+        ],
+        [
+         "full-41236b"
+        ],
+        []
+       ]
+      },
+      {
+       "id": "bz_du",
+       "title": "Down, up + A",
+       "context": "Blitz Ball is a projectile: as a Blitz it is FREE and spammable (Terry's Power Wave is his down, up + A). The low ball (214C) rolls along the floor.",
+       "options": [
+        "Blitz Ball (214A)",
+        "Blitz Ball, the low one (214C)",
+        "Nothing"
+       ],
+       "pieces": [
+        [
+         "full-214a"
+        ],
+        [
+         "full-214c"
+        ],
+        []
+       ]
+      },
+      {
+       "id": "bz_uu",
+       "title": "Up, up + A",
+       "context": "",
+       "options": [
+        "Kaiser Kick B (623B, the dropkick)",
+        "Nothing"
+       ],
+       "pieces": [
+        [
+         "full-623b"
+        ],
+        []
+       ]
+      }
+     ]
+    },
+    {
+     "title": "C specials (1 drive chunk, invincible)",
+     "questions": [
+      {
+       "id": "c_neutral",
+       "title": "C with the stick neutral (also the combo breaker: C while being hit)",
+       "context": "Today C is the Blitz Ball; as the breaker a projectile would not stop someone hitting him up close, so I move it to the Blitz.",
+       "options": [
+        "Kaiser Kick D (623D, the long dropkick)",
+        "Kaiser Duel Sobat D (41236D)",
+        "Blitz Ball (214A), as today"
+       ],
+       "pieces": [
+        [
+         "full-623d"
+        ],
+        [
+         "full-41236d"
+        ],
+        [
+         "full-214a"
+        ]
+       ]
+      },
+      {
+       "id": "c_fwd",
+       "title": "Forward + C",
+       "context": "Today: Kaiser Duel Sobat B. The D version hops forward first.",
+       "options": [
+        "Kaiser Duel Sobat D (41236D)",
+        "Kaiser Duel Sobat B (41236B), as today",
+        "Leg Tomahawk D (236D)"
+       ],
+       "pieces": [
+        [
+         "full-41236d"
+        ],
+        [
+         "full-41236b"
+        ],
+        [
+         "full-236d"
+        ]
+       ]
+      },
+      {
+       "id": "c_down",
+       "title": "Down + C",
+       "context": "Your review on 236D: 'the dragon move'. Today's down + C.",
+       "options": [
+        "Leg Tomahawk D (236D)",
+        "Blitz Ball, the low one (214C)"
+       ],
+       "pieces": [
+        [
+         "full-236d"
+        ],
+        [
+         "full-214c"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Fury (D) and MAX",
+     "questions": [
+      {
+       "id": "fury",
+       "title": "D with the fury ready",
+       "context": "Kaiser Wave (641236C), today's fury: he charges the big wave with both hands (the wave itself is not drawn in the clip). Alternative: Kaiser Inferno, a super KOF96 left unused in the ROM (cartwheels then a belly flop, used later in KOF98 UM): its animations are in his table, it would be built as a custom move.",
+       "options": [
+        "Kaiser Wave (641236C)",
+        "Kaiser Inferno (unused in KOF96, a custom build)"
+       ],
+       "pieces": [
+        [
+         "full-641236c"
+        ],
+        [
+         "anim-A5",
+         "anim-A3",
+         "anim-A6",
+         "anim-AC"
+        ]
+       ]
+      },
+      {
+       "id": "max",
+       "title": "D at low life with the fury ready (the MAX)",
+       "context": "Each fighter has one fury; the MAX is that fury made stronger. Kaiser Wave's MAX: the same pose, a stronger wave (more damage).",
+       "options": [
+        "Kaiser Wave, stronger",
+        "Kaiser Inferno as the MAX (custom)"
+       ],
+       "pieces": [
+        [
+         "full-max-641236c"
+        ],
+        [
+         "anim-A5",
+         "anim-A3",
+         "anim-A6",
+         "anim-AC"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Air",
+     "questions": [
+      {
+       "id": "air_fwd",
+       "title": "A in a forward jump (knocks down)",
+       "context": "You kept jump A, C, D and CD (jump B dropped).",
+       "options": [
+        "Jump D",
+        "Jump CD"
+       ],
+       "pieces": [
+        [
+         "atk_d_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      },
+      {
+       "id": "air_up",
+       "title": "A in a straight jump (knocks down)",
+       "context": "",
+       "options": [
+        "Jump C",
+        "Jump CD"
+       ],
+       "pieces": [
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      },
+      {
+       "id": "air_down",
+       "title": "Down + A in a jump (only flinches, hits until he lands)",
+       "context": "",
+       "options": [
+        "Jump A",
+        "Jump CD"
+       ],
+       "pieces": [
+        [
+         "atk_a_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Holding the enemy",
+     "questions": [
+      {
+       "id": "hold",
+       "title": "A while you hold the enemy",
+       "context": "Today: close A (the fastest close normal), which you called 'too choppy for a heavy hitter'. Close C starts in 9 frames.",
+       "options": [
+        "Close C",
+        "Close A (today)",
+        "Crouch C"
+       ],
+       "pieces": [
+        [
+         "atk_c_close"
+        ],
+        [
+         "atk_a_close"
+        ],
+        [
+         "atk_c_crouch"
+        ]
+       ]
+      },
+      {
+       "id": "hold_fin",
+       "title": "The finisher that throws him out of the hold",
+       "context": "Today: close D.",
+       "options": [
+        "Close D",
+        "Far C"
+       ],
+       "pieces": [
+        [
+         "atk_d_close"
+        ],
+        [
+         "atk_c_far"
+        ]
+       ]
+      },
+      {
+       "id": "grab",
+       "title": "His jumping command grab: where should it live?",
+       "context": "Kaiser Suplex (KOF96 632146 A / C on a close enemy: he grabs, leaps and German-suplexes; animations $B2 + $B3 of his table, never captured, so a custom move built later). Placing it decides how it is built.",
+       "options": [
+        "Forward / back + C while holding the enemy (replaces his normal throw)",
+        "A Blitz slot (up, up + A: a free grab)",
+        "A C special (down + C, paid, invincible)",
+        "Its own input later"
+       ],
+       "pieces": [
+        [
+         "anim-B2",
+         "anim-B3"
+        ],
+        [
+         "anim-B2",
+         "anim-B3"
+        ],
+        [
+         "anim-B2",
+         "anim-B3"
+        ],
+        [
+         "anim-B2",
+         "anim-B3"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Animations to look at",
+     "questions": [
+      {
+       "id": "an_closea",
+       "title": "Close A",
+       "context": "The scorer: choppy (big pose changes between few drawings); you: 'too choppy for a heavy hitter'. Only matters if it stays (the hold hit today).",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "atk_a_close"
+        ],
+        [
+         "atk_a_close"
+        ],
+        [
+         "atk_a_close"
+        ],
+        [
+         "atk_a_close"
+        ]
+       ]
+      },
+      {
+       "id": "an_236d",
+       "title": "Leg Tomahawk D (236D, the dragon move)",
+       "context": "The scorer: the most uneven timing of his pieces (long holds next to short drawings).",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "full-236d"
+        ],
+        [
+         "full-236d"
+        ],
+        [
+         "full-236d"
+        ],
+        [
+         "full-236d"
+        ]
+       ]
+      },
+      {
+       "id": "an_41236b",
+       "title": "Kaiser Duel Sobat B",
+       "context": "The scorer: uneven timing.",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "full-41236b"
+        ],
+        [
+         "full-41236b"
+        ],
+        [
+         "full-41236b"
+        ],
+        [
+         "full-41236b"
+        ]
+       ]
+      },
+      {
+       "id": "an_jc",
+       "title": "Jump C",
+       "context": "Low appeal score (55 of 100).",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_c_jump"
+        ]
+       ]
+      },
+      {
+       "id": "an_jcd",
+       "title": "Jump CD",
+       "context": "Low appeal score (55 of 100): the poses join badly.",
+       "options": [
+        "Fine as it is",
+        "Speed up the startup",
+        "Speed up the whole move",
+        "Slow down"
+       ],
+       "pieces": [
+        [
+         "atk_cd_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "kim-gold",
    "fighter": "kim",
    "proposal_first": true,
