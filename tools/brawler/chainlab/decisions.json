@@ -1,6 +1,96 @@
 {
  "sets": [
   {
+   "id": "revamp2",
+   "title": "Brawler revamp: follow-up",
+   "intro": "Seven follow-ups from your answers. Tap an answer, type or speak a note.",
+   "sections": [
+    {
+     "title": "Specials and throws",
+     "questions": [
+      {
+       "id": "special_cost",
+       "title": "How much meter does the special cost?",
+       "context": "Your rule: meter if you have it, else life; no life left = unavailable. The brawler's meter today also pays for the fury (D) and the MAX.",
+       "options": [
+        "A small fixed slice (about a quarter bar)",
+        "Half a bar",
+        "Whatever the meter holds, at most one bar"
+       ]
+      },
+      {
+       "id": "special_nolife",
+       "title": "\"If you don't have any life left, you cannot cancel\": which do you mean?",
+       "context": "You wrote it in the special's note.",
+       "options": [
+        "The special can't be used at all (the button does nothing)",
+        "The special still works on its own, but can't cancel a chain or a hit"
+       ]
+      },
+      {
+       "id": "grab_specials",
+       "title": "Our grab specials that sit on special slots today",
+       "context": "In the brawler every special is a slot press (C + a direction), never a motion. Grab specials today: Rosa 6246A / 214B, Iori 624D / 624B, Rugal God Press, Hanzo (SS2) Mozu Otoshi, Cheng Fu's Super 623 catch.",
+       "options": [
+        "They become throws (from the hold, the chain's back branch, or the meter super throw)",
+        "They stay specials on their slot (no motion is ever typed anyway)",
+        "Case by case: show me each one"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Finishers and chains",
+     "questions": [
+      {
+       "id": "launch_dir",
+       "title": "Who launches: forward or up?",
+       "context": "You chose forward = launcher or push on the last link, and optional up / down finishers.",
+       "options": [
+        "Up launches; forward pushes the enemy away",
+        "Forward launches; up is a rising finisher",
+        "Per character, whichever looks best"
+       ]
+      },
+      {
+       "id": "down_finisher",
+       "title": "What does the down finisher do by default?",
+       "context": "Optional per character, but a built-in slot.",
+       "options": [
+        "A sweep: knocks down low",
+        "A ground slam / bounce (re-launch)",
+        "Free per character"
+       ]
+      },
+      {
+       "id": "chain_total",
+       "title": "Should a full chain do about the same total damage for every archetype?",
+       "context": "Final Fight: Guy 42, Cody 46, Haggar 54 over 5 / 4 / 3 links.",
+       "options": [
+        "Yes, within about 15 %",
+        "No, heavy chains hit harder overall"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Judging the animations",
+     "questions": [
+      {
+       "id": "judge",
+       "title": "How do you want to judge which pieces look good?",
+       "context": "See my answer to your question in chat: tags come from the ROM data, appeal is scored, you decide.",
+       "options": [
+        "A page per fighter: every candidate piece looping, Keep / Drop, notes",
+        "I rank them automatically, you only see the top picks",
+        "Both: my ranking first, the full list one tap away"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "revamp",
    "title": "Brawler revamp",
    "intro": "Each question comes from the study of eight classic brawlers (Final Fight to Shadow over Mystara) and your principles. Tap the outcome you want; type or speak a note if it's \"almost\". Answers save as you go.",

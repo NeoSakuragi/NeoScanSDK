@@ -210,6 +210,27 @@ downed enemies can't be hit. Everyone else simply makes downed enemies untouchab
 8. Enemies: random wait in a readable "ready" pose, wind-up proportional to damage; a small attack token (2) — a
    deliberate departure, none of the 8 games has one.
 
+## 8h. Decisions (Bruno, 2026-10-08, decisions page "revamp", answers in /data/brawler/feedback/decisions/revamp.json)
+
+- Chains: a whiff restarts the chain; next-link window ~30-40 f; presses in the hit freeze are kept and fire on the
+  first possible frame (+4-6 f buffer).
+- Length per archetype like Final Fight: fast 5, balanced 4, heavy 3. Three archetypes (fast / balanced / heavy); heavy
+  = fewer, slower, stronger hits (Haggar).
+- Finishers by direction as a built-in feature: neutral, forward, up, down (up / down optional per character). Last link:
+  back = throw backwards, forward = launcher or push, neutral = finisher.
+- Thrown body hitting others: NO chain effect (FF's credit refill not kept).
+- Hit freeze per move on one scale (~6 jab to ~12 finisher). Fixed damage (no random spread).
+- Player hit: short stun (~12-20 f) + brief untouchable window.
+- The chain finisher launches; juggles hard-capped at 5 air hits.
+- Special (invincible): costs meter if you have it, else life; with no life to spend you cannot use it.
+- No command-grab inputs, ever. Each fighter has throw scripts (Terry: forward + back; Ralf also KOF98's command
+  grab as an extra throw); command-grab animations are used as throws in particular cases (e.g. with meter the throw
+  becomes a super throw). A chain may end in a throw.
+- Enemies: at most 3 attack at once; a readable "ready" pose during their random wait; wind-up proportional to damage;
+  a hidden difficulty rank.
+- Tools: explore chains on both the PC and the Player app. Retiming 0.5x-2x, beyond that a hand check.
+- Open (his question): how to assess visual appeal and classify moves (punch / kick, high / mid / low, launcher).
+
 ## 9. Iterate fast: an exploration tool, no build in the loop
 
 **Bruno:** we want to iterate quickly. "I want a tool that allows me to explore new things, so I don't want to wait for
