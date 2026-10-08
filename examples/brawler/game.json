@@ -11,7 +11,7 @@
    "archetype": "balanced",
    "finishers": {"launcher": "up", "down": "sweep", "neutral": "atk_d_close", "forward": "cmd_fwd_a", "up": "cmd_df_c", "down_move": "atk_d_crouch"},
    "specials": {"D": "623C", "fD": "623B", "dD": "214C", "uD": "623C", "dfD": "623C", "ufD": "623C"},
-   "blitz": {"ff": "dash", "dd": "426B", "du": "214D", "uu": "236C"},
+   "blitz": {"ff": "dash", "dd": "426B", "du": "236C", "uu": "214D"},
    "air": {"forward": "atk_d_jump", "straight": "atk_cd_jump", "down": "atk_a_jump"},
    "fury": "21416C",
    "throws": {"speed": {"throw_c": 256, "throw_d": 256}, "hold": {"hit": "atk_b_close", "fin": "atk_d_close", "dx": 40, "startup": {"hit": 2}, "sfx": {"hit": "A"}}},
@@ -210,6 +210,7 @@
   },
   {
    "name": "goenitz",
+   "nopush": ["214B", "214D"],
    "bank": "kof96:goenitz",
    "watch": {"frame": 216, "step": -1},
    "routes": "default",

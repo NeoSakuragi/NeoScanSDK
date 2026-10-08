@@ -1098,7 +1098,7 @@ def var_c(n, k, sp):
 def vl_c(n, k, sp):
     """var_c's fields, then bspec_t.sflags and vlists when the special has a victim script (TODO #173) or flags"""
     v = var_c(n, k, sp)
-    vl = rom_ok(sp) and sp['rom'].get('vlists'); fl = (1 if rom_ok(sp) and sp['rom'].get('nopush') else 0) | (2 if rom_ok(sp) and sp['rom'].get('bighit') else 0) | (4 if rom_ok(sp) and sp['rom'].get('now') else 0) | (8 if rom_ok(sp) and sp['rom'].get('sharepush') else 0) | \
+    vl = rom_ok(sp) and sp['rom'].get('vlists'); fl = (1 if (rom_ok(sp) and sp['rom'].get('nopush')) or sp['input'] in roster().get(n, {}).get('nopush', ()) else 0) | (2 if rom_ok(sp) and sp['rom'].get('bighit') else 0) | (4 if rom_ok(sp) and sp['rom'].get('now') else 0) | (8 if rom_ok(sp) and sp['rom'].get('sharepush') else 0) | \
          (16 if sp['input'] in roster().get(n, {}).get('invincible', ()) else 0) | \
          (32 if rom_ok(sp) and sp['rom'].get('sreact') else 0)   # SF_INV (TODO #202), SF_SREACT (TODO #136)
     if not vl and not fl: return v

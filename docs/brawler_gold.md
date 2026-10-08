@@ -75,7 +75,7 @@ specials (Bruno: overkill for now).
 - Loose thread: the phase-3 super throw — keep it (cost a special chunk) or drop it. TBD.
 
 ### Terry (gold)
-- **Blitz**: ff+A Body Toss, dd+A Power Charge (= 426B), du+A Crack Shoot (= 214D), uu+A Power Wave (= 236C).
+- **Blitz**: ff+A Body Toss, dd+A Power Charge (= 426B), du+A Power Wave (= 236C), uu+A Crack Shoot (= 214D) (swapped by Bruno, 0.8.4 note).
 - **Specials (C + dir)** — FINAL (Bruno 2026-10-08): forward + C = Power Dunk (623D), down + C = Burn Knuckle (214C),
   C in any other direction = Rising Tackle (623C, the upside-down spin; checked on the clips).
 - Chain / finishers / roles / retimes: per the earlier Terry gold section + review (more changes may follow).

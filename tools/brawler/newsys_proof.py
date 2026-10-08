@@ -500,6 +500,19 @@ def bzloop():
     RES['bzloop'] = {'moves': r.moves, 'body_toss_started': n, 'ok': True}
     print('bzloop', r.moves, flush=True)
 
+TELE_KEY = os.environ.get('TELE', '2:Rc')
+def tele():
+    """Bruno's note: Goenitz's teleport (214B on forward + C) goes through people (no push)"""
+    reset('goenitz', dist=50, face=1)
+    x0, d0 = int(b.fget(0, 'x')), int(b.fget(2, 'x'))
+    r = Rec(tag='tele'); r.seq(TELE_KEY); w = []
+    for k in range(120):
+        r.idle(1); w.append((st(0), int(b.fget(0, 'x')), int(b.fget(2, 'x'))))
+    print('trace', w[::6], flush=True)
+    x1, d1 = int(b.fget(0, 'x')), int(b.fget(2, 'x'))
+    RES['tele'] = {'p1': (x0, x1), 'dummy': (d0, d1), 'ok': x1 > d1 and abs(d1 - d0) < 8}
+    print('tele', RES['tele'], flush=True)
+
 for s in SECTIONS: globals()[s]()
 def oks(d):
     if isinstance(d, dict):

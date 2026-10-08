@@ -2280,5 +2280,32 @@
   "expect": "It walks backwards while still facing Terry; enemies never turn their back to walk away.",
   "do_keys": "240:-",
   "proof": 240
+ },
+ "20261008-183828-5d29": {
+  "title": "Terry's Blitz: up,up + A = Crack Shoot, down,up + A = Power Wave",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 70
+  },
+  "do": "Tap up, up + A. Then tap down, up + A.",
+  "expect": "Up, up + A: Crack Shoot (the hop kick). Down, up + A: Power Wave (the ground wave). Both free, no drive spent.",
+  "do_keys": "1:U,1:-,1:U,1:Ua,80:-,1:D,1:-,1:U,1:Ua,80:-",
+  "proof": 170
+ },
+ "20261008-183203-5d29": {
+  "title": "Goenitz's teleport goes through people",
+  "setup": {
+   "mode": "lab",
+   "fighter": "goenitz",
+   "dummy": "ryo",
+   "gap": 50,
+   "drive": "full"
+  },
+  "do": "Forward + C: the teleport, with Ryo in the way.",
+  "expect": "Goenitz goes through Ryo and reappears beyond him; Ryo is not pushed.",
+  "do_keys": "2:Rc,90:-",
+  "proof": 100
  }
 }
