@@ -297,10 +297,12 @@ Stick walks on the floor (up/down = depth), forward twice = run.
   the frame it is triggered until it ends (`INV_FURY`, fighter.c start_special).
 - Tag mode (reserved, not built) has no button any more.
 
-**Special meter** (game.json `meter`, HUD: the blue bar under the name): full at the start and at a new life, a point
-back every 10 frames (empty to full 20 s); a special (C) costs 30 of 120, a fury (D) 60 and needs 60; a special out of a hit
-(hitstun, or held by an enemy: "get out of trouble") costs double and the fighter flashes fully white for 8 frames. Not
-enough meter: the press does nothing. Enemies have no meter.
+**Meter** (revamp phase 2, game.json `meter`, HUD: the blue bar under the name + three stock dots, a disc full, a ring
+empty): 3 stocks = 300 points, full at the start and at a new life, a point back every 4 frames (empty to full 20 s); a
+special (C) costs 100 (else 6 life), a breaker (C while hit or held: the escape, untouchable, blinking white) 200 (else 12
+life), the fury (D) 300, the MAX (down+D) 300 only in the red state (life <= 25 %: the fighter blinks red, MAX shows by
+the dots). Short of both meter and life: nothing plays. Enemies have no meter. Damage tiers: every special 12, fury 30,
+MAX 45 on a full connect, every fighter (docs/brawler_data_model.md "Meter, breaker, damage tiers").
 
 | Default route (every fighter without a routes file) | Links (KOF normals) | Ends with |
 |---|---|---|

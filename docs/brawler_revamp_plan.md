@@ -35,7 +35,7 @@ one. Each phase merges into `brawler` and ships as a release so Bruno can feel i
   hit-stop and victim reactions not scaled; `fighter_retime()` for other systems (archetype defaults, situations).
 - Bound 0.5x-2x (beyond: built, printed as a hand check). No behaviour change until a move is given a retime.
 
-## Phase 2 — meter, breaker, damage tiers (after 1A; fighter.c meter + main.c HUD)
+## Phase 2 — meter, breaker, damage tiers (after 1A; fighter.c meter + main.c HUD) (done 2026-10-08: docs/brawler_data_model.md "Meter, breaker, damage tiers"; with it 1C's collision limit fixed: rt_probe)
 - Meter: 3 stocks = 300 points, HUD bar with 3 dots. Special 100. Breaker (a special out of hit-stun) 200 with the
   sprite blinking; no meter → life; neither → no breaker. Fury 300. MAX 300 + low life (red blinking state).
 - Damage tiers unified across fighters: specials (±15 %), furies (±20 %), MAX (±20 %); special < fury < MAX.

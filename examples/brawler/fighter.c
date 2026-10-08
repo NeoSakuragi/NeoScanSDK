@@ -481,6 +481,7 @@ static void route_go(fighter_t *f, uint8_t node, uint8_t b, const intent_t *in, 
  *   PAY_BREAKER  a special out of a hit (C in a hit stun or held: "to escape"; TODO #71's double-cost special out of a
  *                hit, converged): gmeter.breaker, else gmeter.life_breaker of life, else none; its sprite blinks white
  *                (gmeter.blink frames white, as many in its colours) for the whole special: the extra cost shown;
+ *                untouchable to its end (INV_FURY: the escape);
  *   PAY_FURY     the fury (D): gmeter.fury;
  *   PAY_MAX      the MAX (down+D) only in the red state (fighter_low: life <= gmeter.low % of the full life, the
  *                fighter blinking red, Fatal Fury Special's): gmeter.maxf; down+D outside it is the fury;
@@ -2287,8 +2288,8 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     returned control: untouchable no more */
     if (f->inv == INV_FURY) {                                    /* held for the fury's script (and a form's transition, */
         if (!f->cthrow && (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM &&   /* a move with */
-                                      !(f->ch->specials[f->spec_ix].sflags & SF_INV)))) f->inv = 0;   /* SF_INV; a chain's */
-    }                                                            /* back throw) */
+                                      !(f->ch->specials[f->spec_ix].sflags & SF_INV) && !f->brk))) f->inv = 0;   /* SF_INV; a */
+    }                                                            /* breaker; a chain's back throw) */
     else if (f->inv) f->inv--;
     if (f->guard && !--f->guard) f->guard_by = 0;                /* a player's untouchable window after a hit ("guard") */
     if (f->chain_t) f->chain_t--;
@@ -2299,7 +2300,8 @@ static void update(fighter_t *f, const intent_t *in) {
             if (f->state == S_GRABBED && f->held) release(f->held);
             f->frame_ovr = 0xFFFF; f->vx = f->vy = f->vz = 0; f->y = 0;
             lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k);
-            if (!f->team) f->brk = 1;                            /* it blinks white to its end (pal_overlay) */
+            if (!f->team) { f->brk = 1; f->inv = INV_FURY; }    /* it blinks white to its end (pal_overlay), untouchable
+                                                                    to its end: the escape (8h: a special is invincible) */
             return;
         }
     }

@@ -1832,5 +1832,129 @@
   "expect": "Each hit stuns Terry only briefly (about a quarter of a second) and for a moment after it the other enemies' punches pass through him: a crowd can no longer juggle you; the enemy that hit you may follow up.",
   "do_keys": "600:-",
   "proof": 60
+ },
+ "rv2-meter-special": {
+  "title": "A special costs one stock: one of the three dots empties",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 70,
+   "meter": "full"
+  },
+  "do": "The meter under your name is full: the bar and three filled dots. Press C once (Terry's special).",
+  "expect": "The special plays; the bar loses a third and one dot becomes an empty ring (two filled dots left). The bar then refills slowly (a full stock in about 7 seconds) and the dot fills again when its third is back.",
+  "do_keys": "3:c",
+  "proof": 240
+ },
+ "rv2-meter-life": {
+  "title": "No stock left: a special costs a little life instead",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 70,
+   "meter": 50,
+   "hp": 60
+  },
+  "do": "Your meter is under one stock (all three dots empty). Press C once.",
+  "expect": "The special still plays, but your life bar drops by a tenth (6 of 60) and the meter stays where it was.",
+  "do_keys": "3:c",
+  "proof": 120
+ },
+ "rv2-breaker": {
+  "title": "Breaker: a special while you are hit costs two stocks and makes you blink",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "gap": 60,
+   "meter": "full"
+  },
+  "do": "Mr. Big alone in front of you, your meter full. Stand still; the moment his blow hits you, press C while you reel.",
+  "expect": "Terry escapes with his special straight out of the hit; his body blinks white the whole time it plays (the extra cost shown) and two of the three dots empty at once.",
+  "do_keys": "143:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-",
+  "proof": 120
+ },
+ "rv2-breaker-life": {
+  "title": "Breaker with less than two stocks: it costs life instead",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "gap": 60,
+   "meter": 150
+  },
+  "do": "Mr. Big alone, your meter at one and a half stocks. Stand still; when his blow hits you, press C while you reel.",
+  "expect": "The breaker still plays and Terry blinks white through it, but the meter is not touched: your life bar drops by a fifth (12 of 60) on top of his blow.",
+  "do_keys": "143:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-",
+  "proof": 120
+ },
+ "rv2-no-breaker": {
+  "title": "No meter and too little life: no breaker",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "gap": 60,
+   "meter": 0,
+   "hp": 16
+  },
+  "do": "Mr. Big alone, your meter empty and your life low (16 of 60: you also blink red). Stand still; when his blow hits you, press C while you reel.",
+  "expect": "Nothing happens: Terry reels to the end of the hit. A breaker needs two stocks or more than 12 life, and you have neither.",
+  "do_keys": "143:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-",
+  "proof": 90
+ },
+ "rv2-fury": {
+  "title": "The fury costs the whole meter",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full"
+  },
+  "do": "Meter full (three dots). Press D.",
+  "expect": "Power Geyser plays with its blue super flash; all three dots empty and the bar is empty. It takes half the dummy's life (30 of 60, shown at the bottom).",
+  "do_keys": "3:d",
+  "proof": 200
+ },
+ "rv2-max-red": {
+  "title": "The MAX: only in the red state (life a quarter or less)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 110,
+   "meter": "full",
+   "hp": 12
+  },
+  "do": "Your life is low (12 of 60): Terry blinks red and MAX blinks next to your dots. The dummy stands a little away (all three geysers reach it there). Hold down and press D.",
+  "expect": "MAX Power Geyser plays with its orange super flash, the whole meter spent; its three geysers take three quarters of the dummy's life (45 of 60).",
+  "do_keys": "3:Dd",
+  "proof": 220
+ },
+ "rv2-max-not-red": {
+  "title": "Down + D outside the red state is the plain fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "meter": "full"
+  },
+  "do": "Full life, full meter. Hold down and press D.",
+  "expect": "The plain fury (Power Geyser, blue flash, 30 damage) plays, not the MAX: no red blinking, no MAX mark.",
+  "do_keys": "3:Dd",
+  "proof": 200
  }
 }
