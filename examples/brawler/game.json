@@ -38,7 +38,8 @@
    "specials": {"D": "AAAA", "fD": "[4]6A", "dD": "[2]8A", "uD": "[4]6B", "dfD": "[2]8C", "ufD": "[4]6D"},
    "fury": "23624C",
    "unlock": "always",
-   "voices": "kof"
+   "voices": "kof",
+   "throws": {"extra": {"u": "throw_x"}, "super": "throw_x"}
   },
   {
    "name": "robert",
@@ -60,9 +61,9 @@
    "archetype": "balanced",
    "finishers": {"launcher": "up", "down": "sweep"},
    "specials": {"D": "623C", "fD": "214B", "dD": "623D", "uD": "623B", "dfD": "214C", "ufD": "214A"},
-   "fury": "236236C",
    "unlock": "always",
-   "voices": "kof"
+   "voices": "kof",
+   "throws": {"super": "236236C"}
   },
   {
    "name": "billy",
@@ -98,10 +99,11 @@
    "routes": "default",
    "archetype": "fast",
    "finishers": {"launcher": "up", "down": "sweep"},
-   "specials": {"D": "236A", "fD": "624D", "dD": "623C", "uD": "623D", "dfD": "624B", "ufD": "214A"},
+   "specials": {"D": "236A", "fD": null, "dD": "623C", "uD": "623D", "dfD": null, "ufD": "214A"},
    "fury": "23624C",
    "unlock": "always",
-   "voices": "kof"
+   "voices": "kof",
+   "throws": {"extra": {"u": "624B"}, "super": "624D"}
   },
   {
    "name": "mai",
@@ -185,10 +187,10 @@
    "routes": "default",
    "archetype": "heavy",
    "finishers": {"launcher": "up", "down": "slam"},
-   "specials": {"D": "236A", "fD": "624A", "dD": "6426D", "uD": "6426A", "dfD": "6426B", "ufD": "6426C"},
-   "fury": "23624C",
+   "specials": {"D": "236A", "fD": null, "dD": "6426D", "uD": "6426A", "dfD": "6426B", "ufD": "6426C"},
    "unlock": {"boss_of_stage": 4},
-   "voices": "kof"
+   "voices": "kof",
+   "throws": {"extra": {"u": "624A"}, "super": "23624C"}
   },
   {
    "name": "goenitz",
@@ -227,12 +229,12 @@
    "archetype": "balanced",
    "finishers": {"launcher": "up", "down": "sweep"},
    "specials": {"D": "214S", "fD": "236S", "dD": "623S", "uD": null, "dfD": null, "ufD": null},
-   "fury": "WFT",
    "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH", "236S": "SLASH", "623S": "SLASH", "WFT": "SLASH"},
-   "variant": {"623S": "A", "236S": "A"}
+   "variant": {"623S": "A", "236S": "A"},
+   "throws": {"super": "WFT"}
   },
   {
    "name": "cheng_fu",
@@ -245,11 +247,11 @@
    "finishers": {"launcher": "up", "down": "slam", "neutral": "atk_c_close", "forward": "atk_c_far", "up": "atk_c_far"},
    "specials": {"D": "214", "fD": "236", "dD": "623", "uD": null, "dfD": null, "ufD": null},
    "fury": "SUPER 236",
-   "max": "SUPER 623",
    "down_attack": "DOWN 8/2",
    "flash_pose": {"anim": 99, "first": 0, "last": 5},
    "unlock": "always",
-   "voices": "kof"
+   "voices": "kof",
+   "throws": {"super": "SUPER 623"}
   },
   {
    "name": "hanzo",
@@ -273,14 +275,15 @@
    "routes": "default",
    "archetype": "fast",
    "finishers": {"launcher": "up", "down": "sweep"},
-   "specials": {"D": "6321S", "fD": "623K", "dD": null, "uD": null, "dfD": null, "ufD": null},
+   "specials": {"D": "6321S", "fD": null, "dD": null, "uD": null, "dfD": null, "ufD": null},
    "fury": "WFT",
    "air_specials": {"dA": "j.4123S"},
    "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH"},
-   "variant": {"623K": "C"}
+   "variant": {"623K": "C"},
+   "throws": {"extra": {"u": "623K"}, "super": "623K"}
   },
   {
    "name": "kim",
@@ -302,12 +305,12 @@
    "routes": "tools/brawler/routes/rosa.json",
    "archetype": "fast",
    "finishers": {"launcher": "up", "down": "sweep"},
-   "specials": {"D": "236C", "fD": "214B", "dD": "623C", "uD": "421C", "dfD": "63214C", "ufD": null},
-   "fury": "6246A",
-   "max": "421A",
+   "specials": {"D": "236C", "fD": null, "dD": "623C", "uD": "421C", "dfD": "63214C", "ufD": null},
+   "fury": "421A",
    "air_specials": {"dA": "j.2C"},
    "voices": "kof",
-   "unlock": "always"
+   "unlock": "always",
+   "throws": {"extra": {"u": "214B"}, "super": "6246A"}
   },
   {
    "name": "billy_lee",
@@ -416,8 +419,8 @@
   "hanzo_ss2": {"x": 294, "y": 112, "z": 10, "facing": "left", "pose": [140, -1], "slot": 22},
   "rosa": {"x": 130, "y": 153, "z": 23, "facing": "right", "pose": [55, 12], "slot": 23}
  },
- "meter": {"about": "the meter (revamp phase 2, docs/brawler_feel.md 8h, fighter.c 'the meter'): players only, 3 stocks = max points (stock each: the HUD's dots), full at the start and at a new life, a point back every refill frames (TODO #71's rule rescaled from 120 to 300: a full gauge in 20 s as before); special = a C special's cost, else life_special of life; breaker = a special out of a hit (C in a hit stun or held), else life_breaker of life, the sprite blinking white (blink frames white, as many not) to its end; neither: nothing plays; fury = D's cost; max_fury = the MAX's (down+D), only in the red state: life <= low % of the full life (the fighter blinks red, the HUD shows MAX); infinite 1: nothing spent (a test switch)", "max": 300, "stock": 100, "special": 100, "breaker": 200, "fury": 300, "max_fury": 300, "refill": 4, "life_special": 6, "life_breaker": 12, "low": 25, "blink": 4, "infinite": 0},
- "tiers": {"about": "the damage tiers (revamp phase 2, Bruno 2026-10-08: specials about equal across all characters +-15 %, furies +-20 %, MAX +-20 %, special < fury < MAX; fighter.c 'damage tiers'): the whole damage of every special / fury / MAX on a full connect (life 60; the chain totals 21 / 23 / 27: a special about half a chain, a fury one heavy chain and more, the MAX two chains); spread = the allowed band in %, the bands may not overlap; measured = each move's own total in our emulator (tools/brawler/damage_tiers.py --raw --save), each move scaled to its tier", "special": 12, "fury": 30, "max": 45, "spread": {"special": 15, "fury": 20, "max": 20}, "measured": "tools/brawler/damage_raw.json"},
+ "meter": {"about": "the meter (revamp phase 2, docs/brawler_feel.md 8h, fighter.c 'the meter'): players only, 3 stocks = max points (stock each: the HUD's dots), full at the start and at a new life, a point back every refill frames (TODO #71's rule rescaled from 120 to 300: a full gauge in 20 s as before); special = a C special's cost, else life_special of life; breaker = a special out of a hit (C in a hit stun or held), else life_breaker of life, the sprite blinking white (blink frames white, as many not) to its end; neither: nothing plays; fury = D's cost; max_fury = the MAX's (down+D), only in the red state: life <= low % of the full life (the fighter blinks red, the HUD shows MAX); infinite 1: nothing spent (a test switch); super_throw = the super throw's cost (revamp 3: the hold + forward / back + C; short of it the plain throw, no life paid)", "max": 300, "stock": 100, "special": 100, "breaker": 200, "fury": 300, "max_fury": 300, "refill": 4, "life_special": 6, "life_breaker": 12, "low": 25, "blink": 4, "infinite": 0, "super_throw": 100},
+ "tiers": {"about": "the damage tiers (revamp phase 2, Bruno 2026-10-08: specials about equal across all characters +-15 %, furies +-20 %, MAX +-20 %, special < fury < MAX; fighter.c 'damage tiers'): the whole damage of every special / fury / MAX on a full connect (life 60; the chain totals 21 / 23 / 27: a special about half a chain, a fury one heavy chain and more, the MAX two chains); spread = the allowed band in %, the bands may not overlap; measured = each move's own total in our emulator (tools/brawler/damage_tiers.py --raw --save), each move scaled to its tier; super_throw = the super throw's whole damage (revamp 3: between the special and the fury, a stock buys it)", "special": 12, "fury": 30, "max": 45, "super_throw": 18, "spread": {"special": 15, "fury": 20, "max": 20}, "measured": "tools/brawler/damage_raw.json"},
  "chain": {"about": "the chain core (revamp 1A, docs/brawler_feel.md 8h, fighter.c 'chain core', routes.py chain_tree): one system for every fighter. A chain advances only on a hit; a whiff or being hit restarts it at link 1. window: frames after a link's recovery to press the next one; buffer: a player's press this many frames (hit-stop not counted) before the next link may start still fires, a press in the hit-stop is latched; lengths: links by roster[].archetype (Final Fight's Guy 5 / Cody 4 / Haggar 3); totals: the whole chain's damage by archetype (Final Fight 42 / 46 / 54, halved to the brawler's life of 60); hitstop: [jab, finisher] frames, link k on that scale, every finisher the last (a special's / fury's / throw's: the engine's 7); juggle_cap: air hits a juggled fighter takes, then untouchable until it lands (downed: untouchable; a fury's own hits excepted); stun_player + guard_player: a player's hit stun and its untouchable window from the hit (only the one that hit it reaches it meanwhile); stun_light / stun_heavy: an enemy's hit stun. roster[].finishers: launcher = the stick that plays the launcher (up, forward or neutral), down = sweep (a trip) or slam (a ground slam that bounces), or null; neutral / forward / up / down_move = a move name to override the generator's pick", "window": 35, "buffer": 5, "lengths": {"fast": 5, "balanced": 4, "heavy": 3}, "totals": {"fast": 21, "balanced": 23, "heavy": 27}, "hitstop": [6, 12], "juggle_cap": 5, "stun_player": 16, "guard_player": 20, "stun_light": 28, "stun_heavy": 32},
  "super_flash": {"about": "fx.super_flash (TODO #139, Bruno 2026-10-06: an engine rule, no per-move data but an optional anchor): every fury (D) and MAX fury (down+D) of every fighter. From the fury's frame start the game freezes except the attacker for freeze frames (enemies, projectiles, the camera, waves and timers, other players; only the attacker's own boxes hit: Kim's Phoenix hits inside the flash, KOF's furies 39-47 frames in, after it), the stage is hidden and the backdrop is white_colour for white frames, then dark_colour; KOF98's concentration plays at the anchor (the move's own, read from its KOF animation, else this one: px from the feet, KOF orientation, negative x = forward), blue for a fury, orange for a MAX fury. Values: KOF98's (tools/kof96/handlers98.md 'Super flash': the flash effect's animation + 1 = 28 frames, its white event step + 1 = 4). sound (Bruno 2026-10-06, the fury charge): the effect played at the flash start, KOF98's own: the flash routine $370F0 / $373FC sends sound index $99 = $1A $3A for every DM and SDM alike (measured in our emulator: Terry, Ryo, Ralf, Kyo, DM and MAX, the same command on the flash frame); must be in songs.json sfx. sound_max (TODO #155, Bruno 2026-10-06: KOF2000's MAX sound, the high whistle): played instead of sound when the fury is the MAX (down+D): KOF2000's SDM flash effect, $1E $8F there (measured in our emulator: K' and Terry, every DM flash $1E $BC, every SDM flash $1E $8F), the brawler $1A $8F (songs.json sfx from)", "start": 1, "freeze": 28, "white": 4, "anchor": [0, -96], "white_colour": "0x7FFF", "dark_colour": "0x0000", "sound": "3A", "sound_max": "8F"},
  "tints": {

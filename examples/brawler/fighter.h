@@ -151,6 +151,12 @@ extern const rt_head_t *route_tab[BC_COUNT];
                                      (intent_t.lie) plays it at that opponent (fighter_t.dtgt): its program's P_HOME leaps
                                      at it, its hit reaches it lying (combat: LIE_BOX) and pops it off the floor (react);
                                      the target stays down while it comes (dpin); no meter, no cancels out of it */
+#define BS_THROW (BS_COUNT + 5)      /* a throw played from a grab special's ROM program (revamp phase 3, docs/brawler_feel.md 8h:
+                                     no command-grab inputs; game.json roster[].throws, bm_xthr): the hold's up / down + A
+                                     (bxthr_t up / down) on the held victim, released into a reel the special's catch takes;
+                                     no meter, untouchable to its end, no cancels out of it; fighter_t.spec_ix = the entry's
+                                     special (spec_ix(ch, BS_THROW) = 0xFF). The super throw plays its special as a fury
+                                     (BS_FURY, fighter_t.sthr 2: its flash, its flash pose, its tier) */
 #define DOWN_REACH 160               /* px (x) to a lying opponent the down attack leaps at (any lane of the band); Double
                                      Dragon has no limit (one opponent, its leap = 64 frames whatever the distance) */
 enum { FT_NONE, FT_DOWN_D_FULL };    /* bchar_t.form_trig: down+D on the ground with a full meter */
@@ -389,6 +395,12 @@ typedef struct fighter {
      * colours, OVL_WHITE the breaker's blink, OVL_RED the red state's); fmax = the fury playing started as the MAX */
     uint16_t dsc;
     uint8_t  dacc, brk, ovl, fmax;
+    /* throws (revamp phase 3, fighter.c "hold and throws"): sthr = the special playing is a throw (1: an extra throw,
+     * BS_THROW; 2: the super throw, played as a fury) and xix its special's index (start_special takes it); thr_dmg = a
+     * paired throw's whole damage on its victim (THROW_DAMAGE, the super throw's gmeter.sthrow_dmg); tb_by = the throw
+     * special that caught this fighter: falling from it, it is a thrown body (spawn.body) until it lands */
+    uint8_t  sthr, xix, thr_dmg, xwait;   /* xwait: a paired super throw's flash frames left in the hold (xix: its BT_*) */
+    struct fighter *tb_by;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2 };
 uint8_t fighter_low(const fighter_t *f);   /* the red state (gmeter.low): the MAX may play; the HUD's MAX mark */

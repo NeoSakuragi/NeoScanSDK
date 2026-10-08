@@ -122,6 +122,11 @@ def boxes(bx, reach=0):
     return h, a
 
 THROWS = ['throw_c', 'throw_d']                         # BT_* order: ground throws, close, forward+C / forward+D in KOF
+THROW_X = 'throw_x'                                      # revamp phase 3: a fighter's extra paired throw, decoded from its
+                                                         # source's command grab (tools/kof96/throwrom.py: KOF98 Ralf's
+                                                         # 426B / D): bm_xthr[id].x, fighter.c BT_XTHROW
+XT_FWD, XT_PAIRED, XT_NONE = 0xFD, 0xFE, 0xFF            # bxthr_t up / down / sup: the throw pressed (the super: forward /
+                                                         # back throw played at the super tier), the paired throw_x, none
 # Throw speed (TODO #146 rule 1: no global multiplier): per throw in data, game.json roster[].throws.speed {key: 8.8};
 # default 1x for a throw read from the ROM (tools/kof96/throwrom.py: the pilot), the captured scripts (pre-#146, the
 # rest of the roster until its pass) keep the pace they had (1.5x, Bruno 2026-10-04)
@@ -249,7 +254,7 @@ def build(specs, outdir):
             sys.path.insert(0, os.path.join(HERE, '..', 'kizuna')); import export_kz
             return export_kz.export(names, tmp, only=set(MOVES),
                                     extra={n: {'watch': tuple(roster()[n]['watch']), **flash_extra(game, n)} for n in names if n in roster()})
-        return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {'specials'},
+        return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {THROW_X, 'specials'},
                                extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()},
                                shared_fx={n: played_inputs(n) for n in names})   # (only the frames used: TODO #214)
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
@@ -900,7 +905,42 @@ def special_pool(ch, name=None):
     mx = fury_max_special(ch, name)                 # its MAX version (down+D, TODO #139), when the bank has one
     out = out + [mx] if mx is not None and mx not in out else out
     dn = down_special(ch, name)                     # its down attack (up / down + A at a lying opponent, TODO #218),
-    return out + [dn] if dn is not None and dn not in out else out   # last: the others keep their indices
+    out = out + [dn] if dn is not None and dn not in out else out   # last: the others keep their indices
+    for sp in throw_specials(ch, name):             # the grab specials its throws play (revamp 3), when not in it
+        out = out + [sp] if sp not in out else out
+    return out
+
+
+def throw_cfg(name):
+    """game.json roster[].throws (speed, front, hold; revamp 3: extra {u, d}, super)"""
+    return (roster().get(name) or {}).get('throws') or {} if name in roster() else {}
+
+def throw_specials(ch, name):
+    """revamp phase 3 (Bruno 2026-10-08, docs/brawler_feel.md 8h: no command-grab inputs; grab specials become throws): the
+    specials of its bank its throws play, from the hold (game.json roster[].throws.extra {u, d}: hold + up / down + A) and
+    the super throw (throws.super: hold + forward / back + C with the meter), each read from the ROM (its program catches
+    the held victim); 'throw_x' names the paired extra throw instead (THROW_X). In throws order: extra, then super"""
+    t = throw_cfg(name); out = []
+    for key, inp in list((t.get('extra') or {}).items()) + [('super', t.get('super'))]:
+        assert key in ('u', 'd', 'super'), f'{name}: throws.extra key {key!r} (u = hold + up + A, d = hold + down + A)'
+        if not inp or inp == THROW_X: continue
+        sp = next((sp for sp in ch.get('specials', []) if sp['input'] == inp), None)
+        assert sp and rom_ok(sp), f'{name}: throw {inp}: no special read from the ROM in its bank'
+        if sp not in out: out.append(sp)
+    return out
+
+def xthr_c(ch, n):
+    """bm_xthr[id] (bxthr_t): {its throw_x (0 none), up, down (hold + up / down + A), sup (the super throw), 0}: a special's
+    index in its pool, XT_PAIRED its throw_x, XT_FWD (sup only) the throw pressed at the super tier, XT_NONE none"""
+    t = throw_cfg(n); pool = special_pool(ch, n); has_x = THROW_X in ch.get('throws', {})
+    def one(inp, none):
+        if not inp: return none
+        if inp == THROW_X:
+            assert has_x, f'{n}: throws name {THROW_X}, its bank has none (tools/kof96/throwrom.py PILOT)'
+            return XT_PAIRED
+        return spec_index(pool, next(sp for sp in ch['specials'] if sp['input'] == inp))
+    ex = t.get('extra') or {}
+    return f'{{{f"&{n}_xthrow" if has_x else "0"}, {one(ex.get("u"), XT_NONE)}, {one(ex.get("d"), XT_NONE)}, {one(t.get("super"), XT_FWD)}, 0}}'
 
 
 def fury_special(ch, name):
@@ -1179,6 +1219,7 @@ def throw_rows(game, n, th, pkeys, front=None):
         rel = next((i for i in range(1, len(rows)) if 0 <= st(rows[i]) < THROW_FLIGHT and st(rows[i - 1]) >= THROW_FLIGHT), None)
         land = next((i for i in range(rel + 1, len(rows)) if rows[i][2] + th['timeline'][min(i, len(th['timeline']) - 1)][2] <= 0), None) if rel is not None else None
         ret = len(th['timeline'])
+    if th.get('rom') and th.get('body'): rel, land = th['body']   # a second release (Ralf's 426B slam): the body from it
     nrows = max(len(th['timeline']), len(rows)) if th.get('rom') else len(th['timeline'])
     out = []
     for i in range(nrows):
@@ -1451,6 +1492,9 @@ def write_c(chars, outdir):
          'enum { VK_THROW = BA_COUNT, VK_HIT = BA_COUNT + BT_COUNT, VK_KO, VK_SELECT, VK_SPEC };   /* voice keys (voices.py keys): BA_*, VK_THROW + BT_*, the events, VK_SPEC + its special\'s index in the pool */',
          'typedef struct { const uint8_t *map; const bproj_t *sparks; } bhspark_t;   /* (TODO #215, vocabulary fx.hit_spark) a fighter\'s source game\'s own hit sparks (Double Dragon: tools/doubledr/sparks_dd.py; map 0 = none: the engine\'s KOF98 spark): map = [where (its special index, 0xFE a normal: its BA_ animation), animation index (a special\'s anims), step, spark] each, 0xFF ends, in its bank; a hit landing on that step spawns sparks[(spark & 0x3F) - 1] (an effect object, bproj_t kind PK_FX) at its game\'s hit point (fighter.c hit_spark); spark 0x40 = turned (the other way), 0x80 = the screen strobe (DD\'s super hits: fighter.c hitflash) */',
          'typedef const uint8_t *bair_t;   /* (TODO #221) */',
+         'typedef struct { const bthrow_t *x; uint8_t up, down, sup, pad; } bxthr_t;   /* (revamp 3, game.json roster[].throws extra / super) a fighter\'s throws beyond forward / back: x = its extra paired throw (0 none: tools/kof96/throwrom.py, Ralf\'s 426B); up / down = hold + up / down + A, sup = the super throw (hold + forward / back + C with the meter): a special\'s index in its pool (a grab special played from its ROM program on the held victim, role BS_THROW), XT_PAIRED its x, XT_FWD (sup) the throw pressed at the super tier, XT_NONE none (up / down: the hold hit) */',
+         f'enum {{ XT_FWD = {XT_FWD}, XT_PAIRED = {XT_PAIRED}, XT_NONE = {XT_NONE} }};',
+         'extern const bxthr_t bm_xthr[BC_COUNT];   /* (revamp 3) by bchar_t.id (outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef const uint16_t *bseg_t;   /* (retiming) */', 'extern const bseg_t bm_seg[BC_COUNT];   /* (retiming, retime.py) by bchar_t.id: [BA_COUNT + nspec, offset of each move (BA_* then its specials; 0 = no segments)], then per move [n, the source frames of its n segments: startup, active 1, recovery 1, ...] (fighter.c rt_*) */',
          'extern const bair_t bm_air[BC_COUNT];   /* (TODO #221) by bchar_t.id: its air specials, [input, special index] each, 0xFF ends (bchar_t.nair entries) */',
          'extern const bhspark_t bm_hspark[BC_COUNT];   /* by bchar_t.id (bm_spec.c: the first program MB; outside bchar_t, whose 128 bytes index by a shift) */',
@@ -1528,6 +1572,13 @@ def write_c(chars, outdir):
             tfx = throw_fx_of(ch, t)
             thr.append(f'{{{len(out)}, {sp}, {n}_{t}, {info["ret"]}, {info["rel"]}, {info["land"]}, {tfx["row"]}, {tfx["dx"]}, {tfx["dy"]}, 0xFF, 0xFF, {0xFFFF if th.get('grab_frame') is None else th['grab_frame']}, {th.get('stun', 0)}}}')
         c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(thr) + '};')
+        th = ch.get('throws', {}).get(THROW_X)               # its extra paired throw (revamp 3: Ralf's 426B), bm_xthr
+        if th:
+            out, info = throw_rows(game, n, th, pkeys, tdata.get('front', {}).get(THROW_X))
+            c.append(f'static const bthrow_row_t {n}_{THROW_X}[] = {{' + ', '.join(out) + '};')
+            sp = tdata.get('speed', {}).get(THROW_X, THROW_SPEED if th.get('rom') else CAPTURED_THROW_SPEED)
+            tfx = throw_fx_of(ch, THROW_X)
+            c.append(f'static const bthrow_t {n}_xthrow = {{{len(out)}, {sp}, {n}_{THROW_X}, {info["ret"]}, {info["rel"]}, {info["land"]}, {tfx["row"]}, {tfx["dx"]}, {tfx["dy"]}, 0xFF, 0xFF, 0xFFFF, 0}};')
         hl = []
         for k in HOLDS:
             out, (ha, hs) = hold_rows(ch, n, game, k, hold_move(ch, n, tdata, k), pkeys, (tdata.get('hold') or {}).get('dx'))
@@ -1666,6 +1717,7 @@ def write_c(chars, outdir):
     c.append('};')
     c.append('const bseg_t bm_seg[BC_COUNT] = {' + ', '.join(f'{n}_seg' for _, n, _, _ in chars) + '};   /* (retiming) */')
     c.append('const bair_t bm_air[BC_COUNT] = {' + ', '.join(f'{n}_air' for _, n, _, _ in chars) + '};   /* (TODO #221) */')
+    c.append('const bxthr_t bm_xthr[BC_COUNT] = {' + ', '.join(xthr_c(ch, n) for _, n, ch, _ in chars) + '};   /* (revamp 3) */')
     c += sreact_c()
     c.append('const int8_t bm_head[BC_COUNT][2] = {' + ', '.join(f'{{{ch["head"][0]}, {ch["head"][1]}}}' for _, _, ch, _ in chars) + '};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')

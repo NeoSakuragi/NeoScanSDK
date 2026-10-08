@@ -430,8 +430,8 @@ def c_str(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
 METER_KEYS = ('about', 'max', 'stock', 'special', 'breaker', 'fury', 'max_fury', 'refill', 'life_special', 'life_breaker',
-              'low', 'blink', 'infinite')
-TIER_KEYS = ('about', 'special', 'fury', 'max', 'spread', 'measured')
+              'low', 'blink', 'infinite', 'super_throw')
+TIER_KEYS = ('about', 'special', 'fury', 'max', 'super_throw', 'spread', 'measured')
 
 
 def dtier_tables(g, build, dmul):
@@ -460,18 +460,28 @@ def dtier_tables(g, build, dmul):
         if n not in lab:                                 # (the first build: the export comes after) every scale 1
             rows.append('dtier_none'); continue
         pool = [p['input'] for p in lab[n]['pool']]; m = raw.get(n) or {}
-        v = [dmul[i] * 256] * len(pool) + [256, 256]
-        e = rep[n] = {'specials': {}, 'fury': None, 'max': None}
+        v = [dmul[i] * 256] * len(pool) + [256, 256, 256]
+        e = rep[n] = {'specials': {}, 'fury': None, 'max': None, 'super_throw': None}
         for kof, x in (m.get('specials') or {}).items():
             if kof in pool and x['damage'] > 0: v[pool.index(kof)] = sc(t['special'], x['damage'])
             e['specials'][kof] = {'own': x['damage'], 'scale': v[pool.index(kof)] / 256 if kof in pool else None}
-        for k, j, tg in (('fury', 0, t['fury']), ('max', 1, t['max'])):
-            x = m.get(k)
-            if x and x['damage'] > 0: v[len(pool) + j] = sc(tg, x['damage'])
-            e[k] = {'own': x['damage'] if x else None, 'scale': v[len(pool) + j] / 256}
+        def own(inp):                                    # a move's measured total by its input, wherever it was measured
+            x = (m.get('specials') or {}).get(inp)       # (a slot special, the fury, the MAX: revamp 3 moved grab furies
+            if x: return x['damage']                     # to the super throw and a MAX to the fury, Rosa's 421A)
+            return next((m[k]['damage'] for k in ('fury', 'max') if m.get(k) and m[k].get('input') == inp), None)
+        fury = r.get('fury'); mx = r.get('max')          # the MAX: game.json's, else 'MAX <fury>' in the pool, else the
+        if fury and not mx:                              # one measured as it (TODO #152's other button), else the fury
+            mm = (m.get('max') or {}).get('input') or ''
+            mx = 'MAX ' + fury if 'MAX ' + fury in pool else mm if mm.startswith('MAX ') and mm in pool else fury
+        sup = (r.get('throws') or {}).get('super')        # the super throw's special (revamp 3; a paired one: its tier as is)
+        for k, j, tg, inp in (('fury', 0, t['fury'], fury), ('max', 1, t['max'], mx),
+                              ('super_throw', 2, t['super_throw'], sup if sup in pool else None)):
+            d = own(inp) if inp else None
+            if d: v[len(pool) + j] = sc(tg, d)
+            e[k] = {'input': inp, 'own': d, 'scale': v[len(pool) + j] / 256}
         c.append(f'static const uint16_t dtier_{i}[{len(v)}] = {{ {", ".join(map(str, v))} }};   /* {n} */')
         rows.append(f'dtier_{i}')
-    wide = max([len(f['pool']) for f in labj['fighters']] + [0]) + 2
+    wide = max([len(f['pool']) for f in labj['fighters']] + [0]) + 3
     if 'dtier_none' in rows: c.insert(0, f'static const uint16_t dtier_none[{wide}] = {{ {", ".join(["256"] * wide)} }};   /* (no export yet) */')
     c.append('const uint16_t *const dtier_rom[BC_COUNT] = { ' + ', '.join(rows) + ' };')
     json.dump(rep, open(os.path.join(build, 'dtier.json'), 'w'), indent=1)
@@ -587,12 +597,13 @@ def tables(g, build):
     m = g['meter']                                       # the meter (revamp 2, gamedata.h gmeter_t): points, frames, life
     for k in m: assert k in METER_KEYS, f'meter: unknown field {k}'
     assert 0 < m['stock'] <= m['max'] < 65536 and m['max'] == 3 * m['stock'], 'meter: 3 stocks (main.c STOCKS)'
-    assert all(0 < m[k] <= m['max'] for k in ('special', 'breaker', 'fury', 'max_fury')), 'meter: costs within the gauge'
+    assert all(0 < m[k] <= m['max'] for k in ('special', 'breaker', 'fury', 'max_fury', 'super_throw')), 'meter: costs within the gauge'
     assert 1 <= m['refill'] <= 255 and all(1 <= m[k] < 60 for k in ('life_special', 'life_breaker')) and \
         1 <= m['low'] <= 100 and 1 <= m['blink'] <= 60, 'meter values'
     c.append(f"const gmeter_t gmeter = {{ .max = {m['max']}, .stock = {m['stock']}, .special = {m['special']}, .breaker = {m['breaker']}, "
              f".fury = {m['fury']}, .maxf = {m['max_fury']}, .refill = {m['refill']}, .life_special = {m['life_special']}, "
-             f".life_breaker = {m['life_breaker']}, .low = {m['low']}, .blink = {m['blink']}, .infinite = {1 if m.get('infinite') else 0} }};")
+             f".life_breaker = {m['life_breaker']}, .low = {m['low']}, .blink = {m['blink']}, .infinite = {1 if m.get('infinite') else 0}, "
+             f".sthrow = {m['super_throw']}, .sthrow_dmg = {g['tiers']['super_throw']} }};")   # (revamp 3: the super throw)
     ch = g['chain']                                      # the chain core (revamp 1A): the engine's rules (gchain_t)
     for k in ch: assert k in CHAIN_KEYS, f'chain: unknown field {k}'
     assert 1 <= ch['window'] <= 255 and 0 <= ch['buffer'] <= 60 and 1 <= ch['juggle_cap'] <= 255 and \

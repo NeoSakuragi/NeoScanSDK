@@ -77,8 +77,17 @@ ENGINE = {
 # the pilot (Bruno 2026-10-06: Geese and Terry first, reviewed, then the roster): (game, KOF id) -> {key: (list base,
 # list size)} as tables.json found them; the code is found from the base (the `lea base, a0` of the victim's path)
 PILOT = {('kof98', 3): {'throw_c': (0x257B80, 24), 'throw_d': (0x257F10, 32)},
-         ('kof96', 24): {'throw_c': (0x23FDDA, 32), 'throw_d': (0x24017A, 20)}}
-INPUTS = {'throw_c': 'forward+C (close)', 'throw_d': 'forward+D (close)'}
+         ('kof96', 24): {'throw_c': (0x23FDDA, 32), 'throw_d': (0x24017A, 20)},
+         # revamp phase 3 (2026-10-08): KOF98 Ralf's command grab 4 2 6 + B / D as an extra throw, `throw_x` (the hold's
+         # up + A, the super throw with meter: examples/brawler game.json roster[].throws). Its move code ($20C08) loads the
+         # throw record $245A4 and calls the engine's throw test $3F8A (/data/study/grabs/REPORT.md); on a catch the
+         # engine runs the throw routine $50334 on both objects, the same two-path shape as the normal throws: thrower
+         # $5033E (states 208 / 209 / 210: the toss, waiting at 208's end for +$D1 bit 7, the catch from above and the
+         # slam), victim $50410: list $25E8C0 (24 bytes) to its $40 release (the toss off the top of the screen), its
+         # fall to 88 px (signals the thrower: +$D1 bit 7), then a second list $25EC50 (20 bytes) to its second
+         # release, the slam's flight and bounce. B and D are the same throw [meas, the study].
+         ('kof98', 10): {'throw_x': (0x25E8C0, 24)}}
+INPUTS = {'throw_c': 'forward+C (close)', 'throw_d': 'forward+D (close)', 'throw_x': '4 2 6 + B / D (close: the command grab)'}
 
 def s(v, n): return v - (1 << 8 * n) if v >> (8 * n - 1) else v
 
@@ -128,7 +137,7 @@ class Walk:
         self.v.b[0x12C] = 1                                         # +$12C bit 0: the thrower faced right (measured)
         self.v.put(0x18, 40 * 65536, 4)                             # (overwritten by the first placement)
         self.frame = 0; self.log = []                               # the conversion sheet's raw lines
-        self.entry = None; self.release = None; self.rel_flags = None
+        self.entry = None; self.release = None; self.rel_flags = None; self.blows = []
 
     # operands
     def ea(self, o, o_, R, size):
@@ -148,7 +157,8 @@ class Walk:
         if reg == '%a4': return ('obj', o_, off)
         base = R.get(reg)
         if isinstance(base, tuple): return ('obj', base[1], off)     # a pointer to an object (+$B6: the thrower)
-        return ('rom', base + off)
+        if base is None: return ('rom', off)                        # a register the walk does not know (Ralf's 426B
+        return ('rom', base + off)                                  # thrower: a3, the input object: bookkeeping reads)
     def rom(self, a, size):
         return {1: self.m.u8, 2: self.m.u16, 4: self.m.u32}[size](a)
     def store(self, o, o_, R, v, size):
@@ -184,6 +194,9 @@ class Walk:
                 b = H.imm(ops[0]); v = self.ea(ops[1], o, R, 1) & 0xFF; cc = ((v >> b) & 1, 1)
             elif mn == 'bclr':
                 b = H.imm(ops[0]); v = self.ea(ops[1], o, R, 1) & 0xFF; cc = ((v >> b) & 1, 1); self.store(ops[1], o, R, v & ~(1 << b), 1)
+            elif base == 'cmpi':                                       # cmpi #w, ea: the flags of ea - w (Ralf's 426B
+                v = self.ea(ops[1], o, R, sz); w = self.ea(ops[0], o, R, sz)   # toss: cmpi #88, height)
+                m_ = (1 << 8 * sz) - 1; cc = (s((v - w) & m_, sz), sz, v & m_, w & m_)
             elif base in ('eori', 'andi', 'ori', 'subq', 'addq', 'add', 'sub', 'addi', 'subi'):
                 d = ops[1]; v = self.ea(d, o, R, sz); w = self.ea(ops[0], o, R, sz)
                 r = {'eori': v ^ w, 'andi': v & w, 'ori': v | w, 'subq': v - w, 'subi': v - w, 'sub': v - w,
@@ -206,7 +219,11 @@ class Walk:
                 a = t; continue
             elif mn[0] == 'b' and mn[:3] not in ('bts', 'bcl', 'bse', 'bch'):
                 cond = mn[1:3]; t = H.imm(ops[0]); v = cc[0]
-                take = {'ra': True, 'eq': v == 0, 'ne': v != 0, 'pl': v >= 0, 'mi': v < 0}[cond]
+                if len(cc) == 4:                                           # after a cmpi: the unsigned / signed tests too
+                    uv, uw = cc[2], cc[3]
+                    take = {'ra': True, 'eq': v == 0, 'ne': v != 0, 'pl': v >= 0, 'mi': v < 0, 'hi': uv > uw, 'ls': uv <= uw,
+                            'cs': uv < uw, 'cc': uv >= uw, 'gt': v > 0, 'le': v <= 0, 'lt': v < 0, 'ge': v >= 0}[cond]
+                else: take = {'ra': True, 'eq': v == 0, 'ne': v != 0, 'pl': v >= 0, 'mi': v < 0}[cond]
                 if take:
                     if self.dec.is_yield(t): self.call(self.E['animate'], o, R, frame); return
                     a = t; continue
@@ -250,7 +267,9 @@ class Walk:
         self.entry = (step - 1, x)
         if v.get(0xD2, 2) == step: R['%d0'] = 0; return (0, 4)
         v.put(0xD2, step, 2); R['%d0'] = 1
-        if x['flags'] & 1: self.log.append((frame, 'victim', f'entry {step - 1}: state {x["state"]}, flag 1: damage + hit effect (a blow)'))
+        if x['flags'] & 1:
+            self.log.append((frame, 'victim', f'entry {step - 1}: state {x["state"]}, flag 1: damage + hit effect (a blow)'))
+            if self.release is not None: self.blows.append(frame)   # a blow of a list set after a release (a second list)
         if x['flags'] & 64: self.release = frame; self.log.append((frame, 'victim', f'entry {step - 1}: state {x["state"]}, flag $40: the release'))
         return (1, 4)
 
@@ -310,7 +329,8 @@ def build(m, game, cid, key, victim):
     def role_at(f):
         r_ = [x for x in segs if x[0] <= f]
         return r_[-1][2] if r_ else None
-    impacts = sorted({r['f'] for r in rows if r['entry'] is not None and r['vflags'] & 1 and (r['f'] == 0 or rows[r['f'] - 1]['entry'] != r['entry'])})
+    impacts = sorted({r['f'] for r in rows if r['entry'] is not None and r['vflags'] & 1 and (r['f'] == 0 or rows[r['f'] - 1]['entry'] != r['entry'])}
+                     | {f for f in W.blows if f < len(rows)})       # (a second list's blows: Ralf's 426B catch from above)
     last = max([i for i in impacts] + ([land + RET_AFTER_LAND] if land is not None else []))
     # control return: the first thrower step start at or after `last`, at the latest its code's end
     starts = [r['f'] for r in rows if r['f'] > 0 and r['f'] <= (end or len(rows)) and (r['t'][1] != rows[r['f'] - 1]['t'][1] or r['t'][0] != rows[r['f'] - 1]['t'][0])]
@@ -331,7 +351,9 @@ def build(m, game, cid, key, victim):
              'thrower_state': rows[0]['t'][0], 'rows': nrows, 'impacts': impacts, 'release': rel, 'land': land,
              'down': down, 'code_end': end, 'ret': ret, 'ret_why': why, 'flight': [f'frame {f}: state {st} -> {r_}' for f, st, r_ in segs],
              'walk': [f'{f:3d} {who}: {txt}' for f, who, txt in W.log]}
-    return {'timeline': timeline, 'victims': {victim: victims}, 'thrower_state': rows[0]['t'][0], 'impacts': impacts,
+    body = (W.release, down) if rel is not None and W.release > rel and W.release < down else None   # a second release (Ralf's
+                                                                # 426B: the slam): the thrown body from it to the lying state
+    return {'timeline': timeline, 'victims': {victim: victims}, 'thrower_state': rows[0]['t'][0], 'impacts': impacts, 'body': body,
             'lists': [{'side': 'victim', 'base': hex(PILOT[(game, cid)][key][0]), 'size': PILOT[(game, cid)][key][1]}],
             'release': rel, 'land': land, 'down': down, 'end': end, 'ret': ret, 'sheet': sheet, 'rom': True, 'raw': rows[:nrows]}
 

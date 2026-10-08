@@ -471,12 +471,12 @@ static uint8_t sf_flash_t, sf_col, sf_glow_on, sf_ray;   /* frames since it star
 static uint8_t sf_frozen;                /* the projectile entities alive when it started: frozen through it (TODO #202) */
 static int16_t sf_dx, sf_dy;
 void super_flash(fighter_t *f) {
-    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+    const bspec_t *sp = f->state == S_SPECIAL ? &f->ch->specials[f->spec_ix] : 0;   /* (a paired super throw, revamp 3: none) */
     if (mode != 1) return;
     sf_who = f; sf_flash_t = 0; sf_glow_on = 0; sf_ray = 0xFF; sf_frozen = projectiles_alive();
-    sf_col = f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max;   /* MAX: orange */
+    sf_col = sp && f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max;   /* MAX: orange */
     if (f->ch->nfpose) { sf_dx = f->ch->fhead[0]; sf_dy = f->ch->fhead[1]; }   /* a flash pose (TODO #145): its head */
-    else if (sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
+    else if (sp && sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
     PAL_setPalette(SF_RAYS_PAL, sf_ray_pal[sf_col]);
     snd_sfx(sf_col ? gflash.sound_max : gflash.sound);      /* a fury: KOF98's charge sound ($370F0 -> $3906E: index
                                                                 $99 = $1A $3A, DM and SDM alike); a MAX: KOF2000's

@@ -72,6 +72,10 @@ typedef struct {
     uint8_t  low;                 /* the red state: life <= low % of the full life (and > 0) */
     uint8_t  blink;               /* the breaker's blink: frames white, then as many in its colours */
     uint8_t  infinite;            /* 1: nothing is spent, the gauge stays full (a test switch; 0 since revamp phase 2) */
+    uint16_t sthrow;              /* revamp 3: the super throw's cost (the hold's forward / back + C; short of it: the plain
+                                     throw, no life paid) */
+    uint8_t  sthrow_dmg, spad;    /* the super throw's whole damage (game.json tiers.super_throw; a paired one's, a special's
+                                     through dtier_rom's super scale) */
 } gmeter_t;
 extern const gmeter_t gmeter;
 
