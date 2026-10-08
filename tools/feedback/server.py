@@ -858,11 +858,11 @@ class H(http.server.BaseHTTPRequestHandler):
         self.reply(200, {'text': text, 'model': model, 'seconds': dt, 'tx_id': tx})
 
     def save_decision(self):
-        """the Lab's Decisions page: {set, id, choice?, label?, note?} merged into DATA/decisions/<set>.json"""
+        """the Lab's Decisions page: {set, id, choice?, label?, note?, question?, pieces?, flags?} merged into DATA/decisions/<set>.json"""
         req = self.json_body(1 << 16)
         if req is None: return
         st, qid = str(req.get('set') or ''), str(req.get('id') or '')
-        if not re.match(r'^[a-z0-9_-]{1,40}$', st) or not re.match(r'^[a-z0-9_-]{1,40}$', qid): return self.reply(400, {'error': 'set / id'})
+        if not re.match(r'^[a-z0-9_-]{1,40}$', st) or not re.match(r'^[A-Za-z0-9_-]{1,40}$', qid): return self.reply(400, {'error': 'set / id'})
         d = os.path.join(DATA, 'decisions'); os.makedirs(d, exist_ok=True)
         p = os.path.join(d, st + '.json')
         with lock:
@@ -870,9 +870,12 @@ class H(http.server.BaseHTTPRequestHandler):
             a = cur.get(qid, {})
             for k in ('choice', 'label', 'note', 'question'):
                 if k in req: a[k] = req[k]
-            ps = req.get('pieces')                     # an option's moves as Bruno edited them (review.js picker)
-            if isinstance(ps, list) and len(ps) <= 16 and all(isinstance(x, str) and re.match(r'^[a-z0-9_.-]{1,40}$', x) for x in ps): a['pieces'] = ps
-            elif ps is None and 'pieces' in req: a.pop('pieces', None)
+            ps = req.get('pieces')                     # an option's moves as Bruno edited them (review.js picker; a dictionary
+            if isinstance(ps, list) and len(ps) <= 16 and all(isinstance(x, str) and re.match(r'^[A-Za-z0-9_.-]{1,40}$', x) for x in ps): a['pieces'] = ps
+            elif ps is None and 'pieces' in req: a.pop('pieces', None)          # animation is "anim-6E")
+            fl = req.get('flags')                      # an animation's flags (anims.html / the picker: weight, limb, ...)
+            if isinstance(fl, list) and len(fl) <= 32 and all(isinstance(x, str) and re.match(r'^[a-z0-9_.-]{1,24}$', x) for x in fl): a['flags'] = fl
+            elif fl is None and 'flags' in req: a.pop('flags', None)
             a['at'] = now(); cur[qid] = a
             tmp = p + '.part'; json.dump(cur, open(tmp, 'w'), indent=1, ensure_ascii=False); os.replace(tmp, p)
         self.reply(200, {'ok': True, 'answer': a})

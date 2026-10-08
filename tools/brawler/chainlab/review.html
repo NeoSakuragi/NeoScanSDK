@@ -85,11 +85,17 @@ figure.mini figcaption { font-size: 12px; line-height: 1.2; text-align: center; 
 .pgrid figure.mini.cur { border-width: 4px; }
 .pgrid figure.mini.cur figcaption::after { content: ' (now)'; font-weight: 700; }
 .preset { font-size: 13px; padding: 3px 8px; margin-top: 4px; }
+.preset[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
+/* the picker's tabs: the exported moves / every animation of the dictionary (anims_core.js) */
+.ptabs { flex: 0 0 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+.ptabs button { font-weight: 700; }
+a.dictlink { color: #000; font-weight: 700; border: var(--line); padding: 5px 9px; display: inline-block; text-decoration: none; }
 </style>
 </head>
 <body>
 <main id="rev"><p>Loading…</p></main>
 <script src="micnote.js"></script>
+<script src="anims_core.js"></script>
 <script src="review.js"></script>
 </body>
 </html>

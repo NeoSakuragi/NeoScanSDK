@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animation Dictionary</title>
+<style>
+/* A fighter's animation dictionary (tools/kizuna/anim_dict.py): every animation of its table as a small looping clip;
+   behind the Oros login like the Lab. E-ink: black on white, solid borders, a pressed button filled AND checked.
+   anims_core.js (data, players, flags) + anims.js (the page) + micnote.js */
+:root { --line: 2px solid #000; color-scheme: light; }
+html, body { background: #fff; color: #000; }
+body { margin: 0; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 60px; }
+#dict { max-width: 1100px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 4px 0 6px; }
+.intro { font-size: 15px; margin: 4px 0 8px; }
+.intro a { color: #000; font-weight: 700; }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.bar .lbl { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; flex: 0 0 100%; }
+.bar button { font: inherit; font-size: 14px; background: #fff; color: #000; border: var(--line); padding: 5px 9px; cursor: pointer; }
+.bar button[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
+.shown { font-family: ui-monospace, monospace; font-size: 13px; border: var(--line); padding: 3px 7px; display: inline-block; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin-top: 10px; }
+.card { border: var(--line); padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; background: #fff; color: #000; font: inherit; min-width: 0; }
+.card.want { border-width: 4px; }
+.card canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; }
+.card .cap { font-size: 12px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
+.card .fl { font-size: 11px; line-height: 1.2; text-align: center; font-family: ui-monospace, monospace; }
+button:focus-visible, .card:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
+/* the larger view */
+.modal { position: fixed; inset: 0; background: rgba(255,255,255,.97); z-index: 50; overflow: auto; padding: 10px; }
+.mbox { max-width: 760px; margin: 0 auto; border: 3px solid #000; background: #fff; padding: 10px; display: flex; flex-direction: column; gap: 9px; }
+.mhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; top: -10px; background: #fff; padding: 6px 0; border-bottom: 2px solid #000; z-index: 1; }
+.mhead b { flex: 1 1 auto; font-size: 18px; }
+.mhead button, .ctl button, .want { font: inherit; font-size: 15px; background: #fff; color: #000; border: var(--line); padding: 6px 10px; cursor: pointer; }
+.ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
+.ctl button[aria-pressed="true"], .want[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
+.big { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; margin: 0 auto; }
+.fcount { font-family: ui-monospace, monospace; font-size: 13px; }
+.legend { font-size: 13px; margin: 0; }
+dl.meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; font-size: 15px; }
+dl.meta dt { font-weight: 700; } dl.meta dd { margin: 0; overflow-wrap: anywhere; }
+.steps { overflow-x: auto; }
+.steps table { border-collapse: collapse; font: 12px/1.3 ui-monospace, monospace; }
+.steps th, .steps td { border: 1px solid #000; padding: 2px 4px; text-align: left; vertical-align: top; }
+.steps tr.cur td { border-width: 2px; font-weight: 700; }
+.steps tr.cur td:first-child::before { content: '▶ '; }
+.dnote textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
+.dsaved { font-family: ui-monospace, monospace; font-size: 12px; min-height: 1em; }
+h3 { margin: 6px 0 0; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 2px solid #000; }
+@media (max-width: 520px) { body { font-size: 16px; } }
+</style>
+</head>
+<body>
+<main id="dict"><p>Loading…</p></main>
+<script src="micnote.js"></script>
+<script src="anims_core.js"></script>
+<script src="anims.js"></script>
+</body>
+</html>

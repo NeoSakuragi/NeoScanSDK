@@ -207,7 +207,16 @@
     if (set.proposal) out.push(h('section', { class: 'card plan' }, h('h3', { text: set.proposal_title || 'My whole proposal' }), h('ul', {}, set.proposal.map(t => h('li', { text: t })))));
     // compact clip (Bruno: "tons of scrolling on mobile"): 1x, at most 90 css px high, looping; a tap toggles ¼ speed
     const NAMES = set.names || {};
-    const nameOf = id => NAMES[id] || (P[id] && P[id].label) || (id.startsWith('full-') ? id.slice(5).toUpperCase() + ' (whole)' : id);
+    // the fighter's animation dictionary (anims_core.js, review/<fighter>_anims.json): the picker's "All animations" tab;
+    // a pick is the piece "anim-<hex>". Loaded at once only when a sequence already holds one, else on the tab's first use
+    const isAnim = id => /^anim-[0-9A-F]+$/.test(id);
+    let AD = null;
+    const hasDict = window.AnimDict ? await fetch('review/' + D.fighter + '_anims.json', { method: 'HEAD', cache: 'no-cache', credentials: 'same-origin' }).then(r => r.ok, () => false) : false;
+    const dict = async () => (AD = AD || await window.AnimDict.load(D.fighter));
+    if (hasDict && (Object.values(fa).some(x => Array.isArray(x.pieces) && x.pieces.some(isAnim)) ||
+        set.sections.some(sec => sec.questions.some(q => (q.pieces || []).flat().some(isAnim))))) await dict();
+    const animOf = id => AD && AD.by[id.slice(5)];
+    const nameOf = id => NAMES[id] || (P[id] && P[id].label) || (id.startsWith('full-') ? id.slice(5).toUpperCase() + ' (whole)' : isAnim(id) ? '$' + id.slice(5) + ((animOf(id) || {}).moves || []).slice(0, 1).map(m => ' ' + m).join('') + ' (anim)' : id);
     // one scale for every clip of the page, so the fighter is the same size in all of them: a standing move's clip
     // (the median piece) 90 css px high at most; a jump / rising move's clip is taller by what it rises
     const hs = D.pieces.filter(p => p.kind === 'normal' && D.clips[p.id]).map(p => { const b = bounds(D.clips[p.id].frames); return b[3] - b[2]; }).sort((a, b) => a - b);
@@ -216,7 +225,7 @@
     const ALL = [...new Set(D.pieces.map(p => p.id).concat(Object.keys(D.clips).filter(k => k.startsWith('full-'))))].filter(k => D.clips[k]);
     // tap a clip in a sequence: a pop-up with every move of the fighter; the one picked replaces it (onPick)
     function picker(curId, onPick) {
-      const close = () => { dlg.remove(); document.removeEventListener('keydown', esc); };
+      const close = () => { dlg.remove(); document.removeEventListener('keydown', esc); own.forEach(st => clips.splice(clips.indexOf(st), 1)); if (aio) aio.disconnect(); };
       const esc = e => { if (e.key === 'Escape') close(); };
       const grid = h('div', { class: 'pgrid' }, ALL.map(id => {
         const fig = mini(id, null); if (id === curId) fig.classList.add('cur');
@@ -225,18 +234,68 @@
         return fig;
       }));
       const slow = h('button', { type: 'button', 'aria-pressed': 'false', text: '¼ speed' });
-      slow.onclick = () => { const on = slow.getAttribute('aria-pressed') !== 'true'; slow.setAttribute('aria-pressed', String(on)); grid.querySelectorAll('figure').forEach(f => { if (f._st) f._st.speed = on ? 0.25 : 1; }); };
+      const body = h('div', {}, grid);
+      slow.onclick = () => { const on = slow.getAttribute('aria-pressed') !== 'true'; slow.setAttribute('aria-pressed', String(on)); body.querySelectorAll('figure').forEach(f => { if (f._st) f._st.speed = on ? 0.25 : 1; }); };
+      // tab 2: every animation of the dictionary (lazy: built on the first tap, each sheet fetched when its clips show)
+      let agrid = null, aio = null, aonly = true;
+      const own = [];
+      const animTab = async () => {
+        if (!agrid) {
+          body.replaceChildren(h('p', { text: 'Loading the animations…' }));
+          const A = await dict();
+          if (!A) { body.replaceChildren(h('p', { text: 'No animation dictionary for this fighter.' })); return; }
+          aio = new IntersectionObserver(es => { for (const e of es) { const st = e.target._clip; st.visible = e.isIntersecting; if (e.isIntersecting) st.load(); } }, { rootMargin: '150px' });
+          const tog = h('button', { type: 'button', class: 'preset', 'aria-pressed': 'true', text: '✓ Attacks only' });
+          const figs = A.anims.filter(a => a.status === 'ok' && a.f.length).map(a => {
+            const id = 'anim-' + a.id;
+            const { cv, st } = window.AnimDict.player(A, a, 1, { lazy: true });
+            st.speed = slow.getAttribute('aria-pressed') === 'true' ? 0.25 : 1;
+            cv.style.height = Math.round(st.H * MS) + 'px';
+            clips.push(st); own.push(st); aio.observe(cv);
+            const fig = h('figure', { class: 'mini', tabindex: '0', role: 'button', title: 'Use $' + a.id }, cv, h('figcaption', { text: window.AnimDict.caption(a) }));
+            fig._st = st; fig._atk = a.attack;
+            if (id === curId) fig.classList.add('cur');
+            const use = () => { close(); onPick(id); flagsFor(a); };
+            fig.onclick = use; fig.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); use(); } };
+            return fig;
+          });
+          const filt = () => figs.forEach(f => { f.hidden = aonly && !f._atk; });
+          tog.onclick = () => { aonly = !aonly; tog.setAttribute('aria-pressed', String(aonly)); tog.textContent = (aonly ? '✓ ' : '') + 'Attacks only'; filt(); };
+          filt();
+          agrid = h('div', {}, h('p', { class: 'ctx' }, `Every animation of ${D.display}'s table (${A.anims.length}), from the ROM at the game's zoom. `, tog), h('div', { class: 'pgrid' }, figs));
+        }
+        body.replaceChildren(agrid);
+      };
+      const tabs = [h('button', { type: 'button', 'aria-pressed': 'true', text: '✓ Exported moves' }), h('button', { type: 'button', 'aria-pressed': 'false', text: 'All animations' })];
+      const tabTo = k => { tabs.forEach((b, i) => { b.setAttribute('aria-pressed', String(i === k)); b.textContent = (i === k ? '✓ ' : '') + b.textContent.replace(/^✓ /, ''); }); if (k) animTab(); else body.replaceChildren(grid); };
+      tabs.forEach((b, i) => { b.onclick = () => tabTo(i); });
       const dlg = h('div', { class: 'pmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Pick a move' },
         h('div', { class: 'pbox' }, h('div', { class: 'phead' }, h('b', { text: 'Replace ' + nameOf(curId) + ' with:' }), slow,
-          h('button', { type: 'button', class: 'pclose', text: 'Close', onclick: close })), grid));
+          h('button', { type: 'button', class: 'pclose', text: 'Close', onclick: close }),
+          hasDict ? h('div', { class: 'ptabs', role: 'group', 'aria-label': 'Pick from' }, tabs) : null), body));
+      if (hasDict && isAnim(curId)) tabTo(1);
       dlg.onclick = e => { if (e.target === dlg) close(); };
       document.addEventListener('keydown', esc);
       document.body.append(dlg); grid.querySelector('figure') && grid.querySelector('figure').focus();
     }
+    // after an animation is picked: its flags (anims_core.js FLAGS), saved to the dictionary's set "<fighter>-anims"
+    function flagsFor(a) {
+      const done = () => { dlg.remove(); document.removeEventListener('keydown', esc); };
+      const esc = e => { if (e.key === 'Escape') done(); };
+      const dlg = h('div', { class: 'pmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Flags for $' + a.id },
+        h('div', { class: 'pbox' }, h('div', { class: 'phead' }, h('b', { text: 'Flags for ' + window.AnimDict.caption(a) }),
+          h('button', { type: 'button', class: 'pclose', text: 'Done', onclick: done })),
+          window.AnimDict.flagEditor(AD, a), h('p', { class: 'ctx' }, h('a', { href: 'anims.html?f=' + D.fighter, class: 'dictlink', text: 'The whole animation dictionary' }))));
+      dlg.onclick = e => { if (e.target === dlg) done(); };
+      document.addEventListener('keydown', esc);
+      document.body.append(dlg);
+    }
     const mini = (id, onTap) => {
-      const pc = painter(id, nameOf(id), 1);
+      const an = isAnim(id) && animOf(id);
+      const pc = an && an.f.length ? (() => { const r = window.AnimDict.player(AD, an, 1); io.observe(r.cv); return r; })() : painter(id, nameOf(id), 1);
       if (!pc) return h('figure', { class: 'mini' }, h('figcaption', { text: nameOf(id) + ' (no clip)' }));
       const { cv, st } = pc;
+      if (an) clips.push(st);
       cv.style.height = Math.round(st.H * MS) + 'px';
       const cap = h('figcaption', { text: nameOf(id) });
       const fig = h('figure', { class: 'mini', tabindex: '0', role: 'button', title: onTap ? 'Tap: replace this move' : nameOf(id) }, cv, cap);
@@ -266,7 +325,7 @@
         btns.push(b);
         const seq = h('div', { class: 'fuseq' });
         const draw = () => seq.replaceChildren(...ids.map((id, k) => [k ? h('span', { class: 'arrow', 'aria-hidden': 'true', text: '→' }) : null,
-          mini(id, () => picker(id, nid => { ids[k] = nid; draw(); send(); }))]).flat());
+          mini(id, () => picker(id, nid => { ids[k] = nid; draw(); send(); }))]).flat().filter(Boolean));
         if (ids.length) draw();
         if (edited()) txt.textContent = label();
         const reset = h('button', { type: 'button', class: 'preset', text: 'Undo my edits' });
@@ -293,6 +352,8 @@
     index.fighters.filter(f => f.archetype === a).map(f => h('a', { href: '?f=' + f.fighter, 'aria-current': f.fighter === D.fighter ? 'page' : 'false',
       text: f.display + (index.fighters.some(g => g !== f && g.display === f.display) && f.game ? ' (' + f.game.toUpperCase() + ')' : '') }))))));
   parts_.push(h('h1', { text: `${D.display}: pieces and chain` }));
+  if (await fetch('review/' + D.fighter + '_anims.json', { method: 'HEAD', cache: 'no-cache', credentials: 'same-origin' }).then(r => r.ok, () => false))
+    parts_.push(h('p', { class: 'intro' }, h('a', { href: 'anims.html?f=' + D.fighter, class: 'dictlink', text: `${D.display}'s animation dictionary: every animation of the table, with flags and "I want this one"` })));
   parts_.push(status);
   parts_.push(h('p', { class: 'intro', text: `Every piece ${D.display} could use in a chain, from the game's data: its tags and my appeal score, ranked; then my proposal for the ${pr.archetype} archetype (${ch.length} links). Each clip loops at the game's speed (¼ speed, Step and the hit boxes are under it); the strip under it shows each drawing with the frames it is held, the contact drawing outlined. Keep, Drop, or "None of these" with your own answer in the note.` + ((D.round || 1) > 1 ? ` Round ${D.round}: the ranking and the proposal learned from your Terry, Kim and Krauser reviews (score below); the chain and every finisher are shown as the whole chain, never under 3 hits.` : '') }));
   parts_.push(h('details', { class: 'formula' }, h('summary', { text: 'How the appeal score is made (0-100)' }),
