@@ -282,8 +282,8 @@ def ladder():
     # where every rung lands
     tried = []
     for extra in ((110, 180, 250), (90, 150, 210), (120, 160, 220), (100, 140, 180)):
-        for s1, s2 in ((('special 623D (forward + C)', '1:Rc', 'SPECIAL 623D'), ('special 214C (down + C)', '1:Dc', 'SPECIAL 214C')),
-                       (('special 214C (down + C)', '1:Dc', 'SPECIAL 214C'), ('special 623D (forward + C)', '1:Rc', 'SPECIAL 623D')),
+        for s1, s2 in ((('special 623D (forward + C)', '1:Rc', 'SPECIAL 623B'), ('special 214C (down + C)', '1:Dc', 'SPECIAL 214C')),
+                       (('special 214C (down + C)', '1:Dc', 'SPECIAL 214C'), ('special 623D (forward + C)', '1:Rc', 'SPECIAL 623B')),
                        (('special 214C (down + C)', '1:Dc', 'SPECIAL 214C'), ('special 623C (C)', '1:c', 'SPECIAL 623C'))):
             reset('terry', dist=44, fury=M['fury_max'], extra=extra)
             r = Rec(every=5, tag='ladder2', cap=60)
@@ -444,7 +444,7 @@ def chord():
     out['B then A two frames later'] = dict(got=what(), ok=what() == 'SPECIAL 623C')
     r.idle()
     reset('terry', dist=80); r = Rec(); r.step('Rab'); r.until(lambda: st(0) == 'SPECIAL', 4)
-    out['forward + A+B'] = dict(got=what(), ok=what() == 'SPECIAL 623D')
+    out['forward + A+B'] = dict(got=what(), ok=what() == 'SPECIAL 623B')
     r.idle()
     reset('terry', dist=80); r = Rec(); r.step('b'); r.seq('6:-'); r.step('a')
     out['B then A late (a jump, its attack)'] = dict(got=[w for _, _, w in r.ev][-2:], ok=st(0) in ('AIR', 'AIR_ATTACK', 'PREJUMP'))
