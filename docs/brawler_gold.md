@@ -39,6 +39,8 @@ Lab chain tool or via the terry2 / kim2 follow-ups.
 
 ### Inputs (four buttons, no fireball motions)
 - A attack / chain. B jump. C special (+ direction). D fury (down+D MAX).
+- **A+B = C**, everywhere: anything done with C (+ direction) can be done with A+B (+ the same direction), e.g.
+  forward+C = forward+A+B. (Final Fight players reach for A+B when caught.)
 - NEW: **Blitz** = a free, meterless special family on DOUBLE-DIRECTION + A: forward,forward+A / down,down+A /
   up,up+A / down,up+A. Genre-standard (TMNT, Battletoads, Golden Axe, SOR2 blitz). Free, spammable, a little recovery,
   NOT invincible. Not every fighter fills all four slots. (Name: still "Blitz" provisionally — Bruno to confirm.)
@@ -52,7 +54,8 @@ specials (Bruno: overkill for now).
 
 ### Two meter bars (replaces the 3-stock / 300-point meter and the old breaker path)
 - **Drive meter** (internal name, after KOF XIII's Drive gauge; the screen need not say "drive") **— 2 chunks, SOR3-style**, the one bar shown on the HUD: starts full, refills over time. Regular special = 1 chunk (two
-  available). **Counter special** (the invincible escape done while being hit) = both chunks at once.
+  available). **Counter special** = the combo breaker: a special done while being hit (Final Fight's A+B escape) costs both
+  chunks at once, and the fighter blinks WHITE for the whole move to show it was the special situation.
 - **Fury gauge — HIDDEN** (like KOF98's guard-crush gauge: runs in the program, never drawn): fills as you DEAL and as you TAKE damage. Gauge full → D does the fury. Gauge full AND low life → D does the MAX.
   Low life alone grants nothing (Bruno 2026-10-08: the earlier "infinite fury at low life" is withdrawn).
 - **Signals — one meaning per place** (Bruno, confirmed):
