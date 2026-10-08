@@ -870,6 +870,9 @@ class H(http.server.BaseHTTPRequestHandler):
             a = cur.get(qid, {})
             for k in ('choice', 'label', 'note', 'question'):
                 if k in req: a[k] = req[k]
+            ps = req.get('pieces')                     # an option's moves as Bruno edited them (review.js picker)
+            if isinstance(ps, list) and len(ps) <= 16 and all(isinstance(x, str) and re.match(r'^[a-z0-9_.-]{1,40}$', x) for x in ps): a['pieces'] = ps
+            elif ps is None and 'pieces' in req: a.pop('pieces', None)
             a['at'] = now(); cur[qid] = a
             tmp = p + '.part'; json.dump(cur, open(tmp, 'w'), indent=1, ensure_ascii=False); os.replace(tmp, p)
         self.reply(200, {'ok': True, 'answer': a})

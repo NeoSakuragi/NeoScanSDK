@@ -212,15 +212,36 @@
     // (the median piece) 90 css px high at most; a jump / rising move's clip is taller by what it rises
     const hs = D.pieces.filter(p => p.kind === 'normal' && D.clips[p.id]).map(p => { const b = bounds(D.clips[p.id].frames); return b[3] - b[2]; }).sort((a, b) => a - b);
     const MS = Math.min(1, 90 / (hs[hs.length >> 1] || 90));
-    const mini = id => {
+    // every move of the fighter, for the picker: the pieces, then the whole specials (full-*), each once
+    const ALL = [...new Set(D.pieces.map(p => p.id).concat(Object.keys(D.clips).filter(k => k.startsWith('full-'))))].filter(k => D.clips[k]);
+    // tap a clip in a sequence: a pop-up with every move of the fighter; the one picked replaces it (onPick)
+    function picker(curId, onPick) {
+      const close = () => { dlg.remove(); document.removeEventListener('keydown', esc); };
+      const esc = e => { if (e.key === 'Escape') close(); };
+      const grid = h('div', { class: 'pgrid' }, ALL.map(id => {
+        const fig = mini(id, null); if (id === curId) fig.classList.add('cur');
+        fig.onclick = () => { close(); onPick(id); }; fig.title = 'Use ' + nameOf(id);
+        fig.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); close(); onPick(id); } };
+        return fig;
+      }));
+      const slow = h('button', { type: 'button', 'aria-pressed': 'false', text: '¼ speed' });
+      slow.onclick = () => { const on = slow.getAttribute('aria-pressed') !== 'true'; slow.setAttribute('aria-pressed', String(on)); grid.querySelectorAll('figure').forEach(f => { if (f._st) f._st.speed = on ? 0.25 : 1; }); };
+      const dlg = h('div', { class: 'pmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Pick a move' },
+        h('div', { class: 'pbox' }, h('div', { class: 'phead' }, h('b', { text: 'Replace ' + nameOf(curId) + ' with:' }), slow,
+          h('button', { type: 'button', class: 'pclose', text: 'Close', onclick: close })), grid));
+      dlg.onclick = e => { if (e.target === dlg) close(); };
+      document.addEventListener('keydown', esc);
+      document.body.append(dlg); grid.querySelector('figure') && grid.querySelector('figure').focus();
+    }
+    const mini = (id, onTap) => {
       const pc = painter(id, nameOf(id), 1);
       if (!pc) return h('figure', { class: 'mini' }, h('figcaption', { text: nameOf(id) + ' (no clip)' }));
       const { cv, st } = pc;
       cv.style.height = Math.round(st.H * MS) + 'px';
       const cap = h('figcaption', { text: nameOf(id) });
-      const fig = h('figure', { class: 'mini', tabindex: '0', role: 'button', 'aria-pressed': 'false', title: 'Tap: ¼ speed' }, cv, cap);
-      const flip = () => { st.speed = st.speed === 1 ? 0.25 : 1; fig.setAttribute('aria-pressed', String(st.speed !== 1)); cap.textContent = nameOf(id) + (st.speed !== 1 ? ' · ¼' : ''); };
-      fig.onclick = flip; fig.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } };
+      const fig = h('figure', { class: 'mini', tabindex: '0', role: 'button', title: onTap ? 'Tap: replace this move' : nameOf(id) }, cv, cap);
+      fig._st = st;
+      if (onTap) { fig.onclick = onTap; fig.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(); } }; }
       sheet.complete && st.draw();
       return fig;
     };
@@ -232,14 +253,26 @@
       let t; ta.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => save({ note: ta.value }), 700); });
       const opts = q.options.concat([NONE]);
       const btns = [];
+      const pick = (i, o) => { btns.forEach((x, j) => { x.setAttribute('aria-pressed', String(i === j)); x.querySelector('.mark').textContent = i === j ? '✓' : '○'; }); };
       const cards = opts.map((o, i) => {
-        const b = h('button', { type: 'button', 'aria-pressed': String(a.choice === i) }, h('span', { class: 'mark', text: a.choice === i ? '✓' : '○' }), h('span', { text: o }));
-        b.onclick = () => { btns.forEach((x, j) => { x.setAttribute('aria-pressed', String(i === j)); x.querySelector('.mark').textContent = i === j ? '✓' : '○'; }); save({ choice: i, label: o }); if (o === NONE) ta.focus(); };
+        const orig = (q.pieces && q.pieces[i]) || [];
+        let ids = a.choice === i && Array.isArray(a.pieces) && a.pieces.length === orig.length ? a.pieces.slice() : orig.slice();
+        const edited = () => ids.some((x, k) => x !== orig[k]);
+        const txt = h('span', { text: o });
+        const b = h('button', { type: 'button', 'aria-pressed': String(a.choice === i) }, h('span', { class: 'mark', text: a.choice === i ? '✓' : '○' }), txt);
+        const label = () => edited() ? o + ' — edited: ' + ids.map(nameOf).join(' > ') : o;
+        const send = () => { pick(i); save({ choice: i, label: label(), pieces: edited() ? ids : null }); txt.textContent = label(); };
+        b.onclick = () => { send(); if (o === NONE) ta.focus(); };
         btns.push(b);
-        const ids = (q.pieces && q.pieces[i]) || [];
-        const vis = ids.length ? h('div', { class: 'fuseq' }, ids.map((id, k) => [k ? h('span', { class: 'arrow', 'aria-hidden': 'true', text: '→' }) : null, mini(id)])) : null;
+        const seq = h('div', { class: 'fuseq' });
+        const draw = () => seq.replaceChildren(...ids.map((id, k) => [k ? h('span', { class: 'arrow', 'aria-hidden': 'true', text: '→' }) : null,
+          mini(id, () => picker(id, nid => { ids[k] = nid; draw(); send(); }))]).flat());
+        if (ids.length) draw();
+        if (edited()) txt.textContent = label();
+        const reset = h('button', { type: 'button', class: 'preset', text: 'Undo my edits' });
+        reset.onclick = () => { ids = orig.slice(); draw(); send(); };
         const tag = i === 0 && set.proposal_first ? h('div', { class: 'mine', text: 'My proposal' }) : null;
-        return h('div', { class: 'fuopt' + (tag ? ' first' : '') }, tag, b, vis);
+        return h('div', { class: 'fuopt' + (tag ? ' first' : '') }, tag, b, ids.length ? seq : null, ids.length ? reset : null);
       });
       return h('section', { class: 'card' }, h('h3', { text: q.title }), q.context ? h('p', { class: 'ctx', text: q.context }) : null,
         q.image ? h('img', { class: 'qimg', src: q.image, alt: q.image_alt || q.title }) : null,

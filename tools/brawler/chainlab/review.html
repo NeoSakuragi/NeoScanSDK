@@ -72,6 +72,19 @@ figure.mini[aria-pressed="true"] canvas { border: 3px solid #000; }
 figure.mini figcaption { font-size: 12px; line-height: 1.2; text-align: center; max-width: 120px; }
 .plan ul { margin: 0; padding-left: 20px; font-size: 15px; }
 .qimg { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; }
+
+/* the move picker (tap a clip in a sequence): a full-screen pop-up of every move, black on white, solid borders */
+.pmodal { position: fixed; inset: 0; background: rgba(255,255,255,.96); z-index: 50; overflow: auto; padding: 10px; }
+.pbox { max-width: 760px; margin: 0 auto; border: 3px solid #000; background: #fff; padding: 10px; }
+.phead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; position: sticky; top: -10px; background: #fff; padding: 6px 0; border-bottom: 2px solid #000; }
+.phead b { flex: 1 1 auto; }
+.phead button, .preset { font: inherit; font-size: 15px; background: #fff; color: #000; border: 2px solid #000; padding: 6px 10px; cursor: pointer; }
+.phead button[aria-pressed="true"] { background: #000; color: #fff; }
+.pgrid { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.pgrid figure.mini { border: 2px solid #000; padding: 3px; }
+.pgrid figure.mini.cur { border-width: 4px; }
+.pgrid figure.mini.cur figcaption::after { content: ' (now)'; font-weight: 700; }
+.preset { font-size: 13px; padding: 3px 8px; margin-top: 4px; }
 </style>
 </head>
 <body>
