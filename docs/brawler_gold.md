@@ -59,15 +59,15 @@ specials (Bruno: overkill for now).
   2 chunks: no drive is spent, it costs a bit of LIFE instead and the fighter flashes RED ("this one hurt you").
   Defaults until Bruno says otherwise: the life cost = phase 2's breaker cost (12), taken when the breaker starts, and
   it never takes the last point of life.
-- **Fury gauge — HIDDEN** (like KOF98's guard-crush gauge: runs in the program, never drawn): fills as you DEAL and as you TAKE damage. Gauge full → D does the fury. Gauge full AND low life → D does the MAX.
-  Low life alone grants nothing (Bruno 2026-10-08: the earlier "infinite fury at low life" is withdrawn).
+- **Fury gauge — HIDDEN** (like KOF98's guard-crush gauge: runs in the program, never drawn): fills as you DEAL and as you TAKE damage. Gauge full → D does the fury (gauge emptied). LOW LIFE → UNLIMITED fury: D is free (Bruno 2026-10-09, his
+  0.9.0 note, reversing 2026-10-08). The MAX = DOWN + D with the gauge full AND low life (gauge emptied).
 - **Signals — one meaning per place** (Bruno, confirmed):
 
   | State | Life bar | Fighter sprite |
   |---|---|---|
   | normal life, gauge not full | normal | normal |
   | normal life, gauge full (fury ready) | normal | blinks WHITE (1 frame normal, 1 frame shiny white palette, KOF95-style) |
-  | low life, gauge not full | blinks RED (like KOF94 / KOF95: capture their low-life bar in our emulator and match it) | normal |
+  | low life, gauge not full (unlimited fury) | blinks RED | blinks WHITE |
   | low life + gauge full (MAX ready) | blinks red | blinks RED, same 1/1 rhythm |
 
   The sprite only ever says "D does something now"; danger lives on the HUD. On screen: the life bar + the drive
@@ -131,3 +131,6 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 
 ### Kim — queued changes (Bruno 2026-10-09, NOT built yet; build together on his go)
 - forward + C: $101 -> $53.
+- chain: the second A $56 -> $5D.
+- $96 (the triple kick, chain link 4): keep the shape of each of its three kicks, but play them at the pace of three FAST
+  attacks (retime: short startup / recovery per kick), each with a STRONG impact sound and the regular push back.

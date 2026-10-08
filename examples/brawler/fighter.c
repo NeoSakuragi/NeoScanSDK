@@ -621,7 +621,11 @@ uint8_t fighter_low(const fighter_t *f) {
     int16_t full = f->hp_max ? f->hp_max : 60;
     return f->hp > 0 && f->hp * 100 <= full * (int16_t)gmeter.low;
 }
-uint8_t fighter_fury_ready(const fighter_t *f) { return !f->team && (gmeter.infinite || f->fgauge >= gmeter.fury_max); }
+static uint8_t gauge_full(const fighter_t *f) { return gmeter.infinite || f->fgauge >= gmeter.fury_max; }
+/* Bruno 2026-10-09 (his 0.9.0 note): low life = UNLIMITED fury (D, nothing spent); the MAX = down+D with the gauge full
+ * AND low life (the gauge emptied); at normal life D = the fury with the gauge full (emptied) */
+uint8_t fighter_fury_ready(const fighter_t *f) { return !f->team && (gauge_full(f) || fighter_low(f)); }
+static uint8_t max_ready(const fighter_t *f) { return !f->team && gauge_full(f) && fighter_low(f); }
 static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whether it could -> 1 paid (or payable) */
     if (f->team) return 1;
     if (kind == PAY_SPECIAL) {
@@ -631,8 +635,9 @@ static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whe
         if (!dry) f->drive -= cost;
         return 1;
     }
-    if (kind == PAY_MAX && !fighter_low(f)) return 0;
-    if (!fighter_fury_ready(f)) return 0;
+    if (kind == PAY_MAX) { if (!max_ready(f)) return 0; }
+    else if (kind == PAY_FURY && fighter_low(f)) return 1;      /* low life: the fury is free (unlimited) */
+    else if (!gauge_full(f)) return 0;
     if (!dry && !gmeter.infinite) f->fgauge = 0;
     return 1;
 }
@@ -690,7 +695,7 @@ static void pal_overlay(fighter_t *f) {
             if (f->brk <= gmeter.blink) want = f->brkr ? OVL_RED : OVL_WHITE;
         }
         else if (fighter_fury_ready(f) && f->state != S_DEAD && (burn_clock & 1))   /* D does something now: 1 frame */
-            want = fighter_low(f) ? OVL_RED : OVL_SHINY;         /* normal, 1 frame red (the MAX) / shiny white (the fury) */
+            want = max_ready(f) ? OVL_RED : OVL_SHINY;           /* normal, 1 frame red (the MAX ready) / shiny white (the fury) */
     }
     if (want == f->ovl) return;
     f->ovl = want;
@@ -1204,9 +1209,7 @@ static uint8_t paired_update(fighter_t *f) {
  * it could) -> BS_FURY / BS_FURY_MAX, 0xFF: nothing (no fury, not payable) */
 static uint8_t fury_buy(fighter_t *f, uint8_t down, uint8_t dry) {
     uint8_t k = spec_ix(f->ch, BS_FURY) == 0xFF || (f->state == S_SPECIAL && f->spec_id == BS_FURY) ? 0xFF :
-                fighter_low(f) ? BS_FURY_MAX : BS_FURY;           /* (Bruno 2026-10-08: the gauge full + low life = the MAX,
-                                                                    whatever the stick; no fury -> MAX cancel) */
-    (void)down;
+                down ? BS_FURY_MAX : BS_FURY;                     /* (Bruno 2026-10-09: D = the fury, down+D = the MAX) */
     if (k == 0xFF || !pay(f, k == BS_FURY_MAX ? PAY_MAX : PAY_FURY, dry)) return 0xFF;
     return k;
 }

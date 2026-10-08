@@ -361,21 +361,25 @@ def blink():
         S = Image.new('RGB', (2 * w, h + 14), 'white'); d = ImageDraw.Draw(S); S.paste(im[0], (0, 14)); S.paste(im[1], (w, 14))
         d.text((3, 1), f'Terry, {case}: two frames in a row', fill='black'); S.save(os.path.join(OUT, f'terry_blink_{case.replace(" ", "_")}.png'))
         os.remove(p0); os.remove(p1)
-        want = {'normal': {0}, 'fury ready': {0, 3}, 'low life': {0}, 'MAX ready': {0, 2}}[case]
+        want = {'normal': {0}, 'fury ready': {0, 3}, 'low life': {0, 3}, 'MAX ready': {0, 2}}[case]
         alt = all(seq[k] != seq[k + 1] for k in range(len(seq) - 1)) if len(want) == 2 else True
         out[case] = dict(sprite=''.join(OVL[v][0] for v in seq), ok=set(seq) == want and alt)
         print('blink', case, out[case], flush=True)
-    # D: the fury with the gauge full, the MAX with it full at low life, nothing with it short
-    for case, fury, hp, want in (('full', M['fury_max'], 60, '21416C'), ('full + low life', M['fury_max'], low, 'MAX 21416C'),
-                                 ('short', M['fury_max'] - 1, 60, None), ('low life alone', 0, low, None)):
+    # Bruno 2026-10-09: D = the fury (gauge full, emptied; at low life free and unlimited); down+D = the MAX (gauge full AND
+    # low life, emptied); nothing otherwise
+    for case, fury, hp, keys, want, gafter in (('D, gauge full', M['fury_max'], 60, '1:d', '21416C', 0),
+                                              ('D, low life, gauge empty', 0, low, '1:d', '21416C', 0),
+                                              ('D, low life, gauge full', M['fury_max'], low, '1:d', '21416C', M['fury_max']),
+                                              ('down+D, low life, gauge full', M['fury_max'], low, '1:Dd', 'MAX 21416C', 0),
+                                              ('D, gauge short', M['fury_max'] - 1, 60, '1:d', None, None),
+                                              ('down+D, low life, gauge empty', 0, low, '1:Dd', None, None)):
         reset('terry', dist=70, fury=fury, hp=hp)
-        r = Rec(every=4 if want else 0, tag='fury'); r.seq('1:d'); r.until(lambda: st(0) == 'SPECIAL', 4)
+        r = Rec(every=4 if want else 0, tag='fury'); r.seq(keys); r.until(lambda: st(0) == 'SPECIAL', 4)
         got = what(); g = b.fget(0, 'fgauge')
         r.until(lambda: st(0) != 'SPECIAL', 400); r.idle()
-        out[f'D {case}'] = dict(got=got, gauge_after=g, hits=sum(h['dmg'] for h in r.hits),
-                                ok=(got == f'SPECIAL fury {want}' and g == 0) if want else got != 'SPECIAL' and not got.startswith('SPECIAL'))
-        if want: r.sheet(os.path.join(OUT, f'terry_fury_{"max" if "MAX" in want else "fury"}.png'), f'Terry D, gauge {case}: {want}')
-        print('fury', case, out[f'D {case}'], flush=True)
+        out[case] = dict(got=got, gauge_after=g, hits=sum(h['dmg'] for h in r.hits),
+                         ok=(got == f'SPECIAL fury {want}' and g == gafter) if want else not got.startswith('SPECIAL'))
+        print('fury', case, out[case], flush=True)
     return out
 
 def air():
