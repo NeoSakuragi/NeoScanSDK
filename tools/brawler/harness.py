@@ -26,7 +26,7 @@ boundaries: a write tap on crt0's `game_ticks` (written just before game_tick ru
 copies work RAM there, and r() / fget() read that copy (the state after the last whole tick); w() / fset() / place()
 queue their bytes and the tap writes them at that same boundary (reads see the queued bytes at once). Save states
 carry the copy and the queue. Off by default: the existing proofs keep their frame-end semantics."""
-import ctypes as C, os, re, struct, subprocess, tempfile
+import ctypes as C, json, os, re, struct, subprocess, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
@@ -103,14 +103,14 @@ class _Core:
 class Brawler:
     _core = None                                     # one core per process (libretro cores are global)
 
-    def __init__(self, rom=None, game=GAME, tick_sync=False):
+    def __init__(self, rom=None, game=GAME, tick_sync=False, options=None):
         self.rom = rom or os.path.join(game, 'brawler.neo')
         self.layout, self.fsize, self.states, self.syms = _layout(game)
         m = re.search(r'#define SEL_NSLOT (\d+)', open(os.path.join(game, 'build', 'game_tables.h')).read())
         self.nslot = int(m.group(1)) if m else 16              # select slots (game.json select.slots)
         os.makedirs(WORK, exist_ok=True)
         self.pad = [set(), set()]; self.frame = 0; self.hits = []; self._video = None
-        self._opt = {k.encode(): C.c_char_p(v.encode()) for k, v in OPTIONS.items()}
+        self._opt = {k.encode(): C.c_char_p(v.encode()) for k, v in dict(OPTIONS, **(options or {})).items()}
         # a fresh save dir per instance (NVRAM = BIOS settings, credits, the game's backup block; memory card): runs
         # don't inherit each other's credits or saves; a test powers off / on inside it (save_dir, power_cycle)
         import tempfile, atexit, shutil
@@ -222,6 +222,19 @@ class Brawler:
         assert self.core.retro_serialize(buf, C.c_size_t(n)); return buf.raw
     def _load_core(self, blob):
         buf = C.create_string_buffer(blob, len(blob)); assert self.core.retro_unserialize(buf, C.c_size_t(len(blob)))
+    @classmethod
+    def from_bundle(cls, d, game=GAME, state='press.state'):
+        """a voice note's bundle (tools/feedback/pull.py: /data/feedback/<id>) opened at its press: the core set the way
+        the Android player runs it (meta.json: system type, BIOS hardware, memory card; region us — pull.py Core), the
+        note's own ROM (replay.json 'rom', cached by pull.py), its state loaded. A phone state does not load in a core
+        set otherwise (the state header carries the system / BIOS / region: the 2026-10-09 failure)"""
+        meta = json.load(open(os.path.join(d, 'meta.json'))); rp = json.load(open(os.path.join(d, 'replay.json')))
+        opts = {'geolith_region': meta.get('region', 'us'), 'geolith_system_type': meta.get('system_type', 'mvs'),
+                'geolith_unibios_hw': meta.get('hw', 'mvs'), 'geolith_memcard': meta.get('memcard', 'off')}
+        b = cls(rom=rp['rom'], game=game, options=opts)
+        b.load(open(os.path.join(d, state), 'rb').read())
+        return b
+
     def save(self):
         blob = self._save_core()
         if not self.tick_sync: return blob
