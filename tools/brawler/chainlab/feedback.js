@@ -183,7 +183,7 @@
       } catch (e) { msg = 'Not saved: ' + e.message; render(); }
     } }, o.label)));
     const open = v.status === 'open';
-    const box = h('div', {}, h('b', {}, 'Your answer'), note, window.micNote ? window.micNote(note) : null, answers);
+    const box = h('div', {}, h('b', {}, 'Your answer'), window.micNote ? window.micNote(note) : note, answers);
     if (!open) box.style.display = 'none';
     return h('div', { class: 'fbcard fbdec' },
       h('h3', {}, `Decision #${v.id}: ${v.title}`),

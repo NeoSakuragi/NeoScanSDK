@@ -43,7 +43,7 @@
         ta.value = a.note || '';
         let t; ta.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => save({ note: ta.value }), 700); });
         return h('section', { class: 'dq' }, h('h3', { text: q.title }), q.context ? h('p', { class: 'dctx', text: q.context }) : null,
-          h('div', { class: 'dopts' }, btns), h('div', { class: 'dnote' }, ta, window.micNote ? window.micNote(ta) : null), saved);
+          h('div', { class: 'dopts' }, btns), h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
       };
       const general = { id: 'general', title: 'Anything else for this topic?', options: [] };
       parts.push(h('section', { class: 'dset' }, h('h2', { text: set.title }), h('p', { text: set.intro || '' }), status,
