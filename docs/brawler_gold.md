@@ -103,7 +103,7 @@ specials (Bruno: overkill for now).
   the closest Capcom reference) → Terry runs 3.25 px/f.
 
 ### Terry's chain — Bruno 2026-10-08 (replaces the first-pass pick above)
-- Chain: far A > far ? (letter to confirm) > close C > close D (close D = the neutral 4th hit).
-- 4th hit with forward: forward + A. With down: crouch D sweep. With up: down-forward + C (the "diagonal + C").
+- Chain: far A > far A > close C (2 hits) > close D (close D = the neutral last hit). 4 links, 5 hits.
+- Last hit with forward: forward + A (2 hits). With down: crouch D sweep. With up: down-forward + C.
 - Page feedback: the clip-per-move chain view needs too much scrolling on a phone → chains must render as ONE compact
   row (small looping clips with arrows), the whole sequence on one screen.
