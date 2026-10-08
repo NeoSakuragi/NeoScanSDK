@@ -1,0 +1,83 @@
+{
+ "title": "What 8 classic brawlers agree on",
+ "intro": "Final Fight (1989), Captain Commando (1991), Warriors of Fate (1992), Streets of Rage 2 (1992), The Punisher (1993), Cadillacs and Dinosaurs (1993), Alien vs. Predator (1994), D&D Shadow over Mystara (1996), measured from their code and in captures.",
+ "universal": [
+  "A chain advances ONLY on hit; a whiff (or being hit) restarts it. → principle 1 holds everywhere: the first hit gates everything.",
+  "The special (desperation) costs life ONLY on contact (6-12), is invincible, and in the later games never kills.",
+  "Throws are invincible for their whole animation; a thrown body hits other enemies.",
+  "Enemies: no attack token in any Capcom game (3-5 attackers at once happen); aggression rises with a hidden difficulty rank (FF, CC, WoF, Punisher, Dino)."
+ ],
+ "evolution": [
+  [
+   "Heavy archetype",
+   "shorter chain (Haggar 3 links)",
+   "same length, more damage (SOR2 Max 1.5x, Dino Mess +10-20 %)"
+  ],
+  [
+   "Fast archetype",
+   "—",
+   "LONGER chain (AvP Linn 5, Mystara Elf 6)"
+  ],
+  [
+   "Chain length",
+   "5 / 4 / 3",
+   "4 for all (CC, SOR2, Punisher, Dino); WoF 3 for all"
+  ],
+  [
+   "Link window",
+   "45 f while idle",
+   "16-50 f (CC 16, Mystara 24, AvP 30, Dino 40, Punisher 50)"
+  ],
+  [
+   "Input buffer",
+   "none",
+   "presses latched during hit-stop (WoF, Dino); SOR2 buffers the special 20 f; FF/CC/Punisher/Mystara none"
+  ],
+  [
+   "Hit-stop",
+   "flat 6",
+   "per move, heavier = longer (AvP 3-13, WoF 3-11, Punisher 7/9/10 + 6-f shake, Dino 9 / 12-13); SOR2 4 + damage/4 cap 8; CC 7 / Mystara 8 flat"
+  ],
+  [
+   "Enemy hit-stun",
+   "28",
+   "23-36"
+  ],
+  [
+   "Player hit-stun",
+   "28",
+   "12 (SOR2), 17 (Punisher), 26 + untouchable (CC, AvP)"
+  ],
+  [
+   "Chain branches",
+   "last link + back = throw",
+   "throw on link 2 (WoF) / link 4 (Punisher, Dino), stepping turns (CC), command cancels (AvP, Mystara)"
+  ],
+  [
+   "Juggles",
+   "none (downed = untouchable)",
+   "none in the CPS1 line; AvP stun meter → launch, juggle cap 3; Mystara cancel matrix ending in a dead-end move"
+  ],
+  [
+   "Movement",
+   "per character",
+   "shared walk + jump (CC, WoF walk, Mystara), per character again in SOR2 / Dino"
+  ],
+  [
+   "Damage",
+   "fixed, victim-class table",
+   "random spread (WoF, Dino), rank-scaled enemy damage"
+  ]
+ ],
+ "brakes": "AvP caps juggles at 3 and speeds up the get-up; Mystara lets you cancel anything but every route ends in ↓↑A, the chain restarts only from standing, air victims hang then drift out of reach, downed enemies can't be hit. Everyone else simply makes downed enemies untouchable.",
+ "proposals": [
+  "Advance on hit only; link window ~30-40 f after recovery; presses during hit-stop latched (plus 4-6 f buffer) — the later-Capcom way, and what keeps a slow heavy smooth.",
+  "Chain length the same for every archetype (4); heavy = ~1.5x damage per hit and longer hit-stop; fast may get +1 link (AvP / Mystara pattern).",
+  "Hit-stop per move, heavier hit = longer: ~6 (jab) to ~12 (finisher), the same scale for every fighter (consistency).",
+  "Enemy hit-stun ~28-32; player hit-stun short (~12-20) plus a brief untouchable window, so crowds can't juggle you.",
+  "Juggles with a brake: a launch (finisher or a stun meter) and a hard cap (AvP's 3), or a route that ends in a dead-end move (Mystara); downed enemies untouchable.",
+  "Special: invincible, costs life only on contact, never kills.",
+  "Throws invincible; the thrown body's hit refills your chain credit (FF's accident, kept on purpose).",
+  "Enemies: random wait in a readable \"ready\" pose, wind-up proportional to damage; a small attack token (2) — a deliberate departure, none of the 8 games has one."
+ ]
+}

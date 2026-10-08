@@ -91,9 +91,18 @@
       g.enemies && g.enemies.length ? [h('h3', {}, 'Enemies'), g.enemies.map(enemy)] : null,
       g.bosses && g.bosses.length ? [h('h3', {}, 'Bosses'), g.bosses.map(enemy)] : null,
       g.open && g.open.length ? h('details', {}, h('summary', {}, `Not decoded yet (${g.open.length})`), h('ul', {}, g.open.slice(0, 200).map(o => h('li', {}, txt(o))))) : null));
+    let syn = null;
+    try { syn = await (await fetch('expose/synthesis.json', { cache: 'no-cache' })).json(); } catch (e) { /* none */ }
+    const synth = syn ? h('section', { class: 'game' }, h('h2', {}, syn.title), h('p', {}, syn.intro),
+      h('h3', {}, 'Universal (all 8)'), h('ul', {}, syn.universal.map(x => h('li', {}, x))),
+      h('h3', {}, 'How Capcom evolved'), h('div', { class: 'scroll' }, h('table', { class: 'cmp' },
+        h('thead', {}, h('tr', {}, ['Topic', 'Early (Final Fight 1989)', 'Later (1992-96)'].map(t => h('th', {}, t)))),
+        h('tbody', {}, syn.evolution.map(r => h('tr', {}, h('th', {}, r[0]), h('td', {}, r[1]), h('td', {}, r[2])))))),
+      h('h3', {}, 'The brakes on depth'), h('p', {}, syn.brakes),
+      h('h3', {}, 'Numbers proposed for the brawler (to agree)'), h('ol', {}, syn.proposals.map(x => h('li', {}, x)))) : null;
     col.replaceChildren(h('h2', {}, "Classic Brawlers' Exposé"),
       h('p', {}, (idx.intro || '') + ' Numbers come from each game\'s program and from emulator captures; frames are game frames (the press = frame 1), pixels are each game\'s own.'),
-      h('h3', {}, 'System rules side by side'), rules, h('h3', {}, 'Archetypes side by side'), arch, ...games);
+      synth, h('h3', {}, 'System rules side by side'), rules, h('h3', {}, 'Archetypes side by side'), arch, ...games);
   }
   // the two document tabs use the full width: the game column hides while they show
   window.addEventListener('labtab', e => { const g = $('gamecol'); if (g) g.style.display = (e.detail === 'expose' || e.detail === 'quirks') ? 'none' : ''; });

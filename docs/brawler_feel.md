@@ -111,6 +111,105 @@ backwards; that helps escape difficult situations, because the player is usually
   memorised strings.
 - Juggle route: launcher -> juggle follow-ups -> special or super finisher.
 
+## 8d. Measured reference: Final Fight (CPS1, World 900112)
+
+Full report + frame sheets: /data/study/ffight/REPORT.md, ffight_framedata.json, sheets/.
+- One global hit-stop (6 f strikes, 5 f knees / throws) and one hit-stun (28 f) for everyone: the heavy feel comes
+  from startup and damage only.
+- Chain: advances only on hit; a whiff or getting hit resets to link 1; a 45-frame "chain credit" after a hit (counts
+  only while not attacking); no input buffer (presses in hit-stop / startup / recovery are dropped).
+- Lengths: Guy 5 links, Cody 4, Haggar 3. Jab first active frame 4 / 4 / 10, damage 6 / 10 / 18; full chain damage
+  42 / 46 / 54 (close), Haggar's whole chain lands fastest (43 f vs 54 / 44).
+- Final press + back / up / down = throw the enemy you hit (Guy / Cody turn and throw behind, Haggar backdrops), no
+  hurtbox for the whole throw (42 f, Haggar 58 f); thrown body = 8 damage + knockdown to others.
+- Same jump arc for all (7 f crouch, 41 f air, 61 px); walk 2.10 / 1.95 / 1.85 px/f; Haggar's reward is the grab game
+  (backdrop 50, piledriver 70, long invincibility).
+- Special (attack + jump): invincible from frame 1, 20 damage, costs 8 HP only on hit.
+- Emergent route (Bruno's "jab, jab, throw, then jab, throw" with Haggar): the throw resets the chain, but the thrown
+  body's hit on another enemy / object is credited to the thrower and refills his 45-frame chain credit, so the next
+  jab on a fresh enemy counts as link 2 and the following press is the throw. Same enemy: never (no credit, the
+  downed enemy is untouchable ~150 f). Haggar's backdrop drops the body ~70 px behind (often onto someone); Guy / Cody
+  throw ~186 px (rarer). Proposal: keep it on purpose — "a hit by your thrown body counts as your hit".
+
+## 8e. Measured reference: Final Fight enemies
+
+Report data: /data/study/ffight/enemies/ (enemy_attacks.json, tele_*.png sheets). 21 enemy types + Damnd, Sodom.
+- Bruno's "the hit can take half a second": mostly not a long wind-up — the enemy holds its ordinary stance for a random
+  wait (table at ROM $2245E: 1..60 f, mean ~31) before a short wind-up.
+- Wind-up follows damage: 3-6 f for 4-29 damage (as fast as Guy / Cody's jab), 12-15 f for knives / charges (30-60),
+  20-50 f for specials (Damnd 25, Andore's 49-f clinch before a 40-damage throw).
+- Player hit-stun 27 f (knockdown 75-140 f); enemy hit-stun 28 f and chain gaps < 21 f, so a chain can't be broken.
+- No attack-token limit: up to 5 enemies with live attack boxes on one frame.
+- Proposals (mine): wind-up proportional to damage; keep the random wait but show a readable "ready" pose during it;
+  an attack-token limit (e.g. 2 attackers at once).
+
+## 8f. Measured reference: Streets of Rage 2 (Axel / Max / Blaze / Skate)
+
+Data + sheets: /data/study/sor2/ (sor2_framedata.json, sheets/).
+- Hit-stop scales with damage: 4 + damage/4, capped at 8 (jab 5, 16-damage hit 8); the attacker holds its impact
+  frame, the victim reacts at once.
+- Hit-stun: enemies 31 f (refreshed by each hit), players only 12 f → jabs are +23 (Axel) / +18 (Max).
+- Same 4-link combo for everyone, advances on hit only, 16 idle frames to press again, no attack buffer; the special
+  button is buffered 20 f. Axel: a fast 4th press = 2-hit finisher.
+- Max (Bruno's favourite) is smooth because: same 4 links, 1.5x damage (combo 66 vs Axel 44 / Blaze 36 / Skate 28),
+  a 3-hit link 3, long hit-stop on every hit, range-adaptive jab, short recovery, fast invincible blitz (hits frame 2),
+  same jump as Axel, +18 on hit.
+- Move set grammar shared by all: invincible neutral special (8 HP, only on hit), forward special, blitz (f,f + A),
+  back attack (attack + jump), charge attack (hold 60 f), grab tree (knees / neutral move / throw / vault + back throw),
+  throws fully invincible, thrown body 16 to others.
+- Vs Final Fight: SOR2 keeps chain length equal and makes the heavy hit harder and more often; FF shortens the
+  heavy's chain. Proposals (mine): damage-scaled hit-stop; equal combo length with multi-hit heavy links; long enemy
+  / short player hit-stun; buffer specials ~20 f + a 4-6 f attack buffer; a rhythm reward finisher; one input grammar
+  for every archetype (Max's jump-with-enemy slam as the model for Krauser).
+
+## 8g. Synthesis: what 8 classic brawlers agree on (studied 2026-10-07/08)
+
+Games: Final Fight (1989), Captain Commando (1991), Warriors of Fate (1992), Streets of Rage 2 (1992), The Punisher (1993),
+Cadillacs and Dinosaurs (1993), Alien vs. Predator (1994), D&D Shadow over Mystara (1996). Data: /data/study/encyclopedia
+(one JSON per game, the Lab's Exposé tab), lessons in KNOWLEDGE.md.
+
+**Universal (all 8):**
+- A chain advances ONLY on hit; a whiff (or being hit) restarts it. → principle 1 holds everywhere: the first hit gates
+  everything.
+- The special (desperation) costs life ONLY on contact (6-12), is invincible, and in the later games never kills.
+- Throws are invincible for their whole animation; a thrown body hits other enemies.
+- Enemies: no attack token in any Capcom game (3-5 attackers at once happen); aggression rises with a hidden
+  difficulty rank (FF, CC, WoF, Punisher, Dino).
+
+**How Capcom evolved (1989 → 1996):**
+| Topic | Early (FF 1989) | Later (1992-96) |
+|---|---|---|
+| Heavy archetype | shorter chain (Haggar 3 links) | same length, more damage (SOR2 Max 1.5x, Dino Mess +10-20 %) |
+| Fast archetype | — | LONGER chain (AvP Linn 5, Mystara Elf 6) |
+| Chain length | 5 / 4 / 3 | 4 for all (CC, SOR2, Punisher, Dino); WoF 3 for all |
+| Link window | 45 f while idle | 16-50 f (CC 16, Mystara 24, AvP 30, Dino 40, Punisher 50) |
+| Input buffer | none | presses latched during hit-stop (WoF, Dino); SOR2 buffers the special 20 f; FF/CC/Punisher/Mystara none |
+| Hit-stop | flat 6 | per move, heavier = longer (AvP 3-13, WoF 3-11, Punisher 7/9/10 + 6-f shake, Dino 9 / 12-13); SOR2 4 + damage/4 cap 8; CC 7 / Mystara 8 flat |
+| Enemy hit-stun | 28 | 23-36 |
+| Player hit-stun | 28 | 12 (SOR2), 17 (Punisher), 26 + untouchable (CC, AvP) |
+| Chain branches | last link + back = throw | throw on link 2 (WoF) / link 4 (Punisher, Dino), stepping turns (CC), command cancels (AvP, Mystara) |
+| Juggles | none (downed = untouchable) | none in the CPS1 line; AvP stun meter → launch, juggle cap 3; Mystara cancel matrix ending in a dead-end move |
+| Movement | per character | shared walk + jump (CC, WoF walk, Mystara), per character again in SOR2 / Dino |
+| Damage | fixed, victim-class table | random spread (WoF, Dino), rank-scaled enemy damage |
+
+**The brakes on depth (no Killer Instinct):** AvP caps juggles at 3 and speeds up the get-up; Mystara lets you cancel
+anything but every route ends in ↓↑A, the chain restarts only from standing, air victims hang then drift out of reach,
+downed enemies can't be hit. Everyone else simply makes downed enemies untouchable.
+
+**Numbers proposed for the brawler (mine, to agree):**
+1. Advance on hit only; link window ~30-40 f after recovery; presses during hit-stop latched (plus 4-6 f buffer) — the
+   later-Capcom way, and what keeps a slow heavy smooth.
+2. Chain length the same for every archetype (4); heavy = ~1.5x damage per hit and longer hit-stop; fast may get +1
+   link (AvP / Mystara pattern).
+3. Hit-stop per move, heavier hit = longer: ~6 (jab) to ~12 (finisher), the same scale for every fighter (consistency).
+4. Enemy hit-stun ~28-32; player hit-stun short (~12-20) plus a brief untouchable window, so crowds can't juggle you.
+5. Juggles with a brake: a launch (finisher or a stun meter) and a hard cap (AvP's 3), or a route that ends in a
+   dead-end move (Mystara); downed enemies untouchable.
+6. Special: invincible, costs life only on contact, never kills.
+7. Throws invincible; the thrown body's hit refills your chain credit (FF's accident, kept on purpose).
+8. Enemies: random wait in a readable "ready" pose, wind-up proportional to damage; a small attack token (2) — a
+   deliberate departure, none of the 8 games has one.
+
 ## 9. Iterate fast: an exploration tool, no build in the loop
 
 **Bruno:** we want to iterate quickly. "I want a tool that allows me to explore new things, so I don't want to wait for

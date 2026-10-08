@@ -116,5 +116,6 @@ if os.path.isdir(ENC):
     os.makedirs(os.path.join(out, 'expose'), exist_ok=True)
     games = sorted(f for f in os.listdir(ENC) if f.endswith('.json'))
     for f in games: shutil.copy(os.path.join(ENC, f), os.path.join(out, 'expose', f))
+    if os.path.exists(os.path.join(HERE, 'synthesis.json')): shutil.copy(os.path.join(HERE, 'synthesis.json'), os.path.join(out, 'expose', 'synthesis.json'))
     json.dump({'games': games, 'intro': "The beat 'em ups behind the brawler's gameplay revamp, measured: every playable character's movement, jump arc and moves (startup / active / recovery, damage, hit-stop, boxes), each game's system rules, and the enemies' AI."},
               open(os.path.join(out, 'expose', 'index.json'), 'w'))
