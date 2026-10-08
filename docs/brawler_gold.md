@@ -45,9 +45,10 @@ Lab chain tool or via the terry2 / kim2 follow-ups.
 
 ### The combo ladder (each step cancels into the next)
 chain → chain finisher → **Blitz** (free) → **special** (1 cooldown chunk, invincible) → **another, different special**
-(a 2nd chunk) → **fury** (fury bar full) → **MAX fury** (fury bar full + low-life red). A special can cancel into any
-OTHER special (not itself); with the 2-chunk bar that means two specials back to back, emptying it. No EX specials
-(Bruno: overkill for now).
+(a 2nd chunk) → **fury** (fury bar full). A special cancels into any OTHER special (not itself); with the 2-chunk bar
+that is two specials back to back, emptying it. The fury is the LAST rung: there is no fury → MAX cancel, because each
+fighter has only ONE fury — the MAX is that same fury's empowered form when triggered in the red low-life state. No EX
+specials (Bruno: overkill for now).
 
 ### Two meter bars (replaces the 3-stock / 300-point meter and the old breaker path)
 - **Special cooldown bar — 2 chunks, SOR3-style**: starts full, refills over time. Regular special = 1 chunk (two
