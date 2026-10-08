@@ -73,3 +73,13 @@ specials (Bruno: overkill for now).
 - **Specials (C + dir)**: down = Power Dunk, forward = Burn Knuckle, else = Rising Tackle. (Verify which decoded 623
   clip is Power Dunk vs Rising Tackle.)
 - Chain / finishers / roles / retimes: per the earlier Terry gold section + review (more changes may follow).
+
+### Jumps (Bruno 2026-10-08)
+- ONE jump for every fighter: Cody's Final Fight trajectory (Final Fight uses the same arc for Guy / Cody / Haggar:
+  7 f crouch, 41 f in the air, peak 61 px — docs/brawler_feel.md 8d). One height only (no short / tall hop).
+  To do: capture Cody's arc frame by frame from the ROM (/data/emu, FBNeo) — height and forward speed per frame — and
+  replay it as data. Pixel default: same frames, same height in lines, forward distance converted by the CPS1 / Neo Geo
+  pixel aspect so it looks the same on a TV.
+- THREE air attacks only: A in a forward jump, A in a straight jump, down+A in either. Genre pattern: the standard jump
+  attack is a kick; down+A is a punch, a dive or similar. Picked per fighter from its jump normals (Terry's review: jump
+  A dropped, jump B and jump CD kept).
