@@ -449,6 +449,49 @@ def retime_tables(g, build):
     return c
 
 
+RULE_KEYS = ('about', 'attackers', 'approach_max', 'ready', 'windup', 'rank')
+
+
+def ai_rules(g):
+    """game.json ai.rules (revamp 1B: attack tokens, the ready pose and wait, wind-up by damage, the rank) -> the C of
+    gairules_t gai and ai_ready[BC_COUNT] (every fighter's ready stance: its own `ready.by_fighter` entry, else
+    `ready.pose`; the game falls back to `ready.fallback`, then the tint pulse, when the fighter has no such step)"""
+    r = g['ai']['rules']
+    for k in r: assert k in RULE_KEYS, f'ai.rules: unknown field {k}'
+    rd, wu, rk = r['ready'], r['windup'], r['rank']
+    for k in rd: assert k in ('about', 'pose', 'fallback', 'by_fighter', 'pulse', 'wait'), f'ai.rules.ready: unknown field {k}'
+    for k in wu: assert k in ('about', 'light', 'heavy', 'heavy_from', 'special_hold'), f'ai.rules.windup: unknown field {k}'
+    for k in rk: assert k in ('about', 'start', 'max', 'death', 'fast', 'clean', 'fast_clear', 'every', 'wait', 'rest', 'damage'), f'ai.rules.rank: unknown field {k}'
+    names = roster_names(g)
+    ba = lambda m: 'BA_' + m.upper()
+    def pose(p, where):
+        if p == 'tint': return '0xFF', '0'
+        assert isinstance(p, list) and len(p) == 2 and isinstance(p[0], str) and 0 <= p[1] < 64, f'{where}: [move, step] or "tint"'
+        return ba(p[0]), str(p[1])
+    for n in rd.get('by_fighter', {}): assert n in names, f'ai.rules.ready.by_fighter: {n} is not in the roster'
+    wait = rd['wait']
+    assert len(wait) == 32 and all(1 <= w <= 255 for w in wait), 'ai.rules.ready.wait: 32 frame counts 1-255'
+    for w in ('light', 'heavy', 'special_hold'):
+        v = wu[w]
+        assert isinstance(v, list) and len(v) == 2 and 0 <= v[0] <= v[1] <= 120, f'ai.rules.windup.{w}: [lo, hi] frames'
+    assert 1 <= wu['heavy_from'] <= 255, 'ai.rules.windup.heavy_from: 1-255'
+    assert 1 <= r['attackers'] <= 6 and 1 <= r['approach_max'] <= 255 and 1 <= rd['pulse'] <= 255, 'ai.rules: attackers 1-6, approach_max / pulse 1-255'
+    assert 0 <= rk['start'] <= rk['max'] <= 31, 'ai.rules.rank: 0 <= start <= max <= 31'
+    for k in ('death', 'fast', 'clean', 'wait', 'rest', 'damage'): assert 0 <= rk[k] <= 32, f'ai.rules.rank.{k}: 0-32'
+    assert 1 <= rk['every'] <= 65535 and 1 <= rk['fast_clear'] <= 65535, 'ai.rules.rank: every / fast_clear 1-65535 frames'
+    a2, s2 = pose(rd['fallback'], 'ai.rules.ready.fallback')
+    out = [f"const gairules_t gai = {{ .attackers = {r['attackers']}, .approach_max = {r['approach_max']}, .pulse = {rd['pulse']}, "
+           f".ready_anim2 = {a2}, .ready_step2 = {s2}, .light_lo = {wu['light'][0]}, .light_hi = {wu['light'][1]}, "
+           f".heavy_lo = {wu['heavy'][0]}, .heavy_hi = {wu['heavy'][1]}, .heavy_from = {wu['heavy_from']}, "
+           f".spec_lo = {wu['special_hold'][0]}, .spec_hi = {wu['special_hold'][1]}, .rank_start = {rk['start']}, .rank_max = {rk['max']}, "
+           f".rank_death = {rk['death']}, .rank_fast = {rk['fast']}, .rank_clean = {rk['clean']}, .rank_wait = {rk['wait']}, "
+           f".rank_rest = {rk['rest']}, .rank_dmg = {rk['damage']}, .rank_every = {rk['every']}, .fast_clear = {rk['fast_clear']}, "
+           f".wait = {{ {', '.join(map(str, wait))} }} }};"]
+    rows = [pose(rd.get('by_fighter', {}).get(n, rd['pose']), f'ai.rules.ready ({n})') for n in names]
+    out.append('const uint8_t ai_ready[BC_COUNT][2] = { ' + ', '.join(f'{{ {a}, {s} }}' for a, s in rows) + ' };   /* ' + ' '.join(names) + ' */')
+    return out
+
+
 def tables(g, build):
     M = model(g, build)
     presets = M['presets']
@@ -461,7 +504,6 @@ def tables(g, build):
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
          f'#define GAME_MUS_CONTINUE MUS_{g["music"].get("continue", g["music"]["clear"])}',
          f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}',
-         f'#define AI_TOKENS {g["ai"]["tokens"]}',
          'enum { ' + ', '.join(f'AI_{n.upper()}' for n in presets) + ' };',
          'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
@@ -469,12 +511,14 @@ def tables(g, build):
          'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
          'extern const uint8_t roster_damage[BC_COUNT];',
+         'extern const uint8_t ai_ready[BC_COUNT][2];',
          f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
          'extern const gstagex_t gstagex_rom[GS_COUNT];', 'extern const uint8_t pb_of_fighter[BC_COUNT];', 'extern const gdrama_t gdramas[DR_COUNT ? DR_COUNT : 1];']
     c = ['/* Generated by tools/brawler/build_tables.py from examples/brawler/game.json. Do not edit. */',
          '#include <stddef.h>\n#include "bm_chars.h"\n#include "game_tables.h"\n#include "fighter.h"\n'] + layout_asserts()
     c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(
         '    { ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) + ' },   /* ' + n + ' */' for n, v in M['ai']) + '\n};')
+    c += ai_rules(g)                                     # the enemies' shared rules (revamp 1B, gamedata.h gairules_t)
     m = g['meter']                                       # the special meter (TODO #71): every value a frame / point count
     for k in m: assert k in ('about', 'max', 'special', 'fury', 'fury_min', 'refill', 'hit_mul', 'flash', 'infinite'), f'meter: unknown field {k}'
     assert 0 < m['special'] <= m['max'] < 65536 and 0 < m['fury'] <= m['max'] and m['fury_min'] <= m['max'] and \

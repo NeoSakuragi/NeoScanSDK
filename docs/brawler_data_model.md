@@ -206,13 +206,13 @@ is hidden), `white` 4 (of them, frames the backdrop is `white_colour`, then `dar
 feet, KOF orientation: where the concentration plays when the move has no anchor of its own). KOF98's values
 (tools/kof96/handlers98.md "Super flash"). Blue for a fury, orange for a MAX fury (by role).
 
-`ai.tokens` (1): attack tokens dealt every 16 frames to the closest able enemies. `ai.presets` (today minion,
+`ai.rules`: the enemies' shared rules (section "Enemy rules" below; replaced `ai.tokens`). `ai.presets` (today minion,
 minion_attract, boss), all fields bytes, `ai_preset_t` (42 bytes) in this order (build_tables.py AI_ORDER; game_tables.c
 asserts every offset), then one row per enemy with `ai_over`:
 
 | field | minion | boss | meaning |
 |---|---|---|---|
-| `flags` | grab, projectile | token, grab, projectile, boss_moves | token: always holds one; grab: approaches may grab; projectile: fires its C special at mid range; reversal (rev_*), specials (bspec_*): the boss block; jump_in (jump_*, hop_*): any enemy (TODO #58); `boss_moves` = reversal + specials + jump_in; full_speed: walks at full speed while positioning (the others at half); air_cd: the jump-in's air attack is C+D (up+A in the air; else air B, down+A) |
+| `flags` | grab, projectile | token, grab, projectile, boss_moves | token: one attack token kept free for it (Enemy rules); grab: approaches may grab; projectile: fires its C special at mid range; reversal (rev_*), specials (bspec_*): the boss block; jump_in (jump_*, hop_*): any enemy (TODO #58); `boss_moves` = reversal + specials + jump_in; full_speed: walks at full speed while positioning (the others at half); air_cd: the jump-in's air attack is C+D (up+A in the air; else air B, down+A) |
 | `rest_shift`, `rest_random`, `rest_add` | 0, 127, 0 | 2, 31, 0 | a rest = (base >> shift) + (random & rest_random) + rest_add (minion_attract: rest_add 100, no grab, no projectile) |
 | `rest_start`, `rest_attack`, `rest_special`, `rest_throw` | 30, 120, 180, 60 | 60, ... | rest bases: at spawn, after a punch string, a D, a throw |
 | `grab_plan` | 1 | 1 | approaches of 8 that walk in to grab |
@@ -237,6 +237,49 @@ an enemy and keeps its constants in ai.c.
 `tints` (the minions' colours, never a playable set): channel = ((l * mix + channel) * mul >> shift) + add, clamped
 0-31, l = (5 R + 9 G + 2 B) / 16. shade {1, 11, 5, [0, 0, 0]}, ash {3, 14, 6, [-1, 0, 3]}, rust {1, 12, 5, [3, 0, -2]}.
 `gtint_t` (6 bytes): mix, mul, shift, add[3]; index 0 = none.
+
+### Enemy rules (revamp phase 1B, 2026-10-08; docs/brawler_feel.md 8e / 8g / 8h)
+
+`ai.rules` (ROM only, not in the data pack: `gairules_t gai` + `ai_ready[BC_COUNT][2]` in game_tables.c; ai.c reads them):
+
+| field | value | meaning |
+|---|---|---|
+| `attackers` | 3 | at most this many enemies hold an attack token at once (approach, ready, attack). Tokens are dealt every 16 frames to the closest rested enemies; a `token` preset (the boss) has one kept free for it; a projectile shooter takes one on the spot. A token goes back when the attack ends (able again), when the enemy is hit, knocked down, grabbed or thrown, or after `approach_max` (150) frames without reaching its range |
+| `ready.pose`, `ready.fallback`, `ready.by_fighter` | `["atk_c_close", 0]`, `["atk_a_close", 0]`, 6 overrides | the stance held (fighter_t.frame_ovr) during the wait before an attack: [move, step] of the fighter's own animations; `"tint"` = the white pulse instead. Overrides where close C's first frame looks like the idle: yamazaki, geese, rugal, goenitz close C step 1; krauser, mr_big far C step 0. A fighter without the step uses the fallback, then the pulse |
+| `ready.pulse` | 12 | the pulse: the fighter's palettes white for 3 frames every 12 frames (fighter_t.flash; meter_tick restores them) |
+| `ready.wait` | 32 entries | the random wait (random & 31): Final Fight's table $2245E (1 x2, 10 x4, 20 x6, 30 x8, 40 x6, 50 x4, 60 x2), mean 31 frames |
+| `windup.light`, `windup.heavy`, `windup.heavy_from` | [3, 6], [12, 15], 5 | the wind-up target (frames from the attack's first frame to its first live one) of a normal: route damage < 5 light, else heavy. The attack's first frame is held (fighter_t.freeze, the hit-stop's hold) for target minus the move's own startup (its steps before the first live one at the node's speed); a move slower than the target keeps its own startup |
+| `windup.special_hold` | [12, 15] | a special (and the boss's reversal): its own startup plus this hold. Jump-ins (the prejump and flight are the wind-up) and walk-in grabs are not held |
+| `rank.start`, `rank.max` | 8, 31 | the hidden difficulty rank (ai_rank) at a new game (main.c stage_begin with `first`), its ceiling |
+| `rank.every`, `rank.fast_clear`, `rank.fast`, `rank.clean` | 600, 1200, 1, 1 | + 1 every 600 frames of fighting without a hit taken (a player's life going down); a wave cleared (the last enemy gone) in under 1200 frames + 1, cleared without a hit + 1 |
+| `rank.death` | 4 | - 4 when a player loses a life (enters S_DEAD) |
+| `rank.wait`, `rank.rest` | 16, 16 | aggression: the ready wait and every rest x (1 - rank x 16 / 1024): rank 31 = x 0.52 |
+| `rank.damage` | 11 | damage: an enemy spawned at rank r hits r / 11 harder (fighter_t.power, main.c enemy_init; not in the attract): +1 from 11, +2 from 22 |
+
+The rank shows only in the Brawler Lab's status line (`rank n  attackers k`, symbols `ai_rank`, `ai_tokens` in layout.json).
+The formation: a FREE enemy stands at one of 8 slots around its player (4 a side; hover_dx and hover_dx + 36 px out,
+depth -12 / +12 / -24 / +24), dealt every 16 frames, the closest enemy first taking the free slot nearest to it.
+Known limits: an enemy hit in its ready stance shows the stance one frame more (the AI clears frame_ovr on its next
+tick, before the hit-stop ends); a normal whose own startup is longer than its target (Billy's far A 9, Goenitz's 10,
+Iori's / Yamazaki's 7) keeps it: shortening is retiming's job (phase 1C).
+
+Proofs (our emulator's core, harness; scripts and outputs in /data/tmp/rv1b, tools/ and out/):
+- Attack tokens (`tokens_proof.py`, stage 5 wave 1, 6 enemies, per-frame trace `out/tokens_*.txt`): P1 standing 3600
+  frames: tokens never above 3, enemies in an attack state (ATTACK, AIR_ATTACK, SPECIAL, GRAB, THROW) never above 3
+  (frames with 0/1/2/3 attackers: 1447/1791/335/27); P1 fighting (2499 frames, the wave beaten): the same (1722/686/84/7).
+- Ready pose: `out/ready_sheet.png` (each enemy type in the lab's enemy test: its idle and its READY stance on screen),
+  `out/ready_stances_rom.png` (every fighter an enemy may be: idle vs the stance, from the ROM tables), the tint pulse
+  in a throwaway build (`out/ready/tint_pulse_*.png`: 14 white flashes in 147 READY frames, frame_ovr never set).
+- Wind-up (`windup_proof.py`, every enemy type + stage 5's five waves, `out/windup.txt`): measured from the attack's
+  first frame to its first live box: light normals 152 attacks 3-10 frames (mean 5.5; above 6 only the moves whose own
+  startup is longer), heavy 6 attacks 13-15, specials 45 measured 26-37 (10 ROM-program specials of the bosses have no
+  box the proof can read: their hold is the same 12-15).
+- Rank (`rank_proof.py`, `out/rank.png`): stage 1 untouched with fast clears 8 -> 19 (+2 per wave, +1 from the clean
+  clock), then standing still to a game over 19 -> 15 -> 11 -> 7 (three lives lost); damage bonus 0 / +1 / 0.
+- enemy_test.py (all types + the pack write path), bank_proof ALL OK, campaign29 through (stage 5's enemies: power 4
+  instead of 2: the rank's +2, P1 never hit in that proof), regress bleed True (frame-exact; the attract changed: new
+  baseline /data/tmp/rv1b/out/regress_new.json), scenarios rv1b-attack-tokens / -ready-pose / -windup / -rank (lint
+  OK, states generated; scenario.py lint 0 warnings).
 
 ## Layer 3: stages
 
