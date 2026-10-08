@@ -81,5 +81,7 @@ specials (Bruno: overkill for now).
   replay it as data. Pixel default: same frames, same height in lines, forward distance converted by the CPS1 / Neo Geo
   pixel aspect so it looks the same on a TV.
 - THREE air attacks only: A in a forward jump, A in a straight jump, down+A in either. Genre pattern: the standard jump
-  attack is a kick; down+A is a punch, a dive or similar. Picked per fighter from its jump normals (Terry's review: jump
+  attack is a kick and KNOCKS DOWN; down+A is a punch, a dive or similar and only FLINCHES. One can be cancelled
+  into the other in the air, like Final Fight (order: question on the jumps page). Active frames (Bruno): the standard
+  jump attack active ~12 frames or more; down+A active for the whole rest of the jump. Picked per fighter from its jump normals (Terry's review: jump
   A dropped, jump B and jump CD kept).

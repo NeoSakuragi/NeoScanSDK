@@ -1,6 +1,252 @@
 {
  "sets": [
   {
+   "id": "jumps-terry",
+   "fighter": "terry",
+   "title": "Jumps: rules + Terry's air attacks",
+   "intro": "One jump for everyone (Cody's Final Fight arc), three air attacks: A in a forward jump and A in a straight jump knock down (usually a kick); down + A in either jump only flinches (a punch or a dive). Each clip is the move as the source game plays it; the active frames get extended per your answer.",
+   "sections": [
+    {
+     "title": "Jumps: rules + Terry's air attacks",
+     "questions": [
+      {
+       "id": "cancel",
+       "title": "Which way does the air cancel go?",
+       "context": "Down + A only flinches; the jump attack knocks down. Cancelling a knockdown into a flinch hit would hit an enemy who is already falling, so I suggest down + A first.",
+       "options": [
+        "Down + A, then the jump attack (flinch, then knock down)",
+        "Either order"
+       ],
+       "pieces": [
+        [],
+        []
+       ]
+      },
+      {
+       "id": "landing",
+       "title": "A jump attack that hits: what happens on landing?",
+       "context": "In Final Fight a jump attack doesn't count in the chain. With down + A (no knockdown) you land next to a standing enemy.",
+       "options": [
+        "Landing after a hit lets the chain start at link 2",
+        "The chain always starts at link 1 on the ground"
+       ],
+       "pieces": [
+        [],
+        []
+       ]
+      },
+      {
+       "id": "fwd",
+       "title": "Terry, forward jump + A (knocks down)",
+       "context": "You kept jump B, jump D and jump CD (CD with a faster startup).",
+       "options": [
+        "jump D",
+        "jump B",
+        "jump CD (startup sped up)"
+       ],
+       "pieces": [
+        [
+         "atk_d_jump"
+        ],
+        [
+         "atk_b_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      },
+      {
+       "id": "up",
+       "title": "Terry, straight jump + A (knocks down)",
+       "context": "Can be the same move as the forward jump or a different one.",
+       "options": [
+        "jump B",
+        "jump D",
+        "jump CD (startup sped up)"
+       ],
+       "pieces": [
+        [
+         "atk_b_jump"
+        ],
+        [
+         "atk_d_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      },
+      {
+       "id": "down",
+       "title": "Terry, down + A in either jump (flinch only)",
+       "context": "Jump C is a punch you haven't judged yet.",
+       "options": [
+        "jump C",
+        "jump CD (startup sped up)"
+       ],
+       "pieces": [
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "jumps-kim",
+   "fighter": "kim",
+   "title": "Jumps: Kim's air attacks",
+   "intro": "One jump for everyone (Cody's Final Fight arc), three air attacks: A in a forward jump and A in a straight jump knock down (usually a kick); down + A in either jump only flinches (a punch or a dive). Each clip is the move as the source game plays it; the active frames get extended per your answer.",
+   "sections": [
+    {
+     "title": "Jumps: Kim's air attacks",
+     "questions": [
+      {
+       "id": "fwd",
+       "title": "Kim, forward jump + A (knocks down)",
+       "context": "You kept jump C, jump D and jump CD.",
+       "options": [
+        "jump D",
+        "jump CD",
+        "jump C"
+       ],
+       "pieces": [
+        [
+         "atk_d_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ],
+        [
+         "atk_c_jump"
+        ]
+       ]
+      },
+      {
+       "id": "up",
+       "title": "Kim, straight jump + A (knocks down)",
+       "context": "",
+       "options": [
+        "jump C",
+        "jump D",
+        "jump CD"
+       ],
+       "pieces": [
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_d_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      },
+      {
+       "id": "down",
+       "title": "Kim, down + A in either jump (flinch only)",
+       "context": "",
+       "options": [
+        "jump C",
+        "jump CD"
+       ],
+       "pieces": [
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "jumps-krauser",
+   "fighter": "krauser",
+   "title": "Jumps: Krauser's air attacks",
+   "intro": "One jump for everyone (Cody's Final Fight arc), three air attacks: A in a forward jump and A in a straight jump knock down (usually a kick); down + A in either jump only flinches (a punch or a dive). Each clip is the move as the source game plays it; the active frames get extended per your answer.",
+   "sections": [
+    {
+     "title": "Jumps: Krauser's air attacks",
+     "questions": [
+      {
+       "id": "fwd",
+       "title": "Krauser, forward jump + A (knocks down)",
+       "context": "You kept jump A, jump C, jump D and jump CD; you dropped jump B.",
+       "options": [
+        "jump D",
+        "jump CD",
+        "jump C"
+       ],
+       "pieces": [
+        [
+         "atk_d_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ],
+        [
+         "atk_c_jump"
+        ]
+       ]
+      },
+      {
+       "id": "up",
+       "title": "Krauser, straight jump + A (knocks down)",
+       "context": "",
+       "options": [
+        "jump C",
+        "jump D",
+        "jump CD"
+       ],
+       "pieces": [
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_d_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      },
+      {
+       "id": "down",
+       "title": "Krauser, down + A in either jump (flinch only)",
+       "context": "",
+       "options": [
+        "jump A",
+        "jump C",
+        "jump CD"
+       ],
+       "pieces": [
+        [
+         "atk_a_jump"
+        ],
+        [
+         "atk_c_jump"
+        ],
+        [
+         "atk_cd_jump"
+        ]
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "throws1",
    "title": "Throws: three fighters lose their fury",
    "intro": "Phase 3 moved every grab special to throws (your rule: no command-grab inputs). For Rugal, Yamazaki and Genjuro the only decoded fury is a grab, so they would have NO fury (D). Their grab furies are now their super throw (hold + forward/back + C, one stock). Decide before I ship it.",
