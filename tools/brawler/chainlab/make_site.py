@@ -95,7 +95,7 @@ json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
 # the Select screen tab: the build's select screen as data (select_images.py: the ROM's pictures, the fix layer from our
 # emulator, the pose candidates above as palette indices) for selectrender.js
 json.dump(select_images.select_data(game, poses), open(os.path.join(out, 'select.json'), 'w'))
-for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js', 'expose.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js', 'expose.js', 'micnote.js', 'decide.js', 'decisions.json'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 print('site data in', out)
 
 # "Oldies quirks" tab: quirks.json + its images (paths in quirks.json are relative to QUIRK_SRC; copied under quirks/)

@@ -579,6 +579,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == '/dlauth': return self.dlauth()
         if not u.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         parts = u.path.split('/')[2:]
+        if len(parts) == 2 and parts[0] == 'decisions' and re.match(r'^[a-z0-9_-]{1,40}$', parts[1]):
+            p = os.path.join(DATA, 'decisions', parts[1] + '.json')
+            return self.reply(200, json.load(open(p)) if os.path.exists(p) else {})
         with db() as c:
             if parts == ['list']:
                 sql, args = ('SELECT f.*, (SELECT ROUND(SUM(cost_usd), 6) FROM transcriptions t WHERE t.feedback_id = f.id) AS cost_usd, '
@@ -835,7 +838,41 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/api/review': return self.create_review()
         if self.path == '/api/review_answer': return self.lab_review_answer()
         if self.path == '/api/review_delete': return self.delete_review()
+        if self.path == '/api/transcribe': return self.lab_transcribe()
+        if self.path == '/api/decision': return self.save_decision()
         self.reply(404, {'error': 'not found'})
+
+    def lab_transcribe(self):
+        """the Lab's microphone button on any note field (behind the Oros login, nginx auth_request): the raw audio body
+        (X-Audio-Name: audio.webm / .m4a / .ogg / .wav / .mp3) -> {text}; logged like the player's"""
+        data = self.body(MAX_AUDIO)
+        if data is None: return self.reply(413, {'error': 'size'})
+        name = self.headers.get('X-Audio-Name', 'audio.webm')
+        if not re.match(r'^[a-z0-9_]{1,40}\.(webm|m4a|ogg|wav|mp3)$', name): name = 'audio.webm'
+        t0 = time.time()
+        try: text, model, dt, usage = openai_transcribe(name, data)
+        except RuntimeError: return self.reply(502, {'error': 'transcription unavailable'})
+        tx, usd = log_tx(model, usage, audio_seconds(data=data), '', 'lab', who={'user': 'lab', 'install_id': None,
+                         'ip': self.headers.get('X-Real-IP') or None, 'user_agent': self.headers.get('User-Agent') or None})
+        log('transcribe (lab)', len(data), 'bytes', model, f'{time.time() - t0:.1f}s', len(text), 'chars', f'${usd:.5f}')
+        self.reply(200, {'text': text, 'model': model, 'seconds': dt, 'tx_id': tx})
+
+    def save_decision(self):
+        """the Lab's Decisions page: {set, id, choice?, label?, note?} merged into DATA/decisions/<set>.json"""
+        req = self.json_body(1 << 16)
+        if req is None: return
+        st, qid = str(req.get('set') or ''), str(req.get('id') or '')
+        if not re.match(r'^[a-z0-9_-]{1,40}$', st) or not re.match(r'^[a-z0-9_-]{1,40}$', qid): return self.reply(400, {'error': 'set / id'})
+        d = os.path.join(DATA, 'decisions'); os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, st + '.json')
+        with lock:
+            cur = json.load(open(p)) if os.path.exists(p) else {}
+            a = cur.get(qid, {})
+            for k in ('choice', 'label', 'note', 'question'):
+                if k in req: a[k] = req[k]
+            a['at'] = now(); cur[qid] = a
+            tmp = p + '.part'; json.dump(cur, open(tmp, 'w'), indent=1, ensure_ascii=False); os.replace(tmp, p)
+        self.reply(200, {'ok': True, 'answer': a})
 
     def save_layout(self):
         """the Lab's Select screen tab: {layout: {fighter: {x, y, z, facing, pose, slot}}, game_version?} (build_tables.py

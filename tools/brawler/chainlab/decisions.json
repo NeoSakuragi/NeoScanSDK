@@ -1,0 +1,250 @@
+{
+ "sets": [
+  {
+   "id": "revamp",
+   "title": "Brawler revamp",
+   "intro": "Each question comes from the study of eight classic brawlers (Final Fight to Shadow over Mystara) and your principles. Tap the outcome you want; type or speak a note if it's \"almost\". Answers save as you go.",
+   "sections": [
+    {
+     "title": "Chains",
+     "questions": [
+      {
+       "id": "whiff",
+       "title": "Should a missed press restart the chain?",
+       "context": "All 8 games: a chain advances only on a hit; a whiff or being hit restarts it.",
+       "options": [
+        "A whiff restarts the chain (as in all 8 games)",
+        "Whiffs keep the chain going"
+       ]
+      },
+      {
+       "id": "window",
+       "title": "How long after a hit can you press the next link?",
+       "context": "Captain Commando 16 f, Mystara 24, AvP 30, Dino 40, Punisher 50, Final Fight 45 (while idle).",
+       "options": [
+        "Tight: about 16 frames",
+        "Medium: about 30 to 40 frames",
+        "Forgiving: about 45 to 50 frames"
+       ]
+      },
+      {
+       "id": "buffer",
+       "title": "What happens to a press made during the hit freeze?",
+       "context": "Final Fight, Captain Commando, Punisher, Mystara: lost. Warriors of Fate, Dino: kept. Final Fight study: no buffer makes slow fighters feel stiff.",
+       "options": [
+        "Kept, and it fires on the first possible frame (plus a 4 to 6 frame buffer)",
+        "Lost, like the early Capcom games"
+       ]
+      },
+      {
+       "id": "length",
+       "title": "Chain length across archetypes",
+       "context": "Final Fight 5/4/3 (heavy shorter). Later Capcom: 4 for all; AvP and Mystara give the fast fighter the longest chain.",
+       "options": [
+        "4 links for everyone",
+        "4 links, fast fighters get a 5th",
+        "Per archetype: fast 5, balanced 4, heavy 3 (Final Fight)"
+       ]
+      },
+      {
+       "id": "branches",
+       "title": "Direction held on the last link",
+       "context": "Final Fight: back on the last press throws the enemy you hit. Your note: every chain serves a purpose (escape, turn-around, crowd).",
+       "options": [
+        "Picks the branch for everyone: back = throw backwards, forward = launcher or push, neutral = finisher",
+        "Only back = throw (Final Fight)",
+        "No direction branches"
+       ]
+      },
+      {
+       "id": "thrown",
+       "title": "Your thrown enemy lands on another enemy",
+       "context": "Final Fight: that hit refills your chain credit (Haggar's jab, throw shortcut), almost certainly an accident.",
+       "options": [
+        "It counts as your hit and refills the chain (keep the accident on purpose)",
+        "No chain effect"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Archetypes and impact",
+     "questions": [
+      {
+       "id": "archetypes",
+       "title": "How many archetypes?",
+       "context": "SOR2: Axel balanced, Blaze fast, Max heavy. Krauser as a wrestler.",
+       "options": [
+        "Three: fast, balanced, heavy",
+        "Two: fast and heavy"
+       ]
+      },
+      {
+       "id": "heavy",
+       "title": "What makes a heavy fighter heavy?",
+       "context": "Final Fight shortens Haggar's chain; SOR2 keeps Max at 4 links with 1.5x damage and longer freezes, your favourite.",
+       "options": [
+        "Same chain length, about 1.5x damage and a longer freeze (Max)",
+        "Fewer, slower, stronger hits (Haggar)"
+       ]
+      },
+      {
+       "id": "hitstop",
+       "title": "The hit freeze",
+       "context": "Final Fight flat 6. SOR2: 4 + damage/4, max 8. AvP 3 to 13 per move. Punisher 7/9/10 plus a 6-frame victim shake.",
+       "options": [
+        "Per move on one scale for all fighters: about 6 (jab) to 12 (finisher)",
+        "Grows with damage automatically (SOR2 formula)",
+        "One flat value for every hit (Final Fight)"
+       ]
+      },
+      {
+       "id": "damage",
+       "title": "Damage per hit",
+       "context": "Warriors of Fate and Dino add a random spread; the others use fixed values.",
+       "options": [
+        "Fixed damage",
+        "A small random spread"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Getting hit, juggles, specials",
+     "questions": [
+      {
+       "id": "playerstun",
+       "title": "When an enemy hits you",
+       "context": "SOR2 12 frames, Punisher 17, Captain Commando and AvP 26 plus untouchable, Final Fight 28.",
+       "options": [
+        "Short stun (about 12 to 20 frames) plus a brief untouchable window",
+        "Same long stun as enemies (about 28 frames)"
+       ]
+      },
+      {
+       "id": "launch",
+       "title": "What launches an enemy into the air?",
+       "context": "AvP: a stun meter fills with hits and the finisher always launches. Mystara: specific moves relaunch.",
+       "options": [
+        "The chain finisher",
+        "A stun meter filling up (AvP)",
+        "Specific launcher moves only"
+       ]
+      },
+      {
+       "id": "juggle",
+       "title": "The brake on juggles",
+       "context": "AvP caps air hits at 3 and speeds up the get-up. Mystara: every route ends in a dead-end move. Others: no juggles at all.",
+       "options": [
+        "A hard cap of 3 air hits (AvP)",
+        "Routes end in a dead-end move (Mystara)",
+        "Both",
+        "No juggles: downed enemies are untouchable"
+       ]
+      },
+      {
+       "id": "special",
+       "title": "The invincible special (attack + jump)",
+       "context": "All 8 games: costs life only when it touches (6 to 12); later games never let it kill you.",
+       "options": [
+        "Costs life only on contact and never kills",
+        "Always costs life",
+        "Costs meter instead of life"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Grabs",
+     "questions": [
+      {
+       "id": "grabwhiff",
+       "title": "A missed command grab",
+       "context": "KOF98: a real 29 to 31 frame whiff, punishable. SS2: one invisible frame. Double Dragon: turns into a normal attack.",
+       "options": [
+        "Always a visible, punishable whiff (about 24 to 30 frames, KOF)",
+        "Free whiff (SS2)",
+        "Turns into a normal attack (Double Dragon)"
+       ]
+      },
+      {
+       "id": "grabreel",
+       "title": "Can a command grab catch an enemy still reeling from a hit?",
+       "context": "KOF98 and Double Dragon: yes, so a chain can end in the grab. SS2: no.",
+       "options": [
+        "Yes: a chain can end in a command grab",
+        "No"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Enemies",
+     "questions": [
+      {
+       "id": "token",
+       "title": "How many enemies may attack you at once?",
+       "context": "None of the 8 games has a limit: 3 to 5 attackers on the same frame happen.",
+       "options": [
+        "At most 2 (a deliberate departure)",
+        "At most 3",
+        "No limit (classic)"
+       ]
+      },
+      {
+       "id": "ready",
+       "title": "The enemy's random wait before attacking",
+       "context": "Final Fight: a random 1 to 60 frame wait in plain stance (your \"half second\"), then a short wind-up.",
+       "options": [
+        "Show a readable \"ready\" pose during the wait",
+        "Keep it classic: plain stance"
+       ]
+      },
+      {
+       "id": "windup",
+       "title": "Enemy wind-up length",
+       "context": "Final Fight: 3 to 6 frames for light hits, 12 to 15 for knives and charges, 20 to 50 for special attacks.",
+       "options": [
+        "Proportional to damage, like Final Fight",
+        "One length for every enemy attack"
+       ]
+      },
+      {
+       "id": "rank",
+       "title": "A hidden difficulty rank",
+       "context": "5 of the 8 games raise enemy aggression, damage or count as you play well, invisibly.",
+       "options": [
+        "Yes, hidden",
+        "Only on the higher difficulty settings",
+        "No"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Tools",
+     "questions": [
+      {
+       "id": "tool",
+       "title": "Where do you explore chains without a build?",
+       "context": "Preview in the Lab, then push into the running game.",
+       "options": [
+        "PC browser (the Lab) only",
+        "The Lab and the phone Player"
+       ]
+      },
+      {
+       "id": "retime",
+       "title": "How far may a source animation be stretched or squeezed?",
+       "context": "Retiming startup / active / recovery to fit the shared timings.",
+       "options": [
+        "0.5x to 2x, beyond that it needs a hand check",
+        "Any amount, I judge by eye"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -137,6 +137,20 @@ main { display: grid; grid-template-columns: minmax(0, 660px) minmax(0, 1fr); ga
 #quirkcol .q figcaption { font-size: 12px; padding: 2px 6px; border-top: var(--line); }
 #quirkcol code { font-size: 12px; }
 #exposecol { padding: 12px 16px; min-width: 0; grid-column: 1 / -1; }
+#decidecol { padding: 12px 16px; min-width: 0; grid-column: 1 / -1; max-width: 820px; font-size: 16px; }
+#decidecol .dstatus { border: var(--line); display: inline-block; padding: 4px 8px; font-family: monospace; }
+#decidecol h3.dsec { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 3px solid currentColor; padding-bottom: 3px; margin: 18px 0 6px; }
+#decidecol .dq { border: var(--line); padding: 10px 12px; margin: 10px 0; display: flex; flex-direction: column; gap: 8px; }
+#decidecol .dq h3 { margin: 0; font-size: 17px; }
+#decidecol .dctx { margin: 0; font-size: 14px; }
+#decidecol .dopts { display: flex; flex-direction: column; gap: 6px; }
+#decidecol .dopts button { text-align: left; display: flex; gap: 8px; font-size: 15px; padding: 8px 10px; }
+#decidecol .dopts button[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
+#decidecol .dopts .mark { font-family: monospace; width: 1.3em; flex: 0 0 auto; }
+#decidecol .dnote { display: flex; gap: 6px; align-items: stretch; }
+#decidecol .dnote textarea { flex: 1; min-width: 0; min-height: 2.6em; font: inherit; font-size: 14px; border: var(--line); padding: 6px; }
+#decidecol .dsaved { font-family: monospace; font-size: 12px; min-height: 1em; }
+.micbtn { white-space: nowrap; font-size: 14px; }
 #exposecol .scroll { overflow-x: auto; max-width: 100%; }
 #exposecol table { border-collapse: collapse; font-size: 12px; margin: 6px 0 12px; }
 #exposecol th, #exposecol td { border: 1px solid #000; padding: 2px 5px; vertical-align: top; text-align: left; }
@@ -290,7 +304,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <body>
 <header>
   <h1>Brawler Lab</h1>
-  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabSelect">Select screen</button><button id="tabFeedback">Feedback</button><button id="tabQuirks">Oldies quirks</button><button id="tabExpose">Classic Brawlers' Exposé</button></nav>
+  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabSelect">Select screen</button><button id="tabFeedback">Feedback</button><button id="tabQuirks">Oldies quirks</button><button id="tabExpose">Classic Brawlers' Exposé</button><button id="tabDecide">Decisions</button></nav>
   <span id="clhead" class="row" style="margin:0">
   <label>Fighter <select id="fighter"></select></label>
   <label>Dummy <select id="dummy"></select></label>
@@ -356,6 +370,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
   <section id="fbcol" hidden></section>
   <section id="quirkcol" hidden></section>
   <section id="exposecol" hidden></section>
+  <section id="decidecol" hidden></section>
 </main>
 <script src="lab.js"></script>
 <script src="core.js"></script>
@@ -371,5 +386,7 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <script src="feedback.js"></script>
 <script src="quirks.js"></script>
 <script src="expose.js"></script>
+<script src="micnote.js"></script>
+<script src="decide.js"></script>
 </body>
 </html>

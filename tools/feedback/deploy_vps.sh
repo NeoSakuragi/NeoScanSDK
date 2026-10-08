@@ -113,7 +113,8 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
     location ^~ /brawler-lab/feedback-api/ {
         auth_request /jlpt-auth;
         proxy_pass http://127.0.0.1:8920/api/;
-        proxy_read_timeout 30s;
+        client_max_body_size 8m;
+        proxy_read_timeout 130s;
     }
     # <<< brawler-feedback
 """ % (pub("upload"), pub("transcribe"), pub("reply"), pub("test"), pub("review"))

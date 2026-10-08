@@ -105,7 +105,7 @@
       synth, h('h3', {}, 'System rules side by side'), rules, h('h3', {}, 'Archetypes side by side'), arch, ...games);
   }
   // the two document tabs use the full width: the game column hides while they show
-  window.addEventListener('labtab', e => { const g = $('gamecol'); if (g) g.style.display = (e.detail === 'expose' || e.detail === 'quirks') ? 'none' : ''; });
+  window.addEventListener('labtab', e => { const g = $('gamecol'); if (g) g.style.display = (e.detail === 'expose' || e.detail === 'quirks' || e.detail === 'decide') ? 'none' : ''; });
   tab.onclick = () => window.labTab('expose');
   window.addEventListener('labtab', e => { if (e.detail === 'expose') load(); });
   const deep = () => { if (location.hash === '#expose') { window.labTab('expose'); load(); } };
