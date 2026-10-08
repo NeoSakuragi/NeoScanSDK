@@ -495,7 +495,13 @@ and travel differ by where the camera stands (the off-screen x matches).
 The numbers below are the `minion` AI preset (game.json `ai.presets`, gamedata.h `ai_preset_t`, copied into RAM at
 boot: `ai_presets[]`).
 Same intents as a joystick, so one state machine runs everybody. Each enemy targets the nearest player and keeps to its
-side of him. Two attack tokens, dealt every 16 frames to the closest able enemies (distances computed once a frame).
+side of him. Since the revamp's phase 1B (docs/brawler_data_model.md "Enemy rules", game.json `ai.rules`): at most 3
+enemies hold an attack token (approach, ready, attack; dealt every 16 frames to the closest rested enemies, one kept
+free for a boss), the others stand at formation slots around the player (4 a side, two rings); before every attack a
+random wait (Final Fight's table, 1-60 frames) in a held ready stance (or a white tint pulse); the attack's first frame
+is held so its wind-up follows its damage (light 3-6, heavy 12-15, specials their own startup + 12-15); a hidden rank
+0-31 (Lab readout only) shortens waits and rests and adds damage as the player does well. The text below predates it
+for the token count and the hovering.
 A token holder closes in to 36 px on the player's depth line, then either presses A one to three times 10 frames apart
 (AAA chains only on hits) or, 3 approaches in 8, walks into him with the `grab` intent: contact grabs (enemies only grab
 on purpose). Holding, it hits (A or B) every 24 frames and after two may throw (forward+A / forward+B), else its third

@@ -64,7 +64,8 @@
     const y = lab.layout.syms, r8 = a => (a === undefined ? 0 : lab.r8(a)), cam = y.cam_x === undefined ? 0 : (lab.r16(y.cam_x) << 16 >> 16);
     const m = r8(y.mode), la = lab.r8(lab.lab + 8), act = la === 2 ? 'enemy test' : la ? 'Chain Lab training' : (r8(y.attract) ? 'attract demo' : MODES[m] || m);
     const where = m === 1 && !r8(y.attract) && !la ? `  stage ${r8(y.camp) + 1}  ${r8(y.phase) >= 2 ? 'boss' : 'wave ' + (r8(y.wave) + 1)}  ${PHASES[r8(y.phase)] || ''}  camera x ${cam}` : '';
-    return `${act}${where}  pack: ${lab.packStatus()}`;
+    const rank = y.ai_rank === undefined ? '' : `  rank ${r8(y.ai_rank)}  attackers ${r8(y.ai_tokens)}`;   // revamp 1B: the hidden rank (only here)
+    return `${act}${where}${rank}  pack: ${lab.packStatus()}`;
   };
   // the game.json stage form keeps build_tables.py format's key order: enemy, pick, not_boss, set, x / walk_in, z, tint
   function canon(d) {

@@ -14,7 +14,7 @@ shutil.copy(os.path.join(game, 'brawler.neo'), os.path.join(out, 'game.neo'))
 with zipfile.ZipFile('/data/roms/neogeo.zip') as src, zipfile.ZipFile(os.path.join(out, 'neogeo.zip'), 'w', zipfile.ZIP_DEFLATED) as dst:
     for n in ('sp-u2.sp1', '000-lo.lo', 'sfix.sfix', 'sm1.sm1'): dst.writestr(n, src.read(n))
 layout, fsize, states, syms = harness._layout(game)
-want = ['lab', 'fighters', 'route_tab', 'bm_chars', 'mode', 'cam_x', 'projectiles', 'attract', 'phase', 'wave', 'lock_x', 'camp', 'game_ticks']
+want = ['lab', 'fighters', 'route_tab', 'bm_chars', 'mode', 'cam_x', 'projectiles', 'attract', 'phase', 'wave', 'lock_x', 'camp', 'game_ticks', 'ai_rank', 'ai_tokens']
 json.dump({'fields': layout, 'fsize': fsize, 'states': states, 'syms': {k: syms[k] for k in want if k in syms}, 'sizeof_bchar': syms.get('sizeof_bchar'),
            'version': open(os.path.join(game, 'VERSION')).read().strip()},
           open(os.path.join(out, 'layout.json'), 'w'))

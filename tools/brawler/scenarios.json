@@ -1657,5 +1657,60 @@
   "expect": "D: the full punch rush, 13 hits (five flurries, then the finisher) without pressing anything else. Down+D (MAX): 23 hits (nine flurries, then the MAX finisher).",
   "do_keys": "4:d,500:-,3:D,4:Dd",
   "proof": 1000
+ },
+ "rv1b-attack-tokens": {
+  "title": "At most 3 enemies come at you at once; the rest wait around you",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 4,
+   "wave": 0
+  },
+  "do": "Stage 5, the first wave (6 enemies). Stand still for 20 seconds and watch them (you will take hits; that is fine).",
+  "expect": "Never more than 3 of them walk in, get ready or attack at the same time; the others stand spread out around you (both sides, two rings), and one of them steps in only when an attacker has finished, been hit or knocked down.",
+  "do_keys": "1200:-",
+  "proof": 60
+ },
+ "rv1b-ready-pose": {
+  "title": "Before every attack the enemy shows a ready stance for a moment",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0
+  },
+  "do": "Stage 1, the first wave. Stand still and watch each enemy as it comes in close.",
+  "expect": "In range it stops and holds a stance that is not its idle (Terry, Ryo, Kyo: the fist pulled back of their strong punch) for a random moment, from a blink to a second, then strikes. Its idle breathing never turns straight into a punch without that pose.",
+  "do_keys": "900:-",
+  "proof": 60
+ },
+ "rv1b-windup": {
+  "title": "Wind-up by damage: jabs come fast, specials are announced",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "gap": 120
+  },
+  "do": "Stage 1's boss (Mr. Big) alone, 120 px in front of you. Stand still and watch his attacks for 20 seconds.",
+  "expect": "His jabs come out quickly after his ready stance (a tenth of a second); before a special he freezes in its first pose for about half a second, so you can see it coming and jump or walk away.",
+  "do_keys": "1200:-",
+  "proof": 60
+ },
+ "rv1b-rank": {
+  "title": "Playing well makes the enemies keener (hidden rank)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0
+  },
+  "do": "Stage 1: clear the waves fast without getting hit (the Brawler Lab's status line shows 'rank n'). Then let yourself be beaten once.",
+  "expect": "The rank starts at 8 and climbs (a wave cleared fast: +1, untouched: +1, every 10 seconds without a hit: +1): the enemies wait less before attacking and rest less between attacks, and from rank 11 newly arriving enemies hit 1 harder (2 from 22). Losing a life drops it by 4. It is never shown in the game itself.",
+  "do_keys": "",
+  "proof": 60
  }
 }
