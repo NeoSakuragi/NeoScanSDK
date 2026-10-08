@@ -76,8 +76,8 @@ specials (Bruno: overkill for now).
 
 ### Terry (gold)
 - **Blitz**: ff+A Body Toss, dd+A Power Charge (= 426B), du+A Crack Shoot (= 214D), uu+A Power Wave (= 236C).
-- **Specials (C + dir)**: down = Power Dunk, forward = Burn Knuckle, else = Rising Tackle. (Verify which decoded 623
-  clip is Power Dunk vs Rising Tackle.)
+- **Specials (C + dir)** — FINAL (Bruno 2026-10-08): forward + C = Power Dunk (623D), down + C = Burn Knuckle (214C),
+  C in any other direction = Rising Tackle (623C, the upside-down spin; checked on the clips).
 - Chain / finishers / roles / retimes: per the earlier Terry gold section + review (more changes may follow).
 
 ### Jumps (Bruno 2026-10-08)
@@ -107,8 +107,8 @@ specials (Bruno: overkill for now).
 - Last hit with forward: forward + A (2 hits). With down: crouch D sweep. With up: down-forward + C.
 - Page feedback: the clip-per-move chain view needs too much scrolling on a phone → chains must render as ONE compact
   row (small looping clips with arrows), the whole sequence on one screen.
-- Breaker (C or A+B while being hit): the stick picks, the same mapping as the C specials (neutral = Rising Tackle).
-  Open: Bruno said forward = Power Dunk here, while the C mapping above has down = Power Dunk, forward = Burn Knuckle.
+- Breaker (C or A+B while being hit) = ALWAYS the fighter's neutral C special, whatever the stick says (rule for every
+  fighter). Terry: Rising Tackle.
 - Fury = Power Geyser, MAX = the triple geyser. Super throw: dropped (forward / back + C in the hold = the normal throw).
 - Air: forward jump + A = jump D, straight jump + A = jump CD (startup sped up), down + A = jump A (flinch, active for
   the rest of the jump). Cancel: down + A first, then the jump attack. The chain always starts on the ground at link 1.
