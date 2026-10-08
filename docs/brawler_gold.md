@@ -127,4 +127,4 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
   advantage to start another combo (a tribute to his Kizuna infinite; "comprendra qui pourra"). down + C = $4D, the same
   concept: a double hit that leaves Kim net positive for a reset.
 - Fury = the Phoenix (6246A). MAX = the same Phoenix for now ("we'll build an even crazier custom dance" later).
-- Size: 0.92 of today's (115 -> ~106 px; Terry 100).
+- Size: 0.92 of today's (115 -> ~106 px; Terry 100). Kept against the official-height 0.86 (docs/brawler_heights.md): Bruno, "Kizuna has this big SNK sprites feel anyways".
