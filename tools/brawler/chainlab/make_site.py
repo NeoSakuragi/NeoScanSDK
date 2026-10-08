@@ -18,6 +18,7 @@ want = ['lab', 'fighters', 'route_tab', 'bm_chars', 'mode', 'cam_x', 'projectile
 json.dump({'fields': layout, 'fsize': fsize, 'states': states, 'syms': {k: syms[k] for k in want if k in syms}, 'sizeof_bchar': syms.get('sizeof_bchar'),
            'version': open(os.path.join(game, 'VERSION')).read().strip()},
           open(os.path.join(out, 'layout.json'), 'w'))
+from move_images import Rom
 import routes, move_images                      # the move picker's pictures: each move's impact frame(s), from the ROM's tables
 lab = json.load(open(os.path.join(game, 'build', 'chainlab.json')))
 lab['pics'] = move_images.move_images(game, out, [f['name'] for f in lab['fighters']], routes.MOVE_NAMES)
@@ -95,7 +96,10 @@ json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
 # the Select screen tab: the build's select screen as data (select_images.py: the ROM's pictures, the fix layer from our
 # emulator, the pose candidates above as palette indices) for selectrender.js
 json.dump(select_images.select_data(game, poses), open(os.path.join(out, 'select.json'), 'w'))
-for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js', 'expose.js', 'micnote.js', 'decide.js', 'decisions.json', 'decide.html'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+for f in ('index.html', 'app.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js', 'expose.js', 'micnote.js', 'decide.js', 'decisions.json', 'decide.html', 'review.html', 'review.js'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+# the fighter review pages (revamp phase 4, review.html): pieces, appeal, my proposal, clips (tools/brawler/review_build.py)
+import review_build
+review_build.build(out, game, review_build.REVIEW, Rom(os.path.join(game, 'build')), lab, G)
 print('site data in', out)
 
 # "Oldies quirks" tab: quirks.json + its images (paths in quirks.json are relative to QUIRK_SRC; copied under quirks/)

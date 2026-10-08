@@ -49,6 +49,15 @@ one. Each phase merges into `brawler` and ships as a release so Bruno can feel i
 - Per fighter: archetype, the tagged piece library (punch / kick, high / mid / low, launcher / sweep, reach, startup,
   appeal score), my proposed chain + finishers + throws, looping clips; Keep / Drop / None of these + mic notes.
 - Order: a fast, a balanced and a heavy first (e.g. Kim, Terry, Krauser), then the rest.
+- Built 2026-10-08 (generic, any roster fighter): `tools/brawler/pieces.py` (the catalogue: normals, command normals,
+  jump normals, the C slots' specials' first hits played from their ROM programs (retime.Prog; segments equal to the
+  export's for every program special), the back throw; tags from the data; the APPEAL formula in its docstring: 20
+  points each for drawings, evenness, pose travel, a clear contact frame, joins with idle; the proposal: builders by
+  appeal + flow (contact pose -> next start pose, victim in reach, never strong -> light, limb / height variety,
+  archetype), finishers by stick with alternatives); `tools/brawler/review_build.py` (clips: one entry per game frame,
+  sprite sheet per fighter; `REVIEW` = the fighters built); `tools/brawler/chainlab/review.html` + `review.js` (the
+  page, answers in the decisions store, set `review-<fighter>`); `tools/brawler/review_proof.py` (frame counts vs the
+  data, headless pages at phone / desktop width, 59.18 frames a second). Page: canneji.duckdns.org/brawler-lab/review.html.
 
 ## Phase 5 — the chain tool
 - Lab preview (pieces, startup / active / recovery handles, live boxes / damage / advantage) and push into the running
