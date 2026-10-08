@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fighter Review</title>
+<style>
+/* Brawler revamp phase 4: one fighter's pieces and my chain proposal (behind the Oros login, like the Lab). Black on
+   white, solid borders, the chosen answer filled AND marked with a check (e-ink). review.js + micnote.js; data from
+   review_build.py (review/<fighter>.json + .png). */
+:root { --line: 2px solid #000; color-scheme: light; }
+html, body { background: #fff; color: #000; }
+body { margin: 0; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 60px; }
+#rev { max-width: 820px; margin: 0 auto; }
+h1 { font-size: 24px; margin: 4px 0 6px; }
+h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 3px solid #000; padding-bottom: 3px; margin: 26px 0 8px; }
+nav.who { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+nav.who a { border: var(--line); padding: 5px 10px; color: #000; text-decoration: none; font-weight: 700; }
+nav.who a[aria-current="page"] { background: #000; color: #fff; }
+.status { border: var(--line); display: inline-block; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 14px; }
+.intro { font-size: 15px; }
+details.formula { border: var(--line); padding: 6px 10px; font-size: 14px; margin: 8px 0; }
+details.formula summary { font-weight: 700; cursor: pointer; }
+.card { border: var(--line); padding: 12px; margin: 14px 0; display: flex; flex-direction: column; gap: 9px; }
+.card > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.card h3 { margin: 0; font-size: 19px; line-height: 1.2; }
+.rank, .score { font-family: ui-monospace, monospace; font-size: 14px; border: var(--line); padding: 1px 6px; }
+.score b { font-size: 16px; }
+.clip { display: flex; flex-direction: column; gap: 5px; }
+.clip canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; background: #fff; }
+.ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
+.ctl button, .more { font: inherit; font-size: 14px; background: #fff; color: #000; border: var(--line); padding: 5px 9px; cursor: pointer; }
+.ctl button[aria-pressed="true"] { background: #000; color: #fff; }
+.ctl .fcount { font-family: ui-monospace, monospace; font-size: 13px; }
+.strip { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+.strip figure { margin: 0; border: 1px solid #000; display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
+.strip figure.hit { border: 3px solid #000; }
+.strip figcaption { font: 12px ui-monospace, monospace; padding: 0 3px; }
+.strip canvas { display: block; image-rendering: pixelated; }
+dl.tags { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; font-size: 15px; }
+dl.tags dt { font-weight: 700; }
+dl.tags dd { margin: 0; }
+.parts { font-size: 14px; margin: 0; }
+.parts li { margin: 1px 0; }
+.dopts { display: flex; flex-direction: column; gap: 7px; }
+.dopts button { font: inherit; font-size: 16px; text-align: left; display: flex; gap: 10px; padding: 9px 11px; background: #fff; color: #000; border: var(--line); cursor: pointer; }
+.dopts button[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
+.dopts .mark { font-family: ui-monospace, monospace; width: 1.3em; flex: 0 0 auto; }
+.dnote textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
+.dsaved { font-family: ui-monospace, monospace; font-size: 12px; min-height: 1em; }
+.ctx { margin: 0; font-size: 15px; }
+.more { display: block; width: 100%; font-size: 16px; padding: 10px; margin: 10px 0; font-weight: 700; }
+button:focus-visible, a:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
+@media (max-width: 520px) { body { font-size: 16px; } .card { padding: 9px; } }
+</style>
+</head>
+<body>
+<main id="rev"><p>Loading…</p></main>
+<script src="micnote.js"></script>
+<script src="review.js"></script>
+</body>
+</html>
