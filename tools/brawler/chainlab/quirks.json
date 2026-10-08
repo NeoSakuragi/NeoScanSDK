@@ -30,6 +30,20 @@
    ]
   },
   {
+   "game": "The King of Fighters '95 (SNK, 1995)",
+   "title": "The glitch inside the glitch works on the ground too — and Yuri's mystery move",
+   "do": "Enter a fury on the exact frame the MAXIMUM bar runs out, standing on the ground.",
+   "happens": "Each character performs a fixed regular special instead (Ryo: Hien Shippu Kyaku without its charge). Yuri does a short hop kick that is not one of her command moves.",
+   "why": "Every fury handler re-checks the power on entry ($4918) and, on failure, jumps to a hard-wired fallback: Heidern [2]8K, Ralf / Chang / Choi [4]6P, Athena 214P, Kensou 41236P, Kyo / Benimaru / Chin 623P, Iori / Eiji / King 63214K, Kim 214K, Terry [2]8P, Andy 16K, Joe 2369K, Ryo / Robert / Takuma Hien Shippu Kyaku, Mai 41236K, Saisyu 236P, Omega Rugal 63214P, Billy his PPPP mash. Yuri's points at $2F536 (KOF94 $29D70): states 112-114, a hop that no input reaches otherwise. On the ground it looks like an ordinary move, so nobody noticed. The air version only exists for Ryo and Kim: no other character's fury input also completes an air move on one press (the second button arrives 4 frames late, after a jump normal has started), and Athena's / Choi's fury refuses the air outright.",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "kof95_airfury/glitch2_ground_kof95_yuri_sheet.png",
+     "caption": "Yuri: fury input on the MAX-expiry frame on the ground → the hidden hop move ($2F536)"
+    }
+   ]
+  },
+  {
    "game": "The King of Fighters '94 (SNK, 1994)",
    "title": "The air fury, KOF94 version",
    "do": "Ryo: 2 3 6 2 4 then C on a neutral stick, in the air at full power. Kim: his fury only at the very top of his jump.",
