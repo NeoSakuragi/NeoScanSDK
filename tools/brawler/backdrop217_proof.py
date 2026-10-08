@@ -41,7 +41,7 @@ def play(b, k, keys, n=420):
     b.pick(k)
     for i, ch in enumerate(b'LAB1'): b.w(L + i, 1, ch)
     b.w(L + 5, 1, k); b.w(L + 6, 1, 0); b.w(L + 4, 1, 1)
-    b.run(40); b.fset(0, 'meter', 120)
+    b.run(40); b.fset(0, 'meter', 300)
     dm = next(i for i in range(1, 8) if b.states[b.fget(i, 'state')] != 'OFF')
     b.place(dm, x=130); b.place(0, x=70, z=b.fget(dm, 'z')); b.fset(0, 'facing', 1); b.run(5)
     ims = []

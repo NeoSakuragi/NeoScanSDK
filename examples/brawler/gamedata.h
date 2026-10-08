@@ -58,15 +58,20 @@ typedef struct {
 } gairules_t;
 extern const gairules_t gai;      /* (game_tables.h: ai_ready[BC_COUNT][2], each fighter's ready stance: BA_*, step; 0xFF the tint pulse) */
 
-/* ---- layer 2: the special meter (TODO #71, fighter.c "special meter"): game.json "meter"; players only ---- */
+/* ---- layer 2: the meter (revamp phase 2, docs/brawler_feel.md 8h; fighter.c "the meter"): game.json "meter"; players
+ * only. 3 stocks = 300 points; a special 100, a breaker (a special out of a hit) 200, a fury 300, the MAX 300 in the red
+ * state (life at or under low % of the full life); short of the meter a special / a breaker costs life instead (never
+ * the last point), short of both nothing plays ---- */
 typedef struct {
-    uint16_t max;                 /* a full gauge (every player starts full) */
-    uint16_t special;             /* a special's cost (C) */
-    uint16_t fury, fury_min;      /* a fury's (C) cost; the meter it needs */
+    uint16_t max;                 /* a full gauge (every player starts full, and at a new life) */
+    uint16_t stock;               /* points a stock (the HUD's dots) */
+    uint16_t special, breaker;    /* a special's cost (C), a breaker's (C in a hit stun / held) */
+    uint16_t fury, maxf;          /* a fury's (D), the MAX's (down+D in the red state) */
     uint8_t  refill;              /* frames per point regained */
-    uint8_t  hit_mul;             /* a special out of a hit (hitstun / a hold on him) costs this many times as much */
-    uint8_t  flash;               /* frames the palette flashes white when it did */
-    uint8_t  infinite;            /* 1: nothing is spent, the gauge stays full (game.json meter.infinite; for the time being, 2026-10-06) */
+    uint8_t  life_special, life_breaker;   /* life paid instead with too little meter */
+    uint8_t  low;                 /* the red state: life <= low % of the full life (and > 0) */
+    uint8_t  blink;               /* the breaker's blink: frames white, then as many in its colours */
+    uint8_t  infinite;            /* 1: nothing is spent, the gauge stays full (a test switch; 0 since revamp phase 2) */
 } gmeter_t;
 extern const gmeter_t gmeter;
 

@@ -20,7 +20,7 @@ def r1(n): return b.r(S[n], 1)
 win = []                                                  # (hud_tick window end, CPU %)
 last = {'tick': None, 'spins': None}
 def watch(bb):
-    bb.fset(0, 'hp', 60); bb.fset(0, 'meter', 120)
+    bb.fset(0, 'hp', 60); bb.fset(0, 'meter', 300)
     t = bb.r(S['hud_tick'], 2); s = bb.r(S['hud_min_spins'], 2)
     if last['tick'] is not None and t != last['tick'] and (t & 15) == 0 and last['spins'] not in (None, 0xFFFF):
         idle = (last['spins'] * 7) >> 8

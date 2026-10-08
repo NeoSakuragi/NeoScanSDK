@@ -926,11 +926,16 @@ static uint8_t cont_digit(uint8_t p) {           /* 9 .. 0 */
     return (uint8_t)r;
 }
 /* bars: 0 P1, 1 right block (P2, or P1's target alone), 2 P1's target under P1, 3 P2's target under P2, 4 the boss,
- * 5 / 6 P1's / P2's special meter (TODO #71: row 3 under the name, 8 cells, the life bar's glyphs in METER_PAL) */
+ * 5 / 6 P1's / P2's meter (TODO #71: row 3 under the name, 8 cells, the life bar's glyphs in METER_PAL). Revamp 2 (Bruno
+ * 2026-10-08: "3 stocks = 300 points, one bar with dots"): the bar shows the whole gauge, three dots beside it (inside
+ * the bar's end: P1 right of its bar, P2 left of its) one per stock, a disc when full, a ring when not (STOCK_TILE: shapes,
+ * e-ink readable), and in the red state (fighter_low: the MAX may play) "MAX" next to them, blinking (8 frames on, 8 off) */
 #define METER_CELLS 8
+#define STOCKS      3                    /* the dots (gmeter.max / gmeter.stock) */
 #define METER_PAL 4                      /* fix palette 4: palette 0 with the bar colours' red and blue swapped */
 static bar_t bars[7];
 static uint8_t boss_shown;
+static uint8_t hud_stk[2];                       /* the dots + MAX mark shown per player: stocks | 0x10 MAX shown, 0xFF none yet */
 static fighter_t *hud_tgt[4];
 static int8_t hud_lives[2];
 static uint16_t hud_cont[2];
@@ -986,7 +991,7 @@ static void hud_reset(void) {
         for (c = 0; c < BOSS_CELLS; c++) bars[p].cell[c] = 0;
     }
     boss_shown = 0;
-    for (p = 0; p < 2; p++) { hud_lives[p] = -1; hud_cont[p] = 0xFFFF; hud_face[p] = 0xFE; }
+    for (p = 0; p < 2; p++) { hud_lives[p] = -1; hud_cont[p] = 0xFFFF; hud_face[p] = 0xFE; hud_stk[p] = 0xFF; }
     hud_two = 0xFF;
 }
 static void hud_name(uint8_t right, uint8_t row, const char *name) {   /* pinned to its corner, beside the portrait */
@@ -1024,7 +1029,18 @@ static void hud(void) {
         uint8_t face = char_index(f->ch), pc = p ? 35 : 1, lc = p ? 32 : 5, cc = p ? 20 : 9;   /* lives / continue cols */
         if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face, p); hud_name(p, 1, f->ch->name); }
         bar_draw(&bars[p], in_play(f) ? f->hp : 0, f->hp_max);
-        bar_draw(&bars[5 + p], in_play(f) ? (int16_t)f->meter : 0, (int16_t)gmeter.max);   /* the special meter */
+        bar_draw(&bars[5 + p], in_play(f) ? (int16_t)f->meter : 0, (int16_t)gmeter.max);   /* the meter */
+        {   uint8_t k = 0, v, c0 = p ? 35 - METER_CELLS - STOCKS : 5 + METER_CELLS;   /* its dots, its MAX mark */
+            uint16_t m = in_play(f) ? f->meter : 0;
+            while (k < STOCKS && m >= gmeter.stock) { m -= gmeter.stock; k++; }
+            v = k | (in_play(f) && fighter_low(f) && !(hud_tick & 8) ? 0x10 : 0);
+            if (v != hud_stk[p]) {
+                hud_stk[p] = v;
+                for (i = 0; i < STOCKS; i++)                     /* filled from the bar's side outward */
+                    fix_put(c0 + i, 3, (uint16_t)METER_PAL << 12 | (STOCK_TILE + ((p ? STOCKS - 1 - i : i) >= k)));
+                FIX_print(p ? c0 - 4 : c0 + STOCKS + 1, 3, v & 0x10 ? "MAX" : "   ", 0);
+            }
+        }
         if (lives[p] != hud_lives[p]) { hud_lives[p] = lives[p]; FIX_print(lc, 2, "x ", 0); FIX_printNum(lc + 1, 2, lives[p], 0); }
         i = cont_t[p] && !cont_ov ? cont_digit(p) + 1 : 0;   /* the count here while the other player fights on */
         if (i != hud_cont[p]) {
@@ -2347,7 +2363,8 @@ static void lab_stage(void) {
 }
 static void lab_flow(void) {
     fighter_t *p = &fighters[0], *d = &fighters[LAB_DUMMY];
-    p->hp = LIFE;                                             /* nobody hits P1; a dummy never dies */
+    if (!lab.p1_life) p->hp = LIFE;                           /* nobody hits P1 (lab.p1_life: its life left alone, the
+                                                                 meter proofs); a dummy never dies */
     if (lab.active == 2) {                                    /* the enemy test: it fights; beaten, it comes again */
         if (d->state == S_DEAD && d->state_t > 60) lab_enemy();
         if (in_play(p) && (JOY_pressed(0) & JOY_START)) dbg_on ^= 1;

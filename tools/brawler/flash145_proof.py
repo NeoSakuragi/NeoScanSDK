@@ -91,7 +91,7 @@ def run_one(name):
     ex, ez = b.fget(e, 'x'), b.fget(e, 'z')
     cam = b.r(b.syms['cam_x'], 2)
     side = -1 if ex - cam > 160 else 1                   # P1 on the side of the enemy with room on the screen
-    b.place(0, x=ex + side * 50, z=ez); b.fset(0, 'facing', (-side) & 0xFF); b.fset(0, 'meter', 120); keep(b)
+    b.place(0, x=ex + side * 50, z=ez); b.fset(0, 'facing', (-side) & 0xFF); b.fset(0, 'meter', 300); keep(b)
     b.run(1, each=keep)
     hp0 = {i: b.fget(i, 'hp') for i in enemies()}
     rows, shots_flash, shots_fury, started, flash_end, first_hit, end = [], [], [], None, None, None, None

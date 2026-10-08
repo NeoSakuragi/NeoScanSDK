@@ -10,13 +10,14 @@ Per fighter: A from far / close / crouch / forward (the route tree's root link t
 down+A / up+A, B jumps (vertical / forward / back), A and B acting the frame they are pressed (no chord wait), a B
 jump-cancel link in a route (its air node played by A), C in each of the six slots (the stick picks it) and A+B together
 playing no special (the chord is retired), D fury and down+D its MAX version (TODO #139: bchar_t.fury_max, the fury
-when the fighter has none) with a full meter and at 59, meter drain / refill numbers, a special out of a hit (double cost,
-white flash). game.json meter.infinite (2026-10-06): nothing is spent, the gauge stays full, a fury plays at 59 too."""
+when the fighter has none) with a full meter (revamp 2: the MAX in the red state, life at meter.low %) and at fury - 1,
+meter drain / refill numbers, a special out of a hit (revamp 2: the breaker, meter.breaker, its sprite blinking to its
+end: brk). game.json meter.infinite (a test switch): nothing is spent, the gauge stays full, a fury plays short too."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
 import routes as RT, export_bm
-from labdrive import Lab
+from labdrive import Lab, PACK_STAT_OFF
 from PIL import Image, ImageDraw
 
 OUT = sys.argv[1]; os.makedirs(OUT, exist_ok=True)
@@ -39,7 +40,7 @@ def run(n, k=''): b.run(n, p1=k)
 def settle(meter=None):
     for _ in range(900):                                      # (Kuroko's MAX rage holds its dummy ~580 frames, then
                                                               # its flight, landing and get-up: SS2's own length)
-        if st(0) == 'IDLE' and st(2) in ('IDLE', 'WALK') and not b.fget(0, 'shot') and not b.fget(0, 'flash') and not b.fget(0, 'chain_t'): break
+        if st(0) == 'IDLE' and st(2) in ('IDLE', 'WALK') and not b.fget(0, 'shot') and not b.fget(0, 'brk') and not b.fget(0, 'chain_t'): break
         run(1)
     else: raise RuntimeError('P1 never idle: ' + b.brief((0, 2)))
     if meter is not None: b.fset(0, 'meter', meter); b.fset(0, 'meter_t', 0)   # (and the frames toward the next point)
@@ -164,7 +165,10 @@ for ci, name in enumerate(names):
     if form and form['trigger'] == 'down+D full meter':      # (docs/brawler_move_vocabulary.md "Form link"): BS_FORM
         mix, BS_MAX = pool.index(form['transition']), BS_FORM   # (the training is started again for what follows)
     else: BS_MAX = BS_FURY
-    settle(M['max']); setpos(60); run(1, 'Dd'); run(1); s2 = st(0)
+    if not form:                                             # the MAX: down+D in the red state only (revamp 2)
+        settle(M['max']); b.w(L.lab + PACK_STAT_OFF + 1, 1, 1); b.fset(0, 'hp', 60 * M['low'] // 100)
+    else: settle(M['max'])
+    setpos(60); run(1, 'Dd'); run(1); s2 = st(0)
     r['fury']['max'] = {'kof': form['transition'] if form else mx if mx in pool else 'MAX ' + fury if mix != fix else fury, 'state': s2, 'spec_id': b.fget(0, 'spec_id'),
                         'spec_ix': b.fget(0, 'spec_ix'), 'want_ix': mix, 'meter': b.fget(0, 'meter')}
     if form:
@@ -175,30 +179,34 @@ for ci, name in enumerate(names):
         L.start(ci, 1 if ci == 0 else 0); run(30)
     if fury and mix != fix:
         run(20); p = os.path.join(OUT, f'fury_max_{name}.png'); b.screenshot(p); fury_shots.append((name, 'MAX ' + fury, p))
-    settle(M['fury_min'] - 1); run(3, 'd'); seen = set()
+    b.w(L.lab + PACK_STAT_OFF + 1, 1, 0)                     # (P1's life held full again)
+    settle(M['fury'] - 10); run(3, 'd'); seen = set()          # (- 10: a refill point never closes the gap)
     for _ in range(20): seen.add(st(0)); run(1)
     r['fury']['at_59'] = {'states': sorted(seen), 'meter': b.fget(0, 'meter')}
     f_ok = s == 'SPECIAL' and r['fury']['full']['spec_id'] == BS_FURY and r['fury']['full']['spec_ix'] == fix and \
         r['fury']['full']['meter'] == M['max'] - cost(M['fury'])
     m_ok = s2 == 'SPECIAL' and r['fury']['max']['spec_id'] == BS_MAX and r['fury']['max']['spec_ix'] == mix and \
-        r['fury']['max']['meter'] == M['max'] - cost(M['max'] if form else M['fury']) and \
+        r['fury']['max']['meter'] == M['max'] - cost(M['max'] if form else M['max_fury']) and \
         (not form or r['fury']['max']['became'] == form['target'])
     r['fury']['ok'] = (f_ok and m_ok and (('SPECIAL' in seen) if INF else ('SPECIAL' not in seen))) if fury else \
         (s != 'SPECIAL' and s2 != 'SPECIAL' and 'SPECIAL' not in seen)
     # ---- meter numbers: refill ------------------------------------------------------------------------------------------
     settle(0); m0 = b.fget(0, 'meter'); run(100); r['meter']['refill_100_frames'] = b.fget(0, 'meter') - m0
     r['meter']['ok'] = b.fget(0, 'meter') == M['max'] if INF else r['meter']['refill_100_frames'] in (100 // M['refill'], 100 // M['refill'] - 1)
-    # ---- a special out of a hit: double cost, white flash -----------------------------------------------------------------
+    # ---- a special out of a hit: the breaker (revamp 2: meter.breaker, its sprite blinking white to its end) ---------------
     hd = r['hit_special'] = {'ok': False}
     for dist in (26, 32, 20, 38):
         settle(M['max']); setpos(dist); b.intent(2, press=1, face=-1); run(1)
         if watch(40, ('HITSTUN',))[0] != 'HITSTUN': continue
         while b.fget(0, 'freeze'): run(1)
         run(1, 'c'); run(1); s = st(0)
-        hd.update({'dist': dist, 'state': s, 'meter': b.fget(0, 'meter'), 'flash': b.fget(0, 'flash'), 'want_meter': M['max'] - cost(M['hit_mul'] * M['special'])})
+        hd.update({'dist': dist, 'state': s, 'meter': b.fget(0, 'meter'), 'brk': b.fget(0, 'brk'), 'want_meter': M['max'] - cost(M['breaker'])})
         if ci == 0 or name in ('ryo', 'haohmaru'): b.screenshot(os.path.join(OUT, f'flash_{name}.png'))
-        run(M['flash'] + 2); hd['flash_after'] = b.fget(0, 'flash')
-        hd['ok'] = s == 'SPECIAL' and hd['meter'] == hd['want_meter'] and hd['flash'] > 0 and hd['flash_after'] == 0
+        for _ in range(600):
+            if st(0) != 'SPECIAL': break
+            run(1)
+        run(1); hd['brk_after'] = b.fget(0, 'brk'); hd['ovl_after'] = b.fget(0, 'ovl')
+        hd['ok'] = s == 'SPECIAL' and hd['meter'] == hd['want_meter'] and hd['brk'] > 0 and hd['brk_after'] == 0 and hd['ovl_after'] == 0
         break
     if ci == 0: settle(70); setpos(120); run(10); b.screenshot(os.path.join(OUT, 'hud_meter.png'))
     oks = {'normals': all(v['ok'] for v in r['normals'].values()), 'air': all(v['ok'] for v in r['air'].values()),

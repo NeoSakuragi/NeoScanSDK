@@ -149,7 +149,7 @@ def proof_all(out, game=harness.GAME, names=None):
                 b.run(30)
                 b.w(S['spec_tab'] + 4 * fi, 4, MAP)
                 for j in range(6): b.w(MAP + j, 1, k if j == 0 else 0xFF)
-                b.fset(0, 'meter', 120); b.fset(0, 'facing', 1)
+                b.fset(0, 'meter', 300); b.fset(0, 'facing', 1)
                 if case == 'close': b.place(2, x=b.fget(0, 'x') + 34, z=b.fget(0, 'z'))
                 else: b.place(2, x=b.fget(0, 'x') + 260, z=b.fget(0, 'z') + 40)
                 b.run(2)

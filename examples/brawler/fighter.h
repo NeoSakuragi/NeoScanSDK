@@ -192,7 +192,8 @@ typedef struct {
     uint16_t combo_dmg;
     lab_ev_t ev[LAB_NEV];
     uint8_t  buf[LAB_BUF];
-    uint8_t  pack_stat, pack_pad; /* game: GD_* (gamedata.h) of the last load 3 / 4 */
+    uint8_t  pack_stat;           /* game: GD_* (gamedata.h) of the last load 3 / 4 */
+    uint8_t  p1_life;             /* page / proofs: 1 = P1's life left to the game (0: held full, nobody hurts P1) */
     uint8_t  pack[GD_MAX];        /* page: a data pack (load 3) */
 } lab_t;
 extern lab_t lab;
@@ -284,8 +285,8 @@ typedef struct fighter {
     uint8_t  kmode, kdelay;
     int8_t   spec_slide;          /* special: the reel slide of the hit window open (px, bspec_row_t.vx; -128: KOF98's 258, 65 px) */
     uint8_t  air_node;            /* a jump-cancel in progress: the route node A plays in this jump (0 = the tree's air entries) */
-    uint8_t  flash;               /* frames left of the white flash (a special out of a hit spent double meter) */
-    uint16_t meter;               /* the special meter (players; gmeter: full at the start, specials and furies spend it) */
+    uint8_t  flash;               /* frames left of a white flash (ai.c's ready pulse; meter_tick gives the colours back) */
+    uint16_t meter;               /* the meter (players; gmeter: full at the start, specials, breakers and furies spend it) */
     uint8_t  meter_t, pad_m;      /* frames toward the next point regained */
     uint8_t  spart, sarm;         /* special: the part playing (bspec_t.parts), the follow-up link armed + 1 (0 = none;
                                    * fighter.c "follow-ups") */
@@ -382,7 +383,15 @@ typedef struct fighter {
     uint16_t rt_n, rt_err;
     uint8_t  rt_nseg, rt_p, rt_debt, rt_flags, rt_hold, rt_pad;
     int32_t  rt_dx, rt_dy;
+    /* the meter and the damage tiers (revamp 2, fighter.c "the meter", "damage tiers"): dsc = the tier scale (8.8) of the
+     * special playing (a projectile: its thrower's at its spawn); dacc = the fraction of a scaled hit carried to the next
+     * (the owner's, for its objects too); brk = a breaker plays (it blinks white); ovl = the palette overlay shown (0 its
+     * colours, OVL_WHITE the breaker's blink, OVL_RED the red state's); fmax = the fury playing started as the MAX */
+    uint16_t dsc;
+    uint8_t  dacc, brk, ovl, fmax;
 } fighter_t;
+enum { OVL_WHITE = 1, OVL_RED = 2 };
+uint8_t fighter_low(const fighter_t *f);   /* the red state (gmeter.low): the MAX may play; the HUD's MAX mark */
 enum { RT_ON = 1, RT_FIRST = 2, RT_END = 4 };   /* rt_flags: retimed; a program's first frame (one source frame, not
                                    * counted); a segment ended this frame */
 typedef struct { uint8_t fighter, nseg; uint16_t move; const uint16_t *t; } gretime_t;   /* a move's targets (build_tables.py

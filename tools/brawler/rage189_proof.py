@@ -31,7 +31,7 @@ def voice_run(name, out):
     orig = harness.Brawler.run
     def run(self, n=1, p1='', p2='', each=None):
         for _ in range(n):
-            self.fset(0, 'meter', 120)
+            self.fset(0, 'meter', 300)
             orig(self, 1, p1, p2, each); fp[self.frame] = self.fget(0, 'fpose')
     harness.Brawler.run = run
     os.environ['VP_SCRIPT'] = '60:-,2:d,120:-'

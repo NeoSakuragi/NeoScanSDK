@@ -90,7 +90,7 @@ def run_brawler(fighter, keys, out):
     for i, v in enumerate(b'LAB1'): b.w(L + i, 1, v)
     b.w(L + 5, 1, names.index(fighter)); b.w(L + 6, 1, names.index('terry' if fighter != 'terry' else 'ryo')); b.w(L + 4, 1, 1)
     b.run(30)
-    b.fset(0, 'meter', 120); b.fset(0, 'facing', 1); b.place(2, x=b.fget(0, 'x') + 260, z=b.fget(0, 'z') + 40)
+    b.fset(0, 'meter', 300); b.fset(0, 'facing', 1); b.place(2, x=b.fget(0, 'x') + 260, z=b.fget(0, 'z') + 40)
     b.run(2)
     log.clear(); rec[0] = True
     sent, oqt, flash = [], b.r(S['qt'], 1), None

@@ -37,7 +37,7 @@ def brawler(b, k, sdm):
     x0 = b.fget(0, 'x'); z0 = b.fget(0, 'z')
     foes = [i for i in range(1, 8) if b.fget(i, 'hp') > 0 and st[b.fget(i, 'state')] not in ('DEAD', 'NONE', 'OFF')]
     v = min(foes, key=lambda i: abs(b.fget(i, 'x') - x0) + abs(b.fget(i, 'z') - z0))
-    b.fset(0, 'facing', 1); b.fset(0, 'meter', 120)
+    b.fset(0, 'facing', 1); b.fset(0, 'meter', 300)
     b.place(v, x=x0 + 48, z=z0); b.fset(v, 'facing', -1); b.fset(v, 'hp', 300)
     h0 = len(b.hits); keys = 'Dd' if sdm else 'd'
     rows, cells, started, end = [], [], None, None

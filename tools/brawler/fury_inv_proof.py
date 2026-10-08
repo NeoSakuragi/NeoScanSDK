@@ -26,7 +26,7 @@ def setup(b, k, start, d, whiff):
     st = b.states.index
     for i in (0, VICTIM) + MINIONS:
         b.fset(i, 'state', st('IDLE')); b.fset(i, 'hp', 60); b.fset(i, 'freeze', 0); b.fset(i, 'inv', 0); b.fset(i, 'y', 0)
-    b.place(0, x=100, z=20); b.fset(0, 'facing', 1); b.fset(0, 'meter', 120)
+    b.place(0, x=100, z=20); b.fset(0, 'facing', 1); b.fset(0, 'meter', 300)
     b.place(VICTIM, x=100 + d, z=20 + (60 if whiff else 0)); b.fset(VICTIM, 'facing', -1)
     for i in MINIONS: b.place(i, x=-200 if i == 4 else 400, z=20)   # out of the way until they swing
     for i in (VICTIM,) + MINIONS: b.intent(i)

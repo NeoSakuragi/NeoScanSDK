@@ -25,7 +25,7 @@ from PIL import Image, ImageDraw
 OUT = '/data/tmp/kyo198/out'
 ENEMY = 2
 
-def setup(b, roster, gap, meter=120):
+def setup(b, roster, gap, meter=300):
     b.pick(roster.index('kyo'), unlock=True); b.run(10)
     for i in range(1, 8): b.place(i, x=1000, z=0)
     b.place(0, x=80, z=30); b.fset(0, 'facing', 1)

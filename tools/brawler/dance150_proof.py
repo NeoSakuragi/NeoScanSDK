@@ -33,7 +33,7 @@ def setup(start, case):
     for i in (0, 2) + ((3, 4) if case == 'group' else ()):
         b.fset(i, 'state', st('IDLE')); b.fset(i, 'hp', 60); b.fset(i, 'freeze', 0); b.fset(i, 'inv', 0); b.fset(i, 'y', 0)
         b.fset(i, 'vx', 0); b.fset(i, 'vy', 0); b.intent(i)
-    b.place(0, x=100, z=20); b.fset(0, 'facing', 1); b.fset(0, 'meter', 120)
+    b.place(0, x=100, z=20); b.fset(0, 'facing', 1); b.fset(0, 'meter', 300)
     b.place(2, x=160, z=20); b.fset(2, 'facing', 0xFF)
     if case == 'group':
         b.place(3, x=140, z=62); b.fset(3, 'facing', 0xFF)    # the dead body: off the lane until its poke

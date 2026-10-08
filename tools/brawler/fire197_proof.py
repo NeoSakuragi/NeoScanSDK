@@ -53,7 +53,7 @@ def main(out, game=harness.GAME):
         b.w(L + 5, 1, fi); b.w(L + 6, 1, names.index('terry')); b.w(L + 4, 1, 1); b.run(30)
         b.w(S['spec_tab'] + 4 * fi, 4, MAP)
         for j in range(6): b.w(MAP + j, 1, k if j == 0 else 0xFF)
-        b.fset(0, 'meter', 120); b.fset(0, 'facing', 1)
+        b.fset(0, 'meter', 300); b.fset(0, 'facing', 1)
         b.place(2, x=b.fget(0, 'x') + dist, z=b.fget(0, 'z')); b.run(2)
         log.clear(); sent = []; oqt = b.r(S['qt'], 1); hit = None; burn = 0
         for f in range(260):

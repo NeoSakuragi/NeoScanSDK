@@ -48,7 +48,7 @@ class Proof:
         while b.states[b.fget(0, 'state')] != 'IDLE' and w < 300: b.run(1); w += 1
         b.place(0, x=x1, z=30)
         if gap is not None: b.place(VICTIM, x=x1 + facing * gap, z=30); b.fset(VICTIM, 'hp', 60)
-        if meter: b.fset(0, 'meter', 120)
+        if meter: b.fset(0, 'meter', 300)
         b.hits = []
 
     def press(self, role, facing, hold=0, frames=300, shots=None, every=4, until_down=True):

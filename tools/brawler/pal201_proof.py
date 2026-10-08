@@ -270,7 +270,7 @@ def game_run(gdir, tag, out):
             b.run(2)
             w = 0
             while b.states[b.fget(0, 'state')] != 'IDLE' and w < 300: b.run(1); w += 1
-            b.place(0, x=60, z=30); b.place(2, x=110, z=30); b.fset(0, 'meter', 120); b.fset(2, 'hp', 60)
+            b.place(0, x=60, z=30); b.place(2, x=110, z=30); b.fset(0, 'meter', 300); b.fset(2, 'hp', 60)
             assert b.fget(0, 'set') == st, (b.fget(0, 'set'), st)
             pb = b.fget(0, 'palbase'); seen = []; shot = None
             for f in range(200):

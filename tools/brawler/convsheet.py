@@ -290,7 +290,7 @@ FIGHTER_FEATURES = [
   'A paired attacker / victim script with impacts (the walk-in throws C / D).', 'bthrow_t / bthrow_row_t, throw_update'),
  ('hold', 'hold.grab_hold', [('hits', 'int', '3'), ('time', 'frames', '90')], 'Walk into a standing enemy: hold, knee hits, throw, escape.',
   'S_GRAB / S_GRABBED, GRAB_* (hold_update)'),
- ('presentation', 'fx.meter_flash', [('frames', 'int', '8')], 'A special out of a hit spends double meter and flashes white.', 'gmeter.flash'),
+ ('presentation', 'fx.meter_flash', [('frames', 'int', '4')], 'A breaker (a special out of a hit) costs 200 (else 12 life) and the sprite blinks white to its end; the red state (life <= 25 %) blinks red.', 'gmeter.blink'),
 ]
 
 # ---- the ruleset (as implemented in the brawler, per source) ------------------------------------------------------------
@@ -342,7 +342,7 @@ RULESET = [
   'disagreement': 'none inside the brawler; every source differs from it',
   'options': ['A. no guard (beat \'em up)', 'B. enemies guard (AI), players do not', 'C. full guard + chip for specials'],
   'recommend': 'B (later): needs a guard reaction in the vocabulary; A until then'},
- {'rule': 'meter', 'brawler_constant': 'max 120, special 30, fury 60 (needs 60), +1 per 10 frames, out of a hit x2 + white flash 8 frames (players only)',
+ {'rule': 'meter', 'brawler_constant': 'revamp 2: 3 stocks = 300, +1 per 4 frames; special 100 (else 6 life), breaker 200 (else 12 life, blinking), fury 300, MAX 300 in the red state (life <= 25 %) (players only)',
   'sources': {'KOF': 'power stocks / MAX dropped', 'Kizuna': 'desperation at life <= 96 dropped (421A, 6246A playable anytime)', 'SS4': 'rage / BUST conditions dropped', 'WHP': 'none'},
   'disagreement': 'source conditions (life-gated, stock) all replaced by one meter',
   'options': ['A. one meter (today)', 'B. one meter + optional life gate per fury', 'C. per source'], 'recommend': 'A'},

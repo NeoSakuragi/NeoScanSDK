@@ -162,7 +162,7 @@ def measure(game, out, tag):
         for j, i in enumerate(range(2, 8)):
             b.fset(i, 'state', st('IDLE')); b.fset(i, 'hp', 200); b.fset(i, 'y', 0); b.fset(i, 'freeze', 0)
             b.place(i, x=X[j] + 30, z=Z[j]); b.fset(i, 'facing', 0xFF)
-        b.place(0, x=130, z=24); b.fset(0, 'facing', 1); b.fset(0, 'meter', 120); b.fset(0, 'state', st('IDLE'))
+        b.place(0, x=130, z=24); b.fset(0, 'facing', 1); b.fset(0, 'meter', 300); b.fset(0, 'state', st('IDLE'))
         b.run(2)
         rows, shots, started = [], [], None; pr.prev = None; pr.frame()
         for f in range(320):

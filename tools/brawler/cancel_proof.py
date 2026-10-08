@@ -14,14 +14,15 @@ Per fighter:
                       special with D before its first hit: it plays to its end, no fury
   air normal -> special  no special starts in the air (S_AIR reads A only): air A that hits + C = no special in the air
   fury -> MAX         (TODO #151, rule 3) the fury (D) whose first hit lands, down+D pressed from that hit's hit-stop on
-                      (every frame until it takes or the fury ends): the MAX (bchar_t.fury_max: P1's spec_ix becomes the
+                      (every frame until it takes or the fury ends; revamp 2: in the red state, P1's life at meter.low %,
+                      the gauge topped up after each spend): the MAX (bchar_t.fury_max: P1's spec_ix becomes the
                       MAX's, spec_id stays the fury's) from its start with its own super flash (orange: main.c sf_col 1)
                       and invincibility; D alone after the hit: nothing; the fury whiffing + down+D: nothing; the MAX
                       after its own hit + down+D: never cancelled. A fighter without a MAX: down+D cancels nothing"""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
-from labdrive import Lab
+from labdrive import Lab, PACK_STAT_OFF
 
 OUT = sys.argv[1]; os.makedirs(OUT, exist_ok=True)
 GAME = os.path.join(HERE, '..', '..', 'examples', 'brawler')
@@ -36,12 +37,15 @@ SFC = b.syms.get('sf_col')                              # its colour: 0 blue (a 
 
 def st(i=0): return ST[b.fget(i, 'state')]
 def run(n, k=''): b.run(n, p1=k)
+RED = [False]                                           # revamp 2: the MAX only in the red state (fury_max's tests)
 def settle():
     for _ in range(900):
-        if st(0) == 'IDLE' and st(2) in ('IDLE', 'WALK') and not b.fget(0, 'shot') and not b.fget(0, 'flash') and not b.fget(0, 'chain_t'): break
+        if st(0) == 'IDLE' and st(2) in ('IDLE', 'WALK') and not b.fget(0, 'shot') and not b.fget(0, 'brk') and not b.fget(0, 'chain_t'): break
         run(1)
     else: raise RuntimeError('P1 never idle')
     b.fset(0, 'meter', M['max']); b.fset(2, 'hp', 60)
+    b.w(L.lab + PACK_STAT_OFF + 1, 1, 1 if RED[0] else 0)  # lab.p1_life: P1's life kept (the red state) or held full
+    if RED[0]: b.fset(0, 'hp', 60 * M['low'] // 100)
 def setpos(dist):
     cam = b.r(b.syms['cam_x'], 2); x0 = cam + 100
     b.place(0, x=x0, z=30); b.place(2, x=x0 + dist, z=30); b.fset(0, 'facing', 1); run(2)
@@ -95,8 +99,8 @@ def special_fury():
                 if b.fget(0, 'freeze') and b.fget(0, 'landed') and b.fget(0, 'y') == 0 and any(h[1] == 2 for h in b.hits[h0:]): hit_at = k; break
                 run(1)
             if hit_at is None: continue
-            # the hit: D in its hit-stop
-            run(1, 'd')
+            # the hit: D in its hit-stop (the meter topped up: the special spent its own, revamp 2's prices)
+            b.fset(0, 'meter', M['max']); run(1, 'd')
             tr = trace(40, lambda t: t[1] == BS_FURY or t[0] != 'SPECIAL')
             last = tr[-1]; fl = flash_who(); run(20)
             if not HAS_FURY:                             # no fury (game.json): D cancels nothing
@@ -156,6 +160,7 @@ def fury_hit(keys, dists=(40, 60, 28, 80, 110)):
 
 def mash_max(ix0, n=300):
     """down+D every other frame until P1's special changes (the MAX) or the fury ends -> (frames, spec_ix, inv, flash colour)"""
+    b.fset(0, 'meter', M['max'])                         # (the fury spent the gauge: topped up for its MAX)
     for k in range(n):
         if st(0) != 'SPECIAL': return {'cancelled': False, 'ended_after': k}
         if b.fget(0, 'spec_ix') != ix0:
@@ -170,6 +175,10 @@ def mash_max(ix0, n=300):
     return {'cancelled': False, 'ended_after': None}
 
 def fury_max():
+    RED[0] = True                                        # (revamp 2: down+D is the MAX in the red state only)
+    try: return fury_max_red()
+    finally: RED[0] = False; b.w(L.lab + PACK_STAT_OFF + 1, 1, 0)
+def fury_max_red():
     fx, mx = fury_ix('d'), fury_ix('Dd')
     r = {'fury_ix': fx, 'max_ix': mx}
     if fx is None: r.update(ok=None, note='no fury'); return r

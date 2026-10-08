@@ -79,7 +79,7 @@ def setup(b, start, minions):
     st = b.states; b.load(start)
     for i in range(1, 8): b.fset(i, 'state', st.index('OFF'))
     for i in (0,) + MINIONS: b.fset(i, 'state', st.index('IDLE')); b.fset(i, 'hp', 60); b.fset(i, 'freeze', 0); b.fset(i, 'inv', 0); b.fset(i, 'y', 0)
-    b.place(0, x=160, z=30); b.fset(0, 'facing', 1); b.fset(0, 'meter', 120)
+    b.place(0, x=160, z=30); b.fset(0, 'facing', 1); b.fset(0, 'meter', 300)
     for i in MINIONS: b.place(i, x=1000, z=30); b.intent(i)
 
 

@@ -1,0 +1,1676 @@
+{
+ "terry": {
+  "archetype": "balanced",
+  "specials": {
+   "EX 236C": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 13,
+    "played": [
+     0,
+     13
+    ]
+   },
+   "214C": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     1,
+     2
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 6,
+    "ix": 8,
+    "played": [
+     2,
+     8
+    ]
+   },
+   "214D": {
+    "slot": "uD",
+    "damage": 2,
+    "ix": 3,
+    "played": [
+     3,
+     3
+    ]
+   },
+   "426B": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 10,
+    "played": [
+     4,
+     10
+    ]
+   },
+   "623D": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 9,
+    "played": [
+     5,
+     9
+    ]
+   }
+  },
+  "fury": {
+   "input": "21416C",
+   "damage": 8,
+   "played": [
+    6,
+    18
+   ]
+  },
+  "max": {
+   "input": "MAX 21416C",
+   "damage": 24,
+   "played": [
+    6,
+    19
+   ]
+  }
+ },
+ "ryo": {
+  "archetype": "balanced",
+  "specials": {
+   "236A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "624D": {
+    "slot": "fD",
+    "damage": 6,
+    "ix": 9,
+    "played": [
+     1,
+     9
+    ]
+   },
+   "623A": {
+    "slot": "dD",
+    "damage": 4,
+    "ix": 4,
+    "played": [
+     2,
+     4
+    ]
+   },
+   "236D": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 3,
+    "played": [
+     3,
+     3
+    ]
+   },
+   "EX 623A": {
+    "slot": "dfD",
+    "damage": 4,
+    "ix": 13,
+    "played": [
+     4,
+     13
+    ]
+   },
+   "EX 646A": {
+    "slot": "ufD",
+    "damage": 12,
+    "ix": 15,
+    "played": [
+     5,
+     15
+    ]
+   }
+  },
+  "fury": {
+   "input": "23624C",
+   "damage": 14,
+   "played": [
+    6,
+    17
+   ]
+  },
+  "max": {
+   "input": "MAX 23624C",
+   "damage": 27,
+   "played": [
+    6,
+    18
+   ]
+  }
+ },
+ "ralf": {
+  "archetype": "heavy",
+  "specials": {
+   "AAAA": {
+    "slot": "D",
+    "damage": 1,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "[4]6A": {
+    "slot": "fD",
+    "damage": 6,
+    "ix": 1,
+    "played": [
+     1,
+     1
+    ]
+   },
+   "[2]8A": {
+    "slot": "dD",
+    "damage": 2,
+    "ix": 5,
+    "played": [
+     2,
+     5
+    ]
+   },
+   "[4]6B": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     3,
+     2
+    ]
+   },
+   "[2]8C": {
+    "slot": "dfD",
+    "damage": 3,
+    "ix": 6,
+    "played": [
+     4,
+     6
+    ]
+   },
+   "[4]6D": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 4,
+    "played": [
+     5,
+     4
+    ]
+   }
+  },
+  "fury": {
+   "input": "23624C",
+   "damage": 15,
+   "played": [
+    6,
+    9
+   ]
+  },
+  "max": {
+   "input": "MAX 23624C",
+   "damage": 28,
+   "played": [
+    6,
+    10
+   ]
+  }
+ },
+ "robert": {
+  "archetype": "fast",
+  "specials": {
+   "EX 236C": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 10,
+    "played": [
+     0,
+     10
+    ]
+   },
+   "624D": {
+    "slot": "fD",
+    "damage": 6,
+    "ix": 7,
+    "played": [
+     1,
+     7
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 8,
+    "ix": 4,
+    "played": [
+     2,
+     4
+    ]
+   },
+   "426B": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 8,
+    "played": [
+     3,
+     8
+    ]
+   },
+   "623D": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 5,
+    "played": [
+     4,
+     5
+    ]
+   },
+   "EX 646D": {
+    "slot": "ufD",
+    "damage": 12,
+    "ix": 14,
+    "played": [
+     5,
+     14
+    ]
+   }
+  },
+  "fury": {
+   "input": "23624C",
+   "damage": 14,
+   "played": [
+    6,
+    15
+   ]
+  },
+  "max": {
+   "input": "MAX 23624C",
+   "damage": 27,
+   "played": [
+    6,
+    16
+   ]
+  }
+ },
+ "yamazaki": {
+  "archetype": "balanced",
+  "specials": {
+   "623C": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 9,
+    "played": [
+     0,
+     9
+    ]
+   },
+   "214B": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 1,
+    "played": [
+     1,
+     1
+    ]
+   },
+   "623D": {
+    "slot": "dD",
+    "damage": 8,
+    "ix": 10,
+    "played": [
+     2,
+     10
+    ]
+   },
+   "623B": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 8,
+    "played": [
+     3,
+     8
+    ]
+   },
+   "214C": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     4,
+     2
+    ]
+   },
+   "214A": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     5,
+     0
+    ]
+   }
+  },
+  "fury": {
+   "input": "236236C",
+   "damage": 26,
+   "played": [
+    6,
+    13
+   ]
+  },
+  "max": {
+   "input": "MAX 236236C",
+   "damage": 24,
+   "played": [
+    6,
+    14
+   ]
+  }
+ },
+ "billy": {
+  "archetype": "balanced",
+  "specials": {
+   "CCCC": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 9,
+    "played": [
+     0,
+     9
+    ]
+   },
+   "426C": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 1,
+    "played": [
+     1,
+     1
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 4,
+    "ix": 5,
+    "played": [
+     2,
+     5
+    ]
+   },
+   "623D": {
+    "slot": "uD",
+    "damage": 5,
+    "ix": 6,
+    "played": [
+     3,
+     6
+    ]
+   },
+   "214B": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 7,
+    "played": [
+     5,
+     7
+    ]
+   }
+  },
+  "fury": {
+   "input": "23624C",
+   "damage": 48,
+   "played": [
+    6,
+    10
+   ]
+  },
+  "max": {
+   "input": "MAX 23624C",
+   "damage": 80,
+   "played": [
+    6,
+    11
+   ]
+  }
+ },
+ "kyo": {
+  "archetype": "balanced",
+  "specials": {
+   "EX 236A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 16,
+    "played": [
+     0,
+     16
+    ]
+   },
+   "EX 421D": {
+    "slot": "fD",
+    "damage": 6,
+    "ix": 15,
+    "played": [
+     1,
+     15
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 4,
+    "ix": 1,
+    "played": [
+     2,
+     1
+    ]
+   },
+   "421B": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     3,
+     2
+    ]
+   },
+   "214A": {
+    "slot": "dfD",
+    "damage": 6,
+    "ix": 10,
+    "played": [
+     4,
+     10
+    ]
+   },
+   "236C": {
+    "slot": "ufD",
+    "damage": 2,
+    "ix": 8,
+    "played": [
+     5,
+     8
+    ]
+   }
+  },
+  "fury": {
+   "input": "21426C",
+   "damage": 8,
+   "played": [
+    6,
+    18
+   ]
+  },
+  "max": {
+   "input": "MAX 21426C",
+   "damage": 24,
+   "played": [
+    6,
+    19
+   ]
+  }
+ },
+ "iori": {
+  "archetype": "fast",
+  "specials": {
+   "236A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 9,
+    "played": [
+     0,
+     9
+    ]
+   },
+   "624D": {
+    "slot": "fD",
+    "damage": 16,
+    "ix": 5,
+    "played": [
+     1,
+     5
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 6,
+    "ix": 2,
+    "played": [
+     2,
+     2
+    ]
+   },
+   "623D": {
+    "slot": "uD",
+    "damage": 2,
+    "ix": 3,
+    "played": [
+     3,
+     3
+    ]
+   },
+   "624B": {
+    "slot": "dfD",
+    "damage": 16,
+    "ix": 4,
+    "played": [
+     4,
+     4
+    ]
+   },
+   "214A": {
+    "slot": "ufD",
+    "damage": 2,
+    "ix": 6,
+    "played": [
+     5,
+     6
+    ]
+   }
+  },
+  "fury": {
+   "input": "23624C",
+   "damage": 9,
+   "played": [
+    6,
+    11
+   ]
+  },
+  "max": {
+   "input": "MAX 23624C",
+   "damage": 80,
+   "played": [
+    6,
+    12
+   ]
+  }
+ },
+ "mai": {
+  "archetype": "fast",
+  "specials": {
+   "236A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "426D": {
+    "slot": "fD",
+    "damage": 4,
+    "ix": 9,
+    "played": [
+     1,
+     9
+    ]
+   },
+   "623D": {
+    "slot": "dD",
+    "damage": 16,
+    "ix": 7,
+    "played": [
+     2,
+     7
+    ]
+   },
+   "EX 214D": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 14,
+    "played": [
+     3,
+     14
+    ]
+   },
+   "623A": {
+    "slot": "dfD",
+    "damage": 6,
+    "ix": 4,
+    "played": [
+     4,
+     4
+    ]
+   },
+   "214C": {
+    "slot": "ufD",
+    "damage": 16,
+    "ix": 3,
+    "played": [
+     5,
+     3
+    ]
+   }
+  },
+  "fury": {
+   "input": "21426D",
+   "damage": 6,
+   "played": [
+    6,
+    15
+   ]
+  },
+  "max": {
+   "input": "MAX 21426D",
+   "damage": 7,
+   "played": [
+    6,
+    16
+   ]
+  }
+ },
+ "yashiro": {
+  "archetype": "heavy",
+  "specials": {
+   "426A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 4,
+    "played": [
+     0,
+     4
+    ]
+   },
+   "624C": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 7,
+    "played": [
+     1,
+     7
+    ]
+   },
+   "623A": {
+    "slot": "dD",
+    "damage": 16,
+    "ix": 0,
+    "played": [
+     2,
+     0
+    ]
+   },
+   "214B": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     3,
+     2
+    ]
+   },
+   "624A": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 6,
+    "played": [
+     4,
+     6
+    ]
+   },
+   "214D": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 3,
+    "played": [
+     5,
+     3
+    ]
+   }
+  },
+  "fury": {
+   "input": "21426C",
+   "damage": 13,
+   "played": [
+    6,
+    14
+   ]
+  },
+  "max": {
+   "input": "MAX 21426C",
+   "damage": 23,
+   "played": [
+    6,
+    15
+   ]
+  }
+ },
+ "geese": {
+  "archetype": "balanced",
+  "specials": {
+   "236C": {
+    "slot": "D",
+    "damage": 16,
+    "ix": 1,
+    "played": [
+     0,
+     1
+    ]
+   },
+   "63214C": {
+    "slot": "fD",
+    "damage": 3,
+    "ix": 5,
+    "played": [
+     1,
+     5
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 4,
+    "ix": 7,
+    "played": [
+     2,
+     7
+    ]
+   },
+   "63214A": {
+    "slot": "uD",
+    "damage": 3,
+    "ix": 4,
+    "played": [
+     3,
+     4
+    ]
+   },
+   "623A": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 6,
+    "played": [
+     4,
+     6
+    ]
+   },
+   "236A": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     5,
+     0
+    ]
+   }
+  },
+  "fury": {
+   "input": "1632143C",
+   "damage": 8,
+   "played": [
+    6,
+    8
+   ]
+  },
+  "max": {
+   "input": "MAX 1632143C",
+   "damage": 24,
+   "played": [
+    6,
+    9
+   ]
+  }
+ },
+ "mr_big": {
+  "archetype": "heavy",
+  "specials": {
+   "236A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "63214C": {
+    "slot": "fD",
+    "damage": 4,
+    "ix": 4,
+    "played": [
+     1,
+     4
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 5,
+    "ix": 9,
+    "played": [
+     2,
+     9
+    ]
+   },
+   "63214D": {
+    "slot": "uD",
+    "damage": 6,
+    "ix": 5,
+    "played": [
+     3,
+     5
+    ]
+   },
+   "623A": {
+    "slot": "dfD",
+    "damage": 6,
+    "ix": 8,
+    "played": [
+     4,
+     8
+    ]
+   },
+   "AAAA": {
+    "slot": "ufD",
+    "damage": 4,
+    "ix": 6,
+    "played": [
+     5,
+     6
+    ]
+   }
+  },
+  "fury": {
+   "input": "23623C",
+   "damage": 24,
+   "played": [
+    6,
+    10
+   ]
+  },
+  "max": {
+   "input": "MAX 23623C",
+   "damage": 48,
+   "played": [
+    6,
+    11
+   ]
+  }
+ },
+ "krauser": {
+  "archetype": "heavy",
+  "specials": {
+   "214A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "41236B": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 8,
+    "played": [
+     1,
+     8
+    ]
+   },
+   "236D": {
+    "slot": "dD",
+    "damage": 2,
+    "ix": 5,
+    "played": [
+     2,
+     5
+    ]
+   },
+   "623B": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 6,
+    "played": [
+     3,
+     6
+    ]
+   },
+   "214B": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 1,
+    "played": [
+     4,
+     1
+    ]
+   },
+   "623D": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 7,
+    "played": [
+     5,
+     7
+    ]
+   }
+  },
+  "fury": {
+   "input": "641236C",
+   "damage": 8,
+   "played": [
+    6,
+    10
+   ]
+  },
+  "max": {
+   "input": "MAX 641236C",
+   "damage": 8,
+   "played": [
+    6,
+    11
+   ]
+  }
+ },
+ "k_dash": {
+  "archetype": "fast",
+  "specials": {
+   "236C": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     0,
+     2
+    ]
+   },
+   "214D": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 7,
+    "played": [
+     1,
+     7
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 6,
+    "ix": 5,
+    "played": [
+     2,
+     5
+    ]
+   },
+   "236B": {
+    "slot": "uD",
+    "damage": 0,
+    "ix": 1,
+    "played": [
+     3,
+     1
+    ]
+   },
+   "623A": {
+    "slot": "dfD",
+    "damage": 4,
+    "ix": 4,
+    "played": [
+     4,
+     4
+    ]
+   },
+   "236D": {
+    "slot": "ufD",
+    "damage": 0,
+    "ix": 3,
+    "played": [
+     5,
+     3
+    ]
+   }
+  },
+  "fury": {
+   "input": "23624C",
+   "damage": 20,
+   "played": [
+    6,
+    9
+   ]
+  },
+  "max": {
+   "input": "MAX 23624C",
+   "damage": 32,
+   "played": [
+    6,
+    10
+   ]
+  }
+ },
+ "rugal": {
+  "archetype": "heavy",
+  "specials": {
+   "236A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "624A": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 8,
+    "played": [
+     1,
+     8
+    ]
+   },
+   "6426D": {
+    "slot": "dD",
+    "damage": 8,
+    "ix": 7,
+    "played": [
+     2,
+     7
+    ]
+   },
+   "6426A": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 4,
+    "played": [
+     3,
+     4
+    ]
+   },
+   "6426B": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 5,
+    "played": [
+     4,
+     5
+    ]
+   },
+   "6426C": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 6,
+    "played": [
+     5,
+     6
+    ]
+   }
+  },
+  "fury": {
+   "input": "23624C",
+   "damage": 16,
+   "played": [
+    6,
+    10
+   ]
+  },
+  "max": {
+   "input": "MAX 23624C",
+   "damage": 24,
+   "played": [
+    6,
+    11
+   ]
+  }
+ },
+ "goenitz": {
+  "archetype": "balanced",
+  "specials": {
+   "41236A": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "214B": {
+    "slot": "fD",
+    "damage": 0,
+    "ix": 5,
+    "played": [
+     1,
+     5
+    ]
+   },
+   "214C": {
+    "slot": "dD",
+    "damage": 1,
+    "ix": 6,
+    "played": [
+     2,
+     6
+    ]
+   },
+   "41236C": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     3,
+     2
+    ]
+   },
+   "41236B": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 1,
+    "played": [
+     4,
+     1
+    ]
+   },
+   "41236D": {
+    "slot": "ufD",
+    "damage": 8,
+    "ix": 3,
+    "played": [
+     5,
+     3
+    ]
+   }
+  },
+  "fury": {
+   "input": "2141236C",
+   "damage": 10,
+   "played": [
+    6,
+    9
+   ]
+  },
+  "max": {
+   "input": "2141236C",
+   "damage": 10,
+   "played": [
+    6,
+    9
+   ]
+  }
+ },
+ "haohmaru": {
+  "archetype": "heavy",
+  "specials": {
+   "236S": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "623K": {
+    "slot": "fD",
+    "damage": 0,
+    "ix": 2,
+    "played": [
+     1,
+     2
+    ]
+   },
+   "623S": {
+    "slot": "dD",
+    "damage": 16,
+    "ix": 1,
+    "played": [
+     2,
+     1
+    ]
+   },
+   "214A": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 4,
+    "played": [
+     3,
+     4
+    ]
+   },
+   "236K": {
+    "slot": "dfD",
+    "damage": 0,
+    "ix": 3,
+    "played": [
+     4,
+     3
+    ]
+   }
+  },
+  "fury": {
+   "input": "WFT",
+   "damage": 8,
+   "played": [
+    6,
+    5
+   ]
+  },
+  "max": {
+   "input": "WFT",
+   "damage": 8,
+   "played": [
+    6,
+    5
+   ]
+  }
+ },
+ "genjuro": {
+  "archetype": "balanced",
+  "specials": {
+   "214S": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "236S": {
+    "slot": "fD",
+    "damage": 2,
+    "ix": 1,
+    "played": [
+     1,
+     1
+    ]
+   },
+   "623S": {
+    "slot": "dD",
+    "damage": 2,
+    "ix": 2,
+    "played": [
+     2,
+     2
+    ]
+   }
+  },
+  "fury": {
+   "input": "WFT",
+   "damage": 5,
+   "played": [
+    6,
+    3
+   ]
+  },
+  "max": {
+   "input": "WFT",
+   "damage": 5,
+   "played": [
+    6,
+    3
+   ]
+  }
+ },
+ "cheng_fu": {
+  "archetype": "heavy",
+  "specials": {
+   "214": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     0,
+     2
+    ]
+   },
+   "236": {
+    "slot": "fD",
+    "damage": 5,
+    "ix": 1,
+    "played": [
+     1,
+     1
+    ]
+   },
+   "623": {
+    "slot": "dD",
+    "damage": 4,
+    "ix": 0,
+    "played": [
+     2,
+     0
+    ]
+   }
+  },
+  "fury": {
+   "input": "SUPER 236",
+   "damage": 7,
+   "played": [
+    6,
+    3
+   ]
+  },
+  "max": {
+   "input": "SUPER 623",
+   "damage": 10,
+   "played": [
+    6,
+    4
+   ]
+  }
+ },
+ "hanzo": {
+  "archetype": "fast",
+  "specials": {
+   "236P": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     0,
+     2
+    ]
+   },
+   "236K": {
+    "slot": "fD",
+    "damage": 4,
+    "ix": 4,
+    "played": [
+     1,
+     4
+    ]
+   },
+   "623P": {
+    "slot": "dD",
+    "damage": 2,
+    "ix": 1,
+    "played": [
+     2,
+     1
+    ]
+   },
+   "214K": {
+    "slot": "uD",
+    "damage": 0,
+    "ix": 3,
+    "played": [
+     3,
+     3
+    ]
+   },
+   "23536P": {
+    "slot": "dfD",
+    "damage": 16,
+    "ix": 0,
+    "played": [
+     4,
+     0
+    ]
+   }
+  },
+  "fury": {
+   "input": "HERO 623AB",
+   "damage": 13,
+   "played": [
+    6,
+    5
+   ]
+  },
+  "max": {
+   "input": "MAX HERO 623AB",
+   "damage": 16,
+   "played": [
+    6,
+    6
+   ]
+  }
+ },
+ "hanzo_ss2": {
+  "archetype": "fast",
+  "specials": {
+   "6321S": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 0,
+    "played": [
+     0,
+     0
+    ]
+   },
+   "623K": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 1,
+    "played": [
+     1,
+     1
+    ]
+   }
+  },
+  "fury": {
+   "input": "WFT",
+   "damage": 8,
+   "played": [
+    6,
+    2
+   ]
+  },
+  "max": {
+   "input": "WFT",
+   "damage": 8,
+   "played": [
+    6,
+    2
+   ]
+  }
+ },
+ "kim": {
+  "archetype": "fast",
+  "specials": {
+   "214B": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 1,
+    "played": [
+     0,
+     1
+    ]
+   },
+   "236C": {
+    "slot": "fD",
+    "damage": 6,
+    "ix": 0,
+    "played": [
+     1,
+     0
+    ]
+   },
+   "[2]8C": {
+    "slot": "dD",
+    "damage": 6,
+    "ix": 2,
+    "played": [
+     2,
+     2
+    ]
+   },
+   "421A": {
+    "slot": "uD",
+    "damage": 6,
+    "ix": 3,
+    "played": [
+     3,
+     3
+    ]
+   },
+   "236A": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 5,
+    "played": [
+     4,
+     5
+    ]
+   }
+  },
+  "fury": {
+   "input": "6246A",
+   "damage": 19,
+   "played": [
+    6,
+    4
+   ]
+  },
+  "max": {
+   "input": "6246A",
+   "damage": 19,
+   "played": [
+    6,
+    4
+   ]
+  }
+ },
+ "rosa": {
+  "archetype": "fast",
+  "specials": {
+   "236C": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 4,
+    "played": [
+     0,
+     4
+    ]
+   },
+   "214B": {
+    "slot": "fD",
+    "damage": 6,
+    "ix": 6,
+    "played": [
+     1,
+     6
+    ]
+   },
+   "623C": {
+    "slot": "dD",
+    "damage": 6,
+    "ix": 2,
+    "played": [
+     2,
+     2
+    ]
+   },
+   "421C": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 5,
+    "played": [
+     3,
+     5
+    ]
+   },
+   "63214C": {
+    "slot": "dfD",
+    "damage": 8,
+    "ix": 3,
+    "played": [
+     4,
+     3
+    ]
+   }
+  },
+  "fury": {
+   "input": "6246A",
+   "damage": 19,
+   "played": [
+    6,
+    0
+   ]
+  },
+  "max": {
+   "input": "421A",
+   "damage": 6,
+   "played": [
+    6,
+    1
+   ]
+  }
+ },
+ "billy_lee": {
+  "archetype": "balanced",
+  "specials": {
+   "214": {
+    "slot": "D",
+    "damage": 7,
+    "ix": 2,
+    "played": [
+     0,
+     2
+    ]
+   },
+   "236": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 1,
+    "played": [
+     1,
+     1
+    ]
+   },
+   "623": {
+    "slot": "dD",
+    "damage": 6,
+    "ix": 0,
+    "played": [
+     2,
+     0
+    ]
+   }
+  },
+  "fury": {
+   "input": "SUPER 236",
+   "damage": 5,
+   "played": [
+    6,
+    3
+   ]
+  },
+  "max": null
+ },
+ "billy_super": {
+  "archetype": "heavy",
+  "specials": {
+   "41236": {
+    "slot": "D",
+    "damage": 8,
+    "ix": 1,
+    "played": [
+     0,
+     1
+    ]
+   },
+   "236": {
+    "slot": "fD",
+    "damage": 8,
+    "ix": 2,
+    "played": [
+     1,
+     2
+    ]
+   },
+   "623": {
+    "slot": "dD",
+    "damage": 6,
+    "ix": 0,
+    "played": [
+     2,
+     0
+    ]
+   },
+   "214": {
+    "slot": "uD",
+    "damage": 8,
+    "ix": 3,
+    "played": [
+     3,
+     3
+    ]
+   }
+  },
+  "fury": null,
+  "max": null
+ }
+}

@@ -8,6 +8,7 @@
    Pens mapped onto fix palette 0: 4-7 -> TEXT 2-5, 8 -> 14 (the bar's near-black EMPTY), 1 -> 1 (white).
    Derived (not in Kizuna): lowercase a-z = its uppercase glyph (Kizuna's text is all caps; the drama lines are mixed),
    '_' and the select screen's down arrow ($7F) drawn in the same style (kz_style); ` { | } ~ blank (unused).
+   The meter's stock dots (revamp 2): STOCK_TILE a full stock (a filled disc, the bar's gradient), + 1 an empty one (a ring).
 1. Life bar glyphs in the style of KOF94's (studied from its S ROM in a demo fight): one 8 px row, white outline,
    dark shadow line, a yellow-to-orange vertical gradient, rounded caps, 1 px steps; plus a red damage trail (KOF94 has
    none). Cells: left cap, middle, right cap; each with f px yellow from the left (0-8; caps 0-7: the cap's first
@@ -33,6 +34,9 @@ CROP = {'kof98': (2, 1), 'kof99': (2, 0), 'kof96': (6, 4), 'kof94': (2, 0), 'kof
 FACE_BG = (24, 40, 104)
 KOF98_BG = (0, 0, 255)                     # the blue behind KOF98's HUD faces (their portrait palettes)
 BAR_TILE, BAR_TILE_R, PORTRAIT_TILE = 0x80, 0xB6, 0x100   # BAR_TILE_R: the same glyphs mirrored (right-hand bars)
+STOCK_TILE = 0xEC                           # the meter's stock dots (revamp 2): + 0 a full stock (a filled disc), + 1 an
+                                            # empty one (a ring): shapes, not colours alone (e-ink readable)
+STOCK = ['..####..', '.#oooo#.', '#oooooo#', '#oooooo#', '#oooooo#', '#oooooo#', '.#oooo#.', '..####..']
 # palette 0, entries 6-15: bar gradient (rows 1-5), trail gradient, empty, outline shadow
 BAR_PAL = {6: (255, 255, 200), 7: (255, 240, 96), 8: (255, 208, 40), 9: (255, 168, 24), 10: (232, 120, 16),
            11: (255, 96, 96), 12: (224, 32, 32), 13: (152, 16, 16), 14: (8, 8, 8), 15: (64, 64, 80)}
@@ -100,6 +104,11 @@ def bar_glyph(kind, f, rest):
         for y in range(1, 6): px[y][x] = YEL[y - 1] if filled else (RED[y - 1] if rest else EMPTY)
     return px
 
+def stock_glyph(full):
+    """a stock dot: white outline, the bar's gradient inside (full) or its empty black (a ring)"""
+    return [[WHITE if c == '#' else (YEL[min(4, max(0, y - 1))] if full else EMPTY) if c == 'o' else 0
+             for c in row] for y, row in enumerate(STOCK)]
+
 def band96(src):
     """KOF96's HUD portrait: the face over a tan parallelogram (48x48). The band's colours = the indices right of the
     face (x >= 34, only band there); its pixels = the 4-connected region of those colours reached from there. -> the
@@ -148,6 +157,8 @@ def build(outdir, specs):
             for f in range(9):
                 o = (BAR_TILE + kind * 18 + rest * 9 + f) * 32; s[o:o + 32] = stile(bar_glyph(kind, f, rest))
                 o = (BAR_TILE_R + kind * 18 + rest * 9 + f) * 32; s[o:o + 32] = stile([row[::-1] for row in bar_glyph(kind, f, rest)])
+    for k in range(2):                               # the stock dots: full, empty
+        o = (STOCK_TILE + k) * 32; s[o:o + 32] = stile(stock_glyph(k == 0))
     for ch in range(0x20, 0x80):                     # the drama font: each glyph on a black cell
         px = sdecode(s[ch * 32:ch * 32 + 32])
         o = (DRAMA_FONT + ch) * 32; s[o:o + 32] = stile([[v or EMPTY for v in row] for row in px])
@@ -166,6 +177,7 @@ def build(outdir, specs):
          f'#define BAR_TILE 0x{BAR_TILE:X}   /* + kind * 18 + rest * 9 + f: kind 0 left cap / 1 middle / 2 right cap */',
          f'#define BAR_TILE_R 0x{BAR_TILE_R:X}   /* the same glyphs mirrored: kind 0 = the right (outer) cap */',
          f'#define ARROW_TILE 0x{ARROW_TILE:X}   /* a down arrow (select screen) */',
+         f'#define STOCK_TILE 0x{STOCK_TILE:X}   /* the meter\'s stock dots: + 0 full (a disc), + 1 empty (a ring) */',
          f'#define DRAMA_FONT 0x{DRAMA_FONT:X}   /* + ASCII: the font on a black cell (drama bars; + \' \' = solid black) */',
          f'#define PORTRAIT_TILE 0x{PORTRAIT_TILE:X}   /* + fighter * 16 + row * 4 + col (32x32, colours portrait_pal[fighter] in fix palette 2 + side) */',
          'static const uint16_t text_colours[4] = {' + ', '.join('0x%04X' % c for c in TEXT_COLOURS) + '};   /* fix palette 0, entries 2-5: the font (Kizuna) */',

@@ -429,6 +429,55 @@ def layout_asserts():
 def c_str(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
+METER_KEYS = ('about', 'max', 'stock', 'special', 'breaker', 'fury', 'max_fury', 'refill', 'life_special', 'life_breaker',
+              'low', 'blink', 'infinite')
+TIER_KEYS = ('about', 'special', 'fury', 'max', 'spread', 'measured')
+
+
+def dtier_tables(g, build, dmul):
+    """revamp 2, the damage tiers (Bruno 2026-10-08: specials about equal across all characters +-15 %, furies +-20 %, MAX
+    +-20 %, special < fury < MAX): game.json "tiers" {special, fury, max} = the whole damage of every special / fury / MAX
+    on a full connect; tiers.measured (tools/brawler/damage_raw.json, damage_tiers.py --raw --save: each move's own total
+    in our emulator, the scales off) -> dtier_rom[fighter] = 8.8 scales [its pool's specials, then the fury, the MAX]:
+    tier / own total for each measured move; a special not measured (not on a slot: enemies' route specials) or whose
+    measure found no hit keeps the fighter's damage scale (roster[].damage, TODO #203: SS2 x 3); build/dtier.json lists
+    every scale (the proof's table)"""
+    t = g['tiers']
+    for k in t: assert k in TIER_KEYS, f'tiers: unknown field {k}'
+    assert 0 < t['special'] < t['fury'] < t['max'] < 128, 'tiers: special < fury < MAX'
+    sp = t['spread']                                     # the bands may not overlap: special < fury < MAX whatever the
+    assert t['special'] * (100 + sp['special']) <= t['fury'] * (100 - sp['fury']) and \
+        t['fury'] * (100 + sp['fury']) <= t['max'] * (100 - sp['max']), 'tiers: overlapping bands'   # rounding
+    raw_p = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', t['measured'])
+    raw = json.load(open(raw_p)) if os.path.exists(raw_p) else {}
+    lab_p = os.path.join(build, 'chainlab.json')
+    labj = json.load(open(lab_p)) if os.path.exists(lab_p) else {'fighters': []}
+    lab = {f['name']: f for f in labj['fighters']}
+    sc = lambda target, own: min(0xFFFF, (target * 256 + own // 2) // own)
+    c, rows, rep = [], [], {}
+    for i, r in enumerate(g['roster']):
+        n = r['name']
+        if n not in lab:                                 # (the first build: the export comes after) every scale 1
+            rows.append('dtier_none'); continue
+        pool = [p['input'] for p in lab[n]['pool']]; m = raw.get(n) or {}
+        v = [dmul[i] * 256] * len(pool) + [256, 256]
+        e = rep[n] = {'specials': {}, 'fury': None, 'max': None}
+        for kof, x in (m.get('specials') or {}).items():
+            if kof in pool and x['damage'] > 0: v[pool.index(kof)] = sc(t['special'], x['damage'])
+            e['specials'][kof] = {'own': x['damage'], 'scale': v[pool.index(kof)] / 256 if kof in pool else None}
+        for k, j, tg in (('fury', 0, t['fury']), ('max', 1, t['max'])):
+            x = m.get(k)
+            if x and x['damage'] > 0: v[len(pool) + j] = sc(tg, x['damage'])
+            e[k] = {'own': x['damage'] if x else None, 'scale': v[len(pool) + j] / 256}
+        c.append(f'static const uint16_t dtier_{i}[{len(v)}] = {{ {", ".join(map(str, v))} }};   /* {n} */')
+        rows.append(f'dtier_{i}')
+    wide = max([len(f['pool']) for f in labj['fighters']] + [0]) + 2
+    if 'dtier_none' in rows: c.insert(0, f'static const uint16_t dtier_none[{wide}] = {{ {", ".join(["256"] * wide)} }};   /* (no export yet) */')
+    c.append('const uint16_t *const dtier_rom[BC_COUNT] = { ' + ', '.join(rows) + ' };')
+    json.dump(rep, open(os.path.join(build, 'dtier.json'), 'w'), indent=1)
+    return c
+
+
 def retime_tables(g, build):
     """game.json roster[].retime -> gretime_rom[] (fighter.h gretime_t; fighter.c "retiming"): each move's targets, one
     per segment (retime.py: its segments from build/chainlab.json, the export's); a segment outside retime.BOUND is
@@ -525,7 +574,8 @@ def tables(g, build):
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
          'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
-         'extern const uint8_t roster_damage[BC_COUNT];',
+         'extern const uint16_t *const dtier_rom[BC_COUNT];   /* the damage tiers (fighter.c "damage tiers"): per fighter, 8.8 scales: [special index], [nspec] the fury, [nspec + 1] the MAX */',
+         'extern uint8_t dtier_off;                         /* (fighter.c) 1: every scale 1 (a test switch) */',
          'extern const uint8_t ai_ready[BC_COUNT][2];',
          f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
          'extern const gstagex_t gstagex_rom[GS_COUNT];', 'extern const uint8_t pb_of_fighter[BC_COUNT];', 'extern const gdrama_t gdramas[DR_COUNT ? DR_COUNT : 1];']
@@ -534,12 +584,15 @@ def tables(g, build):
     c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(
         '    { ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) + ' },   /* ' + n + ' */' for n, v in M['ai']) + '\n};')
     c += ai_rules(g)                                     # the enemies' shared rules (revamp 1B, gamedata.h gairules_t)
-    m = g['meter']                                       # the special meter (TODO #71): every value a frame / point count
-    for k in m: assert k in ('about', 'max', 'special', 'fury', 'fury_min', 'refill', 'hit_mul', 'flash', 'infinite'), f'meter: unknown field {k}'
-    assert 0 < m['special'] <= m['max'] < 65536 and 0 < m['fury'] <= m['max'] and m['fury_min'] <= m['max'] and \
-        1 <= m['refill'] <= 255 and 1 <= m['hit_mul'] <= 8 and 0 <= m['flash'] <= 255, 'meter values'
-    c.append(f"const gmeter_t gmeter = {{ .max = {m['max']}, .special = {m['special']}, .fury = {m['fury']}, "
-             f".fury_min = {m['fury_min']}, .refill = {m['refill']}, .hit_mul = {m['hit_mul']}, .flash = {m['flash']}, .infinite = {1 if m.get('infinite') else 0} }};")
+    m = g['meter']                                       # the meter (revamp 2, gamedata.h gmeter_t): points, frames, life
+    for k in m: assert k in METER_KEYS, f'meter: unknown field {k}'
+    assert 0 < m['stock'] <= m['max'] < 65536 and m['max'] == 3 * m['stock'], 'meter: 3 stocks (main.c STOCKS)'
+    assert all(0 < m[k] <= m['max'] for k in ('special', 'breaker', 'fury', 'max_fury')), 'meter: costs within the gauge'
+    assert 1 <= m['refill'] <= 255 and all(1 <= m[k] < 60 for k in ('life_special', 'life_breaker')) and \
+        1 <= m['low'] <= 100 and 1 <= m['blink'] <= 60, 'meter values'
+    c.append(f"const gmeter_t gmeter = {{ .max = {m['max']}, .stock = {m['stock']}, .special = {m['special']}, .breaker = {m['breaker']}, "
+             f".fury = {m['fury']}, .maxf = {m['max_fury']}, .refill = {m['refill']}, .life_special = {m['life_special']}, "
+             f".life_breaker = {m['life_breaker']}, .low = {m['low']}, .blink = {m['blink']}, .infinite = {1 if m.get('infinite') else 0} }};")
     ch = g['chain']                                      # the chain core (revamp 1A): the engine's rules (gchain_t)
     for k in ch: assert k in CHAIN_KEYS, f'chain: unknown field {k}'
     assert 1 <= ch['window'] <= 255 and 0 <= ch['buffer'] <= 60 and 1 <= ch['juggle_cap'] <= 255 and \
@@ -627,7 +680,7 @@ def tables(g, build):
     c.append('const uint8_t roster_unlock[BC_COUNT] = { ' + ', '.join(map(str, unl)) + ' };   /* stage k + 1 whose boss unlocks it, 0 = always, 0xFF = never (a form) */')
     dmul = [r.get('damage', 1) for r in g['roster']]          # TODO #203: the fighter's damage scale (fighter.c fighter_hit)
     for r, k in zip(g['roster'], dmul): assert isinstance(k, int) and 1 <= k <= 4, f'{r["name"]}: damage {k} (1-4)'
-    c.append('const uint8_t roster_damage[BC_COUNT] = { ' + ', '.join(map(str, dmul)) + ' };   /* x the damage of its normals, specials and their objects (not furies, throws, holds) */')
+    c += dtier_tables(g, build, dmul)                    # revamp 2: the damage tiers (the scale of a special not measured: dmul)
     c += retime_tables(g, build)
     h.append('#endif')
     write_if_changed(os.path.join(build, 'game_tables.h'), '\n'.join(h) + '\n')

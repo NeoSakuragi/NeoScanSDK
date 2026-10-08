@@ -34,7 +34,7 @@ A recipe (scenarios.json, keyed by note id):
                   true: its minions taken off (state OFF: the boss is the last enemy), foe_hp = the boss's life, gap =
                   P1 put this far in front of it (its lane, facing it); foe = the fighter index these four mean
                   instead of the boss's 2 (a wave's enemy: alone keeps only it);
-              meter (0..120, "full"), hp (P1's life), lives (P1's), face (+1 / -1), pre = "frames:keys,..." inputs played
+              meter (0..300, "full"), hp (P1's life; the lab's P1 then keeps it: lab.p1_life), lives (P1's), face (+1 / -1), pre = "frames:keys,..." inputs played
               before the save (e.g. walking into the grab: the state then starts mid-hold)
   do_keys     the "do" as inputs ("frames:keys,..." with the harness keys U D L R a b c d), for the proof clip
   proof       frames to keep running after do_keys (default 90)
@@ -54,6 +54,7 @@ SYSTEMS = {'mvs-mvs': dict(geolith_system_type='mvs', geolith_unibios_hw='mvs', 
            'uni-aes': dict(geolith_system_type='uni', geolith_unibios_hw='aes', geolith_memcard='on', geolith_region='us')}
 BOOT = 400                                  # power on -> the BIOS hands over to the game (labdrive.py)
 LAB_REQ, LAB_FIGHTER, LAB_DUMMY_, LAB_ACTIVE, LAB_WAVE = 4, 5, 6, 8, 13   # fighter.h lab_t offsets
+LAB_P1_LIFE = 16 + 64 * 6 + 16 + 128 * 24 + 1            # lab_t.p1_life (after pack_stat; labdrive PACK_STAT_OFF + 1)
 
 
 def sha256(b): return hashlib.sha256(b).hexdigest()
@@ -153,8 +154,12 @@ def setup(b, rec):
         if 'gap' in s:
             bx = b.fget(fo, 'x'); b.fset(0, 'x', bx - s['gap']); b.fset(0, 'z', b.fget(fo, 'z')); b.fset(0, 'facing', 1)
         b.run(1)
-    if 'meter' in s: b.fset(0, 'meter', 120 if s['meter'] == 'full' else int(s['meter']))
-    if 'hp' in s: b.fset(0, 'hp', int(s['hp']))
+    if 'meter' in s:                                       # (game.json meter.max: 300 since revamp 2)
+        full = json.load(open(os.path.join(b.game, 'game.json')))['meter']['max']
+        b.fset(0, 'meter', full if s['meter'] == 'full' else int(s['meter']))
+    if 'hp' in s:
+        if s.get('mode', 'lab') == 'lab': poke(LAB_P1_LIFE, [1])   # the lab's P1 keeps this life (lab.p1_life)
+        b.fset(0, 'hp', int(s['hp']))
     if 'lives' in s: b.w(b.syms['lives'], 1, int(s['lives']))
     b.run(1)
     if s.get('pre'): b.seq(s['pre'])
