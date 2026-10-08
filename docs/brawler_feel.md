@@ -231,6 +231,18 @@ downed enemies can't be hit. Everyone else simply makes downed enemies untouchab
 - Tools: explore chains on both the PC and the Player app. Retiming 0.5x-2x, beyond that a hand check.
 - Open (his question): how to assess visual appeal and classify moves (punch / kick, high / mid / low, launcher).
 
+Follow-up (set revamp2, same day):
+- METER: 3 stocks = 300 points (one bar with dots or three chunks). Special = 100. Special used as a BREAKER (while
+  being hit, to escape) = 200, the sprite blinks to show the extra cost; with no meter it costs life; with neither,
+  no breaker. Fury = 300. MAX = 300 AND low life (red blinking state, like Fatal Fury Special).
+- Grab specials become throws, from the hold or inside a special chain, case by case.
+- Launcher direction: per character, whichever looks best.
+- Down finisher: either a ground slam with a bounce (Tekken-like) or a sweep with an instant knockdown / crumple.
+- Chain damage by archetype like Final Fight: heavy more, balanced middle, fast less overall.
+- Judging: I suggest topics / rankings, with an option to override in a later decision page.
+- Damage unification: specials about equal across all characters (±15 %), furies (±20 %), MAX (±20 %); special < fury
+  < MAX.
+
 ## 9. Iterate fast: an exploration tool, no build in the loop
 
 **Bruno:** we want to iterate quickly. "I want a tool that allows me to explore new things, so I don't want to wait for

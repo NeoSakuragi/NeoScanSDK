@@ -8,6 +8,7 @@
   const API = 'feedback-api/';
   const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c); return e; };
   let loaded = false;
+  const NONE = 'None of these: my own answer in the note';
   async function post(set, body) {
     const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ set }, body)) });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -31,11 +32,13 @@
           try { await post(set.id, Object.assign({ id: q.id, question: q.title }, body)); saved.textContent = 'Saved'; }
           catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
         };
-        const btns = q.options.map((o, i) => {
+        const opts = q.options.length ? q.options.concat([NONE]) : [];   // every question: a "none of these" way out (Bruno)
+        const btns = opts.map((o, i) => {
           const b = h('button', { type: 'button', 'aria-pressed': String(a.choice === i) }, h('span', { class: 'mark', text: a.choice === i ? '✓' : '○' }), h('span', { text: o }));
           b.onclick = () => {
             btns.forEach((x, j) => { x.setAttribute('aria-pressed', String(i === j)); x.querySelector('.mark').textContent = i === j ? '✓' : '○'; });
             save({ choice: i, label: o });
+            if (o === NONE) ta.focus();
           };
           return b;
         });
