@@ -27,7 +27,17 @@ one. Each phase merges into `brawler` and ships as a release so Bruno can feel i
 - Wind-up proportional to damage (light 3-6 f, heavy 12-15 f, special 20+ f).
 - A hidden difficulty rank raising aggression / damage as the player does well.
 
-**1C. Retiming** (tools/brawler exporter, game.json `retime` per move)
+**1C. Retiming — AT RUN TIME (Bruno, 2026-10-08: the original timing stays embedded untouched; the game's animation
+player retimes dynamically).** Per move three phases (startup, active = first to last active frame incl. gaps, recovery),
+each with a target length in frames (e.g. 5 / 2 / 5 played as 7 / 4 / 6); 16.16 fixed-point phase clocks in the
+animation step advance the source clock by S/T per frame; compressed phases still fire every event in order and always
+show the contact frame; motion scaled by S/T (travel unchanged); hit-stop and victim reactions unscaled; ROM programs run
+on the same source clock. The exporter only adds phase metadata. game.json `retime` targets + a fighter_retime() API for
+dynamic targets. The earlier export-time design below is superseded.
+Multi-hit (Bruno): a move is segmented into as many pieces as it has active windows — left punch, pause, right punch =
+5 segments: startup, active 1, recovery 1, active 2, final recovery — each segment with its own target length.
+
+**1C (superseded export-time design)** (tools/brawler exporter, game.json `retime` per move)
 - Phase detection per move (startup / active windows / recovery) from the decoded data.
 - Retime = remap each phase's frames: drawing order kept, durations scaled, motion scaled so travel is unchanged, boxes /
   effects / sounds attached to their drawing; hit-stop and victim reactions not scaled; ROM programs' counters scaled.
