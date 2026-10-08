@@ -25,7 +25,7 @@ Sections (all by default):
   hitstop    the scale per link (roster) + a special's hit (the engine's 7)
   stun       an enemy's hit stun (light / heavy) and a player's (stun_player) + its untouchable window (guard_player):
              a second enemy cannot hit it meanwhile, the one that hit it can; after it, anyone"""
-import json, os, sys
+import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
 import routes as RT, export_bm
@@ -42,6 +42,32 @@ names = [r['name'] for r in G['roster']]
 L = Lab(); b = L.b; ST = b.states
 INV_FURY = 0xFF
 
+def throws_built():
+    src = open(os.path.join(GAME, 'build', 'bm_chars.c')).read(); out = {}
+    for n in names:
+        m = re.search(r'static const bthrow_t %s_throws\[BT_COUNT\] = \{\{(.*?)\}, \{(.*?)\}\};' % n, src)
+        ts = []
+        for g in (m.group(1), m.group(2)) if m else ():
+            f = [x.strip() for x in g.split(',')]
+            nrows = int(f[0], 0); rows = f[2]; rel = int(f[4], 0); stun = int(f[12], 0) if len(f) > 12 else 0
+            end = None
+            if nrows and rows != '0':
+                rm = re.search(r'static const bthrow_row_t %s\[[^]]*\] = \{(.*?)\};' % rows, src, re.S)
+                last = re.findall(r'\{([^{}]*)\}', rm.group(1))[nrows - 1].split(',')
+                end = int(last[1], 0) + int(last[5], 0)            # tx + vx of the last row (< 0: behind the thrower)
+            ts.append({'nrows': nrows, 'rel': rel, 'stun': stun, 'end_dx': end})
+        out[n] = ts
+    return out
+THROWS = throws_built()
+def back_throw(n):
+    """fighter.c cthrow_pick: (throw index, mirrored) or None"""
+    first = None
+    for t in (1, 0):
+        th = THROWS[n][t]
+        if not th['nrows'] or th['stun']: continue
+        if first is None: first = t
+        if th['end_dx'] is not None and th['end_dx'] < 0: return t, False
+    return (first, True) if first is not None else None
 def st(i=0): return ST[b.fget(i, 'state')]
 def mv(i=0): return MOVES[b.fget(i, 'anim')]
 def run(n=1, k=''): b.run(n, p1=k)
@@ -287,7 +313,9 @@ def finisher_case(fi, d, tree=None, extra_behind=False, shots=None, far_victim=F
             b.place(2, x=b.fget(0, 'x') + 140); obs['moved'] = True
         if len(links) >= N:
             if obs['fin_t'] is None: obs['fin_t'] = t
-            if st(0) == 'THROW': obs['inv'].append(b.fget(0, 'inv'))
+            if st(0) == 'THROW':
+                obs['inv'].append(b.fget(0, 'inv'))
+                if 'x_throw' not in obs: obs['x_throw'] = b.fget(0, 'x')
             obs['ymax'] = max(obs['ymax'], b.fget(2, 'y')); obs['states'].add(st(2))
             if extra_behind: obs['ex'].add(st(3))
             if shots is not None and t - obs['fin_t'] in (2, 10, 22): shots.append((t, d, shot(f'fin_{names[fi]}_{d}_{t - obs["fin_t"]}')))
@@ -298,19 +326,25 @@ def finisher_case(fi, d, tree=None, extra_behind=False, shots=None, far_victim=F
         if st(2) in ('IDLE', 'WALK', 'DOWN', 'GETUP'): break
         run(1); obs['ymax'] = max(obs['ymax'], b.fget(2, 'y')); obs['states'].add(st(2))
         if extra_behind: obs['ex'].add(st(3))
-    vside = b.fget(2, 'x') - b.fget(0, 'x')
+    vside = b.fget(2, 'x') - obs.get('x_throw', b.fget(0, 'x'))
     want = (tree or tree_of(fi))['links']['A']
     for _ in range(N - 2): want = want['links']['A']
     wnode = want['links'].get(KEY[d]) or want['links']['A']
     r = {'want': wnode.get('move') + (' (throw)' if wnode.get('throw') else '') + ' ' + wnode.get('effect', ''), 'played': fin['move'],
          'state': fin['state'], 'victim_states': sorted(obs['states']), 'victim_max_y': round(obs['ymax'], 1), 'damage': dmg,
          'victim_side_before': round(v0), 'victim_side_after': round(vside), 'chain_t_after': b.fget(0, 'chain_t')}
+    bt = back_throw(names[fi]) if d == 'back' else None
+    if d == 'back' and wnode.get('throw') and not far_victim and bt is None:   # (only a stun strike: Cheng-Fu)
+        r['note'] = 'no usable throw (a stun strike only): the neutral finisher'
+        r['ok'] = fin['state'] == 'ATTACK' and fin['move'] == wnode['move']
+        return r
     if d == 'back' and wnode.get('throw') and not far_victim:
+        th = THROWS[names[fi]][bt[0]]; r['throw'] = ('D' if bt[0] else 'C') + (' mirrored' if bt[1] else ''); r['thrown_body_phase'] = th['rel'] != 0xFFFF
         inv = obs['inv']
         r.update({'inv_through_throw': bool(inv) and all(v == INV_FURY for v in inv), 'throw_frames': len(inv), 'behind': (vside > 0) != (v0 > 0)})
         if extra_behind: r['second_enemy_states'] = sorted(obs['ex'])
         r['ok'] = fin['state'] == 'THROW' and r['inv_through_throw'] and r['behind'] and r['chain_t_after'] == 0 and \
-            (not extra_behind or 'KNOCKDOWN' in obs['ex'])
+            (not extra_behind or not r['thrown_body_phase'] or 'KNOCKDOWN' in obs['ex'])
     else:
         eff = wnode.get('effect')
         okv = {'launch': obs['ymax'] > 40, 'knockdown': 'KNOCKDOWN' in obs['states'], 'blowback': 'KNOCKDOWN' in obs['states'],
@@ -320,18 +354,20 @@ def finisher_case(fi, d, tree=None, extra_behind=False, shots=None, far_victim=F
 if 'finishers' in SECTIONS:
     out = res['finishers'] = {}; lines = ['FINISHERS by the stick on the last link (P1 faces right: forward = R, back = L)']
     allshots = []
-    for n in (names if os.environ.get('FIN_ALL') else ('terry', 'kim', 'krauser')):   # FIN_ALL=1: the whole roster
+    for n in ([x for x in names if os.environ['FIN_ALL'] == '1' or x in os.environ['FIN_ALL'].split(',')] if os.environ.get('FIN_ALL') else ('terry', 'kim', 'krauser')):   # FIN_ALL=1: the whole roster
         fi = names.index(n); start(fi); out[n] = {}
         for d in DIRS:
             sh = []
             xb = False
             if d == 'back':                                      # where the thrown body comes down: a throw measured first,
                 land = []                                        # the second enemy then stands there
-                def track(t, links, land=land):
-                    if st(2) == 'THROWN': land.append(b.fget(2, 'x') - b.fget(0, 'x'))
-                settle(); x0 = None; mash(tree_of(fi)['chain']['length'], last='L', after=track)
-                xb = int(sum(land[len(land) * 2 // 3:]) / max(1, len(land) - len(land) * 2 // 3)) if land else -60
-                if xb > 0: xb = -60
+                bt = back_throw(n); rel = THROWS[n][bt[0]]['rel'] if bt else 0xFFFF
+                def track(t, links, land=land):             # the victim's x in its thrown-body rows (from the release
+                    if st(2) == 'THROWN' and b.fget(2, 'srow') > rel: land.append((b.fget(2, 'y'), b.fget(2, 'x') - land_x0[0]))   # row on)
+                settle(); setpos(30); land_x0 = [b.fget(0, 'x')]
+                mash(tree_of(fi)['chain']['length'], last='L', after=track, setp=False)
+                low = [x for y, x in land if y < 48]            # (where its body flies low enough to meet a standing one)
+                xb = int(low[min(len(low) - 1, 6)]) if low else int(land[-1][1]) if land else -60
             out[n][d] = finisher_case(fi, d, extra_behind=xb, shots=sh if n in ('terry', 'kim', 'krauser') else None)
             allshots += [x for x in sh if len(x) == 3]
             line = f"{n:8s} {d:8s} want {out[n][d].get('want')} played {out[n][d].get('played')} victim {out[n][d].get('victim_states')} max y {out[n][d].get('victim_max_y')} dmg {out[n][d].get('damage')}" + \
@@ -406,6 +442,9 @@ if 'juggle' in SECTIONS:
     def flo(t, l):
         if b.fget(2, 'kfloor'): kf.append(t); return True
     mash(N, after=flo, limit=300)
+    for _ in range(200):                                      # (no input) until its knockdown touches the floor
+        if b.fget(2, 'kfloor') or st(2) in ('DOWN', 'IDLE'): break
+        run(1)
     hp = b.fget(2, 'hp'); dh = 0; fl = []
     for t in range(200):
         if st(2) in ('IDLE', 'WALK', 'GETUP'): break
@@ -450,11 +489,12 @@ if 'stun' in SECTIONS:
         run(1)
     out['enemy_light'] = {'frames': stun_len(2), 'want': CH['stun_light']}
     # a strong link (link 3, close C): its reel is the heavy one
-    settle(); obs = {'hp': None, 'n': 0, 'last': None, 'reel': None}
+    settle(); obs = {'hp': 0, 'n': 0, 'last': None, 'reel': None}
     def cnt(t, links):
         hp = b.fget(2, 'hp')
-        if obs['hp'] is not None and hp < obs['hp']: obs['last'] = t; obs['n'] = 0; obs['reel'] = MOVES[b.fget(2, 'anim')]
-        obs['hp'] = hp
+        fz = b.fget(2, 'freeze')
+        if obs['hp'] is not None and fz > obs['hp']: obs['last'] = t; obs['n'] = 0; obs['reel'] = MOVES[b.fget(2, 'anim')]
+        obs['hp'] = fz
         if obs['last'] is not None and not b.fget(2, 'freeze') and st(2) == 'HITSTUN': obs['n'] += 1
     mash(3, after=cnt)                                       # links 1-3 (Terry's link 3: close C, a heavy reel)
     for _ in range(80):

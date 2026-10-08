@@ -324,11 +324,15 @@ any time, 12 damage shared by its impacts (blows, the landing); C = the special 
 its landing the thrown body knocks down every other enemy it touches (6 damage each, once, the throw's way). The
 thrower can't be hit during a throw; a held enemy hit by someone else ends the hold.
 
-Links chain only when the previous one hit: pressed during the move (remembered, the last press wins) or Final Fight
-style up to 30 frames after it ended (`CHAIN_WINDOW`: tap, wait, tap). A victim stays in hitstun 36 frames (light) / 54
-(heavy), 3x a fighting game's; hit-stop is 7 frames for every hit. Multi-hit normals (Terry / Chang close C, Yamazaki
-close D, ...) hit once per hit window, damage split over the hits, a knockdown only on the last. The table above is the
-**default route tree**; Terry has his own (below).
+**The chain core (revamp 1A, 2026-10-08; docs/brawler_data_model.md "Chains")**: every fighter plays one standard chain
+generated from its own pieces (tools/brawler/routes.py `chain_tree`): fast 5 / balanced 4 / heavy 3 links by its
+game.json `archetype`, advancing only on hit (a whiff or being hit restarts it), the next press taken from the end of the
+hit-stop to 35 frames after the recovery (a press in the freeze latched, a player's press kept 5 frames), the last link's
+stick picking the finisher (neutral knockdown, forward push, up launcher, down sweep / slam, back = the back throw,
+invincible), hit-stop 6 (jab) to 12 (finisher), fixed damage (21 / 23 / 27 a chain), juggles capped at 5 air hits, downed
+fighters untouchable; enemies reel 28 (light) / 32 (heavy) frames, a player 16 with a 20-frame window only its attacker
+reaches. A multi-hit normal deals its node's damage on its first hit, the next link waits for its last hit; a knockdown
+only on its last. The tables below (the default tree, Terry's routes) are the pieces the generator takes.
 
 ## Chain routes and the Chain Lab (2026-10-05)
 Each fighter has a **route tree** (fighter.h "chain routes"): a node = one hit (the move: any ground normal incl. crouch A /

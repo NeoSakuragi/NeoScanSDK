@@ -52,7 +52,8 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 | tints | `gtint_t gtints[]` | 6 bytes each | ROM | not yet (a pointer when the lab needs it) |
 | select slots | `sel_slot_t SEL_SLOT[]`, `sel_fighter[]` | 4 + 1 bytes each | ROM; `slot_ch[]` RAM copy made on each select screen | `slot_ch` yes (RAM) |
 | unlocks | `roster_unlock[BC_COUNT]` | 1 byte each | ROM | no (save bits follow the stage order) |
-| chain routes | `rt_head_t` + `rnode_t[]` (fighter.h) | 16 + 24 bytes a node (tree version 3; a version 2 tree, 22-byte nodes, still read) | ROM, `route_tab[]` in RAM | yes: the Chain Lab (lab.buf, `lab.load`) |
+| chain routes | `rt_head_t` + `rnode_t[]` (fighter.h) | 16 + 24 bytes a node (tree version 4; revamp 1A: link slot 7 = up+A, `RF_THROW`, the node's last byte its hit-stop, the head's `arch` / `links`; older trees read the same: those bytes were 0) | ROM, `route_tab[]` in RAM | yes: the Chain Lab (lab.buf, `lab.load`) |
+| chain core rules | `gchain_t gchain` (gamedata.h) | 8 bytes | ROM | no (game.json `chain`, "Chains" below) |
 | specials by role | `bchar_t.spmap` (4 bytes: an index in the fighter's `specials`, 0xFF none) via `spec_tab[]` | 4 bytes a fighter | ROM, `spec_tab[]` in RAM | yes: a data pack's roster section (version 2) |
 | fighters | `bchar_t bm_chars[]` + everything it points at | ~35 KB each | ROM ($200000) + C ROM | no: new content = a ROM build |
 
@@ -111,7 +112,9 @@ voice sample its KOF plays, with the moves that play it.
 | `name` | `"terry"` | unique; the export name (upper case on screen) |
 | `bank` | `"kof98:terry"` | the layer-0 fighter |
 | `watch` | `{"frame": 351, "step": -1}` | the select screen's pose: KOF state and step (-1 = its last, held); optional `"head": [x, y]`: the select cursor's point, px from the feet facing left (default: tools/brawler/head_point.py's rule, TODO #157) |
-| `routes` | `"tools/brawler/routes/terry.json"` or `"default"` | its chain route tree (routes.py format; default = the pre-Chain-Lab table) |
+| `routes` | `"tools/brawler/routes/terry.json"` or `"default"` | its pieces' source (routes.py format; default = the pre-Chain-Lab table): since revamp 1A the game plays the chain `routes.py chain_tree` builds from it ("Chains" below), not the file itself |
+| `archetype` | `"balanced"` | revamp 1A: `fast` / `balanced` / `heavy` = its chain's length and damage total (game.json `chain.lengths` / `totals`); every roster fighter has one ("Chains" below: the 25 proposals) |
+| `finishers` | `{"launcher": "up", "down": "sweep", "forward": "cmd_fwd_a"}` | revamp 1A: its last link's finishers by the stick: `launcher` = the stick that plays the launcher (`up`, `forward` or `neutral`), `down` = `sweep` (a trip), `slam` (a ground slam, the victim bounces up juggle-able) or null (none); `neutral` / `forward` / `up` / `down_move` = a move (routes.py MOVE_NAMES) instead of the generator's pick (written by tools/brawler/chain_reach.py where the pick never reaches the victim) |
 | `specials` | `{"D": "EX 236C", "fD": "214C", "dD": "623C", "uD": "214D", "dfD": "236C", "ufD": "623D"}` | the KOF input played by the six special slots (TODO #71; button C since 2026-10-06; the keys keep the old D names): neutral, forward, down, up, down-forward, up-forward + C (diagonals relative to the facing; down-back = down); null = none (an empty slot plays what the input played before the six slots: down-forward+D = down+D's, up-forward+D = up+D's, then their own fallbacks, fighter.c `special_pick`); any special of the fighter's pool (`export_bm.special_pool`: ground specials of the normal condition), all of which are in the ROM, so a change is live (a data pack). `export_bm.suggest_specials` is the automatic pick that filled these |
 | `fury` | `"21416C"` (absent = none) | TODO #71: the fury, button D since 2026-10-06 (down+D: its MAX version `MAX <fury>` when the bank has one, TODO #139; every fury plays the super flash, `super_flash` below) (needs half the meter, costs half; fully invincible from the trigger to its end): the fighter's main desperation move, any special of its bank (KOF DM / SDM, an SS4 rage move: conditions other than normal too); appended to its pool when not in it, `bchar_t.fury` = its index (0xFF none), played as role `BS_FURY`. Picks (2026-10-05): Terry 21416C Power Geyser, Ryo 23624C Ryuko Ranbu, Ralf 23624C (15 hits), Robert 23624C Ryuko Ranbu, Yamazaki 236236C Guillotine, Billy 236236C Chou Kaen Senpuukon, Kyo 21426C Orochinagi, Iori 23624C Ya Otome, Mai 21426D Chou Hissatsu Shinobi Bachi, Yashiro 21426C Final Impact, Geese 1632143C Raging Storm, Mr. Big 23623C (his only DM), Krauser 641236C (his only DM), K' 23624C Heat Drive, Rugal 23624C Gigantic Pressure, Goenitz 2141236C (his DM; the SDM 6321463214C left), Haohmaru BUST 236D (SS4 rage move), Hanzo HERO 623AB (World Heroes Perfect's 623 + A+B with the hero gauge full, the "Super Shoryuha"; MAX = MAX HERO 623AB, the hero desperation move 65426AC), Kim 6246A (Kizuna Encounter's Phoenix desperation move, life <= 96 there), Rosa 6246A (Kizuna's grab, throw and aerial chase; MAX = her other desperation move, 421A: TODO #213) |
 | `air_specials` | `{"dA": "j.2B"}` (absent = none) | TODO #200 / #221: the air-special table, specials of its bank its source plays from a jump (read from the ROM as programs). Key = the stick's slot as the six ground C slots name it (`""` neutral, `f` forward, `d` down, `u` up, `df` down-forward, `uf` up-forward; diagonals relative to the facing, down-back = down) + the button `A` or `C`; value = the special's input in its bank. That press in a jump plays it (fighter.c `air_pick`; a diagonal without an entry plays its vertical's: down-forward -> down, up-forward -> up): an `A` entry in the air normal's place (no meter; not while a jump-cancel's node waits), a `C` entry at a C special's meter (meter.special); a projectile special while its projectile flies: none (the press is then the air normal / nothing). Each is appended to its pool in table order when not in it; `bm_air[id]` = [input, special index] per entry (`bchar_t.nair` entries) (input = slot BS_D..BS_UF_D | AIR_A for A), 0xFF ends; played as role `BS_AIR` (vocabulary `air.special`, no cancels out of it). Rule for a new fighter: put an air version on the same slot + C as its ground version (Rosa's 623C is down+C on the ground, j.623C down+C in a jump), the A button only for a dive that takes the air down+A normal's place. Set: Kim `dA` j.2B (Kizuna Encounter's diving kick, export_kz AIR), Rosa `dA` j.2C (Kizuna's dive with its down+A follow-up, TODO #213) (planned, TODO #221: `dC` j.623C, `uC` j.421C), Hanzo SS2 `dA` j.4123S (Samurai Shodown II's shuriken, 4 1 2 3 + S in a jump there: handlers_ss2 `han_j4123s`, the A+B row, TODO #211; a projectile special) |
@@ -119,7 +122,7 @@ voice sample its KOF plays, with the moves that play it.
 | `invincible` | `["EX 421D"]` (absent = none) | TODO #202: the inputs of its specials (as in `specials` / `fury`) that are invincible from their first frame to their end, the fury's rule (`INV_FURY`: no hit, grab or push reaches the fighter): `bspec_t.sflags` SF_INV, fighter.c start_special. Bruno's call per move, over the source's own frames (KOF98's EX 421D has none for its first 11 frames only: its steps without a hurt box, which the brawler plays anyway). Set: Kyo EX 421D |
 | `hit_sfx` | `{"A": "SLASH", "623B": "SLASH", "throw_c": "BACK BREAK"}` (absent = KOF's own) | TODO #75: hit sounds by use, songs.json sfx names. Keys: a normal's button (`A` `B` `C` `D` `CD`: fighter.c `hit_sound`, `bchar_t.sfx`), a throw's impacts (`throw_c` / `throw_d`), a special's KOF input (export_bm `move_fx`: the KOF98 hit kind playing that code, burn kept). Rules without data: a fury's hits play $9C SDM IMPACT; a grab or a command grab's catch $19 GRAB START. Set: Haohmaru A/B/C/CD + 421C + 623B `SLASH` ($2B; D is his kick), Krauser `throw_c` `BACK BREAK` ($3D). Kyo `21426C` / `MAX 21426C` `FIRE HIT` ($2E alone, KOF96's fire hit: TODO #206; his fury burns by its flames' element, handlers98 `fire_element`). No guard exists in the brawler, so $17 BLOCKED HIT has no event. Proof: /data/tmp/sfx75/sfx75_proof.py |
 | `fire` | `["214A", "214B"]` (absent = none) | TODO #163: specials (KOF inputs) whose hits burn the victim (fighter.c `set_burn`, the fighter's flame colour) though their game's hit kind is not a fire one (KOF96 sets no hit kind on the Blitz Ball object: +$1B8 = 0). export_bm `move_fx` (the body's hits and its projectiles'). Set: Krauser's Blitz Ball 214A-D (Bruno 0.0.72: "these are literally fireballs"). |
-| `damage` | `3` (absent = 1) | TODO #203: the fighter's damage scale, 1-4: the damage of its normals (route nodes), its specials and their objects is multiplied by it when the hit lands (fighter.c `fighter_hit`, build_tables `roster_damage`); a fury's hits (D / down+D), throws and hold hits keep the engine's own numbers. Set: the four Samurai Shodown II fighters at 3 (Bruno 20261007-130138-b3f3: "triple the amount of damage per hit"; SS2 measured in our emulator: a slash takes 7-20 % of the life, KOF98's normals 4-10 %, tools/samsho2/dmg203_proof.py). |
+| `damage` | `3` (absent = 1) | TODO #203: the fighter's damage scale, 1-4: the damage of its specials and their objects is multiplied by it when the hit lands (fighter.c `fighter_hit`, build_tables `roster_damage`); since revamp 1A its normals carry their own damage in their route nodes: the chain's links the archetype's total (the scale no longer applies), the jump-cancel / dash / C-without-special / air entries their damage times this scale (baked by routes.py chain_tree); a fury's hits (D / down+D), throws and hold hits keep the engine's own numbers. Set: the four Samurai Shodown II fighters at 3 (Bruno 20261007-130138-b3f3: "triple the amount of damage per hit"; SS2 measured in our emulator: a slash takes 7-20 % of the life, KOF98's normals 4-10 %, tools/samsho2/dmg203_proof.py). |
 | `unlock` | `"always"` or `{"boss_of_stage": 1}` | locked on the select screen until that stage's boss is beaten (save bit stage - 1) |
 | `voices` | absent, `"kof"` or `{"kof": true, "set": {"hit": 3, "special:236C": null}}` | absent = silent (none of its samples in the V ROM); `"kof"` = KOF's own voice on every move (the suggestion); an object = that base (`kof` false: none) with these keys changed to a voice id of its list (null: silent). Keys: every BA_* move name, `throw_c` / `throw_d`, `hit`, `ko`, `select`, `special:<input>` of its pool ("Voices" below) |
 | `display` | `"BILLY LEE"` | the name shown (HUD, select) when it differs from `name` upper-cased (at most 10 characters) |
@@ -162,6 +165,79 @@ export_bm `link_c`; the program decides when it counts: `P_CHECK` on the frames 
 `again` = the slot's own input (C + its direction). Every other slot special of the three (and their furies) has no follow-up in the
 ROM (brute force in our emulator, whiff / hit / block). Proof: `tools/brawler/followups_proof.py` (game vs model,
 brawler vs model, both facings), `romspecials_check.py` with `+LINK@T` cases.
+
+
+## Chains: the chain core (revamp phase 1A, 2026-10-08; docs/brawler_feel.md 8h, docs/brawler_revamp_plan.md 1A)
+
+One standard chain system for every fighter (fighter.c "chain core", routes.py `chain_tree`, game.json `chain` ->
+`gchain_t`), Bruno's decisions 8h:
+
+- **Advance only on hit.** A link that whiffs, or the attacker being hit, restarts the chain at link 1 (start_node /
+  fighter_hit clear the window). A hit on any enemy counts (Final Fight). A multi-hit link deals its node's whole damage on
+  its first hit on each victim (`fighter_t.ldmg`) and the next link waits for its last hit (`hits_to_come`).
+- **Window.** The next press is taken from the end of the hit-stop through the link's recovery (a cancel) and
+  `chain.window` (35) frames after it, from neutral (`chain_t`, set to window + 1 since it is counted down before read).
+- **Latch + buffer.** A press in the hit-stop is latched (its age does not grow while frozen) and fires on the first free
+  frame; a player's press older than `chain.buffer` (5) frames (hit-stop frames not counted, `fighter_t.buf_age`) is
+  dropped; the AI's presses are kept whatever their age (1B's follow-up timing); a press in a whiffing link's last 5 frames
+  starts link 1 as it ends.
+- **Length by archetype**: the tree's depth, `chain.lengths` fast 5 / balanced 4 / heavy 3 (Final Fight's Guy / Cody /
+  Haggar).
+- **Finishers by the stick** on the last link (the last builder's links): A neutral (knockdown), `fA` forward (a push:
+  blowback, or the launcher), `uA` up (the launcher by default: tree slot 7, RI_UA; the stick's up = `combo_input` 0x08),
+  `dA` down (a sweep: trip, or a slam: RE_SLAM, to the floor at once then a 6 px/f bounce, juggle-able, `kslam`), `bA`
+  back = the back throw (RF_THROW node, fighter.c `chain_throw`): the victim the link before hit, reeling on the ground
+  within 96 px, is grabbed where it stands and thrown with the fighter's throw whose victim ends behind it (throw D first,
+  then C; a stun strike is no throw; none behind: its throw played mirrored, the thrower turned away), the thrower
+  untouchable (INV_FURY + `cthrow`) to the throw's control return, the thrown body knocking others down (spawn.body, as
+  before), no chain credit. down-forward -> forward; a missing finisher (or no throw / no victim in reach) -> neutral.
+- **Hit-stop per node** (`rnode_t.hitstop`, its last byte): link k of N = 6 + 6 (k - 1) / (N - 1) rounded (fast 6 8 9 11
+  12, balanced 6 8 10 12, heavy 6 9 12), every finisher 12; other nodes by class (light 6, strong 9, an effect 12); 0 = the
+  engine's HITSTOP (7: specials, furies, throws, holds keep it).
+- **Juggles**: a hit on a fighter falling in its knockdown counts (`jug_n`); at `chain.juggle_cap` (5) nothing reaches it
+  until it lands; once its knockdown touched the floor (`kfloor`) it is downed and untouchable until it stands (a fury's
+  own hits, a cancel's juggle window and the down attack, TODO #218, excepted).
+- **Hit stun**: an enemy's light reel `chain.stun_light` (28), heavy `stun_heavy` (32); a player's `stun_player` (16) and,
+  from the hit, `guard_player` (20) frames in which only the attacker that hit it reaches it (`guard`, `guard_by`; grabs
+  too): a crowd cannot juggle a player.
+- **Fixed damage**: no random spread; a chain's links scaled so the whole chain (any finisher) totals `chain.totals` fast
+  21 / balanced 23 / heavy 27 (Final Fight's 42 / 46 / 54 halved for the brawler's 60 life).
+
+`chain` (game.json): `window`, `buffer`, `juggle_cap`, `stun_player`, `guard_player`, `stun_light`, `stun_heavy` (gchain_t,
+the engine's), `lengths`, `totals`, `hitstop` [jab, finisher] (the generator's).
+
+**The generator** (routes.py `chain_tree`, called by export_bm for every roster fighter with its build_tables `chain_cfg`:
+archetype, length, total, hit-stop scale, finishers, damage scale): (1) the pieces = the fighter's base tree's ground
+move nodes breadth first (its routes file, or the default tree), the main line = the plain-A path from the root's A or
+close-A link with the most no-effect pieces; (2) builders (links 1 .. N-1) = the main line's no-effect pieces, the first
+N-1 (fast, balanced) or the last N-1 (heavy: the strong end), short of them the tree's other no-effect pieces; (3)
+finishers: neutral = the line's next piece after the builders (made a knockdown) or the tree's first knockdown / blowback /
+trip piece; the launcher = the tree's first launch piece, else far D, down-forward C / D, far C (not the neutral's move);
+forward = a push (the tree's blowback piece, the body toss, forward + A / B, far C / B); down = the tree's trip piece or
+crouch D (sweep), or a strong close normal the chain does not play yet (slam); (3b) measured: tools/brawler/chain_reach.py
+plays each fighter's chain with every finisher in our emulator and, for one that never reaches the victim, writes the
+first candidate that does as the fighter's `finishers` override (Terry forward cmd_fwd_a, Ralf neutral atk_b_far /
+forward atk_c_far, Yashiro forward cmd_fwd_b, Cheng-Fu neutral atk_c_close / forward + up atk_c_far); (4) damage: the pieces' own damage as
+weights, scaled to the total (largest remainder, ties to the later link), every finisher the neutral's share; (5) the
+hit-stop scale; (6) links: builder A -> the next, B -> the base tree's jump-cancel, the six C inputs -> the slots'
+specials; the root's A -> link 1 (any stick, close or far). The tree carries a `chain` summary (build/chainlab.json).
+
+**Archetypes** (proposals, Bruno reviews each in phase 4; anchors Krauser heavy, Kim fast, Terry balanced): fast (5
+links, 21) Robert, Iori, Mai, K', Hanzo (WHP), Hanzo (SS2), Kim, Rosa: light, quick fighters, the ninjas and the
+kickers; balanced (4, 23) Terry, Ryo, Yamazaki, Billy, Kyo, Geese, Goenitz, Genjuro, Billy Lee: the all-rounders;
+heavy (3, 27) Ralf, Yashiro, Mr. Big, Krauser, Rugal, Haohmaru, Cheng-Fu, Super Billy: the big bodies, the slow big
+sword, the power form. Heavies' down finisher is the slam, everyone else's the sweep; every launcher on up.
+
+Proof (our emulator, /data/tmp/rv1a/out): tools/brawler/chain_proof.py (every rule above, the whole roster's chains,
+finishers and damage totals; sheets), chain_reach.py (every finisher reaches), controls_proof / cancel_proof /
+fury_inv_proof (whole roster), bank_proof, regress (new attract baseline, no-bleed), campaign29.
+Results (2026-10-08, after merging brawler 0.4.1): chain_proof roster 25 / 25 (links, per-link damage and hit-stop,
+totals), whiff / window (35 frames exactly) / latch + buffer / juggle cap / downed / special hit-stop 7 / stun (28, 32;
+player 16 + guard 20) all ok; finishers 124 / 125 (Mr. Big's back throw tosses the body high: it never meets the
+enemy standing behind); controls_proof 25 / 25; cancel_proof all but K''s fury -> MAX (fails on brawler 0.4.1 too);
+fury_inv_proof (AI_OFF build) ALL OK; bank_proof ALL OK; regress no-bleed True (frame-exact), the new facing baseline
+recorded and a second run identical; campaign29 through. Scenarios rv1a-* (tools/brawler/chain_scenarios_check.py plays
+each), scenario.py lint 0.
 
 ## Layer 2: enemies, AI presets, tints
 

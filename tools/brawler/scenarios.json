@@ -857,7 +857,7 @@
    "gap": 70
   },
   "do": "Press A three times (a 3-hit chain). Then try his specials (C, forward + C, down + C) and the other Samurai Shodown II fighters (Haohmaru, Kuroko, Hanzo).",
-  "expect": "The chain takes 36 of the dummy's 60 life (hits of 9, 9 and 18), three times the 12 it took in 0.1.9 (3, 3, 6). His specials hit three times as hard as before (24 instead of 8 a single hit); his rage move (D) and throws deal what they did. Haohmaru, Kuroko and Hanzo are on the same x3 scale; the KOF fighters are unchanged.",
+  "expect": "The chain's three hits take 4, 4 and 7 of the dummy's 60 life: since revamp 1A a chain's damage is its archetype's (Genjuro balanced: 4 links, 23 in all), the same for every balanced fighter. His specials still hit three times as hard as before (24 instead of 8 a single hit); his rage move (D) and throws deal what they did. Haohmaru, Kuroko and Hanzo keep the x3 on their specials.",
   "do_keys": "3:a,9:-,3:a,9:-,3:a",
   "proof": 90
  },
@@ -1711,6 +1711,126 @@
   "do": "Stage 1: clear the waves fast without getting hit (the Brawler Lab's status line shows 'rank n'). Then let yourself be beaten once.",
   "expect": "The rank starts at 8 and climbs (a wave cleared fast: +1, untouched: +1, every 10 seconds without a hit: +1): the enemies wait less before attacking and rest less between attacks, and from rank 11 newly arriving enemies hit 1 harder (2 from 22). Losing a life drops it by 4. It is never shown in the game itself.",
   "do_keys": "",
+  "proof": 60
+ },
+ "rv1a-chain-length": {
+  "title": "Chains by archetype: Kim 5 links, Terry 4, Krauser 3",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "Tap A steadily (about four taps a second) against the dummy. Then do the same with Terry and with Krauser.",
+  "expect": "Kim (fast) hits five times, the fifth knocks the dummy down; Terry (balanced) four times; Krauser (heavy) three, each hit slower and harder. The whole chain takes 21 (Kim), 23 (Terry) and 27 (Krauser) of the dummy's 60 life, shown at the bottom.",
+  "do_keys": "3:a,9:-,3:a,9:-,3:a,9:-,3:a,9:-,3:a",
+  "proof": 90
+ },
+ "rv1a-whiff-reset": {
+  "title": "A chain goes on only on hits: a miss starts it again",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 160
+  },
+  "do": "Far from the dummy, tap A three times. Then walk up and tap A twice so the first jab hits.",
+  "expect": "Every miss plays the first jab again (never the second or third link of the chain). Up close, the jab hits and the next tap plays the second link.",
+  "do_keys": "3:a,14:-,3:a,14:-,3:a,14:-,40:R,6:-,3:a,9:-,3:a",
+  "proof": 60
+ },
+ "rv1a-window": {
+  "title": "The next link waits a little more than half a second",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "Tap A once (the jab hits), wait about half a second, tap A again. Then let the dummy recover, tap A, and wait a full second before the next tap.",
+  "expect": "After the short wait Terry plays the second link of his chain (the far jab); after the long wait the jab starts the chain again.",
+  "do_keys": "3:a,30:-,3:a,90:-,3:a,70:-,3:a",
+  "proof": 60
+ },
+ "rv1a-buffer": {
+  "title": "A press during the hit freeze is never lost",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "Tap A once; tap it again exactly when the first hit lands (during the freeze), and once more on the next hit.",
+  "expect": "Each next link starts on the very first frame after the freeze, the three hits flow without a gap. A tap made long before a hit (more than 5 frames) is not kept.",
+  "do_keys": "1:a,12:-,1:a,16:-,1:a",
+  "proof": 70
+ },
+ "rv1a-finisher-up": {
+  "title": "Finishers by direction: up + A launches",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "A, A, A, then hold up and press A for the last hit. Then try the last hit with forward, down, back and no direction.",
+  "expect": "Up: the far kick launches the dummy high (juggle it). Forward: a push that sends it flying away. Down: a sweep that trips it. Back: Terry grabs it and throws it behind him, nothing can hit him during the throw. No direction: the knockdown kick.",
+  "do_keys": "3:a,9:-,3:a,9:-,3:a,4:-,2:U,3:Ua",
+  "proof": 90
+ },
+ "rv1a-back-throw": {
+  "title": "Back + A on the last link throws the enemy behind, into the one standing there",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 30,
+   "extra": [
+    -70
+   ]
+  },
+  "do": "A, A, A, then hold back and press A for the last hit.",
+  "expect": "Terry grabs the dummy, throws it behind him; its body knocks down the second dummy standing behind Terry. Terry is untouchable during the throw; the throw does not continue the chain.",
+  "do_keys": "3:a,9:-,3:a,9:-,3:a,4:-,2:L,3:La",
+  "proof": 120
+ },
+ "rv1a-slam": {
+  "title": "A heavy's down finisher: a ground slam that bounces",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "A, A, then hold down and press A for the last hit.",
+  "expect": "The dummy is slammed to the floor at once and bounces up high, where it can be juggled before it falls.",
+  "do_keys": "3:a,12:-,3:a,12:-,2:D,3:Da",
+  "proof": 90
+ },
+ "rv1a-juggle-cap": {
+  "title": "Juggles stop at 5 air hits; a fighter on the floor cannot be hit",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "Krauser: A, A, then down + A (the slam: the dummy bounces up), then keep tapping A at it in the air, and keep tapping once it lies down.",
+  "expect": "The slam bounces the dummy up; whatever reaches it in the air lands, never more than five hits in one juggle (then your attacks pass through it until it lands; the default chains seldom reach five, tools/brawler/chain_proof.py proves the cap). Once it has touched the floor nothing hits it until it is standing again.",
+  "do_keys": "3:a,12:-,3:a,12:-,2:D,3:Da,6:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-,3:a,5:-",
+  "proof": 120
+ },
+ "rv1a-player-stun": {
+  "title": "Hit by an enemy: a short stun and a moment no one else can hit you",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 1
+  },
+  "do": "Stage 1, wave 2: stand in the middle of the enemies and let them hit you.",
+  "expect": "Each hit stuns Terry only briefly (about a quarter of a second) and for a moment after it the other enemies' punches pass through him: a crowd can no longer juggle you; the enemy that hit you may follow up.",
+  "do_keys": "600:-",
   "proof": 60
  }
 }
