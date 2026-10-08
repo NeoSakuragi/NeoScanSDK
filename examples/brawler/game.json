@@ -322,7 +322,7 @@
    "blitz": {"ff": "214B", "dd": "[2]8C", "uu": "$B6"},
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_c_jump"},
    "fury": "6246A",
-   "throws": {"hold": {"hit": "atk_b_close", "fin": "atk_d_close"}},
+   "throws": {"hold": {"hit": "atk_b_close", "fin": "atk_d_close", "multi": ["fin"]}},
    "voices": "kof",
    "unlock": "always"
   },
