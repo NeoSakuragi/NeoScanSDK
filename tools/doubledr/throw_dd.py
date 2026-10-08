@@ -118,7 +118,7 @@ def script(ch, button='C', back=False, vch=VICTIM_REF):
 # victim poses (export_bm.VICTIM_POSES['doubledr'], victim_poses_dd.json): keys 'anim.step' of the victim animations
 THROWS = {'throw_c': ('C', False), 'throw_d': ('C', True)}     # forward + A / back + A: DD's C throw, forward / back
 
-def brawler_throw(B, ch, key, mirror_frame):
+def brawler_throw(B, ch, key, mirror_frame, scale=1.0):
     """a throw for export_dd: B the frame builder (thrower frames 'body'), mirror_frame(def) -> the frame of that
     definition mirrored (the hold pose). Victim rows [frame of Billy's own pose (poses()), x, y, same, front, key, role]"""
     button, back = THROWS[key]
@@ -136,10 +136,10 @@ def brawler_throw(B, ch, key, mirror_frame):
         if 'impact' in r['ev']: impacts.append(i)
         if r['ev'] and 'land' in r['ev']: role = 'knockdown_bounce'
         else: role = None
-        rows.append([vframe(k), round(r['x']), round(r['y']), same, 0, f'{a}.{k}', role])
+        rows.append([vframe(k), round(r['x'] * scale), round(r['y'] * scale), same, 0, f'{a}.{k}', role])
     x_land = rows[-1][1]
     for h in s['bounce']:
-        rows.append([-1, x_land, round(h), same, 0, '71.0', 'knockdown_bounce'])
+        rows.append([-1, x_land, round(h * scale), same, 0, '71.0', 'knockdown_bounce'])
     rows += [[-1, x_land, 0, same, 0, '73.0', 'down'] for _ in range(s['lie'])]
     anim = {'slot': s['entry']['thrower'], 'mode': 'hold', 'steps': th_steps}
     g0 = mirror_frame(tst[0]['def_']) if key == 'throw_c' else None
@@ -177,7 +177,7 @@ def stun_script(ch, button='C', vch=VICTIM_REF):
     return dict(button=button, back=False, entry=e, timeline=tl, rows=rows, release=None, land=None, ret=len(tl),
                 stun=e['vrow'], face=-1)
 
-def brawler_stun(B, ch):
+def brawler_stun(B, ch, scale=1.0):
     """Cheng-Fu's stun strike as the brawler's paired script (export_dd: characters[].throws['throw_c'])"""
     s = stun_script(ch)
     _, tst = dd.steps(ch, s['entry']['thrower'])
@@ -185,7 +185,7 @@ def brawler_stun(B, ch):
                 for i, t in enumerate(tst)]
     timeline = [[th_steps[k]['frame'], 0, 0, 0] for k in s['timeline']]
     _, vst = dd.steps(ch, STUN_ANIM)                  # (his own pictures as the victim: a mirror match)
-    rows = [[B.frame(((vst[r['v'][1]]['def_'], 0, 0, 'body'),)), round(r['x']), 0, 0, 0, f"{STUN_ANIM}.{r['v'][1]}", None] for r in s['rows']]
+    rows = [[B.frame(((vst[r['v'][1]]['def_'], 0, 0, 'body'),)), round(r['x'] * scale), 0, 0, 0, f"{STUN_ANIM}.{r['v'][1]}", None] for r in s['rows']]
     return {'slot': s['entry']['thrower'], 'inputs': 'forward / back + A (DD: close, left / right + C: the stun strike)',
             'table': [], 'hold': False, 'rom': True, 'timeline': timeline, 'victims': {}, 'victim_rows': rows,
             'impacts': [], 'release': None, 'land': None, 'ret': s['ret'], 'stun': s['stun'],
