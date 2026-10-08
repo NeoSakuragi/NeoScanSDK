@@ -31,6 +31,20 @@
   },
   {
    "game": "The King of Fighters '95 (SNK, 1995)",
+   "title": "The air fury for Robert, Mai and Kensou (the jump-normal method)",
+   "do": "Robert: jump, kick with D, and while the kick is out do the Haoh Shoukou Ken motion with C, then tap D. Mai: jump with a D kick, her fury motion with B+C, then tap A. Kensou: jump with an A punch, then 4-2-1-3-6-4-6 with D, then C.",
+   "happens": "The fury comes out in mid-air. Let MAXIMUM run out between the presses and the fallback comes out in the air instead (Robert Hien Shippu Kyaku, Mai Hissatsu Shinobibachi, Kensou his 41236P) — a ~5-frame window, easier than Ryo's 1-frame one.",
+   "why": "A jump normal holds a 'special move allowed' window open (+$7C bit 5) and blocks new jump normals. The fury button goes in first: the fury is queued but can't start (no air flag). The air move's button arrives 4 frames later (input buffer) and completes the air special, raising the fighter-wide 'allowed in the air' flag; the next picker run takes the highest queued move — the fury. A queued command lives 3 frames per command completed that frame, so the fury press must complete two commands at once to outlast the 4-frame delay (Robert's C also completes 236P; Kensou's reordered motion makes D finish 421K too). Found by Bruno as a player; confirmed in captures.",
+   "brawler": "",
+   "shots": [
+    {
+     "src": "kof95_airfury/glitch_v3_all_kof95.png",
+     "caption": "KOF95: all five characters with the air fury (Ryo, Kim, Robert, Mai, Kensou)"
+    }
+   ]
+  },
+  {
+   "game": "The King of Fighters '95 (SNK, 1995)",
    "title": "The glitch inside the glitch works on the ground too — and Yuri's mystery move",
    "do": "Enter a fury on the exact frame the MAXIMUM bar runs out, standing on the ground.",
    "happens": "Each character performs a fixed regular special instead (Ryo: Hien Shippu Kyaku without its charge). Yuri does a short hop kick that is not one of her command moves.",
