@@ -88,17 +88,23 @@ enum { RI_A, RI_B, RI_DA, RI_CA, RI_FA, RI_BA, RI_DFA,             /* normal lin
                                                                               attack A plays in that jump), down+A, close A
                                                                               (an opponent within CLOSE_X), forward+A, back+A,
                                                                               down-forward+A (tree version 4) */
+       RI_UA = 7,                                                          /* up+A (revamp 1A: the chain's up finisher; a tree
+                                                                              without it: 0, the fallback below) */
        RI_S = 9, RI_FS, RI_DS, RI_US, RI_DFS, RI_UFS,                      /* special links (enders): C, forward / down / up /
-                                                                              down-forward / up-forward + C (slots 7, 8 unused) */
+                                                                              down-forward / up-forward + C (slot 8 unused) */
        RI_N = 15 };
-enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4 };     /* rnode_t.flags: anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
+enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4, RF_THROW = 8 };   /* rnode_t.flags (RF_THROW, revamp 1A: the chain's back
+                                                         finisher, the fighter's back throw on the victim the last link hit,
+                                                         fighter.c chain_throw; no throw: the neutral finisher); anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
                                                          D_JUMP / CD_JUMP = KOF's air C / D / C+D, the jump picks the
                                                          animation; its A links chain in the same jump, on hit);
                                                          keep the full animation on hit: the move plays to its end, the
                                                          buffered input then takes its link (clear, the default since
                                                          2026-10-05: on hit the next link starts as soon as its input comes,
                                                          after the hit-stop) */
-enum { RE_NONE, RE_KNOCKDOWN, RE_LAUNCH, RE_TRIP, RE_BLOWBACK };   /* rnode_t.effect */
+enum { RE_NONE, RE_KNOCKDOWN, RE_LAUNCH, RE_TRIP, RE_BLOWBACK, RE_SLAM };   /* rnode_t.effect (RE_SLAM, revamp 1A: the
+                                                         down finisher's ground slam: knocked to the floor at once, it bounces
+                                                         up high, juggle-able, fighter.c "chain core") */
 typedef struct {
     uint8_t anim, flags;
     uint8_t weight, effect;       /* weight 0 light / 1 strong (the victim's hit animation and stun, effect none) */
@@ -107,7 +113,8 @@ typedef struct {
     uint16_t speed;               /* playback speed, 8.8 fixed point (0x0100 = KOF's own timing; 0x0040-0x0400): the move's
                                      animation, or the special's script, advances by it every frame (fighter.c anim_tick) */
     uint8_t next[RI_N];           /* links by RI_* */
-    uint8_t pad;
+    uint8_t hitstop;              /* its hit-stop frames (revamp 1A: one scale for every fighter, jab 6 -> finisher 12 by link
+                                     index / move class, routes.py chain_tree); 0 = the engine's HITSTOP */
 } rnode_t;
 _Static_assert(sizeof(rnode_t) == 24, "routes.py NODE_SIZE");
 typedef struct {
@@ -116,7 +123,9 @@ typedef struct {
     uint8_t root;                 /* the links from neutral (its own move unused) */
     uint8_t dash, nospec, hold;   /* run + A; C when the fighter has no special for it; the hold's third hit (C+D) */
     uint8_t air_a, air_b, air_cd; /* air normals: A, down+A, up+A in a jump (a jump-cancel: its B link's node instead) */
-    uint8_t pad[5];
+    uint8_t arch, links;          /* revamp 1A: the fighter's archetype + 1 (1 fast, 2 balanced, 3 heavy; 0 = a tree not made
+                                     by routes.py chain_tree) and its chain's length (links from neutral to the finisher) */
+    uint8_t pad[3];
 } rt_head_t;
 #define TREE_VERSION 4
 #define RT_NODE(t, i) ((const rnode_t *)((const uint8_t *)(t) + sizeof(rt_head_t) + (uint16_t)(i) * sizeof(rnode_t)))
@@ -353,6 +362,18 @@ typedef struct fighter {
                                    * next press to count as one (from the special's start, again from each one read);
                                    * spmash: this frame's link presses made inside that window (P_CHECK b 2) */
     uint8_t  vsigp, vspad;        /* its P_VSIG signals this frame, taken by vlist_apply after its placement (TODO #220) */
+    /* the chain core (revamp 1A, fighter.c "chain core"): buf_age = frames since the buffered press (hit-stop frames not
+     * counted: a press in the freeze is latched), the attack buffer's age; jug_n = air hits taken in this juggle (the cap,
+     * gchain.juggle_cap: then untouchable until it lands); kfloor = 1 once its knockdown touched the floor (downed:
+     * untouchable until it stands; a slam's bounce excepted: kslam); guard / guard_by = a player's untouchable window
+     * after a hit (only guard_by, the one that hit it, reaches it meanwhile); cthrow = its back throw out of a chain
+     * plays (invincible to its control return) */
+    uint8_t  buf_age, jug_n;
+    uint8_t  kfloor, kslam;
+    uint8_t  guard, cthrow;
+    uint8_t  ldmg, lpad;          /* the normal playing: the victims its damage was dealt to (bit per fighter_t.idx; its node's
+                                     damage once per victim, on the first hit: fixed damage, "chain core") */
+    struct fighter *guard_by;
 } fighter_t;
 extern int16_t wall_lo, wall_hi;  /* the walls (vocabulary stage.wall): world x of the screen edges' walls this frame
                                      (WALL_EDGE px in; wall_update), PC_WALL's test */

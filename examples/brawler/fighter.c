@@ -37,7 +37,9 @@ enum { PF_END = 1, PF_EVENT = 2, PF_LAND = 4, PF_FALL = 8, PF_HITANY = 16, PF_HO
                                      (the step's $0080 until consumed), PF_HITANY +$E3 bit 7, PF_HOLD +$E4 bit 4, PF_SIG7 /
                                      PF_SIG6 +$D1 bits 7 / 6: its objects' signals (bproj_t sig) and P_FXOFF (TODO #139) */
 enum { VPH_FREEZE = 1, VPH_MIRROR = 2 };   /* fighter_t.vph: a special's victim phases (P_VPHASE, fighter.c vphase) */
-#define HITSTOP     7             /* hit-stop frames, the same for every hit (Bruno 2026-10-04; KOF98 counts +$124 from 7 to 11 by move) */
+#define HITSTOP     7             /* hit-stop frames of a special's / a fury's / a throw's hit (Bruno 2026-10-04; KOF98 counts +$124
+                                     from 7 to 11 by move); a normal's is its route node's (rnode_t.hitstop, revamp 1A: 6 jab -> 12
+                                     finisher, routes.py chain_tree), this when the node has none */
 #define CATCH_STOP  1             /* a ROM special's catch (a catch box's hit, TODO #220): KOF's hit-stop routine runs one
                                      frame ($1B2C4), then the catch's dead frames ($1B402: the catching step's hit-stop
                                      counted down, prog_update pcatch 2, pdeadn) are its pause. The brawler's: its HITSTOP
@@ -45,10 +47,11 @@ enum { VPH_FREEZE = 1, VPH_MIRROR = 2 };   /* fighter_t.vph: a special's victim 
                                      KOF's own when longer: the hit-stop is max(CATCH_STOP, HITSTOP - (pdeadn - 1)). A catch
                                      with one dead frame (the furies', class 4) keeps HITSTOP; Yamazaki 236236C's (12) held
                                      7 + 12 frames where KOF holds 1 + 12: his swirl ended 7 frames before he moved again */
-#define STUN_LIGHT  36            /* hitstun frames: 3x a fighting game's, a beat 'em up keeps its victims in the chain */
-#define STUN_HEAVY  54
+/* hit stun (revamp 1A): gchain.stun_light / stun_heavy for an enemy (Final Fight 28, the later Capcom games 23-36), a short
+ * gchain.stun_player for a player plus its untouchable window (gchain.guard_player; SOR2 12, Punisher 17) */
 #define AI_IDLE_DELAY 10          /* AI fighters stop walking into idle only after this many frames without a walk intent */
-#define CHAIN_WINDOW 30           /* frames after a route step that hit during which A / B continues the route (Final Fight) */
+#define CHAIN_WINDOW (gchain.window)   /* frames after a route step that hit during which A / B continues the route (Final
+                                     Fight 45 while idle; revamp 1A: game.json chain.window, ~35) */
 #define RUN_MUL     2             /* run = walk << 1 */
 /* KOF's walk / run / jump speeds rounded to whole pixels a frame (Terry walks 3.17 -> 3): the Neo Geo scrolls in whole
  * pixels, so a fractional speed made the camera step 3,3,3,4,3,... and the background lurch every ~6 frames (very
@@ -232,6 +235,10 @@ void fighter_pose_tick(fighter_t *f) { anim_tick(f); }                 /* stage 
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
 static void enter(fighter_t *f, uint8_t st) {
     f->state = st; f->state_t = 0; f->dizzy = 0;                 /* (a stun strike's dizziness: a new state ends it) */
+    if (st != S_KNOCKDOWN) {                                     /* (the chain core: a juggle and a downed body end when it */
+        f->kfloor = f->kslam = 0;                                /* is out of its knockdown; a reel keeps the juggle's count) */
+        if (st != S_HITSTUN) f->jug_n = 0;
+    }
     if (st != S_KNOCKDOWN && st != S_HITSTUN) { f->kmode = f->kdelay = 0; f->kvfr = 0; f->ksr = 0; f->vph = 0; }   /* KOF's
                                                                     reaction (kof_react) ends, a source reaction (src_react)
                                                                     and the victim phases of a special (vphase) too */
@@ -302,7 +309,7 @@ static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
     uint8_t a = c->anim;
     snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_A_CROUCH || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR ||
             a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
-    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0;
+    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0; f->ldmg = 0;
     if (c->flags & RF_AIR) {                                     /* the jump in progress picks the air normal */
         if (a == BA_ATK_CD_JUMP) a = f->jump_kind ? BA_ATK_CD_HOP : f->jump_dir ? BA_ATK_CD_JUMP_DIAG : BA_ATK_CD_JUMP;   /* KOF's
                                                                     117, a KOF98 / 99 hop's 124; WHP's diagonal C+D (a KOF
@@ -321,22 +328,23 @@ static uint8_t combo_input(const fighter_t *f, const intent_t *in) {
     uint8_t b = (in->press & IN_A) ? IN_A : (in->press & IN_B) ? IN_B : 0;
     if (b != IN_A) return b;
     if (in->dx == f->facing) b |= 0x80; else if (in->dx) b |= 0x20;
-    if (in->dz > 0) b |= 0x40;
+    if (in->dz > 0) b |= 0x40; else if (in->dz < 0) b |= 0x08;   /* (up: revamp 1A, the chain's up finisher) */
     if (in->close) b |= 0x10;
     return b;
 }
-/* the link an input takes: B its B link; A the exact one, else down-forward -> forward -> down -> back -> close -> plain
- * (a plain A always continues a route whatever the stick does) */
+/* the link an input takes: B its B link; A the exact one, else down-forward -> up -> forward -> down -> back -> close ->
+ * plain (a plain A always continues a route whatever the stick does) */
 static uint8_t next_node(const rnode_t *c, uint8_t b) {
     if (b & IN_B) return c->next[RI_B];
     if ((b & 0xC0) == 0xC0 && c->next[RI_DFA]) return c->next[RI_DFA];
+    if ((b & 0x08) && c->next[RI_UA]) return c->next[RI_UA];
     if ((b & 0x80) && c->next[RI_FA]) return c->next[RI_FA];
     if ((b & 0x40) && c->next[RI_DA]) return c->next[RI_DA];
     if ((b & 0x20) && c->next[RI_BA]) return c->next[RI_BA];
     if ((b & 0x10) && c->next[RI_CA]) return c->next[RI_CA];
     return c->next[RI_A];
 }
-static uint8_t has_links(const rnode_t *c) { uint8_t k, n = 0; for (k = RI_A; k <= RI_DFA; k++) n |= c->next[k]; return n; }
+static uint8_t has_links(const rnode_t *c) { uint8_t k, n = 0; for (k = RI_A; k <= RI_UA; k++) n |= c->next[k]; return n; }
 static uint8_t d_input(const fighter_t *f, const intent_t *in) {  /* C's direction, as special_for reads it: a diagonal */
     uint8_t fwd = in->dx == f->facing;                           /* only with the stick toward the facing (down-back = down) */
     return in->dz > 0 ? (fwd ? RI_DFS : RI_DS) : in->dz < 0 ? (fwd ? RI_UFS : RI_US) : in->dx ? RI_FS : RI_S;
@@ -348,9 +356,39 @@ static void jump_start(fighter_t *f, const intent_t *in, uint8_t air_node) {
     f->jump_kind = 0; f->vx = 0; f->vz = dir_mul(in->dz, FIX(1)); f->air_node = air_node;
     enter(f, S_PREJUMP); play(f, BA_PREJUMP);
 }
-/* a route's next node: B's is a jump-cancel (its node waits for A in the air), any other starts now */
+/* ---- the chain core (revamp 1A, Bruno's decisions docs/brawler_feel.md 8h; game.json "chain" -> gchain, the trees from
+ * routes.py chain_tree) -------------------------------------------------------------------------------------------------
+ * One system for every fighter: a chain = links from neutral, its length the fighter's archetype's (fast 5, balanced 4,
+ * heavy 3: the tree's depth). It advances ONLY on a hit (the link's `landed`); a whiff or being hit restarts it at link 1
+ * (start_node / fighter_hit clear the window). The next press is taken from the end of the hit-stop through the link's
+ * recovery (a cancel) and gchain.window frames after it (chain_t, from neutral). A press made in the hit-stop is latched
+ * (the freeze does not age it) and fires on the first possible frame; a player's press older than gchain.buffer frames
+ * (hit-stop frames not counted: buf_age) is dropped, the AI's are kept whatever their age; a press in a whiffing link's
+ * last gchain.buffer frames starts link 1 as it ends. The last link's stick picks the finisher (the tree's links: A
+ * neutral, forward, up, down; down-forward -> forward; missing ones fall back to A): back = RF_THROW, the fighter's back
+ * throw on the victim the link before hit (chain_throw: invincible to the throw's control return, the thrown body knocks
+ * others down, no chain credit; no throw / no victim in reach: the neutral finisher). Hit-stop per node (rnode_t.hitstop),
+ * hit stun and juggles in fighter_hit / combat ("juggle cap", "guard"). */
+static uint8_t throw_ok(const fighter_t *f);
+static void chain_throw(fighter_t *f, uint8_t node, uint8_t how);
+static uint8_t hits_to_come(const fighter_t *f) {               /* a normal's hits (steps opening one) after this step */
+    const banim_t *an = &f->ch->anims[f->anim];
+    uint8_t k;
+    for (k = f->step + 1; k < an->nsteps; k++) if (an->steps[k].flags & 4) return 1;
+    return 0;
+}
+#define BUF_OK(f, in) ((in)->ai || (f)->buf_age <= gchain.buffer)
+static uint8_t chain_next(const fighter_t *f, const rnode_t *c, uint8_t b) {   /* next_node + the back throw's fallback */
+    uint8_t nx = next_node(c, b);
+    if (nx && !(b & IN_B) && (RT_NODE(TREE(f), nx)->flags & RF_THROW) && !throw_ok(f)) nx = c->next[RI_A];
+    return nx;
+}
+/* a route's next node: B's is a jump-cancel (its node waits for A in the air), a back throw (RF_THROW) grabs, any other
+ * starts now */
 static void route_go(fighter_t *f, uint8_t node, uint8_t b, const intent_t *in, uint8_t how) {
-    if (b & IN_B) jump_start(f, in, node); else start_node(f, node, how);
+    if (b & IN_B) jump_start(f, in, node);
+    else if (NODE(f, node)->flags & RF_THROW) chain_throw(f, node, how);
+    else start_node(f, node, how);
 }
 
 /* ---- the special meter (TODO #71, Bruno 2026-10-05; gamedata.h gmeter_t <- game.json "meter") -----------------------
@@ -838,6 +876,44 @@ static void hold_update(fighter_t *f, const intent_t *in) {
     if (f->state_t >= GRAB_TIME) {                               /* the victim breaks free */
         release(f); v->x += dir_mul(f->facing, FIX(10)); clamp(v); v->inv = 20;
     }
+}
+/* the chain's back throw (revamp 1A, "chain core"): the victim the link before hit (target), reeling on the ground within
+ * reach, is grabbed where it stands and thrown backwards: the fighter's throw whose victim ends behind it (its last row's
+ * place: BT_THROW_D first, KOF's forward+D / a reverse throw, then BT_THROW_C), else its throw played mirrored (the
+ * thrower turned away: the victim goes over to its back at the grab); a stun strike (bthrow_t.stun, Cheng-Fu's) is no
+ * throw. The thrower is untouchable (INV_FURY, cthrow) until the throw's control return; the chain is over (no credit
+ * from the throw nor from its thrown body). No throw / no victim in reach: the neutral finisher (chain_next). */
+#define CTHROW_DX 96              /* px: the farthest victim the back throw takes (a chain's push leaves it 40-70 px ahead) */
+static uint8_t cthrow_pick(const bchar_t *ch, uint8_t *mirror) {   /* -> BT_* (0xFF none); mirror: play it turned */
+    uint8_t t, first = 0xFF;
+    for (t = BT_THROW_D + 1; t-- > 0;) {                         /* (D, then C) */
+        const bthrow_t *th = &ch->throws[t];
+        const bthrow_row_t *r;
+        if (!th->nrows || th->stun) continue;
+        if (first == 0xFF) first = t;
+        r = &th->rows[th->nrows - 1];
+        if (r->tx + r->vx < 0) { *mirror = 0; return t; }       /* its victim ends behind the thrower */
+    }
+    *mirror = 1; return first;
+}
+static uint8_t throw_ok(const fighter_t *f) {
+    const fighter_t *v = f->target;
+    int16_t dx, dz;
+    uint8_t m;
+    if (!v || v->team == f->team || v->state != S_HITSTUN || v->hp <= 0 || v->y || v->held || v->inv || dancing(v)) return 0;
+    if (!f->ch->throws[BT_THROW_C].nrows || cthrow_pick(f->ch, &m) == 0xFF) return 0;   /* (no throw; the hold needs C's) */
+    dx = INT(v->x) - INT(f->x); dz = INT(v->z) - INT(f->z);
+    return dx >= -CTHROW_DX && dx <= CTHROW_DX && dz >= -Z_HIT && dz <= Z_HIT;
+}
+static void chain_throw(fighter_t *f, uint8_t node, uint8_t how) {
+    fighter_t *v = f->target;
+    uint8_t m, t = cthrow_pick(f->ch, &m);
+    lab_note(f, LE_START, node, how, 0);
+    f->freeze = v->freeze = 0; f->facing = v->x >= f->x ? 1 : -1;
+    grab(f, v);
+    if (m) f->facing = -f->facing;                               /* mirrored: its forward throw sends the victim behind */
+    throw_start(f, t);
+    f->inv = INV_FURY; f->cthrow = 1; f->node = 0; f->chain_t = 0; f->buffered = 0;
 }
 /* the thrower lets go (its control return, or a cancel): a victim still in its script plays its rows on alone
  * (thrown_update) from the row shown; done: this frame's row already played (paired_update), else it plays it itself */
@@ -1444,7 +1520,7 @@ static uint8_t src_fall(fighter_t *f) {                          /* S_KNOCKDOWN 
         f->kmode = 1;                                            /* (its bounce: no box, Kizuna's lying steps) */
     }
     if (f->y + f->vy <= 0) {                                     /* the floor */
-        f->y = 0; f->vy = 0; f->kmode = 0;
+        f->y = 0; f->vy = 0; f->kmode = 0; f->kfloor = 1;
         if (r->land == 0xFF) { f->ksr = 0; return 0; }
         f->vx = 0;
         if (f->anim == BA_KNOCKDOWN_FALL) { f->ksr = 0; enter(f, S_DOWN); play(f, BA_DOWN); return 1; }
@@ -1982,7 +2058,10 @@ static void update(fighter_t *f, const intent_t *in) {
     }
     if (f->state == S_ATTACK || f->state == S_AIR_ATTACK) {      /* presses in hit-stop count */
         uint8_t ci = combo_input(f, in);
-        if (ci) f->buffered = ci;
+        if (ci) { f->buffered = ci; f->buf_age = 0; }            /* the attack buffer's age ("chain core"): the hit-stop */
+        else if (f->buffered && !f->freeze && f->buf_age < 255 && !(f->landed && hits_to_come(f))) f->buf_age++;   /* does
+                                                                    not age it (a latched press), nor a multi-hit link's
+                                                                    hits still to come (the press waits for them) */
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
         if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
     }
@@ -2018,11 +2097,14 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
                                                                     later counts on once the move ended (KOF $17074 runs
                                                                     every frame; in the special: prog_update's frames) */
+    if (f->cthrow && f->state != S_THROW) { f->cthrow = 0; if (f->inv == INV_FURY) f->inv = 0; }   /* the chain's back throw
+                                                                    returned control: untouchable no more */
     if (f->inv == INV_FURY) {                                    /* held for the fury's script (and a form's transition, */
-        if (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM &&   /* a move with SF_INV) */
-                                      !(f->ch->specials[f->spec_ix].sflags & SF_INV))) f->inv = 0;
-    }
+        if (!f->cthrow && (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM &&   /* a move with */
+                                      !(f->ch->specials[f->spec_ix].sflags & SF_INV)))) f->inv = 0;   /* SF_INV; a chain's */
+    }                                                            /* back throw) */
     else if (f->inv) f->inv--;
+    if (f->guard && !--f->guard) f->guard_by = 0;                /* a player's untouchable window after a hit ("guard") */
     if (f->chain_t) f->chain_t--;
     if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C) && !dancing(f)) {   /* out of trouble: a special
                                                                     while hit (not in a fury's dance) */
@@ -2063,8 +2145,8 @@ static void update(fighter_t *f, const intent_t *in) {
             break;
         }
         if (b & IN_A) {
-            uint8_t ci = combo_input(f, in), nx = f->chain_t ? next_node(NODE(f, f->chain_node), ci) : 0;
-            if (nx) { start_node(f, nx, LH_WINDOW); break; }       /* the route goes on (Final Fight: tap, wait, tap) */
+            uint8_t ci = combo_input(f, in), nx = f->chain_t ? chain_next(f, NODE(f, f->chain_node), ci) : 0;
+            if (nx) { route_go(f, nx, ci, in, LH_WINDOW); break; }   /* the route goes on (Final Fight: tap, wait, tap) */
             if (f->state == S_RUN) { start_node(f, TREE(f)->dash, LH_NEUTRAL); break; }   /* dash attack */
             nx = next_node(NODE(f, TREE(f)->root), ci);          /* a route starts: the root's links */
             if (nx) start_node(f, nx, LH_NEUTRAL);
@@ -2108,6 +2190,8 @@ static void update(fighter_t *f, const intent_t *in) {
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: a jump-cancel's node, else the stick: air A (KOF's */
             uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : in->dz < 0 ? TREE(f)->air_cd : TREE(f)->air_a;
             start_node(f, nx, f->air_node ? LH_CANCEL : LH_NEUTRAL); f->air_node = 0;   /* C), down+A air B (D), up+A air C+D */
+        } else if (f->state == S_AIR_ATTACK && f->buffered && !(NODE(f, f->node)->flags & RF_KEEP) && !BUF_OK(f, in)) {
+            f->buffered = 0;                                     /* a player's press too old (the attack buffer) */
         } else if (f->state == S_AIR_ATTACK && f->landed && f->buffered &&   /* an air route: A on hit, its next air hit */
                    (!(NODE(f, f->node)->flags & RF_KEEP) || f->anim_done)) {
             uint8_t nx = next_node(NODE(f, f->node), f->buffered);
@@ -2134,15 +2218,25 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     (players; enemies keep their routes' links) */
             if (k != 0xFF && spend(f, gmeter.special, 0, 0)) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); start_special(f, k); if (nx) f->speed = NODE(f, nx)->speed; break; }
         }
-        if (f->landed && f->buffered && !(c->flags & RF_KEEP)) {   /* cancel on hit: the next link now (after the hit-stop) */
-            uint8_t nx = next_node(c, f->buffered);
+        if (f->buffered && !(c->flags & RF_KEEP) && !BUF_OK(f, in)) f->buffered = 0;   /* a player's press too old: dropped
+                                                                    (the attack buffer) */
+        if (f->landed && f->buffered && !(c->flags & RF_KEEP) && !hits_to_come(f)) {   /* cancel on hit: the next link now
+                                                                    (after the hit-stop; a multi-hit link once its last
+                                                                    hit came: the link's whole damage, "chain core") */
+            uint8_t nx = chain_next(f, c, f->buffered);
             if (nx) { lab_note(f, LE_END, f->node, LH_CANCEL, 1); route_go(f, nx, f->buffered, in, LH_CANCEL); break; }
         }
         if (f->anim_done) {                                     /* played to its end (keep flag, or no input yet) */
-            uint8_t nx = f->buffered && f->landed ? next_node(c, f->buffered) : 0;   /* routes chain only on a hit */
+            uint8_t nx = f->buffered && f->landed ? chain_next(f, c, f->buffered) : 0;   /* routes chain only on a hit */
             lab_note(f, LE_END, f->node, LH_AFTER_END, f->landed);
             if (nx) { route_go(f, nx, f->buffered, in, LH_AFTER_END); break; }
-            if (f->landed && has_links(c)) { f->chain_node = f->node; f->chain_t = CHAIN_WINDOW; lab_note(f, LE_CHAINWIN, f->node, 0, CHAIN_WINDOW); }   /* tap later: still the route */
+            if (!f->landed && (f->buffered & IN_A) && !in->ai && BUF_OK(f, in) &&
+                (nx = next_node(NODE(f, TREE(f)->root), f->buffered)) != 0) {   /* a whiff: a press in its last frames */
+                start_node(f, nx, LH_NEUTRAL); break;            /* starts the chain again at link 1 (the attack buffer) */
+            }
+            if (f->landed && has_links(c)) { f->chain_node = f->node; f->chain_t = CHAIN_WINDOW + 1; lab_note(f, LE_CHAINWIN, f->node, 0, CHAIN_WINDOW); }   /* tap later: still the route
+                                                                    (+ 1: counted down before it is read, so a press on
+                                                                    each of the CHAIN_WINDOW frames after this one takes it) */
             to_neutral(f, in);
         }
         break;
@@ -2162,7 +2256,7 @@ static void update(fighter_t *f, const intent_t *in) {
         else { f->x += f->vx; f->vx = f->kvfr ? fmul16(f->vx, f->kvfr) : f->vx - (f->vx >> 3); clamp(f); }
         if (dancing(f)) break;                                   /* a fury's victim: in its reel until the fury ends */
         if (f->hp <= 0) { react(f, f->facing > 0 ? -1 : 1, R_KNOCKDOWN, 0); break; }   /* its dance over, no life: it falls */
-        if (f->state_t >= (f->dizzy ? f->dizzy : f->anim == BA_HIT_STAND_HEAVY ? STUN_HEAVY : STUN_LIGHT) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends (a stun strike's dizziness: f->dizzy) */
+        if (f->state_t >= (f->dizzy ? f->dizzy : !f->team ? gchain.stun_player : f->anim == BA_HIT_STAND_HEAVY ? gchain.stun_heavy : gchain.stun_light) && !f->y) { f->frame_ovr = 0xFFFF; to_neutral(f, 0); }   /* a hold's pose ends (a stun strike's dizziness: f->dizzy) */
         break;
     case S_KNOCKDOWN:
         if (f->vph && (!f->vph_by || f->vph_by->state != S_SPECIAL)) f->vph = 0;
@@ -2173,8 +2267,12 @@ static void update(fighter_t *f, const intent_t *in) {
         else { f->y += f->vy; f->vy -= GRAVITY_KD; f->x += f->vx; clamp(f); }
         /* KOF98's fall (a C+D captured on Yuri: 285 / 283 counter rising 26 frames, 287 falling 13, 309 hitting the floor
          * 4, 313 a 2 px bounce 10, 328 down): blowback up, flight down, bounce on the floor, the small hop, down */
+        if (f->y <= 0 && f->kslam) {                             /* a slam (the chain's down finisher, RE_SLAM): it */
+            f->y = 0; f->kslam = 0; f->kmode = 0; f->vy = FIX(6); f->vx = dir_mul(-f->facing, FIX(1));   /* bounces up off */
+            play(f, BA_BLOWBACK_N); break;                       /* the floor at once, juggle-able ("chain core") */
+        }
         if (f->y <= 0) {
-            f->y = 0; f->kmode = 0; f->kvfr = 0;
+            f->y = 0; f->kmode = 0; f->kvfr = 0; f->kfloor = 1;  /* (downed: untouchable from here, "juggle cap") */
             if (f->anim == BA_KNOCKDOWN_BOUNCE) {                /* on the floor until it played, then the hop */
                 f->vy = 0; f->vx -= f->vx >> 2;
                 if (f->anim_done) { f->vy = FIX(1); play(f, BA_KNOCKDOWN_FALL); }
@@ -2260,13 +2358,23 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     {   const fighter_t *o = a->owner ? a->owner : a;           /* the attacker's damage scale (game.json roster[].damage,
                                                                     TODO #203: SS2's sword hits x 3): its normals, specials
                                                                     and their objects; a fury's hits, throws and holds as they are */
-        if ((a->state == S_ATTACK || a->state == S_AIR_ATTACK || a->state == S_PROJ || (a->state == S_SPECIAL && a->spec_id != BS_FURY))
+        if ((a->state == S_PROJ || (a->state == S_SPECIAL && a->spec_id != BS_FURY))   /* (its normals: their route nodes
+                                                                    carry their damage, the archetype's chain total and
+                                                                    the scale for the others: routes.py chain_tree) */
             && !(o->state == S_SPECIAL && o->spec_id == BS_FURY))
             damage *= roster_damage[o->ch - bm_chars];
     }
     v->hp -= damage + (a->owner ? a->owner : a)->power;
     if (v->hp > 0) voice_play(v->ch, v->team, VK_HIT);          /* the KO voice: once, at the death (S_DEAD) */
-    v->freeze = !caught ? HITSTOP : a->pdeadn > HITSTOP - CATCH_STOP + 1 ? CATCH_STOP : HITSTOP + 1 - a->pdeadn;
+    {   uint8_t hs = (a->state == S_ATTACK || a->state == S_AIR_ATTACK) && NODE(a, a->node)->hitstop ? NODE(a, a->node)->hitstop : HITSTOP;
+        v->freeze = !caught ? hs : a->pdeadn > HITSTOP - CATCH_STOP + 1 ? CATCH_STOP : HITSTOP + 1 - a->pdeadn;   /* a normal:
+                                                                    its node's (the chain core's scale) */
+    }
+    {   fighter_t *o = a->owner ? a->owner : a;                  /* the chain core: an air hit counts toward the juggle cap */
+        if (v->y > 0 && v->state == S_KNOCKDOWN && !(o->state == S_SPECIAL && o->spec_id == BS_FURY) && v->jug_n < 255) v->jug_n++;
+        if (!v->team && v->state != S_PROJ) { v->guard = gchain.guard_player; v->guard_by = o; }   /* a player: untouchable
+                                                                    to all but this attacker a moment ("guard") */
+    }
     if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
     a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
     {   fighter_t *o = a->owner ? a->owner : a;                  /* the cancel rule: a special that landed (its body, */
@@ -2384,7 +2492,7 @@ static void hold_spark(fighter_t *a, fighter_t *v) {
     spark_hit(sx, sy, a->throw_id == BT_HOLD_FIN || hit_btn(hold_anim(a)) >= SX_C, a->facing);
 }
 static uint8_t grabbable(const fighter_t *v) {
-    return !v->inv && !v->y && v->hp > 0 && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
+    return !v->inv && !v->guard && !v->y && v->hp > 0 && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
 }
 #define AIR_BLOCK_Y 64            /* a special in the air below this height (px) is held by a standing body ahead */
 #define PUSH_DX 32                /* a special pushes an opponent standing in its path to keep it this far ahead (KOF's push
@@ -2553,7 +2661,12 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if ((v->state == S_DOWN && (a->dtgt != v || a->state != S_SPECIAL)) || v->state == S_GETUP ||   /* (lying: */
                 v->state == S_THROW || (v->state == S_THROWN && !jug) ||   /* only its down attack's target, TODO #218) */
                 v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
-            if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls, no limit */
+            if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls (the chain core: */
+            if (v->guard && v->guard_by != (a->owner ? a->owner : a)) continue;   /* a player's guard after a hit; */
+            if (v->state == S_KNOCKDOWN && !jug && !(a->state == S_SPECIAL && a->spec_id == BS_FURY) &&   /* at most */
+                !(a->owner && a->owner->state == S_SPECIAL && a->owner->spec_id == BS_FURY) &&   /* juggle_cap air hits, */
+                (v->kfloor || v->jug_n >= gchain.juggle_cap)) continue;   /* none once it touched the floor; a fury's
+                                                                    own hits and a cancel's juggle window excepted) */
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             sv = fighter_hurt_step(v);
             if (v->state == S_DOWN) hb = &LIE_BOX;               /* lying: its down attack's (TODO #218) */
@@ -2577,17 +2690,20 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                 if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
                     const rnode_t *c = NODE(a, a->node);
                     const banim_t *an = &a->ch->anims[a->anim];
-                    static const uint8_t EFFECT_R[5] = { 0, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK };
+                    static const uint8_t EFFECT_R[6] = { 0, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_KNOCKDOWN };
                     uint8_t dmg = c->damage, rc = c->effect ? EFFECT_R[c->effect] : c->weight ? R_HEAVY : R_LIGHT, k, total = 0, later = 0;
-                    for (k = 0; k < an->nsteps; k++)                 /* multi-hit normal: damage split over its hits, */
-                        if (an->steps[k].flags & 4) { total++; if (k > a->step) later++; }   /* knockdown on the last */
-                    if (total > 1) {
-                        dmg = later ? dmg / total : dmg - dmg / total * (total - 1);
-                        if (later && rc >= R_KNOCKDOWN) rc = R_HEAVY;
-                    }
+                    for (k = 0; k < an->nsteps; k++)                 /* multi-hit normal: the knockdown on its last */
+                        if (an->steps[k].flags & 4) { total++; if (k > a->step) later++; }   /* hit */
+                    if (total > 1 && later && rc >= R_KNOCKDOWN) rc = R_HEAVY;
+                    dmg = (a->ldmg & (1 << v->idx)) ? 0 : dmg;      /* fixed damage (revamp 1A): the node's whole damage on */
+                    a->ldmg |= 1 << v->idx;                          /* its first hit on each victim, its later hits none */
                     big = rc >= R_KNOCKDOWN || hit_btn(c->anim) >= SX_C;
                     if (!sounded++) snd_sfx(hit_sound(a, c->anim, rc >= R_KNOCKDOWN));
                     fighter_hit(a, v, dmg, rc, c->push);
+                    if (c->effect == RE_SLAM && !later && v->state == S_KNOCKDOWN) {   /* the slam (the chain's down */
+                        v->vy = v->y > 0 ? -FIX(6) : 0; v->kslam = 1;    /* finisher): to the floor now, then its */
+                        play(v, BA_KNOCKDOWN_FLIGHT);                    /* bounce (S_KNOCKDOWN, kslam) */
+                    }
                 } else if (a->spec_prev_hit & 8) {       /* a running grab's reach: it catches, the continuation hits */
                     a->hit_mask |= 1 << v->idx; a->landed = 1; a->shrow = a->srow; a->target = v; v->freeze = HITSTOP;
                     if (!sounded++) snd_sfx(SFX_GRAB);           /* the command grab connects: KOF98's grab start */

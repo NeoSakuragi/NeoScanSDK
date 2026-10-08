@@ -38,7 +38,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROUTES_DIR = os.path.join(HERE, 'routes')
 NORMAL_INPUTS = ['A', 'B', 'dA', 'cA', 'fA', 'bA', 'dfA']                               # fighter.h RI_A .. RI_DFA
 SPECIAL_INPUTS = ['AB', 'fAB', 'dAB', 'uAB', 'dfAB', 'ufAB']                             # RI_S .. RI_UFS
-INPUTS = NORMAL_INPUTS + [None, None] + SPECIAL_INPUTS                                  # fighter.h RI_* (slots 7, 8 unused)
+INPUTS = NORMAL_INPUTS + ['uA', None] + SPECIAL_INPUTS                                  # fighter.h RI_* (slot 7: up+A, revamp 1A,
+                                                                                         # the chain's up finisher; slot 8 unused)
 SPECIALS = ['D', 'fD', 'dD', 'uD', 'dfD', 'ufD']                                         # BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D
 SLOT_OF = dict(zip(SPECIAL_INPUTS, SPECIALS))                                            # a C input -> the slot it plays
 MOVE_NAMES = ['atk_a_close', 'atk_a_far', 'atk_a_crouch', 'atk_b_close', 'atk_b_far', 'atk_b_crouch',
@@ -54,8 +55,9 @@ AIR_MOVE_NAMES = list(AIR_MOVES.values()) + ['atk_a_jump', 'atk_b_jump', 'atk_ab
                                                  # links); the jump picks the vertical / diagonal one (fighter.c start_node)
 ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd']
 WEIGHTS = ['light', 'strong']
-EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback']                            # fighter.h RE_*
-RF_SPECIAL, RF_AIR, RF_KEEP = 1, 2, 4
+EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback', 'slam']                    # fighter.h RE_* (slam: revamp 1A)
+RF_SPECIAL, RF_AIR, RF_KEEP, RF_THROW = 1, 2, 4, 8
+ARCHETYPES = ['fast', 'balanced', 'heavy']                                               # rt_head_t.arch - 1 (revamp 1A)
 NODE_SIZE, HEAD_SIZE, RI_N, MAX_NODES = 24, 16, 15, 128                                  # tree version 4 (TREE_VERSION)
 TREE_VERSION = 4
 SPEED_MIN, SPEED_MAX = 0x40, 0x400
@@ -70,7 +72,7 @@ def speed_fx(nd):
 
 def default_damage(node):
     e = node.get('effect', 'none')
-    if e != 'none': return {'knockdown': 8, 'launch': 9, 'trip': 7, 'blowback': 10}[e], 0
+    if e != 'none': return {'knockdown': 8, 'launch': 9, 'trip': 7, 'blowback': 10, 'slam': 9}[e], 0
     return (6, 4) if node.get('weight') == 'strong' else (3, 3)
 
 
@@ -215,7 +217,7 @@ def encode(tree, moves, has=None, specials_have=None):
             if k in SPECIAL_INPUTS:
                 assert 'special' in ch, f'{where} {k}: a C input leads to a special'
                 assert not air, f'{where} {k}: no special in the air'
-            else: assert 'move' in ch, f'{where} {k}: an A / B input leads to a move'
+            else: assert 'move' in ch, f'{where} {k}: an A / B input leads to a move (a back throw: "throw" + its shown move)'
             assert not (air and k == 'B'), f'{where}: no jump-cancel in the air'
             assert not (where == 'root' and (k == 'B' or k in SPECIAL_INPUTS)), f'root {k}: a route starts with an A'
             nxt[INPUTS.index(k)] = node(ch, f'{where} {k}', air or k == 'B')   # B: a jump-cancel, its node in the air
@@ -230,20 +232,26 @@ def encode(tree, moves, has=None, specials_have=None):
             assert m in (AIR_MOVE_NAMES if air else MOVE_NAMES), f'{where}: {m} is not an {"air" if air else "ground"} move'
             assert has is None or air or m in has, f'{where}: the fighter has no {m}'
             anim, flags = moves.index(m), (RF_AIR if air else 0) | (RF_KEEP if nd.get('keep') else 0)
+            if nd.get('throw'):                                                         # the chain's back throw (revamp 1A)
+                assert not air and not nd.get('links'), f'{where}: a throw ends a ground chain'
+                flags |= RF_THROW
         w, e = nd.get('weight', 'light'), nd.get('effect', 'none')
         assert w in WEIGHTS and e in EFFECTS, f'{where}: weight {w} / effect {e}'
         dd, dp = default_damage(nd)
         dmg, push = nd.get('damage', dd), nd.get('push', dp)
         assert 0 <= dmg <= 255 and -128 <= push <= 127, where
         sp = speed_fx(nd)
-        nodes[i] = bytes([anim, flags, WEIGHTS.index(w), EFFECTS.index(e), dmg, push & 0xFF, sp >> 8, sp & 0xFF] + nxt + [0])
+        hs = nd.get('hitstop', 0)                                                       # 0 = the engine's HITSTOP
+        assert 0 <= hs <= 60, f'{where}: hitstop {hs}'
+        nodes[i] = bytes([anim, flags, WEIGHTS.index(w), EFFECTS.index(e), dmg, push & 0xFF, sp >> 8, sp & 0xFF] + nxt + [hs])
         return i
     root = node({'links': tree.get('links', {})}, 'root')
     d = default_tree()['entries']
     ent = [node((tree.get('entries') or {}).get(k) or d[k], k, air=k in AIR_MOVES) for k in ENTRIES]   # an air entry: its own
                                                          # move (air_a's default air C; any of the three)
     assert len(nodes) <= MAX_NODES, f'{len(nodes)} nodes (at most {MAX_NODES})'
-    head = b'RT' + bytes([TREE_VERSION, len(nodes), root] + ent + [0] * 5)
+    arch = ARCHETYPES.index(tree['archetype']) + 1 if tree.get('archetype') else 0
+    head = b'RT' + bytes([TREE_VERSION, len(nodes), root] + ent + [arch, tree.get('chain_links', 0)] + [0] * 3)
     assert len(head) == HEAD_SIZE
     return head + b''.join(nodes)
 
@@ -294,6 +302,179 @@ def frame_data(steps, speed=0x100):
             'travel': -sum(s.get('dx', 0) for s in steps), 'frames': ''.join('x' if a else '-' for a in fr),
             'steps': [[t, int(a), int(n)] for t, a, n in sf]}
 
+
+
+# ---- the chain core's default chains (revamp 1A, docs/brawler_feel.md 8h; docs/brawler_data_model.md "Chains") ---------
+# Every roster fighter plays ONE standard chain built from its existing pieces (its routes file or the default tree):
+# length by archetype, damage scaled to the archetype's total, hit-stop on one scale, finishers by direction. The
+# generator, chain_tree(), in order:
+#  1. pieces: the base tree's ground move nodes (breadth first from the root, B / jump-cancel and special nodes left out);
+#     the main line = the plain-A path from the root's A or close-A link with the most no-effect pieces (A on a tie).
+#  2. builders (links 1 .. N-1): the main line's no-effect pieces, the first N-1 (fast / balanced: from the jab) or the
+#     last N-1 (heavy: the strong end); short of them, the other no-effect pieces breadth first, then the last again.
+#  3. finishers (link N, by the stick): neutral = the line's first knockdown / blowback / trip piece after the builders,
+#     else the tree's first, else close D / far C (knockdown); the launcher = the tree's first launch piece, else far D,
+#     else the neutral's move, put where finishers.launcher says (up default; forward or neutral); forward = the launcher
+#     there, else the tree's first blowback piece, else the body toss (blowback); down = finishers.down: "sweep" the
+#     tree's trip piece, else crouch D (trip), "slam" a strong close normal (close D, close C, close C+D, far C) with the
+#     slam effect, null none; back = the fighter's back throw (RF_THROW, shown as the neutral's move). Every finisher may
+#     be named instead (finishers.neutral / forward / up / down = a move). A missing one falls back to neutral (the game).
+#  4. damage: the pieces' own damage (their weight's default) as weights, scaled to the archetype's total for the whole
+#     chain (largest remainder, each at least 1); every finisher deals the neutral's share. The jump-cancel, dash, C
+#     without a special and air entries keep their own damage times the fighter's `damage` scale (it no longer applies
+#     to normals in the game); the hold's finisher its own.
+#  5. hit-stop: link k of N = lo + (hi - lo) (k - 1) / (N - 1) rounded (6, 8, 10, 12 for 4 links), every finisher hi; the
+#     other nodes by class: light lo, strong (lo + hi) / 2, an effect hi.
+#  6. links: each builder A -> the next (the stick ignored: the fallback), B -> the base tree's jump-cancel (the default's
+#     air C, then A air C+D), the six C inputs -> the slots' specials; the last builder's A / fA / uA / dA / bA -> the
+#     finishers. The root: A -> link 1 (any stick, close or far).
+
+
+def _ground_pieces(tree):
+    """the tree's ground move nodes, breadth first from the root: (inputs from the root, node)"""
+    out, q = [], [([k], nd) for k, nd in (tree.get('links') or {}).items()]
+    while q:
+        p, nd = q.pop(0)
+        if 'move' not in nd or p[-1] == 'B' or p[-1] in SPECIAL_INPUTS: continue
+        out.append((p, nd))
+        q += [(p + [k], c) for k, c in (nd.get('links') or {}).items()]
+    return out
+
+
+def _b_node(tree):
+    """the tree's first jump-cancel node (a B link), breadth first"""
+    q = list((tree.get('links') or {}).values())
+    while q:
+        nd = q.pop(0)
+        if 'B' in (nd.get('links') or {}): return nd['links']['B']
+        q += [c for k, c in (nd.get('links') or {}).items() if k != 'B' and 'move' in c]
+    return None
+
+
+def _dmg(nd): return hit_of(nd)['damage']
+
+
+def _scale(weights, total):
+    """integers proportional to weights summing to total (largest remainder), each at least 1"""
+    tw = sum(weights); raw = [w * total / tw for w in weights]; out = [max(1, int(x)) for x in raw]
+    order = sorted(range(len(raw)), key=lambda i: (-round(raw[i] - int(raw[i]), 6), -i))   # (ties: the later link)
+    k = 0
+    while sum(out) < total: out[order[k % len(out)]] += 1; k += 1
+    while sum(out) > total: i = max(range(len(out)), key=lambda i: out[i]); out[i] -= 1
+    return out
+
+
+def chain_tree(name, base, cfg, has):
+    """the chain the game plays (see above): base = the fighter's tree (load()), cfg = build_tables.chain_cfg's entry
+    {archetype, length, total, hitstop [lo, hi], finishers {launcher, down, neutral?, forward?, up?, down_move?}, damage},
+    has = the moves it has. Returns a tree for encode() (with 'archetype', 'chain_links' and a 'chain' summary)"""
+    if not cfg: return base
+    N, total, (lo, hi) = cfg['length'], cfg['total'], cfg['hitstop']
+    fin = cfg.get('finishers') or {}
+    mul = cfg.get('damage', 1)
+    ok = lambda m: m in has
+    pieces = [(p, nd) for p, nd in _ground_pieces(base) if ok(nd['move'])]
+    clean = lambda nd: {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage') if k in nd}
+    noeff = lambda nd: nd.get('effect', 'none') == 'none'
+    lines = []
+    for k in ('A', 'cA'):
+        nd = (base.get('links') or {}).get(k); line = []
+        while nd and 'move' in nd and ok(nd['move']):
+            line.append(nd); nd = (nd.get('links') or {}).get('A')
+        if line: lines.append(line)
+    main = max(lines, key=lambda l: sum(map(noeff, l))) if lines else []
+    pool = [nd for nd in main if noeff(nd)]
+    if cfg['archetype'] == 'heavy': pool = pool[-(N - 1):] if len(pool) > N - 1 else pool
+    builders = [clean(nd) for nd in pool[:N - 1]]
+    used = {b['move'] for b in builders}
+    for _, nd in pieces:
+        if len(builders) >= N - 1: break
+        if noeff(nd) and nd['move'] not in used: builders.append(clean(nd)); used.add(nd['move'])
+    while len(builders) < N - 1: builders.append(dict(builders[-1]) if builders else {'move': 'atk_a_far', 'weight': 'light', 'effect': 'none'})
+    for b in builders: b['effect'] = 'none'
+
+    allp = [nd for _, nd in pieces]
+    def first(pred, src, avoid=()):
+        return next((clean(nd) for nd in src if pred(nd) and nd['move'] not in avoid), None)
+    def named(m, eff, w='strong'):
+        assert m in has, f'{name}: chain finisher {m}: the fighter has no such move'
+        return {'move': m, 'weight': w, 'effect': eff}
+    def cand(ms, eff, avoid=()):                                    # the first of these moves it has (not in avoid)
+        return next((named(m, eff) for m in ms if ok(m) and m not in avoid), None)
+    by = lambda e: (lambda nd: nd.get('effect') == e)
+    where = fin.get('launcher', 'up')
+    assert where in ('up', 'forward', 'neutral', None), f'{name}: finishers.launcher {where}'
+    # neutral: the line's next piece after the builders (no effect or a knockdown: made a knockdown), else the tree's
+    # first knockdown / blowback / trip piece (the line's after the builders first), else a strong normal
+    nxt_line = main[main.index(pool[min(len(pool), N - 1) - 1]) + 1:] if pool and cfg['archetype'] != 'heavy' else \
+        main[main.index(pool[-1]) + 1:] if pool else main
+    nl = nxt_line[0] if nxt_line else None
+    if fin.get('neutral'): neutral = named(fin['neutral'], 'knockdown')
+    elif nl is not None and nl.get('effect', 'none') in ('none', 'knockdown'): neutral = dict(clean(nl), effect='knockdown')
+    else:
+        neutral = next((r for src in (nxt_line, allp) for e in ('knockdown', 'blowback', 'trip') for r in [first(by(e), src)] if r), None) or \
+            cand(('atk_d_close', 'atk_c_far', 'atk_c_close', 'atk_b_far'), 'knockdown') or dict(builders[-1], effect='knockdown')
+    # the launcher: named, else the tree's first launch piece, else far D / down-forward C / D, far C (not the neutral's
+    # move when another exists), else the neutral's move
+    lname = fin.get(where) if where in ('up', 'forward') else None
+    launch = named(lname, 'launch') if lname else \
+        first(by('launch'), allp, (neutral['move'],)) or cand(('atk_d_far', 'cmd_df_c', 'cmd_df_d', 'atk_c_far'), 'launch', (neutral['move'],)) or \
+        first(by('launch'), allp) or dict(neutral, effect='launch')
+    launch['effect'] = 'launch'
+    if where == 'neutral': neutral = launch
+    # forward: the launcher there, else a push: the tree's first blowback piece, else the body toss, forward + A / B, far
+    # C / B (blowback), never the neutral's move when another exists
+    if where == 'forward': forward = launch
+    elif fin.get('forward'): forward = named(fin['forward'], 'blowback')
+    else:
+        forward = first(by('blowback'), allp, (neutral['move'],)) or \
+            cand(('body_toss', 'cmd_fwd_a', 'cmd_fwd_b', 'atk_c_far', 'atk_b_far'), 'blowback', (neutral['move'],)) or dict(neutral, effect='blowback')
+        forward['effect'] = 'blowback'
+    up = launch if where == 'up' else (named(fin['up'], 'knockdown') if fin.get('up') else None)
+    # down: a sweep (the tree's trip piece, else crouch D) or a slam (a strong close normal the chain does not play yet)
+    dk = fin.get('down', 'sweep')
+    assert dk in ('sweep', 'slam', None), f'{name}: finishers.down {dk}'
+    usedm = {x['move'] for x in builders} | {neutral['move'], forward['move']}
+    if fin.get('down_move'): down = named(fin['down_move'], 'trip' if dk == 'sweep' else 'slam')
+    elif dk == 'sweep': down = first(by('trip'), allp) or cand(('atk_d_crouch', 'atk_c_crouch'), 'trip')
+    elif dk == 'slam':
+        sl = ('atk_d_close', 'atk_c_close', 'atk_cd_close', 'atk_c_far', 'atk_d_far')
+        down = cand(sl, 'slam', usedm) or cand(sl, 'slam')
+    else: down = None
+    if down: down['effect'] = 'trip' if dk == 'sweep' else 'slam'
+
+    dm = _scale([_dmg(b) for b in builders] + [_dmg(neutral)], total)
+    hs = [lo + ((hi - lo) * k * 2 + (N - 1)) // (2 * (N - 1)) for k in range(N)] if N > 1 else [hi]
+    for k, b in enumerate(builders): b['damage'] = dm[k]; b['hitstop'] = hs[k]
+    finals = {'A': neutral, 'fA': forward, 'uA': up, 'dA': down}
+    for k, f in list(finals.items()):
+        if f is None: del finals[k]; continue
+        finals[k] = dict(f, damage=dm[-1], hitstop=hi)
+        finals[k].setdefault('weight', 'strong')
+    finals['bA'] = {'move': neutral['move'], 'throw': 'back', 'weight': 'strong', 'effect': 'knockdown', 'damage': 0, 'hitstop': hi}
+    spl = lambda: {k: {'special': SLOT_OF[k]} for k in SPECIAL_INPUTS}
+    def cls(nd, scale):                                              # an entry / jump-cancel: its own damage x the scale,
+        nd = json.loads(json.dumps(nd))                              # hit-stop by class
+        def walk(x):
+            if 'move' in x:
+                if scale: x['damage'] = min(255, _dmg(x) * mul)
+                x['hitstop'] = hi if x.get('effect', 'none') != 'none' else (lo + hi) // 2 if x.get('weight') == 'strong' else lo
+            for c in (x.get('links') or {}).values(): walk(c)
+        walk(nd); return nd
+    bnode = cls(_b_node(base) or default_tree()['links']['A']['links']['B'], True)
+    for f in finals.values():
+        if 'throw' not in f: f['links'] = spl()
+    nxt = finals
+    for k in range(N - 2, -1, -1):
+        nd = dict(builders[k], links={**({'A': nxt} if k < N - 2 else nxt), 'B': bnode, **spl()})
+        nxt = nd
+    ent = base.get('entries') or {}
+    entries = {k: cls(v, k != 'hold') for k, v in ent.items()}
+    summary = {'archetype': cfg['archetype'], 'length': N, 'total': total,
+               'links': [b['move'] for b in builders], 'damage': dm, 'hitstop': hs,
+               'finishers': {{'A': 'neutral', 'fA': 'forward', 'uA': 'up', 'dA': 'down', 'bA': 'back'}[k]:
+                             ('throw' if 'throw' in f else f['move'] + ' (' + f['effect'] + ')') for k, f in finals.items()}}
+    return {'fighter': name, 'links': {'A': nxt}, 'entries': entries, 'archetype': cfg['archetype'], 'chain_links': N, 'chain': summary}
 
 if __name__ == '__main__':
     # python3 routes.py FIGHTER                     its tree's node count and size

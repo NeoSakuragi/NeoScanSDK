@@ -1611,7 +1611,7 @@ def write_c(chars, outdir):
     for ci, (game, n, ch, off) in enumerate(chars):           # chain routes: tools/brawler/routes/<n>.json or the default
         has = {m for m in MOVES if any(k in ch['anims'] for k in SOURCES.get(m, [m]))}
         sps = pick_specials(ch, n)
-        tree = R.load(n, roster()[n]['routes'])
+        tree = R.chain_tree(n, R.load(n, roster()[n]['routes']), roster()[n].get('chain'), has)   # the chain core (revamp 1A)
         blob = R.encode(tree, MOVES, has, [sp is not None for sp in sps])
         c.append(f'static const uint8_t {n}_routes[] = {{' + ', '.join(map(str, blob)) + '};')
         lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': roster()[n]['routes'] is not None,

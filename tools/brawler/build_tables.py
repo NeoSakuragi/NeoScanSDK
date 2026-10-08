@@ -148,9 +148,25 @@ def watch_of(g, r):
     return list(pose), (r['watch'].get('head') if list(pose) == w else None)
 
 
+CHAIN_KEYS = ('about', 'window', 'buffer', 'lengths', 'totals', 'hitstop', 'juggle_cap', 'stun_player', 'guard_player',
+              'stun_light', 'stun_heavy')
+
+
+def chain_cfg(g, r):
+    """a roster fighter's chain (revamp 1A, routes.py chain_tree): its archetype's length and damage total, the hit-stop
+    scale, its finishers, its damage scale (for the entries)"""
+    c = g['chain']
+    a = r.get('archetype')
+    assert a in ('fast', 'balanced', 'heavy'), f"roster {r['name']}: archetype {a} (fast / balanced / heavy)"
+    fin = r.get('finishers') or {}
+    for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move'), f"roster {r['name']}: finishers.{k}"
+    return {'archetype': a, 'length': c['lengths'][a], 'total': c['totals'][a], 'hitstop': c['hitstop'], 'finishers': fin,
+            'damage': r.get('damage', 1)}
+
+
 def roster_export(g):
     """what the fighter export (export_bm.py) needs of each roster fighter, in bm_chars order"""
-    return [{'bank': r['bank'], 'name': r['name'], 'watch': watch_of(g, r)[0], 'head': watch_of(g, r)[1],
+    return [{'bank': r['bank'], 'name': r['name'], 'watch': watch_of(g, r)[0], 'head': watch_of(g, r)[1], 'chain': chain_cfg(g, r),
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
@@ -206,8 +222,7 @@ def enemy_tree(e, g, build, idx):
     bases = e['pool'] if e['base'] == 'pool' else [e['base'] if e['base'] in idx else e['stand_in']]
     blob = None
     for b in bases:
-        r = g['roster'][idx[b]]
-        own = R.load(b, None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']))
+        own = fs[b]['tree']                              # its fighter's tree as the game plays it (the chain core's, export_bm)
         tree = R.enemy_preset(m, own) if not m.endswith('.json') else R.load(b, os.path.join(REPO, m))
         x = R.encode(tree, lab['ba'], set(fs[b]['has']))
         assert blob is None or x == blob, f'enemy {e["name"]}: its tree differs between its fighters'
@@ -446,6 +461,15 @@ def tables(g, build):
         1 <= m['refill'] <= 255 and 1 <= m['hit_mul'] <= 8 and 0 <= m['flash'] <= 255, 'meter values'
     c.append(f"const gmeter_t gmeter = {{ .max = {m['max']}, .special = {m['special']}, .fury = {m['fury']}, "
              f".fury_min = {m['fury_min']}, .refill = {m['refill']}, .hit_mul = {m['hit_mul']}, .flash = {m['flash']}, .infinite = {1 if m.get('infinite') else 0} }};")
+    ch = g['chain']                                      # the chain core (revamp 1A): the engine's rules (gchain_t)
+    for k in ch: assert k in CHAIN_KEYS, f'chain: unknown field {k}'
+    assert 1 <= ch['window'] <= 255 and 0 <= ch['buffer'] <= 60 and 1 <= ch['juggle_cap'] <= 255 and \
+        all(1 <= ch[k] <= 255 for k in ('stun_player', 'guard_player', 'stun_light', 'stun_heavy')), 'chain values'
+    assert set(ch['lengths']) == set(ch['totals']) == {'fast', 'balanced', 'heavy'} and all(2 <= v <= 6 for v in ch['lengths'].values()), 'chain lengths'
+    assert len(ch['hitstop']) == 2 and 1 <= ch['hitstop'][0] <= ch['hitstop'][1] <= 60, 'chain hitstop'
+    c.append(f"const gchain_t gchain = {{ .window = {ch['window']}, .buffer = {ch['buffer']}, .juggle_cap = {ch['juggle_cap']}, "
+             f".stun_player = {ch['stun_player']}, .guard_player = {ch['guard_player']}, .stun_light = {ch['stun_light']}, "
+             f".stun_heavy = {ch['stun_heavy']} }};")
     fl = g['super_flash']                                # the super flash (TODO #139): one rule for every fury
     for k in fl: assert k in ('about', 'start', 'freeze', 'white', 'anchor', 'white_colour', 'dark_colour', 'sound', 'sound_max'), f'super_flash: unknown field {k}'
     assert 1 <= fl['start'] <= 255 and 1 <= fl['white'] <= fl['freeze'] <= 255 and len(fl['anchor']) == 2, 'super_flash values'

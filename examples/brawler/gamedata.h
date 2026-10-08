@@ -49,6 +49,20 @@ typedef struct {
 } gmeter_t;
 extern const gmeter_t gmeter;
 
+/* ---- the chain core (revamp 1A, docs/brawler_feel.md 8h; game.json "chain"; fighter.c "chain core"): engine rules for
+ * every fighter. window: frames after a link's recovery to press the next one (the chain advances only on hit; a whiff or
+ * being hit restarts it); buffer: a player's press made this many frames (hit-stop not counted) before the next link may
+ * start still fires (AI presses: kept whatever their age); juggle_cap: air hits a juggled fighter takes, then nothing
+ * reaches it until it lands (a fury's excepted); stun_player / guard_player: a player's hit stun and its untouchable
+ * window from the hit (only the attacker that hit it reaches it meanwhile); stun_light / stun_heavy: an enemy's. The
+ * archetypes' lengths, damage totals and the hit-stop scale are build-time (routes.py chain_tree writes them into the
+ * trees). ---- */
+typedef struct {
+    uint8_t window, buffer, juggle_cap;
+    uint8_t stun_player, guard_player, stun_light, stun_heavy, pad;
+} gchain_t;
+extern const gchain_t gchain;
+
 /* ---- layer 2: the super flash (fx.super_flash, TODO #139; game.json "super_flash"): an engine rule, every fury (D) and
  * MAX fury (down+D) of every fighter: from the fury's frame `start` the game freezes except the attacker for `freeze`
  * frames, the stage is hidden, the backdrop `white_col` for `white` frames then `dark_col`; the concentration (the
