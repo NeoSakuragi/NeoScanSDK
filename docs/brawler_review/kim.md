@@ -1,0 +1,41 @@
+# Kim review (Bruno, 2026-10-08) — answers from review-kim on the VPS
+
+- body_toss: Keep — "I'm not quite sure yet "
+- cmd_fwd_b: Keep — "Good intermediate "
+- cmd_fwd_a: Keep
+- atk_b_far: Drop — "Meh"
+- atk_d_crouch: Keep
+- atk_c_far: Keep
+- atk_a_far: Drop
+- atk_b_close: Drop
+- atk_d_close: Keep — "Good intermediate"
+- atk_d_far: Keep
+- atk_b_crouch: Drop
+- cmd_df_c: Keep — "Perfect intermediate"
+- atk_a_close: Keep — "Perfect starter "
+- atk_c_close: Keep — "Good intermediate"
+- cmd_df_d: Keep — "Good for crumpling "
+- atk_c_crouch: Keep
+- throw-back: Keep
+- atk_a_crouch: Drop
+- atk_d_jump: Keep
+- sp-236a: Keep
+- sp-214b: Keep
+- sp-236c: Keep
+- sp-421a: Keep — "Keep in the animation but we will build something else on top as it connects , might be the start animation for the "max" fury "
+- sp-2-8c: Keep — "Invincible move "
+- atk_c_jump: Keep
+- atk_cd_jump: Keep
+- archetype: Keep
+- chain: Keep — "Use the starter I recommend above "
+- fin-up: Keep
+- fin-down: Keep
+- fin-back: Keep
+
+Interpretation:
+- Starter: close A ("perfect starter"). Intermediates: down-forward C ("perfect"), forward + B, close C, close D ("good").
+- Down-forward D: good for crumpling (the down finisher candidate).
+- Dropped: far A, far B ("meh"), close B, crouch A, crouch B — so my proposed chain (crouch A > crouch B > forward A > far B) keeps only its shape: rebuilt with his starter (follow-up set kim2).
+- 421A: keep the animation, build something on top of it; maybe the start of his MAX fury.
+- [2]8C: make it an invincible move.
+- Body toss: kept, "not quite sure yet".

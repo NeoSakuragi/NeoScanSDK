@@ -85,6 +85,47 @@
    ]
   },
   {
+   "id": "kim2",
+   "title": "Kim: follow-up",
+   "intro": "Two points from your Kim review. Piece names as on the review page.",
+   "sections": [
+    {
+     "title": "The chain (fast: 5 hits)",
+     "questions": [
+      {
+       "id": "chain",
+       "title": "Kim's chain, rebuilt with your starter",
+       "context": "You kept the chain but asked for close A as the starter; you dropped crouch A, crouch B and far B. Intermediates you liked: down-forward C (perfect), forward + B, close C, close D.",
+       "options": [
+        "close A > forward + B > close C > down-forward C > neutral finisher",
+        "close A > close C > forward + B > down-forward C > neutral finisher",
+        "close A > down-forward C > forward + B > close C > neutral finisher"
+       ]
+      },
+      {
+       "id": "neutral",
+       "title": "Kim's neutral finisher",
+       "context": "My pick was close D, but you called close D a good intermediate.",
+       "options": [
+        "close D stays the finisher",
+        "far D",
+        "crouch D"
+       ]
+      },
+      {
+       "id": "down",
+       "title": "Kim's down finisher",
+       "context": "You kept my down finisher and said down-forward D is good for crumpling.",
+       "options": [
+        "Down-forward D (crumple) as the down finisher",
+        "Keep my down finisher as it is"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "revamp2",
    "title": "Brawler revamp: follow-up",
    "intro": "Seven follow-ups from your answers. Tap an answer, type or speak a note.",
