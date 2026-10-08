@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
 import export96
 import handlers98 as H
 import routes as R
+import retime as RT
 import build_tables
 import voices as V
 import head_point as HP
@@ -1375,6 +1376,27 @@ def prog_voice_res(n, game, inp, sug, mp):
         return i | V.fx_bit(n, i) if i else 0
     return res
 
+SEGS = {}                                              # per fighter: its moves' segments (BA_* order, then its specials)
+def move_segments(ch, n, sps):
+    """each move's segments (retime.py) as the engine plays it alone: the brawler moves (their animation's steps), then
+    its specials in pool order (a ROM special: its program played; a captured script: none, not retimed)"""
+    out = [RT.step_segments(R.step_flags(source(ch, m)['steps'])) for m in MOVES]
+    atk = lambda s_: boxes(s_['boxes'])[1] is not None
+    for sp in sps:
+        if not rom_ok(sp): out.append([]); continue
+        var = vdef_of(n, sp) if (sp['rom'].get('vtable') or {}).get('nvar') else 0
+        out.append(RT.rom_segments(sp['rom'], var, atk))
+    return out
+
+def seg_table(segs):
+    """bm_seg's table of one fighter: [moves, offset per move (0 = none)], then [n, lengths...] per move"""
+    head, data = [len(segs)], []
+    for sg in segs:
+        if not sg: head.append(0); continue
+        assert len(sg) < 256 and all(v < 0x10000 for v in sg), sg
+        head.append(1 + len(segs) + len(data)); data += [len(sg)] + sg
+    return head + data
+
 def write_c(chars, outdir):
     pkeys, ptable = poses(chars); PKEYS[:] = pkeys
     SREACTS.clear(); SR_BASE.clear()
@@ -1429,6 +1451,7 @@ def write_c(chars, outdir):
          'enum { VK_THROW = BA_COUNT, VK_HIT = BA_COUNT + BT_COUNT, VK_KO, VK_SELECT, VK_SPEC };   /* voice keys (voices.py keys): BA_*, VK_THROW + BT_*, the events, VK_SPEC + its special\'s index in the pool */',
          'typedef struct { const uint8_t *map; const bproj_t *sparks; } bhspark_t;   /* (TODO #215, vocabulary fx.hit_spark) a fighter\'s source game\'s own hit sparks (Double Dragon: tools/doubledr/sparks_dd.py; map 0 = none: the engine\'s KOF98 spark): map = [where (its special index, 0xFE a normal: its BA_ animation), animation index (a special\'s anims), step, spark] each, 0xFF ends, in its bank; a hit landing on that step spawns sparks[(spark & 0x3F) - 1] (an effect object, bproj_t kind PK_FX) at its game\'s hit point (fighter.c hit_spark); spark 0x40 = turned (the other way), 0x80 = the screen strobe (DD\'s super hits: fighter.c hitflash) */',
          'typedef const uint8_t *bair_t;   /* (TODO #221) */',
+         'typedef const uint16_t *bseg_t;   /* (retiming) */', 'extern const bseg_t bm_seg[BC_COUNT];   /* (retiming, retime.py) by bchar_t.id: [BA_COUNT + nspec, offset of each move (BA_* then its specials; 0 = no segments)], then per move [n, the source frames of its n segments: startup, active 1, recovery 1, ...] (fighter.c rt_*) */',
          'extern const bair_t bm_air[BC_COUNT];   /* (TODO #221) by bchar_t.id: its air specials, [input, special index] each, 0xFF ends (bchar_t.nair entries) */',
          'extern const bhspark_t bm_hspark[BC_COUNT];   /* by bchar_t.id (bm_spec.c: the first program MB; outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef struct { int32_t vx, ax, vy, g, bvx, bvy, bg; uint8_t r, n, land, anim; } bsreact_t;   /* a source reaction (TODO #136, vocabulary reaction.source_motion; tools/kizuna/export_kz.sr_motion: Kizuna\'s reaction animations\' step commands, decoded from its hit code): the victim\'s motion when a SF_SREACT special\'s step hits it, 16.16 px a frame, x away from the attacker: vx += ax a frame while a reel slides (n frames), a flight vy -= g a frame to the floor (it lands where its next move would take it under, without moving), land frames on the floor (0xFF: none, the brawler\'s own landing), then the bounce bvx / bvy / bg; r: the victim\'s posture R_* (| 8: hittable in its flight, its source\'s reaction steps carry boxes); anim: the source\'s reaction animation (Hayate\'s, for reading) */',
@@ -1585,6 +1608,9 @@ def write_c(chars, outdir):
             assert hsk and all(0 < (e[3] & 0x3F) <= len(ch['hit_sparks']) for e in hsk), n
             c.append(f'const uint8_t {n}_hspk[] = {{' + ''.join(f'{a}, {b}, {d}, {e}, ' for a, b, d, e in hsk) + '0xFF};   /* its hit sparks: where, animation, step, spark */')
             cs.append(projectile_c(n, 'hs', ch['hit_sparks'], game, {'input': 'HIT SPARK'}) + f'\nextern const uint8_t {n}_hspk[];')
+        segs = move_segments(ch, n, sps)                         # each move's segments (retiming, fighter.c rt_*)
+        SEGS[n] = segs
+        c.append(f'static const uint16_t {n}_seg[] = {{' + ', '.join(map(str, seg_table(segs))) + '};   /* its moves\' segments (retime.py): [moves, offset per move (0 none)...], then [n, source frames...] */')
         c.append(f'static const uint8_t {n}_air[] = {{' + ', '.join(map(str, air_table(ch, n))) + '};   /* its air specials (TODO #221) */')
         c.append(f'static const uint8_t {n}_spmap[BS_COUNT] = {{' + ', '.join(str(spec_index(pool, sp)) for sp in pick_specials(ch, n)) + '};')
         vdata[n] = {'keys': vk, 'suggest': vsug, 'map': vmp, 'nvoice': len(V.bank(n)),
@@ -1616,6 +1642,7 @@ def write_c(chars, outdir):
         c.append(f'static const uint8_t {n}_routes[] = {{' + ', '.join(map(str, blob)) + '};')
         lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': roster()[n]['routes'] is not None,
                                 'moves': {m: R.frame_data(source(ch, m)['steps']) for m in R.MOVE_NAMES if m in has},
+                                'segs': {'moves': {m: v for m, v in zip(MOVES, SEGS[n][:len(MOVES)]) if v}, 'specials': SEGS[n][len(MOVES):]},
                                 'specials': {k: (sp['input'] if sp else None) for k, sp in zip(R.SPECIALS, sps)},
                                 'pool': pooldata[n], 'suggest': [sp['input'] if sp else None for sp in suggest_specials(ch, n)],
                                 'voices': vdata[n]})
@@ -1637,6 +1664,7 @@ def write_c(chars, outdir):
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
         c.append(f'  {{"{(roster()[n].get("display") or n).upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}{form_tail(chars, ch, n)}, {n}_holds, {n}_pvox, {n}_pfx, {n}_fpose, {len(fpose_steps(ch))}, {{{', '.join(map(str, ch.get('flash_head', (0, 0))))}}}, {n}_fpal, {used[n].index(ch['flash_pal']['index']) if ch.get('flash_pal') else 0xFF}, {used[n].index(flk_of(ch)['index']) if flk_of(ch) else 0xFF}, {n}_flk, {len(air_specials(ch, n))}, {spec_index(special_pool(ch, n), down_special(ch, n))}}},')
     c.append('};')
+    c.append('const bseg_t bm_seg[BC_COUNT] = {' + ', '.join(f'{n}_seg' for _, n, _, _ in chars) + '};   /* (retiming) */')
     c.append('const bair_t bm_air[BC_COUNT] = {' + ', '.join(f'{n}_air' for _, n, _, _ in chars) + '};   /* (TODO #221) */')
     c += sreact_c()
     c.append('const int8_t bm_head[BC_COUNT][2] = {' + ', '.join(f'{{{ch["head"][0]}, {ch["head"][1]}}}' for _, _, ch, _ in chars) + '};')
