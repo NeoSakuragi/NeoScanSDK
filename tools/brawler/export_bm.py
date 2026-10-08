@@ -92,7 +92,9 @@ SRC_BASE = export96.TILE_BASE                  # export96 numbers its tiles from
 
 def sb(v): return v - 256 if v > 127 else v
 
-REACH = 96                                     # px: every normal reaches at least this far forward (beat 'em up)
+REACH = 0                                      # px: minimum forward reach of a normal (was 96, beat 'em up reach; Bruno
+                                               # 2026-10-08: "a feature that artificially makes the hitbox bigger... not
+                                               # good for the gameplay": the ROM's attack boxes as drawn)
 
 def boxes(bx, reach=0):
     """KOF step boxes -> (hurt union, attack) as (x, y, w, h) or None; reach: minimum forward reach of the attack box"""
@@ -116,9 +118,11 @@ def boxes(bx, reach=0):
         # Normals also reach at least `reach` px forward, the same for every hit of a route: KOF's boxes are made for one
         # opponent in front, so an enemy standing behind it was only reached by the longer hits and dropped out.
         x, y, w, hh = norm(atk[0])
-        left, right = min(x - w, -reach), x + w
-        if left < 0: right = max(right, 0)
-        a = ((left + right) // 2, y, (right - left + 1) // 2, hh)
+        if reach:                                       # (the old beat 'em up reach, off since 2026-10-08)
+            left, right = min(x - w, -reach), x + w
+            if left < 0: right = max(right, 0)
+            a = ((left + right) // 2, y, (right - left + 1) // 2, hh)
+        else: a = (x, y, w, hh)
     return h, a
 
 THROWS = ['throw_c', 'throw_d']                         # BT_* order: ground throws, close, forward+C / forward+D in KOF

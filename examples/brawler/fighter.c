@@ -68,6 +68,8 @@ static void walk_rate(fighter_t *f) {                           /* wspd, wrate f
     f->wspd = gwalk_rom[f->ch->id];
     f->wrate = kof >= 0x1000 ? div16((uint32_t)f->wspd >> 4, (uint16_t)(kof >> 12)) : 0x100;   /* (8.8: wspd / kof, in
                                                                     1/4096 px units) */
+    f->wrate = (uint16_t)(((uint32_t)f->wrate * gwalk_anim) >> 8);   /* x game.json walk.anim (Bruno 2026-10-08: the frames
+                                                                    1.5x faster, the movement speed unchanged) */
     if (f->wrate < 0x40) f->wrate = 0x40;
     if (f->wrate > 0x400) f->wrate = 0x400;
 }
