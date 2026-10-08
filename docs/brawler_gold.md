@@ -138,3 +138,4 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 ### Kim — Bruno's 0.9.2 notes (built in 0.9.3)
 - Last hit + forward = $9A (the launcher), + up = $54 (swapped).
 - down,down + A = Hienzan ([2]8C); $5C dropped ("we don't need it"). down,up + A stays Hienzan too.
+- down,up + A: empty (no longer Hienzan; Bruno 2026-10-09). Built with the $6E fix.
