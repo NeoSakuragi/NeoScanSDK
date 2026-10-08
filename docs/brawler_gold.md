@@ -107,3 +107,8 @@ specials (Bruno: overkill for now).
 - Last hit with forward: forward + A (2 hits). With down: crouch D sweep. With up: down-forward + C.
 - Page feedback: the clip-per-move chain view needs too much scrolling on a phone → chains must render as ONE compact
   row (small looping clips with arrows), the whole sequence on one screen.
+- Breaker (C or A+B while being hit): the stick picks, the same mapping as the C specials (neutral = Rising Tackle).
+  Open: Bruno said forward = Power Dunk here, while the C mapping above has down = Power Dunk, forward = Burn Knuckle.
+- Fury = Power Geyser, MAX = the triple geyser. Super throw: dropped (forward / back + C in the hold = the normal throw).
+- Air: forward jump + A = jump D, straight jump + A = jump CD (startup sped up), down + A = jump A (flinch, active for
+  the rest of the jump). Cancel: down + A first, then the jump attack. The chain always starts on the ground at link 1.
