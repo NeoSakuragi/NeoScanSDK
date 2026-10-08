@@ -92,7 +92,7 @@ specials (Bruno: overkill for now).
   jump attack active ~12 frames or more; down+A active for the whole rest of the jump. Picked per fighter from its jump normals (Terry's review: jump
   A dropped, jump B and jump CD kept).
 
-### Walk and run (Bruno 2026-10-08) — proposed numbers, waiting for his OK
+### Walk and run (Bruno 2026-10-08) — CONFIRMED: Terry = Cody, Kim = Guy, Krauser = Haggar, run = 2x walk
 - Today: fighter.c moves whole pixels (`whole(ph->walk)`), run = walk x 2 (RUN_MUL). Terry walks 3 px/f (KOF 3.17
   rounded), Kim 2, Krauser 3; runs 6 / 4 / 6.
 - Bruno: Terry walks at Cody's speed. Final Fight walk 2.10 / 1.95 / 1.85 CPS1 px/f (Guy / Cody / Haggar, 8d).
