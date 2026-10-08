@@ -1,6 +1,177 @@
 {
  "sets": [
   {
+   "id": "throws1",
+   "title": "Throws: three fighters lose their fury",
+   "intro": "Phase 3 moved every grab special to throws (your rule: no command-grab inputs). For Rugal, Yamazaki and Genjuro the only decoded fury is a grab, so they would have NO fury (D). Their grab furies are now their super throw (hold + forward/back + C, one stock). Decide before I ship it.",
+   "sections": [
+    {
+     "title": "Rugal, Yamazaki, Genjuro",
+     "questions": [
+      {
+       "id": "nofury",
+       "title": "What should D (fury) do for these three?",
+       "context": "Rugal's fury was Gigantic Pressure, Yamazaki's the Guillotine, Genjuro's his rage grab (WFT): all grabs. Everyone else keeps a striking fury.",
+       "options": [
+        "Keep the grab as their fury on D (an exception: a fury may be a grab, it costs 300 like any fury)",
+        "No fury until I decode a striking super from their games (Rugal and Yamazaki have other supers in KOF98; Genjuro has his SS2 rage moves)",
+        "Both: keep the grab fury now, replace it when a striking super is decoded"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "The new hold options",
+     "questions": [
+      {
+       "id": "holdmap",
+       "title": "In the hold: up + A = the extra throw (free), forward/back + C = the super throw (one stock, 18 damage)",
+       "context": "Rosa: 214B / 6246A, Iori: 624B / 624D, Rugal: God Press / Gigantic Pressure, Hanzo SS2 and Ralf: their grab for both, Cheng-Fu: Super 623 as super throw; everyone else's super throw = their forward or back throw at 18 damage.",
+       "options": [
+        "Ship it as is",
+        "Ship, but the super throw costs two stocks",
+        "Change the buttons (say which in the note)"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "krauser2",
+   "fighter": "krauser",
+   "title": "Krauser: follow-up",
+   "intro": "From your Krauser review: the starter needs range, and every finisher clip felt too short.",
+   "sections": [
+    {
+     "title": "The chain (heavy)",
+     "questions": [
+      {
+       "id": "hits",
+       "title": "How many hits in a heavy chain?",
+       "context": "Heavy = 3 links today, the 3rd being the finisher. You wrote \"too short, nothing under 3 hits\".",
+       "options": [
+        "3 hits before the finisher (4 in all)",
+        "3 hits in all, the finisher being the 3rd"
+       ],
+       "pieces": [
+        [],
+        []
+       ]
+      },
+      {
+       "id": "chain",
+       "title": "Krauser's chain, starting with range",
+       "context": "Starters you liked: far C (almost overpowered), close C. Crouch C: perfect.",
+       "options": [
+        "far C > close C > crouch C",
+        "close C > far D > crouch C",
+        "far C > close D > crouch C"
+       ],
+       "pieces": [
+        [
+         "atk_c_far",
+         "atk_c_close",
+         "atk_c_crouch"
+        ],
+        [
+         "atk_c_close",
+         "atk_d_far",
+         "atk_c_crouch"
+        ],
+        [
+         "atk_c_far",
+         "atk_d_close",
+         "atk_c_crouch"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "title": "The finishers",
+     "questions": [
+      {
+       "id": "neutral",
+       "title": "Neutral finisher",
+       "context": "Mine was too short.",
+       "options": [
+        "body toss",
+        "far D",
+        "236D (the dragon move) as the finisher"
+       ],
+       "pieces": [
+        [
+         "body_toss"
+        ],
+        [
+         "atk_d_far"
+        ],
+        [
+         "sp-236d"
+        ]
+       ]
+      },
+      {
+       "id": "forward",
+       "title": "Forward finisher (push)",
+       "context": "You dropped mine.",
+       "options": [
+        "623D",
+        "41236B",
+        "far C"
+       ],
+       "pieces": [
+        [
+         "sp-623d"
+        ],
+        [
+         "sp-41236b"
+        ],
+        [
+         "atk_c_far"
+        ]
+       ]
+      },
+      {
+       "id": "up",
+       "title": "Up finisher (launcher)",
+       "context": "You dropped mine (\"the sequence is good but too short\").",
+       "options": [
+        "623B",
+        "far D"
+       ],
+       "pieces": [
+        [
+         "sp-623b"
+        ],
+        [
+         "atk_d_far"
+        ]
+       ]
+      },
+      {
+       "id": "down",
+       "title": "Down finisher",
+       "context": "You kept mine (nice flow) and called crouch D good for crumpling.",
+       "options": [
+        "crouch D (crumple)",
+        "keep my down finisher"
+       ],
+       "pieces": [
+        [
+         "atk_d_crouch"
+        ],
+        [
+         "fin-down"
+        ]
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "terry2",
    "title": "Terry: follow-up",
    "intro": "Seven points from your Terry review. Piece names as on the review page.",
