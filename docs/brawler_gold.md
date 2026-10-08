@@ -112,3 +112,15 @@ specials (Bruno: overkill for now).
 - Fury = Power Geyser, MAX = the triple geyser. Super throw: dropped (forward / back + C in the hold = the normal throw).
 - Air: forward jump + A = jump D, straight jump + A = jump CD (startup sped up), down + A = jump A (flinch, active for
   the rest of the jump). Cancel: down + A first, then the jump attack. The chain always starts on the ground at link 1.
+
+## Kim (fast) — Bruno's paper sheet, scanned 2026-10-08 (/data/scans/brawler/kim_notes_231734.png) + answers
+Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab/anims.html?f=kim).
+- Chain A x5: $48 (jab, close A) > $56 > $5A (far C) > $96 (triple hit) > $98 (stick + kick).
+- Last hit + forward: $54. + up: $9A. + down: $4D then $57 played back to back (a 2-part finisher: new in the engine).
+- Blitz: forward,forward + A = Hangetsuzan = the 214B lunge ($93; Bruno: "the lunge, like Kim Kaphwan in KOF, classic");
+  down,down + A = $5C; up,up + A = $B6 (stick launcher); down,up + A = Hienzan ([2]8C).
+- C (neutral, also the breaker) = Hienzan too — the same move as a free Blitz AND as the paid invincible C special
+  (Bruno: "yes, let's have some fun").
+- Air: jump + A = $59; jump + down + A = $60.
+- Hold: hit = $6D; the throw-out finisher = $6E.
+- Open (not on the sheet): forward + C, down + C, fury / MAX, size.
