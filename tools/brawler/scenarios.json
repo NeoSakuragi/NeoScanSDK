@@ -2238,5 +2238,47 @@
   "expect": "The light Power Dunk (623B: a lower, shorter jump than before), one drive chunk spent.",
   "do_keys": "1:Rc,90:-",
   "proof": 100
+ },
+ "20261008-181936-5d29": {
+  "title": "Throws: one impact, then a normal fall",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo. Press forward + C to throw him.",
+  "expect": "One impact when Terry throws; Ryo then flies, lands and gets up like any knocked-down enemy, with no second impact on the landing.",
+  "do_keys": "3:Rc,150:-",
+  "proof": 160
+ },
+ "20261008-181436-5d29": {
+  "title": "Terry's hold hit: punch sound, 2-frame startup",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo. Press A.",
+  "expect": "Terry's knee comes out almost at once (2 frames) with a punch's hit sound.",
+  "do_keys": "3:a,40:-",
+  "proof": 50
+ },
+ "20261008-182953-5d29": {
+  "title": "Enemies walk backwards, always facing you",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "cam": 200
+  },
+  "do": "Stage 1, wave 1. Fight, and watch an enemy that backs away from you.",
+  "expect": "It walks backwards while still facing Terry; enemies never turn their back to walk away.",
+  "do_keys": "240:-",
+  "proof": 240
  }
 }
