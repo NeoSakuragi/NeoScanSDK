@@ -256,6 +256,10 @@ each), scenario.py lint 0.
   program, export_kz `anim_special`), so a Blitz / C slot can name it; `reset` = a reel in place (no slide) whose stun
   (stun_heavy 32) outlasts the move: Kim's forward + C $101 leaves him +14 frames, down + C $4D +21 (measured: victim free
   minus Kim free after the last hit), a new chain lands while the victim still reels.
+- `roster[].throws.hold.multi` [k, ...] (Kim: `["fin"]`, note 20261009-011518-5d29): that hold hit plays every hit of
+  its move (export_bm hold_rows: an impact row per active step, the tail kept to the last); the finisher's victim reels
+  held at each earlier impact (damage / n each) and is knocked down only at the last (the rest: the total unchanged;
+  fighter.c victim_rows / paired_update, hold_nimp / hold_last). Kim's $6E: 5 held + 5 knockdown (was 10 at the first).
 - fighter.c `hits_to_come`: the step just entered that opens a hit counts until it is tested (anim_tick runs before
   combat), so a buffered press no longer cancels a multi-hit link on the frame its last hit starts ($96's third).
 

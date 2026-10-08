@@ -2361,5 +2361,19 @@
   "expect": "Hienzan (the rising flip), free: no drive spent. $5C is no longer on any input.",
   "do_keys": "1:D,1:-,1:D,1:Da,90:-",
   "proof": 100
+ },
+ "20261009-011518-5d29": {
+  "title": "Kim: hold finisher ($6E) ejects only on its second hit",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "Kim is holding Ryo. Press A three times.",
+  "expect": "Two hold hits, then the finisher's two kicks: after the first kick Ryo stays held, reeling in place (5 damage); the second kick knocks him down and away (5 more, 10 in all as before).",
+  "do_keys": "1:a,22:-,1:a,22:-,1:a,71:-",
+  "proof": 120
  }
 }

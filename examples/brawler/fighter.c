@@ -983,6 +983,19 @@ static const bbox_t *hold_box(const fighter_t *a) {
     return (st->flags & 1) ? &st->atk : 0;
 }
 static void hold_spark(fighter_t *a, fighter_t *v);
+/* a hold script's impacts (rows with flag 4): their count, and the last one's row (0xFFFF none). A finisher with
+ * several (game.json throws.hold.multi: Kim's $6E, two kicks) reels the victim at each and knocks it down only at the
+ * last; its damage is shared: damage / n at each earlier one, the rest at the knockdown (the total unchanged) */
+static uint8_t hold_nimp(const bthrow_t *th) {
+    uint8_t n = 0; uint16_t i;
+    for (i = 0; i < th->nrows; i++) if (th->rows[i].flags & 4) n++;
+    return n;
+}
+static uint16_t hold_last(const bthrow_t *th) {
+    uint16_t i = th->nrows;
+    while (i--) if (th->rows[i].flags & 4) return i;
+    return 0xFFFF;
+}
 static void show_pose(fighter_t *v, const bthrow_row_t *r) {
     if (r->flags & 32) {                                         /* a brawler animation (its flight, a hold hit's reel) */
         v->frame_ovr = 0xFFFF;
@@ -1098,7 +1111,8 @@ static void thrown_release(fighter_t *v, const bthrow_t *th) {
     if (v->thr_by && v->thr_by != v) v->tb_by = v->thr_by;       /* a thrown body until it lands (combat) */
 }
 /* the victim's side of rows j..i (passed or reached this frame): postures, impacts (damage, sound, spark, freeze);
- * returns bit 0 when an impact was passed, bit 1 when the victim was released (it is no longer in the script) */
+ * returns bit 0 when an impact was passed, bit 1 when the victim was released (it is no longer in the script), bit 2
+ * when a hold finisher's last impact was passed (its knockdown) */
 static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_t i) {
     fighter_t *by = v->thr_by;
     uint8_t hit = 0, moved = IS_THROW(v->throw_id) && release_moved(th);
@@ -1111,10 +1125,16 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
         hit = 1;                                                 /* impact: the blow lands / the victim hits the floor */
         if (IS_HOLD(v->throw_id)) {                              /* a hold hit: the victim reels in place */
             if (by) { by->impact = 1; hold_spark(by, v); }       /* its spark; its box hits the crowd (combat) */
-            if (v->throw_id == BT_HOLD_FIN) continue;            /* (the finisher: its thrower knocks it down) */
-            v->hp -= GRAB_DAMAGE; v->grab_hits = 0;              /* a hit: the escape count starts again */
-            if (by) gauge_add(by, GRAB_DAMAGE * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
-            gauge_add(v, GRAB_DAMAGE * gmeter.fury_taken);
+            {
+            uint8_t dmg = GRAB_DAMAGE;
+            if (v->throw_id == BT_HOLD_FIN) {                    /* the finisher: its thrower knocks it down at its */
+                if (j == hold_last(th)) { hit |= 4; continue; }  /* last impact; an earlier one reels it in place */
+                dmg = by ? NODE(by, TREE(by)->hold)->damage / hold_nimp(th) : 0;   /* (its share, hold_nimp) */
+            }
+            v->hp -= dmg; v->grab_hits = 0;                      /* a hit: the escape count starts again */
+            if (by) gauge_add(by, dmg * gmeter.fury_dealt);      /* (the fury gauge, "the meter") */
+            gauge_add(v, dmg * gmeter.fury_taken);
+            }
             if (by) {                                            /* its sound: a button's (bthrow_t.hsfx, Terry's kick */
                 uint8_t hx = thr_of(by, by->throw_id)->hsfx;     /* sounds as a punch: Bruno 2026-10-08) or its move's */
                 snd_sfx(hx ? (by->ch->sfx[hx - 1] ? by->ch->sfx[hx - 1] : SFX_HIT_A + hx - 1) : hit_sound(by, hold_anim(by), 0));
@@ -1182,13 +1202,14 @@ static uint8_t paired_update(fighter_t *f) {
     if (v && v->held == f) {
         uint8_t hit = victim_rows(v, th, j, i);
         if (hit & 2) { f->held = 0; v = 0; }                    /* released: the engine's knockdown from here */
-        else if ((hit & 1) && (f->throw_id == BT_HOLD_FIN || v->hp <= 0)) { /* the finisher lands, or a hold hit took the last life
+        else if ((hit & 1) && ((hit & 4) || v->hp <= 0)) { /* the finisher's last impact lands, or a hold hit took the last life
                                                                     (TODO #204: held on, it broke free standing with none,
                                                                     and nothing could hit or grab it): the victim goes */
             uint8_t fin = f->throw_id == BT_HOLD_FIN;            /* down, the hold is over */
+            uint8_t n = fin ? hold_nimp(th) : 1, dm = fin ? NODE(f, TREE(f)->hold)->damage : 0;
             f->held = 0; v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);
             if (fin) snd_sfx(hit_sound(f, hold_anim(f), 1));     /* (a hold hit's sound and damage: already dealt) */
-            fighter_hit(f, v, fin ? NODE(f, TREE(f)->hold)->damage : 0, R_KNOCKDOWN, 0);
+            fighter_hit(f, v, dm - (n > 1 ? (n - 1) * (dm / n) : 0), R_KNOCKDOWN, 0);   /* (the rest of its damage) */
             v = 0; enter(f, S_THROW);                            /* its follow-through plays on (srow kept): a normal
                                                                     hit, cancellable into a special / the fury (#166 d) */
         } else if (i >= th->nrows && IS_THROW(f->throw_id)) { victim_end(v); f->held = 0; v = 0; }   /* (a hold hit: held on) */

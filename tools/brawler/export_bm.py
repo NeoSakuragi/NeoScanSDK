@@ -1288,13 +1288,16 @@ def hold_move(ch, n, tdata, k):
     HOLD_LOG.setdefault(n, {'startups': {m: v for m, v in st.items() if v is not None}})[k] = {'move': want, 'why': how}
     return want
 
-def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None):
+def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None, multi=False):
     """a hold hit (k 'hit', or 'fin' the finisher) as a paired script: the fighter's own `move` (a normal, its frames),
     its startup squeezed to HOLD_STARTUP frames (the last poses before the active step, 1 + 2 frames), the active step
     (impact on its first frame) and what follows, at most HOLD_TAIL frames; the victim held in the throw's grab pose
     (forward+C row 0) until the blow, then reeling (BA_HIT_STAND_LIGHT; the finisher knocks it down: fighter.c), dx px
     in front (game.json roster[].throws.hold.dx; default the throw's row 0, at most HOLD_DX: in contact, Final Fight);
-    the first row's victim is also the hold's own pose (fighter.c grab)"""
+    the first row's victim is also the hold's own pose (fighter.c grab). multi (game.json roster[].throws.hold.multi
+    [k, ...]): every hit of the move is an impact (each active step after the first: $0100 with an attack box, the
+    normals' rule), the tail kept to the last one; the finisher's victim reels at each and is knocked down only at the
+    last (fighter.c victim_rows: Kim's $6E, two kicks, Bruno 20261009-011518-5d29)"""
     dx = HOLD_DX if dx is None else dx
     su = HOLD_STARTUP if startup is None else startup   # game.json roster[].throws.hold.startup {k: frames} (Terry's hit: 2)
     a = source(ch, move); steps = a['steps']
@@ -1304,6 +1307,13 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None):
     pre = [(steps[act - 2]['frame'], 1)] if act >= 2 and su >= 2 else []
     pre += [(steps[act - 1]['frame'], su - len(pre))] if act >= 1 and su > len(pre) else []
     post = [(s_['frame'], s_['ticks'] + 1) for s_ in steps[act:]]
+    hits = [0]                                          # the impacts: frames after the blow's first (multi: every hit)
+    if multi and hstep != 0xFF:
+        t = 0
+        for j, s_ in enumerate(steps[act:]):
+            if j and s_.get('flags', 0) & 0x100 and boxes(s_['boxes'], REACH)[1]: hits.append(t)
+            t += s_['ticks'] + 1
+    tail = max(HOLD_TAIL, hits[-1] + 1)
     th = ch.get('throws', {}).get('throw_c')
     if th:
         r0 = (th['victims'].get(n) or next(iter(th['victims'].values())))[0]
@@ -1317,8 +1327,8 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None):
     hit = len(rows)
     for fr, d in post:
         for _ in range(d):
-            if len(rows) - hit >= HOLD_TAIL: break
-            first = len(rows) == hit
+            if len(rows) - hit >= tail: break
+            first = len(rows) - hit in hits
             rows.append(f'{{{fr}, 0, 0, {MOVES.index("hit_stand_light")}, {32 | held[3] | (4 if first else 0)}, {held[1]}, {held[2]}}}')
     return rows, (MOVES.index(move) if move in MOVES else 0xFF, hstep)
 
@@ -1597,7 +1607,8 @@ def write_c(chars, outdir):
         hl = []
         for k in HOLDS:
             hd = tdata.get('hold') or {}
-            out, (ha, hs) = hold_rows(ch, n, game, k, hold_move(ch, n, tdata, k), pkeys, hd.get('dx'), (hd.get('startup') or {}).get(k))
+            out, (ha, hs) = hold_rows(ch, n, game, k, hold_move(ch, n, tdata, k), pkeys, hd.get('dx'), (hd.get('startup') or {}).get(k),
+                                     k in (hd.get('multi') or []))
             c.append(f'static const bthrow_row_t {n}_hold_{k}[] = {{' + ', '.join(out) + '};')
             hsx = (hd.get('sfx') or {}).get(k)          # its hit sound as a normal button's (game.json hold.sfx {k: 'A'}): SX_* + 1
             hsx = 0 if hsx is None else ['A', 'B', 'C', 'D', 'CD'].index(hsx) + 1
