@@ -34,11 +34,12 @@ A recipe (scenarios.json, keyed by note id):
                   true: its minions taken off (state OFF: the boss is the last enemy), foe_hp = the boss's life, gap =
                   P1 put this far in front of it (its lane, facing it); foe = the fighter index these four mean
                   instead of the boss's 2 (a wave's enemy: alone keeps only it);
-              meter (0..300, "full"), hp (P1's life; the lab's P1 then keeps it: lab.p1_life), lives (P1's), face (+1 / -1), pre = "frames:keys,..." inputs played
+              drive (chunks, "full"), fury (the hidden fury gauge, "full"; meter: an older recipe's 0..300 / "full" =
+              that share of both), hp (P1's life; the lab's P1 then keeps it: lab.p1_life), lives (P1's), face (+1 / -1), pre = "frames:keys,..." inputs played
               before the save (e.g. walking into the grab: the state then starts mid-hold)
   do_keys     the "do" as inputs ("frames:keys,..." with the harness keys U D L R a b c d), for the proof clip
   proof       frames to keep running after do_keys (default 90)
-Every poke used is listed here: fighter_t.x / z / facing / hp / meter / state (the minions' OFF) (harness offsets from fighter.h), lives[0], cam_x,
+Every poke used is listed here: fighter_t.x / z / facing / hp / drive / fgauge / state (the minions' OFF) (harness offsets from fighter.h), lives[0], cam_x,
 save.unlocked (select's unlock), and the lab mailbox (fighter.h lab_t). The state is the frame after the setup; the player loads it paused."""
 import argparse, hashlib, json, os, shlex, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -154,9 +155,17 @@ def setup(b, rec):
         if 'gap' in s:
             bx = b.fget(fo, 'x'); b.fset(0, 'x', bx - s['gap']); b.fset(0, 'z', b.fget(fo, 'z')); b.fset(0, 'facing', 1)
         b.run(1)
-    if 'meter' in s:                                       # (game.json meter.max: 300 since revamp 2)
-        full = json.load(open(os.path.join(b.game, 'game.json')))['meter']['max']
-        b.fset(0, 'meter', full if s['meter'] == 'full' else int(s['meter']))
+    M = json.load(open(os.path.join(b.game, 'game.json')))['meter']
+    if 'chunk' in M:                                       # the new system (Bruno 2026-10-08): drive chunks + the hidden
+        dfull, ffull = M['chunk'] * M['chunks'], M['fury_max']   # fury gauge
+        if 'meter' in s:                                   # (an older recipe's meter: "full" = both full, a number of the
+            v = s['meter']                                 # 300-point gauge = that share of each)
+            b.fset(0, 'drive', dfull if v == 'full' else int(v) * dfull // 300)
+            b.fset(0, 'fgauge', ffull if v == 'full' else int(v) * ffull // 300)
+        if 'drive' in s: b.fset(0, 'drive', dfull if s['drive'] == 'full' else int(s['drive']) * M['chunk'])   # chunks
+        if 'fury' in s: b.fset(0, 'fgauge', ffull if s['fury'] == 'full' else int(s['fury']))
+    elif 'meter' in s:                                     # (game.json meter.max: 300 since revamp 2)
+        b.fset(0, 'meter', M['max'] if s['meter'] == 'full' else int(s['meter']))
     if 'hp' in s:
         if s.get('mode', 'lab') == 'lab': poke(LAB_P1_LIFE, [1])   # the lab's P1 keeps this life (lab.p1_life)
         b.fset(0, 'hp', int(s['hp']))

@@ -326,7 +326,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         const ai_preset_t *P = a->p;
         int16_t ex, ez, tx, tz, dx, dz, adx, adz, gx, gz;
         int8_t side;
-        o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0;
+        o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0; o->blitz = o->chord = 0;
         if (e->state == S_OFF) continue;
         /* the wind-up: an attack starting now has its first frame held */
         if ((e->state == S_ATTACK || e->state == S_SPECIAL) && e->state_t == 0) {
@@ -424,7 +424,7 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *o) {
     fighter_t *me = &fs[p], *t = 0;
     int16_t mx = INT(me->x), mz = INT(me->z), bd = 0x7FFF, dx, dz;
     uint8_t i;
-    o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0;
+    o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0; o->blitz = o->chord = 0;
     if (bot_cd) bot_cd--;
     bot_t++;
     if (me->state == S_GRAB) {                                   /* down+C, close D, then a throw (forward+A) */

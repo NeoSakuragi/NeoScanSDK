@@ -3,7 +3,7 @@
 them"; fighter.c INV_FURY, set in start_special) proven for every roster fighter with a fury (game.json "fury"),
 harness.py on a `make AI_OFF=1` build (the test drives the enemies' intents).
 
-Per fighter: P1 fires the fury (D, meter full) at one enemy standing in front (the connect case) and again with the
+Per fighter: P1 fires the fury (D, the fury gauge full) at one enemy standing in front (the connect case) and again with the
 enemy off P1's depth line (the whiff); from the first frame of the fury two minions stand behind P1 pressing A every
 frame (knocked minions re-stood) until the fury ends, then on for 150 frames. Pass, both cases: INV_FURY on every frame
 of the fury from its trigger, 0 life lost / no hitstun while it plays, a hit taken after it ends (hittable again). Also
@@ -19,6 +19,7 @@ from PIL import Image, ImageDraw
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else '/data/tmp/furyinv/out'
 INV_FURY = 0xFF
+FURY_FULL = json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))['meter']['fury_max']
 VICTIM, MINIONS = 2, (3, 4)
 
 def setup(b, k, start, d, whiff):
@@ -26,7 +27,7 @@ def setup(b, k, start, d, whiff):
     st = b.states.index
     for i in (0, VICTIM) + MINIONS:
         b.fset(i, 'state', st('IDLE')); b.fset(i, 'hp', 60); b.fset(i, 'freeze', 0); b.fset(i, 'inv', 0); b.fset(i, 'y', 0)
-    b.place(0, x=100, z=20); b.fset(0, 'facing', 1); b.fset(0, 'meter', 300)
+    b.place(0, x=100, z=20); b.fset(0, 'facing', 1); b.fset(0, 'fgauge', FURY_FULL)   # (the hidden fury gauge full: D = the fury)
     b.place(VICTIM, x=100 + d, z=20 + (60 if whiff else 0)); b.fset(VICTIM, 'facing', -1)
     for i in MINIONS: b.place(i, x=-200 if i == 4 else 400, z=20)   # out of the way until they swing
     for i in (VICTIM,) + MINIONS: b.intent(i)

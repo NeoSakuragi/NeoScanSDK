@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""TODO #71 proof: the controls (A attack, B jump / jump-cancel, C special, D fury: Bruno 2026-10-06) and the special meter, per
-roster fighter, in the Chain Lab's training mode (labdrive: P1 = the fighter, a dummy that never attacks unless this
-script drives it), our emulator's core (harness). Test-only pokes: the dummy's position, its intent for the one press
-that hits P1, P1's meter set before a test (full, 59, 0).
+"""TODO #71 proof, updated for Bruno's new system (2026-10-08, docs/brawler_gold.md): the controls (A attack, B jump, C
+special, D fury, A+B = C) and the two bars (the drive, the hidden fury gauge), per roster fighter, in the Chain Lab's
+training mode (labdrive: P1 = the fighter, a dummy that never attacks unless this script drives it), our emulator's core
+(harness). Test-only pokes: the dummy's position, its intent for the one press that hits P1, P1's drive / fury gauge /
+life set before a test.
 
     python3 controls_proof.py OUT_DIR [FIGHTER ...]     -> OUT_DIR/controls71.json, shots, sheet_fury.png
 
-Per fighter: A from far / close / crouch / forward (the route tree's root link the game picked vs the tree), air A /
-down+A / up+A, B jumps (vertical / forward / back), A and B acting the frame they are pressed (no chord wait), a B
-jump-cancel link in a route (its air node played by A), C in each of the six slots (the stick picks it) and A+B together
-playing no special (the chord is retired), D fury and down+D its MAX version (TODO #139: bchar_t.fury_max, the fury
-when the fighter has none) with a full meter (revamp 2: the MAX in the red state, life at meter.low %) and at fury - 1,
-meter drain / refill numbers, a special out of a hit (revamp 2: the breaker, meter.breaker, its sprite blinking to its
-end: brk). game.json meter.infinite (a test switch): nothing is spent, the gauge stays full, a fury plays short too."""
+Per fighter: A from far / close / crouch / forward (the route tree's root link the game picked vs the tree), the three air
+attacks (straight jump + A = its air_a, forward jump + A = air_cd, down + A = air_b; an air special table entry in its
+place), B jumps (vertical / forward / back: the one jump), A and B acting the frame they are pressed, no jump-cancel left
+in the chain (the chain always starts on the ground), C in each of the six slots (the stick picks it; a drive chunk) and
+A+B + the same stick = the same special, D with the gauge full = the fury, full + low life = its MAX version (TODO #139:
+bchar_t.fury_max, the fury when the fighter has none; a form link: down+D its transition), short of the gauge nothing,
+the drive's refill, a special out of a hit (the breaker: always the neutral C special, two chunks, its sprite blinking
+to its end: brk). game.json meter.infinite (a test switch): nothing is spent, both bars full."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
@@ -34,16 +36,20 @@ BS_FORM = 8                                                   # fighter.h: the f
 BS_AIR = 9                                                    # fighter.h: the air special (TODO #200)
 INF = bool(M.get('infinite'))                                 # the meter spends nothing (game.json meter.infinite)
 def cost(c): return 0 if INF else c
+DFULL = M['chunk'] * M['chunks']; FMAX = M['fury_max']; CHUNK = M['chunk']
+def drive_ok(v, spent): return v in (DFULL - cost(spent), DFULL - cost(spent) + 1, DFULL - cost(spent) + 2)   # (a point
+                                                              # back a frame since the press)
 
 def st(i=0): return ST[b.fget(i, 'state')]
 def run(n, k=''): b.run(n, p1=k)
-def settle(meter=None):
+def settle(meter=None, fury=None):
     for _ in range(900):                                      # (Kuroko's MAX rage holds its dummy ~580 frames, then
                                                               # its flight, landing and get-up: SS2's own length)
         if st(0) == 'IDLE' and st(2) in ('IDLE', 'WALK') and not b.fget(0, 'shot') and not b.fget(0, 'brk') and not b.fget(0, 'chain_t'): break
         run(1)
     else: raise RuntimeError('P1 never idle: ' + b.brief((0, 2)))
-    if meter is not None: b.fset(0, 'meter', meter); b.fset(0, 'meter_t', 0)   # (and the frames toward the next point)
+    if meter is not None: b.fset(0, 'drive', meter)
+    b.fset(0, 'fgauge', fury or 0)
 def setpos(dist, dz=0):
     cam = b.r(b.syms['cam_x'], 2); x0 = cam + 100                 # P1 on screen at the training spot, the dummy dist px ahead
     b.place(0, x=x0, z=30); b.place(2, x=x0 + dist, z=30 + dz); b.fset(0, 'facing', 1); run(2)
@@ -87,14 +93,14 @@ for ci, name in enumerate(names):
     # ---- A from each position -------------------------------------------------------------------------------------
     for pos, dist, keys, cand in (('far', 70, 'a', ['A']), ('close', 28, 'a', ['cA', 'A']), ('crouch', 28, 'Da', ['dA', 'cA', 'A']),
                                   ('forward far', 70, 'Ra', ['fA', 'A'])):
-        settle(M['max']); setpos(dist); run(3, keys); s, mv, _ = watch(12, ('ATTACK',))
+        settle(DFULL); setpos(dist); run(3, keys); s, mv, _ = watch(12, ('ATTACK',))
         r['normals'][pos] = {'got': mv, 'want': expect(tree, cand), 'ok': mv == expect(tree, cand)}
     airsp = G['roster'][ci].get('air_specials') or {}            # (TODO #221: its air special table)
     airix = air_table(name)
-    for pos, keys, ent in (('air A', 'a', 'air_a'), ('air down+A', 'Da', 'air_b'), ('air up+A', 'Ua', 'air_cd')) + \
-            tuple((f'air {AIR_DIR[k[:-1]] or "neutral"}+C', AIR_KEYS[k[:-1]] + 'c', k) for k in airsp if k.endswith('C')):
-        settle(M['max']); setpos(90); run(10, 'b'); watch(30, ('AIR',)); run(6); run(3, keys)
-        key = {'air_a': 'A', 'air_b': 'dA', 'air_cd': 'uA'}.get(ent, ent)
+    for pos, jk, keys, ent in (('straight jump A', 'b', 'a', 'air_a'), ('jump down+A', 'b', 'Da', 'air_b'), ('forward jump A', 'Rb', 'a', 'air_cd')) + \
+            tuple((f'air {AIR_DIR[k[:-1]] or "neutral"}+C', 'b', AIR_KEYS[k[:-1]] + 'c', k) for k in airsp if k.endswith('C')):
+        settle(DFULL); setpos(90 if jk == 'b' else 200); run(10, jk); watch(30, ('AIR',)); run(6); run(3, keys)
+        key = {'air_a': 'A', 'air_b': 'dA', 'air_cd': 'fA'}.get(ent, ent)   # (its air special table's keys)
         if key in airsp:                                          # its air special (TODO #200 / #221): in the air normal's
             s, _, _ = watch(10, ('SPECIAL',)); sid = b.fget(0, 'spec_id'); six = b.fget(0, 'spec_ix')   # place (A), or C's
             r['air'][pos] = {'got': f'{s} role {sid} special {six}', 'want': f'SPECIAL role {BS_AIR} special {airix[key]} (air special {airsp[key]})',
@@ -105,16 +111,16 @@ for ci, name in enumerate(names):
         r['air'][pos] = {'got': mv, 'want': want + '_*', 'ok': bool(mv) and mv.startswith(want)}
     # ---- B jumps ------------------------------------------------------------------------------------------------------
     for d, keys in (('vertical', 'b'), ('forward', 'Rb'), ('back', 'Lb')):
-        settle(M['max']); setpos(100); x0 = b.fget(0, 'x'); run(10, keys)
+        settle(DFULL); setpos(100); x0 = b.fget(0, 'x'); run(10, keys)
         s, _, _ = watch(20, ('AIR',)); jd = b.fget(0, 'jump_dir'); watch(120, ('LAND',))
         r['jumps'][d] = {'state': s, 'jump_dir': jd, 'dx': round(b.fget(0, 'x') - x0), 'facing': b.fget(0, 'facing'),
                          'ok': s == 'AIR' and jd == {'vertical': 0, 'forward': 1, 'back': 2}[d]}
-    # ---- a B jump-cancel link -------------------------------------------------------------------------------------------
+    # ---- no jump-cancel in the chain (Bruno 2026-10-08: three air attacks only, the chain starts on the ground) -------------
     path, bnode = bpath(tree)
-    jc = r['jump_cancel'] = {'route': path + ['B', 'A'] if path else None}
-    if path:
+    jc = r['jump_cancel'] = {'route': path + ['B', 'A'] if path else None, 'ok': path is None}
+    if False:
         for dist in ((28, 24, 34) if path[0] == 'cA' else (46, 52, 58)):
-            settle(M['max']); setpos(dist); h0 = len([h for h in b.hits if h[1] == 2]); ok = True
+            settle(DFULL); setpos(dist); h0 = len([h for h in b.hits if h[1] == 2]); ok = True
             for k in path:
                 n0 = b.fget(0, 'node') if st(0) == 'ATTACK' else -1
                 run(3, KEYS[k])
@@ -137,18 +143,17 @@ for ci, name in enumerate(names):
     # ---- A / B at once: the state one frame after the press frame (the pad's own latency; the chord waited 2 more) ------------------------------------------------
     nd = r['no_delay'] = {}
     for k, want in (('a', ('ATTACK',)), ('b', ('PREJUMP', 'AIR'))):
-        settle(M['max']); setpos(70); run(1, k); run(1); nd[k] = {'state': st(0), 'ok': st(0) in want}
+        settle(DFULL); setpos(70); run(1, k); run(1); nd[k] = {'state': st(0), 'ok': st(0) in want}
     nd['ok'] = all(v['ok'] for v in nd.values())
-    # ---- C: six slots by the stick, and A+B no special ------------------------------------------------------------------
+    # ---- C: six slots by the stick (a drive chunk), and A+B = C ---------------------------------------------------------
     for slot, dk in SLOT_DIR.items():
         want = RT.SPECIALS.index(slot) if F['specials'][slot] else None
         out = {}
-        settle(M['max']); setpos(80); run(1, dk + 'c'); run(1); sid = b.fget(0, 'spec_id')
-        out['C'] = {'state': st(0), 'spec_id': sid, 'meter': b.fget(0, 'meter'),
-                    'ok': st(0) == 'SPECIAL' and (want is None or sid == want) and b.fget(0, 'meter') == M['max'] - cost(M['special'])}
-        settle(M['max']); setpos(80); run(1, dk + 'ab'); seen = set()
-        for _ in range(40): seen.add(st(0)); run(1)
-        out['A+B (retired)'] = {'states': sorted(seen), 'ok': 'SPECIAL' not in seen}
+        settle(DFULL); setpos(80); run(1, dk + 'c'); run(1); sid = b.fget(0, 'spec_id'); six = b.fget(0, 'spec_ix')
+        out['C'] = {'state': st(0), 'spec_id': sid, 'drive': b.fget(0, 'drive'),
+                    'ok': st(0) == 'SPECIAL' and (want is None or sid == want) and drive_ok(b.fget(0, 'drive'), CHUNK * M['special'])}
+        settle(DFULL); setpos(80); run(1, dk + 'ab'); run(1)
+        out['A+B'] = {'state': st(0), 'spec_ix': b.fget(0, 'spec_ix'), 'ok': st(0) == 'SPECIAL' and b.fget(0, 'spec_ix') == six}
         r['slots'][slot] = {'kof': F['specials'][slot], 'want': want, **out}
     # ---- D: the fury ------------------------------------------------------------------------------------------------------
     fury = G['roster'][ci].get('fury')
@@ -157,20 +162,20 @@ for ci, name in enumerate(names):
     mix = pool.index('MAX ' + fury) if fury and 'MAX ' + fury in pool else fix   # down+D: the MAX version, else the fury
     mx = G['roster'][ci].get('max')                          # (game.json roster[].max: the source names its own, TODO #212)
     if mx in pool: mix = pool.index(mx)
-    settle(M['max']); setpos(60); run(1, 'd'); run(1); s = st(0)
-    r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'spec_ix': b.fget(0, 'spec_ix'), 'meter': b.fget(0, 'meter')}}
+    settle(DFULL, FMAX); setpos(60); run(1, 'd'); run(1); s = st(0)
+    r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'spec_ix': b.fget(0, 'spec_ix'), 'gauge': b.fget(0, 'fgauge')}}
     if fury:
         run(20); p = os.path.join(OUT, f'fury_{name}.png'); b.screenshot(p); fury_shots.append((name, fury, p))
     form = G['roster'][ci].get('form')                      # down+D with a full meter = its form link's transition
     if form and form['trigger'] == 'down+D full meter':      # (docs/brawler_move_vocabulary.md "Form link"): BS_FORM
         mix, BS_MAX = pool.index(form['transition']), BS_FORM   # (the training is started again for what follows)
     else: BS_MAX = BS_FURY
-    if not form:                                             # the MAX: down+D in the red state only (revamp 2)
-        settle(M['max']); b.w(L.lab + PACK_STAT_OFF + 1, 1, 1); b.fset(0, 'hp', 60 * M['low'] // 100)
-    else: settle(M['max'])
-    setpos(60); run(1, 'Dd'); run(1); s2 = st(0)
+    if not form:                                             # the MAX: D with the gauge full at low life (2026-10-08)
+        settle(DFULL, FMAX); b.w(L.lab + PACK_STAT_OFF + 1, 1, 1); b.fset(0, 'hp', 60 * M['low'] // 100)
+    else: settle(DFULL, FMAX)                                # (a form link: down+D with the gauge full)
+    setpos(60); run(1, 'Dd' if form else 'd'); run(1); s2 = st(0)
     r['fury']['max'] = {'kof': form['transition'] if form else mx if mx in pool else 'MAX ' + fury if mix != fix else fury, 'state': s2, 'spec_id': b.fget(0, 'spec_id'),
-                        'spec_ix': b.fget(0, 'spec_ix'), 'want_ix': mix, 'meter': b.fget(0, 'meter')}
+                        'spec_ix': b.fget(0, 'spec_ix'), 'want_ix': mix, 'gauge': b.fget(0, 'fgauge')}
     if form:
         for _ in range(200):
             if b.char_of(0) != ci and st(0) == 'IDLE': break
@@ -180,33 +185,34 @@ for ci, name in enumerate(names):
     if fury and mix != fix:
         run(20); p = os.path.join(OUT, f'fury_max_{name}.png'); b.screenshot(p); fury_shots.append((name, 'MAX ' + fury, p))
     b.w(L.lab + PACK_STAT_OFF + 1, 1, 0)                     # (P1's life held full again)
-    settle(M['fury'] - 10); run(3, 'd'); seen = set()          # (- 10: a refill point never closes the gap)
+    settle(DFULL, FMAX - 1); run(3, 'd'); seen = set()         # (the gauge one short: nothing)
     for _ in range(20): seen.add(st(0)); run(1)
-    r['fury']['at_59'] = {'states': sorted(seen), 'meter': b.fget(0, 'meter')}
+    r['fury']['short'] = {'states': sorted(seen), 'gauge': b.fget(0, 'fgauge')}
     f_ok = s == 'SPECIAL' and r['fury']['full']['spec_id'] == BS_FURY and r['fury']['full']['spec_ix'] == fix and \
-        r['fury']['full']['meter'] == M['max'] - cost(M['fury'])
+        r['fury']['full']['gauge'] == (FMAX if INF else 0)
     m_ok = s2 == 'SPECIAL' and r['fury']['max']['spec_id'] == BS_MAX and r['fury']['max']['spec_ix'] == mix and \
-        r['fury']['max']['meter'] == M['max'] - cost(M['max'] if form else M['max_fury']) and \
-        (not form or r['fury']['max']['became'] == form['target'])
+        r['fury']['max']['gauge'] == (FMAX if INF else 0) and (not form or r['fury']['max']['became'] == form['target'])
     r['fury']['ok'] = (f_ok and m_ok and (('SPECIAL' in seen) if INF else ('SPECIAL' not in seen))) if fury else \
         (s != 'SPECIAL' and s2 != 'SPECIAL' and 'SPECIAL' not in seen)
-    # ---- meter numbers: refill ------------------------------------------------------------------------------------------
-    settle(0); m0 = b.fget(0, 'meter'); run(100); r['meter']['refill_100_frames'] = b.fget(0, 'meter') - m0
-    r['meter']['ok'] = b.fget(0, 'meter') == M['max'] if INF else r['meter']['refill_100_frames'] in (100 // M['refill'], 100 // M['refill'] - 1)
-    # ---- a special out of a hit: the breaker (revamp 2: meter.breaker, its sprite blinking white to its end) ---------------
+    # ---- the drive: refill (a point a frame) --------------------------------------------------------------------------------
+    settle(0); m0 = b.fget(0, 'drive'); run(100); r['meter']['refill_100_frames'] = b.fget(0, 'drive') - m0
+    r['meter']['ok'] = b.fget(0, 'drive') == DFULL if INF else r['meter']['refill_100_frames'] in (99, 100, 101)
+    # ---- a special out of a hit: the breaker (always the neutral C special, two chunks, blinking white to its end) ----------
     hd = r['hit_special'] = {'ok': False}
     for dist in (26, 32, 20, 38):
-        settle(M['max']); setpos(dist); b.intent(2, press=1, face=-1); run(1)
+        settle(DFULL); setpos(dist); b.intent(2, press=1, face=-1); run(1)
         if watch(40, ('HITSTUN',))[0] != 'HITSTUN': continue
         while b.fget(0, 'freeze'): run(1)
-        run(1, 'c'); run(1); s = st(0)
-        hd.update({'dist': dist, 'state': s, 'meter': b.fget(0, 'meter'), 'brk': b.fget(0, 'brk'), 'want_meter': M['max'] - cost(M['breaker'])})
+        run(1, 'Rc'); run(1); s = st(0)                     # (forward + C: the neutral C special all the same)
+        hd.update({'dist': dist, 'state': s, 'drive': b.fget(0, 'drive'), 'brk': b.fget(0, 'brk'), 'spec_ix': b.fget(0, 'spec_ix'),
+                   'want_ix': pool.index(F['specials']['D']) if F['specials'].get('D') in pool else None})
         if ci == 0 or name in ('ryo', 'haohmaru'): b.screenshot(os.path.join(OUT, f'flash_{name}.png'))
         for _ in range(600):
             if st(0) != 'SPECIAL': break
             run(1)
         run(1); hd['brk_after'] = b.fget(0, 'brk'); hd['ovl_after'] = b.fget(0, 'ovl')
-        hd['ok'] = s == 'SPECIAL' and hd['meter'] == hd['want_meter'] and hd['brk'] > 0 and hd['brk_after'] == 0 and hd['ovl_after'] == 0
+        hd['ok'] = s == 'SPECIAL' and drive_ok(hd['drive'], CHUNK * M['breaker']) and hd['brk'] > 0 and hd['brk_after'] == 0 and \
+            hd['ovl_after'] == 0 and (hd['want_ix'] is None or hd['spec_ix'] == hd['want_ix'])
         break
     if ci == 0: settle(70); setpos(120); run(10); b.screenshot(os.path.join(OUT, 'hud_meter.png'))
     oks = {'normals': all(v['ok'] for v in r['normals'].values()), 'air': all(v['ok'] for v in r['air'].values()),

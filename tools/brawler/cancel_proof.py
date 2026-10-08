@@ -13,12 +13,14 @@ Per fighter:
                       hit-stop: spec_id becomes the fury in the same SPECIAL state (flash, invincibility); the same
                       special with D before its first hit: it plays to its end, no fury
   air normal -> special  no special starts in the air (S_AIR reads A only): air A that hits + C = no special in the air
-  fury -> MAX         (TODO #151, rule 3) the fury (D) whose first hit lands, down+D pressed from that hit's hit-stop on
-                      (every frame until it takes or the fury ends; revamp 2: in the red state, P1's life at meter.low %,
-                      the gauge topped up after each spend): the MAX (bchar_t.fury_max: P1's spec_ix becomes the
-                      MAX's, spec_id stays the fury's) from its start with its own super flash (orange: main.c sf_col 1)
-                      and invincibility; D alone after the hit: nothing; the fury whiffing + down+D: nothing; the MAX
-                      after its own hit + down+D: never cancelled. A fighter without a MAX: down+D cancels nothing"""
+  fury -> MAX         GONE (Bruno 2026-10-08: the fury is the ladder's last rung): the fury whose first hit lands, down+D
+                      / D pressed on every other frame from that hit on (the gauge refilled after each spend): never
+                      cancelled; the MAX is D with the gauge full at low life (spec_ix = the MAX's, its orange flash)
+  special -> special  (the ladder, Bruno 2026-10-08) a C special whose first hit lands, C + another slot's stick in its
+                      hit-stop: ANOTHER special from that frame (spec_ix changes in the same SPECIAL state, a drive chunk
+                      spent); the same special's slot: nothing (it plays on)
+  Blitz -> special    the ff Blitz (forward, forward + A: every fighter's dash attack) that hits, C: the special (a normal
+                      cancelled, the ladder's rung)"""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
@@ -27,6 +29,8 @@ from labdrive import Lab, PACK_STAT_OFF
 OUT = sys.argv[1]; os.makedirs(OUT, exist_ok=True)
 GAME = os.path.join(HERE, '..', '..', 'examples', 'brawler')
 G = json.load(open(os.path.join(GAME, 'game.json'))); M = G['meter']
+DFULL = M['chunk'] * M['chunks']
+CL = json.load(open(os.path.join(GAME, 'build', 'chainlab.json')))
 names = [r['name'] for r in G['roster']]
 only = sys.argv[2:] or names
 L = Lab(); b = L.b; ST = b.states
@@ -43,7 +47,7 @@ def settle():
         if st(0) == 'IDLE' and st(2) in ('IDLE', 'WALK') and not b.fget(0, 'shot') and not b.fget(0, 'brk') and not b.fget(0, 'chain_t'): break
         run(1)
     else: raise RuntimeError('P1 never idle')
-    b.fset(0, 'meter', M['max']); b.fset(2, 'hp', 60)
+    b.fset(0, 'drive', DFULL); b.fset(0, 'fgauge', M['fury_max']); b.fset(2, 'hp', 60)   # (both bars full)
     b.w(L.lab + PACK_STAT_OFF + 1, 1, 1 if RED[0] else 0)  # lab.p1_life: P1's life kept (the red state) or held full
     if RED[0]: b.fset(0, 'hp', 60 * M['low'] // 100)
 def setpos(dist):
@@ -100,7 +104,7 @@ def special_fury():
                 run(1)
             if hit_at is None: continue
             # the hit: D in its hit-stop (the meter topped up: the special spent its own, revamp 2's prices)
-            b.fset(0, 'meter', M['max']); run(1, 'd')
+            b.fset(0, 'fgauge', M['fury_max']); run(1, 'd')
             tr = trace(40, lambda t: t[1] == BS_FURY or t[0] != 'SPECIAL')
             last = tr[-1]; fl = flash_who(); run(20)
             if not HAS_FURY:                             # no fury (game.json): D cancels nothing
@@ -158,9 +162,9 @@ def fury_hit(keys, dists=(40, 60, 28, 80, 110)):
         trace(400, lambda t: t[0] != 'SPECIAL')
     return None
 
-def mash_max(ix0, n=300):
+def mash_max(ix0, n=300, keys='Dd'):
     """down+D every other frame until P1's special changes (the MAX) or the fury ends -> (frames, spec_ix, inv, flash colour)"""
-    b.fset(0, 'meter', M['max'])                         # (the fury spent the gauge: topped up for its MAX)
+    b.fset(0, 'fgauge', M['fury_max'])                   # (the fury spent the gauge: topped up, a MAX could be paid)
     for k in range(n):
         if st(0) != 'SPECIAL': return {'cancelled': False, 'ended_after': k}
         if b.fget(0, 'spec_ix') != ix0:
@@ -171,55 +175,81 @@ def mash_max(ix0, n=300):
             fl = flash_who()
             col = b.r(SFC, 1) if SFC and fl else None
             return {'cancelled': True, 'after_frames': k, 'spec_ix': ix, 'spec_id': sid, 'inv': inv, 'flash_p1': fl, 'flash_orange': col == 1}
-        run(1, 'Dd' if k % 2 == 0 else '')
+        run(1, keys if k % 2 == 0 else '')
+        if k % 2: b.fset(0, 'fgauge', M['fury_max'])
     return {'cancelled': False, 'ended_after': None}
 
 def fury_max():
-    RED[0] = True                                        # (revamp 2: down+D is the MAX in the red state only)
-    try: return fury_max_red()
-    finally: RED[0] = False; b.w(L.lab + PACK_STAT_OFF + 1, 1, 0)
-def fury_max_red():
-    fx, mx = fury_ix('d'), fury_ix('Dd')
-    r = {'fury_ix': fx, 'max_ix': mx}
+    """no fury -> MAX cancel (Bruno 2026-10-08); the MAX = D with the gauge full at low life"""
+    fx = fury_ix('d')
+    r = {'fury_ix': fx}
     if fx is None: r.update(ok=None, note='no fury'); return r
-    has_max = mx is not None and mx != fx; r['has_max'] = has_max
+    RED[0] = True
+    try: mx = fury_ix('d')                               # low life + the gauge full: D = the MAX
+    finally: RED[0] = False; b.w(L.lab + PACK_STAT_OFF + 1, 1, 0)
+    r['max_ix'] = mx; r['has_max'] = mx is not None and mx != fx
     d = fury_hit('d')
     if d is None: r.update(ok=None, note='the fury never hits the dummy'); return r
     r['dist'] = d
-    # D alone after the hit: nothing
-    for k in range(40):
-        if st(0) != 'SPECIAL': break
-        run(1, 'd' if k % 2 == 0 else '')
-    r['plain_d_after_hit'] = {'spec_ix_after': b.fget(0, 'spec_ix') if st(0) == 'SPECIAL' else None}
-    r['plain_d_after_hit']['ok'] = r['plain_d_after_hit']['spec_ix_after'] in (fx, None)
-    trace(400, lambda t: t[0] != 'SPECIAL')
-    # down+D after the hit: the MAX
-    fury_hit('d', (d,)); m = mash_max(fx); r['hit'] = m
-    if has_max: m['ok'] = m['cancelled'] and m['spec_ix'] == mx and m['spec_id'] == BS_FURY and m['inv'] == 0xFF and m['flash_p1'] != 0 and m['flash_orange']
-    else: m['ok'] = not m['cancelled']
-    # the MAX after its own hit + down+D: never cancelled (spec_ix stays the MAX's to its end)
-    if has_max and m['cancelled']:
-        trace(30); h0 = len(b.hits)
-        for _ in range(400):
-            if st(0) != 'SPECIAL': break
-            run(1, 'Dd' if b.frame % 2 == 0 else '')
-            if b.fget(0, 'spec_ix') != mx and st(0) == 'SPECIAL': break
-        r['max_again'] = {'restarted': st(0) == 'SPECIAL' and b.fget(0, 'spec_ix') != mx, 'hits': len(b.hits) - h0}
-        r['max_again']['ok'] = not r['max_again']['restarted']
+    for keys in ('Dd', 'd'):
+        fury_hit('d', (d,)); m = mash_max(fx, keys=keys)
+        m['ok'] = not m['cancelled']
+        r[f'after_hit_{keys}'] = m
         trace(400, lambda t: t[0] != 'SPECIAL')
-    # the fury whiffing (nobody near) + down+D: nothing
-    settle(); setpos(300); b.place(2, z=0); b.place(0, z=60); run(2); h0 = len(b.hits); run(1, 'd'); run(1)   # off its lane
-    w = mash_max(fx, 200); r['whiff'] = w; w['dummy_hits'] = sum(1 for h in b.hits[h0:] if h[1] == 2)
-    w['ok'] = not w['cancelled'] and w['dummy_hits'] == 0
-    trace(400, lambda t: t[0] != 'SPECIAL')
-    r['ok'] = all(v.get('ok') is not False for v in r.values() if isinstance(v, dict))
+    r['ok'] = all(v.get('ok') is not False for v in r.values() if isinstance(v, dict)) and mx is not None
     return r
+
+SLOT_KEYS = dict(zip(['D', 'fD', 'dD', 'uD', 'dfD', 'ufD'], SLOTS))
+def special_special():
+    """a C special that hit -> C + another slot (another special): cancelled into it, a chunk spent; the same: nothing"""
+    sp = CL['fighters'][CI]['specials']; pool = [p['input'] for p in CL['fighters'][CI]['pool']]
+    slots = [k for k in SLOT_KEYS if sp.get(k)]
+    for dist in (40, 60, 28, 80, 110):
+        for k1 in slots:
+            settle(); setpos(dist); run(1, SLOT_KEYS[k1] + 'c'); run(1)
+            if st(0) != 'SPECIAL': continue
+            six = b.fget(0, 'spec_ix'); h0 = len(b.hits)
+            for _ in range(120):
+                if st(0) != 'SPECIAL' or b.fget(0, 'spec_ix') != six: break
+                if b.fget(0, 'freeze') and b.fget(0, 'y') == 0 and any(h[1] == 2 for h in b.hits[h0:]): break
+                run(1)
+            else: continue
+            if st(0) != 'SPECIAL' or not b.fget(0, 'freeze'): continue
+            other = next((k for k in slots if sp[k] != sp[k1]), None)
+            if other is None: return {'ok': None, 'note': 'one special only'}
+            state = b.save(); d0 = b.fget(0, 'drive')
+            run(1, SLOT_KEYS[other] + 'c')
+            tr = trace(40, lambda t: t[0] != 'SPECIAL' or b.fget(0, 'spec_ix') != six)
+            got = b.fget(0, 'spec_ix') if st(0) == 'SPECIAL' else None
+            r = {'first': sp[k1], 'dist': dist, 'pressed': sp[other], 'then': pool[got] if got is not None and got < len(pool) else got,
+                 'drive_spent': d0 - b.fget(0, 'drive'), 'inv': b.fget(0, 'inv')}
+            r['ok'] = got == pool.index(sp[other]) and r['drive_spent'] >= M['chunk'] - 45 and r['inv'] == 0xFF
+            b.load(state); run(1, SLOT_KEYS[k1] + 'c')                 # the same special: it plays on
+            tr = trace(60, lambda t: t[0] != 'SPECIAL' or b.fget(0, 'spec_ix') != six)
+            r['same_again'] = {'state': st(0), 'spec_ix_changed': st(0) == 'SPECIAL' and b.fget(0, 'spec_ix') != six}
+            r['ok'] = r['ok'] and not r['same_again']['spec_ix_changed']
+            trace(400, lambda t: t[0] != 'SPECIAL')
+            return r
+    return {'ok': None, 'note': 'no C special of this fighter lands a hit on the dummy on the ground'}
+
+def blitz_special():
+    """the ff Blitz (the dash attack) that hits -> C: the special"""
+    for dist in (60, 80, 100, 50):
+        settle(); setpos(dist); b.seq('1:R,1:-,1:R,1:Ra', 0); h0 = len(b.hits)
+        for _ in range(40):
+            if st(0) in ('ATTACK', 'SPECIAL') and b.fget(0, 'landed') and any(h[1] == 2 for h in b.hits[h0:]): break
+            run(1)
+        else: continue
+        s0 = st(0); run(1, 'c')
+        tr = trace(40, lambda t: t[0] == 'SPECIAL' and t[1] != 12)
+        return {'dist': dist, 'blitz': s0, 'then': tr[-1][0], 'spec_id': tr[-1][1], 'ok': tr[-1][0] == 'SPECIAL' and tr[-1][1] < 6}
+    return {'ok': None, 'note': 'its ff Blitz never hits the dummy'}
 
 res = {}
 for ci, name in enumerate(names):
     if name not in only: continue
     L.start(ci, 1 if ci == 0 else 0); run(30)
-    HAS_FURY = bool(G['roster'][ci].get('fury'))
+    HAS_FURY = bool(G['roster'][ci].get('fury')); CI = ci
     r = res[name] = {}
     r['normal_special_hit'] = normal_cancel('c', False)
     r['normal_special_whiff'] = normal_cancel('c', True)
@@ -228,6 +258,8 @@ for ci, name in enumerate(names):
     r['special_fury'] = special_fury()
     r['air_normal_special'] = air_special()
     r['fury_max'] = fury_max()
+    r['special_special'] = special_special()
+    r['blitz_special'] = blitz_special()
     oks = {k: v.get('ok') for k, v in r.items()}
     r['ok'] = all(v is not False for v in oks.values())
     print(name, ' '.join(f'{k}={"ok" if v else ("n/a" if v is None else "FAIL")}' for k, v in oks.items()), flush=True)

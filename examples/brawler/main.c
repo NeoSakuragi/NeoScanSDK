@@ -65,6 +65,9 @@ static uint8_t mode;                             /* 0 select, 1 fight, 2 title, 
 static uint8_t attract;                          /* the fight is the attract demo: P1 is ai_bot, enemies their attract_ai */
 static uint16_t attract_t;
 static uint8_t tap_t[2], tap_dir[2];             /* double-tap run detection per player */
+static uint8_t bz_x[2][2], bz_xa[2][2], bz_z[2][2], bz_za[2][2];   /* the Blitz (read_player): per player the last two taps
+                                                    of each axis (x: 1 right 2 left, z: 1 down 2 up) and their ages */
+static uint8_t ab_age[2][2];                     /* A+B = C (read_player): frames since A / B was pressed */
 enum { PH_WAVE, PH_GO, PH_BOSS, PH_END, PH_CLEAR };   /* campaign phases (see "campaign") */
 static uint8_t phase;
 
@@ -871,7 +874,11 @@ static intent_t in[NF];                          /* this frame's intent per figh
 static void inputs_reset(void) {                 /* a select / fight starts: nothing of the demo or the last game */
     uint8_t i;
     for (i = 0; i < NF; i++) in[i] = (intent_t){ 0 };
-    for (i = 0; i < 2; i++) { tap_t[i] = 255; tap_dir[i] = 0; }
+    for (i = 0; i < 2; i++) {
+        uint8_t k;
+        tap_t[i] = 255; tap_dir[i] = 0;
+        for (k = 0; k < 2; k++) { bz_x[i][k] = bz_z[i][k] = 0; bz_xa[i][k] = bz_za[i][k] = ab_age[i][k] = 255; }
+    }
 }
 static void close_marks(void) {                 /* intent.close: an opponent within CLOSE_X (A takes a route's close link); */
     uint8_t i, j;                               /* intent.lie: the nearest opponent lying within DOWN_REACH (up / down + A: */
@@ -904,6 +911,37 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
         if (tap_dir[p] == d && tap_t[p] < 12) in->run = 1;
         tap_dir[p] = d; tap_t[p] = 0;
     } else if (tap_t[p] < 255) tap_t[p]++;
+    /* A+B = C everywhere (Bruno 2026-10-08): both on the same frame, or the second while the first is held and pressed at
+     * most gblitz.chord frames before (intent_t.chord: the first one acted already, fighter.c gives its start to the C) */
+    {   uint8_t k, w = gblitz.chord;
+        for (k = 0; k < 2; k++) if (ab_age[p][k] < 255) ab_age[p][k]++;
+        if ((pressed & JOY_A) && (pressed & JOY_B)) { in->press = (in->press & ~(IN_A | IN_B)) | IN_C; ab_age[p][0] = ab_age[p][1] = 255; }
+        else if (((pressed & JOY_A) && (held & JOY_B) && ab_age[p][1] <= w) || ((pressed & JOY_B) && (held & JOY_A) && ab_age[p][0] <= w)) {
+            in->press = (in->press & ~(IN_A | IN_B)) | IN_C; in->chord = 1; ab_age[p][0] = ab_age[p][1] = 255;
+        } else {
+            if (pressed & JOY_A) ab_age[p][0] = 0;
+            if (pressed & JOY_B) ab_age[p][1] = 0;
+        }
+        if ((held & (JOY_A | JOY_B)) == (JOY_A | JOY_B)) in->hold |= IN_C;   /* (a held chord holds C: PC_HELD charges) */
+    }
+    /* the Blitz (Bruno 2026-10-08, fighter.c "Blitz"): the last two taps of the stick on each axis (a direction newly
+     * pressed: depth walking and a held up / down are untouched), each within gblitz.window frames of the one before, and A
+     * within gblitz.window of the second: forward,forward (forward = the way the fighter faces at the A), down,down,
+     * down,up, up,up -> intent_t.blitz = BZ_* + 1; the most recent second tap wins; the history is then cleared */
+    {   uint8_t k, w = gblitz.window, best = 255, slot = 0;
+        for (k = 0; k < 2; k++) { if (bz_xa[p][k] < 255) bz_xa[p][k]++; if (bz_za[p][k] < 255) bz_za[p][k]++; }
+        if (pressed & (JOY_LEFT | JOY_RIGHT)) { bz_x[p][0] = bz_x[p][1]; bz_xa[p][0] = bz_xa[p][1]; bz_x[p][1] = (pressed & JOY_RIGHT) ? 1 : 2; bz_xa[p][1] = 0; }
+        if (pressed & (JOY_UP | JOY_DOWN)) { bz_z[p][0] = bz_z[p][1]; bz_za[p][0] = bz_za[p][1]; bz_z[p][1] = (pressed & JOY_DOWN) ? 1 : 2; bz_za[p][1] = 0; }
+        if (in->press & IN_A) {
+            if (bz_x[p][0] == bz_x[p][1] && bz_x[p][1] == (f->facing > 0 ? 1 : 2) && bz_xa[p][1] <= w && bz_xa[p][0] - bz_xa[p][1] <= w)
+                { best = bz_xa[p][1]; slot = BZ_FF + 1; }
+            if (bz_za[p][1] <= w && bz_za[p][0] - bz_za[p][1] <= w && bz_za[p][1] < best) {
+                uint8_t a = bz_z[p][0], b = bz_z[p][1];
+                if (a == 1 && b == 1) slot = BZ_DD + 1; else if (a == 1 && b == 2) slot = BZ_DU + 1; else if (a == 2 && b == 2) slot = BZ_UU + 1;
+            }
+            if (slot) { in->blitz = slot; for (k = 0; k < 2; k++) bz_xa[p][k] = bz_za[p][k] = 255; }
+        }
+    }
 }
 
 /* ---- HUD on the fix layer (tools/brawler/make_hud.py), fighting-game layout: top row = the life bars, KOF94-style (1 px
@@ -926,16 +964,19 @@ static uint8_t cont_digit(uint8_t p) {           /* 9 .. 0 */
     return (uint8_t)r;
 }
 /* bars: 0 P1, 1 right block (P2, or P1's target alone), 2 P1's target under P1, 3 P2's target under P2, 4 the boss,
- * 5 / 6 P1's / P2's meter (TODO #71: row 3 under the name, 8 cells, the life bar's glyphs in METER_PAL). Revamp 2 (Bruno
- * 2026-10-08: "3 stocks = 300 points, one bar with dots"): the bar shows the whole gauge, three dots beside it (inside
- * the bar's end: P1 right of its bar, P2 left of its) one per stock, a disc when full, a ring when not (STOCK_TILE: shapes,
- * e-ink readable), and in the red state (fighter_low: the MAX may play) "MAX" next to them, blinking (8 frames on, 8 off) */
-#define METER_CELLS 8
-#define STOCKS      3                    /* the dots (gmeter.max / gmeter.stock) */
+ * 5 .. 5 + MAX_CHUNKS - 1 P1's drive chunks, then P2's (Bruno's redesign 2026-10-08, fighter.c "the meter"): row 3 under
+ * the name, one short bar per chunk (CHUNK_CELLS cells, the life bar's glyphs in METER_PAL, a cell apart; P2's mirrored
+ * from the right edge), each filled with its share of the drive (the first chunk first), no label; the fury gauge is never
+ * drawn. A player's life bar has its own fix palette (LIFE_PAL + player): at low life (fighter_low) it blinks red,
+ * KOF95's (measured in our emulator, /data/tmp/newsys/scripts/kof_bar.py: 8 frames red, 8 frames its colours; the life
+ * left pure red #FF0000 with a darker top / bottom row, the emptied part #C93616 instead of its dark) */
+#define CHUNK_CELLS 4
+#define MAX_CHUNKS  4                    /* (gmeter.chunks: build_tables allows 1-4) */
 #define METER_PAL 4                      /* fix palette 4: palette 0 with the bar colours' red and blue swapped */
-static bar_t bars[7];
+#define LIFE_PAL  5                      /* fix palettes 5 / 6: P1's / P2's life bar (palette 0's colours; red at low life) */
+static bar_t bars[5 + 2 * MAX_CHUNKS];
 static uint8_t boss_shown;
-static uint8_t hud_stk[2];                       /* the dots + MAX mark shown per player: stocks | 0x10 MAX shown, 0xFF none yet */
+static uint8_t hud_red[2];                       /* the life bar's palette shown per player: 0 its colours, 1 red, 0xFF none yet */
 static fighter_t *hud_tgt[4];
 static int8_t hud_lives[2];
 static uint16_t hud_cont[2];
@@ -982,16 +1023,19 @@ static void bar_clear(bar_t *b) {
     b->px = b->trail = -1; b->wait = 0;
 }
 static void hud_reset(void) {
-    static const uint8_t COL[7] = { 5, 20, 5, 20, 5, 5, 35 - METER_CELLS }, ROW[7] = { 0, 0, 4, 4, 7, 3, 3 };
+    static const uint8_t COL[5] = { 5, 20, 5, 20, 5 }, ROW[5] = { 0, 0, 4, 4, 7 };
     uint8_t p, c;
-    for (p = 0; p < 7; p++) {
-        bars[p].col = COL[p]; bars[p].row = ROW[p]; bars[p].mirror = (p & 1 && p < 4) || p == 6; bars[p].px = bars[p].trail = -1; bars[p].wait = 0;
-        bars[p].n = p < 4 ? BAR_CELLS : p == 4 ? BOSS_CELLS : METER_CELLS; bars[p].pal = p >= 5 ? METER_PAL : 0;
+    for (p = 0; p < 5 + 2 * MAX_CHUNKS; p++) {
+        uint8_t k = (p - 5) % MAX_CHUNKS, two = p >= 5 + MAX_CHUNKS;   /* (a chunk: its index, P2's) */
+        bars[p].col = p < 5 ? COL[p] : two ? 35 - CHUNK_CELLS - (CHUNK_CELLS + 1) * k : 5 + (CHUNK_CELLS + 1) * k;
+        bars[p].row = p < 5 ? ROW[p] : 3;
+        bars[p].mirror = (p & 1 && p < 4) || two; bars[p].px = bars[p].trail = -1; bars[p].wait = 0;
+        bars[p].n = p < 4 ? BAR_CELLS : p == 4 ? BOSS_CELLS : CHUNK_CELLS; bars[p].pal = p >= 5 ? METER_PAL : p == 0 ? LIFE_PAL : 0;
         if (p < 4) hud_tgt[p] = 0;
         for (c = 0; c < BOSS_CELLS; c++) bars[p].cell[c] = 0;
     }
     boss_shown = 0;
-    for (p = 0; p < 2; p++) { hud_lives[p] = -1; hud_cont[p] = 0xFFFF; hud_face[p] = 0xFE; hud_stk[p] = 0xFF; }
+    for (p = 0; p < 2; p++) { hud_lives[p] = -1; hud_cont[p] = 0xFFFF; hud_face[p] = 0xFE; hud_red[p] = 0xFF; }
     hud_two = 0xFF;
 }
 static void hud_name(uint8_t right, uint8_t row, const char *name) {   /* pinned to its corner, beside the portrait */
@@ -1023,22 +1067,32 @@ static void hud(void) {
     if (two != hud_two) {                                    /* layout change: clear the HUD rows, redraw all */
         for (i = 0; i < 8; i++) FIX_print(1, i, "                                      ", 0);
         hud_reset(); hud_two = two;
+        bars[1].pal = two ? LIFE_PAL + 1 : 0;                /* (the right block: P2's life, or P1's target's) */
     }
     for (p = 0; p < 1 + two; p++) {                          /* the players' blocks: P1 left, P2 right */
         fighter_t *f = &fighters[p];
         uint8_t face = char_index(f->ch), pc = p ? 35 : 1, lc = p ? 32 : 5, cc = p ? 20 : 9;   /* lives / continue cols */
         if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face, p); hud_name(p, 1, f->ch->name); }
         bar_draw(&bars[p], in_play(f) ? f->hp : 0, f->hp_max);
-        bar_draw(&bars[5 + p], in_play(f) ? (int16_t)f->meter : 0, (int16_t)gmeter.max);   /* the meter */
-        {   uint8_t k = 0, v, c0 = p ? 35 - METER_CELLS - STOCKS : 5 + METER_CELLS;   /* its dots, its MAX mark */
-            uint16_t m = in_play(f) ? f->meter : 0;
-            while (k < STOCKS && m >= gmeter.stock) { m -= gmeter.stock; k++; }
-            v = k | (in_play(f) && fighter_low(f) && !(hud_tick & 8) ? 0x10 : 0);
-            if (v != hud_stk[p]) {
-                hud_stk[p] = v;
-                for (i = 0; i < STOCKS; i++)                     /* filled from the bar's side outward */
-                    fix_put(c0 + i, 3, (uint16_t)METER_PAL << 12 | (STOCK_TILE + ((p ? STOCKS - 1 - i : i) >= k)));
-                FIX_print(p ? c0 - 4 : c0 + STOCKS + 1, 3, v & 0x10 ? "MAX" : "   ", 0);
+        {   uint8_t k;                                       /* the drive: one bar per chunk, the first filled first */
+            int16_t d = in_play(f) ? (int16_t)f->drive : 0;
+            for (k = 0; k < gmeter.chunks && k < MAX_CHUNKS; k++) {
+                int16_t c = d > (int16_t)gmeter.chunk ? (int16_t)gmeter.chunk : d < 0 ? 0 : d;
+                bar_draw(&bars[5 + p * MAX_CHUNKS + k], c, (int16_t)gmeter.chunk);
+                d -= (int16_t)gmeter.chunk;
+            }
+        }
+        {   uint8_t red = in_play(f) && fighter_low(f) && !(hud_tick & 8);   /* low life: the life bar blinks red (8 / 8) */
+            if (red != hud_red[p]) {
+                uint16_t pal[16];
+                uint8_t k;
+                hud_red[p] = red;
+                for (k = 0; k < 16; k++) pal[k] = TEXT_PAL[k];
+                for (k = 0; k < 10; k++) pal[6 + k] = bar_colours[k];
+                if (red) {                                   /* KOF95's: the life left red, the emptied part dark red */
+                    pal[6] = pal[7] = pal[8] = pal[9] = RGB(31, 0, 0); pal[10] = RGB(29, 1, 0); pal[14] = RGB(25, 6, 2);
+                }
+                PAL_setPalette(LIFE_PAL + p, pal);
             }
         }
         if (lives[p] != hud_lives[p]) { hud_lives[p] = lives[p]; FIX_print(lc, 2, "x ", 0); FIX_printNum(lc + 1, 2, lives[p], 0); }
@@ -2589,7 +2643,7 @@ void game_tick(void) {
     if (lab.active != 1) ai_update(fighters, NF, 2, in);   /* not against the Chain Lab's dummy */
 #endif
     if (ko_seq || (!attract && !lab.active && phase >= PH_END))
-        for (i = 0; i < NF; i++) { in[i].dx = in[i].dz = 0; in[i].press = in[i].hold = in[i].run = in[i].grab = 0; in[i].face = 0; }
+        for (i = 0; i < NF; i++) { in[i].dx = in[i].dz = 0; in[i].press = in[i].hold = in[i].run = in[i].grab = 0; in[i].face = 0; in[i].blitz = in[i].chord = 0; }
                                                           /* the boss's death: nobody acts any more (#172); the stage
                                                              clear: the input off (#184) */
     mark(P_AI);

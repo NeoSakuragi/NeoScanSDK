@@ -52,11 +52,25 @@ enum { VPH_FREEZE = 1, VPH_MIRROR = 2 };   /* fighter_t.vph: a special's victim 
 #define AI_IDLE_DELAY 10          /* AI fighters stop walking into idle only after this many frames without a walk intent */
 #define CHAIN_WINDOW (gchain.window)   /* frames after a route step that hit during which A / B continues the route (Final
                                      Fight 45 while idle; revamp 1A: game.json chain.window, ~35) */
-#define RUN_MUL     2             /* run = walk << 1 */
-/* KOF's walk / run / jump speeds rounded to whole pixels a frame (Terry walks 3.17 -> 3): the Neo Geo scrolls in whole
- * pixels, so a fractional speed made the camera step 3,3,3,4,3,... and the background lurch every ~6 frames (very
- * visible on a tablet, 7 screen pixels per game pixel); at least 1 px */
-static int32_t whole(int32_t v) { int32_t w = (v + 0x8000) & ~0xFFFFL; return w ? w : 0x10000; }
+/* walk / run (Bruno 2026-10-08: by archetype, Final Fight's speeds; game.json "walk" -> gwalk_rom, gwalk_run): sub-pixel
+ * (16.16; the whole-pixel rounding of KOF's speeds is gone), run = walk x gwalk_run; the walk / run animations play at
+ * wspd / the fighter's KOF walk (fighter_t.wrate, walk_rate) so the feet keep their KOF stride on the floor */
+static uint16_t div16(uint32_t n, uint16_t d) { __asm__("divu.w %1,%0" : "+d"(n) : "d"(d)); return (uint16_t)n; }   /* (68000
+                                                                    divu: quotient < 65536, no libgcc) */
+static int32_t mul88(int32_t v, uint16_t k) {                    /* v * k / 256 (16.16 x 8.8; no 32-bit multiply) */
+    uint32_t a = v < 0 ? (uint32_t)-v : (uint32_t)v, lo = (uint32_t)(uint16_t)a * (uint16_t)k;
+    uint32_t r = (uint32_t)(uint16_t)(a >> 16) * (uint16_t)k + (lo >> 16);
+    r <<= 8; r += (lo >> 8) & 0xFF;
+    return v < 0 ? -(int32_t)r : (int32_t)r;
+}
+static void walk_rate(fighter_t *f) {                           /* wspd, wrate from the fighter's data */
+    uint32_t kof = (uint32_t)f->ch->phys.walk;                   /* its KOF walk (16.16) */
+    f->wspd = gwalk_rom[f->ch->id];
+    f->wrate = kof >= 0x1000 ? div16((uint32_t)f->wspd >> 4, (uint16_t)(kof >> 12)) : 0x100;   /* (8.8: wspd / kof, in
+                                                                    1/4096 px units) */
+    if (f->wrate < 0x40) f->wrate = 0x40;
+    if (f->wrate > 0x400) f->wrate = 0x400;
+}
 #define X_MIN 16
 #define X_MAX (world_w - 16)
 
@@ -152,8 +166,8 @@ static uint8_t air_button(const bchar_t *ch, uint8_t ix) {      /* the button of
 static uint8_t may_cancel(const fighter_t *f) {
     if (f->spec_id == BS_FORM || f->spec_id == BS_AIR || f->spec_id == BS_DOWNATK || f->spec_id == BS_THROW || f->sthr) return 0;   /* (a
                                                                     throw, its super: no cancel, revamp 3) */
-    if (f->spec_id != BS_FURY) return 1;
-    return f->ch->fury_max < f->ch->nspec && f->spec_ix != f->ch->fury_max;
+    return f->spec_id != BS_FURY;                                /* a fury: never (Bruno 2026-10-08: the fury is the ladder's
+                                                                    last rung, no fury -> MAX cancel) */
 }
 void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }
 /* lab.load 5 (revamp phase 5, the chain tool: fighter.h lab_t, tools/brawler/chainlab/chaintool.js): buf = a chain
@@ -342,6 +356,8 @@ static void rt_anim(fighter_t *f) {                              /* anim_tick, r
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
 static void enter(fighter_t *f, uint8_t st) {
     f->state = st; f->state_t = 0; f->dizzy = 0;                 /* (a stun strike's dizziness: a new state ends it) */
+    if (st != S_AIR_ATTACK) f->jt = 0;                           /* (the jump table: only its own take-off and its air
+                                                                    attacks keep it, "jumps"; any other air: gravity) */
     if (st != S_KNOCKDOWN) {                                     /* (the chain core: a juggle and a downed body end when it */
         f->kfloor = f->kslam = 0;                                /* is out of its knockdown; a reel keeps the juggle's count) */
         if (st != S_HITSTUN) f->jug_n = 0;
@@ -373,7 +389,8 @@ static uint8_t dead_body(const fighter_t *v, const fighter_t *a) {
     return v->hp <= 0 && !(dancing(v) && v->dance == (a->owner ? a->owner : a));
 }
 static void to_neutral(fighter_t *f, const intent_t *in) {
-    if (in && (in->dx || in->dz)) { f->still = 0; enter(f, S_WALK); play_if_new(f, BA_WALK_FWD); }
+    if (in && (in->dx || in->dz)) { f->still = 0; enter(f, S_WALK); play_if_new(f, BA_WALK_FWD); f->speed = f->wrate; }   /* (its
+                                                                    stride at the walk's speed: walk_rate) */
     else if (in && in->ai && f->state == S_WALK && ++f->still < AI_IDLE_DELAY) { }   /* AI: no walk/idle flicker */
     else { enter(f, S_IDLE); play_if_new(f, BA_IDLE); }
 }
@@ -416,7 +433,7 @@ static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
     uint8_t a = c->anim;
     snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_A_CROUCH || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR ||
             a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
-    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0; f->ldmg = 0;
+    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0; f->ldmg = 0; f->blz_buf = 0;
     if (c->flags & RF_AIR) {                                     /* the jump in progress picks the air normal */
         if (a == BA_ATK_CD_JUMP) a = f->jump_kind ? BA_ATK_CD_HOP : f->jump_dir ? BA_ATK_CD_JUMP_DIAG : BA_ATK_CD_JUMP;   /* KOF's
                                                                     117, a KOF98 / 99 hop's 124; WHP's diagonal C+D (a KOF
@@ -462,6 +479,41 @@ static void jump_start(fighter_t *f, const intent_t *in, uint8_t air_node) {
     f->jump_dir = !in->dx ? 0 : in->dx == f->facing ? 1 : 2;
     f->jump_kind = 0; f->vx = 0; f->vz = dir_mul(in->dz, FIX(1)); f->air_node = air_node;
     enter(f, S_PREJUMP); play(f, BA_PREJUMP);
+    f->speed = div16((uint32_t)(f->ch->phys.prejump ? f->ch->phys.prejump : 1) << 8, gjump.crouch);   /* its crouch drawn over
+                                                                    the one jump's crouch frames ("jumps") */
+}
+/* ---- jumps (Bruno 2026-10-08: ONE jump for every fighter, Cody's Final Fight arc; game.json "jump" -> gjump) ---------
+ * B: gjump.crouch frames crouching (the prejump), then the table: frame i of the air at gjump.h[i] lines above the floor,
+ * a forward jump travelling gjump.dx[i] (8.8 px) a frame the way it goes (a back jump the other way, a straight jump none),
+ * the depth as the stick held at the press (1 px a frame); the rise animation turns into the fall at gjump.apex; past the
+ * table it lands (gjump.land_dx more on that frame): S_LAND, gjump.land frames, any input ends it from gjump.land_cancel
+ * on (Final Fight's landing cancels at once). One height (no hop), no per-fighter KOF physics. A fall that is not this
+ * jump (after a special in the air, the respawn's drop) keeps the gravity (fighter_t.jt 0). Returns 1 on the landing. */
+static uint8_t jump_frame(fighter_t *f) {
+    uint8_t i = f->jt - 1;
+    int8_t d = f->jump_dir == 1 ? f->facing : f->jump_dir == 2 ? -f->facing : 0;
+    if (i >= gjump.n) {                                          /* the table played: the landing frame */
+        f->x += dir_mul(d, (int32_t)gjump.land_dx << 8); f->z += f->vz; clamp(f);
+        return 1;
+    }
+    f->y = FIX(gjump.h[i]); f->x += dir_mul(d, (int32_t)gjump.dx[i] << 8); f->z += f->vz; clamp(f);
+    f->jt++;
+    if (f->state == S_AIR && i == gjump.apex && f->anim == JUMP_ANIM[0][f->jump_dir][0]) play(f, JUMP_ANIM[0][f->jump_dir][1]);
+    return 0;
+}
+/* the air attacks' active frames (Bruno 2026-10-08, "jumps"): on the move's last active step the animation is held (the
+ * step stays shown, its box live) while the jump attack (air_a / air_cd: knocking down) has been active fewer than
+ * gjump.active_min frames, and for the down attack (air_b: a flinch) until the landing. Returns 1 to hold this frame */
+static uint8_t air_hold(fighter_t *f) {
+    const banim_t *an;
+    uint8_t k;
+    if (f->state != S_AIR_ATTACK) return 0;
+    an = &f->ch->anims[f->anim];
+    if (!(an->steps[f->step].flags & 1)) return 0;
+    if (f->aact < 255) f->aact++;
+    for (k = f->step + 1; k < an->nsteps; k++) if (an->steps[k].flags & 1) return 0;   /* (a later window: not its last) */
+    if (f->node == TREE(f)->air_b) return 1;
+    return (f->node == TREE(f)->air_a || f->node == TREE(f)->air_cd) && f->aact < gjump.active_min;
 }
 /* ---- the chain core (revamp 1A, Bruno's decisions docs/brawler_feel.md 8h; game.json "chain" -> gchain, the trees from
  * routes.py chain_tree) -------------------------------------------------------------------------------------------------
@@ -490,87 +542,167 @@ static uint8_t chain_next(const fighter_t *f, const rnode_t *c, uint8_t b) {   /
     if (nx && !(b & IN_B) && (RT_NODE(TREE(f), nx)->flags & RF_THROW) && !throw_ok(f)) nx = c->next[RI_A];
     return nx;
 }
-/* a route's next node: B's is a jump-cancel (its node waits for A in the air), a back throw (RF_THROW) grabs, any other
- * starts now */
+static uint8_t special_pick(const fighter_t *f, uint8_t want);   /* (fwd) */
+static void start_special(fighter_t *f, uint8_t k);              /* (fwd) */
+/* a special played as a chain finisher or the dash entry (revamp gold, from revamp/gold-tk): the node is RF_SPECIAL, its
+ * anim the special's slot (BS_*, the C-cancel's encoding); played free, like the built-in finishers (no drive: it is part
+ * of the chain, not a C press). 0 = the fighter has no special there (special_pick 0xFF): the caller plays the node as a
+ * normal instead. */
+static uint8_t node_special(fighter_t *f, uint8_t node, uint8_t how) {
+    uint8_t k = special_pick(f, NODE(f, node)->anim);
+    if (k == 0xFF) return 0;
+    lab_note(f, LE_SPECIAL, node, how, k); start_special(f, k);
+    return 1;
+}
+/* a route's next node: B's is a jump-cancel (its node waits for A in the air), a back throw (RF_THROW) grabs, a special
+ * (RF_SPECIAL: a named special finisher) plays free, any other starts now */
 static void route_go(fighter_t *f, uint8_t node, uint8_t b, const intent_t *in, uint8_t how) {
+    const rnode_t *c = NODE(f, node);
     if (b & IN_B) jump_start(f, in, node);
-    else if (NODE(f, node)->flags & RF_THROW) chain_throw(f, node, how);
+    else if (c->flags & RF_THROW) chain_throw(f, node, how);
+    else if ((c->flags & RF_SPECIAL) && node_special(f, node, how)) return;
     else start_node(f, node, how);
 }
+/* ---- the Blitz (Bruno 2026-10-08, docs/brawler_gold.md; game.json roster[].blitz -> gblitz_rom, "blitz" -> gblitz) -------
+ * A double direction + A (main.c read_player: forward,forward / down,down / down,up / up,up, the taps and the A within
+ * gblitz.window frames; run + A = the ff slot): the slot's move, free (no drive), NOT invincible, its own recovery: a
+ * special of the pool (role BS_BLITZ, its damage gblitz.scale of its special tier: dtier) or the tree's dash entry
+ * (BZ_DASH: a normal; a special dash node plays free: node_special). The ladder: a normal that hit (a chain link, a
+ * finisher) cancels into it (S_ATTACK, blz_buf); it cancels on hit into a C special or the fury (may_cancel, the special
+ * cancels). Empty slot: 0, the press is a plain A. Depth walking and the finishers' held up / down are untouched (a Blitz
+ * needs two taps). */
+static uint8_t blitz_dash(fighter_t *f, uint8_t how) {
+    uint8_t dn = TREE(f)->dash;
+    if ((NODE(f, dn)->flags & RF_SPECIAL) && node_special(f, dn, how)) return 1;
+    start_node(f, dn, how);
+    return 1;
+}
+static uint8_t blitz_go(fighter_t *f, uint8_t slot, uint8_t how) {
+    uint8_t v = slot < BZ_COUNT ? gblitz_rom[f->ch->id][slot] : BZ_NONE;
+    f->blz_buf = 0;
+    if (v == BZ_DASH) return blitz_dash(f, how);
+    if (v >= f->ch->nspec || !f->ch->specials[v].nrows) return 0;
+    if (f->ch->specials[v].proj && f->shot) return 0;            /* (a projectile while its own flies: none, special_pick's rule) */
+    lab_note(f, LE_SPECIAL, 0, how, BS_BLITZ);
+    f->spec_ix = v; start_special(f, BS_BLITZ);
+    return 1;
+}
 
-/* ---- the meter (revamp phase 2, Bruno 2026-10-08, docs/brawler_feel.md 8h; gamedata.h gmeter_t <- game.json "meter") ----
- * Players only (enemies pay nothing): 3 stocks = gmeter.max points, full at the start and at a new life, a point back
- * every gmeter.refill frames (TODO #71's rule, rescaled). One price list, one path (pay) for every press that spends:
- *   PAY_SPECIAL  a special (C, an air special on C, a cancel into one, the hold's C): gmeter.special, else
- *                gmeter.life_special of life (never the last point), else nothing plays;
- *   PAY_BREAKER  a special out of a hit (C in a hit stun or held: "to escape"; TODO #71's double-cost special out of a
- *                hit, converged): gmeter.breaker, else gmeter.life_breaker of life, else none; its sprite blinks white
- *                (gmeter.blink frames white, as many in its colours) for the whole special: the extra cost shown;
- *                untouchable to its end (INV_FURY: the escape);
- *   PAY_FURY     the fury (D): gmeter.fury;
- *   PAY_MAX      the MAX (down+D) only in the red state (fighter_low: life <= gmeter.low % of the full life, the
- *                fighter blinking red, Fatal Fury Special's): gmeter.maxf; down+D outside it is the fury;
- *   PAY_FORM     the form link's transition (down+D, its trigger FT_DOWN_D_FULL): the whole gauge.
- * gmeter.infinite (a test switch): nothing spent, the gauge stays full (the MAX still needs the red state). The palette
- * overlays (pal_overlay, once a frame): the breaker's white blink, else the red state's red blink (4 frames of 16); never
- * over a burn, a white flash (ai.c's pulse) or a fury's flash pose. */
-enum { PAY_SPECIAL, PAY_BREAKER, PAY_FURY, PAY_MAX, PAY_FORM, PAY_STHROW };   /* PAY_STHROW (revamp 3): the super throw,
-                                                                    gmeter.sthrow, no life instead */
+/* ---- the meter (Bruno's live redesign 2026-10-08, docs/brawler_gold.md; gamedata.h gmeter_t <- game.json "meter") ------
+ * Players only (enemies pay nothing). Two bars:
+ *   DRIVE (fighter_t.drive; the HUD's chunks): gmeter.chunks x gmeter.chunk points, full at the start and at a new life,
+ *     one point back a frame (a chunk in gmeter.chunk frames). PAY_SPECIAL = a C special (C + the stick, the hold's C, a
+ *     normal's / a Blitz's / a special's cancel into one, an air special on C): gmeter.special chunks, else it does not
+ *     come out; it is invincible to its end (cspecial). The BREAKER (C or A+B in a hit stun or held: always the fighter's
+ *     neutral C special, update): gmeter.breaker chunks, the fighter blinking WHITE for the whole move; short of them
+ *     gmeter.life_breaker life (never the last point), the fighter blinking RED (breaker_pay; pal_overlay).
+ *   FURY GAUGE (fighter_t.fgauge, hidden: never drawn): filled by damage dealt (gmeter.fury_dealt a point) and taken
+ *     (fury_taken a point; the fury's own hits not counted: gauge_add), empty at the start, kept at a new life. Full: D
+ *     (PAY_FURY) = the fury, the gauge emptied; full and low life (fighter_low: life <= gmeter.low % of the full life)
+ *     = the MAX (PAY_MAX); low life alone grants nothing. PAY_FORM: the form link's transition (down+D, its trigger
+ *     FT_DOWN_D_FULL: the gauge full).
+ * Signals (pal_overlay, once a frame; one meaning per place): the sprite blinks 1 frame its colours / 1 frame a shiny white
+ * palette while the fury is ready (fighter_fury_ready), red instead while the MAX is ready (red beats white); a breaker's
+ * WHITE / RED blink (gmeter.blink frames on, as many off) owns the sprite while it plays; never over a burn, a white flash
+ * (ai.c's pulse) or a fury's flash pose. The life bar's red blink at low life is the HUD's (main.c hud). gmeter.infinite
+ * (a test switch): nothing spent, both bars full. */
+enum { PAY_SPECIAL, PAY_FURY, PAY_MAX, PAY_FORM };
 static const uint16_t WHITE_PAL[16] = { 0x8000, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF,
                                         0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF };
 static void set_burn(fighter_t *f, uint8_t burn);
 static void burn_show(fighter_t *f);
+#define DRIVE_FULL ((uint16_t)(gmeter.chunk * gmeter.chunks))
 uint8_t fighter_low(const fighter_t *f) {
     int16_t full = f->hp_max ? f->hp_max : 60;
     return f->hp > 0 && f->hp * 100 <= full * (int16_t)gmeter.low;
 }
+uint8_t fighter_fury_ready(const fighter_t *f) { return !f->team && (gmeter.infinite || f->fgauge >= gmeter.fury_max); }
 static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whether it could -> 1 paid (or payable) */
-    static const uint8_t LIFE_OK[6] = { 1, 1, 0, 0, 0, 0 };
-    uint16_t cost = kind == PAY_SPECIAL ? gmeter.special : kind == PAY_BREAKER ? gmeter.breaker :
-                    kind == PAY_FURY ? gmeter.fury : kind == PAY_MAX ? gmeter.maxf : kind == PAY_STHROW ? gmeter.sthrow : gmeter.max;
-    uint8_t life = kind == PAY_SPECIAL ? gmeter.life_special : gmeter.life_breaker;
     if (f->team) return 1;
-    if (kind == PAY_MAX && !fighter_low(f)) return 0;
-    if (gmeter.infinite) { f->meter = gmeter.max; return 1; }
-    if (f->meter >= cost) { if (!dry) { f->meter -= cost; f->meter_t = 0; } return 1; }
-    if (LIFE_OK[kind] && f->hp > life) { if (!dry) f->hp -= life; return 1; }
-    return 0;
-}
-static void red_pals(fighter_t *f) {                             /* the red state: its colours as reds of their light */
-    uint16_t buf[16];
-    uint8_t i, j;
-    for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
-        const uint16_t *src = fighter_src_pal(f, i);
-        buf[0] = src[0];
-        for (j = 1; j < 16; j++) {
-            uint16_t c = src[j];
-            int16_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
-            int16_t l = (r * 5 + g * 9 + b * 2) >> 4;
-            buf[j] = RGB(l + 10 > 31 ? 31 : l + 10, l >> 2, l >> 2);
-        }
-        PAL_setPalette(f->palbase + i, buf);
+    if (kind == PAY_SPECIAL) {
+        uint16_t cost = gmeter.special * gmeter.chunk;
+        if (gmeter.infinite) { f->drive = DRIVE_FULL; return 1; }
+        if (f->drive < cost) return 0;
+        if (!dry) f->drive -= cost;
+        return 1;
     }
+    if (kind == PAY_MAX && !fighter_low(f)) return 0;
+    if (!fighter_fury_ready(f)) return 0;
+    if (!dry && !gmeter.infinite) f->fgauge = 0;
+    return 1;
+}
+static uint8_t breaker_pay(fighter_t *f) {                      /* the breaker's price -> 1 drive (it blinks white), 2 life
+                                                                    (it blinks red), 0 an enemy (nothing) */
+    uint16_t cost = gmeter.breaker * gmeter.chunk;
+    if (f->team) return 0;
+    if (gmeter.infinite) { f->drive = DRIVE_FULL; return 1; }
+    if (f->drive >= cost) { f->drive -= cost; return 1; }
+    f->hp -= f->hp > gmeter.life_breaker ? gmeter.life_breaker : f->hp - 1;   /* (never the last point) */
+    return 2;
+}
+static void gauge_add(fighter_t *f, uint16_t n) {               /* the hidden fury gauge fills (players) */
+    if (f->team || f->state == S_PROJ || !n) return;
+    f->fgauge = f->fgauge + n >= gmeter.fury_max ? gmeter.fury_max : f->fgauge + n;
+}
+static void start_special(fighter_t *f, uint8_t k);
+static void cspecial(fighter_t *f, uint8_t k) {                 /* a C special, paid: invincible to its end (Bruno: "special
+                                                                    (1 chunk, invincible)"; players: sinv keeps INV_FURY) */
+    start_special(f, k);
+    if (!f->team) { f->sinv = 1; f->inv = INV_FURY; }
+}
+/* the overlays' palettes, kept per player (computed when the fighter / colour set changes, not every blink frame) */
+static struct { const bchar_t *ch; uint8_t set, tint; uint16_t pal[2][MAX_PALS][16]; } ovl_cache[2];
+static const uint16_t *ovl_pal(const fighter_t *f, uint8_t kind, uint8_t i) {   /* kind 0 red, 1 shiny white */
+    uint8_t p = f->idx & 1, n, j, k;
+    if (ovl_cache[p].ch != f->ch || ovl_cache[p].set != f->set || ovl_cache[p].tint != f->tint) {
+        ovl_cache[p].ch = f->ch; ovl_cache[p].set = f->set; ovl_cache[p].tint = f->tint;
+        for (n = 0; n < f->ch->npal && n < MAX_PALS; n++) {
+            const uint16_t *src = fighter_src_pal(f, n);
+            for (k = 0; k < 2; k++) ovl_cache[p].pal[k][n][0] = src[0];
+            for (j = 1; j < 16; j++) {
+                uint16_t c = fighter_colour(f, src[j]);
+                int16_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
+                int16_t l = (r * 5 + g * 9 + b * 2) >> 4;
+                ovl_cache[p].pal[0][n][j] = RGB(l + 10 > 31 ? 31 : l + 10, l >> 2, l >> 2);   /* red: reds of its light */
+                ovl_cache[p].pal[1][n][j] = RGB(r + (((31 - r) * 5) >> 4) + 4 > 31 ? 31 : r + (((31 - r) * 5) >> 4) + 4,   /* shiny:
+                                                                    each channel a third of the way to white and a
+                                                                    little more (KOF95's MAX glow, measured: +6..+8 of 31
+                                                                    on the darks, +1..+3 on the lights) */
+                                                g + (((31 - g) * 5) >> 4) + 4 > 31 ? 31 : g + (((31 - g) * 5) >> 4) + 4,
+                                                b + (((31 - b) * 5) >> 4) + 4 > 31 ? 31 : b + (((31 - b) * 5) >> 4) + 4);
+            }
+        }
+    }
+    return ovl_cache[p].pal[kind][i];
 }
 static uint16_t burn_clock;
 static void pal_overlay(fighter_t *f) {
     uint8_t want = 0;
-    if (f->brk && f->state != S_SPECIAL) f->brk = 0;             /* the breaker over */
-    if (!f->team && !f->burn && !f->flash && !(f->state == S_SPECIAL && f->fpose)) {
-        if (f->brk) { if (++f->brk > 2 * gmeter.blink) f->brk = 1; if (f->brk <= gmeter.blink) want = OVL_WHITE; }   /* (brk:
-                                                                    1 + its frame in the blink's period) */
-        else if (fighter_low(f) && f->state != S_DEAD && (burn_clock & 15) < 4) want = OVL_RED;
+    if (f->brk && f->state != S_SPECIAL) f->brk = f->brkr = 0;   /* the breaker over */
+    if (!f->team && !f->burn && !f->flash && !(f->state == S_SPECIAL && f->fpose) && f->state != S_PROJ) {
+        if (f->brk) {                                            /* the breaker: white (red: paid in life) for the move */
+            if (++f->brk > 2 * gmeter.blink) f->brk = 1;         /* (brk: 1 + its frame in the blink's period) */
+            if (f->brk <= gmeter.blink) want = f->brkr ? OVL_RED : OVL_WHITE;
+        }
+        else if (fighter_fury_ready(f) && f->state != S_DEAD && (burn_clock & 1))   /* D does something now: 1 frame */
+            want = fighter_low(f) ? OVL_RED : OVL_SHINY;         /* normal, 1 frame red (the MAX) / shiny white (the fury) */
     }
     if (want == f->ovl) return;
     f->ovl = want;
     if (want == OVL_WHITE) { uint8_t i; for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, WHITE_PAL); }
-    else if (want == OVL_RED) red_pals(f);
+    else if (want == OVL_RED || want == OVL_SHINY) {
+        uint8_t i;
+        for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, ovl_pal(f, want == OVL_SHINY, i));
+    }
     else if (f->burn) burn_show(f);
     else fighter_load_pals(f);
 }
 static void meter_tick(fighter_t *f) {
     if (f->flash && !--f->flash) { uint8_t b = f->burn; f->burn = 0xFF; set_burn(f, b); }   /* its colours back (burnt: the burn's) */
-    if (!f->team && gmeter.infinite) f->meter = gmeter.max;     /* the gauge stays full */
-    else if (!f->team && f->meter < gmeter.max && ++f->meter_t >= gmeter.refill) { f->meter++; f->meter_t = 0; }
+    if (!f->team) {
+        if (gmeter.infinite) { f->drive = DRIVE_FULL; f->fgauge = gmeter.fury_max; }   /* both bars stay full */
+        else if (f->drive < DRIVE_FULL) f->drive++;              /* the drive: a point back a frame */
+    }
     pal_overlay(f);
 }
 
@@ -587,19 +719,24 @@ static uint16_t dtier(const fighter_t *f) {
     const uint16_t *t = dtier_rom[f->ch - bm_chars];
     if (dtier_off || f->ch < bm_chars || f->ch >= bm_chars + BC_COUNT) return 0x100;
     if (f->sthr == 2) return t[f->ch->nspec + 2];                /* the super throw (revamp 3): its own tier */
+    if (f->spec_id == BS_BLITZ) return (uint16_t)(((uint32_t)(uint16_t)t[f->spec_ix] * (uint16_t)gblitz.scale) >> 8);   /* a
+                                                                    Blitz: its special's tier x gblitz.scale (the Blitz's
+                                                                    whole damage, game.json blitz.damage) */
     return f->spec_id == BS_FURY ? t[f->ch->nspec + f->fmax] : t[f->spec_ix];
 }
 static void form_set(fighter_t *f, const bchar_t *to) {   /* the fighter's character data replaced (the form link) */
     f->ch = to; if (f->set >= to->nsets) f->set = 0;
     fighter_load_pals(f); f->ovl = 0; f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF;
     f->node = 0; f->buffered = 0; f->spec_buf = f->fury_buf = 0; f->chain_t = 0; f->air_node = 0; f->landed = 0;
+    walk_rate(f);                                                /* (its walk: the new form's archetype) */
 }
 static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push);
 void fighter_revive(fighter_t *f) {
     if (f->form_from && bm_chars[f->form_from - 1].form_exit == FX_LIFE) {   /* a life lost: back to the base form */
         form_set(f, &bm_chars[f->form_from - 1]); f->form_from = 0;
     }
-    f->hp = 60; f->held = 0; f->thr = 0; f->frame_ovr = 0xFFFF; f->y = 0; f->vx = f->vy = f->vz = 0; f->meter = gmeter.max; f->drop = 0;
+    f->hp = 60; f->held = 0; f->thr = 0; f->frame_ovr = 0xFFFF; f->y = 0; f->vx = f->vy = f->vz = 0; f->drop = 0;
+    f->drive = DRIVE_FULL;                                       /* a new life: the drive full (the fury gauge kept) */
     enter(f, S_GETUP); play(f, BA_GETUP); f->inv = 90;
 }
 /* ---- death and respawn (TODO #166 e, Bruno 2026-10-06: Final Fight's sequence; an engine rule for every player) ------
@@ -889,7 +1026,12 @@ static void victim_end(fighter_t *v) {                           /* its script o
         v->dizzy = th->stun;                                     /* dizzy, its +$FE frames, open to any hit; a hit ends */
         return;                                                  /* it: enter) */
     }
-    if (IS_THROW(v->throw_id)) v->hp -= v->thr_dmg - v->throw_dealt;
+    if (IS_THROW(v->throw_id)) {
+        uint8_t d = v->thr_dmg - v->throw_dealt;
+        v->hp -= d;
+        if (v->thr_by) gauge_add(v->thr_by, (uint16_t)d * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
+        gauge_add(v, (uint16_t)d * gmeter.fury_taken);
+    }
     v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; v->vx = 0; v->y = 0; clamp(v);
     enter(v, S_DOWN); play(v, BA_DOWN);
 }
@@ -908,6 +1050,8 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
             if (by) { by->impact = 1; hold_spark(by, v); }       /* its spark; its box hits the crowd (combat) */
             if (v->throw_id == BT_HOLD_FIN) continue;            /* (the finisher: its thrower knocks it down) */
             v->hp -= GRAB_DAMAGE; v->grab_hits = 0;              /* a hit: the escape count starts again */
+            if (by) gauge_add(by, GRAB_DAMAGE * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
+            gauge_add(v, GRAB_DAMAGE * gmeter.fury_taken);
             if (by) { snd_sfx(hit_sound(by, hold_anim(by), 0)); by->freeze = 4; }
             v->freeze = 4;
             continue;
@@ -916,6 +1060,8 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
             uint8_t d = 0, rest = v->thr_dmg;                    /* its damage / impacts (no divide here) */
             while (v->grab_hits && rest >= v->grab_hits) { rest -= v->grab_hits; d++; }
             v->hp -= d; v->throw_dealt += d;
+            if (by) gauge_add(by, (uint16_t)d * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
+            gauge_add(v, (uint16_t)d * gmeter.fury_taken);
         }
         if (!mute && v->hp > 0) voice_play(v->ch, v->team, VK_HIT);   /* the KO voice: at the death (S_DEAD) */
         if (r->flags & 16) { v->freeze = THROW_FREEZE; if (by && by->held == v) by->freeze = THROW_FREEZE; }   /* only where KOF froze (Ryo's forward+C) */
@@ -993,8 +1139,10 @@ static uint8_t paired_update(fighter_t *f) {
  * the red state, else the fury; a fury playing cancels only into its MAX ("cancels" rule 3). Pays (dry: only whether
  * it could) -> BS_FURY / BS_FURY_MAX, 0xFF: nothing (no fury, not payable) */
 static uint8_t fury_buy(fighter_t *f, uint8_t down, uint8_t dry) {
-    uint8_t k = spec_ix(f->ch, BS_FURY) == 0xFF ? 0xFF : down && fighter_low(f) ? BS_FURY_MAX :
-                f->state == S_SPECIAL && f->spec_id == BS_FURY ? 0xFF : BS_FURY;
+    uint8_t k = spec_ix(f->ch, BS_FURY) == 0xFF || (f->state == S_SPECIAL && f->spec_id == BS_FURY) ? 0xFF :
+                fighter_low(f) ? BS_FURY_MAX : BS_FURY;           /* (Bruno 2026-10-08: the gauge full + low life = the MAX,
+                                                                    whatever the stick; no fury -> MAX cancel) */
+    (void)down;
     if (k == 0xFF || !pay(f, k == BS_FURY_MAX ? PAY_MAX : PAY_FURY, dry)) return 0xFF;
     return k;
 }
@@ -1033,23 +1181,11 @@ static void hold_special(fighter_t *f, uint8_t k, uint8_t sthr, uint8_t xix) {
     lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FURY_MAX ? BS_FURY : k);
     pend_sthr = sthr; f->xix = xix; start_special(f, k);
 }
-/* the super throw (revamp 3): hold + forward / back + C. With gmeter.sthrow meter: bm_xthr sup (a special: played as a
- * fury; its throw_x; XT_FWD the throw pressed) at the super tier, invincible, the super flash; short of it the plain
- * throw pressed (no life paid) */
-static void super_throw(fighter_t *f, uint8_t t) {
-    const bxthr_t *x = &bm_xthr[f->ch->id];
-    if (!pay(f, PAY_STHROW, 0)) { throw_start(f, t); return; }
-    if (x->sup < f->ch->nspec) { hold_special(f, BS_FURY, 2, x->sup); return; }
-    if (x->sup == XT_PAIRED && x->x) t = BT_XTHROW;
-    f->xix = t; f->xwait = gflash.freeze + 1;                    /* the super flash over the hold (the game-wide anchor), */
-    super_flash(f);                                              /* then the throw: hold_update */
-}
+/* the super throw (revamp 3) is DROPPED (Bruno 2026-10-08): hold + forward / back + C = the normal throw pressed, for
+ * everyone (bm_xthr sup and tiers.super_throw stay in the data, unused; Rugal / Yamazaki / Genjuro keep their grab fury on
+ * D: fury_grab) */
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
-    if (f->xwait) {                                              /* a paired super throw: its flash shows, then it starts */
-        if (!--f->xwait) { throw_start(f, f->xix); v->thr_dmg = gmeter.sthrow_dmg; }
-        return;
-    }
     if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered */
     } else if ((in->press & IN_C) || (f->fury_buf & 0x80)) {     /* (fighter_update, "cancels" rule 4); else C: the hold
                                                                     ends, the special at once (Bruno 2026-10-05); D (its
@@ -1059,11 +1195,15 @@ static void hold_update(fighter_t *f, const intent_t *in) {
                                                                     victim reels in its held pose, free (only throws hold
                                                                     a victim), until its stun ends or the move hits it */
         uint8_t d = (f->fury_buf & 0x80) != 0, k;
-        if (!d && in->dx) { f->fury_buf = 0; super_throw(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D); return; }   /* forward /
-                                                                    back + C: the super throw (revamp 3) */
+        if (!d && in->dx) { f->fury_buf = 0; throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D); return; }   /* forward /
+                                                                    back + C: the normal throw (the super throw dropped) */
         k = d ? fury_press(f, f->fury_buf & 1) : special_for(f, in);
         f->fury_buf = 0;
-        if (k != 0xFF && (d || pay(f, PAY_SPECIAL, 0))) { hold_special(f, k, 0, 0); return; }
+        if (k != 0xFF && (d || pay(f, PAY_SPECIAL, 0))) {
+            hold_special(f, k, 0, 0);
+            if (!d && !f->team) { f->sinv = 1; f->inv = INV_FURY; }   /* (a C special: invincible, cspecial's rule) */
+            return;
+        }
     }
     if ((in->press & IN_A) && in->dx) {                          /* forward+A / back+A: throw forward / backward, at */
         throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D);   /* any time (a hold hit playing too) */
@@ -1161,6 +1301,10 @@ static uint16_t last_impact(const bthrow_t *th) {               /* a throw's can
 static void juggle_open(fighter_t *f, fighter_t *v) { if (v && v != f && v->team != f->team) v->jug_by = f; }
 /* the thrower's side after the grab (TODO #146): the paired script up to the control return, then it acts again; a
  * throw's last impact / the hold finisher's landing cancel ("cancels" rule 4) */
+static void cancel_go(fighter_t *f, uint8_t k) {                /* a throw's buffered C / D (cancel_pick's role): the fury, or
+                                                                    a C special (invincible: cspecial) */
+    if (k == BS_FURY || k == BS_FURY_MAX) start_special(f, k); else cspecial(f, k);
+}
 static void throw_update(fighter_t *f, const intent_t *in) {
     uint8_t k;
     fighter_t *jv;
@@ -1169,7 +1313,7 @@ static void throw_update(fighter_t *f, const intent_t *in) {
         (f->throw_id == BT_HOLD_FIN ? !f->held : IS_THROW(f->throw_id) && f->srow > last_impact(thr_of(f, f->throw_id))) &&
         (k = cancel_pick(f)) != 0xFF) {                          /* a buffered C / D fires now */
         juggle_open(f, f->held ? f->held : f->target);           /* rule 5: its follow-up may hit the victim in flight */
-        throw_free(f, 0); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return;
+        throw_free(f, 0); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k); return;
     }
     if (paired_update(f)) return;
     jv = f->held ? f->held : f->target;
@@ -1177,7 +1321,7 @@ static void throw_update(fighter_t *f, const intent_t *in) {
     if (!f->team && (f->fury_buf || f->spec_buf) && (IS_HOLD(f->throw_id) || last_impact(thr_of(f, f->throw_id)) != 0xFFFF) &&
         (k = cancel_pick(f)) != 0xFF) {                          /* the control return before the last impact (a throw
                                                                     whose only impact comes after it): the press fires */
-        juggle_open(f, jv); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); start_special(f, k); return;
+        juggle_open(f, jv); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k); return;
     }
     f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0; to_neutral(f, 0);
 }
@@ -1297,6 +1441,7 @@ static void special_end(fighter_t *f) {
     uint8_t k;
     if (f->dtgt) { if (f->dtgt->dpin) f->dtgt->dpin--; f->dtgt = 0; }   /* its down attack's target: free to get up */
     if (f->inv == INV_FURY) f->inv = 0;                          /* the fury's invincibility: hittable again at once */
+    f->sinv = 0;                                                 /* (a C special's: the same) */
     if (f->vtgt && f->vtgt->vph_by == f) { f->vtgt->vph = 0; f->vtgt->vph_by = 0; }   /* its victim phases end with it */
     f->vtgt = 0;
     f->pbd = 0; f->spec_sr = 0; f->pstill = 0;                   /* its screen effect (P_SCREEN), its source reactions */
@@ -1309,9 +1454,12 @@ static void special_end(fighter_t *f) {
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
     f->sthr = pend_sthr; pend_sthr = 0;                         /* a throw's special (revamp 3): hold_special's pick */
-    if (k != BS_AIR) f->spec_ix = f->sthr ? f->xix : spec_ix(f->ch, k);   /* (an air special: air_pick's, set by the caller;
-                                                                    a throw's: hold_special's, revamp 3) */
-    f->fmax = k == BS_FURY_MAX; f->brk = 0;                      /* (a breaker: its caller sets brk after) */
+    if (k != BS_AIR && k != BS_BLITZ) f->spec_ix = f->sthr ? f->xix : spec_ix(f->ch, k);   /* (an air special: air_pick's, a
+                                                                    Blitz: blitz_go's, set by the caller; a throw's:
+                                                                    hold_special's, revamp 3) */
+    f->fmax = k == BS_FURY_MAX; f->brk = f->brkr = 0; f->sinv = 0;   /* (a breaker: its caller sets brk after; a C special:
+                                                                    sinv, cspecial) */
+    f->spec_buf = 0; f->blz_buf = 0;                             /* (the presses of what it cancelled: not its own) */
     if (k == BS_FURY_MAX) k = BS_FURY;                           /* the MAX fury: the fury's role, its own special */
     f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
     f->var = f->ch->specials[f->spec_ix].vdef;                   /* its variant row: the rule's, latched for the whole move
@@ -2325,7 +2473,9 @@ static void update(fighter_t *f, const intent_t *in) {
     }
     if (f->state == S_ATTACK || f->state == S_AIR_ATTACK) {      /* presses in hit-stop count */
         uint8_t ci = combo_input(f, in);
-        if (ci) { f->buffered = ci; f->buf_age = 0; }            /* the attack buffer's age ("chain core"): the hit-stop */
+        if (ci) { f->buffered = ci; f->buf_age = 0; f->blz_buf = (ci & IN_A) && in->blitz && f->state == S_ATTACK ? in->blitz : 0; }   /* (a
+                                                                    Blitz press: its slot, "Blitz"; the attack buffer's
+                                                                    age, "chain core": the hit-stop */
         else if (f->buffered && !f->freeze && f->buf_age < 255 && !(f->landed && hits_to_come(f))) f->buf_age++;   /* does
                                                                     not age it (a latched press), nor a multi-hit link's
                                                                     hits still to come (the press waits for them) */
@@ -2342,10 +2492,12 @@ static void update(fighter_t *f, const intent_t *in) {
         if (!(in->press & (IN_C | IN_D)) && !f->freeze && f->cnc_buf && !--f->cnc_buf) f->spec_buf = f->fury_buf = 0;   /* too
                                                                     early: gone (a hit-stop does not age it) */
     }
-    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_D) && !f->team && (f->spec_id != BS_FURY || in->dz > 0))
+    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_D) && !f->team)
         f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
-                                                                    before its first hit does nothing); a fury: down+D
-                                                                    its MAX (rule 3) */
+                                                                    before its first hit does nothing) */
+    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) && !f->team)
+        f->spec_buf = 0x80 | d_input(f, in);                     /* the ladder (Bruno 2026-10-08): a special / a Blitz that
+                                                                    landed: C buffers ANOTHER special (special_cancel) */
     if (f->mash && (f->state != S_SPECIAL || !--f->mash)) f->mash = 0;   /* the mash window (real frames, MASH_GAP) */
     if (f->state == S_SPECIAL && in->press && f->ch->specials[f->spec_ix].nlinks) special_input(f, in);   /* a follow-up
                                                                     (presses in hit-stop count) */
@@ -2369,32 +2521,43 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     returned control: untouchable no more */
     if (f->inv == INV_FURY) {                                    /* held for the fury's script (and a form's transition, */
         if (!f->cthrow && (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM && f->spec_id != BS_THROW &&   /* a move with */
-                                      !(f->ch->specials[f->spec_ix].sflags & SF_INV) && !f->brk))) f->inv = 0;   /* SF_INV; a */
-    }                                                            /* breaker; a chain's back throw) */
+                                      !(f->ch->specials[f->spec_ix].sflags & SF_INV) && !f->brk && !f->sinv))) f->inv = 0;   /* SF_INV; */
+    }                                                            /* a breaker; a C special (sinv); a chain's back throw) */
     else if (f->inv) f->inv--;
     if (f->guard && !--f->guard) f->guard_by = 0;                /* a player's untouchable window after a hit ("guard") */
     if (f->chain_t) f->chain_t--;
-    if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C) && !dancing(f)) {   /* the breaker: a special
-                                                                    while hit (not in a fury's dance), "the meter" */
-        uint8_t k = special_for(f, in);
-        if (k != 0xFF && pay(f, PAY_BREAKER, 0)) {
+    if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C) && !dancing(f)) {   /* the breaker (Bruno
+                                                                    2026-10-08): C or A+B while hit (not in a fury's dance)
+                                                                    = ALWAYS the fighter's neutral C special, whatever the
+                                                                    stick; its price: breaker_pay ("the meter") */
+        uint8_t k = special_pick(f, BS_D);
+        if (k != 0xFF) {
+            uint8_t how = breaker_pay(f);
             if (f->state == S_GRABBED && f->held) release(f->held);
             f->frame_ovr = 0xFFFF; f->vx = f->vy = f->vz = 0; f->y = 0;
             lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k);
-            if (!f->team) { f->brk = 1; f->inv = INV_FURY; }    /* it blinks white to its end (pal_overlay), untouchable
-                                                                    to its end: the escape (8h: a special is invincible) */
+            if (!f->team) { f->brk = 1; f->brkr = how == 2; f->inv = INV_FURY; }   /* it blinks white (red: paid in life)
+                                                                    to its end (pal_overlay), untouchable to its end */
             return;
         }
     }
+    if (in->chord && (in->press & IN_C) && (f->state == S_PREJUMP ||   /* A+B = C with its second button late: the first */
+        (f->state == S_ATTACK && !f->landed && f->state_t <= gblitz.chord + 1))) {   /* one's prejump / normal (its first
+                                                                    frames, no hit) gives way to the C, from neutral now */
+        f->spec_buf = f->fury_buf = 0; f->buffered = 0; f->blz_buf = 0; f->rt_flags = 0; f->vx = f->vz = 0; f->y = 0;
+        enter(f, S_IDLE); play(f, BA_IDLE);
+    }
     f->state_t++;
     f->pushing = 0;
-    if (f->state != S_SPECIAL && f->state != S_THROW && f->state != S_GRAB) { if (f->rt_flags) rt_anim(f); else anim_tick(f); }   /* this frame's time first (see the animation player);
+    if (f->state != S_SPECIAL && f->state != S_THROW && f->state != S_GRAB && !air_hold(f)) { if (f->rt_flags) rt_anim(f); else anim_tick(f); }   /* this frame's time first (see the animation player;
+                                                                    an air attack's last active step held: air_hold);
                                                                     a script (special, throw) keeps its own in acc */
     switch (f->state) {
-    case S_IDLE: case S_WALK: case S_RUN: {
+    case S_IDLE: case S_WALK: case S_RUN: neutral: {
         uint8_t b = in->press;
         if (b & IN_B) { jump_start(f, in, f->chain_t ? NODE(f, f->chain_node)->next[RI_B] : 0); break; }   /* inside a chain
-                                                                    window: the route's B link (a jump-cancel) */
+                                                                    window: the route's B link (a jump-cancel; the chain
+                                                                    trees have none since 2026-10-08) */
         if (in->dx) f->facing = in->dx;                          /* beat 'em up: face where you walk */
         else if (in->face) f->facing = in->face;
         if (b & IN_D) {                                          /* D: the fury (fury_press) */
@@ -2402,12 +2565,15 @@ static void update(fighter_t *f, const intent_t *in) {
             if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k); }
             break;
         }
-        if (b & IN_C) {                                          /* C: the slot's special (the stick picks the slot) */
+        if (b & IN_C) {                                          /* C: the slot's special (the stick picks the slot): a drive
+                                                                    chunk, invincible (cspecial); none left: nothing */
             uint8_t k = special_for(f, in);
             if (k == 0xFF) start_node(f, TREE(f)->nospec, LH_NEUTRAL);
-            else if (pay(f, PAY_SPECIAL, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k); }
+            else if (pay(f, PAY_SPECIAL, 0)) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); cspecial(f, k); }
             break;
         }
+        if ((b & IN_A) && (in->blitz || f->state == S_RUN) &&    /* the Blitz: a double direction + A (run + A: its ff */
+            blitz_go(f, in->blitz ? in->blitz - 1 : BZ_FF, LH_NEUTRAL)) break;   /* slot, the dash attack) */
         if ((b & IN_A) && in->dz && in->lie && spec_ix(f->ch, BS_DOWNATK) != 0xFF) {   /* up / down + A, an opponent */
             fighter_t *t = in->lie;                              /* lying in reach: the down attack at it (DD's 8 / 2 + a */
             lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_DOWNATK);  /* button, TODO #218) */
@@ -2417,29 +2583,27 @@ static void update(fighter_t *f, const intent_t *in) {
         if (b & IN_A) {
             uint8_t ci = combo_input(f, in), nx = f->chain_t ? chain_next(f, NODE(f, f->chain_node), ci) : 0;
             if (nx) { route_go(f, nx, ci, in, LH_WINDOW); break; }   /* the route goes on (Final Fight: tap, wait, tap) */
-            if (f->state == S_RUN) { start_node(f, TREE(f)->dash, LH_NEUTRAL); break; }   /* dash attack */
+            if (f->state == S_RUN) { blitz_dash(f, LH_NEUTRAL); break; }   /* dash attack (a fighter without an ff Blitz) */
             nx = next_node(NODE(f, TREE(f)->root), ci);          /* a route starts: the root's links */
             if (nx) start_node(f, nx, LH_NEUTRAL);
             break;
         }
-        if (f->state == S_RUN && in->dx == f->facing) {
-            f->x += dir_mul(f->facing, whole(ph->walk) << RUN_MUL >> 1); f->z += dir_mul(in->dz, FIX(1)); clamp(f); break;
+        if (f->state == S_RUN && in->dx == f->facing) {          /* run = walk x gwalk_run (sub-pixel) */
+            f->x += dir_mul(f->facing, mul88(f->wspd, gwalk_run)); f->z += dir_mul(in->dz, FIX(1)); clamp(f); break;
         }
-        if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); break; }
+        if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); f->speed = f->wrate; break; }   /* (its stride: walk_rate) */
         to_neutral(f, in);
-        if (f->state == S_WALK) {
-            f->x += dir_mul(in->dx, in->slow ? whole(ph->walk) >> 1 : whole(ph->walk)); f->z += dir_mul(in->dz, in->slow ? FIX(1) >> 1 : FIX(1)); clamp(f);
+        if (f->state == S_WALK) {                                /* the walk by archetype, sub-pixel (walk_rate) */
+            f->x += dir_mul(in->dx, in->slow ? f->wspd >> 1 : f->wspd); f->z += dir_mul(in->dz, in->slow ? FIX(1) >> 1 : FIX(1)); clamp(f);
             f->pushing = in->dx != 0 && (!f->team || in->grab);   /* facing follows dx: walking forward; enemies on purpose */
         }
         break;
     }
-    case S_PREJUMP:                                              /* KOF's prejump frames decide the height: B let go */
-        if (!(in->hold & IN_B)) f->jump_kind = 1;                /* before take-off = a hop */
-        if (f->state_t >= ph->prejump) {                         /* take-off (frames on the ground: the fighter's own) */
-            int32_t dx = whole(f->jump_kind ? ph->hop_dx : ph->jump_dx);
-            f->vy = f->jump_kind ? ph->hop_vy0 : ph->jump_vy0;
-            f->vx = f->jump_dir == 1 ? dir_mul(f->facing, dx) : f->jump_dir == 2 ? dir_mul(-f->facing, dx) : 0;
-            enter(f, S_AIR); play(f, JUMP_ANIM[f->jump_kind][f->jump_dir][0]);
+    case S_PREJUMP:                                              /* the one jump's crouch ("jumps"): the press frame + */
+        if (f->state_t > gjump.crouch) {                         /* gjump.crouch frames on the ground (Final Fight: 1 + 7) */
+            f->vx = f->vy = 0; f->jump_kind = 0;
+            enter(f, S_AIR); play(f, JUMP_ANIM[0][f->jump_dir][0]); f->jt = 1; f->aact = 0;
+            jump_frame(f);                                       /* its first air frame now */
         }
         break;
     case S_AIR: case S_AIR_ATTACK:
@@ -2457,9 +2621,16 @@ static void update(fighter_t *f, const intent_t *in) {
                 f->spec_ix = k; start_special(f, BS_AIR); break;
             }
         }
-        if (f->state == S_AIR && (in->press & IN_A)) {           /* A: a jump-cancel's node, else the stick: air A (KOF's */
-            uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : in->dz < 0 ? TREE(f)->air_cd : TREE(f)->air_a;
-            start_node(f, nx, f->air_node ? LH_CANCEL : LH_NEUTRAL); f->air_node = 0;   /* C), down+A air B (D), up+A air C+D */
+        if (f->state == S_AIR && (in->press & IN_A)) {           /* A: the air attacks (Bruno 2026-10-08, "jumps"): down+A
+                                                                    its down attack (air_b: a flinch, active to the landing),
+                                                                    else the jump's attack: a straight jump's (air_a), a
+                                                                    forward / back jump's (air_cd), both knocking down */
+            uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a;
+            start_node(f, nx, f->air_node ? LH_CANCEL : LH_NEUTRAL); f->air_node = 0; f->aact = 0;
+        } else if (f->state == S_AIR_ATTACK && f->node == TREE(f)->air_b && (in->press & IN_A) && in->dz <= 0 &&
+                   (f->landed || gjump.down_any)) {              /* down+A -> the jump's attack (on hit; Final Fight's
+                                                                    order: the down attack first) */
+            start_node(f, f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a, LH_CANCEL); f->aact = 0;
         } else if (f->state == S_AIR_ATTACK && f->buffered && !(NODE(f, f->node)->flags & RF_KEEP) && !BUF_OK(f, in)) {
             f->buffered = 0;                                     /* a player's press too old (the attack buffer) */
         } else if (f->state == S_AIR_ATTACK && f->landed && f->buffered &&   /* an air route: A on hit, its next air hit */
@@ -2467,13 +2638,21 @@ static void update(fighter_t *f, const intent_t *in) {
             uint8_t nx = next_node(NODE(f, f->node), f->buffered);
             if (nx) start_node(f, nx, LH_CANCEL);
         }
-        f->y += f->vy; f->vy -= f->jump_kind ? ph->hop_gravity : ph->gravity; f->x += f->vx; f->z += f->vz; clamp(f);
+        if (f->jt) {                                             /* the one jump: its table ("jumps") */
+            if (jump_frame(f)) { f->y = 0; f->vx = f->vy = f->vz = 0; f->air_node = 0; enter(f, S_LAND); play(f, BA_LAND); }
+            break;
+        }
+        f->y += f->vy; f->vy -= f->jump_kind ? ph->hop_gravity : ph->gravity; f->x += f->vx; f->z += f->vz; clamp(f);   /* (a
+                                                                    fall that is not the jump: gravity) */
         if (f->state == S_AIR && f->vy < 0 && f->anim == JUMP_ANIM[f->jump_kind][f->jump_dir][0])
             play(f, JUMP_ANIM[f->jump_kind][f->jump_dir][1]);
         if (f->y <= 0) { f->y = 0; f->vx = f->vy = f->vz = 0; f->air_node = 0; enter(f, S_LAND); play(f, BA_LAND); }
         break;
-    case S_LAND:
-        if (f->state_t >= ph->land) to_neutral(f, in);         /* KOF's landing: the fighter's own frames (4, Terry 5) */
+    case S_LAND:                                                 /* the one jump's landing ("jumps"): gjump.land frames; */
+        if (f->state_t >= gjump.land) { to_neutral(f, in); break; }
+        if (f->state_t >= gjump.land_cancel && (in->press || in->dx || in->dz)) { to_neutral(f, in); goto neutral; }   /* any
+                                                                    input ends it from land_cancel on and acts now (Final
+                                                                    Fight's landing cancels at once) */
         break;
     case S_ATTACK: {
         const rnode_t *c = NODE(f, f->node);
@@ -2486,7 +2665,13 @@ static void update(fighter_t *f, const intent_t *in) {
             k = nx ? special_pick(f, NODE(f, nx)->anim) : f->team ? 0xFF : special_pick(f, d - RI_S);   /* no link: the
                                                                     cancel rule, the special C + this stick picks
                                                                     (players; enemies keep their routes' links) */
-            if (k != 0xFF && pay(f, PAY_SPECIAL, 0)) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); start_special(f, k); if (nx) f->speed = NODE(f, nx)->speed; break; }
+            if (k != 0xFF && pay(f, PAY_SPECIAL, 0)) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); cspecial(f, k); if (nx) f->speed = NODE(f, nx)->speed; break; }
+        }
+        if (f->landed && f->blz_buf && !(c->flags & RF_AIR)) {   /* the ladder (Bruno 2026-10-08): a normal that hit (a link,
+                                                                    a finisher) cancels into the Blitz ("Blitz") */
+            uint8_t s = f->blz_buf - 1;
+            f->blz_buf = 0;
+            if (blitz_go(f, s, LH_CANCEL)) break;
         }
         if (f->buffered && !(c->flags & RF_KEEP) && !BUF_OK(f, in)) f->buffered = 0;   /* a player's press too old: dropped
                                                                     (the attack buffer) */
@@ -2500,6 +2685,8 @@ static void update(fighter_t *f, const intent_t *in) {
             uint8_t nx = f->buffered && f->landed ? chain_next(f, c, f->buffered) : 0;   /* routes chain only on a hit */
             lab_note(f, LE_END, f->node, LH_AFTER_END, f->landed);
             if (nx) { route_go(f, nx, f->buffered, in, LH_AFTER_END); break; }
+            if (!f->landed && f->blz_buf && BUF_OK(f, in) && blitz_go(f, f->blz_buf - 1, LH_NEUTRAL)) break;   /* a whiff: a
+                                                                    Blitz pressed in its last frames comes out as it ends */
             if (!f->landed && (f->buffered & IN_A) && !in->ai && BUF_OK(f, in) &&
                 (nx = next_node(NODE(f, TREE(f)->root), f->buffered)) != 0) {   /* a whiff: a press in its last frames */
                 start_node(f, nx, LH_NEUTRAL); break;            /* starts the chain again at link 1 (the attack buffer) */
@@ -2584,7 +2771,21 @@ static void update(fighter_t *f, const intent_t *in) {
             if (fury_cancel(f)) break;                           /* the fury starts this frame */
             to_neutral(f, 0); break;                             /* (payable above: not reached) */
         }
-        f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? air_button(f->ch, f->spec_ix) : f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
+        if (may_cancel(f) && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && f->spec_buf &&
+            (f->pcatch == 0 || f->pcatch == 0xFE)) {             /* the ladder: a special / Blitz that landed -> ANOTHER */
+            uint8_t k = special_pick(f, (f->spec_buf & 0x7F) - RI_S);   /* special (C + the stick), on the ground, a drive
+                                                                    chunk; the same special, or none payable: the press
+                                                                    is dropped, it plays on */
+            f->spec_buf = 0;
+            if (k != 0xFF && spec_ix(f->ch, k) != f->spec_ix && pay(f, PAY_SPECIAL, 0)) {
+                if (f->pcatch == 0xFE) juggle_open(f, f->target);   /* (a catch's slam: rule 5, its victim juggled) */
+                carry_drop(f); special_end(f); f->pflags = 0;
+                lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cspecial(f, k);
+                break;
+            }
+        }
+        f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? air_button(f->ch, f->spec_ix) : f->spec_id == BS_BLITZ ? IN_A :
+                                      f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
         if (flash_pose(f)) break;                                /* a fury's flash pose: the freeze shows it ("flash pose") */
         special_update(f);
         if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose)
@@ -2639,6 +2840,12 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         damage = (uint8_t)(d >> 8); o->dacc = (uint8_t)d;
     }
     v->hp -= damage + (a->owner ? a->owner : a)->power;
+    {   fighter_t *o = a->owner ? a->owner : a;                  /* the hidden fury gauge ("the meter"): the damage dealt (not
+                                                                    a fury's own) and taken */
+        uint8_t d = damage + o->power;
+        if (o->team != v->team && !(o->state == S_SPECIAL && o->spec_id == BS_FURY)) gauge_add(o, (uint16_t)d * gmeter.fury_dealt);
+        gauge_add(v, (uint16_t)d * gmeter.fury_taken);
+    }
     if (v->hp > 0) voice_play(v->ch, v->team, VK_HIT);          /* the KO voice: once, at the death (S_DEAD) */
     {   uint8_t hs = (a->state == S_ATTACK || a->state == S_AIR_ATTACK) && NODE(a, a->node)->hitstop ? NODE(a, a->node)->hitstop : HITSTOP;
         v->freeze = !caught ? hs : a->pdeadn > HITSTOP - CATCH_STOP + 1 ? CATCH_STOP : HITSTOP + 1 - a->pdeadn;   /* a normal:
@@ -3075,6 +3282,8 @@ void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase,
     f->x = FIX(x); f->z = FIX(z); f->y = 0; f->vx = f->vy = f->vz = 0;
     f->facing = team ? -1 : 1; f->hp = 60; f->freeze = f->inv = 0; f->held = 0;
     f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF; f->zfront = 0; f->pushing = 0; f->target = 0; f->popp = 0; f->spec_atk = 0; f->proj[0] = f->proj[1] = 0; f->owner = 0; f->ncols = 0; f->burn = 0; f->spec_fx = 0;
-    f->jump_kind = f->jump_dir = 0; f->meter = gmeter.max; f->dsc = 0x100; f->dacc = 0x80;
+    f->jump_kind = f->jump_dir = 0; f->drive = DRIVE_FULL; f->fgauge = 0; f->dsc = 0x100; f->dacc = 0x80;   /* (the drive full,
+                                                                    the fury gauge empty: "the meter") */
+    walk_rate(f);
     enter(f, S_IDLE); play(f, BA_IDLE);
 }

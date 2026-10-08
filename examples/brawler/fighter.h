@@ -56,11 +56,11 @@ enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_SLAM, R_LI
                                      303 slam down / the launch straight up (fighter.c kof_react). A special's reaction
                                      may come packed: standing | juggled << 4 (KOF's reaction table by attack box,
                                      tools/kof96/handlers98.box_react; fighter_hit picks by the victim's height) */
-/* buttons by meaning (TODO #71, Bruno 2026-10-05; 2026-10-06: C / D): A attack (every normal: the route trees, stick +
- * position pick the move), B jump (stick = direction; a route's B link = a jump-cancel on hit), C the special (the stick
- * picks the slot: neutral, forward, down, up, down-forward, up-forward; the A+B chord is gone), D the fury (the
- * fighter's desperation move). Tag mode (reserved, not built) has no button any more. Every press acts the frame it
- * comes. */
+/* buttons by meaning (TODO #71, Bruno 2026-10-05; 2026-10-06: C / D; 2026-10-08 the new system, docs/brawler_gold.md): A
+ * attack (every normal: the chain, stick + position pick the move; a double direction + A: the Blitz), B jump (stick =
+ * direction), C the special (the stick picks the slot: neutral, forward, down, up, down-forward, up-forward), D the fury.
+ * A+B = C everywhere (main.c read_player turns the chord into C; intent_t.chord: its second button came late). Every press
+ * acts the frame it comes. */
 enum { IN_A = 1, IN_B = 2, IN_C = 4, IN_D = 8 };
 
 struct fighter;
@@ -76,6 +76,10 @@ typedef struct {                  /* what the controller wants this frame (playe
     uint8_t close;                /* an opponent within CLOSE_X (main.c close_marks): A picks the route's close link */
     struct fighter *lie;          /* the nearest opponent lying (S_DOWN, alive) within DOWN_REACH (main.c close_marks): up /
                                      down + A leaps at it with the fighter's down attack (BS_DOWNATK, TODO #218) */
+    uint8_t blitz;                /* the Blitz (main.c read_player, fighter.c "Blitz"): A pressed this frame after a double
+                                     direction, its slot BZ_* + 1 (forward,forward / down,down / down,up / up,up); 0 none */
+    uint8_t chord;                /* A+B = C this frame with its second button up to gblitz.chord frames after the first
+                                     (the first one already acted: fighter.c turns a prejump / a normal's start into the C) */
 } intent_t;
 
 /* ---- chain routes (Chain Lab, 2026-10-05): one route tree per fighter, data only ---------------------------------------
@@ -157,6 +161,10 @@ extern const rt_head_t *route_tab[BC_COUNT];
                                      no meter, untouchable to its end, no cancels out of it; fighter_t.spec_ix = the entry's
                                      special (spec_ix(ch, BS_THROW) = 0xFF). The super throw plays its special as a fury
                                      (BS_FURY, fighter_t.sthr 2: its flash, its flash pose, its tier) */
+#define BS_BLITZ (BS_COUNT + 6)      /* the Blitz (Bruno 2026-10-08, fighter.c "Blitz"): a special of the pool played free from
+                                     a double direction + A (gblitz_rom), not invincible, its own recovery, its damage scaled
+                                     (gblitz.scale); cancels on hit into a C special or the fury; fighter_t.spec_ix = the
+                                     slot's special (spec_ix(ch, BS_BLITZ) = 0xFF) */
 #define DOWN_REACH 160               /* px (x) to a lying opponent the down attack leaps at (any lane of the band); Double
                                      Dragon has no limit (one opponent, its leap = 64 frames whatever the distance) */
 enum { FT_NONE, FT_DOWN_D_FULL };    /* bchar_t.form_trig: down+D on the ground with a full meter */
@@ -295,8 +303,9 @@ typedef struct fighter {
     int8_t   spec_slide;          /* special: the reel slide of the hit window open (px, bspec_row_t.vx; -128: KOF98's 258, 65 px) */
     uint8_t  air_node;            /* a jump-cancel in progress: the route node A plays in this jump (0 = the tree's air entries) */
     uint8_t  flash;               /* frames left of a white flash (ai.c's ready pulse; meter_tick gives the colours back) */
-    uint16_t meter;               /* the meter (players; gmeter: full at the start, specials, breakers and furies spend it) */
-    uint8_t  meter_t, pad_m;      /* frames toward the next point regained */
+    uint16_t drive;               /* the drive meter (players; gmeter: chunks x chunk points, full at the start, a point back
+                                     a frame; C specials and breakers spend it) */
+    uint16_t fgauge;              /* the hidden fury gauge (players; gmeter.fury_max = full: D plays the fury / the MAX) */
     uint8_t  spart, sarm;         /* special: the part playing (bspec_t.parts), the follow-up link armed + 1 (0 = none;
                                    * fighter.c "follow-ups") */
     uint16_t shrow;               /* special: the script row its last hit landed on + 1 (0 = none yet): a hit link's window */
@@ -404,9 +413,19 @@ typedef struct fighter {
      * special that caught this fighter: falling from it, it is a thrown body (spawn.body) until it lands */
     uint8_t  sthr, xix, thr_dmg, xwait;   /* xwait: a paired super throw's flash frames left in the hold (xix: its BT_*) */
     struct fighter *tb_by;
+    /* the new system (Bruno 2026-10-08, docs/brawler_gold.md; fighter.c "the meter", "Blitz", "jumps"): sinv = the special
+     * playing was bought with drive (a C special: untouchable to its end); brkr = the breaker was paid in life (it blinks red,
+     * not white); blz_buf = a Blitz press during a normal (its slot + 1: fires when the normal lands, or as it ends); jt = the
+     * jump table frame to play next + 1 (0: no table jump: gravity, a fall after a special); aact = active frames of the air
+     * attack so far (gjump.active_min); wspd = its walk (16.16, gwalk_rom), wrate = its walk / run animation's rate (8.8:
+     * wspd / its KOF walk, the feet don't slide) */
+    uint8_t  sinv, brkr, blz_buf, jt, aact, npad;
+    uint16_t wrate;
+    int32_t  wspd;
 } fighter_t;
-enum { OVL_WHITE = 1, OVL_RED = 2 };
-uint8_t fighter_low(const fighter_t *f);   /* the red state (gmeter.low): the MAX may play; the HUD's MAX mark */
+enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
+uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
+uint8_t fighter_low(const fighter_t *f);   /* low life (gmeter.low): the life bar blinks red; with the gauge full: the MAX */
 enum { RT_ON = 1, RT_FIRST = 2, RT_END = 4 };   /* rt_flags: retimed; a program's first frame (one source frame, not
                                    * counted); a segment ended this frame */
 typedef struct { uint8_t fighter, nseg; uint16_t move; const uint16_t *t; } gretime_t;   /* a move's targets (build_tables.py

@@ -394,10 +394,10 @@
       if (!finals[k].weight) finals[k].weight = 'strong';
     }
     finals.bA = { move: neutral.move, throw: 'back', weight: 'strong', effect: 'knockdown', damage: 0, hitstop: hs[N - 1] };
-    const link1 = f.tree.links.A, bnode = JSON.parse(JSON.stringify(link1.links.B));   // the chain's jump-cancel (chain_tree's)
     for (const x of Object.values(finals)) if (!x.throw) x.links = SPL();
     let nxt = finals;
-    for (let k = N - 2; k >= 0; k--) nxt = Object.assign({}, builders[k], { links: Object.assign({}, k < N - 2 ? { A: nxt } : nxt, { B: bnode }, SPL()) });
+    for (let k = N - 2; k >= 0; k--) nxt = Object.assign({}, builders[k], { links: Object.assign({}, k < N - 2 ? { A: nxt } : nxt, SPL()) });   // (no B
+                                                                // link: the jump-cancel is gone, Bruno 2026-10-08; routes.py chain_tree)
     const names = { A: 'neutral', fA: 'forward', uA: 'up', dA: 'down', bA: 'back' };
     return { fighter: f.name, links: { A: nxt }, entries: JSON.parse(JSON.stringify(f.tree.entries)), archetype: arch, chain_links: N,
              chain: { archetype: arch, length: N, total, links: builders.map(b => b.move), damage: dm, hitstop: hs,

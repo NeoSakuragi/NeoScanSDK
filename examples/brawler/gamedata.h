@@ -58,26 +58,48 @@ typedef struct {
 } gairules_t;
 extern const gairules_t gai;      /* (game_tables.h: ai_ready[BC_COUNT][2], each fighter's ready stance: BA_*, step; 0xFF the tint pulse) */
 
-/* ---- layer 2: the meter (revamp phase 2, docs/brawler_feel.md 8h; fighter.c "the meter"): game.json "meter"; players
- * only. 3 stocks = 300 points; a special 100, a breaker (a special out of a hit) 200, a fury 300, the MAX 300 in the red
- * state (life at or under low % of the full life); short of the meter a special / a breaker costs life instead (never
- * the last point), short of both nothing plays ---- */
+/* ---- layer 2: the two bars (Bruno's live redesign 2026-10-08, docs/brawler_gold.md; fighter.c "the meter"): game.json
+ * "meter"; players only. DRIVE (shown: the HUD's chunks): chunks x chunk points, one back a frame; a C special costs
+ * `special` chunks (short: it does not come out), the breaker (C / A+B while hit: the neutral C special) `breaker` chunks,
+ * short of them life_breaker life (never the last point). The FURY GAUGE (hidden): fury_max points, filled fury_dealt a
+ * point of damage dealt, fury_taken a point taken; full: D = the fury, full + low life (<= low % of the full life): the MAX ---- */
 typedef struct {
-    uint16_t max;                 /* a full gauge (every player starts full, and at a new life) */
-    uint16_t stock;               /* points a stock (the HUD's dots) */
-    uint16_t special, breaker;    /* a special's cost (C), a breaker's (C in a hit stun / held) */
-    uint16_t fury, maxf;          /* a fury's (D), the MAX's (down+D in the red state) */
-    uint8_t  refill;              /* frames per point regained */
-    uint8_t  life_special, life_breaker;   /* life paid instead with too little meter */
-    uint8_t  low;                 /* the red state: life <= low % of the full life (and > 0) */
-    uint8_t  blink;               /* the breaker's blink: frames white, then as many in its colours */
-    uint8_t  infinite;            /* 1: nothing is spent, the gauge stays full (a test switch; 0 since revamp phase 2) */
-    uint16_t sthrow;              /* revamp 3: the super throw's cost (the hold's forward / back + C; short of it: the plain
-                                     throw, no life paid) */
-    uint8_t  sthrow_dmg, spad;    /* the super throw's whole damage (game.json tiers.super_throw; a paired one's, a special's
-                                     through dtier_rom's super scale) */
+    uint16_t chunk;               /* drive points a chunk (= frames to refill one) */
+    uint8_t  chunks;              /* chunks in the bar (full at the start and at a new life) */
+    uint8_t  special, breaker;    /* chunks a C special / a breaker costs */
+    uint8_t  life_breaker;        /* life a breaker costs short of the chunks (never the last point) */
+    uint8_t  blink;               /* the breaker's blink: frames white (red when paid in life), then as many in its colours */
+    uint8_t  infinite;            /* 1: nothing is spent, both bars full (a test switch) */
+    uint16_t fury_max;            /* the hidden fury gauge: full */
+    uint8_t  fury_dealt, fury_taken;   /* gauge points a life point dealt / taken */
+    uint8_t  low;                 /* low life: life <= low % of the full life (and > 0): the life bar blinks red, the MAX */
+    uint8_t  mpad;
 } gmeter_t;
 extern const gmeter_t gmeter;
+
+/* ---- layer 2: the Blitz and the A+B chord (Bruno 2026-10-08; game.json "blitz"; main.c read_player, fighter.c "Blitz"):
+ * window = frames allowed between the two taps of a double direction and from the second tap to A; chord = frames the
+ * second of A / B may come after the first and still make C; scale = a special played as a Blitz: its damage (8.8 of its
+ * special tier). gblitz_rom[fighter] (game_tables.c): its four slots BZ_FF .. BZ_UU = a special's pool index, BZ_DASH its
+ * tree's dash entry, BZ_NONE ---- */
+typedef struct { uint8_t window, chord; uint16_t scale; } gblitz_t;
+extern const gblitz_t gblitz;
+enum { BZ_FF, BZ_DD, BZ_DU, BZ_UU, BZ_COUNT };
+#define BZ_DASH 0xFE
+#define BZ_NONE 0xFF
+
+/* ---- layer 2: the one jump (Bruno 2026-10-08: Cody's Final Fight arc; game.json "jump"; fighter.c "jumps"): crouch
+ * frames on the ground, then n air frames at h[i] lines above the floor, a forward jump travelling dx[i] (8.8 Neo Geo px)
+ * a frame and land_dx on the landing; the rise animation turns into the fall at apex; the landing lasts `land` frames, any
+ * input ends it from land_cancel on. Air attacks: the jump attack (forward / straight + A) active active_min frames at
+ * least, down + A active to the landing, down + A -> the jump attack on hit (down_any 1: at any time) ---- */
+typedef struct {
+    uint8_t  crouch, n, apex, land, land_cancel, active_min, down_any, jpad;
+    uint16_t land_dx;
+    const uint8_t *h;
+    const uint16_t *dx;
+} gjump_t;
+extern const gjump_t gjump;
 
 /* ---- the chain core (revamp 1A, docs/brawler_feel.md 8h; game.json "chain"; fighter.c "chain core"): engine rules for
  * every fighter. window: frames after a link's recovery to press the next one (the chain advances only on hit; a whiff or

@@ -217,6 +217,9 @@ def encode(tree, moves, has=None, specials_have=None):
             if k in SPECIAL_INPUTS:
                 assert 'special' in ch, f'{where} {k}: a C input leads to a special'
                 assert not air, f'{where} {k}: no special in the air'
+            elif 'special' in ch:                                            # a special on a stick+A link: the chain's
+                assert not air, f'{where} {k}: no special in the air'        # special finisher (revamp gold), played free
+                                                                             # by fighter.c route_go (node_special)
             else: assert 'move' in ch, f'{where} {k}: an A / B input leads to a move (a back throw: "throw" + its shown move)'
             assert not (air and k == 'B'), f'{where}: no jump-cancel in the air'
             assert not (where == 'root' and (k == 'B' or k in SPECIAL_INPUTS)), f'root {k}: a route starts with an A'
@@ -436,7 +439,13 @@ def chain_tree(name, base, cfg, has):
     def first(pred, src, avoid=()):
         return next((clean(nd) for nd in src if pred(nd) and nd['move'] not in avoid), None)
     tool = chain_base(base, has) if cfg.get('links') is not None else None   # a chain tool's chain: its finishers too
+    sp_in = {i: s for s, i in (cfg.get('specials') or {}).items() if i}      # a special input -> its slot (D .. ufD)
+    def spec_slot(m):                                                        # a finisher named as a special (its input or
+        return m if m in SPECIALS else sp_in.get(m)                          # its slot) -> the slot, else None
     def named(m, eff, w='strong'):                                  # take the piece its links would (chain_base)
+        sl = spec_slot(m)
+        if sl: return {'special': sl, 'effect': eff, 'weight': w}           # a special played as the finisher (free, like
+                                                                             # the built-in ones: fighter.c route_go)
         assert m in has, f'{name}: chain finisher {m}: the fighter has no such move'
         if tool is not None and m in tool: return dict(tool[m], effect=eff)
         return {'move': m, 'weight': w, 'effect': eff}
@@ -505,19 +514,27 @@ def chain_tree(name, base, cfg, has):
                 x['hitstop'] = hi if x.get('effect', 'none') != 'none' else (lo + hi) // 2 if x.get('weight') == 'strong' else lo
             for c in (x.get('links') or {}).values(): walk(c)
         walk(nd); return nd
-    bnode = cls(_b_node(base) or default_tree()['links']['A']['links']['B'], True)
     for f in finals.values():
-        if 'throw' not in f: f['links'] = spl()
+        if 'throw' not in f and 'special' not in f: f['links'] = spl()   # (a special finisher ends the route: no links)
     nxt = finals
     for k in range(N - 2, -1, -1):
-        nd = dict(builders[k], links={**({'A': nxt} if k < N - 2 else nxt), 'B': bnode, **spl()})
+        nd = dict(builders[k], links={**({'A': nxt} if k < N - 2 else nxt), **spl()})   # (no B link: the jump-cancel is
+                                                                     # gone, Bruno 2026-10-08: three air attacks only, the chain
+                                                                     # always starts on the ground at link 1)
         nxt = nd
     ent = base.get('entries') or {}
     entries = {k: cls(v, k != 'hold') for k, v in ent.items()}
+    air = cfg.get('air')                                            # the three air attacks (Bruno 2026-10-08; gamedata.h gjump_t):
+    if air:                                                         # air_a = straight jump + A, air_cd = forward jump + A (both
+        for k, m, w, e in (('air_a', air['straight'], 'strong', 'knockdown'),   # knock down), air_b = down + A in either
+                           ('air_cd', air['forward'], 'strong', 'knockdown'),   # jump (a flinch; fighter.c holds it active
+                           ('air_b', air['down'], 'light', 'none')):            # to the landing)
+            assert m in AIR_MOVE_NAMES, f'{name}: air {k}: {m} is not an air move ({" ".join(AIR_MOVE_NAMES)})'
+            entries[k] = cls({'move': m, 'weight': w, 'effect': e}, True)
     summary = {'archetype': cfg['archetype'], 'length': N, 'total': total,
                'links': [b['move'] for b in builders], 'damage': dm, 'hitstop': hs,
                'finishers': {{'A': 'neutral', 'fA': 'forward', 'uA': 'up', 'dA': 'down', 'bA': 'back'}[k]:
-                             ('throw' if 'throw' in f else f['move'] + ' (' + f['effect'] + ')') for k, f in finals.items()}}
+                             ('throw' if 'throw' in f else ('special ' + f['special'] if 'special' in f else f['move']) + ' (' + f['effect'] + ')') for k, f in finals.items()}}
     return {'fighter': name, 'links': {'A': nxt}, 'entries': entries, 'archetype': cfg['archetype'], 'chain_links': N, 'chain': summary}
 
 if __name__ == '__main__':
