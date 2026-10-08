@@ -2143,5 +2143,100 @@
   "expect": "The super flash, then the Guillotine on Ryo for 18 damage; one dot empties (on D the same grab is his fury, all three dots).",
   "do_keys": "3:Rc",
   "proof": 280
+ },
+ "20261008-143545-5d29": {
+  "title": "Terry opens with the far A jab",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Press A once, Ryo a step away.",
+  "expect": "Terry's first hit is the far A jab (a straight arm jab), not another animation.",
+  "do_keys": "1:a,40:-",
+  "proof": 60
+ },
+ "20261008-173846-5d29": {
+  "title": "A Blitz never cancels into a Blitz",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Forward, forward + A (Body Toss), and while it plays do forward, forward + A again.",
+  "expect": "Only ONE Body Toss: the second one doesn't come out until the first has ended.",
+  "do_keys": "1:R,1:-,1:R,1:Ra,10:-,1:R,1:-,1:R,1:Ra,60:-",
+  "proof": 120
+ },
+ "20261008-180101-5d29": {
+  "title": "Attack boxes are the ROM's own (no artificial reach)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 80
+  },
+  "do": "Turn the hit boxes on, then press A and C with Ryo a bit too far.",
+  "expect": "The red attack box ends at Terry's fist / foot, no longer far beyond it: a move only hits when the drawn limb reaches Ryo.",
+  "do_keys": "1:a,40:-,1:c,50:-",
+  "proof": 110
+ },
+ "20261008-175839-5d29": {
+  "title": "Run: frames 1.5x faster, same speed",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 200
+  },
+  "do": "Run: forward, forward and hold forward.",
+  "expect": "The run's legs cycle visibly faster than on 0.8.0 while Terry covers the ground at the same speed.",
+  "do_keys": "1:R,1:-,80:R",
+  "proof": 90
+ },
+ "20261008-175917-5d29": {
+  "title": "Walk: frames 1.5x faster, same speed",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 200
+  },
+  "do": "Hold forward to walk.",
+  "expect": "The walk's steps switch visibly faster than on 0.8.0 while Terry still walks at Cody's speed.",
+  "do_keys": "120:R",
+  "proof": 120
+ },
+ "20261008-181001-5d29": {
+  "title": "Bosses have double life",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "gap": 60
+  },
+  "do": "Stage 1, Mr. Big alone in front of Terry. Fight him.",
+  "expect": "Mr. Big has 200 life: his bar drains about half as fast per hit as before.",
+  "do_keys": "1:a,10:-,1:a,10:-,1:a,40:-",
+  "proof": 90
+ },
+ "20261008-182850-5d29": {
+  "title": "Terry: forward + C = the light Power Dunk",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 60,
+   "drive": "full"
+  },
+  "do": "Press forward + C.",
+  "expect": "The light Power Dunk (623B: a lower, shorter jump than before), one drive chunk spent.",
+  "do_keys": "1:Rc,90:-",
+  "proof": 100
  }
 }
