@@ -64,7 +64,7 @@ def _layout(game):
               'buf_age', 'jug_n', 'kfloor', 'kslam', 'guard', 'cthrow', 'guard_by',
               'pan', 'rt_p', 'rt_n', 'rt_flags', 'rt_debt', 'rt_hold', 'rt_nseg',
               'dsc', 'dacc', 'brk', 'ovl', 'fmax', 'sthr', 'xix', 'thr_dmg', 'xwait', 'tb_by',
-              'drive', 'fgauge', 'sinv', 'brkr', 'blz_buf', 'jt', 'aact', 'wrate', 'wspd', 'spec_buf']
+              'drive', 'fgauge', 'sinv', 'brkr', 'blz_buf', 'jt', 'aact', 'jrun', 'wrate', 'wspd', 'spec_buf']
     hdr = open(os.path.join(game, 'fighter.h')).read()
     fields = [f for f in fields if re.search(r'\b%s\b' % f, hdr)]   # an older build may lack the newer fields
     src = '#include <stddef.h>\n#include "fighter.h"\nvoid offs(void) {\n' + ''.join(

@@ -500,6 +500,22 @@ def bzloop():
     RES['bzloop'] = {'moves': r.moves, 'body_toss_started': n, 'ok': True}
     print('bzloop', r.moves, flush=True)
 
+def runjump():
+    """Bruno's note: a jump out of a run travels 2x forward"""
+    out = {}
+    for tag, q in (('walk', '4:R,1:Rb,70:R'), ('run', '1:R,1:-,4:R,1:Rb,70:R')):
+        reset('terry', dist=400, face=1); b.place(0, x=b.r(b.syms['cam_x'], 2) + 24, z=30); b.run(1); x0 = int(b.fget(0, 'x'))
+        r = Rec(tag=tag); xs = []
+        for part in q.split(','):
+            n, k = part.split(':'); k = '' if k == '-' else k
+            for i in range(int(n)):
+                r.step(k); xs.append((st(0), int(b.fget(0, 'x')), b.fget(0, 'jrun')))
+        air = [x for s_, x, _ in xs if s_ in ('AIR', 'PREJUMP', 'LAND')]
+        out[tag] = air[-1] - air[0] if air else None
+    RES['runjump'] = dict(out, ok=bool(out['walk'] and out['run'] and out['run'] > 1.7 * out['walk']))
+    print('runjump', RES['runjump'], flush=True)
+
+
 TELE_KEY = os.environ.get('TELE', '2:Rc')
 def tele():
     """Bruno's note: Goenitz's teleport (214B on forward + C) goes through people (no push)"""

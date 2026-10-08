@@ -419,7 +419,7 @@ typedef struct fighter {
      * jump table frame to play next + 1 (0: no table jump: gravity, a fall after a special); aact = active frames of the air
      * attack so far (gjump.active_min); wspd = its walk (16.16, gwalk_rom), wrate = its walk / run animation's rate (8.8:
      * wspd / its KOF walk, the feet don't slide) */
-    uint8_t  sinv, brkr, blz_buf, jt, aact, npad;
+    uint8_t  sinv, brkr, blz_buf, jt, aact, jrun;   /* jrun: the jump started from a run (gjump.run_dx) */
     uint16_t wrate;
     int32_t  wspd;
 } fighter_t;

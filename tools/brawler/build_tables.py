@@ -464,7 +464,7 @@ METER_KEYS = ('about', 'chunk', 'chunks', 'special', 'breaker', 'life_breaker', 
               'fury_taken', 'low', 'infinite')
 BLITZ_KEYS = ('about', 'window', 'chord', 'damage')
 BLITZ_SLOTS = ('ff', 'dd', 'du', 'uu')               # fighter.h BZ_*: forward,forward / down,down / down,up / up,up + A
-JUMP_KEYS = ('about', 'crouch', 'height', 'dx', 'land_dx', 'x_scale', 'land', 'land_cancel', 'active_min', 'down_cancel')
+JUMP_KEYS = ('about', 'crouch', 'height', 'dx', 'land_dx', 'x_scale', 'land', 'land_cancel', 'active_min', 'down_cancel', 'run_dx')
 WALK_KEYS = ('about', 'fast', 'balanced', 'heavy', 'run', 'anim')
 AIR_DEFAULT = {'forward': 'atk_d_jump', 'straight': 'atk_c_jump', 'down': 'atk_a_jump'}   # roster[].air (Bruno 2026-10-08:
                                                     # forward jump D, straight jump C, down + A jump A or the closest)
@@ -661,7 +661,7 @@ def tables(g, build):
     c.append(f"static const uint8_t jump_h[{n}] = {{ {', '.join(map(str, jp['height']))} }};")
     c.append(f"static const uint16_t jump_dx[{n}] = {{ {', '.join(str(fx8(v)) for v in jp['dx'])} }};   /* 8.8 Neo Geo px (x {jp['x_scale'][0]} / {jp['x_scale'][1]}) */")
     c.append(f"const gjump_t gjump = {{ .crouch = {jp['crouch']}, .n = {n}, .apex = {apex}, .land = {jp['land']}, .land_cancel = {jp['land_cancel']}, "
-             f".active_min = {jp['active_min']}, .down_any = {1 if jp['down_cancel'] == 'any' else 0}, .land_dx = {fx8(jp['land_dx'])}, "
+             f".active_min = {jp['active_min']}, .down_any = {1 if jp['down_cancel'] == 'any' else 0}, .land_dx = {fx8(jp['land_dx'])}, .run_dx = {round(jp.get('run_dx', 1) * 256)}, "
              f".h = jump_h, .dx = jump_dx }};")
     wk = g['walk']                                       # walk / run by archetype (16.16), per fighter
     for k in wk: assert k in WALK_KEYS, f'walk: unknown field {k}'

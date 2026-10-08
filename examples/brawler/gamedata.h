@@ -95,7 +95,7 @@ enum { BZ_FF, BZ_DD, BZ_DU, BZ_UU, BZ_COUNT };
  * least, down + A active to the landing, down + A -> the jump attack on hit (down_any 1: at any time) ---- */
 typedef struct {
     uint8_t  crouch, n, apex, land, land_cancel, active_min, down_any, jpad;
-    uint16_t land_dx;
+    uint16_t land_dx, run_dx;    /* run_dx: a jump out of a run travels x this (8.8) forward (Bruno 2026-10-08) */
     const uint8_t *h;
     const uint16_t *dx;
 } gjump_t;

@@ -479,6 +479,7 @@ static uint8_t d_input(const fighter_t *f, const intent_t *in) {  /* C's directi
  * air_node: a jump-cancel's route node (fighter_t.air_node), 0 a plain jump */
 static void jump_start(fighter_t *f, const intent_t *in, uint8_t air_node) {
     f->jump_dir = !in->dx ? 0 : in->dx == f->facing ? 1 : 2;
+    f->jrun = f->state == S_RUN && f->jump_dir == 1;            /* out of a run, forward: gjump.run_dx x the travel */
     f->jump_kind = 0; f->vx = 0; f->vz = dir_mul(in->dz, FIX(1)); f->air_node = air_node;
     enter(f, S_PREJUMP); play(f, BA_PREJUMP);
     f->speed = div16((uint32_t)(f->ch->phys.prejump ? f->ch->phys.prejump : 1) << 8, gjump.crouch);   /* its crouch drawn over
@@ -495,10 +496,10 @@ static uint8_t jump_frame(fighter_t *f) {
     uint8_t i = f->jt - 1;
     int8_t d = f->jump_dir == 1 ? f->facing : f->jump_dir == 2 ? -f->facing : 0;
     if (i >= gjump.n) {                                          /* the table played: the landing frame */
-        f->x += dir_mul(d, (int32_t)gjump.land_dx << 8); f->z += f->vz; clamp(f);
+        f->x += dir_mul(d, f->jrun ? mul88((int32_t)gjump.land_dx << 8, gjump.run_dx) : (int32_t)gjump.land_dx << 8); f->z += f->vz; clamp(f);
         return 1;
     }
-    f->y = FIX(gjump.h[i]); f->x += dir_mul(d, (int32_t)gjump.dx[i] << 8); f->z += f->vz; clamp(f);
+    f->y = FIX(gjump.h[i]); f->x += dir_mul(d, f->jrun ? mul88((int32_t)gjump.dx[i] << 8, gjump.run_dx) : (int32_t)gjump.dx[i] << 8); f->z += f->vz; clamp(f);
     f->jt++;
     if (f->state == S_AIR && i == gjump.apex && f->anim == JUMP_ANIM[0][f->jump_dir][0]) play(f, JUMP_ANIM[0][f->jump_dir][1]);
     return 0;

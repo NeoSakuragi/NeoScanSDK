@@ -2307,5 +2307,18 @@
   "expect": "Goenitz goes through Ryo and reappears beyond him; Ryo is not pushed.",
   "do_keys": "2:Rc,90:-",
   "proof": 100
+ },
+ "20261008-184420-5d29": {
+  "title": "A jump out of a run goes twice as far",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 200
+  },
+  "do": "Run (forward, forward, hold), then jump with forward held. Then walk and jump forward to compare.",
+  "expect": "The running jump covers about twice the ground of a walking jump (about 168 px against 84), same height and time in the air.",
+  "do_keys": "1:R,1:-,4:R,1:Rb,70:R,30:-",
+  "proof": 110
  }
 }
