@@ -3152,7 +3152,7 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                 dmg = (a->ldmg & (1 << v->idx)) ? 0 : dmg;      /* fixed damage (revamp 1A): the node's whole damage on */
                 a->ldmg |= 1 << v->idx;                          /* its first hit on each victim, its later hits none */
                 big = rc >= R_KNOCKDOWN || hit_btn(c->anim) >= SX_C;
-                if (!sounded++) snd_sfx(hit_sound(a, c->anim, rc >= R_KNOCKDOWN));
+                if (!sounded++) snd_sfx(hit_sound(a, (c->flags & RF_HEAVY_SFX) ? BA_ATK_D_CLOSE : c->anim, rc >= R_KNOCKDOWN));
                 fighter_hit(a, v, dmg, rc, c->push);
                 if (c->effect == RE_SLAM && !later && v->state == S_KNOCKDOWN) {   /* the slam (the chain's down */
                     v->vy = v->y > 0 ? -FIX(6) : 0; v->kslam = 1;    /* finisher): to the floor now, then its */
@@ -3225,6 +3225,20 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
                 int32_t back = dir_mul(a->facing, FIX(PUSH_DX - d));   /* held 30 px before P2 at y 10-51, then */
                 a->throw_x0 -= back; a->x -= back; clamp(a);     /* its landing slash hits), never carries it */
             }
+        }
+    }
+    for (i = 0; i < n; i++) {                                    /* (Kim queue 2026-10-09) a normal that travels (its step's */
+        fighter_t *a = fs[i];                                    /* forward move) pushes the victim it hit ahead, as a */
+        if (a->state != S_ATTACK || a->y || !a->landed || a->ch->anims[a->anim].steps[a->step].dx <= 0 ||   /* special's */
+            (only && a != only)) continue;                       /* rush: $96's three kicks with the regular push back */
+        for (j = 0; j < n; j++) {                                /* are not walked through */
+            fighter_t *v = fs[j];
+            int16_t d, dz;
+            if (v->team == a->team || v->y || v->state != S_HITSTUN || v->inv == INV_FURY) continue;
+            dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
+            d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
+            if (d <= -8 || d >= PUSH_DX) continue;
+            v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v);
         }
     }
     for (i = 0; i < n; i++) {                                    /* a ROM special's opponent (KOF +$BC, PC_FAR before any hit): */

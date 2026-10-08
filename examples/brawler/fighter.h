@@ -101,7 +101,8 @@ enum { RI_A, RI_B, RI_DA, RI_CA, RI_FA, RI_BA, RI_DFA,             /* normal lin
        RI_S = 9, RI_FS, RI_DS, RI_US, RI_DFS, RI_UFS,                      /* special links (enders): C, forward / down / up /
                                                                               down-forward / up-forward + C (slot 8: RI_THEN) */
        RI_N = 15 };
-enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4, RF_THROW = 8 };   /* rnode_t.flags (RF_THROW, revamp 1A: the chain's back
+enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4, RF_THROW = 8, RF_HEAVY_SFX = 16 };   /* (RF_HEAVY_SFX: its hits sound
+                                                         as a heavy normal's, routes.py "sound": "heavy": Kim's $96) */   /* rnode_t.flags (RF_THROW, revamp 1A: the chain's back
                                                          finisher, the fighter's back throw on the victim the last link hit,
                                                          fighter.c chain_throw; no throw: the neutral finisher); anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
                                                          D_JUMP / CD_JUMP = KOF's air C / D / C+D, the jump picks the

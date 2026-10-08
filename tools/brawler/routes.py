@@ -19,6 +19,7 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
             "speed": 1.25,                                   # optional: playback speed, x KOF's timing (0.25-4; 1 left out),
                                                              # 8.8 fixed point in the game (rnode_t.speed)
             "damage": 3, "push": 3,                          # optional (advanced): default from weight / effect
+            "sound": "heavy",                                # optional: its hits sound as a heavy normal's (RF_HEAVY_SFX)
             "links": {"A": NODE, "dfA": NODE, "AB": NODE, ...}}
     inputs (TODO #71, tree version 4: A is the only attack button; INPUTS = the game's RI_* order): A, B, dA (down), cA
     (close: an opponent within CLOSE_X, KOF's close normals), fA (forward), bA (back), dfA (down-forward); AB fAB dAB
@@ -59,7 +60,7 @@ AIR_MOVE_NAMES = list(AIR_MOVES.values()) + ['atk_a_jump', 'atk_b_jump', 'atk_ab
 ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd']
 WEIGHTS = ['light', 'strong']
 EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback', 'slam']                    # fighter.h RE_* (slam: revamp 1A)
-RF_SPECIAL, RF_AIR, RF_KEEP, RF_THROW = 1, 2, 4, 8
+RF_SPECIAL, RF_AIR, RF_KEEP, RF_THROW, RF_HEAVY_SFX = 1, 2, 4, 8, 16   # (RF_HEAVY_SFX, Kim queue 2026-10-09: "sound": "heavy", its hits sound as a heavy normal's)
 ARCHETYPES = ['fast', 'balanced', 'heavy']                                               # rt_head_t.arch - 1 (revamp 1A)
 NODE_SIZE, HEAD_SIZE, RI_N, MAX_NODES = 24, 16, 15, 128                                  # tree version 4 (TREE_VERSION)
 TREE_VERSION = 4
@@ -134,7 +135,7 @@ def enemy_preset(name, own):
 # before): routes that start with the same inputs AND the same hits there share those nodes (a trunk); two routes with
 # the same inputs up to a step but a different hit there cannot both be in the game (it picks the next hit by input
 # alone): a conflict, reported (which routes, which step, what differs) and the build refused.
-HIT_FIELDS = ('move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push', 'throw', 'hitstop')   # (throw, hitstop: a chain tree's nodes)
+HIT_FIELDS = ('move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push', 'throw', 'hitstop', 'sound')   # (throw, hitstop: a chain tree's nodes)
 
 
 def hit_of(nd):
@@ -142,7 +143,8 @@ def hit_of(nd):
     if 'special' in nd: return {'special': nd['special'], 'speed': speed_fx(nd)}
     dd, dp = default_damage(nd)
     return {'move': nd.get('move'), 'weight': nd.get('weight', 'light'), 'effect': nd.get('effect', 'none'),
-            'keep': bool(nd.get('keep')), 'speed': speed_fx(nd), 'damage': nd.get('damage', dd), 'push': nd.get('push', dp)}
+            'keep': bool(nd.get('keep')), 'speed': speed_fx(nd), 'damage': nd.get('damage', dd), 'push': nd.get('push', dp),
+            'sound': nd.get('sound')}
 
 
 def tree_to_routes(tree):
@@ -240,7 +242,7 @@ def encode(tree, moves, has=None, specials_have=None):
             assert m in moves, f'{where}: unknown move {m}'
             assert m in (AIR_MOVE_NAMES if air else MOVE_NAMES), f'{where}: {m} is not an {"air" if air else "ground"} move'
             assert has is None or air or m in has, f'{where}: the fighter has no {m}'
-            anim, flags = moves.index(m), (RF_AIR if air else 0) | (RF_KEEP if nd.get('keep') else 0)
+            anim, flags = moves.index(m), (RF_AIR if air else 0) | (RF_KEEP if nd.get('keep') else 0) | (RF_HEAVY_SFX if nd.get('sound') == 'heavy' else 0)
             if nd.get('throw'):                                                         # the chain's back throw (revamp 1A)
                 assert not air and not nd.get('links'), f'{where}: a throw ends a ground chain'
                 flags |= RF_THROW
@@ -403,7 +405,7 @@ def chain_base(base, has):
     out = {}
     for nd in _main_line(base, ok) + [nd for _, nd in _ground_pieces(base)]:
         if ok(nd['move']) and nd['move'] not in out:
-            out[nd['move']] = {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage') if k in nd}
+            out[nd['move']] = {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage', 'sound') if k in nd}
     return out
 
 
@@ -431,7 +433,7 @@ def chain_tree(name, base, cfg, has):
     mul = cfg.get('damage', 1)
     ok = lambda m: m in has
     pieces = [(p, nd) for p, nd in _ground_pieces(base) if ok(nd['move'])]
-    clean = lambda nd: {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage') if k in nd}
+    clean = lambda nd: {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage', 'sound') if k in nd}
     noeff = lambda nd: nd.get('effect', 'none') == 'none'
     main = _main_line(base, ok)
     pool = [nd for nd in main if noeff(nd)]

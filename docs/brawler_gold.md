@@ -129,7 +129,7 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 - Fury = the Phoenix (6246A). MAX = the same Phoenix for now ("we'll build an even crazier custom dance" later).
 - Size: 0.92 of today's (115 -> ~106 px; Terry 100). Kept against the official-height 0.86 (docs/brawler_heights.md): Bruno, "Kizuna has this big SNK sprites feel anyways".
 
-### Kim — queued changes (Bruno 2026-10-09, NOT built yet; build together on his go)
+### Kim — queued changes (Bruno 2026-10-09; BUILT on gold/kim-q1: $53 reset +14, $5D, $96 retimed 72 -> 40 f)
 - forward + C: $101 -> $53, keeping the RESET behaviour (no eject, Kim recovers with frame advantage; Bruno: yes).
 - chain: the second A $56 -> $5D.
 - $96 (the triple kick, chain link 4): keep the shape of each of its three kicks, but play them at the pace of three FAST
