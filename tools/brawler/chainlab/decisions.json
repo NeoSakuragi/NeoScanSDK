@@ -1,6 +1,169 @@
 {
  "sets": [
   {
+   "id": "terry-gold",
+   "fighter": "terry",
+   "title": "Terry: last questions",
+   "intro": "The open points for Terry. Each option plays its moves as clips in order. Air attacks are on their own page: review.html?f=terry&q=jumps-terry.",
+   "sections": [
+    {
+     "title": "Terry",
+     "questions": [
+      {
+       "id": "chain",
+       "title": "1. Terry's chain: 3 hits, then the 4th hit (the finisher)",
+       "context": "Every clip plays the whole sequence, left to right. The 4th hit with the stick in neutral is the neutral finisher.",
+       "options": [
+        "far A > down-forward C > far D > close D (my first pick)",
+        "far A > close C > far D > crouch C (the scorer's top pick)",
+        "far A > far D > close C > crouch C"
+       ],
+       "pieces": [
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "atk_d_close"
+        ],
+        [
+         "atk_a_far",
+         "atk_c_close",
+         "atk_d_far",
+         "atk_c_crouch"
+        ],
+        [
+         "atk_a_far",
+         "atk_d_far",
+         "atk_c_close",
+         "atk_c_crouch"
+        ]
+       ]
+      },
+      {
+       "id": "fwd",
+       "title": "2. The 4th hit with the stick held FORWARD",
+       "context": "Same 3 hits, but you hold forward on the 4th press: a different move comes out. I had planned Body Toss here, but Body Toss is now your free forward,forward + A move, so it would exist twice. Pick what holding forward does on the 4th hit.",
+       "options": [
+        "forward + A (knocks down)",
+        "far C",
+        "Body Toss anyway (the same move in both places)"
+       ],
+       "pieces": [
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "cmd_fwd_a"
+        ],
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "atk_c_far"
+        ],
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "body_toss"
+        ]
+       ]
+      },
+      {
+       "id": "up",
+       "title": "3. The 4th hit with the stick held UP (the launcher)",
+       "context": "Holding up on the 4th hit sends the enemy into the air for a juggle. Rising Tackle was my plan, but it is now your C special. Far D launches, but it is already the 3rd hit.",
+       "options": [
+        "close D",
+        "crouch C",
+        "No up finisher: holding up does the neutral 4th hit"
+       ],
+       "pieces": [
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "atk_d_close"
+        ],
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "atk_c_crouch"
+        ],
+        []
+       ]
+      },
+      {
+       "id": "down",
+       "title": "4. The 4th hit with the stick held DOWN",
+       "context": "Your review: keep his trip, only after 3 hits. It knocks the enemy off his feet.",
+       "options": [
+        "crouch D (the trip)",
+        "No down finisher"
+       ],
+       "pieces": [
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "atk_d_crouch"
+        ],
+        []
+       ]
+      },
+      {
+       "id": "breaker",
+       "title": "5. Combo breaker: what comes out when you press C (or A+B) while being hit?",
+       "context": "It costs both drive chunks (white blink), or some life if you don't have them (red flash).",
+       "options": [
+        "Always Rising Tackle (the upside-down spin)",
+        "Always Power Dunk",
+        "The stick picks, like a normal special"
+       ],
+       "pieces": [
+        [
+         "sp-623c"
+        ],
+        [
+         "sp-623d"
+        ],
+        []
+       ]
+      },
+      {
+       "id": "fury",
+       "title": "6. Fury (D) and MAX (D at low life with the fury ready)",
+       "context": "In today's build: fury = Power Geyser, MAX = its MAX version (the triple geyser).",
+       "options": [
+        "Keep Power Geyser as the fury, the triple geyser as the MAX",
+        "Something else (say it in the note)"
+       ],
+       "pieces": [
+        [],
+        []
+       ]
+      },
+      {
+       "id": "superthrow",
+       "title": "7. Super throw in the hold (forward or back + C, or A+B)",
+       "context": "From phase 3: a stronger throw from the hold. It would cost 1 drive chunk.",
+       "options": [
+        "Keep it, 1 drive chunk",
+        "Drop it: forward or back + C in the hold is just the normal throw"
+       ],
+       "pieces": [
+        [
+         "throw-back"
+        ],
+        []
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "jumps-terry",
    "fighter": "terry",
    "title": "Jumps: rules + Terry's air attacks",
