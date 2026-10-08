@@ -55,7 +55,10 @@ specials (Bruno: overkill for now).
 ### Two meter bars (replaces the 3-stock / 300-point meter and the old breaker path)
 - **Drive meter** (internal name, after KOF XIII's Drive gauge; the screen need not say "drive") **— 2 chunks, SOR3-style**, the one bar shown on the HUD: starts full, refills over time. Regular special = 1 chunk (two
   available). **Counter special** = the combo breaker: a special done while being hit (Final Fight's A+B escape) costs both
-  chunks at once, and the fighter blinks WHITE for the whole move to show it was the special situation.
+  chunks at once, and the fighter blinks WHITE for the whole move to show it was the special situation. With fewer than
+  2 chunks: no drive is spent, it costs a bit of LIFE instead and the fighter flashes RED ("this one hurt you").
+  Defaults until Bruno says otherwise: the life cost = phase 2's breaker cost (12), taken when the breaker starts, and
+  it never takes the last point of life.
 - **Fury gauge — HIDDEN** (like KOF98's guard-crush gauge: runs in the program, never drawn): fills as you DEAL and as you TAKE damage. Gauge full → D does the fury. Gauge full AND low life → D does the MAX.
   Low life alone grants nothing (Bruno 2026-10-08: the earlier "infinite fury at low life" is withdrawn).
 - **Signals — one meaning per place** (Bruno, confirmed):
