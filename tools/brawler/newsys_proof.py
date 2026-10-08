@@ -520,6 +520,22 @@ def runjump():
     print('runjump', RES['runjump'], flush=True)
 
 
+def kimfin():
+    """Bruno's 0.9.2 notes: Kim's last hit + forward = $9A (the launcher, atk_cd_close), + up = $54 (cmd_fwd_c); down,down + A = Hienzan"""
+    for stick, want in (('R', 'atk_cd_close'), ('U', 'cmd_fwd_c')):
+        reset('kim', dist=40, face=1)
+        r = Rec(tag='kf')
+        for k in range(4):
+            r.seq('1:a,1:-')
+            if not r.until_hit(40): break
+        r.seq(f'1:{stick}a,1:-'); r.until(lambda: len(r.moves) >= 5, 60); r.idle(120)
+        RES['kimfin_' + stick] = dict(moves=r.moves, hits=[(h['dmg'], h.get('react')) for h in r.hits][-3:], ok=len(r.moves) >= 5 and r.moves[4] == want)
+        print('kimfin', stick, RES['kimfin_' + stick], flush=True)
+    reset('kim', dist=60, face=1)
+    r = Rec(tag='kd'); r.seq('1:D,1:-,1:D,1:Da'); r.until(lambda: st(0) in ('ATTACK', 'SPECIAL'), 10)
+    RES['kim_dd'] = dict(got=what(), ok='2]8C' in what()); print('kim dd', RES['kim_dd'], flush=True)
+
+
 TELE_KEY = os.environ.get('TELE', '2:Rc')
 def tele():
     """Bruno's note: Goenitz's teleport (214B on forward + C) goes through people (no push)"""

@@ -134,3 +134,7 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 - chain: the second A $56 -> $5D.
 - $96 (the triple kick, chain link 4): keep the shape of each of its three kicks, but play them at the pace of three FAST
   attacks (retime: short startup / recovery per kick), each with a STRONG impact sound and the regular push back.
+
+### Kim — Bruno's 0.9.2 notes (built in 0.9.3)
+- Last hit + forward = $9A (the launcher), + up = $54 (swapped).
+- down,down + A = Hienzan ([2]8C); $5C dropped ("we don't need it"). down,up + A stays Hienzan too.

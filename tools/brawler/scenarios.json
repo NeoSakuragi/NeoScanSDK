@@ -2335,5 +2335,31 @@
   "expect": "At low life Terry blinks white and D gives Power Geyser every time, nothing spent. With the gauge full he blinks red: D is still the fury, down + D is the MAX (triple geyser), which empties the gauge.",
   "do_keys": "1:d,200:-,1:d,200:-",
   "proof": 420
+ },
+ "20261009-010634-5d29": {
+  "title": "Kim: forward and up finishers swapped",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Press A four times, then forward + A on the fifth. Then again with up + A on the fifth.",
+  "expect": "Forward + A on the last hit = $9A, the launcher (the enemy goes up). Up + A on the last hit = $54.",
+  "do_keys": "1:a,6:-,1:a,10:-,1:a,12:-,1:a,16:-,1:Ra,90:-",
+  "proof": 150
+ },
+ "20261009-010445-5d29": {
+  "title": "Kim: down, down + A = Hienzan",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Tap down, down + A.",
+  "expect": "Hienzan (the rising flip), free: no drive spent. $5C is no longer on any input.",
+  "do_keys": "1:D,1:-,1:D,1:Da,90:-",
+  "proof": 100
  }
 }
