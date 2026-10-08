@@ -1,6 +1,90 @@
 {
  "sets": [
   {
+   "id": "terry2",
+   "title": "Terry: follow-up",
+   "intro": "Seven points from your Terry review. Piece names as on the review page.",
+   "sections": [
+    {
+     "title": "The chain",
+     "questions": [
+      {
+       "id": "chain",
+       "title": "Terry's main chain (balanced: 4 hits), after your drops",
+       "context": "Kept: far A (starter), far D (intermediate), down-forward C (chain + grab punch), far C, close C, close D. Dropped: far B, my first proposal.",
+       "options": [
+        "far A > down-forward C > far D > close D",
+        "far A > close C > far D > far C",
+        "far A > far D > down-forward C > far C"
+       ]
+      },
+      {
+       "id": "neutral",
+       "title": "The neutral finisher (you dropped mine: too short)",
+       "context": "The last hit when no direction is held.",
+       "options": [
+        "close D",
+        "far C",
+        "close C"
+       ]
+      },
+      {
+       "id": "up",
+       "title": "Up on the last link",
+       "context": "You wrote that my up finisher is better as an intermediate chain move.",
+       "options": [
+        "Up = Rising Tackle's (623C) first hit as the launcher",
+        "Up = crouch C",
+        "No up finisher for Terry (falls back to neutral)"
+       ]
+      },
+      {
+       "id": "down",
+       "title": "\"Down finisher: keep but make it at least 3 chain\"",
+       "context": "Your note on the down finisher.",
+       "options": [
+        "The down finisher only comes after at least 3 hits",
+        "The down finisher itself should hit 3 times"
+       ]
+      },
+      {
+       "id": "min3",
+       "title": "\"No chain under 3\"",
+       "context": "Your general note.",
+       "options": [
+        "Every fighter's main chain has at least 3 hits before its finisher",
+        "No route at all (side branches included) shorter than 3 hits",
+        "Heavy fighters' 3 links is the minimum: keep the archetype lengths"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Your notes that were cut off",
+     "questions": [
+      {
+       "id": "sp623d",
+       "title": "623D: \"Make sure the end part of the anim is…\"",
+       "context": "The note stopped there.",
+       "options": [
+        "…played to the end (not cut)",
+        "…sped up (shorter recovery)"
+       ]
+      },
+      {
+       "id": "throwback",
+       "title": "Back throw: \"Just let the natural…\"",
+       "context": "The note stopped there.",
+       "options": [
+        "…direction the throw already goes (don't force the victim behind)",
+        "…animation play, no changes"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "revamp2",
    "title": "Brawler revamp: follow-up",
    "intro": "Seven follow-ups from your answers. Tap an answer, type or speak a note.",

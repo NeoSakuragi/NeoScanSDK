@@ -1,0 +1,44 @@
+# Terry review (Bruno, 2026-10-08) — answers from review-terry on the VPS
+
+- atk_d_far: Keep — "Intermediate chain move (not starter not launcher )"
+- atk_c_far: Keep
+- atk_d_close: Keep
+- cmd_fwd_a: Keep
+- atk_c_close: Keep
+- body_toss: Keep
+- throw-back: Keep — "Just let the natural"
+- atk_b_far: Drop — "Animation too choppy "
+- atk_a_far: Keep — "Good starter jab "
+- atk_a_close: Drop
+- atk_b_close: Keep — "Perfect for hit while grabbing victim "
+- sp-214d: Keep
+- sp-623d: Keep — "Make sure the end part of the anim is "
+- cmd_df_c: Keep — "Good for chain and grab punch "
+- atk_d_crouch: Keep
+- atk_b_crouch: Drop
+- atk_d_jump: Keep
+- sp-214c: Keep
+- sp-426b: Keep — "Perfect for the fwd fwd+A motion"
+- atk_c_crouch: Keep
+- sp-623c: Keep
+- atk_a_crouch: Drop
+- atk_a_jump: Drop
+- atk_b_jump: Keep
+- atk_cd_jump: Keep — "Keep but typically speed up the startup portion in-game "
+- chain: Drop
+- fin-neutral: Drop — "Too short "
+- fin-forward: Keep
+- fin-up: None of these: my own answer in the note — "I don't like this move as a finisher, more intermediate chain "
+- fin-down: Keep — "Keep but make it at least 3 chain"
+- fin-back: Keep
+- general: None — "No chain under 3 "
+
+Interpretation (to apply when the throws / chain-tool phases land):
+- Starter: far A ("good starter jab"). Intermediate: far D (not starter, not launcher), down-forward C (chain + grab punch).
+- Dropped: far B (choppy), close A, crouch A / B, jump A, my proposed chain, the neutral finisher (too short).
+- Hold hits: close B ("perfect for hit while grabbing").
+- Dash attack (forward, forward + A): 426B ("perfect for the fwd fwd+A motion").
+- Jump CD: keep, startup sped up in game (retime).
+- Up finisher: not as a finisher — an intermediate chain move instead.
+- General: no chain under 3 hits.
+- Unclear (follow-up set terry2): 623D note cut off, back-throw note cut off, down finisher "at least 3 chain".
