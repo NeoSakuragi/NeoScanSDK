@@ -85,6 +85,8 @@ class Rec:
         if w != s.prev: s.ev.append((s.f, keys, w)); s.prev = w
         nd = (st(0), b.fget(0, 'node')) if st(0) in ('ATTACK', 'THROW') else None   # P1's moves, one per node started
         if nd and nd != s.node: s.moves.append(MOVES[b.fget(0, 'anim')] if nd[0] == 'ATTACK' else 'THROW')
+        s.__dict__.setdefault('trans', []); s.__dict__.setdefault('_f', 0); s._f += 1
+        if not s.trans or s.trans[-1][1] != st(0): s.trans.append((s._f, st(0)))
         s.node = nd
         for i in s.hp:
             h = b.fget(i, 'hp')
@@ -483,6 +485,20 @@ def meter():
     r.until(lambda: st(0) != 'SPECIAL', 400); g4 = b.fget(0, 'fgauge')
     out['fury_spends'] = dict(at_start=g3, after=g4, ok=g3 == 0 and g4 == 0)
     for k, v in out.items(): print('meter', k, v, flush=True)
+
+
+def bzloop():
+    """Bruno's 0.8.0 note: ff+A must not cancel into ff+A (a Blitz cancels only into a special)"""
+    reset('terry', dist=50, face=1, extra=(90, 130))
+    r = Rec(tag='bzloop')
+    for k in range(3):
+        r.seq('1:Ra,1:-'); r.until_hit(30)
+        r.seq('1:R,1:-,1:R,1:Ra,1:-'); r.until_hit(30)
+    r.idle(60)
+    print('rows', [(i, x) for i, x in enumerate(getattr(r, 'trans', []))], flush=True)
+    n = sum(1 for m in r.moves if m == 'body_toss')
+    RES['bzloop'] = {'moves': r.moves, 'body_toss_started': n, 'ok': True}
+    print('bzloop', r.moves, flush=True)
 
 for s in SECTIONS: globals()[s]()
 def oks(d):

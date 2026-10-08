@@ -2667,6 +2667,9 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     (players; enemies keep their routes' links) */
             if (k != 0xFF && pay(f, PAY_SPECIAL, 0)) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); cspecial(f, k); if (nx) f->speed = NODE(f, nx)->speed; break; }
         }
+        if (f->node == TREE(f)->dash) f->blz_buf = f->buffered = 0;   /* a Blitz played as the dash entry cancels only into a
+                                                                    special: never into a Blitz (Bruno 2026-10-08: ff+A
+                                                                    into ff+A was an infinite) nor back into the chain */
         if (f->landed && f->blz_buf && !(c->flags & RF_AIR)) {   /* the ladder (Bruno 2026-10-08): a normal that hit (a link,
                                                                     a finisher) cancels into the Blitz ("Blitz") */
             uint8_t s = f->blz_buf - 1;
