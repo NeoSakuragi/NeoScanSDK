@@ -49,7 +49,8 @@
           h('div', { class: 'dopts' }, btns), h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
       };
       const general = { id: 'general', title: 'Anything else for this topic?', options: [] };
-      parts.push(h('section', { class: 'dset' }, h('h2', { text: set.title }), h('p', { text: set.intro || '' }), status,
+      parts.push(h('section', { class: 'dset' }, h('h2', { text: set.title }), h('p', { text: set.intro || '' }),
+        set.fighter ? h('p', {}, h('a', { href: 'review.html?f=' + set.fighter + '&q=' + set.id, text: 'Answer these with the clips (recommended)' })) : null, status,
         set.sections.map(s => [h('h3', { class: 'dsec', text: s.title }), s.questions.map(card)]), card(general)));
       count();
     }

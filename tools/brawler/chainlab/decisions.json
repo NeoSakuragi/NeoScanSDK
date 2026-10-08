@@ -16,6 +16,26 @@
         "far A > down-forward C > far D > close D",
         "far A > close C > far D > far C",
         "far A > far D > down-forward C > far C"
+       ],
+       "pieces": [
+        [
+         "atk_a_far",
+         "cmd_df_c",
+         "atk_d_far",
+         "atk_d_close"
+        ],
+        [
+         "atk_a_far",
+         "atk_c_close",
+         "atk_d_far",
+         "atk_c_far"
+        ],
+        [
+         "atk_a_far",
+         "atk_d_far",
+         "cmd_df_c",
+         "atk_c_far"
+        ]
        ]
       },
       {
@@ -26,6 +46,17 @@
         "close D",
         "far C",
         "close C"
+       ],
+       "pieces": [
+        [
+         "atk_d_close"
+        ],
+        [
+         "atk_c_far"
+        ],
+        [
+         "atk_c_close"
+        ]
        ]
       },
       {
@@ -36,6 +67,15 @@
         "Up = Rising Tackle's (623C) first hit as the launcher",
         "Up = crouch C",
         "No up finisher for Terry (falls back to neutral)"
+       ],
+       "pieces": [
+        [
+         "sp-623c"
+        ],
+        [
+         "atk_c_crouch"
+        ],
+        []
        ]
       },
       {
@@ -45,6 +85,14 @@
        "options": [
         "The down finisher only comes after at least 3 hits",
         "The down finisher itself should hit 3 times"
+       ],
+       "pieces": [
+        [
+         "fin-down"
+        ],
+        [
+         "fin-down"
+        ]
        ]
       },
       {
@@ -69,6 +117,14 @@
        "options": [
         "…played to the end (not cut)",
         "…sped up (shorter recovery)"
+       ],
+       "pieces": [
+        [
+         "sp-623d"
+        ],
+        [
+         "sp-623d"
+        ]
        ]
       },
       {
@@ -78,11 +134,20 @@
        "options": [
         "…direction the throw already goes (don't force the victim behind)",
         "…animation play, no changes"
+       ],
+       "pieces": [
+        [
+         "throw-back"
+        ],
+        [
+         "throw-back"
+        ]
        ]
       }
      ]
     }
-   ]
+   ],
+   "fighter": "terry"
   },
   {
    "id": "kim2",
@@ -100,6 +165,26 @@
         "close A > forward + B > close C > down-forward C > neutral finisher",
         "close A > close C > forward + B > down-forward C > neutral finisher",
         "close A > down-forward C > forward + B > close C > neutral finisher"
+       ],
+       "pieces": [
+        [
+         "atk_a_close",
+         "cmd_fwd_b",
+         "atk_c_close",
+         "cmd_df_c"
+        ],
+        [
+         "atk_a_close",
+         "atk_c_close",
+         "cmd_fwd_b",
+         "cmd_df_c"
+        ],
+        [
+         "atk_a_close",
+         "cmd_df_c",
+         "cmd_fwd_b",
+         "atk_c_close"
+        ]
        ]
       },
       {
@@ -110,6 +195,17 @@
         "close D stays the finisher",
         "far D",
         "crouch D"
+       ],
+       "pieces": [
+        [
+         "atk_d_close"
+        ],
+        [
+         "atk_d_far"
+        ],
+        [
+         "atk_d_crouch"
+        ]
        ]
       },
       {
@@ -119,11 +215,20 @@
        "options": [
         "Down-forward D (crumple) as the down finisher",
         "Keep my down finisher as it is"
+       ],
+       "pieces": [
+        [
+         "cmd_df_d"
+        ],
+        [
+         "fin-down"
+        ]
        ]
       }
      ]
     }
-   ]
+   ],
+   "fighter": "kim"
   },
   {
    "id": "revamp2",
