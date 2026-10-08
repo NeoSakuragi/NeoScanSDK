@@ -177,6 +177,42 @@
   }
 
   // ---- the page ----
+  // ---- a visual follow-up (review.html?f=<fighter>&q=<set>): a decisions.json set whose questions carry "pieces",
+  // one list of piece ids per option (a chain = several clips in order); answers to that set's own store ----
+  const QSET = new URLSearchParams(location.search).get('q');
+  if (QSET) {
+    let DS; try { DS = await get('decisions.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No decisions data.' })); return; }
+    const set = DS.sets.find(s => s.id === QSET);
+    if (!set) { root.replaceChildren(h('p', { text: 'No follow-up "' + QSET + '".' })); return; }
+    let fa = {}; try { fa = await get(API + 'decisions/' + QSET, { cache: 'no-store' }); } catch (e) { /* none */ }
+    const fpost = async body => { const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ set: QSET }, body)) }); if (!r.ok) throw new Error('HTTP ' + r.status); };
+    const out = [h('h1', { text: set.title }), h('p', { class: 'intro', text: set.intro || '' })];
+    const qcard = q => {
+      const a = fa[q.id] || {};
+      const saved = h('div', { class: 'dsaved', text: a.at ? 'Saved' : '' });
+      const ta = h('textarea', { 'aria-label': 'Note for: ' + q.title, placeholder: 'Note (type or speak)' }); ta.value = a.note || '';
+      const save = async body => { fa[q.id] = Object.assign({}, fa[q.id], body); try { await fpost(Object.assign({ id: q.id, question: q.title }, body)); saved.textContent = 'Saved'; } catch (e) { saved.textContent = 'Not saved (' + e.message + ')'; } };
+      let t; ta.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => save({ note: ta.value }), 700); });
+      const opts = q.options.concat([NONE]);
+      const btns = [];
+      const cards = opts.map((o, i) => {
+        const b = h('button', { type: 'button', 'aria-pressed': String(a.choice === i) }, h('span', { class: 'mark', text: a.choice === i ? '✓' : '○' }), h('span', { text: o }));
+        b.onclick = () => { btns.forEach((x, j) => { x.setAttribute('aria-pressed', String(i === j)); x.querySelector('.mark').textContent = i === j ? '✓' : '○'; }); save({ choice: i, label: o }); if (o === NONE) ta.focus(); };
+        btns.push(b);
+        const ids = (q.pieces && q.pieces[i]) || [];
+        const vis = ids.length ? h('div', { class: 'fuseq' }, ids.map((id, k) => [k ? h('span', { class: 'arrow', text: '→' }) : null,
+          h('div', { class: 'fupiece' }, h('div', { class: 'funame', text: (P[id] && P[id].label) || id }), makeClip(id, id), strip({ id }))])) : null;
+        return h('div', { class: 'fuopt' }, b, vis);
+      });
+      return h('section', { class: 'card' }, h('h3', { text: q.title }), q.context ? h('p', { class: 'ctx', text: q.context }) : null,
+        h('div', { class: 'dopts' }, cards), h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
+    };
+    for (const sec of set.sections) out.push(h('h2', { text: sec.title }), sec.questions.map(qcard));
+    root.replaceChildren(...out.flat(Infinity));
+    window.reviewReady = true;
+    return;
+  }
+
   const pr = D.proposal, ch = pr.chain, fin = pr.finishers;
   const name = id => (P[id] || {}).label || id;
   const parts_ = [];
