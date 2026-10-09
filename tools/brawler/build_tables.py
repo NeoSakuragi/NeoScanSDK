@@ -51,12 +51,14 @@ def chars(g): return [r['bank'] for r in g['roster']]
 
 
 SELECT_FLOOR = 158                                       # main.c: the select screen's floor (legacy slots: feet at it + z)
+SELECT_W = 768                                           # main.c: the select screen's street (land.h LAND_W, KOF95's stage 2): x 0-767
 
 
 def select_layout(g):
     """the select screen's group photo: {fighter: {x, y, z, facing, pose, slot}} for every selectable roster fighter (the
     Brawler Lab's Select screen tab writes it, tools/brawler/select_layout.py pulls it into game.json "select_layout"):
-    x, y its feet on the screen (px, the 320 px LSPC line: a TV shows x 8-311), z its draw order (0 = the back, drawn
+    x its feet on the street (world px 0 .. SELECT_W - 1: the select screen scrolls along KOF95's Neo Geo Land, its camera
+    following the cursor), y its feet on the screen (px), z its draw order (0 = the back, drawn
     first), facing 'left' (the ROM sprites') or 'right', pose [frame, step] its select pose (export_bm 'watch': a KOF
     state and its step, -1 = the last), slot its place in the stick's order (left / right step through it).
     No block: the first layout (game.json select.slots: rows, x / z, facing the middle, the roster's watch poses, drawn
@@ -77,7 +79,7 @@ def select_layout(g):
         assert sorted(v[k] for v in L.values()) == list(range(len(L))), f'select_layout: {k} must number the fighters 0..{len(L) - 1} once each'
     for n, v in L.items():
         assert set(v) == {'x', 'y', 'z', 'facing', 'pose', 'slot'}, f'select_layout {n}: fields {sorted(v)}'
-        assert -64 <= v['x'] <= 383 and 0 <= v['y'] <= 300 and v['facing'] in ('left', 'right'), f'select_layout {n}: {v}'
+        assert 0 <= v['x'] < SELECT_W and 0 <= v['y'] <= 223 and v['facing'] in ('left', 'right'), f'select_layout {n}: {v}'
         assert len(v['pose']) == 2 and all(isinstance(x, int) for x in v['pose']), f'select_layout {n}: pose {v["pose"]}'
     return L
 
@@ -137,6 +139,28 @@ def bm_heads(build, g):
     names = [r['name'] for r in g['roster']]
     assert len(hd) == len(names), f'bm_head: {len(hd)} entries, roster {len(names)}'
     return dict(zip(names, hd))
+
+
+def bm_npals(build, g):
+    """each roster fighter's palette count in the build (export_bm.py -> bm_chars.c bm_chars[].npal): {name: npal}"""
+    import re
+    t = open(os.path.join(build, 'bm_chars.c')).read().split('const bchar_t bm_chars[BC_COUNT] = {', 1)[1]
+    n = [int(a) for a in re.findall(r'^\s*\{"[^"]*", (\d+), \d+,', t, re.M)]
+    names = [r['name'] for r in g['roster']]
+    assert len(n) == len(names), f'bm_chars npal: {len(n)} entries, roster {len(names)}'
+    return dict(zip(names, n))
+
+
+MAX_PALS = 8                                             # fighter.h: palettes a fighter loads at most
+
+
+def sel_palbases(g, build):
+    """the select screen's actors' palettes (main.c slot_show): back to back from 16 in slot order, each fighter its own
+    count (min(npal, MAX_PALS)): ([first palette per slot], palettes in all)"""
+    L = select_layout(g); npal = bm_npals(build, g); out, k = [], 16
+    for n in sorted(L, key=lambda n: L[n]['slot']):
+        out.append(k); k += min(npal[n], MAX_PALS)
+    return out, k - 16
 
 
 def watch_of(g, r):
@@ -612,6 +636,7 @@ def tables(g, build):
          f'#define EN_COUNT {len(M["enemies"])}', f'#define AI_COUNT {len(M["ai"])}            /* the presets, then the enemies\' own rows */',
          f'#define TINT_COUNT {len(M["tints"])}',
          f'#define SEL_NSLOT {len(select_layout(g))}',
+         f'#define SEL_NPAL {sel_palbases(g, build)[1]}             /* the select screen\'s actors\' palettes from 16 (sel_palbase) */',
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
          f'#define GAME_MUS_CONTINUE MUS_{g["music"].get("continue", g["music"]["clear"])}',
          f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}',
@@ -619,7 +644,7 @@ def tables(g, build):
          'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
-         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
+         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
          'extern const uint16_t *const dtier_rom[BC_COUNT];   /* the damage tiers (fighter.c "damage tiers"): per fighter, 8.8 scales: [special index], [nspec] the fury, [nspec + 1] the MAX */',
          'extern uint8_t dtier_off;                         /* (fighter.c) 1: every scale 1 (a test switch) */',
@@ -740,6 +765,7 @@ def tables(g, build):
     c.append('const sel_slot_t SEL_SLOT[SEL_NSLOT] = {   /* game.json select_layout: x, y (feet), z (draw order), face */\n    ' + '\n    '.join(
         f'{{ {L[n]["x"]}, {L[n]["y"]}, {L[n]["z"]}, {1 if L[n]["facing"] == "right" else -1} }},   /* {n} */' for n in slots) + '\n};')
     c.append('const uint8_t sel_fighter[SEL_NSLOT] = { ' + ', '.join(str(idx[n]) for n in slots) + ' };')
+    c.append('const uint8_t sel_palbase[SEL_NSLOT] = { ' + ', '.join(map(str, sel_palbases(g, build)[0])) + ' };   /* each slot\'s first palette: back to back, its fighter\'s own count */')
     stick = g.get('select', {}).get('stick', 'positions')
     assert stick in ('positions', 'order'), f'game.json select.stick: {stick!r} (positions | order)'
     G = select_stick(L, bm_heads(build, g), stick)       # TODO #187: the cursor graph from the places

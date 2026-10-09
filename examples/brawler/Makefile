@@ -32,10 +32,11 @@ $(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/buil
 # /data/roms/kizuna.neo + /data/neogeo_dict/kizuna/kim_capture.json) and of Double Dragon (tools/doubledr: /data/roms/doubledr.neo,
 # its palette RAM /data/neogeo_dict/doubledr/palram.json) and of Samurai Shodown II (tools/samsho2: /data/roms/samsho2.neo;
 # Haohmaru, Genjuro, Kuroko read from its ROM) ---
-$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/retime.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(wildcard $(TOOLS)/samsho2/*.py) $(TOOLS)/samsho2/victim_poses_ss2.json $(TOOLS)/doubledr/victim_poses_dd.json $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py
+$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/brawler/retime.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(wildcard $(TOOLS)/samsho2/*.py) $(TOOLS)/samsho2/victim_poses_ss2.json $(TOOLS)/doubledr/victim_poses_dd.json $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_stage_land.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py
 	mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json
 	python3 $(TOOLS)/brawler/make_stage_ra.py $(CURDIR)/$(BUILD)   # needs /data/roms/roboarmy.neo
+	python3 $(TOOLS)/brawler/make_stage_land.py $(CURDIR)/$(BUILD)   # the select screen: KOF95 stage 2 (/data/roms/kof95.neo, /data/neogeo_dict/kof95/stages)
 	python3 $(TOOLS)/brawler/make_banner.py $(CURDIR)/$(BUILD)
 	python3 $(TOOLS)/brawler/make_sparks.py $(CURDIR)/$(BUILD)
 
@@ -64,7 +65,7 @@ $(BUILD)/%.o: %.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUIL
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@
-$(BUILD)/main.o: main.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/main.o: main.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 # the fighters' tables: one section per table (-fdata-sections), then tools/brawler/bank_pack.py sends each fighter's
 # bulk (frames, tiles, special scripts and programs, projectile rows) to its P2 bank and keeps what every fighter and
