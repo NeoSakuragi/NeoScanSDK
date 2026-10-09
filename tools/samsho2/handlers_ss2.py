@@ -1020,6 +1020,19 @@ def special(B, ch, name, inp):
         a_ = anims_d[states[r[0]]]['ss2']
         st = ss2.parse_anim(ch, a_[0], 400)[a_[1] + r[1]] if isinstance(a_, tuple) else ss2.parse_anim(ch, a_, 400)[r[1]]
         snd += [[i, c[1] + (1 if c[0] == 'sound_pan' else 0)] for c in st['cmds'] if c[0] in ('sound', 'sound_pan')]
+    # the states its whiff never reaches (a connect's: Genjuro's WFT spin, anim 24, one word of his line on each of its
+    # five slashes, $20B-$20F = $1AC8-$1ACC; feedback 20261009-224005-b3f3): their steps' own voices ($08 / $0C with a
+    # fighter id >= $100, voices.py's rule; the driver word) ride the steps (export_bm step_voiced -> bspec_t.pvox,
+    # fighter.c pan_voices: sent as the program enters the step, where SS2 sends them); the whiff's stay timed by its
+    # frames (voice_frames, voices.py 'special' uses)
+    seen = {r[0] % nstate for r in rows}
+    for s in states:
+        if int(s.split(':')[1]) in seen: continue
+        for s_ in anims_d[s]['steps']:
+            a_, k_ = s_['ss2']
+            ids = [c[1] + (1 if c[0] == 'sound_pan' else 0) for c in ss2.parse_anim(ch, a_, 400)[k_]['cmds'] if c[0] in ('sound', 'sound_pan')]
+            vs = [N.u16(0x5FD2 + 2 * i) for i in ids if i >= 0x100]
+            if vs: s_['voices'] = vs
     apex = max(range(len(rows)), key=lambda i: rows[i][3]) if rows else 0
     pj = []
     for (srow, a, x) in pl.spawns:

@@ -2214,6 +2214,7 @@ static void boss_ko_start(void) {                /* the boss's killing hit */
     snd_stop_music();                            /* the music first, then this tick's sounds (the killing hit's), then
                                                     the KO blow (note 20261009-120007-5d29: $04 after the blow cut it) */
     snd_cmd(0x1A); snd_cmd(ghitsnd.boss_ko); b->ko_voice = 1; ko_scream = 1; ko_win = 0;   /* (ko_voice: none at its S_DEAD, boss_ko_tick screams) */
+    b->kthud = 1;                                /* its fall's floor contacts: hit_sounds.bounce (fighter.c floor_thud) */
 }
 static uint8_t boss_ko_tick(void) {              /* every frame of the sequence; 1: a logic tick this frame */
     uint8_t i;

@@ -135,9 +135,10 @@ extern const gflash_t gflash;
  * strong hit cycles (n entries each, $1A codes: every A / B hit plays the attacker's next light entry, every C / D hit
  * its next strong one, unless the fighter's own sound is set: fighter.c btn_sound); guard: the guard sound
  * (fighter_guard_sound, no guard yet); boss_ko: the boss's killing hit, its death voice scream_delay frames later
- * (main.c boss_ko_start) ---- */
+ * (main.c boss_ko_start); bounce: each floor contact of the boss's death fall (fighter.c floor_thud, KOF94's KO
+ * landing) ---- */
 typedef struct {
-    uint8_t n[2], guard, boss_ko;
+    uint8_t n[2], guard, boss_ko, bounce, pad;
     uint16_t scream_delay;
     const uint8_t *cycle[2];
 } ghitsnd_t;
