@@ -28,7 +28,8 @@ state (docs/kof98_sound_driver.md):
   (ISR cost model of tools/songlab/build_web.py: 100 + 6.4 cycles-units per write against 333 per period; measured in
   the brawler within 0.15 % for Mr. Big / Geese / FF3, 0.6 % high for Goenitz) and the source's real rate is its tick
   rate less its own driver's drops (SNK-line sources, same model; MAKOTO drivers drop none);
-- loop: each channel's intro, then its loop body behind a label, ending in $0B goto label."""
+- loop: each channel's intro, then its loop body behind a label, ending in $0B goto label; a channel the source
+  never loops (a jingle that stops) plays to the song's end and ends in $06 (end of channel)."""
 import json, math, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'kof98snd'))
@@ -89,12 +90,16 @@ class Port:
         self.t = target; self.m1 = target.m1; self.CMD = dst_cmd
         src_m1, self.src_v, fn = source(src_game)
         self.src = src_game
-        self.notes, self.loops, self.hz, _ = fn(src_m1, src_cmd, passes=2)
+        self.notes, self.loops, self.hz, played = fn(src_m1, src_cmd, passes=2)
         # MAKOTO and SDC_NGSS lose no interrupt (a pending flag waits; SDC_NGSS: the captures stay pass-aligned)
         self.src_loss = 0.0 if fn in (ff3_notes.notes, ngss_notes.notes) else drops(src_m1, src_cmd, max(a + b for a, b in self.loops.values()))
-        self.noloop = set()
-        for ch in list(self.notes):                    # a channel without a loop: its notes up to the song's end
-            if ch not in self.loops: self.loops[ch] = (1, max(n.tick for n in self.notes[ch]) + 1); self.noloop.add(ch)
+        self.noloop = set()                            # a channel without a loop plays once and ends ($06): its
+        song_end = getattr(played, 'tick', 0)          # notes up to the song's end (the source's stop, e.g. KOF95's
+        for ch in list(self.notes):                    # win jingle $30 ends in $40 at tick 302) or its last key-off
+            if ch not in self.loops:
+                lst = self.notes[ch]
+                self.loops[ch] = (1, max([song_end - 1] + [n.tick + 1 for n in lst] + [n.off for n in lst if n.off is not None]))
+                self.noloop.add(ch)
         self.report = {'source': f'{src_game} ${src_cmd:02X}', 'cmd': dst_cmd, 'warnings': []}
         self.steady_body()
         self.report['dropped'] = self.dropped()
@@ -293,6 +298,7 @@ class Port:
                 if mode == 0 and st.get('inst') != inst: out += ev(None, 0x03, inst); st['inst'] = inst
                 if st.get('pan') != n.pan: out += ev(None, PAN_OP[n.pan]); st['pan'] = n.pan
                 out += ev(delta, 0x00, *vl(gate), b, n.vol); st['vel'] = n.vol; st['b'] = b
+        if name in self.noloop: return bytes(out + ev(None, 0x06))     # a channel that stops: end of channel
         assert label_at is not None
         out += ev(None, 0x0B, *w16(label_at))
         return bytes(out)
@@ -309,7 +315,7 @@ class Port:
             prev = lst[i - 1] if i else None
             if i == first_body:
                 last_body = lst[-1]
-                if tuple(last_body.regs) != regs:            # back from the goto: load it at the body's end
+                if tuple(last_body.regs) != regs and name not in self.noloop:   # back from the goto: load it at the body's end
                     need.append((end, regs, last_body.off if last_body.off is not None else end, 'end'))
                 if prev is None or tuple(prev.regs) != regs:  # from the intro: before the label
                     lo = (prev.off if prev and prev.off is not None else (prev.tick + 1 if prev else 1))
