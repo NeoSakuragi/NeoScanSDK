@@ -2599,5 +2599,34 @@
   "expect": "The hop plays at KOF '98's own speed: 33 frames plus the hit's freeze (0.10.9 showed every airborne frame twice: 53 frames, the slow motion). The other hopping command normals (Kim, Billy, Mai, Choi, Mary, Benimaru... forward + A / B) are back to their KOF speed too.",
   "do_keys": "3:a,8:-,3:a,8:-,3:a,10:-,3:a,10:-,3:Ra,4:R,60:-",
   "proof": 60
+ },
+ "20261009-211613-b3f3": {
+  "title": "Robert's fury deals twice its damage",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 60,
+   "fury": "full",
+   "drive": "full"
+  },
+  "do": "Robert's fury is ready (he blinks white). Press D next to the dummy and watch its life bar through all 14 hits.",
+  "expect": "The fury's hits add up to 60 (double 0.10.12's 30): the dummy's whole life bar. His MAX (down + D at low life with the gauge full) doubles with it: 90 instead of 45 (the same knob scales both).",
+  "do_keys": "2:d,300:-",
+  "proof": 320
+ },
+ "20261009-211401-b3f3": {
+  "title": "Jump A and jump down + A cancel into the air Blitz",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 50,
+   "drive": "full"
+  },
+  "do": "Robert next to the dummy. Hold B to jump, press A (or down + A), then down, down + A while still in the air.",
+  "expect": "The jump attack stops and his air Blitz (Hien Ryuujin Kyaku) comes out at once, whether the attack hit or missed, any time until he lands; no drive spent, as before. Same for every fighter with an air Blitz (Kim's j.2B dive).",
+  "do_keys": "8:b,1:-,2:a,6:-,2:D,2:-,2:D,1:Da,90:-",
+  "proof": 60
  }
 }

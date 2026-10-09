@@ -162,6 +162,16 @@ static uint8_t air_pick(const fighter_t *f, const intent_t *in) {
     }
     return k;
 }
+/* the air Blitz (Bruno's note 20261009-211401-b3f3): the fighter's down,down + A air special (an AIR_DD | AIR_A entry), the
+ * one that cancels its jump's attacks (j.A, j.down+A and their air route) from their start to the landing, on hit or
+ * whiff; -> its index in specials, 0xFF = none (or its projectile still flying) */
+static uint8_t air_blitz(const fighter_t *f) {
+    const uint8_t *e;
+    for (e = bm_air[f->ch->id]; *e != 0xFF; e += 2)
+        if ((e[0] & (AIR_DD | AIR_A)) == (AIR_DD | AIR_A) && e[1] < f->ch->nspec && !(f->ch->specials[e[1]].proj && f->shot))
+            return e[1];
+    return 0xFF;
+}
 static uint8_t air_button(const bchar_t *ch, uint8_t ix) {      /* the button of the air special ix (PC_HELD) */
     const uint8_t *e;
     for (e = bm_air[ch->id]; *e != 0xFF; e += 2) if (e[1] == ix) return e[0] & AIR_A ? IN_A : IN_C;
@@ -2631,7 +2641,7 @@ static void update(fighter_t *f, const intent_t *in) {
     }
     if (f->state == S_ATTACK || f->state == S_AIR_ATTACK) {      /* presses in hit-stop count */
         uint8_t ci = combo_input(f, in);
-        if (ci) { f->buffered = ci; f->buf_age = 0; f->blz_buf = (ci & IN_A) && in->blitz && f->state == S_ATTACK ? in->blitz : 0; }   /* (a
+        if (ci) { f->buffered = ci; f->buf_age = 0; f->blz_buf = (ci & IN_A) && in->blitz && (f->state == S_ATTACK || in->blitz == BZ_DD + 1) ? in->blitz : 0; }   /* (a
                                                                     Blitz press: its slot, "Blitz"; the attack buffer's
                                                                     age, "chain core": the hit-stop */
         else if (f->buffered && !f->freeze && f->buf_age < 255 && !(f->landed && hits_to_come(f))) f->buf_age++;   /* does
@@ -2798,6 +2808,13 @@ static void update(fighter_t *f, const intent_t *in) {
                 lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_AIR);
                 f->spec_ix = k; start_special(f, BS_AIR); break;
             }
+        }
+        if (f->state == S_AIR_ATTACK && f->blz_buf == BZ_DD + 1 && BUF_OK(f, in)) {   /* down,down + A during a jump's
+                                                                    attack: the air Blitz cancels it (air_blitz; a press
+                                                                    in its hit-stop waits for the freeze's end) */
+            uint8_t k = air_blitz(f);
+            f->blz_buf = 0;
+            if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_CANCEL, BS_AIR); f->buffered = 0; f->spec_ix = k; start_special(f, BS_AIR); break; }
         }
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: the air attacks (Bruno 2026-10-08, "jumps"): down+A
                                                                     its down attack (air_b: a flinch, active to the landing),

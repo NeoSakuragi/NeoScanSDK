@@ -64,6 +64,7 @@
    "air_specials": {"ddA": "air 214D"},
    "throws": {"hold": {"hit": "atk_b_close", "fin": "atk_c_crouch"}},
    "fury": "23624C",
+   "fury_damage_scale": 2,
    "hit_sfx": {"23624C": {"states": [184, 185], "sound": "94 DRAGON HIT"}, "MAX 23624C": {"states": [196, 197], "sound": "94 DRAGON HIT"}},
    "unlock": "always",
    "voices": "kof"
