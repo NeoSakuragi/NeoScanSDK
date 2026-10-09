@@ -328,7 +328,7 @@
    "watch": {"frame": 55, "step": 11},
    "routes": "tools/brawler/routes/kim.json",
    "archetype": "fast",
-   "scale": 0.92,
+   "scale": 1.0,
    "moves": {"atk_b_far": "$5D", "atk_ab_close": "$96", "atk_ab_far": "$98", "cmd_fwd_c": "$54", "atk_cd_close": "$9A",
              "atk_b_close": "$6D", "atk_d_jump": "$59", "atk_d_jump_diag": "$59"},
    "anim_specials": {"$5C": "heavy", "$B6": "launch", "$53": "reset", "$4D": "reset"},
