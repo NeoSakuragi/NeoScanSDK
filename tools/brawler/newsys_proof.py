@@ -368,17 +368,20 @@ def blink():
         print('blink', case, out[case], flush=True)
     # Bruno 2026-10-09: D = the fury (gauge full, emptied; at low life free and unlimited); down+D = the MAX (gauge full AND
     # low life, emptied); nothing otherwise
-    for case, fury, hp, keys, want, gafter in (('D, gauge full', M['fury_max'], 60, '1:d', '21416C', 0),
-                                              ('D, low life, gauge empty', 0, low, '1:d', '21416C', 0),
-                                              ('D, low life, gauge full', M['fury_max'], low, '1:d', '21416C', M['fury_max']),
-                                              ('down+D, low life, gauge full', M['fury_max'], low, '1:Dd', 'MAX 21416C', 0),
-                                              ('D, gauge short', M['fury_max'] - 1, 60, '1:d', None, None),
-                                              ('down+D, low life, gauge empty', 0, low, '1:Dd', None, None)):
-        reset('terry', dist=70, fury=fury, hp=hp)
+    for case, fury, hp, keys, want, gafter in (('D, gauge full', M['fury_max'], 60, '2:d', '21416C', 0),
+                                              ('D, low life, gauge empty', 0, low, '2:d', '21416C', 0),
+                                              ('D, low life, gauge full', M['fury_max'], low, '2:d', '21416C', M['fury_max']),
+                                              ('down+D, low life, gauge full', M['fury_max'], low, '2:Dd', 'MAX 21416C', 0),
+                                              ('D, gauge short', M['fury_max'] - 1, 60, '2:d', None, None),
+                                              ('down+D, low life, gauge empty', 0, low, '2:Dd', None, None),
+                                              ('D, gauge full, no drive', M['fury_max'], 60, '2:d', None, None),
+                                              ('down+D, low life, gauge full, 1 chunk', M['fury_max'], low, '2:Dd', None, None)):
+        drv = 0 if 'no drive' in case else M['chunk'] if '1 chunk' in case else None
+        reset('terry', dist=70, fury=fury, hp=hp, drive=drv); d0 = b.fget(0, 'drive')
         r = Rec(every=4 if want else 0, tag='fury'); r.seq(keys); r.until(lambda: st(0) == 'SPECIAL', 4)
-        got = what(); g = b.fget(0, 'fgauge')
+        got = what(); g = b.fget(0, 'fgauge'); spent = (d0 - b.fget(0, 'drive')) / M['chunk']
         r.until(lambda: st(0) != 'SPECIAL', 400); r.idle()
-        out[case] = dict(got=got, gauge_after=g, hits=sum(h['dmg'] for h in r.hits),
+        out[case] = dict(got=got, gauge_after=g, drive_spent=round(spent, 2), hits=sum(h['dmg'] for h in r.hits),
                          ok=(got == f'SPECIAL fury {want}' and g == gafter) if want else not got.startswith('SPECIAL'))
         print('fury', case, out[case], flush=True)
     return out

@@ -461,7 +461,7 @@ def c_str(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
 METER_KEYS = ('about', 'chunk', 'chunks', 'special', 'breaker', 'life_breaker', 'blink', 'fury_max', 'fury_dealt',
-              'fury_taken', 'low', 'infinite')
+              'fury_taken', 'low', 'infinite', 'fury_drive', 'max_drive')
 BLITZ_KEYS = ('about', 'window', 'chord', 'damage')
 BLITZ_SLOTS = ('ff', 'dd', 'du', 'uu')               # fighter.h BZ_*: forward,forward / down,down / down,up / up,up + A
 JUMP_KEYS = ('about', 'crouch', 'height', 'dx', 'land_dx', 'x_scale', 'land', 'land_cancel', 'active_min', 'down_cancel', 'run_dx')
@@ -643,7 +643,7 @@ def tables(g, build):
     assert 1 <= m['fury_max'] < 65536 and 0 <= m['fury_dealt'] <= 255 and 0 <= m['fury_taken'] <= 255, 'meter: the fury gauge'
     c.append(f"const gmeter_t gmeter = {{ .chunk = {m['chunk']}, .chunks = {m['chunks']}, .special = {m['special']}, "
              f".breaker = {m['breaker']}, .life_breaker = {m['life_breaker']}, .blink = {m['blink']}, .infinite = {1 if m.get('infinite') else 0}, "
-             f".fury_max = {m['fury_max']}, .fury_dealt = {m['fury_dealt']}, .fury_taken = {m['fury_taken']}, .low = {m['low']} }};")
+             f".fury_max = {m['fury_max']}, .fury_dealt = {m['fury_dealt']}, .fury_taken = {m['fury_taken']}, .low = {m['low']}, .fury_drive = {m.get('fury_drive', 0)}, .max_drive = {m.get('max_drive', 0)} }};")
     bz = g['blitz']                                      # the Blitz (gamedata.h gblitz_t) and its slots per fighter
     for k in bz: assert k in BLITZ_KEYS, f'blitz: unknown field {k}'
     assert 2 <= bz['window'] <= 60 and 0 <= bz['chord'] <= 8 and 1 <= bz['damage'] < 128, 'blitz values'

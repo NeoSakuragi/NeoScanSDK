@@ -73,7 +73,7 @@ typedef struct {
     uint16_t fury_max;            /* the hidden fury gauge: full */
     uint8_t  fury_dealt, fury_taken;   /* gauge points a life point dealt / taken */
     uint8_t  low;                 /* low life: life <= low % of the full life (and > 0): the life bar blinks red, the MAX */
-    uint8_t  mpad;
+    uint8_t  fury_drive, max_drive;   /* drive chunks the fury / the MAX also cost (Bruno 2026-10-09: 1 / 2) */
 } gmeter_t;
 extern const gmeter_t gmeter;
 

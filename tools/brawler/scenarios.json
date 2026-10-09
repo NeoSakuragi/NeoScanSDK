@@ -2389,5 +2389,20 @@
   "expect": "Stage 1 shows the backdrop with the NEO GEO sign (stage 2's before); stage 2 now has the old stage 1 scenery. Waves and bosses unchanged.",
   "do_keys": "60:-",
   "proof": 60
+ },
+ "20261009-083434-5d29": {
+  "title": "The fury costs 1 drive chunk, the MAX 2",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 70,
+   "fury": "full",
+   "drive": "full"
+  },
+  "do": "The fury is ready (Terry blinks white), both drive chunks full. Press D. Then try D again with no drive left.",
+  "expect": "D gives Power Geyser and one drive chunk empties on the HUD. With no drive chunk the fury does not come out and Terry stops blinking. At low life with the gauge full, down + D (the MAX) empties both chunks.",
+  "do_keys": "2:d,240:-",
+  "proof": 260
  }
 }

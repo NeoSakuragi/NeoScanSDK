@@ -633,8 +633,10 @@ uint8_t fighter_low(const fighter_t *f) {
 static uint8_t gauge_full(const fighter_t *f) { return gmeter.infinite || f->fgauge >= gmeter.fury_max; }
 /* Bruno 2026-10-09 (his 0.9.0 note): low life = UNLIMITED fury (D, nothing spent); the MAX = down+D with the gauge full
  * AND low life (the gauge emptied); at normal life D = the fury with the gauge full (emptied) */
-uint8_t fighter_fury_ready(const fighter_t *f) { return !f->team && (gauge_full(f) || fighter_low(f)); }
-static uint8_t max_ready(const fighter_t *f) { return !f->team && gauge_full(f) && fighter_low(f); }
+static uint8_t drive_has(const fighter_t *f, uint8_t chunks) { return gmeter.infinite || f->drive >= (uint16_t)(chunks * gmeter.chunk); }
+/* Bruno 2026-10-09 (0.9.7 note): the fury also costs gmeter.fury_drive drive chunks, the MAX gmeter.max_drive */
+uint8_t fighter_fury_ready(const fighter_t *f) { return !f->team && (gauge_full(f) || fighter_low(f)) && drive_has(f, gmeter.fury_drive); }
+static uint8_t max_ready(const fighter_t *f) { return !f->team && gauge_full(f) && fighter_low(f) && drive_has(f, gmeter.max_drive); }
 static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whether it could -> 1 paid (or payable) */
     if (f->team) return 1;
     if (kind == PAY_SPECIAL) {
@@ -645,9 +647,12 @@ static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whe
         return 1;
     }
     if (kind == PAY_MAX) { if (!max_ready(f)) return 0; }
-    else if (kind == PAY_FURY && fighter_low(f)) return 1;      /* low life: the fury is free (unlimited) */
+    else if (kind == PAY_FURY) { if (!fighter_fury_ready(f)) return 0; }
     else if (!gauge_full(f)) return 0;
-    if (!dry && !gmeter.infinite) f->fgauge = 0;
+    if (dry || gmeter.infinite) return 1;
+    if (kind == PAY_MAX) f->drive -= (uint16_t)(gmeter.max_drive * gmeter.chunk);
+    if (kind == PAY_FURY) f->drive -= (uint16_t)(gmeter.fury_drive * gmeter.chunk);
+    if (!(kind == PAY_FURY && fighter_low(f))) f->fgauge = 0;   /* (low life: the fury's gauge is not spent: unlimited) */
     return 1;
 }
 static uint8_t breaker_pay(fighter_t *f) {                      /* the breaker's price -> 1 drive (it blinks white), 2 life

@@ -139,3 +139,6 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 - Last hit + forward = $9A (the launcher), + up = $54 (swapped).
 - down,down + A = Hienzan ([2]8C); $5C dropped ("we don't need it"). down,up + A stays Hienzan too.
 - down,up + A: empty (no longer Hienzan; Bruno 2026-10-09). Built with the $6E fix.
+
+### Meter — Bruno's 0.9.7 note (built in 0.9.8)
+- The fury also costs 1 drive chunk, the MAX 2 (game.json meter.fury_drive / max_drive). The blinks only show when the drive is there too.
