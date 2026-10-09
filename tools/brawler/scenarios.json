@@ -2540,7 +2540,7 @@
    "gap": 50
   },
   "do": "Stage 1, the boss alone with 1 life point. Hit him with A and listen to the stage clear.",
-  "expect": "At the boss KO the music stops first, then the KO sound plays in full (and the killing hit's own sound); 1 second later the boss's scream; 2 seconds after that KOF95's win music.",
+  "expect": "At the boss KO the music stops first, then the KO sound plays in full (and the killing hit's own sound); 1 second later the boss's scream; 3 seconds after that (one second later than 0.10.9) KOF95's win music.",
   "do_keys": "60:-,3:a",
   "proof": 700
  },
@@ -2586,5 +2586,18 @@
   "expect": "The fury deals 120 (double 0.10.6's 60, four times the first 30): twice the dummy's whole life bar. The MAX (down + D at low life with the gauge full) deals 180.",
   "do_keys": "2:d,300:-",
   "proof": 320
+ },
+ "20261009-135055-5d29": {
+  "title": "Robert's forward + A finisher at KOF's speed, no slow motion",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Robert next to the dummy. Chain A, A, A, A then forward + A: his hopping kick finisher.",
+  "expect": "The hop plays at KOF '98's own speed: 33 frames plus the hit's freeze (0.10.9 showed every airborne frame twice: 53 frames, the slow motion). The other hopping command normals (Kim, Billy, Mai, Choi, Mary, Benimaru... forward + A / B) are back to their KOF speed too.",
+  "do_keys": "3:a,8:-,3:a,8:-,3:a,10:-,3:a,10:-,3:Ra,4:R,60:-",
+  "proof": 60
  }
 }

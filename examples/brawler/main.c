@@ -2130,8 +2130,9 @@ static uint8_t tq_n;
 enum { KO_OFF, KO_SLOWMO, KO_DONE };
 static uint8_t ko_seq, ko_sub;                   /* KO_*; frames to the next logic tick */
 static uint16_t ko_t, ko_next;                   /* frames since the killing hit; the next fall */
-#define KO_WIN 120                               /* the win music this many frames after the death voice (Bruno 2026-10-09: KO
-                                                    sound + the music stopped, 1 s later the scream, 2 s later the win music) */
+#define KO_WIN 180                               /* the win music this many frames after the death voice (Bruno 2026-10-09: KO
+                                                    sound + the music stopped, 1 s later the scream, 3 s later the win music;
+                                                    note 20261009-120007-5d29: "shift the start of the win song by one second") */
 static uint8_t ko_win;                           /* 1: the win music already started by the KO sequence (PH_END doesn't restart it) */
 static uint8_t ko_scream;                        /* 1: the boss's death voice still to come (ghitsnd.scream_delay) */
 /* ---- the stage clear's win pose (TODO #184, Bruno 2026-10-07: "a little winning pose here at the end of the stage"):

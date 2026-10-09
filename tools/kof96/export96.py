@@ -129,7 +129,9 @@ CMD_NORMALS = {g: json.load(open(os.path.join(HERE, f'cmdnormals_{g}.json'))) fo
 def cmd_frames(m, cid, rows, slot_of, add_frame):
     """a command normal that goes through several states (Mai's / Billy's hops: code moves the fighter up and forward
     between animation steps) as one animation from its captured frames (capture/cmdnormals.py rows: state, raw step,
-    frame record, x forward, height): each run of frames on one KOF step = one step (ticks = its frames), split where
+    frame record, x forward, height): each run of frames on one KOF step = one step (ticks = its frames - 1: the
+    brawler shows a step ticks + 1 frames, KOF's rule, fighter.c play; ticks = its frames played every 1-frame piece
+    of a hop twice, Robert's forward+A 53 frames for KOF's 33: note 20261009-135055-5d29 "the game slows down"), split where
     the height changes; the step's own flags and box commands on its first piece, the pieces before the last carry
     KOF's $4000 'same hit' so a split step stays one hit window. dx = the capture's forward travel (KOF x: negative =
     forward), hy = height in px."""
@@ -144,7 +146,7 @@ def cmd_frames(m, cid, rows, slot_of, add_frame):
         t, fi, fl, b, _, _ = parsed[st][ri]
         first = (st, ri) != prev_key
         last = k + 1 == len(groups) or groups[k + 1][0][:2] != (st, ri)
-        steps.append({'frame': add_frame(fi), 'ticks': n, 'flags': fl if last else fl | 0x4000, 'dx': -(x - prev_x),
+        steps.append({'frame': add_frame(fi), 'ticks': n - 1, 'flags': fl if last else fl | 0x4000, 'dx': -(x - prev_x),
                       'hy': h, 'boxes': {f'{kk:02X}': v for kk, v in b.items() if first or kk >> 4 != 1 and kk < 0x100}})
         prev_x, prev_key = x, (st, ri)
     return {'slot': slot_of(cid, rows[0][0]), 'mode': 'hold', 'steps': steps, 'captured': True}
