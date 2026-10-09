@@ -2543,5 +2543,22 @@
   "expect": "The stage clear plays KOF98's win-screen music (the winner's quote theme), not the VS jingle.",
   "do_keys": "3:a",
   "proof": 700
+ },
+ "20261009-115223-5d29": {
+  "title": "Boss KO: the scream 1 second after the KO sound",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1 boss alone with 1 life point. Hit him with A.",
+  "expect": "The KO blow sounds at the hit, then his death scream about 1 second later (not 2).",
+  "do_keys": "1:a,180:-",
+  "proof": 200
  }
 }
