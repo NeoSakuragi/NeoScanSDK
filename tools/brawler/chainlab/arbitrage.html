@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fighter Arbitration</title>
+<style>
+/* A fighter's ARBITRATION sheet (the web version of Bruno's A4 sheet for Kim, /data/scans/brawler/kim_notes_231734.png):
+   chain, alternate finishers, Blitz, specials, air, grab, fury; each slot an animation pick from the dictionary + a note.
+   Behind the Oros login like the Lab. E-ink: black on white, solid borders, state said in words, never colour alone.
+   anims_core.js (dictionary data, players, flags) + arbitrage.js (the page) + micnote.js */
+:root { --line: 2px solid #000; color-scheme: light; }
+html, body { background: #fff; color: #000; }
+body { margin: 0; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 60px; }
+#arb { max-width: 900px; margin: 0 auto; }
+[hidden] { display: none !important; }
+h1 { font-size: 24px; margin: 4px 0 6px; }
+h2 { font-size: 18px; margin: 22px 0 4px; letter-spacing: .04em; text-transform: uppercase; border-bottom: 3px solid #000; padding-bottom: 2px; }
+.intro, .about { font-size: 15px; margin: 4px 0 8px; }
+.links { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.links a { color: #000; font-weight: 700; border: var(--line); padding: 4px 9px; text-decoration: none; font-size: 15px; }
+button { font: inherit; font-size: 15px; background: #fff; color: #000; border: var(--line); padding: 5px 10px; cursor: pointer; border-radius: 0; }
+button[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
+.slot { border: var(--line); padding: 8px; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+.shead { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.shead .lab { font-weight: 700; font-size: 18px; flex: 1 1 auto; }
+.tag { font: 700 12px/1.2 ui-monospace, monospace; padding: 2px 6px; border: 2px dashed #000; text-transform: uppercase; letter-spacing: .05em; }
+.tag.mine { border-style: solid; background: #000; color: #fff; }
+.nowtxt { font-size: 14px; margin: 0; }
+.clips { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; }
+.clips .then { font-size: 18px; font-weight: 700; align-self: center; }
+.clip { margin: 0; border: 1px solid #000; padding: 3px; display: flex; flex-direction: column; align-items: center; gap: 2px; max-width: 150px; }
+.clip canvas { display: block; image-rendering: pixelated; cursor: pointer; }
+.clip figcaption { font: 12px/1.2 ui-monospace, monospace; text-align: center; overflow-wrap: anywhere; }
+.clip .rm { font-size: 12px; padding: 1px 6px; }
+.empty { font-size: 14px; border: 1px dashed #000; padding: 6px 8px; }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.sbody, .side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+@media (min-width: 760px) { .sbody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 10px; align-items: start; } }
+.note textarea { font: inherit; font-size: 15px; border: var(--line); padding: 5px 7px; }
+.micfield textarea { min-height: 2.3em !important; }
+.saved { font: 12px ui-monospace, monospace; min-height: 1em; }
+.count { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+.final { border: 3px solid #000; padding: 10px; margin-top: 26px; display: flex; flex-direction: column; gap: 8px; }
+.final button.done { font-size: 18px; font-weight: 700; padding: 10px 14px; }
+/* the picker */
+.pmodal { position: fixed; inset: 0; background: rgba(255,255,255,.97); z-index: 50; overflow: auto; padding: 8px; }
+.pbox { max-width: 980px; margin: 0 auto; border: 3px solid #000; background: #fff; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.phead { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; position: sticky; top: -8px; background: #fff; padding: 6px 0; border-bottom: 2px solid #000; z-index: 1; }
+.phead b { flex: 1 1 100%; font-size: 17px; }
+.phead input { font: inherit; font-size: 15px; border: var(--line); padding: 4px 6px; width: 7.5em; }
+.frow { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.frow .fl { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; flex: 0 0 100%; }
+.frow button { font-size: 13px; padding: 3px 8px; }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.pcard { border: var(--line); padding: 3px; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.pcard.cur { border-width: 4px; }
+.pcard canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; cursor: pointer; }
+.pcard .cap { font-size: 11px; line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
+.pcard .use { font-size: 14px; font-weight: 700; padding: 3px 8px; width: 100%; }
+.pshown { font: 13px ui-monospace, monospace; }
+@media (max-width: 520px) { body { font-size: 16px; } .shead .lab { font-size: 17px; } }
+</style>
+</head>
+<body>
+<main id="arb"><p>Loading…</p></main>
+<script src="micnote.js"></script>
+<script src="anims_core.js"></script>
+<script src="arbitrage.js"></script>
+</body>
+</html>
