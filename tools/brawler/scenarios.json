@@ -2528,7 +2528,7 @@
   "proof": 60
  },
  "20261009-120007-5d29": {
-  "title": "Stage clear plays KOF98's win music",
+  "title": "Stage clear plays KOF95's win-screen music",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
@@ -2540,8 +2540,8 @@
    "gap": 50
   },
   "do": "Stage 1, the boss alone with 1 life point. Hit him with A and listen to the stage clear.",
-  "expect": "The stage clear plays KOF98's win-screen music (the winner's quote theme), not the VS jingle.",
-  "do_keys": "3:a",
+  "expect": "The stage clear plays KOF95's win-screen music (the short jingle of its winners' quote screen, about 5.6 s, then silence), no longer KOF98's.",
+  "do_keys": "60:-,3:a",
   "proof": 700
  },
  "20261009-115223-5d29": {

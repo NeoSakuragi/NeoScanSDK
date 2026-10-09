@@ -34,7 +34,7 @@
  "songs": [
   {"name": "SELECT", "source": "kof98", "cmd": "21", "what": "KOF98 opening (title, character select)"},
   {"name": "FIGHT", "source": "ff3", "cmd": "2F", "what": "Fatal Fury 3, Terry's stage (the stage fight)"},
-  {"name": "WIN", "source": "kof98", "cmd": "24", "what": "KOF98 win screen (the winner's quote): the stage clear (Bruno 2026-10-09, note 20261009-120007-5d29; was $2C, the VS jingle)"},
+  {"name": "WIN", "source": "kof95", "cmd": "30", "what": "KOF95 win screen (the winners' quote after each match, measured; docs/kof95_songs.md): the stage clear (Bruno 2026-10-09, note 20261009-120007-5d29: was KOF98's win screen $24, before that $2C, the VS jingle)"},
   {"name": "CONTINUE", "source": "kof98", "cmd": "2F", "what": "KOF98 continue countdown (measured in our emulator 2026-10-05: sent as the CONTINUE screen opens)"},
   {"name": "GAME_OVER", "source": "kof98", "cmd": "26", "what": "KOF98 loser's screen after the last defeat (measured 2026-10-05; KOF98's own GAME OVER plays $2C, our stage clear)"},
   {"name": "BOSS_MR_BIG", "source": "aof2", "cmd": "21", "what": "Art of Fighting 2, Mr. Big's stage (opponent 9, measured)"},
