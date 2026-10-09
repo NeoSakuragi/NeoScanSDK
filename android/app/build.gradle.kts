@@ -11,8 +11,8 @@ android {
         applicationId = "com.neoscan.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 26
-        versionName = "0.0.26"
+        versionCode = 27
+        versionName = "0.0.27"
         // a test build of the self-update (PlayerUpdate.kt): ./gradlew assembleDebug -PplayerCode=22 -PplayerName=0.0.22
         (project.findProperty("playerCode") as String?)?.let { versionCode = it.toInt() }
         (project.findProperty("playerName") as String?)?.let { versionName = it }

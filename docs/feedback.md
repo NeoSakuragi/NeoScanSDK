@@ -376,9 +376,23 @@ state of the published build set up to show the fix, with what to do and what to
     then the pill alone. A tap on the pill = expand / collapse; expanded it is ~60 % opaque (the game shows through);
     dragging the pill moves the banner to the picture's other edge (top / bottom, kept for the session). An error
     (no state, not sent) expands it; the 👎 note box stays open under the pill.
+  - **The banner (0.0.27; Bruno: "the buttons are way too small: keep the buttons at the END of the feedback,
+    occupying the full width with evenly proportioned buttons (no risk of mishap)"; "when collapsed, just keep it as a
+    small [i] in the top-left corner of the Neo Geo canvas"):** expanded = a box at the picture's top, ~60 % opaque:
+    [i] + "TEST n/N: title", Do, Expect, the status, a hint line, then the buttons as the LAST rows, full width, equal
+    widths, labelled in words: ▶ Play / ❚❚ Pause, ⟲ Restart, Next / Done, ✕ Leave (48 dp), 16 dp of gap, then the
+    verdict row 👍 Fixed (green) | 👎 Still broken (hold and talk) (red), 64 dp tall, 24 dp apart. Holding 👎 opens the
+    note box in the buttons' place (they hide while it is open): the text to correct, then its own last row Cancel |
+    👎 Send: still broken (56 dp). Collapsed = only a small [i] (34 dp, outlined) at the picture's top-left corner, the
+    same spot as the expanded box's own [i]; no pill, no controls. A tap on [i] expands (and pauses the game); the [i]
+    in the box collapses. A test loads expanded and paused; ▶ Play and ⟲ Restart collapse it so the game is free. The
+    0.0.26 drag to the other edge and the 3 s auto-collapse are gone (the [i] has one fixed spot). Proven in AVD
+    JanusPhone (test hook, fake note id, nothing sent): /data/feedback/proof_0027/ (portrait + landscape expanded and
+    collapsed, the 👎 note box).
   - **Test hook (0.0.26):** `test_scenario.json` (a note row: id, title, scenario {title, do, expect}) +
     `test_scenario.state` pushed to the app's external files dir open that note in VERIFY mode on the next resume
-    (admin only; both files consumed). Banner proof without a server scenario.
+    (admin only; both files consumed; read on the second resume, once the game runs: launch, Home, launch again).
+    Banner proof without a server scenario.
   - **The test queue rule (0.0.23, server.py queue_info, every /mine and /api/list row's `to_test` + `tested_on`):** a
     note is eligible while its status is shipped and no verdict (a 👍 or 👎 test attempt, player or Lab) was given on
     its release or a later build (`tested_on` = the game version of the last verdict); the player adds "release at or
