@@ -2404,5 +2404,59 @@
   "expect": "D gives Power Geyser and one drive chunk empties on the HUD. With no drive chunk the fury does not come out and Terry stops blinking. At low life with the gauge full, down + D (the MAX) empties both chunks.",
   "do_keys": "2:d,240:-",
   "proof": 260
+ },
+ "20261009-103008-5d29": {
+  "title": "The HUD shows the stage behind it, no black band",
+  "setup": {
+   "mode": "stage",
+   "fighter": "kim",
+   "stage": 0,
+   "wave": 0,
+   "cam": 0
+  },
+  "do": "Start stage 1 and walk right through the stage, looking at the top of the screen behind the life bars and the portrait.",
+  "expect": "Behind the HUD (life bars, portrait, names, lives) the scenery goes up to the top of the screen: no solid black band. Only the HUD itself (portraits, text, bars) covers it. The same on every stage.",
+  "do_keys": "240:R",
+  "proof": 60
+ },
+ "20261009-102742-5d29": {
+  "title": "Stage 1: nobody walks behind the floor's back edge",
+  "setup": {
+   "mode": "stage",
+   "fighter": "kim",
+   "stage": 0,
+   "wave": 2,
+   "cam": 846
+  },
+  "do": "Stage 1, by the wall and the truck. Hold up (walk to the back) and walk right along the wall and the truck, and back left.",
+  "expect": "Kim stops at the floor's back edge: by the truck and the wall's slope his feet stay where they were when you sent the note (no further back), along the straight wall just under the curb; his feet never stand on the wall, the curb or the truck's shadow. Enemies keep to the same edge.",
+  "do_keys": "40:U,120:UR,60:UL",
+  "proof": 60
+ },
+ "20261009-102708-5d29": {
+  "title": "Kim: down,down + A in a jump = his air dive (j.2B)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 90
+  },
+  "do": "Jump (straight or forward), then tap down twice and press A in the air. Then jump and press down + A once (one tap).",
+  "expect": "Down, down + A: Kim stops and dives down at 45 degrees feet first and stomps the dummy (on a hit he bounces up for another stomp as in Kizuna Encounter); no drive spent. A single down + A in the air is still his jumping down attack.",
+  "do_keys": "3:b,3:b,7:-,2:D,2:-,2:D,3:Da",
+  "proof": 90
+ },
+ "20261009-102625-5d29": {
+  "title": "Kim's run is his walk cycle, twice as fast",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "terry",
+   "gap": 200
+  },
+  "do": "Double-tap forward and hold it: Kim runs. Watch his legs.",
+  "expect": "Kim runs with a fluid leg cycle (his walk played twice as fast) and his feet do not slide on the floor; no more two-frame crouched hop.",
+  "do_keys": "2:R,2:-,60:R",
+  "proof": 30
  }
 }

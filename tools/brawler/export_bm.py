@@ -973,9 +973,11 @@ def fury_special(ch, name):
     return sp
 
 
-AIR_KEY = re.compile(r'^(|f|d|u|df|uf)([AC])$')   # an air_specials key: the stick's slot (the ground's six C slots,
-AIR_SLOTS = ('', 'f', 'd', 'u', 'df', 'uf')      # BS_D .. BS_UF_D) + the button
-AIR_A = 0x10                                     # bm_chars.h AIR_A: an air table entry's button A (else C)
+AIR_KEY = re.compile(r'^(dd|)(|f|d|u|df|uf)([AC])$')   # an air_specials key: "dd" (the Blitz's down,down tap in the
+AIR_SLOTS = ('', 'f', 'd', 'u', 'df', 'uf')      # jump, any stick at the press) or the stick's slot (the ground's six C
+AIR_A = 0x10                                     # slots, BS_D .. BS_UF_D) + the button; bm_chars.h AIR_A: an air table
+AIR_DD = 0x20                                    # entry's button A (else C); AIR_DD: down,down + the button (Bruno
+                                                 # 2026-10-09, note 20261009-102708-5d29: Kim's j.2B on down,down + A)
 
 def air_specials(ch, name):
     """the fighter's air specials (game.json roster[].air_specials {key: input}, TODO #200 / #221: specials of its bank
@@ -985,7 +987,7 @@ def air_specials(ch, name):
     want = roster()[name].get('air_specials') if name in roster() else None
     out = []
     for key, inp in (want or {}).items():
-        assert AIR_KEY.match(key), f'{name}: air_specials key {key!r} (slot "", f, d, u, df, uf + A or C)'
+        assert AIR_KEY.match(key) and not (key.startswith('dd') and len(key) > 3), f'{name}: air_specials key {key!r} (slot "", f, d, u, df, uf or dd + A or C)'
         sp = next((sp for sp in ch.get('specials', []) if sp['input'] == inp), None)
         assert sp and rom_ok(sp), f'{name}: no air special {inp} read from the ROM in its bank'
         out.append((key, sp))
@@ -996,7 +998,7 @@ def air_table(ch, name):
     pool = special_pool(ch, name); out = []
     for key, sp in air_specials(ch, name):
         m = AIR_KEY.match(key)
-        out += [AIR_SLOTS.index(m.group(1)) | (AIR_A if m.group(2) == 'A' else 0), spec_index(pool, sp)]
+        out += [AIR_SLOTS.index(m.group(2)) | (AIR_A if m.group(3) == 'A' else 0) | (AIR_DD if m.group(1) else 0), spec_index(pool, sp)]
     return out + [0xFF]
 
 
@@ -1519,7 +1521,7 @@ def write_c(chars, outdir):
          'enum { ' + ', '.join(f'BC_{n.upper()}' for _, n, _, _ in chars) + ', BC_COUNT };',
          'enum { ' + ', '.join(f'BT_{t.upper()}' for t in THROWS) + ', BT_COUNT };',
          'enum { BS_D, BS_FWD_D, BS_DOWN_D, BS_UP_D, BS_DF_D, BS_UF_D, BS_COUNT };',
-         f'enum {{ AIR_A = {AIR_A} }};   /* bchar_t.air: an entry\'s button A (else C), its low nibble the stick\'s slot BS_* */',
+         f'enum {{ AIR_A = {AIR_A}, AIR_DD = {AIR_DD} }};   /* bchar_t.air: an entry\'s button A (else C), AIR_DD: on down,down + the button (intent_t.blitz BZ_DD), its low nibble the stick\'s slot BS_* */',
          f'enum {{ VP_COUNT = {len(pkeys)} }};   /* victim postures: ' + ' '.join(pkeys) + ' */',
          'enum { VK_THROW = BA_COUNT, VK_HIT = BA_COUNT + BT_COUNT, VK_KO, VK_SELECT, VK_SPEC };   /* voice keys (voices.py keys): BA_*, VK_THROW + BT_*, the events, VK_SPEC + its special\'s index in the pool */',
          'typedef struct { const uint8_t *map; const bproj_t *sparks; } bhspark_t;   /* (TODO #215, vocabulary fx.hit_spark) a fighter\'s source game\'s own hit sparks (Double Dragon: tools/doubledr/sparks_dd.py; map 0 = none: the engine\'s KOF98 spark): map = [where (its special index, 0xFE a normal: its BA_ animation), animation index (a special\'s anims), step, spark] each, 0xFF ends, in its bank; a hit landing on that step spawns sparks[(spark & 0x3F) - 1] (an effect object, bproj_t kind PK_FX) at its game\'s hit point (fighter.c hit_spark); spark 0x40 = turned (the other way), 0x80 = the screen strobe (DD\'s super hits: fighter.c hitflash) */',

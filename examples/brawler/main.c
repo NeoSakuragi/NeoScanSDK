@@ -194,6 +194,7 @@ static void stage_hide(void) {                              /* title, select: no
     uint8_t i;
     bd_on = 0;
     land_off();
+    zback = 0;                                                      /* (no stage: no floor edge) */
     for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);
 }
 static void stage_show(void) {
@@ -205,6 +206,7 @@ static void stage_init(uint8_t n) {
     bd_on = 0; bighit_red = bighit_slow = 0; hitflash = 0;
     land_off();                                                     /* from the select screen: its land's sprites go */
     stg = &stages[n]; floor_top = stg->floor_top; world_w = stg->cols << 4;
+    zback = gback_rom[n]; zback_n = (uint8_t)stg->cols;           /* the floor's back edge (game.json depth; 0: none) */
     stage_pals();
     *(volatile uint16_t *)0x3C0006 = stg->lspcmode;                /* REG_LSPCMODE: auto-animation speed */
     for (s = 0; s < BG_N; s++) {

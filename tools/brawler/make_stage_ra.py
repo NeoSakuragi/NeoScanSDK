@@ -8,8 +8,8 @@ ROM format (decoded 2026-10-04, /data/neogeo_dict/roboarmy/README.md + tools/ext
 16-px columns of 16 tile words (32 bytes), a map id = 16 columns; tile word bits 0-12 C ROM tile, bit 13 H flip, bits
 14-15 -> SCB1 auto-animation bits 2-3 (bit 14: 4 frames, bit 15: 8 frames); palette = byte $5C1F2 + tile; palette n at
 $313F4 + n*32. Tile $3FF is Robo Army's blank (no pixels): our empty tile 0. Robo Army's tile 0 is a real tile. Rows
-0-1 are blank in every stage (Robo Army's black backdrop, behind the HUD), rows 14-15 are below the screen: 12 rows
-from screen y 32 (computed per stage).
+0-1 are blank in every stage (Robo Army's black backdrop, behind its HUD; ours is see-through: they get the art's first
+two rows mirrored, stage_cells), rows 14-15 are below the screen: 14 rows from screen y 0.
 
 Auto-animation (the LSPC replaces the low 2 / 3 bits of an animated tile's number by its counter): every group of 4 / 8
 tiles an animated word names is copied whole to an aligned place, its words keep the flag. Robo Army's speed: REG_LSPCMODE
@@ -131,11 +131,17 @@ def rom_cell(id0, c, r):                   # Robo Army's own word, as its LSPC d
     return (None, 0) if t == BLANK else (t, (1 if w & 0x2000 else 0) | (w >> 14) << 2)
 
 def stage_cells(st):
-    """the stage's screen rows: (cells[col][row], first row); rows above the first row with a tile are backdrop"""
+    """the stage's screen rows: (cells[col][row], first row = 0). Robo Army's art starts at row r0 (2: its rows 0-1 are
+    blank, its black backdrop behind its HUD); the brawler's HUD is see-through (Bruno 2026-10-09, note
+    20261009-103008-5d29: "why is the HUD black? It should have transparent pixels wherever we don't have the portraits,
+    the text or the bar"), so the r0 rows above the art are the art's first r0 rows mirrored about its top edge
+    (row r0 - 1 - k = row r0 + k, V flip toggled: the seam is the same pixel line on both sides): screen y 0 down is art,
+    a column blank at row r0 stays blank there (the backdrop: the truck's open back)"""
     area, i0, cols, _ = st
     cells = [[rom_cell(i0, c, r) for r in range(SCREEN_ROWS)] for c in range(cols)]
     r0 = min(r for col in cells for r, (t, a) in enumerate(col) if t is not None)
-    return [col[r0:] for col in cells], r0
+    pad = lambda col: [(t, a ^ 2) if t is not None else (None, 0) for t, a in col[r0:2 * r0][::-1]]
+    return [pad(col) + col[r0:] for col in cells], 0
 
 def render_rom(st, anim=0):
     """the stage as Robo Army's LSPC shows it (straight from its map words and its area's palettes, cycles at their first

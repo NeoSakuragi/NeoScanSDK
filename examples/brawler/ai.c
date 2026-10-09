@@ -167,7 +167,7 @@ static void slot_goal(const ai_preset_t *P, uint8_t s, int16_t tx, int16_t tz, i
     int16_t d = P->hover_dx + SLOT_DX[s & 3];
     *gx = s & 4 ? tx + d : tx - d;
     *gz = tz + SLOT_DZ[s & 3];
-    if (*gz < 0) *gz = 0;
+    if (*gz < z_back(*gx)) *gz = z_back(*gx);                   /* (not behind the floor's back edge, game.json depth) */
     if (*gz > Z_DEPTH) *gz = Z_DEPTH;
 }
 /* every 16 frames: the rested FREE minions closest to their player take the tokens left; then each player's FREE

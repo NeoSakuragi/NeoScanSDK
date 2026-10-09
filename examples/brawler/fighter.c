@@ -151,7 +151,11 @@ static uint8_t air_pick(const fighter_t *f, const intent_t *in) {
     const uint8_t *e;
     uint8_t d = d_input(f, in) - RI_S, v = d == BS_DF_D ? BS_DOWN_D : d == BS_UF_D ? BS_UP_D : d, k = 0xFF, q = 0;
     for (e = bm_air[f->ch->id]; *e != 0xFF; e += 2) {
-        uint8_t a = e[0] & AIR_A, s = e[0] & 15, m = s == d ? 2 : s == v ? 1 : 0;
+        uint8_t a = e[0] & AIR_A, s = e[0] & 15, m = (e[0] & AIR_DD) ? (in->blitz == BZ_DD + 1 ? 3 : 0) :   /* (AIR_DD: a
+                                                                    down,down tap + its button in the jump, the Blitz's
+                                                                    reading (main.c read_player), any stick: Kim's j.2B,
+                                                                    note 20261009-102708-5d29) */
+                    s == d ? 2 : s == v ? 1 : 0;
         if (!(in->press & (a ? IN_A : IN_C)) || (a && f->air_node) || m <= q || e[1] >= f->ch->nspec) continue;
         if (f->ch->specials[e[1]].proj && f->shot) continue;
         k = e[1]; q = m;
@@ -368,10 +372,20 @@ static void enter(fighter_t *f, uint8_t st) {
                                                                     reaction (kof_react) ends, a source reaction (src_react)
                                                                     and the victim phases of a special (vphase) too */
 }
+const uint8_t *zback;                                           /* (fighter.h: the floor's back edge, per 16 px) */
+uint8_t zback_n;
+int16_t z_back(int16_t x) {
+    uint16_t c;
+    if (!zback) return 0;
+    c = x < 0 ? 0 : (uint16_t)x >> 4;
+    return zback[c < zback_n ? c : zback_n - 1];
+}
 static void clamp(fighter_t *f) {
+    int16_t zb;
     if (f->x < FIX(X_MIN)) f->x = FIX(X_MIN);
     if (f->x > FIX(X_MAX)) f->x = FIX(X_MAX);
-    if (f->z < 0) f->z = 0;
+    zb = z_back(INT(f->x));                                      /* (walking, spawning, knockback, throws: never behind */
+    if (f->z < FIX(zb)) f->z = FIX(zb);                          /* the floor's back edge, game.json depth) */
     if (f->z > FIX(Z_DEPTH)) f->z = FIX(Z_DEPTH);
 }
 /* ---- dance (Bruno 2026-10-06, docs/brawler_move_vocabulary.md "dance"): a fury's victims. fighter_hit marks every
@@ -3435,6 +3449,7 @@ void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase,
     f->ch = ch; f->set = set; f->palbase = palbase; f->team = team;
     for (i = 0; i < ch->npal && i < MAX_PALS; i++) PAL_setPalette(palbase + i, ch->pals + ((set * ch->npal + i) << 4));
     f->x = FIX(x); f->z = FIX(z); f->y = 0; f->vx = f->vy = f->vz = 0;
+    if (f->z < FIX(z_back(x))) f->z = FIX(z_back(x));           /* (a spawn behind the floor's back edge: on it) */
     f->facing = team ? -1 : 1; f->hp = 60; f->freeze = f->inv = 0; f->held = 0;
     f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF; f->zfront = 0; f->pushing = 0; f->target = 0; f->popp = 0; f->spec_atk = 0; f->proj[0] = f->proj[1] = 0; f->owner = 0; f->ncols = 0; f->burn = 0; f->spec_fx = 0;
     f->jump_kind = f->jump_dir = 0; f->drive = DRIVE_FULL; f->fgauge = 0; f->dsc = 0x100; f->dacc = 0x80;   /* (the drive full,

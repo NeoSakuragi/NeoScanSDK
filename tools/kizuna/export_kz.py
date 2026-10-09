@@ -98,6 +98,13 @@ ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_
          'atk_c_hop': 'atk_c_jump', 'atk_d_hop': 'atk_d_jump', 'atk_c_hop_diag': 'atk_c_jump_diag',
          'atk_d_hop_diag': 'atk_d_jump_diag', 'atk_cd_hop': 'atk_cd_jump'}
 LOOP = {'idle', 'walk_fwd', 'run'}
+# the run as his walk cycle played k times faster (Bruno 2026-10-09, note 20261009-102625-5d29: "the run animation is
+# terrible ... the dash motion from the game or an accelerated walk"): Kizuna's 66 run ($03) is a crouched hop (crouch,
+# two airborne frames at 9 px / frame, crouch) and the 44 backdash ($04) one leaning frame: neither is a cycle (contact
+# sheet /data/tmp/notes0100/run_options.png). The walk ($01, 6 steps, 35 frames, a full stride) with its steps' frames
+# / k: the run moves at walk x game.json walk.run (2) and its animation plays at the walk's rate (fighter.c walk_rate),
+# so k = 2 keeps his stride on the floor (the feet don't slide)
+RUN_FROM_WALK = {'kim': 2}
 # specials: input (Kizuna's command list, $604D0[5]) -> (whiff capture: P2 walked away, the hit capture, animations).
 # 421A and 6246A need life <= 96 (cond $0400 / $4000: Kim's desperation moves), 236A is the tag-in strike (cond bit 6,
 # forced in the capture)
@@ -1285,6 +1292,10 @@ def export(names, outdir, only=None, extra=None):
             if src[0] == 'anim': st = anim_steps(B, src[1], src[2], src[3], cap); slot = src[1]
             else: st = cap_steps(B, cap, src[1], src[2], src[3]); slot = src[2][0]
             anims[mv] = {'slot': slot, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': st}
+        if name in RUN_FROM_WALK and 'run' in anims and 'walk_fwd' in anims:   # (note 20261009-102625-5d29: his walk,
+            k = RUN_FROM_WALK[name]                                              # faster: RUN_FROM_WALK)
+            anims['run'] = {**anims['walk_fwd'], 'steps': [dict(s_, ticks=max(1, round((s_['ticks'] + 1) / k)) - 1)
+                                                           for s_ in anims['walk_fwd']['steps']]}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
         w = (extra or {}).get(name, {}).get('watch')
         if w:                                            # roster watch pose: (animation, step; -1 = its last)

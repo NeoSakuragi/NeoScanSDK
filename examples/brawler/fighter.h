@@ -27,6 +27,13 @@ extern const uint8_t bm_bank[BC_COUNT];
 extern int16_t floor_top;         /* screen y of the feet at Z = 0: the stage's (stage_t.floor_top, measured on its art; main.c
                                      stage_init), SELECT_FLOOR on the select screen; draw.s reads it too */
 #define Z_DEPTH   64              /* walkable band depth in px */
+extern const uint8_t *zback;      /* the walkable floor's back edge along the stage (Bruno 2026-10-09, note 20261009-102742-5d29:
+                                     "the maximum depth the players can be in this particular area, otherwise we start
+                                     stepping over the background pixels"): the smallest Z a fighter may have, one byte per
+                                     16 px of world x (game.json depth -> game_tables gback_rom[background], zback_n
+                                     columns; main.c stage_init), 0 = none (the select screen, a stage without a table) */
+extern uint8_t zback_n;
+int16_t z_back(int16_t x);        /* the smallest Z at world x (0 without a table; x past either end: the end column's) */
 #define Z_HIT     12              /* max depth difference for a hit / a grab */
 #define CLOSE_X   40              /* an opponent this close (|dX|, |dZ| <= Z_HIT): A takes a route's close link (KOF's close normals) */
 #define MAX_COLS  20              /* hardware sprites reserved per fighter (Billy's widest frame: 19) */
