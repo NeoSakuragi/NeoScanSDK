@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(HERE, '..'))
 import harness
 
 WANT = ['lab', 'fighters', 'route_tab', 'rt_tab', 'bm_chars', 'mode', 'cam_x', 'projectiles', 'attract', 'phase', 'wave',
-        'lock_x', 'camp', 'game_ticks', 'lab_fields']
+        'lock_x', 'camp', 'game_ticks', 'lab_fields', 'prac']   # prac: the practice settings (fighter.h prac_t)
 
 
 def lab_builds(game):

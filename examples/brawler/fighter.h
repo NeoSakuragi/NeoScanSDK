@@ -264,6 +264,37 @@ typedef struct {
     uint8_t  tblob[TRY_MAX];      /* page (load 6): the TRY blob */
 } lab_t;
 extern lab_t lab;
+/* PRACTICE MODE settings (Lab builds only, -DLAB_BUILD=1: make LAB_FIGHTER=<f> / LAB_SHELL=1; main.c "PRACTICE MODE";
+ * Bruno 2026-10-10). The RAM block `prac` (symbol `prac` in the build's rom.elf, section .noinit: crt0 never clears it,
+ * so it survives a reset, a pack swap, a new lab request; at power-on it is random until the game finds no "PRC1"
+ * and writes the defaults). The START menu, the Player and the page all read / write the same bytes:
+ *   +0  magic "PRC1"
+ *   +4  set[PS_COUNT]: one byte a setting, PS_* below; a value out of range = the whole block back to the defaults
+ *       (default first in each list = today's Chain Lab training)
+ *   +16 menu      game: 1 while the START menu is open (the game paused)
+ *   +17 fighter   P1 at boot when the build has no LAB fighter (bm_chars index; a LAB_FIGHTER build boots his)
+ *   +18 dummy     the dummies' fighter at boot (bm_chars index; later the lab's lab.dummy)
+ *   +19 pad
+ * A write takes effect on the next tick: the holds (life, gauge, drive) every tick; a new dummy count / behaviour
+ * respawns the dummies at their marks; waves off takes the wave's enemies off. */
+enum { PS_FURY,                   /* the hidden fury gauge: 0 the game's, 1 held full, 2 held empty */
+       PS_MAX,                    /* 0 off, 1 MAX ready: P1's life held low (gmeter.low: the red blinking bar), gauge + drive full */
+       PS_DRIVE,                  /* 0 the game's, 1 infinite (held full) */
+       PS_LIFE,                   /* P1's life: 0 refilled (held full), 1 the game's (a KO revives), 2 held low */
+       PS_DUMMIES,                /* 0-4 dummies (fighter slots 2..) */
+       PS_MODE,                   /* the dummies: 0 stand, 1 their AI (the minion preset), 2 walk in and attack (A) */
+       PS_WAVES,                  /* 0 off, 1 the first stage's waves come in turn, one after the other is beaten (the slots after the dummies) */
+       PS_DLIFE,                  /* the dummies' life: 0 infinite (refilled), 1 normal (beaten: back at the mark) */
+       PS_BOXES,                  /* the box viewer: 0 off, 1 on (START used to toggle it) */
+       PS_COUNT };
+typedef struct {
+    char    magic[4];
+    uint8_t set[12];              /* PS_COUNT used */
+    uint8_t menu, fighter, dummy, pad;
+} prac_t;
+#if LAB_BUILD
+extern prac_t prac;
+#endif
 void lab_install(void);           /* lab.load handled (routes_init's table, main.c calls it every tick) */
 
 typedef struct fighter {

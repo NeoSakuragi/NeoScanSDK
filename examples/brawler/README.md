@@ -361,6 +361,17 @@ window; hit; end) for the page's per-link readout. `labdrive.py` drives the same
 `proof.sh` plays Terry's AAB→A route in both cores and compares the traces (identical); `deploy_vps.sh` publishes. Enemy test (`lab.req = 3`) and
 data packs (`lab.load = 3 / 4`): see "Data" above.
 
+**Practice mode** (2026-10-10; Lab builds only: `make LAB_FIGHTER=<f>` / `LAB_SHELL=1` compile with `-DLAB_BUILD=1`, the
+Player's build has none of it, byte-identical ROM; main.c "PRACTICE MODE"): a Lab build boots straight into the training
+(P1 = its LAB fighter, stage 1, the dummies) and START opens a menu on the fix layer, the game paused (stick: line /
+value, A set, B or START close): FURY GAUGE game / full / empty, MAX READY (P1's life held at `meter.low`: the red bar,
+gauge and drive full), DRIVE normal / infinite, P1 LIFE refill / normal / low, DUMMIES 0-4, DUMMY MODE stand / AI on /
+attack (walk in, A), WAVES (stage 1's waves in turn, after the dummies' slots), DUMMY LIFE infinite / normal, HIT BOXES,
+RESET POSITIONS, APPLY CONFIG NOW (`lab.tnow`), EXIT. The settings live in the RAM block `prac` (fighter.h `prac_t`: "PRC1"
++ one byte a setting; symbol in the build's rom.elf, in the Try-in-game manifest's `syms`; `.noinit`: kept across a reset
+and a pack swap) that the Player and the page read / write too. Proof: `tools/brawler/practice_proof.py [f]` (screenshots
+in /data/tmp/practice).
+
 **The live config / "Try in game"** (2026-10-10; fighter.c "Lab: try in game", `chainlab/tryit.js`): P1 plays **lab
 entries** back to back: an animation `$NN` of the fighter's dictionary (u16 < `0x1000`; needs a build with his LAB special,
 below), `0x1000 | k` = special k of his pool (an S- piece), `0x2000 | t` = his throw BT_* t (a T- piece; a grab slot's

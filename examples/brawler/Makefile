@@ -11,10 +11,13 @@ ifneq ($(LAB_FIGHTER),)
 BUILD    = build_lab_$(LAB_FIGHTER)
 ROM_NAME = lab-$(LAB_FIGHTER)
 endif
+# every Lab build (LAB_FIGHTER or LAB_SHELL) compiles the practice mode in (main.c "PRACTICE MODE"): -DLAB_BUILD=1; the
+# Player's game 0 (none of that code is in it)
+LAB_BUILD = $(if $(LAB_FIGHTER)$(LAB_SHELL),1,0)
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
-CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(SDK)/src -I$(BUILD) -I. -Wall -fno-store-merging -DPROFILE_HUD=$(PROFILE) -DAI_OFF=$(AI_OFF) -DSTAGE=$(STAGE)
+CFLAGS   = -m68000 -O2 -ffreestanding -nostdlib -I$(SDK)/include -I$(SDK)/src -I$(BUILD) -I. -Wall -fno-store-merging -DPROFILE_HUD=$(PROFILE) -DAI_OFF=$(AI_OFF) -DSTAGE=$(STAGE) -DLAB_BUILD=$(LAB_BUILD)
 PROFILE ?= 0
 AI_OFF ?= 0
 STAGE ?= 0                # the stage the fight starts on (stage.h stages[], tools/brawler/make_stage_ra.py STAGES)
@@ -68,7 +71,7 @@ $(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h $(BUILD)/snd/voices
 
 # --- Compile ---
 $(BUILD)/stage_opt: FORCE                  # the -D options of the last build (STAGE, AI_OFF, PROFILE): every object is rebuilt
-	@mkdir -p $(BUILD); echo "$(STAGE) $(AI_OFF) $(PROFILE)" | cmp -s - $@ || echo "$(STAGE) $(AI_OFF) $(PROFILE)" > $@   # when one changes (an AI_OFF build no longer leaves main.o stale)
+	@mkdir -p $(BUILD); echo "$(STAGE) $(AI_OFF) $(PROFILE) $(LAB_BUILD)" | cmp -s - $@ || echo "$(STAGE) $(AI_OFF) $(PROFILE) $(LAB_BUILD)" > $@   # when one changes (an AI_OFF build no longer leaves main.o stale)
 $(BUILD)/%.o: %.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h

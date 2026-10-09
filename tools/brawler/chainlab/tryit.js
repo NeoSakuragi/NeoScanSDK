@@ -86,7 +86,7 @@
         h('div', { class: 'btns' }, touchBtn('a', 'A attack'), touchBtn('b', 'B jump'), touchBtn('c', 'C special'), touchBtn('d', 'D fury'), touchBtn('s', 'START'))),
       h('p', { class: 'tkeys' }, 'Keys: ', h('kbd', { text: 'W' }), h('kbd', { text: 'A' }), h('kbd', { text: 'S' }), h('kbd', { text: 'D' }),
         ' stick, ', h('kbd', { text: 'U' }), ' A, ', h('kbd', { text: 'I' }), ' B jump, ', h('kbd', { text: 'O' }), ' C special, ', h('kbd', { text: 'P' }),
-        ' D fury (arrows and Z X C V too), ', h('kbd', { text: 'Enter' }), ' START (the boxes), ', h('kbd', { text: '.' }),
+        ' D fury (arrows and Z X C V too), ', h('kbd', { text: 'Enter' }), ' START (the practice menu: dummies, AI, waves, MAX ready, boxes...), ', h('kbd', { text: '.' }),
         ' a frame while paused. Gamepad: d-pad or stick, face buttons A B C D. A from neutral plays the queue again; the sheet\'s slots play on their own inputs.'));
     document.body.append(P.root);
     P.close.onclick = () => show(false);

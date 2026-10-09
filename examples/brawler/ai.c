@@ -127,6 +127,9 @@ static void rank_tick(const fighter_t *fs, uint8_t nf, uint8_t np) {
     rk_alive = n;
 }
 
+#if LAB_BUILD
+uint8_t ai_skip;
+#endif
 void ai_init(uint16_t seed, uint8_t preset) {
     uint8_t i;
     lfsr = seed ? seed : 0xACE1;
@@ -316,6 +319,9 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
             if (d < bd) { bd = d; AI[i].target = p; }
         }
         AI[i].dist = bd;
+#if LAB_BUILD
+        if (ai_skip >> i & 1) AI[i].target = 0xFF;             /* a practice dummy (ai.h): nobody to fight, its token given back */
+#endif
         if (fs[i].state == S_OFF) AI[i].mode = AM_FREE;          /* gone (or taken off): no token */
     }
     if (!(tick++ & 15)) deal(fs, nf, np, px, pz);

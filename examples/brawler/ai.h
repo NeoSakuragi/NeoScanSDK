@@ -24,6 +24,10 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *in);
 extern uint8_t ai_rank;
 extern uint8_t ai_tokens;         /* attack tokens held this frame (<= gai.attackers): the Lab's readout, the proofs */
 extern uint8_t ai_wlog[16][4], ai_wlog_n;   /* the last wind-ups given (ai.c windup_hold): the proofs */
+#if LAB_BUILD
+extern uint8_t ai_skip;           /* practice mode (main.c): bit i = fighter i is driven by the practice code, not the AI (no
+                                     target, never holds an attack token) */
+#endif
 void ai_rank_reset(void);
 uint8_t ai_rank_power(void);      /* extra damage a hit for an enemy spawned now (main.c enemy_init): rank / rank_dmg */
 #endif

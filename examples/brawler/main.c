@@ -2623,10 +2623,188 @@ static void flow(void) {
 #define LAB_DUMMY 2
 static uint8_t lab_seen, lab_recovered = 1, lab_shown_hits = 0xFF;
 static uint16_t lab_shown_dmg = 0xFFFF;
+#if LAB_BUILD
+/* ---- PRACTICE MODE (Lab builds only: -DLAB_BUILD=1, make LAB_FIGHTER=<f> / LAB_SHELL=1; Bruno 2026-10-10) -------------
+ * The Chain Lab's training (req 1) grown into a practice mode: a Lab build boots straight into it (game_enter: P1 = the
+ * build's LAB fighter, stage 1, the dummies) and START opens a menu on the fix layer (the game paused; the stick picks a
+ * line, left / right / A change it, B or START closes). The settings are the RAM block `prac` (fighter.h prac_t: its
+ * layout; the Player and the page read / write the same bytes), kept across a reset and a pack swap. The holds (P1's
+ * life, the fury gauge, the drive) are written after every tick's update; the dummies are fighter slots 2.. (a minion's
+ * power, life 60, the lab's dummy fighter in successive colour sets); the waves' enemies take the slots after them. */
+prac_t prac __attribute__((section(".noinit")));
+static const uint8_t PS_N[PS_COUNT] = { 3, 2, 2, 3, 5, 3, 2, 2, 2 };   /* values per setting (fighter.h PS_*) */
+static uint8_t pm_on, pm_row, pm_nd = 0xFF, pm_mode = 0xFF, pm_waves, pw_wave, pw_t;
+static void lab_place(void);
+static void lab_start(uint8_t kind);
+static void prac_check(void) {                               /* power-on garbage or a bad write: the defaults */
+    uint8_t k, ok = prac.magic[0] == 'P' && prac.magic[1] == 'R' && prac.magic[2] == 'C' && prac.magic[3] == '1';
+    for (k = 0; ok && k < PS_COUNT; k++) if (prac.set[k] >= PS_N[k]) ok = 0;
+    if (ok && prac.fighter < BC_COUNT && prac.dummy < BC_COUNT) return;
+    prac.magic[0] = 'P'; prac.magic[1] = 'R'; prac.magic[2] = 'C'; prac.magic[3] = '1';
+    for (k = 0; k < sizeof prac.set; k++) prac.set[k] = 0;
+    prac.set[PS_DUMMIES] = 1;                                /* = the Chain Lab's training: one standing dummy */
+    prac.menu = 0; prac.fighter = 0; prac.dummy = BC_COUNT > 1 ? 1 : 0; prac.pad = 0;
+}
+static const int16_t PD_X[4] = { 190, 240, 240, 50 };        /* the dummies' marks: camera x + PD_X, z PD_Z (P1's: 110, */
+static const int8_t  PD_Z[4] = { 34, 18, 50, 34 };           /* 34; the fourth stands behind him) */
+static void prac_dummy(uint8_t k) {                          /* dummy k at its mark, its behaviour */
+    uint8_t c = lab.dummy < BC_COUNT ? lab.dummy : 0, slot = LAB_DUMMY + k;
+    const genemy_t *en = &genemies_rom[EN_MINION];
+    fighter_t *d = &fighters[slot];
+    enemy_init(slot, c, k + (c == pl_ch[0]), cam_x + PD_X[k], PD_Z[k], 0, en);
+    d->hp = LIFE; d->hp_max = 0;                             /* (the Chain Lab dummy's life) */
+    if (prac.set[PS_MODE] == 1) { ai_set(slot, en->ai); ai_skip &= (uint8_t)~(1 << slot); }
+    else ai_skip |= 1 << slot;                               /* stand / walk in: prac_input drives it */
+}
+static void prac_dummies(void) {                             /* the dummies at their marks (and no wave enemies: the next wave comes) */
+    uint8_t k;
+    for (k = LAB_DUMMY; k < NF; k++) fighters[k].state = S_OFF;
+    ai_skip = 0; pm_nd = prac.set[PS_DUMMIES]; pm_mode = prac.set[PS_MODE]; pw_t = 0;
+    for (k = 0; k < pm_nd; k++) prac_dummy(k);
+    fighters[0].target = pm_nd ? &fighters[LAB_DUMMY] : 0;   /* the HUD shows the first one */
+    lab_recovered = 1;
+}
+static void prac_wave(void) {                                /* the first stage's next wave, in the slots after the dummies */
+    const gwave_t *w;
+    uint8_t k, slot = LAB_DUMMY + pm_nd;
+    if (pw_wave >= gs->nwaves) pw_wave = 0;
+    w = &gs->waves[pw_wave++];
+    for (k = 0; k < w->n && slot < NF; k++, slot++) {
+        const gspawn_t *sp = &gs->spawns[w->first + k];
+        spawn(slot, sp, 0xFF); ai_set(slot, ai_of(&genemies[sp->enemy])); ai_skip &= (uint8_t)~(1 << slot);
+    }
+}
+static uint8_t prac_ai(void) { return prac.set[PS_MODE] == 1 || prac.set[PS_WAVES]; }   /* ai_update runs */
+static void prac_input(void) {                               /* the dummies' intents (after the AI's): stand, or walk in and attack */
+    fighter_t *p = &fighters[0];
+    uint8_t k, m = prac.set[PS_MODE];
+    if (m == 1 || lab.active != 1) return;
+    for (k = 0; k < pm_nd; k++) {
+        uint8_t i = LAB_DUMMY + k;
+        fighter_t *d = &fighters[i];
+        int16_t dx = INT(p->x) - INT(d->x), dz = INT(p->z) - INT(d->z), adx = dx < 0 ? -dx : dx, adz = dz < 0 ? -dz : dz;
+        in[i] = (intent_t){ 0 };
+        in[i].face = dx < 0 ? -1 : 1;                        /* standing: it turns to face P1 */
+        if (m != 2 || !in_play(p) || p->state == S_DEAD || d->state == S_OFF) continue;
+        in[i].ai = 1;                                        /* walk in: to P1's line, within 48 px, then A every 32 frames */
+        if (adz > 3) in[i].dz = dz < 0 ? -1 : 1;
+        if (adx > 48) in[i].dx = dx < 0 ? -1 : 1;
+        else if (adz <= 6 && !((lab.frame + k * 11) & 31)) in[i].press = IN_A;
+    }
+}
+/* the START menu: an opaque box (the drama font's blank cells, as CONTINUE?) on fix rows PM_R0-PM_R1, columns 5-34 */
+#define PM_R0 8
+#define PM_R1 25
+#define PM_N  (PS_COUNT + 3)
+enum { PM_RESET = PS_COUNT, PM_APPLY, PM_EXIT };
+static const char *const PM_LBL[PM_N] = { "FURY GAUGE", "MAX READY", "DRIVE", "P1 LIFE", "DUMMIES", "DUMMY MODE", "WAVES",
+                                          "DUMMY LIFE", "HIT BOXES", "RESET POSITIONS", "APPLY CONFIG NOW", "EXIT" };
+static const char *const PM_VAL[PS_COUNT][3] = { { "GAME", "FULL", "EMPTY" }, { "OFF", "ON" }, { "NORMAL", "INFINITE" },
+    { "REFILL", "NORMAL", "LOW" }, { "0", "1", "2" }, { "STAND", "AI ON", "ATTACK" }, { "OFF", "ON" },
+    { "INFINITE", "NORMAL" }, { "OFF", "ON" } };
+static void pm_line(uint8_t r) {
+    uint8_t row = PM_R0 + 3 + r;
+    ov_put(7, row, r == pm_row ? ">" : " ", 1);
+    ov_put(9, row, PM_LBL[r], r == pm_row ? 1 : 0);
+    if (r >= PS_COUNT) return;
+    ov_put(26, row, "        ", 0);
+    if (r == PS_DUMMIES) { char t[2] = { (char)('0' + prac.set[r]), 0 }; ov_put(26, row, t, 1); }
+    else ov_put(26, row, PM_VAL[r][prac.set[r]], 1);
+}
+static void pm_box(uint8_t on) {
+    uint8_t r, c;
+    for (r = PM_R0; r <= PM_R1; r++) for (c = 5; c <= 34; c++) fix_put(c, r, on ? DRAMA_FONT + ' ' : 0x20);
+}
+static void pm_open(void) {
+    uint8_t r;
+    pm_on = 1; prac.menu = 1;
+    pm_box(1);
+    ov_put(16, PM_R0 + 1, "PRACTICE", 1);
+    for (r = 0; r < PM_N; r++) pm_line(r);
+    ov_put(7, PM_R1 - 1, "STICK  CHOOSE / CHANGE", 0);
+    ov_put(7, PM_R1, "A SET   B / START CLOSE", 0);
+    snd_ssg(SSG_CONFIRM);
+}
+static void pm_close(void) { pm_on = 0; prac.menu = 0; pm_box(0); }
+static void pm_tick(void) {                                  /* the game paused: game_tick only draws */
+    uint16_t pr = JOY_pressed(0);
+    uint8_t r = pm_row, v, n;
+    bios_start = 0;
+    if (pr & (JOY_B | JOY_START)) { pm_close(); snd_ssg(SSG_CANCEL); return; }
+    if (pr & (JOY_UP | JOY_DOWN)) {
+        pm_row = (pr & JOY_DOWN) ? (pm_row + 1 < PM_N ? pm_row + 1 : 0) : (pm_row ? pm_row - 1 : PM_N - 1);
+        pm_line(r); pm_line(pm_row); snd_ssg(SSG_CURSOR); return;
+    }
+    if (r < PS_COUNT && (pr & (JOY_LEFT | JOY_RIGHT | JOY_A))) {   /* a setting: right / A next value, left the previous */
+        v = prac.set[r]; n = PS_N[r];
+        prac.set[r] = (pr & JOY_LEFT) ? (v ? v - 1 : n - 1) : (v + 1 < n ? v + 1 : 0);
+        pm_line(r); snd_ssg(SSG_CURSOR);
+    } else if (r >= PS_COUNT && (pr & JOY_A)) {               /* an action, then back to the game */
+        if (r == PM_RESET) lab_place();
+        else if (r == PM_APPLY) lab.tnow = 1;                /* the TRY blob pending: applied on the next tick ("apply now") */
+        pm_close(); snd_ssg(SSG_CONFIRM);
+    }
+}
+static void prac_flow(fighter_t *p) {                        /* lab_flow's practice part, after the tick's update */
+    uint8_t k, rec = 1;
+    int16_t full = p->hp_max ? p->hp_max : LIFE, lo;
+    prac_check();
+    if (prac.set[PS_DUMMIES] != pm_nd || prac.set[PS_MODE] != pm_mode) prac_dummies();   /* (the menu, the page) */
+    lo = (int16_t)div16((uint16_t)full * gmeter.low, 100); if (lo < 1) lo = 1;   /* fighter_low's threshold */
+    if (!lab.p1_life) {                                      /* (lab.p1_life: the proofs' "left to the game") */
+        if (prac.set[PS_MAX] || prac.set[PS_LIFE] == 2) { if (p->hp > 0) p->hp = lo; }   /* the red blinking bar */
+        else if (prac.set[PS_LIFE] == 0) p->hp = LIFE;       /* nobody hurts P1 (the Chain Lab's) */
+    }
+    if (p->state == S_DEAD && p->state_t > DEATH_BLINK) fighter_revive(p);   /* the game's life: a KO, then up again */
+    if (prac.set[PS_MAX] || prac.set[PS_FURY] == 1) p->fgauge = gmeter.fury_max;
+    else if (prac.set[PS_FURY] == 2) p->fgauge = 0;
+    if (prac.set[PS_MAX] || prac.set[PS_DRIVE]) p->drive = (uint16_t)(gmeter.chunk * gmeter.chunks);
+    for (k = 0; k < pm_nd; k++) {
+        fighter_t *d = &fighters[LAB_DUMMY + k];
+        if (d->state == S_OFF) continue;
+        if (!prac.set[PS_DLIFE]) {                           /* infinite: never dies (the Chain Lab's dummy) */
+            if (d->state == S_IDLE || d->state == S_WALK) d->hp = LIFE;
+            else if (d->hp < 20) d->hp += 40;
+            if (d->state == S_DEAD) { fighter_revive(d); d->inv = 0; }
+        } else if (d->state == S_DEAD && d->state_t > DEATH_BLINK + 30) prac_dummy(k);   /* beaten: back at its mark */
+        if (d->x < FIX(cam_x + 24)) d->x = FIX(cam_x + 24);   /* on screen: the camera does not follow it */
+        if (d->x > FIX(cam_x + 296)) d->x = FIX(cam_x + 296);
+    }
+    for (k = LAB_DUMMY; k < NF; k++) {                       /* a combo ends once every enemy has recovered */
+        uint8_t s = fighters[k].state;
+        if (s == S_HITSTUN || s == S_KNOCKDOWN || s == S_DOWN || s == S_GETUP || s == S_GRABBED || s == S_THROWN) rec = 0;
+    }
+    if (rec) lab_recovered = 1;
+    if (prac.set[PS_WAVES]) {                                /* the waves: the next one when the last is beaten */
+        uint8_t alive = 0;
+        for (k = LAB_DUMMY + pm_nd; k < NF; k++) {
+            fighter_t *e = &fighters[k];
+            if (e->state == S_DEAD && e->state_t > DEATH_BLINK) e->state = S_OFF;   /* blinked out */
+            if (e->state != S_OFF) alive++;
+        }
+        if (alive) pw_t = 0; else if (++pw_t >= 60) { pw_t = 0; prac_wave(); }
+    } else if (pm_waves) for (k = LAB_DUMMY + pm_nd; k < NF; k++) fighters[k].state = S_OFF;
+    pm_waves = prac.set[PS_WAVES];
+    dbg_on = prac.set[PS_BOXES];
+    if (in_play(p) && (JOY_pressed(0) & JOY_START)) pm_open();
+    bios_start = 0;
+}
+static void prac_boot(void) {                                /* power-on / a BIOS hand-over: the practice at once */
+    prac_check();
+    lab.fighter = bm_lab.fighter < BC_COUNT ? bm_lab.fighter : prac.fighter;
+    lab.dummy = prac.dummy;
+    pm_nd = pm_mode = 0xFF;
+    lab_start(1);
+}
+#endif
 static void lab_place(void) {
     fighter_t *p = &fighters[0], *d = &fighters[LAB_DUMMY];
     fighter_init(p, p->ch, p->set, 16, 0, cam_x + 110, 34); p->idx = 0;
+#if LAB_BUILD
+    (void)d; prac_dummies();                                  /* practice: every dummy at its mark */
+#else
     fighter_init(d, d->ch, d->set, 16 + LAB_DUMMY * MAX_PALS, 1, cam_x + 190, 34); d->idx = LAB_DUMMY;
+#endif
     for (uint8_t i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     lab_recovered = 1;
 }
@@ -2648,15 +2826,27 @@ static void lab_start(uint8_t kind) {
     pl_ch[0] = c; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     stage_begin(0, 1);
     for (i = 1; i < NF; i++) fighters[i].state = S_OFF;
+#if LAB_BUILD
+    ai_skip = 0; pm_nd = pm_mode = 0xFF;                      /* (the enemy test: its AI; the practice: prac_dummies) */
+#endif
     lab.active = kind;
     if (kind == 2) { fighter_t *p = &fighters[0]; fighter_init(p, p->ch, p->set, 16, 0, cam_x + 110, 34); p->idx = 0; lab_enemy(); }
     else {
+#if LAB_BUILD
+        lab.dummy = dm;                                       /* practice: prac_dummies' fighter */
+#else
         enemy_init(LAB_DUMMY, dm, dm == c, 0, 34, 0, &genemies_rom[EN_MINION]);   /* life and power of a minion */
+#endif
         lab_place();
     }
     lab.frame = 0; lab.nev = 0; lab_seen = 0; lab.combo_hits = 0; lab.combo_dmg = 0;
     lab_shown_hits = 0xFF; lab_shown_dmg = 0xFFFF;
+#if LAB_BUILD
+    FIX_print(0, 26, "                                        ", 0); FIX_print(2, 26, kind == 2 ? "ENEMY TEST" : "PRACTICE", 0);
+    pm_on = 0; prac.menu = 0;                                 /* (stage_begin cleared the fix layer: the menu's box too) */
+#else
     FIX_print(0, 26, "                                        ", 0); FIX_print(2, 26, kind == 2 ? "ENEMY TEST" : "CHAIN LAB", 0);
+#endif
 }
 /* req 4 (the Brawler Lab's Stages tab, "play from here"): P1 alone (lab.fighter) in campaign stage lab.dummy as a new
  * game, the camera at wave lab.wave's lock point and that wave spawned (or the boss, past the last wave); a pack sent
@@ -2666,6 +2856,9 @@ static void lab_stage(void) {
     attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2; lab.active = 0;
     pl_ch[0] = lab.fighter < BC_COUNT ? lab.fighter : 0; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     stage_begin(lab.dummy < GS_COUNT ? lab.dummy : 0, 1);
+#if LAB_BUILD
+    ai_skip = 0; pm_on = 0; prac.menu = 0;                    /* the campaign's enemies: every one its AI */
+#endif
     if (!w) return;
     if (w > gs->nwaves) w = gs->nwaves;
     wave = w; waves_cleared = w; cam_x = lock_x = lock_at(w < gs->nwaves ? gs->waves[w].lock : gs->boss_lock);
@@ -2675,6 +2868,10 @@ static void lab_stage(void) {
 }
 static void lab_flow(void) {
     fighter_t *p = &fighters[0], *d = &fighters[LAB_DUMMY];
+#if LAB_BUILD
+    if (lab.active == 1) prac_flow(p);                        /* the practice: P1's holds, the dummies, the waves, START */
+    else
+#endif
     if (!lab.p1_life) p->hp = LIFE;                           /* nobody hits P1 (lab.p1_life: its life left alone, the
                                                                  meter proofs); a dummy never dies */
     if (lab.active == 2) {                                    /* the enemy test: it fights; beaten, it comes again */
@@ -2683,6 +2880,7 @@ static void lab_flow(void) {
         bios_start = 0;
         return;
     }
+#if !LAB_BUILD                                                /* (the practice: prac_flow, prac_input) */
     if (d->state == S_IDLE || d->state == S_WALK) { d->hp = LIFE; lab_recovered = 1; }
     else if (d->hp < 20) d->hp += 40;
     if (d->state == S_DEAD) { fighter_revive(d); d->inv = 0; }
@@ -2690,6 +2888,7 @@ static void lab_flow(void) {
     if (d->x > FIX(cam_x + 296)) d->x = FIX(cam_x + 296);
     in[LAB_DUMMY] = (intent_t){ 0 };
     in[LAB_DUMMY].face = INT(p->x) < INT(d->x) ? -1 : 1;      /* standing: it turns to face P1 */
+#endif
     while (lab_seen != lab.nev) {                             /* P1's hits since the last frame */
         const lab_ev_t *e = &lab.ev[lab_seen & (LAB_NEV - 1)];
         if (e->kind == LE_HIT) {
@@ -2702,7 +2901,9 @@ static void lab_flow(void) {
         lab_shown_hits = lab.combo_hits; lab_shown_dmg = lab.combo_dmg;
         FIX_print(13, 26, "HITS    DAMAGE    ", 0); FIX_printNum(18, 26, lab.combo_hits, 0); FIX_printNum(28, 26, lab.combo_dmg, 0);
     }
+#if !LAB_BUILD                                                /* (the practice: START opens its menu, prac_flow) */
     if (in_play(p) && (JOY_pressed(0) & JOY_START)) dbg_on ^= 1;   /* the box viewer, as in a fight */
+#endif
     bios_start = 0;
 }
 static void lab_tick(void) {                                  /* the page's requests, before the frame's game logic */
@@ -2870,7 +3071,11 @@ void game_enter(uint8_t request) {
     pj_measure();                                            /* the projectile blocks' widths (block_w) */
     dbg_init();
     snd_reset();                                             /* the BIOS reset the sound CPU before handing over */
+#if LAB_BUILD
+    (void)request; (void)attract_start; prac_boot();         /* a Lab build: straight into the practice */
+#else
     if (request == 3) title_start(); else attract_start();
+#endif
     if (coin_in()) snd_ssg(SSG_COIN);                       /* the coin that ended the demo: after the song start */
     depth_sort();
     draw();
@@ -2889,6 +3094,9 @@ void game_tick(void) {
                                                              song start, as game_enter's */
     if (i) snd_ssg(SSG_COIN);
     lab_tick();
+#if LAB_BUILD
+    if (pm_on && mode == 1 && lab.active == 1) { pm_tick(); depth_sort(); draw(); hud(); return; }   /* the practice menu: paused */
+#endif
     if (!lab.active && !dr_on) arcade_line();
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
     if (mode == 2) { title_tick(); if (mode == 2) return; }
@@ -2904,7 +3112,14 @@ void game_tick(void) {
     } else read_player(0, &in[0], &fighters[0]);
     if (p2_in()) read_player(1, &in[1], &fighters[1]);
 #if !AI_OFF
+#if LAB_BUILD
+    if (lab.active != 1 || prac_ai()) ai_update(fighters, NF, 2, in);   /* the practice: dummies with AI on, the waves */
+#else
     if (lab.active != 1) ai_update(fighters, NF, 2, in);   /* not against the Chain Lab's dummy */
+#endif
+#endif
+#if LAB_BUILD
+    prac_input();                                            /* the practice dummies that stand / walk in */
 #endif
     if (ko_seq || (!attract && !lab.active && phase >= PH_END))
         for (i = 0; i < NF; i++) { in[i].dx = in[i].dz = 0; in[i].press = in[i].hold = in[i].run = in[i].grab = 0; in[i].face = 0; in[i].blitz = in[i].chord = 0; }
