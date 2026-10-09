@@ -1,0 +1,2070 @@
+{
+ "fighter": "kim",
+ "bank": "kizuna:kim",
+ "game": "kizuna",
+ "dictionary": "Kizuna Encounter, char 5, animation table $80000[5]",
+ "about": "arb_compile.py piece library: per animation id (the dictionary's, = the sheet's pieces) its brawler move names (names), the specials whose program plays it (specials; decoded ones in \"specials\" below), hop_of (a later state of a hop: not playable alone), state (what anim_specials \"$NN\" address), anim_special (the reaction when played as an animation special: known = linkable, class c) and note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has implemented (the same pieces + note are not listed again; a changed answer is). Regenerated from the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand are kept.",
+ "spare_names": [
+  "atk_cd_close",
+  "atk_ab_far",
+  "atk_ab_close",
+  "atk_cd_crouch",
+  "atk_ab_crouch",
+  "cmd_fwd_c",
+  "cmd_fwd_cd"
+ ],
+ "handled": {},
+ "specials": {
+  "214B": {
+   "decoded": true,
+   "anims": [
+    "93"
+   ],
+   "air": false,
+   "source": "export_kz.PROG_MOVES"
+  },
+  "236A": {
+   "decoded": true,
+   "anims": [
+    "126"
+   ],
+   "air": false,
+   "source": "export_kz.PROG_MOVES"
+  },
+  "236C": {
+   "decoded": true,
+   "anims": [
+    "97",
+    "8E",
+    "99",
+    "98",
+    "9A"
+   ],
+   "air": false,
+   "source": "export_kz.PROG_MOVES"
+  },
+  "421A": {
+   "decoded": true,
+   "anims": [
+    "100",
+    "101"
+   ],
+   "air": false,
+   "source": "export_kz.PROG_MOVES"
+  },
+  "6246A": {
+   "decoded": true,
+   "anims": [
+    "85",
+    "86",
+    "88",
+    "89"
+   ],
+   "air": false,
+   "source": "export_kz.PROG_MOVES"
+  },
+  "[2]8C": {
+   "decoded": true,
+   "anims": [
+    "9B",
+    "9C",
+    "9E",
+    "9D"
+   ],
+   "air": false,
+   "source": "export_kz.PROG_MOVES"
+  },
+  "j.2B": {
+   "decoded": true,
+   "anims": [
+    "8F",
+    "91",
+    "92"
+   ],
+   "air": true,
+   "source": "export_kz.AIR"
+  }
+ },
+ "anims": {
+  "1": {
+   "kind": "movement",
+   "state": null,
+   "names": [
+    "walk_fwd"
+   ],
+   "specials": []
+  },
+  "2": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "3": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "4": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "5": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "6": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "7": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "8": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "9": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "10": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "11": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "12": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "13": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "14": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "15": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "16": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "17": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "18": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "19": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "1A": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "1B": {
+   "kind": "reaction",
+   "state": null,
+   "names": [
+    "getup"
+   ],
+   "specials": []
+  },
+  "1C": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "1D": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "1E": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "1F": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "20": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "21": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "22": {
+   "kind": "reaction",
+   "state": null,
+   "names": [
+    "hit_stand_light"
+   ],
+   "specials": []
+  },
+  "23": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "24": {
+   "kind": "reaction",
+   "state": null,
+   "names": [
+    "hit_stand_heavy"
+   ],
+   "specials": []
+  },
+  "25": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "26": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "27": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "28": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "29": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "2A": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "2B": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "2C": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "2D": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "2E": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "2F": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "30": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "31": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "32": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "33": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "34": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "35": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "36": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "37": {
+   "kind": "pose",
+   "state": null,
+   "names": [
+    "win"
+   ],
+   "specials": []
+  },
+  "38": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "39": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "3A": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "3B": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "3C": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "3D": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "3E": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "3F": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "40": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "41": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "42": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "43": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "44": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "45": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "46": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_a_far"
+   ],
+   "specials": []
+  },
+  "47": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "48": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_a_close"
+   ],
+   "specials": []
+  },
+  "49": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "cmd_fwd_a"
+   ],
+   "specials": []
+  },
+  "4A": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "4B": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_a_crouch"
+   ],
+   "specials": []
+  },
+  "4C": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "4D": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "cmd_df_c"
+   ],
+   "specials": [],
+   "anim_special": "reset"
+  },
+  "4E": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_cd_jump"
+   ],
+   "specials": []
+  },
+  "4F": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "50": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_b_far"
+   ],
+   "specials": []
+  },
+  "51": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "52": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_b_close"
+   ],
+   "specials": []
+  },
+  "53": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "cmd_fwd_b"
+   ],
+   "specials": [],
+   "anim_special": "reset"
+  },
+  "54": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "55": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_b_crouch"
+   ],
+   "specials": []
+  },
+  "56": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "57": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "cmd_df_d"
+   ],
+   "specials": []
+  },
+  "58": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "59": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "5A": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_c_far"
+   ],
+   "specials": []
+  },
+  "5B": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_c_close"
+   ],
+   "specials": []
+  },
+  "5C": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "body_toss"
+   ],
+   "specials": [],
+   "anim_special": "heavy"
+  },
+  "5D": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "5E": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_c_crouch"
+   ],
+   "specials": []
+  },
+  "5F": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_d_crouch"
+   ],
+   "specials": []
+  },
+  "60": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_c_jump",
+    "atk_c_jump_diag"
+   ],
+   "specials": []
+  },
+  "61": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "62": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "63": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "64": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "65": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "66": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "67": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "68": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "69": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "6A": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "6B": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "6C": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "6D": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "6E": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_d_close",
+    "atk_d_far"
+   ],
+   "specials": []
+  },
+  "6F": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_c"
+   ]
+  },
+  "70": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "71": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "72": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "73": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "74": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "75": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "76": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "77": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "78": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "79": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "7A": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "7B": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "7C": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "7D": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "7E": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "7F": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "80": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "81": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "82": {
+   "kind": "reaction",
+   "state": null,
+   "names": [
+    "land"
+   ],
+   "specials": []
+  },
+  "83": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "84": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "85": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "6246A"
+   ]
+  },
+  "86": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "6246A"
+   ]
+  },
+  "87": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "88": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": [
+    "6246A"
+   ]
+  },
+  "89": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": [
+    "6246A"
+   ]
+  },
+  "8A": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "8B": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "8C": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "8D": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "8E": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "236C"
+   ]
+  },
+  "8F": {
+   "kind": "attack",
+   "state": null,
+   "names": [
+    "atk_d_jump",
+    "atk_d_jump_diag"
+   ],
+   "specials": [
+    "j.2B"
+   ]
+  },
+  "90": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "91": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": [
+    "j.2B"
+   ]
+  },
+  "92": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "j.2B"
+   ]
+  },
+  "93": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "214B"
+   ]
+  },
+  "94": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "95": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "96": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "97": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": [
+    "236C"
+   ]
+  },
+  "98": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "236C"
+   ]
+  },
+  "99": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": [
+    "236C"
+   ]
+  },
+  "9A": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "236C"
+   ]
+  },
+  "9B": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "[2]8C"
+   ]
+  },
+  "9C": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": [
+    "[2]8C"
+   ]
+  },
+  "9D": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "[2]8C"
+   ]
+  },
+  "9E": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": [
+    "[2]8C"
+   ]
+  },
+  "9F": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A0": {
+   "kind": "pose",
+   "state": null,
+   "names": [
+    "idle"
+   ],
+   "specials": []
+  },
+  "A1": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A2": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A3": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A4": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A5": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A6": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A7": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A8": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "A9": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "AA": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "AB": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "AC": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "AD": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "AE": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "AF": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B0": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B1": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B2": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B3": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B4": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B5": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B6": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [],
+   "anim_special": "launch"
+  },
+  "B7": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B8": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "B9": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "BA": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "BB": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "BC": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "BD": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "BE": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "BF": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C0": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C1": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C2": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C3": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C4": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C5": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C6": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C7": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C8": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "C9": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "CA": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "CB": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "CC": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "CD": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "CE": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "CF": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D0": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D1": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D2": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D3": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D4": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D5": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D6": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D7": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D8": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "D9": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "DA": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "DB": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "DC": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "DD": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "DE": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "DF": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E0": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E1": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E2": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E3": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E4": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E5": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E6": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E7": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E8": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "E9": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "EA": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "EB": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "EC": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "ED": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "EE": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "EF": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F0": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F1": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F2": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F3": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F4": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F5": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F6": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F7": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F8": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "F9": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "FA": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "FB": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "FC": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "FD": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "FE": {
+   "kind": "reaction",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "FF": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "100": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "421A"
+   ]
+  },
+  "101": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "421A"
+   ]
+  },
+  "102": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "103": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "104": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "105": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "106": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "107": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "108": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "109": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "10A": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "10B": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "10C": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "10D": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "10E": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "10F": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "110": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "111": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "112": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "113": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "114": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "115": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "116": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "117": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "118": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "119": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "11A": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "11B": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "11C": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "11D": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "11E": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "11F": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "120": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "121": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "122": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "123": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "124": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "125": {
+   "kind": "movement",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "126": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": [
+    "236A"
+   ]
+  },
+  "127": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "128": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "129": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "12A": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "12B": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "12C": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "12D": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "12E": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "12F": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "130": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "131": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "132": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "133": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "134": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "135": {
+   "kind": "pose",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "136": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "137": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "138": {
+   "kind": "attack",
+   "state": null,
+   "names": [],
+   "specials": []
+  },
+  "139": {
+   "kind": "effect-only",
+   "state": null,
+   "names": [],
+   "specials": []
+  }
+ }
+}
