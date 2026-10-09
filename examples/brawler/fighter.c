@@ -3257,6 +3257,14 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
             v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
         if (v->state == S_KNOCKDOWN && v->y <= 0) continue;  /* juggle: hittable while it falls (the chain core: */
         if (v->guard && v->guard_by != (a->owner ? a->owner : a)) continue;   /* a player's guard after a hit; */
+        if (a->state == S_SPECIAL && v->y > 0 && v->state != S_HITSTUN && v->state != S_KNOCKDOWN &&   /* in the air by */
+            (a->spec_prev_hit & (a->ch->specials[a->spec_ix].prog ? 16 : 8))) continue;   /* its own move (a jump, a hop:
+                                                                Bruno 2026-10-09, Robert round 2 "ALL hopping motions are
+                                                                in-air"; a hop's height = its steps' hy, step_move): a
+                                                                catch box (a ROM special's, 16) or a grab's reach (a
+                                                                script's, 8) does not take it, as holds and throws do not
+                                                                (grabbable, chain_throw: !v->y); a reeling or juggled
+                                                                victim stays catchable as before */
         if (v->state == S_KNOCKDOWN && !jug && !(a->state == S_SPECIAL && a->spec_id == BS_FURY) &&   /* at most */
             !(a->owner && a->owner->state == S_SPECIAL && a->owner->spec_id == BS_FURY) &&   /* juggle_cap air hits, */
             (v->kfloor || v->jug_n >= gchain.juggle_cap)) continue;   /* none once it touched the floor; a fury's

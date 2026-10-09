@@ -183,3 +183,34 @@ dictionary: brawler-lab/anims.html?f=robert). Archetype fast: 5 presses (4 links
 - Hold: hit = $55 (close B); finisher (the throw-out) = $5E (crouch C). Throws forward / back = $E0.
 - Fury (D) = 23624C Ryuuko Ranbu as before ($B1 > $B2 > $B5 > $B8 > $B9); MAX (down + D, low life) = its MAX, as before.
 - Size: unchanged.
+
+### Round 2, 2026-10-09 (Bruno changed the sheet; supersedes round 1 above where they differ)
+Decisions set `robert-arb` again (round 1 kept as `robert-arb.round1-2026-10-09.json`). Unchanged: press 1 $51, press 4 $5F,
+press 5 $64, + down $63, + back the throw $E0, up,up + A empty, the air, the hold, the throws, the fury, the MAX, the size.
+- Chain A x5: $51 (far A) > $5B (far C) > $D4 (the kick of MAX 236236B, now a chain link: moves atk_cd_close = "$D4")
+  > $5F (close D) > $64 (body toss = the neutral last hit).
+- Last hit + forward: $E5 (forward A, Kouryuu Koukyaku Geri), a hop. Bruno: "consider Robert mid-air while executing it,
+  it's a hopping motion. In general ALL hopping motions should be considered in-air." (see "Hops are in the air" below).
+- Last hit + up (the launcher): $67, KOF98 state 119, unnamed in the tables (no input of the game we captured plays it):
+  8 steps, one hit on step 5, played as a normal (moves atk_ab_far = "$67", export96 `slots`).
+- Blitz: forward,forward + A = $8E = 624D Hien Senpuu Kyaku ($8C > $8E > $90, the ROM program; was forward + C);
+  down,down + A = $1E7 = EX 624D (moved from forward,forward); down,up + A = $9C = 623D Ryuu Zanshou ($9A > $9C > $9E,
+  the ROM program); up,up + A empty.
+- C specials: C (neutral, also the breaker) = $85 = 623C Ryuuga ($85 > $87 > $88 > $8A); forward + C = $1EF = EX 646D Gen'ei
+  Kyaku ($1EE > $1EF > $1F1 > $1F2 > $1F3, the ROM program; $1EF is shared by EX 646B / D, the D one is the longer kick
+  barrage); down + C = $9F, KOF98's "426B Ryuuren Gen'ei Kyaku" of the close-range capture: the normal-move code plays it
+  (handler $1E72A, the far B's), not a special program, so it is an animation special (anim_specials "$9F": "kof", its
+  four hits with KOF's own box reactions, its +94 px travel from the animation); C in any other direction = the neutral's.
+
+### Hops are in the air (Bruno 2026-10-09, every fighter)
+The engine's "in the air" is the height: y > 0. A hop's height is data: KOF98 / KOF99's command normals that go through
+several states were captured with their height per frame (tools/kof96/capture/cmdnormals.py -> cmdnormals_<game>.json,
+export96.cmd_frames -> bstep_t.hy), and a normal's step sets y = hy (fighter.c step_move). So on every frame of a hop whose
+height is above 0 the fighter already is airborne everywhere the engine asks: hit there it takes the air reaction (sent up
+and falling, juggle-able: react), it cannot be held or thrown (grabbable, chain_throw: !y), a low box misses it by height,
+the ground specials do not cancel out of it (y == 0 rule). Checked: no captured single-state command normal leaves the
+floor, so no hop is missing its height. Moves in the roster with a hop: Robert forward + A ($E5, up to 14 px on 15 of its
+20 steps), Billy forward + A (14 px) and forward + B (1 px), Mai forward + B (14 px), K' forward + B (14 px), and WHP
+Cheng Fu's far D / body toss (14 px). The take-off and landing frames (height 0) stay on the ground, as in the game.
+New in round 2: a ROM special's catch box (and a captured special's grab reach) no longer takes a victim in the air by its
+own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays catchable as before.
