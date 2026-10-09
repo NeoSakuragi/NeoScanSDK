@@ -362,7 +362,8 @@ def blink():
         d.text((3, 1), f'Terry, {case}: two frames in a row', fill='black'); S.save(os.path.join(OUT, f'terry_blink_{case.replace(" ", "_")}.png'))
         os.remove(p0); os.remove(p1)
         want = {'normal': {0}, 'fury ready': {0, 3}, 'low life': {0, 3}, 'MAX ready': {0, 2}}[case]
-        alt = all(seq[k] != seq[k + 1] for k in range(len(seq) - 1)) if len(want) == 2 else True
+        import itertools; runs = [len(list(g)) for _, g in itertools.groupby(seq)]
+        alt = all(n == 2 for n in runs[1:-1]) if len(want) == 2 else True   # 2 frames on / 2 off (the first / last runs cut by the window)
         out[case] = dict(sprite=''.join(OVL[v][0] for v in seq), ok=set(seq) == want and alt)
         print('blink', case, out[case], flush=True)
     # Bruno 2026-10-09: D = the fury (gauge full, emptied; at low life free and unlimited); down+D = the MAX (gauge full AND
@@ -529,7 +530,7 @@ def kimfin():
             r.seq('1:a,1:-')
             if not r.until_hit(40): break
         r.seq(f'1:{stick}a,1:-'); r.until(lambda: len(r.moves) >= 5, 60); r.idle(120)
-        RES['kimfin_' + stick] = dict(moves=r.moves, hits=[(h['dmg'], h.get('react')) for h in r.hits][-3:], ok=len(r.moves) >= 5 and r.moves[4] == want)
+        RES['kimfin_' + stick] = dict(moves=r.moves, hits=r.hits[-4:], ok=len(r.moves) >= 5 and r.moves[4] == want)
         print('kimfin', stick, RES['kimfin_' + stick], flush=True)
     reset('kim', dist=60, face=1)
     r = Rec(tag='kd'); r.seq('1:D,1:-,1:D,1:Da'); r.until(lambda: st(0) in ('ATTACK', 'SPECIAL'), 10)

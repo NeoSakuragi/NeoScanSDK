@@ -2332,7 +2332,7 @@
    "fury": 0
   },
   "do": "Your life is low (the bar blinks red), the fury gauge empty. Press D; when it ends press D again. Then fill the gauge and press down + D.",
-  "expect": "At low life Terry blinks white and D gives Power Geyser every time, nothing spent. With the gauge full he blinks red: D is still the fury, down + D is the MAX (triple geyser), which empties the gauge.",
+  "expect": "At low life Terry blinks white and D gives Power Geyser every time, nothing spent. With the gauge full he blinks red: D is still the fury, down + D is the MAX (triple geyser), which empties the gauge. The blinks run at KOF95's rhythm: 2 frames in the colour, 2 frames normal (a clear blink, not a shimmer).",
   "do_keys": "1:d,200:-,1:d,200:-",
   "proof": 420
  },

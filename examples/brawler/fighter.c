@@ -703,7 +703,9 @@ static void pal_overlay(fighter_t *f) {
             if (++f->brk > 2 * gmeter.blink) f->brk = 1;         /* (brk: 1 + its frame in the blink's period) */
             if (f->brk <= gmeter.blink) want = f->brkr ? OVL_RED : OVL_WHITE;
         }
-        else if (fighter_fury_ready(f) && f->state != S_DEAD && (burn_clock & 1))   /* D does something now: 1 frame */
+        else if (fighter_fury_ready(f) && f->state != S_DEAD && (burn_clock & 2))   /* D does something now: 2 frames on, 2
+                                                                    off, KOF95's rhythm (Bruno 2026-10-09: 1 / 1 read as a
+                                                                    shimmer on the phone) */
             want = max_ready(f) ? OVL_RED : OVL_SHINY;           /* normal, 1 frame red (the MAX ready) / shiny white (the fury) */
     }
     if (want == f->ovl) return;
