@@ -2447,16 +2447,16 @@
   "proof": 90
  },
  "20261009-102625-5d29": {
-  "title": "Kim's run: his dash once, held, floating",
+  "title": "Kim: forward, forward = a KOF94 / 95 dash",
   "setup": {
    "mode": "lab",
    "fighter": "kim",
    "dummy": "terry",
    "gap": 250
   },
-  "do": "Double-tap forward and hold it: Kim runs.",
-  "expect": "Kim's run plays his Kizuna dash steps 1-3 once and holds step 3 (your pick on the run-frame page), floating up and down while he moves.",
-  "do_keys": "2:R,2:-,60:R",
+  "do": "Double-tap forward (keep holding it, then try again with A during the dash).",
+  "expect": "Kim dashes: a quick hop forward over a fixed distance (about a third of the screen) in his Kizuna dash animation, lands and stops on his own; holding forward he then walks, he does not keep running. A during the dash gives his dash attack as before. Other fighters still run.",
+  "do_keys": "2:R,2:-,40:R,20:-",
   "proof": 30
  },
  "20261009-114826-5d29": {
@@ -2528,7 +2528,7 @@
   "proof": 60
  },
  "20261009-120007-5d29": {
-  "title": "Stage clear plays KOF95's win-screen music",
+  "title": "Boss KO: the music stops, then the KO sound, the scream, the win music",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
@@ -2540,7 +2540,7 @@
    "gap": 50
   },
   "do": "Stage 1, the boss alone with 1 life point. Hit him with A and listen to the stage clear.",
-  "expect": "At the boss KO: the KO sound and the music stops; 1 second later the boss's scream; 2 seconds after that KOF95's win music.",
+  "expect": "At the boss KO the music stops first, then the KO sound plays in full (and the killing hit's own sound); 1 second later the boss's scream; 2 seconds after that KOF95's win music.",
   "do_keys": "60:-,3:a",
   "proof": 700
  },
@@ -2573,7 +2573,7 @@
   "proof": 60
  },
  "20261009-122307-5d29": {
-  "title": "Haohmaru's fury deals double damage",
+  "title": "Haohmaru's fury deals four times its damage",
   "setup": {
    "mode": "lab",
    "fighter": "haohmaru",
@@ -2583,7 +2583,7 @@
    "drive": "full"
   },
   "do": "Haohmaru's fury is ready (he blinks white). Press D next to the dummy and watch its life bar.",
-  "expect": "The fury takes the dummy's whole life bar (60 points, twice the 30 it took before). The MAX (down + D at low life with the gauge full) deals 90, twice its 45.",
+  "expect": "The fury deals 120 (double 0.10.6's 60, four times the first 30): twice the dummy's whole life bar. The MAX (down + D at low life with the gauge full) deals 180.",
   "do_keys": "2:d,300:-",
   "proof": 320
  }

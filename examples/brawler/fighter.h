@@ -514,6 +514,7 @@ void throw_fx(int16_t wx, int16_t sy, int8_t facing);    /* main.c: the throw-st
 /* a colour of f's palettes as shown: its tint applied (minions, main.c): 1 shade (half desaturated, 69 %), 2 ash (3/4
  * desaturated, 88 %, cold), 3 rust (half desaturated, 75 %, warm); never one of the playable colour sets */
 uint16_t fighter_colour(const fighter_t *f, uint16_t c);
+const uint8_t *fighter_dash(const fighter_t *f);   /* game_tables grun_dash: [start, frames, x..., height...] or 0 */
 uint8_t fighter_pose_head(const fighter_t *f, int16_t *dx, int16_t *dy);   /* the flash pose step's head (TODO #191) */
 const uint16_t *fighter_src_pal(const fighter_t *f, uint8_t i);   /* its palette i as defined (set, custom colours) */
 #define FIGHTER_NAME(f) ((f)->name ? (f)->name : (f)->ch->name)

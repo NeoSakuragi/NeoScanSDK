@@ -1293,6 +1293,15 @@ def export(names, outdir, only=None, extra=None):
             anims[mv] = {'slot': slot, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': st}
         if (X.get('run') or {}).get('hold_last') and 'run' in anims:   # (note 20261009-102625-5d29: the dash once, held)
             anims['run'] = {'slot': RUN_SLOT, 'mode': 'hold', 'steps': anim_steps(B, RUN_SLOT, 0, X['run'].get('last_step'), cap)}   # (last_step: Bruno's pick, kim-run-frame)
+        if (X.get('run') or {}).get('mode') == 'dash' and 'run' in anims:   # (note 20261009-102625-5d29 on 0.10.8: a KOF94 / 95
+            d = X['run']['dash']                         # dash): his 66 ($03, all four steps: crouch, take-off, air,
+            st = anim_steps(B, RUN_SLOT, 0, None)        # landing) played once, timed to game.json run.dash: the crouch
+            assert len(st) == 4, f'{name}: the dash animation has {len(st)} steps (4)'   # shows start frames, the air
+            st[0]['ticks'] = max(0, d['start'] - 1)      # step is held to the landing (start + frames), the landing as
+            st[2]['ticks'] = d['start'] + d['frames'] - (st[0]['ticks'] + 1) - (st[1]['ticks'] + 1) - 1   # the ROM has it;
+            assert st[2]['ticks'] >= 0, f'{name}: run.dash too short for its take-off step'   # the travel is the engine's
+            for s_ in st: s_['dx'] = 0                   # (main.c / fighter.c grun_dash)
+            anims['run'] = {'slot': RUN_SLOT, 'mode': 'hold', 'steps': st}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
         w = (extra or {}).get(name, {}).get('watch')
         if w:                                            # roster watch pose: (animation, step; -1 = its last)

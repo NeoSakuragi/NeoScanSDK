@@ -13,6 +13,8 @@ void snd_ssg(uint8_t cue);               /* a menu sound: SSG_CURSOR / _CONFIRM 
                                             ADPCM effects; a new cue replaces the one playing */
 extern uint8_t snd_song;                 /* the last snd_music track */
 void snd_music(uint8_t track);           /* a MUS_* command (snd/songs.h); only the songs in songs.json exist */
+void snd_mark(void);                     /* once a tick, after snd_tick: where this tick's commands start */
+void snd_stop_music(void);               /* the music off ($04 + $09: effects / voices on), before this tick's sounds */
 void snd_reset(void);                    /* drop the queue (the BIOS just reset the sound CPU) */
 void snd_voice(uint8_t prefix, uint8_t code);   /* a voice: prefix (snd/voices.h VOICE_PREFIX_*) + code, skipped like snd_sfx */
 /* KOF98 codes (measured in MAME, hits on Yuri): swing $1E light (A, C) / $1F heavy (B, D, C+D);

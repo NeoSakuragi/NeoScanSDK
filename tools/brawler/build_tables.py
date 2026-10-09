@@ -231,15 +231,33 @@ def blitz_cancels(g):
     return out
 
 
-RUN_KEYS = ('hold_last', 'float', 'last_step')
+RUN_KEYS = ('hold_last', 'float', 'last_step', 'mode', 'dash', 'about')
 def run_bobs(g):
     """grun_bob: per roster fighter its run's float (roster[].run.float {px, period}; Bruno 2026-10-09, note
     20261009-102625-5d29: Kim floats up and down a few pixels as he runs): one height a frame (px above its feet, drawn
-    only: main.c draw), px x (1 - cos) / 2 over period frames, from 0 (no pop as the run starts); none = 0"""
-    out, refs = [], []
+    only: main.c draw), px x (1 - cos) / 2 over period frames, from 0 (no pop as the run starts); none = 0.
+    grun_dash: roster[].run.mode "dash" (note 20261009-102625-5d29 reopened on 0.10.8: "a dash motion, the kind of dash
+    we had in KOF94 / 95; dash and run are two different things"): forward, forward = one burst over a fixed distance
+    that ends on its own, not a run. run.dash {start, frames, dx, height}: start frames on the ground (the crouch), then
+    frames in the air covering dx px at a steady speed on a parabola height px high (drawn only, like the float), then
+    the animation's last step (the landing) and back to neutral: [start, frames, x1..xF (px from the take-off),
+    h1..hF]; the export stretches the run animation's airborne step to match (export_kz); none = 0"""
+    out, refs, drefs = [], [], []
     for r in g['roster']:
         run = r.get('run') or {}
-        for k in run: assert k in RUN_KEYS, f"roster {r['name']}: run.{k} (hold_last / last_step / float)"
+        for k in run: assert k in RUN_KEYS, f"roster {r['name']}: run.{k} ({' / '.join(RUN_KEYS)})"
+        assert run.get('mode', 'run') in ('run', 'dash'), f"roster {r['name']}: run.mode {run['mode']} (run / dash)"
+        if run.get('mode') == 'dash':
+            d = run['dash']
+            assert set(d) == {'start', 'frames', 'dx', 'height'} and 0 <= d['start'] <= 8 and 4 <= d['frames'] <= 60 and \
+                1 <= d['dx'] <= 255 and 0 <= d['height'] <= 32 and not run.get('float') and not run.get('hold_last'), \
+                f"roster {r['name']}: run.dash {d} (start 0-8, frames 4-60, dx 1-255, height 0-32; no float / hold_last)"
+            F = d['frames']
+            xs = [round(d['dx'] * i / F) for i in range(1, F + 1)]
+            hs = [round(d['height'] * 4 * i * (F - i) / (F * F)) for i in range(1, F + 1)]
+            out.append(f"static const uint8_t gdash_{r['name']}[{2 + 2 * F}] = {{ {d['start']}, {F}, {', '.join(map(str, xs + hs))} }};")
+            drefs.append(f"gdash_{r['name']}")
+        else: drefs.append('0')
         fl = run.get('float')
         if not fl: refs.append('0'); continue
         assert set(fl) == {'px', 'period'} and 1 <= fl['px'] <= 16 and 4 <= fl['period'] <= 120, f"roster {r['name']}: run.float {fl}"
@@ -247,7 +265,9 @@ def run_bobs(g):
         out.append(f"static const uint8_t grun_{r['name']}[{fl['period'] + 1}] = {{ {fl['period']}, {', '.join(map(str, h))} }};")
         refs.append(f"grun_{r['name']}")
     return out + ['const uint8_t *const grun_bob[BC_COUNT] = { ' + ', '.join(refs) + ' };   /* the run\'s float per fighter: '
-                  '[period, height a frame...] (roster[].run.float), 0 = none */']
+                  '[period, height a frame...] (roster[].run.float), 0 = none */',
+                  'const uint8_t *const grun_dash[BC_COUNT] = { ' + ', '.join(drefs) + ' };   /* the dash per fighter: '
+                  '[start, frames, x a frame..., height a frame...] (roster[].run.mode dash), 0 = a run */']
 
 
 def roster_export(g):
@@ -721,6 +741,7 @@ def tables(g, build):
          'extern const int32_t gwalk_rom[BC_COUNT];       /* its walk (16.16 px a frame, by archetype) */',
          'extern const uint8_t gblitz_can[BC_COUNT][4];   /* per fighter per Blitz slot: the slots it may cancel into on hit (bit BZ_*; roster[].blitz_cancel) */',
          'extern const uint8_t *const grun_bob[BC_COUNT]; /* the run\'s float: [period, px a frame...] (roster[].run.float), 0 = none */',
+         'extern const uint8_t *const grun_dash[BC_COUNT]; /* the dash: [start, frames, x..., height...] (roster[].run.mode dash), 0 = a run */',
          'extern const uint16_t gwalk_run;               /* run = walk x this (8.8) */',
          'extern const uint16_t gwalk_anim;              /* the walk / run animations\' rate x this (8.8) */',
          'extern const uint8_t *const gback_rom[];       /* the floor\'s back edge per background (game.json depth; fighter.h zback) */',

@@ -265,6 +265,8 @@ static void anim_tick(fighter_t *f) {
         }
     }
 }
+const uint8_t *fighter_dash(const fighter_t *f) { return f->ch->id < BC_COUNT ? grun_dash[f->ch->id] : 0; }   /* the
+                                                                    fighter's dash (roster[].run.mode dash) or 0: a run */
 const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
 /* the step whose hurt box the fighter has now (TODO #205): a special read from the ROM shows its program's animation
  * step (pan / pstep, from its first frame played: srow), with that step's own hurt box or none (KOF98's steps without
@@ -2707,10 +2709,12 @@ static void update(fighter_t *f, const intent_t *in) {
     switch (f->state) {
     case S_IDLE: case S_WALK: case S_RUN: neutral: {
         uint8_t b = in->press;
+        const uint8_t *dsh = f->state == S_RUN ? fighter_dash(f) : 0;   /* a dash under way (grun_dash): its course */
         if (b & IN_B) { jump_start(f, in, f->chain_t ? NODE(f, f->chain_node)->next[RI_B] : 0); break; }   /* inside a chain
                                                                     window: the route's B link (a jump-cancel; the chain
                                                                     trees have none since 2026-10-08) */
-        if (in->ai && in->face) f->facing = in->face;            /* an AI fighter faces its target, always: moving away it */
+        if (dsh) { }                                             /* (a dash keeps its direction) */
+        else if (in->ai && in->face) f->facing = in->face;       /* an AI fighter faces its target, always: moving away it */
         else if (in->dx) f->facing = in->dx;                     /* walks backwards (Bruno 2026-10-08); a player: beat 'em */
         else if (in->face) f->facing = in->face;                 /* up, face where you walk */
         if (b & IN_D) {                                          /* D: the fury (fury_press) */
@@ -2741,10 +2745,22 @@ static void update(fighter_t *f, const intent_t *in) {
             if (nx) start_node(f, nx, LH_NEUTRAL);
             break;
         }
+        if (dsh) {                                               /* the dash (KOF94 / 95's, note 20261009-102625-5d29): a
+                                                                    fixed course, the stick ignored: dsh[0] frames on the
+                                                                    ground, then dsh[1] frames covering x1..xF px; it ends
+                                                                    with its animation (the landing), then neutral */
+            uint16_t t = f->state_t;
+            if (t >= dsh[0] && t < dsh[0] + dsh[1]) {
+                uint8_t k = t - dsh[0] + 1;
+                f->x += dir_mul(f->facing, FIX(dsh[1 + k] - (k > 1 ? dsh[k] : 0))); clamp(f);
+            }
+            if (f->anim_done) to_neutral(f, in);
+            break;
+        }
         if (f->state == S_RUN && in->dx == f->facing) {          /* run = walk x gwalk_run (sub-pixel) */
             f->x += dir_mul(f->facing, mul88(f->wspd, gwalk_run)); f->z += dir_mul(in->dz, FIX(1)); clamp(f); break;
         }
-        if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); f->speed = f->wrate; break; }   /* (its stride: walk_rate) */
+        if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); f->speed = fighter_dash(f) ? 0x100 : f->wrate; break; }   /* (its stride: walk_rate; a dash: its own timing) */
         to_neutral(f, in);
         if (f->state == S_WALK) {                                /* the walk by archetype, sub-pixel (walk_rate) */
             f->x += dir_mul(in->dx, in->slow ? f->wspd >> 1 : f->wspd); f->z += dir_mul(in->dz, in->slow ? FIX(1) >> 1 : FIX(1)); clamp(f);

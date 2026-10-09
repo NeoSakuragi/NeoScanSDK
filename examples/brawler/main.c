@@ -1012,7 +1012,12 @@ static void line_guard(void) {
 static int32_t run_bob(const fighter_t *f) {
     const uint8_t *t;
     uint32_t r;
-    if (f->state != S_RUN || f->ch->id >= BC_COUNT || !(t = grun_bob[f->ch->id])) return 0;
+    if (f->state != S_RUN || f->ch->id >= BC_COUNT) return 0;
+    if ((t = fighter_dash(f))) {                             /* a dash: its arc (drawn only, like the float) */
+        r = f->state_t;
+        return r >= t[0] && r < t[0] + t[1] ? FIX(t[2 + t[1] + r - t[0]]) : 0;
+    }
+    if (!(t = grun_bob[f->ch->id])) return 0;
     r = f->state_t;
     __asm__("divu.w %1,%0" : "+d"(r) : "d"((uint16_t)t[0]));   /* (state_t mod period: the remainder, high word) */
     return FIX(t[1 + (r >> 16)]);
@@ -2205,7 +2210,9 @@ static void ko_fall(fighter_t *e) {              /* an enemy goes down with no l
 static void boss_ko_start(void) {                /* the boss's killing hit */
     fighter_t *b = &fighters[BOSS_IDX];
     ko_seq = KO_SLOWMO; ko_t = 0; ko_sub = 0; ko_next = KO_FIRST; tq_n = 0;
-    snd_sfx(ghitsnd.boss_ko); snd_cmd(0x04); b->ko_voice = 1; ko_scream = 1; ko_win = 0;   /* ($04: KOF98's driver stops the music) */   /* (ko_voice: none at its S_DEAD, boss_ko_tick screams) */
+    snd_stop_music();                            /* the music first, then this tick's sounds (the killing hit's), then
+                                                    the KO blow (note 20261009-120007-5d29: $04 after the blow cut it) */
+    snd_cmd(0x1A); snd_cmd(ghitsnd.boss_ko); b->ko_voice = 1; ko_scream = 1; ko_win = 0;   /* (ko_voice: none at its S_DEAD, boss_ko_tick screams) */
 }
 static uint8_t boss_ko_tick(void) {              /* every frame of the sequence; 1: a logic tick this frame */
     uint8_t i;
@@ -2853,7 +2860,7 @@ void game_tick(void) {
     vblank_flush();                 /* we are in vblank: last tick's VRAM commands and backdrop go out now, tear-free (1 frame latency) */
     mark(P_FLUSH);
     SYS_kickWatchdog();
-    snd_tick();
+    snd_tick(); snd_mark();
     i = coin_in();                                           /* KOF94's coin sound (TODO #199) */
     if (attract_leave()) { if (i) snd_ssg(SSG_COIN); depth_sort(); draw(); return; }   /* the coin after the title's
                                                              song start, as game_enter's */
