@@ -19,7 +19,11 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
             "speed": 1.25,                                   # optional: playback speed, x KOF's timing (0.25-4; 1 left out),
                                                              # 8.8 fixed point in the game (rnode_t.speed)
             "damage": 3, "push": 3,                          # optional (advanced): default from weight / effect
-            "sound": "heavy",                                # optional: its hits sound as a heavy normal's (RF_HEAVY_SFX)
+            "sound": "heavy",                                # optional: its hits sound as a heavy normal's (RF_HEAVY_SFX), or
+            "sound": ["11", "13"],                           # its hits' own sound commands in order (hex; Kim's picks on the
+                                                             # Lab sounds page, 2026-10-09), per move in the fighter's ROM
+                                                             # data (hit_sounds -> export_bm bm_hsnd, fighter.c own_sound);
+                                                             # a hit past the list sounds by the engine's rule
             "links": {"A": NODE, "dfA": NODE, "AB": NODE, ...}}
     inputs (TODO #71, tree version 4: A is the only attack button; INPUTS = the game's RI_* order): A, B, dA (down), cA
     (close: an opponent within CLOSE_X, KOF's close normals), fA (forward), bA (back), dfA (down-forward); AB fAB dAB
@@ -145,6 +149,31 @@ def hit_of(nd):
     return {'move': nd.get('move'), 'weight': nd.get('weight', 'light'), 'effect': nd.get('effect', 'none'),
             'keep': bool(nd.get('keep')), 'speed': speed_fx(nd), 'damage': nd.get('damage', dd), 'push': nd.get('push', dp),
             'sound': nd.get('sound')}
+
+
+def sound_codes(nd):
+    """a node's per-hit sound list ("sound": [hex codes]) as ints, else None ("heavy" or none: the flag / the rule)"""
+    v = nd.get('sound')
+    if not isinstance(v, list): return None
+    out = [int(str(c).lstrip('$'), 16) for c in v]
+    assert out and len(out) <= 8 and all(0 < c < 0x100 for c in out), f'{nd.get("move")}: sound {v}: 1-8 hex codes $01-$FF'
+    return out
+
+
+def hit_sounds(tree):
+    """{move: [codes]}: the per-hit sound lists of a tree's nodes (links, 'then' chains, entries); a move given two
+    different lists is refused (the game keys them by move: export_bm bm_hsnd)"""
+    out = {}
+    def walk(nd):
+        c = sound_codes(nd) if 'move' in nd else None
+        if c is not None:
+            assert out.setdefault(nd['move'], c) == c, f'{nd["move"]}: two sound lists {out[nd["move"]]} / {c}'
+        for ch in (nd.get('links') or {}).values(): walk(ch)
+        if nd.get('then'): walk(nd['then'])
+    walk({'links': tree.get('links') or {}})
+    for e in (tree.get('entries') or {}).values():
+        if e: walk(e)
+    return out
 
 
 def tree_to_routes(tree):

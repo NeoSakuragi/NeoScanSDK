@@ -1522,6 +1522,8 @@ def write_c(chars, outdir):
          'extern const bxthr_t bm_xthr[BC_COUNT];   /* (revamp 3) by bchar_t.id (outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef const uint16_t *bseg_t;   /* (retiming) */', 'extern const bseg_t bm_seg[BC_COUNT];   /* (retiming, retime.py) by bchar_t.id: [BA_COUNT + nspec, offset of each move (BA_* then its specials; 0 = no segments)], then per move [n, the source frames of its n segments: startup, active 1, recovery 1, ...] (fighter.c rt_*) */',
          'extern const bair_t bm_air[BC_COUNT];   /* (TODO #221) by bchar_t.id: its air specials, [input, special index] each, 0xFF ends (bchar_t.nair entries) */',
+         'enum { HS_HOLD = 0xF0 };   /* bm_hsnd key of a hold script: HS_HOLD + its index in bchar_t.holds (hit, fin) */',
+         'extern const bair_t bm_hsnd[BC_COUNT];   /* (Kim\'s hit sounds, Bruno 2026-10-09) by bchar_t.id: its hits\' own sounds, [key, n, n sound commands] each, 0xFF ends; key = a move (BA_*: routes.py hit_sounds, a route node\'s "sound" list) or HS_HOLD + k (game.json roster[].throws.hold.sound {hit, fin}); a command per hit of the move / impact of the script, in order (fighter.c own_sound; a hit past the list: the engine\'s rule) */',
          'extern const bhspark_t bm_hspark[BC_COUNT];   /* by bchar_t.id (bm_spec.c: the first program MB; outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef struct { int32_t vx, ax, vy, g, bvx, bvy, bg; uint8_t r, n, land, anim; } bsreact_t;   /* a source reaction (TODO #136, vocabulary reaction.source_motion; tools/kizuna/export_kz.sr_motion: Kizuna\'s reaction animations\' step commands, decoded from its hit code): the victim\'s motion when a SF_SREACT special\'s step hits it, 16.16 px a frame, x away from the attacker: vx += ax a frame while a reel slides (n frames), a flight vy -= g a frame to the floor (it lands where its next move would take it under, without moving), land frames on the floor (0xFF: none, the brawler\'s own landing), then the bounce bvx / bvy / bg; r: the victim\'s posture R_* (| 8: hittable in its flight, its source\'s reaction steps carry boxes); anim: the source\'s reaction animation (Hayate\'s, for reading) */',
          'extern const bsreact_t bm_sreact[];',
@@ -1721,6 +1723,12 @@ def write_c(chars, outdir):
         tree = R.chain_tree(n, base, roster()[n].get('chain'), has)   # the chain core (revamp 1A)
         blob = R.encode(tree, MOVES, has, [sp is not None for sp in sps])
         c.append(f'static const uint8_t {n}_routes[] = {{' + ', '.join(map(str, blob)) + '};')
+        hsnd = [(MOVES.index(m), v) for m, v in R.hit_sounds(tree).items()]   # its hits' own sounds (bm_hsnd)
+        hsd = ((roster()[n].get('throws') or {}).get('hold') or {}).get('sound') or {}
+        for k, v in hsd.items():
+            assert k in HOLDS, f'{n}: throws.hold.sound: {k} (hit / fin)'
+            hsnd.append((0xF0 + HOLDS.index(k), R.sound_codes({'move': f'hold {k}', 'sound': v})))
+        c.append(f'static const uint8_t {n}_hsnd[] = {{' + ''.join(f'{k}, {len(v)}, ' + ''.join(f'0x{x:02X}, ' for x in v) for k, v in hsnd) + '0xFF};   /* its hits\' own sounds */')
         lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': roster()[n]['routes'] is not None,
                                 'moves': {m: R.frame_data(source(ch, m)['steps']) for m in R.MOVE_NAMES if m in has},
                                 'segs': {'moves': {m: v for m, v in zip(MOVES, SEGS[n][:len(MOVES)]) if v}, 'specials': SEGS[n][len(MOVES):]},
@@ -1750,6 +1758,7 @@ def write_c(chars, outdir):
     c.append('};')
     c.append('const bseg_t bm_seg[BC_COUNT] = {' + ', '.join(f'{n}_seg' for _, n, _, _ in chars) + '};   /* (retiming) */')
     c.append('const bair_t bm_air[BC_COUNT] = {' + ', '.join(f'{n}_air' for _, n, _, _ in chars) + '};   /* (TODO #221) */')
+    c.append('const bair_t bm_hsnd[BC_COUNT] = {' + ', '.join(f'{n}_hsnd' for _, n, _, _ in chars) + '};   /* (hit sounds) */')
     c.append('const bxthr_t bm_xthr[BC_COUNT] = {' + ', '.join(xthr_c(ch, n) for _, n, ch, _ in chars) + '};   /* (revamp 3) */')
     c += sreact_c()
     c.append('const int8_t bm_head[BC_COUNT][2] = {' + ', '.join(f'{{{ch["head"][0]}, {ch["head"][1]}}}' for _, _, ch, _ in chars) + '};')

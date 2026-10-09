@@ -138,8 +138,17 @@ def hits(name):
     heavy = {n['move'] for rt in json.load(open(os.path.join(HERE, 'routes', name + '.json')))['routes'] for n in rt
              if isinstance(n, dict) and n.get('sound') == 'heavy'}
     sfx_over = R.get('hit_sfx', {})
-    def rule_sound(group, anim, last_of_move, last_of_seq):
+    # a hit's own sound (Bruno's picks, 2026-10-09): a route node's "sound" list (per hit of its move) and the hold
+    # scripts' (game.json throws.hold.sound {hit, fin}: per impact), fighter.c own_sound
+    import routes as RT
+    own = RT.hit_sounds({'links': RT.merge_routes(json.load(open(os.path.join(HERE, 'routes', name + '.json')))['routes'])[0]['links']})
+    hold_own = (R.get('throws') or {}).get('hold', {}).get('sound') or {}
+    def rule_sound(group, anim, last_of_move, last_of_seq, hit=1, hold_k=None):
+        if hold_k is not None:
+            v = hold_own.get(hold_k) or []
+            return f'{int(v[hit - 1], 16):02X}' if hit <= len(v) else None
         if group in ('hold', 'back'): return None
+        if anim in own and hit <= len(own[anim]): return f'{own[anim][hit - 1]:02X}'
         p = anim.split('_')
         b = 3 if anim in heavy else BTN.get(p[1] if p[0] == 'atk' else p[-1], 4)
         if last_of_move and last_of_seq: return '15'
@@ -183,7 +192,8 @@ def hits(name):
             ax, vx = [x - hh['cam'] for x in hh['x']]
             cx = int((ax + vx) / 2); x0 = max(0, min(hh['im'].width - 200, cx - 100))
             hh['im'].crop((x0, 30, x0 + 200, 194)).save(os.path.join(od, k + '.png'))
-            rule = rule_sound(key, hh['anim'], j == nh, i == len(mine) - 1)
+            rule = rule_sound(key, hh['anim'], j == nh, i == len(mine) - 1, j,
+                              ('fin' if lab == hold_fin else 'hit') if key == 'hold' else None)
             out.append(dict(key=k, group=key, title=title, move=lab, hit=j, of=nh, anim=hh['anim'], frame=hh['f'], dmg=hh['dmg'],
                             victim=hh['victim'], sound=[f'{c:02X}' for c in snd], rule=rule, img=f'{k}.png'))
             if rule and [rule] != out[-1]['sound']: print('!! the game sent', out[-1]['sound'], 'the rule says', rule, flush=True)

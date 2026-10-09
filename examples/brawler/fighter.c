@@ -418,6 +418,15 @@ static uint8_t hit_sound(const fighter_t *f, uint8_t anim, uint8_t knockdown) {
     uint8_t b = hit_btn(anim);
     return f->ch->sfx[b] ? f->ch->sfx[b] : knockdown ? SFX_HIT_CD : SFX_HIT_A + b;
 }
+/* a hit's own sound (Bruno's picks, Kim 2026-10-09: a route node's "sound" list, game.json throws.hold.sound; export_bm
+ * bm_hsnd): key = the move (BA_*) or HS_HOLD + the hold script's index, idx = the hit's index in it (0 the first);
+ * 0 = none given (the rules above) */
+static uint8_t own_sound(const fighter_t *f, uint8_t key, uint8_t idx) {
+    const uint8_t *e;
+    for (e = bm_hsnd[f->ch->id]; *e != 0xFF; e += 2 + e[1])
+        if (*e == key) return idx < e[1] ? e[2 + idx] : 0;
+    return 0;
+}
 /* ---- jumps (tools/kof96/capture/jumps.py, KOF96/98/99 measured 2026-10-04) ------------------------------------------
  * Two heights, KOF's: C held through the prejump = the regular jump, C released before take-off = the hop (3/4 of the
  * launch speed, same gravity and horizontal speed: bphys_t, from the ROM). Each kind and direction has its own animations
@@ -1137,7 +1146,11 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
             }
             if (by) {                                            /* its sound: a button's (bthrow_t.hsfx, Terry's kick */
                 uint8_t hx = thr_of(by, by->throw_id)->hsfx;     /* sounds as a punch: Bruno 2026-10-08) or its move's */
-                snd_sfx(hx ? (by->ch->sfx[hx - 1] ? by->ch->sfx[hx - 1] : SFX_HIT_A + hx - 1) : hit_sound(by, hold_anim(by), 0));
+                uint8_t k, n = 0, s;                             /* (its own for this impact first: own_sound) */
+                for (k = 0; k < j; k++) if (th->rows[k].flags & 4) n++;
+                s = own_sound(by, HS_HOLD + by->throw_id - BT_HOLD_HIT, n);
+                if (s) snd_sfx(s); else
+                snd_sfx(hx ?(by->ch->sfx[hx - 1] ? by->ch->sfx[hx - 1] : SFX_HIT_A + hx - 1) : hit_sound(by, hold_anim(by), 0));
                 by->freeze = 4;
             }
             v->freeze = 4;
@@ -1208,7 +1221,8 @@ static uint8_t paired_update(fighter_t *f) {
             uint8_t fin = f->throw_id == BT_HOLD_FIN;            /* down, the hold is over */
             uint8_t n = fin ? hold_nimp(th) : 1, dm = fin ? NODE(f, TREE(f)->hold)->damage : 0;
             f->held = 0; v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; enter(v, S_IDLE);
-            if (fin) snd_sfx(hit_sound(f, hold_anim(f), 1));     /* (a hold hit's sound and damage: already dealt) */
+            if (fin) { uint8_t s = own_sound(f, HS_HOLD + BT_HOLD_FIN - BT_HOLD_HIT, n - 1);   /* (a hold hit's sound and */
+                snd_sfx(s ? s : hit_sound(f, hold_anim(f), 1)); }                              /* damage: already dealt) */
             fighter_hit(f, v, dm - (n > 1 ? (n - 1) * (dm / n) : 0), R_KNOCKDOWN, 0);   /* (the rest of its damage) */
             v = 0; enter(f, S_THROW);                            /* its follow-through plays on (srow kept): a normal
                                                                     hit, cancellable into a special / the fury (#166 d) */
@@ -3173,7 +3187,10 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                 dmg = (a->ldmg & (1 << v->idx)) ? 0 : dmg;      /* fixed damage (revamp 1A): the node's whole damage on */
                 a->ldmg |= 1 << v->idx;                          /* its first hit on each victim, its later hits none */
                 big = rc >= R_KNOCKDOWN || hit_btn(c->anim) >= SX_C;
-                if (!sounded++) snd_sfx(hit_sound(a, (c->flags & RF_HEAVY_SFX) ? BA_ATK_D_CLOSE : c->anim, rc >= R_KNOCKDOWN));
+                if (!sounded++) {                                /* its own sound for this hit of the move, else the rule */
+                    uint8_t s = own_sound(a, a->anim, total - later - 1);
+                    snd_sfx(s ? s : hit_sound(a, (c->flags & RF_HEAVY_SFX) ? BA_ATK_D_CLOSE : c->anim, rc >= R_KNOCKDOWN));
+                }
                 fighter_hit(a, v, dmg, rc, c->push);
                 if (c->effect == RE_SLAM && !later && v->state == S_KNOCKDOWN) {   /* the slam (the chain's down */
                     v->vy = v->y > 0 ? -FIX(6) : 0; v->kslam = 1;    /* finisher): to the floor now, then its */
