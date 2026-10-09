@@ -5,12 +5,19 @@
  * resnet palette LUT, the fix layer over the sprites, a sprite counted on the lines of its height) on select.json
  * (chainlab/select_images.py). Layout: {fighter: {x, y, z, facing, pose, slot}} (build_tables.py select_layout).
  *
- * render(D, L, {cursor, unlocked}) -> {rgba (320 x 224, the whole LSPC line: a TV shows x 8-311), counts (sprites per
- * screen line), worst, owner (the fighter drawn on each pixel, -1 none), names (owner's index -> fighter), arrow
- * {col, row, hits: fighters under "1P" / the arrow, text: true when it lands on the screen's text, off: past the edge}} */
+ * Since 2026-10-09 the screen is a street in front of SNK's Neo Geo Land (KOF95's stage 2, D.land: make_stage_land.py):
+ * the layout's x is a street x (0 .. D.land.w - 1), the camera follows the cursor (main.c sel_cam_goal: its x - 160,
+ * inside 0 .. cam_max), the layers scroll as the game's (far 64 + 5/7, facade and crowd 1:1, barriers 10/7: land_draw),
+ * the barriers drawn over the fighters.
+ *
+ * render(D, L, {cursor, unlocked, cam, full}) -> {rgba (W x 224: the screen, 320 = the whole LSPC line, a TV shows x
+ * 8-311, at camera cam (default: the cursor's); full: the whole street, W = D.land.w, no fix layer), W, cam, counts
+ * (sprites per screen line, the land's and the fighters' on the screen), worst, owner (the fighter drawn on each pixel,
+ * -1 none), names (owner's index -> fighter), arrow {col, row, hits: fighters under "1P" / the arrow, text: true when it
+ * lands on the screen's text, off: off the screen}} */
 (function (root) {
   'use strict';
-  const W = 320, H = 224, ROWS = 28;
+  const SW = 320, H = 224, ROWS = 28;
   const b64 = s => typeof atob === 'function' ? Uint8Array.from(atob(s), c => c.charCodeAt(0)) : new Uint8Array(Buffer.from(s, 'base64'));
 
   function prepare(D) {                          /* select.json -> its pictures decoded, once */
@@ -18,6 +25,7 @@
     for (const f of Object.values(D.fighters)) for (const p of f.poses) p.px = b64(p.pix);
     D.fixTiles = {};
     for (const [t, s] of Object.entries(D.fix.tiles)) D.fixTiles[t] = b64(s);
+    if (D.land) for (const ly of Object.values(D.land.layers)) { const u = b64(ly.pix); ly.px = new Uint16Array(u.buffer, u.byteOffset, u.length >> 1); }
     D._ready = true;
     return D;
   }
@@ -41,11 +49,49 @@
   const locked = (D, n, o) => D.fighters[n].locked && !o.unlocked;
   /* select_start: the cursor starts on the first selectable slot */
   function firstCursor(D, L, o) { return order(L).find(n => !locked(D, n, o || {})) || order(L)[0]; }
-  /* select_arrows (P1): the arrow's fix cell over the head point, "1P" one row above */
-  function arrowCell(D, L, n) {
+  /* main.c sel_cam_goal (P1 alone): the camera centred on fighter n, inside the street */
+  function camFor(D, L, n) { return D.land ? Math.max(0, Math.min(D.land.cam_max, L[n].x - 160)) : 0; }
+  /* land_draw: each layer's scroll at camera cam (the far layer and its lights 64 + 5/7, the barriers 10/7) */
+  function scrollOf(name, cam) { return name === 'top' || name === 'lights' ? 64 + ((cam * 731) >> 10) : name === 'front' ? (cam * 1463 + 512) >> 10 : cam; }
+  /* the full street's picture: main + crowd 1:1, the far layer where the right end shows it (its only view), the
+   * barriers where the middle camera shows them (stage2_composite.png's rule) */
+  const FULL_CAM = { top: 'max', lights: 'max', front: 'mid' };
+  /* select_arrows (P1): the arrow's fix cell over the head point, "1P" one row above; off the screen: none (off) */
+  function arrowCell(D, L, n, cam) {
     const v = L[n], hd = poseOf(D, n, v.pose).head;
-    const sx = v.x + (v.facing === 'right' ? -hd[0] : hd[0]) - 4, sy = v.y + hd[1] - 10;
-    return { col: sx < 0 ? 0 : (sx + 4) >> 3, row: sy < 32 ? 4 : (sy + 4) >> 3 };
+    const sx = v.x - (cam || 0) + (v.facing === 'right' ? -hd[0] : hd[0]) - 4, sy = v.y + hd[1] - 10;
+    return { col: sx < 0 ? 0 : (sx + 4) >> 3, row: sy < 32 ? 4 : (sy + 4) >> 3, off: D.land ? sx < 0 || sx > 304 : false };
+  }
+  /* the land's sprites on each screen line at camera cam (land_draw: the rings' columns on the screen, the far columns
+   * on the screen, the lights when shown) */
+  function landCounts(D, cam, counts) {
+    if (!D.land) return;
+    for (const [name, ly] of Object.entries(D.land.layers)) {
+      const sc = scrollOf(name, cam), ring = name === 'main' || name === 'mid' || name === 'front';
+      const c0 = ring ? sc >> 4 : 0, c1 = ring ? c0 + 21 : ly.cols.length;
+      let shown = false;
+      for (let c = c0; c < c1 && c < ly.cols.length; c++) {
+        const [first, n] = ly.cols[c], x = ly.x0 + c * 16 - sc;
+        if (!n || (!ring && (x <= -16 || x >= 320))) continue;
+        if (name === 'lights') { shown = true; continue; }
+        for (let l = ly.y + first * 16; l < ly.y + (first + n) * 16; l++) if (l >= 0 && l < H) counts[l]++;
+      }
+      if (name === 'lights' && ly.x0 - sc > -96 && ly.x0 - sc < 320) for (let l = ly.y; l < ly.y + ly.h; l++) if (l >= 0 && l < H) counts[l] += ly.cols.length;
+    }
+  }
+  /* a layer onto the picture: its pixel x at screen x x0 + px - sc; alpha 0.5 for the lights (shown every other frame) */
+  function landBlit(D, rgba, W, name, sc, alpha) {
+    const ly = D.land.layers[name], lut = D.land._lut || (D.land._lut = D.land.pals.map(w => rgb(D, w)));
+    for (let py = 0; py < ly.h; py++) {
+      const sy = ly.y + py; if (sy < 0 || sy >= H) continue;
+      for (let px = 0; px < ly.w; px++) {
+        const sx = ly.x0 + px - sc; if (sx < 0 || sx >= W) continue;
+        const k = ly.px[py * ly.w + px]; if (!k) continue;
+        const c = lut[k], q = (sy * W + sx) * 4;
+        if (alpha < 1) { rgba[q] = (rgba[q] + c[0]) >> 1; rgba[q + 1] = (rgba[q + 1] + c[1]) >> 1; rgba[q + 2] = (rgba[q + 2] + c[2]) >> 1; }
+        else { rgba[q] = c[0]; rgba[q + 1] = c[1]; rgba[q + 2] = c[2]; }
+      }
+    }
   }
 
   /* the cursor graph (TODO #187): build_tables.py select_stick, the same rules (select_proof.py checks both agree):
@@ -94,15 +140,19 @@
   function render(D, L, o) {
     o = o || {};
     prepare(D);
-    const rgba = new Uint8ClampedArray(W * H * 4), owner = new Int8Array(W * H).fill(-1), counts = new Int32Array(H);
-    const bd = rgb(D, D.fix.backdrop);
-    for (let i = 0; i < W * H; i++) { rgba[4 * i] = bd[0]; rgba[4 * i + 1] = bd[1]; rgba[4 * i + 2] = bd[2]; rgba[4 * i + 3] = 255; }
     const cursor = o.cursor && L[o.cursor] ? o.cursor : firstCursor(D, L, o);
+    const full = !!(o.full && D.land), W = full ? D.land.w : SW, cam = full ? 0 : o.cam !== undefined ? o.cam : camFor(D, L, cursor);
+    const rgba = new Uint8ClampedArray(W * H * 4), owner = new Int8Array(W * H).fill(-1), counts = new Int32Array(H);
+    const bd = rgb(D, D.land ? D.land.backdrop : D.fix.backdrop);
+    for (let i = 0; i < W * H; i++) { rgba[4 * i] = bd[0]; rgba[4 * i + 1] = bd[1]; rgba[4 * i + 2] = bd[2]; rgba[4 * i + 3] = 255; }
+    const lsc = name => !full ? scrollOf(name, cam) : FULL_CAM[name] ? scrollOf(name, FULL_CAM[name] === 'max' ? D.land.cam_max : D.land.cam_max >> 1) - (FULL_CAM[name] === 'max' ? D.land.cam_max : D.land.cam_max >> 1) : 0;
+    if (D.land) { for (const n of ['top', 'main', 'mid']) { landBlit(D, rgba, W, n, lsc(n), 1); if (n === 'top') landBlit(D, rgba, W, 'lights', lsc('lights'), 0.5); } if (!full) landCounts(D, cam, counts); }
     const names = Object.keys(L).sort((a, b) => L[a].z - L[b].z);   /* depth_sort: the layout's z, the back first */
     names.forEach((n, k) => {
       const v = L[n], P = poseOf(D, n, v.pose);
       const look = locked(D, n, o) ? 2 : n === cursor ? 1 : 0;     /* slot_look: silhouette, colour, dark */
-      const cols = [];
+      const cols = [], vx = v.x - cam;
+      if (D.land && !full && (vx + P.w <= 0 && vx - P.w <= 0 || vx - P.w >= W && vx + P.w >= W)) return;   /* off the screen */
       for (let i = 0; i < P.pals.length; i++) {
         const w = i % 16 === 0 ? P.pals[i] : look === 2 ? SILHOUETTE : look ? P.pals[i] : dark(P.pals[i]);
         cols.push(rgb(D, w));
@@ -114,23 +164,30 @@
         for (let px = 0; px < P.w; px++) {
           const ix = P.px[py * P.w + px];
           if (!(ix & 15)) continue;
-          const lx = v.x - P.ox + px, sx = right ? 2 * v.x - 1 - lx : lx;
+          const lx = vx - P.ox + px, sx = right ? 2 * vx - 1 - lx : lx;
           if (sx < 0 || sx >= W) continue;
           const c = cols[ix] || [255, 0, 255], q = (sy * W + sx) * 4;
           rgba[q] = c[0]; rgba[q + 1] = c[1]; rgba[q + 2] = c[2]; owner[sy * W + sx] = k;
         }
       }
-      for (const [top, rows] of P.cols) {        /* the LSPC: a sprite on line l when (l - its top line) & 511 < its height */
+      if (full) return;
+      for (const [top, rows, cx] of P.cols) {    /* the LSPC: a sprite on line l when (l - its top line) & 511 < its height */
         if (!rows) continue;
+        if (D.land && cx !== undefined) {        /* main.c land_clip: a column off the screen gets height 0 */
+          const left = right ? vx - cx - 16 : vx + cx;
+          if (left <= -16 || left >= W) continue;
+        }
         const tl = (v.y + top + 16) & 0x1FF;
         for (let l = 16; l < 240; l++) if (((l - tl) & 0x1FF) < rows * 16) counts[l - 16]++;
       }
     });
+    if (D.land) landBlit(D, rgba, W, 'front', lsc('front'), 1);   /* the barriers: over the fighters */
+    if (full) return { rgba, W, cam, counts, worst: 0, owner, names, cursor, arrow: null };
     /* the fix layer: the game's own text, the name row (select_name) and P1's "1P" + arrow (select_arrows) */
     const map = D.fix.map.slice(), put = (c, r, w) => { if (c >= 0 && c < 40 && r >= 0 && r < ROWS) map[c * ROWS + r] = w; };
     const name = D.fighters[cursor].name;
     for (let i = 0; i < name.length; i++) put(20 - (name.length >> 1) + i, 2, name.charCodeAt(i));
-    const a = arrowCell(D, L, cursor), cells = [[a.col, a.row - 1, 0x31], [a.col + 1, a.row - 1, 0x50], [a.col, a.row, D.fix.arrow]];
+    const a = arrowCell(D, L, cursor, cam), cells = a.off ? [] : [[a.col, a.row - 1, 0x31], [a.col + 1, a.row - 1, 0x50], [a.col, a.row, D.fix.arrow]];
     const text = cells.some(([c, r]) => c < 40 && r < ROWS && (D.fix.map[c * ROWS + r] & 0xFFF) > 0x20);
     for (const [c, r, t] of cells) put(c, r, t);
     const hits = new Set();
@@ -149,10 +206,10 @@
     }
     let worst = 0;
     for (let l = 1; l < H; l++) if (counts[l] > counts[worst]) worst = l;
-    return { rgba, counts, worst, owner, names, cursor,
-             arrow: { col: a.col, row: a.row, hits: [...hits], text, off: a.col > 38 || a.row >= ROWS } };
+    return { rgba, W, cam, counts, worst, owner, names, cursor,
+             arrow: { col: a.col, row: a.row, hits: [...hits], text, off: a.off || a.col > 38 || a.row >= ROWS } };
   }
 
-  const api = { render, prepare, rgb, dark, poseOf, order, firstCursor, arrowCell, stick, stickMove, DIRS, W, H };
+  const api = { render, prepare, rgb, dark, poseOf, order, firstCursor, arrowCell, camFor, scrollOf, stick, stickMove, DIRS, W: SW, H };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SelectRender = api;
 })(typeof window !== 'undefined' ? window : globalThis);

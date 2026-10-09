@@ -24,8 +24,8 @@ a word carries its tile bits 16-19 (attribute bits 4-7). Palettes: SNK's in numb
 LAND_NPAL - 1 = the top of the block below KOF's shared effects bank (fighter.h SFX_PAL 224); the select screen's actors
 take theirs from 16 (main.c static assert).
 
-    python3 make_stage_land.py OUTDIR   (after make_stage_ra.py OUTDIR) -> land.h, land_cam*.png, patched bm_c*.bin"""
-import os, pickle, struct, sys
+    python3 make_stage_land.py OUTDIR   (after make_stage_ra.py OUTDIR) -> land.h, land.json (the Lab), land_cam*.png, patched bm_c*.bin"""
+import json, os, pickle, struct, sys
 import numpy as np
 from PIL import Image
 
@@ -226,6 +226,26 @@ def build(outdir):
             for r in range(oh): blit(img, ox + c * 16 - st, oy + 16 * r, *word(*lights[0][c][r]), alpha=0.5)
         lay('main', img, cam); lay('mid', img, cam); lay('front', img, sf)
         Image.fromarray(img.round().astype(np.uint8)).save(os.path.join(outdir, f'land_cam{cam:03d}.png'))
+    # ---- land.json for the Lab's Select screen tab (chainlab/select_images.py -> selectrender.js): each layer as palette
+    # indices (local palette * 16 + pen, 0 = transparent; little-endian uint16, base64) at auto-animation counter 0, its
+    # world x / screen y, its columns' trims (the per-line count), the lights' first image, SNK's palette words
+    import base64
+    def idx_img(cols, x0, y, rows_max):
+        W = len(cols) * 16; Hh = rows_max * 16; img = np.zeros((Hh, W), np.uint16)
+        for c, (f0, col) in enumerate(cols):
+            for r, (tw, aw) in enumerate(col):
+                t0, a = word(tw, aw)
+                if not t0 and not a: continue
+                px = ourpx(t0, a, 0).astype(np.uint16); m = px != 0
+                yy = 16 * (f0 + r); sub = img[yy:yy + 16, c * 16:c * 16 + 16]; sub[m] = ((a >> 8) - LAND_PAL) * 16 + px[m]
+        return {'x0': x0, 'y': y, 'w': W, 'h': Hh, 'pix': base64.b64encode(img.astype('<u2').tobytes()).decode(),
+                'cols': [[f0, len(col)] for f0, col in cols]}
+    LJ = {'pals': [v for p in pals for v in snkpal(p)], 'w': CAM_MAX + 320, 'cam_max': CAM_MAX, 'backdrop': BACKDROP, 'layers': {}}
+    for name in layers:
+        y = LAYERS[name][0]; rmax = max(f0 + len(col) for f0, col in layers[name])
+        LJ['layers'][name] = idx_img(layers[name], TOP_COLS[0] * 16 if name == 'top' else 0, y, rmax)
+    LJ['layers']['lights'] = idx_img([(0, lights[0][c]) for c in range(6)], ox, oy, oh)
+    json.dump(LJ, open(os.path.join(outdir, 'land.json'), 'w'))
     print(f'land: {npal} palettes ({LAND_PAL}-{LAND_PAL + npal - 1}), {len(slots)} tiles {base0}-{free[0] - 1} '
           f'(C ROM +{(free[0] - base0) * 128} bytes), ' + ', '.join(f'{n} {c} columns / {k} cells' for n, c, k in tab))
 
