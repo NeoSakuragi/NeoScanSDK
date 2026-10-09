@@ -1101,7 +1101,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
-                'krauser': {'214A', '214B', '41236B', '236D', '641236C', '623B', '623D'}, 'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
+                'krauser': {'214A', '214B', '214C', '214D', '41236B', '41236D', '236D', '641236C', '623B', '623D'},'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
                 'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D', '23624C'}}
 # furies read from the ROM whose MAX path is not modelled yet (no 'MAX <fury>' export: down+D plays the fury, as before):
 # none since TODO #220 (2026-10-07): Iori 23624C's MAX (ten strikes from the state list +$C2 by +$D2, the victim's lists
@@ -1634,6 +1634,60 @@ def held_by_routine(prog):
             if o_[0] == 'unhold': prog['ops'][i] = (a_, ('vheld',))
             i += 1
 
+def rom_anims(m, cid, states, add, more=()):
+    """a program's animations {state: {mode, steps}} (export_rom; anim_rom): each step's frame (export index via add),
+    ticks, flags, dx, boxes, voices, and on its own states (not `more`, its objects') the live attack box's reaction,
+    catch, no-stop and no-slide marks"""
+    anims = {}
+    for st in list(states) + list(more):
+        if st is None or st in anims: continue
+        steps, mode = anim_steps(m, cid, st)
+        ss = step_sounds(m, cid, st)                    # each step's voices ($FC records, TODO #163)
+        anims[st] = {'mode': mode, 'steps': [{'frame': add(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k_:02X}': v for k_, v in bx.items()},
+                                              'voices': [ix for ix in (ss[k_s] if k_s < len(ss) else []) if voice_send(m, ('sound', ix))]}
+                                             for k_s, (t, fi, fl, bx, raw, dx) in enumerate(steps)]}
+    for st in states:                                          # an attack box in slots 1-3 (TODO #216: Iori 23624C's
+        for k_s, (t_, b_) in slot_attacks(m, cid, st).items():   # claw, 165 step 36: slot 1, type $36): the step's
+            s_ = anims[st]['steps'][k_s]                       # live attack box (bit 8 + slot of its flags: KOF98's
+            s_['boxes'][f'{(0x10 | t_) if t_ < 16 else (0x100 | t_):02X}'] = b_   # collision $3ACC tests +$7C bit k
+            s_['flags'] |= 0x100                               # for slot k, the attacker's box by its type $3C54;
+            s_['boxes'].pop(f'{0x30 + [sl for sl in (1, 2, 3) if s_["flags"] & (0x100 << sl)][0]:02X}', None)   # not a
+                                                               # hurt box then: parse_anim keyed the slot as one)
+    live = None                                                # each step's reaction (box_react) by the attack box live
+    for st in states:                                          # on it (the last one loaded: rom_c's rule), packed
+        aa = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); raws = [s_[4] for s_ in anim_steps(m, cid, st)[0]]
+        for s in anims[st]['steps']:
+            ids = [int(k[1:], 16) for k in s['boxes'] if k[0] == '1' and len(k) == 3]
+            if ids: live = ids[-1]
+            s['react'] = box_react(m, live, cid) if live is not None and s['flags'] & 0x100 else 0
+            if live == HOLD_BOX and s['flags'] & 0x100: s['react'] = HY_HOLD   # KOF's hold hit (TODO #220)
+            s['catch'] = 1 if is_catch(live, s['flags']) and s['flags'] & 0x100 else 0
+            s['nostop'] = 1 if s['flags'] & 0x100 and no_stop(m, s['flags']) else 0
+            # the step's byte 1 (+$7E) bits 0-1 = 3: the victim's reel does not slide (KOF98 $1AF0E sets its +$12C bit 2,
+            # the reel $1BBD2 then keeps vx 0: Yashiro's 173 / 174, Ryo's 184, Ralf's 164)
+            s['noslide'] = 1 if s['flags'] & 0x100 and m.u8(aa + 6 * raws[anims[st]['steps'].index(s)] + 1) & 3 == 3 else 0
+    return anims
+
+def anim_rom(m, cid, st, add, react=None):
+    """animation state st as a special of the fighter's pool (game.json roster[].anim_specials, Krauser gold 2026-10-09:
+    KOF96's unused Kaiser Inferno cartwheel $A9 as his up,up + A Blitz): export_rom's layout with a program of one block
+    (P_ANIM, played to its end; its steps' boxes, timing, travel and voices as the ROM has them). react = the brawler's
+    reaction (fighter.h R_*) for every hit instead of KOF's box reaction (None: KOF's)"""
+    anims = rom_anims(m, cid, [st], add)
+    steps = anims[st]['steps']
+    if react is not None:
+        for s in steps: s['react'] = 0                   # (P_ANIM's reaction: the export's `react`)
+    live = [k for k, s in enumerate(steps) if s['flags'] & 0x100]
+    opens = sum(1 for k in live if not steps[k]['flags'] & 0x4000 or k == 0 or not steps[k - 1]['flags'] & 0x100)
+    length, last = 0, -1
+    for k, s in enumerate(steps):
+        if k in live: last = length + s['ticks']
+        length += s['ticks'] + 1
+    return {'handler': None, 'button': None, 'ops': [('anim', 0, st), ('resume',), ('br', CONDS['end'], 0, 'yield'), ('end',)],
+            'states': [st], 'anims': anims, 'openings': {st: opens}, 'last_hit': last, 'vlists': [], 'step_fx': [],
+            'variants': [], 'sdm': False, 'flash': None, 'apex': -1, 'length': length, 'objects': [], 'hit_kind': 1,
+            'links': [], 'elements': {st: fire_element(m, cid, st)}, **({'react': react} if react is not None else {})}
+
 def export_rom(m, cid, inp, add, game='kof98', shared=True):
     """a special's ROM program in export terms (export96 calls it for ROM_SPECIALS; tools/brawler/export_bm.py compiles
     it): ops (bookkeeping dropped, branch targets as op indices), anims {state: steps (frame = export index via add,
@@ -1698,34 +1752,7 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
     def fix(t): return t if t == 'yield' else t - sum(1 for r in rem if r < t)
     ops = [(o[0], o[1], o[2], fix(o[3])) + tuple(o[4:]) if o[0] == 'br' else (o[0], fix(o[1])) if o[0] in ('jmp', 'resume_at', 'onhit')
            else (o[0], fix(o[1])) + tuple(o[2:]) if o[0] == 'cine' else o for o in ops]
-    anims = {}
-    for st in states + [ob.get('state') for ob in prog['objects']] + ([prog['objects'][0]['hit']['fields'].get(0x72)] if False else []):
-        if st is None or st in anims: continue
-        steps, mode = anim_steps(m, cid, st)
-        ss = step_sounds(m, cid, st)                    # each step's voices ($FC records, TODO #163)
-        anims[st] = {'mode': mode, 'steps': [{'frame': add(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k_:02X}': v for k_, v in bx.items()},
-                                              'voices': [ix for ix in (ss[k_s] if k_s < len(ss) else []) if voice_send(m, ('sound', ix))]}
-                                             for k_s, (t, fi, fl, bx, raw, dx) in enumerate(steps)]}
-    for st in states:                                          # an attack box in slots 1-3 (TODO #216: Iori 23624C's
-        for k_s, (t_, b_) in slot_attacks(m, cid, st).items():   # claw, 165 step 36: slot 1, type $36): the step's
-            s_ = anims[st]['steps'][k_s]                       # live attack box (bit 8 + slot of its flags: KOF98's
-            s_['boxes'][f'{(0x10 | t_) if t_ < 16 else (0x100 | t_):02X}'] = b_   # collision $3ACC tests +$7C bit k
-            s_['flags'] |= 0x100                               # for slot k, the attacker's box by its type $3C54;
-            s_['boxes'].pop(f'{0x30 + [sl for sl in (1, 2, 3) if s_["flags"] & (0x100 << sl)][0]:02X}', None)   # not a
-                                                               # hurt box then: parse_anim keyed the slot as one)
-    live = None                                                # each step's reaction (box_react) by the attack box live
-    for st in states:                                          # on it (the last one loaded: rom_c's rule), packed
-        aa = rom96.anim_addr(m, cid, rom96.state_slot(m, cid, st)); raws = [s_[4] for s_ in anim_steps(m, cid, st)[0]]
-        for s in anims[st]['steps']:
-            ids = [int(k[1:], 16) for k in s['boxes'] if k[0] == '1' and len(k) == 3]
-            if ids: live = ids[-1]
-            s['react'] = box_react(m, live, cid) if live is not None and s['flags'] & 0x100 else 0
-            if live == HOLD_BOX and s['flags'] & 0x100: s['react'] = HY_HOLD   # KOF's hold hit (TODO #220)
-            s['catch'] = 1 if is_catch(live, s['flags']) and s['flags'] & 0x100 else 0
-            s['nostop'] = 1 if s['flags'] & 0x100 and no_stop(m, s['flags']) else 0
-            # the step's byte 1 (+$7E) bits 0-1 = 3: the victim's reel does not slide (KOF98 $1AF0E sets its +$12C bit 2,
-            # the reel $1BBD2 then keeps vx 0: Yashiro's 173 / 174, Ryo's 184, Ralf's 164)
-            s['noslide'] = 1 if s['flags'] & 0x100 and m.u8(aa + 6 * raws[anims[st]['steps'].index(s)] + 1) & 3 == 3 else 0
+    anims = rom_anims(m, cid, states, add, [ob.get('state') for ob in prog['objects']])
     cst = next((s_ for st in states for s_ in anims[st]['steps'] if s_['catch']), None)   # the catch's dead frames
     if cst is not None: ops = [o_ + (stop_frames(m, cst['flags']),) if o_[0] == 'onhit' else o_ for o_ in ops]   # - 1
     per, last, peak, length = openings(m, cid, prog)

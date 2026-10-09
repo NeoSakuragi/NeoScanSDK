@@ -299,12 +299,37 @@ def game_hits(e):
     life = [ps[3] for ps in e.get('steps', []) if len(ps) > 3]
     return sum(1 for i in range(1, len(life)) if life[i] < life[i - 1])
 
-def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None):
+# ---- animation specials (Krauser gold, Bruno 2026-10-09, docs/brawler_gold.md "Krauser (heavy)"): one of the fighter's
+# animations played as a special of his pool, input '$NN' = its state / animation number (game.json
+# roster[].anim_specials {"$NN": how}, the Kizuna way: tools/kizuna/export_kz.anim_special): a program of one block
+# (handlers98.anim_rom), so a Blitz or C slot can name it. how = the victim's reaction on every hit: heavy (a reel),
+# launch, knockdown, or kof (KOF's own box reaction). Damage: SPECIAL_DAMAGE split over its hits (an unmeasured special).
+ANIM_REACT = {'heavy': handlers98.R_HEAVY, 'launch': handlers98.R_LAUNCH, 'knockdown': handlers98.R_KNOCKDOWN, 'kof': None}
+
+def anim_special(m, cid, st, inp, how, add):
+    """animation state st as an export special (above): the Lab's rows (the whiff as the program plays it) + its 'rom'"""
+    assert how in ANIM_REACT, f'anim_specials {inp}: {how} ({" / ".join(ANIM_REACT)})'
+    rom = handlers98.anim_rom(m, cid, st, add, ANIM_REACT[how])
+    script, rb, rs, x, live = [], [], [], 0, {}
+    for k, s in enumerate(rom['anims'][st]['steps']):
+        x += s['dx']
+        atk = {b: v for b, v in s['boxes'].items() if b[0] == '1'}
+        if atk: live = atk
+        box = {**{b: v for b, v in s['boxes'].items() if b[0] != '1'}, **(live if s['flags'] & 0x100 else {})}
+        for _ in range(s['ticks'] + 1):
+            script.append([s['frame'], x, 0, []]); rb.append(box); rs.append([st, k, s['flags'], 0xFF])
+    return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
+            'marks': [''] * len(script), 'projectiles': [], 'anims': [st], 'states': [[st, len(script), None]],
+            'shape': [max(r[1] for r in script), 0, False], 'game_hits': rom['openings'][st], 'parts': [], 'links': [],
+            'flash': None, 'rom': rom}
+
+def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
     extra: {name: {move: (state, step)}} more moves for one fighter, each a single held frame (the animation's step
     `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH).
     shared_fx: {name: inputs} the ROM specials whose effects from KOF's shared bank are exported (TODO #214: the
-    brawler's slots and fury, export_bm.export; None = every special's)"""
+    brawler's slots and fury, export_bm.export; None = every special's)
+    anim_specials: {name: {"$NN": how}} animations played as specials of the pool (anim_special)"""
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
     k98 = game in ('kof97', 'kof98', 'kof99')           # KOF97 and KOF99 use KOF98's layout
     cast, moves = {'kof97': (CAST97, MOVES97), 'kof98': (CAST98, MOVES98), 'kof99': (CAST99, MOVES99)}.get(game, (CAST, MOVES))
@@ -449,6 +474,8 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None):
                 # (the Lab's data; the game plays the program)
                 rom = handlers98.export_rom(m, cid, 'MAX ' + sp['input'], add, shared=shared_fx is None or sp['input'] in shared_fx.get(name, ()))
                 if 'error' not in rom: sps.append(dict(e, input='MAX ' + sp['input'], rom=rom, flash=rom['flash'], max_of=sp['input']))
+        sps += [anim_special(m, cid, int(inp.lstrip('$'), 16), inp, how, add)
+                for inp, how in ((anim_specials or {}).get(name) or {}).items()]
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not
             out['characters'][name]['commands'] = [commands96.notation(p) for k, p in
