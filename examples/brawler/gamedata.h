@@ -220,10 +220,11 @@ typedef struct {                  /* a player's lines when it is that fighter (g
     const char *line[DR_LINES];
 } gsceneby_t;
 enum { DW_FIXED, DW_P1, DW_P2 };  /* gscene_t.who: the speaker as written; "$P1" / "$P2": whoever plays (P1: the one in play) */
+#define SC_IF_PORTRAIT 1          /* gscene_t.flags (game.json if_portrait) */
 typedef struct {
     uint8_t portrait, side, nlines, who;   /* PB_* (0xFF none; DW_P*: the player's own, pb_of_fighter); 0 left (mirrored), 1 right */
     uint16_t wait;                /* ticks the scene stays once its text is out (then the next; a button skips) */
-    uint8_t nby, pad;             /* by[]: per-fighter lines (DW_P*), else line[] */
+    uint8_t nby, flags;           /* by[]: per-fighter lines (DW_P*), else line[]; flags SC_IF_PORTRAIT: skipped when the player's fighter has no big portrait */
     const char *speaker;          /* the name plate (DW_P*: the fighter's name) */
     const char *line[DR_LINES];
     const gsceneby_t *by;

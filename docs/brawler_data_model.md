@@ -851,10 +851,15 @@ are unchanged; the AI never presses D in a hold. A fighter without a forward+C t
 `{"speaker": "GEESE", "side": "right", "portrait": "geese", "lines": ["So you made it this far.", "..."], "wait": 120}`
 (1-8 scenes, 1-3 lines of at most 34 ASCII characters, speaker 1-16, wait = ticks the scene stays once typed, default
 120); a player's reply: speaker `"$P1"` (P1, or P2 when P1 is out) / `"$P2"` (only with both in play, else
-skipped), no `portrait` (its own: `pb_of_fighter`, the game.json portrait named like the fighter; none, e.g. K' or
+skipped), no `portrait` (its own: `pb_of_fighter`, the game.json portrait named like the fighter; none, e.g.
 Haohmaru: name plate and text only, a HUD face cannot be scaled up by the hardware), the name plate = the fighter's
-name, `"lines_by": {"terry": [...], "*": [...]}` its own lines, else the "*" / `lines` ones; `gsceneby_t` {fighter,
-nlines, lines[3]}, gscene_t 28 bytes with `who`, `nby`, `by*`. Proof: Geese's reply with Terry, Kyo, Haohmaru in
+name, `"lines_by": {"terry": [...], "*": [...]}` its own lines, else the "*" / `lines` ones; `"if_portrait": true`: the
+scene is skipped when that fighter has no big portrait (gscene_t.flags SC_IF_PORTRAIT; such a scene may have no lines);
+`gsceneby_t` {fighter, nlines, lines[3]}, gscene_t 28 bytes with `who`, `nby`, `flags`, `by*`.
+**The stage clear's win screen** (note 20261009-230403-b3f3, KOF's winner portrait): top-level `"win_drama": "stage_win"`
+(build_tables `DR_WIN`, 0xFF none; "$P1" / "$P2" scenes only): main.c PH_CLEAR plays it once the win poses are done
+(STAGE CLEAR erased first), then the next screen as before; `stage_win` = P1's big portrait on the right, P2's on the
+left (both in play), `if_portrait`, no lines, 180 ticks each; nobody with a portrait: no drama, as before. Proof: Geese's reply with Terry, Kyo, Haohmaru in
 /data/tmp/drama/out/p1_*.png (Terry's own line and portrait; Kyo's portrait + the generic line; Haohmaru text only); played by a trigger (`do.drama`) or as a boss walks in (`stages[].boss.drama`: before its song, which starts when
 the scene ends). On screen: black bars slide in from the top (fix rows 0-3) and the bottom (rows 20-27), a row every 2
 ticks; the fight held (game_tick only draws: no AI, no update, no flow, no HUD; the HUD's rows 4-7 cleared); each
@@ -869,11 +874,13 @@ cell). Binary: `gscene_t` 24 bytes {portrait, side, nlines, wait, speaker*, line
 fighter's win-screen portrait in our emulator (its fight state c<id>, P2's life and the round timer poked so P1 wins
 three rounds on time; VRAM + palette RAM every 50 frames; the widest run of tall sprites side by side that stands
 still): KOF96 Mr. Big, Krauser, Geese, Goenitz (12-14 columns of 16 tiles, 3-8 palettes), KOF98 Rugal, Terry, Ryo
-(16-20 columns of 14 tiles, 8 palettes) -> /data/neogeo_dict/portraits/big_<game>_<name>.json + .png. `build` trims
+(16-20 columns of 14 tiles, 8 palettes), KOF99 K' (17 columns of 14 tiles, 10 palettes: `fold` first tries to fold
+palettes with the exact colours (an entry's 4th item = the pen map, `build` stores the tile recoloured), else up to
+PB_MAXPAL 10: palettes 240-249, 248-249 shared with the super flash) -> /data/neogeo_dict/portraits/big_<game>_<name>.json + .png. `build` trims
 empty rows / columns, stores identical tiles once after the fighters' tiles (rom_c1/c2.bin = bm_c1/c2.bin + 750 tiles,
 93 KB: C ROM 15.56 MB of the 32 MB allowed) and writes build/portraits_big.h (`pbig[]`: columns, rows, palettes, the
 map: palette << 24 | flip << 20 | tile). In the game: sprites 300-319 (the box viewer's, hidden meanwhile; dbg_init
-gives them back), palettes 240-247, top at y 24 (its first rows under the top bar); the line guard keeps its columns.
+gives them back), palettes 240-249, top at y 24 (its first rows under the top bar); the line guard keeps its columns.
 The Stages tab edits `triggers` (a list per stage: when / do with their fields, add / remove) and the boss's scene.
 
 Proof (2026-10-05, our emulator only):

@@ -60,7 +60,7 @@ uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_ti
 /* palettes: 0-15 text and fix portraits; the select screen: its actors back to back from 16 at their fighters' own counts
  * (game_tables sel_palbase, SEL_NPAL in all), the Neo Geo Land's SNK palettes LAND_PAL .. (land.h, up to SFX_PAL); a fight:
  * the fighters from 16 (MAX_PALS each), its stage's from STAGE_PAL; KOF's shared effects SFX_PAL ..; the big portraits
- * PB_PALN 240-247; 248+ the flash, shadows, sparks */
+ * PB_PALN 240-249 (248-249 shared with the super flash: a drama never runs during one); 248+ the flash, shadows, sparks */
 _Static_assert(16 + SEL_NPAL <= LAND_PAL && LAND_PAL + LAND_NPAL <= SFX_PAL && 16 + NF * MAX_PALS <= STAGE_PAL &&
                STAGE_PAL + STAGE_MAXPAL <= SFX_PAL && SFX_PAL + SFX_NPAL_MAX <= 240,
                "palettes: the select screen's actors, the Neo Geo Land, the stages, KOF's shared effects (TODO #214), the big portraits (PB_PALN)");
@@ -1977,7 +1977,8 @@ static void spawns_ai(uint16_t seed, const gspawn_t *sp, uint8_t n, uint8_t slot
  * the next scene; else each scene goes on after its wait. Then the bars slide out, the HUD comes back, the song (a
  * boss's) starts. ---- */
 #define PB_SPR  300
-#define PB_PALN 240                      /* palettes 240-247 */
+#define PB_PALN 240                      /* palettes 240-249 (PB_MAXPAL 10: KOF99's portraits; 248-249 = SF_RAYS_PAL /
+                                            SF_GLOW_PAL, set again by each super flash) */
 #define DR_PY   24                       /* the portrait's top on screen (its first rows under the top bar) */
 enum { DR_OFF, DR_IN, DR_SCENE, DR_OUT };
 static uint8_t dr_on, dr_scene, dr_music, dr_rows, dr_pb, dr_side, dr_slide;
@@ -2032,10 +2033,13 @@ static void dr_text(uint16_t upto) {             /* the scene's characters dr_ch
         for (c = 0; dr_lines[l][c]; c++, n++) if (n >= dr_chars && n < upto) dr_put(3 + c, 23 + l, dr_lines[l][c], 0);
     dr_chars = upto;
 }
-static const fighter_t *dr_who(const gscene_t *sc) {   /* "$P1": P1, or P2 when P1 is out; "$P2": P2; 0 = skip the scene */
-    if (sc->who == DW_P1) return in_play(&fighters[0]) ? &fighters[0] : in_play(&fighters[1]) ? &fighters[1] : 0;
-    if (sc->who == DW_P2) return in_play(&fighters[1]) && in_play(&fighters[0]) ? &fighters[1] : 0;
-    return &fighters[0];
+static const fighter_t *dr_who(const gscene_t *sc) {   /* "$P1": P1, or P2 when P1 is out; "$P2": P2; 0 = skip the scene
+                                                          (SC_IF_PORTRAIT: also when that fighter has no big portrait) */
+    const fighter_t *f = &fighters[0];
+    if (sc->who == DW_P1) f = in_play(&fighters[0]) ? &fighters[0] : in_play(&fighters[1]) ? &fighters[1] : 0;
+    else if (sc->who == DW_P2) f = in_play(&fighters[1]) && in_play(&fighters[0]) ? &fighters[1] : 0;
+    if (f && (sc->flags & SC_IF_PORTRAIT) && pb_of_fighter[char_index(f->ch)] >= PB_COUNT) f = 0;
+    return f;
 }
 static uint8_t dr_next(uint8_t k) {              /* the first scene from k someone can play (dr->n: none) */
     while (k < dr->n && !dr_who(&dr->scene[k])) k++;
@@ -2134,6 +2138,7 @@ static uint16_t ko_t, ko_next;                   /* frames since the killing hit
                                                     sound + the music stopped, 1 s later the scream, 3 s later the win music;
                                                     note 20261009-120007-5d29: "shift the start of the win song by one second") */
 static uint8_t ko_win;                           /* 1: the win music already started by the KO sequence (PH_END doesn't restart it) */
+static uint8_t win_dr;                           /* PH_CLEAR: 1 once the win drama (DR_WIN) played or was passed */
 static uint8_t ko_scream;                        /* 1: the boss's death voice still to come (ghitsnd.scream_delay) */
 /* ---- the stage clear's win pose (TODO #184, Bruno 2026-10-07: "a little winning pose here at the end of the stage"):
  * when every enemy is gone (after the boss's death sequence), STAGE CLEAR and the input off as before; each player in
@@ -2446,7 +2451,7 @@ static void campaign(uint8_t left) {
     case PH_END:                                             /* every enemy gone: STAGE CLEAR, the save */
         if (left) break;
         FIX_print(14, 13, "STAGE CLEAR", 0); if (!ko_win) snd_music(GAME_MUS_CLEAR);
-        phase = PH_CLEAR; phase_t = 0; unlock_k = 0;
+        phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0;
         win_start();                                         /* the players' win poses (#184) */
         if (attract) break;
         if (camp + 1 < GS_COUNT && save.furthest < camp + 1) save.furthest = camp + 1;
@@ -2456,6 +2461,14 @@ static void campaign(uint8_t left) {
     case PH_CLEAR:
         if (phase_t < 200 || (!win_done() && phase_t < WIN_MAX)) break;   /* the win poses played, then the next screen: a
                                                                 cut (no fades) */
+        if (!win_dr) {                                       /* first the winner's big portrait, KOF's win screen in drama
+                                                                mode (game.json win_drama; note 20261009-230403-b3f3): its
+                                                                scenes skip a player whose fighter has none (if_portrait) */
+            win_dr = 1;
+            if (DR_WIN < DR_COUNT && !attract && (dr = &gdramas[DR_WIN], dr_next(0) < dr->n)) {
+                FIX_print(14, 13, "           ", 0); drama_start(DR_WIN, 0xFF); break;
+            }
+        }
         for (i = 0; i < 2; i++)
             if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = char_index(fighters[i].ch); pl_set[i] = fighters[i].set; }
         if (unlock_k) unlock_start(unlock_k - 1);

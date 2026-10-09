@@ -25,7 +25,7 @@ import numpy as np
 from PIL import Image
 import portraits as P
 PORTRAITS = '/data/neogeo_dict/portraits'
-PB_MAXPAL = 8                                  # palettes per portrait (main.c PB_PAL .. + 7)
+PB_MAXPAL = 10                                 # palettes per portrait (main.c PB_PALN 240 .. 249: 248-249 the super flash's, never on at once)
 PB_MAXCOLS = 20                                # sprites per portrait (main.c PB_SPR ..)
 
 
@@ -49,7 +49,7 @@ def chain(v):
 
 def capture(outdir, specs):
     import emu, export96, rom96
-    casts = {'kof96': export96.CAST, 'kof98': export96.CAST98}
+    casts = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}
     os.makedirs(outdir, exist_ok=True)
     for spec in specs:
         game, name = spec.split(':'); cid = casts[game].index(name)
@@ -70,7 +70,8 @@ def capture(outdir, specs):
         pal = P.words(os.path.join(d, f'out.pal{fr}'))
         crom = rom96.load(rom96.GAMES[game]['neo'])[1]
         pns = sorted({a >> 8 for c in cols for t, a in c['tiles'] if t})
-        assert len(pns) <= PB_MAXPAL, f'{spec}: {len(pns)} palettes'
+        folds, pals = fold(crom, cols, pal, pns)
+        assert len(pals) <= PB_MAXPAL, f'{spec}: {len(pns)} palettes, {len(pals)} folded'
         h = max(c['h'] for c in cols)
         img = Image.new('RGB', (16 * len(cols), 16 * h), (0, 0, 0))
         out = []
@@ -78,7 +79,8 @@ def capture(outdir, specs):
             rows = []
             for r, (t, a) in enumerate(col['tiles']):
                 if not t: rows.append(0); continue
-                rows.append([t, pns.index(a >> 8), a & 3])
+                g, m = folds[a >> 8]
+                rows.append([t, g, a & 3] + ([m] if m else []))
                 px = P.decode(crom, t)
                 for y in range(16):
                     for x in range(16):
@@ -89,9 +91,49 @@ def capture(outdir, specs):
             out.append(rows)
         img.save(os.path.join(outdir, f'big_{game}_{name}.png'))
         json.dump({'game': game, 'name': name, 'cid': cid, 'frame': fr, 'x': cols[0]['x'], 'y': cols[0]['y'],
-                   'palettes': [list(pal[p * 16:p * 16 + 16]) for p in pns], 'palette_slots': pns, 'cols': out},
+                   'palettes': pals, 'palette_slots': pns, 'cols': out},
                   open(os.path.join(outdir, f'big_{game}_{name}.json'), 'w'))
-        print(spec, f'frame {fr}: {len(cols)} columns x {h} tiles at ({cols[0]["x"]}, {cols[0]["y"]}), palettes', [hex(p) for p in pns])
+        print(spec, f'frame {fr}: {len(cols)} columns x {h} tiles at ({cols[0]["x"]}, {cols[0]["y"]}), palettes', [hex(p) for p in pns],
+              f'-> {len(pals)}' if len(pals) < len(pns) else '')
+
+
+def fold(crom, cols, pal, pns):
+    """palettes over PB_MAXPAL folded with the exact colours (KOF99's portraits use 10): a palette joins another when
+    the colours its tiles' pens use, together with the other's, number at most 15; its pens are renumbered onto the
+    host's (the entry's 4th item: pen map, 16 pens; build copies the tile recoloured). -> {slot: (group, map or None)},
+    the groups' palettes (16 words, pen 0 = $8000 as written by build)"""
+    used = {p: set() for p in pns}
+    for c in cols:
+        for t, a in c['tiles']:
+            if t: used[a >> 8] |= {k for row in P.decode(crom, t) for k in row if k}
+    groups = [[p] for p in pns]                               # each group: its palettes, the first the host
+    def colours(g): return {pal[p * 16 + k] for p in g for k in used[p]}
+    while len(groups) > PB_MAXPAL:
+        best = None
+        for i, a in enumerate(groups):
+            for j, b in enumerate(groups):
+                if i < j and len(colours(a + b)) <= 15 and (best is None or len(colours(a + b)) < best[0]):
+                    best = len(colours(a + b)), i, j
+        if not best: break
+        _, i, j = best; groups[i] = groups[i] + groups.pop(j)
+    folds, pals = {}, []
+    for gi, g in enumerate(groups):
+        if len(g) == 1:
+            folds[g[0]] = (gi, None); pals.append(list(pal[g[0] * 16:g[0] * 16 + 16])); continue
+        h = g[0]; words = list(pal[h * 16:h * 16 + 16]); taken = set(used[h])
+        for p in g:
+            m = list(range(16))
+            if p != h:
+                for k in sorted(used[p]):
+                    w = pal[p * 16 + k]
+                    q = next((q for q in sorted(taken) if words[q] == w), None)
+                    if q is None:
+                        q = k if k not in taken else min(set(range(1, 16)) - taken)
+                        words[q] = w; taken.add(q)
+                    m[k] = q
+            folds[p] = (gi, m if p != h else None)
+        pals.append(words)
+    return folds, pals
 
 
 def build(game_json, build_dir):
@@ -119,11 +161,12 @@ def build(game_json, build_dir):
             for r in range(top, bot + 1):
                 x = c[r] if r < len(c) else 0
                 if not x: m.append(0); continue
-                t, p, fl = x
-                key = (game, t)
+                t, p, fl = x[:3]; pm = x[3] if len(x) > 3 else None       # pm: a folded palette's pen map (fold)
+                key = (game, t, tuple(pm) if pm else None)
                 if key not in index:
                     index[key] = base + len(order); order.append(key)
                     px = np.array(P.decode(croms[game], t), np.uint8)
+                    if pm: px = np.array(pm, np.uint8)[px]
                     a, b = encode_crom_tile(px)
                     c1.extend(a); c2.extend(b)
                 v = index[key]
@@ -132,7 +175,7 @@ def build(game_json, build_dir):
         h.append(f'static const uint16_t pb_pal_{nm}[] = {{' + ', '.join(f'0x{w:04X}' for p in d['palettes'] for w in [0x8000] + p[1:]) + '};')
         h.append(f'static const uint32_t pb_map_{nm}[] = {{' + ', '.join(f'0x{w:07X}' for w in m) + '};')
         rows_h.append(f'    {{ {len(cols)}, {bot - top + 1}, {len(d["palettes"])}, 0, pb_pal_{nm}, pb_map_{nm} }},   /* {pi}: {pname} ({src}) */')
-    h.append('/* map entry: palette index (0-3) << 24 | SCB1 flip bits (1 h, 2 v) << 20 | tile (20 bits) */')
+    h.append('/* map entry: palette index (0-9) << 24 | SCB1 flip bits (1 h, 2 v) << 20 | tile (20 bits) */')
     h.append(f'static const pbig_t pbig[PB_COUNT ? PB_COUNT : 1] = {{\n' + ('\n'.join(rows_h) if rows_h else '    { 0 }') + '\n};')
     h.append('enum { ' + ', '.join(f'PB_{n.upper()}' for n in ports) + (', ' if ports else '') + 'PB_NONE = 0xFF };')
     h.append('#endif')
