@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The per-fighter ARBITRATION page's "now" data (the Brawler Lab's arbitrage.html?f=<fighter>, arbitrage.js): what the
-game plays today in each slot of Bruno's A4 sheet (chain, alternate finishers, Blitz, specials, air, grab, fury), as
-animation ids of the fighter's dictionary (animdict.py, review/<fighter>_anims.json, built first), read from game.json's
+game plays today in each slot of Bruno's A4 sheet (chain, alternate finishers, Blitz, air Blitz, specials, air specials,
+air, grab, fury), as animation ids of the fighter's dictionary (animdict.py, review/<fighter>_anims.json, built first), read from game.json's
 roster entry. The page pre-fills every slot with it, marked "now"; his picks replace it (decisions store, set
 "<fighter>-arb").
 
@@ -73,6 +73,7 @@ def now_of(r, D, chain_len, gen=None):
     out['fin_up'] = slot(fin.get('up'), j('launcher' if la == 'up' else '', pick('up')) if fin.get('up') else 'the generator\'s pick')
     dm = fin.get('down_move')
     out['fin_down'] = slot(dm, j({'sweep': 'sweep (trips)', 'slam': 'slam (bounces)'}.get(fin.get('down'), '') + (', back to back' if isinstance(dm, list) and len(dm) > 1 else ''), pick('down_move')))
+    out['fin_df'] = {'pieces': [], 'text': 'empty', 'moves': []}
     out['fin_back'] = slot('throw_c', 'the throw')
     bz = r.get('blitz') or {'ff': 'dash'}
     for k in ('ff', 'dd', 'uu', 'du'):
@@ -86,8 +87,11 @@ def now_of(r, D, chain_len, gen=None):
     air = dict(build_tables.AIR_DEFAULT, **(r.get('air') or {}))
     out['air_a'] = slot(air['forward'], '' if air['straight'] == air['forward'] else f"forward jump; straight jump + A = {air['straight']} ({', '.join('$' + x for x in anims(air['straight'])) or '?'})")
     out['air_da'] = slot(air['down'])
-    asp = (r.get('air_specials') or {}).get('ddA')
-    out['air_dda'] = slot(asp) if asp else {'pieces': [], 'text': 'empty', 'moves': []}
+    asp = r.get('air_specials') or {}             # air Blitz = '<dd>A' entries, air specials = '<stick>C' (docs/brawler_data_model.md)
+    for k in ('ff', 'dd', 'uu', 'du'):
+        out['air_bz_' + k] = slot(asp[k + 'A']) if asp.get(k + 'A') else {'pieces': [], 'text': 'empty', 'moves': []}
+    for k, key in (('c', 'C'), ('fc', 'fC'), ('dc', 'dC')):
+        out['air_sp_' + k] = slot(asp[key]) if asp.get(key) else {'pieces': [], 'text': 'empty', 'moves': []}
     hold = (r.get('throws') or {}).get('hold') or {}
     out['grab_hit'] = slot(hold['hit']) if hold.get('hit') else {'pieces': [], 'text': HOLD_HIT_DEFAULT, 'moves': []}
     out['grab_fin'] = slot(hold.get('fin') or HOLD_FIN_DEFAULT, '' if hold.get('fin') else 'engine default')

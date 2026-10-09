@@ -1,11 +1,13 @@
 // A fighter's ARBITRATION sheet (arbitrage.html?f=kim, ?f=krauser, ?f=robert): the web version of Bruno's A4 sheet for Kim
 // (/data/scans/brawler/kim_notes_231734.png -> docs/brawler_gold.md "Kim (fast)"). The workflow for every new fighter,
-// in this order: chain combo, alternate finishers, Blitz, specials, air, grab; the fury is a separate script (a note).
+// in this order: chain combo, alternate finishers, Blitz, air Blitz, specials, air specials, air, hold / throws; the fury is
+// a separate script (a note).
 // Each slot: its input in game terms, the animation(s) it plays (small looping clips, tap = ¼ speed), "Pick animation"
 // (the fighter's whole animation dictionary, attacks first, flag filter), "+ add after" (played back to back), a note
 // with the microphone, "Clear". Pre-filled with what the game plays now (review/<fighter>_arb.json, tools/brawler/arbitrage.py).
 // Answers: the decisions store, set "<fighter>-arb", one id per slot: choice 1 = his (pieces "anim-<hex>" in order, note);
 // id "presses" = the chain's length; id "done" = "Done — send to Claude" (note = the whole sheet as text).
+// Renamed slots: an answer saved under an old id is read under its new one while the new id has none (OLD_IDS).
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
   const root = document.getElementById('arb');
@@ -17,6 +19,8 @@
   if (!D || !NOW) { root.replaceChildren(h('p', { text: 'No arbitration sheet for "' + f + '" (it needs an animation dictionary).' })); return; }
   let ans = {};
   try { const r = await fetch(API + 'decisions/' + SET, { cache: 'no-store', credentials: 'same-origin' }); if (r.ok) ans = await r.json(); } catch (e) { /* offline: the page still works, saves will say so */ }
+  const OLD_IDS = { air_dda: 'air_bz_dd' };       // 2026-10-10: "down, down + A in the air" moved into the air Blitz section
+  for (const [o, n] of Object.entries(OLD_IDS)) if (ans[o] && !ans[n]) ans[n] = ans[o];
 
   const clips = [];
   AD.clock(clips);
@@ -31,18 +35,23 @@
     { id: 'chain', title: '1. Chain combo', about: `A, A, A… on hits. ${NOW.archetype[0].toUpperCase() + NOW.archetype.slice(1)} archetype: ${N0} presses (fast 5, balanced 4, heavy 3). The last press is the neutral finisher.`, chain: true },
     { id: 'fin', title: '2. Alternate finishers', about: 'The last hit with a direction instead of the neutral one. A slot may play several animations back to back ("+ add after").', slots: [
       { id: 'fin_fwd', label: 'last hit + forward' }, { id: 'fin_up', label: 'last hit + up (launcher)' },
-      { id: 'fin_down', label: 'last hit + down' }, { id: 'fin_back', label: 'last hit + back (throw)' }] },
+      { id: 'fin_down', label: 'last hit + down' }, { id: 'fin_df', label: 'last hit + down-forward' }, { id: 'fin_back', label: 'last hit + back (throw)' }] },
     { id: 'bz', title: '3. Blitz (free)', about: 'Double direction + A: free, no drive, a little recovery, not invincible. A slot may stay empty.', slots: [
       { id: 'bz_ff', label: 'forward, forward + A' }, { id: 'bz_dd', label: 'down, down + A' },
       { id: 'bz_uu', label: 'up, up + A' }, { id: 'bz_du', label: 'down, up + A' }] },
-    { id: 'sp', title: '4. Specials (C, 1 drive chunk)', about: 'C or A+B with a direction; invincible. C neutral is also the combo breaker (C while being hit).', slots: [
+    { id: 'abz', title: '4. Air Blitz', about: 'Double direction + A while airborne: the ground Blitz\'s inputs in a jump. A slot may stay empty.', slots: [
+      { id: 'air_bz_ff', label: 'forward, forward + A in the air' }, { id: 'air_bz_dd', label: 'down, down + A in the air' },
+      { id: 'air_bz_uu', label: 'up, up + A in the air' }, { id: 'air_bz_du', label: 'down, up + A in the air' }] },
+    { id: 'sp', title: '5. Specials (C, 1 drive chunk)', about: 'C or A+B with a direction; invincible. C neutral is also the combo breaker (C while being hit).', slots: [
       { id: 'sp_c', label: 'C (neutral, also the combo breaker)' }, { id: 'sp_fc', label: 'forward + C' }, { id: 'sp_dc', label: 'down + C' }] },
-    { id: 'air', title: '5. Air', about: 'Three air attacks: the jump attack (knocks down), down + A (flinches, active the rest of the jump), the air Blitz.', slots: [
-      { id: 'air_a', label: 'jump + A' }, { id: 'air_da', label: 'jump + down + A' }, { id: 'air_dda', label: 'down, down + A in the air' }] },
-    { id: 'grab', title: '6. Grab', about: 'Walk into an enemy: the hold. A hits him in the hold; the finisher throws him out; forward / back + C in the hold = the throws.', slots: [
+    { id: 'asp', title: '6. Air specials (C in the air, 1 drive chunk)', about: 'C with a direction while airborne, like the ground C specials.', slots: [
+      { id: 'air_sp_c', label: 'C in the air' }, { id: 'air_sp_fc', label: 'forward + C in the air' }, { id: 'air_sp_dc', label: 'down + C in the air' }] },
+    { id: 'air', title: '7. Air', about: 'The two air normals: the jump attack (knocks down), down + A (flinches, active the rest of the jump).', slots: [
+      { id: 'air_a', label: 'jump + A' }, { id: 'air_da', label: 'jump + down + A' }] },
+    { id: 'grab', title: '8. Grab', about: 'Walk into an enemy: the hold. A hits him in the hold; the finisher throws him out; forward / back + C in the hold = the throws.', slots: [
       { id: 'grab_hit', label: 'hold hit (A in the hold)' }, { id: 'grab_fin', label: 'hold finisher (the throw-out)' },
       { id: 'grab_fwd', label: 'throw forward' }, { id: 'grab_back', label: 'throw back' }] },
-    { id: 'fury', title: '7. Fury', about: 'The fury is a separate script: say what it should do here; point at its animations if you want.', slots: [
+    { id: 'fury', title: '9. Fury', about: 'The fury is a separate script: say what it should do here; point at its animations if you want.', slots: [
       { id: 'fury_note', label: 'fury: what it does', noAnim: true }, { id: 'fury', label: 'fury (D, gauge full)' }, { id: 'max', label: 'MAX (down + D, low life)' }] },
   ];
   const allSlots = () => SECTIONS.flatMap(s => s.chain ? range(presses()).map(i => press(i + 1)) : s.slots);
@@ -218,7 +227,7 @@
   };
 
   const out = [h('h1', { text: `${D.display}: arbitration sheet` }),
-    h('p', { class: 'intro', text: `What each input plays, section by section: chain, alternate finishers, Blitz, specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, or write / speak the info. Everything saves as you go. Tap a clip for ¼ speed.` }),
+    h('p', { class: 'intro', text: `What each input plays, section by section: chain, alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, or write / speak the info. Everything saves as you go. Tap a clip for ¼ speed.` }),
     h('div', { class: 'links' }, h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' }))];
   for (const s of SECTIONS) {
     out.push(h('h2', { text: s.title }), h('p', { class: 'about', text: s.about }));
