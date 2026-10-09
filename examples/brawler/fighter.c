@@ -612,7 +612,9 @@ static void route_go(fighter_t *f, uint8_t node, uint8_t b, const intent_t *in, 
  * (BZ_DASH: a normal; a special dash node plays free: node_special). The ladder: a normal that hit (a chain link, a
  * finisher) cancels into it (S_ATTACK, blz_buf); it cancels on hit into a C special or the fury (may_cancel, the special
  * cancels). Empty slot: 0, the press is a plain A. Depth walking and the finishers' held up / down are untouched (a Blitz
- * needs two taps). */
+ * needs two taps). A Blitz never cancels into a Blitz (0.8.1), except a fighter's quirk (game.json roster[].blitz_cancel
+ * -> gblitz_can[fighter][its slot]: the slots it may cancel into, on hit like the ladder's other rungs; Bruno 2026-10-09,
+ * note 20261009-114542-5d29: Terry's down,down + A Power Charge into up,up + A Crack Shoot). */
 static uint8_t blitz_dash(fighter_t *f, uint8_t how) {
     uint8_t dn = TREE(f)->dash;
     if ((NODE(f, dn)->flags & RF_SPECIAL) && node_special(f, dn, how)) return 1;
@@ -626,7 +628,7 @@ static uint8_t blitz_go(fighter_t *f, uint8_t slot, uint8_t how) {
     if (v >= f->ch->nspec || !f->ch->specials[v].nrows) return 0;
     if (f->ch->specials[v].proj && f->shot) return 0;            /* (a projectile while its own flies: none, special_pick's rule) */
     lab_note(f, LE_SPECIAL, 0, how, BS_BLITZ);
-    f->spec_ix = v; start_special(f, BS_BLITZ);
+    f->spec_ix = v; start_special(f, BS_BLITZ); f->blz_slot = slot;
     return 1;
 }
 
@@ -755,7 +757,10 @@ static void meter_tick(fighter_t *f) {
     if (f->flash && !--f->flash) { uint8_t b = f->burn; f->burn = 0xFF; set_burn(f, b); }   /* its colours back (burnt: the burn's) */
     if (!f->team) {
         if (gmeter.infinite) { f->drive = DRIVE_FULL; f->fgauge = gmeter.fury_max; }   /* both bars stay full */
-        else if (f->drive < DRIVE_FULL) f->drive++;              /* the drive: a point back a frame */
+        else if (f->drive < DRIVE_FULL &&                        /* the drive: a point back a frame, outside of */
+                 !((gmeter.pause & RP_SPECIAL) && f->state == S_SPECIAL) &&   /* specials and combos (gmeter.pause, */
+                 !((gmeter.pause & RP_CHAIN) && (f->state == S_ATTACK || f->state == S_AIR_ATTACK)))   /* note */
+            f->drive++;                                          /* 20261009-115529-5d29: back in neutral it refills) */
     }
     pal_overlay(f);
 }
@@ -2638,6 +2643,9 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_D) && !f->team)
         f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
                                                                     before its first hit does nothing) */
+    if (f->state == S_SPECIAL && f->spec_id == BS_BLITZ && may_cancel(f) && f->scancel && (in->press & IN_A) && in->blitz &&
+        !f->team && f->blz_slot < BZ_COUNT && (gblitz_can[f->ch->id][f->blz_slot] & (1 << (in->blitz - 1))))
+        f->blz_buf = in->blitz;                                  /* a Blitz that landed: its quirk's Blitz (gblitz_can) */
     if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) && !f->team)
         f->spec_buf = 0x80 | d_input(f, in);                     /* the ladder (Bruno 2026-10-08): a special / a Blitz that
                                                                     landed: C buffers ANOTHER special (special_cancel) */
@@ -2739,7 +2747,9 @@ static void update(fighter_t *f, const intent_t *in) {
         to_neutral(f, in);
         if (f->state == S_WALK) {                                /* the walk by archetype, sub-pixel (walk_rate) */
             f->x += dir_mul(in->dx, in->slow ? f->wspd >> 1 : f->wspd); f->z += dir_mul(in->dz, in->slow ? FIX(1) >> 1 : FIX(1)); clamp(f);
-            f->pushing = in->dx != 0 && (!f->team || in->grab);   /* facing follows dx: walking forward; enemies on purpose */
+            f->pushing = (in->dx != 0 || in->dz != 0) && (!f->team || in->grab);   /* facing follows dx: walking forward;
+                                                                    up / down too (the depth grab); enemies on purpose */
+            f->wdz = in->dz > 0 ? 1 : in->dz < 0 ? -1 : 0;
         }
         break;
     }
@@ -2935,6 +2945,15 @@ static void update(fighter_t *f, const intent_t *in) {
                 lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cspecial(f, k);
                 break;
             }
+        }
+        if (may_cancel(f) && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && f->blz_buf && f->spec_id == BS_BLITZ &&
+            (f->pcatch == 0 || f->pcatch == 0xFE)) {             /* a Blitz -> the Blitz its quirk allows (gblitz_can: */
+            uint8_t s = f->blz_buf - 1;                          /* Terry's dd -> uu), free like any Blitz */
+            f->blz_buf = 0;
+            if (f->pcatch == 0xFE) juggle_open(f, f->target);
+            carry_drop(f); special_end(f); f->pflags = 0;
+            if (!blitz_go(f, s, LH_CANCEL)) to_neutral(f, 0);
+            break;
         }
         f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? air_button(f->ch, f->spec_ix) : f->spec_id == BS_BLITZ ? IN_A :
                                       f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
@@ -3369,8 +3388,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             spark_hit(INT(o->x), floor_top + INT(o->z) - INT(o->y) - 48, 1, dir);
         }
     }
-    for (i = 0; i < n; i++) {                                    /* grabs: walking forward into a standing opponent */
-        fighter_t *a = fs[i];
+    for (i = 0; i < n; i++) {                                    /* grabs: walking into a standing opponent: forward, */
+        fighter_t *a = fs[i];                                    /* or up / down (and the diagonals) along the depth */
         if (!a->pushing || a->state != S_WALK || !a->ch->throws[BT_THROW_C].nrows || only) continue;
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
@@ -3379,6 +3398,13 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
             if (d > 0 && d <= GRAB_DX) { grab(a, v); break; }
+            if (a->wdz && (a->wdz > 0 ? dz <= 0 : dz >= 0) && d >= -GRAB_DX && d <= GRAB_DX) {   /* the depth grab (Bruno
+                                                                    2026-10-09, note 20261009-114751-5d29, Final Fight):
+                                                                    walking up / down toward it inside the same reach,
+                                                                    either side: turned toward it, the same hold */
+                if (d < 0) a->facing = -a->facing;
+                grab(a, v); break;
+            }
         }
     }
     cb_fs = fs; cb_n = n;
@@ -3440,6 +3466,35 @@ void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x) {
         if (!dancing(v)) continue;                               /* a fury (its dance) keeps its attacker inside too; */
         if (a->x < lo) { a->throw_x0 += lo - a->x; a->x = lo; }  /* a special's attacker is only held back by its */
         if (a->x > hi) { a->throw_x0 += hi - a->x; a->x = hi; }  /* victim (no snap from the players' 16 px margin) */
+    }
+}
+
+/* the screen's edges (Bruno 2026-10-09, note 20261009-114826-5d29: "once characters are inbound, they cannot go out of
+ * the screen anymore, like a regular 2D fighter"): every fighter, players and enemies, that has fully entered the
+ * camera's view (its feet SCREEN_IN + its body's half width inside the visible screen: fighter_t.inb) is kept inside it
+ * from then on, whatever moves it (walking, running, knockback, a throw, a launch): its x clamped to the edges each
+ * frame after the camera and again after the combat. An enemy walking in from off screen is free until it is in. The
+ * body's half width: its idle's first step's hurt box (a stable width, not the frame's). The camera's own rules (lock,
+ * scroll, never back) are unchanged: it moves first, the fighters follow its edges. */
+#define SCREEN_IN 8                /* px of the 320 the screen crops on each side (the overscan: 304 visible) */
+static int16_t half_w(const fighter_t *f) {
+    const bstep_t *s = &f->ch->anims[BA_IDLE].steps[0];          /* (steps: the first MB, no bank) */
+    return (s->flags & 2) && s->hurt.w ? s->hurt.w : 16;
+}
+void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x) {
+    uint8_t i;
+    for (i = 0; i < n; i++) {
+        fighter_t *f = fs[i];
+        int16_t w;
+        int32_t lo, hi, d;
+        if (f->state == S_OFF || f->state == S_PROJ) continue;
+        w = half_w(f);
+        lo = FIX(cam_x + SCREEN_IN + w); hi = FIX(cam_x + 320 - SCREEN_IN - w);
+        if (!f->inb) { if (f->x >= lo && f->x <= hi) f->inb = 1; continue; }   /* (walking in: free until it is in) */
+        d = f->x < lo ? lo - f->x : f->x > hi ? hi - f->x : 0;
+        if (!d) continue;
+        f->x += d;                                               /* (a script's anchor moves with it: a throw, a special's */
+        if (f->state == S_THROW || f->state == S_THROWN || f->state == S_SPECIAL) f->throw_x0 += d;   /* program) */
     }
 }
 

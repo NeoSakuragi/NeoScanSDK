@@ -436,6 +436,12 @@ typedef struct fighter {
     uint8_t  hcyc[2];             /* the hit cycles (fighter.c btn_sound, game.json hit_sounds): the next entry of the light / strong list */
     uint16_t wrate;
     int32_t  wspd;
+    /* Bruno's 0.10.1 notes (2026-10-09): inb = it has fully entered the camera's view (fighter.c screen_keep: kept inside
+     * from then on, note 20261009-114826-5d29); blz_slot = the Blitz playing (its slot BZ_*: gblitz_can, Terry's dd -> uu
+     * cancel, note 20261009-114542-5d29); wdz = the walk's depth direction this frame (-1 / 0 / +1: the depth grab, note
+     * 20261009-114751-5d29) */
+    uint8_t  inb, blz_slot;
+    int8_t   wdz, pad_n;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
@@ -488,6 +494,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only);   /* attack boxes
                                                                flash: its fury hits the frozen world, nothing else does) */
 void fighter_tiles(fighter_t *f);                           /* pass 1: tile runs when the frame changed */
 void fighter_place(const fighter_t *f, uint16_t *y, uint16_t *x, int16_t cam_x, uint8_t n);   /* pass 2: SCB3/SCB4 of n sprites (>= ncols; the rest height 0) */
+void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: a fighter that has fully entered the view
+                                     stays inside it (note 20261009-114826-5d29; fighter.c "the screen's edges") */
 void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: the wall rule (a special's victims and
                                                                   their attacker inside the screen's walls) */
 void super_flash(fighter_t *f);      /* main.c: the fury's super flash starts (fx.super_flash: the game freezes except f) */

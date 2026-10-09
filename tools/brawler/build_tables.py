@@ -215,6 +215,41 @@ def blitz_rows(g, build):
     return out
 
 
+def blitz_cancels(g):
+    """gblitz_can: per roster fighter (bm_chars order) per Blitz slot (BZ_FF .. BZ_UU) the slots it may cancel into on hit,
+    bit k = slot k (roster[].blitz_cancel {from: [to, ...]}; Bruno 2026-10-09, note 20261009-114542-5d29: Terry's quirk
+    dd -> uu); absent = none (every other Blitz -> Blitz stays forbidden, 0.8.1)"""
+    out = []
+    for r in g['roster']:
+        bz = r.get('blitz') or {'ff': 'dash'}; row = [0] * len(BLITZ_SLOTS)
+        for a, tos in (r.get('blitz_cancel') or {}).items():
+            assert a in BLITZ_SLOTS and a in bz, f"roster {r['name']}: blitz_cancel.{a}: not one of its Blitz slots"
+            for b in tos:
+                assert b in BLITZ_SLOTS and b in bz and b != a, f"roster {r['name']}: blitz_cancel.{a} -> {b}: not another of its Blitz slots"
+                row[BLITZ_SLOTS.index(a)] |= 1 << BLITZ_SLOTS.index(b)
+        out.append((r['name'], row))
+    return out
+
+
+RUN_KEYS = ('hold_last', 'float')
+def run_bobs(g):
+    """grun_bob: per roster fighter its run's float (roster[].run.float {px, period}; Bruno 2026-10-09, note
+    20261009-102625-5d29: Kim floats up and down a few pixels as he runs): one height a frame (px above its feet, drawn
+    only: main.c draw), px x (1 - cos) / 2 over period frames, from 0 (no pop as the run starts); none = 0"""
+    out, refs = [], []
+    for r in g['roster']:
+        run = r.get('run') or {}
+        for k in run: assert k in RUN_KEYS, f"roster {r['name']}: run.{k} (hold_last / float)"
+        fl = run.get('float')
+        if not fl: refs.append('0'); continue
+        assert set(fl) == {'px', 'period'} and 1 <= fl['px'] <= 16 and 4 <= fl['period'] <= 120, f"roster {r['name']}: run.float {fl}"
+        h = [round(fl['px'] * (1 - math.cos(2 * math.pi * i / fl['period'])) / 2) for i in range(fl['period'])]
+        out.append(f"static const uint8_t grun_{r['name']}[{fl['period'] + 1}] = {{ {fl['period']}, {', '.join(map(str, h))} }};")
+        refs.append(f"grun_{r['name']}")
+    return out + ['const uint8_t *const grun_bob[BC_COUNT] = { ' + ', '.join(refs) + ' };   /* the run\'s float per fighter: '
+                  '[period, height a frame...] (roster[].run.float), 0 = none */']
+
+
 def roster_export(g):
     """what the fighter export (export_bm.py) needs of each roster fighter, in bm_chars order"""
     for r in g['roster']:                          # (revamp 3b) a grab fury: provisional, Bruno's choice pending (throws1)
@@ -225,7 +260,7 @@ def roster_export(g):
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
-             **{k: r[k] for k in ('form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'down_attack', 'invincible', 'nopush', 'max') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'down_attack', 'invincible', 'nopush', 'max', 'run') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -515,7 +550,8 @@ def c_str(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
 METER_KEYS = ('about', 'chunk', 'chunks', 'special', 'breaker', 'life_breaker', 'blink', 'fury_max', 'fury_dealt',
-              'fury_taken', 'low', 'infinite', 'fury_drive', 'max_drive')
+              'fury_taken', 'low', 'infinite', 'fury_drive', 'max_drive', 'refill_pause')
+REFILL_PAUSE = {'special': 1, 'chain': 2}            # gamedata.h RP_*: meter.refill_pause names
 BLITZ_KEYS = ('about', 'window', 'chord', 'damage')
 BLITZ_SLOTS = ('ff', 'dd', 'du', 'uu')               # fighter.h BZ_*: forward,forward / down,down / down,up / up,up + A
 JUMP_KEYS = ('about', 'crouch', 'height', 'dx', 'land_dx', 'x_scale', 'land', 'land_cancel', 'active_min', 'down_cancel', 'run_dx')
@@ -681,6 +717,8 @@ def tables(g, build):
          'extern const uint8_t ai_ready[BC_COUNT][2];',
          'extern const uint8_t gblitz_rom[BC_COUNT][4];   /* per fighter its Blitz slots (BZ_FF .. BZ_UU): a special\'s pool index, BZ_DASH its dash entry, BZ_NONE */',
          'extern const int32_t gwalk_rom[BC_COUNT];       /* its walk (16.16 px a frame, by archetype) */',
+         'extern const uint8_t gblitz_can[BC_COUNT][4];   /* per fighter per Blitz slot: the slots it may cancel into on hit (bit BZ_*; roster[].blitz_cancel) */',
+         'extern const uint8_t *const grun_bob[BC_COUNT]; /* the run\'s float: [period, px a frame...] (roster[].run.float), 0 = none */',
          'extern const uint16_t gwalk_run;               /* run = walk x this (8.8) */',
          'extern const uint16_t gwalk_anim;              /* the walk / run animations\' rate x this (8.8) */',
          'extern const uint8_t *const gback_rom[];       /* the floor\'s back edge per background (game.json depth; fighter.h zback) */',
@@ -695,11 +733,13 @@ def tables(g, build):
     for k in m: assert k in METER_KEYS, f'meter: unknown field {k}'   # 2026-10-08, gamedata.h gmeter_t)
     assert 1 <= m['chunks'] <= 4 and 1 <= m['chunk'] and m['chunk'] * m['chunks'] < 65536, 'meter: chunks x chunk'
     assert 1 <= m['special'] <= m['chunks'] and 1 <= m['breaker'] <= m['chunks'], 'meter: costs within the bar'
+    assert all(k in REFILL_PAUSE for k in m.get('refill_pause', [])), f"meter.refill_pause: {m.get('refill_pause')} (special / chain)"
     assert 1 <= m['life_breaker'] < 60 and 1 <= m['low'] <= 100 and 1 <= m['blink'] <= 60, 'meter values'
     assert 1 <= m['fury_max'] < 65536 and 0 <= m['fury_dealt'] <= 255 and 0 <= m['fury_taken'] <= 255, 'meter: the fury gauge'
     c.append(f"const gmeter_t gmeter = {{ .chunk = {m['chunk']}, .chunks = {m['chunks']}, .special = {m['special']}, "
              f".breaker = {m['breaker']}, .life_breaker = {m['life_breaker']}, .blink = {m['blink']}, .infinite = {1 if m.get('infinite') else 0}, "
-             f".fury_max = {m['fury_max']}, .fury_dealt = {m['fury_dealt']}, .fury_taken = {m['fury_taken']}, .low = {m['low']}, .fury_drive = {m.get('fury_drive', 0)}, .max_drive = {m.get('max_drive', 0)} }};")
+             f".fury_max = {m['fury_max']}, .fury_dealt = {m['fury_dealt']}, .fury_taken = {m['fury_taken']}, .low = {m['low']}, .fury_drive = {m.get('fury_drive', 0)}, .max_drive = {m.get('max_drive', 0)}, "
+             f".pause = {sum(REFILL_PAUSE[k] for k in m.get('refill_pause', []))} }};")
     bz = g['blitz']                                      # the Blitz (gamedata.h gblitz_t) and its slots per fighter
     for k in bz: assert k in BLITZ_KEYS, f'blitz: unknown field {k}'
     assert 2 <= bz['window'] <= 60 and 0 <= bz['chord'] <= 8 and 1 <= bz['damage'] < 128, 'blitz values'
@@ -707,6 +747,9 @@ def tables(g, build):
              f".scale = {round(bz['damage'] * 256 / g['tiers']['special'])} }};   /* scale: {bz['damage']} / tiers.special {g['tiers']['special']} (8.8) */")
     c.append('const uint8_t gblitz_rom[BC_COUNT][4] = {\n' + ',\n'.join(
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_rows(g, build)) + '\n};')
+    c.append('const uint8_t gblitz_can[BC_COUNT][4] = {\n' + ',\n'.join(
+        '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_cancels(g)) + '\n};')
+    c += run_bobs(g)
     jp = g['jump']                                       # the one jump (Cody's Final Fight arc, gamedata.h gjump_t)
     for k in jp: assert k in JUMP_KEYS, f'jump: unknown field {k}'
     n = len(jp['height']); sx = jp['x_scale'][0] / jp['x_scale'][1]

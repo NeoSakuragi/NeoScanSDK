@@ -2447,16 +2447,101 @@
   "proof": 90
  },
  "20261009-102625-5d29": {
-  "title": "Kim's run is his walk cycle, twice as fast",
+  "title": "Kim's run: his dash once, held, floating",
   "setup": {
    "mode": "lab",
    "fighter": "kim",
    "dummy": "terry",
-   "gap": 200
+   "gap": 250
   },
-  "do": "Double-tap forward and hold it: Kim runs. Watch his legs.",
-  "expect": "Kim runs with a fluid leg cycle (his walk played twice as fast) and his feet do not slide on the floor; no more two-frame crouched hop.",
+  "do": "Double-tap forward and hold it: Kim runs.",
+  "expect": "Kim plays his Kizuna dash once (no loop) and keeps its last frame while he runs, his body floating up and down by about 3 pixels (a slow 24-frame cycle); his shadow stays on the floor.",
   "do_keys": "2:R,2:-,60:R",
   "proof": 30
+ },
+ "20261009-114826-5d29": {
+  "title": "Once on screen, fighters can't leave it",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "x": 200,
+   "gap": 60
+  },
+  "do": "Hit the dummy with A again and again so it is pushed and knocked to the right edge; walk into it and throw it forward. Then hold left: walk to the left edge.",
+  "expect": "The dummy stops at the screen's right edge (its whole body on screen) however it is hit, knocked down or thrown; Terry stops at the left edge, never half off screen. Enemies walking in from off screen still come in.",
+  "do_keys": "3:a,8:-,3:a,8:-,3:a,8:-,3:a,8:-,3:a,60:-,40:R,3:Ra,10:R,3:Ra,10:R,3:Ra,90:-,200:L",
+  "proof": 60
+ },
+ "20261009-114751-5d29": {
+  "title": "Grab by walking up or down into the enemy (Final Fight)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 30
+  },
+  "do": "Walk up (or down) into the dummy without pushing forward: hold up.",
+  "expect": "Terry grabs the dummy as soon as he reaches its depth, turned toward it, the same hold as walking forward into it (diagonals too).",
+  "do_keys": "30:U",
+  "proof": 60
+ },
+ "20261009-114542-5d29": {
+  "title": "Terry: Power Charge (down,down + A) cancels into Crack Shoot (up,up + A)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Down, down + A (Power Charge) into the dummy; as it hits, up, up + A (Crack Shoot). Then try the other way: up, up + A first, then down, down + A.",
+  "expect": "Down,down + A that hits cancels into the Crack Shoot at once (free, no drive). Up,up + A then down,down + A does not cancel: the Crack Shoot plays to its end. Other fighters: no Blitz into Blitz.",
+  "do_keys": "2:D,2:-,2:D,2:Da,20:-,2:U,2:-,2:U,2:Ua,60:-",
+  "proof": 60
+ },
+ "20261009-114418-5d29": {
+  "title": "The drive gauge is one bar, no gap",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "drive": 1
+  },
+  "do": "Look at the blue drive gauge under Terry's name while it refills, and spend it with C specials.",
+  "expect": "The two drive chunks are joined into one continuous bar: no space between them, only a thin 1-pixel line marks where the first chunk ends.",
+  "do_keys": "300:-",
+  "proof": 30
+ },
+ "20261009-115529-5d29": {
+  "title": "The drive refills only in neutral",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 70,
+   "drive": 1,
+   "fury": "full"
+  },
+  "do": "With the drive gauge partly empty, do a C special, then a chain of A hits, then the fury (D). Watch the blue drive gauge.",
+  "expect": "The drive does not refill during the special, the chain's attacks or the fury: it stays still, and refills again only once Terry is back to standing, walking, running or jumping.",
+  "do_keys": "3:c,90:-,3:a,8:-,3:a,8:-,3:a,8:-,3:a,60:-,3:d,200:-",
+  "proof": 60
+ },
+ "20261009-120007-5d29": {
+  "title": "Stage clear plays KOF98's win music",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss alone with 1 life point. Hit him with A and listen to the stage clear.",
+  "expect": "The stage clear plays KOF98's win-screen music (the winner's quote theme), not the VS jingle.",
+  "do_keys": "3:a",
+  "proof": 700
  }
 }

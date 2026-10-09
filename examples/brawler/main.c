@@ -1006,6 +1006,17 @@ static void line_guard(void) {
     }
 }
 
+/* the run's float (Bruno 2026-10-09, note 20261009-102625-5d29: "a floating motion just for Kim, so that he goes up and
+ * down a few pixels as he moves"): game.json roster[].run.float -> grun_bob[fighter] = [period, px a frame...], from 0
+ * as the run starts; the body drawn that high, its shadow and boxes where they are */
+static int32_t run_bob(const fighter_t *f) {
+    const uint8_t *t;
+    uint32_t r;
+    if (f->state != S_RUN || f->ch->id >= BC_COUNT || !(t = grun_bob[f->ch->id])) return 0;
+    r = f->state_t;
+    __asm__("divu.w %1,%0" : "+d"(r) : "d"((uint16_t)t[0]));   /* (state_t mod period: the remainder, high word) */
+    return FIX(t[1 + (r >> 16)]);
+}
 static void draw(void) {
     uint8_t i;
     if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
@@ -1031,7 +1042,13 @@ static void draw(void) {
         uint16_t spr = slot_spr[i], *y, *x;
         if (m) {
             y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
-            if (vis) { uint8_t ob = BANK_set(CH_BANK(f->ch)); trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m); BANK_set(ob); }
+            if (vis) {
+                uint8_t ob = BANK_set(CH_BANK(f->ch));
+                int32_t fy = f->y, b = run_bob(f);
+                f->y += b;                                       /* (the run's float: drawn only, the shadow on the floor) */
+                trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m); BANK_set(ob);
+                f->y = fy;
+            }
             else { uint8_t c; for (c = 0; c < m; c++) y[c] = x[c] = 0; }
         }
         block_placed[i] = n; block_spr[i] = spr;
@@ -1127,7 +1144,8 @@ static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
 #define BAR_PX    118                    /* inside the caps: 7 + 13 x 8 + 7 */
 #define LIFE      60
 #define BOSS_CELLS 30                    /* the boss bar: 7 + 28 x 8 + 7 = 238 px, fix row 7 under the HUD */
-typedef struct { uint8_t col, row, mirror, n, cell[BOSS_CELLS], wait, pal; int16_t px, trail; } bar_t;
+typedef struct { uint8_t col, row, mirror, n, cell[BOSS_CELLS], wait, pal, open; int16_t px, trail; } bar_t;   /* open: no
+                                            inner cap, its last cell a middle one (a drive chunk joined to the next) */
 static uint8_t lives[2];
 static uint16_t cont_t[2];                       /* continue countdown (frames), 0 = none */
 static uint8_t cont_ov;                          /* the CONTINUE? overlay: 0 off, 1 on (the fight frozen), 2 fading out */
@@ -1139,9 +1157,10 @@ static uint8_t cont_digit(uint8_t p) {           /* 9 .. 0 */
 }
 /* bars: 0 P1, 1 right block (P2, or P1's target alone), 2 P1's target under P1, 3 P2's target under P2, 4 the boss,
  * 5 .. 5 + MAX_CHUNKS - 1 P1's drive chunks, then P2's (Bruno's redesign 2026-10-08, fighter.c "the meter"): row 3 under
- * the name, one short bar per chunk (CHUNK_CELLS cells, the life bar's glyphs in METER_PAL, a cell apart; P2's mirrored
- * from the right edge), each filled with its share of the drive (the first chunk first), no label; the fury gauge is never
- * drawn. A player's life bar has its own fix palette (LIFE_PAL + player): at low life (fighter_low) it blinks red,
+ * the name, one short bar per chunk (CHUNK_CELLS cells, the life bar's glyphs in METER_PAL; P2's mirrored from the right
+ * edge), side by side as ONE bar (Bruno 2026-10-09, note 20261009-114418-5d29: "link them so there is no space"): a chunk
+ * followed by another has no inner cap (bar_t.open), the next one's outer cap is the 1 px divider; each filled with its
+ * share of the drive (the first chunk first), no label; the fury gauge is never drawn. A player's life bar has its own fix palette (LIFE_PAL + player): at low life (fighter_low) it blinks red,
  * KOF95's (measured in our emulator, /data/tmp/newsys/scripts/kof_bar.py: 8 frames red, 8 frames its colours; the life
  * left pure red #FF0000 with a darker top / bottom row, the emptied part #C93616 instead of its dark) */
 #define CHUNK_CELLS 4
@@ -1172,7 +1191,7 @@ static uint16_t div16(uint16_t n, uint16_t d) { uint32_t r = n; __asm__("divu.w 
 /* 2 px a life point (60 = a full fighter bar); a life that would not fit (hp_max: difficulty HARD / MANIAC enemies,
  * bosses) is drawn to scale, max = the full bar */
 static void bar_draw(bar_t *b, int16_t hp, int16_t max) {
-    int16_t full = (b->n << 3) - 2, px, x0 = 0;
+    int16_t full = (b->n << 3) - 2 + b->open, px, x0 = 0;
     if (!max) max = LIFE;
     px = hp <= 0 ? 0 : max * 2 > full ? (int16_t)div16((uint16_t)hp * (uint16_t)full, max) : hp * 2;
     if (px > full) px = full;
@@ -1182,7 +1201,7 @@ static void bar_draw(bar_t *b, int16_t hp, int16_t max) {
     b->px = px;
     if (b->trail > px) { if (b->wait) b->wait--; else b->trail--; } else b->trail = px;
     for (c = 0; c < b->n; c++) {                                 /* c counts from the bar's outer edge */
-        uint8_t kind = c == 0 ? 0 : c == b->n - 1 ? 2 : 1, w = kind == 1 ? 8 : 7, t, sc = b->mirror ? b->n - 1 - c : c;
+        uint8_t kind = c == 0 ? 0 : c == b->n - 1 && !b->open ? 2 : 1, w = kind == 1 ? 8 : 7, t, sc = b->mirror ? b->n - 1 - c : c;
         int16_t f = px - x0;
         if (f < 0) f = 0;
         if (f > w) f = w;
@@ -1201,7 +1220,10 @@ static void hud_reset(void) {
     uint8_t p, c;
     for (p = 0; p < 5 + 2 * MAX_CHUNKS; p++) {
         uint8_t k = (p - 5) % MAX_CHUNKS, two = p >= 5 + MAX_CHUNKS;   /* (a chunk: its index, P2's) */
-        bars[p].col = p < 5 ? COL[p] : two ? 35 - CHUNK_CELLS - (CHUNK_CELLS + 1) * k : 5 + (CHUNK_CELLS + 1) * k;
+        bars[p].col = p < 5 ? COL[p] : two ? 35 - CHUNK_CELLS - CHUNK_CELLS * k : 5 + CHUNK_CELLS * k;   /* (the chunks side by
+                                                                    side: one bar, note 20261009-114418-5d29) */
+        bars[p].open = p >= 5 && k + 1 < gmeter.chunks && k + 1 < MAX_CHUNKS;   /* (a chunk before another: no inner cap;
+                                                                    the next one's outer cap = the 1 px divider) */
         bars[p].row = p < 5 ? ROW[p] : 3;
         bars[p].mirror = (p & 1 && p < 4) || two; bars[p].px = bars[p].trail = -1; bars[p].wait = 0;
         bars[p].n = p < 4 ? BAR_CELLS : p == 4 ? BOSS_CELLS : CHUNK_CELLS; bars[p].pal = p >= 5 ? METER_PAL : p == 0 ? LIFE_PAL : 0;
@@ -2865,7 +2887,7 @@ void game_tick(void) {
     if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
-    if (!sf_who) { camera(); wall_update(order, nf, cam_x); projectiles_update(cam_x, 0); }
+    if (!sf_who) { camera(); wall_update(order, nf, cam_x); screen_keep(order, nf, cam_x); projectiles_update(cam_x, 0); }
     else projectiles_update(cam_x, 0x100 | sf_frozen);   /* the flash: only its attacker's effects born in it
                                                                 (KOF98: P1 runs at the flash's priority $5001 and so do the
                                                                 objects it spawns, $5D1C; the rest hold: Kyo's hand fire, #202) */
@@ -2873,7 +2895,8 @@ void game_tick(void) {
     combat(order, nf, sf_who);                               /* a super flash: its attacker's own boxes only */
     if (!ko_seq && phase == PH_BOSS && !attract && !lab.active && fighters[BOSS_IDX].state != S_OFF && fighters[BOSS_IDX].hp <= 0)
         boss_ko_start();                                     /* its killing hit: the death sequence (#172) */
-    if (!sf_who) wall_update(order, nf, cam_x);              /* (again: a catch / a hit this frame placed its victim) */
+    if (!sf_who) { wall_update(order, nf, cam_x); screen_keep(order, nf, cam_x); }   /* (again: a catch / a hit this frame
+                                                                placed its victim) */
     mark(P_COMBAT);
     depth_sort();
     mark(P_SORT);

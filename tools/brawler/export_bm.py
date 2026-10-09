@@ -266,7 +266,7 @@ def build(specs, outdir):
             sys.path.insert(0, os.path.join(HERE, '..', 'kizuna')); import export_kz
             return export_kz.export(names, tmp, only=set(MOVES),   # (Kim gold: roster[].scale x $CC, moves, anim_specials)
                                     extra={n: {'watch': tuple(roster()[n]['watch']), **flash_extra(game, n),
-                                               **{k: roster()[n][k] for k in ('scale', 'moves', 'anim_specials') if k in roster()[n]}}
+                                               **{k: roster()[n][k] for k in ('scale', 'moves', 'anim_specials', 'run') if k in roster()[n]}}
                                            for n in names if n in roster()})
         return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {THROW_X, 'specials'},
                                extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()},
