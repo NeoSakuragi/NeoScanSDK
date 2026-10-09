@@ -45,6 +45,8 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
     private val sha get() = Feedback.sha(rom)
     private val key get() = Feedback.systemKey(emu()?.hw ?: "mvs")
 
+    companion object { const val SHOW_MS = 3000L }                     // the banner in full when a test loads, then the pill
+
     fun start(notes: List<JSONObject>) {
         if (notes.isEmpty()) return
         queue = notes; i = 0; active = true
@@ -62,7 +64,7 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         Thread {
             val r = Feedback.scenarioState(act, n.optString("id"), sha, key)
             act.runOnUiThread {
-                r.onFailure { status.text = "${it.message} (v$running, ${key}). Press Next or ✕." }
+                r.onFailure { status.text = "${it.message} (v$running, ${key}). Press Next or ✕."; expand(true) }
                 r.onSuccess { f -> state = f; load(false) }
             }
         }.start()
@@ -75,41 +77,103 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         e.paused = true
         e.stateReq = f to { code -> e.stepOne = true
             act.runOnUiThread {
-                if (code != 0) { status.text = "This state does not load here (code $code): another core build. Press Next."; return@runOnUiThread }
+                if (code != 0) { status.text = "This state does not load here (code $code): another core build. Press Next."; expand(true); return@runOnUiThread }
                 t0 = android.os.SystemClock.uptimeMillis()
-                if (play) { e.paused = false; status.text = "Playing: do it, then 👍 or 👎"; playBtn.text = "Pause" }
-                else { status.text = "Paused: read, then Play"; playBtn.text = "▶ Play" }
+                if (play) { e.paused = false; status.text = "Playing: do it, then 👍 or 👎"; playBtn.text = "\u275A\u275A" }
+                else { status.text = "Paused: read, then \u25B6"; playBtn.text = "\u25B6" }
+                banner?.let { b -> b.removeCallbacks(autoCollapse); if (expanded) b.postDelayed(autoCollapse, SHOW_MS) }
             } }
     }
 
+    /** 0.0.26: the banner over the picture (Bruno: the Do / Expect box took too much room and could not be hidden).
+     *  One line always: the pill "ⓘ TEST n/N: title" and the controls (▶ / ❚❚, ⟲ Restart, 👍, 👎 hold to talk, Next,
+     *  ✕). Expanded under it: the title in full, Do, Expect, the status; shown for [SHOW_MS] when a test loads, then
+     *  collapsed. A tap on the pill = expand / collapse; expanded the box is ~60 % opaque, the game shows through. The
+     *  pill drags to the picture's other edge (top / bottom), kept for the session. */
+    private var expanded = true
+    private var bottomEdge = false
+    private lateinit var details: LinearLayout
+    private val autoCollapse = Runnable { if (box == null) expand(false) }
+
+    private fun expand(on: Boolean) {
+        val b = banner ?: return
+        expanded = on; details.visibility = if (on) View.VISIBLE else View.GONE
+        b.background = GradientDrawable().apply { setColor(Color.argb(if (on) 153 else 190, 0, 0, 0))
+            setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 10 * dp }
+    }
+
+    /** the banner inside the picture (portrait: the top of the screen; landscape: between the pad's sides), at its edge */
+    private fun place() {
+        val b = banner ?: return
+        if (root.width == 0) { root.post { place() }; return }
+        val pic = Screen.picture(root.width, root.height)
+        b.layoutParams = FrameLayout.LayoutParams(pic.width(), -2, Gravity.LEFT or if (bottomEdge) Gravity.BOTTOM else Gravity.TOP).apply {
+            leftMargin = pic.left; if (bottomEdge) bottomMargin = root.height - pic.bottom else topMargin = pic.top }
+        b.translationY = 0f
+    }
+    private val relayout = View.OnLayoutChangeListener { _, l, t, r, btm, ol, ot, or_, ob ->
+        if (r - l != or_ - ol || btm - t != ob - ot) root.post { place() } }      // rotation: the picture moved
+
     private fun banner(n: JSONObject, st: String) {
-        banner?.let { root.removeView(it) }
+        banner?.let { it.removeCallbacks(autoCollapse); root.removeView(it) }
+        root.removeOnLayoutChangeListener(relayout); root.addOnLayoutChangeListener(relayout)
         val sc = n.optJSONObject("scenario") ?: JSONObject()
-        val b = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; val m = (8 * dp).toInt(); setPadding(m, m, m, m)
-            background = GradientDrawable().apply { setColor(Color.argb(235, 0, 0, 0)); setStroke((2 * dp).toInt(), Color.WHITE) }
-            isClickable = true }
+        val title = sc.optString("title", n.optString("title"))
+        val b = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; val m = (4 * dp).toInt(); setPadding(m, m, m, m); isClickable = true }
         fun tv(t: String, size: Float, bold: Boolean = false) = TextView(act).apply { text = t; textSize = size; setTextColor(Color.WHITE)
-            if (bold) setTypeface(typeface, Typeface.BOLD) }
-        b.addView(tv("TEST ${i + 1} of ${queue.size}: " + sc.optString("title", n.optString("title")), 16f, true))
-        b.addView(tv("Do: " + sc.optString("do"), 14f))
-        b.addView(tv("Expect: " + sc.optString("expect"), 14f))
-        status = tv(st, 13f).apply { alpha = 0.8f }
-        b.addView(status)
-        val row = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
-        fun btn(t: String, f: () -> Unit) = Button(act).apply { text = t; isAllCaps = false; textSize = 13f; setOnClickListener { f() } }
-        playBtn = btn("▶ Play") { val e = emu() ?: return@btn
+            setShadowLayer(3f, 0f, 0f, Color.BLACK); if (bold) setTypeface(typeface, Typeface.BOLD) }
+        fun btn(t: String, what: String, f: () -> Unit) = Button(act).apply { text = t; contentDescription = what; isAllCaps = false; textSize = 15f
+            minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = (40 * dp).toInt(); val p = (6 * dp).toInt(); setPadding(p, 0, p, 0)
+            setOnClickListener { f() } }
+        val row = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val pill = tv("ⓘ TEST ${i + 1}/${queue.size}: $title", 14f, true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+            val p = (6 * dp).toInt(); setPadding(p, p, p, p) }
+        pill.setOnTouchListener(drag(b))
+        row.addView(pill, LinearLayout.LayoutParams(0, -2, 1f))
+        playBtn = btn("▶", "Play / pause") { val e = emu() ?: return@btn
             if (state == null) return@btn
-            if (e.paused) { e.paused = false; playBtn.text = "Pause"; status.text = "Playing: do it, then 👍 or 👎" }
-            else { e.paused = true; playBtn.text = "▶ Play"; status.text = "Paused" } }
-        row.addView(playBtn, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(btn("Restart") { load(true) }, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(btn("👍 Fixed") { up() }, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(broken(), LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(btn(if (i + 1 < queue.size) "Next" else "Done") { next() }, LinearLayout.LayoutParams(0, -2, 1f))
-        row.addView(btn("✕") { end() }, LinearLayout.LayoutParams((44 * dp).toInt(), -2))
-        b.addView(row)
-        root.addView(b, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+            if (e.paused) { e.paused = false; playBtn.text = "❚❚"; status.text = "Playing: do it, then 👍 or 👎" }
+            else { e.paused = true; playBtn.text = "▶"; status.text = "Paused" } }
+        row.addView(playBtn)
+        row.addView(btn("⟲", "Restart") { load(true) })
+        row.addView(btn("👍", "Fixed") { up() })
+        row.addView(broken())
+        row.addView(btn(if (i + 1 < queue.size) "Next" else "Done", "Next test") { next() })
+        row.addView(btn("✕", "Leave the tests") { end() })
+        b.addView(row, LinearLayout.LayoutParams(-1, -2))
+        details = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; val p = (6 * dp).toInt(); setPadding(p, 0, p, p) }
+        details.addView(tv(title, 16f, true))
+        details.addView(tv("Do: " + sc.optString("do"), 14f))
+        details.addView(tv("Expect: " + sc.optString("expect"), 14f))
+        status = tv(st, 13f)
+        details.addView(status)
+        details.addView(tv("👍 = fixed, 👎 = still broken (hold it and talk). Tap ⓘ to hide this; drag ⓘ to the other edge.", 12f).apply { alpha = 0.75f })
+        b.addView(details, LinearLayout.LayoutParams(-1, -2))
+        root.addView(b)
         banner = b
+        place(); expand(true)
+    }
+
+    /** the pill: a tap = expand / collapse; a drag moves the banner, released = the nearer edge of the picture */
+    private fun drag(b: View) = object : View.OnTouchListener {
+        var y0 = 0f; var moved = false
+        val slop = android.view.ViewConfiguration.get(act).scaledTouchSlop
+        override fun onTouch(v: View, e: MotionEvent): Boolean {
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { y0 = e.rawY; moved = false }
+                MotionEvent.ACTION_MOVE -> { val dy = e.rawY - y0
+                    if (Math.abs(dy) > slop) moved = true
+                    if (moved) b.translationY = dy }
+                MotionEvent.ACTION_UP -> {
+                    if (moved) {
+                        val pic = Screen.picture(root.width, root.height)
+                        bottomEdge = b.top + b.translationY + b.height / 2f > pic.exactCenterY(); place()
+                    } else { b.removeCallbacks(autoCollapse); expand(!expanded); v.performClick() }
+                }
+                MotionEvent.ACTION_CANCEL -> place()
+            }
+            return true
+        }
     }
 
     private fun base(result: String) = JSONObject().put("id", note.optString("id")).put("result", result).put("rom_sha", sha)
@@ -129,7 +193,7 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
             val p = Feedback.postTest(act, t, null)
             act.runOnUiThread {
                 if (r.isSuccess) { act.judged(id, "verified"); toast("Marked verified fixed" + if (p.isFailure) " (attempt not logged: ${p.exceptionOrNull()?.message})" else ""); next() }
-                else { verdict = false; status.text = "Not sent: ${r.exceptionOrNull()?.message}" }
+                else { verdict = false; status.text = "Not sent: ${r.exceptionOrNull()?.message}"; expand(true) }
             }
         }.start()
     }
@@ -138,7 +202,8 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
 
     /** 👎 Broken: hold = the attempt captured (states + inputs since the scenario state) and the voice recorded */
     private fun broken(): Button {
-        val b = Button(act).apply { text = "👎 Broken"; isAllCaps = false; textSize = 13f }
+        val b = Button(act).apply { text = "👎"; contentDescription = "Still broken (hold and talk)"; isAllCaps = false; textSize = 15f
+            minWidth = 0; minimumWidth = 0; minHeight = 0; minimumHeight = (40 * dp).toInt(); val p = (6 * dp).toInt(); setPadding(p, 0, p, 0) }
         b.setOnTouchListener { v, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -146,10 +211,10 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
                     val granted = act.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
                     emu()?.paused = true
                     feedback.start(granted || Feedback.testAudio(act) != null)
-                    b.text = "● Talk"; status.text = "Recording: say what is still wrong, release to finish"
+                    b.text = "●"; status.text = "Recording: say what is still wrong, release to finish"
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (feedback.recording) { val voice = feedback.stop() >= Feedback.MIN_MS; b.text = "👎 Broken"; status.text = "Paused: correct the text, then Send 👎"; composer(voice) }
+                    if (feedback.recording) { val voice = feedback.stop() >= Feedback.MIN_MS; b.text = "👎"; status.text = "Paused: correct the text, then Send 👎"; composer(voice) }
                     v.performClick()
                 }
             }
@@ -213,7 +278,8 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         leaving(); active = false
         if (feedback.recording) feedback.stop()
         feedback.cancel()
-        banner?.let { root.removeView(it) }; banner = null
+        banner?.let { it.removeCallbacks(autoCollapse); root.removeView(it) }; banner = null
+        root.removeOnLayoutChangeListener(relayout)
         emu()?.let { it.resetReq = true; it.paused = false }       // back to the game: a soft reset
         onEnd()
     }

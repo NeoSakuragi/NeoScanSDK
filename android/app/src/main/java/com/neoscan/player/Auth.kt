@@ -35,6 +35,10 @@ object Auth {
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("auth", 0)
     fun user(ctx: Context): String? = prefs(ctx).getString("user", null)
+    /** TESTER MODE (Player 0.0.26): the Oros account's role, as /api/login gives it (and every renewal refreshes it):
+     *  "admin" (Oros add-user --role=admin: bruno) sees everything; any other account (role viewer) is a tester and
+     *  sees only the game, the pad and the Feedback button */
+    fun admin(ctx: Context): Boolean = prefs(ctx).getString("role", "") == "admin"
     fun loginUrl(): URL = URL(URL(BuildConfig.AUTH_URL), "api/login")
 
     /** someone is signed in: a token not expired yet, or a saved password to get a new one */

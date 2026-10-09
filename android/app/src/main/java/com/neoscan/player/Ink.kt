@@ -20,8 +20,7 @@ import java.io.File
  *  the strokes; both [SCALE] times the screenshot (pixels doubled, no smoothing), so the lines stay smooth. */
 object Ink {
     const val SCALE = 4
-    val RED = Color.rgb(255, 40, 40)
-    val GREEN = Color.rgb(40, 230, 70)
+    val RED = Color.rgb(255, 40, 40)                                  // the one pen (0.0.26: the green pen is gone)
 
     /** [width] = the line width as a fraction of the picture's width; [pts] = x0, y0, x1, y1 ... (fractions) */
     class Stroke(val color: Int, val width: Float) { var pts = FloatArray(64); var n = 0
@@ -67,7 +66,7 @@ object Ink {
      *  (a second finger on the mic button belongs to the pad view under it) */
     class View(ctx: Context) : android.view.View(ctx) {
         val strokes = ArrayList<Stroke>()
-        var color = RED
+        val color = RED                                                 // one pen (0.0.26)
         var shot: Bitmap? = null; set(v) { field = v; postInvalidate() }
         private var cur: Stroke? = null
         private var curId = -1

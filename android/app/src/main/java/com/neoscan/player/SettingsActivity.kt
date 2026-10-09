@@ -31,14 +31,16 @@ class SettingsActivity : Activity() {
         col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; val m = (16 * dp).toInt(); setPadding(m, m, m, m * 2) }
         col.addView(TextView(this).apply { text = "Settings"; textSize = 24f; setTypeface(typeface, Typeface.BOLD) })
 
-        section("Feedback")
-        col.addView(Button(this).apply { text = "My feedback notes"; setOnClickListener {
-            startActivity(android.content.Intent(this@SettingsActivity, FeedbackListActivity::class.java)) } },
-                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
-        note("Every note you sent, newest first: its status, the developer's notes, the screenshot and the voice.")
+        if (Auth.admin(this)) {                                         // 0.0.26: a tester has no list (TESTER MODE)
+            section("Feedback")
+            col.addView(Button(this).apply { text = "My feedback notes"; setOnClickListener {
+                startActivity(android.content.Intent(this@SettingsActivity, FeedbackListActivity::class.java)) } },
+                        LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
+            note("Every note you sent, newest first: its status, the developer's notes, the screenshot and the voice.")
+        }
 
         section("Account")
-        note("Signed in as ${Auth.user(this) ?: "?"} (Oros account). The builds and the feedback need it.")
+        note("Signed in as ${Auth.user(this) ?: "?"} (Oros account, ${if (Auth.admin(this)) "admin" else "tester"}). The builds and the feedback need it.")
         col.addView(Button(this).apply { text = "Log out"; setOnClickListener {
             Auth.logout(this@SettingsActivity)
             startActivity(android.content.Intent(this@SettingsActivity, LoginActivity::class.java)
@@ -84,8 +86,9 @@ class SettingsActivity : Activity() {
             b.isEnabled = false; pl.text = "Checking..."
             Thread { PlayerUpdate.check(this@SettingsActivity); runOnUiThread { b.isEnabled = true; show() } }.start() } },
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
-        note("The player checks at launch and every hour, downloads a new version in the background, and the update " +
-             "button on the game screen blinks. The update keeps the login, settings, notes and the game.")
+        note("The player checks at launch and every hour and downloads a new version in the background; the launch " +
+             "screen then offers it" + (if (Auth.admin(this)) " and the update button on the game screen blinks" else "") +
+             ". The update keeps the login, settings, notes and the game.")
         toggle("Fetch new builds on launch", prefs.autoUpdate) { prefs.autoUpdate = it }
         toggle("Show frame stats (also logged to files/frames.log)", prefs.frameStats) { prefs.frameStats = it }
         val rom = File(getExternalFilesDir(null), "brawler.neo")

@@ -5,19 +5,30 @@ minute. Built 2026-10-06, Player 0.0.13.
 
 ## In the player (android/)
 
-- **The mic button** sits next to the soft reset. Hold it and talk.
+- **The mic button** sits next to the soft reset, labelled **Feedback** (0.0.26). Hold it and talk.
+  - **First launch (0.0.26):** a tip card over the picture, once: "Hold to describe a problem. The game freezes while
+    you talk. Release when you're done." The mic gets a pulsing white ring; the game waits. "Got it" (or a press on the
+    mic itself) closes it for good (prefs `feedback` / `tipShown`).
+  - While held, the sheet's top is a red banner "● Recording… release to finish" with the seconds.
   - At the press, the emulation thread writes the replay data between two frames (`Native.feedback`, player.c).
   - While the button is held, the voice records (AAC, 16 kHz mono, 32 kbps, `audio.m4a`).
 - **The game freezes at the press** (0.0.14), not the release: the replay window and the screenshot end at the frame on screen
   when the button went down, and the game stays frozen while he talks and while the box is open.
-- **Release:** The voice goes to the server, which transcribes it at once (about 2 s).
-  - The text comes back into an editable box. Fix it or add to it with the keyboard.
-  - **Send** sends the final text with the bundle. **Cancel** drops the bundle. Either one resumes the game.
+- **Release:** The voice goes to the server, which transcribes it at once (about 2 s). The sheet shows numbered steps
+  (0.0.26, for a first-time tester):
+  - **① Your words:** the transcript, editable. Fix it or add to it with the keyboard.
+  - **② Point at the problem (optional):** draw on the picture to circle what's wrong (one red pen), **Undo**, **Clear**.
+  - **③ Send feedback** (the big button) sends the final text with the bundle; **Discard** (small) drops it. Either
+    one resumes the game. The admin also has **Reply to...** there.
+  - The keyboard: on Android 11+ the sheet shrinks above it (its height polled from the window insets: this
+    full-screen window gets no IME dispatch), so ③ stays visible while typing; older Androids pan to the box.
+  - **After Send:** a card over the picture, "Sending your note…", then "Thanks, your note was sent" or "Saved, will
+    send when online" (queued), ~3 s; touches go through it.
 - **A tap** (under 0.4 s) opens the box empty, for a typed note. That note carries the replay too.
 - **Offline, or the server fails:** the box opens empty and says "transcription unavailable". The voice still goes
   with the bundle, and the server transcribes it when the bundle arrives.
   - A bundle that cannot be sent stays queued in `files/feedback/queue`. It is retried at start and every minute.
-  - The toast says "Feedback sent" or "Queued".
+  - The card says "Thanks, your note was sent" or "Saved, will send when online".
 - **Microphone permission:** asked once, on the first press; that press records nothing. If it is refused, bundles
   go without the voice.
 - **Test hook:** push a file named `feedback_test_audio.(m4a|wav|mp3|ogg)` to the app's external files dir
@@ -70,11 +81,32 @@ appear on a public page.
 
 **Scribble (0.0.15).** From the mic press (or the typed-note tap), the frozen screenshot fills the screen as a
 drawing canvas (`Ink.kt`).
-- One finger draws while another holds the mic. Pen: red / green (the round button), Undo, Clear.
-- At the release, the note box comes up under the canvas, and the canvas stays live until Send or Cancel.
+- One finger draws while another holds the mic. One red pen (0.0.26: the round red / green toggle, which looked like a
+  record button, is gone), Undo, Clear.
+- At the release, steps ① and ③ come up around the canvas, and the canvas stays live until Send or Discard.
 - The bundle keeps `screen.png` clean (the replay checks it). `annotation.png` holds the strokes alone, on
   transparent. `screen_marked.png` is the screenshot with the strokes. Both are 4x the screenshot.
 - pull.py's report and contact sheet use the marked picture, and so does the Lab tab, with the clean one linked.
+
+**Tester mode (Player 0.0.26).** A second tester (another person, their own Oros account) sees only the game, the
+pad and the Feedback button.
+- **The rule:** the Oros account's role, which `/oros/api/login` already returns and every renewal refreshes
+  (`Auth.admin`). Role `admin` (Oros `add-user --role=admin`; today bruno and gex) sees everything; any other account
+  (role `viewer`, the default: brawler-test, paulina ...) is a tester. Make someone an admin on the Oros server, not
+  in the player. No new endpoint.
+- **Hidden for a tester:** the list button (his notes, the test queue, the decisions) and its badge, the update button
+  (no blinking), Settings > My feedback notes, the note sheet's Reply to.... The player makes no `/mine` calls for a
+  tester.
+- **Still there:** updates download in the background as before; the launch screen offers "Player 0.0.x is ready"
+  (Update / Play), the game build is fetched at launch, Settings > Updates works. Settings > Account shows "admin" or
+  "tester".
+- **Who sent it:** the server ties every note to the token's account (`feedback.user`, the `from` column of `fb.py
+  list`, the Lab); meta.json also carries `user` and `tester` (0.0.26).
+- **Proven 2026-10-09** in AVD JanusPhone (brawler-test, role viewer; admin by editing the stored role): the tip, the
+  label, the recording banner, the steps sheet with a red stroke, the keyboard, "Saved, will send when online"
+  (offline; the queued bundle's meta.json read `user` brawler-test, `tester` true, then deleted unsent), the tester pad
+  in landscape and portrait, the admin pad + list, the test banner expanded / collapsed / dragged to the bottom /
+  expanded there. Screenshots: `/data/feedback/proof_0026/`.
 
 **My feedback (0.0.15, Settings > My feedback notes):** his notes, newest first, from `GET /brawler/feedback/mine`.
 - Each card has the date, the versions, the origin, the note, category and fighters, and the status with its history
@@ -338,6 +370,15 @@ state of the published build set up to show the fix, with what to do and what to
   - The test queue: the list's "▶ Test queue (N)" button, or the game screen's list button (a menu "My notes / Test
     queue (N)" whenever notes can be tested): every queue-eligible note that has a state for his build and system,
     oldest first, one after the other.
+  - **The banner (0.0.26; Bruno: the Do / Expect box took too much room and could not be hidden):** inside the
+    picture. One line always: the pill "ⓘ TEST n/N: title" and the controls ▶ / ❚❚, ⟲ Restart, 👍, 👎 (hold and talk),
+    Next / Done, ✕. Under it, expanded: the title in full, Do, Expect, the status. In full for 3 s when a test loads,
+    then the pill alone. A tap on the pill = expand / collapse; expanded it is ~60 % opaque (the game shows through);
+    dragging the pill moves the banner to the picture's other edge (top / bottom, kept for the session). An error
+    (no state, not sent) expands it; the 👎 note box stays open under the pill.
+  - **Test hook (0.0.26):** `test_scenario.json` (a note row: id, title, scenario {title, do, expect}) +
+    `test_scenario.state` pushed to the app's external files dir open that note in VERIFY mode on the next resume
+    (admin only; both files consumed). Banner proof without a server scenario.
   - **The test queue rule (0.0.23, server.py queue_info, every /mine and /api/list row's `to_test` + `tested_on`):** a
     note is eligible while its status is shipped and no verdict (a 👍 or 👎 test attempt, player or Lab) was given on
     its release or a later build (`tested_on` = the game version of the last verdict); the player adds "release at or
