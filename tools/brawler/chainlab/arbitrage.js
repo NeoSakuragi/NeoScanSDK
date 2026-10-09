@@ -1,4 +1,4 @@
-// A fighter's ARBITRATION sheet (arbitrage.html?f=kim, ?f=krauser): the web version of Bruno's A4 sheet for Kim
+// A fighter's ARBITRATION sheet (arbitrage.html?f=kim, ?f=krauser, ?f=robert): the web version of Bruno's A4 sheet for Kim
 // (/data/scans/brawler/kim_notes_231734.png -> docs/brawler_gold.md "Kim (fast)"). The workflow for every new fighter,
 // in this order: chain combo, alternate finishers, Blitz, specials, air, grab; the fury is a separate script (a note).
 // Each slot: its input in game terms, the animation(s) it plays (small looping clips, tap = ¼ speed), "Pick animation"

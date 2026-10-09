@@ -1,4 +1,4 @@
-// The animation dictionary page (anims.html?f=kim, ?f=krauser; data tools/brawler/animdict.py): every animation of a fighter's table as a small looping clip at the
+// The animation dictionary page (anims.html?f=kim, ?f=krauser, ?f=robert; data tools/brawler/animdict.py): every animation of a fighter's table as a small looping clip at the
 // game's speed (one scale for all), filters, and a larger view per animation (¼ speed, step by step, the boxes, the
 // step / box / sound data) with "I want this one", the flags (anims_core.js FLAGS) and a note with the microphone.
 // Answers: the decisions store, set "<fighter>-anims", id = the animation's hex.
@@ -65,7 +65,7 @@
   root.replaceChildren(
     h('h1', { text: `${D.display}: animation dictionary` }),
     h('p', { class: 'intro' }, `All ${D.count} animations of ${D.display}'s table in ${D.source}, ${D.drawn || `drawn from the ROM at the game's zoom $${D.zoom} (×${D.scale}, the size the brawler shows him)`}. ` +
-      (D.game === 'kof96' ? 'Flags suggested from KOF\'s buttons (A / B light, C / D heavy; A / C punch, B / D kick), a projectile, a knockdown the capture saw, a throw. ' : '') +
+      (/^kof9[68]$/.test(D.game || '') ? 'Flags suggested from KOF\'s buttons (A / B light, C / D heavy; A / C punch, B / D kick), a projectile, a knockdown the capture saw, a throw. ' : '') +
       `${cnt(a => a.attack)} have attack boxes, ${cnt(a => a.moves && a.moves.length)} are played by a move I captured or named, ${cnt(a => a.exported.length)} are in the brawler. ` +
       'Each clip loops at the game speed; tap one for the larger view (¼ speed, step by step, boxes, data), "I want this one", flags and a note. ',
       h('a', { href: 'review.html?f=' + f, text: 'Back to the fighter review' }), ' · ', h('a', { href: 'arbitrage.html?f=' + f, text: 'The arbitration sheet (chain, finishers, Blitz, specials, air, grab, fury)' })),

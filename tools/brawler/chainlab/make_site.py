@@ -125,11 +125,11 @@ if os.path.exists(os.path.join(IMP, 'impacts.json')):
 # the fighter review pages (revamp phase 4, review.html): pieces, appeal, my proposal, clips (tools/brawler/review_build.py)
 import review_build
 review_build.build(out, game, review_build.REVIEW, Rom(os.path.join(game, 'build')), lab, G)
-# the animation dictionaries (anims.html?f=kim / krauser, the review picker's "All animations"): every animation of the
-# fighter's table (tools/brawler/animdict.py: Kim's Kizuna table, Krauser's KOF96 table)
+# the animation dictionaries (anims.html?f=kim / krauser / robert, the review picker's "All animations"): every animation of the
+# fighter's table (tools/brawler/animdict.py: Kim's Kizuna table, Krauser's KOF96 table, Robert's KOF98 table)
 import animdict
 animdict.build(out, game)
-# the arbitration sheets (arbitrage.html?f=kim / krauser): what the game plays now in each slot, as dictionary animations
+# the arbitration sheets (arbitrage.html?f=kim / krauser / robert): what the game plays now in each slot, as dictionary animations
 import arbitrage
 arbitrage.build(out, game)
 print('site data in', out)

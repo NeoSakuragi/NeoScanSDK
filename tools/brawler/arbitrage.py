@@ -12,13 +12,31 @@ REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, HERE)
 import build_tables
 
-FIGHTERS = ('kim', 'krauser')                       # the fighters with an animation dictionary (animdict.DICTS)
+FIGHTERS = ('kim', 'krauser', 'robert')                     # the fighters with an animation dictionary (animdict.DICTS)
 HOLD_HIT_DEFAULT = 'engine default: his fastest close normal'   # export_bm.HOLD_DEFAULT hit None (hold_move)
 HOLD_FIN_DEFAULT = 'atk_d_close'                                 # export_bm.HOLD_DEFAULT fin
 
 
-def now_of(r, D, chain_len):
-    """slot id -> {pieces: [hex, ...], text}: the roster entry r's moves as dictionary animations"""
+def generated(lab, n):
+    """what the build's chain generator made for fighter n (build/chainlab.json: routes.chain_tree's summary, the
+    specials' slots, the route tree's entries): the chain links, finishers {neutral, forward, up, down_move} as move
+    names (a list: back to back; a special as its input), the dash entry's move. None without a build."""
+    f = next((x for x in (lab or {}).get('fighters', []) if x['name'] == n), None)
+    if not f or not (f['tree'].get('chain') or {}).get('links'): return None
+    ch, sps = f['tree']['chain'], f.get('specials') or {}
+    def move(v):
+        v = v.rsplit(' (', 1)[0]                     # 'atk_d_far (launch)' -> 'atk_d_far'
+        if v == 'throw': return None
+        if v.startswith('special '): return sps.get(v[8:])
+        ms = v.split(' > ')
+        return ms if len(ms) > 1 else ms[0]
+    fin = {('down_move' if k == 'down' else k): move(v) for k, v in ch['finishers'].items() if k != 'back'}
+    return {'links': ch['links'], 'finishers': fin, 'dash': ((f['tree'].get('entries') or {}).get('dash') or {}).get('move')}
+
+
+def now_of(r, D, chain_len, gen=None):
+    """slot id -> {pieces: [hex, ...], text}: the roster entry r's moves as dictionary animations; what the roster does
+    not name (a fighter on the default chain) from the build's generator (gen = generated())"""
     moves = r.get('moves') or {}
     def anims(name):
         if not name: return []
@@ -35,24 +53,32 @@ def now_of(r, D, chain_len):
         return {'pieces': ps, 'text': '; '.join(t), 'moves': [n for n in names if n]}
     out = {}
     links = list((r.get('chain') or {}).get('links') or [])
-    fin = r.get('finishers') or {}
+    own = r.get('finishers') or {}
+    gl = (gen or {}).get('links') or []
+    gfin = (gen or {}).get('finishers') or {}
+    fin = dict(own, **{k: gfin[k] for k in ('neutral', 'forward', 'up', 'down_move') if not own.get(k) and gfin.get(k)})
+    pick = lambda k: '' if own.get(k) or not gfin.get(k) else 'the generator\'s pick'   # (the roster names none)
+    gtxt = 'the generator\'s pick' if not links and gl else ''
+    links = links or list(gl)
     seq = links + ([fin['neutral']] if fin.get('neutral') else [])
     for i in range(max(chain_len, len(seq))):
-        out[f'a{i + 1}'] = slot(seq[i]) if i < len(seq) else {'pieces': [], 'text': 'no link here today', 'moves': []}
+        out[f'a{i + 1}'] = slot(seq[i], gtxt if i < len(links) else '') if i < len(seq) else {'pieces': [], 'text': 'no link here today', 'moves': []}
     if fin.get('neutral'):
         last = out[f'a{len(seq)}']
-        last['text'] = '; '.join(t for t in ('the neutral finisher', last['text']) if t)
+        last['text'] = '; '.join(t for t in ('the neutral finisher', pick('neutral'), last['text']) if t)
     out['_presses'] = len(seq)
     la = fin.get('launcher')                        # the stick that plays the launcher
-    out['fin_fwd'] = slot(fin.get('forward'), 'launcher' if la == 'forward' else '' if fin.get('forward') else 'the generator\'s pick')
-    out['fin_up'] = slot(fin.get('up'), 'launcher' if la == 'up' else '' if fin.get('up') else 'the generator\'s pick')
+    j = lambda *t: ', '.join(x for x in t if x)
+    out['fin_fwd'] = slot(fin.get('forward'), j('launcher' if la == 'forward' else '', pick('forward')) if fin.get('forward') else 'the generator\'s pick')
+    out['fin_up'] = slot(fin.get('up'), j('launcher' if la == 'up' else '', pick('up')) if fin.get('up') else 'the generator\'s pick')
     dm = fin.get('down_move')
-    out['fin_down'] = slot(dm, {'sweep': 'sweep (trips)', 'slam': 'slam (bounces)'}.get(fin.get('down'), '') + (', back to back' if isinstance(dm, list) and len(dm) > 1 else ''))
+    out['fin_down'] = slot(dm, j({'sweep': 'sweep (trips)', 'slam': 'slam (bounces)'}.get(fin.get('down'), '') + (', back to back' if isinstance(dm, list) and len(dm) > 1 else ''), pick('down_move')))
     out['fin_back'] = slot('throw_c', 'the throw')
     bz = r.get('blitz') or {'ff': 'dash'}
     for k in ('ff', 'dd', 'uu', 'du'):
         v = bz.get(k)
-        out['bz_' + k] = {'pieces': [], 'text': 'his dash attack (the route tree\'s dash entry)', 'moves': []} if v == 'dash' else slot(v) if v else {'pieces': [], 'text': 'empty', 'moves': []}
+        dash = (gen or {}).get('dash')
+        out['bz_' + k] = (slot(dash, 'his dash attack (the route tree\'s dash entry)') if dash else {'pieces': [], 'text': 'his dash attack (the route tree\'s dash entry)', 'moves': []}) if v == 'dash' else slot(v) if v else {'pieces': [], 'text': 'empty', 'moves': []}
     sp = r.get('specials') or {}
     out['sp_c'] = slot(sp.get('D'), 'also the combo breaker')
     out['sp_fc'] = slot(sp.get('fD'))
@@ -76,6 +102,8 @@ def build(out, game=None, names=None):
     game = game or os.path.join(REPO, 'examples', 'brawler')
     G = json.load(open(os.path.join(game, 'game.json')))
     lens = G['chain']['lengths']
+    lp = os.path.join(game, 'build', 'chainlab.json')            # the build's generated chains (export_bm.py)
+    lab = json.load(open(lp)) if os.path.exists(lp) else None
     res = {}
     for n in names or FIGHTERS:
         p = os.path.join(out, 'review', f'{n}_anims.json')
@@ -85,7 +113,7 @@ def build(out, game=None, names=None):
         D = {a['id']: a for a in A['anims']}
         arch = r.get('archetype', 'balanced')
         doc = {'fighter': n, 'display': A['display'], 'archetype': arch, 'chain_len': lens[arch],
-               'version': open(os.path.join(game, 'VERSION')).read().strip(), 'now': now_of(r, D, lens[arch])}
+               'version': open(os.path.join(game, 'VERSION')).read().strip(), 'now': now_of(r, D, lens[arch], generated(lab, n))}
         json.dump(doc, open(os.path.join(out, 'review', f'{n}_arb.json'), 'w'), ensure_ascii=False, indent=0)
         res[n] = doc
     return res

@@ -6,6 +6,8 @@
   kof96   KOF96 fighters (Krauser first, 2026-10-09): every animation of the fighter's table ($080000[id], 512 slots), one
           entry per distinct animation (slots that point at the same steps listed with it), rendered from the ROM at
           the brawler's scale (roster[].scale, 1 today) facing right
+  kof98   KOF98 fighters (Robert, 2026-10-09): the same engine and the same builder through rom96.GAMES['kof98']: the
+          table at bank 2 $200002[id], the fighter's own state -> slot map, palettes from bank 2 (colour set A)
 
     python3 tools/brawler/animdict.py OUT [GAME_DIR] [FIGHTER ...]   -> OUT/review/<fighter>_anims.json + sheets
 
@@ -26,7 +28,7 @@ REPO = os.path.dirname(TOOLS)
 for p in (os.path.join(TOOLS, 'kof96'), os.path.join(TOOLS, 'kizuna'), os.path.join(TOOLS, 'neosdk')):
     if p not in sys.path: sys.path.insert(0, p)
 
-DICTS = {'kim': 'kizuna', 'krauser': 'kof96'}        # the fighters with a dictionary and its source
+DICTS = {'kim': 'kizuna', 'krauser': 'kof96', 'robert': 'kof98'}   # the fighters with a dictionary and its source
 FPS = 59.18
 PER_SHEET = 16
 
@@ -35,7 +37,22 @@ PER_SHEET = 16
 NAMES = {'krauser': {'214A': 'Blitz Ball', '214B': 'Blitz Ball', '214C': 'Blitz Ball', '214D': 'Blitz Ball',
                      '236B': 'Leg Tomahawk', '236D': 'Leg Tomahawk', '623B': 'Kaiser Kick', '623D': 'Kaiser Kick',
                      '41236B': 'Kaiser Duel Sobat', '41236D': 'Kaiser Duel Sobat', '641236A': 'Kaiser Wave',
-                     '641236C': 'Kaiser Wave', 'MAX 641236C': 'Kaiser Wave MAX'}}
+                     '641236C': 'Kaiser Wave', 'MAX 641236C': 'Kaiser Wave MAX'},
+         # KOF98 Robert (the recogniser's inputs; names from snk.fandom.com "Robert Garcia/Move List", 2026-10-09:
+         # 623K Ryuu Zanshou in KOF97-98, half circle back + K Hien Senpuu Kyaku, close half circle forward + K
+         # Ryuuren Gen'ei Kyaku, f b f + K Gen'ei Kyaku, the supers Ryuuko Ranbu and Haoh Shoukou Ken; 236236 K left
+         # unnamed: the wiki's list has no KOF98 entry for it)
+         'robert': {**{f'{p}236{b}': 'Ryuugeki Ken' for p in ('', 'EX ') for b in 'AC'},
+                    **{f'623{b}': 'Ryuuga' for b in 'AC'}, **{f'623{b}': 'Ryuu Zanshou' for b in 'BD'},
+                    **{f'{p}624{b}': 'Hien Senpuu Kyaku' for p in ('', 'EX ') for b in 'BD'},
+                    **{f'air 214{b}': 'Hien Ryuujin Kyaku' for b in 'BD'}, '426B': "Ryuuren Gen'ei Kyaku",
+                    **{f'EX 646{b}': "Gen'ei Kyaku" for b in 'BD'},
+                    **{f'{p}23624{b}': 'Ryuuko Ranbu' + (' MAX' if p else '') for p in ('', 'MAX ') for b in 'AC'},
+                    **{f'{p}6426{b}': 'Haoh Shoukou Ken' + (' MAX' if p else '') for p in ('', 'MAX ') for b in 'AC'},
+                    **{f'{p}236236{b}': '236236 K super' + (' MAX' if p else '') for p in ('', 'MAX ') for b in 'BD'}}}
+# command normals and throws by name (the same source)
+MOVE_NAMES = {'robert': {'cmd_fwd_a': 'forward A (Kouryuu Koukyaku Geri)', 'cmd_fwd_b': 'forward B (Ryuu Hanshu)',
+                         'throw_c': 'throw (forward + C, Ryuuchou Kyaku)', 'throw_d': 'throw (forward + D, Kubikiri Nage)'}}
 # animations no capture reaches, named from their drawings (slot -> note; SNK Wiki for the names: Kaiser Suplex =
 # the leaping German suplex on a close opponent, 632146 A / C; Kaiser Inferno = cartwheels and a belly flop, a super
 # left unused in KOF96 (its command 2363214 is in the recogniser's list), used in KOF98 UM)
@@ -46,12 +63,14 @@ NOTES = {'krauser': {153: 'a copy of Kaiser Wave A (151): the MAX version\'s slo
                      170: 'Kaiser Inferno: the start', 171: 'Kaiser Inferno: the dive', 172: 'Kaiser Inferno: the belly flop, getting up',
                      173: 'Kaiser Inferno: the belly flop, getting up', 178: 'Kaiser Suplex (632146 A / C): the grab', 179: 'Kaiser Suplex: the jump and the suplex (the jumping command grab)',
                      180: 'Kaiser Suplex?: a tumble', 181: 'Kaiser Suplex?: one pose (its whiff?)'}}
-WAVES = {'krauser': {'Kaiser Wave'}}                    # projectile supers whose wave the export plays from the handler
+WAVES = {'krauser': {'Kaiser Wave'}, 'robert': {'Haoh Shoukou Ken'}}                    # projectile supers whose wave the export plays from the handler
 NORMAL = {'close': 'close', 'far': 'far', 'crouch': 'crouch', 'jump': 'jump', 'jump_diag': 'jump (diagonal)'}
 
 
-def normal_name(k):
+def normal_name(k, name=None):
     """'atk_c_close' -> 'close C'; other state names: '_' -> ' '"""
+    if k in MOVE_NAMES.get(name, {}): return MOVE_NAMES[name][k]
+    if k.startswith('cmd_fwd_'): return 'forward ' + k[-1].upper()
     if k.startswith('atk_'):
         _, b, *w = k.split('_'); w = '_'.join(w)
         return f"{NORMAL.get(w, w)} {b.upper()}" if b != 'cd' else 'jump C+D'
@@ -59,24 +78,34 @@ def normal_name(k):
 
 
 def kof96(out, game, name):
+    """a KOF96 or KOF98 fighter (DICTS[name]): the same engine, rom96.GAMES says what moved"""
     import rom96, export96
+    src = DICTS[name]; k98 = src != 'kof96'
     from neogeo.sprite_decode import decode_tile, decode_color
     KZ = kizuna_dict()                                       # Kim's builder: its sheet packer and descriptions
     G = json.load(open(os.path.join(game, 'game.json')))
     ros = next(r for r in G['roster'] if r['name'] == name)
     scale = ros.get('scale', 1)
-    prom, crom = rom96.load(); m = rom96.Mem(prom)
-    cid = export96.CAST.index(name)
-    smap = rom96.shared_map(m)
-    by_state = {s: k for k, s in export96.MOVES.items()}
-    pals = export96.palettes(m, cid)[0]                      # the block's 16 palettes (colour set A)
-    rgba_pal = [[(0, 0, 0, 0)] + [decode_color(c) + (255,) for c in p[1:]] for p in pals]
+    prom, crom = rom96.load(rom96.GAMES[src]['neo']); m = rom96.Mem(prom, src)
+    cid = (export96.CAST98 if k98 else export96.CAST).index(name)
+    smap = [rom96.state_slot(m, cid, st) for st in range(512)] if k98 else rom96.shared_map(m)
+    by_state = {s: k for k, s in (export96.MOVES98 if k98 else export96.MOVES).items()}
+    for k, v in export96.CMD_NORMALS.get(src, {}).get(name, {}).items():   # KOF98 command normals (a hop: every state)
+        for st in [v[0]] + [r[0] for r in (v[2] if len(v) > 2 else [])]: by_state.setdefault(st, k)
+    rgba = lambda p: [(0, 0, 0, 0)] + [decode_color(c) + (255,) for c in p[1:]]
+    if k98:                                                  # palette byte b -> key b - 16 (0 the body palette, 16+ the
+        def pal_of(b):                                       # effects; colour set A); KOF's shared bank: its own palette
+            if 16 <= b < 48: return b - 16, export96.palettes98(m, cid, [b])[0][0]
+            return b, export96.pal_rom98(m, b)
+        rgba_pal = {}
+    else:
+        rgba_pal = [rgba(p) for p in export96.palettes(m, cid)[0]]   # the block's 16 palettes (colour set A)
     base = m.u32(m.g['anims'] + cid * 4)
 
     # ---- what plays each slot: states (shared map), specials captured, throws; the brawler's export ----
     states = {}
     for st, sl in enumerate(smap): states.setdefault(sl, []).append(st)
-    exp_p = os.path.join(game, 'build', f'tmp_kof96_{name}', 'kof95_export.json')
+    exp_p = os.path.join(game, 'build', f'tmp_{src}_{name}', 'kof95_export.json')
     ex = json.load(open(exp_p))['characters'][name] if os.path.exists(exp_p) else None
     if ex is None: print('no export at', exp_p, '(exported = none)')
     moves, exported, knock, proj_slots, throws_proj = {}, {}, set(), set(), set()
@@ -84,7 +113,7 @@ def kof96(out, game, name):
     for sl, sts in states.items():
         for st in sts:
             k = by_state.get(st)
-            if k and not k.startswith(('blowback_n',)): put(moves, sl, normal_name(k))
+            if k and not k.startswith(('blowback_n',)): put(moves, sl, normal_name(k, name))
     sp_names = NAMES.get(name, {})
     if ex:
         for k, a in ex['anims'].items():
@@ -100,7 +129,7 @@ def kof96(out, game, name):
                 if any(len(r) > 5 and r[5] is not None and 280 <= r[5] < 400 for r in sp['row_steps']): knock.add(sl)
             for pj in sp.get('projectiles') or []:
                 sl = smap[pj['state']]; put(moves, sl, lab + ' (its projectile)'); put(exported, sl, sp['input'] + ' effect'); proj_slots.add(sl)
-        for k, t in ex['throws'].items(): put(moves, t['slot'], normal_name(k)); put(exported, t['slot'], k)
+        for k, t in ex['throws'].items(): put(moves, t['slot'], normal_name(k, name)); put(exported, t['slot'], k)
     if ex:                                                   # a move's other version knocks down too (a whiff capture
         kn = {sp_names.get(sp['input']) for sp in ex['specials'] for st, d, sl in sp['states'] if sl in knock} - {None}   # never shows it)
         pj = ({sp_names.get(sp['input']) for sp in ex['specials'] if sp.get('projectiles')} | WAVES.get(name, set())) - {None}
@@ -113,6 +142,7 @@ def kof96(out, game, name):
         for st in sts:
             k = by_state.get(st, '')
             if k.startswith('atk_') or k == 'body_toss': btn_of.setdefault(sl, set()).add(k.split('_')[1].upper() if k.startswith('atk_') else 'CD')
+            elif k.startswith('cmd_fwd_'): btn_of.setdefault(sl, set()).add(k[-1].upper())     # KOF98 command normals
     if ex:
         for sp in ex['specials']:
             for st, d, sl in sp['states']:
@@ -165,7 +195,10 @@ def kof96(out, game, name):
             y0 = -p['dy'] - h if p['vflip'] else p['dy']
             if p['hflip']: img = img[:, ::-1]
             if p['vflip']: img = img[::-1, :]
-            pal = (sd['pal'] - 16) % 16 if 16 <= sd['pal'] < 112 else 0
+            if k98:
+                pal, p_ = pal_of(sd['pal'])
+                if pal not in rgba_pal: rgba_pal[pal] = rgba(p_)
+            else: pal = (sd['pal'] - 16) % 16 if 16 <= sd['pal'] < 112 else 0
             placed.append((x0, y0, img, pal)); used.add(pal)
         if not placed: rcache[fi] = None; return None
         mnx = min(x for x, _, _, _ in placed); mny = min(y for _, y, _, _ in placed)
@@ -193,6 +226,8 @@ def kof96(out, game, name):
     seen = {}
     for sl in range(512):
         seen.setdefault(m.u32(base + sl * 4), []).append(sl)
+    nosteps = [a for a in seen if m.u8(a) in (0xFE, 0xFF)]    # KOF98: unused slots each point at their own bare terminator
+    for a in nosteps: del seen[a]                            # (no steps: not animations, left out)
     anims, sheets, cur = [], [], None
     for k, (addr, slots) in enumerate(seen.items()):
         if k // PER_SHEET >= len(sheets): cur = KZ.Sheet(); sheets.append(cur)
@@ -236,8 +271,8 @@ def kof96(out, game, name):
     for k, sh in enumerate(sheets):
         fn = f'review/{name}_anims_{k}.png'
         names.append({'src': fn, 'cells': sh.save(os.path.join(out, fn))})
-    data = {'fighter': name, 'display': (ros.get('display') or name.upper()), 'game': 'kof96',
-            'source': f"KOF96 (id {cid}, animation table ${base:06X}: 512 slots, {len(anims)} distinct animations)",
+    data = {'fighter': name, 'display': (ros.get('display') or name.upper()), 'game': src,
+            'source': f"{src.upper()} (id {cid}, animation table ${base:06X}{' in bank 2' if k98 else ''}: 512 slots, {len(anims)} distinct animations{f', {len(nosteps)} unused slots without steps left out' if nosteps else ''})",
             'drawn': f"drawn from the ROM at the brawler's scale (×{scale}), facing right", 'zoom': None, 'scale': scale,
             'fps': FPS, 'count': len(anims), 'sheets': names, 'anims': anims}
     json.dump(data, open(os.path.join(out, 'review', f'{name}_anims.json'), 'w'), separators=(',', ':'))
