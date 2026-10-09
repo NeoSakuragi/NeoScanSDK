@@ -623,18 +623,25 @@ def hit_fx(sp, i, game):
 # breaker $3D BACK BREAK. A special's sound is a KOF98 hit kind (fighter.c HIT_SFX): the kind playing that code alone.
 SFX_NAMES = {v: int(k, 16) for k, v in json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'songs.json')))['sfx']['names'].items()}
 KIND_OF = {0x9C: 29, 0x19: 15, 0x3D: 16, 0x2B: 20, 0x17: 24, 0x2E: 21}   # HIT_SFX rows {code, 0} ($2E FIRE HIT: Kyo's fury, TODO #206)
+KIND_OF.update({SFX_NAMES['94 DRAGON HIT']: 33, SFX_NAMES['94 SUPER HIT']: 34, SFX_NAMES['94 KNUCKLE HIT']: 35})   # Bruno's
+# impact-sound picks (2026-10-09, songs.json sfx "from" KOF94): HIT_SFX rows {code, 0xFF}, the code alone (no fire crackle added)
 SFX_KEYS = ['A', 'B', 'C', 'D', 'CD', 'throw_c', 'throw_d']    # bchar_t.sfx order (fighter.c SX_*)
 
 def sfx_code(n, name):
     assert name in SFX_NAMES, f'{n}: hit_sfx {name!r} is no songs.json sfx name'
     return SFX_NAMES[name]
 
-def move_fx(n, sp, hk, element=0):
+def move_fx(n, sp, hk, element=0, state=None):
     """bspec_row_t / bproj_t / P_ANIM fx of a special's hit: kind hk (KOF's), or the sound its use asks for (a fury:
     SDM IMPACT; roster[].hit_sfx[input]); the burn: the hitting animation's element when it has one (a ROM program's
     state / object: handlers98.fire_element, KOF98's own rule, TODO #206: Kyo's Orochinagi hits with kind 7 and burns),
-    else the KOF kind's (fire kinds 11, 13, 21: the crackle $2E only they)"""
+    else the KOF kind's (fire kinds 11, 13, 21: the crackle $2E only they). A hit_sfx entry {"states": [...], "sound": name}
+    sets the sound of the hits its ROM program plays in those states only (state: the 'anim' op's; Bruno 2026-10-09: the
+    dragon-punch part of Ryo's and Robert's fury), its other hits keep the rules"""
     r = roster().get(n, {}); want = (r.get('hit_sfx') or {}).get(sp['input'])
+    if isinstance(want, dict):
+        assert set(want) == {'states', 'sound'}, f'{n}: hit_sfx {sp["input"]}: {{"states": [...], "sound": name}}'
+        want = want['sound'] if state in want['states'] else None
     kind = KIND_OF[sfx_code(n, want)] if want else 29 if r.get('fury') and sp['input'] in (r['fury'], 'MAX ' + r['fury']) else hk
     fire = hk in (11, 13, 21) or sp['input'] in (r.get('fire') or ())   # roster[].fire: specials whose hits burn though
     burn = H.BURN_OF.get(element) or (FIRE_COLOUR.get(n, 2) if fire else 0)   # their game's kind is not a fire one (TODO #163)
@@ -847,7 +854,7 @@ def rom_c(n, k, sp, game, vres=None):
         c = P_OPS[op[0]]
         if op[0] == 'anim':
             st = op[2]; react = ROM_REACT.get((n, sp['input'])) or (R_KNOCKDOWN if hitting and st == hitting[-1] else R_HEAVY)
-            ops.append((c, op[1], each | react << 8, move_fx(n, sp, hk, (r.get('elements') or {}).get(st, 0))))
+            ops.append((c, op[1], each | react << 8, move_fx(n, sp, hk, (r.get('elements') or {}).get(st, 0), st)))
         elif op[0] == 'set':
             v = op[2]; reg = P_REGS[op[1]]
             ops.append((c, reg, 0, round(v * 65536) if reg < 3 or reg == 5 else int(v)))   # 5: the height (16.16)

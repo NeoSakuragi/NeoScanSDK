@@ -27,7 +27,9 @@ ADPCM-A address counter is 20 bits: docs/rom_packer_rules.md). Every sample reco
 records) is rewritten to the new addresses; records nobody uses are emptied and become the ports' free entries.
 An effect code in sfx "from" (TODO #155: KOF2000's MAX flash) does not keep KOF98's record: its record in the effect
 slot becomes the source game's (the 1.x drivers share the 6-byte layout [priority][start][end][level]; found through the
-source driver's own table list, $2E0E + 2 * slot), its sample is copied from that game's V ROM, its enable bit set."""
+source driver's own table list, $2E0E + 2 * slot), its sample is copied from that game's V ROM, its enable bit set.
+KOF94 / KOF95 (MAKOTO v3, Bruno's impact-sound picks 2026-10-09): their 11-byte record's sample and pan|level byte, with
+KOF98's own hit sound's priority ($1A $11: MAKOTO ranks the other way round) or the entry's "priority"."""
 import json, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); TOOLS = os.path.dirname(HERE)
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(TOOLS, 'kof98snd'))
@@ -141,6 +143,10 @@ def native_samples(m1, cmd):
     loops = {k: [a_, b_] for k, (a_, b_, _) in s.loop_at.items()} or {'end': [s.tick, 0]}
     return a, b, loops, s.window
 
+# KOF94 / KOF95's MAKOTO v3 drivers (docs/ff3_sound_driver.md "KOF94's build" / "KOF95's build"; tools/brawler/impacts.py
+# reads the same): prefix -> slot, each slot's 11-byte record table; KOF95's one-byte commands $C0-$FF = slot 0 codes $73F4[cmd - $C0]
+MAKOTO = {'kof94': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2}, recs=[0x3E73, 0x4973, 0x5473]),
+          'kof95': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4}, recs=[0x425B, 0x4D5B, 0x5850, 0x6350, 0x6B90], onebyte=0x73F4)}
 PREFIX_SLOT = {0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4, 0x17: 5, 0x16: 6, 0x1D: 7}   # KOF98 $0D7B: effect prefix -> slot
 VOICE_PRIO = 0x50                                         # KOF98's voice records (110 of slot 2's 223 used ones)
 
@@ -220,13 +226,26 @@ def sfx_imports(t, slot, imports, rep):
     rep['sfx_from'] = {}; bits = t.w(0x2E20 + 2 * slot)
     for c, f in imports.items():
         code = int(c, 16); pre, scode = int(f['cmd'][:2], 16), int(f['cmd'][2:], 16)
+        if (slot, code) in t.keep_a:                 # (a song's ADPCM-A note on this code now plays the import: $2E, KOF98's
+            w = f'sfx from ${c}: a kept song plays slot {slot} code ${c}, it now sounds the import'   # songs' fire crackle)
+            rep.setdefault('warnings', []).append(w); print('warning:', w, flush=True)
         sm, sv = roms(f'/data/roms/{f["game"]}.neo')
-        assert bytes(sm[0x3E:0x56]).startswith((b'Sound Driver(ROM)Ver 1.', b'Sound Driver Ver 0.1')), \
-            f'{f["game"]}: not an SNK 1.x / KOF96 Ver 0.1 sound driver'
-        # (KOF96's Ver 0.1, TODO #197: the same table list at $2E0E, prefix -> slot and 6-byte records: its $1A $1F is
-        # record $4536 = slot 1's table $447C + 6 * $1F, pages $4F8-$521 = the pages its own driver keys on, tap core)
-        ssl = PREFIX_SLOT[pre]; tab = sm[0x2E0E + 2 * ssl] | sm[0x2E0F + 2 * ssl] << 8
-        rec = sm[tab + 6 * scode:tab + 6 * scode + 6]
+        drv = bytes(sm[0x3E:0x56])
+        if drv.startswith(b'Ver 3.0 by MAKOTO'):     # KOF94 / KOF95's MAKOTO v3 (docs/ff3_sound_driver.md): 11-byte records
+            M = MAKOTO[f['game']]                     # [priority][start][end][loop count][loop start][loop end][pan|level];
+            if pre == 0 and scode >= 0xC0: ssl, scode = 0, sm[M['onebyte'] + scode - 0xC0]   # a lower priority value is
+            else: ssl = M['pre'][pre]                 # the stronger sound there (KOF98: the higher), so the record takes
+            tab = M['recs'][ssl]; size = 11           # KOF98's own hit sound's priority ($1A $11), or the entry's
+            src = sm[tab + 11 * scode:tab + 11 * scode + 11]
+            assert src[5] == 0, (c, f, src.hex(), 'a looping MAKOTO record')
+            rec = bytes([f.get('priority', t.m1[A_TABLES[slot] + 6 * 0x11])]) + src[1:5] + src[10:11]
+        else:
+            assert drv.startswith((b'Sound Driver(ROM)Ver 1.', b'Sound Driver Ver 0.1')), \
+                f'{f["game"]}: not an SNK 1.x / KOF96 Ver 0.1 / MAKOTO v3 sound driver'
+            # (KOF96's Ver 0.1, TODO #197: the same table list at $2E0E, prefix -> slot and 6-byte records: its $1A $1F is
+            # record $4536 = slot 1's table $447C + 6 * $1F, pages $4F8-$521 = the pages its own driver keys on, tap core)
+            ssl = PREFIX_SLOT[pre]; tab = sm[0x2E0E + 2 * ssl] | sm[0x2E0F + 2 * ssl] << 8; size = 6
+            rec = sm[tab + 6 * scode:tab + 6 * scode + 6]
         st, en = rec[1] | rec[2] << 8, rec[3] | rec[4] << 8
         assert st and en >= st, (c, f, rec.hex())
         ns, ne = t.place(f['game'], st, en, sv, adpcm_a=True)
@@ -235,10 +254,10 @@ def sfx_imports(t, slot, imports, rep):
         t.m1[bits + code // 8] |= 0x80 >> (code % 8)
         t.keep_a.add((slot, code))
         assert t.v[ns << 8:(ne + 1) << 8] == sv[st << 8:(en + 1) << 8]
-        rep['sfx_from'][c] = {'game': f['game'], 'cmd': f['cmd'], 'source_record': f'${tab + 6 * scode:04X}',
+        rep['sfx_from'][c] = {'game': f['game'], 'cmd': f['cmd'], 'source_record': f'${tab + size * scode:04X}',
                               'source_pages': [st, en], 'pages': [ns, ne], 'bytes': (en - st + 1) << 8,
                               'record': t.m1[r:r + 6].hex()}
-        print(f"sfx ${c}: {f['game']} ${f['cmd']} (record ${tab + 6 * scode:04X} {rec.hex()}), {(en - st + 1) << 8} bytes", flush=True)
+        print(f"sfx ${c}: {f['game']} ${f['cmd']} (record ${tab + size * scode:04X} -> {rec.hex()}), {(en - st + 1) << 8} bytes", flush=True)
     return [(bits, bits + 32)]
 
 def build(manifest, out):
@@ -363,6 +382,8 @@ def build(manifest, out):
         names = man['sfx'].get('names', {})
         h.write(f"#define SFX_PREFIX 0x{man['sfx'].get('prefix', '1A').upper()}\n#define N_SFX {len(man['sfx']['codes'])}\n#define SFX_LIST {{ "
                 + ', '.join(f'{{ 0x{c.upper()}, "{names.get(c, "EFFECT " + c.upper())[:16].upper()}" }}' for c in man['sfx']['codes']) + ' }\n')
+        for c, n in names.items():                        # SFXN_<name>: an effect's code by its name (fighter.c HIT_SFX)
+            h.write(f"#define SFXN_{''.join(ch if ch.isalnum() else '_' for ch in n.upper())} 0x{c.upper()}\n")
         h.write('#endif\n')
     if vrep: rep['voices'] = vrep
     rep['m_room'] = sorted([[b, z1 - z0] for b, z0, z1 in t.holes if z1 > z0] +            # free bytes left: holes in

@@ -1895,8 +1895,9 @@ static uint8_t tq_n;
  * is being hit, that's the end", Final Fight / Streets of Rage): one rule for every stage's boss. The tick its life runs
  * out (its killing hit, a throw's impact, a projectile) the fight is over: every intent is off from then on (players and
  * enemies act no more, the players untouchable), the game logic runs one tick in KO_RATE frames for KO_SLOW frames (slow
- * motion: the music, the voices and the drawing at full rate, snd_tick every frame), the boss's death voice (its VK_KO)
- * at once, then every enemy still up is knocked down with no life left, one every KO_GAP frames from KO_FIRST, each with
+ * motion: the music, the voices and the drawing at full rate, snd_tick every frame), the KO sound at once (game.json
+ * hit_sounds.boss_ko: KOF94's KO blow, Bruno 2026-10-09) and the boss's death voice (its VK_KO) scream_delay frames later
+ * (120: the two never overlap; a fall due before KO_FIRST frames after it waits for then), then every enemy still up is knocked down with no life left, one every KO_GAP frames from KO_FIRST, each with
  * its own death voice as it falls (never a chorus; none again at its S_DEAD: fighter_t.ko_voice); at KO_SLOW full rate
  * again (anyone still up goes down then), PH_END: the bodies blink out, STAGE CLEAR as before. No P2 join, no trigger,
  * no queued spawn from the killing hit on. ---- */
@@ -1907,6 +1908,7 @@ static uint8_t tq_n;
 enum { KO_OFF, KO_SLOWMO, KO_DONE };
 static uint8_t ko_seq, ko_sub;                   /* KO_*; frames to the next logic tick */
 static uint16_t ko_t, ko_next;                   /* frames since the killing hit; the next fall */
+static uint8_t ko_scream;                        /* 1: the boss's death voice still to come (ghitsnd.scream_delay) */
 /* ---- the stage clear's win pose (TODO #184, Bruno 2026-10-07: "a little winning pose here at the end of the stage"):
  * when every enemy is gone (after the boss's death sequence), STAGE CLEAR and the input off as before; each player in
  * play (both in a 2-player game) first finishes what he is doing with no input (an attack, a fall, a landing: until
@@ -1964,7 +1966,7 @@ static uint8_t win_done(void) {                  /* every pose played and held W
     for (i = 0; i < 2; i++) if (win_st[i] == WIN_WAIT || (win_st[i] == WIN_POSE && win_t[i] < WIN_HOLD)) return 0;
     return 1;
 }
-static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; win_st[0] = win_st[1] = WIN_NONE; }
+static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; ko_scream = 0; win_st[0] = win_st[1] = WIN_NONE; }
 static void enemies_down(fighter_t *by) {        /* every enemy still up goes down (a boss beaten, TA_END) */
     uint8_t i;
     for (i = 2; i < NF; i++) {
@@ -1983,14 +1985,19 @@ static void ko_fall(fighter_t *e) {              /* an enemy goes down with no l
 static void boss_ko_start(void) {                /* the boss's killing hit */
     fighter_t *b = &fighters[BOSS_IDX];
     ko_seq = KO_SLOWMO; ko_t = 0; ko_sub = 0; ko_next = KO_FIRST; tq_n = 0;
-    voice_play(b->ch, b->team, VK_KO); b->ko_voice = 1;
+    snd_sfx(ghitsnd.boss_ko); b->ko_voice = 1; ko_scream = 1;   /* (ko_voice: none at its S_DEAD, boss_ko_tick screams) */
 }
 static uint8_t boss_ko_tick(void) {              /* every frame of the sequence; 1: a logic tick this frame */
     uint8_t i;
     for (i = 0; i < 2; i++) if (fighters[i].inv < 2) fighters[i].inv = 2;   /* the players: untouchable to the clear (2: still
                                                              set in combat after their update counted one down) */
     if (ko_seq != KO_SLOWMO) return 1;
-    if (++ko_t >= KO_SLOW) {                     /* full rate again: PH_END (campaign) */
+    if (++ko_t >= ghitsnd.scream_delay && ko_scream) {      /* the death voice, after the KO sound */
+        fighter_t *b = &fighters[BOSS_IDX];
+        voice_play(b->ch, b->team, VK_KO); ko_scream = 0;
+        if (ko_next < ko_t + KO_FIRST) ko_next = ko_t + KO_FIRST;
+    }
+    if (ko_t >= KO_SLOW) {                     /* full rate again: PH_END (campaign) */
         ko_seq = KO_DONE;
         for (i = 2; i < NF; i++) { fighter_t *e = &fighters[i]; if (e->state != S_OFF && e->state != S_DEAD && e->hp > 0) ko_fall(e); }
         return 1;

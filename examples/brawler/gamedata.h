@@ -128,6 +128,18 @@ typedef struct {
 } gflash_t;
 extern const gflash_t gflash;
 
+/* ---- layer 2: the hit sounds (game.json "hit_sounds", Bruno's impact-sound picks 2026-10-09): cycle[0] / [1] the light /
+ * strong hit cycles (n entries each, $1A codes: every A / B hit plays the attacker's next light entry, every C / D hit
+ * its next strong one, unless the fighter's own sound is set: fighter.c btn_sound); guard: the guard sound
+ * (fighter_guard_sound, no guard yet); boss_ko: the boss's killing hit, its death voice scream_delay frames later
+ * (main.c boss_ko_start) ---- */
+typedef struct {
+    uint8_t n[2], guard, boss_ko;
+    uint16_t scream_delay;
+    const uint8_t *cycle[2];
+} ghitsnd_t;
+extern const ghitsnd_t ghitsnd;
+
 /* ---- the minion tints (fighter_colour): a colour pulled toward its luminance l = (5 R + 9 G + 2 B) / 16:
  * channel = ((l * mix + channel) * mul >> shift) + add[channel], clamped 0-31. Tint 0 = the colour set as it is. ---- */
 typedef struct { uint8_t mix, mul, shift; int8_t add[3]; } gtint_t;

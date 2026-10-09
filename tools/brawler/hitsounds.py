@@ -27,7 +27,8 @@ NAMES = {'11': 'Light punch hit (KOF98 A)', '12': 'Light kick hit (KOF98 B)', '1
          '37': 'Flame roar', '3A': 'Fury charge (super flash)', '3D': 'Back break (bone crunch)', '42': 'Fire impact',
          '4D': 'Huge boom', '61': 'Metal clang', '69': 'Ringing hit', '7A': 'Iron ball, second', '7C': 'Iron ball hit',
          '8F': 'MAX charge (KOF2000 whistle)', '9C': 'Super desperation impact', 'EB': 'Ki blast (Art of Fighting)'}
-IMPACT = ['11', '12', '13', '14', '15', '17', '2A', '2B', '2E', '31', '3D', '42', '4D', '61', '69', '7A', '7C', '9C', 'EB']
+IMPACT = ['11', '12', '13', '14', '15', '17', '2A', '2B', '2E', '31', '3D', '42', '4D', '61', '69', '7A', '7C', '9C', 'EB',
+          'A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'AB', 'AC', 'AD', 'AE', 'AF', 'B0']   # (+ Bruno's KOF94 / KOF95 picks, 2026-10-09)
 
 
 def sfx():
@@ -53,7 +54,7 @@ def sfx():
         n = int(rate * 0.006); a[-n:] *= np.linspace(1, 0, n)                     # (no click at the end)
         with wave.open(os.path.join(d, c + '.wav'), 'wb') as o:
             o.setnchannels(1); o.setsampwidth(2); o.setframerate(rate); o.writeframes(a.astype(np.int16).tobytes())
-        out.append(dict(code=c, name=NAMES.get(c, f'unnamed ${c}'), rom=S['names'].get(c, ''), impact=c in IMPACT,
+        out.append(dict(code=c, name=NAMES.get(c, S.get('from', {}).get(c, {}).get('what', f'unnamed ${c}').split(': ', 1)[-1][:80]), rom=S['names'].get(c, ''), impact=c in IMPACT,
                         ms=round(len(a) * 1000 / rate), pages=[st, en], record=rec.hex(),
                         src=S.get('from', {}).get(c, {}).get('game', 'kof98')))
         print(c, out[-1], flush=True)
@@ -153,7 +154,7 @@ def hits(name):
         b = 3 if anim in heavy else BTN.get(p[1] if p[0] == 'atk' else p[-1], 4)
         if last_of_move and last_of_seq: return '15'
         if b < 4 and sfx_over.get('ABCD'[b]): return sfx_over['ABCD'[b]].upper()
-        return f'{0x11 + b:02X}'
+        return None                                    # (A-D: the hit cycles, game.json hit_sounds: the attacker's count)
     out = []
     for key, title, stick, links in SEQS[name]:
         if key == 'hold':

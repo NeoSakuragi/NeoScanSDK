@@ -183,6 +183,7 @@ void specs_init(void);
 extern const uint8_t *voice_tab[BC_COUNT];
 void voices_init(void);
 void voice_play(const bchar_t *ch, uint8_t team, uint8_t key);   /* a key's voice now (events: the select screen's pick) */
+void fighter_guard_sound(void);              /* the guard sound (game.json hit_sounds.guard): unused, the brawler has no guard yet */
 void routes_init(void);
 
 /* Chain Lab mailbox (examples/brawler/README.md "Chain Lab"): the page writes it from JavaScript, the game reads it at the
@@ -425,6 +426,7 @@ typedef struct fighter {
      * attack so far (gjump.active_min); wspd = its walk (16.16, gwalk_rom), wrate = its walk / run animation's rate (8.8:
      * wspd / its KOF walk, the feet don't slide) */
     uint8_t  sinv, brkr, blz_buf, jt, aact, jrun;   /* jrun: the jump started from a run (gjump.run_dx) */
+    uint8_t  hcyc[2];             /* the hit cycles (fighter.c btn_sound, game.json hit_sounds): the next entry of the light / strong list */
     uint16_t wrate;
     int32_t  wspd;
 } fighter_t;

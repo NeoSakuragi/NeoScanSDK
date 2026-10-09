@@ -412,12 +412,26 @@ static uint8_t hit_btn(uint8_t anim) {                         /* the button a n
     default: return SX_CD;
     }
 }
-/* a normal's hit sound: KOF98's per button ($11 A .. $14 D; $15 C+D and every knockdown), unless the fighter's
- * bchar_t.sfx sets the button's (TODO #75, game.json roster[].hit_sfx: Haohmaru's sword slashes $2B) */
-static uint8_t hit_sound(const fighter_t *f, uint8_t anim, uint8_t knockdown) {
-    uint8_t b = hit_btn(anim);
-    return f->ch->sfx[b] ? f->ch->sfx[b] : knockdown ? SFX_HIT_CD : SFX_HIT_A + b;
+/* a button's hit sound: the fighter's own when bchar_t.sfx sets the button's (TODO #75, game.json roster[].hit_sfx:
+ * Haohmaru's sword slashes $2B); else $15 (KOF98's C+D) for C+D and every knockdown; else the hit cycles (Bruno
+ * 2026-10-09, game.json hit_sounds): A / B the next sound of the light cycle (KOF94's three hits), C / D the next of
+ * the strong cycle (KOF95's eight). Read in KOF94 $594C-$59AE: a byte counter in RAM ($46F8(a5)) is incremented on every
+ * normal hit and taken mod 3, the strong table $5A06 instead of $59FA when the hit's strength is 3; KOF95 $5542-$558C:
+ * counter $5E66(a5) & 7 into the eight entries of $5674. Both games count with one counter for the whole game; here
+ * each attacker counts its own (fighter_t.hcyc: a player's chain runs through its list whatever the enemies do) */
+static uint8_t btn_sound(fighter_t *f, uint8_t b, uint8_t knockdown) {
+    uint8_t k;
+    if (f->ch->sfx[b]) return f->ch->sfx[b];
+    if (knockdown || b > SX_D) return SFX_HIT_CD;
+    k = b >= SX_C;                                               /* 0 light, 1 strong */
+    if (f->hcyc[k] >= ghitsnd.n[k]) f->hcyc[k] = 0;
+    return ghitsnd.cycle[k][f->hcyc[k]++];
 }
+static uint8_t hit_sound(fighter_t *f, uint8_t anim, uint8_t knockdown) { return btn_sound(f, hit_btn(anim), knockdown); }
+/* the guard sound (Bruno 2026-10-09: KOF94's projectile hit, game.json hit_sounds.guard): what a guarded normal plays.
+ * The brawler has no guard yet: nothing calls it; a guard mechanic sends it where the guarded hit is resolved, in place
+ * of the hit sound (combat) */
+void fighter_guard_sound(void) { snd_sfx(ghitsnd.guard); }
 /* a hit's own sound (Bruno's picks, Kim 2026-10-09: a route node's "sound" list, game.json throws.hold.sound; export_bm
  * bm_hsnd): key = the move (BA_*) or HS_HOLD + the hold script's index, idx = the hit's index in it (0 the first);
  * 0 = none given (the rules above) */
@@ -806,15 +820,20 @@ static void fpose_pal(fighter_t *f, uint8_t on);
  * plays the kind's handler (jump table $1E208) on the hit: sound indices through the table at $A9BCE, all $1A + code.
  * Two codes (the second 0: one); kinds 4, 5, 17 pick one of two at random in the game (the first kept here); 0, 6
  * and 13 go through further tables (not decoded: the heavy hit, 13 adds the fire crackle). Fire: kind 11 = $13 + $2E. */
-static const uint8_t HIT_SFX[33][2] = {
+static const uint8_t HIT_SFX[][2] = {
     {0x13, 0}, {0x13, 0}, {0x14, 0}, {0x15, 0}, {0x11, 0}, {0x12, 0}, {0x13, 0}, {0x37, 0}, {0x7A, 0}, {0x7C, 0},
     {0x12, 0}, {0x13, 0x2E}, {0x61, 0}, {0x13, 0x2E}, {0x13, 0x3D}, {0x19, 0}, {0x3D, 0}, {0x2A, 0}, {0x15, 0x42},
     {0x69, 0}, {0x2B, 0}, {0x2E, 0}, {0x31, 0}, {0x4D, 0}, {0x17, 0}, {0x15, 0x42}, {0x15, 0x42}, {0x15, 0x42},
-    {0x42, 0}, {0x9C, 0}, {0x42, 0}, {0x42, 0}, {0xEB, 0} };
+    {0x42, 0}, {0x9C, 0}, {0x42, 0}, {0x42, 0}, {0xEB, 0},
+    {SFXN_94_DRAGON_HIT, 0xFF}, {SFXN_94_SUPER_HIT, 0xFF}, {SFXN_94_KNUCKLE_HIT, 0xFF} };   /* 33-35: Bruno's KOF94 picks (export_bm KIND_OF, game.json roster[].hit_sfx):
+                                                     $A9 94 DRAGON HIT, $AD 94 SUPER HIT, $AF 94 KNUCKLE HIT; 0xFF: alone, a
+                                                     burning hit adds no fire crackle */
+#define N_HIT_KINDS (sizeof HIT_SFX / sizeof HIT_SFX[0])
 static void hit_sfx(uint8_t fx) {
-    const uint8_t *s = HIT_SFX[(fx & 0x3F) < 33 ? fx & 0x3F : 1];
+    const uint8_t *s = HIT_SFX[(fx & 0x3F) < N_HIT_KINDS ? fx & 0x3F : 1];
     uint8_t c0 = s[0], c1 = s[1];                                /* $2E = KOF96's fire hit (TODO #197: its kind 11 = */
-    if (fx >> 6 && c0 != SFX_FIRE && c1 != SFX_FIRE) {           /* $13 + $1F, 21 = $1F alone: the Blitz Ball) */
+    if (c1 == 0xFF) c1 = 0;                                      /* (a picked sound: alone) */
+    else if (fx >> 6 && c0 != SFX_FIRE && c1 != SFX_FIRE) {      /* $13 + $1F, 21 = $1F alone: the Blitz Ball) */
         if (c0 >= SFX_HIT_A && c0 <= SFX_HIT_CD) c0 = SFX_FIRE;  /* a burning hit of another kind: the plain hit */
         else c1 = SFX_FIRE;                                      /* becomes the fire hit, a kind's own sound gets it */
     }
@@ -1157,7 +1176,7 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
                 for (k = 0; k < j; k++) if (th->rows[k].flags & 4) n++;
                 s = own_sound(by, HS_HOLD + by->throw_id - BT_HOLD_HIT, n);
                 if (s) snd_sfx(s); else
-                snd_sfx(hx ?(by->ch->sfx[hx - 1] ? by->ch->sfx[hx - 1] : SFX_HIT_A + hx - 1) : hit_sound(by, hold_anim(by), 0));
+                snd_sfx(hx ? btn_sound(by, hx - 1, 0) : hit_sound(by, hold_anim(by), 0));
                 by->freeze = 4;
             }
             v->freeze = 4;
