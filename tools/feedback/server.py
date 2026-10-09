@@ -60,6 +60,29 @@ the history keeps every one); each linked note gets "decision" events in its tim
   GET  /mine -> "reviews": the decisions put to the signed-in user (audience = the user, or '' = every account)
   GET  /mine/review/<id>/<name>                 an image or an answer's voice
   POST /review {id, answer, text, raw_transcript?, tx_id?, audio_b64?, audio_name?, device?, android?}   the player's answer
+Character Lab (docs/feedback.md "Character Lab"; 2026-10-10): the live config of each fighter + the catalogue of the Lab shell
+and the character packs, in LAB (/data/brawler/lab). The same handlers answer /lab/... (the player: nginx /brawler/lab/,
+X-Public, the Oros token) and /api/lab/... (the web pages: /brawler-lab/feedback-api/lab/, the Oros cookie; ssh on localhost
+= user 'ssh', labcfg.py / labpub.py). Reads: any signed-in account; writes: Oros role admin (403 otherwise).
+  GET  lab/config                    every fighter's live config head {fighter, version, hash, updated, by, size, note}
+  GET  lab/config/<f>                the live config {fighter, version, hash, updated, by, size, note, blob (base64, opaque),
+                                     json}; ETag "v<version>-<hash16>"
+  GET  lab/config/<f>/hash           {hash, version, updated}: the 2-3 s poll; ETag "<hash>", If-None-Match -> 304
+  PUT  lab/config/<f>                {blob, json, hash?, note?} (POST too); hash = sha256 of the blob bytes (checked when
+                                     given); If-Match "<hash>" -> 412 when the live one differs; an unchanged blob + json = no
+                                     new revision -> {head..., changed}
+  GET  lab/config/<f>/history        every revision's head; GET lab/config/<f>/rev/<n> one revision in full
+  POST lab/config/<f>/revert {rev, note?}   a new revision with revision <rev>'s blob + json (reverted_from)
+  GET  lab/catalogue                 {shell: {version, url, sha256, engine, size, published}, packs: [{fighter, display, face,
+                                     version, url, sha256, engine, size, published, versions}]}; ETag, If-None-Match -> 304
+  POST lab/ship/<f> {rev?, note?}   "Ship to game": the Lab config is a STAGING area (editing it never changes the game or
+                                     git); this queues {id, fighter, rev, hash, by, at, note, status pending} in LAB/ship.json for
+                                     the desktop (labcfg.py ship-pending: export -> game.json -> build -> publish, run there)
+  GET  lab/ship[?status=pending]     the queue; POST lab/ship_done {id, status done | dropped, note?} (labcfg.py ship-done)
+  POST lab/publish {kind shell|pack|face, fighter?, version, engine, src, sha256, display?}   labpub.py (the file in LAB/incoming)
+  POST lab/unpublish {kind, fighter?, version?}
+  Files: LAB/config/<f>.json (live) + <f>.history.jsonl (append-only, every revision in full); LAB/shell/<version><ext>,
+  LAB/packs/<f>/<version>.pack (+ <version>.json sidecars), LAB/faces/<f>.png; served by nginx /brawler/lab/dl/ (Range).
 Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
 PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
@@ -67,7 +90,7 @@ linked to its note (the player sends the tx_id it got back; cancelled notes' tra
 in the total). Notes from before the cost log: estimated from the audio's duration (source 'duration').
 Tracker: DATA/feedback.db (SQLite; feedback + status_history + transcriptions + replies), copied daily to DATA/backups/ (kept 14), mirrored to
 the desktop by pull.py. The OpenAI key is read from KEY_FILE at each call; never logged, never stored."""
-import http.server, io, json, mimetypes, os, queue, re, secrets, socketserver, sqlite3, threading, time
+import base64, hashlib, http.server, io, json, mimetypes, os, queue, re, secrets, socketserver, sqlite3, threading, time
 import urllib.error, urllib.parse, urllib.request, uuid, zipfile
 
 DATA = os.environ.get('FEEDBACK_DATA', '/data/brawler/feedback')
@@ -389,19 +412,24 @@ def worker():
 def account(headers):
     """who is asking: the Oros user behind the player's token (Authorization: Bearer) or the Lab's cookie, checked
     with Oros's /api/whoami (cached 5 min); None = nobody signed in (ssh on localhost: the caller's own "by")"""
+    return account_role(headers)[0]
+
+
+def account_role(headers):
+    """(user, role) behind the token / cookie (role: Oros's, 'admin' or 'viewer'); (None, None) = nobody signed in"""
     auth = headers.get('Authorization', '')
     key, hdr = (auth, {'Authorization': auth}) if auth.startswith('Bearer ') else (headers.get('Cookie', ''), {'Cookie': headers.get('Cookie', '')})
-    if not key: return None
+    if not key: return None, None
     hit = ACCOUNTS.get(key)
-    if hit and hit[1] > time.time(): return hit[0]
+    if hit and hit[2] > time.time(): return hit[0], hit[1]
     try:
         with urllib.request.urlopen(urllib.request.Request(WHOAMI, headers=hdr), timeout=5) as r:
-            name = json.load(r).get('username') or None
-    except Exception: name = None
+            j = json.load(r); name, role = j.get('username') or None, j.get('role') or ''
+    except Exception: name, role = None, None
     if name:
         if len(ACCOUNTS) > 1000: ACCOUNTS.clear()
-        ACCOUNTS[key] = (name, time.time() + 300)
-    return name
+        ACCOUNTS[key] = (name, role, time.time() + 300)
+    return name, (role if name else None)
 
 
 def claim(user, install):
@@ -556,6 +584,187 @@ def answer_review(c, rid, user, answer, text, raw='', audio=b'', ext='m4a', sour
     return review_dict(c, c.execute('SELECT * FROM reviews WHERE id=?', (rid,)).fetchone()), None
 
 
+# ---- Brawler Character Lab (docs/feedback.md "Character Lab"): live config per fighter + the shell / pack catalogue ----
+LAB = os.environ.get('FEEDBACK_LAB', '/data/brawler/lab')   # shell/ packs/<f>/ faces/ (nginx /brawler/lab/dl/), config/, incoming/
+LAB_CFG = os.path.join(LAB, 'config')                       # <f>.json = the live config, <f>.history.jsonl = every revision
+LAB_IN = os.path.join(LAB, 'incoming')                      # labpub.py's uploads, moved into place by /api/lab/publish
+LAB_DL = '/brawler/lab/dl/'                                 # the download URLs (nginx alias, Range, behind the Oros login)
+FIGHTER = re.compile(r'^[a-z0-9_]{1,24}$')
+LVER = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$')
+LEXT = re.compile(r'^\.[a-z0-9]{1,8}$')
+MAX_CFG = 4 << 20                                           # the PUT: the JSON + the blob in base64
+lab_lock = threading.Lock()
+
+
+def lab_current(f):
+    p = os.path.join(LAB_CFG, f + '.json')
+    return json.load(open(p)) if os.path.exists(p) else None
+
+
+def lab_history(f):
+    p = os.path.join(LAB_CFG, f + '.history.jsonl')
+    if not os.path.exists(p): return []
+    return [json.loads(l) for l in open(p) if l.strip()]
+
+
+def lab_head(rec, extra=()):
+    """a revision without its payload (blob, json)"""
+    return {k: rec.get(k) for k in ('fighter', 'version', 'hash', 'updated', 'by', 'size', 'note', 'reverted_from') + tuple(extra) if k in rec}
+
+
+def lab_store(f, blob, cfg, by, note='', reverted_from=None, expect=None):
+    """a new revision when the blob or the JSON changed: appended to the history (fsync'd), then the live file
+    replaced atomically -> (record, changed, error)"""
+    h = hashlib.sha256(blob).hexdigest()
+    with lab_lock:
+        cur = lab_current(f)
+        if expect is not None and (cur['hash'] if cur else '') != expect:
+            return cur, False, 'precondition'
+        if cur and cur['hash'] == h and cur['json'] == cfg and reverted_from is None: return cur, False, None
+        rec = {'fighter': f, 'version': (cur['version'] if cur else 0) + 1, 'hash': h, 'updated': now(), 'by': by,
+               'size': len(blob), 'note': note[:300], 'blob': base64.b64encode(blob).decode(), 'json': cfg}
+        if reverted_from is not None: rec['reverted_from'] = reverted_from
+        os.makedirs(LAB_CFG, exist_ok=True)
+        line = json.dumps(rec, ensure_ascii=False, separators=(',', ':')) + '\n'
+        with open(os.path.join(LAB_CFG, f + '.history.jsonl'), 'a') as hf:
+            hf.write(line); hf.flush(); os.fsync(hf.fileno())
+        tmp = os.path.join(LAB_CFG, f + '.json.part')
+        with open(tmp, 'w') as o: json.dump(rec, o, ensure_ascii=False)
+        os.replace(tmp, os.path.join(LAB_CFG, f + '.json'))
+    log('lab config', f, 'rev', rec['version'], rec['hash'][:12], len(blob), 'bytes by', by, ('revert to %d' % reverted_from) if reverted_from else '')
+    return rec, True, None
+
+
+def lab_ships():
+    p = os.path.join(LAB, 'ship.json')
+    return json.load(open(p)) if os.path.exists(p) else []
+
+
+def lab_ship_save(rows):
+    p = os.path.join(LAB, 'ship.json'); os.makedirs(LAB, exist_ok=True)
+    with open(p + '.part', 'w') as o: json.dump(rows, o, indent=1, ensure_ascii=False)
+    os.replace(p + '.part', p)
+
+
+def lab_ship(f, req, by):
+    """"Ship to game" (Bruno 2026-10-10: the Lab config is a STAGING area; editing it never changes the game or git): a
+    request {fighter, rev (default the live one), hash, by, at, note} queued as pending; the desktop picks it up
+    (labcfg.py ship-pending) and runs export -> game.json -> build -> publish itself, then marks it (ship-done)"""
+    cur = lab_current(f)
+    if not cur: return None, 'no config for ' + f
+    rev = req.get('rev') or cur['version']
+    r = cur if rev == cur['version'] else next((x for x in lab_history(f) if x['version'] == rev), None)
+    if not r: return None, 'no revision %s of %s' % (rev, f)
+    with lab_lock:
+        rows = lab_ships()
+        row = {'id': max([x['id'] for x in rows] or [0]) + 1, 'fighter': f, 'rev': r['version'], 'hash': r['hash'], 'by': by,
+               'at': now(), 'note': str(req.get('note') or '')[:300], 'status': 'pending'}
+        rows.append(row); lab_ship_save(rows)
+    log('lab ship request', row['id'], f, 'rev', row['rev'], 'by', by)
+    return row, None
+
+
+def lab_ship_mark(req, by):
+    """the desktop's answer to a ship request: {id, status done | dropped, note?} (release, commit ... in the note)"""
+    if req.get('status') not in ('done', 'dropped'): return None, 'status: done | dropped'
+    with lab_lock:
+        rows = lab_ships()
+        row = next((x for x in rows if x['id'] == req.get('id')), None)
+        if not row: return None, 'no ship request %s' % req.get('id')
+        row.update(status=req['status'], closed_at=now(), closed_by=by, result=str(req.get('note') or '')[:300])
+        lab_ship_save(rows)
+    log('lab ship', row['id'], row['status'], 'by', by)
+    return row, None
+
+
+def lab_items(kind, f=None):
+    """the published shells (kind 'shell') or a fighter's packs: their sidecar JSONs, oldest first"""
+    d = os.path.join(LAB, 'shell') if kind == 'shell' else os.path.join(LAB, 'packs', f)
+    if not os.path.isdir(d): return []
+    out = []
+    for n in os.listdir(d):
+        if n.endswith('.json'):
+            try: out.append(json.load(open(os.path.join(d, n))))
+            except ValueError: pass
+    return sorted(out, key=lambda x: x.get('published', ''))
+
+
+def lab_catalogue():
+    """{shell, packs}: the last published shell and each fighter's last published pack (the newest 'published' wins,
+    so a rollback = publishing the old file again under a new version)"""
+    sh = lab_items('shell')
+    shell = {k: sh[-1][k] for k in ('version', 'url', 'sha256', 'engine', 'size', 'published')} if sh else None
+    packs = []
+    pd = os.path.join(LAB, 'packs')
+    for f in sorted(os.listdir(pd)) if os.path.isdir(pd) else []:
+        it = lab_items('pack', f) if FIGHTER.match(f) else []
+        if not it: continue
+        x = it[-1]
+        face = os.path.join(LAB, 'faces', f + '.png')
+        packs.append({'fighter': f, 'display': x.get('display') or f, 'face': LAB_DL + 'faces/' + f + '.png' if os.path.exists(face) else None,
+                      'version': x['version'], 'url': x['url'], 'sha256': x['sha256'], 'engine': x['engine'], 'size': x['size'],
+                      'published': x.get('published'), 'versions': len(it)})
+    return {'shell': shell, 'packs': packs}
+
+
+def lab_publish(req, by):
+    """labpub.py: {kind shell|pack|face, fighter?, version, engine, src (a file name in LAB/incoming), sha256, display?}
+    -> the file moved to shell/<version><ext> | packs/<f>/<version>.pack | faces/<f>.png, its sidecar <version>.json"""
+    kind, f, ver, src = req.get('kind'), str(req.get('fighter') or ''), str(req.get('version') or ''), str(req.get('src') or '')
+    if kind not in ('shell', 'pack', 'face'): return None, 'kind: shell | pack | face'
+    if kind != 'shell' and not FIGHTER.match(f): return None, 'fighter'
+    if not re.match(r'^[A-Za-z0-9._-]{1,80}$', src) or src.startswith('.'): return None, 'src'
+    sp = os.path.join(LAB_IN, src)
+    if not os.path.isfile(sp): return None, 'no such upload: ' + src
+    data_sha = hashlib.sha256(open(sp, 'rb').read()).hexdigest()
+    if req.get('sha256') != data_sha: return None, 'sha256 mismatch (upload %s)' % data_sha
+    if kind == 'face':
+        d = os.path.join(LAB, 'faces'); os.makedirs(d, exist_ok=True)
+        os.replace(sp, os.path.join(d, f + '.png'))
+        return {'kind': 'face', 'fighter': f, 'url': LAB_DL + 'faces/' + f + '.png', 'sha256': data_sha}, None
+    eng = str(req.get('engine') or '')
+    if not LVER.match(ver): return None, 'version: letters, digits, . _ - (32 at most)'
+    if not LVER.match(eng): return None, 'engine: the engine version the file is built for'
+    if kind == 'shell':
+        ext = os.path.splitext(src)[1].lower() or '.bin'
+        if not LEXT.match(ext): return None, 'extension'
+        d, name, url = os.path.join(LAB, 'shell'), ver + ext, LAB_DL + 'shell/' + ver + ext
+    else:
+        d, name, url = os.path.join(LAB, 'packs', f), ver + '.pack', LAB_DL + 'packs/' + f + '/' + ver + '.pack'
+    with lab_lock:
+        os.makedirs(d, exist_ok=True)
+        if os.path.exists(os.path.join(d, ver + '.json')): return None, 'version %s already published' % ver
+        meta = {'kind': kind, 'version': ver, 'engine': eng, 'sha256': data_sha, 'size': os.path.getsize(sp), 'url': url,
+                'file': name, 'published': now(), 'by': by}
+        if kind == 'pack':
+            meta['fighter'] = f; meta['display'] = str(req.get('display') or f)[:40]
+        os.replace(sp, os.path.join(d, name))
+        with open(os.path.join(d, ver + '.json'), 'w') as o: json.dump(meta, o, indent=1, ensure_ascii=False)
+    log('lab publish', kind, f, ver, 'engine', eng, meta['size'], 'bytes by', by)
+    return meta, None
+
+
+def lab_unpublish(req):
+    """{kind shell|pack|face, fighter?, version?}: the file and its sidecar removed"""
+    kind, f, ver = req.get('kind'), str(req.get('fighter') or ''), str(req.get('version') or '')
+    if kind not in ('shell', 'pack', 'face') or (kind != 'shell' and not FIGHTER.match(f)): return 'kind / fighter'
+    if kind == 'face':
+        p = os.path.join(LAB, 'faces', f + '.png')
+        if not os.path.exists(p): return 'no face for ' + f
+        os.remove(p); return None
+    if not LVER.match(ver): return 'version'
+    d = os.path.join(LAB, 'shell') if kind == 'shell' else os.path.join(LAB, 'packs', f)
+    side = os.path.join(d, ver + '.json')
+    if not os.path.exists(side): return 'not published: %s %s' % (kind, ver)
+    with lab_lock:
+        meta = json.load(open(side))
+        if os.path.exists(os.path.join(d, meta['file'])): os.remove(os.path.join(d, meta['file']))
+        os.remove(side)
+        if kind == 'pack' and not os.listdir(d): os.rmdir(d)
+    log('lab unpublish', kind, f, ver)
+    return None
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, obj=None, body=None, ctype='application/json'):
         b = body if body is not None else (json.dumps(obj, ensure_ascii=False) + '\n').encode()
@@ -577,6 +786,8 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path in ('/', '/health'): return self.reply(200, {'ok': True})
         if u.path == '/mine' or u.path.startswith('/mine/'): return self.mine(u.path.split('/')[2:])
         if u.path == '/dlauth': return self.dlauth()
+        lab = self.lab_route()
+        if lab is not None: return self.lab_get(lab)
         if not u.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         parts = u.path.split('/')[2:]
         if len(parts) == 2 and parts[0] == 'decisions' and re.match(r'^[a-z0-9_-]{1,40}$', parts[1]):
@@ -820,6 +1031,109 @@ class H(http.server.BaseHTTPRequestHandler):
                         return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
         self.reply(404, {'error': 'not found'})
 
+    # ---- Character Lab (docs/feedback.md "Character Lab") ------------------------------------------------------------
+    def lab_route(self):
+        """the Lab's path parts after /lab/ (the player: nginx /brawler/lab/, X-Public) or /api/lab/ (the web pages:
+        /brawler-lab/feedback-api/lab/, the Oros cookie; or ssh on localhost); None = not a Lab path"""
+        p = urllib.parse.urlparse(self.path).path
+        if p.startswith('/lab/'): return p.split('/')[2:]
+        if p.startswith('/api/lab/') and not self.headers.get('X-Public'): return p.split('/')[3:]
+        return None
+
+    def lab_user(self, write=False):
+        """any signed-in Oros account reads; writes need the Oros role admin. No token / cookie at all and not through
+        the public proxy = ssh on localhost (labcfg.py, labpub.py): user 'ssh'"""
+        user, role = account_role(self.headers)
+        if not user:
+            h = self.headers
+            if h.get('X-Public') or h.get('Authorization') or h.get('Cookie'):
+                self.reply(401, {'error': 'sign in with your Oros account'}); return None
+            user, role = 'ssh', 'admin'
+        if write and role != 'admin':
+            self.reply(403, {'error': 'Lab writes need an Oros admin account'}); return None
+        return user
+
+    def etag_reply(self, tag, obj):
+        """200 with ETag "<tag>", or 304 (no body) when If-None-Match names it"""
+        inm = self.headers.get('If-None-Match', '')
+        if inm and (inm.strip() == '*' or any(t.strip().removeprefix('W/').strip('"') == tag for t in inm.split(','))):
+            self.send_response(304); self.send_header('ETag', '"%s"' % tag); self.send_header('Cache-Control', 'no-cache')
+            self.end_headers(); return
+        b = (json.dumps(obj, ensure_ascii=False) + '\n').encode()
+        self.send_response(200); self.send_header('Content-Type', 'application/json'); self.send_header('ETag', '"%s"' % tag)
+        self.send_header('Cache-Control', 'no-cache'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+
+    def lab_get(self, parts):
+        if not self.lab_user(): return
+        if parts == ['catalogue']:
+            cat = lab_catalogue()
+            return self.etag_reply(hashlib.sha256(json.dumps(cat, sort_keys=True).encode()).hexdigest()[:32], cat)
+        if parts == ['ship']:
+            st = (urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get('status') or [''])[0]
+            return self.reply(200, {'requests': [x for x in lab_ships() if not st or x['status'] == st]})
+        if parts == ['config']:
+            fs = sorted(n[:-5] for n in os.listdir(LAB_CFG) if n.endswith('.json')) if os.path.isdir(LAB_CFG) else []
+            return self.reply(200, {'configs': [lab_head(lab_current(f)) for f in fs if FIGHTER.match(f)]})
+        if len(parts) >= 2 and parts[0] == 'config' and FIGHTER.match(parts[1]):
+            f, rest = parts[1], parts[2:]
+            if rest == ['history']: return self.reply(200, {'fighter': f, 'revisions': [lab_head(r) for r in lab_history(f)]})
+            if len(rest) == 2 and rest[0] == 'rev' and rest[1].isdigit():
+                r = next((r for r in lab_history(f) if r['version'] == int(rest[1])), None)
+                return self.reply(200, r) if r else self.reply(404, {'error': 'no revision %s of %s' % (rest[1], f)})
+            cur = lab_current(f)
+            if rest in ([], ['hash']) and not cur: return self.reply(404, {'error': 'no config for ' + f})
+            if rest == []: return self.etag_reply('v%d-%s' % (cur['version'], cur['hash'][:16]), cur)
+            if rest == ['hash']: return self.etag_reply(cur['hash'], {'hash': cur['hash'], 'version': cur['version'], 'updated': cur['updated']})
+        self.reply(404, {'error': 'not found'})
+
+    def lab_write(self, parts):
+        user = self.lab_user(True)
+        if not user: return
+        if parts in (['publish'], ['unpublish']):
+            req = self.json_body(1 << 16)
+            if req is None: return
+            if parts == ['publish']:
+                meta, err = lab_publish(req, user)
+                return self.reply(400, {'error': err}) if err else self.reply(200, {'published': meta, 'catalogue': lab_catalogue()})
+            err = lab_unpublish(req)
+            return self.reply(400, {'error': err}) if err else self.reply(200, {'ok': True, 'catalogue': lab_catalogue()})
+        if (len(parts) == 2 and parts[0] == 'ship' and FIGHTER.match(parts[1])) or parts == ['ship_done']:
+            req = self.json_body(1 << 12) if int(self.headers.get('Content-Length') or 0) else {}
+            if req is None: return
+            row, err = lab_ship(parts[1], req, user) if parts[0] == 'ship' else lab_ship_mark(req, user)
+            return self.reply(400, {'error': err}) if err else self.reply(200, {'ship': row})
+        if len(parts) >= 2 and parts[0] == 'config' and FIGHTER.match(parts[1]):
+            f, rest = parts[1], parts[2:]
+            if rest == ['revert']:
+                req = self.json_body(1 << 12)
+                if req is None: return
+                r = next((r for r in lab_history(f) if r['version'] == req.get('rev')), None)
+                if not r: return self.reply(404, {'error': 'no revision %s of %s' % (req.get('rev'), f)})
+                rec, _, _ = lab_store(f, base64.b64decode(r['blob']), r['json'], user, str(req.get('note') or 'revert to rev %d' % r['version']),
+                                      reverted_from=r['version'])
+                return self.reply(200, dict(lab_head(rec), changed=True))
+            if rest == []:
+                b = self.body(MAX_CFG)
+                if b is None: return self.reply(413, {'error': 'size: a JSON body of at most %d bytes' % MAX_CFG})
+                try: req = json.loads(b)
+                except ValueError: return self.reply(400, {'error': 'json'})
+                if not isinstance(req, dict) or not isinstance(req.get('blob'), str) or not isinstance(req.get('json'), dict):
+                    return self.reply(400, {'error': 'body: {blob: base64 of the RAM loads, json: {the config it was encoded from}, hash?, note?}'})
+                try: blob = base64.b64decode(req['blob'], validate=True)
+                except ValueError: return self.reply(400, {'error': 'blob: not base64'})
+                if req.get('hash') and req['hash'] != hashlib.sha256(blob).hexdigest():
+                    return self.reply(400, {'error': 'hash: not the sha256 of the blob (%s)' % hashlib.sha256(blob).hexdigest()})
+                im = self.headers.get('If-Match', '').strip().strip('"') or None
+                rec, changed, err = lab_store(f, blob, req['json'], user, str(req.get('note') or ''), expect=im)
+                if err: return self.reply(412, {'error': 'the config changed meanwhile (If-Match)', 'current': lab_head(rec) if rec else None})
+                return self.reply(200, dict(lab_head(rec), changed=changed))
+        self.reply(404, {'error': 'not found'})
+
+    def do_PUT(self):
+        parts = self.lab_route()
+        if parts is None: return self.reply(404, {'error': 'not found'})
+        self.lab_write(parts)
+
     # ---- POST ---------------------------------------------------------------------------------------------------
     def do_POST(self):
         if self.path == '/transcribe': return self.transcribe()
@@ -827,6 +1141,8 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/reply': return self.post_reply()
         if self.path == '/test': return self.post_test()
         if self.path == '/review': return self.post_review_answer()
+        lab = self.lab_route()
+        if lab is not None: return self.lab_write(lab)
         if not self.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         if self.path == '/api/status': return self.change(self.set_status)
         if self.path == '/api/set': return self.change(self.set_fields)

@@ -474,3 +474,112 @@ server refuses a decision that breaks one (server.py `check_review`, so every pa
   voice (the test-audio hook, transcribed). The card moved to Answered, the badge cleared, and `fb.py review show`
   read the answer, transcript, voice and origin back. Pinch itself was not driven (adb has no multi-touch);
   ScaleGestureDetector handles it. Screenshots: `/data/feedback/proof_0024/`.
+
+## Character Lab: live fighter configs and the pack catalogue (2026-10-10)
+
+Bruno's design: one Lab **shell** build + swappable **character packs** (Robert, Kim first). The web Assembly pages
+(arbitrage.html, workshop.html, the Chain Lab's chain tool) write each fighter's live config; the Player's Character
+lab polls it every 2-3 s and injects the RAM loads, or swaps the pack / shell when the catalogue changes. The VPS is
+the source of truth for the live config. Same service (`tools/feedback/server.py`, unit `brawler-feedback`), no new
+one.
+
+**The Lab config is a STAGING area** (Bruno 2026-10-10, binding): editing it never changes the real game or git. The
+"Ship to game" action only queues a request; the export to game.json, arb_compile, the build and the publish run on the
+desktop, by hand (`labcfg.py ship-pending`).
+
+### Where it answers, who may call it
+
+| Caller | Base URL | Auth |
+|---|---|---|
+| The Player | `https://canneji.duckdns.org/brawler/lab/` | `Authorization: Bearer <Oros JWT>` (the token `Auth.kt` already keeps; the same as `/brawler/feedback/mine` and the builds) |
+| The web pages | `https://canneji.duckdns.org/brawler-lab/feedback-api/lab/` | the Oros login cookie (`oros_token`), like the rest of the Lab's feedback-api |
+| The desktop CLIs | `http://127.0.0.1:8920/api/lab/` over ssh | the ssh key (user `ssh`, admin) |
+
+- No token / cookie: **401** (nginx `auth_request /jlpt-auth`, then the service checks again with Oros's `/api/whoami`).
+- **Reads** (config, hash, history, catalogue, downloads, ship queue): any signed-in Oros account.
+- **Writes** (PUT config, revert, ship, publish): the Oros role `admin` (today bruno, gex); any other account gets **403**.
+  The role is the one in the token, as the Player's tester mode reads it.
+- Downloads: `/brawler/lab/dl/shell|packs|faces/...` are static files served by nginx (HTTP Range, `206`), behind the
+  same login (token or cookie). Every URL the catalogue gives is a path on canneji.duckdns.org.
+
+### Live config per fighter
+
+`<f>` = the roster name (`[a-z0-9_]{1,24}`). A config record:
+
+```
+{fighter, version (the revision number, 1, 2, ...), hash (sha256 hex of the blob bytes), updated (UTC ISO), by (Oros user),
+ size (blob bytes), note, blob (base64 of the RAM-loads bytes: opaque to the server), json (the human-readable config it
+ was encoded from: the fighter's game.json roster entry), reverted_from? (the revision a revert copied)}
+```
+
+| Call | What |
+|---|---|
+| `GET config` | every fighter's live head (the record without blob / json) |
+| `GET config/<f>` | the live record in full. `ETag: "v<version>-<hash16>"`; 404 = no config yet |
+| `GET config/<f>/hash` | `{hash, version, updated}`: **the 2-3 s poll**. `ETag: "<hash>"`; send `If-None-Match: "<hash>"` and get **304** (no body) while it is unchanged |
+| `PUT config/<f>` | body `{blob, json, hash?, note?}` (POST works too; at most 4 MB). The server sets version, updated, by. `hash`, when given, must be the blob's sha256 (400 otherwise). `If-Match: "<hash>"` = only if the live config still has that hash, else **412** with the current head (two pages editing the same fighter). The same blob + json again = no new revision. Answer: the head + `changed` |
+| `GET config/<f>/history` | every revision's head, oldest first |
+| `GET config/<f>/rev/<n>` | revision n in full |
+| `POST config/<f>/revert` | `{rev, note?}`: a **new** revision with revision rev's blob + json (`reverted_from`). Nothing is ever deleted |
+
+The poll: the hash changes only when the blob's bytes change (that is what the Player injects); a json-only edit makes a
+new revision with the same hash.
+
+### Ship to game (the staging rule)
+
+| Call | What |
+|---|---|
+| `POST ship/<f>` | `{rev?, note?}` (rev defaults to the live one; admin): queues `{id, fighter, rev, hash, by, at, note, status: pending}` |
+| `GET ship[?status=pending]` | the queue |
+| `POST ship_done` | `{id, status: done or dropped, note?}`: closes it (the note: release, commit) |
+
+### Catalogue
+
+`GET catalogue` (ETag + `If-None-Match` -> 304, so it can ride the same poll):
+
+```
+{shell: {version, url, sha256, engine, size, published} | null,
+ packs: [{fighter, display, face (URL of the HUD portrait PNG, or null), version, url, sha256, engine, size, published,
+          versions (how many were published)}]}
+```
+
+- The newest *published* shell, and each fighter's newest published pack, is the one served. A rollback = publish the
+  old file again under a new version.
+- `engine`: the engine version a file is built for; the Player loads a pack only into a shell of the same engine.
+- The Player checks `sha256` after the download (as it does for the builds) and resumes with Range.
+
+### Files on the VPS (`/data/brawler/lab/`)
+
+| Path | What |
+|---|---|
+| `config/<f>.json` | the live config (replaced atomically) |
+| `config/<f>.history.jsonl` | every revision in full, one JSON per line, append-only (fsync'd before the live file changes) |
+| `ship.json` | the ship queue |
+| `shell/<version><ext>` + `<version>.json` | the shell builds and their sidecars |
+| `packs/<f>/<version>.pack` + `<version>.json` | the packs and their sidecars |
+| `faces/<f>.png` | the HUD portraits (the face make_site.py puts in the Lab: `/data/neogeo_dict/portraits/<bank>.png`, else `_select`, `_square`) |
+| `incoming/` | labpub.py's uploads before the publish call moves them |
+
+Only `shell/`, `packs/` and `faces/` are served (nginx `/brawler/lab/dl/`); `config/` is not.
+
+### Desktop CLIs
+
+- `tools/brawler/labcfg.py list | show F [--rev N] [--blob] | history F | revert F REV | export F [--rev N] [--dry-run]
+  | put F --blob FILE [--json FILE] | ship-pending | ship F | ship-done ID [--dropped] [--note ...]`.
+  `export` writes the config's json as the fighter's roster entry in `examples/brawler/game.json` (key by key, as
+  arb_compile writes it: unchanged keys keep their text), so git keeps the history; then build, check, publish, commit and
+  `ship-done`.
+- `tools/brawler/labpub.py list | publish-shell FILE --engine E [--version V] | publish-pack F FILE --engine E [--version V]
+  [--display D] [--face PNG | --no-face] | publish-face F [PNG] | remove-shell V | remove-pack F V | remove-face F`.
+  scp to `incoming/`, then the service checks the sha256 and moves it; a version is published once (400 otherwise).
+  `--version` defaults to the UTC time.
+
+### Proven 2026-10-10 (live, on canneji)
+
+Signed out: 401 on every Lab URL (player and web paths, the downloads). Tester (viewer) token: reads 200, PUT / ship 403.
+Admin token: PUT rev 1, the hash poll 200 then **304** with If-None-Match (token and cookie), a stale If-Match 412, PUT
+rev 2 by cookie, poll 200 with the new hash, revert to rev 1 = rev 3 with rev 1's bytes and json, history 1-2-3, a ship
+request and ship-done; labcfg.py list / history / show / revert / ship-pending / ship-done and export into a copy of
+game.json. labpub.py: a dummy shell, a dummy Kim pack and Kim's face published, the catalogue (and its 304), full
+downloads matching sha256, Range `bytes=10-19` -> 206, a duplicate version refused (its upload removed). Every test entry and
+dummy file removed afterwards; the existing endpoints answered the same before and after the deploy.
