@@ -8,6 +8,7 @@
 #include "fighter.h"
 #include "ai.h"
 #include "stage.h"
+#include "land.h"
 #include "sound.h"
 #include "banner.h"
 #include "sparks.h"
@@ -46,18 +47,35 @@ static void mark(uint8_t sec) {
                                         PJ_SPRS = NPJ * PJ_COLS shared by width (block_w) */
 #define NA 24                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
                                         fighter: the group photo) */
-#define SEL_COLS 13                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 13 =
-                                        sprites 59-370 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro; NA 22:
-                                        Kuroko; 14 at NA 23: SS2's Hanzo, the blocks from sprite 59, the last one 380; 13 at
-                                        NA 24: Rosa, TODO #213) (the banner's, the debug boxes', the sparks' and the throw effect's 300-379
+#define SEL_COLS 12                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 12 =
+                                        sprites SEL_SPR 57-344 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro; NA 22:
+                                        Kuroko; 14 at NA 23: SS2's Hanzo; 13 at NA 24: Rosa, TODO #213; 12 with the Neo Geo
+                                        Land behind them (2026-10-09): its far layer, lights, facade and crowd in 1-56, its
+                                        barriers in 345-365) (the banner's, the debug boxes', the sparks' and the throw effect's 300-379
                                         are not in use on that screen: sparks_draw / tfx_draw return there); the watch /
                                         win poses and the walk-offs are narrower (2026-10-07, build/bm_chars.c ncols of every
                                         selectable fighter's BA_WATCH / BA_WIN / BA_WALK_FWD frames: widest 11, Haohmaru's
                                         watch and Genjuro's win; Rosa 7 / 9 / 9) */
 uint8_t blk_cols = MAX_COLS;         /* sprites per block now (draw.s fighter_tiles clips a frame to it) */
-_Static_assert(16 + NA * MAX_PALS <= SFX_PAL && STAGE_PAL + STAGE_MAXPAL <= SFX_PAL && SFX_PAL + SFX_NPAL_MAX <= 240, "palettes: the select screen's actors, the stages, KOF's shared effects (TODO #214), the big portraits (PB_PALN)");
+/* palettes: 0-15 text and fix portraits; the select screen: its actors back to back from 16 at their fighters' own counts
+ * (game_tables sel_palbase, SEL_NPAL in all), the Neo Geo Land's SNK palettes LAND_PAL .. (land.h, up to SFX_PAL); a fight:
+ * the fighters from 16 (MAX_PALS each), its stage's from STAGE_PAL; KOF's shared effects SFX_PAL ..; the big portraits
+ * PB_PALN 240-247; 248+ the flash, shadows, sparks */
+_Static_assert(16 + SEL_NPAL <= LAND_PAL && LAND_PAL + LAND_NPAL <= SFX_PAL && 16 + NF * MAX_PALS <= STAGE_PAL &&
+               STAGE_PAL + STAGE_MAXPAL <= SFX_PAL && SFX_PAL + SFX_NPAL_MAX <= 240,
+               "palettes: the select screen's actors, the Neo Geo Land, the stages, KOF's shared effects (TODO #214), the big portraits (PB_PALN)");
 #define SPR_BASE 59                  /* fighter blocks (stage 22-42, shadows 43-58 behind them; 1-21 free) (60 until
                                         NA 23, TODO #193: SH_SPR + NE = 59 is the lowest it can be) */
+/* the select screen's sprites (main.c "the select screen's backdrop"): the Neo Geo Land's far layer, its lights, the
+ * facade + street ring and the crowd ring behind the actors, the actors' blocks from SEL_SPR, the barriers' ring in front */
+#define LAND_RING      21                                   /* a scrolling layer's sprites: 320 / 16 + 1 */
+#define LAND_TOP_SPR   1
+#define LAND_LT_SPR    (LAND_TOP_SPR + LAND_TOP_COLS)
+#define LAND_MAIN_SPR  (LAND_LT_SPR + LAND_LIGHTS_COLS)
+#define LAND_MID_SPR   (LAND_MAIN_SPR + LAND_RING)
+#define SEL_SPR        (LAND_MID_SPR + LAND_RING)           /* 57 */
+#define LAND_FRONT_SPR (SEL_SPR + NA * SEL_COLS)            /* 345 */
+_Static_assert(SEL_SPR <= SPR_BASE && LAND_FRONT_SPR + LAND_RING <= 381, "the select screen's sprites: the land's, the actors' blocks, the barriers");
 static fighter_t fighters[NF];
 static fighter_t *order[NA];                     /* back (small Z) to front, the nf entities in play */
 static uint8_t nf;                               /* entities in play: the previews on the select screen, NE in the fight */
@@ -171,9 +189,11 @@ static void vblank_flush(void) {
     SYS_vblankFlush();
     if (bd_pend) { PAL_setBackdrop(bd_next); bd_pend = 0; }
 }
-static void stage_hide(void) {                              /* title, select: no stage */
+static void land_off(void);
+static void stage_hide(void) {                              /* title, select: no stage (nor the select's Neo Geo Land) */
     uint8_t i;
     bd_on = 0;
+    land_off();
     for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);
 }
 static void stage_show(void) {
@@ -183,6 +203,7 @@ static void stage_show(void) {
 static void stage_init(uint8_t n) {
     uint8_t s;
     bd_on = 0; bighit_red = bighit_slow = 0; hitflash = 0;
+    land_off();                                                     /* from the select screen: its land's sprites go */
     stg = &stages[n]; floor_top = stg->floor_top; world_w = stg->cols << 4;
     stage_pals();
     *(volatile uint16_t *)0x3C0006 = stg->lspcmode;                /* REG_LSPCMODE: auto-animation speed */
@@ -296,12 +317,13 @@ static uint8_t block_w(const fighter_t *f) {
 }
 /* the select screen's NA actors need narrower blocks than a fight's NE entities (SEL_COLS / MAX_COLS sprites): a change
  * of width hides every block's sprites once (SCB3 height 0) and re-places the blocks from scratch */
-static void blocks_layout(uint8_t cols) {
+#define BLK_END (SEL_SPR + NA * SEL_COLS > SPR_BASE + FIGHT_SPRS ? SEL_SPR + NA * SEL_COLS : SPR_BASE + FIGHT_SPRS)
+static void blocks_layout(uint8_t cols) {                    /* (the select's blocks start at SEL_SPR, a fight's at SPR_BASE) */
     uint16_t i, *y;
     if (cols == blk_cols) return;
     blk_cols = cols;
-    y = cmd_run(VRAM_SCB3 + SPR_BASE, NA * SEL_COLS > FIGHT_SPRS ? NA * SEL_COLS : FIGHT_SPRS);
-    for (i = 0; i < (NA * SEL_COLS > FIGHT_SPRS ? NA * SEL_COLS : FIGHT_SPRS); i++) y[i] = 0;
+    y = cmd_run(VRAM_SCB3 + SEL_SPR, BLK_END - SEL_SPR);
+    for (i = 0; i < BLK_END - SEL_SPR; i++) y[i] = 0;
     for (i = 0; i < NA; i++) block_placed[i] = 0;
 }
 static uint8_t sel_rank[NA];                     /* the select screen: each actor's draw order (SEL_SLOT z, 0 the back) */
@@ -337,7 +359,7 @@ static void depth_sort(void) {
         }
     }
     {
-        uint16_t s = SPR_BASE;                   /* blocks back to front, each its entity's width */
+        uint16_t s = blk_cols == SEL_COLS ? SEL_SPR : SPR_BASE;   /* blocks back to front, each its entity's width */
         for (i = 0; i < NA; i++) {
             slot_spr[i] = s;
             if (i < nf && order[i]->spr != s) { order[i]->spr = s; order[i]->shown_frame = 0xFFFF; }
@@ -713,6 +735,150 @@ static uint8_t bands_over(uint8_t b0, uint8_t b1) {
     for (; b0 <= b1; b0++) if (*u++ > LINE_MAX) return 1;
     return 0;
 }
+
+/* ---- the select screen's backdrop (Bruno 2026-10-09: "use the Neo Geo Land as our select screen"): KOF95's stage 2,
+ * the Esaka street in front of SNK's Neo Geo Land (tools/brawler/make_stage_land.py -> land.h: SNK's own sprite words
+ * re-tiled into our C ROM, its palettes at LAND_PAL), its layers as SNK drew them, back to front: the far skyline (the
+ * columns that can show through the facade's gap, a sprite each, scroll 64 + 5/7 of the camera), the city lights (6 x 2
+ * tiles on the far layer, 4 images of 18 / 20 / 18 / 20 frames, each shown every other frame: SNK's 30 Hz flicker), the
+ * facade + street and the crowd (1:1 with the camera, rings of LAND_RING sprites like the fight's stage), the actors,
+ * then the barriers in front of them (10/7 of the camera, a ring). Every column has its own Y and height (its rows from
+ * its first to its last tile); the tiles' auto-animation runs at KOF95's speed (LAND_LSPCMODE). land_band: the land's
+ * sprites on each 8-px band this frame (what the line guard places the actors on top of). ---- */
+extern volatile uint16_t vblank_count;           /* crt0: frames */
+static uint8_t land_on, land_lt_k, land_lt_t, land_lt_ph;
+static uint16_t land_lt_vb;                      /* vblank_count at the last draw: the lights' cycle runs in frames */
+static uint8_t land_shown[3][LAND_RING];         /* main, mid, front: the column each ring sprite shows (0xFF none) */
+static uint8_t land_band[BANDS];
+static void land_count(int16_t y, uint8_t n, uint8_t k) {     /* n tiles from screen y: k sprites on their bands */
+    uint8_t b0, b1;
+    b0 = span(y, y + ((int16_t)n << 4), 3, &b1);
+    for (; b0 <= b1; b0++) land_band[b0] += k;
+}
+static void land_col(const land_layer_t *L, uint16_t spr, uint8_t c) {   /* column c of L into sprite spr: tiles, Y, height */
+    uint8_t n = L->n[c], r;
+    if (n) {
+        const uint16_t *s = L->w + L->off[c];
+        uint16_t *w = cmd_run(VRAM_SCB1 + spr * 64, n * 2);
+        for (r = 0; r < n * 2; r++) *w++ = *s++;
+    }
+    cmd_push(VRAM_SCB3 + spr, n ? (uint16_t)((((496 - (L->y + (L->first[c] << 4))) & 0x1FF) << 7) | n) : 0);
+}
+static void land_ring(const land_layer_t *L, uint16_t spr0, uint8_t *shown, int16_t sc) {   /* scroll sc (L's world x) */
+    uint8_t first = (uint8_t)(sc >> 4), s0 = first, s, k;
+    uint16_t *x;
+    while (s0 >= LAND_RING) s0 -= LAND_RING;
+    for (k = 0, s = s0; k < LAND_RING; k++) {                /* the columns that came into view: tiles first (a full */
+        uint8_t c = first + k;                               /* queue flushes: no run left half written) */
+        if (c >= L->cols) { if (shown[s] != 0xFE) { cmd_push(VRAM_SCB3 + spr0 + s, 0); shown[s] = 0xFE; } }
+        else {
+            if (shown[s] != c) { land_col(L, spr0 + s, c); shown[s] = c; }
+            if (L->n[c]) land_count(L->y + (L->first[c] << 4), L->n[c], 1);
+        }
+        if (++s == LAND_RING) s = 0;
+    }
+    x = cmd_run(VRAM_SCB4 + spr0, LAND_RING);
+    for (k = 0, s = s0; k < LAND_RING; k++) {
+        x[s] = (uint16_t)((((first + k) << 4) - sc) & 0x1FF) << 7;
+        if (++s == LAND_RING) s = 0;
+    }
+}
+static void land_lights_load(uint8_t k) {                          /* lights image k into its 6 sprites */
+    uint8_t c, r;
+    for (c = 0; c < LAND_LIGHTS_COLS; c++) {
+        const uint16_t *s = land_lights[k] + c * LAND_LIGHTS_ROWS * 2;
+        uint16_t *w = cmd_run(VRAM_SCB1 + (LAND_LT_SPR + c) * 64, LAND_LIGHTS_ROWS * 2);
+        for (r = 0; r < LAND_LIGHTS_ROWS * 2; r++) *w++ = *s++;
+    }
+}
+static void land_start(void) {                                /* the select screen starts: palettes, tiles, sizes */
+    uint8_t i;
+    land_on = 1; land_lt_k = 0; land_lt_t = 0; land_lt_ph = 0; land_lt_vb = vblank_count;
+    for (i = 0; i < LAND_NPAL; i++) PAL_setPalette(LAND_PAL + i, land_pal + (i << 4));
+    *(volatile uint16_t *)0x3C0006 = LAND_LSPCMODE;           /* REG_LSPCMODE: KOF95's auto-animation speed */
+    bd_set(LAND_BACKDROP);
+    for (i = LAND_TOP_SPR; i < SEL_SPR; i++) cmd_push(VRAM_SCB2 + i, 0x0FFF);
+    for (i = 0; i < LAND_RING; i++) cmd_push(VRAM_SCB2 + LAND_FRONT_SPR + i, 0x0FFF);
+    for (i = 0; i < LAND_TOP_COLS; i++) land_col(&land_top, LAND_TOP_SPR + i, i);
+    land_lights_load(0);
+    for (i = 1; i < LAND_LIGHTS_COLS; i++) cmd_push(VRAM_SCB3 + LAND_LT_SPR + i, 0x40);   /* a chain on the first */
+    for (i = 0; i < LAND_RING; i++) land_shown[0][i] = land_shown[1][i] = land_shown[2][i] = 0xFF;
+}
+static void land_off(void) {                                  /* leaving the select screen: its sprites hidden */
+    uint16_t i;
+    if (!land_on) return;
+    land_on = 0;
+    for (i = LAND_TOP_SPR; i < SEL_SPR; i++) cmd_push(VRAM_SCB3 + i, 0);
+    for (i = 0; i < LAND_RING; i++) cmd_push(VRAM_SCB3 + LAND_FRONT_SPR + i, 0);
+    shadow_init();                                            /* the crowd's ring held the shadows' sprites */
+}
+static void land_draw(void) {                                 /* every frame at the camera (cam_x: the main layer's) */
+    int16_t st = 64 + (int16_t)(((uint32_t)(uint16_t)cam_x * 731) >> 10), sf = (int16_t)(((uint32_t)(uint16_t)cam_x * 1463 + 512) >> 10);
+    int16_t x;                                                /* the far layer 5/7, the barriers 10/7 (KOF95's, measured) */
+    uint8_t i;
+    uint16_t y[LAND_TOP_COLS], xr[LAND_TOP_COLS], *w;
+    for (i = 0; i < BANDS; i++) land_band[i] = 0;
+    for (i = 0; i < LAND_TOP_COLS; i++) {                     /* the far skyline: the columns on screen */
+        x = land_top.x0 + (i << 4) - st;
+        if (x > -16 && x < 320 && land_top.n[i]) {
+            y[i] = (uint16_t)((((496 - (land_top.y + (land_top.first[i] << 4))) & 0x1FF) << 7) | land_top.n[i]);
+            land_count(land_top.y + (land_top.first[i] << 4), land_top.n[i], 1);
+        } else y[i] = 0;
+        xr[i] = (uint16_t)(x & 0x1FF) << 7;
+    }
+    w = cmd_run(VRAM_SCB3 + LAND_TOP_SPR, LAND_TOP_COLS); for (i = 0; i < LAND_TOP_COLS; i++) *w++ = y[i];
+    w = cmd_run(VRAM_SCB4 + LAND_TOP_SPR, LAND_TOP_COLS); for (i = 0; i < LAND_TOP_COLS; i++) *w++ = xr[i];
+    {                                                         /* the lights: their images by frames (the select's tick */
+        uint8_t k0 = land_lt_k;                               /* can take two), shown on every other tick */
+        land_lt_t += (uint8_t)(vblank_count - land_lt_vb); land_lt_vb = vblank_count;
+        while (land_lt_t >= land_lights_t[land_lt_k]) { land_lt_t -= land_lights_t[land_lt_k]; if (++land_lt_k == LAND_LIGHTS_N) land_lt_k = 0; }
+        if (land_lt_k != k0) land_lights_load(land_lt_k);
+    }
+    land_lt_ph ^= 1;
+    x = LAND_LIGHTS_X - st;
+    if (land_lt_ph && x > -LAND_LIGHTS_COLS * 16 && x < 320) {
+        cmd_push(VRAM_SCB3 + LAND_LT_SPR, (uint16_t)((((496 - LAND_LIGHTS_Y) & 0x1FF) << 7) | LAND_LIGHTS_ROWS));
+        cmd_push(VRAM_SCB4 + LAND_LT_SPR, (uint16_t)(x & 0x1FF) << 7);
+        land_count(LAND_LIGHTS_Y, LAND_LIGHTS_ROWS, LAND_LIGHTS_COLS);
+    } else cmd_push(VRAM_SCB3 + LAND_LT_SPR, 0);
+    land_ring(&land_main, LAND_MAIN_SPR, land_shown[0], cam_x);
+    land_ring(&land_mid, LAND_MID_SPR, land_shown[1], cam_x);
+    land_ring(&land_front, LAND_FRONT_SPR, land_shown[2], sf);
+}
+/* the select's actors along the street: an actor's columns off the screen get height 0 for the frame (the LSPC counts a
+ * sprite on its lines wherever its X is, and a 9-bit X past -512 / 512 would wrap it onto the screen): its trims t[]
+ * saved and zeroed before the line guard (on 1), put back after the placement (on 0). A column's X from a dry placement,
+ * unwrapped around the actor's own screen x. */
+static uint16_t clip_t[NA][SEL_COLS];
+static uint8_t clip_n[NA];                       /* columns saved per actor (0: untouched) */
+static void land_clip(uint8_t on) {
+    uint8_t i, c;
+    for (i = 0; i < nf; i++) {
+        fighter_t *f = order[i];
+        col_trim_t *t = &col_trim[f->idx];
+        if (!on) { for (c = 0; c < clip_n[f->idx]; c++) t->t[c] = clip_t[f->idx][c]; clip_n[f->idx] = 0; continue; }
+        if (f->state == S_OFF || !f->ncols) continue;
+        {
+            int16_t sx = INT(f->x) - cam_x, w = f->ncols << 4, cx;
+            uint8_t all = sx + w <= -16 || sx - w >= 320;     /* (its columns lie within its x +- its width) */
+            if (!all && sx - w > -16 && sx + w < 320) continue;   /* surely all on the screen: as it is */
+            for (c = 0; c < f->ncols; c++) clip_t[f->idx][c] = t->t[c];
+            clip_n[f->idx] = f->ncols;
+            if (all) { for (c = 0; c < f->ncols; c++) t->t[c] = 0; continue; }
+            {
+                uint16_t y[SEL_COLS], x[SEL_COLS];
+                uint8_t ob = BANK_set(CH_BANK(f->ch));
+                trim_cur = t; fighter_place(f, y, x, cam_x, f->ncols);
+                BANK_set(ob);
+                for (c = 0; c < f->ncols; c++) {
+                    cx = (int16_t)(x[c] >> 7) - sx;
+                    cx = sx + (((cx + 256) & 511) - 256);
+                    if (cx <= -16 || cx >= 320) t->t[c] = 0;
+                }
+            }
+        }
+    }
+}
 /* step c: an entity's shown columns on the 8-px bands (sign -1: taken back; th: thinned, its columns th - 1, th + 1,
  * ...); its band range in *lo / *hi */
 static void cols_add(const fighter_t *f, int16_t oy, int8_t sign, uint8_t th, uint8_t *lo, uint8_t *hi) {
@@ -742,6 +908,9 @@ static uint8_t guard_tier(const fighter_t *f) {
 static void bands_base(uint8_t base, uint8_t sh, uint8_t nb) {
     uint8_t k, b0, b1;
     for (k = 0; k < nb; k++) band_used[k] = base;
+    if (land_on)                                             /* the select's Neo Geo Land: its sprites on each band */
+        for (k = 0; k < nb; k++)
+            band_used[k] += sh == 3 ? land_band[k] : land_band[2 * k] > land_band[2 * k + 1] ? land_band[2 * k] : land_band[2 * k + 1];
     if (mode == 1)
         for (k = 0; k < SPARK_N; k++)
             if (spk[k].on) {
@@ -757,6 +926,7 @@ static void line_guard(void) {
     guard_hidden = guard_thinned = 0;
     base = mode == 1 ? BG_N + dr_cols + (tfx_on ? TFX_COLS : 0) : 0;
     total = base;
+    if (land_on) { uint8_t m = 0; for (k = 0; k < BANDS; k++) if (land_band[k] > m) m = land_band[k]; total += m; }
     for (i = 0; i < nf; i++) {                                    /* who is drawn at all; the scene's columns */
         fighter_t *f = order[i];
         int16_t sx = INT(f->x) - cam_x;
@@ -844,6 +1014,7 @@ static void draw(void) {
             BANK_set(ob);
         }
     mark(P_TILES);
+    if (land_on) { land_draw(); land_clip(1); }             /* the select: the Neo Geo Land, the actors' columns off screen */
     line_guard();
     mark(P_GUARD);
     for (i = 0; i < NA; i++)                                 /* a block that moved: its old place cleared first */
@@ -863,7 +1034,8 @@ static void draw(void) {
         }
         block_placed[i] = n; block_spr[i] = spr;
     }
-    shadows();
+    if (land_on) land_clip(0);                               /* their trims back */
+    else shadows();                                          /* (the select's land holds the shadows' sprites) */
     sparks_draw();
     if (mode == 1) sf_draw();
     tfx_draw();
@@ -1530,21 +1702,23 @@ static void title_tick(void) {
     }
 }
 
-/* ---- character select: a group photo (Bruno 2026-10-05, TODO #51). The whole roster stands in rows like a school
- * photo, everyone at once: the front rows the playable fighters, the back row the campaign bosses (a locked boss is a
+/* ---- character select: a group photo (Bruno 2026-10-05, TODO #51), since 2026-10-09 out in the street in front of
+ * SNK's Neo Geo Land (KOF95's stage 2, "the select screen's backdrop" above): the whole roster stands along the street
+ * (game.json select_layout: world x 0-767, three depth rows, facings mixed), the camera following the cursor (sel_camera),
+ * everyone at once (a locked boss is a
  * dark silhouette, not selectable; once beaten it is in colour / dark like the others). Each fighter holds its 'watch'
  * pose (export_bm.WATCH: a front-facing frame from its intros / win poses), facing as the layout says. The places are
  * slots (SEL_SLOT: x, y, z, face), independent of who stands in them (sel_fighter: the fighter of each slot), so moving
  * someone on screen is a change to game.json's select_layout only. The cursor's fighter shows its colours, the others their own
  * colours at half brightness (col_dark). "1P" / "2P" with an arrow above the selected head (fix layer). The stick follows
- * the cursor graph computed from the places (sel_stick, TODO #187: left / right along the row, up / down to the
+ * the cursor graph computed from the places (sel_stick, TODO #187; select.stick "order": left / right along the street, up / down to the
  * nearest row above / below); A/B/C/D picks that colour set
  * (KOF style) and plays the win pose. P2 joins here with START (a credit) and picks too; the two can't pick the same
  * fighter. When everyone in has picked, the others walk off the screen outward, then the
  * fight cuts in (no fades: a palette fade cost ticks frames). Each fighter on screen is an entity (actor): the fight's NE entities + NA - NE more. ---- */
 #define SHOW_Z 40                        /* BOSS UNLOCKED / ending: feet at SELECT_FLOOR + SHOW_Z */
 _Static_assert(SEL_NSLOT <= NA, "group photo: an actor per slot (every selectable fighter has one: build_tables.py)");
-_Static_assert(SPR_BASE + FIGHT_SPRS <= 300 && SPR_BASE + NA * SEL_COLS <= 381, "sprite blocks: fight below the banner, select within the 381 sprites (sparks / throw effect idle there)");
+_Static_assert(SPR_BASE + FIGHT_SPRS <= 300, "sprite blocks: fight below the banner (the select's: SEL_SPR, with the Neo Geo Land around them)");
 /* the slots (game.json select_layout, placed by Bruno in the Brawler Lab's Select screen tab; build_tables.py
  * select_layout, gamedata.h sel_slot_t), in the stick's order: x, y (the feet, px), z (the draw order, 0 the back:
  * depth_sort), face (1 right, -1 left), sel_fighter[slot] = who stands there (the generator checks every selectable
@@ -1599,7 +1773,7 @@ static void slot_show(uint8_t s, uint8_t set) {             /* (re)binds slot s'
     uint8_t a = slot_act[s];
     fighter_t *f = actor(a);
     const bchar_t *ch = &bm_chars[slot_ch[s]];
-    fighter_init(f, ch, set < ch->nsets ? set : 0, 16 + a * MAX_PALS, 1, SEL_SLOT[s].x, SEL_SLOT[s].y - SELECT_FLOOR);
+    fighter_init(f, ch, set < ch->nsets ? set : 0, sel_palbase[s], 1, SEL_SLOT[s].x, SEL_SLOT[s].y - SELECT_FLOOR);
     f->idx = a; f->facing = SEL_SLOT[s].face; sel_rank[a] = SEL_SLOT[s].z;
     fighter_play(f, BA_WATCH);
     fighter_pals(f, slot_look(s));
@@ -1634,9 +1808,10 @@ static void select_arrows(void) {                           /* "1P" / "2P" + arr
             /* the pose's head point (bm_head, TODO #157: export_bm.py / head_point.py, facing left; the actor faces
              * the middle: mirrored when it faces right); the arrow's 8 px cell centred on it, ending 2 px above it */
             const int8_t *hd = bm_head[slot_ch[s]];
-            int16_t sx = SEL_SLOT[s].x + (SEL_SLOT[s].face > 0 ? -hd[0] : hd[0]) - 4 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
+            int16_t sx = SEL_SLOT[s].x - cam_x + (SEL_SLOT[s].face > 0 ? -hd[0] : hd[0]) - 4 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
             int16_t sy = SEL_SLOT[s].y + hd[1] - 10;
-            col[p] = sx < 0 ? 0 : (uint8_t)((sx + 4) >> 3);        /* FIX_print col c / row r = screen x c * 8, y r * 8 */
+            if (sx < 0 || sx > 304) continue;                  /* off the screen (the street scrolls): none */
+            col[p] = (uint8_t)((sx + 4) >> 3);                 /* FIX_print col c / row r = screen x c * 8, y r * 8 */
             row[p] = sy < 32 ? 4 : (uint8_t)((sy + 4) >> 3);       /* (rows 1-2: the title and the name; "1P" one row above) */
         }
     }
@@ -1659,14 +1834,32 @@ static void select_name(void) {                             /* top: P1's fighter
     if (cursor[1] == 0xFF) { const char *n = bm_chars[slot_ch[cursor[0]]].name; uint8_t len = 0; while (n[len]) len++; FIX_print(20 - (len >> 1), 2, n, 0); }
     else { name_at(1, 2, 0, cursor[0]); name_at(0, 2, 1, cursor[1]); }
 }
+/* the camera along the street (Bruno 2026-10-09: "make the camera follow the highlighted character"): P1's cursor
+ * centred, the two cursors' midpoint once P2 is in (when the two fit on the screen: SEL_BOTH_W apart at most; else the
+ * cursor that moved last), inside the stage (0 .. LAND_CAM_MAX); eased, 1/4 of the way a tick. P2 joins on the
+ * selectable fighter nearest P1's. */
+#define SEL_BOTH_W 224
+static uint8_t sel_last;                                  /* the player whose cursor moved last */
+static int16_t sel_cam_goal(void) {
+    int16_t a = SEL_SLOT[cursor[0]].x, b = cursor[1] == 0xFF ? a : SEL_SLOT[cursor[1]].x, g;
+    g = (b > a ? b - a : a - b) <= SEL_BOTH_W ? (a + b) >> 1 : SEL_SLOT[cursor[sel_last]].x;   /* too far apart for one */
+    g -= 160;                                                                                  /* screen: the last mover's */
+    return g < 0 ? 0 : g > LAND_CAM_MAX ? LAND_CAM_MAX : g;
+}
+static void sel_camera(void) {
+    int16_t d = sel_cam_goal() - cam_x, st = d >> 2;
+    if (!d) return;
+    if (!st) st = d > 0 ? 1 : -1;
+    cam_x += st;
+}
 static void select_start(void) {
     uint8_t p, i, s, a = 0;
     mode = 0; sel_t = 0; sel_phase = SEL_CHOOSE; attract = 0;
     inputs_reset();
     snd_music(GAME_MUS_SELECT);
     FIX_clear(); arcade_line_reset();
-    bd_set(RGB8(72, 76, 84));                                /* the photo's wall */
     stage_hide();                                            /* stage sprites hidden */
+    land_start();                                            /* the Neo Geo Land behind (its backdrop, palettes, speed) */
     floor_top = SELECT_FLOOR;
     dbg_init();
     FIX_print(10, 1, "SELECT YOUR FIGHTER", 0);           /* FIX_print row r = screen y r * 8 (rows 0-27) */
@@ -1674,12 +1867,12 @@ static void select_start(void) {
     for (p = 0; p < 2; p++) { picked[p] = 0; pick_set[p] = 0; arrow_col[p] = 0xFF; }
     slots_build(); roster_build();
     for (s = 0; s < SEL_NSLOT && !selectable(s); s++) ;
-    cursor[0] = s; cursor[1] = 0xFF;                         /* the first selectable slot (Terry); P2: START joins */
+    cursor[0] = s; cursor[1] = 0xFF; sel_last = 0;           /* the first selectable slot (Terry); P2: START joins */
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     for (i = 0; i < NA; i++) { actor(i)->state = S_OFF; order[i] = actor(i); }
     for (s = 0; s < SEL_NSLOT; s++) { slot_act[s] = 0xFF; if (slot_ch[s] != 0xFF) { slot_act[s] = a++; slot_show(s, 0); } }
     nf = NA;
-    cam_x = 0; select_name();
+    cam_x = sel_cam_goal(); select_name();                  /* the camera on the cursor at once, then eased (sel_camera) */
 }
 /* ---- campaign (Bruno 2026-10-05, Streets of Rage 2 / Golden Axe style): the stages of game.json in order (gstages[]:
  * today Robo Army's horizontal ones, stages[] 0, 1, 3, 4, 5; 2, the 512 px boss arena, is not used). Each stage scrolls
@@ -2522,9 +2715,14 @@ static void select_tick(void) {
     sel_t++;
     if (sel_phase == SEL_CHOOSE) {
         if ((bios_start & 2) && cursor[1] == 0xFF) {         /* P2 joins: START with a credit (PLAYER_START) */
-            for (s = SEL_NSLOT; s-- > 0 && !(selectable(s) && SEL_SLOT[s].y == SEL_SLOT[cursor[0]].y && s != cursor[0]); ) ;
-            if (s >= SEL_NSLOT) for (s = SEL_NSLOT; s-- > 0 && !(selectable(s) && s != cursor[0]); ) ;
-            cursor[1] = s < SEL_NSLOT ? s : cursor[0];       /* the last fighter (stick order) on P1's feet line, else the last */
+            uint8_t t = cursor[0];                           /* the selectable fighter nearest P1's along the street */
+            uint16_t best = 0xFFFF, d;
+            for (s = 0; s < SEL_NSLOT; s++) {
+                if (!selectable(s) || s == cursor[0]) continue;
+                d = SEL_SLOT[s].x > SEL_SLOT[cursor[0]].x ? SEL_SLOT[s].x - SEL_SLOT[cursor[0]].x : SEL_SLOT[cursor[0]].x - SEL_SLOT[s].x;
+                if (d < best) { best = d; t = s; }
+            }
+            cursor[1] = t; sel_last = 1;                     /* (none: both on P1's fighter) */
             BIOS_PLAYER_MOD[1] = 1;
             fighter_pals(actor(slot_act[cursor[1]]), 1);
             select_name();
@@ -2536,7 +2734,7 @@ static void select_tick(void) {
             if (was == 0xFF || picked[p]) continue;
             s = sel_move(was, pr);
             if (s != was) {                                  /* colours follow the cursor */
-                cursor[p] = s; snd_ssg(SSG_CURSOR);
+                cursor[p] = s; sel_last = p; snd_ssg(SSG_CURSOR);
                 fighter_pals(actor(slot_act[was]), slot_look(was));
                 fighter_pals(actor(slot_act[s]), 1);
                 select_name();
@@ -2559,7 +2757,7 @@ static void select_tick(void) {
             if (slot_act[s] == 0xFF || chosen(s)) continue;
             f = actor(slot_act[s]);
             if (f->state == S_OFF) continue;
-            if (sel_t == 1) { f->facing = SEL_SLOT[s].x < 160 ? -1 : 1; fighter_play(f, BA_WALK_FWD); }
+            if (sel_t == 1) { f->facing = SEL_SLOT[s].x - cam_x < 160 ? -1 : 1; fighter_play(f, BA_WALK_FWD); }
             f->x += f->facing > 0 ? FIX(3) : -FIX(3);
             sx = INT(f->x) - cam_x;
             if (sx < -64 || sx > 384) f->state = S_OFF; else left++;
@@ -2574,6 +2772,7 @@ static void select_tick(void) {
             fight_start(); return;
         }
     }
+    if (sel_phase == SEL_CHOOSE) sel_camera();
     for (a = 0; a < NA; a++) if (actor(a)->state != S_OFF) fighter_animate(actor(a));
     select_arrows();
 }
@@ -2590,7 +2789,7 @@ void game_init(void) {
     for (i = 0; i < 4; i++) TEXT_PAL[2 + i] = text_colours[i];   /* the font's colours (Kizuna's, TODO #182) */
     PAL_setPalette(0, TEXT_PAL);
     bd_set(stg->backdrop);
-    for (i = 0; i < NA * SEL_COLS || i < FIGHT_SPRS; i++) cmd_push(VRAM_SCB2 + SPR_BASE + i, 0x0FFF);   /* full size, set once */
+    for (i = SEL_SPR; i < BLK_END; i++) cmd_push(VRAM_SCB2 + i, 0x0FFF);   /* full size, set once */
     for (i = 0; i < NA; i++) { block_placed[i] = blk_cols; block_spr[i] = slot_spr[i] = SPR_BASE + i * blk_cols; }   /* clear every block once */
     stage_init(STAGE);
     snd_cmd(0x07);                                           /* KOF98's driver: music unlock */

@@ -5,7 +5,10 @@
  * it, pick its pose. The stick's cursor graph is computed from the places (TODO #187, selectrender.js stick = build_tables.py
  * select_stick) and drawn as arrows on the picture; the list's order is where the cursor starts and, only with game.json
  * select.stick "order", left / right's path (an override). Indicators: sprites per line (the LSPC's 96), what the cursor's arrow
- * lands on. Save = the feedback service (feedback-api/select_layout, server.py), which
+ * lands on. Since 2026-10-09 (Bruno: "place every character where I want on the new Neo Geo Land backdrop") the picture
+ * is the whole street (KOF95's stage 2, its layers as composited, scrolled sideways), a fighter goes anywhere along it,
+ * and the camera's view for the selected fighter (what the screen shows with him highlighted) is a rectangle on it,
+ * that screen drawn below as the game draws it. Save = the feedback service (feedback-api/select_layout, server.py), which
  * tools/brawler/select_layout.py pulls into game.json "select_layout" for the build. */
 (async function () {
   'use strict';
@@ -26,7 +29,7 @@
   const API = 'feedback-api/select_layout';
   const GAME = clone(D.layout);                  // the build's layout (select.json)
   const DRAFT = 'brawlerlab.select.' + D.version;
-  let L = clone(GAME), sel = null, cursor = null, unlocked = false, last = null, scale = 3, saved = null, S = null, arrows = 'cursor';
+  let L = clone(GAME), sel = null, cursor = null, unlocked = false, last = null, street = null, scale = 2, saved = null, S = null, arrows = 'cursor';
   let stickMode = D.stick || 'positions';        // game.json select.stick (the build's): 'positions', or 'order' = the list's override
   try { const d = JSON.parse(localStorage.getItem(DRAFT)); if (d && Object.keys(d).length === Object.keys(GAME).length && Object.keys(d).every(n => GAME[n])) L = d; } catch (e) { /* none */ }
   const undo = [];
@@ -38,14 +41,17 @@
   // ---- the page -----------------------------------------------------------------------------------------------------
   const status = h('span', { id: 'selStatus', class: 'note' });
   const cv = h('canvas', { id: 'selScreen', width: 320, height: 224 });        // the game's pixels, 1:1 (the proof reads it)
-  const view = h('canvas', { id: 'selView', tabindex: 0 });                     // scaled, + the editor's marks
+  const SWW = D.land ? D.land.w : 320, XMAX = SWW - 1;                          // the street's width (layout x 0 .. XMAX)
+  const fcv = h('canvas', { width: SWW, height: 224 });                         // the whole street, 1:1
+  const view = h('canvas', { id: 'selView', tabindex: 0 });                     // the street scaled, + the editor's marks
+  const scr = h('canvas', { id: 'selScr' });                                    // the screen with the cursor's fighter, scaled
   const strip = h('canvas', { id: 'selLines' });                                // sprites per line
   const side = h('div', { id: 'selSide' }), orderBox = h('div', { id: 'selOrder' }), checks = h('div', { id: 'selChecks' }), stickBox = h('div', { id: 'selStick' });
   const worstLine = h('div', { id: 'selWorst' });
-  const cursorSel = h('select', { onchange: e => { cursor = e.target.value; draw(); } });
+  const cursorSel = h('select', { onchange: e => { cursor = e.target.value; sel = null; scrollTo = true; draw(); } });
   const bossSel = h('select', { onchange: e => { unlocked = e.target.value === '1'; draw(); } },
     h('option', { value: '0' }, 'locked (a fresh game: silhouettes)'), h('option', { value: '1' }, 'beaten (in colour / grey)'));
-  const scaleSel = h('select', { onchange: e => { scale = Number(e.target.value); draw(); } }, [2, 3, 4].map(s => h('option', { value: s }, s + 'x')));
+  const scaleSel = h('select', { onchange: e => { scale = Number(e.target.value); draw(); } }, [1, 2, 3, 4].map(s => h('option', { value: s }, s + 'x')));
   scaleSel.value = String(scale);
   const arrowSel = h('select', { onchange: e => { arrows = e.target.value; draw(); } },
     h('option', { value: 'cursor' }, 'the cursor\'s fighter (4 ways)'), h('option', { value: 'right' }, 'everyone: right'), h('option', { value: 'all' }, 'everyone: 4 ways'), h('option', { value: 'none' }, 'none'));
@@ -54,17 +60,23 @@
   modeSel.value = stickMode;
   col.append(
     h('div', { class: 'box' },
-      h('h2', {}, h('span', {}, 'Select screen: the group photo'),
-        h('span', { class: 'note' }, `build ${D.version} · drag a fighter; arrow keys nudge the selected one 1 px (Shift: 8 px)`), h('span', { class: 'sp' }),
+      h('h2', {}, h('span', {}, 'Select screen: the street in front of the Neo Geo Land'),
+        h('span', { class: 'note' }, `build ${D.version} · the whole street (${SWW} px; scroll it sideways) · drag a fighter anywhere along it; arrow keys nudge the selected one 1 px (Shift: 8 px)`), h('span', { class: 'sp' }),
         h('button', { id: 'selSave', onclick: save }, 'Save'), h('button', { onclick: loadSaved }, 'Load saved'),
         h('button', { onclick: () => { snapshot(); L = clone(GAME); edited(); } }, 'Load current game layout'),
         h('button', { onclick: () => { if (undo.length) { L = JSON.parse(undo.pop()); edited(); } } }, 'Undo')),
       h('div', { class: 'in' },
         h('div', { class: 'row' }, h('label', {}, 'Cursor on ', cursorSel), h('label', {}, 'Bosses ', bossSel), h('label', {}, 'Scale ', scaleSel), h('label', {}, 'Stick arrows ', arrowSel), status),
-        h('div', { id: 'selStage' }, h('div', { id: 'selWrap' }, view), h('div', { id: 'selStripWrap' }, strip)),
+        h('div', { id: 'selStreet' }, view),
+        h('div', { class: 'note' }, 'The street as composited (the facade, the crowd; the far skyline as the right end shows it, the barriers as the middle shows them). ' +
+          'The thick rectangle = what the screen shows when the selected fighter (else the cursor\'s) is highlighted: the camera centres him, stopped by the street\'s ends. ' +
+          'Dashed lines inside it: a TV\'s edges (it shows 304 of the 320 px).'))),
+    h('div', { class: 'box' }, h('h2', {}, h('span', { id: 'selScrTitle' }, 'The screen'), h('span', { class: 'note' }, 'as the game draws it, the camera stopped on that fighter (the far layer and the barriers at their own speeds)')),
+      h('div', { class: 'in' },
+        h('div', { id: 'selStage' }, h('div', { id: 'selWrap' }, scr), h('div', { id: 'selStripWrap' }, strip)),
         worstLine,
         h('div', { class: 'note' }, 'The 8 px hatched at each side are outside a TV picture (the LSPC line is 320 px, a TV shows 304). ' +
-          'The strip on the right counts the sprites on each line as the LSPC does (96 at most; past it the later sprites vanish): ' +
+          'The strip on the right counts the sprites on each line as the LSPC does (the Neo Geo Land\'s and the fighters\', 96 at most; past it the game hides fighters): ' +
           'lines past 96 are hatched across the picture and the strip.'))),
     h('div', { class: 'box' }, h('h2', {}, h('span', {}, 'Selected fighter')), side),
     h('div', { class: 'box' }, h('h2', {}, h('span', {}, 'The stick'), h('span', { class: 'note' }, 'computed from the places at every change, again by the build from the saved layout (the same rules): ' +
@@ -82,18 +94,33 @@
     if (!cursor || !L[cursor]) cursor = R.firstCursor(D, L, { unlocked });
     cursorSel.replaceChildren(...order.map(n => h('option', { value: n }, disp(n) + (D.fighters[n].locked && !unlocked ? ' (locked: not selectable)' : ''))));
     cursorSel.value = cursor;
-    last = R.render(D, L, { cursor, unlocked });
+    last = R.render(D, L, { cursor, unlocked });                                // the screen, the cursor's camera
+    street = D.land ? R.render(D, L, { cursor, unlocked, full: true }) : last;    // the whole street
     S = R.stick(D, L, stickMode);
     const cx = cv.getContext('2d'); cx.putImageData(new ImageData(last.rgba, 320, 224), 0, 0);
-    view.width = 320 * scale; view.height = 224 * scale;
+    scr.width = 320 * scale; scr.height = 224 * scale;
+    const sv = scr.getContext('2d'); sv.imageSmoothingEnabled = false;
+    sv.drawImage(cv, 0, 0, 320 * scale, 224 * scale);
+    const spat = sv.createPattern(hatch, 'repeat');
+    sv.save(); sv.globalAlpha = 0.55; sv.fillStyle = spat; sv.fillRect(0, 0, 8 * scale, 224 * scale); sv.fillRect(312 * scale, 0, 8 * scale, 224 * scale); sv.restore();
+    for (let l = 0; l < 224; l++) if (last.counts[l] > D.line_max) { sv.save(); sv.globalAlpha = 0.6; sv.fillStyle = spat; sv.fillRect(0, l * scale, 320 * scale, scale); sv.restore(); }
+    if ($('selScrTitle')) $('selScrTitle').textContent = `The screen with ${disp(cursor)} highlighted (camera x ${last.cam})`;
+    fcv.getContext('2d').putImageData(new ImageData(street.rgba, SWW, 224), 0, 0);
+    view.width = SWW * scale; view.height = 224 * scale;
     const v = view.getContext('2d'); v.imageSmoothingEnabled = false;
-    v.drawImage(cv, 0, 0, 320 * scale, 224 * scale);
-    const pat = v.createPattern(hatch, 'repeat');
-    v.save(); v.globalAlpha = 0.55; v.fillStyle = pat; v.fillRect(0, 0, 8 * scale, 224 * scale); v.fillRect(312 * scale, 0, 8 * scale, 224 * scale); v.restore();
-    for (let l = 0; l < 224; l++) if (last.counts[l] > D.line_max) { v.save(); v.globalAlpha = 0.6; v.fillStyle = pat; v.fillRect(0, l * scale, 320 * scale, scale); v.restore(); }
+    v.drawImage(fcv, 0, 0, SWW * scale, 224 * scale);
+    if (D.land) {                                // the camera's view for the selected fighter (else the cursor's)
+      const cam = R.camFor(D, L, sel || cursor);
+      for (const [c, w] of [['#fff', 7], ['#000', 3]]) { v.strokeStyle = c; v.lineWidth = w; v.setLineDash([]); v.strokeRect(cam * scale + 2, 2, 320 * scale - 4, 224 * scale - 4); }
+      v.setLineDash([6, 6]); v.strokeStyle = '#000'; v.lineWidth = 1;
+      v.strokeRect((cam + 8) * scale + 0.5, 4.5, 304 * scale - 1, 224 * scale - 9); v.setLineDash([]);
+      v.font = `bold ${Math.max(11, 6 * scale)}px system-ui`; const lbl = `screen: ${disp(sel || cursor)} highlighted`, tw = v.measureText(lbl).width;
+      v.fillStyle = '#fff'; v.fillRect(cam * scale + 6, 6, tw + 8, Math.max(14, 8 * scale)); v.strokeStyle = '#000'; v.lineWidth = 1; v.strokeRect(cam * scale + 6.5, 6.5, tw + 7, Math.max(14, 8 * scale) - 1);
+      v.fillStyle = '#000'; v.textBaseline = 'top'; v.fillText(lbl, cam * scale + 10, 8);
+    }
     if (sel) {                                   // the selected fighter: a box around its pixels, black and white dashes
-      let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; const k = last.names.indexOf(sel);
-      for (let i = 0; i < 320 * 224; i++) if (last.owner[i] === k) { const x = i % 320, y = (i / 320) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; const k = street.names.indexOf(sel);
+      for (let i = 0; i < SWW * 224; i++) if (street.owner[i] === k) { const x = i % SWW, y = (i / SWW) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
       if (x1 >= 0) for (const [c, off] of [['#fff', 0], ['#000', 4]]) { v.strokeStyle = c; v.lineWidth = 2; v.setLineDash([4, 4]); v.lineDashOffset = off; v.strokeRect(x0 * scale - 2, y0 * scale - 2, (x1 - x0 + 1) * scale + 4, (y1 - y0 + 1) * scale + 4); }
       v.setLineDash([]);
       const f = L[sel];                          // its feet: a cross
@@ -114,12 +141,15 @@
     s.strokeStyle = '#000'; s.lineWidth = 2; s.beginPath(); s.moveTo(px(D.line_max), 0); s.lineTo(px(D.line_max), strip.height); s.stroke();
     s.fillStyle = '#000'; s.font = '11px system-ui'; s.fillText('96', px(D.line_max) + 3, 12);
     const w = last.worst, over = [...last.counts].filter(c => c > D.line_max).length;
+    const wrap = $('selStreet');                 // the selected fighter's camera in view (the street scrolls sideways)
+    if (wrap && D.land && scrollTo) { const cam = R.camFor(D, L, sel || cursor) * scale; if (cam < wrap.scrollLeft || cam + 320 * scale > wrap.scrollLeft + wrap.clientWidth) wrap.scrollLeft = cam; scrollTo = false; }
     worstLine.replaceChildren(h('b', {}, `Worst line: y ${w}, ${last.counts[w]} sprites of 96`),
       over ? h('span', { class: 'warn' }, ` · ${over} line${over > 1 ? 's' : ''} PAST 96: the game hides fighters there (line guard) or the LSPC drops sprites`) : ' · every line within 96');
     renderSide(); renderOrder(); renderStick(); renderChecks();
     const ch = same(L, GAME) ? 'the current game layout' : saved && same(L, saved.layout) ? `the saved layout (${saved.saved})` : 'edited (not saved)';
     status.textContent = ch;
   }
+  let scrollTo = true;
   function edited() { keep(); draw(); }
 
   // ---- the stick: arrows on the picture (body centre to body centre), black with a white edge (e-ink) --------------------
@@ -188,7 +218,7 @@
       onclick: () => { snapshot(); f.pose = P.pose.slice(); edited(); } }, poseThumb(n, P), h('span', {}, `${P.pose[0]} / ${P.pose[1] < 0 ? 'last' : P.pose[1]}`, P.rom ? h('b', {}, ' (in the ROM)') : null))));
     side.replaceChildren(h('div', { class: 'in' },
       h('div', { class: 'row' }, h('b', { style: 'font-size:16px' }, disp(n)), h('span', { class: 'note' }, F.locked ? 'a boss: locked until beaten' : 'always playable'),
-        h('label', {}, 'x ', num('x', -64, 383)), h('label', {}, 'y (feet) ', num('y', 0, 300)),
+        h('label', {}, 'x ', num('x', 0, XMAX)), h('label', {}, 'y (feet) ', num('y', 0, 223)),
         h('button', { onclick: () => { snapshot(); f.facing = f.facing === 'right' ? 'left' : 'right'; edited(); } }, `Flip (faces ${f.facing})`)),
       h('div', { class: 'row' }, h('span', {}, `Draw order: ${f.z + 1} of ${N} (1 = the back)`), zb('To the back', 0), zb('Back one', f.z - 1), zb('Forward one', f.z + 1), zb('To the front', N - 1)),
       h('div', { class: 'note' }, 'Pose: the frames he can hold (his intros, win poses, taunts). "(in the ROM)" = the frame this build draws; another one is exported at the next build ' +
@@ -206,7 +236,7 @@
     const o = R.order(L);
     orderBox.replaceChildren(h('ol', { class: 'slots' }, o.map((n, k) => {
       const li = h('li', { draggable: 'true', class: (n === sel ? 'on' : '') + (n === cursor ? ' cur' : '') },
-        h('span', { class: 'grip' }, '≡'), h('span', { class: 'nm', onclick: () => { sel = n; draw(); } }, disp(n)),
+        h('span', { class: 'grip' }, '≡'), h('span', { class: 'nm', onclick: () => { sel = n; cursor = n; scrollTo = true; draw(); } }, disp(n)),
         D.fighters[n].locked ? h('span', { class: 'note' }, ' locked at the start') : null, h('span', { class: 'sp' }),
         h('button', { disabled: k === 0, onclick: () => { snapshot(); move(n, k - 1); edited(); } }, '↑'),
         h('button', { disabled: k === o.length - 1, onclick: () => { snapshot(); move(n, k + 1); edited(); } }, '↓'));
@@ -231,21 +261,22 @@
 
   // ---- dragging on the picture ------------------------------------------------------------------------------------------
   let drag = null;
-  const at = e => { const r = view.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / r.width * 320), Math.floor((e.clientY - r.top) / r.height * 224)]; };
+  const at = e => { const r = view.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / r.width * SWW), Math.floor((e.clientY - r.top) / r.height * 224)]; };
   view.onpointerdown = e => {
-    const [x, y] = at(e); if (!last) return;
-    const k = x >= 0 && x < 320 && y >= 0 && y < 224 ? last.owner[y * 320 + x] : -1;
-    sel = k >= 0 ? last.names[k] : null; view.focus();
+    const [x, y] = at(e); if (!street) return;
+    const k = x >= 0 && x < SWW && y >= 0 && y < 224 ? street.owner[y * SWW + x] : -1;
+    sel = k >= 0 ? street.names[k] : null; view.focus();
+    if (sel) cursor = sel;                       // the screen below: with him highlighted
     if (sel) { drag = { n: sel, x0: e.clientX, y0: e.clientY, fx: L[sel].x, fy: L[sel].y, moved: false }; view.setPointerCapture(e.pointerId); }
     draw();
   };
   view.onpointermove = e => {
     if (!drag) return;
-    const r = view.getBoundingClientRect(), dx = Math.round((e.clientX - drag.x0) / r.width * 320), dy = Math.round((e.clientY - drag.y0) / r.height * 224);
+    const r = view.getBoundingClientRect(), dx = Math.round((e.clientX - drag.x0) / r.width * SWW), dy = Math.round((e.clientY - drag.y0) / r.height * 224);
     const nx = drag.fx + dx, ny = drag.fy + dy;
     if (nx === L[drag.n].x && ny === L[drag.n].y) return;
     if (!drag.moved) { snapshot(); drag.moved = true; }
-    L[drag.n].x = Math.max(-64, Math.min(383, nx)); L[drag.n].y = Math.max(0, Math.min(300, ny)); draw();
+    L[drag.n].x = Math.max(0, Math.min(XMAX, nx)); L[drag.n].y = Math.max(0, Math.min(223, ny)); draw();
   };
   view.onpointerup = view.onpointercancel = () => { if (drag && drag.moved) keep(); drag = null; };
   addEventListener('keydown', e => {                // the arrows nudge (before the game's keys: app.js)
@@ -255,7 +286,7 @@
     if (!d) return;
     e.preventDefault(); e.stopImmediatePropagation();
     const s = e.shiftKey ? 8 : 1; snapshot();
-    L[sel].x = Math.max(-64, Math.min(383, L[sel].x + d[0] * s)); L[sel].y = Math.max(0, Math.min(300, L[sel].y + d[1] * s)); edited();
+    L[sel].x = Math.max(0, Math.min(XMAX, L[sel].x + d[0] * s)); L[sel].y = Math.max(0, Math.min(223, L[sel].y + d[1] * s)); edited();
   }, true);
 
   // ---- save / load (the feedback service, behind the same Oros login as the Lab) ------------------------------------------

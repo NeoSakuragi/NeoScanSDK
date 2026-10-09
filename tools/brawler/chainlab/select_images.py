@@ -15,6 +15,8 @@ select screen pixel for pixel (selectrender.js) while Bruno places the fighters.
   lut       Geolith's resnet palette LUT (geo_lspc_palgen_resnet, the option harness.py / web_core.c / neogeo_sdl set):
             6-bit channel (5 bits << 1 | the dark bit) -> 8 bits
   layout    the build's layout (build_tables.select_layout: game.json select_layout, else the first layout)
+  land      the select screen's backdrop, KOF95's Neo Geo Land (make_stage_land.py -> build/land.json): its layers as
+            palette indices at their world x / screen y, their columns' trims, SNK's palette words, the street's width
   stick     game.json select.stick: 'positions' (the cursor graph from the places) or 'order' (left / right = the list)
   graph     the build's cursor graph {fighter: {right, left, up, down}} (build_tables.select_stick; the page computes
             its own from the layout being edited, selectrender.js stick)
@@ -46,13 +48,14 @@ def trims_of(dx, dy, hf, vf, cols):
 
 def left_frame(parts, tile):
     """parts [(dx, dy, hflip, vflip, pal, tile columns, trims or None)] -> the frame facing LEFT as draw.s draws it:
-    {w, h, ox, oy (the feet in the picture), pix (base64 of h * w palette indices), cols [[top, rows] per sprite],
+    {w, h, ox, oy (the feet in the picture), pix (base64 of h * w palette indices), cols [[top, rows, left x] per sprite],
     ncols} (a frame wider than the select block's SEL_COLS sprites is clipped by draw.s: select_data leaves it out)"""
     placed, cols_out, ncols = [], [], 0
     for dx, dy, hf, vf, pal, cols, trims in parts:
         ncols += len(cols)
-        cols_out += [list(t) for t in (trims or trims_of(dx, dy, hf, vf, cols))]
         rows = len(cols[0]); w, h = len(cols) * 16, rows * 16
+        x0 = -dx - w if hf else dx                 # each column's left x from the feet, facing left (the street's clip)
+        cols_out += [list(t) + [x0 + (w - 16 * (c + 1) if hf else 16 * c)] for c, t in enumerate(trims or trims_of(dx, dy, hf, vf, cols))]
         img = np.zeros((h, w), np.uint8)
         for c, col in enumerate(cols):
             for r, t in enumerate(col):
@@ -156,7 +159,8 @@ def select_data(game, cand=None, b=None):
     stick = G.get('select', {}).get('stick', 'positions')   # the cursor graph (TODO #187): the build's (game_tables.c sel_stick)
     graph = build_tables.select_stick(L, build_tables.bm_heads(build, G), stick)
     return {'layout': L, 'stick': stick, 'graph': graph, 'roster': names, 'fighters': fighters, 'lut': LUT, 'floor': floor, 'sel_cols': sel_cols, 'na': na, 'line_max': 96,
-            'fix': fix_capture(game, b), 'version': open(os.path.join(game, 'VERSION')).read().strip()}
+            'fix': fix_capture(game, b), 'version': open(os.path.join(game, 'VERSION')).read().strip(),
+            'land': json.load(open(os.path.join(build, 'land.json')))}
 
 
 if __name__ == '__main__':

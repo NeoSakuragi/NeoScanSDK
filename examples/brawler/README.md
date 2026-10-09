@@ -526,6 +526,9 @@ specials, throws; PE = player escapes.
 /data/neogeo_dict/roboarmy/README.md); the final game gets its own hand-drawn art. The campaign plays 0, 1, 3, 4, 5 (see Campaign); `make STAGE=n` picks the stage the attract demo
 plays (default 0). The vertical parts (area 2's descent, area 5): docs/brawler_stage_vertical.md.
 The former Sengoku 2 castle (`make_stage_s2.py`, two planes with parallax) stays in the repo, not built.
+The select screen stands in KOF95's stage 2, the street in front of SNK's Neo Geo Land (`make_stage_land.py`, needs /data/roms/kof95.neo and
+/data/neogeo_dict/kof95/stages): SNK's five layers with their scroll speeds and animations, 62 palettes, 3144 tiles; the camera
+follows the cursor along the street (main.c "the select screen's backdrop", game.json select_layout in street coordinates).
 
 | n | Robo Army | map ids | width | stage tiles | palettes | floor_top |
 |---|---|---|---|---|---|---|
