@@ -1,6 +1,40 @@
 {
  "sets": [
   {
+   "id": "kim-run-frame",
+   "fighter": "kim",
+   "title": "Kim's run: which frame to hold",
+   "intro": "His run plays the dash once, then holds one frame while he floats along. Today it holds the dash's last frame (4). Pick the frame he should hold while running; the numbers match the picture (dash $03, backdash $04 and walk $01 from Kizuna; drawn in his second colour set).",
+   "sections": [
+    {
+     "title": "The held frame",
+     "questions": [
+      {
+       "id": "frame",
+       "title": "Which frame should Kim hold while he runs?",
+       "context": "Tap a number. You can add a note (e.g. 'play 1-3 then hold 3').",
+       "image": "kim_run_frames.png",
+       "options": [
+        "1: dash $03 step 1",
+        "2: dash $03 step 2",
+        "3: dash $03 step 3",
+        "4: dash $03 step 4 — held today",
+        "5: backdash $04 step 1",
+        "6: backdash $04 step 2",
+        "7: backdash $04 step 3",
+        "8: walk $01 step 1",
+        "9: walk $01 step 2",
+        "10: walk $01 step 3",
+        "11: walk $01 step 4",
+        "12: walk $01 step 5",
+        "13: walk $01 step 6"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "krauser-gold",
    "fighter": "krauser",
    "proposal_first": true,

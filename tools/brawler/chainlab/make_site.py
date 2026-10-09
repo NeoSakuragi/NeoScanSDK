@@ -110,7 +110,7 @@ json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
 # the Select screen tab: the build's select screen as data (select_images.py: the ROM's pictures, the fix layer from our
 # emulator, the pose candidates above as palette indices) for selectrender.js
 json.dump(select_images.select_data(game, poses), open(os.path.join(out, 'select.json'), 'w'))
-for f in ('index.html', 'app.js', 'chaintool.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js', 'expose.js', 'micnote.js', 'decide.js', 'decisions.json', 'decide.html', 'review.html', 'review.js', 'anims.html', 'anims.js', 'anims_core.js', 'sounds.html', 'sounds.js', 'impacts.html', 'impacts.js', 'kim_size.png', 'krauser_size.png'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+for f in ('index.html', 'app.js', 'chaintool.js', 'lab.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js', 'expose.js', 'micnote.js', 'decide.js', 'decisions.json', 'decide.html', 'review.html', 'review.js', 'anims.html', 'anims.js', 'anims_core.js', 'sounds.html', 'sounds.js', 'impacts.html', 'impacts.js', 'kim_size.png', 'krauser_size.png', 'kim_run_frames.png'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 # the hit sounds page (sounds.html?f=kim): each hit's impact frame + sound, every effect of the sound ROM as a WAV
 # (tools/brawler/hitsounds.py -> /data/neogeo_dict/hitsounds)
 HS = '/data/neogeo_dict/hitsounds'
