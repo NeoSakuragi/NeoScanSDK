@@ -57,7 +57,7 @@ def _layout(game):
     fields = ['ch', 'set', 'palbase', 'spr', 'x', 'z', 'y', 'vx', 'vz', 'vy', 'facing', 'team', 'state', 'state_t', 'anim',
               'step', 'tick', 'anim_done', 'node', 'buffered', 'hit_mask', 'freeze', 'inv', 'hp', 'idx', 'held',
               'shown_frame', 'frame_ovr', 'zfront', 'pushing', 'throw_id', 'grab_hits', 'target', 'spec_id', 'owner',
-              'ncols', 'landed', 'chain_node', 'chain_t', 'spec_fx', 'burn', 'jump_kind', 'jump_dir',
+              'ncols', 'landed', 'kthud', 'chain_node', 'chain_t', 'spec_fx', 'burn', 'jump_kind', 'jump_dir',
               'pdef', 'prow', 'pend', 'shot', 'power', 'tint', 'hp_max', 'acc', 'speed', 'srow', 'spec_atk', 'kmode', 'kdelay', 'spec_ix',
               'air_node', 'flash', 'spart', 'sarm', 'shrow', 'spend', 'plink', 'throw_x0', 'var', 'form_from', 'pstep',
               'pflags', 'pcatch', 'scancel', 'fury_buf', 'spec_buf', 'impact', 'drop', 'wall_by', 'vlist', 'vent', 'pheld', 'pcnt', 'zfront', 'fpose', 'pres', 'vph', 'ksr', 'ksn', 'pbd', 'dizzy', 'dtgt', 'dpin',

@@ -2058,9 +2058,12 @@ static void src_react(fighter_t *v, int8_t away, uint8_t k) {
 /* a knocked-down body touching the floor (its landing, then the landing after its bounce): KOF94 plays its KO landing
  * there ($66EA, index $227 in place of the body landing $105 when the body has no life left; both contacts, $8C7C /
  * $8D00). Here only a body main.c marks (fighter_t.kthud: the boss's death fall, feedback 20261009-223719-b3f3), the
- * sound game.json hit_sounds.bounce; never dropped (snd_cmd: the KO sequence's sounds are few) */
-static void floor_thud(const fighter_t *f) {
-    if (f->kthud && ghitsnd.bounce) { snd_cmd(0x1A); snd_cmd(ghitsnd.bounce); }
+ * sound game.json hit_sounds.bounce; never dropped (snd_cmd: the KO sequence's sounds are few). kthud counts them (1 +
+ * the contacts so far: main.c boss_ko_tick starts the win music 1 s after the second, note 20261009-231937-b3f3) */
+static void floor_thud(fighter_t *f) {
+    if (!f->kthud) return;
+    if (ghitsnd.bounce) { snd_cmd(0x1A); snd_cmd(ghitsnd.bounce); }
+    if (f->kthud < 255) f->kthud++;
 }
 static uint8_t src_fall(fighter_t *f) {                          /* S_KNOCKDOWN in a source reaction: one frame; 0 = its */
     const bsreact_t *r = &bm_sreact[f->ksr - 1];                 /* landing is the brawler's own (no bounce in the data) */
@@ -2192,9 +2195,33 @@ static void prog_spawn(fighter_t *f, const bproj_t *d) {
                                                                     boomerang ends with the special: SS2 $4C434) */
     else f->shot = p;
 }
+/* the fury's end burn (note 20261009-231252-b3f3, Kim's Phoenix: "in the very last frame, anybody around him gets burnt
+ * automatically"; game.json roster[].fury_end_burn -> gfury_burn[fighter] = [radius px, damage]): a fury (or its MAX)
+ * that connected and ran to its last frame burns every opponent standing within radius px in x and Z_HIT in depth: a
+ * plain knockdown hit of that damage (the fighter already out of its special: no tier, no dance), the orange burn as a
+ * KOF fire hit's (set_burn, to its landing), KOF96's fire-hit sound once. The trick for the Phoenix's falling flame
+ * pieces, which have no boxes of their own. */
+static void fury_end_burn(fighter_t *f) {
+    const uint8_t *e = gfury_burn[f->ch->id];
+    uint8_t j, sounded = 0;
+    if (!e[0] || !cb_fs) return;
+    for (j = 0; j < cb_n; j++) {
+        fighter_t *v = cb_fs[j];
+        int16_t dx, dz;
+        if (v == f || v->team == f->team || v->inv || v->hp <= 0 || v->state == S_DOWN || v->state == S_GETUP ||
+            v->state == S_THROW || v->state == S_THROWN || v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
+        dx = INT(v->x) - INT(f->x); dz = INT(v->z) - INT(f->z);
+        if (dx < -(int16_t)e[0] || dx > (int16_t)e[0] || dz < -Z_HIT || dz > Z_HIT) continue;
+        if (!sounded++) snd_sfx(SFX_FIRE);
+        fighter_hit(f, v, e[1], R_KNOCKDOWN, 0);
+        set_burn(v, 2);
+    }
+}
 static void prog_end(fighter_t *f) {
+    uint8_t burn = f->spec_id == BS_FURY && f->landed;          /* (the fury's end burn: after it connected) */
     special_end(f);
     if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
+    if (burn) fury_end_burn(f);
 }
 static void hold_apply(fighter_t *f) {                           /* a caught victim held (KOF +$E4 bit 4): in front of the */
     fighter_t *t = f->target;                                    /* attacker (P_PUT's distance, else where it stands), */
@@ -2539,9 +2566,11 @@ static void special_update(fighter_t *f) {
             part_go(f, sp, f->sarm ? sp->links[f->sarm - 1].to : sp->parts[f->spart].next);
     }
     if (f->srow > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
+        uint8_t burn = f->spec_id == BS_FURY && f->landed;      /* (the fury's end burn) */
         carry_drop(f);
         special_end(f);
         if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
+        if (burn) fury_end_burn(f);
         return;
     }
     voice_at(f, VK_SPEC + f->spec_ix, from, f->srow - 1);

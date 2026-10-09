@@ -2687,5 +2687,41 @@
   "expect": "After STAGE CLEAR and the win pose, the black bars slide in and Terry's big KOF98 win-screen portrait slides in from the right with his name plate, for about 3 seconds (A-D skips it); then the bars slide out and the next screen comes as before. A fighter without a big portrait goes straight to the next screen, as before.",
   "do_keys": "3:a,30:-,3:a",
   "proof": 1300
+ },
+ "20261009-231937-b3f3": {
+  "title": "Boss KO: the win music 1 s after the second bounce",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss (Mr. Big) alone with 1 life point, Terry in front of him. Press A, then half a second later A again: that hit takes his last life. Listen while he falls in slow motion.",
+  "expect": "The KO blow and the music stops; his scream; KOF94's KO landing as he hits the floor and again after his bounce; the win music starts one second after that second landing sound (not before it).",
+  "do_keys": "3:a,30:-,3:a",
+  "proof": 420
+ },
+ "20261009-231252-b3f3": {
+  "title": "Kim's Phoenix: everyone around him burns as he wakes up",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full",
+   "extra": [
+    20,
+    150,
+    -60
+   ]
+  },
+  "do": "Kim's meter is full, Ryos in front of him and one behind him. Press D (the fury, his Phoenix) and watch its end, when Kim comes down with the little flames falling and gets up.",
+  "expect": "On the fury's very last frame, as Kim stands up, every Ryo near him (within about 112 px, the flame pieces' spread) is knocked down burning orange, with the fire-hit sound, losing a little life (4); the Ryo far behind him stays standing, not burnt. Down+D (his MAX, at low life) ends the same way.",
+  "do_keys": "4:d",
+  "proof": 420
  }
 }

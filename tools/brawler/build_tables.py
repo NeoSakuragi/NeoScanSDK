@@ -741,6 +741,7 @@ def tables(g, build):
          'extern uint8_t dtier_off;                         /* (fighter.c) 1: every scale 1 (a test switch) */',
          'extern const uint8_t ai_ready[BC_COUNT][2];',
          'extern const uint8_t gblitz_rom[BC_COUNT][4];   /* per fighter its Blitz slots (BZ_FF .. BZ_UU): a special\'s pool index, BZ_DASH its dash entry, BZ_NONE */',
+         'extern const uint8_t gfury_burn[BC_COUNT][2];   /* the fury\'s end burn (roster[].fury_end_burn; fighter.c fury_end_burn): [radius px, damage], 0 = none */',
          'extern const int32_t gwalk_rom[BC_COUNT];       /* its walk (16.16 px a frame, by archetype) */',
          'extern const uint8_t gblitz_can[BC_COUNT][4];   /* per fighter per Blitz slot: the slots it may cancel into on hit (bit BZ_*; roster[].blitz_cancel) */',
          'extern const uint8_t *const grun_bob[BC_COUNT]; /* the run\'s float: [period, px a frame...] (roster[].run.float), 0 = none */',
@@ -792,6 +793,13 @@ def tables(g, build):
     wk = g['walk']                                       # walk / run by archetype (16.16), per fighter
     for k in wk: assert k in WALK_KEYS, f'walk: unknown field {k}'
     assert all(0.25 <= wk[k] <= 6 for k in ('fast', 'balanced', 'heavy')) and 1 <= wk['run'] <= 4, 'walk values'
+    fb = []                                              # roster[].fury_end_burn (note 20261009-231252-b3f3)
+    for r in g['roster']:
+        e = r.get('fury_end_burn') or {}
+        for k in e: assert k in ('about', 'radius', 'damage'), f"roster {r['name']}: fury_end_burn: unknown field {k}"
+        assert not e or (1 <= e['radius'] <= 255 and 1 <= e['damage'] <= 30), f"roster {r['name']}: fury_end_burn: radius 1-255, damage 1-30"
+        fb.append(f"{{ {e.get('radius', 0)}, {e.get('damage', 0)} }}")
+    c.append('const uint8_t gfury_burn[BC_COUNT][2] = { ' + ', '.join(fb) + ' };   /* [radius px, damage] per fighter */')
     c.append('const int32_t gwalk_rom[BC_COUNT] = { ' + ', '.join(str(round(wk[r['archetype']] * 65536)) for r in g['roster']) +
              f' }};   /* 16.16 px a frame, by roster[].archetype */')
     c.append(f"const uint16_t gwalk_run = {round(wk['run'] * 256)};   /* run = walk x this (8.8) */")

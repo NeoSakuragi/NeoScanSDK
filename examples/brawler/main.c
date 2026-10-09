@@ -2134,10 +2134,13 @@ static uint8_t tq_n;
 enum { KO_OFF, KO_SLOWMO, KO_DONE };
 static uint8_t ko_seq, ko_sub;                   /* KO_*; frames to the next logic tick */
 static uint16_t ko_t, ko_next;                   /* frames since the killing hit; the next fall */
-#define KO_WIN 180                               /* the win music this many frames after the death voice (Bruno 2026-10-09: KO
-                                                    sound + the music stopped, 1 s later the scream, 3 s later the win music;
-                                                    note 20261009-120007-5d29: "shift the start of the win song by one second") */
+#define KO_WIN 60                                /* the win music this many frames after the boss's second floor contact sound
+                                                    (fighter.c floor_thud, its bounce: note 20261009-231937-b3f3 "one second
+                                                    after the second bounce sound has been triggered, cue in the music";
+                                                    was 180 after the death voice). Fallback: no second contact by the slow
+                                                    motion's end (KO_SLOW) -> the music then */
 static uint8_t ko_win;                           /* 1: the win music already started by the KO sequence (PH_END doesn't restart it) */
+static uint8_t ko_wt;                            /* frames left to the win music after the second contact (0: not counting) */
 static uint8_t win_dr;                           /* PH_CLEAR: 1 once the win drama (DR_WIN) played or was passed */
 static uint8_t ko_scream;                        /* 1: the boss's death voice still to come (ghitsnd.scream_delay) */
 /* ---- the stage clear's win pose (TODO #184, Bruno 2026-10-07: "a little winning pose here at the end of the stage"):
@@ -2197,7 +2200,7 @@ static uint8_t win_done(void) {                  /* every pose played and held W
     for (i = 0; i < 2; i++) if (win_st[i] == WIN_WAIT || (win_st[i] == WIN_POSE && win_t[i] < WIN_HOLD)) return 0;
     return 1;
 }
-static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; ko_scream = 0; ko_win = 0; win_st[0] = win_st[1] = WIN_NONE; }
+static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; ko_scream = 0; ko_win = 0; ko_wt = 0; win_st[0] = win_st[1] = WIN_NONE; }
 static void enemies_down(fighter_t *by) {        /* every enemy still up goes down (a boss beaten, TA_END) */
     uint8_t i;
     for (i = 2; i < NF; i++) {
@@ -2218,20 +2221,25 @@ static void boss_ko_start(void) {                /* the boss's killing hit */
     ko_seq = KO_SLOWMO; ko_t = 0; ko_sub = 0; ko_next = KO_FIRST; tq_n = 0;
     snd_stop_music();                            /* the music first, then this tick's sounds (the killing hit's), then
                                                     the KO blow (note 20261009-120007-5d29: $04 after the blow cut it) */
-    snd_cmd(0x1A); snd_cmd(ghitsnd.boss_ko); b->ko_voice = 1; ko_scream = 1; ko_win = 0;   /* (ko_voice: none at its S_DEAD, boss_ko_tick screams) */
+    snd_cmd(0x1A); snd_cmd(ghitsnd.boss_ko); b->ko_voice = 1; ko_scream = 1; ko_win = 0; ko_wt = 0;   /* (ko_voice: none at its S_DEAD, boss_ko_tick screams) */
     b->kthud = 1;                                /* its fall's floor contacts: hit_sounds.bounce (fighter.c floor_thud) */
 }
 static uint8_t boss_ko_tick(void) {              /* every frame of the sequence; 1: a logic tick this frame */
     uint8_t i;
     for (i = 0; i < 2; i++) if (fighters[i].inv < 2) fighters[i].inv = 2;   /* the players: untouchable to the clear (2: still
                                                              set in combat after their update counted one down) */
+    if (!ko_win) {                               /* the win music: KO_WIN frames after the boss's second floor contact */
+        if (!ko_wt && fighters[BOSS_IDX].kthud >= 3) ko_wt = KO_WIN;   /* (measured: the music's commands 60 frames
+                                                                          after the contact's in the sound queue) */
+        else if (ko_wt && !--ko_wt) { snd_music(GAME_MUS_CLEAR); ko_win = 1; }
+        else if (!ko_wt && ko_seq == KO_DONE) { snd_music(GAME_MUS_CLEAR); ko_win = 1; }   /* fallback: no second contact */
+    }
     if (ko_seq != KO_SLOWMO) return 1;
     if (++ko_t >= ghitsnd.scream_delay && ko_scream) {      /* the death voice, after the KO sound */
         fighter_t *b = &fighters[BOSS_IDX];
         voice_play(b->ch, b->team, VK_KO); ko_scream = 0;
         if (ko_next < ko_t + KO_FIRST) ko_next = ko_t + KO_FIRST;
     }
-    if (!ko_scream && !ko_win && ko_t >= ghitsnd.scream_delay + KO_WIN) { snd_music(GAME_MUS_CLEAR); ko_win = 1; }
     if (ko_t >= KO_SLOW) {                     /* full rate again: PH_END (campaign) */
         ko_seq = KO_DONE;
         for (i = 2; i < NF; i++) { fighter_t *e = &fighters[i]; if (e->state != S_OFF && e->state != S_DEAD && e->hp > 0) ko_fall(e); }
@@ -2450,7 +2458,7 @@ static void campaign(uint8_t left) {
         break;
     case PH_END:                                             /* every enemy gone: STAGE CLEAR, the save */
         if (left) break;
-        FIX_print(14, 13, "STAGE CLEAR", 0); if (!ko_win) snd_music(GAME_MUS_CLEAR);
+        FIX_print(14, 13, "STAGE CLEAR", 0); if (!ko_win && !ko_wt) snd_music(GAME_MUS_CLEAR);   /* (counting: boss_ko_tick starts it) */
         phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0;
         win_start();                                         /* the players' win poses (#184) */
         if (attract) break;

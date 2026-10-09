@@ -348,8 +348,9 @@ typedef struct fighter {
                                    * (untouchable, no control), 2 just landed (main.c knocks every enemy on screen down);
                                    * ko_voice: its death voice (VK_KO) already played (main.c's boss death sequence plays
                                    * it at the fall, TODO #172): none again at S_DEAD */
-    uint8_t  kthud, kthud_pad;    /* kthud 1: its floor contacts in a knockdown play game.json hit_sounds.bounce (fighter.c
-                                   * floor_thud; main.c boss_ko_start: the boss's death fall, both bounces) */
+    uint8_t  kthud, kthud_pad;    /* kthud >= 1: its floor contacts in a knockdown play game.json hit_sounds.bounce (fighter.c
+                                   * floor_thud; main.c boss_ko_start: the boss's death fall, both bounces), each one
+                                   * counted (kthud = 1 + the contacts so far: 3 = the second, main.c boss_ko_tick) */
     uint8_t  pvl_id, pvl_n;       /* a ROM special's voice sent later (P_VOICE b > 0, KOF +$1B4 / +$1B6; TODO #163): its id,
                                    * the frames left (0 = none; counted down by its program's frames, then by the
                                    * fighter's own once the move ended; dropped when it is hit) */
