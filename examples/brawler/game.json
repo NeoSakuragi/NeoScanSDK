@@ -1242,8 +1242,10 @@
   "kyo": "kof98:kyo",
   "iori": "kof98:iori",
   "mai": "kof98:mai",
-  "yashiro": "kof98:yashiro"
+  "yashiro": "kof98:yashiro",
+  "k_dash": "kof99:k_dash"
  },
+ "win_drama": "stage_win",
  "dramas": {
   "mr_big_intro": [
    {
@@ -1288,6 +1290,22 @@
     "side": "right",
     "portrait": "goenitz",
     "lines": ["The wind is blowing...", "Let it carry you away!"]
+   }
+  ],
+  "stage_win": [
+   {
+    "speaker": "$P1",
+    "side": "right",
+    "if_portrait": true,
+    "wait": 180,
+    "lines": []
+   },
+   {
+    "speaker": "$P2",
+    "side": "left",
+    "if_portrait": true,
+    "wait": 180,
+    "lines": []
    }
   ]
  }
