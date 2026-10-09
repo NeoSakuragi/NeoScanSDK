@@ -259,6 +259,16 @@ each), scenario.py lint 0.
   program, export_kz `anim_special`), so a Blitz / C slot can name it; `reset` = a reel in place (no slide) whose stun
   (stun_heavy 32) outlasts the move: Kim's forward + C $101 leaves him +14 frames, down + C $4D +21 (measured: victim free
   minus Kim free after the last hit), a new chain lands while the victim still reels.
+- KOF96 / 98 / 99 fighters take `roster[].anim_specials` too (Krauser gold 2026-10-09: {"$A9": "knockdown"}, his
+  up,up + A Blitz): $NN = the animation's state, played as a one-block ROM program (export96.anim_special,
+  handlers98.anim_rom: its steps, boxes, voices as the ROM has them); how = heavy | launch | knockdown | kof (KOF's own
+  box reactions); the reaction rides P_ANIM (rom_c: the rom's `react`), the knockdown on its last hit.
+- `roster[].max_hits` 2-4 (Krauser: 4): the MAX's travelling objects pierce: each enemy they cross takes that many hits
+  (the MAX's damage split over them, a reel until the last), the object frozen PROJ_REHIT frames after each hit then
+  re-armed for the victims it is not done with, its victims sent away from the thrower (bproj_t vhits, ppad 1;
+  fighter_t vcnt / vdone; fighter.c strike).
+- `roster[].throws.back` "throw_c" (Krauser): the back throw (hold + back + A) = the C throw played turned (the victim
+  over to his back at the grab); his own BT_THROW_D is left empty (bthrow_t turn, fighter.c throw_start).
 - `roster[].throws.hold.multi` [k, ...] (Kim: `["fin"]`, note 20261009-011518-5d29): that hold hit plays every hit of
   its move (export_bm hold_rows: an impact row per active step, the tail kept to the last); the finisher's victim reels
   held at each earlier impact (damage / n each) and is knocked down only at the last (the rest: the total unchanged;

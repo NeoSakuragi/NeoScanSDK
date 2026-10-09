@@ -1306,7 +1306,12 @@ static uint8_t fury_press(fighter_t *f, uint8_t max) {         /* max: down held
 static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / back+A in the hold (any BT_*: the extra */
     fighter_t *v = f->held;                                      /* paired throw too, revamp 3) */
     const bthrow_t *th;
-    if (t < BT_COUNT && !f->ch->throws[t].nrows) t = BT_THROW_C;
+    if (t < BT_COUNT && !f->ch->throws[t].nrows) {
+        if (f->ch->throws[t].turn) f->facing = -f->facing;      /* its back throw = its C throw turned (bthrow_t turn,
+                                                                    Krauser): the victim goes over to its back, as the
+                                                                    chain's mirrored back throw (chain_throw) */
+        t = BT_THROW_C;
+    }
     th = thr_of(f, t);
     f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); f->srow = 0; f->speed = th->speed; f->zfront = 1;
     enter(v, S_THROWN); v->throw_id = t; v->thr = th; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
@@ -1743,6 +1748,7 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
                                                                     height (bproj_t air, TODO #211) */
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
     p->pcnt = d->hits; p->freeze = 0;                            /* its hits left (object.phase) */
+    p->vcnt = 0; p->vdone = 0;                                   /* (a piercing one: no victim hit yet) */
     p->tick = 0; p->state_t = 0; p->node = d->child_b0;          /* tick 0: shown at row 0 this frame (the update after
                                                                     the fighters' advances it from the next); state_t:
                                                                     its frames alive; node: the next frame its child is born */
@@ -1818,8 +1824,9 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
     }
     if (p->freeze) {                                             /* after a hit (bproj_t stop): frozen, it moves on */
         if (--p->freeze) return;                                 /* stop frames after it; with hits left it may hit */
-        if (d->kind == 1) p->hit_mask = 0;                       /* again then (object.phase; an eruption waits for */
-    }                                                            /* a re-arming row) */
+        if (d->kind == 1) p->hit_mask = d->vhits ? p->vdone : 0;   /* again then (object.phase; an eruption waits for */
+    }                                                            /* a re-arming row; a piercing one: every victim it is
+                                                                    not done with, bproj_t vhits) */
     p->state_t++;
     if (d->kind == PK_BOOM) { boom_update(p); return; }          /* (no off-screen end: it comes back) */
     if (p->pend == 4) p->pend = 5;                               /* its thrower's signal: one more pinned frame (KOF */
@@ -3203,6 +3210,11 @@ static void hold_crowd(fighter_t **fs, uint8_t n, const fighter_t *only) {
 /* an attacker's live box (a step's, a special's or a projectile's) against every opponent's hurt box: the hits it lands
  * now. combat() runs it once a frame for each attacker; a retimed move squeezed (several source frames in one game
  * frame, "retiming") runs it for each source frame passed (rt_probe) */
+static uint8_t share(uint8_t total, uint8_t k, uint8_t n) {     /* total * k / n, rounded down (no divide routine) */
+    uint16_t v = (uint16_t)total * k; uint8_t q = 0;
+    while (v >= n) { v -= n; q++; }
+    return q;
+}
 static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
     const bbox_t *atk;
     bbox_t abox;                                                 /* a script row's box: in the attacker's bank, copied */
@@ -3278,8 +3290,15 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                 if (v->state == S_WALK) to_neutral(v, 0);
                 continue;
             } else {
+                uint8_t dmg = a->spec_dmg, rc = a->spec_react;
+                if (a->pdef && a->pdef->vhits) {             /* a piercing object (bproj_t vhits, Krauser's MAX): */
+                    uint8_t sh = v->idx << 1, c = (a->vcnt >> sh) & 3, nh = a->pdef->vhits;   /* vhits hits on each */
+                    dmg = share(a->spec_dmg, c + 1, nh) - share(a->spec_dmg, c, nh);   /* victim, */
+                    if (c + 1 < nh) { rc = R_HEAVY; a->vcnt += 1 << sh; }   /* its damage split over them, a reel */
+                    else a->vdone |= 1 << v->idx;                /* until the last (its own reaction) */
+                }
                 if (!sounded++) { if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD); }
-                fighter_hit(a, v, a->spec_dmg, a->spec_react, 0);
+                fighter_hit(a, v, dmg, rc, 0);
                 if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                 if (a->state == S_SPECIAL && (a->ch->specials[a->spec_ix].sflags & SF_BIGHIT)) big_hit(a, v);
                 else if (a->pdef && a->owner && a->owner->state == S_SPECIAL && (a->owner->ch->specials[a->owner->spec_ix].sflags & SF_BIGHIT))
@@ -3288,6 +3307,8 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
             if (!hit_spark(a, v, atk, hb)) spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big;
                                                                 its source's own (DD, TODO #215) */
             if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */
+                if (a->pdef->vhits) { a->freeze = a->pdef->stop; continue; }   /* (a piercing one flies on: frozen
+                                                                    its stop frames, then re-armed, proj_update) */
                 if (a->pdef->kind == 1 || a->pdef->kind == PK_BOOM) { proj_hit(a); break; }   /* fireball, a boomerang); any other (an eruption) hits every */
                 proj_crowd(a);                                /* target it touches, each once (hit_mask): crowd */
             }

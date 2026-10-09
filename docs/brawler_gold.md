@@ -142,3 +142,26 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 
 ### Meter — Bruno's 0.9.7 note (built in 0.9.8)
 - The fury also costs 1 drive chunk, the MAX 2 (game.json meter.fury_drive / max_drive). The blinks only show when the drive is there too.
+
+## Krauser (heavy) — Bruno's arbitration sheet 2026-10-09
+Decisions set krauser-arb (Lab arbitrage.html?f=krauser); animation numbers = Krauser's KOF96 animation table (his
+dictionary: brawler-lab/anims.html?f=krauser, tools/brawler/animdict.py). BUILT on gold/krauser (size unchanged).
+- Chain A x3 (heavy): $6A close C > $70 far D > $6E crouch C (the neutral last hit) — as before.
+- Last hit + forward $6B far C, + up $6F close D (launcher), + down $73 crouch D, + back the throw $AE — as before.
+- Blitz: forward,forward + A = $8F = 623B Kaiser Kick (its ROM program); down,down + A = $96 = 41236D Kaiser Duel Sobat
+  (ROM program, added to handlers98.ROM_SPECIALS); up,up + A = $A9, a cartwheel of KOF96's unused Kaiser Inferno, played
+  as an animation special (3 hits, the last knocks down; KOF96 marks its hits as fire: the victim burns); down,up + A empty.
+- C (neutral, also the breaker) = $88: it IS the big Leg Tomahawk (236D: $88 the jump, $8A the axe kick, $8C the landing;
+  236B is $87 / $89 / $8B), played as KOF96's 236D program. C up / up-forward / down-forward: the same.
+- forward + C = Blitz Ball HIGH, down + C = Blitz Ball LOW: 214C / 214D (the C / D versions: the 7 px/f ball, A / B's
+  is 4 px/f), ROM programs (added to ROM_SPECIALS).
+- Air: jump + A $71 jump D (forward and straight jumps), jump + down + A $6C jump C; down,down + A in the air: empty.
+- Hold: hit $65 close B, finisher $6F close D; throws forward and back both $AE (the back one = $AE turned:
+  roster.throws.back "throw_c"; his forward + D throw $B1 is no longer played).
+- Fury (D) = $98, 641236C Kaiser Wave, as now.
+- MAX (down + D, low life) = KOF96's MAX Kaiser Wave (the handler's +$E4 bit 0 path: pose $9A, the bigger wave $9D,
+  impact $9E), its wave PIERCING: 4 hits on every enemy it crosses (roster.max_hits 4; 45 damage per enemy = the MAX
+  tier), victims sent away from him. "Purple": no purple Kaiser Wave exists in KOF96's data — the MAX wave's frames
+  ($9D) use palette 10 like the normal wave's ($9B), a blue ramp (KOF96's handler $4B5E8 changes only the states and
+  the box for the MAX, no palette); KOF96's own Kaiser Wave in our emulator and Rugal's KOF98 one (every charge level)
+  are blue too. A purple recolour of $9D would be a new feature (not built).

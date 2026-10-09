@@ -442,6 +442,10 @@ typedef struct fighter {
      * 20261009-114751-5d29) */
     uint8_t  inb, blz_slot;
     int8_t   wdz, pad_n;
+    /* a piercing object (bproj_t vhits, Krauser's MAX Kaiser Wave, 2026-10-09; fighter.c strike): vcnt = its hits landed
+     * on each victim (2 bits per fighter_t.idx), vdone = the victims it is done with (bit per idx) */
+    uint16_t vcnt;
+    uint8_t  vdone, vpad;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
