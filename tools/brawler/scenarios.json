@@ -2540,7 +2540,7 @@
    "gap": 50
   },
   "do": "Stage 1, the boss alone with 1 life point. Hit him with A and listen to the stage clear.",
-  "expect": "The stage clear plays KOF95's win-screen music (the short jingle of its winners' quote screen, about 5.6 s, then silence), no longer KOF98's.",
+  "expect": "At the boss KO: the KO sound and the music stops; 1 second later the boss's scream; 2 seconds after that KOF95's win music.",
   "do_keys": "60:-,3:a",
   "proof": 700
  },
