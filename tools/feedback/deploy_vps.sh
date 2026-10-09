@@ -13,6 +13,10 @@
 #   GET  /brawler/feedback/mine[/file/<id>/<name>]                  the player's list of the user's notes (Oros login);
 #        /brawler/feedback/mine/scenario/<id>/<sha>/<key>.state     a note's test state for a build (Player 0.0.22)
 #   /brawler-lab/feedback-api/  -> /api/                            behind the Oros login (the Brawler Lab's Feedback tab)
+#   /brawler/lab/               -> /lab/                            the Character Lab for the player (Oros token, X-Public):
+#                                                                   live configs, ship queue, catalogue (docs/feedback.md)
+#   /brawler/lab/dl/shell|packs|faces/                              the Lab's shell / packs / faces (/data/brawler/lab/...),
+#                                                                   static with Range, behind the Oros login (token or cookie)
 #   /brawler/download/          the builds (ROM, latest.json): behind the Oros login since Player 0.0.15 (auth_request
 #                               to the service's /dlauth: the token, or a player < 0.0.15 while legacy_open exists); only
 #                               /brawler/download/neoscan-player.apk stays public, so a new user can install the player
@@ -20,7 +24,7 @@
 set -e
 HOST=root@195.201.91.211; APP=/data/brawler/feedback/app
 cd "$(dirname "$0")"
-ssh -o BatchMode=yes "$HOST" "mkdir -p $APP /data/brawler/feedback/bundles"
+ssh -o BatchMode=yes "$HOST" "mkdir -p $APP /data/brawler/feedback/bundles /data/brawler/lab/shell /data/brawler/lab/packs /data/brawler/lab/faces /data/brawler/lab/config /data/brawler/lab/incoming"
 rsync -q server.py prices.json "$HOST:$APP/"
 ssh -o BatchMode=yes "$HOST" 'set -e
 cat > /etc/systemd/system/brawler-feedback.service <<UNIT
@@ -116,6 +120,20 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         client_max_body_size 8m;
         proxy_read_timeout 130s;
     }
+    # Character Lab (docs/feedback.md "Character Lab"): the API for the player, then the files (nginx serves Range)
+    location ^~ /brawler/lab/ {
+        limit_except GET PUT POST { deny all; }
+        auth_request /jlpt-auth;
+        proxy_pass http://127.0.0.1:8920/lab/;
+        proxy_set_header X-Public 1;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        client_max_body_size 4m;
+        proxy_read_timeout 30s;
+    }
+    location ^~ /brawler/lab/dl/shell/ { auth_request /jlpt-auth; alias /data/brawler/lab/shell/; add_header Cache-Control "private, no-cache"; }
+    location ^~ /brawler/lab/dl/packs/ { auth_request /jlpt-auth; alias /data/brawler/lab/packs/; add_header Cache-Control "private, no-cache"; }
+    location ^~ /brawler/lab/dl/faces/ { auth_request /jlpt-auth; alias /data/brawler/lab/faces/; add_header Cache-Control "private, no-cache"; }
     # <<< brawler-feedback
 """ % (pub("upload"), pub("transcribe"), pub("reply"), pub("test"), pub("review"))
 i = s.index("    location / {")
@@ -125,4 +143,4 @@ if nginx -t 2>/dev/null; then systemctl reload nginx; else cp /root/kanji.nginx.
 sleep 1; systemctl is-active brawler-feedback
 echo "signed out (expect 401 / 302 for every one but the APK):"
 for u in brawler/feedback/upload brawler/feedback/transcribe brawler/feedback/reply brawler/feedback/test brawler/feedback/review; do curl -s -X POST -o /dev/null -w "POST $u: %{http_code}\n" https://canneji.duckdns.org/$u; done
-for u in brawler/feedback/mine brawler/download/latest.json brawler/download/brawler.neo brawler-lab/feedback-api/list brawler/download/neoscan-player.apk; do curl -s -o /dev/null -w "GET $u: %{http_code}\n" https://canneji.duckdns.org/$u; done'
+for u in brawler/feedback/mine brawler/download/latest.json brawler/download/brawler.neo brawler-lab/feedback-api/list brawler/lab/catalogue brawler/lab/dl/packs/x brawler/download/neoscan-player.apk; do curl -s -o /dev/null -w "GET $u: %{http_code}\n" https://canneji.duckdns.org/$u; done'
