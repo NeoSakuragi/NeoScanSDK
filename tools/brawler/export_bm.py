@@ -271,7 +271,8 @@ def build(specs, outdir):
         return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {THROW_X, 'specials'},
                                extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()},
                                shared_fx={n: played_inputs(n) for n in names},   # (only the frames used: TODO #214)
-                               anim_specials={n: roster()[n]['anim_specials'] for n in names if roster().get(n, {}).get('anim_specials')})
+                               anim_specials={n: roster()[n]['anim_specials'] for n in names if roster().get(n, {}).get('anim_specials')},
+                               slots={n: {k: int(v[1:], 16) for k, v in roster()[n].get('moves', {}).items()} for n in names if n in roster()})
                                                 # (Krauser gold: roster[].anim_specials, export96.anim_special)
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
     # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross

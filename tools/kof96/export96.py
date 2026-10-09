@@ -325,13 +325,15 @@ def anim_special(m, cid, st, inp, how, add):
             'shape': [max(r[1] for r in script), 0, False], 'game_hits': rom['openings'][st], 'parts': [], 'links': [],
             'flash': None, 'rom': rom}
 
-def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None):
+def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None, slots=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
     extra: {name: {move: (state, step)}} more moves for one fighter, each a single held frame (the animation's step
     `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH).
     shared_fx: {name: inputs} the ROM specials whose effects from KOF's shared bank are exported (TODO #214: the
     brawler's slots and fury, export_bm.export; None = every special's)
-    anim_specials: {name: {"$NN": how}} animations played as specials of the pool (anim_special)"""
+    anim_specials: {name: {"$NN": how}} animations played as specials of the pool (anim_special)
+    slots: {name: {move: animation slot}} a move played from another slot of the fighter's animation table (the
+    brawler's game.json roster[].moves '$XX': Robert's gold, his up finisher = MAX 236236B's kick $D4)"""
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
     k98 = game in ('kof97', 'kof98', 'kof99')           # KOF97 and KOF99 use KOF98's layout
     cast, moves = {'kof97': (CAST97, MOVES97), 'kof98': (CAST98, MOVES98), 'kof99': (CAST99, MOVES99)}.get(game, (CAST, MOVES))
@@ -386,6 +388,10 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
             try: steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
             except Exception: continue
             anims[move] = {'slot': slot, 'state': state, 'mode': mode, 'steps': [
+                {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
+        for move, slot in (slots or {}).get(name, {}).items():
+            steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
+            anims[move] = {'slot': slot, 'state': slot, 'mode': mode, 'steps': [
                 {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
         if game != 'kof97' and (only is None or 'win' in only):
             parts, wsteps = [], []
