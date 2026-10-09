@@ -14,6 +14,9 @@ game.json's roster entry, no agent needed) or UNRESOLVED (listed, never guessed)
                choice, unresolved)
   c  anim      an animation-only special (roster[].anim_specials "$NN": how, the Krauser mechanism) when the library
                knows its reaction (an entry's "anim_special"); else unresolved
+  Piece ids (piece_ids.py, registry arb_pieces/<f>_ids.json, Bruno 2026-10-10): an answer's pieces are animations
+  ("anim-A9", "$A9") or decoded pieces by id: "S-004" = that special version (class b, its input in the slot, no
+  variant question: the id names one version), "T-001" = a throw (the throws are paired scripts: unresolved)
   d  -         unresolved: a pick that starts an undecoded special, a pick the library cannot place, a slot the engine
                has no field for, a changed chain length, the throws / fury script, and EVERY slot with a typed note
 
@@ -51,6 +54,8 @@ DECISIONS = '/data/brawler/feedback/decisions'
 LAB_REVIEW = '/data/brawler-lab/review'
 CACHE = '/data/tmp/arb_compile'
 OLD_IDS = {'air_dda': 'air_bz_dd'}                         # arbitrage.js OLD_IDS: an old answer read under its new id
+import piece_ids
+ID_RE = piece_ids.ID_RE                                    # S-001 / T-001: a decoded piece by its id
 
 # ---- the sheet's slots -> roster fields ----
 FIN = {'fin_fwd': 'forward', 'fin_up': 'up', 'fin_down': 'down_move'}
@@ -89,6 +94,11 @@ GAME_KEYS = ['name', 'display', 'bank', 'watch', 'routes', 'archetype', 'scale',
 
 
 def repo_of(game): return os.path.normpath(os.path.join(game, '..', '..'))
+def fmt(p): return p if ID_RE.match(p) else '$' + p           # a pick as the sheet shows it: S-004, T-001, $A9
+def token(p):
+    """a sheet answer's piece -> 'S-004' / 'T-001' or an animation's hex ('anim-a9', '$A9', 'A9' -> 'A9')"""
+    p = p.strip()
+    return p.upper() if ID_RE.match(p.upper()) else re.sub(r'^(anim-|\$)', '', p, flags=re.I).upper()
 def H(x): return '%X' % x
 
 
@@ -229,6 +239,8 @@ def load_pieces(game, f, G, D, write=True):
     if write:
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, 'w') as fh: json.dump(lib, fh, ensure_ascii=False, indent=1)
+        _, new = piece_ids.sync(f, lib, D, os.path.dirname(p))         # ids for the newly decoded pieces (decode order)
+        if new: print(f'{f}: new piece ids {" ".join(new)} ({piece_ids.path(f, os.path.dirname(p))})')
     return lib
 
 
@@ -241,8 +253,10 @@ class Res:
     def row(s): return dict(slot=s.slot, pick=s.pick, note=s.note, cls=s.cls, status=s.status, field=s.field, value=s.value, why=s.why)
 
 
-def compile_sheet(f, ans, G, lib):
-    """-> (new roster entry, [Res]): every answered slot linked / unchanged / unresolved"""
+def compile_sheet(f, ans, G, lib, reg=None):
+    """-> (new roster entry, [Res]): every answered slot linked / unchanged / unresolved (reg: the piece-id registry,
+    piece_ids.load: S- / T- ids in the answers)"""
+    reg = reg or {'pieces': {}}
     r = roster_of(G, f)
     new = copy.deepcopy(r)
     A = lib['anims']; S = lib['specials']
@@ -335,9 +349,41 @@ def compile_sheet(f, ans, G, lib):
     for slot in sorted(ORDER, key=ORDER.index):
         if slot not in mine: continue
         a = mine[slot]
-        ps = [p.replace('anim-', '').upper() for p in a.get('pieces') or []]
+        ps = [token(p) for p in a.get('pieces') or []]
         x = Res(slot, ps, (a.get('note') or '').strip())
         nowv = now_val(slot); nowp = pieces_of(nowv)
+        ids = [p for p in ps if ID_RE.match(p)]
+        if ids:                                            # a decoded piece by its id (the Workshop's S- / T- ids)
+            e = piece_ids.resolve(reg, ids[0])
+            if e and e['kind'] == 'special' and e['input'] in S: x.anim0 = (S[e['input']]['anims'] or [None])[0]
+            if x.note and not ((lib.get('handled') or {}).get(slot) or {}).get('note') == x.note:
+                x.status, x.cls, x.why = 'unresolved', 'd', 'typed note: ' + x.note
+            elif len(ps) > 1: x.status, x.cls, x.why = 'unresolved', 'd', f'{" ".join(fmt(p) for p in ps)}: a piece id plays alone in its slot'
+            elif not e: x.status, x.cls, x.why = 'unresolved', 'd', f'{ids[0]} is not in {f}\'s registry (arb_pieces/{f}_ids.json)'
+            elif e.get('gone'): x.status, x.cls, x.why = 'unresolved', 'd', f'{ids[0]} ({e["name"]}) is gone from the piece library'
+            elif e['kind'] == 'throw': x.status, x.cls, x.why = 'unresolved', 'd', f'{ids[0]} {e["name"]}: the throws are paired scripts (victim side): an agent'
+            elif nowv == e['input']: x.status, x.value, x.why = 'unchanged', nowv, f'pick = now ({ids[0]} {e["name"]})'
+            elif slot in NOFIELD or slot == 'fury_note': x.status, x.cls, x.why = 'unresolved', 'd', NOFIELD.get(slot, 'the fury is a script')
+            elif not (slot in BLITZ or slot in SPEC or slot in AIRSP or slot in ('fury', 'max')):
+                x.status, x.cls, x.why = 'unresolved', 'd', f'{ids[0]} {e["name"]} is a special: this slot plays a normal (an animation)'
+            elif (slot in AIRSP) != bool(e['air']) and not (slot == 'air_bz_dd' and e['air']):
+                x.status, x.cls, x.why = 'unresolved', 'd', f'{ids[0]} {e["name"]} is a {"n air" if e["air"] else " ground"} special: not for this slot'
+            elif (slot == 'max') != e['input'].startswith('MAX '):
+                x.status, x.cls, x.why = 'unresolved', 'd', f'{ids[0]} {e["name"]}: ' + ('not a MAX version' if slot == 'max' else 'a MAX version plays in the MAX slot')
+            else:
+                v = e['input']; x.status, x.cls, x.value, x.why = 'linked', 'b', v, f'{ids[0]} {e["name"]} (registry)'
+                if slot in BLITZ: new.setdefault('blitz', {})[BLITZ[slot]] = v; x.field = f'blitz.{BLITZ[slot]}'
+                elif slot in SPEC:
+                    sp = new.setdefault('specials', {}); old = sp.get('D')
+                    sp[SPEC[slot]] = v; x.field = f'specials.{SPEC[slot]}'
+                    if slot == 'sp_c':
+                        fol = [k for k in FOLLOW_D if sp.get(k) == old]
+                        for k in fol: sp[k] = v
+                        if fol: x.field += ' (+ ' + ' '.join(fol) + ': the neutral\'s)'
+                elif slot in AIRSP: new.setdefault('air_specials', {})[AIRSP[slot]] = v; x.field = f'air_specials.{AIRSP[slot]}'
+                else: new[slot] = v; x.field = slot
+            if x.status == 'unresolved' and not x.field: x.field = slot
+            out.append(x); continue
         same = ps == nowp or (ps and nowp and len(ps) == 1 and ps[0] in nowp and isinstance(nowv, str) and (nowv in S or nowv.startswith('$')))
         x.field = slot
         hd = (lib.get('handled') or {}).get(slot)
@@ -482,7 +528,7 @@ def write_game(path, f, new):
 
 def gold_section(f, display, res, date, version):
     lk = [x for x in res if x.status == 'linked']; un = [x for x in res if x.status == 'unresolved']
-    def pk(x): return ' then '.join('$' + p for p in x.pick) if x.pick else 'empty'
+    def pk(x): return ' then '.join(fmt(p) for p in x.pick) if x.pick else 'empty'
     L = [f'', f'### {display}: sheet round {date} (tools/brawler/arb_compile.py, decisions set `{f}-arb`, build {version})',
          f'Compiled from the sheet without an agent: {len(lk)} slot(s) linked, {len(un)} unresolved'
          f'{" (listed for an agent, nothing guessed)" if un else ""}; slots whose pick = now not listed.']
@@ -564,7 +610,7 @@ def check(game, f, res, lib):
             if h < state['hp']: lg['hits'].append((w, state['hp'] - h, st(2)))
             state['hp'] = h
         target = lambda lg: any(w.endswith(' ' + v) for w in lg['starts']) and \
-            (A_kind(lib, x.pick[0]) != 'attack' or any(h[0].endswith(' ' + v) for h in lg['hits']))
+            (A_kind(lib, anim0(x)) != 'attack' or any(h[0].endswith(' ' + v) for h in lg['hits']))
         for keys, until, n in ph:
             for part in keys.split(','):
                 c, k = part.split(':')
@@ -576,7 +622,7 @@ def check(game, f, res, lib):
             if st() in ('IDLE', 'WALK') and not b.fget(0, 'freeze'): break
             step()
         shown = {frames[i] for i in lg['frames'] if i < len(frames)}
-        wf = want_frames.get(x.pick[0])
+        wf = want_frames.get(anim0(x))
         return dict(dist=dist, started=any(w.endswith(' ' + v) for w in lg['starts']), starts=lg['starts'][-4:],
                     anim_on_screen=bool(shown & wf) if wf else None,
                     hits=[h for h in lg['hits'] if h[0].endswith(' ' + v)][:4])
@@ -587,7 +633,7 @@ def check(game, f, res, lib):
         if x.slot in HOLD: rows.append((x, 'SKIP', 'the hold is not scripted here')); continue
         ph = phases(x)
         if not ph: rows.append((x, 'SKIP', 'no input script')); continue
-        atk = A_kind(lib, x.pick[0]) == 'attack'
+        atk = A_kind(lib, anim0(x)) == 'attack'
         for dist in (44, 30, 60, 80, 110):
             got = attempt(x, v, dist, ph)
             ok = got['started'] and got['anim_on_screen'] is not False and (bool(got['hits']) or not atk)
@@ -598,6 +644,7 @@ def check(game, f, res, lib):
 
 
 def A_kind(lib, aid): return lib['anims'].get(aid, {}).get('kind')
+def anim0(x): return getattr(x, 'anim0', None) or x.pick[0]      # the slot's first animation (an S- pick: its special's)
 
 
 def anim_frames(game, f):
@@ -649,12 +696,12 @@ def main():
     D = fetch_dict(f, a.dict)
     lib = load_pieces(game, f, G, D, write=not a.dry_run)
     ans = fetch_answers(f, a.answers)
-    new, res = compile_sheet(f, ans, G, lib)
+    new, res = compile_sheet(f, ans, G, lib, piece_ids.load(f, os.path.dirname(pieces_path(game, f))))
     old = roster_of(G, f)
     print(f'{f}: {len([k for k in ans if k != "done"])} answered slot(s) in {f}-arb' + ('' if ans else ' (no sheet: everything = now)'))
     print(f'{"slot":<10} {"pick":<16} {"class":<5} {"status":<10} field / value / why')
     for x in sorted(res, key=lambda x: ORDER.index(x.slot) if x.slot in ORDER else -1):
-        pk = ' '.join('$' + p for p in x.pick) if isinstance(x.pick, list) else str(x.pick)
+        pk = ' '.join(fmt(p) for p in x.pick) if isinstance(x.pick, list) else str(x.pick)
         print(f'{x.slot:<10} {pk or "empty":<16} {x.cls or "":<5} {x.status:<10} '
               + (f'{x.field} = {json.dumps(x.value, ensure_ascii=False)}  ({x.why})' if x.status == 'linked' else x.why))
     changed = {k for k in set(new) | set(old) if new.get(k) != old.get(k)}
@@ -678,7 +725,7 @@ def main():
         if lk and not a.no_check:
             rows = check(game, f, res, lib)
             print(f'{"slot":<10} {"pick":<10} {"class":<5} result')
-            for x, r, why in rows: print(f'{x.slot:<10} {" ".join("$" + p for p in x.pick):<10} {x.cls:<5} {r}  {why}')
+            for x, r, why in rows: print(f'{x.slot:<10} {" ".join(fmt(p) for p in x.pick):<10} {x.cls:<5} {r}  {why}')
             os.makedirs(a.out, exist_ok=True)
             json.dump([dict(x.row(), check=r, detail=why) for x, r, why in rows], open(os.path.join(a.out, f'{f}_check.json'), 'w'), indent=1, default=list)
     print(f'REPORT {f}: linked free {len(lk)}; unchanged {sum(x.status == "unchanged" for x in res)}; unresolved {len(un)}'

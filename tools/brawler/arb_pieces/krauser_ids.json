@@ -1,0 +1,114 @@
+{
+ "fighter": "krauser",
+ "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
+ "next": {
+  "S": 12,
+  "T": 3
+ },
+ "pieces": {
+  "S-001": {
+   "kind": "special",
+   "input": "214A",
+   "name": "Blitz Ball, A version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-002": {
+   "kind": "special",
+   "input": "214B",
+   "name": "Blitz Ball, B version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-003": {
+   "kind": "special",
+   "input": "214C",
+   "name": "Blitz Ball, C version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-004": {
+   "kind": "special",
+   "input": "214D",
+   "name": "Blitz Ball, D version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-005": {
+   "kind": "special",
+   "input": "236D",
+   "name": "Leg Tomahawk, D version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-006": {
+   "kind": "special",
+   "input": "41236B",
+   "name": "Kaiser Duel Sobat, B version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-007": {
+   "kind": "special",
+   "input": "41236D",
+   "name": "Kaiser Duel Sobat, D version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-008": {
+   "kind": "special",
+   "input": "623B",
+   "name": "Kaiser Kick, B version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-009": {
+   "kind": "special",
+   "input": "623D",
+   "name": "Kaiser Kick, D version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-010": {
+   "kind": "special",
+   "input": "641236C",
+   "name": "Kaiser Wave, C version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-011": {
+   "kind": "special",
+   "input": "MAX 641236C",
+   "name": "Kaiser Wave MAX, C version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "T-001": {
+   "kind": "throw",
+   "input": "forward + C",
+   "name": "Throw, forward + C",
+   "move": "throw_c",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  },
+  "T-002": {
+   "kind": "throw",
+   "input": "forward + D",
+   "name": "Throw, forward + D",
+   "move": "throw_d",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  }
+ }
+}

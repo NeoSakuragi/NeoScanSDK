@@ -241,3 +241,26 @@ roster entry without an agent wherever the pieces already exist; the rest is lis
   directions), all 7 PASS in the emulator, game.json = 74e5a04's except exactly the 3 unresolved: forward + C $1EF (EX
   646B / D variant choice), down + C $9F (426B undecoded -> the agent's anim_specials "kof") and $E5's hop note.
   Kim / Krauser / Robert's current sheets (and "now" fed back as a sheet) compile to no change.
+
+## Piece ids and the Workshop (2026-10-10, tools/brawler/piece_ids.py, tools/brawler/workshop.py)
+The Lab in two parts: WORKSHOP (token-bound: conversation, unlock requests, decoding) and ASSEMBLY (the arbitration
+sheet + arb_compile.py, zero tokens).
+- Piece ids (Bruno's naming, binding): animations keep their `$NN`; decoded programs get per-fighter ids in decode
+  order, never renumbered or reused: `S-001`… = special VERSIONS (light / heavy / EX / MAX, ground and air: each its own
+  piece), `T-001`… = throws / grabs / command grabs. The input and a display name ("Ryuuga, C version") are data on the
+  piece, never in the id. Registry = source of truth: tools/brawler/arb_pieces/<f>_ids.json. `arb_compile.py pieces <f>`
+  (every real run) gives ids to newly decoded pieces; a piece the library loses is marked `gone`, its id kept.
+- The compiler takes `S-004` in a sheet answer (class b: that special's input in the slot, no variant question);
+  `T-` picks, an S- id in a normal slot, a ground special in an air slot or a non-MAX one in the MAX slot are unresolved.
+- Robert (2026-10-10): S-001 23624C Ryuuko Ranbu C, S-002 623A Ryuuga A, S-003 623C Ryuuga C, S-004 623D Ryuu Zanshou D,
+  S-005 624D Hien Senpuu Kyaku D, S-006 EX 236C Ryuugeki Ken EX C, S-007 EX 624D, S-008 EX 646D Gen'ei Kyaku EX D,
+  S-009 MAX 23624C, S-010 air 214D Hien Ryuujin Kyaku D; T-001 forward + C Ryuuchou Kyaku, T-002 forward + D Kubikiri
+  Nage; 17 special versions locked. Krauser S-001..S-011 + T-001/2 (2 locked), Kim S-001..S-007 + T-001.
+- Workshop page brawler-lab/workshop.html?f=<f> (review/<f>_workshop.json from workshop.py, built by make_site.py):
+  Specials (unlocked with id / name / input / clips / what it does; locked greyed with "Unlock this" + mic), Throws,
+  Animations (each attack step's hit class: KOF98/99 attack box id -> KOF's REACT tables, situation 2 standing (light /
+  heavy from situation 0) and 6 juggled; other games "class not decoded"), a thread per piece (decisions set
+  `<f>-workshop`, one entry per message). The arbitration picker offers the unlocked S- / T- pieces, lists the locked
+  specials with a Workshop link, and "Now" names the S- ids a slot plays.
+- CLI: `workshop.py list [f]` (OPEN = his request is the last message), `reply <f> <piece> "<text>"`,
+  `unlock <f> <piece>` (only a piece decoded in the library: id + reply + the page data republished), `publish <f>`.

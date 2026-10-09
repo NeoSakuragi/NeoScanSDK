@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fighter Workshop</title>
+<style>
+/* A fighter's WORKSHOP (Brawler Lab part 1: conversation, unlock requests, decoding; part 2 = the arbitration sheet).
+   The fighter's catalogue: specials (S- ids), throws (T- ids), animations ($NN) with each attack frame's hit class, and a
+   short thread per piece. Behind the Oros login like the Lab. E-ink: black on white, solid borders, state said in words
+   (UNLOCKED / LOCKED), never colour alone. anims_core.js (dictionary, players) + workshop.js (the page) + micnote.js */
+:root { --line: 2px solid #000; color-scheme: light; }
+html, body { background: #fff; color: #000; }
+body { margin: 0; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 60px; }
+#ws { max-width: 900px; margin: 0 auto; }
+[hidden] { display: none !important; }
+h1 { font-size: 24px; margin: 4px 0 6px; }
+h2 { font-size: 18px; margin: 24px 0 4px; letter-spacing: .04em; text-transform: uppercase; border-bottom: 3px solid #000; padding-bottom: 2px; }
+h3 { font-size: 15px; margin: 14px 0 4px; letter-spacing: .05em; text-transform: uppercase; }
+.intro, .about { font-size: 15px; margin: 4px 0 8px; }
+.links, .jump { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.links a, .jump a { color: #000; font-weight: 700; border: var(--line); padding: 4px 9px; text-decoration: none; font-size: 15px; }
+.counts { font: 14px ui-monospace, monospace; border: var(--line); padding: 6px 8px; margin: 8px 0; }
+button { font: inherit; font-size: 15px; background: #fff; color: #000; border: var(--line); padding: 5px 10px; cursor: pointer; border-radius: 0; }
+button[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
+button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
+.piece { border: var(--line); padding: 8px; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; scroll-margin-top: 8px; }
+.piece.locked { border-style: dashed; }
+.piece.locked .pname, .piece.locked .what, .piece.locked .pin { color: #444; }
+.piece.locked canvas { opacity: .55; }
+.phead { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.pname { font-weight: 700; font-size: 18px; flex: 1 1 12em; }
+.tag { font: 700 12px/1.2 ui-monospace, monospace; padding: 2px 6px; border: 2px solid #000; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+.tag.on { background: #000; color: #fff; }
+.tag.off { border-style: dashed; }
+.pin, .what { font-size: 14px; margin: 0; }
+.pin code { font: 700 14px ui-monospace, monospace; }
+.clips { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; }
+.clip { margin: 0; border: 1px solid #000; padding: 3px; display: flex; flex-direction: column; align-items: center; gap: 2px; max-width: 160px; }
+.clip canvas { display: block; image-rendering: pixelated; cursor: pointer; max-width: 100%; height: auto; }
+.clip figcaption { font: 12px/1.25 ui-monospace, monospace; text-align: center; overflow-wrap: anywhere; }
+.hits { font: 12px/1.35 ui-monospace, monospace; margin: 0; padding-left: 1.2em; }
+.thread { border-top: 1px solid #000; padding-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.msg { font-size: 14px; border-left: 4px solid #000; padding: 2px 8px; }
+.msg.mine { border-left-style: double; border-left-width: 6px; }
+.msg b { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; margin-right: 6px; }
+.msg .at { font: 11px ui-monospace, monospace; margin-left: 6px; }
+.ask { display: flex; flex-direction: column; gap: 6px; }
+.ask label { font-weight: 700; font-size: 14px; }
+.ask textarea { font: inherit; font-size: 15px; border: var(--line); padding: 5px 7px; }
+.ask .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.saved { font: 12px ui-monospace, monospace; min-height: 1em; }
+.agrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.acard { border: var(--line); padding: 5px; display: flex; flex-direction: column; gap: 4px; min-width: 0; scroll-margin-top: 8px; }
+.acard canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; cursor: pointer; align-self: center; }
+.acard .cap { font: 12px/1.25 ui-monospace, monospace; overflow-wrap: anywhere; }
+.acard details summary { cursor: pointer; font-size: 14px; font-weight: 700; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+.filters input { font: inherit; font-size: 15px; border: var(--line); padding: 4px 6px; width: 9em; }
+.shown { font: 13px ui-monospace, monospace; }
+.micfield textarea { min-height: 2.3em !important; }
+@media (max-width: 520px) { body { font-size: 16px; } .pname { font-size: 17px; } .agrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+</style>
+</head>
+<body>
+<main id="ws"><p>Loading…</p></main>
+<script src="micnote.js"></script>
+<script src="anims_core.js"></script>
+<script src="workshop.js"></script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+{
+ "fighter": "robert",
+ "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
+ "next": {
+  "S": 11,
+  "T": 3
+ },
+ "pieces": {
+  "S-001": {
+   "kind": "special",
+   "input": "23624C",
+   "name": "Ryuuko Ranbu, C version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-002": {
+   "kind": "special",
+   "input": "623A",
+   "name": "Ryuuga, A version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-003": {
+   "kind": "special",
+   "input": "623C",
+   "name": "Ryuuga, C version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-004": {
+   "kind": "special",
+   "input": "623D",
+   "name": "Ryuu Zanshou, D version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-005": {
+   "kind": "special",
+   "input": "624D",
+   "name": "Hien Senpuu Kyaku, D version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-006": {
+   "kind": "special",
+   "input": "EX 236C",
+   "name": "Ryuugeki Ken EX, C version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-007": {
+   "kind": "special",
+   "input": "EX 624D",
+   "name": "Hien Senpuu Kyaku EX, D version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-008": {
+   "kind": "special",
+   "input": "EX 646D",
+   "name": "Gen'ei Kyaku EX, D version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-009": {
+   "kind": "special",
+   "input": "MAX 23624C",
+   "name": "Ryuuko Ranbu MAX, C version",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-010": {
+   "kind": "special",
+   "input": "air 214D",
+   "name": "Hien Ryuujin Kyaku (air), D version",
+   "air": true,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "T-001": {
+   "kind": "throw",
+   "input": "forward + C",
+   "name": "Ryuuchou Kyaku",
+   "move": "throw_c",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  },
+  "T-002": {
+   "kind": "throw",
+   "input": "forward + D",
+   "name": "Kubikiri Nage",
+   "move": "throw_d",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  }
+ }
+}

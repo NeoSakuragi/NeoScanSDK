@@ -1,0 +1,74 @@
+{
+ "fighter": "kim",
+ "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
+ "next": {
+  "S": 8,
+  "T": 2
+ },
+ "pieces": {
+  "S-001": {
+   "kind": "special",
+   "input": "214B",
+   "name": "214B",
+   "air": false,
+   "source": "export_kz.PROG_MOVES",
+   "assigned": "2026-10-10"
+  },
+  "S-002": {
+   "kind": "special",
+   "input": "236A",
+   "name": "236A",
+   "air": false,
+   "source": "export_kz.PROG_MOVES",
+   "assigned": "2026-10-10"
+  },
+  "S-003": {
+   "kind": "special",
+   "input": "236C",
+   "name": "236C",
+   "air": false,
+   "source": "export_kz.PROG_MOVES",
+   "assigned": "2026-10-10"
+  },
+  "S-004": {
+   "kind": "special",
+   "input": "421A",
+   "name": "421A",
+   "air": false,
+   "source": "export_kz.PROG_MOVES",
+   "assigned": "2026-10-10"
+  },
+  "S-005": {
+   "kind": "special",
+   "input": "6246A",
+   "name": "6246A",
+   "air": false,
+   "source": "export_kz.PROG_MOVES",
+   "assigned": "2026-10-10"
+  },
+  "S-006": {
+   "kind": "special",
+   "input": "[2]8C",
+   "name": "[2]8C",
+   "air": false,
+   "source": "export_kz.PROG_MOVES",
+   "assigned": "2026-10-10"
+  },
+  "S-007": {
+   "kind": "special",
+   "input": "j.2B",
+   "name": "j.2B",
+   "air": true,
+   "source": "export_kz.AIR",
+   "assigned": "2026-10-10"
+  },
+  "T-001": {
+   "kind": "throw",
+   "input": "forward + C",
+   "name": "Throw (6C / 4C)",
+   "move": "throw_c",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  }
+ }
+}

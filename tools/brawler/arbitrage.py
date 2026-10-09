@@ -10,7 +10,7 @@ import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, HERE)
-import build_tables
+import build_tables, piece_ids
 
 FIGHTERS = ('kim', 'krauser', 'robert')                     # the fighters with an animation dictionary (animdict.DICTS)
 HOLD_HIT_DEFAULT = 'engine default: his fastest close normal'   # export_bm.HOLD_DEFAULT hit None (hold_move)
@@ -34,9 +34,11 @@ def generated(lab, n):
     return {'links': ch['links'], 'finishers': fin, 'dash': ((f['tree'].get('entries') or {}).get('dash') or {}).get('move')}
 
 
-def now_of(r, D, chain_len, gen=None):
-    """slot id -> {pieces: [hex, ...], text}: the roster entry r's moves as dictionary animations; what the roster does
-    not name (a fighter on the default chain) from the build's generator (gen = generated())"""
+def now_of(r, D, chain_len, gen=None, sids=None):
+    """slot id -> {pieces: [hex, ...], text, moves, ids}: the roster entry r's moves as dictionary animations (ids: the
+    S- ids of the decoded specials the slot plays, sids = piece_ids.by_input(registry, 'special')); what the roster
+    does not name (a fighter on the default chain) from the build's generator (gen = generated())"""
+    sids = sids or {}
     moves = r.get('moves') or {}
     def anims(name):
         if not name: return []
@@ -50,7 +52,7 @@ def now_of(r, D, chain_len, gen=None):
         t = [text] if text else []
         t += [f'${p}: {tags[p]}' for p in ps if p in tags]
         if not ps and names and names[0] and not text: t.append(f'{names[0]} (no animation found)')
-        return {'pieces': ps, 'text': '; '.join(t), 'moves': [n for n in names if n]}
+        return {'pieces': ps, 'text': '; '.join(t), 'moves': [n for n in names if n], 'ids': [sids[n] for n in names if n in sids]}
     out = {}
     links = list((r.get('chain') or {}).get('links') or [])
     own = r.get('finishers') or {}
@@ -117,7 +119,8 @@ def build(out, game=None, names=None):
         D = {a['id']: a for a in A['anims']}
         arch = r.get('archetype', 'balanced')
         doc = {'fighter': n, 'display': A['display'], 'archetype': arch, 'chain_len': lens[arch],
-               'version': open(os.path.join(game, 'VERSION')).read().strip(), 'now': now_of(r, D, lens[arch], generated(lab, n))}
+               'version': open(os.path.join(game, 'VERSION')).read().strip(),
+               'now': now_of(r, D, lens[arch], generated(lab, n), piece_ids.by_input(piece_ids.load(n), 'special'))}
         json.dump(doc, open(os.path.join(out, 'review', f'{n}_arb.json'), 'w'), ensure_ascii=False, indent=0)
         res[n] = doc
     return res

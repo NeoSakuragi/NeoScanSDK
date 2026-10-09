@@ -8,14 +8,18 @@
 // Answers: the decisions store, set "<fighter>-arb", one id per slot: choice 1 = his (pieces "anim-<hex>" in order, note);
 // id "presses" = the chain's length; id "done" = "Done — send to Claude" (note = the whole sheet as text).
 // Renamed slots: an answer saved under an old id is read under its new one while the new id has none (OLD_IDS).
+// Piece ids (Workshop, review/<fighter>_workshop.json, tools/brawler/piece_ids.py): the picker offers the animations
+// ($NN, saved "anim-<hex>") and the UNLOCKED pieces (S- specials, T- throws, saved as their id: arb_compile.py links an
+// S- id as that special's input); locked specials are listed greyed with a link to the Workshop. "Now" shows the S- ids
+// of the decoded specials a slot plays.
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
   const root = document.getElementById('arb');
   const f = new URLSearchParams(location.search).get('f') || 'kim';
   const SET = f + '-arb';
   const SC = 0.6;                                  // one scale for every clip of the page (the picker's too)
-  const [D, NOW] = await Promise.all([AD.load(f).catch(() => null),
-    fetch('review/' + f + '_arb.json', { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null, () => null)]);
+  const getJ = u => fetch(u, { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null, () => null);
+  const [D, NOW, W] = await Promise.all([AD.load(f).catch(() => null), getJ('review/' + f + '_arb.json'), getJ('review/' + f + '_workshop.json')]);
   if (!D || !NOW) { root.replaceChildren(h('p', { text: 'No arbitration sheet for "' + f + '" (it needs an animation dictionary).' })); return; }
   let ans = {};
   try { const r = await fetch(API + 'decisions/' + SET, { cache: 'no-store', credentials: 'same-origin' }); if (r.ok) ans = await r.json(); } catch (e) { /* offline: the page still works, saves will say so */ }
@@ -58,12 +62,17 @@
   const range = n => [...Array(n).keys()];
   const presses = () => { const a = ans.presses; const n = a && a.choice === 1 ? parseInt(a.note, 10) : NaN; return n >= 1 && n <= 8 ? n : Math.max(N0, NOW.now._presses || 0); };
 
+  // ---- the Workshop's pieces: S- / T- id -> {id, name, input, anims, ...} ----
+  const PIECES = {};
+  for (const p of ((W && W.specials) || []).concat((W && W.throws) || [])) if (p.id) PIECES[p.id] = p;
+  const isId = p => /^[ST]-\d{3,}$/.test(p);
+  const fmtP = p => isId(p) ? p : '$' + p;
   // ---- a slot's state: his answer (choice 1) else what the game plays now ----
   const mine = id => !!(ans[id] && ans[id].choice === 1);
   const nowOf = id => NOW.now[id] || { pieces: [], text: '', moves: [] };
-  const stateOf = id => mine(id) ? { pieces: (ans[id].pieces || []).map(p => p.replace(/^anim-/, '')).filter(p => D.by[p]), note: ans[id].note || '' }
+  const stateOf = id => mine(id) ? { pieces: (ans[id].pieces || []).map(p => p.replace(/^anim-/, '')).filter(p => D.by[p] || PIECES[p]), note: ans[id].note || '' }
                                  : { pieces: nowOf(id).pieces.filter(p => D.by[p]), note: '' };
-  const name = id => { const a = D.by[id]; return a ? '$' + id + (a.exported[0] ? ' ' + a.exported[0] : a.moves && a.moves[0] ? ' ' + a.moves[0] : '') : '$' + id; };
+  const name = id => { if (PIECES[id]) return id + ' ' + PIECES[id].name; const a = D.by[id]; return a ? '$' + id + (a.exported[0] ? ' ' + a.exported[0] : a.moves && a.moves[0] ? ' ' + a.moves[0] : '') : '$' + id; };
   async function post(id, body) {
     const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(Object.assign({ set: SET, id }, body)) });
@@ -72,9 +81,9 @@
     ans[id] = j.answer || Object.assign({}, ans[id], body);
   }
 
-  // ---- a clip: tap toggles ¼ speed ----
+  // ---- a clip: tap toggles ¼ speed (an S- / T- piece: its first animation, captioned with its id and name) ----
   function clip(hex, onRemove) {
-    const a = D.by[hex];
+    const a = D.by[PIECES[hex] ? PIECES[hex].anims[0] : hex];
     const fig = h('figure', { class: 'clip' });
     if (a && a.status === 'ok' && a.f.length) {
       const { cv, st } = AD.player(D, a, SC, { lazy: true });
@@ -85,7 +94,7 @@
     }
     const cap = h('figcaption', { text: name(hex) });
     fig.append(cap);
-    if (onRemove) fig.append(h('button', { type: 'button', class: 'rm', text: 'Remove', 'aria-label': 'Remove $' + hex, onclick: onRemove }));
+    if (onRemove) fig.append(h('button', { type: 'button', class: 'rm', text: 'Remove', 'aria-label': 'Remove ' + fmtP(hex), onclick: onRemove }));
     return fig;
   }
 
@@ -102,7 +111,7 @@
       saved.textContent = 'Saving…';
       try {
         await post(id, Object.assign({ question: `${D.display}: ${def.label}`, choice: 1, label: pieces.length ? 'picked' : 'empty',
-          pieces: pieces.map(p => 'anim-' + p), note: ta.value }));
+          pieces: pieces.map(p => isId(p) ? p : 'anim-' + p), note: ta.value }));
         saved.textContent = 'Saved';
       } catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
       if (quiet) { tag.textContent = 'yours'; tag.className = 'tag mine'; } else draw();     // a note: no redraw (keeps the focus)
@@ -114,8 +123,9 @@
       const kids = [h('div', { class: 'shead' }, h('span', { class: 'lab', text: def.label }), tag)], side = [];
       let left = null;
       if (!def.noAnim) {
-        const nowLine = 'Now: ' + (nw.pieces.length ? nw.pieces.map(p => '$' + p).join(' then ') : 'nothing') + (nw.text ? ' · ' + nw.text : '');
-        if (his || nw.text) kids.push(h('p', { class: 'nowtxt', text: nowLine }));
+        const nids = (nw.ids || []).map(i => i + (PIECES[i] ? ' ' + PIECES[i].name : ''));
+        const nowLine = 'Now: ' + (nids.length ? nids.join(', ') + ' (' : '') + (nw.pieces.length ? nw.pieces.map(p => '$' + p).join(' then ') : 'nothing') + (nids.length ? ')' : '') + (nw.text ? ' · ' + nw.text : '');
+        if (his || nw.text || nids.length) kids.push(h('p', { class: 'nowtxt', text: nowLine }));
         const row = h('div', { class: 'clips' });
         if (!st.pieces.length) row.append(h('span', { class: 'empty', text: his ? 'Empty' : 'Nothing today' }));
         st.pieces.forEach((p, i) => {
@@ -196,6 +206,23 @@
       shown.textContent = `${n} of ${cards.length} shown`;
     };
     q.oninput = apply;
+    // the Workshop's pieces: unlocked S- / T- (pickable), locked specials (greyed, a link to ask for them)
+    const wsP = W ? [...W.specials, ...W.throws] : [];
+    const unl = wsP.filter(p => p.id), lck = wsP.filter(p => !p.id);
+    const pcards = unl.map(p => {
+      const a = D.by[p.anims[0]];
+      const kids = [];
+      if (a && a.status === 'ok' && a.f.length) { const { cv, st } = AD.player(D, a, SC, { lazy: true }); st.cv = cv; own.push(st); watch(st); cv.onclick = () => { st.speed = st.speed === 1 ? 0.25 : 1; }; kids.push(cv); }
+      kids.push(h('div', { class: 'cap', text: p.id + ' · ' + p.name + ' · ' + p.input + (cur.includes(p.id) ? ' · IN THIS SLOT' : '') }),
+        h('button', { type: 'button', class: 'use', text: (adding ? 'Add ' : 'Use ') + p.id, onclick: () => { close(); onPick(p.id); } }));
+      return h('div', { class: 'pcard' + (cur.includes(p.id) ? ' cur' : '') }, kids);
+    });
+    const lockedList = lck.length ? h('details', { class: 'plocked' }, h('summary', { text: 'Locked specials (' + lck.length + '): not decoded yet' }),
+      h('ul', {}, lck.map(p => h('li', {}, h('span', { text: p.name + ' (' + p.input + ') ' }),
+        h('a', { href: 'workshop.html?f=' + f + '#' + encodeURIComponent(p.keys[0]), target: '_blank', text: 'Ask in the Workshop' }))))) : null;
+    const piecesBox = W ? h('div', { class: 'ppieces' }, h('b', { text: 'Decoded pieces (Workshop ids): a special plays as its whole program' }),
+      pcards.length ? h('div', { class: 'pgrid' }, pcards) : h('span', { text: 'None unlocked yet.' }), lockedList,
+      h('b', { text: 'Animations' })) : null;
     const tog = (txt, on, fn) => { const b = h('button', { type: 'button', 'aria-pressed': String(on), text: (on ? '✓ ' : '') + txt }); b.onclick = () => { const v = fn(); b.setAttribute('aria-pressed', String(v)); b.textContent = (v ? '✓ ' : '') + txt; }; return b; };
     const bSlow = tog('¼ speed', pSlow, () => { pSlow = !pSlow; cards.forEach(c => { c._st.speed = pSlow ? 0.25 : 1; }); return pSlow; });
     const bAtk = tog('Attacks only', pAtk, () => { pAtk = !pAtk; apply(); return pAtk; });
@@ -205,7 +232,7 @@
         h('div', { class: 'phead' }, h('b', { text: (adding ? 'Add after the current ones in ' : 'Pick for ') + def.label }), q, bSlow, bAtk,
           h('button', { type: 'button', text: 'Close', onclick: close })),
         h('div', { class: 'frow', role: 'group', 'aria-label': 'Flags' }, h('span', { class: 'fl', text: 'With every flag (yours in the dictionary, else my suggestion)' }), flagBtns),
-        shown, h('div', { class: 'pgrid' }, cards)));
+        piecesBox, shown, h('div', { class: 'pgrid' }, cards)));
     dlg.onclick = e => { if (e.target === dlg) close(); };
     document.addEventListener('keydown', esc);
     document.body.append(dlg);
@@ -216,7 +243,7 @@
   // ---- done ----
   const summary = () => allSlots().map(s => {
     const st = stateOf(s.id);
-    return `${s.label}: ${s.noAnim ? '' : (st.pieces.map(p => '$' + p).join(' then ') || 'empty') + (mine(s.id) ? '' : ' (now)')}${st.note ? ' — ' + st.note : ''}`;
+    return `${s.label}: ${s.noAnim ? '' : (st.pieces.map(fmtP).join(' then ') || 'empty') + (mine(s.id) ? '' : ' (now)')}${st.note ? ' — ' + st.note : ''}`;
   }).join('\n');
   const doneMsg = h('div', { class: 'saved', 'aria-live': 'polite', text: ans.done && ans.done.choice === 0 ? 'Sent to Claude (' + (ans.done.at || '') + '). Changes after this are saved too; press again to resend.' : '' });
   const doneBtn = h('button', { type: 'button', class: 'done', text: 'Done — send to Claude' });
@@ -228,12 +255,12 @@
 
   const out = [h('h1', { text: `${D.display}: arbitration sheet` }),
     h('p', { class: 'intro', text: `What each input plays, section by section: chain, alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, or write / speak the info. Everything saves as you go. Tap a clip for ¼ speed.` }),
-    h('div', { class: 'links' }, h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' }))];
+    h('div', { class: 'links' }, h('a', { href: 'workshop.html?f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' }))];
   for (const s of SECTIONS) {
     out.push(h('h2', { text: s.title }), h('p', { class: 'about', text: s.about }));
     out.push(s.chain ? chainBlock() : s.slots.map(slotRow));
   }
   out.push(h('div', { class: 'final' }, h('span', { text: 'When the whole sheet is how you want it:' }), doneBtn, doneMsg));
   root.replaceChildren(...out.flat());
-  window.arbReady = true;
+  window.arbReady = { unlocked: Object.keys(PIECES).length, locked: W ? W.specials.filter(p => !p.id).length : null };
 })();
