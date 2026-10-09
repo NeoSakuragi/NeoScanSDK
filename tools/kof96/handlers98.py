@@ -58,10 +58,12 @@ ROUTINES = {0x248A8: 'init', 0x7A98: 'sound', 0x155F4: 'gauge', 0x18C1C: 'stats'
             0x24AA0: 'ownerflag', 0x24FF6: 'chain', 0x25002: 'chain', 0x2500E: 'chain', 0x2501A: 'chain', 0x25026: 'chain',
             0x24F2C: 'stats', 0x24F34: 'stats', 0x24F3C: 'stats', 0x250C6: 'flags', 0x24F52: 'clrinput',
             0x24D80: 'dmcheck', 0x2505A: 'flags', 0x25032: 'place', 0x16034: 'voice', 0x1603A: 'voice', 0x16AC0: 'dist', 0x19AB4: 'trail', 0x19AE0: 'trail', 0x25088: 'trail',
-            0x18092: 'wallfn', 0x1E636: 'floorsnd', 0x250A2: 'wallhold'}   # floorsnd (TODO #216): a landing's sound by the
+            0x18092: 'wallfn', 0x1E636: 'floorsnd', 0x250A2: 'wallhold', 0x3662: 'polar'}   # floorsnd (TODO #216): a landing's sound by the
             # stage's floor ($27EA -> $7A98); wallhold (TODO #216, Yamazaki 236236C's drag): `$6BE0` holds the attacker at the
             # x KOF's victim-list wall rule ($255B0) gave it while it moves toward that wall (the brawler's vlist_wall
             # places it again every frame); wallfn: the stage-wall test (d0 0 inside, -1 / -2 at x <= 32 / >= 736: TODO #173); trail: the afterimage (handlers98.md 'Super flash': not the flash)
+            # polar ($3662, Robert's air 214B / D Hien Ryuujin Kyaku dive): d4 = d0 x cos, d5 = -(d0 x sin) of the angle d1.b
+            # (256 a turn), from the BIOS's |sin| table ($C04000: round(65536 |sin|), 1 = 1.0)
 BOOKKEEPING = ('follow', 'inflight', 'release', 'land', 'stats', 'init', 'chain', 'face', 'clrinput', 'voice', 'superflash',
                'ownerflag', 'flags', 'trail', 'alloc', 'floorsnd', 'wallhold')
 # KOF96 / KOF99: the same engine family, the same object fields; the routines at their own addresses (found by their
@@ -227,6 +229,19 @@ class Fields:
         mk, bits = self.k.get(off, (0, 0))
         if op == 'or': self.k[off] = (mk | v, bits | v)
         else: self.k[off] = (mk | (~v & 0xFF), bits & v)
+
+def polar(d0, d1):
+    """KOF98 $3662: (d4, d5) = (d0 cos a, -d0 sin a), a = d1's low byte (256 a turn), the BIOS's |sin| table (1 = 1.0)
+    times d0 (mulu of each word, rounded)"""
+    import math
+    def one(v, ang):
+        ang &= 0xFF
+        if ang & 0x80: v = -v
+        e = round(abs(math.sin(ang * math.pi / 128)) * 65536)
+        if e >= 65536: return v
+        av = abs(v); r = (av >> 16) * e + (((av & 0xFFFF) * e + 0x8000) >> 16)
+        return -r if v < 0 else r
+    return one(d0, d1 + 64), -one(d0, d1)
 
 def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=None, sdm=False, e4=None):
     """the handler at addr -> {'addr', 'ops': [(addr, op)], 'objects': [decoded object routines]}. fields: an object's
@@ -416,6 +431,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 cf = [(0x72, D.get('%d3'), 2), (0xD2, d5 if not F.get(0x31, 1) & 1 else -d5, 2), (0xD4, d6, 2), (0x31, F.get(0x31, 1), 1),
                       (0x1A4, F.get(0x1A4, 1), 1), (0x1D6, F.get(0x1D6, 1), 1)]
                 pending_child = ({'routine': A0, 'fields': cf, 'dx': -d5, 'dy': d6}, a)   # dx forward +
+            elif name == 'polar' and isinstance(D.get('%d0'), int) and isinstance(D.get('%d1'), int):
+                D['%d4'], D['%d5'] = polar(D['%d0'], D['%d1'])
             elif name == 'random': emit(a, 'random'); D['%d0'] = ('random',)
             elif name == 'dist': F.put(0xBC, None, 2); D['_dist'] = True   # +$BC = |opponent x - x| (K''s dash: 'far:N')
             elif name == 'wallfn': cc = ('wall', 'Zinv')  # the stage wall reached (d0 non-zero; beq = not yet): 'wall'
@@ -596,6 +613,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 else: emit(a, 'nudge?', v)
             elif fd == 0x20:
                 if isinstance(v, int): emit(a, 'nudge', 0, v)
+                elif v == ('f', 0x58) and sz == 4:     # height += vy, no gravity (g is 0 in a program; Robert's air dive
+                    emit(a, 'fall'); cc = ('land', 'N')   # $4982A): the fall op; bpl = not landed
                 else: emit(a, 'nudgey?', v)
             elif o[1].startswith('%d') and isinstance(D.get(o[1]), int) and isinstance(v, int): D[o[1]] += v
             elif chg and charging[0] and fd == chg['field'] and base == 'addq' and F.get(fd, sz) is None and isinstance(v, int):
@@ -751,9 +770,10 @@ def handler_of(cid, inp, ex=False, game='kof98'):
     S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
     tag = '_ex' if ex or inp.startswith('EX ') else ''
     inp = inp.replace('EX ', '')
+    air = inp.startswith('air '); inp = inp[4:] if air else inp   # an air special (specials96 'air ...': the jump's try)
     T = json.load(open(os.path.join(CAPS[game], f'{cid}{tag}.json'))); L = open(os.path.join(CAPS[game], f'{cid}{tag}.txt')).read().splitlines()
     for t in T:
-        if t['air'] or S.notation(t['events']) != inp: continue
+        if bool(t['air']) != air or S.notation(t['events'], air) != inp: continue
         for f in range(t['start'], t['start'] + t.get('gap', 220)):
             o = bytes.fromhex(L[f - 1].split()[3]); st = struct.unpack('>H', o[0x72:0x74])[0]
             if S.special_state(game, st): return struct.unpack('>I', o[0x198:0x19C])[0], t['button']
@@ -1096,7 +1116,7 @@ def variant_summary(m, cid, inp, v, frames=400):
 # its captured script. A special qualifies when its program uses only the ops below (BODY_OPS) and its objects decode.
 ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B', '623A', '623B', '21416C'},
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C', 'AAAA'},
-                'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D'},
+                'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D', '623A', 'EX 624D', 'air 214D'},
                 'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B'},
                 'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
@@ -1465,12 +1485,14 @@ def follow_parts(m, cid, prog, links, frames=300):
                     out.append({'from': a_, 'to': b_, 'input': inp})
     return parts, out
 
-def openings(m, cid, prog, frames=300, presses=None, held=0):
+AIR_START_H = 60.0      # an air special's whiff model starts in the air (the brawler's jump peaks at 61 px): Robert's
+                        # air 214D dives until it lands, its hits counted on the way down
+def openings(m, cid, prog, frames=300, presses=None, held=0, h=0.0):
     """the whiff model run: per state the hit windows it opens (an active step, $0100, entered when the step before
     was not active-and-chained ($4000), a state's first step counting as new), the frame of the last opening, the apex
     frame, the frames played. presses: the follow-up presses ({frame: link bits}); held: its button held for the
-    first `held` frames ('held')"""
-    o = Obj(m, cid, prog); o.resume = 0; o.presses = presses or {}; o.held = held
+    first `held` frames ('held'); h: the height it starts at (an air special: AIR_START_H)"""
+    o = Obj(m, cid, prog, h=h); o.resume = 0; o.presses = presses or {}; o.held = held
     o.hl = max(o.presses.values(), default=0)          # (a hit-stop's latch: as if pressed in one)
     o.opp = lambda f: o.x                              # the opponent next to it (K''s dash ends at once)
     per, last, prev, peak, top = {}, -1, None, 0, -1
@@ -1728,7 +1750,7 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
             s['noslide'] = 1 if s['flags'] & 0x100 and m.u8(aa + 6 * raws[anims[st]['steps'].index(s)] + 1) & 3 == 3 else 0
     cst = next((s_ for st in states for s_ in anims[st]['steps'] if s_['catch']), None)   # the catch's dead frames
     if cst is not None: ops = [o_ + (stop_frames(m, cst['flags']),) if o_[0] == 'onhit' else o_ for o_ in ops]   # - 1
-    per, last, peak, length = openings(m, cid, prog)
+    per, last, peak, length = openings(m, cid, prog, h=AIR_START_H if base.startswith('air ') else 0.0)
     links = prog.get('links', [])
     for k in range(len(links)):                                # a follow-up's hits: the run with link k pressed throughout
         pk = openings(m, cid, prog, presses={f: 1 << k for f in range(300)})[0]

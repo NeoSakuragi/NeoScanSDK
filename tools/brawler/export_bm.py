@@ -270,7 +270,8 @@ def build(specs, outdir):
                                            for n in names if n in roster()})
         return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {THROW_X, 'specials'},
                                extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()},
-                               shared_fx={n: played_inputs(n) for n in names})   # (only the frames used: TODO #214)
+                               shared_fx={n: played_inputs(n) for n in names},   # (only the frames used: TODO #214)
+                               slots={n: {k: int(v[1:], 16) for k, v in roster()[n].get('moves', {}).items()} for n in names if n in roster()})
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
     # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross
     # a page; whole game rosters per block left ~4 MB of padding at the page ends and doubled C to 32 MB when the air

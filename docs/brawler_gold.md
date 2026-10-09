@@ -142,3 +142,21 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 
 ### Meter — Bruno's 0.9.7 note (built in 0.9.8)
 - The fury also costs 1 drive chunk, the MAX 2 (game.json meter.fury_drive / max_drive). The blinks only show when the drive is there too.
+
+## Robert (5 presses) — Bruno's arbitration sheet 2026-10-09
+Decisions set `robert-arb` (brawler-lab/arbitrage.html?f=robert); animation numbers = Robert's KOF98 animation table (his
+dictionary: brawler-lab/anims.html?f=robert). Archetype fast: 5 presses (4 links + the neutral last hit).
+- Chain A x5: $51 (far A) > $51 > $5B (far C) > $5F (close D) > $64 (the C+D body toss = the neutral last hit).
+- Last hit + forward: $E5 (forward A, Kouryuu Koukyaku Geri). + up (the launcher): $D4, the kick of MAX 236236B played
+  as a normal (game.json roster.robert.moves atk_cd_close = "$D4": export96 `slots`). + down: $63 (crouch D sweep).
+  + back: the throw $E0.
+- Blitz: forward,forward + A = $1E7 = EX 624D (Hien Senpuu Kyaku EX, from the ROM). down,down / up,up / down,up + A: empty.
+- C specials (1 drive chunk, invincible): C (neutral, also the breaker) = $84 = 623A Ryuuga; forward + C = 624D ($8C > $8E >
+  $90, as before); down + C = 623C ($85 > $87 > $88 > $8A, as before); C in any other direction = the neutral's (623A).
+- Air: jump + A = $61 (jump D); jump + down + A = $57 (jump B, flinch). down,down + A in the air (Bruno: "the hien ryujin
+  kyaku move done with D in KOF98") = air 214D Hien Ryuujin Kyaku, read from the ROM (Kim's air_specials ddA mechanism):
+  the hang (146), the dive at 7.07 px a frame forward and down (KOF98 $3662: speed 10 at angle $E0), the landing slide
+  (150); blocked it would bounce off (151).
+- Hold: hit = $55 (close B); finisher (the throw-out) = $5E (crouch C). Throws forward / back = $E0.
+- Fury (D) = 23624C Ryuuko Ranbu as before ($B1 > $B2 > $B5 > $B8 > $B9); MAX (down + D, low life) = its MAX, as before.
+- Size: unchanged.
