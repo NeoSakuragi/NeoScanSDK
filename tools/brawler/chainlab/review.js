@@ -353,7 +353,8 @@
       text: f.display + (index.fighters.some(g => g !== f && g.display === f.display) && f.game ? ' (' + f.game.toUpperCase() + ')' : '') }))))));
   parts_.push(h('h1', { text: `${D.display}: pieces and chain` }));
   if (await fetch('review/' + D.fighter + '_anims.json', { method: 'HEAD', cache: 'no-cache', credentials: 'same-origin' }).then(r => r.ok, () => false))
-    parts_.push(h('p', { class: 'intro' }, h('a', { href: 'anims.html?f=' + D.fighter, class: 'dictlink', text: `${D.display}'s animation dictionary: every animation of the table, with flags and "I want this one"` })));
+    parts_.push(h('p', { class: 'intro' }, h('a', { href: 'anims.html?f=' + D.fighter, class: 'dictlink', text: `${D.display}'s animation dictionary: every animation of the table, with flags and "I want this one"` }),
+      ' ', h('a', { href: 'arbitrage.html?f=' + D.fighter, class: 'dictlink', text: `${D.display}'s arbitration sheet: chain, finishers, Blitz, specials, air, grab, fury` })));
   parts_.push(status);
   parts_.push(h('p', { class: 'intro', text: `Every piece ${D.display} could use in a chain, from the game's data: its tags and my appeal score, ranked; then my proposal for the ${pr.archetype} archetype (${ch.length} links). Each clip loops at the game's speed (¼ speed, Step and the hit boxes are under it); the strip under it shows each drawing with the frames it is held, the contact drawing outlined. Keep, Drop, or "None of these" with your own answer in the note.` + ((D.round || 1) > 1 ? ` Round ${D.round}: the ranking and the proposal learned from your Terry, Kim and Krauser reviews (score below); the chain and every finisher are shown as the whole chain, never under 3 hits.` : '') }));
   parts_.push(h('details', { class: 'formula' }, h('summary', { text: 'How the appeal score is made (0-100)' }),
