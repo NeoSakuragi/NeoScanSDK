@@ -201,6 +201,24 @@ typedef struct { uint16_t frame; uint8_t kind, node, how, val; } lab_ev_t;   /* 
                                                                                  LE_END 1 = it had hit */
 #define LAB_NEV  64
 #define LAB_BUF  (sizeof(rt_head_t) + 128 * sizeof(rnode_t))
+/* "Try in game" lab entries (u16): an animation $NN of the Lab build's fighter (< LE_SPEC: his LAB special plays it,
+ * bm_lab), LE_SPEC | k = special k of the fighter's pool, LE_THROW | t = his throw BT_* t (a grab slot's first entry: the
+ * held victim thrown); LE_NONE ends a list */
+#define LE_SPEC  0x1000
+#define LE_THROW 0x2000
+#define LE_NONE  0xFFFF
+#define LQ_MAX   32               /* a queue's entries */
+#define LO_MAX   8                /* a slot's entries */
+#define TRY_VERSION 1             /* lab.tblob's format (fighter.h lab_t; lab.js encodeTry) */
+#define TRY_MAX  576              /* lab.tblob: 8 + 2 LQ_MAX + LS_COUNT (2 + 2 LO_MAX) = 558, rounded up */
+enum { LQ_LOOP = 1, LQ_NOW = 2 }; /* the TRY blob's queue flags: the queue plays again from its start; it starts now (once; A from neutral
+                                     plays it whenever a queue is set) */
+enum { LS_FIN_FWD, LS_FIN_UP, LS_FIN_DOWN, LS_FIN_DF, LS_FIN_BACK,   /* the arbitration sheet's slots (chainlab/arbitrage.js */
+       LS_BZ_FF, LS_BZ_DD, LS_BZ_UU, LS_BZ_DU,                       /* ids, in its order): the chain's last hit + a direction, */
+       LS_ABZ_FF, LS_ABZ_DD, LS_ABZ_UU, LS_ABZ_DU,                   /* the Blitz, the air Blitz, the C specials (C in a */
+       LS_SP_C, LS_SP_FC, LS_SP_DC, LS_ASP_C, LS_ASP_FC, LS_ASP_DC,  /* direction without a slot: the neutral's), the air */
+       LS_AIR_A, LS_AIR_DA, LS_GRAB_HIT, LS_GRAB_FIN, LS_GRAB_FWD,   /* specials, the air normals, the hold (its hit, its */
+       LS_GRAB_BACK, LS_FURY, LS_MAX, LS_COUNT };                    /* finisher, the throws), the fury, the MAX */
 typedef struct {
     char     magic[4];            /* "LAB1" while the page drives the game */
     uint8_t  req;                 /* page: 1 = start training (fighter vs dummy), 2 = reset positions, 3 = enemy test
@@ -213,7 +231,9 @@ typedef struct {
                                      now, installed at the next safe point (pack_stat); 4 = back to the ROM's tables;
                                      5 = buf holds a chain override for `fighter` (revamp 5, the chain tool): its tree,
                                      then a retime table (gretime_t rows, t = an offset from buf): route_tab[fighter]
-                                     and rt_tab point at them (fighter.c lab_install; 2 = both back to the ROM's) */
+                                     and rt_tab point at them (fighter.c lab_install; 2 = both back to the ROM's);
+                                     6 = tblob holds a TRY blob (the queue and the arbitration slots of P1; lstat;
+                                     fighter.c "Lab: try in game") */
     uint8_t  active;              /* game: 1 while the training runs, 2 the enemy test */
     uint8_t  nev;                 /* game: events written (ring index = nev % LAB_NEV) */
     uint16_t frame;               /* game: training frames */
@@ -225,6 +245,23 @@ typedef struct {
     uint8_t  pack_stat;           /* game: GD_* (gamedata.h) of the last load 3 / 4 */
     uint8_t  p1_life;             /* page / proofs: 1 = P1's life left to the game (0: held full, nobody hurts P1) */
     uint8_t  pack[GD_MAX];        /* page: a data pack (load 3) */
+    /* "Try in game" / the live config (Bruno 2026-10-10; tools/brawler/chainlab/lab.js encodeTry, the ONE encoder the
+       pages, the server and the Player use; fighter.c "Lab: try in game"): load 6 = tblob holds a TRY blob, version 1,
+       big-endian: [0] 'L' [1] 'T' [2] version 1 [3] fighter (bm_chars index, P1's) [4] queue flags LQ_* [5] qn, the
+       queue's entries (<= LQ_MAX) [6] ns, the slot records [7] 0; then qn entries (u16 LE_* words); then ns records
+       [slot LS_*][n <= LO_MAX][n entries]. The whole config at once: a slot not named plays the game's own move, qn 0 = no
+       queue. WHEN: checked at the load, PENDING (lstat 2) until P1 is next in neutral (standing / walking; never mid-move
+       nor in a hit stun), then applied (lstat 1); tnow = 1 written with the load: applied on the next tick whatever P1
+       does ("apply now": the move playing finishes as it is, nothing resets) */
+    uint8_t  tnow;                /* page: 1 = apply the TRY blob now (the game clears it as it applies) */
+    uint8_t  lstat;               /* game: the last load 6: 2 pending, 1 applied, 0x80 | n refused (nothing changed): 1 an animation
+                                     the build lacks (not its LAB fighter, or no such $NN), 2 a special the pool lacks, 3 a
+                                     throw the fighter lacks, 4 a throw outside a grab slot (or not its first entry), 5 a
+                                     list too long, 6 not a TRY blob of version 1, 7 the blob runs past TRY_MAX, 8 no such
+                                     slot */
+    uint8_t  qpos;                /* game: the entry playing (its index in its list) */
+    uint16_t cur;                 /* game: P1's lab entry playing (LE_NONE: none) */
+    uint8_t  tblob[TRY_MAX];      /* page (load 6): the TRY blob */
 } lab_t;
 extern lab_t lab;
 void lab_install(void);           /* lab.load handled (routes_init's table, main.c calls it every tick) */

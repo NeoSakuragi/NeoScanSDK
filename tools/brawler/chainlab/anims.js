@@ -17,6 +17,20 @@
     ['all', 'All', () => true], ['attack', 'Attacks', a => a.attack], ['used', 'Used by a move', a => a.moves && a.moves.length],
     ['notexp', 'Not exported', a => a.status === 'ok' && !a.exported.length], ['unused', 'Unused', a => !(a.moves && a.moves.length) && !a.exported.length && !(a.reactions && a.reactions.length)],
     ['want', 'I want these', wanted]];
+  // "Try in game" (tryit.js): the queue, animations back to back (kept in this browser per fighter)
+  const QK = 'tryit-queue-' + f;
+  let tq = []; try { tq = JSON.parse(localStorage.getItem(QK) || '[]'); } catch (e) { tq = []; }
+  const qbar = h('div', { class: 'bar', role: 'group', 'aria-label': 'Queue for the game' });
+  const drawQ = () => {
+    try { localStorage.setItem(QK, JSON.stringify(tq)); } catch (e) { /* private window */ }
+    qbar.replaceChildren(h('span', { class: 'lbl', text: 'Queue for the game (back to back): add from an animation\'s larger view' }),
+      h('span', { class: 'shown', text: tq.length ? tq.map(x => '$' + x).join(' > ') : 'empty' }),
+      window.TryIt && tq.length ? window.TryIt.button(f, 'Try the queue in game', () => window.TryIt.queue(f, tq)) : null,
+      tq.length ? h('button', { type: 'button', text: 'Remove the last', onclick: () => { tq.pop(); drawQ(); } }) : null,
+      tq.length ? h('button', { type: 'button', text: 'Clear the queue', onclick: () => { tq = []; drawQ(); } }) : null);
+    window.dictQueue = tq.slice();
+  };
+  drawQ();
   let filt = 'all';
   const flagOn = new Set();
   const shown = h('span', { class: 'shown' });
@@ -71,7 +85,7 @@
       h('a', { href: 'review.html?f=' + f, text: 'Back to the fighter review' }), ' · ', h('a', { href: 'arbitrage.html?f=' + f, text: 'The arbitration sheet (chain, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury)' })),
     h('div', { class: 'bar', role: 'group', 'aria-label': 'Show' }, h('span', { class: 'lbl', text: 'Show' }), fbtns),
     h('div', { class: 'bar', role: 'group', 'aria-label': 'Flags (yours, else my suggestion)' }, h('span', { class: 'lbl', text: 'With every flag (yours, else my suggestion)' }), flbtns),
-    shown, grid);
+    qbar, shown, grid);
   apply();
   window.dictReady = true;
 
@@ -108,6 +122,8 @@
         h('tbody', {}, a.steps.map((s, j) => { const r = h('tr', {}, [String(j), s.a, String(s.t), s.b.map(b => ({ a: 'ATK', h: 'body', p: 'push', x: 'other' })[b[0]] + ' $' + b[1].toString(16).toUpperCase() + ' ' + b.slice(2).join(' ')).join('; ') || '-', s.s || '-', s.m || '-'].map(t => h('td', { text: t }))); r.onclick = () => { setPlay(false); const i = a.f.indexOf(j); if (i >= 0) { st2.i = i; st2.draw(); } }; rows.push(r); return r; })));
       kids.push(pl.cv, h('div', { class: 'ctl' }, bPlay, bSlow, h('button', { type: 'button', text: '◀ Step', onclick: () => goStep(-1) }), h('button', { type: 'button', text: 'Step ▶', onclick: () => goStep(1) }),
         h('button', { type: 'button', text: '◀ Frame', onclick: () => goFrame(-1) }), h('button', { type: 'button', text: 'Frame ▶', onclick: () => goFrame(1) }), bBox), fc,
+        h('div', { class: 'ctl' }, window.TryIt ? window.TryIt.button(f, 'Try in game', () => window.TryIt.queue(f, [a.id])) : null,
+          h('button', { type: 'button', text: '+ Add to the queue', onclick: e => { tq.push(a.id); drawQ(); e.target.textContent = '+ Add to the queue (' + tq.length + ' in it)'; } })),
         h('p', { class: 'legend', text: 'Boxes: attack = thick solid line, body = dashed, push = dotted, other ($33) = dash-dot. The floor line is under the feet; x forward, up positive.' }));
       st2.draw();
       kids.push(h('h3', { text: 'Steps' }), h('div', { class: 'steps' }, tbl));

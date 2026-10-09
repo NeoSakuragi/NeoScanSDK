@@ -185,7 +185,7 @@ static uint8_t may_cancel(const fighter_t *f) {
     return f->spec_id != BS_FURY;                                /* a fury: never (Bruno 2026-10-08: the fury is the ladder's
                                                                     last rung, no fury -> MAX cancel) */
 }
-void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; }
+void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; lab.cur = LE_NONE; }
 /* lab.load 5 (revamp phase 5, the chain tool: fighter.h lab_t, tools/brawler/chainlab/chaintool.js): buf = a chain
  * override, the fighter's tree (chain, finishers, per-node hit-stop) and after it a retime table (gretime_t rows, each
  * t an offset from buf, fixed up here into a pointer; fighter 0xFF ends it). Checked, then route_tab[fighter] and rt_tab
@@ -206,10 +206,12 @@ static const gretime_t *lab_retime(const rt_head_t *t) {
         e->t = (const uint16_t *)(lab.buf + o);
     }
 }
+static void lab_try_load(void);                          /* load 6 ("Lab: try in game") */
 void lab_install(void) {
     const rt_head_t *t = (const rt_head_t *)lab.buf;
     uint8_t ok;
     if (!lab.load) return;
+    if (lab.load == 6) { lab_try_load(); lab.load = 0; return; }   /* (the trees untouched) */
     if (lab.fighter < BC_COUNT) {
         if (rt_lab) { rt_tab = 0; rt_lab = 0; }              /* buf is rewritten: a load 5's table goes with it */
         ok = (lab.load == 1 || lab.load == 5) && t->magic[0] == 'R' && t->magic[1] == 'T' && t->version == TREE_VERSION;
@@ -509,16 +511,17 @@ static uint8_t combo_input(const fighter_t *f, const intent_t *in) {
 }
 /* the link an input takes: B its B link; A the exact one, else down-forward -> up -> forward -> down -> back -> close ->
  * plain (a plain A always continues a route whatever the stick does) */
-static uint8_t next_node(const rnode_t *c, uint8_t b) {
-    if (b & IN_B) return c->next[RI_B];
-    if ((b & 0xC0) == 0xC0 && c->next[RI_DFA]) return c->next[RI_DFA];
-    if ((b & 0x08) && c->next[RI_UA]) return c->next[RI_UA];
-    if ((b & 0x80) && c->next[RI_FA]) return c->next[RI_FA];
-    if ((b & 0x40) && c->next[RI_DA]) return c->next[RI_DA];
-    if ((b & 0x20) && c->next[RI_BA]) return c->next[RI_BA];
-    if ((b & 0x10) && c->next[RI_CA]) return c->next[RI_CA];
-    return c->next[RI_A];
+static uint8_t next_ri(const rnode_t *c, uint8_t b) {           /* the link (RI_*) next_node takes */
+    if (b & IN_B) return RI_B;
+    if ((b & 0xC0) == 0xC0 && c->next[RI_DFA]) return RI_DFA;
+    if ((b & 0x08) && c->next[RI_UA]) return RI_UA;
+    if ((b & 0x80) && c->next[RI_FA]) return RI_FA;
+    if ((b & 0x40) && c->next[RI_DA]) return RI_DA;
+    if ((b & 0x20) && c->next[RI_BA]) return RI_BA;
+    if ((b & 0x10) && c->next[RI_CA]) return RI_CA;
+    return RI_A;
 }
+static uint8_t next_node(const rnode_t *c, uint8_t b) { return c->next[next_ri(c, b)]; }
 static uint8_t has_links(const rnode_t *c) { uint8_t k, n = 0; for (k = RI_A; k <= RI_UA; k++) n |= c->next[k]; return n; }
 static uint8_t d_input(const fighter_t *f, const intent_t *in) {  /* C's direction, as special_for reads it: a diagonal */
     uint8_t fwd = in->dx == f->facing;                           /* only with the stick toward the facing (down-back = down) */
@@ -610,8 +613,11 @@ static uint8_t node_special(fighter_t *f, uint8_t node, uint8_t how) {
 }
 /* a route's next node: B's is a jump-cancel (its node waits for A in the air), a back throw (RF_THROW) grabs, a special
  * (RF_SPECIAL: a named special finisher) plays free, any other starts now */
-static void route_go(fighter_t *f, uint8_t node, uint8_t b, const intent_t *in, uint8_t how) {
+static uint8_t lab_fin(fighter_t *f, const rnode_t *prev, uint8_t b);   /* ("Lab: try in game") */
+static uint8_t lab_on;                                           /* a lab queue or slot override set ("Lab: try in game") */
+static void route_go(fighter_t *f, const rnode_t *prev, uint8_t node, uint8_t b, const intent_t *in, uint8_t how) {
     const rnode_t *c = NODE(f, node);
+    if (lab_on && lab_fin(f, prev, b)) return;                   /* a finisher the Lab's sheet replaces */
     if (b & IN_B) jump_start(f, in, node);
     else if (c->flags & RF_THROW) chain_throw(f, node, how);
     else if ((c->flags & RF_SPECIAL) && node_special(f, node, how)) return;
@@ -1336,15 +1342,193 @@ static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / 
     paired_update(f);                                            /* its first row now */
 }
 static uint8_t pend_sthr;          /* the next start_special plays a throw's special (fighter_t.sthr; its index: xix) */
+static uint8_t lab_ix = 0xFF;      /* the next start_special plays this pool index ("Lab: try in game"), whatever its role */
 /* the hold lets go into a special (role k; sthr: a throw's, revamp 3, its special xix): the victim reels in its held
  * pose, free (only throws hold a victim), until its stun ends or the move hits it */
-static void hold_special(fighter_t *f, uint8_t k, uint8_t sthr, uint8_t xix) {
+static void hold_let_go(fighter_t *f) {                         /* the victim reels in its held pose, free */
     fighter_t *v = f->held;
     f->held = 0; f->frame_ovr = 0xFFFF; f->zfront = 0; f->y = 0; f->buffered = 0; f->srow = 0;
     v->held = 0; v->zfront = 0; v->vx = v->vy = v->vz = 0; v->y = 0;
     enter(v, S_HITSTUN); play(v, BA_HIT_STAND_LIGHT);            /* STUN_LIGHT frames; frame_ovr: the held pose */
+}
+static void hold_special(fighter_t *f, uint8_t k, uint8_t sthr, uint8_t xix) {
+    hold_let_go(f);
     lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FURY_MAX ? BS_FURY : k);
     pend_sthr = sthr; f->xix = xix; start_special(f, k);
+}
+/* ---- Lab: try in game (Bruno 2026-10-10, the Brawler Lab's "Try in game": tools/brawler/chainlab/tryit.js; fighter.h
+ * lab_t load 6 = the TRY blob, LE_*, LS_*) -------------------------------------------------------------------------------------
+ * The Lab build (make LAB_FIGHTER=<f>) carries every animation of its fighter's dictionary in one more special of his
+ * pool, LAB (bm_lab; tools/kof96/export96.lab_special: one program block per animation, P_LANIM, each animation played as
+ * its animation special "kof" would play it). The page names lab entries: an animation $NN, a special of the pool, a
+ * throw. P1 plays a list of them back to back (lab_next at each one's end: prog_end, a script's end): the QUEUE (A from
+ * neutral plays it, LQ_NOW once at once, LQ_LOOP from its start again) or an arbitration SLOT's entries (the press that
+ * plays the slot's move plays them instead), both from one TRY blob (load 6, the live config: lab.js encodeTry). The
+ * entries naming a pool special or a throw work in any build; an animation $NN needs a build with the fighter's LAB
+ * special (export_bm.py --lab, make LAB_FIGHTER=<f>). Every entry plays as a special of its slot's role, nothing
+ * paid: a C slot invincible as a C special (cspecial), the fury / MAX the fury's role, the air ones an air special, the
+ * Blitz, the finishers, the hold and the queue free and not invincible (the Blitz's role); a throw entry (a grab slot's
+ * first) throws the held victim. A hit, a grab or anything else that takes P1 out of the list's move ends the list. Only
+ * P1 (player 1, not an enemy), only once the page set something (lab_on): without the page none of this runs. */
+static uint16_t lab_q[LQ_MAX], lab_ov[LS_COUNT][LO_MAX];
+static uint8_t lab_qn, lab_qf, lab_qgo;                  /* the queue, its LQ_* flags, LQ_NOW still to start */
+static const uint16_t *lab_seq;                          /* the list playing (0: none): its entries, the next one, */
+static uint8_t lab_si, lab_sn, lab_sloop, lab_role;      /* its length, loop, the role its entries play as */
+static uint16_t lab_find(uint16_t id) {                  /* $NN -> the LAB special's animation index, 0xFFFF: none */
+    uint16_t j;
+    for (j = 0; j < bm_lab.n; j++) if (bm_lab.ids[j] == id) return j;
+    return 0xFFFF;
+}
+static uint8_t lab_bad(uint16_t e, uint8_t c, uint8_t grab) {   /* entry e for fighter c -> 0 ok, else lab.lstat's check */
+    const bchar_t *ch = &bm_chars[c];
+    uint8_t k = e & 0xFF;
+    if (e & LE_THROW) return !grab ? 4 : k >= BT_COUNT || (!ch->throws[k].nrows && !ch->throws[k].turn) ? 3 : 0;
+    if (e & LE_SPEC) return k >= ch->nspec || !ch->specials[k].nrows ? 2 : 0;
+    return c != bm_lab.fighter || lab_find(e) == 0xFFFF ? 1 : 0;
+}
+#define TB16(i) ((uint16_t)lab.tblob[i] << 8 | lab.tblob[(i) + 1])   /* the blob's big-endian words */
+_Static_assert(TRY_MAX >= 8 + 2 * LQ_MAX + LS_COUNT * (2 + 2 * LO_MAX), "TRY_MAX");
+static uint8_t lab_try_check(void) {                     /* the TRY blob (fighter.h lab_t) -> 0 ok, else lstat's check */
+    const uint8_t *t = lab.tblob;
+    uint8_t c = t[3] < BC_COUNT ? t[3] : 0, i, k, e, n;
+    uint16_t at;
+    if (t[0] != 'L' || t[1] != 'T' || t[2] != TRY_VERSION || t[3] >= BC_COUNT) return 6;
+    if (t[5] > LQ_MAX || t[6] > LS_COUNT) return 5;
+    for (i = 0; i < t[5]; i++) if ((e = lab_bad(TB16(8 + 2 * i), c, 0)) != 0) return e;
+    for (at = 8 + 2 * t[5], k = 0; k < t[6]; k++) {
+        if (at + 2 > TRY_MAX) return 7;
+        if (t[at] >= LS_COUNT) return 8;
+        if ((n = t[at + 1]) > LO_MAX) return 5;
+        if (at + 2 + 2 * n > TRY_MAX) return 7;
+        for (i = 0; i < n; i++) if ((e = lab_bad(TB16(at + 2 + 2 * i), c, t[at] >= LS_GRAB_HIT && t[at] <= LS_GRAB_BACK && !i)) != 0) return e;
+        at += 2 + 2 * n;
+    }
+    return 0;
+}
+/* WHEN a TRY blob applies (Bruno 2026-10-10): load 6 checks it and leaves it PENDING (lstat 2); it is applied the next
+ * time P1 is back in neutral (standing / walking: S_IDLE, S_WALK; never mid-move nor in a hit stun), or on the next tick
+ * whatever P1 does when the writer sets lab.tnow ("apply now": not a reset, the move playing finishes as it is; tnow is
+ * cleared then). Checked again as it applies (the writer may have rewritten it meanwhile: refused then, lstat 0x80 | n). */
+static uint8_t try_pend;                                 /* a checked TRY blob waits in lab.tblob */
+static void lab_try_load(void) {                         /* load 6: checked whole -> pending (lstat 2) or refused */
+    uint8_t e = lab_try_check();
+    try_pend = !e; lab.lstat = e ? 0x80 | e : 2;
+}
+static void lab_try_apply(void) {                        /* the pending blob installed (lstat 1) */
+    const uint8_t *t = lab.tblob;
+    uint8_t e = lab_try_check(), s, i, n;
+    uint16_t at;
+    try_pend = 0; lab.tnow = 0;
+    if (e) { lab.lstat = 0x80 | e; return; }
+    lab_seq = 0;                                         /* (a list playing ends with its entry) */
+    for (s = 0; s < LS_COUNT; s++) for (i = 0; i < LO_MAX; i++) lab_ov[s][i] = LE_NONE;
+    for (i = 0; i < t[5]; i++) lab_q[i] = TB16(8 + 2 * i);
+    lab_qn = t[5]; lab_qf = t[4]; lab_qgo = lab_qn && (lab_qf & LQ_NOW);
+    for (at = 8 + 2 * t[5], s = 0; s < t[6]; s++, at += 2 + 2 * n)
+        for (n = t[at + 1], i = 0; i < n; i++) lab_ov[t[at]][i] = TB16(at + 2 + 2 * i);
+    for (n = 0, s = 0; s < LS_COUNT; s++) n |= lab_ov[s][0] != LE_NONE;
+    lab_on = lab_qn || n;
+    lab.lstat = 1;
+}
+static uint8_t lab_entry(fighter_t *f, uint16_t e) {     /* entry e now -> 1 started */
+    uint16_t j = 0;
+    uint8_t k;
+    if (e & LE_THROW) {                                  /* a throw: the held victim (a grab slot) */
+        if (f->state != S_GRAB || !f->held) return 0;
+        throw_start(f, e & 0xFF); lab.cur = e; return 1;
+    }
+    if (e & LE_SPEC) { k = e & 0xFF; if (k >= f->ch->nspec || !f->ch->specials[k].nrows) return 0; }
+    else { if (f->ch->id != bm_lab.fighter || (j = lab_find(e)) == 0xFFFF) return 0; k = bm_lab.spec; }
+    lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, lab_role);
+    lab_ix = k; start_special(f, lab_role);
+    if (!(e & LE_SPEC)) f->pres = j << 2;                /* its animation's program block (4 ops each) */
+    if (lab_role == BS_BLITZ) f->blz_slot = BZ_COUNT;    /* (no Blitz slot: no Blitz quirk) */
+    if (lab_role < BS_COUNT && !f->team) { f->sinv = 1; f->inv = INV_FURY; }   /* a C slot's: invincible (cspecial) */
+    lab.cur = e;
+    return 1;
+}
+static uint8_t lab_go(fighter_t *f, const uint16_t *l, uint8_t n, uint8_t loop, uint8_t role) {   /* a list from its */
+    uint8_t i;                                           /* start -> 1 an entry started */
+    lab_seq = l; lab_sn = n; lab_sloop = loop; lab_role = role;
+    for (i = 0; i < n; i++) if (lab_entry(f, l[i])) { lab_si = i + 1; lab.qpos = i; return 1; }
+    lab_seq = 0; lab.cur = LE_NONE;
+    return 0;
+}
+static uint8_t lab_slot(fighter_t *f, uint8_t s, uint8_t role) {   /* slot s's entries, when the page set some */
+    uint8_t n = 0;
+    if (lab_ov[s][0] == LE_NONE) return 0;
+    while (n < LO_MAX && lab_ov[s][n] != LE_NONE) n++;
+    return lab_go(f, lab_ov[s], n, 0, role);
+}
+static uint8_t lab_next(fighter_t *f) {                  /* an entry ended: the list's next one now -> 1 */
+    uint8_t i, pass;
+    if (!lab_seq || f->idx || f->team) return 0;
+    for (pass = 0; pass < 2; pass++) {
+        for (i = lab_si; i < lab_sn; i++)
+            if (lab_entry(f, lab_seq[i])) {
+                lab_si = i + 1; lab.qpos = i;
+                if (f->state == S_SPECIAL) { f->pheld = 0; special_update(f); }   /* its first frame now: back to back */
+                return 1;
+            }
+        if (!lab_sloop) break;
+        lab_si = 0;                                      /* LQ_LOOP: again from its start */
+    }
+    lab_seq = 0; lab.cur = LE_NONE;
+    return 0;
+}
+/* the neutral presses (fighter_update's S_IDLE / S_WALK / S_RUN): the queue (LQ_NOW at once; A), D the fury / MAX, C
+ * the C specials (forward: forward + C, down: down + C, any other: the neutral's), a double direction + A the Blitz */
+static uint8_t lab_neutral(fighter_t *f, const intent_t *in) {
+    static const uint8_t BZ_LS[BZ_COUNT] = { LS_BZ_FF, LS_BZ_DD, LS_BZ_DU, LS_BZ_UU };   /* (gamedata.h BZ_* order) */
+    uint8_t b = in->press;
+    if (lab_qn && (lab_qgo || ((b & IN_A) && !in->blitz && f->state != S_RUN))) {
+        lab_qgo = 0;
+        return lab_go(f, lab_q, lab_qn, lab_qf & LQ_LOOP, BS_BLITZ);
+    }
+    if (b & IN_D) return lab_slot(f, in->dz > 0 ? LS_MAX : LS_FURY, in->dz > 0 ? BS_FURY_MAX : BS_FURY);
+    if (b & IN_C) return in->dz > 0 ? lab_slot(f, LS_SP_DC, BS_DOWN_D) : in->dx && !in->dz ? lab_slot(f, LS_SP_FC, BS_FWD_D) : lab_slot(f, LS_SP_C, BS_D);   /* (the stick
+                                                                    as d_input reads it: forward or back = the forward slot) */
+    if ((b & IN_A) && (in->blitz || f->state == S_RUN)) return lab_slot(f, BZ_LS[in->blitz ? in->blitz - 1 : BZ_FF], BS_BLITZ);
+    return 0;
+}
+/* in a jump (S_AIR): C the air specials (by the stick, as the ground's), a double direction + A the air Blitz, A the air
+ * normals (down + A: air_da); in a jump's attack: its buffered air Blitz */
+static uint8_t lab_air(fighter_t *f, const intent_t *in) {
+    static const uint8_t ABZ_LS[BZ_COUNT] = { LS_ABZ_FF, LS_ABZ_DD, LS_ABZ_DU, LS_ABZ_UU };
+    uint8_t b = in->press;
+    if (f->state == S_AIR_ATTACK) {
+        if (f->blz_buf && lab_slot(f, ABZ_LS[f->blz_buf - 1], BS_AIR)) { f->blz_buf = 0; f->buffered = 0; return 1; }
+        return 0;
+    }
+    if (f->state != S_AIR) return 0;
+    if (b & IN_C) return in->dz > 0 ? lab_slot(f, LS_ASP_DC, BS_AIR) : in->dx && !in->dz ? lab_slot(f, LS_ASP_FC, BS_AIR) : lab_slot(f, LS_ASP_C, BS_AIR);
+    if ((b & IN_A) && in->blitz && lab_slot(f, ABZ_LS[in->blitz - 1], BS_AIR)) return 1;
+    if (b & IN_A) return lab_slot(f, in->dz > 0 ? LS_AIR_DA : LS_AIR_A, BS_AIR);
+    return 0;
+}
+/* the chain's last hit with a direction (route_go): from the last builder (the node whose links hold the directional
+ * finishers) the stick picks a slot the page set, in next_node's order (down-forward, up, forward, down, back), whether
+ * the tree has that link or not (down-forward + A: a tree without it plays its forward finisher); the neutral finisher
+ * stays the chain's (load 5) */
+#define LAB_SET(s) (lab_ov[s][0] != LE_NONE)
+static uint8_t lab_fin(fighter_t *f, const rnode_t *prev, uint8_t b) {
+    uint8_t r;
+    if (f->idx || f->team || !prev || !(b & IN_A)) return 0;
+    if (!(prev->next[RI_FA] | prev->next[RI_UA] | prev->next[RI_DA] | prev->next[RI_DFA] | prev->next[RI_BA])) return 0;
+    r = (b & 0xC0) == 0xC0 && LAB_SET(LS_FIN_DF) ? LS_FIN_DF : (b & 0x08) && LAB_SET(LS_FIN_UP) ? LS_FIN_UP :
+        (b & 0x80) && LAB_SET(LS_FIN_FWD) ? LS_FIN_FWD : (b & 0x40) && LAB_SET(LS_FIN_DOWN) ? LS_FIN_DOWN :
+        (b & 0x20) && LAB_SET(LS_FIN_BACK) ? LS_FIN_BACK : 0xFF;
+    return r != 0xFF && lab_slot(f, r, BS_BLITZ);
+}
+/* the hold (hold_update): forward / back + C or A the throws, A its hits (the last: its finisher). A throw entry throws;
+ * any other entry lets the victim go (it reels in its held pose, as a C special out of the hold) and plays */
+static uint8_t lab_hold(fighter_t *f, uint8_t s) {
+    if (lab_ov[s][0] == LE_NONE) return 0;
+    if (lab_ov[s][0] & LE_THROW) return lab_entry(f, lab_ov[s][0]);
+    hold_let_go(f);
+    if (lab_slot(f, s, BS_BLITZ)) return 1;
+    to_neutral(f, 0);                                    /* (nothing played: let go all the same) */
+    return 1;
 }
 /* the super throw (revamp 3) is DROPPED (Bruno 2026-10-08): hold + forward / back + C = the normal throw pressed, for
  * everyone (bm_xthr sup and tiers.super_throw stay in the data, unused; Rugal / Yamazaki / Genjuro keep their grab fury on
@@ -1360,6 +1544,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
                                                                     victim reels in its held pose, free (only throws hold
                                                                     a victim), until its stun ends or the move hits it */
         uint8_t d = (f->fury_buf & 0x80) != 0, k;
+        if (!d && in->dx && lab_on && !f->idx && !f->team && lab_hold(f, in->dx == f->facing ? LS_GRAB_FWD : LS_GRAB_BACK)) { f->fury_buf = 0; return; }   /* (the Lab's sheet) */
         if (!d && in->dx) { f->fury_buf = 0; throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D); return; }   /* forward /
                                                                     back + C: the normal throw (the super throw dropped) */
         k = d ? fury_press(f, f->fury_buf & 1) : special_for(f, in);
@@ -1371,6 +1556,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         }
     }
     if ((in->press & IN_A) && in->dx) {                          /* forward+A / back+A: throw forward / backward, at */
+        if (lab_on && !f->idx && !f->team && lab_hold(f, in->dx == f->facing ? LS_GRAB_FWD : LS_GRAB_BACK)) return;   /* (the Lab's sheet) */
         throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D);   /* any time (a hold hit playing too) */
         return;
     }
@@ -1392,6 +1578,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         if (!f->buffered) return;
     }
     if (((in->press & IN_A) || f->buffered) && f->grab_hits < GRAB_HITS) {   /* A: a hold hit, the third the finisher */
+        if (lab_on && !f->idx && !f->team && lab_hold(f, f->grab_hits + 1 >= GRAB_HITS ? LS_GRAB_FIN : LS_GRAB_HIT)) return;   /* (the Lab's sheet) */
         f->buffered = 0; f->grab_hits++; f->spec_buf = f->fury_buf = 0;
         f->hit_mask = 1 << v->idx;                               /* the crowd rule: each other enemy once per hit */
         f->throw_id = f->grab_hits >= GRAB_HITS ? BT_HOLD_FIN : BT_HOLD_HIT;
@@ -1620,7 +1807,8 @@ static void special_end(fighter_t *f) {
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
     f->sthr = pend_sthr; pend_sthr = 0;                         /* a throw's special (revamp 3): hold_special's pick */
-    if (k != BS_AIR && k != BS_BLITZ) f->spec_ix = f->sthr ? f->xix : spec_ix(f->ch, k);   /* (an air special: air_pick's, a
+    if (lab_ix != 0xFF) { f->spec_ix = lab_ix; lab_ix = 0xFF; }  /* a lab entry: its pool index ("Lab: try in game") */
+    else if (k != BS_AIR && k != BS_BLITZ) f->spec_ix = f->sthr ? f->xix : spec_ix(f->ch, k);   /* (an air special: air_pick's, a
                                                                     Blitz: blitz_go's, set by the caller; a throw's:
                                                                     hold_special's, revamp 3) */
     f->fmax = k == BS_FURY_MAX; f->brk = f->brkr = 0; f->sinv = 0;   /* (a breaker: its caller sets brk after; a C special:
@@ -2239,8 +2427,10 @@ static void fury_area(fighter_t *f, const fighter_t *t, const bvlist_t *l, uint8
     }
     f->freeze = 0;
 }
+static uint8_t lab_next(fighter_t *f);                           /* ("Lab: try in game") */
 static void prog_end(fighter_t *f) {
     special_end(f);
+    if (lab_on && lab_next(f)) return;                           /* a lab list's next entry, back to back */
     if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
 }
 static void hold_apply(fighter_t *f) {                           /* a caught victim held (KOF +$E4 bit 4): in front of the */
@@ -2411,6 +2601,9 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_ANIM:
             f->pdmg = sp->vdmg ? (uint8_t)sp->vars[(uint16_t)f->var * sp->vcols + sp->vdmg - 1] : p->b & 0xFF;
             f->preact = p->b >> 8; f->pfx = v; pan_play(f, &sp->anims[p->a + (sp->nvar ? f->var * sp->vanim : 0)]); break;
+        case P_LANIM:                                            /* P_ANIM with a 16-bit index (the Lab build's LAB
+                                                                    special: v = index << 8 | effect, a damage, b reaction) */
+            f->pdmg = p->a; f->preact = (uint8_t)p->b; f->pfx = (uint8_t)v; pan_play(f, &sp->anims[(uint16_t)(v >> 8)]); break;
         case P_SET:
             if (p->a == 0) f->vx = v; else if (p->a == 1) f->vy = v; else if (p->a == 2) f->pg = v;
             else if (p->a == 3) f->pfric = v; else if (p->a == 5) f->y = v; else f->pcnt = v;
@@ -2584,6 +2777,7 @@ static void special_update(fighter_t *f) {
     if (f->srow > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
         carry_drop(f);
         special_end(f);
+        if (lab_on && lab_next(f)) return;                       /* a lab list's next entry, back to back */
         if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
         return;
     }
@@ -2685,6 +2879,10 @@ void fighter_update(fighter_t *f, const intent_t *in) {         /* its bank mapp
 }
 static void update(fighter_t *f, const intent_t *in) {
     const bphys_t *ph = &f->ch->phys;
+    if (try_pend && !f->idx && !f->team && (lab.tnow || f->state == S_IDLE || f->state == S_WALK)) lab_try_apply();   /* a
+                                                                    pending TRY blob: at neutral, or now (lab.tnow) */
+    if (lab_seq && !f->idx && !f->team && f->state != S_SPECIAL && f->state != S_THROW) { lab_seq = 0; lab.cur = LE_NONE; }   /* a lab
+                                                                    list left (hit, grabbed...): over ("Lab: try in game") */
     if (f->state == S_GRABBED && in->press && f->held && !f->held->srow && ++f->grab_hits >= ESCAPE_PRESSES) {   /* mash to
                                                                     break free (hit-stop too; never while a hold hit plays) */
         fighter_t *h = f->held;
@@ -2785,6 +2983,7 @@ static void update(fighter_t *f, const intent_t *in) {
         else if (in->ai && in->face) f->facing = in->face;       /* an AI fighter faces its target, always: moving away it */
         else if (in->dx) f->facing = in->dx;                     /* walks backwards (Bruno 2026-10-08); a player: beat 'em */
         else if (in->face) f->facing = in->face;                 /* up, face where you walk */
+        if (lab_on && !f->idx && !f->team && !dsh && lab_neutral(f, in)) break;   /* the Lab's queue / sheet ("Lab: try in game") */
         if (b & IN_D) {                                          /* D: the fury (fury_press) */
             uint8_t k = fury_press(f, in->dz > 0);
             if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k); }
@@ -2807,7 +3006,7 @@ static void update(fighter_t *f, const intent_t *in) {
         }
         if (b & IN_A) {
             uint8_t ci = combo_input(f, in), nx = f->chain_t ? chain_next(f, NODE(f, f->chain_node), ci) : 0;
-            if (nx) { route_go(f, nx, ci, in, LH_WINDOW); break; }   /* the route goes on (Final Fight: tap, wait, tap) */
+            if (nx) { route_go(f, NODE(f, f->chain_node), nx, ci, in, LH_WINDOW); break; }   /* the route goes on (Final Fight: tap, wait, tap) */
             if (f->state == S_RUN) { blitz_dash(f, LH_NEUTRAL); break; }   /* dash attack (a fighter without an ff Blitz) */
             nx = next_node(NODE(f, TREE(f)->root), ci);          /* a route starts: the root's links */
             if (nx) start_node(f, nx, LH_NEUTRAL);
@@ -2851,6 +3050,7 @@ static void update(fighter_t *f, const intent_t *in) {
             if (f->y <= 0) { f->y = 0; f->vy = 0; f->drop = 2; f->inv = RESPAWN_INV; enter(f, S_LAND); play(f, BA_LAND); }
             break;
         }
+        if (lab_on && !f->idx && !f->team && (in->press || f->blz_buf) && lab_air(f, in)) break;   /* the Lab's sheet ("Lab: try in game") */
         if (f->state == S_AIR && (in->press & (IN_A | IN_C))) {  /* an air special (air_pick, TODO #221): A / C with the */
             uint8_t k = air_pick(f, in);                         /* stick's slot (TODO #200: Kim's j.2B dive, #211: Hanzo */
             if (k != 0xFF && (air_button(f->ch, k) == IN_A || pay(f, PAY_SPECIAL, 0))) {   /* SS2's shuriken,
@@ -2928,7 +3128,7 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     (after the hit-stop; a multi-hit link once its last
                                                                     hit came: the link's whole damage, "chain core") */
             uint8_t nx = chain_next(f, c, f->buffered);
-            if (nx) { lab_note(f, LE_END, f->node, LH_CANCEL, 1); route_go(f, nx, f->buffered, in, LH_CANCEL); break; }
+            if (nx) { lab_note(f, LE_END, f->node, LH_CANCEL, 1); route_go(f, c, nx, f->buffered, in, LH_CANCEL); break; }
         }
         if (f->anim_done && c->next[RI_THEN]) {                  /* (Kim gold) a finisher of several moves: the next one
                                                                     now, back to back, hit or not (RI_THEN) */
@@ -2938,7 +3138,7 @@ static void update(fighter_t *f, const intent_t *in) {
         if (f->anim_done) {                                     /* played to its end (keep flag, or no input yet) */
             uint8_t nx = f->buffered && f->landed ? chain_next(f, c, f->buffered) : 0;   /* routes chain only on a hit */
             lab_note(f, LE_END, f->node, LH_AFTER_END, f->landed);
-            if (nx) { route_go(f, nx, f->buffered, in, LH_AFTER_END); break; }
+            if (nx) { route_go(f, c, nx, f->buffered, in, LH_AFTER_END); break; }
             if (!f->landed && f->blz_buf && BUF_OK(f, in) && blitz_go(f, f->blz_buf - 1, LH_NEUTRAL)) break;   /* a whiff: a
                                                                     Blitz pressed in its last frames comes out as it ends */
             if (!f->landed && (f->buffered & IN_A) && !in->ai && BUF_OK(f, in) &&

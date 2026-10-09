@@ -47,109 +47,20 @@
   let built = null;                      // {fi, tree (snapshot), info: index -> {path, node}}
   let labTreeFor = -1;                   // the fighter whose route_tab entry points at the lab buffer
 
-  // ---- the game loop -------------------------------------------------------------------------------------------------
-  const canvas = $('screen'), ctx = canvas.getContext('2d');
-  let img = null, paused = false, acc = 0, last = 0, evNext = 0;
-  const fps = lab.core._wc_fps();
+  // ---- the game loop: the shared player (gameplay.js: keys, gamepad, touch, sound, picture, pause / step) --------------
+  let evNext = 0;
   lab.boot(fi, di, null);
   evNext = lab.nev();
-
-  const keys = new Set(), touch = new Set();
-  // by physical key (KeyboardEvent.code), so the layout is the same on QWERTZ / AZERTY / QWERTY (Bruno, 2026-10-05):
-  // WASD stick, U I O P = A B C D; the arrows and Z X C V (QWERTY positions) also work
-  const KEYMAP = { KeyW: 'U', KeyA: 'L', KeyS: 'D', KeyD: 'R', KeyU: 'a', KeyI: 'b', KeyO: 'c', KeyP: 'd',
-                   ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D', KeyZ: 'a', KeyX: 'b', KeyC: 'c', KeyV: 'd',
-                   Enter: 's', NumpadEnter: 's' };
-  addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.code === 'Escape' || e.code === 'Backspace') { togglePause(); e.preventDefault(); return; }
-    if (e.code === 'Period' && paused) { stepFrames(1); e.preventDefault(); return; }
-    const k = KEYMAP[e.code]; if (k) { keys.add(k); e.preventDefault(); }
-  });
-  addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys.delete(k); });
-  addEventListener('blur', () => keys.clear());
-  let override = null;                   // a scripted input (chainlab.play: tests, the proof)
-  function padKeys() {
-    if (override !== null) return override;
-    const s = new Set([...keys, ...touch]);
-    for (const gp of (navigator.getGamepads ? navigator.getGamepads() : [])) {
-      if (!gp) continue;
-      const b = i => gp.buttons[i] && gp.buttons[i].pressed;
-      if (b(0)) s.add('a'); if (b(1)) s.add('b'); if (b(2)) s.add('c'); if (b(3)) s.add('d'); if (b(9)) s.add('s');
-      if (b(12) || gp.axes[1] < -0.5) s.add('U'); if (b(13) || gp.axes[1] > 0.5) s.add('D');
-      if (b(14) || gp.axes[0] < -0.5) s.add('L'); if (b(15) || gp.axes[0] > 0.5) s.add('R');
-    }
-    return [...s].join('');
-  }
-  // touch pad (shown on touch screens)
-  if (matchMedia('(pointer: coarse)').matches) $('touch').classList.add('show');
-  for (const b of document.querySelectorAll('#touch button')) {
-    const ks = [b.dataset.k];
-    b.addEventListener('pointerdown', e => { ks.forEach(k => touch.add(k)); b.classList.add('on'); e.preventDefault(); });
-    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(t, () => { ks.forEach(k => touch.delete(k)); b.classList.remove('on'); });
-  }
-
-  // audio: the core's frames into a ring, a ScriptProcessor pulls them (resampled when the context's rate differs)
-  let audio = null;
-  const RING = 1 << 15, ring = new Float32Array(RING * 2); let rw = 0, rr = 0;
-  const coreRate = lab.core._wc_sample_rate();
-  function pushAudio() {
-    if (!audio) return;
-    const n = lab.core._wc_audio_n(), p = lab.core._wc_audio() >> 1, h = lab.core.HEAP16;
-    for (let i = 0; i < n; i++) {
-      if (((rw + 1) & (RING - 1)) === rr) break;
-      ring[rw * 2] = h[p + i * 2] / 32768; ring[rw * 2 + 1] = h[p + i * 2 + 1] / 32768; rw = (rw + 1) & (RING - 1);
-    }
-  }
-  $('btnSound').onclick = async () => {
-    if (audio) { await audio.close(); audio = null; $('btnSound').textContent = 'Sound: off'; return; }
-    let ac; try { ac = new AudioContext({ sampleRate: coreRate }); } catch (e) { ac = new AudioContext(); }
-    const sp = ac.createScriptProcessor(2048, 0, 2), step = coreRate / ac.sampleRate; let frac = 0;
-    sp.onaudioprocess = ev => {
-      const L = ev.outputBuffer.getChannelData(0), R = ev.outputBuffer.getChannelData(1);
-      for (let i = 0; i < L.length; i++) {
-        if (rr === rw) { L[i] = R[i] = 0; continue; }
-        L[i] = ring[rr * 2]; R[i] = ring[rr * 2 + 1];
-        frac += step; while (frac >= 1 && rr !== rw) { rr = (rr + 1) & (RING - 1); frac -= 1; }
-      }
-      const fill = (rw - rr) & (RING - 1); if (fill > 8192) rr = (rw - 2048) & (RING - 1);   // never lag behind the picture
-    };
-    sp.connect(ac.destination); audio = ac; rr = rw; $('btnSound').textContent = 'Sound: on';
-  };
-
-  function draw() {
-    const w = lab.core._wc_fb_w(), h = lab.core._wc_fb_h();
-    if (canvas.width !== w || canvas.height !== h || !img) { canvas.width = w; canvas.height = h; img = ctx.createImageData(w, h); fit(); }
-    const src = new Uint8Array(lab.core.HEAPU8.buffer, lab.core._wc_fb(), w * h * 4), d = img.data;
-    for (let i = 0; i < w * h * 4; i += 4) { d[i] = src[i + 2]; d[i + 1] = src[i + 1]; d[i + 2] = src[i]; d[i + 3] = 255; }
-    ctx.putImageData(img, 0, 0);
-    const c = lab.combo();
-    const ts = window.labStatus && window.labStatus();     // the other tabs' status line; null on the Chain Lab tab
-    if (ts !== null && ts !== undefined) { $('status').textContent = ts + (paused ? '  PAUSED' : ''); return; }
-    $('status').textContent = `frame ${lab.labFrame()}  P1 ${lab.stateName(0)}  dummy ${lab.stateName(2)}  combo ${c.hits} hits ${c.dmg} damage${paused ? '  PAUSED' : ''}`;
-  }
-  function fit() {                        // pixel-exact: a whole number of screen pixels per game pixel
-    const want = Number($('scale').value), col = $('gamecol');
-    const avail = col.clientWidth - 36, s = want || Math.max(1, Math.floor(Math.min(avail / canvas.width, (innerHeight * 0.62) / canvas.height)));
-    canvas.style.width = canvas.width * s + 'px'; canvas.style.height = canvas.height * s + 'px';
-  }
-  addEventListener('resize', fit); $('scale').onchange = fit;
-  function stepFrames(n) {
-    for (let i = 0; i < n; i++) { lab.setPad(0, padKeys()); lab.run(1); pushAudio(); collect(); }
-    draw();
-  }
-  function togglePause() { paused = !paused; $('btnPause').textContent = paused ? 'Resume' : 'Pause'; $('btnPause').classList.toggle('on', paused); $('btnStep').disabled = !paused; draw(); }
-  $('btnPause').onclick = togglePause; $('btnStep').onclick = () => stepFrames(1);
-  function loop(ts) {
-    requestAnimationFrame(loop);
-    if (!last) last = ts;
-    acc += (ts - last) / 1000 * fps; last = ts;
-    if (paused) { acc = 0; return; }
-    let n = Math.floor(acc); acc -= n;
-    if (n > 4) { n = 4; acc = 0; }       // a tab in the background: no catch-up burst
-    if (n) stepFrames(n);
-  }
-  requestAnimationFrame(loop);
+  const GP = window.GamePlay.attach({
+    lab, canvas: $('screen'), scaleSel: $('scale'), col: $('gamecol'), soundBtn: $('btnSound'), pauseBtn: $('btnPause'),
+    stepBtn: $('btnStep'), touch: $('touch'), statusEl: $('status'), onFrame: () => collect(),
+    status: paused => {
+      const ts = window.labStatus && window.labStatus();   // the other tabs' status line; null on the Chain Lab tab
+      if (ts !== null && ts !== undefined) return ts + (paused ? '  PAUSED' : '');
+      const c = lab.combo();
+      return `frame ${lab.labFrame()}  P1 ${lab.stateName(0)}  dummy ${lab.stateName(2)}  combo ${c.hits} hits ${c.dmg} damage${paused ? '  PAUSED' : ''}`;
+    } });
+  const draw = () => GP.draw(), stepFrames = n => GP.stepFrames(n), togglePause = () => GP.togglePause();
 
   // ---- requests -------------------------------------------------------------------------------------------------------
   function runUntil(cond, max = 120) { for (let i = 0; i < max && !cond(); i++) { lab.run(1); } }
@@ -508,5 +419,5 @@
   built = { fi, tree: clone(tree), info: indexInfo(merged().tree) };
   builtLabel = $('built').textContent = F[fi].routes_file ? "the fighter's own tree (routes file, in the ROM)" : 'the default tree (in the ROM)';
   render(); draw();
-  window.chainlab = { lab, draw, get paused() { return paused; }, togglePause, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); override = k.replace('-', ''); stepFrames(Number(n)); } override = null; }, get tree() { return tree; }, set tree(t) { tree = docOf(t); markDirty(); render(); }, build, render, stepFrames, data, chains: () => chains };
+  window.chainlab = { lab, draw, get paused() { return GP.paused; }, togglePause, play(script) { for (const part of script.split(',')) { const [n, k] = part.split(':'); GP.override = k.replace('-', ''); stepFrames(Number(n)); } GP.override = null; }, get tree() { return tree; }, set tree(t) { tree = docOf(t); markDirty(); render(); }, build, render, stepFrames, data, chains: () => chains };
 })();

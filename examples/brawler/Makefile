@@ -3,6 +3,14 @@ SDK      = $(NEOSCAN)/sdk
 TOOLS    = $(NEOSCAN)/tools
 BUILD    = build
 ROM_NAME = brawler
+# the Brawler Lab's build of one fighter ("Try in game", Bruno 2026-10-10): make LAB_FIGHTER=robert -> lab-robert.neo from
+# build_lab_robert/: every animation of his dictionary in one more special of his pool (tools/brawler/export_bm.py --lab,
+# fighter.c "Lab: try in game"); the other fighters as usual. Lab-only: never published as the Player's game
+LAB_FIGHTER ?=
+ifneq ($(LAB_FIGHTER),)
+BUILD    = build_lab_$(LAB_FIGHTER)
+ROM_NAME = lab-$(LAB_FIGHTER)
+endif
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
@@ -32,9 +40,9 @@ $(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/buil
 # /data/roms/kizuna.neo + /data/neogeo_dict/kizuna/kim_capture.json) and of Double Dragon (tools/doubledr: /data/roms/doubledr.neo,
 # its palette RAM /data/neogeo_dict/doubledr/palram.json) and of Samurai Shodown II (tools/samsho2: /data/roms/samsho2.neo;
 # Haohmaru, Genjuro, Kuroko read from its ROM) ---
-$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/kof96/export96.py $(TOOLS)/brawler/retime.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(wildcard $(TOOLS)/samsho2/*.py) $(TOOLS)/samsho2/victim_poses_ss2.json $(TOOLS)/doubledr/victim_poses_dd.json $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_stage_land.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py
+$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(TOOLS)/kof96/export96.py $(TOOLS)/brawler/retime.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(wildcard $(TOOLS)/samsho2/*.py) $(TOOLS)/samsho2/victim_poses_ss2.json $(TOOLS)/doubledr/victim_poses_dd.json $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_stage_land.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py $(if $(LAB_FIGHTER),$(TOOLS)/brawler/arb_pieces/$(LAB_FIGHTER).json)
 	mkdir -p $(BUILD)
-	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json
+	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json $(if $(LAB_FIGHTER),--lab $(LAB_FIGHTER))
 	python3 $(TOOLS)/brawler/make_stage_ra.py $(CURDIR)/$(BUILD)   # needs /data/roms/roboarmy.neo
 	python3 $(TOOLS)/brawler/make_stage_land.py $(CURDIR)/$(BUILD)   # the select screen: KOF95 stage 2 (/data/roms/kof95.neo, /data/neogeo_dict/kof95/stages)
 	python3 $(TOOLS)/brawler/make_banner.py $(CURDIR)/$(BUILD)
@@ -102,6 +110,7 @@ clean:
 
 # --- publish for the Android player's auto-fetch: brawler.neo + latest.json (build number, size, sha256) into DEST ---
 publish: $(ROM_NAME).zip
+	@test -z "$(LAB_FIGHTER)" || (echo "a Lab build is never the Player's game"; exit 1)
 	@test -n "$(DEST)" || (echo "make publish DEST=<dir served to the phone>"; exit 1)
 	mkdir -p $(DEST)
 	cp $(ROM_NAME).neo $(DEST)/$(ROM_NAME).neo.tmp && mv $(DEST)/$(ROM_NAME).neo.tmp $(DEST)/$(ROM_NAME).neo
@@ -112,6 +121,7 @@ publish: $(ROM_NAME).zip
 APK = ../../android/app/build/outputs/apk/debug/app-debug.apk
 APKVER = $(shell sed -n 's/.*versionName = "\(.*\)".*/\1/p' ../../android/app/build.gradle.kts)   # the player's own version, not the game's
 publish-vps: $(ROM_NAME).zip
+	@test -z "$(LAB_FIGHTER)" || (echo "a Lab build is never the Player's game"; exit 1)
 	../../tools/brawler/publish_vps.sh $(ROM_NAME).neo $(VERSION)   # the game only: the player is published on its own (publish_vps.sh --apk-only)
 
 # --- version (VERSION, 0.0.1 style, shown on the title screen): make bump = last number + 1 ---

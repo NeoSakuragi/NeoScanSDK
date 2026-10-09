@@ -14,7 +14,7 @@ shutil.copy(os.path.join(game, 'brawler.neo'), os.path.join(out, 'game.neo'))
 with zipfile.ZipFile('/data/roms/neogeo.zip') as src, zipfile.ZipFile(os.path.join(out, 'neogeo.zip'), 'w', zipfile.ZIP_DEFLATED) as dst:
     for n in ('sp-u2.sp1', '000-lo.lo', 'sfix.sfix', 'sm1.sm1'): dst.writestr(n, src.read(n))
 layout, fsize, states, syms = harness._layout(game)
-want = ['lab', 'fighters', 'route_tab', 'rt_tab', 'bm_chars', 'mode', 'cam_x', 'projectiles', 'attract', 'phase', 'wave', 'lock_x', 'camp', 'game_ticks', 'ai_rank', 'ai_tokens']
+want = ['lab', 'fighters', 'route_tab', 'rt_tab', 'bm_chars', 'mode', 'cam_x', 'projectiles', 'attract', 'phase', 'wave', 'lock_x', 'camp', 'game_ticks', 'ai_rank', 'ai_tokens', 'lab_fields']
 json.dump({'fields': layout, 'fsize': fsize, 'states': states, 'syms': {k: syms[k] for k in want if k in syms}, 'sizeof_bchar': syms.get('sizeof_bchar'),
            'version': open(os.path.join(game, 'VERSION')).read().strip()},
           open(os.path.join(out, 'layout.json'), 'w'))
@@ -159,3 +159,6 @@ if os.path.isdir(ENC):
     if os.path.exists(os.path.join(HERE, 'synthesis.json')): shutil.copy(os.path.join(HERE, 'synthesis.json'), os.path.join(out, 'expose', 'synthesis.json'))
     json.dump({'games': games, 'intro': "The beat 'em ups behind the brawler's gameplay revamp, measured: every playable character's movement, jump arc and moves (startup / active / recovery, damage, hit-stop, boxes), each game's system rules, and the enemies' AI."},
               open(os.path.join(out, 'expose', 'index.json'), 'w'))
+# "Try in game" (tryit.js): the Lab builds of this game dir (make LAB_FIGHTER=<f>) under rom/ (tryit_site.py)
+import tryit_site
+tryit_site.write(out, game)

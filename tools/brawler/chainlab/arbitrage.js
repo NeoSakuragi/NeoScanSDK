@@ -253,14 +253,25 @@
     catch (e) { doneMsg.textContent = 'Not sent (' + e.message + '): try again'; }
   };
 
+  // ---- "Try this sheet in game" (tryit.js): every slot of his answers (the slots still "now" keep the game's own move) on
+  // the fighter's Lab build, live; the chain's presses as a chain override when each is one brawler move
+  const sheetNow = () => {
+    const slots = {};
+    for (const s of SECTIONS) if (!s.chain) for (const d of s.slots) if (!d.noAnim && mine(d.id)) slots[d.id] = stateOf(d.id).pieces;
+    const pr = range(presses()).map(i => 'a' + (i + 1));
+    return { slots, chain: pr.some(mine) ? pr.map(id => stateOf(id).pieces) : null };
+  };
+  const tryBtn = () => window.TryIt ? window.TryIt.button(f, 'Try this sheet in game', () => window.TryIt.sheet(f, sheetNow())) : null;
+  window.arbSheet = sheetNow;
   const out = [h('h1', { text: `${D.display}: arbitration sheet` }),
     h('p', { class: 'intro', text: `What each input plays, section by section: chain, alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, or write / speak the info. Everything saves as you go. Tap a clip for ¼ speed.` }),
     h('div', { class: 'links' }, h('a', { href: 'workshop.html?f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' }))];
+  out.push(h('div', { class: 'tryrow' }, tryBtn(), h('span', { class: 'about', text: 'Your answers, slot by slot, in the game now (the slots still "now" play the game\'s own move); play them on their own inputs.' })));
   for (const s of SECTIONS) {
     out.push(h('h2', { text: s.title }), h('p', { class: 'about', text: s.about }));
     out.push(s.chain ? chainBlock() : s.slots.map(slotRow));
   }
-  out.push(h('div', { class: 'final' }, h('span', { text: 'When the whole sheet is how you want it:' }), doneBtn, doneMsg));
+  out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'When the whole sheet is how you want it:' }), doneBtn, doneMsg));
   root.replaceChildren(...out.flat());
   window.arbReady = { unlocked: Object.keys(PIECES).length, locked: W ? W.specials.filter(p => !p.id).length : null };
 })();

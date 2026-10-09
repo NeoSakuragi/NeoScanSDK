@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """TODO #174 proof: the banked P ROM as the build wrote it, as Geolith maps it and as the NeoCart PROG v3 board holds it.
 
-    python3 bank_proof.py [GAME_DIR]      (default examples/brawler, built)
+    python3 bank_proof.py [GAME_DIR] [--lab FIGHTER]      (default examples/brawler, built; --lab: the Lab build
+                                                          make LAB_FIGHTER=FIGHTER, build_lab_FIGHTER/ + lab-FIGHTER.neo)
 
 1. The link: every .p2bankN section of build/rom.elf is whole in the .neo's P region at MB 1 + N (Geolith: bank N =
    P offset (N + 1) MB, geo_m68k.c banksw), MB1 = the ELF's $000000 bytes; the bank's used / free bytes (1 MB - 16).
@@ -11,11 +12,15 @@
    between tables were checked before the link (bank_pack.py: none from a bank into another)."""
 import sys, os, json, struct, subprocess, re
 HERE = os.path.dirname(os.path.abspath(__file__))
-game = sys.argv[1] if len(sys.argv) > 1 else os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
+args = sys.argv[1:]
+lab = args[args.index('--lab') + 1] if '--lab' in args else None
+if lab: del args[args.index('--lab'):args.index('--lab') + 2]
+game = args[0] if args else os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
+BUILD, NEO = (f'build_lab_{lab}', f'lab-{lab}.neo') if lab else ('build', 'brawler.neo')
 sys.path.insert(0, os.path.join(HERE, '..', '..', 'hardware', 'neocart', 'pboard'))
 import pboard_flash
 
-elf = os.path.join(game, 'build', 'rom.elf'); neo = os.path.join(game, 'brawler.neo')
+elf = os.path.join(game, BUILD, 'rom.elf'); neo = os.path.join(game, NEO)
 CAP = 0x100000 - 16
 ok = True
 def bad(msg):
@@ -59,7 +64,7 @@ for n in banks:
 print(f'NeoCart PROG v3 image: P1 at flash MB 7, banks {banks} at flash MB {banks}: {"same bytes" if ok else "MISMATCH"}')
 
 # --- 3. the tables ---------------------------------------------------------------------------------------------------
-rep = json.load(open(os.path.join(game, 'build', 'banks.json')))
+rep = json.load(open(os.path.join(game, BUILD, 'banks.json')))
 syms = {}                                                             # address -> [(name, size, bank or None)]
 where = {}
 for l in subprocess.run(['m68k-linux-gnu-objdump', '-t', elf], capture_output=True, text=True, check=True).stdout.split('\n'):

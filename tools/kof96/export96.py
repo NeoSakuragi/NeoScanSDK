@@ -325,7 +325,38 @@ def anim_special(m, cid, st, inp, how, add):
             'shape': [max(r[1] for r in script), 0, False], 'game_hits': rom['openings'][st], 'parts': [], 'links': [],
             'flash': None, 'rom': rom}
 
-def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None, slots=None):
+# ---- the Lab build's LAB special (Brawler Lab "Try in game", Bruno 2026-10-10: make LAB_FIGHTER=<f>): EVERY animation of
+# the fighter's dictionary (tools/brawler/arb_pieces/<f>.json "anims": its $NN ids, each with the state that addresses it)
+# as one special of his pool, each animation played exactly as an animation special "kof" would play it (anim_rom: its
+# steps, boxes, travel, voices; its hits KOF's box reactions, the special damage split over them). Its program is one
+# block per animation, [P_LANIM j, P_RESUME, P_BR end yield, P_END] (P_LANIM: P_ANIM with a 16-bit animation index), so
+# the game starts animation j at op 4 j (fighter.c "Lab: try in game"). Only that build has it; the Player's never.
+def lab_special(m, cid, entries, add):
+    """entries [(hex id, state)] -> the LAB special (its 'rom': states = the animations in entry order, lab_ids = their
+    $NN, ops), and the ids it could not read"""
+    anims, states, ids, opens, elem, ops, bad = {}, [], [], {}, {}, [], []
+    for x, st in entries:
+        try:
+            a = handlers98.rom_anims(m, cid, [st], add)[st]
+            if not a['steps']: raise ValueError('no steps')
+        except Exception as e:                          # (not an animation the brawler can draw: listed, left out)
+            bad.append((x, str(e)[:60])); continue
+        if st in anims: bad.append((x, f'state {st} already taken')); continue
+        live = [k for k, s in enumerate(a['steps']) if s['flags'] & 0x100]
+        opens[st] = sum(1 for k in live if not a['steps'][k]['flags'] & 0x4000 or k == 0 or not a['steps'][k - 1]['flags'] & 0x100)
+        anims[st] = a; elem[st] = handlers98.fire_element(m, cid, st)
+        ops += [('lanim', len(states), st), ('resume',), ('br', handlers98.CONDS['end'], 0, 'yield'), ('end',)]
+        states.append(st); ids.append(int(x, 16))
+    st0 = states[0]; s0 = anims[st0]['steps']
+    rom = {'handler': None, 'button': None, 'ops': ops, 'states': states, 'anims': anims, 'openings': opens, 'last_hit': -1,
+           'vlists': [], 'step_fx': [], 'variants': [], 'sdm': False, 'flash': None, 'apex': -1, 'length': 0, 'objects': [],
+           'hit_kind': 1, 'links': [], 'elements': elem, 'lab': True, 'lab_ids': ids}
+    script = [[s0[0]['frame'], 0, 0, []]]               # (the Lab's data only: one row, its first frame)
+    return {'input': 'LAB', 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': [{}], 'row_steps': [[st0, 0, 0, 0xFF]],
+            'marks': [''], 'projectiles': [], 'anims': [st0], 'states': [[st0, 1, None]], 'shape': [0, 0, False], 'game_hits': 0,
+            'parts': [], 'links': [], 'flash': None, 'rom': rom}, bad
+
+def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None, slots=None, lab=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
     extra: {name: {move: (state, step)}} more moves for one fighter, each a single held frame (the animation's step
     `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH).
@@ -484,6 +515,10 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
                 if 'error' not in rom: sps.append(dict(e, input='MAX ' + sp['input'], rom=rom, flash=rom['flash'], max_of=sp['input']))
         sps += [anim_special(m, cid, int(inp.lstrip('$'), 16), inp, how, add)
                 for inp, how in ((anim_specials or {}).get(name) or {}).items()]
+        if lab and name in lab:                         # the Lab build's LAB special (lab_special), last of its specials
+            e, bad = lab_special(m, cid, lab[name], add); sps.append(e)
+            out['characters'][name]['lab_bad'] = bad
+            print(f'{name}: LAB special, {len(e["rom"]["states"])} animations ({len(bad)} left out: {bad[:6]})', flush=True)
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not
             out['characters'][name]['commands'] = [commands96.notation(p) for k, p in

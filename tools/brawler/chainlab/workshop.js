@@ -110,8 +110,14 @@
     p.anims.forEach(x => row.append(clip(x)));
     (p.projectile || []).forEach(x => row.append(clip(x, '(projectile)')));
     if (!p.anims.length && !(p.projectile || []).length) row.append(h('span', { class: 'pin', text: 'No animation in the dictionary.' }));
+    // "Try in game" (tryit.js): an unlocked special plays as its whole program; a throw goes on the hold's forward throw
+    // (walk into the dummy, then forward + C); a locked special's animations play back to back
+    const TI = window.TryIt;
+    const tryB = !TI ? null : on && kind === 'throw' ? TI.button(f, 'Try in game (grab, then forward + C)', () => TI.sheet(f, { slots: { grab_fwd: [p.id] } }))
+      : on ? TI.button(f, 'Try in game', () => TI.queue(f, [p.id]))
+      : p.anims.length ? TI.button(f, 'Try its animations in game', () => TI.queue(f, p.anims)) : null;
     const runs = p.anims.flatMap(x => hitRuns(D.by[x] || {}).map(r => '$' + x + ' ' + runText(r)));
-    const kids = [h('div', { class: 'phead' }, h('span', { class: 'pname', text: p.name }), tag), inp, h('p', { class: 'what', text: 'What it does: ' + p.what }), row];
+    const kids = [h('div', { class: 'phead' }, h('span', { class: 'pname', text: p.name }), tag), inp, h('p', { class: 'what', text: 'What it does: ' + p.what }), row, tryB];
     if (runs.length) kids.push(h('details', {}, h('summary', { text: 'Hit class per attack frame (' + runs.length + ')' }), h('ul', { class: 'hits' }, runs.map(t => h('li', { text: t })))));
     const q = (on ? p.id + ' ' : '') + p.name + ' (' + p.input + ')';
     kids.push(thread(p.keys, on
@@ -144,6 +150,7 @@
       const runs = hitRuns(a);
       const card = h('div', { class: 'acard', id: 'anim-' + a.id }, cv, h('div', { class: 'cap', text: AD.caption(a) }),
         runs.length ? h('ul', { class: 'hits' }, runs.map(r => h('li', { text: runText(r) }))) : null,
+        window.TryIt ? window.TryIt.button(f, 'Try in game', () => window.TryIt.queue(f, [a.id])) : null,
         askAbout(a));
       card._a = a;
       return card;

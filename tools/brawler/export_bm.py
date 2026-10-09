@@ -2,7 +2,10 @@
 """Brawler fighter data: a beat 'em up subset of each fighter's animations from the KOF dictionaries
 (tools/kof96/export96.py, any of KOF96/98/99), written as const 68000 tables + the C1/C2 tiles they use.
 
-    python3 export_bm.py OUTDIR --roster ROSTER.json             -> bm_chars.c/.h, bm_c1.bin, bm_c2.bin
+    python3 export_bm.py OUTDIR --roster ROSTER.json [--lab NAME] -> bm_chars.c/.h, bm_c1.bin, bm_c2.bin
+
+--lab NAME: the Brawler Lab's build of one fighter ("Try in game", make LAB_FIGHTER=NAME): every animation of his dictionary
+in one more special of his pool, LAB (export96.lab_special; bm_lab; OUTDIR/lab.json the page's manifest).
 
 ROSTER.json = build_tables.py's roster view of examples/brawler/game.json (the Makefile writes build/roster.json): per
 fighter in bm_chars order, its bank spec (game:name), its select-screen 'watch' pose, its specials (the KOF input of each
@@ -26,6 +29,15 @@ import voices as V
 import head_point as HP
 import pal_pack as PP
 PACKED = {}                                             # per fighter its palette packing (pal_pack.pack's report)
+LAB = {}                                                # the Lab build (--lab NAME, make LAB_FIGHTER=NAME): {name: [(hex id,
+                                                        # state)]} its dictionary's animations (arb_pieces/<name>.json)
+LABINFO = {}                                            # name -> (its LAB special's pool index, its $NN ids) (write_c)
+
+def lab_entries(name):
+    """the Lab build's fighter: every animation of his dictionary as (hex id, state), id order (arb_pieces/<name>.json
+    "anims", the dictionary's ids and the state that addresses each: arb_compile.py pieces)"""
+    lib = json.load(open(os.path.join(HERE, 'arb_pieces', name + '.json')))
+    return sorted(((x, a['state']) for x, a in lib['anims'].items() if isinstance(a.get('state'), int)), key=lambda e: int(e[0], 16))
 GAME_JSON = os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')
 _ROSTER = None
 def roster(path=None):
@@ -242,6 +254,7 @@ def build(specs, outdir):
         return next((r['name'] for r in roster().values() if r['bank'] == f'{game}:{bank}'), bank)   # key): Double
                                                         # Dragon's Billy Lee is doubledr:billy, roster billy_lee
     def export(game, names, tmp):
+        assert not any(n in LAB for n in names) or game in ('kof96', 'kof98', 'kof99'), f'--lab: {names} ({game}: KOF96 / 98 / 99 only)'
         if game == 'kof94':                             # KOF95's engine: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'kof94')); import export94
             return export94.export(names, tmp, only=set(MOVES))
@@ -272,7 +285,8 @@ def build(specs, outdir):
                                extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()},
                                shared_fx={n: played_inputs(n) for n in names},   # (only the frames used: TODO #214)
                                anim_specials={n: roster()[n]['anim_specials'] for n in names if roster().get(n, {}).get('anim_specials')},
-                               slots={n: {k: int(v[1:], 16) for k, v in roster()[n].get('moves', {}).items()} for n in names if n in roster()})
+                               slots={n: {k: int(v[1:], 16) for k, v in roster()[n].get('moves', {}).items()} for n in names if n in roster()},
+                               lab={n: LAB[n] for n in names if n in LAB} or None)   # (the Lab build: export96.lab_special)
                                                 # (Krauser gold: roster[].anim_specials, export96.anim_special)
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
     # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross
@@ -751,7 +765,7 @@ def projectile_c(n, k, pjs, game, sp):
 P_OPS = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
          'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'adv': 16, 'check': 17, 'part': 18, 'evclr': 19,
          'onhit': 20, 'place': 21, 'hitclr': 22, 'hold': 23, 'unhold': 24, 'sigclr': 25, 'hitoff': 26, 'add': 27, 'vsend': 29,
-         'vsig': 30, 'turn': 31, 'vphase': 32, 'screen': 33, 'cine': 35}   # bm_chars.h P_*
+         'vsig': 30, 'turn': 31, 'vphase': 32, 'screen': 33, 'cine': 35, 'lanim': 36}   # bm_chars.h P_*
 P_REGS = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 
 def rom_ok(sp):
@@ -862,7 +876,11 @@ def rom_c(n, k, sp, game, vres=None):
     ops = []
     for op in r['ops']:
         c = P_OPS[op[0]]
-        if op[0] == 'anim':
+        if op[0] == 'lanim':                                   # the Lab build's LAB special (export96.lab_special): each
+            st = op[2]; o_ = r['openings'].get(st, 0)          # animation's hits as its own animation special "kof":
+            ops.append((c, max(1, SPECIAL_DAMAGE // o_) if o_ else 0, R_KNOCKDOWN if o_ else R_HEAVY,   # damage | the
+                        op[1] << 8 | move_fx(n, sp, hk, (r.get('elements') or {}).get(st, 0), st)))   # reaction, index << 8 | fx
+        elif op[0] == 'anim':
             st = op[2]; react = ROM_REACT.get((n, sp['input'])) or r.get('react') or (R_KNOCKDOWN if hitting and st == hitting[-1] else R_HEAVY)
                                                        # (r react: an animation special's, export96.anim_special)
             ops.append((c, op[1], each | react << 8, move_fx(n, sp, hk, (r.get('elements') or {}).get(st, 0), st)))
@@ -884,13 +902,14 @@ def rom_c(n, k, sp, game, vres=None):
         elif op[0] == 'spawn': ops.append((c, op[1], 0, 0))
         elif op[0] == 'vsend': ops.append((c, vres(op[1]) if vres else 0, op[2], 0))   # P_VOICE: id (0 silent), frames later
         else: ops.append((c, 0, 0, 0))
-    assert len(ops) < 255, (n, sp['input'])
+    assert len(ops) < 255 or r.get('lab'), (n, sp['input'])   # (the LAB special: 4 ops an animation, P_LANIM's 16-bit index)
     out.append(f'static const bprim_t {n}_sp{k}_prog[] = {{' + ', '.join(f'{{{a}, {b}, {c}, {d}}}' for a, b, c, d in ops) + '};')
     if r['objects']: out.append(projectile_c(n, f'{k}r', r['objects'], game, sp))
     out += vlists_c(n, k, vl_row(n, sp), game)
     pv = [(j, i, vres(ix)) for j, st in enumerate(r['states']) for i, s in enumerate(r['anims'][st]['steps'])
           for ix in s.get('voices', [])] if vres else []
-    sp['_pvox'] = [(k, j, i, v) for j, i, v in pv if v]   # its steps' voices (KOF's $FC records): bchar_t.pvox
+    sp['_pvox'] = [(k, j, i, v) for j, i, v in pv if v and j < 256]   # its steps' voices (KOF's $FC records): bchar_t.pvox
+                                                       # (byte indices: the LAB special's animations past 255 are silent)
     sp['_pfx'] = [(k, j, i, o) for j, i, o in r.get('step_fx', [])]   # its steps' effects (KOF's $FA records): bchar_t.pfx
     sp['_hspk'] = hspk_rows(k, r)
     assert all(j < 256 and i < 256 for _, j, i, _ in sp['_pvox']), n
@@ -1471,7 +1490,7 @@ def move_segments(ch, n, sps):
     out = [RT.step_segments(R.step_flags(source(ch, m)['steps'])) for m in MOVES]
     atk = lambda s_: boxes(s_['boxes'])[1] is not None
     for sp in sps:
-        if not rom_ok(sp): out.append([]); continue
+        if not rom_ok(sp) or sp['rom'].get('lab'): out.append([]); continue   # (the Lab build's LAB special: not retimed)
         var = vdef_of(n, sp) if (sp['rom'].get('vtable') or {}).get('nvar') else 0
         out.append(RT.rom_segments(sp['rom'], var, atk))
     return out
@@ -1517,7 +1536,7 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t frame; int16_t x, y; } bpend_t;   /* a projectile\'s end after its hit: frame, x from the impact in 1/8 px, height from the impact\'s (the end plays where the hit was, TODO #164) */',
          'typedef struct bproj { uint8_t nrows, loop, nend, kind, spawn_row, react, fx, follow; int16_t spawn_x, spawn_y, wrap_x; const bprow_t *rows; const bpend_t *end; const struct bproj *child; uint8_t child_b0, child_b1, child_period, sig; int16_t child_dx, child_dy; const struct bproj *next; uint8_t hits, stop, hitnext, ppad; int16_t brange, bcatch, bsegmin; uint8_t bhover, bheld, bseg, bgap; uint8_t air, back, cols, vhits; } bproj_t;   /* vhits (Krauser gold 2026-10-09, game.json roster[].max_hits: his MAX Kaiser Wave): 0, or a travelling object that pierces: it hits each victim vhits times (the last with its react, the others a reel R_HEAVY; its damage split over them), frozen stop frames after each hit, then re-armed for every victim it is not done with (fighter_t.vcnt / vdone; fighter.c strike), flying on; cols (TODO #216): its widest frame (hardware sprites) over its rows, end rows and child chain, measured by the export (main.c depth_sort: the pool block of a new definition); back 1 (TODO #214, KOF\'s +$2C < 0: an effect of the shared bank drawn behind its owner, Iori 624D\'s smoke): drawn behind a fighter at the same Z (fighter_t.zfront -1); air 1 (TODO #211, an air projectile: SS2 Hanzo\'s shuriken thrown from a jump): its rows\' heights count from its thrower\'s height at its spawn (fighter_t.py0), and the frame after its height reaches the floor it becomes its next phase there (its floor rows: the shuriken stuck in the floor; no next: it ends); ppad 1 (TODO #193): its hit sends the victim away from its thrower, not from where it stands (SS2 Hanzo\'s rage flame, its column beyond the victim: SS2 throws it on away from him); kind 4 = spawn.boomerang (TODO #176, SS2 Kuroko\'s flag, object 27 $4C274; fighter.c boom_update): it flies out wrap_x (1/8 px) a frame from spawn_x px ahead of its thrower until brange px from him, or until its first hit / clash (its attack then spent), hovers there bhover + 1 frames, flies back at the same speed until bcatch px from him, signals him (sig, at the catch, not at its end) and stays bheld + 1 frames in his hand; rows = its animation (x unused; loop = the row it holds); bseg pole segments (child: their bproj_t, kind 5, placed by it) bgap px apart behind it, never nearer him than bsegmin px; it ends with its thrower\'s special (proj[]), never off screen; hitnext 1 (TODO #173, Rugal\'s Kaiser Wave: KOF\'s hit routine steps a state list, +$C2): next is the phase it becomes at its hit (where it is, frozen stop frames, re-armed), not at its thrower\'s signal; next / hits / stop (vocabulary object.phase, TODO #152): the phase it becomes when its thrower sets +$D1 bit 7 (P_FXOFF: a pinned effect launched instead of ended, from where it is: Billy Kane\'s fire ring), that phase\'s hits before its end rows (0 / 1: its first hit ends it; KOF\'s +$138) and the frames it stays frozen after a hit with hits left (then re-armed); bprow_t flags 4: the row re-arms its hit (KOF: the object clears its +$E2 bit 7 on an event step: it hits again); sig (TODO #139): its thrower\'s +$D1 bits 7 / 6 (fighter_t.pflags PF_SIG7 / PF_SIG6) it sets at its end, bits 5 / 4 = the same at its hit (Raging Storm\'s side effects, K\'\'s shot); follow: 1 = an effect pinned to its thrower (3: it ends at its last row) (rows: offsets from it; a ROM special\'s, ended by P_FXOFF or the special\'s end: Burn Knuckle\'s flame); bit 4: its rows run with its thrower\'s script rows (row = the thrower\'s row - spawn_row: frozen with its hit-stop), it ends when the thrower leaves them (Kizuna\'s Hienzan pillar, TODO #144: a script special\'s pinned effect, not a shot); bit 16: pinned to its thrower\'s caught victim (fighter_t.target) instead (SS2\'s WFT card wind, object 27); child: the trail it spawns (no boxes) on its frames child_b0, child_b1 (255: none), then every child_period, child_dx (1/8 px, forward) / child_dy from its place then (KOF: objects owned by the projectile: Krauser\'s Blitz Ball, Iori\'s Yami Barai); a special\'s projectile (tools/kof96/projectiles96): an entity of its own from the thrower\'s script row spawn_row, at spawn_x / spawn_y (px, from the script\'s origin, forward +); rows = its flight; loop: the row the flight repeats from (0xFF: it dies when its rows end, its animation over), each repeat moving it wrap_x (1/8 px) on; kind: KOF object +$F5, 1 = travelling (its hit ends it: the end rows play), 3 = an eruption (plays on, its attack spent); react R_*, fx: hit effect (bspec_row_t.fx); dies off screen (x - camera <= -64 or >= 384: KOF96/98/99\'s own test) */',
          'typedef struct { uint8_t op, a; int16_t b; int32_t v; } bprim_t;   /* one primitive of a special read from the ROM (tools/kof96/handlers98.py, handlers98.md; export_bm rom_c): op P_*, operands a / b / v (fighter.c prog_update) */',
-         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END, P_ADV, P_CHECK, P_PART, P_EVCLR, P_ONHIT, P_PUT, P_HITCLR, P_HOLD, P_UNHOLD, P_SIGCLR, P_HITOFF, P_ADD, P_FORM, P_VOICE, P_VSIG, P_TURN, P_VPHASE, P_SCREEN, P_HOME, P_CATCH };   /* P_CATCH (TODO #216, KOF98 $3F8A: the engine\'s throw on the held opponent, Iori 23624C\'s finisher) the catch now: a dead frames (0: the routine from the next frame), then the routine b; its victim takes list v (bspec_t.vlists, 1-based), held (PF_HOLD) from the routine\'s start; P_VPHASE (TODO #136, vocabulary hold.victim_phase) a = VA_* bits on its target (Kizuna: the victim\'s +$1AF phases, $2CD06; fighter.c vphase): VA_SNAP placed at the attacker\'s place, VA_FREEZE / VA_THAW its body held still (its reaction paused, its velocity kept) / free, VA_MIRROR / VA_UNMIRROR its body moved by the attacker\'s moves mirrored in x; P_SCREEN a = 1 / 0: the special\'s screen effect (bspec_t.bd_col, bd_first 0xFFFF) on / off (Kizuna $27E1, the Phoenix); P_HOME (TODO #218, vocabulary attack.down) a = a shift: vx = the distance to its down attack\'s target (whole px) >> a (turned to face it), vz = its depth >> a (fighter.c; Double Dragon\'s leap $23070: << 10 = >> 6, a 64-frame flight); P_VPHASE (TODO #136, vocabulary hold.victim_phase) a = VA_* bits on its target (Kizuna: the victim\'s +$1AF phases, $2CD06; fighter.c vphase): VA_SNAP placed at the attacker\'s place, VA_FREEZE / VA_THAW its body held still (its reaction paused, its velocity kept) / free, VA_MIRROR / VA_UNMIRROR its body moved by the attacker\'s moves mirrored in x; P_SCREEN a = 1 / 0: the special\'s screen effect (bspec_t.bd_col, bd_first 0xFFFF) on / off (Kizuna $27E1, the Phoenix); P_VSIG (TODO #173) the caught victim takes its next list (KOF: +$D1 bit 7 on the opponent; bspec_t.vlists); P_TURN the attacker turns around (KOF eori #1, +$31: speeds stay forward +); P_VOICE (TODO #163) a = voice id (0 silent), b = 0: now, else b frames later (KOF +$1B4 / +$1B6; fighter.c prog_voice); P_ADD a = register (0 vx, 1 vy, 4 cnt) += v (16.16; gravity applied before the move: Double Dragon\'s order); P_FORM the form link\'s swap now (fighter.c form_swap: the special ends); P_MUL a = 1: vy *= v; (TODO #139) P_HITOFF its hit flag cleared (KOF +$E1 bit 7, PC_HIT); P_SIGCLR v = the +$D1 bits 7 / 6 kept (an andi: its objects\' signals cleared); P_EVCLR the step\'s event consumed (KOF: andi on +$7D); P_ONHIT b = the catch routine (KOF +$19C: a catch box\'s hit, bstep_t flags 64, runs it after a dead frame); P_PUT v = the caught victim put v px in front, facing the attacker (KOF $25032); P_HITCLR the any-hit flag cleared (KOF +$E3 bit 7, PC_HITANY); P_HOLD / P_UNHOLD the caught victim held in place / let go (KOF +$E4 bit 4: its reactions stay a standing reel while held); P_ADV the animation one more tick (the engine called again on the same state); P_CHECK a = the follow-up links read this frame (a press of link k this frame arms bit k: fighter_t.plink); P_PART the armed links cleared (a new part); bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
+         'enum { P_ANIM = 1, P_SET, P_MUL, P_MOVE, P_FRICMOVE, P_FALL, P_NUDGE, P_DEC, P_BR, P_RESUME, P_RESUMEAT, P_JMP, P_SPAWN, P_FXOFF, P_END, P_ADV, P_CHECK, P_PART, P_EVCLR, P_ONHIT, P_PUT, P_HITCLR, P_HOLD, P_UNHOLD, P_SIGCLR, P_HITOFF, P_ADD, P_FORM, P_VOICE, P_VSIG, P_TURN, P_VPHASE, P_SCREEN, P_HOME, P_CATCH, P_LANIM };   /* P_LANIM (the Lab build\'s LAB special, export96.lab_special) = P_ANIM with a 16-bit animation index: a = damage, b = reaction, v = bspec_t.anims index << 8 | hit effect; P_CATCH (TODO #216, KOF98 $3F8A: the engine\'s throw on the held opponent, Iori 23624C\'s finisher) the catch now: a dead frames (0: the routine from the next frame), then the routine b; its victim takes list v (bspec_t.vlists, 1-based), held (PF_HOLD) from the routine\'s start; P_VPHASE (TODO #136, vocabulary hold.victim_phase) a = VA_* bits on its target (Kizuna: the victim\'s +$1AF phases, $2CD06; fighter.c vphase): VA_SNAP placed at the attacker\'s place, VA_FREEZE / VA_THAW its body held still (its reaction paused, its velocity kept) / free, VA_MIRROR / VA_UNMIRROR its body moved by the attacker\'s moves mirrored in x; P_SCREEN a = 1 / 0: the special\'s screen effect (bspec_t.bd_col, bd_first 0xFFFF) on / off (Kizuna $27E1, the Phoenix); P_HOME (TODO #218, vocabulary attack.down) a = a shift: vx = the distance to its down attack\'s target (whole px) >> a (turned to face it), vz = its depth >> a (fighter.c; Double Dragon\'s leap $23070: << 10 = >> 6, a 64-frame flight); P_VPHASE (TODO #136, vocabulary hold.victim_phase) a = VA_* bits on its target (Kizuna: the victim\'s +$1AF phases, $2CD06; fighter.c vphase): VA_SNAP placed at the attacker\'s place, VA_FREEZE / VA_THAW its body held still (its reaction paused, its velocity kept) / free, VA_MIRROR / VA_UNMIRROR its body moved by the attacker\'s moves mirrored in x; P_SCREEN a = 1 / 0: the special\'s screen effect (bspec_t.bd_col, bd_first 0xFFFF) on / off (Kizuna $27E1, the Phoenix); P_VSIG (TODO #173) the caught victim takes its next list (KOF: +$D1 bit 7 on the opponent; bspec_t.vlists); P_TURN the attacker turns around (KOF eori #1, +$31: speeds stay forward +); P_VOICE (TODO #163) a = voice id (0 silent), b = 0: now, else b frames later (KOF +$1B4 / +$1B6; fighter.c prog_voice); P_ADD a = register (0 vx, 1 vy, 4 cnt) += v (16.16; gravity applied before the move: Double Dragon\'s order); P_FORM the form link\'s swap now (fighter.c form_swap: the special ends); P_MUL a = 1: vy *= v; (TODO #139) P_HITOFF its hit flag cleared (KOF +$E1 bit 7, PC_HIT); P_SIGCLR v = the +$D1 bits 7 / 6 kept (an andi: its objects\' signals cleared); P_EVCLR the step\'s event consumed (KOF: andi on +$7D); P_ONHIT b = the catch routine (KOF +$19C: a catch box\'s hit, bstep_t flags 64, runs it after a dead frame); P_PUT v = the caught victim put v px in front, facing the attacker (KOF $25032); P_HITCLR the any-hit flag cleared (KOF +$E3 bit 7, PC_HITANY); P_HOLD / P_UNHOLD the caught victim held in place / let go (KOF +$E4 bit 4: its reactions stay a standing reel while held); P_ADV the animation one more tick (the engine called again on the same state); P_CHECK a = the follow-up links read this frame (a press of link k this frame arms bit k: fighter_t.plink); P_PART the armed links cleared (a new part); bprim_t.op: P_ANIM a = bspec_t.anims index, b = damage | reaction << 8 of the hits it opens, v = hit effect; P_SET a = register (0 vx, 1 vy, 2 g: 16.16; 3 fric: 0.16; 4 cnt), v; P_MUL vx *= v / 65536; P_MOVE x += vx; P_FRICMOVE vx *= fric, x += vx; P_FALL height += vy, vy -= g (landed / falling flags); P_NUDGE b px forward, v px up; P_DEC cnt -= 1; P_BR a = condition PC_* | 0x80 when true, b = the op to go to (-1: the frame ends, it resumes next frame); P_RESUME the resume point = the next op; P_RESUMEAT b; P_JMP b; P_SPAWN a = bspec_t.robj index; P_FXOFF its attached effects end; P_END */',
          'enum { PC_END, PC_EVENT, PC_LAND, PC_FALL, PC_CNT, PC_HIT, PC_OFF, PC_ALWAYS, PC_STEPEV, PC_WINDOW, PC_LINK, PC_HITANY, PC_SIG7, PC_SIG7C, PC_SIG6, PC_FAR, PC_LOW, PC_WALL, PC_HELD, PC_CNTLE, PC_PASSED, PC_CAUGHT, PC_THIGH, PC_TDOWN };   /* PC_TDOWN (TODO #218) its down attack\'s target still lies (DD $230FA: else the fall); PC_THIGH (TODO #136) its target above v px and held by no victim phase (fighter.c vphase: Kizuna $3AC92, the Phoenix\'s ceiling); PC_PASSED (SS2 $563F4) its opponent (the target, else the nearest on its lane) no longer ahead of it by more than v px; PC_WALL (TODO #173) the fighter at the wall (KOF98 $18092, the stage\'s x 32 / 736; the brawler: the screen-edge wall, fighter.c wall_lo / wall_hi); PC_HELD the special\'s button held (KOF and.b (fp): a charge); PC_CNTLE the counter <= v (KOF\'s charge level tests); PC_LOW the height below v px (KOF cmpi on +$20, Billy 623D); PC_FAR the target farther than v px (KOF +$BC, K\'\'s dash); PC_SIG7 / PC_SIG6 its object set +$D1 bit 7 / 6 (bproj_t sig), PC_SIG7C bit 7 consumed (bclr); PC_HITANY a hit landed since P_HITCLR; PC_STEPEV the step has KOF\'s $0080 (bstep_t flags 8, not consumed by P_EVCLR / PC_EVENT), PC_WINDOW $2000 (flags 32, a follow-up window), PC_LINK an armed link in the P_BR\'s v mask; P_BR conditions: animation over, an event step entered (consumed), landed, falling, counter < 0, the move hit, off screen, always */',
          'typedef struct { uint16_t first, end; uint8_t next, pad; } bspart_t;   /* a special\'s part: script rows [first, end), the part played when it ends (0xFF: the move ends; fighter.c "follow-ups") */',
          'typedef struct { uint8_t from, to, trig, in, dir, at; uint16_t lo, hi; } bslink_t;   /* a follow-up: from part `from` to part `to`; trig 1 a hit landed (LK_HIT), 2 a press (LK_IN: buttons `in` IN_*, stick `dir` = a C role BS_* by d_input, 0xFE the role the move started with, 0xFF any) inside the window [lo, hi) (script rows); at 1 = switch at once (LK_NOW), 0 = when the part ends */',
@@ -1694,6 +1713,8 @@ def write_c(chars, outdir):
                     for l in sp['links']) + '};')
             if rom_ok(sp): cs.append(rom_c(n, k, sp, game, prog_voice_res(n, game, pool[k]['input'], vsug, vmp) if kof_prog(sp, game) or step_voiced(sp) else None))   # read from the ROM: played by its program
         assert len(sps) < 255, n
+        for k, sp in enumerate(sps):                     # the Lab build's LAB special: its index and its animations' ids
+            if sp['input'] == 'LAB' and rom_ok(sp) and sp['rom'].get('lab'): LABINFO[n] = (k, sp['rom']['lab_ids'])
         pooldata[n] = [special_info(sp, game) for sp in sps]
         cs.append(f'const bspec_t {n}_specials[{max(1, len(sps))}] = {{' + (', '.join(
             f'{{{1 if prog_only(sp) else len(sp["script"])}, {rom_inv(sp) if rom_ok(sp) else rise_inv(sp)}, {len(sp["parts"])}, {len(played_projectiles(sp))}, {n}_sp{k}, {f"{n}_pj{k}" if played_projectiles(sp) else 0}, '
@@ -1784,6 +1805,24 @@ def write_c(chars, outdir):
     c.append('const bair_t bm_hsnd[BC_COUNT] = {' + ', '.join(f'{n}_hsnd' for _, n, _, _ in chars) + '};   /* (hit sounds) */')
     c.append('const bxthr_t bm_xthr[BC_COUNT] = {' + ', '.join(xthr_c(ch, n) for _, n, ch, _ in chars) + '};   /* (revamp 3) */')
     c += sreact_c()
+    # the Lab build (make LAB_FIGHTER=<f>, fighter.c "Lab: try in game"): its fighter, his LAB special's pool index, the
+    # $NN of its animations (bspec_t.anims order; the page names an animation by $NN, the game finds its index here);
+    # every other build: none (0xFF)
+    lf = next(((ci, n) for ci, (_, n, _, _) in enumerate(chars) if n in LABINFO), None)
+    h[-1:-1] = ['typedef struct { uint8_t fighter, spec; uint16_t n; const uint16_t *ids; } blab_t;   /* the Lab build (fighter.c '
+                '"Lab: try in game"): its fighter (0xFF: not a Lab build), his LAB special (pool index), its n animations\' $NN */',
+                'extern const blab_t bm_lab;']                # (before the last entry: its #endif)
+    if lf:
+        ci, n = lf; k, ids = LABINFO[n]
+        c.append('static const uint16_t bm_lab_ids[] = {' + ', '.join(f'0x{v:X}' for v in ids) + '};')
+        c.append(f'const blab_t bm_lab = {{{ci}, {k}, {len(ids)}, bm_lab_ids}};')
+        ch = next(ch_ for _, n_, ch_, _ in chars if n_ == n)
+        json.dump({'fighter': n, 'id': ci, 'spec': k, 'anims': ['%X' % v for v in ids], 'left_out': ch.get('lab_bad', []),
+                   'pool': [sp['input'] for sp in special_pool(ch, n)], 'throws': THROWS, 'ba': MOVES,
+                   'moves': {m: '%X' % ch['anims'][m]['slot'] for m in MOVES if m in ch['anims'] and isinstance(ch['anims'][m].get('slot'), int)},
+                   'fighters': [n_ for _, n_, _, _ in chars]},
+                  open(os.path.join(outdir, 'lab.json'), 'w'), indent=1)
+    else: c.append('const blab_t bm_lab = {0xFF, 0xFF, 0, 0};')
     c.append('const int8_t bm_head[BC_COUNT][2] = {' + ', '.join(f'{{{ch["head"][0]}, {ch["head"][1]}}}' for _, _, ch, _ in chars) + '};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')
@@ -1795,6 +1834,8 @@ if __name__ == '__main__':
     outdir = sys.argv[1]
     assert sys.argv[2] == '--roster', __doc__
     specs = [r['bank'] for r in roster(sys.argv[3]).values()]
+    if sys.argv[4:5] == ['--lab'] and sys.argv[5:6] != ['']:   # the Lab build (make LAB_FIGHTER=<f>): every animation of
+        LAB[sys.argv[5]] = lab_entries(sys.argv[5])            # his dictionary in his LAB special (export96.lab_special)
     chars, tiles = build(specs, outdir)
     for game, n, ch, off in chars:
         print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D', 'up+D', 'df+D', 'uf+D'), pick_specials(ch, n))) + ';', end=' ')

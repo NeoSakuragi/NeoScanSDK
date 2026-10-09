@@ -1,2 +1,4 @@
 res/
 brawler.neo
+build_lab_*/
+lab-*.neo

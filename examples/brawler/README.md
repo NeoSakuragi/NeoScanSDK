@@ -361,6 +361,25 @@ window; hit; end) for the page's per-link readout. `labdrive.py` drives the same
 `proof.sh` plays Terry's AAB→A route in both cores and compares the traces (identical); `deploy_vps.sh` publishes. Enemy test (`lab.req = 3`) and
 data packs (`lab.load = 3 / 4`): see "Data" above.
 
+**The live config / "Try in game"** (2026-10-10; fighter.c "Lab: try in game", `chainlab/tryit.js`): P1 plays **lab
+entries** back to back: an animation `$NN` of the fighter's dictionary (u16 < `0x1000`; needs a build with his LAB special,
+below), `0x1000 | k` = special k of his pool (an S- piece), `0x2000 | t` = his throw BT_* t (a T- piece; a grab slot's
+first entry only). One **TRY blob**, version 1, carries the whole config: the **queue** (A from neutral plays it, `LQ_NOW`
+once at once, `LQ_LOOP` again from its start) and the **arbitration slots** (27, `LS_*` = arbitrage.js ids: finishers + a
+direction, Blitz, air Blitz, C specials, air specials, air normals, the hold's hit / finisher / throws, fury, MAX: the
+slot's press plays its entries instead of the game's move, as a special of the slot's role, nothing paid). Bytes
+(big-endian): `[0] 'L' [1] 'T' [2] 1 [3] fighter (bm_chars index) [4] LQ_* [5] qn [6] ns [7] 0`, qn queue entries (u16),
+then ns records `[slot][n <= 8][n entries]`; at most 576 bytes (`TRY_MAX`); a slot not named = the game's own, qn 0 = no
+queue. ONE encoder: `chainlab/lab.js encodeTry` (the pages, Node on the server, whatever feeds the Player). The writer
+puts it in `lab.tblob`, `lab.load = 6`: checked at once (`lab.lstat` 0x80 | n refused, nothing changed), else PENDING
+(`lstat` 2) and **applied the next time P1 is in neutral** (standing / walking, never mid-move nor in a hit stun:
+`lstat` 1); `lab.tnow = 1` with the load = **apply now** (the next tick whatever P1 does; the move playing finishes,
+nothing resets). `lab.cur` / `lab.qpos`: the entry playing. The export option `export_bm.py --lab F` (`make
+LAB_FIGHTER=F` -> `lab-F.neo`, `build_lab_F/`) puts every animation of F's dictionary (`arb_pieces/F.json`) into one more
+special of his pool (`LAB`: one program block per animation, `P_LANIM`), his complete animation block; `bm_lab` names it
+(0xFF in every other build). `tryit_site.py` copies such builds into the Lab site's `rom/` for the web preview;
+`tryit_proof_node.js` / `tryit_proof.js` (headless Chrome) are the proofs.
+
 ## Timing: KOF's frames, and a speed (2026-10-05)
 The animation player (fighter.c "animation player") shows a step for KOF's ticks + 1 frames, the first one too (until
 then: ticks, the first ticks - 1; Terry's normals were 17-43 % fast, close A 9 frames for KOF's 12). Everything it plays

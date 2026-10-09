@@ -17,6 +17,38 @@
   const KINDS = ['START', 'HIT', 'END', 'SPECIAL', 'CHAINWIN'];
   const HOW = ['neutral', 'after end', 'cancel', 'window'];
   const BOOT_FRAMES = 400;
+  // "Try in game" / the live config (fighter.h lab_t load 6 = a TRY blob, LE_*, LS_*; fighter.c "Lab: try in game"):
+  // entries, the slots in LS_* order (= the arbitration sheet's ids, arbitrage.js), lab.lstat's checks
+  const LE_SPEC = 0x1000, LE_THROW = 0x2000, LE_NONE = 0xFFFF, LQ_MAX = 32, LO_MAX = 8, LQ_LOOP = 1, LQ_NOW = 2;
+  const TRY_VERSION = 1, TRY_MAX = 576;
+  const LAB_SLOTS = ['fin_fwd', 'fin_up', 'fin_down', 'fin_df', 'fin_back', 'bz_ff', 'bz_dd', 'bz_uu', 'bz_du',
+    'air_bz_ff', 'air_bz_dd', 'air_bz_uu', 'air_bz_du', 'sp_c', 'sp_fc', 'sp_dc', 'air_sp_c', 'air_sp_fc', 'air_sp_dc',
+    'air_a', 'air_da', 'grab_hit', 'grab_fin', 'grab_fwd', 'grab_back', 'fury', 'max'];
+  const LSTAT = ['', 'an animation this build lacks (not its LAB fighter, or no such $NN)', 'a special the pool lacks',
+    'a throw the fighter lacks', 'a throw outside a grab slot (or not its first entry)', 'a list too long',
+    'not a TRY blob of version 1', 'the blob runs past its room', 'no such slot'];
+  /* THE encoder of the live config (the pages, the server under Node and whatever feeds the Player send these bytes):
+     {fighter: bm_chars index, queue: [LE_* words], loop, now, slots: {LAB_SLOTS id: [LE_* words]}} -> a TRY blob,
+     version 1, big-endian (fighter.h lab_t): [0] 'L' [1] 'T' [2] 1 [3] fighter [4] LQ_* [5] qn [6] ns [7] 0, the qn
+     queue entries (u16), then ns slot records [slot][n][n entries u16], in LAB_SLOTS order. A slot left out (or empty)
+     plays the game's own move; an empty queue = none. Throws on what the game would refuse for its shape. */
+  function encodeTry(cfg) {
+    const q = cfg.queue || [], slots = cfg.slots || {}, out = [];
+    if (!(cfg.fighter >= 0 && cfg.fighter < 255)) throw new Error('fighter ' + cfg.fighter);
+    if (q.length > LQ_MAX) throw new Error(`${q.length} queue entries (at most ${LQ_MAX})`);
+    for (const k of Object.keys(slots)) if (!LAB_SLOTS.includes(k)) throw new Error('unknown slot ' + k);
+    const w16 = v => { if (!(v >= 0 && v <= 0xFFFF) || v === LE_NONE) throw new Error('entry ' + v); out.push(v >> 8, v & 0xFF); };
+    const used = LAB_SLOTS.filter(k => slots[k] && slots[k].length);
+    out.push(76, 84, TRY_VERSION, cfg.fighter, (cfg.loop ? LQ_LOOP : 0) | (cfg.now ? LQ_NOW : 0), q.length, used.length, 0);
+    q.forEach(w16);
+    for (const k of used) {
+      const l = slots[k];
+      if (l.length > LO_MAX) throw new Error(`${k}: ${l.length} entries (at most ${LO_MAX})`);
+      out.push(LAB_SLOTS.indexOf(k), l.length); l.forEach(w16);
+    }
+    if (out.length > TRY_MAX) throw new Error(`${out.length} bytes (at most ${TRY_MAX})`);
+    return Uint8Array.from(out);
+  }
   const RAM_FIELDS = ['state', 'x', 'z', 'y', 'hp', 'hp_max', 'facing', 'anim', 'step', 'set', 'power', 'tint'];   // ramtrace.py FIELDS
 
   // ---- route trees (tools/brawler/routes.py: the same format and the same encoder) ----------------------------------
@@ -175,6 +207,7 @@
     r16(a) { const p = this.ramAddr(a); return (this.heap[p] << 8) | this.heap[p + 1]; }
     r32(a) { const p = this.ramAddr(a), h = this.heap; return ((h[p] << 24) | (h[p + 1] << 16) | (h[p + 2] << 8) | h[p + 3]) >>> 0; }
     w8(a, v) { this.heap[this.ramAddr(a)] = v & 0xFF; }
+    w16(a, v) { const p = this.ramAddr(a); this.heap[p] = (v >> 8) & 0xFF; this.heap[p + 1] = v & 0xFF; }
     wbytes(a, bytes) { this.heap.set(bytes, this.ramAddr(a)); }
     setPad(port, keys) { let b = 0; for (const k of keys) if (k in KEYS) b |= 1 << KEYS[k]; this.pads[port] = b; }
     run(n = 1) {
@@ -209,6 +242,23 @@
       this.w8(this.lab + LAB.fighter, fighter);
       this.w8(this.lab + LAB.load, bytes ? 5 : 2);
     }
+    /* "Try in game" (fighter.c "Lab: try in game"): lab_t's offsets from the build's layout (harness._layout lab_fields) */
+    tryOff(k) {
+      const o = (this.layout.syms.lab_fields || {})[k];
+      if (o === undefined) throw new Error('this build has no "Try in game" (lab_t.' + k + ')');
+      return this.lab + o;
+    }
+    /* load 6: a TRY blob (encodeTry) for P1 = its fighter: checked on the game's next tick, applied when P1 is next in
+       neutral (standing / walking), or at once with now (lab_t.tnow: "apply now"); tryStatus() follows it */
+    installTry(blob, now) {
+      if (blob.length > TRY_MAX) throw new Error(`${blob.length} bytes (the game holds ${TRY_MAX})`);
+      this.wbytes(this.tryOff('tblob'), blob); this.w8(this.tryOff('lstat'), 0); this.w8(this.tryOff('tnow'), now ? 1 : 0);
+      this.wbytes(this.lab + LAB.magic, [76, 65, 66, 49]); this.w8(this.lab + LAB.fighter, blob[3]); this.w8(this.lab + LAB.load, 6);
+    }
+    /* the last load 6: 'pending', 'taken' or 'refused: <why>' */
+    tryStatus() { const v = this.r8(this.tryOff('lstat')); return v === 1 ? 'taken' : v === 2 ? 'pending (applies at neutral)' : v & 0x80 ? 'refused: ' + (LSTAT[v & 0x7F] || 'check ' + (v & 0x7F)) : 'sent'; }
+    tryCur() { return this.r16(this.tryOff('cur')); }      // P1's lab entry playing (LE_NONE: none)
+    tryPos() { return this.r8(this.tryOff('qpos')); }      // its index in its list
     /* what the game reads now: route_tab[fighter] and rt_tab (0 = the ROM's), as addresses and as "lab" / "rom" */
     overrideState(fighter) {
       const y = this.layout.syms, buf = this.lab + LAB.buf;
@@ -483,7 +533,7 @@
      once the last builder has started (the finisher's press), nothing once the finisher started */
   function autoKeys(i, starts, N, stick, done) { return done ? '' : (starts >= N - 1 ? stick : '') + (i % 2 ? '' : 'a'); }
 
-  const api = { Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  const api = { encodeTry, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);
