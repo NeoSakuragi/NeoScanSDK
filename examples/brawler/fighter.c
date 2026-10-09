@@ -2055,6 +2055,13 @@ static void src_react(fighter_t *v, int8_t away, uint8_t k) {
     v->kmode = 1 | (r->r & 8 ? KM_HURT : 0);                     /* (hittable in its flight when its source's reaction
                                                                     steps carry boxes: Kizuna's 32 / 33 / 9B, not 2C) */
 }
+/* a knocked-down body touching the floor (its landing, then the landing after its bounce): KOF94 plays its KO landing
+ * there ($66EA, index $227 in place of the body landing $105 when the body has no life left; both contacts, $8C7C /
+ * $8D00). Here only a body main.c marks (fighter_t.kthud: the boss's death fall, feedback 20261009-223719-b3f3), the
+ * sound game.json hit_sounds.bounce; never dropped (snd_cmd: the KO sequence's sounds are few) */
+static void floor_thud(const fighter_t *f) {
+    if (f->kthud && ghitsnd.bounce) { snd_cmd(0x1A); snd_cmd(ghitsnd.bounce); }
+}
 static uint8_t src_fall(fighter_t *f) {                          /* S_KNOCKDOWN in a source reaction: one frame; 0 = its */
     const bsreact_t *r = &bm_sreact[f->ksr - 1];                 /* landing is the brawler's own (no bounce in the data) */
     if (f->anim == BA_KNOCKDOWN_BOUNCE) {                        /* on the floor: the pause, then the bounce */
@@ -2066,6 +2073,7 @@ static uint8_t src_fall(fighter_t *f) {                          /* S_KNOCKDOWN 
         f->y = 0; f->vy = 0; f->kmode = 0; f->kfloor = 1;
         if (r->land == 0xFF) { f->ksr = 0; return 0; }
         f->vx = 0;
+        if (r->land != 0xFF) floor_thud(f);
         if (f->anim == BA_KNOCKDOWN_FALL) { f->ksr = 0; enter(f, S_DOWN); play(f, BA_DOWN); return 1; }
         f->ksn = r->land ? r->land - 1 : 0; play(f, BA_KNOCKDOWN_BOUNCE); set_burn(f, 0);
         return 1;
@@ -2936,8 +2944,8 @@ static void update(fighter_t *f, const intent_t *in) {
             if (f->anim == BA_KNOCKDOWN_BOUNCE) {                /* on the floor until it played, then the hop */
                 f->vy = 0; f->vx -= f->vx >> 2;
                 if (f->anim_done) { f->vy = FIX(1); play(f, BA_KNOCKDOWN_FALL); }
-            } else if (f->anim == BA_KNOCKDOWN_FALL) { f->vx = f->vy = 0; enter(f, S_DOWN); play(f, BA_DOWN); }
-            else { f->vy = 0; f->vx >>= 1; play(f, BA_KNOCKDOWN_BOUNCE); set_burn(f, 0); }   /* KOF98: a burn ends at the floor */
+            } else if (f->anim == BA_KNOCKDOWN_FALL) { f->vx = f->vy = 0; enter(f, S_DOWN); play(f, BA_DOWN); floor_thud(f); }
+            else { f->vy = 0; f->vx >>= 1; play(f, BA_KNOCKDOWN_BOUNCE); set_burn(f, 0); floor_thud(f); }   /* KOF98: a burn ends at the floor */
         } else if (f->vy < 0 && (f->anim == BA_BLOWBACK || f->anim == BA_BLOWBACK_N)) play(f, BA_KNOCKDOWN_FLIGHT);
         break;
     case S_DOWN:

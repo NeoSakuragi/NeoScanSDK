@@ -1417,7 +1417,9 @@ def voice_data(ch, n, game, pool, sps):
         throw_rows[t] = (ch['anims'][t]['slot'], rows)
     sug = V.suggest(n, game, slot_of, throw_rows, [(sp['input'], p['keep']) for sp, p in zip(pool, sps)])
     ks = V.keys(MOVES, THROWS, [sp['input'] for sp in pool])
-    pv = {sp['input']: prog_voices(n, game, p) for sp, p in zip(pool, sps) if kof_prog(p, game) or step_voiced(p)}
+    pv = {sp['input']: prog_voices(n, game, p) for sp, p in zip(pool, sps) if (kof_prog(p, game) or step_voiced(p))
+          and not p['rom'].get('voice_frames')}          # (SS2's: the key keeps its frame-timed voice, its step voices
+                                                         # are the connect's further ones: handlers_ss2.special)
     for inp, vs in pv.items():                           # a ROM special (KOF's, or WHP's step-voiced programs: TODO #181):
                                                          # its program's own voices (TODO #163), the
         if vs: sug['special:' + inp] = [vs[0], 0]        # key's suggestion = the first it sends

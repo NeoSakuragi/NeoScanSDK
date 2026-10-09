@@ -2638,5 +2638,37 @@
   "expect": "KOF95's team select music plays (its short select loop, about 4.4 s, repeating), no longer KOF98's opening. The title screen plays it too.",
   "do_keys": "",
   "proof": 600
+ },
+ "20261009-224005-b3f3": {
+  "title": "Genjuro's fury: one word of his line on each slash of the spin",
+  "setup": {
+   "mode": "lab",
+   "fighter": "genjuro",
+   "dummy": "ryo",
+   "gap": 60,
+   "fury": "full",
+   "drive": "full"
+  },
+  "do": "Genjuro's fury is ready (he blinks white). Press D next to Ryo: he catches him, leaps and spins with him. Listen.",
+  "expect": "As in Samurai Shodown II: his shout as the fury starts, then a different word on each of the spin's five slashes (his line said word by word, one per slash), not a silent spin.",
+  "do_keys": "2:d,300:-",
+  "proof": 60
+ },
+ "20261009-223719-b3f3": {
+  "title": "The boss's death fall: KOF94's KO landing on both bounces",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss (Mr. Big) alone with 1 life point, Terry in front of him. Press A, then half a second later, as he walks at you, A again: that hit takes his last life. Listen while he falls in slow motion.",
+  "expect": "The KO blow on the hit; then KOF94's big KO landing (the heavy crash KOF94 plays when a beaten fighter hits the floor) as he hits the floor, and again when he comes down after his bounce; his death scream follows as before.",
+  "do_keys": "3:a,30:-,3:a",
+  "proof": 400
  }
 }
