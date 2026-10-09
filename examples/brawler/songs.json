@@ -32,7 +32,7 @@
                   "B0": {"game": "kof94", "cmd": "1AF4", "what": "Bruno's impact-sound pick (impacts.html, sound 8fa3078481): KOF94's projectile hit ($590C, index $118, pan C $1A $F4): the guard sound (game.json guard_sound; no guard yet)"}},
          "what": "sound.h SFX_* (swings, hits), game.json super_flash sound (3A: KOF98's DM / SDM flash) and sound_max (8F: KOF2000's SDM flash, TODO #155) and fighter.c HIT_SFX (special-move hits, named by sound + the KOF98 moves using them: TODO #64); names: the options screen's SOUND PLAYER"},
  "songs": [
-  {"name": "SELECT", "source": "kof98", "cmd": "21", "what": "KOF98 opening (title, character select)"},
+  {"name": "SELECT", "source": "kof95", "cmd": "2C", "what": "KOF95 team select (its select / VS screens between matches too, measured; docs/kof95_songs.md): the title and the character select (Bruno 2026-10-09, note 20261009-213614-b3f3: was KOF98's opening $21)"},
   {"name": "FIGHT", "source": "ff3", "cmd": "2F", "what": "Fatal Fury 3, Terry's stage (the stage fight)"},
   {"name": "WIN", "source": "kof95", "cmd": "30", "what": "KOF95 win screen (the winners' quote after each match, measured; docs/kof95_songs.md): the stage clear (Bruno 2026-10-09, note 20261009-120007-5d29: was KOF98's win screen $24, before that $2C, the VS jingle)"},
   {"name": "CONTINUE", "source": "kof98", "cmd": "2F", "what": "KOF98 continue countdown (measured in our emulator 2026-10-05: sent as the CONTINUE screen opens)"},

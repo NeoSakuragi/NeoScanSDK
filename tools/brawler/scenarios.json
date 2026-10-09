@@ -2628,5 +2628,15 @@
   "expect": "The jump attack stops and his air Blitz (Hien Ryuujin Kyaku) comes out at once, whether the attack hit or missed, any time until he lands; no drive spent, as before. Same for every fighter with an air Blitz (Kim's j.2B dive).",
   "do_keys": "8:b,1:-,2:a,6:-,2:D,2:-,2:D,1:Da,90:-",
   "proof": 60
+ },
+ "20261009-213614-b3f3": {
+  "title": "Character select plays KOF95's select music",
+  "setup": {
+   "mode": "select"
+  },
+  "do": "The select screen. Listen to the music for a few seconds.",
+  "expect": "KOF95's team select music plays (its short select loop, about 4.4 s, repeating), no longer KOF98's opening. The title screen plays it too.",
+  "do_keys": "",
+  "proof": 600
  }
 }
