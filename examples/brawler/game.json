@@ -235,6 +235,7 @@
    "finishers": {"launcher": "up", "down": "slam"},
    "specials": {"D": "236S", "fD": "623K", "dD": "623S", "uD": "214A", "dfD": "236K", "ufD": null},
    "fury": "WFT",
+   "fury_damage_scale": 2,
    "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",

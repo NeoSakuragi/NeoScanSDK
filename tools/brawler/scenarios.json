@@ -2560,5 +2560,31 @@
   "expect": "The KO blow sounds at the hit, then his death scream about 1 second later (not 2).",
   "do_keys": "1:a,180:-",
   "proof": 200
+ },
+ "20261009-122317-5d29": {
+  "title": "Haohmaru's portrait is his own, not Jubei's",
+  "setup": {
+   "mode": "select",
+   "cursor": "haohmaru"
+  },
+  "do": "The select screen, the cursor on Haohmaru. Look at his face, pick him and look at the portrait next to his life bar.",
+  "expect": "Both show Haohmaru himself (black hair tied up, his sword raised by his face, from Samurai Shodown II's select grid), no longer Jubei Yagyu with his eye patch.",
+  "do_keys": "30:-,3:a,300:-",
+  "proof": 60
+ },
+ "20261009-122307-5d29": {
+  "title": "Haohmaru's fury deals double damage",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 70,
+   "fury": "full",
+   "drive": "full"
+  },
+  "do": "Haohmaru's fury is ready (he blinks white). Press D next to the dummy and watch its life bar.",
+  "expect": "The fury takes the dummy's whole life bar (60 points, twice the 30 it took before). The MAX (down + D at low life with the gauge full) deals 90, twice its 45.",
+  "do_keys": "2:d,300:-",
+  "proof": 320
  }
 }

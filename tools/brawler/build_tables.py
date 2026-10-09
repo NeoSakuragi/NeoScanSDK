@@ -601,11 +601,13 @@ def dtier_tables(g, build, dmul):
             mm = (m.get('max') or {}).get('input') or ''
             mx = 'MAX ' + fury if 'MAX ' + fury in pool else mm if mm.startswith('MAX ') and mm in pool else fury
         sup = (r.get('throws') or {}).get('super')        # the super throw's special (revamp 3; a paired one: its tier as is)
-        for k, j, tg, inp in (('fury', 0, t['fury'], fury), ('max', 1, t['max'], mx),
+        fs = r.get('fury_damage_scale', 1)               # roster[].fury_damage_scale: this fighter's fury and MAX deal their
+        assert isinstance(fs, (int, float)) and 0.5 <= fs <= 4, f'{n}: fury_damage_scale {fs} (0.5-4)'   # tier times it
+        for k, j, tg, inp in (('fury', 0, round(t['fury'] * fs), fury), ('max', 1, round(t['max'] * fs), mx),
                               ('super_throw', 2, t['super_throw'], sup if sup in pool else None)):
             d = own(inp) if inp else None
             if d: v[len(pool) + j] = sc(tg, d)
-            e[k] = {'input': inp, 'own': d, 'scale': v[len(pool) + j] / 256}
+            e[k] = {'input': inp, 'own': d, 'target': tg, 'scale': v[len(pool) + j] / 256}
         c.append(f'static const uint16_t dtier_{i}[{len(v)}] = {{ {", ".join(map(str, v))} }};   /* {n} */')
         rows.append(f'dtier_{i}')
     wide = max([len(f['pool']) for f in labj['fighters']] + [0]) + 3

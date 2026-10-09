@@ -10,8 +10,10 @@ import os, sys
 from PIL import Image
 OUT = '/data/neogeo_dict/portraits'
 SNAP = '/data/tmp/samsho2/sel2/snap_830.ppm'
-CELLS = {'haohmaru': (103, 170), 'genjuro': (155, 135),   # the face's top left on the grid (bottom row 3rd, top row 5th,
+CELLS = {'haohmaru': (121, 135), 'genjuro': (155, 135),   # the face's top left on the grid (top row 4th, top row 5th,
          'hanzo': (189, 137)}                              # top row 6th: inside its white border at 187 / 135, TODO #193)
+# Haohmaru was (103, 170) until 2026-10-09: the bottom row's 3rd square, Jubei Yagyu's (note 20261009-122317-5d29);
+# his own square is the top row's 4th, inside its white border at 119 / 133, next to Genjuro's
 
 if __name__ == '__main__':
     if '--boot' in sys.argv:
