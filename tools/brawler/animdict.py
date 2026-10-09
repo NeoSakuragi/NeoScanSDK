@@ -146,7 +146,7 @@ def kof96(out, game, name):
     if ex:
         for sp in ex['specials']:
             for st, d, sl in sp['states']:
-                if st: btn_of.setdefault(sl, set()).add(('SUPER' if sp['condition'] == 'super' else '') + sp['button'])
+                if st: btn_of.setdefault(sl, set()).add(('SUPER' if sp.get('condition') == 'super' else '') + (sp.get('button') or sp.get('input', '?')[-1:]))
 
     # ---- one animation: parse (with $FC sounds, $FA spawns), render each frame facing right ----
     def parse(addr):
