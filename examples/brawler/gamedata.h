@@ -76,7 +76,7 @@ typedef struct {
     uint8_t  fury_drive, max_drive;   /* drive chunks the fury / the MAX also cost (Bruno 2026-10-09: 1 / 2) */
     uint8_t  pause;               /* the drive's refill pauses (Bruno 2026-10-09, note 20261009-115529-5d29): RP_* bits */
 } gmeter_t;
-enum { RP_SPECIAL = 1, RP_CHAIN = 2 };   /* in a special (S_SPECIAL: a C special, a Blitz, the breaker, a fury, a MAX, a
+enum { RP_SPECIAL = 1, RP_CHAIN = 2, RP_BLITZ = 4 };   /* RP_BLITZ: a Blitz played as the dash entry (S_ATTACK on the tree's dash node; a Blitz that is a special is S_SPECIAL) */   /* in a special (S_SPECIAL: a C special, a Blitz, the breaker, a fury, a MAX, a
                                             throw special); attacking (S_ATTACK / S_AIR_ATTACK: a chain's links) */
 extern const gmeter_t gmeter;
 

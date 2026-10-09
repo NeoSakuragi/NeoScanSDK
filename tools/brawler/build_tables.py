@@ -551,7 +551,7 @@ def c_str(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 METER_KEYS = ('about', 'chunk', 'chunks', 'special', 'breaker', 'life_breaker', 'blink', 'fury_max', 'fury_dealt',
               'fury_taken', 'low', 'infinite', 'fury_drive', 'max_drive', 'refill_pause')
-REFILL_PAUSE = {'special': 1, 'chain': 2}            # gamedata.h RP_*: meter.refill_pause names
+REFILL_PAUSE = {'special': 1, 'chain': 2, 'blitz': 4}            # gamedata.h RP_*: meter.refill_pause names
 BLITZ_KEYS = ('about', 'window', 'chord', 'damage')
 BLITZ_SLOTS = ('ff', 'dd', 'du', 'uu')               # fighter.h BZ_*: forward,forward / down,down / down,up / up,up + A
 JUMP_KEYS = ('about', 'crouch', 'height', 'dx', 'land_dx', 'x_scale', 'land', 'land_cancel', 'active_min', 'down_cancel', 'run_dx')
@@ -733,7 +733,7 @@ def tables(g, build):
     for k in m: assert k in METER_KEYS, f'meter: unknown field {k}'   # 2026-10-08, gamedata.h gmeter_t)
     assert 1 <= m['chunks'] <= 4 and 1 <= m['chunk'] and m['chunk'] * m['chunks'] < 65536, 'meter: chunks x chunk'
     assert 1 <= m['special'] <= m['chunks'] and 1 <= m['breaker'] <= m['chunks'], 'meter: costs within the bar'
-    assert all(k in REFILL_PAUSE for k in m.get('refill_pause', [])), f"meter.refill_pause: {m.get('refill_pause')} (special / chain)"
+    assert all(k in REFILL_PAUSE for k in m.get('refill_pause', [])), f"meter.refill_pause: {m.get('refill_pause')} (special / chain / blitz)"
     assert 1 <= m['life_breaker'] < 60 and 1 <= m['low'] <= 100 and 1 <= m['blink'] <= 60, 'meter values'
     assert 1 <= m['fury_max'] < 65536 and 0 <= m['fury_dealt'] <= 255 and 0 <= m['fury_taken'] <= 255, 'meter: the fury gauge'
     c.append(f"const gmeter_t gmeter = {{ .chunk = {m['chunk']}, .chunks = {m['chunks']}, .special = {m['special']}, "

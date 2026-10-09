@@ -759,7 +759,8 @@ static void meter_tick(fighter_t *f) {
         if (gmeter.infinite) { f->drive = DRIVE_FULL; f->fgauge = gmeter.fury_max; }   /* both bars stay full */
         else if (f->drive < DRIVE_FULL &&                        /* the drive: a point back a frame, outside of */
                  !((gmeter.pause & RP_SPECIAL) && f->state == S_SPECIAL) &&   /* specials and combos (gmeter.pause, */
-                 !((gmeter.pause & RP_CHAIN) && (f->state == S_ATTACK || f->state == S_AIR_ATTACK)))   /* note */
+                 !((gmeter.pause & RP_CHAIN) && (f->state == S_ATTACK || f->state == S_AIR_ATTACK)) &&   /* note */
+                 !((gmeter.pause & RP_BLITZ) && f->state == S_ATTACK && f->node && f->node == TREE(f)->dash))   /* (2026-10-09 reopen: special, fury, Blitz) */
             f->drive++;                                          /* 20261009-115529-5d29: back in neutral it refills) */
     }
     pal_overlay(f);

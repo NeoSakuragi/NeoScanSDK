@@ -2513,7 +2513,7 @@
   "proof": 30
  },
  "20261009-115529-5d29": {
-  "title": "The drive refills only in neutral",
+  "title": "Drive doesn't refill during specials, furies and Blitz (chains refill)",
   "setup": {
    "mode": "lab",
    "fighter": "terry",
@@ -2523,7 +2523,7 @@
    "fury": "full"
   },
   "do": "With the drive gauge partly empty, do a C special, then a chain of A hits, then the fury (D). Watch the blue drive gauge.",
-  "expect": "The drive does not refill during the special, the chain's attacks or the fury: it stays still, and refills again only once Terry is back to standing, walking, running or jumping.",
+  "expect": "The drive stays flat while a C special, a fury / MAX or a Blitz plays, and refills during chains and in neutral.",
   "do_keys": "3:c,90:-,3:a,8:-,3:a,8:-,3:a,8:-,3:a,60:-,3:d,200:-",
   "proof": 60
  },

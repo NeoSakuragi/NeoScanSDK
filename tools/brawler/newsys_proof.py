@@ -540,6 +540,21 @@ def kimfin():
     RES['kim_dd'] = dict(got=what(), ok='2]8C' in what()); print('kim dd', RES['kim_dd'], flush=True)
 
 
+def drivepause():
+    """Bruno's reopen 2026-10-09: no drive refill during specials, furies and Blitz; chains refill"""
+    out = {}
+    for tag, keys in (('chain', '2:a,6:-,2:a,10:-,2:a,30:-'), ('blitz ff (Body Toss)', '1:R,1:-,1:R,2:Ra,40:-'), ('special C', '2:c,60:-')):
+        reset('terry', dist=40, face=1, drive=100); d0 = b.fget(0, 'drive'); r = Rec(); seen = set(); flat = 0; n = 0
+        for part in keys.split(','):
+            k, kk = part.split(':'); kk = '' if kk == '-' else kk
+            for i in range(int(k)):
+                dprev = b.fget(0, 'drive'); r.step(kk); sname = st(0); seen.add(sname)
+                if sname in ('ATTACK', 'SPECIAL'): n += 1; flat += b.fget(0, 'drive') == dprev
+        out[tag] = dict(states=sorted(seen), frames_in_move=n, frames_flat=flat, drive=(d0, b.fget(0, 'drive')))
+        print('drivepause', tag, out[tag], flush=True)
+    RES['drivepause'] = out
+
+
 TELE_KEY = os.environ.get('TELE', '2:Rc')
 def tele():
     """Bruno's note: Goenitz's teleport (214B on forward + C) goes through people (no push)"""
