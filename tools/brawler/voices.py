@@ -725,6 +725,9 @@ def samsho2_list(rname, name, cid):
     for sp in H.specials(B, cid, name):
         for f, i in sp['ss2']['sounds']:
             if i >= 0x100 or i in sp['ss2'].get('code_sounds', ()): uses.append((ss2_word(N, i), i, {'kind': 'special', 'input': sp['input'], 'at': f}))
+        for st, k, i in sp['ss2'].get('code_voices', ()):   # its routine's own sends on a connect-only state (sent as the
+            uses.append((ss2_word(N, i), i, {'kind': 'prog', 'input': sp['input'], 'via': 'code', 'state': st, 'step': k}))   # step is entered:
+                                                         # bspec_t pvox; Genjuro's last WFT word $206, note 20261009-224005-b3f3)
     words = {w for w, i, u in uses}
     hits = probe('samsho2', words); v = v_rom('samsho2')
     voices = {}

@@ -2640,7 +2640,7 @@
   "proof": 600
  },
  "20261009-224005-b3f3": {
-  "title": "Genjuro's fury: one word of his line on each slash of the spin",
+  "title": "Genjuro's fury: his whole line, a word on each slash of the spin and the last as he drops",
   "setup": {
    "mode": "lab",
    "fighter": "genjuro",
@@ -2650,7 +2650,7 @@
    "drive": "full"
   },
   "do": "Genjuro's fury is ready (he blinks white). Press D next to Ryo: he catches him, leaps and spins with him. Listen.",
-  "expect": "As in Samurai Shodown II: his shout as the fury starts, then a different word on each of the spin's five slashes (his line said word by word, one per slash), not a silent spin.",
+  "expect": "As in Samurai Shodown II: his shout as the fury starts, then a different word on each of the spin's five slashes (his line said word by word, one per slash), and a sixth, final word as the spin ends and he drops back to the floor: six words in all, the line complete.",
   "do_keys": "2:d,300:-",
   "proof": 60
  },

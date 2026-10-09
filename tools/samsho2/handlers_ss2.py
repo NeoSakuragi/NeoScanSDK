@@ -71,14 +71,16 @@ def by(v): return -(v << 8)                       # 8.8 down -> 16.16 up
 # phys: 'ground' (x += vx), 'grav' (+$EE 1), 'air' (+$EE < 0, nothing added), ('custom', ax, ay) (+$EE < 0, the
 # routine adds +$D0 / +$D2), ('decel', dv) (the routine's $46C64 on vx); init: ('set', reg, v), ('spawn', k),
 # ('nudge', px), ('part',).
-def E(anim=None, init=(), conds=(), phys='ground', flags=None, part=None, react=None, catch=None, grab=None):
+def E(anim=None, init=(), conds=(), phys='ground', flags=None, part=None, react=None, catch=None, grab=None, voice=()):
     """catch: the entry index of the catch routine: this entry's attack steps are catch boxes (no damage, the victim
     held: fighter.c's catch, KOF +$19C), the routine starts after the hit-stop and the victim follows the move's victim
     lists (VL below). grab: a catch box of its own on every step of the entry's animation (KOF box [cx, cy, hw, hh]):
     a command grab SS2 tests by distance, not by a box (Hanzo's Mozu Otoshi, GRAB_BOX). anim: an SS2 animation, or
-    (animation, first step, last step): those steps alone (a pose held)"""
+    (animation, first step, last step): those steps alone (a pose held). voice: sound ids the routine itself sends
+    ($5FB0) in the frame this entry's animation starts, sent as its first step is entered (a state the whiff never
+    reaches: special's step voices)"""
     return {'anim': anim, 'init': list(init), 'conds': list(conds), 'phys': phys, 'flags': flags or {}, 'part': part,
-            'react': react, 'catch': catch, 'grab': grab}
+            'react': react, 'catch': catch, 'grab': grab, 'voice': list(voice)}
 
 def hao_236s(v):
     """Senpuu Retsu Zan, 2 3 6 + A / B / A+B -> results 41-43, descriptors $35470 / $3547C / $35488 [code]:
@@ -254,8 +256,10 @@ def gen_wft(v):
       no catch: the brawler has no guard)
     4 anim 13 $56218: its end -> the leap ($46C2E: vx / vy from $6B4E2, gravity), the count 16, next
     5 anim 14 $56238: the count runs out -> velocities 0, +$EE = $80 (he hangs: no gravity), the opponent's stage 1
-    6 anim 24 $56262: the spin (its slashes: 5 attack steps); its end -> the fall ($6B4E6, gravity), voice $206, the
-      opponent's stage 2 (released, disarmed: +$B8)
+    6 anim 24 $56262: the spin (its slashes: 5 attack steps); its end -> the fall ($6B4E6, gravity), voice $206 ($1ACE,
+      the last word of his line: move.w #$206 + jsr $5FB0 at $562A8; measured in our emulator: $1A $CE sent in the
+      frames the fall's anim 261 starts, after the five step voices $200-$204), the opponent's stage 2 (released,
+      disarmed: +$B8)
     7 anim 261 $562D4 ($2B85A): landed -> the landing action (class 0 action 18), neutral here.
     The victim (its class 3 action 36, $28310 -> $56ABA, the same for every character) [code]:
     0 anim 464 $56ABA: velocities 0, at its catcher's place ($2B7A2) + 80 px forward, 16 up, facing its way, its own
@@ -278,7 +282,7 @@ def gen_wft(v):
             E(None, [('set', 'vx', 0), ('set', 'vy', 0), ('vsig',)], [('now', 5)], phys='air'),
             E(24, [('fxoff',), ('spawn', 1)], conds=[('end', 6)], phys='air'),
             E(None, [('set', 'vx', bx(fx)), ('set', 'vy', by(q(fy))), ('vsig',)], [('now', 7)], phys=g),
-            E(261, conds=[('land', 'end')], phys=g)]
+            E(261, conds=[('land', 'end')], phys=g, voice=[0x206])]   # $206: entry 6's send, the frame 261 starts
     vl = [VL([(80, 16, '464.0', 0)], fly=(N.s16(0x6B4EA), q(N.s16(0x6B4EC)), q(REACT_G))),   # $56AE2: + 80, - 16
           VL([voff(498, 0) + ('498.0', 0)]),                       # at him, drawn at 498's offset
           VL([voff(498, 1) + ('464.0', 64)], rel=(N.s16(0x6B4EE), N.s16(0x6B4F0)))]   # moved by it ($2B7D0), the flight
@@ -1025,12 +1029,16 @@ def special(B, ch, name, inp):
     # fighter id >= $100, voices.py's rule; the driver word) ride the steps (export_bm step_voiced -> bspec_t.pvox,
     # fighter.c pan_voices: sent as the program enters the step, where SS2 sends them); the whiff's stay timed by its
     # frames (voice_frames, voices.py 'special' uses)
-    seen = {r[0] % nstate for r in rows}
+    # (+ the routine's own sends as a state starts, E voice: Genjuro's last word $206 = $1ACE as the fall starts)
+    seen = {r[0] % nstate for r in rows}; code_voices = []
     for s in states:
-        if int(s.split(':')[1]) in seen: continue
-        for s_ in anims_d[s]['steps']:
+        v_, j_ = map(int, s.split(':')[:2])
+        if j_ in seen: continue
+        code = progs[v_][0][comp[v_][1][j_][0]]['voice']
+        if v_ == default: code_voices += [[s, 0, i] for i in code]   # (voices.py list: in the fighter's bank)
+        for k_i, s_ in enumerate(anims_d[s]['steps']):
             a_, k_ = s_['ss2']
-            ids = [c[1] + (1 if c[0] == 'sound_pan' else 0) for c in ss2.parse_anim(ch, a_, 400)[k_]['cmds'] if c[0] in ('sound', 'sound_pan')]
+            ids = (code if k_i == 0 else []) + [c[1] + (1 if c[0] == 'sound_pan' else 0) for c in ss2.parse_anim(ch, a_, 400)[k_]['cmds'] if c[0] in ('sound', 'sound_pan')]
             vs = [N.u16(0x5FD2 + 2 * i) for i in ids if i >= 0x100]
             if vs: s_['voices'] = vs
     apex = max(range(len(rows)), key=lambda i: rows[i][3]) if rows else 0
@@ -1062,7 +1070,7 @@ def special(B, ch, name, inp):
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
             'marks': [''] * len(script), 'projectiles': pj, 'anims': [a for _, a in sts0],
             'shape': [max(r[1] for r in script), max(r[2] for r in script), bool(pj)], 'game_hits': len(opens),
-            'rom': rom, 'ss2': {'results': list(results), 'sounds': snd, 'code_sounds': spawn_snd},
+            'rom': rom, 'ss2': {'results': list(results), 'sounds': snd, 'code_sounds': spawn_snd, 'code_voices': code_voices},
             **({'air': True} if inp.startswith('j.') else {})}   # an air special (j.: export_bm air_special, TODO #211)
 
 # decoded but not exported (none since 2026-10-07: Kuroko's 10 palettes fit the brawler's 8 by export_ss2.pack_palettes)
