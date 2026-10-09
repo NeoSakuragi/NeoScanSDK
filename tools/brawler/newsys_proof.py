@@ -555,6 +555,17 @@ def drivepause():
     RES['drivepause'] = out
 
 
+def kimrun():
+    """Bruno's pick (kim-run-frame): Kim's run plays dash steps 1-3 and holds step 3"""
+    reset('kim', dist=300, face=1); b.place(0, x=b.r(b.syms['cam_x'], 2) + 24, z=30); b.run(1)
+    r = Rec(); r.step('R'); r.step(''); steps = []
+    for i in range(50):
+        r.step('R')
+        if st(0) == 'RUN': steps.append(b.fget(0, 'step'))
+    RES['kimrun'] = dict(steps=steps, ok=bool(steps) and steps[-1] == 2 and max(steps) == 2)
+    print('kimrun', RES['kimrun'], flush=True)
+
+
 TELE_KEY = os.environ.get('TELE', '2:Rc')
 def tele():
     """Bruno's note: Goenitz's teleport (214B on forward + C) goes through people (no push)"""

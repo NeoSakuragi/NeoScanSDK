@@ -231,7 +231,7 @@ def blitz_cancels(g):
     return out
 
 
-RUN_KEYS = ('hold_last', 'float')
+RUN_KEYS = ('hold_last', 'float', 'last_step')
 def run_bobs(g):
     """grun_bob: per roster fighter its run's float (roster[].run.float {px, period}; Bruno 2026-10-09, note
     20261009-102625-5d29: Kim floats up and down a few pixels as he runs): one height a frame (px above its feet, drawn
@@ -239,7 +239,7 @@ def run_bobs(g):
     out, refs = [], []
     for r in g['roster']:
         run = r.get('run') or {}
-        for k in run: assert k in RUN_KEYS, f"roster {r['name']}: run.{k} (hold_last / float)"
+        for k in run: assert k in RUN_KEYS, f"roster {r['name']}: run.{k} (hold_last / last_step / float)"
         fl = run.get('float')
         if not fl: refs.append('0'); continue
         assert set(fl) == {'px', 'period'} and 1 <= fl['px'] <= 16 and 4 <= fl['period'] <= 120, f"roster {r['name']}: run.float {fl}"

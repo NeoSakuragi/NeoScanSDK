@@ -1292,7 +1292,7 @@ def export(names, outdir, only=None, extra=None):
             else: st = cap_steps(B, cap, src[1], src[2], src[3]); slot = src[2][0]
             anims[mv] = {'slot': slot, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': st}
         if (X.get('run') or {}).get('hold_last') and 'run' in anims:   # (note 20261009-102625-5d29: the dash once, held)
-            anims['run'] = {'slot': RUN_SLOT, 'mode': 'hold', 'steps': anim_steps(B, RUN_SLOT, 0, None, cap)}
+            anims['run'] = {'slot': RUN_SLOT, 'mode': 'hold', 'steps': anim_steps(B, RUN_SLOT, 0, X['run'].get('last_step'), cap)}   # (last_step: Bruno's pick, kim-run-frame)
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
         w = (extra or {}).get(name, {}).get('watch')
         if w:                                            # roster watch pose: (animation, step; -1 = its last)

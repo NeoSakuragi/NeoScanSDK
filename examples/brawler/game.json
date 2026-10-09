@@ -325,7 +325,7 @@
                  "down_move": ["cmd_df_c", "cmd_df_d"]},
    "specials": {"D": "[2]8C", "fD": "$53", "dD": "$4D", "uD": "[2]8C", "dfD": "[2]8C", "ufD": "[2]8C"},
    "blitz": {"ff": "214B", "dd": "[2]8C", "uu": "$B6"},
-   "run": {"hold_last": true, "float": {"px": 3, "period": 24}},
+   "run": {"hold_last": true, "last_step": 2, "float": {"px": 3, "period": 24}},
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_c_jump"},
    "air_specials": {"ddA": "j.2B"},
    "fury": "6246A",
