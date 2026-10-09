@@ -39,6 +39,14 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     var updateText: String? = null                                    // download progress ("45%") on the button
         set(v) { field = v; invalidate() }
     private var updHit = false
+    /** TESTER MODE (0.0.26, Auth.admin): no list button (notes, test queue, decisions), no badge, no update button (the
+     *  updates still come: the launch screen offers a downloaded player, the game build is fetched at launch) */
+    var tester = false
+        set(v) { field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
+    /** the first launch's tip is up (MainActivity.showTip): a thick white ring pulses around the mic */
+    var hint = false
+        set(v) { field = v; invalidate() }
+    private fun shown(b: Btn) = !tester || (b !== fbl && b !== upd)
     var size = 1f                                                      // settings: button size factor
         set(v) { field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     var vibrate = true
@@ -71,6 +79,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             start.x = w * 0.60f; start.y = top + ph * 0.12f; start.r = r * 0.7f
             val y = top + ph * 0.12f; val g = r * 0.55f                 // the top row, left to right, evenly spaced: no
             val row = listOf(rst to g, mic to g, fbl to g, coin to r * 0.7f, start to r * 0.7f, upd to g, gear to g)   // overlap at any size
+                .filter { shown(it.first) }                            // tester: no list, no update button
             val gap = (w - row.sumOf { (it.second * 2).toDouble() }.toFloat()) / (row.size + 1)
             var x = 0f
             for ((b, br) in row) { x += gap + br; b.x = x; b.y = y; b.r = br; x += br }
@@ -125,12 +134,15 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         c.drawArc(mic.x - 3.6f * u, mic.y - 3.6f * u, mic.x + 3.6f * u, mic.y + 3.2f * u, 0f, 180f, false, paint)
         c.drawLine(mic.x, mic.y + 3.2f * u, mic.x, mic.y + 5.6f * u, paint); c.drawLine(mic.x - 2f * u, mic.y + 5.6f * u, mic.x + 2f * u, mic.y + 5.6f * u, paint)
         paint.style = Paint.Style.FILL
-        paint.color = if (fblHit) Color.WHITE else fbl.color; c.drawCircle(fbl.x, fbl.y, fbl.r, paint)   // the list: 3 bullets + lines
-        paint.color = if (fblHit) fbl.color else Color.WHITE; val v = fbl.r * 0.11f
-        for (i in -1..1) { val ly = fbl.y + i * 2.6f * v
-            c.drawCircle(fbl.x - 3.6f * v, ly, 0.8f * v, paint); c.drawRect(fbl.x - 1.9f * v, ly - 0.6f * v, fbl.x + 4.4f * v, ly + 0.6f * v, paint) }
+        if (shown(fbl)) {
+            paint.color = if (fblHit) Color.WHITE else fbl.color; c.drawCircle(fbl.x, fbl.y, fbl.r, paint)   // the list: 3 bullets + lines
+            paint.color = if (fblHit) fbl.color else Color.WHITE; val v = fbl.r * 0.11f
+            for (i in -1..1) { val ly = fbl.y + i * 2.6f * v
+                c.drawCircle(fbl.x - 3.6f * v, ly, 0.8f * v, paint); c.drawRect(fbl.x - 1.9f * v, ly - 0.6f * v, fbl.x + 4.4f * v, ly + 0.6f * v, paint) }
+        }
         if (!portrait) c.restore()
-        if (badge > 0) {                                               // the count, always opaque (like the update button)
+        micLabel(c)
+        if (badge > 0 && !tester) {                                               // the count, always opaque (like the update button)
             val br = fbl.r * 0.42f; val bx = fbl.x + fbl.r * 0.72f; val by = fbl.y - fbl.r * 0.72f; val t = if (badge > 99) "99+" else "$badge"
             paint.alpha = 255; paint.color = Color.rgb(220, 30, 30); c.drawCircle(bx, by, br, paint)
             paint.style = Paint.Style.STROKE; paint.strokeWidth = br * 0.16f; paint.color = Color.WHITE; c.drawCircle(bx, by, br, paint); paint.style = Paint.Style.FILL
@@ -141,7 +153,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             paint.alpha = 255; paint.style = Paint.Style.STROKE; paint.strokeWidth = mic.r * 0.15f
             paint.color = Color.argb(if (t / 400 % 2 == 0L) 255 else 120, 255, 60, 60)
             c.drawCircle(mic.x, mic.y, mic.r * 1.25f, paint); paint.style = Paint.Style.FILL
-            paint.textSize = mic.r * 0.6f; paint.color = Color.rgb(255, 80, 80); c.drawText("${t / 1000}s", mic.x, mic.y + mic.r * 2.1f, paint)
+            paint.textSize = mic.r * 0.6f; paint.color = Color.rgb(255, 80, 80); c.drawText("${t / 1000}s", mic.x, mic.y + mic.r * 2.5f, paint)
             postInvalidateDelayed(100)
         }
         if (holding) {                                                 // the hold's progress: a ring filling to RESET_MS
@@ -153,6 +165,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         // update button (0.0.21: a newer player OR game build): always opaque so a waiting update is seen; a slow pulse
         // that is not colour-only (e-ink safe): a thick white ring around it on / off every 600 ms, the fill orange with
         // it; no ring, grey = up to date
+        if (!shown(upd)) return
         val blink = updateReady && updateText == null && (android.os.SystemClock.uptimeMillis() / BLINK_MS) % 2 == 0L
         paint.alpha = 255; paint.color = if (updateText != null) Color.rgb(230, 130, 20) else if (blink) Color.rgb(255, 150, 0) else upd.color
         c.drawCircle(upd.x, upd.y, upd.r, paint)
@@ -163,6 +176,19 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         paint.color = Color.WHITE; val t = updateText ?: upd.label
         paint.textSize = upd.r * (if (t.length > 1) 0.55f else 0.9f); c.drawText(t, upd.x, upd.y + paint.textSize * 0.35f, paint)
         if (updateReady && updateText == null) postInvalidateDelayed(BLINK_MS - android.os.SystemClock.uptimeMillis() % BLINK_MS + 5)
+    }
+
+    /** 0.0.26: "Feedback" under the mic, always readable (opaque, over a dark outline) so a first-time tester finds it */
+    private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; color = Color.WHITE
+        setShadowLayer(4f, 0f, 0f, Color.BLACK); typeface = android.graphics.Typeface.DEFAULT_BOLD }
+    private fun micLabel(c: Canvas) {
+        if (hint) {
+            val on = android.os.SystemClock.uptimeMillis() / BLINK_MS % 2 == 0L
+            paint.alpha = 255; paint.style = Paint.Style.STROKE; paint.strokeWidth = mic.r * (if (on) 0.3f else 0.15f); paint.color = Color.WHITE
+            c.drawCircle(mic.x, mic.y, mic.r * 1.3f, paint); paint.style = Paint.Style.FILL; postInvalidateDelayed(BLINK_MS / 2)
+        }
+        label.textSize = maxOf(11f * resources.displayMetrics.scaledDensity, mic.r * 0.42f)
+        c.drawText("Feedback", mic.x, mic.y + mic.r * (if (hint) 1.5f else 1f) + label.textSize * 1.05f, label)
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
@@ -182,7 +208,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
                 continue
             }
             if (e.getPointerId(i) == micId) continue                  // the finger holding the mic
-            val b = (btns + coin + start + gear + upd + rst + mic + fbl).minByOrNull { hypot(x - it.x, y - it.y) / it.r }
+            val b = (btns + coin + start + gear + upd + rst + mic + fbl).filter { shown(it) }.minByOrNull { hypot(x - it.x, y - it.y) / it.r }
             if (b != null && hypot(x - b.x, y - b.y) < b.r * 1.35f) {
                 val down = e.actionMasked == MotionEvent.ACTION_DOWN || e.actionMasked == MotionEvent.ACTION_POINTER_DOWN
                 if (b === gear) { if (down) gearHit = true }

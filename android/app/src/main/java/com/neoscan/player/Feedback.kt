@@ -190,7 +190,8 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
             put("hw", e?.hw ?: "?"); put("system_type", if (e != null) Native.systemType() else "?"); put("region", "us")
             put("memcard", if (e != null) Native.memcard() else "?")
             put("device", "${Build.MANUFACTURER} ${Build.MODEL}"); put("android", "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
-            put("install_id", installId(ctx))
+            put("install_id", installId(ctx)); put("user", Auth.user(ctx) ?: "")   // the server's user comes from the token
+            put("tester", !Auth.admin(ctx))
             frames?.let { put("window_frame", it[0]); put("press_frame", it[1]) }
             put("audio", File(ctx.filesDir, "feedback/work/$id").listFiles()?.firstOrNull { it.name.startsWith("audio.") }?.name ?: "")
         }
