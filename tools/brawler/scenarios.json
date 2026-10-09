@@ -2723,5 +2723,16 @@
   "expect": "On the fury's very last frame, as Kim stands up, every Ryo near him (within about 112 px, the flame pieces' spread) is knocked down burning orange, with the fire-hit sound, losing a little life (4); the Ryo far behind him stays standing, not burnt. Down+D (his MAX, at low life) ends the same way.",
   "do_keys": "4:d",
   "proof": 420
+ },
+ "20261009-234250-b3f3": {
+  "title": "HUD: the name above the life bar",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Look at the top-left of the screen during the fight.",
+  "expect": "Your fighter's name comes first (top row), then the life bar under it, then the lives and the drive bar; the enemy's block on the right is the same: name, then bar."
  }
 }

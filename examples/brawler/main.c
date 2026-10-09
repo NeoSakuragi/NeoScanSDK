@@ -1221,7 +1221,7 @@ static void bar_clear(bar_t *b) {
     b->px = b->trail = -1; b->wait = 0;
 }
 static void hud_reset(void) {
-    static const uint8_t COL[5] = { 5, 20, 5, 20, 5 }, ROW[5] = { 0, 0, 4, 4, 7 };
+    static const uint8_t COL[5] = { 5, 20, 5, 20, 5 }, ROW[5] = { 1, 1, 5, 5, 7 };   /* the name above its bar (Bruno 2026-10-09, note 20261009-234250-b3f3) */
     uint8_t p, c;
     for (p = 0; p < 5 + 2 * MAX_CHUNKS; p++) {
         uint8_t k = (p - 5) % MAX_CHUNKS, two = p >= 5 + MAX_CHUNKS;   /* (a chunk: its index, P2's) */
@@ -1273,7 +1273,7 @@ static void hud(void) {
     for (p = 0; p < 1 + two; p++) {                          /* the players' blocks: P1 left, P2 right */
         fighter_t *f = &fighters[p];
         uint8_t face = char_index(f->ch), pc = p ? 35 : 1, lc = p ? 32 : 5, cc = p ? 20 : 9;   /* lives / continue cols */
-        if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face, p); hud_name(p, 1, f->ch->name); }
+        if (hud_face[p] != face) { hud_face[p] = face; portrait(pc, 0, face, p); hud_name(p, 0, f->ch->name); }
         bar_draw(&bars[p], in_play(f) ? f->hp : 0, f->hp_max);
         {   uint8_t k;                                       /* the drive: one bar per chunk, the first filled first */
             int16_t d = in_play(f) ? (int16_t)f->drive : 0;
@@ -1303,9 +1303,9 @@ static void hud(void) {
             if (i) { FIX_print(cc, 2, "CONTINUE   ", 0); FIX_printNum(cc + 9, 2, i - 1, 0); }
             else FIX_print(cc, 2, "           ", 0);
         }
-        if (two) hud_target(2 + p, tgt(f), p, 5, 0);       /* each player's target under its own block: bar, name */
+        if (two) hud_target(2 + p, tgt(f), p, 4, 0);       /* each player's target under its own block: bar, name */
     }
-    if (!two) hud_target(1, tgt(&fighters[0]), 1, 1, 1);  /* one player: its target is the right block */
+    if (!two) hud_target(1, tgt(&fighters[0]), 1, 0, 1);  /* one player: its target is the right block */
     i = mode == 1 && !attract && (phase == PH_BOSS || phase == PH_END) && fighters[BOSS_IDX_HUD].state != S_OFF;
     if (i != boss_shown) {                                   /* the boss bar: name on row 6, bar on row 7 */
         boss_shown = i;

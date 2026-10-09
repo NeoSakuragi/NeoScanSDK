@@ -344,7 +344,6 @@
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_c_jump"},
    "air_specials": {"ddA": "j.2B"},
    "fury": "6246A",
-   "fury_end_burn": {"about": "note 20261009-231252-b3f3: the Phoenix's falling flame pieces made to burn by a trick: on the last frame of the fury (or its MAX: the same 6246A) after it connected, as Kim wakes from his fall, every enemy within radius px (x, and Z_HIT in depth) takes a fire hit: knockdown + the orange burn (as KOF fire hits) + KOF96's fire-hit sound, damage points (below a special's 12 tier). radius: the flame pieces' x spread measured in our emulator (projectiles 1-4 of the hit version, -73..+112 px from Kim); fighter.c fury_end_burn, build_tables gfury_burn", "radius": 112, "damage": 4},
    "throws": {"hold": {"hit": "atk_b_close", "fin": "atk_d_close", "multi": ["fin"], "sound": {"hit": ["13"], "fin": ["15", "15"]}}},
    "voices": "kof",
    "unlock": "always"
