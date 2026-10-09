@@ -202,6 +202,7 @@
   },
   {
    "name": "k_dash",
+   "display": "K'",
    "bank": "kof99:k_dash",
    "watch": {"frame": 349, "step": -1},
    "routes": "default",
