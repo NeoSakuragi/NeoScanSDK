@@ -2195,33 +2195,53 @@ static void prog_spawn(fighter_t *f, const bproj_t *d) {
                                                                     boomerang ends with the special: SS2 $4C434) */
     else f->shot = p;
 }
-/* the fury's end burn (note 20261009-231252-b3f3, Kim's Phoenix: "in the very last frame, anybody around him gets burnt
- * automatically"; game.json roster[].fury_end_burn -> gfury_burn[fighter] = [radius px, damage]): a fury (or its MAX)
- * that connected and ran to its last frame burns every opponent standing within radius px in x and Z_HIT in depth: a
- * plain knockdown hit of that damage (the fighter already out of its special: no tier, no dance), the orange burn as a
- * KOF fire hit's (set_burn, to its landing), KOF96's fire-hit sound once. The trick for the Phoenix's falling flame
- * pieces, which have no boxes of their own. */
-static void fury_end_burn(fighter_t *f) {
-    const uint8_t *e = gfury_burn[f->ch->id];
-    uint8_t j, sounded = 0;
+/* a victim list's release flight (KOF 283, the blowback), sent dir (+1: the attacker's forward): the list's own velocity
+ * (VL_VEL, its gravity g: KOF's routine, Iori 624), its source's flight (VL_SREACT) or KOF's knockdown flight */
+static void vlist_fly(fighter_t *f, fighter_t *t, const bvlist_t *l, int8_t dir) {
+    int8_t away = dir_mul(f->facing, dir) > 0 ? 1 : -1;          /* (world direction) */
+    react(t, away, R_KNOCKDOWN, 0);
+    if (l->flags & VL_SREACT) src_react(t, away, (uint8_t)l->vx);
+    else if (l->flags & VL_VEL) {
+        t->vx = dir_mul(away, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8;
+        if (l->g) { t->kmode = 2; t->kg = t->kgf = (int32_t)l->g << 8; t->kgfr = 0; t->kvfr = 0; t->kdelay = 0; }
+    }
+    else kof_react(t, away, R_KNOCKDOWN, -128);
+}
+/* the fury's final hit as an area hit (note 20261009-235250-b3f3, Iori's Ya Otome: "all the characters around him ...
+ * a bit further in front, a bit further in the back, to be hit by this final purple impact"; game.json
+ * roster[].fury_final_area {front, back, depth} -> gfury_area[fighter]): the fury's (or its MAX's) last blow on its
+ * caught victim (the last VE_BLOW of its victim lists) hits every other opponent standing in the box around the
+ * fighter, front px ahead, back px behind, depth px either side in z, with that blow's own damage and burn and the
+ * list's release flight, sent away from the fighter. Replaces Kim's fury_end_burn (note 20261009-231252-b3f3, closed:
+ * not wanted). */
+static uint8_t vlist_last_blow(const bspec_t *sp, uint8_t li, uint8_t k) {   /* li 1-based, k: the entry dealing a blow */
+    const bvlist_t *l = &sp->vlists[li - 1];
+    uint8_t j;
+    for (j = k + 1; j < l->n; j++) if (l->e[j].flags & VE_BLOW) return 0;
+    for (l++; l->n; l++) for (j = 0; j < l->n; j++) if (l->e[j].flags & VE_BLOW) return 0;
+    return 1;
+}
+static void fury_area(fighter_t *f, const fighter_t *t, const bvlist_t *l, uint8_t burn) {
+    const uint8_t *e = gfury_area[f->ch->id];
+    uint8_t j;
     if (!e[0] || !cb_fs) return;
     for (j = 0; j < cb_n; j++) {
         fighter_t *v = cb_fs[j];
         int16_t dx, dz;
-        if (v == f || v->team == f->team || v->inv || v->hp <= 0 || v->state == S_DOWN || v->state == S_GETUP ||
+        if (v == f || v == t || v->team == f->team || v->inv || v->hp <= 0 || v->state == S_DOWN || v->state == S_GETUP ||
             v->state == S_THROW || v->state == S_THROWN || v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
-        dx = INT(v->x) - INT(f->x); dz = INT(v->z) - INT(f->z);
-        if (dx < -(int16_t)e[0] || dx > (int16_t)e[0] || dz < -Z_HIT || dz > Z_HIT) continue;
-        if (!sounded++) snd_sfx(SFX_FIRE);
-        fighter_hit(f, v, e[1], R_KNOCKDOWN, 0);
-        set_burn(v, 2);
+        dx = (int16_t)dir_mul(f->facing, INT(v->x) - INT(f->x)); dz = INT(v->z) - INT(f->z);   /* (dx: + ahead) */
+        if (dx > (int16_t)e[0] || dx < -(int16_t)e[1] || dz < -(int16_t)e[2] || dz > (int16_t)e[2]) continue;
+        fighter_hit(f, v, f->pdmg, R_KNOCKDOWN, 0);
+        v->freeze = 0; v->kdelay = 0;
+        if (burn) set_burn(v, burn);
+        vlist_fly(f, v, l, dx >= 0 ? 1 : -1);
     }
+    f->freeze = 0;
 }
 static void prog_end(fighter_t *f) {
-    uint8_t burn = f->spec_id == BS_FURY && f->landed;          /* (the fury's end burn: after it connected) */
     special_end(f);
     if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
-    if (burn) fury_end_burn(f);
 }
 static void hold_apply(fighter_t *f) {                           /* a caught victim held (KOF +$E4 bit 4): in front of the */
     fighter_t *t = f->target;                                    /* attacker (P_PUT's distance, else where it stands), */
@@ -2307,6 +2327,8 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
         f->freeze = t->freeze = 0; t->vx = 0; t->kdelay = 0;
         hit_sfx(f->pfx);
         if (e->flags & VE_BURN) set_burn(t, (e->flags & VE_BURN) >> 4);   /* its burn (KOF $17AC0: Iori 624's purple) */
+        if (f->spec_id == BS_FURY && vlist_last_blow(sp, f->vlist, k))   /* the fury's final hit: its area (fury_area) */
+            fury_area(f, t, l, (e->flags & VE_BURN) >> 4);
     }
     if ((e->flags & VE_REL) && (l->flags & VL_STAND)) {          /* a release that leaves it standing (TODO #220, KOF98
                                                                     Yamazaki MAX 236236C: 329 until the strike's hold
@@ -2320,14 +2342,8 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
         if (l->flags & VL_DOWN) {                                /* laid down where it is (Kizuna's thrown victim at its */
             t->vx = t->vy = 0; t->y = 0; enter(t, S_DOWN); play(t, BA_DOWN); return;   /* animation's end, $33BA6) */
         }
-        react(t, f->facing, R_KNOCKDOWN, 0);
-        if (l->flags & VL_SREACT) src_react(t, f->facing, (uint8_t)l->vx);   /* its source's flight (Kizuna's thrown */
-        else if (l->flags & VL_VEL) {                            /* animation's motion); its */
-            t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8;
-            if (l->g) { t->kmode = 2; t->kg = t->kgf = (int32_t)l->g << 8; t->kgfr = 0; t->kvfr = 0; t->kdelay = 0; }   /* g: */
-        }                                                        /* its own gravity (KOF's routine, Iori 624: kof_fall) */
-        else kof_react(t, f->facing, R_KNOCKDOWN, -128);         /* game's flight (SS2: the victim's velocity entry), */
-    }                                                            /* the brawler's fall and landing from there */
+        vlist_fly(f, t, l, 1);                                   /* its flight forward (vlist_fly), the brawler's fall */
+    }                                                            /* and landing from there */
 }
 /* ---- form (vocabulary form.change, Double Dragon's transformation; game.json roster[].form): a fighter declares a
  * trigger, a transition (one of its specials, role BS_FORM: untouchable while it plays) and a target roster entry; the
@@ -2566,11 +2582,9 @@ static void special_update(fighter_t *f) {
             part_go(f, sp, f->sarm ? sp->links[f->sarm - 1].to : sp->parts[f->spart].next);
     }
     if (f->srow > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
-        uint8_t burn = f->spec_id == BS_FURY && f->landed;      /* (the fury's end burn) */
         carry_drop(f);
         special_end(f);
         if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
-        if (burn) fury_end_burn(f);
         return;
     }
     voice_at(f, VK_SPEC + f->spec_ix, from, f->srow - 1);

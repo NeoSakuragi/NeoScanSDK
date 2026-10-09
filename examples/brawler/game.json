@@ -120,6 +120,7 @@
    "finishers": {"launcher": "up", "down": "sweep"},
    "specials": {"D": "236A", "fD": null, "dD": "623C", "uD": "623D", "dfD": null, "ufD": "214A"},
    "fury": "23624C",
+   "fury_final_area": {"about": "note 20261009-235250-b3f3: the Ya Otome's final purple blast hits everyone around Iori, not only his caught victim: the fury's (and its MAX's) last blow of its victim lists also hits every other opponent standing within front px ahead of him, back px behind and depth px either side in z, with that blow's damage, purple burn and knockdown flight, sent away from him (fighter.c fury_area). Sized from the blast's drawn art measured in our emulator: -52..+73 px from Iori at the hit (a cloud on the victim, 20 px ahead), + about 40 px each side", "front": 112, "back": 96, "depth": 24},
    "unlock": "always",
    "voices": "kof",
    "throws": {"extra": {"u": "624B"}, "super": "624D"}

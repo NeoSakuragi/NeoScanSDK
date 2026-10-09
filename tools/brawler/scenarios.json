@@ -2734,5 +2734,25 @@
   },
   "do": "Look at the top-left of the screen during the fight.",
   "expect": "Your fighter's name comes first (top row), then the life bar under it, then the lives and the drive bar; the enemy's block on the right is the same: name, then bar."
+ },
+ "20261009-235250-b3f3": {
+  "title": "Iori's fury: the final purple blast hits everyone around him",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 60,
+   "meter": "full",
+   "extra": [
+    77,
+    117,
+    -53,
+    167
+   ]
+  },
+  "do": "Iori's meter is full, Ryos in front of him (near and farther), one behind him and one far in front. Press D (the fury, Ya Otome) and watch its end, the purple flame blast.",
+  "expect": "On the final purple blast every Ryo around Iori (up to about 112 px in front and 96 px behind him) is knocked down burning purple, losing life, the ones behind him thrown backward; the Ryo far in front (about 150 px) is not touched. Down+D (his MAX, at low life) ends the same way.",
+  "do_keys": "4:d",
+  "proof": 260
  }
 }
