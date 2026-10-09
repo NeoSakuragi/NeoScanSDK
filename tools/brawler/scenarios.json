@@ -2375,5 +2375,19 @@
   "expect": "Two hold hits, then the finisher's two kicks: after the first kick Ryo stays held, reeling in place (5 damage); the second kick knocks him down and away (5 more, 10 in all as before).",
   "do_keys": "1:a,22:-,1:a,22:-,1:a,71:-",
   "proof": 120
+ },
+ "20261009-020636-b3f3": {
+  "title": "Stage 1 has the Neo Geo backdrop",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "cam": 0
+  },
+  "do": "Start stage 1 and look at the scenery.",
+  "expect": "Stage 1 shows the backdrop with the NEO GEO sign (stage 2's before); stage 2 now has the old stage 1 scenery. Waves and bosses unchanged.",
+  "do_keys": "60:-",
+  "proof": 60
  }
 }

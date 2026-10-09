@@ -653,7 +653,7 @@
  "stages": [
   {
    "name": "STAGE 1",
-   "background": 0,
+   "background": 1,
    "music": "FIGHT",
    "power": 0,
    "waves": [
@@ -740,7 +740,7 @@
   },
   {
    "name": "STAGE 2",
-   "background": 1,
+   "background": 0,
    "music": "FIGHT",
    "power": 1,
    "waves": [
