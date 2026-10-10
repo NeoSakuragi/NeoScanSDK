@@ -109,7 +109,7 @@ def shell_and_packs(out, game):
             layout, fsize, states, syms = harness._layout(game, os.path.basename(b))
             G = json.load(open(os.path.join(game, 'game.json')))
             json.dump({'engine': m['engine'], 'shell_sha256': m['shell_sha256'], 'slot': m['slot']['id'],
-                       'fighters': [x['name'] for x in sorted(cl['fighters'], key=lambda x: x['id'])], 'throws': ['throw_c', 'throw_d', 'hold_hit', 'hold_fin', 'throw_x', 'throw_big', 'throw_big_d'],
+                       'fighters': [x['name'] for x in sorted(cl['fighters'], key=lambda x: x['id'])], 'throws': ['throw_c', 'throw_d', 'hold_hit', 'hold_fin', 'throw_x'],
                        'layout': {'fields': layout, 'fsize': fsize, 'states': states, 'syms': {k: syms[k] for k in WANT if k in syms},
                                   'sizeof_bchar': syms.get('sizeof_bchar'), 'version': m['game_version']},
                        'chain_rules': {k: v for k, v in G['chain'].items() if k != 'about'}, 'from': os.path.basename(b)},

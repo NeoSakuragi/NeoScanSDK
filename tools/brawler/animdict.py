@@ -355,10 +355,12 @@ def ss2_names(name, ch):
                 if isinstance(a, int): put(moves, a, f'{sp["input"]} (its projectile)' if ob['kind'] == 1 else f'{sp["input"]} (its effect)')
     # throws (class 4 / 5)
     names = {'throw_c': 'throw (forward + A, Slash throw B or A+B)', 'throw_d': 'throw (back + A, Kick throw D or C+D)',
-             'throw_big': 'throw (vs a big victim, Big-victim throw: SS2 Earthquake or Kuroko)',
-             'throw_x': 'throw (air, Kuutengeki air throw B or A+B)'}
+             'throw_x': 'throw (on Earthquake, Earthquake throw: SS2 any throw on Earthquake or Kuroko)',
+             'throw_air': 'throw (air, Kuutengeki air throw B or A+B)'}
     if hname in HS.THROWS:
-        for k, th in HS.throws(B, ch, hname, lab=True).items():
+        T = HS.throws(B, ch, hname, lab=True)
+        if hname in HS.AIR_THROWS: T['throw_air'] = HS.throw_air(B, ch, hname, HS.AIR_THROWS[hname])
+        for k, th in T.items():
             ss = th['ss2']
             for a in ([ss['anim']] if 'anim' in ss else []) + list(ss.get('anims') or []):
                 put(moves, a, names.get(k, k)); put(exported, a, k)

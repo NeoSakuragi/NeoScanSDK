@@ -136,17 +136,17 @@
   },
   "T-003": {
    "kind": "throw",
-   "input": "hold + forward / back + A on a big victim (SS2: any throw on Earthquake / Kuroko)",
-   "name": "Big-victim throw: SS2 Earthquake or Kuroko",
-   "move": "throw_big",
+   "input": "the extra throw (SS2: any throw on Earthquake / Kuroko, class 4 action 4)",
+   "name": "Earthquake throw: SS2 any throw on Earthquake or Kuroko",
+   "move": "throw_x",
    "source": "export throws",
    "assigned": "2026-10-10"
   },
   "T-004": {
    "kind": "throw",
-   "input": "Lab only, from the hold (SS2: close + forward + B or A+B in the air)",
+   "input": "not played (SS2: close + forward + B or A+B in the air; the engine has no air grab)",
    "name": "Kuutengeki air throw B or A+B",
-   "move": "throw_x",
+   "move": "throw_air",
    "source": "export throws",
    "assigned": "2026-10-10"
   }

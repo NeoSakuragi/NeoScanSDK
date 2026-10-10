@@ -196,8 +196,8 @@ def native_kizuna(f, D):
 
 SS2_THROW_INPUTS = {'throw_c': 'hold + forward + A (SS2: close + forward / back + B or A+B)',
                     'throw_d': 'hold + back + A (SS2: close + forward / back + D or C+D)',
-                    'throw_big': 'hold + forward / back + A on a big victim (SS2: any throw on Earthquake / Kuroko)',
-                    'throw_x': 'Lab only, from the hold (SS2: close + forward + B or A+B in the air)'}
+                    'throw_x': 'the extra throw (SS2: any throw on Earthquake / Kuroko, class 4 action 4)',
+                    'throw_air': 'not played (SS2: close + forward + B or A+B in the air; the engine has no air grab)'}
 
 def native_ss2(f, D):
     """Samurai Shodown II (export_ss2 / handlers_ss2, Character Lab 2026-10-10): MOVES (the brawler's move -> SS2

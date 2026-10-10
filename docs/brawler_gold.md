@@ -269,3 +269,12 @@ sheet + arb_compile.py, zero tokens).
   specials with a Workshop link, and "Now" names the S- ids a slot plays.
 - CLI: `workshop.py list [f]` (OPEN = his request is the last message), `reply <f> <piece> "<text>"`,
   `unlock <f> <piece>` (only a piece decoded in the library: id + reply + the page data republished), `publish <f>`.
+
+## Hanzo (SS2) — Character Lab, 2026-10-10 (Bruno: the warp "is going to be his BREAKER special")
+- C (neutral, also the breaker) = 63214BCD Ninpou Utsusemi (S-013): gone in smoke, P_WARP onto the one he hit (else the
+  nearest opponent on his lane), the spinning drop from 128 px (SS2's 195, fitted), the bounce back on a hit. Breaker:
+  2 drive chunks, white blink; without the drive 12 life, red blink (tools/samsho2/hanzo_breaker_proof.py, 4 / 4 PASS).
+- forward + C = 6321S Ninpou Bakuen Ryuu (the fire; was the neutral C until then).
+- Throws: forward + A slash throw (T-001), back + A kick throw (T-002); SS2's Earthquake throw (class 4 action 4) is the
+  plain piece T-003 (his pack's extra paired throw), no automatic choice by the victim (Bruno: "the engine doesn't need
+  that"); the air throw Kuutengeki (T-004) is decoded, not playable (no air grab).

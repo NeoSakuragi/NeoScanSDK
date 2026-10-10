@@ -267,10 +267,6 @@ each), scenario.py lint 0.
   (the MAX's damage split over them, a reel until the last), the object frozen PROJ_REHIT frames after each hit then
   re-armed for the victims it is not done with, its victims sent away from the thrower (bproj_t vhits, ppad 1;
   fighter_t vcnt / vdone; fighter.c strike).
-- `roster[].victim` "big" (Krauser, Character Lab 2026-10-10): the fighter is a BIG victim (SS2's rule for Earthquake /
-  Kuroko, $2C75C): a thrower with a big-victim throw (bxthr_t big: SS2's class 4 action 4, tools/samsho2/handlers_ss2
-  throw_big; today SS2 Hanzo) throws him with it, forward or back (fighter.c throw_start, fighter_t.tbig); the others
-  throw him as anyone. Absent = a normal victim.
 - `roster[].throws.back` "throw_c" (Krauser): the back throw (hold + back + A) = the C throw played turned (the victim
   over to his back at the grab); his own BT_THROW_D is left empty (bthrow_t turn, fighter.c throw_start).
 - `roster[].throws.hold.multi` [k, ...] (Kim: `["fin"]`, note 20261009-011518-5d29): that hold hit plays every hit of

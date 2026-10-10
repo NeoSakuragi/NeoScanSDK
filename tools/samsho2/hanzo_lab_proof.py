@@ -5,11 +5,10 @@ own chainlab/lab.js encodeTry) in the SHELL with his PACK applied (lab_pack.py a
 core load), in our emulator (tools/brawler/harness.py, the Geolith core; never MAME), against a training dummy:
 
   a ground special on C (sp_c), an air one on C in a jump (air_sp_c), the rage move on D (fury); the throws in the hold's
-  slots (grab_fwd: LE_THROW | k, k = export_bm LE_THROWS: 0 slash, 1 kick, 4 the air throw, 5 the big-victim throw forced)
+  slots (grab_fwd: LE_THROW | k, k = export_bm LE_THROWS: 0 slash T-001, 1 kick T-002, 4 the extra paired throw =
+  SS2's Earthquake throw T-003; the air throw T-004 has no slot: the engine plays three paired throws)
   measured: the move started (P1 in the special / the throw, its program's own animation), the dummy's hits and damage,
   the warps (Kage Bunshin: the camera's left + 80 / + 240; Utsusemi: on the dummy)
-  the VICTIM CLASS (no Lab entry: the plain hold + forward + A): Hanzo throwing a Krauser dummy (game.json victim "big")
-  takes his big-victim throw (fighter_t.tbig 1, the thrown victim's script = slot_bigthrows), a Ryo dummy his slash throw
 
     python3 tools/samsho2/hanzo_lab_proof.py [GAME_DIR] [--neo SHELL+PACK.neo] [--out DIR]   -> OUT/hanzo_lab_proof.json
 """
@@ -64,7 +63,7 @@ def main():
         cam = b.r(b.syms['cam_x'], 2); x0 = cam + 70
         b.place(0, x=x0, z=30); b.fset(0, 'facing', 1)
         b.place(2, x=x0 + dx, z=30); b.fset(2, 'facing', 0xFF); b.fset(2, 'hp', b.fget(2, 'hp_max')); b.run(2)
-        hp0 = hp = b.fget(2, 'hp'); hits = dmg = 0; seen = set(); xs = []; tbig = None; thr = None; started = False
+        hp0 = hp = b.fget(2, 'hp'); hits = dmg = 0; seen = set(); xs = []; started = False
         if grab:                                            # walk into it: the hold
             for i in range(40):
                 b.run(1, p1='R')
@@ -77,13 +76,12 @@ def main():
             s = ST[b.fget(0, 'state')]; seen.add(s)
             if s in ('SPECIAL', 'THROW'): started = True
             if s == 'SPECIAL': xs.append(round(b.fget(0, 'x') - b.r(b.syms['cam_x'], 2)))
-            if s == 'THROW' and tbig is None: tbig = b.fget(0, 'tbig'); thr = b.fget(2, 'thr')
             h = b.fget(2, 'hp')
             if h < hp: hits += 1; dmg += hp - h
             hp = h
             if h < 30: b.fset(2, 'hp', b.fget(2, 'hp_max')); hp = b.fget(2, 'hp')
         return dict(piece=pid, slot=slot, entry=hex(entry) if entry is not None else None, lstat=st, started=started,
-                    hits=hits, damage=dmg, states=sorted(seen), tbig=tbig, thr=thr,
+                    hits=hits, damage=dmg, states=sorted(seen),
                     screen_x=[xs[0], xs[len(xs) // 2], xs[-1]] if xs else None), True
 
     def case(r, want):
@@ -91,7 +89,7 @@ def main():
         good = r.get('started') and all((r.get(k) or 0) >= v if isinstance(v, int) else v(r) for k, v in want.items())
         r['result'] = 'PASS' if good else 'FAIL'; ok &= bool(good); rows.append(r)
         print(f"{r['piece']:6} {reg['pieces'].get(r['piece'], {}).get('input', ''):12} {r['slot'] or '-':9} started {r['started']!s:5} hits {r['hits']:2} "
-              f"dmg {r['damage']:3} tbig {r.get('tbig')} x {r.get('screen_x')}  {r['result']}", flush=True)
+              f"dmg {r['damage']:3} x {r.get('screen_x')}  {r['result']}", flush=True)
 
     S = {p['input']: i for i, p in reg['pieces'].items()}
     sp = lambda inp: LE_SPEC | pool.index(inp)
@@ -109,14 +107,8 @@ def main():
     r, _ = trial(S['63214BCD'], 'sp_c', sp('63214BCD'), 'c', 140); case(r, {'hits': 1})
     r, _ = trial(S['6464642BCD'], 'sp_c', sp('6464642BCD'), 'c', 140); case(r, {})
     T = {p['move']: i for i, p in reg['pieces'].items() if p['kind'] == 'throw'}
-    for mv, k in (('throw_c', 0), ('throw_d', 1), ('throw_x', 4), ('throw_big', 5)):
-        r, _ = trial(T[mv], 'grab_fwd', LE_THROW | k, 'Ra', 30, grab=True); case(r, {'hits': 1})
-    # the victim class, no Lab entry: hold + forward + A
-    big = harness._layout(game, 'build_pack_hanzo_ss2')[3].get('slot_bigthrows')   # (the slot's tables: the pack build's)
-    r, _ = trial('big?', None, None, 'Ra', 30, dummy='krauser', grab=True); r['piece'] = 'class'; r['dummy'] = 'krauser'
-    case(r, {'hits': 1, 'tb': lambda r: r['tbig'] == 1 and r['thr'] == big})
-    r, _ = trial('big?', None, None, 'Ra', 30, dummy='ryo', grab=True); r['piece'] = 'class'; r['dummy'] = 'ryo'
-    case(r, {'hits': 1, 'tb': lambda r: r['tbig'] == 0})
+    for mv, k in (('throw_c', 0), ('throw_d', 1), ('throw_x', 4)):   # (T-003, SS2's Earthquake throw: his extra paired
+        r, _ = trial(T[mv], 'grab_fwd', LE_THROW | k, 'Ra', 30, grab=True); case(r, {'hits': 1})   # throw; T-004: no slot)
     os.makedirs(a.out, exist_ok=True)
     json.dump(rows, open(os.path.join(a.out, 'hanzo_lab_proof.json'), 'w'), indent=1)
     print(f"{sum(r['result'] == 'PASS' for r in rows)} / {len(rows)} PASS")

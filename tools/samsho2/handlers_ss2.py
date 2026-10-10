@@ -504,15 +504,16 @@ def han_63214bcd(v):
     5 anim 3 $37B86: +$118 = 1, the end -> neutral
     Measured (cmd6, P2 at 400): anim 14 30 frames, gone one frame, at x 395 height 204 (P2 Haohmaru), 195 falling 24
     frames, P2 hit (class 3 action 3), the bounce back to x 331, landed at 251 (SS2's hit slow motion stretches it).
-    The brawler: P_WARP (target mode: the nearest opponent, 5 px short of it, height by its victim class: the normal one
-    195, the big one 259, both fitted x UTSU_TOP / 195), the neutral stick's bounce"""
+    The brawler: P_WARP (target mode: the one he hit, else the nearest opponent, 5 px short of it, the normal victim's
+    height 195 fitted x UTSU_TOP / 195; SS2's Earthquake row 259 not used), the neutral stick's bounce. His BREAKER
+    (game.json roster hanzo_ss2 specials.D: the neutral C special, Bruno 2026-10-10)"""
     tab = N.u32(0x37B1C)                              # (the neutral stick's bounce)
     bvx, bvy = N.s16(tab), N.s16(tab + 2)
     dx, h = N.s16(0x6A95A + 4 * 0), -N.s16(0x6A95A + 4 * 0 + 2)        # (Haohmaru's row: dx -5)
     hn, hb = -N.s16(0x6A95A + 4 * 2 + 2), -N.s16(0x6A95A + 4 * 8 + 2)   # a normal victim (195) / Earthquake (259)
     q = UTSU_TOP / hn; f = lambda w: round(w * q); g = ('custom', 0, f(GRAVITY))
     return [E(14, [('set', 'vx', 0)], [('end', 'next')]),
-            E(80, [('warp', 0, dx, f(hn) | f(hb) << 16), ('set', 'vx', 0), ('set', 'vy', 0)], [('now', 'next')]),
+            E(80, [('warp', 0, dx, f(hn)), ('set', 'vx', 0), ('set', 'vy', 0)], [('now', 'next')]),
             E(195, conds=[('hit', 'next'), ('land', 5)], phys=g),
             E(22, [('set', 'vx', bx(bvx)), ('set', 'vy', by(f(bvy)))], [('end', 'next'), ('land', 'next')], phys=g),
             E(26, conds=[('land', 'next')], phys=g),
@@ -570,7 +571,7 @@ SPECIALS = {
                'RAGE': (kur_rage(False), 1, (37,)), 'MAX RAGE': (kur_rage(True), 1, (38,))},
 }
 CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo': 2}
-LAB_ONLY = {('hanzo', '641236S'), ('hanzo', '63214BCD'), ('hanzo', '6464642BCD')}   # decoded for the Character Lab (its
+LAB_ONLY = {('hanzo', '641236S'), ('hanzo', '6464642BCD')}   # (63214BCD: in the game, his breaker)   # decoded for the Character Lab (its
                                                   # pieces, condition 'lab'): the normal game's pools take 'normal' only
 NAMES = {'hanzo': {'6321S': 'Ninpou Bakuen Ryuu', '623K': 'Ninpou Mozu Otoshi', 'WFT': 'Ninpou Tenma Fukumetsu (rage)',
                    'j.4123S': 'Ninpou Reppuu Shuriken (air)', '641236S': 'Ninpou Kage Bunshin', '63214BCD': 'Ninpou Utsusemi',
@@ -767,7 +768,7 @@ class Play:
             elif op == P['nudge']: self.x += b << 16; self.y += v << 16
             elif op == P['warp']:                         # (alone: a target mode warp keeps x, rises to the normal
                 if a & 1: self.x = (v - 160) << 16        # victim's height; a screen one: x from the screen's middle)
-                else: self.y = (v & 0xFFFF) << 16
+                else: self.y = v << 16
             elif op == P['dec']: self.cnt -= 1
             elif op == P['br']:
                 if self.cond(a & 0x7F, v) == bool(a >> 7):
@@ -1514,19 +1515,16 @@ def throw_air(B, ch, name, act=7):
             'ss2': {'anims': [grab, slam, hop, land_a], 'victim_action': act, 'air': True},
             'turned': False, 'grab_frame': None}
 
-BIG_THROWS = {'hanzo'}                            # the game's fighters whose throws pick the big-victim one (fighter.c
-                                                  # throw_start: a victim of game.json victim "big"); any SS2 fighter can be
-                                                  # added: his class 4 action 4 decodes the same way
 AIR_THROWS = {'hanzo': 7}                         # $2CA42: the fighters with an air throw (Nakoruru, Galford, Sieger too)
 
 def throws(B, ch, name, lab=False):
-    """the fighter's throws: throw_c / throw_d (B / A+B, D / C+D); with lab (the Character Lab's pieces) also
-    'throw_big' (class 4 action 4: a victim of the big class, generic for every SS2 fighter) and its air throw 'throw_x'
-    (played from the hold: the brawler has no air grab)"""
+    """the fighter's throws: throw_c / throw_d (B / A+B, D / C+D); with lab (the Character Lab's pack) also SS2's
+    Earthquake throw (class 4 action 4, throw_big) as his extra paired throw 'throw_x' (T-003: a plain piece, no
+    automatic choice by the victim: Bruno 2026-10-10, "the engine doesn't need that, just look up the throw and decode
+    it"). The air throw (throw_air, T-004) is decoded but not in the pack: the engine plays three paired throws (C, D,
+    the extra one)"""
     out = {k: throw(B, ch, name, k) for k in THROWS[name]}
-    if lab or name in BIG_THROWS: out['throw_big'] = throw_big(B, ch, name)
-    if lab:
-        if name in AIR_THROWS: out['throw_x'] = throw_air(B, ch, name, AIR_THROWS[name])
+    if lab: out['throw_x'] = throw_big(B, ch, name)
     return out
 
 # ---- check: the programs against the game's frames --------------------------------------------------------------------

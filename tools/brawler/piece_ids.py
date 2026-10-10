@@ -20,10 +20,9 @@ import datetime, json, os, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIR = os.path.join(HERE, 'arb_pieces')
 ID_RE = re.compile(r'^([ST])-(\d{3,})$')
-THROW_ORDER = ['throw_c', 'throw_d', 'throw_big', 'throw_x']   # export_bm.THROWS (+ the third grab where a fighter has
-                                                            # one, + the throw of a big victim: SS2, export_bm BIG_THROW)
-THROW_INPUT = {'throw_c': 'forward + C', 'throw_d': 'forward + D', 'throw_x': 'forward + A+B',
-               'throw_big': 'forward / back + A on a big victim'}
+THROW_ORDER = ['throw_c', 'throw_d', 'throw_x', 'throw_air']   # export_bm.THROWS (+ the third grab where a fighter has
+                                                            # one; + a decoded throw no build plays: SS2 Hanzo's air throw)
+THROW_INPUT = {'throw_c': 'forward + C', 'throw_d': 'forward + D', 'throw_x': 'forward + A+B'}
 ABOUT = ('Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; '
          'per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the '
          'Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.')

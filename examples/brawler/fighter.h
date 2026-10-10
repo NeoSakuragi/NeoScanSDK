@@ -550,8 +550,6 @@ typedef struct fighter {
     const gknob_t *kn;
     uint8_t  kn_n, khit;
     uint16_t kspd;
-    uint8_t  tbig, tpad;          /* tbig: its throw is the big-victim one (bxthr_t big: SS2's throw of Earthquake, Character
-                                     Lab 2026-10-10; fighter.c throw_start, thr_of); last: draw.s's offsets stay */
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */

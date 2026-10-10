@@ -2798,17 +2798,21 @@
   "do_keys": "3:c",
   "proof": 60
  },
- "lab-hanzo_ss2-bigthrow": {
-  "title": "Hanzo (SS2) throws the big Krauser with his big-victim throw",
+ "lab-hanzo_ss2-breaker": {
+  "title": "Hanzo (SS2): his breaker (and neutral C) is Ninpou Utsusemi",
   "setup": {
-   "mode": "lab",
+   "mode": "stage",
    "fighter": "hanzo_ss2",
-   "dummy": "krauser",
-   "gap": 40
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "gap": 60,
+   "drive": "full"
   },
-  "do": "Walk into Krauser to grab him, then forward + A to throw.",
-  "expect": "Hanzo does not throw him over: he slides under Krauser and kicks him up (SS2's throw for Earthquake, anim 270); Krauser staggers, falls back and bounces. Against Ryo the same input is the usual slash throw.",
-  "do_keys": "6:R,4:Ra,12:-",
-  "proof": 110
+  "do": "Mr. Big alone in front of you, your drive full. Stand still; the moment his blow hits you, press C while you reel.",
+  "expect": "Hanzo vanishes in smoke and drops on Mr. Big from above with a spinning slash (SS2's 6 3 2 1 4 + B+C+D, Ninpou Utsusemi), blinking white: two drive chunks (without them: red, 12 life). From neutral, C is the same move for one chunk; forward + C is now the fire (Bakuen Ryuu), the neutral C until today.",
+  "do_keys": "143:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-",
+  "proof": 130
  }
 }
