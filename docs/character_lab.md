@@ -137,7 +137,19 @@ every old URL, the chain timing measured in the game), `fighterlab_proof.js`, `k
 
 ## Proven 2026-10-10: the consolidated Lab
 
-PROOF_PLACEHOLDER
+`chainlab/consolidate_proof.js` in headless Chrome at 1280 and 400 px, against a local site + stub service and LIVE on
+canneji (a temporary Oros admin through the real login page, deleted afterwards; every decision POST answered by the
+proof, every other write aborted: 6 PUTs of the auto-send blocked, `robert-arb` and the live configs untouched): 61 / 61
+checks. The cast at lab.html and index.html; Robert's Info / Dictionary (433 animations) / Workshop / Assembly (5 timing
+panels) / Review; Haohmaru's Dictionary note; the embed (no chrome, the timing shown); the Game tools' ten tabs filled and
+hash-routed; 14 old URLs landing on their tab. The chain timing measured in the game (Try this sheet in game, Robert's
+pack on the shell, A every other frame, the game's own event log): at the game's timing press 1 connects 4 frames after
+its start and press 2 starts 11 frames after press 1; with press 1's startup 4 -> 8 and hit-stop 6 -> 18 set through the
+page's knobs: 8 and 27 (+4, +16 = the added frames exactly); "Back to default": the same frames as before (0 / 11 / 26 /
+65 / 104 from the first press). Found and fixed on the way: a load written while the game had not taken the last one was
+lost (a pending TRY blob applied at neutral answered "taken" before the new one was read; the chain's load 5 then
+overwrote that load 6): tryit.js now waits for `lab.load` to clear before every write. Screens: /data/tmp/consolidate/
+(local3, live).
 
 ## Hanzo (SS2) — Character Lab, 2026-10-10: the first Samurai Shodown II fighter in the Lab (Bruno: the warp "is going to be his BREAKER special")
 - C (neutral, also the breaker) = 63214BCD Ninpou Utsusemi (S-013): gone in smoke, P_WARP onto the one he hit (else the
