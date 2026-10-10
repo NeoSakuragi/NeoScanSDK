@@ -57,13 +57,13 @@ def main():
         return bases[dummy]
     rows, ok = [], True
 
-    def trial(pid, slot, entry, keys, dx, dummy='ryo', frames=260, jump=False, grab=False):
+    def trial(pid, slot, entry, keys, dx, dummy='ryo', frames=260, jump=False, grab=False, x0off=70):
         b.load(base(dummy))
         st = send({'slots': {slot: [entry]}} if slot else {}, dummy)
-        cam = b.r(b.syms['cam_x'], 2); x0 = cam + 70
+        cam = b.r(b.syms['cam_x'], 2); x0 = cam + x0off
         b.place(0, x=x0, z=30); b.fset(0, 'facing', 1)
         b.place(2, x=x0 + dx, z=30); b.fset(2, 'facing', 0xFF); b.fset(2, 'hp', b.fget(2, 'hp_max')); b.run(2)
-        hp0 = hp = b.fget(2, 'hp'); hits = dmg = 0; seen = set(); xs = []; started = False
+        hp0 = hp = b.fget(2, 'hp'); hits = dmg = 0; seen = set(); xs = []; started = False; x_0 = b.fget(0, 'x'); ytop = 0; nspec = 0
         if grab:                                            # walk into it: the hold
             for i in range(40):
                 b.run(1, p1='R')
@@ -75,13 +75,13 @@ def main():
             b.run(1, p1=keys if i < 2 else '')
             s = ST[b.fget(0, 'state')]; seen.add(s)
             if s in ('SPECIAL', 'THROW'): started = True
-            if s == 'SPECIAL': xs.append(round(b.fget(0, 'x') - b.r(b.syms['cam_x'], 2)))
+            if s == 'SPECIAL': xs.append(round(b.fget(0, 'x') - b.r(b.syms['cam_x'], 2))); nspec += 1; ytop = max(ytop, b.fget(0, 'y'))
             h = b.fget(2, 'hp')
             if h < hp: hits += 1; dmg += hp - h
             hp = h
             if h < 30: b.fset(2, 'hp', b.fget(2, 'hp_max')); hp = b.fget(2, 'hp')
         return dict(piece=pid, slot=slot, entry=hex(entry) if entry is not None else None, lstat=st, started=started,
-                    hits=hits, damage=dmg, states=sorted(seen),
+                    hits=hits, damage=dmg, states=sorted(seen), travel=round(b.fget(0, 'x') - x_0), top=round(ytop), frames=nspec,
                     screen_x=[xs[0], xs[len(xs) // 2], xs[-1]] if xs else None), True
 
     def case(r, want):
@@ -89,14 +89,14 @@ def main():
         good = r.get('started') and all((r.get(k) or 0) >= v if isinstance(v, int) else v(r) for k, v in want.items())
         r['result'] = 'PASS' if good else 'FAIL'; ok &= bool(good); rows.append(r)
         print(f"{r['piece']:6} {reg['pieces'].get(r['piece'], {}).get('input', ''):12} {r['slot'] or '-':9} started {r['started']!s:5} hits {r['hits']:2} "
-              f"dmg {r['damage']:3} x {r.get('screen_x')}  {r['result']}", flush=True)
+              f"dmg {r['damage']:3} travel {r.get('travel')} top {r.get('top')} frames {r.get('frames')} x {r.get('screen_x')}  {r['result']}", flush=True)
 
     S = {p['input']: i for i, p in reg['pieces'].items()}
     sp = lambda inp: LE_SPEC | pool.index(inp)
     for inp in ('6321A', '6321B', '6321AB'):
         r, _ = trial(S[inp], 'sp_c', sp(inp), 'c', 130); case(r, {'hits': 1})
     for inp in ('623C', '623D', '623CD'):
-        r, _ = trial(S[inp], 'sp_c', sp(inp), 'c', 40); case(r, {'hits': 1})
+        r, _ = trial(S[inp], 'sp_c', sp(inp), 'c', 40, x0off=220); case(r, {'hits': 1})   # (room behind him: its leaps go back)
     r, _ = trial(S['WFT'], 'fury', sp('WFT'), 'd', 110); case(r, {'hits': 1})
     for inp in ('j.4123A', 'j.4123B', 'j.4123AB'):
         r, _ = trial(S[inp], 'air_sp_c', sp(inp), 'c', 110, jump=True); case(r, {'hits': 1})
@@ -106,6 +106,9 @@ def main():
     case(r, {'w': lambda r: r['screen_x'] and abs(r['screen_x'][1] - 240) <= 2})
     r, _ = trial(S['63214BCD'], 'sp_c', sp('63214BCD'), 'c', 140); case(r, {'hits': 1})
     r, _ = trial(S['6464642BCD'], 'sp_c', sp('6464642BCD'), 'c', 140); case(r, {})
+    for inp in ('run 623C', 'run 623D', 'run 623CD'):                 # (the run's leap: backward travel, same catch)
+        r, _ = trial(S[inp], 'sp_c', sp(inp), 'c', 40, x0off=220); case(r, {'hits': 1, 'back': lambda r: r['travel'] < -10})
+
     T = {p['move']: i for i, p in reg['pieces'].items() if p['kind'] == 'throw'}
     for mv, k in (('throw_c', 0), ('throw_d', 1), ('throw_x', 4)):   # (T-003, SS2's Earthquake throw: his extra paired
         r, _ = trial(T[mv], 'grab_fwd', LE_THROW | k, 'Ra', 30, grab=True); case(r, {'hits': 1})   # throw; T-004: no slot)

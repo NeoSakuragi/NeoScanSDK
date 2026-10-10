@@ -364,7 +364,7 @@ def ss2_names(name, ch):
             ss = th['ss2']
             for a in ([ss['anim']] if 'anim' in ss else []) + list(ss.get('anims') or []):
                 put(moves, a, names.get(k, k)); put(exported, a, k)
-            for r in th['victims'][hname]:
+            for r in next(iter(th['victims'].values())):
                 if r[5] and r[5][0].isdigit():
                     a = int(r[5].split('.')[0])
                     if a not in (220, 222): put(moves, a, f'thrown ({names.get(k, k).split(", ")[-1].rstrip(")")}: the victim)')

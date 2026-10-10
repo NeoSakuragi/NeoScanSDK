@@ -2,7 +2,7 @@
  "fighter": "hanzo_ss2",
  "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
  "next": {
-  "S": 15,
+  "S": 18,
   "T": 5
  },
  "pieces": {
@@ -114,6 +114,30 @@
    "kind": "special",
    "input": "6464642BCD",
    "name": "Ninpou Kagemai",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-015": {
+   "kind": "special",
+   "input": "run 623C",
+   "name": "Ninpou Mozu Otoshi out of a run, C version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-016": {
+   "kind": "special",
+   "input": "run 623D",
+   "name": "Ninpou Mozu Otoshi out of a run, D version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-017": {
+   "kind": "special",
+   "input": "run 623CD",
+   "name": "Ninpou Mozu Otoshi out of a run, C+D version",
    "air": false,
    "source": "handlers_ss2.SPECIALS",
    "assigned": "2026-10-10"

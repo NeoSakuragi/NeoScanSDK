@@ -543,6 +543,38 @@ def kclone(B, v):
             'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0,
             'travel': 0, 'name': 'KCLONE', 'ss2': {'object': 8, 'anim': 289}}
 
+def han_623k_run(v):
+    """Mozu Otoshi out of a RUN (Bruno: "run, then 623 + CD: the special throw that ends in flames, with some X movement
+    as he goes into the air"; the same list $36DFC, a branch of its entry 2) [code]: $36EB6 tests his previous action
+    (+$C6): class 0 action 30 (the run) or 41 -> +$D4 = -1 and entry 2 ends AT ONCE (from a stand it waits for anim 58's
+    end: 23 frames); $36EE0 then sets the leap's vx too (only with +$D4): word 0 of $36F46[b] = -256 / -752 / -768 (8.8:
+    1 / 2.9 / 3 px a frame BACKWARD, his facing's opposite: the -Satsu- leap that carries the victim back), the vy,
+    the hold and the second leap as standing; and with vx set, $8AD4 (a camera / effect level) is left alone. The rest
+    = han_623k: the fire on the slam (mozufire), the victim lists. A plain piece (the brawler has no "came from a run"
+    state: it is that version of the move)"""
+    tab = N.u32(0x36F46 + 4 * v)
+    vx = N.s16(tab)
+    ents, objs, vl = han_623k(v)
+    ents = list(ents)
+    ents[2] = E(58, [('set', 'vx', 0)], [('now', 'next')])
+    e3 = dict(ents[3]); e3['init'] = [('set', 'vx', bx(vx))] + list(e3['init']); ents[3] = e3
+    return ents, objs, vl
+
+SD_FRAMES = 300                                   # $2C47A: the timer once the puff has played
+def han_sd(v):
+    """the SUPER-DEFORMED (SD) pose, every SS2 fighter's hidden system move (Hanzo 6 4 6 4 6 4 2 + A -> class 0 action
+    45, one list $368BC; Haohmaru / Genjuro 6 3 2 1 4 6 4 + B ...: commands_ss2 type 0 / 7 entries, result 45) [code]:
+    0 $2C410: velocities 0; already showing anim 82 -> back to neutral (the same input again ends it); else anim 82 (the
+    SD picture: ONE step held, its own small sprite definitions near the end of the definition table, Hanzo $3FE3 /
+    $3FE4 / $3FEB: a separate drawing, not a scaled body), sound $E7, a white backdrop flash ($2B9DE 31, 31, 31: 16
+    frames), effect 71 (the puff, its +$F0 = 1) and effect 72; the palette adds of his colour set ($2C4A4)
+    1 $2C46C: the puff's end -> the timer +$24 = 300, next
+    2 $2C486: every frame his facing turned to the opponent ($278D0), the timer at 0 (or the round over) -> neutral.
+    No move of its own: a 5-second pose (hittable: a hit's reaction replaces it). The program: anim 82 held SD_FRAMES
+    frames. NOT in SPECIALS: Hanzo's SD drawing is in palettes 68 / 69 (+ a flicker key), past his 8 (needs palette
+    room: a 9th / 10th palette for the fighter, or the SD sprite recoloured into his 8)"""
+    return [E((82, 0, 0), [('set', 'vx', 0), ('set', 'cnt', SD_FRAMES - 1)], [('cnt', 'end')])], []
+
 def mozu_lists(v):
     """the victim of Mozu Otoshi (VL; handlers_ss2.voff: Haohmaru's offsets, every character's victim animations): at his
     place facing his way; lists: 490 (his 58), 492 (his 60), 494 (his 62, step by step), the slam (a blow, his held pose),
@@ -561,7 +593,10 @@ SPECIALS = {
     'hanzo': {'6321S': (han_6321s, 3, (38, 39, 40)), '623K': (han_623k, 3, (43, 44, 45)), 'WFT': (han_wft, 1, (37,)),
               'j.4123S': (han_j4123s, 3, (48, 49, 50)),      # (j.: an air special, TODO #211: game.json air_special)
               # the rest of his recogniser (Character Lab 2026-10-10): Lab pieces only (LAB_ONLY: not in the game's pool)
-              '641236S': (han_641236s, 2, (41, 42)), '63214BCD': (han_63214bcd, 1, (46,)), '6464642BCD': (han_6464642bcd, 1, (51,))},
+              '641236S': (han_641236s, 2, (41, 42)), '63214BCD': (han_63214bcd, 1, (46,)), '6464642BCD': (han_6464642bcd, 1, (51,)),
+              'run 623K': (han_623k_run, 3, (43, 44, 45))},
+    # (han_sd, the SD pose, 'SD (6464642+A)' result 45: decoded, NOT imported: its drawing uses SS2's palettes 68 / 69
+    # (+ 69's flicker), past the 8 the brawler loads per fighter; export_ss2.pack_palettes cannot fold them in)
     # (input = the recogniser's own: commands_ss2.py 17; 2026-10-07: 61236A is result 41 and 214161BC result 46, the
     # export had them swapped)
     'kuroko': {'236A': (kur_parody(39), 1, (39,)), '16A': (kur_parody(40), 1, (40,)), '61236A': (kur_parody(41), 1, (41,)),
@@ -571,11 +606,12 @@ SPECIALS = {
                'RAGE': (kur_rage(False), 1, (37,)), 'MAX RAGE': (kur_rage(True), 1, (38,))},
 }
 CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo': 2}
-LAB_ONLY = {('hanzo', '641236S'), ('hanzo', '6464642BCD')}   # (63214BCD: in the game, his breaker)   # decoded for the Character Lab (its
+LAB_ONLY = {('hanzo', '641236S'), ('hanzo', '6464642BCD'), ('hanzo', 'run 623K'), ('hanzo', 'SD (6464642+A)')}   # (63214BCD: in the game, his breaker)   # decoded for the Character Lab (its
                                                   # pieces, condition 'lab'): the normal game's pools take 'normal' only
 NAMES = {'hanzo': {'6321S': 'Ninpou Bakuen Ryuu', '623K': 'Ninpou Mozu Otoshi', 'WFT': 'Ninpou Tenma Fukumetsu (rage)',
                    'j.4123S': 'Ninpou Reppuu Shuriken (air)', '641236S': 'Ninpou Kage Bunshin', '63214BCD': 'Ninpou Utsusemi',
-                   '6464642BCD': 'Ninpou Kagemai'}}   # SNK's names (snk.fandom.com "Hanzo Hattori/Move List", read through
+                   '6464642BCD': 'Ninpou Kagemai', 'run 623K': 'Ninpou Mozu Otoshi out of a run',
+                   'SD (6464642+A)': 'Super-deformed pose'}}   # SNK's names (snk.fandom.com "Hanzo Hattori/Move List", read through
                                                   # its API 2026-10-10: Bakuenryuu f-hcb... S, Mozu Otoshi close 623 K, Kage
                                                   # Bunshin 641236 A / B (SS II-V), Tenma Fukumetsu hcb-f D (SS II's rage
                                                   # move); the air shuriken, Utsusemi and Kagemai under their later games'
@@ -1169,7 +1205,7 @@ def special(B, ch, name, inp, vdef=None):
     if vlists: rom['vlists'] = vlists                 # the caught victim's lists (VL), P_VSIG steps through them
     if vlists and any(v != vlists for v in vrows): rom['vlists_rows'] = vrows
     import commands_ss2 as K
-    if K.descriptor(ch, 0, 1, results[default])['b'][0] & 0x80: rom['nopush'] = True   # descriptor byte 4 bit 7 -> +$FF:
+    if not inp.startswith('SD') and K.descriptor(ch, 0, 1, results[default])['b'][0] & 0x80: rom['nopush'] = True   # descriptor byte 4 bit 7 -> +$FF:
                                                        # no push between the players ($CC14) while it plays [code]
     if (name, inp) in BIGHIT: rom['bighit'] = True        # its connect: SS2's big-hit pause (export_bm SF_BIGHIT)
     if (name, inp) in BIGHIT_COL: rom['bighit_col'] = BIGHIT_COL[(name, inp)]
@@ -1524,7 +1560,9 @@ def throws(B, ch, name, lab=False):
     it"). The air throw (throw_air, T-004) is decoded but not in the pack: the engine plays three paired throws (C, D,
     the extra one)"""
     out = {k: throw(B, ch, name, k) for k in THROWS[name]}
-    if lab: out['throw_x'] = throw_big(B, ch, name)
+    if lab:                                           # (its victim rows keyed apart: the posture frames every fighter
+        tb = throw_big(B, ch, name)                   # draws come from the game's own throws only, so the pack's tables
+        out['throw_x'] = dict(tb, victims={name + '_lab': tb['victims'][name]})   # outside the slot stay the shell's)
     return out
 
 # ---- check: the programs against the game's frames --------------------------------------------------------------------

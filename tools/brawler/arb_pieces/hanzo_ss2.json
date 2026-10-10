@@ -186,6 +186,48 @@
    "air": true,
    "source": "handlers_ss2.SPECIALS",
    "name": "Ninpou Reppuu Shuriken (air)"
+  },
+  "run 623C": {
+   "decoded": true,
+   "anims": [
+    "128",
+    "3A",
+    "3C",
+    "3E",
+    "26",
+    "1A"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Mozu Otoshi out of a run"
+  },
+  "run 623CD": {
+   "decoded": true,
+   "anims": [
+    "128",
+    "3A",
+    "3C",
+    "3E",
+    "26",
+    "1A"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Mozu Otoshi out of a run"
+  },
+  "run 623D": {
+   "decoded": true,
+   "anims": [
+    "128",
+    "3A",
+    "3C",
+    "3E",
+    "26",
+    "1A"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Mozu Otoshi out of a run"
   }
  },
  "anims": {
@@ -376,7 +418,7 @@
    ]
   },
   "1A": {
-   "kind": "pose",
+   "kind": "movement",
    "state": 26,
    "names": [
     "jump_up_fall"
@@ -388,7 +430,10 @@
     "623CD",
     "j.4123A",
     "j.4123B",
-    "j.4123AB"
+    "j.4123AB",
+    "run 623C",
+    "run 623D",
+    "run 623CD"
    ]
   },
   "1B": {
@@ -467,7 +512,7 @@
    "specials": []
   },
   "26": {
-   "kind": "pose",
+   "kind": "movement",
    "state": 38,
    "names": [
     "jump_back_fall"
@@ -475,7 +520,10 @@
    "specials": [
     "623C",
     "623D",
-    "623CD"
+    "623CD",
+    "run 623C",
+    "run 623D",
+    "run 623CD"
    ],
    "throws": [
     "throw_air"
@@ -596,13 +644,16 @@
    "specials": []
   },
   "3A": {
-   "kind": "pose",
+   "kind": "movement",
    "state": 58,
    "names": [],
    "specials": [
     "623C",
     "623D",
-    "623CD"
+    "623CD",
+    "run 623C",
+    "run 623D",
+    "run 623CD"
    ]
   },
   "3B": {
@@ -612,13 +663,16 @@
    "specials": []
   },
   "3C": {
-   "kind": "pose",
+   "kind": "movement",
    "state": 60,
    "names": [],
    "specials": [
     "623C",
     "623D",
-    "623CD"
+    "623CD",
+    "run 623C",
+    "run 623D",
+    "run 623CD"
    ]
   },
   "3D": {
@@ -628,13 +682,16 @@
    "specials": []
   },
   "3E": {
-   "kind": "pose",
+   "kind": "movement",
    "state": 62,
    "names": [],
    "specials": [
     "623C",
     "623D",
-    "623CD"
+    "623CD",
+    "run 623C",
+    "run 623D",
+    "run 623CD"
    ]
   },
   "3F": {
@@ -2101,13 +2158,16 @@
    ]
   },
   "128": {
-   "kind": "pose",
+   "kind": "movement",
    "state": 296,
    "names": [],
    "specials": [
     "623C",
     "623D",
-    "623CD"
+    "623CD",
+    "run 623C",
+    "run 623D",
+    "run 623CD"
    ]
   },
   "129": {
@@ -4826,6 +4886,126 @@
    }
   ],
   "S-014": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-015": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 4.8086,
+    "min": 1,
+    "max": 14.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 315136,
+      "base": 315136
+     }
+    ],
+    "from": "P_SET vy 4.80859 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-016": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 4.1094,
+    "min": 1,
+    "max": 12.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 269312,
+      "base": 269312
+     }
+    ],
+    "from": "P_SET vy 4.10938 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-017": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 2.3516,
+    "min": 1,
+    "max": 7.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 154112,
+      "base": 154112
+     }
+    ],
+    "from": "P_SET vy 2.35156 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": true
+   },
    {
     "id": "damage",
     "name": "Damage",
