@@ -6,9 +6,9 @@
 //      revision queues a ship (POST lab/ship/<f>),
 //   3. "Try this sheet in game": A every other frame on the dummy; per frame P1's piece (an attack: its animation $NN; a
 //      lab entry: lab.cur) and the game's event log (each press's start, its hits) -> which press played what, when.
-//   node chainlive_proof.js BASE_URL FIGHTER OUT     (screens + report.json in OUT)
+//   node chainlive_proof.js BASE_URL FIGHTER OUT     (screens + report.json in OUT; LOGIN=user:password or LOGIN_FILE)
 const fs = require('fs'), path = require('path');
-const puppeteer = require('puppeteer-core');
+const puppeteer = require(process.env.NODE_PATH ? 'puppeteer-core' : '/home/bruno/CLProjects/NeoGeo/node_modules/puppeteer-core');
 const [base0, F, out] = process.argv.slice(2);
 const base = base0.endsWith('/') ? base0 : base0 + '/';
 fs.mkdirSync(out, { recursive: true });
@@ -22,7 +22,7 @@ const settle = ms => new Promise(r => setTimeout(r, ms));
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 1000 });
   const errs = []; page.on('pageerror', e => errs.push(e.message));
-  const [u, pw] = (process.env.LOGIN || '').split(/:(.*)/s);
+  const [u, pw] = (process.env.LOGIN || (process.env.LOGIN_FILE ? fs.readFileSync(process.env.LOGIN_FILE, 'utf8').trim() : '')).split(/:(.*)/s);
   await page.goto(base + 'lab.html', { waitUntil: 'load' });
   if (/login\.html/.test(page.url())) {
     await page.type('#u', u); await page.type('#p', pw);
@@ -69,12 +69,15 @@ const settle = ms => new Promise(r => setTimeout(r, ms));
   check('the live config carries the chain (TRY blob v3)', live.version_byte === 3 && live.chain && live.chain.entries.some(e => e !== null), live);
   check('the live send queued a ship of that revision', live.ships.some(x => x.rev === live.version), live.ships);
   // 3. Try this sheet in game
-  const tr = await page.evaluate(async f => {
+  const tryRun = walk => page.evaluate(async (f, walk) => {
     await window.TryIt.sheet(f, window.arbSheet());
     const T = window.tryit, L = T.lab, gp = T.gp, S = T.state;
     if (!L) return { error: document.querySelector('#tryit .tnow').textContent };
     if (!gp.paused) gp.togglePause();
     L.request(2); gp.stepFrames(4);
+    for (let i = 0; i < walk; i++) { gp.override = 'R'; gp.stepFrames(1); }   // (walk: the dummy at the ship check's 44 px)
+    gp.override = null; gp.stepFrames(2);
+    const gap = Math.round(Math.abs(L.fget(2, 'x') - L.fget(0, 'x')));
     const ba = S.man.chain.ba, hexOf = {};
     for (const [m, x] of Object.entries(S.man.moves || {})) hexOf[ba.indexOf(m)] = String(x).replace(/^\$/, '').toUpperCase();
     const from = L.nev(), f0 = L.labFrame(), seq = []; let prev = '';
@@ -87,11 +90,16 @@ const settle = ms => new Promise(r => setTimeout(r, ms));
     }
     gp.override = null; gp.stepFrames(30);
     const ev = L.eventsSince(from).events.filter(e => ['START', 'HIT', 'CHAINWIN', 'END'].includes(e.kind)).map(e => [e.frame - f0, e.kind, e.node]);
-    return { now: document.querySelector('#tryit .tnow[aria-live]').textContent, err: document.querySelector('#tryit .terr').textContent, status: L.tryStatus(), seq, ev, combo: L.combo() };
-  }, F);
+    return { now: document.querySelector('#tryit .tnow[aria-live]').textContent, err: document.querySelector('#tryit .terr').textContent, status: L.tryStatus(), gap, seq, ev, combo: L.combo() };
+  }, F, walk);
+  const tr = await tryRun(0);
   rep.try = tr;
-  console.log('Try in game:', JSON.stringify(tr).slice(0, 1500));
+  console.log('Try in game (spawn):', JSON.stringify(tr).slice(0, 1500));
   await (await page.$('#tryit')).screenshot({ path: path.join(out, 'try_in_game.png') }).catch(() => {});
+  const tr2 = await tryRun(+(process.env.WALK || 22));
+  rep.try_close = tr2;
+  console.log('Try in game (close):', JSON.stringify(tr2).slice(0, 1500));
+  await (await page.$('#tryit')).screenshot({ path: path.join(out, 'try_in_game_close.png') }).catch(() => {});
   check('Try in game: the sheet applied, nothing refused', tr.status === 'taken' && !tr.err, { status: tr.status, err: tr.err });
   check('no page error', !errs.length, errs);
   rep.bad = bad;
