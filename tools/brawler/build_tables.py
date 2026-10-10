@@ -216,7 +216,8 @@ def chain_cfg(g, r):
     for k in own: assert k in ('links', 'hitstop', 'length'), f"roster {r['name']}: chain.{k} (links / hitstop / length)"   # hitstop: per link + the finisher
     air = dict(AIR_DEFAULT, **(r.get('air') or {}))  # its three air attacks (Bruno 2026-10-08): forward jump + A, straight
     for k in air: assert k in AIR_DEFAULT, f"roster {r['name']}: air.{k} (forward / straight / down)"   # jump + A, down + A
-    n = own.get('length', c['lengths'][a])           # (the Assembly's chain length, Bruno 2026-10-10: a per-fighter override)
+    n = own.get('length', 4)                         # (Bruno 2026-10-10: "4 by default, I add / remove presses": the archetype no
+                                                     # longer sets the length; every fighter's own chain.length, 4 when absent)
     assert isinstance(n, int) and 2 <= n <= 8, f"roster {r['name']}: chain.length {n} (2-8)"
     return {'archetype': a, 'length': n, 'total': c['totals'][a], 'hitstop': c['hitstop'], 'finishers': fin,
             'air': air, 'specials': r.get('specials') or {},          # (revamp gold: a finisher named as a special input)

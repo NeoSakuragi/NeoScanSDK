@@ -563,7 +563,7 @@ def propose(F, cat, top=5):
       fast / balanced chain starts on a light when one is a starter. The finishers by stick then replace the neutral
       one on the same links, each scored by its role fit (forward: a push / dash, up: a launcher, down: a crumple)."""
     arch = F.ros['archetype']; heavy = arch == 'heavy'
-    N = F.G['chain']['lengths'][arch]
+    N = (F.ros.get('chain') or {}).get('length') or 4     # (the fighter's own length, 4 by default: Bruno 2026-10-10)
     ground = [p for p in cat if p['kind'] in ('normal', 'command')]
     linkable = [p for p in ground if p['move'] != 'body_toss']
     strong = [p for p in linkable if p['weight'] == 'strong']
