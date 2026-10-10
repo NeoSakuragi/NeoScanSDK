@@ -239,3 +239,9 @@ Compiled from the sheet without an agent: 4 slot(s) linked, 1 unresolved (listed
 - fin_up (last hit + up): $15D -> finishers.up = "atk_ab_close" — linked, class a: spare name: moves "atk_ab_close": "$15D"
 - presses (chain length): $4 — UNRESOLVED: chain length 4 (now 5, archetype fast): an agent
 - chain timing: atk_a_far 4/1/16 (now 4/1/15, source 4/1/15) (roster chain.hitstop / retime, the build checked)
+
+### HANZO: sheet round 2026-10-10 (tools/brawler/arb_compile.py, decisions set `hanzo_ss2-arb`, build 0.10.31)
+Compiled from the sheet without an agent: 2 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- presses (chain length): $4 -> chain.length = 4 — linked, class a: chain length 5 -> 4
+- bz_dd (down,down + A): S-007 -> blitz.dd = "WFT" — linked, class b: S-007 Ninpou Tenma Fukumetsu (rage) (registry)
+- chain timing: atk_a_far 8/1/16 (now 4/1/16, source 4/1/15) (roster chain.hitstop / retime, the build checked)
