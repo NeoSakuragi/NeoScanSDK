@@ -14,6 +14,8 @@ mkdir -p "$SITE"
 GEO=${GEOLITH:-$HOME/CLProjects/geolith}
 [ -f "$SITE/core.wasm" ] && [ "$SITE/core.wasm" -nt "$HERE/web_core.c" ] && [ -z "$(find "$GEO/src" "$GEO/libretro" -name '*.[ch]' -newer "$SITE/core.wasm" | head -1)" ] \
   || "$HERE/build_wasm.sh" "$SITE"
+for d in "$GAME"/build_lab_*/; do [ -d "$d" ] || continue; f=$(basename "$d"); f=${f#build_lab_}   # the Lab builds ("Try in game"): brought
+  make -C "$GAME" -j2 LAB_FIGHTER="$f" > /dev/null || { echo "Lab build $f failed"; exit 1; }; done          # up to date first (a decode, a pack)
 python3 "$HERE/make_site.py" "$SITE" "$GAME"
 for f in game.neo core.wasm core.js chainlab.json enemies.json chars.json select.json; do gzip -9 -k -f "$SITE/$f"; done
 for f in "$SITE"/rom/*.neo "$SITE"/rom/*.json; do [ -f "$f" ] && gzip -9 -k -f "$f"; done   # the Lab builds ("Try in game", tryit_site.py)

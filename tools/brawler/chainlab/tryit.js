@@ -203,7 +203,11 @@
     if (e & 0x1000) { const inp = c.man.pool[e & 0xFF], w = c.W && (c.W.specials || []).find(x => x.input === inp); return (w ? w.id + ' ' : '') + inp; }
     return hex(e);
   }
-  function settle(n) { S.gp.stepFrames(n || 2); const st = S.lab.tryStatus(); if (st !== 'taken') throw new Error('The game ' + st); }
+  function settle(n) {                               // step until the game answers (taken / pending / refused), up to
+    let st = 'sent';                                  // half a second: only a refusal or no answer at all is an error
+    for (let i = 0; i < 30 && st === 'sent'; i++) { S.gp.stepFrames(1); st = S.lab.tryStatus(); }   // (n: unused, kept for callers)
+    if (st.startsWith('refused') || st === 'sent') throw new Error('The game ' + (st === 'sent' ? 'did not answer' : st));
+  }
   // the live config: ONE TRY blob (lab.js encodeTry, the same bytes the server / the Player send), load 6
   function send(cfg) { S.lab.installTry(CL().encodeTry(Object.assign({ fighter: S.man.id }, cfg)), true); }   // (the preview: apply now)
   function clearAll() {                                    // no queue, no slot, the ROM's tree back (load 2)
