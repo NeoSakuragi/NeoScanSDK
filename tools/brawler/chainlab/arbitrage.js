@@ -91,6 +91,17 @@
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json().catch(() => ({}));
     ans[id] = j.answer || Object.assign({}, ans[id], body);
+    autoLive();
+  }
+  // every saved change goes live to the Player by itself (Bruno 2026-10-10: "the Assembly is read in real time by the lab";
+  // a pick saved without "Send to Player" never reached it): 1.5 s after the last change, the whole sheet as the live config
+  // (TryIt.send: admin only; a viewer just sees why). The "Send to Player" button stays for a manual resend.
+  let liveT = null;
+  const liveMsg = h('span', { class: 'saved', 'aria-live': 'polite' });
+  function autoLive() {
+    if (!window.TryIt || !window.TryIt.send) return;
+    clearTimeout(liveT); liveMsg.textContent = 'Going live to the Player…';
+    liveT = setTimeout(() => window.TryIt.send(f, () => ({ sheet: window.arbSheet() }), liveMsg), 1500);
   }
 
   // ---- a clip: tap toggles ¼ speed (an S- / T- piece: its first animation, captioned with its id and name) ----
@@ -313,6 +324,7 @@
     h('div', { class: 'links' }, h('a', { href: 'workshop.html?f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' })),
     window.TryIt ? window.TryIt.liveLine(f) : null];
   out.push(h('div', { class: 'tryrow' }, tryBtn(), h('span', { class: 'about', text: 'Your answers, slot by slot, in the game now (the slots still "now" play the game\'s own move); play them on their own inputs.' })));
+  out.push(h('div', { class: 'tryrow' }, h('span', { class: 'about', text: 'Live: every change is sent to the Player\'s Character lab by itself (about 2 s later; admin only).' }), liveMsg));
   const sheetMsg = h('span', { class: 'saved', 'aria-live': 'polite' });
   const sheetReset = h('button', { type: 'button', class: 'kreset-sheet', text: 'Reset all knobs of the sheet' });
   sheetReset.onclick = async () => {
