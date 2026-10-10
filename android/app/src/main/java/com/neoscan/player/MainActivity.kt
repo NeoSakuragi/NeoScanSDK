@@ -137,6 +137,9 @@ class MainActivity : Activity() {
         feedback = Feedback(this, rom) { emu }
         testMode = TestMode(this, root, { emu }, feedback, rom) { refreshBadge() }
         lab = CharacterLab(this, root, { emu }, ::playRom, { h -> if (h >= 0) pad.labH = h; android.graphics.Rect(pad.labArea) }) { playRom(rom) }
+        lab?.onAssembly = { open ->                                // 0.0.32: the Assembly panel: no touch pad meanwhile
+            pad.visibility = if (open) android.view.View.INVISIBLE else android.view.View.VISIBLE
+            touchMask = 0; pushPads(); pad.relayout(); gl.requestRender() }
         feedback.lab = { lab?.noteInfo() }                         // 0.0.29: a note in the lab records its shell + pack
         pad = PadView(this, ::openSettings, ::chooseUpdate, { emu?.resetReq = true }, ::onFeedback, ::openList) { m -> touchMask = m; pushPads() }
         root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))

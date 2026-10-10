@@ -57,6 +57,8 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     var labH = 0
         set(v) { if (field == v) return; field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     val labArea = android.graphics.Rect()
+    /** the layout again (the Assembly panel opened / closed: Screen.assembly) */
+    fun relayout() { if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     private var dx = 0f; private var dy = 0f; private var dr = 0f
     private var mask = 0
     private var gearHit = false
@@ -114,6 +116,8 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             // circles), over nothing: the picture starts under it, the d-pad and A B C D are lower
             val l = listOf(coin, gear).maxOf { it.x + it.r * 1.35f }; val r2 = listOf(start, upd).minOf { it.x - it.r * 1.35f }
             labArea.set(l.toInt() + m, m, r2.toInt() - m, m + labH)
+            // 0.0.32: the Assembly open = the pad hidden, the page on the right: the strip over the picture's part
+            if (Screen.assembly) labArea.set(m, m, w - Screen.assemblyW(w, h) - m, m + labH)
         }
     }
 
