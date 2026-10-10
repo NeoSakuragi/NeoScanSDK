@@ -255,7 +255,12 @@ sheet + arb_compile.py, zero tokens).
 - Robert (2026-10-10): S-001 23624C Ryuuko Ranbu C, S-002 623A Ryuuga A, S-003 623C Ryuuga C, S-004 623D Ryuu Zanshou D,
   S-005 624D Hien Senpuu Kyaku D, S-006 EX 236C Ryuugeki Ken EX C, S-007 EX 624D, S-008 EX 646D Gen'ei Kyaku EX D,
   S-009 MAX 23624C, S-010 air 214D Hien Ryuujin Kyaku D; T-001 forward + C Ryuuchou Kyaku, T-002 forward + D Kubikiri
-  Nage; 17 special versions locked. Krauser S-001..S-011 + T-001/2 (2 locked), Kim S-001..S-007 + T-001.
+  Nage; 17 special versions locked. First Workshop unlock (thread sp-6426A): S-011 6426A / S-012 6426C / S-013 MAX 6426A
+  Haoh Shoukou Ken, read from the handler $49F24 (handlers98 ROM_SPECIALS + ROM_DEMAND: in the Lab builds' pool and a
+  sheet's slot, not in the normal game's export). A: state $A8, the fireball $AA at 4 px a frame; C: $A9, 7 px; MAX: $AC,
+  $AD at 16 px, 5 hits 4 frames apart (its hit routine counts +$138: handlers98.counted_states, bproj_t hitnext phases,
+  the last one $AE with box $2D), end $AB / $AF; the victim stays standing through the MAX's hits (R_HEAVY), the last
+  knocks down. Krauser S-001..S-011 + T-001/2 (2 locked), Kim S-001..S-007 + T-001.
 - Workshop page brawler-lab/workshop.html?f=<f> (review/<f>_workshop.json from workshop.py, built by make_site.py):
   Specials (unlocked with id / name / input / clips / what it does; locked greyed with "Unlock this" + mic), Throws,
   Animations (each attack step's hit class: KOF98/99 attack box id -> KOF's REACT tables, situation 2 standing (light /

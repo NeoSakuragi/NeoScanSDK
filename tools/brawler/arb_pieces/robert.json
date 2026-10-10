@@ -166,20 +166,20 @@
    "source": "handlers98.ROM_SPECIALS"
   },
   "6426A": {
-   "decoded": false,
+   "decoded": true,
    "anims": [
     "A8"
    ],
    "air": false,
-   "source": "dictionary capture"
+   "source": "handlers98.ROM_SPECIALS"
   },
   "6426C": {
-   "decoded": false,
+   "decoded": true,
    "anims": [
     "A9"
    ],
    "air": false,
-   "source": "dictionary capture"
+   "source": "handlers98.ROM_SPECIALS"
   },
   "EX 236A": {
    "decoded": false,
@@ -289,12 +289,12 @@
    "source": "handlers98.ROM_SPECIALS"
   },
   "MAX 6426A": {
-   "decoded": false,
+   "decoded": true,
    "anims": [
     "AC"
    ],
    "air": false,
-   "source": "dictionary capture"
+   "source": "handlers98.ROM_SPECIALS"
   },
   "air 214B": {
    "decoded": false,

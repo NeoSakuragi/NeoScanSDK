@@ -162,6 +162,9 @@ def native_kof(game, f, D):
                 if 'error' in rom: continue
                 ids = list(dict.fromkeys(x for x in (aid(s) for s in rom['states']) if x))
                 if i.startswith('MAX ') and ids == specs.get(inp, {}).get('anims'): continue   # (no MAX path of its own)
+                if i.startswith('MAX ') and any(k.startswith('MAX ') and v['anims'] == ids for k, v in specs.items()):
+                    continue                           # (the same MAX path as another button's: Robert's MAX 6426A /
+                                                       # 6426C, the handler's MAX branch ignores the button)
                 specs[i] = {'decoded': True, 'anims': ids, 'air': i.startswith('air '), 'source': 'handlers98.ROM_SPECIALS'}
     return names, hop, specs
 

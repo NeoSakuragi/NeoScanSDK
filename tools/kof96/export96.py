@@ -356,7 +356,8 @@ def lab_special(m, cid, entries, add):
             'marks': [''], 'projectiles': [], 'anims': [st0], 'states': [[st0, 1, None]], 'shape': [0, 0, False], 'game_hits': 0,
             'parts': [], 'links': [], 'flash': None, 'rom': rom}, bad
 
-def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None, slots=None, lab=None):
+def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None, slots=None, lab=None,
+           rom_more=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
     extra: {name: {move: (state, step)}} more moves for one fighter, each a single held frame (the animation's step
     `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH).
@@ -364,7 +365,9 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
     brawler's slots and fury, export_bm.export; None = every special's)
     anim_specials: {name: {"$NN": how}} animations played as specials of the pool (anim_special)
     slots: {name: {move: animation slot}} a move played from another slot of the fighter's animation table (the
-    brawler's game.json roster[].moves '$XX': Robert's gold, his up finisher = MAX 236236B's kick $D4)"""
+    brawler's game.json roster[].moves '$XX': Robert's gold, his up finisher = MAX 236236B's kick $D4)
+    rom_more: {name: inputs} a ROM special on demand (handlers98.ROM_DEMAND: Robert's 6426A / C Haoh Shoukou Ken) is read
+    only when named here (export_bm.rom_wanted: what the brawler plays or a Lab build offers); None = every one"""
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
     k98 = game in ('kof97', 'kof98', 'kof99')           # KOF97 and KOF99 use KOF98's layout
     cast, moves = {'kof97': (CAST97, MOVES97), 'kof98': (CAST98, MOVES98), 'kof99': (CAST99, MOVES99)}.get(game, (CAST, MOVES))
@@ -501,7 +504,8 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
             t0 = 0; starts = []                                      # the super flash its animations start (a DM's;
             for s_, d_, sl_ in e['states']: starts.append((s_, t0)); t0 += d_   # handlers98.super_flash)
             e['flash'] = handlers98.super_flash(m, cid, starts)
-            if handlers98.ROM_GAME.get(name, 'kof98') == game and sp['input'] in handlers98.ROM_SPECIALS.get(name, ()):   # read from the ROM:
+            if handlers98.ROM_GAME.get(name, 'kof98') == game and sp['input'] in handlers98.ROM_SPECIALS.get(name, ()) \
+                    and (rom_more is None or sp['input'] not in handlers98.ROM_DEMAND.get(name, ()) or sp['input'] in rom_more.get(name, ())):
                 e['rom'] = handlers98.export_rom(m, cid, sp['input'], add,                  # its handler's program
                                                  shared=shared_fx is None or sp['input'] in shared_fx.get(name, ()))
                 e['flash'] = e['rom'].get('flash') or e['flash']

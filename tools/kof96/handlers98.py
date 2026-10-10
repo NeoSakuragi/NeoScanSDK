@@ -718,7 +718,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         hit = decode(m, hr, button, ex, keep + [(0x50, F.get(0x50, 4), 4), (-1, 0, 1)], dec, depth + 1)
     prune(ops, pos)
     return {'addr': addr, 'ops': ops, 'pos': pos, 'objects': objects, 'hit': hit, 'kind': F.get(0xF5, 1), 'follow': follow[0], 'links': lnames, 'hitlatch': hitlatch[0], 'link_lag': [llag[n_] for n_ in lnames],
-            'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD8)},
+            'vx': (F.get(0x50, 4) or 0) / 65536, 'fields': {o_: F.get(o_, 2) for o_ in (0x72, 0xD2, 0xD4, 0xD6, 0xD8)},
             'f138': F.get(0x138, 2) if depth > 0 else None, 'victim': vroutine[0], 'cine_victim': vcine[0],
             'clist': F.get(0xC2, 4, False) if depth > 0 else None}         # (its +$C2: a state list, Kaiser Wave's hits)
 
@@ -1116,13 +1116,17 @@ def variant_summary(m, cid, inp, v, frames=400):
 # its captured script. A special qualifies when its program uses only the ops below (BODY_OPS) and its objects decode.
 ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B', '623A', '623B', '21416C'},
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C', 'AAAA'},
-                'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D', '623A', 'EX 624D', 'air 214D'},
+                'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D', '623A', 'EX 624D', 'air 214D', '6426A', '6426C'},
                 'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B'},
                 'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '214C', '214D', '41236B', '41236D', '236D', '641236C', '623B', '623D'},'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
                 'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D', '23624C'}}
+# ROM specials on demand (Bruno's first Workshop unlock, 2026-10-10): decoded for the Lab (arb_compile pieces, the Workshop's
+# S- ids) but read by the brawler's export only where a build names them (export96 rom_more = export_bm.rom_wanted: a
+# roster slot, a Lab build's unlocked pieces), so the normal game, whose pool has no place for them, keeps its frames
+ROM_DEMAND = {'robert': {'6426A', '6426C'}}
 # furies read from the ROM whose MAX path is not modelled yet (no 'MAX <fury>' export: down+D plays the fury, as before):
 # none since TODO #220 (2026-10-07): Iori 23624C's MAX (ten strikes from the state list +$C2 by +$D2, the victim's lists
 # picked by the attacker's +$D2: victim_lists 'idx') and Yamazaki 236236C's (three drags, the last list's release leaves
@@ -1577,6 +1581,30 @@ PROJ_REHIT = 7    # KOF98: frames from an object's hit (hits left) to its next m
                   # fire ring: hits 7 frames apart, 6 of them frozen, measured in our emulator; the engine's +$124)
 PROJ_STOP3 = 2    # KOF98: an object without a hit routine (kind 3) stays one frame on its hit (2 frames to its next move) (the fire ring's frame shown
                   # three ticks at each hit, measured: its hits 25 frames apart on a 24-frame re-arm)
+PROJ_COUNT_STOP = 4   # KOF98: a counted object's hits 4 frames apart (its +$124 = 2 at each: 3 frames frozen, it moves on the
+                      # 4th), measured in our emulator on Robert's MAX 6426A (5 hits at frames 103 / 107 / 111 / 115 / 119)
+def counted_states(m, ob):
+    """a travelling object whose hit routine counts its hits down (+$138, its routine's own count: Robert's 6426A / C 1,
+    MAX 5, $4A076) and flies on after each one with hits left (back to the resume point it had: KOF $4928C, `move.l
+    +$120, (a4)`) -> its state per hit [hit 1's, hit 2's, ...]; None: not one (one hit, a state list +$C2: Kaiser Wave).
+    Its hit routine ($4A0E4) may change its state as the count reaches n (`cmpi.w #n, +$138; bne; move.w +$Dx, +$72`:
+    Robert's MAX 6426A, at 1 left +$D6 = 174, the same frames with the last hit's box $2D): from then on that state."""
+    hl = ob.get('hit'); n = ob.get('f138') or 0
+    if not hl or ob.get('clist') or n < 2: return None
+    hops = [op for a_, op in hl['ops']]
+    if not hops or hops[0][0] != 'dec' or ('jmp', 'resume') not in hops: return None
+    dec = Decoder(m); a = hl['addr']; sw = None
+    for _ in range(16):
+        mn, o, nx = dec.at(a)
+        if mn == 'cmpiw' and len(o) == 2 and field(o[1]) == 0x138 and isinstance(imm(o[0]), int):
+            mn2, o2, nx2 = dec.at(nx); mn3, o3, _ = dec.at(nx2)
+            if mn2.startswith('bne') and mn3 == 'movew' and field(o3[1]) == 0x72 and field(o3[0]) is not None:
+                v = (ob.get('fields') or {}).get(field(o3[0]))
+                if isinstance(v, int): sw = (imm(o[0]), v)
+        if mn in ('jmp', 'rts') or mn.startswith('bra'): break
+        a = nx
+    return [sw[1] if sw and k >= 1 and n - k <= sw[0] else ob['state'] for k in range(n)]
+
 def object_phases(m, cid, ob):
     """an object whose kind changes over its life (vocabulary object.phase, TODO #152: Billy's 23624C fire ring, pinned
     around him as kind 3, re-armed on its event steps, then launched as kind 1 when he sets +$D1 bit 7): the phase
@@ -1835,6 +1863,29 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
                 else: ho.tick(None)
                 if ho.over or ho.steps is None: break
                 end.append([add(ho.shown()), 0, 0])
+        cs_ = None if ph or follow else counted_states(m, ob)   # (a phased / pinned one: object.phase's hits, below)
+        if cs_:                                        # a counted travelling object (Robert's MAX 6426A: 5 hits): hit k
+            chain = None                               # makes it phase k + 1 where it is (frozen, re-armed: hitnext),
+            def creact(b_, last):                      # the last one's hit plays the end animation. A hit with hits
+                rx_ = (box_react(m, b_, cid) if b_ is not None else 0) or R_KNOCKDOWN | R_KNOCKDOWN << 4   # left keeps a
+                return rx_ if last else rx_ & 0xF0 | R_HEAVY | 8   # standing victim where it is, hittable (KOF: the
+                                                       # victim stays at its x from the first hit to the last, every
+                                                       # 4 frames; the brawler's knockdown on the floor is not hittable)
+            for j in range(len(cs_) - 1, 0, -1):
+                ob2 = dict(ob, ops=[(a_, ('anim', cs_[j]) if op[0] == 'anim' else op) for a_, op in ob['ops']])
+                r2, l2, _ = object_rows(m, cid, ob2)
+                x0_ = r2[0][1] if r2 else 0
+                b2 = next((r[3][0] for r in r2 if r[3]), None)
+                chain = {'rows': [[add(r[0]), r[1] - x0_] + r[2:6] for r in r2], 'loop': l2, 'end': end if chain is None else [],
+                         'kind': 1, 'follow': 0, 'hit_kind': hitkind, 'react': creact(b2, chain is None),
+                         'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'sig': 0, 'next': chain,
+                         'hitnext': 1 if chain else 0, 'stop': PROJ_COUNT_STOP if chain else 0, 'rearm': 0, 'state': cs_[j]}
+            box = next((r[3][0] for r in rows if r[3]), None)
+            objs.append({'rows': [[add(r[0])] + r[1:6] for r in rows], 'loop': loop, 'end': [], 'kind': 1, 'follow': 0,
+                         'hit_kind': hitkind, 'react': creact(box, False),
+                         'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'state': ob.get('state'),
+                         'sig': 0, 'next': chain, 'hitnext': 1, 'stop': PROJ_COUNT_STOP, 'rearm': 0, 'hits_list': cs_})
+            continue
         se, sh = sigbits(ob, False), sigbits(ob, True)    # its owner signals: at its end / at its hit (TODO #139)
         box = next((r[3][0] for r in rows if r[3]), None)  # its victim's reaction by KOF's table (packed; 0: none)
         rx = box_react(m, box, cid) if box is not None else 0

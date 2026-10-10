@@ -265,6 +265,21 @@ def played_inputs(n):
     sp = r.get('specials') or []
     return {v for v in (sp.values() if isinstance(sp, dict) else sp) if v} | ({r['fury']} if r.get('fury') else set())
 
+def rom_wanted(n):
+    """the KOF inputs of a fighter's ROM specials on demand (handlers98.ROM_DEMAND) that export96 reads (rom_more): the
+    ones the roster plays (played_inputs, its Blitz, its throws' grab specials, its down attack, form, air specials) and,
+    in a Lab build of him (LAB), every unlocked piece (arb_pieces/<f>_ids.json; named_specials puts them in his pool). One
+    nothing names is not read: its frames stay out of the normal game (Robert's 6426A / C, 2026-10-10)"""
+    r = roster().get(n) or {}
+    out = set(played_inputs(n)) | {v for v in (r.get('blitz') or {}).values() if v} | {v for v in (r.get('air_specials') or {}).values() if v}
+    t = r.get('throws') or {}
+    out |= {v for v in list((t.get('extra') or {}).values()) + [t.get('super')] if isinstance(v, str)}
+    out |= {v for v in (r.get('max'), r.get('down_attack'), (r.get('form') or {}).get('transition')) if v}
+    if n in LAB:
+        import piece_ids
+        out |= {p['input'] for p in piece_ids.load(src(n))['pieces'].values() if p['kind'] == 'special' and not p.get('gone')}
+    return out
+
 def build(specs, outdir):
     """one export per game (the whole roster of that game at once, so every fighter has the frames of every victim
     posture its teammates' throws use); tiles renumbered into one space"""
@@ -310,7 +325,8 @@ def build(specs, outdir):
                                shared_fx={n: played_inputs(n) for n in names},   # (only the frames used: TODO #214)
                                anim_specials={n: roster()[n]['anim_specials'] for n in names if roster().get(n, {}).get('anim_specials')},
                                slots={n: {k: int(v[1:], 16) for k, v in roster()[n].get('moves', {}).items()} for n in names if n in roster()},
-                               lab={n: LAB[n] for n in names if n in LAB} or None)   # (the Lab build: export96.lab_special)
+                               lab={n: LAB[n] for n in names if n in LAB} or None,   # (the Lab build: export96.lab_special)
+                               rom_more={n: rom_wanted(n) for n in names})
                                                 # (Krauser gold: roster[].anim_specials, export96.anim_special)
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
     # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross
@@ -1000,6 +1016,27 @@ def special_pool(ch, name=None):
     out = out + [dn] if dn is not None and dn not in out else out   # last: the others keep their indices
     for sp in throw_specials(ch, name):             # the grab specials its throws play (revamp 3), when not in it
         out = out + [sp] if sp not in out else out
+    for sp in named_specials(ch, name):             # a DM a slot names / an unlocked piece of a Lab build, last
+        out = out + [sp] if sp not in out else out
+    return out
+
+
+def named_specials(ch, name):
+    """the specials of another condition the pool still takes (Robert's Haoh Shoukou Ken, the first DM unlocked in the
+    Workshop, 2026-10-10): the ones the roster's slots name (game.json roster[].specials: a sheet's S- id on a slot,
+    arb_compile.py) and, in a Lab build (the fighter carries the LAB special: make LAB_FIGHTER=<f>, the shell's / a pack's
+    slot), every unlocked special (arb_pieces/<f>_ids.json S- ids: the TRY blob names them by pool index, chainlab/
+    tryit.js). Each read from the ROM (a program); the normal game's pools are unchanged by it"""
+    have = ch.get('specials', [])
+    want = [w for w in ((roster().get(name) or {}).get('specials') or []) if w]
+    if any(sp['input'] == 'LAB' for sp in have):
+        import piece_ids
+        reg = piece_ids.load(src(name))
+        want += [p['input'] for i, p in sorted(reg['pieces'].items()) if p['kind'] == 'special' and not p.get('gone')]
+    out = []
+    for w in want:
+        sp = next((sp for sp in have if sp['input'] == w and rom_ok(sp)), None)
+        if sp is not None and sp not in out and sp['condition'] != 'normal': out.append(sp)
     return out
 
 
