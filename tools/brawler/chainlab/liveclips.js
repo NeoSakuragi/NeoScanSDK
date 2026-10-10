@@ -7,6 +7,10 @@
  *   const LC = await LiveClips.attach(f)            -> null when f has no pack the shell loads (the static clips stay)
  *   const el = LC.clip({key, label, req: () => spec, cls: () => text})   a figure: the clip, its frame-data strip, its gap toggle
  *   LC.refresh(key | null)                          re-simulate that clip (null: every clip) ~300 ms later, if its request changed
+ *   LC.forget(key)                                  its figure left the page (the Assembly's row collapsed): not simulated
+ *   o.compact (the Assembly's rows, 2026-10-10 "cut the fluff out"): no title, ONE line of frame data ("8/18/20 f · 1 hit ·
+ *   2 dmg · reach 93"; the full text in its tooltip), the canvas fits the width (and ~1/3 of a phone screen), a short bar,
+ *   two tiny controls: gap and boxes
  *   spec = {kind: 'slot', slot, pieces, knobs, sheet} | {kind: 'press', k, sheet} | {kind: 'chain', sheet}   (sheet:
  *          arbitrage.js sheetNow(): {slots, knobs, chain, timing}); pieces null = the game's own move on that input
  * The HITBOX toggle (one for the page, LC.boxesButton()): the hit test's attack boxes (solid) and hurt boxes (dashed) on
@@ -65,7 +69,16 @@
 .lclip[data-busy="1"] canvas.lpic { opacity: .55; }
 .lclip-boxes { font: inherit; font-size: 14px; background: #fff; color: #000; border: 2px solid #000; padding: 5px 9px; cursor: pointer; font-weight: 700; }
 .lclip-boxes[aria-pressed="true"] { background: #000; color: #fff; }
-.lclip-legend { font-size: 13px; }`;
+.lclip-legend { font-size: 13px; }
+.lclip.compact { border-width: 1px; padding: 2px; gap: 2px; }
+.lclip.compact .lchead { gap: 3px; font-size: 12px; justify-content: flex-end; }
+.lclip.compact .lchead button { font-size: 12px; padding: 1px 6px; border-width: 1px; }
+.lclip.compact .lchead button[aria-pressed="true"] { background: #000; color: #fff; }
+.lclip.compact canvas.lpic { align-self: center; }
+.lclip.compact .lstate { font-size: 12px; min-height: 0; }
+.lclip.compact .lstate:empty { display: none; }
+.lclip.compact canvas.lbar { height: 20px; }
+.lclip.compact .lfd { font-size: 13px; line-height: 1.3; font-weight: 700; }`;
   let styled = false;
   const css = () => { if (!styled) { styled = true; document.head.append(h('style', { text: CSS })); } };
 
@@ -224,7 +237,10 @@
       st.off = st.off && st.off.width === r.w && st.off.height === r.h ? st.off : Object.assign(document.createElement('canvas'), { width: r.w, height: r.h });
       st.img = st.off.getContext('2d').createImageData(r.w, r.h);
       st.cv.width = r.w * SC; st.cv.height = r.h * SC;
-      st.cv.style.width = Math.min(r.w * (PHONE ? 1.3 : 1.5), st.el.clientWidth - 10 || r.w) + 'px';
+      if (st.compact) {                                 // fit the width, at most ~1/3 of a phone's height (190 px; 260 on a desktop)
+        const W = (st.el.clientWidth || r.w) - 6, z = Math.min(W / r.w, (PHONE ? 190 : 260) / r.h, 2);
+        st.cv.style.width = Math.round(r.w * z) + 'px';
+      } else st.cv.style.width = Math.min(r.w * (PHONE ? 1.3 : 1.5), st.el.clientWidth - 10 || r.w) + 'px';
     }
     function drawFrame(st) {
       const r = st.res; if (!r || !st.img) return;
@@ -273,16 +289,23 @@
       const cls = st.cls ? st.cls() : '';
       if (cls) rows.push(h('br'), 'Hit class (data): ' + cls);
       rows.push(h('br'), `Played: ${st.req ? st.req.text : ''} · simulated in ${r.ms} ms`);
-      el.replaceChildren(...rows);
+      if (st.compact) {                                 // ONE line; the rest in its tooltip
+        const one = `${fd.startup || '-'}/${fd.active || 0}/${fd.recovery} f` + (fd.ended ? '' : ' (cut)') + ' · ' +
+          (fd.hits ? `${fd.hits} hit${fd.hits > 1 ? 's' : ''} · ${fd.damage} dmg` : 'whiff') + (fd.reach ? ` · reach ${fd.reach}` : '') +
+          (fd.proj ? ` · proj ${fd.proj.speed} px/f` : '');
+        el.textContent = one;
+        el.title = h('span', {}, ...rows).textContent.replace(/^\s+/, '');
+        el.setAttribute('aria-label', 'Startup / active / recovery: ' + one);
+      } else el.replaceChildren(...rows);
       drawCaret(st, st.i);
     }
     function drawCaret(st, k) {
       const r = st.res, bar = st.bar; if (!r || !r.fd || bar.hidden) return;
-      const W = Math.max(120, Math.round(bar.clientWidth || 300)), H = 34, n = r.n, fd = r.fd;
+      const W = Math.max(120, Math.round(bar.clientWidth || 300)), H = st.compact ? 20 : 34, n = r.n, fd = r.fd;
       if (bar.width !== W * 2) { bar.width = W * 2; bar.height = H * 2; }
       const g = bar.getContext('2d'); g.setTransform(2, 0, 0, 2, 0, 0);
       g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-      const cw = W / n, y0 = 8, y1 = 24;
+      const cw = W / n, y0 = st.compact ? 5 : 8, y1 = st.compact ? 15 : 24;
       for (let i = 0; i < n; i++) {
         const x = i * cw, act = r.frames[i].atk.length > 0, mine = i < fd.total;
         if (act) { g.fillStyle = '#000'; g.fillRect(x, y0, Math.max(cw, 1), y1 - y0); }
@@ -294,7 +317,7 @@
       }
       g.strokeStyle = '#000'; g.lineWidth = 1; g.strokeRect(.5, y0 + .5, Math.min(W, fd.total * cw) - 1, y1 - y0 - 1);
       g.fillStyle = '#000';
-      for (const fh of fd.hitFrames) { const x = (fh - 1) * cw + cw / 2; g.beginPath(); g.moveTo(x - 4, 0); g.lineTo(x + 4, 0); g.lineTo(x, 7); g.fill(); }
+      for (const fh of fd.hitFrames) { const x = (fh - 1) * cw + cw / 2; g.beginPath(); g.moveTo(x - 4, 0); g.lineTo(x + 4, 0); g.lineTo(x, y0 - 1); g.fill(); }
       const xk = k * cw + cw / 2; g.beginPath(); g.moveTo(xk - 4, H); g.lineTo(xk + 4, H); g.lineTo(xk, y1 + 2); g.fill();
     }
 
@@ -322,18 +345,21 @@
       const old = clips.get(o.key);
       if (old) { io.unobserve(old.el); }
       const st = Object.assign(old || { res: null, hash: null, i: 0, acc: 0, speed: 1, gapMode: 'auto', autoGap: 0, used: 0 },
-        { key: o.key, spec: o.req, cls: o.cls, visible: false, dirty: true, asked: Date.now() });
+        { key: o.key, spec: o.req, cls: o.cls, visible: false, dirty: true, asked: Date.now(), compact: !!o.compact });
       st.cv = h('canvas', { class: 'lpic', width: '280', height: '160', role: 'img', 'aria-label': 'Live clip: ' + o.label + ' (the game plays it); tap for ¼ speed' });
       st.cv.onclick = () => { st.speed = st.speed === 1 ? 0.25 : 1; drawFrame(st); };
-      st.stateEl = h('div', { class: 'lstate', role: 'status', 'aria-live': 'polite', text: 'Waiting to render (the game plays it when it is on screen)…' });
-      const gapBtn = h('button', { type: 'button', title: 'Where the dummy stands: Auto (the piece\'s reach, a projectile far), Near (44 px), Far (150 px)' });
-      const gapText = () => { gapBtn.textContent = 'Gap: ' + { auto: 'auto', near: 'near ' + NEAR, far: 'far ' + FAR }[st.gapMode]; };
+      st.stateEl = h('div', { class: 'lstate', role: 'status', 'aria-live': 'polite', text: o.compact ? 'Waiting…' : 'Waiting to render (the game plays it when it is on screen)…' });
+      const gapBtn = h('button', { type: 'button', class: 'lgap', title: 'Where the dummy stands: Auto (the piece\'s reach, a projectile far), Near (44 px), Far (150 px)' });
+      const gapText = () => { gapBtn.textContent = (o.compact ? 'gap ' : 'Gap: ') + { auto: 'auto', near: 'near ' + NEAR, far: 'far ' + FAR }[st.gapMode]; };
       gapBtn.onclick = () => { st.gapMode = { auto: 'near', near: 'far', far: 'auto' }[st.gapMode]; st.autoGap = 0; gapText(); st.dirty = true; st.asked = Date.now(); pump(); };
       gapText();
       st.bar = h('canvas', { class: 'lbar', role: 'img', 'aria-label': 'Frame data bar: startup white, active black, recovery hatched, after his move dotted; hits marked above, the frame shown below' });
       st.fdEl = h('p', { class: 'lfd' });
-      st.el = h('figure', { class: 'lclip', 'data-key': o.key },
-        h('div', { class: 'lchead' }, h('b', { text: o.label }), gapBtn), st.cv, st.stateEl, st.bar, st.fdEl);
+      st.el = o.compact
+        ? h('figure', { class: 'lclip compact', 'data-key': o.key, 'aria-label': o.label },
+          h('div', { class: 'lchead' }, gapBtn, boxesButton(true)), st.cv, st.stateEl, st.fdEl, st.bar)
+        : h('figure', { class: 'lclip', 'data-key': o.key },
+          h('div', { class: 'lchead' }, h('b', { text: o.label }), gapBtn), st.cv, st.stateEl, st.bar, st.fdEl);
       st.el._lclip = st;
       clips.set(o.key, st);
       io.observe(st.el);
@@ -350,14 +376,17 @@
         pump();
       }, DEBOUNCE));
     }
-    function boxesButton() {
-      const b = h('button', { type: 'button', class: 'lclip-boxes', 'aria-pressed': String(boxes) });
-      const txt = () => { b.textContent = (boxes ? '✓ ' : '') + 'Hit boxes on the clips'; b.setAttribute('aria-pressed', String(boxes)); };
-      b.onclick = () => { boxes = !boxes; try { localStorage.setItem('lclip-boxes', boxes ? '1' : '0'); } catch (e) { /* no storage */ } boxBtns.forEach(x => x._txt()); clips.forEach(st => drawFrame(st)); };
+    const LEGEND = 'Boxes: solid outline + "ATK" = attack box (it hits), dashed = hurt box (it can be hit). The bar: white = startup, black = active, hatched = recovery, dotted = after his move; ▼ = a hit, ▲ = the frame shown.';
+    function boxesButton(tiny) {
+      const b = h('button', { type: 'button', class: tiny ? 'lboxes' : 'lclip-boxes', 'aria-pressed': String(boxes), title: LEGEND });
+      const txt = () => { b.textContent = tiny ? (boxes ? '✓ boxes' : 'boxes') : (boxes ? '✓ ' : '') + 'Hit boxes on the clips'; b.setAttribute('aria-pressed', String(boxes)); };
+      b.onclick = () => { boxes = !boxes; try { localStorage.setItem('lclip-boxes', boxes ? '1' : '0'); } catch (e) { /* no storage */ } boxBtns.forEach(x => x.isConnected ? x._txt() : boxBtns.delete(x)); clips.forEach(st => drawFrame(st)); };
       b._txt = txt; txt(); boxBtns.add(b);
+      if (tiny) return b;
       return h('span', { class: 'tryrow' }, b, h('span', { class: 'lclip-legend', text: 'Boxes: solid outline + "ATK" = attack box (it hits), dashed = hurt box (it can be hit). The bar: white = startup, black = active, hatched = recovery, dotted = after his move; ▼ = a hit, ▲ = the frame shown.' }));
     }
-    const api = { clip, refresh, boxesButton, stats, clips, get boxes() { return boxes; }, set boxes(v) { boxes = !!v; boxBtns.forEach(x => x._txt()); clips.forEach(st => drawFrame(st)); }, phone: PHONE, ctx: c };
+    function forget(key) { const st = clips.get(key); if (st) { io.unobserve(st.el); st.visible = false; st.dirty = !st.res || st.dirty; } }
+    const api = { clip, refresh, forget, boxesButton, stats, clips, get boxes() { return boxes; }, set boxes(v) { boxes = !!v; boxBtns.forEach(x => x._txt()); clips.forEach(st => drawFrame(st)); }, phone: PHONE, ctx: c };
     window.liveclips = { stats, clips, LC: api };
     return api;
   }

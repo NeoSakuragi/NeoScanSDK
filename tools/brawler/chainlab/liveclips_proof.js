@@ -7,6 +7,8 @@
 //   2. Hanzo (SS2): press 3 ($15C) at the far gap and the near gap: hits / whiff, boxes drawn;
 //   3. a chain timing knob (press 1's hit-stop) changes the whole-chain clip's total frames;
 //   4. 1280 and 400 px screens; the simulation's time per clip (desktop, and a phone emulation: 400 px, mobile, CPU / 4).
+// The compact Assembly (2026-10-10): a row's clip exists once the row is open (window.arbOpen(id)); the whole chain is
+// "▶ chain" in the Chain header; a press's timing knobs are in its open row (.tslot).
 //   node liveclips_proof.js SITE_DIR|URL OUT [--stub-dl DIR] [--catalogue FILE] [--decisions DIR] [--core DIR] [--serve PORT: the stub only]
 const fs = require('fs'), path = require('path'), http = require('http');
 const puppeteer = require('/home/bruno/CLProjects/NeoGeo/node_modules/puppeteer-core');
@@ -89,6 +91,8 @@ if (args.includes('--serve')) {                            // the stub alone (a 
   };
   // the clip `key`'s result once its request is simulated (scrolled into view first); pred: wait for a newer one
   const clipOf = (key, prevMs) => page.evaluate(async (key, prevMs) => {
+    if (key === 'chain') { const b = document.querySelector('#sec-chain .hx button[aria-label="The whole chain, played"]'); if (b && b.getAttribute('aria-pressed') !== 'true') b.click(); }
+    else window.arbOpen(key);
     const C = window.liveclips.clips, st0 = C.get(key);
     if (!st0) return { error: 'no clip ' + key };
     st0.el.scrollIntoView({ block: 'center' });
@@ -110,11 +114,11 @@ if (args.includes('--serve')) {                            // the stub alone (a 
   // ---- 1. Robert: S-012 on forward + C, speed 7 -> 12 ----
   const lr = await open('robert', 1280);
   check('Robert: the Assembly has live clips', lr === true);
-  await page.evaluate(() => { const b = [...document.querySelectorAll('.lclip-boxes')][0]; if (b && b.getAttribute('aria-pressed') !== 'true') b.click(); });
+  await page.evaluate(() => { window.liveclips.LC.boxes = true; });
   await page.screenshot({ path: path.join(out, 'robert_top_1280.png') });
   const picked = await page.evaluate(async () => {
-    const box = document.querySelector('#slot-sp_fc');
-    [...box.querySelectorAll('button')].find(b => b.textContent === 'Pick animation').click();
+    window.arbOpen('sp_fc');
+    document.querySelector('#slot-sp_fc .pick').click();
     await new Promise(r => setTimeout(r, 400));
     const use = [...document.querySelectorAll('.pmodal button.use')].find(b => b.textContent === 'Use S-012');
     if (!use) return 'no "Use S-012"';
@@ -137,13 +141,13 @@ if (args.includes('--serve')) {                            // the stub alone (a 
   check('Robert S-012: the strip changed with the knob (active / hit frame / total)', a7.fd && a12.fd && (a7.fd.active !== a12.fd.active || String(a7.fd.hitFrames) !== String(a12.fd.hitFrames)),
     { k7: a7.fd && [a7.fd.startup, a7.fd.active, a7.fd.hitFrames, a7.fd.total], k12: a12.fd && [a12.fd.startup, a12.fd.active, a12.fd.hitFrames, a12.fd.total] });
   const strip = await page.$eval('#slot-sp_fc .lfd', e => e.textContent).catch(() => '');
-  check('Robert S-012: the strip text shows 12 px a frame', /Projectile: 12 px a frame/.test(strip), strip);
+  check('Robert S-012: the strip text shows 12 px a frame', /proj 12 px\/f/.test(strip), strip);
   // chain timing: press 1's hit-stop -> the whole chain's total frames
   const c0 = await clipOf('chain');
   rep.chain0 = c0;
   const hs = await page.evaluate(() => {
-    const d = document.querySelector('#arb .timing details.tpress[data-press="a1"]'); d.open = true;
-    const i = d.querySelector('.krow[data-knob="hitstop"] input[type=number]'), v0 = +i.value;
+    window.arbOpen('a1');
+    const i = document.querySelector('#slot-a1 .tpress .krow[data-knob="hitstop"] input[type=number]'), v0 = +i.value;
     i.value = String(v0 + 20); i.dispatchEvent(new Event('change'));
     return { from: v0, to: v0 + 20 };
   });
@@ -157,12 +161,13 @@ if (args.includes('--serve')) {                            // the stub alone (a 
   // ---- 2. Hanzo: press 3 ($15C) far / near ----
   const lh = await open('hanzo_ss2', 1280);
   check('Hanzo: the Assembly has live clips', lh === true);
-  await page.evaluate(() => { const b = document.querySelector('.lclip-boxes'); if (b && b.getAttribute('aria-pressed') !== 'true') b.click(); });
+  await page.evaluate(() => { window.liveclips.LC.boxes = true; });
   // press 3 = $15C (his sheet's pick when he made the note; picked here if the sheet has moved on: answered by the proof)
   rep.hanzo_a3 = await page.evaluate(async () => {
+    window.arbOpen('a3');
     const box = document.querySelector('#slot-a3');
     if (/\$15C/.test(box.querySelector('.chip') ? box.querySelector('.chip').textContent : '')) return 'already $15C';
-    [...box.querySelectorAll('button')].find(b => b.textContent === 'Pick animation').click();
+    box.querySelector('.pick').click();
     await new Promise(r => setTimeout(r, 400));
     document.querySelector('.pmodal input[type=search]').value = '15C'; document.querySelector('.pmodal input[type=search]').dispatchEvent(new Event('input'));
     const use = [...document.querySelectorAll('.pmodal button.use')].find(b => b.textContent === 'Use $15C');
@@ -173,7 +178,8 @@ if (args.includes('--serve')) {                            // the stub alone (a 
   });
   console.log('hanzo a3:', rep.hanzo_a3);
   const gapTo = mode => page.evaluate(async mode => {
-    const st = window.liveclips.clips.get('a3'), b = st.el.querySelector('.lchead button');
+    window.arbOpen('a3');
+    const st = window.liveclips.clips.get('a3'), b = st.el.querySelector('.lchead button.lgap');
     for (let i = 0; i < 3 && st.gapMode !== mode; i++) b.click();
     return st.gapMode;
   }, mode);

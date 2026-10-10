@@ -3,7 +3,9 @@
  * for the arbitration sheet (arbitrage.js: under each picked S- piece of a slot) and the Workshop (workshop.js: under each
  * unlocked special). The knobs are data: review/<f>_workshop.json specials[].knobs (tools/brawler/knobs.py, from
  * arb_pieces/<f>.json): {id, name, unit, default, min, max, step}. Values travel as {knob id: value}, a default left out.
- *   KnobUI.panel({defs, values, label, onChange(values)})  -> element (.reset(): every knob back to its default)
+ *   KnobUI.panel({defs, values, label, onChange(values), compact})  -> element (.reset(): every knob back to its default)
+ *   compact (the Assembly, 2026-10-10 "make it compact and usable, even on the 6-inch phone"): one line a knob, name − value +
+ *   unit "def N" and "reset" when overridden (no slider, no range text: the input's tooltip says the range)
  * E-ink: an overridden knob is shown by text and shape, never colour: its value in bold, "changed from N <unit>", a solid
  * 3 px border round its row; each has "Back to default"; the panel has "Reset all knobs". */
 (function () {
@@ -32,7 +34,20 @@
 .knobs .kback { font: inherit; font-size: 13px; background: #fff; color: #000; border: 2px solid #000; padding: 3px 8px; cursor: pointer; }
 .knobs .kback[hidden] { display: none; }
 .knobs button:focus-visible, .knobs input:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
-.knobs .kreset { font: inherit; font-size: 13px; background: #fff; color: #000; border: 2px solid #000; padding: 3px 8px; cursor: pointer; }`;
+.knobs .kreset { font: inherit; font-size: 13px; background: #fff; color: #000; border: 2px solid #000; padding: 3px 8px; cursor: pointer; }
+.knobs.compact { border-width: 1px; padding: 3px 5px; margin: 2px 0; gap: 2px; }
+.knobs.compact .khead { gap: 4px; font-size: 12px; }
+.knobs.compact .khead b { font-size: 12px; }
+.knobs.compact .krow { border: 1px solid transparent; border-bottom: 1px dotted #000; padding: 1px 2px; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+.knobs.compact .krow:last-child { border-bottom-color: transparent; }
+.knobs.compact .krow.over { border: 2px solid #000; }
+.knobs.compact .kname { font-size: 13px; flex: 1 1 6.5em; min-width: 0; }
+.knobs.compact .kctl { gap: 2px; flex-wrap: nowrap; }
+.knobs.compact .kctl button { min-width: 30px; min-height: 28px; font-size: 15px; padding: 0; }
+.knobs.compact .kctl input[type=number] { width: 3.6em; font-size: 14px; padding: 2px 3px; text-align: center; }
+.knobs.compact .krow.over input[type=number] { font-weight: 700; border-width: 3px; }
+.knobs.compact .kunit, .knobs.compact .kdef { font-size: 12px; }
+.knobs.compact .kback, .knobs.compact .kreset { font-size: 12px; padding: 1px 6px; border-width: 1px; }`;
   let styled = false;
   const css = () => { if (!styled) { styled = true; document.head.append(h('style', { text: CSS })); } };
   const fmt = v => (Math.round(v * 100) / 100).toString();
@@ -41,8 +56,9 @@
   function panel(o) {
     css();
     const defs = o.defs || [], vals = Object.assign({}, o.values || {});
-    const box = h('div', { class: 'knobs', role: 'group', 'aria-label': (o.label || 'Knobs') });
-    const resetAll = h('button', { type: 'button', class: 'kreset', text: 'Reset all knobs' });
+    const C = !!o.compact;
+    const box = h('div', { class: 'knobs' + (C ? ' compact' : ''), role: 'group', 'aria-label': (o.label || 'Knobs') });
+    const resetAll = h('button', { type: 'button', class: 'kreset', text: C ? 'reset all' : 'Reset all knobs' });
     const count = h('span', { class: 'kdef' });
     box.append(h('div', { class: 'khead' }, h('b', { text: o.label || 'Knobs' }), count, resetAll));
     const rows = defs.map(d => {
@@ -51,14 +67,20 @@
       const minus = h('button', { type: 'button', text: '−', 'aria-label': d.name + ': less' });
       const plus = h('button', { type: 'button', text: '+', 'aria-label': d.name + ': more' });
       const chg = h('span', { class: 'kchg', 'aria-live': 'polite' });
-      const back = h('button', { type: 'button', class: 'kback', text: 'Back to default', hidden: '' });
-      const row = h('div', { class: 'krow', 'data-knob': d.id },
+      const back = h('button', { type: 'button', class: 'kback', text: C ? 'reset' : 'Back to default', 'aria-label': d.name + ': back to default ' + fmt(d.default), hidden: '' });
+      if (C) num.title = `${d.name}: default ${fmt(d.default)} ${d.unit}, range ${fmt(d.min)}–${fmt(d.max)}`;
+      const row = C ? h('div', { class: 'krow', 'data-knob': d.id },
+        h('span', { class: 'kname', text: d.name }), h('span', { class: 'kval', hidden: '' }),
+        h('span', { class: 'kctl' }, minus, num, plus), h('span', { class: 'kunit', text: d.unit }),
+        h('span', { class: 'kdef', text: 'def ' + fmt(d.default) }), h('span', { class: 'kchg', hidden: '' }), back)
+      : h('div', { class: 'krow', 'data-knob': d.id },
         h('span', { class: 'kname' }, h('span', { text: d.name + ' ' }), h('span', { class: 'kval' }), h('span', { text: ' ' + d.unit })),
         h('div', { class: 'kctl' }, minus, num, plus, rng),
         h('div', { class: 'kctl' }, h('span', { class: 'kdef', text: `Default ${fmt(d.default)} ${d.unit} (range ${fmt(d.min)}–${fmt(d.max)})` }), chg, back));
       const show = () => {
         const v = d.id in vals ? vals[d.id] : d.default, over = v !== d.default;
         num.value = fmt(v); rng.value = String(v);
+        if (C) num.setAttribute('aria-label', d.name + ' (' + d.unit + ')' + (over ? ', changed from ' + fmt(d.default) : ''));
         row.querySelector('.kval').textContent = fmt(v);
         row.classList.toggle('over', over);
         chg.textContent = over ? `changed from ${fmt(d.default)}` : '';
@@ -81,7 +103,7 @@
     });
     const summary = () => {
       const n = Object.keys(vals).length;
-      count.textContent = n ? `${n} changed` : 'all at default';
+      count.textContent = n ? `${n} changed` : C ? '' : 'all at default';
       resetAll.hidden = !n;
     };
     box.reset = () => { for (const k of Object.keys(vals)) delete vals[k]; rows.forEach(r => r._show()); summary(); if (o.onChange) o.onChange({}); };

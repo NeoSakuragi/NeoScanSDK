@@ -5,9 +5,17 @@
 // alone (tools/brawler/arb_compile.py: links, knobs, build, per-slot check; it refuses and says why, never guesses). A
 // question or a request goes to the Workshop (part 1, the token side): each slot's "Ask in the Workshop" opens it with a
 // request pre-filled for that slot and piece. Old notes saved in <f>-arb stay on the server, never shown or read.
-// Each slot: its input in game terms, the animation(s) it plays (small looping clips, tap = ¼ speed), "Pick animation"
-// (the fighter's whole animation dictionary, attacks first, flag filter), "+ add after" (played back to back), "Clear",
-// "Ask in the Workshop". Pre-filled with what the game plays now (review/<fighter>_arb.json, tools/brawler/arbitrage.py).
+// COMPACT (Bruno 2026-10-10: "I spend my time scrolling and scrolling… Curate the information shown… Make it compact and
+// usable, even on the split mobile phone that is only 6 inches. Cut the fluff out."): one template for every fighter.
+//   - a sticky bar: his name, ONE status line (saving · "Live r21 ✓" · "In game 0.10.31"), ⋯ = the sheet's tools (Try in
+//     game, Send to Player, the live config's History / Revert, the full live / game lines, reset knobs / chain timing,
+//     links), and a one-line section jump bar;
+//   - sections as collapsible headers (the chain's length and "▶ chain", the whole-chain clip, in the Chain header);
+//   - one ROW per slot: its input ("f,f+A", "C", "A2"), the pick as a chip ($5B or S-012 + a short name; ● and bold =
+//     yours, not what the game plays now), "pick" (the picker). Tap the row: it opens in place (one at a time) with the live
+//     clip, one line of frame data, its knobs (a chain press: its timing), "now: …" when yours differs, ⋯ = add after,
+//     clear, back to now, Ask in the Workshop. A pick that cannot go live says so on its row ("Can't go live: why").
+// Pre-filled with what the game plays now (review/<fighter>_arb.json, tools/brawler/arbitrage.py).
 // Answers: the decisions store, set "<fighter>-arb", one id per slot: choice 1 = his (pieces "anim-<hex>" in order,
 // knobs); id "presses" = the chain's length (its note = the count). NO STAGING (Bruno 2026-10-10): every live send also
 // queues a ship (POST lab/ship/<f>); the desktop's worker (labcfg.py ship-worker) ships it a minute after the last change
@@ -15,20 +23,17 @@
 // Renamed slots: an answer saved under an old id is read under its new one while the new id has none (OLD_IDS).
 // Piece ids (Workshop, review/<fighter>_workshop.json, tools/brawler/piece_ids.py): the picker offers the animations
 // ($NN, saved "anim-<hex>") and the UNLOCKED pieces (S- specials, T- throws, saved as their id: arb_compile.py links an
-// S- id as that special's input); locked specials are listed greyed with a link to the Workshop. "Now" shows the S- ids
-// of the decoded specials a slot plays.
-// PIECE KNOBS (knobui.js, tools/brawler/knobs.py): under each picked S- piece its knobs (W.specials[].knobs: name, unit,
-// default, range); the values save in the slot's answer as knobs {S- id: {knob id: value}} (a default left out), travel
-// with "Try this sheet" / "Send to Player" (the TRY blob's knob rows) and ship through arb_compile.py (game.json
-// roster[].knobs). An overridden knob: bold value, "changed from N", solid border, "Back to default"; "Reset all knobs"
-// per piece, per slot and for the whole sheet.
-// CHAIN TIMING (the Chain Lab's chain tool folded in, 2026-10-10): under the chain's presses, per press its hit-stop and
-// its move's segments (0.5x-2x) as knobs; saved as "chain_timing", sent in the TRY blob's chain (version 3), shipped by
+// S- id as that special's input); locked specials are listed greyed with a link to the Workshop.
+// PIECE KNOBS (knobui.js compact, tools/brawler/knobs.py): in an open row, its picked S- pieces' knobs (W.specials[].knobs);
+// the values save in the slot's answer as knobs {S- id: {knob id: value}} (a default left out), travel with "Try this
+// sheet" / "Send to Player" (the TRY blob's knob rows) and ship through arb_compile.py (game.json roster[].knobs).
+// CHAIN TIMING (the Chain Lab's chain tool folded in, 2026-10-10): in an open chain press, its hit-stop and its move's
+// segments (0.5x-2x) as knobs; saved as "chain_timing", sent in the TRY blob's chain (version 3), shipped by
 // arb_compile.py (game.json chain.hitstop + retime). See drawTiming.
-// LIVE CLIPS (liveclips.js, 2026-10-10: "pre-rendering is no good: I can't adjust parameters"): when his pack loads into the
-// shell, every slot, every chain press and the whole chain are clips played by the real engine in a Web Worker, again
-// ~300 ms after a change to the pick, its knobs or the chain timing, each with its frame-data strip; one "Hit boxes" toggle.
-// Without a pack (or a shell without try3) the dictionary's static clips stay.
+// LIVE CLIPS (liveclips.js, 2026-10-10: "pre-rendering is no good: I can't adjust parameters"): the open row's clip (and
+// the whole chain's) is played by the real engine in a Web Worker, again ~300 ms after a change to the pick, its knobs or
+// the chain timing. Without a pack (or a shell without try3) the dictionary's static clips stay.
+// window.arbOpen(id) opens a row (proofs); window.arbSheet / arbIssues / arbTiming / arbLive / arbReady as before.
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
   const root = document.getElementById('arb');
@@ -52,33 +57,33 @@
   const watch = st => { clips.push(st); io.observe(st.cv); };
   const unwatch = st => { const i = clips.indexOf(st); if (i >= 0) clips.splice(i, 1); io.unobserve(st.cv); };
 
-  // ---- the sheet's structure (the order is the workflow) ----
+  // ---- the sheet's structure (the order is the workflow); short = the row's input label, label = the long one (saved
+  // questions, the picker's title, the Workshop request) ----
   const N0 = NOW.chain_len;
-  const press = n => ({ id: 'a' + n, label: 'A press ' + n + (n === 1 ? ' (starter)' : '') });
+  const press = n => ({ id: 'a' + n, short: 'A' + n, label: 'A press ' + n + (n === 1 ? ' (starter)' : '') });
   const SECTIONS = [
-    { id: 'chain', title: '1. Chain combo', about: `A, A, A… on hits. ${NOW.archetype[0].toUpperCase() + NOW.archetype.slice(1)} archetype: ${N0} presses (fast 5, balanced 4, heavy 3). The last press is the neutral finisher.`, chain: true },
-    { id: 'fin', title: '2. Alternate finishers', about: 'The last hit with a direction instead of the neutral one. A slot may play several animations back to back ("+ add after").', slots: [
-      { id: 'fin_fwd', label: 'last hit + forward' }, { id: 'fin_up', label: 'last hit + up (launcher)' },
-      { id: 'fin_down', label: 'last hit + down' }, { id: 'fin_df', label: 'last hit + down-forward' }, { id: 'fin_back', label: 'last hit + back (throw)' }] },
-    { id: 'bz', title: '3. Blitz (free)', about: 'Double direction + A: free, no drive, a little recovery, not invincible. A slot may stay empty.', slots: [
-      { id: 'bz_ff', label: 'forward, forward + A' }, { id: 'bz_dd', label: 'down, down + A' },
-      { id: 'bz_uu', label: 'up, up + A' }, { id: 'bz_du', label: 'down, up + A' }] },
-    { id: 'abz', title: '4. Air Blitz', about: 'Double direction + A while airborne: the ground Blitz\'s inputs in a jump. A slot may stay empty.', slots: [
-      { id: 'air_bz_ff', label: 'forward, forward + A in the air' }, { id: 'air_bz_dd', label: 'down, down + A in the air' },
-      { id: 'air_bz_uu', label: 'up, up + A in the air' }, { id: 'air_bz_du', label: 'down, up + A in the air' }] },
-    { id: 'sp', title: '5. Specials (C, 1 drive chunk)', about: 'C or A+B with a direction; invincible. C neutral is also the combo breaker (C while being hit).', slots: [
-      { id: 'sp_c', label: 'C (neutral, also the combo breaker)' }, { id: 'sp_fc', label: 'forward + C' }, { id: 'sp_dc', label: 'down + C' }] },
-    { id: 'asp', title: '6. Air specials (C in the air, 1 drive chunk)', about: 'C with a direction while airborne, like the ground C specials.', slots: [
-      { id: 'air_sp_c', label: 'C in the air' }, { id: 'air_sp_fc', label: 'forward + C in the air' }, { id: 'air_sp_dc', label: 'down + C in the air' }] },
-    { id: 'air', title: '7. Air', about: 'The two air normals: the jump attack (knocks down), down + A (flinches, active the rest of the jump).', slots: [
-      { id: 'air_a', label: 'jump + A' }, { id: 'air_da', label: 'jump + down + A' }] },
-    { id: 'grab', title: '8. Grab', about: 'Walk into an enemy: the hold. A hits him in the hold; the finisher throws him out; forward / back + C in the hold = the throws.', slots: [
-      { id: 'grab_hit', label: 'hold hit (A in the hold)' }, { id: 'grab_fin', label: 'hold finisher (the throw-out)' },
-      { id: 'grab_fwd', label: 'throw forward' }, { id: 'grab_back', label: 'throw back' }] },
-    { id: 'fury', title: '9. Fury', about: 'A decoded fury / MAX version (S- piece) links here; a fury script of its own is a Workshop request ("Ask in the Workshop").', slots: [
-      { id: 'fury', label: 'fury (D, gauge full)' }, { id: 'max', label: 'MAX (down + D, low life)' }] },
+    { id: 'chain', title: 'Chain', chain: true },
+    { id: 'fin', title: 'Finishers', slots: [
+      { id: 'fin_fwd', short: 'last+f', label: 'last hit + forward' }, { id: 'fin_up', short: 'last+u', label: 'last hit + up (launcher)' },
+      { id: 'fin_down', short: 'last+d', label: 'last hit + down' }, { id: 'fin_df', short: 'last+df', label: 'last hit + down-forward' }, { id: 'fin_back', short: 'last+b', label: 'last hit + back (throw)' }] },
+    { id: 'bz', title: 'Blitz', slots: [
+      { id: 'bz_ff', short: 'f,f+A', label: 'forward, forward + A' }, { id: 'bz_dd', short: 'd,d+A', label: 'down, down + A' },
+      { id: 'bz_uu', short: 'u,u+A', label: 'up, up + A' }, { id: 'bz_du', short: 'd,u+A', label: 'down, up + A' }] },
+    { id: 'abz', title: 'Air Blitz', slots: [
+      { id: 'air_bz_ff', short: 'f,f+A', label: 'forward, forward + A in the air' }, { id: 'air_bz_dd', short: 'd,d+A', label: 'down, down + A in the air' },
+      { id: 'air_bz_uu', short: 'u,u+A', label: 'up, up + A in the air' }, { id: 'air_bz_du', short: 'd,u+A', label: 'down, up + A in the air' }] },
+    { id: 'sp', title: 'Specials', slots: [
+      { id: 'sp_c', short: 'C', label: 'C (neutral, also the combo breaker)' }, { id: 'sp_fc', short: 'f+C', label: 'forward + C' }, { id: 'sp_dc', short: 'd+C', label: 'down + C' }] },
+    { id: 'asp', title: 'Air specials', slots: [
+      { id: 'air_sp_c', short: 'C', label: 'C in the air' }, { id: 'air_sp_fc', short: 'f+C', label: 'forward + C in the air' }, { id: 'air_sp_dc', short: 'd+C', label: 'down + C in the air' }] },
+    { id: 'air', title: 'Air', slots: [
+      { id: 'air_a', short: 'j+A', label: 'jump + A' }, { id: 'air_da', short: 'j+d+A', label: 'jump + down + A' }] },
+    { id: 'grab', title: 'Grab', slots: [
+      { id: 'grab_hit', short: 'hold A', label: 'hold hit (A in the hold)' }, { id: 'grab_fin', short: 'hold fin', label: 'hold finisher (the throw-out)' },
+      { id: 'grab_fwd', short: 'f+C', label: 'throw forward' }, { id: 'grab_back', short: 'b+C', label: 'throw back' }] },
+    { id: 'fury', title: 'Fury', slots: [
+      { id: 'fury', short: 'D', label: 'fury (D, gauge full)' }, { id: 'max', short: 'd+D', label: 'MAX (down + D, low life)' }] },
   ];
-  const allSlots = () => SECTIONS.flatMap(s => s.chain ? range(presses()).map(i => press(i + 1)) : s.slots);
   const range = n => [...Array(n).keys()];
   const presses = () => { const a = ans.presses; const n = a && a.choice === 1 ? parseInt(a.note, 10) : NaN; return n >= 1 && n <= 8 ? n : Math.max(N0, NOW.now._presses || 0); };
 
@@ -94,19 +99,30 @@
   const nowOf = id => NOW.now[id] || { pieces: [], text: '', moves: [] };
   const stateOf = id => mine(id) ? { pieces: (ans[id].pieces || []).map(p => p.replace(/^anim-/, '')).filter(p => D.by[p] || PIECES[p]) }
                                  : { pieces: nowOf(id).pieces.filter(p => D.by[p]), note: '' };
-  const name = id => { if (PIECES[id]) return id + ' ' + PIECES[id].name; const a = D.by[id]; return a ? '$' + id + (a.exported[0] ? ' ' + a.exported[0] : a.moves && a.moves[0] ? ' ' + a.moves[0] : '') : '$' + id; };
+  const name = id => { if (isId(id)) return id + (PIECES[id] ? ' ' + PIECES[id].name : ''); const a = D.by[id]; return a ? '$' + id + (a.exported[0] ? ' ' + a.exported[0] : a.moves && a.moves[0] ? ' ' + a.moves[0] : '') : '$' + id; };
+  // the chip's text: the id + at most 3 words of its name (the full name in its tooltip)
+  const short = id => { const n = name(id), m = /^(\S+)\s*(.*)$/.exec(n); const w = m[2].split(/[\s_]+/).filter(Boolean).slice(0, 3).join(' '); return m[1] + (w ? ' ' + w : ''); };
+
+  // ---- the one status line (top bar): saving · live · game ----
+  const stSave = h('span', { class: 'ss' }), stLive = h('span', { class: 'sl' }), stGame = h('span', { class: 'sg' });
+  let saveT = null;
+  const saving = (t, bad) => { clearTimeout(saveT); stSave.textContent = t; stSave.classList.toggle('bad', !!bad); if (!bad && /^Saved/.test(t)) saveT = setTimeout(() => { stSave.textContent = ''; }, 2500); };
   async function post(id, body) {
-    const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({ set: SET, id }, body)) });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json().catch(() => ({}));
-    ans[id] = j.answer || Object.assign({}, ans[id], body);
+    saving('Saving…');
+    try {
+      const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ set: SET, id }, body)) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json().catch(() => ({}));
+      ans[id] = j.answer || Object.assign({}, ans[id], body);
+    } catch (e) { saving('Not saved (' + e.message + '): try again', true); throw e; }
+    saving('Saved ✓');
     if (id === 'presses' || /^a\d$/.test(id)) drawTiming();   // the chain's moves changed: its timing knobs follow
     if (LC) LC.refresh(null);                       // (a clip whose request did not change is not simulated again)
-    autoLive(); goLive();
+    marks(); autoLive(); goLive();
   }
   // NOTHING DROPPED SILENTLY (2026-10-10, note 20261010-210158-5d29): each slot whose pick cannot go live (Try in game, the
-  // Player) says so next to it, "Can't go live: why" (TryIt.issues: the same checks the Send makes); the live line lists
+  // Player) says so on its row, "Can't go live: why" (TryIt.issues: the same checks the Send makes); the ⋯ live line lists
   // what the last Send left out
   let goSeq = 0;
   async function goLive() {
@@ -122,18 +138,26 @@
     }
     window.arbIssues = is;
   }
-  // every saved change goes live to the Player by itself (Bruno 2026-10-10: "the Assembly is read in real time by the lab";
-  // a pick saved without "Send to Player" never reached it): 1.5 s after the last change, the whole sheet as the live config
-  // (TryIt.send: admin only; a viewer just sees why). The "Send to Player" button stays for a manual resend.
+  // every saved change goes live to the Player by itself (Bruno 2026-10-10: "the Assembly is read in real time by the lab"):
+  // 1.5 s after the last change, the whole sheet as the live config (TryIt.send: admin only; a viewer sees why, in ⋯)
   let liveT = null;
   const liveMsg = h('span', { class: 'saved', 'aria-live': 'polite' });
   function autoLive() {
     if (!window.TryIt || !window.TryIt.send) return;
-    clearTimeout(liveT); liveMsg.textContent = 'Going live to the Player…';
+    clearTimeout(liveT); liveMsg.textContent = 'Going live to the Player…'; liveMsg.classList.remove('bad'); liveStat();
     liveT = setTimeout(() => window.TryIt.send(f, () => ({ sheet: window.arbSheet() }), liveMsg), 1500);
   }
+  // the short live status from the live config (tryit.js) and the auto-send's message
+  function liveStat() {
+    const L = window.tryit && window.tryit.live && window.tryit.live[f], rec = L ? L.rec : undefined, m = liveMsg.textContent;
+    stLive.classList.toggle('bad', liveMsg.classList.contains('bad'));
+    stLive.textContent = liveMsg.classList.contains('bad') ? 'Live ✗ (see ⋯)'
+      : /^(Going live|Sending)/.test(m) ? 'Live: sending…'
+      : rec ? `Live r${rec.version}` + (/^(Sent|Unchanged)/.test(m) ? ' ✓' : '') : rec === null ? 'Live: none yet' : 'Live: …';
+  }
+  new MutationObserver(liveStat).observe(liveMsg, { childList: true, characterData: true, subtree: true, attributes: true });
 
-  // ---- a clip: tap toggles ¼ speed (an S- / T- piece: its first animation, captioned with its id and name) ----
+  // ---- a static clip (no live clips): tap toggles ¼ speed (an S- / T- piece: its first animation) ----
   function clip(hex, onRemove) {
     const a = D.by[PIECES[hex] ? PIECES[hex].anims[0] : hex];
     const fig = h('figure', { class: 'clip' });
@@ -171,184 +195,196 @@
     }
     return labs.join(', ') || 'no attack box';
   }
-  // ---- one slot row ----
+
+  // ---- one slot ROW: input · chip · pick; tapped: it opens in place (one at a time) ----
+  let openId = null;
+  const rowMarks = {};                             // slot id -> () => redraws its ● (yours / timing changed)
+  const marks = () => Object.values(rowMarks).forEach(fn => fn());
+  window.arbOpen = id => { if (drawers[id]) { if (openId !== id) toggle(id); return true; } return false; };
+  function toggle(id) {
+    const was = openId;
+    openId = openId === id ? null : id;
+    if (was && drawers[was]) drawers[was]();
+    if (openId && drawers[openId]) drawers[openId]();
+  }
   function slotRow(def) {
     const id = def.id;
     const box = h('div', { class: 'slot', id: 'slot-' + id });
-    const saved = h('div', { class: 'saved', 'aria-live': 'polite', text: mine(id) ? 'Saved' : '' });
     let shown = [];
-    let tag = null;
-    const save = async (pieces, quiet) => {
-      saved.textContent = 'Saving…';
-      try {
-        await post(id, Object.assign({ question: `${D.display}: ${def.label}`, choice: 1, label: pieces.length ? 'picked' : 'empty',
-          pieces: pieces.map(p => isId(p) ? p : 'anim-' + p) }));
-        saved.textContent = 'Saved';
-      } catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
-      if (quiet) { tag.textContent = 'yours'; tag.className = 'tag mine'; } else draw();
+    const save = async pieces => {
+      try { await post(id, { question: `${D.display}: ${def.label}`, choice: 1, label: pieces.length ? 'picked' : 'empty', pieces: pieces.map(p => isId(p) ? p : 'anim-' + p) }); } catch (e) { /* said in the bar */ }
+      draw();
     };
+    const pressK = /^a(\d)$/.exec(id);
+    const timed = () => { if (!pressK) return false; const t = timingOf(), m = window.arbTiming && window.arbTiming.moves[+pressK[1] - 1];
+      return Number.isInteger((t.hitstop || {})[id]) || !!(m && (t.retime || {})[m]); };
     const draw = () => {
       shown.forEach(unwatch); shown = [];
-      const st = stateOf(id), his = mine(id), nw = nowOf(id);
-      tag = h('span', { class: his ? 'tag mine' : 'tag', text: his ? 'yours' : 'now' });
-      const kids = [h('div', { class: 'shead' }, h('span', { class: 'lab', text: def.label }), tag)], side = [];
-      let left = null;
-      if (!def.noAnim) {
-        const nids = (nw.ids || []).map(i => i + (PIECES[i] ? ' ' + PIECES[i].name : ''));
-        const nowLine = 'Now: ' + (nids.length ? nids.join(', ') + ' (' : '') + (nw.pieces.length ? nw.pieces.map(p => '$' + p).join(' then ') : 'nothing') + (nids.length ? ')' : '') + (nw.text ? ' · ' + nw.text : '');
-        if (his || nw.text || nids.length) kids.push(h('p', { class: 'nowtxt', text: nowLine }));
-        const row = h('div', { class: 'clips' });
-        if (!st.pieces.length) row.append(h('span', { class: 'empty', text: his ? 'Empty' : 'Nothing today' }));
-        if (LC) {                                    // the live clip: the slot as the game plays it (its pieces, its knobs)
-          const press = /^a(\d)$/.exec(id);
-          st.pieces.forEach((p, i) => {
-            if (i) row.append(h('span', { class: 'then', text: '→', 'aria-label': 'then' }));
-            row.append(h('span', { class: 'chip' }, h('span', { text: name(p) }),
-              st.pieces.length > 1 ? h('button', { type: 'button', class: 'rm', text: 'Remove', 'aria-label': 'Remove ' + fmtP(p), onclick: () => save(st.pieces.filter((_, j) => j !== i)) }) : null));
-          });
-          const nowPieces = his ? st.pieces : nw.pieces.filter(p => D.by[p]);
-          row.append(LC.clip({ key: id, label: def.label + (his ? ' (yours)' : ' (now: the game\'s)'),
-            req: press ? () => ({ kind: 'press', k: +press[1] - 1, sheet: sheetNow() })
-                       : () => ({ kind: 'slot', slot: id, pieces: his ? stateOf(id).pieces : null, knobs: liveKnobs[id] || knobsOf(id), sheet: sheetNow() }),
-            cls: () => classOf(nowPieces) }));
-        } else st.pieces.forEach((p, i) => {
-          if (i) row.append(h('span', { class: 'then', text: '→', 'aria-label': 'then' }));
-          const fg = clip(p, st.pieces.length > 1 ? () => save(st.pieces.filter((_, j) => j !== i)) : null);
-          if (fg._st) shown.push(fg._st);
-          row.append(fg);
-        });
-        side.push(h('div', { class: 'acts' },
-          h('button', { type: 'button', text: 'Pick animation', onclick: () => picker(def, st.pieces, hex => save([hex])) }),
-          h('button', { type: 'button', text: '+ add after', onclick: () => picker(def, st.pieces, hex => save(st.pieces.concat(hex)), true) }),
+      const st = stateOf(id), his = mine(id), nw = nowOf(id), open = openId === id;
+      if (LC && !open) LC.forget(id);
+      // the row
+      const nowP = nw.pieces.filter(p => D.by[p]);
+      const disp = !his && (nw.ids || []).length ? nw.ids : st.pieces;      // (the game's S- piece by its id, not its animations)
+      const chipText = disp.length ? disp.map(short).join(' → ') : '— ' + (!his && nw.text ? nw.text : 'empty');
+      const mark = h('span', { class: 'mk', 'aria-hidden': 'true' });
+      const chip = h('span', { class: 'chip' + (st.pieces.length ? '' : ' none'), title: disp.map(name).join(' then ') + (disp !== st.pieces ? ' (' + st.pieces.map(p => '$' + p).join(' → ') + ')' : '') || (his ? 'emptied by you' : 'nothing today') }, mark, chipText);
+      const setMark = () => { const y = his || timed(); mark.textContent = y ? '● ' : ''; chip.classList.toggle('yours', y); row.setAttribute('aria-label', `${def.label}: ${chipText}` + (his ? ' (yours)' : timed() ? ' (timing changed)' : ' (the game\'s)') + (open ? ', open' : '')); };
+      const pick = h('button', { type: 'button', class: 'pick', text: st.pieces.length ? 'pick' : '+', 'aria-label': 'Pick for ' + def.label,
+        onclick: e => { e.stopPropagation(); picker(def, st.pieces, hex => save([hex]), false, nowP); } });
+      const row = h('div', { class: 'srow', role: 'button', tabindex: '0', 'aria-expanded': String(open) },
+        h('span', { class: 'in', text: def.short }), chip, h('span', { class: 'tw', 'aria-hidden': 'true', text: open ? '▾' : '▸' }), pick);
+      row.onclick = () => toggle(id);
+      row.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); toggle(id); } };
+      rowMarks[id] = setMark; setMark();
+      if (!open) { box.classList.remove('open'); box.replaceChildren(row); return; }
+      // open: the clip, one line of data, the knobs / timing, "now", ⋯
+      box.classList.add('open');
+      const x = h('div', { class: 'sx' });
+      if (st.pieces.length > 1) x.append(h('div', { class: 'pieces' }, st.pieces.map((p, i) => [i ? h('span', { class: 'then', text: '→' }) : null,
+        h('span', { class: 'pc' }, h('span', { text: name(p) }), h('button', { type: 'button', class: 'rm', text: '×', 'aria-label': 'Remove ' + fmtP(p), onclick: () => save(st.pieces.filter((_, j) => j !== i)) }))])));
+      if (LC) {
+        x.append(LC.clip({ key: id, compact: true, label: def.label + (his ? ' (yours)' : ' (now: the game\'s)'),
+          req: pressK ? () => ({ kind: 'press', k: +pressK[1] - 1, sheet: sheetNow() })
+                      : () => ({ kind: 'slot', slot: id, pieces: his ? stateOf(id).pieces : null, knobs: liveKnobs[id] || knobsOf(id), sheet: sheetNow() }),
+          cls: () => classOf(his ? st.pieces : nowP) }));
+      } else if (st.pieces.length) {
+        const cl = h('div', { class: 'clips' });
+        st.pieces.forEach((p, i) => { if (i) cl.append(h('span', { class: 'then', text: '→' })); const fg = clip(p); if (fg._st) shown.push(fg._st); cl.append(fg); });
+        x.append(cl);
+      }
+      if (his && st.pieces.join() !== nowP.join()) {            // (yours differs from the game's: say what it plays now)
+        const nids = (nw.ids || []);
+        x.append(h('p', { class: 'nowtxt', text: 'now: ' + (nids.length ? nids.join(', ') + ' ' : '') + (nowP.length ? nowP.map(p => '$' + p).join(' → ') : nids.length ? '' : 'nothing') + (nw.text ? ' · ' + nw.text : '') }));
+      } else if (nw.text && st.pieces.length) x.append(h('p', { class: 'nowtxt', text: nw.text }));
+      // knobs of its S- pieces
+      const kp = st.pieces.filter(p => PIECES[p] && (PIECES[p].knobs || []).length);
+      let slotReset = null;
+      if (his && kp.length) {
+        const all = Object.assign({}, knobsOf(id));
+        let kt;
+        const saveK = () => { clearTimeout(kt); saving('…'); kt = setTimeout(async () => {
+          try { await post(id, { knobs: all }); } catch (e) { /* said in the bar */ }
+          slotReset.hidden = !Object.keys(knobsOf(id)).length; }, 500); };
+        const panels = kp.map(p => window.KnobUI.panel({ compact: true, defs: PIECES[p].knobs, values: all[p] || {}, label: kp.length > 1 ? p + ' knobs' : '',
+          onChange: v => { if (Object.keys(v).length) all[p] = v; else delete all[p]; liveKnobs[id] = JSON.parse(JSON.stringify(all)); if (LC) LC.refresh(id); saveK(); } }));
+        slotReset = h('button', { type: 'button', class: 'kreset-slot', text: 'Reset knobs', hidden: Object.keys(all).length ? null : '' });
+        slotReset.onclick = () => panels.forEach(pn => pn.reset());
+        x.append(...panels);
+      }
+      if (pressK) { const tb = h('div', { class: 'tslot', 'data-press': id }); x.append(tb); timingInto(tb, +pressK[1] - 1); }
+      // ⋯ the rest
+      const more = h('details', { class: 'more' }, h('summary', { text: '⋯ more', 'aria-label': 'More for ' + def.label }),
+        h('div', { class: 'mbody' },
+          h('button', { type: 'button', text: '+ add after', onclick: () => picker(def, st.pieces, hex => save(st.pieces.concat(hex)), true, nowP) }),
           h('button', { type: 'button', text: 'Clear', onclick: () => save([]) }),
           his ? h('button', { type: 'button', text: 'Back to now', onclick: async () => {
-            saved.textContent = 'Saving…';
-            try { await post(id, { choice: null, label: null, pieces: null, knobs: null }); saved.textContent = 'Saved (back to now)'; } catch (e) { saved.textContent = 'Not saved (' + e.message + ')'; }
-            draw(); } }) : null));
-        const kp = st.pieces.filter(p => PIECES[p] && (PIECES[p].knobs || []).length);
-        if (his && kp.length) {
-          const all = Object.assign({}, knobsOf(id));
-          let kt;
-          const saveK = () => { clearTimeout(kt); saved.textContent = '…'; kt = setTimeout(async () => {
-            saved.textContent = 'Saving…';
-            try { await post(id, { knobs: all }); saved.textContent = 'Saved'; } catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
-            slotReset.hidden = !Object.keys(knobsOf(id)).length; }, 500); };
-          const panels = kp.map(p => window.KnobUI.panel({ defs: PIECES[p].knobs, values: all[p] || {}, label: p + ' ' + PIECES[p].name + ': knobs',
-            onChange: v => { if (Object.keys(v).length) all[p] = v; else delete all[p]; liveKnobs[id] = JSON.parse(JSON.stringify(all)); if (LC) LC.refresh(id); saveK(); } }));
-          const slotReset = h('button', { type: 'button', class: 'kreset-slot', text: 'Reset all knobs of this slot', hidden: Object.keys(all).length ? null : '' });
-          slotReset.onclick = () => panels.forEach(pn => pn.reset());
-          left = h('div', { class: 'sleft' }, row, ...panels, slotReset);
-        } else left = row;
-      }
-      side.push(askLink(def, st.pieces), saved);
-      kids.push(left ? h('div', { class: 'sbody' }, left, h('div', { class: 'side' }, side)) : h('div', { class: 'side' }, side));
-      box.replaceChildren(...kids);
+            try { await post(id, { choice: null, label: null, pieces: null, knobs: null }); } catch (e) { /* said in the bar */ }
+            draw(); } }) : null,
+          slotReset, askLink(def, st.pieces)));
+      x.append(more);
+      box.replaceChildren(row, x);
+      goLiveRow(id);
     };
     drawers[id] = draw;
     draw();
     return box;
   }
-
-  // ---- the chain: its presses + add / remove, then its timing ----
-  function chainBlock() {
-    const wrap = h('div', {});
-    const draw = () => {
-      const n = presses();
-      const setN = async k => {
-        try { await post('presses', { question: `${D.display}: chain length`, choice: 1, label: k + ' presses', note: String(k) }); } catch (e) { alert('Not saved: ' + e.message); }
-        draw();
-      };
-      const whole = LC ? h('div', { class: 'slot', id: 'slot-chain' }, h('div', { class: 'shead' }, h('span', { class: 'lab', text: 'The whole chain' }), h('span', { class: 'tag', text: 'live' })),
-        LC.clip({ key: 'chain', label: `The whole chain: presses 1-${n} on hits (the last = the neutral finisher)`, req: () => ({ kind: 'chain', sheet: sheetNow() }),
-          cls: () => classOf(range(presses()).flatMap(i => stateOf('a' + (i + 1)).pieces.length ? stateOf('a' + (i + 1)).pieces : nowOf('a' + (i + 1)).pieces.filter(p => D.by[p]))) })) : null;
-      wrap.replaceChildren(...range(n).map(i => slotRow(press(i + 1))), whole,
-        h('div', { class: 'count' }, h('span', { text: `${n} presses` + (n !== N0 ? ` (the ${NOW.archetype} archetype has ${N0})` : '') }),
-          n < 8 ? h('button', { type: 'button', text: '+ add a press', onclick: () => setN(n + 1) }) : null,
-          n > 1 ? h('button', { type: 'button', text: 'Remove press ' + n, onclick: () => setN(n - 1) }) : null),
-        timingBox);
-    };
-    draw();
-    return wrap;
+  // a redrawn row gets its "can't go live" back (goLive's last answer) without asking again
+  function goLiveRow(id) {
+    const why = window.arbIssues && window.arbIssues[id], box = root.querySelector('#slot-' + id);
+    if (!why || !box) return;
+    box.querySelectorAll('.golive').forEach(e => e.remove());
+    box.append(h('p', { class: 'golive', role: 'status', text: 'Can\'t go live: ' + why }));
   }
+
+  // ---- the chain: its presses; the length and the whole-chain clip in its header ----
+  const chainRows = h('div', { class: 'rows' });
+  const chainMsg = h('div', { class: 'cmsg' });
+  let wholeOpen = false;
+  const wholeBox = h('div', { class: 'slot whole', id: 'slot-chain', hidden: '' });
+  const wholeBtn = h('button', { type: 'button', class: 'hbtn', 'aria-pressed': 'false', text: '▶ chain', 'aria-label': 'The whole chain, played', hidden: LC ? null : '' });
+  wholeBtn.onclick = e => {
+    e.stopPropagation(); wholeOpen = !wholeOpen; wholeBtn.setAttribute('aria-pressed', String(wholeOpen));
+    if (wholeOpen) { secOpen('chain', true); wholeBox.hidden = false; wholeBox.replaceChildren(LC.clip({ key: 'chain', compact: true, label: `The whole chain: presses 1-${presses()} on hits (the last = the neutral finisher)`, req: () => ({ kind: 'chain', sheet: sheetNow() }),
+      cls: () => classOf(range(presses()).flatMap(i => stateOf('a' + (i + 1)).pieces.length ? stateOf('a' + (i + 1)).pieces : nowOf('a' + (i + 1)).pieces.filter(p => D.by[p]))) })); }
+    else { LC.forget('chain'); wholeBox.hidden = true; wholeBox.replaceChildren(); }
+  };
+  const lenTxt = h('span', { class: 'len' });
+  const lenMinus = h('button', { type: 'button', class: 'hbtn', text: '−' }), lenPlus = h('button', { type: 'button', class: 'hbtn', text: '+' });
+  function drawChain() {
+    const n = presses();
+    lenTxt.textContent = n + ' presses';          // (2-8, saved as the "presses" answer: live + shipped like any pick)
+    lenMinus.hidden = n <= 2; lenPlus.hidden = n >= 8;
+    lenMinus.setAttribute('aria-label', 'Remove press ' + n); lenPlus.setAttribute('aria-label', 'Add a press');
+    for (const k of Object.keys(drawers)) if (/^a\d$/.test(k) && +k.slice(1) > n) { delete drawers[k]; delete rowMarks[k]; if (LC) LC.forget(k); if (openId === k) openId = null; }
+    chainRows.replaceChildren(...range(n).map(i => slotRow(press(i + 1))));
+  }
+  const setN = async (e, k) => { e.stopPropagation(); try { await post('presses', { question: `${D.display}: chain length`, choice: 1, label: k + ' presses', note: String(k) }); } catch (er) { /* said in the bar */ } drawChain(); };
+  lenMinus.onclick = e => setN(e, presses() - 1); lenPlus.onclick = e => setN(e, presses() + 1);
 
   // ---- the chain's TIMING (the old Chain Lab's chain tool folded in, Bruno 2026-10-10): per press its hit-stop and its
   // move's segments (startup, each active window, the recovery after it) retimed 0.5x-2x of the source (gretime_t), as
-  // knobs (knobui.js: the default = what the game plays now, an override marked, "Back to default"). The plan (tryit.js
+  // compact knobs in the open press (the default = what the game plays now, an override marked, "reset"). The plan (tryit.js
   // TryIt.plan: his pack's / Lab build's chain data) gives each press's move, its source segments and the ROM's values.
   // Saved as the answer "chain_timing" of <f>-arb, its note = JSON {hitstop: {a1..aN: frames}, retime: {move: [frames
-  // per segment]}} (overrides only); it rides in the sheet (sheetNow().timing) to Try in game / the live config (the chain
-  // override, load 5: hit-stops in the tree, the retime rows after it) and ships with arb_compile.py (game.json roster
-  // chain.hitstop + retime). A move pressed twice has one timing (retime is per move: every use of it takes it).
+  // per segment]}} (overrides only); it rides in the sheet (sheetNow().timing) to Try in game / the live config and ships
+  // with arb_compile.py (game.json roster chain.hitstop + retime). A move pressed twice has one timing (retime is per
+  // move: every use of it takes it).
   const TID = 'chain_timing';
   const timingOf = () => { const a = ans[TID]; if (!(a && a.choice === 1 && a.note)) return {}; try { const t = JSON.parse(a.note); return t && typeof t === 'object' ? t : {}; } catch (e) { return {}; } };
   const timingNow = () => { const t = timingOf(), hs = t.hitstop || {}, rt = t.retime || {}; return Object.keys(hs).length || Object.keys(rt).length ? { hitstop: hs, retime: rt } : null; };
-  const timingBox = h('div', { class: 'timing', role: 'group', 'aria-label': 'Chain timing' });
   const segName = (i, n) => i === 0 ? 'Startup' : (i % 2 ? 'Active' : 'Recovery') + (n > 3 ? ' ' + Math.ceil(i / 2) : '');
-  let timingSeq = 0, timingT = null;
-  async function saveTiming(t, msg) {
+  let timingSeq = 0, timingT = null, PLAN = null;
+  async function saveTiming(t) {
     const empty = !Object.keys(t.hitstop || {}).length && !Object.keys(t.retime || {}).length;
-    msg.textContent = 'Saving…';
-    try {
-      await post(TID, empty ? { choice: null, label: null, note: null }
-                            : { question: `${D.display}: chain timing`, choice: 1, label: 'chain timing', note: JSON.stringify(t) });
-      msg.textContent = empty ? 'Saved: every press at the game\'s timing' : 'Saved';
-    } catch (e) { msg.textContent = 'Not saved (' + e.message + '): try again'; }
+    try { await post(TID, empty ? { choice: null, label: null, note: null } : { question: `${D.display}: chain timing`, choice: 1, label: 'chain timing', note: JSON.stringify(t) }); } catch (e) { /* said in the bar */ }
   }
   async function drawTiming() {
     const seq = ++timingSeq;
-    if (!window.TryIt || !window.TryIt.plan) { timingBox.replaceChildren(h('p', { class: 'empty', text: 'Chain timing: this page has no game data (tryit.js).' })); return; }
-    const sh = sheetNow(), P = await window.TryIt.plan(f, sh.chain);
+    if (!window.TryIt || !window.TryIt.plan) { PLAN = { why: 'this page has no game data (tryit.js)' }; chainMsg.replaceChildren(h('p', { class: 'golive', text: 'Chain timing: ' + PLAN.why + '.' })); return; }
+    const P = await window.TryIt.plan(f, sheetNow().chain);
     if (seq !== timingSeq) return;                           // (a newer draw is on its way)
-    const head = h('h3', { text: 'Chain timing' });
-    if (!P.spec) { timingBox.replaceChildren(head, h('p', { class: 'empty', text: 'Chain timing needs his pack or his Lab build: ' + P.why + '.' })); return; }
-    const t = timingOf(), msg = h('span', { class: 'saved', 'aria-live': 'polite' });
-    const reset = h('button', { type: 'button', text: 'Reset the chain timing', hidden: timingNow() ? null : '' });
-    const panels = P.moves.map((m, k) => {
-      const key = 'a' + (k + 1), S = P.segs[m] || null, D0 = S ? P.defaults.retime[m] : null;
-      const defs = [{ id: 'hitstop', name: 'Hit-stop (both freeze on contact)', unit: 'frames', default: P.defaults.hitstop[k], min: 1, max: 60, step: 1 }];
-      if (S) S.forEach((s, i) => { if (!s) return; const lo = Math.max(1, Math.ceil(s / 2)), hi = Math.max(1, 2 * s);
-        defs.push({ id: 's' + i, name: `${segName(i, S.length)} (source ${s})`, unit: 'frames', default: D0[i], min: Math.min(lo, D0[i]), max: Math.max(hi, D0[i]), step: 1 }); });
-      const vals = {};
-      if (Number.isInteger((t.hitstop || {})[key])) vals.hitstop = t.hitstop[key];
-      const T = (t.retime || {})[m];
-      if (S && Array.isArray(T) && T.length === S.length) T.forEach((v, i) => { if (S[i] && v !== D0[i]) vals['s' + i] = v; });
-      // folded per press (a fast chain is 5 presses x 4-6 knobs): the summary says the press's timing and whether it
-      // is changed, in words; a changed press starts open
-      const sumText = v => {
-        const hs = 'hitstop' in v ? v.hitstop : P.defaults.hitstop[k];
-        const T = S ? D0.map((d, i) => ('s' + i) in v ? v['s' + i] : d) : null;
-        return `Press ${k + 1}: ${m} · hit-stop ${hs} · ` + (T ? `${T.filter((x, i) => S[i]).join(' / ')} = ${T.reduce((a, b) => a + b, 0)} frames` : 'not retimed (no segments)') +
-          (k === P.N - 1 ? ' · the last hit (its hit-stop is every finisher\'s)' : '') + (Object.keys(v).length ? ' · CHANGED' : ' · as the game');
-      };
-      const summary = h('summary', { text: sumText(vals) });
-      const panel = window.KnobUI.panel({ defs, values: vals, label: `Press ${k + 1}: ${m}` + (S ? '' : ' (no segments: only its hit-stop)'), onChange: v => {
-        summary.textContent = sumText(v);
-        const x = timingOf(); x.hitstop = Object.assign({}, x.hitstop); x.retime = Object.assign({}, x.retime);
-        if ('hitstop' in v) x.hitstop[key] = v.hitstop; else delete x.hitstop[key];
-        if (S) { const nt = D0.map((d, i) => ('s' + i) in v ? v['s' + i] : d); if (nt.some((y, i) => y !== D0[i])) x.retime[m] = nt; else delete x.retime[m]; }
-        if (!Object.keys(x.hitstop).length) delete x.hitstop;
-        if (!Object.keys(x.retime).length) delete x.retime;
-        ans[TID] = Object.assign({}, ans[TID], { choice: 1, note: JSON.stringify(x) });   // (now: the next panel reads it)
-        reset.hidden = !timingNow();
-        if (LC) LC.refresh(null);
-        clearTimeout(timingT); msg.textContent = '…';
-        timingT = setTimeout(async () => { await saveTiming(timingOf(), msg); if (P.moves.filter(y => y === m).length > 1) drawTiming(); }, 500);
-      } });
-      return h('details', { class: 'tpress', 'data-press': key, open: Object.keys(vals).length ? '' : null }, summary, panel);
-    });
-    reset.onclick = async () => { ans[TID] = {}; if (LC) LC.refresh(null); await saveTiming({}, msg); drawTiming(); };
-    timingBox.replaceChildren(head,
-      h('p', { class: 'about', text: `Per press (tap one to open it): the hit-stop, and the move's segments from 0.5x to 2x of the source (every use of the move takes them). The defaults are what the game plays now (build ${NOW.version}).` +
-        (P.why ? ` Your presses cannot play as a chain (${P.why}): this is the game's own chain, timed.` : '') }),
-      ...panels, h('div', { class: 'tryrow' }, reset, msg));
-    window.arbTiming = { moves: P.moves, N: P.N, defaults: P.defaults, why: P.why };
+    PLAN = P;
+    chainMsg.replaceChildren(...(!P.spec ? [h('p', { class: 'golive', text: 'Chain timing needs his pack or his Lab build: ' + P.why + '.' })]
+      : P.why ? [h('p', { class: 'golive', text: `Your presses can't play as a chain (${P.why}): the timing is the game's own chain's.` })] : []));
+    if (P.spec) window.arbTiming = { moves: P.moves, N: P.N, defaults: P.defaults, why: P.why };
+    root.querySelectorAll('.tslot').forEach(tb => timingInto(tb, +tb.dataset.press.slice(1) - 1));
+    marks();
   }
+  function timingInto(tb, k) {
+    const P = PLAN;
+    if (!P) { tb.replaceChildren(h('p', { class: 'nowtxt', text: 'timing: reading the game data…' })); return; }
+    if (!P.spec || !P.moves[k]) { tb.replaceChildren(); return; }
+    const m = P.moves[k], key = 'a' + (k + 1), S = P.segs[m] || null, D0 = S ? P.defaults.retime[m] : null, t = timingOf();
+    const defs = [{ id: 'hitstop', name: 'Hit-stop', unit: 'f', default: P.defaults.hitstop[k], min: 1, max: 60, step: 1 }];
+    if (S) S.forEach((s, i) => { if (!s) return; const lo = Math.max(1, Math.ceil(s / 2)), hi = Math.max(1, 2 * s);
+      defs.push({ id: 's' + i, name: `${segName(i, S.length)} (src ${s})`, unit: 'f', default: D0[i], min: Math.min(lo, D0[i]), max: Math.max(hi, D0[i]), step: 1 }); });
+    const vals = {};
+    if (Number.isInteger((t.hitstop || {})[key])) vals.hitstop = t.hitstop[key];
+    const T = (t.retime || {})[m];
+    if (S && Array.isArray(T) && T.length === S.length) T.forEach((v, i) => { if (S[i] && v !== D0[i]) vals['s' + i] = v; });
+    const panel = window.KnobUI.panel({ compact: true, defs, values: vals, label: `Timing · ${m}` + (S ? '' : ' (hit-stop only)') + (k === P.N - 1 ? ' · last (finishers too)' : ''), onChange: v => {
+      const x = timingOf(); x.hitstop = Object.assign({}, x.hitstop); x.retime = Object.assign({}, x.retime);
+      if ('hitstop' in v) x.hitstop[key] = v.hitstop; else delete x.hitstop[key];
+      if (S) { const nt = D0.map((d, i) => ('s' + i) in v ? v['s' + i] : d); if (nt.some((y, i) => y !== D0[i])) x.retime[m] = nt; else delete x.retime[m]; }
+      if (!Object.keys(x.hitstop).length) delete x.hitstop;
+      if (!Object.keys(x.retime).length) delete x.retime;
+      ans[TID] = Object.assign({}, ans[TID], { choice: 1, note: JSON.stringify(x) });   // (now: the next panel reads it)
+      timingReset.hidden = !timingNow(); marks();
+      if (LC) LC.refresh(null);
+      clearTimeout(timingT); saving('…');
+      timingT = setTimeout(async () => { await saveTiming(timingOf()); if (P.moves.filter(y => y === m).length > 1) drawTiming(); }, 500);
+    } });
+    tb.replaceChildren(h('div', { class: 'tpress', 'data-press': key }, panel));
+  }
+  const timingReset = h('button', { type: 'button', text: 'Reset the chain timing', hidden: '' });
+  timingReset.onclick = async () => { ans[TID] = {}; if (LC) LC.refresh(null); await saveTiming({}); timingReset.hidden = true; drawTiming(); };
 
-  // ---- the picker: every animation of the dictionary, attacks first ----
+  // ---- the picker: every animation of the dictionary, attacks first (now: what the game plays on that input) ----
   const ORDER = D.anims.filter(a => a.status === 'ok' && a.f.length).sort((x, y) => (y.attack - x.attack) || (x.n - y.n));
   let pSlow = false, pAtk = true;
   const pFlags = new Set();
-  function picker(def, cur, onPick, adding) {
+  function picker(def, cur, onPick, adding, nowP) {
     const own = [];
     const close = () => { dlg.remove(); document.removeEventListener('keydown', esc); own.forEach(unwatch); };
     const esc = e => { if (e.key === 'Escape') close(); };
@@ -360,7 +396,7 @@
       cv.title = 'Tap: ¼ speed / full speed';
       cv.onclick = () => { st.speed = st.speed === 1 ? 0.25 : 1; };
       const card = h('div', { class: 'pcard' + (cur.includes(a.id) ? ' cur' : '') }, cv,
-        h('div', { class: 'cap', text: AD.caption(a) + (cur.includes(a.id) ? ' · IN THIS SLOT' : '') }),
+        h('div', { class: 'cap', text: AD.caption(a) + (cur.includes(a.id) ? ' · IN THIS SLOT' : '') + ((nowP || []).includes(a.id) ? ' · NOW' : '') }),
         h('button', { type: 'button', class: 'use', text: (adding ? 'Add $' : 'Use $') + a.id, onclick: () => { close(); onPick(a.id); } }));
       card._a = a; card._st = st;
       return card;
@@ -388,21 +424,22 @@
         h('button', { type: 'button', class: 'use', text: (adding ? 'Add ' : 'Use ') + p.id, onclick: () => { close(); onPick(p.id); } }));
       return h('div', { class: 'pcard' + (cur.includes(p.id) ? ' cur' : '') }, kids);
     });
-    const lockedList = lck.length ? h('details', { class: 'plocked' }, h('summary', { text: 'Locked specials (' + lck.length + '): not decoded yet' }),
+    const lockedList = lck.length ? h('details', { class: 'plocked' }, h('summary', { text: 'Locked specials (' + lck.length + ')' }),
       h('ul', {}, lck.map(p => h('li', {}, h('span', { text: p.name + ' (' + p.input + ') ' }),
         h('a', { href: 'lab.html?tab=workshop&f=' + f + '#' + encodeURIComponent(p.keys[0]), target: '_blank', text: 'Ask in the Workshop' }))))) : null;
-    const piecesBox = W ? h('div', { class: 'ppieces' }, h('b', { text: 'Decoded pieces (Workshop ids): a special plays as its whole program' }),
+    const piecesBox = W ? h('div', { class: 'ppieces' }, h('b', { text: 'Decoded pieces' }),
       pcards.length ? h('div', { class: 'pgrid' }, pcards) : h('span', { text: 'None unlocked yet.' }), lockedList,
       h('b', { text: 'Animations' })) : null;
     const tog = (txt, on, fn) => { const b = h('button', { type: 'button', 'aria-pressed': String(on), text: (on ? '✓ ' : '') + txt }); b.onclick = () => { const v = fn(); b.setAttribute('aria-pressed', String(v)); b.textContent = (v ? '✓ ' : '') + txt; }; return b; };
     const bSlow = tog('¼ speed', pSlow, () => { pSlow = !pSlow; cards.forEach(c => { c._st.speed = pSlow ? 0.25 : 1; }); return pSlow; });
     const bAtk = tog('Attacks only', pAtk, () => { pAtk = !pAtk; apply(); return pAtk; });
     const flagBtns = AD.FLAGS.map(fg => tog(fg.id, pFlags.has(fg.id), () => { pFlags.has(fg.id) ? pFlags.delete(fg.id) : pFlags.add(fg.id); apply(); return pFlags.has(fg.id); }));
+    const nowTxt = (nowP || []).length ? ' · now: ' + nowP.map(p => '$' + p).join(' → ') : '';
     const dlg = h('div', { class: 'pmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Pick an animation' },
       h('div', { class: 'pbox' },
-        h('div', { class: 'phead' }, h('b', { text: (adding ? 'Add after the current ones in ' : 'Pick for ') + def.label }), q, bSlow, bAtk,
+        h('div', { class: 'phead' }, h('b', { text: (adding ? 'Add after: ' : 'Pick: ') + def.label + nowTxt }), q, bSlow, bAtk,
           h('button', { type: 'button', text: 'Close', onclick: close })),
-        h('div', { class: 'frow', role: 'group', 'aria-label': 'Flags' }, h('span', { class: 'fl', text: 'With every flag (yours in the dictionary, else my suggestion)' }), flagBtns),
+        h('details', { class: 'frow' }, h('summary', { text: 'Flags' }), h('div', { role: 'group', 'aria-label': 'Flags' }, flagBtns)),
         piecesBox, shown, h('div', { class: 'pgrid' }, cards)));
     dlg.onclick = e => { if (e.target === dlg) close(); };
     document.addEventListener('keydown', esc);
@@ -413,16 +450,17 @@
 
   // ---- NO STAGING (Bruno 2026-10-10: "forget about staging, remove that step"): what the sheet saves IS the game. Every
   // live send queues a ship (POST lab/ship/<f>, admin); the desktop's worker (tools/brawler/labcfg.py ship-worker) ships
-  // the fighter once his newest request is 60 s old: arb_compile -> build -> checks -> VERSION bump -> publish. The line
-  // under the live one says where the game is: "In the game: build 0.10.N", "Building…", "Waiting…" or the refusal.
+  // the fighter once his newest request is 60 s old: arb_compile -> build -> checks -> VERSION bump -> publish. The full
+  // line (⋯) says where the game is; the status bar its short form ("In game 0.10.31", "Building…", "NOT in game ✗").
   const LAB_API = API + 'lab/';
   const gameLine = h('p', { class: 'ingame', 'aria-live': 'polite', text: 'In the game: …' });
+  const gameSay = (long, shortT, bad) => { gameLine.textContent = long; gameLine.classList.toggle('bad', !!bad); stGame.textContent = shortT; stGame.classList.toggle('bad', !!bad); };
   async function shipQueue(rev) {
     try {
       const r = await fetch(LAB_API + 'ship/' + f, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rev, note: 'the Assembly (auto)' }) });
-      if (!r.ok) { const j = await r.json().catch(() => ({})); gameLine.textContent = 'Not queued for the game: ' + (r.status === 403 ? 'it needs the Oros admin role' : j.error || 'HTTP ' + r.status); return; }
-    } catch (e) { gameLine.textContent = 'Not queued for the game: ' + e.message; return; }
+      if (!r.ok) { const j = await r.json().catch(() => ({})); gameSay('Not queued for the game: ' + (r.status === 403 ? 'it needs the Oros admin role' : j.error || 'HTTP ' + r.status), 'Not queued ✗', true); return; }
+    } catch (e) { gameSay('Not queued for the game: ' + e.message, 'Not queued ✗', true); return; }
     gameStatus();
   }
   async function gameStatus() {
@@ -432,13 +470,14 @@
     const mine = rs.filter(x => x.fighter === f && x.status !== 'dropped').sort((x, y) => y.id - x.id);
     const cur = mine[0], done = mine.find(x => x.status === 'done');
     const inGame = done ? (/build (\S+)/.exec(done.result || '') || [])[1] : null;
-    const had = inGame ? (/not published/.test(done.result || '') ? `Built into the game as ${inGame}, not published yet` : `In the game: build ${inGame}`) + (/left out: (.*)/.exec(done.result || '') ? ' (left out: ' + /left out: (.*)/.exec(done.result)[1] + ')' : '') : 'In the game: nothing shipped from this sheet yet';
-    gameLine.textContent = !cur ? had
-      : cur.status === 'pending' ? `Waiting to build (about a minute after your last change, request ${cur.id}). ${had}.`
-      : cur.status === 'building' ? `Building ${(/building (\S+)/.exec(cur.result || '') || [])[1] || ''}… (request ${cur.id}). ${had}.`
-      : cur.status === 'failed' ? `NOT in the game (request ${cur.id}): ${(cur.result || '').replace(/^not in the game: /, '')}. ${had}.`
-      : /^nothing changed/.test(cur.result || '') ? `In the game: ${cur.result}` : had;
-    gameLine.classList.toggle('bad', !!cur && cur.status === 'failed');
+    const notPub = inGame && /not published/.test(done.result || '');
+    const had = inGame ? (notPub ? `Built into the game as ${inGame}, not published yet` : `In the game: build ${inGame}`) + (/left out: (.*)/.exec(done.result || '') ? ' (left out: ' + /left out: (.*)/.exec(done.result)[1] + ')' : '') : 'In the game: nothing shipped from this sheet yet';
+    const hadS = inGame ? (notPub ? `Built ${inGame}, not published` : `In game ${inGame}`) : 'In game: nothing yet';
+    if (!cur) gameSay(had, hadS);
+    else if (cur.status === 'pending') gameSay(`Waiting to build (about a minute after your last change, request ${cur.id}). ${had}.`, 'Waiting to build…');
+    else if (cur.status === 'building') gameSay(`Building ${(/building (\S+)/.exec(cur.result || '') || [])[1] || ''}… (request ${cur.id}). ${had}.`, `Building ${(/building (\S+)/.exec(cur.result || '') || [])[1] || ''}…`);
+    else if (cur.status === 'failed') gameSay(`NOT in the game (request ${cur.id}): ${(cur.result || '').replace(/^not in the game: /, '')}. ${had}.`, 'NOT in game ✗ (see ⋯)', true);
+    else gameSay(/^nothing changed/.test(cur.result || '') ? `In the game: ${cur.result}` : had, hadS);
   }
   gameStatus();
   window.addEventListener('tryit-sent', e => { if (e.detail.f === f && e.detail.kind === 'sheet') shipQueue(e.detail.version); });   // (every
@@ -460,29 +499,54 @@
   };
   const tryBtn = () => window.TryIt ? window.TryIt.button(f, 'Try this sheet in game', () => window.TryIt.sheet(f, sheetNow()), () => ({ sheet: sheetNow() })) : null;
   window.arbSheet = sheetNow;
-  const out = [h('h1', { text: `${D.display}: arbitration sheet` }),
-    h('p', { class: 'intro', text: `What each input plays, section by section: chain (and its timing), alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, tune a decoded piece's knobs; a question goes to the Workshop. Everything saves as you go. Tap a clip for ¼ speed.` }),
-    h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'lab.html?tab=dictionary&f=' + f, text: 'Animation dictionary' }), h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Fighter review' })),
-    window.TryIt ? window.TryIt.liveLine(f) : null];
-  out.push(h('div', { class: 'tryrow' }, tryBtn(), h('span', { class: 'about', text: 'Your answers, slot by slot, in the game now (the slots still "now" play the game\'s own move); play them on their own inputs.' })));
-  if (LC) out.push(h('p', { class: 'about', text: 'Live clips: the game itself plays every clip here (his pack in the Character Lab shell, in the background), again a moment after you change a pick, a knob or the chain timing. Tap a clip for ¼ speed; "Gap" moves the dummy.' }), LC.boxesButton());
-  out.push(h('div', { class: 'tryrow livego' }, h('span', { class: 'about', text: 'Live: every change is sent to the Player\'s Character lab by itself (about 2 s later; admin only). A pick that cannot go live says why next to it.' }), liveMsg));
-  const sheetMsg = h('span', { class: 'saved', 'aria-live': 'polite' });
+
+  // ---- the page: the sticky bar (name, status, ⋯, jump), then the sections ----
   const sheetReset = h('button', { type: 'button', class: 'kreset-sheet', text: 'Reset all knobs of the sheet' });
   sheetReset.onclick = async () => {
     const ids = Object.keys(ans).filter(id => mine(id) && ans[id].knobs && Object.keys(ans[id].knobs).length);
-    if (!ids.length) { sheetMsg.textContent = 'Every knob is at its default already.'; return; }
-    sheetMsg.textContent = 'Resetting…';
-    try { for (const id of ids) { delete liveKnobs[id]; await post(id, { knobs: {} }); delete ans[id].knobs; if (drawers[id]) drawers[id](); } sheetMsg.textContent = `Every knob back to its default (${ids.length} slot${ids.length === 1 ? '' : 's'}).`; }
-    catch (e) { sheetMsg.textContent = 'Not reset (' + e.message + '): try again'; }
+    if (!ids.length) { saving('Every knob is at its default already.'); return; }
+    try { for (const id of ids) { delete liveKnobs[id]; await post(id, { knobs: {} }); delete ans[id].knobs; if (drawers[id]) drawers[id](); } saving(`Saved ✓ every knob back to its default (${ids.length} slot${ids.length === 1 ? '' : 's'})`); }
+    catch (e) { /* said in the bar */ }
   };
-  out.push(h('div', { class: 'tryrow' }, sheetReset, sheetMsg));
-  for (const s of SECTIONS) {
-    out.push(h('h2', { text: s.title }), h('p', { class: 'about', text: s.about }));
-    out.push(s.chain ? chainBlock() : s.slots.map(slotRow));
+  const liveLineEl = window.TryIt ? window.TryIt.liveLine(f) : null;
+  if (liveLineEl) new MutationObserver(liveStat).observe(liveLineEl, { childList: true, subtree: true });
+  const menuBody = h('div', { class: 'amenu', hidden: '' },
+    h('div', { class: 'tryrow' }, tryBtn()),
+    h('div', { class: 'tryrow livego' }, h('b', { text: 'Live: ' }), liveMsg),
+    liveLineEl, gameLine,
+    h('div', { class: 'tryrow' }, sheetReset, timingReset),
+    h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop' }), h('a', { href: 'lab.html?tab=dictionary&f=' + f, text: 'Dictionary' }), h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Review' })));
+  const menuBtn = h('button', { type: 'button', class: 'abtn', 'aria-expanded': 'false', text: '⋯', 'aria-label': 'The sheet\'s tools: Try in game, Send to Player, live config history, reset' });
+  menuBtn.onclick = () => { const o = menuBody.hidden; menuBody.hidden = !o; menuBtn.setAttribute('aria-expanded', String(o)); };
+  const stat = h('span', { class: 'astat', role: 'status', 'aria-live': 'polite' }, stSave, stLive, stGame);
+  stat.onclick = () => { if (menuBody.hidden) menuBtn.click(); };
+  // collapsible sections (a per-viewer convenience, remembered in this browser)
+  const COLL = (() => { try { return JSON.parse(localStorage.getItem('arb-collapsed') || '{}'); } catch (e) { return {}; } })();
+  const secEls = {};
+  function secOpen(sid, open) {
+    const s = secEls[sid]; if (!s) return;
+    s.body.hidden = !open; s.btn.setAttribute('aria-expanded', String(open)); s.btn.firstChild.textContent = (open ? '▾ ' : '▸ ');
+    if (open) delete COLL[sid]; else COLL[sid] = 1;
+    try { localStorage.setItem('arb-collapsed', JSON.stringify(COLL)); } catch (e) { /* no storage */ }
+    if (!open && openId && secEls[sid].body.contains(root.querySelector('#slot-' + openId))) toggle(openId);
   }
-  out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'Every change goes into the game by itself: about a minute after your last change the compiler links every pick and knob, builds, checks each slot in the game and publishes a new build, or says here why it refused.' }), gameLine));
-  root.replaceChildren(...out.flat().filter(x => x));
+  const jump = h('nav', { class: 'ajump', 'aria-label': 'Sections' }, SECTIONS.map(s => h('button', { type: 'button', text: s.title,
+    onclick: () => { secOpen(s.id, true); secEls[s.id].sec.scrollIntoView({ block: 'start' }); } })));
+  const bar = h('div', { class: 'abar' }, h('div', { class: 'arow' }, h('h1', { text: D.display }), stat, menuBtn), jump, menuBody);
+  const out = [bar, h('div', { class: 'livego' })];
+  for (const s of SECTIONS) {
+    const btn = h('button', { type: 'button', class: 'stog', 'aria-expanded': 'true' }, h('span', { text: '▾ ' }), s.title);
+    const extra = s.chain ? h('span', { class: 'hx' }, lenMinus, lenTxt, lenPlus, wholeBtn) : null;
+    const body = h('div', { class: 'sbody' }, s.chain ? [chainMsg, wholeBox, chainRows] : h('div', { class: 'rows' }, s.slots.map(slotRow)));
+    const sec = h('section', { class: 'sec', id: 'sec-' + s.id }, h('h2', { class: 'shd' }, btn, extra), body);
+    btn.onclick = () => secOpen(s.id, body.hidden);
+    secEls[s.id] = { sec, body, btn };
+    out.push(sec);
+  }
+  drawChain();
+  root.replaceChildren(...out.filter(x => x));
+  for (const sid of Object.keys(COLL)) secOpen(sid, false);
+  liveStat();
   drawTiming(); goLive();
   // on open: answers newer than the live config (or no live config yet) go live at once — a sheet edited before the
   // auto-send existed, or while the page was closed, still reaches the Player (2026-10-10)

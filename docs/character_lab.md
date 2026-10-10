@@ -29,7 +29,7 @@ thread with a request already filled in.
 | `lab.html?f=<f>&tab=info` | **Info**: facts (source game + bank, scale, archetype, chain length, music theme, select screen, dictionary, S / T piece counts, knobs, pack, shell, the site's build, live config), HUD and win portraits, links, "Play him in game", the live config line. |
 | `&tab=dictionary` | **Dictionary**: every animation of his source game's table as a looping clip (`anims.js`, data `review/<f>_anims.json` from `animdict.py`), filters, flags, "I want this one", a queue to Try in game. |
 | `&tab=workshop` | **Workshop** (`workshop.js`): unlocked / locked specials and throws, hit classes, a thread per piece. |
-| `&tab=assembly` | **Assembly** (`arbitrage.js`, live clips `liveclips.js`): the arbitration sheet: the chain and its **timing**, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury; piece knobs; Try this sheet in game; Send to Player (and the live auto-send); Ship to game. |
+| `&tab=assembly` | **Assembly** (`arbitrage.js`, live clips `liveclips.js`; compact rows, see "The compact Assembly"): the arbitration sheet: the chain and its **timing**, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury; piece knobs; Try this sheet in game; Send to Player (and the live auto-send); Ship to game. |
 | `&tab=review` | **Review** (`review.js`, revamp phase 4): pieces ranked, the chain proposal, Keep / Drop; `&q=<set>` = a visual follow-up set (`decisions.json`). |
 | `&embed=1` | The Player's WebView beside the game (~360-420 px): no site chrome, compact, the Assembly only, the page's own Try hidden. |
 | `game.html#<tab>` | **Game tools** (not one fighter's; the game runs in the page, `app.js`): `#stages`, `#enemies` (its move-list editor opens the route-tree editor of the old Chain Lab), `#chars`, `#select`, `#feedback` (`#fb=<id>[&play]` = one note's replay), `#quirks`, `#expose`, `#decide`, `#impacts` (impact sound library), `#sounds` (`?f=<f>`: a fighter's hit sounds). `game.js` routes the hash. |
@@ -116,6 +116,30 @@ changed: the page drives the practice mode through RAM and reads back RAM, the p
   12: the projectile measured 7 -> 12 px a frame, active 4 -> 3, hit frame 59 -> 58; press 1's hit-stop 6 -> 26: the whole
   chain 155 -> 175 frames (7 hits both); Hanzo $15C (press 3, picked by the proof: his sheet had moved on to $FC) whiffs at
   the far gap (148 px, reach 41) and hits at 44 px. Screens /data/tmp/liveclips/live, local3.
+
+## The compact Assembly (2026-10-10)
+
+Bruno: "it works but it's really unusable. I spend my time scrolling and scrolling… Curate the information shown… Make it
+compact and usable, even on the split mobile phone that is only 6 inches. Cut the fluff out." One template, every fighter:
+
+- **Sticky bar**: his name, ONE status line (saving · `Live r23` (✓ after a send) · `In game 0.10.32`, a failure in bold
+  with "see ⋯"), **⋯** = the sheet's tools (Try this sheet in game, Send to Player and the auto-send's message, the live
+  config line with History / Revert, the full "In the game" line, reset all knobs, reset the chain timing, links), and a
+  one-line section jump bar (Chain · Finishers · Blitz · Air Blitz · Specials · Air specials · Air · Grab · Fury).
+- **Sections**: collapsible headers (remembered in the browser). The Chain header holds the length (− N presses +, 2-8,
+  the `presses` answer: live and shipped like any pick) and **▶ chain** (the whole-chain clip, inline).
+- **One row a slot**: its input (`A2`, `f,f+A`, `C`, `last+u`, `hold A`), the pick as a chip (`$5B atk c far`,
+  `S-012 Haoh Shoukou Ken`; the game's S- piece by its id; `— empty` with **+**), **pick** (the picker; it says what the
+  game plays now). ● + bold = yours (or a press whose timing you changed). "Can't go live: why" stays on the row.
+- **Tap a row**: it opens in place, one at a time: the live clip (fits the width, ≤ ~190 px high on a phone; tiny **gap**
+  and **boxes** controls), ONE line of frame data (`8/18/20 f · 1 hit · 2 dmg · reach 93`, `· proj 12 px/f`; the full
+  strip text in its tooltip), the bar, "now: …" when yours differs, its knobs (compact: name − value + unit, def N,
+  reset), a chain press's **timing** in the same card (hit-stop, startup / active / recovery), **⋯ more** = + add after,
+  Clear, Back to now, Reset knobs, Ask in the Workshop. `window.arbOpen(id)` opens one (proofs).
+- Measured (headless, same data): Robert 19 721 px (30.8 screens at 360 x 640, embed) -> 1 334 px (2.1); at 1280:
+  17 742 -> 1 125 px; Hanzo 19 624 -> 1 298 (LIVE, 4 presses). An open press ~500 px (< 1 phone screen), a special ~320.
+  `liveclips_proof.js` (updated for the rows) 16 / 16 local and LIVE (temporary admin, deleted; no answer or live config
+  changed). Screens /data/tmp/compact.
 
 ## Live config, auto-send, apply at neutral
 
