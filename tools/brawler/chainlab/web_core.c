@@ -9,6 +9,7 @@
 #include <string.h>
 #include <emscripten/emscripten.h>
 #include "libretro.h"
+#include "pack_swap.h"
 
 #define MAXW 512
 #define MAXH 512
@@ -115,6 +116,19 @@ EMSCRIPTEN_KEEPALIVE int wc_audio_n(void) { return audio_n; }
 EMSCRIPTEN_KEEPALIVE uint8_t *wc_ram(void) { return retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM); }
 EMSCRIPTEN_KEEPALIVE int wc_ram_size(void) { return (int)retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM); }
 EMSCRIPTEN_KEEPALIVE uint16_t *wc_palram(void) { return retro_get_memory_data(104); }   /* palette RAM, both banks (8192 words, host order) */
+/* the Character Lab's pack swap (pack_swap.c, the Player's same path): pk = a character pack (tools/brawler/lab_pack.py)
+   for the loaded shell (lab-shell.neo); checked whole, copied into the core's ROM, then the system resets (the shell
+   boots into the practice with the new slot fighter). 0 = swapped, < 0 = refused (wc_pack_error), nothing changed. */
+uint8_t *retro_neoscan_rom(int region, size_t *size);   /* geolith libretro.c */
+EMSCRIPTEN_KEEPALIVE int wc_swap_pack(const uint8_t *pk, int n) {
+    int e = ngpk_apply(pk, (size_t)n, retro_neoscan_rom);
+    if (!e) retro_reset();
+    return e;
+}
+EMSCRIPTEN_KEEPALIVE const char *wc_pack_error(int e) { return ngpk_error(e); }
+/* a loaded ROM region (0 P .. 5 C, as pack_swap.h) and its size: the proofs read back what a swap wrote */
+EMSCRIPTEN_KEEPALIVE uint8_t *wc_rom(int region) { size_t n; return retro_neoscan_rom(region, &n); }
+EMSCRIPTEN_KEEPALIVE int wc_rom_size(int region) { size_t n; retro_neoscan_rom(region, &n); return (int)n; }
 EMSCRIPTEN_KEEPALIVE int wc_state_size(void) { return (int)retro_serialize_size(); }
 EMSCRIPTEN_KEEPALIVE int wc_save(void *buf, int n) { return retro_serialize(buf, n); }
 EMSCRIPTEN_KEEPALIVE int wc_load(void *buf, int n) { return retro_unserialize(buf, n); }

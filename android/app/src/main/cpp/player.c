@@ -10,6 +10,7 @@
 #include <string.h>
 #include <android/log.h>
 #include "libretro.h"
+#include "pack_swap.h"                                  /* tools/brawler/chainlab (Android.mk) */
 
 int geo_savedata_save(unsigned datatype, const char *filename);   /* Geolith (src/geo.c) */
 
@@ -237,6 +238,28 @@ JNIEXPORT void JNICALL Java_com_neoscan_player_Native_reset(JNIEnv *env, jclass 
     if (!mine()) return;
     retro_reset();
     reset_pending = 1;                                 /* logged with the next frame: the replay resets there too */
+}
+
+/* the Character Lab's pack swap (tools/brawler/chainlab/pack_swap.c, the web core's same path): the character pack at
+ * path (tools/brawler/lab_pack.py) into the loaded shell (lab-shell.neo), then a reset (the shell boots into the
+ * practice with the new slot fighter). Emulation thread, between frames. 0 = swapped; < 0 = refused (pack_swap.h
+ * NGPK_*, logged), the ROM unchanged. Not wired to the UI yet (the Character lab's catalogue poll will call it). */
+uint8_t *retro_neoscan_rom(int region, size_t *size);   /* geolith libretro.c */
+JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_swapPack(JNIEnv *env, jclass cls, jstring jpath) {
+    const char *p; FILE *f; uint8_t *buf = NULL; long n = 0; int e = NGPK_SHORT;
+    (void)cls;
+    if (!mine()) return NGPK_NOROM;
+    p = (*env)->GetStringUTFChars(env, jpath, 0);
+    if ((f = fopen(p, "rb"))) {
+        if (!fseek(f, 0, SEEK_END) && (n = ftell(f)) > 0 && !fseek(f, 0, SEEK_SET) && (buf = malloc((size_t)n)) &&
+            fread(buf, 1, (size_t)n, f) == (size_t)n) e = ngpk_apply(buf, (size_t)n, retro_neoscan_rom);
+        fclose(f);
+    }
+    if (e) __android_log_print(ANDROID_LOG_ERROR, TAG, "pack %s: %s", p, ngpk_error(e));
+    else { retro_reset(); reset_pending = 1; __android_log_print(ANDROID_LOG_INFO, TAG, "pack %s swapped in", p); }
+    free(buf);
+    (*env)->ReleaseStringUTFChars(env, jpath, p);
+    return e;
 }
 
 static int write_file(const char *path, const void *data, size_t n) {

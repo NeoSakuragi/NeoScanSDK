@@ -6,8 +6,9 @@ include $(GEOLITH)/libretro/Makefile.common
 
 include $(CLEAR_VARS)
 LOCAL_MODULE    := neoplayer
-LOCAL_SRC_FILES := $(SOURCES_C) $(LOCAL_PATH)/player.c
-LOCAL_C_INCLUDES := $(GEOLITH)/libretro
+PACKSWAP := $(abspath $(LOCAL_PATH)/../../../../../tools/brawler/chainlab)
+LOCAL_SRC_FILES := $(SOURCES_C) $(LOCAL_PATH)/player.c $(PACKSWAP)/pack_swap.c
+LOCAL_C_INCLUDES := $(GEOLITH)/libretro $(PACKSWAP)
 LOCAL_CFLAGS    := -DANDROID -D__LIBRETRO__ -DZ7_ST -O2 $(INCFLAGS) $(FLAGS)
 LOCAL_LDLIBS    := -lz -llog
 include $(BUILD_SHARED_LIBRARY)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """TODO #174 proof: the banked P ROM as the build wrote it, as Geolith maps it and as the NeoCart PROG v3 board holds it.
 
-    python3 bank_proof.py [GAME_DIR] [--lab FIGHTER]      (default examples/brawler, built; --lab: the Lab build
+    python3 bank_proof.py [GAME_DIR] [--lab FIGHTER | --shell]   (default examples/brawler, built; --lab: the Lab build
                                                           make LAB_FIGHTER=FIGHTER, build_lab_FIGHTER/ + lab-FIGHTER.neo)
 
 1. The link: every .p2bankN section of build/rom.elf is whole in the .neo's P region at MB 1 + N (Geolith: bank N =
@@ -15,8 +15,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 args = sys.argv[1:]
 lab = args[args.index('--lab') + 1] if '--lab' in args else None
 if lab: del args[args.index('--lab'):args.index('--lab') + 2]
+shell = '--shell' in args                                            # the Character Lab's shell: make LAB_SHELL=1
+if shell: args.remove('--shell')                                     # (build_shell/ + lab-shell.neo; its slot = bank N)
 game = args[0] if args else os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
-BUILD, NEO = (f'build_lab_{lab}', f'lab-{lab}.neo') if lab else ('build', 'brawler.neo')
+BUILD, NEO = (f'build_lab_{lab}', f'lab-{lab}.neo') if lab else ('build_shell', 'lab-shell.neo') if shell else ('build', 'brawler.neo')
 sys.path.insert(0, os.path.join(HERE, '..', '..', 'hardware', 'neocart', 'pboard'))
 import pboard_flash
 

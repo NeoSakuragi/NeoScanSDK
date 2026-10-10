@@ -22,6 +22,10 @@ object Native {
     @JvmStatic external fun flushSaves()
     /** soft reset (the core's retro_reset: the BIOS boots the cart again, NVRAM / memory card kept); emu thread */
     @JvmStatic external fun reset()
+    /** the Character Lab: the character pack at [path] (tools/brawler/lab_pack.py) into the loaded shell, then a reset
+     *  (the shell boots into the practice with that fighter); emu thread, between frames; 0 = swapped, < 0 refused
+     *  (pack_swap.h NGPK_*: e.g. -4 a pack for another shell), the ROM unchanged. Not called by the UI yet. */
+    @JvmStatic external fun swapPack(path: String): Int
     /** feedback capture into [dir] (press.state, snap_<frame>.state, inputs.bin: see player.c); emu thread, between
      *  frames; returns {window start frame, press frame} or null */
     @JvmStatic external fun feedback(dir: String): LongArray?

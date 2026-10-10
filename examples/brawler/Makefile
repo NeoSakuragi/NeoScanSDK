@@ -11,9 +11,42 @@ ifneq ($(LAB_FIGHTER),)
 BUILD    = build_lab_$(LAB_FIGHTER)
 ROM_NAME = lab-$(LAB_FIGHTER)
 endif
-# every Lab build (LAB_FIGHTER or LAB_SHELL) compiles the practice mode in (main.c "PRACTICE MODE"): -DLAB_BUILD=1; the
+# the Character Lab's shell and packs (Bruno 2026-10-10: "one lab build and two exported data sets, two characters we could
+# dynamically swap"; docs/feedback.md "Character Lab: shell and packs"): the game with one more roster fighter, the SLOT
+# (the last index; build_tables.py add_slot), whose data sits in fixed regions: its first-MB tables in .labslot (linked
+# at LABSLOT_AT), its banked tables in a P2 bank of its own, its tiles in a block of export_bm.SLOT_TILES, its voices in a
+# V area + driver records of their own (build_snd.py), its HUD face in the S ROM. make LAB_SHELL=1 -> lab-shell.neo
+# (build_shell/, the slot = SHELL_SLOT, so it boots into the practice with him); make LAB_PACK=<f> -> packs/<f>.pack +
+# .json (build_pack_<f>/: the same game with <f> in the slot; tools/brawler/lab_pack.py takes the slot's regions and
+# refuses a pack whose bytes differ from the shell's anywhere else, or that overflows a region). Lab-only builds.
+SHELL_SLOT = robert
+LABSLOT_AT = 0xE0000                       # .labslot: $E0000-$FFFFF (lab_pack.py LABSLOT_SIZE)
+LAB_SHELL ?=
+LAB_PACK ?=
+SLOT =
+ifneq ($(LAB_SHELL),)
+SLOT = $(SHELL_SLOT)
+endif
+ifneq ($(LAB_PACK),)
+SLOT = $(LAB_PACK)
+endif
+ifneq ($(SLOT),)
+ifeq ($(SLOT),$(SHELL_SLOT))
+BUILD    = build_shell
+ROM_NAME = lab-shell
+else
+BUILD    = build_pack_$(SLOT)
+ROM_NAME = pack-$(SLOT)
+endif
+export BRAWLER_SLOT = $(SLOT)
+SLOT_CFLAGS = -DLAB_SHELL=1
+SLOT_LDFLAGS = --section-start=.labslot=$(LABSLOT_AT)
+else
+unexport BRAWLER_SLOT
+endif
+# every Lab build (LAB_FIGHTER, LAB_SHELL or LAB_PACK) compiles the practice mode in (main.c "PRACTICE MODE"): -DLAB_BUILD=1; the
 # Player's game 0 (none of that code is in it)
-LAB_BUILD = $(if $(LAB_FIGHTER)$(LAB_SHELL),1,0)
+LAB_BUILD = $(if $(LAB_FIGHTER)$(LAB_SHELL)$(LAB_PACK),1,0)
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
@@ -24,13 +57,17 @@ STAGE ?= 0                # the stage the fight starts on (stage.h stages[], too
 # -fno-store-merging (TODO #177): GCC 15's store merging joins byte stores at an odd offset into one word / long move
 # (clr.w 97(a2)) even under -m68000 -mstrict-align; a real 68000 takes an address error there (an odd word access)
 VERSION := $(shell cat VERSION)
-CFLAGS += -DGAME_VERSION='"$(VERSION)"'
+CFLAGS += -DGAME_VERSION='"$(VERSION)"' $(SLOT_CFLAGS)
 
+ifneq ($(LAB_PACK),)
+all: packs/$(LAB_PACK).pack
+else
 all: $(ROM_NAME).zip
+endif
 
 # --- The game's data: game.json (docs/brawler_data_model.md) -> build/roster.json (the fighter export's inputs, rewritten
 # only when they change) and build/game_tables.c / .h (stages, waves, enemies, AI presets, select slots, unlocks) ---
-CHARS := $(shell python3 $(TOOLS)/brawler/build_tables.py chars game.json)   # the roster's bank specs, bm_chars order
+CHARS := $(shell BRAWLER_SLOT=$(SLOT) python3 $(TOOLS)/brawler/build_tables.py chars game.json)   # the roster's bank specs, bm_chars order
 $(BUILD)/roster.json: game.json $(TOOLS)/brawler/build_tables.py
 	@mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/build_tables.py roster game.json $@
@@ -67,7 +104,7 @@ $(BUILD)/font.s1 $(BUILD)/hud.h &: $(TOOLS)/brawler/make_hud.py $(BUILD)/roster.
 # fighters' voices the ROM maps (build/voice_map.json, game.json roster[].voices) from their games' V ROMs
 SND_TOOLS = $(addprefix $(TOOLS)/port/,build_snd.py port98.py ff3_notes.py snk_notes.py) $(TOOLS)/kof98snd/games98.py
 $(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h &: songs.json $(SND_TOOLS) $(BUILD)/voice_map.json $(TOOLS)/brawler/voices.json
-	python3 $(TOOLS)/port/build_snd.py songs.json $(CURDIR)/$(BUILD)/snd
+	python3 $(TOOLS)/port/build_snd.py songs.json $(CURDIR)/$(BUILD)/snd --map $(CURDIR)/$(BUILD)/voice_map.json
 
 # --- Compile ---
 $(BUILD)/stage_opt: FORCE                  # the -D options of the last build (STAGE, AI_OFF, PROFILE): every object is rebuilt
@@ -99,7 +136,7 @@ $(BUILD)/draw.o: draw.s
 
 # --- Link ---
 $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars_b.o $(BUILD)/bm_spec_b.o $(BUILD)/bm_bank.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a
-	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
+	$(LD) -T $(SDK)/boot/neoscan.ld $(SLOT_LDFLAGS) -o $@ $^
 
 # --- Package ROM ---
 $(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/rom_c1.bin $(BUILD)/font.s1 $(BUILD)/snd/m1.bin
@@ -109,11 +146,16 @@ $(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/rom_c1.bin $(BUILD)/font.s1 $(BUILD)/
 clean:
 	rm -rf $(BUILD) $(ROM_NAME).zip $(ROM_NAME).neo roms/ hash/
 
+# --- a character pack (make LAB_PACK=<f>): the shell first (its own make), then the slot's regions of this build ---
+packs/$(LAB_PACK).pack: $(ROM_NAME).zip FORCE
+	$(MAKE) LAB_SHELL=1 LAB_PACK=
+	python3 $(TOOLS)/brawler/lab_pack.py make $(LAB_PACK) --shell build_shell lab-shell.neo --build $(BUILD) $(ROM_NAME).neo -o packs/$(LAB_PACK).pack
+
 .PHONY: all clean publish publish-vps bump FORCE
 
 # --- publish for the Android player's auto-fetch: brawler.neo + latest.json (build number, size, sha256) into DEST ---
 publish: $(ROM_NAME).zip
-	@test -z "$(LAB_FIGHTER)" || (echo "a Lab build is never the Player's game"; exit 1)
+	@test -z "$(LAB_FIGHTER)$(SLOT)" || (echo "a Lab build is never the Player's game"; exit 1)
 	@test -n "$(DEST)" || (echo "make publish DEST=<dir served to the phone>"; exit 1)
 	mkdir -p $(DEST)
 	cp $(ROM_NAME).neo $(DEST)/$(ROM_NAME).neo.tmp && mv $(DEST)/$(ROM_NAME).neo.tmp $(DEST)/$(ROM_NAME).neo
@@ -124,7 +166,7 @@ publish: $(ROM_NAME).zip
 APK = ../../android/app/build/outputs/apk/debug/app-debug.apk
 APKVER = $(shell sed -n 's/.*versionName = "\(.*\)".*/\1/p' ../../android/app/build.gradle.kts)   # the player's own version, not the game's
 publish-vps: $(ROM_NAME).zip
-	@test -z "$(LAB_FIGHTER)" || (echo "a Lab build is never the Player's game"; exit 1)
+	@test -z "$(LAB_FIGHTER)$(SLOT)" || (echo "a Lab build is never the Player's game"; exit 1)
 	../../tools/brawler/publish_vps.sh $(ROM_NAME).neo $(VERSION)   # the game only: the player is published on its own (publish_vps.sh --apk-only)
 
 # --- version (VERSION, 0.0.1 style, shown on the title screen): make bump = last number + 1 ---

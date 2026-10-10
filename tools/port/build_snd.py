@@ -2,7 +2,8 @@
 """The brawler's sound ROMs from its song manifest: KOF98's sound driver (SNK v1.7) with only the songs the game plays,
 and a V ROM with only the samples those songs and the game's sound effects use.
 
-    python3 build_snd.py MANIFEST.json OUT_DIR      -> OUT_DIR/m1.bin, v1.bin, songs.h, snd_report.json
+    python3 build_snd.py MANIFEST.json OUT_DIR [--map VOICE_MAP.json]   -> OUT_DIR/m1.bin, v1.bin, songs.h, snd_report.json
+                                                    (--map: the voice map of that build, else the manifest's)
 
 Manifest (examples/brawler/songs.json):
     {"driver": "kof98",
@@ -149,6 +150,11 @@ MAKOTO = {'kof94': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2}, recs=[0x3E73, 0x4973, 0
           'kof95': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4}, recs=[0x425B, 0x4D5B, 0x5850, 0x6350, 0x6B90], onebyte=0x73F4)}
 PREFIX_SLOT = {0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4, 0x17: 5, 0x16: 6, 0x1D: 7}   # KOF98 $0D7B: effect prefix -> slot
 VOICE_PRIO = 0x50                                         # KOF98's voice records (110 of slot 2's 223 used ones)
+# the Character Lab's shell (examples/brawler/Makefile LAB_SHELL / LAB_PACK; voice_map's entry with slot_of): the slot
+# fighter's voices take fixed codes and a fixed V area, whoever fills the slot: voice id i -> code SLOT_CODE0 + i - 1 of the
+# overflow pair (| $100 in voices.h), its samples back to back in SLOT_V bytes from the first 1 MB boundary past every
+# other sample (placed last, after the ports), the codes it does not use emptied with their enable bits cleared
+SLOT_NV, SLOT_CODE0, SLOT_V = 48, 0xC0, 0x80000
 
 def voices(t, man, mdir, out):
     """the fighters' voices (TODO #55): only the ones the ROM's voice tables map (export_bm.py build/voice_map.json, from
@@ -174,6 +180,11 @@ def voices(t, man, mdir, out):
     for sl in sum((s_ for s_, _ in groups[1:]), []):      # the overflow slots: KOF98's records there go unused (the
         assert all(t.m1[A_TABLES[sl] + 6 * c + 1:A_TABLES[sl] + 6 * c + 5] == bytes(4) for c in range(0x11, CODES)), sl   # build emptied them)
     for f in vmap:
+        if f.get('slot_of'):                              # the shell's slot: fixed codes, placed last (slot_voices)
+            assert cfg.get('overflow') and f is vmap[-1], 'the slot: the overflow pair, the last fighter'
+            codes[f['name']] = [0] + [(SLOT_CODE0 + i - 1) | 0x100 for i in range(1, SLOT_NV + 1)]
+            rep['slot'] = {'fighter': f['slot_of'], 'ids': f['ids'], 'voices': bank.get(f['slot_of'], {'voices': []})}
+            continue
         fb = bank.get(f['name'], {'voices': []}); game = fb.get('game')
         codes[f['name']] = [0] * (len(fb['voices']) + 1)
         for i in f['ids']:
@@ -215,9 +226,48 @@ def voices(t, man, mdir, out):
         h.write('#define VOICE_CODES { ' + ', '.join(f'vcode_{k}' for k in range(len(vmap))) + ' }\n')
         h.write('#define VOICE_NCODES { ' + ', '.join(str(len(codes[f['name']])) for f in vmap) + ' }\n#endif\n')
     rep['samples'] = len(placed)
+    if 'slot' in rep:                                     # the slot's codes: past every other voice's
+        assert g == len(groups) - 1 and nxt <= SLOT_CODE0 and SLOT_CODE0 + SLOT_NV <= CODES, (g, hex(nxt))
+        assert not any((sl, c) in t.keep_a for sl in groups[-1][0] for c in range(SLOT_CODE0, SLOT_CODE0 + SLOT_NV))
+        rep['slot'].update(slots=groups[-1][0], enable=[t.w(0x2E20 + 2 * sl) for sl in groups[-1][0]])
     print(f"voices: {len(placed)} samples, {rep['bytes'] // 1024} KB, codes $11-${nxt - 1:02X} in slots {slots}"
           + (f" (after slots {groups[0][0]} full)" if g else ''), flush=True)
     return rep
+
+def slot_voices(t, S):
+    """the shell's slot (SLOT_NV, SLOT_CODE0, SLOT_V): its samples in their own V area (from the first 1 MB boundary past
+    every other sample), a record per voice in both overflow slots, the enable bits of its codes; -> the regions the
+    pack carries (lab_pack.py): {'v': [start, size], 'm': [[start, end), ...], ...}"""
+    old = bytes(roms(KOF98)[0])
+    at0 = ((len(t.v) >> 8) + MB - 1) // MB * MB            # in 256-byte pages
+    t.v += bytes((at0 << 8) - len(t.v)); t.v += bytes(SLOT_V)
+    at = at0; srcv = {}; used = 0
+    for sl, bits in zip(S['slots'], S['enable']):          # every slot code empty, its bit cleared
+        for c in range(SLOT_CODE0, SLOT_CODE0 + SLOT_NV):
+            t.m1[A_TABLES[sl] + 6 * c:A_TABLES[sl] + 6 * c + 6] = EMPTY_A
+            t.m1[bits + c // 8] &= ~(0x80 >> (c % 8)) & 0xFF
+    for i in S['ids']:
+        assert 1 <= i <= SLOT_NV, f"the slot ({S['fighter']}): voice id {i}, the shell keeps {SLOT_NV}"
+        vo = S['voices']['voices'][i - 1]; assert vo['id'] == i
+        game = S['voices']['game']; st, en = vo['segments'][0]; n = en - st + 1
+        if game not in srcv: srcv[game] = roms(f'/data/roms/{game}.neo')[1] if game != 'kof98' else t.v_src
+        if at // MB != (at + n - 1) // MB: at = (at // MB + 1) * MB   # (ADPCM-A: never across 1 MB)
+        assert (at + n) << 8 <= (at0 << 8) + SLOT_V, f"the slot ({S['fighter']}): its voices pass the {SLOT_V} bytes kept"
+        t.v[at << 8:(at + n) << 8] = srcv[game][st << 8:(en + 1) << 8]
+        pre = int(vo['cmd'][:2], 16); code = int(vo['cmd'][2:], 16); sl0 = PREFIX_SLOT.get(pre)
+        prio = (old[SLOT7 + SLOT7_SIZE * code] if sl0 == 7 else old[A_TABLES[sl0] + 6 * code]) if game == 'kof98' and sl0 else VOICE_PRIO
+        c = SLOT_CODE0 + i - 1
+        for sl, bits in zip(S['slots'], S['enable']):
+            t.m1[A_TABLES[sl] + 6 * c:A_TABLES[sl] + 6 * c + 6] = bytes([prio]) + w16(at) + w16(at + n - 1) + bytes([vo['level']])
+            t.m1[bits + c // 8] |= 0x80 >> (c % 8)
+        at += n; used += n << 8
+    m = [[A_TABLES[sl] + 6 * SLOT_CODE0, A_TABLES[sl] + 6 * (SLOT_CODE0 + SLOT_NV)] for sl in S['slots']] + \
+        [[b + SLOT_CODE0 // 8, b + (SLOT_CODE0 + SLOT_NV + 7) // 8] for b in S['enable']]
+    out = {'fighter': S['fighter'], 'v': [at0 << 8, SLOT_V], 'v_used': used, 'm': m, 'codes': [SLOT_CODE0, SLOT_NV],
+           'voices': len(S['ids'])}
+    print(f"slot voices ({S['fighter']}): {len(S['ids'])} samples, {used} of {SLOT_V} bytes at V ${at0 << 8:X}, "
+          f"codes ${SLOT_CODE0:02X}-${SLOT_CODE0 + SLOT_NV - 1:02X} of slots {S['slots']}", flush=True)
+    return out
 
 def sfx_imports(t, slot, imports, rep):
     """sfx "from": each code plays another SNK 1.x driver game's effect: the source record (its prefix -> slot as KOF98's
@@ -260,8 +310,9 @@ def sfx_imports(t, slot, imports, rep):
         print(f"sfx ${c}: {f['game']} ${f['cmd']} (record ${tab + size * scode:04X} -> {rec.hex()}), {(en - st + 1) << 8} bytes", flush=True)
     return [(bits, bits + 32)]
 
-def build(manifest, out):
+def build(manifest, out, vmap=None):
     man = json.load(open(manifest))
+    if vmap: man['voices'] = dict(man['voices'], map=os.path.abspath(vmap))   # (the build's own: a Lab shell's)
     assert man['driver'] == 'kof98'
     t = Target(); m1 = t.m1; old = bytes(m1)
     music = games98.music_cmds(old)
@@ -348,6 +399,10 @@ def build(manifest, out):
         print(f"{s['name']}: {s['source']} ${s['cmd']} -> ${dst:02X} bank set {p.at[0]} at ${p.at[1]:04X}, tempo {p.T} x{p.k} "
               f"({p.report['tempo_error_pct']:+.2f} %), "
               f"{p.report['song_bytes']} bytes, {p.report['samples']['bytes'] // 1024} KB of samples", flush=True)
+    slot_rng = []                                         # 5a. the shell's slot voices: after everything else
+    if vrep and 'slot' in vrep:
+        rep['slot'] = vrep.pop('slot'); rep['slot'] = slot_voices(t, dict(rep['slot']))
+        slot_rng = [tuple(r) for r in rep['slot']['m']]
     # 5b. menu sounds: SSG cues on KOF98's generated-sound path (type 5), in the fixed area's free bytes
     cue_ranges, cue_cmds = [], {}
     if man.get('ssg'):
@@ -356,7 +411,7 @@ def build(manifest, out):
     # 6. the fixed 32 KB changed only where the build writes: sample tables, song pointers / bank bytes, $2440, cues
     ok = [(A_TABLES[sl], A_TABLES[sl] + 6 * A_RECS[sl]) for sl in range(7)] + [(SLOT7, SLOT7 + SLOT7_SIZE * CODES),
           (t.brecs, t.brecs + 13 * t.n_brecs), (0x329E, 0x329E + 2 * 0x60), (t.bt, t.bt + 0x60), (0x2440, 0x2442)] + \
-         [tuple(r) for r in (vrep or {}).get('enable_maps', [])] + cue_ranges + imp_ranges
+         [tuple(r) for r in (vrep or {}).get('enable_maps', [])] + cue_ranges + imp_ranges + slot_rng
     bad = [i for i in range(0x8000) if m1[i] != old[i] and not any(a <= i < b for a, b in ok)]
     assert not bad, f'fixed area changed outside the tables: {[hex(i) for i in bad[:8]]}'
     # 7. sizes, files
@@ -399,4 +454,7 @@ def build(manifest, out):
     return rep
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2])
+    a = sys.argv[1:]
+    vm = a[a.index('--map') + 1] if '--map' in a else None
+    if vm: del a[a.index('--map'):a.index('--map') + 2]
+    build(a[0], a[1], vm)

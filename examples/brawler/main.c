@@ -2791,7 +2791,12 @@ static void prac_flow(fighter_t *p) {                        /* lab_flow's pract
 }
 static void prac_boot(void) {                                /* power-on / a BIOS hand-over: the practice at once */
     prac_check();
+#ifdef LAB_SHELL                                             /* the Character Lab's shell / a pack: P1 = the slot fighter (the
+                                                                last roster index, the swapped-in pack's; Makefile LAB_SHELL) */
+    lab.fighter = BC_COUNT - 1;
+#else
     lab.fighter = bm_lab.fighter < BC_COUNT ? bm_lab.fighter : prac.fighter;
+#endif
     lab.dummy = prac.dummy;
     pm_nd = pm_mode = 0xFF;
     lab_start(1);
