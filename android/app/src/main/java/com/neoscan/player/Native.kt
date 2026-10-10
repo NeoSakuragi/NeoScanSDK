@@ -24,8 +24,13 @@ object Native {
     @JvmStatic external fun reset()
     /** the Character Lab: the character pack at [path] (tools/brawler/lab_pack.py) into the loaded shell, then a reset
      *  (the shell boots into the practice with that fighter); emu thread, between frames; 0 = swapped, < 0 refused
-     *  (pack_swap.h NGPK_*: e.g. -4 a pack for another shell), the ROM unchanged. Not called by the UI yet. */
+     *  (pack_swap.h NGPK_*: e.g. -4 a pack for another shell), the ROM unchanged. Called by [CharacterLab]. */
     @JvmStatic external fun swapPack(path: String): Int
+    /** the 68000 work RAM ($100000-$10FFFF, bytes in the 68000's order, as chainlab/lab.js sees it): [n] bytes at [addr];
+     *  null outside it or off the core's thread. Emu thread, between frames (Player 0.0.28, the Character lab) */
+    @JvmStatic external fun ramRead(addr: Int, n: Int): ByteArray?
+    /** [data] written at the 68000 address [addr]; false outside the RAM or off the core's thread. Emu thread, between frames */
+    @JvmStatic external fun ramWrite(addr: Int, data: ByteArray): Boolean
     /** feedback capture into [dir] (press.state, snap_<frame>.state, inputs.bin: see player.c); emu thread, between
      *  frames; returns {window start frame, press frame} or null */
     @JvmStatic external fun feedback(dir: String): LongArray?

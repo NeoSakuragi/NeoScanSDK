@@ -109,6 +109,19 @@ def regions(build):
     return out, facts, S
 
 
+def ram_map(build):
+    """the RAM the Player's Character lab reads / writes (the same bytes and addresses as chainlab/lab.js): the lab_t
+    mailbox (lab.js LAB offsets + harness LAB_FIELDS from offsetof), the practice block, P1's state byte and the neutral
+    states. The shell's code and RAM are every pack's (the engine fingerprint), so any of its packs carries the same."""
+    sys.path.insert(0, HERE)
+    import harness
+    B = os.path.join(GAME, build) if not os.path.isabs(build) else build
+    lay, _, states, y = harness._layout(GAME, B)
+    return {'base': 0x100000, 'lab': y['lab'], 'lab_off': {'magic': 0, 'fighter': 5, 'load': 7, 'active': 8},
+            'lab_fields': y['lab_fields'], 'prac': y.get('prac'), 'p1_state': y['fighters'] + lay['state'][0],
+            'state_size': lay['state'][1], 'neutral': [states.index('IDLE'), states.index('WALK')]}
+
+
 def check_fits(regs, facts):
     """a pack larger than the slot is refused (the exporters stop earlier on most: tiles, voices, retime rows)"""
     bad = [f"{r['rom']} {r['what']}: {r['used']:,} bytes, the slot keeps {r['size']:,}" for r in regs if r['used'] > r['size']]
@@ -214,6 +227,7 @@ def cmd_make(a):
                 'pieces': os.path.relpath(pieces, REPO) if os.path.exists(pieces) else None,
                 'piece_ids': json.load(open(ids)) if os.path.exists(ids) else None,
                 'face': f"/data/neogeo_dict/portraits/{r['bank'].replace(':', '_')}.png",
+                'ram': ram_map(a.shell[0]),
                 'regions': [{k: v for k, v in x.items()} for x in regs]}
     blob = build_pack(a.fighter, regs, pack_d, pack_l, pack_sizes, manifest)
     os.makedirs(os.path.dirname(os.path.abspath(a.o)), exist_ok=True)

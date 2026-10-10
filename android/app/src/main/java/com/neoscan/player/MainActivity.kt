@@ -136,6 +136,7 @@ class MainActivity : Activity() {
         })
         feedback = Feedback(this, rom) { emu }
         testMode = TestMode(this, root, { emu }, feedback, rom) { refreshBadge() }
+        lab = CharacterLab(this, root, { emu }, ::playRom) { playRom(rom) }
         pad = PadView(this, ::openSettings, ::chooseUpdate, { emu?.resetReq = true }, ::onFeedback, ::openList) { m -> touchMask = m; pushPads() }
         root.addView(gl, android.widget.FrameLayout.LayoutParams(-1, -1))
         root.addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
@@ -162,6 +163,18 @@ class MainActivity : Activity() {
         pollUpdates()
         refreshBadge()
         root.post { showTip() }                                    // 0.0.26: once, after the first layout (the picture's place)
+        if (admin && intent.getBooleanExtra("lab", false)) root.post { openLab() }   // adb: --ez lab true
+    }
+
+    /** CHARACTER LAB (0.0.28, admin): the faces screen; the core switches to the Lab shell when a fighter is picked */
+    var lab: CharacterLab? = null
+    private fun openLab() { if (!admin) return; if (testMode?.active == true) testMode?.end(); lab?.open() }
+    /** the core on another ROM (the Lab shell, or the game again): the process's emulation thread is replaced (claim:
+     *  the old one stops and lets the core go first), the picture and the pad stay */
+    private fun playRom(rom: File) {
+        val g = game ?: return
+        game = arrayOf(g[0], g[1], rom)
+        claimEmu(); emu?.paused = held()
     }
 
     /** take the process's emulation thread (a new one, or the live one handed over from another MainActivity of this
@@ -182,12 +195,14 @@ class MainActivity : Activity() {
         if (noteOpen || !admin) return
         val q = testQueue(); val d = openDecisions()
         val list = { f: String? -> startActivity(android.content.Intent(this, FeedbackListActivity::class.java).apply { if (f != null) putExtra("filter", f) }) }
-        if ((q.isEmpty() && d == 0) || testMode?.active == true) { list(null); return }
+        if (testMode?.active == true) { list(null); return }
+        val inLab = lab?.active == true
         emu?.paused = true                                         // 0.0.22: his notes, or the test queue; 0.0.24: the decisions
         val items = ArrayList<Pair<String, () -> Unit>>()
         if (d > 0) items.add("Decisions ($d): pictures waiting for your answer" to { list("decisions") })
         items.add("My notes" to { list(null) })
-        if (q.isNotEmpty()) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
+        if (q.isNotEmpty() && !inLab) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
+        items.add((if (inLab) "Character lab: the faces" else "Character lab: fighters + live config") to { openLab() })   // 0.0.28
         android.app.AlertDialog.Builder(this).setTitle("Feedback")
             .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
             .setOnDismissListener { if (testMode?.active != true) emu?.paused = held() }.show()
@@ -240,7 +255,7 @@ class MainActivity : Activity() {
     private lateinit var root: android.widget.FrameLayout
     private var noteOpen = false                                       // the scribble + note box is up: the game stays paused
     private var tipOpen = false                                        // the first-launch tip is up: the game stays paused
-    private fun held() = noteOpen || tipOpen                           // what keeps the game paused once a dialog closes
+    private fun held() = noteOpen || tipOpen || lab?.facesShown == true   // what keeps the game paused once a dialog closes
     private var sheet: Sheet? = null
     private var pending: android.graphics.Bitmap? = null               // the screenshot, if it came before the sheet
     private fun onFeedback(down: Boolean) {
@@ -450,6 +465,7 @@ class MainActivity : Activity() {
         val sh = sheet
         if (sh != null) { if (feedback.recording) feedback.stop(); feedback.cancel(); sh.close() }
         else if (testMode?.active == true) testMode?.end()
+        else if (lab?.active == true) lab?.back()
         else @Suppress("DEPRECATION") super.onBackPressed()
     }
     private fun toast(t: String) = android.widget.Toast.makeText(this, t, android.widget.Toast.LENGTH_SHORT).show()
@@ -561,11 +577,11 @@ class MainActivity : Activity() {
     }
 
     /** the game pauses (picture, sound, emulation) whenever the activity is not in front: settings, home, screen off */
-    override fun onPause() { super.onPause(); emu?.paused = true; if (::gl.isInitialized) gl.onPause() }
-    override fun onResume() { super.onResume(); applySettings(); if (game != null && !isFinishing && !restarting) claimEmu(); emu?.paused = held() || testMode?.active == true; if (::gl.isInitialized) gl.onResume(); refreshBadge()
+    override fun onPause() { super.onPause(); emu?.paused = true; lab?.paused = true; if (::gl.isInitialized) gl.onPause() }
+    override fun onResume() { super.onResume(); applySettings(); if (game != null && !isFinishing && !restarting) claimEmu(); emu?.paused = held() || testMode?.active == true || lab?.facesShown == true; lab?.paused = false; if (::gl.isInitialized) gl.onResume(); refreshBadge()
         if (admin) localTest()
         if (admin) TestQueue.pending?.let { q -> TestQueue.pending = null; testMode?.let { if (it.active) it.end(); it.start(q) } } }
-    override fun onDestroy() { polling = false; EmuThread.release(this); super.onDestroy() }
+    override fun onDestroy() { polling = false; lab?.stop(); EmuThread.release(this); super.onDestroy() }
 
     /** the notification OK asked before the self-update (PlayerUpdate): granted or not, the install goes on */
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {

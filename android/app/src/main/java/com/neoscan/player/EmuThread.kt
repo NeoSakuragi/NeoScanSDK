@@ -14,7 +14,7 @@ import java.nio.ByteOrder
  *  rate follows the emulation speed (rate * frames per second / the core's own fps), nudged by the buffer fill so the
  *  queue stays near [TARGET_MS]: a ~1% pitch change at 60 Hz, inaudible. The picture is swapped into [front] for the
  *  GL thread. */
-class EmuThread private constructor(private val sysDir: String, private val saveDir: String, private val rom: String,
+class EmuThread private constructor(private val sysDir: String, private val saveDir: String, val rom: String,
                 private val hints: android.os.PerformanceHintManager?, val hw: String,
                 @Volatile var onFrame: () -> Unit, @Volatile var onError: (String) -> Unit,
                 private var prev: EmuThread?) : Thread("emu") {
@@ -81,6 +81,7 @@ class EmuThread private constructor(private val sysDir: String, private val save
                 val px = IntArray(Native.width() * Native.height()); Native.screenshot(px)
                 done(r, px, Native.width(), Native.height()) }
             stateReq?.let { (f, done) -> stateReq = null; done(Native.loadState(f.absolutePath)) }   // a test scenario (0.0.22)
+            hook?.invoke(this)                                          // the Character lab (0.0.28): RAM loads, pack swaps
             if (paused && !stepOne) {
                 if (!flushed) { Native.flushSaves(); flushed = true }   // Android may kill the app any time now
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) { track.pause(); track.flush(); written = 0; started = false }
@@ -130,6 +131,9 @@ class EmuThread private constructor(private val sysDir: String, private val save
         const val TARGET_MS = 60
         private const val TAG = "NeoScanPlayer"
         private var live: EmuThread? = null
+        /** run on the emulation thread between frames (also while paused): the Character lab's RAM writes / reads and
+         *  pack swaps (CharacterLab.tick, Player 0.0.28); it checks which ROM the thread runs */
+        @Volatile var hook: ((EmuThread) -> Unit)? = null
         /** TODO #183: ONE emulation thread per process. Right after a reinstall MainActivity can start twice in one
          *  process; each started its own EmuThread and two threads ran the core at once (a crash in the 68k core). Now
          *  every activity claims the process's thread: a live one for the same game + system is handed over (its

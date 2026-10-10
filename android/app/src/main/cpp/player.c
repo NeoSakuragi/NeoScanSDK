@@ -243,7 +243,7 @@ JNIEXPORT void JNICALL Java_com_neoscan_player_Native_reset(JNIEnv *env, jclass 
 /* the Character Lab's pack swap (tools/brawler/chainlab/pack_swap.c, the web core's same path): the character pack at
  * path (tools/brawler/lab_pack.py) into the loaded shell (lab-shell.neo), then a reset (the shell boots into the
  * practice with the new slot fighter). Emulation thread, between frames. 0 = swapped; < 0 = refused (pack_swap.h
- * NGPK_*, logged), the ROM unchanged. Not wired to the UI yet (the Character lab's catalogue poll will call it). */
+ * NGPK_*, logged), the ROM unchanged. Called by the Character lab (CharacterLab.kt, Player 0.0.28). */
 uint8_t *retro_neoscan_rom(int region, size_t *size);   /* geolith libretro.c */
 JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_swapPack(JNIEnv *env, jclass cls, jstring jpath) {
     const char *p; FILE *f; uint8_t *buf = NULL; long n = 0; int e = NGPK_SHORT;
@@ -260,6 +260,32 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_swapPack(JNIEnv *env, jcla
     free(buf);
     (*env)->ReleaseStringUTFChars(env, jpath, p);
     return e;
+}
+
+/* the Character Lab (Player 0.0.28): the 68000 work RAM ($100000, 64 KB, bytes in the 68000's order: the same view as
+ * the web core's wc_ram, chainlab/lab.js r8 / wbytes), read / written between frames on the emulation thread.
+ * ramRead: n bytes at the 68000 address addr (null outside the RAM or off the core's thread); ramWrite: 1 = written */
+#define RAM_BASE 0x100000u
+static uint8_t *ram_at(jint addr, jint n) {
+    uint8_t *ram = retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM);
+    size_t size = retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM);
+    if (!mine() || !ram || n < 0 || (uint32_t)addr < RAM_BASE || (size_t)((uint32_t)addr - RAM_BASE) + (size_t)n > size) return NULL;
+    return ram + ((uint32_t)addr - RAM_BASE);
+}
+JNIEXPORT jbyteArray JNICALL Java_com_neoscan_player_Native_ramRead(JNIEnv *env, jclass cls, jint addr, jint n) {
+    uint8_t *p = ram_at(addr, n); jbyteArray out;
+    (void)cls;
+    if (!p) return NULL;
+    out = (*env)->NewByteArray(env, n);
+    (*env)->SetByteArrayRegion(env, out, 0, n, (const jbyte *)p);
+    return out;
+}
+JNIEXPORT jboolean JNICALL Java_com_neoscan_player_Native_ramWrite(JNIEnv *env, jclass cls, jint addr, jbyteArray data) {
+    jint n = (*env)->GetArrayLength(env, data); uint8_t *p = ram_at(addr, n);
+    (void)cls;
+    if (!p) return JNI_FALSE;
+    (*env)->GetByteArrayRegion(env, data, 0, n, (jbyte *)p);
+    return JNI_TRUE;
 }
 
 static int write_file(const char *path, const void *data, size_t n) {

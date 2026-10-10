@@ -615,7 +615,8 @@ LAB pack: 32,036 / 111,362 / 7,842 tiles / 19 voices (158,208 bytes).
   `lab_pack.py info PACK`, `lab_pack.py apply SHELL.neo PACK OUT.neo` (what a swap gives).
 - Manifest (inside the pack and beside it): fighter, display, bank, `engine` = `<VERSION>-<shell fingerprint>` (sha256 of the
   shell with every slot region zeroed: any pack built against that shell carries the same), the slot (id, P2 bank), the
-  constants the pages need (pool, specials, nvoice, LAB special), usage per region, the piece registry
+  constants the pages need (pool, specials, nvoice, LAB special), `ram` (Player 0.0.28, `lab_pack.ram_map`: the shell's
+  `lab` mailbox + lab.js's offsets + the Try-in-game fields, `prac`, P1's state byte, the neutral states), usage per region, the piece registry
   (`arb_pieces/<f>_ids.json`), the face's PNG, each region's offset / size / sha256.
 - The swap: `tools/brawler/chainlab/pack_swap.c` (one C path): checks the whole pack (magic, version, the ROM sizes = the
   loaded shell's, every region in bounds) then copies each region into Geolith's ROM buffers (P word-swapped as Geolith
@@ -623,7 +624,7 @@ LAB pack: 32,036 / 111,362 / 7,842 tiles / 19 voices (158,208 bytes).
   fighter. Geolith decodes / caches nothing from its ROMs (tiles, ADPCM, the M ROM's banks are read as they are), so no
   invalidation is needed; its only change is `retro_neoscan_rom(region, &size)` (libretro.c). Callers: the wasm core
   `wc_swap_pack(ptr, n)` (+ `wc_rom`, `wc_rom_size` for the proofs), the Player `Native.swapPack(path)` (JNI in
-  player.c, not wired to the UI yet).
+  player.c; the Player's Character lab, below).
 - Publish: `labpub.py publish-shell examples/brawler/lab-shell.neo --engine <engine>` and
   `labpub.py publish-pack <f> examples/brawler/packs/<f>.pack --engine <engine>` (the engine string from the pack's .json).
 
@@ -635,3 +636,32 @@ P1 = Kim with his frames, face and name, chain 6 hits, his C special ([2]8C, spe
 animation, step, x, height, the dummy's life and state, 226 frames) to the same run with the roster's own Robert / Kim.
 The normal build (`make`) is byte-identical to before.
 Published 2026-10-10 to the catalogue (engine 0.10.23-70201b3a0953): shell 20261010-000745, packs robert 20261010-000752 and kim 20261010-000757 (faces included). The web "Try in game" panel still loads rom/lab-robert.neo (the LAB_FIGHTER build); it can move to the shell + a pack (wc_swap_pack; P1 = index 25, lab.json of build_shell) when the Player's Character lab does.
+
+## Character Lab: the Player (0.0.28)
+
+`android/.../CharacterLab.kt`, admin only: the list button's menu has "Character lab" (also `adb shell am start -n
+com.neoscan.player/.MainActivity --ez lab true`).
+
+- **Faces:** `GET catalogue` -> each pack's face (pixel-exact), name, pack version, the shell version. A tap downloads the
+  shell (once) and the pack into `files/lab/<sha256>.neo|.pack` (Range resume, size + sha256 checked as RomFetch does),
+  switches the core to the shell (`MainActivity.playRom`: the process's emulation thread is replaced) and swaps the pack in
+  at once (`Native.swapPack`, the shell resets into the practice with him). Another face = another swap, no reboot.
+  "Leave the lab" = the core back on brawler.neo. The practice menu is the game's START.
+- **Live config:** every 2 s `GET config/<f>/hash` + `GET catalogue`, both with If-None-Match (304 = nothing). A new hash
+  -> `GET config/<f>`; its blob is written between frames (`EmuThread.hook`, `Native.ramWrite`) exactly as lab.js
+  `installTry` does (tblob, lstat 0, tnow 0, "LAB1", fighter, load 6), once `lab.active` = 1 (after every boot / swap it
+  is written again). The blob's fighter byte is set to the pack's slot id (P1 in the shell). The RAM addresses come from
+  the pack's manifest `ram` (a pack without it: configs off, said on the strip).
+- **New versions:** a newer pack of the fighter on screen (or a newer shell, if his pack for it is published) is
+  downloaded, then loaded when P1 is next in neutral (`ram.p1_state` in `ram.neutral`), or at once on the badge's tap.
+- **Strip** (inside the picture, its bottom edge): a light + a word label: green IN SYNC rN, blinking amber NEW CONFIG rN:
+  applies at neutral (lstat 2), a white / green flash APPLIED rN (lstat 1), red REFUSED rN: why (lstat 0x80 | n), grey NO
+  LIVE CONFIG / OFFLINE; a blue badge NEW PACK / NEW SHELL <version> (tap: now); buttons Apply now (lab.tnow = 1 while
+  pending) and Faces.
+
+Proven 2026-10-10 in AVD JanusPhone (brawler-test, role set to admin locally, then back to viewer), screenshots
+`/data/feedback/proof_0028/`: the faces; Robert in the practice (shell 20261010-002046 + his pack); swapped to Kim without
+a reboot; `labcfg.py put kim` r1-r4 (r2 / r4 = a looping 214B queue so P1 is never neutral): r3 amber pending, Apply now
+-> APPLIED flash -> green; a new Kim pack published -> blue badge, waits while P1 is busy, tap -> swapped, the config
+written again after the reset. Poll traffic over ~4 min: 170 x 304, 12 x 200 (the changes), 44 x 404 (Robert had no
+config), 0 errors. The test configs and pack versions were removed afterwards.
