@@ -604,7 +604,7 @@ def compile_timing(f, ans, new, G, game, build='build'):
     CLj = json.load(open(os.path.join(game, build, 'chainlab.json')))
     L = next((x for x in CLj['fighters'] if x['name'] == f), None)
     if not L: return {}, [], [f'chain timing: {f} is not in {build}/chainlab.json']
-    rules = G['chain']; n = rules['lengths'][new.get('archetype', 'balanced')]
+    rules = G['chain']; n = (new.get('chain') or {}).get('length') or rules['lengths'][new.get('archetype', 'balanced')]   # (chain.length: the fighter's own)
     hs_now = list(L['tree']['chain']['hitstop'])
     bad, said, ch = [], [], {}
     th = t.get('hitstop') or {}
