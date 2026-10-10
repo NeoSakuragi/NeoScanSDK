@@ -316,7 +316,7 @@
    "archetype": "fast",
    "moves": {"atk_cd_close": "$15C", "atk_ab_far": "$114", "atk_ab_close": "$15D"},
    "retime": {"atk_a_far": [8, 1, 16]},
-   "chain": {"links": ["atk_a_far", "atk_a_close", "atk_b_far"], "length": 4},
+   "chain": {"links": ["atk_a_far", "atk_a_close", "atk_b_far"], "length": 4, "hitstop": [57, 8, 10, 12]},
    "finishers": {"launcher": "up", "down": "sweep", "neutral": "atk_ab_far", "forward": "body_toss", "up": "atk_ab_close"},
    "specials": {"D": "63214BCD", "fD": "6321S", "dD": null, "uD": null, "dfD": null, "ufD": null},
    "blitz": {"dd": "WFT"},
