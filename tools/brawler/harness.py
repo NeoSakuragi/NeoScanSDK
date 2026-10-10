@@ -108,10 +108,10 @@ class _Core:
 class Brawler:
     _core = None                                     # one core per process (libretro cores are global)
 
-    def __init__(self, rom=None, game=GAME, tick_sync=False, options=None):
+    def __init__(self, rom=None, game=GAME, tick_sync=False, options=None, build='build'):
         self.rom = rom or os.path.join(game, 'brawler.neo')
-        self.layout, self.fsize, self.states, self.syms = _layout(game)
-        m = re.search(r'#define SEL_NSLOT (\d+)', open(os.path.join(game, 'build', 'game_tables.h')).read())
+        self.layout, self.fsize, self.states, self.syms = _layout(game, build)   # (build: build_lab_<f> for a Lab build)
+        m = re.search(r'#define SEL_NSLOT (\d+)', open(os.path.join(game, build, 'game_tables.h')).read())
         self.nslot = int(m.group(1)) if m else 16              # select slots (game.json select.slots)
         os.makedirs(WORK, exist_ok=True)
         self.pad = [set(), set()]; self.frame = 0; self.hits = []; self._video = None

@@ -20,18 +20,27 @@
   // "Try in game" / the live config (fighter.h lab_t load 6 = a TRY blob, LE_*, LS_*; fighter.c "Lab: try in game"):
   // entries, the slots in LS_* order (= the arbitration sheet's ids, arbitrage.js), lab.lstat's checks
   const LE_SPEC = 0x1000, LE_THROW = 0x2000, LE_NONE = 0xFFFF, LQ_MAX = 32, LO_MAX = 8, LQ_LOOP = 1, LQ_NOW = 2;
-  const TRY_VERSION = 1, TRY_MAX = 576;
+  const TRY_VERSION = 2, TRY_MAX = 1024, LS_KNOB = 0x80, LS_QUEUE = 0xFE, KN_MAX = 32;   // (fighter.h; a blob without knobs stays version 1)
   const LAB_SLOTS = ['fin_fwd', 'fin_up', 'fin_down', 'fin_df', 'fin_back', 'bz_ff', 'bz_dd', 'bz_uu', 'bz_du',
     'air_bz_ff', 'air_bz_dd', 'air_bz_uu', 'air_bz_du', 'sp_c', 'sp_fc', 'sp_dc', 'air_sp_c', 'air_sp_fc', 'air_sp_dc',
     'air_a', 'air_da', 'grab_hit', 'grab_fin', 'grab_fwd', 'grab_back', 'fury', 'max'];
   const LSTAT = ['', 'an animation this build lacks (not its LAB fighter, or no such $NN)', 'a special the pool lacks',
     'a throw the fighter lacks', 'a throw outside a grab slot (or not its first entry)', 'a list too long',
-    'not a TRY blob of version 1', 'the blob runs past its room', 'no such slot'];
+    'not a TRY blob of version 1 / 2', 'the blob runs past its room', 'no such slot',
+    'a knob this build does not know (not in its catalogue: arb_pieces "knobs")'];
+  /* PIECE KNOBS (tools/brawler/knobs.py, arb_pieces/<f>.json "knobs"; fighter.c "knobs"): a knob's value -> the engine rows
+     it gives, THE formula (knobs.py knob_rows): val = round(base * value / default) for each of its rows */
+  function knobRows(k, value) {
+    return k.rows.map(r => ({ kind: r.kind, a: r.a, match: r.match, val: Math.round(r.base * value / k.default) }));
+  }
   /* THE encoder of the live config (the pages, the server under Node and whatever feeds the Player send these bytes):
-     {fighter: bm_chars index, queue: [LE_* words], loop, now, slots: {LAB_SLOTS id: [LE_* words]}} -> a TRY blob,
-     version 1, big-endian (fighter.h lab_t): [0] 'L' [1] 'T' [2] 1 [3] fighter [4] LQ_* [5] qn [6] ns [7] 0, the qn
-     queue entries (u16), then ns slot records [slot][n][n entries u16], in LAB_SLOTS order. A slot left out (or empty)
-     plays the game's own move; an empty queue = none. Throws on what the game would refuse for its shape. */
+     {fighter: bm_chars index, queue: [LE_* words], loop, now, slots: {LAB_SLOTS id: [LE_* words]},
+     knobs: [{slot: LAB_SLOTS id | 'queue', spec: pool index, kind, a, match, val}]} -> a TRY blob, big-endian (fighter.h
+     lab_t): [0] 'L' [1] 'T' [2] version [3] fighter [4] LQ_* [5] qn [6] ns [7] 0, the qn queue entries (u16), then ns
+     records: the slots [slot][n][n entries u16] in LAB_SLOTS order, then one per knob row [LS_KNOB][6][slot][spec][kind]
+     [a][match i32][val i32] (version 2; without knobs version 1, the same bytes as before knobs). A slot left out (or
+     empty) plays the game's own move; an empty queue = none. Throws on what the game would refuse for its shape (the
+     game also checks each knob row against its own catalogue and clamps its value). */
   function encodeTry(cfg) {
     const q = cfg.queue || [], slots = cfg.slots || {}, out = [];
     if (!(cfg.fighter >= 0 && cfg.fighter < 255)) throw new Error('fighter ' + cfg.fighter);
@@ -39,12 +48,21 @@
     for (const k of Object.keys(slots)) if (!LAB_SLOTS.includes(k)) throw new Error('unknown slot ' + k);
     const w16 = v => { if (!(v >= 0 && v <= 0xFFFF) || v === LE_NONE) throw new Error('entry ' + v); out.push(v >> 8, v & 0xFF); };
     const used = LAB_SLOTS.filter(k => slots[k] && slots[k].length);
-    out.push(76, 84, TRY_VERSION, cfg.fighter, (cfg.loop ? LQ_LOOP : 0) | (cfg.now ? LQ_NOW : 0), q.length, used.length, 0);
+    const kn = cfg.knobs || [];
+    if (kn.length > KN_MAX) throw new Error(`${kn.length} knob rows (at most ${KN_MAX})`);
+    out.push(76, 84, kn.length ? TRY_VERSION : 1, cfg.fighter, (cfg.loop ? LQ_LOOP : 0) | (cfg.now ? LQ_NOW : 0), q.length, used.length + kn.length, 0);
     q.forEach(w16);
     for (const k of used) {
       const l = slots[k];
       if (l.length > LO_MAX) throw new Error(`${k}: ${l.length} entries (at most ${LO_MAX})`);
       out.push(LAB_SLOTS.indexOf(k), l.length); l.forEach(w16);
+    }
+    const w32 = v => { v = Math.round(v); if (!(v >= -0x80000000 && v <= 0x7FFFFFFF)) throw new Error('knob value ' + v); out.push((v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255); };
+    for (const r of kn) {
+      const sl = r.slot === 'queue' ? LS_QUEUE : LAB_SLOTS.indexOf(r.slot);
+      if (sl < 0) throw new Error('knob: unknown slot ' + r.slot);
+      if (!(r.spec >= 0 && r.spec < 255 && r.kind >= 1 && r.kind <= 4)) throw new Error('knob row ' + JSON.stringify(r));
+      out.push(LS_KNOB, 6, sl, r.spec, r.kind, r.a || 0); w32(r.match || 0); w32(r.val);
     }
     if (out.length > TRY_MAX) throw new Error(`${out.length} bytes (at most ${TRY_MAX})`);
     return Uint8Array.from(out);
@@ -561,7 +579,7 @@
      once the last builder has started (the finisher's press), nothing once the finisher started */
   function autoKeys(i, starts, N, stick, done) { return done ? '' : (starts >= N - 1 ? stick : '') + (i % 2 ? '' : 'a'); }
 
-  const api = { encodeTry, tryLength, liveBlob, liveParts, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  const api = { encodeTry, tryLength, knobRows, LS_KNOB, LS_QUEUE, KN_MAX, liveBlob, liveParts, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);

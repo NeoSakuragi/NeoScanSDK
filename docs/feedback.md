@@ -706,3 +706,51 @@ strip in the left gutter. The same r9 bytes through the Player's path on the was
 pack): route_tab[25] = lab.buf, the chain plays differently (7 -> 5 hits). The test configs were removed afterwards (the
 config directory was empty before); not exercised: a real feedback note from the lab (the meta path is built, no note
 was sent).
+
+## Character Lab: piece knobs and the token-free sheet (2026-10-10)
+
+Bruno: "each special move comes with its key params and default values, adjustable in the Assembly; clearly surface
+where values are overridden and offer going back to default". The decode side (tokens) finds the knobs, the Assembly
+tunes them (no tokens), the compiler ships them (no tokens).
+
+- **The catalogue is data** (`tools/brawler/knobs.py`, run by `arb_compile.py pieces <f>`): `arb_pieces/<f>.json`
+  `"knobs": {S- id: [{id, name, unit, default, min, max, step, rows, from, judgment}]}`, read by the pages (Workshop
+  JSON `specials[].knobs`), the compiler and `build_tables.py`; a knob a later decode adds needs no code change. Today
+  (KOF fighters, from `handlers98.export_rom`): Travel speed (the piece's own P_SET vx with a move op), Rise speed (its
+  P_SET vy with a fall op), Dive speed (a 45-degree vx / vy pair), Projectile speed (its travelling object's px a frame),
+  Projectile hits (an uncounted object), Damage %. Ranges: speeds 1 .. 3x default (at least default + 3), integers by 1
+  when the default is one (0.25 steps otherwise); hits 1-10; damage 10-300 % by 10. One formula turns a value into
+  engine rows: `val = round(base * value / default)` (knobs.py `knob_rows` = lab.js `knobRows`).
+- **The game** (fighter.h `gknob_t` / `gkcat_t`, fighter.c "knobs"): rows {slot, pool special, kind, a, match, val}
+  per SLOT (the same piece on three slots at three values). KN_SET: the P_SET of register a whose value is `match`
+  plays `val`; KN_PSPEED: its travelling objects' rows (x from row 0, rounded) and wrap scaled val / 256; KN_PHITS: they
+  hit val times (KN_STOP 4 frames apart when the data has no stop; the hits before the last reel the victim standing,
+  KOF's counted-object rule); KN_DMG: its hits' damage x val / 256. Two sources, one path: the shipped rows
+  `gknob_rom[fighter]` (game.json `roster[].knobs`) and, for P1 while the Lab drives it, the TRY blob's rows (the whole
+  config: the shipped rows are not read then). The catalogue `gkcat_rom[fighter]` (the build's own bounds) is the
+  gate: a TRY blob's knob row it lacks is refused (lstat `0x80 | 9`), a value past its bounds is clamped. No row = the
+  game as before: the normal build's attract trace is identical to the build without knobs (7651 / 7651 ticks; only
+  the power-on sample differs, an uninitialised word).
+- **The TRY blob v2** (`lab.js encodeTry`, `knobs: [...]`): knob records ride as slot records `[0x80][6][slot][spec]
+  [kind][a][match i32][val i32]` (slot 0xFE = the Try queue), so a v1 reader (the Player's `liveParts`) walks over
+  them; a blob without knobs keeps version 1, byte for byte. TRY_MAX 1024 in the game (the Player 0.0.29 still refuses
+  a live config over 576 bytes: about 30 knob rows on a full sheet).
+- **The pages**: `knobui.js` (one panel): under each picked S- piece of a sheet slot (`arbitrage.js`, saved in the slot's
+  answer `knobs`) and under each unlocked special in the Workshop (saved as `knobs-<S- id>` in `<f>-workshop`, the Try
+  queue's values); steppers + slider + number, the default and range written out; an override = bold value, "changed
+  from N", a solid 3 px border, "Back to default"; "Reset all knobs" per piece, per slot, for the sheet. The decisions
+  service keeps `knobs` ({S- id: {knob: number}}, shape only).
+- **The sheet is token free** (Bruno 2026-10-10, binding): no note box, no mic, no "Done — send to Claude". Each slot has
+  "Ask in the Workshop" (workshop.html with `ask=<piece>&text=<the slot, its pieces>`: the request pre-filled in that
+  piece's thread, the Workshop keeps its mic); the page ends with **Ship to game** (admin): POST `lab/ship/<f>` naming
+  the live config's revision ("queued: the compiler builds, checks every slot and publishes, or says why it refused").
+  Old notes stay in `<f>-arb` on the server, never shown or read; `arb_compile.py` no longer makes a typed note
+  unresolved (an undecoded pick says "unlock it in the Workshop").
+- **Ship** (`arb_compile.py`): the slot answers' knobs -> `roster[].knobs` `{slot: {S- id: {knob: value}}}` (defaults
+  left out; only slots in `knobs.SHIP_SLOTS`: the C specials, the Blitz, the air specials). A knob the catalogue lacks,
+  a value out of range, a slot that cannot ship: REFUSED before anything is written. Then build + bank_proof + the slot
+  check + `knob_check` (each knob measured in our emulator: projectile px a frame, its hits, the P_SET value seen in the
+  fighter's speed, damage against the same move with no knob); any failure: game.json and brawler_gold.md restored, the
+  game rebuilt from them, the reason printed, exit 2.
+- Proofs: `tools/brawler/knobs_proof.py` (Lab build, TRY blob by lab.js), `chainlab/knobs_page_proof.js` (420 px, stub
+  service), screens and logs in `/data/tmp/knobs/`.

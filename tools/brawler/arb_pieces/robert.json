@@ -3,7 +3,7 @@
  "bank": "kof98:robert",
  "game": "kof98",
  "dictionary": "KOF98 (id 7, animation table $203902 in bank 2: 512 slots, 433 distinct animations, 79 unused slots without steps left out)",
- "about": "arb_compile.py piece library: per animation id (the dictionary's, = the sheet's pieces) its brawler move names (names), the specials whose program plays it (specials; decoded ones in \"specials\" below), hop_of (a later state of a hop: not playable alone), state (what anim_specials \"$NN\" address), anim_special (the reaction when played as an animation special: known = linkable, class c) and note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has implemented (the same pieces + note are not listed again; a changed answer is). Regenerated from the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand are kept.",
+ "about": "arb_compile.py piece library: per animation id (the dictionary's, = the sheet's pieces) its brawler move names (names), the specials whose program plays it (specials; decoded ones in \"specials\" below), hop_of (a later state of a hop: not playable alone), state (what anim_specials \"$NN\" address), anim_special (the reaction when played as an animation special: known = linkable, class c) and note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has implemented (the same pieces + note are not listed again; a changed answer is). knobs: {S- id: [knob]} each decoded special's key parameters (tools/brawler/knobs.py: id, name, unit, the ROM default, min / max / step, the engine rows a value gives, from, judgment). Regenerated from the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand are kept.",
  "spare_names": [
   "atk_cd_close",
   "atk_ab_far",
@@ -3287,5 +3287,723 @@
    "names": [],
    "specials": []
   }
+ },
+ "knobs": {
+  "S-001": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 10,
+    "min": 1,
+    "max": 30,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 655360,
+      "base": 655360
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vx 10.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 11,
+    "min": 1,
+    "max": 33,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 720896,
+      "base": 720896
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vy 11.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-002": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 1.75,
+    "min": 1,
+    "max": 5.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 114688,
+      "base": 114688
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 1.75 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 6,
+    "min": 1,
+    "max": 18,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 393216,
+      "base": 393216
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 6.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-003": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 8.75,
+    "min": 1,
+    "max": 26.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 573440,
+      "base": 573440
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 8.75 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 8.5,
+    "min": 1,
+    "max": 25.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 557056,
+      "base": 557056
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 8.5 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-004": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 2.5,
+    "min": 1,
+    "max": 7.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 163840,
+      "base": 163840
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 2.5 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 10,
+    "min": 1,
+    "max": 30,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 655360,
+      "base": 655360
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 10.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-005": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 4,
+    "min": 1,
+    "max": 12,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 262144,
+      "base": 262144
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 4.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 4.5,
+    "min": 1,
+    "max": 13.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 294912,
+      "base": 294912
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 4.5 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-006": [
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 7,
+    "min": 1,
+    "max": 21,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": false,
+    "from": "its object's rows: x +7 px a frame (handlers98 object_rows)"
+   },
+   {
+    "id": "hits",
+    "name": "Projectile hits",
+    "unit": "hits",
+    "default": 1,
+    "min": 1,
+    "max": 10,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 3,
+      "a": 0,
+      "match": 0,
+      "base": 1
+     }
+    ],
+    "judgment": false,
+    "from": "its object: one hit ends it (KOF +$138 not counted)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-007": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 8,
+    "min": 1,
+    "max": 24,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 524288,
+      "base": 524288
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 8.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 1,
+    "min": 1,
+    "max": 4,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 65536,
+      "base": 65536
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 1.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-008": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-009": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 10,
+    "min": 1,
+    "max": 30,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 655360,
+      "base": 655360
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vx 10.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 11,
+    "min": 1,
+    "max": 33,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 720896,
+      "base": 720896
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vy 11.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-010": [
+   {
+    "id": "dive",
+    "name": "Dive speed",
+    "unit": "px/frame",
+    "default": 10,
+    "min": 1,
+    "max": 30,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 463410,
+      "base": 463410
+     },
+     {
+      "kind": 1,
+      "a": 1,
+      "match": -463410,
+      "base": -463410
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 7.0711 / vy -7.0711 (its polar speed, 10.00 px a frame at 45 degrees)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 10,
+    "min": 1,
+    "max": 30,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 655360,
+      "base": 655360
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 10.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-011": [
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 4,
+    "min": 1,
+    "max": 12,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": false,
+    "from": "its object's rows: x +4 px a frame (handlers98 object_rows)"
+   },
+   {
+    "id": "hits",
+    "name": "Projectile hits",
+    "unit": "hits",
+    "default": 1,
+    "min": 1,
+    "max": 10,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 3,
+      "a": 0,
+      "match": 0,
+      "base": 1
+     }
+    ],
+    "judgment": false,
+    "from": "its object: one hit ends it (KOF +$138 not counted)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-012": [
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 7,
+    "min": 1,
+    "max": 21,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": false,
+    "from": "its object's rows: x +7 px a frame (handlers98 object_rows)"
+   },
+   {
+    "id": "hits",
+    "name": "Projectile hits",
+    "unit": "hits",
+    "default": 1,
+    "min": 1,
+    "max": 10,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 3,
+      "a": 0,
+      "match": 0,
+      "base": 1
+     }
+    ],
+    "judgment": false,
+    "from": "its object: one hit ends it (KOF +$138 not counted)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-013": [
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 16,
+    "min": 1,
+    "max": 48,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": false,
+    "from": "its object's rows: x +16 px a frame (handlers98 object_rows)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ]
  }
 }

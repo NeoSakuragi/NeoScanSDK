@@ -37,7 +37,7 @@ BANK = 0x100000; BANK_CAP = BANK - 16    # a P2 bank (its last 16 bytes: the ban
 # the tables indexed by fighter (bm_chars order): the slot's element of each (export_bm.py, build_tables.py, make_hud.py)
 SLOT_ARRAYS = ['bm_chars', 'bm_seg', 'bm_air', 'bm_hsnd', 'bm_xthr', 'bm_hspark', 'bm_head', 'bm_bank', 'ai_ready',
                'gblitz_rom', 'gblitz_can', 'grun_bob', 'grun_dash', 'gfury_area', 'gwalk_rom', 'pb_of_fighter',
-               'roster_unlock', 'dtier_rom', 'portrait_pal']
+               'roster_unlock', 'dtier_rom', 'portrait_pal', 'gknob_rom', 'gkcat_rom']
 WHOLE = ['bm_lab']                       # the Lab build's LAB special (its fighter: the slot's, or none)
 GRETIME_ROW, SLOT_RT_ROWS = 8, 16        # gretime_t; build_tables.py SLOT_RT_ROWS (before the 0xFF row)
 FIX_TILE = 32                            # S ROM bytes a fix tile

@@ -123,7 +123,8 @@ def page_data(f, D, lib, reg, classes):
         specials.append({'id': i, 'input': inp, 'name': reg['pieces'][i]['name'] if i else piece_ids.special_name(inp, D),
                          'air': bool(s['air']), 'decoded': bool(s['decoded']), 'anims': anims, 'projectile': pr,
                          'source': s.get('source'), 'what': what_it_does(anims, Dby, classes, game, pr), 'keys': keys,
-                         'pending': bool(s['decoded'] and not i)})
+                         'pending': bool(s['decoded'] and not i),
+                         'knobs': (lib.get('knobs') or {}).get(i, []) if i else []})   # its key parameters (knobs.py)
     specials.sort(key=lambda x: (x['id'] is None, x['id'] or '', x['input']))
     throws, seen = [], set()
     for mv, aid in piece_ids.decoded_throws(lib):

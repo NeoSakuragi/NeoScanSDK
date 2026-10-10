@@ -809,6 +809,8 @@ def tables(g, build):
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_rows(g, build)) + '\n};')
     c.append('const uint8_t gblitz_can[BC_COUNT][4] = {\n' + ',\n'.join(
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_cancels(g)) + '\n};')
+    import knobs                                         # piece knobs (fighter.c "knobs"): shipped rows + the catalogue
+    c += knobs.c_tables(g, build, SLOT_SEC)
     c += run_bobs(g)
     jp = g['jump']                                       # the one jump (Cody's Final Fight arc, gamedata.h gjump_t)
     for k in jp: assert k in JUMP_KEYS, f'jump: unknown field {k}'

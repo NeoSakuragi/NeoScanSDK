@@ -7,9 +7,12 @@
  * "Lab: try in game"): an animation $NN, a special of the pool (an S- piece), a throw (a T- piece).
  *   TryIt.has(f)                        -> Promise<bool>: a Lab build of f exists
  *   TryIt.button(f, label, fn)          a "Try in game" button (hidden while f has no Lab build), fn() on click
- *   TryIt.queue(f, pieces, {loop})      a TRY blob (load 6): the pieces back to back, now; A from neutral again
- *   TryIt.sheet(f, {slots, chain})      a TRY blob: each arbitration slot's pieces (slot id: arbitrage.js) + the chain's
- *                                       presses as a chain override (load 5) when every press is a brawler move
+ *   TryIt.queue(f, pieces, {loop, knobs})  a TRY blob (load 6): the pieces back to back, now; A from neutral again
+ *   TryIt.sheet(f, {slots, chain, knobs})  a TRY blob: each arbitration slot's pieces (slot id: arbitrage.js) + the
+ *                                       chain's presses as a chain override (load 5) when every press is a brawler move
+ *   knobs (PIECE KNOBS, tools/brawler/knobs.py): {slot id | 'queue': {S- id: {knob id: value}}}, the values of the
+ *                                       pieces' knobs (review/<f>_workshop.json specials[].knobs) -> the blob's knob rows
+ *                                       (version 2; lab.js knobRows); a value equal to its default is not sent
  *   pieces: '$A9' / 'A9' (an animation), 'S-004' (a special), 'T-001' (a throw: a grab slot only)
  * SEND TO PLAYER (the Character Lab, docs/feedback.md "Character Lab: the web pages"): the same TRY blob (lab.js encodeTry,
  * the bytes the preview installs) PUT as the fighter's live config (feedback-api/lab/config/<f>, If-Match = the hash this
@@ -197,6 +200,26 @@
     if (!/^[0-9A-F]+$/.test(x) || !c.man.anims.includes(x)) throw new Error('$' + x + ': not an animation of the Lab build');
     return parseInt(x, 16);
   }
+  // the knobs' values -> encodeTry's knob rows ({slot, spec, kind, a, match, val}); bad: what was left out, why
+  function knobsOf(c, knobs) {
+    const rows = [], bad = [];
+    for (const [sl, per] of Object.entries(knobs || {})) {
+      if (sl !== 'queue' && !CL().LAB_SLOTS.includes(sl)) { bad.push('knobs: ' + sl + ' (no such slot)'); continue; }
+      for (const [pid, vals] of Object.entries(per || {})) {
+        const w = c.W && (c.W.specials || []).find(x => x.id === pid);
+        const k = w ? c.man.pool.indexOf(w.input) : -1;
+        if (k < 0) { bad.push(`knobs: ${pid} (not in the Lab build's pool)`); continue; }
+        for (const [kid, v] of Object.entries(vals || {})) {
+          const d = (w.knobs || []).find(x => x.id === kid);
+          if (!d) { bad.push(`knobs: ${pid} has no knob "${kid}"`); continue; }
+          if (v === d.default) continue;
+          for (const r of CL().knobRows(d, Math.min(d.max, Math.max(d.min, v)))) rows.push(Object.assign({ slot: sl, spec: k }, r));
+        }
+      }
+    }
+    if (rows.length > CL().KN_MAX) { bad.push(`knobs: ${rows.length} rows, the game holds ${CL().KN_MAX}: the last left out`); rows.length = CL().KN_MAX; }
+    return { rows, bad };
+  }
   function describe(e, c) {
     c = c || S;
     if (e & 0x2000) return 'throw ' + (c.man.throws[e & 0xFF] || e & 0xFF);
@@ -216,9 +239,9 @@
   }
   function applyQueue() {
     const w = S.what;
-    send({ queue: w.entries, now: true, loop: w.loop });
+    send({ queue: w.entries, now: true, loop: w.loop, knobs: w.knobs || [] });
     settle(2);
-    nowText(`Queue: ${w.entries.map(e => describe(e)).join(' > ')}${w.loop ? ' (loop)' : ''}. It plays now; A from neutral plays it again.`);
+    nowText(`Queue: ${w.entries.map(e => describe(e)).join(' > ')}${w.loop ? ' (loop)' : ''}${w.knobs && w.knobs.length ? ', ' + w.knobs.length + ' knob row(s)' : ''}. It plays now; A from neutral plays it again.`);
   }
 
   // ---- what a queue / a sheet is in TRY terms (the preview and the Send build the same cfg from these) ----------------
@@ -268,8 +291,9 @@
   async function queue(f, pieces, opt) {
     await ensure(f); err('');
     try {
-      const entries = queueEntries(S, pieces);
-      S.what = { kind: 'queue', entries, loop: (opt && opt.loop !== undefined) ? !!opt.loop : loopOn() };
+      const entries = queueEntries(S, pieces), kn = knobsOf(S, opt && opt.knobs);
+      if (kn.bad.length) err('Knobs left out: ' + kn.bad.join('; '));
+      S.what = { kind: 'queue', entries, loop: (opt && opt.loop !== undefined) ? !!opt.loop : loopOn(), knobs: kn.rows };
       if (S.lab.stateName(0) !== 'IDLE' && S.lab.stateName(0) !== 'WALK') { S.lab.request(2); S.gp.stepFrames(1); }
       applyQueue();
     } catch (e) { err('Not played: ' + e.message); }
@@ -277,14 +301,15 @@
   async function sheet(f, sh) {
     await ensure(f); err('');
     try {
-      const { slots, bad } = sheetSlots(S, sh);
+      const { slots, bad } = sheetSlots(S, sh), kn = knobsOf(S, sh.knobs);
+      bad.push(...kn.bad);
       clearAll();
-      send({ slots }); settle(2);
+      send({ slots, knobs: kn.rows }); settle(2);
       const ch = chainOf(S, sh.chain);
       if (ch.bytes) { S.lab.installChain(S.man.id, ch.bytes); S.gp.stepFrames(1); S.chainPushed = true; }
-      S.what = { kind: 'sheet', slots };
+      S.what = { kind: 'sheet', slots, knobs: kn.rows };
       const names = Object.keys(slots);
-      nowText(`Sheet: ${names.length} slot${names.length === 1 ? '' : 's'} set (${names.map(k => k + ' = ' + slots[k].map(e => describe(e)).join(' > ')).join('; ') || 'none'}); ${ch.text}${ch.bytes ? ' (pushed, load 5)' : ''}.` +
+      nowText(`Sheet: ${names.length} slot${names.length === 1 ? '' : 's'} set (${names.map(k => k + ' = ' + slots[k].map(e => describe(e)).join(' > ')).join('; ') || 'none'}); ${kn.rows.length ? kn.rows.length + ' knob row(s); ' : ''}${ch.text}${ch.bytes ? ' (pushed, load 5)' : ''}.` +
         (bad.length ? ' Left out: ' + bad.join('; ') + '.' : ''));
     } catch (e) { err('Not applied: ' + e.message); }
   }
@@ -340,16 +365,18 @@
       const prev = (L.rec && L.rec.json && L.rec.json.lab_try) || {};
       let tryBlob, chain, tj = prev.try || null, cj = prev.chain || null, said;
       if (what.queue) {
-        const entries = queueEntries(c, what.queue), loop = !!what.loop;
-        tryBlob = CL().encodeTry({ fighter: c.man.id, queue: entries, now: true, loop });
+        const entries = queueEntries(c, what.queue), loop = !!what.loop, kn = knobsOf(c, what.knobs);
+        if (kn.bad.length) throw new Error(kn.bad.join('; '));
+        tryBlob = CL().encodeTry({ fighter: c.man.id, queue: entries, now: true, loop, knobs: kn.rows });
         chain = cur && cur.chain && cur.tryBlob[3] === c.man.id ? cur.chain : null;
-        tj = { kind: 'queue', pieces: what.queue.map(String), loop };
+        tj = Object.assign({ kind: 'queue', pieces: what.queue.map(String), loop }, what.knobs ? { knobs: what.knobs } : {});
         said = `the queue ${entries.map(e => describe(e, c)).join(' > ')}${loop ? ' (loop)' : ''}` + (chain ? ', the live chain kept' : '');
       } else if (what.sheet) {
-        const { slots, bad } = sheetSlots(c, what.sheet), ch = chainOf(c, what.sheet.chain);
-        tryBlob = CL().encodeTry({ fighter: c.man.id, slots });
+        const { slots, bad } = sheetSlots(c, what.sheet), ch = chainOf(c, what.sheet.chain), kn = knobsOf(c, what.sheet.knobs);
+        bad.push(...kn.bad);
+        tryBlob = CL().encodeTry({ fighter: c.man.id, slots, knobs: kn.rows });
         chain = ch.bytes;
-        tj = Object.assign({ kind: 'sheet', slots: what.sheet.slots || {} }, bad.length ? { left_out: bad } : {});
+        tj = Object.assign({ kind: 'sheet', slots: what.sheet.slots || {} }, what.sheet.knobs ? { knobs: what.sheet.knobs } : {}, bad.length ? { left_out: bad } : {});
         cj = ch.bytes ? { kind: 'sheet', presses: what.sheet.chain, text: ch.text } : null;
         said = `the sheet, ${Object.keys(slots).length} slot${Object.keys(slots).length === 1 ? '' : 's'}; ${ch.text}` + (bad.length ? '; left out: ' + bad.join('; ') : '');
       } else if (what.chain) {
@@ -453,6 +480,6 @@
     has(f).then(ok => { if (ok) pair.hidden = false; });
     return pair;
   }
-  window.TryIt = { has, button, queue, sheet, entry: (p, c) => entry(p, c), show, send: sendTo, liveLine, loop: loopOn, ctx: ctxOf };
+  window.TryIt = { has, button, queue, sheet, knobsOf: (c, k) => knobsOf(c, k), entry: (p, c) => entry(p, c), show, send: sendTo, liveLine, loop: loopOn, ctx: ctxOf };
   window.tryit = { get state() { return S; }, get lab() { return S.lab; }, get gp() { return S.gp; }, ready: false, get live() { return LV; } };
 })();

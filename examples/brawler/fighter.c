@@ -614,6 +614,8 @@ static uint8_t node_special(fighter_t *f, uint8_t node, uint8_t how) {
 /* a route's next node: B's is a jump-cancel (its node waits for A in the air), a back throw (RF_THROW) grabs, a special
  * (RF_SPECIAL: a named special finisher) plays free, any other starts now */
 static uint8_t lab_fin(fighter_t *f, const rnode_t *prev, uint8_t b);   /* ("Lab: try in game") */
+static uint8_t pend_kslot = 0xFF;  /* the sheet slot the next start_special plays from (its knobs: a lab entry, a Blitz, an
+                                      air special; 0xFF: knob_slot by its role) */
 static uint8_t lab_on;                                           /* a lab queue or slot override set ("Lab: try in game") */
 static void route_go(fighter_t *f, const rnode_t *prev, uint8_t node, uint8_t b, const intent_t *in, uint8_t how) {
     const rnode_t *c = NODE(f, node);
@@ -646,6 +648,8 @@ static uint8_t blitz_go(fighter_t *f, uint8_t slot, uint8_t how) {
     if (v >= f->ch->nspec || !f->ch->specials[v].nrows) return 0;
     if (f->ch->specials[v].proj && f->shot) return 0;            /* (a projectile while its own flies: none, special_pick's rule) */
     lab_note(f, LE_SPECIAL, 0, how, BS_BLITZ);
+    { static const uint8_t BZ_KS[BZ_COUNT] = { LS_BZ_FF, LS_BZ_DD, LS_BZ_DU, LS_BZ_UU };   /* (gamedata.h BZ_* order) */
+      pend_kslot = BZ_KS[slot]; }                                /* its knobs: the sheet's Blitz slot */
     f->spec_ix = v; start_special(f, BS_BLITZ); f->blz_slot = slot;
     return 1;
 }
@@ -1374,6 +1378,7 @@ static uint16_t lab_q[LQ_MAX], lab_ov[LS_COUNT][LO_MAX];
 static uint8_t lab_qn, lab_qf, lab_qgo;                  /* the queue, its LQ_* flags, LQ_NOW still to start */
 static const uint16_t *lab_seq;                          /* the list playing (0: none): its entries, the next one, */
 static uint8_t lab_si, lab_sn, lab_sloop, lab_role;      /* its length, loop, the role its entries play as */
+static uint8_t lab_ks = LS_QUEUE;                        /* the slot the list playing came from (its knobs; LS_QUEUE) */
 static uint16_t lab_find(uint16_t id) {                  /* $NN -> the LAB special's animation index, 0xFFFF: none */
     uint16_t j;
     for (j = 0; j < bm_lab.n; j++) if (bm_lab.ids[j] == id) return j;
@@ -1387,16 +1392,95 @@ static uint8_t lab_bad(uint16_t e, uint8_t c, uint8_t grab) {   /* entry e for f
     return c != bm_lab.fighter || lab_find(e) == 0xFFFF ? 1 : 0;
 }
 #define TB16(i) ((uint16_t)lab.tblob[i] << 8 | lab.tblob[(i) + 1])   /* the blob's big-endian words */
+/* the TRY blob's knob rows (fighter.c "knobs"), P1's while lab_on, grouped by slot and special as knob_find reads them
+ * (a row goes in after the last one of its own slot and special, else at the end) */
+static gknob_t lab_kn[KN_MAX + 1];
+static uint8_t lab_kn_n;
+#define TB32(r) ((int32_t)((uint32_t)(r)[0] << 24 | (uint32_t)(r)[1] << 16 | (uint32_t)(r)[2] << 8 | (r)[3]))
+static const gkcat_t *knob_cat(uint8_t c, const uint8_t *r) {   /* a blob's knob row -> its catalogue row (0: unknown) */
+    const gkcat_t *e;
+    int32_t m = TB32(r + 4);
+    for (e = gkcat_rom[c]; e->kind != KN_END; e++)
+        if (e->spec == r[1] && e->kind == r[2] && e->a == r[3] && e->match == m) return e;
+    return 0;
+}
+static void knob_take(uint8_t c, const uint8_t *r) {     /* [slot][spec][kind][a][match i32][val i32], big-endian */
+    uint8_t i, j = lab_kn_n;
+    const gkcat_t *e = knob_cat(c, r);
+    gknob_t k;
+    if (!e || lab_kn_n >= KN_MAX) return;                /* (lab_try_check refused those already) */
+    k.slot = r[0]; k.spec = r[1]; k.kind = r[2]; k.a = r[3]; k.match = TB32(r + 4); k.val = TB32(r + 8);
+    if (k.val < e->vmin) k.val = e->vmin;                /* clamped into the build's own bounds */
+    if (k.val > e->vmax) k.val = e->vmax;
+    for (i = 0; i < lab_kn_n; i++) if (lab_kn[i].slot == k.slot && lab_kn[i].spec == k.spec) j = i + 1;
+    for (i = lab_kn_n; i > j; i--) lab_kn[i] = lab_kn[i - 1];
+    lab_kn[j] = k; lab_kn_n++;
+}
+/* ---- knobs (Bruno 2026-10-10, fighter.h gknob_t; docs/feedback.md "Piece knobs") ------------------------------------------
+ * A special's start finds its rows: the slot it plays from (pend_kslot, else its role's: the C slots, the fury / MAX) and
+ * its pool index, in P1's TRY blob rows while the Lab drives P1 (lab_on: the whole config, the shipped rows not read),
+ * else in the fighter's shipped rows (gknob_rom). Then: P_SET (KN_SET), P_ANIM's damage (KN_DMG), its travelling objects
+ * at their spawn (KN_PSPEED, KN_PHITS, KN_DMG: fighter_t.kspd / khit). No row: nothing here runs past the test of kn_n. */
+static uint8_t knob_slot(const fighter_t *f, uint8_t k) {
+    static const uint8_t C_LS[BS_COUNT] = { LS_SP_C, LS_SP_FC, LS_SP_DC, LS_SP_C, LS_SP_C, LS_SP_C };   /* (up / down-forward /
+                                                                    up-forward + C: the sheet's "C in any other direction") */
+    if (k < BS_COUNT) return C_LS[k];
+    if (k == BS_FURY) return f->fmax ? LS_MAX : LS_FURY;
+    return 0xFF;                                                 /* (a finisher's special, the down attack, a throw's: none) */
+}
+static void knob_find(fighter_t *f, uint8_t k) {
+    const gknob_t *t = lab_on && !f->idx && !f->team ? lab_kn : gknob_rom[f->ch->id];
+    uint8_t s = pend_kslot != 0xFF ? pend_kslot : knob_slot(f, k);
+    pend_kslot = 0xFF; f->kn = 0; f->kn_n = 0;
+    for (; t->kind != KN_END; t++)
+        if (t->slot == s && t->spec == f->spec_ix) { if (!f->kn) f->kn = t; f->kn_n++; }
+        else if (f->kn) break;
+}
+static const gknob_t *knob_of(const fighter_t *f, uint8_t kind) {
+    uint8_t i;
+    for (i = 0; i < f->kn_n; i++) if (f->kn[i].kind == kind) return &f->kn[i];
+    return 0;
+}
+static int32_t knob_set(const fighter_t *f, uint8_t a, int32_t v) {   /* P_SET of register a, value v */
+    uint8_t i;
+    for (i = 0; i < f->kn_n; i++) if (f->kn[i].kind == KN_SET && f->kn[i].a == a && f->kn[i].match == v) return f->kn[i].val;
+    return v;
+}
+static uint8_t knob_dmg(const fighter_t *f, uint8_t d) {        /* a hit's damage under KN_DMG (never 0 from a hit, <= 255) */
+    const gknob_t *k = knob_of(f, KN_DMG);
+    uint32_t v;
+    if (!k || !d) return d;
+    v = ((uint32_t)d * (uint16_t)k->val + 128) >> 8;             /* (val <= the catalogue's bound, < 65536: mulu) */
+    return v < 1 ? 1 : v > 255 ? 255 : (uint8_t)v;
+}
+static void proj_row(fighter_t *p);
+static void knob_proj(fighter_t *p, const fighter_t *f) {        /* a travelling object f's special spawned */
+    const gknob_t *k;
+    if (!f->kn_n || p->pdef->kind != 1 || p->pdef->follow) return;
+    if ((k = knob_of(f, KN_PSPEED)) != 0) { p->kspd = (uint16_t)k->val; proj_row(p); }
+    if ((k = knob_of(f, KN_PHITS)) != 0) {
+        p->khit = (uint8_t)k->val; p->pcnt = k->val;
+        if (p->khit > 1) p->spec_react = (p->pdef->react & 0xF0) | R_HEAVY | 8;   /* the hits before the last keep the
+                                                                    victim standing and hittable (KOF's counted objects:
+                                                                    handlers98 counted_states' rule); the last: its own */
+    }
+    p->spec_dmg = knob_dmg(f, p->spec_dmg);
+}
 _Static_assert(TRY_MAX >= 8 + 2 * LQ_MAX + LS_COUNT * (2 + 2 * LO_MAX), "TRY_MAX");
 static uint8_t lab_try_check(void) {                     /* the TRY blob (fighter.h lab_t) -> 0 ok, else lstat's check */
     const uint8_t *t = lab.tblob;
-    uint8_t c = t[3] < BC_COUNT ? t[3] : 0, i, k, e, n;
+    uint8_t c = t[3] < BC_COUNT ? t[3] : 0, i, k, e, n, nk = 0;
     uint16_t at;
-    if (t[0] != 'L' || t[1] != 'T' || t[2] != TRY_VERSION || t[3] >= BC_COUNT) return 6;
-    if (t[5] > LQ_MAX || t[6] > LS_COUNT) return 5;
+    if (t[0] != 'L' || t[1] != 'T' || (t[2] != 1 && t[2] != TRY_VERSION) || t[3] >= BC_COUNT) return 6;
+    if (t[5] > LQ_MAX || t[6] > LS_COUNT + KN_MAX) return 5;
     for (i = 0; i < t[5]; i++) if ((e = lab_bad(TB16(8 + 2 * i), c, 0)) != 0) return e;
     for (at = 8 + 2 * t[5], k = 0; k < t[6]; k++) {
         if (at + 2 > TRY_MAX) return 7;
+        if (t[at] == LS_KNOB && t[2] == 2) {             /* a knob row (version 2): its slot, its pool special, its kind */
+            if (t[at + 1] != 6 || at + 14 > TRY_MAX) return 7;
+            if (++nk > KN_MAX || (t[at + 2] >= LS_COUNT && t[at + 2] != LS_QUEUE) || !knob_cat(c, t + at + 2)) return 9;
+            at += 14; continue;
+        }
         if (t[at] >= LS_COUNT) return 8;
         if ((n = t[at + 1]) > LO_MAX) return 5;
         if (at + 2 + 2 * n > TRY_MAX) return 7;
@@ -1424,10 +1508,15 @@ static void lab_try_apply(void) {                        /* the pending blob ins
     for (s = 0; s < LS_COUNT; s++) for (i = 0; i < LO_MAX; i++) lab_ov[s][i] = LE_NONE;
     for (i = 0; i < t[5]; i++) lab_q[i] = TB16(8 + 2 * i);
     lab_qn = t[5]; lab_qf = t[4]; lab_qgo = lab_qn && (lab_qf & LQ_NOW);
-    for (at = 8 + 2 * t[5], s = 0; s < t[6]; s++, at += 2 + 2 * n)
-        for (n = t[at + 1], i = 0; i < n; i++) lab_ov[t[at]][i] = TB16(at + 2 + 2 * i);
+    lab_kn_n = 0;
+    for (at = 8 + 2 * t[5], s = 0; s < t[6]; s++, at += 2 + 2 * n) {
+        n = t[at + 1];
+        if (t[at] == LS_KNOB) { knob_take(t[3], t + at + 2); continue; }   /* (version 2: lab_try_check let only those through) */
+        for (i = 0; i < n; i++) lab_ov[t[at]][i] = TB16(at + 2 + 2 * i);
+    }
+    lab_kn[lab_kn_n].kind = KN_END;
     for (n = 0, s = 0; s < LS_COUNT; s++) n |= lab_ov[s][0] != LE_NONE;
-    lab_on = lab_qn || n;
+    lab_on = lab_qn || n || lab_kn_n;
     lab.lstat = 1;
 }
 static uint8_t lab_entry(fighter_t *f, uint16_t e) {     /* entry e now -> 1 started */
@@ -1440,7 +1529,7 @@ static uint8_t lab_entry(fighter_t *f, uint16_t e) {     /* entry e now -> 1 sta
     if (e & LE_SPEC) { k = e & 0xFF; if (k >= f->ch->nspec || !f->ch->specials[k].nrows) return 0; }
     else { if (f->ch->id != bm_lab.fighter || (j = lab_find(e)) == 0xFFFF) return 0; k = bm_lab.spec; }
     lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, lab_role);
-    lab_ix = k; start_special(f, lab_role);
+    lab_ix = k; pend_kslot = lab_ks; start_special(f, lab_role);
     if (!(e & LE_SPEC)) f->pres = j << 2;                /* its animation's program block (4 ops each) */
     if (lab_role == BS_BLITZ) f->blz_slot = BZ_COUNT;    /* (no Blitz slot: no Blitz quirk) */
     if (lab_role < BS_COUNT && !f->team) { f->sinv = 1; f->inv = INV_FURY; }   /* a C slot's: invincible (cspecial) */
@@ -1458,6 +1547,7 @@ static uint8_t lab_slot(fighter_t *f, uint8_t s, uint8_t role) {   /* slot s's e
     uint8_t n = 0;
     if (lab_ov[s][0] == LE_NONE) return 0;
     while (n < LO_MAX && lab_ov[s][n] != LE_NONE) n++;
+    lab_ks = s;
     return lab_go(f, lab_ov[s], n, 0, role);
 }
 static uint8_t lab_next(fighter_t *f) {                  /* an entry ended: the list's next one now -> 1 */
@@ -1482,7 +1572,7 @@ static uint8_t lab_neutral(fighter_t *f, const intent_t *in) {
     static const uint8_t BZ_LS[BZ_COUNT] = { LS_BZ_FF, LS_BZ_DD, LS_BZ_DU, LS_BZ_UU };   /* (gamedata.h BZ_* order) */
     uint8_t b = in->press;
     if (lab_qn && (lab_qgo || ((b & IN_A) && !in->blitz && f->state != S_RUN))) {
-        lab_qgo = 0;
+        lab_qgo = 0; lab_ks = LS_QUEUE;
         return lab_go(f, lab_q, lab_qn, lab_qf & LQ_LOOP, BS_BLITZ);
     }
     if (b & IN_D) return lab_slot(f, in->dz > 0 ? LS_MAX : LS_FURY, in->dz > 0 ? BS_FURY_MAX : BS_FURY);
@@ -1813,6 +1903,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
                                                                     hold_special's, revamp 3) */
     f->fmax = k == BS_FURY_MAX; f->brk = f->brkr = 0; f->sinv = 0;   /* (a breaker: its caller sets brk after; a C special:
                                                                     sinv, cspecial) */
+    knob_find(f, k);                                             /* its knobs ("knobs") */
     f->spec_buf = 0; f->blz_buf = 0;                             /* (the presses of what it cancelled: not its own) */
     if (k == BS_FURY_MAX) k = BS_FURY;                           /* the MAX fury: the fury's role, its own special */
     f->spec_id = k; f->throw_x0 = f->x; f->hit_mask = 0; f->spec_prev_hit = 0; f->spec_atk = 0; f->landed = 0;
@@ -1867,7 +1958,10 @@ static void proj_row(fighter_t *p) {                            /* its rows: its
         p->spec_atk = 0; p->pown = 0;
     } else {
         const bprow_t *r = &d->rows[p->prow];
-        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, (int32_t)r->x << 13); p->y = FIX(r->y) + (d->air || d->kind == PK_FX ? p->py0 : 0);
+        int32_t rx = r->x;
+        if (p->kspd) rx = d->rows[0].x + (((int32_t)(int16_t)(rx - d->rows[0].x) * (int16_t)p->kspd) >> 8);   /* KN_PSPEED
+                                                                    ("knobs"; 16 x 16 bits: muls) */
+        p->frame_ovr = r->frame; p->x = p->throw_x0 + dir_mul(p->facing, rx << 13); p->y = FIX(r->y) + (d->air || d->kind == PK_FX ? p->py0 : 0);
         p->spec_atk = (r->flags & 1) && (!p->pend || p->pend == 3) ? &r->atk : 0;   /* (3: an eruption that hit: live) */
         p->pown = (r->flags & 2) && !p->pend ? &r->own : 0;
     }
@@ -1932,6 +2026,7 @@ static void boom_update(fighter_t *p) {
     p->throw_x0 = p->x; proj_row(p);
     boom_segs(p);
 }
+static void knob_proj(fighter_t *p, const fighter_t *f);
 static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int8_t facing, int32_t z) {
     fighter_t *p;
     if (!d->nrows) { if (owner) owner->pflags |= d->sig & (PF_SIG7 | PF_SIG6); return 0; }   /* no rows (Mr. Big's
@@ -1946,6 +2041,7 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
                                                                     height (bproj_t air, TODO #211) */
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
     p->pcnt = d->hits; p->freeze = 0;                            /* its hits left (object.phase) */
+    p->kspd = 0; p->khit = 0;                                    /* (no knob: knob_proj, its spawner's) */
     p->vcnt = 0; p->vdone = 0;                                   /* (a piercing one: no victim hit yet) */
     p->tick = 0; p->state_t = 0; p->node = d->child_b0;          /* tick 0: shown at row 0 this frame (the update after
                                                                     the fighters' advances it from the next); state_t:
@@ -1956,7 +2052,8 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
 }
 static void proj_spawn(fighter_t *f, const bproj_t *d) {         /* spawn point: the script's origin + offset */
     fighter_t *p = proj_start(f, d, (d->follow & 4) ? f->x : f->throw_x0 + dir_mul(f->facing, FIX(d->spawn_x)), f->facing, f->z);
-    if (p && !(d->follow & 4)) f->shot = p;                      /* (a pinned effect of the script is no shot) */
+    if (p && !(d->follow & 4)) f->shot = p;
+    if (p && f->kn_n) knob_proj(p, f);                      /* (a pinned effect of the script is no shot) */
 }
 static void proj_launch(fighter_t *p);
 static void proj_hit(fighter_t *p) {                             /* its hit landed (a fighter or a clash) */
@@ -1973,7 +2070,12 @@ static void proj_hit(fighter_t *p) {                             /* its hit land
         return;
     }
     if (p->pdef->kind == 1 && p->pcnt > 1) {                     /* hits left (bproj_t hits, KOF +$138): frozen, then */
-        p->pcnt--; p->freeze = p->pdef->stop; return;            /* re-armed (projectiles_update) */
+        p->pcnt--; p->freeze = p->pdef->stop; /* re-armed (projectiles_update) */
+        if (p->khit) {                                           /* KN_PHITS: KN_STOP when its data has no stop; the */
+            if (!p->freeze) p->freeze = KN_STOP;                 /* last hit with its own reaction */
+            if (p->pcnt == 1) p->spec_react = p->pdef->react;
+        }
+        return;
     }
     if (p->pdef->kind == 1) {                                    /* travelling: its end animation where it hit */
         if (!p->pdef->nend) { projectile_reset(p); return; }
@@ -2059,7 +2161,8 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
         proj_launch(p); return;
     } else if (++p->prow >= d->nrows) {
         if (d->loop == 0xFF) { projectile_reset(p); return; }    /* its animation is over */
-        p->prow = d->loop; p->throw_x0 += dir_mul(p->facing, (int32_t)d->wrap_x << 13);   /* the flight goes on */
+        p->prow = d->loop;                                       /* the flight goes on (KN_PSPEED: its wrap scaled) */
+        p->throw_x0 += dir_mul(p->facing, (p->kspd ? ((int32_t)d->wrap_x * (int16_t)p->kspd) >> 8 : (int32_t)d->wrap_x) << 13);
     }
     proj_row(p);
     if ((p->pend == 0 || p->pend == 3) && (d->rows[p->prow].flags & 4)) {   /* a re-arming row */
@@ -2378,6 +2481,7 @@ static void prog_fxoff(fighter_t *f) {                           /* its pinned e
 static void prog_spawn(fighter_t *f, const bproj_t *d) {
     fighter_t *p = proj_start(f, d, f->x, f->facing, f->z);      /* rows: from the thrower's place now */
     if (!p) return;
+    if (f->kn_n) knob_proj(p, f);
     if (d->follow & 8) return;                                   /* a step effect: it ends itself (proj_update) */
     if (d->follow || d->kind == PK_BOOM) { if (!f->proj[0]) f->proj[0] = p; else if (!f->proj[1]) f->proj[1] = p; }   /* (a
                                                                     boomerang ends with the special: SS2 $4C434) */
@@ -2600,11 +2704,13 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         switch (op) {
         case P_ANIM:
             f->pdmg = sp->vdmg ? (uint8_t)sp->vars[(uint16_t)f->var * sp->vcols + sp->vdmg - 1] : p->b & 0xFF;
+            if (f->kn_n) f->pdmg = knob_dmg(f, f->pdmg);
             f->preact = p->b >> 8; f->pfx = v; pan_play(f, &sp->anims[p->a + (sp->nvar ? f->var * sp->vanim : 0)]); break;
         case P_LANIM:                                            /* P_ANIM with a 16-bit index (the Lab build's LAB
                                                                     special: v = index << 8 | effect, a damage, b reaction) */
             f->pdmg = p->a; f->preact = (uint8_t)p->b; f->pfx = (uint8_t)v; pan_play(f, &sp->anims[(uint16_t)(v >> 8)]); break;
         case P_SET:
+            if (f->kn_n) v = knob_set(f, p->a, v);               /* (a knob's value: "knobs") */
             if (p->a == 0) f->vx = v; else if (p->a == 1) f->vy = v; else if (p->a == 2) f->pg = v;
             else if (p->a == 3) f->pfric = v; else if (p->a == 5) f->y = v; else f->pcnt = v;
             break;
@@ -3057,6 +3163,8 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     #213 / #221: Rosa's j.2C, j.623C, j.421C; its program
                                                                     from here) */
                 lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, BS_AIR);
+                pend_kslot = in->blitz == BZ_DD + 1 && air_button(f->ch, k) == IN_A ? LS_ABZ_DD : air_button(f->ch, k) == IN_A ?
+                    (in->dz > 0 ? LS_AIR_DA : LS_AIR_A) : in->dz > 0 ? LS_ASP_DC : in->dx && !in->dz ? LS_ASP_FC : LS_ASP_C;   /* (its knobs) */
                 f->spec_ix = k; start_special(f, BS_AIR); break;
             }
         }
@@ -3065,7 +3173,7 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     in its hit-stop waits for the freeze's end) */
             uint8_t k = air_blitz(f);
             f->blz_buf = 0;
-            if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_CANCEL, BS_AIR); f->buffered = 0; f->spec_ix = k; start_special(f, BS_AIR); break; }
+            if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_CANCEL, BS_AIR); f->buffered = 0; pend_kslot = LS_ABZ_DD; f->spec_ix = k; start_special(f, BS_AIR); break; }
         }
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: the air attacks (Bruno 2026-10-08, "jumps"): down+A
                                                                     its down attack (air_b: a flinch, active to the landing),

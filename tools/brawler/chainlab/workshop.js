@@ -6,6 +6,9 @@
 // still play, "Unlock this" with a mic note), Throws (T- ids, the same), Animations (every $NN, each attack frame's hit
 // class). Threads: decisions store, set "<f>-workshop", one entry per message: id "<key>--<time>", choice = the piece
 // key (S-001 / T-001 / sp-<input> / th-<…> / anim-<hex>), label request (Bruno) | reply | unlocked (me), note = text.
+// PIECE KNOBS (knobui.js): under each unlocked special its knobs (W.specials[].knobs, tools/brawler/knobs.py); the values
+// save in the same set under id "knobs-<S- id>" (knobs {S- id: {knob id: value}}, no choice: not a thread message) and
+// travel with its "Try in game" / "Send to Player" (the Try queue's knob rows). The sheet's own values are per slot.
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
   const root = document.getElementById('ws');
@@ -17,6 +20,18 @@
   if (!D || !W) { root.replaceChildren(h('p', { text: 'No workshop for "' + f + '" (it needs an animation dictionary and a piece library).' })); return; }
   let msgs = {};
   try { const r = await fetch(API + 'decisions/' + SET, { cache: 'no-store', credentials: 'same-origin' }); if (r.ok) msgs = await r.json(); } catch (e) { /* offline: sends will say so */ }
+  const KV = {};                                   // S- id -> its knob values here (the Try queue's)
+  for (const [mid, a] of Object.entries(msgs)) if (/^knobs-S-\d+$/.test(mid) && a && a.knobs) Object.assign(KV, a.knobs);
+  const knobReset = [];                            // every panel's reset (the page's "Reset all knobs")
+  async function saveKnobs(pid, el) {
+    if (el) el.textContent = 'Saving…';
+    try {
+      const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ set: SET, id: 'knobs-' + pid, knobs: KV[pid] ? { [pid]: KV[pid] } : {} }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (el) el.textContent = 'Saved';
+    } catch (e) { if (el) el.textContent = 'Not saved (' + e.message + '): try again'; }
+  }
   const byKey = {};
   for (const [mid, a] of Object.entries(msgs)) if (a && a.choice) (byKey[a.choice] = byKey[a.choice] || []).push(Object.assign({ mid }, a));
 
@@ -114,11 +129,21 @@
     // (walk into the dummy, then forward + C); a locked special's animations play back to back
     const TI = window.TryIt;
     // (+ "Send to Player": the same TRY blob as the fighter's live config, tryit.js)
+    const qk = () => KV[p.id] ? { queue: { [p.id]: KV[p.id] } } : null;      // (its knob values: the queue's)
     const tryB = !TI ? null : on && kind === 'throw' ? TI.button(f, 'Try in game (grab, then forward + C)', () => TI.sheet(f, { slots: { grab_fwd: [p.id] } }), () => ({ sheet: { slots: { grab_fwd: [p.id] } } }))
-      : on ? TI.button(f, 'Try in game', () => TI.queue(f, [p.id]), () => ({ queue: [p.id], loop: TI.loop() }))
+      : on ? TI.button(f, 'Try in game', () => TI.queue(f, [p.id], { knobs: qk() }), () => ({ queue: [p.id], loop: TI.loop(), knobs: qk() }))
       : p.anims.length ? TI.button(f, 'Try its animations in game', () => TI.queue(f, p.anims), () => ({ queue: p.anims, loop: TI.loop() })) : null;
     const runs = p.anims.flatMap(x => hitRuns(D.by[x] || {}).map(r => '$' + x + ' ' + runText(r)));
-    const kids = [h('div', { class: 'phead' }, h('span', { class: 'pname', text: p.name }), tag), inp, h('p', { class: 'what', text: 'What it does: ' + p.what }), row, tryB];
+    let knobBox = null;
+    if (on && kind === 'special' && (p.knobs || []).length && window.KnobUI) {
+      const said = h('span', { class: 'saved', 'aria-live': 'polite' });
+      let kt;
+      const pn = window.KnobUI.panel({ defs: p.knobs, values: KV[p.id] || {}, label: p.id + ' knobs (its key parameters; Try in game plays them)',
+        onChange: v => { if (Object.keys(v).length) KV[p.id] = v; else delete KV[p.id]; clearTimeout(kt); said.textContent = '…'; kt = setTimeout(() => saveKnobs(p.id, said), 500); } });
+      knobReset.push(() => pn.reset());
+      knobBox = h('div', {}, pn, said);
+    }
+    const kids = [h('div', { class: 'phead' }, h('span', { class: 'pname', text: p.name }), tag), inp, h('p', { class: 'what', text: 'What it does: ' + p.what }), row, knobBox, tryB];
     if (runs.length) kids.push(h('details', {}, h('summary', { text: 'Hit class per attack frame (' + runs.length + ')' }), h('ul', { class: 'hits' }, runs.map(t => h('li', { text: t })))));
     const q = (on ? p.id + ' ' : '') + p.name + ' (' + p.input + ')';
     kids.push(thread(p.keys, on
@@ -182,12 +207,27 @@
     h('nav', { class: 'jump', 'aria-label': 'Sections' }, h('a', { href: '#specials', text: 'Specials' }), h('a', { href: '#throws', text: 'Throws' }), h('a', { href: '#animations', text: 'Animations' }))];
   out.push(h('h2', { id: 'specials', text: 'Specials' }), h('p', { class: 'about', text: 'Every special version of ' + W.display + '\'s move list (light / heavy / EX / MAX, ground and air: each version is its own piece). ' + (W.source || '') }));
   const su = S.filter(p => p.id), sl = S.filter(p => !p.id);
-  out.push(h('h3', { text: 'Unlocked (' + su.length + ')' }), su.length ? su.map(p => pieceCard(p, 'special')) : h('p', { class: 'about', text: 'None yet.' }));
+  const resetAllK = h('button', { type: 'button', class: 'kreset-page', text: 'Reset all knobs (every special)' });
+  resetAllK.onclick = () => knobReset.forEach(r => r());
+  out.push(h('h3', { text: 'Unlocked (' + su.length + ')' }), su.some(p => (p.knobs || []).length) ? h('p', { class: 'about' }, 'Each unlocked special shows its knobs: its key parameters with the ROM\'s default; a changed one is in bold with "changed from" and a solid border. ', resetAllK) : null,
+    su.length ? su.map(p => pieceCard(p, 'special')) : h('p', { class: 'about', text: 'None yet.' }));
   out.push(h('h3', { text: 'Locked (' + sl.length + ')' }), sl.length ? sl.map(p => pieceCard(p, 'special')) : h('p', { class: 'about', text: 'None: every special is decoded.' }));
   out.push(h('h2', { id: 'throws', text: 'Throws' }), h('p', { class: 'about', text: 'Throws, grabs and command grabs: paired scripts (the victim\'s side decoded with them).' }));
   out.push(T.length ? T.map(p => pieceCard(p, 'throw')) : h('p', { class: 'about', text: 'No throw in the dictionary.' }));
   out.push(h('h2', { id: 'animations', text: 'Animations' }), h('p', { class: 'about', text: 'Every animation of ' + W.display + '\'s table by its $NN. Under each attack animation: the hit class of each attack step (' + (W.classes ? 'KOF\'s reaction for its attack box id, standing, and juggled when different' : 'class not decoded for this game') + ').' }), animSection());
   root.replaceChildren(...out.flat().filter(x => x));
   if (location.hash) { const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (el) { if (el.hidden) el.hidden = false; const d = el.querySelector('details:last-child'); if (el.classList.contains('acard') && d) d.open = true; el.scrollIntoView(); } }
+  // a request pre-filled by the arbitration sheet's "Ask in the Workshop" (?ask=<piece key>&text=…): its thread's box
+  const QP = new URLSearchParams(location.search), askK = QP.get('ask'), askT = QP.get('text');
+  if (askT) {
+    const el = askK && document.getElementById(askK);
+    if (el) {
+      if (el.hidden) el.hidden = false;
+      const d = el.querySelector('details:last-child');
+      if (el.classList.contains('acard') && d) { d.open = true; d.dispatchEvent(new Event('toggle')); }   // (an animation's thread: built when opened)
+      const ta = el.querySelector('.thread textarea');
+      if (ta) { ta.value = askT; el.scrollIntoView(); ta.focus(); }
+    }
+  }
   window.workshopReady = { unlocked: C.unlocked, locked: C.locked, throws: T.length, anims: D.anims.length };
 })();

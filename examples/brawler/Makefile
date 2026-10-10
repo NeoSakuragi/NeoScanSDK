@@ -71,7 +71,7 @@ CHARS := $(shell BRAWLER_SLOT=$(SLOT) python3 $(TOOLS)/brawler/build_tables.py c
 $(BUILD)/roster.json: game.json $(TOOLS)/brawler/build_tables.py
 	@mkdir -p $(BUILD)
 	python3 $(TOOLS)/brawler/build_tables.py roster game.json $@
-$(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/build_tables.py $(TOOLS)/brawler/retime.py $(TOOLS)/brawler/damage_raw.json $(BUILD)/stage.h $(BUILD)/bm_chars.h $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/enemies/*.json)
+$(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/build_tables.py $(TOOLS)/brawler/knobs.py $(wildcard $(TOOLS)/brawler/arb_pieces/*.json) $(TOOLS)/brawler/retime.py $(TOOLS)/brawler/damage_raw.json $(BUILD)/stage.h $(BUILD)/bm_chars.h $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/enemies/*.json)
 	python3 $(TOOLS)/brawler/build_tables.py tables game.json $(CURDIR)/$(BUILD)
 
 # --- Fighters: beat 'em up subset of the KOF dictionaries (needs /data/roms/kof96/98/99.neo) and of Samurai Shodown IV

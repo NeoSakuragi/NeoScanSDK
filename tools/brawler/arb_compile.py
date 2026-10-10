@@ -18,7 +18,8 @@ game.json's roster entry, no agent needed) or UNRESOLVED (listed, never guessed)
   ("anim-A9", "$A9") or decoded pieces by id: "S-004" = that special version (class b, its input in the slot, no
   variant question: the id names one version), "T-001" = a throw (the throws are paired scripts: unresolved)
   d  -         unresolved: a pick that starts an undecoded special, a pick the library cannot place, a slot the engine
-               has no field for, a changed chain length, the throws / fury script, and EVERY slot with a typed note
+               has no field for, a changed chain length, the throws / fury script (since 2026-10-10 the sheet has no
+               typed notes: a request goes to the Workshop, an old note saved in <f>-arb is not read)
 
 Slot -> roster field (the three agent-built rounds: Krauser 4261de6, Robert 591c7d0 / 74e5a04; Kim's paper gold):
   a1..aN       chain.links (presses 1..N-1) + finishers.neutral (the last press); "presses" = the chain length
@@ -30,6 +31,14 @@ Slot -> roster field (the three agent-built rounds: Krauser 4261de6, Robert 591c
   grab_hit / grab_fin            throws.hold.hit / fin
   fury / max   fury / max (a decoded special)
   no field (unresolved when changed): fin_df, air_bz_ff / uu / du, fin_back, grab_fwd, grab_back, fury_note
+  knobs        PIECE KNOBS (tools/brawler/knobs.py): a slot's answer `knobs` {S- id: {knob id: value}} -> roster[].knobs
+               {slot: {S- id: {knob id: value}}} (defaults left out); the catalogue (arb_pieces/<f>.json "knobs": ids,
+               ranges, engine rows) is data: a knob a later decode adds needs no change here. Only a piece the slot plays,
+               only the slots the engine and this check reach (knobs.SHIP_SLOTS); anything else is REFUSED
+SAFETY (Bruno 2026-10-10, binding: the Assembly stays token free, so the compiler is the gate): a refused knob, a failed
+build / bank_proof, or any FAIL of the per-slot check (the knobs measured: projectile px a frame and hits, the P_SET a
+knob sets seen in the fighter's speed, damage against the same move without knobs) = nothing shipped: game.json and
+docs/brawler_gold.md go back to what they were (and the game is rebuilt from them), the reason printed, exit status 2.
 
     python3 tools/brawler/arb_compile.py pieces FIGHTER [--game DIR] [--dict FILE]     -> arb_pieces/FIGHTER.json
     python3 tools/brawler/arb_compile.py FIGHTER [--dry-run] [--answers FILE] [--game DIR] [--dict FILE]
@@ -90,7 +99,7 @@ GROUND_ATK = re.compile(r'^(atk_[a-d]{1,2}_(close|far|crouch)|body_toss|cmd_\w+)
 AIR_ATK = re.compile(r'^atk_[a-d]{1,2}_(jump|hop)(_diag)?$')
 SPECIAL_INPUT = re.compile(r'^((?:MAX |EX |air )*(?:\[\d\])?\d+[A-D]+)(?=\s|$)')
 GAME_KEYS = ['name', 'display', 'bank', 'watch', 'routes', 'archetype', 'scale', 'about', 'moves', 'anim_specials', 'retime',
-             'chain', 'finishers', 'specials', 'blitz', 'air', 'air_specials', 'throws', 'fury', 'max']
+             'chain', 'finishers', 'specials', 'blitz', 'air', 'air_specials', 'throws', 'fury', 'max', 'knobs']
 
 
 def repo_of(game): return os.path.normpath(os.path.join(game, '..', '..'))
@@ -224,12 +233,15 @@ def build_pieces(f, G, D, old=None):
                      'hop_of (a later state of a hop: not playable alone), state (what anim_specials "$NN" address), '
                      'anim_special (the reaction when played as an animation special: known = linkable, class c) and '
                      'note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has '
-                     'implemented (the same pieces + note are not listed again; a changed answer is). Regenerated from '
+                     'implemented (the same pieces + note are not listed again; a changed answer is). knobs: {S- id: [knob]} '
+                     'each decoded special\'s key parameters (tools/brawler/knobs.py: id, name, unit, the ROM default, '
+                     'min / max / step, the engine rows a value gives, from, judgment). Regenerated from '
                      'the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand '
                      'are kept.',
             'spare_names': [n for n in SPARE if n not in native],
             'handled': (old or {}).get('handled') or {},
-            'specials': dict(sorted(specs.items())), 'anims': anims}
+            'specials': dict(sorted(specs.items())), 'anims': anims,
+            'knobs': (old or {}).get('knobs') or {}}            # (knobs.py derive: refreshed by load_pieces)
 
 
 def pieces_path(game, f): return os.path.join(repo_of(game), 'tools', 'brawler', 'arb_pieces', f'{f}.json')
@@ -244,6 +256,9 @@ def load_pieces(game, f, G, D, write=True):
         with open(p, 'w') as fh: json.dump(lib, fh, ensure_ascii=False, indent=1)
         _, new = piece_ids.sync(f, lib, D, os.path.dirname(p))         # ids for the newly decoded pieces (decode order)
         if new: print(f'{f}: new piece ids {" ".join(new)} ({piece_ids.path(f, os.path.dirname(p))})')
+        import knobs                                                   # each S- piece's knobs, from its export (knobs.py)
+        lib['knobs'] = knobs.derive(f, piece_ids.load(f, os.path.dirname(p)))
+        with open(p, 'w') as fh: json.dump(lib, fh, ensure_ascii=False, indent=1)
     return lib
 
 
@@ -335,7 +350,7 @@ def compile_sheet(f, ans, G, lib, reg=None):
         if len(ps) == 1 and A.get(ps[0], {}).get('anim_special'):
             e = A[ps[0]]
             return 'c', '$' + (H(e['state']) if isinstance(e['state'], int) else ps[0]), f'animation special, reaction "{e["anim_special"]}" (library)'
-        if cands: return None, None, f'{cands[0]} is not decoded (a captured special: its program is not read from the ROM yet)'
+        if cands: return None, None, f'{cands[0]} is not decoded (a captured special: its program is not read from the ROM yet): unlock it in the Workshop'
         if len(ps) == 1 and ps[0] in A and A[ps[0]]['kind'] == 'attack':
             return None, None, f'${ps[0]} plays no special: an animation special needs its reaction (library anim_special)'
         return None, None, 'the library cannot place ' + ' '.join('$' + p for p in ps)
@@ -350,10 +365,11 @@ def compile_sheet(f, ans, G, lib, reg=None):
     seq_new = links + ([fin['neutral']] if fin.get('neutral') else [])
     chain_changed = False
     for slot in sorted(ORDER, key=ORDER.index):
-        if slot not in mine: continue
+        if slot not in mine or slot == 'fury_note': continue
         a = mine[slot]
         ps = [token(p) for p in a.get('pieces') or []]
-        x = Res(slot, ps, (a.get('note') or '').strip())
+        x = Res(slot, ps, '')                              # (the sheet is token free since 2026-10-10: no typed notes; an
+                                                           # old note saved in <f>-arb is not read, a request goes to the Workshop)
         nowv = now_val(slot); nowp = pieces_of(nowv)
         ids = [p for p in ps if ID_RE.match(p)]
         if ids:                                            # a decoded piece by its id (the Workshop's S- / T- ids)
@@ -491,6 +507,31 @@ def compile_sheet(f, ans, G, lib, reg=None):
     return order_keys(new, r), out
 
 
+def compile_knobs(f, ans, new, reg):
+    """the sheet's knob values -> (roster[].knobs, [refusal reasons]): each answered slot's knobs for the S- pieces it
+    plays, checked against the catalogue (knobs.py: known piece / knob, value in its range) and the slots the engine
+    and the check reach (knobs.SHIP_SLOTS); defaults left out"""
+    import knobs as K
+    cat, _ = K.library(f)
+    out, bad = {}, []
+    for slot, a in ans.items():
+        slot = OLD_IDS.get(slot, slot)
+        if not isinstance(a, dict) or a.get('choice') != 1 or not a.get('knobs'): continue
+        pieces = [token(p) for p in a.get('pieces') or []]
+        for pid, vals in a['knobs'].items():
+            if pid not in pieces: continue                 # (a piece no longer in the slot: its old values are dropped)
+            if slot not in K.SHIP_SLOTS:
+                bad.append(f'{slot}: knobs on this slot cannot ship yet (the engine / the check reach {", ".join(K.SHIP_SLOTS)})'); continue
+            ks = {k['id']: k for k in cat.get(pid, [])}
+            for kid, v in vals.items():
+                k = ks.get(kid)
+                if not k: bad.append(f'{slot} {pid}: no knob "{kid}" in the catalogue (arb_pieces/{f}.json)'); continue
+                if not isinstance(v, (int, float)) or isinstance(v, bool) or not k['min'] <= v <= k['max']:
+                    bad.append(f'{slot} {pid} {k["name"]} = {v}: outside {k["min"]}..{k["max"]} {k["unit"]}'); continue
+                if v != k['default']: out.setdefault(slot, {}).setdefault(pid, {})[kid] = v
+    return out, bad
+
+
 def order_keys(new, old):
     """the entry's keys in their old order, new keys after their GAME_KEYS predecessor"""
     keys = [k for k in old if k in new]
@@ -529,7 +570,7 @@ def write_game(path, f, new):
     open(path, 'w').write(out)
 
 
-def gold_section(f, display, res, date, version):
+def gold_section(f, display, res, date, version, knobs=None):
     lk = [x for x in res if x.status == 'linked']; un = [x for x in res if x.status == 'unresolved']
     def pk(x): return ' then '.join(fmt(p) for p in x.pick) if x.pick else 'empty'
     L = [f'', f'### {display}: sheet round {date} (tools/brawler/arb_compile.py, decisions set `{f}-arb`, build {version})',
@@ -537,6 +578,7 @@ def gold_section(f, display, res, date, version):
          f'{" (listed for an agent, nothing guessed)" if un else ""}; slots whose pick = now not listed.']
     for x in lk: L.append(f'- {x.slot} ({LABEL.get(x.slot, x.slot)}): {pk(x)} -> {x.field} = {json.dumps(x.value, ensure_ascii=False)} — linked, class {x.cls}: {x.why}')
     for x in un: L.append(f'- {x.slot} ({LABEL.get(x.slot, x.slot)}): {pk(x)} — UNRESOLVED: {x.why}')
+    if knobs is not None: L.append('- knobs: ' + (json.dumps(knobs, ensure_ascii=False) if knobs else 'every knob back to its default') + ' (roster[].knobs, measured by knob_check)')
     return '\n'.join(L) + '\n'
 
 
@@ -646,6 +688,82 @@ def check(game, f, res, lib):
     return rows
 
 
+KNOB_KEYS = {'sp_c': '2:c', 'sp_fc': '2:Rc', 'sp_dc': '2:Dc', 'bz_ff': '1:R,1:-,1:R,2:Ra', 'bz_dd': '1:D,1:-,1:D,2:Da',
+             'bz_du': '1:D,1:-,1:U,2:Ua', 'bz_uu': '1:U,1:-,1:U,2:Ua', 'air_sp_c': '2:b,10:-,2:c', 'air_sp_fc': '2:b,10:-,2:Rc',
+             'air_sp_dc': '2:b,10:-,2:Dc', 'air_bz_dd': '2:b,8:-,1:D,1:-,1:D,2:Da'}   # (knobs.SHIP_SLOTS' inputs, P1 facing right)
+
+
+def knob_check(game, f, kn, build='build', rom='brawler.neo'):
+    """every shipped knob measured in our emulator (harness.py + the training, P1 = f facing right, the dummy 200 px ahead,
+    life refilled): its slot's input, then per knob kind: KN_PSPEED the projectile's px a frame (its moving frames' mode)
+    = the value; KN_PHITS its hits on the dummy = the value; KN_SET the register (vx / vy) reaches the row's value in
+    the special; KN_DMG the damage dealt / the same move's with no knob (a TRY blob naming the slot's piece and no knob:
+    the shipped rows not read) = the value % (rounding: within 15 points) -> [(slot, piece, knob, PASS | FAIL, detail)]"""
+    import knobs as K
+    sys.path.insert(0, os.path.join(HERE, 'chainlab'))
+    import harness
+    harness.GAME = game
+    from labdrive import Lab
+    G = json.load(open(os.path.join(game, 'game.json')))
+    names = [r['name'] for r in G['roster']]
+    CL = json.load(open(os.path.join(game, build, 'chainlab.json')))
+    pool = [p['input'] for p in next(x for x in CL['fighters'] if x['name'] == f)['pool']]
+    cat, reg = K.library(f); M = G['meter']
+    L = Lab(rom=os.path.join(game, rom), game=game, build=build); b = L.b; ST = b.states
+    fid = names.index(f)
+    L.start(fid, names.index(next(n for n in ('ryo', 'terry', 'kyo') if n != f and n in names))); b.run(30); base = b.save()
+    lf = b.syms.get('lab_fields') or {}
+    def play(keys, blob=None, frames=200):
+        b.load(base)
+        if blob is not None:
+            L.poke(lf['tblob'], blob); L.poke(lf['lstat'], [0]); L.poke(lf['tnow'], [1]); L.poke(0, b'LAB1'); L.poke(5, [fid]); L.poke(7, [6]); b.run(3)
+        cam = b.r(b.syms['cam_x'], 2); x0 = cam + 60
+        b.place(0, x=x0, z=30); b.fset(0, 'facing', 1); b.fset(0, 'drive', M['chunk'] * M['chunks'])
+        b.place(2, x=x0 + 200, z=30); b.fset(2, 'facing', 0xFF); b.fset(2, 'hp', b.fget(2, 'hp_max')); b.run(2)   # (the training
+                                                         # refills the dummy to its hp_max: never above, or that reads as a hit)
+        hp = b.fget(2, 'hp'); hits = dmg = 0; seen = {}; d = []; vx, vy = set(), set()
+        steps = [p.split(':') for p in keys.split(',')]
+        seq = [k.replace('-', '') for c, k in steps for _ in range(int(c))]
+        for i in range(frames):
+            b.run(1, p1=seq[i] if i < len(seq) else '')
+            if ST[b.fget(0, 'state')] == 'SPECIAL': vx.add(round(b.fget(0, 'vx'), 4)); vy.add(round(b.fget(0, 'vy'), 4))
+            for k in range(4):
+                if ST[b.pget(k, 'state')] == 'PROJ' and b.pget(k, 'pdef') and b.pget(k, 'pend') == 0:
+                    x = b.pget(k, 'x')
+                    if k in seen and not b.pget(k, 'freeze') and x != seen[k]: d.append(round(abs(x - seen[k]), 3))
+                    seen[k] = x
+            h = b.fget(2, 'hp')
+            if h < hp: hits += 1; dmg += hp - h
+            if h < 40: b.fset(2, 'hp', b.fget(2, 'hp_max'))
+            hp = b.fget(2, 'hp')
+        return {'speed': max(set(d), key=d.count) if d else None, 'hits': hits, 'damage': dmg, 'vx': vx, 'vy': vy}
+    rows = []
+    for slot, per in kn.items():
+        for pid, vals in per.items():
+            ks = {k['id']: k for k in cat[pid]}
+            got = play(KNOB_KEYS[slot])
+            for kid, v in vals.items():
+                k = ks[kid]; kinds = {r['kind'] for r in k['rows']}
+                if kinds == {K.KIND['pspeed']}: ok, why = got['speed'] == v, f'projectile {got["speed"]} px a frame (want {v})'
+                elif kinds == {K.KIND['phits']}: ok, why = got['hits'] == v, f'{got["hits"]} hits (want {v})'
+                elif kinds == {K.KIND['set']}:
+                    want = [(r['a'], r['val'] / 65536) for r in K.knob_rows(k, v)]
+                    ok = all(round(w, 4) in (got['vx'] if a_ == 0 else got['vy']) for a_, w in want)
+                    why = f'register values {want} in the special: {"seen" if ok else "not seen"}'
+                elif kinds == {K.KIND['dmg']}:
+                    s_ = pool.index(reg['pieces'][pid]['input'])
+                    js = ("const CL=require(%r);process.stdout.write(Buffer.from(CL.encodeTry({fighter:%d,slots:{%s:[CL.LE_SPEC|%d]}})).toString('hex'))"
+                          % (os.path.join(HERE, 'chainlab', 'lab.js'), fid, slot, s_))
+                    blob = bytes.fromhex(subprocess.run(['node', '-e', js], capture_output=True, text=True, check=True).stdout)
+                    ref = play(KNOB_KEYS[slot], blob)['damage']
+                    pct = round(100 * got['damage'] / ref) if ref else None
+                    ok, why = pct is not None and abs(pct - v) <= 15, f'damage {got["damage"]} vs {ref} without knobs = {pct} % (want {v} %)'
+                else: ok, why = False, f'no measure for knob kinds {kinds}'
+                rows.append((slot, pid, kid, 'PASS' if ok else 'FAIL', why))
+                print(f'knob {slot} {pid} {kid} = {v}: {rows[-1][3]}  {why}', flush=True)
+    return rows
+
+
 def A_kind(lib, aid): return lib['anims'].get(aid, {}).get('kind')
 def anim0(x): return getattr(x, 'anim0', None) or x.pick[0]      # the slot's first animation (an S- pick: its special's)
 
@@ -685,9 +803,14 @@ def main():
     ap.add_argument('--dry-run', action='store_true'); ap.add_argument('--answers'); ap.add_argument('--dict')
     ap.add_argument('--game', default=os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler')))
     ap.add_argument('--compare'); ap.add_argument('--no-build', action='store_true'); ap.add_argument('--no-check', action='store_true')
-    ap.add_argument('--no-gold', action='store_true'); ap.add_argument('--out', default=os.path.join(CACHE, 'out'))
+    ap.add_argument('--no-gold', action='store_true'); ap.add_argument('--knob-check', action='store_true'); ap.add_argument('--out', default=os.path.join(CACHE, 'out'))
     a = ap.parse_args()
     game = os.path.abspath(a.game)
+    if a.knob_check:                                   # (ship_checks' own process: the shipped knobs measured)
+        f = a.fighter; kn = roster_of(json.load(open(os.path.join(game, 'game.json'))), f).get('knobs') or {}
+        rows = knob_check(game, f, kn)
+        json.dump(rows, open(os.path.join(a.out, f'{f}_knobs_check.json'), 'w'), indent=1)
+        return
     if a.fighter == 'pieces':
         f = a.more; G = json.load(open(os.path.join(game, 'game.json')))
         lib = load_pieces(game, f, G, fetch_dict(f, a.dict))
@@ -701,6 +824,13 @@ def main():
     ans = fetch_answers(f, a.answers)
     new, res = compile_sheet(f, ans, G, lib, piece_ids.load(f, os.path.dirname(pieces_path(game, f))))
     old = roster_of(G, f)
+    kn, kbad = compile_knobs(f, ans, new, piece_ids.load(f, os.path.dirname(pieces_path(game, f))))
+    if kn: new['knobs'] = kn
+    else: new.pop('knobs', None)
+    new = order_keys(new, old)
+    if kbad:
+        print('REFUSED (nothing written, game.json as it was): the sheet\'s knobs:' + ''.join('\n  - ' + x for x in kbad))
+        sys.exit(2)
     print(f'{f}: {len([k for k in ans if k != "done"])} answered slot(s) in {f}-arb' + ('' if ans else ' (no sheet: everything = now)'))
     print(f'{"slot":<10} {"pick":<16} {"class":<5} {"status":<10} field / value / why')
     for x in sorted(res, key=lambda x: ORDER.index(x.slot) if x.slot in ORDER else -1):
@@ -718,21 +848,49 @@ def main():
             if not eq: print(f'  DIFF {k}: compiled {json.dumps(x, ensure_ascii=False)} vs {json.dumps(y, ensure_ascii=False)}')
         print(f'  {sum(eq for _, eq, _, _ in rows)} / {len(rows)} fields equal')
     lk = [x for x in res if x.status == 'linked']; un = [x for x in res if x.status == 'unresolved']
+    kch = new.get('knobs') != old.get('knobs')
     if not a.dry_run:
+        gp = os.path.join(repo_of(game), 'docs', 'brawler_gold.md')
+        keep = {p: open(p).read() for p in (gpath, gp) if os.path.exists(p)}   # (restored whole on any failure)
+        def refuse(why):
+            for p, t in keep.items(): open(p, 'w').write(t)
+            print(f'REFUSED (nothing shipped): {why}. game.json and docs/brawler_gold.md are as they were; rebuilding the game from them.')
+            if (lk or kch) and not a.no_build:
+                try: build(game)
+                except SystemExit as e: print('  (the rebuild of the old game.json failed too: ' + str(e) + ')')
+            sys.exit(2)
         if changed: write_game(gpath, f, new)
-        if not a.no_gold and (lk or un):
-            gp = os.path.join(repo_of(game), 'docs', 'brawler_gold.md')
+        if not a.no_gold and (lk or un or kch):
             with open(gp, 'a') as fh: fh.write(gold_section(f, (roster_of(G, f).get('display') or f).upper(), res,
-                                                           datetime.date.today().isoformat(), open(os.path.join(game, 'VERSION')).read().strip()))
-        if lk and not a.no_build: build(game)
-        if lk and not a.no_check:
-            rows = check(game, f, res, lib)
-            print(f'{"slot":<10} {"pick":<10} {"class":<5} result')
-            for x, r, why in rows: print(f'{x.slot:<10} {" ".join(fmt(p) for p in x.pick):<10} {x.cls:<5} {r}  {why}')
-            os.makedirs(a.out, exist_ok=True)
-            json.dump([dict(x.row(), check=r, detail=why) for x, r, why in rows], open(os.path.join(a.out, f'{f}_check.json'), 'w'), indent=1, default=list)
+                                                           datetime.date.today().isoformat(), open(os.path.join(game, 'VERSION')).read().strip(),
+                                                           new.get('knobs') if kch else None))
+        try: fails = ship_checks(a, game, f, res, lib, lk, kch, new)
+        except SystemExit as e: fails = [str(e)]
+        except Exception as e: fails = [f'the build / check stopped: {type(e).__name__}: {e}']
+        if fails: refuse('the check failed:' + ''.join('\n  - ' + x for x in fails))
     print(f'REPORT {f}: linked free {len(lk)}; unchanged {sum(x.status == "unchanged" for x in res)}; unresolved {len(un)}'
           + ''.join(f'\n  - {x.slot}: {x.why}' for x in un))
+
+
+def ship_checks(a, game, f, res, lib, lk, kch, new):
+    """build + bank_proof, the per-slot check, the knob check -> [failure reasons] (SystemExit: the build failed)"""
+    if (lk or kch) and not a.no_build: build(game)
+    fails = []
+    if lk and not a.no_check:
+        rows = check(game, f, res, lib)
+        print(f'{"slot":<10} {"pick":<10} {"class":<5} result')
+        for x, r, why in rows: print(f'{x.slot:<10} {" ".join(fmt(p) for p in x.pick):<10} {x.cls:<5} {r}  {why}')
+        os.makedirs(a.out, exist_ok=True)
+        json.dump([dict(x.row(), check=r, detail=why) for x, r, why in rows], open(os.path.join(a.out, f'{f}_check.json'), 'w'), indent=1, default=list)
+        fails += [f'{x.slot} {r}: {why[:160]}' for x, r, why in rows if r == 'FAIL']
+    if new.get('knobs') and not a.no_check:          # (its own process: one emulator core per process, check() had one)
+        os.makedirs(a.out, exist_ok=True)
+        kp = os.path.join(a.out, f'{f}_knobs_check.json')
+        if os.path.exists(kp): os.remove(kp)
+        r = subprocess.run([sys.executable, os.path.abspath(__file__), f, '--knob-check', '--game', game, '--out', a.out])
+        if r.returncode or not os.path.exists(kp): return fails + [f'the knob check did not run (exit {r.returncode})']
+        fails += [f'{s_} {p_} {k_}: {why}' for s_, p_, k_, rr, why in json.load(open(kp)) if rr == 'FAIL']
+    return fails
 
 
 if __name__ == '__main__':

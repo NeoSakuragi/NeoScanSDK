@@ -209,8 +209,30 @@ typedef struct { uint16_t frame; uint8_t kind, node, how, val; } lab_ev_t;   /* 
 #define LE_NONE  0xFFFF
 #define LQ_MAX   32               /* a queue's entries */
 #define LO_MAX   8                /* a slot's entries */
-#define TRY_VERSION 1             /* lab.tblob's format (fighter.h lab_t; lab.js encodeTry) */
-#define TRY_MAX  576              /* lab.tblob: 8 + 2 LQ_MAX + LS_COUNT (2 + 2 LO_MAX) = 558, rounded up */
+#define TRY_VERSION 2             /* lab.tblob's format (fighter.h lab_t; lab.js encodeTry): 1 without knobs, 2 with them */
+#define KN_MAX   32               /* knob rows a TRY blob carries (LS_KNOB records) */
+#define TRY_MAX  1024             /* lab.tblob: 8 + 2 LQ_MAX + LS_COUNT (2 + 2 LO_MAX) = 558, + KN_MAX knob records of 14 */
+/* PIECE KNOBS (Bruno 2026-10-10: "each special move comes with its key params and default values, adjustable in the
+ * Assembly"; fighter.c "knobs"): a decoded special's key parameters overridden per SLOT (the same piece fast on one slot,
+ * slow on another). A row: the sheet slot (LS_*, LS_QUEUE the Try queue) and the pool special it applies to, its kind
+ * and operand, a match and a value (both 16.16 or plain, by kind). Two sources, one path: the shipped table
+ * (game.json roster[].knobs -> gknob_rom[fighter], build_tables.py knob_tables) and, for P1 while the Lab's TRY blob is
+ * on, the blob's own rows (LS_KNOB records, version 2). No row = the special as the export made it (byte for byte). */
+typedef struct { uint8_t slot, spec, kind, a; int32_t match, val; } gknob_t;   /* kind 0 ends a table */
+enum { KN_END, KN_SET,            /* P_SET of register a whose value is match (16.16) plays val instead (speed, rise, dive) */
+       KN_PSPEED,                 /* its travelling objects fly val / 256 times as fast (their rows' x from row 0, wrap_x) */
+       KN_PHITS,                  /* its travelling objects hit val times (re-armed every stop frames, KN_STOP if none) */
+       KN_DMG };                  /* its hits deal val / 256 of their damage (the body's and its objects') */
+#define KN_STOP 4                 /* a knobbed object's frames between hits when its data has none (KOF98's counted objects) */
+#define LS_KNOB  0x80             /* a TRY blob v2 record of 6 words: one knob row (slot, spec, kind, a, match, val; BE) */
+#define LS_QUEUE 0xFE             /* a knob row's slot: the Try queue's entries */
+extern const gknob_t *const gknob_rom[];   /* game_tables.c: per fighter (bm_chars order) its shipped knob rows */
+typedef struct { uint8_t spec, kind, a, pad; int32_t match, vmin, vmax; } gkcat_t;   /* the knob CATALOGUE (build_tables.py
+                                     knob tables, from arb_pieces/<f>.json "knobs"): per fighter every knob row its pool's
+                                     specials accept and its value bounds (the Assembly's min / max as engine values); kind 0
+                                     ends. A TRY blob's knob rows are checked against it (unknown: refused, lstat 9) and their
+                                     values clamped into it: the page's / the Player's bytes are never trusted */
+extern const gkcat_t *const gkcat_rom[];   /* game_tables.c: per fighter (bm_chars order) */
 enum { LQ_LOOP = 1, LQ_NOW = 2 }; /* the TRY blob's queue flags: the queue plays again from its start; it starts now (once; A from neutral
                                      plays it whenever a queue is set) */
 enum { LS_FIN_FWD, LS_FIN_UP, LS_FIN_DOWN, LS_FIN_DF, LS_FIN_BACK,   /* the arbitration sheet's slots (chainlab/arbitrage.js */
@@ -246,10 +268,12 @@ typedef struct {
     uint8_t  p1_life;             /* page / proofs: 1 = P1's life left to the game (0: held full, nobody hurts P1) */
     uint8_t  pack[GD_MAX];        /* page: a data pack (load 3) */
     /* "Try in game" / the live config (Bruno 2026-10-10; tools/brawler/chainlab/lab.js encodeTry, the ONE encoder the
-       pages, the server and the Player use; fighter.c "Lab: try in game"): load 6 = tblob holds a TRY blob, version 1,
-       big-endian: [0] 'L' [1] 'T' [2] version 1 [3] fighter (bm_chars index, P1's) [4] queue flags LQ_* [5] qn, the
+       pages, the server and the Player use; fighter.c "Lab: try in game"): load 6 = tblob holds a TRY blob, version 1
+       or 2, big-endian: [0] 'L' [1] 'T' [2] version [3] fighter (bm_chars index, P1's) [4] queue flags LQ_* [5] qn, the
        queue's entries (<= LQ_MAX) [6] ns, the slot records [7] 0; then qn entries (u16 LE_* words); then ns records
-       [slot LS_*][n <= LO_MAX][n entries]. The whole config at once: a slot not named plays the game's own move, qn 0 = no
+       [slot LS_*][n <= LO_MAX][n entries]. Version 2 adds knob records among them (any order, <= KN_MAX): [LS_KNOB][6]
+       [slot LS_* / LS_QUEUE][pool index][kind KN_*][a][match i32][val i32] (a reader of version 1's shape walks over
+       them as slot records: the Player's parse is unchanged). The whole config at once: a slot not named plays the game's own move, qn 0 = no
        queue. WHEN: checked at the load, PENDING (lstat 2) until P1 is next in neutral (standing / walking; never mid-move
        nor in a hit stun), then applied (lstat 1); tnow = 1 written with the load: applied on the next tick whatever P1
        does ("apply now": the move playing finishes as it is, nothing resets) */
@@ -257,7 +281,7 @@ typedef struct {
     uint8_t  lstat;               /* game: the last load 6: 2 pending, 1 applied, 0x80 | n refused (nothing changed): 1 an animation
                                      the build lacks (not its LAB fighter, or no such $NN), 2 a special the pool lacks, 3 a
                                      throw the fighter lacks, 4 a throw outside a grab slot (or not its first entry), 5 a
-                                     list too long, 6 not a TRY blob of version 1, 7 the blob runs past TRY_MAX, 8 no such
+                                     list too long, 6 not a TRY blob of version 1 / 2, 7 the blob runs past TRY_MAX, 8 no such
                                      slot */
     uint8_t  qpos;                /* game: the entry playing (its index in its list) */
     uint16_t cur;                 /* game: P1's lab entry playing (LE_NONE: none) */
@@ -517,6 +541,11 @@ typedef struct fighter {
      * on each victim (2 bits per fighter_t.idx), vdone = the victims it is done with (bit per idx) */
     uint16_t vcnt;
     uint8_t  vdone, vpad;
+    /* piece knobs (fighter.c "knobs"): kn = the special playing's rows (kn_n of them; 0: none), set at its start; a
+     * projectile: kspd its speed (8.8, 0 = its rows as they are), khit its knobbed hit count (0: its data's) */
+    const gknob_t *kn;
+    uint8_t  kn_n, khit;
+    uint16_t kspd;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */

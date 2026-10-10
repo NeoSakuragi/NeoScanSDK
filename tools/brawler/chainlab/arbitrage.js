@@ -1,17 +1,27 @@
 // A fighter's ARBITRATION sheet (arbitrage.html?f=kim, ?f=krauser, ?f=robert): the web version of Bruno's A4 sheet for Kim
 // (/data/scans/brawler/kim_notes_231734.png -> docs/brawler_gold.md "Kim (fast)"). The workflow for every new fighter,
-// in this order: chain combo, alternate finishers, Blitz, air Blitz, specials, air specials, air, hold / throws; the fury is
-// a separate script (a note).
+// in this order: chain combo, alternate finishers, Blitz, air Blitz, specials, air specials, air, hold / throws, fury.
+// TOKEN FREE (Bruno 2026-10-10, binding): the sheet has no channel to Claude. Every change here is compiled by the tooling
+// alone (tools/brawler/arb_compile.py: links, knobs, build, per-slot check; it refuses and says why, never guesses). A
+// question or a request goes to the Workshop (part 1, the token side): each slot's "Ask in the Workshop" opens it with a
+// request pre-filled for that slot and piece. Old notes saved in <f>-arb stay on the server, never shown or read.
 // Each slot: its input in game terms, the animation(s) it plays (small looping clips, tap = ¼ speed), "Pick animation"
-// (the fighter's whole animation dictionary, attacks first, flag filter), "+ add after" (played back to back), a note
-// with the microphone, "Clear". Pre-filled with what the game plays now (review/<fighter>_arb.json, tools/brawler/arbitrage.py).
-// Answers: the decisions store, set "<fighter>-arb", one id per slot: choice 1 = his (pieces "anim-<hex>" in order, note);
-// id "presses" = the chain's length; id "done" = "Done — send to Claude" (note = the whole sheet as text).
+// (the fighter's whole animation dictionary, attacks first, flag filter), "+ add after" (played back to back), "Clear",
+// "Ask in the Workshop". Pre-filled with what the game plays now (review/<fighter>_arb.json, tools/brawler/arbitrage.py).
+// Answers: the decisions store, set "<fighter>-arb", one id per slot: choice 1 = his (pieces "anim-<hex>" in order,
+// knobs); id "presses" = the chain's length (its note = the count). "Ship to game" (admin): POST lab/ship/<f> (the ship
+// queue, docs/feedback.md "Character Lab") naming the live config's revision: the compiler builds, checks every slot and
+// publishes, or says why it refused.
 // Renamed slots: an answer saved under an old id is read under its new one while the new id has none (OLD_IDS).
 // Piece ids (Workshop, review/<fighter>_workshop.json, tools/brawler/piece_ids.py): the picker offers the animations
 // ($NN, saved "anim-<hex>") and the UNLOCKED pieces (S- specials, T- throws, saved as their id: arb_compile.py links an
 // S- id as that special's input); locked specials are listed greyed with a link to the Workshop. "Now" shows the S- ids
 // of the decoded specials a slot plays.
+// PIECE KNOBS (knobui.js, tools/brawler/knobs.py): under each picked S- piece its knobs (W.specials[].knobs: name, unit,
+// default, range); the values save in the slot's answer as knobs {S- id: {knob id: value}} (a default left out), travel
+// with "Try this sheet" / "Send to Player" (the TRY blob's knob rows) and ship through arb_compile.py (game.json
+// roster[].knobs). An overridden knob: bold value, "changed from N", solid border, "Back to default"; "Reset all knobs"
+// per piece, per slot and for the whole sheet.
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
   const root = document.getElementById('arb');
@@ -55,8 +65,8 @@
     { id: 'grab', title: '8. Grab', about: 'Walk into an enemy: the hold. A hits him in the hold; the finisher throws him out; forward / back + C in the hold = the throws.', slots: [
       { id: 'grab_hit', label: 'hold hit (A in the hold)' }, { id: 'grab_fin', label: 'hold finisher (the throw-out)' },
       { id: 'grab_fwd', label: 'throw forward' }, { id: 'grab_back', label: 'throw back' }] },
-    { id: 'fury', title: '9. Fury', about: 'The fury is a separate script: say what it should do here; point at its animations if you want.', slots: [
-      { id: 'fury_note', label: 'fury: what it does', noAnim: true }, { id: 'fury', label: 'fury (D, gauge full)' }, { id: 'max', label: 'MAX (down + D, low life)' }] },
+    { id: 'fury', title: '9. Fury', about: 'A decoded fury / MAX version (S- piece) links here; a fury script of its own is a Workshop request ("Ask in the Workshop").', slots: [
+      { id: 'fury', label: 'fury (D, gauge full)' }, { id: 'max', label: 'MAX (down + D, low life)' }] },
   ];
   const allSlots = () => SECTIONS.flatMap(s => s.chain ? range(presses()).map(i => press(i + 1)) : s.slots);
   const range = n => [...Array(n).keys()];
@@ -69,8 +79,10 @@
   const fmtP = p => isId(p) ? p : '$' + p;
   // ---- a slot's state: his answer (choice 1) else what the game plays now ----
   const mine = id => !!(ans[id] && ans[id].choice === 1);
+  const knobsOf = id => (mine(id) && ans[id].knobs) || {};
+  const drawers = {};                              // slot id -> its draw (the sheet's "Reset all knobs" redraws them)
   const nowOf = id => NOW.now[id] || { pieces: [], text: '', moves: [] };
-  const stateOf = id => mine(id) ? { pieces: (ans[id].pieces || []).map(p => p.replace(/^anim-/, '')).filter(p => D.by[p] || PIECES[p]), note: ans[id].note || '' }
+  const stateOf = id => mine(id) ? { pieces: (ans[id].pieces || []).map(p => p.replace(/^anim-/, '')).filter(p => D.by[p] || PIECES[p]) }
                                  : { pieces: nowOf(id).pieces.filter(p => D.by[p]), note: '' };
   const name = id => { if (PIECES[id]) return id + ' ' + PIECES[id].name; const a = D.by[id]; return a ? '$' + id + (a.exported[0] ? ' ' + a.exported[0] : a.moves && a.moves[0] ? ' ' + a.moves[0] : '') : '$' + id; };
   async function post(id, body) {
@@ -98,23 +110,29 @@
     return fig;
   }
 
+  // ---- "Ask in the Workshop": the Workshop (its threads, its mic) with a request pre-filled for this slot and piece ----
+  function askLink(def, pieces) {
+    const p = pieces[0], key = !p ? null : isId(p) ? p : 'anim-' + p;
+    const text = `Arbitration sheet, slot "${def.label}"` + (pieces.length ? ` (${pieces.map(fmtP).join(' then ')})` : ' (empty)') + ': ';
+    const q = new URLSearchParams({ f }); if (key) q.set('ask', key); q.set('text', text);
+    return h('a', { class: 'ask', href: 'workshop.html?' + q.toString() + (key ? '#' + encodeURIComponent(key) : ''), target: '_blank',
+      text: 'Ask in the Workshop' + (p ? ' about ' + fmtP(p) : '') });
+  }
   // ---- one slot row ----
   function slotRow(def) {
     const id = def.id;
     const box = h('div', { class: 'slot', id: 'slot-' + id });
     const saved = h('div', { class: 'saved', 'aria-live': 'polite', text: mine(id) ? 'Saved' : '' });
-    const ta = h('textarea', { rows: '1', 'aria-label': 'Note for ' + def.label, placeholder: def.noAnim ? 'What the fury does (type or speak)' : 'Info: "2 hits", "reset, no eject", "same as Blitz"…' });
-    ta.value = stateOf(id).note;
     let shown = [];
     let tag = null;
     const save = async (pieces, quiet) => {
       saved.textContent = 'Saving…';
       try {
         await post(id, Object.assign({ question: `${D.display}: ${def.label}`, choice: 1, label: pieces.length ? 'picked' : 'empty',
-          pieces: pieces.map(p => isId(p) ? p : 'anim-' + p), note: ta.value }));
+          pieces: pieces.map(p => isId(p) ? p : 'anim-' + p) }));
         saved.textContent = 'Saved';
       } catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
-      if (quiet) { tag.textContent = 'yours'; tag.className = 'tag mine'; } else draw();     // a note: no redraw (keeps the focus)
+      if (quiet) { tag.textContent = 'yours'; tag.className = 'tag mine'; } else draw();
     };
     const draw = () => {
       shown.forEach(unwatch); shown = [];
@@ -137,20 +155,31 @@
         side.push(h('div', { class: 'acts' },
           h('button', { type: 'button', text: 'Pick animation', onclick: () => picker(def, st.pieces, hex => save([hex])) }),
           h('button', { type: 'button', text: '+ add after', onclick: () => picker(def, st.pieces, hex => save(st.pieces.concat(hex)), true) }),
-          h('button', { type: 'button', text: 'Clear', onclick: () => { ta.value = ''; save([]); } }),
+          h('button', { type: 'button', text: 'Clear', onclick: () => save([]) }),
           his ? h('button', { type: 'button', text: 'Back to now', onclick: async () => {
-            saved.textContent = 'Saving…'; ta.value = '';
-            try { await post(id, { choice: null, label: null, pieces: null, note: '' }); saved.textContent = 'Saved (back to now)'; } catch (e) { saved.textContent = 'Not saved (' + e.message + ')'; }
+            saved.textContent = 'Saving…';
+            try { await post(id, { choice: null, label: null, pieces: null, knobs: null }); saved.textContent = 'Saved (back to now)'; } catch (e) { saved.textContent = 'Not saved (' + e.message + ')'; }
             draw(); } }) : null));
-        left = row;
+        const kp = st.pieces.filter(p => PIECES[p] && (PIECES[p].knobs || []).length);
+        if (his && kp.length) {
+          const all = Object.assign({}, knobsOf(id));
+          let kt;
+          const saveK = () => { clearTimeout(kt); saved.textContent = '…'; kt = setTimeout(async () => {
+            saved.textContent = 'Saving…';
+            try { await post(id, { knobs: all }); saved.textContent = 'Saved'; } catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
+            slotReset.hidden = !Object.keys(knobsOf(id)).length; }, 500); };
+          const panels = kp.map(p => window.KnobUI.panel({ defs: PIECES[p].knobs, values: all[p] || {}, label: p + ' ' + PIECES[p].name + ': knobs',
+            onChange: v => { if (Object.keys(v).length) all[p] = v; else delete all[p]; saveK(); } }));
+          const slotReset = h('button', { type: 'button', class: 'kreset-slot', text: 'Reset all knobs of this slot', hidden: Object.keys(all).length ? null : '' });
+          slotReset.onclick = () => panels.forEach(pn => pn.reset());
+          left = h('div', { class: 'sleft' }, row, ...panels, slotReset);
+        } else left = row;
       }
-      side.push(h('div', { class: 'note' }, noteField), saved);
+      side.push(askLink(def, st.pieces), saved);
       kids.push(left ? h('div', { class: 'sbody' }, left, h('div', { class: 'side' }, side)) : h('div', { class: 'side' }, side));
       box.replaceChildren(...kids);
     };
-    let t;
-    ta.addEventListener('input', () => { clearTimeout(t); saved.textContent = '…'; t = setTimeout(() => save(stateOf(id).pieces, true), 700); });
-    const noteField = window.micNote ? window.micNote(ta) : ta;
+    drawers[id] = draw;
     draw();
     return box;
   }
@@ -240,17 +269,28 @@
     window.arbPicker = def.id;
   }
 
-  // ---- done ----
-  const summary = () => allSlots().map(s => {
-    const st = stateOf(s.id);
-    return `${s.label}: ${s.noAnim ? '' : (st.pieces.map(fmtP).join(' then ') || 'empty') + (mine(s.id) ? '' : ' (now)')}${st.note ? ' — ' + st.note : ''}`;
-  }).join('\n');
-  const doneMsg = h('div', { class: 'saved', 'aria-live': 'polite', text: ans.done && ans.done.choice === 0 ? 'Sent to Claude (' + (ans.done.at || '') + '). Changes after this are saved too; press again to resend.' : '' });
-  const doneBtn = h('button', { type: 'button', class: 'done', text: 'Done — send to Claude' });
-  doneBtn.onclick = async () => {
-    doneMsg.textContent = 'Sending…';
-    try { await post('done', { question: `${D.display}: arbitration sheet finished`, choice: 0, label: 'Done — send to Claude', note: summary() }); doneMsg.textContent = 'Sent to Claude. Changes after this are saved too; press again to resend.'; }
-    catch (e) { doneMsg.textContent = 'Not sent (' + e.message + '): try again'; }
+  // ---- Ship to game (admin): the ship queue (feedback-api/lab/ship/<f>) with the live config's revision -------------
+  const LAB_API = API + 'lab/';
+  const shipMsg = h('div', { class: 'saved', 'aria-live': 'polite' });
+  const shipBtn = h('button', { type: 'button', class: 'done', text: 'Ship to game' });
+  fetch(LAB_API + 'me', { cache: 'no-store', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null, () => null).then(w => {
+    if (w && w.user && w.role !== 'admin') { shipBtn.disabled = true; shipMsg.textContent = `Ship to game needs the Oros admin role (signed in as ${w.user}).`; }
+  });
+  shipBtn.onclick = async () => {
+    shipMsg.textContent = 'Queueing…'; shipBtn.disabled = true;
+    try {
+      const hr = await fetch(LAB_API + 'config/' + f + '/hash', { cache: 'no-store', credentials: 'same-origin' });
+      if (hr.status === 404) throw new Error('no live config yet: press "Send to Player" first (the ship names that revision)');
+      if (!hr.ok) throw new Error('the live config: HTTP ' + hr.status);
+      const live = await hr.json();
+      const r = await fetch(LAB_API + 'ship/' + f, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rev: live.version, note: 'Ship to game from the arbitration sheet' }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 403) throw new Error('Ship to game needs the Oros admin role');
+      if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      shipMsg.textContent = `Queued (request ${j.ship.id}, live config r${j.ship.rev}): the compiler builds, checks every slot and publishes, or says why it refused.`;
+    } catch (e) { shipMsg.textContent = 'Not queued: ' + e.message; }
+    shipBtn.disabled = false;
   };
 
   // ---- "Try this sheet in game" (tryit.js): every slot of his answers (the slots still "now" keep the game's own move) on
@@ -258,22 +298,36 @@
   // the same TRY blob (+ the chain override) as his live config, the Player's Character lab applies it (tryit.js)
   const sheetNow = () => {
     const slots = {};
-    for (const s of SECTIONS) if (!s.chain) for (const d of s.slots) if (!d.noAnim && mine(d.id)) slots[d.id] = stateOf(d.id).pieces;
+    const knobs = {};
+    for (const s of SECTIONS) if (!s.chain) for (const d of s.slots) if (!d.noAnim && mine(d.id)) {
+      slots[d.id] = stateOf(d.id).pieces;
+      const k = knobsOf(d.id); if (Object.keys(k).length) knobs[d.id] = k;
+    }
     const pr = range(presses()).map(i => 'a' + (i + 1));
-    return { slots, chain: pr.some(mine) ? pr.map(id => stateOf(id).pieces) : null };
+    return { slots, knobs, chain: pr.some(mine) ? pr.map(id => stateOf(id).pieces) : null };
   };
   const tryBtn = () => window.TryIt ? window.TryIt.button(f, 'Try this sheet in game', () => window.TryIt.sheet(f, sheetNow()), () => ({ sheet: sheetNow() })) : null;
   window.arbSheet = sheetNow;
   const out = [h('h1', { text: `${D.display}: arbitration sheet` }),
-    h('p', { class: 'intro', text: `What each input plays, section by section: chain, alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, or write / speak the info. Everything saves as you go. Tap a clip for ¼ speed.` }),
+    h('p', { class: 'intro', text: `What each input plays, section by section: chain, alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, tune a decoded piece's knobs; a question goes to the Workshop. Everything saves as you go. Tap a clip for ¼ speed.` }),
     h('div', { class: 'links' }, h('a', { href: 'workshop.html?f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' })),
     window.TryIt ? window.TryIt.liveLine(f) : null];
   out.push(h('div', { class: 'tryrow' }, tryBtn(), h('span', { class: 'about', text: 'Your answers, slot by slot, in the game now (the slots still "now" play the game\'s own move); play them on their own inputs.' })));
+  const sheetMsg = h('span', { class: 'saved', 'aria-live': 'polite' });
+  const sheetReset = h('button', { type: 'button', class: 'kreset-sheet', text: 'Reset all knobs of the sheet' });
+  sheetReset.onclick = async () => {
+    const ids = Object.keys(ans).filter(id => mine(id) && ans[id].knobs && Object.keys(ans[id].knobs).length);
+    if (!ids.length) { sheetMsg.textContent = 'Every knob is at its default already.'; return; }
+    sheetMsg.textContent = 'Resetting…';
+    try { for (const id of ids) { await post(id, { knobs: {} }); delete ans[id].knobs; if (drawers[id]) drawers[id](); } sheetMsg.textContent = `Every knob back to its default (${ids.length} slot${ids.length === 1 ? '' : 's'}).`; }
+    catch (e) { sheetMsg.textContent = 'Not reset (' + e.message + '): try again'; }
+  };
+  out.push(h('div', { class: 'tryrow' }, sheetReset, sheetMsg));
   for (const s of SECTIONS) {
     out.push(h('h2', { text: s.title }), h('p', { class: 'about', text: s.about }));
     out.push(s.chain ? chainBlock() : s.slots.map(slotRow));
   }
-  out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'When the whole sheet is how you want it:' }), doneBtn, doneMsg));
+  out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'When the whole sheet is how you want it (no agent: the compiler links every pick and knob, builds, checks each slot in the game and publishes, or refuses and says why):' }), shipBtn, shipMsg));
   root.replaceChildren(...out.flat().filter(x => x));
   window.arbReady = { unlocked: Object.keys(PIECES).length, locked: W ? W.specials.filter(p => !p.id).length : null };
 })();
