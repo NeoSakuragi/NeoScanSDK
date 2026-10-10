@@ -393,13 +393,17 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
             return None, None, f'${ps[0]} plays no special: an animation special needs its reaction (library anim_special)'
         return None, None, 'the library cannot place ' + ' '.join('$' + p for p in ps)
 
+    want_len = 0
     # ---- the chain length ----
     if 'presses' in mine:
         try: n = int(mine['presses'].get('note') or 0)
         except ValueError: n = 0
-        if n and n != max(n_now, chain_len):
-            x = Res('presses', str(n)); x.status = 'unresolved'; x.why = f'chain length {n} (now {max(n_now, chain_len)}, archetype {r.get("archetype")}): an agent'
+        if n and n != max(n_now, chain_len):          # (mechanical since 2026-10-10: roster chain.length, the chain cut / extended)
+            x = Res('presses', str(n))
+            if not 2 <= n <= 8: x.status, x.why = 'unresolved', f'chain length {n}: 2-8 presses'
+            else: x.status, x.cls, x.value, x.field, x.why = 'linked', 'a', n, 'chain.length', f'chain length {max(n_now, chain_len)} -> {n}'
             out.append(x)
+            if x.status == 'linked': want_len = n
     seq_new = links + ([fin['neutral']] if fin.get('neutral') else [])
     chain_changed = False
     for slot in sorted(ORDER, key=ORDER.index):
@@ -531,6 +535,11 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if x.status == 'linked' and x.value is None:
             if x.slot in BLITZ: (new.get('blitz') or {}).pop(BLITZ[x.slot], None); x.field = f'blitz.{BLITZ[x.slot]}'
             if x.slot in AIRSP: (new.get('air_specials') or {}).pop(AIRSP[x.slot], None); x.field = f'air_specials.{AIRSP[x.slot]}'
+    if want_len:                                       # the chain length: cut to n presses, or extended with what plays now
+        while len(seq_new) < want_len:
+            nv = now_val('a%d' % (len(seq_new) + 1)); seq_new.append(nv if isinstance(nv, (str, list)) else None)
+        seq_new = seq_new[:want_len]; chain_changed = True
+        new.setdefault('chain', {})['length'] = want_len
     if chain_changed:
         if any(v is None for v in seq_new):
             for x in out:

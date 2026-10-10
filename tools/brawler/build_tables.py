@@ -213,10 +213,12 @@ def chain_cfg(g, r):
     fin = r.get('finishers') or {}
     for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move'), f"roster {r['name']}: finishers.{k}"
     own = r.get('chain') or {}                     # (revamp 5, the chain tool's save) links: the moves before the finisher,
-    for k in own: assert k in ('links', 'hitstop'), f"roster {r['name']}: chain.{k} (links / hitstop)"   # hitstop: per link + the finisher
+    for k in own: assert k in ('links', 'hitstop', 'length'), f"roster {r['name']}: chain.{k} (links / hitstop / length)"   # hitstop: per link + the finisher
     air = dict(AIR_DEFAULT, **(r.get('air') or {}))  # its three air attacks (Bruno 2026-10-08): forward jump + A, straight
     for k in air: assert k in AIR_DEFAULT, f"roster {r['name']}: air.{k} (forward / straight / down)"   # jump + A, down + A
-    return {'archetype': a, 'length': c['lengths'][a], 'total': c['totals'][a], 'hitstop': c['hitstop'], 'finishers': fin,
+    n = own.get('length', c['lengths'][a])           # (the Assembly's chain length, Bruno 2026-10-10: a per-fighter override)
+    assert isinstance(n, int) and 2 <= n <= 8, f"roster {r['name']}: chain.length {n} (2-8)"
+    return {'archetype': a, 'length': n, 'total': c['totals'][a], 'hitstop': c['hitstop'], 'finishers': fin,
             'air': air, 'specials': r.get('specials') or {},          # (revamp gold: a finisher named as a special input)
             'damage': r.get('damage', 1), **({'links': own['links']} if 'links' in own else {}),
             **({'hitstops': own['hitstop']} if 'hitstop' in own else {})}
