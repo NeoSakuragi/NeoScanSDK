@@ -3,7 +3,7 @@
  "bank": "kizuna:kim",
  "game": "kizuna",
  "dictionary": "Kizuna Encounter, char 5, animation table $80000[5]",
- "about": "arb_compile.py piece library: per animation id (the dictionary's, = the sheet's pieces) its brawler move names (names), the specials whose program plays it (specials; decoded ones in \"specials\" below), hop_of (a later state of a hop: not playable alone), state (what anim_specials \"$NN\" address), anim_special (the reaction when played as an animation special: known = linkable, class c) and note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has implemented (the same pieces + note are not listed again; a changed answer is). Regenerated from the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand are kept.",
+ "about": "arb_compile.py piece library: per animation id (the dictionary's, = the sheet's pieces) its brawler move names (names), the specials whose program plays it (specials; decoded ones in \"specials\" below), hop_of (a later state of a hop: not playable alone), state (what anim_specials \"$NN\" address), anim_special (the reaction when played as an animation special: known = linkable, class c) and note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has implemented (the same pieces + note are not listed again; a changed answer is). knobs: {S- id: [knob]} each decoded special's key parameters (tools/brawler/knobs.py: id, name, unit, the ROM default, min / max / step, the engine rows a value gives, from, judgment). Regenerated from the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand are kept.",
  "spare_names": [
   "atk_cd_close",
   "atk_ab_far",
@@ -2066,5 +2066,6 @@
    "names": [],
    "specials": []
   }
- }
+ },
+ "knobs": {}
 }
