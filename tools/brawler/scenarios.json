@@ -2814,5 +2814,18 @@
   "expect": "Hanzo vanishes in smoke and drops on Mr. Big from above with a spinning slash (SS2's 6 3 2 1 4 + B+C+D, Ninpou Utsusemi), blinking white: two drive chunks (without them: red, 12 life). From neutral, C is the same move for one chunk; forward + C is now the fire (Bakuen Ryuu), the neutral C until today.",
   "do_keys": "143:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-",
   "proof": 130
+ },
+ "20261010-210158-5d29": {
+  "title": "Hanzo (SS2): his Assembly chain $E8 > $E6 > $15C > $FC > $114",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 44
+  },
+  "do": "Stand close to Ryo (44 px) and press A again and again (every other frame).",
+  "expect": "Five presses chain on hits: far A ($E8), close A ($E6), close C+D ($15C), far B ($FC), close A+B ($114) knocking Ryo down: 5 hits (build 0.10.29+, his sheet shipped; Try in game / the Player with his live config r3: the same).",
+  "do_keys": "1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-",
+  "proof": 110
  }
 }
