@@ -109,7 +109,14 @@ enum { RI_A, RI_B, RI_DA, RI_CA, RI_FA, RI_BA, RI_DFA,             /* normal lin
        RI_S = 9, RI_FS, RI_DS, RI_US, RI_DFS, RI_UFS,                      /* special links (enders): C, forward / down / up /
                                                                               down-forward / up-forward + C (slot 8: RI_THEN) */
        RI_N = 15 };
-enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4, RF_THROW = 8, RF_HEAVY_SFX = 16 };   /* (RF_HEAVY_SFX: its hits sound
+enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4, RF_THROW = 8, RF_HEAVY_SFX = 16, RF_LAB = 32 };   /* RF_LAB (2026-10-10, the
+                                                         Character Lab's chain presses, fighter.c lab_node): the node plays the
+                                                         LAB ENTRY anim | weight << 8 (an animation $NN of the Lab build's
+                                                         fighter, LE_SPEC | k a special of his pool) instead of a move, P1
+                                                         only, as the Try queue plays it (free, not invincible); its links go
+                                                         on from it on a hit as from a normal; its hit-stop is the node's.
+                                                         Only the game sets it, in P1's Lab chain (the TRY blob's LS_CHAIN
+                                                         record, fighter.c lab_chain): no exported tree has it */   /* (RF_HEAVY_SFX: its hits sound
                                                          as a heavy normal's, routes.py "sound": "heavy": Kim's $96) */   /* rnode_t.flags (RF_THROW, revamp 1A: the chain's back
                                                          finisher, the fighter's back throw on the victim the last link hit,
                                                          fighter.c chain_throw; no throw: the neutral finisher); anim is a BS_*; an air normal (anim: BA_ATK_C_JUMP /
@@ -207,13 +214,19 @@ typedef struct { uint16_t frame; uint8_t kind, node, how, val; } lab_ev_t;   /* 
  * held victim thrown); LE_NONE ends a list */
 #define LE_SPEC  0x1000
 #define LE_THROW 0x2000
+#define LE_MOVE  0x4000         /* LE_MOVE | m = his standard move BA_* m played as a normal (a chain press only) */
 #define LE_NONE  0xFFFF
 #define LQ_MAX   32               /* a queue's entries */
 #define LO_MAX   8                /* a slot's entries */
-#define TRY_VERSION 2             /* lab.tblob's format (fighter.h lab_t; lab.js encodeTry): 1 without knobs, 2 with them */
+#define TRY_VERSION 3             /* lab.tblob's format (fighter.h lab_t; lab.js encodeTry): 1 without knobs, 2 with them, 3
+                                     with the chain (LS_CHAIN / LS_RETIME records) */
+#define LC_MAX   8                /* a chain's presses (LS_CHAIN) */
+#define LRT_MAX  8                /* retimed moves (LS_RETIME records) */
+#define LRT_SEG  12               /* a retimed move's segments */
 #define KN_MAX   32               /* knob rows a TRY blob carries (LS_KNOB records) */
-#define TRY_MAX  1024             /* lab.tblob: 8 + 2 LQ_MAX + LS_COUNT (2 + 2 LO_MAX) = 558, + KN_MAX knob records of 14
-                                     = 1006 (fighter.c asserts it); its size reaches the Player as the pack manifest's
+#define TRY_MAX  1280             /* lab.tblob: 8 + 2 LQ_MAX + LS_COUNT (2 + 2 LO_MAX) = 558, + KN_MAX knob records of 14
+                                     = 1006, + the chain (2 + 4 LC_MAX) + LRT_MAX retime records (4 + 2 LRT_SEG) = 1264
+                                     (fighter.c asserts it); its size reaches the Player as the shell anchor's
                                      ram.tblob_size (lab_pack.py ram_map) */
 /* PIECE KNOBS (Bruno 2026-10-10: "each special move comes with its key params and default values, adjustable in the
  * Assembly"; fighter.c "knobs"): a decoded special's key parameters overridden per SLOT (the same piece fast on one slot,
@@ -229,6 +242,15 @@ enum { KN_END, KN_SET,            /* P_SET of register a whose value is match (1
 #define KN_STOP 4                 /* a knobbed object's frames between hits when its data has none (KOF98's counted objects) */
 #define LS_KNOB  0x80             /* a TRY blob v2 record of 6 words: one knob row (slot, spec, kind, a, match, val; BE) */
 #define LS_QUEUE 0xFE             /* a knob row's slot: the Try queue's entries */
+/* THE CHAIN (TRY blob version 3, 2026-10-10, Bruno: "there is no tree: 1 chain with a bunch of finishers"; fighter.c
+ * lab_chain): [LS_CHAIN][2 n][n entries][n words hit-stop << 8] = presses 1..n of P1's chain (the last one the neutral
+ * finisher), each an animation $NN, LE_SPEC | k, LE_MOVE | m or LE_NONE (the game's own press), each with its hit-stop
+ * (0: the game's; the last press's is every finisher's); n = the length of his chain. [LS_RETIME][1 + k][move BA_*]
+ * [k targets] = a move's segment targets (0: the source's), gretime_t's, read before rt_tab for his fighter. The
+ * finishers by stick and the hold are the slots (LS_FIN_*, LS_GRAB_*). Both records have the slot records' shape
+ * ([id][n][n words]): a reader of version 1 / 2's shape walks over them. */
+#define LS_CHAIN  0x81
+#define LS_RETIME 0x82
 extern const gknob_t *const gknob_rom[];   /* game_tables.c: per fighter (bm_chars order) its shipped knob rows */
 typedef struct { uint8_t spec, kind, a, pad; int32_t match, vmin, vmax; } gkcat_t;   /* the knob CATALOGUE (build_tables.py
                                      knob tables, from arb_pieces/<f>.json "knobs"): per fighter every knob row its pool's
@@ -284,8 +306,10 @@ typedef struct {
     uint8_t  lstat;               /* game: the last load 6: 2 pending, 1 applied, 0x80 | n refused (nothing changed): 1 an animation
                                      the build lacks (not its LAB fighter, or no such $NN), 2 a special the pool lacks, 3 a
                                      throw the fighter lacks, 4 a throw outside a grab slot (or not its first entry), 5 a
-                                     list too long, 6 not a TRY blob of version 1 / 2, 7 the blob runs past TRY_MAX, 8 no such
-                                     slot */
+                                     list too long, 6 not a TRY blob of version 1 / 2 / 3, 7 the blob runs past TRY_MAX, 8 no such
+                                     slot, 9 a knob row its catalogue lacks, 10 a chain whose length is not his chain's
+                                     (or two chains), 11 a chain press that cannot be one (a throw, a move he lacks), 12 a
+                                     retime row it cannot take (a move without segments, a wrong count, too many) */
     uint8_t  qpos;                /* game: the entry playing (its index in its list) */
     uint16_t cur;                 /* game: P1's lab entry playing (LE_NONE: none) */
     uint8_t  tblob[TRY_MAX];      /* page (load 6): the TRY blob */

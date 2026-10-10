@@ -308,6 +308,8 @@ void fighter_pose_tick(fighter_t *f) { anim_tick(f); }                 /* stage 
  * special (its dead frames and routine: 1x from the catch on) and the engine keep their own time. rt_flags 0: none of
  * this runs. */
 const gretime_t *rt_tab;
+static struct { uint16_t move; uint8_t n; uint16_t t[LRT_SEG]; } lab_rt[LRT_MAX];
+static uint8_t lab_rtn, lab_rtc;                         /* LS_RETIME rows (the Lab chain, "Lab: try in game"): how many, their fighter */
 static const uint16_t *rt_segs(const fighter_t *f, uint16_t move) {   /* [n, source frames...] or 0 */
     const uint16_t *t = bm_seg[f->ch->id];
     if (move >= t[0] || !t[1 + move]) return 0;
@@ -330,7 +332,10 @@ uint8_t fighter_retime(fighter_t *f, const uint16_t *targets, uint8_t n) {
 }
 static void rt_arm(fighter_t *f, uint16_t move) {                /* a move starts: its targets from the table */
     const gretime_t *e = rt_tab ? rt_tab : gretime_rom;
+    uint8_t i;
     f->rt_flags = 0; f->rt_hold = 0;
+    for (i = 0; i < lab_rtn; i++)                                /* the Lab chain's retime rows ("Lab: try in game") */
+        if (lab_rtc == f->ch->id && lab_rt[i].move == move) { rt_set(f, move, lab_rt[i].t, lab_rt[i].n); return; }
     for (; e->fighter != 0xFF; e++)
         if (e->fighter == f->ch->id && e->move == move) { rt_set(f, move, e->t, e->nseg); return; }
 }
@@ -482,9 +487,11 @@ static const uint8_t AIR_NORMAL[2][2][2] = {                  /* [kind][vertical
     { { BA_ATK_C_JUMP, BA_ATK_D_JUMP }, { BA_ATK_C_JUMP_DIAG, BA_ATK_D_JUMP_DIAG } },
     { { BA_ATK_C_HOP, BA_ATK_D_HOP }, { BA_ATK_C_HOP_DIAG, BA_ATK_D_HOP_DIAG } } };
 
+static void lab_node(fighter_t *f, uint8_t node, uint8_t how);   /* (RF_LAB, "Lab: try in game") */
 static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
     const rnode_t *c = NODE(f, node);
     uint8_t a = c->anim;
+    if (c->flags & RF_LAB) { lab_node(f, node, how); return; }   /* a Lab chain press: a lab entry, not a move */
     snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_A_CROUCH || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR ||
             a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
     f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0; f->ldmg = 0; f->blz_buf = 0;
@@ -1388,6 +1395,7 @@ static uint16_t lab_q[LQ_MAX], lab_ov[LS_COUNT][LO_MAX];
 static uint8_t lab_qn, lab_qf, lab_qgo;                  /* the queue, its LQ_* flags, LQ_NOW still to start */
 static const uint16_t *lab_seq;                          /* the list playing (0: none): its entries, the next one, */
 static uint8_t lab_si, lab_sn, lab_sloop, lab_role;      /* its length, loop, the role its entries play as */
+static uint8_t lab_cnode;                                /* the RF_LAB node P1's special plays (0: none; lab_node) */
 static uint8_t lab_ks = LS_QUEUE;                        /* the slot the list playing came from (its knobs; LS_QUEUE) */
 static uint16_t lab_find(uint16_t id) {                  /* $NN -> the LAB special's animation index, 0xFFFF: none */
     uint16_t j;
@@ -1477,18 +1485,76 @@ static void knob_proj(fighter_t *p, const fighter_t *f) {        /* a travelling
     }
     p->spec_dmg = knob_dmg(f, p->spec_dmg);
 }
-_Static_assert(TRY_MAX >= 8 + 2 * LQ_MAX + LS_COUNT * (2 + 2 * LO_MAX) + KN_MAX * 14, "TRY_MAX");   /* the fullest config:
-                                                                    a full queue, every slot full, KN_MAX knob rows (1006) */
+_Static_assert(TRY_MAX >= 8 + 2 * LQ_MAX + LS_COUNT * (2 + 2 * LO_MAX) + KN_MAX * 14 + 2 + 4 * LC_MAX + LRT_MAX * (4 + 2 * LRT_SEG),
+               "TRY_MAX");                                   /* the fullest config: a full queue, every slot full, KN_MAX knob
+                                                                    rows, a full chain, LRT_MAX retime rows (1264) */
+/* THE CHAIN (TRY blob version 3, fighter.h LS_CHAIN / LS_RETIME; Bruno 2026-10-10: "1 chain with a bunch of finishers"):
+ * the game makes P1's chain from it itself. His exported tree is copied into RAM (lab_tree), the nodes of the presses
+ * (root, A, A... : his chain's main line, n = rt_head_t.links of them) cloned to its end (a node the tree shares
+ * elsewhere stays as it was) and given the press: LE_MOVE | m his move m as a normal, an animation $NN / LE_SPEC | k a
+ * lab entry (RF_LAB, lab_node), LE_NONE the game's own; a press's hit-stop on its node (the last press's on every
+ * finisher of the last builder: the stick's, the back throw). route_tab[his fighter] then points at it. The finishers by
+ * stick and the hold stay the slots'. A blob without a chain puts his exported tree back. */
+static uint16_t lab_tree[LAB_BUF / 2];                   /* (word-aligned: rnode_t / rt_head_t) */
+static uint8_t lab_tc = 0xFF;                            /* the fighter route_tab points at lab_tree for */
+static uint8_t chain_bad(uint16_t e, uint8_t c) {        /* a chain press -> 0 ok, else lstat's check */
+    if (e == LE_NONE) return 0;
+    if (e & LE_MOVE) return (e & 0xBF00) || (e & 0xFF) >= BA_COUNT ? 11 : 0;
+    if (e & LE_THROW) return 11;
+    return lab_bad(e, c, 0);
+}
+static void tree_cp(rnode_t *d, const rnode_t *s_) { const uint8_t *a = (const uint8_t *)s_; uint8_t *b = (uint8_t *)d, i; for (i = 0; i < sizeof(rnode_t); i++) b[i] = a[i]; }
+static uint8_t lab_chain(uint8_t c, const uint8_t *r, uint8_t dry) {   /* r: the LS_CHAIN record -> 0 done (dry: only
+                                                                    checked), else lstat's check */
+    const rt_head_t *rom = (const rt_head_t *)bm_chars[c].routes;
+    rt_head_t *h = (rt_head_t *)lab_tree;
+    uint8_t n = r[1] / 2, k, i, at, nn;
+    uint16_t size, w;
+    static const uint8_t FIN[] = { RI_FA, RI_UA, RI_DA, RI_DFA, RI_BA };
+    if ((r[1] & 1) || !n || n > LC_MAX || !rom || rom->links != n) return 10;
+    if (rom->nnodes + n + sizeof FIN > 255 || sizeof(rt_head_t) + (rom->nnodes + n + sizeof FIN) * sizeof(rnode_t) > LAB_BUF) return 10;
+    for (k = 0; k < n; k++) if ((i = chain_bad((uint16_t)r[2 + 2 * k] << 8 | r[3 + 2 * k], c)) != 0) return i;
+    if (dry) return 0;
+    size = sizeof(rt_head_t) + rom->nnodes * sizeof(rnode_t);
+    for (w = 0; w < size / 2; w++) lab_tree[w] = ((const uint16_t *)rom)[w];
+    nn = rom->nnodes; at = h->root;
+    for (k = 0; k < n; k++) {
+        rnode_t *p = (rnode_t *)RT_NODE(h, at), *d;
+        uint16_t e = (uint16_t)r[2 + 2 * k] << 8 | r[3 + 2 * k];
+        uint8_t hs = r[2 + 2 * n + 2 * k];
+        if (!p->next[RI_A]) return 10;                   /* (a tree shorter than its length says) */
+        d = (rnode_t *)RT_NODE(h, nn); tree_cp(d, RT_NODE(h, p->next[RI_A])); p->next[RI_A] = nn; at = nn++;
+        if (e != LE_NONE && (e & LE_MOVE)) { d->anim = e & 0xFF; d->flags &= RF_KEEP; }
+        else if (e != LE_NONE) { d->anim = e & 0xFF; d->weight = e >> 8; d->flags = RF_LAB; }
+        if (hs) d->hitstop = hs;
+        if (k == n - 1 && hs)                            /* the last press's hit-stop: every finisher's */
+            for (i = 0; i < sizeof FIN; i++) if (p->next[FIN[i]] && p->next[FIN[i]] != at) {
+                rnode_t *x = (rnode_t *)RT_NODE(h, nn);
+                tree_cp(x, RT_NODE(h, p->next[FIN[i]])); x->hitstop = hs; p->next[FIN[i]] = nn++;
+            }
+    }
+    h->nnodes = nn;
+    route_tab[c] = (const rt_head_t *)lab_tree; lab_tc = c;
+    return 0;
+}
 static uint8_t lab_try_check(void) {                     /* the TRY blob (fighter.h lab_t) -> 0 ok, else lstat's check */
     const uint8_t *t = lab.tblob;
     uint8_t c = t[3] < BC_COUNT ? t[3] : 0, i, k, e, n, nk = 0;
     uint16_t at;
-    if (t[0] != 'L' || t[1] != 'T' || (t[2] != 1 && t[2] != TRY_VERSION) || t[3] >= BC_COUNT) return 6;
-    if (t[5] > LQ_MAX || t[6] > LS_COUNT + KN_MAX) return 5;
+    uint8_t nc = 0, nr = 0;
+    if (t[0] != 'L' || t[1] != 'T' || t[2] < 1 || t[2] > TRY_VERSION || t[3] >= BC_COUNT) return 6;
+    if (t[5] > LQ_MAX || t[6] > LS_COUNT + KN_MAX + 1 + LRT_MAX) return 5;
     for (i = 0; i < t[5]; i++) if ((e = lab_bad(TB16(8 + 2 * i), c, 0)) != 0) return e;
     for (at = 8 + 2 * t[5], k = 0; k < t[6]; k++) {
         if (at + 2 > TRY_MAX) return 7;
-        if (t[at] == LS_KNOB && t[2] == 2) {             /* a knob row (version 2): its slot, its pool special, its kind */
+        if (t[2] >= 3 && (t[at] == LS_CHAIN || t[at] == LS_RETIME)) {   /* the chain, a retime row (version 3) */
+            n = t[at + 1];
+            if (at + 2 + 2 * n > TRY_MAX) return 7;
+            if (t[at] == LS_CHAIN) { if (nc++ || (e = lab_chain(c, t + at, 1)) != 0) return nc > 1 ? 10 : e; }
+            else if (++nr > LRT_MAX || n < 2 || n - 1 > LRT_SEG || TB16(at + 2) >= BA_COUNT) return 12;
+            at += 2 + 2 * n; continue;
+        }
+        if (t[at] == LS_KNOB && t[2] >= 2) {             /* a knob row (version 2): its slot, its pool special, its kind */
             if (t[at + 1] != 6 || at + 14 > TRY_MAX) return 7;
             if (++nk > KN_MAX || (t[at + 2] >= LS_COUNT && t[at + 2] != LS_QUEUE) || !knob_cat(c, t + at + 2)) return 9;
             at += 14; continue;
@@ -1520,10 +1586,19 @@ static void lab_try_apply(void) {                        /* the pending blob ins
     for (s = 0; s < LS_COUNT; s++) for (i = 0; i < LO_MAX; i++) lab_ov[s][i] = LE_NONE;
     for (i = 0; i < t[5]; i++) lab_q[i] = TB16(8 + 2 * i);
     lab_qn = t[5]; lab_qf = t[4]; lab_qgo = lab_qn && (lab_qf & LQ_NOW);
-    lab_kn_n = 0;
+    lab_kn_n = 0; lab_rtn = 0; lab_rtc = t[3]; lab_cnode = 0;
+    if (lab_tc != 0xFF && route_tab[lab_tc] == (const rt_head_t *)lab_tree)   /* a chain before: his exported tree back */
+        route_tab[lab_tc] = (const rt_head_t *)bm_chars[lab_tc].routes;
+    lab_tc = 0xFF;
     for (at = 8 + 2 * t[5], s = 0; s < t[6]; s++, at += 2 + 2 * n) {
         n = t[at + 1];
         if (t[at] == LS_KNOB) { knob_take(t[3], t + at + 2); continue; }   /* (version 2: lab_try_check let only those through) */
+        if (t[at] == LS_CHAIN) { lab_chain(t[3], t + at, 0); continue; }   /* (version 3: checked) */
+        if (t[at] == LS_RETIME) {
+            lab_rt[lab_rtn].move = TB16(at + 2); lab_rt[lab_rtn].n = n - 1;
+            for (i = 0; i < n - 1; i++) lab_rt[lab_rtn].t[i] = TB16(at + 4 + 2 * i);
+            lab_rtn++; continue;
+        }
         for (i = 0; i < n; i++) lab_ov[t[at]][i] = TB16(at + 2 + 2 * i);
     }
     lab_kn[lab_kn_n].kind = KN_END;
@@ -1547,6 +1622,39 @@ static uint8_t lab_entry(fighter_t *f, uint16_t e) {     /* entry e now -> 1 sta
     if (lab_role < BS_COUNT && !f->team) { f->sinv = 1; f->inv = INV_FURY; }   /* a C slot's: invincible (cspecial) */
     lab.cur = e;
     return 1;
+}
+/* A CHAIN PRESS THAT IS A LAB ENTRY (2026-10-10, note 20261010-210158-5d29: Bruno's Hanzo chain of dictionary
+ * animations went nowhere): the Lab's chain override (load 5, lab.js encodeTree) may make any node RF_LAB, its entry
+ * anim | weight << 8. It plays as the Try queue's entries do (lab_entry: free, not invincible, the Blitz's role, no
+ * knobs) and stays a link of the chain: lab_cnode = its node while it plays; on a hit a buffered press takes the node's
+ * links as from a normal (the S_SPECIAL case below: after the hit-stop, once its hits came, within the attack buffer),
+ * at its end a hit opens the chain window (lab_cend), its hits freeze for the node's hit-stop (fighter_hit). P1 only
+ * (the entries are his: bm_lab); anyone else, or an entry his build lacks, ends the chain in neutral. */
+static void lab_node(fighter_t *f, uint8_t node, uint8_t how) {
+    const rnode_t *c = NODE(f, node);
+    uint16_t e = (uint16_t)c->weight << 8 | c->anim;
+    uint8_t ks = lab_ks, ro = lab_role;
+    f->node = node; f->buffered = 0; f->chain_t = 0; f->fury_buf = 0; f->hit_mask = 0; f->landed = 0; f->ldmg = 0;
+    if (f->idx || f->team || (e & LE_THROW)) { to_neutral(f, 0); return; }
+    lab_note(f, LE_START, node, how, 0);
+    lab_seq = 0; lab_ks = 0xFF; lab_role = BS_BLITZ;     /* (no list: its end is the chain's; no knob rows) */
+    if (!lab_entry(f, e)) { lab_ks = ks; lab_role = ro; lab_cnode = 0; to_neutral(f, 0); return; }
+    lab_ks = ks; lab_role = ro;
+    lab_cnode = node; f->node = node;
+}
+static uint8_t lab_chits(const fighter_t *f) {           /* its animation's hits after this step (hits_to_come's) */
+    uint8_t k;
+    if (!f->pan) return 0;
+    if ((f->pan->steps[f->pstep].flags & 4) && !f->hit_mask) return 1;
+    for (k = f->pstep + 1; k < f->pan->nsteps; k++) if (f->pan->steps[k].flags & 4) return 1;
+    return 0;
+}
+static void lab_cend(fighter_t *f) {                     /* its special ended: a hit opens the chain window */
+    if (!lab_cnode || f->idx || f->team) return;
+    if (f->landed && has_links(NODE(f, lab_cnode))) {
+        f->chain_node = lab_cnode; f->chain_t = CHAIN_WINDOW + 1; lab_note(f, LE_CHAINWIN, lab_cnode, 0, CHAIN_WINDOW);
+    }
+    lab_cnode = 0;
 }
 static uint8_t lab_go(fighter_t *f, const uint16_t *l, uint8_t n, uint8_t loop, uint8_t role) {   /* a list from its */
     uint8_t i;                                           /* start -> 1 an entry started */
@@ -2552,8 +2660,9 @@ static void fury_area(fighter_t *f, const fighter_t *t, const bvlist_t *l, uint8
     f->freeze = 0;
 }
 static uint8_t lab_next(fighter_t *f);                           /* ("Lab: try in game") */
+static void lab_cend(fighter_t *f);                              /* ("Lab: try in game": a chain press's end) */
 static void prog_end(fighter_t *f) {
-    special_end(f);
+    special_end(f); lab_cend(f);
     if (lab_on && lab_next(f)) return;                           /* a lab list's next entry, back to back */
     if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
 }
@@ -2918,7 +3027,7 @@ static void special_update(fighter_t *f) {
     }
     if (f->srow > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
         carry_drop(f);
-        special_end(f);
+        special_end(f); lab_cend(f);
         if (lab_on && lab_next(f)) return;                       /* a lab list's next entry, back to back */
         if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
         return;
@@ -3040,6 +3149,12 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     hits still to come (the press waits for them) */
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
         if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
+    }
+    if (lab_cnode && in && !f->idx && !f->team) {               /* a Lab chain press (RF_LAB): its A presses as a link's */
+        uint8_t ci = f->state == S_SPECIAL ? combo_input(f, in) : 0;
+        if (f->state != S_SPECIAL) lab_cnode = 0;                /* (left it: hit, grabbed...) */
+        else if (ci & IN_A) { f->buffered = ci; f->buf_age = 0; }
+        else if (f->buffered && !f->freeze && f->buf_age < 255 && !(f->landed && lab_chits(f))) f->buf_age++;
     }
     if (f->state == S_GRAB && !(f->srow && f->throw_id == BT_HOLD_FIN) && (in->press & IN_D))   /* the hold: D for the */
         f->fury_buf = 0x80 | (in->dz > 0);                       /* fury (hold_update; presses in hit-stop count, TODO #208) */
@@ -3358,6 +3473,17 @@ static void update(fighter_t *f, const intent_t *in) {
     case S_THROW: throw_update(f, in); break;
     case S_THROWN: thrown_update(f); break;                      /* its thrower let go: it plays its rows on alone */
     case S_SPECIAL:
+        if (lab_cnode && in && !f->idx && !f->team && f->buffered) {   /* a Lab chain press (RF_LAB, lab_node): on a hit the */
+            const rnode_t *c = NODE(f, lab_cnode);               /* next link, as a normal's cancel on hit */
+            uint8_t nx;
+            if (!BUF_OK(f, in)) f->buffered = 0;
+            else if (f->landed && !lab_chits(f) && (nx = chain_next(f, c, f->buffered)) != 0) {
+                uint8_t b = f->buffered;
+                lab_note(f, LE_END, lab_cnode, LH_CANCEL, 1);
+                carry_drop(f); special_end(f); f->pflags = 0; lab_cnode = 0;
+                route_go(f, c, nx, b, in, LH_CANCEL); break;
+            }
+        }
         if (may_cancel(f) && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && f->fury_buf &&
             (f->pcatch == 0 || f->pcatch == 0xFE) && fury_buy(f, f->fury_buf & 1, 1) == 0xFF)
             f->fury_buf = 0;                                     /* not payable (the meter, the red state): it plays on */
@@ -3460,6 +3586,8 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     }
     if (v->hp > 0) voice_play(v->ch, v->team, VK_HIT);          /* the KO voice: once, at the death (S_DEAD) */
     {   uint8_t hs = (a->state == S_ATTACK || a->state == S_AIR_ATTACK) && NODE(a, a->node)->hitstop ? NODE(a, a->node)->hitstop : HITSTOP;
+        if (a->state == S_SPECIAL && lab_cnode && !a->idx && !a->team && NODE(a, lab_cnode)->hitstop) hs = NODE(a, lab_cnode)->hitstop;   /* a Lab
+                                                                    chain press (RF_LAB): its node's */
         v->freeze = !caught ? hs : a->pdeadn > HITSTOP - CATCH_STOP + 1 ? CATCH_STOP : HITSTOP + 1 - a->pdeadn;   /* a normal:
                                                                     its node's (the chain core's scale) */
     }

@@ -19,15 +19,19 @@
   const BOOT_FRAMES = 400;
   // "Try in game" / the live config (fighter.h lab_t load 6 = a TRY blob, LE_*, LS_*; fighter.c "Lab: try in game"):
   // entries, the slots in LS_* order (= the arbitration sheet's ids, arbitrage.js), lab.lstat's checks
-  const LE_SPEC = 0x1000, LE_THROW = 0x2000, LE_NONE = 0xFFFF, LQ_MAX = 32, LO_MAX = 8, LQ_LOOP = 1, LQ_NOW = 2;
-  const TRY_VERSION = 2, TRY_MAX = 1024, LS_KNOB = 0x80, LS_QUEUE = 0xFE, KN_MAX = 32;   // (fighter.h; a blob without knobs stays version 1)
+  const LE_SPEC = 0x1000, LE_THROW = 0x2000, LE_MOVE = 0x4000, LE_NONE = 0xFFFF, LQ_MAX = 32, LO_MAX = 8, LQ_LOOP = 1, LQ_NOW = 2;
+  const TRY_VERSION = 3, TRY_MAX = 1280, LS_KNOB = 0x80, LS_QUEUE = 0xFE, KN_MAX = 32;   // (fighter.h; a blob without knobs stays version 1,
+  // without a chain version 2: the same bytes as before)
+  const LS_CHAIN = 0x81, LS_RETIME = 0x82, LC_MAX = 8, LRT_MAX = 8, LRT_SEG = 12;   // (fighter.h: the chain, version 3)
   const LAB_SLOTS = ['fin_fwd', 'fin_up', 'fin_down', 'fin_df', 'fin_back', 'bz_ff', 'bz_dd', 'bz_uu', 'bz_du',
     'air_bz_ff', 'air_bz_dd', 'air_bz_uu', 'air_bz_du', 'sp_c', 'sp_fc', 'sp_dc', 'air_sp_c', 'air_sp_fc', 'air_sp_dc',
     'air_a', 'air_da', 'grab_hit', 'grab_fin', 'grab_fwd', 'grab_back', 'fury', 'max'];
   const LSTAT = ['', 'an animation this build lacks (not its LAB fighter, or no such $NN)', 'a special the pool lacks',
     'a throw the fighter lacks', 'a throw outside a grab slot (or not its first entry)', 'a list too long',
     'not a TRY blob of version 1 / 2', 'the blob runs past its room', 'no such slot',
-    'a knob this build does not know (not in its catalogue: arb_pieces "knobs")'];
+    'a knob this build does not know (not in its catalogue: arb_pieces "knobs")',
+    'a chain whose length is not his chain\'s (or two chains)', 'a chain press that cannot be one (a throw, a move he lacks)',
+    'a retime row it cannot take'];
   /* PIECE KNOBS (tools/brawler/knobs.py, arb_pieces/<f>.json "knobs"; fighter.c "knobs"): a knob's value -> the engine rows
      it gives, THE formula (knobs.py knob_rows): val = round(base * value / default) for each of its rows */
   function knobRows(k, value) {
@@ -35,10 +39,15 @@
   }
   /* THE encoder of the live config (the pages, the server under Node and whatever feeds the Player send these bytes):
      {fighter: bm_chars index, queue: [LE_* words], loop, now, slots: {LAB_SLOTS id: [LE_* words]},
-     knobs: [{slot: LAB_SLOTS id | 'queue', spec: pool index, kind, a, match, val}]} -> a TRY blob, big-endian (fighter.h
+     knobs: [{slot: LAB_SLOTS id | 'queue', spec: pool index, kind, a, match, val}],
+     chain: {entries: [LE_* word | LE_MOVE | BA_* | null (the game's own press)], hitstop: [frames | 0 (the game's)]},
+     retime: [{move: BA_* index, targets: [frames | 0 per segment]}]} -> a TRY blob, big-endian (fighter.h
      lab_t): [0] 'L' [1] 'T' [2] version [3] fighter [4] LQ_* [5] qn [6] ns [7] 0, the qn queue entries (u16), then ns
      records: the slots [slot][n][n entries u16] in LAB_SLOTS order, then one per knob row [LS_KNOB][6][slot][spec][kind]
-     [a][match i32][val i32] (version 2; without knobs version 1, the same bytes as before knobs). A slot left out (or
+     [a][match i32][val i32] (version 2; without knobs version 1, the same bytes as before knobs), then THE CHAIN (version
+     3, Bruno 2026-10-10: "there is no tree: 1 chain with a bunch of finishers"): [LS_CHAIN][2n][n entries][n hit-stop << 8]
+     = presses 1..n (n = his chain's length; the last = the neutral finisher; the finishers by stick and the hold are the
+     slots), then per retimed move [LS_RETIME][1 + k][move][k targets]. The game builds his chain from it. A slot left out (or
      empty) plays the game's own move; an empty queue = none. Throws on what the game would refuse for its shape (the
      game also checks each knob row against its own catalogue and clamps its value). */
   function encodeTry(cfg) {
@@ -48,9 +57,12 @@
     for (const k of Object.keys(slots)) if (!LAB_SLOTS.includes(k)) throw new Error('unknown slot ' + k);
     const w16 = v => { if (!(v >= 0 && v <= 0xFFFF) || v === LE_NONE) throw new Error('entry ' + v); out.push(v >> 8, v & 0xFF); };
     const used = LAB_SLOTS.filter(k => slots[k] && slots[k].length);
-    const kn = cfg.knobs || [];
+    const kn = cfg.knobs || [], ch = cfg.chain || null, rt = cfg.retime || [];
     if (kn.length > KN_MAX) throw new Error(`${kn.length} knob rows (at most ${KN_MAX})`);
-    out.push(76, 84, kn.length ? TRY_VERSION : 1, cfg.fighter, (cfg.loop ? LQ_LOOP : 0) | (cfg.now ? LQ_NOW : 0), q.length, used.length + kn.length, 0);
+    if (ch && !(ch.entries.length >= 1 && ch.entries.length <= LC_MAX)) throw new Error(`${ch.entries.length} chain presses (1-${LC_MAX})`);
+    if (rt.length > LRT_MAX) throw new Error(`${rt.length} retimed moves (at most ${LRT_MAX})`);
+    const v3 = !!ch || rt.length > 0;
+    out.push(76, 84, v3 ? 3 : kn.length ? 2 : 1, cfg.fighter, (cfg.loop ? LQ_LOOP : 0) | (cfg.now ? LQ_NOW : 0), q.length, used.length + kn.length + (ch ? 1 : 0) + rt.length, 0);
     q.forEach(w16);
     for (const k of used) {
       const l = slots[k];
@@ -64,6 +76,16 @@
       if (!(r.spec >= 0 && r.spec < 255 && r.kind >= 1 && r.kind <= 4)) throw new Error('knob row ' + JSON.stringify(r));
       out.push(LS_KNOB, 6, sl, r.spec, r.kind, r.a || 0); w32(r.match || 0); w32(r.val);
     }
+    if (ch) {
+      const n = ch.entries.length, hs = ch.hitstop || [];
+      out.push(LS_CHAIN, 2 * n);
+      ch.entries.forEach(e => { if (e === null || e === undefined) out.push(255, 255); else w16(e); });
+      for (let k = 0; k < n; k++) { const v = hs[k] || 0; if (!(Number.isInteger(v) && v >= 0 && v <= 60)) throw new Error('hit-stop ' + v); out.push(v, 0); }
+    }
+    for (const r of rt) {
+      if (!(r.targets.length >= 1 && r.targets.length <= LRT_SEG) || r.targets.some(t => !(Number.isInteger(t) && t >= 0 && t <= 0xFFFF))) throw new Error('retime targets');
+      out.push(LS_RETIME, 1 + r.targets.length, r.move >> 8, r.move & 255); r.targets.forEach(t => out.push(t >> 8, t & 255));
+    }
     if (out.length > TRY_MAX) throw new Error(`${out.length} bytes (at most ${TRY_MAX})`);
     return Uint8Array.from(out);
   }
@@ -74,6 +96,18 @@
     for (let s = 0; s < b[6]; s++) { if (n + 2 > b.length) throw new Error('a TRY blob cut short'); n += 2 + 2 * b[n + 1]; }
     if (n > b.length) throw new Error('a TRY blob cut short');
     return n;
+  }
+  /* a TRY blob's chain (version 3) as encodeTry takes it: {chain: {entries, hitstop} | null, retime: [{move, targets}]} */
+  function tryChain(b) {
+    const out = { chain: null, retime: [] }, w = i => (b[i] << 8) | b[i + 1];
+    let n = 8 + 2 * b[5];
+    for (let s = 0; s < b[6]; s++) {
+      const id = b[n], k = b[n + 1];
+      if (b[2] >= 3 && id === LS_CHAIN) { const N = k / 2; out.chain = { entries: [...Array(N).keys()].map(i => { const e = w(n + 2 + 2 * i); return e === LE_NONE ? null : e; }), hitstop: [...Array(N).keys()].map(i => b[n + 2 + 2 * N + 2 * i]) }; }
+      if (b[2] >= 3 && id === LS_RETIME) out.retime.push({ move: w(n + 2), targets: [...Array(k - 1).keys()].map(i => w(n + 4 + 2 * i)) });
+      n += 2 + 2 * k;
+    }
+    return out;
   }
   /* THE LIVE CONFIG (the Character Lab: the server's blob for a fighter, the bytes the Player writes): the TRY blob
      (encodeTry, load 6) as it is, and when a chain is set, after it 'L' 'C' + u16 BE n + the n bytes of a chain override
@@ -613,7 +647,7 @@
     return why.join('; ');
   }
 
-  const api = { PACK_FORMAT, LABANCHOR_AT, readAnchor, packManifest, packCompat, encodeTry, tryLength, knobRows, LS_KNOB, LS_QUEUE, KN_MAX, liveBlob, liveParts, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  const api = { PACK_FORMAT, LABANCHOR_AT, readAnchor, packManifest, packCompat, encodeTry, tryLength, tryChain, knobRows, LS_KNOB, LS_QUEUE, KN_MAX, LE_MOVE, LS_CHAIN, LS_RETIME, LC_MAX, LRT_MAX, LRT_SEG, LSTAT, liveBlob, liveParts, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);

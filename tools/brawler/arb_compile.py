@@ -305,7 +305,7 @@ class Res:
     def row(s): return dict(slot=s.slot, pick=s.pick, note=s.note, cls=s.cls, status=s.status, field=s.field, value=s.value, why=s.why)
 
 
-def compile_sheet(f, ans, G, lib, reg=None):
+def compile_sheet(f, ans, G, lib, reg=None, gen=None):
     """-> (new roster entry, [Res]): every answered slot linked / unchanged / unresolved (reg: the piece-id registry,
     piece_ids.load: S- / T- ids in the answers)"""
     reg = reg or {'pieces': {}}
@@ -333,6 +333,10 @@ def compile_sheet(f, ans, G, lib, reg=None):
     # ---- the slot's current value (the sheet's "now") ----
     links = list((r.get('chain') or {}).get('links') or [])
     fin = r.get('finishers') or {}
+    if not links and gen and gen.get('links'):            # a fighter on the generator's chain: an unanswered press keeps
+        links = list(gen['links'])                         # what the build plays (the Assembly's "now", arbitrage.generated)
+        if not fin.get('neutral') and isinstance((gen.get('finishers') or {}).get('neutral'), str):
+            fin = dict(fin, neutral=gen['finishers']['neutral'])
     n_now = len(links) + (1 if fin.get('neutral') else 0)
     chain_len = G['chain']['lengths'][r.get('archetype', 'balanced')]
     def now_val(slot):
@@ -948,7 +952,12 @@ def main():
     D = fetch_dict(f, a.dict)
     lib = load_pieces(game, f, G, D, write=not a.dry_run)
     ans = fetch_answers(f, a.answers)
-    new, res = compile_sheet(f, ans, G, lib, piece_ids.load(f, os.path.dirname(pieces_path(game, f))))
+    try:
+        import arbitrage
+        gen = arbitrage.generated(json.load(open(os.path.join(game, 'build', 'chainlab.json'))), f)
+    except (OSError, ValueError):
+        gen = None                                         # (no build: the roster's own chain only)
+    new, res = compile_sheet(f, ans, G, lib, piece_ids.load(f, os.path.dirname(pieces_path(game, f))), gen)
     old = roster_of(G, f)
     kn, kbad = compile_knobs(f, ans, new, piece_ids.load(f, os.path.dirname(pieces_path(game, f))))
     if kn: new['knobs'] = kn

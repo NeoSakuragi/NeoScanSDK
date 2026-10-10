@@ -43,7 +43,9 @@ import java.security.MessageDigest
  *  - THE CHAIN (0.0.29): a live config is chainlab/lab.js liveBlob: the TRY blob, + 'LC' u16 n + a chain override when a
  *    page set one (the sheet's chain, the chain tool). The chain goes first, as lab.js installChain does (lab.buf, magic,
  *    fighter = the slot, load 5; its retime rows of the blob's fighter renamed to the slot); the TRY blob once the game
- *    took it. A config without a chain after one with: load 2 (the ROM's tree back) first.
+ *    took it. A config without a chain after one with: load 2 (the ROM's tree back) first. Since 2026-10-10 (TRY blob
+ *    version 3, 0.0.34) the pages put the chain IN the TRY blob (LS_CHAIN: presses, hit-stops; LS_RETIME): the game
+ *    builds P1's chain from it; nothing here changes but the strip's "+ CHAIN" (hasChain). 'LC' configs still play.
  *  - LIGHTS (Bruno: "surface this intuitively with blinkers or lights whenever there is a change"): a strip OFF the
  *    picture (0.0.29: it hid the practice's HITS / DAMAGE row) and off the pad: between the picture and the pad's
  *    buttons in portrait, above the picture in landscape (0.0.31: the left gutter's strip covered the d-pad on a phone;
@@ -134,6 +136,14 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         if (n + 4 + len != b.size) return null
         return Live(b.copyOfRange(0, n), b.copyOfRange(n + 4, b.size))
     }
+    /** the TRY blob carries THE CHAIN (version 3: an LS_CHAIN record 0x81, fighter.h; the game builds P1's chain from it,
+     *  Player 0.0.34: the strip says "+ CHAIN" for it as for a chain override) */
+    private fun hasChain(b: ByteArray): Boolean {
+        if (b.size < 8 || (b[2].toInt() and 255) < 3) return false
+        var n = 8 + 2 * (b[5].toInt() and 255)
+        for (s in 0 until (b[6].toInt() and 255)) { if (n + 2 > b.size) return false; if ((b[n].toInt() and 255) == 0x81) return true; n += 2 + 2 * (b[n + 1].toInt() and 255) }
+        return false
+    }
     /** the chain override for the shell: its retime rows of [from] (the fighter it was made for) renamed to [slot]
      *  (fighter.h rt_head_t: nnodes at 3, 16 + 24 n bytes, then gretime_t rows of 8 bytes, fighter 0xFF ends them) */
     private fun chainFor(c: ByteArray, from: Int, slot: Int): ByteArray? {
@@ -169,6 +179,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     private var sent: Cfg? = null                                    // (emu thread) the config written into this boot
     private var treeSent: Cfg? = null                                // (emu thread) the config whose tree step is written
     private var chainIn = false                                      // (emu thread) a chain override is in this boot
+    @Volatile private var tryChain = false                           // (emu thread) the TRY blob written has the chain (v3)
     private var lastStat = -1; private var n = 0
     private var downloading: String? = null                          // (download thread) the sha being fetched
     private val dl = java.util.concurrent.Executors.newSingleThreadExecutor()
@@ -494,7 +505,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             if (swapNow || r == null || neutral(r)) {
                 swapReq = null; swapNow = false
                 val code = Native.swapPack(pk.file.absolutePath)
-                sent = null; treeSent = null; chainIn = false; lastStat = -1
+                sent = null; treeSent = null; chainIn = false; tryChain = false; lastStat = -1
                 Log.i(TAG, "lab: pack ${pk.fighter} ${pk.version} -> $code")
                 if (code == 0) { val first = pack?.fighter != pk.fighter; pack = pk
                     act.runOnUiThread { if (first) light(State.WAIT, "${pk.display} BOOTING") else badge("PACK ${pk.display} ${pk.version} loaded", null, 4000) } }
@@ -528,7 +539,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             Native.ramWrite(r.tblob, b); Native.ramWrite(r.lstat, byteArrayOf(0)); Native.ramWrite(r.tnow, byteArrayOf(0))
             Native.ramWrite(r.magic, "LAB1".toByteArray()); Native.ramWrite(r.fighter, byteArrayOf(pk.slot.toByte()))
             Native.ramWrite(r.load, byteArrayOf(6))
-            sent = want; treeSent = want; lastStat = -1
+            sent = want; treeSent = want; lastStat = -1; tryChain = hasChain(b)
             Log.i(TAG, "lab: config ${want.fighter} r${want.version} written (${b.size} bytes, load 6" + (if (chainIn) ", after its chain)" else ")"))
         }
         if (applyNow) { applyNow = false; if (r8(r.lstat) == 2) Native.ramWrite(r.tnow, byteArrayOf(1)) }
@@ -667,7 +678,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             else -> light(State.WAIT, "SENDING r${s.version}")
         }
     }
-    private fun ch() = if (chainIn) " + CHAIN" else ""
+    private fun ch() = if (chainIn || tryChain) " + CHAIN" else ""
     private fun refreshLight() {
         if (bar == null) return
         when {

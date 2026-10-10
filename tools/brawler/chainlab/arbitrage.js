@@ -95,7 +95,24 @@
     const j = await r.json().catch(() => ({}));
     ans[id] = j.answer || Object.assign({}, ans[id], body);
     if (id === 'presses' || /^a\d$/.test(id)) drawTiming();   // the chain's moves changed: its timing knobs follow
-    autoLive();
+    autoLive(); goLive();
+  }
+  // NOTHING DROPPED SILENTLY (2026-10-10, note 20261010-210158-5d29): each slot whose pick cannot go live (Try in game, the
+  // Player) says so next to it, "Can't go live: why" (TryIt.issues: the same checks the Send makes); the live line lists
+  // what the last Send left out
+  let goSeq = 0;
+  async function goLive() {
+    if (!window.TryIt || !window.TryIt.issues) return;
+    const seq = ++goSeq;
+    let is;
+    try { is = await window.TryIt.issues(f, sheetNow()); } catch (e) { is = { _all: 'the game data could not be read (' + e.message + ')' }; }
+    if (seq !== goSeq) return;
+    root.querySelectorAll('.golive').forEach(e => e.remove());
+    for (const [id, why] of Object.entries(is)) {
+      const box = root.querySelector('#slot-' + id) || (id === 'knobs' || id === '_all' ? root.querySelector('.livego') : null);
+      if (box) box.append(h('p', { class: 'golive', role: 'status', text: (id === 'knobs' ? 'Knobs that can\'t go live: ' : 'Can\'t go live: ') + why }));
+    }
+    window.arbIssues = is;
   }
   // every saved change goes live to the Player by itself (Bruno 2026-10-10: "the Assembly is read in real time by the lab";
   // a pick saved without "Send to Player" never reached it): 1.5 s after the last change, the whole sheet as the live config
@@ -382,8 +399,8 @@
   };
 
   // ---- "Try this sheet in game" (tryit.js): every slot of his answers (the slots still "now" keep the game's own move) on
-  // the fighter's Lab build, live; the chain's presses as a chain override when each is one brawler move. "Send to Player":
-  // the same TRY blob (+ the chain override) as his live config, the Player's Character lab applies it (tryit.js)
+  // his pack in the shell, live; the chain's presses (any piece each: a move, an animation, an S- piece) and their timing
+  // in the TRY blob's chain section (version 3). "Send to Player": the same TRY blob as his live config (tryit.js)
   const sheetNow = () => {
     const slots = {};
     const knobs = {};
@@ -401,7 +418,7 @@
     h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'lab.html?tab=dictionary&f=' + f, text: 'Animation dictionary' }), h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Fighter review' })),
     window.TryIt ? window.TryIt.liveLine(f) : null];
   out.push(h('div', { class: 'tryrow' }, tryBtn(), h('span', { class: 'about', text: 'Your answers, slot by slot, in the game now (the slots still "now" play the game\'s own move); play them on their own inputs.' })));
-  out.push(h('div', { class: 'tryrow' }, h('span', { class: 'about', text: 'Live: every change is sent to the Player\'s Character lab by itself (about 2 s later; admin only).' }), liveMsg));
+  out.push(h('div', { class: 'tryrow livego' }, h('span', { class: 'about', text: 'Live: every change is sent to the Player\'s Character lab by itself (about 2 s later; admin only). A pick that cannot go live says why next to it.' }), liveMsg));
   const sheetMsg = h('span', { class: 'saved', 'aria-live': 'polite' });
   const sheetReset = h('button', { type: 'button', class: 'kreset-sheet', text: 'Reset all knobs of the sheet' });
   sheetReset.onclick = async () => {
@@ -418,7 +435,7 @@
   }
   out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'When the whole sheet is how you want it (no agent: the compiler links every pick and knob, builds, checks each slot in the game and publishes, or refuses and says why):' }), shipBtn, shipMsg));
   root.replaceChildren(...out.flat().filter(x => x));
-  drawTiming();
+  drawTiming(); goLive();
   // on open: answers newer than the live config (or no live config yet) go live at once — a sheet edited before the
   // auto-send existed, or while the page was closed, still reaches the Player (2026-10-10)
   (async () => {

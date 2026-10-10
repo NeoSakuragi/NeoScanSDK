@@ -9,8 +9,10 @@
  *   TryIt.button(f, label, fn)          a "Try in game" button (hidden while f has no pack), fn() on click
  *   TryIt.queue(f, pieces, {loop, knobs})  a TRY blob (load 6): the pieces back to back, now; A from neutral again
  *   TryIt.sheet(f, {slots, chain, timing, knobs})  a TRY blob: each arbitration slot's pieces (slot id: arbitrage.js) +
- *                                       the chain as a chain override (load 5): its presses when every press is a brawler
- *                                       move (else the ROM's), its timing (per-link hit-stop, per-segment retime: chainPlan)
+ *                                       THE CHAIN (version 3): each press any piece (a move of his, an animation $NN, an
+ *                                       S- piece), its timing (per-press hit-stop, per-segment retime): chainOf; what
+ *                                       cannot go live is said, press by press, never dropped silently
+ *   TryIt.issues(f, sheet)              -> {slot id: why it cannot go live} (the Assembly shows it next to the slot)
  *   TryIt.plan(f, presses)              -> the chain plan the Assembly's timing knobs start from (chainPlan)
  *   knobs (PIECE KNOBS, tools/brawler/knobs.py): {slot id | 'queue': {S- id: {knob id: value}}}, the values of the
  *                                       pieces' knobs (review/<f>_workshop.json specials[].knobs) -> the blob's knob rows
@@ -19,9 +21,9 @@
  * SEND TO PLAYER (the Character Lab, docs/character_lab.md "Character Lab: the web pages"): the same TRY blob (lab.js encodeTry,
  * the bytes the preview installs) PUT as the fighter's live config (feedback-api/lab/config/<f>, If-Match = the hash this
  * page last saw: a 412 = someone else changed it, reloaded and said); the Player polls it and applies it at neutral. The
- * blob is lab.js liveBlob: the TRY blob, + the chain override when one is set (the sheet's chain: presses + timing), which
- * the Player writes as load 5 first (its retime rows ride in it). A queue keeps the live config's chain, a sheet sets
- * both (as the preview: a sheet clears the chain it does not set).
+ * blob is the TRY blob (lab.js encodeTry), its chain section included (version 3; an old 'LC' chain override after it,
+ * lab.js liveBlob, is no longer written: the Player still plays one). A queue keeps the live config's chain, a sheet
+ * sets both (as the preview: a sheet clears the chain it does not set).
  *   TryIt.button(f, label, fn, send)    + a "Send to Player" button when send is given: send() -> {queue, loop} | {sheet}
  *   TryIt.send(f, what, el)             the Send itself (el: where it says what happened)
  *   TryIt.liveLine(f)                   "Live config: rN, updated when / by, History, Revert" (kept up to date)
@@ -185,7 +187,7 @@
     return { mode: 'pack', id: A.slot, fighters: SJ.fighters, layout: SJ.layout, pool: M.constants.pool, throws: SJ.throws,
              anims: X.anims || [], labSpec: M.constants.lab, moves: X.moves || {},
              chain: X.chain ? { ba: SJ.ba, rules: SJ.chain_rules, retime_rom: rt, fighter: X.chain.fighter } : null,
-             shell: sh, pack: pk, packBytes: bytes, size: sh.size, note: '', xnote: '', version: SJ.game_version };
+             shell: sh, pack: pk, packBytes: bytes, size: sh.size, features: A.features || [], note: '', xnote: '', version: SJ.game_version };
   }
   function ctxOf(f) {
     if (!ctxs[f]) ctxs[f] = (async () => {
@@ -347,70 +349,91 @@
     }
     return { slots, bad };
   }
-  /* THE CHAIN of a sheet (the Assembly's chain section; the chain tool of the old Chain Lab folded in, Bruno 2026-10-10):
-     its presses ([[pieces]] per press: his picks, null = the ROM's) and its TIMING ({hitstop: {a1..aN: frames}, retime:
-     {move: [frames per segment]}}: the per-link hit-stop and the 0.5x-2x segment retime, gretime_t) -> the chain the game
-     plays. chainPlan: the chain spec (lab.js specOf / chainTree's), its moves press by press and the defaults the timing
-     knobs start from (the ROM's: the tree's hit-stops, build/retime.json's targets); why = his presses could not be used
-     (the ROM's chain is timed then). */
+  /* THE CHAIN of a sheet (the Assembly's chain section; Bruno 2026-10-10: "there is no tree: 1 chain with a bunch of
+     finishers"): its presses ([[pieces]] per press: his picks, null / [] = the game's) and its TIMING ({hitstop: {a1..aN:
+     frames}, retime: {move: [frames per segment]}}) -> the TRY blob's chain section (lab.js encodeTry chain / retime,
+     version 3): press k = a standard move he has (LE_MOVE: its animation is one of his moves; it keeps its segments and
+     retime), any other animation $NN of his dictionary (his pack's LAB special) or an S- piece (lab entries); the game
+     builds his chain from it (fighter.c lab_chain). The finishers by stick and the hold are the sheet's slots. NOTHING is
+     dropped silently: a press that cannot go live gets its reason (bad[a<k>]: the Assembly shows it next to the press,
+     the live line lists it) and plays the game's own press. chainPlan: per press its piece, its move (or label) and the
+     defaults the timing knobs start from (the game's: his tree's hit-stops, the shell's retime rows of his moves). */
   function chainData(c) {
     const C = c.man.chain;
     if (!C) return null;
-    // the retime rows of the other fighters are kept in the override (it replaces rt_tab whole): their ids by name (a pack:
-    // the shell's roster order, its anchor)
     return C.fighters ? C : Object.assign({}, C, { fighters: (c.man.fighters || []).map((name, id) => ({ name, id })) });
   }
   function chainPlan(c, presses) {
     const C = chainData(c);
-    if (!C) return { why: 'the site has no chain data for this pack' };
-    const fe = C.fighter, rules = C.rules;
-    const base = CL().specOf(fe, rules, C.retime_rom);
-    let spec = base, why = null;
-    if (presses && presses.length) {
-      const byHex = {}; for (const [m, x] of Object.entries(c.man.moves || {})) (byHex[x] = byHex[x] || []).push(m);
-      const moves = [];
-      for (let i = 0; i < presses.length && !why; i++) {
-        const ps = presses[i] || [];
-        if (ps.length !== 1) { why = `press ${i + 1} ${ps.length ? 'plays ' + ps.length + ' pieces' : 'is empty'}`; break; }
-        const x = String(ps[0]).replace(/^anim-/, '').replace(/^\$/, '').toUpperCase(), m = (byHex[x] || []).find(m_ => fe.has.includes(m_) && CL().MOVE_NAMES.includes(m_));
-        if (!m) why = `press ${i + 1} ($${x}) is not one of ${c.f}'s brawler moves`; else moves.push(m);
-      }
-      const arch = why ? null : Object.keys(rules.lengths).find(a => rules.lengths[a] === moves.length);
-      if (!why && !arch) why = `${moves.length} presses (the archetypes have ${Object.values(rules.lengths).join(' / ')})`;
-      if (!why) spec = Object.assign({}, base, { archetype: arch, links: moves.slice(0, -1), finishers: Object.assign({}, base.finishers, { neutral: moves[moves.length - 1] }),
-        hitstop: arch === base.archetype ? base.hitstop : null });
+    if (!C) return { why: 'his pack has no chain data' };
+    const fe = C.fighter, rules = C.rules, base = CL().specOf(fe, rules, C.retime_rom);
+    const gameMoves = base.links.concat(base.finishers.neutral), N = gameMoves.length;
+    const byHex = {};
+    for (const [m, x] of Object.entries(c.man.moves || {})) { const k = String(x).replace(/^\$/, '').toUpperCase(); (byHex[k] = byHex[k] || []).push(m); }
+    const v3 = (c.man.features || []).includes('try3');
+    const press = [], bad = {};
+    for (let i = 0; i < Math.max(N, (presses || []).length); i++) {
+      const ps = (presses && presses[i]) || [], key = 'a' + (i + 1);
+      const keep = { entry: null, move: gameMoves[i], label: gameMoves[i] };
+      if (i >= N) { if (ps.length) bad[key] = `his chain has ${N} presses (the ${base.archetype} archetype's): a press ${i + 1} cannot play`; continue; }
+      if (!ps.length) { press.push(keep); continue; }
+      const why = w => { bad[key] = w; press.push(keep); };
+      if (ps.length > 1) { why(`a chain press plays one piece (${ps.length} picked): the game's ${gameMoves[i]} plays`); continue; }
+      const raw = String(ps[0]).replace(/^anim-/, ''), x = raw.replace(/^\$/, '').toUpperCase();
+      if (!v3) { why(`the shell ${c.man.shell.version} cannot play a picked chain press (it predates the chain section, "try3"): the game's ${gameMoves[i]} plays`); continue; }
+      if (/^T-\d+$/.test(raw)) { why(`${raw} is a throw: a throw plays in the hold's slots, not as a chain press`); continue; }
+      const mv = !/^S-\d+$/.test(raw) && (byHex[x] || []).find(m => fe.has.includes(m) && CL().MOVE_NAMES.includes(m));
+      if (mv) { press.push({ entry: CL().LE_MOVE | C.ba.indexOf(mv), move: mv, label: `$${x} ${mv}` }); continue; }
+      try { press.push({ entry: entry(raw, c), move: null, label: /^S-/.test(raw) ? raw : '$' + x }); }
+      catch (e) { why(e.message + `: the game's ${gameMoves[i]} plays`); }
     }
-    const N = rules.lengths[spec.archetype], moves = spec.links.concat(spec.finishers.neutral);
-    const hitstop = spec.hitstop || CL().defaultHitstops(rules, N);
+    const moves = press.map(p => p.move || p.label);
+    const hitstop = base.hitstop || CL().defaultHitstops(rules, N);
     const segs = {}, retime = {};
-    for (const m of new Set(moves)) { const s = CL().segsOf(fe, m); if (s) { segs[m] = s; retime[m] = (spec.retime && spec.retime[m] && spec.retime[m].length === s.length) ? spec.retime[m].slice() : s.slice(); } }
-    return { C, fe, rules, base, spec, why, N, moves, defaults: { hitstop, retime }, segs };
+    for (const m of new Set(press.filter(p => p.move).map(p => p.move))) {
+      const sg = CL().segsOf(fe, m);
+      if (sg) { segs[m] = sg; retime[m] = (base.retime && base.retime[m] && base.retime[m].length === sg.length) ? base.retime[m].slice() : sg.slice(); }
+    }
+    return { C, fe, rules, base, spec: base, press, bad, why: null, N, moves, defaults: { hitstop, retime }, segs };
   }
-  // the plan with a sheet's timing -> the spec the game plays (its hit-stops: null = the archetype's scale, as specOf)
-  function timedSpec(P, timing) {
-    const s = Object.assign({}, P.spec, { retime: Object.assign({}, P.spec.retime || {}) });
-    const t = timing || {}, th = t.hitstop || {}, tr = t.retime || {};
-    const hs = P.defaults.hitstop.map((v, k) => Number.isInteger(th['a' + (k + 1)]) ? th['a' + (k + 1)] : v);
-    const scale = CL().defaultHitstops(P.rules, P.N);
-    s.hitstop = hs.every((v, k) => v === scale[k]) ? null : hs;
-    for (const [m, T] of Object.entries(tr)) if (P.segs[m] && Array.isArray(T) && T.length === P.segs[m].length) s.retime[m] = T.slice();
-    return s;
-  }
-  // the sheet's chain -> {bytes: a chain override (load 5), or null = the ROM's chain; text}
+  // the sheet's chain -> {chain: encodeTry's chain | null (the game's), retime: rows, text, bad: {a<k>: why}}
   function chainOf(c, presses, timing) {
     const P = chainPlan(c, presses);
-    if (!P.spec) return { bytes: null, text: 'chain: the ROM\'s kept (' + P.why + ')' };
-    const spec = timedSpec(P, timing);
-    const sameRt = JSON.stringify(spec.retime || {}) === JSON.stringify(P.base.retime || {});
-    const kept = P.why ? ` (${P.why}: the ROM's presses kept)` : '';
-    if (CL().sameChain(spec, P.base) && sameRt) return { bytes: null, text: (presses && presses.length && !P.why ? 'chain: the same as the ROM\'s' : 'chain: the ROM\'s') + kept };
-    const t = CL().chainTree(P.fe, spec, P.rules);
-    const timed = [spec.hitstop ? 'hit-stops ' + spec.hitstop.join(' ') : null,
-      ...Object.keys(spec.retime).filter(m => JSON.stringify(spec.retime[m]) !== JSON.stringify((P.base.retime || {})[m])).map(m => `${m} ${spec.retime[m].join('/')}`)].filter(Boolean);
-    return { bytes: CL().encodeOverride(CL().encodeTree(t, P.C.ba, P.fe.has, P.fe.default.entries), CL().retimeRows(P.C, P.fe, spec)),
-             text: `chain: ${spec.links.concat(spec.finishers.neutral).join(' > ')}` + kept + (timed.length ? '; timing: ' + timed.join(', ') : '') };
+    if (!P.press) return { chain: null, retime: [], text: 'chain: the game\'s (' + P.why + ')', bad: presses && presses.some(p => p && p.length) ? { a1: P.why } : {} };
+    const t = timing || {}, th = t.hitstop || {}, tr = t.retime || {};
+    const hs = P.press.map((_, k) => Number.isInteger(th['a' + (k + 1)]) && th['a' + (k + 1)] !== P.defaults.hitstop[k] ? th['a' + (k + 1)] : 0);
+    const retime = [];
+    for (const [m, T] of Object.entries(tr)) {
+      const sg = P.segs[m];
+      if (!sg) continue;                                   // (a move no press plays now: its timing waits)
+      if (!Array.isArray(T) || T.length !== sg.length || JSON.stringify(T) === JSON.stringify(P.defaults.retime[m])) continue;
+      if (sg.length > CL().LRT_SEG) { P.bad['a' + (P.moves.indexOf(m) + 1)] = `${m}: ${sg.length} segments, the game retimes at most ${CL().LRT_SEG}`; continue; }
+      retime.push({ move: P.C.ba.indexOf(m), targets: T.map((v, i) => sg[i] ? v : 0), name: m });
+    }
+    const picked = P.press.some(p => p.entry !== null), timed = hs.some(v => v) || retime.length;
+    const text = (picked ? 'chain: ' + P.press.map(p => p.label).join(' > ') : 'chain: the game\'s') +
+      (timed ? '; timing: ' + [hs.some(v => v) ? 'hit-stops ' + hs.map((v, k) => v || P.defaults.hitstop[k]).join(' ') : null,
+                               ...retime.map(r => `${r.name} ${r.targets.join('/')}`)].filter(Boolean).join(', ') : '');
+    return { chain: picked || hs.some(v => v) ? { entries: P.press.map(p => p.entry), hitstop: hs } : null,
+             retime: retime.map(({ move, targets }) => ({ move, targets })), text, bad: P.bad };
   }
-
+  /* what of a sheet cannot go live, per slot (the Assembly shows each next to its slot; the live line lists them):
+     {slot id | 'knobs': why}. The slots' pieces, the knobs, the chain presses (chainOf) */
+  async function issues(f, sh) {
+    const c = await ctxOf(f), out = {};
+    for (const [k, ps] of Object.entries(sh.slots || {})) {
+      if (!ps || !ps.length) continue;
+      if (!CL().LAB_SLOTS.includes(k)) { out[k] = 'no such slot in the game'; continue; }
+      const w = [];
+      for (const p of ps) { try { entry(p, c); } catch (e) { w.push(e.message); } }
+      if (ps.length > CL().LO_MAX) w.push(`${ps.length} pieces, a slot plays ${CL().LO_MAX}: the rest left out`);
+      if (w.length) out[k] = w.join('; ');
+    }
+    const kb = knobsOf(c, sh.knobs).bad;
+    if (kb.length) out.knobs = kb.join('; ');
+    Object.assign(out, chainOf(c, sh.chain, sh.timing).bad);
+    return out;
+  }
   // ---- the preview API ----------------------------------------------------------------------------------------------
   async function queue(f, pieces, opt) {
     await ensure(f); err('');
@@ -427,16 +450,13 @@
     try {
       const { slots, bad } = sheetSlots(S, sh), kn = knobsOf(S, sh.knobs);
       bad.push(...kn.bad);
-      clearAll();
-      send({ slots, knobs: kn.rows }); settle(2);
       const ch = chainOf(S, sh.chain, sh.timing);
-      if (ch.bytes) {
-        loadTaken(); S.lab.installChain(S.man.id, ch.bytes); loadTaken(); S.chainPushed = true;
-        if (!S.lab.overrideState(S.man.id).treeInLab) throw new Error('the game refused the chain (load 5)');
-      }
+      for (const [k, w] of Object.entries(ch.bad)) bad.push(`press ${k.slice(1)}: ${w}`);
+      clearAll();
+      send({ slots, knobs: kn.rows, chain: ch.chain, retime: ch.retime }); settle(2);
       S.what = { kind: 'sheet', slots, knobs: kn.rows };
       const names = Object.keys(slots);
-      nowText(`Sheet: ${names.length} slot${names.length === 1 ? '' : 's'} set (${names.map(k => k + ' = ' + slots[k].map(e => describe(e)).join(' > ')).join('; ') || 'none'}); ${kn.rows.length ? kn.rows.length + ' knob row(s); ' : ''}${ch.text}${ch.bytes ? ' (pushed, load 5)' : ''}.` +
+      nowText(`Sheet: ${names.length} slot${names.length === 1 ? '' : 's'} set (${names.map(k => k + ' = ' + slots[k].map(e => describe(e)).join(' > ')).join('; ') || 'none'}); ${kn.rows.length ? kn.rows.length + ' knob row(s); ' : ''}${ch.text}.` +
         (bad.length ? ' Left out: ' + bad.join('; ') + '.' : ''));
     } catch (e) { err('Not applied: ' + e.message); }
   }
@@ -494,22 +514,25 @@
       if (what.queue) {
         const entries = queueEntries(c, what.queue), loop = !!what.loop, kn = knobsOf(c, what.knobs);
         if (kn.bad.length) throw new Error(kn.bad.join('; '));
-        tryBlob = CL().encodeTry({ fighter: c.man.id, queue: entries, now: true, loop, knobs: kn.rows });
-        chain = cur && cur.chain && cur.tryBlob[3] === c.man.id ? cur.chain : null;
+        const mineCur = cur && cur.tryBlob[3] === c.man.id, kc = mineCur ? CL().tryChain(cur.tryBlob) : { chain: null, retime: [] };
+        tryBlob = CL().encodeTry({ fighter: c.man.id, queue: entries, now: true, loop, knobs: kn.rows, chain: kc.chain, retime: kc.retime });
+        chain = mineCur && cur.chain ? cur.chain : null;
         tj = Object.assign({ kind: 'queue', pieces: what.queue.map(String), loop }, what.knobs ? { knobs: what.knobs } : {});
-        said = `the queue ${entries.map(e => describe(e, c)).join(' > ')}${loop ? ' (loop)' : ''}` + (chain ? ', the live chain kept' : '');
+        said = `the queue ${entries.map(e => describe(e, c)).join(' > ')}${loop ? ' (loop)' : ''}` + (chain || kc.chain || kc.retime.length ? ', the live chain kept' : '');
       } else if (what.sheet) {
         const { slots, bad } = sheetSlots(c, what.sheet), ch = chainOf(c, what.sheet.chain, what.sheet.timing), kn = knobsOf(c, what.sheet.knobs);
         bad.push(...kn.bad);
-        tryBlob = CL().encodeTry({ fighter: c.man.id, slots, knobs: kn.rows });
-        chain = ch.bytes;
+        for (const [k, w] of Object.entries(ch.bad)) bad.push(`press ${k.slice(1)}: ${w}`);
+        tryBlob = CL().encodeTry({ fighter: c.man.id, slots, knobs: kn.rows, chain: ch.chain, retime: ch.retime });
+        chain = null;                                      // (the chain rides in the TRY blob, version 3: no load 5 override)
         tj = Object.assign({ kind: 'sheet', slots: what.sheet.slots || {} }, what.sheet.knobs ? { knobs: what.sheet.knobs } : {}, bad.length ? { left_out: bad } : {});
-        cj = ch.bytes ? Object.assign({ kind: 'sheet', presses: what.sheet.chain, text: ch.text }, what.sheet.timing ? { timing: what.sheet.timing } : {}) : null;
+        cj = ch.chain || ch.retime.length ? Object.assign({ kind: 'sheet', in: 'try', presses: what.sheet.chain, text: ch.text,
+          entries: ch.chain && ch.chain.entries, hitstop: ch.chain && ch.chain.hitstop, retime: ch.retime }, what.sheet.timing ? { timing: what.sheet.timing } : {}) : null;
         said = `the sheet, ${Object.keys(slots).length} slot${Object.keys(slots).length === 1 ? '' : 's'}; ${ch.text}` + (bad.length ? '; left out: ' + bad.join('; ') : '');
       } else throw new Error('nothing to send');
       const blob = CL().liveBlob(tryBlob, chain);
       const body = { blob: b64(blob), hash: await sha256(blob), note: ('Send to Player: ' + said).slice(0, 300),
-        json: { name: f, lab_try: { page: location.pathname.split('/').pop() || 'index.html', try: tj, chain: chain ? cj : null } } };
+        json: { name: f, lab_try: { page: location.pathname.split('/').pop() || 'index.html', try: tj, chain: cj } } };
       const hd = { 'Content-Type': 'application/json' };
       if (L.rec) hd['If-Match'] = '"' + L.rec.hash + '"';
       const r = await fetch(API + 'config/' + f, { method: 'PUT', credentials: 'same-origin', headers: hd, body: JSON.stringify(body) });
@@ -603,6 +626,6 @@
   // the Assembly's chain timing knobs: f's chain plan for the sheet's presses (its moves, the ROM's hit-stops and retime
   // targets, each move's source segments) -> chainPlan's result, or {why}
   const plan = (f, presses) => ctxOf(f).then(c => chainPlan(c, presses), e => ({ why: e.message }));
-  window.TryIt = { has, button, queue, sheet, plan, chainOf: (c, p, t) => chainOf(c, p, t), knobsOf: (c, k) => knobsOf(c, k), entry: (p, c) => entry(p, c), show, send: sendTo, liveLine, loop: loopOn, ctx: ctxOf };
+  window.TryIt = { has, button, queue, sheet, plan, issues, chainOf: (c, p, t) => chainOf(c, p, t), knobsOf: (c, k) => knobsOf(c, k), entry: (p, c) => entry(p, c), show, send: sendTo, liveLine, loop: loopOn, ctx: ctxOf };
   window.tryit = { get state() { return S; }, get lab() { return S.lab; }, get gp() { return S.gp; }, ready: false, get live() { return LV; } };
 })();

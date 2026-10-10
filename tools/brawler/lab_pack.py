@@ -240,9 +240,10 @@ def shared_tokens(B, uses=None):
 
 
 def features(B):
-    """what the shell plays: its ops, knob kinds, lab, try2, its shared ids"""
+    """what the shell plays: its ops, knob kinds, lab, try2, try3 (TRY blob v3: the chain), its shared ids"""
     fh = open(os.path.join(GAME, 'fighter.h')).read()
-    return ops_of(B) + ['knob-' + k for k in knobs_of()] + ['lab'] + (['try2'] if 'gkcat_t' in fh else []) + shared_tokens(B)
+    return ops_of(B) + ['knob-' + k for k in knobs_of()] + ['lab'] + (['try2'] if 'gkcat_t' in fh else []) + \
+        (['try3'] if 'LS_CHAIN' in fh else []) + shared_tokens(B)
 
 
 def needs(B, E, S):
