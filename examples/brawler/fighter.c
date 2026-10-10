@@ -7,6 +7,7 @@
 #include "sound.h"
 #include "game_tables.h"
 #include "snd/voices.h"
+#include "labslot.h"                                         /* (the Character Lab's shell: the slot's tables in RAM) */
 
 /* draw.s reads these structures at fixed offsets (its .equ list): the build stops if a field moves */
 #include <stddef.h>

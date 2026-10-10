@@ -2,7 +2,8 @@
 """Piece knobs in our emulator (harness.py, the desktop Geolith core; never MAME): the TRY blob's knob rows (encoded by
 chainlab/lab.js encodeTry + knobRows under Node: the pages' own encoder) in a Lab build, measured on the projectile.
 
-    python3 tools/brawler/knobs_proof.py [GAME_DIR] [--build build_lab_robert] [--rom lab-robert.neo] [--out DIR]
+    python3 tools/brawler/knobs_proof.py [GAME_DIR] [--build build_shell] [--rom lab-shell.neo] [--as slot] [--out DIR]
+    (default: the Character Lab's shell, whose slot is Robert; the per-fighter Lab builds are retired)
 
 Robert's S-012 Haoh Shoukou Ken C (default 7 px/frame, 1 hit) and S-013 MAX 6426A (16 px/frame, 5 hits):
   default      S-012 on forward + C, no knob: 7 / 1
@@ -35,9 +36,9 @@ def encode(cfg):
 def main():
     import argparse
     ap = argparse.ArgumentParser(); ap.add_argument('game', nargs='?', default=os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler')))
-    ap.add_argument('--build', default='build_lab_robert'); ap.add_argument('--rom', default='lab-robert.neo')
+    ap.add_argument('--build', default='build_shell'); ap.add_argument('--rom', default='lab-shell.neo')
     ap.add_argument('--out', default='/data/tmp/knobs')
-    ap.add_argument('--as', dest='as_', default='robert', help='the roster name Robert plays as (a shell: "slot", with --rom a shell + his pack applied)')
+    ap.add_argument('--as', dest='as_', default='slot', help='the roster name Robert plays as (a shell: "slot", with --rom a shell + his pack applied)')
     a = ap.parse_args(); game = os.path.abspath(a.game)
     harness.GAME = game
     L = Lab(rom=os.path.join(game, a.rom), game=game, build=a.build); b = L.b; ST = b.states

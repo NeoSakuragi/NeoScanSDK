@@ -74,13 +74,18 @@ X-Public, the Oros token) and /api/lab/... (the web pages: /brawler-lab/feedback
                                      new revision -> {head..., changed}
   GET  lab/config/<f>/history        every revision's head; GET lab/config/<f>/rev/<n> one revision in full
   POST lab/config/<f>/revert {rev, note?}   a new revision with revision <rev>'s blob + json (reverted_from)
-  GET  lab/catalogue                 {shell: {version, url, sha256, engine, size, published}, packs: [{fighter, display, face,
-                                     version, url, sha256, engine, size, published, versions}]}; ETag, If-None-Match -> 304
+  GET  lab/catalogue                 {shell: {version, url, sha256, engine, size, published, format, features}, packs:
+                                     [{fighter, display, face, version, url, sha256, engine, size, published, versions, format,
+                                     needs, data_sha, all: [every version of his, newest first: version, url, sha256, size,
+                                     engine, format, needs, data_sha, published]}]}; ETag, If-None-Match -> 304. THE PACK
+                                     FORMAT (docs/character_lab.md): a pack loads into a shell of its format whose features
+                                     cover its needs (the Player / the pages pick his newest such pack from `all`)
   POST lab/ship/<f> {rev?, note?}   "Ship to game": the Lab config is a STAGING area (editing it never changes the game or
                                      git); this queues {id, fighter, rev, hash, by, at, note, status pending} in LAB/ship.json for
                                      the desktop (labcfg.py ship-pending: export -> game.json -> build -> publish, run there)
   GET  lab/ship[?status=pending]     the queue; POST lab/ship_done {id, status done | dropped, note?} (labcfg.py ship-done)
-  POST lab/publish {kind shell|pack|face, fighter?, version, engine, src, sha256, display?}   labpub.py (the file in LAB/incoming)
+  POST lab/publish {kind shell|pack|face, fighter?, version, engine, src, sha256, display?, format?, features? (shell),
+                    needs? + data_sha? (pack)}   labpub.py (the file in LAB/incoming)
   POST lab/unpublish {kind, fighter?, version?}
   Files: LAB/config/<f>.json (live) + <f>.history.jsonl (append-only, every revision in full); LAB/shell/<version><ext>,
   LAB/packs/<f>/<version>.pack (+ <version>.json sidecars), LAB/faces/<f>.png; served by nginx /brawler/lab/dl/ (Range).
@@ -694,7 +699,7 @@ def lab_catalogue():
     """{shell, packs}: the last published shell and each fighter's last published pack (the newest 'published' wins,
     so a rollback = publishing the old file again under a new version)"""
     sh = lab_items('shell')
-    shell = {k: sh[-1][k] for k in ('version', 'url', 'sha256', 'engine', 'size', 'published')} if sh else None
+    shell = {k: sh[-1].get(k) for k in ('version', 'url', 'sha256', 'engine', 'size', 'published', 'format', 'features')} if sh else None
     packs = []
     pd = os.path.join(LAB, 'packs')
     for f in sorted(os.listdir(pd)) if os.path.isdir(pd) else []:
@@ -702,9 +707,11 @@ def lab_catalogue():
         if not it: continue
         x = it[-1]
         face = os.path.join(LAB, 'faces', f + '.png')
+        keys = ('version', 'url', 'sha256', 'size', 'engine', 'format', 'needs', 'data_sha', 'published')
         packs.append({'fighter': f, 'display': x.get('display') or f, 'face': LAB_DL + 'faces/' + f + '.png' if os.path.exists(face) else None,
                       'version': x['version'], 'url': x['url'], 'sha256': x['sha256'], 'engine': x['engine'], 'size': x['size'],
-                      'published': x.get('published'), 'versions': len(it)})
+                      'published': x.get('published'), 'versions': len(it), 'format': x.get('format'), 'needs': x.get('needs'),
+                      'data_sha': x.get('data_sha'), 'all': [{k: y.get(k) for k in keys} for y in reversed(it)]})
     return {'shell': shell, 'packs': packs}
 
 
@@ -737,8 +744,14 @@ def lab_publish(req, by):
         if os.path.exists(os.path.join(d, ver + '.json')): return None, 'version %s already published' % ver
         meta = {'kind': kind, 'version': ver, 'engine': eng, 'sha256': data_sha, 'size': os.path.getsize(sp), 'url': url,
                 'file': name, 'published': now(), 'by': by}
+        fmt = req.get('format')                         # the pack format (docs/character_lab.md): its number, the shell's
+        if isinstance(fmt, int) and 0 < fmt < 1000: meta['format'] = fmt   # features / the pack's needs (tokens)
+        toks = lambda v: [str(t)[:64] for t in (v.split() if isinstance(v, str) else v or [])][:2000]
+        if kind == 'shell' and req.get('features') is not None: meta['features'] = toks(req['features'])
         if kind == 'pack':
             meta['fighter'] = f; meta['display'] = str(req.get('display') or f)[:40]
+            if req.get('needs') is not None: meta['needs'] = toks(req['needs'])
+            if re.match(r'^[0-9a-f]{64}$', str(req.get('data_sha') or '')): meta['data_sha'] = req['data_sha']
         os.replace(sp, os.path.join(d, name))
         with open(os.path.join(d, ver + '.json'), 'w') as o: json.dump(meta, o, indent=1, ensure_ascii=False)
     log('lab publish', kind, f, ver, 'engine', eng, meta['size'], 'bytes by', by)

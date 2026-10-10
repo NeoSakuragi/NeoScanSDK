@@ -579,7 +579,41 @@
      once the last builder has started (the finisher's press), nothing once the finisher started */
   function autoKeys(i, starts, N, stick, done) { return done ? '' : (starts >= N - 1 ? stick : '') + (i % 2 ? '' : 'a'); }
 
-  const api = { encodeTry, tryLength, knobRows, LS_KNOB, LS_QUEUE, KN_MAX, liveBlob, liveParts, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  /* THE PACK FORMAT (docs/character_lab.md "The pack format", tools/brawler/lab_pack.py; the Player's CharacterLab.kt and
+     pack_swap.c read the same): a shell's ANCHOR in its P ROM (the .neo's P keeps each word low byte first) and a pack's
+     manifest; a pack loads iff its format = the shell's and its needs are all among the shell's features */
+  const PACK_FORMAT = 1, LABANCHOR_AT = 0xDC000;
+  // a shell .neo (Uint8Array) -> {format, slot, features, regions, doc}; at: where the anchor starts in it (default the
+  // .neo's: header 0x1000 + LABANCHOR_AT; 0 for its 16 KB fetched alone)
+  function readAnchor(neo, at) {
+    const u = neo instanceof Uint8Array ? neo : new Uint8Array(neo), A = at === undefined ? 0x1000 + LABANCHOR_AT : at;
+    const b = i => u[A + (i ^ 1)], w = i => b(i) << 8 | b(i + 1), l = i => (w(i) * 65536 + w(i + 2)) >>> 0;
+    if (String.fromCharCode(b(0), b(1), b(2), b(3)) !== 'NGLA') throw new Error('not a Character Lab shell of the pack format (no anchor)');
+    const nreg = w(6), flen = w(10), jo = l(12), jl = l(16), regions = {};
+    const KN = ['', 'slot', 'bank', 'face', 'tiles', 'voices', 'm0', 'm1', 'm2', 'm3'], ROMS = ['P', 'S', 'M', 'V1', 'V2', 'C'];
+    for (let k = 0; k < nreg; k++) { const o = 20 + 12 * k; regions[KN[b(o)]] = { rom: ROMS[b(o + 1)], offset: l(o + 4), size: l(o + 8) }; }
+    let fs = ''; for (let i = 0; i < flen - 1; i++) fs += String.fromCharCode(b(20 + 12 * nreg + i));
+    const jb = new Uint8Array(jl); for (let i = 0; i < jl; i++) jb[i] = b(jo + i);
+    return { format: w(4), slot: b(8), features: fs.split(' ').filter(Boolean), regions, doc: JSON.parse(new TextDecoder().decode(jb)) };
+  }
+  function packManifest(u8) {                          // a pack (Uint8Array) -> its manifest (ngpk: {format, needs})
+    if (String.fromCharCode(...u8.subarray(0, 4)) !== 'NGPK') throw new Error('not a character pack');
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), n = dv.getUint32(8, true);
+    return JSON.parse(new TextDecoder().decode(u8.subarray(36, 36 + n)));
+  }
+  // null = it loads; else why not, in plain words (lab_pack.py compat)
+  function packCompat(fmt, needs, shellFmt, features) {
+    if (fmt == null) return "a pack from before the pack format (it holds the old shell's addresses): rebuild it";
+    if (fmt !== shellFmt) return `pack format ${fmt}, this shell reads format ${shellFmt}`;
+    const have = new Set(features || []), miss = (typeof needs === 'string' ? needs.split(' ') : needs || []).filter(n => n && !have.has(n));
+    if (!miss.length) return null;
+    const shared = miss.filter(m => /^(vp|sr\d+|sp\d+):/.test(m)), plain = miss.filter(m => !shared.includes(m)), why = [];
+    if (plain.length) why.push(`it needs ${plain.join(', ')}, which this shell does not have`);
+    if (shared.length) why.push(`its shared tables (${[...new Set(shared.map(m => m.replace(/\d*:.*/, '')))].join(', ')}) are not this shell's`);
+    return why.join('; ');
+  }
+
+  const api = { PACK_FORMAT, LABANCHOR_AT, readAnchor, packManifest, packCompat, encodeTry, tryLength, knobRows, LS_KNOB, LS_QUEUE, KN_MAX, liveBlob, liveParts, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);

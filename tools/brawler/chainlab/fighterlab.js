@@ -125,7 +125,7 @@
     row('Character Lab pack', !cat ? 'the catalogue could not be read' : p ? `${p.version}, published ${when(p.published)}, ${(p.size / 1024).toFixed(0)} KB, engine ${p.engine}, ${p.versions} version${p.versions === 1 ? '' : 's'} published` +
       (cat.shell && p.engine !== cat.shell.engine ? ` — NOT loadable: the catalogue's shell ${cat.shell.version} is engine ${cat.shell.engine}` : '') : 'no pack yet'),
     row('Character Lab shell', cat && cat.shell ? `${cat.shell.version} (engine ${cat.shell.engine})` : 'none published'),
-    row('Lab build (this site)', `game ${cast.version}, built ${when(cast.built)}` + (C.lab_build ? '; his own Lab build rom/lab-' + C.name + '.neo (Try in game fallback)' : '')),
+    row('This site', `game ${cast.version}, built ${when(cast.built)}`),
     row('Live config', !cfg ? 'not read' : live ? `r${live.version}, updated ${when(live.updated)} by ${live.by}` : 'none yet (the Player plays the game\'s own moves)')));
   const pics = h('div', { class: 'pics' },
     C.face ? h('figure', {}, h('img', { src: C.face, alt: C.display + "'s HUD portrait", width: '128', height: '128' }), h('figcaption', { text: 'HUD portrait (the game\'s pixels, x4)' })) : h('p', { class: 'note', text: 'No HUD portrait could be made (' + (C.face_error || 'no source picture') + ').' }),

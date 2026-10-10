@@ -152,9 +152,10 @@ PREFIX_SLOT = {0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4, 0x17: 5, 0x16: 6, 0x1D: 7}   
 VOICE_PRIO = 0x50                                         # KOF98's voice records (110 of slot 2's 223 used ones)
 # the Character Lab's shell (examples/brawler/Makefile LAB_SHELL / LAB_PACK; voice_map's entry with slot_of): the slot
 # fighter's voices take fixed codes and a fixed V area, whoever fills the slot: voice id i -> code SLOT_CODE0 + i - 1 of the
-# overflow pair (| $100 in voices.h), its samples back to back in SLOT_V bytes from the first 1 MB boundary past every
-# other sample (placed last, after the ports), the codes it does not use emptied with their enable bits cleared
-SLOT_NV, SLOT_CODE0, SLOT_V = 48, 0xC0, 0x80000
+# overflow pair (| $100 in voices.h), its samples back to back in SLOT_V bytes at SLOT_V_AT (placed last, after the ports;
+# fixed by the pack format, tools/brawler/lab_pack.py: its records name absolute V addresses, so every shell and pack keeps
+# the area there: the other samples must end before it), the codes it does not use emptied with their enable bits cleared
+SLOT_NV, SLOT_CODE0, SLOT_V, SLOT_V_AT = 48, 0xC0, 0x80000, 0xC00000
 
 def voices(t, man, mdir, out):
     """the fighters' voices (TODO #55): only the ones the ROM's voice tables map (export_bm.py build/voice_map.json, from
@@ -235,11 +236,12 @@ def voices(t, man, mdir, out):
     return rep
 
 def slot_voices(t, S):
-    """the shell's slot (SLOT_NV, SLOT_CODE0, SLOT_V): its samples in their own V area (from the first 1 MB boundary past
+    """the shell's slot (SLOT_NV, SLOT_CODE0, SLOT_V, SLOT_V_AT): its samples in their own V area (SLOT_V_AT, past
     every other sample), a record per voice in both overflow slots, the enable bits of its codes; -> the regions the
     pack carries (lab_pack.py): {'v': [start, size], 'm': [[start, end), ...], ...}"""
     old = bytes(roms(KOF98)[0])
-    at0 = ((len(t.v) >> 8) + MB - 1) // MB * MB            # in 256-byte pages
+    assert len(t.v) <= SLOT_V_AT, f'the V ROM runs to ${len(t.v):X} before the slot, the pack format keeps its area at ${SLOT_V_AT:X} (a new pack format)'
+    at0 = SLOT_V_AT >> 8                                  # in 256-byte pages (on a 1 MB boundary)
     t.v += bytes((at0 << 8) - len(t.v)); t.v += bytes(SLOT_V)
     at = at0; srcv = {}; used = 0
     for sl, bits in zip(S['slots'], S['enable']):          # every slot code empty, its bit cleared

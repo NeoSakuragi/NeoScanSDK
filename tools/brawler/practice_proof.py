@@ -2,7 +2,8 @@
 """Proof of the Lab builds' PRACTICE MODE (examples/brawler/main.c "PRACTICE MODE", fighter.h prac_t; Bruno 2026-10-10),
 in our emulator (harness, the repo's Geolith core; never MAME):
 
-    python3 practice_proof.py [FIGHTER] [OUT]      (default robert, /data/tmp/practice; needs make LAB_FIGHTER=FIGHTER)
+    python3 practice_proof.py [FIGHTER] [OUT]      (default robert, /data/tmp/practice; the Character Lab's shell with
+                                                    FIGHTER's pack applied: make LAB_SHELL=1, make LAB_PACK=FIGHTER)
 
 Power on: the build boots straight into the practice (P1 = its LAB fighter, one standing dummy). Then every menu line is
 driven through the menu itself (START, the stick, A), never by poking `prac`, and its effect read back from RAM:
@@ -19,9 +20,11 @@ F = sys.argv[1] if len(sys.argv) > 1 else 'robert'
 OUT = sys.argv[2] if len(sys.argv) > 2 else '/data/tmp/practice'
 GAME = harness.GAME
 os.makedirs(OUT, exist_ok=True)
-_lay = harness._layout
-harness._layout = lambda game, build='build': _lay(game, f'build_lab_{F}')
-b = Brawler(rom=os.path.join(GAME, f'lab-{F}.neo'), game=GAME)
+import lab_pack                                             # the shell + his pack (what a swap gives: lab_pack.apply)
+rom, why = lab_pack.apply(lab_pack.neo(os.path.join(GAME, 'lab-shell.neo')), open(os.path.join(GAME, 'packs', F + '.pack'), 'rb').read())
+assert rom, why
+open(os.path.join(OUT, 'shell+' + F + '.neo'), 'wb').write(rom)
+b = Brawler(rom=os.path.join(OUT, 'shell+' + F + '.neo'), game=GAME, build='build_shell')
 S = b.syms
 PS = ['FURY', 'MAX', 'DRIVE', 'LIFE', 'DUMMIES', 'MODE', 'WAVES', 'DLIFE', 'BOXES']
 PM_RESET, PM_APPLY, PM_EXIT = 9, 10, 11

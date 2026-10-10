@@ -92,6 +92,8 @@ def _layout(game, build='build'):
     for l in subprocess.run(['m68k-linux-gnu-nm', os.path.join(game, build, 'rom.elf')], capture_output=True, text=True).stdout.split('\n'):
         p = l.split()
         if len(p) == 3: syms[p[2]] = int(p[0], 16)
+    if 'lab_bm_chars' in syms:                       # a Character Lab shell / pack build (labslot.h): fighter_t.ch points
+        syms['bm_chars_rom'] = syms.get('bm_chars'); syms['bm_chars'] = syms['lab_bm_chars']   # into the RAM copy
     syms['sizeof_intent'] = eq['INTENT']; syms['sizeof_bchar'] = eq['CHSIZE']
     syms['lab_fields'] = {f: eq['LAB_' + f] for f in LAB_FIELDS if 'LAB_' + f in eq}
     if 'LABSZ_tblob' in eq: syms['tblob_size'] = eq['LABSZ_tblob']   # lab_t.tblob's bytes (TRY_MAX): the Player's limit

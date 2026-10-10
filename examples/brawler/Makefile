@@ -3,24 +3,23 @@ SDK      = $(NEOSCAN)/sdk
 TOOLS    = $(NEOSCAN)/tools
 BUILD    = build
 ROM_NAME = brawler
-# the Brawler Lab's build of one fighter ("Try in game", Bruno 2026-10-10): make LAB_FIGHTER=robert -> lab-robert.neo from
-# build_lab_robert/: every animation of his dictionary in one more special of his pool (tools/brawler/export_bm.py --lab,
-# fighter.c "Lab: try in game"); the other fighters as usual. Lab-only: never published as the Player's game
-LAB_FIGHTER ?=
-ifneq ($(LAB_FIGHTER),)
-BUILD    = build_lab_$(LAB_FIGHTER)
-ROM_NAME = lab-$(LAB_FIGHTER)
-endif
 # the Character Lab's shell and packs (Bruno 2026-10-10: "one lab build and two exported data sets, two characters we could
 # dynamically swap"; docs/feedback.md "Character Lab: shell and packs"): the game with one more roster fighter, the SLOT
 # (the last index; build_tables.py add_slot), whose data sits in fixed regions: its first-MB tables in .labslot (linked
 # at LABSLOT_AT), its banked tables in a P2 bank of its own, its tiles in a block of export_bm.SLOT_TILES, its voices in a
 # V area + driver records of their own (build_snd.py), its HUD face in the S ROM. make LAB_SHELL=1 -> lab-shell.neo
 # (build_shell/, the slot = SHELL_SLOT, so it boots into the practice with him); make LAB_PACK=<f> -> packs/<f>.pack +
-# .json (build_pack_<f>/: the same game with <f> in the slot; tools/brawler/lab_pack.py takes the slot's regions and
-# refuses a pack whose bytes differ from the shell's anywhere else, or that overflows a region). Lab-only builds.
+# .json (build_pack_<f>/: the same game with <f> in the slot; tools/brawler/lab_pack.py takes the slot's regions).
+# THE PACK FORMAT (docs/character_lab.md "The pack format", Bruno 2026-10-10: "why would the packs need a rebuild?"): a
+# pack holds no address of the shell's code or tables. Its slot HEADER (LABHDR_AT: the slot's element of every
+# per-fighter table, labslot.h) and .labslot follow it to the end of the first MB; the shell's ANCHOR (LABANCHOR_AT:
+# format, features, its relocatable regions, RAM map, layout) is written after the link by lab_pack.py seal, which also
+# writes the header from the build's own tables. A pack loads into any shell of the same format whose features cover its
+# needs: an engine change rebuilds the shell only. Lab-only builds (the practice mode, never the Player's game).
 SHELL_SLOT = robert
-LABSLOT_AT = 0xE0000                       # .labslot: $E0000-$FFFFF (lab_pack.py LABSLOT_SIZE)
+LABANCHOR_AT = 0xDC000                     # the shell's anchor: $DC000-$DFFFF (lab_pack.py LABANCHOR_AT)
+LABHDR_AT  = 0xE0000                       # the slot header: $E0000-$E03FF (lab_pack.py LABHDR_AT, labslot.h)
+LABSLOT_AT = 0xE0400                       # .labslot: $E0400-$FFFFF (lab_pack.py LABSLOT_AT)
 LAB_SHELL ?=
 LAB_PACK ?=
 SLOT =
@@ -40,13 +39,13 @@ ROM_NAME = pack-$(SLOT)
 endif
 export BRAWLER_SLOT = $(SLOT)
 SLOT_CFLAGS = -DLAB_SHELL=1
-SLOT_LDFLAGS = --section-start=.labslot=$(LABSLOT_AT)
+SLOT_LDFLAGS = --section-start=.labanchor=$(LABANCHOR_AT) --section-start=.labhdr=$(LABHDR_AT) --section-start=.labslot=$(LABSLOT_AT)
 else
 unexport BRAWLER_SLOT
 endif
-# every Lab build (LAB_FIGHTER, LAB_SHELL or LAB_PACK) compiles the practice mode in (main.c "PRACTICE MODE"): -DLAB_BUILD=1; the
+# every Lab build (LAB_SHELL or LAB_PACK) compiles the practice mode in (main.c "PRACTICE MODE"): -DLAB_BUILD=1; the
 # Player's game 0 (none of that code is in it)
-LAB_BUILD = $(if $(LAB_FIGHTER)$(LAB_SHELL)$(LAB_PACK),1,0)
+LAB_BUILD = $(if $(LAB_SHELL)$(LAB_PACK),1,0)
 
 CC       = m68k-linux-gnu-gcc
 LD       = m68k-linux-gnu-ld
@@ -80,9 +79,9 @@ $(BUILD)/game_tables.c $(BUILD)/game_tables.h &: game.json $(TOOLS)/brawler/buil
 # /data/roms/kizuna.neo + /data/neogeo_dict/kizuna/kim_capture.json) and of Double Dragon (tools/doubledr: /data/roms/doubledr.neo,
 # its palette RAM /data/neogeo_dict/doubledr/palram.json) and of Samurai Shodown II (tools/samsho2: /data/roms/samsho2.neo;
 # Haohmaru, Genjuro, Kuroko read from its ROM) ---
-$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(wildcard $(TOOLS)/kof96/*.py) $(TOOLS)/brawler/retime.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(wildcard $(TOOLS)/samsho2/*.py) $(TOOLS)/samsho2/victim_poses_ss2.json $(TOOLS)/doubledr/victim_poses_dd.json $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_stage_land.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py $(if $(LAB_FIGHTER),$(TOOLS)/brawler/arb_pieces/$(LAB_FIGHTER).json)
+$(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/voice_map.json $(BUILD)/bm_c1.bin $(BUILD)/bm_c2.bin $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h &: $(BUILD)/roster.json $(TOOLS)/brawler/export_bm.py $(wildcard $(TOOLS)/kof96/*.py) $(TOOLS)/brawler/retime.py $(wildcard $(TOOLS)/samsho4/*.py) $(wildcard $(TOOLS)/whp/*.py) $(wildcard $(TOOLS)/kizuna/*.py) $(wildcard $(TOOLS)/doubledr/*.py) $(wildcard $(TOOLS)/samsho2/*.py) $(TOOLS)/samsho2/victim_poses_ss2.json $(TOOLS)/doubledr/victim_poses_dd.json $(TOOLS)/brawler/routes.py $(wildcard $(TOOLS)/brawler/routes/*.json) $(TOOLS)/brawler/make_stage_ra.py $(TOOLS)/brawler/make_stage_land.py $(TOOLS)/brawler/make_banner.py $(TOOLS)/brawler/make_sparks.py $(TOOLS)/brawler/sparks98.json $(TOOLS)/brawler/voices.json $(TOOLS)/brawler/voices.py $(if $(SLOT),$(wildcard $(TOOLS)/brawler/arb_pieces/$(SLOT).json))
 	mkdir -p $(BUILD)
-	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json $(if $(LAB_FIGHTER),--lab $(LAB_FIGHTER))
+	python3 $(TOOLS)/brawler/export_bm.py $(CURDIR)/$(BUILD) --roster $(CURDIR)/$(BUILD)/roster.json
 	python3 $(TOOLS)/brawler/make_stage_ra.py $(CURDIR)/$(BUILD)   # needs /data/roms/roboarmy.neo
 	python3 $(TOOLS)/brawler/make_stage_land.py $(CURDIR)/$(BUILD)   # the select screen: KOF95 stage 2 (/data/roms/kof95.neo, /data/neogeo_dict/kof95/stages)
 	python3 $(TOOLS)/brawler/make_banner.py $(CURDIR)/$(BUILD)
@@ -109,11 +108,11 @@ $(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h $(BUILD)/snd/voices
 # --- Compile ---
 $(BUILD)/stage_opt: FORCE                  # the -D options of the last build (STAGE, AI_OFF, PROFILE): every object is rebuilt
 	@mkdir -p $(BUILD); echo "$(STAGE) $(AI_OFF) $(PROFILE) $(LAB_BUILD)" | cmp -s - $@ || echo "$(STAGE) $(AI_OFF) $(PROFILE) $(LAB_BUILD)" > $@   # when one changes (an AI_OFF build no longer leaves main.o stale)
-$(BUILD)/%.o: %.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/%.o: %.c labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@
-$(BUILD)/main.o: main.c $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/main.o: main.c labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 # the fighters' tables: one section per table (-fdata-sections), then tools/brawler/bank_pack.py sends each fighter's
 # bulk (frames, tiles, special scripts and programs, projectile rows) to its P2 bank and keeps what every fighter and
@@ -137,6 +136,7 @@ $(BUILD)/draw.o: draw.s
 # --- Link ---
 $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars_b.o $(BUILD)/bm_spec_b.o $(BUILD)/bm_bank.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a
 	$(LD) -T $(SDK)/boot/neoscan.ld $(SLOT_LDFLAGS) -o $@ $^
+	$(if $(SLOT),python3 $(TOOLS)/brawler/lab_pack.py seal $(CURDIR)/$(BUILD) || (rm -f $@; exit 1))   # the slot header + the shell's anchor (pack format)
 
 # --- Package ROM ---
 $(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/rom_c1.bin $(BUILD)/font.s1 $(BUILD)/snd/m1.bin
@@ -147,15 +147,21 @@ clean:
 	rm -rf $(BUILD) $(ROM_NAME).zip $(ROM_NAME).neo roms/ hash/
 
 # --- a character pack (make LAB_PACK=<f>): the shell first (its own make), then the slot's regions of this build ---
+# (STRICT=1: also the DEBUG check that this build equals the shell outside the slot: a per-fighter table labslot.h misses)
 packs/$(LAB_PACK).pack: $(ROM_NAME).zip FORCE
 	$(MAKE) LAB_SHELL=1 LAB_PACK=
-	python3 $(TOOLS)/brawler/lab_pack.py make $(LAB_PACK) --shell build_shell lab-shell.neo --build $(BUILD) $(ROM_NAME).neo -o packs/$(LAB_PACK).pack
+	python3 $(TOOLS)/brawler/lab_pack.py make $(LAB_PACK) --shell build_shell lab-shell.neo --build $(BUILD) $(ROM_NAME).neo -o packs/$(LAB_PACK).pack $(if $(STRICT),--strict)
 
-.PHONY: all clean publish publish-vps bump FORCE
+# --- THE ONE COMMAND (docs/character_lab.md): the shell + the full pack of every fighter with a dictionary and a piece
+# library, built, checked and published where they changed (tools/brawler/labpub.py all) ---
+lab-publish:
+	python3 $(TOOLS)/brawler/labpub.py all
+
+.PHONY: all clean publish publish-vps bump lab-publish FORCE
 
 # --- publish for the Android player's auto-fetch: brawler.neo + latest.json (build number, size, sha256) into DEST ---
 publish: $(ROM_NAME).zip
-	@test -z "$(LAB_FIGHTER)$(SLOT)" || (echo "a Lab build is never the Player's game"; exit 1)
+	@test -z "$(SLOT)" || (echo "a Lab build is never the Player's game"; exit 1)
 	@test -n "$(DEST)" || (echo "make publish DEST=<dir served to the phone>"; exit 1)
 	mkdir -p $(DEST)
 	cp $(ROM_NAME).neo $(DEST)/$(ROM_NAME).neo.tmp && mv $(DEST)/$(ROM_NAME).neo.tmp $(DEST)/$(ROM_NAME).neo
@@ -166,7 +172,7 @@ publish: $(ROM_NAME).zip
 APK = ../../android/app/build/outputs/apk/debug/app-debug.apk
 APKVER = $(shell sed -n 's/.*versionName = "\(.*\)".*/\1/p' ../../android/app/build.gradle.kts)   # the player's own version, not the game's
 publish-vps: $(ROM_NAME).zip
-	@test -z "$(LAB_FIGHTER)$(SLOT)" || (echo "a Lab build is never the Player's game"; exit 1)
+	@test -z "$(SLOT)" || (echo "a Lab build is never the Player's game"; exit 1)
 	../../tools/brawler/publish_vps.sh $(ROM_NAME).neo $(VERSION)   # the game only: the player is published on its own (publish_vps.sh --apk-only)
 
 # --- version (VERSION, 0.0.1 style, shown on the title screen): make bump = last number + 1 ---

@@ -2,7 +2,7 @@
 """The FIGHTER LAB's cast data (lab.html, fighterlab.js; Bruno 2026-10-10: "one page for the whole cast: pick a character,
 then Info, Workshop, Assembly", one template for every fighter). From game.json's roster and what the site already holds
 (make_site.py's output: review/<f>_anims.json from animdict.py, review/<f>_workshop.json from workshop.py,
-review/<f>_arb.json from arbitrage.py, review/<f>.json from review_build.py, rom/ from tryit_site.py), it writes:
+review/<f>_arb.json from arbitrage.py, review/<f>.json from review_build.py), it writes:
 
   OUT/cast.json        {version, built, engines (the source games with a dictionary builder), fighters: [one per roster
                         fighter, roster order: name, display, bank, game, scale, archetype, chain length, music theme,
@@ -62,7 +62,6 @@ def build(out, game):
     engines = sorted(engines)
     lens = G['chain']['lengths']
     faces = os.path.join(out, 'faces'); os.makedirs(faces, exist_ok=True)
-    lab_builds = set(jload(os.path.join(out, 'rom', 'index.json')) or [])
     try: import labpub
     except Exception: labpub = None
     cast = []
@@ -97,7 +96,6 @@ def build(out, game):
         else: e['workshop'] = None
         e['sheet'] = os.path.exists(os.path.join(out, 'review', n + '_arb.json'))
         e['review'] = os.path.exists(os.path.join(out, 'review', n + '.json'))
-        e['lab_build'] = n in lab_builds
         e['engine_decoded'] = gm in engines
         e['engine_note'] = None if gm in engines else f'{GAME_NAMES.get(gm, gm)}\'s engine is not decoded yet: no animation dictionary, so no Workshop or Assembly for {e["display"]} today.'
         cast.append(e)

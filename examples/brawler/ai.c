@@ -25,6 +25,7 @@
 #include "ai.h"
 #include "game_tables.h"
 #include <neo_palette.h>
+#include "labslot.h"                                         /* (the Character Lab's shell: the slot's tables in RAM) */
 
 /* the numbers are an AI row's (gamedata.h ai_preset_t, game.json "ai" and the enemies' "ai_over"): the presets minion,
  * minion_attract (the demo's: rests longer, no grabs, no specials), boss, then one row per enemy with overrides. Each

@@ -9,7 +9,9 @@ whole cast, one data path from the page to the ROM. This document is the referen
 - Source: `tools/brawler/chainlab/` (pages and scripts), `tools/brawler/` (compiler, CLIs), `tools/feedback/server.py`
   (the service behind `feedback-api/`), `android/.../CharacterLab.kt` + `Assembly.kt` (the Player).
 - Build + publish the site: `tools/brawler/chainlab/deploy_vps.sh [GAME_DIR]` (make_site.py into `SITE`, default
-  `/data/tmp/chainlab/site`; `LAB_MAKE=0` uses the Lab builds as they are), then rsync. It never deletes on the VPS.
+  `/data/tmp/chainlab/site`, then rsync; it never deletes on the VPS). It runs `labpub.py all --if-changed` first
+  (`LAB_PUBLISH=0`: not): the shell + packs are published only when the pack format or a fighter's data changed.
+- **The shell + packs: ONE command, `make lab-publish`** (= `tools/brawler/labpub.py all`, below "The pack format").
 
 ## Two halves: the Workshop (tokens) and the Assembly (token free)
 
@@ -65,8 +67,8 @@ override shown by text and shape (bold value, "changed from N", a solid 3 px bor
   one panel per press: its **hit-stop** (1-60 frames, both fighters freeze on contact; the last press's is every
   finisher's) and its move's **segments**: startup, each active window and the recovery after it, from 0.5x to 2x of
   the source (`gretime_t`, retime.BOUND; a value the game already plays is always allowed). The defaults are what the
-  game plays now: his tree's hit-stops and the build's retime targets (`TryIt.plan`: the chain data of his pack or Lab
-  build, `rom/pack-<f>-<sha12>.json` / `rom/lab-<f>.json`). A move pressed twice has one timing (retime is per move:
+  game plays now: his tree's hit-stops and the build's retime targets (`TryIt.plan`: the chain data of his pack's
+  manifest, the shell's retime rows from its anchor). A move pressed twice has one timing (retime is per move:
   every use of it takes it). Saved as the sheet answer `chain_timing`, its note = JSON `{hitstop: {a1..aN: frames},
   retime: {move: [frames per segment]}}` (overrides only; "Reset the chain timing" clears it). His presses that cannot
   play as a chain (several pieces in a press, a non-move animation, a length no archetype has) leave the game's own
@@ -88,11 +90,93 @@ revision; History and Revert on the "Live config" line. Details: "Send to Player
 ## Try in game
 
 "Try in game" (`tryit.js`) runs the game in the page: the Character Lab **shell** with the fighter's **pack** swapped in
-(the Player's own files from the catalogue, sha256 checked, `wc_swap_pack`; P1 = the slot fighter vs Ryo), else his
-per-fighter Lab build `rom/lab-<f>.neo`. "Try this sheet in game" applies the whole sheet now: its slots, its knobs, its
+(the Player's own files from the catalogue, sha256 checked, `wc_swap_pack`; P1 = the slot fighter vs Ryo): his newest
+pack the shell can load. The one path: the per-fighter Lab builds (`make LAB_FIGHTER`, `rom/lab-<f>.neo`) are retired. "Try this sheet in game" applies the whole sheet now: its slots, its knobs, its
 chain with its timing (load 5 + load 6), as the Player will. Keys: W A S D stick, U A, I B jump, O C, P D, Enter the
 practice menu, `.` a frame while paused; gamepad and touch pad too. Details: "The Fighter Lab" and "The Chain Lab, the practice mode, the live
 config / Try in game" below.
+
+## The pack format (2026-10-10)
+
+Bruno (binding): "why would the packs need a rebuild? that's insane". An engine or game change rebuilds and publishes the
+SHELL only; every pack already published keeps loading into it. Before, a pack's data held absolute addresses of the
+shell's own tables, `lab_pack.py` refused any byte difference outside the slot and the "engine" string was the version +
+a fingerprint of the whole shell: any change forced every pack to be rebuilt.
+
+**What a pack may reference outside its slot** (scanned 2026-10-10: every relocation of the slot's sections and of its
+elements in the robert / kim / iori / hanzo_ss2 builds): no address of the shell's code or tables at all, except
+- the slot's **element of every per-fighter table** (`bm_chars[]`, `bm_seg[]`, `bm_air[]`, `bm_hsnd[]`, `bm_xthr[]`,
+  `bm_hspark[]`, `bm_head[]`, `ai_ready[]`, `gblitz_rom[]`, `gblitz_can[]`, `grun_bob[]`, `grun_dash[]`, `gfury_area[]`,
+  `gwalk_rom[]`, `pb_of_fighter[]`, `roster_unlock[]`, `dtier_rom[]`, `portrait_pal[]`, `gknob_rom[]`, `gkcat_rom[]`,
+  `bm_lab`, its 16 `gretime_rom` rows): wherever the linker put those tables. Now the slot **HEADER** at a fixed place
+  carries them (`lab_pack.py HDR_ARRAYS`), and the shell copies the tables into RAM at every reset with the header's
+  element in the slot's place (`examples/brawler/labslot.h`, `main.c lab_slot_init`; the slot id and its LAB special's
+  fighter resolved to the shell's). Lab builds only: the Player's game has none of it.
+- **numbered game-wide tables** the data indexes: the victim postures (`bchar_t.vposes` is indexed by the whole list),
+  the source reactions (`bm_sreact`) and the shared effect palettes (`bm_sfx_pals`): the "shared ids" (below).
+Everything else a pack's data points at is its own (the slot's sections, its bank).
+
+**The regions** (the shell's ANCHOR says where; `lab_pack.py anchor lab-shell.neo` prints it):
+
+| Region | Where | Kind |
+|---|---|---|
+| P: the slot header + `.labslot` (its first-MB tables) | $E0000-$E03FF + $E0400-$FFFFF | fixed |
+| P: its P2 bank (its banked tables; addresses in the bank window) | any bank (the shell's last) | relocated |
+| S: its HUD face | `PORTRAIT_TILE` + slot x 16 | relocated |
+| M: its voice records (both overflow slots) + enable bits | the KOF98 driver's tables | relocated |
+| V: its voice samples (the records name absolute V addresses) | $C00000, 512 KB (`build_snd.py SLOT_V_AT`) | fixed |
+| C: its tiles (its frames name absolute tiles) | tile 2048, 24,576 tiles (`export_bm.py SLOT_TILE_FIRST`, placed first) | fixed |
+
+**The anchor** (P $DC000, 16 KB, written by `lab_pack.py seal` after every shell / pack link, as the header): `NGLA`, the
+format, the slot id, each region (kind, ROM, offset, size), the **features** string, then a JSON for the Player and the
+pages: the RAM map (`ram`: the lab mailbox, prac, P1's state, the neutral states), the layout (fighter_t fields, the
+symbols), the roster order, the throws, the chain rules, the retime rows. The Player and `tryit.js` read the RAM map and
+the slot from the SHELL now (a pack's own copy, kept for Players before 0.0.33, is its build shell's).
+
+**Compatibility = format + features.** The shell declares `{format N, features}`: every program op it plays (`P_*`
+names: `warp`, `lanim`, `catch`...), the knob kinds (`knob-set`, `knob-pspeed`, `knob-phits`, `knob-dmg`), `lab` (the
+LAB special), `try2` (TRY blob v2: knob rows), and its shared ids (`vp:<hash of the postures>`, `sr<i>:<hash>`,
+`sp<i>:<game:key>`). A pack declares `{format N, needs}` computed from its data (`lab_pack.py needs`: the ops of its
+programs, its knob catalogue's kinds, its LAB special, the shared ids it uses). **A pack loads iff the same format and
+needs ⊆ features**: `pack_swap.c` (the wasm core and the Player, from the shell's anchor in the loaded ROM), the Player
+(`CharacterLab.kt`, before the download), `tryit.js` (`lab.js packCompat`), `lab_pack.py check` / `labpub.py`. A refusal
+says why in plain words ("it needs warp, which this shell does not have"; "a pack from before the pack format: rebuild
+it"). The format changes only when the slot's ABI does (a header table's element size, a struct its data is made of, a
+fixed region's place, an op or knob kind renumbered): `lab_pack.py abi_signature` is checked at every seal against
+`FORMATS`, so such a change stops the build until FORMAT is bumped (labslot.h `LAB_FORMAT`, `pack_swap.h NGPK_FORMAT`,
+`lab.js PACK_FORMAT`; then every pack is rebuilt once). New ops and knob kinds are appended (features), never renumbered.
+
+**The file**: the container the Players 0.0.28+ read ('NGPK' 1; its region records now carry the kind and a relocated
+flag in bytes the old reader ignored); the manifest starts `{"ngpk":{"format":N,"needs":"..."}` (the C reads it there)
+and holds the pack's page data (`page`: his LAB special's animations, moves, his chain entry and retime rows: the site no
+longer ships `rom/shell-*.json` / `rom/pack-*.json`; `tryit_site.py` is gone) and `data_sha` (its sidecar: the hash of
+its data alone, what `labpub.py` compares). `lab_pack.py make`'s old "identical outside the slot" check is the DEBUG
+option `--strict` (`make LAB_PACK=f STRICT=1`; `labpub.py all` uses it: it catches a per-fighter table the header misses).
+
+**The one command**: `make lab-publish` = `labpub.py all`: builds the shell and the full pack of EVERY roster fighter with
+a dictionary and a piece library (`animdict.DICTS` + `arb_pieces/<f>.json`), then publishes the shell if its bytes
+changed and each pack whose data (`data_sha`) differs from his newest published pack the shell can load. `--if-changed`
+(deploy_vps.sh): nothing at all unless the format or a fighter's inputs changed (`packs/stamps.json`: his roster entry,
+piece library, routes, voices, the exporters). `--only f,g`, `--dry-run`, `--no-build`. The catalogue (`GET
+lab/catalogue`) gives the shell's `format` + `features` and per fighter `all` his versions with `format` + `needs`: the
+Player and the pages pick his newest compatible one.
+
+**Proven 2026-10-10** (`/data/tmp/pf/proof/`): shell + robert / kim / iori / hanzo_ss2 packs built (all 13 dictionary
+fighters' packs pass `--strict`); then fighter.c changed (4 KB of tables + 6 bytes of RAM added: the code, the tables and
+the lab mailbox moved) + VERSION 0.10.28, the SHELL alone rebuilt: the 4 old packs `lab_pack.py check` "loads"; in the
+wasm core (`packfmt_proof_node.js`) each old pack swapped into the new shell plays his chain (A every 6 frames) and his
+C special frame for frame identical (226 frames) to the pack rebuilt for that shell, and to the roster's own copy of him
+in the same shell; the rebuilt packs' data are byte-identical to the old ones (`data_sha`: only the legacy fields
+differ). Refused in plain words: an old-format pack ("a pack from before the pack format ...: rebuild it", -8) and
+hanzo_ss2 by a shell without `warp` ("it needs what this shell does not have: warp", -11). The normal game build is
+byte-identical to the one before the change (brawler.neo, bank_proof ALL OK). Published with `labpub.py all`: shell
+20261010-175736 + 13 packs (format 1); `--if-changed` then: "nothing to do". LIVE (temporary Oros admin through the real
+login, deleted after; writes aborted): consolidate_proof.js 61 / 61, Try in game in "pack" mode, the chain timing frames
+as before (0 / 11 / 26 / 65 / 104; press 1 startup 4 -> 8 and hit-stop -> 18: 8 / 27). Player 0.0.33 (AVD JanusPhone,
+release APK signed as 0.0.32, not published): the old catalogue's packs shown "the shell cannot load it" with the reason;
+the new one: 13 faces, Hanzo swapped in (practice), Iori's live config r5 + chain applied (IN SYNC r5 + CHAIN) through
+the shell's RAM map. Players 0.0.32 still load this set (same container, the legacy engine / ram fields); after a
+shell-only publish they refuse the packs (engine differs) until 0.0.33 is installed.
 
 ## Ship to game
 
@@ -125,12 +209,15 @@ at `brawler-lab/feedback-api/` (the Oros cookie), the Player at `/brawler/lab/` 
 | `tools/brawler/arb_compile.py <f> [--dry-run] [--answers FILE] [--no-build] [--no-check] [--compare GAME_JSON]` | the sheet compiler (above); `arb_compile.py pieces <f>` regenerates the piece library `arb_pieces/<f>.json` (+ ids, + knobs) |
 | `tools/brawler/workshop.py list [f] / reply <f> <piece> "<text>" / unlock <f> <piece> / publish <f>` | the Workshop threads and unlocks |
 | `tools/brawler/labcfg.py list / show / history / revert / export / put / ship-pending / ship / ship-done` | the live configs and the ship queue (over ssh) |
-| `tools/brawler/labpub.py list / publish-shell / publish-pack / publish-face / remove-*` | the shell / pack catalogue |
-| `tools/brawler/lab_pack.py make / info / apply` (`make LAB_SHELL=1`, `make LAB_PACK=<f>`) | the shell and the packs |
+| `make lab-publish` = `tools/brawler/labpub.py all [--if-changed] [--only f,g] [--dry-run]` | THE ONE COMMAND: the shell + every fighter's pack, built and published where changed |
+| `tools/brawler/labpub.py list / publish-shell / publish-pack / publish-face / remove-*` | the shell / pack catalogue (format / features / needs from the files) |
+| `tools/brawler/lab_pack.py seal / make [--strict] / info / anchor / check / apply / abi` (`make LAB_SHELL=1`, `make LAB_PACK=<f>`) | the shell and the packs, the pack format |
 | `tools/brawler/knobs.py`, `tools/brawler/piece_ids.py` | the knob catalogue, the piece ids (run by `arb_compile.py pieces`) |
 | `tools/brawler/chain_save.py` | the retired chain tool's save path (decisions set `chain-tool`): old saved entries only |
 
 Proofs (headless Chrome, puppeteer-core with `NODE_PATH=/home/bruno/CLProjects/NeoGeo/node_modules`):
+`chainlab/packfmt_proof_node.js SITE SHELL OUT f:OLD.pack:NEW.pack[:IX] [--old P] [--lacks P:feature]` (the pack
+format: old packs in a new shell vs rebuilt ones, frame for frame, + the refusals),
 `chainlab/consolidate_proof.js SITE|URL OUT` (this layout: the cast, the five tabs, the embed, the Game tools' tabs,
 every old URL, the chain timing measured in the game), `fighterlab_proof.js`, `knobs_page_proof.js`, `tryit_proof.js`,
 `packs_proof_node.js`; `knobs_proof.py`, `practice_proof.py` on the desktop core.

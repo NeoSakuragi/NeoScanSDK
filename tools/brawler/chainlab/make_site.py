@@ -156,9 +156,8 @@ if os.path.isdir(ENC):
     if os.path.exists(os.path.join(HERE, 'synthesis.json')): shutil.copy(os.path.join(HERE, 'synthesis.json'), os.path.join(out, 'expose', 'synthesis.json'))
     json.dump({'games': games, 'intro': "The beat 'em ups behind the brawler's gameplay revamp, measured: every playable character's movement, jump arc and moves (startup / active / recovery, damage, hit-stop, boxes), each game's system rules, and the enemies' AI."},
               open(os.path.join(out, 'expose', 'index.json'), 'w'))
-# "Try in game" (tryit.js): the Lab builds of this game dir (make LAB_FIGHTER=<f>) under rom/ (tryit_site.py)
-import tryit_site
-tryit_site.write(out, game)
+# "Try in game" (tryit.js): the Character Lab's shell + packs from the catalogue, nothing from the site (the per-fighter
+# Lab builds under rom/ and tryit_site.py were retired 2026-10-10: docs/character_lab.md "The pack format")
 # the Fighter Lab (lab.html: the cast grid, then Info / Workshop / Assembly per fighter, fighterlab.js): cast.json + the
 # HUD faces and win portraits, from game.json's roster and what this site now holds (fighterlab.py)
 import fighterlab

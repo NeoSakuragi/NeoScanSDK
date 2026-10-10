@@ -17,6 +17,89 @@
 #include "hud.h"
 #include "game_tables.h"
 #include "portraits_big.h"
+#ifdef LAB_SHELL
+#define LABSLOT_NO_REMAP
+#include "labslot.h"
+/* ---- the Character Lab's slot (labslot.h; docs/character_lab.md "The pack format") --------------------------------
+ * The shell's ANCHOR (LABANCHOR_AT, the Makefile's; lab_pack.py seal fills it after the link: the shell's format,
+ * features, where its relocatable slot regions are, the RAM map and the layout the Player / the pages read) and the slot
+ * HEADER (LABHDR_AT, the pack's: the slot's element of every per-fighter table). Reserved here as plain bytes the
+ * compiler knows nothing about (no constant folding of the zeros the link leaves in them). */
+__asm__(".section .labanchor,\"a\"\n.globl lab_anchor\nlab_anchor: .space 0x4000\n"
+        ".section .labhdr,\"a\"\n.globl lab_hdr\nlab_hdr: .space 0x400\n.text");
+extern const uint8_t lab_hdr[];
+bchar_t lab_bm_chars[BC_COUNT];
+bseg_t lab_bm_seg[BC_COUNT];
+bair_t lab_bm_air[BC_COUNT];
+bair_t lab_bm_hsnd[BC_COUNT];
+bxthr_t lab_bm_xthr[BC_COUNT];
+bhspark_t lab_bm_hspark[BC_COUNT];
+int8_t lab_bm_head[BC_COUNT][2];
+uint8_t lab_ai_ready[BC_COUNT][2];
+uint8_t lab_gblitz_rom[BC_COUNT][4];
+uint8_t lab_gblitz_can[BC_COUNT][4];
+const uint8_t *lab_grun_bob[BC_COUNT];
+const uint8_t *lab_grun_dash[BC_COUNT];
+uint8_t lab_gfury_area[BC_COUNT][3];
+int32_t lab_gwalk_rom[BC_COUNT];
+uint8_t lab_pb_of_fighter[BC_COUNT];
+uint8_t lab_roster_unlock[BC_COUNT];
+const uint16_t *lab_dtier_rom[BC_COUNT];
+const gknob_t *lab_gknob_rom[BC_COUNT];
+const gkcat_t *lab_gkcat_rom[BC_COUNT];
+blab_t lab_bm_lab;
+gretime_t lab_gretime_rom[LAB_RT_MAX];
+uint16_t lab_portrait_pal[BC_COUNT][16];
+uint8_t lab_slot_ok;
+/* the header's tables, in lab_pack.py HDR_ARRAYS order: each [u16 element size][the slot's element] (even), then
+   [u16 sizeof blab_t][bm_lab], then the slot's retime rows (gretime_t, its 16) */
+static const struct { void *ram; const void *rom; uint16_t esz; } lab_arrs[] = {
+    { lab_bm_chars, bm_chars, sizeof bm_chars[0] }, { lab_bm_seg, bm_seg, sizeof bm_seg[0] },
+    { lab_bm_air, bm_air, sizeof bm_air[0] }, { lab_bm_hsnd, bm_hsnd, sizeof bm_hsnd[0] },
+    { lab_bm_xthr, bm_xthr, sizeof bm_xthr[0] }, { lab_bm_hspark, bm_hspark, sizeof bm_hspark[0] },
+    { lab_bm_head, bm_head, sizeof bm_head[0] }, { lab_ai_ready, ai_ready, sizeof ai_ready[0] },
+    { lab_gblitz_rom, gblitz_rom, sizeof gblitz_rom[0] }, { lab_gblitz_can, gblitz_can, sizeof gblitz_can[0] },
+    { lab_grun_bob, grun_bob, sizeof grun_bob[0] }, { lab_grun_dash, grun_dash, sizeof grun_dash[0] },
+    { lab_gfury_area, gfury_area, sizeof gfury_area[0] }, { lab_gwalk_rom, gwalk_rom, sizeof gwalk_rom[0] },
+    { lab_pb_of_fighter, pb_of_fighter, sizeof pb_of_fighter[0] }, { lab_roster_unlock, roster_unlock, sizeof roster_unlock[0] },
+    { lab_dtier_rom, dtier_rom, sizeof dtier_rom[0] }, { lab_portrait_pal, portrait_pal, sizeof portrait_pal[0] },
+    { lab_gknob_rom, gknob_rom, sizeof gknob_rom[0] }, { lab_gkcat_rom, gkcat_rom, sizeof gkcat_rom[0] },
+};
+#define LAB_NARR (sizeof lab_arrs / sizeof lab_arrs[0])
+static void lab_copy(void *to, const void *from, uint16_t n) { uint8_t *d = to; const uint8_t *s = from; while (n--) *d++ = *s++; }
+/* power-on / every reset (a pack swap resets): the tables into RAM, the slot's element of each from the header */
+void lab_slot_init(void) {
+    const uint8_t *h = lab_hdr, *p;
+    const uint8_t sid = BC_COUNT - 1;
+    uint16_t k, n, nrt;
+    for (k = 0; k < LAB_NARR; k++) lab_copy(lab_arrs[k].ram, lab_arrs[k].rom, lab_arrs[k].esz * BC_COUNT);
+    lab_copy(&lab_bm_lab, &bm_lab, sizeof lab_bm_lab);
+    for (n = 0; gretime_rom[n].fighter != 0xFF; n++) {}       /* the ROM's rows (+ the end row) */
+    lab_slot_ok = 0;
+    if (n + 1 > LAB_RT_MAX || n < 16) { lab_copy(lab_gretime_rom, gretime_rom, sizeof(gretime_t)); lab_gretime_rom[0].fighter = 0xFF; return; }
+    lab_copy(lab_gretime_rom, gretime_rom, (n + 1) * sizeof(gretime_t));
+    if (h[0] != 'N' || h[1] != 'G' || h[2] != 'S' || h[3] != 'H' || (h[4] << 8 | h[5]) != LAB_FORMAT ||
+        (h[6] << 8 | h[7]) != LAB_NARR + 1) return;           /* not this format: the shell's own slot tables */
+    nrt = h[9];
+    for (k = 0, p = h + 16; k < LAB_NARR; k++) {               /* every element's size first: nothing taken unless all fit */
+        if ((p[0] << 8 | p[1]) != lab_arrs[k].esz) return;
+        p += 2 + ((lab_arrs[k].esz + 1) & ~1);
+    }
+    if ((p[0] << 8 | p[1]) != sizeof(blab_t) || nrt != 16) return;
+    for (k = 0, p = h + 16; k < LAB_NARR; k++) {
+        lab_copy((uint8_t *)lab_arrs[k].ram + sid * lab_arrs[k].esz, p + 2, lab_arrs[k].esz);
+        p += 2 + ((lab_arrs[k].esz + 1) & ~1);
+    }
+    lab_copy(&lab_bm_lab, p + 2, sizeof(blab_t)); p += 2 + ((sizeof(blab_t) + 1) & ~1);
+    lab_copy(&lab_gretime_rom[n - 16], p, 16 * sizeof(gretime_t));   /* the slot's rows: the last 16 before the end */
+    for (k = n - 16; k < n; k++) if (lab_gretime_rom[k].fighter != 0xFE) lab_gretime_rom[k].fighter = sid;
+    lab_bm_chars[sid].id = sid;                                /* the ids: this shell's */
+    if (lab_bm_lab.fighter != 0xFF) lab_bm_lab.fighter = sid;
+    lab_slot_ok = 1;
+}
+#undef LABSLOT_NO_REMAP
+#include "labslot.h"                                         /* from here on: the RAM tables */
+#endif
 
 static uint16_t TEXT_PAL[16] = { 0x8000, COLOR_WHITE };   /* 2-5: the font's gradient, 6-15: life bar (hud.h text_colours / bar_colours; 14 = the font's shadow) */
 #ifndef GAME_VERSION
@@ -3044,6 +3127,9 @@ static void select_tick(void) {
 
 void game_init(void) {
     uint16_t i;
+#ifdef LAB_SHELL
+    lab_slot_init();                                         /* the slot's tables (labslot.h): before anything reads them */
+#endif
     BANK_init();                                             /* P2 bank 0, its copy agrees (neo_bank.h) */
     coin_in();                                               /* the credits kept from before the power-on: no sound */
     gdata_init();                                            /* the game's tables (game.json) */

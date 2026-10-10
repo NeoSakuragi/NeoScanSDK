@@ -1,12 +1,12 @@
 /* "Try in game" (Bruno 2026-10-10: "a per-fighter build that embeds everything, reassigned live from the web page by RAM
  * injection, to see how an animation and a combination of animations look in game"). One panel shared by the Workshop
- * (workshop.js), the animation dictionary (anims.js) and the arbitration sheet (arbitrage.js): the fighter's Lab build
- * (rom/lab-<f>.neo, make LAB_FIGHTER=<f>: every animation of his dictionary in his LAB special; rom/lab-<f>.json its
- * manifest, tryit_site.py) in the Chain Lab's player (core.wasm + lab.js + gameplay.js, loaded on the first "Try"),
- * P1 = the fighter against a standing dummy (the Chain Lab's training, req 1). The game reads lab entries (fighter.c
- * "Lab: try in game"): an animation $NN, a special of the pool (an S- piece), a throw (a T- piece).
- *   TryIt.has(f)                        -> Promise<bool>: a Lab build of f exists
- *   TryIt.button(f, label, fn)          a "Try in game" button (hidden while f has no Lab build), fn() on click
+ * (workshop.js), the animation dictionary (anims.js) and the arbitration sheet (arbitrage.js): the Character Lab's SHELL
+ * with the fighter's PACK swapped in (below) in the Chain Lab's player (core.wasm + lab.js + gameplay.js, loaded on the
+ * first "Try"), P1 = the fighter against a standing dummy (the Chain Lab's training, req 1). The game reads lab entries
+ * (fighter.c "Lab: try in game"): an animation $NN (his pack's LAB special), a special of the pool (an S- piece), a
+ * throw (a T- piece).
+ *   TryIt.has(f)                        -> Promise<bool>: f has a pack in the catalogue
+ *   TryIt.button(f, label, fn)          a "Try in game" button (hidden while f has no pack), fn() on click
  *   TryIt.queue(f, pieces, {loop, knobs})  a TRY blob (load 6): the pieces back to back, now; A from neutral again
  *   TryIt.sheet(f, {slots, chain, timing, knobs})  a TRY blob: each arbitration slot's pieces (slot id: arbitrage.js) +
  *                                       the chain as a chain override (load 5): its presses when every press is a brawler
@@ -25,14 +25,14 @@
  *   TryIt.button(f, label, fn, send)    + a "Send to Player" button when send is given: send() -> {queue, loop} | {sheet}
  *   TryIt.send(f, what, el)             the Send itself (el: where it says what happened)
  *   TryIt.liveLine(f)                   "Live config: rN, updated when / by, History, Revert" (kept up to date)
- * SHELL + PACK (Bruno 2026-10-10, the Fighter Lab: "every fighter with a pack can be tried"): the panel plays the Character
- * Lab's shell with the fighter's pack swapped in, the same files the Player plays (the catalogue: feedback-api/lab/
- * catalogue; bytes from /brawler/lab/dl/, sha256 checked; web_core.c wc_swap_pack = pack_swap.c). P1 = the slot (the
- * pack's slot id), the dummy Ryo. What the bytes do not say comes from the site (tryit_site.py): rom/shell-<engine>.json
- * (the layout, the roster order, the throws, the chain rules) and rom/pack-<f>-<sha12>.json (his LAB special's
- * animations, the chain data) for that exact pack; the pool and the RAM map come from the pack's own manifest. A pack
- * whose engine is not the shell's is refused (as the Player does); the per-fighter Lab build (rom/lab-<f>.neo) is the
- * fallback when f has no usable pack. The shell is downloaded once per page (another fighter = another swap, no reload).
+ * SHELL + PACK, THE ONE PATH (docs/character_lab.md "The pack format"; the per-fighter Lab builds are retired): the panel
+ * plays the Character Lab's shell with the fighter's pack swapped in, the same files the Player plays (the catalogue:
+ * feedback-api/lab/catalogue; bytes from /brawler/lab/dl/, sha256 checked; web_core.c wc_swap_pack = pack_swap.c). The
+ * pack: his newest one the shell can load (lab.js packCompat: the same format, his needs among the shell's features;
+ * else why not, in plain words). What the page needs of the shell (its slot id, roster order, throws, chain rules,
+ * retime rows, the layout) is in the shell's own ANCHOR (16 KB at a fixed place: read with an HTTP Range request before
+ * the 50 MB download, lab.js readAnchor); his LAB special's animations, moves and chain data are in his pack's manifest
+ * (page). Nothing comes from the site. The shell is downloaded once per page (another fighter = another swap).
  * window.tryit (tests): {state, lab, gp, ready, live} */
 (function () {
   'use strict';
@@ -55,18 +55,31 @@
   const hex = v => '$' + v.toString(16).toUpperCase();
   let cat = null;                                     // the Character Lab catalogue (shell + packs), read once per page
   const catalogue = () => cat = cat || get('feedback-api/lab/catalogue', 'json').catch(() => null);
-  // f's pack in the catalogue, if the catalogue's shell can take it: {shell, pack} | {why}
-  const packOf = f => catalogue().then(c => {
-    const pk = c && (c.packs || []).find(p => p.fighter === f), sh = c && c.shell;
+  // f's newest pack the catalogue's shell can load (THE PACK FORMAT: lab.js packCompat): {shell, pack} | {why}
+  const packOf = async f => {
+    if (!window.ChainLab) await script('lab.js');
+    const c = await catalogue();
+    const pe = c && (c.packs || []).find(p => p.fighter === f), sh = c && c.shell;
     if (!c) return { why: 'the catalogue could not be read' };
-    if (!pk) return { why: `${f.toUpperCase()} has no pack in the catalogue` };
+    if (!pe) return { why: `${f.toUpperCase()} has no pack in the catalogue` };
     if (!sh) return { why: 'the catalogue has no shell' };
-    if (pk.engine !== sh.engine) return { why: `${f.toUpperCase()}'s pack ${pk.version} is built for engine ${pk.engine}, the catalogue's shell ${sh.version} is ${sh.engine} (the Player refuses it too)` };
-    return { shell: sh, pack: pk };
-  });
-  // "Try in game" shows only for a fighter with a pack in the catalogue (Bruno 2026-10-10); his Lab build is the fallback
-  // when that pack cannot be loaded here
+    const all = pe.all || [pe];
+    const pk = all.find(v => !window.ChainLab.packCompat(v.format, v.needs, sh.format, sh.features));
+    if (!pk) return { why: `none of ${f.toUpperCase()}'s ${all.length} pack${all.length > 1 ? 's' : ''} loads into the shell ${sh.version}: ` +
+                           window.ChainLab.packCompat(all[0].format, all[0].needs, sh.format, sh.features) + ' (the Player refuses it too)' };
+    return { shell: sh, pack: Object.assign({ fighter: f, display: pe.display, face: pe.face }, pk) };
+  };
+  // "Try in game" shows only for a fighter with a pack in the catalogue (Bruno 2026-10-10)
   const has = f => catalogue().then(c => !!(c && (c.packs || []).some(p => p.fighter === f)));
+  // the shell's anchor (lab.js readAnchor): its 16 KB fetched alone (HTTP Range) before the shell itself, once per shell
+  const anchors = {};
+  const anchorOf = sh => anchors[sh.sha256] = anchors[sh.sha256] || (async () => {
+    const at = 0x1000 + window.ChainLab.LABANCHOR_AT;
+    const r = await fetch(sh.url, { cache: 'no-cache', credentials: 'same-origin', headers: { Range: `bytes=${at}-${at + 0x4000 - 1}` } });
+    if (r.status !== 206 && r.status !== 200) throw new Error(`the shell ${sh.version}'s anchor: HTTP ${r.status}`);
+    const u = new Uint8Array(await r.arrayBuffer());
+    return window.ChainLab.readAnchor(r.status === 206 ? u : u.subarray(at), 0);
+  })().catch(e => { delete anchors[sh.sha256]; throw e; });
 
   // ---- the panel ---------------------------------------------------------------------------------------------------
   const CSS = `
@@ -119,7 +132,7 @@
     P = {};
     P.root = h('section', { id: 'tryit', role: 'region', 'aria-label': 'Try in game', hidden: '' },
       h('div', { class: 'thead' }, P.title = h('b', { text: 'Try in game' }), P.close = h('button', { type: 'button', text: 'Close' })),
-      P.load = h('p', { class: 'tnow', text: 'Loading the Lab build and the emulator…' }),
+      P.load = h('p', { class: 'tnow', text: 'Loading the shell, his pack and the emulator…' }),
       P.err = h('div', { class: 'terr', role: 'alert' }),
       P.canvas = h('canvas', { width: '304', height: '224', 'aria-label': 'The game' }),
       h('div', { class: 'trow' },
@@ -153,56 +166,38 @@
     cv.style.width = Math.round(cv.width * k) + 'px'; cv.style.height = Math.round(cv.height * k) + 'px';
   }
 
-  // ---- f's Lab data without the emulator (the preview and Send to Player): lab.js, rom/lab-<f>.json, the Workshop ids --
+  // ---- f's Lab data without the emulator (the preview and Send to Player): lab.js, the shell's anchor, his pack -------
   const ctxs = {};
   const sha256hex = async u8 => [...new Uint8Array(await crypto.subtle.digest('SHA-256', u8))].map(x => x.toString(16).padStart(2, '0')).join('');
-  // a character pack's own manifest (lab_pack.py build_pack: 'NGPK', u16 version, u16 regions, u32 manifest length, 6 x
-  // u32 ROM sizes, the manifest JSON)
-  function packManifest(u8) {
-    if (String.fromCharCode(...u8.subarray(0, 4)) !== 'NGPK') throw new Error('not a character pack');
-    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), n = dv.getUint32(8, true);
-    return JSON.parse(new TextDecoder().decode(u8.subarray(36, 36 + n)));
-  }
-  // f's pack as the page's manifest (the shape of rom/lab-<f>.json: id, fighters, layout, pool, throws, anims, moves, chain)
+  // f's pack as the page's manifest (id, fighters, layout, pool, throws, anims, moves, chain): the shell's anchor + his
+  // pack's manifest (its page data)
   async function packMan(f) {
     const P = await packOf(f);
     if (!P.pack) throw new Error(P.why);
-    const sh = P.shell, pk = P.pack;
-    let SJ = await get('rom/shell-' + sh.engine + '.json', 'json').catch(() => null), note = '';
-    if (!SJ) {                                         // a shell this site was not built with: the newest layout of the same
-      SJ = await get('rom/shell-latest.json', 'json').catch(() => null);   // game version, checked by the boot (P1 = the slot)
-      if (!SJ || SJ.engine.split('-')[0] !== sh.engine.split('-')[0]) throw new Error(`this site has no layout for the catalogue's shell (engine ${sh.engine})`);
-      note = ` (layout of engine ${SJ.engine})`;
-    }
+    const sh = P.shell, pk = P.pack, A = await anchorOf(sh), SJ = A.doc;
     const bytes = await get(pk.url);
     if (await sha256hex(bytes) !== pk.sha256) throw new Error(`${f.toUpperCase()}'s pack ${pk.version}: sha256 mismatch after the download`);
-    const M = packManifest(bytes);
-    // his LAB anims, chain data: for that exact pack, else the site's newest of his (a pack published after the site's build:
-    // the same fighter in the same slot; its chain data is his, its LAB list only checked by the game)
-    let xnote = '', X = await get(`rom/pack-${f}-${pk.sha256.slice(0, 12)}.json`, 'json').catch(() => null);
-    if (!X) { X = await get(`rom/pack-${f}-latest.json`, 'json').catch(() => null); if (X) { X = Object.assign({}, X, { anims: [] }); xnote = ` (chain data of his pack ${X.sha256.slice(0, 12)})`; } }
-    return { mode: 'pack', id: M.slot.id, fighters: SJ.fighters, layout: SJ.layout, pool: M.constants.pool, throws: SJ.throws,
-             anims: X ? X.anims : [], labSpec: M.constants.lab, moves: X ? X.moves : {},
-             chain: X ? { ba: X.chain.ba, rules: SJ.chain_rules, retime_rom: X.chain.retime_rom, fighter: X.chain.fighter } : null,
-             shell: sh, pack: pk, packBytes: bytes, size: sh.size, note, xnote, version: SJ.layout.version };
+    const M = window.ChainLab.packManifest(bytes), X = M.page || {};
+    const why = window.ChainLab.packCompat(M.ngpk && M.ngpk.format, M.ngpk && M.ngpk.needs, A.format, A.features);
+    if (why) throw new Error(`${f.toUpperCase()}'s pack ${pk.version}: ${why}`);
+    // the retime rows: the shell's (every other fighter's, their ids by name in its roster) + his (the slot's)
+    const rt = (SJ.retime_rom || []).concat((X.chain && X.chain.retime) || []);
+    return { mode: 'pack', id: A.slot, fighters: SJ.fighters, layout: SJ.layout, pool: M.constants.pool, throws: SJ.throws,
+             anims: X.anims || [], labSpec: M.constants.lab, moves: X.moves || {},
+             chain: X.chain ? { ba: SJ.ba, rules: SJ.chain_rules, retime_rom: rt, fighter: X.chain.fighter } : null,
+             shell: sh, pack: pk, packBytes: bytes, size: sh.size, note: '', xnote: '', version: SJ.game_version };
   }
   function ctxOf(f) {
     if (!ctxs[f]) ctxs[f] = (async () => {
       if (!window.ChainLab) await script('lab.js');
       const W = await get('review/' + f + '_workshop.json', 'json').catch(() => null);
-      let man, why = null;
-      try { man = await packMan(f); } catch (e) { why = e.message; }
-      if (!man) {                                      // the fallback: the per-fighter Lab build
-        man = await get('rom/lab-' + f + '.json', 'json').catch(() => null);
-        if (!man) throw new Error(`no pack to play (${why}) and no Lab build of ${f.toUpperCase()}`);
-        man.mode = 'build'; man.why = why;
-      }
+      const man = await packMan(f);
       return { f, man, W };
     })().catch(e => { delete ctxs[f]; throw e; });
     return ctxs[f];
   }
 
-  // ---- loading the Lab build of f (once per page and fighter) ---------------------------------------------------------
+  // ---- loading the shell + f's pack (once per page and fighter) --------------------------------------------------------
   async function ensure(f) {
     panel(); show(true);
     if (S.f === f && S.lab) return S;
@@ -213,7 +208,7 @@
       await script('gameplay.js'); await script('core.js');
       const dn = ['ryo', 'terry', 'ralf'].find(n => n !== f && man.fighters.includes(n)) || man.fighters.find(n => n !== f && n !== 'slot');
       let lab;
-      if (man.mode === 'pack') {
+      {
         // the shell once per page (the same shell: only the pack changes), then his pack swapped in; the core resets
         if (S.lab && S.shellSha === man.shell.sha256) lab = S.lab;
         else {
@@ -231,32 +226,23 @@
         core._free(p);
         if (e) { let m = '', q = core._wc_pack_error(e); for (let c; (c = core.HEAPU8[q++]);) m += String.fromCharCode(c); throw new Error(`the core refused ${f.toUpperCase()}'s pack: ${m || e}`); }
         lab.layout = man.layout;
-      } else {
-        P.load.textContent = `Loading the Lab build of ${f.toUpperCase()} (${(man.size / 1048576).toFixed(0)} MB) and the emulator…`;
-        const [bios, rom] = await Promise.all([get('neogeo.zip'), get(man.rom)]);
-        if (S.gp) { S.gp.stop(); S.gp = null; }
-        lab = await window.ChainLab.Lab.create(window.GeoCore, { bios, rom }, man.layout);
-        S.shellSha = null;
       }
       Object.assign(S, { f, man, W, lab, dummy: man.fighters.indexOf(dn) });
       lab.boot(man.id, S.dummy, null);
-      // (the exact layout: P1's ch = the slot; another shell's layout of the same game version: the RAM map is the same
-      // code's, the boot above reaching the practice checks it, but ROM addresses such as bm_chars move with the data)
-      if (man.mode === 'pack' && !man.note && (lab.fget(0, 'ch') - man.layout.syms.bm_chars) / man.layout.sizeof_bchar !== man.id)
+      // (the layout is the shell's own, from its anchor: P1's ch = the slot)
+      if ((lab.fget(0, 'ch') - man.layout.syms.bm_chars) / man.layout.sizeof_bchar !== man.id)
         throw new Error('P1 is not the slot fighter after the swap (the layout does not fit this shell)');
       if (!S.gp) S.gp = window.GamePlay.attach({
         lab, canvas: P.canvas, fit: fitCanvas, soundBtn: P.sound, pauseBtn: P.pause, stepBtn: P.step, touch: P.touch, statusEl: P.stat,
         escPause: false, running: () => S.open, keyActive: () => S.open, status: statusLine });
-      P.title.textContent = man.mode === 'pack'
-        ? `Try in game: ${f.toUpperCase()} (Character Lab shell ${man.shell.version} + his pack ${man.pack.version}${man.note}${man.xnote}${man.labSpec ? ', LAB special: ' + man.labSpec.anims + ' animations' : ', no LAB special: his decoded specials only'})`
-        : `Try in game: ${f.toUpperCase()} (Lab build ${man.layout.version}, ${man.anims.length} animations; no pack: ${man.why})`;
+      P.title.textContent = `Try in game: ${f.toUpperCase()} (Character Lab shell ${man.shell.version} + his pack ${man.pack.version}${man.labSpec ? ', LAB special: ' + man.labSpec.anims + ' animations' : ', no LAB special: his decoded specials only'})`;
       S.chainPushed = false;
       P.load.hidden = true;
       window.tryit.ready = true;
       return S;
     })();
     S.loading = { f, p };
-    try { return await p; } catch (e) { P.load.textContent = 'Could not load the Lab build: ' + e.message; throw e; } finally { S.loading = null; }
+    try { return await p; } catch (e) { P.load.textContent = 'Could not load the shell + his pack: ' + e.message; throw e; } finally { S.loading = null; }
   }
   function statusLine(paused) {
     const lab = S.lab; if (!lab) return '';
@@ -275,19 +261,18 @@
       const w = c.W && (c.W.specials || []).find(x => x.id === s);
       if (!w) throw new Error(s + ': not an unlocked special of ' + c.f);
       const k = c.man.pool.indexOf(w.input);
-      if (k < 0) throw new Error(`${s} (${w.input}) is not in the Lab build's pool`);
+      if (k < 0) throw new Error(`${s} (${w.input}) is not in his pack's pool`);
       return CL().LE_SPEC | k;
     }
     if (/^T-\d+$/.test(s)) {
       const w = c.W && (c.W.throws || []).find(x => x.id === s);
       const k = w ? c.man.throws.indexOf(w.move) : -1;
-      if (k < 0) throw new Error(s + ': not a throw of the Lab build');
+      if (k < 0) throw new Error(s + ': not a throw of his pack');
       return CL().LE_THROW | k;
     }
     const x = s.replace(/^\$/, '').toUpperCase();
-    if (c.man.mode === 'pack' && !c.man.labSpec) throw new Error(`$${x}: ${c.f.toUpperCase()}'s pack has no LAB special (every animation of his dictionary), only his decoded specials and throws play`);
-    if (!/^[0-9A-F]+$/.test(x) || !(c.man.anims.includes(x) || (c.man.mode === 'pack' && !c.man.anims.length)))   // (a pack the site has no data for: the game checks it)
-      throw new Error('$' + x + ': not an animation of the ' + (c.man.mode === 'pack' ? 'pack\'s LAB special' : 'Lab build'));
+    if (!c.man.labSpec) throw new Error(`$${x}: ${c.f.toUpperCase()}'s pack has no LAB special (every animation of his dictionary), only his decoded specials and throws play`);
+    if (!/^[0-9A-F]+$/.test(x) || !c.man.anims.includes(x)) throw new Error('$' + x + ': not an animation of his pack\'s LAB special');
     return parseInt(x, 16);
   }
   // the knobs' values -> encodeTry's knob rows ({slot, spec, kind, a, match, val}); bad: what was left out, why
@@ -298,7 +283,7 @@
       for (const [pid, vals] of Object.entries(per || {})) {
         const w = c.W && (c.W.specials || []).find(x => x.id === pid);
         const k = w ? c.man.pool.indexOf(w.input) : -1;
-        if (k < 0) { bad.push(`knobs: ${pid} (not in the Lab build's pool)`); continue; }
+        if (k < 0) { bad.push(`knobs: ${pid} (not in his pack's pool)`); continue; }
         for (const [kid, v] of Object.entries(vals || {})) {
           const d = (w.knobs || []).find(x => x.id === kid);
           if (!d) { bad.push(`knobs: ${pid} has no knob "${kid}"`); continue; }
@@ -372,7 +357,7 @@
     const C = c.man.chain;
     if (!C) return null;
     // the retime rows of the other fighters are kept in the override (it replaces rt_tab whole): their ids by name (a pack:
-    // the shell's roster order, rom/shell-<engine>.json)
+    // the shell's roster order, its anchor)
     return C.fighters ? C : Object.assign({}, C, { fighters: (c.man.fighters || []).map((name, id) => ({ name, id })) });
   }
   function chainPlan(c, presses) {

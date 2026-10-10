@@ -2,10 +2,10 @@
 """Brawler fighter data: a beat 'em up subset of each fighter's animations from the KOF dictionaries
 (tools/kof96/export96.py, any of KOF96/98/99), written as const 68000 tables + the C1/C2 tiles they use.
 
-    python3 export_bm.py OUTDIR --roster ROSTER.json [--lab NAME] -> bm_chars.c/.h, bm_c1.bin, bm_c2.bin
+    python3 export_bm.py OUTDIR --roster ROSTER.json -> bm_chars.c/.h, bm_c1.bin, bm_c2.bin
 
---lab NAME: the Brawler Lab's build of one fighter ("Try in game", make LAB_FIGHTER=NAME): every animation of his dictionary
-in one more special of his pool, LAB (export96.lab_special; bm_lab; OUTDIR/lab.json the page's manifest).
+(The per-fighter Lab builds, --lab NAME / make LAB_FIGHTER=NAME, were retired 2026-10-10: the Character Lab's shell + packs
+are the one path; the slot fighter gets the LAB special, below.)
 
 ROSTER.json = build_tables.py's roster view of examples/brawler/game.json (the Makefile writes build/roster.json): per
 fighter in bm_chars order, its bank spec (game:name), its select-screen 'watch' pose, its specials (the KOF input of each
@@ -21,8 +21,10 @@ Tile numbers start at TILE_BASE (1 .. TILE_BASE - 1 hold the stage, banner and s
 The Character Lab's shell (make LAB_SHELL=1 / LAB_PACK=<f>, docs/feedback.md "Character Lab: shell and packs"): ROSTER.json
 ends with the slot fighter (build_tables.add_slot: name 'slot', slot_of = its source f). It is exported as f (f's data
 files: ALIAS / src()), under the C prefix slot_, with every animation of f's dictionary in its LAB special when f's game
-allows it (KOF96 / 98 / 99 with tools/brawler/arb_pieces/<f>.json), its tiles in a block of SLOT_TILES of its own; its
-tables never share another fighter's (dedupe_c); OUTDIR/slot.json says where its tiles are (lab_pack.py)."""
+allows it (KOF96 / 98 / 99 with tools/brawler/arb_pieces/<f>.json), its tiles in a block of SLOT_TILES of its own at
+SLOT_TILE_FIRST (the pack format's fixed tile block); its tables never share another fighter's (dedupe_c);
+OUTDIR/slot.json says where its tiles are, OUTDIR/shared_ids.json the game-wide numbered tables its data indexes
+(lab_pack.py: the pack format, docs/character_lab.md "The pack format")."""
 import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
@@ -41,6 +43,8 @@ LABINFO = {}                                            # name -> (its LAB speci
 ALIAS = {}                                              # the shell's slot: {'slot': its source fighter} (roster slot_of)
 LAB_GAMES = ('kof96', 'kof98', 'kof99', 'samsho2')      # the source games whose exporter writes a LAB special (export96 /
                                                         # handlers_ss2.lab_special)
+SLOT_TILE_FIRST = 2048                                  # the slot's C block starts here in every shell / pack build (pack
+                                                        # format: its frames name absolute tiles; = TILE_BASE, placed first)
 SLOT_TILES = 24576                                      # the slot's C block (tiles, 3 MB): every roster fighter fits it,
                                                         # Rugal 13204, a LAB export of a KOF fighter ~9300 (Robert)
 def src(n):
@@ -363,7 +367,8 @@ def build(specs, outdir):
         assert ex['tiles'] <= SLOT_TILES, f'the slot: {f} has {ex["tiles"]} tiles, the shell keeps {SLOT_TILES} (SLOT_TILES)'
         blocks.append((game, name, ex, tmp, slot, SLOT_TILES))
     pages = [[TILE_BASE, []]]                           # per page: next free tile number, [(block, first tile)]
-    for blk in sorted(blocks, key=lambda b: -(b[5] or b[2]['tiles'])):   # (the slot: its whole block, whoever fills it)
+    for blk in sorted(blocks, key=lambda b: (b[5] is None, -(b[5] or b[2]['tiles']))):   # (the slot: its whole block, whoever
+        # fills it, FIRST: at TILE_BASE in every shell and pack build, the pack format's fixed tile block, lab_pack.py)
         n = blk[5] or blk[2]['tiles']
         for p, pg in enumerate(pages):
             start = max(pg[0], (p << 16) + 1)           # tile 0 = empty, and with tile_hi it means page start: blank
@@ -405,6 +410,7 @@ def build(specs, outdir):
     open(os.path.join(outdir, 'bm_c1.bin'), 'wb').write(bytes(pad + c1))
     open(os.path.join(outdir, 'bm_c2.bin'), 'wb').write(bytes(pad + c2))
     if slot_at:                                         # where lab_pack.py finds the slot's tiles
+        assert slot_at[0] == SLOT_TILE_FIRST, f'the slot\'s tiles at {slot_at[0]}, the pack format keeps them at {SLOT_TILE_FIRST}'
         json.dump({'fighter': ALIAS['slot'], 'id': len(chars) - 1, 'tile_first': slot_at[0], 'tiles_kept': slot_at[1],
                    'tiles_used': slot_at[2], 'tile_hi': slot_at[0] >> 16}, open(os.path.join(outdir, 'slot.json'), 'w'), indent=1)
     write_c(chars, outdir)
@@ -1229,6 +1235,10 @@ def vl_c(n, k, sp):
     return (v or ', 0, 0, 0, 0, 0, 0, 0, 0') + f', {fl}, ' + (f'{n}_sp{k}_vl' if vl else '0')   # (sflags, then the lists)
 
 PKEYS = []                                         # the victim postures (poses(): VP_* order), set by write_c
+SHARED = {}                                        # the game-wide numbered tables a fighter's data indexes (write_c): the
+SLOT_USES = {'sfx_pal': set(), 'sreact': set()}    # victim postures (whole: bchar_t.vposes is indexed by them), the source
+                                                   # reactions, the shared effect palettes; the slot's own uses (lab_pack.py
+                                                   # "shared ids": a pack loads only where they mean the same)
 def vpose(game, state):
     """a KOF victim state's posture index (its step 0; VP_*), 0xFF: none (the victim keeps its reel); a key with its
     step ('anim.step': SS2's victim lists) as it is"""
@@ -1602,7 +1612,10 @@ def write_c(chars, outdir):
     sfx_max = int(re.search(r'#define SFX_NPAL_MAX\s+(\d+)', open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'fighter.h')).read()).group(1))
     assert len(sfx_keys) <= sfx_max, f'{len(sfx_keys)} shared effect palettes, the game loads {sfx_max} (fighter.h SFX_NPAL_MAX)'
     def part_pal(game, n, p):
+        if 'spal' in p and n in ALIAS: SLOT_USES['sfx_pal'].add(sfx_keys.index((game, p['spal'])))
         return 0x80 | sfx_keys.index((game, p['spal'])) if 'spal' in p else used[n].index(p.get('pal', 0))
+    SHARED.update(pose=list(PKEYS), sreact=[json.dumps(r, sort_keys=True) for r in SREACTS], sfx_pal=[f'{g}:{k}' for g, k in sfx_keys])
+    for n_ in ALIAS: SLOT_USES['sreact'].update(SR_BASE.get(n_, []))
     h = ['/* Generated by tools/brawler/export_bm.py from the KOF dictionaries. Do not edit. */',
          '#ifndef BM_CHARS_H\n#define BM_CHARS_H\n#include <stdint.h>\n',
          'typedef struct { int16_t dx, dy; uint8_t cols, rows, hflip, vflip, pal; const uint16_t *tiles; } bpart_t;   /* tiles: cols*rows column-major, 0 = empty, then 3 trim words a column (t, top, first tile copied: draw.s, the sprite budget); pal: palette index of the fighter */',
@@ -1915,6 +1928,8 @@ def write_c(chars, outdir):
     cs.append('const bhspark_t bm_hspark[BC_COUNT] = {' + ', '.join(f'{{{n}_hspk, {n}_pjhs}}' if ch.get('hit_sparks') else '{0, 0}'
                                                               for _, n, ch, _ in chars) + '};   /* (TODO #215) */')
     open(os.path.join(outdir, 'bm_spec.c'), 'w').write(dedupe_c('\n'.join(cs)) + '\n')
+    json.dump({**SHARED, 'slot_uses': {k: sorted(v) for k, v in SLOT_USES.items()} if ALIAS else None},
+              open(os.path.join(outdir, 'shared_ids.json'), 'w'), indent=0)
 
 if __name__ == '__main__':
     outdir = sys.argv[1]
@@ -1922,8 +1937,6 @@ if __name__ == '__main__':
     specs = [r['bank'] for r in roster(sys.argv[3]).values() if not r.get('slot_of')]
     for r in roster().values():
         if r.get('slot_of'): alias_slot(r['name'], r['slot_of'])
-    if sys.argv[4:5] == ['--lab'] and sys.argv[5:6] != ['']:   # the Lab build (make LAB_FIGHTER=<f>): every animation of
-        LAB[sys.argv[5]] = lab_entries(sys.argv[5])            # his dictionary in his LAB special (export96.lab_special)
     chars, tiles = build(specs, outdir)
     for game, n, ch, off in chars:
         print(f'{game}:{n}: specials ' + ', '.join(f'{k} {sp["input"] if sp else "-"}' for k, sp in zip(('D', 'fwd+D', 'down+D', 'up+D', 'df+D', 'uf+D'), pick_specials(ch, n))) + ';', end=' ')

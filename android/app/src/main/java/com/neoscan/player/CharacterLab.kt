@@ -32,8 +32,12 @@ import java.security.MessageDigest
  *    blob (a TRY blob, chainlab/lab.js encodeTry) written into the game's RAM exactly as lab.js installTry does (tblob,
  *    lstat 0, tnow 0, magic LAB1, fighter, load 6) once the practice runs (lab.active 1); the game applies it at neutral
  *    (lab.lstat 2 pending -> 1 applied). The blob's fighter byte is set to the pack's slot (in the shell P1 is the slot
- *    fighter, the last roster index). "Apply now" writes lab.tnow = 1. The RAM addresses: the pack's manifest `ram`
- *    (lab_pack.py ram_map: the shell's lab_t, prac, P1's state), the same for every pack of a shell.
+ *    fighter, the last roster index). "Apply now" writes lab.tnow = 1. The RAM addresses and the slot: the SHELL's own
+ *    anchor (0.0.33; lab_pack.py ram_map: the shell's lab_t, prac, P1's state), read from the shell file.
+ *  - THE PACK FORMAT (0.0.33, docs/character_lab.md "The pack format"): a pack loads into a shell of its format whose
+ *    features cover its needs (the catalogue: the shell's format + features, every version of each fighter's pack with
+ *    its format + needs). A face loads his NEWEST pack the shell can load; none: why not, in plain words. An engine
+ *    change publishes a new shell only: the packs already here keep loading into it.
  *  - NEW VERSIONS: the catalogue rides the same poll (ETag); a newer pack of the fighter on screen (or a newer shell) is
  *    downloaded, then swapped at the next safe moment: P1 back in neutral (standing / walking), or at once on a tap.
  *  - THE CHAIN (0.0.29): a live config is chainlab/lab.js liveBlob: the TRY blob, + 'LC' u16 n + a chain override when a
@@ -72,6 +76,50 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     }
     class Pack(val fighter: String, val display: String, val version: String, val sha: String, val engine: String,
                val file: File, val ram: Ram?, val slot: Int)
+    /** a shell's anchor (lab_pack.py: 'NGLA' at P + LABANCHOR in the .neo, each word low byte first): its format, slot,
+     *  features and the JSON (ram, layout...) */
+    class Anchor(val format: Int, val slot: Int, val features: Set<String>, val doc: JSONObject)
+    private fun anchorOf(f: File): Anchor? = try {
+        java.io.RandomAccessFile(f, "r").use { r ->
+            val raw = ByteArray(0x4000); r.seek(0x1000L + LABANCHOR); r.readFully(raw)
+            fun b(i: Int) = raw[i xor 1].toInt() and 255
+            fun w(i: Int) = b(i) shl 8 or b(i + 1)
+            fun l(i: Int) = (w(i) shl 16) or w(i + 2)
+            if (b(0) != 'N'.code || b(1) != 'G'.code || b(2) != 'L'.code || b(3) != 'A'.code) null
+            else {
+                val nreg = w(6); val flen = w(10); val jo = l(12); val jl = l(16)
+                val fs = String(ByteArray(flen - 1) { b(20 + 12 * nreg + it).toByte() }, Charsets.ISO_8859_1)
+                val js = String(ByteArray(jl) { b(jo + it).toByte() }, Charsets.UTF_8)
+                Anchor(w(4), b(8), fs.split(' ').filter { it.isNotEmpty() }.toSet(), JSONObject(js))
+            }
+        }
+    } catch (x: Exception) { Log.w(TAG, "anchor of ${f.name}: ${x.message}"); null }
+    /** null = a pack of [fmt] needing [needs] loads into a shell of [sfmt] with [feats]; else why not (lab_pack.py compat) */
+    private fun compat(fmt: Int, needs: List<String>, sfmt: Int, feats: Set<String>): String? {
+        if (fmt <= 0) return "a pack from before the pack format: rebuild it"
+        if (sfmt <= 0) return "a shell from before the pack format"
+        if (fmt != sfmt) return "pack format $fmt, the shell reads format $sfmt"
+        val miss = needs.filter { it.isNotEmpty() && it !in feats }
+        if (miss.isEmpty()) return null
+        val shared = miss.filter { Regex("^(vp|sr\\d+|sp\\d+):").containsMatchIn(it) }; val plain = miss - shared.toSet()
+        return listOfNotNull(if (plain.isNotEmpty()) "it needs ${plain.joinToString(", ")}, which the shell does not have" else null,
+            if (shared.isNotEmpty()) "its shared tables are not the shell's" else null).joinToString("; ")
+    }
+    private fun strs(a: org.json.JSONArray?) = (0 until (a?.length() ?: 0)).map { a!!.getString(it) }
+    private fun shellFeats(sh: JSONObject?) = strs(sh?.optJSONArray("features")).toSet()
+    /** a catalogue pack entry's versions, newest first (the catalogue's `all`; an older server: the entry alone) */
+    private fun versions(p: JSONObject) = p.optJSONArray("all")?.let { a -> (0 until a.length()).map { a.getJSONObject(it) } } ?: listOf(p)
+    /** his newest version the catalogue shell loads (with the catalogue entry's fighter / display / face), or null + why */
+    private fun loadable(p: JSONObject, sh: JSONObject?): Pair<JSONObject?, String?> {
+        if (sh == null) return null to "no shell"
+        val vs = versions(p); var why: String? = null
+        for (v in vs) {
+            val w = compat(v.optInt("format", 0), strs(v.optJSONArray("needs")), sh.optInt("format", 0), shellFeats(sh))
+            if (w == null) return JSONObject(v.toString()).apply { put("fighter", p.getString("fighter")); put("display", p.optString("display", p.getString("fighter"))) } to null
+            if (why == null) why = w
+        }
+        return null to why
+    }
     class Cfg(val fighter: String, val version: Int, val hash: String, val blob: ByteArray)
     /** a live config's parts (lab.js liveParts): the TRY blob, the chain override (null: none); null = not a live config */
     class Live(val tryBlob: ByteArray, val chain: ByteArray?)
@@ -184,12 +232,16 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         val m = ByteArray(len); r.readFully(m); JSONObject(String(m, Charsets.UTF_8))
     }
 
-    private fun packOf(p: JSONObject, progress: (Int) -> Unit): Pack {
+    /** the pack [p] (a loadable() version) downloaded; its RAM map and slot are the SHELL's ([sf]'s anchor, 0.0.33) */
+    private fun packOf(p: JSONObject, sf: File, progress: (Int) -> Unit): Pack {
         val f = fetch(p.getString("url"), p.getString("sha256"), p.getLong("size"), ".pack", progress)
         val m = manifest(f)
-        val ram = m.optJSONObject("ram")?.let { try { Ram(it) } catch (x: Exception) { null } }
+        val a = anchorOf(sf) ?: throw IOException("the shell has no anchor (a shell from before the pack format)")
+        val g = m.optJSONObject("ngpk")
+        compat(g?.optInt("format", 0) ?: 0, g?.optString("needs").orEmpty().split(' '), a.format, a.features)?.let { throw IOException("${p.optString("display")}'s pack ${p.optString("version")}: $it") }
+        val ram = a.doc.optJSONObject("ram")?.let { try { Ram(it) } catch (x: Exception) { null } }
         return Pack(p.getString("fighter"), p.optString("display", p.getString("fighter")), p.getString("version"),
-                    p.getString("sha256"), p.optString("engine"), f, ram, m.getJSONObject("slot").getInt("id"))
+                    p.getString("sha256"), p.optString("engine"), f, ram, a.slot)
     }
 
     private fun readCatalogue(): JSONObject? {
@@ -251,7 +303,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         val sh = cat.optJSONObject("shell")
         val packs = cat.optJSONArray("packs")
         facesMsg?.text = if (sh == null) "No shell published yet (labpub.py publish-shell)."
-            else "Shell ${sh.optString("version")}  (engine ${sh.optString("engine")}, ${sh.optLong("size") / (1 shl 20)} MB" +
+            else "Shell ${sh.optString("version")}  (pack format ${sh.optInt("format", 0).takeIf { it > 0 } ?: "none"}, ${sh.optLong("size") / (1 shl 20)} MB" +
                  (if (File(dir, sh.optString("sha256") + ".neo").exists()) ", downloaded)" else ")") +
                  "\nTap a fighter: his pack goes into the shell's practice."
         if (packs == null || packs.length() == 0) { g.addView(text("No character pack published yet.", 15f)); return }
@@ -277,10 +329,10 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         val img = ImageView(act).apply { scaleType = ImageView.ScaleType.FIT_CENTER; setBackgroundColor(Color.BLACK) }
         c.addView(img, LinearLayout.LayoutParams((96 * dp).toInt(), (96 * dp).toInt()))
         c.addView(text(p.optString("display", f).uppercase(), 18f, true).apply { gravity = Gravity.CENTER })
-        val same = sh == null || p.optString("engine") == sh.optString("engine")
-        c.addView(text("pack ${p.optString("version")}" + (if (mine) "\nON SCREEN" else "") +
-            (if (!same) "\nbuilt for another shell" else ""), 12f).apply { gravity = Gravity.CENTER })
-        c.setOnClickListener { if (same) pick(p) else facesMsg?.text = "${p.optString("display", f)}'s pack is built for another shell (engine ${p.optString("engine")})." }
+        val (best, why) = loadable(p, sh)
+        c.addView(text("pack ${best?.optString("version") ?: p.optString("version")}" + (if (mine) "\nON SCREEN" else "") +
+            (if (best == null) "\nthe shell cannot load it" else ""), 12f).apply { gravity = Gravity.CENTER })
+        c.setOnClickListener { if (best != null) pick(best) else facesMsg?.text = "${p.optString("display", f)}: no pack the shell can load ($why)." }
         p.optString("face").takeIf { it.isNotEmpty() && it != "null" }?.let { url ->
             Thread {
                 val bmp = try { val r = get(url); r.body?.let { BitmapFactory.decodeByteArray(it, 0, it.size) } } catch (x: Exception) { null }
@@ -300,7 +352,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             try {
                 val sf = fetch(sh.getString("url"), sh.getString("sha256"), sh.getLong("size"), ".neo") { pc ->
                     act.runOnUiThread { facesMsg?.text = "Downloading the shell ${sh.optString("version")}: $pc %" } }
-                val pk = packOf(p) { pc -> act.runOnUiThread { facesMsg?.text = "Downloading $name's pack: $pc %" } }
+                val pk = packOf(p, sf) { pc -> act.runOnUiThread { facesMsg?.text = "Downloading $name's pack: $pc %" } }
                 act.runOnUiThread {
                     cfgWant = null; cfgTag = null; cfgFor = pk.fighter; noConfig = false
                     swapReq = pk; swapNow = true
@@ -338,6 +390,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         val sha = sh.name.substringBefore('.')                          // files/lab/<sha256>.neo
         return JSONObject().apply {
             put("shell_version", shellVersions[sha] ?: "?"); put("shell_sha256", sha); put("shell_size", sh.length()); put("engine", pk.engine)
+            anchorOf(sh)?.let { put("pack_format", it.format) }
             put("pack_fighter", pk.fighter); put("pack_version", pk.version); put("pack_sha256", pk.sha)
             sent?.let { put("config_rev", it.version); put("config_hash", it.hash) }
         }
@@ -393,11 +446,12 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     private fun newVersions(cat: JSONObject) {
         val cur = pack ?: return
         val sh = cat.optJSONObject("shell") ?: return
-        val p = (0 until (cat.optJSONArray("packs")?.length() ?: 0)).map { cat.getJSONArray("packs").getJSONObject(it) }
+        val pe = (0 until (cat.optJSONArray("packs")?.length() ?: 0)).map { cat.getJSONArray("packs").getJSONObject(it) }
             .firstOrNull { it.getString("fighter") == cur.fighter } ?: return
         val newShell = sh.getString("sha256") != shellSha
-        if (newShell && p.optString("engine") != sh.optString("engine")) {
-            act.runOnUiThread { badge("NEW SHELL ${sh.optString("version")}: waits for a ${cur.display} pack built for it", null) }
+        val (p, why) = loadable(pe, sh)                                 // his newest pack this (maybe new) shell loads
+        if (p == null) {
+            act.runOnUiThread { badge("NEW ${if (newShell) "SHELL ${sh.optString("version")}" else "PACK"}: waits for a ${cur.display} pack it can load ($why)", null) }
             return
         }
         if (!newShell && p.getString("sha256") == cur.sha) return
@@ -409,7 +463,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             try {
                 val sf = if (newShell) fetch(sh.getString("url"), sh.getString("sha256"), sh.getLong("size"), ".neo") { pc ->
                     act.runOnUiThread { badge("$what: downloading $pc %", null) } } else null
-                val pk = packOf(p) { pc -> act.runOnUiThread { badge("$what: downloading $pc %", null) } }
+                val pk = packOf(p, sf ?: shell!!) { pc -> act.runOnUiThread { badge("$what: downloading $pc %", null) } }
                 act.runOnUiThread {
                     if (sf != null) { reloadReq = sf to pk; shellSha = sh.getString("sha256"); shellEngine = sh.optString("engine")
                         shellVersions[sh.getString("sha256")] = sh.optString("version") }
@@ -444,7 +498,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
                 Log.i(TAG, "lab: pack ${pk.fighter} ${pk.version} -> $code")
                 if (code == 0) { val first = pack?.fighter != pk.fighter; pack = pk
                     act.runOnUiThread { if (first) light(State.WAIT, "${pk.display} BOOTING") else badge("PACK ${pk.display} ${pk.version} loaded", null, 4000) } }
-                else act.runOnUiThread { badge("PACK ${pk.display} refused (code $code): another shell?", null) }
+                else act.runOnUiThread { badge("PACK ${pk.display} refused by the shell (code $code: ${REFUSAL[-code] ?: "?"})", null) }
             }
             return
         }
@@ -662,6 +716,12 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         private const val TAG = "NeoScanLab"
         /** lab.lstat's refusals (fighter.h; lab.js LSTAT) */
         private const val LAB_BUF = 16 + 128 * 24                   // fighter.h LAB_BUF (lab.js)
+        private const val LABANCHOR = 0xDC000                          // lab_pack.py LABANCHOR_AT: the shell's anchor
+        /** pack_swap.h NGPK_* (-code) in words */
+        private val REFUSAL = mapOf(1 to "cut short", 2 to "not a pack", 3 to "another container", 5 to "a region too large",
+            6 to "odd P region", 7 to "a ROM not loaded", 8 to "a pack from before the pack format", 9 to "not a shell of the pack format",
+            10 to "another pack format", 11 to "it needs what the shell does not have", 12 to "a region the shell has no place for",
+            13 to "a fixed region elsewhere")
         private val LSTAT = listOf("", "an animation this build lacks", "a special the pool lacks", "a throw the fighter lacks",
             "a throw outside a grab slot", "a list too long", "not a TRY blob v1", "the blob runs past its room", "no such slot")
     }
