@@ -225,6 +225,82 @@ def anim_steps(B, ch, a, first=0, last=None, mirror=True):
         fl = (0x100 if atk else 0) | (0x4000 if atk and nxt is not None and nxt[2] else 0)
         out.append({'frame': B.frame(s, mirror=mirror and bool(s['flags'] & 0x8000)), 'ticks': s['ticks'], 'flags': fl, 'dx': 0, 'boxes': kof_boxes(body, atk),
                     'ss2': [a, first + i]})
+        if atk: out[-1]['ss2hit'] = hit_type(s)       # its hit's mark (hit_marks: the spark code)
+    return out
+
+# ---- the hit marks (vocabulary fx.hit_spark, TODO #215's mechanism; 2026-10-10 Bruno: "a slash effect drawn over the
+# animation") [code]+[meas: /data/tmp/ss2slash, captures of Haohmaru / Genjuro / Hanzo's A / B / A+B standing, crouching,
+# jumping, whiff and hit]
+# - The swing's white arc (the "swoosh") is not an object: it is in the fighter's own animation (the second layer of the
+#   step, e.g. Haohmaru 278's 0x8D2..; exported with his frames since 2026-10-06). A whiff spawns nothing.
+# - A HIT spawns the mark: the hit routine $BC1A takes the point of $C0DE (the middle of the overlap of the attack record
+#   and the victim's body record, x and y), and starts task ATR-MARK ($C724) there with type = the attack record's type
+#   word & 31 (+$D4). Its first run moves x a quarter of the way to the victim's x, priority $90 (over both fighters),
+#   facing = the victim's, and reads [b0][mark][blood][-] at $C898 + 4 type: mark = its animation in table 19 (0 / 1 / 2:
+#   the yellow cut, small / medium / large; 6 / 7 / 8: the round blunt impact); blood 1..$7F = an ETC-0000 object there
+#   ($447E6: table 19 animation byte $44858[blood] & $7F: 14 / 15 / 16 = the red splash small / medium / large; bit 7 =
+#   it throws three drops ETC-0003, $44986: anim 30, velocity $44866 (-5, -12) (-4, -10) (-3, -8) 8.8 px a frame back
+#   toward the attacker, + 144 / 256 gravity each frame before the move); blood bit 7 = the smoke ATR-SMOK (anim 28,
+#   $C7C6) instead. The blood starts the frame of the hit, the mark one frame later (its task's second run). A guarded
+#   hit (+$FD) takes the other path ($C818: anims 12 / 13, no blood): the brawler has no guard, not exported.
+# - Not modelled: SS2's slow motion after a hit ($8AC8: the effects then step every other frame), its one-frame red
+#   screen on the heavy slashes (measured on Haohmaru's A+B hit), the $C0DE point itself (the engine puts the spark at
+#   its hit point, fighter.c hit_spark: the victim's body box centre less half its half width toward the attacker, the
+#   attack box's height).
+HITFX, BLOOD, DROPV = 0xC898, 0x44858, 0x44866
+DROP_G = 144 / 256
+
+def hit_type(st):
+    """SS2's hit type of a step with attack records: the first record's type word & 31 (None: no attack)"""
+    atk = [w for w, l in st['boxes'] if w & 0x8000]
+    return atk[0] & 31 if atk else None
+
+def mark_track(t):
+    """the objects a hit of type t shows, per frame from the hit (row 0 = the frame of the hit): [(step, dx, dy)] in SS2
+    screen px from the hit point with the victim facing left (the attacker facing right), each drawn turned"""
+    mark, blood = N.u8(HITFX + 4 * t + 1), N.u8(HITFX + 4 * t + 2)
+    objs = []                                              # (first row, animation, motion or None)
+    objs.append((1, mark, None))
+    if blood & 0x80: objs.append((0, 28, None))            # the smoke (ATR-SMOK)
+    elif blood:
+        b = N.u8(BLOOD + blood); objs.append((0, b & 0x7F, None))
+        if b & 0x80:
+            for k in range(3):
+                objs.append((0, 30, (N.s16(DROPV + 4 * k) / 256, N.s16(DROPV + 4 * k + 2) / 256)))
+    rows = []
+    for r0, a, v in objs:
+        steps = ss2.parse_anim(19, a)
+        seq = [s for s in steps for _ in range(s['ticks'])]   # the steps frame by frame (the last, t0 hold: the end)
+        x = y = 0.0; vy = v[1] if v else 0
+        for k, s in enumerate(seq):
+            if v: vy += DROP_G; x += v[0]; y += vy
+            while len(rows) <= r0 + k: rows.append([])
+            if any(w & 0x7FFF != 0x400 for w in s['layers']):   # (0x400: the empty definition)
+                rows[r0 + k].append((s, int(x // 1), int(y // 1)))
+    return rows
+
+def hit_marks(B, ch, steps):
+    """steps (anim_steps' dicts with 'ss2hit') get their spark code (export_bm bchar_t.hspk: 1 + the index of the effect
+    object in hit_sparks); -> hit_sparks: one effect object (PK_FX, no box) per hit type used, a frame a row: every object
+    of the mark drawn together (turned: SS2 draws them with the victim's facing), the hit point its origin"""
+    used, out = [], []
+    for s in steps:
+        t = s.pop('ss2hit', None)
+        if t is None: continue
+        if t not in used: used.append(t)
+        s['spark'] = used.index(t) + 1
+    for t in used:
+        rows = []
+        tr = mark_track(t)
+        while tr and not tr[0]: tr = tr[1:]                # a mark alone (no blood): it shows from the hit's frame (SS2:
+        for objs in tr:                                    # one frame later; the engine's spark row 0 is the hit's frame)
+            assert objs, (t, 'a gap in the mark')
+            (s0, x0, y0), rest = objs[0], objs[1:]
+            assert x0 == y0 == 0, (t, x0, y0)
+            rows.append([B.frame(s0, extra=[(s, dx, dy, 1) for s, dx, dy in rest], mirror=True), 0, 0, None, None])
+        out.append({'table': 19, 'state': t, 'kind': 6, 'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
+                    'loop': None, 'death': None, 'life': len(rows), 'travel': 0, 'vx': 0, 'rows': rows, 'end': [],
+                    'react': 'knockdown', 'child': None, 'hits': {}, 'sig': 0, 'spark': t, 'name': f'HITMARK{t}'})
     return out
 
 def vtab(ch, i, var=0):
@@ -453,12 +529,17 @@ def export(names, outdir, only=None, extra=None, lab=None):
             e, bad = H.lab_special(B, ch, L); sps.append(e)
             if bad: print(f'{name}: LAB special: {len(bad)} animations left out:', bad[:8])
         for t, th in throws.items(): anims[t] = th.pop('anim')
+        hits = [st for mv, an in anims.items() if mv.startswith('atk_') or mv == 'body_toss' for st in an['steps']] + \
+               [st for sp in sps for an in sp['rom']['anims'].values() for st in an['steps']]
+        marks = hit_marks(B, ch, hits)                    # SS2's hit marks (the cut, the blood): bm_hspark
+        for an in anims.values():
+            for st in an['steps']: st.pop('ss2hit', None)  # (throws, reactions: no mark, the engine's spark rule)
         packed = pack_palettes(B, ch)
         sets = colours(B, ch)
         rage = rage_palette(B, ch, anims['flash']['slot'], sets) if 'flash' in anims and anims['flash']['slot'] == 140 else None
         out['characters'][name] = {'id': ch, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0], 'physics': physics(ch),
-                                   'throws': throws, 'specials': sps,
+                                   'throws': throws, 'specials': sps, 'hit_sparks': marks,
                                    'modes': {'sets': ['A', 'B'], 'palettes': [str(p) + ''.join(f'+{kb}' for ka, kb, _ in packed if ka == p) for p in B.pals]},
                                    'ss2_packed': [[ka, kb, {str(q): r for q, r in m.items()}] for ka, kb, m in packed]}
         if rage: out['characters'][name]['flash_pal'] = rage      # the rage palette of the flash pose (TODO #191)
