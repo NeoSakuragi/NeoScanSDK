@@ -109,7 +109,7 @@ specials (Bruno: overkill for now).
   row (small looping clips with arrows), the whole sequence on one screen.
 - Breaker (C or A+B while being hit) = ALWAYS the fighter's neutral C special, whatever the stick says (rule for every
   fighter). Terry: Rising Tackle.
-- Fury = Power Geyser, MAX = the triple geyser. Super throw: dropped (forward / back + C in the hold = the normal throw).
+- Fury = Power Geyser, MAX = the triple geyser. Super throw: dropped. Hold + C (any stick) = the C special for the stick, as standing (Bruno 2026-10-10, note 20261010-145638-b3f3; it threw until then); the throws are forward / back + A.
 - Air: forward jump + A = jump D, straight jump + A = jump CD (startup sped up), down + A = jump A (flinch, active for
   the rest of the jump). Cancel: down + A first, then the jump attack. The chain always starts on the ground at link 1.
 

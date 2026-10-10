@@ -670,7 +670,9 @@ static uint8_t blitz_go(fighter_t *f, uint8_t slot, uint8_t how) {
  * Signals (pal_overlay, once a frame; one meaning per place): the sprite blinks 1 frame its colours / 1 frame a shiny white
  * palette while the fury is ready (fighter_fury_ready), red instead while the MAX is ready (red beats white); a breaker's
  * WHITE / RED blink (gmeter.blink frames on, as many off) owns the sprite while it plays; never over a burn, a white flash
- * (ai.c's pulse) or a fury's flash pose. The life bar's red blink at low life is the HUD's (main.c hud). gmeter.infinite
+ * (ai.c's pulse) or a fury's flash pose. A paid C special (PAY_SPECIAL) shows BLUE (gmeter.stint, its light tinted) for
+ * its first gmeter.sflash frames (Bruno 2026-10-10: "it's costing energy"; the breaker keeps its white / red, the fury
+ * its own signals). The life bar's red blink at low life is the HUD's (main.c hud). gmeter.infinite
  * (a test switch): nothing spent, both bars full. */
 enum { PAY_SPECIAL, PAY_FURY, PAY_MAX, PAY_FORM };
 static const uint16_t WHITE_PAL[16] = { 0x8000, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF,
@@ -693,9 +695,9 @@ static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whe
     if (f->team) return 1;
     if (kind == PAY_SPECIAL) {
         uint16_t cost = gmeter.special * gmeter.chunk;
-        if (gmeter.infinite) { f->drive = DRIVE_FULL; return 1; }
+        if (gmeter.infinite) { f->drive = DRIVE_FULL; if (!dry) f->sfl = gmeter.sflash; return 1; }
         if (f->drive < cost) return 0;
-        if (!dry) f->drive -= cost;
+        if (!dry) { f->drive -= cost; f->sfl = gmeter.sflash; }   /* paid: the blue flash (pal_overlay) */
         return 1;
     }
     if (kind == PAY_MAX) { if (!max_ready(f)) return 0; }
@@ -727,19 +729,22 @@ static void cspecial(fighter_t *f, uint8_t k) {                 /* a C special, 
     if (!f->team) { f->sinv = 1; f->inv = INV_FURY; }
 }
 /* the overlays' palettes, kept per player (computed when the fighter / colour set changes, not every blink frame) */
-static struct { const bchar_t *ch; uint8_t set, tint; uint16_t pal[2][MAX_PALS][16]; } ovl_cache[2];
-static const uint16_t *ovl_pal(const fighter_t *f, uint8_t kind, uint8_t i) {   /* kind 0 red, 1 shiny white */
+static struct { const bchar_t *ch; uint8_t set, tint; uint16_t pal[3][MAX_PALS][16]; } ovl_cache[2];
+static uint8_t tint_ch(int16_t l, uint8_t t) { int16_t c = ((l * t) >> 4) + (t >> 2); return c > 31 ? 31 : c; }
+static const uint16_t *ovl_pal(const fighter_t *f, uint8_t kind, uint8_t i) {   /* kind 0 red, 1 shiny white, 2 the
+                                                                    special's flash (gmeter.stint: its light tinted) */
     uint8_t p = f->idx & 1, n, j, k;
     if (ovl_cache[p].ch != f->ch || ovl_cache[p].set != f->set || ovl_cache[p].tint != f->tint) {
         ovl_cache[p].ch = f->ch; ovl_cache[p].set = f->set; ovl_cache[p].tint = f->tint;
         for (n = 0; n < f->ch->npal && n < MAX_PALS; n++) {
             const uint16_t *src = fighter_src_pal(f, n);
-            for (k = 0; k < 2; k++) ovl_cache[p].pal[k][n][0] = src[0];
+            for (k = 0; k < 3; k++) ovl_cache[p].pal[k][n][0] = src[0];
             for (j = 1; j < 16; j++) {
                 uint16_t c = fighter_colour(f, src[j]);
                 int16_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
                 int16_t l = (r * 5 + g * 9 + b * 2) >> 4;
                 ovl_cache[p].pal[0][n][j] = RGB(l + 10 > 31 ? 31 : l + 10, l >> 2, l >> 2);   /* red: reds of its light */
+                ovl_cache[p].pal[2][n][j] = RGB(tint_ch(l, gmeter.stint[0]), tint_ch(l, gmeter.stint[1]), tint_ch(l, gmeter.stint[2]));
                 ovl_cache[p].pal[1][n][j] = RGB(r + (((31 - r) * 5) >> 4) + 4 > 31 ? 31 : r + (((31 - r) * 5) >> 4) + 4,   /* shiny:
                                                                     each channel a third of the way to white and a
                                                                     little more (KOF95's MAX glow, measured: +6..+8 of 31
@@ -755,11 +760,15 @@ static uint16_t burn_clock;
 static void pal_overlay(fighter_t *f) {
     uint8_t want = 0;
     if (f->brk && f->state != S_SPECIAL) f->brk = f->brkr = 0;   /* the breaker over */
+    if (f->sfl && f->state != S_SPECIAL) f->sfl = 0;           /* the special over (paid this frame: not started yet, but
+                                                                    meter_tick runs before the state switch) */
     if (!f->team && !f->burn && !f->flash && !(f->state == S_SPECIAL && f->fpose) && f->state != S_PROJ) {
         if (f->brk) {                                            /* the breaker: white (red: paid in life) for the move */
             if (++f->brk > 2 * gmeter.blink) f->brk = 1;         /* (brk: 1 + its frame in the blink's period) */
             if (f->brk <= gmeter.blink) want = f->brkr ? OVL_RED : OVL_WHITE;
         }
+        else if (f->sfl) { f->sfl--; want = OVL_BLUE; }          /* a paid C special's first gmeter.sflash frames: blue
+                                                                    (Bruno 2026-10-10, note 20261010-145455-b3f3) */
         else if (fighter_fury_ready(f) && f->state != S_DEAD && (burn_clock & 2))   /* D does something now: 2 frames on, 2
                                                                     off, KOF95's rhythm (Bruno 2026-10-09: 1 / 1 read as a
                                                                     shimmer on the phone) */
@@ -768,9 +777,9 @@ static void pal_overlay(fighter_t *f) {
     if (want == f->ovl) return;
     f->ovl = want;
     if (want == OVL_WHITE) { uint8_t i; for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, WHITE_PAL); }
-    else if (want == OVL_RED || want == OVL_SHINY) {
+    else if (want == OVL_RED || want == OVL_SHINY || want == OVL_BLUE) {
         uint8_t i;
-        for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, ovl_pal(f, want == OVL_SHINY, i));
+        for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, ovl_pal(f, want == OVL_BLUE ? 2 : want == OVL_SHINY, i));
     }
     else if (f->burn) burn_show(f);
     else fighter_load_pals(f);
@@ -1003,8 +1012,8 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
  * fighter's own blow with a 2-3 frame startup, a paired script like a throw), the third the finisher (it knocks the
  * victim down, the hold ends); hits keep the hold: the victim breaks free GRAB_TIME frames after the grab or after the
  * last hit ended, never during one (a held player may also mash ESCAPE_PRESSES buttons, counted from the last hit);
- * forward+A / back+A = the forward / reverse throw (KOF's forward+C / forward+D) at any time, in a hit too; C = a
- * special out of the hold. Enemies grab too (AI intent `grab`).
+ * forward+A / back+A = the forward / reverse throw (KOF's forward+C / forward+D) at any time, in a hit too; C (+ any
+ * stick) = the C special for the stick out of the hold, as standing (2026-10-10). Enemies grab too (AI intent `grab`).
  * A throw or a hold hit is a PAIRED SCRIPT (bthrow_t, vocabulary hold.paired_script): per row the thrower's frame and
  * offset, the victim's posture (or a BA_* animation it plays: its flight) and offset from the thrower, impacts. The
  * thrower plays its rows up to the CONTROL RETURN row (bthrow_t.ret: the pilot's chosen from the throw's code,
@@ -1611,7 +1620,7 @@ static uint8_t lab_fin(fighter_t *f, const rnode_t *prev, uint8_t b) {
         (b & 0x20) && LAB_SET(LS_FIN_BACK) ? LS_FIN_BACK : 0xFF;
     return r != 0xFF && lab_slot(f, r, BS_BLITZ);
 }
-/* the hold (hold_update): forward / back + C or A the throws, A its hits (the last: its finisher). A throw entry throws;
+/* the hold (hold_update): forward / back + A the throws, A its hits (the last: its finisher), C its C special slots. A throw entry throws;
  * any other entry lets the victim go (it reels in its held pose, as a C special out of the hold) and plays */
 static uint8_t lab_hold(fighter_t *f, uint8_t s) {
     if (lab_ov[s][0] == LE_NONE) return 0;
@@ -1621,8 +1630,8 @@ static uint8_t lab_hold(fighter_t *f, uint8_t s) {
     to_neutral(f, 0);                                    /* (nothing played: let go all the same) */
     return 1;
 }
-/* the super throw (revamp 3) is DROPPED (Bruno 2026-10-08): hold + forward / back + C = the normal throw pressed, for
- * everyone (bm_xthr sup and tiers.super_throw stay in the data, unused; Rugal / Yamazaki / Genjuro keep their grab fury on
+/* the super throw (revamp 3) is DROPPED (Bruno 2026-10-08); hold + forward / back + C threw until 2026-10-10, now C is
+ * the C special for the stick (forward / back + A the throws), for everyone (bm_xthr sup and tiers.super_throw stay in the data, unused; Rugal / Yamazaki / Genjuro keep their grab fury on
  * D: fury_grab) */
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
@@ -1635,9 +1644,17 @@ static void hold_update(fighter_t *f, const intent_t *in) {
                                                                     victim reels in its held pose, free (only throws hold
                                                                     a victim), until its stun ends or the move hits it */
         uint8_t d = (f->fury_buf & 0x80) != 0, k;
-        if (!d && in->dx && lab_on && !f->idx && !f->team && lab_hold(f, in->dx == f->facing ? LS_GRAB_FWD : LS_GRAB_BACK)) { f->fury_buf = 0; return; }   /* (the Lab's sheet) */
-        if (!d && in->dx) { f->fury_buf = 0; throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D); return; }   /* forward /
-                                                                    back + C: the normal throw (the super throw dropped) */
+        if (!d && lab_on && !f->idx && !f->team) {               /* (the Lab's sheet: its C special slots, as standing) */
+            uint8_t s = in->dz > 0 ? LS_SP_DC : in->dx && !in->dz ? LS_SP_FC : LS_SP_C;
+            if (lab_ov[s][0] != LE_NONE) {
+                hold_let_go(f); f->fury_buf = 0;
+                if (!lab_slot(f, s, s == LS_SP_DC ? BS_DOWN_D : s == LS_SP_FC ? BS_FWD_D : BS_D)) to_neutral(f, 0);
+                return;
+            }
+        }
+        /* C + any stick = the C special for the stick, as standing (Bruno 2026-10-10, note 20261010-145638-b3f3: forward +
+           C in the hold threw; the throws are A + forward / back only). Back + C: the forward slot played the way the
+           fighter faces (d_input; the hold does not turn him away from the victim) */
         k = d ? fury_press(f, f->fury_buf & 1) : special_for(f, in);
         f->fury_buf = 0;
         if (k != 0xFF && (d || pay(f, PAY_SPECIAL, 0))) {
