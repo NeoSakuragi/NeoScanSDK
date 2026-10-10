@@ -341,5 +341,17 @@
   }
   out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'When the whole sheet is how you want it (no agent: the compiler links every pick and knob, builds, checks each slot in the game and publishes, or refuses and says why):' }), shipBtn, shipMsg));
   root.replaceChildren(...out.flat().filter(x => x));
+  // on open: answers newer than the live config (or no live config yet) go live at once — a sheet edited before the
+  // auto-send existed, or while the page was closed, still reaches the Player (2026-10-10)
+  (async () => {
+    const last = Object.values(ans).filter(x => x && x.at && x.choice !== undefined).map(x => Date.parse(x.at)).filter(x => x).sort().pop();
+    if (!last) return;
+    try {
+      const r = await fetch(API + 'lab/config/' + f, { cache: 'no-store', credentials: 'same-origin' });
+      const rec = r.ok ? await r.json() : null;
+      const upd = rec && Date.parse(rec.updated || rec.at || 0);
+      if (!rec || !upd || upd < last) autoLive();
+    } catch (e) { /* offline: the next change sends */ }
+  })();
   window.arbReady = { unlocked: Object.keys(PIECES).length, locked: W ? W.specials.filter(p => !p.id).length : null };
 })();
