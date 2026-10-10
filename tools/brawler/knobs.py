@@ -109,10 +109,66 @@ def derive_rom(rom):
     return out
 
 
+def derive_ss2(f, reg):
+    """an SS2 fighter's knobs (Character Lab 2026-10-10), each S- piece's program as handlers_ss2 writes it (its button
+    version: the variant row it plays): its forward speed (the largest forward P_SET vx of a program that moves), its
+    rise (the first upward P_SET vy of an airborne one), its travelling object's speed and hits, its damage. The ROM
+    values are SS2's velocity tables (8.8 -> 16.16), the rows' match the value the P_SET plays (its variant column)"""
+    sys.path.insert(0, os.path.join(TOOLS, 'samsho2'))
+    import export_ss2 as XS, handlers_ss2 as HS
+    from animdict import SS2_CAST
+    ch = SS2_CAST[f]; hname = {v: k for k, v in XS.CAST.items()}[ch]
+    B = XS.Builder(ch)
+    sps = {sp['input']: sp for sp in HS.specials(B, ch, hname, versions=True)}
+    P = HS.P; out = {}
+    for pid, p in sorted(reg['pieces'].items()):
+        if p['kind'] != 'special' or p.get('gone') or p['input'] not in sps: continue
+        sp = sps[p['input']]; r = sp['rom']; vt = r.get('vtable') or {}
+        var = vt.get('default', 0) if vt.get('nvar') else 0
+        def val(o):
+            op, a, b, v = o
+            return vt['rows'][var][b] if op & 0x80 and vt.get('nvar') else v
+        sets = [(o[1], val(o)) for o in r['prims'] if o[0] & 0x7F == P['set'] and o[1] in (0, 1)]
+        moves = any(o[0] & 0x7F == P['move'] for o in r['prims'])
+        falls = any(o[0] & 0x7F == P['fall'] for o in r['prims'])
+        ks = []
+        vxs = [v for a, v in sets if a == 0 and v > 0]
+        if moves and vxs:
+            v = max(vxs); d = num(v / FX)
+            ks.append(dict(id='travel', name='Travel speed', unit='px/frame', default=d, **rng(d),
+                           rows=[{'kind': KIND['set'], 'a': REG['vx'], 'match': v, 'base': v}],
+                           **{'from': f'P_SET vx {v / FX:g} (its forward speed: SS2\'s velocity table, 8.8)'}, judgment=len(set(vxs)) > 1))
+        vys = [v for a, v in sets if a == 1 and v > 0]
+        if falls and vys:
+            v = vys[0]; d = num(v / FX)
+            ks.append(dict(id='rise', name='Rise speed', unit='px/frame up', default=d, **rng(d),
+                           rows=[{'kind': KIND['set'], 'a': REG['vy'], 'match': v, 'base': v}],
+                           **{'from': f'P_SET vy {v / FX:g} (its take-off: SS2\'s velocity table, fitted to the brawler\'s screen)'}, judgment=len(set(vys)) > 1))
+        nobj = len(r['objects']) // max(1, vt.get('nvar') or 1)
+        objs = r['objects'][var * nobj:(var + 1) * nobj]
+        ob = next((o for o in objs if o['kind'] == 1 and not o.get('follow') and len(o['rows']) > 1), None)
+        if ob:
+            xs = [row[1] for row in ob['rows']]
+            d = num(round((xs[-1] - xs[0]) / (len(xs) - 1), 2))
+            ks.append(dict(id='speed', name='Projectile speed', unit='px/frame', default=d, **rng(d),
+                           rows=[{'kind': KIND['pspeed'], 'a': 0, 'match': 0, 'base': 256}],
+                           **{'from': f'its object {ob.get("name")}: its rows, +{d} px a frame on average'}, judgment=True))
+            if not ob.get('next'):
+                ks.append(dict(id='hits', name='Projectile hits', unit='hits', default=1, min=1, max=HITS_MAX, step=1,
+                               rows=[{'kind': KIND['phits'], 'a': 0, 'match': 0, 'base': 1}],
+                               **{'from': f'its object {ob.get("name")}: its hit ends it'}, judgment=False))
+        ks.append(dict(id='damage', name='Damage', unit='%', default=100, min=10, max=300, step=10,
+                       rows=[{'kind': KIND['dmg'], 'a': 0, 'match': 0, 'base': 256}],
+                       **{'from': 'every hit it deals (the export\'s per-hit damage x the tier)'}, judgment=True))
+        out[pid] = ks
+    return out
+
+
 def derive(f, reg=None):
-    """{S- id: [knob]} for every decoded special piece of fighter f (a KOF fighter: handlers98.export_rom; another game:
-    none yet)"""
+    """{S- id: [knob]} for every decoded special piece of fighter f (a KOF fighter: handlers98.export_rom; an SS2 one:
+    derive_ss2; another game: none yet)"""
     reg = reg or piece_ids.load(f)
+    if any(p.get('source') == 'handlers_ss2.SPECIALS' for p in reg['pieces'].values()): return derive_ss2(f, reg)
     import export96, handlers98, rom96
     game = handlers98.ROM_GAME.get(f, 'kof98')
     cast = {'kof97': export96.CAST97, 'kof98': export96.CAST98, 'kof99': export96.CAST99}.get(game, export96.CAST)

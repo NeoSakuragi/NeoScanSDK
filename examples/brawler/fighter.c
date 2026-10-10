@@ -1396,7 +1396,8 @@ static uint16_t lab_find(uint16_t id) {                  /* $NN -> the LAB speci
 static uint8_t lab_bad(uint16_t e, uint8_t c, uint8_t grab) {   /* entry e for fighter c -> 0 ok, else lab.lstat's check */
     const bchar_t *ch = &bm_chars[c];
     uint8_t k = e & 0xFF;
-    if (e & LE_THROW) return !grab ? 4 : k >= BT_COUNT || (!ch->throws[k].nrows && !ch->throws[k].turn) ? 3 : 0;
+    if (e & LE_THROW) return !grab ? 4 : k == BT_XTHROW ? (bm_xthr[c].x ? 0 : 3) :   /* (its extra paired throw too) */
+                             k >= BT_COUNT || (!ch->throws[k].nrows && !ch->throws[k].turn) ? 3 : 0;
     if (e & LE_SPEC) return k >= ch->nspec || !ch->specials[k].nrows ? 2 : 0;
     return c != bm_lab.fighter || lab_find(e) == 0xFFFF ? 1 : 0;
 }
@@ -2804,6 +2805,22 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
         case P_VPHASE: vphase(f, p->a, p->b); break;             /* its target's victim phases (TODO #136; VA_LIST: TODO #213) */
         case P_SCREEN: f->pbd = p->a; break;                     /* its screen effect on / off (main.c screen_fx) */
+        case P_WARP: {                                           /* placed (SS2 Hanzo's Kage Bunshin / Utsusemi, Character
+                                                                    Lab 2026-10-10): a 1 on the screen, v px from the
+                                                                    camera's left, turned to the screen's middle; a 0 at
+                                                                    its target, b px short of it, on its lane, turned to
+                                                                    it, v px up */
+            if (p->a & 1) { f->x = FIX(cam_x + (int16_t)v); f->facing = (int16_t)v < 160 ? 1 : -1; f->y = 0; }
+            else {
+                fighter_t *t = f->target;                        /* (a target gone: the nearest on its lane) */
+                if (!t || t->hp <= 0 || t->state == S_OFF || t->state == S_DEAD) t = f->popp;
+                if (!t) break;
+                f->facing = t->x >= f->x ? 1 : -1;
+                f->x = t->x - dir_mul(f->facing, FIX(p->b)); f->z = t->z; f->y = FIX((int16_t)v);
+            }
+            clamp(f);
+            break;
+        }
         default:                                                 /* P_END (this frame still counts a voice to come) */
             if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);
             prog_end(f); return;

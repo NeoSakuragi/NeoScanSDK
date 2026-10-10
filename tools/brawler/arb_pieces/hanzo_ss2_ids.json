@@ -1,0 +1,178 @@
+{
+ "fighter": "hanzo_ss2",
+ "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
+ "next": {
+  "S": 18,
+  "T": 5
+ },
+ "pieces": {
+  "S-001": {
+   "kind": "special",
+   "input": "6321A",
+   "name": "Ninpou Bakuen Ryuu, A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-002": {
+   "kind": "special",
+   "input": "6321B",
+   "name": "Ninpou Bakuen Ryuu, B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-003": {
+   "kind": "special",
+   "input": "6321AB",
+   "name": "Ninpou Bakuen Ryuu, A+B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-004": {
+   "kind": "special",
+   "input": "623C",
+   "name": "Ninpou Mozu Otoshi, C version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-005": {
+   "kind": "special",
+   "input": "623D",
+   "name": "Ninpou Mozu Otoshi, D version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-006": {
+   "kind": "special",
+   "input": "623CD",
+   "name": "Ninpou Mozu Otoshi, C+D version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-007": {
+   "kind": "special",
+   "input": "WFT",
+   "name": "Ninpou Tenma Fukumetsu (rage)",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-008": {
+   "kind": "special",
+   "input": "j.4123A",
+   "name": "Ninpou Reppuu Shuriken (air), A version",
+   "air": true,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-009": {
+   "kind": "special",
+   "input": "j.4123B",
+   "name": "Ninpou Reppuu Shuriken (air), B version",
+   "air": true,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-010": {
+   "kind": "special",
+   "input": "j.4123AB",
+   "name": "Ninpou Reppuu Shuriken (air), A+B version",
+   "air": true,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-011": {
+   "kind": "special",
+   "input": "641236A",
+   "name": "Ninpou Kage Bunshin, A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-012": {
+   "kind": "special",
+   "input": "641236B",
+   "name": "Ninpou Kage Bunshin, B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-013": {
+   "kind": "special",
+   "input": "63214BCD",
+   "name": "Ninpou Utsusemi",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-014": {
+   "kind": "special",
+   "input": "6464642BCD",
+   "name": "Ninpou Kagemai",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-015": {
+   "kind": "special",
+   "input": "run 623C",
+   "name": "Ninpou Mozu Otoshi out of a run, C version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-016": {
+   "kind": "special",
+   "input": "run 623D",
+   "name": "Ninpou Mozu Otoshi out of a run, D version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-017": {
+   "kind": "special",
+   "input": "run 623CD",
+   "name": "Ninpou Mozu Otoshi out of a run, C+D version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "T-001": {
+   "kind": "throw",
+   "input": "hold + forward + A (SS2: close + forward / back + B or A+B)",
+   "name": "Slash throw B or A+B",
+   "move": "throw_c",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  },
+  "T-002": {
+   "kind": "throw",
+   "input": "hold + back + A (SS2: close + forward / back + D or C+D)",
+   "name": "Kick throw D or C+D",
+   "move": "throw_d",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  },
+  "T-003": {
+   "kind": "throw",
+   "input": "the extra throw (SS2: any throw on Earthquake / Kuroko, class 4 action 4)",
+   "name": "Earthquake throw: SS2 any throw on Earthquake or Kuroko",
+   "move": "throw_x",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  },
+  "T-004": {
+   "kind": "throw",
+   "input": "not played (SS2: close + forward + B or A+B in the air; the engine has no air grab)",
+   "name": "Kuutengeki air throw B or A+B",
+   "move": "throw_air",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  }
+ }
+}

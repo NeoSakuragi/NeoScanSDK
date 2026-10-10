@@ -44,6 +44,7 @@ int16_t z_back(int16_t x);        /* the smallest Z at world x (0 without a tabl
                                      (draw.s), never with its owner's palettes (the white flash, the burn leave them) */
 #define SFX_NPAL_MAX 16           /* (224-239: past the select screen's 23 actors x MAX_PALS from 16, below the big
                                      portraits' 240; TODO #216: 11 with Ralf's AAAA, Iori's and Yamazaki's furies) */
+extern int16_t cam_x;             /* main.c: the camera's left edge (world px; P_WARP's screen mode) */
 extern int16_t world_w;           /* the stage's width in px (stage_t.cols * 16); fighters stay 16 px inside it */
 
 enum {                            /* states: the state machine alone decides what happens next */

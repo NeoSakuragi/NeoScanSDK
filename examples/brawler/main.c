@@ -161,7 +161,8 @@ _Static_assert(STAGE < STAGE_COUNT, "make STAGE=n: no such stage");
 #define BG_SPR 22
 #define BG_N   21
 static uint8_t bg_shown[BG_N];
-static int16_t cam_x, lock_x;                    /* lock_x: how far right the camera may go now (campaign) */
+int16_t cam_x;                                    /* (fighter.h: P_WARP's screen mode reads it) */
+static int16_t lock_x;                    /* lock_x: how far right the camera may go now (campaign) */
 static const stage_t *stg = &stages[STAGE];
 int16_t floor_top = SELECT_FLOOR, world_w;
 

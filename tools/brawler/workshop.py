@@ -128,7 +128,7 @@ def page_data(f, D, lib, reg, classes):
     specials.sort(key=lambda x: (x['id'] is None, x['id'] or '', x['input']))
     throws, seen = [], set()
     for mv, aid in piece_ids.decoded_throws(lib):
-        inp = piece_ids.THROW_INPUT.get(mv, mv); i = tid.get(inp)
+        inp = piece_ids.throw_input(lib, mv); i = tid.get(inp)
         anims = [x for x, e in lib['anims'].items() if mv in e.get('throws', []) and x in Dby]
         seen.update(anims)
         throws.append({'id': i, 'input': inp, 'name': reg['pieces'][i]['name'] if i else piece_ids.throw_name(mv, aid, D),
@@ -235,11 +235,11 @@ def cmd_unlock(f, token, text):
         i, made = piece_ids.assign(reg, 'S', t, piece_ids.special_name(t, D), air=bool(lib['specials'][t]['air']), source=lib['specials'][t].get('source'))
         old_key = 'sp-' + slug(t)
     else:
-        mv = next((m for m, _ in piece_ids.decoded_throws(lib) if m == t or piece_ids.THROW_INPUT.get(m) == t), None)
+        mv = next((m for m, _ in piece_ids.decoded_throws(lib) if m == t or piece_ids.throw_input(lib, m) == t), None)
         if not mv: raise SystemExit(f'{f}: "{token}" is neither a special input nor a decoded throw (throw_c / throw_d / "forward + C")')
         aid = dict(piece_ids.decoded_throws(lib))[mv]
-        i, made = piece_ids.assign(reg, 'T', piece_ids.THROW_INPUT.get(mv, mv), piece_ids.throw_name(mv, aid, D), move=mv, source='export throws')
-        old_key = 'th-' + slug(piece_ids.THROW_INPUT.get(mv, mv))
+        i, made = piece_ids.assign(reg, 'T', piece_ids.throw_input(lib, mv), piece_ids.throw_name(mv, aid, D), move=mv, source='export throws')
+        old_key = 'th-' + slug(piece_ids.throw_input(lib, mv))
     if made: piece_ids.save(reg)
     nm = reg['pieces'][i]['name']
     print(f'{f}: {t} = {i} {nm}' + ('' if made else ' (had its id already)'))

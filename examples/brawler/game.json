@@ -315,7 +315,7 @@
    "routes": "default",
    "archetype": "fast",
    "finishers": {"launcher": "up", "down": "sweep"},
-   "specials": {"D": "6321S", "fD": null, "dD": null, "uD": null, "dfD": null, "ufD": null},
+   "specials": {"D": "63214BCD", "fD": "6321S", "dD": null, "uD": null, "dfD": null, "ufD": null},
    "fury": "WFT",
    "air_specials": {"dA": "j.4123S"},
    "flash_pose": "rage",

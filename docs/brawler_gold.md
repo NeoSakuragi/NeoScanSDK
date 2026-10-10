@@ -218,3 +218,8 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
 ## The arbitration sheet compiler, piece ids and the Workshop
 
 Moved to **docs/character_lab.md** (2026-10-10). `arb_compile.py` still appends each shipped "sheet round" here.
+
+## Hanzo (SS2): moved
+
+His Character Lab round (the breaker warp, the pieces, the "decoded, not imported" list) is in **docs/character_lab.md**
+"Hanzo (SS2) — Character Lab".

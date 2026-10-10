@@ -422,7 +422,10 @@ def rage_palette(B, ch, a, sets):
         rows.append([0] + [sets[s][i][k] if k in packed else q[k] for k in range(1, 16)])
     return {'key': p, 'index': i, 'sets': rows}
 
-def export(names, outdir, only=None, extra=None):
+def export(names, outdir, only=None, extra=None, lab=None):
+    """lab: {name: [(hex id, animation)]} the Character Lab's slot (export_bm LAB): that fighter also gets every special
+    version as its own special (handlers_ss2.specials versions), his Lab throws (the big victim's, the air throw) and
+    the LAB special (every animation of his dictionary)"""
     import handlers_ss2 as H
     out = {'game': 'samsho2', 'tile_base': TILE_BASE, 'characters': {}}
     allt, tmap = [], {}
@@ -440,8 +443,12 @@ def export(names, outdir, only=None, extra=None):
         if only is not None: anims = {k: v for k, v in anims.items() if k in only or k == 'watch'}
         for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, ch, a, f, l)}
-        sps = H.specials(B, ch, name)
-        throws = H.throws(B, ch, name)
+        L = (lab or {}).get(name)
+        sps = H.specials(B, ch, name, versions=L is not None)
+        throws = H.throws(B, ch, name, lab=L is not None)
+        if L is not None:
+            e, bad = H.lab_special(B, ch, L); sps.append(e)
+            if bad: print(f'{name}: LAB special: {len(bad)} animations left out:', bad[:8])
         for t, th in throws.items(): anims[t] = th.pop('anim')
         packed = pack_palettes(B, ch)
         sets = colours(B, ch)

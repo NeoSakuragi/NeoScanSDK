@@ -20,7 +20,8 @@ import datetime, json, os, re
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIR = os.path.join(HERE, 'arb_pieces')
 ID_RE = re.compile(r'^([ST])-(\d{3,})$')
-THROW_ORDER = ['throw_c', 'throw_d', 'throw_x']             # export_bm.THROWS (+ the third grab where a fighter has one)
+THROW_ORDER = ['throw_c', 'throw_d', 'throw_x', 'throw_air']   # export_bm.THROWS (+ the third grab where a fighter has
+                                                            # one; + a decoded throw no build plays: SS2 Hanzo's air throw)
 THROW_INPUT = {'throw_c': 'forward + C', 'throw_d': 'forward + D', 'throw_x': 'forward + A+B'}
 ABOUT = ('Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; '
          'per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the '
@@ -64,8 +65,8 @@ def special_name(inp, D):
     if not nm: return inp
     if inp.startswith('EX ') and 'EX' not in nm.split(): nm += ' EX'
     if inp.startswith('air ') and 'air' not in nm.lower(): nm += ' (air)'
-    btn = re.search(r'([A-D])$', inp)
-    return f'{nm}, {btn.group(1)} version' if btn else nm
+    btn = re.search(r'(?<![A-D])([A-D]{1,2})$', inp)       # (SS2's versions: A / B / A+B, C / D / C+D; a B+C+D one: none)
+    return f'{nm}, {"+".join(btn.group(1))} version' if btn else nm
 
 
 def throw_name(move, aid, D):
@@ -78,6 +79,11 @@ def throw_name(move, aid, D):
     ks = [s.split(' (')[0] for s in (a or {}).get('moves', []) if s.endswith('(throw)')]
     if ks: return 'Throw (' + ' / '.join(ks) + ')'
     return {'throw_c': 'Throw C', 'throw_d': 'Throw D', 'throw_x': 'Grab'}.get(move, move)
+
+
+def throw_input(lib, mv):
+    """a throw's input as the registry keys it: the game's own words (lib throw_inputs: SS2's), else THROW_INPUT"""
+    return (lib.get('throw_inputs') or {}).get(mv) or THROW_INPUT.get(mv, mv)
 
 
 def decoded_throws(lib):
@@ -113,11 +119,12 @@ def sync(f, lib, D=None, d=DIR, write=True):
         if not s['decoded']: continue
         i, made = assign(reg, 'S', inp, special_name(inp, D), air=bool(s['air']), source=s.get('source'))
         if made: new.append(i)
+    tin = dict(THROW_INPUT, **(lib.get('throw_inputs') or {}))   # (a game's own words for its throws: SS2's)
     for mv, aid in decoded_throws(lib):
-        i, made = assign(reg, 'T', THROW_INPUT.get(mv, mv), throw_name(mv, aid, D), move=mv, source='export throws')
+        i, made = assign(reg, 'T', tin.get(mv, mv), throw_name(mv, aid, D), move=mv, source='export throws')
         if made: new.append(i)
     live_s = {i for i, s in lib['specials'].items() if s['decoded']}
-    live_t = {THROW_INPUT.get(m, m) for m, _ in decoded_throws(lib)}
+    live_t = {tin.get(m, m) for m, _ in decoded_throws(lib)}
     lost = 0
     for i, p in reg['pieces'].items():
         if (p['input'] not in (live_s if p['kind'] == 'special' else live_t)) and not p.get('gone'): p['gone'] = True; lost += 1

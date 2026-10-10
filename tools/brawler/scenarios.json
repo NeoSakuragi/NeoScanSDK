@@ -777,7 +777,7 @@
   "proof": 220
  },
  "todo193-hanzo-ss2": {
-  "title": "Samurai Shodown II's Hanzo: his fire (C) and his rage flame fury (D)",
+  "title": "Samurai Shodown II's Hanzo: his fire (forward + C) and his rage flame fury (D)",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
@@ -788,9 +788,9 @@
    ],
    "meter": "full"
   },
-  "do": "With a full meter and two Ryos in front of you, press C, wait until the first Ryo is down, then press D.",
+  "do": "With a full meter and two Ryos in front of you, press forward + C (since 2026-10-10 his fire is forward + C; C is his breaker, Ninpou Utsusemi), wait until the first Ryo is down, then press D.",
   "expect": "Hanzo (SS2's masked ninja, his blade glinting) slams the floor and a flame arc runs along the ground in 80 px hops (a burst where it lands each time) and knocks the first Ryo down in fire. D: the screen flashes while he stands in SS2's rage pose in flames and red colours; then he crouches, a fire line runs forward along the floor and bursts into a flame column that hits the second Ryo with a short dark flash and a normal hit-stop and throws him away; Hanzo stays red until the fury ends.",
-  "do_keys": "4:c,100:-,3:d",
+  "do_keys": "4:Rc,100:-,3:d",
   "proof": 220
  },
  "20261007-114101-b3f3": {
@@ -2797,5 +2797,22 @@
   "expect": "Each C special that spends a drive chunk shows Kim in a blue palette for its first quarter second (15 frames), then his own colours. No C special comes out without drive, so no blue. The fury and MAX keep their own flash (no blue), the breaker keeps its white / red blink, a free Blitz no blue.",
   "do_keys": "3:c",
   "proof": 60
+ },
+ "lab-hanzo_ss2-breaker": {
+  "title": "Hanzo (SS2): his breaker (and neutral C) is Ninpou Utsusemi",
+  "setup": {
+   "mode": "stage",
+   "fighter": "hanzo_ss2",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "gap": 60,
+   "drive": "full"
+  },
+  "do": "Mr. Big alone in front of you, your drive full. Stand still; the moment his blow hits you, press C while you reel.",
+  "expect": "Hanzo vanishes in smoke and drops on Mr. Big from above with a spinning slash (SS2's 6 3 2 1 4 + B+C+D, Ninpou Utsusemi), blinking white: two drive chunks (without them: red, 12 life). From neutral, C is the same move for one chunk; forward + C is now the fire (Bakuen Ryuu), the neutral C until today.",
+  "do_keys": "143:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-,2:c,2:-",
+  "proof": 130
  }
 }

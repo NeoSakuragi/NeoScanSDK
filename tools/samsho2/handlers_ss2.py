@@ -41,7 +41,7 @@ import ss2, neo2 as N
 P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
      'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'adv': 16, 'check': 17, 'part': 18, 'evclr': 19,
      'onhit': 20, 'put': 21, 'hitclr': 22, 'hold': 23, 'unhold': 24, 'sigclr': 25, 'hitoff': 26, 'add': 27, 'form': 28,
-     'voice': 29, 'vsig': 30}                                 # bm_chars.h P_*
+     'voice': 29, 'vsig': 30, 'lanim': 36, 'warp': 37}        # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 PC = {'end': 0, 'event': 1, 'land': 2, 'fall': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'always': 7, 'stepev': 8, 'window': 9,
       'link': 10, 'hitany': 11, 'sig7c': 13, 'passed': 20, 'caught': 21}
@@ -456,6 +456,125 @@ def han_623k(v):
             E(None, conds=[('apex', 'next')], phys=g),
             E(26, conds=[('land', 'end')], phys=g)], [('mozufire', 0)], mozu_lists(v)
 
+# ---- Hanzo's other specials (Character Lab hanzo_ss2, 2026-10-10): the recogniser's every result (commands_ss2.py 2) ---
+# 6 4 1 2 3 6 + A / B -> results 41 / 42, Ninpou Kage Bunshin; 6 3 2 1 4 + B+C+D -> 46, Ninpou Utsusemi (the secret
+# move: the teleport above the opponent); 6 4 6 4 6 4 2 + B+C+D -> 51, Ninpou Kagemai (the invisibility). The same lists
+# serve Galford (char 3, his tables at $6AB1A / $6ABC6..): `han_*` read Hanzo's tables. [code] + [meas: moves/02.json
+# cmd7 / cmd8 / cmd6 / cmd5]
+KB_X = (80, 240)                                  # $37530: screen left + 80 / + 240 (d0 / d1: A = him at 80 and the
+                                                  # clone at 240, B = swapped: action 42 exchanges them, `cmpb +$E7`)
+def han_641236s(v):
+    """Ninpou Kage Bunshin, 6 4 1 2 3 6 + A / B -> results 41 / 42, one list $37452 (its first 11 entries: armed) [code]:
+    0 anim 12 $374D6: velocities 0 ($2B81E), the end -> next
+    1 anim 15 $374E4: the timer +$24 = word $6A8F6[0] (12; the task scheduler counts +$24 down every frame, $1570),
+      next   2 $374F2 ($2B936): the timer at 0 -> next
+    3 anim 14 $374FA: the end -> $8ADF + 1, +$24 = $6A8F6[1] (64), next
+    4 anim 80 $37514 (nothing drawn: he is gone): x = the opponent's x; $8ACC = 0 (always in our captures) or the timer
+      at 0 -> next [meas: one frame]
+    5 anim 19 $37530: +$118 = -1, sound $E7, spawn object 8 (the clone, $30774), him at the screen's left + 80 and the
+      clone at + 240 facing each other (B: swapped), effect 92 (smoke) at both places, next
+    6 $375D0 (param): the end -> next   7 anim 19 again, the end -> next   8 $375D8: +$24 = $6A8F6[2] (60), next
+    9 $375EE (param): the stance: a direction -> neutral, a button -> an attack (class 1 action 31 + $2C0E6[button]: his
+      far A / far B / far A+B / crouch C / crouch D), the clone gone or the timer at 0 -> next
+    10 anim 25 $3764E: the end -> neutral
+    Measured (cmd7 / cmd8, P2 at 400): 162 frames; anim 80 one frame (x = 400), him at x 243 facing right (A) / 403
+    facing left (B), anim 19 14 + 1 + 1 frames, the stance 60, anim 25 15 (B: P2 guards it at 177: 25 is a slash).
+    The brawler: P_WARP (screen mode, the camera's left + 80 / + 240, turned to the screen's middle), the clone an
+    effect 160 px ahead of him facing him (kclone); the stance's follow-ups and the smoke are not modelled."""
+    t = [N.s16(0x6A8F6 + 2 * i) for i in range(3)]
+    return [E(12, [('set', 'vx', 0)], [('end', 'next')]),
+            E(15, [('set', 'cnt', t[0] - 1)], [('cnt', 'next')]),
+            E(14, conds=[('end', 'next')]),
+            E(80, [('warp', 1, 0, KB_X[v])], [('now', 'next')]),
+            E(19, [('spawn', 0)], [('end', 'next')]),
+            E((19, 0, 0), [('set', 'cnt', t[2] - 1)], [('cnt', 'next')]),
+            E(25, conds=[('end', 'end')])], [('kclone', v)]
+
+UTSU_TOP = 128                                    # px: Utsusemi's drop fitted to the brawler's screen (SS2: 195 above the
+                                                  # floor, its camera follows; the timing kept: gravity x the same factor)
+def han_63214bcd(v):
+    """Ninpou Utsusemi (the secret teleport), 6 3 2 1 4 + B+C+D -> result 46, list $37928 [code]:
+    0 anim 14 $37A00: velocities 0; the end -> +$CC = $6A9A2 (Hanzo's), the timer +$24 = its word 0 (0), next
+    1 anim 80 $37A6C: the timer at 0 and the opponent on the floor -> $37B94: at the opponent's x, then $2B77E: 5 px
+      back (his facing), height = -$6A95A[opponent's character].y (195 for most, 259 for Earthquake, 204 Haohmaru, 185
+      Nakoruru: the victim's size picks it), vy = word 2 (0), gravity on, effect 20, next
+    2 anim 195 $37AAE (the spinning drop): a hit ($2B958) -> the bounce $37B1C[stick: none / back / forward / both] (vx
+      -4 / -4 / +5 / 0, vy 9 / 9 / 9 / 11 up), next; landed without one -> entry 5
+    3 anim 22 $37B5C: +$118 = -1; its end or landed -> next   4 anim 26 $37B7A: landed -> next
+    5 anim 3 $37B86: +$118 = 1, the end -> neutral
+    Measured (cmd6, P2 at 400): anim 14 30 frames, gone one frame, at x 395 height 204 (P2 Haohmaru), 195 falling 24
+    frames, P2 hit (class 3 action 3), the bounce back to x 331, landed at 251 (SS2's hit slow motion stretches it).
+    The brawler: P_WARP (target mode: the one he hit, else the nearest opponent, 5 px short of it, the normal victim's
+    height 195 fitted x UTSU_TOP / 195; SS2's Earthquake row 259 not used), the neutral stick's bounce. His BREAKER
+    (game.json roster hanzo_ss2 specials.D: the neutral C special, Bruno 2026-10-10)"""
+    tab = N.u32(0x37B1C)                              # (the neutral stick's bounce)
+    bvx, bvy = N.s16(tab), N.s16(tab + 2)
+    dx, h = N.s16(0x6A95A + 4 * 0), -N.s16(0x6A95A + 4 * 0 + 2)        # (Haohmaru's row: dx -5)
+    hn, hb = -N.s16(0x6A95A + 4 * 2 + 2), -N.s16(0x6A95A + 4 * 8 + 2)   # a normal victim (195) / Earthquake (259)
+    q = UTSU_TOP / hn; f = lambda w: round(w * q); g = ('custom', 0, f(GRAVITY))
+    return [E(14, [('set', 'vx', 0)], [('end', 'next')]),
+            E(80, [('warp', 0, dx, f(hn)), ('set', 'vx', 0), ('set', 'vy', 0)], [('now', 'next')]),
+            E(195, conds=[('hit', 'next'), ('land', 5)], phys=g),
+            E(22, [('set', 'vx', bx(bvx)), ('set', 'vy', by(f(bvy)))], [('end', 'next'), ('land', 'next')], phys=g),
+            E(26, conds=[('land', 'next')], phys=g),
+            E(3, conds=[('end', 'end')])], []
+
+def han_6464642bcd(v):
+    """Ninpou Kagemai (the invisibility), 6 4 6 4 6 4 2 + B+C+D -> result 51, list $37386 [code]: entry 0 $373A4: +$118
+    = -1; +$88 bit 7 (the object hidden: the task scheduler's blink bit, $1584) cleared if it was set (he shows again:
+    +$D4 = 0) else +$D4 = -1 (he goes invisible), the animation from $37432 (+$D4 set) / $3743A [entry][mode] (204 then 14 to vanish),
+    velocities 0; 1 $373CE: the end -> next; 2 $373D6: the second animation (14), next; 3 $373E2: the end -> next;
+    4 $373EA: going invisible: object 18 (his hidden marker) in $8A6A, neutral. Measured (cmd5): 204 48 frames, 14 30,
+    80 in all. The brawler plays the vanishing (204 then 14); the hidden state itself (the opponent's AI and hits not
+    seeing him) is not modelled: the brawler has no invisible fighter"""
+    a0 = N.u16(0x37432); a1 = N.u16(0x37432 + 4)          # (+$D4 = -1: vanishing; $3743A = 14, 204: showing again)
+    return [E(a0, [('set', 'vx', 0)], [('end', 'next')]),
+            E(a1, conds=[('end', 'end')])], []
+
+def kclone(B, v):
+    """Kage Bunshin's clone, object 8 ($30774) [code]: Hanzo's anim 289 (his stance, the clone's one step) while he is in
+    the move ($307B6: his class 1), blinking (+$22 = 2); hit ($C670): anim 104 (the log: utsusemi) for $6A8F6[3] frames,
+    then it falls (369) and is gone. The brawler: 289 drawn turned (facing him) 160 px ahead of him from the warp to the
+    move's end (anim 19 twice, the stance, anim 25: 14 + 1 + 60 + 15 frames); no box (the log is not modelled)"""
+    st = ss2.parse_anim(2, 289, 400)[0]
+    fr = B.frame(st, mirror=True)
+    n = 14 + 1 + N.s16(0x6A8F6 + 4) + 15
+    return {'kind': 3, 'rows': [[fr, 160, 0, None, None] for _ in range(n)], 'loop': None, 'end': [], 'react': 0,
+            'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0,
+            'travel': 0, 'name': 'KCLONE', 'ss2': {'object': 8, 'anim': 289}}
+
+def han_623k_run(v):
+    """Mozu Otoshi out of a RUN (Bruno: "run, then 623 + CD: the special throw that ends in flames, with some X movement
+    as he goes into the air"; the same list $36DFC, a branch of its entry 2) [code]: $36EB6 tests his previous action
+    (+$C6): class 0 action 30 (the run) or 41 -> +$D4 = -1 and entry 2 ends AT ONCE (from a stand it waits for anim 58's
+    end: 23 frames); $36EE0 then sets the leap's vx too (only with +$D4): word 0 of $36F46[b] = -256 / -752 / -768 (8.8:
+    1 / 2.9 / 3 px a frame BACKWARD, his facing's opposite: the -Satsu- leap that carries the victim back), the vy,
+    the hold and the second leap as standing; and with vx set, $8AD4 (a camera / effect level) is left alone. The rest
+    = han_623k: the fire on the slam (mozufire), the victim lists. A plain piece (the brawler has no "came from a run"
+    state: it is that version of the move)"""
+    tab = N.u32(0x36F46 + 4 * v)
+    vx = N.s16(tab)
+    ents, objs, vl = han_623k(v)
+    ents = list(ents)
+    ents[2] = E(58, [('set', 'vx', 0)], [('now', 'next')])
+    e3 = dict(ents[3]); e3['init'] = [('set', 'vx', bx(vx))] + list(e3['init']); ents[3] = e3
+    return ents, objs, vl
+
+SD_FRAMES = 300                                   # $2C47A: the timer once the puff has played
+def han_sd(v):
+    """the SUPER-DEFORMED (SD) pose, every SS2 fighter's hidden system move (Hanzo 6 4 6 4 6 4 2 + A -> class 0 action
+    45, one list $368BC; Haohmaru / Genjuro 6 3 2 1 4 6 4 + B ...: commands_ss2 type 0 / 7 entries, result 45) [code]:
+    0 $2C410: velocities 0; already showing anim 82 -> back to neutral (the same input again ends it); else anim 82 (the
+    SD picture: ONE step held, its own small sprite definitions near the end of the definition table, Hanzo $3FE3 /
+    $3FE4 / $3FEB: a separate drawing, not a scaled body), sound $E7, a white backdrop flash ($2B9DE 31, 31, 31: 16
+    frames), effect 71 (the puff, its +$F0 = 1) and effect 72; the palette adds of his colour set ($2C4A4)
+    1 $2C46C: the puff's end -> the timer +$24 = 300, next
+    2 $2C486: every frame his facing turned to the opponent ($278D0), the timer at 0 (or the round over) -> neutral.
+    No move of its own: a 5-second pose (hittable: a hit's reaction replaces it). The program: anim 82 held SD_FRAMES
+    frames. NOT in SPECIALS: Hanzo's SD drawing is in palettes 68 / 69 (+ a flicker key), past his 8 (needs palette
+    room: a 9th / 10th palette for the fighter, or the SD sprite recoloured into his 8)"""
+    return [E((82, 0, 0), [('set', 'vx', 0), ('set', 'cnt', SD_FRAMES - 1)], [('cnt', 'end')])], []
+
 def mozu_lists(v):
     """the victim of Mozu Otoshi (VL; handlers_ss2.voff: Haohmaru's offsets, every character's victim animations): at his
     place facing his way; lists: 490 (his 58), 492 (his 60), 494 (his 62, step by step), the slam (a blow, his held pose),
@@ -472,7 +591,12 @@ SPECIALS = {
     'genjuro': {'214S': (gen_214s, 3, (38, 39, 40)), '236S': (gen_236s, 3, (41, 42, 43)), '623S': (gen_623s, 3, (50, 51, 52)),
                 'WFT': (gen_wft, 1, (37,))},
     'hanzo': {'6321S': (han_6321s, 3, (38, 39, 40)), '623K': (han_623k, 3, (43, 44, 45)), 'WFT': (han_wft, 1, (37,)),
-              'j.4123S': (han_j4123s, 3, (48, 49, 50))},     # (j.: an air special, TODO #211: game.json air_special)
+              'j.4123S': (han_j4123s, 3, (48, 49, 50)),      # (j.: an air special, TODO #211: game.json air_special)
+              # the rest of his recogniser (Character Lab 2026-10-10): Lab pieces only (LAB_ONLY: not in the game's pool)
+              '641236S': (han_641236s, 2, (41, 42)), '63214BCD': (han_63214bcd, 1, (46,)), '6464642BCD': (han_6464642bcd, 1, (51,)),
+              'run 623K': (han_623k_run, 3, (43, 44, 45))},
+    # (han_sd, the SD pose, 'SD (6464642+A)' result 45: decoded, NOT imported: its drawing uses SS2's palettes 68 / 69
+    # (+ 69's flicker), past the 8 the brawler loads per fighter; export_ss2.pack_palettes cannot fold them in)
     # (input = the recogniser's own: commands_ss2.py 17; 2026-10-07: 61236A is result 41 and 214161BC result 46, the
     # export had them swapped)
     'kuroko': {'236A': (kur_parody(39), 1, (39,)), '16A': (kur_parody(40), 1, (40,)), '61236A': (kur_parody(41), 1, (41,)),
@@ -482,6 +606,22 @@ SPECIALS = {
                'RAGE': (kur_rage(False), 1, (37,)), 'MAX RAGE': (kur_rage(True), 1, (38,))},
 }
 CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo': 2}
+LAB_ONLY = {('hanzo', '641236S'), ('hanzo', '6464642BCD'), ('hanzo', 'run 623K'), ('hanzo', 'SD (6464642+A)')}   # (63214BCD: in the game, his breaker)   # decoded for the Character Lab (its
+                                                  # pieces, condition 'lab'): the normal game's pools take 'normal' only
+NAMES = {'hanzo': {'6321S': 'Ninpou Bakuen Ryuu', '623K': 'Ninpou Mozu Otoshi', 'WFT': 'Ninpou Tenma Fukumetsu (rage)',
+                   'j.4123S': 'Ninpou Reppuu Shuriken (air)', '641236S': 'Ninpou Kage Bunshin', '63214BCD': 'Ninpou Utsusemi',
+                   '6464642BCD': 'Ninpou Kagemai', 'run 623K': 'Ninpou Mozu Otoshi out of a run',
+                   'SD (6464642+A)': 'Super-deformed pose'}}   # SNK's names (snk.fandom.com "Hanzo Hattori/Move List", read through
+                                                  # its API 2026-10-10: Bakuenryuu f-hcb... S, Mozu Otoshi close 623 K, Kage
+                                                  # Bunshin 641236 A / B (SS II-V), Tenma Fukumetsu hcb-f D (SS II's rage
+                                                  # move); the air shuriken, Utsusemi and Kagemai under their later games'
+                                                  # names: SS II's inputs here are the ROM's)
+
+def version_input(inp, k, nv):
+    """one button version's own input: '6321S' -> '6321A' / '6321B' / '6321AB', '623K' -> '623C' / '623D' / '623CD',
+    'j.4123S' -> 'j.4123A' ... (the S- piece of that version, Character Lab: each version its own piece)"""
+    b = (['C', 'D', 'CD'] if inp[-1] == 'K' else ['A', 'B', 'AB'])[k]
+    return inp[:-1] + b
 
 # ---- the program: entries -> ops --------------------------------------------------------------------------------------
 CUR = {'ch': 0}
@@ -540,6 +680,7 @@ def compile_prog(ents):
             elif o[0] == 'move_now': ops.append(('move',))
             elif o[0] == 'vsig': ops.append(('vsig',))
             elif o[0] == 'fxoff': ops.append(('fxoff',))
+            elif o[0] == 'warp': ops.append(('warp', o[1], o[2], o[3]))   # P_WARP a = mode (1 screen, 0 target), b dx, v
             else: raise ValueError(o)
         ops += [('resume_at', ('LP', i)), ('jmp', ('R', i)), ('label', ('LP', i))]
         for k, cnd in landc: ops.append(('br', 'land', 1, ('S', i, k)))
@@ -599,6 +740,7 @@ def encode(o):
     if n == 'spawn': return (P['spawn'], o[1], 0, 0)
     if n == 'check': return (P['check'], o[1], 0, 0)
     if n == 'nudge': return (P['nudge'], 0, o[1], 0)
+    if n == 'warp': return (P['warp'], o[1], o[2], o[3])
     return (P[n], 0, 0, 0)
 
 # ---- the brawler's player, ported from fighter.c (prog_update, pan_*), for check() and the hit counts ----------------
@@ -660,6 +802,9 @@ class Play:
                 elif self.y <= 0: self.y = 0; self.flags.add('land')
                 if 'land' not in self.flags and self.vy < 0: self.flags.add('fall')
             elif op == P['nudge']: self.x += b << 16; self.y += v << 16
+            elif op == P['warp']:                         # (alone: a target mode warp keeps x, rises to the normal
+                if a & 1: self.x = (v - 160) << 16        # victim's height; a screen one: x from the screen's middle)
+                else: self.y = v << 16
             elif op == P['dec']: self.cnt -= 1
             elif op == P['br']:
                 if self.cond(a & 0x7F, v) == bool(a >> 7):
@@ -932,7 +1077,7 @@ def mozufire(B, k):
             'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0,
             'travel': 0, 'name': 'MOZUFIRE', 'ss2': {'effect': 14, 'anim': 244}}
 
-OBJECTS = {'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
+OBJECTS = {'kclone': kclone, 'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
 def rom_steps(B, ch, a, flags, react, catch=False, grab=None):
@@ -957,7 +1102,10 @@ def openings(steps):
         prev = s
     return out
 
-def special(B, ch, name, inp):
+def special(B, ch, name, inp, vdef=None):
+    """vdef None: the special with its variant table (A / B / A+B), the heaviest played by default; vdef k: version k
+    alone as its own special (input version_input, condition 'version': the Character Lab's piece, never in the game's
+    pool unless a roster slot names it)"""
     fn, nv, results = SPECIALS[name][inp]
     CUR['ch'] = ch
     full = [fn(v) for v in range(nv)]
@@ -968,7 +1116,7 @@ def special(B, ch, name, inp):
     asm = [assemble(o) for o, _ in comp]
     assert all(len(x) == len(asm[0]) for x in asm), (name, inp, [len(x) for x in asm])
     enc = [[encode(o) for o in x] for x in asm]
-    default = nv - 1                                  # the heaviest button: A+B (export_dd's rule)
+    default = nv - 1 if vdef is None else vdef        # the heaviest button: A+B (export_dd's rule); a version: its own
     cols, prims = [], []
     for pos in range(len(enc[0])):
         ops_ = [e[pos] for e in enc]
@@ -1057,7 +1205,7 @@ def special(B, ch, name, inp):
     if vlists: rom['vlists'] = vlists                 # the caught victim's lists (VL), P_VSIG steps through them
     if vlists and any(v != vlists for v in vrows): rom['vlists_rows'] = vrows
     import commands_ss2 as K
-    if K.descriptor(ch, 0, 1, results[default])['b'][0] & 0x80: rom['nopush'] = True   # descriptor byte 4 bit 7 -> +$FF:
+    if not inp.startswith('SD') and K.descriptor(ch, 0, 1, results[default])['b'][0] & 0x80: rom['nopush'] = True   # descriptor byte 4 bit 7 -> +$FF:
                                                        # no push between the players ($CC14) while it plays [code]
     if (name, inp) in BIGHIT: rom['bighit'] = True        # its connect: SS2's big-hit pause (export_bm SF_BIGHIT)
     if (name, inp) in BIGHIT_COL: rom['bighit_col'] = BIGHIT_COL[(name, inp)]
@@ -1067,17 +1215,68 @@ def special(B, ch, name, inp):
         rom['parts'] = [{'states': [states[j] for j, (ei, a) in enumerate(sts0) if ents0[ei]['part'] == p]} for p in parts]
         rom['follow_links'] = [{'from': p, 'to': p + 1, 'input': 'again'} for p in parts[:-1]]
         rom['links'] = ['again']
-    return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'row_boxes': rb, 'row_steps': rs,
+    cond = 'version' if vdef is not None else 'lab' if (name, inp) in LAB_ONLY else 'normal'
+    return {'input': inp if vdef is None else version_input(inp, vdef, nv), 'condition': cond, 'version': 'whiff', 'script': script,
+            'name': NAMES.get(name, {}).get(inp), 'base_input': inp, 'row_boxes': rb, 'row_steps': rs,
             'marks': [''] * len(script), 'projectiles': pj, 'anims': [a for _, a in sts0],
             'shape': [max(r[1] for r in script), max(r[2] for r in script), bool(pj)], 'game_hits': len(opens),
             'rom': rom, 'ss2': {'results': list(results), 'sounds': snd, 'code_sounds': spawn_snd, 'code_voices': code_voices},
             **({'air': True} if inp.startswith('j.') else {})}   # an air special (j.: export_bm air_special, TODO #211)
 
+# ---- the Character Lab's LAB special (export96.lab_special's SS2 twin): EVERY animation of the fighter's dictionary
+# (tools/brawler/arb_pieces/<f>.json "anims": its $NN = the SS2 animation number) as one special of his pool, each
+# animation played on its own as the brawler plays an animation (rom_steps: its steps, boxes, the start frame's extra
+# tick), its hits SPECIAL_DAMAGE split over its openings; one program block per animation, [P_LANIM j, P_RESUME, P_BR
+# end yield, P_END], so the game starts animation j at op 4 j (fighter.c "Lab: try in game"). Only the Lab's builds
+def lab_special(B, ch, entries):
+    """entries [(hex id, animation number)] -> (the LAB special, the ids it could not read)"""
+    import export_ss2 as X
+    have = set(B.pals)                                # the palette keys his game export already draws with: an animation
+    def raw_pals(a):                                  # needing another one is left out (the brawler loads 8 per fighter:
+        out = set()                                   # export_ss2.pack_palettes must fold them all; one flicker palette)
+        for s_ in ss2.parse_anim(ch, a, 400):
+            for li, w in enumerate(s_['layers']):
+                byc = {}
+                for col in ss2.sprite_cells(w & 0x7FFF)[1]:
+                    for c in col:
+                        if not c: continue
+                        t, at = c; code = t | (at >> 4 & 0xF) << 16
+                        if code: byc.setdefault((at ^ (w >> 15)) >> 8, set()).add(code)   # (drawn cells; Builder.layer's keys)
+                out |= {X.flicker_key(ch, p, cs) if li == 1 else p for p, cs in byc.items()}
+        return out
+    anims, states, ids, prims, bad = {}, [], [], [], []
+    for x, a in entries:
+        try:
+            extra = raw_pals(a) - have
+            if extra: raise ValueError(f'palettes {sorted(extra)} beyond the 8 the fighter keeps')
+            st = rom_steps(B, ch, a, {}, None)
+            if not st: raise ValueError('no steps')
+        except Exception as e:
+            bad.append((x, str(e)[:60])); continue
+        o = sum(openings(st))
+        k = f'L{len(states)}:{a}'; anims[k] = {'mode': 'hold', 'steps': st, 'ss2': a}
+        prims += [[P['lanim'], max(1, SPECIAL_DAMAGE // o) if o else 0, R_KNOCKDOWN if o else R_HEAVY, len(states) << 8],
+                  [P['resume'], 0, 0, 0], [P['br'], PC['end'], -1, 0], [P['end'], 0, 0, 0]]
+        states.append(k); ids.append(int(x, 16))
+    s0 = anims[states[0]]['steps']
+    rom = {'states': states, 'anims': anims, 'prims': prims, 'objects': [], 'openings': {}, 'hit_kind': 1, 'last_hit': -1,
+           'apex': -1, 'length': 0, 'vtable': {}, 'lab': True, 'lab_ids': ids, 'now': True}
+    return {'input': 'LAB', 'condition': 'normal', 'version': 'whiff', 'script': [[s0[0]['frame'], 0, 0, []]], 'row_boxes': [{}],
+            'row_steps': [[0, 0, 0, 0xFF]], 'marks': [''], 'projectiles': [], 'anims': [ids[0]], 'shape': [0, 0, False],
+            'game_hits': 0, 'rom': rom, 'ss2': {'results': [], 'sounds': [], 'code_sounds': [], 'code_voices': []}}, bad
+
 # decoded but not exported (none since 2026-10-07: Kuroko's 10 palettes fit the brawler's 8 by export_ss2.pack_palettes)
 NOT_EXPORTED = {}
 
-def specials(B, ch, name):
-    return [special(B, ch, name, inp) for inp in SPECIALS[name] if inp not in NOT_EXPORTED.get(name, ())]
+def specials(B, ch, name, versions=False):
+    """the fighter's specials (variant tables); versions: then each button version of a multi-button one as its own
+    special (special vdef: the Character Lab's pieces)"""
+    out = [special(B, ch, name, inp) for inp in SPECIALS[name] if inp not in NOT_EXPORTED.get(name, ())
+           and (versions or (name, inp) not in LAB_ONLY)]   # (the Lab-only ones: never drawn into the game's export)
+    if versions:
+        out += [special(B, ch, name, inp, k) for inp, (_, nv, _) in SPECIALS[name].items()
+                if inp not in NOT_EXPORTED.get(name, ()) and nv > 1 for k in range(nv)]
+    return out
 
 # ---- throws ------------------------------------------------------------------------------------------------------------
 # class 4 action -> (the thrower's animation, the victim's class 5 action): Haohmaru close + forward + A+B (action 1:
@@ -1212,8 +1411,159 @@ def throw(B, ch, name, key):
             # then plays the throw from its first row (the swap) exactly as SS2
             'grab_frame': B.frame(tst[0], mirror=False) if tst[0]['flags'] & 0x8000 else None}
 
-def throws(B, ch, name):
-    return {k: throw(B, ch, name, k) for k in THROWS[name]}
+# ---- the victim's size: SS2's other throws (Character Lab 2026-10-10, Bruno: "special regular throws against
+# EARTHQUAKE, who is too big to be thrown") [code] -------------------------------------------------------------------
+# The throw test ($2C5A8, every frame both players are close, NAGE1 task $2C722): the thrower's +$108 = the buttons just
+# pressed ($26B16[+$EB >> 4]: A 1, B 2, A+B 3, C 4, D 5, C+D 6), a ground throw takes B / A+B / D / C+D ($2C6A8), with
+# the stick toward or away (+$E9 & 12), within word $2FFA40[thrower] px (Hanzo 62, Earthquake 72) of the opponent, both
+# standing. Then $2C75C: the thrower's class 4 action = 4 when the VICTIM's character (+$64) is 8 (Earthquake) or 17
+# (Kuroko), else $2C852[+$108] (B 0, A+B 1, D 2, C+D 3); the victim takes class 5 with the same action. Air throws
+# ($2C8D2: a thrower with an air table, $2CA42: Nakoruru, Hanzo, Galford, Sieger; both airborne, B / A+B): $2CB22
+# (7 / 8) or, against Earthquake / Kuroko, $2CB2A (9 / 10). The same test picks the sword clash's action ($C2BE: 6 vs
+# them, else 5). Every fighter's class 4 action 4 is the same handler ($2D420) on its anim 270 and every class 5
+# action 4 the same victim list ($2DF6E ...): SS2's "too big to be thrown" throw is generic. Hanzo's air lists 9 / 10
+# equal 7 / 8 (the big victim changes nothing in the air).
+BIG_CHARS = (8, 17)                               # $2C770 / $2C778: Earthquake, Kuroko
+BIG_ACTION = 4
+
+def throw_big(B, ch, name):
+    """the throw against a big victim (class 4 action 4 / class 5 action 4), a paired script [code]:
+    thrower $2D420: its anim 270 to the end (the slide under him, then the rising kick: attack steps 3 and 9), then
+      neutral (the body moved by the last step's offset);
+    victim (its OWN animations, numbered alike for every character; Earthquake's table read here, his offsets): $2DF6E
+      anim 474 (staggered, drawn 45 px in front: its steps' $20) to its end; $2DF7A anim 464 (falling back), the body
+      moved by the offset; $2DF86 the push: vx / vy = words $6C7EE (4 px forward, 4 up: its facing is the thrower's, so
+      away from him), gravity; $2DFAC landed; $2DFBE the bounce $6C7F2 (1.5 forward, 1 up); $2DFE0 anim 466 landed
+      (+$FF bit 7: down); $2DFF8 anim 468 to its end; $2E36C / $2E37A lying $6C7F6 frames, the get-up.
+    Impacts: the thrower's two attack steps (the slide, the kick), the landing"""
+    import export_ss2 as X, commands_ss2 as K
+    VC = BIG_CHARS[0]                                 # the victim class's own animations (Earthquake's)
+    def fv(an, k):                                    # the victim's frame: the thrower's own drawing of that animation
+        st_ = ss2.parse_anim(ch, an, 100)             # step (a fighter is its own victim in the export: throw())
+        return B.frame(st_[min(k, len(st_) - 1)])
+    a = K.descriptor(ch, 0, 4, BIG_ACTION)['entries'][0][2] & 0x3FF
+    tst = ss2.parse_anim(ch, a, 100)
+    tl = []
+    for i, s_ in enumerate(tst): tl += [i] * (s_['ticks'] + 1)
+    tl += [tl[-1]]
+    th_steps = X.anim_steps(B, ch, a, mirror=True)
+    timeline = [[th_steps[i]['frame'], 0, 0, 0] for i in tl]
+    atk_steps = [i for i, s_ in enumerate(tst) if attack_recs(s_)]
+    impacts = sorted({tl.index(i) for i in atk_steps if not i or not attack_recs(tst[i - 1])})
+    rows = []; x = y = 0.0; last = 0
+    for k, s_ in enumerate(ss2.parse_anim(VC, 474, 100)):   # staggered in front of him
+        mv = next((c[1] for c in s_['cmds'] if c[0] == 'move'), 0); last = mv
+        rows += [[fv(474, k), mv, 0, 1, 0, f'474.{k}', None] for _ in range(s_['ticks'] + 1)]
+    rows.append(rows[-1][:])
+    x = float(last)                                   # $2DF7A: moved by the offset
+    fs = ss2.parse_anim(VC, 464, 100); seq = [i for i, s_ in enumerate(fs) for _ in range(s_['ticks'] + 1)]
+    rel = len(rows); land = None
+    for vxw, vyw, an in ((N.s16(0x6C7EE), N.s16(0x6C7F0), 464), (N.s16(0x6C7F2), N.s16(0x6C7F4), 466)):
+        vx, vy = vxw / 256, -vyw / 256; n = 0
+        while True:
+            if n: vy -= GRAVITY / 256
+            x += vx; y += vy
+            if y <= 0: y = 0
+            k = seq[min(n, len(seq) - 1)] if an == 464 else 0
+            rows.append([fv(an, k), round(x), round(y), 1, 0, f'{an}.{k}', None]); n += 1
+            if y <= 0 and vy < 0: break
+        impacts.append(len(rows) - 1); land = land if land is not None else len(rows) - 1
+    for an in (466, 468):
+        for k, s_ in enumerate(ss2.parse_anim(VC, an, 100)):
+            rows += [[fv(an, k), round(x), 0, 1, 0, f'{an}.{k}', 'down' if an == 468 else None] for _ in range(s_['ticks'] + 1)]
+    return {'slot': a, 'inputs': 'close + forward / back + B / A+B / D / C+D against a big victim', 'table': [], 'hold': False,
+            'rom': True, 'timeline': timeline, 'victims': {name: rows}, 'impacts': sorted(set(impacts)), 'release': rel,
+            'land': land, 'ret': len(timeline), 'anim': {'slot': a, 'mode': 'hold', 'steps': th_steps},
+            'ss2': {'anim': a, 'victim_action': BIG_ACTION, 'victim_class': [ss2.NAMES[c] for c in BIG_CHARS]},
+            'turned': bool(tst[0]['flags'] & 0x8000), 'grab_frame': None, 'big': True}
+
+AIR_TOP = 64                                      # px: the air throw's height in the brawler (FIT_TOP's rule)
+def throw_air(B, ch, name, act=7):
+    """the air throw (class 4 action 7: B, 8: A+B, the same frames: 309 / 341 are one picture; SNK's Kuutengeki, close
+    + forward + B in the air) as a paired script [code]:
+    thrower 0 $2D4D8 anim 295 (the grab and the roll), held in the air (+$EE = $80, velocities 0), the victim's entry
+      kept equal to his (both lists step together); the end -> next   1 $2D50C: the drop: vy = word $6AA06[1] (16 px a
+      frame down), its own gravity word 0 (0), next   2 $2D55A: landed -> effect 70, $8ACE = 3, velocities 0, next
+      3 anim 309 / 341 (the slam, 6 frames)   4 anim 34 $2D5B6: the body moved by the offset, the hop: $6AA06[2] / [3]
+      (3 px back, 10 up), gravity   5 the end -> next   6 the apex -> next   7 anim 38: landed -> neutral;
+    victim $2E2A2 (entries 0-3): at his place and speed, anim 516 (grabbed, rolled over, head down) then 518 (slammed);
+      $2E2C6 anim 466 moved by the offset; $2E2D2 its flight from the thrower's table entry $77 (3 forward, 5 up),
+      gravity; landed; anim 468; the get-up.
+    The brawler has no air grab: the throw starts from the hold, a rise to AIR_TOP px (his jump's gravity) in 295's first
+    step comes first, then the ROM's script"""
+    import export_ss2 as X, commands_ss2 as K
+    ents = K.descriptor(ch, 0, 4, act)['entries']; vents = K.descriptor(ch, 0, 5, act)['entries']
+    grab, slam, hop, land_a = ents[0][2] & 0x3FF, ents[3][2] & 0x3FF, ents[4][2] & 0x3FF, ents[7][2] & 0x3FF
+    g = GRAVITY / 256
+    tab = 0x6AA06
+    drop = N.s16(tab + 2) / 256; hvx, hvy = N.s16(tab + 4) / 256, -N.s16(tab + 6) / 256
+    v0 = (2 * g * AIR_TOP) ** 0.5
+    fr = lambda a, i: B.frame(ss2.parse_anim(ch, a, 400)[i])
+    seq = lambda a: [(a, i) for i, s_ in enumerate(ss2.parse_anim(ch, a, 400)) for _ in range(s_['ticks'] + 1)]
+    def vseq(a):
+        out = []
+        for i, s_ in enumerate(ss2.parse_anim(ch, a, 400)):
+            mv = next(((c[1], c[2]) for c in s_['cmds'] if c[0] == 'move'), (0, 0))
+            out += [(a, i, mv[0], mv[1])] * (s_['ticks'] + 1)
+        return out
+    T, V = [], []; y = 0.0; vy = v0
+    v516 = vseq(vents[0][2] & 0x3FF); v518 = vseq(vents[3][2] & 0x3FF)
+    fv = lambda a, i: fr(a, min(i, len(ss2.parse_anim(ch, a, 400)) - 1))   # the victim's frame (its own drawing)
+    while True:                                       # the rise (the brawler's): 295's first step, the victim grabbed
+        y += vy; vy -= g
+        T.append([fr(grab, 0), 0, round(y), 0]); V.append([fv(516, 0), v516[0][2], -v516[0][3], 1, 0, '516.0', None])
+        if vy <= 0: break
+    for k, (a_, i) in enumerate(seq(grab)):           # entry 0: the roll, held
+        T.append([fr(a_, i), 0, round(y), 0]); va, vi, mx, my = v516[min(k, len(v516) - 1)]
+        V.append([fv(516, vi), mx, -my, 1, 0, f'516.{vi}', None])
+    nlast = len(ss2.parse_anim(ch, grab, 400)) - 1
+    while y > 0:                                      # entries 1-2: the drop
+        y = max(0.0, y - drop); T.append([fr(grab, nlast), 0, round(y), 0])
+        V.append([fv(516, v516[-1][1]), v516[-1][2], -v516[-1][3], 1, 0, f'516.{v516[-1][1]}', None])
+    impacts = [len(T) - 1]
+    for a_, i in seq(slam):                           # entry 3: the slam
+        T.append([fr(a_, i), 0, 0, 0]); V.append([fv(518, 0), v518[0][2], -v518[0][3], 1, 0, '518.0', None])
+    q = min(1.0, FIT_TOP / (hvy ** 2 / (2 * g)))       # the hop's height x FIT_TOP / its apex (throw_leap's rule)
+    x = 0.0; vx, vy = hvx, hvy * q; nh = len(seq(hop)); hs = seq(hop); k = 0     # entries 4-7: his hop back
+    while True:
+        x += vx; y += vy; vy -= g * q
+        if y <= 0 and vy < 0: break
+        a_, i = hs[min(k, nh - 1)]
+        T.append([fr(a_, i), round(x), max(0, round(y)), 0]); k += 1
+    for a_, i in seq(land_a): T.append([fr(a_, i), round(x), 0, 0])
+    # the victim from the slam on: 466 moved by the offset, its flight from the thrower's entry $77, 468, lying
+    ox = float(v518[0][2]); vxw, vyw = vtab(ch, (vents[5][2] & 0xFF) + 16)
+    rel = len(V); vx, vy, yv = vxw / 256, -vyw / 256, 0.0; n = 0
+    while True:
+        if n: vy -= g
+        ox += vx; yv += vy
+        if yv <= 0: yv = 0
+        V.append([fv(466, 0), round(ox), round(yv), 1, 0, '466.0', None]); n += 1
+        if yv <= 0 and vy < 0: break
+    land = len(V) - 1; impacts.append(land)
+    for k2, s_ in enumerate(ss2.parse_anim(ch, 468, 100)):
+        V += [[fv(468, k2), round(ox), 0, 1, 0, f'468.{k2}', 'down'] for _ in range(s_['ticks'] + 1)]
+    for i in range(rel, len(V)):                      # after the release: offsets from where the thrower is drawn
+        t = T[min(i, len(T) - 1)]; V[i][1] -= t[1]; V[i][2] -= t[2]
+    return {'slot': grab, 'inputs': 'close + forward + B / A+B in the air (from the hold here)', 'table': [], 'hold': False,
+            'rom': True, 'timeline': T, 'victims': {name: V}, 'impacts': sorted(set(impacts)), 'release': rel, 'land': land,
+            'ret': len(T), 'anim': {'slot': grab, 'mode': 'hold', 'steps': X.anim_steps(B, ch, grab)},
+            'ss2': {'anims': [grab, slam, hop, land_a], 'victim_action': act, 'air': True},
+            'turned': False, 'grab_frame': None}
+
+AIR_THROWS = {'hanzo': 7}                         # $2CA42: the fighters with an air throw (Nakoruru, Galford, Sieger too)
+
+def throws(B, ch, name, lab=False):
+    """the fighter's throws: throw_c / throw_d (B / A+B, D / C+D); with lab (the Character Lab's pack) also SS2's
+    Earthquake throw (class 4 action 4, throw_big) as his extra paired throw 'throw_x' (T-003: a plain piece, no
+    automatic choice by the victim: Bruno 2026-10-10, "the engine doesn't need that, just look up the throw and decode
+    it"). The air throw (throw_air, T-004) is decoded but not in the pack: the engine plays three paired throws (C, D,
+    the extra one)"""
+    out = {k: throw(B, ch, name, k) for k in THROWS[name]}
+    if lab:                                           # (its victim rows keyed apart: the posture frames every fighter
+        tb = throw_big(B, ch, name)                   # draws come from the game's own throws only, so the pack's tables
+        out['throw_x'] = dict(tb, victims={name + '_lab': tb['victims'][name]})   # outside the slot stay the shell's)
+    return out
 
 # ---- check: the programs against the game's frames --------------------------------------------------------------------
 def check(names=('haohmaru', 'genjuro')):

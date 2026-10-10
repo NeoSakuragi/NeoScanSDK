@@ -139,6 +139,28 @@ every old URL, the chain timing measured in the game), `fighterlab_proof.js`, `k
 
 PROOF_PLACEHOLDER
 
+## Hanzo (SS2) — Character Lab, 2026-10-10: the first Samurai Shodown II fighter in the Lab (Bruno: the warp "is going to be his BREAKER special")
+- C (neutral, also the breaker) = 63214BCD Ninpou Utsusemi (S-013): gone in smoke, P_WARP onto the one he hit (else the
+  nearest opponent on his lane), the spinning drop from 128 px (SS2's 195, fitted), the bounce back on a hit. Breaker:
+  2 drive chunks, white blink; without the drive 12 life, red blink (tools/samsho2/hanzo_breaker_proof.py, 4 / 4 PASS).
+- forward + C = 6321S Ninpou Bakuen Ryuu (the fire; was the neutral C until then).
+- Throws: forward + A slash throw (T-001), back + A kick throw (T-002); SS2's Earthquake throw (class 4 action 4) is the
+  plain piece T-003 (his pack's extra paired throw), no automatic choice by the victim (Bruno: "the engine doesn't need
+  that"); the air throw Kuutengeki (T-004) is decoded, not playable (no air grab).
+- Pieces (arb_pieces/hanzo_ss2_ids.json): S-001..S-003 6321 A / B / A+B, S-004..S-006 623 C / D / C+D, S-007 WFT,
+  S-008..S-010 j.4123 A / B / A+B, S-011 / S-012 Kage Bunshin A / B (P_WARP screen mode + the clone), S-013 Utsusemi,
+  S-014 Kagemai, S-015..S-017 Mozu Otoshi out of a run (its backward leap: pure data); T-001..T-004 above.
+- Decoded, NOT imported (Bruno decides; /data/neogeo_dict/samsho2/README.md "Character Lab"):
+  - Kagemai's invisibility (S-014 plays only its two animations): needs an engine "hidden" state on fighter_t: the
+    sprite not drawn for 440 frames, cleared by his attack / a hit after a 9-frame every-other-frame blink, or by the
+    move again; and (a design choice) whether the enemies' AI should ignore a hidden player.
+  - The SD pose (6 4 6 4 6 4 2 + A, every SS2 fighter's anim 82 for 300 frames; handlers_ss2.han_sd decodes it): its
+    drawing uses SS2's palettes 68 / 69 (+ a flicker key), past the 8 a fighter loads: needs a 9th / 10th palette
+    for the fighter (bchar_t npal, MAX_PALS) or the SD sprite recoloured into his 8; then it is pure data (anim 82
+    held). Its toggle (the input again ends it), the puff (effect 71) and the white flash are extras.
+  - The air throw T-004: needs an air grab (both airborne, close, B / A+B) or a fourth paired-throw slot.
+  - Kage Bunshin's stance follow-ups (a button = far A / far B / far A+B / crouch C / crouch D) and the clone's log.
+
 ---
 
 The sections below were the Character Lab's notes in docs/feedback.md, docs/brawler_gold.md and
