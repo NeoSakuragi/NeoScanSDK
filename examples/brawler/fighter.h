@@ -211,7 +211,9 @@ typedef struct { uint16_t frame; uint8_t kind, node, how, val; } lab_ev_t;   /* 
 #define LO_MAX   8                /* a slot's entries */
 #define TRY_VERSION 2             /* lab.tblob's format (fighter.h lab_t; lab.js encodeTry): 1 without knobs, 2 with them */
 #define KN_MAX   32               /* knob rows a TRY blob carries (LS_KNOB records) */
-#define TRY_MAX  1024             /* lab.tblob: 8 + 2 LQ_MAX + LS_COUNT (2 + 2 LO_MAX) = 558, + KN_MAX knob records of 14 */
+#define TRY_MAX  1024             /* lab.tblob: 8 + 2 LQ_MAX + LS_COUNT (2 + 2 LO_MAX) = 558, + KN_MAX knob records of 14
+                                     = 1006 (fighter.c asserts it); its size reaches the Player as the pack manifest's
+                                     ram.tblob_size (lab_pack.py ram_map) */
 /* PIECE KNOBS (Bruno 2026-10-10: "each special move comes with its key params and default values, adjustable in the
  * Assembly"; fighter.c "knobs"): a decoded special's key parameters overridden per SLOT (the same piece fast on one slot,
  * slow on another). A row: the sheet slot (LS_*, LS_QUEUE the Try queue) and the pool special it applies to, its kind

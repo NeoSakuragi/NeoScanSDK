@@ -56,7 +56,8 @@ LAB_FIELDS = ['tnow', 'lstat', 'qpos', 'cur', 'tblob']   # lab_t's "Try in game"
 
 def _layout(game, build='build'):
     """fighter_t offsets/sizes, the state names and symbol addresses, from the game's own sources and ELF (build: its build
-    directory, build_lab_<f> for a Lab build); syms['lab_fields']: lab_t's "Try in game" offsets (a build that has them)"""
+    directory, build_lab_<f> for a Lab build); syms['lab_fields']: lab_t's "Try in game" offsets (a build that has them),
+    syms['tblob_size']: lab_t.tblob's size (the TRY blob buffer, fighter.h TRY_MAX)"""
     fields = ['ch', 'set', 'palbase', 'spr', 'x', 'z', 'y', 'vx', 'vz', 'vy', 'facing', 'team', 'state', 'state_t', 'anim',
               'step', 'tick', 'anim_done', 'node', 'buffered', 'hit_mask', 'freeze', 'inv', 'hp', 'idx', 'held',
               'shown_frame', 'frame_ovr', 'zfront', 'pushing', 'throw_id', 'grab_hits', 'target', 'spec_id', 'owner',
@@ -75,6 +76,7 @@ def _layout(game, build='build'):
         for f in fields) + 'asm volatile(".equ SIZEOF, %c0" :: "i"(sizeof(fighter_t)));\n' + \
         'asm volatile(".equ INTENT, %c0" :: "i"(sizeof(intent_t)));\n' + ''.join(
         f'asm volatile(".equ LAB_{f}, %c0" :: "i"(offsetof(lab_t, {f})));\n' for f in LAB_FIELDS if re.search(r'\b%s\b' % f, hdr)) + \
+        ('asm volatile(".equ LABSZ_tblob, %c0" :: "i"(sizeof(((lab_t *)0)->tblob)));\n' if re.search(r'\btblob\b', hdr) else '') + \
         'asm volatile(".equ CHSIZE, %c0" :: "i"(sizeof(bchar_t)));\n}\n'
     with tempfile.NamedTemporaryFile('w', suffix='.c', delete=False) as t: t.write(src)
     asm =subprocess.run(['m68k-linux-gnu-gcc', '-m68000', '-O2', '-ffreestanding', '-nostdlib', '-I' + game,
@@ -92,6 +94,7 @@ def _layout(game, build='build'):
         if len(p) == 3: syms[p[2]] = int(p[0], 16)
     syms['sizeof_intent'] = eq['INTENT']; syms['sizeof_bchar'] = eq['CHSIZE']
     syms['lab_fields'] = {f: eq['LAB_' + f] for f in LAB_FIELDS if 'LAB_' + f in eq}
+    if 'LABSZ_tblob' in eq: syms['tblob_size'] = eq['LABSZ_tblob']   # lab_t.tblob's bytes (TRY_MAX): the Player's limit
     return layout, eq['SIZEOF'], states, syms
 
 TAP_CB = C.CFUNCTYPE(None, C.c_uint32, C.c_uint32, C.c_int)

@@ -1466,7 +1466,8 @@ static void knob_proj(fighter_t *p, const fighter_t *f) {        /* a travelling
     }
     p->spec_dmg = knob_dmg(f, p->spec_dmg);
 }
-_Static_assert(TRY_MAX >= 8 + 2 * LQ_MAX + LS_COUNT * (2 + 2 * LO_MAX), "TRY_MAX");
+_Static_assert(TRY_MAX >= 8 + 2 * LQ_MAX + LS_COUNT * (2 + 2 * LO_MAX) + KN_MAX * 14, "TRY_MAX");   /* the fullest config:
+                                                                    a full queue, every slot full, KN_MAX knob rows (1006) */
 static uint8_t lab_try_check(void) {                     /* the TRY blob (fighter.h lab_t) -> 0 ok, else lstat's check */
     const uint8_t *t = lab.tblob;
     uint8_t c = t[3] < BC_COUNT ? t[3] : 0, i, k, e, n, nk = 0;

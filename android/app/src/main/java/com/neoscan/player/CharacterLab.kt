@@ -60,6 +60,9 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         val magic = lab + o.getInt("magic"); val fighter = lab + o.getInt("fighter"); val load = lab + o.getInt("load")
         val active = lab + o.getInt("active"); val tnow = lab + lf.getInt("tnow"); val lstat = lab + lf.getInt("lstat")
         val tblob = lab + lf.getInt("tblob"); val p1State = j.getInt("p1_state")
+        /** lab_t.tblob's bytes (fighter.h TRY_MAX; lab_pack.py ram_map): the longest TRY blob the game holds (the game
+         *  checks and clamps what is in it). Packs before Player 0.0.30 lack it: version 1's 576 then */
+        val tblobSize = j.optInt("tblob_size", 576)
         val buf = lab + o.optInt("buf", 400)                           // lab.js LAB.buf (packs before 0.0.29 lack it)
         val neutral = j.getJSONArray("neutral").let { a -> IntArray(a.length()) { a.getInt(it) } }
     }
@@ -441,8 +444,10 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             val lv = liveParts(want.blob)
             val lc = lv?.chain
             val chain = if (lv != null && lc != null) chainFor(lc, lv.tryBlob[3].toInt() and 255, pk.slot) else null
-            if (lv == null || lv.tryBlob.size > 576 || (lv.chain != null && chain == null)) { sent = want
-                act.runOnUiThread { light(State.REFUSED, "REFUSED r${want.version}: not a live config (${want.blob.size} bytes)") }; return }
+            if (lv == null || lv.tryBlob.size > r.tblobSize || (lv.chain != null && chain == null)) { sent = want
+                val why = if (lv != null && lv.tryBlob.size > r.tblobSize) "its TRY blob is ${lv.tryBlob.size} bytes, the game holds ${r.tblobSize}"
+                          else "not a live config (${want.blob.size} bytes)"
+                act.runOnUiThread { light(State.REFUSED, "REFUSED r${want.version}: $why") }; return }
             if (treeSent !== want && (chain != null || chainIn)) {     // the tree first: load 5 (the chain) or 2 (the ROM's)
                 if (r8(r.load) != 0) return                            // (the game has not taken the last load yet)
                 if (chain != null) Native.ramWrite(r.buf, chain)

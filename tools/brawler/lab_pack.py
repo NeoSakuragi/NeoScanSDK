@@ -111,14 +111,15 @@ def regions(build):
 
 def ram_map(build):
     """the RAM the Player's Character lab reads / writes (the same bytes and addresses as chainlab/lab.js): the lab_t
-    mailbox (lab.js LAB offsets + harness LAB_FIELDS from offsetof), the practice block, P1's state byte and the neutral
+    mailbox (lab.js LAB offsets + harness LAB_FIELDS from offsetof; tblob_size = sizeof lab_t.tblob, the longest live
+    TRY blob the Player writes), the practice block, P1's state byte and the neutral
     states. The shell's code and RAM are every pack's (the engine fingerprint), so any of its packs carries the same."""
     sys.path.insert(0, HERE)
     import harness
     B = os.path.join(GAME, build) if not os.path.isabs(build) else build
     lay, _, states, y = harness._layout(GAME, B)
     return {'base': 0x100000, 'lab': y['lab'], 'lab_off': {'magic': 0, 'fighter': 5, 'load': 7, 'active': 8, 'buf': 400},
-            'lab_fields': y['lab_fields'], 'prac': y.get('prac'), 'p1_state': y['fighters'] + lay['state'][0],
+            'lab_fields': y['lab_fields'], 'tblob_size': y['tblob_size'], 'prac': y.get('prac'), 'p1_state': y['fighters'] + lay['state'][0],
             'state_size': lay['state'][1], 'neutral': [states.index('IDLE'), states.index('WALK')]}
 
 

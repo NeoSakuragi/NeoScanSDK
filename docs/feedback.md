@@ -652,7 +652,8 @@ com.neoscan.player/.MainActivity --ez lab true`).
   -> `GET config/<f>`; its blob is written between frames (`EmuThread.hook`, `Native.ramWrite`) exactly as lab.js
   `installTry` does (tblob, lstat 0, tnow 0, "LAB1", fighter, load 6), once `lab.active` = 1 (after every boot / swap it
   is written again). The blob's fighter byte is set to the pack's slot id (P1 in the shell). The RAM addresses come from
-  the pack's manifest `ram` (a pack without it: configs off, said on the strip).
+  the pack's manifest `ram` (a pack without it: configs off, said on the strip); a TRY blob longer than `ram.tblob_size`
+  is refused on the strip (0.0.30).
 - **New versions:** a newer pack of the fighter on screen (or a newer shell, if his pack for it is published) is
   downloaded, then loaded when P1 is next in neutral (`ram.p1_state` in `ram.neutral`), or at once on the badge's tap.
 - **Strip** (0.0.29: OFF the picture, it hid the practice's HITS / DAMAGE row: between the picture and the pad's buttons in
@@ -733,8 +734,10 @@ tunes them (no tokens), the compiler ships them (no tokens).
   the power-on sample differs, an uninitialised word).
 - **The TRY blob v2** (`lab.js encodeTry`, `knobs: [...]`): knob records ride as slot records `[0x80][6][slot][spec]
   [kind][a][match i32][val i32]` (slot 0xFE = the Try queue), so a v1 reader (the Player's `liveParts`) walks over
-  them; a blob without knobs keeps version 1, byte for byte. TRY_MAX 1024 in the game (the Player 0.0.29 still refuses
-  a live config over 576 bytes: about 30 knob rows on a full sheet).
+  them; a blob without knobs keeps version 1, byte for byte. TRY_MAX 1024 in the game (the fullest config, a full queue +
+  every slot full + 32 knob rows, is 1006 bytes; fighter.c asserts it). The Player (0.0.30) takes any TRY blob up to the
+  pack manifest's `ram.tblob_size` (sizeof lab_t.tblob, lab_pack.py ram_map; a pack published before it lacks the key:
+  576, version 1's limit) and leaves the checks and clamps to the game.
 - **The pages**: `knobui.js` (one panel): under each picked S- piece of a sheet slot (`arbitrage.js`, saved in the slot's
   answer `knobs`) and under each unlocked special in the Workshop (saved as `knobs-<S- id>` in `<f>-workshop`, the Try
   queue's values); steppers + slider + number, the default and range written out; an override = bold value, "changed
