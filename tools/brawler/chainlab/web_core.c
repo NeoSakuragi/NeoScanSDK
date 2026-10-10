@@ -115,6 +115,9 @@ EMSCRIPTEN_KEEPALIVE int16_t *wc_audio(void) { return audio; }
 EMSCRIPTEN_KEEPALIVE int wc_audio_n(void) { return audio_n; }
 EMSCRIPTEN_KEEPALIVE uint8_t *wc_ram(void) { return retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM); }
 EMSCRIPTEN_KEEPALIVE int wc_ram_size(void) { return (int)retro_get_memory_size(RETRO_MEMORY_SYSTEM_RAM); }
+/* video RAM (the LSPC's 34 K words, host order: SCB1 $0000, SCB2 $8000, SCB3 $8200, SCB4 $8400 as word indexes): the
+   Assembly's live clips (liveclips_core.js) read the game's own box viewer sprites (main.c dbg_draw) there, then hide them */
+EMSCRIPTEN_KEEPALIVE uint16_t *wc_vram(void) { return retro_get_memory_data(RETRO_MEMORY_VIDEO_RAM); }
 EMSCRIPTEN_KEEPALIVE uint16_t *wc_palram(void) { return retro_get_memory_data(104); }   /* palette RAM, both banks (8192 words, host order) */
 /* the Character Lab's pack swap (pack_swap.c, the Player's same path): pk = a character pack (tools/brawler/lab_pack.py)
    for the loaded shell (lab-shell.neo); checked whole, copied into the core's ROM, then the system resets (the shell

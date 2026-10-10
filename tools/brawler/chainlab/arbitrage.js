@@ -25,6 +25,10 @@
 // CHAIN TIMING (the Chain Lab's chain tool folded in, 2026-10-10): under the chain's presses, per press its hit-stop and
 // its move's segments (0.5x-2x) as knobs; saved as "chain_timing", sent in the TRY blob's chain (version 3), shipped by
 // arb_compile.py (game.json chain.hitstop + retime). See drawTiming.
+// LIVE CLIPS (liveclips.js, 2026-10-10: "pre-rendering is no good: I can't adjust parameters"): when his pack loads into the
+// shell, every slot, every chain press and the whole chain are clips played by the real engine in a Web Worker, again
+// ~300 ms after a change to the pick, its knobs or the chain timing, each with its frame-data strip; one "Hit boxes" toggle.
+// Without a pack (or a shell without try3) the dictionary's static clips stay.
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
   const root = document.getElementById('arb');
@@ -39,6 +43,9 @@
   const OLD_IDS = { air_dda: 'air_bz_dd' };       // 2026-10-10: "down, down + A in the air" moved into the air Blitz section
   for (const [o, n] of Object.entries(OLD_IDS)) if (ans[o] && !ans[n]) ans[n] = ans[o];
 
+  // the live clips (liveclips.js): null = the static clips (no pack, no worker)
+  const LC = window.LiveClips && new URLSearchParams(location.search).get('live') !== '0' ? await window.LiveClips.attach(f).catch(() => null) : null;
+  const liveKnobs = {};                            // slot id -> its knob values as edited (the clip follows them before the save returns)
   const clips = [];
   AD.clock(clips);
   const io = new IntersectionObserver(es => { for (const e of es) { const st = e.target._clip; if (!st) continue; st.visible = e.isIntersecting; if (e.isIntersecting) st.load(); } }, { rootMargin: '200px' });
@@ -95,6 +102,7 @@
     const j = await r.json().catch(() => ({}));
     ans[id] = j.answer || Object.assign({}, ans[id], body);
     if (id === 'presses' || /^a\d$/.test(id)) drawTiming();   // the chain's moves changed: its timing knobs follow
+    if (LC) LC.refresh(null);                       // (a clip whose request did not change is not simulated again)
     autoLive(); goLive();
   }
   // NOTHING DROPPED SILENTLY (2026-10-10, note 20261010-210158-5d29): each slot whose pick cannot go live (Try in game, the
@@ -150,6 +158,19 @@
     return h('a', { class: 'ask', href: 'lab.html?' + q.toString() + (key ? '#' + encodeURIComponent(key) : ''), target: '_blank',
       text: 'Ask in the Workshop' + (p ? ' about ' + fmtP(p) : '') });
   }
+  // ---- a clip's hit class, from the data (the Workshop's: each attack box's KOF reaction class, workshop.py hit_classes) ----
+  const boxId = k => !/^kof9[6-9]$/.test(W && W.game || '') ? null : k >= 0x100 ? k - 0x100 : k & 0x0F;
+  function classOf(pieces) {
+    if (!W || !W.classes) return W && W.class_note ? W.class_note : '';
+    const labs = [];
+    for (const p of pieces) for (const x of (PIECES[p] ? PIECES[p].anims.concat(PIECES[p].projectile || []) : [p])) for (const s of ((D.by[x] || {}).steps || [])) for (const b of s.b) {
+      if (b[0] !== 'a') continue;
+      const k = boxId(b[1]), c = k !== null ? W.classes['$' + k.toString(16).toUpperCase().padStart(2, '0')] : null;
+      const l = c ? c.label : 'class not decoded';
+      if (!labs.includes(l)) labs.push(l);
+    }
+    return labs.join(', ') || 'no attack box';
+  }
   // ---- one slot row ----
   function slotRow(def) {
     const id = def.id;
@@ -178,7 +199,19 @@
         if (his || nw.text || nids.length) kids.push(h('p', { class: 'nowtxt', text: nowLine }));
         const row = h('div', { class: 'clips' });
         if (!st.pieces.length) row.append(h('span', { class: 'empty', text: his ? 'Empty' : 'Nothing today' }));
-        st.pieces.forEach((p, i) => {
+        if (LC) {                                    // the live clip: the slot as the game plays it (its pieces, its knobs)
+          const press = /^a(\d)$/.exec(id);
+          st.pieces.forEach((p, i) => {
+            if (i) row.append(h('span', { class: 'then', text: '→', 'aria-label': 'then' }));
+            row.append(h('span', { class: 'chip' }, h('span', { text: name(p) }),
+              st.pieces.length > 1 ? h('button', { type: 'button', class: 'rm', text: 'Remove', 'aria-label': 'Remove ' + fmtP(p), onclick: () => save(st.pieces.filter((_, j) => j !== i)) }) : null));
+          });
+          const nowPieces = his ? st.pieces : nw.pieces.filter(p => D.by[p]);
+          row.append(LC.clip({ key: id, label: def.label + (his ? ' (yours)' : ' (now: the game\'s)'),
+            req: press ? () => ({ kind: 'press', k: +press[1] - 1, sheet: sheetNow() })
+                       : () => ({ kind: 'slot', slot: id, pieces: his ? stateOf(id).pieces : null, knobs: liveKnobs[id] || knobsOf(id), sheet: sheetNow() }),
+            cls: () => classOf(nowPieces) }));
+        } else st.pieces.forEach((p, i) => {
           if (i) row.append(h('span', { class: 'then', text: '→', 'aria-label': 'then' }));
           const fg = clip(p, st.pieces.length > 1 ? () => save(st.pieces.filter((_, j) => j !== i)) : null);
           if (fg._st) shown.push(fg._st);
@@ -201,7 +234,7 @@
             try { await post(id, { knobs: all }); saved.textContent = 'Saved'; } catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
             slotReset.hidden = !Object.keys(knobsOf(id)).length; }, 500); };
           const panels = kp.map(p => window.KnobUI.panel({ defs: PIECES[p].knobs, values: all[p] || {}, label: p + ' ' + PIECES[p].name + ': knobs',
-            onChange: v => { if (Object.keys(v).length) all[p] = v; else delete all[p]; saveK(); } }));
+            onChange: v => { if (Object.keys(v).length) all[p] = v; else delete all[p]; liveKnobs[id] = JSON.parse(JSON.stringify(all)); if (LC) LC.refresh(id); saveK(); } }));
           const slotReset = h('button', { type: 'button', class: 'kreset-slot', text: 'Reset all knobs of this slot', hidden: Object.keys(all).length ? null : '' });
           slotReset.onclick = () => panels.forEach(pn => pn.reset());
           left = h('div', { class: 'sleft' }, row, ...panels, slotReset);
@@ -225,7 +258,10 @@
         try { await post('presses', { question: `${D.display}: chain length`, choice: 1, label: k + ' presses', note: String(k) }); } catch (e) { alert('Not saved: ' + e.message); }
         draw();
       };
-      wrap.replaceChildren(...range(n).map(i => slotRow(press(i + 1))),
+      const whole = LC ? h('div', { class: 'slot', id: 'slot-chain' }, h('div', { class: 'shead' }, h('span', { class: 'lab', text: 'The whole chain' }), h('span', { class: 'tag', text: 'live' })),
+        LC.clip({ key: 'chain', label: `The whole chain: presses 1-${n} on hits (the last = the neutral finisher)`, req: () => ({ kind: 'chain', sheet: sheetNow() }),
+          cls: () => classOf(range(presses()).flatMap(i => stateOf('a' + (i + 1)).pieces.length ? stateOf('a' + (i + 1)).pieces : nowOf('a' + (i + 1)).pieces.filter(p => D.by[p]))) })) : null;
+      wrap.replaceChildren(...range(n).map(i => slotRow(press(i + 1))), whole,
         h('div', { class: 'count' }, h('span', { text: `${n} presses` + (n !== N0 ? ` (the ${NOW.archetype} archetype has ${N0})` : '') }),
           n < 8 ? h('button', { type: 'button', text: '+ add a press', onclick: () => setN(n + 1) }) : null,
           n > 1 ? h('button', { type: 'button', text: 'Remove press ' + n, onclick: () => setN(n - 1) }) : null),
@@ -294,12 +330,13 @@
         if (!Object.keys(x.retime).length) delete x.retime;
         ans[TID] = Object.assign({}, ans[TID], { choice: 1, note: JSON.stringify(x) });   // (now: the next panel reads it)
         reset.hidden = !timingNow();
+        if (LC) LC.refresh(null);
         clearTimeout(timingT); msg.textContent = '…';
         timingT = setTimeout(async () => { await saveTiming(timingOf(), msg); if (P.moves.filter(y => y === m).length > 1) drawTiming(); }, 500);
       } });
       return h('details', { class: 'tpress', 'data-press': key, open: Object.keys(vals).length ? '' : null }, summary, panel);
     });
-    reset.onclick = async () => { ans[TID] = {}; await saveTiming({}, msg); drawTiming(); };
+    reset.onclick = async () => { ans[TID] = {}; if (LC) LC.refresh(null); await saveTiming({}, msg); drawTiming(); };
     timingBox.replaceChildren(head,
       h('p', { class: 'about', text: `Per press (tap one to open it): the hit-stop, and the move's segments from 0.5x to 2x of the source (every use of the move takes them). The defaults are what the game plays now (build ${NOW.version}).` +
         (P.why ? ` Your presses cannot play as a chain (${P.why}): this is the game's own chain, timed.` : '') }),
@@ -428,6 +465,7 @@
     h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'lab.html?tab=dictionary&f=' + f, text: 'Animation dictionary' }), h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Fighter review' })),
     window.TryIt ? window.TryIt.liveLine(f) : null];
   out.push(h('div', { class: 'tryrow' }, tryBtn(), h('span', { class: 'about', text: 'Your answers, slot by slot, in the game now (the slots still "now" play the game\'s own move); play them on their own inputs.' })));
+  if (LC) out.push(h('p', { class: 'about', text: 'Live clips: the game itself plays every clip here (his pack in the Character Lab shell, in the background), again a moment after you change a pick, a knob or the chain timing. Tap a clip for ¼ speed; "Gap" moves the dummy.' }), LC.boxesButton());
   out.push(h('div', { class: 'tryrow livego' }, h('span', { class: 'about', text: 'Live: every change is sent to the Player\'s Character lab by itself (about 2 s later; admin only). A pick that cannot go live says why next to it.' }), liveMsg));
   const sheetMsg = h('span', { class: 'saved', 'aria-live': 'polite' });
   const sheetReset = h('button', { type: 'button', class: 'kreset-sheet', text: 'Reset all knobs of the sheet' });
@@ -435,7 +473,7 @@
     const ids = Object.keys(ans).filter(id => mine(id) && ans[id].knobs && Object.keys(ans[id].knobs).length);
     if (!ids.length) { sheetMsg.textContent = 'Every knob is at its default already.'; return; }
     sheetMsg.textContent = 'Resetting…';
-    try { for (const id of ids) { await post(id, { knobs: {} }); delete ans[id].knobs; if (drawers[id]) drawers[id](); } sheetMsg.textContent = `Every knob back to its default (${ids.length} slot${ids.length === 1 ? '' : 's'}).`; }
+    try { for (const id of ids) { delete liveKnobs[id]; await post(id, { knobs: {} }); delete ans[id].knobs; if (drawers[id]) drawers[id](); } sheetMsg.textContent = `Every knob back to its default (${ids.length} slot${ids.length === 1 ? '' : 's'}).`; }
     catch (e) { sheetMsg.textContent = 'Not reset (' + e.message + '): try again'; }
   };
   out.push(h('div', { class: 'tryrow' }, sheetReset, sheetMsg));
@@ -458,5 +496,6 @@
       if (!rec || !upd || upd < last) autoLive();
     } catch (e) { /* offline: the next change sends */ }
   })();
+  window.arbLive = !!LC;
   window.arbReady = { unlocked: Object.keys(PIECES).length, locked: W ? W.specials.filter(p => !p.id).length : null };
 })();

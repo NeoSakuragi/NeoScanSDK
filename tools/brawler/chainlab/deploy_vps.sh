@@ -16,6 +16,16 @@ mkdir -p "$SITE"
 GEO=${GEOLITH:-$HOME/CLProjects/geolith}
 [ -f "$SITE/core.wasm" ] && [ "$SITE/core.wasm" -nt "$HERE/web_core.c" ] && [ -z "$(find "$GEO/src" "$GEO/libretro" -name '*.[ch]' -newer "$SITE/core.wasm" | head -1)" ] \
   || "$HERE/build_wasm.sh" "$SITE"
+# PAGES_ONLY=1: the pages (make_site.py PAGES, lab.html as index.html) and the wasm core only, copied into SITE and sent
+# alone: no game build needed, nothing else on the box changes (a page-only change, e.g. the Assembly's live clips)
+if [ "${PAGES_ONLY:-0}" = 1 ]; then
+  PAGES=$(python3 -c "import ast,sys; t=ast.parse(open('$HERE/make_site.py').read()); print(' '.join(next(ast.literal_eval(n.value) for n in t.body if isinstance(n, ast.Assign) and getattr(n.targets[0], 'id', '') == 'PAGES')))")
+  for f in $PAGES; do cp "$HERE/$f" "$SITE/$f"; done
+  cp "$HERE/lab.html" "$SITE/index.html"
+  for f in core.wasm core.js; do gzip -9 -k -f "$SITE/$f"; done
+  (cd "$SITE" && rsync -a $PAGES index.html core.js core.wasm core.js.gz core.wasm.gz $HOST:/data/brawler-lab/)
+  echo "deployed the pages + core: https://canneji.duckdns.org/brawler-lab/ (Oros login)"; exit 0
+fi
 # the Character Lab's shell + packs ("Try in game" and the Player play them from the catalogue): published by the one
 # command, which does nothing unless the pack format or a fighter's data changed (an engine change alone: nothing)
 if [ "${LAB_PUBLISH:-1}" = 1 ]; then python3 "$HERE/../labpub.py" all --if-changed || { echo "labpub.py all failed"; exit 1; }; fi

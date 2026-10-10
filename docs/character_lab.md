@@ -29,7 +29,7 @@ thread with a request already filled in.
 | `lab.html?f=<f>&tab=info` | **Info**: facts (source game + bank, scale, archetype, chain length, music theme, select screen, dictionary, S / T piece counts, knobs, pack, shell, the site's build, live config), HUD and win portraits, links, "Play him in game", the live config line. |
 | `&tab=dictionary` | **Dictionary**: every animation of his source game's table as a looping clip (`anims.js`, data `review/<f>_anims.json` from `animdict.py`), filters, flags, "I want this one", a queue to Try in game. |
 | `&tab=workshop` | **Workshop** (`workshop.js`): unlocked / locked specials and throws, hit classes, a thread per piece. |
-| `&tab=assembly` | **Assembly** (`arbitrage.js`): the arbitration sheet: the chain and its **timing**, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury; piece knobs; Try this sheet in game; Send to Player (and the live auto-send); Ship to game. |
+| `&tab=assembly` | **Assembly** (`arbitrage.js`, live clips `liveclips.js`): the arbitration sheet: the chain and its **timing**, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury; piece knobs; Try this sheet in game; Send to Player (and the live auto-send); Ship to game. |
 | `&tab=review` | **Review** (`review.js`, revamp phase 4): pieces ranked, the chain proposal, Keep / Drop; `&q=<set>` = a visual follow-up set (`decisions.json`). |
 | `&embed=1` | The Player's WebView beside the game (~360-420 px): no site chrome, compact, the Assembly only, the page's own Try hidden. |
 | `game.html#<tab>` | **Game tools** (not one fighter's; the game runs in the page, `app.js`): `#stages`, `#enemies` (its move-list editor opens the route-tree editor of the old Chain Lab), `#chars`, `#select`, `#feedback` (`#fb=<id>[&play]` = one note's replay), `#quirks`, `#expose`, `#decide`, `#impacts` (impact sound library), `#sounds` (`?f=<f>`: a fighter's hit sounds). `game.js` routes the hash. |
@@ -74,6 +74,48 @@ override shown by text and shape (bold value, "changed from N", a solid 3 px bor
   of his moves (an animation `$NN`, an S- piece) has its hit-stop only (no segments). A press that cannot go live
   (several pieces, a throw, more presses than his chain has, a shell without `try3`) says so next to it and plays the
   game's own press ("The chain" below).
+
+## Live clips (the Assembly, 2026-10-10)
+
+Bruno: "take the rendering of animations and specials in the assembly to the next level"; "pre-rendering is no good: I
+can't adjust parameters". Every clip of the Assembly is played by the real engine in the page, again ~300 ms after a
+change to its pick, its knobs or the chain timing (only clips on screen; "Re-rendering…" meanwhile). The game is not
+changed: the page drives the practice mode through RAM and reads back RAM, the picture and the video RAM.
+
+- **Where**: `liveclips_worker.js` (a Web Worker: its own core instance, the shell + his pack from the catalogue, the same
+  files as Try in game and the Player) runs `liveclips_core.js` (`LiveSim`; Node proofs run it directly). `liveclips.js`
+  makes each clip's TRY blob with tryit.js's own pieces (`TryIt.entry`, `knobsOf`, `chainOf`, `plan`; one encoder:
+  `encodeTry`), queues the simulations (visible clips first, the newest change first, one at a time), plays the clips and
+  draws the strips. `arbitrage.js`: every slot = one clip (his pieces, or the game's own move when the slot is "now"),
+  every chain press, and **the whole chain**. No pack / no worker / a shell without `try3`: the dictionary's static clips
+  stay (`&live=0` forces them). The core is built with `-sENVIRONMENT=web,worker,node` and exports `wc_vram`.
+- **A clip**: the baseline save state (practice: 1 standing dummy, infinite dummy life, P1's life refilled, drive
+  infinite, fury gauge full, the box viewer ON), P1 placed `gap` px from the dummy, the TRY blob written with apply now,
+  the input pressed frame by frame (P1 faces right: forward = R): a slot its own input (`liveclips.js scriptOf`: Blitz
+  double taps, C specials, jump + air moves, walk-in grab + the hold's buttons, D / down + D with MAX ready); a chain
+  press = a chain blob whose press 1 is that press's piece (its hit-stop, every retime row), one A; the whole chain and the
+  finishers = A every other frame, the finisher's stick held from the last press on. It ends when P1 is back in neutral,
+  his projectiles are gone and the dummy recovered (cap 300 / 420 frames).
+- **Boxes**: the game's own box viewer (prac HIT BOXES, `main.c dbg_draw`: the hit test's boxes, 4 corner sprites each,
+  300-347) read from video RAM after each frame, then hidden (SCB3 height 0) before the next frame is drawn: the picture
+  never shows them. Picture x = sprite x - 8, y = 496 - the y field (calibrated against the brackets). Owners: an attack
+  box goes to P1 or his nearest projectile, a hurt box to P1 or the dummy.
+- **The strip** (all from the simulation): a bar, one cell a frame (white startup, black active, hatched recovery,
+  dotted after his move; ▼ a hit, ▲ the frame shown), startup / active (windows; hit-stop frames are counted) / recovery /
+  total, hits + damage (the combo counter), reach (his body's attack box ahead of him), the projectile's px a frame and
+  travel, the dummy's reaction (its states and their lengths, its height), the hit class from the data (the Workshop's).
+  **Gap** per clip: auto (melee 44 px / others 80, then 150 when there is a projectile, or the reach + 12 when it
+  whiffed), near 44, far 150. **Hit boxes on the clips**: one toggle (localStorage), solid + "ATK" = attack, dashed =
+  hurt, ACTIVE / HIT tags, black on white.
+- **Cost**: ~3.3 ms a frame in the worker on the desktop (a press ~150 ms, Robert's S-012 ~580 ms for 187 frames, the
+  whole chain ~0.8 s), boot ~0.95 s once; the shell (52 MB) is fetched once per page. Frames are kept as 8-bit colour
+  indexes; past 160 MB (40 MB on a phone) the clips off screen are dropped and simulated again when seen.
+- **Proof** `chainlab/liveclips_proof.js SITE|URL OUT` (local: `--stub-dl --catalogue --decisions --core`; `--serve PORT`
+  the stub alone; LIVE: `LOGIN_FILE`, decision POSTs answered by the proof, every other write aborted). 2026-10-10, local
+  and LIVE (temporary Oros admin, deleted after; robert-arb unchanged): 16 / 16. Robert S-012 on forward + C, speed 7 ->
+  12: the projectile measured 7 -> 12 px a frame, active 4 -> 3, hit frame 59 -> 58; press 1's hit-stop 6 -> 26: the whole
+  chain 155 -> 175 frames (7 hits both); Hanzo $15C (press 3, picked by the proof: his sheet had moved on to $FC) whiffs at
+  the far gap (148 px, reach 41) and hits at 44 px. Screens /data/tmp/liveclips/live, local3.
 
 ## Live config, auto-send, apply at neutral
 
