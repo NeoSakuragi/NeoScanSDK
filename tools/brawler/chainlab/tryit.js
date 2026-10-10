@@ -8,20 +8,21 @@
  *   TryIt.has(f)                        -> Promise<bool>: a Lab build of f exists
  *   TryIt.button(f, label, fn)          a "Try in game" button (hidden while f has no Lab build), fn() on click
  *   TryIt.queue(f, pieces, {loop, knobs})  a TRY blob (load 6): the pieces back to back, now; A from neutral again
- *   TryIt.sheet(f, {slots, chain, knobs})  a TRY blob: each arbitration slot's pieces (slot id: arbitrage.js) + the
- *                                       chain's presses as a chain override (load 5) when every press is a brawler move
+ *   TryIt.sheet(f, {slots, chain, timing, knobs})  a TRY blob: each arbitration slot's pieces (slot id: arbitrage.js) +
+ *                                       the chain as a chain override (load 5): its presses when every press is a brawler
+ *                                       move (else the ROM's), its timing (per-link hit-stop, per-segment retime: chainPlan)
+ *   TryIt.plan(f, presses)              -> the chain plan the Assembly's timing knobs start from (chainPlan)
  *   knobs (PIECE KNOBS, tools/brawler/knobs.py): {slot id | 'queue': {S- id: {knob id: value}}}, the values of the
  *                                       pieces' knobs (review/<f>_workshop.json specials[].knobs) -> the blob's knob rows
  *                                       (version 2; lab.js knobRows); a value equal to its default is not sent
  *   pieces: '$A9' / 'A9' (an animation), 'S-004' (a special), 'T-001' (a throw: a grab slot only)
- * SEND TO PLAYER (the Character Lab, docs/feedback.md "Character Lab: the web pages"): the same TRY blob (lab.js encodeTry,
+ * SEND TO PLAYER (the Character Lab, docs/character_lab.md "Character Lab: the web pages"): the same TRY blob (lab.js encodeTry,
  * the bytes the preview installs) PUT as the fighter's live config (feedback-api/lab/config/<f>, If-Match = the hash this
  * page last saw: a 412 = someone else changed it, reloaded and said); the Player polls it and applies it at neutral. The
- * blob is lab.js liveBlob: the TRY blob, + the chain override when one is set (a sheet's chain, the chain tool's), which
- * the Player writes as load 5 first. A queue keeps the live config's chain, the chain tool keeps its TRY blob, a sheet
- * sets both (as the preview: a sheet clears the chain it does not set).
+ * blob is lab.js liveBlob: the TRY blob, + the chain override when one is set (the sheet's chain: presses + timing), which
+ * the Player writes as load 5 first (its retime rows ride in it). A queue keeps the live config's chain, a sheet sets
+ * both (as the preview: a sheet clears the chain it does not set).
  *   TryIt.button(f, label, fn, send)    + a "Send to Player" button when send is given: send() -> {queue, loop} | {sheet}
- *                                       | {chain: {bytes, entry, text}}
  *   TryIt.send(f, what, el)             the Send itself (el: where it says what happened)
  *   TryIt.liveLine(f)                   "Live config: rN, updated when / by, History, Revert" (kept up to date)
  * SHELL + PACK (Bruno 2026-10-10, the Fighter Lab: "every fighter with a pack can be tried"): the panel plays the Character
@@ -315,16 +316,23 @@
     if (e & 0x1000) { const inp = c.man.pool[e & 0xFF], w = c.W && (c.W.specials || []).find(x => x.input === inp); return (w ? w.id + ' ' : '') + inp; }
     return hex(e);
   }
-  function settle(n) {                               // step until the game answers (taken / pending / refused), up to
-    let st = 'sent';                                  // half a second: only a refusal or no answer at all is an error
-    for (let i = 0; i < 30 && st === 'sent'; i++) { S.gp.stepFrames(1); st = S.lab.tryStatus(); }   // (n: unused, kept for callers)
+  // the game has taken the last load (lab.load back to 0; it is read once a tick). Every write of a load waits for it: a
+  // load written over one not yet taken is lost (2026-10-10: a pending TRY applied at neutral set lstat "taken" before the
+  // new blob was read, the chain's load 5 then overwrote that load 6)
+  function loadTaken() {
+    for (let i = 0; i < 30 && S.lab.r8(S.lab.lab + 7); i++) S.gp.stepFrames(1);
+    if (S.lab.r8(S.lab.lab + 7)) throw new Error('The game did not take the last load');
+  }
+  function settle(n) {                               // step until the game took the blob, then its answer (taken / pending /
+    loadTaken();                                      // refused): only a refusal or no answer at all is an error
+    const st = S.lab.tryStatus();                     // (n: unused, kept for callers)
     if (st.startsWith('refused') || st === 'sent') throw new Error('The game ' + (st === 'sent' ? 'did not answer' : st));
   }
   // the live config: ONE TRY blob (lab.js encodeTry, the same bytes the server / the Player send), load 6
-  function send(cfg) { S.lab.installTry(CL().encodeTry(Object.assign({ fighter: S.man.id }, cfg)), true); }   // (the preview: apply now)
+  function send(cfg) { loadTaken(); S.lab.installTry(CL().encodeTry(Object.assign({ fighter: S.man.id }, cfg)), true); }   // (the preview: apply now)
   function clearAll() {                                    // no queue, no slot, the ROM's tree back (load 2)
-    send({}); S.gp.stepFrames(1);
-    if (S.chainPushed) { S.lab.installChain(S.man.id, null); S.gp.stepFrames(1); S.chainPushed = false; }
+    send({}); loadTaken();
+    if (S.chainPushed) { S.lab.installChain(S.man.id, null); loadTaken(); S.chainPushed = false; }
   }
   function applyQueue() {
     const w = S.what;
@@ -354,27 +362,68 @@
     }
     return { slots, bad };
   }
-  // the sheet's chain (presses: [[pieces]] per press) -> {bytes: a chain override (load 5), or null = the ROM's chain; text}
-  function chainOf(c, presses) {
-    if (!presses || !presses.length) return { bytes: null, text: 'chain: the ROM\'s' };
-    if (!c.man.chain) return { bytes: null, text: 'chain: the ROM\'s kept (the site has no chain data for this pack)' };
-    const C = c.man.chain, fe = C.fighter, rules = C.rules;
-    const byHex = {}; for (const [m, x] of Object.entries(c.man.moves)) (byHex[x] = byHex[x] || []).push(m);
-    const moves = [];
-    for (let i = 0; i < presses.length; i++) {
-      const ps = presses[i] || [];
-      if (ps.length !== 1) return { bytes: null, text: `chain: press ${i + 1} ${ps.length ? 'plays ' + ps.length + ' pieces' : 'is empty'}: the ROM's chain kept` };
-      const x = String(ps[0]).replace(/^anim-/, '').replace(/^\$/, '').toUpperCase(), m = (byHex[x] || []).find(m_ => fe.has.includes(m_) && CL().MOVE_NAMES.includes(m_));
-      if (!m) return { bytes: null, text: `chain: press ${i + 1} ($${x}) is not one of ${c.f}'s brawler moves: the ROM's chain kept` };
-      moves.push(m);
-    }
-    const arch = Object.keys(rules.lengths).find(a => rules.lengths[a] === moves.length);
-    if (!arch) return { bytes: null, text: `chain: ${moves.length} presses (the archetypes have ${Object.values(rules.lengths).join(' / ')}): the ROM's chain kept` };
+  /* THE CHAIN of a sheet (the Assembly's chain section; the chain tool of the old Chain Lab folded in, Bruno 2026-10-10):
+     its presses ([[pieces]] per press: his picks, null = the ROM's) and its TIMING ({hitstop: {a1..aN: frames}, retime:
+     {move: [frames per segment]}}: the per-link hit-stop and the 0.5x-2x segment retime, gretime_t) -> the chain the game
+     plays. chainPlan: the chain spec (lab.js specOf / chainTree's), its moves press by press and the defaults the timing
+     knobs start from (the ROM's: the tree's hit-stops, build/retime.json's targets); why = his presses could not be used
+     (the ROM's chain is timed then). */
+  function chainData(c) {
+    const C = c.man.chain;
+    if (!C) return null;
+    // the retime rows of the other fighters are kept in the override (it replaces rt_tab whole): their ids by name (a pack:
+    // the shell's roster order, rom/shell-<engine>.json)
+    return C.fighters ? C : Object.assign({}, C, { fighters: (c.man.fighters || []).map((name, id) => ({ name, id })) });
+  }
+  function chainPlan(c, presses) {
+    const C = chainData(c);
+    if (!C) return { why: 'the site has no chain data for this pack' };
+    const fe = C.fighter, rules = C.rules;
     const base = CL().specOf(fe, rules, C.retime_rom);
-    const spec = Object.assign({}, base, { archetype: arch, links: moves.slice(0, -1), finishers: Object.assign({}, base.finishers, { neutral: moves[moves.length - 1] }), hitstop: null });
-    if (CL().sameChain(spec, base)) return { bytes: null, text: 'chain: the same as the ROM\'s' };
-    const t = CL().chainTree(fe, spec, rules);
-    return { bytes: CL().encodeOverride(CL().encodeTree(t, C.ba, fe.has, fe.default.entries), CL().retimeRows(C, fe, spec)), text: `chain: ${moves.join(' > ')}` };
+    let spec = base, why = null;
+    if (presses && presses.length) {
+      const byHex = {}; for (const [m, x] of Object.entries(c.man.moves || {})) (byHex[x] = byHex[x] || []).push(m);
+      const moves = [];
+      for (let i = 0; i < presses.length && !why; i++) {
+        const ps = presses[i] || [];
+        if (ps.length !== 1) { why = `press ${i + 1} ${ps.length ? 'plays ' + ps.length + ' pieces' : 'is empty'}`; break; }
+        const x = String(ps[0]).replace(/^anim-/, '').replace(/^\$/, '').toUpperCase(), m = (byHex[x] || []).find(m_ => fe.has.includes(m_) && CL().MOVE_NAMES.includes(m_));
+        if (!m) why = `press ${i + 1} ($${x}) is not one of ${c.f}'s brawler moves`; else moves.push(m);
+      }
+      const arch = why ? null : Object.keys(rules.lengths).find(a => rules.lengths[a] === moves.length);
+      if (!why && !arch) why = `${moves.length} presses (the archetypes have ${Object.values(rules.lengths).join(' / ')})`;
+      if (!why) spec = Object.assign({}, base, { archetype: arch, links: moves.slice(0, -1), finishers: Object.assign({}, base.finishers, { neutral: moves[moves.length - 1] }),
+        hitstop: arch === base.archetype ? base.hitstop : null });
+    }
+    const N = rules.lengths[spec.archetype], moves = spec.links.concat(spec.finishers.neutral);
+    const hitstop = spec.hitstop || CL().defaultHitstops(rules, N);
+    const segs = {}, retime = {};
+    for (const m of new Set(moves)) { const s = CL().segsOf(fe, m); if (s) { segs[m] = s; retime[m] = (spec.retime && spec.retime[m] && spec.retime[m].length === s.length) ? spec.retime[m].slice() : s.slice(); } }
+    return { C, fe, rules, base, spec, why, N, moves, defaults: { hitstop, retime }, segs };
+  }
+  // the plan with a sheet's timing -> the spec the game plays (its hit-stops: null = the archetype's scale, as specOf)
+  function timedSpec(P, timing) {
+    const s = Object.assign({}, P.spec, { retime: Object.assign({}, P.spec.retime || {}) });
+    const t = timing || {}, th = t.hitstop || {}, tr = t.retime || {};
+    const hs = P.defaults.hitstop.map((v, k) => Number.isInteger(th['a' + (k + 1)]) ? th['a' + (k + 1)] : v);
+    const scale = CL().defaultHitstops(P.rules, P.N);
+    s.hitstop = hs.every((v, k) => v === scale[k]) ? null : hs;
+    for (const [m, T] of Object.entries(tr)) if (P.segs[m] && Array.isArray(T) && T.length === P.segs[m].length) s.retime[m] = T.slice();
+    return s;
+  }
+  // the sheet's chain -> {bytes: a chain override (load 5), or null = the ROM's chain; text}
+  function chainOf(c, presses, timing) {
+    const P = chainPlan(c, presses);
+    if (!P.spec) return { bytes: null, text: 'chain: the ROM\'s kept (' + P.why + ')' };
+    const spec = timedSpec(P, timing);
+    const sameRt = JSON.stringify(spec.retime || {}) === JSON.stringify(P.base.retime || {});
+    const kept = P.why ? ` (${P.why}: the ROM's presses kept)` : '';
+    if (CL().sameChain(spec, P.base) && sameRt) return { bytes: null, text: (presses && presses.length && !P.why ? 'chain: the same as the ROM\'s' : 'chain: the ROM\'s') + kept };
+    const t = CL().chainTree(P.fe, spec, P.rules);
+    const timed = [spec.hitstop ? 'hit-stops ' + spec.hitstop.join(' ') : null,
+      ...Object.keys(spec.retime).filter(m => JSON.stringify(spec.retime[m]) !== JSON.stringify((P.base.retime || {})[m])).map(m => `${m} ${spec.retime[m].join('/')}`)].filter(Boolean);
+    return { bytes: CL().encodeOverride(CL().encodeTree(t, P.C.ba, P.fe.has, P.fe.default.entries), CL().retimeRows(P.C, P.fe, spec)),
+             text: `chain: ${spec.links.concat(spec.finishers.neutral).join(' > ')}` + kept + (timed.length ? '; timing: ' + timed.join(', ') : '') };
   }
 
   // ---- the preview API ----------------------------------------------------------------------------------------------
@@ -395,8 +444,11 @@
       bad.push(...kn.bad);
       clearAll();
       send({ slots, knobs: kn.rows }); settle(2);
-      const ch = chainOf(S, sh.chain);
-      if (ch.bytes) { S.lab.installChain(S.man.id, ch.bytes); S.gp.stepFrames(1); S.chainPushed = true; }
+      const ch = chainOf(S, sh.chain, sh.timing);
+      if (ch.bytes) {
+        loadTaken(); S.lab.installChain(S.man.id, ch.bytes); loadTaken(); S.chainPushed = true;
+        if (!S.lab.overrideState(S.man.id).treeInLab) throw new Error('the game refused the chain (load 5)');
+      }
       S.what = { kind: 'sheet', slots, knobs: kn.rows };
       const names = Object.keys(slots);
       nowText(`Sheet: ${names.length} slot${names.length === 1 ? '' : 's'} set (${names.map(k => k + ' = ' + slots[k].map(e => describe(e)).join(' > ')).join('; ') || 'none'}); ${kn.rows.length ? kn.rows.length + ' knob row(s); ' : ''}${ch.text}${ch.bytes ? ' (pushed, load 5)' : ''}.` +
@@ -404,7 +456,7 @@
     } catch (e) { err('Not applied: ' + e.message); }
   }
 
-  // ---- Send to Player: the fighter's live config on the server (docs/feedback.md "Character Lab") -----------------------
+  // ---- Send to Player: the fighter's live config on the server (docs/character_lab.md "Character Lab") -----------------------
   const API = 'feedback-api/lab/';
   const LV = {};                                           // f -> {rec: the live record in full (null: none, undefined: not read), err, lines, timer}
   let me = null;                                           // GET lab/me: {user, role}
@@ -438,7 +490,7 @@
     } catch (e) { /* offline: the next poll */ }
   }
 
-  /* the Send: what = {queue: pieces, loop} | {sheet: {slots, chain}} | {chain: {bytes, fighter, text, entry}} (or a function
+  /* the Send: what = {queue: pieces, loop} | {sheet: {slots, chain, timing, knobs}} (or a function
      giving it); el = where it says what happened. -> the server's answer (the new head), or null */
   async function sendTo(f, what, el) {
     const say = (t, bad) => { if (el) { el.textContent = t; el.classList.toggle('bad', !!bad); } };
@@ -447,7 +499,7 @@
     say('Sending…');
     try {
       if (typeof what === 'function') what = what();
-      const c = what.chain ? null : await ctxOf(f);
+      const c = await ctxOf(f);
       const L = slot(f).rec !== undefined && !slot(f).err ? slot(f) : await loadLive(f);
       if (L.err) throw new Error('the live config could not be read (' + L.err + ')');
       let cur = null;
@@ -462,20 +514,13 @@
         tj = Object.assign({ kind: 'queue', pieces: what.queue.map(String), loop }, what.knobs ? { knobs: what.knobs } : {});
         said = `the queue ${entries.map(e => describe(e, c)).join(' > ')}${loop ? ' (loop)' : ''}` + (chain ? ', the live chain kept' : '');
       } else if (what.sheet) {
-        const { slots, bad } = sheetSlots(c, what.sheet), ch = chainOf(c, what.sheet.chain), kn = knobsOf(c, what.sheet.knobs);
+        const { slots, bad } = sheetSlots(c, what.sheet), ch = chainOf(c, what.sheet.chain, what.sheet.timing), kn = knobsOf(c, what.sheet.knobs);
         bad.push(...kn.bad);
         tryBlob = CL().encodeTry({ fighter: c.man.id, slots, knobs: kn.rows });
         chain = ch.bytes;
         tj = Object.assign({ kind: 'sheet', slots: what.sheet.slots || {} }, what.sheet.knobs ? { knobs: what.sheet.knobs } : {}, bad.length ? { left_out: bad } : {});
-        cj = ch.bytes ? { kind: 'sheet', presses: what.sheet.chain, text: ch.text } : null;
+        cj = ch.bytes ? Object.assign({ kind: 'sheet', presses: what.sheet.chain, text: ch.text }, what.sheet.timing ? { timing: what.sheet.timing } : {}) : null;
         said = `the sheet, ${Object.keys(slots).length} slot${Object.keys(slots).length === 1 ? '' : 's'}; ${ch.text}` + (bad.length ? '; left out: ' + bad.join('; ') : '');
-      } else if (what.chain) {
-        const w = what.chain;
-        tryBlob = cur ? Uint8Array.from(cur.tryBlob) : CL().encodeTry({ fighter: w.fighter });
-        tryBlob[3] = w.fighter;                                     // the chain's retime rows name this fighter (the Player: -> the slot)
-        chain = w.bytes;
-        cj = { kind: 'chain tool', text: w.text, entry: w.entry || null };
-        said = 'the chain ' + w.text + (cur ? ', the live slots / queue kept' : '');
       } else throw new Error('nothing to send');
       const blob = CL().liveBlob(tryBlob, chain);
       const body = { blob: b64(blob), hash: await sha256(blob), note: ('Send to Player: ' + said).slice(0, 300),
@@ -570,6 +615,9 @@
     has(f).then(ok => { if (ok) pair.hidden = false; });
     return pair;
   }
-  window.TryIt = { has, button, queue, sheet, knobsOf: (c, k) => knobsOf(c, k), entry: (p, c) => entry(p, c), show, send: sendTo, liveLine, loop: loopOn, ctx: ctxOf };
+  // the Assembly's chain timing knobs: f's chain plan for the sheet's presses (its moves, the ROM's hit-stops and retime
+  // targets, each move's source segments) -> chainPlan's result, or {why}
+  const plan = (f, presses) => ctxOf(f).then(c => chainPlan(c, presses), e => ({ why: e.message }));
+  window.TryIt = { has, button, queue, sheet, plan, chainOf: (c, p, t) => chainOf(c, p, t), knobsOf: (c, k) => knobsOf(c, k), entry: (p, c) => entry(p, c), show, send: sendTo, liveLine, loop: loopOn, ctx: ctxOf };
   window.tryit = { get state() { return S; }, get lab() { return S.lab; }, get gp() { return S.gp; }, ready: false, get live() { return LV; } };
 })();

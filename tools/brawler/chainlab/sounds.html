@@ -2,40 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hit Sounds</title>
-<style>
-/* A fighter's hit sounds (sounds.html?f=kim; behind the Oros login, like the Lab): one card per hit as the game plays it
-   now (tools/brawler/hitsounds.py: the impact frame + the sound command sent), the current sound, a drop-down of every
-   sound the ROM holds to audition and pick (saved to the decisions store, set "<fighter>-sounds"), a note with the mic.
-   E-ink: black on white, solid borders, the state said in words. */
-:root { --line: 2px solid #000; color-scheme: light; }
-html, body { background: #fff; color: #000; }
-body { margin: 0; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 18px 60px; }
-main { max-width: 760px; margin: 0 auto; }
-h1 { font-size: 24px; margin: 4px 0 6px; }
-.intro { margin: 0 0 10px; font-size: 15px; }
-.status { border: var(--line); display: inline-block; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 14px; }
-h2.grp { font-size: 14px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 3px solid #000; padding-bottom: 3px; margin: 26px 0 4px; }
-h3.sub { font-size: 16px; margin: 16px 0 0; }
-.hit { border: var(--line); padding: 10px; margin: 10px 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.hit img { box-sizing: border-box; width: 100%; height: auto; max-width: 400px; image-rendering: pixelated; border: 1px solid #000; display: block; }
-.hit h4 { margin: 0; font-size: 18px; line-height: 1.25; }
-.hit .meta { margin: 0; font-size: 14px; }
-.row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
-.row select { flex: 1 1 200px; min-width: 0; font: inherit; font-size: 16px; padding: 8px; border: var(--line); background: #fff; color: #000; border-radius: 0; }
-button.play { font: inherit; font-size: 15px; font-weight: 700; padding: 8px 12px; background: #fff; color: #000; border: var(--line); border-radius: 0; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
-button.play[data-on="1"] { background: #000; color: #fff; }
-button.play svg { width: 16px; height: 16px; fill: currentColor; }
-.cur { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 15px; }
-.saved { font-family: ui-monospace, monospace; font-size: 13px; min-height: 1em; }
-textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
-button:focus-visible, select:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
-</style>
+<!-- The old URL (sounds.html?f=X): the Game tools' Hit sounds tab (game.html?f=X#sounds, sounds.js; Bruno 2026-10-10). -->
+<script>location.replace('game.html' + location.search + '#sounds');</script>
 </head>
-<body>
-<main id="col"><p>Loading…</p></main>
-<script src="micnote.js"></script>
-<script src="sounds.js"></script>
+<body style="background:#fff;color:#000;font:17px system-ui,sans-serif;padding:16px">
+<p>This page moved: <a href="game.html#sounds">the Game tools, Hit sounds tab</a>.</p>
 </body>
 </html>

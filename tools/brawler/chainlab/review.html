@@ -2,101 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fighter Review</title>
-<style>
-/* Brawler revamp phase 4: one fighter's pieces and my chain proposal (behind the Oros login, like the Lab). Black on
-   white, solid borders, the chosen answer filled AND marked with a check (e-ink). review.js + micnote.js; data from
-   review_build.py (review/<fighter>.json + .png). */
-:root { --line: 2px solid #000; color-scheme: light; }
-html, body { background: #fff; color: #000; }
-body { margin: 0; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 14px 60px; }
-#rev { max-width: 820px; margin: 0 auto; }
-h1 { font-size: 24px; margin: 4px 0 6px; }
-h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 3px solid #000; padding-bottom: 3px; margin: 26px 0 8px; }
-nav.who { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
-nav.who .group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-bottom: 1px solid #000; padding-bottom: 6px; }
-nav.who .glabel { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; flex: 0 0 100%; }
-nav.who a { border: var(--line); padding: 5px 10px; color: #000; text-decoration: none; font-weight: 700; }
-nav.who a[aria-current="page"] { background: #000; color: #fff; }
-.status { border: var(--line); display: inline-block; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 14px; }
-.intro { font-size: 15px; }
-details.formula { border: var(--line); padding: 6px 10px; font-size: 14px; margin: 8px 0; }
-details.formula summary { font-weight: 700; cursor: pointer; }
-.card { border: var(--line); padding: 12px; margin: 14px 0; display: flex; flex-direction: column; gap: 9px; }
-.card > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
-.card h3 { margin: 0; font-size: 19px; line-height: 1.2; }
-.rank, .score { font-family: ui-monospace, monospace; font-size: 14px; border: var(--line); padding: 1px 6px; }
-.score b { font-size: 16px; }
-.clip { display: flex; flex-direction: column; gap: 5px; }
-.clip canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; background: #fff; }
-.ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
-.ctl button, .more { font: inherit; font-size: 14px; background: #fff; color: #000; border: var(--line); padding: 5px 9px; cursor: pointer; }
-.ctl button[aria-pressed="true"] { background: #000; color: #fff; }
-.ctl .fcount { font-family: ui-monospace, monospace; font-size: 13px; }
-.strip { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
-.strip figure { margin: 0; border: 1px solid #000; display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
-.strip figure.hit { border: 3px solid #000; }
-.strip figcaption { font: 12px ui-monospace, monospace; padding: 0 3px; }
-.strip canvas { display: block; image-rendering: pixelated; }
-dl.tags { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; font-size: 15px; }
-dl.tags dt { font-weight: 700; }
-dl.tags dd { margin: 0; }
-.parts { font-size: 14px; margin: 0; }
-.parts li { margin: 1px 0; }
-.dopts { display: flex; flex-direction: column; gap: 7px; }
-.dopts button { font: inherit; font-size: 16px; text-align: left; display: flex; gap: 10px; padding: 9px 11px; background: #fff; color: #000; border: var(--line); cursor: pointer; }
-.dopts button[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
-.dopts .mark { font-family: ui-monospace, monospace; width: 1.3em; flex: 0 0 auto; }
-.dnote textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
-.dsaved { font-family: ui-monospace, monospace; font-size: 12px; min-height: 1em; }
-.ctx { margin: 0; font-size: 15px; }
-.more { display: block; width: 100%; font-size: 16px; padding: 10px; margin: 10px 0; font-weight: 700; }
-button:focus-visible, a:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
-@media (max-width: 520px) { body { font-size: 16px; } .card { padding: 9px; } }
-.fuopt { border: 2px solid #000; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
-.fuseq { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.fupiece { border: 1px solid #000; padding: 4px; min-width: 0; max-width: 100%; }
-.funame { font-weight: 700; font-size: 13px; }
-.fuseq .arrow { font-size: 22px; font-weight: 700; }
-/* the compact follow-up row (Bruno: "tons of scrolling on mobile"): small 1x clips, a tap = ¼ speed */
-.fuopt { padding: 6px; gap: 5px; }
-.fuopt > button { padding: 6px 9px; }
-.fuopt.first { border-width: 3px; }
-.fuopt .mine { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.fuseq { gap: 2px 3px; align-items: flex-end; }
-.fuseq .arrow { font-size: 16px; padding-bottom: 18px; }
-figure.mini { margin: 0; display: flex; flex-direction: column; align-items: center; cursor: pointer; max-width: 100%; }
-figure.mini canvas { display: block; width: auto; max-width: 100%; image-rendering: pixelated; border: 1px solid #000; background: #fff; }
-figure.mini[aria-pressed="true"] canvas { border: 3px solid #000; }
-figure.mini figcaption { font-size: 12px; line-height: 1.2; text-align: center; max-width: 120px; }
-.plan ul { margin: 0; padding-left: 20px; font-size: 15px; }
-.qimg { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; }
-
-/* the move picker (tap a clip in a sequence): a full-screen pop-up of every move, black on white, solid borders */
-.pmodal { position: fixed; inset: 0; background: rgba(255,255,255,.96); z-index: 50; overflow: auto; padding: 10px; }
-.pbox { max-width: 760px; margin: 0 auto; border: 3px solid #000; background: #fff; padding: 10px; }
-.phead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; position: sticky; top: -10px; background: #fff; padding: 6px 0; border-bottom: 2px solid #000; }
-.phead b { flex: 1 1 auto; }
-.phead button, .preset { font: inherit; font-size: 15px; background: #fff; color: #000; border: 2px solid #000; padding: 6px 10px; cursor: pointer; }
-.phead button[aria-pressed="true"] { background: #000; color: #fff; }
-.pgrid { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
-.pgrid figure.mini { border: 2px solid #000; padding: 3px; }
-.pgrid figure.mini.cur { border-width: 4px; }
-.pgrid figure.mini.cur figcaption::after { content: ' (now)'; font-weight: 700; }
-.preset { font-size: 13px; padding: 3px 8px; margin-top: 4px; }
-.preset[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
-/* the picker's tabs: the exported moves / every animation of the dictionary (anims_core.js) */
-.ptabs { flex: 0 0 100%; display: flex; flex-wrap: wrap; gap: 6px; }
-.ptabs button { font-weight: 700; }
-a.dictlink { color: #000; font-weight: 700; border: var(--line); padding: 5px 9px; display: inline-block; text-decoration: none; }
-[hidden] { display: none !important; }
-</style>
+<!-- The old URL (review.html?f=X[&q=<set>], or #f=X): the Fighter Lab's Review tab is the one template now (lab.html +
+     fighterlab.js load review.js; Bruno 2026-10-10). Without a fighter: the first of the review index, as before. -->
+<script>
+(function () {
+  var q = new URLSearchParams(location.search), m = /^#f=(\w+)/.exec(location.hash);
+  if (!q.get('f') && m) q.set('f', m[1]);
+  q.set('tab', 'review');
+  if (q.get('f')) { location.replace('lab.html?' + q.toString()); return; }
+  fetch('review/index.json', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+    q.set('f', j.fighters[0].fighter); location.replace('lab.html?' + q.toString());
+  }, function () { location.replace('lab.html'); });
+})();
+</script>
 </head>
-<body>
-<main id="rev"><p>Loading…</p></main>
-<script src="micnote.js"></script>
-<script src="anims_core.js"></script>
-<script src="review.js"></script>
+<body style="background:#fff;color:#000;font:17px system-ui,sans-serif;padding:16px">
+<p>This page moved: <a href="lab.html">the Fighter Lab</a>, a fighter's Review tab.</p>
 </body>
 </html>

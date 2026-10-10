@@ -1,9 +1,9 @@
-// sounds.html?f=kim: every hit of the fighter's chain / finishers / hold with the sound the game plays on it now
+// The Game tools' "Hit sounds" tab (game.html?f=kim#sounds, loaded by game.js; sounds.html?f= redirects there): every hit of the fighter's chain / finishers / hold with the sound the game plays on it now
 // (sounds/<f>/hits.json, tools/brawler/hitsounds.py), each sound of the ROM (sounds/sfx.json + sounds/sfx/<code>.wav).
 // A pick is saved to the decisions store (POST feedback-api/decision, set "<f>-sounds", id = the hit's key, choice = the
 // code, label = its name); notes the same way (micnote.js). One AudioContext, resumed on the first tap (Android Chrome).
 (async function () {
-  const col = document.getElementById('col');
+  const col = document.getElementById('soundcol');
   const F = (new URLSearchParams(location.search).get('f') || 'kim').replace(/[^a-z_]/g, '');
   const SET = F + '-sounds', API = 'feedback-api/';
   const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c); return e; };

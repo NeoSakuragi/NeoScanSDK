@@ -7,17 +7,25 @@
 //   lab.html?f=<f>&tab=info         Info: name, faces, source game, bank, scale, archetype, chain, music theme, decoded vs
 //                                   locked counts, pack + Lab build versions, live config, links, "Play him in game"
 //   lab.html?f=<f>&tab=workshop     the Workshop: workshop.js itself, loaded into #ws on the tab's first opening
-//   lab.html?f=<f>&tab=assembly     the Assembly: arbitrage.js itself (sheet, knobs, Try in game, Send to Player, live,
-//                                   Ship to game), loaded into #arb
+//   lab.html?f=<f>&tab=dictionary   his animation dictionary: anims.js, loaded into #dict (anims.html?f= redirects here)
+//   lab.html?f=<f>&tab=workshop     the Workshop: workshop.js itself, loaded into #ws on the tab's first opening
+//   lab.html?f=<f>&tab=assembly     the Assembly: arbitrage.js itself (sheet, chain timing, knobs, Try in game, Send to
+//                                   Player, live, Ship to game), loaded into #arb
+//   lab.html?f=<f>&tab=review       the fighter review (revamp phase 4, &q=<set>: a visual follow-up): review.js in #rev
+//                                   (review.html?f= redirects here)
 //   &embed=1                        the Player's WebView beside the game: no chrome, compact, the Assembly only
 // A fighter whose source game has no dictionary builder (cast.json engine_note: SS2, WHP, Double Dragon today) gets his
-// Info and that sentence in the Workshop / Assembly, never an empty page. The Chain Lab's chain-timing knob is to be folded
-// into the Assembly later (not here).
+// Info and that sentence in the Dictionary / Workshop / Assembly, never an empty page. The page is also the site's front
+// page (make_site.py writes it as index.html too): an old front-page link (index.html#fb=..., #decide, #stages ...) goes
+// to the Game tools (game.html), which hold the tools that are not one fighter's. body[data-tab] scopes each tab's CSS
+// (lab.html), its pop-ups included. A link to another tab of the same fighter (lab.html?f=<f>&tab=...) switches tabs.
 (async function () {
   'use strict';
   const AD = window.AnimDict, h = AD.h;
   const Q = new URLSearchParams(location.search);
   const f = Q.get('f'), embed = Q.get('embed') === '1';
+  // the old front page's links (the Chain Lab's tabs, brawler-lab/#fb=<id> replays): the Game tools now
+  if (!f && /^#(fb=|decide|quirks|expose|stages|enemies|chars|select|feedback|impacts|sounds)/.test(location.hash)) { location.replace('game.html' + location.search + location.hash); return; }
   const root = document.getElementById('lab');
   if (embed) document.body.classList.add('embed');
   const getJ = u => fetch(u, { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null, () => null);
@@ -54,7 +62,7 @@
     const nd = cast.fighters.filter(c => c.dictionary).length, np = cat ? (cat.packs || []).length : null;
     root.replaceChildren(
       h('h1', { text: 'The cast' }),
-      h('p', { class: 'muted', text: `Every fighter of the roster (game.json, build ${cast.version}). Pick one: Info, Workshop (decode / unlock his moves), Assembly (what each input plays; Try in game, Send to Player, Ship). ${nd} of ${cast.fighters.length} have an animation dictionary` +
+      h('p', { class: 'muted', text: `Every fighter of the roster (game.json, build ${cast.version}). Pick one: Info, Dictionary (every animation), Workshop (decode / unlock his moves), Assembly (what each input plays, the chain's timing; Try in game, Send to Player, Ship), Review. ${nd} of ${cast.fighters.length} have an animation dictionary` +
         (np !== null ? `; ${np} have a pack in the Character Lab catalogue` + (cat.shell ? ` (shell ${cat.shell.version})` : ', no shell published') : '; the catalogue could not be read') + '. A dashed card: no dictionary yet.' }),
       h('div', { class: 'castbar' }, q, shown),
       h('div', { class: 'cast' }, cards));
@@ -66,27 +74,30 @@
   // ---- one fighter ----
   const C = cast.fighters.find(c => c.name === f);
   if (!C) { root.replaceChildren(h('p', {}, 'No fighter "' + f + '" in the roster. ', h('a', { href: 'lab.html', text: 'The cast' }))); return; }
-  const TABS = [['info', 'Info'], ['workshop', 'Workshop'], ['assembly', 'Assembly']];
+  const TABS = [['info', 'Info'], ['dictionary', 'Dictionary'], ['workshop', 'Workshop'], ['assembly', 'Assembly'], ['review', 'Review']];
   let tab = embed ? 'assembly' : TABS.some(t => t[0] === Q.get('tab')) ? Q.get('tab') : 'info';
-  const P = { info: h('div', { id: 'info' }), workshop: h('section', { id: 'ws', 'aria-label': 'Workshop' }), assembly: h('section', { id: 'arb', 'aria-label': 'Assembly' }) };
+  const P = { info: h('div', { id: 'info' }), dictionary: h('section', { id: 'dict', 'aria-label': 'Animation dictionary' }), workshop: h('section', { id: 'ws', 'aria-label': 'Workshop' }),
+              assembly: h('section', { id: 'arb', 'aria-label': 'Assembly' }), review: h('section', { id: 'rev', 'aria-label': 'Fighter review' }) };
   const tabLinks = TABS.map(([k, t]) => {
     const a = h('a', { href: `lab.html?f=${encodeURIComponent(f)}&tab=${k}`, text: t });
     a.onclick = e => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); show(k); };
     return a;
   });
   const loaded = {};
-  const SCRIPT = { workshop: 'workshop.js', assembly: 'arbitrage.js' };
+  const SCRIPT = { dictionary: 'anims.js', workshop: 'workshop.js', assembly: 'arbitrage.js', review: 'review.js' };
   function load(k) {
     if (loaded[k]) return;
     loaded[k] = true;
-    if (!C.engine_decoded) { P[k].replaceChildren(h('p', { class: 'note', text: C.engine_note })); return; }
+    if (k === 'dictionary' && !C.dictionary) { P[k].replaceChildren(h('p', { class: 'note', text: C.engine_decoded ? `No animation dictionary for ${C.display} yet (his engine is decoded: animdict.py can build it).` : C.engine_note })); return; }
+    if (k === 'review' && !C.review) { P[k].replaceChildren(h('p', { class: 'note', text: `No fighter review for ${C.display} (review_build.py).` })); return; }
+    if ((k === 'workshop' || k === 'assembly') && !C.engine_decoded) { P[k].replaceChildren(h('p', { class: 'note', text: C.engine_note })); return; }
     P[k].replaceChildren(h('p', { text: 'Loading…' }));
     const s = document.createElement('script'); s.src = SCRIPT[k];
     s.onerror = () => P[k].replaceChildren(h('p', { class: 'note', text: SCRIPT[k] + ' could not be loaded.' }));
     document.body.append(s);
   }
   function show(k) {
-    tab = k;
+    tab = k; document.body.dataset.tab = k;
     for (const [n] of TABS) P[n].hidden = n !== k;
     tabLinks.forEach((a, i) => { if (TABS[i][0] === k) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     const u = new URL(location.href); u.searchParams.set('tab', k); history.replaceState(null, '', u.pathname + u.search + u.hash);
@@ -120,11 +131,19 @@
     C.face ? h('figure', {}, h('img', { src: C.face, alt: C.display + "'s HUD portrait", width: '128', height: '128' }), h('figcaption', { text: 'HUD portrait (the game\'s pixels, x4)' })) : h('p', { class: 'note', text: 'No HUD portrait could be made (' + (C.face_error || 'no source picture') + ').' }),
     C.win ? h('figure', {}, h('img', { src: C.win, alt: C.display + "'s win-screen portrait" }), h('figcaption', { text: 'Win-screen / drama portrait (' + C.win_source + ')' })) : h('p', { class: 'note', text: 'No win-screen portrait yet.' }));
   const links = h('div', { class: 'links' },
-    C.engine_decoded ? [h('a', { href: `lab.html?f=${f}&tab=workshop`, text: 'Workshop' }), h('a', { href: `lab.html?f=${f}&tab=assembly`, text: 'Assembly' })] : null,
-    C.dictionary ? h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }) : null,
-    C.review ? h('a', { href: 'review.html?f=' + f, text: 'Fighter review' }) : null,
-    h('a', { href: 'index.html', text: 'Chain Lab (chain timing)' }));
-  links.querySelectorAll('a[href^="lab.html"]').forEach(a => { a.onclick = e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); show(new URL(a.href).searchParams.get('tab')); }; });
+    C.engine_decoded ? [h('a', { href: `lab.html?f=${f}&tab=workshop`, text: 'Workshop' }), h('a', { href: `lab.html?f=${f}&tab=assembly`, text: 'Assembly (chain, timing, specials)' })] : null,
+    C.dictionary ? h('a', { href: `lab.html?f=${f}&tab=dictionary`, text: 'Animation dictionary' }) : null,
+    C.review ? h('a', { href: `lab.html?f=${f}&tab=review`, text: 'Fighter review' }) : null,
+    h('a', { href: 'howto.html', text: 'How to' }));
+  // any link to another tab of this fighter (the tabs' own links too, e.g. "Ask in the Workshop" keeps its new window):
+  // a tab switch, not a page load
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('a[href^="lab.html?"]');
+    if (!a || a.target || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+    const u = new URL(a.href), k = u.searchParams.get('tab');
+    if (u.searchParams.get('f') !== f || !TABS.some(t => t[0] === k) || [...u.searchParams.keys()].some(x => x !== 'f' && x !== 'tab')) return;
+    e.preventDefault(); show(k); if (u.hash) location.hash = u.hash; else scrollTo(0, 0);
+  });
   const TI = window.TryIt;
   P.info.append(h('div', { class: 'info' },
     h('div', {}, facts, C.about ? h('details', {}, h('summary', { text: 'Notes in game.json' }), h('p', { class: 'muted', text: C.about })) : null),
@@ -140,7 +159,7 @@
       h('div', { class: 'who' }, h('b', { text: C.display }), h('span', { text: C.game_name + ' · ' + (C.archetype || '?') + ' · ' + packLine(f) + ' · ' + liveLine(f) })),
       h('a', { href: 'lab.html', text: '← The cast' })),
     h('nav', { class: 'tabs', 'aria-label': 'Tabs' }, tabLinks),
-    P.info, P.workshop, P.assembly);
+    P.info, P.dictionary, P.workshop, P.assembly, P.review);
   show(tab);
   window.fighterLabReady = { fighter: f, tab };
 })();

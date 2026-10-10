@@ -215,57 +215,6 @@ Cheng Fu's far D / body toss (14 px). The take-off and landing frames (height 0)
 New in round 2: a ROM special's catch box (and a captured special's grab reach) no longer takes a victim in the air by its
 own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays catchable as before.
 
-## The arbitration sheet compiler (2026-10-10, tools/brawler/arb_compile.py)
-Bruno: "once a game is analysed and its specials decoded and converted, every piece — animation, special, code — should
-just be linked in the new version without tokens". A finished sheet (decisions set `<f>-arb`) is compiled into the
-roster entry without an agent wherever the pieces already exist; the rest is listed for an agent, never guessed.
-- `python3 tools/brawler/arb_compile.py <f> --dry-run` prints per slot: pick, class, linked / unchanged / unresolved, the
-  roster field and value. Without `--dry-run` it writes game.json (only the fighter's entry, key by key: unchanged keys
-  keep their text) + a dated "sheet round" section here, builds (make -C sdk; rm build/*.o; make -j2; bank_proof.py) and
-  plays every linked slot in our emulator (Chain Lab training mode, 2-frame presses, one process): the move / special it
-  starts, the picked animation's ROM frames on screen (build/bm_frames.json), a hit on the dummy -> PASS / FAIL.
-  `--compare GAME_JSON` diffs the compiled entry against another game.json (an agent's round).
-- Classes: **a** normal (the fighter's own move name, the roster's `moves`, else a spare six-button name with
-  `moves "<name>": "$XX"`); **b** an animation of ONE decoded special (handlers98.ROM_SPECIALS programs; Kizuna's
-  export_kz programs) -> its input; **c** an animation special (`anim_specials "$NN": how`) when the library knows its
-  reaction; **d** unresolved: an undecoded special, a variant choice (an animation two specials play), a pick the
-  library cannot place, a slot the engine has no field for (fin_df, air_bz_ff / uu / du), the throws, a changed chain
-  length, and every slot with a typed note. Slot -> field map: the module doc.
-- The PIECE LIBRARY: tools/brawler/arb_pieces/<f>.json (`arb_compile.py pieces <f>`; refreshed on every real run):
-  per dictionary animation its move names, the specials that play it, hop_of (a hop's later state), the state that
-  addresses it, anim_special (a known reaction) and note; the specials (decoded or captured) with their animations; the
-  spare names; `handled` = noted answers an agent already implemented (not listed again while unchanged). A new decode
-  (a ROM_SPECIALS entry, an anim_special reaction) just adds entries: the next sheet links them for free.
-- Validated on history: Robert's round-2 answers against the tree before 74e5a04 linked 7 slots (a2 $5B, a3 $D4,
-  fin_up $67 -> spare atk_ab_far, Blitz ff $8E 624D, dd $1E7 EX 624D, du $9C 623D, C $85 623C + its three
-  directions), all 7 PASS in the emulator, game.json = 74e5a04's except exactly the 3 unresolved: forward + C $1EF (EX
-  646B / D variant choice), down + C $9F (426B undecoded -> the agent's anim_specials "kof") and $E5's hop note.
-  Kim / Krauser / Robert's current sheets (and "now" fed back as a sheet) compile to no change.
+## The arbitration sheet compiler, piece ids and the Workshop
 
-## Piece ids and the Workshop (2026-10-10, tools/brawler/piece_ids.py, tools/brawler/workshop.py)
-The Lab in two parts: WORKSHOP (token-bound: conversation, unlock requests, decoding) and ASSEMBLY (the arbitration
-sheet + arb_compile.py, zero tokens).
-- Piece ids (Bruno's naming, binding): animations keep their `$NN`; decoded programs get per-fighter ids in decode
-  order, never renumbered or reused: `S-001`… = special VERSIONS (light / heavy / EX / MAX, ground and air: each its own
-  piece), `T-001`… = throws / grabs / command grabs. The input and a display name ("Ryuuga, C version") are data on the
-  piece, never in the id. Registry = source of truth: tools/brawler/arb_pieces/<f>_ids.json. `arb_compile.py pieces <f>`
-  (every real run) gives ids to newly decoded pieces; a piece the library loses is marked `gone`, its id kept.
-- The compiler takes `S-004` in a sheet answer (class b: that special's input in the slot, no variant question);
-  `T-` picks, an S- id in a normal slot, a ground special in an air slot or a non-MAX one in the MAX slot are unresolved.
-- Robert (2026-10-10): S-001 23624C Ryuuko Ranbu C, S-002 623A Ryuuga A, S-003 623C Ryuuga C, S-004 623D Ryuu Zanshou D,
-  S-005 624D Hien Senpuu Kyaku D, S-006 EX 236C Ryuugeki Ken EX C, S-007 EX 624D, S-008 EX 646D Gen'ei Kyaku EX D,
-  S-009 MAX 23624C, S-010 air 214D Hien Ryuujin Kyaku D; T-001 forward + C Ryuuchou Kyaku, T-002 forward + D Kubikiri
-  Nage; 17 special versions locked. First Workshop unlock (thread sp-6426A): S-011 6426A / S-012 6426C / S-013 MAX 6426A
-  Haoh Shoukou Ken, read from the handler $49F24 (handlers98 ROM_SPECIALS + ROM_DEMAND: in the Lab builds' pool and a
-  sheet's slot, not in the normal game's export). A: state $A8, the fireball $AA at 4 px a frame; C: $A9, 7 px; MAX: $AC,
-  $AD at 16 px, 5 hits 4 frames apart (its hit routine counts +$138: handlers98.counted_states, bproj_t hitnext phases,
-  the last one $AE with box $2D), end $AB / $AF; the victim stays standing through the MAX's hits (R_HEAVY), the last
-  knocks down. Krauser S-001..S-011 + T-001/2 (2 locked), Kim S-001..S-007 + T-001.
-- Workshop page brawler-lab/workshop.html?f=<f> (review/<f>_workshop.json from workshop.py, built by make_site.py):
-  Specials (unlocked with id / name / input / clips / what it does; locked greyed with "Unlock this" + mic), Throws,
-  Animations (each attack step's hit class: KOF98/99 attack box id -> KOF's REACT tables, situation 2 standing (light /
-  heavy from situation 0) and 6 juggled; other games "class not decoded"), a thread per piece (decisions set
-  `<f>-workshop`, one entry per message). The arbitration picker offers the unlocked S- / T- pieces, lists the locked
-  specials with a Workshop link, and "Now" names the S- ids a slot plays.
-- CLI: `workshop.py list [f]` (OPEN = his request is the last message), `reply <f> <piece> "<text>"`,
-  `unlock <f> <piece>` (only a piece decoded in the library: id + reply + the page data republished), `publish <f>`.
+Moved to **docs/character_lab.md** (2026-10-10). `arb_compile.py` still appends each shipped "sheet round" here.

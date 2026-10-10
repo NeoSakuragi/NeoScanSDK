@@ -2,7 +2,7 @@
 """The ARBITRATION SHEET COMPILER (Bruno 2026-10-10: "once a game is analysed and its specials decoded and converted,
 every piece — animation, special, code — should just be linked in the new version without tokens").
 
-Bruno's sheet (Brawler Lab arbitrage.html?f=<fighter>, decisions set "<fighter>-arb", slot ids: chainlab/arbitrage.js)
+Bruno's sheet (the Fighter Lab's Assembly, brawler-lab/lab.html?f=<fighter>&tab=assembly; decisions set "<fighter>-arb", slot ids: chainlab/arbitrage.js)
 names animations of the fighter's dictionary (animdict.py) per input slot. Each answered slot is classified against the
 fighter's PIECE LIBRARY (tools/brawler/arb_pieces/<fighter>.json, generated here) and either LINKED (written into
 game.json's roster entry, no agent needed) or UNRESOLVED (listed, never guessed):
@@ -31,6 +31,11 @@ Slot -> roster field (the three agent-built rounds: Krauser 4261de6, Robert 591c
   grab_hit / grab_fin            throws.hold.hit / fin
   fury / max   fury / max (a decoded special)
   no field (unresolved when changed): fin_df, air_bz_ff / uu / du, fin_back, grab_fwd, grab_back, fury_note
+  chain_timing the chain's TIMING (the Assembly's knobs under the presses, arbitrage.js drawTiming; the old Chain Lab's
+               chain tool): note = JSON {hitstop: {a1..aN: frames}, retime: {move: [frames per segment]}} -> roster
+               chain.hitstop (left out at the archetype's scale) + retime {move: targets} (chain_save.py's form);
+               hit-stop 1-60, a segment 0.5x-2x of its source (its value now always allowed), else REFUSED; after the
+               build, build/chainlab.json's tree and build/retime.json must play exactly that (timing_check)
   knobs        PIECE KNOBS (tools/brawler/knobs.py): a slot's answer `knobs` {S- id: {knob id: value}} -> roster[].knobs
                {slot: {S- id: {knob id: value}}} (defaults left out); the catalogue (arb_pieces/<f>.json "knobs": ids,
                ranges, engine rows) is data: a knob a later decode adds needs no change here. Only a piece the slot plays,
@@ -532,6 +537,97 @@ def compile_knobs(f, ans, new, reg):
     return out, bad
 
 
+TIMING_ID = 'chain_timing'                                 # arbitrage.js drawTiming: the chain's timing answer
+
+
+def scale_hitstops(rules, n):
+    """the archetype's hit-stop scale (routes.py chain_tree; lab.js defaultHitstops)"""
+    lo, hi = rules['hitstop']
+    return [lo + ((hi - lo) * k * 2 + (n - 1)) // (2 * (n - 1)) for k in range(n)] if n > 1 else [hi]
+
+
+def compile_timing(f, ans, new, G, game, build='build'):
+    """the sheet's CHAIN TIMING (answer "chain_timing", its note = JSON {hitstop: {a1..aN: frames}, retime: {move:
+    [frames per segment]}}: the Assembly's knobs, overrides of what the game plays now) -> (entry changes {chain.hitstop,
+    retime}, [what it is], [refusal reasons]). The defaults are the build's: its tree's hit-stops (build/chainlab.json)
+    and retime targets (game.json roster[].retime as built, build/retime.json); hit-stop 1-60 frames per press, a segment
+    0.5x-2x of the source (retime.BOUND; its value now is always allowed). Written as the chain tool's Save did
+    (chain_save.py): roster chain.hitstop (left out when it is the archetype's scale) and retime {move: targets}."""
+    a = ans.get(TIMING_ID)
+    if not (isinstance(a, dict) and a.get('choice') == 1 and a.get('note')): return {}, [], []
+    try: t = json.loads(a['note']) if isinstance(a['note'], str) else a['note']
+    except ValueError: return {}, [], ['chain timing: its note is not JSON']
+    if not isinstance(t, dict): return {}, [], ['chain timing: not {hitstop, retime}']
+    import retime as RT
+    CLj = json.load(open(os.path.join(game, build, 'chainlab.json')))
+    L = next((x for x in CLj['fighters'] if x['name'] == f), None)
+    if not L: return {}, [], [f'chain timing: {f} is not in {build}/chainlab.json']
+    rules = G['chain']; n = rules['lengths'][new.get('archetype', 'balanced')]
+    hs_now = list(L['tree']['chain']['hitstop'])
+    bad, said, ch = [], [], {}
+    th = t.get('hitstop') or {}
+    if th:
+        if len(hs_now) != n: bad.append(f'chain timing: the build plays {len(hs_now)} presses, the compiled chain has {n}: rebuild first')
+        hs = list(hs_now)
+        for k, v in th.items():
+            m_ = re.match(r'^a(\d)$', k)
+            if not m_ or not 1 <= int(m_.group(1)) <= n: bad.append(f'chain timing: hit-stop of "{k}": no such press (1-{n})'); continue
+            if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= 60: bad.append(f'chain timing: press {m_.group(1)} hit-stop {v}: 1-60 frames'); continue
+            hs[int(m_.group(1)) - 1] = v
+        if hs != hs_now:
+            ch['hitstop'] = None if hs == scale_hitstops(rules, n) else hs; ch['hitstops'] = hs
+            said.append('hit-stops ' + ' '.join(map(str, hs)))
+    rows = {r['move']: r for r in (json.load(open(os.path.join(game, build, 'retime.json'))) if os.path.exists(os.path.join(game, build, 'retime.json')) else []) if r['fighter'] == f}
+    rt = {}
+    for m, T in (t.get('retime') or {}).items():
+        segs = (L.get('segs') or {}).get('moves', {}).get(m)
+        if not segs: bad.append(f'chain timing: {m} has no segments in the build (not retimed)'); continue
+        now = rows[m]['targets'] if m in rows else list(segs)
+        if not (isinstance(T, list) and len(T) == len(segs) and all(isinstance(x, int) and not isinstance(x, bool) for x in T)):
+            bad.append(f'chain timing: {m}: {len(segs)} whole frame counts expected'); continue
+        lo, hi = RT.BOUND
+        out = [(i, x) for i, (x, s_) in enumerate(zip(T, segs)) if s_ and x != now[i] and not (max(1, -(-s_ // 2)) <= x <= max(1, int(s_ * hi)))]
+        if out: bad.append(f'chain timing: {m} segment {out[0][0]} = {out[0][1]} frames: outside {lo}x-{hi}x of its source {segs[out[0][0]]}'); continue
+        T = [x if s_ else 0 for x, s_ in zip(T, segs)]
+        if T != now: rt[m] = T; said.append(f'{m} {"/".join(map(str, T))} (now {"/".join(map(str, now))}, source {"/".join(map(str, segs))})')
+    if rt: ch['retime'] = rt
+    return ch, said, bad
+
+
+def apply_timing(new, ch, segs_of):
+    """the timing changes into the compiled roster entry (chain.hitstop; retime: a move back at its source = no entry)"""
+    if 'hitstop' in ch:
+        c = dict(new.get('chain') or {})
+        if ch['hitstop'] is None: c.pop('hitstop', None)
+        else: c['hitstop'] = ch['hitstop']
+        if c: new['chain'] = c
+        else: new.pop('chain', None)
+    if 'retime' in ch:
+        r = dict(new.get('retime') or {})
+        for m, T in ch['retime'].items():
+            if T == segs_of(m): r.pop(m, None)
+            else: r[m] = T
+        if r: new['retime'] = r
+        else: new.pop('retime', None)
+
+
+def timing_check(game, f, ch, build='build'):
+    """the built game plays the shipped timing: its tree's hit-stops (build/chainlab.json) and its retime rows
+    (build/retime.json) -> [failure reasons]"""
+    CLj = json.load(open(os.path.join(game, build, 'chainlab.json')))
+    L = next(x for x in CLj['fighters'] if x['name'] == f)
+    fails = []
+    if 'hitstops' in ch and L['tree']['chain']['hitstop'] != ch['hitstops']:
+        fails.append(f'chain timing: the build plays hit-stops {L["tree"]["chain"]["hitstop"]}, not {ch["hitstops"]}')
+    rows = {r['move']: r['targets'] for r in json.load(open(os.path.join(game, build, 'retime.json'))) if r['fighter'] == f}
+    for m, T in (ch.get('retime') or {}).items():
+        segs = L['segs']['moves'][m]
+        got = rows.get(m, segs)
+        if got != T: fails.append(f'chain timing: the build retimes {m} {got}, not {T}')
+    print('timing check:', 'PASS' if not fails else 'FAIL', json.dumps({k: v for k, v in ch.items() if k != 'hitstops'}), flush=True)
+    return fails
+
+
 def order_keys(new, old):
     """the entry's keys in their old order, new keys after their GAME_KEYS predecessor"""
     keys = [k for k in old if k in new]
@@ -570,7 +666,7 @@ def write_game(path, f, new):
     open(path, 'w').write(out)
 
 
-def gold_section(f, display, res, date, version, knobs=None):
+def gold_section(f, display, res, date, version, knobs=None, timing=None):
     lk = [x for x in res if x.status == 'linked']; un = [x for x in res if x.status == 'unresolved']
     def pk(x): return ' then '.join(fmt(p) for p in x.pick) if x.pick else 'empty'
     L = [f'', f'### {display}: sheet round {date} (tools/brawler/arb_compile.py, decisions set `{f}-arb`, build {version})',
@@ -578,6 +674,7 @@ def gold_section(f, display, res, date, version, knobs=None):
          f'{" (listed for an agent, nothing guessed)" if un else ""}; slots whose pick = now not listed.']
     for x in lk: L.append(f'- {x.slot} ({LABEL.get(x.slot, x.slot)}): {pk(x)} -> {x.field} = {json.dumps(x.value, ensure_ascii=False)} — linked, class {x.cls}: {x.why}')
     for x in un: L.append(f'- {x.slot} ({LABEL.get(x.slot, x.slot)}): {pk(x)} — UNRESOLVED: {x.why}')
+    if timing: L.append('- chain timing: ' + '; '.join(timing) + ' (roster chain.hitstop / retime, the build checked)')
     if knobs is not None: L.append('- knobs: ' + (json.dumps(knobs, ensure_ascii=False) if knobs else 'every knob back to its default') + ' (roster[].knobs, measured by knob_check)')
     return '\n'.join(L) + '\n'
 
@@ -827,10 +924,15 @@ def main():
     kn, kbad = compile_knobs(f, ans, new, piece_ids.load(f, os.path.dirname(pieces_path(game, f))))
     if kn: new['knobs'] = kn
     else: new.pop('knobs', None)
+    tch, tsaid, tbad = compile_timing(f, ans, new, G, game)       # the chain's timing knobs (hit-stop, retime)
+    if tch:
+        segs = next(x for x in json.load(open(os.path.join(game, 'build', 'chainlab.json')))['fighters'] if x['name'] == f)['segs']['moves']
+        apply_timing(new, tch, lambda m: segs.get(m))
     new = order_keys(new, old)
-    if kbad:
-        print('REFUSED (nothing written, game.json as it was): the sheet\'s knobs:' + ''.join('\n  - ' + x for x in kbad))
+    if kbad or tbad:
+        print('REFUSED (nothing written, game.json as it was): ' + ''.join('\n  - ' + x for x in kbad + tbad))
         sys.exit(2)
+    if tsaid: print('chain timing: ' + '; '.join(tsaid))
     print(f'{f}: {len([k for k in ans if k != "done"])} answered slot(s) in {f}-arb' + ('' if ans else ' (no sheet: everything = now)'))
     print(f'{"slot":<10} {"pick":<16} {"class":<5} {"status":<10} field / value / why')
     for x in sorted(res, key=lambda x: ORDER.index(x.slot) if x.slot in ORDER else -1):
@@ -848,7 +950,7 @@ def main():
             if not eq: print(f'  DIFF {k}: compiled {json.dumps(x, ensure_ascii=False)} vs {json.dumps(y, ensure_ascii=False)}')
         print(f'  {sum(eq for _, eq, _, _ in rows)} / {len(rows)} fields equal')
     lk = [x for x in res if x.status == 'linked']; un = [x for x in res if x.status == 'unresolved']
-    kch = new.get('knobs') != old.get('knobs')
+    kch = new.get('knobs') != old.get('knobs') or bool(tch)          # (a timing change builds and is checked like a knob)
     if not a.dry_run:
         gp = os.path.join(repo_of(game), 'docs', 'brawler_gold.md')
         keep = {p: open(p).read() for p in (gpath, gp) if os.path.exists(p)}   # (restored whole on any failure)
@@ -863,8 +965,8 @@ def main():
         if not a.no_gold and (lk or un or kch):
             with open(gp, 'a') as fh: fh.write(gold_section(f, (roster_of(G, f).get('display') or f).upper(), res,
                                                            datetime.date.today().isoformat(), open(os.path.join(game, 'VERSION')).read().strip(),
-                                                           new.get('knobs') if kch else None))
-        try: fails = ship_checks(a, game, f, res, lib, lk, kch, new)
+                                                           new.get('knobs') if new.get('knobs') != old.get('knobs') else None, tsaid))
+        try: fails = ship_checks(a, game, f, res, lib, lk, kch, new, tch)
         except SystemExit as e: fails = [str(e)]
         except Exception as e: fails = [f'the build / check stopped: {type(e).__name__}: {e}']
         if fails: refuse('the check failed:' + ''.join('\n  - ' + x for x in fails))
@@ -872,10 +974,11 @@ def main():
           + ''.join(f'\n  - {x.slot}: {x.why}' for x in un))
 
 
-def ship_checks(a, game, f, res, lib, lk, kch, new):
-    """build + bank_proof, the per-slot check, the knob check -> [failure reasons] (SystemExit: the build failed)"""
+def ship_checks(a, game, f, res, lib, lk, kch, new, tch=None):
+    """build + bank_proof, the per-slot check, the knob check, the timing check -> [failure reasons] (SystemExit: the
+    build failed)"""
     if (lk or kch) and not a.no_build: build(game)
-    fails = []
+    fails = timing_check(game, f, tch) if tch and not a.no_build else []
     if lk and not a.no_check:
         rows = check(game, f, res, lib)
         print(f'{"slot":<10} {"pick":<10} {"class":<5} result')

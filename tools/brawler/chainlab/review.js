@@ -1,4 +1,5 @@
-// Fighter review (brawler revamp phase 4): one fighter's pieces (tags + appeal from tools/brawler/pieces.py) and my chain
+// Fighter review (brawler revamp phase 4; the Fighter Lab's Review tab, lab.html?f=kim&tab=review[&q=<set>]: fighterlab.js loads
+// this script into its #rev panel; review.html?f= redirects there): one fighter's pieces (tags + appeal from tools/brawler/pieces.py) and my chain
 // proposal, each as a looping clip at the game's speed (59.18 frames a second: every entry of a clip is one game
 // frame, review_build.py), with Keep / Drop / "None of these" + a note with the microphone (micnote.js). Answers go to
 // the feedback service's decisions store (POST feedback-api/decision, set "review-<fighter>"; GET
@@ -285,7 +286,7 @@
       const dlg = h('div', { class: 'pmodal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Flags for $' + a.id },
         h('div', { class: 'pbox' }, h('div', { class: 'phead' }, h('b', { text: 'Flags for ' + window.AnimDict.caption(a) }),
           h('button', { type: 'button', class: 'pclose', text: 'Done', onclick: done })),
-          window.AnimDict.flagEditor(AD, a), h('p', { class: 'ctx' }, h('a', { href: 'anims.html?f=' + D.fighter, class: 'dictlink', text: 'The whole animation dictionary' }))));
+          window.AnimDict.flagEditor(AD, a), h('p', { class: 'ctx' }, h('a', { href: 'lab.html?tab=dictionary&f=' + D.fighter, class: 'dictlink', text: 'The whole animation dictionary' }))));
       dlg.onclick = e => { if (e.target === dlg) done(); };
       document.addEventListener('keydown', esc);
       document.body.append(dlg);
@@ -353,7 +354,7 @@
       text: f.display + (index.fighters.some(g => g !== f && g.display === f.display) && f.game ? ' (' + f.game.toUpperCase() + ')' : '') }))))));
   parts_.push(h('h1', { text: `${D.display}: pieces and chain` }));
   if (await fetch('review/' + D.fighter + '_anims.json', { method: 'HEAD', cache: 'no-cache', credentials: 'same-origin' }).then(r => r.ok, () => false))
-    parts_.push(h('p', { class: 'intro' }, h('a', { href: 'anims.html?f=' + D.fighter, class: 'dictlink', text: `${D.display}'s animation dictionary: every animation of the table, with flags and "I want this one"` }),
+    parts_.push(h('p', { class: 'intro' }, h('a', { href: 'lab.html?tab=dictionary&f=' + D.fighter, class: 'dictlink', text: `${D.display}'s animation dictionary: every animation of the table, with flags and "I want this one"` }),
       ' ', h('a', { href: 'lab.html?tab=assembly&f=' + D.fighter, class: 'dictlink', text: `${D.display}'s arbitration sheet: chain, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury` })));
   parts_.push(status);
   parts_.push(h('p', { class: 'intro', text: `Every piece ${D.display} could use in a chain, from the game's data: its tags and my appeal score, ranked; then my proposal for the ${pr.archetype} archetype (${ch.length} links). Each clip loops at the game's speed (¼ speed, Step and the hit boxes are under it); the strip under it shows each drawing with the frames it is held, the contact drawing outlined. Keep, Drop, or "None of these" with your own answer in the note.` + ((D.round || 1) > 1 ? ` Round ${D.round}: the ranking and the proposal learned from your Terry, Kim and Krauser reviews (score below); the chain and every finisher are shown as the whole chain, never under 3 hits.` : '') }));

@@ -6,7 +6,7 @@ layout (harness._layout: fighter_t, the symbols, lab_t's "Try in game" offsets) 
 build a chain override (load 5: chainlab.json's entry of the fighter, the chain rules, the ROM's retime rows).
 The Lab build is never the Player's game: it lives under rom/ behind the Oros login with the rest of the Lab.
 
-The Character Lab SHELL + PACKS (docs/feedback.md "Character Lab: shell and packs"; the Fighter Lab's "Try in game" plays
+The Character Lab SHELL + PACKS (docs/character_lab.md "Character Lab: shell and packs"; the Fighter Lab's "Try in game" plays
 them, the same files the Player downloads from the catalogue): the page fetches the bytes from the catalogue
 (/brawler/lab/dl/...) and needs, beside them, what a .neo / .pack does not say:
   OUT/rom/shell-<engine>.json   the shell build's layout (harness._layout of build_shell), its lab.json (the roster

@@ -50,7 +50,7 @@
       };
       const general = { id: 'general', title: 'Anything else for this topic?', options: [] };
       parts.push(h('section', { class: 'dset' }, h('h2', { text: set.title }), h('p', { text: set.intro || '' }),
-        set.fighter ? h('p', {}, h('a', { href: 'review.html?f=' + set.fighter + '&q=' + set.id, text: 'Answer these with the clips (recommended)' })) : null, status,
+        set.fighter ? h('p', {}, h('a', { href: 'lab.html?tab=review&f=' + set.fighter + '&q=' + set.id, text: 'Answer these with the clips (recommended)' })) : null, status,
         set.sections.map(s => [h('h3', { class: 'dsec', text: s.title }), s.questions.map(card)]), card(general)));
       count();
     }
@@ -58,7 +58,5 @@
   }
   tab.onclick = () => window.labTab('decide');
   window.addEventListener('labtab', e => { if (e.detail === 'decide') load(); });
-  const deep = () => { if (location.hash === '#decide') { window.labTab('decide'); load(); } };
-  window.addEventListener('hashchange', deep);
-  if (document.readyState === 'complete') setTimeout(deep, 300); else window.addEventListener('load', () => setTimeout(deep, 300));
+  // (game.html#decide opens this tab: game.js)
 })();

@@ -10,7 +10,7 @@
 // "Ask in the Workshop". Pre-filled with what the game plays now (review/<fighter>_arb.json, tools/brawler/arbitrage.py).
 // Answers: the decisions store, set "<fighter>-arb", one id per slot: choice 1 = his (pieces "anim-<hex>" in order,
 // knobs); id "presses" = the chain's length (its note = the count). "Ship to game" (admin): POST lab/ship/<f> (the ship
-// queue, docs/feedback.md "Character Lab") naming the live config's revision: the compiler builds, checks every slot and
+// queue, docs/character_lab.md "Character Lab") naming the live config's revision: the compiler builds, checks every slot and
 // publishes, or says why it refused.
 // Renamed slots: an answer saved under an old id is read under its new one while the new id has none (OLD_IDS).
 // Piece ids (Workshop, review/<fighter>_workshop.json, tools/brawler/piece_ids.py): the picker offers the animations
@@ -22,6 +22,9 @@
 // with "Try this sheet" / "Send to Player" (the TRY blob's knob rows) and ship through arb_compile.py (game.json
 // roster[].knobs). An overridden knob: bold value, "changed from N", solid border, "Back to default"; "Reset all knobs"
 // per piece, per slot and for the whole sheet.
+// CHAIN TIMING (the Chain Lab's chain tool folded in, 2026-10-10): under the chain's presses, per press its hit-stop and
+// its move's segments (0.5x-2x) as knobs; saved as "chain_timing", sent in the chain override (load 5), shipped by
+// arb_compile.py (game.json chain.hitstop + retime). See drawTiming.
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
   const root = document.getElementById('arb');
@@ -91,6 +94,7 @@
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json().catch(() => ({}));
     ans[id] = j.answer || Object.assign({}, ans[id], body);
+    if (id === 'presses' || /^a\d$/.test(id)) drawTiming();   // the chain's moves changed: its timing knobs follow
     autoLive();
   }
   // every saved change goes live to the Player by itself (Bruno 2026-10-10: "the Assembly is read in real time by the lab";
@@ -195,7 +199,7 @@
     return box;
   }
 
-  // ---- the chain: its presses + add / remove ----
+  // ---- the chain: its presses + add / remove, then its timing ----
   function chainBlock() {
     const wrap = h('div', {});
     const draw = () => {
@@ -207,10 +211,83 @@
       wrap.replaceChildren(...range(n).map(i => slotRow(press(i + 1))),
         h('div', { class: 'count' }, h('span', { text: `${n} presses` + (n !== N0 ? ` (the ${NOW.archetype} archetype has ${N0})` : '') }),
           n < 8 ? h('button', { type: 'button', text: '+ add a press', onclick: () => setN(n + 1) }) : null,
-          n > 1 ? h('button', { type: 'button', text: 'Remove press ' + n, onclick: () => setN(n - 1) }) : null));
+          n > 1 ? h('button', { type: 'button', text: 'Remove press ' + n, onclick: () => setN(n - 1) }) : null),
+        timingBox);
     };
     draw();
     return wrap;
+  }
+
+  // ---- the chain's TIMING (the old Chain Lab's chain tool folded in, Bruno 2026-10-10): per press its hit-stop and its
+  // move's segments (startup, each active window, the recovery after it) retimed 0.5x-2x of the source (gretime_t), as
+  // knobs (knobui.js: the default = what the game plays now, an override marked, "Back to default"). The plan (tryit.js
+  // TryIt.plan: his pack's / Lab build's chain data) gives each press's move, its source segments and the ROM's values.
+  // Saved as the answer "chain_timing" of <f>-arb, its note = JSON {hitstop: {a1..aN: frames}, retime: {move: [frames
+  // per segment]}} (overrides only); it rides in the sheet (sheetNow().timing) to Try in game / the live config (the chain
+  // override, load 5: hit-stops in the tree, the retime rows after it) and ships with arb_compile.py (game.json roster
+  // chain.hitstop + retime). A move pressed twice has one timing (retime is per move: every use of it takes it).
+  const TID = 'chain_timing';
+  const timingOf = () => { const a = ans[TID]; if (!(a && a.choice === 1 && a.note)) return {}; try { const t = JSON.parse(a.note); return t && typeof t === 'object' ? t : {}; } catch (e) { return {}; } };
+  const timingNow = () => { const t = timingOf(), hs = t.hitstop || {}, rt = t.retime || {}; return Object.keys(hs).length || Object.keys(rt).length ? { hitstop: hs, retime: rt } : null; };
+  const timingBox = h('div', { class: 'timing', role: 'group', 'aria-label': 'Chain timing' });
+  const segName = (i, n) => i === 0 ? 'Startup' : (i % 2 ? 'Active' : 'Recovery') + (n > 3 ? ' ' + Math.ceil(i / 2) : '');
+  let timingSeq = 0, timingT = null;
+  async function saveTiming(t, msg) {
+    const empty = !Object.keys(t.hitstop || {}).length && !Object.keys(t.retime || {}).length;
+    msg.textContent = 'Saving…';
+    try {
+      await post(TID, empty ? { choice: null, label: null, note: null }
+                            : { question: `${D.display}: chain timing`, choice: 1, label: 'chain timing', note: JSON.stringify(t) });
+      msg.textContent = empty ? 'Saved: every press at the game\'s timing' : 'Saved';
+    } catch (e) { msg.textContent = 'Not saved (' + e.message + '): try again'; }
+  }
+  async function drawTiming() {
+    const seq = ++timingSeq;
+    if (!window.TryIt || !window.TryIt.plan) { timingBox.replaceChildren(h('p', { class: 'empty', text: 'Chain timing: this page has no game data (tryit.js).' })); return; }
+    const sh = sheetNow(), P = await window.TryIt.plan(f, sh.chain);
+    if (seq !== timingSeq) return;                           // (a newer draw is on its way)
+    const head = h('h3', { text: 'Chain timing' });
+    if (!P.spec) { timingBox.replaceChildren(head, h('p', { class: 'empty', text: 'Chain timing needs his pack or his Lab build: ' + P.why + '.' })); return; }
+    const t = timingOf(), msg = h('span', { class: 'saved', 'aria-live': 'polite' });
+    const reset = h('button', { type: 'button', text: 'Reset the chain timing', hidden: timingNow() ? null : '' });
+    const panels = P.moves.map((m, k) => {
+      const key = 'a' + (k + 1), S = P.segs[m] || null, D0 = S ? P.defaults.retime[m] : null;
+      const defs = [{ id: 'hitstop', name: 'Hit-stop (both freeze on contact)', unit: 'frames', default: P.defaults.hitstop[k], min: 1, max: 60, step: 1 }];
+      if (S) S.forEach((s, i) => { if (!s) return; const lo = Math.max(1, Math.ceil(s / 2)), hi = Math.max(1, 2 * s);
+        defs.push({ id: 's' + i, name: `${segName(i, S.length)} (source ${s})`, unit: 'frames', default: D0[i], min: Math.min(lo, D0[i]), max: Math.max(hi, D0[i]), step: 1 }); });
+      const vals = {};
+      if (Number.isInteger((t.hitstop || {})[key])) vals.hitstop = t.hitstop[key];
+      const T = (t.retime || {})[m];
+      if (S && Array.isArray(T) && T.length === S.length) T.forEach((v, i) => { if (S[i] && v !== D0[i]) vals['s' + i] = v; });
+      // folded per press (a fast chain is 5 presses x 4-6 knobs): the summary says the press's timing and whether it
+      // is changed, in words; a changed press starts open
+      const sumText = v => {
+        const hs = 'hitstop' in v ? v.hitstop : P.defaults.hitstop[k];
+        const T = S ? D0.map((d, i) => ('s' + i) in v ? v['s' + i] : d) : null;
+        return `Press ${k + 1}: ${m} · hit-stop ${hs} · ` + (T ? `${T.filter((x, i) => S[i]).join(' / ')} = ${T.reduce((a, b) => a + b, 0)} frames` : 'not retimed (no segments)') +
+          (k === P.N - 1 ? ' · the last hit (its hit-stop is every finisher\'s)' : '') + (Object.keys(v).length ? ' · CHANGED' : ' · as the game');
+      };
+      const summary = h('summary', { text: sumText(vals) });
+      const panel = window.KnobUI.panel({ defs, values: vals, label: `Press ${k + 1}: ${m}` + (S ? '' : ' (no segments: only its hit-stop)'), onChange: v => {
+        summary.textContent = sumText(v);
+        const x = timingOf(); x.hitstop = Object.assign({}, x.hitstop); x.retime = Object.assign({}, x.retime);
+        if ('hitstop' in v) x.hitstop[key] = v.hitstop; else delete x.hitstop[key];
+        if (S) { const nt = D0.map((d, i) => ('s' + i) in v ? v['s' + i] : d); if (nt.some((y, i) => y !== D0[i])) x.retime[m] = nt; else delete x.retime[m]; }
+        if (!Object.keys(x.hitstop).length) delete x.hitstop;
+        if (!Object.keys(x.retime).length) delete x.retime;
+        ans[TID] = Object.assign({}, ans[TID], { choice: 1, note: JSON.stringify(x) });   // (now: the next panel reads it)
+        reset.hidden = !timingNow();
+        clearTimeout(timingT); msg.textContent = '…';
+        timingT = setTimeout(async () => { await saveTiming(timingOf(), msg); if (P.moves.filter(y => y === m).length > 1) drawTiming(); }, 500);
+      } });
+      return h('details', { class: 'tpress', 'data-press': key, open: Object.keys(vals).length ? '' : null }, summary, panel);
+    });
+    reset.onclick = async () => { ans[TID] = {}; await saveTiming({}, msg); drawTiming(); };
+    timingBox.replaceChildren(head,
+      h('p', { class: 'about', text: `Per press (tap one to open it): the hit-stop, and the move's segments from 0.5x to 2x of the source (every use of the move takes them). The defaults are what the game plays now (build ${NOW.version}).` +
+        (P.why ? ` Your presses cannot play as a chain (${P.why}): this is the game's own chain, timed.` : '') }),
+      ...panels, h('div', { class: 'tryrow' }, reset, msg));
+    window.arbTiming = { moves: P.moves, N: P.N, defaults: P.defaults, why: P.why };
   }
 
   // ---- the picker: every animation of the dictionary, attacks first ----
@@ -315,13 +392,13 @@
       const k = knobsOf(d.id); if (Object.keys(k).length) knobs[d.id] = k;
     }
     const pr = range(presses()).map(i => 'a' + (i + 1));
-    return { slots, knobs, chain: pr.some(mine) ? pr.map(id => stateOf(id).pieces) : null };
+    return { slots, knobs, chain: pr.some(mine) ? pr.map(id => stateOf(id).pieces) : null, timing: timingNow() };
   };
   const tryBtn = () => window.TryIt ? window.TryIt.button(f, 'Try this sheet in game', () => window.TryIt.sheet(f, sheetNow()), () => ({ sheet: sheetNow() })) : null;
   window.arbSheet = sheetNow;
   const out = [h('h1', { text: `${D.display}: arbitration sheet` }),
-    h('p', { class: 'intro', text: `What each input plays, section by section: chain, alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, tune a decoded piece's knobs; a question goes to the Workshop. Everything saves as you go. Tap a clip for ¼ speed.` }),
-    h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' })),
+    h('p', { class: 'intro', text: `What each input plays, section by section: chain (and its timing), alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, tune a decoded piece's knobs; a question goes to the Workshop. Everything saves as you go. Tap a clip for ¼ speed.` }),
+    h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'lab.html?tab=dictionary&f=' + f, text: 'Animation dictionary' }), h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Fighter review' })),
     window.TryIt ? window.TryIt.liveLine(f) : null];
   out.push(h('div', { class: 'tryrow' }, tryBtn(), h('span', { class: 'about', text: 'Your answers, slot by slot, in the game now (the slots still "now" play the game\'s own move); play them on their own inputs.' })));
   out.push(h('div', { class: 'tryrow' }, h('span', { class: 'about', text: 'Live: every change is sent to the Player\'s Character lab by itself (about 2 s later; admin only).' }), liveMsg));
@@ -341,6 +418,7 @@
   }
   out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'When the whole sheet is how you want it (no agent: the compiler links every pick and knob, builds, checks each slot in the game and publishes, or refuses and says why):' }), shipBtn, shipMsg));
   root.replaceChildren(...out.flat().filter(x => x));
+  drawTiming();
   // on open: answers newer than the live config (or no live config yet) go live at once — a sheet edited before the
   // auto-send existed, or while the page was closed, still reaches the Player (2026-10-10)
   (async () => {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The Character Lab's live fighter configs on the VPS (docs/feedback.md "Character Lab"; the feedback service
+"""The Character Lab's live fighter configs on the VPS (docs/character_lab.md "Character Lab"; the feedback service
 tools/feedback/server.py, its /api/lab/ over ssh on localhost = authenticated by the ssh key, user "ssh").
 
 The VPS is the source of truth while Bruno tunes a fighter in the web Assembly pages (arbitrage / workshop / the Chain

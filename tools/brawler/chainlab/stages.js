@@ -41,9 +41,11 @@
   const save = () => { try { localStorage.setItem(DRAFT, JSON.stringify(stages)); } catch (e) { /* private window */ } };
 
   // ---- tabs -------------------------------------------------------------------------------------------------------------
-  // three tabs share the game column: the Chain Lab (its tree and readout), Stages, Enemies (enemies.js)
+  // the Game tools' tabs (game.html, game.js): Stages, Enemies (enemies.js) ... share the game column; "chain" is no tab
+  // any more (the old Chain Lab tab): the route-tree editor and its readout, opened by the Enemies tab's move-list editor
   let active = false;
-  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']], chars: ['tabChars', ['charcol']], select: ['tabSelect', ['selcol']], feedback: ['tabFeedback', ['fbcol']], quirks: ['tabQuirks', ['quirkcol']], expose: ['tabExpose', ['exposecol']], decide: ['tabDecide', ['decidecol']] };
+  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']], chars: ['tabChars', ['charcol']], select: ['tabSelect', ['selcol']], feedback: ['tabFeedback', ['fbcol']], quirks: ['tabQuirks', ['quirkcol']], expose: ['tabExpose', ['exposecol']], decide: ['tabDecide', ['decidecol']],
+                 impacts: ['tabImpacts', ['impactcol']], sounds: ['tabSounds', ['soundcol']] };
   window.labTab = name => {
     for (const [k, [b, els]] of Object.entries(TABS)) {
       if ($(b)) $(b).classList.toggle('on', k === name);
@@ -54,9 +56,7 @@
     window.dispatchEvent(new CustomEvent('labtab', { detail: name }));
     CLAB.draw();
   };
-  function tab(on) { window.labTab(on ? 'stages' : 'chain'); }
-  $('tabChain').onclick = () => tab(false);
-  $('tabStages').onclick = () => tab(true);
+  $('tabStages').onclick = () => window.labTab('stages');
   const PHASES = ['', 'GO', 'boss', 'boss beaten', 'stage clear'];
   const MODES = ['select', 'fight', 'title', 'boss unlocked', 'ending'];
   window.labStatus = () => {
@@ -348,5 +348,5 @@
       edited();
     } catch (e) { showErrors(['Import: ' + e.message]); }
   }
-  window.stagesTab = { get stages() { return stages; }, set stages(v) { stages = v; edited(); }, play, pack: packNow, select(k) { si = k; render(); }, tab, D };
+  window.stagesTab = { get stages() { return stages; }, set stages(v) { stages = v; edited(); }, play, pack: packNow, select(k) { si = k; render(); }, tab: on => window.labTab(on ? 'stages' : 'chain'), D };
 })();

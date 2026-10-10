@@ -2,51 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Impact Sounds</title>
-<style>
-/* The impact sound library (impacts.html, behind the Oros login like the Lab): every hit / impact sound of KOF94, KOF95,
-   KOF96 and Kizuna Encounter, decoded from their ROMs (tools/brawler/impacts.py -> impacts/impacts.json + impacts/wav/).
-   One card per distinct sample: Play, Keep / Discard (decisions store, set "impact-sounds"), a note with the mic.
-   E-ink: black on white, solid borders, every state said in words and marks (never colour alone). */
-:root { --line: 2px solid #000; color-scheme: light; }
-html, body { background: #fff; color: #000; }
-body { margin: 0; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 18px 60px; }
-main { max-width: 760px; margin: 0 auto; }
-h1 { font-size: 24px; margin: 4px 0 6px; }
-.intro { margin: 0 0 10px; font-size: 15px; }
-.status { border: var(--line); display: inline-block; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 14px; }
-.filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
-.filters label { display: flex; flex-direction: column; font-size: 13px; font-weight: 700; flex: 1 1 150px; min-width: 0; }
-.filters select { font: inherit; font-size: 16px; padding: 7px; border: var(--line); background: #fff; color: #000; border-radius: 0; }
-.shown { font-size: 14px; margin: 6px 0 0; }
-.card { border: var(--line); padding: 10px; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
-.card h2 { margin: 0; font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
-.card .k98 { font-size: 14px; margin: 0; }
-.facts { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 10px; font-size: 14px; }
-.facts dt { font-weight: 700; }
-.facts dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 13px; }
-.uses { font-size: 14px; margin: 0; padding-left: 18px; }
-.uses li { overflow-wrap: anywhere; }
-.uses .w { font-family: ui-monospace, monospace; font-size: 12px; }
-details > summary { cursor: pointer; font-size: 14px; font-weight: 700; }
-.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
-button { font: inherit; font-size: 16px; padding: 8px 12px; background: #fff; color: #000; border: var(--line); border-radius: 0; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
-button.play { font-weight: 700; }
-button.play[data-on="1"] { background: #000; color: #fff; }
-button.play svg { width: 16px; height: 16px; fill: currentColor; }
-button.judge { flex: 1 1 120px; justify-content: center; }
-button.judge[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
-button.judge .mark { font-family: ui-monospace, monospace; }
-.saved { font-family: ui-monospace, monospace; font-size: 13px; min-height: 1em; }
-textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
-button:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
-[hidden] { display: none !important; }
-</style>
+<!-- The old URL: the Game tools' Impact sounds tab (game.html#impacts, impacts.js; Bruno 2026-10-10). -->
+<script>location.replace('game.html' + location.search + '#impacts');</script>
 </head>
-<body>
-<main id="col"><p>Loading…</p></main>
-<script src="micnote.js"></script>
-<script src="impacts.js"></script>
+<body style="background:#fff;color:#000;font:17px system-ui,sans-serif;padding:16px">
+<p>This page moved: <a href="game.html#impacts">the Game tools, Impact sounds tab</a>.</p>
 </body>
 </html>

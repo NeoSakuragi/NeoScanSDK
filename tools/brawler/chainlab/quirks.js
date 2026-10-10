@@ -27,7 +27,5 @@
   }
   tab.onclick = () => window.labTab('quirks');
   window.addEventListener('labtab', e => { if (e.detail === 'quirks') load(); });
-  const deep = () => { if (location.hash === '#quirks') { window.labTab('quirks'); load(); } };
-  window.addEventListener('hashchange', deep);
-  if (document.readyState === 'complete') setTimeout(deep, 300); else window.addEventListener('load', () => setTimeout(deep, 300));
+  // (game.html#quirks opens this tab: game.js)
 })();

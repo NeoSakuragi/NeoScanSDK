@@ -352,45 +352,8 @@ At boot `route_tab[]` (RAM) points at the ROM trees; the lab mailbox (`lab_t lab
 while the game runs. Terry: Bruno's 10 routes re-authored for one button (close jab rush cA A A A, cA A ↓A, cA A ←A →A,
 cA A ↘A ↓C, the jump-cancel cA A B A, cA →A A A, cA →A ↓A C, far kick chain A A A, A A →A, A →A →C, low line ↓A x4).
 
-**Chain Lab** (`tools/brawler/chainlab/`, live at canneji.duckdns.org/brawler-lab/ behind the Oros login): the Geolith core
-compiled to WebAssembly (`build_wasm.sh`, emsdk in /data/emsdk; `web_core.c`) runs this ROM with SNK's MVS BIOS in the
-page; the page edits a fighter's tree, "Build" writes it into the game's RAM (`lab.buf`, live), and the player plays it on
-a dummy. Training mode (main.c "Chain Lab training", entered when the page writes `lab.req = 1`, so the release ROM is
-the lab's): P1 against one dummy that never attacks and gets up, no waves, camera fixed, the last combo's hits / damage on
-the fix layer. P1's route steps are logged in `lab.ev[]` (start: from neutral / after the move ended / cancel / chain
-window; hit; end) for the page's per-link readout. `labdrive.py` drives the same mailbox from the desktop core (harness);
-`proof.sh` plays Terry's AAB→A route in both cores and compares the traces (identical); `deploy_vps.sh` publishes. Enemy test (`lab.req = 3`) and
-data packs (`lab.load = 3 / 4`): see "Data" above.
-
-**Practice mode** (2026-10-10; Lab builds only: `make LAB_FIGHTER=<f>` / `LAB_SHELL=1` compile with `-DLAB_BUILD=1`, the
-Player's build has none of it, byte-identical ROM; main.c "PRACTICE MODE"): a Lab build boots straight into the training
-(P1 = its LAB fighter, stage 1, the dummies) and START opens a menu on the fix layer, the game paused (stick: line /
-value, A set, B or START close): FURY GAUGE game / full / empty, MAX READY (P1's life held at `meter.low`: the red bar,
-gauge and drive full), DRIVE normal / infinite, P1 LIFE refill / normal / low, DUMMIES 0-4, DUMMY MODE stand / AI on /
-attack (walk in, A), WAVES (stage 1's waves in turn, after the dummies' slots), DUMMY LIFE infinite / normal, HIT BOXES,
-RESET POSITIONS, APPLY CONFIG NOW (`lab.tnow`), EXIT. The settings live in the RAM block `prac` (fighter.h `prac_t`: "PRC1"
-+ one byte a setting; symbol in the build's rom.elf, in the Try-in-game manifest's `syms`; `.noinit`: kept across a reset
-and a pack swap) that the Player and the page read / write too. Proof: `tools/brawler/practice_proof.py [f]` (screenshots
-in /data/tmp/practice).
-
-**The live config / "Try in game"** (2026-10-10; fighter.c "Lab: try in game", `chainlab/tryit.js`): P1 plays **lab
-entries** back to back: an animation `$NN` of the fighter's dictionary (u16 < `0x1000`; needs a build with his LAB special,
-below), `0x1000 | k` = special k of his pool (an S- piece), `0x2000 | t` = his throw BT_* t (a T- piece; a grab slot's
-first entry only). One **TRY blob**, version 1, carries the whole config: the **queue** (A from neutral plays it, `LQ_NOW`
-once at once, `LQ_LOOP` again from its start) and the **arbitration slots** (27, `LS_*` = arbitrage.js ids: finishers + a
-direction, Blitz, air Blitz, C specials, air specials, air normals, the hold's hit / finisher / throws, fury, MAX: the
-slot's press plays its entries instead of the game's move, as a special of the slot's role, nothing paid). Bytes
-(big-endian): `[0] 'L' [1] 'T' [2] 1 [3] fighter (bm_chars index) [4] LQ_* [5] qn [6] ns [7] 0`, qn queue entries (u16),
-then ns records `[slot][n <= 8][n entries]`; at most 576 bytes (`TRY_MAX`); a slot not named = the game's own, qn 0 = no
-queue. ONE encoder: `chainlab/lab.js encodeTry` (the pages, Node on the server, whatever feeds the Player). The writer
-puts it in `lab.tblob`, `lab.load = 6`: checked at once (`lab.lstat` 0x80 | n refused, nothing changed), else PENDING
-(`lstat` 2) and **applied the next time P1 is in neutral** (standing / walking, never mid-move nor in a hit stun:
-`lstat` 1); `lab.tnow = 1` with the load = **apply now** (the next tick whatever P1 does; the move playing finishes,
-nothing resets). `lab.cur` / `lab.qpos`: the entry playing. The export option `export_bm.py --lab F` (`make
-LAB_FIGHTER=F` -> `lab-F.neo`, `build_lab_F/`) puts every animation of F's dictionary (`arb_pieces/F.json`) into one more
-special of his pool (`LAB`: one program block per animation, `P_LANIM`), his complete animation block; `bm_lab` names it
-(0xFF in every other build). `tryit_site.py` copies such builds into the Lab site's `rom/` for the web preview;
-`tryit_proof_node.js` / `tryit_proof.js` (headless Chrome) are the proofs.
+**The Brawler Lab** (the web pages, the training mode, the practice mode, "Try in game" and the live config the
+pages and the Player write into the game's `lab` mailbox): **docs/character_lab.md**.
 
 ## Timing: KOF's frames, and a speed (2026-10-05)
 The animation player (fighter.c "animation player") shows a step for KOF's ticks + 1 frames, the first one too (until

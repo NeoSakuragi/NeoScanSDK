@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish the Character Lab's shell build and character packs to the VPS catalogue (docs/feedback.md "Character Lab").
+"""Publish the Character Lab's shell build and character packs to the VPS catalogue (docs/character_lab.md "Character Lab").
 
 The file goes to /data/brawler/lab/incoming/ by scp, then the feedback service (over ssh on localhost: /api/lab/publish)
 checks its sha256 and moves it into place: shell/<version><ext>, packs/<f>/<version>.pack, faces/<f>.png. The player's

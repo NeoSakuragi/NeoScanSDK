@@ -1,9 +1,9 @@
-// impacts.html: the impact sound library (impacts/impacts.json, tools/brawler/impacts.py). One card per distinct sample;
+// The Game tools' "Impact sounds" tab (game.html#impacts, loaded by game.js; impacts.html redirects there): the impact sound library (impacts/impacts.json, tools/brawler/impacts.py). One card per distinct sample;
 // Keep / Discard saved to the decisions store (POST feedback-api/decision, set "impact-sounds", id = the sample's id,
 // choice "keep" / "discard"), the note the same way (micnote.js). Filters: game, judged state. One AudioContext,
 // created and resumed on the first tap (Android Chrome), one sound at a time.
 (async function () {
-  const col = document.getElementById('col');
+  const col = document.getElementById('impactcol');
   const SET = 'impact-sounds', API = 'feedback-api/';
   const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c); return e; };
   let J, ans = {};

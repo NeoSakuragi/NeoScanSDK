@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The Brawler Lab WORKSHOP (Bruno 2026-10-10: part 1 of the Lab, the token-bound side: conversation, unlock requests,
-decoding; part 2 ASSEMBLY = the arbitration sheet + arb_compile.py, zero tokens). Page: brawler-lab/workshop.html?f=<f>
+decoding; part 2 ASSEMBLY = the arbitration sheet + arb_compile.py, zero tokens). Page: the Fighter Lab's Workshop tab, brawler-lab/lab.html?f=<f>&tab=workshop
 (chainlab/workshop.html + workshop.js), the fighter's catalogue:
 
   Specials    every special version in the fighter's piece library (arb_pieces/<f>.json "specials": the dictionary's

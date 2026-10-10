@@ -3,8 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Brawler Lab</title>
+<title>Brawler Lab: Game tools</title>
 <style>
+/* The GAME TOOLS (Bruno 2026-10-10: one front page = the Fighter Lab, lab.html / index.html; the tools that are not one
+   fighter's grouped here, moved, not rewritten): the game in the page (app.js: core.wasm + lab.js + gameplay.js) and its
+   tabs Stages, Enemies, Characters, Select screen, Feedback, Oldies quirks, Exposé, Decisions, Impact sounds, Hit sounds
+   (game.js: the hash routing #stages ... #sounds, the lazy-loaded tabs, the game column hidden on the reading tabs). The
+   old Chain Lab tab is gone: its chain tool is the Assembly's chain section (per press timing knobs), its route-tree
+   editor (#treecol, the readout) stays only as the Enemies tab's move-list editor (enemies.js editTree). */
 :root { --ink: #000; --paper: #fff; --soft: #f2f2f2; --mid: #666; --line: 2px solid #000; --thin: 1px solid #000; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -302,14 +308,52 @@ table.fb td.txt { min-width: 260px; }
 #fbcol .mono { font-family: ui-monospace, monospace; font-size: 12.5px; }
 table.fb audio { display: block; margin-top: 4px; max-width: 220px; }
 ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-monospace, monospace; }
+/* ---- Impact sounds (impacts.js, impacts.html's rules) and Hit sounds (sounds.js, sounds.html's rules), scoped ---- */
+#impactcol, #soundcol { padding: 12px 16px; min-width: 0; grid-column: 1 / -1; max-width: 792px; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; }
+#impactcol h1, #soundcol h1 { font-size: 24px; margin: 4px 0 6px; }
+#impactcol .intro, #soundcol .intro { margin: 0 0 10px; font-size: 15px; }
+#impactcol .status, #soundcol .status { border: var(--line); display: inline-block; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 14px; }
+#impactcol .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+#impactcol .filters label { display: flex; flex-direction: column; font-size: 13px; font-weight: 700; flex: 1 1 150px; min-width: 0; }
+#impactcol .filters select { font: inherit; font-size: 16px; padding: 7px; border: var(--line); }
+#impactcol .shown { font-size: 14px; margin: 6px 0 0; }
+#impactcol .card { border: var(--line); padding: 10px; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; width: auto; height: auto; position: static; font-size: inherit; line-height: inherit; }
+#impactcol .card h2 { margin: 0; font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
+#impactcol .card .k98 { font-size: 14px; margin: 0; }
+#impactcol .facts { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 10px; font-size: 14px; }
+#impactcol .facts dt { font-weight: 700; }
+#impactcol .facts dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 13px; }
+#impactcol .uses { font-size: 14px; margin: 0; padding-left: 18px; }
+#impactcol .uses li { overflow-wrap: anywhere; }
+#impactcol .uses .w { font-family: ui-monospace, monospace; font-size: 12px; }
+#impactcol details > summary { cursor: pointer; font-size: 14px; font-weight: 700; }
+#impactcol .row, #soundcol .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; margin: 0; }
+#impactcol button { font: inherit; font-size: 16px; padding: 8px 12px; border: var(--line); display: inline-flex; gap: 6px; align-items: center; min-height: 0; }
+#impactcol button.play, #soundcol button.play { font-weight: 700; display: inline-flex; gap: 6px; align-items: center; }
+#soundcol button.play { font: inherit; font-size: 15px; font-weight: 700; padding: 8px 12px; }
+#impactcol button.play[data-on="1"], #soundcol button.play[data-on="1"] { background: #000; color: #fff; }
+#impactcol button.play svg, #soundcol button.play svg { width: 16px; height: 16px; fill: currentColor; }
+#impactcol button.judge { flex: 1 1 120px; justify-content: center; }
+#impactcol button.judge[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
+#impactcol button.judge .mark { font-family: ui-monospace, monospace; }
+#impactcol .saved, #soundcol .saved { font-family: ui-monospace, monospace; font-size: 13px; min-height: 1em; }
+#impactcol textarea, #soundcol textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
+#soundcol h2.grp { font-size: 14px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 3px solid #000; padding-bottom: 3px; margin: 26px 0 4px; }
+#soundcol h3.sub { font-size: 16px; margin: 16px 0 0; }
+#soundcol .hit { border: var(--line); padding: 10px; margin: 10px 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+#soundcol .hit img { box-sizing: border-box; width: 100%; height: auto; max-width: 400px; image-rendering: pixelated; border: 1px solid #000; display: block; }
+#soundcol .hit h4 { margin: 0; font-size: 18px; line-height: 1.25; }
+#soundcol .hit .meta { margin: 0; font-size: 14px; }
+#soundcol .row select { flex: 1 1 200px; min-width: 0; font: inherit; font-size: 16px; padding: 8px; border: var(--line); }
+#soundcol .cur { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 15px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Brawler Lab</h1>
-  <span class="row" style="margin:0"><a href="lab.html" style="font-weight:700;border:2px solid #000;padding:3px 9px;text-decoration:none;color:#000">▶ The Fighter Lab: the whole cast (Info · Workshop · Assembly)</a> — <a href="impacts.html">Impact sounds</a> (the Player: ☰ → Character lab). The tabs below are the older tools.</span>
-  <nav class="tabs"><button id="tabChain" class="on">Chain Lab</button><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabSelect">Select screen</button><button id="tabFeedback">Feedback</button><button id="tabQuirks">Oldies quirks</button><button id="tabExpose">Classic Brawlers' Exposé</button><button id="tabDecide">Decisions</button></nav>
-  <span id="clhead" class="row" style="margin:0">
+  <h1>Brawler Lab · Game tools</h1>
+  <span class="row" style="margin:0"><a href="lab.html" style="font-weight:700;border:2px solid #000;padding:3px 9px;text-decoration:none;color:#000">← The Fighter Lab: the cast (Info · Dictionary · Workshop · Assembly · Review)</a> <a href="howto.html">How to</a></span>
+  <nav class="tabs"><button id="tabStages">Stages</button><button id="tabEnemies">Enemies</button><button id="tabChars">Characters</button><button id="tabSelect">Select screen</button><button id="tabFeedback">Feedback</button><button id="tabQuirks">Oldies quirks</button><button id="tabExpose">Classic Brawlers' Exposé</button><button id="tabDecide">Decisions</button><button id="tabImpacts">Impact sounds</button><button id="tabSounds">Hit sounds</button></nav>
+  <span id="clhead" class="row" style="margin:0" hidden>
   <label>Fighter <select id="fighter"></select></label>
   <label>Dummy <select id="dummy"></select></label>
   <button id="btnStart">Start training</button>
@@ -348,12 +392,12 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
       <kbd>.</kbd> step a frame (paused). Gamepad: d-pad or left stick; bottom / right / left / top face buttons = A / B / C / D, Start = START.
       Down = toward the camera (the beat 'em up's depth), forward = the way the fighter faces.
     </div>
-    <div id="readout">
+    <div id="readout" hidden>
       <h2><span>Last chain, link by link</span><button id="btnClear">Clear</button></h2>
       <div id="readbody"><div class="empty">Play a route on the dummy: each link shows here.</div></div>
     </div>
   </section>
-  <section id="treecol">
+  <section id="treecol" hidden>
     <div class="row">
       <button id="btnBuild">Build: put this tree in the game</button>
       <button id="btnRom">The fighter's own tree</button>
@@ -375,13 +419,13 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
   <section id="quirkcol" hidden></section>
   <section id="exposecol" hidden></section>
   <section id="decidecol" hidden></section>
+  <section id="impactcol" hidden></section>
+  <section id="soundcol" hidden></section>
 </main>
 <script src="lab.js"></script>
 <script src="core.js"></script>
 <script src="gameplay.js"></script>
 <script src="app.js"></script>
-<script src="tryit.js"></script>
-<script src="chaintool.js"></script>
 <script src="stagepack.js"></script>
 <script src="stages.js"></script>
 <script src="enemypack.js"></script>
@@ -395,5 +439,6 @@ ol.routes { margin: 0; padding-left: 24px; font-size: 13px; font-family: ui-mono
 <script src="expose.js"></script>
 <script src="micnote.js"></script>
 <script src="decide.js"></script>
+<script src="game.js"></script>
 </body>
 </html>

@@ -22,20 +22,6 @@ from move_images import Rom
 import routes, move_images                      # the move picker's pictures: each move's impact frame(s), from the ROM's tables
 lab = json.load(open(os.path.join(game, 'build', 'chainlab.json')))
 lab['pics'] = move_images.move_images(game, out, [f['name'] for f in lab['fighters']], routes.MOVE_NAMES)
-# the chain tool (revamp 5, chaintool.js): the chain core's rules (game.json chain), the ROM's retime rows (build/retime.json:
-# the RAM table the tool writes keeps the other fighters' rows) and each fighter's piece catalogue (pieces.py: tags, appeal,
-# reach, the 1C segments; the attacker's travel to the contact frame for the spacing readout)
-import pieces as PC
-G0 = json.load(open(os.path.join(game, 'game.json')))
-lab['chain'] = {k: v for k, v in G0['chain'].items() if k != 'about'}
-lab['retime_rom'] = json.load(open(os.path.join(game, 'build', 'retime.json'))) if os.path.exists(os.path.join(game, 'build', 'retime.json')) else []
-_rom = Rom(os.path.join(game, 'build'))
-for f in lab['fighters']:
-    F = PC.Fighter(game, f['name'], _rom, lab, G0)
-    cat = PC.catalogue(F)
-    f['pieces'] = [dict({k: p[k] for k in ('id', 'kind', 'move', 'label', 'limb', 'height', 'weight', 'reaction', 'effect', 'reach', 'segs',
-                                          'startup', 'active', 'recovery', 'hits', 'damage', 'push', 'appeal') if k in p},
-                        travel=p['frames'][min(p['startup'], len(p['frames']) - 1)]['x'] if p['frames'] else 0) for p in cat]
 json.dump(lab, open(os.path.join(out, 'chainlab.json'), 'w'), ensure_ascii=False)
 # the Stages tab: the campaign's stages and the pack's first part (build_tables.py labstages), the stage art in the ROM
 # as strips (build/stage<n>.png, make_stage_ra.py), the extracted backgrounds that need a ROM build as thumbnails, faces
@@ -110,7 +96,18 @@ json.dump(chars, open(os.path.join(out, 'chars.json'), 'w'))
 # the Select screen tab: the build's select screen as data (select_images.py: the ROM's pictures, the fix layer from our
 # emulator, the pose candidates above as palette indices) for selectrender.js
 json.dump(select_images.select_data(game, poses), open(os.path.join(out, 'select.json'), 'w'))
-for f in ('index.html', 'app.js', 'chaintool.js', 'lab.js', 'gameplay.js', 'tryit.js', 'knobui.js', 'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'feedback.js', 'quirks.js', 'expose.js', 'micnote.js', 'decide.js', 'decisions.json', 'decide.html', 'review.html', 'review.js', 'anims.html', 'anims.js', 'anims_core.js', 'arbitrage.html', 'arbitrage.js', 'workshop.html', 'workshop.js', 'lab.html', 'fighterlab.js', 'sounds.html', 'sounds.js', 'impacts.html', 'impacts.js', 'kim_size.png', 'krauser_size.png', 'kim_run_frames.png'): shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+# the pages (Bruno 2026-10-10, one front page): the Fighter Lab (lab.html + fighterlab.js: the cast, then per fighter Info /
+# Dictionary / Workshop / Assembly / Review) is also index.html; the tools that are not one fighter's are game.html's tabs
+# (game.js: Stages, Enemies, Characters, Select screen, Feedback, Oldies quirks, Exposé, Decisions, Impact sounds, Hit
+# sounds); howto.html the plain-words page. The old pages (anims, review, arbitrage, workshop, decide, impacts, sounds)
+# are redirects into them.
+PAGES = ('lab.html', 'fighterlab.js', 'howto.html', 'game.html', 'game.js', 'app.js', 'lab.js', 'gameplay.js', 'tryit.js', 'knobui.js',
+         'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js',
+         'feedback.js', 'quirks.js', 'expose.js', 'micnote.js', 'decide.js', 'decisions.json', 'review.js', 'anims.js', 'anims_core.js',
+         'arbitrage.js', 'workshop.js', 'sounds.js', 'impacts.js', 'kim_size.png', 'krauser_size.png', 'kim_run_frames.png',
+         'decide.html', 'review.html', 'anims.html', 'arbitrage.html', 'workshop.html', 'sounds.html', 'impacts.html')
+for f in PAGES: shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
+shutil.copy(os.path.join(HERE, 'lab.html'), os.path.join(out, 'index.html'))
 # the hit sounds page (sounds.html?f=kim): each hit's impact frame + sound, every effect of the sound ROM as a WAV
 # (tools/brawler/hitsounds.py -> /data/neogeo_dict/hitsounds)
 HS = '/data/neogeo_dict/hitsounds'

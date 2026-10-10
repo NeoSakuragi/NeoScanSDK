@@ -25,7 +25,7 @@ cat > "$OUT/steps.json" <<J
  {"shot": "$OUT/page_game_after_test.png"},
  {"eval": "localStorage.clear(); enemiesTab.reset(); 'reset'"}]
 J
-node "$HERE/headless.js" http://localhost:8767/index.html "$OUT/steps.json" | grep -v '^eval: \[' || true
+node "$HERE/headless.js" http://localhost:8767/game.html "$OUT/steps.json" | grep -v '^eval: \[' || true
 for p in today edit; do python3 -c "import json, sys; open(sys.argv[2], 'wb').write(bytes(json.load(open(sys.argv[1]))))" "$OUT/pack_page_$p.json" "$OUT/pack_page_$p.bin"; done
 python3 "$HERE/../build_tables.py" pack "$GAME/game.json" "$GAME/build" "$OUT/pack_py.bin"
 echo "== unedited: the page's pack vs build_tables.py pack"; cmp "$OUT/pack_page_today.bin" "$OUT/pack_py.bin" && echo "identical ($(stat -c %s "$OUT/pack_py.bin") bytes)"

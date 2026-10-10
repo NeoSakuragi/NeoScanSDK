@@ -19,7 +19,7 @@ cat > "$OUT/steps.json" <<J
  {"eval": "(() => { const C = chainlab, L = C.lab, script = '$SCR'; if (!C.paused) C.togglePause(); L.core._wc_reset(); L.setPad(0, ''); L.setPad(1, ''); L.run(400); stagesTab.play(0, 1); if (!C.paused) C.togglePause(); const trace = [L.ramSnap()], ticks = [L.gameTicks()]; const parts = script.split(',').map(p => p.split(':')); while (trace.length < 1500) for (const [n, k] of parts) for (let i = 0; i < Number(n) && trace.length < 1500; i++) { L.setPad(0, k.replace('-', '')); L.run(1); trace.push(L.ramSnap()); ticks.push(L.gameTicks()); } return { trace, ticks, pack_status: L.packStatus() }; })()", "save": "$OUT/page_edit.json"},
  {"eval": "stagesTab.stages = JSON.parse(JSON.stringify(stagesTab.D.stages)); 'reset'"}]
 J
-node "$HERE/headless.js" http://localhost:8765/index.html "$OUT/steps.json" | grep -v '^eval: \[' || true
+node "$HERE/headless.js" http://localhost:8765/game.html "$OUT/steps.json" | grep -v '^eval: \[' || true
 for p in today edit; do python3 -c "import json, sys; open(sys.argv[2], 'wb').write(bytes(json.load(open(sys.argv[1]))))" "$OUT/pack_page_$p.json" "$OUT/pack_page_$p.bin"; done
 python3 "$HERE/../build_tables.py" pack "$GAME/game.json" "$GAME/build" "$OUT/pack_py.bin"
 echo "== unedited: the page's pack vs build_tables.py pack"; cmp "$OUT/pack_page_today.bin" "$OUT/pack_py.bin" && echo "identical ($(stat -c %s "$OUT/pack_py.bin") bytes)"

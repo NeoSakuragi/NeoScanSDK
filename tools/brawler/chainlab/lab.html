@@ -9,9 +9,12 @@
    lab.html             the cast grid: every roster fighter (cast.json, fighterlab.py) with his HUD face and status
    lab.html?f=X&tab=info|workshop|assembly   his tabs: Info (fighterlab.js), Workshop (workshop.js in #ws), Assembly
                         (arbitrage.js in #arb), each script loaded once, on its tab's first opening
+   lab.html?f=X&tab=dictionary|review   his animation dictionary (anims.js in #dict), his fighter review (review.js in #rev)
    &embed=1             the Player's WebView beside the game: no site chrome, compact, the Assembly only
-   Behind the Oros login like the Lab. E-ink: black on white, solid borders, state said in words, never colour alone.
-   The Workshop's rules are scoped to #ws, the sheet's to #arb (+ its picker, appended to body: .pmodal). */
+   Also the site's front page (make_site.py writes it as index.html). Behind the Oros login like the Lab. E-ink: black on
+   white, solid borders, state said in words, never colour alone. Each tab's rules are scoped: the Workshop's to #ws, the
+   sheet's to #arb, the dictionary's and the review's (pages of their own before 2026-10-10) and every tab's pop-ups
+   (appended to body) to body[data-tab=...], which fighterlab.js sets. */
 :root { --line: 2px solid #000; color-scheme: light; }
 * { box-sizing: border-box; }
 html, body { background: #fff; color: #000; }
@@ -35,7 +38,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visibl
 .fhead .who { flex: 1 1 12em; min-width: 0; }
 .fhead .who b { font-size: 24px; display: block; line-height: 1.1; }
 .fhead .who span { font-size: 14px; }
-.tabs { display: flex; gap: 0; border-bottom: 3px solid #000; margin: 8px 0 10px; overflow-x: auto; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 3px solid #000; margin: 8px 0 10px; }
 .tabs a { font-weight: 700; text-decoration: none; padding: 7px 14px; border: var(--line); border-bottom: 0; margin-right: -2px; background: #fff; white-space: nowrap; }
 .tabs a[aria-current="page"] { background: #000; color: #fff; }
 .note { border: 2px dashed #000; padding: 8px 10px; margin: 10px 0; font-size: 15px; }
@@ -138,27 +141,130 @@ button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visibl
 #arb .tryrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
 #arb .final { border: 3px solid #000; padding: 10px; margin-top: 26px; display: flex; flex-direction: column; gap: 8px; }
 #arb .final button.done { font-size: 18px; font-weight: 700; padding: 10px 14px; }
+#arb .timing { border: 2px solid #000; padding: 6px 8px; margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+#arb .timing h3 { margin: 2px 0; }
+#arb .timing details.tpress { border: 1px solid #000; }
+#arb .timing details.tpress[open] { border: 2px solid #000; }
+#arb .timing details.tpress > summary { cursor: pointer; font-weight: 700; font-size: 15px; padding: 6px 8px; overflow-wrap: anywhere; }
+#arb .timing details.tpress > .knobs { margin: 0 6px 6px; }
 @media (max-width: 520px) { #arb .shead .lab { font-size: 17px; } }
-.pmodal { position: fixed; inset: 0; background: rgba(255,255,255,.97); z-index: 50; overflow: auto; padding: 8px; }
-.pmodal .pbox { max-width: 980px; margin: 0 auto; border: 3px solid #000; background: #fff; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
-.pmodal .phead { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; position: sticky; top: -8px; background: #fff; padding: 6px 0; border-bottom: 2px solid #000; z-index: 1; }
-.pmodal .phead b { flex: 1 1 100%; font-size: 17px; }
-.pmodal .phead input { font: inherit; font-size: 15px; border: var(--line); padding: 4px 6px; width: 7.5em; }
-.pmodal .frow { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
-.pmodal .frow .fl { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; flex: 0 0 100%; }
-.pmodal .frow button { font-size: 13px; padding: 3px 8px; }
-.pmodal .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
-.pmodal .pcard { border: var(--line); padding: 3px; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
-.pmodal .pcard.cur { border-width: 4px; }
-.pmodal .pcard canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; cursor: pointer; }
-.pmodal .pcard .cap { font-size: 11px; line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
-.pmodal .pcard .use { font-size: 14px; font-weight: 700; padding: 3px 8px; width: 100%; }
-.pmodal .pshown { font: 13px ui-monospace, monospace; }
-.pmodal .ppieces { display: flex; flex-direction: column; gap: 6px; border-bottom: 2px solid #000; padding-bottom: 8px; }
-.pmodal .plocked summary { cursor: pointer; font-weight: 700; font-size: 14px; }
-.pmodal .plocked ul { margin: 4px 0; padding-left: 1.2em; font-size: 14px; color: #444; }
-.pmodal .plocked a { color: #000; font-weight: 700; }
+body[data-tab="assembly"] .pmodal { position: fixed; inset: 0; background: rgba(255,255,255,.97); z-index: 50; overflow: auto; padding: 8px; }
+body[data-tab="assembly"] .pmodal .pbox { max-width: 980px; margin: 0 auto; border: 3px solid #000; background: #fff; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+body[data-tab="assembly"] .pmodal .phead { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; position: sticky; top: -8px; background: #fff; padding: 6px 0; border-bottom: 2px solid #000; z-index: 1; }
+body[data-tab="assembly"] .pmodal .phead b { flex: 1 1 100%; font-size: 17px; }
+body[data-tab="assembly"] .pmodal .phead input { font: inherit; font-size: 15px; border: var(--line); padding: 4px 6px; width: 7.5em; }
+body[data-tab="assembly"] .pmodal .frow { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+body[data-tab="assembly"] .pmodal .frow .fl { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; flex: 0 0 100%; }
+body[data-tab="assembly"] .pmodal .frow button { font-size: 13px; padding: 3px 8px; }
+body[data-tab="assembly"] .pmodal .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+body[data-tab="assembly"] .pmodal .pcard { border: var(--line); padding: 3px; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+body[data-tab="assembly"] .pmodal .pcard.cur { border-width: 4px; }
+body[data-tab="assembly"] .pmodal .pcard canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; cursor: pointer; }
+body[data-tab="assembly"] .pmodal .pcard .cap { font-size: 11px; line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
+body[data-tab="assembly"] .pmodal .pcard .use { font-size: 14px; font-weight: 700; padding: 3px 8px; width: 100%; }
+body[data-tab="assembly"] .pmodal .pshown { font: 13px ui-monospace, monospace; }
+body[data-tab="assembly"] .pmodal .ppieces { display: flex; flex-direction: column; gap: 6px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+body[data-tab="assembly"] .pmodal .plocked summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+body[data-tab="assembly"] .pmodal .plocked ul { margin: 4px 0; padding-left: 1.2em; font-size: 14px; color: #444; }
+body[data-tab="assembly"] .pmodal .plocked a { color: #000; font-weight: 700; }
 
+/* ---- the Dictionary (anims.js; anims.html's rules), scoped with its larger view (appended to body) ---- */
+body[data-tab="dictionary"] #dict .intro { font-size: 15px; margin: 4px 0 8px; }
+body[data-tab="dictionary"] #dict .intro a { color: #000; font-weight: 700; }
+body[data-tab="dictionary"] .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+body[data-tab="dictionary"] .bar .lbl { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; flex: 0 0 100%; }
+body[data-tab="dictionary"] .bar button { font-size: 14px; padding: 5px 9px; }
+body[data-tab="dictionary"] .shown { font-family: ui-monospace, monospace; font-size: 13px; border: var(--line); padding: 3px 7px; display: inline-block; }
+body[data-tab="dictionary"] .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin-top: 10px; }
+body[data-tab="dictionary"] .card { border: var(--line); padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; background: #fff; color: #000; font: inherit; min-width: 0; }
+body[data-tab="dictionary"] .card.want { border-width: 4px; }
+body[data-tab="dictionary"] .card canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; }
+body[data-tab="dictionary"] .card .cap { font-size: 12px; line-height: 1.25; text-align: center; overflow-wrap: anywhere; }
+body[data-tab="dictionary"] .card .fl { font-size: 11px; line-height: 1.2; text-align: center; font-family: ui-monospace, monospace; }
+body[data-tab="dictionary"] .modal { position: fixed; inset: 0; background: rgba(255,255,255,.97); z-index: 50; overflow: auto; padding: 10px; }
+body[data-tab="dictionary"] .mbox { max-width: 760px; margin: 0 auto; border: 3px solid #000; background: #fff; padding: 10px; display: flex; flex-direction: column; gap: 9px; }
+body[data-tab="dictionary"] .mhead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; top: -10px; background: #fff; padding: 6px 0; border-bottom: 2px solid #000; z-index: 1; }
+body[data-tab="dictionary"] .mhead b { flex: 1 1 auto; font-size: 18px; }
+body[data-tab="dictionary"] .mhead button, body[data-tab="dictionary"] .ctl button, body[data-tab="dictionary"] .want { font-size: 15px; padding: 6px 10px; }
+body[data-tab="dictionary"] .ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
+body[data-tab="dictionary"] .big { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; margin: 0 auto; }
+body[data-tab="dictionary"] .fcount { font-family: ui-monospace, monospace; font-size: 13px; }
+body[data-tab="dictionary"] .legend { font-size: 13px; margin: 0; }
+body[data-tab="dictionary"] dl.meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; font-size: 15px; }
+body[data-tab="dictionary"] dl.meta dt { font-weight: 700; }
+body[data-tab="dictionary"] dl.meta dd { margin: 0; overflow-wrap: anywhere; }
+body[data-tab="dictionary"] .steps { overflow-x: auto; }
+body[data-tab="dictionary"] .steps table { border-collapse: collapse; font: 12px/1.3 ui-monospace, monospace; }
+body[data-tab="dictionary"] .steps th, body[data-tab="dictionary"] .steps td { border: 1px solid #000; padding: 2px 4px; text-align: left; vertical-align: top; }
+body[data-tab="dictionary"] .steps tr.cur td { border-width: 2px; font-weight: 700; }
+body[data-tab="dictionary"] .steps tr.cur td:first-child::before { content: '▶ '; }
+body[data-tab="dictionary"] .dnote textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
+body[data-tab="dictionary"] .dsaved { font-family: ui-monospace, monospace; font-size: 12px; min-height: 1em; }
+body[data-tab="dictionary"] .modal h3 { margin: 6px 0 0; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 2px solid #000; }
+
+/* ---- the Review (review.js; review.html's rules), scoped with its move picker (appended to body); its fighters' nav
+   is the cast here ---- */
+body[data-tab="review"] nav.who { display: none; }
+body[data-tab="review"] #rev { max-width: 820px; }
+body[data-tab="review"] #rev h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 3px solid #000; padding-bottom: 3px; margin: 26px 0 8px; }
+body[data-tab="review"] .status { border: var(--line); display: inline-block; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 14px; }
+body[data-tab="review"] .intro { font-size: 15px; }
+body[data-tab="review"] details.formula { border: var(--line); padding: 6px 10px; font-size: 14px; margin: 8px 0; }
+body[data-tab="review"] details.formula summary { font-weight: 700; cursor: pointer; }
+body[data-tab="review"] .card { border: var(--line); padding: 12px; margin: 14px 0; display: flex; flex-direction: column; gap: 9px; }
+body[data-tab="review"] .card > header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+body[data-tab="review"] .card h3 { margin: 0; font-size: 19px; line-height: 1.2; letter-spacing: 0; text-transform: none; }
+body[data-tab="review"] .rank, body[data-tab="review"] .score { font-family: ui-monospace, monospace; font-size: 14px; border: var(--line); padding: 1px 6px; }
+body[data-tab="review"] .score b { font-size: 16px; }
+body[data-tab="review"] .clip { display: flex; flex-direction: column; gap: 5px; }
+body[data-tab="review"] .clip canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; background: #fff; }
+body[data-tab="review"] .ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
+body[data-tab="review"] .ctl button, body[data-tab="review"] .more { font-size: 14px; padding: 5px 9px; }
+body[data-tab="review"] .ctl .fcount { font-family: ui-monospace, monospace; font-size: 13px; }
+body[data-tab="review"] .strip { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+body[data-tab="review"] .strip figure { margin: 0; border: 1px solid #000; display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; }
+body[data-tab="review"] .strip figure.hit { border: 3px solid #000; }
+body[data-tab="review"] .strip figcaption { font: 12px ui-monospace, monospace; padding: 0 3px; }
+body[data-tab="review"] .strip canvas { display: block; image-rendering: pixelated; }
+body[data-tab="review"] dl.tags { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 0; font-size: 15px; }
+body[data-tab="review"] dl.tags dt { font-weight: 700; }
+body[data-tab="review"] dl.tags dd { margin: 0; }
+body[data-tab="review"] .parts { font-size: 14px; margin: 0; }
+body[data-tab="review"] .parts li { margin: 1px 0; }
+body[data-tab="review"] .dopts { display: flex; flex-direction: column; gap: 7px; }
+body[data-tab="review"] .dopts button { font-size: 16px; text-align: left; display: flex; gap: 10px; padding: 9px 11px; }
+body[data-tab="review"] .dopts .mark { font-family: ui-monospace, monospace; width: 1.3em; flex: 0 0 auto; }
+body[data-tab="review"] .dnote textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
+body[data-tab="review"] .dsaved { font-family: ui-monospace, monospace; font-size: 12px; min-height: 1em; }
+body[data-tab="review"] .ctx { margin: 0; font-size: 15px; }
+body[data-tab="review"] .more { display: block; width: 100%; font-size: 16px; padding: 10px; margin: 10px 0; font-weight: 700; }
+body[data-tab="review"] .fuopt { border: 2px solid #000; padding: 6px; display: flex; flex-direction: column; gap: 5px; }
+body[data-tab="review"] .fuopt > button { padding: 6px 9px; }
+body[data-tab="review"] .fuopt.first { border-width: 3px; }
+body[data-tab="review"] .fuopt .mine { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+body[data-tab="review"] .fuseq { display: flex; flex-wrap: wrap; gap: 2px 3px; align-items: flex-end; }
+body[data-tab="review"] .fupiece { border: 1px solid #000; padding: 4px; min-width: 0; max-width: 100%; }
+body[data-tab="review"] .funame { font-weight: 700; font-size: 13px; }
+body[data-tab="review"] .fuseq .arrow { font-size: 16px; font-weight: 700; padding-bottom: 18px; }
+body[data-tab="review"] figure.mini { margin: 0; display: flex; flex-direction: column; align-items: center; cursor: pointer; max-width: 100%; }
+body[data-tab="review"] figure.mini canvas { display: block; width: auto; max-width: 100%; image-rendering: pixelated; border: 1px solid #000; background: #fff; }
+body[data-tab="review"] figure.mini[aria-pressed="true"] canvas { border: 3px solid #000; }
+body[data-tab="review"] figure.mini figcaption { font-size: 12px; line-height: 1.2; text-align: center; max-width: 120px; }
+body[data-tab="review"] .plan ul { margin: 0; padding-left: 20px; font-size: 15px; }
+body[data-tab="review"] .qimg { display: block; max-width: 100%; height: auto; image-rendering: pixelated; border: 1px solid #000; }
+body[data-tab="review"] .pmodal { position: fixed; inset: 0; background: rgba(255,255,255,.96); z-index: 50; overflow: auto; padding: 10px; }
+body[data-tab="review"] .pbox { max-width: 760px; margin: 0 auto; border: 3px solid #000; background: #fff; padding: 10px; }
+body[data-tab="review"] .phead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; position: sticky; top: -10px; background: #fff; padding: 6px 0; border-bottom: 2px solid #000; }
+body[data-tab="review"] .phead b { flex: 1 1 auto; }
+body[data-tab="review"] .phead button, body[data-tab="review"] .preset { font-size: 15px; padding: 6px 10px; }
+body[data-tab="review"] .pgrid { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+body[data-tab="review"] .pgrid figure.mini { border: 2px solid #000; padding: 3px; }
+body[data-tab="review"] .pgrid figure.mini.cur { border-width: 4px; }
+body[data-tab="review"] .pgrid figure.mini.cur figcaption::after { content: ' (now)'; font-weight: 700; }
+body[data-tab="review"] .preset { font-size: 13px; padding: 3px 8px; margin-top: 4px; }
+body[data-tab="review"] .ptabs { flex: 0 0 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+body[data-tab="review"] .ptabs button { font-weight: 700; }
+body[data-tab="review"] a.dictlink { color: #000; font-weight: 700; border: var(--line); padding: 5px 9px; display: inline-block; text-decoration: none; }
 @media (max-width: 520px) { body { font-size: 16px; padding-inline: 10px; } h1 { font-size: 21px; } .fhead .who b { font-size: 21px; } .tabs a { padding: 6px 10px; } }
 
 /* ---- embed (the Player's WebView, ~360-420 px): no chrome, compact, the Assembly only ---- */
@@ -177,7 +283,7 @@ body.embed .tryit-live { font-size: 12px; padding: 3px 6px; }
 </head>
 <body>
 <div class="wrap">
-  <header class="top"><b>Brawler Lab · Fighter Lab</b><a href="lab.html">The cast</a><a href="index.html">Chain Lab (old front page)</a><a href="impacts.html">Impact sounds</a></header>
+  <header class="top"><b>Brawler Lab · Fighter Lab</b><a href="lab.html">The cast</a><a href="game.html">Game tools (stages, enemies, select screen, feedback, sounds…)</a><a href="howto.html">How to</a></header>
   <main id="lab"><p>Loading…</p></main>
 </div>
 <script src="micnote.js"></script>

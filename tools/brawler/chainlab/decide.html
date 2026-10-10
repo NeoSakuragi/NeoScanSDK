@@ -2,40 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Revamp Decisions</title>
-<style>
-/* Standalone decisions page (behind the Oros login, like the Lab): one reading column, black on white, solid borders,
-   the chosen answer filled AND marked with a check (e-ink). Uses decide.js + micnote.js, the same as the Lab's tab. */
-:root { --line: 2px solid #000; color-scheme: light; }
-html, body { background: #fff; color: #000; }
-body { margin: 0; font: 17px/1.45 "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif; padding-inline: 16px; padding-block: 18px 60px; }
-#decidecol { max-width: 760px; margin: 0 auto; }
-#decidecol h2 { margin: 6px 0; }
-#decidecol .dstatus { border: var(--line); display: inline-block; padding: 4px 8px; font-family: ui-monospace, monospace; font-size: 14px; }
-#decidecol h3.dsec { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; border-bottom: 3px solid #000; padding-bottom: 3px; margin: 22px 0 6px; }
-#decidecol .dq { border: var(--line); padding: 12px; margin: 12px 0; display: flex; flex-direction: column; gap: 9px; }
-#decidecol .dq h3 { margin: 0; font-size: 18px; line-height: 1.25; }
-#decidecol .dctx { margin: 0; font-size: 14px; }
-#decidecol .dopts { display: flex; flex-direction: column; gap: 7px; }
-#decidecol .dopts button { font: inherit; font-size: 16px; text-align: left; display: flex; gap: 10px; padding: 9px 11px; background: #fff; color: #000; border: var(--line); cursor: pointer; }
-#decidecol .dopts button[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
-#decidecol .dopts .mark { font-family: ui-monospace, monospace; width: 1.3em; flex: 0 0 auto; }
-#decidecol .dnote textarea { font: inherit; font-size: 15px; border: var(--line); padding: 7px; }
-#decidecol .dsaved { font-family: ui-monospace, monospace; font-size: 12px; min-height: 1em; }
-button:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
-[hidden] { display: none !important; }
-</style>
+<!-- The old URL: the Game tools' Decisions tab (game.html#decide, decide.js; Bruno 2026-10-10). -->
+<script>location.replace('game.html' + location.search + '#decide');</script>
 </head>
-<body>
-<section id="decidecol"><p>Loading…</p></section>
-<button id="tabDecide" hidden></button>
-<script>
-// stand-alone: no Lab tabs; decide.js listens for the 'labtab' event
-window.labTab = name => window.dispatchEvent(new CustomEvent('labtab', { detail: name }));
-</script>
-<script src="micnote.js"></script>
-<script src="decide.js"></script>
-<script>window.addEventListener('load', () => setTimeout(() => window.labTab('decide'), 50));</script>
+<body style="background:#fff;color:#000;font:17px system-ui,sans-serif;padding:16px">
+<p>This page moved: <a href="game.html#decide">the Game tools, Decisions tab</a>.</p>
 </body>
 </html>

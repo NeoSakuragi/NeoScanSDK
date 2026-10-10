@@ -60,7 +60,7 @@ the history keeps every one); each linked note gets "decision" events in its tim
   GET  /mine -> "reviews": the decisions put to the signed-in user (audience = the user, or '' = every account)
   GET  /mine/review/<id>/<name>                 an image or an answer's voice
   POST /review {id, answer, text, raw_transcript?, tx_id?, audio_b64?, audio_name?, device?, android?}   the player's answer
-Character Lab (docs/feedback.md "Character Lab"; 2026-10-10): the live config of each fighter + the catalogue of the Lab shell
+Character Lab (docs/character_lab.md "Character Lab"; 2026-10-10): the live config of each fighter + the catalogue of the Lab shell
 and the character packs, in LAB (/data/brawler/lab). The same handlers answer /lab/... (the player: nginx /brawler/lab/,
 X-Public, the Oros token) and /api/lab/... (the web pages: /brawler-lab/feedback-api/lab/, the Oros cookie; ssh on localhost
 = user 'ssh', labcfg.py / labpub.py). Reads: any signed-in account; writes: Oros role admin (403 otherwise).
@@ -585,7 +585,7 @@ def answer_review(c, rid, user, answer, text, raw='', audio=b'', ext='m4a', sour
     return review_dict(c, c.execute('SELECT * FROM reviews WHERE id=?', (rid,)).fetchone()), None
 
 
-# ---- Brawler Character Lab (docs/feedback.md "Character Lab"): live config per fighter + the shell / pack catalogue ----
+# ---- Brawler Character Lab (docs/character_lab.md "Character Lab"): live config per fighter + the shell / pack catalogue ----
 LAB = os.environ.get('FEEDBACK_LAB', '/data/brawler/lab')   # shell/ packs/<f>/ faces/ (nginx /brawler/lab/dl/), config/, incoming/
 LAB_CFG = os.path.join(LAB, 'config')                       # <f>.json = the live config, <f>.history.jsonl = every revision
 LAB_IN = os.path.join(LAB, 'incoming')                      # labpub.py's uploads, moved into place by /api/lab/publish
@@ -1032,7 +1032,7 @@ class H(http.server.BaseHTTPRequestHandler):
                         return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
         self.reply(404, {'error': 'not found'})
 
-    # ---- Character Lab (docs/feedback.md "Character Lab") ------------------------------------------------------------
+    # ---- Character Lab (docs/character_lab.md "Character Lab") ------------------------------------------------------------
     def lab_route(self):
         """the Lab's path parts after /lab/ (the player: nginx /brawler/lab/, X-Public) or /api/lab/ (the web pages:
         /brawler-lab/feedback-api/lab/, the Oros cookie; or ssh on localhost); None = not a Lab path"""

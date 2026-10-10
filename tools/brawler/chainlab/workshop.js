@@ -1,5 +1,5 @@
 // A fighter's WORKSHOP (the Fighter Lab's Workshop tab, lab.html?f=robert&tab=workshop: fighterlab.js loads this script into its #ws panel; workshop.html?f= redirects there): part 1 of the Brawler Lab, the token-bound side (conversation, unlock
-// requests, decoding); part 2 is the arbitration sheet (arbitrage.html, compiled by tools/brawler/arb_compile.py).
+// requests, decoding); part 2 is the arbitration sheet (the Assembly tab, compiled by tools/brawler/arb_compile.py).
 // Data: review/<f>_workshop.json (tools/brawler/workshop.py: the piece library + the piece-id registry
 // tools/brawler/arb_pieces/<f>_ids.json + KOF's hit classes) and the dictionary review/<f>_anims.json (anims_core.js).
 // Sections: Specials (UNLOCKED = an S- id: id, name, input, clips, what it does; LOCKED = not decoded: greyed, clips
@@ -201,7 +201,7 @@
   const S = W.specials, T = W.throws, C = W.counts;
   const out = [h('h1', { text: W.display + ': workshop' }),
     h('p', { class: 'intro', text: 'Part 1 of the Lab: what ' + W.display + ' can do today and what still needs decoding. Unlocked pieces (S- specials, T- throws) are in the arbitration sheet\'s picker and link into the game with no agent; a locked special needs its program read from the ROM first: ask with "Unlock this". Every piece has a thread with Claude. Tap a clip for ¼ speed.' }),
-    h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=assembly&f=' + f, text: 'Assembly (arbitration sheet)' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' })),
+    h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=assembly&f=' + f, text: 'Assembly (arbitration sheet)' }), h('a', { href: 'lab.html?tab=dictionary&f=' + f, text: 'Animation dictionary' }), h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Fighter review' })),
     window.TryIt ? window.TryIt.liveLine(f) : null,
     h('p', { class: 'counts', text: `Specials: ${C.unlocked} unlocked, ${C.locked} locked · Throws: ${C.throws_unlocked} unlocked, ${C.throws_locked} locked` + (W.class_note ? ' · ' + W.class_note : '') }),
     h('nav', { class: 'jump', 'aria-label': 'Sections' }, h('a', { href: '#specials', text: 'Specials' }), h('a', { href: '#throws', text: 'Throws' }), h('a', { href: '#animations', text: 'Animations' }))];

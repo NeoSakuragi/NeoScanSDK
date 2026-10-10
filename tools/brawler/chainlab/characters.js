@@ -194,7 +194,7 @@
     // chains
     const chainBox = h('div', { class: 'box' }, h('h2', {}, 'Chains'), h('div', { class: 'in stg' },
       h('span', {}, r.routes === 'default' ? 'the default route tree' : 'own route tree: ' + r.routes),
-      h('button', { onclick: () => { $('fighter').value = ci; window.labTab('chain'); $('fighter').onchange(); } }, `Open ${up(name)} in the Chain Lab`)));
+      h('a', { href: 'lab.html?f=' + encodeURIComponent(name) + '&tab=assembly', style: 'font-weight:700' }, `${up(name)} in the Fighter Lab (Assembly: his chain and its timing)`)));
     // export / import
     const nEd = roster.filter((x, i) => JSON.stringify(x) !== JSON.stringify(ORIG[i])).length;
     const io = h('div', { class: 'box' }, h('h2', {}, 'Export / import', h('span', { class: 'note' }, `${nEd} fighter${nEd === 1 ? '' : 's'} edited; game.json's roster layout`)),

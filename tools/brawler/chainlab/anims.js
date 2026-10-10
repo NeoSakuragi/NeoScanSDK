@@ -1,4 +1,5 @@
-// The animation dictionary page (anims.html?f=kim, ?f=krauser, ?f=robert; data tools/brawler/animdict.py): every animation of a fighter's table as a small looping clip at the
+// The animation dictionary (the Fighter Lab's Dictionary tab, lab.html?f=kim&tab=dictionary: fighterlab.js loads this script into
+// its #dict panel; anims.html?f= redirects there; data tools/brawler/animdict.py): every animation of a fighter's table as a small looping clip at the
 // game's speed (one scale for all), filters, and a larger view per animation (¼ speed, step by step, the boxes, the
 // step / box / sound data) with "I want this one", the flags (anims_core.js FLAGS) and a note with the microphone.
 // Answers: the decisions store, set "<fighter>-anims", id = the animation's hex.
@@ -23,11 +24,11 @@
   const qbar = h('div', { class: 'bar', role: 'group', 'aria-label': 'Queue for the game' });
   const drawQ = () => {
     try { localStorage.setItem(QK, JSON.stringify(tq)); } catch (e) { /* private window */ }
-    qbar.replaceChildren(h('span', { class: 'lbl', text: 'Queue for the game (back to back): add from an animation\'s larger view' }),
+    qbar.replaceChildren(...[h('span', { class: 'lbl', text: 'Queue for the game (back to back): add from an animation\'s larger view' }),
       h('span', { class: 'shown', text: tq.length ? tq.map(x => '$' + x).join(' > ') : 'empty' }),
       window.TryIt && tq.length ? window.TryIt.button(f, 'Try the queue in game', () => window.TryIt.queue(f, tq), () => ({ queue: tq.slice(), loop: window.TryIt.loop() })) : null,
       tq.length ? h('button', { type: 'button', text: 'Remove the last', onclick: () => { tq.pop(); drawQ(); } }) : null,
-      tq.length ? h('button', { type: 'button', text: 'Clear the queue', onclick: () => { tq = []; drawQ(); } }) : null);
+      tq.length ? h('button', { type: 'button', text: 'Clear the queue', onclick: () => { tq = []; drawQ(); } }) : null].filter(x => x));
     window.dictQueue = tq.slice();
   };
   drawQ();
@@ -82,7 +83,7 @@
       (/^kof9[68]$/.test(D.game || '') ? 'Flags suggested from KOF\'s buttons (A / B light, C / D heavy; A / C punch, B / D kick), a projectile, a knockdown the capture saw, a throw. ' : '') +
       `${cnt(a => a.attack)} have attack boxes, ${cnt(a => a.moves && a.moves.length)} are played by a move I captured or named, ${cnt(a => a.exported.length)} are in the brawler. ` +
       'Each clip loops at the game speed; tap one for the larger view (¼ speed, step by step, boxes, data), "I want this one", flags and a note. ',
-      h('a', { href: 'review.html?f=' + f, text: 'Back to the fighter review' }), ' · ', h('a', { href: 'lab.html?tab=assembly&f=' + f, text: 'The arbitration sheet (chain, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury)' })),
+      h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Back to the fighter review' }), ' · ', h('a', { href: 'lab.html?tab=assembly&f=' + f, text: 'The arbitration sheet (chain, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury)' })),
     h('div', { class: 'bar', role: 'group', 'aria-label': 'Show' }, h('span', { class: 'lbl', text: 'Show' }), fbtns),
     h('div', { class: 'bar', role: 'group', 'aria-label': 'Flags (yours, else my suggestion)' }, h('span', { class: 'lbl', text: 'With every flag (yours, else my suggestion)' }), flbtns),
     qbar, shown, grid);

@@ -6,7 +6,7 @@
 //    dictionary), screenshot; 2. anims.html?f=robert: $51, $5B, $D4 added to the queue from their larger views, "Try the
 //    queue in game" -> played in that order; 3. arbitrage.html?f=robert with his answer forward + C = S-004 (the decisions
 //    store answered by the proof) -> "Try this sheet in game", forward + C plays S-004 (623D); 4. the player's speed
-//    (frames per second delivered by the page's loop, and the core's cost per frame); 5. the Chain Lab page (index.html,
+//    (frames per second delivered by the page's loop, and the core's cost per frame); 5. the Game tools page (game.html,
 //    gameplay.js shared with it) still plays. Writes OUT_DIR/report.json + screenshots.
 const fs = require('fs'), path = require('path');
 const puppeteer = require('puppeteer-core');
@@ -111,7 +111,7 @@ const rep = {};
   rep.speed = { delivered_fps: +(fr / 5).toFixed(1), core_ms_per_frame: +(ms / fr).toFixed(2), core_max_fps: Math.round(1000 / (ms / fr)) };
 
   // ---- 5. the Chain Lab still plays (gameplay.js shared) ----
-  await page.goto(base + 'index.html', { waitUntil: 'load' });
+  await page.goto(base + 'game.html', { waitUntil: 'load' });
   await waitFor('window.chainlab && window.chainlab.lab', 120000);
   rep.chainlab = await page.evaluate(() => { const c = window.chainlab; const f0 = c.lab.labFrame(); c.play('20:a,20:-'); return { frames: c.lab.labFrame() - f0, status: document.getElementById('status').textContent }; });
   rep.errors = errors;
