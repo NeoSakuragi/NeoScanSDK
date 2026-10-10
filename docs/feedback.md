@@ -718,6 +718,31 @@ pack): route_tab[25] = lab.buf, the chain plays differently (7 -> 5 hits). The t
 config directory was empty before); not exercised: a real feedback note from the lab (the meta path is built, no note
 was sent).
 
+## The Fighter Lab: one page for the whole cast (2026-10-10)
+
+Bruno: "the Chain Lab is obsolete; the Workshop and the Assembly for the whole cast, data driven: pick a character, then
+Workshop tab, Assembly tab, a general Info tab"; "the template must be standard". `brawler-lab/lab.html` (lab.html +
+fighterlab.js; the canneji hub card opens it, the Chain Lab's index.html links to it):
+
+- `lab.html`: the cast grid, every game.json roster fighter from `cast.json` (fighterlab.py, run last by make_site.py:
+  roster facts, the HUD face exactly as the game draws it = labpub.hud_face, the big win / drama portrait, the music
+  theme = roster `music` else the songs.json THEME_* naming him, and what the site holds: dictionary, Workshop counts,
+  knobs, sheet, review, Lab build). The pack and the live config revision are read live (`lab/catalogue`, `lab/config`).
+- `lab.html?f=<f>&tab=info|workshop|assembly`: Info (the facts, faces, pack / shell / site build versions, live config
+  line, "Play him in game"); Workshop = workshop.js loaded into `#ws`; Assembly = arbitrage.js loaded into `#arb` (each
+  script once, on the tab's first opening; its CSS lives in lab.html scoped to `#ws` / `#arb` / `.pmodal`). A fighter
+  whose source game has no dictionary builder (animdict.DICTS; SS2, WHP, Double Dragon today) gets Info and an honest
+  sentence in the other two tabs. `workshop.html?f=` / `arbitrage.html?f=` redirect to the tabs (ask= / text= / #piece kept).
+- `&embed=1`: the Player's WebView beside the game (~360-420 px): no chrome, compact, the Assembly only, the page's own
+  "Try in game" hidden (Send to Player and the live auto-send stay).
+- "Try in game" (tryit.js) plays the **Character Lab shell + the fighter's pack** from the catalogue (the Player's files,
+  sha256 checked, `wc_swap_pack`; P1 = the slot), with `rom/shell-<engine>.json` (layout, roster order, throws, chain rules)
+  and `rom/pack-<f>-<sha12>.json` (LAB animations, chain data) from tryit_site.py; a pack whose engine is not the shell's is
+  refused (as the Player does); `rom/lab-<f>.neo` stays the fallback. A shell this site has no layout for uses
+  `rom/shell-latest.json` of the same game version (the RAM map is the code's; only ROM addresses such as bm_chars move).
+  A pack without a LAB special plays his decoded specials and throws only (a $NN says so).
+- Later (noted, not done): the Chain Lab's chain-timing knob folds into the Assembly.
+
 ## Character Lab: piece knobs and the token-free sheet (2026-10-10)
 
 Bruno: "each special move comes with its key params and default values, adjustable in the Assembly; clearly surface

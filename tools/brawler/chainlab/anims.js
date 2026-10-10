@@ -82,7 +82,7 @@
       (/^kof9[68]$/.test(D.game || '') ? 'Flags suggested from KOF\'s buttons (A / B light, C / D heavy; A / C punch, B / D kick), a projectile, a knockdown the capture saw, a throw. ' : '') +
       `${cnt(a => a.attack)} have attack boxes, ${cnt(a => a.moves && a.moves.length)} are played by a move I captured or named, ${cnt(a => a.exported.length)} are in the brawler. ` +
       'Each clip loops at the game speed; tap one for the larger view (¼ speed, step by step, boxes, data), "I want this one", flags and a note. ',
-      h('a', { href: 'review.html?f=' + f, text: 'Back to the fighter review' }), ' · ', h('a', { href: 'arbitrage.html?f=' + f, text: 'The arbitration sheet (chain, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury)' })),
+      h('a', { href: 'review.html?f=' + f, text: 'Back to the fighter review' }), ' · ', h('a', { href: 'lab.html?tab=assembly&f=' + f, text: 'The arbitration sheet (chain, finishers, Blitz, air Blitz, specials, air specials, air, grab, fury)' })),
     h('div', { class: 'bar', role: 'group', 'aria-label': 'Show' }, h('span', { class: 'lbl', text: 'Show' }), fbtns),
     h('div', { class: 'bar', role: 'group', 'aria-label': 'Flags (yours, else my suggestion)' }, h('span', { class: 'lbl', text: 'With every flag (yours, else my suggestion)' }), flbtns),
     qbar, shown, grid);

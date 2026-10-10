@@ -1,4 +1,4 @@
-// A fighter's ARBITRATION sheet (arbitrage.html?f=kim, ?f=krauser, ?f=robert): the web version of Bruno's A4 sheet for Kim
+// A fighter's ARBITRATION sheet (the Fighter Lab's Assembly tab, lab.html?f=kim&tab=assembly, + &embed=1 in the Player: fighterlab.js loads this script into its #arb panel; arbitrage.html?f= redirects there): the web version of Bruno's A4 sheet for Kim
 // (/data/scans/brawler/kim_notes_231734.png -> docs/brawler_gold.md "Kim (fast)"). The workflow for every new fighter,
 // in this order: chain combo, alternate finishers, Blitz, air Blitz, specials, air specials, air, hold / throws, fury.
 // TOKEN FREE (Bruno 2026-10-10, binding): the sheet has no channel to Claude. Every change here is compiled by the tooling
@@ -125,8 +125,8 @@
   function askLink(def, pieces) {
     const p = pieces[0], key = !p ? null : isId(p) ? p : 'anim-' + p;
     const text = `Arbitration sheet, slot "${def.label}"` + (pieces.length ? ` (${pieces.map(fmtP).join(' then ')})` : ' (empty)') + ': ';
-    const q = new URLSearchParams({ f }); if (key) q.set('ask', key); q.set('text', text);
-    return h('a', { class: 'ask', href: 'workshop.html?' + q.toString() + (key ? '#' + encodeURIComponent(key) : ''), target: '_blank',
+    const q = new URLSearchParams({ f, tab: 'workshop' }); if (key) q.set('ask', key); q.set('text', text);
+    return h('a', { class: 'ask', href: 'lab.html?' + q.toString() + (key ? '#' + encodeURIComponent(key) : ''), target: '_blank',
       text: 'Ask in the Workshop' + (p ? ' about ' + fmtP(p) : '') });
   }
   // ---- one slot row ----
@@ -259,7 +259,7 @@
     });
     const lockedList = lck.length ? h('details', { class: 'plocked' }, h('summary', { text: 'Locked specials (' + lck.length + '): not decoded yet' }),
       h('ul', {}, lck.map(p => h('li', {}, h('span', { text: p.name + ' (' + p.input + ') ' }),
-        h('a', { href: 'workshop.html?f=' + f + '#' + encodeURIComponent(p.keys[0]), target: '_blank', text: 'Ask in the Workshop' }))))) : null;
+        h('a', { href: 'lab.html?tab=workshop&f=' + f + '#' + encodeURIComponent(p.keys[0]), target: '_blank', text: 'Ask in the Workshop' }))))) : null;
     const piecesBox = W ? h('div', { class: 'ppieces' }, h('b', { text: 'Decoded pieces (Workshop ids): a special plays as its whole program' }),
       pcards.length ? h('div', { class: 'pgrid' }, pcards) : h('span', { text: 'None unlocked yet.' }), lockedList,
       h('b', { text: 'Animations' })) : null;
@@ -321,7 +321,7 @@
   window.arbSheet = sheetNow;
   const out = [h('h1', { text: `${D.display}: arbitration sheet` }),
     h('p', { class: 'intro', text: `What each input plays, section by section: chain, alternate finishers, Blitz, air Blitz, specials, air specials, air, grab, fury. Every slot starts with what the game plays now (build ${NOW.version}, marked NOW); pick an animation from ${D.display}'s dictionary, add more to play back to back, tune a decoded piece's knobs; a question goes to the Workshop. Everything saves as you go. Tap a clip for ¼ speed.` }),
-    h('div', { class: 'links' }, h('a', { href: 'workshop.html?f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' })),
+    h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop (unlock specials)' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' })),
     window.TryIt ? window.TryIt.liveLine(f) : null];
   out.push(h('div', { class: 'tryrow' }, tryBtn(), h('span', { class: 'about', text: 'Your answers, slot by slot, in the game now (the slots still "now" play the game\'s own move); play them on their own inputs.' })));
   out.push(h('div', { class: 'tryrow' }, h('span', { class: 'about', text: 'Live: every change is sent to the Player\'s Character lab by itself (about 2 s later; admin only).' }), liveMsg));
