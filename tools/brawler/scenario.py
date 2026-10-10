@@ -300,7 +300,8 @@ def lint(rom):
         if r['status'] not in ('shipped', 'reopened', 'fixed'): continue
         rec = api('scenario/' + r['id']).get('recipe')
         if not rec:
-            if r['status'] == 'shipped': warn.append(f"{r['id']} shipped without a scenario: {r.get('title') or ''}")
+            if r['status'] == 'shipped' and not str(r.get('release') or '').startswith('player-'):   # (a Player-app fix,
+                warn.append(f"{r['id']} shipped without a scenario: {r.get('title') or ''}")      # released as player-x.y.z: its proof = screenshots)
             continue
         bad = lint_recipe(r['id'], rec, game)
         if bad: warn.append(f"{r['id']} recipe: " + '; '.join(bad))
