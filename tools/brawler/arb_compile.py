@@ -338,7 +338,7 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if not fin.get('neutral') and isinstance((gen.get('finishers') or {}).get('neutral'), str):
             fin = dict(fin, neutral=gen['finishers']['neutral'])
     n_now = len(links) + (1 if fin.get('neutral') else 0)
-    chain_len = G['chain']['lengths'][r.get('archetype', 'balanced')]
+    chain_len = (r.get('chain') or {}).get('length') or G['chain']['lengths'][r.get('archetype', 'balanced')]
     def now_val(slot):
         if slot[0] == 'a' and slot[1:].isdigit():
             k = int(slot[1:]) - 1
