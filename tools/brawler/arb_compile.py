@@ -410,7 +410,10 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if slot not in mine or slot == 'fury_note': continue
         a = mine[slot]
         ps = [token(p) for p in a.get('pieces') or []]
-        x = Res(slot, ps, '')                              # (the sheet is token free since 2026-10-10: no typed notes; an
+        x = Res(slot, ps, '')
+        if slot[0] == 'a' and slot[1:].isdigit() and int(slot[1:]) > (want_len or max(n_now, chain_len)):
+            x.status, x.why = 'unchanged', f'press {slot[1:]} is past the chain length ({want_len or max(n_now, chain_len)}): not played'
+            out.append(x); continue                              # (the sheet is token free since 2026-10-10: no typed notes; an
                                                            # old note saved in <f>-arb is not read, a request goes to the Workshop)
         nowv = now_val(slot); nowp = pieces_of(nowv)
         ids = [p for p in ps if ID_RE.match(p)]
