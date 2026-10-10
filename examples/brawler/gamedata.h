@@ -74,6 +74,8 @@ typedef struct {
     uint8_t  fury_dealt, fury_taken;   /* gauge points a life point dealt / taken */
     uint8_t  low;                 /* low life: life <= low % of the full life (and > 0): the life bar blinks red, the MAX */
     uint8_t  fury_drive, max_drive;   /* drive chunks the fury / the MAX also cost (Bruno 2026-10-09: 1 / 2) */
+    uint8_t  sflash;              /* a paid C special's blue flash: frames from its start (Bruno 2026-10-10; 0 none) */
+    uint8_t  stint[3];            /* its colour: each channel (0-31) = light x tint / 16 + tint / 4, clamped (fighter.c ovl_pal) */
     uint8_t  pause;               /* the drive's refill pauses (Bruno 2026-10-09, note 20261009-115529-5d29): RP_* bits */
 } gmeter_t;
 enum { RP_SPECIAL = 1, RP_CHAIN = 2, RP_BLITZ = 4 };   /* RP_BLITZ: a Blitz played as the dash entry (S_ATTACK on the tree's dash node; a Blitz that is a special is S_SPECIAL) */   /* in a special (S_SPECIAL: a C special, a Blitz, the breaker, a fury, a MAX, a

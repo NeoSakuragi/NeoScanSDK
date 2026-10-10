@@ -2751,7 +2751,7 @@
    ]
   },
   "do": "Iori's meter is full, Ryos in front of him (near and farther), one behind him and one far in front. Press D (the fury, Ya Otome) and watch its end, the purple flame blast.",
-  "expect": "On the final purple blast every Ryo around Iori (up to about 112 px in front and 96 px behind him) is knocked down burning purple, losing life, the ones behind him thrown backward; the Ryo far in front (about 150 px) is not touched. Down+D (his MAX, at low life) ends the same way.",
+  "expect": "On the final purple blast every Ryo around Iori (up to about 112 px in front and 96 px behind him) is knocked down burning purple, losing life, the ones behind him thrown backward; the Ryo far in front (about 150 px) is not touched and keeps his own colours: only a Ryo the blast knocks down turns purple (a Ryo lying or getting up is left alone, neither hit nor purple). Down+D (his MAX, at low life) ends the same way.",
   "do_keys": "4:d",
   "proof": 260
  },
@@ -2767,5 +2767,35 @@
   "expect": "The run ends into the grab: Iori holds Ryo as he does when he walks into him (same reach, same depth line). Kim's dash grabs the same way. An enemy in the air (his own jump), knocked down or lying is not grabbed: the run goes on under or past him. Walking into an enemy still grabs as before.",
   "do_keys": "3:R,3:-,60:R",
   "proof": 90
+ },
+ "20261010-145638-b3f3": {
+  "title": "In a grab, forward + C must fire the forward + C special, not a throw",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "pre": "20:R,4:-"
+  },
+  "do": "Kim holds Ryo, full drive. Press forward + C. Grab again and try C, down + C and back + C; then back + A and forward + A. Robert the same.",
+  "expect": "Forward + C lets Ryo go and plays Kim's forward + C special (the one he does standing), one drive chunk spent; C, down + C play his C / down + C specials, back + C his forward + C special without turning away. Back + A and forward + A still throw Ryo, no drive spent. Robert: forward + C = his forward + C special (EX 646D), back + A his throw.",
+  "do_keys": "3:Rc",
+  "proof": 90
+ },
+ "20261010-145455-b3f3": {
+  "title": "Every special that costs drive flashes the fighter blue",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 120,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Kim, full drive and fury. Press C (his C special). Then forward + C, down + C, a C out of a grab; then D (the fury) and a breaker (C while hit).",
+  "expect": "Each C special that spends a drive chunk shows Kim in a blue palette for its first quarter second (15 frames), then his own colours. No C special comes out without drive, so no blue. The fury and MAX keep their own flash (no blue), the breaker keeps its white / red blink, a free Blitz no blue.",
+  "do_keys": "3:c",
+  "proof": 60
  }
 }

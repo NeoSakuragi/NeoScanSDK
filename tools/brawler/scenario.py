@@ -145,6 +145,10 @@ def setup(b, rec):
             src = base + 2 * b.fsize; dst = base + i * b.fsize
             for o in range(b.fsize): b.w(dst + o, 1, b.r(src + o, 1))
             b.fset(i, 'idx', i); b.fset(i, 'x', x0 + dx); b.fset(i, 'z', z); b.fset(i, 'facing', (1 if dx < 0 else -1) & 0xFF)
+            # its own palettes, as every enemy slot has in the game (main.c enemy_init: 16 + slot x MAX_PALS): a copy
+            # sharing the dummy's showed its burn / flashes on every copy (note 20261009-235250-b3f3's reopen: Ryos
+            # purple that the blast never touched). ovl 1: pal_overlay reloads them (fighter_load_pals) on its next frame
+            b.fset(i, 'palbase', 16 + i * 8); b.fset(i, 'ovl', 1)
     if s.get('mode') == 'stage' and ('wait' in s or 'foe_hp' in s or s.get('alone')):   # the boss (TODO #184's test)
         b.run(int(s.get('wait', 0)))
         fo = int(s.get('foe', 2))                          # the enemy meant (fighter index; default the boss, 2)
