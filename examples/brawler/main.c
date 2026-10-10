@@ -2871,6 +2871,12 @@ void game_enter(uint8_t request) {
     dbg_init();
     snd_reset();                                             /* the BIOS reset the sound CPU before handing over */
     if (request == 3) title_start(); else attract_start();
+#ifdef LAB_SHELL                                             /* the Character Lab's shell (Makefile LAB_SHELL / LAB_PACK):
+                                                                straight into the practice, P1 = the slot fighter (the last
+                                                                roster index: its pack's), unless a page drives it already */
+    if (lab.magic[0] != 'L') { lab.magic[0] = 'L'; lab.magic[1] = 'A'; lab.magic[2] = 'B'; lab.magic[3] = '1';
+                               lab.fighter = BC_COUNT - 1; lab.dummy = 1; lab.req = 1; }
+#endif
     if (coin_in()) snd_ssg(SSG_COIN);                       /* the coin that ended the demo: after the song start */
     depth_sort();
     draw();

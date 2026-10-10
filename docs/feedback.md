@@ -583,3 +583,55 @@ request and ship-done; labcfg.py list / history / show / revert / ship-pending /
 game.json. labpub.py: a dummy shell, a dummy Kim pack and Kim's face published, the catalogue (and its 304), full
 downloads matching sha256, Range `bytes=10-19` -> 206, a duplicate version refused (its upload removed). Every test entry and
 dummy file removed afterwards; the existing endpoints answered the same before and after the deploy.
+
+## Character Lab: shell and packs (2026-10-10)
+
+One Lab **shell** build + swappable **character packs** (Bruno: "one lab build and two exported data sets, two characters
+we could dynamically swap"). Built on the existing pipeline: the shell is the brawler with one more roster fighter, the
+**slot** (the last bm_chars index), exported, banked and linked by the same tools; only where the slot's data lands is
+fixed.
+
+| Region | Where (the shell's .neo) | Kept | Robert (LAB export) | Kim |
+|---|---|---|---|---|
+| P `.labslot`: the slot's first-MB tables (steps, throws, postures, palettes, routes, voices, headers; its game_tables rows: damage tiers, retime targets, dash) | $E0000-$FFFFF (Makefile LABSLOT_AT) | 128 KB | 48,016 | 14,856 |
+| P2 bank 3: its banked tables (frames, tile lists, special scripts / programs, projectile rows) | P MB 4 | 1 MB - 16 | 143,112 | 124,450 |
+| its element of every per-fighter table (bm_chars[], bm_seg[], dtier_rom[], gblitz_rom[], portrait_pal[]..., bm_lab, its 16 gretime_rom rows) | in place | fixed | | |
+| C tiles | tile_first of build_shell/slot.json, one page | 24,576 tiles (3 MB) | 9,280 | 6,012 |
+| V voices (ADPCM-A) | $A00000 (the first MB past every other sample) | 512 KB | 148,480 | 128,512 |
+| M voice records: codes $C0-$EF of the overflow slots 4 / 5 ($1B players, $17 enemies) + their enable bits | KOF98 driver tables | 48 voice ids | 18 | 19 |
+| S HUD face | fix tiles PORTRAIT_TILE + 25 x 16 | 16 tiles | | |
+
+Every roster fighter fits (largest: Rugal 13,204 tiles, Iori 17.5 KB first MB / 222 KB of voices, Rugal 125 KB banked,
+voice ids up to 31, 2 retimed moves) except Billy Lee: a form link (his other form is another roster index) is refused.
+A KOF96 / 98 / 99 fighter with a piece library (`tools/brawler/arb_pieces/<f>.json`: Robert, Krauser) is exported with his
+LAB special (every animation of his dictionary, bm_lab: the TRY blob's $NN entries); the others without. Krauser's
+LAB pack: 32,036 / 111,362 / 7,842 tiles / 19 voices (158,208 bytes).
+
+- `make LAB_SHELL=1` -> `lab-shell.neo` (build_shell/: the slot = Robert, so it boots; `-DLAB_SHELL`: game_enter starts
+  the practice, P1 = the slot vs Ryo, unless a page already drives the mailbox). `python3 tools/brawler/bank_proof.py --shell`.
+- `make LAB_PACK=<f>` -> `packs/<f>.pack` + `packs/<f>.json` (build_pack_<f>/: the same game with f in the slot; the shell is
+  made first). `tools/brawler/lab_pack.py make` takes the slot's regions and **refuses** a pack whose build differs from the
+  shell's anywhere else (naming the symbols: a pointer or a table the slot does not own) or that overflows a region;
+  `lab_pack.py info PACK`, `lab_pack.py apply SHELL.neo PACK OUT.neo` (what a swap gives).
+- Manifest (inside the pack and beside it): fighter, display, bank, `engine` = `<VERSION>-<shell fingerprint>` (sha256 of the
+  shell with every slot region zeroed: any pack built against that shell carries the same), the slot (id, P2 bank), the
+  constants the pages need (pool, specials, nvoice, LAB special), usage per region, the piece registry
+  (`arb_pieces/<f>_ids.json`), the face's PNG, each region's offset / size / sha256.
+- The swap: `tools/brawler/chainlab/pack_swap.c` (one C path): checks the whole pack (magic, version, the ROM sizes = the
+  loaded shell's, every region in bounds) then copies each region into Geolith's ROM buffers (P word-swapped as Geolith
+  keeps it; a region's blank end written as zeros) and the caller resets: the shell boots into the practice with the new
+  fighter. Geolith decodes / caches nothing from its ROMs (tiles, ADPCM, the M ROM's banks are read as they are), so no
+  invalidation is needed; its only change is `retro_neoscan_rom(region, &size)` (libretro.c). Callers: the wasm core
+  `wc_swap_pack(ptr, n)` (+ `wc_rom`, `wc_rom_size` for the proofs), the Player `Native.swapPack(path)` (JNI in
+  player.c, not wired to the UI yet).
+- Publish: `labpub.py publish-shell examples/brawler/lab-shell.neo --engine <engine>` and
+  `labpub.py publish-pack <f> examples/brawler/packs/<f>.pack --engine <engine>` (the engine string from the pack's .json).
+
+Proven 2026-10-10 (`tools/brawler/chainlab/packs_proof_node.js`, the wasm core headless; screens /data/tmp/packs/): the
+shell boots into the practice with Robert (P1 = index 25), his chain (5 hits) and C special (spec 4) play, his voice goes
+out on $1B $C8; `wc_swap_pack(kim.pack)` -> after the reset the core's P / S / M / V / C equal pack-kim.neo byte for byte,
+P1 = Kim with his frames, face and name, chain 6 hits, his C special ([2]8C, spec 2) with his voices ($1B $C2, $D4, $17 $C0);
+`wc_swap_pack(robert.pack)` -> the shell's bytes again, Robert as before. Each slot run is frame for frame identical (state,
+animation, step, x, height, the dummy's life and state, 226 frames) to the same run with the roster's own Robert / Kim.
+The normal build (`make`) is byte-identical to before.
+Published 2026-10-10 to the catalogue (engine 0.10.23-70201b3a0953): shell 20261010-000745, packs robert 20261010-000752 and kim 20261010-000757 (faces included). The web "Try in game" panel still loads rom/lab-robert.neo (the LAB_FIGHTER build); it can move to the shell + a pack (wc_swap_pack; P1 = index 25, lab.json of build_shell) when the Player's Character lab does.

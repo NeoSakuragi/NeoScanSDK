@@ -41,7 +41,35 @@ TW_STAGE, MAX_TRIGGERS = 0xFF, 32
 DR_LINES, DR_COLS, DR_SPEAKER = 3, 34, 16                # gamedata.h gscene_t; the name plate's length
 
 
-def load(path): return json.load(open(path))
+def load(path):
+    """game.json; in a Character Lab shell build (BRAWLER_SLOT=<f>, examples/brawler/Makefile LAB_SHELL / LAB_PACK) with
+    the slot fighter added last (add_slot)"""
+    g = json.load(open(path))
+    if os.environ.get('BRAWLER_SLOT'): add_slot(g, os.environ['BRAWLER_SLOT'])
+    return g
+
+
+SLOT = 'slot'                                            # the shell's slot fighter's roster name (its C prefix)
+SLOT_SEC = ' __attribute__((section(".labslot")))'       # its tables of game_tables.c: the shell's fixed slot area
+SLOT_RT_ROWS = 16                                        # gretime_rom rows kept for it (the rest: never matched)
+
+
+def add_slot(g, f):
+    """the Character Lab's shell (docs/feedback.md "Character Lab: shell and packs"): one roster entry more, last (index
+    BC_COUNT - 1), a copy of fighter f's named 'slot' (slot_of = f: the exporters read f's data for it), never on the
+    select screen. Everything else of the roster stays as it is, so the bytes outside the slot's regions are the same
+    whoever fills the slot (tools/brawler/lab_pack.py checks it)."""
+    src = next((r for r in g['roster'] if r['name'] == f), None)
+    assert src, f'BRAWLER_SLOT={f}: not a roster fighter (a pack fighter must be in the roster: its shared tables)'
+    assert not src.get('form'), f'BRAWLER_SLOT={f}: a form link (its other form is another roster fighter) cannot take the slot'
+    r = json.loads(json.dumps(src))
+    r.update(name=SLOT, slot_of=f, display=src.get('display') or f, selectable=False)
+    g['roster'].append(r)
+
+
+def data_name(r):
+    """the roster name a fighter's own data files use (damage_raw.json, voices.json...): the slot's source fighter's"""
+    return r.get('slot_of', r['name'])
 
 
 def roster_names(g): return [r['name'] for r in g['roster']]
@@ -145,7 +173,7 @@ def bm_npals(build, g):
     """each roster fighter's palette count in the build (export_bm.py -> bm_chars.c bm_chars[].npal): {name: npal}"""
     import re
     t = open(os.path.join(build, 'bm_chars.c')).read().split('const bchar_t bm_chars[BC_COUNT] = {', 1)[1]
-    n = [int(a) for a in re.findall(r'^\s*\{"[^"]*", (\d+), \d+,', t, re.M)]
+    n = [int(a) for a in re.findall(r'^\s*\{(?:"[^"]*"|slot_name), (\d+), \d+,', t, re.M)]
     names = [r['name'] for r in g['roster']]
     assert len(n) == len(names), f'bm_chars npal: {len(n)} entries, roster {len(names)}'
     return dict(zip(names, n))
@@ -167,8 +195,8 @@ def watch_of(g, r):
     """a roster fighter's select pose [frame, step] and its head point (None: head_point.py finds it): the select layout's
     pose; roster[].watch.head (a hand-set point) only while the pose is the one it was set for"""
     w = [r['watch']['frame'], r['watch']['step']]
-    L = select_layout(g) if r.get('selectable', True) else {}
-    pose = L[r['name']]['pose'] if r['name'] in L else w
+    L = select_layout(g) if r.get('selectable', True) or r.get('slot_of') else {}
+    pose = L[data_name(r)]['pose'] if data_name(r) in L else w
     return list(pose), (r['watch'].get('head') if list(pose) == w else None)
 
 
@@ -255,14 +283,14 @@ def run_bobs(g):
             F = d['frames']
             xs = [round(d['dx'] * i / F) for i in range(1, F + 1)]
             hs = [round(d['height'] * 4 * i * (F - i) / (F * F)) for i in range(1, F + 1)]
-            out.append(f"static const uint8_t gdash_{r['name']}[{2 + 2 * F}] = {{ {d['start']}, {F}, {', '.join(map(str, xs + hs))} }};")
+            out.append(f"static const uint8_t gdash_{r['name']}[{2 + 2 * F}]{SLOT_SEC if r.get('slot_of') else ''} = {{ {d['start']}, {F}, {', '.join(map(str, xs + hs))} }};")
             drefs.append(f"gdash_{r['name']}")
         else: drefs.append('0')
         fl = run.get('float')
         if not fl: refs.append('0'); continue
         assert set(fl) == {'px', 'period'} and 1 <= fl['px'] <= 16 and 4 <= fl['period'] <= 120, f"roster {r['name']}: run.float {fl}"
         h = [round(fl['px'] * (1 - math.cos(2 * math.pi * i / fl['period'])) / 2) for i in range(fl['period'])]
-        out.append(f"static const uint8_t grun_{r['name']}[{fl['period'] + 1}] = {{ {fl['period']}, {', '.join(map(str, h))} }};")
+        out.append(f"static const uint8_t grun_{r['name']}[{fl['period'] + 1}]{SLOT_SEC if r.get('slot_of') else ''} = {{ {fl['period']}, {', '.join(map(str, h))} }};")
         refs.append(f"grun_{r['name']}")
     return out + ['const uint8_t *const grun_bob[BC_COUNT] = { ' + ', '.join(refs) + ' };   /* the run\'s float per fighter: '
                   '[period, height a frame...] (roster[].run.float), 0 = none */',
@@ -280,7 +308,7 @@ def roster_export(g):
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
-             **{k: r[k] for k in ('form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'down_attack', 'invincible', 'nopush', 'max', 'max_hits', 'run') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'down_attack', 'invincible', 'nopush', 'max', 'max_hits', 'run', 'slot_of') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -609,7 +637,7 @@ def dtier_tables(g, build, dmul):
         n = r['name']
         if n not in lab:                                 # (the first build: the export comes after) every scale 1
             rows.append('dtier_none'); continue
-        pool = [p['input'] for p in lab[n]['pool']]; m = raw.get(n) or {}
+        pool = [p['input'] for p in lab[n]['pool']]; m = raw.get(data_name(r)) or {}
         v = [dmul[i] * 256] * len(pool) + [256, 256, 256]
         e = rep[n] = {'specials': {}, 'fury': None, 'max': None, 'super_throw': None}
         for kof, x in (m.get('specials') or {}).items():
@@ -631,7 +659,7 @@ def dtier_tables(g, build, dmul):
             d = own(inp) if inp else None
             if d: v[len(pool) + j] = sc(tg, d)
             e[k] = {'input': inp, 'own': d, 'target': tg, 'scale': v[len(pool) + j] / 256}
-        c.append(f'static const uint16_t dtier_{i}[{len(v)}] = {{ {", ".join(map(str, v))} }};   /* {n} */')
+        c.append(f'static const uint16_t dtier_{i}[{len(v)}]{SLOT_SEC if r.get("slot_of") else ""} = {{ {", ".join(map(str, v))} }};   /* {n} */')
         rows.append(f'dtier_{i}')
     wide = max([len(f['pool']) for f in labj['fighters']] + [0]) + 3
     if 'dtier_none' in rows: c.insert(0, f'static const uint16_t dtier_none[{wide}] = {{ {", ".join(["256"] * wide)} }};   /* (no export yet) */')
@@ -666,9 +694,13 @@ def retime_tables(g, build):
             warn = RT.hand_checks(f'{r["name"]} {move}', segs, T)
             for w in warn: print('retime:', w)
             k = len(rows)
-            c.append(f'static const uint16_t gretime_t{k}[] = {{ {", ".join(map(str, T))} }};   /* {r["name"]} {move}: {segs} -> {T} */')
+            c.append(f'static const uint16_t gretime_t{k}[]{SLOT_SEC if r.get("slot_of") else ""} = {{ {", ".join(map(str, T))} }};   /* {r["name"]} {move}: {segs} -> {T} */')
             rows.append(f'    {{ {i}, {len(T)}, {idx}, gretime_t{k} }},')
             rep.append({'fighter': r['name'], 'move': move, 'index': idx, 'segments': segs, 'targets': T, 'spec': spec, 'hand_check': warn})
+    if any(r.get('slot_of') for r in g['roster']):      # the shell: the slot's rows (last) padded to SLOT_RT_ROWS with
+        ns = sum(1 for e in rep if e['fighter'] == SLOT)  # rows no fighter matches (0xFE), so the table's size and the
+        assert ns <= SLOT_RT_ROWS, f'retime: the slot has {ns} retimed moves, the shell keeps {SLOT_RT_ROWS}'   # rows stay
+        rows += ['    { 0xFE, 0, 0, 0 },'] * (SLOT_RT_ROWS - ns)
     c.append('const gretime_t gretime_rom[] = {   /* (fighter.c "retiming") the moves given targets: fighter, segments, move, targets */\n'
              + ''.join(x + '\n' for x in rows) + '    { 0xFF, 0, 0, 0 }\n};')
     json.dump(rep, open(os.path.join(build, 'retime.json'), 'w'), indent=1)

@@ -2,3 +2,7 @@ res/
 brawler.neo
 build_lab_*/
 lab-*.neo
+build_shell/
+build_pack_*/
+pack-*.neo
+packs/

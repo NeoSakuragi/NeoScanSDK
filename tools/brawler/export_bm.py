@@ -16,7 +16,13 @@ Per fighter: frames (parts: dx, dy, columns, rows, flips, palette index, tile co
 one hurt box = union of KOF's hurt boxes, the attack box when the step has one), every colour set (16-colour palettes,
 one per palette index), physics (16.16 px/frame). Boxes are KOF's: centre offset from the feet (y < 0 = up) and half
 extents, in the sprites' own orientation (ROM sprites face LEFT: mirror x when the fighter faces right).
-Tile numbers start at TILE_BASE (1 .. TILE_BASE - 1 hold the stage, banner and sparks)."""
+Tile numbers start at TILE_BASE (1 .. TILE_BASE - 1 hold the stage, banner and sparks).
+
+The Character Lab's shell (make LAB_SHELL=1 / LAB_PACK=<f>, docs/feedback.md "Character Lab: shell and packs"): ROSTER.json
+ends with the slot fighter (build_tables.add_slot: name 'slot', slot_of = its source f). It is exported as f (f's data
+files: ALIAS / src()), under the C prefix slot_, with every animation of f's dictionary in its LAB special when f's game
+allows it (KOF96 / 98 / 99 with tools/brawler/arb_pieces/<f>.json), its tiles in a block of SLOT_TILES of its own; its
+tables never share another fighter's (dedupe_c); OUTDIR/slot.json says where its tiles are (lab_pack.py)."""
 import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
@@ -32,6 +38,24 @@ PACKED = {}                                             # per fighter its palett
 LAB = {}                                                # the Lab build (--lab NAME, make LAB_FIGHTER=NAME): {name: [(hex id,
                                                         # state)]} its dictionary's animations (arb_pieces/<name>.json)
 LABINFO = {}                                            # name -> (its LAB special's pool index, its $NN ids) (write_c)
+ALIAS = {}                                              # the shell's slot: {'slot': its source fighter} (roster slot_of)
+SLOT_TILES = 24576                                      # the slot's C block (tiles, 3 MB): every roster fighter fits it,
+                                                        # Rugal 13204, a LAB export of a KOF fighter ~9300 (Robert)
+def src(n):
+    """the roster name whose data files a fighter reads: the slot's source fighter, else itself"""
+    return ALIAS.get(n, n)
+def alias_slot(slot, f):
+    """the slot exported as fighter f: the name-keyed tables of this module and of voices.py / routes.py read f's"""
+    ALIAS[slot] = f
+    for d in (ROLE_OVERRIDE, FIRE_COLOUR):
+        if f in d: d[slot] = d[f]
+    if f in NO_EX: NO_EX.add(slot)
+    for (a, b), v in list(ROM_REACT.items()):
+        if a == f: ROM_REACT[(slot, b)] = v
+    def first(fn): return lambda name, *a, **k: fn(src(name), *a, **k)
+    for fn in ('bank', 'suggest', 'extras', 'anim_extras', 'fx_bit'): setattr(V, fn, first(getattr(V, fn)))
+    t = V.table; V.table = lambda ks, sug, mp, nv, name=None: t(ks, sug, mp, nv, src(name) if name else name)
+    for fn in ('load', 'chain_tree'): setattr(R, fn, first(getattr(R, fn)))
 
 def lab_entries(name):
     """the Lab build's fighter: every animation of his dictionary as (hex id, state), id order (arb_pieces/<name>.json
@@ -293,58 +317,75 @@ def build(specs, outdir):
     # a page; whole game rosters per block left ~4 MB of padding at the page ends and doubled C to 32 MB when the air
     # C+D animations pushed the last tile past 16 MB. A throw's victim offsets come from the thrower's own export, the
     # victim's poses from its own (vposes), so fighters export independently.
-    blocks = []                                         # (game, name, export, tmp dir)
+    blocks = []                                         # (game, name, export, tmp dir, roster name, tiles kept)
+    def one(game, name, tmp, rn):
+        ex = export(game, [name], tmp)
+        pk, n = PP.pack(name, ex['characters'][name], tmp, MAX_PALS, ex['tiles'], SRC_BASE)   # (TODO #201)
+        if pk['packed'] != pk['slots']:              # its palettes folded: the tiles and the export it was read from
+            ex['tiles'] = n; json.dump(ex, open(os.path.join(tmp, 'kof95_export.json'), 'w'))
+            print(f'{name}: {pk["slots"]} palettes folded into {pk["packed"]} (pal_pack: exact colours, '
+                  f'{pk["tiles_added"]} tiles recoloured)', flush=True)
+        PACKED[rn] = pk
+        assert ex['tiles'] < 0x10000, f'{game}:{name}: {ex["tiles"]} tiles (a fighter must fit one 64K tile page)'
+        return ex
     for game, names in games.items():
         for name in names:
             tmp = os.path.join(outdir, f'tmp_{game}_{name}')
-            ex = export(game, [name], tmp)
-            pk, n = PP.pack(name, ex['characters'][name], tmp, MAX_PALS, ex['tiles'], SRC_BASE)   # (TODO #201)
-            if pk['packed'] != pk['slots']:              # its palettes folded: the tiles and the export it was read from
-                ex['tiles'] = n; json.dump(ex, open(os.path.join(tmp, 'kof95_export.json'), 'w'))
-                print(f'{name}: {pk["slots"]} palettes folded into {pk["packed"]} (pal_pack: exact colours, '
-                      f'{pk["tiles_added"]} tiles recoloured)', flush=True)
-            PACKED[rname(game, name)] = pk
-            assert ex['tiles'] < 0x10000, f'{game}:{name}: {ex["tiles"]} tiles (a fighter must fit one 64K tile page)'
-            blocks.append((game, name, ex, tmp))
+            blocks.append((game, name, one(game, name, tmp, rname(game, name)), tmp, rname(game, name), None))
+    if ALIAS:                                           # the shell's slot: its source exported again on its own (its
+        slot, f = next(iter(ALIAS.items()))             # LAB special, when the Lab build takes its game: only the slot
+        game, name = roster()[slot]['bank'].split(':')  # has it, the roster's fighter stays as in every pack)
+        if game in ('kof96', 'kof98', 'kof99') and os.path.exists(os.path.join(HERE, 'arb_pieces', f + '.json')):
+            LAB[name] = lab_entries(f)
+        tmp = os.path.join(outdir, 'tmp_slot')
+        ex = one(game, name, tmp, slot); LAB.pop(name, None)
+        assert ex['tiles'] <= SLOT_TILES, f'the slot: {f} has {ex["tiles"]} tiles, the shell keeps {SLOT_TILES} (SLOT_TILES)'
+        blocks.append((game, name, ex, tmp, slot, SLOT_TILES))
     pages = [[TILE_BASE, []]]                           # per page: next free tile number, [(block, first tile)]
-    for blk in sorted(blocks, key=lambda b: -b[2]['tiles']):
-        n = blk[2]['tiles']
+    for blk in sorted(blocks, key=lambda b: -(b[5] or b[2]['tiles'])):   # (the slot: its whole block, whoever fills it)
+        n = blk[5] or blk[2]['tiles']
         for p, pg in enumerate(pages):
             start = max(pg[0], (p << 16) + 1)           # tile 0 = empty, and with tile_hi it means page start: blank
             if start + n <= (p + 1) << 16: break
         else:
             pages.append([(len(pages) << 16) + 1, []]); p = len(pages) - 1; pg = pages[p]; start = pg[0]
         pg[1].append((blk, start)); pg[0] = start + n
+    slot_at = None
     for p, pg in enumerate(pages):
-        for (game, name, ex, tmp), start in pg[1]:
+        for (game, name, ex, tmp, rn, keep), start in pg[1]:
             a = open(os.path.join(tmp, 'kof95_c1.bin'), 'rb').read(); b = open(os.path.join(tmp, 'kof95_c2.bin'), 'rb').read()
             n = ex['tiles']
             if len(c1) // 64 + TILE_BASE < start:       # the gap to this block (page 2's blank tile 0, or a page's end)
                 g = start - TILE_BASE - len(c1) // 64; c1 += bytes(g * 64); c2 += bytes(g * 64)
             c1 += a[SRC_BASE * 64:(SRC_BASE + n) * 64]; c2 += b[SRC_BASE * 64:(SRC_BASE + n) * 64]
+            if keep:                                    # the slot: its whole block (blank past its tiles)
+                c1 += bytes((keep - n) * 64); c2 += bytes((keep - n) * 64); slot_at = (start, keep, n)
             hch, hreg = HP.load(tmp, name)              # the select pose's head point (TODO #157: the cursor's arrow)
-            ex['characters'][name]['head'] = HP.head_point(hch, hreg, (roster().get(rname(game, name)) or {}).get('head'))
-            fp = flash_pose(game, rname(game, name))     # the flash pose's head (TODO #145): the glow's anchor
+            ex['characters'][name]['head'] = HP.head_point(hch, hreg, (roster().get(rn) or {}).get('head'))
+            fp = flash_pose(game, rn)                   # the flash pose's head (TODO #145): the glow's anchor
             if fp and 'flash' in hch['anims']:
                 bp = (ex['characters'][name].get('flash_pal') or {}).get('index')   # (SS2's rage: the body's palette)
                 ex['characters'][name]['flash_head'] = tuple(fp['head']) if fp.get('head') else \
                     HP.head_of(HP.pens(hch, hreg, hch['anims']['flash']['steps'][0]['frame'], bp))
-                ex['characters'][name]['flash_fit'] = fp['fit']; ex['characters'][name]['flash_voice'] = flash_voices(game, rname(game, name), fp)
+                ex['characters'][name]['flash_fit'] = fp['fit']; ex['characters'][name]['flash_voice'] = flash_voices(game, rn, fp)
                 # each pose step's head (TODO #191: the glow follows it as the pose moves, Haohmaru dropping into his
                 # stance): the body's parts only when the source names its palette (SS2's rage: flash_pal), else the frame
                 ex['characters'][name]['flash_heads'] = {str(s_['frame']): HP.head_of(HP.pens(hch, hreg, s_['frame'], bp))
                                                          for s_ in hch['anims']['flash']['steps']} if not fp.get('head') and bp is not None else {}
             for th in ex['characters'][name].get('throws', {}).values():   # a throw's own-victim rows under the roster's
-                if name in th.get('victims', {}) and rname(game, name) != name:   # name (poses(): Billy Lee = doubledr:billy)
-                    th['victims'][rname(game, name)] = th['victims'].pop(name)
-            chars.append((game, rname(game, name), ex['characters'][name], start - SRC_BASE))
+                if name in th.get('victims', {}) and src(rn) != name:   # name (poses(): Billy Lee = doubledr:billy)
+                    th['victims'][src(rn)] = th['victims'].pop(name)
+            chars.append((game, rn, ex['characters'][name], start - SRC_BASE))
     tile_next = TILE_BASE + len(c1) // 64
     assert tile_next <= 0x100000, f'{tile_next} tiles: past the 20-bit tile number'
-    chars.sort(key=lambda c: specs.index(roster()[c[1]]['bank'] if c[1] in roster() else f'{c[0]}:{c[1]}'))   # bm_chars in the command line's order, the order
+    chars.sort(key=lambda c: len(specs) if c[1] in ALIAS else specs.index(roster()[c[1]]['bank'] if c[1] in roster() else f'{c[0]}:{c[1]}'))   # (the slot: last)   # bm_chars in the command line's order, the order
                                                           # make_hud.py gives the portraits (exports go by game)
     pad = bytearray(TILE_BASE * 64)
     open(os.path.join(outdir, 'bm_c1.bin'), 'wb').write(bytes(pad + c1))
     open(os.path.join(outdir, 'bm_c2.bin'), 'wb').write(bytes(pad + c2))
+    if slot_at:                                         # where lab_pack.py finds the slot's tiles
+        json.dump({'fighter': ALIAS['slot'], 'id': len(chars) - 1, 'tile_first': slot_at[0], 'tiles_kept': slot_at[1],
+                   'tiles_used': slot_at[2], 'tile_hi': slot_at[0] >> 16}, open(os.path.join(outdir, 'slot.json'), 'w'), indent=1)
     write_c(chars, outdir)
     return chars, tile_next
 
@@ -1091,7 +1132,7 @@ def dedupe_c(text):
     for line in text.split('\n'):
         if ren: line = word.sub(lambda mt: ren.get(mt.group(0), mt.group(0)), line)
         mt = rx.match(line)
-        if mt and mt.group(4) != '{}':               # (an empty table keeps its own place: a player that reads a
+        if mt and mt.group(4) != '{}' and not mt.group(2).startswith('slot_'):   # (the shell's slot: its own tables only)               # (an empty table keeps its own place: a player that reads a
             key = (mt.group(1), mt.group(3), mt.group(4))   # 0-row object's row 0 reads what follows it, as before)
             if key in seen: ren[mt.group(2)] = seen[key]; continue
             seen[key] = mt.group(2)
@@ -1262,7 +1303,7 @@ def throw_rows(game, n, th, pkeys, front=None):
     captured one (pre-#146) ends where it ended (ret = its last row) and gets rel / land from its rows: the first row
     off the throw list after one on it, the first floor touch after that (the thrown-body rule is the engine's, for every
     throw). front: [first, end) rows the victim is drawn in front of the thrower (a data override; else behind)"""
-    rows = th['victims'].get(n) or next(iter(th['victims'].values()))   # offsets of the mirror match (see README)
+    rows = th['victims'].get(src(n)) or next(iter(th['victims'].values()))   # offsets of the mirror match (see README)
     froze = set(th.get('impacts') or []) if not th.get('rom') else set()   # KOF froze there (Ryo's forward+C): the brawler's hit-stop too
     imp = set(throw_impacts(rows, game)) | froze          # blows / floor touches: damage, no freeze (KOF's)
     if th.get('rom'): imp = set(th['impacts']) | ({th['land']} if th.get('land') is not None else set())
@@ -1355,7 +1396,7 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None, multi=False):
     tail = max(HOLD_TAIL, hits[-1] + 1)
     th = ch.get('throws', {}).get('throw_c')
     if th:
-        r0 = (th['victims'].get(n) or next(iter(th['victims'].values())))[0]
+        r0 = (th['victims'].get(src(n)) or next(iter(th['victims'].values())))[0]
         v = vocab(game, r0[5]); held = (pkeys.index(v) if r0[0] is not None and r0[0] >= 0 and v in pkeys else 255, min(r0[1], dx), r0[2], r0[3])
         if th.get('grab_frame') is not None:            # SS2's turned grab (TODO #188 a): the hold is its picture mirrored,
             held = (held[0], min(-r0[1], dx), r0[2], r0[3] ^ 1)   # the victim in front facing him (bthrow_t.gframe)
@@ -1403,7 +1444,7 @@ def poses(chars):
         for g, _, ch, _ in chars:
             if g != gv: continue
             for t in ch.get('throws', {}).values():
-                for r in t['victims'].get(n, []):
+                for r in t['victims'].get(src(n), []):
                     v = vocab(g, r[5])
                     if r[0] >= 0 and v: m.setdefault(v, r[0])
         row = []
@@ -1784,7 +1825,7 @@ def write_c(chars, outdir):
                                 'chain_cfg': roster()[n].get('chain'), 'chain_base': R.chain_base(base, has)})
     json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
     # the voices the ROM maps (build_snd.py brings only their samples into the V ROM: songs.json "voices")
-    json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']} | set(vdata[n]['prog']) | {v & 0x7F for _, _, v in fpose_steps(ch) if v})} for game, n, ch, off in chars],
+    json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']} | set(vdata[n]['prog']) | {v & 0x7F for _, _, v in fpose_steps(ch) if v}), **({'slot_of': src(n)} if n in ALIAS else {})} for game, n, ch, off in chars],
               open(os.path.join(outdir, 'voice_map.json'), 'w'))
     json.dump({n: [fr.get('record') for fr in ch['frames']] for game, n, ch, off in chars},   # bm frame -> 'id:ROM frame'
               open(os.path.join(outdir, 'bm_frames.json'), 'w'))                          # (romspecials_check.py)
@@ -1792,13 +1833,15 @@ def write_c(chars, outdir):
     def form_tail(chars, ch, n):
         f = form_c(chars, ch, n)
         return ', %d, %d, %d, %d' % (f if f else (0, 0, 0, 0))   # (always written: holds follow)
+    for game, n, ch, off in chars:                           # the shell's slot: its name in its own area (lab_pack.py)
+        if n in ALIAS: c.append(f'static const char {n}_name[16] = "{(roster()[n].get("display") or src(n)).upper()[:15]}";')
     c.append('const bchar_t bm_chars[BC_COUNT] = {')
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
         land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna', 'doubledr', 'samsho2') else None   # SS4 / WHP: KOF's usual 4
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
-        c.append(f'  {{"{(roster()[n].get("display") or n).upper()}", {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}{form_tail(chars, ch, n)}, {n}_holds, {n}_pvox, {n}_pfx, {n}_fpose, {len(fpose_steps(ch))}, {{{', '.join(map(str, ch.get('flash_head', (0, 0))))}}}, {n}_fpal, {used[n].index(ch['flash_pal']['index']) if ch.get('flash_pal') else 0xFF}, {used[n].index(flk_of(ch)['index']) if flk_of(ch) else 0xFF}, {n}_flk, {len(air_specials(ch, n))}, {spec_index(special_pool(ch, n), down_special(ch, n))}}},')
+        c.append(f'  {{{n + "_name" if n in ALIAS else chr(34) + (roster()[n].get("display") or n).upper() + chr(34)}, {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}{form_tail(chars, ch, n)}, {n}_holds, {n}_pvox, {n}_pfx, {n}_fpose, {len(fpose_steps(ch))}, {{{', '.join(map(str, ch.get('flash_head', (0, 0))))}}}, {n}_fpal, {used[n].index(ch['flash_pal']['index']) if ch.get('flash_pal') else 0xFF}, {used[n].index(flk_of(ch)['index']) if flk_of(ch) else 0xFF}, {n}_flk, {len(air_specials(ch, n))}, {spec_index(special_pool(ch, n), down_special(ch, n))}}},')
     c.append('};')
     c.append('const bseg_t bm_seg[BC_COUNT] = {' + ', '.join(f'{n}_seg' for _, n, _, _ in chars) + '};   /* (retiming) */')
     c.append('const bair_t bm_air[BC_COUNT] = {' + ', '.join(f'{n}_air' for _, n, _, _ in chars) + '};   /* (TODO #221) */')
@@ -1814,8 +1857,9 @@ def write_c(chars, outdir):
                 'extern const blab_t bm_lab;']                # (before the last entry: its #endif)
     if lf:
         ci, n = lf; k, ids = LABINFO[n]
-        c.append('static const uint16_t bm_lab_ids[] = {' + ', '.join(f'0x{v:X}' for v in ids) + '};')
-        c.append(f'const blab_t bm_lab = {{{ci}, {k}, {len(ids)}, bm_lab_ids}};')
+        li = f'{n}_lab_ids' if n in ALIAS else 'bm_lab_ids'   # (the shell's slot: its table in its own area)
+        c.append(f'static const uint16_t {li}[] = {{' + ', '.join(f'0x{v:X}' for v in ids) + '};')
+        c.append(f'const blab_t bm_lab = {{{ci}, {k}, {len(ids)}, {li}}};')
         ch = next(ch_ for _, n_, ch_, _ in chars if n_ == n)
         json.dump({'fighter': n, 'id': ci, 'spec': k, 'anims': ['%X' % v for v in ids], 'left_out': ch.get('lab_bad', []),
                    'pool': [sp['input'] for sp in special_pool(ch, n)], 'throws': THROWS, 'ba': MOVES,
@@ -1833,7 +1877,9 @@ def write_c(chars, outdir):
 if __name__ == '__main__':
     outdir = sys.argv[1]
     assert sys.argv[2] == '--roster', __doc__
-    specs = [r['bank'] for r in roster(sys.argv[3]).values()]
+    specs = [r['bank'] for r in roster(sys.argv[3]).values() if not r.get('slot_of')]
+    for r in roster().values():
+        if r.get('slot_of'): alias_slot(r['name'], r['slot_of'])
     if sys.argv[4:5] == ['--lab'] and sys.argv[5:6] != ['']:   # the Lab build (make LAB_FIGHTER=<f>): every animation of
         LAB[sys.argv[5]] = lab_entries(sys.argv[5])            # his dictionary in his LAB special (export96.lab_special)
     chars, tiles = build(specs, outdir)
