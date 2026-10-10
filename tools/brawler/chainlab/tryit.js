@@ -176,11 +176,14 @@
     const bytes = await get(pk.url);
     if (await sha256hex(bytes) !== pk.sha256) throw new Error(`${f.toUpperCase()}'s pack ${pk.version}: sha256 mismatch after the download`);
     const M = packManifest(bytes);
-    const X = await get(`rom/pack-${f}-${pk.sha256.slice(0, 12)}.json`, 'json').catch(() => null);   // his LAB anims, chain data
+    // his LAB anims, chain data: for that exact pack, else the site's newest of his (a pack published after the site's build:
+    // the same fighter in the same slot; its chain data is his, its LAB list only checked by the game)
+    let xnote = '', X = await get(`rom/pack-${f}-${pk.sha256.slice(0, 12)}.json`, 'json').catch(() => null);
+    if (!X) { X = await get(`rom/pack-${f}-latest.json`, 'json').catch(() => null); if (X) { X = Object.assign({}, X, { anims: [] }); xnote = ` (chain data of his pack ${X.sha256.slice(0, 12)})`; } }
     return { mode: 'pack', id: M.slot.id, fighters: SJ.fighters, layout: SJ.layout, pool: M.constants.pool, throws: SJ.throws,
              anims: X ? X.anims : [], labSpec: M.constants.lab, moves: X ? X.moves : {},
              chain: X ? { ba: X.chain.ba, rules: SJ.chain_rules, retime_rom: X.chain.retime_rom, fighter: X.chain.fighter } : null,
-             shell: sh, pack: pk, packBytes: bytes, size: sh.size, note, version: SJ.layout.version };
+             shell: sh, pack: pk, packBytes: bytes, size: sh.size, note, xnote, version: SJ.layout.version };
   }
   function ctxOf(f) {
     if (!ctxs[f]) ctxs[f] = (async () => {
@@ -244,7 +247,7 @@
         lab, canvas: P.canvas, fit: fitCanvas, soundBtn: P.sound, pauseBtn: P.pause, stepBtn: P.step, touch: P.touch, statusEl: P.stat,
         escPause: false, running: () => S.open, keyActive: () => S.open, status: statusLine });
       P.title.textContent = man.mode === 'pack'
-        ? `Try in game: ${f.toUpperCase()} (Character Lab shell ${man.shell.version} + his pack ${man.pack.version}${man.note}${man.labSpec ? ', LAB special: ' + man.labSpec.anims + ' animations' : ', no LAB special: his decoded specials only'})`
+        ? `Try in game: ${f.toUpperCase()} (Character Lab shell ${man.shell.version} + his pack ${man.pack.version}${man.note}${man.xnote}${man.labSpec ? ', LAB special: ' + man.labSpec.anims + ' animations' : ', no LAB special: his decoded specials only'})`
         : `Try in game: ${f.toUpperCase()} (Lab build ${man.layout.version}, ${man.anims.length} animations; no pack: ${man.why})`;
       S.chainPushed = false;
       P.load.hidden = true;

@@ -18,6 +18,21 @@ const rep = { base, pages: [], tries: [] };
     const [name, value] = process.env.COOKIE.split(/=(.*)/s);
     await page.setCookie({ name, value, url: base });
   }
+  if (process.env.LOGIN) {                             // the live site: through the real Oros login page (LOGIN=user:password)
+    const [u, pw] = process.env.LOGIN.split(/:(.*)/s);
+    await page.goto(base + 'lab.html', { waitUntil: 'load' });
+    if (/login\.html/.test(page.url())) {
+      await page.type('#u', u); await page.type('#p', pw);
+      await Promise.all([page.waitForNavigation({ timeout: 30000 }).catch(() => null), page.click('#go')]);
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    rep.login = page.url();
+    console.log('after login:', page.url());
+  }
+  // the proof only reads: every write to the server (the sheet's on-open push to the live config, saves) is blocked
+  await page.setRequestInterception(true);
+  rep.blocked = [];
+  page.on('request', r => { if (r.method() !== 'GET' && /feedback-api\//.test(r.url())) { rep.blocked.push(r.method() + ' ' + r.url()); r.abort(); } else r.continue(); });
   let errors = [];
   page.on('pageerror', e => errors.push(String(e).slice(0, 300)));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text().slice(0, 200)); });
@@ -42,8 +57,8 @@ const rep = { base, pages: [], tries: [] };
     await visit(w, 'lab.html', 'window.fighterLabReady && window.fighterLabReady.cast > 0', `cast_${w}`);
     for (const f of FIGHTERS) {
       await visit(w, `lab.html?f=${f}&tab=info`, 'window.fighterLabReady', `${f}_info_${w}`);
-      await visit(w, `lab.html?f=${f}&tab=workshop`, `window.workshopReady || document.querySelector('#ws .note') || /No workshop/.test(document.querySelector('#ws').textContent)`, `${f}_workshop_${w}`);
-      await visit(w, `lab.html?f=${f}&tab=assembly`, `window.arbReady || document.querySelector('#arb .note') || /No arbitration/.test(document.querySelector('#arb').textContent)`, `${f}_assembly_${w}`);
+      await visit(w, `lab.html?f=${f}&tab=workshop`, `window.workshopReady || document.querySelector('#ws .note') || /No workshop/.test((document.querySelector('#ws') || {}).textContent)`, `${f}_workshop_${w}`);
+      await visit(w, `lab.html?f=${f}&tab=assembly`, `window.arbReady || document.querySelector('#arb .note') || /No arbitration/.test((document.querySelector('#arb') || {}).textContent)`, `${f}_assembly_${w}`);
     }
     await visit(w, 'lab.html?f=robert&tab=assembly&embed=1', 'window.arbReady', `robert_embed_${w}`);
     await visit(w, 'workshop.html?f=robert', 'window.workshopReady', `redirect_workshop_${w}`);

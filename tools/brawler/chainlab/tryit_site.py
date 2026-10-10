@@ -121,7 +121,8 @@ def shell_and_packs(out, game):
         doc = {'fighter': f, 'engine': m['engine'], 'sha256': m['sha256'], 'slot': m['slot']['id'],
                'anims': L['anims'] if L else [], 'lab_spec': L['spec'] if L else None, 'moves': L['moves'] if L else {},
                'chain': {'ba': cl['ba'], 'retime_rom': json.load(open(rt)) if os.path.exists(rt) else [], 'fighter': fe}}
-        json.dump(doc, open(os.path.join(out, 'rom', f'pack-{f}-{m["sha256"][:12]}.json'), 'w'), ensure_ascii=False)
+        for n in (f'pack-{f}-{m["sha256"][:12]}.json', f'pack-{f}-latest.json'):   # (latest: a pack published after this build)
+            json.dump(doc, open(os.path.join(out, 'rom', n), 'w'), ensure_ascii=False)
         print(f'rom/pack-{f}-{m["sha256"][:12]}.json (engine {m["engine"]}, LAB special: {len(doc["anims"])} animations)')
 
 
