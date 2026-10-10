@@ -1,20 +1,257 @@
 {
- "_doc": "Samurai Shodown II victim postures (export_bm.VICTIM_POSES['samsho2'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, ROM sprites face left, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'anim.step' of the thrown animations of handlers_ss2.throw (the victim's class 5 entries, in the thrower's own frames): Haohmaru's slash throw 508, kick throw 510 then 470, Genjuro's throw 514 (508 + 6: Haohmaru thrown by Genjuro); the flight 220 and lying 222 play the brawler's knockdown animations. Read by eye from the frames (sheet_ss2.py 0 508,510,470 / 12 514). The rage moves' caught victims (handlers_ss2.VL, the victim's own class 3 actions 36 / 115 / 116): Genjuro's WFT 464 (the flight) and 498 (carried in his spin), Kuroko's 580 (dazed at his place), 586 (dazed, his MAX's pose), 588 (the knock, 3 steps with his anim 7) (sheet_ss2.py 0 464,498,580,586,588). Hanzo (TODO #193, sheet_ss2.py 2 520,522,466,470,490,492,494,460): his slash throw 520 then the flight 466, his kick throw 522 then 470; Mozu Otoshi's caught victim (class 3 action 33): 490 (grabbed), 492 (lifted), 494 (spun head down, 4 steps), 460 (the burning flight).",
+ "_doc": "Samurai Shodown II victim postures (export_bm.VICTIM_POSES['samsho2'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, ROM sprites face left, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'anim.step' of the thrown animations of handlers_ss2.throw (the victim's class 5 entries, in the thrower's own frames): Haohmaru's slash throw 508, kick throw 510 then 470, Genjuro's throw 514 (508 + 6: Haohmaru thrown by Genjuro); the flight 220 and lying 222 play the brawler's knockdown animations. Read by eye from the frames (sheet_ss2.py 0 508,510,470 / 12 514). The rage moves' caught victims (handlers_ss2.VL, the victim's own class 3 actions 36 / 115 / 116): Genjuro's WFT 464 (the flight) and 498 (carried in his spin), Kuroko's 580 (dazed at his place), 586 (dazed, his MAX's pose), 588 (the knock, 3 steps with his anim 7) (sheet_ss2.py 0 464,498,580,586,588). Hanzo (TODO #193, sheet_ss2.py 2 520,522,466,470,490,492,494,460): his slash throw 520 then the flight 466, his kick throw 522 then 470; Mozu Otoshi's caught victim (class 3 action 33): 490 (grabbed), 492 (lifted), 494 (spun head down, 4 steps), 460 (the burning flight). Character Lab 2026-10-10 (handlers_ss2.throw_big / throw_air, sheet_ss2.py 8 474,464,466,468 / 2 516,518): the big-victim throw's victim in its own frames (Earthquake's: 474 staggered, 464 falling back, 466 the bounce, 468 lying), the air throw's 516 (grabbed, rolled, head down, slammed) and 518 (lying).",
  "poses": {
-  "508.0": ["grabbed", 0], "508.1": ["hunched", 30], "508.2": ["inverted_diagonal", -150], "508.3": ["inverted", 180],
-  "510.0": ["grabbed", 0], "510.1": ["inverted_diagonal", -150], "510.2": ["inverted", 180],
-  "470.0": ["inverted", 180], "470.1": ["horizontal", -90],
-  "514.0": ["grabbed", 0], "514.1": ["grabbed", 0], "514.2": ["hunched", 0], "514.3": ["horizontal", -90],
-  "514.4": ["inverted", 180], "514.5": ["inverted_diagonal", -150],
-  "220.0": ["horizontal", -90], "220.1": ["horizontal", -90], "222.1": ["lying", -90],
-  "464.0": ["horizontal", -90], "498.0": ["horizontal", -90],
-  "580.0": ["hunched", 0], "586.0": ["hunched", 30], "588.0": ["hunched", 0], "588.1": ["bent_back", -15], "588.2": ["launched", -45],
-  "520.0": ["grabbed", 0], "520.1": ["hunched", 30], "520.2": ["hunched", 30], "520.3": ["horizontal", -90],
-  "520.4": ["inverted_diagonal", -150], "520.5": ["lying", -90],
-  "522.0": ["grabbed", 0], "522.1": ["hunched", 30], "522.2": ["hunched", 30], "522.3": ["horizontal", -90],
-  "522.4": ["inverted_diagonal", -150], "522.5": ["inverted_diagonal", -150], "466.0": ["horizontal", -90], "466.1": ["horizontal", -90],
-  "490.0": ["grabbed", 0], "490.1": ["hunched", 30], "492.0": ["hunched", 30],
-  "494.0": ["inverted_diagonal", -150], "494.1": ["inverted", 180], "494.2": ["inverted_diagonal", -150], "494.3": ["inverted", 180],
-  "460.0": ["horizontal", -90]
+  "508.0": [
+   "grabbed",
+   0
+  ],
+  "508.1": [
+   "hunched",
+   30
+  ],
+  "508.2": [
+   "inverted_diagonal",
+   -150
+  ],
+  "508.3": [
+   "inverted",
+   180
+  ],
+  "510.0": [
+   "grabbed",
+   0
+  ],
+  "510.1": [
+   "inverted_diagonal",
+   -150
+  ],
+  "510.2": [
+   "inverted",
+   180
+  ],
+  "470.0": [
+   "inverted",
+   180
+  ],
+  "470.1": [
+   "horizontal",
+   -90
+  ],
+  "514.0": [
+   "grabbed",
+   0
+  ],
+  "514.1": [
+   "grabbed",
+   0
+  ],
+  "514.2": [
+   "hunched",
+   0
+  ],
+  "514.3": [
+   "horizontal",
+   -90
+  ],
+  "514.4": [
+   "inverted",
+   180
+  ],
+  "514.5": [
+   "inverted_diagonal",
+   -150
+  ],
+  "220.0": [
+   "horizontal",
+   -90
+  ],
+  "220.1": [
+   "horizontal",
+   -90
+  ],
+  "222.1": [
+   "lying",
+   -90
+  ],
+  "464.0": [
+   "horizontal",
+   -90
+  ],
+  "498.0": [
+   "horizontal",
+   -90
+  ],
+  "580.0": [
+   "hunched",
+   0
+  ],
+  "586.0": [
+   "hunched",
+   30
+  ],
+  "588.0": [
+   "hunched",
+   0
+  ],
+  "588.1": [
+   "bent_back",
+   -15
+  ],
+  "588.2": [
+   "launched",
+   -45
+  ],
+  "520.0": [
+   "grabbed",
+   0
+  ],
+  "520.1": [
+   "hunched",
+   30
+  ],
+  "520.2": [
+   "hunched",
+   30
+  ],
+  "520.3": [
+   "horizontal",
+   -90
+  ],
+  "520.4": [
+   "inverted_diagonal",
+   -150
+  ],
+  "520.5": [
+   "lying",
+   -90
+  ],
+  "522.0": [
+   "grabbed",
+   0
+  ],
+  "522.1": [
+   "hunched",
+   30
+  ],
+  "522.2": [
+   "hunched",
+   30
+  ],
+  "522.3": [
+   "horizontal",
+   -90
+  ],
+  "522.4": [
+   "inverted_diagonal",
+   -150
+  ],
+  "522.5": [
+   "inverted_diagonal",
+   -150
+  ],
+  "466.0": [
+   "horizontal",
+   -90
+  ],
+  "466.1": [
+   "horizontal",
+   -90
+  ],
+  "490.0": [
+   "grabbed",
+   0
+  ],
+  "490.1": [
+   "hunched",
+   30
+  ],
+  "492.0": [
+   "hunched",
+   30
+  ],
+  "494.0": [
+   "inverted_diagonal",
+   -150
+  ],
+  "494.1": [
+   "inverted",
+   180
+  ],
+  "494.2": [
+   "inverted_diagonal",
+   -150
+  ],
+  "494.3": [
+   "inverted",
+   180
+  ],
+  "460.0": [
+   "horizontal",
+   -90
+  ],
+  "474.0": [
+   "hit_reel",
+   0
+  ],
+  "474.1": [
+   "hit_reel",
+   0
+  ],
+  "474.2": [
+   "hunched",
+   30
+  ],
+  "474.3": [
+   "hit_reel",
+   0
+  ],
+  "474.4": [
+   "bent_back",
+   -15
+  ],
+  "464.1": [
+   "horizontal",
+   -90
+  ],
+  "464.2": [
+   "horizontal",
+   -90
+  ],
+  "466.2": [
+   "horizontal",
+   -90
+  ],
+  "468.0": [
+   "lying",
+   -90
+  ],
+  "468.1": [
+   "lying",
+   -90
+  ],
+  "516.0": [
+   "grabbed",
+   0
+  ],
+  "516.1": [
+   "hunched",
+   30
+  ],
+  "516.2": [
+   "horizontal",
+   -90
+  ],
+  "516.3": [
+   "inverted",
+   180
+  ],
+  "516.4": [
+   "lying",
+   -90
+  ],
+  "518.0": [
+   "lying",
+   -90
+  ]
  }
 }

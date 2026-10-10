@@ -1044,14 +1044,18 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
 #define ESCAPE_PRESSES 4
 #define THROW_FREEZE 21           /* KOF98 Ryo's forward+C: step 10 held 21 frames past its ticks (the only throw freeze
                                      among the roster's: every other throw step lasts its ROM ticks + 1, KOF96/98/99) */
-enum { BT_HOLD_HIT = BT_COUNT, BT_HOLD_FIN, BT_XTHROW };        /* throw_id of a hold hit: bchar_t.holds[0] / [1]; the
-                                                                    extra paired throw: bm_xthr[id].x (revamp 3) */
+enum { BT_HOLD_HIT = BT_COUNT, BT_HOLD_FIN, BT_XTHROW, BT_BIG };   /* throw_id of a hold hit: bchar_t.holds[0] / [1];
+                                                                    the extra paired throw: bm_xthr[id].x (revamp 3);
+                                                                    BT_BIG + t: throw t's big-victim version forced (a Lab
+                                                                    entry only: LE_THROW codes = export_bm LE_THROWS) */
 #define IS_THROW(id) ((id) < BT_COUNT || (id) == BT_XTHROW)        /* a throw (damage, voice, effect), not a hold hit */
 #define IS_HOLD(id)  ((id) == BT_HOLD_HIT || (id) == BT_HOLD_FIN)
 static const bbox_t BODY_BOX = { 0, -32, 32, 24 };              /* a thrown body as an attack box (centre, half extents) */
 
 static const bthrow_t *thr_of(const fighter_t *f, uint8_t id) {
-    return id < BT_COUNT ? &f->ch->throws[id] : id == BT_XTHROW ? bm_xthr[f->ch->id].x : &f->ch->holds[id - BT_COUNT];
+    if (id < BT_COUNT) return f->tbig ? &bm_xthr[f->ch->id].big[id] : &f->ch->throws[id];   /* (its big-victim one:
+                                                                    throw_start, tbig) */
+    return id == BT_XTHROW ? bm_xthr[f->ch->id].x : &f->ch->holds[id - BT_COUNT];
 }
 /* a hold hit's move (bthrow_t.hanim: game.json roster[].throws.hold, default the fastest close normal; TODO #166 c) and
  * the attack box of its active step (hstep), which hits the crowd around the held victim (combat, "hold crowd") */
@@ -1332,10 +1336,19 @@ static uint8_t fury_press(fighter_t *f, uint8_t max) {         /* max: down held
     if (max && f->ch->form_trig == FT_DOWN_D_FULL && spec_ix(f->ch, BS_FORM) != 0xFF && pay(f, PAY_FORM, 0)) return BS_FORM;
     return fury_buy(f, max, 0);
 }
+/* THE VICTIM'S SIZE (Character Lab 2026-10-10, Bruno: "special regular throws against EARTHQUAKE, who is too big to be
+ * thrown"; SS2 $2C75C: a victim of character 8 / 17 takes class 4 action 4 whatever the button): a victim of the BIG
+ * class (game.json roster[].victim "big" -> bxthr_t vbig) is thrown with the thrower's big-victim throw (bxthr_t big:
+ * SS2's handlers_ss2.throw_big) when it has one, both directions; else its usual throw. The Lab names one directly
+ * (BT_BIG + t) */
 static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / back+A in the hold (any BT_*: the extra */
     fighter_t *v = f->held;                                      /* paired throw too, revamp 3) */
     const bthrow_t *th;
-    if (t < BT_COUNT && !f->ch->throws[t].nrows) {
+    const bxthr_t *bx = &bm_xthr[f->ch->id];
+    uint8_t big = 0;
+    if (t >= BT_BIG) { t -= BT_BIG; big = 1; }                   /* (the Lab's: its big-victim version) */
+    f->tbig = t < BT_COUNT && bx->big && bx->big[t].nrows && (big || bm_xthr[v->ch->id].vbig);
+    if (t < BT_COUNT && !f->tbig && !f->ch->throws[t].nrows) {
         if (f->ch->throws[t].turn) f->facing = -f->facing;      /* its back throw = its C throw turned (bthrow_t turn,
                                                                     Krauser): the victim goes over to its back, as the
                                                                     chain's mirrored back throw (chain_throw) */
@@ -1396,7 +1409,14 @@ static uint16_t lab_find(uint16_t id) {                  /* $NN -> the LAB speci
 static uint8_t lab_bad(uint16_t e, uint8_t c, uint8_t grab) {   /* entry e for fighter c -> 0 ok, else lab.lstat's check */
     const bchar_t *ch = &bm_chars[c];
     uint8_t k = e & 0xFF;
-    if (e & LE_THROW) return !grab ? 4 : k >= BT_COUNT || (!ch->throws[k].nrows && !ch->throws[k].turn) ? 3 : 0;
+    if (e & LE_THROW) {                                  /* (LE_THROW codes: BT_* ids, export_bm LE_THROWS) */
+        const bxthr_t *bx = &bm_xthr[c];
+        if (!grab) return 4;
+        if (k < BT_COUNT) return !ch->throws[k].nrows && !ch->throws[k].turn ? 3 : 0;
+        if (k == BT_XTHROW) return bx->x ? 0 : 3;
+        if (k >= BT_BIG && k < BT_BIG + BT_COUNT) return bx->big && bx->big[k - BT_BIG].nrows ? 0 : 3;
+        return 3;
+    }
     if (e & LE_SPEC) return k >= ch->nspec || !ch->specials[k].nrows ? 2 : 0;
     return c != bm_lab.fighter || lab_find(e) == 0xFFFF ? 1 : 0;
 }
@@ -2804,6 +2824,23 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
         case P_UNHOLD: f->pflags &= ~PF_HOLD; f->phold = 0; break;
         case P_VPHASE: vphase(f, p->a, p->b); break;             /* its target's victim phases (TODO #136; VA_LIST: TODO #213) */
         case P_SCREEN: f->pbd = p->a; break;                     /* its screen effect on / off (main.c screen_fx) */
+        case P_WARP: {                                           /* placed (SS2 Hanzo's Kage Bunshin / Utsusemi, Character
+                                                                    Lab 2026-10-10): a 1 on the screen, v px from the
+                                                                    camera's left, turned to the screen's middle; a 0 at
+                                                                    its target, b px short of it, on its lane, turned to
+                                                                    it, height v & $FFFF (v >> 16: a big target) */
+            if (p->a & 1) { f->x = FIX(cam_x + (int16_t)v); f->facing = (int16_t)v < 160 ? 1 : -1; f->y = 0; }
+            else {
+                fighter_t *t = f->target;                        /* (a target gone: the nearest on its lane) */
+                if (!t || t->hp <= 0 || t->state == S_OFF || t->state == S_DEAD) t = f->popp;
+                if (!t) break;
+                f->facing = t->x >= f->x ? 1 : -1;
+                f->x = t->x - dir_mul(f->facing, FIX(p->b)); f->z = t->z;
+                f->y = FIX(bm_xthr[t->ch->id].vbig ? (uint16_t)((uint32_t)v >> 16) : (uint16_t)v);
+            }
+            clamp(f);
+            break;
+        }
         default:                                                 /* P_END (this frame still counts a voice to come) */
             if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);
             prog_end(f); return;

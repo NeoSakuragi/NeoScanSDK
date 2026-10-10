@@ -177,6 +177,7 @@
   {
    "name": "krauser",
    "bank": "kof96:krauser",
+   "victim": "big",
    "watch": {"frame": 226, "step": -1},
    "routes": "default",
    "archetype": "heavy",

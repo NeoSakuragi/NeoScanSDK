@@ -2797,5 +2797,18 @@
   "expect": "Each C special that spends a drive chunk shows Kim in a blue palette for its first quarter second (15 frames), then his own colours. No C special comes out without drive, so no blue. The fury and MAX keep their own flash (no blue), the breaker keeps its white / red blink, a free Blitz no blue.",
   "do_keys": "3:c",
   "proof": 60
+ },
+ "lab-hanzo_ss2-bigthrow": {
+  "title": "Hanzo (SS2) throws the big Krauser with his big-victim throw",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "krauser",
+   "gap": 40
+  },
+  "do": "Walk into Krauser to grab him, then forward + A to throw.",
+  "expect": "Hanzo does not throw him over: he slides under Krauser and kicks him up (SS2's throw for Earthquake, anim 270); Krauser staggers, falls back and bounces. Against Ryo the same input is the usual slash throw.",
+  "do_keys": "6:R,4:Ra,12:-",
+  "proof": 110
  }
 }

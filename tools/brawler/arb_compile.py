@@ -194,6 +194,33 @@ def native_kizuna(f, D):
     return names, {}, specs
 
 
+SS2_THROW_INPUTS = {'throw_c': 'hold + forward + A (SS2: close + forward / back + B or A+B)',
+                    'throw_d': 'hold + back + A (SS2: close + forward / back + D or C+D)',
+                    'throw_big': 'hold + forward / back + A on a big victim (SS2: any throw on Earthquake / Kuroko)',
+                    'throw_x': 'Lab only, from the hold (SS2: close + forward + B or A+B in the air)'}
+
+def native_ss2(f, D):
+    """Samurai Shodown II (export_ss2 / handlers_ss2, Character Lab 2026-10-10): MOVES (the brawler's move -> SS2
+    animation, first step 0, whole: a move name of that animation; jump_moves too), the specials decoded as programs
+    from SS2's action handlers, each BUTTON VERSION its own piece (handlers_ss2.version_input: 6321A / 6321B / 6321AB;
+    a one-button special keeps its input: WFT, 63214BCD), with the animations its program plays (the dictionary's
+    "specials")"""
+    sys.path.insert(0, os.path.join(TOOLS, 'samsho2'))
+    import export_ss2 as XS, handlers_ss2 as HS
+    ch = __import__('animdict').SS2_CAST[f]
+    hname = {v: k for k, v in XS.CAST.items()}[ch]
+    names, specs = {}, {}
+    for mv, (a, first, last) in {**XS.MOVES, **XS.jump_moves(ch)}.items():
+        if first == 0 and last is None: names.setdefault(H(a), []).append(mv)
+    for sp in D.get('specials', []):
+        base = next((i for i in HS.SPECIALS[hname] if i == sp['input'] or
+                     any(HS.version_input(i, k, HS.SPECIALS[hname][i][1]) == sp['input'] for k in range(HS.SPECIALS[hname][i][1]))), None)
+        if base is None or (sp['condition'] != 'version' and HS.SPECIALS[hname][base][1] > 1): continue   # (its versions)
+        specs[sp['input']] = {'decoded': True, 'anims': list(dict.fromkeys(H(a) for a in sp['anims'])), 'air': sp['input'].startswith('j.'),
+                              'source': 'handlers_ss2.SPECIALS', **({'name': sp['name']} if sp.get('name') else {})}
+    return names, {}, specs
+
+
 def build_pieces(f, G, D, old=None):
     """the fighter's piece library: animation id -> class facts; specials; spare names (see the module doc). `old`: the
     previous library, whose hand-added fields (an entry's anim_special / note) are kept"""
@@ -201,6 +228,7 @@ def build_pieces(f, G, D, old=None):
     game = r['bank'].split(':')[0]
     if game in ('kof96', 'kof97', 'kof98', 'kof99'): names, hop, specs = native_kof(game, f, D)
     elif game == 'kizuna': names, hop, specs = native_kizuna(f, D)
+    elif game == 'samsho2': names, hop, specs = native_ss2(f, D)
     else: raise SystemExit(f'{f}: bank {r["bank"]}: no piece library for {game} yet (the arbitration sheets need an animation dictionary: animdict.DICTS)')
     for a in D['anims']:                                   # the dictionary's captured specials (decoded or not)
         if a['kind'] == 'effect-only': continue
@@ -241,6 +269,7 @@ def build_pieces(f, G, D, old=None):
             'spare_names': [n for n in SPARE if n not in native],
             'handled': (old or {}).get('handled') or {},
             'specials': dict(sorted(specs.items())), 'anims': anims,
+            **({'throw_inputs': SS2_THROW_INPUTS} if game == 'samsho2' else {}),
             'knobs': (old or {}).get('knobs') or {}}            # (knobs.py derive: refreshed by load_pieces)
 
 

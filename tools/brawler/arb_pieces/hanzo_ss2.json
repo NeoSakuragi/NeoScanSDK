@@ -1,0 +1,4850 @@
+{
+ "fighter": "hanzo_ss2",
+ "bank": "samsho2:hanzo",
+ "game": "samsho2",
+ "dictionary": "Samurai Shodown II (character 2 Hanzo, animation table $220280[2] -> $231DB8: 648 entries, 648 distinct animations)",
+ "about": "arb_compile.py piece library: per animation id (the dictionary's, = the sheet's pieces) its brawler move names (names), the specials whose program plays it (specials; decoded ones in \"specials\" below), hop_of (a later state of a hop: not playable alone), state (what anim_specials \"$NN\" address), anim_special (the reaction when played as an animation special: known = linkable, class c) and note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has implemented (the same pieces + note are not listed again; a changed answer is). knobs: {S- id: [knob]} each decoded special's key parameters (tools/brawler/knobs.py: id, name, unit, the ROM default, min / max / step, the engine rows a value gives, from, judgment). Regenerated from the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand are kept.",
+ "spare_names": [
+  "atk_cd_close",
+  "atk_ab_far",
+  "atk_ab_close",
+  "atk_cd_crouch",
+  "atk_ab_crouch",
+  "cmd_fwd_c",
+  "cmd_fwd_cd"
+ ],
+ "handled": {},
+ "specials": {
+  "623C": {
+   "decoded": true,
+   "anims": [
+    "128",
+    "3A",
+    "3C",
+    "3E",
+    "26",
+    "1A"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Mozu Otoshi"
+  },
+  "623CD": {
+   "decoded": true,
+   "anims": [
+    "128",
+    "3A",
+    "3C",
+    "3E",
+    "26",
+    "1A"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Mozu Otoshi"
+  },
+  "623D": {
+   "decoded": true,
+   "anims": [
+    "128",
+    "3A",
+    "3C",
+    "3E",
+    "26",
+    "1A"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Mozu Otoshi"
+  },
+  "63214BCD": {
+   "decoded": true,
+   "anims": [
+    "E",
+    "50",
+    "C3",
+    "16",
+    "1A",
+    "3"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Utsusemi"
+  },
+  "6321A": {
+   "decoded": true,
+   "anims": [
+    "CE",
+    "D6",
+    "D9"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Bakuen Ryuu"
+  },
+  "6321AB": {
+   "decoded": true,
+   "anims": [
+    "CE",
+    "D6",
+    "D9"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Bakuen Ryuu"
+  },
+  "6321B": {
+   "decoded": true,
+   "anims": [
+    "CE",
+    "D6",
+    "D9"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Bakuen Ryuu"
+  },
+  "641236A": {
+   "decoded": true,
+   "anims": [
+    "C",
+    "F",
+    "E",
+    "50",
+    "13",
+    "19"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Kage Bunshin"
+  },
+  "641236B": {
+   "decoded": true,
+   "anims": [
+    "C",
+    "F",
+    "E",
+    "50",
+    "13",
+    "19"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Kage Bunshin"
+  },
+  "6464642BCD": {
+   "decoded": true,
+   "anims": [
+    "CC",
+    "E"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Kagemai"
+  },
+  "WFT": {
+   "decoded": true,
+   "anims": [
+    "124"
+   ],
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Tenma Fukumetsu (rage)"
+  },
+  "j.4123A": {
+   "decoded": true,
+   "anims": [
+    "11F",
+    "F9",
+    "1A",
+    "3"
+   ],
+   "air": true,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Reppuu Shuriken (air)"
+  },
+  "j.4123AB": {
+   "decoded": true,
+   "anims": [
+    "11F",
+    "F9",
+    "1A",
+    "3"
+   ],
+   "air": true,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Reppuu Shuriken (air)"
+  },
+  "j.4123B": {
+   "decoded": true,
+   "anims": [
+    "11F",
+    "F9",
+    "1A",
+    "3"
+   ],
+   "air": true,
+   "source": "handlers_ss2.SPECIALS",
+   "name": "Ninpou Reppuu Shuriken (air)"
+  }
+ },
+ "anims": {
+  "0": {
+   "kind": "pose",
+   "state": 0,
+   "names": [
+    "idle"
+   ],
+   "specials": []
+  },
+  "1": {
+   "kind": "pose",
+   "state": 1,
+   "names": [],
+   "specials": []
+  },
+  "2": {
+   "kind": "pose",
+   "state": 2,
+   "names": [],
+   "specials": []
+  },
+  "3": {
+   "kind": "pose",
+   "state": 3,
+   "names": [],
+   "specials": [
+    "63214BCD",
+    "j.4123A",
+    "j.4123B",
+    "j.4123AB"
+   ]
+  },
+  "4": {
+   "kind": "movement",
+   "state": 4,
+   "names": [
+    "walk_fwd"
+   ],
+   "specials": []
+  },
+  "5": {
+   "kind": "movement",
+   "state": 5,
+   "names": [],
+   "specials": []
+  },
+  "6": {
+   "kind": "movement",
+   "state": 6,
+   "names": [],
+   "specials": []
+  },
+  "7": {
+   "kind": "movement",
+   "state": 7,
+   "names": [],
+   "specials": []
+  },
+  "8": {
+   "kind": "pose",
+   "state": 8,
+   "names": [],
+   "specials": []
+  },
+  "9": {
+   "kind": "pose",
+   "state": 9,
+   "names": [],
+   "specials": []
+  },
+  "A": {
+   "kind": "empty",
+   "state": 10,
+   "names": [],
+   "specials": []
+  },
+  "B": {
+   "kind": "empty",
+   "state": 11,
+   "names": [],
+   "specials": []
+  },
+  "C": {
+   "kind": "pose",
+   "state": 12,
+   "names": [],
+   "specials": [
+    "641236A",
+    "641236B"
+   ]
+  },
+  "D": {
+   "kind": "pose",
+   "state": 13,
+   "names": [],
+   "specials": []
+  },
+  "E": {
+   "kind": "effect-only",
+   "state": 14,
+   "names": [],
+   "specials": [
+    "63214BCD",
+    "6464642BCD",
+    "641236A",
+    "641236B"
+   ]
+  },
+  "F": {
+   "kind": "pose",
+   "state": 15,
+   "names": [],
+   "specials": [
+    "641236A",
+    "641236B"
+   ]
+  },
+  "10": {
+   "kind": "pose",
+   "state": 16,
+   "names": [],
+   "specials": []
+  },
+  "11": {
+   "kind": "pose",
+   "state": 17,
+   "names": [],
+   "specials": []
+  },
+  "12": {
+   "kind": "pose",
+   "state": 18,
+   "names": [],
+   "specials": []
+  },
+  "13": {
+   "kind": "pose",
+   "state": 19,
+   "names": [],
+   "specials": [
+    "641236A",
+    "641236B"
+   ]
+  },
+  "14": {
+   "kind": "movement",
+   "state": 20,
+   "names": [],
+   "specials": []
+  },
+  "15": {
+   "kind": "movement",
+   "state": 21,
+   "names": [],
+   "specials": []
+  },
+  "16": {
+   "kind": "movement",
+   "state": 22,
+   "names": [
+    "jump_up_rise"
+   ],
+   "specials": [
+    "63214BCD"
+   ]
+  },
+  "17": {
+   "kind": "movement",
+   "state": 23,
+   "names": [],
+   "specials": []
+  },
+  "18": {
+   "kind": "pose",
+   "state": 24,
+   "names": [],
+   "specials": []
+  },
+  "19": {
+   "kind": "pose",
+   "state": 25,
+   "names": [],
+   "specials": [
+    "641236A",
+    "641236B"
+   ]
+  },
+  "1A": {
+   "kind": "pose",
+   "state": 26,
+   "names": [
+    "jump_up_fall"
+   ],
+   "specials": [
+    "63214BCD",
+    "623C",
+    "623D",
+    "623CD",
+    "j.4123A",
+    "j.4123B",
+    "j.4123AB"
+   ]
+  },
+  "1B": {
+   "kind": "pose",
+   "state": 27,
+   "names": [],
+   "specials": []
+  },
+  "1C": {
+   "kind": "movement",
+   "state": 28,
+   "names": [
+    "jump_fwd_rise"
+   ],
+   "specials": []
+  },
+  "1D": {
+   "kind": "movement",
+   "state": 29,
+   "names": [],
+   "specials": []
+  },
+  "1E": {
+   "kind": "pose",
+   "state": 30,
+   "names": [],
+   "specials": []
+  },
+  "1F": {
+   "kind": "empty",
+   "state": 31,
+   "names": [],
+   "specials": []
+  },
+  "20": {
+   "kind": "pose",
+   "state": 32,
+   "names": [
+    "jump_fwd_fall"
+   ],
+   "specials": []
+  },
+  "21": {
+   "kind": "pose",
+   "state": 33,
+   "names": [],
+   "specials": []
+  },
+  "22": {
+   "kind": "movement",
+   "state": 34,
+   "names": [
+    "jump_back_rise"
+   ],
+   "specials": [],
+   "throws": [
+    "throw_x"
+   ]
+  },
+  "23": {
+   "kind": "empty",
+   "state": 35,
+   "names": [],
+   "specials": []
+  },
+  "24": {
+   "kind": "pose",
+   "state": 36,
+   "names": [],
+   "specials": []
+  },
+  "25": {
+   "kind": "empty",
+   "state": 37,
+   "names": [],
+   "specials": []
+  },
+  "26": {
+   "kind": "pose",
+   "state": 38,
+   "names": [
+    "jump_back_fall"
+   ],
+   "specials": [
+    "623C",
+    "623D",
+    "623CD"
+   ],
+   "throws": [
+    "throw_x"
+   ]
+  },
+  "27": {
+   "kind": "empty",
+   "state": 39,
+   "names": [],
+   "specials": []
+  },
+  "28": {
+   "kind": "attack",
+   "state": 40,
+   "names": [],
+   "specials": []
+  },
+  "29": {
+   "kind": "attack",
+   "state": 41,
+   "names": [],
+   "specials": []
+  },
+  "2A": {
+   "kind": "pose",
+   "state": 42,
+   "names": [],
+   "specials": []
+  },
+  "2B": {
+   "kind": "reaction",
+   "state": 43,
+   "names": [],
+   "specials": []
+  },
+  "2C": {
+   "kind": "pose",
+   "state": 44,
+   "names": [],
+   "specials": []
+  },
+  "2D": {
+   "kind": "pose",
+   "state": 45,
+   "names": [],
+   "specials": []
+  },
+  "2E": {
+   "kind": "pose",
+   "state": 46,
+   "names": [],
+   "specials": []
+  },
+  "2F": {
+   "kind": "pose",
+   "state": 47,
+   "names": [],
+   "specials": []
+  },
+  "30": {
+   "kind": "movement",
+   "state": 48,
+   "names": [],
+   "specials": []
+  },
+  "31": {
+   "kind": "movement",
+   "state": 49,
+   "names": [],
+   "specials": []
+  },
+  "32": {
+   "kind": "movement",
+   "state": 50,
+   "names": [],
+   "specials": []
+  },
+  "33": {
+   "kind": "movement",
+   "state": 51,
+   "names": [],
+   "specials": []
+  },
+  "34": {
+   "kind": "attack",
+   "state": 52,
+   "names": [],
+   "specials": []
+  },
+  "35": {
+   "kind": "attack",
+   "state": 53,
+   "names": [],
+   "specials": []
+  },
+  "36": {
+   "kind": "pose",
+   "state": 54,
+   "names": [],
+   "specials": []
+  },
+  "37": {
+   "kind": "reaction",
+   "state": 55,
+   "names": [],
+   "specials": []
+  },
+  "38": {
+   "kind": "pose",
+   "state": 56,
+   "names": [],
+   "specials": []
+  },
+  "39": {
+   "kind": "pose",
+   "state": 57,
+   "names": [],
+   "specials": []
+  },
+  "3A": {
+   "kind": "pose",
+   "state": 58,
+   "names": [],
+   "specials": [
+    "623C",
+    "623D",
+    "623CD"
+   ]
+  },
+  "3B": {
+   "kind": "pose",
+   "state": 59,
+   "names": [],
+   "specials": []
+  },
+  "3C": {
+   "kind": "pose",
+   "state": 60,
+   "names": [],
+   "specials": [
+    "623C",
+    "623D",
+    "623CD"
+   ]
+  },
+  "3D": {
+   "kind": "pose",
+   "state": 61,
+   "names": [],
+   "specials": []
+  },
+  "3E": {
+   "kind": "pose",
+   "state": 62,
+   "names": [],
+   "specials": [
+    "623C",
+    "623D",
+    "623CD"
+   ]
+  },
+  "3F": {
+   "kind": "pose",
+   "state": 63,
+   "names": [],
+   "specials": []
+  },
+  "40": {
+   "kind": "pose",
+   "state": 64,
+   "names": [],
+   "specials": []
+  },
+  "41": {
+   "kind": "empty",
+   "state": 65,
+   "names": [],
+   "specials": []
+  },
+  "42": {
+   "kind": "movement",
+   "state": 66,
+   "names": [
+    "run"
+   ],
+   "specials": []
+  },
+  "43": {
+   "kind": "movement",
+   "state": 67,
+   "names": [],
+   "specials": []
+  },
+  "44": {
+   "kind": "movement",
+   "state": 68,
+   "names": [],
+   "specials": []
+  },
+  "45": {
+   "kind": "empty",
+   "state": 69,
+   "names": [],
+   "specials": []
+  },
+  "46": {
+   "kind": "empty",
+   "state": 70,
+   "names": [],
+   "specials": []
+  },
+  "47": {
+   "kind": "empty",
+   "state": 71,
+   "names": [],
+   "specials": []
+  },
+  "48": {
+   "kind": "pose",
+   "state": 72,
+   "names": [],
+   "specials": []
+  },
+  "49": {
+   "kind": "empty",
+   "state": 73,
+   "names": [],
+   "specials": []
+  },
+  "4A": {
+   "kind": "empty",
+   "state": 74,
+   "names": [],
+   "specials": []
+  },
+  "4B": {
+   "kind": "empty",
+   "state": 75,
+   "names": [],
+   "specials": []
+  },
+  "4C": {
+   "kind": "empty",
+   "state": 76,
+   "names": [],
+   "specials": []
+  },
+  "4D": {
+   "kind": "empty",
+   "state": 77,
+   "names": [],
+   "specials": []
+  },
+  "4E": {
+   "kind": "pose",
+   "state": 78,
+   "names": [],
+   "specials": []
+  },
+  "4F": {
+   "kind": "pose",
+   "state": 79,
+   "names": [],
+   "specials": []
+  },
+  "50": {
+   "kind": "empty",
+   "state": 80,
+   "names": [],
+   "specials": [
+    "63214BCD",
+    "641236A",
+    "641236B"
+   ]
+  },
+  "51": {
+   "kind": "empty",
+   "state": 81,
+   "names": [],
+   "specials": []
+  },
+  "52": {
+   "kind": "effect-only",
+   "state": 82,
+   "names": [],
+   "specials": []
+  },
+  "53": {
+   "kind": "pose",
+   "state": 83,
+   "names": [],
+   "specials": []
+  },
+  "54": {
+   "kind": "pose",
+   "state": 84,
+   "names": [],
+   "specials": []
+  },
+  "55": {
+   "kind": "empty",
+   "state": 85,
+   "names": [],
+   "specials": []
+  },
+  "56": {
+   "kind": "pose",
+   "state": 86,
+   "names": [],
+   "specials": []
+  },
+  "57": {
+   "kind": "pose",
+   "state": 87,
+   "names": [],
+   "specials": []
+  },
+  "58": {
+   "kind": "pose",
+   "state": 88,
+   "names": [],
+   "specials": []
+  },
+  "59": {
+   "kind": "pose",
+   "state": 89,
+   "names": [],
+   "specials": []
+  },
+  "5A": {
+   "kind": "pose",
+   "state": 90,
+   "names": [],
+   "specials": []
+  },
+  "5B": {
+   "kind": "pose",
+   "state": 91,
+   "names": [],
+   "specials": []
+  },
+  "5C": {
+   "kind": "pose",
+   "state": 92,
+   "names": [],
+   "specials": []
+  },
+  "5D": {
+   "kind": "pose",
+   "state": 93,
+   "names": [],
+   "specials": []
+  },
+  "5E": {
+   "kind": "pose",
+   "state": 94,
+   "names": [],
+   "specials": []
+  },
+  "5F": {
+   "kind": "attack",
+   "state": 95,
+   "names": [],
+   "specials": []
+  },
+  "60": {
+   "kind": "pose",
+   "state": 96,
+   "names": [],
+   "specials": []
+  },
+  "61": {
+   "kind": "pose",
+   "state": 97,
+   "names": [],
+   "specials": []
+  },
+  "62": {
+   "kind": "pose",
+   "state": 98,
+   "names": [],
+   "specials": []
+  },
+  "63": {
+   "kind": "pose",
+   "state": 99,
+   "names": [],
+   "specials": []
+  },
+  "64": {
+   "kind": "pose",
+   "state": 100,
+   "names": [],
+   "specials": []
+  },
+  "65": {
+   "kind": "pose",
+   "state": 101,
+   "names": [],
+   "specials": []
+  },
+  "66": {
+   "kind": "pose",
+   "state": 102,
+   "names": [],
+   "specials": []
+  },
+  "67": {
+   "kind": "pose",
+   "state": 103,
+   "names": [],
+   "specials": []
+  },
+  "68": {
+   "kind": "reaction",
+   "state": 104,
+   "names": [],
+   "specials": []
+  },
+  "69": {
+   "kind": "reaction",
+   "state": 105,
+   "names": [],
+   "specials": []
+  },
+  "6A": {
+   "kind": "reaction",
+   "state": 106,
+   "names": [
+    "hit_stand_heavy"
+   ],
+   "specials": []
+  },
+  "6B": {
+   "kind": "reaction",
+   "state": 107,
+   "names": [],
+   "specials": []
+  },
+  "6C": {
+   "kind": "reaction",
+   "state": 108,
+   "names": [],
+   "specials": []
+  },
+  "6D": {
+   "kind": "reaction",
+   "state": 109,
+   "names": [],
+   "specials": []
+  },
+  "6E": {
+   "kind": "reaction",
+   "state": 110,
+   "names": [
+    "hit_stand_light"
+   ],
+   "specials": []
+  },
+  "6F": {
+   "kind": "reaction",
+   "state": 111,
+   "names": [],
+   "specials": []
+  },
+  "70": {
+   "kind": "reaction",
+   "state": 112,
+   "names": [],
+   "specials": []
+  },
+  "71": {
+   "kind": "reaction",
+   "state": 113,
+   "names": [],
+   "specials": []
+  },
+  "72": {
+   "kind": "reaction",
+   "state": 114,
+   "names": [],
+   "specials": []
+  },
+  "73": {
+   "kind": "reaction",
+   "state": 115,
+   "names": [],
+   "specials": []
+  },
+  "74": {
+   "kind": "reaction",
+   "state": 116,
+   "names": [],
+   "specials": []
+  },
+  "75": {
+   "kind": "reaction",
+   "state": 117,
+   "names": [],
+   "specials": []
+  },
+  "76": {
+   "kind": "reaction",
+   "state": 118,
+   "names": [],
+   "specials": []
+  },
+  "77": {
+   "kind": "reaction",
+   "state": 119,
+   "names": [],
+   "specials": []
+  },
+  "78": {
+   "kind": "reaction",
+   "state": 120,
+   "names": [
+    "trip"
+   ],
+   "specials": []
+  },
+  "79": {
+   "kind": "reaction",
+   "state": 121,
+   "names": [],
+   "specials": []
+  },
+  "7A": {
+   "kind": "reaction",
+   "state": 122,
+   "names": [],
+   "specials": []
+  },
+  "7B": {
+   "kind": "reaction",
+   "state": 123,
+   "names": [],
+   "specials": []
+  },
+  "7C": {
+   "kind": "reaction",
+   "state": 124,
+   "names": [],
+   "specials": []
+  },
+  "7D": {
+   "kind": "reaction",
+   "state": 125,
+   "names": [],
+   "specials": []
+  },
+  "7E": {
+   "kind": "pose",
+   "state": 126,
+   "names": [],
+   "specials": []
+  },
+  "7F": {
+   "kind": "pose",
+   "state": 127,
+   "names": [],
+   "specials": []
+  },
+  "80": {
+   "kind": "pose",
+   "state": 128,
+   "names": [],
+   "specials": []
+  },
+  "81": {
+   "kind": "empty",
+   "state": 129,
+   "names": [],
+   "specials": []
+  },
+  "82": {
+   "kind": "pose",
+   "state": 130,
+   "names": [],
+   "specials": []
+  },
+  "83": {
+   "kind": "empty",
+   "state": 131,
+   "names": [],
+   "specials": []
+  },
+  "84": {
+   "kind": "pose",
+   "state": 132,
+   "names": [],
+   "specials": []
+  },
+  "85": {
+   "kind": "pose",
+   "state": 133,
+   "names": [],
+   "specials": []
+  },
+  "86": {
+   "kind": "reaction",
+   "state": 134,
+   "names": [],
+   "specials": []
+  },
+  "87": {
+   "kind": "reaction",
+   "state": 135,
+   "names": [],
+   "specials": []
+  },
+  "88": {
+   "kind": "pose",
+   "state": 136,
+   "names": [],
+   "specials": []
+  },
+  "89": {
+   "kind": "empty",
+   "state": 137,
+   "names": [],
+   "specials": []
+  },
+  "8A": {
+   "kind": "pose",
+   "state": 138,
+   "names": [],
+   "specials": []
+  },
+  "8B": {
+   "kind": "pose",
+   "state": 139,
+   "names": [],
+   "specials": []
+  },
+  "8C": {
+   "kind": "pose",
+   "state": 140,
+   "names": [],
+   "specials": []
+  },
+  "8D": {
+   "kind": "empty",
+   "state": 141,
+   "names": [],
+   "specials": []
+  },
+  "8E": {
+   "kind": "pose",
+   "state": 142,
+   "names": [],
+   "specials": []
+  },
+  "8F": {
+   "kind": "pose",
+   "state": 143,
+   "names": [],
+   "specials": []
+  },
+  "90": {
+   "kind": "pose",
+   "state": 144,
+   "names": [],
+   "specials": []
+  },
+  "91": {
+   "kind": "pose",
+   "state": 145,
+   "names": [],
+   "specials": []
+  },
+  "92": {
+   "kind": "pose",
+   "state": 146,
+   "names": [],
+   "specials": []
+  },
+  "93": {
+   "kind": "pose",
+   "state": 147,
+   "names": [],
+   "specials": []
+  },
+  "94": {
+   "kind": "empty",
+   "state": 148,
+   "names": [],
+   "specials": []
+  },
+  "95": {
+   "kind": "attack",
+   "state": 149,
+   "names": [],
+   "specials": []
+  },
+  "96": {
+   "kind": "pose",
+   "state": 150,
+   "names": [],
+   "specials": []
+  },
+  "97": {
+   "kind": "pose",
+   "state": 151,
+   "names": [],
+   "specials": []
+  },
+  "98": {
+   "kind": "pose",
+   "state": 152,
+   "names": [],
+   "specials": []
+  },
+  "99": {
+   "kind": "effect-only",
+   "state": 153,
+   "names": [],
+   "specials": []
+  },
+  "9A": {
+   "kind": "empty",
+   "state": 154,
+   "names": [],
+   "specials": []
+  },
+  "9B": {
+   "kind": "pose",
+   "state": 155,
+   "names": [],
+   "specials": []
+  },
+  "9C": {
+   "kind": "pose",
+   "state": 156,
+   "names": [],
+   "specials": []
+  },
+  "9D": {
+   "kind": "pose",
+   "state": 157,
+   "names": [],
+   "specials": []
+  },
+  "9E": {
+   "kind": "pose",
+   "state": 158,
+   "names": [],
+   "specials": []
+  },
+  "9F": {
+   "kind": "pose",
+   "state": 159,
+   "names": [],
+   "specials": []
+  },
+  "A0": {
+   "kind": "pose",
+   "state": 160,
+   "names": [],
+   "specials": []
+  },
+  "A1": {
+   "kind": "pose",
+   "state": 161,
+   "names": [],
+   "specials": []
+  },
+  "A2": {
+   "kind": "pose",
+   "state": 162,
+   "names": [],
+   "specials": []
+  },
+  "A3": {
+   "kind": "empty",
+   "state": 163,
+   "names": [],
+   "specials": []
+  },
+  "A4": {
+   "kind": "empty",
+   "state": 164,
+   "names": [],
+   "specials": []
+  },
+  "A5": {
+   "kind": "empty",
+   "state": 165,
+   "names": [],
+   "specials": []
+  },
+  "A6": {
+   "kind": "empty",
+   "state": 166,
+   "names": [],
+   "specials": []
+  },
+  "A7": {
+   "kind": "empty",
+   "state": 167,
+   "names": [],
+   "specials": []
+  },
+  "A8": {
+   "kind": "empty",
+   "state": 168,
+   "names": [],
+   "specials": []
+  },
+  "A9": {
+   "kind": "empty",
+   "state": 169,
+   "names": [],
+   "specials": []
+  },
+  "AA": {
+   "kind": "empty",
+   "state": 170,
+   "names": [],
+   "specials": []
+  },
+  "AB": {
+   "kind": "empty",
+   "state": 171,
+   "names": [],
+   "specials": []
+  },
+  "AC": {
+   "kind": "empty",
+   "state": 172,
+   "names": [],
+   "specials": []
+  },
+  "AD": {
+   "kind": "empty",
+   "state": 173,
+   "names": [],
+   "specials": []
+  },
+  "AE": {
+   "kind": "empty",
+   "state": 174,
+   "names": [],
+   "specials": []
+  },
+  "AF": {
+   "kind": "empty",
+   "state": 175,
+   "names": [],
+   "specials": []
+  },
+  "B0": {
+   "kind": "pose",
+   "state": 176,
+   "names": [],
+   "specials": []
+  },
+  "B1": {
+   "kind": "pose",
+   "state": 177,
+   "names": [],
+   "specials": []
+  },
+  "B2": {
+   "kind": "movement",
+   "state": 178,
+   "names": [
+    "land"
+   ],
+   "specials": []
+  },
+  "B3": {
+   "kind": "movement",
+   "state": 179,
+   "names": [],
+   "specials": []
+  },
+  "B4": {
+   "kind": "pose",
+   "state": 180,
+   "names": [],
+   "specials": []
+  },
+  "B5": {
+   "kind": "pose",
+   "state": 181,
+   "names": [],
+   "specials": []
+  },
+  "B6": {
+   "kind": "pose",
+   "state": 182,
+   "names": [],
+   "specials": []
+  },
+  "B7": {
+   "kind": "pose",
+   "state": 183,
+   "names": [],
+   "specials": []
+  },
+  "B8": {
+   "kind": "pose",
+   "state": 184,
+   "names": [],
+   "specials": []
+  },
+  "B9": {
+   "kind": "pose",
+   "state": 185,
+   "names": [],
+   "specials": []
+  },
+  "BA": {
+   "kind": "pose",
+   "state": 186,
+   "names": [],
+   "specials": []
+  },
+  "BB": {
+   "kind": "pose",
+   "state": 187,
+   "names": [],
+   "specials": []
+  },
+  "BC": {
+   "kind": "empty",
+   "state": 188,
+   "names": [],
+   "specials": []
+  },
+  "BD": {
+   "kind": "empty",
+   "state": 189,
+   "names": [],
+   "specials": []
+  },
+  "BE": {
+   "kind": "reaction",
+   "state": 190,
+   "names": [],
+   "specials": []
+  },
+  "BF": {
+   "kind": "reaction",
+   "state": 191,
+   "names": [],
+   "specials": []
+  },
+  "C0": {
+   "kind": "pose",
+   "state": 192,
+   "names": [],
+   "specials": []
+  },
+  "C1": {
+   "kind": "pose",
+   "state": 193,
+   "names": [],
+   "specials": []
+  },
+  "C2": {
+   "kind": "pose",
+   "state": 194,
+   "names": [],
+   "specials": []
+  },
+  "C3": {
+   "kind": "attack",
+   "state": 195,
+   "names": [],
+   "specials": [
+    "63214BCD"
+   ]
+  },
+  "C4": {
+   "kind": "pose",
+   "state": 196,
+   "names": [],
+   "specials": []
+  },
+  "C5": {
+   "kind": "pose",
+   "state": 197,
+   "names": [],
+   "specials": []
+  },
+  "C6": {
+   "kind": "pose",
+   "state": 198,
+   "names": [],
+   "specials": []
+  },
+  "C7": {
+   "kind": "pose",
+   "state": 199,
+   "names": [],
+   "specials": []
+  },
+  "C8": {
+   "kind": "pose",
+   "state": 200,
+   "names": [],
+   "specials": []
+  },
+  "C9": {
+   "kind": "pose",
+   "state": 201,
+   "names": [],
+   "specials": []
+  },
+  "CA": {
+   "kind": "pose",
+   "state": 202,
+   "names": [],
+   "specials": []
+  },
+  "CB": {
+   "kind": "attack",
+   "state": 203,
+   "names": [],
+   "specials": []
+  },
+  "CC": {
+   "kind": "pose",
+   "state": 204,
+   "names": [],
+   "specials": [
+    "6464642BCD"
+   ]
+  },
+  "CD": {
+   "kind": "pose",
+   "state": 205,
+   "names": [],
+   "specials": []
+  },
+  "CE": {
+   "kind": "pose",
+   "state": 206,
+   "names": [],
+   "specials": [
+    "6321A",
+    "6321B",
+    "6321AB"
+   ]
+  },
+  "CF": {
+   "kind": "pose",
+   "state": 207,
+   "names": [],
+   "specials": []
+  },
+  "D0": {
+   "kind": "pose",
+   "state": 208,
+   "names": [],
+   "specials": []
+  },
+  "D1": {
+   "kind": "pose",
+   "state": 209,
+   "names": [],
+   "specials": []
+  },
+  "D2": {
+   "kind": "pose",
+   "state": 210,
+   "names": [],
+   "specials": []
+  },
+  "D3": {
+   "kind": "pose",
+   "state": 211,
+   "names": [],
+   "specials": []
+  },
+  "D4": {
+   "kind": "pose",
+   "state": 212,
+   "names": [],
+   "specials": []
+  },
+  "D5": {
+   "kind": "pose",
+   "state": 213,
+   "names": [],
+   "specials": []
+  },
+  "D6": {
+   "kind": "pose",
+   "state": 214,
+   "names": [],
+   "specials": [
+    "6321A",
+    "6321B",
+    "6321AB"
+   ]
+  },
+  "D7": {
+   "kind": "pose",
+   "state": 215,
+   "names": [],
+   "specials": []
+  },
+  "D8": {
+   "kind": "pose",
+   "state": 216,
+   "names": [],
+   "specials": []
+  },
+  "D9": {
+   "kind": "pose",
+   "state": 217,
+   "names": [],
+   "specials": [
+    "6321A",
+    "6321B",
+    "6321AB"
+   ]
+  },
+  "DA": {
+   "kind": "reaction",
+   "state": 218,
+   "names": [],
+   "specials": []
+  },
+  "DB": {
+   "kind": "reaction",
+   "state": 219,
+   "names": [],
+   "specials": []
+  },
+  "DC": {
+   "kind": "reaction",
+   "state": 220,
+   "names": [],
+   "specials": []
+  },
+  "DD": {
+   "kind": "reaction",
+   "state": 221,
+   "names": [],
+   "specials": []
+  },
+  "DE": {
+   "kind": "pose",
+   "state": 222,
+   "names": [],
+   "specials": []
+  },
+  "DF": {
+   "kind": "pose",
+   "state": 223,
+   "names": [],
+   "specials": []
+  },
+  "E0": {
+   "kind": "pose",
+   "state": 224,
+   "names": [],
+   "specials": []
+  },
+  "E1": {
+   "kind": "reaction",
+   "state": 225,
+   "names": [],
+   "specials": []
+  },
+  "E2": {
+   "kind": "pose",
+   "state": 226,
+   "names": [],
+   "specials": []
+  },
+  "E3": {
+   "kind": "pose",
+   "state": 227,
+   "names": [],
+   "specials": []
+  },
+  "E4": {
+   "kind": "pose",
+   "state": 228,
+   "names": [],
+   "specials": []
+  },
+  "E5": {
+   "kind": "pose",
+   "state": 229,
+   "names": [],
+   "specials": []
+  },
+  "E6": {
+   "kind": "attack",
+   "state": 230,
+   "names": [
+    "atk_a_close"
+   ],
+   "specials": []
+  },
+  "E7": {
+   "kind": "attack",
+   "state": 231,
+   "names": [],
+   "specials": []
+  },
+  "E8": {
+   "kind": "attack",
+   "state": 232,
+   "names": [
+    "atk_a_far"
+   ],
+   "specials": []
+  },
+  "E9": {
+   "kind": "attack",
+   "state": 233,
+   "names": [],
+   "specials": []
+  },
+  "EA": {
+   "kind": "attack",
+   "state": 234,
+   "names": [],
+   "specials": []
+  },
+  "EB": {
+   "kind": "attack",
+   "state": 235,
+   "names": [],
+   "specials": []
+  },
+  "EC": {
+   "kind": "effect-only",
+   "state": 236,
+   "names": [
+    "atk_a_crouch"
+   ],
+   "specials": []
+  },
+  "ED": {
+   "kind": "effect-only",
+   "state": 237,
+   "names": [],
+   "specials": []
+  },
+  "EE": {
+   "kind": "attack",
+   "state": 238,
+   "names": [],
+   "specials": []
+  },
+  "EF": {
+   "kind": "attack",
+   "state": 239,
+   "names": [],
+   "specials": []
+  },
+  "F0": {
+   "kind": "empty",
+   "state": 240,
+   "names": [],
+   "specials": []
+  },
+  "F1": {
+   "kind": "empty",
+   "state": 241,
+   "names": [],
+   "specials": []
+  },
+  "F2": {
+   "kind": "effect-only",
+   "state": 242,
+   "names": [],
+   "specials": []
+  },
+  "F3": {
+   "kind": "effect-only",
+   "state": 243,
+   "names": [],
+   "specials": []
+  },
+  "F4": {
+   "kind": "effect-only",
+   "state": 244,
+   "names": [],
+   "specials": []
+  },
+  "F5": {
+   "kind": "attack",
+   "state": 245,
+   "names": [],
+   "specials": []
+  },
+  "F6": {
+   "kind": "pose",
+   "state": 246,
+   "names": [],
+   "specials": []
+  },
+  "F7": {
+   "kind": "attack",
+   "state": 247,
+   "names": [],
+   "specials": []
+  },
+  "F8": {
+   "kind": "pose",
+   "state": 248,
+   "names": [],
+   "specials": []
+  },
+  "F9": {
+   "kind": "pose",
+   "state": 249,
+   "names": [],
+   "specials": [
+    "j.4123A",
+    "j.4123B",
+    "j.4123AB"
+   ]
+  },
+  "FA": {
+   "kind": "attack",
+   "state": 250,
+   "names": [
+    "atk_b_close"
+   ],
+   "specials": []
+  },
+  "FB": {
+   "kind": "attack",
+   "state": 251,
+   "names": [],
+   "specials": []
+  },
+  "FC": {
+   "kind": "attack",
+   "state": 252,
+   "names": [
+    "atk_b_far"
+   ],
+   "specials": []
+  },
+  "FD": {
+   "kind": "attack",
+   "state": 253,
+   "names": [],
+   "specials": []
+  },
+  "FE": {
+   "kind": "attack",
+   "state": 254,
+   "names": [
+    "atk_b_crouch"
+   ],
+   "specials": []
+  },
+  "FF": {
+   "kind": "attack",
+   "state": 255,
+   "names": [],
+   "specials": []
+  },
+  "100": {
+   "kind": "pose",
+   "state": 256,
+   "names": [],
+   "specials": []
+  },
+  "101": {
+   "kind": "effect-only",
+   "state": 257,
+   "names": [],
+   "specials": []
+  },
+  "102": {
+   "kind": "attack",
+   "state": 258,
+   "names": [],
+   "specials": []
+  },
+  "103": {
+   "kind": "attack",
+   "state": 259,
+   "names": [],
+   "specials": []
+  },
+  "104": {
+   "kind": "effect-only",
+   "state": 260,
+   "names": [],
+   "specials": []
+  },
+  "105": {
+   "kind": "empty",
+   "state": 261,
+   "names": [],
+   "specials": []
+  },
+  "106": {
+   "kind": "empty",
+   "state": 262,
+   "names": [],
+   "specials": []
+  },
+  "107": {
+   "kind": "attack",
+   "state": 263,
+   "names": [],
+   "specials": []
+  },
+  "108": {
+   "kind": "empty",
+   "state": 264,
+   "names": [],
+   "specials": []
+  },
+  "109": {
+   "kind": "effect-only",
+   "state": 265,
+   "names": [],
+   "specials": []
+  },
+  "10A": {
+   "kind": "effect-only",
+   "state": 266,
+   "names": [],
+   "specials": []
+  },
+  "10B": {
+   "kind": "effect-only",
+   "state": 267,
+   "names": [],
+   "specials": []
+  },
+  "10C": {
+   "kind": "effect-only",
+   "state": 268,
+   "names": [],
+   "specials": []
+  },
+  "10D": {
+   "kind": "effect-only",
+   "state": 269,
+   "names": [],
+   "specials": []
+  },
+  "10E": {
+   "kind": "attack",
+   "state": 270,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_big"
+   ]
+  },
+  "10F": {
+   "kind": "attack",
+   "state": 271,
+   "names": [],
+   "specials": []
+  },
+  "110": {
+   "kind": "empty",
+   "state": 272,
+   "names": [],
+   "specials": []
+  },
+  "111": {
+   "kind": "empty",
+   "state": 273,
+   "names": [],
+   "specials": []
+  },
+  "112": {
+   "kind": "attack",
+   "state": 274,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_c"
+   ]
+  },
+  "113": {
+   "kind": "attack",
+   "state": 275,
+   "names": [],
+   "specials": []
+  },
+  "114": {
+   "kind": "attack",
+   "state": 276,
+   "names": [],
+   "specials": []
+  },
+  "115": {
+   "kind": "attack",
+   "state": 277,
+   "names": [],
+   "specials": []
+  },
+  "116": {
+   "kind": "attack",
+   "state": 278,
+   "names": [
+    "body_toss"
+   ],
+   "specials": []
+  },
+  "117": {
+   "kind": "attack",
+   "state": 279,
+   "names": [],
+   "specials": []
+  },
+  "118": {
+   "kind": "attack",
+   "state": 280,
+   "names": [],
+   "specials": []
+  },
+  "119": {
+   "kind": "attack",
+   "state": 281,
+   "names": [],
+   "specials": []
+  },
+  "11A": {
+   "kind": "effect-only",
+   "state": 282,
+   "names": [],
+   "specials": []
+  },
+  "11B": {
+   "kind": "effect-only",
+   "state": 283,
+   "names": [],
+   "specials": []
+  },
+  "11C": {
+   "kind": "attack",
+   "state": 284,
+   "names": [
+    "atk_cd_jump"
+   ],
+   "specials": []
+  },
+  "11D": {
+   "kind": "attack",
+   "state": 285,
+   "names": [],
+   "specials": []
+  },
+  "11E": {
+   "kind": "effect-only",
+   "state": 286,
+   "names": [],
+   "specials": []
+  },
+  "11F": {
+   "kind": "pose",
+   "state": 287,
+   "names": [],
+   "specials": [
+    "j.4123A",
+    "j.4123B",
+    "j.4123AB"
+   ]
+  },
+  "120": {
+   "kind": "empty",
+   "state": 288,
+   "names": [],
+   "specials": []
+  },
+  "121": {
+   "kind": "effect-only",
+   "state": 289,
+   "names": [],
+   "specials": []
+  },
+  "122": {
+   "kind": "attack",
+   "state": 290,
+   "names": [],
+   "specials": []
+  },
+  "123": {
+   "kind": "empty",
+   "state": 291,
+   "names": [],
+   "specials": []
+  },
+  "124": {
+   "kind": "pose",
+   "state": 292,
+   "names": [],
+   "specials": [
+    "WFT"
+   ]
+  },
+  "125": {
+   "kind": "effect-only",
+   "state": 293,
+   "names": [],
+   "specials": []
+  },
+  "126": {
+   "kind": "effect-only",
+   "state": 294,
+   "names": [],
+   "specials": []
+  },
+  "127": {
+   "kind": "pose",
+   "state": 295,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_x"
+   ]
+  },
+  "128": {
+   "kind": "pose",
+   "state": 296,
+   "names": [],
+   "specials": [
+    "623C",
+    "623D",
+    "623CD"
+   ]
+  },
+  "129": {
+   "kind": "pose",
+   "state": 297,
+   "names": [],
+   "specials": []
+  },
+  "12A": {
+   "kind": "empty",
+   "state": 298,
+   "names": [],
+   "specials": []
+  },
+  "12B": {
+   "kind": "empty",
+   "state": 299,
+   "names": [],
+   "specials": []
+  },
+  "12C": {
+   "kind": "empty",
+   "state": 300,
+   "names": [],
+   "specials": []
+  },
+  "12D": {
+   "kind": "empty",
+   "state": 301,
+   "names": [],
+   "specials": []
+  },
+  "12E": {
+   "kind": "attack",
+   "state": 302,
+   "names": [
+    "atk_c_close"
+   ],
+   "specials": []
+  },
+  "12F": {
+   "kind": "attack",
+   "state": 303,
+   "names": [],
+   "specials": []
+  },
+  "130": {
+   "kind": "attack",
+   "state": 304,
+   "names": [
+    "atk_c_far"
+   ],
+   "specials": []
+  },
+  "131": {
+   "kind": "attack",
+   "state": 305,
+   "names": [],
+   "specials": []
+  },
+  "132": {
+   "kind": "attack",
+   "state": 306,
+   "names": [
+    "atk_c_crouch"
+   ],
+   "specials": []
+  },
+  "133": {
+   "kind": "attack",
+   "state": 307,
+   "names": [],
+   "specials": []
+  },
+  "134": {
+   "kind": "pose",
+   "state": 308,
+   "names": [],
+   "specials": []
+  },
+  "135": {
+   "kind": "attack",
+   "state": 309,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_x"
+   ]
+  },
+  "136": {
+   "kind": "attack",
+   "state": 310,
+   "names": [
+    "atk_c_jump",
+    "atk_c_jump_diag"
+   ],
+   "specials": []
+  },
+  "137": {
+   "kind": "attack",
+   "state": 311,
+   "names": [],
+   "specials": []
+  },
+  "138": {
+   "kind": "attack",
+   "state": 312,
+   "names": [],
+   "specials": []
+  },
+  "139": {
+   "kind": "empty",
+   "state": 313,
+   "names": [],
+   "specials": []
+  },
+  "13A": {
+   "kind": "empty",
+   "state": 314,
+   "names": [],
+   "specials": []
+  },
+  "13B": {
+   "kind": "empty",
+   "state": 315,
+   "names": [],
+   "specials": []
+  },
+  "13C": {
+   "kind": "empty",
+   "state": 316,
+   "names": [],
+   "specials": []
+  },
+  "13D": {
+   "kind": "empty",
+   "state": 317,
+   "names": [],
+   "specials": []
+  },
+  "13E": {
+   "kind": "empty",
+   "state": 318,
+   "names": [],
+   "specials": []
+  },
+  "13F": {
+   "kind": "empty",
+   "state": 319,
+   "names": [],
+   "specials": []
+  },
+  "140": {
+   "kind": "empty",
+   "state": 320,
+   "names": [],
+   "specials": []
+  },
+  "141": {
+   "kind": "empty",
+   "state": 321,
+   "names": [],
+   "specials": []
+  },
+  "142": {
+   "kind": "attack",
+   "state": 322,
+   "names": [
+    "atk_d_close"
+   ],
+   "specials": []
+  },
+  "143": {
+   "kind": "attack",
+   "state": 323,
+   "names": [],
+   "specials": []
+  },
+  "144": {
+   "kind": "attack",
+   "state": 324,
+   "names": [
+    "atk_d_far"
+   ],
+   "specials": []
+  },
+  "145": {
+   "kind": "attack",
+   "state": 325,
+   "names": [],
+   "specials": []
+  },
+  "146": {
+   "kind": "attack",
+   "state": 326,
+   "names": [
+    "atk_d_crouch"
+   ],
+   "specials": []
+  },
+  "147": {
+   "kind": "attack",
+   "state": 327,
+   "names": [],
+   "specials": []
+  },
+  "148": {
+   "kind": "empty",
+   "state": 328,
+   "names": [],
+   "specials": []
+  },
+  "149": {
+   "kind": "empty",
+   "state": 329,
+   "names": [],
+   "specials": []
+  },
+  "14A": {
+   "kind": "attack",
+   "state": 330,
+   "names": [
+    "atk_d_jump",
+    "atk_d_jump_diag"
+   ],
+   "specials": []
+  },
+  "14B": {
+   "kind": "attack",
+   "state": 331,
+   "names": [],
+   "specials": []
+  },
+  "14C": {
+   "kind": "empty",
+   "state": 332,
+   "names": [],
+   "specials": []
+  },
+  "14D": {
+   "kind": "empty",
+   "state": 333,
+   "names": [],
+   "specials": []
+  },
+  "14E": {
+   "kind": "empty",
+   "state": 334,
+   "names": [],
+   "specials": []
+  },
+  "14F": {
+   "kind": "empty",
+   "state": 335,
+   "names": [],
+   "specials": []
+  },
+  "150": {
+   "kind": "empty",
+   "state": 336,
+   "names": [],
+   "specials": []
+  },
+  "151": {
+   "kind": "empty",
+   "state": 337,
+   "names": [],
+   "specials": []
+  },
+  "152": {
+   "kind": "empty",
+   "state": 338,
+   "names": [],
+   "specials": []
+  },
+  "153": {
+   "kind": "empty",
+   "state": 339,
+   "names": [],
+   "specials": []
+  },
+  "154": {
+   "kind": "empty",
+   "state": 340,
+   "names": [],
+   "specials": []
+  },
+  "155": {
+   "kind": "attack",
+   "state": 341,
+   "names": [],
+   "specials": []
+  },
+  "156": {
+   "kind": "empty",
+   "state": 342,
+   "names": [],
+   "specials": []
+  },
+  "157": {
+   "kind": "empty",
+   "state": 343,
+   "names": [],
+   "specials": []
+  },
+  "158": {
+   "kind": "empty",
+   "state": 344,
+   "names": [],
+   "specials": []
+  },
+  "159": {
+   "kind": "empty",
+   "state": 345,
+   "names": [],
+   "specials": []
+  },
+  "15A": {
+   "kind": "attack",
+   "state": 346,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_d"
+   ]
+  },
+  "15B": {
+   "kind": "attack",
+   "state": 347,
+   "names": [],
+   "specials": []
+  },
+  "15C": {
+   "kind": "attack",
+   "state": 348,
+   "names": [],
+   "specials": []
+  },
+  "15D": {
+   "kind": "attack",
+   "state": 349,
+   "names": [],
+   "specials": []
+  },
+  "15E": {
+   "kind": "attack",
+   "state": 350,
+   "names": [],
+   "specials": []
+  },
+  "15F": {
+   "kind": "attack",
+   "state": 351,
+   "names": [],
+   "specials": []
+  },
+  "160": {
+   "kind": "attack",
+   "state": 352,
+   "names": [],
+   "specials": []
+  },
+  "161": {
+   "kind": "attack",
+   "state": 353,
+   "names": [],
+   "specials": []
+  },
+  "162": {
+   "kind": "attack",
+   "state": 354,
+   "names": [],
+   "specials": []
+  },
+  "163": {
+   "kind": "attack",
+   "state": 355,
+   "names": [],
+   "specials": []
+  },
+  "164": {
+   "kind": "attack",
+   "state": 356,
+   "names": [],
+   "specials": []
+  },
+  "165": {
+   "kind": "attack",
+   "state": 357,
+   "names": [],
+   "specials": []
+  },
+  "166": {
+   "kind": "attack",
+   "state": 358,
+   "names": [],
+   "specials": []
+  },
+  "167": {
+   "kind": "empty",
+   "state": 359,
+   "names": [],
+   "specials": []
+  },
+  "168": {
+   "kind": "empty",
+   "state": 360,
+   "names": [],
+   "specials": []
+  },
+  "169": {
+   "kind": "attack",
+   "state": 361,
+   "names": [],
+   "specials": []
+  },
+  "16A": {
+   "kind": "empty",
+   "state": 362,
+   "names": [],
+   "specials": []
+  },
+  "16B": {
+   "kind": "empty",
+   "state": 363,
+   "names": [],
+   "specials": []
+  },
+  "16C": {
+   "kind": "empty",
+   "state": 364,
+   "names": [],
+   "specials": []
+  },
+  "16D": {
+   "kind": "empty",
+   "state": 365,
+   "names": [],
+   "specials": []
+  },
+  "16E": {
+   "kind": "empty",
+   "state": 366,
+   "names": [],
+   "specials": []
+  },
+  "16F": {
+   "kind": "empty",
+   "state": 367,
+   "names": [],
+   "specials": []
+  },
+  "170": {
+   "kind": "empty",
+   "state": 368,
+   "names": [],
+   "specials": []
+  },
+  "171": {
+   "kind": "effect-only",
+   "state": 369,
+   "names": [],
+   "specials": []
+  },
+  "172": {
+   "kind": "empty",
+   "state": 370,
+   "names": [],
+   "specials": []
+  },
+  "173": {
+   "kind": "empty",
+   "state": 371,
+   "names": [],
+   "specials": []
+  },
+  "174": {
+   "kind": "empty",
+   "state": 372,
+   "names": [],
+   "specials": []
+  },
+  "175": {
+   "kind": "empty",
+   "state": 373,
+   "names": [],
+   "specials": []
+  },
+  "176": {
+   "kind": "empty",
+   "state": 374,
+   "names": [],
+   "specials": []
+  },
+  "177": {
+   "kind": "empty",
+   "state": 375,
+   "names": [],
+   "specials": []
+  },
+  "178": {
+   "kind": "empty",
+   "state": 376,
+   "names": [],
+   "specials": []
+  },
+  "179": {
+   "kind": "empty",
+   "state": 377,
+   "names": [],
+   "specials": []
+  },
+  "17A": {
+   "kind": "empty",
+   "state": 378,
+   "names": [],
+   "specials": []
+  },
+  "17B": {
+   "kind": "empty",
+   "state": 379,
+   "names": [],
+   "specials": []
+  },
+  "17C": {
+   "kind": "empty",
+   "state": 380,
+   "names": [],
+   "specials": []
+  },
+  "17D": {
+   "kind": "empty",
+   "state": 381,
+   "names": [],
+   "specials": []
+  },
+  "17E": {
+   "kind": "empty",
+   "state": 382,
+   "names": [],
+   "specials": []
+  },
+  "17F": {
+   "kind": "empty",
+   "state": 383,
+   "names": [],
+   "specials": []
+  },
+  "180": {
+   "kind": "empty",
+   "state": 384,
+   "names": [],
+   "specials": []
+  },
+  "181": {
+   "kind": "empty",
+   "state": 385,
+   "names": [],
+   "specials": []
+  },
+  "182": {
+   "kind": "empty",
+   "state": 386,
+   "names": [],
+   "specials": []
+  },
+  "183": {
+   "kind": "empty",
+   "state": 387,
+   "names": [],
+   "specials": []
+  },
+  "184": {
+   "kind": "empty",
+   "state": 388,
+   "names": [],
+   "specials": []
+  },
+  "185": {
+   "kind": "empty",
+   "state": 389,
+   "names": [],
+   "specials": []
+  },
+  "186": {
+   "kind": "empty",
+   "state": 390,
+   "names": [],
+   "specials": []
+  },
+  "187": {
+   "kind": "empty",
+   "state": 391,
+   "names": [],
+   "specials": []
+  },
+  "188": {
+   "kind": "empty",
+   "state": 392,
+   "names": [],
+   "specials": []
+  },
+  "189": {
+   "kind": "empty",
+   "state": 393,
+   "names": [],
+   "specials": []
+  },
+  "18A": {
+   "kind": "empty",
+   "state": 394,
+   "names": [],
+   "specials": []
+  },
+  "18B": {
+   "kind": "empty",
+   "state": 395,
+   "names": [],
+   "specials": []
+  },
+  "18C": {
+   "kind": "empty",
+   "state": 396,
+   "names": [],
+   "specials": []
+  },
+  "18D": {
+   "kind": "empty",
+   "state": 397,
+   "names": [],
+   "specials": []
+  },
+  "18E": {
+   "kind": "empty",
+   "state": 398,
+   "names": [],
+   "specials": []
+  },
+  "18F": {
+   "kind": "empty",
+   "state": 399,
+   "names": [],
+   "specials": []
+  },
+  "190": {
+   "kind": "pose",
+   "state": 400,
+   "names": [],
+   "specials": []
+  },
+  "191": {
+   "kind": "pose",
+   "state": 401,
+   "names": [],
+   "specials": []
+  },
+  "192": {
+   "kind": "pose",
+   "state": 402,
+   "names": [],
+   "specials": []
+  },
+  "193": {
+   "kind": "pose",
+   "state": 403,
+   "names": [],
+   "specials": []
+  },
+  "194": {
+   "kind": "empty",
+   "state": 404,
+   "names": [],
+   "specials": []
+  },
+  "195": {
+   "kind": "empty",
+   "state": 405,
+   "names": [],
+   "specials": []
+  },
+  "196": {
+   "kind": "empty",
+   "state": 406,
+   "names": [],
+   "specials": []
+  },
+  "197": {
+   "kind": "empty",
+   "state": 407,
+   "names": [],
+   "specials": []
+  },
+  "198": {
+   "kind": "empty",
+   "state": 408,
+   "names": [],
+   "specials": []
+  },
+  "199": {
+   "kind": "empty",
+   "state": 409,
+   "names": [],
+   "specials": []
+  },
+  "19A": {
+   "kind": "reaction",
+   "state": 410,
+   "names": [],
+   "specials": []
+  },
+  "19B": {
+   "kind": "reaction",
+   "state": 411,
+   "names": [],
+   "specials": []
+  },
+  "19C": {
+   "kind": "pose",
+   "state": 412,
+   "names": [],
+   "specials": []
+  },
+  "19D": {
+   "kind": "effect-only",
+   "state": 413,
+   "names": [],
+   "specials": []
+  },
+  "19E": {
+   "kind": "pose",
+   "state": 414,
+   "names": [],
+   "specials": []
+  },
+  "19F": {
+   "kind": "pose",
+   "state": 415,
+   "names": [],
+   "specials": []
+  },
+  "1A0": {
+   "kind": "pose",
+   "state": 416,
+   "names": [],
+   "specials": []
+  },
+  "1A1": {
+   "kind": "effect-only",
+   "state": 417,
+   "names": [],
+   "specials": []
+  },
+  "1A2": {
+   "kind": "reaction",
+   "state": 418,
+   "names": [],
+   "specials": []
+  },
+  "1A3": {
+   "kind": "reaction",
+   "state": 419,
+   "names": [],
+   "specials": []
+  },
+  "1A4": {
+   "kind": "empty",
+   "state": 420,
+   "names": [],
+   "specials": []
+  },
+  "1A5": {
+   "kind": "empty",
+   "state": 421,
+   "names": [],
+   "specials": []
+  },
+  "1A6": {
+   "kind": "empty",
+   "state": 422,
+   "names": [],
+   "specials": []
+  },
+  "1A7": {
+   "kind": "empty",
+   "state": 423,
+   "names": [],
+   "specials": []
+  },
+  "1A8": {
+   "kind": "empty",
+   "state": 424,
+   "names": [],
+   "specials": []
+  },
+  "1A9": {
+   "kind": "empty",
+   "state": 425,
+   "names": [],
+   "specials": []
+  },
+  "1AA": {
+   "kind": "empty",
+   "state": 426,
+   "names": [],
+   "specials": []
+  },
+  "1AB": {
+   "kind": "empty",
+   "state": 427,
+   "names": [],
+   "specials": []
+  },
+  "1AC": {
+   "kind": "empty",
+   "state": 428,
+   "names": [],
+   "specials": []
+  },
+  "1AD": {
+   "kind": "empty",
+   "state": 429,
+   "names": [],
+   "specials": []
+  },
+  "1AE": {
+   "kind": "empty",
+   "state": 430,
+   "names": [],
+   "specials": []
+  },
+  "1AF": {
+   "kind": "empty",
+   "state": 431,
+   "names": [],
+   "specials": []
+  },
+  "1B0": {
+   "kind": "empty",
+   "state": 432,
+   "names": [],
+   "specials": []
+  },
+  "1B1": {
+   "kind": "empty",
+   "state": 433,
+   "names": [],
+   "specials": []
+  },
+  "1B2": {
+   "kind": "empty",
+   "state": 434,
+   "names": [],
+   "specials": []
+  },
+  "1B3": {
+   "kind": "empty",
+   "state": 435,
+   "names": [],
+   "specials": []
+  },
+  "1B4": {
+   "kind": "empty",
+   "state": 436,
+   "names": [],
+   "specials": []
+  },
+  "1B5": {
+   "kind": "empty",
+   "state": 437,
+   "names": [],
+   "specials": []
+  },
+  "1B6": {
+   "kind": "empty",
+   "state": 438,
+   "names": [],
+   "specials": []
+  },
+  "1B7": {
+   "kind": "empty",
+   "state": 439,
+   "names": [],
+   "specials": []
+  },
+  "1B8": {
+   "kind": "empty",
+   "state": 440,
+   "names": [],
+   "specials": []
+  },
+  "1B9": {
+   "kind": "empty",
+   "state": 441,
+   "names": [],
+   "specials": []
+  },
+  "1BA": {
+   "kind": "empty",
+   "state": 442,
+   "names": [],
+   "specials": []
+  },
+  "1BB": {
+   "kind": "empty",
+   "state": 443,
+   "names": [],
+   "specials": []
+  },
+  "1BC": {
+   "kind": "empty",
+   "state": 444,
+   "names": [],
+   "specials": []
+  },
+  "1BD": {
+   "kind": "empty",
+   "state": 445,
+   "names": [],
+   "specials": []
+  },
+  "1BE": {
+   "kind": "empty",
+   "state": 446,
+   "names": [],
+   "specials": []
+  },
+  "1BF": {
+   "kind": "empty",
+   "state": 447,
+   "names": [],
+   "specials": []
+  },
+  "1C0": {
+   "kind": "empty",
+   "state": 448,
+   "names": [],
+   "specials": []
+  },
+  "1C1": {
+   "kind": "empty",
+   "state": 449,
+   "names": [],
+   "specials": []
+  },
+  "1C2": {
+   "kind": "empty",
+   "state": 450,
+   "names": [],
+   "specials": []
+  },
+  "1C3": {
+   "kind": "empty",
+   "state": 451,
+   "names": [],
+   "specials": []
+  },
+  "1C4": {
+   "kind": "empty",
+   "state": 452,
+   "names": [],
+   "specials": []
+  },
+  "1C5": {
+   "kind": "empty",
+   "state": 453,
+   "names": [],
+   "specials": []
+  },
+  "1C6": {
+   "kind": "empty",
+   "state": 454,
+   "names": [],
+   "specials": []
+  },
+  "1C7": {
+   "kind": "empty",
+   "state": 455,
+   "names": [],
+   "specials": []
+  },
+  "1C8": {
+   "kind": "empty",
+   "state": 456,
+   "names": [],
+   "specials": []
+  },
+  "1C9": {
+   "kind": "empty",
+   "state": 457,
+   "names": [],
+   "specials": []
+  },
+  "1CA": {
+   "kind": "pose",
+   "state": 458,
+   "names": [],
+   "specials": []
+  },
+  "1CB": {
+   "kind": "pose",
+   "state": 459,
+   "names": [],
+   "specials": []
+  },
+  "1CC": {
+   "kind": "pose",
+   "state": 460,
+   "names": [],
+   "specials": []
+  },
+  "1CD": {
+   "kind": "pose",
+   "state": 461,
+   "names": [],
+   "specials": []
+  },
+  "1CE": {
+   "kind": "pose",
+   "state": 462,
+   "names": [],
+   "specials": []
+  },
+  "1CF": {
+   "kind": "pose",
+   "state": 463,
+   "names": [],
+   "specials": []
+  },
+  "1D0": {
+   "kind": "reaction",
+   "state": 464,
+   "names": [],
+   "specials": []
+  },
+  "1D1": {
+   "kind": "reaction",
+   "state": 465,
+   "names": [],
+   "specials": []
+  },
+  "1D2": {
+   "kind": "reaction",
+   "state": 466,
+   "names": [],
+   "specials": []
+  },
+  "1D3": {
+   "kind": "pose",
+   "state": 467,
+   "names": [],
+   "specials": []
+  },
+  "1D4": {
+   "kind": "reaction",
+   "state": 468,
+   "names": [],
+   "specials": []
+  },
+  "1D5": {
+   "kind": "pose",
+   "state": 469,
+   "names": [],
+   "specials": []
+  },
+  "1D6": {
+   "kind": "reaction",
+   "state": 470,
+   "names": [],
+   "specials": []
+  },
+  "1D7": {
+   "kind": "pose",
+   "state": 471,
+   "names": [],
+   "specials": []
+  },
+  "1D8": {
+   "kind": "pose",
+   "state": 472,
+   "names": [],
+   "specials": []
+  },
+  "1D9": {
+   "kind": "pose",
+   "state": 473,
+   "names": [],
+   "specials": []
+  },
+  "1DA": {
+   "kind": "reaction",
+   "state": 474,
+   "names": [],
+   "specials": []
+  },
+  "1DB": {
+   "kind": "pose",
+   "state": 475,
+   "names": [],
+   "specials": []
+  },
+  "1DC": {
+   "kind": "pose",
+   "state": 476,
+   "names": [],
+   "specials": []
+  },
+  "1DD": {
+   "kind": "pose",
+   "state": 477,
+   "names": [],
+   "specials": []
+  },
+  "1DE": {
+   "kind": "pose",
+   "state": 478,
+   "names": [],
+   "specials": []
+  },
+  "1DF": {
+   "kind": "pose",
+   "state": 479,
+   "names": [],
+   "specials": []
+  },
+  "1E0": {
+   "kind": "pose",
+   "state": 480,
+   "names": [],
+   "specials": []
+  },
+  "1E1": {
+   "kind": "pose",
+   "state": 481,
+   "names": [],
+   "specials": []
+  },
+  "1E2": {
+   "kind": "pose",
+   "state": 482,
+   "names": [],
+   "specials": []
+  },
+  "1E3": {
+   "kind": "pose",
+   "state": 483,
+   "names": [],
+   "specials": []
+  },
+  "1E4": {
+   "kind": "pose",
+   "state": 484,
+   "names": [],
+   "specials": []
+  },
+  "1E5": {
+   "kind": "pose",
+   "state": 485,
+   "names": [],
+   "specials": []
+  },
+  "1E6": {
+   "kind": "pose",
+   "state": 486,
+   "names": [],
+   "specials": []
+  },
+  "1E7": {
+   "kind": "pose",
+   "state": 487,
+   "names": [],
+   "specials": []
+  },
+  "1E8": {
+   "kind": "reaction",
+   "state": 488,
+   "names": [],
+   "specials": []
+  },
+  "1E9": {
+   "kind": "reaction",
+   "state": 489,
+   "names": [],
+   "specials": []
+  },
+  "1EA": {
+   "kind": "reaction",
+   "state": 490,
+   "names": [],
+   "specials": []
+  },
+  "1EB": {
+   "kind": "reaction",
+   "state": 491,
+   "names": [],
+   "specials": []
+  },
+  "1EC": {
+   "kind": "pose",
+   "state": 492,
+   "names": [],
+   "specials": []
+  },
+  "1ED": {
+   "kind": "pose",
+   "state": 493,
+   "names": [],
+   "specials": []
+  },
+  "1EE": {
+   "kind": "pose",
+   "state": 494,
+   "names": [],
+   "specials": []
+  },
+  "1EF": {
+   "kind": "pose",
+   "state": 495,
+   "names": [],
+   "specials": []
+  },
+  "1F0": {
+   "kind": "pose",
+   "state": 496,
+   "names": [],
+   "specials": []
+  },
+  "1F1": {
+   "kind": "pose",
+   "state": 497,
+   "names": [],
+   "specials": []
+  },
+  "1F2": {
+   "kind": "pose",
+   "state": 498,
+   "names": [],
+   "specials": []
+  },
+  "1F3": {
+   "kind": "pose",
+   "state": 499,
+   "names": [],
+   "specials": []
+  },
+  "1F4": {
+   "kind": "pose",
+   "state": 500,
+   "names": [],
+   "specials": []
+  },
+  "1F5": {
+   "kind": "pose",
+   "state": 501,
+   "names": [],
+   "specials": []
+  },
+  "1F6": {
+   "kind": "pose",
+   "state": 502,
+   "names": [],
+   "specials": []
+  },
+  "1F7": {
+   "kind": "pose",
+   "state": 503,
+   "names": [],
+   "specials": []
+  },
+  "1F8": {
+   "kind": "pose",
+   "state": 504,
+   "names": [],
+   "specials": []
+  },
+  "1F9": {
+   "kind": "pose",
+   "state": 505,
+   "names": [],
+   "specials": []
+  },
+  "1FA": {
+   "kind": "pose",
+   "state": 506,
+   "names": [],
+   "specials": []
+  },
+  "1FB": {
+   "kind": "pose",
+   "state": 507,
+   "names": [],
+   "specials": []
+  },
+  "1FC": {
+   "kind": "pose",
+   "state": 508,
+   "names": [],
+   "specials": []
+  },
+  "1FD": {
+   "kind": "pose",
+   "state": 509,
+   "names": [],
+   "specials": []
+  },
+  "1FE": {
+   "kind": "pose",
+   "state": 510,
+   "names": [],
+   "specials": []
+  },
+  "1FF": {
+   "kind": "pose",
+   "state": 511,
+   "names": [],
+   "specials": []
+  },
+  "200": {
+   "kind": "pose",
+   "state": 512,
+   "names": [],
+   "specials": []
+  },
+  "201": {
+   "kind": "pose",
+   "state": 513,
+   "names": [],
+   "specials": []
+  },
+  "202": {
+   "kind": "pose",
+   "state": 514,
+   "names": [],
+   "specials": []
+  },
+  "203": {
+   "kind": "pose",
+   "state": 515,
+   "names": [],
+   "specials": []
+  },
+  "204": {
+   "kind": "reaction",
+   "state": 516,
+   "names": [],
+   "specials": []
+  },
+  "205": {
+   "kind": "pose",
+   "state": 517,
+   "names": [],
+   "specials": []
+  },
+  "206": {
+   "kind": "reaction",
+   "state": 518,
+   "names": [],
+   "specials": []
+  },
+  "207": {
+   "kind": "pose",
+   "state": 519,
+   "names": [],
+   "specials": []
+  },
+  "208": {
+   "kind": "reaction",
+   "state": 520,
+   "names": [],
+   "specials": []
+  },
+  "209": {
+   "kind": "pose",
+   "state": 521,
+   "names": [],
+   "specials": []
+  },
+  "20A": {
+   "kind": "reaction",
+   "state": 522,
+   "names": [],
+   "specials": []
+  },
+  "20B": {
+   "kind": "pose",
+   "state": 523,
+   "names": [],
+   "specials": []
+  },
+  "20C": {
+   "kind": "pose",
+   "state": 524,
+   "names": [],
+   "specials": []
+  },
+  "20D": {
+   "kind": "pose",
+   "state": 525,
+   "names": [],
+   "specials": []
+  },
+  "20E": {
+   "kind": "pose",
+   "state": 526,
+   "names": [],
+   "specials": []
+  },
+  "20F": {
+   "kind": "pose",
+   "state": 527,
+   "names": [],
+   "specials": []
+  },
+  "210": {
+   "kind": "pose",
+   "state": 528,
+   "names": [],
+   "specials": []
+  },
+  "211": {
+   "kind": "pose",
+   "state": 529,
+   "names": [],
+   "specials": []
+  },
+  "212": {
+   "kind": "reaction",
+   "state": 530,
+   "names": [],
+   "specials": []
+  },
+  "213": {
+   "kind": "reaction",
+   "state": 531,
+   "names": [],
+   "specials": []
+  },
+  "214": {
+   "kind": "pose",
+   "state": 532,
+   "names": [],
+   "specials": []
+  },
+  "215": {
+   "kind": "pose",
+   "state": 533,
+   "names": [],
+   "specials": []
+  },
+  "216": {
+   "kind": "pose",
+   "state": 534,
+   "names": [],
+   "specials": []
+  },
+  "217": {
+   "kind": "pose",
+   "state": 535,
+   "names": [],
+   "specials": []
+  },
+  "218": {
+   "kind": "pose",
+   "state": 536,
+   "names": [],
+   "specials": []
+  },
+  "219": {
+   "kind": "pose",
+   "state": 537,
+   "names": [],
+   "specials": []
+  },
+  "21A": {
+   "kind": "pose",
+   "state": 538,
+   "names": [],
+   "specials": []
+  },
+  "21B": {
+   "kind": "pose",
+   "state": 539,
+   "names": [],
+   "specials": []
+  },
+  "21C": {
+   "kind": "pose",
+   "state": 540,
+   "names": [],
+   "specials": []
+  },
+  "21D": {
+   "kind": "pose",
+   "state": 541,
+   "names": [],
+   "specials": []
+  },
+  "21E": {
+   "kind": "pose",
+   "state": 542,
+   "names": [],
+   "specials": []
+  },
+  "21F": {
+   "kind": "pose",
+   "state": 543,
+   "names": [],
+   "specials": []
+  },
+  "220": {
+   "kind": "pose",
+   "state": 544,
+   "names": [],
+   "specials": []
+  },
+  "221": {
+   "kind": "pose",
+   "state": 545,
+   "names": [],
+   "specials": []
+  },
+  "222": {
+   "kind": "pose",
+   "state": 546,
+   "names": [],
+   "specials": []
+  },
+  "223": {
+   "kind": "pose",
+   "state": 547,
+   "names": [],
+   "specials": []
+  },
+  "224": {
+   "kind": "pose",
+   "state": 548,
+   "names": [],
+   "specials": []
+  },
+  "225": {
+   "kind": "pose",
+   "state": 549,
+   "names": [],
+   "specials": []
+  },
+  "226": {
+   "kind": "pose",
+   "state": 550,
+   "names": [],
+   "specials": []
+  },
+  "227": {
+   "kind": "pose",
+   "state": 551,
+   "names": [],
+   "specials": []
+  },
+  "228": {
+   "kind": "reaction",
+   "state": 552,
+   "names": [],
+   "specials": []
+  },
+  "229": {
+   "kind": "reaction",
+   "state": 553,
+   "names": [],
+   "specials": []
+  },
+  "22A": {
+   "kind": "pose",
+   "state": 554,
+   "names": [],
+   "specials": []
+  },
+  "22B": {
+   "kind": "pose",
+   "state": 555,
+   "names": [],
+   "specials": []
+  },
+  "22C": {
+   "kind": "pose",
+   "state": 556,
+   "names": [],
+   "specials": []
+  },
+  "22D": {
+   "kind": "pose",
+   "state": 557,
+   "names": [],
+   "specials": []
+  },
+  "22E": {
+   "kind": "pose",
+   "state": 558,
+   "names": [],
+   "specials": []
+  },
+  "22F": {
+   "kind": "pose",
+   "state": 559,
+   "names": [],
+   "specials": []
+  },
+  "230": {
+   "kind": "pose",
+   "state": 560,
+   "names": [],
+   "specials": []
+  },
+  "231": {
+   "kind": "pose",
+   "state": 561,
+   "names": [],
+   "specials": []
+  },
+  "232": {
+   "kind": "pose",
+   "state": 562,
+   "names": [],
+   "specials": []
+  },
+  "233": {
+   "kind": "pose",
+   "state": 563,
+   "names": [],
+   "specials": []
+  },
+  "234": {
+   "kind": "pose",
+   "state": 564,
+   "names": [],
+   "specials": []
+  },
+  "235": {
+   "kind": "pose",
+   "state": 565,
+   "names": [],
+   "specials": []
+  },
+  "236": {
+   "kind": "pose",
+   "state": 566,
+   "names": [],
+   "specials": []
+  },
+  "237": {
+   "kind": "pose",
+   "state": 567,
+   "names": [],
+   "specials": []
+  },
+  "238": {
+   "kind": "pose",
+   "state": 568,
+   "names": [],
+   "specials": []
+  },
+  "239": {
+   "kind": "pose",
+   "state": 569,
+   "names": [],
+   "specials": []
+  },
+  "23A": {
+   "kind": "pose",
+   "state": 570,
+   "names": [],
+   "specials": []
+  },
+  "23B": {
+   "kind": "pose",
+   "state": 571,
+   "names": [],
+   "specials": []
+  },
+  "23C": {
+   "kind": "pose",
+   "state": 572,
+   "names": [],
+   "specials": []
+  },
+  "23D": {
+   "kind": "pose",
+   "state": 573,
+   "names": [],
+   "specials": []
+  },
+  "23E": {
+   "kind": "pose",
+   "state": 574,
+   "names": [],
+   "specials": []
+  },
+  "23F": {
+   "kind": "pose",
+   "state": 575,
+   "names": [],
+   "specials": []
+  },
+  "240": {
+   "kind": "pose",
+   "state": 576,
+   "names": [],
+   "specials": []
+  },
+  "241": {
+   "kind": "pose",
+   "state": 577,
+   "names": [],
+   "specials": []
+  },
+  "242": {
+   "kind": "pose",
+   "state": 578,
+   "names": [],
+   "specials": []
+  },
+  "243": {
+   "kind": "pose",
+   "state": 579,
+   "names": [],
+   "specials": []
+  },
+  "244": {
+   "kind": "pose",
+   "state": 580,
+   "names": [],
+   "specials": []
+  },
+  "245": {
+   "kind": "pose",
+   "state": 581,
+   "names": [],
+   "specials": []
+  },
+  "246": {
+   "kind": "pose",
+   "state": 582,
+   "names": [],
+   "specials": []
+  },
+  "247": {
+   "kind": "pose",
+   "state": 583,
+   "names": [],
+   "specials": []
+  },
+  "248": {
+   "kind": "pose",
+   "state": 584,
+   "names": [],
+   "specials": []
+  },
+  "249": {
+   "kind": "pose",
+   "state": 585,
+   "names": [],
+   "specials": []
+  },
+  "24A": {
+   "kind": "pose",
+   "state": 586,
+   "names": [],
+   "specials": []
+  },
+  "24B": {
+   "kind": "pose",
+   "state": 587,
+   "names": [],
+   "specials": []
+  },
+  "24C": {
+   "kind": "pose",
+   "state": 588,
+   "names": [],
+   "specials": []
+  },
+  "24D": {
+   "kind": "pose",
+   "state": 589,
+   "names": [],
+   "specials": []
+  },
+  "24E": {
+   "kind": "pose",
+   "state": 590,
+   "names": [],
+   "specials": []
+  },
+  "24F": {
+   "kind": "pose",
+   "state": 591,
+   "names": [],
+   "specials": []
+  },
+  "250": {
+   "kind": "pose",
+   "state": 592,
+   "names": [],
+   "specials": []
+  },
+  "251": {
+   "kind": "pose",
+   "state": 593,
+   "names": [],
+   "specials": []
+  },
+  "252": {
+   "kind": "pose",
+   "state": 594,
+   "names": [],
+   "specials": []
+  },
+  "253": {
+   "kind": "pose",
+   "state": 595,
+   "names": [],
+   "specials": []
+  },
+  "254": {
+   "kind": "pose",
+   "state": 596,
+   "names": [],
+   "specials": []
+  },
+  "255": {
+   "kind": "pose",
+   "state": 597,
+   "names": [],
+   "specials": []
+  },
+  "256": {
+   "kind": "pose",
+   "state": 598,
+   "names": [],
+   "specials": []
+  },
+  "257": {
+   "kind": "pose",
+   "state": 599,
+   "names": [],
+   "specials": []
+  },
+  "258": {
+   "kind": "pose",
+   "state": 600,
+   "names": [],
+   "specials": []
+  },
+  "259": {
+   "kind": "pose",
+   "state": 601,
+   "names": [],
+   "specials": []
+  },
+  "25A": {
+   "kind": "pose",
+   "state": 602,
+   "names": [],
+   "specials": []
+  },
+  "25B": {
+   "kind": "pose",
+   "state": 603,
+   "names": [],
+   "specials": []
+  },
+  "25C": {
+   "kind": "pose",
+   "state": 604,
+   "names": [],
+   "specials": []
+  },
+  "25D": {
+   "kind": "pose",
+   "state": 605,
+   "names": [],
+   "specials": []
+  },
+  "25E": {
+   "kind": "pose",
+   "state": 606,
+   "names": [],
+   "specials": []
+  },
+  "25F": {
+   "kind": "pose",
+   "state": 607,
+   "names": [],
+   "specials": []
+  },
+  "260": {
+   "kind": "pose",
+   "state": 608,
+   "names": [],
+   "specials": []
+  },
+  "261": {
+   "kind": "pose",
+   "state": 609,
+   "names": [],
+   "specials": []
+  },
+  "262": {
+   "kind": "pose",
+   "state": 610,
+   "names": [],
+   "specials": []
+  },
+  "263": {
+   "kind": "pose",
+   "state": 611,
+   "names": [],
+   "specials": []
+  },
+  "264": {
+   "kind": "pose",
+   "state": 612,
+   "names": [],
+   "specials": []
+  },
+  "265": {
+   "kind": "pose",
+   "state": 613,
+   "names": [],
+   "specials": []
+  },
+  "266": {
+   "kind": "pose",
+   "state": 614,
+   "names": [],
+   "specials": []
+  },
+  "267": {
+   "kind": "pose",
+   "state": 615,
+   "names": [],
+   "specials": []
+  },
+  "268": {
+   "kind": "pose",
+   "state": 616,
+   "names": [],
+   "specials": []
+  },
+  "269": {
+   "kind": "pose",
+   "state": 617,
+   "names": [],
+   "specials": []
+  },
+  "26A": {
+   "kind": "pose",
+   "state": 618,
+   "names": [],
+   "specials": []
+  },
+  "26B": {
+   "kind": "pose",
+   "state": 619,
+   "names": [],
+   "specials": []
+  },
+  "26C": {
+   "kind": "pose",
+   "state": 620,
+   "names": [],
+   "specials": []
+  },
+  "26D": {
+   "kind": "pose",
+   "state": 621,
+   "names": [],
+   "specials": []
+  },
+  "26E": {
+   "kind": "pose",
+   "state": 622,
+   "names": [],
+   "specials": []
+  },
+  "26F": {
+   "kind": "pose",
+   "state": 623,
+   "names": [],
+   "specials": []
+  },
+  "270": {
+   "kind": "pose",
+   "state": 624,
+   "names": [],
+   "specials": []
+  },
+  "271": {
+   "kind": "pose",
+   "state": 625,
+   "names": [],
+   "specials": []
+  },
+  "272": {
+   "kind": "pose",
+   "state": 626,
+   "names": [],
+   "specials": []
+  },
+  "273": {
+   "kind": "pose",
+   "state": 627,
+   "names": [],
+   "specials": []
+  },
+  "274": {
+   "kind": "pose",
+   "state": 628,
+   "names": [],
+   "specials": []
+  },
+  "275": {
+   "kind": "pose",
+   "state": 629,
+   "names": [],
+   "specials": []
+  },
+  "276": {
+   "kind": "pose",
+   "state": 630,
+   "names": [],
+   "specials": []
+  },
+  "277": {
+   "kind": "pose",
+   "state": 631,
+   "names": [],
+   "specials": []
+  },
+  "278": {
+   "kind": "pose",
+   "state": 632,
+   "names": [],
+   "specials": []
+  },
+  "279": {
+   "kind": "pose",
+   "state": 633,
+   "names": [],
+   "specials": []
+  },
+  "27A": {
+   "kind": "pose",
+   "state": 634,
+   "names": [],
+   "specials": []
+  },
+  "27B": {
+   "kind": "pose",
+   "state": 635,
+   "names": [],
+   "specials": []
+  },
+  "27C": {
+   "kind": "pose",
+   "state": 636,
+   "names": [],
+   "specials": []
+  },
+  "27D": {
+   "kind": "pose",
+   "state": 637,
+   "names": [],
+   "specials": []
+  },
+  "27E": {
+   "kind": "pose",
+   "state": 638,
+   "names": [],
+   "specials": []
+  },
+  "27F": {
+   "kind": "pose",
+   "state": 639,
+   "names": [],
+   "specials": []
+  },
+  "280": {
+   "kind": "empty",
+   "state": 640,
+   "names": [],
+   "specials": []
+  },
+  "281": {
+   "kind": "empty",
+   "state": 641,
+   "names": [],
+   "specials": []
+  },
+  "282": {
+   "kind": "empty",
+   "state": 642,
+   "names": [],
+   "specials": []
+  },
+  "283": {
+   "kind": "empty",
+   "state": 643,
+   "names": [],
+   "specials": []
+  },
+  "284": {
+   "kind": "empty",
+   "state": 644,
+   "names": [],
+   "specials": []
+  },
+  "285": {
+   "kind": "empty",
+   "state": 645,
+   "names": [],
+   "specials": []
+  },
+  "286": {
+   "kind": "empty",
+   "state": 646,
+   "names": [],
+   "specials": []
+  },
+  "287": {
+   "kind": "pose",
+   "state": 647,
+   "names": [],
+   "specials": []
+  }
+ },
+ "throw_inputs": {
+  "throw_c": "hold + forward + A (SS2: close + forward / back + B or A+B)",
+  "throw_d": "hold + back + A (SS2: close + forward / back + D or C+D)",
+  "throw_big": "hold + forward / back + A on a big victim (SS2: any throw on Earthquake / Kuroko)",
+  "throw_x": "Lab only, from the hold (SS2: close + forward + B or A+B in the air)"
+ },
+ "knobs": {
+  "S-001": [
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 1.4,
+    "min": 1,
+    "max": 4.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "its object BAKUEN: its rows, +1.4 px a frame on average",
+    "judgment": true
+   },
+   {
+    "id": "hits",
+    "name": "Projectile hits",
+    "unit": "hits",
+    "default": 1,
+    "min": 1,
+    "max": 10,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 3,
+      "a": 0,
+      "match": 0,
+      "base": 1
+     }
+    ],
+    "from": "its object BAKUEN: its hit ends it",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-002": [
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 1.86,
+    "min": 1,
+    "max": 5.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "its object BAKUEN: its rows, +1.86 px a frame on average",
+    "judgment": true
+   },
+   {
+    "id": "hits",
+    "name": "Projectile hits",
+    "unit": "hits",
+    "default": 1,
+    "min": 1,
+    "max": 10,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 3,
+      "a": 0,
+      "match": 0,
+      "base": 1
+     }
+    ],
+    "from": "its object BAKUEN: its hit ends it",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-003": [
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 2.76,
+    "min": 1,
+    "max": 8.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "its object BAKUEN: its rows, +2.76 px a frame on average",
+    "judgment": true
+   },
+   {
+    "id": "hits",
+    "name": "Projectile hits",
+    "unit": "hits",
+    "default": 1,
+    "min": 1,
+    "max": 10,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 3,
+      "a": 0,
+      "match": 0,
+      "base": 1
+     }
+    ],
+    "from": "its object BAKUEN: its hit ends it",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-004": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 4.8086,
+    "min": 1,
+    "max": 14.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 315136,
+      "base": 315136
+     }
+    ],
+    "from": "P_SET vy 4.80859 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-005": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 4.1094,
+    "min": 1,
+    "max": 12.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 269312,
+      "base": 269312
+     }
+    ],
+    "from": "P_SET vy 4.10938 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-006": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 2.3516,
+    "min": 1,
+    "max": 7.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 154112,
+      "base": 154112
+     }
+    ],
+    "from": "P_SET vy 2.35156 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-007": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-008": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 3.1094,
+    "min": 1,
+    "max": 9.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 203776,
+      "base": 203776
+     }
+    ],
+    "from": "P_SET vy 3.10938 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": false
+   },
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 7.8,
+    "min": 1,
+    "max": 23.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "its object SHURIKEN: its rows, +7.8 px a frame on average",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-009": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 3.1094,
+    "min": 1,
+    "max": 9.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 203776,
+      "base": 203776
+     }
+    ],
+    "from": "P_SET vy 3.10938 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": false
+   },
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 9.9,
+    "min": 1,
+    "max": 29.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "its object SHURIKEN: its rows, +9.9 px a frame on average",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-010": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 3.1094,
+    "min": 1,
+    "max": 9.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 203776,
+      "base": 203776
+     }
+    ],
+    "from": "P_SET vy 3.10938 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": false
+   },
+   {
+    "id": "speed",
+    "name": "Projectile speed",
+    "unit": "px/frame",
+    "default": 11.87,
+    "min": 1,
+    "max": 35.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 2,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "its object SHURIKEN: its rows, +11.87 px a frame on average",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-011": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-012": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-013": [
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 5.9062,
+    "min": 1,
+    "max": 17.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 387072,
+      "base": 387072
+     }
+    ],
+    "from": "P_SET vy 5.90625 (its take-off: SS2's velocity table, fitted to the brawler's screen)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-014": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ]
+ }
+}

@@ -44,6 +44,7 @@ int16_t z_back(int16_t x);        /* the smallest Z at world x (0 without a tabl
                                      (draw.s), never with its owner's palettes (the white flash, the burn leave them) */
 #define SFX_NPAL_MAX 16           /* (224-239: past the select screen's 23 actors x MAX_PALS from 16, below the big
                                      portraits' 240; TODO #216: 11 with Ralf's AAAA, Iori's and Yamazaki's furies) */
+extern int16_t cam_x;             /* main.c: the camera's left edge (world px; P_WARP's screen mode) */
 extern int16_t world_w;           /* the stage's width in px (stage_t.cols * 16); fighters stay 16 px inside it */
 
 enum {                            /* states: the state machine alone decides what happens next */
@@ -549,6 +550,8 @@ typedef struct fighter {
     const gknob_t *kn;
     uint8_t  kn_n, khit;
     uint16_t kspd;
+    uint8_t  tbig, tpad;          /* tbig: its throw is the big-victim one (bxthr_t big: SS2's throw of Earthquake, Character
+                                     Lab 2026-10-10; fighter.c throw_start, thr_of); last: draw.s's offsets stay */
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
