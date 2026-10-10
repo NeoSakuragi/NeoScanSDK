@@ -10,7 +10,7 @@
 //   lab.html?f=<f>&tab=dictionary   his animation dictionary: anims.js, loaded into #dict (anims.html?f= redirects here)
 //   lab.html?f=<f>&tab=workshop     the Workshop: workshop.js itself, loaded into #ws on the tab's first opening
 //   lab.html?f=<f>&tab=assembly     the Assembly: arbitrage.js itself (sheet, chain timing, knobs, Try in game, Send to
-//                                   Player, live, Ship to game), loaded into #arb
+//                                   Player, live, In the game: no staging), loaded into #arb
 //   lab.html?f=<f>&tab=review       the fighter review (revamp phase 4, &q=<set>: a visual follow-up): review.js in #rev
 //                                   (review.html?f= redirects here)
 //   &embed=1                        the Player's WebView beside the game: no chrome, compact, the Assembly only

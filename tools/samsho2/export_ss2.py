@@ -440,6 +440,9 @@ def export(names, outdir, only=None, extra=None, lab=None):
         if w:
             st = ss2.parse_anim(ch, w[0], 400); k = w[1] if w[1] >= 0 else len(st) - 1
             anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': anim_steps(B, ch, w[0], k, k)}
+        for mv, hx in ((extra or {}).get(name, {}).get('moves') or {}).items():   # the roster's moves "$XX" (2026-10-10: the
+            a = int(str(hx).lstrip('$'), 16)                  # Assembly's picks shipped by arb_compile, a spare move name
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, ch, a)}   # on any SS2 animation, KOF's export96 slots)
         if only is not None: anims = {k: v for k, v in anims.items() if k in only or k == 'watch'}
         for mv, (a, f, l) in ((extra or {}).get(name, {}).get('anims') or {}).items():   # whole animations by request (export_bm FLASH_POSES: the flash pose, TODO #145): {move: (anim, first, last)}
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, ch, a, f, l)}

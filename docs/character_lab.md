@@ -70,22 +70,51 @@ override shown by text and shape (bold value, "changed from N", a solid 3 px bor
   game plays now: his tree's hit-stops and the build's retime targets (`TryIt.plan`: the chain data of his pack's
   manifest, the shell's retime rows from its anchor). A move pressed twice has one timing (retime is per move:
   every use of it takes it). Saved as the sheet answer `chain_timing`, its note = JSON `{hitstop: {a1..aN: frames},
-  retime: {move: [frames per segment]}}` (overrides only; "Reset the chain timing" clears it). His presses that cannot
-  play as a chain (several pieces in a press, a non-move animation, a length no archetype has) leave the game's own
-  chain, which is still timed.
+  retime: {move: [frames per segment]}}` (overrides only; "Reset the chain timing" clears it). A press that is not one
+  of his moves (an animation `$NN`, an S- piece) has its hit-stop only (no segments). A press that cannot go live
+  (several pieces, a throw, more presses than his chain has, a shell without `try3`) says so next to it and plays the
+  game's own press ("The chain" below).
 
 ## Live config, auto-send, apply at neutral
 
-The **live config** is one blob per fighter on the server (`feedback-api/lab/config/<f>`): `lab.js liveBlob` = the TRY
-blob (`encodeTry`: the queue, the 27 arbitration slots, knob rows) + an optional chain override (`'L' 'C'` + u16 n + the
-bytes of `encodeOverride`: the chain tree, then the retime table; load 5). The Assembly writes it **by itself** 1.5 s
-after the last change (admin accounts; a viewer sees why not), and once on opening when the answers are newer than the
-live config; "Send to Player" resends by hand. The sheet's chain override carries the presses (when each is one brawler
-move) **and the timing** (`tryit.js chainOf`: the hit-stops in the tree's nodes, the retime rows after it, the ROM's rows
-of the other fighters kept since the table replaces `rt_tab` whole). The Player writes the chain first (lab.buf, load 5,
-its retime rows of the blob's fighter renamed to the pack's slot: `CharacterLab.kt chainFor`), then the TRY blob (load
-6); the game applies the TRY part when P1 is next in neutral (standing / walking) unless "Apply now". Every PUT is a
-revision; History and Revert on the "Live config" line. Details: "Send to Player" and "Live config per fighter" below.
+The **live config** is one blob per fighter on the server (`feedback-api/lab/config/<f>`): the TRY blob (`lab.js
+encodeTry`: the queue, the 27 arbitration slots, knob rows and, since 2026-10-10, **the chain**: version 3 below). The
+Assembly writes it **by itself** 1.5 s after the last change (admin accounts; a viewer sees why not), and once on opening
+when the answers are newer than the live config; "Send to Player" resends by hand. The Player writes it (load 6); the
+game applies it when P1 is next in neutral (standing / walking) unless "Apply now". Every PUT is a revision; History and
+Revert on the "Live config" line. **Nothing is dropped silently** (Bruno's note 20261010-210158-5d29: his Hanzo chain of
+dictionary animations went live as an empty blob): every pick that cannot go live shows "Can't go live: why" next to its
+slot (`TryIt.issues`, the same checks the Send makes), and the Send's line and the revision's note list what was left
+out (`json.lab_try.try.left_out`). Details: "Send to Player" and "Live config per fighter" below.
+
+### The chain (TRY blob version 3, 2026-10-10)
+
+Bruno (binding): "There is no tree. We simplified the design: there is 1 chain with a bunch of finishers." The live path
+says exactly that: the TRY blob carries `[LS_CHAIN 0x81][2n][n entries][n words: hit-stop << 8]` = presses 1..n (n = his
+chain's length, the archetype's; the last press = the neutral finisher) and per retimed move `[LS_RETIME 0x82][1 + k]
+[move BA_*][k targets]` (0 = the source's segment). A press entry is `LE_MOVE | m` (0x4000: his standard move m, played
+as a normal: its segments, its retime), an animation `$NN` of his dictionary (his pack's LAB special) or `LE_SPEC | k`
+(an S- piece), or `LE_NONE` (the game's own press); hit-stop 0 = the game's; the last press's hit-stop is every
+finisher's. The finishers by stick are the slots `fin_*`, the hold the `grab_*` slots (as before). Both records have the
+slot records' shape (`[id][n][n words]`), so a reader of version 1 / 2 walks over them (the Player's parse is unchanged).
+`lab.js encodeTry` (cfg `chain: {entries, hitstop}`, `retime: [{move, targets}]`) is the one encoder; a blob without them
+is byte for byte version 1 / 2 as before. `tryit.js chainOf` makes it from the sheet's presses and timing (a picked
+animation that is one of his moves becomes `LE_MOVE`).
+
+The game (`fighter.c lab_chain`, Lab builds and the normal build alike: only the Lab writes it): his exported tree is
+copied into RAM, the main line's nodes (root, A, A...) cloned to its end and given the presses (a lab entry: rnode flag
+`RF_LAB`, the entry in anim | weight << 8), `route_tab[his fighter]` pointed at it; a blob without a chain puts his
+exported tree back. An `RF_LAB` node plays its entry as the Try queue does (`lab_node` -> `lab_entry`: free, not
+invincible, the Blitz's role) and stays a link of the chain: on a hit a buffered A takes the node's links (after the
+hit-stop, once its hits came, within the attack buffer), its end after a hit opens the chain window, its hits freeze
+for the node's hit-stop. The chain advances only on a hit, as every chain does: a press that whiffs ends it (Hanzo's
+$15C, SS2's close C+D, is an anti-air whose box sits 88-108 px up and 12-40 px ahead: it whiffs on a standing dummy).
+lstat refusals 10 (a chain length not his chain's), 11 (a press that cannot be one), 12 (a retime row). TRY_MAX 1280.
+The shell declares the feature `try3`; packs need nothing new (no pack rebuilt).
+
+**Load 5** (the chain override `'L' 'C'` after the TRY blob, `encodeOverride`) is legacy: no page writes it any more;
+the game and the Player still take one (an old live config, e.g. Iori's r5), and load 1 (a whole tree into lab.buf)
+stays for the Game tools' route-tree editor (enemies). Player 0.0.34 shows "+ CHAIN" for a version-3 chain too.
 
 ## Try in game
 
@@ -178,24 +207,33 @@ the new one: 13 faces, Hanzo swapped in (practice), Iori's live config r5 + chai
 the shell's RAM map. Players 0.0.32 still load this set (same container, the legacy engine / ram fields); after a
 shell-only publish they refuse the packs (engine differs) until 0.0.33 is installed.
 
-## Ship to game
+## In the game: no staging (2026-10-10)
 
-"Ship to game" (admin, end of the Assembly) queues `POST lab/ship/<f>` naming the live config's revision. On the
-desktop `arb_compile.py <f>` compiles the sheet (`<f>-arb`) into his game.json roster entry: picks (classes a / b / c),
-piece knobs (`roster[].knobs`), chain timing (`chain.hitstop`, left out at the archetype's scale, + `retime {move:
-targets}`: the form `chain_save.py` wrote for the old chain tool), then builds, runs bank_proof, plays every linked slot
-in our emulator, measures every knob (`knob_check`) and checks the timing in the build (`timing_check`: the tree's
-hit-stops in build/chainlab.json, the rows in build/retime.json). Anything refused or failed: nothing shipped, game.json
-and brawler_gold.md restored and rebuilt, the reasons printed, exit 2. A shipped round appends a dated "sheet round" to
-docs/brawler_gold.md. `labcfg.py ship-pending` / `ship-done` close the queue.
+Bruno (binding): "forget about staging for now, remove that step": what the Assembly saves IS the game. There is no
+"Ship to game" button. Every live send of a sheet also queues a ship request (`POST lab/ship/<f>` naming the revision);
+the desktop's **worker** ships a fighter once his newest request is 60 s old (no change since; his older requests:
+`dropped`, "superseded"):
+
+    python3 tools/brawler/labcfg.py ship-worker [--commit] [--no-publish] [--once] [--fighter F] [--quiet 60]
+
+status `building` -> VERSION bumped -> `arb_compile.py <f>` (the sheet -> his roster entry in game.json, build,
+bank_proof, every linked slot / knob / timing checked in our emulator; a dated "sheet round" in docs/brawler_gold.md) ->
+`make publish-vps` (the Player's game) -> [`--commit`: game.json, VERSION, brawler_gold.md committed] -> `done` "build
+0.10.N published" + what the compiler left unresolved ("left out: ..."). Refused or failed: VERSION and game.json as
+they were, the game rebuilt, `failed` with the plain reason. Nothing changed: `done` "nothing changed", no build. Run it
+in a terminal on the desktop (it polls every 20 s), or `--once` from a loop tick. The sheet's bottom line reads the
+queue every 15 s: "In the game: build 0.10.N", "Waiting to build…", "Building 0.10.N…", or "NOT in the game: why".
+`arb_compile.py`: a press the sheet does not answer keeps what the build plays (the generator's pick, the Assembly's
+"now"), so a partly answered chain compiles; a dictionary animation in a press ships as a spare move name (`moves
+"<name>": "$XX"`). Logs: /data/tmp/ship/ship_<id>_<f>.log.
 
 ## The server API
 
 The pages and the Player talk to the feedback service (`tools/feedback/server.py`, unit `brawler-feedback`): the pages
 at `brawler-lab/feedback-api/` (the Oros cookie), the Player at `/brawler/lab/` (its Oros token), the desktop over ssh.
 - `GET lab/me`, `GET|PUT lab/config/<f>` (+ `/hash` the poll, `/history`, `/rev/<n>`, `POST /revert`), `POST lab/ship/<f>`,
-  `GET lab/ship`, `POST lab/ship_done`, `GET lab/catalogue`, downloads `/brawler/lab/dl/...`: "Where it answers, who may
-  call it", "Live config per fighter", "Ship to game (the staging rule)", "Catalogue" below. Writes need the Oros
+  `GET lab/ship[?status=&fighter=]`, `POST lab/ship_done {id, status building | done | failed | dropped, note}`, `GET lab/catalogue`, downloads `/brawler/lab/dl/...`: "Where it answers, who may
+  call it", "Live config per fighter", "The ship queue", "Catalogue" below. Writes need the Oros
   `admin` role.
 - The sheets' and the Workshop's answers: the decisions store, `POST decision` `{set, id, choice?, label?, note?,
   question?, pieces?, knobs?, flags?}` merged into `DATA/decisions/<set>.json`, `GET decisions/<set>`. Sets: `<f>-arb`
@@ -208,7 +246,7 @@ at `brawler-lab/feedback-api/` (the Oros cookie), the Player at `/brawler/lab/` 
 |---|---|
 | `tools/brawler/arb_compile.py <f> [--dry-run] [--answers FILE] [--no-build] [--no-check] [--compare GAME_JSON]` | the sheet compiler (above); `arb_compile.py pieces <f>` regenerates the piece library `arb_pieces/<f>.json` (+ ids, + knobs) |
 | `tools/brawler/workshop.py list [f] / reply <f> <piece> "<text>" / unlock <f> <piece> / publish <f>` | the Workshop threads and unlocks |
-| `tools/brawler/labcfg.py list / show / history / revert / export / put / ship-pending / ship / ship-done` | the live configs and the ship queue (over ssh) |
+| `tools/brawler/labcfg.py list / show / history / revert / export / put / ship-pending / ship / ship-done / ship-worker` | the live configs, the ship queue and its worker (over ssh) |
 | `make lab-publish` = `tools/brawler/labpub.py all [--if-changed] [--only f,g] [--dry-run]` | THE ONE COMMAND: the shell + every fighter's pack, built and published where changed |
 | `tools/brawler/labpub.py list / publish-shell / publish-pack / publish-face / remove-*` | the shell / pack catalogue (format / features / needs from the files) |
 | `tools/brawler/lab_pack.py seal / make [--strict] / info / anchor / check / apply / abi` (`make LAB_SHELL=1`, `make LAB_PACK=<f>`) | the shell and the packs, the pack format |
@@ -274,9 +312,9 @@ lab polls it every 2-3 s and injects the RAM loads, or swaps the pack / shell wh
 the source of truth for the live config. Same service (`tools/feedback/server.py`, unit `brawler-feedback`), no new
 one.
 
-**The Lab config is a STAGING area** (Bruno 2026-10-10, binding): editing it never changes the real game or git. The
-"Ship to game" action only queues a request; the export to game.json, arb_compile, the build and the publish run on the
-desktop, by hand (`labcfg.py ship-pending`).
+~~The Lab config is a STAGING area~~ (superseded 2026-10-10 by Bruno: "forget about staging for now, remove that
+step"): every live send of a sheet queues a ship, the desktop's worker builds it into the game ("In the game: no
+staging" above).
 
 ### Where it answers, who may call it
 
@@ -317,7 +355,7 @@ desktop, by hand (`labcfg.py ship-pending`).
 The poll: the hash changes only when the blob's bytes change (that is what the Player injects); a json-only edit makes a
 new revision with the same hash.
 
-### Ship to game (the staging rule)
+### The ship queue (no staging since 2026-10-10: "In the game" above)
 
 | Call | What |
 |---|---|

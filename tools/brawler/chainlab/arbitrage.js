@@ -9,9 +9,9 @@
 // (the fighter's whole animation dictionary, attacks first, flag filter), "+ add after" (played back to back), "Clear",
 // "Ask in the Workshop". Pre-filled with what the game plays now (review/<fighter>_arb.json, tools/brawler/arbitrage.py).
 // Answers: the decisions store, set "<fighter>-arb", one id per slot: choice 1 = his (pieces "anim-<hex>" in order,
-// knobs); id "presses" = the chain's length (its note = the count). "Ship to game" (admin): POST lab/ship/<f> (the ship
-// queue, docs/character_lab.md "Character Lab") naming the live config's revision: the compiler builds, checks every slot and
-// publishes, or says why it refused.
+// knobs); id "presses" = the chain's length (its note = the count). NO STAGING (Bruno 2026-10-10): every live send also
+// queues a ship (POST lab/ship/<f>); the desktop's worker (labcfg.py ship-worker) ships it a minute after the last change
+// (the compiler builds, checks every slot and publishes, or says why it refused): the "In the game" line.
 // Renamed slots: an answer saved under an old id is read under its new one while the new id has none (OLD_IDS).
 // Piece ids (Workshop, review/<fighter>_workshop.json, tools/brawler/piece_ids.py): the picker offers the animations
 // ($NN, saved "anim-<hex>") and the UNLOCKED pieces (S- specials, T- throws, saved as their id: arb_compile.py links an
@@ -23,7 +23,7 @@
 // roster[].knobs). An overridden knob: bold value, "changed from N", solid border, "Back to default"; "Reset all knobs"
 // per piece, per slot and for the whole sheet.
 // CHAIN TIMING (the Chain Lab's chain tool folded in, 2026-10-10): under the chain's presses, per press its hit-stop and
-// its move's segments (0.5x-2x) as knobs; saved as "chain_timing", sent in the chain override (load 5), shipped by
+// its move's segments (0.5x-2x) as knobs; saved as "chain_timing", sent in the TRY blob's chain (version 3), shipped by
 // arb_compile.py (game.json chain.hitstop + retime). See drawTiming.
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
@@ -374,29 +374,39 @@
     window.arbPicker = def.id;
   }
 
-  // ---- Ship to game (admin): the ship queue (feedback-api/lab/ship/<f>) with the live config's revision -------------
+  // ---- NO STAGING (Bruno 2026-10-10: "forget about staging, remove that step"): what the sheet saves IS the game. Every
+  // live send queues a ship (POST lab/ship/<f>, admin); the desktop's worker (tools/brawler/labcfg.py ship-worker) ships
+  // the fighter once his newest request is 60 s old: arb_compile -> build -> checks -> VERSION bump -> publish. The line
+  // under the live one says where the game is: "In the game: build 0.10.N", "Building…", "Waiting…" or the refusal.
   const LAB_API = API + 'lab/';
-  const shipMsg = h('div', { class: 'saved', 'aria-live': 'polite' });
-  const shipBtn = h('button', { type: 'button', class: 'done', text: 'Ship to game' });
-  fetch(LAB_API + 'me', { cache: 'no-store', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null, () => null).then(w => {
-    if (w && w.user && w.role !== 'admin') { shipBtn.disabled = true; shipMsg.textContent = `Ship to game needs the Oros admin role (signed in as ${w.user}).`; }
-  });
-  shipBtn.onclick = async () => {
-    shipMsg.textContent = 'Queueing…'; shipBtn.disabled = true;
+  const gameLine = h('p', { class: 'ingame', 'aria-live': 'polite', text: 'In the game: …' });
+  async function shipQueue(rev) {
     try {
-      const hr = await fetch(LAB_API + 'config/' + f + '/hash', { cache: 'no-store', credentials: 'same-origin' });
-      if (hr.status === 404) throw new Error('no live config yet: press "Send to Player" first (the ship names that revision)');
-      if (!hr.ok) throw new Error('the live config: HTTP ' + hr.status);
-      const live = await hr.json();
       const r = await fetch(LAB_API + 'ship/' + f, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rev: live.version, note: 'Ship to game from the arbitration sheet' }) });
-      const j = await r.json().catch(() => ({}));
-      if (r.status === 403) throw new Error('Ship to game needs the Oros admin role');
-      if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
-      shipMsg.textContent = `Queued (request ${j.ship.id}, live config r${j.ship.rev}): the compiler builds, checks every slot and publishes, or says why it refused.`;
-    } catch (e) { shipMsg.textContent = 'Not queued: ' + e.message; }
-    shipBtn.disabled = false;
-  };
+        body: JSON.stringify({ rev, note: 'the Assembly (auto)' }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); gameLine.textContent = 'Not queued for the game: ' + (r.status === 403 ? 'it needs the Oros admin role' : j.error || 'HTTP ' + r.status); return; }
+    } catch (e) { gameLine.textContent = 'Not queued for the game: ' + e.message; return; }
+    gameStatus();
+  }
+  async function gameStatus() {
+    let rs;
+    try { const r = await fetch(LAB_API + 'ship?fighter=' + f, { cache: 'no-store', credentials: 'same-origin' }); if (!r.ok) return; rs = (await r.json()).requests || []; }
+    catch (e) { return; }
+    const mine = rs.filter(x => x.fighter === f && x.status !== 'dropped').sort((x, y) => y.id - x.id);
+    const cur = mine[0], done = mine.find(x => x.status === 'done');
+    const inGame = done ? (/build (\S+)/.exec(done.result || '') || [])[1] : null;
+    const had = inGame ? `In the game: build ${inGame}` + (/left out: (.*)/.exec(done.result || '') ? ' (left out: ' + /left out: (.*)/.exec(done.result)[1] + ')' : '') : 'In the game: nothing shipped from this sheet yet';
+    gameLine.textContent = !cur ? had
+      : cur.status === 'pending' ? `Waiting to build (about a minute after your last change, request ${cur.id}). ${had}.`
+      : cur.status === 'building' ? `Building ${(/building (\S+)/.exec(cur.result || '') || [])[1] || ''}… (request ${cur.id}). ${had}.`
+      : cur.status === 'failed' ? `NOT in the game (request ${cur.id}): ${(cur.result || '').replace(/^not in the game: /, '')}. ${had}.`
+      : /^nothing changed/.test(cur.result || '') ? `In the game: ${cur.result}` : had;
+    gameLine.classList.toggle('bad', !!cur && cur.status === 'failed');
+  }
+  gameStatus();
+  window.addEventListener('tryit-sent', e => { if (e.detail.f === f && e.detail.kind === 'sheet') shipQueue(e.detail.version); });   // (every
+  // live send of the sheet, by itself or "Send to Player": its revision goes to the game)
+  setInterval(() => { if (!document.hidden && document.body.contains(gameLine)) gameStatus(); }, 15000);
 
   // ---- "Try this sheet in game" (tryit.js): every slot of his answers (the slots still "now" keep the game's own move) on
   // his pack in the shell, live; the chain's presses (any piece each: a move, an animation, an S- piece) and their timing
@@ -433,7 +443,7 @@
     out.push(h('h2', { text: s.title }), h('p', { class: 'about', text: s.about }));
     out.push(s.chain ? chainBlock() : s.slots.map(slotRow));
   }
-  out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'When the whole sheet is how you want it (no agent: the compiler links every pick and knob, builds, checks each slot in the game and publishes, or refuses and says why):' }), shipBtn, shipMsg));
+  out.push(h('div', { class: 'final' }, tryBtn(), h('span', { text: 'Every change goes into the game by itself: about a minute after your last change the compiler links every pick and knob, builds, checks each slot in the game and publishes a new build, or says here why it refused.' }), gameLine));
   root.replaceChildren(...out.flat().filter(x => x));
   drawTiming(); goLive();
   // on open: answers newer than the live config (or no live config yet) go live at once — a sheet edited before the

@@ -312,7 +312,10 @@ def build(specs, outdir):
         if game == 'samsho2':                           # Samurai Shodown II: its own reader, programs from its handlers
             sys.path.insert(0, os.path.join(HERE, '..', 'samsho2')); import export_ss2
             return export_ss2.export(names, tmp, only=set(MOVES),
-                                     extra={n: {'watch': tuple(roster()[n]['watch']), **flash_extra(game, n)} for n in names if n in roster()},
+                                     extra={n: {'watch': tuple(roster()[n]['watch']), **flash_extra(game, n),
+                                                **({'moves': roster()[rname(game, n)]['moves']} if roster().get(rname(game, n), {}).get('moves') else {})}
+                                            for n in names if n in roster()},   # (moves: its roster entry's, by its bank:
+                                                                                #  samsho2:hanzo is hanzo_ss2)
                                      lab={n: LAB[n] for n in names if n in LAB} or None)   # (the Lab: versions, Lab throws, LAB)
         if game == 'whp':                               # World Heroes Perfect: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'whp')); import export_whp

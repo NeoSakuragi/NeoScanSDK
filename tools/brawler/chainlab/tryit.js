@@ -547,6 +547,7 @@
       if (r.status === 401) { say('Not sent: sign in again (the Oros login), then press Send.', true); return null; }
       if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
       await loadLive(f);
+      window.dispatchEvent(new CustomEvent('tryit-sent', { detail: { f, version: j.version, kind: what.sheet ? 'sheet' : 'queue' } }));   // (the Assembly: the ship)
       say(j.changed ? `Sent: ${f.toUpperCase()} live config r${j.version} (${said}). The Player applies it at neutral.`
                     : `Unchanged: ${f.toUpperCase()}'s live config is already this (r${j.version}).`);
       return j;

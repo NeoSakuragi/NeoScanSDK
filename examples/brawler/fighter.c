@@ -1525,7 +1525,7 @@ static uint8_t lab_chain(uint8_t c, const uint8_t *r, uint8_t dry) {   /* r: the
         if (!p->next[RI_A]) return 10;                   /* (a tree shorter than its length says) */
         d = (rnode_t *)RT_NODE(h, nn); tree_cp(d, RT_NODE(h, p->next[RI_A])); p->next[RI_A] = nn; at = nn++;
         if (e != LE_NONE && (e & LE_MOVE)) { d->anim = e & 0xFF; d->flags &= RF_KEEP; }
-        else if (e != LE_NONE) { d->anim = e & 0xFF; d->weight = e >> 8; d->flags = RF_LAB; }
+        else if (e != LE_NONE) { d->speed = e; d->flags = RF_LAB; }   /* (its weight / effect / damage / push: the press's) */
         if (hs) d->hitstop = hs;
         if (k == n - 1 && hs)                            /* the last press's hit-stop: every finisher's */
             for (i = 0; i < sizeof FIN; i++) if (p->next[FIN[i]] && p->next[FIN[i]] != at) {
@@ -1625,14 +1625,14 @@ static uint8_t lab_entry(fighter_t *f, uint16_t e) {     /* entry e now -> 1 sta
 }
 /* A CHAIN PRESS THAT IS A LAB ENTRY (2026-10-10, note 20261010-210158-5d29: Bruno's Hanzo chain of dictionary
  * animations went nowhere): the Lab's chain override (load 5, lab.js encodeTree) may make any node RF_LAB, its entry
- * anim | weight << 8. It plays as the Try queue's entries do (lab_entry: free, not invincible, the Blitz's role, no
+ * in its speed word (its weight / effect / damage / push stay the press's). It plays as the Try queue's entries do (lab_entry: free, not invincible, the Blitz's role, no
  * knobs) and stays a link of the chain: lab_cnode = its node while it plays; on a hit a buffered press takes the node's
  * links as from a normal (the S_SPECIAL case below: after the hit-stop, once its hits came, within the attack buffer),
  * at its end a hit opens the chain window (lab_cend), its hits freeze for the node's hit-stop (fighter_hit). P1 only
  * (the entries are his: bm_lab); anyone else, or an entry his build lacks, ends the chain in neutral. */
 static void lab_node(fighter_t *f, uint8_t node, uint8_t how) {
     const rnode_t *c = NODE(f, node);
-    uint16_t e = (uint16_t)c->weight << 8 | c->anim;
+    uint16_t e = c->speed;                               /* (RF_LAB: the entry in speed) */
     uint8_t ks = lab_ks, ro = lab_role;
     f->node = node; f->buffered = 0; f->chain_t = 0; f->fury_buf = 0; f->hit_mask = 0; f->landed = 0; f->ldmg = 0;
     if (f->idx || f->team || (e & LE_THROW)) { to_neutral(f, 0); return; }
@@ -1640,7 +1640,7 @@ static void lab_node(fighter_t *f, uint8_t node, uint8_t how) {
     lab_seq = 0; lab_ks = 0xFF; lab_role = BS_BLITZ;     /* (no list: its end is the chain's; no knob rows) */
     if (!lab_entry(f, e)) { lab_ks = ks; lab_role = ro; lab_cnode = 0; to_neutral(f, 0); return; }
     lab_ks = ks; lab_role = ro;
-    lab_cnode = node; f->node = node;
+    lab_cnode = node; f->node = node; f->dsc = 0x100; f->ldmg = 0;   /* (its hits are the press's: no special damage tier) */
 }
 static uint8_t lab_chits(const fighter_t *f) {           /* its animation's hits after this step (hits_to_come's) */
     uint8_t k;
@@ -3844,6 +3844,16 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                 continue;
             } else {
                 uint8_t dmg = a->spec_dmg, rc = a->spec_react;
+                int8_t lpush = 0;
+                if (a->state == S_SPECIAL && lab_cnode && !a->idx && !a->team) {   /* a Lab chain press (RF_LAB): it hits as
+                                                                    the link it is (its weight / effect, its whole damage on
+                                                                    its first hit on each victim, its push), as the game it
+                                                                    ships to does */
+                    static const uint8_t LER[6] = { 0, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_KNOCKDOWN };
+                    const rnode_t *c = NODE(a, lab_cnode);
+                    rc = c->effect ? LER[c->effect] : c->weight ? R_HEAVY : R_LIGHT; lpush = c->push;
+                    dmg = (a->ldmg & (1 << v->idx)) ? 0 : c->damage; a->ldmg |= 1 << v->idx;
+                }
                 if (a->pdef && a->pdef->vhits) {             /* a piercing object (bproj_t vhits, Krauser's MAX): */
                     uint8_t sh = v->idx << 1, c = (a->vcnt >> sh) & 3, nh = a->pdef->vhits;   /* vhits hits on each */
                     dmg = share(a->spec_dmg, c + 1, nh) - share(a->spec_dmg, c, nh);   /* victim, */
@@ -3851,7 +3861,7 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                     else a->vdone |= 1 << v->idx;                /* until the last (its own reaction) */
                 }
                 if (!sounded++) { if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD); }
-                fighter_hit(a, v, dmg, rc, 0);
+                fighter_hit(a, v, dmg, rc, lpush);
                 if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                 if (a->state == S_SPECIAL && (a->ch->specials[a->spec_ix].sflags & SF_BIGHIT)) big_hit(a, v);
                 else if (a->pdef && a->owner && a->owner->state == S_SPECIAL && (a->owner->ch->specials[a->owner->spec_ix].sflags & SF_BIGHIT))

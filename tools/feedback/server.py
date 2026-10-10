@@ -80,10 +80,13 @@ X-Public, the Oros token) and /api/lab/... (the web pages: /brawler-lab/feedback
                                      engine, format, needs, data_sha, published]}]}; ETag, If-None-Match -> 304. THE PACK
                                      FORMAT (docs/character_lab.md): a pack loads into a shell of its format whose features
                                      cover its needs (the Player / the pages pick his newest such pack from `all`)
-  POST lab/ship/<f> {rev?, note?}   "Ship to game": the Lab config is a STAGING area (editing it never changes the game or
-                                     git); this queues {id, fighter, rev, hash, by, at, note, status pending} in LAB/ship.json for
-                                     the desktop (labcfg.py ship-pending: export -> game.json -> build -> publish, run there)
-  GET  lab/ship[?status=pending]     the queue; POST lab/ship_done {id, status done | dropped, note?} (labcfg.py ship-done)
+  POST lab/ship/<f> {rev?, note?}   NO STAGING (Bruno 2026-10-10: "forget about staging, remove that step"): what the
+                                     Assembly saves IS the game. Every live send of a sheet queues {id, fighter, rev, hash, by,
+                                     at, note, status pending} in LAB/ship.json; the desktop's worker (labcfg.py ship-worker)
+                                     ships a fighter once his newest request is 60 s old (the older ones: dropped, superseded):
+                                     arb_compile -> build -> checks -> VERSION bump -> publish
+  GET  lab/ship[?status=...][&fighter=f]  the queue; POST lab/ship_done {id, status building | done | failed | dropped,
+                                     note?} (the worker; the sheet's "In the game" line reads it)
   POST lab/publish {kind shell|pack|face, fighter?, version, engine, src, sha256, display?, format?, features? (shell),
                     needs? + data_sha? (pack)}   labpub.py (the file in LAB/incoming)
   POST lab/unpublish {kind, fighter?, version?}
@@ -653,9 +656,9 @@ def lab_ship_save(rows):
 
 
 def lab_ship(f, req, by):
-    """"Ship to game" (Bruno 2026-10-10: the Lab config is a STAGING area; editing it never changes the game or git): a
-    request {fighter, rev (default the live one), hash, by, at, note} queued as pending; the desktop picks it up
-    (labcfg.py ship-pending) and runs export -> game.json -> build -> publish itself, then marks it (ship-done)"""
+    """a ship request (no staging since 2026-10-10: every live send of a sheet queues one): {fighter, rev (default the
+    live one), hash, by, at, note} queued as pending; the desktop's worker (labcfg.py ship-worker) ships the fighter's
+    newest once it is 60 s old (arb_compile -> build -> checks -> VERSION bump -> publish) and marks it"""
     cur = lab_current(f)
     if not cur: return None, 'no config for ' + f
     rev = req.get('rev') or cur['version']
@@ -671,13 +674,15 @@ def lab_ship(f, req, by):
 
 
 def lab_ship_mark(req, by):
-    """the desktop's answer to a ship request: {id, status done | dropped, note?} (release, commit ... in the note)"""
-    if req.get('status') not in ('done', 'dropped'): return None, 'status: done | dropped'
+    """the desktop's answer to a ship request: {id, status building | done | failed | dropped, note?} (building: the
+    worker took it; done: the release in the note; failed: the plain reason, the game untouched)"""
+    if req.get('status') not in ('building', 'done', 'failed', 'dropped'): return None, 'status: building | done | failed | dropped'
     with lab_lock:
         rows = lab_ships()
         row = next((x for x in rows if x['id'] == req.get('id')), None)
         if not row: return None, 'no ship request %s' % req.get('id')
-        row.update(status=req['status'], closed_at=now(), closed_by=by, result=str(req.get('note') or '')[:300])
+        if req['status'] == 'building': row.update(status='building', started_at=now(), result=str(req.get('note') or '')[:600])
+        else: row.update(status=req['status'], closed_at=now(), closed_by=by, result=str(req.get('note') or '')[:600])
         lab_ship_save(rows)
     log('lab ship', row['id'], row['status'], 'by', by)
     return row, None
@@ -1086,8 +1091,9 @@ class H(http.server.BaseHTTPRequestHandler):
             cat = lab_catalogue()
             return self.etag_reply(hashlib.sha256(json.dumps(cat, sort_keys=True).encode()).hexdigest()[:32], cat)
         if parts == ['ship']:
-            st = (urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get('status') or [''])[0]
-            return self.reply(200, {'requests': [x for x in lab_ships() if not st or x['status'] == st]})
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            st, fi = (q.get('status') or [''])[0], (q.get('fighter') or [''])[0]
+            return self.reply(200, {'requests': [x for x in lab_ships() if (not st or x['status'] == st) and (not fi or x['fighter'] == fi)]})
         if parts == ['config']:
             fs = sorted(n[:-5] for n in os.listdir(LAB_CFG) if n.endswith('.json')) if os.path.isdir(LAB_CFG) else []
             return self.reply(200, {'configs': [lab_head(lab_current(f)) for f in fs if FIGHTER.match(f)]})

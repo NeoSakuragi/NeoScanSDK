@@ -3,7 +3,7 @@
 // of the feedback service (decisions store, lab/me, lab/config/<f>/hash, lab/ship/<f>; every POST recorded). Checks:
 // the knob panel under the picked S-012 (its knobs, defaults), an overridden knob (bold, "changed from 7", solid border,
 // "Back to default"), Back to default, the slot's / the sheet's "Reset all knobs", what was POSTed (knobs per slot),
-// no note box / mic / "send to Claude" on the sheet, "Ask in the Workshop" (pre-filled request), "Ship to game" (queued),
+// no note box / mic / "send to Claude" on the sheet, "Ask in the Workshop" (pre-filled request), the "In the game" line (no staging),
 // no horizontal scroll. Screens to OUT.
 //   NODE_PATH=/home/bruno/CLProjects/NeoGeo/node_modules node knobs_page_proof.js SITE OUT
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -33,6 +33,7 @@ const srv = http.createServer((q, r) => {
     }
     if (p.startsWith('decisions/')) return js(200, store[p.slice(10)] || {});
     if (p === 'lab/me') return js(200, { user: 'bruno', role: 'admin' });
+    if (p.startsWith('lab/ship')) return js(200, { requests: [] });
     if (p === 'lab/config/robert/hash') return js(200, { hash: 'abc', version: 4, updated: '2026-10-10T12:00:00Z' });
     if (p === 'lab/config/robert') return js(404, {});
     return js(404, {});
@@ -81,10 +82,8 @@ srv.listen(0, async () => {
     check('sheet: Reset all knobs of the sheet', !(store['robert-arb'].sp_c.knobs) && await pg.$$eval('.krow.over', l => l.length) === 0);
     const ask = await pg.$eval('#slot-sp_fc a.ask', a => ({ href: a.getAttribute('href'), text: a.textContent }));
     check('sheet: "Ask in the Workshop" link', /workshop\.html\?f=robert&ask=S-012&text=/.test(ask.href), ask);
-    await pg.click('.final .done'); await pg.waitForFunction(() => /Queued|Not queued/.test(document.querySelector('.final .saved').textContent), { timeout: 5000 });
-    const shipTxt = await pg.$eval('.final .saved', e => e.textContent);
-    const shipPost = posts.find(x => x.path === 'lab/ship/robert');
-    check('sheet: Ship to game queued with the live revision', shipTxt.startsWith('Queued') && shipPost && shipPost.body.rev === 4, shipTxt);
+    const shipTxt = await pg.$eval('.final .ingame', e => e.textContent);   // (no staging since 2026-10-10: no Ship button,
+    check('sheet: no Ship button, the "In the game" line', !(await pg.$('.final .done')) && /^In the game/.test(shipTxt), shipTxt);   // a live send queues the ship)
     check('sheet: no horizontal scroll at 420 px', await pg.evaluate(() => document.documentElement.scrollWidth <= 420), await pg.evaluate(() => document.documentElement.scrollWidth));
     await pg.screenshot({ path: path.join(out, 'sheet_final_420.png'), fullPage: false });
     await pg.$eval('#slot-sp_fc', el => el.scrollIntoView());
