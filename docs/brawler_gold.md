@@ -223,3 +223,10 @@ Moved to **docs/character_lab.md** (2026-10-10). `arb_compile.py` still appends 
 
 His Character Lab round (the breaker warp, the pieces, the "decoded, not imported" list) is in **docs/character_lab.md**
 "Hanzo (SS2) — Character Lab".
+
+### HANZO: sheet round 2026-10-10 (tools/brawler/arb_compile.py, decisions set `hanzo_ss2-arb`, build 0.10.29)
+Compiled from the sheet without an agent: 4 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- a2 (A press 2): $E6 -> chain.links[1] = "atk_a_close" — linked, class a: its own move
+- a3 (A press 3): $15C -> chain.links[2] = "atk_cd_close" — linked, class a: spare name: moves "atk_cd_close": "$15C"
+- a4 (A press 4): $FC -> chain.links[3] = "atk_b_far" — linked, class a: its own move
+- a5 (A press 5): $114 -> finishers.neutral = "atk_ab_far" — linked, class a: spare name: moves "atk_ab_far": "$114"
