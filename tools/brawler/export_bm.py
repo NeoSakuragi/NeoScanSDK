@@ -873,7 +873,11 @@ def vlists_c(n, k, r, game):
 def hspk_rows(k, r):
     """bchar_t.hspk entries of a ROM special k (TODO #215): [k, state index, step, spark code] of its steps with one"""
     out = [(k, j, i, s_['spark']) for j, st in enumerate(r['states']) for i, s_ in enumerate(r['anims'][st]['steps']) if s_.get('spark')]
-    assert all(k < 0xFE and j < 256 and i < 256 for k, j, i, _ in out), k
+    assert k < 0xFE, k
+    far = [x for x in out if x[1] >= 256 or x[2] >= 256]   # (a Lab pack's LAB special holds every animation as a state: past 255
+    if far:                                                  # the entry's byte indexes can't name it; those hit marks are left out)
+        print(f'export_bm: special {k}: {len(far)} hit-mark step(s) past state / step 255 left out (a LAB special\'s animations)')
+        out = [x for x in out if x[1] < 256 and x[2] < 256]
     return out
 SREACTS = []                                       # the game's source reactions (bm_sreact, TODO #136): every fighter's
 SR_BASE = {}                                       # export 'sreacts' list (write_c), one entry per distinct motion (TODO
