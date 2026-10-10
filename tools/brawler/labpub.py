@@ -8,7 +8,7 @@ Character lab sees it in GET /brawler/lab/catalogue on its next poll and downloa
     labpub.py list                                                      the catalogue (last shell, each fighter's last pack)
     labpub.py publish-shell FILE --engine E [--version V]
     labpub.py publish-pack FIGHTER FILE --engine E [--version V] [--display "Kim"] [--face PNG | --no-face]
-                     the face defaults to the Lab's HUD portrait (/data/neogeo_dict/portraits/<bank>.png, as make_site.py)
+                     the face defaults to the game's own HUD portrait (make_hud.portrait, x4)
     labpub.py publish-face FIGHTER [PNG]
     labpub.py remove-shell VERSION      labpub.py remove-pack FIGHTER VERSION      labpub.py remove-face FIGHTER
 
@@ -53,8 +53,21 @@ def default_face(f):
     bench = list(bench.values()) if isinstance(bench, dict) else bench
     r = next((r for r in G['roster'] + bench if isinstance(r, dict) and r.get('name') == f), None)
     if not r: return None
-    b = r['bank'].replace(':', '_')
-    return next((PORTRAITS + b + x for x in ('.png', '_select.png', '_square.png') if os.path.exists(PORTRAITS + b + x)), None)
+    return hud_face(r['bank'])
+
+def hud_face(bank):
+    """the fighter's face exactly as the game's HUD draws it (Bruno 2026-10-10: the Player's faces = the HUD's, for
+    consistency): make_hud.portrait's 32x32 indexed pixels + its 15 colours (index i = colour i - 1, 0 unused), x4 nearest"""
+    import tempfile
+    from PIL import Image
+    import make_hud
+    game, name = bank.split(':')
+    px, pal = make_hud.portrait(game, name)
+    im = Image.new('RGB', (32, 32))
+    for y, row in enumerate(px):
+        for x, i in enumerate(row): im.putpixel((x, y), tuple(pal[i - 1]) if 1 <= i <= len(pal) else (0, 0, 0))
+    out = os.path.join(tempfile.mkdtemp(), name + '.png'); im.resize((128, 128), Image.NEAREST).save(out)
+    return out
 
 
 def show(cat):

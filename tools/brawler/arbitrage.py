@@ -12,7 +12,7 @@ REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, HERE)
 import build_tables, piece_ids
 
-FIGHTERS = ('kim', 'krauser', 'robert')                     # the fighters with an animation dictionary (animdict.DICTS)
+FIGHTERS = tuple(__import__('animdict').DICTS)        # the fighters with an animation dictionary (animdict.DICTS: one list)
 HOLD_HIT_DEFAULT = 'engine default: his fastest close normal'   # export_bm.HOLD_DEFAULT hit None (hold_move)
 HOLD_FIN_DEFAULT = 'atk_d_close'                                 # export_bm.HOLD_DEFAULT fin
 

@@ -157,7 +157,7 @@ def native_kof(game, f, D):
         fury = None
         for inp in sorted(handlers98.ROM_SPECIALS.get(f, ())):
             for i in [inp, 'MAX ' + inp]:
-                try: rom = handlers98.export_rom(m, cid, i, lambda *a: 0)
+                try: rom = handlers98.export_rom(m, cid, i, lambda *a, **k: 0)
                 except Exception: continue
                 if 'error' in rom: continue
                 ids = list(dict.fromkeys(x for x in (aid(s) for s in rom['states']) if x))

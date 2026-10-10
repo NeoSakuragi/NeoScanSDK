@@ -37,7 +37,7 @@ import piece_ids
 VPS = 'root@195.201.91.211'
 BASE = 'http://127.0.0.1:8920/api/'                        # the feedback service on the box (ssh = authenticated)
 LAB = '/data/brawler-lab'
-FIGHTERS = ('kim', 'krauser', 'robert')                   # the fighters with an animation dictionary (animdict.DICTS)
+FIGHTERS = tuple(__import__('animdict').DICTS)        # the fighters with an animation dictionary (animdict.DICTS: one list)
 
 
 def SET(f): return f + '-workshop'
