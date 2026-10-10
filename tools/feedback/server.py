@@ -64,6 +64,7 @@ Character Lab (docs/feedback.md "Character Lab"; 2026-10-10): the live config of
 and the character packs, in LAB (/data/brawler/lab). The same handlers answer /lab/... (the player: nginx /brawler/lab/,
 X-Public, the Oros token) and /api/lab/... (the web pages: /brawler-lab/feedback-api/lab/, the Oros cookie; ssh on localhost
 = user 'ssh', labcfg.py / labpub.py). Reads: any signed-in account; writes: Oros role admin (403 otherwise).
+  GET  lab/me                        {user, role}: who the pages are (Send to Player and Revert need the role admin)
   GET  lab/config                    every fighter's live config head {fighter, version, hash, updated, by, size, note}
   GET  lab/config/<f>                the live config {fighter, version, hash, updated, by, size, note, blob (base64, opaque),
                                      json}; ETag "v<version>-<hash16>"
@@ -1064,7 +1065,10 @@ class H(http.server.BaseHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-cache'); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
 
     def lab_get(self, parts):
-        if not self.lab_user(): return
+        user = self.lab_user()
+        if not user: return
+        if parts == ['me']:                                  # the pages: Send to Player / Revert need the role admin
+            return self.reply(200, {'user': user, 'role': 'admin' if user == 'ssh' else account_role(self.headers)[1]})
         if parts == ['catalogue']:
             cat = lab_catalogue()
             return self.etag_reply(hashlib.sha256(json.dumps(cat, sort_keys=True).encode()).hexdigest()[:32], cat)

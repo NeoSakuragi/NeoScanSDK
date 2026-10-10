@@ -36,12 +36,20 @@ import java.security.MessageDigest
  *    (lab_pack.py ram_map: the shell's lab_t, prac, P1's state), the same for every pack of a shell.
  *  - NEW VERSIONS: the catalogue rides the same poll (ETag); a newer pack of the fighter on screen (or a newer shell) is
  *    downloaded, then swapped at the next safe moment: P1 back in neutral (standing / walking), or at once on a tap.
- *  - LIGHTS (Bruno: "surface this intuitively with blinkers or lights whenever there is a change"): a strip at the
- *    picture's bottom: a light + a word label (green IN SYNC, blinking amber NEW CONFIG pending, a flash APPLIED, red
- *    REFUSED, grey NO CONFIG / OFFLINE), a blue badge NEW PACK / NEW SHELL with its version, Apply now, Faces.
+ *  - THE CHAIN (0.0.29): a live config is chainlab/lab.js liveBlob: the TRY blob, + 'LC' u16 n + a chain override when a
+ *    page set one (the sheet's chain, the chain tool). The chain goes first, as lab.js installChain does (lab.buf, magic,
+ *    fighter = the slot, load 5; its retime rows of the blob's fighter renamed to the slot); the TRY blob once the game
+ *    took it. A config without a chain after one with: load 2 (the ROM's tree back) first.
+ *  - LIGHTS (Bruno: "surface this intuitively with blinkers or lights whenever there is a change"): a strip OFF the
+ *    picture (0.0.29: it hid the practice's HITS / DAMAGE row): between the picture and the pad's buttons in portrait,
+ *    in the left gutter in landscape (PadView.labH / labArea): a light + a word label (green IN SYNC, blinking amber NEW
+ *    CONFIG pending, a flash APPLIED, red REFUSED, grey NO CONFIG / OFFLINE), a blue badge NEW PACK / NEW SHELL with its
+ *    version, Apply now, Faces.
+ *  - NOTES (0.0.29): a feedback note taken in the lab records the shell + pack (+ config) it ran (noteInfo), not
+ *    brawler.neo's.
  *  The in-ROM practice menu is on the game's START (the pad's START). */
 class CharacterLab(private val act: MainActivity, private val root: FrameLayout, private val emu: () -> EmuThread?,
-                   private val play: (File) -> Unit, private val leave: () -> Unit) {
+                   private val play: (File) -> Unit, private val reserve: (Int) -> android.graphics.Rect, private val leave: () -> Unit) {
     private val dp = act.resources.displayMetrics.density
     private val dir = File(act.filesDir, "lab").apply { mkdirs() }
     private val base: URL? get() = RomFetch.base(act)?.let { URL(URL(it), "../lab/") }
@@ -52,11 +60,38 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         val magic = lab + o.getInt("magic"); val fighter = lab + o.getInt("fighter"); val load = lab + o.getInt("load")
         val active = lab + o.getInt("active"); val tnow = lab + lf.getInt("tnow"); val lstat = lab + lf.getInt("lstat")
         val tblob = lab + lf.getInt("tblob"); val p1State = j.getInt("p1_state")
+        val buf = lab + o.optInt("buf", 400)                           // lab.js LAB.buf (packs before 0.0.29 lack it)
         val neutral = j.getJSONArray("neutral").let { a -> IntArray(a.length()) { a.getInt(it) } }
     }
     class Pack(val fighter: String, val display: String, val version: String, val sha: String, val engine: String,
                val file: File, val ram: Ram?, val slot: Int)
     class Cfg(val fighter: String, val version: Int, val hash: String, val blob: ByteArray)
+    /** a live config's parts (lab.js liveParts): the TRY blob, the chain override (null: none); null = not a live config */
+    class Live(val tryBlob: ByteArray, val chain: ByteArray?)
+    private fun liveParts(b: ByteArray): Live? {
+        if (b.size < 8 || b[0] != 'L'.code.toByte() || b[1] != 'T'.code.toByte()) return null
+        var n = 8 + 2 * (b[5].toInt() and 255)
+        for (s in 0 until (b[6].toInt() and 255)) { if (n + 2 > b.size) return null; n += 2 + 2 * (b[n + 1].toInt() and 255) }
+        if (n > b.size) return null
+        if (n == b.size) return Live(b, null)
+        if (n + 4 > b.size || b[n] != 'L'.code.toByte() || b[n + 1] != 'C'.code.toByte()) return null
+        val len = (b[n + 2].toInt() and 255 shl 8) or (b[n + 3].toInt() and 255)
+        if (n + 4 + len != b.size) return null
+        return Live(b.copyOfRange(0, n), b.copyOfRange(n + 4, b.size))
+    }
+    /** the chain override for the shell: its retime rows of [from] (the fighter it was made for) renamed to [slot]
+     *  (fighter.h rt_head_t: nnodes at 3, 16 + 24 n bytes, then gretime_t rows of 8 bytes, fighter 0xFF ends them) */
+    private fun chainFor(c: ByteArray, from: Int, slot: Int): ByteArray? {
+        if (c.size < 16 || c.size > LAB_BUF || c[0] != 'R'.code.toByte() || c[1] != 'T'.code.toByte()) return null
+        val out = c.copyOf(); var a = 16 + 24 * (c[3].toInt() and 255)
+        while (true) {
+            if (a + 8 > out.size) return null
+            val f = out[a].toInt() and 255
+            if (f == 0xFF) return out
+            if (f == from) out[a] = slot.toByte()
+            a += 8
+        }
+    }
 
     var active = false; private set
     @Volatile private var shell: File? = null                       // the shell the core runs (lab mode)
@@ -77,6 +112,8 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     @Volatile private var cfgFor: String? = null                     // the fighter cfgTag belongs to
     @Volatile var paused = false                                     // the activity is not in front: no polls
     private var sent: Cfg? = null                                    // (emu thread) the config written into this boot
+    private var treeSent: Cfg? = null                                // (emu thread) the config whose tree step is written
+    private var chainIn = false                                      // (emu thread) a chain override is in this boot
     private var lastStat = -1; private var n = 0
     private var downloading: String? = null                          // (download thread) the sha being fetched
     private val dl = java.util.concurrent.Executors.newSingleThreadExecutor()
@@ -255,6 +292,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
                     swapReq = pk; swapNow = true
                     if (shell?.absolutePath != sf.absolutePath || emu()?.rom != sf.absolutePath) {
                         shell = sf; shellSha = sh.getString("sha256"); shellEngine = sh.optString("engine"); play(sf)
+                        shellVersions[sh.getString("sha256")] = sh.optString("version")
                     }
                     close(); strip(); light(State.WAIT, "LOADING $name")
                 }
@@ -268,13 +306,27 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     private fun leaveLab() {
         stop()
         faces?.let { root.removeView(it) }; faces = null
-        bar?.let { root.removeView(it) }; bar = null
+        bar?.let { root.removeView(it) }; bar = null; reserve(0)
         shell = null; pack = null; swapReq = null; reloadReq = null; cfgWant = null
         leave()
     }
 
     /** the back key: the faces close (back to the game), or open over it */
     fun back() { if (facesOpen && pack != null) close() else if (facesOpen) leaveLab() else open() }
+
+    /** what a feedback note taken now ran (0.0.29): the shell + the pack in the core (+ the live config written), not
+     *  brawler.neo; null = the core is not on the lab's shell */
+    private val shellVersions = java.util.concurrent.ConcurrentHashMap<String, String>()
+    fun noteInfo(): JSONObject? {
+        val sh = shell ?: return null; val pk = pack ?: return null
+        if (emu()?.rom != sh.absolutePath) return null
+        val sha = sh.name.substringBefore('.')                          // files/lab/<sha256>.neo
+        return JSONObject().apply {
+            put("shell_version", shellVersions[sha] ?: "?"); put("shell_sha256", sha); put("shell_size", sh.length()); put("engine", pk.engine)
+            put("pack_fighter", pk.fighter); put("pack_version", pk.version); put("pack_sha256", pk.sha)
+            sent?.let { put("config_rev", it.version); put("config_hash", it.hash) }
+        }
+    }
 
     // ---- the poll (2 s) ------------------------------------------------------------------------------------------
     private fun startPoll() {
@@ -344,7 +396,8 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
                     act.runOnUiThread { badge("$what: downloading $pc %", null) } } else null
                 val pk = packOf(p) { pc -> act.runOnUiThread { badge("$what: downloading $pc %", null) } }
                 act.runOnUiThread {
-                    if (sf != null) { reloadReq = sf to pk; shellSha = sh.getString("sha256"); shellEngine = sh.optString("engine") }
+                    if (sf != null) { reloadReq = sf to pk; shellSha = sh.getString("sha256"); shellEngine = sh.optString("engine")
+                        shellVersions[sh.getString("sha256")] = sh.optString("version") }
                     else { swapReq = pk; swapNow = false }
                     badge("$what: loads at neutral (tap: now)", { if (sf != null) reloadNow = true else swapNow = true })
                 }
@@ -372,7 +425,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             if (swapNow || r == null || neutral(r)) {
                 swapReq = null; swapNow = false
                 val code = Native.swapPack(pk.file.absolutePath)
-                sent = null; lastStat = -1
+                sent = null; treeSent = null; chainIn = false; lastStat = -1
                 Log.i(TAG, "lab: pack ${pk.fighter} ${pk.version} -> $code")
                 if (code == 0) { val first = pack?.fighter != pk.fighter; pack = pk
                     act.runOnUiThread { if (first) light(State.WAIT, "${pk.display} BOOTING") else badge("PACK ${pk.display} ${pk.version} loaded", null, 4000) } }
@@ -385,13 +438,27 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         if (r8(r.active) != 1) return                                  // the practice not running yet (a boot)
         val want = cfgWant
         if (want != null && want !== sent && want.fighter == pk.fighter) {
-            if (want.blob.size < 8 || want.blob.size > 576) { sent = want; act.runOnUiThread { light(State.REFUSED, "REFUSED r${want.version}: ${want.blob.size} bytes") }; return }
-            val b = want.blob.copyOf(); b[3] = pk.slot.toByte()          // P1 = the slot fighter in the shell
+            val lv = liveParts(want.blob)
+            val lc = lv?.chain
+            val chain = if (lv != null && lc != null) chainFor(lc, lv.tryBlob[3].toInt() and 255, pk.slot) else null
+            if (lv == null || lv.tryBlob.size > 576 || (lv.chain != null && chain == null)) { sent = want
+                act.runOnUiThread { light(State.REFUSED, "REFUSED r${want.version}: not a live config (${want.blob.size} bytes)") }; return }
+            if (treeSent !== want && (chain != null || chainIn)) {     // the tree first: load 5 (the chain) or 2 (the ROM's)
+                if (r8(r.load) != 0) return                            // (the game has not taken the last load yet)
+                if (chain != null) Native.ramWrite(r.buf, chain)
+                Native.ramWrite(r.magic, "LAB1".toByteArray()); Native.ramWrite(r.fighter, byteArrayOf(pk.slot.toByte()))
+                Native.ramWrite(r.load, byteArrayOf(if (chain != null) 5 else 2))
+                treeSent = want; chainIn = chain != null
+                Log.i(TAG, "lab: config ${want.fighter} r${want.version}: " + (if (chain != null) "chain ${chain.size} bytes (load 5)" else "the ROM's tree back (load 2)"))
+                return
+            }
+            if (r8(r.load) != 0) return                                // the TRY blob once the game took the tree
+            val b = lv.tryBlob.copyOf(); b[3] = pk.slot.toByte()       // P1 = the slot fighter in the shell
             Native.ramWrite(r.tblob, b); Native.ramWrite(r.lstat, byteArrayOf(0)); Native.ramWrite(r.tnow, byteArrayOf(0))
             Native.ramWrite(r.magic, "LAB1".toByteArray()); Native.ramWrite(r.fighter, byteArrayOf(pk.slot.toByte()))
             Native.ramWrite(r.load, byteArrayOf(6))
-            sent = want; lastStat = -1
-            Log.i(TAG, "lab: config ${want.fighter} r${want.version} written (${b.size} bytes, load 6)")
+            sent = want; treeSent = want; lastStat = -1
+            Log.i(TAG, "lab: config ${want.fighter} r${want.version} written (${b.size} bytes, load 6" + (if (chainIn) ", after its chain)" else ")"))
         }
         if (applyNow) { applyNow = false; if (r8(r.lstat) == 2) Native.ramWrite(r.tnow, byteArrayOf(1)) }
         val ls = r8(r.lstat)
@@ -421,32 +488,62 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         background = GradientDrawable().apply { setColor(fill); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 8 * dp }
         setOnClickListener { f() } }
 
-    /** the strip at the picture's bottom edge (inside it) */
+    /** the strip, OFF the picture (0.0.29): under it in portrait (one row: light, label, Apply now, Faces; the badge
+     *  under them), in the left gutter in landscape (stacked); the pad keeps the room (PadView.labH via [reserve]) */
+    private lateinit var applyBtn: Button
+    private lateinit var facesBtn: Button
+    private var barPortrait: Boolean? = null
+    private var listening = false
+    private val barFill get() = Color.rgb(8, 8, 12)
     private fun strip() {
         if (bar != null) { place(); return }
         val b = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; val m = (4 * dp).toInt(); setPadding(m * 2, m, m * 2, m)
-            background = GradientDrawable().apply { setColor(Color.argb(200, 0, 0, 0)); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 8 * dp } }
-        val top = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            background = GradientDrawable().apply { setColor(barFill); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 8 * dp } }
         lamp = View(act)
-        top.addView(lamp, LinearLayout.LayoutParams((18 * dp).toInt(), (18 * dp).toInt()))
-        label = text("", 13f, true).apply { maxLines = 2; setPadding((8 * dp).toInt(), 0, (8 * dp).toInt(), 0) }
-        top.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-        top.addView(button("Apply now", Color.rgb(150, 100, 0)) { now() }, LinearLayout.LayoutParams(-2, (36 * dp).toInt()))
-        top.addView(button("Faces", Color.rgb(60, 60, 70)) { open() }, LinearLayout.LayoutParams(-2, (36 * dp).toInt()).apply { leftMargin = (6 * dp).toInt() })
-        b.addView(top, LinearLayout.LayoutParams(-1, -2))
+        label = text("", 13f, true).apply { setPadding((8 * dp).toInt(), 0, (8 * dp).toInt(), 0) }
+        applyBtn = button("Apply now", Color.rgb(150, 100, 0)) { now() }
+        facesBtn = button("Faces", Color.rgb(60, 60, 70)) { open() }
         badgeView = text("", 13f, true).apply { visibility = View.GONE; val m = (6 * dp).toInt(); setPadding(m, m / 2, m, m / 2)
             background = GradientDrawable().apply { setColor(Color.rgb(20, 70, 170)); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 6 * dp } }
-        b.addView(badgeView, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (4 * dp).toInt() })
-        root.addView(b); bar = b
-        root.addOnLayoutChangeListener { _, l, t, r, btm, ol, ot, or_, ob -> if (r - l != or_ - ol || btm - t != ob - ot) root.post { place() } }
+        root.addView(b); bar = b; barPortrait = null
+        if (!listening) { listening = true
+            root.addOnLayoutChangeListener { _, l, t, r, btm, ol, ot, or_, ob -> if (r - l != or_ - ol || btm - t != ob - ot) root.post { place() } } }
         place(); refreshLight()
+    }
+    /** the strip's views for the orientation: a row (portrait) or a column (landscape) */
+    private fun arrange(portrait: Boolean) {
+        val b = bar ?: return
+        if (barPortrait == portrait) return
+        barPortrait = portrait
+        listOf(lamp, label, applyBtn, facesBtn, badgeView).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        b.removeAllViews()
+        val bh = (36 * dp).toInt(); val g = (6 * dp).toInt()
+        val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        head.addView(lamp, LinearLayout.LayoutParams((18 * dp).toInt(), (18 * dp).toInt()))
+        if (portrait) {
+            label.maxLines = 2
+            head.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+            head.addView(applyBtn, LinearLayout.LayoutParams(-2, bh))
+            head.addView(facesBtn, LinearLayout.LayoutParams(-2, bh).apply { leftMargin = g })
+            b.addView(head, LinearLayout.LayoutParams(-1, -2))
+        } else {
+            label.maxLines = 6
+            head.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+            b.addView(head, LinearLayout.LayoutParams(-1, -2))
+            b.addView(applyBtn, LinearLayout.LayoutParams(-1, bh).apply { topMargin = g })
+            b.addView(facesBtn, LinearLayout.LayoutParams(-1, bh).apply { topMargin = g })
+        }
+        b.addView(badgeView, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (4 * dp).toInt() })
     }
     private fun place() {
         val b = bar ?: return
         if (root.width == 0) { root.post { place() }; return }
-        val pic = Screen.picture(root.width, root.height)
-        b.layoutParams = FrameLayout.LayoutParams(pic.width(), -2, Gravity.LEFT or Gravity.BOTTOM).apply {
-            leftMargin = pic.left; bottomMargin = root.height - pic.bottom }
+        arrange(Screen.portrait(root.width, root.height))
+        val w = reserve(-1).width()                                   // the strip's width for this orientation
+        b.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        val a = reserve(b.measuredHeight)                              // the pad makes room for it
+        b.layoutParams = FrameLayout.LayoutParams(a.width(), b.measuredHeight, Gravity.LEFT or Gravity.TOP).apply {
+            leftMargin = a.left; topMargin = a.top }
     }
 
     private fun now() {
@@ -462,12 +559,13 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     private fun stat(ls: Int, s: Cfg?, prev: Int) {
         if (s == null) { if (noConfig || offline) refreshLight() else light(State.WAIT, "WAITING FOR THE CONFIG"); return }
         when {
-            ls == 2 -> light(State.PENDING, "NEW CONFIG r${s.version}: applies at neutral")
-            ls == 1 -> { light(State.APPLIED, "APPLIED r${s.version}"); ui.postDelayed({ if (state == State.APPLIED) light(State.SYNC, "IN SYNC r${s.version}") }, 1500) }
+            ls == 2 -> light(State.PENDING, "NEW CONFIG r${s.version}${ch()}: applies at neutral")
+            ls == 1 -> { light(State.APPLIED, "APPLIED r${s.version}${ch()}"); ui.postDelayed({ if (state == State.APPLIED) light(State.SYNC, "IN SYNC r${s.version}${ch()}") }, 1500) }
             ls and 0x80 != 0 -> light(State.REFUSED, "REFUSED r${s.version}: ${LSTAT.getOrElse(ls and 0x7F) { "check ${ls and 0x7F}" }}")
             else -> light(State.WAIT, "SENDING r${s.version}")
         }
     }
+    private fun ch() = if (chainIn) " + CHAIN" else ""
     private fun refreshLight() {
         if (bar == null) return
         when {
@@ -481,7 +579,8 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     private fun light(s: State, t: String) {
         if (bar == null) strip()
         if (s != State.OFFLINE && s != State.NONE) { steady = s; steadyText = t }
-        state = s; label.text = t
+        state = s; val grew = label.text.length != t.length; label.text = t
+        if (grew && barPortrait == false) place()                    // (landscape: the label's lines set the strip's height)
         val (fill, ring) = when (s) {
             State.SYNC -> Color.rgb(40, 200, 70) to Color.WHITE
             State.PENDING -> Color.rgb(255, 170, 0) to Color.WHITE
@@ -495,7 +594,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         blink(s == State.PENDING)
         if (s == State.APPLIED) { lamp.scaleX = 1.6f; lamp.scaleY = 1.6f; lamp.animate().scaleX(1f).scaleY(1f).setDuration(900).start()
             bar?.let { b -> b.background = GradientDrawable().apply { setColor(Color.argb(230, 20, 110, 40)); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 8 * dp }
-                ui.postDelayed({ b.background = GradientDrawable().apply { setColor(Color.argb(200, 0, 0, 0)); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 8 * dp } }, 700) } }
+                ui.postDelayed({ b.background = GradientDrawable().apply { setColor(barFill); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 8 * dp } }, 700) } }
     }
     private val blinker = object : Runnable { override fun run() { lamp.alpha = if (lamp.alpha > 0.5f) 0.15f else 1f; ui.postDelayed(this, 450) } }
     private fun blink(on: Boolean) { ui.removeCallbacks(blinker); if (on && bar != null) ui.postDelayed(blinker, 450) }
@@ -514,6 +613,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     companion object {
         private const val TAG = "NeoScanLab"
         /** lab.lstat's refusals (fighter.h; lab.js LSTAT) */
+        private const val LAB_BUF = 16 + 128 * 24                   // fighter.h LAB_BUF (lab.js)
         private val LSTAT = listOf("", "an animation this build lacks", "a special the pool lacks", "a throw the fighter lacks",
             "a throw outside a grab slot", "a list too long", "not a TRY blob v1", "the blob runs past its room", "no such slot")
     }

@@ -113,9 +113,10 @@
     // "Try in game" (tryit.js): an unlocked special plays as its whole program; a throw goes on the hold's forward throw
     // (walk into the dummy, then forward + C); a locked special's animations play back to back
     const TI = window.TryIt;
-    const tryB = !TI ? null : on && kind === 'throw' ? TI.button(f, 'Try in game (grab, then forward + C)', () => TI.sheet(f, { slots: { grab_fwd: [p.id] } }))
-      : on ? TI.button(f, 'Try in game', () => TI.queue(f, [p.id]))
-      : p.anims.length ? TI.button(f, 'Try its animations in game', () => TI.queue(f, p.anims)) : null;
+    // (+ "Send to Player": the same TRY blob as the fighter's live config, tryit.js)
+    const tryB = !TI ? null : on && kind === 'throw' ? TI.button(f, 'Try in game (grab, then forward + C)', () => TI.sheet(f, { slots: { grab_fwd: [p.id] } }), () => ({ sheet: { slots: { grab_fwd: [p.id] } } }))
+      : on ? TI.button(f, 'Try in game', () => TI.queue(f, [p.id]), () => ({ queue: [p.id], loop: TI.loop() }))
+      : p.anims.length ? TI.button(f, 'Try its animations in game', () => TI.queue(f, p.anims), () => ({ queue: p.anims, loop: TI.loop() })) : null;
     const runs = p.anims.flatMap(x => hitRuns(D.by[x] || {}).map(r => '$' + x + ' ' + runText(r)));
     const kids = [h('div', { class: 'phead' }, h('span', { class: 'pname', text: p.name }), tag), inp, h('p', { class: 'what', text: 'What it does: ' + p.what }), row, tryB];
     if (runs.length) kids.push(h('details', {}, h('summary', { text: 'Hit class per attack frame (' + runs.length + ')' }), h('ul', { class: 'hits' }, runs.map(t => h('li', { text: t })))));
@@ -150,7 +151,7 @@
       const runs = hitRuns(a);
       const card = h('div', { class: 'acard', id: 'anim-' + a.id }, cv, h('div', { class: 'cap', text: AD.caption(a) }),
         runs.length ? h('ul', { class: 'hits' }, runs.map(r => h('li', { text: runText(r) }))) : null,
-        window.TryIt ? window.TryIt.button(f, 'Try in game', () => window.TryIt.queue(f, [a.id])) : null,
+        window.TryIt ? window.TryIt.button(f, 'Try in game', () => window.TryIt.queue(f, [a.id]), () => ({ queue: [a.id], loop: window.TryIt.loop() })) : null,
         askAbout(a));
       card._a = a;
       return card;
@@ -176,6 +177,7 @@
   const out = [h('h1', { text: W.display + ': workshop' }),
     h('p', { class: 'intro', text: 'Part 1 of the Lab: what ' + W.display + ' can do today and what still needs decoding. Unlocked pieces (S- specials, T- throws) are in the arbitration sheet\'s picker and link into the game with no agent; a locked special needs its program read from the ROM first: ask with "Unlock this". Every piece has a thread with Claude. Tap a clip for ¼ speed.' }),
     h('div', { class: 'links' }, h('a', { href: 'arbitrage.html?f=' + f, text: 'Arbitration sheet' }), h('a', { href: 'anims.html?f=' + f, text: 'Animation dictionary' }), h('a', { href: 'review.html?f=' + f, text: 'Fighter review' })),
+    window.TryIt ? window.TryIt.liveLine(f) : null,
     h('p', { class: 'counts', text: `Specials: ${C.unlocked} unlocked, ${C.locked} locked · Throws: ${C.throws_unlocked} unlocked, ${C.throws_locked} locked` + (W.class_note ? ' · ' + W.class_note : '') }),
     h('nav', { class: 'jump', 'aria-label': 'Sections' }, h('a', { href: '#specials', text: 'Specials' }), h('a', { href: '#throws', text: 'Throws' }), h('a', { href: '#animations', text: 'Animations' }))];
   out.push(h('h2', { id: 'specials', text: 'Specials' }), h('p', { class: 'about', text: 'Every special version of ' + W.display + '\'s move list (light / heavy / EX / MAX, ground and air: each version is its own piece). ' + (W.source || '') }));
@@ -185,7 +187,7 @@
   out.push(h('h2', { id: 'throws', text: 'Throws' }), h('p', { class: 'about', text: 'Throws, grabs and command grabs: paired scripts (the victim\'s side decoded with them).' }));
   out.push(T.length ? T.map(p => pieceCard(p, 'throw')) : h('p', { class: 'about', text: 'No throw in the dictionary.' }));
   out.push(h('h2', { id: 'animations', text: 'Animations' }), h('p', { class: 'about', text: 'Every animation of ' + W.display + '\'s table by its $NN. Under each attack animation: the hit class of each attack step (' + (W.classes ? 'KOF\'s reaction for its attack box id, standing, and juggled when different' : 'class not decoded for this game') + ').' }), animSection());
-  root.replaceChildren(...out.flat());
+  root.replaceChildren(...out.flat().filter(x => x));
   if (location.hash) { const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (el) { if (el.hidden) el.hidden = false; const d = el.querySelector('details:last-child'); if (el.classList.contains('acard') && d) d.open = true; el.scrollIntoView(); } }
   window.workshopReady = { unlocked: C.unlocked, locked: C.locked, throws: T.length, anims: D.anims.length };
 })();

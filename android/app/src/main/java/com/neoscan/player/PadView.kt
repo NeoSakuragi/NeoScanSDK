@@ -50,6 +50,12 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     var size = 1f                                                      // settings: button size factor
         set(v) { field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     var vibrate = true
+    /** 0.0.29: the Character lab's status strip, OFF the picture: [labH] px kept for it right under the picture
+     *  (portrait: the panel's buttons start below it) or in the left gutter under the top-left buttons (landscape: the
+     *  d-pad moves down to clear it, as far as the screen allows); [labArea] = where it goes. 0 = no strip. */
+    var labH = 0
+        set(v) { if (field == v) return; field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
+    val labArea = android.graphics.Rect()
     private var dx = 0f; private var dy = 0f; private var dr = 0f
     private var mask = 0
     private var gearHit = false
@@ -70,8 +76,11 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     }
 
     private fun place(w: Int, h: Int, k: Float) {
-        if (portrait) {                                                // the panel under the picture
-            val top = Screen.picture(w, h).bottom.toFloat(); val ph = h - top; panelTop = top
+        val dp = resources.displayMetrics.density
+        if (portrait) {                                                // the panel under the picture (and the lab's strip)
+            val pb = Screen.picture(w, h).bottom
+            labArea.set(0, pb, w, pb + labH)
+            val top = (pb + labH).toFloat(); val ph = h - top; panelTop = pb.toFloat()
             dr = minOf(w * 0.2f, ph * 0.32f) * k; dx = maxOf(w * 0.25f, dr + w * 0.03f); dy = top + ph * 0.66f
             val r = minOf(w * 0.075f, ph * 0.11f) * k
             arc(w - r * 1.25f, top + ph * 0.34f, r)
@@ -96,6 +105,11 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             mic.x = gear.x; mic.y = rst.y; mic.r = gear.r
             fbl.x = start.x; fbl.y = rst.y; fbl.r = gear.r                 // under START, the mirror of reset (under the left
                                                                            // pair is the d-pad's reach)
+            val gut = Screen.picture(w, h).left.toFloat()                 // the lab's strip: the black bar when it is wide
+            val lw = if (gut >= 80 * dp) gut else side                     // enough to read, else the controls' side
+            val lt = rst.y + rst.r + 8 * dp
+            labArea.set((4 * dp).toInt(), lt.toInt(), (lw - 4 * dp).toInt(), (lt + labH).toInt())
+            if (labH > 0) dy = maxOf(dy, minOf(labArea.bottom + dr + 6 * dp, h - dr - 4 * dp))
         }
     }
 

@@ -514,6 +514,7 @@ desktop, by hand (`labcfg.py ship-pending`).
 
 | Call | What |
 |---|---|
+| `GET me` | `{user, role}`: who the page is (Send to Player and Revert need `admin`) |
 | `GET config` | every fighter's live head (the record without blob / json) |
 | `GET config/<f>` | the live record in full. `ETag: "v<version>-<hash16>"`; 404 = no config yet |
 | `GET config/<f>/hash` | `{hash, version, updated}`: **the 2-3 s poll**. `ETag: "<hash>"`; send `If-None-Match: "<hash>"` and get **304** (no body) while it is unchanged |
@@ -654,7 +655,8 @@ com.neoscan.player/.MainActivity --ez lab true`).
   the pack's manifest `ram` (a pack without it: configs off, said on the strip).
 - **New versions:** a newer pack of the fighter on screen (or a newer shell, if his pack for it is published) is
   downloaded, then loaded when P1 is next in neutral (`ram.p1_state` in `ram.neutral`), or at once on the badge's tap.
-- **Strip** (inside the picture, its bottom edge): a light + a word label: green IN SYNC rN, blinking amber NEW CONFIG rN:
+- **Strip** (0.0.29: OFF the picture, it hid the practice's HITS / DAMAGE row: between the picture and the pad's buttons in
+  portrait, in the left gutter in landscape; `PadView.labH` / `labArea` keep the room): a light + a word label: green IN SYNC rN, blinking amber NEW CONFIG rN:
   applies at neutral (lstat 2), a white / green flash APPLIED rN (lstat 1), red REFUSED rN: why (lstat 0x80 | n), grey NO
   LIVE CONFIG / OFFLINE; a blue badge NEW PACK / NEW SHELL <version> (tap: now); buttons Apply now (lab.tnow = 1 while
   pending) and Faces.
@@ -665,3 +667,42 @@ a reboot; `labcfg.py put kim` r1-r4 (r2 / r4 = a looping 214B queue so P1 is nev
 -> APPLIED flash -> green; a new Kim pack published -> blue badge, waits while P1 is busy, tap -> swapped, the config
 written again after the reset. Poll traffic over ~4 min: 170 x 304, 12 x 200 (the changes), 44 x 404 (Robert had no
 config), 0 errors. The test configs and pack versions were removed afterwards.
+
+## Character Lab: Send to Player (web pages + Player 0.0.29, 2026-10-10)
+
+The last link: the web pages write the live config the Player applies.
+
+- **The blob** (`lab.js liveBlob` / `liveParts`): the TRY blob exactly as `encodeTry` gives it (the preview's bytes), and
+  when a chain is set, after it `'L' 'C'` + u16 BE n + the n bytes of a chain override (`encodeOverride`, load 5). No chain
+  = the TRY blob alone. The fighter byte is the Lab build's index; the Player sets it (and every retime row of that
+  fighter in the chain) to the pack's slot.
+- **The buttons** (`tryit.js`, `TryIt.button(f, label, fn, send)`): a dashed "Send to Player" beside every "Try in game",
+  "Try this sheet in game", "Try the queue in game" (Workshop, dictionary, sheet) and in the chain tool (beside "Push to
+  the game"). A queue Send keeps the live config's chain, the chain tool keeps its TRY blob, a sheet sets both (a sheet
+  without a chain override clears it, as the preview does). PUT `feedback-api/lab/config/<f>` with `If-Match` = the hash
+  the page last read: **412** -> the page reloads the live config and says who changed it, Send again goes through. The
+  answer: "Sent: ROBERT live config rN (...). The Player applies it at neutral." Non-admin (`GET lab/me`): the button is
+  dotted and explains it needs the Oros admin role (the server would answer 403). The JSON stored is
+  `{name, lab_try: {page, try, chain}}` (what the page played): `labcfg.py show` prints it, `export` refuses it (ship a
+  sheet with arb_compile.py, a chain with chain_save.py).
+- **The "Live config" line** (Workshop, sheet): rN, updated when / by whom, "History" (every revision: size, hash, note,
+  "Revert to rN"), "Revert to r(N-1)" (POST revert: a new revision); kept current by a 15 s hash poll (If-None-Match).
+- **The Player** writes the chain first (lab.buf, magic, fighter = slot, load 5), the TRY blob once the game took it
+  (load 6); a config without a chain after one with: load 2 first (the ROM's tree back). The strip says "+ CHAIN".
+- **Notes in the lab** (0.0.29): `meta.json` records the shell, not brawler.neo: `rom_file` lab-shell-<v>.neo,
+  `rom_sha256` the shell's, `rom_version` "lab <shell> + <fighter> <pack>", `rom_build` lab, and `lab` = {shell_version,
+  shell_sha256, engine, pack_fighter, pack_version, pack_sha256, config_rev, config_hash}.
+- The site: make_site.py now copies `tryit.js` and `gameplay.js` (they were missing from the live Lab: "Try in game" and
+  the Chain Lab's player could not load there).
+
+Proven 2026-10-10 (temporary Oros accounts labproof-admin / labproof-viewer, deleted afterwards), screens
+`/data/feedback/proof_0029/`: the sheet's Send (admin) -> r1, its blob = `encodeTry` of the sheet byte for byte (44 B,
+9 slots; its chain = the ROM's, so no chain part); another editor's PUT then the stale page's Send -> 412 explained, Send
+again -> r3; viewer: the button explains, a PUT -> 403; Workshop line + History + "Revert to r8" -> r10. AVD JanusPhone
+(Player 0.0.29, brawler-test): the strip under the picture (HITS / DAMAGE clear), r1 / r4 applied at once, a looping
+queue then a sheet -> amber NEW CONFIG r7 -> Apply now -> APPLIED -> IN SYNC; a sheet with a 4-press chain (r9, 550 B)
+-> "chain 534 bytes (load 5)", then load 6, IN SYNC r9 + CHAIN; the revert to r8 -> load 2 then load 6; landscape: the
+strip in the left gutter. The same r9 bytes through the Player's path on the wasm core (shell 20261010-002046 + robert
+pack): route_tab[25] = lab.buf, the chain plays differently (7 -> 5 hits). The test configs were removed afterwards (the
+config directory was empty before); not exercised: a real feedback note from the lab (the meta path is built, no note
+was sent).

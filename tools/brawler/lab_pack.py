@@ -117,7 +117,7 @@ def ram_map(build):
     import harness
     B = os.path.join(GAME, build) if not os.path.isabs(build) else build
     lay, _, states, y = harness._layout(GAME, B)
-    return {'base': 0x100000, 'lab': y['lab'], 'lab_off': {'magic': 0, 'fighter': 5, 'load': 7, 'active': 8},
+    return {'base': 0x100000, 'lab': y['lab'], 'lab_off': {'magic': 0, 'fighter': 5, 'load': 7, 'active': 8, 'buf': 400},
             'lab_fields': y['lab_fields'], 'prac': y.get('prac'), 'p1_state': y['fighters'] + lay['state'][0],
             'state_size': lay['state'][1], 'neutral': [states.index('IDLE'), states.index('WALK')]}
 

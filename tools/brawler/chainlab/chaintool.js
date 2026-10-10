@@ -5,7 +5,9 @@
  * used move's segments (revamp 1C: startup, each active window and the recovery after it) dragged to 0.5x-2x. The readouts
  * (frames, damage on the archetype's total, advantage on hit, reach and spacing) follow every edit. "Push to the game"
  * writes the chain override into the running game's RAM (lab.js installChain: the tree, then the retime table, fighter.c
- * lab_install load 5): no rebuild, it plays on the dummy at once and in a real fight. "Save" sends the game.json entry to
+ * lab_install load 5): no rebuild, it plays on the dummy at once and in a real fight. "Send to Player" puts the same
+ * override in the fighter's live config (tryit.js TryIt.send: lab.js liveBlob, the live TRY blob kept; the Player's
+ * Character lab writes it as load 5 at neutral). "Save" sends the game.json entry to
  * the feedback service (decisions set "chain-tool", one per fighter); tools/brawler/chain_save.py applies it to game.json. */
 (async function () {
   'use strict';
@@ -211,6 +213,7 @@
         h('div', { class: 'tag', text: t ? `chain damage ${total} (the ${spec.archetype} total ${RULES.totals[spec.archetype]}), hit-stops ${t.chain.hitstop.join(' ')}; adv. on hit = the victim's stun (light ${RULES.stun_light}, heavy ${RULES.stun_heavy}) minus the frames after contact; margin < 0: the link may whiff from the previous one's spacing (pieces.py's estimate; Play shows what the game does)` : '' }),
         h('div', { class: 'row' },
           h('button', { onclick: push, disabled: !t }, 'Push to the game'),
+          window.TryIt ? h('button', { onclick: sendPlayer, disabled: !t, title: 'This chain as ' + up(f.name) + '\'s live config: the Player applies it at neutral' }, 'Send to Player') : null,
           ...['neutral', 'forward', 'up', 'down', 'back'].map(d => h('button', { onclick: () => autoplay(d), disabled: !t }, 'Play ' + d)),
           h('button', { onclick: fight, disabled: !t }, 'Fight with it (stage 1)'),
           h('button', { onclick: unpush }, "ROM's tables back")),
@@ -240,6 +243,17 @@
         `the game reads route_tab[${f_name()}] = $${hex(st.tree)} (${st.treeInLab ? 'the override' : 'the ROM'}), rt_tab = $${hex(st.rt)} (${st.rtInLab ? 'the override' : st.rt ? '?' : 'the ROM\'s'}).`, !ok);
     render();
     return ok;
+  }
+  // the Player's Character lab: the same override (load 5) in the fighter's live config, its TRY blob kept (tryit.js)
+  async function sendPlayer() {
+    let b;
+    try { b = build(); } catch (e) { say('Not sent: ' + e.message, true); return null; }
+    const f = F[fi], e = CL.saveEntry(f, spec, RULES);
+    const text = `${spec.archetype}: ${spec.links.concat(spec.finishers.neutral).join(' > ')} (${b.blob[3]} nodes, ${b.rows.length} retime row${b.rows.length === 1 ? '' : 's'})`;
+    const el = document.createElement('span');
+    const j = await window.TryIt.send(f.name, { chain: { bytes: b.bytes, fighter: f.id, text, entry: e } }, el);
+    say(el.textContent, !j);
+    return j;
   }
   const hex = v => v === null ? '?' : v.toString(16).toUpperCase().padStart(6, '0');
   const f_name = () => F[fi].name;
@@ -320,5 +334,5 @@
     render();
   });
   render();
-  window.chaintool = { get spec() { return spec; }, set spec(s) { spec = s; render(); }, build, push, autoplay, unpush, entry, get lastPlay() { return lastPlay; }, get fi() { return fi; } };
+  window.chaintool = { get spec() { return spec; }, set spec(s) { spec = s; render(); }, build, push, sendPlayer, autoplay, unpush, entry, get lastPlay() { return lastPlay; }, get fi() { return fi; } };
 })();

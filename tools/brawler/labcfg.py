@@ -22,7 +22,10 @@ the config into examples/brawler/game.json, the fighter's roster entry, so git k
     labcfg.py put FIGHTER --blob FILE [--json FILE] [--note "..."] [--if-match HASH]
                                                     a revision from the desktop; --json defaults to the repo's roster entry
 
-The blob is opaque here (its byte format: the RAM-loads spec); its hash = sha256 of the bytes, what the player polls."""
+The blob is opaque here (its byte format: chainlab/lab.js liveBlob = the TRY blob + an optional chain override); its
+hash = sha256 of the bytes, what the player polls. A revision sent by a Lab page ("Send to Player") has the JSON
+{name, lab_try: {page, try, chain}} (what the page played): `show` prints it, `export` refuses it (ship it with
+arb_compile.py / chain_save.py)."""
 import argparse, base64, hashlib, json, os, shlex, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -107,6 +110,10 @@ def main():
         sys.path.insert(0, HERE)
         from arb_compile import write_game
         r = record(a.fighter, a.rev)
+        if 'lab_try' in r['json']:                       # a web page's Send to Player: what it played, not a roster entry
+            print(head(r)); print(json.dumps(r['json']['lab_try'], indent=1, ensure_ascii=False))
+            raise SystemExit('this revision was sent by a Lab page (Send to Player): its JSON is the page\'s try, not a roster '
+                             'entry. Ship a sheet with arb_compile.py, a chain with chain_save.py (its entry is above).')
         cfg = dict(r['json']); cfg.setdefault('name', a.fighter)
         if cfg['name'] != a.fighter: raise SystemExit(f"the config's name is {cfg['name']!r}, not {a.fighter!r}")
         gp = os.path.join(a.game, 'game.json'); G = json.load(open(gp))

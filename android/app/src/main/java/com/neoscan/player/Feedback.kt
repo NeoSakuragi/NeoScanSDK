@@ -26,6 +26,9 @@ import java.util.zip.ZipOutputStream
  *  is retried ([flush]: at start and every minute). A tap (no voice) opens the box empty: a typed note. Test hook: a file feedback_test_audio.(wav|m4a|mp3|ogg) in the app's external files dir is sent in
  *  place of the microphone (adb push; the emulator has no voice). */
 class Feedback(private val ctx: Context, private val rom: File, private val emu: () -> EmuThread?) {
+    /** 0.0.29: the Character lab's shell + pack while the core runs them (CharacterLab.noteInfo): a note then records
+     *  those (rom_* = the shell, rom_version "lab <shell> + <fighter> <pack>", "lab" = the details), not brawler.neo's */
+    var lab: (() -> JSONObject?)? = null
     private var dir: File? = null
     private var rec: MediaRecorder? = null
     private var t0 = 0L
@@ -183,8 +186,16 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
             put("id", id); put("created", iso(System.currentTimeMillis())); put("held_ms", held)
             put("app_version", p.versionName)
             put("app_code", if (Build.VERSION.SDK_INT >= 28) p.longVersionCode else @Suppress("DEPRECATION") p.versionCode.toLong())
-            put("rom_file", rom.name); put("rom_size", rom.length()); put("rom_sha256", sha(rom))
-            put("rom_version", RomFetch.installed(ctx)); put("rom_build", RomFetch.loadedBuild(ctx))
+            val lab = try { lab?.invoke() } catch (x: Exception) { null }
+            if (lab != null) {
+                put("rom_file", "lab-shell-" + lab.optString("shell_version") + ".neo"); put("rom_size", lab.optLong("shell_size"))
+                put("rom_sha256", lab.optString("shell_sha256"))
+                put("rom_version", "lab ${lab.optString("shell_version")} + ${lab.optString("pack_fighter")} ${lab.optString("pack_version")}")
+                put("rom_build", "lab"); put("lab", lab)
+            } else {
+                put("rom_file", rom.name); put("rom_size", rom.length()); put("rom_sha256", sha(rom))
+                put("rom_version", RomFetch.installed(ctx)); put("rom_build", RomFetch.loadedBuild(ctx))
+            }
             put("latest_sha256", fetch.getString("sha256", ""))
             put("bios_sha256", sha(File(ctx.filesDir, "system/neogeo.zip")))
             put("hw", e?.hw ?: "?"); put("system_type", if (e != null) Native.systemType() else "?"); put("region", "us")

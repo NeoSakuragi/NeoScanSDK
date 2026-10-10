@@ -49,6 +49,34 @@
     if (out.length > TRY_MAX) throw new Error(`${out.length} bytes (at most ${TRY_MAX})`);
     return Uint8Array.from(out);
   }
+  /* the TRY blob's own length, read from its header (what follows it in a live config is not part of it) */
+  function tryLength(b) {
+    if (b.length < 8 || b[0] !== 76 || b[1] !== 84) throw new Error('not a TRY blob');
+    let n = 8 + 2 * b[5];
+    for (let s = 0; s < b[6]; s++) { if (n + 2 > b.length) throw new Error('a TRY blob cut short'); n += 2 + 2 * b[n + 1]; }
+    if (n > b.length) throw new Error('a TRY blob cut short');
+    return n;
+  }
+  /* THE LIVE CONFIG (the Character Lab: the server's blob for a fighter, the bytes the Player writes): the TRY blob
+     (encodeTry, load 6) as it is, and when a chain is set, after it 'L' 'C' + u16 BE n + the n bytes of a chain override
+     (encodeOverride, load 5: lab.buf, the fighter's tree + the retime table). No chain = the TRY blob alone (the same
+     bytes as encodeTry). The Player writes the chain first (its fighter, and every retime row of the blob's fighter,
+     set to the pack's slot), then the TRY blob. */
+  function liveBlob(tryBlob, chain) {
+    tryLength(tryBlob);
+    if (!chain || !chain.length) return Uint8Array.from(tryBlob);
+    if (chain.length > LAB_BUF) throw new Error(`the chain is ${chain.length} bytes (lab.buf holds ${LAB_BUF})`);
+    const out = new Uint8Array(tryBlob.length + 4 + chain.length);
+    out.set(tryBlob, 0); out.set([76, 67, chain.length >> 8, chain.length & 0xFF], tryBlob.length); out.set(chain, tryBlob.length + 4);
+    return out;
+  }
+  /* a live config -> {tryBlob, chain (null: none)} */
+  function liveParts(b) {
+    const n = tryLength(b);
+    if (n === b.length) return { tryBlob: b.slice(0, n), chain: null };
+    if (b[n] !== 76 || b[n + 1] !== 67 || n + 4 + ((b[n + 2] << 8) | b[n + 3]) !== b.length) throw new Error('not a live config (after the TRY blob)');
+    return { tryBlob: b.slice(0, n), chain: b.slice(n + 4) };
+  }
   const RAM_FIELDS = ['state', 'x', 'z', 'y', 'hp', 'hp_max', 'facing', 'anim', 'step', 'set', 'power', 'tint'];   // ramtrace.py FIELDS
 
   // ---- route trees (tools/brawler/routes.py: the same format and the same encoder) ----------------------------------
@@ -533,7 +561,7 @@
      once the last builder has started (the finisher's press), nothing once the finisher started */
   function autoKeys(i, starts, N, stick, done) { return done ? '' : (starts >= N - 1 ? stick : '') + (i % 2 ? '' : 'a'); }
 
-  const api = { encodeTry, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
+  const api = { encodeTry, tryLength, liveBlob, liveParts, TRY_VERSION, TRY_MAX, LE_SPEC, LE_THROW, LE_NONE, LQ_MAX, LO_MAX, LQ_LOOP, LQ_NOW, LAB_SLOTS, Lab, autoKeys, chainTree, sameChain, specOf, encodeOverride, retimeRows, saveEntry, segsOf, scaleTo, defaultHitstops, chainLength, pieceWeight, LAB_BUF, ARCHETYPES, speedFx, hitOf, treeToRoutes, mergeRoutes, HIT_FIELDS, playSteps, frameData, KEYS, KINDS, HOW, INPUTS, SPECIAL_INPUTS, SPECIALS, SLOT_OF, AIR_MOVE_NAMES, MOVE_NAMES, ENTRIES, WEIGHTS, EFFECTS, AIR_MOVES,
     encodeTree, nodeIndex, defaultDamage, pyjson, BOOT_FRAMES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.ChainLab = api;
 })(typeof window !== 'undefined' ? window : globalThis);
