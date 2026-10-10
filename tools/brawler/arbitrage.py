@@ -118,9 +118,9 @@ def build(out, game=None, names=None):
         A = json.load(open(p))
         D = {a['id']: a for a in A['anims']}
         arch = r.get('archetype', 'balanced')
-        doc = {'fighter': n, 'display': A['display'], 'archetype': arch, 'chain_len': lens[arch],
+        doc = {'fighter': n, 'display': A['display'], 'archetype': arch, 'chain_len': (r.get('chain') or {}).get('length') or 4,
                'version': open(os.path.join(game, 'VERSION')).read().strip(),
-               'now': now_of(r, D, lens[arch], generated(lab, n), piece_ids.by_input(piece_ids.load(n), 'special'))}
+               'now': now_of(r, D, (r.get('chain') or {}).get('length') or 4, generated(lab, n), piece_ids.by_input(piece_ids.load(n), 'special'))}
         json.dump(doc, open(os.path.join(out, 'review', f'{n}_arb.json'), 'w'), ensure_ascii=False, indent=0)
         res[n] = doc
     return res

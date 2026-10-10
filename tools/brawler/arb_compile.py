@@ -338,7 +338,7 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if not fin.get('neutral') and isinstance((gen.get('finishers') or {}).get('neutral'), str):
             fin = dict(fin, neutral=gen['finishers']['neutral'])
     n_now = len(links) + (1 if fin.get('neutral') else 0)
-    chain_len = G['chain']['lengths'][r.get('archetype', 'balanced')]
+    chain_len = (r.get('chain') or {}).get('length') or 4
     def now_val(slot):
         if slot[0] == 'a' and slot[1:].isdigit():
             k = int(slot[1:]) - 1
@@ -410,7 +410,10 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if slot not in mine or slot == 'fury_note': continue
         a = mine[slot]
         ps = [token(p) for p in a.get('pieces') or []]
-        x = Res(slot, ps, '')                              # (the sheet is token free since 2026-10-10: no typed notes; an
+        x = Res(slot, ps, '')
+        if slot[0] == 'a' and slot[1:].isdigit() and int(slot[1:]) > (want_len or max(n_now, chain_len)):
+            x.status, x.why = 'unchanged', f'press {slot[1:]} is past the chain length ({want_len or max(n_now, chain_len)}): not played'
+            out.append(x); continue                              # (the sheet is token free since 2026-10-10: no typed notes; an
                                                            # old note saved in <f>-arb is not read, a request goes to the Workshop)
         nowv = now_val(slot); nowp = pieces_of(nowv)
         ids = [p for p in ps if ID_RE.match(p)]
@@ -604,7 +607,7 @@ def compile_timing(f, ans, new, G, game, build='build'):
     CLj = json.load(open(os.path.join(game, build, 'chainlab.json')))
     L = next((x for x in CLj['fighters'] if x['name'] == f), None)
     if not L: return {}, [], [f'chain timing: {f} is not in {build}/chainlab.json']
-    rules = G['chain']; n = rules['lengths'][new.get('archetype', 'balanced')]
+    rules = G['chain']; n = (new.get('chain') or {}).get('length') or 4   # (chain.length: the fighter's own)
     hs_now = list(L['tree']['chain']['hitstop'])
     bad, said, ch = [], [], {}
     th = t.get('hitstop') or {}

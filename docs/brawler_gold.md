@@ -245,3 +245,8 @@ Compiled from the sheet without an agent: 2 slot(s) linked, 0 unresolved; slots 
 - presses (chain length): $4 -> chain.length = 4 — linked, class a: chain length 5 -> 4
 - bz_dd (down,down + A): S-007 -> blitz.dd = "WFT" — linked, class b: S-007 Ninpou Tenma Fukumetsu (rage) (registry)
 - chain timing: atk_a_far 8/1/16 (now 4/1/16, source 4/1/15) (roster chain.hitstop / retime, the build checked)
+
+### HANZO: sheet round 2026-10-10 (tools/brawler/arb_compile.py, decisions set `hanzo_ss2-arb`, build 0.10.32)
+Compiled from the sheet without an agent: 0 slot(s) linked, 1 unresolved (listed for an agent, nothing guessed); slots whose pick = now not listed.
+- bz_dd (down,down + A): $15A — UNRESOLVED: $15A has no move name and no known reaction (an animation special needs one: library anim_special)
+- chain timing: hit-stops 57 8 10 12 (roster chain.hitstop / retime, the build checked)
