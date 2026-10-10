@@ -41,8 +41,9 @@ import java.security.MessageDigest
  *    fighter = the slot, load 5; its retime rows of the blob's fighter renamed to the slot); the TRY blob once the game
  *    took it. A config without a chain after one with: load 2 (the ROM's tree back) first.
  *  - LIGHTS (Bruno: "surface this intuitively with blinkers or lights whenever there is a change"): a strip OFF the
- *    picture (0.0.29: it hid the practice's HITS / DAMAGE row): between the picture and the pad's buttons in portrait,
- *    in the left gutter in landscape (PadView.labH / labArea): a light + a word label (green IN SYNC, blinking amber NEW
+ *    picture (0.0.29: it hid the practice's HITS / DAMAGE row) and off the pad: between the picture and the pad's
+ *    buttons in portrait, above the picture in landscape (0.0.31: the left gutter's strip covered the d-pad on a phone;
+ *    PadView.labH / labArea, Screen.labTop): one row, a light + a word label (green IN SYNC, blinking amber NEW
  *    CONFIG pending, a flash APPLIED, red REFUSED, grey NO CONFIG / OFFLINE), a blue badge NEW PACK / NEW SHELL with its
  *    version, Apply now, Faces.
  *  - NOTES (0.0.29): a feedback note taken in the lab records the shell + pack (+ config) it ran (noteInfo), not
@@ -493,8 +494,10 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         background = GradientDrawable().apply { setColor(fill); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 8 * dp }
         setOnClickListener { f() } }
 
-    /** the strip, OFF the picture (0.0.29): under it in portrait (one row: light, label, Apply now, Faces; the badge
-     *  under them), in the left gutter in landscape (stacked); the pad keeps the room (PadView.labH via [reserve]) */
+    /** the strip, OFF the picture and OFF the pad (PadView.labH / labArea via [reserve]): one row, a light, the label
+     *  (2 lines at most), Apply now, Faces. Portrait (0.0.29): between the picture and the pad's panel, the badge under
+     *  the row while it shows. Landscape (0.0.31): above the picture (it shrinks under it), between the top corners'
+     *  buttons, the badge in the row (0.0.29 stacked it in the left gutter: on a phone it covered the d-pad) */
     private lateinit var applyBtn: Button
     private lateinit var facesBtn: Button
     private var barPortrait: Boolean? = null
@@ -515,7 +518,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             root.addOnLayoutChangeListener { _, l, t, r, btm, ol, ot, or_, ob -> if (r - l != or_ - ol || btm - t != ob - ot) root.post { place() } } }
         place(); refreshLight()
     }
-    /** the strip's views for the orientation: a row (portrait) or a column (landscape) */
+    /** the strip's views for the orientation: one row; the badge under it (portrait) or in it (landscape) */
     private fun arrange(portrait: Boolean) {
         val b = bar ?: return
         if (barPortrait == portrait) return
@@ -525,30 +528,30 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         val bh = (36 * dp).toInt(); val g = (6 * dp).toInt()
         val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         head.addView(lamp, LinearLayout.LayoutParams((18 * dp).toInt(), (18 * dp).toInt()))
-        if (portrait) {
-            label.maxLines = 2
-            head.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-            head.addView(applyBtn, LinearLayout.LayoutParams(-2, bh))
-            head.addView(facesBtn, LinearLayout.LayoutParams(-2, bh).apply { leftMargin = g })
-            b.addView(head, LinearLayout.LayoutParams(-1, -2))
-        } else {
-            label.maxLines = 6
-            head.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
-            b.addView(head, LinearLayout.LayoutParams(-1, -2))
-            b.addView(applyBtn, LinearLayout.LayoutParams(-1, bh).apply { topMargin = g })
-            b.addView(facesBtn, LinearLayout.LayoutParams(-1, bh).apply { topMargin = g })
-        }
-        b.addView(badgeView, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (4 * dp).toInt() })
+        label.maxLines = 2; label.ellipsize = android.text.TextUtils.TruncateAt.END
+        head.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+        if (!portrait) head.addView(badgeView, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = g })
+        head.addView(applyBtn, LinearLayout.LayoutParams(-2, bh))
+        head.addView(facesBtn, LinearLayout.LayoutParams(-2, bh).apply { leftMargin = g })
+        b.addView(head, LinearLayout.LayoutParams(-1, -2))
+        if (portrait) b.addView(badgeView, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (4 * dp).toInt() })
     }
     private fun place() {
         val b = bar ?: return
         if (root.width == 0) { root.post { place() }; return }
         arrange(Screen.portrait(root.width, root.height))
-        val w = reserve(-1).width()                                   // the strip's width for this orientation
-        b.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-        val a = reserve(b.measuredHeight)                              // the pad makes room for it
+        var a = reserve(-1)                                            // the strip's width for this orientation
+        for (i in 0 until 3) {                                         // landscape: its height moves the picture, the
+            b.measure(View.MeasureSpec.makeMeasureSpec(a.width(), View.MeasureSpec.EXACTLY),   // corners' buttons and
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))              // so its width: settle
+            val n = reserve(b.measuredHeight)                          // the pad makes room for it
+            val same = n.width() == a.width(); a = n
+            if (same) break
+        }
         b.layoutParams = FrameLayout.LayoutParams(a.width(), b.measuredHeight, Gravity.LEFT or Gravity.TOP).apply {
             leftMargin = a.left; topMargin = a.top }
+        b.post { val r = IntArray(2); b.getLocationOnScreen(r)                      // the proof reads it (PadView logs the pad)
+            Log.i(TAG, "strip ${r[0]},${r[1]} - ${r[0] + b.width},${r[1] + b.height}") }
     }
 
     private fun now() {
@@ -585,7 +588,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         if (bar == null) strip()
         if (s != State.OFFLINE && s != State.NONE) { steady = s; steadyText = t }
         state = s; val grew = label.text.length != t.length; label.text = t
-        if (grew && barPortrait == false) place()                    // (landscape: the label's lines set the strip's height)
+        if (grew) place()                                             // (the label's lines set the strip's height)
         val (fill, ring) = when (s) {
             State.SYNC -> Color.rgb(40, 200, 70) to Color.WHITE
             State.PENDING -> Color.rgb(255, 170, 0) to Color.WHITE

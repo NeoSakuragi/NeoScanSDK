@@ -50,9 +50,10 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     var size = 1f                                                      // settings: button size factor
         set(v) { field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     var vibrate = true
-    /** 0.0.29: the Character lab's status strip, OFF the picture: [labH] px kept for it right under the picture
-     *  (portrait: the panel's buttons start below it) or in the left gutter under the top-left buttons (landscape: the
-     *  d-pad moves down to clear it, as far as the screen allows); [labArea] = where it goes. 0 = no strip. */
+    /** the Character lab's status strip, OFF the picture and OFF the controls: [labH] px kept for it (0 = no strip),
+     *  [labArea] = where it goes. Portrait (0.0.29): right under the picture, the panel's controls start below it.
+     *  Landscape (0.0.31: in the left gutter it covered the d-pad on a phone, Bruno's P40 Pro): ABOVE the picture
+     *  (Screen.labTop: the picture shrinks under it), between the top corners' buttons. */
     var labH = 0
         set(v) { if (field == v) return; field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     val labArea = android.graphics.Rect()
@@ -73,14 +74,17 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             if (hypot(a.x - dx, a.y - dy) >= a.r + dr + a.r * 0.15f || k < 0.5f) break
             k *= 0.95f
         }
+        if (labH > 0) android.util.Log.i("NeoScanPad", "layout ${w}x$h ${if (portrait) "portrait" else "landscape"} " +
+            "picture ${Screen.picture(w, h).toShortString()} lab ${labArea.toShortString()} " + rects().joinToString(" ") { (n, b) -> "$n ${b.toShortString()}" })
     }
 
     private fun place(w: Int, h: Int, k: Float) {
         val dp = resources.displayMetrics.density
+        val m = (4 * dp).toInt()                                       // the lab strip's margin
         if (portrait) {                                                // the panel under the picture (and the lab's strip)
             val pb = Screen.picture(w, h).bottom
-            labArea.set(0, pb, w, pb + labH)
-            val top = (pb + labH).toFloat(); val ph = h - top; panelTop = pb.toFloat()
+            labArea.set(m, pb + m, w - m, pb + m + labH)
+            val top = (pb + if (labH > 0) labH + 2 * m else 0).toFloat(); val ph = h - top; panelTop = pb.toFloat()
             dr = minOf(w * 0.2f, ph * 0.32f) * k; dx = maxOf(w * 0.25f, dr + w * 0.03f); dy = top + ph * 0.66f
             val r = minOf(w * 0.075f, ph * 0.11f) * k
             arc(w - r * 1.25f, top + ph * 0.34f, r)
@@ -93,6 +97,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             var x = 0f
             for ((b, br) in row) { x += gap + br; b.x = x; b.y = y; b.r = br; x += br }
         } else {                                                       // over the picture's sides, thumbs' reach
+            Screen.labTop = if (labH > 0) labH + 2 * m else 0         // the lab's strip: above the picture
             val side = maxOf(Screen.picture(w, h).left.toFloat(), h * 0.3f)   // the black bar, or at least 30 % of h
             dr = minOf(h * 0.2f, side * 0.62f) * k; dx = maxOf(side * 0.55f + dr * 0.15f, dr + h * 0.03f); dy = h * 0.66f
             val r = minOf(h * 0.085f, side * 0.2f) * k
@@ -105,12 +110,21 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             mic.x = gear.x; mic.y = rst.y; mic.r = gear.r
             fbl.x = start.x; fbl.y = rst.y; fbl.r = gear.r                 // under START, the mirror of reset (under the left
                                                                            // pair is the d-pad's reach)
-            val gut = Screen.picture(w, h).left.toFloat()                 // the lab's strip: the black bar when it is wide
-            val lw = if (gut >= 80 * dp) gut else side                     // enough to read, else the controls' side
-            val lt = rst.y + rst.r + 8 * dp
-            labArea.set((4 * dp).toInt(), lt.toInt(), (lw - 4 * dp).toInt(), (lt + labH).toInt())
-            if (labH > 0) dy = maxOf(dy, minOf(labArea.bottom + dr + 6 * dp, h - dr - 4 * dp))
+            // the lab's strip: the top band, between the top corners' buttons (coin, gear | update, start: their hit
+            // circles), over nothing: the picture starts under it, the d-pad and A B C D are lower
+            val l = listOf(coin, gear).maxOf { it.x + it.r * 1.35f }; val r2 = listOf(start, upd).minOf { it.x - it.r * 1.35f }
+            labArea.set(l.toInt() + m, m, r2.toInt() - m, m + labH)
         }
+    }
+
+    /** the controls' touch areas as rects (the d-pad's 1.5 r, a button's 1.35 r): the lab's proof checks the strip
+     *  against them */
+    fun rects(): List<Pair<String, android.graphics.Rect>> {
+        fun box(cx: Float, cy: Float, r: Float) = android.graphics.Rect((cx - r).toInt(), (cy - r).toInt(), (cx + r).toInt() + 1, (cy + r).toInt() + 1)
+        val l = mutableListOf("dpad" to box(dx, dy, dr * 1.5f))
+        val names = listOf("A", "B", "C", "D", "COIN", "START", "gear", "upd", "rst", "mic", "list")
+        (btns + coin + start + gear + upd + rst + mic + fbl).forEachIndexed { i, b -> if (shown(b)) l += names[i] to box(b.x, b.y, b.r * 1.35f) }
+        return l
     }
 
     /** the Neo Geo arc, rising rightwards, from D at (dX, dY) back down to A; spacing follows the button size */

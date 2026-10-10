@@ -656,11 +656,21 @@ com.neoscan.player/.MainActivity --ez lab true`).
   is refused on the strip (0.0.30).
 - **New versions:** a newer pack of the fighter on screen (or a newer shell, if his pack for it is published) is
   downloaded, then loaded when P1 is next in neutral (`ram.p1_state` in `ram.neutral`), or at once on the badge's tap.
-- **Strip** (0.0.29: OFF the picture, it hid the practice's HITS / DAMAGE row: between the picture and the pad's buttons in
-  portrait, in the left gutter in landscape; `PadView.labH` / `labArea` keep the room): a light + a word label: green IN SYNC rN, blinking amber NEW CONFIG rN:
+- **Strip** (0.0.29: OFF the picture, it hid the practice's HITS / DAMAGE row; 0.0.31: OFF the pad too, Bruno's P40 Pro
+  in landscape had it over the d-pad): one row, between the picture and the pad's buttons in portrait (the badge under
+  the row while it shows); in landscape ABOVE the picture, between the top corners' buttons, the badge in the row, the
+  picture shrinking to the height left under it (`Screen.labTop`; on a 20:9 phone the gutters are too narrow for it).
+  `PadView.labH` / `labArea` keep the room; PadView logs its layout (`NeoScanPad: layout`, every control's touch box)
+  and the strip its screen rect (`NeoScanLab: strip`) for the geometry check: a light + a word label: green IN SYNC rN, blinking amber NEW CONFIG rN:
   applies at neutral (lstat 2), a white / green flash APPLIED rN (lstat 1), red REFUSED rN: why (lstat 0x80 | n), grey NO
   LIVE CONFIG / OFFLINE; a blue badge NEW PACK / NEW SHELL <version> (tap: now); buttons Apply now (lab.tnow = 1 while
   pending) and Faces.
+
+Player 0.0.31 proven 2026-10-10 in AVD JanusPhone at its own 2560x1600 / 320 dpi and at the P40 Pro's 1200x2640 /
+480 dpi (`wm size` / `wm density`, reset after), portrait and landscape, Robert with a test config pending (`labcfg.py
+put robert`: a looping queue, then a plain blob): the strip's logged rect matches its white border in the screenshot
+and intersects no control's touch box nor the picture in all four. `/data/feedback/proof_0031/` (README.txt, before =
+0.0.30's landscape strip over the d-pad). The test configs were removed afterwards.
 
 Proven 2026-10-10 in AVD JanusPhone (brawler-test, role set to admin locally, then back to viewer), screenshots
 `/data/feedback/proof_0028/`: the faces; Robert in the practice (shell 20261010-002046 + his pack); swapped to Kim without
