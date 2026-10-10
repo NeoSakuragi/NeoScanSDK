@@ -395,7 +395,7 @@
     const mine = rs.filter(x => x.fighter === f && x.status !== 'dropped').sort((x, y) => y.id - x.id);
     const cur = mine[0], done = mine.find(x => x.status === 'done');
     const inGame = done ? (/build (\S+)/.exec(done.result || '') || [])[1] : null;
-    const had = inGame ? `In the game: build ${inGame}` + (/left out: (.*)/.exec(done.result || '') ? ' (left out: ' + /left out: (.*)/.exec(done.result)[1] + ')' : '') : 'In the game: nothing shipped from this sheet yet';
+    const had = inGame ? (/not published/.test(done.result || '') ? `Built into the game as ${inGame}, not published yet` : `In the game: build ${inGame}`) + (/left out: (.*)/.exec(done.result || '') ? ' (left out: ' + /left out: (.*)/.exec(done.result)[1] + ')' : '') : 'In the game: nothing shipped from this sheet yet';
     gameLine.textContent = !cur ? had
       : cur.status === 'pending' ? `Waiting to build (about a minute after your last change, request ${cur.id}). ${had}.`
       : cur.status === 'building' ? `Building ${(/building (\S+)/.exec(cur.result || '') || [])[1] || ''}… (request ${cur.id}). ${had}.`
