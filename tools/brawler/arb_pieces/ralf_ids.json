@@ -1,0 +1,106 @@
+{
+ "fighter": "ralf",
+ "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
+ "next": {
+  "S": 10,
+  "T": 4
+ },
+ "pieces": {
+  "S-001": {
+   "kind": "special",
+   "input": "23624C",
+   "name": "23624C",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-002": {
+   "kind": "special",
+   "input": "AAAA",
+   "name": "AAAA",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-003": {
+   "kind": "special",
+   "input": "MAX 23624C",
+   "name": "MAX 23624C",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-004": {
+   "kind": "special",
+   "input": "[2]8A",
+   "name": "[2]8A",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-005": {
+   "kind": "special",
+   "input": "[2]8C",
+   "name": "[2]8C",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-006": {
+   "kind": "special",
+   "input": "[4]6A",
+   "name": "[4]6A",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-007": {
+   "kind": "special",
+   "input": "[4]6B",
+   "name": "[4]6B",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-008": {
+   "kind": "special",
+   "input": "[4]6C",
+   "name": "[4]6C",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "S-009": {
+   "kind": "special",
+   "input": "[4]6D",
+   "name": "[4]6D",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-10"
+  },
+  "T-001": {
+   "kind": "throw",
+   "input": "forward + C",
+   "name": "Throw, forward + C",
+   "move": "throw_c",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  },
+  "T-002": {
+   "kind": "throw",
+   "input": "forward + D",
+   "name": "Throw, forward + D",
+   "move": "throw_d",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  },
+  "T-003": {
+   "kind": "throw",
+   "input": "forward + A+B",
+   "name": "Grab",
+   "move": "throw_x",
+   "source": "export throws",
+   "assigned": "2026-10-10"
+  }
+ }
+}

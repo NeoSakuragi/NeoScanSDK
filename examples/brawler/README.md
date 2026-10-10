@@ -315,7 +315,8 @@ MAX 45 on a full connect, every fighter (docs/brawler_data_model.md "Meter, brea
 | run + A | C+D | knockdown |
 | air A (A on hit: air C+D) / air ↓A / air ↑A | the jump kind's C / D / C+D air normal (see Jumps) | heavy / knockdown / knockdown |
 
-**Hold (TODO #146, Final Fight's rule):** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it; it is drawn
+**Hold (TODO #146, Final Fight's rule):** walk into a standing enemy (within 32 px, |dZ| <= 12) to grab it (running or dashing into it too: the run ends
+into the hold, note 20261010-143820-b3f3); it is drawn
 behind the grabber from the catch to the release. A = a hold hit (the fighter's own blow, `bchar_t.holds`: game.json
 roster[].throws.hold, default close C, its startup squeezed to 3 frames; 3 damage), the third A the finisher (close D by
 default: knocks it down, the hold ends); a press during a hit is the next one. Every hit keeps the hold: the victim breaks

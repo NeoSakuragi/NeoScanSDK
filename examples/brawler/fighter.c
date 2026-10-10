@@ -3127,12 +3127,17 @@ static void update(fighter_t *f, const intent_t *in) {
             if (t >= dsh[0] && t < dsh[0] + dsh[1]) {
                 uint8_t k = t - dsh[0] + 1;
                 f->x += dir_mul(f->facing, FIX(dsh[1 + k] - (k > 1 ? dsh[k] : 0))); clamp(f);
+                f->pushing = !f->team || in->grab; f->wdz = 0;   /* its travel into a body: the walk's grab (note
+                                                                    20261010-143820-b3f3; the drawn height drops) */
             }
             if (f->anim_done) to_neutral(f, in);
             break;
         }
         if (f->state == S_RUN && in->dx == f->facing) {          /* run = walk x gwalk_run (sub-pixel) */
-            f->x += dir_mul(f->facing, mul88(f->wspd, gwalk_run)); f->z += dir_mul(in->dz, FIX(1)); clamp(f); break;
+            f->x += dir_mul(f->facing, mul88(f->wspd, gwalk_run)); f->z += dir_mul(in->dz, FIX(1)); clamp(f);
+            f->pushing = !f->team || in->grab;                   /* running into a body grabs it as walking does (Bruno */
+            f->wdz = in->dz > 0 ? 1 : in->dz < 0 ? -1 : 0;       /* 2026-10-10, note 20261010-143820-b3f3): the run ends */
+            break;                                               /* into the hold */
         }
         if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); f->speed = fighter_dash(f) ? 0x100 : f->wrate; break; }   /* (its stride: walk_rate; a dash: its own timing) */
         to_neutral(f, in);
@@ -3811,9 +3816,10 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             spark_hit(INT(o->x), floor_top + INT(o->z) - INT(o->y) - 48, 1, dir);
         }
     }
-    for (i = 0; i < n; i++) {                                    /* grabs: walking into a standing opponent: forward, */
-        fighter_t *a = fs[i];                                    /* or up / down (and the diagonals) along the depth */
-        if (!a->pushing || a->state != S_WALK || !a->ch->throws[BT_THROW_C].nrows || only) continue;
+    for (i = 0; i < n; i++) {                                    /* grabs: walking (or running / dashing: S_RUN) into a */
+        fighter_t *a = fs[i];                                    /* standing opponent: forward, or up / down (and the */
+        if (!a->pushing || (a->state != S_WALK && a->state != S_RUN) || !a->ch->throws[BT_THROW_C].nrows || only) continue;
+                                                                 /* diagonals) along the depth */
         for (j = 0; j < n; j++) {
             fighter_t *v = fs[j];
             int16_t dz, d;

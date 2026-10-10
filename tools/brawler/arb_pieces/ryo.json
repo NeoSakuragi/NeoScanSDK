@@ -1,0 +1,3573 @@
+{
+ "fighter": "ryo",
+ "bank": "kof98:ryo",
+ "game": "kof98",
+ "dictionary": "KOF98 (id 6, animation table $203102 in bank 2: 512 slots, 419 distinct animations, 93 unused slots without steps left out)",
+ "about": "arb_compile.py piece library: per animation id (the dictionary's, = the sheet's pieces) its brawler move names (names), the specials whose program plays it (specials; decoded ones in \"specials\" below), hop_of (a later state of a hop: not playable alone), state (what anim_specials \"$NN\" address), anim_special (the reaction when played as an animation special: known = linkable, class c) and note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has implemented (the same pieces + note are not listed again; a changed answer is). knobs: {S- id: [knob]} each decoded special's key parameters (tools/brawler/knobs.py: id, name, unit, the ROM default, min / max / step, the engine rows a value gives, from, judgment). Regenerated from the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand are kept.",
+ "spare_names": [
+  "atk_cd_close",
+  "atk_ab_far",
+  "atk_ab_close",
+  "atk_cd_crouch",
+  "atk_ab_crouch",
+  "cmd_fwd_c",
+  "cmd_fwd_cd"
+ ],
+ "handled": {},
+ "specials": {
+  "214A": {
+   "decoded": false,
+   "anims": [
+    "90",
+    "92",
+    "94"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "214C": {
+   "decoded": false,
+   "anims": [
+    "91",
+    "93",
+    "95"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "236236A": {
+   "decoded": false,
+   "anims": [
+    "C8"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "236236C": {
+   "decoded": false,
+   "anims": [
+    "C9"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "23624A": {
+   "decoded": false,
+   "anims": [
+    "B0",
+    "B2",
+    "B3",
+    "B5",
+    "B8",
+    "B9"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "23624C": {
+   "decoded": true,
+   "anims": [
+    "B1",
+    "B2",
+    "B4",
+    "B5",
+    "B8",
+    "B9",
+    "BA",
+    "BB",
+    "B7"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "236A": {
+   "decoded": true,
+   "anims": [
+    "80"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "236B": {
+   "decoded": false,
+   "anims": [
+    "99",
+    "9B",
+    "9D"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "236C": {
+   "decoded": false,
+   "anims": [
+    "81"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "236D": {
+   "decoded": true,
+   "anims": [
+    "9A",
+    "9C",
+    "9E"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "426A": {
+   "decoded": false,
+   "anims": [
+    "96"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "623A": {
+   "decoded": true,
+   "anims": [
+    "83",
+    "85",
+    "87",
+    "88"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "623C": {
+   "decoded": false,
+   "anims": [
+    "84",
+    "86",
+    "87",
+    "89"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "624B": {
+   "decoded": false,
+   "anims": [
+    "8A",
+    "8C",
+    "8E"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "624D": {
+   "decoded": true,
+   "anims": [
+    "8B",
+    "8D",
+    "8F"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "6426A": {
+   "decoded": false,
+   "anims": [
+    "A8"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "6426C": {
+   "decoded": false,
+   "anims": [
+    "A9"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "EX 236A": {
+   "decoded": false,
+   "anims": [
+    "4F",
+    "1E0"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "EX 236C": {
+   "decoded": false,
+   "anims": [
+    "1E1"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "EX 623A": {
+   "decoded": true,
+   "anims": [
+    "1F2",
+    "1F4",
+    "1F6",
+    "1F7"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "EX 623C": {
+   "decoded": false,
+   "anims": [
+    "1F3",
+    "1F5",
+    "1F6",
+    "1F8"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "EX 646A": {
+   "decoded": true,
+   "anims": [
+    "1EB",
+    "1ED",
+    "1EE",
+    "1F0",
+    "1F1"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "EX 646C": {
+   "decoded": false,
+   "anims": [
+    "1EC",
+    "1ED",
+    "1EF"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "EX air 236A": {
+   "decoded": false,
+   "anims": [
+    "1E4",
+    "1E6"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "EX air 236C": {
+   "decoded": false,
+   "anims": [
+    "1E5",
+    "1E6"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "MAX 236236A": {
+   "decoded": false,
+   "anims": [
+    "CA"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "MAX 23624A": {
+   "decoded": false,
+   "anims": [
+    "BC",
+    "BD",
+    "BE"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  },
+  "MAX 23624C": {
+   "decoded": true,
+   "anims": [
+    "BC",
+    "BD",
+    "BE",
+    "BF",
+    "C0",
+    "C2",
+    "C3",
+    "C4",
+    "C5",
+    "C6",
+    "C7",
+    "C1",
+    "B1",
+    "B2",
+    "B5",
+    "B8",
+    "B9"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "MAX 6426A": {
+   "decoded": false,
+   "anims": [
+    "AC"
+   ],
+   "air": false,
+   "source": "dictionary capture"
+  }
+ },
+ "anims": {
+  "0": {
+   "kind": "pose",
+   "state": 0,
+   "names": [
+    "idle"
+   ],
+   "specials": []
+  },
+  "1": {
+   "kind": "movement",
+   "state": 1,
+   "names": [
+    "walk_fwd"
+   ],
+   "specials": []
+  },
+  "2": {
+   "kind": "movement",
+   "state": 2,
+   "names": [
+    "walk_back"
+   ],
+   "specials": []
+  },
+  "3": {
+   "kind": "movement",
+   "state": 3,
+   "names": [
+    "prejump"
+   ],
+   "specials": []
+  },
+  "4": {
+   "kind": "movement",
+   "state": 6,
+   "names": [
+    "land"
+   ],
+   "specials": []
+  },
+  "5": {
+   "kind": "movement",
+   "state": 4,
+   "names": [
+    "jump_up_rise"
+   ],
+   "specials": []
+  },
+  "6": {
+   "kind": "movement",
+   "state": 5,
+   "names": [
+    "jump_up_fall"
+   ],
+   "specials": []
+  },
+  "7": {
+   "kind": "movement",
+   "state": 8,
+   "names": [
+    "jump_fwd_rise"
+   ],
+   "specials": []
+  },
+  "8": {
+   "kind": "movement",
+   "state": 9,
+   "names": [
+    "jump_fwd_fall"
+   ],
+   "specials": []
+  },
+  "9": {
+   "kind": "movement",
+   "state": 12,
+   "names": [
+    "jump_back_rise"
+   ],
+   "specials": []
+  },
+  "A": {
+   "kind": "movement",
+   "state": 13,
+   "names": [
+    "jump_back_fall"
+   ],
+   "specials": []
+  },
+  "B": {
+   "kind": "movement",
+   "state": 15,
+   "names": [
+    "hop_up_rise"
+   ],
+   "specials": []
+  },
+  "C": {
+   "kind": "movement",
+   "state": 16,
+   "names": [
+    "hop_up_fall"
+   ],
+   "specials": []
+  },
+  "D": {
+   "kind": "movement",
+   "state": 17,
+   "names": [
+    "hop_fwd_rise"
+   ],
+   "specials": []
+  },
+  "E": {
+   "kind": "movement",
+   "state": 18,
+   "names": [
+    "hop_fwd_fall"
+   ],
+   "specials": []
+  },
+  "F": {
+   "kind": "movement",
+   "state": 19,
+   "names": [
+    "hop_back_rise"
+   ],
+   "specials": []
+  },
+  "10": {
+   "kind": "movement",
+   "state": 20,
+   "names": [
+    "hop_back_fall"
+   ],
+   "specials": []
+  },
+  "11": {
+   "kind": "pose",
+   "state": 21,
+   "names": [
+    "crouch_down"
+   ],
+   "specials": []
+  },
+  "12": {
+   "kind": "pose",
+   "state": 22,
+   "names": [
+    "crouch_up"
+   ],
+   "specials": []
+  },
+  "13": {
+   "kind": "pose",
+   "state": 23,
+   "names": [
+    "crouch"
+   ],
+   "specials": []
+  },
+  "14": {
+   "kind": "pose",
+   "state": 24,
+   "names": [],
+   "specials": []
+  },
+  "15": {
+   "kind": "pose",
+   "state": 25,
+   "names": [],
+   "specials": []
+  },
+  "16": {
+   "kind": "pose",
+   "state": 26,
+   "names": [
+    "guard_stand_in"
+   ],
+   "specials": []
+  },
+  "17": {
+   "kind": "pose",
+   "state": 27,
+   "names": [
+    "guard_stand"
+   ],
+   "specials": []
+  },
+  "18": {
+   "kind": "pose",
+   "state": 28,
+   "names": [
+    "guard_stand_out"
+   ],
+   "specials": []
+  },
+  "19": {
+   "kind": "pose",
+   "state": 29,
+   "names": [],
+   "specials": []
+  },
+  "1A": {
+   "kind": "pose",
+   "state": 30,
+   "names": [],
+   "specials": []
+  },
+  "1B": {
+   "kind": "pose",
+   "state": 31,
+   "names": [],
+   "specials": []
+  },
+  "1C": {
+   "kind": "pose",
+   "state": 32,
+   "names": [
+    "guard_crouch_in"
+   ],
+   "specials": []
+  },
+  "1D": {
+   "kind": "pose",
+   "state": 33,
+   "names": [
+    "guard_crouch"
+   ],
+   "specials": []
+  },
+  "1E": {
+   "kind": "pose",
+   "state": 34,
+   "names": [],
+   "specials": []
+  },
+  "1F": {
+   "kind": "pose",
+   "state": 35,
+   "names": [],
+   "specials": []
+  },
+  "20": {
+   "kind": "pose",
+   "state": 36,
+   "names": [],
+   "specials": []
+  },
+  "21": {
+   "kind": "pose",
+   "state": 37,
+   "names": [],
+   "specials": []
+  },
+  "22": {
+   "kind": "pose",
+   "state": 38,
+   "names": [],
+   "specials": []
+  },
+  "23": {
+   "kind": "pose",
+   "state": 39,
+   "names": [],
+   "specials": []
+  },
+  "24": {
+   "kind": "pose",
+   "state": 40,
+   "names": [],
+   "specials": []
+  },
+  "25": {
+   "kind": "pose",
+   "state": 41,
+   "names": [],
+   "specials": []
+  },
+  "2A": {
+   "kind": "pose",
+   "state": 42,
+   "names": [],
+   "specials": []
+  },
+  "2B": {
+   "kind": "pose",
+   "state": 43,
+   "names": [],
+   "specials": []
+  },
+  "2C": {
+   "kind": "pose",
+   "state": 44,
+   "names": [],
+   "specials": []
+  },
+  "2D": {
+   "kind": "pose",
+   "state": 45,
+   "names": [
+    "run_start"
+   ],
+   "specials": []
+  },
+  "2E": {
+   "kind": "pose",
+   "state": 46,
+   "names": [
+    "run"
+   ],
+   "specials": []
+  },
+  "2F": {
+   "kind": "pose",
+   "state": 47,
+   "names": [
+    "run_stop"
+   ],
+   "specials": []
+  },
+  "30": {
+   "kind": "movement",
+   "state": 48,
+   "names": [
+    "backstep_start"
+   ],
+   "specials": []
+  },
+  "31": {
+   "kind": "movement",
+   "state": 49,
+   "names": [
+    "backstep"
+   ],
+   "specials": []
+  },
+  "32": {
+   "kind": "movement",
+   "state": 50,
+   "names": [
+    "backstep_land"
+   ],
+   "specials": []
+  },
+  "33": {
+   "kind": "movement",
+   "state": 51,
+   "names": [
+    "roll_start"
+   ],
+   "specials": []
+  },
+  "34": {
+   "kind": "movement",
+   "state": 52,
+   "names": [
+    "roll"
+   ],
+   "specials": []
+  },
+  "35": {
+   "kind": "movement",
+   "state": 53,
+   "names": [
+    "roll_end"
+   ],
+   "specials": []
+  },
+  "36": {
+   "kind": "pose",
+   "state": 54,
+   "names": [],
+   "specials": []
+  },
+  "37": {
+   "kind": "pose",
+   "state": 55,
+   "names": [],
+   "specials": []
+  },
+  "38": {
+   "kind": "pose",
+   "state": 56,
+   "names": [],
+   "specials": []
+  },
+  "39": {
+   "kind": "pose",
+   "state": 57,
+   "names": [],
+   "specials": []
+  },
+  "3A": {
+   "kind": "pose",
+   "state": 58,
+   "names": [],
+   "specials": []
+  },
+  "3B": {
+   "kind": "pose",
+   "state": 59,
+   "names": [],
+   "specials": []
+  },
+  "3C": {
+   "kind": "pose",
+   "state": 60,
+   "names": [],
+   "specials": []
+  },
+  "3D": {
+   "kind": "pose",
+   "state": 61,
+   "names": [],
+   "specials": []
+  },
+  "3E": {
+   "kind": "pose",
+   "state": 62,
+   "names": [],
+   "specials": []
+  },
+  "3F": {
+   "kind": "pose",
+   "state": 63,
+   "names": [],
+   "specials": []
+  },
+  "40": {
+   "kind": "pose",
+   "state": 64,
+   "names": [],
+   "specials": []
+  },
+  "41": {
+   "kind": "pose",
+   "state": 65,
+   "names": [],
+   "specials": []
+  },
+  "42": {
+   "kind": "reaction",
+   "state": 66,
+   "names": [],
+   "specials": []
+  },
+  "43": {
+   "kind": "pose",
+   "state": 67,
+   "names": [],
+   "specials": []
+  },
+  "44": {
+   "kind": "pose",
+   "state": 68,
+   "names": [],
+   "specials": []
+  },
+  "45": {
+   "kind": "pose",
+   "state": 69,
+   "names": [],
+   "specials": []
+  },
+  "46": {
+   "kind": "pose",
+   "state": 70,
+   "names": [],
+   "specials": []
+  },
+  "47": {
+   "kind": "pose",
+   "state": 71,
+   "names": [],
+   "specials": []
+  },
+  "48": {
+   "kind": "pose",
+   "state": 72,
+   "names": [
+    "getup"
+   ],
+   "specials": []
+  },
+  "49": {
+   "kind": "pose",
+   "state": 73,
+   "names": [],
+   "specials": []
+  },
+  "4B": {
+   "kind": "pose",
+   "state": 75,
+   "names": [],
+   "specials": []
+  },
+  "4C": {
+   "kind": "pose",
+   "state": 76,
+   "names": [],
+   "specials": []
+  },
+  "4D": {
+   "kind": "pose",
+   "state": 77,
+   "names": [],
+   "specials": []
+  },
+  "4E": {
+   "kind": "pose",
+   "state": 78,
+   "names": [],
+   "specials": []
+  },
+  "4F": {
+   "kind": "pose",
+   "state": 79,
+   "names": [],
+   "specials": [
+    "EX 236A"
+   ]
+  },
+  "50": {
+   "kind": "attack",
+   "state": 80,
+   "names": [
+    "atk_a_close"
+   ],
+   "specials": []
+  },
+  "51": {
+   "kind": "attack",
+   "state": 81,
+   "names": [
+    "atk_a_far"
+   ],
+   "specials": []
+  },
+  "52": {
+   "kind": "attack",
+   "state": 82,
+   "names": [
+    "atk_a_jump"
+   ],
+   "specials": []
+  },
+  "53": {
+   "kind": "attack",
+   "state": 84,
+   "names": [
+    "atk_a_jump_diag"
+   ],
+   "specials": []
+  },
+  "54": {
+   "kind": "attack",
+   "state": 88,
+   "names": [
+    "atk_a_crouch"
+   ],
+   "specials": []
+  },
+  "55": {
+   "kind": "attack",
+   "state": 89,
+   "names": [
+    "atk_b_close"
+   ],
+   "specials": []
+  },
+  "56": {
+   "kind": "attack",
+   "state": 90,
+   "names": [
+    "atk_b_far"
+   ],
+   "specials": []
+  },
+  "57": {
+   "kind": "attack",
+   "state": 91,
+   "names": [
+    "atk_b_jump"
+   ],
+   "specials": []
+  },
+  "58": {
+   "kind": "attack",
+   "state": 93,
+   "names": [
+    "atk_b_jump_diag"
+   ],
+   "specials": []
+  },
+  "59": {
+   "kind": "attack",
+   "state": 97,
+   "names": [
+    "atk_b_crouch"
+   ],
+   "specials": []
+  },
+  "5A": {
+   "kind": "attack",
+   "state": 98,
+   "names": [
+    "atk_c_close"
+   ],
+   "specials": []
+  },
+  "5B": {
+   "kind": "attack",
+   "state": 99,
+   "names": [
+    "atk_c_far"
+   ],
+   "specials": []
+  },
+  "5C": {
+   "kind": "attack",
+   "state": 100,
+   "names": [
+    "atk_c_jump"
+   ],
+   "specials": []
+  },
+  "5D": {
+   "kind": "attack",
+   "state": 102,
+   "names": [
+    "atk_c_jump_diag"
+   ],
+   "specials": []
+  },
+  "5E": {
+   "kind": "attack",
+   "state": 106,
+   "names": [
+    "atk_c_crouch"
+   ],
+   "specials": []
+  },
+  "5F": {
+   "kind": "attack",
+   "state": 107,
+   "names": [
+    "atk_d_close"
+   ],
+   "specials": []
+  },
+  "60": {
+   "kind": "attack",
+   "state": 108,
+   "names": [
+    "atk_d_far"
+   ],
+   "specials": []
+  },
+  "61": {
+   "kind": "attack",
+   "state": 109,
+   "names": [
+    "atk_d_jump"
+   ],
+   "specials": []
+  },
+  "62": {
+   "kind": "attack",
+   "state": 111,
+   "names": [
+    "atk_d_jump_diag"
+   ],
+   "specials": []
+  },
+  "63": {
+   "kind": "attack",
+   "state": 115,
+   "names": [
+    "atk_d_crouch"
+   ],
+   "specials": []
+  },
+  "64": {
+   "kind": "attack",
+   "state": 116,
+   "names": [
+    "body_toss"
+   ],
+   "specials": []
+  },
+  "65": {
+   "kind": "attack",
+   "state": 117,
+   "names": [
+    "atk_cd_jump"
+   ],
+   "specials": []
+  },
+  "66": {
+   "kind": "attack",
+   "state": 118,
+   "names": [],
+   "specials": []
+  },
+  "67": {
+   "kind": "attack",
+   "state": 119,
+   "names": [],
+   "specials": []
+  },
+  "68": {
+   "kind": "attack",
+   "state": 120,
+   "names": [
+    "atk_a_hop"
+   ],
+   "specials": []
+  },
+  "69": {
+   "kind": "attack",
+   "state": 121,
+   "names": [
+    "atk_b_hop"
+   ],
+   "specials": []
+  },
+  "6A": {
+   "kind": "attack",
+   "state": 122,
+   "names": [
+    "atk_c_hop"
+   ],
+   "specials": []
+  },
+  "6B": {
+   "kind": "attack",
+   "state": 123,
+   "names": [
+    "atk_d_hop"
+   ],
+   "specials": []
+  },
+  "6C": {
+   "kind": "attack",
+   "state": 124,
+   "names": [
+    "atk_cd_hop"
+   ],
+   "specials": []
+  },
+  "80": {
+   "kind": "movement",
+   "state": 128,
+   "names": [],
+   "specials": [
+    "236A"
+   ]
+  },
+  "81": {
+   "kind": "movement",
+   "state": 129,
+   "names": [],
+   "specials": [
+    "236C"
+   ]
+  },
+  "82": {
+   "kind": "effect-only",
+   "state": 130,
+   "names": [],
+   "specials": []
+  },
+  "83": {
+   "kind": "attack",
+   "state": 131,
+   "names": [],
+   "specials": [
+    "623A"
+   ]
+  },
+  "84": {
+   "kind": "attack",
+   "state": 132,
+   "names": [],
+   "specials": [
+    "623C"
+   ]
+  },
+  "85": {
+   "kind": "attack",
+   "state": 133,
+   "names": [],
+   "specials": [
+    "623A"
+   ]
+  },
+  "86": {
+   "kind": "attack",
+   "state": 134,
+   "names": [],
+   "specials": [
+    "623C"
+   ]
+  },
+  "87": {
+   "kind": "movement",
+   "state": 135,
+   "names": [],
+   "specials": [
+    "623A",
+    "623C"
+   ]
+  },
+  "88": {
+   "kind": "pose",
+   "state": 136,
+   "names": [],
+   "specials": [
+    "623A"
+   ]
+  },
+  "89": {
+   "kind": "pose",
+   "state": 137,
+   "names": [],
+   "specials": [
+    "623C"
+   ]
+  },
+  "8A": {
+   "kind": "movement",
+   "state": 138,
+   "names": [],
+   "specials": [
+    "624B"
+   ]
+  },
+  "8B": {
+   "kind": "movement",
+   "state": 139,
+   "names": [],
+   "specials": [
+    "624D"
+   ]
+  },
+  "8C": {
+   "kind": "attack",
+   "state": 140,
+   "names": [],
+   "specials": [
+    "624B"
+   ]
+  },
+  "8D": {
+   "kind": "attack",
+   "state": 141,
+   "names": [],
+   "specials": [
+    "624D"
+   ]
+  },
+  "8E": {
+   "kind": "pose",
+   "state": 142,
+   "names": [],
+   "specials": [
+    "624B"
+   ]
+  },
+  "8F": {
+   "kind": "pose",
+   "state": 143,
+   "names": [],
+   "specials": [
+    "624D"
+   ]
+  },
+  "90": {
+   "kind": "attack",
+   "state": 144,
+   "names": [],
+   "specials": [
+    "214A"
+   ]
+  },
+  "91": {
+   "kind": "attack",
+   "state": 145,
+   "names": [],
+   "specials": [
+    "214C"
+   ]
+  },
+  "92": {
+   "kind": "attack",
+   "state": 146,
+   "names": [],
+   "specials": [
+    "214A"
+   ]
+  },
+  "93": {
+   "kind": "attack",
+   "state": 147,
+   "names": [],
+   "specials": [
+    "214C"
+   ]
+  },
+  "94": {
+   "kind": "pose",
+   "state": 148,
+   "names": [],
+   "specials": [
+    "214A"
+   ]
+  },
+  "95": {
+   "kind": "pose",
+   "state": 149,
+   "names": [],
+   "specials": [
+    "214C"
+   ]
+  },
+  "96": {
+   "kind": "attack",
+   "state": 150,
+   "names": [],
+   "specials": [
+    "426A"
+   ]
+  },
+  "99": {
+   "kind": "pose",
+   "state": 153,
+   "names": [],
+   "specials": [
+    "236B"
+   ]
+  },
+  "9A": {
+   "kind": "pose",
+   "state": 154,
+   "names": [],
+   "specials": [
+    "236D"
+   ]
+  },
+  "9B": {
+   "kind": "attack",
+   "state": 155,
+   "names": [],
+   "specials": [
+    "236B"
+   ]
+  },
+  "9C": {
+   "kind": "attack",
+   "state": 156,
+   "names": [],
+   "specials": [
+    "236D"
+   ]
+  },
+  "9D": {
+   "kind": "pose",
+   "state": 157,
+   "names": [],
+   "specials": [
+    "236B"
+   ]
+  },
+  "9E": {
+   "kind": "pose",
+   "state": 158,
+   "names": [],
+   "specials": [
+    "236D"
+   ]
+  },
+  "9F": {
+   "kind": "attack",
+   "state": 159,
+   "names": [],
+   "specials": []
+  },
+  "A0": {
+   "kind": "attack",
+   "state": 160,
+   "names": [],
+   "specials": []
+  },
+  "A1": {
+   "kind": "movement",
+   "state": 161,
+   "names": [],
+   "specials": []
+  },
+  "A2": {
+   "kind": "pose",
+   "state": 162,
+   "names": [],
+   "specials": []
+  },
+  "A8": {
+   "kind": "pose",
+   "state": 168,
+   "names": [],
+   "specials": [
+    "6426A"
+   ]
+  },
+  "A9": {
+   "kind": "pose",
+   "state": 169,
+   "names": [],
+   "specials": [
+    "6426C"
+   ]
+  },
+  "AA": {
+   "kind": "effect-only",
+   "state": 170,
+   "names": [],
+   "specials": []
+  },
+  "AB": {
+   "kind": "effect-only",
+   "state": 171,
+   "names": [],
+   "specials": []
+  },
+  "AC": {
+   "kind": "pose",
+   "state": 172,
+   "names": [],
+   "specials": [
+    "MAX 6426A"
+   ]
+  },
+  "AD": {
+   "kind": "effect-only",
+   "state": 173,
+   "names": [],
+   "specials": []
+  },
+  "AE": {
+   "kind": "effect-only",
+   "state": 174,
+   "names": [],
+   "specials": []
+  },
+  "AF": {
+   "kind": "effect-only",
+   "state": 175,
+   "names": [],
+   "specials": []
+  },
+  "B0": {
+   "kind": "pose",
+   "state": 176,
+   "names": [],
+   "specials": [
+    "23624A"
+   ]
+  },
+  "B1": {
+   "kind": "pose",
+   "state": 177,
+   "names": [],
+   "specials": [
+    "23624C",
+    "MAX 23624C"
+   ]
+  },
+  "B2": {
+   "kind": "attack",
+   "state": 178,
+   "names": [],
+   "specials": [
+    "23624C",
+    "MAX 23624C",
+    "23624A"
+   ]
+  },
+  "B3": {
+   "kind": "pose",
+   "state": 179,
+   "names": [],
+   "specials": [
+    "23624A"
+   ]
+  },
+  "B4": {
+   "kind": "pose",
+   "state": 180,
+   "names": [],
+   "specials": [
+    "23624C"
+   ]
+  },
+  "B5": {
+   "kind": "attack",
+   "state": 181,
+   "names": [],
+   "specials": [
+    "23624C",
+    "MAX 23624C",
+    "23624A"
+   ]
+  },
+  "B6": {
+   "kind": "pose",
+   "state": 182,
+   "names": [],
+   "specials": []
+  },
+  "B7": {
+   "kind": "pose",
+   "state": 183,
+   "names": [],
+   "specials": [
+    "23624C"
+   ]
+  },
+  "B8": {
+   "kind": "attack",
+   "state": 184,
+   "names": [],
+   "specials": [
+    "23624C",
+    "MAX 23624C",
+    "23624A"
+   ]
+  },
+  "B9": {
+   "kind": "attack",
+   "state": 185,
+   "names": [],
+   "specials": [
+    "23624C",
+    "MAX 23624C",
+    "23624A"
+   ]
+  },
+  "BA": {
+   "kind": "pose",
+   "state": 186,
+   "names": [],
+   "specials": [
+    "23624C"
+   ]
+  },
+  "BB": {
+   "kind": "pose",
+   "state": 187,
+   "names": [],
+   "specials": [
+    "23624C"
+   ]
+  },
+  "BC": {
+   "kind": "pose",
+   "state": 188,
+   "names": [],
+   "specials": [
+    "MAX 23624C",
+    "MAX 23624A"
+   ]
+  },
+  "BD": {
+   "kind": "attack",
+   "state": 189,
+   "names": [],
+   "specials": [
+    "MAX 23624C",
+    "MAX 23624A"
+   ]
+  },
+  "BE": {
+   "kind": "pose",
+   "state": 190,
+   "names": [],
+   "specials": [
+    "MAX 23624C",
+    "MAX 23624A"
+   ]
+  },
+  "BF": {
+   "kind": "attack",
+   "state": 191,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C0": {
+   "kind": "attack",
+   "state": 192,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C1": {
+   "kind": "pose",
+   "state": 193,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C2": {
+   "kind": "attack",
+   "state": 194,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C3": {
+   "kind": "attack",
+   "state": 195,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C4": {
+   "kind": "attack",
+   "state": 196,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C5": {
+   "kind": "attack",
+   "state": 197,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C6": {
+   "kind": "pose",
+   "state": 198,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C7": {
+   "kind": "pose",
+   "state": 199,
+   "names": [],
+   "specials": [
+    "MAX 23624C"
+   ]
+  },
+  "C8": {
+   "kind": "attack",
+   "state": 200,
+   "names": [],
+   "specials": [
+    "236236A"
+   ]
+  },
+  "C9": {
+   "kind": "attack",
+   "state": 201,
+   "names": [],
+   "specials": [
+    "236236C"
+   ]
+  },
+  "CA": {
+   "kind": "attack",
+   "state": 202,
+   "names": [],
+   "specials": [
+    "MAX 236236A"
+   ]
+  },
+  "D0": {
+   "kind": "attack",
+   "state": 208,
+   "names": [
+    "cmd_fwd_a"
+   ],
+   "specials": []
+  },
+  "D1": {
+   "kind": "attack",
+   "state": 209,
+   "names": [],
+   "specials": []
+  },
+  "D2": {
+   "kind": "pose",
+   "state": 210,
+   "names": [],
+   "specials": []
+  },
+  "D3": {
+   "kind": "pose",
+   "state": 211,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_c"
+   ]
+  },
+  "D4": {
+   "kind": "movement",
+   "state": 212,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_d"
+   ]
+  },
+  "DF": {
+   "kind": "pose",
+   "state": 223,
+   "names": [],
+   "specials": []
+  },
+  "FF": {
+   "kind": "effect-only",
+   "state": 255,
+   "names": [],
+   "specials": []
+  },
+  "100": {
+   "kind": "reaction",
+   "state": 256,
+   "names": [
+    "hit_stand_light"
+   ],
+   "specials": []
+  },
+  "101": {
+   "kind": "reaction",
+   "state": 257,
+   "names": [],
+   "specials": []
+  },
+  "102": {
+   "kind": "reaction",
+   "state": 258,
+   "names": [],
+   "specials": []
+  },
+  "103": {
+   "kind": "reaction",
+   "state": 259,
+   "names": [],
+   "specials": []
+  },
+  "104": {
+   "kind": "reaction",
+   "state": 260,
+   "names": [],
+   "specials": []
+  },
+  "105": {
+   "kind": "reaction",
+   "state": 261,
+   "names": [],
+   "specials": []
+  },
+  "106": {
+   "kind": "reaction",
+   "state": 262,
+   "names": [
+    "hit_stand_heavy"
+   ],
+   "specials": []
+  },
+  "107": {
+   "kind": "reaction",
+   "state": 263,
+   "names": [],
+   "specials": []
+  },
+  "108": {
+   "kind": "reaction",
+   "state": 264,
+   "names": [
+    "hit_crouch_light"
+   ],
+   "specials": []
+  },
+  "109": {
+   "kind": "reaction",
+   "state": 265,
+   "names": [],
+   "specials": []
+  },
+  "10A": {
+   "kind": "reaction",
+   "state": 266,
+   "names": [
+    "hit_crouch_heavy"
+   ],
+   "specials": []
+  },
+  "10B": {
+   "kind": "reaction",
+   "state": 267,
+   "names": [],
+   "specials": []
+  },
+  "10C": {
+   "kind": "reaction",
+   "state": 268,
+   "names": [],
+   "specials": []
+  },
+  "10D": {
+   "kind": "reaction",
+   "state": 269,
+   "names": [],
+   "specials": []
+  },
+  "10E": {
+   "kind": "reaction",
+   "state": 270,
+   "names": [],
+   "specials": []
+  },
+  "10F": {
+   "kind": "reaction",
+   "state": 271,
+   "names": [],
+   "specials": []
+  },
+  "110": {
+   "kind": "reaction",
+   "state": 272,
+   "names": [],
+   "specials": []
+  },
+  "111": {
+   "kind": "reaction",
+   "state": 273,
+   "names": [],
+   "specials": []
+  },
+  "112": {
+   "kind": "reaction",
+   "state": 274,
+   "names": [],
+   "specials": []
+  },
+  "113": {
+   "kind": "reaction",
+   "state": 275,
+   "names": [],
+   "specials": []
+  },
+  "114": {
+   "kind": "reaction",
+   "state": 276,
+   "names": [],
+   "specials": []
+  },
+  "115": {
+   "kind": "reaction",
+   "state": 277,
+   "names": [],
+   "specials": []
+  },
+  "116": {
+   "kind": "reaction",
+   "state": 278,
+   "names": [],
+   "specials": []
+  },
+  "117": {
+   "kind": "reaction",
+   "state": 279,
+   "names": [
+    "air_land"
+   ],
+   "specials": []
+  },
+  "118": {
+   "kind": "reaction",
+   "state": 280,
+   "names": [],
+   "specials": []
+  },
+  "119": {
+   "kind": "reaction",
+   "state": 281,
+   "names": [],
+   "specials": []
+  },
+  "11B": {
+   "kind": "reaction",
+   "state": 283,
+   "names": [
+    "blowback"
+   ],
+   "specials": []
+  },
+  "11C": {
+   "kind": "reaction",
+   "state": 284,
+   "names": [],
+   "specials": []
+  },
+  "11D": {
+   "kind": "reaction",
+   "state": 285,
+   "names": [
+    "blowback_n"
+   ],
+   "specials": []
+  },
+  "11E": {
+   "kind": "reaction",
+   "state": 286,
+   "names": [],
+   "specials": []
+  },
+  "11F": {
+   "kind": "reaction",
+   "state": 287,
+   "names": [
+    "knockdown_flight"
+   ],
+   "specials": []
+  },
+  "120": {
+   "kind": "reaction",
+   "state": 288,
+   "names": [],
+   "specials": []
+  },
+  "121": {
+   "kind": "reaction",
+   "state": 289,
+   "names": [],
+   "specials": []
+  },
+  "122": {
+   "kind": "reaction",
+   "state": 290,
+   "names": [],
+   "specials": []
+  },
+  "123": {
+   "kind": "reaction",
+   "state": 291,
+   "names": [],
+   "specials": []
+  },
+  "124": {
+   "kind": "reaction",
+   "state": 292,
+   "names": [],
+   "specials": []
+  },
+  "125": {
+   "kind": "reaction",
+   "state": 293,
+   "names": [],
+   "specials": []
+  },
+  "126": {
+   "kind": "reaction",
+   "state": 294,
+   "names": [],
+   "specials": []
+  },
+  "129": {
+   "kind": "reaction",
+   "state": 297,
+   "names": [],
+   "specials": []
+  },
+  "12A": {
+   "kind": "reaction",
+   "state": 298,
+   "names": [],
+   "specials": []
+  },
+  "12B": {
+   "kind": "reaction",
+   "state": 299,
+   "names": [],
+   "specials": []
+  },
+  "12C": {
+   "kind": "reaction",
+   "state": 300,
+   "names": [],
+   "specials": []
+  },
+  "12D": {
+   "kind": "reaction",
+   "state": 301,
+   "names": [],
+   "specials": []
+  },
+  "12E": {
+   "kind": "reaction",
+   "state": 302,
+   "names": [],
+   "specials": []
+  },
+  "12F": {
+   "kind": "reaction",
+   "state": 303,
+   "names": [],
+   "specials": []
+  },
+  "130": {
+   "kind": "reaction",
+   "state": 304,
+   "names": [],
+   "specials": []
+  },
+  "131": {
+   "kind": "reaction",
+   "state": 305,
+   "names": [],
+   "specials": []
+  },
+  "132": {
+   "kind": "reaction",
+   "state": 306,
+   "names": [],
+   "specials": []
+  },
+  "133": {
+   "kind": "reaction",
+   "state": 307,
+   "names": [
+    "trip"
+   ],
+   "specials": []
+  },
+  "134": {
+   "kind": "reaction",
+   "state": 308,
+   "names": [
+    "hit_air"
+   ],
+   "specials": []
+  },
+  "135": {
+   "kind": "reaction",
+   "state": 309,
+   "names": [
+    "knockdown_bounce"
+   ],
+   "specials": []
+  },
+  "136": {
+   "kind": "reaction",
+   "state": 310,
+   "names": [],
+   "specials": []
+  },
+  "137": {
+   "kind": "reaction",
+   "state": 311,
+   "names": [],
+   "specials": []
+  },
+  "138": {
+   "kind": "reaction",
+   "state": 312,
+   "names": [],
+   "specials": []
+  },
+  "139": {
+   "kind": "reaction",
+   "state": 313,
+   "names": [
+    "knockdown_fall"
+   ],
+   "specials": []
+  },
+  "13A": {
+   "kind": "reaction",
+   "state": 314,
+   "names": [],
+   "specials": []
+  },
+  "13B": {
+   "kind": "reaction",
+   "state": 315,
+   "names": [],
+   "specials": []
+  },
+  "13C": {
+   "kind": "reaction",
+   "state": 316,
+   "names": [],
+   "specials": []
+  },
+  "13D": {
+   "kind": "reaction",
+   "state": 317,
+   "names": [],
+   "specials": []
+  },
+  "13E": {
+   "kind": "reaction",
+   "state": 318,
+   "names": [],
+   "specials": []
+  },
+  "13F": {
+   "kind": "reaction",
+   "state": 319,
+   "names": [],
+   "specials": []
+  },
+  "140": {
+   "kind": "reaction",
+   "state": 320,
+   "names": [],
+   "specials": []
+  },
+  "141": {
+   "kind": "reaction",
+   "state": 321,
+   "names": [],
+   "specials": []
+  },
+  "142": {
+   "kind": "reaction",
+   "state": 322,
+   "names": [],
+   "specials": []
+  },
+  "143": {
+   "kind": "reaction",
+   "state": 323,
+   "names": [],
+   "specials": []
+  },
+  "144": {
+   "kind": "reaction",
+   "state": 324,
+   "names": [],
+   "specials": []
+  },
+  "145": {
+   "kind": "reaction",
+   "state": 325,
+   "names": [],
+   "specials": []
+  },
+  "146": {
+   "kind": "reaction",
+   "state": 326,
+   "names": [],
+   "specials": []
+  },
+  "147": {
+   "kind": "reaction",
+   "state": 327,
+   "names": [],
+   "specials": []
+  },
+  "148": {
+   "kind": "reaction",
+   "state": 328,
+   "names": [
+    "down"
+   ],
+   "specials": []
+  },
+  "149": {
+   "kind": "reaction",
+   "state": 329,
+   "names": [],
+   "specials": []
+  },
+  "14A": {
+   "kind": "reaction",
+   "state": 330,
+   "names": [],
+   "specials": []
+  },
+  "14B": {
+   "kind": "reaction",
+   "state": 331,
+   "names": [],
+   "specials": []
+  },
+  "14C": {
+   "kind": "reaction",
+   "state": 332,
+   "names": [],
+   "specials": []
+  },
+  "14D": {
+   "kind": "reaction",
+   "state": 333,
+   "names": [],
+   "specials": []
+  },
+  "14E": {
+   "kind": "reaction",
+   "state": 334,
+   "names": [],
+   "specials": []
+  },
+  "14F": {
+   "kind": "reaction",
+   "state": 335,
+   "names": [],
+   "specials": []
+  },
+  "150": {
+   "kind": "reaction",
+   "state": 336,
+   "names": [
+    "win_a"
+   ],
+   "specials": []
+  },
+  "151": {
+   "kind": "reaction",
+   "state": 337,
+   "names": [
+    "win_a_hold"
+   ],
+   "specials": []
+  },
+  "152": {
+   "kind": "reaction",
+   "state": 338,
+   "names": [
+    "win_b"
+   ],
+   "specials": []
+  },
+  "153": {
+   "kind": "reaction",
+   "state": 339,
+   "names": [
+    "win_b_hold"
+   ],
+   "specials": []
+  },
+  "154": {
+   "kind": "reaction",
+   "state": 340,
+   "names": [
+    "win_c"
+   ],
+   "specials": []
+  },
+  "155": {
+   "kind": "reaction",
+   "state": 341,
+   "names": [
+    "win_c_hold"
+   ],
+   "specials": []
+  },
+  "156": {
+   "kind": "reaction",
+   "state": 342,
+   "names": [
+    "win_d"
+   ],
+   "specials": []
+  },
+  "157": {
+   "kind": "reaction",
+   "state": 343,
+   "names": [
+    "win_d_hold"
+   ],
+   "specials": []
+  },
+  "158": {
+   "kind": "reaction",
+   "state": 344,
+   "names": [],
+   "specials": []
+  },
+  "159": {
+   "kind": "reaction",
+   "state": 345,
+   "names": [],
+   "specials": []
+  },
+  "15A": {
+   "kind": "reaction",
+   "state": 346,
+   "names": [],
+   "specials": []
+  },
+  "15B": {
+   "kind": "reaction",
+   "state": 347,
+   "names": [],
+   "specials": []
+  },
+  "15C": {
+   "kind": "reaction",
+   "state": 348,
+   "names": [],
+   "specials": []
+  },
+  "15D": {
+   "kind": "reaction",
+   "state": 349,
+   "names": [],
+   "specials": []
+  },
+  "15E": {
+   "kind": "reaction",
+   "state": 350,
+   "names": [],
+   "specials": []
+  },
+  "15F": {
+   "kind": "reaction",
+   "state": 351,
+   "names": [],
+   "specials": []
+  },
+  "160": {
+   "kind": "reaction",
+   "state": 352,
+   "names": [],
+   "specials": []
+  },
+  "161": {
+   "kind": "reaction",
+   "state": 353,
+   "names": [],
+   "specials": []
+  },
+  "162": {
+   "kind": "reaction",
+   "state": 354,
+   "names": [],
+   "specials": []
+  },
+  "163": {
+   "kind": "reaction",
+   "state": 355,
+   "names": [],
+   "specials": []
+  },
+  "164": {
+   "kind": "reaction",
+   "state": 356,
+   "names": [],
+   "specials": []
+  },
+  "165": {
+   "kind": "reaction",
+   "state": 357,
+   "names": [],
+   "specials": []
+  },
+  "166": {
+   "kind": "reaction",
+   "state": 358,
+   "names": [],
+   "specials": []
+  },
+  "167": {
+   "kind": "reaction",
+   "state": 359,
+   "names": [],
+   "specials": []
+  },
+  "168": {
+   "kind": "reaction",
+   "state": 360,
+   "names": [],
+   "specials": []
+  },
+  "169": {
+   "kind": "reaction",
+   "state": 361,
+   "names": [],
+   "specials": []
+  },
+  "16A": {
+   "kind": "reaction",
+   "state": 362,
+   "names": [],
+   "specials": []
+  },
+  "172": {
+   "kind": "reaction",
+   "state": 370,
+   "names": [],
+   "specials": []
+  },
+  "173": {
+   "kind": "reaction",
+   "state": 371,
+   "names": [],
+   "specials": []
+  },
+  "174": {
+   "kind": "reaction",
+   "state": 372,
+   "names": [],
+   "specials": []
+  },
+  "175": {
+   "kind": "reaction",
+   "state": 373,
+   "names": [],
+   "specials": []
+  },
+  "176": {
+   "kind": "reaction",
+   "state": 374,
+   "names": [],
+   "specials": []
+  },
+  "177": {
+   "kind": "reaction",
+   "state": 375,
+   "names": [],
+   "specials": []
+  },
+  "178": {
+   "kind": "reaction",
+   "state": 376,
+   "names": [],
+   "specials": []
+  },
+  "179": {
+   "kind": "reaction",
+   "state": 377,
+   "names": [],
+   "specials": []
+  },
+  "17A": {
+   "kind": "reaction",
+   "state": 378,
+   "names": [],
+   "specials": []
+  },
+  "17B": {
+   "kind": "reaction",
+   "state": 379,
+   "names": [],
+   "specials": []
+  },
+  "17C": {
+   "kind": "reaction",
+   "state": 380,
+   "names": [],
+   "specials": []
+  },
+  "17D": {
+   "kind": "reaction",
+   "state": 381,
+   "names": [],
+   "specials": []
+  },
+  "17E": {
+   "kind": "reaction",
+   "state": 382,
+   "names": [],
+   "specials": []
+  },
+  "17F": {
+   "kind": "reaction",
+   "state": 383,
+   "names": [],
+   "specials": []
+  },
+  "180": {
+   "kind": "reaction",
+   "state": 384,
+   "names": [],
+   "specials": []
+  },
+  "181": {
+   "kind": "reaction",
+   "state": 385,
+   "names": [],
+   "specials": []
+  },
+  "182": {
+   "kind": "reaction",
+   "state": 386,
+   "names": [],
+   "specials": []
+  },
+  "183": {
+   "kind": "reaction",
+   "state": 387,
+   "names": [],
+   "specials": []
+  },
+  "184": {
+   "kind": "reaction",
+   "state": 388,
+   "names": [],
+   "specials": []
+  },
+  "185": {
+   "kind": "reaction",
+   "state": 389,
+   "names": [],
+   "specials": []
+  },
+  "186": {
+   "kind": "reaction",
+   "state": 390,
+   "names": [],
+   "specials": []
+  },
+  "187": {
+   "kind": "reaction",
+   "state": 391,
+   "names": [],
+   "specials": []
+  },
+  "188": {
+   "kind": "reaction",
+   "state": 392,
+   "names": [],
+   "specials": []
+  },
+  "189": {
+   "kind": "reaction",
+   "state": 393,
+   "names": [],
+   "specials": []
+  },
+  "18A": {
+   "kind": "reaction",
+   "state": 394,
+   "names": [],
+   "specials": []
+  },
+  "18B": {
+   "kind": "reaction",
+   "state": 395,
+   "names": [],
+   "specials": []
+  },
+  "18C": {
+   "kind": "reaction",
+   "state": 396,
+   "names": [],
+   "specials": []
+  },
+  "18D": {
+   "kind": "reaction",
+   "state": 397,
+   "names": [],
+   "specials": []
+  },
+  "18E": {
+   "kind": "reaction",
+   "state": 398,
+   "names": [],
+   "specials": []
+  },
+  "18F": {
+   "kind": "reaction",
+   "state": 399,
+   "names": [],
+   "specials": []
+  },
+  "194": {
+   "kind": "pose",
+   "state": 404,
+   "names": [],
+   "specials": []
+  },
+  "195": {
+   "kind": "pose",
+   "state": 405,
+   "names": [],
+   "specials": []
+  },
+  "196": {
+   "kind": "pose",
+   "state": 406,
+   "names": [],
+   "specials": []
+  },
+  "197": {
+   "kind": "pose",
+   "state": 407,
+   "names": [],
+   "specials": []
+  },
+  "198": {
+   "kind": "pose",
+   "state": 408,
+   "names": [],
+   "specials": []
+  },
+  "199": {
+   "kind": "pose",
+   "state": 409,
+   "names": [],
+   "specials": []
+  },
+  "19A": {
+   "kind": "pose",
+   "state": 410,
+   "names": [],
+   "specials": []
+  },
+  "19B": {
+   "kind": "pose",
+   "state": 411,
+   "names": [],
+   "specials": []
+  },
+  "19C": {
+   "kind": "pose",
+   "state": 412,
+   "names": [],
+   "specials": []
+  },
+  "19D": {
+   "kind": "pose",
+   "state": 413,
+   "names": [],
+   "specials": []
+  },
+  "19E": {
+   "kind": "pose",
+   "state": 414,
+   "names": [],
+   "specials": []
+  },
+  "19F": {
+   "kind": "pose",
+   "state": 415,
+   "names": [],
+   "specials": []
+  },
+  "1A0": {
+   "kind": "pose",
+   "state": 416,
+   "names": [],
+   "specials": []
+  },
+  "1A1": {
+   "kind": "pose",
+   "state": 417,
+   "names": [],
+   "specials": []
+  },
+  "1A2": {
+   "kind": "pose",
+   "state": 418,
+   "names": [],
+   "specials": []
+  },
+  "1A3": {
+   "kind": "pose",
+   "state": 419,
+   "names": [],
+   "specials": []
+  },
+  "1A4": {
+   "kind": "pose",
+   "state": 420,
+   "names": [],
+   "specials": []
+  },
+  "1A5": {
+   "kind": "pose",
+   "state": 421,
+   "names": [],
+   "specials": []
+  },
+  "1A6": {
+   "kind": "pose",
+   "state": 422,
+   "names": [],
+   "specials": []
+  },
+  "1A7": {
+   "kind": "pose",
+   "state": 423,
+   "names": [],
+   "specials": []
+  },
+  "1A8": {
+   "kind": "pose",
+   "state": 424,
+   "names": [],
+   "specials": []
+  },
+  "1A9": {
+   "kind": "pose",
+   "state": 425,
+   "names": [],
+   "specials": []
+  },
+  "1AA": {
+   "kind": "pose",
+   "state": 426,
+   "names": [],
+   "specials": []
+  },
+  "1AB": {
+   "kind": "pose",
+   "state": 427,
+   "names": [],
+   "specials": []
+  },
+  "1AC": {
+   "kind": "pose",
+   "state": 428,
+   "names": [],
+   "specials": []
+  },
+  "1AD": {
+   "kind": "pose",
+   "state": 429,
+   "names": [],
+   "specials": []
+  },
+  "1AE": {
+   "kind": "pose",
+   "state": 430,
+   "names": [],
+   "specials": []
+  },
+  "1AF": {
+   "kind": "pose",
+   "state": 431,
+   "names": [],
+   "specials": []
+  },
+  "1B0": {
+   "kind": "pose",
+   "state": 432,
+   "names": [],
+   "specials": []
+  },
+  "1B1": {
+   "kind": "pose",
+   "state": 433,
+   "names": [],
+   "specials": []
+  },
+  "1B2": {
+   "kind": "pose",
+   "state": 434,
+   "names": [],
+   "specials": []
+  },
+  "1B3": {
+   "kind": "pose",
+   "state": 435,
+   "names": [],
+   "specials": []
+  },
+  "1B4": {
+   "kind": "pose",
+   "state": 436,
+   "names": [],
+   "specials": []
+  },
+  "1B5": {
+   "kind": "pose",
+   "state": 437,
+   "names": [],
+   "specials": []
+  },
+  "1B6": {
+   "kind": "pose",
+   "state": 438,
+   "names": [],
+   "specials": []
+  },
+  "1B7": {
+   "kind": "pose",
+   "state": 439,
+   "names": [],
+   "specials": []
+  },
+  "1B8": {
+   "kind": "pose",
+   "state": 440,
+   "names": [],
+   "specials": []
+  },
+  "1B9": {
+   "kind": "pose",
+   "state": 441,
+   "names": [],
+   "specials": []
+  },
+  "1BA": {
+   "kind": "pose",
+   "state": 442,
+   "names": [],
+   "specials": []
+  },
+  "1BB": {
+   "kind": "pose",
+   "state": 443,
+   "names": [],
+   "specials": []
+  },
+  "1BC": {
+   "kind": "pose",
+   "state": 444,
+   "names": [],
+   "specials": []
+  },
+  "1BD": {
+   "kind": "pose",
+   "state": 445,
+   "names": [],
+   "specials": []
+  },
+  "1BE": {
+   "kind": "pose",
+   "state": 446,
+   "names": [],
+   "specials": []
+  },
+  "1BF": {
+   "kind": "pose",
+   "state": 447,
+   "names": [],
+   "specials": []
+  },
+  "1C0": {
+   "kind": "pose",
+   "state": 448,
+   "names": [],
+   "specials": []
+  },
+  "1C1": {
+   "kind": "pose",
+   "state": 449,
+   "names": [],
+   "specials": []
+  },
+  "1C2": {
+   "kind": "pose",
+   "state": 450,
+   "names": [],
+   "specials": []
+  },
+  "1C3": {
+   "kind": "pose",
+   "state": 451,
+   "names": [],
+   "specials": []
+  },
+  "1C4": {
+   "kind": "pose",
+   "state": 452,
+   "names": [],
+   "specials": []
+  },
+  "1C5": {
+   "kind": "pose",
+   "state": 453,
+   "names": [],
+   "specials": []
+  },
+  "1C6": {
+   "kind": "pose",
+   "state": 454,
+   "names": [],
+   "specials": []
+  },
+  "1C7": {
+   "kind": "pose",
+   "state": 455,
+   "names": [],
+   "specials": []
+  },
+  "1C8": {
+   "kind": "pose",
+   "state": 456,
+   "names": [],
+   "specials": []
+  },
+  "1C9": {
+   "kind": "pose",
+   "state": 457,
+   "names": [],
+   "specials": []
+  },
+  "1CA": {
+   "kind": "pose",
+   "state": 458,
+   "names": [],
+   "specials": []
+  },
+  "1CB": {
+   "kind": "pose",
+   "state": 459,
+   "names": [],
+   "specials": []
+  },
+  "1CC": {
+   "kind": "pose",
+   "state": 460,
+   "names": [],
+   "specials": []
+  },
+  "1CD": {
+   "kind": "pose",
+   "state": 461,
+   "names": [],
+   "specials": []
+  },
+  "1CE": {
+   "kind": "pose",
+   "state": 462,
+   "names": [],
+   "specials": []
+  },
+  "1CF": {
+   "kind": "pose",
+   "state": 463,
+   "names": [],
+   "specials": []
+  },
+  "1D0": {
+   "kind": "pose",
+   "state": 464,
+   "names": [],
+   "specials": []
+  },
+  "1D1": {
+   "kind": "pose",
+   "state": 465,
+   "names": [],
+   "specials": []
+  },
+  "1D2": {
+   "kind": "pose",
+   "state": 466,
+   "names": [],
+   "specials": []
+  },
+  "1D3": {
+   "kind": "pose",
+   "state": 467,
+   "names": [],
+   "specials": []
+  },
+  "1D4": {
+   "kind": "pose",
+   "state": 468,
+   "names": [],
+   "specials": []
+  },
+  "1D5": {
+   "kind": "pose",
+   "state": 469,
+   "names": [],
+   "specials": []
+  },
+  "1D6": {
+   "kind": "pose",
+   "state": 470,
+   "names": [],
+   "specials": []
+  },
+  "1D7": {
+   "kind": "pose",
+   "state": 471,
+   "names": [],
+   "specials": []
+  },
+  "1D8": {
+   "kind": "attack",
+   "state": 472,
+   "names": [],
+   "specials": []
+  },
+  "1D9": {
+   "kind": "pose",
+   "state": 473,
+   "names": [],
+   "specials": []
+  },
+  "1DA": {
+   "kind": "pose",
+   "state": 474,
+   "names": [],
+   "specials": []
+  },
+  "1DB": {
+   "kind": "pose",
+   "state": 475,
+   "names": [],
+   "specials": []
+  },
+  "1DC": {
+   "kind": "pose",
+   "state": 476,
+   "names": [],
+   "specials": []
+  },
+  "1DD": {
+   "kind": "pose",
+   "state": 477,
+   "names": [],
+   "specials": []
+  },
+  "1DE": {
+   "kind": "pose",
+   "state": 478,
+   "names": [],
+   "specials": []
+  },
+  "1DF": {
+   "kind": "pose",
+   "state": 479,
+   "names": [],
+   "specials": []
+  },
+  "1E0": {
+   "kind": "pose",
+   "state": 480,
+   "names": [],
+   "specials": [
+    "EX 236A"
+   ]
+  },
+  "1E1": {
+   "kind": "pose",
+   "state": 481,
+   "names": [],
+   "specials": [
+    "EX 236C"
+   ]
+  },
+  "1E2": {
+   "kind": "effect-only",
+   "state": 482,
+   "names": [],
+   "specials": []
+  },
+  "1E3": {
+   "kind": "effect-only",
+   "state": 483,
+   "names": [],
+   "specials": []
+  },
+  "1E4": {
+   "kind": "pose",
+   "state": 484,
+   "names": [],
+   "specials": [
+    "EX air 236A"
+   ]
+  },
+  "1E5": {
+   "kind": "pose",
+   "state": 485,
+   "names": [],
+   "specials": [
+    "EX air 236C"
+   ]
+  },
+  "1E6": {
+   "kind": "pose",
+   "state": 486,
+   "names": [],
+   "specials": [
+    "EX air 236A",
+    "EX air 236C"
+   ]
+  },
+  "1E7": {
+   "kind": "effect-only",
+   "state": 487,
+   "names": [],
+   "specials": []
+  },
+  "1E8": {
+   "kind": "effect-only",
+   "state": 488,
+   "names": [],
+   "specials": []
+  },
+  "1E9": {
+   "kind": "effect-only",
+   "state": 489,
+   "names": [],
+   "specials": []
+  },
+  "1EA": {
+   "kind": "effect-only",
+   "state": 490,
+   "names": [],
+   "specials": []
+  },
+  "1EB": {
+   "kind": "pose",
+   "state": 491,
+   "names": [],
+   "specials": [
+    "EX 646A"
+   ]
+  },
+  "1EC": {
+   "kind": "pose",
+   "state": 492,
+   "names": [],
+   "specials": [
+    "EX 646C"
+   ]
+  },
+  "1ED": {
+   "kind": "attack",
+   "state": 493,
+   "names": [],
+   "specials": [
+    "EX 646A",
+    "EX 646C"
+   ]
+  },
+  "1EE": {
+   "kind": "pose",
+   "state": 494,
+   "names": [],
+   "specials": [
+    "EX 646A"
+   ]
+  },
+  "1EF": {
+   "kind": "pose",
+   "state": 495,
+   "names": [],
+   "specials": [
+    "EX 646C"
+   ]
+  },
+  "1F0": {
+   "kind": "attack",
+   "state": 496,
+   "names": [],
+   "specials": [
+    "EX 646A"
+   ]
+  },
+  "1F1": {
+   "kind": "attack",
+   "state": 497,
+   "names": [],
+   "specials": [
+    "EX 646A"
+   ]
+  },
+  "1F2": {
+   "kind": "attack",
+   "state": 498,
+   "names": [],
+   "specials": [
+    "EX 623A"
+   ]
+  },
+  "1F3": {
+   "kind": "attack",
+   "state": 499,
+   "names": [],
+   "specials": [
+    "EX 623C"
+   ]
+  },
+  "1F4": {
+   "kind": "attack",
+   "state": 500,
+   "names": [],
+   "specials": [
+    "EX 623A"
+   ]
+  },
+  "1F5": {
+   "kind": "attack",
+   "state": 501,
+   "names": [],
+   "specials": [
+    "EX 623C"
+   ]
+  },
+  "1F6": {
+   "kind": "pose",
+   "state": 502,
+   "names": [],
+   "specials": [
+    "EX 623A",
+    "EX 623C"
+   ]
+  },
+  "1F7": {
+   "kind": "pose",
+   "state": 503,
+   "names": [],
+   "specials": [
+    "EX 623A"
+   ]
+  },
+  "1F8": {
+   "kind": "pose",
+   "state": 504,
+   "names": [],
+   "specials": [
+    "EX 623C"
+   ]
+  },
+  "1F9": {
+   "kind": "attack",
+   "state": 505,
+   "names": [],
+   "specials": []
+  },
+  "1FA": {
+   "kind": "pose",
+   "state": 506,
+   "names": [],
+   "specials": []
+  },
+  "1FB": {
+   "kind": "movement",
+   "state": 507,
+   "names": [],
+   "specials": []
+  },
+  "1FE": {
+   "kind": "pose",
+   "state": 510,
+   "names": [],
+   "specials": []
+  },
+  "1FF": {
+   "kind": "pose",
+   "state": 511,
+   "names": [],
+   "specials": []
+  }
+ },
+ "knobs": {
+  "S-001": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 10,
+    "min": 1,
+    "max": 30,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 655360,
+      "base": 655360
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vx 10.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 11,
+    "min": 1,
+    "max": 33,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 720896,
+      "base": 720896
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vy 11.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-002": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-003": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 5,
+    "min": 1,
+    "max": 15,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 327680,
+      "base": 327680
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 5.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 9.75,
+    "min": 1,
+    "max": 29.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 638976,
+      "base": 638976
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 9.75 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-004": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 1.75,
+    "min": 1,
+    "max": 5.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 114688,
+      "base": 114688
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 1.75 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 6,
+    "min": 1,
+    "max": 18,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 393216,
+      "base": 393216
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 6.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-005": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 6,
+    "min": 1,
+    "max": 18,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 393216,
+      "base": 393216
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 6.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 6,
+    "min": 1,
+    "max": 18,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 393216,
+      "base": 393216
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 6.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-006": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 1.75,
+    "min": 1,
+    "max": 5.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 114688,
+      "base": 114688
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 1.75 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 6,
+    "min": 1,
+    "max": 18,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 393216,
+      "base": 393216
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 6.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-007": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-008": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 10,
+    "min": 1,
+    "max": 30,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 655360,
+      "base": 655360
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vx 10.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 11,
+    "min": 1,
+    "max": 33,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 720896,
+      "base": 720896
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vy 11.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ]
+ }
+}

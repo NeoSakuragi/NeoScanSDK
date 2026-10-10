@@ -48,6 +48,9 @@ import java.security.MessageDigest
  *    version, Apply now, Faces.
  *  - NOTES (0.0.29): a feedback note taken in the lab records the shell + pack (+ config) it ran (noteInfo), not
  *    brawler.neo's.
+ *  - THE ASSEMBLY (0.0.32, Assembly.kt): the strip's "Assembly" opens the web Assembly page of the fighter on screen
+ *    next to the running game (portrait: under the strip, landscape: the right side; the pad hidden meanwhile). The
+ *    page sends its changes to the live config itself; the poll below picks them up (the page's "sent" wakes it).
  *  The in-ROM practice menu is on the game's START (the pad's START). */
 class CharacterLab(private val act: MainActivity, private val root: FrameLayout, private val emu: () -> EmuThread?,
                    private val play: (File) -> Unit, private val reserve: (Int) -> android.graphics.Rect, private val leave: () -> Unit) {
@@ -123,6 +126,12 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     private val dl = java.util.concurrent.Executors.newSingleThreadExecutor()
     private var poller: Thread? = null
     var polls200 = 0; var polls304 = 0; var polls404 = 0; var pollsErr = 0
+    private val wake = java.util.concurrent.LinkedBlockingQueue<Int>()   // a poll now (the Assembly page sent a config)
+    /** set by MainActivity: the Assembly panel opened (true) / closed: the pad hidden, the picture's place */
+    var onAssembly: ((Boolean) -> Unit)? = null
+    private val assembly = Assembly(act, root) { f, rev -> Log.i(TAG, "lab: the Assembly sent $f r$rev: poll now"); wake.offer(1) }
+    init { Screen.assembly = false }                                 // (a process-wide flag: an activity recreated with the
+                                                                     // panel open must not inherit it)
 
     // ---- network -------------------------------------------------------------------------------------------------
     private class Resp(val code: Int, val etag: String?, val body: ByteArray?)
@@ -205,6 +214,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
 
     /** the faces screen over the game (paused): the catalogue's fighters, the shell / pack versions */
     fun open() {
+        closeAssembly()
         if (!active) { active = true; startPoll() }
         emu()?.paused = true
         if (faces == null) {
@@ -308,6 +318,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     }
 
     private fun leaveLab() {
+        closeAssembly()
         stop()
         faces?.let { root.removeView(it) }; faces = null
         bar?.let { root.removeView(it) }; bar = null; reserve(0)
@@ -316,7 +327,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
     }
 
     /** the back key: the faces close (back to the game), or open over it */
-    fun back() { if (facesOpen && pack != null) close() else if (facesOpen) leaveLab() else open() }
+    fun back() { if (assembly.open) closeAssembly() else if (facesOpen && pack != null) close() else if (facesOpen) leaveLab() else open() }
 
     /** what a feedback note taken now ran (0.0.29): the shell + the pack in the core (+ the live config written), not
      *  brawler.neo; null = the core is not on the lab's shell */
@@ -340,13 +351,13 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             while (active) {
                 if (!paused) try { pollOnce(); if (offline) { offline = false; act.runOnUiThread { refreshLight() } } }
                     catch (x: Exception) { pollsErr++; Log.w(TAG, "poll: ${x.message}"); if (!offline) { offline = true; act.runOnUiThread { refreshLight() } } }
-                try { Thread.sleep(2000) } catch (x: InterruptedException) { break }
+                try { wake.poll(2000, java.util.concurrent.TimeUnit.MILLISECONDS); wake.clear() } catch (x: InterruptedException) { break }
             }
         }.apply { isDaemon = true; name = "lab-poll"; start() }
     }
 
     fun stop() {
-        active = false; poller?.interrupt(); poller = null
+        active = false; poller?.interrupt(); poller = null; Screen.assembly = false
         if (EmuThread.hook != null) EmuThread.hook = null
         blink(false)
     }
@@ -500,6 +511,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
      *  buttons, the badge in the row (0.0.29 stacked it in the left gutter: on a phone it covered the d-pad) */
     private lateinit var applyBtn: Button
     private lateinit var facesBtn: Button
+    private lateinit var asmBtn: Button
     private var barPortrait: Boolean? = null
     private var listening = false
     private val barFill get() = Color.rgb(8, 8, 12)
@@ -511,6 +523,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         label = text("", 13f, true).apply { setPadding((8 * dp).toInt(), 0, (8 * dp).toInt(), 0) }
         applyBtn = button("Apply now", Color.rgb(150, 100, 0)) { now() }
         facesBtn = button("Faces", Color.rgb(60, 60, 70)) { open() }
+        asmBtn = button("Assembly", Color.rgb(20, 70, 170)) { if (assembly.open) closeAssembly() else openAssembly() }
         badgeView = text("", 13f, true).apply { visibility = View.GONE; val m = (6 * dp).toInt(); setPadding(m, m / 2, m, m / 2)
             background = GradientDrawable().apply { setColor(Color.rgb(20, 70, 170)); setStroke((2 * dp).toInt(), Color.WHITE); cornerRadius = 6 * dp } }
         root.addView(b); bar = b; barPortrait = null
@@ -523,7 +536,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         val b = bar ?: return
         if (barPortrait == portrait) return
         barPortrait = portrait
-        listOf(lamp, label, applyBtn, facesBtn, badgeView).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        listOf(lamp, label, applyBtn, facesBtn, asmBtn, badgeView).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
         b.removeAllViews()
         val bh = (36 * dp).toInt(); val g = (6 * dp).toInt()
         val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -533,6 +546,7 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
         if (!portrait) head.addView(badgeView, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = g })
         head.addView(applyBtn, LinearLayout.LayoutParams(-2, bh))
         head.addView(facesBtn, LinearLayout.LayoutParams(-2, bh).apply { leftMargin = g })
+        head.addView(asmBtn, LinearLayout.LayoutParams(-2, bh).apply { leftMargin = g })
         b.addView(head, LinearLayout.LayoutParams(-1, -2))
         if (portrait) b.addView(badgeView, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (4 * dp).toInt() })
     }
@@ -552,6 +566,32 @@ class CharacterLab(private val act: MainActivity, private val root: FrameLayout,
             leftMargin = a.left; topMargin = a.top }
         b.post { val r = IntArray(2); b.getLocationOnScreen(r)                      // the proof reads it (PadView logs the pad)
             Log.i(TAG, "strip ${r[0]},${r[1]} - ${r[0] + b.width},${r[1] + b.height}") }
+        if (assembly.open) assembly.place(panelRect(a, b.measuredHeight))
+    }
+
+    // ---- the Assembly (0.0.32): the web page beside the game ----------------------------------------------------
+    /** portrait: under the strip, to the bottom; landscape: the right side, full height (Screen.assemblyW) */
+    private fun panelRect(a: android.graphics.Rect, stripH: Int): android.graphics.Rect {
+        val w = root.width; val h = root.height; val m = (4 * dp).toInt()
+        return if (Screen.portrait(w, h)) android.graphics.Rect(0, a.top + stripH + m, w, h)
+               else android.graphics.Rect(w - Screen.assemblyW(w, h), 0, w, h)
+    }
+    private fun openAssembly() {
+        val f = pack?.fighter ?: swapReq?.fighter
+        if (f == null) { android.widget.Toast.makeText(act, "Pick a fighter first (Faces)", android.widget.Toast.LENGTH_SHORT).show(); return }
+        Screen.assembly = true; onAssembly?.invoke(true)            // the pad hidden, the layout for the panel
+        asmBtn.text = "Close"
+        place()
+        val b = bar ?: return
+        assembly.show(f, panelRect(reserve(-1), b.measuredHeight))
+        place()
+    }
+    private fun closeAssembly() {
+        if (!assembly.open) return
+        assembly.hide()
+        Screen.assembly = false; onAssembly?.invoke(false)
+        if (::asmBtn.isInitialized) asmBtn.text = "Assembly"
+        place()
     }
 
     private fun now() {

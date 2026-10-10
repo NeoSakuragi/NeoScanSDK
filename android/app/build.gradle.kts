@@ -11,8 +11,8 @@ android {
         applicationId = "com.neoscan.player"
         minSdk = 26
         targetSdk = 36
-        versionCode = 31
-        versionName = "0.0.31"
+        versionCode = 32
+        versionName = "0.0.32"
         // a test build of the self-update (PlayerUpdate.kt): ./gradlew assembleDebug -PplayerCode=22 -PplayerName=0.0.22
         (project.findProperty("playerCode") as String?)?.let { versionCode = it.toInt() }
         (project.findProperty("playerName") as String?)?.let { versionName = it }
@@ -21,6 +21,8 @@ android {
         buildConfigField("String", "ROM_URL", "\"https://canneji.duckdns.org/brawler/download/\"")
         // the Oros server: its /api/login gives the token every call carries (Auth.kt, Player 0.0.15)
         buildConfigField("String", "AUTH_URL", "\"https://canneji.duckdns.org/oros/\"")
+        // the web Lab (tools/brawler/chainlab): the Assembly page the Character lab shows (Assembly.kt, Player 0.0.32)
+        buildConfigField("String", "LAB_WEB_URL", "\"https://canneji.duckdns.org/brawler-lab/\"")
     }
     externalNativeBuild { ndkBuild { path = file("src/main/cpp/Android.mk") } }
     buildTypes { release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("debug") } }

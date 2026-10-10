@@ -2754,5 +2754,18 @@
   "expect": "On the final purple blast every Ryo around Iori (up to about 112 px in front and 96 px behind him) is knocked down burning purple, losing life, the ones behind him thrown backward; the Ryo far in front (about 150 px) is not touched. Down+D (his MAX, at low life) ends the same way.",
   "do_keys": "4:d",
   "proof": 260
+ },
+ "20261010-143820-b3f3": {
+  "title": "Running into an enemy grabs him, as walking does",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 150
+  },
+  "do": "Ryo stands well in front of Iori. Tap forward twice and hold it: Iori runs into Ryo. Then try Terry, Kim (his dash) and a jumping enemy.",
+  "expect": "The run ends into the grab: Iori holds Ryo as he does when he walks into him (same reach, same depth line). Kim's dash grabs the same way. An enemy in the air (his own jump), knocked down or lying is not grabbed: the run goes on under or past him. Walking into an enemy still grabs as before.",
+  "do_keys": "3:R,3:-,60:R",
+  "proof": 90
  }
 }
