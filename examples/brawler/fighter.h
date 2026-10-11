@@ -646,9 +646,8 @@ void fighter_play(fighter_t *f, uint8_t anim);              /* outside the state
 void fighter_animate(fighter_t *f);
 void fighter_pose(fighter_t *f, uint8_t anim);             /* fighter_play / fighter_animate with the animation's voices */
 void fighter_pose_tick(fighter_t *f);                       /* (main.c: the stage clear's win pose, TODO #184) */
-uint8_t fighter_stage_end(fighter_t *f);                    /* (main.c win_tick, the win pose's end) its stage-end form
-                                                               (bm_stage_end) taken: 1 when it changed form */
-uint8_t fighter_next_stage_ch(const fighter_t *f);          /* the bm_chars index it starts the next stage as */
+uint8_t fighter_next_stage_ch(const fighter_t *f);          /* the bm_chars index it starts the next stage as (its
+                                                               stage-end form, bm_stage_end, else its base form) */
 void fighter_revive(fighter_t *f);
 void fighter_respawn(fighter_t *f);  /* a life used: full life, dropping from above the screen where it is (TODO #166 e) */
 void fighter_quake(const fighter_t *by, fighter_t *v);   /* the respawn's landing: v knocked down, away from by, no damage */

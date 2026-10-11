@@ -2989,7 +2989,7 @@
   "proof": 400
  },
  "20261011-115334-5d29": {
-  "title": "Super Billy's stage clear: he turns back into Billy, the next stage starts with Billy",
+  "title": "Super Billy's stage clear: his win pose turns him back into Billy and holds, no snap to a stand, the next stage starts with Billy",
   "setup": {
    "mode": "stage",
    "fighter": "billy_lee",
@@ -3001,9 +3001,9 @@
    "gap": 200,
    "meter": "full"
   },
-  "do": "Stage 1, the boss alone with 1 life point. Press down + D to turn into Super Billy, then walk to the boss and hit him once. Watch the stage clear and start the next stage.",
-  "expect": "STAGE CLEAR, then Super Billy plays his win animation, which turns him back into Billy Lee; the HUD's name and face change to BILLY LEE as he stands. Stage 2 starts with Billy Lee (name, face, moves), not Super Billy.",
-  "do_keys": "3:D,4:Dd,140:-,40:R,2:a",
+  "do": "Stage 1, the boss alone with 1 life point. Press down + D to turn into Super Billy, then double-tap forward and press A in the dash's hop to kick the boss. Watch the stage clear up to the next screen, then start the next stage.",
+  "expect": "STAGE CLEAR, then Super Billy plays his win animation, which turns him back into Billy Lee; its last picture (Billy) holds until the screen changes: he never snaps back into a standing stance. The next stage starts with Billy Lee (name, face, moves), not Super Billy.",
+  "do_keys": "3:D,4:Dd,100:-,1:R,2:-,1:R,8:-,2:a",
   "proof": 1200
  },
  "20261011-120326-5d29": {

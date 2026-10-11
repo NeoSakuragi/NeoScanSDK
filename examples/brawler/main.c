@@ -2264,11 +2264,7 @@ static void win_tick(void) {                     /* every fight frame after the 
                 f->frame_ovr = 0xFFFF; f->vx = f->vz = 0;
                 fighter_pose(f, BA_WIN); win_st[i] = WIN_POSE; win_t[i] = 0; win_step[i] = 0xFF;
             } else if (++win_t[i] >= WIN_SETTLE || f->state == S_DEAD || f->state == S_OFF) win_st[i] = WIN_NONE;
-        } else if ((f->anim_done || win_t[i]) && win_t[i] < 0xFFFF) {   /* (counting on once the pose ended) */
-            if (!win_t[i] && fighter_stage_end(f)) win_step[i] = 0xFF;   /* a form the pose turns back (game.json
-                                                        stage_end_form: Super Billy -> Billy Lee): that fighter now */
-            win_t[i]++;
-        }
+        } else if (f->anim_done && win_t[i] < 0xFFFF) win_t[i]++;
         if (win_st[i] == WIN_POSE) {                 /* the source's own motion: each step's travel as it starts (KOF's
                                                         $FB), its height (Billy Lee's back flip, export_dd air_steps) */
             const bstep_t *s = fighter_step(f);

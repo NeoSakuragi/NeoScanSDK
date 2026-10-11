@@ -873,22 +873,14 @@ static void form_set(fighter_t *f, const bchar_t *to) {   /* the fighter's chara
     f->node = 0; f->buffered = 0; f->spec_buf = f->fury_buf = 0; f->chain_t = 0; f->air_node = 0; f->landed = 0;
     walk_rate(f);                                                /* (its walk: the new form's archetype) */
 }
-/* the stage end (note 20261011-115334-5d29, game.json roster[].stage_end_form -> bm_stage_end): a form whose stage-clear
- * win animation turns it back into another roster entry (Double Dragon's Super Billy: his win animation IS the
- * turn-back into Billy Lee) is that fighter once the pose has played: its character data swapped as the form link does
- * (form_set: the HUD's face and name follow fighter_t.ch), standing in its own idle; the form link closed when the
- * target is its base form. At the next stage every player starts in his base form (exit rule FX_NEVER keeps the
- * form), life and meter fighter_init's. One path, any fighter: no name in the code. */
-uint8_t fighter_stage_end(fighter_t *f) {
-    uint8_t to = bm_stage_end[f->ch->id];
-    if (to == 0xFF || &bm_chars[to] == f->ch) return 0;
-    if (f->form_from == to + 1) f->form_from = 0;               /* back to its base form: the link closed */
-    form_set(f, &bm_chars[to]);
-    f->vx = f->vy = f->vz = 0; f->y = 0;
-    enter(f, S_IDLE); play(f, BA_IDLE);
-    return 1;
-}
+/* the stage end (note 20261011-115334-5d29 + its reopen, game.json roster[].stage_end_form -> bm_stage_end): a form
+ * whose stage-clear win animation turns it back into another roster entry (Double Dragon's Super Billy: his win
+ * animation IS the turn-back into Billy Lee) starts the next stage as that entry. Nothing is swapped on screen: the
+ * pose's last frame (already the other fighter) holds through the transition, the character data changes unseen at
+ * the next stage's start (main.c campaign: pl_ch). Otherwise every player starts the next stage in his base form
+ * (exit rule FX_NEVER keeps the form), life and meter fighter_init's. One path, any fighter: no name in the code. */
 uint8_t fighter_next_stage_ch(const fighter_t *f) {
+    if (bm_stage_end[f->ch->id] != 0xFF) return bm_stage_end[f->ch->id];
     if (f->form_from && bm_chars[f->form_from - 1].form_exit != FX_NEVER) return f->form_from - 1;
     return f->ch->id;
 }
