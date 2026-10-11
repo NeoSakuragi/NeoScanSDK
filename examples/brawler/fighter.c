@@ -3699,6 +3699,15 @@ static uint8_t hit_spark(fighter_t *a, const fighter_t *v, const bbox_t *atk, co
     BANK_set(ob);
     if (!code) return 0;
     if (code & 0x80) hitflash = HITFLASH;
+    {                                                            /* at most HMARK_MAX marks on screen (Bruno 2026-10-11: */
+        fighter_t *old = 0; uint8_t nm = 0;                      /* SS2's blood splashes cost sprites + CPU): the newest */
+        for (i = 0; i < NPJ; i++) {                              /* hit takes the oldest mark's place */
+            fighter_t *q = &projectiles[i];
+            if (q->state == S_OFF || !q->pdef || q->pdef->kind != PK_FX) continue;
+            nm++; if (!old || q->prow > old->prow) old = q;
+        }
+        if (nm >= HMARK_MAX) old->state = S_OFF;
+    }
     for (i = 0; i < NPJ; i++) nfree += projectiles[i].state == S_OFF;
     if (nfree >= 2) {
         int16_t hx = box_x(v, hb->x) - (a->facing > 0 ? hb->w >> 1 : -(hb->w >> 1));

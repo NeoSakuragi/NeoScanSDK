@@ -605,6 +605,7 @@ extern uint16_t bighit_col;               /* its backdrop colour (fighter.c big_
 #define HITFLASH 10                /* Double Dragon's super hit strobe (fighter.c hit_spark, TODO #215): its frames from the */
 extern uint8_t hitflash;           /* hit (main.c screen_fx: red 2, 3, 6, 7 frames after the spark shows, as DD's screen),
                                       frames left; BIGHIT_COL = DD's red */
+#define HMARK_MAX 2                /* hit marks (PK_FX) alive at once: a new one replaces the oldest (fighter.c hit_spark) */
 #define PK_FX 6                    /* bproj_t kind: a source game's hit spark (vocabulary fx.hit_spark, TODO #215): no box, no
                                       shadow, its rows from the hit point (fighter.c hit_spark: x, height py0) */
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */
