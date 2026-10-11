@@ -41,7 +41,7 @@ import ss2, neo2 as N
 P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
      'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'adv': 16, 'check': 17, 'part': 18, 'evclr': 19,
      'onhit': 20, 'put': 21, 'hitclr': 22, 'hold': 23, 'unhold': 24, 'sigclr': 25, 'hitoff': 26, 'add': 27, 'form': 28,
-     'voice': 29, 'vsig': 30, 'lanim': 36, 'warp': 37}        # bm_chars.h P_*
+     'voice': 29, 'vsig': 30, 'turn': 31, 'lanim': 36, 'warp': 37}        # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 PC = {'end': 0, 'event': 1, 'land': 2, 'fall': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'always': 7, 'stepev': 8, 'window': 9,
       'link': 10, 'hitany': 11, 'sig7c': 13, 'passed': 20, 'caught': 21}
@@ -143,6 +143,29 @@ def hao_214a(v):
     playing 329 after it, 99 frames)"""
     return [E(328, [('set', 'vx', 0)], [('end', 'end')])], []
 
+def hao_secret(v):
+    """Tenha Fuujinzan (the secret move), 3 4 1 2 3 4 2 1 + B+C -> result 53 ($357DE) [code]:
+    0 anim 336 $35808: $46BAE($1822): entry 50 (vx 2 px a frame, vy 0; bit 12: no gravity, bit 11: next entry), spawn
+      object type 47 (fuujin, its +$CC = him); $358B0 every frame: the object hit a non-guarding opponent high up (y <
+      192) -> the backdrop flash $6A66A (not modelled)
+    1 $35824 (param): the end -> next
+    2 anim 264 $35830: $46BAE($0823) entry 51: the jump (vx 3.3, vy 17 up), gravity, next
+    3 $35844 (param): the apex -> next (an object hit: the flash object 63 once, +$DC)
+    4 anim 265 $35866: +$118 = -1; $46BAE($0824) entry 52: vx / vy; entry 53's pair -> +$D0 / +$D2 (its own
+      acceleration), +$EE = $80
+    5 $3588E (param): until landed vx += +$D0, vy += +$D2 -> next
+    6 anim 3 $358A8: the end -> neutral
+    From entry 2 on the same frame as Kogetsu Zan A+B (623S AB: the same rise, unfitted in the game too)"""
+    vx0 = vword(0, 0x1822)[0]; jx, jy = vword(0, 0x823); fx, fy = vword(0, 0x824)
+    ax, ay = vtab(0, 0x24 + 16 + 1)
+    return [E(336, [('set', 'vx', bx(vx0)), ('set', 'vy', 0), ('spawn', 0)], [('now', 'next')]),
+            E(None, conds=[('end', 'next')]),
+            E(264, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy))], [('now', 'next')], phys='grav'),
+            E(None, conds=[('apex', 'next')], phys='grav'),
+            E(265, [('set', 'vx', bx(fx)), ('set', 'vy', by(fy))], [('now', 'next')], phys='air'),
+            E(None, conds=[('land', 'next')], phys=('custom', ax, ay)),
+            E(3, conds=[('end', 'end')])], [('fuujin', 0)]
+
 # SS2's big hit (TODO #188 c): Haohmaru's WFT routine on a connect ($354E8 $2B958 -> $354FA) calls $2B9DE with
 # $6A672 = (31, 0, 0, 48): the backdrop ($108A86 -> $401FFE every frame, $172C) red for 48 frames ($8AE2), and its hit
 # (the hit routine's big-hit branch $26CB0: +$FB = 32 to both, the slow-motion counter $8AC8 = 30) holds both 40
@@ -194,7 +217,7 @@ def decel_frames(v0, dv):
         if abs(v) < abs(dv): v = 0
     return n - 1
 
-def gen_236s(v):
+def gen_236s(v, auto=0):
     """the three-part slash, 2 3 6 + A / B / A+B -> results 41-43 ($563AA), then 2 1 4 / 2 3 6 + a button inside it:
     the type-5 cancel entries (results 44-46 from 41-43, 47-49 from 44-46: the allow table $6CA32) [code]:
     part 1: 0 anim 343 $563C2: +$D4 = b, vx = word $6B536[b] (8 px a frame), +$D6 = the count; next ($2B81A)
@@ -208,19 +231,36 @@ def gen_236s(v):
     No push between the players while it plays (descriptor byte 4 = $80 -> +$FF bit 7: $CC14 skipped): he slides
     through his opponent (the brawler: SF_NOPUSH).
     The brawler: one special of three parts, the follow-up = C again (the cancel's press) inside a window step after a
-    connect; the button row latched at the start serves the three parts."""
+    connect; the button row latched at the start serves the three parts.
+    auto 2 / 3: the AUTOMATIC chain (gen_auto: results 53-55 / 56-58), the next part with no press: 'auto' = connected
+    in this part (+$D5, P_HITOFF at each part's start) and a window step (+$D8 = word $6B55A / $6B55C = 0 frames)"""
     out = []
+    nparts = auto or 3
     for k, (tab, a) in enumerate(((0x6B536, 363), (0x6B542, 366))):
         vx, cnt = N.s16(tab + 4 * v), N.s16(tab + 4 * v + 2)
         dvx, dd = N.s16(0x6B54E + 4 * v), N.s16(0x6B54E + 4 * v + 2)
         base = len(out)
-        out += [E(343, ([('part',)] if k else []) + [('set', 'vx', bx(vx)), ('set', 'cnt', cnt)], [('now', base + 1)], part=k),
+        go = (('auto' if auto else ('link', 1)), 'part%d' % (k + 1))
+        out += [E(343, ([('part',)] if k else []) + ([('hitoff',), ('face',)] if auto and k else []) + [('set', 'vx', bx(vx)), ('set', 'cnt', cnt)], [('now', base + 1)], part=k),
                 E(None, conds=[('passed', base + 2), ('cnt', base + 2)], part=k),
                 E(a, [('set', 'vx', bx(dvx)), ('set', 'cnt', decel_frames(dvx, dd))],
-                  [(('link', 1), 'part%d' % (k + 1)), ('end', 'end')], phys=('decel', bx(dd)), part=k,
+                  ([go] if k + 1 < nparts else []) + [('end', 'end')], phys=('decel', bx(dd)), part=k,
                   flags={i: 0x2000 for i, s in enumerate(ss2.parse_anim(12, a)) if s['flags'] & 0x0800})]
-    out += [E(369, [('part',), ('set', 'vx', 0)], [('end', 'end')], part=2)]
+    if nparts == 3: out += [E(369, [('part',)] + ([('hitoff',), ('face',)] if auto else []) + [('set', 'vx', 0)], [('end', 'end')], part=2)]
     return out, []
+
+def gen_auto(nparts):
+    """the slash chain's AUTOMATIC versions [code]: results 53 / 54 / 55 ($567FC: part 1 then part 2) and 56 / 57 / 58
+    ($568F8: all three parts), A / B / A+B. The player reaches 53 / 54 only by 2 1 4 + A / B while his card wave is out
+    (entries 27 / 28: the card entries 6-8 need no projectile of his on screen, b4 bit 1, and the first match of a frame
+    wins: $31B4E); 55 has no command entry and 56-58's (29-31) always lose to 2 3 6 + S (entries 12-14): the CPU's
+    (its command lookup $31B94 picks an entry by its result). Per part: $5682C / $56940 the first part's start with +$D5
+    = 0 (no connect yet) and the count +$D8 = word $6B55A (0); $5685C / $56990 the slash: a connect sets +$D5; $568B4 /
+    $569E8: the deceleration, then with +$D5 every frame on a window step (+$74 bit 3) +$D8 - 1, below 0 -> the next part
+    (0: the first window frame after the connect); no connect: the animation's end -> neutral; $56848 / $5695C / $5697C
+    the next part's start = the manual chain's ($56506 / $5663A) after $56A26 (turned to face the opponent: modelled
+    as P_TURN when the opponent is strictly behind him: PC_PASSED with v -1; SS2 at the same x faces left)"""
+    return lambda v: gen_236s(v, auto=nparts)
 
 def VL(entries, fly=None, rel=None):
     """a caught victim's list (vocabulary hold.victim_list; fighter.c vlist_apply): entries [(dx, dy, posture key
@@ -587,9 +627,11 @@ def mozu_lists(v):
 # fighter -> its specials: input -> (decoder, buttons, the command results per button (moves/CC.json's entries))
 SPECIALS = {
     'haohmaru': {'236S': (hao_236s, 3, (41, 42, 43)), '623S': (hao_623s, 3, (38, 39, 40)), '623K': (hao_623k, 3, (48, 49, 50)),
-                 '236K': (hao_236k, 1, (44,)), '214A': (hao_214a, 1, (47,)), 'WFT': (hao_wft, 1, (37,))},
+                 '236K': (hao_236k, 1, (44,)), '214A': (hao_214a, 1, (47,)), 'WFT': (hao_wft, 1, (37,)),
+                 '34123421BC': (hao_secret, 1, (53,))},          # (Character Lab 2026-10-11: Lab pieces only, LAB_ONLY)
     'genjuro': {'214S': (gen_214s, 3, (38, 39, 40)), '236S': (gen_236s, 3, (41, 42, 43)), '623S': (gen_623s, 3, (50, 51, 52)),
-                'WFT': (gen_wft, 1, (37,))},
+                'WFT': (gen_wft, 1, (37,)),
+                'auto 214S': (gen_auto(2), 3, (53, 54, 55)), 'auto 236S': (gen_auto(3), 3, (56, 57, 58))},   # (Lab only)
     'hanzo': {'6321S': (han_6321s, 3, (38, 39, 40)), '623K': (han_623k, 3, (43, 44, 45)), 'WFT': (han_wft, 1, (37,)),
               'j.4123S': (han_j4123s, 3, (48, 49, 50)),      # (j.: an air special, TODO #211: game.json air_special)
               # the rest of his recogniser (Character Lab 2026-10-10): Lab pieces only (LAB_ONLY: not in the game's pool)
@@ -606,9 +648,20 @@ SPECIALS = {
                'RAGE': (kur_rage(False), 1, (37,)), 'MAX RAGE': (kur_rage(True), 1, (38,))},
 }
 CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17, 'hanzo': 2}
-LAB_ONLY = {('hanzo', '641236S'), ('hanzo', '6464642BCD'), ('hanzo', 'run 623K'), ('hanzo', 'SD (6464642+A)')}   # (63214BCD: in the game, his breaker)   # decoded for the Character Lab (its
+LAB_ONLY = {('haohmaru', '34123421BC'), ('genjuro', 'auto 214S'), ('genjuro', 'auto 236S'), ('hanzo', '641236S'), ('hanzo', '6464642BCD'), ('hanzo', 'run 623K'), ('hanzo', 'SD (6464642+A)')}   # (63214BCD: in the game, his breaker)   # decoded for the Character Lab (its
                                                   # pieces, condition 'lab'): the normal game's pools take 'normal' only
-NAMES = {'hanzo': {'6321S': 'Ninpou Bakuen Ryuu', '623K': 'Ninpou Mozu Otoshi', 'WFT': 'Ninpou Tenma Fukumetsu (rage)',
+NAMES = {'haohmaru': {'236S': 'Ougi Senpuu Retsuzan', '623S': 'Ougi Kogetsuzan', '623K': 'Ougi Resshinzan',
+                      '236K': 'Senpuu Retsuzan feint', '214A': 'Sake Kougeki', 'WFT': 'Tenha Seikouzan (rage)',
+                      '34123421BC': 'Tenha Fuujinzan (secret)'},
+         'genjuro': {'214S': 'Oukazan', '623S': 'Kirihaku Kouyokujin', '236S': 'Sanrensatsu', 'WFT': 'Gokouzan (rage)',
+                     'auto 214S': 'Sanrensatsu, two parts automatic (card out / CPU)',
+                     'auto 236S': 'Sanrensatsu, three parts automatic (CPU)'},
+         # (SNK's names: snk.fandom.com "Samurai Shodown II/Move List", read through its API 2026-10-11: Haohmaru Ougi
+         # Senpuu Retsuzan qcf S (its "fake-out": the ROM's 2 3 6 + C / D / C+D, anim 293), Ougi Kogetsuzan dp S, Ougi
+         # Resshinzan dp K, Sake Kougeki qcb A, Tenha Fuujinzan (secret, + B+C), Tenha Seikouzan hcbf A; Genjuro Oukazan
+         # qcb S, Kirihaku Kouyokujin dp S, Sanrensatsu qcf S (+ qcb / qcf S twice), Gokouzan hcbf A; "Toy
+         # Transformation" = the SD pose. The inputs here are the ROM's.)
+         'hanzo': {'6321S': 'Ninpou Bakuen Ryuu', '623K': 'Ninpou Mozu Otoshi', 'WFT': 'Ninpou Tenma Fukumetsu (rage)',
                    'j.4123S': 'Ninpou Reppuu Shuriken (air)', '641236S': 'Ninpou Kage Bunshin', '63214BCD': 'Ninpou Utsusemi',
                    '6464642BCD': 'Ninpou Kagemai', 'run 623K': 'Ninpou Mozu Otoshi out of a run',
                    'SD (6464642+A)': 'Super-deformed pose'}}   # SNK's names (snk.fandom.com "Hanzo Hattori/Move List", read through
@@ -680,6 +733,9 @@ def compile_prog(ents):
             elif o[0] == 'move_now': ops.append(('move',))
             elif o[0] == 'vsig': ops.append(('vsig',))
             elif o[0] == 'fxoff': ops.append(('fxoff',))
+            elif o[0] == 'hitoff': ops.append(('hitoff',))      # P_HITOFF: the connect flag cleared (a new part's +$D5)
+            elif o[0] == 'face':                          # turned to face its target ($56A26): P_TURN when the target is
+                ops += [('br', 'passed', 0, ('FC', i), -1), ('turn',), ('label', ('FC', i))]   # behind (PC_PASSED v -1)
             elif o[0] == 'warp': ops.append(('warp', o[1], o[2], o[3]))   # P_WARP a = mode (1 screen, 0 target), b dx, v
             else: raise ValueError(o)
         ops += [('resume_at', ('LP', i)), ('jmp', ('R', i)), ('label', ('LP', i))]
@@ -699,6 +755,9 @@ def compile_prog(ents):
                 ops += [('br', 'window', 0, ('NL', i, k)), ('br', 'hit', 0, ('NL', i, k)), ('check', c[1]),
                         ('br', 'link', 1, ('I', T[1]), c[1]), ('label', ('NL', i, k))]
                 continue
+            if c == 'auto':                           # connected and a window step: that frame's physics, then T (gen_auto)
+                ops += [('br', 'window', 0, ('NA', i, k)), ('br', 'hit', 1, ('S', i, k)), ('label', ('NA', i, k))]
+                sw.append((('S', i, k), T, extra, True)); continue
             if c == 'passed':                         # its opponent reached / passed ($563F4): that frame's physics, then T
                 ops.append(('br', 'passed', 1, ('S', i, k), 0)); sw.append((('S', i, k), T, extra, True)); continue
             if c == 'cnt': ops.append(('dec',)); cond = 'cnt'
@@ -871,6 +930,15 @@ def crescent(B, v):
     return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 3, 'travel': 0,
             'name': 'KOGETSU', 'ss2': {'type': 1, 'anim': a}}
+
+def fuujin(B, v):
+    """Haohmaru's object type 47 ($3012A) [code]: animation 337 at its thrower's place, following him while his animation
+    is the one it was born on ($3015A: +$66 unchanged), then launched ($30182: $46BAE($1226)) to its animation's end; its
+    first hit ends it ($301CA: $3052). The brawler: pinned to him for its whole animation (crescent's rule, TODO #148)"""
+    rows = obj_rows(B, 0, play_anim(0, 337))
+    return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 3, 'travel': 0,
+            'name': 'FUUJIN', 'ss2': {'type': 47, 'anim': 337}}
 
 def cards(B, v):
     """Genjuro's object type 10 ($4B46C) [code]: animation 264 (8 steps looping) 76 px ahead, 59 up; vx $6B512[b]
@@ -1077,7 +1145,7 @@ def mozufire(B, k):
             'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0,
             'travel': 0, 'name': 'MOZUFIRE', 'ss2': {'effect': 14, 'anim': 244}}
 
-OBJECTS = {'kclone': kclone, 'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
+OBJECTS = {'fuujin': fuujin, 'kclone': kclone, 'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
 def rom_steps(B, ch, a, flags, react, catch=False, grab=None):
@@ -1213,8 +1281,9 @@ def special(B, ch, name, inp, vdef=None):
                                                        # SS2's action routine runs in the frame the action is set; TODO #191)
     if parts:                                          # follow-ups (the slash chain): its parts, the press 'again'
         rom['parts'] = [{'states': [states[j] for j, (ei, a) in enumerate(sts0) if ents0[ei]['part'] == p]} for p in parts]
-        rom['follow_links'] = [{'from': p, 'to': p + 1, 'input': 'again'} for p in parts[:-1]]
-        rom['links'] = ['again']
+        if any(isinstance(c[0], tuple) and c[0][0] == 'link' for e in ents0 for c in e['conds']):   # (gen_auto: no press)
+            rom['follow_links'] = [{'from': p, 'to': p + 1, 'input': 'again'} for p in parts[:-1]]
+            rom['links'] = ['again']
     cond = 'version' if vdef is not None else 'lab' if (name, inp) in LAB_ONLY else 'normal'
     return {'input': inp if vdef is None else version_input(inp, vdef, nv), 'condition': cond, 'version': 'whiff', 'script': script,
             'name': NAMES.get(name, {}).get(inp), 'base_input': inp, 'row_boxes': rb, 'row_steps': rs,
@@ -1595,6 +1664,10 @@ def check(names=('haohmaru', 'genjuro')):
                 s0 = next(i for i, q in enumerate(cr) if q['p1']['cls'] == 1)
                 x0 = cr[s0]['p1']['x']                   # (frame 0 still moves by the walk's last velocity)
                 anims_l = [{'steps': r['anims'][s]['steps'], 'hold': True, 'ss2': r['anims'][s]['ss2']} for s in r['states']]
+                a_first = anims_l[v * r['vtable']['vanim'] if cols else 0]['ss2']
+                if not jair and cr[s0]['p1']['a'] != (a_first[0] if isinstance(a_first, tuple) else a_first):
+                    res[f'{name} {inp} {"ABC"[v] if nv > 1 else ""}'] = f"no capture of it (the entry's capture played anim {cr[s0]['p1']['a']}: another entry won, gen_auto)"
+                    continue
                 pl = Play(r['prims'], anims_l, vars_, v, cols, r['vtable']['vanim'])
                 if jair:                                 # from the jump: its height where the move starts (fighter.c
                     pl.y = (224 - cr[s0]['p1']['y']) << 16   # start_special drops the jump's speed: SS2 moves once more

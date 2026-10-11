@@ -364,6 +364,45 @@ overwrote that load 6): tryit.js now waits for `lab.load` to clear before every 
   - The air throw T-004: needs an air grab (both airborne, close, B / A+B) or a fourth paired-throw slot.
   - Kage Bunshin's stance follow-ups (a button = far A / far B / far A+B / crouch C / crouch D) and the clone's log.
 
+## Haohmaru and Genjuro (SS2) — Character Lab, 2026-10-11 (Bruno: "create Genjuro and Haohmaru full pack")
+Hanzo's path for the next two SS2 fighters (roster `haohmaru` / `genjuro`, banks `samsho2:haohmaru` / `samsho2:genjuro`):
+animdict DICTS (647 / 644 animations), every recogniser result decoded as a program (handlers_ss2.SPECIALS), each button
+version its own S- piece, SS2's three throws as T- pieces, knobs from the programs (knobs.derive_ss2), SNK's SS2 names
+(snk.fandom.com "Samurai Shodown II/Move List", read through its API). The normal game build is byte-identical (its
+specials are the same programs; the new ones are LAB_ONLY).
+- **Haohmaru** (arb_pieces/haohmaru_ids.json): S-001 214A Sake Kougeki, S-002 / S-004 / S-003 236 A / B / A+B Ougi Senpuu
+  Retsuzan, S-005 236K the feint (2 3 6 + C / D / C+D: one descriptor $35536, one piece; anim 293 has no attack record),
+  S-006 3 4 1 2 3 4 2 1 + B+C Tenha Fuujinzan (the secret move, NEW: result 53 $357DE, anim 336 2 px a frame + object 47
+  = anim 337 pinned to him, then 623S A+B's jump, LAB_ONLY), S-007 / S-009 / S-008 623 A / B / A+B Ougi Kogetsuzan,
+  S-010 / S-012 / S-011 623 C / D / C+D Ougi Resshinzan, S-013 WFT Tenha Seikouzan; T-001 slash throw (B / A+B, anim 274),
+  T-002 kick throw (D / C+D, 346), T-003 the Earthquake throw (class 4 action 4, anim 270: a plain piece). 33 knobs.
+- **Genjuro** (arb_pieces/genjuro_ids.json): S-001 / S-003 / S-002 214 A / B / A+B Oukazan (the card), S-004 / S-006 /
+  S-005 236 A / B / A+B Sanrensatsu (three parts, the next part = C again), S-007 / S-009 / S-008 623 A / B / A+B Kirihaku
+  Kouyokujin, S-010 WFT Gokouzan, S-011..S-013 / S-014..S-016 the slash chain's AUTOMATIC versions (NEW, LAB_ONLY: results
+  53-55 two parts, 56-58 three parts; SS2's player reaches 53 / 54 only by 2 1 4 + A / B with his card on screen, the rest
+  is the CPU's: handlers_ss2.gen_auto): the next part with no press once the part connected and a window step shows
+  (`auto` condition: P_BR window / hit), P_HITOFF per part, turned to face the opponent when he is behind ($56A26: P_BR
+  passed v -1 + P_TURN); T-001 slash throw, T-002 the same throw (SS2 gives him one: B / A+B and D / C+D both play 274),
+  T-003 the Earthquake throw. 38 knobs.
+- Packs (format 1, published 2026-10-11 against the live shell 20261010-222951, no shell change: every op they use is a
+  feature already): haohmaru 1,778,200 B (.labslot 74,208 / 130,048, bank 307,000, tiles 10,044 / 24,576, voices 11 / 48),
+  genjuro 1,707,996 B (80,120, 343,468, 9,314, 12); their LAB specials hold 617 / 647 and 610 / 644 dictionary animations
+  (the rest need palettes past his 8, as Hanzo's).
+- Check (`tools/samsho2/ss2_lab_proof.py <f>`: every S- / T- piece from a slot override in the shell + his pack, our
+  emulator, a training dummy): Haohmaru 16 / 16, Genjuro 19 / 19, in this branch's shell and in the published one.
+  `handlers_ss2.py check haohmaru genjuro`: the game's programs unchanged; 53-55's captures played the card (another
+  entry won), so the automatic chain has no SS2 capture to compare.
+- The Assembly's "now" (arbitrage.py): an SS2 roster special named by its base input (`623S`) resolves to the version
+  the game plays (roster variant, else the heaviest), so the slot shows its animations and S- id.
+- Decoded, NOT imported:
+  - The SD pose ("Toy Transformation", 6 3 2 1 4 6 4 + B for both, result 45, anim 82; handlers_ss2.han_sd is generic):
+    Haohmaru's drawing needs palettes 64 / 1065, Genjuro's 36 / 116 / 1117, past the 8 a fighter loads (bchar_t npal /
+    MAX_PALS, or the SD sprite recoloured into his 8).
+  - Tenha Fuujinzan's screen flash ($358B0: object 47 hits a non-guarding opponent high up -> the backdrop $6A66A) and
+    object 47's end on its first hit ($301CA): the brawler plays it pinned for its whole animation (the crescent's rule).
+  - The weapon loss on the WFT hit (+$B8) and the unarmed throws (class 4 actions 11-13, anims 275 / 347): no weapon
+    state in the engine (TODO #175).
+
 ---
 
 The sections below were the Character Lab's notes in docs/feedback.md, docs/brawler_gold.md and

@@ -30,7 +30,7 @@ REPO = os.path.dirname(TOOLS)
 for p in (os.path.join(TOOLS, 'kof96'), os.path.join(TOOLS, 'kizuna'), os.path.join(TOOLS, 'neosdk')):
     if p not in sys.path: sys.path.insert(0, p)
 
-DICTS = {'kim': 'kizuna', 'krauser': 'kof96', 'robert': 'kof98', 'iori': 'kof98', 'terry': 'kof98', 'ryo': 'kof98', 'ralf': 'kof98', 'yamazaki': 'kof98', 'billy': 'kof98', 'kyo': 'kof98', 'mai': 'kof98', 'yashiro': 'kof98', 'hanzo_ss2': 'samsho2'}   # the fighters with a dictionary and its source
+DICTS = {'kim': 'kizuna', 'krauser': 'kof96', 'robert': 'kof98', 'iori': 'kof98', 'terry': 'kof98', 'ryo': 'kof98', 'ralf': 'kof98', 'yamazaki': 'kof98', 'billy': 'kof98', 'kyo': 'kof98', 'mai': 'kof98', 'yashiro': 'kof98', 'hanzo_ss2': 'samsho2', 'haohmaru': 'samsho2', 'genjuro': 'samsho2'}   # the fighters with a dictionary and its source
 FPS = 59.18
 PER_SHEET = 16
 

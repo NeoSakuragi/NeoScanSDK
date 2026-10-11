@@ -1,0 +1,162 @@
+{
+ "fighter": "genjuro",
+ "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
+ "next": {
+  "S": 17,
+  "T": 4
+ },
+ "pieces": {
+  "S-001": {
+   "kind": "special",
+   "input": "214A",
+   "name": "Oukazan, A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-002": {
+   "kind": "special",
+   "input": "214AB",
+   "name": "Oukazan, A+B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-003": {
+   "kind": "special",
+   "input": "214B",
+   "name": "Oukazan, B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-004": {
+   "kind": "special",
+   "input": "236A",
+   "name": "Sanrensatsu, A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-005": {
+   "kind": "special",
+   "input": "236AB",
+   "name": "Sanrensatsu, A+B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-006": {
+   "kind": "special",
+   "input": "236B",
+   "name": "Sanrensatsu, B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-007": {
+   "kind": "special",
+   "input": "623A",
+   "name": "Kirihaku Kouyokujin, A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-008": {
+   "kind": "special",
+   "input": "623AB",
+   "name": "Kirihaku Kouyokujin, A+B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-009": {
+   "kind": "special",
+   "input": "623B",
+   "name": "Kirihaku Kouyokujin, B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-010": {
+   "kind": "special",
+   "input": "WFT",
+   "name": "Gokouzan (rage)",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-011": {
+   "kind": "special",
+   "input": "auto 214A",
+   "name": "Sanrensatsu, two parts automatic (card out / CPU), A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-012": {
+   "kind": "special",
+   "input": "auto 214AB",
+   "name": "Sanrensatsu, two parts automatic (card out / CPU), A+B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-013": {
+   "kind": "special",
+   "input": "auto 214B",
+   "name": "Sanrensatsu, two parts automatic (card out / CPU), B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-014": {
+   "kind": "special",
+   "input": "auto 236A",
+   "name": "Sanrensatsu, three parts automatic (CPU), A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-015": {
+   "kind": "special",
+   "input": "auto 236AB",
+   "name": "Sanrensatsu, three parts automatic (CPU), A+B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-016": {
+   "kind": "special",
+   "input": "auto 236B",
+   "name": "Sanrensatsu, three parts automatic (CPU), B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "T-001": {
+   "kind": "throw",
+   "input": "hold + forward + A (SS2: close + forward / back + B or A+B)",
+   "name": "Slash throw B or A+B",
+   "move": "throw_c",
+   "source": "export throws",
+   "assigned": "2026-10-11"
+  },
+  "T-002": {
+   "kind": "throw",
+   "input": "hold + back + A (SS2: close + forward / back + D or C+D)",
+   "name": "Slash throw D or C+D (SS2 gives Genjuro one throw: the same as T-001)",
+   "move": "throw_d",
+   "source": "export throws",
+   "assigned": "2026-10-11"
+  },
+  "T-003": {
+   "kind": "throw",
+   "input": "the extra throw (SS2: any throw on Earthquake / Kuroko, class 4 action 4)",
+   "name": "Earthquake throw: SS2 any throw on Earthquake or Kuroko",
+   "move": "throw_x",
+   "source": "export throws",
+   "assigned": "2026-10-11"
+  }
+ }
+}

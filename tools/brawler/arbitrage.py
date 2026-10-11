@@ -6,7 +6,7 @@ roster entry. The page pre-fills every slot with it, marked "now"; his picks rep
 "<fighter>-arb").
 
     python3 tools/brawler/arbitrage.py OUT [GAME_DIR] [FIGHTER ...]   -> OUT/review/<fighter>_arb.json"""
-import json, os, sys
+import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, HERE)
@@ -46,13 +46,21 @@ def now_of(r, D, chain_len, gen=None, sids=None):
         if name in moves: return anims(moves[name])
         return [a['id'] for a in D.values() if name in (a.get('exported') or []) and a['status'] == 'ok']
     tags = {k[1:].upper(): v for k, v in (r.get('anim_specials') or {}).items()}
+    def ver(n):
+        """an SS2 multi-button special ('623S', '236K') as the button version the game plays (roster variant, else the
+        heaviest: handlers_ss2.special's default row): its dictionary animations and S- id are that version's ('623A')"""
+        m = re.match(r'^(.*\d)([SK])$', n or '')
+        if not m or not str(r.get('bank', '')).startswith('samsho2:'): return n
+        b = (r.get('variant') or {}).get(n) or ('AB' if m.group(2) == 'S' else 'CD')
+        return m.group(1) + b.replace('+', '')
     def slot(names, text=''):
         names = names if isinstance(names, list) else [names]
-        ps = [x for n in names for x in anims(n)]
+        ps = [x for n in names for x in (anims(n) or anims(ver(n)))]
         t = [text] if text else []
         t += [f'${p}: {tags[p]}' for p in ps if p in tags]
         if not ps and names and names[0] and not text: t.append(f'{names[0]} (no animation found)')
-        return {'pieces': ps, 'text': '; '.join(t), 'moves': [n for n in names if n], 'ids': [sids[n] for n in names if n in sids]}
+        return {'pieces': ps, 'text': '; '.join(t), 'moves': [n for n in names if n],
+                'ids': [sids.get(n) or sids.get(ver(n)) for n in names if n and (n in sids or ver(n) in sids)]}
     out = {}
     links = list((r.get('chain') or {}).get('links') or [])
     own = r.get('finishers') or {}
