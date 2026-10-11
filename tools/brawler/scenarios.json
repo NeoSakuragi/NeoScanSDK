@@ -3244,17 +3244,17 @@
   "proof": 90
  },
  "20261011-154500-5d29": {
-  "title": "Hanzo: down, down + A = his far A+B slash",
+  "title": "Hanzo: forward, forward + A = his close slash again; down, down + A = his far A+B slash; air down, down + A = the shuriken",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
    "dummy": "ryo",
-   "gap": 70
+   "gap": 40
   },
-  "do": "Stand a little away from Ryo (as now) and tap down, down + A.",
-  "expect": "Hanzo plays his far A+B slash (the long sword swing), free, and it knocks Ryo down. Like the SS2 move it reaches from a little distance: very close it can miss. His fury (D) is still the rage move.",
-  "do_keys": "1:D,1:-,1:D,2:a,60:-",
-  "proof": 60
+  "do": "Tap forward, forward + A next to Ryo. When he is back up, walk up to him and tap down, down + A. Then jump (B) and tap down, down + A in the air, and press A as he hops back after the throw.",
+  "expect": "Forward, forward + A plays his close slash again (as before 0.10.54) and hits Ryo. Down, down + A plays his far A+B slash (the long sword swing), free, and knocks Ryo down; very close it can miss. In the air, down, down + A throws the shuriken, and A in the hop after it plays his jump attack. His fury (D) is still the rage move.",
+  "do_keys": "1:R,1:-,1:R,2:Ra,100:-,30:R,10:-,1:D,1:-,1:D,2:Da,100:-,3:b,8:-,1:D,1:-,1:D,2:Da,40:-,3:a,60:-",
+  "proof": 370
  },
  "20261011-161838-5d29": {
   "title": "Ryo: fury x2, MAX fury x3 damage",
