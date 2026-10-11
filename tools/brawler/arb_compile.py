@@ -501,6 +501,9 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
             if not n_: x.status, x.cls, x.why = 'unresolved', 'd', why; out.append(x); continue
             for k in AIR[slot]: new.setdefault('air', {})[k] = n_
             x.status, x.cls, x.value, x.why, x.field = 'linked', 'a', n_, why, ' + '.join('air.' + k for k in AIR[slot])
+            if n_.endswith('_jump') and re.fullmatch(r'[0-9A-F]+', ps[0]):   # a forward jump plays the move's _diag twin (KOF / SS2):
+                new.setdefault('moves', {})[n_ + '_diag'] = '$' + ps[0]     # the same animation there too (Kim's atk_d_jump(_diag))
+                x.field += f' (+ moves {n_}_diag = ${ps[0]})'
             out.append(x); continue
         # Blitz, specials, air specials, fury: a special (or, for a Blitz, a normal's move)
         air = slot in AIRSP
