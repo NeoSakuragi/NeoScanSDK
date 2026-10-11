@@ -3363,7 +3363,7 @@
   "proof": 100
  },
  "20261011-201729-5d29": {
-  "title": "Kyo: the forward + C triple kick, half as high, 20 % shorter",
+  "title": "Kyo: the forward + C triple kick, half as high, its full distance",
   "setup": {
    "mode": "lab",
    "fighter": "kyo",
@@ -3372,7 +3372,21 @@
    "drive": "full"
   },
   "do": "Press forward + C a little away from Ryo.",
-  "expect": "The triple kick rises about half as high as before (peak 44 px instead of 87) and covers about 0.8 of its old distance (151 px instead of 189). It still reaches and hits Ryo.",
+  "expect": "The triple kick rises about half as high as before (peak 44 px instead of 87) and covers its full original distance again (about 189 px, no longer shortened). It still reaches and hits Ryo.",
+  "do_keys": "2:R,2:Rc",
+  "proof": 110
+ },
+ "20261011-204904-5d29": {
+  "title": "Kyo: the forward + C triple kick keeps the half height, X distance back to 100 %",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 120,
+   "drive": "full"
+  },
+  "do": "Press forward + C a little away from Ryo.",
+  "expect": "The triple kick still rises only half as high as the original (peak 44 px instead of 87) but travels the full original distance again (about 189 px, not 151). It still reaches and hits Ryo.",
   "do_keys": "2:R,2:Rc",
   "proof": 110
  }

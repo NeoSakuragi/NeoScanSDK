@@ -456,3 +456,8 @@ Compiled from the sheet without an agent: 14 slot(s) linked, 0 unresolved; slots
 Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
 - knobs: {"sp_fc": {"S-007": {"rise": 2.83, "travel": 8}}} (roster[].knobs, measured by knob_check)
 - (note 20261011-201729-5d29, "divide the total height by two and reduce the total X distance by 20%": measured in our emulator, forward + C alone: peak 87.3 -> 44.1 px (0.505; the height goes with the rise squared, so rise 4 -> 2.83 = 4 / sqrt 2), travel 189.2 -> 151.2 px (0.799, travel 10 -> 8); recipe scenarios.json 20261011-201729-5d29)
+
+### KYO: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.61)
+Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- knobs: {"sp_fc": {"S-007": {"rise": 2.83}}} (roster[].knobs, measured by knob_check)
+- (notes 20261011-201729-5d29 reopened + 20261011-204904-5d29, "keep the half height as we have now, but reset the X distance to 100%": travel knob back to its default 10 (override dropped), rise stays 2.83; measured in our emulator, forward + C alone (dummy off): peak 44.1 px, travel 188.1 px (189.2 before round 2); recipes scenarios.json 20261011-201729-5d29 / 20261011-204904-5d29)
