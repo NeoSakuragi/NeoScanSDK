@@ -1694,7 +1694,8 @@ static void title_start(void) {
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     title_screen();
     bios_start = 0;
-    snd_music(GAME_MUS_SELECT);
+    snd_music(GAME_MUS_TITLE);                               /* a credit is in: KOF94's coin song (game.json music.title;
+                                                             voice note 20261011-114853-5d29) */
     save_load();
     title_sel = save.furthest != 0; title_hold = 0; title_paid = 0;   /* line 1 = CONTINUE when there is one */
     title_menu();
@@ -1752,7 +1753,7 @@ static void options_exit(void) {
     opt_on = 0;
     if (difficulty != opt_diff0) { save.difficulty = difficulty; save_write(); }   /* AES: CARD_SAVE at once */
     title_screen(); title_menu();
-    snd_music(GAME_MUS_SELECT);
+    snd_music(GAME_MUS_TITLE);
 }
 static void options_tick(void) {
     uint16_t pr = JOY_pressed(0), h = JOY_held(0);
@@ -2416,14 +2417,19 @@ static void boss_start(void) {
     if (k < DR_COUNT && !attract) drama_start(k, gs->boss_song); else snd_music(gs->boss_song);
     hud_wave();
 }
-static void go_sign(uint8_t on) { FIX_print(29, 3, on ? "GO -->" : "      ", 1); }   /* highlighted (palette 1), in the HUD's black band */
+static void go_sign(uint8_t on) {                       /* highlighted (palette 1), in the HUD's black band */
+    FIX_print(29, 3, on ? "GO -->" : "      ", 1);
+    if (on) snd_ssg(SSG_GO);                             /* each time it shows: the SSG buzz (songs.json ssg GO; voice
+                                                            note 20261011-114459-5d29), over the music */
+}
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
     mode = 1; nf = NE; cam_x = 0; wave = 0; cont_ov = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
     triggers_reset(); dr_on = DR_OFF; dr_cols = 0; guard_parity = shadow_parity = 0;      /* a drama cut short (the lab): dbg_init below hides its sprites */
     inputs_reset();
-    snd_music(gs->music);
+    if (!attract) snd_music(gs->music);                      /* the attract demo: no music (voice note 20261011-114853-5d29:
+                                                                no music before a credit, as an arcade's attract) */
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
     sparks_init();
     sf_reset();
@@ -2476,7 +2482,8 @@ static void attract_start(void) {                      /* the logo: the title sc
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     title_screen();
     bios_start = 0;
-    snd_music(GAME_MUS_SELECT);
+    /* no music (voice note 20261011-114853-5d29: before a credit, silence, as an arcade's attract; the BIOS reset the
+       sound CPU before handing over): the title's song starts with the credit (title_start) */
     attract = 2; attract_t = 0;
 }
 /* the attract (logo or demo) ends on the title (TODO #209): START with a credit (AES: START; MVS: the BIOS took the

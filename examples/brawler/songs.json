@@ -75,9 +75,11 @@
   {"name": "THEME_GENJURO", "source": "samsho2", "cmd": "28", "what": "TODO #219: Genjuro's stage theme (docs/samsho2_songs.md: stage 12, measured)"},
   {"name": "THEME_HANZO_SS2", "source": "samsho2", "cmd": "31", "what": "TODO #219: Hanzo's stage theme in Samurai Shodown II (docs/samsho2_songs.md: stage 2, stage table)"},
   {"name": "THEME_KIM", "source": "kizuna", "cmd": "24", "what": "TODO #219: Kim's theme, Kizuna Encounter's stage 5 (stage = fighter id, table $DFA6; stage 5 measured in our emulator: $24, the harbour market; Rosa's stage 4 plays it too)"},
-  {"name": "STAGE_HIGHWAY", "source": "kizuna", "cmd": "22", "label": "HIGHWAY", "what": "voice note 20261011-111810-5d29 (Bruno: the Kizuna highway music, \u9ad8\u901f\u9053\u8def): Kizuna Encounter's stages 2 / 3, the broken elevated expressway (night / day); stage -> song word[$4DD18 + 2 stage] = index $25 -> $22, measured in our emulator ($109658 forced to 2 and 3: $22 sent at the round start; docs/kizuna_songs.md): the brawler's stage 2"}
+  {"name": "STAGE_HIGHWAY", "source": "kizuna", "cmd": "22", "label": "HIGHWAY", "what": "voice note 20261011-111810-5d29 (Bruno: the Kizuna highway music, \u9ad8\u901f\u9053\u8def): Kizuna Encounter's stages 2 / 3, the broken elevated expressway (night / day); stage -> song word[$4DD18 + 2 stage] = index $25 -> $22, measured in our emulator ($109658 forced to 2 and 3: $22 sent at the round start; docs/kizuna_songs.md): the brawler's stage 2"},
+  {"name": "TITLE", "source": "kof94", "cmd": "2D", "what": "voice note 20261011-114853-5d29 (Bruno: no music before a credit, the KOF94 intro music once a coin is in, the KOF95 select music after START): KOF94's song after a coin (measured, docs/kof94_songs.md: its opening's arrangement, tempo $C2, loops in 27.9 s): the title screen (game.json music.title); the attract (logo + demo) plays no music"}
  ],
  "ssg": {"what": "menu sounds (TODO #63): SSG cues on KOF98's own generated-sound path (command type 5), free commands $74-$77, data in the fixed area's free bytes (tools/port/ssg_cues.py); voices = SSG A, B, C: [note, ticks (13.9 ms), level 0-15]; build/snd/songs.h SSG_<name>",
+  "reclaim": {"65": {"from": "7A93", "to": "7B0D", "what": "KOF98's own cue $65 (header $7A93, its four streams to $7B0D, right after $7A's; docs/kof98_sound_driver.md: KOF98's cue data $774B-$7B2D), never sent by the brawler: given up for the GO buzz's 50 bytes, the area $2C56-$2DFF and the spare words being full since COIN"}},
   "cues": [
    {"name": "CURSOR", "cmd": "74", "what": "Fatal Fury 3's cursor (its SSG effect $60, TODO #75): its periods and levels exactly, 4 steps of 2 timer-A interrupts (36.8 ms) as 3-2-3-3 ticks (step ends within 5 ms of FF3)",
     "voices": [[["A5", 3, 11], ["A5", 2, 4], ["A6", 3, 9], ["A6", 3, 4]],
@@ -96,6 +98,10 @@
     "voices": [[["P226", 5, 11], ["P226", 6, 7], ["P103", 5, 11], ["P103", 5, 7], ["P47", 5, 11], ["P47", 6, 7], ["P47", 6, 9], ["P47", 5, 5], ["P47", 5, 7], ["P47", 5, 4], ["P47", 6, 5], ["P47", 10, 3], ["P47", 6, 2]],
                [["-", 3, 0], ["P165", 5, 11], ["P165", 5, 7], ["P102", 5, 11], ["P102", 6, 7], ["P56", 6, 11], ["P56", 5, 7], ["P56", 5, 9], ["P56", 5, 5], ["P56", 6, 7], ["P56", 5, 4], ["P56", 5, 5], ["P56", 11, 3], ["P56", 3, 2]],
                [["-", 5, 0], ["P126", 6, 11], ["P126", 5, 5], ["P79", 5, 11], ["P79", 5, 7], ["P41", 6, 11], ["P41", 6, 5], ["P41", 5, 9], ["P41", 5, 5], ["P41", 5, 7], ["P41", 6, 4], ["P41", 5, 5], ["P41", 11, 3]]]}
+,
+   {"name": "GO", "cmd": "79", "what": "voice note 20261011-114459-5d29 (Bruno: each time the blinking GO shows, an SSG buzz like Streets of Rage's / Final Fight's GO): two short buzzes, SSG A and B a half semitone apart (the beat makes the buzz), each 4 ticks loud + 1 decaying, a 3-tick gap (main.c go_sign)",
+    "voices": [[["A4", 4, 13], ["A4", 1, 7], ["-", 3, 0], ["A4", 4, 13], ["A4", 1, 7]],
+               [["A4+", 4, 12], ["A4+", 1, 6], ["-", 3, 0], ["A4+", 4, 12], ["A4+", 1, 6]]]}
   ]},
  "bosses": ["BOSS_MR_BIG", "BOSS_KRAUSER", "BOSS_GEESE", "BOSS_RUGAL", "BOSS_GOENITZ"],
  "voices": {"bank": "../../tools/brawler/voices.json", "map": "build/voice_map.json", "slots": [2, 3], "prefixes": ["1C", "1E"], "overflow": {"slots": [4, 5], "prefixes": ["1B", "17"]},

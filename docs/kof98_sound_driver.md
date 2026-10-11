@@ -508,6 +508,11 @@ streams use running status (a note after a note leaves out its `$EA` when the no
 cues write the same SSG registers as before) and the COIN header sits in the cue table's words for `$66-$6F` (type-0
 commands: those words are never read). The game sends it (main.c `coin_in`) whenever a credit count in backup RAM
 goes up (MVS), on every screen; the coin that ends the attract demo sounds after the title's song start.
+GO `$79` (voice note 20261011-114459-5d29) = the buzz each time the stage's blinking GO --> shows (main.c `go_sign`,
+every 32 frames): two 4-tick buzzes (+1 decaying tick, 3 ticks apart) on SSG A at A4 and SSG B at A4 + half a
+semitone (the beat makes the buzz), 180 ms. The area and the spare words being full since COIN, songs.json ssg
+"reclaim" gives up KOF98's own cue `$65` (never sent by the brawler): type 0, no pointer, its 122 bytes `$7A93-$7B0C`
+zeroed, and GO's 50 bytes (header + two streams) go there.
 Measured (`ssg_cues.py --check`): each cue alone writes SSG registers only, its notes / levels / periods in order,
 each step within 2 interrupts of its length. `--mix` (song + `$1A` hits with and without the 8 cues over them): every
 song and effect write identical in value and order; in the select song's run one more timer interrupt dropped by the

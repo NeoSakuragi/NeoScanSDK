@@ -9,11 +9,13 @@ docs/kof98_sound_driver.md "SSG cues"), no driver code changed. build_snd.py cal
 
 What build() writes into the fixed 32 KB (every other byte of it stays KOF98's):
   $3038 + cmd - $20  type byte 5 (the cue commands are unused in KOF98: type 0)
-  $331E + 2 (cmd - $60)  pointer to the cue's header (KOF98's own cues $65 $70-$73 $7A $7F stay)
+  $331E + 2 (cmd - $60)  pointer to the cue's header (KOF98's own cues $65 $70-$73 $7A $7F stay, but a "reclaim" one)
   $2C56-$2DFF  free in KOF98 ($FF): the headers [4 enables][priority][noise mixer][4 stream pointers] (blocks SSG A, B, C,
                noise) and the streams: per step [length][$EA][note][level] (opcode $2A, gate = length), a rest =
                [length][$C1] (no-op), end [$01][$C6]. The first channel to reach its end ends the cue on every
                channel (measured), so every voice is padded with a rest to the longest
+  "reclaim": {"65": {"from": "7A93", "to": "7B0D"}}  a KOF98 cue the brawler never sends, given up (type 0, no pointer)
+               for its data's bytes (zeroed): a cue goes there once the area and the spare words are full (the GO buzz)
 Note byte (driver $0B74): bits 7-5 octave shift o, bit 4 half-semitone, bits 3-0 semitone n: period = word($2AC8 + 8n) >> o
 (the table is C1 = 32.7 Hz at 125 kHz / period), so o = octave - 1. A raw period "P<n>" gets a table word no named note
 of any cue uses (raw_notes: the table is the cues' alone, no KOF98 song nor port writes the SSG; KOF98's own cues, never
@@ -81,6 +83,12 @@ def build(m1, cfg):
     for p, nb in raw.items():                             # the raw periods' table words (octave shift 0: period = word)
         t = PERIODS + 8 * (nb & 0x0F) + (4 if nb & 0x10 else 0); m1[t:t + 2] = bytes([p & 0xFF, p >> 8]); words.append((t, t + 2))
         assert period(m1, nb) == p
+    rooms = []                                            # songs.json ssg "reclaim": KOF98 cues the brawler never sends,
+    for k, r in cfg.get('reclaim', {}).items():           # given up (type 0, no pointer) for their data's bytes
+        cmd = int(k, 16); a, b = int(r['from'], 16), int(r['to'], 16); tw = CUE_TAB + 2 * (cmd - 0x60)
+        assert m1[TYPES + cmd - 0x20] == 5 and (m1[tw] | m1[tw + 1] << 8) == a, f'${cmd:02X}: not a KOF98 cue at ${a:04X}'
+        m1[TYPES + cmd - 0x20] = 0; m1[tw:tw + 2] = bytes(2); m1[a:b] = bytes(b - a); rooms.append([a, b, a])
+        words += [(TYPES + cmd - 0x20, TYPES + cmd - 0x1F), (tw, tw + 2), (a, b)]
     for c in cfg['cues']:
         cmd = int(c['cmd'], 16); assert 0x61 <= cmd <= 0x7E and m1[TYPES + cmd - 0x20] == 0, f"${cmd:02X} is in use"
         vs = c['voices']; assert 1 <= len(vs) <= 3
@@ -88,11 +96,18 @@ def build(m1, cfg):
         ss = [stream(v + ([['-', total - sum(t for _, t, _ in v), 0]] if total > sum(t for _, t, _ in v) else []), raw)
               for v in vs]                                # the first channel to end ends the whole cue (measured): the
                                                           # shorter voices wait out the longest with a rest
-        if at + 14 + sum(map(len, ss)) > AREA_END and spare + 14 <= SPARE_END:
-            hdr = spare; spare += 14                      # (TODO #199: the COIN cue's header, the area full)
-        else: hdr = at; at += 14
+        n = sum(map(len, ss))
+        room = None
+        if at + 14 + n <= AREA_END: hdr = at; at += 14; w = at
+        elif at + n <= AREA_END and spare + 14 <= SPARE_END:
+            hdr = spare; spare += 14; w = at              # (TODO #199: the COIN cue's header, the area full)
+        else:                                             # the area and the spare words full: a given-up KOF98 cue's bytes
+            r = next((r for r in rooms if r[2] + 14 + n <= r[1]), None)
+            assert r, f"cue {c['name']}: {14 + n} bytes, no room left (songs.json ssg: area, spare words, reclaim)"
+            hdr = r[2]; w = hdr + 14; r[2] += 14 + n; room = r
         ptrs = []
-        for s in ss: ptrs.append(at); m1[at:at + len(s)] = s; at += len(s)
+        for s in ss: ptrs.append(w); m1[w:w + len(s)] = s; w += len(s)
+        if room is None: at = w                           # (in the area: its end moves)
         en = [1] * len(vs) + [0] * (4 - len(vs))
         p = b''.join(bytes([a & 0xFF, a >> 8]) for a in ptrs + [0] * (4 - len(vs)))
         m1[hdr:hdr + 14] = bytes(en + [PRIO, 0]) + p

@@ -2960,5 +2960,32 @@
   "expect": "Billy hops forward in his Double Dragon dash (a crouch, a low hop of about a quarter of the screen, a landing) instead of running. A in the hop plays his jumping kick and knocks the dummy down; down + A his jumping down attack; he finishes the dash's course in the air and lands as from a jump. Without a button the dash stays low on the ground for hits and ends on its own. B, C or D in the hop do nothing. Kim's dash and the other fighters' runs are as before.",
   "do_keys": "2:R,2:-,1:R,8:-,3:a",
   "proof": 60
+ },
+ "20261011-114853-5d29": {
+  "title": "No music before a credit, KOF94's intro music with it, KOF95's select music after START",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "Listen to the logo with INSERT COIN for a few seconds (and the demo fight if you wait). Press COIN once, listen, then press START.",
+  "expect": "No music on the logo nor in the demo fight. The coin brings the title (PRESS START) with KOF94's coin sound and KOF94's intro music (the song it plays after a coin), looping while you wait. START opens the select screen and KOF95's select music starts.",
+  "do_keys": "120:-,4:o,300:-,4:s,200:-",
+  "proof": 120
+ },
+ "20261011-114459-5d29": {
+  "title": "The blinking GO buzzes each time it shows",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "wait": 60,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Knock down the last enemy of the wave, then stand still and watch the GO --> sign blink at the top right.",
+  "expect": "Each time GO --> appears, a short SSG buzz (two quick buzzes, like the GO beep of Streets of Rage / Final Fight) plays over the stage music; the music goes on without a break. Walking right to the next stop ends the GO and the buzz.",
+  "do_keys": "1:a,30:-,1:a",
+  "proof": 400
  }
 }

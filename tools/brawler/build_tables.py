@@ -788,6 +788,7 @@ def tables(g, build):
          f'#define TINT_COUNT {len(M["tints"])}',
          f'#define SEL_NSLOT {len(select_layout(g))}',
          f'#define SEL_NPAL {sel_palbases(g, build)[1]}             /* the select screen\'s actors\' palettes from 16 (sel_palbase) */',
+         f'#define GAME_MUS_TITLE MUS_{g["music"].get("title", g["music"]["select"])}',
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
          f'#define GAME_MUS_CONTINUE MUS_{g["music"].get("continue", g["music"]["clear"])}',
          f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}',
