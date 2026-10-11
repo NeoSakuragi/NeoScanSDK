@@ -2002,7 +2002,7 @@ static void select_start(void) {
  * land `power` extra damage a hit. At the stage's end its boss comes in with its minions (at most 5, in minion colours:
  * fighter_colour's tints, never a playable colour set); the boss bar under the HUD; boss beaten: the minions go down,
  * STAGE CLEAR, the save (furthest stage, boss unlocked), BOSS UNLOCKED when its fighter was locked, a cut to the next
- * stage. After the last: CONGRATULATIONS, then the title. Players: 3 lives, then the continue ("continue and GAME OVER"
+ * stage. After the last: the ending ("the ending"), then the title. Players: 3 lives, then the continue ("continue and GAME OVER"
  * below). The attract demo plays the first stage's waves on background STAGE (make STAGE=n,
  * stages[] index) without a boss, the last wave again and again. ---- */
 
@@ -2571,15 +2571,15 @@ static void campaign(uint8_t left) {
         if (!win_dr) {                                       /* first the winner's big portrait, KOF's win screen in drama
                                                                 mode (game.json win_drama; note 20261009-230403-b3f3): its
                                                                 scenes skip a player whose fighter has none (if_portrait) */
-            win_dr = 1;
-            if (DR_WIN < DR_COUNT && !attract && (dr = &gdramas[DR_WIN], dr_next(0) < dr->n)) {
+            win_dr = 1;                                      /* (the last stage: none, the ending shows the portrait) */
+            if (DR_WIN < DR_COUNT && !attract && camp + 1 < GS_COUNT && (dr = &gdramas[DR_WIN], dr_next(0) < dr->n)) {
                 FIX_print(14, 13, "           ", 0); drama_start(DR_WIN, 0xFF); break;
             }
         }
         for (i = 0; i < 2; i++)
             if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = fighter_next_stage_ch(&fighters[i]); pl_set[i] = fighters[i].set; }   /* (its base form) */
-        if (unlock_k) unlock_start(unlock_k - 1);
-        else if (camp + 1 >= GS_COUNT) ending_start();
+        if (camp + 1 >= GS_COUNT) ending_start();          /* the last stage: the ending (BOSS UNLOCKED after it) */
+        else if (unlock_k) unlock_start(unlock_k - 1);
         else stage_begin(camp + 1, 0);
         break;
     }
@@ -3060,22 +3060,131 @@ static void unlock_start(uint8_t k) {
     snd_music(GAME_MUS_SELECT);
     snd_ssg(SSG_UNLOCK);                                     /* the fanfare blip over the music (SSG) */
 }
+/* ---- the ending (game.json "ending"; Bruno 2026-10-11, decisions open-2026-10-11 card ending-music): after the last
+ * stage's boss and the win poses, mode 4 plays three screens, each a cut, each passed with START / A-D after its `min`
+ * ticks or by itself:
+ *   EN_STORY  the winner (P1, or P2 when P1 is out) on black: his big portrait sliding in on the right (drama mode's,
+ *             portraits_big.h; a fighter without one: his win pose + his HUD face), under it a box (fix rows
+ *             EN_BOX0-27) with his name and his story (gend_story: 4-5 sentences wrapped to END_COLS) typed a character
+ *             every END_STORY_TYPE ticks, scrolling up a row when its EN_ROWS rows are full; KOF95's team ending
+ *   EN_STAFF  the staff roll (gend_staff) on black, scrolling up a fix row every END_STAFF_STEP ticks until its last line
+ *             reaches the middle row, then END_STAFF_HOLD ticks; KOF95's staff roll
+ *   EN_THANKS the winner in his win pose, THANK YOU FOR PLAYING; the staff roll's song fades out ($0A + END_THANKS_FADE)
+ * then BOSS UNLOCKED when this boss was beaten for the first time (unlock_k), then back to the BIOS (title / demo). ---- */
+enum { EN_STORY, EN_STAFF, EN_THANKS };
+#define EN_BOX0  19                              /* the story box: fix rows 19-27, opaque */
+#define EN_TXT0  21                              /* its text rows 21 .. 21 + EN_ROWS - 1 (row 20: the name) */
+#define EN_ROWS  5
+#define EN_COL0  3                               /* the text's first column (END_COLS wide) */
+#define EN_FEET  148                             /* a fighter shown on the story / thanks screen: his feet's screen y */
+static uint8_t en_st, en_w, en_line, en_col;    /* the screen; the winner (bm_chars index); the story's line + column typed */
+static uint16_t en_t, en_pos, en_hold;           /* ticks on this screen; the staff roll's rows scrolled; ticks since
+                                                    the story typed / the roll stopped */
+static uint8_t en_sub;                           /* ticks to the next character typed / row scrolled */
+static void en_row(uint8_t row, const char *t, uint8_t col0) {   /* a box row: blank cells, then t from col0 */
+    uint8_t c, pal = 0;
+    if (t && *t == '^') { t++; pal = 1; }       /* a heading: highlighted */
+    for (c = 0; c < 40; c++) fix_put(c, row, DRAMA_FONT + ' ');
+    if (t) for (c = 0; t[c]; c++) dr_put(col0 + c, row, t[c], pal);
+}
+static uint8_t en_len(const char *t) { uint8_t n = 0; if (*t == '^') t++; while (t[n]) n++; return n; }
+static void en_winner_pose(uint8_t m) {          /* the winner alone in his win pose on black, feet at EN_FEET */
+    show_start(m, en_w, pl_set[pl_on[0] || !pl_on[1] ? 0 : 1], RGB8(0, 0, 0));
+    floor_top = EN_FEET - SHOW_Z;
+}
 static void ending_start(void) {
-    show_start(4, pl_ch[0], pl_set[0], RGB8(8, 16, 40));
-    centre(3, "CONGRATULATIONS!");
-    centre(5, "ALL FIVE STAGES CLEARED");
-    portrait(18, 7, pl_ch[0], 0);
-    centre(24, "THANK YOU FOR PLAYING");
-    snd_music(GAME_MUS_CLEAR);
+    uint8_t i, pb, r;
+    const char *name;
+    en_w = pl_on[0] || !pl_on[1] ? pl_ch[0] : pl_ch[1];
+    en_winner_pose(4);
+    en_st = EN_STORY; en_t = en_hold = 0; en_sub = 0; en_line = en_col = 0;
+    for (i = 0; i < DBG_BOXES * 8; i++) cmd_push(VRAM_SCB3 + DBG_SPR + i, 0);   /* (the box viewer's sprites = PB_SPR's) */
+    dbg_shown = 0; dr_cols = 0;
+    pb = pb_of_fighter[en_w];
+    if (pb < PB_COUNT) { fighters[0].state = S_OFF; pb_show(pb, 1); }   /* the big portrait, sliding in on the right */
+    else portrait(4, 4, en_w, 0);                                        /* none: the win pose + the HUD face */
+    for (r = EN_BOX0; r < 28; r++) en_row(r, 0, 0);
+    name = bm_chars[en_w].name;
+    for (i = 0; name[i] && i < 16; i++) dr_put(EN_COL0 + i, EN_TXT0 - 1, name[i], 1);   /* the name plate, highlighted */
+    snd_music(GAME_MUS_ENDING);
+}
+static void staff_draw(void) {                   /* every fix row: the staff line now on it (line k at row 27 - en_pos + k) */
+    uint8_t row, c, n;
+    int16_t k;
+    const char *t;
+    for (c = 0; c < 40; c++) {
+        uint16_t *w = cmd_run(VRAM_FIX + c * 32 + 2, 28);
+        for (row = 0; row < 28; row++) {
+            k = (int16_t)en_pos - 27 + row;
+            w[row] = 0x20;
+            if (k < 0 || k >= END_STAFF_N) continue;
+            t = gend_staff[k]; n = en_len(t);
+            if (c < 20 - ((n + 1) >> 1) || c >= 20 - ((n + 1) >> 1) + n) continue;
+            w[row] = (uint16_t)((*t == '^') << 12) | (DRAMA_FONT + (uint8_t)t[c - (20 - ((n + 1) >> 1)) + (*t == '^')]);
+        }
+    }
+}
+static void staff_start(void) {
+    pb_hide();
+    fighters[0].state = S_OFF;
+    FIX_clear();
+    bd_set(RGB8(0, 0, 0));
+    en_st = EN_STAFF; en_t = en_hold = 0; en_sub = 0; en_pos = 0;
+    staff_draw();
+    snd_music(GAME_MUS_STAFF);
+}
+static void thanks_start(void) {
+    uint8_t k;
+    en_winner_pose(4);
+    en_st = EN_THANKS; en_t = 0;
+    for (k = 0; k < END_THANKS_N; k++) centre(21 + 2 * k, gend_thanks[k]);   /* under his feet (EN_FEET) */
+    if (END_THANKS_FADE) { snd_cmd(0x0A); snd_cmd(END_THANKS_FADE); }   /* the staff roll's song fades out */
+}
+static void ending_tick(void) {
+    uint16_t pr = JOY_pressed(0) | JOY_pressed(1);
+    uint8_t skip = (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)) != 0, r;
+    const char *const *s = gend_story[en_w], *t;
+    en_t++;
+    switch (en_st) {
+    case EN_STORY:
+        if (dr_slide) { dr_slide--; pb_place(dr_slide * 10); }
+        else if (fighters[0].state != S_OFF) fighter_animate(&fighters[0]);
+        if ((skip && en_t >= END_STORY_MIN) || (!s[en_line] && ++en_hold >= END_STORY_HOLD)) { staff_start(); break; }
+        if (!s[en_line] || ++en_sub < END_STORY_TYPE) break;
+        en_sub = 0; t = s[en_line];
+        if (!t[en_col]) {                            /* the line typed: the next one, on the next row or the box scrolled */
+            en_line++; en_col = 0;
+            if (en_line >= EN_ROWS && s[en_line])
+                for (r = 0; r < EN_ROWS; r++) en_row(EN_TXT0 + r, r + 1 < EN_ROWS ? s[en_line - EN_ROWS + 1 + r] : 0, EN_COL0);
+            break;
+        }
+        dr_put(EN_COL0 + en_col, EN_TXT0 + (en_line < EN_ROWS ? en_line : EN_ROWS - 1), t[en_col], 0);
+        en_col++;
+        break;
+    case EN_STAFF:
+        if (skip && en_t >= END_STAFF_MIN) { thanks_start(); break; }
+        if (en_pos < END_STAFF_N - 1 + 14) {        /* until the last line is on the middle row (13) */
+            if (++en_sub >= END_STAFF_STEP) { en_sub = 0; en_pos++; staff_draw(); }
+        } else if (++en_hold >= END_STAFF_HOLD) thanks_start();
+        break;
+    case EN_THANKS:
+        fighter_animate(&fighters[0]);
+        if (!((skip && en_t >= END_THANKS_MIN) || en_t >= END_THANKS_TIME)) break;
+        if (unlock_k) unlock_start(unlock_k - 1);   /* a boss beaten for the first time: BOSS UNLOCKED, then the BIOS */
+        else SYS_return();                           /* back to the BIOS: it commits the MVS save, shows the title
+                                                        (credits left) or the attract demo */
+        break;
+    }
 }
 static void show_tick(void) {
     uint16_t pr = JOY_pressed(0) | JOY_pressed(1);
+    if (mode == 4) { ending_tick(); return; }
     scr_t++;
     fighter_animate(&fighters[0]);
     if (scr_t < (mode == 3 ? 360 : mode == 5 ? 480 : 600) && !(scr_t >= 90 && (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) return;
-    if (mode >= 4) SYS_return();                             /* the ending, GAME OVER: back to the BIOS, which commits the MVS save
-                                                                and shows the title (credits left) or the attract demo */
-    else if (camp + 1 >= GS_COUNT) ending_start();
+    if (mode >= 4 || camp + 1 >= GS_COUNT) SYS_return();   /* GAME OVER, the last stage's BOSS UNLOCKED (after the
+                                                                ending): back to the BIOS, which commits the MVS save and
+                                                                shows the title (credits left) or the attract demo */
     else stage_begin(camp + 1, 0);
 }
 static void select_tick(void) {
@@ -3209,7 +3318,7 @@ void game_tick(void) {
 #if LAB_BUILD
     if (pm_on && mode == 1 && lab.active == 1) { pm_tick(); depth_sort(); draw(); hud(); return; }   /* the practice menu: paused */
 #endif
-    if (!lab.active && !dr_on) arcade_line();
+    if (!lab.active && !dr_on && mode != 4) arcade_line();   /* (the ending: its own screens, no bottom line) */
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }

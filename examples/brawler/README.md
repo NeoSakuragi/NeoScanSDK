@@ -89,8 +89,11 @@ Bosses (game.json `stages[].boss` -> an `enemies` entry, one a stage): at the st
 right edge with 2 + s minions (at most 5: boss + minions + 2 players = 8 fighters); its life (100 + 4 s, 1.7-1.9 x a
 fighter's 60; damage +1 + (s + 1) / 2) shows in the boss bar (name on fix row 6, a 30-cell bar on row 7); its theme
 starts as it comes in. Beaten: its minions go down with it, STAGE CLEAR, the save, BOSS UNLOCKED (its win pose, its
-portrait and name) when its fighter was locked, then the next stage; after stage 5 CONGRATULATIONS, then back to the
-BIOS (the title while credits remain, else the attract demo; this return is also what commits the MVS save).
+portrait and name) when its fighter was locked, then the next stage; after stage 5 the ending (game.json `ending`,
+main.c "the ending", Bruno 2026-10-11): the winner's big portrait (none: his win pose + HUD face) with his 4-5 sentence
+story typed in a scrolling box (KOF95's team ending $36), the staff roll (KOF95's staff roll $2B), THANK YOU FOR
+PLAYING (the song fades), BOSS UNLOCKED when the boss was new, then back to the BIOS (the title while credits remain,
+else the attract demo; this return is also what commits the MVS save). `tools/brawler/ending_proof.py` plays it.
 
 Win pose (TODO #184): at STAGE CLEAR the input is off; each player in play (both in a 2-player game) finishes what he
 is doing, turns toward the middle of the screen and plays his fighter's `win` animation once, with the voices its

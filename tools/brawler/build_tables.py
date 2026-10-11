@@ -778,6 +778,59 @@ def ai_rules(g):
     return out
 
 
+END_COLS = 34                                            # main.c "the ending": the story box's and the staff roll's width
+END_KEYS = {'about', 'music', 'staff_music', 'story', 'staff', 'thanks'}
+
+
+def wrap(text, cols):
+    """sentences -> lines of at most cols characters (words kept whole)"""
+    out, cur = [], ''
+    for w in text.split():
+        assert len(w) <= cols, f'{w!r}: longer than {cols}'
+        if cur and len(cur) + 1 + len(w) > cols: out.append(cur); cur = w
+        else: cur = f'{cur} {w}' if cur else w
+    return out + ([cur] if cur else [])
+
+
+def ending_tables(g):
+    """game.json "ending" (main.c "the ending"): its songs, timings, each roster fighter's story (wrapped to END_COLS,
+    '*' for any other), the staff roll's lines, the thanks screen's lines"""
+    e = g['ending']
+    for k in e: assert k in END_KEYS, f'ending: unknown field {k}'
+    st, sf, th = e['story'], e['staff'], e['thanks']
+    names = [r['name'] for r in g['roster']]
+    fs = st['fighters']
+    assert '*' in fs, 'ending.story.fighters: "*" (any other fighter) missing'
+    for n in fs: assert n == '*' or n in names, f'ending.story.fighters: {n} is not a roster fighter'
+    def ok(t, w): assert all(0x20 <= ord(ch) < 0x7F for ch in t), f'ending {w}: {t!r}: ASCII only'
+    for k in ('min', 'type', 'hold'): assert 1 <= st[k] <= 32767, f'ending.story.{k}'
+    for k in ('min', 'step', 'hold'): assert 1 <= sf[k] <= 32767, f'ending.staff.{k}'
+    for k in ('min', 'time'): assert 1 <= th[k] <= 32767, f'ending.thanks.{k}'
+    assert 0 <= th.get('fade', 0) <= 255, 'ending.thanks.fade'
+    h = [f'#define GAME_MUS_ENDING MUS_{e["music"]}   /* game.json ending: the story screen\'s song */',
+         f'#define GAME_MUS_STAFF MUS_{e["staff_music"]}    /* the staff roll\'s */',
+         f'#define END_STORY_MIN {st["min"]}', f'#define END_STORY_TYPE {st["type"]}', f'#define END_STORY_HOLD {st["hold"]}',
+         f'#define END_STAFF_MIN {sf["min"]}', f'#define END_STAFF_STEP {sf["step"]}', f'#define END_STAFF_HOLD {sf["hold"]}',
+         f'#define END_THANKS_MIN {th["min"]}', f'#define END_THANKS_TIME {th["time"]}', f'#define END_THANKS_FADE {th.get("fade", 0)}',
+         f'#define END_STAFF_N {len(sf["lines"])}', f'#define END_THANKS_N {len(th["lines"])}',
+         f'#define END_COLS {END_COLS}',
+         'extern const char *const *const gend_story[BC_COUNT];   /* per fighter its story\'s lines (wrapped), 0-terminated */',
+         'extern const char *const gend_staff[END_STAFF_N];        /* the staff roll, a line each ("^": a heading) */',
+         'extern const char *const gend_thanks[END_THANKS_N];']
+    c, keys = [], {}
+    for n, sents in fs.items():
+        assert 4 <= len(sents) <= 5, f'ending.story.fighters.{n}: 4-5 sentences'
+        lines = []
+        for t in sents: ok(t, f'story {n}'); lines += wrap(t, END_COLS)
+        keys[n] = f'gend_story_{"any" if n == "*" else n}'
+        c.append(f'static const char *const {keys[n]}[] = {{ ' + ', '.join(c_str(t) for t in lines) + ', 0 };')
+    c.append('const char *const *const gend_story[BC_COUNT] = { ' + ', '.join(keys.get(n, keys['*']) for n in names) + ' };')
+    for t in sf['lines'] + th['lines']: ok(t, 'staff / thanks'); assert len(t.lstrip('^')) <= END_COLS, f'ending: {t!r}: at most {END_COLS} characters'
+    c.append('const char *const gend_staff[END_STAFF_N] = {\n    ' + ',\n    '.join(c_str(t) for t in sf['lines']) + '\n};')
+    c.append('const char *const gend_thanks[END_THANKS_N] = { ' + ', '.join(c_str(t) for t in th['lines']) + ' };')
+    return h, c
+
+
 def tables(g, build):
     M = model(g, build)
     presets = M['presets']
@@ -973,6 +1026,8 @@ def tables(g, build):
     for r, k in zip(g['roster'], dmul): assert isinstance(k, int) and 1 <= k <= 4, f'{r["name"]}: damage {k} (1-4)'
     c += dtier_tables(g, build, dmul)                    # revamp 2: the damage tiers (the scale of a special not measured: dmul)
     c += retime_tables(g, build)
+    eh, ec = ending_tables(g)
+    h += eh; c += ec
     h.append('#endif')
     write_if_changed(os.path.join(build, 'game_tables.h'), '\n'.join(h) + '\n')
     write_if_changed(os.path.join(build, 'game_tables.c'), '\n'.join(c) + '\n')

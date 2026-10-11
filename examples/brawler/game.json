@@ -1342,5 +1342,260 @@
     "lines": []
    }
   ]
+ },
+ "ending": {
+  "about": "The ending (Bruno 2026-10-11, decisions open-2026-10-11 card ending-music): after the last stage's boss and the win poses, main.c's ending screens in this order: story (the winner's big portrait, else his win pose + HUD face, his story typed in a box that scrolls; music = music), staff (the credits scrolling up a row every `step` ticks; music = staff_music), thanks (the winner in his win pose; the staff song fades out, $0A + fade), then BOSS UNLOCKED when the boss was beaten for the first time, then back to the BIOS (title / attract). Each screen: START (or A-D) goes on after `min` ticks; story: `type` ticks a character, `hold` ticks once typed; staff: `hold` ticks once the last line is up; thanks: `time` ticks. story.fighters: per roster fighter (by name) 4-5 sentences, '*' = any other; build_tables.py wraps them to 34 columns. staff.lines: a string a line, '^' = a heading (highlighted), centred, at most 34 characters.",
+  "music": "ENDING",
+  "staff_music": "STAFF",
+  "story": {
+   "min": 60,
+   "type": 2,
+   "hold": 360,
+   "fighters": {
+    "*": [
+     "The last enemy falls, and the city goes quiet.",
+     "The winner stands alone under the morning sun.",
+     "The bosses of the underworld are gone.",
+     "Word of this fight spreads far and wide.",
+     "A new legend has been born."
+    ],
+    "terry": [
+     "Goenitz falls, and the wind over the city goes still.",
+     "Terry tips his cap and walks away without a word.",
+     "Rock is waiting for him back in South Town.",
+     "The Lone Wolf has a promise to keep.",
+     "Okay! It is time to go home."
+    ],
+    "ryo": [
+     "The last of the bosses lies at Ryo's feet.",
+     "He bows, as his father Takuma taught him.",
+     "At the Kyokugen dojo, the students cheer the news.",
+     "Robert pays for the party, as always.",
+     "At dawn, the Invincible Dragon is back in training."
+    ],
+    "ralf": [
+     "Mission accomplished.",
+     "Ralf radios Commander Heidern with the good news.",
+     "Clark already has the helicopter warmed up.",
+     "The Ikari Warriors leave before the police arrive.",
+     "New orders are waiting for them in the desert."
+    ],
+    "robert": [
+     "Robert Garcia smiles for the cameras.",
+     "His father's company will rebuild every street that burned.",
+     "Yuri calls to say that Ryo is jealous.",
+     "Robert laughs and books the best table in town.",
+     "The Raging Tiger always wins in style."
+    ],
+    "yamazaki": [
+     "Ryuji Yamazaki counts the money he took from the bosses.",
+     "South Town's underworld has a new king.",
+     "Nobody dares to look him in the eye.",
+     "But the Orochi blood in his veins will not keep quiet.",
+     "He laughs, and the night laughs with him."
+    ],
+    "billy": [
+     "Billy Kane looks up at the empty Geese Tower.",
+     "For the first time in years, he answers to no one.",
+     "He sends a postcard to his sister Lilly in England.",
+     "Then he spins his staff and walks into the rain.",
+     "South Town will hear from him again."
+    ],
+    "kyo": [
+     "The fight is over, and Kyo Kusanagi yawns.",
+     "He has missed another exam at school.",
+     "Yuki is waiting at the gate with her arms crossed.",
+     "Somewhere in the dark, Iori is already hunting him.",
+     "Kyo grins. Let him come."
+    ],
+    "iori": [
+     "Iori Yagami stands alone among the ruins.",
+     "The moon is red, and his blood is howling.",
+     "He does not spare a glance for the fallen.",
+     "Only one name is on his mind: Kyo Kusanagi.",
+     "The hunt goes on."
+    ],
+    "mai": [
+     "Mai Shiranui bows with her fan held high.",
+     "The Shiranui ninja arts have proven themselves again.",
+     "Now she wants her reward: a wedding with Andy.",
+     "But Andy has already left to train in the mountains.",
+     "Mai runs after him, shouting his name."
+    ],
+    "yashiro": [
+     "Yashiro Nanakase cracks his neck and laughs.",
+     "Nobody in this city was strong enough to stop him.",
+     "Tonight his band plays to a packed house.",
+     "But deep below, Orochi stirs in its sleep.",
+     "One of the Heavenly Kings is awake."
+    ],
+    "geese": [
+     "Geese Howard looks down from the top of his tower.",
+     "Every rival who dared to challenge him is broken.",
+     "South Town belongs to him once more.",
+     "He pours a glass of wine and smiles at the night.",
+     "Geese Howard does not fall."
+    ],
+    "mr_big": [
+     "Mr. Big counts the money from his new clubs.",
+     "Every gang in the city now pays him tribute.",
+     "His sticks spin faster than ever.",
+     "Only Takuma and his Kyokugen fools still stand.",
+     "Next time, he swears, they will fall too."
+    ],
+    "krauser": [
+     "Wolfgang Krauser returns to his castle in Germany.",
+     "To him, this fight was a fine game and nothing more.",
+     "His orchestra plays a requiem in his honour.",
+     "He has not forgotten his half-brother Geese.",
+     "The Emperor awaits a worthy rival."
+    ],
+    "k_dash": [
+     "K' pulls his glove tight and turns his back.",
+     "NESTS made him a weapon, but he fights for himself.",
+     "Maxima is waiting with the engine running.",
+     "K' says nothing on the long drive.",
+     "For once, he almost smiles."
+    ],
+    "rugal": [
+     "Rugal Bernstein laughs on the deck of his carrier.",
+     "Another army of fighters has fallen before him.",
+     "Their statues will join his gallery tonight.",
+     "The power of Orochi still burns in his eye.",
+     "The King of Fighters is Rugal alone."
+    ],
+    "goenitz": [
+     "The storm dies down, and Goenitz folds his hands.",
+     "The humans fought well, but no one stops the wind.",
+     "He returns to his quiet church to pray.",
+     "Orochi will awaken soon, as it was written.",
+     "Heaven's wind blows in his favour."
+    ],
+    "haohmaru": [
+     "Haohmaru drinks sake under the cherry blossoms.",
+     "His sword rests at his side, its work done.",
+     "Genjuro is still out there, and their duel waits.",
+     "There is always a stronger opponent somewhere.",
+     "At dawn, he takes the road again."
+    ],
+    "genjuro": [
+     "Genjuro Kibagami wipes his blade clean.",
+     "He fought for no one but himself.",
+     "The gambling dens will talk of nothing else.",
+     "But Haohmaru still lives, and that will not do.",
+     "Genjuro walks into the night, a card in his hand."
+    ],
+    "cheng_fu": [
+     "Cheng Fu bows to his fallen opponents.",
+     "His kung fu was tested in the streets and held.",
+     "He returns to his small school in the old town.",
+     "His students listen to the tale with wide eyes.",
+     "Tomorrow, the lessons begin again."
+    ],
+    "hanzo": [
+     "Hattori Hanzo vanishes in a puff of smoke.",
+     "The honour of the Iga clan is restored.",
+     "Fuuma will say he could have done it faster.",
+     "Hanzo does not bother to answer him.",
+     "The time machine carries him back to his era."
+    ],
+    "hanzo_ss2": [
+     "Hattori Hanzo sheathes his blade in silence.",
+     "The shogun will hear of this victory tonight.",
+     "At home, his son Shinzo waits for him.",
+     "The Iga ninja serve from the shadows.",
+     "Hanzo is gone before the dust settles."
+    ],
+    "kim": [
+     "Kim Sue Il lowers his leg and bows.",
+     "His taekwondo has broken every gang in the city.",
+     "Justice, he says, must always win.",
+     "He promises to keep watch over these streets.",
+     "Evil had better stay away."
+    ],
+    "rosa": [
+     "Rosa brushes the dust from her coat.",
+     "The men who ran this city are on the ground.",
+     "She does not stay to hear the crowd.",
+     "There is another score to settle far away.",
+     "Rosa walks off without looking back."
+    ],
+    "billy_lee": [
+     "Billy Lee wipes the blood from his lip.",
+     "The gang that ruled the city is broken.",
+     "Jimmy shows up late, as always.",
+     "The Lee brothers ride home together.",
+     "The Sosetsuken has kept the city safe again."
+    ]
+   }
+  },
+  "staff": {
+   "min": 60,
+   "step": 16,
+   "hold": 240,
+   "lines": [
+    "^BRAWLER '27",
+    "",
+    "",
+    "^CREATED BY",
+    "BRUNO (NEOSAKURAGI)",
+    "",
+    "",
+    "^CHARACTERS AND VOICES FROM",
+    "THE KING OF FIGHTERS '96",
+    "THE KING OF FIGHTERS '98",
+    "THE KING OF FIGHTERS '99",
+    "SAMURAI SHODOWN II",
+    "KIZUNA ENCOUNTER",
+    "(SNK)",
+    "",
+    "WORLD HEROES PERFECT",
+    "(ADK)",
+    "",
+    "DOUBLE DRAGON",
+    "(TECHNOS JAPAN)",
+    "",
+    "",
+    "^MUSIC AND SOUNDS FROM",
+    "THE KING OF FIGHTERS",
+    "'94 '95 '96 '98 '99",
+    "FATAL FURY 3",
+    "FATAL FURY SPECIAL",
+    "ART OF FIGHTING 2",
+    "SAMURAI SHODOWN II",
+    "KIZUNA ENCOUNTER",
+    "(SNK)",
+    "",
+    "",
+    "^SOUND DRIVER",
+    "THE KING OF FIGHTERS '98 (SNK)",
+    "",
+    "",
+    "^STAGES FROM",
+    "ROBO ARMY (SNK)",
+    "THE KING OF FIGHTERS '95 (SNK)",
+    "",
+    "",
+    "^FONT FROM",
+    "KIZUNA ENCOUNTER (SNK)",
+    "",
+    "",
+    "",
+    "ALL CHARACTERS, MUSIC AND ART",
+    "BELONG TO THEIR OWNERS",
+    "",
+    "",
+    "",
+    "^THE END"
+   ]
+  },
+  "thanks": {
+   "min": 60,
+   "time": 420,
+   "fade": 44,
+   "lines": [
+    "THANK YOU FOR PLAYING"
+   ]
+  }
  }
 }
