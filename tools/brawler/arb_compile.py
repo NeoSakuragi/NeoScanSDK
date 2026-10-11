@@ -80,7 +80,8 @@ BLITZ = {'bz_ff': 'ff', 'bz_dd': 'dd', 'bz_uu': 'uu', 'bz_du': 'du'}
 SPEC = {'sp_c': 'D', 'sp_fc': 'fD', 'sp_dc': 'dD'}
 FOLLOW_D = ('uD', 'dfD', 'ufD')                            # "C in any other direction = the neutral's" (the rounds)
 AIRSP = {'air_bz_dd': 'ddA', 'air_sp_c': 'C', 'air_sp_fc': 'fC', 'air_sp_dc': 'dC'}
-AIR = {'air_a': ('forward', 'straight'), 'air_da': ('down',)}
+AIR = {'air_a': ('forward', 'straight'), 'air_da': ('down',), 'air_ba': ('back',)}   # (air_ba: the back jump's A, roster
+                                                           # air.back, 2026-10-11: Iori's jump back + A = his jump B)
 HOLD = {'grab_hit': 'hit', 'grab_fin': 'fin'}
 NOFIELD = {'air_bz_ff': 'the engine has no forward,forward air Blitz (export_bm.AIR_KEY: dd + A only)',
            'air_bz_uu': 'the engine has no up,up air Blitz (export_bm.AIR_KEY: dd + A only)',
@@ -95,7 +96,7 @@ LABEL = {'fin_fwd': 'last hit + forward', 'fin_up': 'last hit + up', 'fin_down':
          'bz_du': 'down,up + A', 'air_bz_ff': 'air forward,forward + A', 'air_bz_dd': 'air down,down + A',
          'air_bz_uu': 'air up,up + A', 'air_bz_du': 'air down,up + A', 'sp_c': 'C', 'sp_fc': 'forward + C', 'sp_dc': 'down + C',
          'air_sp_c': 'air C', 'air_sp_fc': 'air forward + C', 'air_sp_dc': 'air down + C', 'air_a': 'jump + A',
-         'air_da': 'jump + down + A', 'grab_hit': 'hold hit', 'grab_fin': 'hold finisher', 'grab_fwd': 'throw forward',
+         'air_da': 'jump + down + A', 'air_ba': 'jump back + A', 'grab_hit': 'hold hit', 'grab_fin': 'hold finisher', 'grab_fwd': 'throw forward',
          'grab_back': 'throw back', 'fury_note': 'fury note', 'fury': 'fury (D)', 'max': 'MAX (down + D)',
          'presses': 'chain length', **{'a%d' % i: 'A press %d' % i for i in range(1, 9)}}
 # spare move names for an animation the fighter has no move name for (class a): the brawler's six-button names a KOF /
@@ -354,6 +355,7 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if slot in AIR:                                    # (air_a: forward + straight; two different moves = no one
             import build_tables                            # pick, the answer sets both)
             a_ = build_tables.air_of(r)
+            a_.setdefault('back', a_['forward'])          # (no back attack of its own: the forward jump's plays)
             return a_[AIR[slot][0]] if len({a_[k] for k in AIR[slot]}) == 1 else None
         if slot in HOLD: return ((r.get('throws') or {}).get('hold') or {}).get(HOLD[slot])
         if slot in ('fury', 'max'): return r.get(slot)
@@ -803,7 +805,7 @@ def check(game, f, res, lib):
             six = b.fget(0, 'spec_ix'); return f'SPECIAL {pool[six] if six < len(pool) else six}'
         if s in ('ATTACK', 'AIR_ATTACK'): return f'{s} {MOVES[b.fget(0, "anim")]}'
         return s
-    seq = list((rr.get('chain') or {}).get('links') or []) + [rr['finishers']['neutral']]
+    seq = list((rr.get('chain') or {}).get('links') or []) + ([rr['finishers']['neutral']] if (rr.get('finishers') or {}).get('neutral') else [])   # (no neutral pick: none)
     def phases(x):
         """the slot's input: [(keys, wait until, max frames)] (until None = the slot's move started and, for an attack
         animation, hit); None = not scripted"""
@@ -817,6 +819,7 @@ def check(game, f, res, lib):
         if x.slot in AIRSP: return [('2:b', None, 12), ({'ddA': '1:D,1:-,1:D,2:Da', 'C': '2:c', 'fC': '2:Rc', 'dC': '2:Dc'}[AIRSP[x.slot]], None, 150)]
         if x.slot == 'air_a': return [('2:b', None, 14), ('2:a', None, 80)]   # (a straight jump: the forward one plays the _diag twin)
         if x.slot == 'air_da': return [('2:b', None, 14), ('2:Da', None, 80)]
+        if x.slot == 'air_ba': return [('2:Lb', None, 14), ('2:a', None, 80)]   # (a back jump: the move's _diag twin)
         return None
     def attempt(x, v, dist, ph):
         b.load(base)
@@ -829,7 +832,7 @@ def check(game, f, res, lib):
             b.run(1, p1=k); w = what()
             if w != state['prev'] and w.split(' ')[0] in ('ATTACK', 'AIR_ATTACK', 'SPECIAL', 'THROW'): lg['starts'].append(w)
             state['prev'] = w
-            if w.endswith(' ' + v): lg['frames'].add(b.fget(0, 'shown_frame'))
+            if w.endswith(' ' + v) or w.endswith(' ' + v + '_diag'): lg['frames'].add(b.fget(0, 'shown_frame'))   # (_diag: a jump's twin)
             h = b.fget(2, 'hp')
             if h < state['hp']: lg['hits'].append((w, state['hp'] - h, st(2)))
             state['hp'] = h
@@ -847,6 +850,9 @@ def check(game, f, res, lib):
             step()
         shown = {frames[i] for i in lg['frames'] if i < len(frames)}
         wf = want_frames.get(anim0(x))
+        if wf is not None and x.slot == 'air_ba':          # (a back jump plays the move's _diag twin, KOF's own:
+            tw = next((k for k, a_ in lib['anims'].items() if v + '_diag' in a_['names']), None)   # its frames count)
+            wf = wf | (want_frames.get(tw) or set())
         return dict(dist=dist, started=any(w.endswith(' ' + v) or w.endswith(' ' + v + '_diag') for w in lg['starts']), starts=lg['starts'][-4:],
                     anim_on_screen=bool(shown & wf) if wf else None,
                     hits=[h for h in lg['hits'] if h[0].endswith(' ' + v) or h[0].endswith(' ' + v + '_diag')][:4])   # (_diag: a forward jump's twin)
@@ -858,7 +864,12 @@ def check(game, f, res, lib):
         ph = phases(x)
         if not ph: rows.append((x, 'SKIP', 'no input script')); continue
         atk = A_kind(lib, anim0(x)) == 'attack'
-        for dist in (44, 30, 60, 80, 110):
+        tries = [(d, ph) for d in (44, 30, 60, 80, 110)]
+        if x.slot in AIR:                                  # (an air attack pressed later, falling, nearer: a jump
+            late = lambda w: [(k, None, w) if k.endswith('b') else p_ for p_ in ph for k in [p_[0]]]   # attack that
+            tries += [(d, late(w)) for w in (20, 26) for d in (20, 44)]   # reaches down late: Iori's straight jump D,
+                                                           # his back jump B)
+        for dist, ph in tries:
             got = attempt(x, v, dist, ph)
             ok = got['started'] and got['anim_on_screen'] is not False and (bool(got['hits']) or not atk)
             if ok: break

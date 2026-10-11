@@ -292,9 +292,11 @@ def encode(tree, moves, has=None, specials_have=None):
                                                          # move (air_a's default air C; any of the three)
     bz = (tree.get('entries') or {}).get('blitz')        # a normal as a Blitz (roster[].blitz: a move name): its own node,
     bzn = node(bz, 'blitz') if bz else 0                 # rt_head_t.pad[0] (BZ_NORMAL; 0: the dash entry plays it)
+    ab = (tree.get('entries') or {}).get('air_ba')       # the back jump's own attack (roster[].air.back, Bruno 2026-10-11,
+    abn = node(ab, 'air_ba', air=True) if ab else 0      # note 20261011-210422-5d29): rt_head_t.pad[1] (0: air_cd plays it)
     assert len(nodes) <= MAX_NODES, f'{len(nodes)} nodes (at most {MAX_NODES})'
     arch = ARCHETYPES.index(tree['archetype']) + 1 if tree.get('archetype') else 0
-    head = b'RT' + bytes([TREE_VERSION, len(nodes), root] + ent + [arch, tree.get('chain_links', 0), bzn] + [0] * 2)
+    head = b'RT' + bytes([TREE_VERSION, len(nodes), root] + ent + [arch, tree.get('chain_links', 0), bzn, abn] + [0])
     assert len(head) == HEAD_SIZE
     return head + b''.join(nodes)
 
@@ -595,6 +597,9 @@ def chain_tree(name, base, cfg, has):
                            ('air_b', air['down'], 'light', 'none')):            # to the landing)
             assert m in AIR_MOVE_NAMES, f'{name}: air {k}: {m} is not an air move ({" ".join(AIR_MOVE_NAMES)})'
             entries[k] = cls({'move': m, 'weight': w, 'effect': e}, True)
+        if air.get('back'):                                         # jump back + A (roster[].air.back; absent: the forward
+            assert air['back'] in AIR_MOVE_NAMES, f'{name}: air back: {air["back"]} is not an air move'   # jump's air_cd)
+            entries['air_ba'] = cls({'move': air['back'], 'weight': 'strong', 'effect': 'knockdown'}, True)
     if cfg.get('dash'):                                             # a normal as a Blitz (roster[].blitz: a move name; Bruno
         entries['blitz'] = cls({'move': cfg['dash'], 'damage': 10, 'weight': 'strong', 'effect': 'knockdown'}, True)   # 2026-10-11,
                                                                     # note 20261011-113641-5d29: Haohmaru's ff + A = far A+B):

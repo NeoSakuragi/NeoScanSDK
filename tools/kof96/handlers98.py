@@ -540,7 +540,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if base in ('tst',):
             f = field(o[0])
             f0 = field(o[0], 'a0')
-            if latch is not None and f == latch and sz == 1: cc = (f'link:{lmask("latch")}', 'N')   # the follow-up request (bit 7)
+            if latch is not None and f == latch and sz == 1:                # the follow-up request (bit 7); a part alone
+                cc = ('val', 0) if nofollow else (f'link:{lmask("latch")}', 'N')   # (nofollow, Iori's 214A>141): none
             elif f0 is not None and A0 == 'owner': cc = ({0xD1: 'owner_fxoff'}.get(f0, f'owner_{f0:X}'), 'N')
             elif f0 is not None and A0 == 'opp': cc = ('val', 0)          # the opponent: a normal one (not KO'd, no flags)
             elif f is not None and f in TEST_FIELDS: cc = (TEST_FIELDS[f], 'N')
@@ -1132,7 +1133,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C', 'AAAA'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D', '623A', 'EX 624D', 'air 214D', '6426A', '6426C'},
                 'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B', '623A', '236D', '236A>156', '236A>158', '236A>162'},
-                'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
+                'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C', '214A>141', '214A>145', '214A>149'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '214C', '214D', '41236B', '41236D', '236D', '641236C', '623B', '623D'},'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
@@ -1140,7 +1141,9 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
 # ROM specials on demand (Bruno's first Workshop unlock, 2026-10-10): decoded for the Lab (arb_compile pieces, the Workshop's
 # S- ids) but read by the brawler's export only where a build names them (export96 rom_more = export_bm.rom_wanted: a
 # roster slot, a Lab build's unlocked pieces), so the normal game, whose pool has no place for them, keeps its frames
-ROM_DEMAND = {'robert': {'6426A', '6426C'}, 'kyo': {'623A', '236D', '236A>156', '236A>158', '236A>162'}}   # (Kyo: his sheet's
+ROM_DEMAND = {'robert': {'6426A', '6426C'}, 'kyo': {'623A', '236D', '236A>156', '236A>158', '236A>162'},
+              'iori': {'214A>141', '214A>145', '214A>149'}}   # (Iori: note 20261011-210904-5d29, dd + A = the three
+# parts of 214A Aoi Hana as a pressed sequence; Kyo: his sheet's
 # notes 20261011-175124 / 175657 / 175806-5d29: dd + A 623A, down + C 236D, the ff + A sequence's three parts of 236A)
 # furies read from the ROM whose MAX path is not modelled yet (no 'MAX <fury>' export: down+D plays the fury, as before):
 # none since TODO #220 (2026-10-07): Iori 23624C's MAX (ten strikes from the state list +$C2 by +$D2, the victim's lists
@@ -1757,19 +1760,29 @@ def part_entry(m, cid, h, button, ex, state, sdm=False):
     """the address a PART of a special's handler starts at (a SEQUENCE piece, export_rom '<input>>N', Bruno 2026-10-11:
     Kyo's 236A three times = 114 Shiki Aragami 156, 128 Shiki Konokizu 158, 127 Shiki Yanosabi 162): the handler itself
     or a target of its branches (the follow-ups it enters on a command: +$D6 = 1 / 2 at Aragami's event step), decoded
-    with no command read (nofollow), whose first animation is state N. None when no part starts it"""
+    with no command read (nofollow), whose first animation is state N -> (address, fields). fields: None, or, for a part
+    that reads its state from the scratch fields its handler filled before the branch (Iori's 214A Aoi Hana, note
+    20261011-210904-5d29: its three parts play states from the table it stores at +$C2..; the part alone names none),
+    those fields as the branch saw them (the decode's place key K: $C2-$DF, $36-$39), [(off, byte, 1)]; a part that
+    names its own state is decoded without them (Kyo's: unchanged). None when no part starts it"""
     dec = Decoder(m)
     full = decode(m, h, button, ex, dec=dec, cid=cid, sdm=sdm)
-    cands = [h]
+    cands = [(h, None)]
     for a_, op in full['ops']:
         t = op[3] if op[0] == 'br' else op[1] if op[0] in ('jmp', 'resume_at') else None
-        if isinstance(t, tuple) and isinstance(t[0], int) and t[0] not in cands: cands.append(t[0])
-    for a_ in cands:
-        try: d = decode(m, a_, button, ex, dec=dec, cid=cid, sdm=sdm, nofollow=True)
-        except Exception: continue
-        if any(op[0] == 'br' and not cond_ok(op[1]) for _, op in d['ops']): continue   # (a mid-part resume point: its
-        first = next((op for _, op in d['ops'] if op[0] in ('anim', 'adv')), None)          # selector unknown there)
-        if first and first[0] == 'anim' and first[1] == state: return a_
+        if isinstance(t, tuple) and isinstance(t[0], int) and t[0] not in [c[0] for c in cands]: cands.append((t[0], t))
+    offs = list(range(0xC2, 0xE0)) + [0x36, 0x37, 0x38, 0x39]
+    for a_, k in cands:
+        tries = [None]
+        if k is not None and len(k[1]) >= len(offs):
+            tries.append([(o_, v_, 1) for o_, v_ in zip(offs, k[1][-len(offs):]) if v_ is not None])
+        for fl in tries:
+            try: d = decode(m, a_, button, ex, fields=fl, dec=dec, cid=cid, sdm=sdm, nofollow=True)
+            except Exception: continue
+            if any(op[0] == 'br' and not cond_ok(op[1]) for _, op in d['ops']): continue   # (a mid-part resume point:
+            first = next((op for _, op in d['ops'] if op[0] in ('anim', 'adv')), None)          # its selector unknown)
+            if first and first[0] == 'anim' and first[1] == state: return a_, fl
+            if first and first[0] == 'anim' and first[1] is not None: break   # (its own state, another one)
     return None
 
 def handler_hitkind(m, cid, h, button, ex, sdm=False):
@@ -1789,9 +1802,11 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
     hk0 = 1                                            # (the hit kind before the program sets one)
     if part is not None:                               # '<input>>N': the part of its handler that starts state N, alone
         hk0 = handler_hitkind(m, cid, h, b, ex, sdm)   # (a SEQUENCE piece: Kyo's 236A>156 / >158 / >162; the hit kind
-        h = part_entry(m, cid, h, b, ex, part, sdm)    # its handler set before it, KOF's +$1B8 kept)
-        if h is None: return {'error': f'{inp}: no part of the handler starts state {part}'}
-    prog = decode(m, h, b, ex, cid=cid, sdm=sdm, nofollow=part is not None)
+        pe = part_entry(m, cid, h, b, ex, part, sdm)   # its handler set before it, KOF's +$1B8 kept)
+        if pe is None: return {'error': f'{inp}: no part of the handler starts state {part}'}
+        h, pfields = pe                                # (+ the scratch fields its handler filled: Iori's 214A parts)
+    else: pfields = None
+    prog = decode(m, h, b, ex, fields=pfields, cid=cid, sdm=sdm, nofollow=part is not None)
     nsig = sum(1 for a_, op in prog['ops'] if op[0] == 'vsig')
     vlists = victim_entries(m, victim_lists(m, prog['victim'], sdm, nsig), cid) if prog.get('victim') else []   # the caught
                                                        # victim's script (its lists for the fighter itself as the victim)

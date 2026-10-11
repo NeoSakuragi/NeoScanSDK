@@ -482,6 +482,18 @@ specials are the same programs; the new ones are LAB_ONLY).
   second kick read as pressed, FOLLOW_PRESSED $3C90E: 142, 143, 145, then 148 on the event step, landing 149), and
   the parts of 236A's handler $3C9D8: `236A>156` Aragami (156, 157), `236A>158` Konokizu ($3CB84: 158, 159),
   `236A>162` Yanosabi ($3CC9E: 162). The first ff + A note (body toss C + D) was replaced by the third note.
+
+## Iori (KOF98): his move sheet — 2026-10-11 (notes 20261011-210422 / 210524 / 210904 / 211010-5d29, game 0.10.61)
+- Assembly answers (decisions set `iori-arb`, backup `iori-arb.json.bak-20261011-sheet`; his earlier a2 $55 kept),
+  compiled by arb_compile.py: C = 623C big Oniyaki (S-003), forward + C = 624D (S-007, half circle back + D: the dash,
+  catch and purple explosion; still his super throw), down + C = 236A Yami Barai (S-002); dd + A = 214A Aoi Hana's three
+  parts on A again (S-009 / S-010 / S-011, `seq_press`); jump + A = jump D $61 (both jumps), jump + down + A = jump C
+  $5C, jump back + A = jump B $57 (new: `air.back`, the Assembly row `air_ba`; docs/brawler_gold.md "The back jump's
+  attack"). a2 $55 (his 2026-10-10 pick, never shipped: unresolved then) ships with it: chain far A, close B, close C,
+  close D, then the generator's body toss.
+- Decoded 2026-10-11: the parts of 214A's handler $70E42: `214A>141` ($70E42 alone: 141, 143), `214A>145` ($70F5E:
+  145, 147), `214A>149` ($70FE0: 149, 150 in the air, 151 landing; hit kind 3), the states from the handler's table
+  (part_entry's scratch fields). MAX 23624C: the victim lies (413.0 = lying 90) and the strikes keep it there.
 ---
 
 The sections below were the Character Lab's notes in docs/feedback.md, docs/brawler_gold.md and

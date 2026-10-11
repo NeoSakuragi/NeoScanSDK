@@ -81,7 +81,7 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
     b.run(2)
     w = 0
     while b.states[b.fget(0, 'state')] != 'IDLE' and w < 300: b.run(1); w += 1
-    if meter is not None: b.fset(0, 'meter', meter)       # a full special meter (0.0.48: a special costs meter)
+    if meter is not None: b.fset(0, 'drive', meter)       # a full drive meter (0.0.48: a special costs meter; revamp 2: drive)
     b.hits = []
     n, keys = ROLES[role].split(':')
     rows, started, t, pfz, done = [], None, 0, 0, None
@@ -196,7 +196,7 @@ def main(game, out, cases):
     os.makedirs(out, exist_ok=True)
     roster = [r['name'] for r in json.load(open(os.path.join(game, 'game.json')))['roster']]
     gj = {r['name']: r for r in json.load(open(os.path.join(game, 'game.json')))['roster']}
-    meter = json.load(open(os.path.join(game, 'game.json')))['meter']['max']
+    gm = json.load(open(os.path.join(game, 'game.json')))['meter']; meter = gm['chunk'] * gm['chunks']   # (the drive: chunks)
     frames = json.load(open(os.path.join(game, 'build', 'bm_frames.json')))
     b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
     summary = []
