@@ -2840,5 +2840,15 @@
   "expect": "Every hit plays Samurai Shodown II's own impact sound, picked by the move as SS2 does: far A, close A and far B the light cut (one of SS2's three), close C+D the kick thud, and the last hit, close A+B knocking Ryo down, SS2's big slash (one of its six). His specials keep their slash. Haohmaru and Genjuro follow the same rule (their close A: SS2's blunt thud).",
   "do_keys": "1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-",
   "proof": 110
+ },
+ "20261011-111259-5d29": {
+  "title": "Select screen: starts under the NEO GEO LAND logo, Terry in the middle",
+  "setup": {
+   "mode": "select"
+  },
+  "do": "Insert a coin and press START: look at the select screen's first picture. Then press START on the 2P side to join.",
+  "expect": "The screen opens with the NEO GEO LAND logo centred above, Terry in the middle of the crowd under it with the 1P cursor on him, Robert just left of him and Kim just right. P2's cursor joins on Kim, next to Terry. Left / right still walk everyone along the street.",
+  "do_keys": "",
+  "proof": 120
  }
 }

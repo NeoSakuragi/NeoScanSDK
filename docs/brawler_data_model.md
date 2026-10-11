@@ -142,6 +142,11 @@ Later: `palettes` (custom colour sets), `moves` (a trimmed list).
 
 `select.slots`: `{"x": 40, "z": 48, "row": 0, "fighter": "terry"}` per slot; row 0 front, 2 back (`SEL_BACK`, the
 bosses). Generated as `SEL_SLOT[]` (x int16, z, row: 4 bytes) and `sel_fighter[]` (bm_chars index, 0xFF empty).
+`select_layout` (when present, it replaces `select.slots`; build_tables.py `select_layout`, the Lab's Select tab):
+per fighter `x` (street px 0-767), `y`, `z`, `facing`, `pose`, `slot` (the stick's order; the cursor starts on the
+first selectable slot and the camera centres it). Since note 20261011-111259-5d29: Terry is slot 0 at x 480, under
+the NEO GEO LAND logo's centre (world x 365-594, camera 320), Robert and Kim either side, the street order turned to
+start at him (so the loop left / right is unchanged).
 
 ROM side of a fighter (`bchar_t`, export_bm.py): name, palettes, frames, animations (`banim_t` / `bstep_t`), physics,
 throws, victim poses, specials (`bspec_t`, rows of a script: its whole pool, `nspec` of them, in build/bm_spec.c, compiled
