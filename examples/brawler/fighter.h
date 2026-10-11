@@ -150,9 +150,12 @@ typedef struct {
     uint8_t arch, links;          /* revamp 1A: the fighter's archetype + 1 (1 fast, 2 balanced, 3 heavy; 0 = a tree not made
                                      by routes.py chain_tree) and its chain's length (links from neutral to the finisher) */
     uint8_t pad[3];               /* pad[0]: the blitz entry (a normal a Blitz slot names, BZ_NORMAL; 0 = none: the dash entry
-                                     plays it), read as pad[0] so the Lab pack format's ABI stays (lab_pack.py abi) */
+                                     plays it), pad[1]: the back jump's attack (game.json roster[].air.back, Bruno 2026-10-11:
+                                     Iori's jump back + A = his jump B; 0 = none: air_cd plays it), read as pad[] so the Lab
+                                     pack format's ABI stays (lab_pack.py abi) */
 } rt_head_t;
 #define RT_BLITZ(t) ((t)->pad[0] ? (t)->pad[0] : (t)->dash)   /* the node a BZ_NORMAL Blitz plays */
+#define RT_AIR_BACK(t) ((t)->pad[1] ? (t)->pad[1] : (t)->air_cd)   /* the node a back jump's A plays */
 #define TREE_VERSION 4
 #define RT_NODE(t, i) ((const rnode_t *)((const uint8_t *)(t) + sizeof(rt_head_t) + (uint16_t)(i) * sizeof(rnode_t)))
 extern const rt_head_t *route_tab[BC_COUNT];

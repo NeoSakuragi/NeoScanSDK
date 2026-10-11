@@ -1,5 +1,5 @@
 {
- "_doc": "Portable victim-pose vocabulary for KOF98 throws, same conventions as tools/kof96/victim_poses96.json (posture + angle read by eye from Terry's frames, ROM sprites face left: 0 upright, 90 horizontal head toward the facing side, -90 head toward the back, 180 head down). Keys 'state.step' of KOF98 game states; KOF98 has a state map per fighter, but these states are the same for every fighter. Coverage: every state any KOF98 throw list gives any of the 38 victims (77 states, 148 steps, 94 distinct frames; Terry's frames 154-549 are the KOF96 ones and keep their KOF96 names). States with a one-step animation for every fighter (56) are portable as they are; the others ('multi_step') have per-fighter lengths, their step names describe Terry's animation. KOF98 lists also carry a facing bit per entry ('turn' in throwtables96.entries).",
+ "_doc": "Portable victim-pose vocabulary for KOF98 throws, same conventions as tools/kof96/victim_poses96.json (posture + angle read by eye from Terry's frames, ROM sprites face left: 0 upright, 90 horizontal head toward the facing side, -90 head toward the back, 180 head down). Keys 'state.step' of KOF98 game states; KOF98 has a state map per fighter, but these states are the same for every fighter. Coverage: every state any KOF98 throw list gives any of the 38 victims (77 states, 148 steps, 94 distinct frames; Terry's frames 154-549 are the KOF96 ones and keep their KOF96 names). States with a one-step animation for every fighter (56) are portable as they are; the others ('multi_step') have per-fighter lengths, their step names describe Terry's animation. KOF98 lists also carry a facing bit per entry ('turn' in throwtables96.entries). Beyond the throws (2026-10-11, note 20261011-210524-5d29): 413.0, the floored victim of Iori's MAX 23624C (his catch's victim lists: 413 lying, 434 hit there), read in our emulator (KOF98, Yuri on her back, head toward her facing side under Iori; one step for every fighter).",
  "postures": {
   "grabbed": "standing, held by the opponent",
   "bent_back": "standing, bent backwards by the hold",
@@ -353,6 +353,10 @@
   "412.0": [
    "lying",
    -90
+  ],
+  "413.0": [
+   "lying",
+   90
   ],
   "414.0": [
    "lying",

@@ -42,6 +42,7 @@
     if (slot === 'air_sp_dc') return JUMP.concat([['Dc', 3]]);
     if (slot === 'air_a') return JUMP.concat([['a', 3]]);
     if (slot === 'air_da') return JUMP.concat([['Da', 3]]);
+    if (slot === 'air_ba') return [['Lb', 2], ['', 10], ['a', 3]];   // (the back jump)
     if (slot === 'grab_hit') return [['R', 30], ['', 4], ['a', 2]];
     if (slot === 'grab_fin') return [['R', 30], ['', 4], ['a', 2], ['', 16], ['a', 2], ['', 16], ['a', 2], ['', 16], ['a', 2]];
     if (slot === 'grab_fwd') return [['R', 30], ['', 4], ['Rc', 3]];

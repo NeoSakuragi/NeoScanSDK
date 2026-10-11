@@ -3466,5 +3466,60 @@
   "expect": "The regular fury plays (one drive chunk spent) instead of nothing; with two chunks at low life down + D still plays the MAX. The same for every fighter.",
   "do_keys": "4:Dd",
   "proof": 150
+ },
+ "20261011-211010-5d29": {
+  "title": "Iori's C specials: C the big dragon punch, forward + C the half circle back + D, down + C the A fireball",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 46
+  },
+  "do": "Press C next to Ryo. Then forward + C, then down + C.",
+  "expect": "C is the big 100 Shiki Oniyaki (623C, the flaming dragon punch, three hits). Forward + C is his half circle back + D: he dashes in, strikes and grabs Ryo, and the purple explosion throws Ryo away. Down + C is 108 Shiki Yami Barai, the A version (the ground fireball). Each one hits Ryo.",
+  "do_keys": "2:c,100:-,2:Rc,140:-,2:Dc,80:-",
+  "proof": 90
+ },
+ "20261011-210904-5d29": {
+  "title": "Iori: down, down + A = 127 Shiki Aoi Hana, A again for the second and third hits",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 46
+  },
+  "do": "Tap down, down + A next to Ryo, then press A again during each hit (twice). Try it again with one A, and with none.",
+  "expect": "Down, down + A plays the first Aoi Hana hit. Pressing A during it goes on into the second hit, and A again into the third (the jumping overhead): three hits on Ryo, as Kyo's forward, forward + A. With one A it stops after the second hit, with none after the first.",
+  "do_keys": "1:D,1:-,1:D,2:Da,8:-,2:a,24:-,2:a,80:-",
+  "proof": 120
+ },
+ "20261011-210524-5d29": {
+  "title": "Iori's MAX (down + D): the victim lies on the ground during the strikes, as in KOF96 / 98",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "yamazaki",
+   "gap": 50,
+   "drive": "full",
+   "fury": "full",
+   "hp": 10
+  },
+  "do": "Iori's life is low and his meters are full. Press down + D next to Yamazaki.",
+  "expect": "Iori rushes in, grabs Yamazaki and knocks him to the floor. During all the strikes Yamazaki lies on his back on the ground (jerking up a little at each strike, never standing), Iori kneeling over him, then the purple explosion throws him away.",
+  "do_keys": "3:Dd",
+  "proof": 400
+ },
+ "20261011-210422-5d29": {
+  "title": "Iori's jump attacks: jump + A the jump D, jump + down + A the jump C, jump back + A the jump B",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Jump straight up next to Ryo and press A on the way down. Then jump and press down + A. Then jump back (back + B) and press A.",
+  "expect": "Jump + A is Iori's jump D (a kick), jump + down + A his jump C, and jump back + A his jump B (the back jump's own kick, not the jump D). Each hits Ryo when close enough.",
+  "do_keys": "2:b,24:-,2:a,40:-,2:b,12:-,2:Da,40:-,2:Lb,18:-,2:a,40:-",
+  "proof": 90
  }
 }

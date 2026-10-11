@@ -100,6 +100,7 @@ def now_of(r, D, chain_len, gen=None, sids=None):
     air = build_tables.air_of(r)
     out['air_a'] = slot(air['forward'], '' if air['straight'] == air['forward'] else f"forward jump; straight jump + A = {air['straight']} ({', '.join('$' + x for x in anims(air['straight'])) or '?'})")
     out['air_da'] = slot(air['down'])
+    out['air_ba'] = slot(air.get('back') or air['forward'])   # (none of its own: the forward jump's)
     asp = r.get('air_specials') or {}             # air Blitz = '<dd>A' entries, air specials = '<stick>C' (docs/brawler_data_model.md)
     for k in ('ff', 'dd', 'uu', 'du'):
         out['air_bz_' + k] = slot(asp[k + 'A'], seq_text(f'air_specials.{k}A', asp[k + 'A'])) if asp.get(k + 'A') else {'pieces': [], 'text': 'empty', 'moves': []}

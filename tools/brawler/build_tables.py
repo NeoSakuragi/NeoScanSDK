@@ -215,7 +215,8 @@ def chain_cfg(g, r):
     own = r.get('chain') or {}                     # (revamp 5, the chain tool's save) links: the moves before the finisher,
     for k in own: assert k in ('links', 'hitstop', 'length'), f"roster {r['name']}: chain.{k} (links / hitstop / length)"   # hitstop: per link + the finisher
     air = air_of(r)                                  # its three air attacks (Bruno 2026-10-08): forward jump + A, straight
-    for k in air: assert k in AIR_DEFAULT, f"roster {r['name']}: air.{k} (forward / straight / down)"   # jump + A, down + A
+    for k in air: assert k in AIR_DEFAULT or k == 'back', f"roster {r['name']}: air.{k} (forward / straight / down / back)"   # jump + A, down + A
+                                                     # (back: the back jump's A, Bruno 2026-10-11; absent = forward's)
     n = own.get('length', 4)                         # (Bruno 2026-10-10: "4 by default, I add / remove presses": the archetype no
                                                      # longer sets the length; every fighter's own chain.length, 4 when absent)
     assert isinstance(n, int) and 2 <= n <= 8, f"roster {r['name']}: chain.length {n} (2-8)"

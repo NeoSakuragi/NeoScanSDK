@@ -1458,7 +1458,7 @@ static uint8_t gd_tree(const uint8_t *p, uint16_t size, uint32_t off) {   /* a r
     if (!gd_in(size, off, sizeof(rt_head_t), 1) || t->magic[0] != 'R' || t->magic[1] != 'T' || t->version != TREE_VERSION) return 0;
     n = t->nnodes;
     if (!n || n > 128 || !gd_in(size, off, sizeof(rt_head_t) + n * sizeof(rnode_t), 1)) return 0;
-    if (t->root >= n || t->dash >= n || t->nospec >= n || t->hold >= n || t->air_a >= n || t->air_b >= n || t->air_cd >= n || t->pad[0] >= n) return 0;
+    if (t->root >= n || t->dash >= n || t->nospec >= n || t->hold >= n || t->air_a >= n || t->air_b >= n || t->air_cd >= n || t->pad[0] >= n || t->pad[1] >= n) return 0;
     for (i = 1; i < n; i++) {                       /* node 0: "none" (zeros) */
         const rnode_t *d = RT_NODE(t, i);
         if (d->anim >= ((d->flags & RF_SPECIAL) ? BS_COUNT : BA_COUNT) || d->speed < 0x40 || d->speed > 0x400) return 0;

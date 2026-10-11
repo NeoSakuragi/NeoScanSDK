@@ -654,6 +654,11 @@ static uint8_t dash_air(fighter_t *f, const uint8_t *dsh, const intent_t *in) {
     f->y = FIX(k ? dsh[2 + dsh[1] + k - 1] : 0);                 /* (last frame's height; jump_frame moves it on) */
     return 1;
 }
+/* the jump's attack by its direction: a straight jump's air_a, a forward jump's air_cd, a back jump's its own (rt_head_t
+ * pad[1], game.json roster[].air.back, Bruno 2026-10-11: Iori's jump back + A = his jump B) or else air_cd */
+static uint8_t jump_atk(const fighter_t *f) {
+    return f->jump_dir == 2 ? RT_AIR_BACK(TREE(f)) : f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a;
+}
 /* the air attacks' active frames (Bruno 2026-10-08, "jumps"): on the move's last active step the animation is held (the
  * step stays shown, its box live) while the jump attack (air_a / air_cd: knocking down) has been active fewer than
  * gjump.active_min frames, and for the down attack (air_b: a flinch) until the landing. Returns 1 to hold this frame */
@@ -666,7 +671,7 @@ static uint8_t air_hold(fighter_t *f) {
     if (f->aact < 255) f->aact++;
     for (k = f->step + 1; k < an->nsteps; k++) if (an->steps[k].flags & 1) return 0;   /* (a later window: not its last) */
     if (f->node == TREE(f)->air_b) return 1;
-    return (f->node == TREE(f)->air_a || f->node == TREE(f)->air_cd) && f->aact < gjump.active_min;
+    return (f->node == TREE(f)->air_a || f->node == TREE(f)->air_cd || f->node == RT_AIR_BACK(TREE(f))) && f->aact < gjump.active_min;
 }
 /* ---- the chain core (revamp 1A, Bruno's decisions docs/brawler_feel.md 8h; game.json "chain" -> gchain, the trees from
  * routes.py chain_tree) -------------------------------------------------------------------------------------------------
@@ -2935,7 +2940,11 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
         if (f->spec_id == BS_FURY && ((gfury_area[f->ch->id][2] & 0x80) || vlist_last_blow(sp, f->vlist, k)))   /* the
                                                                     fury's final hit (blows "all": every one): its area */
             fury_area(f, t, l, (e->flags & VE_BURN) >> 4);
-    }
+        if (!(e->flags & VE_REL) && t->hp > 0)                   /* still held: the blow's frame shows the entry's */
+            t->frame_ovr = e->pose < VP_COUNT && t->ch->vposes[e->pose] != 0xFFFF ? t->ch->vposes[e->pose] : 0xFFFF;
+    }                                                            /* posture, as KOF's list sets it (react cleared it:
+                                                                    note 20261011-210524-5d29, Iori's MAX on a floored
+                                                                    victim showed one standing reel frame per strike) */
     if ((e->flags & VE_REL) && (l->flags & VL_STAND)) {          /* a release that leaves it standing (TODO #220, KOF98
                                                                     Yamazaki MAX 236236C: 329 until the strike's hold
                                                                     hit takes it): still held, reeling in place, until
@@ -3520,13 +3529,14 @@ static void update(fighter_t *f, const intent_t *in) {
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: the air attacks (Bruno 2026-10-08, "jumps"): down+A
                                                                     its down attack (air_b: a flinch, active to the landing),
                                                                     else the jump's attack: a straight jump's (air_a), a
-                                                                    forward / back jump's (air_cd), both knocking down */
-            uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a;
+                                                                    forward / back jump's (air_cd; a back jump's own:
+                                                                    jump_atk), both knocking down */
+            uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : jump_atk(f);
             start_node(f, nx, f->air_node ? LH_CANCEL : LH_NEUTRAL); f->air_node = 0; f->aact = 0;
         } else if (f->state == S_AIR_ATTACK && f->node == TREE(f)->air_b && (in->press & IN_A) && in->dz <= 0 &&
                    (f->landed || gjump.down_any)) {              /* down+A -> the jump's attack (on hit; Final Fight's
                                                                     order: the down attack first) */
-            start_node(f, f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a, LH_CANCEL); f->aact = 0;
+            start_node(f, jump_atk(f), LH_CANCEL); f->aact = 0;
         } else if (f->state == S_AIR_ATTACK && f->buffered && !(NODE(f, f->node)->flags & RF_KEEP) && !BUF_OK(f, in)) {
             f->buffered = 0;                                     /* a player's press too old (the attack buffer) */
         } else if (f->state == S_AIR_ATTACK && f->landed && f->buffered &&   /* an air route: A on hit, its next air hit */
@@ -3727,7 +3737,7 @@ static void update(fighter_t *f, const intent_t *in) {
             carry_drop(f); special_end(f); f->pflags = 0;
             f->vx = vx; f->vy = vy; f->vz = 0; f->jt = 0; f->jump_kind = 0; f->air_node = 0;
             enter(f, S_AIR);
-            start_node(f, in->dz > 0 ? TREE(f)->air_b : f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a, LH_NEUTRAL); f->aact = 0;
+            start_node(f, in->dz > 0 ? TREE(f)->air_b : jump_atk(f), LH_NEUTRAL); f->aact = 0;
             break;
         }
         f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? air_button(f->ch, f->spec_ix) : f->spec_id == BS_BLITZ ? IN_A :

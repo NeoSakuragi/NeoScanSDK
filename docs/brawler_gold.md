@@ -370,7 +370,29 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   (handlers98 `'<input>>N'`: the part of its handler that starts state N, `part_entry`: the handler or one of its
   branch targets, decoded with its follow-up checks reading no command (`nofollow`) and its hit kind the handler set
   before it). Set: Kyo `blitz.ff` [236A>156 (114 Shiki Aragami), 236A>158 (128 Shiki Konokizu), 236A>162 (127 Shiki
-  Yanosabi)] (S-009 / S-010 / S-011; Assembly answer `bz_ff` with flags {"press": true}).
+  Yanosabi)] (S-009 / S-010 / S-011; Assembly answer `bz_ff` with flags {"press": true}); Iori `blitz.dd` [214A>141,
+  214A>145, 214A>149] (127 Shiki Aoi Hana's three hits, note 20261011-210904-5d29: "like Kyo"; S-009 / S-010 / S-011,
+  `bz_dd` press). A part whose handler picks its state from a table it stored before the branch (Iori's 214A: +$C2..
+  the states 141 / 145 / 149, the part reads the next one) is decoded with those scratch fields as the branch saw them
+  (`part_entry` -> (address, fields), only when the part alone names no state: Kyo's parts unchanged); a FOLLOW_LATCH
+  request (+$D1 bit 7, 214's own latch) reads as none in a part alone (`nofollow`). Measured: 1 / 2 / 3 presses play
+  141 / 141 > 145 / 141 > 145 > 149 and hit Ryo 1 / 2 / 3 times, the second a knockdown and the third timed as the full
+  214A's own (up-forward + C with its two presses: the same hits).
+- **The back jump's attack** — `roster[].air.back` (2026-10-11, Iori's note 20261011-210422-5d29: "jump A is the D
+  button, jump down A is the C button, jump back A is back + B"): A in a back jump plays that air move (its `_diag`
+  twin, KOF's diagonal normal: Iori's jump B $58), its own route entry (routes.py `air_ba`, rt_head_t.pad[1]: the Lab
+  pack ABI unchanged; lab.js mirrors it; main.c checks it like the other entries); absent, the forward jump's attack as
+  before (fighter.c `jump_atk`, `RT_AIR_BACK`). The Assembly has the row (`air_ba`, "jump back + A"; arb_compile AIR,
+  arbitrage.py's "now", liveclips' back jump). The Lab's in-game Try has no slot for it (fighter.h LS_*, TRY_MAX full):
+  Try leaves it out ("no such slot in the game"), the ship compiles it.
+- **A victim list's blow keeps the list's posture** (note 20261011-210524-5d29: "in KOF96 and 98, when this MAX is
+  being performed, the victim is lying on the ground") — KOF98 Iori MAX 23624C's victim lists hold the victim in state
+  413 (lying, between the strikes) and 434 (struck there), measured in our emulator (Yuri, frames 94-357 of the move).
+  413 had no posture (tools/kof96/victim_poses98.json covered the throws' states only: the victim kept its standing
+  reel): 413.0 = lying 90 now (the fighters' own lying 90 frame, `poses()`). And a blow (VE_BLOW) reacted the victim,
+  which cleared its posture for that frame (one standing reel frame per strike): fighter.c `vlist_place` now shows the
+  entry's posture on the blow's frame too while the list holds it (no release, life left), KOF's order. Every ROM
+  special's victim list (Iori 624B / 624D, Yamazaki MAX 236236C, Rugal...) gets the same rule.
 - **The down-forward finisher** — `finishers.df_move` (2026-10-11, Kyo's note 20261011-175124-5d29: "the diagonal
   finisher is diagonal + D, the double sweep"): the last link + down-forward + A plays that move as a trip (routes.py
   chain_tree `dfA`, RI_DFA; the Lab's lab.js the same); absent: none (down-forward + A plays the forward finisher, as
@@ -499,3 +521,13 @@ Compiled from the sheet without an agent: 1 slot(s) linked, 0 unresolved; slots 
 - (note 20261011-205823-5d29, "replace the close A by the far A": chain = far A, close C, close forward B, far D; the
   other picks kept; answers backed up as kyo-arb.json.bak-20261011-round4; arb_compile's slot check: far A starts and
   hits the dummy; recipe scenarios.json 20261011-205823-5d29)
+### IORI: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `iori-arb`, build 0.10.61)
+Compiled from the sheet without an agent: 8 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- a2 (A press 2): $55 -> chain.links[1] = "atk_b_close" — linked, class a: its own move
+- bz_dd (down,down + A): S-009 then S-010 then S-011 -> blitz.dd = ["214A>141", "214A>145", "214A>149"] — linked, class b: a sequence, each next piece on the button again: S-009 214A>141 then S-010 214A>145 then S-011 214A>149
+- sp_c (C): S-003 -> specials.D = "623C" — linked, class b: S-003 623C (registry)
+- sp_fc (forward + C): S-007 -> specials.fD = "624D" — linked, class b: S-007 624D (registry)
+- sp_dc (down + C): S-002 -> specials.dD = "236A" — linked, class b: S-002 236A (registry)
+- air_a (jump + A): $61 -> air.forward + air.straight = "atk_d_jump" — linked, class a: its own move
+- air_da (jump + down + A): $5C -> air.down = "atk_c_jump" — linked, class a: its own move
+- air_ba (jump back + A): $57 -> air.back = "atk_b_jump" — linked, class a: its own move
