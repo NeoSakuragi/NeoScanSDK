@@ -94,7 +94,7 @@ def now_of(r, D, chain_len, gen=None, sids=None):
     out['sp_c'] = slot(sp.get('D'), 'also the combo breaker')
     out['sp_fc'] = slot(sp.get('fD'))
     out['sp_dc'] = slot(sp.get('dD'))
-    air = dict(build_tables.AIR_DEFAULT, **(r.get('air') or {}))
+    air = build_tables.air_of(r)
     out['air_a'] = slot(air['forward'], '' if air['straight'] == air['forward'] else f"forward jump; straight jump + A = {air['straight']} ({', '.join('$' + x for x in anims(air['straight'])) or '?'})")
     out['air_da'] = slot(air['down'])
     asp = r.get('air_specials') or {}             # air Blitz = '<dd>A' entries, air specials = '<stick>C' (docs/brawler_data_model.md)

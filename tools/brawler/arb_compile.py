@@ -350,7 +350,7 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if slot in AIRSP: return (r.get('air_specials') or {}).get(AIRSP[slot])
         if slot in AIR:
             import build_tables
-            return dict(build_tables.AIR_DEFAULT, **(r.get('air') or {}))[AIR[slot][0]]
+            return build_tables.air_of(r)[AIR[slot][0]]
         if slot in HOLD: return ((r.get('throws') or {}).get('hold') or {}).get(HOLD[slot])
         if slot in ('fury', 'max'): return r.get(slot)
         if slot in ('fin_back', 'grab_fwd', 'grab_back'): return 'throw_c'
