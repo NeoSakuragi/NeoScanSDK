@@ -7,7 +7,9 @@ to stop the music between screens).
 Names are the screen the game sent the command on, measured in our emulator (attract mode over 60 000 frames, and a
 credit played: coin, how to play, tag team select, one fight lost, continue, game over; screenshots in
 `/data/neogeo_dict/sound/kizuna/attract`). The attract demos play only `$21-$24`; the stage songs are named by the
-stage on screen, not by character (*the character each stage belongs to is not identified*). `?` = not reached in
+stage on screen, not by character: **no stage belongs to a fighter** except the two boss stages (code read
+2026-10-11, below); the soundtrack's titles (SNK's own CD, PCCB-00236 / SNK Arcade Sound Digital Collection Vol.26)
+name the stages by place, given in the table. `?` = not reached in
 those runs. Songs `$37` / `$3A` and `$2F` / `$3B` have the same length and channel set and the same one-shot sample calls at the
 same ticks; `$37` and `$2F` add the sequenced effects `$F2` / `$F3` at the end; *probably variants of the same
 pieces*.
@@ -18,13 +20,13 @@ as regs98.py); identical = sequencer interrupts whose writes are identical in or
 
 | Cmd | Screen | Tempo (ticks/s) | Channels | Loop | Writes cap / model | Identical |
 |---|---|---|---|---|---|---|
-| `$21` | Stage 0 / 1 (dusk street, attract demo) | 115 (92.2) | FM1-4 A1-3 B | 9312 ticks | 16504 / 16504 | 1189/1189 |
-| `$22` | Stage 2 / 3: the highway (高速道路, a broken elevated expressway, night / day; attract demo); the brawler's stage 2 (`STAGE_HIGHWAY`) | 102 (81.8) | FM1-4 A1-3 B | 6000 ticks | 17169 / 17169 | 900/900 |
-| `$23` | Stage 6 / 7 (sunset / moonlit rooftop, attract demo) | 132 (105.9) | FM1-4 A1-3 B | 8448 ticks | 21883 / 21883 | 1297/1297 |
-| `$24` | Stage 4 / 5 (harbour market; the first stage of the played credit) | 86 (69.0) | FM1-4 A1-3 B | 5760 ticks | 16649 / 16649 | 920/920 |
+| `$21` | Stage 0 / 1 (dusk street, attract demo): スラム街 Slum Quarters | 115 (92.2) | FM1-4 A1-3 B | 9312 ticks | 16504 / 16504 | 1189/1189 |
+| `$22` | Stage 2 / 3: the highway (高速道路料金所 Highway Tollgate, a broken elevated expressway, night / day; attract demo); the brawler's stage 2 (`STAGE_HIGHWAY`) | 102 (81.8) | FM1-4 A1-3 B | 6000 ticks | 17169 / 17169 | 900/900 |
+| `$23` | Stage 6 / 7 (sunset / moonlit rooftop, attract demo): 建設中高層ビル 150階 Under Construction Skyscraper 150F | 132 (105.9) | FM1-4 A1-3 B | 8448 ticks | 21883 / 21883 | 1297/1297 |
+| `$24` | Stage 4 / 5 (harbour market; the first stage of the played credit): 裏水路 Ura Suiro, Rear Waterway; the brawler's stage 3 and Kim's theme (`THEME_KIM`) | 86 (69.0) | FM1-4 A1-3 B | 5760 ticks | 16649 / 16649 | 920/920 |
 | `$25` | Ranking (attract) | 120 (96.2) | FM1-4 A1-3 B | 4608 ticks | 10633 / 10633 | 580/580 |
-| `$2B` | Stage 8 (temple hall) | 130 (104.3) | FM1-4 A1-3 B | 8640 ticks | 36795 / 36795 | 1091/1091 |
-| `$2C` | Stage 9 (bone cave) | 110 (88.2) | FM1-4 A1-4 B | 11160 ticks | 14018 / 14018 | 1323/1323 |
+| `$2B` | Stage 8 (temple hall): King Lion's palace (Shishioh, 獅子王, the 1P boss) | 130 (104.3) | FM1-4 A1-3 B | 8640 ticks | 36795 / 36795 | 1091/1091 |
+| `$2C` | Stage 9 (bone cave): 異次元 Strange Dimension (Jyazu, the hidden last boss) | 110 (88.2) | FM1-4 A1-4 B | 11160 ticks | 14018 / 14018 | 1323/1323 |
 | `$2D` | ? | 104 (83.4) | FM1-4 A1-6 B | 5376 ticks | 15150 / 15151 | 1324/1325 * |
 | `$2E` | ? | 106 (85.0) | FM1-4 A1-6 B | 768 ticks | 3752 / 3752 | 230/230 |
 | `$2F` | ? | 155 (124.3) | FM1-4 A1-5 B | ends | 6409 / 6409 | 433/433 |
@@ -52,6 +54,23 @@ Stages (measured 2026-10-11): the stage is the word `$109658` (set at `$DF9A` fr
 word[`$4DD18` + 2 stage] - 3, read at `$1CE28`). Forced to 0-9 in our emulator (mkvs.py's 2P boot, the word poked over
 the select), each fight sent the table's song at its start: 0 / 1 `$21`, 2 / 3 `$22`, 4 / 5 `$24`, 6 / 7 `$23`,
 8 `$2B`, 9 `$2C`; screenshots /data/tmp/kizuna_highway/stages/sheet.png.
+
+Who owns a stage (code read 2026-10-11, P ROM `$DE9A`-`$E0C2`, `$EF7E`): nobody, apart from the bosses. The 1P mode
+keeps a mask of the eight places played (`$6E54`, bits = location slots 0-7; slot *s* and *s* + 4 are the same place,
+the two times of day: table `$DFB0` stage -> slot = 0 4 3 7 2 6 5 1, its inverse `$DFA6` slot -> stage); each fight
+takes a random free slot (`$1359A` random, `$DFBA` the n-th clear bit) -> stage, and a won stage marks its place (both
+times of day from the fifth fight on). The pick reads only that place mask, never a fighter (the attract demo's `$1FC0`
+likewise draws four random distinct fighters of ten and, apart, a random stage of eight); the defeated fighters go to
+their own mask `$090A`. With no place left the stage is 8 (King Lion's palace, the
+boss Shishioh), or 9 (Jyazu's dimension) when bit 9 of `$1B2C` is set. Vs mode: a random unplayed stage of eight (`$E076`,
+mask `$6E56`). So the "theme" of a regular fighter does not exist in Kizuna; songs.json's `THEME_KIM` is the harbour
+song Kim was first matched with (`$24`), not a stage of his.
+
+Voice note 20261011-155038-5d29 ("put the **Risuhiro** music from Kizuna" on the brawler's stage 3): the closest title
+is 裏水路 *Ura Suiro* (u-ra-su-i-ro; the others: スラム街 Suramu-gai, 高速道路料金所 Kōsoku-dōro Ryōkinjo, 建設中高層ビル
+Kensetsu-chū Kōsō Biru, and no fighter of the cast — Hayate, Eagle, Gozu, Mezu, Rosa, Kim, Joker, Chung, Gordon,
+Shishioh, Jyazu — is near it), the `$24` song: the brawler's stage 3 plays `THEME_KIM` since then (no new M ROM bytes:
+the song was already in it).
 
 ## Song features (song98.py census, first pass of every song)
 
