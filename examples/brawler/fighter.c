@@ -1549,6 +1549,8 @@ static void knob_proj(fighter_t *p, const fighter_t *f) {        /* a travelling
                                                                     victim standing and hittable (KOF's counted objects:
                                                                     handlers98 counted_states' rule); the last: its own */
     }
+    if ((k = knob_of(f, KN_PVPER)) != 0) p->vper = k->val < 1 ? 1 : k->val > 4 ? 4 : (uint8_t)k->val;   /* (vcnt: 2 bits a victim) */
+    if ((k = knob_of(f, KN_PVMAX)) != 0) p->vmax = k->val < 0 ? 0 : k->val > 255 ? 255 : (uint8_t)k->val;
     p->spec_dmg = knob_dmg(f, p->spec_dmg);
 }
 _Static_assert(TRY_MAX >= 8 + 2 * LQ_MAX + LS_COUNT * (2 + 2 * LO_MAX) + KN_MAX * 14 + 2 + 4 * LC_MAX + LRT_MAX * (4 + 2 * LRT_SEG),
@@ -2239,7 +2241,8 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
     p->pcnt = d->hits; p->freeze = 0;                            /* its hits left (object.phase) */
     p->kspd = 0; p->khit = 0;                                    /* (no knob: knob_proj, its spawner's) */
-    p->vcnt = 0; p->vdone = 0;                                   /* (a piercing one: no victim hit yet) */
+    p->vcnt = 0; p->vdone = 0; p->vtot = 0;                      /* (a piercing one: no victim hit yet; its hits */
+    p->vper = PJ_VPER(d); p->vmax = PJ_VMAX(d);                  /* on each / in all, knob_proj's after) */
     p->tick = 0; p->state_t = 0; p->node = d->child_b0;          /* tick 0: shown at row 0 this frame (the update after
                                                                     the fighters' advances it from the next); state_t:
                                                                     its frames alive; node: the next frame its child is born */
@@ -2253,6 +2256,11 @@ static void proj_spawn(fighter_t *f, const bproj_t *d) {         /* spawn point:
     if (p && f->kn_n) knob_proj(p, f);                      /* (a pinned effect of the script is no shot) */
 }
 static void proj_launch(fighter_t *p);
+static void proj_end(fighter_t *p) {                             /* a travelling object over: its end rows where it is */
+    if (!p->pdef->nend) { projectile_reset(p); return; }         /* (none: gone at once) */
+    p->pend = 1; p->prow = 0; p->throw_x0 = p->x; p->py0 = p->y; if (p->pdef->follow && p->owner) p->py0 -= p->owner->y;
+    proj_row(p);
+}
 static void proj_hit(fighter_t *p) {                             /* its hit landed (a fighter or a clash) */
     if (p->owner) p->owner->pflags |= (p->pdef->sig << 2) & (PF_SIG7 | PF_SIG6);   /* its hit signals its thrower */
     if (p->pdef->kind == PK_BOOM) {                              /* a boomerang stops where it hit, its attack spent; */
@@ -2274,11 +2282,8 @@ static void proj_hit(fighter_t *p) {                             /* its hit land
         }
         return;
     }
-    if (p->pdef->kind == 1) {                                    /* travelling: its end animation where it hit */
-        if (!p->pdef->nend) { projectile_reset(p); return; }
-        p->pend = 1; p->prow = 0; p->throw_x0 = p->x; p->py0 = p->y; if (p->pdef->follow && p->owner) p->py0 -= p->owner->y;
-        proj_row(p);
-    } else { p->pend = 2; p->spec_atk = 0; p->pown = 0; }       /* an eruption plays on, its attack spent */
+    if (p->pdef->kind == 1) proj_end(p);                         /* travelling: its end animation where it hit */
+    else { p->pend = 2; p->spec_atk = 0; p->pown = 0; }         /* an eruption plays on, its attack spent */
 }
 static void proj_crowd(fighter_t *p) {                          /* an eruption's hit on a fighter (crowd rule, Bruno
                                                                     2026-10-06): its thrower signalled, its clash box
@@ -2306,6 +2311,7 @@ static void proj_launch(fighter_t *p) {                          /* its next pha
     const bproj_t *d = p->pdef->next;
     p->pdef = d; p->prow = 0; p->pend = 0; p->tick = 1; p->throw_x0 = p->x;
     p->spec_react = d->react; p->spec_fx = d->fx; p->hit_mask = 0; p->pcnt = d->hits; p->freeze = 0;
+    p->vper = PJ_VPER(d); p->vmax = PJ_VMAX(d);                  /* (its hit budget: the phase's) */
     proj_row(p);
 }
 static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of an entity (its bank mapped) */
@@ -2324,7 +2330,7 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
                                                                     place; SS2's pinned objects: Tenha's wind) */
     if (p->freeze) {                                             /* after a hit (bproj_t stop): frozen, it moves on */
         if (--p->freeze) return;                                 /* stop frames after it; with hits left it may hit */
-        if (d->kind == 1) p->hit_mask = d->vhits ? p->vdone : 0;   /* again then (object.phase; an eruption waits for */
+        if (d->kind == 1) p->hit_mask = p->vper ? p->vdone : 0;   /* again then (object.phase; an eruption waits for */
     }                                                            /* a re-arming row; a piercing one: every victim it is
                                                                     not done with, bproj_t vhits) */
     p->state_t++;
@@ -3942,8 +3948,8 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                     rc = c->effect ? LER[c->effect] : c->weight ? R_HEAVY : R_LIGHT; lpush = c->push;
                     dmg = (a->ldmg & (1 << v->idx)) ? 0 : c->damage; a->ldmg |= 1 << v->idx;
                 }
-                if (a->pdef && a->pdef->vhits) {             /* a piercing object (bproj_t vhits, Krauser's MAX): */
-                    uint8_t sh = v->idx << 1, c = (a->vcnt >> sh) & 3, nh = a->pdef->vhits;   /* vhits hits on each */
+                if (a->pdef && a->vper) {                    /* a piercing object (bproj_t vhits, Krauser's Kaiser */
+                    uint8_t sh = v->idx << 1, c = (a->vcnt >> sh) & 3, nh = a->vper;   /* Wave): nh hits on each */
                     dmg = share(a->spec_dmg, c + 1, nh) - share(a->spec_dmg, c, nh);   /* victim, */
                     if (c + 1 < nh) { rc = R_HEAVY; a->vcnt += 1 << sh; }   /* its damage split over them, a reel */
                     else a->vdone |= 1 << v->idx;                /* until the last (its own reaction) */
@@ -3958,8 +3964,13 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
             if (!hit_spark(a, v, atk, hb)) spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big;
                                                                 its source's own (DD, TODO #215) */
             if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */
-                if (a->pdef->vhits) { a->freeze = a->pdef->stop; continue; }   /* (a piercing one flies on: frozen
-                                                                    its stop frames, then re-armed, proj_update) */
+                if (a->vper) {                               /* (a piercing one flies on: frozen its stop frames
+                                                                    (KN_STOP: a knob's, its data has none), then
+                                                                    re-armed, proj_update; its hit budget spent, vmax:
+                                                                    it ends there, the others not hit) */
+                    if (a->vmax && ++a->vtot >= a->vmax) { proj_end(a); break; }
+                    a->freeze = a->pdef->stop ? a->pdef->stop : KN_STOP; continue;
+                }
                 if (a->pdef->kind == 1 || a->pdef->kind == PK_BOOM) { proj_hit(a); break; }   /* fireball, a boomerang); any other (an eruption) hits every */
                 proj_crowd(a);                                /* target it touches, each once (hit_mask): crowd */
             }

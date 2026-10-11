@@ -3032,5 +3032,27 @@
   "expect": "The third press with down plays SS2's crouching C+D (the low kick-slash) as the low finisher and hits Ryo.",
   "do_keys": "2:a,10:-,2:a,10:-,2:Da,60:-",
   "proof": 40
+ },
+ "20261011-134041-5d29": {
+  "title": "Krauser's Kaiser Wave: at most 2 hits on each enemy, 10 in all, then it vanishes",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "ryo",
+   "gap": 70,
+   "fury": "full",
+   "drive": "full",
+   "extra": [
+    95,
+    120,
+    145,
+    170,
+    195
+   ]
+  },
+  "do": "Krauser's fury is ready, six Ryos in a row in front of him. Press D (the Kaiser Wave) and count the hits on each Ryo. Then try it on one Ryo alone, and the MAX (down + D at low life with the gauge full).",
+  "expect": "The wave goes through the Ryos: each one takes 2 hits (the first keeps him standing, the second knocks him down), never a third. After its 10th hit (the fifth Ryo's second) the wave vanishes where it is and the sixth Ryo is not touched. Against one Ryo alone: 2 hits, then the wave flies on through him. The MAX wave does the same.",
+  "do_keys": "2:d,120:-",
+  "proof": 60
  }
 }

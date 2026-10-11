@@ -18,10 +18,16 @@ A KNOB (arb_pieces/<f>.json "knobs": {"S-012": [knob, ...]}):
                          2 KN_PSPEED the special's travelling objects fly val / 256 as fast (base 256)
                          3 KN_PHITS  they hit val times (base = default: val = the value)
                          4 KN_DMG    its hits deal val / 256 of their damage (base 256, the value in %)
+                         5 KN_PVPER  its travelling objects pierce: val hits on each target (base = default)
+                         6 KN_PVMAX  they end after val hits in all (base = default; 0 never sent: the default is
+                                     the cap game.json sets, the range 1..15)
+  KN_PVPER / KN_PVMAX only on a special with a projectile hit budget (game.json roster[].proj_hits: its "Hits per
+  target" / "Hits in all" replace its "Projectile hits").
   from = where the default comes from in the export; judgment = true where the choice was mine (which P_SET is "the"
   rush, the damage range), not a number the export states.
 
-Engine limits (what would break, the only hard bounds): KN_PHITS <= 255 (fighter_t.khit is a byte); KN_DMG: a hit's
+Engine limits (what would break, the only hard bounds): KN_PHITS <= 255 (fighter_t.khit is a byte); KN_PVPER 1..4
+(fighter_t.vcnt: 2 bits a victim; the game clamps); KN_PVMAX <= 255 (fighter_t.vmax); KN_DMG: a hit's
 damage is a byte (capped at 255 by the game); speeds have none (32-bit arithmetic; a projectile dies off screen, a rush
 stops at the stage's edge, a rise past the screen top comes back down)."""
 import json, math, os, sys
@@ -32,7 +38,7 @@ for p in (HERE, os.path.join(TOOLS, 'kof96'), os.path.join(TOOLS, 'kof95')):
     if p not in sys.path: sys.path.insert(0, p)
 import piece_ids
 
-KIND = {'set': 1, 'pspeed': 2, 'phits': 3, 'dmg': 4}
+KIND = {'set': 1, 'pspeed': 2, 'phits': 3, 'dmg': 4, 'pvper': 5, 'pvmax': 6}
 REG = {'vx': 0, 'vy': 1}
 HITS_MAX = 10                         # the Assembly's range (the engine's own bound: 255)
 FX = 65536
@@ -164,10 +170,36 @@ def derive_ss2(f, reg):
     return out
 
 
+def hit_budget(f, reg, out):
+    """the projectile hit budget's knobs (game.json roster[].proj_hits, export_bm.proj_hits): a piece whose special has
+    one gets "Hits per target" (KN_PVPER) and "Hits in all" (KN_PVMAX) with its values as defaults, in place of its
+    "Projectile hits" (a piercing object's count is those two)"""
+    g = json.load(open(os.path.join(TOOLS, '..', 'examples', 'brawler', 'game.json')))
+    ph = next((r.get('proj_hits') for r in g['roster'] if r['name'] == f), None) or {}
+    for pid, ks in out.items():
+        inp = reg['pieces'][pid]['input']
+        e = ph.get(inp) or (ph.get(inp[4:]) if inp.startswith('MAX ') else None)
+        if not e or not any(k['id'] == 'hits' for k in ks): continue
+        per, tot = e.get('hits_per_target', 1), e.get('max_hits', 0)
+        i = next(j for j, k in enumerate(ks) if k['id'] == 'hits')
+        new = [dict(id='per_target', name='Hits per target', unit='hits', default=per, min=1, max=4, step=1,
+                    rows=[{'kind': KIND['pvper'], 'a': 0, 'match': 0, 'base': per}],
+                    **{'from': f'game.json roster.proj_hits {inp}: hits_per_target {per} (it pierces)'}, judgment=False)]
+        if tot: new.append(dict(id='max_hits', name='Hits in all', unit='hits', default=tot, min=1, max=15, step=1,
+                                rows=[{'kind': KIND['pvmax'], 'a': 0, 'match': 0, 'base': tot}],
+                                **{'from': f'game.json roster.proj_hits {inp}: max_hits {tot} (then it vanishes)'}, judgment=False))
+        ks[i:i + 1] = new
+    return out
+
+
 def derive(f, reg=None):
     """{S- id: [knob]} for every decoded special piece of fighter f (a KOF fighter: handlers98.export_rom; an SS2 one:
-    derive_ss2; another game: none yet)"""
+    derive_ss2; another game: none yet), its projectile hit budget's knobs set (hit_budget)"""
     reg = reg or piece_ids.load(f)
+    return hit_budget(f, reg, derive_src(f, reg))
+
+
+def derive_src(f, reg):
     if any(p.get('source') == 'handlers_ss2.SPECIALS' for p in reg['pieces'].values()): return derive_ss2(f, reg)
     import export96, handlers98, rom96
     game = handlers98.ROM_GAME.get(f, 'kof98')

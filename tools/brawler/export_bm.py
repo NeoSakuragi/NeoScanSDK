@@ -781,6 +781,25 @@ class pal_slots:
     def index(self, k): return self.slot[k]
     def __len__(self): return len(self.keys)
 
+def proj_hits(n, sp):
+    """THE PROJECTILE HIT BUDGET (docs/brawler_gold.md "engine features"; note 20261011-134041-5d29, Krauser's Kaiser
+    Wave): game.json roster[].proj_hits {special input: {max_hits, hits_per_target[, rehit][, away]}} -> the fields its
+    travelling objects (kind 1, not pinned) take, or None (none: today's objects, their first hit ends them). A MAX
+    special takes its DM's entry unless it has its own ("MAX 641236C"). hits_per_target 1-4: it pierces, hitting each
+    victim that many times (fighter_t.vcnt: 2 bits a victim), re-armed rehit frames after each hit (default
+    handlers98.PROJ_REHIT); max_hits 0-15: its hits in all before it vanishes (its end rows where the last one landed; 0:
+    no cap, it flies to its normal end); away (default true): its victims sent away from its thrower (ppad 1). Packed in
+    bproj_t.vhits (bits 0-3 / 4-7: no struct change, the pack format stays)"""
+    ph = (roster().get(n) or {}).get('proj_hits') or {}
+    e = ph.get(sp.get('input')) or (ph.get(sp['max_of']) if sp.get('max_of') else None)
+    if not e: return None
+    per, tot = e.get('hits_per_target', 1), e.get('max_hits', 0)
+    assert isinstance(per, int) and 1 <= per <= 4, f'{n}: proj_hits.{sp["input"]}.hits_per_target {per} (1-4)'
+    assert isinstance(tot, int) and 0 <= tot <= 15, f'{n}: proj_hits.{sp["input"]}.max_hits {tot} (0-15, 0: no cap)'
+    rh = e.get('rehit', H.PROJ_REHIT)
+    assert isinstance(rh, int) and 1 <= rh <= 255, f'{n}: proj_hits.{sp["input"]}.rehit {rh} (1-255 frames)'
+    return dict(vhits=per, vmax=tot, stop=rh, away=1 if e.get('away', True) else 0)
+
 FRAME_COLS = {}                                         # per fighter: each exported frame's hardware sprites (bframe_t ncols)
 def projectile_c(n, k, pjs, game, sp):
     """C tables of a special's projectiles (export96.projectile_entry, in spawn order): per projectile its flight
@@ -796,6 +815,10 @@ def projectile_c(n, k, pjs, game, sp):
     def box(b): return '{0, 0, 0, 0}' if b is None else f'{{{sb(b[0])}, {sb(b[1])}, {b[2]}, {b[3]}}}'
     q = lambda v: max(-32768, min(32767, round(v * 8)))   # 1/8 px
     out, defs = [], []
+    hb = proj_hits(n, sp)                                # the projectile hit budget (game.json roster[].proj_hits)
+    if hb:
+        for pj in pjs:
+            if pj.get('kind') == 1 and not pj.get('follow'): pj.update(hb)
     def one(name, pj, child='0', births=(0, 0, 0), cd=(0, 0), nxt='0'):
         rows = ', '.join(f'{{{f}, {q(x)}, {round(y)}, {box(a[1:] if a else None)}, {box(o)}, {(1 if a else 0) | (2 if o else 0) | (4 if pj.get('rearm') and rest and rest[0] else 0)}, 0}}'
                          for f, x, y, a, o, *rest in pj['rows'])   # flags 4: the row re-arms its hit (object.phase)
@@ -820,8 +843,9 @@ def projectile_c(n, k, pjs, game, sp):
                                                          # ppad 1: its victims sent away from its thrower (TODO #193); air
                                                          # 1: born in the air (TODO #211, SS2 Hanzo's shuriken); back 1:
                                                          # behind its owner (TODO #214)
-                f', {pj_cols(pj)}, {pj.get("vhits", 0)}' + '}')   # cols: its widest frame (main.c depth_sort's block,
-                                                         # TODO #216); vhits: a piercing object's hits on each victim
+                f', {pj_cols(pj)}, {pj.get("vhits", 0) | pj.get("vmax", 0) << 4}' + '}')   # cols: its widest frame (main.c
+                                                         # depth_sort's block, TODO #216); vhits: a piercing object's hits
+                                                         # on each victim (bits 0-3) and in all (bits 4-7, 0: no cap)
     for j, pj in enumerate(pjs):
         c = pj.get('child'); child, births, cd = '0', (0, 0, 0), (0, 0)
         if pj.get('boom'):                               # a boomerang's pole segments: their bproj_t (kind 5) as its
@@ -916,12 +940,6 @@ def rom_c(n, k, sp, game, vres=None):
     last hitting state knock down (R_KNOCKDOWN; fighter.c: its last hit only), the earlier ones R_HEAVY, or ROM_REACT's.
     No carry: the victim flies with KOF98's reaction between hits (fighter.c kof_react)"""
     r = sp['rom']; out = []
-    vh = (roster().get(n) or {}).get('max_hits') if sp.get('max_of') else None   # game.json roster[].max_hits (Krauser
-    if vh:                                             # gold, Bruno 2026-10-09): its MAX's travelling objects pierce,
-        assert 2 <= vh <= 4, f'{n}: max_hits {vh} (2-4)'   # vh hits on each victim, re-armed PROJ_REHIT frames after
-        for ob in r['objects']:                        # each (bproj_t vhits, fighter.c strike); its victims sent away
-            if ob['kind'] == 1: ob.update(vhits=vh, stop=H.PROJ_REHIT, away=1)   # from him (ppad 1: the last hit lands
-                                                       # with the wave past the victim's middle)
     def bb(b): return '{0, 0, 0, 0}' if b is None else f'{{{b[0]}, {b[1]}, {b[2]}, {b[3]}}}'
     live = None
     kof = kof_prog(sp, game)                           # KOF96 / 98 / 99: a step's hurt box counts only with its $0200 flag
