@@ -3270,7 +3270,7 @@
   "proof": 60
  },
  "20261011-164455-5d29": {
-  "title": "Hanzo: air down, down + A throws the A, B and A+B shurikens at once, twice as fast",
+  "title": "Hanzo air down,down + A: one A+B shuriken, fast",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
@@ -3278,12 +3278,12 @@
    "gap": 50
   },
   "do": "Jump (B) and tap down, down + A in the air, close to Ryo. Do it again and press A as he hops back after the throw.",
-  "expect": "One throw: the three shurikens (A, B and A+B) leave his hand on the same frame, about 9 frames after the move starts (was 16), and fly apart a little: A the steepest, A+B the flattest. All three hit Ryo (3 hits at once). As he hops back, A plays his jump attack, which can hit Ryo, and he lands normally. Without A he just lands.",
+  "expect": "One throw, ONE shuriken: the A+B version (the flattest path), about 9 frames after the move starts (was 16). It hits Ryo; pressing A as Hanzo hops back still gives his jump attack, then he lands normally.",
   "do_keys": "3:b,8:-,1:D,1:-,1:D,2:Da,30:-,3:a,40:-",
   "proof": 110
  },
  "20261011-164801-5d29": {
-  "title": "Hanzo: air down, down + A throws three shurikens at once (A, B, A+B)",
+  "title": "Hanzo air down,down + A: one A+B shuriken, fast",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
@@ -3291,7 +3291,7 @@
    "gap": 50
   },
   "do": "Jump (B), tap down, down + A in the air, far from Ryo, and watch the shurikens. Do it again close to Ryo and press A as he hops back.",
-  "expect": "A single throw: the A, B and A+B shurikens come out together on the same frame and spread out on three paths (A steepest, B, A+B flattest), landing a few pixels apart in the floor. Close to Ryo all three hit him at once. After the throw he hops back; A then plays his jump attack and he lands normally.",
+  "expect": "One throw, ONE shuriken: the A+B version (the flattest path), about 9 frames after the move starts (was 16). It hits Ryo; pressing A as Hanzo hops back still gives his jump attack, then he lands normally.",
   "do_keys": "3:b,8:-,1:D,1:-,1:D,2:Da,30:-,3:a,40:-",
   "proof": 110
  },
