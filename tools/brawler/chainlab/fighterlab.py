@@ -32,21 +32,11 @@ def jload(p):
 
 
 def theme(G, songs, r):
-    """his music theme: roster[].music when set, else the songs.json THEME_* that names him (THEME_<NAME>, or a shared
-    THEME_RYO_ROBERT; never another roster fighter's own: THEME_HANZO_SS2 is not WHP Hanzo's)"""
+    """his music theme: roster[].music (a songs.json name; the game plays it as stage 1's music when he is picked:
+    build_tables roster_music, main.c stage_song), None when not set"""
     if r.get('music'):
         m = r['music']; s = next((s for s in songs if s['name'] == m), None) if isinstance(m, str) else None
         return dict(name=m, **({k: s[k] for k in ('source', 'cmd', 'what') if k in s} if s else {}), set_in='roster') if isinstance(m, str) else m
-    key = r['name'].upper(); others = {x['name'].upper() for x in G['roster']} - {key}
-    th = [s for s in songs if s['name'].startswith('THEME_') and s['name'][6:] not in others]
-    for s in sorted(th, key=lambda s: s['name'][6:] != key):
-        n = s['name']; rest = n[6:]
-        if rest == key or key in rest.split('_') or ('_' in key and key in rest):
-            return {'name': n, 'source': s.get('source'), 'cmd': s.get('cmd'), 'what': s.get('what'), 'set_in': 'songs.json'}
-    disp = (r.get('display') or r['name']).replace('_', ' ').title()
-    for s in th:                                      # (a shared theme: "Geese's, Krauser's and Mr. Big's theme")
-        if s['name'].startswith('THEME_') and (disp + "'s") in (s.get('what') or ''):
-            return {'name': s['name'], 'source': s.get('source'), 'cmd': s.get('cmd'), 'what': s.get('what'), 'set_in': 'songs.json'}
     return None
 
 

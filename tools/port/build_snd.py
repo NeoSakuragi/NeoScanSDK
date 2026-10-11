@@ -109,6 +109,16 @@ class Target:
                 self.keep_b.add(i); return i
         raise ValueError('no free ADPCM-B record')
 
+    def brec(self, rec):
+        """the ADPCM-B record holding these 13 bytes: a port's record already written with the same bytes (the same
+        placed sample, delta-N: two ports of one game sharing a drum) or a free one written with them. KOF98 has 117
+        records, its kept songs take most: sharing let KOF96's Kamikirimushi in (voice note 20261011-160158-5d29)"""
+        rec = bytes(rec)
+        if not hasattr(self, 'brec_of'): self.brec_of = {}
+        if rec not in self.brec_of:
+            i = self.free_brec(); self.m1[self.brecs + 13 * i:self.brecs + 13 * i + 13] = rec; self.brec_of[rec] = i
+        return self.brec_of[rec]
+
     # -- M ROM bank sets
     def m1_offset(self, bank, z): return 0x8000 * (bank + 1) + z - 0x8000
     def reserve(self, size, least=None):

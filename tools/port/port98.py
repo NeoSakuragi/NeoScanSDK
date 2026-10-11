@@ -194,12 +194,10 @@ class Port:
         # ADPCM-B: [prio][start][end][loops 0][ls][le][dn][$80] in a free record (instrument n = record n)
         recs = self.m1[0x2E1E] | self.m1[0x2E1F] << 8
         self.binst = {}
-        for st, en in b_s:
-            i = self.t.free_brec()
+        for st, en in b_s:                  # (build_snd brec: a record with the same bytes is shared between ports)
             ns, ne = self.vmap[(st, en)]
-            r = recs + 13 * i
-            self.m1[r:r + 13] = bytes([0x7F]) + w16(ns) + w16(ne) + bytes([0]) + w16(0) + w16(0xFFFF) + w16(0x6EB3) + bytes([0x80])
-            self.binst[(st, en)] = i
+            self.binst[(st, en)] = self.t.brec(bytes([0x7F]) + w16(ns) + w16(ne) + bytes([0]) + w16(0) + w16(0xFFFF) +
+                                               w16(0x6EB3) + bytes([0x80]))
         # pitches: KOF98's delta-N table in note mode (octave << 4 | semitone); a delta-N the table lacks plays in kit
         # mode ($0F 1: the note number is the record, whose own delta-N is used, $088E) from a record of its own
         self.dn = [self.m1[0x2B2A + 2 * i] | self.m1[0x2B2B + 2 * i] << 8 for i in range(96)]
@@ -207,10 +205,9 @@ class Port:
         for n in self.notes.get('B', []):
             for v in [n.deltan] + [c[2] for c in n.changes if c[1] == 'bslur']:
                 if v in self.dn or (n.start, n.end, v) in self.kit: continue
-                i = self.t.free_brec(); ns, ne = self.vmap[(n.start, n.end)]
-                self.m1[recs + 13 * i:recs + 13 * i + 13] = bytes([0x7F]) + w16(ns) + w16(ne) + bytes([0]) + w16(0) + \
-                    w16(0xFFFF) + w16(v) + bytes([0x80])
-                self.kit[(n.start, n.end, v)] = i
+                ns, ne = self.vmap[(n.start, n.end)]
+                self.kit[(n.start, n.end, v)] = self.t.brec(bytes([0x7F]) + w16(ns) + w16(ne) + bytes([0]) + w16(0) +
+                                                            w16(0xFFFF) + w16(v) + bytes([0x80]))
         if self.kit: self.report['adpcm_b_kit_records'] = len(self.kit)
 
     def b_pitch(self, smp, v):

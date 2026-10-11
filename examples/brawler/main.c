@@ -2431,13 +2431,20 @@ static void go_sign(uint8_t on) {                       /* highlighted (palette 
     if (on) snd_ssg(SSG_GO);                             /* each time it shows: the SSG buzz (songs.json ssg GO; voice
                                                             note 20261011-114459-5d29), over the music */
 }
+/* the stage's music: stage 1 plays the selected fighter's theme when he has one (game.json roster[].music ->
+ * roster_music; voice note 20261011-160158-5d29: Robert -> KOF96's Kamikirimushi), else the stage's own song. The
+ * selected fighter = P1's (P2's when he plays alone); a P2 joining later changes nothing (the song started here). */
+static uint8_t stage_song(uint8_t s) {
+    uint8_t m = s == 0 ? roster_music[pl_ch[pl_on[0] ? 0 : 1]] : 0;
+    return m ? m : gs->music;
+}
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
     mode = 1; nf = NE; cam_x = 0; wave = 0; cont_ov = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
     triggers_reset(); dr_on = DR_OFF; dr_cols = 0; guard_parity = shadow_parity = 0;      /* a drama cut short (the lab): dbg_init below hides its sprites */
     inputs_reset();
-    if (!attract) snd_music(gs->music);                      /* the attract demo: no music (voice note 20261011-114853-5d29:
+    if (!attract) snd_music(stage_song(s));                  /* the attract demo: no music (voice note 20261011-114853-5d29:
                                                                 no music before a credit, as an arcade's attract) */
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
     sparks_init();
