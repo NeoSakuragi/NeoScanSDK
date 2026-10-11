@@ -140,8 +140,10 @@ credits, P2's from coin slot 2; AES: START, free continues) brings him back wher
 While the other player fights on, the count shows in the HUD and the fight goes on; with nobody in play the fight
 freezes under the CONTINUE? overlay (fix layer, the drama font, PRESS START / INSERT COIN blinking) with KOF98's
 continue song ($26, the one KOF98 starts on its CONTINUE screen; TODO #154). Every count at 0: the fight fades out,
-the GAME OVER screen (the player lying, the stage reached; no song: the continue song fades out, $0A $2C, as KOF98's
-GAME OVER does; 8 s or a button after 1.5 s), then SYSTEM_RETURN (MVS: the save committed; the title while
+the GAME OVER screen (the player lying, the stage reached; KOF94's game over music, its $31: KOF94 sends nothing at
+its GAME OVER, the song it starts on its CONTINUE screen plays on under it (measured 2026-10-11); the continue song
+stopped ($20) and this one started; Bruno 2026-10-11, note 20261006-160539-b3f3; was KOF98's way, the continue song
+faded out, $0A $2C, music.gameover FADE; 8 s or a button after 1.5 s), then SYSTEM_RETURN (MVS: the save committed; the title while
 credits remain, else the demo; AES: the demo). The attract demo's bot has no continue: its last life ends the demo.
 Songs: game.json `music.continue` / `music.gameover` (a song, or FADE). Proof: /data/tmp/continue/cont.py mvs|aes (screenshots in
 /data/tmp/continue/out); the end screens' music: tools/brawler/screenmusic_proof.py.

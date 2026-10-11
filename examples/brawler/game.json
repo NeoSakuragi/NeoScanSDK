@@ -1,7 +1,7 @@
 {
  "about": "The brawler as data (docs/brawler_data_model.md): roster (layer 1), enemies + AI presets (layer 2), stages (layer 3). tools/brawler/build_tables.py turns it into the tables the game reads (build/game_tables.c / .h, build/roster.json for the fighter export).",
  "schema": 1,
- "music": {"title": "TITLE", "select": "SELECT", "clear": "WIN", "continue": "CONTINUE", "gameover": "FADE"},
+ "music": {"title": "TITLE", "select": "SELECT", "clear": "WIN", "continue": "CONTINUE", "gameover": "GAMEOVER"},
  "roster": [
   {
    "name": "terry",
@@ -335,15 +335,16 @@
    "watch": {"frame": 140, "step": -1},
    "routes": "default",
    "archetype": "fast",
-   "moves": {"atk_cd_close": "$15C", "atk_ab_far": "$114", "atk_ab_close": "$15D", "atk_cd_crouch": "$10F", "atk_ab_crouch": "$F5"},
+   "moves": {"atk_cd_close": "$15C", "atk_ab_far": "$114", "atk_ab_close": "$15D", "atk_cd_crouch": "$10F", "atk_ab_crouch": "$F5", "cmd_fwd_c": "$116"},
    "retime": {"atk_a_far": [8, 1, 16]},
    "chain": {"links": ["atk_a_far", "atk_a_close", "atk_b_far"], "length": 4},
    "finishers": {"launcher": "up", "down": "sweep", "neutral": "atk_ab_far", "forward": "body_toss", "up": "atk_cd_crouch", "down_move": "atk_ab_crouch"},
    "specials": {"D": "63214BCD", "fD": "6321S", "dD": null, "uD": null, "dfD": null, "ufD": null},
-   "blitz": {"dd": "WFT"},
+   "blitz": {"dd": "cmd_fwd_c"},
    "air": {"forward": "atk_cd_jump", "straight": "atk_cd_jump"},
    "fury": "WFT",
-   "air_specials": {"dC": "j.4123S"},
+   "air_specials": {"ddA": "j.4123AB"},
+   "keeps_air_attack": ["j.4123AB"],
    "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof",

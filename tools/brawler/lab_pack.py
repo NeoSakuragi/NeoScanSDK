@@ -70,6 +70,9 @@ BASE_OPS = {1: ['anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec'
                 'sigclr', 'hitoff', 'add', 'form', 'voice', 'vsig', 'turn', 'vphase', 'screen', 'home', 'catch', 'lanim',
                 'warp']}
 BASE_KNOBS = {1: ['set', 'pspeed', 'phits', 'dmg']}
+BASE_SF = {1: ['SF_NOPUSH', 'SF_BIGHIT', 'SF_NOW', 'SF_SHARE', 'SF_INV', 'SF_SREACT']}   # bspec_t.sflags bits of the format
+                                                    # (later ones are features, appended: an older shell ignores the bit,
+                                                    # the move plays as before there; SF_AIRATK 2026-10-11)
 WANT = ['lab', 'fighters', 'route_tab', 'rt_tab', 'bm_chars', 'mode', 'cam_x', 'projectiles', 'attract', 'phase', 'wave',
         'lock_x', 'camp', 'game_ticks', 'lab_fields', 'prac', 'q', 'qt']   # the layout's symbols the pages read (lab.js, tryit.js; q / qt: the sound queue, the proofs)
 
@@ -189,6 +192,10 @@ def abi(B):
         l = ' '.join(l.split())
         if not l or l.startswith('extern') or l.startswith('#') or 'BC_COUNT }' in l or 'VP_COUNT' in l or l.startswith('enum { P_ANIM') or l.startswith('enum { PC_END'):
             continue
+        if l.startswith('enum { SF_NOPUSH'):            # (sflags: append-only, the format's bits stand for it)
+            sf = _enum(l, 'SF_NOPUSH')
+            if sf[:len(BASE_SF[FORMAT])] == BASE_SF[FORMAT]:
+                l = 'enum { ' + ', '.join(f'{n} = {1 << k}' for k, n in enumerate(BASE_SF[FORMAT])) + ' };'
         keep.append(l)
     fh = open(os.path.join(GAME, 'fighter.h')).read()
     S = syms(os.path.join(B, 'rom.elf')); nbc = nbc_of(B)
@@ -243,7 +250,12 @@ def features(B):
     """what the shell plays: its ops, knob kinds, lab, try2, try3 (TRY blob v3: the chain), its shared ids"""
     fh = open(os.path.join(GAME, 'fighter.h')).read()
     return ops_of(B) + ['knob-' + k for k in knobs_of()] + ['lab'] + (['try2'] if 'gkcat_t' in fh else []) + \
-        (['try3'] if 'LS_CHAIN' in fh else []) + shared_tokens(B)
+        (['try3'] if 'LS_CHAIN' in fh else []) + sf_features(B) + shared_tokens(B)
+
+
+def sf_features(B):
+    """the bspec_t.sflags bits the shell plays beyond its format's (sf-airatk ...)"""
+    return ['sf-' + n[3:].lower() for n in _enum(open(os.path.join(B, 'bm_chars.h')).read(), 'SF_NOPUSH')[len(BASE_SF[FORMAT]):]]
 
 
 def needs(B, E, S):
