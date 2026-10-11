@@ -682,7 +682,9 @@ def dtier_tables(g, build, dmul):
         sup = (r.get('throws') or {}).get('super')        # the super throw's special (revamp 3; a paired one: its tier as is)
         fs = r.get('fury_damage_scale', 1)               # roster[].fury_damage_scale: this fighter's fury and MAX deal their
         assert isinstance(fs, (int, float)) and 0.5 <= fs <= 4, f'{n}: fury_damage_scale {fs} (0.5-4)'   # tier times it
-        for k, j, tg, inp in (('fury', 0, round(t['fury'] * fs), fury), ('max', 1, round(t['max'] * fs), mx),
+        ms = r.get('max_damage_scale', fs)               # roster[].max_damage_scale: the MAX's own (default: the fury's)
+        assert isinstance(ms, (int, float)) and 0.5 <= ms <= 4, f'{n}: max_damage_scale {ms} (0.5-4)'
+        for k, j, tg, inp in (('fury', 0, round(t['fury'] * fs), fury), ('max', 1, round(t['max'] * ms), mx),
                               ('super_throw', 2, t['super_throw'], sup if sup in pool else None)):
             d = own(inp) if inp else None
             if d: v[len(pool) + j] = sc(tg, d)

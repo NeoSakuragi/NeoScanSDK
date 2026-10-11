@@ -24,6 +24,8 @@
   },
   {
    "name": "ryo",
+   "fury_damage_scale": 2,
+   "max_damage_scale": 3,
    "bank": "kof98:ryo",
    "watch": {"frame": 343, "step": -1},
    "routes": "default",

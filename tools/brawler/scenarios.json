@@ -3242,5 +3242,18 @@
   "expect": "Hanzo plays his far A+B slash (the long sword swing), free, and it knocks Ryo down. Like the SS2 move it reaches from a little distance: very close it can miss. His fury (D) is still the rage move.",
   "do_keys": "1:D,1:-,1:D,2:a,60:-",
   "proof": 60
+ },
+ "20261011-161838-5d29": {
+  "title": "Ryo: fury x2, MAX fury x3 damage",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ryo",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Do Ryo's fury (D) on Terry and watch his life bar; then, in red low life, his MAX fury.",
+  "expect": "The fury takes about twice as much life as before (target 60 instead of 30), the MAX about three times (135 instead of 45).",
+  "do_keys": "",
+  "proof": 60
  }
 }
