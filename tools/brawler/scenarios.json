@@ -2863,5 +2863,18 @@
   "expect": "Kizuna Encounter's highway stage music (高速道路, its broken elevated expressway stage) plays instead of Fatal Fury 3's stage music; stage 1 keeps Fatal Fury 3's.",
   "do_keys": "",
   "proof": 900
+ },
+ "20261011-114113-5d29": {
+  "title": "Double Dragon fighters: forward, forward = a dash, buttons in it = air moves",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy_lee",
+   "dummy": "terry",
+   "gap": 110
+  },
+  "do": "Double-tap forward and press A while Billy is in the air of his dash. Then try down + A in the dash, a dash with no button, and the same with Super Billy and Cheng Fu.",
+  "expect": "Billy hops forward in his Double Dragon dash (a crouch, a low hop of about a quarter of the screen, a landing) instead of running. A in the hop plays his jumping kick and knocks the dummy down; down + A his jumping down attack; he finishes the dash's course in the air and lands as from a jump. Without a button the dash stays low on the ground for hits and ends on its own. B, C or D in the hop do nothing. Kim's dash and the other fighters' runs are as before.",
+  "do_keys": "2:R,2:-,1:R,8:-,3:a",
+  "proof": 60
  }
 }

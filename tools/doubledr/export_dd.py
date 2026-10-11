@@ -381,6 +381,24 @@ def air_steps(B, ch, a, key='body'):
                     'boxes': kof_boxes(s['w6']), 'dd': [a, r['step']]})
     return out
 LOOP = {'idle', 'walk_fwd', 'run'}
+# the forward dash (note 20261011-114113-5d29: game.json roster[].run.mode dash): forward,forward in DD [meas: our
+# emulator, vs.state / p1_10.state, 66 from neutral] = animation 2; Billy (0, 1): step 0 the crouch, step 1 airborne
+# (next 0: DD lands in 11); Cheng-Fu (10): 2 = five shuffle steps on the ground, its next 39 the airborne leap (then DD
+# plays 37, a shuffle back; here the landing 11). (ground animation, airborne (animation, step), landing animation):
+# the ground steps shown over run.dash.start frames, the airborne step held over run.dash.frames, the landing as the
+# ROM has it; no travel in the steps (the engine moves the dash: fighter.c grun_dash)
+DASH = {0: (2, (2, 1), 11), 1: (2, (2, 1), 11), 10: (2, (39, 0), 11)}
+
+def dash_steps(B, ch, d):
+    g, (aa, ast), land = DASH[ch]
+    gst = [s for i, s in enumerate(anim_steps(B, ch, g, moving=False)) if (g, i) != (aa, ast) and not (g == aa and i > ast)]
+    t = sum(s['ticks'] + 1 for s in gst)
+    assert t == d['start'], f'DD {ch}: run.dash.start {d["start"]}: its ground steps last {t} frames'
+    air = anim_steps(B, ch, aa, ast, ast, moving=False)
+    air[0]['ticks'] = d['frames'] - 1
+    st = gst + air + anim_steps(B, ch, land, moving=False)
+    for s_ in st: s_['dx'] = 0
+    return st
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',
          'atk_c_hop': 'atk_c_jump', 'atk_d_hop': 'atk_d_jump', 'atk_c_hop_diag': 'atk_c_jump_diag',
@@ -910,6 +928,8 @@ def export(names, outdir, only=None, extra=None):
                 st = chain_steps(B, ch, src[0])          # (DD plays its next animations too: TODO #218)
             else: st = anim_steps(B, ch, src[0], *(src[1:] if len(src) > 1 else ()))
             anims[mv] = {'slot': src[0], 'mode': 'loop' if mv in LOOP else 'hold', 'steps': st}
+        run = (extra or {}).get(name, {}).get('run') or {}
+        if run.get('mode') == 'dash': anims['run'] = {'slot': DASH[ch][0], 'mode': 'hold', 'steps': dash_steps(B, ch, run['dash'])}
         for j, a in JUMPS.items():
             pre, rise, fall = jump_steps(B, ch, a)
             if j == 'jump_up': anims['prejump'] = {'slot': a, 'mode': 'hold', 'steps': pre}

@@ -554,10 +554,24 @@ static void jump_start(fighter_t *f, const intent_t *in, uint8_t air_node) {
  * the depth as the stick held at the press (1 px a frame); the rise animation turns into the fall at gjump.apex; past the
  * table it lands (gjump.land_dx more on that frame): S_LAND, gjump.land frames, any input ends it from gjump.land_cancel
  * on (Final Fight's landing cancels at once). One height (no hop), no per-fighter KOF physics. A fall that is not this
- * jump (after a special in the air, the respawn's drop) keeps the gravity (fighter_t.jt 0). Returns 1 on the landing. */
+ * jump (after a special in the air, the respawn's drop) keeps the gravity (fighter_t.jt 0). Returns 1 on the landing.
+ * jrun 2: a dash that took to the air (dash_air): the rest of the dash's own course (grun_dash), no land_dx; past it an
+ * air attack not over yet plays on, on the floor, to its end (then the landing). */
 static uint8_t jump_frame(fighter_t *f) {
     uint8_t i = f->jt - 1;
     int8_t d = f->jump_dir == 1 ? f->facing : f->jump_dir == 2 ? -f->facing : 0;
+    if (f->jrun == 2) {
+        const uint8_t *t = fighter_dash(f);
+        if (!t || i >= t[1]) {                                   /* its course run: an air attack still playing (a slow
+                                                                    one, Cheng-Fu's j.D) finishes on the floor where it
+                                                                    is, then the landing; the down attack lands now */
+            if (t && f->state == S_AIR_ATTACK && !f->anim_done && f->node != TREE(f)->air_b) { f->y = 0; return 0; }
+            return 1;
+        }
+        f->x += dir_mul(f->facing, FIX(t[2 + i] - (i ? t[1 + i] : 0))); f->y = FIX(t[2 + t[1] + i]); clamp(f);
+        f->jt++;
+        return 0;
+    }
     if (i >= gjump.n) {                                          /* the table played: the landing frame */
         f->x += dir_mul(d, f->jrun ? mul88((int32_t)gjump.land_dx << 8, gjump.run_dx) : (int32_t)gjump.land_dx << 8); f->z += f->vz; clamp(f);
         return 1;
@@ -566,6 +580,27 @@ static uint8_t jump_frame(fighter_t *f) {
     f->jt++;
     if (f->state == S_AIR && i == gjump.apex && f->anim == JUMP_ANIM[0][f->jump_dir][0]) play(f, JUMP_ANIM[0][f->jump_dir][1]);
     return 0;
+}
+/* the dash's air (note 20261011-114113-5d29; roster[].run.air_buttons, the dash table's last byte: Double Dragon's
+ * fighters): in the dash's airborne frames the buttons are a jump's. A, or C when the stick's slot has an air special
+ * (air_pick), turns the dash into a forward jump from that frame on: S_AIR on the rest of the dash's course (jump_frame,
+ * jrun 2), the press then played by the jump's own rules this same frame (A: the forward jump's attack air_cd, down+A
+ * the down attack air_b; C: the air special); it lands as a jump does (S_LAND: the air attack's landing recovery, an
+ * air_b held active to it). Any other press in those frames does what it does in a jump: nothing (B no second jump, D
+ * no fury, C without an air special nothing). Until a move plays the dash stays a ground move (y 0: its hurt box on
+ * the ground; its height drawn only, main.c run_bob). -> 1 it took off (play the air state now), 2 a press swallowed,
+ * 0 not in its air / not this fighter (the ground rules) */
+static uint8_t dash_air(fighter_t *f, const uint8_t *dsh, const intent_t *in) {
+    uint16_t t = f->state_t;
+    uint8_t k;
+    if (!dsh[2 + 2 * dsh[1]] || t < dsh[0] || t >= dsh[0] + dsh[1] || !in->press) return 0;
+    if (!(in->press & IN_A) && !((in->press & IN_C) && air_pick(f, in) != 0xFF)) return 2;
+    k = t - dsh[0];                                              /* this frame's air frame (0-based) */
+    f->jump_dir = 1; f->jump_kind = 0; f->vx = f->vy = f->vz = 0; f->air_node = 0;
+    enter(f, S_AIR); play(f, JUMP_ANIM[0][1][2 * k >= dsh[1]]);
+    f->jt = k + 1; f->jrun = 2; f->aact = 0;
+    f->y = FIX(k ? dsh[2 + dsh[1] + k - 1] : 0);                 /* (last frame's height; jump_frame moves it on) */
+    return 1;
 }
 /* the air attacks' active frames (Bruno 2026-10-08, "jumps"): on the move's last active step the animation is held (the
  * step stays shown, its box live) while the jump attack (air_a / air_cd: knocking down) has been active fewer than
@@ -3258,6 +3293,7 @@ static void update(fighter_t *f, const intent_t *in) {
     case S_IDLE: case S_WALK: case S_RUN: neutral: {
         uint8_t b = in->press;
         const uint8_t *dsh = f->state == S_RUN ? fighter_dash(f) : 0;   /* a dash under way (grun_dash): its course */
+        if (dsh) switch (dash_air(f, dsh, in)) { case 1: goto air; case 2: b = 0; }   /* its air: a jump's buttons */
         if (b & IN_B) { jump_start(f, in, f->chain_t ? NODE(f, f->chain_node)->next[RI_B] : 0); break; }   /* inside a chain
                                                                     window: the route's B link (a jump-cancel; the chain
                                                                     trees have none since 2026-10-08) */
@@ -3331,7 +3367,7 @@ static void update(fighter_t *f, const intent_t *in) {
             jump_frame(f);                                       /* its first air frame now */
         }
         break;
-    case S_AIR: case S_AIR_ATTACK:
+    case S_AIR: case S_AIR_ATTACK: air:
         if (f->drop) {                                           /* the respawn's drop: no control, untouchable */
             f->inv = 2; f->y += f->vy; f->vy -= ph->gravity;
             if (f->y <= 0) { f->y = 0; f->vy = 0; f->drop = 2; f->inv = RESPAWN_INV; enter(f, S_LAND); play(f, BA_LAND); }
