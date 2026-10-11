@@ -146,7 +146,10 @@ bosses). Generated as `SEL_SLOT[]` (x int16, z, row: 4 bytes) and `sel_fighter[]
 per fighter `x` (street px 0-767), `y`, `z`, `facing`, `pose`, `slot` (the stick's order; the cursor starts on the
 first selectable slot and the camera centres it). Since note 20261011-111259-5d29: Terry is slot 0 at x 480, under
 the NEO GEO LAND logo's centre (world x 365-594, camera 320), Robert and Kim either side, the street order turned to
-start at him (so the loop left / right is unchanged).
+start at him (so the loop left / right is unchanged). Since decision select-bosses (set open-2026-10-11, "Move the
+locked bosses to the edges"): the locked bosses stand at the street's outermost places (Mr. Big, Krauser, Geese x 42-100;
+Rugal, Goenitz x 685-714), the playable fighters fill the places around the middle three in their former loop order
+(places, facings, rows and slots unchanged; each fighter keeps its pose).
 
 ROM side of a fighter (`bchar_t`, export_bm.py): name, palettes, frames, animations (`banim_t` / `bstep_t`), physics,
 throws, victim poses, specials (`bspec_t`, rows of a script: its whole pool, `nspec` of them, in build/bm_spec.c, compiled

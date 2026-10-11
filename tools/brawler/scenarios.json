@@ -3192,5 +3192,16 @@
   "expect": "At 0 the GAME OVER screen shows and the continue music fades out over about 2 seconds, then silence, as KOF98 does (its GAME OVER plays no song of its own). It no longer starts the continue music over again. The next coin plays the title music as usual.",
   "do_keys": "",
   "proof": 1300
+ },
+ "decision-select-bosses": {
+  "title": "Select screen: the locked bosses at the far ends of the street",
+  "setup": {
+   "mode": "select",
+   "cursor": "kim"
+  },
+  "do": "A fresh game (the bosses locked): look at the select screen's first picture, then walk the cursor right from Kim to the end of the street and on round past the bosses.",
+  "expect": "No dark silhouette near the middle: Terry under the NEO GEO LAND logo, Robert left and Kim right, playable fighters all around them. The locked bosses stand at the street's far ends: Rugal and Goenitz the last two on the right, Mr. Big, Krauser and Geese the first three on the left. Walking right: Kim, Cheng-Fu, Hanzo (SS2), Yashiro, Hanzo, Ryo, then past the bosses straight to Kyo, Iori, Mai and on to Robert, Terry.",
+  "do_keys": "4:R,30:-,4:R,30:-,4:R,30:-,4:R,30:-,4:R,40:-,4:R,40:-,4:R,40:-",
+  "proof": 60
  }
 }
