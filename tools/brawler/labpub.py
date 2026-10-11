@@ -156,10 +156,8 @@ def cmd_all(a):
     if a.if_changed:
         fmt_changed = not sh or sh.get('format') != lab_pack.FORMAT or stamps.get('format') != [lab_pack.FORMAT, lab_pack.FORMATS[lab_pack.FORMAT]]
         changed = [f for f in fighters if stamps.get(f) != want[f]]
-        if not fmt_changed and not changed:
-            print(f'labpub all --if-changed: the pack format ({lab_pack.FORMAT}) and every fighter\'s inputs are as last published: nothing to do')
-            return
-        if not fmt_changed: fighters = changed
+        if not fmt_changed: fighters = changed           # (the shell is always rebuilt: an engine-only release changes it, not the packs;
+                                                         #  it is published only when its bytes differ from the catalogue's)
         print('labpub all: ' + ('the pack format changed' if fmt_changed else 'changed: ' + ', '.join(changed)))
     print(f'labpub all: the shell + {len(fighters)} packs ({", ".join(fighters)})', flush=True)
     if not a.no_build:
