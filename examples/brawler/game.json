@@ -204,7 +204,7 @@
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_c_jump"},
    "throws": {"back": "throw_c", "hold": {"hit": "atk_b_close", "fin": "atk_d_close"}},
    "fury": "641236C",
-   "max_hits": 4,
+   "proj_hits": {"641236C": {"max_hits": 10, "hits_per_target": 2}},
    "unlock": {"boss_of_stage": 2},
    "voices": "kof",
    "hit_sfx": {"throw_c": "BACK BREAK"},

@@ -268,10 +268,14 @@ each), scenario.py lint 0.
   up,up + A Blitz): $NN = the animation's state, played as a one-block ROM program (export96.anim_special,
   handlers98.anim_rom: its steps, boxes, voices as the ROM has them); how = heavy | launch | knockdown | kof (KOF's own
   box reactions); the reaction rides P_ANIM (rom_c: the rom's `react`), the knockdown on its last hit.
-- `roster[].max_hits` 2-4 (Krauser: 4): the MAX's travelling objects pierce: each enemy they cross takes that many hits
-  (the MAX's damage split over them, a reel until the last), the object frozen PROJ_REHIT frames after each hit then
-  re-armed for the victims it is not done with, its victims sent away from the thrower (bproj_t vhits, ppad 1;
-  fighter_t vcnt / vdone; fighter.c strike).
+- `roster[].proj_hits` {special input: {max_hits, hits_per_target[, rehit][, away]}} (Krauser: `{"641236C": {"max_hits":
+  10, "hits_per_target": 2}}`, his Kaiser Wave and its MAX): the PROJECTILE HIT BUDGET (docs/brawler_gold.md "Engine
+  features"; export_bm.proj_hits). The special's travelling objects pierce: each enemy they cross takes hits_per_target
+  (1-4) hits (the damage split over them, a reel until the last), the object frozen `rehit` frames (default
+  PROJ_REHIT 7) after each hit then re-armed for the victims it is not done with, and after max_hits (1-15; 0: no cap)
+  hits in all it ends there (its end rows); its victims sent away from the thrower unless `away` false. A MAX special
+  takes its DM's entry unless it has its own (`"MAX 641236C"`). (bproj_t vhits bits 0-3 / 4-7, ppad; fighter_t vcnt /
+  vdone / vtot; fighter.c strike.) Replaces 0.10.46's `roster[].max_hits` (the MAX's hits on each enemy, no cap).
 - **Throw direction** (2026-10-11, every fighter, fighter.c `lands_behind` / `throw_start`): forward + A lands the victim
   IN FRONT, back + A (and the chain's back throw) BEHIND. The side is the throw's data: the victim's place relative to
   the thrower on its landing row (bthrow_t.land; none: its last row). A throw landing on the other side of the slot that

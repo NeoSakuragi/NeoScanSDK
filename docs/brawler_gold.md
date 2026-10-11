@@ -180,7 +180,9 @@ dictionary: brawler-lab/anims.html?f=krauser, tools/brawler/animdict.py). BUILT 
 - Fury (D) = $98, 641236C Kaiser Wave, as now.
 - MAX (down + D, low life) = KOF96's MAX Kaiser Wave (the handler's +$E4 bit 0 path: pose $9A, the bigger wave $9D,
   impact $9E), its wave PIERCING: 4 hits on every enemy it crosses (roster.max_hits 4; 45 damage per enemy = the MAX
-  tier), victims sent away from him. "Purple": no purple Kaiser Wave exists in KOF96's data — the MAX wave's frames
+  tier), victims sent away from him. Superseded 2026-10-11 (note 20261011-134041-5d29): every Kaiser Wave (the fury
+  and its MAX) hits each enemy at most 2 times and 10 times in all, then vanishes (roster.proj_hits, "Projectile hit
+  budget" under engine features). "Purple": no purple Kaiser Wave exists in KOF96's data — the MAX wave's frames
   ($9D) use palette 10 like the normal wave's ($9B), a blue ramp (KOF96's handler $4B5E8 changes only the states and
   the box for the MAX, no palette); KOF96's own Kaiser Wave in our emulator and Rugal's KOF98 one (every charge level)
   are blue too. A purple recolour of $9D would be a new feature (not built).
@@ -245,6 +247,21 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   pinned to its owner (Tenha's wind, the Kogetsuzan crescent, Genjuro's card wind and second-phase cards, Kuroko's
   ghost). Another importer sets it the same way when its source game holds its pinned objects with the body. Proof:
   tools/samsho2/hstop_proof.py.
+
+- **Projectile hit budget** — `game.json roster[].proj_hits` {special input: {`max_hits`, `hits_per_target`[, `rehit`][,
+  `away`]}} (note 20261011-134041-5d29, Krauser's Kaiser Wave: "maximum 10 hits before disappearing, but it can hit every
+  character twice"). The special's travelling objects (kind 1, not pinned) pierce: each enemy takes at most
+  `hits_per_target` hits (1-4; the special's damage split over them, a reel R_HEAVY until the last, which plays the
+  object's own reaction), the object freezes `rehit` frames after each hit (default handlers98.PROJ_REHIT = 7) and is then
+  re-armed for every enemy it is not done with, flying on; after `max_hits` hits in all (1-15; 0 = no cap) it ends where
+  the last one landed (its end rows; the enemies it did not reach are not hit); `away` (default true) sends its victims
+  away from the thrower. A MAX special takes its DM's entry unless it has its own (`"MAX 641236C"`). Engine: `bproj_t.vhits`
+  bits 0-3 = hits per target, bits 4-7 = the cap (fighter.h PJ_VPER / PJ_VMAX: packed, no struct change, the pack format
+  stays 1); `fighter_t.vcnt` (2 bits a victim) / `vdone` / `vtot` (hits in all); fighter.c strike / proj_end. Unset
+  (vhits 0): every other projectile as before, its first hit ends it (proof: the exported tables differ only in Krauser's
+  two Kaiser Waves). Krauser: `{"641236C": {"max_hits": 10, "hits_per_target": 2}}` (his fury and MAX; was the MAX only,
+  4 a victim, no cap). Exporter: export_bm.proj_hits (any game's projectiles go through projectile_c). Proof:
+  tools/brawler/hitbudget_proof.py (crowd of 6 + single dummy, fury + MAX; recipe scenarios.json 20261011-134041-5d29).
 
 ## The arbitration sheet compiler, piece ids and the Workshop
 

@@ -3080,23 +3080,42 @@
     "from": "its object's rows: x +7 px a frame (handlers98 object_rows)"
    },
    {
-    "id": "hits",
-    "name": "Projectile hits",
+    "id": "per_target",
+    "name": "Hits per target",
     "unit": "hits",
-    "default": 1,
+    "default": 2,
     "min": 1,
-    "max": 10,
+    "max": 4,
     "step": 1,
     "rows": [
      {
-      "kind": 3,
+      "kind": 5,
       "a": 0,
       "match": 0,
-      "base": 1
+      "base": 2
      }
     ],
-    "judgment": false,
-    "from": "its object: one hit ends it (KOF +$138 not counted)"
+    "from": "game.json roster.proj_hits 641236C: hits_per_target 2 (it pierces)",
+    "judgment": false
+   },
+   {
+    "id": "max_hits",
+    "name": "Hits in all",
+    "unit": "hits",
+    "default": 10,
+    "min": 1,
+    "max": 15,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 6,
+      "a": 0,
+      "match": 0,
+      "base": 10
+     }
+    ],
+    "from": "game.json roster.proj_hits 641236C: max_hits 10 (then it vanishes)",
+    "judgment": false
    },
    {
     "id": "damage",
@@ -3139,23 +3158,42 @@
     "from": "its object's rows: x +7 px a frame (handlers98 object_rows)"
    },
    {
-    "id": "hits",
-    "name": "Projectile hits",
+    "id": "per_target",
+    "name": "Hits per target",
     "unit": "hits",
-    "default": 1,
+    "default": 2,
     "min": 1,
-    "max": 10,
+    "max": 4,
     "step": 1,
     "rows": [
      {
-      "kind": 3,
+      "kind": 5,
       "a": 0,
       "match": 0,
-      "base": 1
+      "base": 2
      }
     ],
-    "judgment": false,
-    "from": "its object: one hit ends it (KOF +$138 not counted)"
+    "from": "game.json roster.proj_hits MAX 641236C: hits_per_target 2 (it pierces)",
+    "judgment": false
+   },
+   {
+    "id": "max_hits",
+    "name": "Hits in all",
+    "unit": "hits",
+    "default": 10,
+    "min": 1,
+    "max": 15,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 6,
+      "a": 0,
+      "match": 0,
+      "base": 10
+     }
+    ],
+    "from": "game.json roster.proj_hits MAX 641236C: max_hits 10 (then it vanishes)",
+    "judgment": false
    },
    {
     "id": "damage",

@@ -239,7 +239,9 @@ typedef struct { uint8_t slot, spec, kind, a; int32_t match, val; } gknob_t;   /
 enum { KN_END, KN_SET,            /* P_SET of register a whose value is match (16.16) plays val instead (speed, rise, dive) */
        KN_PSPEED,                 /* its travelling objects fly val / 256 times as fast (their rows' x from row 0, wrap_x) */
        KN_PHITS,                  /* its travelling objects hit val times (re-armed every stop frames, KN_STOP if none) */
-       KN_DMG };                  /* its hits deal val / 256 of their damage (the body's and its objects') */
+       KN_DMG,                    /* its hits deal val / 256 of their damage (the body's and its objects') */
+       KN_PVPER,                  /* its travelling objects pierce: val hits on each target (1-4; fighter_t.vper) */
+       KN_PVMAX };                /* its piercing objects end after val hits in all (0: no cap; fighter_t.vmax) */
 #define KN_STOP 4                 /* a knobbed object's frames between hits when its data has none (KOF98's counted objects) */
 #define LS_KNOB  0x80             /* a TRY blob v2 record of 6 words: one knob row (slot, spec, kind, a, match, val; BE) */
 #define LS_QUEUE 0xFE             /* a knob row's slot: the Try queue's entries */
@@ -565,7 +567,8 @@ typedef struct fighter {
      * cancel, note 20261009-114542-5d29); wdz = the walk's depth direction this frame (-1 / 0 / +1: the depth grab, note
      * 20261009-114751-5d29) */
     uint8_t  inb, blz_slot;
-    int8_t   wdz, pad_n;
+    int8_t   wdz;
+    uint8_t  vtot;                /* a piercing object with a hit budget (PJ_VMAX): its hits landed so far, every victim */
     /* a piercing object (bproj_t vhits, Krauser's MAX Kaiser Wave, 2026-10-09; fighter.c strike): vcnt = its hits landed
      * on each victim (2 bits per fighter_t.idx), vdone = the victims it is done with (bit per idx); hs_now (a fighter) 1:
      * this frame was one of its hit-stop frames (fighter_update; its pinned effects with bproj_t follow FL_HSTOP hold) */
@@ -576,6 +579,9 @@ typedef struct fighter {
     const gknob_t *kn;
     uint8_t  kn_n, khit;
     uint16_t kspd;
+    /* the projectile hit budget (bproj_t vhits, PJ_VPER / PJ_VMAX, at its spawn / phase; knobs KN_PVPER / KN_PVMAX): vper
+     * its hits on each target (0: not piercing), vmax its hits in all before it ends (0: no cap) */
+    uint8_t  vper, vmax;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
@@ -608,6 +614,11 @@ extern uint16_t bighit_col;               /* its backdrop colour (fighter.c big_
 extern uint8_t hitflash;           /* hit (main.c screen_fx: red 2, 3, 6, 7 frames after the spark shows, as DD's screen),
                                       frames left; BIGHIT_COL = DD's red */
 #define HMARK_MAX 2                /* hit marks (PK_FX) alive at once: a new one replaces the oldest (fighter.c hit_spark) */
+/* bproj_t vhits (docs/brawler_gold.md "engine features", "Projectile hit budget"; note 20261011-134041-5d29): bits 0-3 =
+ * its hits on each target (hits_per_target, 1-4; 0: not piercing, its first hit ends it as before), bits 4-7 = its hits in
+ * all before it vanishes (max_hits, 1-15; 0: no cap, it flies on to its normal end) */
+#define PJ_VPER(d) ((d)->vhits & 15)
+#define PJ_VMAX(d) ((d)->vhits >> 4)
 #define FL_HSTOP 128               /* bproj_t follow bit (docs/brawler_gold.md "engine features"): a pinned effect holds on its
                                       owner's hit-stop frames (fighter_t.hs_now): its row, timer and place stay, so it stays in
                                       step with him (SS2's pinned objects, export_ss2.hold_pinned: Tenha's wind); unset: it
