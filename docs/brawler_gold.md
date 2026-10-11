@@ -546,3 +546,7 @@ Compiled from the sheet without an agent: 8 slot(s) linked, 0 unresolved; slots 
 - air_a (jump + A): $61 -> air.forward + air.straight = "atk_d_jump" — linked, class a: its own move
 - air_da (jump + down + A): $5C -> air.down = "atk_c_jump" — linked, class a: its own move
 - air_ba (jump back + A): $57 -> air.back = "atk_b_jump" — linked, class a: its own move
+
+### KYO: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.64)
+Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- knobs: {"sp_fc": {"S-007": {"rise": 3.58}}} (roster[].knobs, measured by knob_check)
