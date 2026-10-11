@@ -114,6 +114,20 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
 # watch poses: Bruno's two judging rounds, 2026-10-05 (round 2 picked Billy 347 last, Mai 338 last, Robert 340 last,
 # Yamazaki 349 first, Yashiro 340 last)
 # The poses are data now: game.json roster[].watch {frame, step} (moved there 2026-10-05 with these picks).
+# Every win pose of the source (voice note 20261011-132148-5d29, Bruno: "for fighters with multiple win poses, play a
+# random one at the end"): 'win' (BA_WIN: the stage clear's pose 0, the select screen's, the ending's) and the others,
+# 'win_2' .. 'win_4' (KOF98: the button held at the KO, A-D; KOF99 three; SS2: its class 6 win actions, export_ss2
+# win_anims). They are not BA_* moves (the enum is the Lab pack's format): bm_wins[id] (build/bm_wins.h) holds them,
+# with their voices (the export's suggestion, as 'win' gets its own) and their step effects (an effect object born as
+# the pose enters a step: SS2 Haohmaru's thrown sword); main.c win_tick picks one (fighter.c fighter_win_pose)
+WIN_MORE = ['win_2', 'win_3', 'win_4']
+def win_more(ch):
+    """the fighter's win poses beyond 'win', in order (the export's 'win_2' ..)"""
+    out = []
+    for m in WIN_MORE:
+        if m not in ch['anims']: break
+        out.append(m)
+    return out
 CMDS = ['cmd_fwd_a', 'cmd_fwd_b', 'cmd_df_c', 'cmd_df_d']   # bchar_t.cmds bit k: the fighter has CMDS[k] (export96.CMD_NORMALS)
 # brawler move -> the KOF moves it is taken from, first found. Air normals measured in the games (capture/jumps.py, every
 # roster fighter): a regular jump plays the vertical normal (82/91/100/109) straight up and the diagonal one (84/93/102/111)
@@ -307,11 +321,11 @@ def build(specs, outdir):
             return export94.export(names, tmp, only=set(MOVES))
         if game == 'samsho4':                           # Samurai Shodown IV: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'samsho4')); import export_ss4
-            return export_ss4.export(names, tmp, only=set(MOVES),
+            return export_ss4.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
                                      extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()})
         if game == 'samsho2':                           # Samurai Shodown II: its own reader, programs from its handlers
             sys.path.insert(0, os.path.join(HERE, '..', 'samsho2')); import export_ss2
-            return export_ss2.export(names, tmp, only=set(MOVES),
+            return export_ss2.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
                                      extra={n: {'watch': tuple(roster()[n]['watch']), **flash_extra(game, n),
                                                 **({'moves': roster()[rname(game, n)]['moves']} if roster().get(rname(game, n), {}).get('moves') else {}),
                                                 'inputs': [w for w in (roster().get(rname(game, n), {}).get('specials') or []) +
@@ -323,21 +337,21 @@ def build(specs, outdir):
                                      lab={n: LAB[n] for n in names if n in LAB} or None)   # (the Lab: versions, Lab throws, LAB)
         if game == 'whp':                               # World Heroes Perfect: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'whp')); import export_whp
-            return export_whp.export(names, tmp, only=set(MOVES),
+            return export_whp.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
                                      extra={n: {'watch': tuple(roster()[n]['watch']), **flash_extra(game, n)} for n in names if n in roster()})
         if game == 'doubledr':                          # Double Dragon (Technos 1995): its own reader, the same layout
             sys.path.insert(0, os.path.join(HERE, '..', 'doubledr')); import export_dd
-            return export_dd.export(names, tmp, only=set(MOVES),
+            return export_dd.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
                                     extra={n: {'watch': tuple(roster()[rname(game, n)]['watch']), 'scale': roster()[rname(game, n)].get('scale', 1), **flash_extra(game, rname(game, n)),
                                                **{k: roster()[rname(game, n)][k] for k in ('run',) if k in roster()[rname(game, n)]}}   # (run.mode dash: export_dd DASH)
                                            for n in names if rname(game, n) in roster()})
         if game == 'kizuna':                            # Kizuna Encounter: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'kizuna')); import export_kz
-            return export_kz.export(names, tmp, only=set(MOVES),   # (Kim gold: roster[].scale x $CC, moves, anim_specials)
+            return export_kz.export(names, tmp, only=set(MOVES) | set(WIN_MORE),   # (Kim gold: roster[].scale x $CC, moves, anim_specials)
                                     extra={n: {'watch': tuple(roster()[n]['watch']), **flash_extra(game, n),
                                                **{k: roster()[n][k] for k in ('scale', 'moves', 'anim_specials', 'run') if k in roster()[n]}}
                                            for n in names if n in roster()})
-        return export96.export(names, tmp, game, only=set(MOVES) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {THROW_X, 'specials'},
+        return export96.export(names, tmp, game, only=set(MOVES) | set(WIN_MORE) | {k for v in SOURCES.values() for k in v} | set(THROWS) | {THROW_X, 'specials'},
                                extra={n: {'watch': tuple(roster()[n]['watch'])} for n in names if n in roster()},
                                shared_fx={n: played_inputs(n) for n in names},   # (only the frames used: TODO #214)
                                anim_specials={n: roster()[n]['anim_specials'] for n in names if roster().get(n, {}).get('anim_specials')},
@@ -1589,6 +1603,23 @@ def voice_data(ch, n, game, pool, sps):
     more = sorted(more + V.anim_extras(n, ks, sug, mp, 'win', slot_of['win']))   # the win pose's further voices (#184)
     return ks, sug, mp, V.table(ks, sug, mp, len(V.bank(n)), n), more
 
+WINS = {}                                               # per fighter: (its win poses besides 'win', any step effect)
+def win_voices(ch, n, game, m):
+    """a win pose's voices beyond 'win' (bm_wins vox): [(step, voice id | fx bit)], the source's own as voices.suggest /
+    anim_extras give the 'win' key its own, where the roster keeps KOF's suggestions (game.json roster[].voices)"""
+    a = ch['anims'][m]
+    v = ('parts', a['parts']) if a.get('parts') else (a.get('slot'), len(a['steps']))
+    sug = V.suggest(n, game, {m: v}, {}, [])
+    if m not in sug or V.mapping(roster()[n].get('voices'), sug).get(m) != sug[m][0]: return []
+    out = [(sug[m][1], sug[m][0])]
+    for slot, off, nsteps in V.parts_of(v):
+        for vo in V.bank(n):
+            for u in vo['uses']:
+                if u['kind'] == 'anim' and u['slot'] == slot:
+                    e = (off + min(u['step'], nsteps - 1), vo['id'])
+                    if e not in out: out.append(e)
+    return sorted((at, i | V.fx_bit(n, i)) for at, i in out)
+
 def kof_prog(sp, game):
     """a KOF96 / 98 / 99 special played from its ROM program (its voices sent by the program: TODO #163)"""
     return game in H.SOUND_MAPPER and rom_ok(sp) and not sp['rom'].get('prims')
@@ -1721,9 +1752,10 @@ def write_c(chars, outdir):
          'extern const int8_t bm_head[BC_COUNT][2];   /* the head of each fighter\'s select pose (BA_WATCH), px from the feet, facing left (head_point.py; game.json roster[].watch.head): where the select cursor points */\n#endif']
     c = ['/* Generated by tools/brawler/export_bm.py. Do not edit. */\n#include "bm_chars.h"\n',
          'const uint16_t bm_sfx_pals[] = {' + ', '.join(f'0x{v:04X}' for g, k in sfx_keys for v in sfx_cols[(g, k)]) + ('' if sfx_keys else '0') + '};   /* SFX_NPAL palettes (KOF\'s shared effects bank, TODO #214) */\n']
+    WINS.clear()
     cs = ['/* Generated by tools/brawler/export_bm.py. Do not edit. Every fighter\'s specials (its special_pool, in pool order):\n'
           ' * compiled as plain read-only data, so they sit in the first program MB, beside the code (bm_chars.c goes to $200000). */\n'
-          '#include "bm_chars.h"\n']
+          '#include "bm_chars.h"\n#include "bm_wins.h"\n']
     fx = lambda v: str(int(round(v * 65536)))
     def bb(b): return '{0, 0, 0, 0}' if b is None else f'{{{b[0]}, {b[1]}, {b[2]}, {b[3]}}}'
     used = {}                                            # palettes the exported frames use, renumbered 0..k-1
@@ -1753,7 +1785,7 @@ def write_c(chars, outdir):
         c.append(f'static const bframe_t {n}_frames[] = {{' + ', '.join(
             f'{{{len(fr["parts"])}, {sum(len(p["tiles"]) for p in fr["parts"])}, {n}_f{fi}}}' for fi, fr in enumerate(ch['frames'])) + '};')
         arr = {}                                                 # one step array per source animation: a move the
-        for m in MOVES:                                          # fighter lacks shares its fallback's (idle)
+        for m in MOVES + win_more(ch):                           # fighter lacks shares its fallback's (idle)
             a = source(ch, m)
             if id(a) in arr: continue
             arr[id(a)] = f'{n}_{m}'
@@ -1892,6 +1924,15 @@ def write_c(chars, outdir):
                                               [x for st in sp['rom']['states'] for s_ in sp['rom']['anims'][st]['steps'] for x in s_.get('voices', [])]} - {0})}
         c.append(f'static const uint8_t {n}_voices[] = {{' + ', '.join(map(str, vtab)) + '};   /* voices.py table */')
         c.append(f'static const uint8_t {n}_vmore[] = {{' + ''.join(f'{a}, {b}, {d}, ' for a, b, d in vmore) + '0xFF};   /* voices.py extras */')
+        wm = [] if n in ALIAS else win_more(ch)                  # its other win poses (bm_wins; the shell's slot: a pack
+        if wm:                                                   # fills it, its 'win' only)
+            c.append(f'const banim_t {n}_wan[] = {{' + ', '.join(f'{{{len(source(ch, m)["steps"])}, 1, {arr[id(source(ch, m))]}}}' for m in wm) + '};')
+            c.append(f'const uint8_t {n}_wvox[] = {{' + ''.join(f'{k + 1}, {at}, {v}, ' for k, m in enumerate(wm) for at, v in win_voices(ch, n, game, m)) + '0xFF};   /* [pose, step, voice id] */')
+            objs = [(k + 1, o['step'], o['obj']) for k, m in enumerate(wm) for o in ch['anims'][m].get('objects', ())]
+            c.append(f'const uint8_t {n}_wfx[] = {{' + ''.join(f'{k}, {st}, {j}, ' for j, (k, st, _) in enumerate(objs)) + '0xFF};   /* [pose, step, object] */')
+            if objs: cs.append(projectile_c(n, 'w', [o for _, _, o in objs], game, {'input': 'WIN'}))
+            cs.append(f'extern const banim_t {n}_wan[];\nextern const uint8_t {n}_wvox[], {n}_wfx[];')
+            WINS[n] = (len(wm), bool(objs))
         c.append(f'static const uint16_t {n}_vposes[VP_COUNT + 1] = {{' + ', '.join(str(v if v >= 0 else 0xFFFF) for v in ptable[n]) + ', 0xFFFF};')
         fps = fpose_steps(ch)                                    # the flash pose (TODO #145)
         hd = lambda a: (ch.get('flash_heads') or {}).get(str(a)) or ch.get('flash_head', (0, 0))   # (each step's head)
@@ -1981,6 +2022,17 @@ def write_c(chars, outdir):
     c.append('const int8_t bm_head[BC_COUNT][2] = {' + ', '.join(f'{{{ch["head"][0]}, {ch["head"][1]}}}' for _, _, ch, _ in chars) + '};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')
+    cs.append('const bwin_t bm_wins[BC_COUNT] = {' + ', '.join(f'{{{WINS[n][0]}, {n}_wan, {n}_wvox, {n}_wfx, {n + "_pjw" if WINS[n][1] else "0"}}}' if n in WINS else '{0, 0, 0, 0, 0}'
+                                                          for _, n, _, _ in chars) + '};   /* (the win poses) */')
+    open(os.path.join(outdir, 'bm_wins.h'), 'w').write(
+        '/* Generated by tools/brawler/export_bm.py. Do not edit. A fighter\'s win poses besides its \'win\' (BA_WIN), export_bm\n'
+        ' * WIN_MORE (voice note 20261011-132148-5d29); outside bm_chars.h: not part of a Lab pack (a pack\'s fighter poses its\n'
+        ' * BA_WIN only) */\n#ifndef BM_WINS_H\n#define BM_WINS_H\n#include "bm_chars.h"\n'
+        'typedef struct { uint8_t n; const banim_t *anims; const uint8_t *vox, *fx; const bproj_t *obj; } bwin_t;   /* n: its poses\n'
+        ' * besides BA_WIN (anims[0 .. n - 1] = pose 1 .. n); vox: [pose, step, voice id | fx bit] each, 0xFF ends: sent as the pose\n'
+        ' * enters the step (pose 0\'s by its key, BA_WIN); fx: [pose, step, object] each, 0xFF ends: obj[object] (an effect\n'
+        ' * object, pinned: bproj_t follow) born as the pose (0 = BA_WIN) enters the step */\n'
+        'extern const bwin_t bm_wins[BC_COUNT];   /* by bchar_t.id */\n#endif\n')
     cs.append('const bhspark_t bm_hspark[BC_COUNT] = {' + ', '.join(f'{{{n}_hspk, {n}_pjhs}}' if ch.get('hit_sparks') else '{0, 0}'
                                                               for _, n, ch, _ in chars) + '};   /* (TODO #215) */')
     open(os.path.join(outdir, 'bm_spec.c'), 'w').write(dedupe_c('\n'.join(cs)) + '\n')

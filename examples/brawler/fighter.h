@@ -582,6 +582,10 @@ typedef struct fighter {
     /* the projectile hit budget (bproj_t vhits, PJ_VPER / PJ_VMAX, at its spawn / phase; knobs KN_PVPER / KN_PVMAX): vper
      * its hits on each target (0: not piercing), vmax its hits in all before it ends (0: no cap) */
     uint8_t  vper, vmax;
+    /* the win pose playing (fighter.c fighter_win_pose, voice note 20261011-132148-5d29): wan = its animation (0: none;
+     * fighter_step reads it), wpose = which (0 = BA_WIN, k = bm_wins[id].anims[k - 1]) */
+    const banim_t *wan;
+    uint8_t  wpose, wpad;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
@@ -659,6 +663,10 @@ void fighter_pose(fighter_t *f, uint8_t anim);             /* fighter_play / fig
 void fighter_pose_tick(fighter_t *f);                       /* (main.c: the stage clear's win pose, TODO #184) */
 uint8_t fighter_next_stage_ch(const fighter_t *f);          /* the bm_chars index it starts the next stage as (its
                                                                stage-end form, bm_stage_end, else its base form) */
+uint8_t fighter_win_poses(const fighter_t *f);              /* its win poses (BA_WIN + bm_wins) */
+void fighter_win_pose(fighter_t *f);                        /* (main.c win_tick: the stage clear) one of them, picked from
+                                                               the tick counter, with its voices and step effects */
+void fighter_win_pose_tick(fighter_t *f);                   /* its clock (held on its last step: anim_done) */
 void fighter_revive(fighter_t *f);
 void fighter_respawn(fighter_t *f);  /* a life used: full life, dropping from above the screen where it is (TODO #166 e) */
 void fighter_quake(const fighter_t *by, fighter_t *v);   /* the respawn's landing: v knocked down, away from by, no damage */

@@ -317,3 +317,7 @@ Compiled from the sheet without an agent: 3 slot(s) linked, 0 unresolved; slots 
 ### HAOHMARU: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `haohmaru-arb`, build 0.10.43)
 Compiled from the sheet without an agent: 1 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
 - fin_down (last hit + down): $160 -> finishers.down_move = "atk_ab_close" — linked, class a: spare name: moves "atk_ab_close": "$160"
+
+### HAOHMARU: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `haohmaru-arb`, build 0.10.45)
+Compiled from the sheet without an agent: 1 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- fin_up (last hit + up): $FC -> finishers.up = "atk_b_far" — linked, class a: its own move

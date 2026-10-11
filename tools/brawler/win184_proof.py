@@ -57,7 +57,7 @@ def sim_frames(b):
     return Image.frombuffer('RGBX', (w, h), data, 'raw', 'BGRX', pitch, 1).convert('RGB')
 
 _B = None
-def stage_run(name, two=False, shots_every=4):
+def stage_run(name, two=False, shots_every=4, extra=(), hook=None):
     """one campaign stage-1 clear with fighter `name`; returns (log, shots {frame: image})"""
     global _B
     if _B is None: _B = H.Brawler()                     # one core per process; setup resets it (retro_reset)
@@ -87,7 +87,8 @@ def stage_run(name, two=False, shots_every=4):
         row = {'t': t, 'mode': b.r(b.syms['mode'], 1), 'camp': b.r(b.syms['camp'], 1), 'phase': ph, 'snd': snd,
                'cam': b.r(b.syms['cam_x'], 2), 'boss_hp': b.fget(2, 'hp')}
         for i in (0, 1):
-            row[f'p{i}'] = {k: b.fget(i, k) for k in ('state', 'anim', 'step', 'facing', 'x', 'y', 'anim_done')}
+            row[f'p{i}'] = {k: b.fget(i, k) for k in ('state', 'anim', 'step', 'facing', 'x', 'y', 'anim_done') + tuple(extra)}
+        if hook: hook(b, row)                            # (winposes_proof: the pose's own fields, its effect)
         log.append(row)
         if row['mode'] != 1 or row['camp'] != camp0: break
         if ph == 4 and (t % shots_every == 0): shots[t] = sim_frames(b)

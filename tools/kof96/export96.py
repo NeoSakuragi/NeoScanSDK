@@ -80,11 +80,21 @@ MOVES98.update({'hop_up_rise': 15, 'hop_up_fall': 16, 'hop_fwd_rise': 17, 'hop_f
 # one after the other, 'parts' = [slot, first step, steps] (the voices' places, brawler/voices.py)
 WINS = {g: os.path.join(HERE, '..', 'kof98', 'capture', d, 'wins.json') for g, d in
         (('kof96', 'wins_kof96'), ('kof98', 'wins'), ('kof99', 'wins_kof99'))}
-def win_states(game, cid):
+def win_states(game, cid, button='A'):
     p = WINS.get(game)
-    seq = (json.load(open(p)).get(str(cid)) or {}).get('A') if p and os.path.exists(p) else None
+    seq = (json.load(open(p)).get(str(cid)) or {}).get(button) if p and os.path.exists(p) else None
     if seq: return [st for st, _ in seq[1:] if st]           # the attack that won it first, idle (0) between / after
     return [209] if game == 'kof96' else [336, 337]
+# Every win pose (voice note 20261011-132148-5d29: "for fighters with multiple win poses, play a random one at the end"):
+# the button held at the KO picks one (KOF98 A 336 / B 338 / C 340 / D 342, KOF99 three: its D repeats A or B; KOF96 one
+# per fighter), each its own state list in wins.json; the distinct lists in button order, A's first (the brawler's
+# 'win', then 'win_2' ..: export_bm WINS)
+def win_state_lists(game, cid):
+    out = []
+    for b in 'ABCD':
+        sts = win_states(game, cid, b)
+        if sts not in out: out.append(sts)
+    return out
 
 PAL_ROM = {'kof98': 0x2D77F0, 'kof99': 0x2D77F0, 'kof97': 0x2CFFF0}   # bank 2; KOF97's from its copy of KOF98's loader ($4AD6)
 def pal_rom98(m, n): return [0] + [m.u16(PAL_ROM[m.game] + n * 32 + 2 * i, 2) for i in range(1, 16)]
@@ -428,13 +438,20 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
             anims[move] = {'slot': slot, 'state': slot, 'mode': mode, 'steps': [
                 {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
         if game != 'kof97' and (only is None or 'win' in only):
-            parts, wsteps = [], []
-            for st in win_states(game, cid):
-                slot = slot_of(cid, st); steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
-                parts.append([slot, len(wsteps), len(steps)])
-                wsteps += [{'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}}
-                           for t, fi, fl, b, ri, dx in steps]
-            anims['win'] = {'slot': parts[0][0], 'state': win_states(game, cid)[0], 'parts': parts, 'mode': 'hold', 'steps': wsteps}
+            seen = []                                     # (a state list whose animations repeat another's: one pose)
+            for sts in win_state_lists(game, cid):
+                slots = [slot_of(cid, st) for st in sts]
+                if slots in seen: continue
+                w = len(seen); seen.append(slots)
+                key = 'win' if not w else f'win_{w + 1}'
+                if only is not None and key not in only: break
+                parts, wsteps = [], []
+                for st in sts:
+                    slot = slot_of(cid, st); steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
+                    parts.append([slot, len(wsteps), len(steps)])
+                    wsteps += [{'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}}
+                               for t, fi, fl, b, ri, dx in steps]
+                anims[key] = {'slot': parts[0][0], 'state': sts[0], 'parts': parts, 'mode': 'hold', 'steps': wsteps}
         for move, (state, step) in (extra or {}).get(name, {}).items():
             slot = slot_of(cid, state); steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
             t, fi, fl, b, ri, dx = steps[step]

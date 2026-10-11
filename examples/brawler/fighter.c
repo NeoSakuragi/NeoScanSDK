@@ -7,6 +7,7 @@
 #include "sound.h"
 #include "game_tables.h"
 #include "snd/voices.h"
+#include "bm_wins.h"                                          /* (the win poses: export_bm WIN_MORE) */
 #include "labslot.h"                                         /* (the Character Lab's shell: the slot's tables in RAM) */
 
 /* draw.s reads these structures at fixed offsets (its .equ list): the build stops if a field moves */
@@ -252,6 +253,7 @@ static void step_move(fighter_t *f) {                         /* KOF's per-step 
 }
 static void rt_arm(fighter_t *f, uint16_t move);
 static void play(fighter_t *f, uint8_t anim) {
+    if (f->wan) { f->wan = 0; f->frame_ovr = 0xFFFF; }          /* a win pose over (fighter_win_pose) */
     f->anim = anim; f->step = 0; f->anim_done = 0; f->acc = 0; f->speed = 0x100;
     step_move(f); voice_at(f, anim, 0, 0);
     rt_arm(f, anim);                                             /* its targets, if it has some (retiming) */
@@ -280,7 +282,7 @@ static void anim_tick(fighter_t *f) {
 }
 const uint8_t *fighter_dash(const fighter_t *f) { return f->ch->id < BC_COUNT ? grun_dash[f->ch->id] : 0; }   /* the
                                                                     fighter's dash (roster[].run.mode dash) or 0: a run */
-const bstep_t *fighter_step(const fighter_t *f) { return &f->ch->anims[f->anim].steps[f->step]; }
+const bstep_t *fighter_step(const fighter_t *f) { return f->wan ? &f->wan->steps[f->step] : &f->ch->anims[f->anim].steps[f->step]; }
 /* the step whose hurt box the fighter has now (TODO #205): a special read from the ROM shows its program's animation
  * step (pan / pstep, from its first frame played: srow), with that step's own hurt box or none (KOF98's steps without
  * $0200: Kyo's EX 421D frames 0-10); everything else its brawler animation's step. Steps are in the first MB: no bank */
@@ -290,8 +292,46 @@ const bstep_t *fighter_hurt_step(const fighter_t *f) {
 }
 void fighter_play(fighter_t *f, uint8_t anim) { mute = 1; play(f, anim); mute = 0; }
 void fighter_animate(fighter_t *f) { mute = 1; anim_tick(f); mute = 0; }
-void fighter_pose(fighter_t *f, uint8_t anim) { play(f, anim); }       /* the same, with the animation's voices (the */
-void fighter_pose_tick(fighter_t *f) { anim_tick(f); }                 /* stage clear's win pose, main.c win_tick) */
+/* ---- the win poses (voice note 20261011-132148-5d29, Bruno: "for fighters with multiple win poses, play a random one
+ * at the end") ------------------------------------------------------------------------------------------------------
+ * A fighter's win poses: pose 0 = its 'win' animation (BA_WIN), poses 1 .. bm_wins[id].n = the others of its source
+ * (export_bm WIN_MORE: KOF98 the four of A-D, KOF99 three, SS2 its class 6 win actions: Haohmaru four). The stage clear
+ * (main.c win_tick) plays one, picked from the tick counter (game_ticks: deterministic in a replay, no draw from the AI's
+ * generator; the players offset by their index). Every pose plays the same way: its own animation (fighter_t.wan, KOF's
+ * step clock), its frames shown through frame_ovr; as it enters a step, its voices (pose 0: its key BA_WIN, the voice
+ * table's: a data pack's too; the others: bm_wins vox, the export's suggestion like the key's) and its step effects
+ * (bm_wins fx: an effect object, Haohmaru's thrown sword: bproj_t follow 3, pinned, ended by its last row). Any play()
+ * ends it (a form the pose turns back into, fighter_stage_end). A pack's fighter (the shell's slot) has pose 0 only. */
+extern volatile uint32_t game_ticks;                            /* (crt0.s) */
+static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int8_t facing, int32_t z);
+static void wpose_step(fighter_t *f) {
+    const bwin_t *w = &bm_wins[f->ch->id];
+    const uint8_t *e;
+    f->frame_ovr = f->wan->steps[f->step].frame;
+    if (!f->wpose) voice_at(f, BA_WIN, f->step, f->step);
+    else for (e = w->vox; *e != 0xFF; e += 3) if (e[0] == f->wpose && e[1] == f->step) voice_id(f->ch, f->team, e[2]);
+    if (w->obj) for (e = w->fx; *e != 0xFF; e += 3)
+        if (e[0] == f->wpose && e[1] == f->step) proj_start(f, &w->obj[e[2]], f->x, f->facing, f->z);
+}
+uint8_t fighter_win_poses(const fighter_t *f) { return 1 + bm_wins[f->ch->id].n; }
+void fighter_win_pose(fighter_t *f) {
+    uint8_t k = (uint8_t)((uint8_t)game_ticks + f->idx) % fighter_win_poses(f);
+    play(f, BA_WIN);
+    f->wpose = k; f->wan = k ? &bm_wins[f->ch->id].anims[k - 1] : &f->ch->anims[BA_WIN];
+    wpose_step(f);
+}
+void fighter_win_pose_tick(fighter_t *f) {                     /* anim_tick's clock on the pose, held on its last step */
+    const banim_t *an = f->wan;
+    if (!an) { anim_tick(f); return; }                           /* (a form change ended it: its idle) */
+    f->acc += f->speed;
+    for (;;) {
+        uint32_t d = (uint32_t)(an->steps[f->step].ticks + 1) << 8;
+        if (f->acc < d) return;
+        if (f->step + 1 >= an->nsteps) { f->anim_done = 1; f->acc = d; return; }
+        f->acc -= d; f->step++;
+        wpose_step(f);
+    }
+}
 
 /* ---- retiming (revamp 1C; docs/brawler_data_model.md "Retiming", tools/brawler/retime.py) ----------------------------
  * The data keeps every move's source timing; a move given targets (game.json roster[].retime -> gretime_rom, a lab's
@@ -869,7 +909,7 @@ static uint16_t dtier(const fighter_t *f) {
 }
 static void form_set(fighter_t *f, const bchar_t *to) {   /* the fighter's character data replaced (the form link) */
     f->ch = to; if (f->set >= to->nsets) f->set = 0;
-    fighter_load_pals(f); f->ovl = 0; f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF;
+    fighter_load_pals(f); f->ovl = 0; f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF; f->wan = 0;
     f->node = 0; f->buffered = 0; f->spec_buf = f->fury_buf = 0; f->chain_t = 0; f->air_node = 0; f->landed = 0;
     walk_rate(f);                                                /* (its walk: the new form's archetype) */
 }
