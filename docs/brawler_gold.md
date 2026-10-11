@@ -258,3 +258,10 @@ Compiled from the sheet without an agent: 3 slot(s) linked, 1 unresolved (listed
 - air_a (jump + A): $11C -> air.forward + air.straight (+ moves atk_cd_jump_diag = $11C) = "atk_cd_jump" — linked, class a: its own move
 - bz_dd (down,down + A): $15A — UNRESOLVED: $15A has no move name and no known reaction (an animation special needs one: library anim_special)
 - chain timing: hit-stops 6 8 10 12 (roster chain.hitstop / retime, the build checked)
+
+### HAOHMARU: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `haohmaru-arb`, build 0.10.37)
+Compiled from the sheet without an agent: 3 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- a1 (A press 1): $FA -> chain.links[0] = "atk_b_close" — linked, class a: its own move
+- a2 (A press 2): $FC -> chain.links[1] = "atk_b_far" — linked, class a: its own move
+- a3 (A press 3): $114 -> finishers.neutral = "atk_cd_close" — linked, class a: spare name: moves "atk_cd_close": "$114"
+- chain timing: hit-stops 6 9 10 (roster chain.hitstop / retime, the build checked)
