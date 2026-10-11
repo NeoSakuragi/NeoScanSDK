@@ -84,6 +84,34 @@
    "air": false,
    "source": "dictionary capture"
   },
+  "214C>142": {
+   "decoded": true,
+   "anims": [
+    "8E",
+    "90"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "214C>146": {
+   "decoded": true,
+   "anims": [
+    "92",
+    "94"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "214C>149": {
+   "decoded": true,
+   "anims": [
+    "95",
+    "96",
+    "98"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
   "23624A": {
    "decoded": false,
    "anims": [
@@ -1110,6 +1138,7 @@
    "state": 142,
    "names": [],
    "specials": [
+    "214C>142",
     "214C"
    ]
   },
@@ -1128,6 +1157,7 @@
    "state": 144,
    "names": [],
    "specials": [
+    "214C>142",
     "214C"
    ]
   },
@@ -1145,7 +1175,9 @@
    "kind": "attack",
    "state": 146,
    "names": [],
-   "specials": []
+   "specials": [
+    "214C>146"
+   ]
   },
   "93": {
    "kind": "pose",
@@ -1161,7 +1193,9 @@
    "kind": "pose",
    "state": 148,
    "names": [],
-   "specials": []
+   "specials": [
+    "214C>146"
+   ]
   },
   "95": {
    "kind": "pose",
@@ -1170,6 +1204,7 @@
    "specials": [
     "214A",
     "214A>149",
+    "214C>149",
     "623D"
    ]
   },
@@ -1180,6 +1215,7 @@
    "specials": [
     "214A",
     "214A>149",
+    "214C>149",
     "623D"
    ]
   },
@@ -1197,7 +1233,9 @@
    "kind": "pose",
    "state": 152,
    "names": [],
-   "specials": []
+   "specials": [
+    "214C>149"
+   ]
   },
   "99": {
    "kind": "pose",
@@ -3539,6 +3577,126 @@
     ],
     "judgment": false,
     "from": "P_SET vy 4.0 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-012": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 8,
+    "min": 1,
+    "max": 24,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 524288,
+      "base": 524288
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 8.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-013": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-014": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 5.5,
+    "min": 1,
+    "max": 16.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 360448,
+      "base": 360448
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 5.5 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 6,
+    "min": 1,
+    "max": 18,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 393216,
+      "base": 393216
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 6.0 (its take-off speed, KOF +$58; the height grows with its square)"
    },
    {
     "id": "damage",

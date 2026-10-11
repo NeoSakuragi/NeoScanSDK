@@ -216,7 +216,7 @@ def chain_cfg(g, r):
     for k in own: assert k in ('links', 'hitstop', 'length'), f"roster {r['name']}: chain.{k} (links / hitstop / length)"   # hitstop: per link + the finisher
     air = air_of(r)                                  # its three air attacks (Bruno 2026-10-08): forward jump + A, straight
     for k in air: assert k in AIR_DEFAULT or k == 'back', f"roster {r['name']}: air.{k} (forward / straight / down / back)"   # jump + A, down + A
-                                                     # (back: the back jump's A, Bruno 2026-10-11; absent = forward's)
+                                                     # (back: back + A in any jump, note 20261011-210422-5d29; absent = none)
     n = own.get('length', 4)                         # (Bruno 2026-10-10: "4 by default, I add / remove presses": the archetype no
                                                      # longer sets the length; every fighter's own chain.length, 4 when absent)
     assert isinstance(n, int) and 2 <= n <= 8, f"roster {r['name']}: chain.length {n} (2-8)"
@@ -335,7 +335,7 @@ def roster_export(g):
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
-             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'keeps_air_attack', 'together', 'seq_press', 'nopush', 'max', 'proj_hits', 'run', 'slot_of') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'keeps_air_attack', 'together', 'seq_press', 'nopush', 'max', 'proj_hits', 'special_final_area', 'run', 'slot_of') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -934,6 +934,12 @@ def tables(g, build):
             f"roster {r['name']}: fury_final_area: front / back 1-255 px, depth 1-127 px"
         assert e.get('blows', 'last') in ('last', 'all'), f"roster {r['name']}: fury_final_area: blows 'last' or 'all'"
         fa.append(f"{{ {e.get('front', 0)}, {e.get('back', 0)}, {e.get('depth', 0) | (0x80 if e.get('blows') == 'all' else 0)} }}")
+    for r in g['roster']:                                # roster[].special_final_area {input: the same fields} (note
+        for inp, e in (r.get('special_final_area') or {}).items():   # 20261011-230030-5d29; export_bm special_area)
+            for k in e: assert k in ('about', 'front', 'back', 'depth', 'blows'), f"roster {r['name']}: special_final_area.{inp}: unknown field {k}"
+            assert all(isinstance(e.get(k), int) and 1 <= e[k] <= 255 for k in ('front', 'back')) and isinstance(e.get('depth'), int) and 1 <= e['depth'] <= 127, \
+                f"roster {r['name']}: special_final_area.{inp}: front / back 1-255 px, depth 1-127 px"
+            assert e.get('blows', 'last') in ('last', 'all'), f"roster {r['name']}: special_final_area.{inp}: blows 'last' or 'all'"
     c.append('const uint8_t gfury_area[BC_COUNT][3] = { ' + ', '.join(fa) + ' };   /* [front, back, depth | 0x80 = every blow] px per fighter */')
     c.append('const int32_t gwalk_rom[BC_COUNT] = { ' + ', '.join(str(round(wk[r['archetype']] * 65536)) for r in g['roster']) +
              f' }};   /* 16.16 px a frame, by roster[].archetype */')

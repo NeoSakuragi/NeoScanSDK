@@ -2,7 +2,7 @@
  "fighter": "iori",
  "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
  "next": {
-  "S": 12,
+  "S": 15,
   "T": 3
  },
  "pieces": {
@@ -106,6 +106,30 @@
    "kind": "special",
    "input": "214A>149",
    "name": "214A>149",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-012": {
+   "kind": "special",
+   "input": "214C>142",
+   "name": "214C>142",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-013": {
+   "kind": "special",
+   "input": "214C>146",
+   "name": "214C>146",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-014": {
+   "kind": "special",
+   "input": "214C>149",
+   "name": "214C>149",
    "air": false,
    "source": "handlers98.ROM_SPECIALS",
    "assigned": "2026-10-11"

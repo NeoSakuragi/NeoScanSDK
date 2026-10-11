@@ -654,10 +654,13 @@ static uint8_t dash_air(fighter_t *f, const uint8_t *dsh, const intent_t *in) {
     f->y = FIX(k ? dsh[2 + dsh[1] + k - 1] : 0);                 /* (last frame's height; jump_frame moves it on) */
     return 1;
 }
-/* the jump's attack by its direction: a straight jump's air_a, a forward jump's air_cd, a back jump's its own (rt_head_t
- * pad[1], game.json roster[].air.back, Bruno 2026-10-11: Iori's jump back + A = his jump B) or else air_cd */
-static uint8_t jump_atk(const fighter_t *f) {
-    return f->jump_dir == 2 ? RT_AIR_BACK(TREE(f)) : f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a;
+/* the jump's attack: back + A in ANY jump (the stick held away from the fighter's facing at the press) its back attack
+ * (rt_head_t pad[1], game.json roster[].air.back; note 20261011-210422-5d29's reopen, Bruno: "you jump regularly, then
+ * press back + A during the jump": Iori's KOF98 j.4B Yuri Ori, the cross-up; 0.10.63 keyed it on a back jump), else by
+ * the jump's direction: a straight jump's air_a, a forward / back jump's air_cd */
+static uint8_t jump_atk(const fighter_t *f, const intent_t *in) {
+    if (in && in->dx && in->dx == -f->facing && TREE(f)->pad[1]) return TREE(f)->pad[1];
+    return f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a;
 }
 /* the air attacks' active frames (Bruno 2026-10-08, "jumps"): on the move's last active step the animation is held (the
  * step stays shown, its box live) while the jump attack (air_a / air_cd: knocking down) has been active fewer than
@@ -2162,6 +2165,7 @@ static void special_end(fighter_t *f) {
     f->sinv = 0;                                                 /* (a C special's: the same) */
     if (f->vtgt && f->vtgt->vph_by == f) { f->vtgt->vph = 0; f->vtgt->vph_by = 0; }   /* its victim phases end with it */
     f->vtgt = 0;
+    if (f->target && f->target->zfront < 0) f->target->zfront = 0;   /* its victim list's draw order (VE_BACK) ends with it */
     f->pbd = 0; f->spec_sr = 0; f->pstill = 0;                   /* its screen effect (P_SCREEN), its source reactions */
     for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
@@ -2809,7 +2813,9 @@ static void vlist_fly(fighter_t *f, fighter_t *t, const bvlist_t *l, int8_t dir)
  * fighter, front px ahead, back px behind, depth px either side in z, with that blow's own damage and burn and the
  * list's release flight, sent away from the fighter. Replaces Kim's fury_end_burn (note 20261009-231252-b3f3, closed:
  * not wanted). blows "all" (depth bit 7; note 20261011-204335-5d29, Rugal's Gigantic Pressure: "the red column should
- * impact everybody around"): EVERY blow of its victim lists is such an area hit (his MAX raises two columns). */
+ * impact everybody around"): EVERY blow of its victim lists is such an area hit (his MAX raises two columns).
+ * Any other special: the same data per special input (roster[].special_final_area -> its lists' bvlist_t.area; note
+ * 20261011-230030-5d29, Iori 624D's release explosion); the fury takes gfury_area first (the Lab's knob). */
 static uint8_t vlist_last_blow(const bspec_t *sp, uint8_t li, uint8_t k) {   /* li 1-based, k: the entry dealing a blow */
     const bvlist_t *l = &sp->vlists[li - 1];
     uint8_t j;
@@ -2817,8 +2823,7 @@ static uint8_t vlist_last_blow(const bspec_t *sp, uint8_t li, uint8_t k) {   /* 
     for (l++; l->n; l++) for (j = 0; j < l->n; j++) if (l->e[j].flags & VE_BLOW) return 0;
     return 1;
 }
-static void fury_area(fighter_t *f, const fighter_t *t, const bvlist_t *l, uint8_t burn) {
-    const uint8_t *e = gfury_area[f->ch->id];
+static void fury_area(fighter_t *f, const fighter_t *t, const bvlist_t *l, const uint8_t *e, uint8_t burn) {
     int16_t depth = e[2] & 0x7F;                                 /* (bit 7: every blow, vlist_place) */
     uint8_t j;
     if (!e[0] || !cb_fs) return;
@@ -2921,6 +2926,15 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {      /* KOF's victim 
         if (f->vlist && !(f->vlist & 0x80)) { f->vlist++; f->vent = 0xFF; vlist_place(f, sp); }
     }
 }
+#define VE_BACK 128                                              /* bvent_t.flags bit 7 (export_bm: KOF's dx bit 7 clear):
+                                                                    drawn behind its attacker at the same Z (defined here,
+                                                                    the pack format's VE_* enum unchanged) */
+static const bvlist_t *vl_end(const bspec_t *sp) {              /* the lists' end entry (n 0): flags = the release's own
+                                                                    sound, vx / vy = the special's area (export_bm) */
+    const bvlist_t *l = sp->vlists;
+    while (l->n) l++;
+    return l;
+}
 static void vlist_place(fighter_t *f, const bspec_t *sp) {
     fighter_t *t = f->target;
     const bvlist_t *l;
@@ -2943,7 +2957,9 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     }
     t->facing = (e->flags & VE_TURN) ? f->facing : -f->facing;
     t->frame_ovr = e->pose < VP_COUNT && t->ch->vposes[e->pose] != 0xFFFF ? t->ch->vposes[e->pose] : 0xFFFF;
-    t->zfront = (e->flags & VE_FRONT) ? 1 : 0;
+    t->zfront = (e->flags & VE_FRONT) ? 1 : (e->flags & VE_BACK) ? -1 : 0;   /* the entry's draw order vs its attacker
+                                                                    (KOF's dx bit 7: VE_FRONT / VE_BACK; note
+                                                                    20261011-224840-5d29, Iori's MAX: behind him) */
     if (!(l->flags & VL_FLY)) t->vx = t->vy = 0;
     t->kdelay = 0; t->state_t = 0; if (t->state == S_KNOCKDOWN) enter(t, S_HITSTUN);
     if (f->vent == k) return;                                    /* (KOF: the flags act when the attacker's step changes) */
@@ -2951,11 +2967,21 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     if (e->flags & VE_BLOW) {                                    /* the blow: the move's damage, its hit sound */
         fighter_hit(f, t, f->pdmg, R_HEAVY, 0);
         f->freeze = t->freeze = 0; t->vx = 0; t->kdelay = 0;
-        hit_sfx(f->pfx);
+        if ((e->flags & VE_REL) && vl_end(sp)->flags) snd_sfx(vl_end(sp)->flags);   /* the release's own sound (KOF's
+                                                                    victim routine: Iori 624D's explosion $4D, note
+                                                                    20261011-224757-5d29; the end entry's flags) */
+        else hit_sfx(f->pfx);
         if (e->flags & VE_BURN) set_burn(t, (e->flags & VE_BURN) >> 4);   /* its burn (KOF $17AC0: Iori 624's purple) */
-        if (f->spec_id == BS_FURY && ((gfury_area[f->ch->id][2] & 0x80) || vlist_last_blow(sp, f->vlist, k)))   /* the
-                                                                    fury's final hit (blows "all": every one): its area */
-            fury_area(f, t, l, (e->flags & VE_BURN) >> 4);
+        {
+            const bvlist_t *le = vl_end(sp);
+            uint8_t la[3]; const uint8_t *ae = la;
+            la[0] = (uint8_t)le->vx; la[1] = (uint16_t)le->vx >> 8; la[2] = (uint8_t)le->vy;
+            if (f->spec_id == BS_FURY && gfury_area[f->ch->id][0]) ae = gfury_area[f->ch->id];   /* the fury's
+                                                                    (gfury_area), else its special's lists' (the end entry) */
+            if (ae[0] && ((ae[2] & 0x80) || vlist_last_blow(sp, f->vlist, k)))   /* its final hit (blows "all": every
+                                                                    one): its area */
+                fury_area(f, t, l, ae, (e->flags & VE_BURN) >> 4);
+        }
         if (!(e->flags & VE_REL) && t->hp > 0)                   /* still held: the blow's frame shows the entry's */
             t->frame_ovr = e->pose < VP_COUNT && t->ch->vposes[e->pose] != 0xFFFF ? t->ch->vposes[e->pose] : 0xFFFF;
     }                                                            /* posture, as KOF's list sets it (react cleared it:
@@ -3545,14 +3571,14 @@ static void update(fighter_t *f, const intent_t *in) {
         if (f->state == S_AIR && (in->press & IN_A)) {           /* A: the air attacks (Bruno 2026-10-08, "jumps"): down+A
                                                                     its down attack (air_b: a flinch, active to the landing),
                                                                     else the jump's attack: a straight jump's (air_a), a
-                                                                    forward / back jump's (air_cd; a back jump's own:
-                                                                    jump_atk), both knocking down */
-            uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : jump_atk(f);
+                                                                    forward / back jump's (air_cd), back + A in any jump
+                                                                    its back attack (jump_atk), knocking down */
+            uint8_t nx = f->air_node ? f->air_node : in->dz > 0 ? TREE(f)->air_b : jump_atk(f, in);
             start_node(f, nx, f->air_node ? LH_CANCEL : LH_NEUTRAL); f->air_node = 0; f->aact = 0;
         } else if (f->state == S_AIR_ATTACK && f->node == TREE(f)->air_b && (in->press & IN_A) && in->dz <= 0 &&
                    (f->landed || gjump.down_any)) {              /* down+A -> the jump's attack (on hit; Final Fight's
                                                                     order: the down attack first) */
-            start_node(f, jump_atk(f), LH_CANCEL); f->aact = 0;
+            start_node(f, jump_atk(f, in), LH_CANCEL); f->aact = 0;
         } else if (f->state == S_AIR_ATTACK && f->buffered && !(NODE(f, f->node)->flags & RF_KEEP) && !BUF_OK(f, in)) {
             f->buffered = 0;                                     /* a player's press too old (the attack buffer) */
         } else if (f->state == S_AIR_ATTACK && f->landed && f->buffered &&   /* an air route: A on hit, its next air hit */
@@ -3753,7 +3779,7 @@ static void update(fighter_t *f, const intent_t *in) {
             carry_drop(f); special_end(f); f->pflags = 0;
             f->vx = vx; f->vy = vy; f->vz = 0; f->jt = 0; f->jump_kind = 0; f->air_node = 0;
             enter(f, S_AIR);
-            start_node(f, in->dz > 0 ? TREE(f)->air_b : jump_atk(f), LH_NEUTRAL); f->aact = 0;
+            start_node(f, in->dz > 0 ? TREE(f)->air_b : jump_atk(f, in), LH_NEUTRAL); f->aact = 0;
             break;
         }
         f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? air_button(f->ch, f->spec_ix) : f->spec_id == BS_BLITZ ? IN_A :

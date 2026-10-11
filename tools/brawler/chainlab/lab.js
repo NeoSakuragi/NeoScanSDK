@@ -246,7 +246,7 @@
       return node(ents[k] || defaults[k], k, !!AIR_MOVES[k]);   // an air entry: its own move (any of the three)
     });
     const bzn = ents.blitz ? node(ents.blitz, 'blitz', false) : 0;   // a normal as a Blitz: its own node (rt_head_t.pad[0])
-    const abn = ents.air_ba ? node(ents.air_ba, 'air_ba', true) : 0;  // jump back + A (roster air.back): rt_head_t.pad[1]
+    const abn = ents.air_ba ? node(ents.air_ba, 'air_ba', true) : 0;  // back + A in any jump (roster air.back): rt_head_t.pad[1]
     if (nodes.length > MAX_NODES) throw new Error(`${nodes.length} nodes (at most ${MAX_NODES})`);
     const out = new Uint8Array(HEAD_SIZE + nodes.length * NODE_SIZE);
     const arch = tree.archetype ? ARCHETYPES.indexOf(tree.archetype) + 1 : 0;
