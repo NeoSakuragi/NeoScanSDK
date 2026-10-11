@@ -139,11 +139,12 @@ A-D jump to the next number. START (MVS: with a credit, the BIOS's PLAYER_START;
 credits, P2's from coin slot 2; AES: START, free continues) brings him back where he fell, full life, 3 lives again.
 While the other player fights on, the count shows in the HUD and the fight goes on; with nobody in play the fight
 freezes under the CONTINUE? overlay (fix layer, the drama font, PRESS START / INSERT COIN blinking) with KOF98's
-continue song ($2F). Every count at 0: the fight fades out, the GAME OVER screen (the player lying, the stage reached,
-KOF98's loser theme $26; 8 s or a button after 1.5 s), then SYSTEM_RETURN (MVS: the save committed; the title while
+continue song ($26, the one KOF98 starts on its CONTINUE screen; TODO #154). Every count at 0: the fight fades out,
+the GAME OVER screen (the player lying, the stage reached; no song: the continue song fades out, $0A $2C, as KOF98's
+GAME OVER does; 8 s or a button after 1.5 s), then SYSTEM_RETURN (MVS: the save committed; the title while
 credits remain, else the demo; AES: the demo). The attract demo's bot has no continue: its last life ends the demo.
-Songs: game.json `music.continue` / `music.gameover`. Proof: /data/tmp/continue/cont.py mvs|aes (screenshots in
-/data/tmp/continue/out).
+Songs: game.json `music.continue` / `music.gameover` (a song, or FADE). Proof: /data/tmp/continue/cont.py mvs|aes (screenshots in
+/data/tmp/continue/out); the end screens' music: tools/brawler/screenmusic_proof.py.
 
 ## Save (SNK conventions, sdk/include/neo_backup.h)
 `save_t` (main.c, 16 bytes): 2 bytes debug dipswitches (SNK: the backup block starts with them), "BRW2", furthest

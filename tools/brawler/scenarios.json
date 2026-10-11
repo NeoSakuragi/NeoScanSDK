@@ -3054,5 +3054,69 @@
   "expect": "The wave goes through the Ryos: each one takes 2 hits (the first keeps him standing, the second knocks him down), never a third. After its 10th hit (the fifth Ryo's second) the wave vanishes where it is and the sixth Ryo is not touched. Against one Ryo alone: 2 hits, then the wave flies on through him. The MAX wave does the same.",
   "do_keys": "2:d,120:-",
   "proof": 60
+ },
+ "20261006-173221-5d29": {
+  "title": "Stage clear music: KOF95's victory jingle",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss (Mr. Big) alone with 1 life point, Terry in front of him. Press A, then half a second later A again: that hit takes his last life. Then press nothing and listen through STAGE CLEAR, the win pose and the win portrait until the next screen.",
+  "expect": "The stage music stops at the KO; about 4 seconds later KOF95's win-screen jingle (the tune of its winners' quote screen, about 5 seconds) plays once, as the victory tune; then silence until the next screen. The old end-of-stage track (KOF98's VS jingle) is gone. (A BOSS UNLOCKED screen, if it shows, plays the select music.)",
+  "do_keys": "60:-,3:a",
+  "proof": 900
+ },
+ "20261006-173249-5d29": {
+  "title": "Ending music: the victory jingle on CONGRATULATIONS",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 4,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 5 (the last), its boss alone with 1 life point, Terry in front of him. Press A, then half a second later A again. Press nothing and watch through STAGE CLEAR to the CONGRATULATIONS! screen (ALL FIVE STAGES CLEARED).",
+  "expect": "The ending screen plays KOF95's win-screen jingle, the same victory tune as the stage clear, once (about 5 seconds), cleanly, then silence until the game goes back to the title. The old track (KOF98's VS jingle) is gone.",
+  "do_keys": "60:-,3:a",
+  "proof": 1500
+ },
+ "20261006-160529-b3f3": {
+  "title": "Continue music: KOF98's own continue countdown song",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "hp": 1,
+   "lives": 0
+  },
+  "do": "Terry has 1 life point and no lives left. Let an enemy hit you, then press nothing and listen to the CONTINUE? count (9 to 0).",
+  "expect": "With CONTINUE? the music becomes the song KOF98 itself plays on its CONTINUE screen: a full tune (melody, bass and drums) for the whole count. The old near-silent ambience (a few drum hits, no melody) is gone.",
+  "do_keys": "",
+  "proof": 700
+ },
+ "20261006-160539-b3f3": {
+  "title": "GAME OVER: the continue music fades out, as in KOF98",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "hp": 1,
+   "lives": 0
+  },
+  "do": "Terry has 1 life point and no lives left. Let an enemy hit you, press nothing and let the continue count run to 0.",
+  "expect": "At 0 the GAME OVER screen shows and the continue music fades out over about 2 seconds, then silence, as KOF98 does (its GAME OVER plays no song of its own). It no longer starts the continue music over again. The next coin plays the title music as usual.",
+  "do_keys": "",
+  "proof": 1300
  }
 }
