@@ -17,6 +17,7 @@
 #include "hud.h"
 #include "game_tables.h"
 #include "portraits_big.h"
+#include "staff_roll.h"
 #include "bm_wins.h"
 #ifdef LAB_SHELL
 #define LABSLOT_NO_REMAP
@@ -3067,8 +3068,10 @@ static void unlock_start(uint8_t k) {
  *             portraits_big.h; a fighter without one: his win pose + his HUD face), under it a box (fix rows
  *             EN_BOX0-27) with his name and his story (gend_story: 4-5 sentences wrapped to END_COLS) typed a character
  *             every END_STORY_TYPE ticks, scrolling up a row when its EN_ROWS rows are full; KOF95's team ending
- *   EN_STAFF  the staff roll (gend_staff) on black, scrolling up a fix row every END_STAFF_STEP ticks until its last line
- *             reaches the middle row, then END_STAFF_HOLD ticks; KOF95's staff roll
+ *   EN_STAFF  the staff roll on black, scrolling up a pixel at a time (a line = 8 px every END_STAFF_STEP ticks) until
+ *             its last line reaches the middle row (13), then END_STAFF_HOLD ticks; KOF95's staff roll. Sprites, not the
+ *             fix layer (it moves in 8 px rows only; Bruno 2026-10-11, note 20261006-173249-5d29: "pixel-by-pixel"):
+ *             staff_roll.h (tools/brawler/staff_roll.py: game.json's lines in the S ROM font, the fix roll's layout)
  *   EN_THANKS the winner in his win pose, THANK YOU FOR PLAYING; the staff roll's song fades out ($0A + END_THANKS_FADE)
  * then BOSS UNLOCKED when this boss was beaten for the first time (unlock_k), then back to the BIOS (title / demo). ---- */
 enum { EN_STORY, EN_STAFF, EN_THANKS };
@@ -3077,17 +3080,18 @@ enum { EN_STORY, EN_STAFF, EN_THANKS };
 #define EN_ROWS  5
 #define EN_COL0  3                               /* the text's first column (END_COLS wide) */
 #define EN_FEET  148                             /* a fighter shown on the story / thanks screen: his feet's screen y */
-static uint8_t en_st, en_w, en_line, en_col;    /* the screen; the winner (bm_chars index); the story's line + column typed */
-static uint16_t en_t, en_pos, en_hold;           /* ticks on this screen; the staff roll's rows scrolled; ticks since
+static uint8_t en_st, en_w, en_line, en_col;    /* the screen; the winner (bm_chars index); the story's line + column typed
+                                                    (the staff roll: en_col 1 = rolled away, the thanks screen next tick) */
+static uint16_t en_t, en_px, en_hold;            /* ticks on this screen; the staff roll's pixels scrolled; ticks since
                                                     the story typed / the roll stopped */
-static uint8_t en_sub;                           /* ticks to the next character typed / row scrolled */
+static uint16_t en_sub;                          /* ticks to the next character typed; the roll's sub-pixel (8 a tick,
+                                                    a pixel per END_STAFF_STEP) */
 static void en_row(uint8_t row, const char *t, uint8_t col0) {   /* a box row: blank cells, then t from col0 */
     uint8_t c, pal = 0;
     if (t && *t == '^') { t++; pal = 1; }       /* a heading: highlighted */
     for (c = 0; c < 40; c++) fix_put(c, row, DRAMA_FONT + ' ');
     if (t) for (c = 0; t[c]; c++) dr_put(col0 + c, row, t[c], pal);
 }
-static uint8_t en_len(const char *t) { uint8_t n = 0; if (*t == '^') t++; while (t[n]) n++; return n; }
 static void en_winner_pose(uint8_t m) {          /* the winner alone in his win pose on black, feet at EN_FEET */
     show_start(m, en_w, pl_set[pl_on[0] || !pl_on[1] ? 0 : 1], RGB8(0, 0, 0));
     floor_top = EN_FEET - SHOW_Z;
@@ -3108,29 +3112,55 @@ static void ending_start(void) {
     for (i = 0; name[i] && i < 16; i++) dr_put(EN_COL0 + i, EN_TXT0 - 1, name[i], 1);   /* the name plate, highlighted */
     snd_music(GAME_MUS_ENDING);
 }
-static void staff_draw(void) {                   /* every fix row: the staff line now on it (line k at row 27 - en_pos + k) */
-    uint8_t row, c, n;
-    int16_t k;
-    const char *t;
-    for (c = 0; c < 40; c++) {
-        uint16_t *w = cmd_run(VRAM_FIX + c * 32 + 2, 28);
-        for (row = 0; row < 28; row++) {
-            k = (int16_t)en_pos - 27 + row;
-            w[row] = 0x20;
-            if (k < 0 || k >= END_STAFF_N) continue;
-            t = gend_staff[k]; n = en_len(t);
-            if (c < 20 - ((n + 1) >> 1) || c >= 20 - ((n + 1) >> 1) + n) continue;
-            w[row] = (uint16_t)((*t == '^') << 12) | (DRAMA_FONT + (uint8_t)t[c - (20 - ((n + 1) >> 1)) + (*t == '^')]);
+/* the roll's sprites: SR_COLS columns side by side from x 0 (a sticky chain), SR_H tiles each, showing the roll's tile
+ * rows sr_top ..; line k (8 px) at screen y 216 + 8 k - en_px (en_px 0: line 0 on fix row 27, as the fix roll began).
+ * The big portrait's sprites (hidden during the roll) and the banner's palette (never on in the ending; banner_show
+ * loads its own again): pens 1-5 / 14 = fix palette 0's, 6-9 = fix palette 1's highlighted gradient (headings). All
+ * through the VRAM queue: the new Y and the new tile rows go out in the same vblank (no tearing). */
+#define SR_SPR PB_SPR
+#define SR_PAL BN_PAL
+#define SR_H   15                                /* 224 px + up to 15 px of a tile row above the screen */
+_Static_assert(SR_COLS == 20 && SR_COLS <= PB_MAXCOLS, "the staff roll: the big portrait's sprites; staff_place's row * 20");
+static int16_t sr_top;
+static void staff_place(void) {
+    int16_t y = 216 - (int16_t)en_px, t = (int16_t)(-y) >> 4;   /* the roll's top on screen; the first tile row shown */
+    uint8_t c, r;
+    if (t != sr_top) {                           /* a new tile row: the columns' tiles */
+        sr_top = t;
+        for (c = 0; c < SR_COLS; c++) {
+            uint16_t *w = cmd_run(VRAM_SCB1 + (SR_SPR + c) * 64, SR_H * 2);
+            const uint16_t *m = sr_map + c + (t << 4) + (t << 2);   /* row t (* SR_COLS) */
+            for (r = 0; r < SR_H; r++, m += SR_COLS) {
+                uint32_t k = t + r >= 0 && t + r < SR_ROWS && *m ? SR_TILE0 + *m : 0;
+                *w++ = (uint16_t)k;
+                *w++ = k ? (uint16_t)(SR_PAL << 8) | ((uint16_t)(k >> 12) & 0xF0) : 0;
+            }
         }
     }
+    cmd_push(VRAM_SCB3 + SR_SPR, (uint16_t)(((496 - y - (t << 4)) & 0x1FF) << 7) | SR_H);
+}
+static void staff_show(uint8_t on) {             /* on: palette, full size, the chain at x 0; off: hidden */
+    uint8_t c;
+    if (on) {
+        uint16_t pal[16];
+        for (c = 0; c < 16; c++) pal[c] = TEXT_PAL[c];
+        for (c = 0; c < 4; c++) pal[6 + c] = hilite_colours[c];
+        PAL_setPalette(SR_PAL, pal);
+        for (c = 0; c < SR_COLS; c++) cmd_push(VRAM_SCB2 + SR_SPR + c, 0x0FFF);
+        cmd_push(VRAM_SCB4 + SR_SPR, 0);
+        sr_top = 0x7FFF;
+        staff_place();
+    }
+    for (c = 1; c < SR_COLS; c++) cmd_push(VRAM_SCB3 + SR_SPR + c, on ? 0x40 : 0);   /* sticky: the master's Y */
+    if (!on) cmd_push(VRAM_SCB3 + SR_SPR, 0);
 }
 static void staff_start(void) {
     pb_hide();
     fighters[0].state = S_OFF;
     FIX_clear();
     bd_set(RGB8(0, 0, 0));
-    en_st = EN_STAFF; en_t = en_hold = 0; en_sub = 0; en_pos = 0;
-    staff_draw();
+    en_st = EN_STAFF; en_t = en_hold = 0; en_sub = 0; en_px = 0; en_col = 0;
+    staff_show(1);
     snd_music(GAME_MUS_STAFF);
 }
 static void thanks_start(void) {
@@ -3162,10 +3192,15 @@ static void ending_tick(void) {
         en_col++;
         break;
     case EN_STAFF:
-        if (skip && en_t >= END_STAFF_MIN) { thanks_start(); break; }
-        if (en_pos < END_STAFF_N - 1 + 14) {        /* until the last line is on the middle row (13) */
-            if (++en_sub >= END_STAFF_STEP) { en_sub = 0; en_pos++; staff_draw(); }
-        } else if (++en_hold >= END_STAFF_HOLD) thanks_start();
+        if (en_col) { thanks_start(); break; }      /* the roll hidden last tick: its sprites are off this frame, the
+                                                       thanks screen's fix text (written at once) never over them */
+        if ((skip && en_t >= END_STAFF_MIN) || (en_px >= (END_STAFF_N - 1 + 14) * 8 && ++en_hold >= END_STAFF_HOLD)) {
+            staff_show(0); en_col = 1; break;
+        }
+        if (en_px < (END_STAFF_N - 1 + 14) * 8) {   /* until the last line is on the middle row (13) */
+            for (en_sub += 8; en_sub >= END_STAFF_STEP && en_px < (END_STAFF_N - 1 + 14) * 8; en_sub -= END_STAFF_STEP) en_px++;
+            staff_place();
+        }
         break;
     case EN_THANKS:
         fighter_animate(&fighters[0]);

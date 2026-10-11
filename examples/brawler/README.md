@@ -91,7 +91,7 @@ fighter's 60; damage +1 + (s + 1) / 2) shows in the boss bar (name on fix row 6,
 starts as it comes in. Beaten: its minions go down with it, STAGE CLEAR, the save, BOSS UNLOCKED (its win pose, its
 portrait and name) when its fighter was locked, then the next stage; after stage 5 the ending (game.json `ending`,
 main.c "the ending", Bruno 2026-10-11): the winner's big portrait (none: his win pose + HUD face) with his 4-5 sentence
-story typed in a scrolling box (KOF95's team ending $36), the staff roll (KOF95's staff roll $2B), THANK YOU FOR
+story typed in a scrolling box (KOF95's team ending $36), the staff roll (KOF95's staff roll $2B; sprites drawn by `tools/brawler/staff_roll.py` in the S ROM font, scrolled a pixel at a time, `staffroll_proof.py`), THANK YOU FOR
 PLAYING (the song fades), BOSS UNLOCKED when the boss was new, then back to the BIOS (the title while credits remain,
 else the attract demo; this return is also what commits the MVS save). `tools/brawler/ending_proof.py` plays it.
 

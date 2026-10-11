@@ -794,7 +794,8 @@ def wrap(text, cols):
 
 def ending_tables(g):
     """game.json "ending" (main.c "the ending"): its songs, timings, each roster fighter's story (wrapped to END_COLS,
-    '*' for any other), the staff roll's lines, the thanks screen's lines"""
+    '*' for any other), the staff roll's line count (its lines are drawn as sprite tiles by staff_roll.py), the thanks
+    screen's lines"""
     e = g['ending']
     for k in e: assert k in END_KEYS, f'ending: unknown field {k}'
     st, sf, th = e['story'], e['staff'], e['thanks']
@@ -815,7 +816,6 @@ def ending_tables(g):
          f'#define END_STAFF_N {len(sf["lines"])}', f'#define END_THANKS_N {len(th["lines"])}',
          f'#define END_COLS {END_COLS}',
          'extern const char *const *const gend_story[BC_COUNT];   /* per fighter its story\'s lines (wrapped), 0-terminated */',
-         'extern const char *const gend_staff[END_STAFF_N];        /* the staff roll, a line each ("^": a heading) */',
          'extern const char *const gend_thanks[END_THANKS_N];']
     c, keys = [], {}
     for n, sents in fs.items():
@@ -826,7 +826,7 @@ def ending_tables(g):
         c.append(f'static const char *const {keys[n]}[] = {{ ' + ', '.join(c_str(t) for t in lines) + ', 0 };')
     c.append('const char *const *const gend_story[BC_COUNT] = { ' + ', '.join(keys.get(n, keys['*']) for n in names) + ' };')
     for t in sf['lines'] + th['lines']: ok(t, 'staff / thanks'); assert len(t.lstrip('^')) <= END_COLS, f'ending: {t!r}: at most {END_COLS} characters'
-    c.append('const char *const gend_staff[END_STAFF_N] = {\n    ' + ',\n    '.join(c_str(t) for t in sf['lines']) + '\n};')
+                                                    # (the staff roll's pictures: staff_roll.py, sprite tiles)
     c.append('const char *const gend_thanks[END_THANKS_N] = { ' + ', '.join(c_str(t) for t in th['lines']) + ' };')
     return h, c
 
