@@ -428,6 +428,35 @@ specials are the same programs; the new ones are LAB_ONLY).
   plays it; ff -> atk_ab_far, dd -> 214A, uu -> 623C, MAX -> 34123421BC, each hits; all three SS2 fighters' straight /
   forward jump + A -> atk_cd_jump(_diag), jump + down + A -> atk_ab_jump(_diag), each hits (16 / 16 rows).
 
+
+## Haohmaru round 2 + the SS2 hit standard — 2026-10-11 (notes 112056 / 112545 reopened, 120326, 115835)
+- **Voices of every SS2 piece** (112056: "the sound of Haohmaru's voice when doing Kogetsuzan is missing"): voices.py
+  `samsho2_list` lists the voice uses of EVERY special piece (each button version, 623AB, and the Lab-only ones,
+  34123421BC), so whatever special / fury / MAX a slot names keys the voice SS2 sends for it (its step sound >= $100
+  at the move's start). Haohmaru C 623AB -> voice 14 ($1A93, his Kogetsuzan shout), MAX -> 16 ($1A95); likewise every
+  version piece of Genjuro / Hanzo SS2 (Hanzo's breaker 63214BCD now speaks too). Voice ids unchanged.
+- **Tenha Fuujinzan** (112545) measured in SS2 (`tools/samsho2/tenha_ss2.py`): 12 hits, all by the wind (object 47),
+  landing while Haohmaru shows his own 336 steps 2 10 12 20 22 30 32 40 42 52 53 and his rise's (264) step 0; P2 reels
+  standing (class 3 action 4) after the first 11, is launched (action 73) after the 12th. The brawler adjudicates them
+  as HIT BOXES ON HIS OWN STEPS (no engine change): `handlers_ss2.TENHA_HITS` {his step: the wind's step} -> the
+  importer's `E(hits={step: SS2 records})` adds the wind's attack records to those steps (each its own hit), the wind
+  is drawn only. Per hit: the engine's hit-stop of a program's own step (both held 7 frames), reactions from the hit
+  standard below (336's hits reel, 264's `react=R_LAUNCH` launches); damage: 12 openings x 1 unit, damage_raw.json max
+  12 -> the MAX tier 180 = 15 a hit.
+- **The SS2 hit standard** (120326: "in the brawler we want a hitstop for each impact and juggle abilities"): every
+  attack step of an SS2 program (specials, versions, fury, MAX, the Lab's LAB special) gets the packed reaction KOF's
+  imports carry (bstep_t hy, `export_ss2.hit_react` / `standard_reacts`): standing = the program's own (a knockdown
+  state's earlier hits reel) | 8 (hittable), juggled = R_LAUNCH | 8. Before, its knockdowns were KOF's blowback 283
+  without a hurt box (the note's replay: dd Blitz 214A knocked Ryo down, kmode 1, and 623AB passed through him); now
+  the victim is hittable in the air and every later hit relaunches it. Hit-stop: a hit of the fighter's own step holds
+  both (HITSTOP 7, unchanged); an object's hit (the Kogetsuzan crescent) holds the victim only, the engine's rule for
+  every object. Data only, no engine change; other fighters' tables unchanged (only tile numbers +36 after Haohmaru's
+  new frames, Hanzo WHP's 236 row table un-deduplicated).
+- **Low finisher** (115835): last hit + down = SS2's crouching C+D (anim 352, `moves.atk_ab_close = "$160"`,
+  finishers.down_move), compiled from the Assembly answer `fin_down` (decisions set `haohmaru-arb`) by arb_compile.py.
+- Proof: `tools/samsho2/hao2_proof.py ROM OUT` (our emulator, the Z80 tap): voices byte-equal to SS2's samples at C and
+  at the MAX's first program frame, Tenha's 12 hits on SS2's steps (11 standing, the 12th launches, 180 total, both held
+  each hit), the juggle (214A then 623AB hits Ryo in the air), 623C / 623AB hit-stops, the low finisher.
 ---
 
 The sections below were the Character Lab's notes in docs/feedback.md, docs/brawler_gold.md and

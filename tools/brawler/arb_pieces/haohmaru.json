@@ -1944,7 +1944,9 @@
   "114": {
    "kind": "attack",
    "state": 276,
-   "names": [],
+   "names": [
+    "body_toss"
+   ],
    "specials": []
   },
   "115": {
@@ -1956,9 +1958,7 @@
   "116": {
    "kind": "attack",
    "state": 278,
-   "names": [
-    "body_toss"
-   ],
+   "names": [],
    "specials": []
   },
   "117": {
@@ -1995,7 +1995,8 @@
    "kind": "attack",
    "state": 284,
    "names": [
-    "atk_cd_jump"
+    "atk_cd_jump",
+    "atk_cd_jump_diag"
    ],
    "specials": []
   },
@@ -2501,7 +2502,10 @@
   "164": {
    "kind": "attack",
    "state": 356,
-   "names": [],
+   "names": [
+    "atk_ab_jump",
+    "atk_ab_jump_diag"
+   ],
    "specials": []
   },
   "165": {

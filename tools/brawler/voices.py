@@ -722,7 +722,10 @@ def samsho2_list(rname, name, cid):
                 i = c[1] + (1 if c[0] == 'sound_pan' else 0)
                 if i >= 0x100: uses.append((ss2_word(N, i), i, {'kind': 'anim', 'slot': a, 'states': [a], 'step': k}))
     B = X.Builder(cid)
-    for sp in H.specials(B, cid, name):
+    for sp in H.specials(B, cid, name, versions=True):   # every piece a roster slot may name: each button version
+                                                         # (623AB, its own input) and the Lab-only ones (34123421BC),
+                                                         # so a special / fury / MAX of any piece keys SS2's voice for
+                                                         # it (note 20261011-112056-5d29: 623AB's Kogetsuzan was silent)
         for f, i in sp['ss2']['sounds']:
             if i >= 0x100 or i in sp['ss2'].get('code_sounds', ()): uses.append((ss2_word(N, i), i, {'kind': 'special', 'input': sp['input'], 'at': f}))
         for st, k, i in sp['ss2'].get('code_voices', ()):   # its routine's own sends on a connect-only state (sent as the

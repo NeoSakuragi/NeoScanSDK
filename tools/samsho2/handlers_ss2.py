@@ -71,16 +71,17 @@ def by(v): return -(v << 8)                       # 8.8 down -> 16.16 up
 # phys: 'ground' (x += vx), 'grav' (+$EE 1), 'air' (+$EE < 0, nothing added), ('custom', ax, ay) (+$EE < 0, the
 # routine adds +$D0 / +$D2), ('decel', dv) (the routine's $46C64 on vx); init: ('set', reg, v), ('spawn', k),
 # ('nudge', px), ('part',).
-def E(anim=None, init=(), conds=(), phys='ground', flags=None, part=None, react=None, catch=None, grab=None, voice=()):
+def E(anim=None, init=(), conds=(), phys='ground', flags=None, part=None, react=None, catch=None, grab=None, voice=(), hits=None):
     """catch: the entry index of the catch routine: this entry's attack steps are catch boxes (no damage, the victim
     held: fighter.c's catch, KOF +$19C), the routine starts after the hit-stop and the victim follows the move's victim
     lists (VL below). grab: a catch box of its own on every step of the entry's animation (KOF box [cx, cy, hw, hh]):
     a command grab SS2 tests by distance, not by a box (Hanzo's Mozu Otoshi, GRAB_BOX). anim: an SS2 animation, or
     (animation, first step, last step): those steps alone (a pose held). voice: sound ids the routine itself sends
     ($5FB0) in the frame this entry's animation starts, sent as its first step is entered (a state the whiff never
-    reaches: special's step voices)"""
+    reaches: special's step voices). hits: {step: SS2 attack records} added to that step of the animation, each step a
+    hit of its own (an object's hits adjudicated on the fighter's own steps: Tenha Fuujinzan's wind, TENHA_HITS)"""
     return {'anim': anim, 'init': list(init), 'conds': list(conds), 'phys': phys, 'flags': flags or {}, 'part': part,
-            'react': react, 'catch': catch, 'grab': grab, 'voice': list(voice)}
+            'react': react, 'catch': catch, 'grab': grab, 'voice': list(voice), 'hits': hits or {}}
 
 def hao_236s(v):
     """Senpuu Retsu Zan, 2 3 6 + A / B / A+B -> results 41-43, descriptors $35470 / $3547C / $35488 [code]:
@@ -143,6 +144,22 @@ def hao_214a(v):
     playing 329 after it, 99 frames)"""
     return [E(328, [('set', 'vx', 0)], [('end', 'end')])], []
 
+# Tenha Fuujinzan's hits in SS2 (note 20261011-112545-5d29, Bruno: "10 to 12 hits where the opponent gets hit but STAYS
+# STANDING, and the launcher only at the very end") [meas: tools/samsho2/tenha_ss2.py, P2 56 px ahead, our emulator]: 12
+# hits, all by the wind (object 47, anim 337: its hit flag +$102 set on the step it shows), its steps 2, 10, 12, 20, 22,
+# 30, 32, 40, 42, 52, 54, 56, landing while Haohmaru shows his own 336 steps 2, 10, 12, 20, 22, 30, 32, 40, 42, 52, 53
+# and his rise's (264) step 0; P2 = class 3 action 4 (the standing reel, anim 110) after the first 11, action 73 (the
+# launch, anim 400, +$FB 15: Kogetsuzan's launch) after the 12th. The wind's other records (14 24 34 44, 58 60) never
+# land. The brawler adjudicates them as HIT BOXES on his own steps (the wind is drawn only, fuujin): {his step: the
+# wind's step whose records it carries}; each a hit of its own (the brawler's per-hit hit-stop and the hit standard:
+# the 336 hits reel, the rise's launches: its entry's react).
+TENHA_HITS = {336: {2: 2, 10: 10, 12: 12, 20: 20, 22: 22, 30: 30, 32: 32, 40: 40, 42: 42, 52: 52, 53: 54}, 264: {0: 56}}
+
+def wind_recs(steps):
+    """{his step: the wind's (anim 337) attack records of that step}"""
+    st = ss2.parse_anim(0, 337, 400)
+    return {k: attack_recs(st[w]) for k, w in steps.items()}
+
 def hao_secret(v):
     """Tenha Fuujinzan (the secret move), 3 4 1 2 3 4 2 1 + B+C -> result 53 ($357DE) [code]:
     0 anim 336 $35808: $46BAE($1822): entry 50 (vx 2 px a frame, vy 0; bit 12: no gravity, bit 11: next entry), spawn
@@ -158,9 +175,10 @@ def hao_secret(v):
     From entry 2 on the same frame as Kogetsu Zan A+B (623S AB: the same rise, unfitted in the game too)"""
     vx0 = vword(0, 0x1822)[0]; jx, jy = vword(0, 0x823); fx, fy = vword(0, 0x824)
     ax, ay = vtab(0, 0x24 + 16 + 1)
-    return [E(336, [('set', 'vx', bx(vx0)), ('set', 'vy', 0), ('spawn', 0)], [('now', 'next')]),
+    return [E(336, [('set', 'vx', bx(vx0)), ('set', 'vy', 0), ('spawn', 0)], [('now', 'next')], hits=wind_recs(TENHA_HITS[336])),
             E(None, conds=[('end', 'next')]),
-            E(264, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy))], [('now', 'next')], phys='grav'),
+            E(264, [('set', 'vx', bx(jx)), ('set', 'vy', by(jy))], [('now', 'next')], phys='grav', react=R_LAUNCH,
+              hits=wind_recs(TENHA_HITS[264])),
             E(None, conds=[('apex', 'next')], phys='grav'),
             E(265, [('set', 'vx', bx(fx)), ('set', 'vy', by(fy))], [('now', 'next')], phys='air'),
             E(None, conds=[('land', 'next')], phys=('custom', ax, ay)),
@@ -933,9 +951,10 @@ def crescent(B, v):
 
 def fuujin(B, v):
     """Haohmaru's object type 47 ($3012A) [code]: animation 337 at its thrower's place, following him while his animation
-    is the one it was born on ($3015A: +$66 unchanged), then launched ($30182: $46BAE($1226)) to its animation's end; its
-    first hit ends it ($301CA: $3052). The brawler: pinned to him for its whole animation (crescent's rule, TODO #148)"""
-    rows = obj_rows(B, 0, play_anim(0, 337))
+    is the one it was born on ($3015A: +$66 unchanged), then launched ($30182: $46BAE($1226)) to its animation's end.
+    The brawler: pinned to him for its whole animation (crescent's rule, TODO #148), DRAWN only: its hits are adjudicated
+    on his own steps (hao_secret, TENHA_HITS)"""
+    rows = [r[:3] + [None, None] for r in obj_rows(B, 0, play_anim(0, 337))]
     return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
             'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 3, 'travel': 0,
             'name': 'FUUJIN', 'ss2': {'type': 47, 'anim': 337}}
@@ -1148,9 +1167,15 @@ def mozufire(B, k):
 OBJECTS = {'fuujin': fuujin, 'kclone': kclone, 'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
-def rom_steps(B, ch, a, flags, react, catch=False, grab=None):
+def rom_steps(B, ch, a, flags, react, catch=False, grab=None, hits=None):
     import export_ss2 as X
     st = X.anim_steps(B, ch, *a) if isinstance(a, tuple) else X.anim_steps(B, ch, a)
+    if hits:                                          # (E hits: records added to steps, each its own hit)
+        src = ss2.parse_anim(ch, a, 400)
+        for k, recs in hits.items():
+            st[k]['boxes'] = dict(st[k]['boxes'], **{'11': X.kof_box(attack_recs(src[k]) + recs)})
+            st[k]['flags'] |= 0x100
+            if k: st[k - 1]['flags'] &= ~0x4000
     for i, s in enumerate(st):
         s['flags'] |= flags.get(i, 0)
         if grab: s['boxes'] = dict(s['boxes'], **{'11': list(grab)}); s['flags'] |= 0x100
@@ -1174,6 +1199,7 @@ def special(B, ch, name, inp, vdef=None):
     """vdef None: the special with its variant table (A / B / A+B), the heaviest played by default; vdef k: version k
     alone as its own special (input version_input, condition 'version': the Character Lab's piece, never in the game's
     pool unless a roster slot names it)"""
+    import export_ss2 as X_
     fn, nv, results = SPECIALS[name][inp]
     CUR['ch'] = ch
     full = [fn(v) for v in range(nv)]
@@ -1198,7 +1224,8 @@ def special(B, ch, name, inp, vdef=None):
         h = 0
         for j, (ei, a) in enumerate(sts):
             k = f'{v}:{j}:{a}'; states.append(k)
-            steps = rom_steps(B, ch, a, ents[ei]['flags'], ents[ei]['react'], ents[ei].get('catch') is not None, ents[ei].get('grab'))
+            steps = rom_steps(B, ch, a, ents[ei]['flags'], ents[ei]['react'], ents[ei].get('catch') is not None, ents[ei].get('grab'),
+                              ents[ei].get('hits'))
             anims_d[k] = {'mode': 'hold', 'steps': steps, 'ss2': a}
             h += sum(openings(steps))
         nh.append(h)
@@ -1217,6 +1244,10 @@ def special(B, ch, name, inp, vdef=None):
         react = ents0[ei]['react'] or (R_KNOCKDOWN if hitting and j == hitting[-1] else R_HEAVY)
         return (p[0], p[1], each[default] | react << 8, None)
     prims = [pa(p) if p[0] == P['anim'] else p for p in prims]
+    for v, ((ents, _), (_, sts)) in enumerate(zip(progs, comp)):   # the brawler's hit standard on every hit (export_ss2:
+        hit_v = [j for j, (ei, a) in enumerate(sts) if any(openings(anims_d[f'{v}:{j}:{a}']['steps']))]   # juggle-able,
+        for j, (ei, a) in enumerate(sts):                # a knockdown state's earlier hits reel; note 20261011-120326-5d29)
+            X_.standard_reacts(anims_d[f'{v}:{j}:{a}']['steps'], ents[ei]['react'] or (R_KNOCKDOWN if hit_v and j == hit_v[-1] else R_HEAVY))
     # the brawler's player on the default row: length, apex, last hit (bspec_t inv_rows), the script for the Lab
     anims_l = [{'steps': anims_d[s]['steps'], 'hold': True} for s in states]
     pl = Play(prims, anims_l, [v for row in zip(*cols) for v in row] if cols else None, default, len(cols), nstate)
@@ -1323,6 +1354,7 @@ def lab_special(B, ch, entries):
         except Exception as e:
             bad.append((x, str(e)[:60])); continue
         o = sum(openings(st))
+        X.standard_reacts(st, R_KNOCKDOWN if o else R_HEAVY)   # (the hit standard: juggle-able, export_ss2)
         k = f'L{len(states)}:{a}'; anims[k] = {'mode': 'hold', 'steps': st, 'ss2': a}
         prims += [[P['lanim'], max(1, SPECIAL_DAMAGE // o) if o else 0, R_KNOCKDOWN if o else R_HEAVY, len(states) << 8],
                   [P['resume'], 0, 0, 0], [P['br'], PC['end'], -1, 0], [P['end'], 0, 0, 0]]
