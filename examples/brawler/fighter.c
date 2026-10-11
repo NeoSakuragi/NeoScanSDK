@@ -1441,11 +1441,15 @@ static uint8_t paired_update(fighter_t *f) {
     return 1;
 }
 /* the fury a D press buys (down: down+D; "the meter"): the MAX (bchar_t.fury_max; none: the fury played as the MAX) in
- * the red state, else the fury; a fury playing cancels only into its MAX ("cancels" rule 3). Pays (dry: only whether
+ * the red state, else the fury (down+D short of the MAX's red state or drive: the fury, its cost); a fury playing
+ * cancels only into its MAX ("cancels" rule 3). Pays (dry: only whether
  * it could) -> BS_FURY / BS_FURY_MAX, 0xFF: nothing (no fury, not payable) */
 static uint8_t fury_buy(fighter_t *f, uint8_t down, uint8_t dry) {
     uint8_t k = spec_ix(f->ch, BS_FURY) == 0xFF || (f->state == S_SPECIAL && f->spec_id == BS_FURY) ? 0xFF :
                 down ? BS_FURY_MAX : BS_FURY;                     /* (Bruno 2026-10-09: D = the fury, down+D = the MAX) */
+    if (k == BS_FURY_MAX && !pay(f, PAY_MAX, 1)) k = BS_FURY;   /* down+D, the MAX not payable (its red state, its drive):
+                                                                    the fury plays, with its own cost (Bruno 2026-10-11,
+                                                                    note 20261011-210011-5d29, every fighter) */
     if (k == 0xFF || !pay(f, k == BS_FURY_MAX ? PAY_MAX : PAY_FURY, dry)) return 0xFF;
     return k;
 }
@@ -2303,8 +2307,9 @@ static fighter_t *proj_start(fighter_t *owner, const bproj_t *d, int32_t x0, int
     if (!p) return 0;                                            /* pool full: no entity for it */
     p->pdef = d; p->prow = 0; p->pend = 0; p->facing = facing; p->z = z; p->throw_x0 = x0;
     p->zfront = d->back ? -1 : 1;                                /* behind its owner (KOF +$2C < 0, TODO #214) or in front */
-    p->py0 = d->air && owner ? owner->y : 0;                     /* an air projectile: its rows count from its thrower's
-                                                                    height (bproj_t air, TODO #211) */
+    p->py0 = d->air && owner ? owner->y : 0;                     /* an air projectile / a placed effect: its rows count
+                                                                    from its thrower's height (bproj_t air, TODO #211;
+                                                                    PJ_PLACED: KOF's $24A02 at its start) */
     p->spec_dmg = SPECIAL_DAMAGE; p->spec_react = d->react; p->spec_fx = d->fx; p->spec_prev_hit = 0;
     p->pcnt = d->hits; p->freeze = 0;                            /* its hits left (object.phase) */
     p->kspd = 0; p->khit = 0;                                    /* (no knob: knob_proj, its spawner's) */
@@ -2390,6 +2395,10 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
         if ((d->follow & 8) && p->owner) { p->fx_pan = p->owner->pan; p->fx_step = p->owner->pstep; }   /* the owner's code
                                                                     (KOF98 $374B0 on its first run: an effect born as
                                                                     the state ends lives through the next one's step) */
+        if ((d->air & PJ_PLACED) && p->owner) {                  /* a placed effect: at its owner's place and height as */
+            p->throw_x0 = p->owner->x; p->py0 = p->owner->y;     /* they are after his frame (KOF's $24A02 on the */
+            proj_row(p);                                         /* object's first run, after its owner's: Kyo's 623C */
+        }                                                        /* fires at his x / height of that frame, measured) */
         proj_child(p); return;
     }
     if ((d->follow & FL_HSTOP) && p->owner && p->owner->hs_now && p->pend != 1) return;   /* pinned, its owner in
@@ -2426,7 +2435,7 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
             p->prow = d->loop == 0xFF ? 0 : d->loop;
         }
         p->throw_x0 = pin_of(p)->x; p->facing = p->owner->facing;
-    } else if (d->air && !p->pend && p->y <= 0) {                /* an air projectile on the floor (SS2's shuriken, TODO
+    } else if ((d->air & PJ_AIR) && !p->pend && p->y <= 0) {     /* an air projectile on the floor (SS2's shuriken, TODO
                                                                     #211: $30404 tests y >= 224 before its move, so the
                                                                     frame that reached the floor shows it there or below):
                                                                     its next phase from where it is, on the floor */
@@ -2758,7 +2767,7 @@ static void prog_spawn(fighter_t *f, const bproj_t *d) {
     if (d->follow & 8) return;                                   /* a step effect: it ends itself (proj_update) */
     if (d->follow || d->kind == PK_BOOM) { if (!f->proj[0]) f->proj[0] = p; else if (!f->proj[1]) f->proj[1] = p; }   /* (a
                                                                     boomerang ends with the special: SS2 $4C434) */
-    else f->shot = p;
+    else if (!(d->air & PJ_PLACED)) f->shot = p;                 /* (a placed effect: no shot, it ends itself) */
 }
 /* a victim list's release flight (KOF 283, the blowback), sent dir (+1: the attacker's forward): the list's own velocity
  * (VL_VEL, its gravity g: KOF's routine, Iori 624), its source's flight (VL_SREACT) or KOF's knockdown flight */

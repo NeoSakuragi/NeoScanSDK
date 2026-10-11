@@ -117,7 +117,7 @@
    "routes": "default",
    "archetype": "balanced",
    "moves": {"atk_ab_jump": "$EE", "atk_ab_jump_diag": "$EE"},
-   "chain": {"length": 4, "links": ["atk_a_close", "atk_c_close", "cmd_fwd_b"]},
+   "chain": {"length": 4, "links": ["atk_a_far", "atk_c_close", "cmd_fwd_b"]},
    "finishers": {"launcher": "up", "down": "sweep", "up": "atk_d_close", "down_move": "atk_d_crouch", "df_move": "cmd_df_d", "neutral": "atk_d_far"},
    "specials": {"D": "623C", "fD": "EX 421D", "dD": "236D", "uD": "421B", "dfD": "214A", "ufD": "236C"},
    "blitz": {"ff": ["236A>156", "236A>158", "236A>162"], "dd": "623A", "uu": "421B"},
