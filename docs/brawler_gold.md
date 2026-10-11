@@ -304,6 +304,26 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   (regress.py now presses coin / START / A again when the attract swallowed the coin: a one-frame window, 0.10.56 at
   2599 frames, this build's boot a frame later at 2600).
 
+- **A sequence played together: the pieces' projectiles at once** — `game.json roster[].together` = the slot labels of
+  sequences whose pieces play TOGETHER (`["air_specials.ddA"]`; Bruno 2026-10-11, note 20261011-164455-5d29 reopened on
+  0.10.57: "throw three shurikens at once, the A, the B and the A+B, at the same time"). Export only (export_bm
+  `together`; no engine flag, no new op, fighter.c / bm_chars.h untouched, pack format 1 unchanged): the slot gets ONE
+  pool entry, the first piece (its animation, voices, retime, flags), whose k-th object spawn also spawns every other
+  piece's k-th object, each the object of that piece's own variant row, in the same frame. Its program is a copy: each
+  P_SPAWN becomes a P_JMP to a tail before the P_END (its own spawn, the others', a P_JMP back), its P_END moved last
+  with a P_JMP to it in its place (every other op keeps its index; main.c pj_measure still scans to the P_END); the
+  others' objects are appended to its objects, their P_SPAWN index taken back by its own row's offset (robj[a + var *
+  vobj]). Every piece must be a program special with as many spawns as the first (asserted). The other pieces are not in
+  the pool; `retime` / `keeps_air_attack` name the first piece's input. Without `together` a list stays the back-to-back
+  sequence above (SF_SEQ). Unset: tables byte-identical (diff 0.10.57 -> this build: hanzo_ss2's rows, its knob / damage
+  tier rows, the retime rows renumbered). Pool cost: one projectile entity per piece (NPJ 8: Hanzo's three + their floor
+  phase in the same entities; a hit mark needs 2 free entities, else none is drawn). Set: Hanzo SS2 `ddA` [j.4123A,
+  j.4123B, j.4123AB] together, `retime` j.4123A "0.5x" startup, `keeps_air_attack` j.4123A; Assembly answer `air_bz_dd`
+  unchanged (S-008 S-009 S-010: the list). Measured in our emulator (/data/tmp/hanzo_three, three.py): the three
+  shurikens on the same frame, 9 frames after the move starts, from the same point; paths A steepest (floor +32 px) / B
+  (+36) / A+B flattest (+46), as 0.10.57's; vs Ryo at 50 px: 3 hits of 24 on one frame; A in the recoil -> atk_cd_jump,
+  LAND -> IDLE; without A it lands (65 frames). regress bleed True / True, facing traces = 0.10.57's for every fighter.
+
 ## The arbitration sheet compiler, piece ids and the Workshop
 
 Moved to **docs/character_lab.md** (2026-10-10). `arb_compile.py` still appends each shipped "sheet round" here.

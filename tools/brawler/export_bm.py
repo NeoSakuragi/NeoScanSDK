@@ -1115,9 +1115,45 @@ def sequences(ch, name):
                     sp = next((sp for sp in ch.get('specials', []) if sp['input'] == inp and rom_ok(sp)), None)
                     assert sp, f'{name}: {label}: no special {inp} read from the ROM in its bank'
                     ps.append(dict(sp, seq=label, seq_i=i, seq_more=i < len(v) - 1))
+                if label in (r.get('together') or ()): ps = [together(name, label, ps)]
                 _SEQ[ck] = ps
             out.append((label, _SEQ[ck]))
     return out
+
+
+def together(name, label, ps):
+    """a sequence played TOGETHER (game.json roster[].together: its slot labels; Bruno 2026-10-11, note
+    20261011-164455-5d29: "Hanzo throws the A, the B and the A+B shurikens at once"): one pool entry, the first piece,
+    whose k-th object spawn (P_SPAWN) also spawns every other piece's k-th one, each the object of that piece's own
+    variant row, in the same frame. Export only (no engine flag, no new op): the first piece's program is copied with its
+    P_SPAWN ops turned into a P_JMP to a tail appended before its P_END (its own spawn, the others', a P_JMP back; its
+    P_END moved last, a P_JMP to it in its place: every other op keeps its index), the others' objects appended to its objects (robj[a + var * vobj]: the index is taken back by
+    its own row's offset). Each piece must be a program special (export 'prims') with as many spawns as the first;
+    the first's flags, voices, retime and the rest play as its own"""
+    h = ps[0]; r = h['rom']
+    assert all(rom_ok(p) and p['rom'].get('prims') for p in ps), f'{name}: {label}: together: every piece must be a program special'
+    def spawns(p): return [i for i, o in enumerate(p['rom']['prims']) if o[0] == P_OPS['spawn']]
+    def off(p):
+        vt = p['rom'].get('vtable') or {}
+        return vdef_of(name, p) * vt['vobj'] if vt.get('nvar') else 0
+    hs = spawns(h)
+    assert hs and all(len(spawns(p)) == len(hs) for p in ps), f'{name}: {label}: together: the pieces spawn {[len(spawns(p)) for p in ps]} objects'
+    prims, objs = list(r['prims']), list(r['objects'])
+    end = len(prims) - 1                                 # (its P_END stays the last op, main.c pj_measure's scan: the
+    assert prims[end][0] == P_OPS['end'], (name, label)  #  old one becomes a P_JMP to it)
+    prims[end] = (P_OPS['jmp'], 0, -1, 0)
+    for k, i in enumerate(hs):
+        t = len(prims); prims[i] = (P_OPS['jmp'], 0, t, 0)
+        prims.append(r['prims'][i])
+        for p in ps[1:]:
+            o = p['rom']['prims'][spawns(p)[k]]
+            objs.append(p['rom']['objects'][o[1] + off(p)])
+            a = len(objs) - 1 - off(h)
+            assert 0 <= a < 256, (name, label, a)
+            prims.append((P_OPS['spawn'], a, 0, 0))
+        prims.append((P_OPS['jmp'], 0, i + 1, 0))
+    prims[end] = (P_OPS['jmp'], 0, len(prims), 0); prims.append(r['prims'][end])
+    return dict(h, rom=dict(r, prims=prims, objects=objs), seq_more=False, together=[p['input'] for p in ps])
 
 
 def seq_head(ch, name, label):
