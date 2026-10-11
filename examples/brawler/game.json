@@ -124,8 +124,10 @@
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_ab_jump"},
    "seq_press": ["blitz.ff"],
    "fury": "21426C",
+   "knobs": {"sp_fc": {"S-007": {"rise": 2.83, "travel": 8}}},
    "hit_sfx": {"21426C": "94 SUPER HIT", "MAX 21426C": "94 SUPER HIT"},
    "invincible": ["EX 421D"],
+   "juggle": ["623A"],
    "unlock": "always",
    "voices": "kof"
   },

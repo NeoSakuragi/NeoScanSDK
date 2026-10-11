@@ -963,6 +963,10 @@ def rom_c(n, k, sp, game, vres=None):
     r = sp['rom']; out = []
     def bb(b): return '{0, 0, 0, 0}' if b is None else f'{{{b[0]}, {b[1]}, {b[2]}, {b[3]}}}'
     live = None
+    jug = any(same_special(w, sp['input']) for w in roster().get(n, {}).get('juggle', ()))   # game.json roster[].juggle:
+    def hy(v):                                         # its hits leave the victim hittable (each packed nibble's R_* | 8,
+        if not jug or r.get('sreact'): return v        # KOF's hurt-kept bit: fighter.c kof_react KM_HURT), the juggle
+        return v | (8 if v & 7 else 0) | (0x80 if v & 0x70 else 0)   # cap still counting (Bruno 2026-10-11, Kyo's 623A)
     kof = kof_prog(sp, game)                           # KOF96 / 98 / 99: a step's hurt box counts only with its $0200 flag
     for j, st in enumerate(r['states']):               # (TODO #205: the boxes stay loaded across steps, $0200 says the
         a = r['anims'][st]; steps = []                 # step has one; Kyo's EX 421D 774 / 775 / 776 have none: KOF98's
@@ -973,7 +977,7 @@ def rom_c(n, k, sp, game, vres=None):
             if ab: live = ab
             ab = live if fl & 0x100 else None
             steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (8 if fl & 0x80 else 0) | (16 if fl & 0x4000 else 0) | (32 if fl & 0x2000 else 0) | (64 if ab and s.get("catch") else 0) | (128 if ab and s.get("nostop") else 0) | (4 if ab and s.get("noslide") else 0) | (4 if r.get("sreact") and s.get("push") else 0)}, '
-                         f'{bb(hb)}, {bb(ab)}, {-s["dx"]}, {(sr_hy(n, s.get("react", 0)) if r.get("sreact") else s.get("react", 0)) if ab else 0}}}')   # hy: KOF's reaction (handlers98.box_react) / a source reaction
+                         f'{bb(hb)}, {bb(ab)}, {-s["dx"]}, {(sr_hy(n, s.get("react", 0)) if r.get("sreact") else hy(s.get("react", 0))) if ab else 0}}}')   # hy: KOF's reaction (handlers98.box_react) / a source reaction
         out.append(f'static const bstep_t {n}_sp{k}_a{j}[] = {{' + ', '.join(steps) + '};')
     out.append(f'static const banim_t {n}_sp{k}_an[] = {{' + ', '.join(
         f'{{{len(r["anims"][st]["steps"])}, {1 if r["anims"][st]["mode"] == "hold" else 0}, {n}_sp{k}_a{j}}}' for j, st in enumerate(r['states'])) + '};')

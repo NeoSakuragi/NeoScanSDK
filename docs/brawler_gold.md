@@ -263,6 +263,17 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   4 a victim, no cap). Exporter: export_bm.proj_hits (any game's projectiles go through projectile_c). Proof:
   tools/brawler/hitbudget_proof.py (crowd of 6 + single dummy, fury + MAX; recipe scenarios.json 20261011-134041-5d29).
 
+- **A special whose victim stays juggle-able** — `game.json roster[].juggle` [special inputs] (note 20261011-201837-5d29,
+  Kyo's down,down + A 623A: "it looks like there is a flag that prevents juggling"). The flag was KOF's own juggle rule:
+  box_react packs a reaction without the hurt-kept bit 8 when KOF's reaction state has no $0200 hurt box (623A's launch,
+  states 285 / 287: handlers98.react_hurt), so fighter.c kof_react leaves kmode without KM_HURT and combat skips the
+  victim until it is down. Listed here, every body hit of the special's ROM program has bit 8 set on both packed nibbles
+  (export_bm rom_c `hy`; an R_* nibble only, RK_HIGH / the hold's 0x80 / source reactions untouched): the victim flies
+  the same arc with LAUNCH_BOX and takes later hits, the juggle cap (gchain.juggle_cap) still counting. Unset: the
+  exported tables are byte-identical (checked: bm_spec.c differs only in kyo_sp0's rows). Its travelling objects keep
+  their own reactions. Set: Kyo `623A` (its own second hit now lands too: 2 hits, the victim up to ~146 px instead of
+  114; then C / forward + C / the fury cancelled into it hit him in the air). Recipe scenarios.json 20261011-201837-5d29.
+
 - **A move that leaves the fighter airborne with his air attack** — `game.json roster[].keeps_air_attack` [special
   inputs] (Bruno 2026-10-11, decisions set open-2026-10-11 `hanzo-air-shuriken`: "after the shuriken Blitz, Hanzo is
   still in the air and he can still execute a regular air attack"). The special's `bspec_t.sflags` SF_AIRATK (64,
@@ -440,3 +451,8 @@ Compiled from the sheet without an agent: 14 slot(s) linked, 0 unresolved; slots
 - sp_dc (down + C): S-012 -> specials.dD = "236D" — linked, class b: S-012 236D (registry)
 - air_a (jump + A): $61 -> air.forward + air.straight = "atk_d_jump" — linked, class a: its own move
 - air_da (jump + down + A): $EE -> air.down (+ moves atk_ab_jump_diag = $EE) = "atk_ab_jump" — linked, class a: spare name: moves "atk_ab_jump": "$EE" (an air attack)
+
+### KYO: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.60)
+Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- knobs: {"sp_fc": {"S-007": {"rise": 2.83, "travel": 8}}} (roster[].knobs, measured by knob_check)
+- (note 20261011-201729-5d29, "divide the total height by two and reduce the total X distance by 20%": measured in our emulator, forward + C alone: peak 87.3 -> 44.1 px (0.505; the height goes with the rise squared, so rise 4 -> 2.83 = 4 / sqrt 2), travel 189.2 -> 151.2 px (0.799, travel 10 -> 8); recipe scenarios.json 20261011-201729-5d29)
