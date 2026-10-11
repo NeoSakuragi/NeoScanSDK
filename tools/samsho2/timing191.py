@@ -19,7 +19,7 @@ sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, '..', 'brawler')
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
 WORK = '/data/tmp/ss2t191'
 CHAR = {'haohmaru': 0, 'genjuro': 12, 'kuroko': 17}
-NORMALS = {'atk_a_far': 'far_a', 'atk_b_far': 'far_b', 'atk_c_far': 'far_c', 'atk_d_far': 'far_d', 'body_toss': 'far_ab'}
+NORMALS = {'atk_a_far': 'far_a', 'atk_b_far': 'far_b', 'atk_c_far': 'far_c', 'atk_d_far': 'far_d', 'body_toss': 'close_ab'}   # (body_toss = close A+B since 2026-10-11)
 FAR = int(os.environ.get("SS2_FAR", 300))  # px between the players in SS2's whiffs
 
 def ss2_whiffs(name):

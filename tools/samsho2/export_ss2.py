@@ -41,6 +41,13 @@ def sb(v): return v - 256 if v > 127 else v
 # C+D 348 / 350 / 352 / 356; reactions (class 3, read on P2 in the captures): reel 110 (light) / 106 (heavy), the
 # crouching reel 120 (trip), the knockdown flight 220 (2 steps) and its landing / lying 222, the get-up 138 (from
 # its kneeling step 1). 140 (the sheathing pose) is not the round win: WIN below.
+# Close / far: SS2 picks a normal's close or far animation by the distance (handler $2BA56: the descriptor's two entries;
+# measured in our emulator, Haohmaru's A+B and C: the close one up to 72 px, the far one from 80). The brawler plays its
+# normals at close range (a chain leaves the victim 30-55 px ahead), so a move that has both is exported as SS2's CLOSE
+# one there: body_toss (the heavy slash, every SS2 fighter's A+B finisher / dash / hold entry) = 276, close A+B. It was
+# 278, far A+B, whose blade reaches only from 64 px out: inside it (the chain's distance) it whiffed, and a whiff is not
+# a hit, so the special / Blitz / fury cancel of the ladder never had a hit to cancel ("close AB cannot be cancelled",
+# Bruno 2026-10-11).
 MOVES = {
     'idle': (0, 0, None), 'walk_fwd': (4, 0, None), 'run': (66, 0, None),
     'prejump': (22, 0, 0), 'jump_up_rise': (22, 0, None), 'jump_up_fall': (26, 0, None),
@@ -50,7 +57,7 @@ MOVES = {
     'atk_c_close': (302, 0, None), 'atk_c_far': (304, 0, None), 'atk_d_close': (322, 0, None), 'atk_d_far': (324, 0, None),
     'atk_a_crouch': (236, 0, None), 'atk_b_crouch': (254, 0, None), 'atk_c_crouch': (306, 0, None), 'atk_d_crouch': (326, 0, None),
     'atk_c_jump': (310, 0, None), 'atk_d_jump': (330, 0, None), 'atk_c_jump_diag': (310, 0, None), 'atk_d_jump_diag': (330, 0, None),
-    'atk_cd_jump': (284, 0, None), 'body_toss': (278, 0, None),
+    'atk_cd_jump': (284, 0, None), 'body_toss': (276, 0, None),
     'hit_stand_light': (110, 0, None), 'hit_stand_heavy': (106, 0, None), 'hit_air': (220, 0, 0),
     'blowback': (220, 0, 0), 'blowback_n': (220, 0, 0), 'knockdown_flight': (220, 1, 1), 'knockdown_bounce': (222, 0, 0),
     'knockdown_fall': (222, 0, 0), 'down': (222, 1, 1), 'getup': (138, 1, None), 'trip': (120, 0, None),
