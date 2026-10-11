@@ -9,6 +9,40 @@
      "title": "Billy Kane",
      "questions": [
       {
+       "id": "billy-uf-c2",
+       "title": "Billy, again: which diagonal cane move on up-forward + C?",
+       "context": "Your note says the cane goes on a diagonal. Two moves do that: tap the one you mean.",
+       "options": [
+        {
+         "label": "623A: rising diagonal swing (launches)",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-623A.mp4",
+           "caption": "623A"
+          }
+         ]
+        },
+        {
+         "label": "214B: angled thrust (what plays now)",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-uf-c-now.mp4",
+           "caption": "214B, today"
+          }
+         ]
+        },
+        {
+         "label": "623B: pole-vault kick",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-623B.mp4",
+           "caption": "623B"
+          }
+         ]
+        }
+       ]
+      },
+      {
        "id": "billy-uf-c",
        "title": "Billy: what should up-forward + C play?",
        "context": "Up-forward + C plays 214B (angled staff thrust) today; your note 20261006-160912-b3f3 said that is not the move you meant.",
