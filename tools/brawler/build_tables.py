@@ -852,6 +852,7 @@ def tables(g, build):
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
          'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
+         'extern const uint8_t roster_music[BC_COUNT];   /* the fighter\'s theme (game.json roster[].music), 0 = none: main.c stage_song */',
          'extern const uint16_t *const dtier_rom[BC_COUNT];   /* the damage tiers (fighter.c "damage tiers"): per fighter, 8.8 scales: [special index], [nspec] the fury, [nspec + 1] the MAX */',
          'extern uint8_t dtier_off;                         /* (fighter.c) 1: every scale 1 (a test switch) */',
          'extern const uint8_t ai_ready[BC_COUNT][2];',
@@ -1022,7 +1023,12 @@ def tables(g, build):
                                                                  # picked (a form link's target, main.c char_locked)
         assert u == 'always' or 1 <= u['boss_of_stage'] <= len(g['stages']), f'{r["name"]}: unlock {u}'
     c.append('const uint8_t roster_unlock[BC_COUNT] = { ' + ', '.join(map(str, unl)) + ' };   /* stage k + 1 whose boss unlocks it, 0 = always, 0xFF = never (a form) */')
-    dmul = [r.get('damage', 1) for r in g['roster']]          # TODO #203: the fighter's damage scale (fighter.c fighter_hit)
+    known = {x['name'] for x in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['songs']}
+    for r in g['roster']:                                # voice note 20261011-160158-5d29: stage 1 plays P1's theme
+        assert r.get('music') is None or r['music'] in known, f"{r['name']}: music {r['music']!r} is no songs.json song"
+    c.append('const uint8_t roster_music[BC_COUNT] = { ' + ', '.join(f"MUS_{r['music']}" if r.get('music') else '0' for r in g['roster'])
+             + ' };   /* roster[].music: the fighter\'s theme (its MUS_* command), 0 = none: stage 1 then plays its own song */')
+    dmul =[r.get('damage', 1) for r in g['roster']]          # TODO #203: the fighter's damage scale (fighter.c fighter_hit)
     for r, k in zip(g['roster'], dmul): assert isinstance(k, int) and 1 <= k <= 4, f'{r["name"]}: damage {k} (1-4)'
     c += dtier_tables(g, build, dmul)                    # revamp 2: the damage tiers (the scale of a special not measured: dmul)
     c += retime_tables(g, build)

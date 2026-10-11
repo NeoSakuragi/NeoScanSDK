@@ -3217,6 +3217,19 @@
   "do_keys": "",
   "proof": 900
  },
+ "20261011-160158-5d29": {
+  "title": "Stage 1 plays Robert's theme, KOF96's Kamikirimushi",
+  "setup": {
+   "mode": "stage",
+   "fighter": "robert",
+   "stage": 0,
+   "wave": 0
+  },
+  "do": "Stage 1 from its start with Robert. Listen to the music while the first wave walks in. Then try stage 1 with Rosa or Cheng-Fu (no theme).",
+  "expect": "KOF96's Art of Fighting team stage music (カミキリムシ Kamikirimushi) plays instead of Fatal Fury 3's stage music. With a fighter who has no theme (Rosa, Cheng-Fu, Billy Lee, WHP Hanzo, Rugal, Goenitz), stage 1 keeps Fatal Fury 3's music.",
+  "do_keys": "",
+  "proof": 900
+ },
  "dec-hanzo-air-shuriken": {
   "title": "Hanzo: down, down + A in the air = the shuriken Blitz, then a jump attack",
   "setup": {
