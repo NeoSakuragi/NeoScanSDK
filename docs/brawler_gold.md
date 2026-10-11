@@ -263,6 +263,21 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   4 a victim, no cap). Exporter: export_bm.proj_hits (any game's projectiles go through projectile_c). Proof:
   tools/brawler/hitbudget_proof.py (crowd of 6 + single dummy, fury + MAX; recipe scenarios.json 20261011-134041-5d29).
 
+- **A move that leaves the fighter airborne with his air attack** — `game.json roster[].keeps_air_attack` [special
+  inputs] (Bruno 2026-10-11, decisions set open-2026-10-11 `hanzo-air-shuriken`: "after the shuriken Blitz, Hanzo is
+  still in the air and he can still execute a regular air attack"). The special's `bspec_t.sflags` SF_AIRATK (64,
+  export_bm vl_c). Once its program is in the part that waits for the landing (the part it resumes at opens on "landed ->
+  go on", a handlers ('land', 'next') entry: fighter.c `air_free`), A plays the jump's attack (down + A its down attack,
+  roster `air`) at the move's velocity, once, and he lands as from a jump; no A: the move lands as before. Unset: every
+  other special as before (the exported tables differ only in that special's sflags). An SS2 multi-button input in the
+  list ('j.4123S') names each of its button versions (export_bm same_special). Set: Hanzo SS2 `j.4123AB` (the A+B
+  version, the Assembly's S-010 = what the export played for j.4123S), whose air shuriken is his air Blitz since
+  2026-10-11 (`air_specials` `ddA`, was `dC` j.4123S: jump + down + C is empty again; the Assembly answer `air_bz_dd`
+  S-010 in the decisions store). Export: air_specials values are among the inputs export_ss2 exports as button versions
+  (arb_compile links an air Blitz piece as its version input, which did not export before). Check:
+  /data/tmp/hanzo_go (airblitz.py: shuriken from down,down + A, A in the recoil -> atk_cd_jump hits 24 like a plain jump
+  attack, LAND -> IDLE; recipe scenarios.json `dec-hanzo-air-shuriken`).
+
 ## The arbitration sheet compiler, piece ids and the Workshop
 
 Moved to **docs/character_lab.md** (2026-10-10). `arb_compile.py` still appends each shipped "sheet round" here.

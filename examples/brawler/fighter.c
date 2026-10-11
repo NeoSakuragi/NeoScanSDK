@@ -174,6 +174,17 @@ static uint8_t air_blitz(const fighter_t *f) {
             return e[1];
     return 0xFF;
 }
+/* a move that leaves the fighter airborne with his air attack (SF_AIRATK, game.json roster[].keeps_air_attack): its program
+ * plays its fall to the landing, the part it resumes at opens on "landed -> go on" (handlers' ('land', 'next') entry:
+ * SS2 Hanzo's shuriken recoil). -> 1 when the special playing is one and is in that part (fighter_update: A = the jump's
+ * attack) */
+static uint8_t air_free(const fighter_t *f) {
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+    const bprim_t *p;
+    if (!(sp->sflags & SF_AIRATK) || !sp->prog) return 0;
+    p = &sp->prog[f->pres];
+    return (p->op & 0x7F) == P_BR && p->a == (0x80 | PC_LAND) && p->b >= 0;
+}
 static uint8_t air_button(const bchar_t *ch, uint8_t ix) {      /* the button of the air special ix (PC_HELD) */
     const uint8_t *e;
     for (e = bm_air[ch->id]; *e != 0xFF; e += 2) if (e[1] == ix) return e[0] & AIR_A ? IN_A : IN_C;
@@ -3645,6 +3656,18 @@ static void update(fighter_t *f, const intent_t *in) {
             if (f->pcatch == 0xFE) juggle_open(f, f->target);
             carry_drop(f); special_end(f); f->pflags = 0;
             if (!blitz_go(f, s, LH_CANCEL)) to_neutral(f, 0);
+            break;
+        }
+        if (in && (in->press & IN_A) && f->y > 0 && air_free(f)) {   /* SF_AIRATK (game.json roster[].keeps_air_attack,
+                                                                    Bruno 2026-10-11, Hanzo's air shuriken Blitz): the
+                                                                    move's fall to the landing is a jump's: A plays the
+                                                                    jump's attack (down + A its down attack) from there,
+                                                                    once, at the move's velocity; landing as a jump does */
+            int32_t vx = dir_mul(f->facing, f->vx), vy = f->vy;
+            carry_drop(f); special_end(f); f->pflags = 0;
+            f->vx = vx; f->vy = vy; f->vz = 0; f->jt = 0; f->jump_kind = 0; f->air_node = 0;
+            enter(f, S_AIR);
+            start_node(f, in->dz > 0 ? TREE(f)->air_b : f->jump_dir ? TREE(f)->air_cd : TREE(f)->air_a, LH_NEUTRAL); f->aact = 0;
             break;
         }
         f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? air_button(f->ch, f->spec_ix) : f->spec_id == BS_BLITZ ? IN_A :

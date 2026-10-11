@@ -3179,7 +3179,7 @@
   "proof": 700
  },
  "20261006-160539-b3f3": {
-  "title": "GAME OVER: the continue music fades out, as in KOF98",
+  "title": "GAME OVER plays KOF94's game over music",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
@@ -3189,7 +3189,7 @@
    "lives": 0
   },
   "do": "Terry has 1 life point and no lives left. Let an enemy hit you, press nothing and let the continue count run to 0.",
-  "expect": "At 0 the GAME OVER screen shows and the continue music fades out over about 2 seconds, then silence, as KOF98 does (its GAME OVER plays no song of its own). It no longer starts the continue music over again. The next coin plays the title music as usual.",
+  "expect": "At 0 the GAME OVER screen shows with KOF94's game over music (the song KOF94 plays on its CONTINUE / GAME OVER screens), started at once, no fade-out of the continue music; it plays until the screen ends (about 8 seconds). The next coin plays the title music as usual.",
   "do_keys": "",
   "proof": 1300
  },
@@ -3216,5 +3216,31 @@
   "expect": "Kizuna Encounter's harbour-market stage music (裏水路 Ura Suiro, \"Rear Waterway\" on its soundtrack; the brawler's THEME KIM) plays instead of Fatal Fury 3's stage music; stage 2 keeps the highway music.",
   "do_keys": "",
   "proof": 900
+ },
+ "dec-hanzo-air-shuriken": {
+  "title": "Hanzo: down, down + A in the air = the shuriken Blitz, then a jump attack",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Jump (B), tap down, down + A in the air: Hanzo throws his shuriken. As he hops back after the throw, press A. Then try jump + down + C.",
+  "expect": "Down, down + A throws the shuriken (no meter). In the hop after it, A plays his jump attack, which can hit Ryo, and he lands normally. Without A he lands as before. Jump + down + C does nothing now.",
+  "do_keys": "3:b,8:-,1:D,1:-,1:D,2:Da,40:-,3:a",
+  "proof": 90
+ },
+ "20261011-154500-5d29": {
+  "title": "Hanzo: down, down + A = his far A+B slash",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 70
+  },
+  "do": "Stand a little away from Ryo (as now) and tap down, down + A.",
+  "expect": "Hanzo plays his far A+B slash (the long sword swing), free, and it knocks Ryo down. Like the SS2 move it reaches from a little distance: very close it can miss. His fury (D) is still the rage move.",
+  "do_keys": "1:D,1:-,1:D,2:a,60:-",
+  "proof": 60
  }
 }
