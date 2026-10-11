@@ -111,20 +111,26 @@ class Target:
 
     # -- M ROM bank sets
     def m1_offset(self, bank, z): return 0x8000 * (bank + 1) + z - 0x8000
-    def reserve(self, size):
-        """(bank set, Z80 address) for a song of `size` bytes: best fit (the smallest room that holds it) among the holes
-        dropped KOF98 songs leave in kept sets and the ends of the port sets, else a new set"""
-        room = [(z1 - z0, ('hole', i)) for i, (b, z0, z1) in enumerate(self.holes) if z0 + size <= z1] + \
-               [(port98.SONG_Z80_END - z, ('set', b)) for b, z in self.sets.items() if z is not None and z + size <= port98.SONG_Z80_END]
+    def reserve(self, size, least=None):
+        """(bank set, Z80 address, bytes granted) for a song of `size` bytes: best fit (the smallest room that holds it)
+        among the holes dropped KOF98 songs leave in kept sets and the ends of the port sets, else a new set; when no
+        room and no set is left, `least` bytes (the song's exact length, without the patch-move margin) the same way
+        (2026-10-11: Kizuna's highway, 10073 bytes, fits the 10116 left in set 1 only without the margin)"""
+        def fit(n):
+            return [(z1 - z0, ('hole', i)) for i, (b, z0, z1) in enumerate(self.holes) if z0 + n <= z1] + \
+                   [(port98.SONG_Z80_END - z, ('set', b)) for b, z in self.sets.items() if z is not None and z + n <= port98.SONG_Z80_END]
+        room = fit(size)
+        if not room and max(self.sets) + 1 >= N_SETS and least is not None:
+            size = least; room = fit(size)
         if room:
             kind, k = min(room)[1]
             if kind == 'hole':
-                b, z0, z1 = self.holes[k]; self.holes[k] = (b, z0 + size, z1); return b, z0
-            z = self.sets[k]; self.sets[k] = z + size; return k, z
+                b, z0, z1 = self.holes[k]; self.holes[k] = (b, z0 + size, z1); return b, z0, size
+            z = self.sets[k]; self.sets[k] = z + size; return k, z, size
         b = max(self.sets) + 1
         if b >= N_SETS: raise ValueError(f'no free bank set (KOF98 has {N_SETS}: $2708 table; the ZMC reaches 256 KB)')
         self.sets[b] = port98.SONG_Z80 + size
-        return b, port98.SONG_Z80
+        return b, port98.SONG_Z80, size
 
 def native_samples(m1, cmd):
     """the (table, code) ADPCM-A records and ADPCM-B (start, end) a KOF98 song plays, to its loop end or its end;

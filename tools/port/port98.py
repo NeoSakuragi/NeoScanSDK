@@ -469,9 +469,12 @@ class Port:
         if not hasattr(self, 'at'):                    # the song's place: one pass to learn its length, then the target's
             self.at = (None, SONG_Z80)
             size = len(self.assemble(head, names))
-            self.at = self.t.reserve(size + 256)       # (bank set, Z80 address); room for the patch moves
+            *self.at, self.room = self.t.reserve(size + 256, size)   # (bank set, Z80 address); room for the patch
+            self.at = tuple(self.at)                                 # moves (exact size when nothing else fits)
         song = self.assemble(head, names)
         bank, z = self.at
+        if len(song) > getattr(self, 'room', len(song)):
+            raise ValueError(f'song grew to {len(song)} bytes past its {self.room}-byte room in bank set {bank} at ${z:04X}')
         off = self.t.m1_offset(bank, z)
         self.m1[off:off + len(song)] = song
         i = self.CMD - 0x20

@@ -2840,5 +2840,18 @@
   "expect": "Every hit plays Samurai Shodown II's own impact sound, picked by the move as SS2 does: far A, close A and far B the light cut (one of SS2's three), close C+D the kick thud, and the last hit, close A+B knocking Ryo down, SS2's big slash (one of its six). His specials keep their slash. Haohmaru and Genjuro follow the same rule (their close A: SS2's blunt thud).",
   "do_keys": "1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-",
   "proof": 110
+ },
+ "20261011-111810-5d29": {
+  "title": "Stage 2 plays the Kizuna Encounter highway music",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 0
+  },
+  "do": "Stage 2 from its start. Listen to the music while the first wave walks in.",
+  "expect": "Kizuna Encounter's highway stage music (高速道路, its broken elevated expressway stage) plays instead of Fatal Fury 3's stage music; stage 1 keeps Fatal Fury 3's.",
+  "do_keys": "",
+  "proof": 900
  }
 }
