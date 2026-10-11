@@ -250,3 +250,11 @@ Compiled from the sheet without an agent: 2 slot(s) linked, 0 unresolved; slots 
 Compiled from the sheet without an agent: 0 slot(s) linked, 1 unresolved (listed for an agent, nothing guessed); slots whose pick = now not listed.
 - bz_dd (down,down + A): $15A — UNRESOLVED: $15A has no move name and no known reaction (an animation special needs one: library anim_special)
 - chain timing: hit-stops 57 8 10 12 (roster chain.hitstop / retime, the build checked)
+
+### HANZO: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `hanzo_ss2-arb`, build 0.10.34)
+Compiled from the sheet without an agent: 3 slot(s) linked, 1 unresolved (listed for an agent, nothing guessed); slots whose pick = now not listed.
+- fin_up (last hit + up): $10F -> finishers.up = "atk_cd_crouch" — linked, class a: spare name: moves "atk_cd_crouch": "$10F"
+- fin_down (last hit + down): $F5 -> finishers.down_move = "atk_ab_crouch" — linked, class a: spare name: moves "atk_ab_crouch": "$F5"
+- air_a (jump + A): $11C -> air.forward + air.straight (+ moves atk_cd_jump_diag = $11C) = "atk_cd_jump" — linked, class a: its own move
+- bz_dd (down,down + A): $15A — UNRESOLVED: $15A has no move name and no known reaction (an animation special needs one: library anim_special)
+- chain timing: hit-stops 6 8 10 12 (roster chain.hitstop / retime, the build checked)
