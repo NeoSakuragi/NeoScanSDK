@@ -24,6 +24,7 @@ if [ "${PAGES_ONLY:-0}" = 1 ]; then
   cp "$HERE/lab.html" "$SITE/index.html"
   for f in core.wasm core.js; do gzip -9 -k -f "$SITE/$f"; done
   (cd "$SITE" && rsync -a $PAGES index.html core.js core.wasm core.js.gz core.wasm.gz $HOST:/data/brawler-lab/)
+  [ -d "$HERE/decisions-media" ] && rsync -a "$HERE/decisions-media" $HOST:/data/brawler-lab/   # the Decisions tab's media (decide.js)
   echo "deployed the pages + core: https://canneji.duckdns.org/brawler-lab/ (Oros login)"; exit 0
 fi
 # the Character Lab's shell + packs ("Try in game" and the Player play them from the catalogue): published by the one

@@ -1,6 +1,333 @@
 {
  "sets": [
   {
+   "id": "open-2026-10-11",
+   "title": "Open choices (2026-10-11)",
+   "intro": "Eight open choices on build 0.10.49. Every clip and sound comes from our emulator: the game itself (Billy's candidates from a test build with them on his slots) and the KOF songs from the KOF ROMs. Clips loop; tap a clip to pause it.",
+   "sections": [
+    {
+     "title": "Billy Kane",
+     "questions": [
+      {
+       "id": "billy-uf-c",
+       "title": "Billy: what should up-forward + C play?",
+       "context": "Up-forward + C plays 214B (angled staff thrust) today; your note 20261006-160912-b3f3 said that is not the move you meant.",
+       "media": [
+        {
+         "video": "decisions-media/open-2026-10-11/billy-uf-c-now.mp4",
+         "caption": "Today: up-forward + C = 214B"
+        }
+       ],
+       "options": [
+        {
+         "label": "Put AAAA there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-AAAA.mp4",
+           "caption": "AAAA (mash A): staff spun in front, many quick hits (Senpuukon, light)"
+          }
+         ]
+        },
+        {
+         "label": "Put 426A there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-426A.mp4",
+           "caption": "426A: the staff thrown out straight ahead, long reach, 1 hit"
+          }
+         ]
+        },
+        {
+         "label": "Put 623A there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-623A.mp4",
+           "caption": "623A: rising staff swing, launches, 2 hits"
+          }
+         ]
+        },
+        {
+         "label": "Put 623B there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-623B.mp4",
+           "caption": "623B: pole-vault jump kick upward, launches, 2 hits"
+          }
+         ]
+        },
+        {
+         "label": "Put 214D there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-214D.mp4",
+           "caption": "214D: low staff swing that knocks down, 1 hit"
+          }
+         ]
+        },
+        {
+         "label": "Keep 214B",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-uf-c-now.mp4",
+           "caption": "214B (today)"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "id": "billy-df-c",
+       "title": "Billy: what goes on down-forward + C (empty today)?",
+       "context": "His down-forward + C slot has no move; the same five candidates as above.",
+       "options": [
+        {
+         "label": "Put AAAA there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-AAAA.mp4",
+           "caption": "AAAA (mash A): staff spun in front, many quick hits (Senpuukon, light)"
+          }
+         ]
+        },
+        {
+         "label": "Put 426A there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-426A.mp4",
+           "caption": "426A: the staff thrown out straight ahead, long reach, 1 hit"
+          }
+         ]
+        },
+        {
+         "label": "Put 623A there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-623A.mp4",
+           "caption": "623A: rising staff swing, launches, 2 hits"
+          }
+         ]
+        },
+        {
+         "label": "Put 623B there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-623B.mp4",
+           "caption": "623B: pole-vault jump kick upward, launches, 2 hits"
+          }
+         ]
+        },
+        {
+         "label": "Put 214D there",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/billy-214D.mp4",
+           "caption": "214D: low staff swing that knocks down, 1 hit"
+          }
+         ]
+        },
+        "Leave it empty"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Throws",
+     "questions": [
+      {
+       "id": "kim-rosa-throw",
+       "title": "Kim and Rosa: which side does the throw land?",
+       "context": "Since 0.10.39 forward + A lands the victim in front and back + A behind; before, both landed him behind.",
+       "options": [
+        {
+         "label": "Keep the new (forward = front, back = behind)",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/kim-throw-fwd.mp4",
+           "caption": "Kim, forward + A: lands in front"
+          },
+          {
+           "video": "decisions-media/open-2026-10-11/rosa-throw-fwd.mp4",
+           "caption": "Rosa, forward + A: lands in front"
+          }
+         ]
+        },
+        {
+         "label": "Back to behind both ways",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/kim-throw-back.mp4",
+           "caption": "Kim, back + A: lands behind (forward + A would do this too)"
+          },
+          {
+           "video": "decisions-media/open-2026-10-11/rosa-throw-back.mp4",
+           "caption": "Rosa, back + A: lands behind (forward + A would do this too)"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Select screen",
+     "questions": [
+      {
+       "id": "select-bosses",
+       "title": "Select screen: where do the locked bosses stand?",
+       "context": "Mr. Big and Krauser (locked bosses, dark silhouettes) now stand right beside Terry, Robert and Kim in the middle.",
+       "media": [
+        {
+         "image": "decisions-media/open-2026-10-11/select.png",
+         "caption": "Today's select screen (0.10.49)"
+        }
+       ],
+       "options": [
+        "Fine as is",
+        "Move the locked bosses to the edges"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Music",
+     "questions": [
+      {
+       "id": "title-music",
+       "title": "Title music after a coin",
+       "context": "Today the title plays KOF94's $2D (KOF94's after-coin song, loops every 28 s); the alternative is KOF94's opening $51 (stops after 41 s, then silence).",
+       "options": [
+        {
+         "label": "Keep $2D",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/title-now-2D.mp3",
+           "caption": "Today, from the coin: $2D (38 s; the loop comes back at 28 s)"
+          }
+         ]
+        },
+        {
+         "label": "Opening $51",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/title-kof94-51.mp3",
+           "caption": "KOF94 opening $51 (47 s: ends at 41 s, then silence)"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "id": "ending-music",
+       "title": "Ending screen (CONGRATULATIONS): which music?",
+       "context": "Today KOF95's win jingle plays once, then silence.",
+       "media": [
+        {
+         "image": "decisions-media/open-2026-10-11/ending.png",
+         "caption": "The ending screen"
+        }
+       ],
+       "options": [
+        {
+         "label": "Keep the win jingle once, then silence",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/ending-now.mp3",
+           "caption": "Today, from BOSS UNLOCKED into CONGRATULATIONS (20 s)"
+          }
+         ]
+        },
+        {
+         "label": "KOF95 ending $36 (29 s, loops)",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/ending-kof95-36.mp3",
+           "caption": "KOF95 $36 (45 s: the loop comes back at 29 s)"
+          }
+         ]
+        },
+        {
+         "label": "KOF95 staff roll $2B (61 s)",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/ending-kof95-2B.mp3",
+           "caption": "KOF95 $2B (65 s)"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "id": "gameover-music",
+       "title": "Game over: which sound?",
+       "context": "Today the continue music fades out on GAME OVER (as KOF98 does).",
+       "media": [
+        {
+         "image": "decisions-media/open-2026-10-11/gameover.png",
+         "caption": "The GAME OVER screen"
+        }
+       ],
+       "options": [
+        {
+         "label": "Keep the fade-out",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/gameover-now.mp3",
+           "caption": "Today: end of the continue countdown, GAME OVER, the fade (10 s)"
+          }
+         ]
+        },
+        {
+         "label": "KOF95 GAME OVER jingle $31",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/gameover-kof95-31.mp3",
+           "caption": "KOF95 $31 (1.8 s)"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Cheng-Fu and Hanzo",
+     "questions": [
+      {
+       "id": "chengfu-dash-a",
+       "title": "Cheng-Fu: dash + A no longer hits",
+       "context": "Since 0.10.44 his dash ends standing, so his kick only comes out after the dash lands, and misses.",
+       "media": [
+        {
+         "video": "decisions-media/open-2026-10-11/chengfu-dash-a.mp4",
+         "caption": "Today: forward, forward, then A during the dash: no hit"
+        }
+       ],
+       "options": [
+        "Fine",
+        "Make his dash longer so the kick connects",
+        "Let his air kick finish if it already started"
+       ]
+      },
+      {
+       "id": "hanzo-air-shuriken",
+       "title": "Hanzo (SS2): air shuriken on jump + down + C",
+       "context": "His air shuriken moved from jump + down + A to jump + down + C, to free jump + down + A for the air C+D.",
+       "media": [
+        {
+         "video": "decisions-media/open-2026-10-11/hanzo-air-shuriken.mp4",
+         "caption": "Today: jump, then down + C: the shuriken"
+        }
+       ],
+       "options": [
+        "Keep on jump + down + C",
+        "Drop the air shuriken"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "kim-run-frame",
    "fighter": "kim",
    "title": "Kim's run: which frame to hold",

@@ -154,6 +154,17 @@ main { display: grid; grid-template-columns: minmax(0, 660px) minmax(0, 1fr); ga
 #decidecol .dopts button[aria-pressed="true"] { background: #000; color: #fff; font-weight: 700; }
 #decidecol .dopts .mark { font-family: monospace; width: 1.3em; flex: 0 0 auto; }
 #decidecol .dnote textarea { font: inherit; font-size: 14px; border: var(--line); padding: 6px; }
+#decidecol .dmedia { display: flex; flex-wrap: wrap; gap: 6px; }
+#decidecol .dmedia figure { margin: 0; border: var(--line); padding: 3px; flex: 1 1 260px; max-width: 616px; }
+#decidecol .dmedia figure.daudio { flex-basis: 100%; }
+#decidecol .dmedia img, #decidecol .dmedia video { display: block; width: 100%; height: auto; image-rendering: pixelated; background: #000; }
+#decidecol .dmedia audio { display: block; width: 100%; }
+#decidecol .dmedia figcaption { font-size: 13px; padding: 2px 2px 0; }
+#decidecol .dopts.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }   /* clip options: two per row on a phone */
+#decidecol .dgrid > button { grid-column: 1 / -1; }
+#decidecol .dgrid .dmedia figure { flex-basis: 100%; }
+#decidecol .dgrid figcaption { font-size: 12px; }
+#decidecol .dopt { border: var(--line); padding: 4px; display: flex; flex-direction: column; gap: 4px; }
 #decidecol .dsaved { font-family: monospace; font-size: 12px; min-height: 1em; }
 
 #exposecol .scroll { overflow-x: auto; max-width: 100%; }

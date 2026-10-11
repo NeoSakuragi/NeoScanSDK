@@ -108,6 +108,8 @@ PAGES = ('lab.html', 'fighterlab.js', 'howto.html', 'game.html', 'game.js', 'app
          'decide.html', 'review.html', 'anims.html', 'arbitrage.html', 'workshop.html', 'sounds.html', 'impacts.html')
 for f in PAGES: shutil.copy(os.path.join(HERE, f), os.path.join(out, f))
 shutil.copy(os.path.join(HERE, 'lab.html'), os.path.join(out, 'index.html'))
+# the Decisions tab's clips / pictures / audio (decide.js media): decisions-media/<set>/
+if os.path.isdir(os.path.join(HERE, 'decisions-media')): shutil.copytree(os.path.join(HERE, 'decisions-media'), os.path.join(out, 'decisions-media'), dirs_exist_ok=True)
 # the hit sounds page (sounds.html?f=kim): each hit's impact frame + sound, every effect of the sound ROM as a WAV
 # (tools/brawler/hitsounds.py -> /data/neogeo_dict/hitsounds)
 HS = '/data/neogeo_dict/hitsounds'

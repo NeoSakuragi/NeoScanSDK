@@ -8,6 +8,16 @@
   const API = 'feedback-api/';
   const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c); return e; };
   let loaded = false;
+  // media of a question or an option (decisions.json "media": [{image | video | audio: URL, caption}]): pixel-exact
+  // pictures, looping muted clips (tap: pause / play), audio players; files under decisions-media/<set>/
+  const media = list => h('div', { class: 'dmedia' }, (Array.isArray(list) ? list : [list]).map(m => {
+    let el;
+    if (m.video) { el = h('video', { src: m.video, muted: '', loop: '', autoplay: '', playsinline: '', preload: 'auto' }); el.muted = true; el.onclick = () => el.paused ? el.play() : el.pause(); }
+    else if (m.image) el = h('img', { src: m.image, alt: m.caption || '' });
+    else if (m.audio) el = h('audio', { src: m.audio, controls: '', preload: 'none' });
+    return h('figure', { class: m.audio ? 'daudio' : '' }, el, m.caption ? h('figcaption', { text: m.caption }) : null);
+  }));
+  const only = new URLSearchParams(location.search).get('set');   // game.html?set=<id>#decide: that set alone
   const NONE = 'None of these: my own answer in the note';
   async function post(set, body) {
     const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ set }, body)) });
@@ -18,7 +28,7 @@
     let D;
     try { D = await (await fetch('decisions.json', { cache: 'no-cache' })).json(); } catch (e) { col.replaceChildren(h('p', { text: 'No decisions yet.' })); return; }
     const parts = [h('h2', { text: 'Decisions' })];
-    for (const set of D.sets) {
+    for (const set of D.sets.filter(x => !only || x.id === only)) {
       let ans = {};
       try { const r = await fetch(API + 'decisions/' + set.id, { cache: 'no-store', credentials: 'same-origin' }); if (r.ok) ans = await r.json(); } catch (e) { /* offline */ }
       const total = set.sections.reduce((n, s) => n + s.questions.length, 0);
@@ -32,21 +42,24 @@
           try { await post(set.id, Object.assign({ id: q.id, question: q.title }, body)); saved.textContent = 'Saved'; }
           catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
         };
+        // an option: a label, or {label, media}: media shown above its button (what that answer looks / sounds like)
         const opts = q.options.length ? q.options.concat([NONE]) : [];   // every question: a "none of these" way out (Bruno)
+        const lab = o => typeof o === 'string' ? o : o.label;
         const btns = opts.map((o, i) => {
-          const b = h('button', { type: 'button', 'aria-pressed': String(a.choice === i) }, h('span', { class: 'mark', text: a.choice === i ? '✓' : '○' }), h('span', { text: o }));
+          const b = h('button', { type: 'button', 'aria-pressed': String(a.choice === i) }, h('span', { class: 'mark', text: a.choice === i ? '✓' : '○' }), h('span', { text: lab(o) }));
           b.onclick = () => {
             btns.forEach((x, j) => { x.setAttribute('aria-pressed', String(i === j)); x.querySelector('.mark').textContent = i === j ? '✓' : '○'; });
-            save({ choice: i, label: o });
+            save({ choice: i, label: lab(o) });
             if (o === NONE) ta.focus();
           };
           return b;
         });
+        const optEls = opts.map((o, i) => o.media ? h('div', { class: 'dopt' }, media(o.media), btns[i]) : btns[i]);
         const ta = h('textarea', { 'aria-label': 'Note for: ' + q.title, placeholder: 'Note (type or speak)' });
         ta.value = a.note || '';
         let t; ta.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => save({ note: ta.value }), 700); });
         return h('section', { class: 'dq' }, h('h3', { text: q.title }), q.context ? h('p', { class: 'dctx', text: q.context }) : null,
-          h('div', { class: 'dopts' }, btns), h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
+          q.media ? media(q.media) : null, h('div', { class: opts.some(o => o.media && [].concat(o.media).some(m => m.video || m.image)) ? 'dopts dgrid' : 'dopts' }, optEls), h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
       };
       const general = { id: 'general', title: 'Anything else for this topic?', options: [] };
       parts.push(h('section', { class: 'dset' }, h('h2', { text: set.title }), h('p', { text: set.intro || '' }),
