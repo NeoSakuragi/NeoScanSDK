@@ -791,7 +791,8 @@ def tables(g, build):
          f'#define GAME_MUS_TITLE MUS_{g["music"].get("title", g["music"]["select"])}',
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
          f'#define GAME_MUS_CONTINUE MUS_{g["music"].get("continue", g["music"]["clear"])}',
-         f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}',
+         (f'#define GAME_MUS_OVER 0   /* GAME OVER: no song, the continue song fades out ($0A + speed, KOF98) */\n#define GAME_OVER_FADE 0x2C'
+          if g['music'].get('gameover') == 'FADE' else f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}\n#define GAME_OVER_FADE 0'),
          'enum { ' + ', '.join(f'AI_{n.upper()}' for n in presets) + ' };',
          'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',

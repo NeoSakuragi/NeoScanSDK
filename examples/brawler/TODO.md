@@ -613,6 +613,13 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   audition page (Song Lab / interactive judging) with the candidates (KOF98's, KOF96/97's, Fatal Fury / AOF continue and
   game-over themes) for Bruno to pick; (3) game.json music + songs.json (quick once picked). Our count is 10 s (9 -> 0
   at 60 ticks a number); the pick should fit it.
+  2026-10-11 (branch sweep/music-oct06, tools/brawler/screenmusic_proof.py): the 2026-10-05 reading was wrong. In KOF98's
+  run (/data/tmp/continue/k98 snd2.log, the snapshots of the same run) the CONTINUE screen opens with $04 $07 $07 $20 $26:
+  $26 IS its continue song; the $16 $2F after it is a slot-6 sound effect (prefix $16), not song $2F; its GAME OVER sends
+  $0A $2C = fade out at speed $2C, no song. Build now: CONTINUE = KOF98 $26 (41-54 key-ons/s over the 10 s count), GAME
+  OVER = game.json music.gameover FADE (the continue song fades in ~2 s, then silence; the next coin's title song plays).
+  The stage clear and the ending already play KOF95's win jingle $30 (note 20261009-120007-5d29, verified). Recipes for
+  the four notes in scenarios.json. Not ported: KOF98's slot-6 effects $2F / $31 on those screens (slot 6 holds voices).
 
 - [x] 155. (done 2026-10-07: measured in our emulator (KOF2000 fight states /data/neogeo_dict/ngsdl_sta/kof2000, Terry and K' with three stocks; tap core): every DM flash sends $1E $BC, every SDM flash $1E $8F = slot 3 record $541E [53][1908][1936][DB], one ADPCM-A key-on, 12,032 bytes, 1.3 s, peak 3 kHz: the whistle. build_snd.py: songs.json sfx "from" (a code playing another SNK 1.x game's effect: its record + sample copied, enable bit set); the brawler sends it as $1A $8F; game.json super_flash.sound_max = 8F, played by main.c super_flash when the fury is the MAX (sf_col), the fury keeps $3A. V ROM: +12,032 sample bytes (used 5,843,968 -> 5,855,232: it fills a gap), ROM size unchanged 5,898,240. Proof tools/brawler/max155_proof.py: Terry and Ryo MAX queue $1A $8F at the flash frame, its key-on bytes = KOF2000's SDM flash key-on bytes; fury $1A $3A; WAVs /data/tmp/max155/out; voice_proof --all terry ryo identical to the unchanged build, bank_proof ALL OK; scenarios for both notes) KOF2000'S MAX ACTIVATION SOUND FOR THE MAX FURY (+ 20261007-021452-5d29) (feedback 20261006-155931-b3f3, Bruno in play, 0.0.71: "KOF
   2000 has a special sound for triggering a MAX Fury, sort of a high-pitched whistling sound that is very

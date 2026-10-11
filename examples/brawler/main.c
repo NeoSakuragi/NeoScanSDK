@@ -2659,7 +2659,7 @@ static void gameover_start(void) {
     fighter_play(&fighters[0], BA_DOWN);                     /* the player lies on the floor */
     centre(10, "GAME OVER");
     { char t[] = "STAGE  "; t[6] = '1' + camp; centre(13, t); }
-    snd_music(GAME_MUS_OVER);
+    if (GAME_MUS_OVER) snd_music(GAME_MUS_OVER);             /* (0: KOF98's way, the continue song fading out: cont_tick) */
 }
 static void cont_tick(void) {                    /* the fight frozen under the overlay */
     uint8_t p;
@@ -2673,7 +2673,12 @@ static void cont_tick(void) {                    /* the fight frozen under the o
         snd_music(cont_mus);
         return;
     }
-    if (!cont_t[0] && !cont_t[1]) { cont_box(0); cont_ov = 2; cont_ft = 0; snd_cmd(0x20); return; }   /* $20: stop */
+    if (!cont_t[0] && !cont_t[1]) {                          /* $20: stop; game.json music.gameover FADE: KOF98's GAME OVER,
+                                                                $0A + speed fades the continue song out (TODO #154) */
+        cont_box(0); cont_ov = 2; cont_ft = 0;
+        if (GAME_MUS_OVER) snd_cmd(0x20); else { snd_cmd(0x0A); snd_cmd(GAME_OVER_FADE); }
+        return;
+    }
     cont_draw();
 }
 static void flow(void) {
