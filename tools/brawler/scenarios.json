@@ -2865,15 +2865,15 @@
   "proof": 900
  },
  "20261011-112056-5d29": {
-  "title": "Haohmaru: C = the 623 + A+B dragon slash (Ougi Kogetsuzan, A+B version), also his breaker",
+  "title": "Haohmaru: C = the 623 + A+B Kogetsuzan, with his SS2 shout as it starts",
   "setup": {
    "mode": "lab",
    "fighter": "haohmaru",
    "dummy": "ryo",
    "gap": 40
   },
-  "do": "Stand 40 px from Ryo and press C. Then let Ryo hit you and press C while you reel.",
-  "expect": "C plays SS2's 623 + A+B Kogetsuzan (the A+B version, S-008) and knocks Ryo down. Pressed while hit, the same move comes out as the breaker (white blink with 2 drive chunks, red blink and 12 life without).",
+  "do": "Stand 40 px from Ryo and press C. Listen as the move starts.",
+  "expect": "C plays SS2's 623 + A+B Kogetsuzan and knocks Ryo down; Haohmaru shouts his Kogetsuzan line (SS2's own voice for the move) the moment it starts. Every SS2 special and fury now says the line SS2 says for it.",
   "do_keys": "2:c,80:-",
   "proof": 60
  },
@@ -2904,7 +2904,7 @@
   "proof": 60
  },
  "20261011-112545-5d29": {
-  "title": "Haohmaru: the MAX (red, low life, gauge full: down + D) = SS2's hidden Tenha Fuujinzan",
+  "title": "Haohmaru's MAX Tenha Fuujinzan: his shout, 11 hits that keep Ryo standing, the 12th launches",
   "setup": {
    "mode": "lab",
    "fighter": "haohmaru",
@@ -2913,9 +2913,9 @@
    "hp": 15,
    "fury": "full"
   },
-  "do": "With your life in the red and the fury gauge full, press down + D.",
-  "expect": "Down + D plays SS2's secret Tenha Fuujinzan (S-006) as the MAX and hits Ryo for the MAX damage tier (180), emptying the gauge. The screen flash / objects vanishing during it are SS2's own (documented quirks).",
-  "do_keys": "2:Dd,200:-",
+  "do": "With your life in the red and the fury gauge full, press down + D next to Ryo. Count the hits.",
+  "expect": "Haohmaru shouts as the move starts (SS2's voice for it). The wind hits Ryo 12 times as in SS2: the first 11 keep him standing in his hit pose, each with a hit-stop (both pause on every impact); only the 12th, at the very end, launches him. Total damage stays the MAX tier.",
+  "do_keys": "2:Dd,300:-",
   "proof": 60
  },
  "20261011-113641-5d29": {
@@ -2960,5 +2960,32 @@
   "expect": "Billy hops forward in his Double Dragon dash (a crouch, a low hop of about a quarter of the screen, a landing) instead of running. A in the hop plays his jumping kick and knocks the dummy down; down + A his jumping down attack; he finishes the dash's course in the air and lands as from a jump. Without a button the dash stays low on the ground for hits and ends on its own. B, C or D in the hop do nothing. Kim's dash and the other fighters' runs are as before.",
   "do_keys": "2:R,2:-,1:R,8:-,3:a",
   "proof": 60
+ },
+ "20261011-120326-5d29": {
+  "title": "SS2 fighters: every special hit has a hit-stop and can be juggled (down,down + A then C)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full"
+  },
+  "do": "Press down, down + A (his 214A slash) next to Ryo, and as it hits press C.",
+  "expect": "The slash hits with a hit-stop (both pause) and knocks Ryo down; C cancels into Kogetsuzan, which hits Ryo again in the air (a juggle) with its own hit-stop. Holds for every SS2 fighter's specials (Haohmaru, Genjuro, Hanzo).",
+  "do_keys": "2:D,2:-,2:Da,14:-,2:c,100:-",
+  "proof": 40
+ },
+ "20261011-115835-5d29": {
+  "title": "Haohmaru: the low finisher (last hit + down) = his SS2 crouching C+D",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Press A, A, then down + A.",
+  "expect": "The third press with down plays SS2's crouching C+D (the low kick-slash) as the low finisher and hits Ryo.",
+  "do_keys": "2:a,10:-,2:a,10:-,2:Da,60:-",
+  "proof": 40
  }
 }

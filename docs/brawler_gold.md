@@ -283,3 +283,7 @@ Compiled from the sheet without an agent: 3 slot(s) linked, 0 unresolved; slots 
 - a2 (A press 2): $FC -> chain.links[1] = "atk_b_far" — linked, class a: its own move
 - a3 (A press 3): $114 -> finishers.neutral = "atk_cd_close" — linked, class a: spare name: moves "atk_cd_close": "$114"
 - chain timing: hit-stops 6 9 10 (roster chain.hitstop / retime, the build checked)
+
+### HAOHMARU: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `haohmaru-arb`, build 0.10.43)
+Compiled from the sheet without an agent: 1 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- fin_down (last hit + down): $160 -> finishers.down_move = "atk_ab_close" — linked, class a: spare name: moves "atk_ab_close": "$160"

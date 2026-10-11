@@ -1249,7 +1249,7 @@
   },
   "max": {
    "input": "34123421BC",
-   "damage": 8,
+   "damage": 12,
    "played": [
     6,
     6

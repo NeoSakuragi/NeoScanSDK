@@ -252,6 +252,37 @@ def anim_steps(B, ch, a, first=0, last=None, mirror=True):
         if atk: out[-1]['ss2hit'] = hit_type(s)       # its hit's mark (hit_marks: the spark code)
     return out
 
+# ---- the brawler's hit standard on every SS2 hit (voice note 20261011-120326-5d29, Bruno: "in the brawler we want a
+# hitstop for each impact and we want juggle abilities") ---------------------------------------------------------------
+# What the import gave before: a special's body hit took the program's bare reaction (P_ANIM: R_HEAVY, R_KNOCKDOWN on the
+# last hitting state), which the engine plays as KOF98's (fighter.c kof_react): R_KNOCKDOWN = KOF's blowback 283, no hurt
+# box, nothing hits the victim until it lies (measured, the note's replay: Haohmaru's dd Blitz 214A knocks Ryo down,
+# kmode 1 without KM_HURT, his 623AB cancel then passes through him).
+# The standard, as KOF's imports carry it (handlers98.box_react: standing | juggled << 4, each R_* | 8 when the victim
+# stays hittable): every attack step of an SS2 program gets a packed reaction, standing = the program's own (the hits of a
+# knockdown state before its last: a reel, the engine's rule) | 8, juggled (the victim already in the air) = the launch
+# R_LAUNCH | 8: the victim stays hittable in the air (LAUNCH_BOX) and every later hit sends it up again. Data only (the
+# packed reaction KOF's imports already carry, bstep_t hy), no engine change; the hit-stop is the engine's per hit of a
+# program's own step (attacker and victim held). Normals are the routes' (their nodes' hit-stop and effect, the
+# brawler's own reactions: juggle-able already), unchanged.
+R_HEAVY_, R_KNOCKDOWN_, R_LAUNCH_ = 1, 2, 3          # fighter.h R_* (handlers_ss2 R_*)
+HITTABLE = 8
+
+def hit_react(standing):
+    """the packed reaction of an SS2 hit (bstep_t hy of a program's attack step): standing | juggled << 4"""
+    return (standing | HITTABLE) | (R_LAUNCH_ | HITTABLE) << 4
+
+def standard_reacts(steps, base):
+    """an SS2 state's steps (rom_steps) given the standard: each hit window's packed reaction (base: the state's own; a
+    knockdown state's hits before its last reel), on every attack step of the window; a step with its own (catch, grab,
+    an entry's react) kept"""
+    atk = [i for i, s in enumerate(steps) if s['flags'] & 0x100]
+    for i in atk:
+        s = steps[i]
+        if s.get('react') or s.get('catch'): continue
+        later = any(j > i and not (steps[j - 1]['flags'] & 0x100 and steps[j - 1]['flags'] & 0x4000) for j in atk)
+        s['react'] = hit_react(R_HEAVY_ if base == R_KNOCKDOWN_ and later else base)
+
 # ---- the hit marks (vocabulary fx.hit_spark, TODO #215's mechanism; 2026-10-10 Bruno: "a slash effect drawn over the
 # animation") [code]+[meas: /data/tmp/ss2slash, captures of Haohmaru / Genjuro / Hanzo's A / B / A+B standing, crouching,
 # jumping, whiff and hit]
