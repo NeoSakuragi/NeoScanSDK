@@ -813,9 +813,9 @@ def check(game, f, res, lib):
             step()
         shown = {frames[i] for i in lg['frames'] if i < len(frames)}
         wf = want_frames.get(anim0(x))
-        return dict(dist=dist, started=any(w.endswith(' ' + v) or w.endswith(' ' + v + '_diag') for w in lg['starts'])   # (a forward jump: its _diag twin, same animation), starts=lg['starts'][-4:],
+        return dict(dist=dist, started=any(w.endswith(' ' + v) or w.endswith(' ' + v + '_diag') for w in lg['starts']), starts=lg['starts'][-4:],
                     anim_on_screen=bool(shown & wf) if wf else None,
-                    hits=[h for h in lg['hits'] if h[0].endswith(' ' + v)][:4])
+                    hits=[h for h in lg['hits'] if h[0].endswith(' ' + v) or h[0].endswith(' ' + v + '_diag')][:4])   # (_diag: a forward jump's twin)
     rows = []
     for x in res:
         if x.status != 'linked' or x.value is None: continue
