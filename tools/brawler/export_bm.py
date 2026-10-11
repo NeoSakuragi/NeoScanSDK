@@ -328,7 +328,8 @@ def build(specs, outdir):
         if game == 'doubledr':                          # Double Dragon (Technos 1995): its own reader, the same layout
             sys.path.insert(0, os.path.join(HERE, '..', 'doubledr')); import export_dd
             return export_dd.export(names, tmp, only=set(MOVES),
-                                    extra={n: {'watch': tuple(roster()[rname(game, n)]['watch']), 'scale': roster()[rname(game, n)].get('scale', 1), **flash_extra(game, rname(game, n))}
+                                    extra={n: {'watch': tuple(roster()[rname(game, n)]['watch']), 'scale': roster()[rname(game, n)].get('scale', 1), **flash_extra(game, rname(game, n)),
+                                               **{k: roster()[rname(game, n)][k] for k in ('run',) if k in roster()[rname(game, n)]}}   # (run.mode dash: export_dd DASH)
                                            for n in names if rname(game, n) in roster()})
         if game == 'kizuna':                            # Kizuna Encounter: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'kizuna')); import export_kz

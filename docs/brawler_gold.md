@@ -102,6 +102,24 @@ specials (Bruno: overkill for now).
 - Run: Final Fight has none; Bruno suggested 1.8x. My proposal 2x (Captain Commando's dash / walk = 3.875 / 1.9 = 2.04,
   the closest Capcom reference) → Terry runs 3.25 px/f.
 
+### The dash, and the dash in the air (Kim 2026-10-09; Double Dragon 2026-10-11, note 20261011-114113-5d29)
+- `roster[].run {"mode": "dash", "dash": {start, frames, dx, height}}`: forward,forward = one burst over a fixed course
+  instead of a run (KOF94 / 95's, Kizuna's). `start` frames on the ground, then `frames` frames covering `dx` px at a
+  steady speed on a parabola `height` px high, then the animation's landing, then neutral. Its height is drawn only:
+  the dash is a ground move (y 0: its hurt box, throws, the ground rules). Kim (Kizuna 66); Billy Lee, Super Billy,
+  Cheng-Fu (Double Dragon's 66 = their animation 2: Billy a crouch + a hop, Cheng-Fu two shuffle steps + the leap 39;
+  landing 11; tools/doubledr/export_dd.py DASH).
+- `"air_buttons": true` (the DD fighters): in the dash's airborne frames the buttons are a jump's. A (down+A) plays the
+  forward jump's attack `air_cd` (the down attack `air_b`); C plays the stick's air special if the fighter has one
+  (`air_specials`); B, D, and C without an air special do nothing (no second jump, no fury in the air). The press turns
+  the dash into a forward jump on the rest of the dash's own course: y = the course's height (in the air everywhere the
+  engine asks: air reaction if hit, not grabbable), the dash's travel kept (fighter.c dash_air, jump_frame jrun 2).
+- Landing: at the course's end the jump lands as any jump (S_LAND, the jump's landing recovery). An air attack still
+  playing there (a slow one: Cheng-Fu's j.D starts 19 frames in, his dash's air lasts 21) finishes on the floor where
+  he stands, then the landing; the down attack (air_b, active to the landing) lands at once.
+- Without a press the dash's hurt box and height stay ground-level from start to end; A in its crouch or its landing
+  is the ground's run + A (the ff Blitz / the dash attack). Kim keeps the ground rules all through (no air_buttons).
+
 ### Terry's chain — Bruno 2026-10-08 (replaces the first-pass pick above)
 - Chain: far A > far A > close C (2 hits) > close D (close D = the neutral last hit). 4 links, 5 hits.
 - Last hit with forward: forward + A (2 hits). With down: crouch D sweep. With up: down-forward + C.
