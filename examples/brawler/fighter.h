@@ -625,6 +625,12 @@ extern uint8_t hitflash;           /* hit (main.c screen_fx: red 2, 3, 6, 7 fram
  * all before it vanishes (max_hits, 1-15; 0: no cap, it flies on to its normal end) */
 #define PJ_VPER(d) ((d)->vhits & 15)
 #define PJ_VMAX(d) ((d)->vhits >> 4)
+#define PJ_AIR    1                /* bproj_t air bits: an air projectile (TODO #211): its rows from its thrower's height at its
+                                      spawn, its next phase (else its end) the frame it reaches the floor */
+#define PJ_PLACED 2                /* a world-anchored effect (note 20261011-205309-5d29: KOF's object placed at its owner
+                                      once as it starts, $24A02 before its first resume, Kyo's 623A / 623C fires): its rows
+                                      from its thrower's place AND height at its spawn, then it stays there whatever he
+                                      does; not a shot (KOF: no +$E1 bit 5), it ends itself at its last row */
 #define FL_HSTOP 128               /* bproj_t follow bit (docs/brawler_gold.md "engine features"): a pinned effect holds on its
                                       owner's hit-stop frames (fighter_t.hs_now): its row, timer and place stay, so it stays in
                                       step with him (SS2's pinned objects, export_ss2.hold_pinned: Tenha's wind); unset: it

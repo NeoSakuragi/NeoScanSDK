@@ -161,6 +161,12 @@ Animation numbers = Kim's table in Kizuna Encounter (the dictionary: brawler-lab
 
 ### Meter — Bruno's 0.9.7 note (built in 0.9.8)
 - The fury also costs 1 drive chunk, the MAX 2 (game.json meter.fury_drive / max_drive). The blinks only show when the drive is there too.
+- **down + D falls back on the fury** (Bruno 2026-10-11, note 20261011-210011-5d29, every fighter): when the MAX's
+  condition or cost is not met (not the red state, or fewer than max_drive chunks) but the fury's is, down + D plays the
+  regular fury with the fury's cost (fighter.c fury_buy: neutral, hold, and the cancel into the fury alike). Before, it
+  did nothing (e.g. one drive chunk at low life with the gauge full). Proof: tools/brawler/kyo_round3_proof.py fury
+  (Kyo, Haohmaru, Cheng-Fu: one chunk + low life and two chunks + normal life -> the fury, one chunk paid; two chunks +
+  low life -> the MAX, two paid; no chunk -> nothing).
 
 ## Krauser (heavy) — Bruno's arbitration sheet 2026-10-09
 Decisions set krauser-arb (Lab arbitrage.html?f=krauser); animation numbers = Krauser's KOF96 animation table (his
@@ -237,6 +243,21 @@ New in round 2: a ROM special's catch box (and a captured special's grab reach) 
 own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays catchable as before.
 
 ## Engine features (generic, data driven: set by the importers, off by default)
+
+- **World-anchored (placed) effects** — `bproj_t.air` bit 2 (`PJ_PLACED`, fighter.h; note 20261011-205309-5d29, Kyo's
+  dragon punch fires: "they look tied to Kyo, in the real game they are spawned independently on the screen"). KOF's
+  object code calls $24A02 (copy the owner's x / y / z + the object's +$D2 / +$D4 offset) either on every frame (pinned:
+  it follows him, `follow` bit 1 as before) or only as it starts, before its first resume ($3DD86, Kyo's 623A / 623C
+  fires): then it is PLACED once and stays where it was born. `handlers98.placed_once` reads that from the object's own
+  code (the model: $24A02 on a frame after its first or not); such an object exports `follow` 0 + `placed`. The brawler
+  places it at its owner's x and height as they are after his frame (fighter.c proj_update's first run, KOF's object
+  running after its owner), then it plays its rows there and ends at its last row; it is no shot (KOF sets no +$E1 bit 5).
+  Measured in our emulator (tools/kof96/capture/romspecials98.trace, /data/tmp/kyo_fire): KOF98 623C fire 1 at Kyo's
+  (x, 8), fire 2 at his (x, 69) while he rises to 79 and lands, 623A at 6 / 30; the brawler now the same heights and
+  constant places (tools/brawler/kyo_round3_proof.py fire). Changed across the roster (follow 35 -> 0, rows identical):
+  Kyo 623A / 623C fires (states 245 / 246) and EX 236A's first flame (247), Yamazaki 623B / 623D (157 / 160), Yashiro
+  426A (255), Goenitz 214B / 214D (142), Geese 1632143C (182 / 183), Mr. Big 23623C (138 / 141: no rows, nothing drawn);
+  every other object byte-identical. An object that ends in place on its owner's P_FXOFF (`follow` 64) keeps the pin.
 
 - **Pinned effect holds with its owner's hit-stop** — `bproj_t.follow` bit 128 (`FL_HSTOP`, fighter.h; note
   20261011-112545-5d29, Haohmaru's Tenha Fuujinzan: "the circling effect is now desynchronized from Haohmaru"). An effect
@@ -467,3 +488,14 @@ Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots 
   the victim lists, not only the last): the red column (drawn -4..+103 px from Rugal) knocks down every opponent around
   it; the MAX's two columns each do. Proof /data/tmp/rugal (proof.py): fury vs 4 clones = the caught Ryo + the two in
   reach hit, the one behind and the one 40 px deeper not; MAX = the second column hits the one now in front.
+### KYO: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.61)
+Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- knobs: {"sp_fc": {"S-007": {"rise": 2.83}}} (roster[].knobs, measured by knob_check)
+- (notes 20261011-201729-5d29 reopened + 20261011-204904-5d29, "keep the half height as we have now, but reset the X distance to 100%": travel knob back to its default 10 (override dropped), rise stays 2.83; measured in our emulator, forward + C alone (dummy off): peak 44.1 px, travel 188.1 px (189.2 before round 2); recipes scenarios.json 20261011-201729-5d29 / 20261011-204904-5d29)
+
+### KYO: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.61)
+Compiled from the sheet without an agent: 1 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- a1 (A press 1): $51 -> chain.links[0] = "atk_a_far" — linked, class a: its own move
+- (note 20261011-205823-5d29, "replace the close A by the far A": chain = far A, close C, close forward B, far D; the
+  other picks kept; answers backed up as kyo-arb.json.bak-20261011-round4; arb_compile's slot check: far A starts and
+  hits the dummy; recipe scenarios.json 20261011-205823-5d29)

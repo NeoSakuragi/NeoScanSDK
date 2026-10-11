@@ -3363,7 +3363,7 @@
   "proof": 100
  },
  "20261011-201729-5d29": {
-  "title": "Kyo: the forward + C triple kick, half as high, 20 % shorter",
+  "title": "Kyo: the forward + C triple kick, half as high, its full distance",
   "setup": {
    "mode": "lab",
    "fighter": "kyo",
@@ -3372,7 +3372,7 @@
    "drive": "full"
   },
   "do": "Press forward + C a little away from Ryo.",
-  "expect": "The triple kick rises about half as high as before (peak 44 px instead of 87) and covers about 0.8 of its old distance (151 px instead of 189). It still reaches and hits Ryo.",
+  "expect": "The triple kick rises about half as high as before (peak 44 px instead of 87) and covers its full original distance again (about 189 px, no longer shortened). It still reaches and hits Ryo.",
   "do_keys": "2:R,2:Rc",
   "proof": 110
  },
@@ -3409,5 +3409,62 @@
   "expect": "Rugal catches the first Ryo and drags him to the edge of the screen; when the red column rises, it knocks down the caught Ryo and both Ryos standing near it. The Ryo behind Rugal, out of the column's reach, is not hit. (The MAX, down + D with low life, raises two columns, each hitting everybody around it.)",
   "do_keys": "2:d",
   "proof": 160
+ },
+ "20261011-204904-5d29": {
+  "title": "Kyo: the forward + C triple kick keeps the half height, X distance back to 100 %",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 120,
+   "drive": "full"
+  },
+  "do": "Press forward + C a little away from Ryo.",
+  "expect": "The triple kick still rises only half as high as the original (peak 44 px instead of 87) but travels the full original distance again (about 189 px, not 151). It still reaches and hits Ryo.",
+  "do_keys": "2:R,2:Rc",
+  "proof": 110
+ },
+ "20261011-205823-5d29": {
+  "title": "Kyo: the chain starts with the far A",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Press A four times next to Ryo.",
+  "expect": "The first press is Kyo's far A (the straight punch from a step away), not the close A; the chain goes on: close C, close forward B, far D, every hit landing on Ryo.",
+  "do_keys": "2:a,8:,2:a,8:,2:a,8:,2:a",
+  "proof": 90
+ },
+ "20261011-205309-5d29": {
+  "title": "Kyo: the dragon punch fires stay where they appeared",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 220,
+   "drive": "full"
+  },
+  "do": "Press C away from Ryo (the C dragon punch), then down, down + A (the A dragon punch).",
+  "expect": "The fire bursts appear where Kyo is as he leaves the ground and again higher up, and each stays where it appeared while Kyo keeps rising and lands: they no longer move with him, as in KOF98.",
+  "do_keys": "4:c,80:,3:D,3:,3:D,2:Da",
+  "proof": 90
+ },
+ "20261011-210011-5d29": {
+  "title": "down + D with one level plays the fury",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 70,
+   "drive": 1,
+   "fury": "full",
+   "hp": 10
+  },
+  "do": "With one drive chunk and low life, press down + D.",
+  "expect": "The regular fury plays (one drive chunk spent) instead of nothing; with two chunks at low life down + D still plays the MAX. The same for every fighter.",
+  "do_keys": "4:Dd",
+  "proof": 150
  }
 }
