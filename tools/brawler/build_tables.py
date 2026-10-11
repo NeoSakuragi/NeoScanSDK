@@ -1028,7 +1028,7 @@ def tables(g, build):
     known = {x['name'] for x in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['songs']}
     for r in g['roster']:                                # voice note 20261011-160158-5d29: stage 1 plays P1's theme
         assert r.get('music') is None or r['music'] in known, f"{r['name']}: music {r['music']!r} is no songs.json song"
-    c.append('const uint8_t roster_music[BC_COUNT] = { ' + ', '.join(f"MUS_{r['music']}" if r.get('music') else '0' for r in g['roster'])
+    c.append('const uint8_t roster_music[BC_COUNT] = { ' + ', '.join(f"MUS_{r['music']}" if r.get('music') and not r.get('slot_of') else '0' for r in g['roster'])   # (a Lab build's slot: none, the shell and every pack the same)
              + ' };   /* roster[].music: the fighter\'s theme (its MUS_* command), 0 = none: stage 1 then plays its own song */')
     dmul =[r.get('damage', 1) for r in g['roster']]          # TODO #203: the fighter's damage scale (fighter.c fighter_hit)
     for r, k in zip(g['roster'], dmul): assert isinstance(k, int) and 1 <= k <= 4, f'{r["name"]}: damage {k} (1-4)'
