@@ -347,7 +347,10 @@ overwrote that load 6): tryit.js now waits for `lab.load` to clear before every 
   nearest opponent on his lane), the spinning drop from 128 px (SS2's 195, fitted), the bounce back on a hit. Breaker:
   2 drive chunks, white blink; without the drive 12 life, red blink (tools/samsho2/hanzo_breaker_proof.py, 4 / 4 PASS).
 - forward + C = 6321S Ninpou Bakuen Ryuu (the fire; was the neutral C until then).
-- Throws: forward + A slash throw (T-001), back + A kick throw (T-002); SS2's Earthquake throw (class 4 action 4) is the
+- Throws (2026-10-11: SS2's throws all land IN FRONT; the slot plays a T- piece the brawler's way round: forward + A in
+  front, back + A turned, behind; docs/brawler_data_model.md "Throw direction"; body_toss = SS2's CLOSE A+B 276, the far
+  278 whiffed at chain range and so was never cancellable, export_ss2 MOVES):
+  forward + A slash throw (T-001), back + A kick throw (T-002); SS2's Earthquake throw (class 4 action 4) is the
   plain piece T-003 (his pack's extra paired throw), no automatic choice by the victim (Bruno: "the engine doesn't need
   that"); the air throw Kuutengeki (T-004) is decoded, not playable (no air grab).
 - Pieces (arb_pieces/hanzo_ss2_ids.json): S-001..S-003 6321 A / B / A+B, S-004..S-006 623 C / D / C+D, S-007 WFT,

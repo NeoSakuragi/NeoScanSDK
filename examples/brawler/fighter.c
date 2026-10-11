@@ -1351,16 +1351,27 @@ static uint8_t fury_press(fighter_t *f, uint8_t max) {         /* max: down held
     if (max && f->ch->form_trig == FT_DOWN_D_FULL && spec_ix(f->ch, BS_FORM) != 0xFF && pay(f, PAY_FORM, 0)) return BS_FORM;
     return fury_buy(f, max, 0);
 }
-static void throw_start(fighter_t *f, uint8_t t) {               /* forward+A / back+A in the hold (any BT_*: the extra */
-    fighter_t *v = f->held;                                      /* paired throw too, revamp 3) */
+/* a throw's direction (the brawler's standard, every fighter): forward + A lands the victim IN FRONT of the thrower, back
+ * + A BEHIND it (and the chain's back throw). The side is the throw's own data: where its victim is, relative to the
+ * thrower, on its landing row (bthrow_t.land; none: its last row's place from the throw's start). A throw whose data
+ * lands on the other side of the slot that plays it is played turned (the thrower's facing reversed at its start: its
+ * whole script mirrored). SS2's throws all land in front whichever way the stick is held (its close + forward / back +
+ * B / A+B / D / C+D play the same throw): on back + A they now go over to his back; Krauser's empty back throw (C's,
+ * bthrow_t turn) and Kim's / Rosa's one throw follow the same rule. TD_ASIS: the extra throw (up / down + A) as its data */
+enum { TD_ASIS, TD_FWD, TD_BACK };
+static uint8_t lands_behind(const bthrow_t *th) {
+    const bthrow_row_t *r;
+    if (th->land < th->nrows) return th->rows[th->land].vx < 0;
+    r = &th->rows[th->nrows - 1];
+    return r->tx + r->vx < 0;
+}
+static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / back+A in the hold (any BT_*: the extra */
+    fighter_t *v = f->held;                                      /* paired throw too, revamp 3); dir TD_*: the side wanted */
     const bthrow_t *th;
-    if (t < BT_COUNT && !f->ch->throws[t].nrows) {
-        if (f->ch->throws[t].turn) f->facing = -f->facing;      /* its back throw = its C throw turned (bthrow_t turn,
-                                                                    Krauser): the victim goes over to its back, as the
-                                                                    chain's mirrored back throw (chain_throw) */
-        t = BT_THROW_C;
-    }
+    if (t < BT_COUNT && !f->ch->throws[t].nrows) t = BT_THROW_C;   /* an empty slot plays the C throw (the rule turns it) */
     th = thr_of(f, t);
+    if (dir != TD_ASIS && !th->stun && lands_behind(th) != (dir == TD_BACK)) f->facing = -f->facing;   /* the direction
+                                                                    rule above: played turned */
     f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); f->srow = 0; f->speed = th->speed; f->zfront = 1;
     enter(v, S_THROWN); v->throw_id = t; v->thr = th; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
     v->srow = 0; v->speed = th->speed; v->hit_mask = 0; v->grab_hits = 0; v->throw_dealt = 0; v->thr_skip = 0;
@@ -1617,12 +1628,13 @@ static void lab_try_apply(void) {                        /* the pending blob ins
     lab_on = lab_qn || n || lab_kn_n;
     lab.lstat = 1;
 }
+static uint8_t lab_tdir = TD_ASIS;                       /* a throw entry's side (TD_*: its grab slot's, lab_hold) */
 static uint8_t lab_entry(fighter_t *f, uint16_t e) {     /* entry e now -> 1 started */
     uint16_t j = 0;
     uint8_t k;
     if (e & LE_THROW) {                                  /* a throw: the held victim (a grab slot) */
         if (f->state != S_GRAB || !f->held) return 0;
-        throw_start(f, e & 0xFF); lab.cur = e; return 1;
+        throw_start(f, e & 0xFF, lab_tdir); lab.cur = e; return 1;
     }
     if (e & LE_SPEC) { k = e & 0xFF; if (k >= f->ch->nspec || !f->ch->specials[k].nrows) return 0; }
     else { if (f->ch->id != bm_lab.fighter || (j = lab_find(e)) == 0xFFFF) return 0; k = bm_lab.spec; }
@@ -1745,7 +1757,11 @@ static uint8_t lab_fin(fighter_t *f, const rnode_t *prev, uint8_t b) {
  * any other entry lets the victim go (it reels in its held pose, as a C special out of the hold) and plays */
 static uint8_t lab_hold(fighter_t *f, uint8_t s) {
     if (lab_ov[s][0] == LE_NONE) return 0;
-    if (lab_ov[s][0] & LE_THROW) return lab_entry(f, lab_ov[s][0]);
+    if (lab_ov[s][0] & LE_THROW) {                       /* a T- piece: played the way of its slot (throw_start's rule) */
+        uint8_t r;
+        lab_tdir = s == LS_GRAB_FWD ? TD_FWD : s == LS_GRAB_BACK ? TD_BACK : TD_ASIS;
+        r = lab_entry(f, lab_ov[s][0]); lab_tdir = TD_ASIS; return r;
+    }
     hold_let_go(f);
     if (lab_slot(f, s, BS_BLITZ)) return 1;
     to_neutral(f, 0);                                    /* (nothing played: let go all the same) */
@@ -1786,13 +1802,14 @@ static void hold_update(fighter_t *f, const intent_t *in) {
     }
     if ((in->press & IN_A) && in->dx) {                          /* forward+A / back+A: throw forward / backward, at */
         if (lab_on && !f->idx && !f->team && lab_hold(f, in->dx == f->facing ? LS_GRAB_FWD : LS_GRAB_BACK)) return;   /* (the Lab's sheet) */
-        throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D);   /* any time (a hold hit playing too) */
+        throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D, in->dx == f->facing ? TD_FWD : TD_BACK);   /* any
+                                                                    time (a hold hit playing too) */
         return;
     }
     if ((in->press & IN_A) && in->dz) {                          /* up / down + A: the extra throw, when it has one */
         const bxthr_t *x = &bm_xthr[f->ch->id];                  /* (revamp 3; none: the hold hit below) */
         uint8_t e = in->dz < 0 ? x->up : x->down;
-        if (e == XT_PAIRED && x->x) { throw_start(f, BT_XTHROW); return; }
+        if (e == XT_PAIRED && x->x) { throw_start(f, BT_XTHROW, TD_ASIS); return; }
         if (e < f->ch->nspec) { hold_special(f, BS_THROW, 1, e); return; }
     }
     if (f->srow) {                                               /* a hold hit playing (its paired script): an A now */
@@ -1821,41 +1838,38 @@ static void hold_update(fighter_t *f, const intent_t *in) {
     }
 }
 /* the chain's back throw (revamp 1A, "chain core"): the victim the link before hit (target), reeling on the ground within
- * reach, is grabbed where it stands and thrown backwards: the fighter's throw whose victim ends behind it (its last row's
- * place: BT_THROW_D first, KOF's forward+D / a reverse throw, then BT_THROW_C), else its throw played mirrored (the
+ * reach, is grabbed where it stands and thrown backwards: the fighter's throw whose victim lands behind it (lands_behind:
+ * BT_THROW_D first, KOF's forward+D / a reverse throw, then BT_THROW_C), else its throw played mirrored (the
  * thrower turned away: the victim goes over to its back at the grab); a stun strike (bthrow_t.stun, Cheng-Fu's) is no
  * throw. The thrower is untouchable (INV_FURY, cthrow) until the throw's control return; the chain is over (no credit
  * from the throw nor from its thrown body). No throw / no victim in reach: the neutral finisher (chain_next). */
 #define CTHROW_DX 96              /* px: the farthest victim the back throw takes (a chain's push leaves it 40-70 px ahead) */
-static uint8_t cthrow_pick(const bchar_t *ch, uint8_t *mirror) {   /* -> BT_* (0xFF none); mirror: play it turned */
-    uint8_t t, first = 0xFF;
-    for (t = BT_THROW_D + 1; t-- > 0;) {                         /* (D, then C) */
+static uint8_t cthrow_pick(const bchar_t *ch) {               /* -> BT_* (0xFF none): the one landing behind (D, then */
+    uint8_t t, first = 0xFF;                                     /* C; lands_behind), else the first (throw_start turns it) */
+    for (t = BT_THROW_D + 1; t-- > 0;) {
         const bthrow_t *th = &ch->throws[t];
-        const bthrow_row_t *r;
         if (!th->nrows || th->stun) continue;
         if (first == 0xFF) first = t;
-        r = &th->rows[th->nrows - 1];
-        if (r->tx + r->vx < 0) { *mirror = 0; return t; }       /* its victim ends behind the thrower */
+        if (lands_behind(th)) return t;                          /* its victim lands behind the thrower */
     }
-    *mirror = 1; return first;
+    return first;
 }
 static uint8_t throw_ok(const fighter_t *f) {
     const fighter_t *v = f->target;
     int16_t dx, dz;
-    uint8_t m;
     if (!v || v->team == f->team || v->state != S_HITSTUN || v->hp <= 0 || v->y || v->held || v->inv || dancing(v)) return 0;
-    if (!f->ch->throws[BT_THROW_C].nrows || cthrow_pick(f->ch, &m) == 0xFF) return 0;   /* (no throw; the hold needs C's) */
+    if (!f->ch->throws[BT_THROW_C].nrows || cthrow_pick(f->ch) == 0xFF) return 0;   /* (no throw; the hold needs C's) */
     dx = INT(v->x) - INT(f->x); dz = INT(v->z) - INT(f->z);
     return dx >= -CTHROW_DX && dx <= CTHROW_DX && dz >= -Z_HIT && dz <= Z_HIT;
 }
 static void chain_throw(fighter_t *f, uint8_t node, uint8_t how) {
     fighter_t *v = f->target;
-    uint8_t m, t = cthrow_pick(f->ch, &m);
+    uint8_t t = cthrow_pick(f->ch);
     lab_note(f, LE_START, node, how, 0);
     f->freeze = v->freeze = 0; f->facing = v->x >= f->x ? 1 : -1;
     grab(f, v);
-    if (m) f->facing = -f->facing;                               /* mirrored: its forward throw sends the victim behind */
-    throw_start(f, t);
+    throw_start(f, t, TD_BACK);                                  /* (none landing behind: played turned, the victim over
+                                                                    to its back at the grab) */
     f->inv = INV_FURY; f->cthrow = 1; f->node = 0; f->chain_t = 0; f->buffered = 0;
 }
 /* the thrower lets go (its control return, or a cancel): a victim still in its script plays its rows on alone

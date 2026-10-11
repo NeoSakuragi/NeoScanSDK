@@ -267,6 +267,13 @@ each), scenario.py lint 0.
   (the MAX's damage split over them, a reel until the last), the object frozen PROJ_REHIT frames after each hit then
   re-armed for the victims it is not done with, its victims sent away from the thrower (bproj_t vhits, ppad 1;
   fighter_t vcnt / vdone; fighter.c strike).
+- **Throw direction** (2026-10-11, every fighter, fighter.c `lands_behind` / `throw_start`): forward + A lands the victim
+  IN FRONT, back + A (and the chain's back throw) BEHIND. The side is the throw's data: the victim's place relative to
+  the thrower on its landing row (bthrow_t.land; none: its last row). A throw landing on the other side of the slot that
+  plays it is played turned (its whole script mirrored), the Lab's T- pieces in the grab slots likewise. Samurai Shodown
+  II's throws all land in front (its forward / back stick plays the same throw, measured in our emulator, start with the
+  victim swapped behind, Hanzo's slash throw excepted): on back + A they now go over to the thrower's back. Kim's /
+  Rosa's single throw (it lands behind) now lands in front on forward + A.
 - `roster[].throws.back` "throw_c" (Krauser): the back throw (hold + back + A) = the C throw played turned (the victim
   over to his back at the grab); his own BT_THROW_D is left empty (bthrow_t turn, fighter.c throw_start).
 - `roster[].throws.hold.multi` [k, ...] (Kim: `["fin"]`, note 20261009-011518-5d29): that hold hit plays every hit of
