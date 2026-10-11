@@ -502,7 +502,7 @@ def export(names, outdir, only=None, extra=None, lab=None):
     """lab: {name: [(hex id, animation)]} the Character Lab's slot (export_bm LAB): that fighter also gets every special
     version as its own special (handlers_ss2.specials versions), his Lab throws (the big victim's, the air throw) and
     the LAB special (every animation of his dictionary)"""
-    import handlers_ss2 as H
+    import handlers_ss2 as H, hitsound_ss2 as HS
     out = {'game': 'samsho2', 'tile_base': TILE_BASE, 'characters': {}}
     allt, tmap = [], {}
     for name in names:
@@ -531,6 +531,10 @@ def export(names, outdir, only=None, extra=None, lab=None):
         for t, th in throws.items(): anims[t] = th.pop('anim')
         hits = [st for mv, an in anims.items() if mv.startswith('atk_') or mv == 'body_toss' for st in an['steps']] + \
                [st for sp in sps for an in sp['rom']['anims'].values() for st in an['steps']]
+        for an in anims.values():                         # SS2's impact sound (voice note 20261011-055133-5d29): the move's
+            if 'slot' in an and any('ss2hit' in st for st in an['steps']):   # action entry flag byte -> its pick list of driver commands
+                s = HS.hit_sound(ch, an['slot'])          # (hitsound_ss2.py; export_bm bm_hsnd, songs.json sfx "from")
+                if s: an['ss2snd'] = s
         marks = hit_marks(B, ch, hits)                    # SS2's hit marks (the cut, the blood): bm_hspark
         for an in anims.values():
             for st in an['steps']: st.pop('ss2hit', None)  # (throws, reactions: no mark, the engine's spark rule)

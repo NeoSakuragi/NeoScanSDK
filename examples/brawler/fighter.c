@@ -468,11 +468,14 @@ static uint8_t hit_sound(fighter_t *f, uint8_t anim, uint8_t knockdown) { return
 void fighter_guard_sound(void) { snd_sfx(ghitsnd.guard); }
 /* a hit's own sound (Bruno's picks, Kim 2026-10-09: a route node's "sound" list, game.json throws.hold.sound; export_bm
  * bm_hsnd): key = the move (BA_*) or HS_HOLD + the hold script's index, idx = the hit's index in it (0 the first);
- * 0 = none given (the rules above) */
+ * 0 = none given (the rules above). n | 0x80: a pick list, one of its n (a power of two) on every hit (Samurai Shodown
+ * II's impacts, voice note 20261011-055133-5d29: SS2 sends list[RNG & mask] of the move's impact class, $5A9C; here the
+ * tick counter's low bits: no draw from the AI's generator) */
+extern volatile uint32_t game_ticks;                            /* (crt0.s) */
 static uint8_t own_sound(const fighter_t *f, uint8_t key, uint8_t idx) {
     const uint8_t *e;
-    for (e = bm_hsnd[f->ch->id]; *e != 0xFF; e += 2 + e[1])
-        if (*e == key) return idx < e[1] ? e[2 + idx] : 0;
+    for (e = bm_hsnd[f->ch->id]; *e != 0xFF; e += 2 + (e[1] & 0x7F))
+        if (*e == key) return e[1] & 0x80 ? e[2 + ((uint8_t)game_ticks & ((e[1] & 0x7F) - 1))] : idx < e[1] ? e[2 + idx] : 0;
     return 0;
 }
 /* ---- jumps (tools/kof96/capture/jumps.py, KOF96/98/99 measured 2026-10-04) ------------------------------------------

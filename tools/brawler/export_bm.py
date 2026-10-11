@@ -715,6 +715,12 @@ KIND_OF.update({SFX_NAMES['94 DRAGON HIT']: 33, SFX_NAMES['94 SUPER HIT']: 34, S
 # impact-sound picks (2026-10-09, songs.json sfx "from" KOF94): HIT_SFX rows {code, 0xFF}, the code alone (no fire crackle added)
 SFX_KEYS = ['A', 'B', 'C', 'D', 'CD', 'throw_c', 'throw_d']    # bchar_t.sfx order (fighter.c SX_*)
 
+SFX_FROM = {(f['game'], f['cmd']): int(k, 16) for k, f in json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'songs.json')))['sfx'].get('from', {}).items()}
+def ss2_sfx(n, word):
+    """the brawler's effect code playing Samurai Shodown II's driver command `word` ('00C3': songs.json sfx "from")"""
+    assert ('samsho2', word) in SFX_FROM, f'{n}: SS2 impact {word}: no songs.json sfx "from" {{"game": "samsho2", "cmd": "{word}"}}'
+    return SFX_FROM[('samsho2', word)]
+
 def sfx_code(n, name):
     assert name in SFX_NAMES, f'{n}: hit_sfx {name!r} is no songs.json sfx name'
     return SFX_NAMES[name]
@@ -1667,7 +1673,7 @@ def write_c(chars, outdir):
          'typedef const uint16_t *bseg_t;   /* (retiming) */', 'extern const bseg_t bm_seg[BC_COUNT];   /* (retiming, retime.py) by bchar_t.id: [BA_COUNT + nspec, offset of each move (BA_* then its specials; 0 = no segments)], then per move [n, the source frames of its n segments: startup, active 1, recovery 1, ...] (fighter.c rt_*) */',
          'extern const bair_t bm_air[BC_COUNT];   /* (TODO #221) by bchar_t.id: its air specials, [input, special index] each, 0xFF ends (bchar_t.nair entries) */',
          'enum { HS_HOLD = 0xF0 };   /* bm_hsnd key of a hold script: HS_HOLD + its index in bchar_t.holds (hit, fin) */',
-         'extern const bair_t bm_hsnd[BC_COUNT];   /* (Kim\'s hit sounds, Bruno 2026-10-09) by bchar_t.id: its hits\' own sounds, [key, n, n sound commands] each, 0xFF ends; key = a move (BA_*: routes.py hit_sounds, a route node\'s "sound" list) or HS_HOLD + k (game.json roster[].throws.hold.sound {hit, fin}); a command per hit of the move / impact of the script, in order (fighter.c own_sound; a hit past the list: the engine\'s rule) */',
+         'extern const bair_t bm_hsnd[BC_COUNT];   /* (Kim\'s hit sounds, Bruno 2026-10-09) by bchar_t.id: its hits\' own sounds, [key, n, n sound commands] each, 0xFF ends; key = a move (BA_*: routes.py hit_sounds, a route node\'s "sound" list) or HS_HOLD + k (game.json roster[].throws.hold.sound {hit, fin}); a command per hit of the move / impact of the script, in order (fighter.c own_sound; a hit past the list: the engine\'s rule); n | 0x80: a pick list instead, one of its n (a power of two) per hit (SS2\'s impacts, export_ss2 ss2snd) */',
          'extern const bhspark_t bm_hspark[BC_COUNT];   /* by bchar_t.id (bm_spec.c: the first program MB; outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef struct { int32_t vx, ax, vy, g, bvx, bvy, bg; uint8_t r, n, land, anim; } bsreact_t;   /* a source reaction (TODO #136, vocabulary reaction.source_motion; tools/kizuna/export_kz.sr_motion: Kizuna\'s reaction animations\' step commands, decoded from its hit code): the victim\'s motion when a SF_SREACT special\'s step hits it, 16.16 px a frame, x away from the attacker: vx += ax a frame while a reel slides (n frames), a flight vy -= g a frame to the floor (it lands where its next move would take it under, without moving), land frames on the floor (0xFF: none, the brawler\'s own landing), then the bounce bvx / bvy / bg; r: the victim\'s posture R_* (| 8: hittable in its flight, its source\'s reaction steps carry boxes); anim: the source\'s reaction animation (Hayate\'s, for reading) */',
          'extern const bsreact_t bm_sreact[];',
@@ -1875,7 +1881,13 @@ def write_c(chars, outdir):
         for k, v in hsd.items():
             assert k in HOLDS, f'{n}: throws.hold.sound: {k} (hit / fin)'
             hsnd.append((0xF0 + HOLDS.index(k), R.sound_codes({'move': f'hold {k}', 'sound': v})))
-        c.append(f'static const uint8_t {n}_hsnd[] = {{' + ''.join(f'{k}, {len(v)}, ' + ''.join(f'0x{x:02X}, ' for x in v) for k, v in hsnd) + '0xFF};   /* its hits\' own sounds */')
+        hsnd = [(k, len(v), v) for k, v in hsnd]
+        for m in MOVES:                                       # SS2's own impact (export_ss2 'ss2snd', voice note 20261011-
+            pick = source(ch, m).get('ss2snd') if m in has else None   # 055133-5d29): one of the list per hit, as SS2's
+            if pick and all(k != MOVES.index(m) for k, _, _ in hsnd):   # RNG & mask pick ($5A9C); a route's list wins
+                assert len(pick) in (1, 2, 4, 8) and len(pick) < 0x80, (n, m, pick)
+                hsnd.append((MOVES.index(m), 0x80 | len(pick), [ss2_sfx(n, w) for w in pick]))
+        c.append(f'static const uint8_t {n}_hsnd[] = {{' + ''.join(f'{k}, {nb}, ' + ''.join(f'0x{x:02X}, ' for x in v) for k, nb, v in hsnd) + '0xFF};   /* its hits\' own sounds */')
         lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': roster()[n]['routes'] is not None,
                                 'moves': {m: R.frame_data(source(ch, m)['steps']) for m in R.MOVE_NAMES if m in has},
                                 'segs': {'moves': {m: v for m, v in zip(MOVES, SEGS[n][:len(MOVES)]) if v}, 'specials': SEGS[n][len(MOVES):]},

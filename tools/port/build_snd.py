@@ -147,7 +147,10 @@ def native_samples(m1, cmd):
 # KOF94 / KOF95's MAKOTO v3 drivers (docs/ff3_sound_driver.md "KOF94's build" / "KOF95's build"; tools/brawler/impacts.py
 # reads the same): prefix -> slot, each slot's 11-byte record table; KOF95's one-byte commands $C0-$FF = slot 0 codes $73F4[cmd - $C0]
 MAKOTO = {'kof94': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2}, recs=[0x3E73, 0x4973, 0x5473]),
-          'kof95': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4}, recs=[0x425B, 0x4D5B, 0x5850, 0x6350, 0x6B90], onebyte=0x73F4)}
+          'kof95': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4}, recs=[0x425B, 0x4D5B, 0x5850, 0x6350, 0x6B90], onebyte=0x73F4),
+          # Samurai Shodown II (voice note 20261011-055133-5d29, its impacts): one-byte commands $C0-$FF = slot 0 codes
+          # $6D8A[cmd - $C0] ($045B), records $3EED / $49ED / $54ED / $5FE2 ($0466-$04A2); its prefixes not read: none
+          'samsho2': dict(pre={}, recs=[0x3EED, 0x49ED, 0x54ED, 0x5FE2], onebyte=0x6D8A)}
 PREFIX_SLOT = {0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4, 0x17: 5, 0x16: 6, 0x1D: 7}   # KOF98 $0D7B: effect prefix -> slot
 VOICE_PRIO = 0x50                                         # KOF98's voice records (110 of slot 2's 223 used ones)
 # the Character Lab's shell (examples/brawler/Makefile LAB_SHELL / LAB_PACK; voice_map's entry with slot_of): the slot

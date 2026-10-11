@@ -2827,5 +2827,18 @@
   "expect": "Five presses chain on hits: far A ($E8), close A ($E6), close C+D ($15C), far B ($FC), close A+B ($114) knocking Ryo down: 5 hits (build 0.10.29+, his sheet shipped; Try in game / the Player with his live config r3: the same).",
   "do_keys": "1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-",
   "proof": 110
+ },
+ "20261011-055133-5d29": {
+  "title": "Hanzo (SS2): his hits sound SS2's own impacts, the big slash on A+B",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 44
+  },
+  "do": "Stand close to Ryo (44 px) and press A again and again (every other frame).",
+  "expect": "Every hit plays Samurai Shodown II's own impact sound, picked by the move as SS2 does: far A, close A and far B the light cut (one of SS2's three), close C+D the kick thud, and the last hit, close A+B knocking Ryo down, SS2's big slash (one of its six). His specials keep their slash. Haohmaru and Genjuro follow the same rule (their close A: SS2's blunt thud).",
+  "do_keys": "1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-,1:a,1:-",
+  "proof": 110
  }
 }
