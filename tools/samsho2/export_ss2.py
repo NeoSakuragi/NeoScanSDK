@@ -67,6 +67,61 @@ MOVES = {
 # its step 2 sends his voice $1A98), Genjuro 198 (his back turned; step 11 $1CD8), Kuroko 198, Hanzo 198 (TODO #193:
 # 0 -> 230 (his slash) -> 2 -> 198, /data/tmp/hanzo193/win/wins184.json)
 WIN = {'haohmaru': 200, 'genjuro': 198, 'kuroko': 198, 'hanzo': 198}
+# Every win pose (voice note 20261011-132148-5d29): SS2's class 6 win actions 0-7 decoded from the code (wins_ss2.py:
+# the stick picks one of four, the match's last round four more; checked in our emulator, 32 / 32), the distinct ones in
+# the order WIN's first, then by sub: 'win', 'win_2' .. (export_bm MOVES). One animation per pose: its parts' steps one
+# after the other, a part that waits (the end flag seen: + 1 frame; Haohmaru's sword caught: 89 frames after 198's
+# start) holding its last step that long; a looping last part (Genjuro's pipe smoke 244) played WIN_LOOPS times, then
+# held. Haohmaru's thrown sword (object 52) = an effect object born with the pose's first step ('objects': export_bm's
+# anim objects, bm_afx): his table's animation 151 one frame a step, 2 px ahead, its height per frame from the code
+# (wins_ss2.sword_flight), no frame while it is above SWORD_TOP px (off the top of the screen: a sprite there would wrap
+# to the bottom), ending the frame the catch (374) shows it in his hand
+WIN_LOOPS = 3
+SWORD_TOP = 280
+def win_anims(B, ch, name):
+    import wins_ss2 as WS
+    ps = sorted(WS.poses(ch), key=lambda p: p['parts'][0]['anim'] != WIN[name])
+    out = {}
+    for w, p in enumerate(ps):
+        steps, parts, objs = [], [], []
+        for k, part in enumerate(p['parts']):
+            a = part['anim']; st = anim_steps(B, ch, a)
+            last = k + 1 == len(p['parts'])
+            n = sum(x['ticks'] + 1 for x in st)
+            if part['wait'] == 'end': st[-1] = dict(st[-1], ticks=st[-1]['ticks'] + 1)
+            elif part['wait'] == 'sword':
+                fl, catch = WS.sword_flight()
+                assert catch > n and st[-1]['ticks'] + catch - n < 256, (name, a, n, catch)
+                st[-1] = dict(st[-1], ticks=st[-1]['ticks'] + catch - n)
+                objs.append({'step': len(steps), 'obj': sword(B, ch, catch)})
+            reps = WIN_LOOPS if last and ss2.parse_anim(ch, a, 400)[-1]['end'] == 'loop' else 1
+            for _ in range(reps):
+                parts.append([a, len(steps), len(st)]); steps += [dict(x) for x in st]
+        key = 'win' if not w else f'win_{w + 1}'
+        out[key] = {'slot': p['parts'][0]['anim'], 'parts': parts, 'mode': 'hold', 'steps': steps,
+                    'ss2_subs': p['subs']}
+        if objs: out[key]['objects'] = objs
+    return out
+
+def sword(B, ch, catch):
+    """Haohmaru's thrown sword (wins_ss2: object 52) as a pinned effect (follow 3: it ends with its last row): one row a
+    frame from its birth to the frame before the catch"""
+    import wins_ss2 as WS
+    fl, _ = WS.sword_flight()
+    y = (224 + WS.SWORD['dy']) << 8; vy = WS.SWORD['vy']; hs = []
+    for k in range(catch):                                # (the model past its catch test: the frames until 374)
+        y += vy; vy += WS.SWORD['g']; hs.append(224 - (y >> 8))
+    assert hs[:len(fl)] == fl
+    st = ss2.parse_anim(ch, WS.SWORD['anim'], 400)
+    seq = [i for i, s in enumerate(st) for _ in range(s['ticks'] + 1)]
+    rows = []
+    for k, h in enumerate(hs):
+        s = st[seq[k % len(seq)]]
+        f = B.frame(s, mirror=bool(s['flags'] & 0x8000)) if h <= SWORD_TOP else -1
+        rows.append([f, float(WS.SWORD['dx']), h, None, None])
+    return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 3, 'travel': 0,
+            'name': 'SWORD', 'ss2': {'type': 52, 'anim': WS.SWORD['anim']}}
 def jump_moves(ch):
     """the jumps' animations from the fighter's own class 0 actions [code] ($28310: 6 up, 8 forward, 9 back; a list =
     the rise animation, parameter entries, the fall animation, then the same again for the other weapon mode): rise =
@@ -581,7 +636,7 @@ def export(names, outdir, only=None, extra=None, lab=None):
         for mv, (a, f, l) in {**MOVES, **jump_moves(ch)}.items():
             anims[mv] = {'slot': a, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': anim_steps(B, ch, a, f, l)}
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
-        if name in WIN: anims['win'] = {'slot': WIN[name], 'mode': 'hold', 'steps': anim_steps(B, ch, WIN[name])}
+        if name in WIN: anims.update(win_anims(B, ch, name))
         w = (extra or {}).get(name, {}).get('watch')
         if w:
             st = ss2.parse_anim(ch, w[0], 400); k = w[1] if w[1] >= 0 else len(st) - 1

@@ -868,6 +868,19 @@ Haohmaru: name plate and text only, a HUD face cannot be scaled up by the hardwa
 name, `"lines_by": {"terry": [...], "*": [...]}` its own lines, else the "*" / `lines` ones; `"if_portrait": true`: the
 scene is skipped when that fighter has no big portrait (gscene_t.flags SC_IF_PORTRAIT; such a scene may have no lines);
 `gsceneby_t` {fighter, nlines, lines[3]}, gscene_t 28 bytes with `who`, `nby`, `flags`, `by*`.
+**The win poses** (voice note 20261011-132148-5d29: "for fighters with multiple win poses, play a random one at the
+end"): no game.json field, the source's own set: `win` (BA_WIN, also the select screen's and the ending's) and the
+others the import finds, `win_2` .. `win_4` (export96: KOF98's four of the button held at the KO, KOF99's three, KOF96's
+one; export_ss2 `win_anims` from SS2's class 6 win actions decoded in its code by tools/samsho2/wins_ss2.py: Haohmaru
+four, Genjuro three, Hanzo three, Kuroko one; WHP / Kizuna / DD / SS4: one). They are not BA_* moves (the enum is the Lab
+pack's format): `bm_wins[id]` (build/bm_wins.h `bwin_t` {n, anims, vox, fx, obj}: the other poses' animations, their
+voices [pose, step, id] (voices.py's suggestion, as the `win` key gets its own), their step effects [pose, step, object]
+-> obj, an effect object born as the pose enters the step: SS2 Haohmaru's thrown sword, pinned, its flight from SS2's
+code). main.c win_tick -> fighter.c `fighter_win_pose`: pose = (game_ticks + the player's index) % its poses (no draw
+from the AI's generator: a replay repeats it), played through `fighter_t.wan` (frames via frame_ovr, KOF's step clock);
+a Lab pack's fighter (the shell's slot) has pose 0 only. Proof: tools/brawler/winposes_proof.py (every pose of SS2
+Haohmaru / Genjuro / Hanzo, Terry, K', Geese played in stage clears, frames and timing = the ROM's tables, the sword's
+89 rows = SS2's flight), tools/samsho2/wins_ss2.py check (the decode vs SS2 in our emulator: 32 / 32 win actions).
 **The stage clear's win screen** (note 20261009-230403-b3f3, KOF's winner portrait): top-level `"win_drama": "stage_win"`
 (build_tables `DR_WIN`, 0xFF none; "$P1" / "$P2" scenes only): main.c PH_CLEAR plays it once the win poses are done
 (STAGE CLEAR erased first), then the next screen as before; `stage_win` = P1's big portrait on the right, P2's on the

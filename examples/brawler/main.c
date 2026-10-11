@@ -17,6 +17,7 @@
 #include "hud.h"
 #include "game_tables.h"
 #include "portraits_big.h"
+#include "bm_wins.h"
 #ifdef LAB_SHELL
 #define LABSLOT_NO_REMAP
 #include "labslot.h"
@@ -391,6 +392,10 @@ static void pj_measure(void) {
             uint8_t n = 0;
             for (e = bm_hspark[i].map; *e != 0xFF; e += 4) if ((e[3] & 0x3F) > n) n = e[3] & 0x3F;
             for (k = 0; k < n; k++) if ((w = pj_scan(c, &bm_hspark[i].sparks[k])) > m) m = w;
+        }
+        if (bm_wins[i].obj) {                                /* its win poses' step effects (bm_wins fx) */
+            const uint8_t *e;
+            for (e = bm_wins[i].fx; *e != 0xFF; e += 3) if ((w = pj_scan(c, &bm_wins[i].obj[e[2]])) > m) m = w;
         }
         pj_cols[i] = m > MAX_COLS ? MAX_COLS : m;
         BANK_set(ob);
@@ -2236,10 +2241,13 @@ static uint8_t ko_scream;                        /* 1: the boss's death voice st
  * them (export_bm MOVES 'win': each source game's round-win animation, read in our emulator: tools/kof98/capture/
  * wins98.py, tools/brawler/wins184.py), held on its last frame; the next screen comes WIN_HOLD frames after the last
  * pose ended (and never before STAGE CLEAR's 200 frames; at most WIN_MAX). The fighter's state machine is not run
- * while it poses (fighter_pose_tick only), the players untouchable. ---- */
+ * while it poses (fighter_win_pose_tick only), the players untouchable. Several win poses (voice note 20261011-
+ * 132148-5d29: "for fighters with multiple win poses, play a random one at the end"): fighter.c fighter_win_pose picks
+ * one of its source's (BA_WIN + bm_wins), deterministic (the tick counter). ---- */
 #define WIN_HOLD   45                            /* frames held on the pose's last frame before the next screen */
 #define WIN_SETTLE 180                           /* a player not standing by then does not pose */
-#define WIN_MAX    720                           /* the next screen at the latest (Iori's KOF98 win: 305 frames) */
+#define WIN_MAX    720                           /* the next screen at the latest (Iori's KOF98 win: 305 frames; SS2
+                                                    Hanzo's 202: 844, cut here as SS2's round end cuts it at 485) */
 enum { WIN_NONE, WIN_WAIT, WIN_POSE };
 static uint8_t win_st[2];                        /* WIN_* per player */
 static uint16_t win_t[2];                        /* WIN_WAIT: frames waited; WIN_POSE: frames since the pose ended */
@@ -2262,7 +2270,7 @@ static void win_tick(void) {                     /* every fight frame after the 
             if (f->state == S_IDLE && f->y == 0) {
                 f->facing = INT(f->x) - cam_x < 160 ? 1 : -1;
                 f->frame_ovr = 0xFFFF; f->vx = f->vz = 0;
-                fighter_pose(f, BA_WIN); win_st[i] = WIN_POSE; win_t[i] = 0; win_step[i] = 0xFF;
+                fighter_win_pose(f); win_st[i] = WIN_POSE; win_t[i] = 0; win_step[i] = 0xFF;
             } else if (++win_t[i] >= WIN_SETTLE || f->state == S_DEAD || f->state == S_OFF) win_st[i] = WIN_NONE;
         } else if ((f->anim_done || win_t[i]) && win_t[i] < 0xFFFF) {   /* (counting on once the pose ended) */
             if (!win_t[i] && fighter_stage_end(f)) win_step[i] = 0xFF;   /* a form the pose turns back (game.json
@@ -3233,7 +3241,7 @@ void game_tick(void) {
     if (bighit_slow && --bighit_slow < BIGHIT_SLOW && (bighit_slow & 1)) { depth_sort(); draw(); hud(); return; }
                                                           /* SS2's big hit's slow motion: every other tick held */
     for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */
-        if (win_posing(i)) fighter_pose_tick(&fighters[i]);  /* the stage clear's win pose (#184) */
+        if (win_posing(i)) fighter_win_pose_tick(&fighters[i]);  /* the stage clear's win pose (#184) */
         else if (fighters[i].state != S_OFF && (!sf_who || sf_who == &fighters[i])) fighter_update(&fighters[i], &in[i]);
     if (!attract && !lab.active && phase == PH_CLEAR) win_tick();
     if (!sf_who) { if (lab.active) lab_flow(); else flow(); }

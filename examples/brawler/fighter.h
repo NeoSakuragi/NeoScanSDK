@@ -576,6 +576,10 @@ typedef struct fighter {
     const gknob_t *kn;
     uint8_t  kn_n, khit;
     uint16_t kspd;
+    /* the win pose playing (fighter.c fighter_win_pose, voice note 20261011-132148-5d29): wan = its animation (0: none;
+     * fighter_step reads it), wpose = which (0 = BA_WIN, k = bm_wins[id].anims[k - 1]) */
+    const banim_t *wan;
+    uint8_t  wpose, wpad;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
@@ -644,8 +648,10 @@ const bstep_t *fighter_step(const fighter_t *f);
 const bstep_t *fighter_hurt_step(const fighter_t *f);       /* the step whose hurt box counts (a ROM special's own step) */
 void fighter_play(fighter_t *f, uint8_t anim);              /* outside the state machine (select screen previews) */
 void fighter_animate(fighter_t *f);
-void fighter_pose(fighter_t *f, uint8_t anim);             /* fighter_play / fighter_animate with the animation's voices */
-void fighter_pose_tick(fighter_t *f);                       /* (main.c: the stage clear's win pose, TODO #184) */
+uint8_t fighter_win_poses(const fighter_t *f);              /* its win poses (BA_WIN + bm_wins) */
+void fighter_win_pose(fighter_t *f);                        /* (main.c win_tick: the stage clear) one of them, picked from
+                                                               the tick counter, with its voices and step effects */
+void fighter_win_pose_tick(fighter_t *f);                   /* its clock (held on its last step: anim_done) */
 uint8_t fighter_stage_end(fighter_t *f);                    /* (main.c win_tick, the win pose's end) its stage-end form
                                                                (bm_stage_end) taken: 1 when it changed form */
 uint8_t fighter_next_stage_ch(const fighter_t *f);          /* the bm_chars index it starts the next stage as */

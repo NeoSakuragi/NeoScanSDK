@@ -3032,5 +3032,35 @@
   "expect": "The third press with down plays SS2's crouching C+D (the low kick-slash) as the low finisher and hits Ryo.",
   "do_keys": "2:a,10:-,2:a,10:-,2:Da,60:-",
   "proof": 40
+ },
+ "20261011-132230-5d29": {
+  "title": "Haohmaru: the launcher finisher (last hit + up) = his SS2 far B",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Press A, A, then up + A.",
+  "expect": "The third press with up plays Haohmaru's SS2 far B slash as the finisher: it hits Ryo and launches him high into the air (he falls, lands and gets up). The second A (the same far B inside the chain) does not launch.",
+  "do_keys": "2:a,10:-,2:a,10:-,2:Ua,150:-",
+  "proof": 60
+ },
+ "20261011-132148-5d29": {
+  "title": "Win poses: a random one of the fighter's source game at the stage clear (SS2: all of them)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "haohmaru",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss alone with 1 life point. Hit him once (A) and watch the stage clear. Play it again a few times, also with Genjuro, Hanzo SS2, Terry or K'.",
+  "expect": "After STAGE CLEAR Haohmaru plays one of his four SS2 win poses: the sword on his shoulder, the sword thrown up and caught, the sword sheathed slowly, or the big slash before sheathing it; another clear can pick another one. Genjuro has three (back turned with the sake dish, the umbrella, the pipe), Hanzo SS2 three, KOF98 fighters four, K' three; a fighter with one pose plays that one.",
+  "do_keys": "2:a,10:-,2:a,10:-,2:a,600:-",
+  "proof": 120
  }
 }
