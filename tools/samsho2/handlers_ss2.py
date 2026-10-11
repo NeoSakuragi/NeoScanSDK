@@ -41,7 +41,7 @@ import ss2, neo2 as N
 P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
      'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'adv': 16, 'check': 17, 'part': 18, 'evclr': 19,
      'onhit': 20, 'put': 21, 'hitclr': 22, 'hold': 23, 'unhold': 24, 'sigclr': 25, 'hitoff': 26, 'add': 27, 'form': 28,
-     'voice': 29, 'vsig': 30, 'lanim': 36, 'warp': 37}        # bm_chars.h P_*
+     'voice': 29, 'vsig': 30, 'turn': 31, 'lanim': 36, 'warp': 37}        # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 PC = {'end': 0, 'event': 1, 'land': 2, 'fall': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'always': 7, 'stepev': 8, 'window': 9,
       'link': 10, 'hitany': 11, 'sig7c': 13, 'passed': 20, 'caught': 21}
@@ -241,12 +241,12 @@ def gen_236s(v, auto=0):
         dvx, dd = N.s16(0x6B54E + 4 * v), N.s16(0x6B54E + 4 * v + 2)
         base = len(out)
         go = (('auto' if auto else ('link', 1)), 'part%d' % (k + 1))
-        out += [E(343, ([('part',)] if k else []) + ([('hitoff',)] if auto and k else []) + [('set', 'vx', bx(vx)), ('set', 'cnt', cnt)], [('now', base + 1)], part=k),
+        out += [E(343, ([('part',)] if k else []) + ([('hitoff',), ('face',)] if auto and k else []) + [('set', 'vx', bx(vx)), ('set', 'cnt', cnt)], [('now', base + 1)], part=k),
                 E(None, conds=[('passed', base + 2), ('cnt', base + 2)], part=k),
                 E(a, [('set', 'vx', bx(dvx)), ('set', 'cnt', decel_frames(dvx, dd))],
                   ([go] if k + 1 < nparts else []) + [('end', 'end')], phys=('decel', bx(dd)), part=k,
                   flags={i: 0x2000 for i, s in enumerate(ss2.parse_anim(12, a)) if s['flags'] & 0x0800})]
-    if nparts == 3: out += [E(369, [('part',), ('set', 'vx', 0)], [('end', 'end')], part=2)]
+    if nparts == 3: out += [E(369, [('part',)] + ([('hitoff',), ('face',)] if auto else []) + [('set', 'vx', 0)], [('end', 'end')], part=2)]
     return out, []
 
 def gen_auto(nparts):
@@ -258,8 +258,8 @@ def gen_auto(nparts):
     = 0 (no connect yet) and the count +$D8 = word $6B55A (0); $5685C / $56990 the slash: a connect sets +$D5; $568B4 /
     $569E8: the deceleration, then with +$D5 every frame on a window step (+$74 bit 3) +$D8 - 1, below 0 -> the next part
     (0: the first window frame after the connect); no connect: the animation's end -> neutral; $56848 / $5695C / $5697C
-    the next part's start = the manual chain's ($56506 / $5663A) after $56A26 (turned to face the opponent: NOT modelled,
-    the brawler keeps his facing; his first part stops where he reaches the opponent)"""
+    the next part's start = the manual chain's ($56506 / $5663A) after $56A26 (turned to face the opponent: modelled
+    as P_TURN when the opponent is strictly behind him: PC_PASSED with v -1; SS2 at the same x faces left)"""
     return lambda v: gen_236s(v, auto=nparts)
 
 def VL(entries, fly=None, rel=None):
@@ -734,6 +734,8 @@ def compile_prog(ents):
             elif o[0] == 'vsig': ops.append(('vsig',))
             elif o[0] == 'fxoff': ops.append(('fxoff',))
             elif o[0] == 'hitoff': ops.append(('hitoff',))      # P_HITOFF: the connect flag cleared (a new part's +$D5)
+            elif o[0] == 'face':                          # turned to face its target ($56A26): P_TURN when the target is
+                ops += [('br', 'passed', 0, ('FC', i), -1), ('turn',), ('label', ('FC', i))]   # behind (PC_PASSED v -1)
             elif o[0] == 'warp': ops.append(('warp', o[1], o[2], o[3]))   # P_WARP a = mode (1 screen, 0 target), b dx, v
             else: raise ValueError(o)
         ops += [('resume_at', ('LP', i)), ('jmp', ('R', i)), ('label', ('LP', i))]
