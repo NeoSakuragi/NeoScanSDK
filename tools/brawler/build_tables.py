@@ -221,7 +221,7 @@ def chain_cfg(g, r):
     assert isinstance(n, int) and 2 <= n <= 8, f"roster {r['name']}: chain.length {n} (2-8)"
     return {'archetype': a, 'length': n, 'total': c['totals'][a], 'hitstop': c['hitstop'], 'finishers': fin,
             'air': air, 'specials': r.get('specials') or {},          # (revamp gold: a finisher named as a special input)
-            **({'dash': blitz_normal(r)} if blitz_normal(r) else {}),     # (a normal as a Blitz: the dash entry plays it)
+            **({'dash': blitz_normal(r)} if blitz_normal(r) else {}),     # (a normal as a Blitz: the tree's blitz entry plays it)
             'damage': r.get('damage', 1), **({'links': own['links']} if 'links' in own else {}),
             **({'hitstops': own['hitstop']} if 'hitstop' in own else {})}
 
@@ -231,7 +231,7 @@ BLITZ_NORMAL = re.compile(r'^(atk_[a-d]{1,2}_(close|far|crouch)|body_toss|cmd_\w
 
 def blitz_normal(r):
     """the ground normal a roster entry's Blitz names (roster[].blitz: a move name, arb_compile's 'a normal as the Blitz';
-    at most one: the tree's dash entry plays it, routes.chain_tree cfg 'dash'), else None"""
+    at most one: the tree's blitz entry plays it, routes.chain_tree cfg 'dash'), else None"""
     ns = {v for v in (r.get('blitz') or {}).values() if isinstance(v, str) and BLITZ_NORMAL.match(v)}
     assert len(ns) <= 1, f"roster {r['name']}: blitz names two normals {sorted(ns)} (one dash entry)"
     return ns.pop() if ns else None
@@ -240,7 +240,7 @@ def blitz_normal(r):
 def blitz_rows(g, build):
     """gblitz_rom: per roster fighter (bm_chars order) its four Blitz slots (roster[].blitz ff / dd / du / uu): a special of
     its pool (its index; build/chainlab.json fighters[].pool, export_bm special_pool order), 'dash' = 0xFE (its tree's dash
-    entry), absent = 0xFF; a fighter without roster[].blitz: ff = 'dash', the others none (Bruno 2026-10-08)"""
+    entry), a normal's move name = 0xFD (its tree's blitz entry: routes.chain_tree), absent = 0xFF; a fighter without roster[].blitz: ff = 'dash', the others none (Bruno 2026-10-08)"""
     pools = {f['name']: [p['input'] for p in f['pool']] for f in json.load(open(os.path.join(build, 'chainlab.json')))['fighters']}
     out = []
     for r in g['roster']:
@@ -250,7 +250,9 @@ def blitz_rows(g, build):
         for k in BLITZ_SLOTS:
             v = bz.get(k)
             if v is None: row.append(0xFF)
-            elif v == 'dash' or BLITZ_NORMAL.match(v): row.append(0xFE)   # (a normal's move name: the dash entry plays it)
+            elif v == 'dash': row.append(0xFE)                             # BZ_DASH: the tree's dash entry
+            elif BLITZ_NORMAL.match(v): row.append(0xFD)                    # BZ_NORMAL: a normal's move name, the tree's
+                                                                            # blitz entry (rt_head_t.pad[0]) plays it
             else:
                 assert v in pools[r['name']], f"roster {r['name']}: blitz.{k} {v}: not in its pool ({' '.join(pools[r['name']])})"
                 row.append(pools[r['name']].index(v))
@@ -858,7 +860,7 @@ def tables(g, build):
          'extern const uint16_t *const dtier_rom[BC_COUNT];   /* the damage tiers (fighter.c "damage tiers"): per fighter, 8.8 scales: [special index], [nspec] the fury, [nspec + 1] the MAX */',
          'extern uint8_t dtier_off;                         /* (fighter.c) 1: every scale 1 (a test switch) */',
          'extern const uint8_t ai_ready[BC_COUNT][2];',
-         'extern const uint8_t gblitz_rom[BC_COUNT][4];   /* per fighter its Blitz slots (BZ_FF .. BZ_UU): a special\'s pool index, BZ_DASH its dash entry, BZ_NONE */',
+         'extern const uint8_t gblitz_rom[BC_COUNT][4];   /* per fighter its Blitz slots (BZ_FF .. BZ_UU): a special\'s pool index, BZ_DASH its dash entry, BZ_NORMAL its blitz entry, BZ_NONE */',
          'extern const uint8_t gfury_area[BC_COUNT][3];   /* the fury\'s final hit as an area hit (roster[].fury_final_area; fighter.c fury_area): [front, back, depth] px, 0 = none */',
          'extern const int32_t gwalk_rom[BC_COUNT];       /* its walk (16.16 px a frame, by archetype) */',
          'extern const uint8_t gblitz_can[BC_COUNT][4];   /* per fighter per Blitz slot: the slots it may cancel into on hit (bit BZ_*; roster[].blitz_cancel) */',

@@ -724,22 +724,29 @@ static void route_go(fighter_t *f, const rnode_t *prev, uint8_t node, uint8_t b,
  * A double direction + A (main.c read_player: forward,forward / down,down / down,up / up,up, the taps and the A within
  * gblitz.window frames; run + A = the ff slot): the slot's move, free (no drive), NOT invincible, its own recovery: a
  * special of the pool (role BS_BLITZ, its damage gblitz.scale of its special tier: dtier) or the tree's dash entry
- * (BZ_DASH: a normal; a special dash node plays free: node_special). The ladder: a normal that hit (a chain link, a
+ * (BZ_DASH; BZ_NORMAL: a normal, the tree's blitz entry; a special node plays free: node_special). The ladder: a normal that hit (a chain link, a
  * finisher) cancels into it (S_ATTACK, blz_buf); it cancels on hit into a C special or the fury (may_cancel, the special
  * cancels). Empty slot: 0, the press is a plain A. Depth walking and the finishers' held up / down are untouched (a Blitz
  * needs two taps). A Blitz never cancels into a Blitz (0.8.1), except a fighter's quirk (game.json roster[].blitz_cancel
  * -> gblitz_can[fighter][its slot]: the slots it may cancel into, on hit like the ladder's other rungs; Bruno 2026-10-09,
  * note 20261009-114542-5d29: Terry's down,down + A Power Charge into up,up + A Crack Shoot). */
-static uint8_t blitz_dash(fighter_t *f, uint8_t how) {
-    uint8_t dn = TREE(f)->dash;
+static uint8_t blitz_node(fighter_t *f, uint8_t dn, uint8_t how) {
     if ((NODE(f, dn)->flags & RF_SPECIAL) && node_special(f, dn, how)) return 1;
     start_node(f, dn, how);
     return 1;
+}
+static uint8_t blitz_dash(fighter_t *f, uint8_t how) { return blitz_node(f, TREE(f)->dash, how); }
+static uint8_t is_blitz_node(const fighter_t *f) {               /* P1's node is a Blitz played as a tree node (the dash
+                                                                    entry, a normal's blitz entry: BZ_NORMAL) */
+    return f->node && (f->node == TREE(f)->dash || f->node == TREE(f)->pad[0]);
 }
 static uint8_t blitz_go(fighter_t *f, uint8_t slot, uint8_t how) {
     uint8_t v = slot < BZ_COUNT ? gblitz_rom[f->ch->id][slot] : BZ_NONE;
     f->blz_buf = 0;
     if (v == BZ_DASH) return blitz_dash(f, how);
+    if (v == BZ_NORMAL) return blitz_node(f, RT_BLITZ(TREE(f)), how);   /* a normal as the Blitz: its own entry (note
+                                                                    20261011-154500-5d29: it no longer takes the dash entry,
+                                                                    run + A's, from a fighter whose ff is not that Blitz) */
     if (v >= f->ch->nspec || !f->ch->specials[v].nrows) return 0;
     if (f->ch->specials[v].proj && f->shot) return 0;            /* (a projectile while its own flies: none, special_pick's rule) */
     lab_note(f, LE_SPECIAL, 0, how, BS_BLITZ);
@@ -894,7 +901,7 @@ static void meter_tick(fighter_t *f) {
         else if (f->drive < DRIVE_FULL &&                        /* the drive: a point back a frame, outside of */
                  !((gmeter.pause & RP_SPECIAL) && f->state == S_SPECIAL) &&   /* specials and combos (gmeter.pause, */
                  !((gmeter.pause & RP_CHAIN) && (f->state == S_ATTACK || f->state == S_AIR_ATTACK)) &&   /* note */
-                 !((gmeter.pause & RP_BLITZ) && f->state == S_ATTACK && f->node && f->node == TREE(f)->dash))   /* (2026-10-09 reopen: special, fury, Blitz) */
+                 !((gmeter.pause & RP_BLITZ) && f->state == S_ATTACK && is_blitz_node(f)))   /* (2026-10-09 reopen: special, fury, Blitz) */
             f->drive++;                                          /* 20261009-115529-5d29: back in neutral it refills) */
     }
     pal_overlay(f);
@@ -3513,7 +3520,7 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     (players; enemies keep their routes' links) */
             if (k != 0xFF && pay(f, PAY_SPECIAL, 0)) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); cspecial(f, k); if (nx) f->speed = NODE(f, nx)->speed; break; }
         }
-        if (f->node == TREE(f)->dash) f->blz_buf = f->buffered = 0;   /* a Blitz played as the dash entry cancels only into a
+        if (is_blitz_node(f)) f->blz_buf = f->buffered = 0;   /* a Blitz played as the dash / blitz entry cancels only into a
                                                                     special: never into a Blitz (Bruno 2026-10-08: ff+A
                                                                     into ff+A was an infinite) nor back into the chain */
         if (f->landed && f->blz_buf && !(c->flags & RF_AIR)) {   /* the ladder (Bruno 2026-10-08): a normal that hit (a link,

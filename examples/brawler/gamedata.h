@@ -86,10 +86,12 @@ extern const gmeter_t gmeter;
  * window = frames allowed between the two taps of a double direction and from the second tap to A; chord = frames the
  * second of A / B may come after the first and still make C; scale = a special played as a Blitz: its damage (8.8 of its
  * special tier). gblitz_rom[fighter] (game_tables.c): its four slots BZ_FF .. BZ_UU = a special's pool index, BZ_DASH its
- * tree's dash entry, BZ_NONE ---- */
+ * tree's dash entry, BZ_NORMAL its tree's blitz entry (a normal named as the Blitz: rt_head_t.pad[0]; 0 there, a tree
+ * made before it: the dash entry), BZ_NONE ---- */
 typedef struct { uint8_t window, chord; uint16_t scale; } gblitz_t;
 extern const gblitz_t gblitz;
 enum { BZ_FF, BZ_DD, BZ_DU, BZ_UU, BZ_COUNT };
+#define BZ_NORMAL 0xFD
 #define BZ_DASH 0xFE
 #define BZ_NONE 0xFF
 

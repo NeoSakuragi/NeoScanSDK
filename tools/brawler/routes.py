@@ -5,7 +5,8 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
 
     {"fighter": "terry",
      "links": {"A": NODE, "cA": NODE, "dA": NODE},           # the links from neutral (where a route starts)
-     "entries": {"dash": NODE, "nospecial": NODE, "hold": NODE, "air_a": NODE, "air_b": NODE, "air_cd": NODE}}   # optional
+     "entries": {"dash": NODE, "nospecial": NODE, "hold": NODE, "air_a": NODE, "air_b": NODE, "air_cd": NODE,
+                 "blitz": NODE}}   # optional (blitz: the normal a Blitz slot names, no default)
     NODE = {"move": "atk_a_close",                           # one of the fighter's moves (MOVE_NAMES; an air node:
                                                              # AIR_MOVE_NAMES), or
             "special": "dD",                                 # a special slot (D, fD, dD, uD, dfD, ufD: the C slots, named
@@ -289,9 +290,11 @@ def encode(tree, moves, has=None, specials_have=None):
     d = default_tree()['entries']
     ent = [node((tree.get('entries') or {}).get(k) or d[k], k, air=k in AIR_MOVES) for k in ENTRIES]   # an air entry: its own
                                                          # move (air_a's default air C; any of the three)
+    bz = (tree.get('entries') or {}).get('blitz')        # a normal as a Blitz (roster[].blitz: a move name): its own node,
+    bzn = node(bz, 'blitz') if bz else 0                 # rt_head_t.pad[0] (BZ_NORMAL; 0: the dash entry plays it)
     assert len(nodes) <= MAX_NODES, f'{len(nodes)} nodes (at most {MAX_NODES})'
     arch = ARCHETYPES.index(tree['archetype']) + 1 if tree.get('archetype') else 0
-    head = b'RT' + bytes([TREE_VERSION, len(nodes), root] + ent + [arch, tree.get('chain_links', 0)] + [0] * 3)
+    head = b'RT' + bytes([TREE_VERSION, len(nodes), root] + ent + [arch, tree.get('chain_links', 0), bzn] + [0] * 2)
     assert len(head) == HEAD_SIZE
     return head + b''.join(nodes)
 
@@ -591,9 +594,13 @@ def chain_tree(name, base, cfg, has):
             assert m in AIR_MOVE_NAMES, f'{name}: air {k}: {m} is not an air move ({" ".join(AIR_MOVE_NAMES)})'
             entries[k] = cls({'move': m, 'weight': w, 'effect': e}, True)
     if cfg.get('dash'):                                             # a normal as a Blitz (roster[].blitz: a move name; Bruno
-        entries['dash'] = cls({'move': cfg['dash'], 'damage': 10, 'weight': 'strong', 'effect': 'knockdown'}, True)   # 2026-10-11,
+        entries['blitz'] = cls({'move': cfg['dash'], 'damage': 10, 'weight': 'strong', 'effect': 'knockdown'}, True)   # 2026-10-11,
                                                                     # note 20261011-113641-5d29: Haohmaru's ff + A = far A+B):
-                                                                    # the tree's dash entry plays it (build_tables blitz_rows 0xFE)
+                                                                    # its own entry (rt_head_t.pad[0], build_tables blitz_rows
+                                                                    # BZ_NORMAL), never the dash entry: run + A keeps playing
+                                                                    # the dash entry when the normal sits on another slot
+                                                                    # (note 20261011-154500-5d29: Hanzo's dd + A far A+B had
+                                                                    # taken his ff + A)
     summary ={'archetype': cfg['archetype'], 'length': N, 'total': total,
                'links': [b['move'] for b in builders], 'damage': dm, 'hitstop': hs,
                'finishers': {{'A': 'neutral', 'fA': 'forward', 'uA': 'up', 'dA': 'down', 'bA': 'back'}[k]:
