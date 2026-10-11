@@ -378,13 +378,16 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   request (+$D1 bit 7, 214's own latch) reads as none in a part alone (`nofollow`). Measured: 1 / 2 / 3 presses play
   141 / 141 > 145 / 141 > 145 > 149 and hit Ryo 1 / 2 / 3 times, the second a knockdown and the third timed as the full
   214A's own (up-forward + C with its two presses: the same hits).
-- **The back jump's attack** — `roster[].air.back` (2026-10-11, Iori's note 20261011-210422-5d29: "jump A is the D
-  button, jump down A is the C button, jump back A is back + B"): A in a back jump plays that air move (its `_diag`
-  twin, KOF's diagonal normal: Iori's jump B $58), its own route entry (routes.py `air_ba`, rt_head_t.pad[1]: the Lab
-  pack ABI unchanged; lab.js mirrors it; main.c checks it like the other entries); absent, the forward jump's attack as
-  before (fighter.c `jump_atk`, `RT_AIR_BACK`). The Assembly has the row (`air_ba`, "jump back + A"; arb_compile AIR,
-  arbitrage.py's "now", liveclips' back jump). The Lab's in-game Try has no slot for it (fighter.h LS_*, TRY_MAX full):
-  Try leaves it out ("no such slot in the game"), the ship compiles it.
+- **The jump's back attack** — `roster[].air.back` (Iori's note 20261011-210422-5d29 and its reopen: "you jump
+  regularly, then press back + A during the jump ... the special kick done with B in KOF98 for a cross-up, back + B in the
+  air"): back + A in ANY jump (the stick held away from the fighter's facing at the press) plays that air move (its
+  `_diag` twin in a forward / back jump); its own route entry (routes.py `air_ba`, rt_head_t.pad[1]: the Lab pack ABI
+  unchanged; lab.js mirrors it; main.c checks it like the other entries); absent, the jump's own attack (fighter.c
+  `jump_atk`, `RT_AIR_BACK`). 0.10.63 keyed it on a back jump: that meaning is dropped (a back jump's A without the stick
+  back = the forward jump's attack again). Iori: KOF98's j.4B Yuri Ori (state 183, anim $B7, found in our emulator: a
+  jump, the stick held back, B -> 183 > 184; 4B / B pressed together in the same frames keep the jump B), as the spare
+  air name atk_ab_jump (moves "$B7"); its box is behind him: it hits a victim he has jumped over (the cross-up). The
+  Assembly row `air_ba` ("jump + back + A"; arb_compile's check: a forward jump over the dummy, back + A past it).
 - **A victim list's blow keeps the list's posture** (note 20261011-210524-5d29: "in KOF96 and 98, when this MAX is
   being performed, the victim is lying on the ground") — KOF98 Iori MAX 23624C's victim lists hold the victim in state
   413 (lying, between the strikes) and 434 (struck there), measured in our emulator (Yuri, frames 94-357 of the move).
@@ -531,3 +534,33 @@ Compiled from the sheet without an agent: 8 slot(s) linked, 0 unresolved; slots 
 - air_a (jump + A): $61 -> air.forward + air.straight = "atk_d_jump" — linked, class a: its own move
 - air_da (jump + down + A): $5C -> air.down = "atk_c_jump" — linked, class a: its own move
 - air_ba (jump back + A): $57 -> air.back = "atk_b_jump" — linked, class a: its own move
+
+### IORI: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `iori-arb`, build 0.10.63)
+Compiled from the sheet without an agent: 1 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- a4 (A press 4): $B5 -> chain.links[3] = "cmd_fwd_b" — linked, class a: its own move
+
+### IORI: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `iori-arb`, build 0.10.63)
+Compiled from the sheet without an agent: 2 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- bz_dd (down,down + A): S-012 then S-013 then S-014 -> blitz.dd = ["214C>142", "214C>146", "214C>149"] — linked, class b: a sequence, each next piece on the button again: S-012 214C>142 then S-013 214C>146 then S-014 214C>149
+- air_ba (jump + back + A): $B7 -> air.back (+ moves atk_ab_jump_diag = $B7) = "atk_ab_jump" — linked, class a: spare name: moves "atk_ab_jump": "$B7" (an air attack)
+
+### IORI: round 2 notes 2026-10-11 (game 0.10.63; tools/brawler/iori_round2_proof.py, ALL OK)
+- note 20261011-224840-5d29 (MAX: the victim behind Iori): KOF98's victim lists set the pair's draw priority every frame
+  ($25372 -> $25440: $180DC victim $101 / attacker $100, then unless the entry's dx bit 7 is set $18116 swaps it: the
+  attacker in front; measured in our emulator, Iori MAX 23624C: P1 +$2C $101, P2 $100 every frame). The export's
+  `front` bit was read as "victim in front" only; a clear bit now exports bvent_t flags bit 7 (VE_BACK, defined in
+  fighter.c: the pack format's VE_* enum unchanged) -> fighter_t.zfront -1, drawn behind its attacker at the same Z
+  (special_end resets it). Changes every KOF list without the bit: Iori 624B / 624D / 23624C (+ MAX), Rugal 624A /
+  23624C's non-front entries, Yamazaki 236236C; Rugal's front entries (VE_FRONT) and SS2 / Kizuna lists unchanged.
+- note 20261011-224757-5d29 (624D's last explosion sound): KOF98's victim routine plays its own sound at the release
+  (`move #$5B5, d0; jsr $7A98` = $1A4D HUGE BOOM; the MAX / cine finisher `#$5B8` = $1A4D too), not the hit kind's
+  ($1A19 in the brawler): handlers98.victim_release 'sound' -> release_sfx -> the lists' END ENTRY flags (bvlist_t
+  unchanged: the n 0 entry's unused fields) -> fighter.c plays it on the VE_REL blow. Iori 624B / 624D / 23624C / MAX
+  23624C change; nobody else's release sends one. Keyed sample byte-equal to KOF98's own (WAVs /data/tmp/iori2/sound).
+- note 20261011-230030-5d29 (624D's explosion hits those around): `roster[].special_final_area` {input: {front, back,
+  depth, blows}} = fury_final_area's data for any special's victim lists (export_bm special_area -> the end entry's vx /
+  vy; fighter.c fury_area; a fury keeps gfury_area first). Iori 624D: front 100 / back 40 / depth 24 (KOF98's smoke
+  and flames measured, he steps 16 px forward on the release blow). Crowd test: 4 dummy copies, the two inside knocked
+  down and burnt, the two outside (140 ahead, 40 deep) untouched.
+- notes 20261011-225504-5d29 (chain press 4 = forward + B) and 20261011-210904-5d29's reopen (dd + A = 214C's three
+  parts: 214C>142 / >146 / >149, S-012..S-014): compiled from the sheet (the two sections above).

@@ -1135,7 +1135,7 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C', 'AAAA'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D', '623A', 'EX 624D', 'air 214D', '6426A', '6426C'},
                 'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B', '623A', '236D', '236A>156', '236A>158', '236A>162'},
-                'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C', '214A>141', '214A>145', '214A>149'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
+                'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C', '214A>141', '214A>145', '214A>149', '214C>142', '214C>146', '214C>149'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '214C', '214D', '41236B', '41236D', '236D', '641236C', '623B', '623D'},'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
@@ -1144,8 +1144,9 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
 # S- ids) but read by the brawler's export only where a build names them (export96 rom_more = export_bm.rom_wanted: a
 # roster slot, a Lab build's unlocked pieces), so the normal game, whose pool has no place for them, keeps its frames
 ROM_DEMAND = {'robert': {'6426A', '6426C'}, 'kyo': {'623A', '236D', '236A>156', '236A>158', '236A>162'},
-              'iori': {'214A>141', '214A>145', '214A>149'}}   # (Iori: note 20261011-210904-5d29, dd + A = the three
-# parts of 214A Aoi Hana as a pressed sequence; Kyo: his sheet's
+              'iori': {'214A>141', '214A>145', '214A>149', '214C>142', '214C>146', '214C>149'}}   # (Iori: note
+# 20261011-210904-5d29, dd + A = the three parts of Aoi Hana as a pressed sequence, the C version since its reopen ("the
+# A one is too short"): 214C's handler $70E42 plays 142 / 146 / 149 (214A's 141 / 145 / 149); Kyo: his sheet's
 # notes 20261011-175124 / 175657 / 175806-5d29: dd + A 623A, down + C 236D, the ff + A sequence's three parts of 236A)
 # furies read from the ROM whose MAX path is not modelled yet (no 'MAX <fury>' export: down+D plays the fury, as before):
 # none since TODO #220 (2026-10-07): Iori 23624C's MAX (ten strikes from the state list +$C2 by +$D2, the victim's lists
@@ -1295,11 +1296,13 @@ def victim_lists(m, addr, sdm=False, nsig=None):
 # damage, KOF98 P2 life -12) and fly on its own speeds (`move.l #T, +$C6; movea.l +$C6, a0; move.l (a0), +$50;
 # 4(a0) -> +$5C; 8(a0) -> +$58`: vx 4 away from the attacker, gravity 0.5, vy 6; Iori's T $70E32) instead of the
 # engine's blowback (Rugal's lists: neither, they jump to the blowback); its burn (`jsr $17AC0`: the victim's palette
-# byte +$3A = $F9, Iori's purple flames, measured: P2 burns from the release to its landing). -> {'blow': bool, 'fly':
-# (vx, vy, g) px, 'burn': BURN_OF colour} or {}
+# byte +$3A = $F9, Iori's purple flames, measured: P2 burns from the release to its landing); its own sound (`move #n, d0;
+# jsr $7A98`, the mapper index: Iori 624D's $5B5 = $1A4D, the explosion). -> {'blow': bool, 'fly': (vx, vy, g) px,
+# 'burn': BURN_OF colour, 'sound': index} or {}
 RELEASE_BURN = {0x17AC0: 1, 0x17ADE: 1, 0x17AE6: 2}   # +$3A = $F9 purple / $F8 orange (fighter.c BURN_RAMP 1 / 2)
 def victim_release(m, addr, sdm=False):
     dec = Decoder(m); a = addr; n = 0; rel = False; out = {}; tab = None; a0tab = False; maxtest = False; c2 = a0c2 = None
+    d0 = None
     while a is not None and n < 200:
         n += 1
         mn, o, nx = dec.at(a)
@@ -1322,6 +1325,11 @@ def victim_release(m, addr, sdm=False):
         elif mn == 'movew' and o == ['%a0@', '%a4@(114)'] and a0c2 is not None and not out:
             out['stand'] = m.u16(a0c2)                 # its release: a state from its list, no blow, no flight (the
                                                        # MAX's $6B100: 329, it stands until the next strike takes it)
+        if mn == 'movew' and o[0].startswith('#') and o[1] == '%d0': d0 = imm(o[0])
+        elif mn == 'jsr' and imm(o[0]) == 0x7A98 and d0 is not None and 'sound' not in out: out['sound'] = d0   # its own
+                                                       # sound (`move #n, d0; jsr $7A98`: the mapper index; note
+                                                       # 20261011-224757-5d29, Iori 624D's last explosion $5B5 = $1A4D,
+                                                       # the MAX's $5B8 = $1A4D: not the hit kind's sound)
         if mn == 'jsr' and imm(o[0]) == 0x18C6C: out['blow'] = True
         elif mn == 'jsr' and imm(o[0]) in RELEASE_BURN: out['burn'] = RELEASE_BURN[imm(o[0])]
         elif mn == 'movel' and o[1] == '%a4@(198)' and o[0].startswith('#'): tab = imm(o[0])
@@ -1440,6 +1448,12 @@ def step_effects(m, cid, states, shared=True):
                                 'table': r['table'], 'back': r['prio'] < 0})
             elif b0 < 0x80: k += 1
     return out
+
+def release_sfx(m, vrel):
+    """the effect code ($1A + code) a victim routine's release sends itself (victim_release 'sound'), 0: none (the
+    brawler then plays the blow's hit-kind sound, as before)"""
+    w = sound_word(m, vrel.get('sound')) if vrel else None
+    return w & 0xFF if w is not None and w >> 8 == 0x1A else 0
 
 def victim_entries(m, lists, victim):
     """the lists' entries for a victim (KOF98 id; the map $24B46 picks its row): [[{dx (px from the attacker, its
@@ -1835,13 +1849,17 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
         vx, vy, g = vrel.get('fly', (0, 0, 0))
         vlists[-1] = {'e': last, 'rel': (round(vx * 256), round(-vy * 256), round(g * 256))} if 'fly' in vrel else \
             {'e': last, 'stand': vrel['stand']} if 'stand' in vrel else last   # (VL_STAND: released standing, TODO #220)
+        rs = release_sfx(m, vrel)                      # its own release sound (bvlist_t.rsnd)
+        if rs: vlists[-1] = dict(vlists[-1], rsnd=rs) if isinstance(vlists[-1], dict) else {'e': vlists[-1], 'rsnd': rs}
     cl = victim_entries(m, victim_lists(m, prog['cine_victim'], sdm), cid) if prog.get('cine_victim') else []   # the
     if cl:                                             # cine's victim list (TODO #216): after the catch's, P_CATCH v
         crel = victim_release(m, prog['cine_victim'], sdm)  # starts it; its release: a blow, its burn
         if crel.get('blow'):
             cl[-1] = [dict(e, flags=e['flags'] | 1, burn=crel.get('burn', 0)) if e['flags'] & 64 else e for e in cl[-1]]
     cine_list = len(vlists) + 1 if cl else 0
-    vlists = vlists + [{'e': l_, 'catch': True} for l_ in cl]   # (VL_CATCH: not a catch routine's first list)
+    crs = release_sfx(m, crel) if cl else 0
+    vlists = vlists + [dict({'e': l_, 'catch': True}, **({'rsnd': crs} if crs and j == len(cl) - 1 else {}))
+                       for j, l_ in enumerate(cl)]     # (VL_CATCH: not a catch routine's first list)
     if cl and prog.get('victim') and not vlists[:cine_list - 1]:   # a catch whose victim routine holds it with no list
         held_by_routine(prog)                          # before the cine (Iori 23624C's claw, $718AE): held throughout
                                                        # (only with a cine: Ryo's / Robert's furies keep their unhold)

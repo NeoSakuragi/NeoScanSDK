@@ -3481,7 +3481,7 @@
   "proof": 90
  },
  "20261011-210904-5d29": {
-  "title": "Iori: down, down + A = 127 Shiki Aoi Hana, A again for the second and third hits",
+  "title": "Iori: down, down + A = 127 Shiki Aoi Hana, its C version (the longer one), A again for the second and third hits",
   "setup": {
    "mode": "lab",
    "fighter": "iori",
@@ -3489,7 +3489,7 @@
    "gap": 46
   },
   "do": "Tap down, down + A next to Ryo, then press A again during each hit (twice). Try it again with one A, and with none.",
-  "expect": "Down, down + A plays the first Aoi Hana hit. Pressing A during it goes on into the second hit, and A again into the third (the jumping overhead): three hits on Ryo, as Kyo's forward, forward + A. With one A it stops after the second hit, with none after the first.",
+  "expect": "Down, down + A plays the first hit of Aoi Hana's C version (it reaches further than the A one). Pressing A during it goes on into the second hit, and A again into the third (the jumping overhead): three hits on Ryo. With one A it stops after the second hit, with none after the first.",
   "do_keys": "1:D,1:-,1:D,2:Da,8:-,2:a,24:-,2:a,80:-",
   "proof": 120
  },
@@ -3510,16 +3510,76 @@
   "proof": 400
  },
  "20261011-210422-5d29": {
-  "title": "Iori's jump attacks: jump + A the jump D, jump + down + A the jump C, jump back + A the jump B",
+  "title": "Iori's jump attacks: jump + A the jump D, jump + down + A the jump C, back + A in any jump his KOF98 back + B air kick (the cross-up)",
   "setup": {
    "mode": "lab",
    "fighter": "iori",
    "dummy": "ryo",
-   "gap": 40
+   "gap": 60
   },
-  "do": "Jump straight up next to Ryo and press A on the way down. Then jump and press down + A. Then jump back (back + B) and press A.",
-  "expect": "Jump + A is Iori's jump D (a kick), jump + down + A his jump C, and jump back + A his jump B (the back jump's own kick, not the jump D). Each hits Ryo when close enough.",
-  "do_keys": "2:b,24:-,2:a,40:-,2:b,12:-,2:Da,40:-,2:Lb,18:-,2:a,40:-",
+  "do": "Jump forward over Ryo (forward + B) and, once past him, hold back and press A. Then jump straight up next to him and press A on the way down, then jump and press down + A.",
+  "expect": "Back + A in the jump plays Iori's KOF98 back + B air kick (Yuri Ori): it hits Ryo behind him, the cross-up. Jump + A is his jump D, jump + down + A his jump C. Back + A works in any jump, not only a back jump.",
+  "do_keys": "2:Rb,26:-,2:La,80:-",
+  "proof": 90
+ },
+ "20261011-224840-5d29": {
+  "title": "Iori's MAX (down + D): the victim drawn behind Iori during the strikes, as in KOF98",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 50,
+   "drive": "full",
+   "fury": "full",
+   "hp": 10
+  },
+  "do": "Iori's life is low and his meters are full. Press down + D next to Ryo.",
+  "expect": "From the grab to the final explosion Ryo is drawn behind Iori: Iori kneels over him in front, never hidden behind his body.",
+  "do_keys": "3:Dd",
+  "proof": 400
+ },
+ "20261011-224757-5d29": {
+  "title": "Iori's forward + C: the last explosion plays KOF98's big boom",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Press forward + C next to Ryo and listen to the last explosion, when he is thrown away.",
+  "expect": "The last explosion sounds like KOF98's own (its big boom), not the grab's hit sound.",
+  "do_keys": "3:Rc",
+  "proof": 150
+ },
+ "20261011-230030-5d29": {
+  "title": "Iori's forward + C: the purple explosion also hits the enemies around him",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "yashiro",
+   "gap": 50,
+   "extra": [
+    90,
+    140,
+    260
+   ]
+  },
+  "do": "Press forward + C next to Yashiro (three more Yashiros stand beyond him, the last one far away).",
+  "expect": "Iori grabs the first Yashiro; the final purple explosion throws him away and also hits the two other Yashiros standing near Iori, burning them purple and knocking them down. The far one is not touched.",
+  "do_keys": "3:Rc",
+  "proof": 150
+ },
+ "20261011-225504-5d29": {
+  "title": "Iori's chain: the fourth hit is his forward + B",
+  "setup": {
+   "mode": "lab",
+   "fighter": "iori",
+   "dummy": "ryo",
+   "gap": 44
+  },
+  "do": "Press A five times next to Ryo, each press during the previous hit.",
+  "expect": "The fourth hit of the chain is Iori's forward + B kick (his command normal), then the fifth press his finisher.",
+  "do_keys": "2:a,10:-,2:a,10:-,2:a,10:-,2:a,10:-,2:a,60:-",
   "proof": 90
  }
 }

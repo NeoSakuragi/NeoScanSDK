@@ -80,8 +80,8 @@ BLITZ = {'bz_ff': 'ff', 'bz_dd': 'dd', 'bz_uu': 'uu', 'bz_du': 'du'}
 SPEC = {'sp_c': 'D', 'sp_fc': 'fD', 'sp_dc': 'dD'}
 FOLLOW_D = ('uD', 'dfD', 'ufD')                            # "C in any other direction = the neutral's" (the rounds)
 AIRSP = {'air_bz_dd': 'ddA', 'air_sp_c': 'C', 'air_sp_fc': 'fC', 'air_sp_dc': 'dC'}
-AIR = {'air_a': ('forward', 'straight'), 'air_da': ('down',), 'air_ba': ('back',)}   # (air_ba: the back jump's A, roster
-                                                           # air.back, 2026-10-11: Iori's jump back + A = his jump B)
+AIR = {'air_a': ('forward', 'straight'), 'air_da': ('down',), 'air_ba': ('back',)}   # (air_ba: back + A in any jump, roster
+                                                           # air.back; note 20261011-210422-5d29's reopen: Iori's j.4B)
 HOLD = {'grab_hit': 'hit', 'grab_fin': 'fin'}
 NOFIELD = {'air_bz_ff': 'the engine has no forward,forward air Blitz (export_bm.AIR_KEY: dd + A only)',
            'air_bz_uu': 'the engine has no up,up air Blitz (export_bm.AIR_KEY: dd + A only)',
@@ -96,7 +96,7 @@ LABEL = {'fin_fwd': 'last hit + forward', 'fin_up': 'last hit + up', 'fin_down':
          'bz_du': 'down,up + A', 'air_bz_ff': 'air forward,forward + A', 'air_bz_dd': 'air down,down + A',
          'air_bz_uu': 'air up,up + A', 'air_bz_du': 'air down,up + A', 'sp_c': 'C', 'sp_fc': 'forward + C', 'sp_dc': 'down + C',
          'air_sp_c': 'air C', 'air_sp_fc': 'air forward + C', 'air_sp_dc': 'air down + C', 'air_a': 'jump + A',
-         'air_da': 'jump + down + A', 'air_ba': 'jump back + A', 'grab_hit': 'hold hit', 'grab_fin': 'hold finisher', 'grab_fwd': 'throw forward',
+         'air_da': 'jump + down + A', 'air_ba': 'jump + back + A', 'grab_hit': 'hold hit', 'grab_fin': 'hold finisher', 'grab_fwd': 'throw forward',
          'grab_back': 'throw back', 'fury_note': 'fury note', 'fury': 'fury (D)', 'max': 'MAX (down + D)',
          'presses': 'chain length', **{'a%d' % i: 'A press %d' % i for i in range(1, 9)}}
 # spare move names for an animation the fighter has no move name for (class a): the brawler's six-button names a KOF /
@@ -819,7 +819,8 @@ def check(game, f, res, lib):
         if x.slot in AIRSP: return [('2:b', None, 12), ({'ddA': '1:D,1:-,1:D,2:Da', 'C': '2:c', 'fC': '2:Rc', 'dC': '2:Dc'}[AIRSP[x.slot]], None, 150)]
         if x.slot == 'air_a': return [('2:b', None, 14), ('2:a', None, 80)]   # (a straight jump: the forward one plays the _diag twin)
         if x.slot == 'air_da': return [('2:b', None, 14), ('2:Da', None, 80)]
-        if x.slot == 'air_ba': return [('2:Lb', None, 14), ('2:a', None, 80)]   # (a back jump: the move's _diag twin)
+        if x.slot == 'air_ba': return [('2:Rb', None, 26), ('2:La', None, 80)]   # (a forward jump over the dummy, back + A
+                                                           # past it: the cross-up, Iori's j.4B, note 20261011-210422-5d29)
         return None
     def attempt(x, v, dist, ph):
         b.load(base)
@@ -850,7 +851,7 @@ def check(game, f, res, lib):
             step()
         shown = {frames[i] for i in lg['frames'] if i < len(frames)}
         wf = want_frames.get(anim0(x))
-        if wf is not None and x.slot == 'air_ba':          # (a back jump plays the move's _diag twin, KOF's own:
+        if wf is not None and x.slot == 'air_ba':          # (a jump's back attack may play the move's _diag twin:
             tw = next((k for k, a_ in lib['anims'].items() if v + '_diag' in a_['names']), None)   # its frames count)
             wf = wf | (want_frames.get(tw) or set())
         return dict(dist=dist, started=any(w.endswith(' ' + v) or w.endswith(' ' + v + '_diag') for w in lg['starts']), starts=lg['starts'][-4:],

@@ -78,7 +78,7 @@
       { id: 'air_sp_c', short: 'C', label: 'C in the air' }, { id: 'air_sp_fc', short: 'f+C', label: 'forward + C in the air' }, { id: 'air_sp_dc', short: 'd+C', label: 'down + C in the air' }] },
     { id: 'air', title: 'Air', slots: [
       { id: 'air_a', short: 'j+A', label: 'jump + A' }, { id: 'air_da', short: 'j+d+A', label: 'jump + down + A' },
-      { id: 'air_ba', short: 'j.b+A', label: 'jump back + A' }] },
+      { id: 'air_ba', short: 'j.4A', label: 'jump + back + A' }] },
     { id: 'grab', title: 'Grab', slots: [
       { id: 'grab_hit', short: 'hold A', label: 'hold hit (A in the hold)' }, { id: 'grab_fin', short: 'hold fin', label: 'hold finisher (the throw-out)' },
       { id: 'grab_fwd', short: 'f+C', label: 'throw forward' }, { id: 'grab_back', short: 'b+C', label: 'throw back' }] },
