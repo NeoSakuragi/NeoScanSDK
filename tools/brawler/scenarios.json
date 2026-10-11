@@ -3147,7 +3147,7 @@
   "proof": 900
  },
  "20261006-173249-5d29": {
-  "title": "Ending music: the victory jingle on CONGRATULATIONS",
+  "title": "The ending: portrait + story, staff roll, thank you",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
@@ -3158,8 +3158,8 @@
    "foe_hp": 1,
    "gap": 50
   },
-  "do": "Stage 5 (the last), its boss alone with 1 life point, Terry in front of him. Press A, then half a second later A again. Press nothing and watch through STAGE CLEAR to the CONGRATULATIONS! screen (ALL FIVE STAGES CLEARED).",
-  "expect": "The ending screen plays KOF95's win-screen jingle, the same victory tune as the stage clear, once (about 5 seconds), cleanly, then silence until the game goes back to the title. The old track (KOF98's VS jingle) is gone.",
+  "do": "Stage 5 (the last), its boss alone with 1 life point, Terry in front of him. Press A, then half a second later A again. Press nothing and watch everything after the KO.",
+  "expect": "After the boss's KO and the win pose: the ENDING screen with the winner's big portrait and his story typed in a box, with KOF95's ending music; then the STAFF ROLL with KOF95's staff-roll music; then THANK YOU FOR PLAYING; then BOSS UNLOCKED if someone was unlocked; then back to the start. START skips each screen after a second.",
   "do_keys": "60:-,3:a",
   "proof": 1500
  },
