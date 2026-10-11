@@ -211,7 +211,7 @@ def chain_cfg(g, r):
     a = r.get('archetype')
     assert a in ('fast', 'balanced', 'heavy'), f"roster {r['name']}: archetype {a} (fast / balanced / heavy)"
     fin = r.get('finishers') or {}
-    for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move'), f"roster {r['name']}: finishers.{k}"
+    for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move', 'df_move'), f"roster {r['name']}: finishers.{k}"
     own = r.get('chain') or {}                     # (revamp 5, the chain tool's save) links: the moves before the finisher,
     for k in own: assert k in ('links', 'hitstop', 'length'), f"roster {r['name']}: chain.{k} (links / hitstop / length)"   # hitstop: per link + the finisher
     air = air_of(r)                                  # its three air attacks (Bruno 2026-10-08): forward jump + A, straight
@@ -334,7 +334,7 @@ def roster_export(g):
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
-             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'keeps_air_attack', 'together', 'nopush', 'max', 'proj_hits', 'run', 'slot_of') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'keeps_air_attack', 'together', 'seq_press', 'nopush', 'max', 'proj_hits', 'run', 'slot_of') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):

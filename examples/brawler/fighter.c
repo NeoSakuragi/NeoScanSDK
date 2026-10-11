@@ -2087,6 +2087,12 @@ static void special_input(fighter_t *f, const intent_t *in) {    /* a press duri
     uint8_t k;
     if (sp->prog) {                                              /* a ROM special: its program reads the press (P_CHECK)
                                                                     on the frames the game's handler calls its check */
+        if (sp->sflags & SF_SEQ) {                               /* a pressed sequence's piece: its press inside its
+                                                                    window arms the next (plink bit 0: kept to the
+                                                                    piece's end; its program has no P_CHECK, "seq_next") */
+            if (row >= sp->links[0].lo && row < sp->links[0].hi && link_in(f, &sp->links[0], in)) f->plink |= 1;
+            return;
+        }
         for (k = 0; k < sp->nlinks && k < 8; k++) if (link_in(f, &sp->links[k], in)) {
             f->spend |= 1 << k;
             if (f->mash && f->freeze <= MASH_LAG) f->spmash |= 1 << k;   /* (inside the mash window) */
@@ -2805,9 +2811,21 @@ static void lab_cend(fighter_t *f);                              /* ("Lab: try i
  * one of its pool (specials[spec_ix + 1], export_bm.sequence: a sequence's pieces are consecutive pool entries, only
  * the last unflagged), same role, at its end, or in the air as soon as its program waits for its landing (its recovery
  * fall: the next piece starts there, still airborne). The next piece's first frame plays now. -> 1 when it started one */
+/* A PRESSED sequence (game.json roster[].seq_press, Bruno 2026-10-11, note 20261011-175657-5d29: Kyo's ff + A = his
+ * 236A three times, "the first on the Blitz, then each next one by pressing the button again"): its pieces but the last
+ * carry one follow-up link, the slot's button (export_bm.sequences seq_press; special_input: a press inside the link's
+ * window arms it, f->plink bit 0, cleared as each piece starts). Armed, the next piece starts at the first step of its
+ * source's follow-up point the piece enters (KOF's $0080 event step, PF_EVENT: where KOF's handler switches to its
+ * follow-up, Aragami -> Konokizu -> Yanosabi), else at its end; not armed, the move ends with this piece. A sequence
+ * without seq_press (no link): back to back, as before. */
+static uint8_t seq_wait(const fighter_t *f) {                  /* 1: a pressed sequence's piece, not armed */
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+    return (sp->sflags & SF_SEQ) && sp->nlinks && !(f->plink & 1);
+}
 static uint8_t seq_next(fighter_t *f) {
     uint8_t k = f->spec_id, nx = f->spec_ix + 1;
     if (!(f->ch->specials[f->spec_ix].sflags & SF_SEQ) || f->state != S_SPECIAL || nx >= f->ch->nspec) return 0;
+    if (seq_wait(f)) return 0;                                   /* (pressed: no press, the move ends here) */
     carry_drop(f); special_end(f); f->pflags = 0;
     lab_ix = nx; start_special(f, k);                            /* (lab_ix: the pool index, whatever its role) */
     if (f->state == S_SPECIAL) { f->pheld = 0; special_update(f); }
@@ -3683,6 +3701,9 @@ static void update(fighter_t *f, const intent_t *in) {
             if (!blitz_go(f, s, LH_CANCEL)) to_neutral(f, 0);
             break;
         }
+        if ((f->ch->specials[f->spec_ix].sflags & SF_SEQ) && f->ch->specials[f->spec_ix].nlinks && !seq_wait(f) &&
+            (f->pflags & PF_EVENT) && seq_next(f)) break;        /* a pressed sequence, armed: its next piece from the
+                                                                    piece's follow-up step (seq_wait, "seq_next") */
         if ((f->ch->specials[f->spec_ix].sflags & SF_SEQ) && f->y > 0 && land_wait(f) && seq_next(f)) break;   /* a sequence in the air: its next piece from the
                                                                     recovery fall (SF_SEQ, "seq_next") */
         if (in && (in->press & IN_A) && f->y > 0 && air_free(f)) {   /* SF_AIRATK (game.json roster[].keeps_air_attack,

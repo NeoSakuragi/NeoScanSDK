@@ -2,7 +2,7 @@
  "fighter": "kyo",
  "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
  "next": {
-  "S": 9,
+  "S": 14,
   "T": 3
  },
  "pieces": {
@@ -85,6 +85,46 @@
    "move": "throw_d",
    "source": "export throws",
    "assigned": "2026-10-10"
+  },
+  "S-009": {
+   "kind": "special",
+   "input": "236A>156",
+   "name": "236A>156",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-010": {
+   "kind": "special",
+   "input": "236A>158",
+   "name": "236A>158",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-011": {
+   "kind": "special",
+   "input": "236A>162",
+   "name": "236A>162",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-012": {
+   "kind": "special",
+   "input": "236D",
+   "name": "236D",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-013": {
+   "kind": "special",
+   "input": "623A",
+   "name": "623A",
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS",
+   "assigned": "2026-10-11"
   }
  }
 }

@@ -323,6 +323,26 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   shurikens on the same frame, 9 frames after the move starts, from the same point; paths A steepest (floor +32 px) / B
   (+36) / A+B flattest (+46), as 0.10.57's; vs Ryo at 50 px: 3 hits of 24 on one frame; A in the recoil -> atk_cd_jump,
   LAND -> IDLE; without A it lands (65 frames). regress bleed True / True, facing traces = 0.10.57's for every fighter.
+- **A pressed sequence (a rekka): each next piece on the slot's button again** — `game.json roster[].seq_press` lists
+  the sequences (`"blitz.ff"`, `"air_specials.ddA"`) whose next piece waits for the press (Bruno 2026-10-11, note
+  20261011-175657-5d29: "the forward,forward A Blitz will be the classic move, quarter circle forward + A in the game,
+  and after that pressing A again does the follow-ups"). Export (export_bm `sequences`): every piece but the last
+  carries ONE follow-up link, the slot's button (a Blitz / an `A` entry: IN_A; a `C` entry: IN_C), any stick, its whole
+  play as the window (`bslink_t` {0, 0, LK_IN, button, LK_ANY, 0, 0, 0xFFFF}, nparts 0); a piece with follow-ups of
+  its own is refused. Engine (fighter.c `special_input`, `seq_wait`, `seq_next`): the press inside the window arms it
+  (plink bit 0, kept to the piece's end; cleared as each piece starts, so every piece needs its own press; a press in the hit-stop counts);
+  armed, the next piece starts at the first step of the piece's follow-up point it enters (KOF's $0080 event step,
+  PF_EVENT: where KOF98's handler switches from Aragami to Konokizu, from Konokizu to Yanosabi), else at its end; not
+  armed, the move ends with this piece (the rest not played). A sequence without `seq_press` (no link) plays back to
+  back as before: tables byte-identical (Hanzo's air shurikens unchanged). The pieces: a PART of a ROM special alone
+  (handlers98 `'<input>>N'`: the part of its handler that starts state N, `part_entry`: the handler or one of its
+  branch targets, decoded with its follow-up checks reading no command (`nofollow`) and its hit kind the handler set
+  before it). Set: Kyo `blitz.ff` [236A>156 (114 Shiki Aragami), 236A>158 (128 Shiki Konokizu), 236A>162 (127 Shiki
+  Yanosabi)] (S-009 / S-010 / S-011; Assembly answer `bz_ff` with flags {"press": true}).
+- **The down-forward finisher** — `finishers.df_move` (2026-10-11, Kyo's note 20261011-175124-5d29: "the diagonal
+  finisher is diagonal + D, the double sweep"): the last link + down-forward + A plays that move as a trip (routes.py
+  chain_tree `dfA`, RI_DFA; the Lab's lab.js the same); absent: none (down-forward + A plays the forward finisher, as
+  before). The Assembly's `fin_df` compiles to it.
 
 ## The arbitration sheet compiler, piece ids and the Workshop
 
@@ -386,3 +406,37 @@ Compiled from the sheet without an agent: 1 slot(s) linked, 0 unresolved; slots 
 ### HAOHMARU: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `haohmaru-arb`, build 0.10.54)
 Compiled from the sheet without an agent: 1 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
 - fin_up (last hit + up): $118 -> finishers.up = "atk_cd_crouch" — linked, class a: spare name: moves "atk_cd_crouch": "$118"
+
+### KYO: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.57)
+Compiled from the sheet without an agent: 14 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- a1 (A press 1): $50 -> finishers.neutral = "atk_a_close" — linked, class a: its own move
+- a2 (A press 2): $5A -> finishers.neutral = "atk_c_close" — linked, class a: its own move
+- a3 (A press 3): $EC -> finishers.neutral = "cmd_fwd_b" — linked, class a: its own move
+- a4 (A press 4): $60 -> finishers.neutral = "atk_d_far" — linked, class a: its own move
+- fin_up (last hit + up): $5F -> finishers.up = "atk_d_close" — linked, class a: its own move
+- fin_down (last hit + down): $63 -> finishers.down_move = "atk_d_crouch" — linked, class a: its own move
+- fin_df (last hit + down-forward): $EB -> finishers.df_move = "cmd_df_d" — linked, class a: its own move
+- bz_ff (forward,forward + A): S-009 then S-010 then S-011 -> blitz.ff = ["236A>156", "236A>158", "236A>162"] — linked, class b: a sequence, each next piece on the button again: S-009 236A>156 then S-010 236A>158 then S-011 236A>162
+- bz_dd (down,down + A): S-013 -> blitz.dd = "623A" — linked, class b: S-013 623A (registry)
+- bz_uu (up,up + A): S-004 -> blitz.uu = "421B" — linked, class b: S-004 421B (registry)
+- sp_c (C): S-005 -> specials.D = "623C" — linked, class b: S-005 623C (registry)
+- sp_dc (down + C): S-012 -> specials.dD = "236D" — linked, class b: S-012 236D (registry)
+- air_a (jump + A): $61 -> air.forward + air.straight = "atk_d_jump" — linked, class a: its own move
+- air_da (jump + down + A): $EE -> air.down (+ moves atk_ab_jump_diag = $EE) = "atk_ab_jump" — linked, class a: spare name: moves "atk_ab_jump": "$EE" (an air attack)
+
+### KYO: sheet round 2026-10-11 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.57)
+Compiled from the sheet without an agent: 14 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- a1 (A press 1): $50 -> chain.links[0] = "atk_a_close" — linked, class a: its own move
+- a2 (A press 2): $5A -> chain.links[1] = "atk_c_close" — linked, class a: its own move
+- a3 (A press 3): $EC -> chain.links[2] = "cmd_fwd_b" — linked, class a: its own move
+- a4 (A press 4): $60 -> finishers.neutral = "atk_d_far" — linked, class a: its own move
+- fin_up (last hit + up): $5F -> finishers.up = "atk_d_close" — linked, class a: its own move
+- fin_down (last hit + down): $63 -> finishers.down_move = "atk_d_crouch" — linked, class a: its own move
+- fin_df (last hit + down-forward): $EB -> finishers.df_move = "cmd_df_d" — linked, class a: its own move
+- bz_ff (forward,forward + A): S-009 then S-010 then S-011 -> blitz.ff = ["236A>156", "236A>158", "236A>162"] — linked, class b: a sequence, each next piece on the button again: S-009 236A>156 then S-010 236A>158 then S-011 236A>162
+- bz_dd (down,down + A): S-013 -> blitz.dd = "623A" — linked, class b: S-013 623A (registry)
+- bz_uu (up,up + A): S-004 -> blitz.uu = "421B" — linked, class b: S-004 421B (registry)
+- sp_c (C): S-005 -> specials.D = "623C" — linked, class b: S-005 623C (registry)
+- sp_dc (down + C): S-012 -> specials.dD = "236D" — linked, class b: S-012 236D (registry)
+- air_a (jump + A): $61 -> air.forward + air.straight = "atk_d_jump" — linked, class a: its own move
+- air_da (jump + down + A): $EE -> air.down (+ moves atk_ab_jump_diag = $EE) = "atk_ab_jump" — linked, class a: spare name: moves "atk_ab_jump": "$EE" (an air attack)

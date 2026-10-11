@@ -86,6 +86,32 @@
    "air": false,
    "source": "dictionary capture"
   },
+  "236A>156": {
+   "decoded": true,
+   "anims": [
+    "9C",
+    "9D"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "236A>158": {
+   "decoded": true,
+   "anims": [
+    "9E",
+    "9F"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "236A>162": {
+   "decoded": true,
+   "anims": [
+    "A2"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
   "236B": {
    "decoded": false,
    "anims": [
@@ -111,15 +137,17 @@
    "source": "handlers98.ROM_SPECIALS"
   },
   "236D": {
-   "decoded": false,
+   "decoded": true,
    "anims": [
     "8E",
     "8F",
     "91",
+    "94",
+    "95",
     "92"
    ],
    "air": false,
-   "source": "dictionary capture"
+   "source": "handlers98.ROM_SPECIALS"
   },
   "421B": {
    "decoded": true,
@@ -142,14 +170,14 @@
    "source": "dictionary capture"
   },
   "623A": {
-   "decoded": false,
+   "decoded": true,
    "anims": [
     "80",
     "82",
     "84"
    ],
    "air": false,
-   "source": "dictionary capture"
+   "source": "handlers98.ROM_SPECIALS"
   },
   "623C": {
    "decoded": true,
@@ -1189,8 +1217,8 @@
    "state": 146,
    "names": [],
    "specials": [
-    "236B",
-    "236D"
+    "236D",
+    "236B"
    ]
   },
   "93": {
@@ -1203,13 +1231,17 @@
    "kind": "attack",
    "state": 148,
    "names": [],
-   "specials": []
+   "specials": [
+    "236D"
+   ]
   },
   "95": {
    "kind": "pose",
    "state": 149,
    "names": [],
-   "specials": []
+   "specials": [
+    "236D"
+   ]
   },
   "96": {
    "kind": "pose",
@@ -1264,6 +1296,7 @@
    "state": 156,
    "names": [],
    "specials": [
+    "236A>156",
     "236A"
    ]
   },
@@ -1272,6 +1305,7 @@
    "state": 157,
    "names": [],
    "specials": [
+    "236A>156",
     "236A"
    ]
   },
@@ -1279,13 +1313,17 @@
    "kind": "attack",
    "state": 158,
    "names": [],
-   "specials": []
+   "specials": [
+    "236A>158"
+   ]
   },
   "9F": {
    "kind": "movement",
    "state": 159,
    "names": [],
-   "specials": []
+   "specials": [
+    "236A>158"
+   ]
   },
   "A0": {
    "kind": "attack",
@@ -1303,7 +1341,9 @@
    "kind": "attack",
    "state": 162,
    "names": [],
-   "specials": []
+   "specials": [
+    "236A>162"
+   ]
   },
   "A3": {
    "kind": "movement",
@@ -3665,6 +3705,187 @@
     ],
     "judgment": false,
     "from": "P_SET vx 14.6875 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-009": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-010": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-011": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-012": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 2.75,
+    "min": 1,
+    "max": 8.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 180224,
+      "base": 180224
+     }
+    ],
+    "judgment": true,
+    "from": "P_SET vx 2.75 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 3.5,
+    "min": 1,
+    "max": 10.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 229376,
+      "base": 229376
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 3.5 (its take-off speed, KOF +$58; the height grows with its square)"
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-013": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 5,
+    "min": 1,
+    "max": 15,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 327680,
+      "base": 327680
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vx 5.0 (its forward speed, KOF +$50)"
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 6,
+    "min": 1,
+    "max": 18,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 393216,
+      "base": 393216
+     }
+    ],
+    "judgment": false,
+    "from": "P_SET vy 6.0 (its take-off speed, KOF +$58; the height grows with its square)"
    },
    {
     "id": "damage",

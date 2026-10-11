@@ -534,6 +534,14 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
                 # (the Lab's data; the game plays the program)
                 rom = handlers98.export_rom(m, cid, 'MAX ' + sp['input'], add, shared=shared_fx is None or sp['input'] in shared_fx.get(name, ()))
                 if 'error' not in rom: sps.append(dict(e, input='MAX ' + sp['input'], rom=rom, flash=rom['flash'], max_of=sp['input']))
+            for part in sorted(p_ for p_ in handlers98.ROM_SPECIALS.get(name, ()) if p_.split('>')[0] == sp['input'] and '>' in p_):
+                # a PART of its handler alone ('<input>>N', handlers98.part_entry: a SEQUENCE piece, Kyo's 236A>156 /
+                # >158 / >162, notes 20261011-175657-5d29): its program; its script = the special's capture (the Lab's
+                # data; the game plays the program)
+                if handlers98.ROM_GAME.get(name, 'kof98') != game or rom_more is not None and \
+                        part in handlers98.ROM_DEMAND.get(name, ()) and part not in rom_more.get(name, ()): continue
+                rom = handlers98.export_rom(m, cid, part, add, shared=shared_fx is None or part in shared_fx.get(name, ()))
+                if 'error' not in rom: sps.append(dict(e, input=part, rom=rom, flash=rom.get('flash') or e['flash'], part_of=sp['input']))
         sps += [anim_special(m, cid, int(inp.lstrip('$'), 16), inp, how, add)
                 for inp, how in ((anim_specials or {}).get(name) or {}).items()]
         if lab and name in lab:                         # the Lab build's LAB special (lab_special), last of its specials
