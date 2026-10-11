@@ -3084,5 +3084,49 @@
   "expect": "After STAGE CLEAR Haohmaru plays one of his four SS2 win poses: the sword on his shoulder, the sword thrown up and caught, the sword sheathed slowly, or the big slash before sheathing it; another clear can pick another one. Genjuro has three (back turned with the sake dish, the umbrella, the pipe), Hanzo SS2 three, KOF98 fighters four, K' three; a fighter with one pose plays that one.",
   "do_keys": "2:a,10:-,2:a,10:-,2:a,600:-",
   "proof": 120
+ },
+ "20261006-173303-5d29": {
+  "title": "Player app check: no \"card still inserted\" message after an arcade game over",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "hp": 1,
+   "lives": 0
+  },
+  "do": "An app check (NeoScan Player 0.0.16 or later, arcade system). Terry has 1 life point and no lives left. Let an enemy hit you, let the continue count down to 0 and watch the game return to the title.",
+  "expect": "GAME OVER, then the game goes back to the title / demo; the arcade BIOS never shows \"YOUR CARD IS STILL INSERTED\" (the Player inserts no memory card on arcade since 0.0.16).",
+  "do_keys": "",
+  "proof": 1500
+ },
+ "20261006-174334-5d29": {
+  "title": "Player app check: no \"card still inserted\" message after an arcade game over",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 0,
+   "hp": 1,
+   "lives": 0
+  },
+  "do": "An app check (NeoScan Player 0.0.16 or later, arcade system). Terry has 1 life point and no lives left. Let an enemy hit you, let the continue count down to 0 and watch the game return to the title.",
+  "expect": "GAME OVER, then the game goes back to the title / demo; the arcade BIOS never shows \"YOUR CARD IS STILL INSERTED\" (the Player inserts no memory card on arcade since 0.0.16).",
+  "do_keys": "",
+  "proof": 1500
+ },
+ "20261006-161004-b3f3": {
+  "title": "Stage 2: the scenery goes up to the top of the screen",
+  "setup": {
+   "mode": "stage",
+   "fighter": "billy",
+   "stage": 1,
+   "wave": 0,
+   "cam": 0
+  },
+  "do": "Start stage 2 and walk right through the stage, looking at the top of the screen behind the life bars and the portrait.",
+  "expect": "The scenery reaches the very top of the screen: no black band above it. Only the HUD itself (portrait, names, bars) covers it. The same on every stage.",
+  "do_keys": "240:R",
+  "proof": 60
  }
 }
