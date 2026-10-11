@@ -527,7 +527,9 @@ class Song:
             ch.pos = ev['next']
             r = self.execute(ch, ev)
             if r == 'abort': return False
-            if ch.status == 0 and op == 0x06: return True
+            # (no stop at $06 here: $1C5E pushes $1C4F when the event has no delta, so the driver reads on past an
+            # undelayed $06 and sets the status back to 5; every SNK song writes +n $06, the brawler's port did not:
+            # note 20261011-112252-5d29)
             if not chain: return True
         raise RuntimeError('runaway chain')
 

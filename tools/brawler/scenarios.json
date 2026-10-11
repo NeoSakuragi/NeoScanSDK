@@ -2930,5 +2930,22 @@
   "expect": "Forward,forward + A plays his standing far A+B slash and knocks Ryo down; down,down + A the sake bottle (214 + A, S-001); up,up + A SS2's 623 + C dragon (Ougi Resshinzan, C version, S-010), two hits. All free (no drive).",
   "do_keys": "1:R,1:-,1:R,1:Ra,90:-",
   "proof": 60
+ },
+ "20261011-112252-5d29": {
+  "title": "Stage clear: the win music plays once, nothing garbled after it",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss (Mr. Big) alone with 1 life point, Terry in front of him. Press A, then half a second later A again: that hit takes his last life. Then press nothing and listen through STAGE CLEAR, Terry's win pose and his big win portrait until the next stage.",
+  "expect": "The win music (KOF95's win jingle, about 5 seconds) starts a second after the boss's second bounce and plays once to its end; then silence under the win screen until the next stage's music. No garbled notes and no second start of the jingle.",
+  "do_keys": "3:a,30:-,3:a",
+  "proof": 1000
  }
 }

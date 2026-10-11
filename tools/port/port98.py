@@ -29,7 +29,8 @@ state (docs/kof98_sound_driver.md):
   the brawler within 0.15 % for Mr. Big / Geese / FF3, 0.6 % high for Goenitz) and the source's real rate is its tick
   rate less its own driver's drops (SNK-line sources, same model; MAKOTO drivers drop none);
 - loop: each channel's intro, then its loop body behind a label, ending in $0B goto label; a channel the source
-  never loops (a jingle that stops) plays to the song's end and ends in $06 (end of channel)."""
+  never loops (a jingle that stops) plays to the song's end and ends in +1 $06 (end of channel; never without a
+  delta: the driver would chain into the bytes after it)."""
 import json, math, os, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'kof98snd'))
@@ -298,7 +299,10 @@ class Port:
                 if mode == 0 and st.get('inst') != inst: out += ev(None, 0x03, inst); st['inst'] = inst
                 if st.get('pan') != n.pan: out += ev(None, PAN_OP[n.pan]); st['pan'] = n.pan
                 out += ev(delta, 0x00, *vl(gate), b, n.vol); st['vel'] = n.vol; st['b'] = b
-        if name in self.noloop: return bytes(out + ev(None, 0x06))     # a channel that stops: end of channel
+        if name in self.noloop: return bytes(out + ev(1, 0x06))        # a channel that stops: end of channel, with a
+            # delta as KOF98's own songs write it (+1): an event read without one chains on ($1C5E pushes $1C4F), and
+            # $06 only zeroes the status, so the driver went on reading the next channel's bytes as this channel's
+            # (status 5 again): the win jingle's garbage, then its restart (note 20261011-112252-5d29)
         assert label_at is not None
         out += ev(None, 0x0B, *w16(label_at))
         return bytes(out)
