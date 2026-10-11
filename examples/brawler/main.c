@@ -2433,7 +2433,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
     bd_set(stg->backdrop);
     lock_x = lock_at(gs->waves[0].lock);
     power = gs->power;
-    if (first) ai_rank_reset();                              /* a new game: the hidden rank from rank_start (revamp 1B) */
+    if (first) { ai_rank_reset(); fighter_game_reset(); }    /* a new game: the hidden rank from rank_start (revamp 1B), fighter.c's statics */
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     for (i = 0; i < 2; i++) {
         if (!pl_on[i]) { fighters[i].state = S_OFF; if (first) { lives[i] = 0; cont_t[i] = 0; } continue; }   /* out: its
