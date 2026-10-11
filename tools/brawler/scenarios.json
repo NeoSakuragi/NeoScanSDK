@@ -3203,5 +3203,18 @@
   "expect": "No dark silhouette near the middle: Terry under the NEO GEO LAND logo, Robert left and Kim right, playable fighters all around them. The locked bosses stand at the street's far ends: Rugal and Goenitz the last two on the right, Mr. Big, Krauser and Geese the first three on the left. Walking right: Kim, Cheng-Fu, Hanzo (SS2), Yashiro, Hanzo, Ryo, then past the bosses straight to Kyo, Iori, Mai and on to Robert, Terry.",
   "do_keys": "4:R,30:-,4:R,30:-,4:R,30:-,4:R,30:-,4:R,40:-,4:R,40:-,4:R,40:-",
   "proof": 60
+ },
+ "20261011-155038-5d29": {
+  "title": "Stage 3 plays Kizuna Encounter's Ura Suiro (Rear Waterway) music",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 2,
+   "wave": 0
+  },
+  "do": "Stage 3 from its start. Listen to the music while the first wave walks in.",
+  "expect": "Kizuna Encounter's harbour-market stage music (裏水路 Ura Suiro, \"Rear Waterway\" on its soundtrack; the brawler's THEME KIM) plays instead of Fatal Fury 3's stage music; stage 2 keeps the highway music.",
+  "do_keys": "",
+  "proof": 900
  }
 }
