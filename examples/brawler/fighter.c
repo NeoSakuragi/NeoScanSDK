@@ -555,22 +555,20 @@ static void jump_start(fighter_t *f, const intent_t *in, uint8_t air_node) {
  * table it lands (gjump.land_dx more on that frame): S_LAND, gjump.land frames, any input ends it from gjump.land_cancel
  * on (Final Fight's landing cancels at once). One height (no hop), no per-fighter KOF physics. A fall that is not this
  * jump (after a special in the air, the respawn's drop) keeps the gravity (fighter_t.jt 0). Returns 1 on the landing.
- * jrun 2: a dash that took to the air (dash_air): the rest of the dash's own course (grun_dash), no land_dx; past it an
- * air attack not over yet plays on, on the floor, to its end (then the landing). */
+ * jrun 2: a dash that took to the air (dash_air): the rest of the dash's own course (grun_dash), no land_dx; at its end
+ * the fighter stands at once (note 20261011-114113-5d29's reopen: an air move still playing is cut, no air pose on
+ * the ground, no landing recovery). */
 static uint8_t jump_frame(fighter_t *f) {
     uint8_t i = f->jt - 1;
     int8_t d = f->jump_dir == 1 ? f->facing : f->jump_dir == 2 ? -f->facing : 0;
     if (f->jrun == 2) {
         const uint8_t *t = fighter_dash(f);
-        if (!t || i >= t[1]) {                                   /* its course run: an air attack still playing (a slow
-                                                                    one, Cheng-Fu's j.D) finishes on the floor where it
-                                                                    is, then the landing; the down attack lands now */
-            if (t && f->state == S_AIR_ATTACK && !f->anim_done && f->node != TREE(f)->air_b) { f->y = 0; return 0; }
-            return 1;
-        }
+        if (!t || i >= t[1]) return 1;                           /* its course run: the fighter stands (the caller: an
+                                                                    air move still playing is cut there, no landing) */
         f->x += dir_mul(f->facing, FIX(t[2 + i] - (i ? t[1 + i] : 0))); f->y = FIX(t[2 + t[1] + i]); clamp(f);
         f->jt++;
-        return 0;
+        return f->y <= 0 && 2 * i >= t[1];                       /* (the course back on the floor: standing on this frame,
+                                                                    never an air pose at height 0) */
     }
     if (i >= gjump.n) {                                          /* the table played: the landing frame */
         f->x += dir_mul(d, f->jrun ? mul88((int32_t)gjump.land_dx << 8, gjump.run_dx) : (int32_t)gjump.land_dx << 8); f->z += f->vz; clamp(f);
@@ -585,8 +583,8 @@ static uint8_t jump_frame(fighter_t *f) {
  * fighters): in the dash's airborne frames the buttons are a jump's. A, or C when the stick's slot has an air special
  * (air_pick), turns the dash into a forward jump from that frame on: S_AIR on the rest of the dash's course (jump_frame,
  * jrun 2), the press then played by the jump's own rules this same frame (A: the forward jump's attack air_cd, down+A
- * the down attack air_b; C: the air special); it lands as a jump does (S_LAND: the air attack's landing recovery, an
- * air_b held active to it). Any other press in those frames does what it does in a jump: nothing (B no second jump, D
+ * the down attack air_b; C: the air special); at the course's end it stands at once (jump_frame jrun 2: the air
+ * move cut, no landing recovery). Any other press in those frames does what it does in a jump: nothing (B no second jump, D
  * no fury, C without an air special nothing). Until a move plays the dash stays a ground move (y 0: its hurt box on
  * the ground; its height drawn only, main.c run_bob). -> 1 it took off (play the air state now), 2 a press swallowed,
  * 0 not in its air / not this fighter (the ground rules) */
@@ -874,6 +872,25 @@ static void form_set(fighter_t *f, const bchar_t *to) {   /* the fighter's chara
     fighter_load_pals(f); f->ovl = 0; f->shown_frame = 0xFFFF; f->frame_ovr = 0xFFFF;
     f->node = 0; f->buffered = 0; f->spec_buf = f->fury_buf = 0; f->chain_t = 0; f->air_node = 0; f->landed = 0;
     walk_rate(f);                                                /* (its walk: the new form's archetype) */
+}
+/* the stage end (note 20261011-115334-5d29, game.json roster[].stage_end_form -> bm_stage_end): a form whose stage-clear
+ * win animation turns it back into another roster entry (Double Dragon's Super Billy: his win animation IS the
+ * turn-back into Billy Lee) is that fighter once the pose has played: its character data swapped as the form link does
+ * (form_set: the HUD's face and name follow fighter_t.ch), standing in its own idle; the form link closed when the
+ * target is its base form. At the next stage every player starts in his base form (exit rule FX_NEVER keeps the
+ * form), life and meter fighter_init's. One path, any fighter: no name in the code. */
+uint8_t fighter_stage_end(fighter_t *f) {
+    uint8_t to = bm_stage_end[f->ch->id];
+    if (to == 0xFF || &bm_chars[to] == f->ch) return 0;
+    if (f->form_from == to + 1) f->form_from = 0;               /* back to its base form: the link closed */
+    form_set(f, &bm_chars[to]);
+    f->vx = f->vy = f->vz = 0; f->y = 0;
+    enter(f, S_IDLE); play(f, BA_IDLE);
+    return 1;
+}
+uint8_t fighter_next_stage_ch(const fighter_t *f) {
+    if (f->form_from && bm_chars[f->form_from - 1].form_exit != FX_NEVER) return f->form_from - 1;
+    return f->ch->id;
 }
 static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push);
 void fighter_revive(fighter_t *f) {
@@ -3410,7 +3427,12 @@ static void update(fighter_t *f, const intent_t *in) {
             if (nx) start_node(f, nx, LH_CANCEL);
         }
         if (f->jt) {                                             /* the one jump: its table ("jumps") */
-            if (jump_frame(f)) { f->y = 0; f->vx = f->vy = f->vz = 0; f->air_node = 0; enter(f, S_LAND); play(f, BA_LAND); }
+            if (jump_frame(f)) {
+                f->y = 0; f->vx = f->vy = f->vz = 0; f->air_node = 0;
+                if (f->jrun == 2) to_neutral(f, 0);              /* the dash's course run: standing at once, an air
+                                                                    move still playing cut (note 20261011-114113-5d29) */
+                else { enter(f, S_LAND); play(f, BA_LAND); }
+            }
             break;
         }
         f->y += f->vy; f->vy -= f->jump_kind ? ph->hop_gravity : ph->gravity; f->x += f->vx; f->z += f->vz; clamp(f);   /* (a

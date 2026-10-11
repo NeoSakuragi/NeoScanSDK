@@ -114,9 +114,10 @@ specials (Bruno: overkill for now).
   (`air_specials`); B, D, and C without an air special do nothing (no second jump, no fury in the air). The press turns
   the dash into a forward jump on the rest of the dash's own course: y = the course's height (in the air everywhere the
   engine asks: air reaction if hit, not grabbable), the dash's travel kept (fighter.c dash_air, jump_frame jrun 2).
-- Landing: at the course's end the jump lands as any jump (S_LAND, the jump's landing recovery). An air attack still
-  playing there (a slow one: Cheng-Fu's j.D starts 19 frames in, his dash's air lasts 21) finishes on the floor where
-  he stands, then the landing; the down attack (air_b, active to the landing) lands at once.
+- Landing (note 20261011-114113-5d29's reopen, Bruno: "make sure that the character resets to stand at the end of the
+  dash motion, even if an air animation is being played"): at the course's end the fighter stands at once (neutral,
+  no landing recovery). An air move still playing there is cut on that frame (Cheng-Fu's j.D, which starts 19 frames
+  in while his dash's air lasts 21, never plays on the floor): no air pose on the ground.
 - Without a press the dash's hurt box and height stay ground-level from start to end; A in its crouch or its landing
   is the ground's run + A (the ff Blitz / the dash attack). Kim keeps the ground rules all through (no air_buttons).
 

@@ -2949,16 +2949,34 @@
   "proof": 1000
  },
  "20261011-114113-5d29": {
-  "title": "Double Dragon fighters: forward, forward = a dash, buttons in it = air moves",
+  "title": "Double Dragon dash: standing again the moment the dash ends, even mid air attack",
   "setup": {
    "mode": "lab",
    "fighter": "billy_lee",
    "dummy": "terry",
-   "gap": 110
+   "gap": 200
   },
-  "do": "Double-tap forward and press A while Billy is in the air of his dash. Then try down + A in the dash, a dash with no button, and the same with Super Billy and Cheng Fu.",
-  "expect": "Billy hops forward in his Double Dragon dash (a crouch, a low hop of about a quarter of the screen, a landing) instead of running. A in the hop plays his jumping kick and knocks the dummy down; down + A his jumping down attack; he finishes the dash's course in the air and lands as from a jump. Without a button the dash stays low on the ground for hits and ends on its own. B, C or D in the hop do nothing. Kim's dash and the other fighters' runs are as before.",
-  "do_keys": "2:R,2:-,1:R,8:-,3:a",
+  "do": "Double-tap forward and press A late in Billy's dash hop, just before he comes down. Then down + A late in the hop, A early in the hop, and the same with Super Billy and Cheng Fu.",
+  "expect": "Billy hops forward in his Double Dragon dash. A in the hop starts his jumping kick (down + A his jumping down attack); the moment the hop comes back to the floor he stands in his normal stance: the kick is cut there, he never shows a jumping pose on the ground and does not float. Pressed early, the kick hits in the air as before. Without a button the dash ends on its own. B, C or D in the hop do nothing.",
+  "do_keys": "2:R,2:-,1:R,18:-,2:a",
   "proof": 60
+ },
+ "20261011-115334-5d29": {
+  "title": "Super Billy's stage clear: he turns back into Billy, the next stage starts with Billy",
+  "setup": {
+   "mode": "stage",
+   "fighter": "billy_lee",
+   "stage": 0,
+   "wave": 5,
+   "wait": 215,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 200,
+   "meter": "full"
+  },
+  "do": "Stage 1, the boss alone with 1 life point. Press down + D to turn into Super Billy, then walk to the boss and hit him once. Watch the stage clear and start the next stage.",
+  "expect": "STAGE CLEAR, then Super Billy plays his win animation, which turns him back into Billy Lee; the HUD's name and face change to BILLY LEE as he stands. Stage 2 starts with Billy Lee (name, face, moves), not Super Billy.",
+  "do_keys": "3:D,4:Dd,140:-,40:R,2:a",
+  "proof": 1200
  }
 }

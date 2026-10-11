@@ -428,6 +428,7 @@
    "run": {"about": "DD's forward dash (note 20261011-114113-5d29: a dash instead of the run, like Kizuna's; the dash counts as in the air for the buttons): forward,forward = his animation 2 (crouch 4 f, then 20 airborne frames, 110 px, 21 px high: model_dd / our emulator), landing 11; x 0.8 (his scale); air_buttons: A / C in its airborne frames = his jump's air moves (fighter.c dash_air)", "mode": "dash", "dash": {"start": 4, "frames": 20, "dx": 88, "height": 17}, "air_buttons": true},
    "variant": {"623": "A"},
    "selectable": false,
+   "stage_end_form": "billy_lee",
    "unlock": "always",
    "voices": {"kof": false, "set": {"special:236": 14, "special:623": 16, "special:41236": 12, "special:214": 17, "hit": 4, "win": 2}}
   }

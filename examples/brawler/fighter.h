@@ -188,8 +188,9 @@ extern const rt_head_t *route_tab[BC_COUNT];
 #define DOWN_REACH 160               /* px (x) to a lying opponent the down attack leaps at (any lane of the band); Double
                                      Dragon has no limit (one opponent, its leap = 64 frames whatever the distance) */
 enum { FT_NONE, FT_DOWN_D_FULL };    /* bchar_t.form_trig: down+D on the ground with a full meter */
-enum { FX_NONE, FX_LIFE, FX_STAGE }; /* bchar_t.form_exit: back to the base form when a life is lost (and at a stage's
-                                     start, as every player), or only at a stage's start */
+enum { FX_NONE, FX_LIFE, FX_STAGE, FX_NEVER };   /* bchar_t.form_exit: back to the base form when a life is lost
+                                     (and at a stage's start, as every player), or only at a stage's start, or never
+                                     (export_bm FORM_EXIT 'never': the next stage starts in the form too) */
 extern const uint8_t *spec_tab[BC_COUNT];
 uint8_t spec_ix(const bchar_t *ch, uint8_t role);   /* role -> index in ch->specials, 0xFF = none */
 void specs_init(void);
@@ -640,6 +641,9 @@ void fighter_play(fighter_t *f, uint8_t anim);              /* outside the state
 void fighter_animate(fighter_t *f);
 void fighter_pose(fighter_t *f, uint8_t anim);             /* fighter_play / fighter_animate with the animation's voices */
 void fighter_pose_tick(fighter_t *f);                       /* (main.c: the stage clear's win pose, TODO #184) */
+uint8_t fighter_stage_end(fighter_t *f);                    /* (main.c win_tick, the win pose's end) its stage-end form
+                                                               (bm_stage_end) taken: 1 when it changed form */
+uint8_t fighter_next_stage_ch(const fighter_t *f);          /* the bm_chars index it starts the next stage as */
 void fighter_revive(fighter_t *f);
 void fighter_respawn(fighter_t *f);  /* a life used: full life, dropping from above the screen where it is (TODO #166 e) */
 void fighter_quake(const fighter_t *by, fighter_t *v);   /* the respawn's landing: v knocked down, away from by, no damage */
