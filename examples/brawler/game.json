@@ -254,10 +254,12 @@
    "routes": "default",
    "archetype": "heavy",
    "chain": {"length": 3},
-   "finishers": {"launcher": "up", "down": "slam"},
+   "finishers": {"launcher": "up", "down": "slam", "neutral": "cmd_fwd_b", "down_move": "atk_d_far", "forward": "atk_c_far", "up": "body_toss"},
    "specials": {"D": "236A", "fD": null, "dD": "6426D", "uD": "6426A", "dfD": "6426B", "ufD": "6426C"},
+   "blitz": {"ff": "dash", "dd": "624A"},
    "fury": "23624C",
    "fury_grab": true,
+   "fury_final_area": {"about": "note 20261011-204335-5d29: the Gigantic Pressure's red column hits everybody around it, not only the caught victim (Iori's fury_final_area, fighter.c fury_area). blows all: every blow of its victim lists, each one raising a column (the fury one, the MAX two: the second after he turns round). Sized from the column's drawn art measured in our emulator: -4..+103 px from Rugal at the blow (the column rises on the victim he drags, 80 px ahead), + about 40 px each side", "front": 143, "back": 44, "depth": 24, "blows": "all"},
    "unlock": {"boss_of_stage": 4},
    "voices": "kof",
    "throws": {"extra": {"u": "624A"}, "super": "23624C"}

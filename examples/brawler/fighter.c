@@ -2778,7 +2778,8 @@ static void vlist_fly(fighter_t *f, fighter_t *t, const bvlist_t *l, int8_t dir)
  * caught victim (the last VE_BLOW of its victim lists) hits every other opponent standing in the box around the
  * fighter, front px ahead, back px behind, depth px either side in z, with that blow's own damage and burn and the
  * list's release flight, sent away from the fighter. Replaces Kim's fury_end_burn (note 20261009-231252-b3f3, closed:
- * not wanted). */
+ * not wanted). blows "all" (depth bit 7; note 20261011-204335-5d29, Rugal's Gigantic Pressure: "the red column should
+ * impact everybody around"): EVERY blow of its victim lists is such an area hit (his MAX raises two columns). */
 static uint8_t vlist_last_blow(const bspec_t *sp, uint8_t li, uint8_t k) {   /* li 1-based, k: the entry dealing a blow */
     const bvlist_t *l = &sp->vlists[li - 1];
     uint8_t j;
@@ -2788,6 +2789,7 @@ static uint8_t vlist_last_blow(const bspec_t *sp, uint8_t li, uint8_t k) {   /* 
 }
 static void fury_area(fighter_t *f, const fighter_t *t, const bvlist_t *l, uint8_t burn) {
     const uint8_t *e = gfury_area[f->ch->id];
+    int16_t depth = e[2] & 0x7F;                                 /* (bit 7: every blow, vlist_place) */
     uint8_t j;
     if (!e[0] || !cb_fs) return;
     for (j = 0; j < cb_n; j++) {
@@ -2796,7 +2798,7 @@ static void fury_area(fighter_t *f, const fighter_t *t, const bvlist_t *l, uint8
         if (v == f || v == t || v->team == f->team || v->inv || v->hp <= 0 || v->state == S_DOWN || v->state == S_GETUP ||
             v->state == S_THROW || v->state == S_THROWN || v->state == S_PROJ || v->state == S_OFF || v->state == S_DEAD) continue;
         dx = (int16_t)dir_mul(f->facing, INT(v->x) - INT(f->x)); dz = INT(v->z) - INT(f->z);   /* (dx: + ahead) */
-        if (dx > (int16_t)e[0] || dx < -(int16_t)e[1] || dz < -(int16_t)e[2] || dz > (int16_t)e[2]) continue;
+        if (dx > (int16_t)e[0] || dx < -(int16_t)e[1] || dz < -depth || dz > depth) continue;
         fighter_hit(f, v, f->pdmg, R_KNOCKDOWN, 0);
         v->freeze = 0; v->kdelay = 0;
         if (burn) set_burn(v, burn);
@@ -2921,7 +2923,8 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
         f->freeze = t->freeze = 0; t->vx = 0; t->kdelay = 0;
         hit_sfx(f->pfx);
         if (e->flags & VE_BURN) set_burn(t, (e->flags & VE_BURN) >> 4);   /* its burn (KOF $17AC0: Iori 624's purple) */
-        if (f->spec_id == BS_FURY && vlist_last_blow(sp, f->vlist, k))   /* the fury's final hit: its area (fury_area) */
+        if (f->spec_id == BS_FURY && ((gfury_area[f->ch->id][2] & 0x80) || vlist_last_blow(sp, f->vlist, k)))   /* the
+                                                                    fury's final hit (blows "all": every one): its area */
             fury_area(f, t, l, (e->flags & VE_BURN) >> 4);
     }
     if ((e->flags & VE_REL) && (l->flags & VL_STAND)) {          /* a release that leaves it standing (TODO #220, KOF98

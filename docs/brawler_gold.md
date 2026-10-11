@@ -456,3 +456,14 @@ Compiled from the sheet without an agent: 14 slot(s) linked, 0 unresolved; slots
 Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
 - knobs: {"sp_fc": {"S-007": {"rise": 2.83, "travel": 8}}} (roster[].knobs, measured by knob_check)
 - (note 20261011-201729-5d29, "divide the total height by two and reduce the total X distance by 20%": measured in our emulator, forward + C alone: peak 87.3 -> 44.1 px (0.505; the height goes with the rise squared, so rise 4 -> 2.83 = 4 / sqrt 2), travel 189.2 -> 151.2 px (0.799, travel 10 -> 8); recipe scenarios.json 20261011-201729-5d29)
+
+### RUGAL: sheet 2026-10-11 (game.json directly: Rugal is not a Lab fighter, no Assembly answers / arb_pieces; build 0.10.61+)
+- note 20261011-204652-5d29: finishers neutral = forward + B ($9F cmd_fwd_b, 2 hits), forward = far C, down = far D (the
+  slam kept), up = C+D (body_toss); Blitz down,down + A = 624A God Press (KOF98's program; a rush that catches and
+  carries the victim to the screen edge, the stage.wall rule, and slams him into it: in the brawler the wall is the
+  screen's edge); up,up + A = none (A plays his normal); forward,forward + A = his dash attack, as before. 624A also
+  stays his up + A hold throw (throws.extra.u).
+- note 20261011-204335-5d29: fury_final_area front 143 / back 44 / depth 24, blows "all" (new field value: every blow of
+  the victim lists, not only the last): the red column (drawn -4..+103 px from Rugal) knocks down every opponent around
+  it; the MAX's two columns each do. Proof /data/tmp/rugal (proof.py): fury vs 4 clones = the caught Ryo + the two in
+  reach hit, the one behind and the one 40 px deeper not; MAX = the second column hits the one now in front.

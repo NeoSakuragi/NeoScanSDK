@@ -3375,5 +3375,39 @@
   "expect": "The triple kick rises about half as high as before (peak 44 px instead of 87) and covers about 0.8 of its old distance (151 px instead of 189). It still reaches and hits Ryo.",
   "do_keys": "2:R,2:Rc",
   "proof": 110
+ },
+ "20261011-204652-5d29": {
+  "title": "Rugal: finishers forward + B, far D, far C, C+D; down, down + A = God Press",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rugal",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Press A three times next to Ryo; once he is up, tap down, down + A. Then try A twice and forward + A, A twice and down + A, A twice and up + A, and up, up + A.",
+  "expect": "The third press (no direction) plays Rugal's forward + B command kick, forward + A his far C, down + A his far D, up + A his C+D blowback; each knocks Ryo down. Down, down + A is the God Press: he grabs Ryo, carries him to the edge of the screen and slams him into it. Up, up + A has no Blitz: A plays his normal attack.",
+  "do_keys": "2:a,16:-,2:a,20:-,2:a,200:-,1:D,1:-,1:D,2:Da",
+  "proof": 110
+ },
+ "20261011-204335-5d29": {
+  "title": "Rugal's fury: the red column hits everybody around it",
+  "setup": {
+   "mode": "lab",
+   "fighter": "rugal",
+   "dummy": "ryo",
+   "x": 120,
+   "gap": 40,
+   "extra": [
+    -100,
+    80,
+    120
+   ],
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Press D next to the first Ryo (two more Ryos stand further ahead, one behind Rugal).",
+  "expect": "Rugal catches the first Ryo and drags him to the edge of the screen; when the red column rises, it knocks down the caught Ryo and both Ryos standing near it. The Ryo behind Rugal, out of the column's reach, is not hit. (The MAX, down + D with low life, raises two columns, each hitting everybody around it.)",
+  "do_keys": "2:d",
+  "proof": 160
  }
 }

@@ -928,10 +928,12 @@ def tables(g, build):
     fa = []                                              # roster[].fury_final_area (note 20261009-235250-b3f3; was
     for r in g['roster']:                                # fury_end_burn, Kim's, note 20261009-231252-b3f3, dropped)
         e = r.get('fury_final_area') or {}
-        for k in e: assert k in ('about', 'front', 'back', 'depth'), f"roster {r['name']}: fury_final_area: unknown field {k}"
-        assert not e or all(1 <= e[k] <= 255 for k in ('front', 'back', 'depth')), f"roster {r['name']}: fury_final_area: front / back / depth 1-255 px"
-        fa.append(f"{{ {e.get('front', 0)}, {e.get('back', 0)}, {e.get('depth', 0)} }}")
-    c.append('const uint8_t gfury_area[BC_COUNT][3] = { ' + ', '.join(fa) + ' };   /* [front, back, depth] px per fighter */')
+        for k in e: assert k in ('about', 'front', 'back', 'depth', 'blows'), f"roster {r['name']}: fury_final_area: unknown field {k}"
+        assert not e or (all(1 <= e[k] <= 255 for k in ('front', 'back')) and 1 <= e['depth'] <= 127), \
+            f"roster {r['name']}: fury_final_area: front / back 1-255 px, depth 1-127 px"
+        assert e.get('blows', 'last') in ('last', 'all'), f"roster {r['name']}: fury_final_area: blows 'last' or 'all'"
+        fa.append(f"{{ {e.get('front', 0)}, {e.get('back', 0)}, {e.get('depth', 0) | (0x80 if e.get('blows') == 'all' else 0)} }}")
+    c.append('const uint8_t gfury_area[BC_COUNT][3] = { ' + ', '.join(fa) + ' };   /* [front, back, depth | 0x80 = every blow] px per fighter */')
     c.append('const int32_t gwalk_rom[BC_COUNT] = { ' + ', '.join(str(round(wk[r['archetype']] * 65536)) for r in g['roster']) +
              f' }};   /* 16.16 px a frame, by roster[].archetype */')
     c.append(f"const uint16_t gwalk_run = {round(wk['run'] * 256)};   /* run = walk x this (8.8) */")
