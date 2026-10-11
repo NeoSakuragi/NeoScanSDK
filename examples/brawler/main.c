@@ -2264,7 +2264,11 @@ static void win_tick(void) {                     /* every fight frame after the 
                 f->frame_ovr = 0xFFFF; f->vx = f->vz = 0;
                 fighter_pose(f, BA_WIN); win_st[i] = WIN_POSE; win_t[i] = 0; win_step[i] = 0xFF;
             } else if (++win_t[i] >= WIN_SETTLE || f->state == S_DEAD || f->state == S_OFF) win_st[i] = WIN_NONE;
-        } else if (f->anim_done && win_t[i] < 0xFFFF) win_t[i]++;
+        } else if ((f->anim_done || win_t[i]) && win_t[i] < 0xFFFF) {   /* (counting on once the pose ended) */
+            if (!win_t[i] && fighter_stage_end(f)) win_step[i] = 0xFF;   /* a form the pose turns back (game.json
+                                                        stage_end_form: Super Billy -> Billy Lee): that fighter now */
+            win_t[i]++;
+        }
         if (win_st[i] == WIN_POSE) {                 /* the source's own motion: each step's travel as it starts (KOF's
                                                         $FB), its height (Billy Lee's back flip, export_dd air_steps) */
             const bstep_t *s = fighter_step(f);
@@ -2569,7 +2573,7 @@ static void campaign(uint8_t left) {
             }
         }
         for (i = 0; i < 2; i++)
-            if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = char_index(fighters[i].ch); pl_set[i] = fighters[i].set; }
+            if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = fighter_next_stage_ch(&fighters[i]); pl_set[i] = fighters[i].set; }   /* (its base form) */
         if (unlock_k) unlock_start(unlock_k - 1);
         else if (camp + 1 >= GS_COUNT) ending_start();
         else stage_begin(camp + 1, 0);
@@ -2590,7 +2594,7 @@ static uint16_t cont_ft;
 static void p2_join(void) {                      /* P2 joins mid-fight: START with a credit (PLAYER_START) */
     uint8_t c, i, used;
     for (c = 0; c < BC_COUNT; c++) {                         /* an unlocked fighter nobody on screen is */
-        used = &bm_chars[c] == fighters[0].ch || char_locked(c);
+        used = &bm_chars[c] == fighters[0].ch || fighters[0].form_from == c + 1 || char_locked(c);   /* (P1's base form too) */
         for (i = 2; i < NF && !used; i++) used = fighters[i].state != S_OFF && fighters[i].ch == &bm_chars[c];
         if (!used) break;
     }

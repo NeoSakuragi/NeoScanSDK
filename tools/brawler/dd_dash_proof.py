@@ -8,7 +8,11 @@ Per fighter (default: the DD fighters + Kim + Terry):
   dash      forward,forward and nothing more: the run state over the dash's course (run.dash: start + frames), its
             travel (dx px), the body on the floor (y 0) all along, back to neutral on its own
   A / dA    A (down+A) in its airborne frames: AIR_ATTACK on the forward jump's attack (the tree's air_cd; down+A air_b),
-            in the air (y > 0), the dummy hit, landing (LAND) at the dash's end
+            in the air (y > 0), the dummy hit when its hit window opens in the air (Cheng-Fu's j.D opens past his
+            dash's air: cut first, no hit); at the dash's end standing at once (IDLE / WALK on the frame y is 0
+            again, the air move cut: no air pose on the ground, no LAND; the reopen of the note);
+  A_late / dA_late  the same pressed 3 frames before the course's end (the air move still playing there): standing on
+            the landing frame -> OUT_DIR/end_<fighter>_<tag>.png (that frame)
   B / C / D a press in its airborne frames (no air special): nothing, the dash goes on (RUN to its end)
   without air_buttons (Kim): A in the dash = his dash attack (ATTACK), as before; a fighter with a run (Terry): RUN
   while forward is held."""
@@ -68,9 +72,10 @@ for name in only:
     out['dash'] = {'run_frames': nrun, 'dx': trace[-1][1], 'y_max': max(t[2] for t in trace), 'end': trace[-1][0],
                    'ok': trace[-1][0] in ('IDLE', 'WALK') and abs(trace[-1][1] - d['dx']) <= 2 and max(t[2] for t in trace) == 0}
     # A / down+A / B / C / D in the airborne frames (the 6th)
-    for tag, keys in (('A', 'a'), ('dA', 'Da'), ('B', 'b'), ('C', 'c'), ('D', 'd')):
-        fresh(ci, 90); b.hits.clear(); dash_in(); xs = b.fget(0, 'x')
-        run(d['start'] + 5 - 1); hp0 = b.fget(2, 'hp')
+    for tag, keys in (('A', 'a'), ('dA', 'Da'), ('B', 'b'), ('C', 'c'), ('D', 'd'), ('A_late', 'a'), ('dA_late', 'Da')):
+        if tag.endswith('_late') and not airb: continue
+        fresh(ci, 300 if tag.endswith('_late') else 90); b.hits.clear(); dash_in(); xs = b.fget(0, 'x')   # (late: the dummy out of reach, no grab)
+        run(d['start'] + (d['frames'] - 3 if tag.endswith('_late') else 5) - 1); hp0 = b.fget(2, 'hp')
         snaps = []
         run(1, keys)
         for _ in range(2):                                     # (the press read on the next tick)
@@ -79,20 +84,29 @@ for name in only:
         first = (st(0), MOVES[b.fget(0, 'anim')], round(b.fget(0, 'y'), 2), b.fget(0, 'node'))
         if tag == 'A' and name in only[:3]:
             b.screenshot(os.path.join(OUT, f'{name}_dashA_1.png')); run(3); b.screenshot(os.path.join(OUT, f'{name}_dashA_2.png'))
-        seen, ymax, landed_at = set(), 0, None
+        seen, ymax, landed_at, ground_air, at_land, active = set(), 0, None, 0, None, False
         for k in range(d['frames'] + 40):
-            seen.add(st(0)); ymax = max(ymax, b.fget(0, 'y'))
-            if st(0) == 'LAND' and landed_at is None: landed_at = k; lx = round(b.fget(0, 'x') - xs)
+            seen.add(st(0)); y = b.fget(0, 'y'); ymax = max(ymax, y)
+            if st(0) == 'AIR_ATTACK' and b.fget(0, 'aact'): active = True   # its hit window reached in the air
+            if st(0) in ('AIR_ATTACK', 'AIR') and y <= 0 and ymax > 0: ground_air += 1   # an air pose on the floor
+            if ymax > 0 and y <= 0 and landed_at is None:     # the landing frame: standing?
+                landed_at = k; lx = round(b.fget(0, 'x') - xs); at_land = (st(0), MOVES[b.fget(0, 'anim')])
+                if tag.endswith('_late'): b.screenshot(os.path.join(OUT, f'end_{name}_{tag}.png'))
             if st(0) in ('IDLE', 'WALK') and k > 2: break
             run(1)
         hit = b.fget(2, 'hp') < hp0
-        e = {'first': first, 'states': sorted(seen), 'y_max': round(ymax, 1), 'dummy_hit': hit, 'end': st(0)}
-        if tag in ('A', 'dA'):
+        e = {'first': first, 'states': sorted(seen), 'y_max': round(ymax, 1), 'dummy_hit': hit, 'end': st(0),
+             'at_landing': at_land, 'air_pose_on_ground': ground_air, 'active_in_air': active}
+        if tag in ('A_late', 'dA_late'):
+            e['want'] = 'standing on the landing frame (IDLE / WALK), no air pose on the ground'
+            e['ok'] = first[0] == 'AIR_ATTACK' and first[2] > 0 and at_land is not None and at_land[0] in ('IDLE', 'WALK') and not ground_air and 'LAND' not in seen
+        elif tag in ('A', 'dA'):
             if airb:
                 ent = 'air_cd' if tag == 'A' else 'air_b'; want = tree['entries'].get(ent) or RT.default_tree()['entries'][ent]
                 wmv = (want or {}).get('move', '').replace('_jump', '')
                 e['want'] = f'AIR_ATTACK {wmv}_*'; e['land_dx'] = lx if landed_at is not None else None
-                e['ok'] = first[0] == 'AIR_ATTACK' and first[1].startswith(wmv) and first[2] > 0 and hit and 'LAND' in seen
+                e['ok'] = (first[0] == 'AIR_ATTACK' and first[1].startswith(wmv) and first[2] > 0 and (hit or not active) and 'LAND' not in seen
+                           and at_land is not None and at_land[0] in ('IDLE', 'WALK') and not ground_air)
             else:
                 e['want'] = 'ATTACK / SPECIAL (his run + A: the ff Blitz / dash attack)'; e['ok'] = first[0] in ('ATTACK', 'SPECIAL')
         else:

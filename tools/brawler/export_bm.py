@@ -1170,6 +1170,17 @@ def form_c(chars, ch, n):
     assert set(f.get('carry', [])) <= {'life', 'position', 'facing', 'meter'}, (n, f.get('carry'))
     return (names.index(f['target']), spec_index(special_pool(ch, n), form_special(ch, n)), FORM_TRIG[f['trigger']], FORM_EXIT[f['exit']])
 
+def stage_end_c(chars, n):
+    """bm_stage_end[id] (game.json roster[].stage_end_form, note 20261011-115334-5d29): the roster entry its stage-clear
+    win animation turns it into (Double Dragon's Super Billy: his win animation is the turn-back into Billy Lee), its
+    bm_chars index; 0xFF = none"""
+    to = roster()[n].get('stage_end_form')
+    if not to: return 0xFF
+    names = [q[1] for q in chars]
+    assert to in names, f'{n}: stage_end_form {to} is not in the roster'
+    assert to != n, f'{n}: stage_end_form is itself'
+    return names.index(to)
+
 def fury_max_special(ch, name):
     """the fury's MAX version (export96: 'MAX <fury input>', the handler's +$E4 bit 0 path with the fury's own button;
     down+D, TODO #139); else the same command's MAX on another button when that one is read from the ROM (TODO #152: a
@@ -1677,6 +1688,7 @@ def write_c(chars, outdir):
          f'enum {{ XT_FWD = {XT_FWD}, XT_PAIRED = {XT_PAIRED}, XT_NONE = {XT_NONE} }};',
          'extern const bxthr_t bm_xthr[BC_COUNT];   /* (revamp 3) by bchar_t.id (outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef const uint16_t *bseg_t;   /* (retiming) */', 'extern const bseg_t bm_seg[BC_COUNT];   /* (retiming, retime.py) by bchar_t.id: [BA_COUNT + nspec, offset of each move (BA_* then its specials; 0 = no segments)], then per move [n, the source frames of its n segments: startup, active 1, recovery 1, ...] (fighter.c rt_*) */',
+         'extern const uint8_t bm_stage_end[BC_COUNT];   /* (note 20261011-115334-5d29, game.json roster[].stage_end_form) by bchar_t.id: the bm_chars index its stage-clear win animation turns it into (Super Billy\'s turn-back -> Billy Lee; main.c win_tick swaps it when the pose ends), 0xFF = none */',
          'extern const bair_t bm_air[BC_COUNT];   /* (TODO #221) by bchar_t.id: its air specials, [input, special index] each, 0xFF ends (bchar_t.nair entries) */',
          'enum { HS_HOLD = 0xF0 };   /* bm_hsnd key of a hold script: HS_HOLD + its index in bchar_t.holds (hit, fin) */',
          'extern const bair_t bm_hsnd[BC_COUNT];   /* (Kim\'s hit sounds, Bruno 2026-10-09) by bchar_t.id: its hits\' own sounds, [key, n, n sound commands] each, 0xFF ends; key = a move (BA_*: routes.py hit_sounds, a route node\'s "sound" list) or HS_HOLD + k (game.json roster[].throws.hold.sound {hit, fin}); a command per hit of the move / impact of the script, in order (fighter.c own_sound; a hit past the list: the engine\'s rule); n | 0x80: a pick list instead, one of its n (a power of two) per hit (SS2\'s impacts, export_ss2 ss2snd) */',
@@ -1926,6 +1938,7 @@ def write_c(chars, outdir):
     c.append('const bseg_t bm_seg[BC_COUNT] = {' + ', '.join(f'{n}_seg' for _, n, _, _ in chars) + '};   /* (retiming) */')
     c.append('const bair_t bm_air[BC_COUNT] = {' + ', '.join(f'{n}_air' for _, n, _, _ in chars) + '};   /* (TODO #221) */')
     c.append('const bair_t bm_hsnd[BC_COUNT] = {' + ', '.join(f'{n}_hsnd' for _, n, _, _ in chars) + '};   /* (hit sounds) */')
+    c.append('const uint8_t bm_stage_end[BC_COUNT] = {' + ', '.join(str(stage_end_c(chars, n)) for _, n, _, _ in chars) + '};   /* (note 20261011-115334-5d29) */')
     c.append('const bxthr_t bm_xthr[BC_COUNT] = {' + ', '.join(xthr_c(ch, n) for _, n, ch, _ in chars) + '};   /* (revamp 3) */')
     c += sreact_c()
     # the Lab build (make LAB_FIGHTER=<f>, fighter.c "Lab: try in game"): its fighter, his LAB special's pool index, the
