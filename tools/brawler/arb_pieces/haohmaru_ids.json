@@ -1,0 +1,138 @@
+{
+ "fighter": "haohmaru",
+ "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
+ "next": {
+  "S": 14,
+  "T": 4
+ },
+ "pieces": {
+  "S-001": {
+   "kind": "special",
+   "input": "214A",
+   "name": "Sake Kougeki",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-002": {
+   "kind": "special",
+   "input": "236A",
+   "name": "Ougi Senpuu Retsuzan, A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-003": {
+   "kind": "special",
+   "input": "236AB",
+   "name": "Ougi Senpuu Retsuzan, A+B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-004": {
+   "kind": "special",
+   "input": "236B",
+   "name": "Ougi Senpuu Retsuzan, B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-005": {
+   "kind": "special",
+   "input": "236K",
+   "name": "Senpuu Retsuzan feint",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-006": {
+   "kind": "special",
+   "input": "34123421BC",
+   "name": "Tenha Fuujinzan (secret)",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-007": {
+   "kind": "special",
+   "input": "623A",
+   "name": "Ougi Kogetsuzan, A version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-008": {
+   "kind": "special",
+   "input": "623AB",
+   "name": "Ougi Kogetsuzan, A+B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-009": {
+   "kind": "special",
+   "input": "623B",
+   "name": "Ougi Kogetsuzan, B version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-010": {
+   "kind": "special",
+   "input": "623C",
+   "name": "Ougi Resshinzan, C version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-011": {
+   "kind": "special",
+   "input": "623CD",
+   "name": "Ougi Resshinzan, C+D version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-012": {
+   "kind": "special",
+   "input": "623D",
+   "name": "Ougi Resshinzan, D version",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "S-013": {
+   "kind": "special",
+   "input": "WFT",
+   "name": "Tenha Seikouzan (rage)",
+   "air": false,
+   "source": "handlers_ss2.SPECIALS",
+   "assigned": "2026-10-11"
+  },
+  "T-001": {
+   "kind": "throw",
+   "input": "hold + forward + A (SS2: close + forward / back + B or A+B)",
+   "name": "Slash throw B or A+B",
+   "move": "throw_c",
+   "source": "export throws",
+   "assigned": "2026-10-11"
+  },
+  "T-002": {
+   "kind": "throw",
+   "input": "hold + back + A (SS2: close + forward / back + D or C+D)",
+   "name": "Kick throw D or C+D",
+   "move": "throw_d",
+   "source": "export throws",
+   "assigned": "2026-10-11"
+  },
+  "T-003": {
+   "kind": "throw",
+   "input": "the extra throw (SS2: any throw on Earthquake / Kuroko, class 4 action 4)",
+   "name": "Earthquake throw: SS2 any throw on Earthquake or Kuroko",
+   "move": "throw_x",
+   "source": "export throws",
+   "assigned": "2026-10-11"
+  }
+ }
+}
