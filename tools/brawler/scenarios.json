@@ -3179,7 +3179,7 @@
   "proof": 700
  },
  "20261006-160539-b3f3": {
-  "title": "GAME OVER plays KOF94's game over music",
+  "title": "GAME OVER music: KOF94 has none of its own (your choice on the decisions page)",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
@@ -3189,7 +3189,7 @@
    "lives": 0
   },
   "do": "Terry has 1 life point and no lives left. Let an enemy hit you, press nothing and let the continue count run to 0.",
-  "expect": "At 0 the GAME OVER screen shows with KOF94's game over music (the song KOF94 plays on its CONTINUE / GAME OVER screens), started at once, no fade-out of the continue music; it plays until the screen ends (about 8 seconds). The next coin plays the title music as usual.",
+  "expect": "At 0 the GAME OVER screen shows with the game over music you pick on the decisions page (Game over music: KOF94 $40, $41 or the fade-out; KOF94 itself sends nothing at its GAME OVER, its countdown song plays on). Until you pick, it still plays KOF94's countdown song. The next coin plays the title music as usual.",
   "do_keys": "",
   "proof": 1300
  },
