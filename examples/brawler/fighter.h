@@ -577,6 +577,7 @@ typedef struct fighter {
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
+void fighter_game_reset(void);   /* a new game: the overlay cache and the burn clock from zero (fighter.c; the attract never bleeds into play) */
 uint8_t fighter_low(const fighter_t *f);   /* low life (gmeter.low): the life bar blinks red; with the gauge full: the MAX */
 enum { RT_ON = 1, RT_FIRST = 2, RT_END = 4 };   /* rt_flags: retimed; a program's first frame (one source frame, not
                                    * counted); a segment ended this frame */

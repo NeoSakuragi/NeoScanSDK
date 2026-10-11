@@ -768,6 +768,14 @@ static const uint16_t *ovl_pal(const fighter_t *f, uint8_t kind, uint8_t i) {   
     return ovl_cache[p].pal[kind][i];
 }
 static uint16_t burn_clock;
+/* a new game (main.c stage_begin, first): nothing of the last game or of the attract demo carries over. The overlay cache
+ * is filled on a fighter's first overlay (a paid C special's blue flash since 0.10.26): kept from a demo played with the
+ * same fighter and colours, it spared the game that first fill and its cost (a tick later or not for every later
+ * frame: the attract bled into play, regress.py bleed, 2026-10-11); burn_clock phases the fury-ready blink and burns */
+void fighter_game_reset(void) {
+    ovl_cache[0].ch = ovl_cache[1].ch = 0;
+    burn_clock = 0;
+}
 static void pal_overlay(fighter_t *f) {
     uint8_t want = 0;
     if (f->brk && f->state != S_SPECIAL) f->brk = f->brkr = 0;   /* the breaker over */
