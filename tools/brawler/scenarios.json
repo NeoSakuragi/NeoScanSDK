@@ -3056,7 +3056,7 @@
   "proof": 60
  },
  "20261011-132230-5d29": {
-  "title": "Haohmaru: the launcher finisher (last hit + up) = his SS2 far B",
+  "title": "Haohmaru: the launcher finisher (last hit + up) = his SS2 crouching A+B",
   "setup": {
    "mode": "lab",
    "fighter": "haohmaru",
@@ -3064,7 +3064,7 @@
    "gap": 40
   },
   "do": "Press A, A, then up + A.",
-  "expect": "The third press with up plays Haohmaru's SS2 far B slash as the finisher: it hits Ryo and launches him high into the air (he falls, lands and gets up). The second A (the same far B inside the chain) does not launch.",
+  "expect": "The third press with up plays Haohmaru's SS2 crouching A+B slash (down + A+B, the low heavy sweep of the sword) as the finisher: it hits Ryo and launches him high into the air (he falls, lands and gets up). The second A (far B inside the chain) does not launch.",
   "do_keys": "2:a,10:-,2:a,10:-,2:Ua,150:-",
   "proof": 60
  },
