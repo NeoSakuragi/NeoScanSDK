@@ -567,9 +567,10 @@ typedef struct fighter {
     uint8_t  inb, blz_slot;
     int8_t   wdz, pad_n;
     /* a piercing object (bproj_t vhits, Krauser's MAX Kaiser Wave, 2026-10-09; fighter.c strike): vcnt = its hits landed
-     * on each victim (2 bits per fighter_t.idx), vdone = the victims it is done with (bit per idx) */
+     * on each victim (2 bits per fighter_t.idx), vdone = the victims it is done with (bit per idx); hs_now (a fighter) 1:
+     * this frame was one of its hit-stop frames (fighter_update; its pinned effects with bproj_t follow FL_HSTOP hold) */
     uint16_t vcnt;
-    uint8_t  vdone, vpad;
+    uint8_t  vdone, hs_now;
     /* piece knobs (fighter.c "knobs"): kn = the special playing's rows (kn_n of them; 0: none), set at its start; a
      * projectile: kspd its speed (8.8, 0 = its rows as they are), khit its knobbed hit count (0: its data's) */
     const gknob_t *kn;
@@ -607,6 +608,10 @@ extern uint16_t bighit_col;               /* its backdrop colour (fighter.c big_
 extern uint8_t hitflash;           /* hit (main.c screen_fx: red 2, 3, 6, 7 frames after the spark shows, as DD's screen),
                                       frames left; BIGHIT_COL = DD's red */
 #define HMARK_MAX 2                /* hit marks (PK_FX) alive at once: a new one replaces the oldest (fighter.c hit_spark) */
+#define FL_HSTOP 128               /* bproj_t follow bit (docs/brawler_gold.md "engine features"): a pinned effect holds on its
+                                      owner's hit-stop frames (fighter_t.hs_now): its row, timer and place stay, so it stays in
+                                      step with him (SS2's pinned objects, export_ss2.hold_pinned: Tenha's wind); unset: it
+                                      animates on through his hit-stop (KOF / Kizuna / DD as before) */
 #define PK_FX 6                    /* bproj_t kind: a source game's hit spark (vocabulary fx.hit_spark, TODO #215): no box, no
                                       shadow, its rows from the hit point (fighter.c hit_spark: x, height py0) */
 extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by enemies (escapes: by players); HUD */

@@ -2904,7 +2904,7 @@
   "proof": 60
  },
  "20261011-112545-5d29": {
-  "title": "Haohmaru's MAX Tenha Fuujinzan: his shout, 11 hits that keep Ryo standing, the 12th launches",
+  "title": "Haohmaru's MAX Tenha Fuujinzan: 12 hits, the 12th launches, the circling wind in step with him on every hit-stop",
   "setup": {
    "mode": "lab",
    "fighter": "haohmaru",
@@ -2914,7 +2914,7 @@
    "fury": "full"
   },
   "do": "With your life in the red and the fury gauge full, press down + D next to Ryo. Count the hits.",
-  "expect": "Haohmaru shouts as the move starts (SS2's voice for it). The wind hits Ryo 12 times as in SS2: the first 11 keep him standing in his hit pose, each with a hit-stop (both pause on every impact); only the 12th, at the very end, launches him. Total damage stays the MAX tier.",
+  "expect": "Haohmaru shouts as the move starts (SS2's voice for it). The wind hits Ryo 12 times as in SS2: the first 11 keep him standing in his hit pose, each with a hit-stop (both pause on every impact); only the 12th, at the very end, launches him. The circling wind pauses with Haohmaru on every one of those hit-stops and stays in step with his body to the move's end (it no longer runs ahead and ends early). Total damage stays the MAX tier.",
   "do_keys": "2:Dd,300:-",
   "proof": 60
  },

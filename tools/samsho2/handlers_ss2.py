@@ -1230,6 +1230,7 @@ def special(B, ch, name, inp, vdef=None):
             h += sum(openings(steps))
         nh.append(h)
         objects += [OBJECTS[o](B, ov) for o, ov in objs]
+    X_.hold_pinned(objects)                           # pinned objects hold on his hit-stop frames (FL_HSTOP)
     nstate = len(comp[0][1]); nobj = len(progs[0][1])
     assert all(len(s) == nstate for _, s in comp)
     each = [max(1, SPECIAL_DAMAGE // max(1, n)) for n in nh]

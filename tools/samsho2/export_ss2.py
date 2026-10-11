@@ -283,6 +283,20 @@ def standard_reacts(steps, base):
         later = any(j > i and not (steps[j - 1]['flags'] & 0x100 and steps[j - 1]['flags'] & 0x4000) for j in atk)
         s['react'] = hit_react(R_HEAVY_ if base == R_KNOCKDOWN_ and later else base)
 
+# ---- pinned objects hold with their owner (note 20261011-112545-5d29, Bruno: "apply the hitstop to the circling effect")
+# SS2 runs a pinned object (Tenha's wind 337, the Kogetsuzan crescent, Genjuro's card wind, Kuroko's ghost) from its
+# owner's place every frame; the brawler adds its own hit-stop on each impact (owner and victim held), and an effect
+# that animated on through it drifted out of step with his body. Every SS2 object pinned to its owner (bproj_t follow
+# bit 1) gets FL_HSTOP (fighter.h, docs/brawler_gold.md "engine features"): on his hit-stop frames it holds its row,
+# timer and place. KOF / Kizuna / DD effects never carry the bit (their behaviour unchanged).
+FL_HSTOP = 128
+
+def hold_pinned(objects):
+    """the SS2 objects of a special (handlers_ss2.special): each pinned one (follow & 1) holds with its owner's hit-stop"""
+    for o in objects:
+        if o.get('follow', 0) & 1: o['follow'] |= FL_HSTOP
+        if o.get('next'): hold_pinned([o['next']])
+
 # ---- the hit marks (vocabulary fx.hit_spark, TODO #215's mechanism; 2026-10-10 Bruno: "a slash effect drawn over the
 # animation") [code]+[meas: /data/tmp/ss2slash, captures of Haohmaru / Genjuro / Hanzo's A / B / A+B standing, crouching,
 # jumping, whiff and hit]

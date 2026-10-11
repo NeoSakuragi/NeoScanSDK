@@ -2327,6 +2327,9 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
                                                                     the state ends lives through the next one's step) */
         proj_child(p); return;
     }
+    if ((d->follow & FL_HSTOP) && p->owner && p->owner->hs_now && p->pend != 1) return;   /* pinned, its owner in
+                                                                    hit-stop this frame: it holds too (its row, timer,
+                                                                    place; SS2's pinned objects: Tenha's wind) */
     if (p->freeze) {                                             /* after a hit (bproj_t stop): frozen, it moves on */
         if (--p->freeze) return;                                 /* stop frames after it; with hits left it may hit */
         if (d->kind == 1) p->hit_mask = d->vhits ? p->vdone : 0;   /* again then (object.phase; an eruption waits for */
@@ -3201,6 +3204,7 @@ uint8_t fighter_pose_head(const fighter_t *f, int16_t *dx, int16_t *dy) {
 static void update(fighter_t *f, const intent_t *in);
 void fighter_update(fighter_t *f, const intent_t *in) {         /* its bank mapped (fighter.h "banks"): its special's */
     uint8_t ob = BANK_set(CH_BANK(f->ch));                       /* rows, program, parts, links, its objects' rows; a */
+    f->hs_now = 0;                                               /* (set by the hit-stop's hold: proj_update FL_HSTOP) */
     update(f, in);                                               /* form link swaps f->ch for a fighter of the same bank */
     BANK_set(ob);                                                /* (bank_pack.py) */
     flicker(f);
@@ -3266,7 +3270,7 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     source reaction's game: Kizuna's attacker stands the
                                                                     frame after too, $2B644 not run [meas: 6246A_h 86.56,
                                                                     214B_h 93.5]) */
-        return;
+        f->hs_now = 1; return;                                   /* (its FL_HSTOP effects hold with it: proj_update) */
     }
     if (f->pvl_n && f->state != S_SPECIAL && !--f->pvl_n) prog_voice(f, f->pvl_id);   /* a ROM special's voice sent
                                                                     later counts on once the move ended (KOF $17074 runs
