@@ -3294,5 +3294,57 @@
   "expect": "He throws three shurikens in turn without landing: the A one (the steepest), the B one, then the A+B one (the flattest), each hitting Ryo (3 hits). After the third he hops back; A then plays his jump attack, which can hit Ryo, and he lands normally. Without A he just lands.",
   "do_keys": "3:b,8:-,1:D,1:-,1:D,2:Da,70:-,3:a,40:-",
   "proof": 130
+ },
+ "20261011-175124-5d29": {
+  "title": "Kyo's move sheet: his chain, finishers, C specials and jump attacks",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Press A four times next to Ryo. Then A three times and down-forward + A; A three times and down + A. Then C, forward + C, down + C. Then jump + A and jump + down + A.",
+  "expect": "The chain is close A, close C, forward B (two kicks), far D. Down-forward + A after the third press is the 88 Shiki double sweep, down + A the crouching D sweep. C is the big dragon punch (623C), forward + C EX Kyo's triple kick, down + C the scissors kick with both kicks (75 Shiki Kai). Jump + A is the jump D, jump + down + A the air down + C (Naraku Otoshi). Each one hits Ryo.",
+  "do_keys": "2:a,14:-,2:a,16:-,2:a,22:-,2:a,60:-,2:a,14:-,2:a,16:-,2:a,22:-,2:DRa,80:-,2:c,90:-",
+  "proof": 120
+ },
+ "20261011-175350-5d29": {
+  "title": "Kyo: the up finisher is close D",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Press A three times next to Ryo, then up + A.",
+  "expect": "After the third press, up + A plays Kyo's close D, which launches Ryo.",
+  "do_keys": "2:a,14:-,2:a,16:-,2:a,22:-,2:Ua",
+  "proof": 90
+ },
+ "20261011-175657-5d29": {
+  "title": "Kyo: forward, forward + A = his 236A, then A again twice for its follow-ups",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 46
+  },
+  "do": "Tap forward, forward + A next to Ryo, then press A again during each move (twice). Try it again with one A, and with none.",
+  "expect": "Forward, forward + A plays 114 Shiki Aragami. Pressing A during it goes on into 128 Shiki Konokizu, and A again into 127 Shiki Yanosabi: three hits on Ryo. With one A it stops after Konokizu, with none after Aragami.",
+  "do_keys": "1:R,1:-,1:R,2:Ra,6:-,2:a,24:-,2:a,80:-",
+  "proof": 120
+ },
+ "20261011-175806-5d29": {
+  "title": "Kyo: down, down + A = the small dragon punch; up, up + A = the R.E.D. Kick (B)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Tap down, down + A next to Ryo. Then tap up, up + A.",
+  "expect": "Down, down + A plays the light 100 Shiki Oniyaki (the small dragon punch), up, up + A the R.E.D. Kick, B version. Both hit Ryo.",
+  "do_keys": "1:D,1:-,1:D,2:Da,90:-,1:U,1:-,1:U,2:Ua,90:-",
+  "proof": 90
  }
 }

@@ -710,7 +710,7 @@ def special_info(sp, game):
             'cont': sp.get('cont', 0), 'proj': None if pj is None else {'row': spawn, 'frame': pj['rows'][0][0], 'kind': pj.get('kind', 0),
                                                                         'travel': round(pj.get('travel') or 0)},
             'pose': sp['script'][spawn if pj else (hits[0][0] if hits else len(sp['script']) // 2)][0],
-            'travel': round(sh[0]), 'height': round(sh[1]), **({'seq': sp['seq'], 'seq_i': sp['seq_i']} if sp.get('seq') else {})}   # (seq: a
+            'travel': round(sh[0]), 'height': round(sh[1]), **({'seq': sp['seq'], 'seq_i': sp['seq_i']} if sp.get('seq') else {}), **({'seq_press': sp['seq_press']} if sp.get('seq_press') else {})}   # (seq: a
                                                          # sequence's piece, its slot and place: sequences(), build_tables.blitz_rows)
 
 
@@ -1100,21 +1100,32 @@ def sequences(ch, name):
     end, or in the air as soon as its program waits for its landing (fighter.c seq_next), the last as a lone special
     plays (SF_AIRATK and the rest by its input as usual). -> [(label 'air_specials.ddA' / 'blitz.dd', [pieces])]: the
     pieces are copies of the bank's specials (each its own pool entry, at the pool's end, consecutive), every one but the
-    last flagged 'seq_more' (bspec_t.sflags SF_SEQ); cached, so every call returns the same objects (spec_index)"""
+    last flagged 'seq_more' (bspec_t.sflags SF_SEQ); cached, so every call returns the same objects (spec_index).
+    A sequence named in roster[].seq_press (Bruno 2026-10-11, note 20261011-175657-5d29: Kyo's ff + A = his 236A three
+    times, "the first on the Blitz, then each next one by pressing the button again"): each piece but the last carries
+    'seq_press' = the slot's button ('A': a Blitz, an air special's A entry; 'AB' = C: a C entry), exported as its one
+    follow-up link (bslink_t LK_IN, any stick, its whole play as the window; fighter.c seq_next: the next piece waits for
+    that press, else the move ends with this piece)"""
     r = roster().get(name) or {}
+    press = r.get('seq_press') or []
+    for lb in press:
+        assert any(isinstance(v, list) and f'{fd}.{k}' == lb for fd in ('air_specials', 'blitz') for k, v in (r.get(fd) or {}).items()), \
+            f'{name}: seq_press {lb}: no sequence there (a blitz / air_specials slot whose value is a list)'
     out = []
     for field in ('air_specials', 'blitz'):
         for key, v in (r.get(field) or {}).items():
             if not isinstance(v, list): continue
             label = f'{field}.{key}'
-            ck = (name, label, tuple(v))
+            btn = ('A' if field == 'blitz' or key.endswith('A') else 'AB') if label in press else None
+            ck = (name, label, tuple(v), btn)
             if ck not in _SEQ:
                 assert len(v) >= 2, f'{name}: {label}: a sequence lists 2 pieces or more ({v})'
                 ps = []
                 for i, inp in enumerate(v):
                     sp = next((sp for sp in ch.get('specials', []) if sp['input'] == inp and rom_ok(sp)), None)
                     assert sp, f'{name}: {label}: no special {inp} read from the ROM in its bank'
-                    ps.append(dict(sp, seq=label, seq_i=i, seq_more=i < len(v) - 1))
+                    assert not (btn and sp['rom'].get('follow_links')), f'{name}: {label}: {inp} has follow-ups of its own (seq_press)'
+                    ps.append(dict(sp, seq=label, seq_i=i, seq_more=i < len(v) - 1, **({'seq_press': btn} if btn and i < len(v) - 1 else {})))
                 _SEQ[ck] = ps
             out.append((label, _SEQ[ck]))
     return out
@@ -1944,6 +1955,9 @@ def write_c(chars, outdir):
                 cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + ', '.join(
                     '{%d, %d, %d, %d, %d, %d, %d, %d}' % ((l['from'], l['to']) + link_c(l) + (0, l['window'][0], l['window'][1]))
                     for l in sp['links']) + '};')
+            if sp.get('seq_press') and not sp['parts']:   # a pressed sequence's piece: its press, the one link (seq_next)
+                cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + '{%d, %d, %d, %d, %d, %d, %d, %d}' % (
+                    (0, 0) + link_c({'on': 'input', 'input': sp['seq_press']}) + (0, 0, 0xFFFF)) + '};')
             if rom_ok(sp): cs.append(rom_c(n, k, sp, game, prog_voice_res(n, game, pool[k]['input'], vsug, vmp) if kof_prog(sp, game) or step_voiced(sp) else None))   # read from the ROM: played by its program
         assert len(sps) < 255, n
         for k, sp in enumerate(sps):                     # the Lab build's LAB special: its index and its animations' ids
@@ -1952,7 +1966,7 @@ def write_c(chars, outdir):
         cs.append(f'const bspec_t {n}_specials[{max(1, len(sps))}] = {{' + (', '.join(
             f'{{{1 if prog_only(sp) else len(sp["script"])}, {rom_inv(sp) if rom_ok(sp) else rise_inv(sp)}, {len(sp["parts"])}, {len(played_projectiles(sp))}, {n}_sp{k}, {f"{n}_pj{k}" if played_projectiles(sp) else 0}, '
             + (f'{n}_sp{k}_prog, {n}_sp{k}_an, {f"{n}_pj{k}r" if sp["rom"]["objects"] else 0}, ' if rom_ok(sp) else '0, 0, 0, ')
-            + (f'{n}_sp{k}_parts, {n}_sp{k}_links, {len(sp["links"])}' if sp['parts'] else '0, 0, 0')
+            + (f'{n}_sp{k}_parts, {n}_sp{k}_links, {len(sp["links"])}' if sp['parts'] else f'0, {n}_sp{k}_links, 1' if sp.get('seq_press') else '0, 0, 0')
             + (', %d, %d, {0x%04X, 0x%04X}' % (*sp['backdrop']['rows'], *sp['backdrop']['colours']) if sp.get('backdrop') else
                ', 0, 0, {0x%04X, 0}' % sp['rom']['bighit_col'] if rom_ok(sp) and sp['rom'].get('bighit_col') is not None else ', 0, 0, {0, 0}')   # (SS2's big hit:
                                                          # its backdrop colour, fighter.c big_hit; TODO #193)

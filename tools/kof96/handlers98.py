@@ -124,6 +124,12 @@ FOLLOW_LAG_KIND = {'fP': 6}
 # a follow-up that starts another special's handler reads that special's button from its command (Iori 623D -> 214A's
 # $70E48: a3@(125), 214's buttons): the brawler's version = its own slot's (214A: A, $10)
 FOLLOW_BTN = {('kof98', 0x70E48): 0x10}
+# a follow-up press played as made (Bruno's rule for Yashiro's mash, FOLLOW_MAXED, here for a button read in the frame
+# loop: Kyo's notes 20261011-175124-5d29, "the scissors kick of regular Kyo with the D button" = 75 Shiki Kai's both
+# kicks): the read of this frame's buttons at that address returns the special's own button, so the walk takes the
+# continuation (KOF98 Kyo 236B / D $3C7D6: `move.b fp@(1), d0; andi.b #$A0` in the jump -> +$D2 = 1, the second kick
+# +$C4 on the next event step)
+FOLLOW_PRESSED = {('kof98', 0x3C90E)}
 # a3 in a special's frame code (KOF98): the speed record its wall-slam's jump back loads (`move.l 30(a3), +$50`, +$54
 # friction, +$58 vy, +$5C gravity; TODO #173). Not a pointer the decoder sees: measured in our emulator (Rugal 624A's
 # jump back after the slam, state 169: vx -10.3125, friction $E900, vy 4.125, gravity 0.6055 = the ROM's $AC88E..$AC89D)
@@ -243,10 +249,12 @@ def polar(d0, d1):
         return -r if v < 0 else r
     return one(d0, d1 + 64), -one(d0, d1)
 
-def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=None, sdm=False, e4=None):
+def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=None, sdm=False, e4=None, nofollow=False):
     """the handler at addr -> {'addr', 'ops': [(addr, op)], 'objects': [decoded object routines]}. fields: an object's
     inherited fields (spawn offsets +$D2 / +$D4, vx, end state +$D8, hit routine +$19C). sdm: a desperation move's
-    power check ($24D80) returns the MAX / SDM version (+$E4 bit 0 set), else the plain DM (the brawler's fury)"""
+    power check ($24D80) returns the MAX / SDM version (+$E4 bit 0 set), else the plain DM (the brawler's fury).
+    nofollow: its follow-up checks (FOLLOW_CHECKS) read no command (d0 = 0): the part alone, as a SEQUENCE piece plays
+    it (part_entry; the brawler's sequence plays the next part, export_bm.sequences)"""
     dec = dec or Decoder(m)
     if cid is not None: dec.cid = cid
     F = Fields()                                     # facing right, the button, EX, on the ground
@@ -302,6 +310,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if field(o, 'a3') is not None or o.startswith('%fp@'):           # the buttons pressed (a3 = the input record): the
             PROBE.append((cur[0], o, resumed[0]))
             if resumed[0] and (dec.game, cur[0]) in FOLLOW_BTN: return FOLLOW_BTN[(dec.game, cur[0])]
+            if resumed[0] and (dec.game, cur[0]) in FOLLOW_PRESSED: return F.get(0x1A4, 1, False)   # (pressed again)
+            if nofollow and o.startswith('%fp@'): return 0               # (a part alone: no button pressed this frame)
             return 0 if resumed[0] else F.get(0x1A4, 1, False)           # special's own on its first frame, then none
         if o == '%a0@' and isinstance(A0, int) and A0 < 0x100000:       # a ROM table (a state list: +$32 / +$C2 pointers)
             return int.from_bytes(m.p[A0:A0 + size], 'big')
@@ -398,6 +408,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 emit(a, 'jmp', 'resume'); a = None; continue                    # movea.l (a4), a0; jmp (a0): X now
             fk = FOLLOW_CHECKS.get(dec.game, {}).get(t)
             if fk and dec.top not in FOLLOW_SCOPE.get((dec.game, t), {dec.top}): fk = None
+            if fk and mn == 'jsr' and nofollow:                                 # (a part alone: no command read)
+                D['%d0'] = 0; cc = ('val', 0); a = nx; continue
             if fk and mn == 'jsr':                                              # a follow-up input check
                 follow[0] = follow[0] or fk; mk = lmask(fk)
                 emit(a, 'check', mk)
@@ -552,7 +564,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             elif f == 0x7C and b == 5: cc = ('window', 'Zinv')             # the current step has $2000 (a follow-up window)
             elif f == 0xD1 and b in (6, 7) and F.bit(f, b) is None: cc = (f'sig{b}', 'Zinv')   # an object's signal
             elif f is not None and b < 8 and F.bit(f, b) is not None: cc = ('val', F.bit(f, b), ('btst', a, f, b))
-            elif o[1].startswith('%fp@') or field(o[1], 'a3') is not None: cc = ('val', 0 if resumed[0] else 1)
+            elif o[1].startswith('%fp@') or field(o[1], 'a3') is not None: cc = ('val', 0 if resumed[0] or nofollow and o[1].startswith('%fp@') else 1)
             elif field(o[1], 'a0') is not None and A0 == 'owner': cc = (f'owner_{field(o[1], "a0"):X}.{b}', 'Zinv')
             elif field(o[1], 'a0') is not None and A0 == 'opp': cc = ('val', 0)
             else: cc = ('f%X.%d' % (f if f is not None else -1, b), 'Zinv')
@@ -704,10 +716,12 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if o[1].startswith('%d') and isinstance(D.get(o[1]), int) and isinstance(imm(o[0]), int):   # a known register
                 cc = ('val', (D[o[1]] & 0xFFFF) - imm(o[0])); a = nx; continue                        # (dmcheck's d0)
             fk = field(o[1]); szk = {'cmpiw': 2, 'cmpib': 1}.get(mn)
-            if CMP_KNOWN and depth > 0 and fk is not None and szk and isinstance(F.get(fk, szk, False), int) and isinstance(imm(o[0]), int):
+            if CMP_KNOWN and (depth > 0 or nofollow) and fk is not None and szk and isinstance(F.get(fk, szk, False), int) and isinstance(imm(o[0]), int):
                 cc = ('val', F.get(fk, szk, False) - imm(o[0])); a = nx; continue   # an object's field its spawner set (Kyo's
                                                        # MAX flames $3D894 / $3D91E: +$C2 = the flames left picks the
-                                                       # next one's state and whether it follows him, TODO #202)
+                                                       # next one's state and whether it follows him, TODO #202;
+                                                       # a part alone, nofollow: the follow-up's selector +$D6 its
+                                                       # handler cleared, no command setting it: Kyo's 236A parts)
             a = nx; cc = ('cmp', 'Z'); continue
         emit(a, 'unknown', mn, o); a = nx
     if pending_child is not None: flush_child()
@@ -1117,7 +1131,7 @@ def variant_summary(m, cid, inp, v, frames=400):
 ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B', '623A', '623B', '21416C'},
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C', 'AAAA'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D', '623A', 'EX 624D', 'air 214D', '6426A', '6426C'},
-                'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B'},
+                'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B', '623A', '236D', '236A>156', '236A>158', '236A>162'},
                 'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
@@ -1126,7 +1140,8 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
 # ROM specials on demand (Bruno's first Workshop unlock, 2026-10-10): decoded for the Lab (arb_compile pieces, the Workshop's
 # S- ids) but read by the brawler's export only where a build names them (export96 rom_more = export_bm.rom_wanted: a
 # roster slot, a Lab build's unlocked pieces), so the normal game, whose pool has no place for them, keeps its frames
-ROM_DEMAND = {'robert': {'6426A', '6426C'}}
+ROM_DEMAND = {'robert': {'6426A', '6426C'}, 'kyo': {'623A', '236D', '236A>156', '236A>158', '236A>162'}}   # (Kyo: his sheet's
+# notes 20261011-175124 / 175657 / 175806-5d29: dd + A 623A, down + C 236D, the ff + A sequence's three parts of 236A)
 # furies read from the ROM whose MAX path is not modelled yet (no 'MAX <fury>' export: down+D plays the fury, as before):
 # none since TODO #220 (2026-10-07): Iori 23624C's MAX (ten strikes from the state list +$C2 by +$D2, the victim's lists
 # picked by the attacker's +$D2: victim_lists 'idx') and Yamazaki 236236C's (three drags, the last list's release leaves
@@ -1738,6 +1753,29 @@ def anim_rom(m, cid, st, add, react=None):
             'variants': [], 'sdm': False, 'flash': None, 'apex': -1, 'length': length, 'objects': [], 'hit_kind': 1,
             'links': [], 'elements': {st: fire_element(m, cid, st)}, **({'react': react} if react is not None else {})}
 
+def part_entry(m, cid, h, button, ex, state, sdm=False):
+    """the address a PART of a special's handler starts at (a SEQUENCE piece, export_rom '<input>>N', Bruno 2026-10-11:
+    Kyo's 236A three times = 114 Shiki Aragami 156, 128 Shiki Konokizu 158, 127 Shiki Yanosabi 162): the handler itself
+    or a target of its branches (the follow-ups it enters on a command: +$D6 = 1 / 2 at Aragami's event step), decoded
+    with no command read (nofollow), whose first animation is state N. None when no part starts it"""
+    dec = Decoder(m)
+    full = decode(m, h, button, ex, dec=dec, cid=cid, sdm=sdm)
+    cands = [h]
+    for a_, op in full['ops']:
+        t = op[3] if op[0] == 'br' else op[1] if op[0] in ('jmp', 'resume_at') else None
+        if isinstance(t, tuple) and isinstance(t[0], int) and t[0] not in cands: cands.append(t[0])
+    for a_ in cands:
+        try: d = decode(m, a_, button, ex, dec=dec, cid=cid, sdm=sdm, nofollow=True)
+        except Exception: continue
+        if any(op[0] == 'br' and not cond_ok(op[1]) for _, op in d['ops']): continue   # (a mid-part resume point: its
+        first = next((op for _, op in d['ops'] if op[0] in ('anim', 'adv')), None)          # selector unknown there)
+        if first and first[0] == 'anim' and first[1] == state: return a_
+    return None
+
+def handler_hitkind(m, cid, h, button, ex, sdm=False):
+    """the hit kind (+$1B8) a handler sets first: a part alone keeps it when it sets none (KOF: the field stays)"""
+    return next((op[1] for _, op in decode(m, h, button, ex, cid=cid, sdm=sdm, nofollow=True)['ops'] if op[0] == 'hitkind'), 1)
+
 def export_rom(m, cid, inp, add, game='kof98', shared=True):
     """a special's ROM program in export terms (export96 calls it for ROM_SPECIALS; tools/brawler/export_bm.py compiles
     it): ops (bookkeeping dropped, branch targets as op indices), anims {state: steps (frame = export index via add,
@@ -1745,9 +1783,15 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
     projectile tables), hit kind, the frame of the last hit / the apex (the rising reversal's invincibility)"""
     sdm = inp.startswith('MAX ')                       # 'MAX <input>': the handler's MAX version (+$E4 bit 0)
     base = inp[4:] if sdm else inp
+    base, part = (base.split('>')[0], int(base.split('>')[1])) if '>' in base else (base, None)
     ex = base.startswith('EX ')
     h, b = handler_of(cid, base, ex, m.game)
-    prog = decode(m, h, b, ex, cid=cid, sdm=sdm)
+    hk0 = 1                                            # (the hit kind before the program sets one)
+    if part is not None:                               # '<input>>N': the part of its handler that starts state N, alone
+        hk0 = handler_hitkind(m, cid, h, b, ex, sdm)   # (a SEQUENCE piece: Kyo's 236A>156 / >158 / >162; the hit kind
+        h = part_entry(m, cid, h, b, ex, part, sdm)    # its handler set before it, KOF's +$1B8 kept)
+        if h is None: return {'error': f'{inp}: no part of the handler starts state {part}'}
+    prog = decode(m, h, b, ex, cid=cid, sdm=sdm, nofollow=part is not None)
     nsig = sum(1 for a_, op in prog['ops'] if op[0] == 'vsig')
     vlists = victim_entries(m, victim_lists(m, prog['victim'], sdm, nsig), cid) if prog.get('victim') else []   # the caught
                                                        # victim's script (its lists for the fighter itself as the victim)
@@ -1779,7 +1823,7 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
         idx[i] = len(kept)
         if kept_op(m, op): kept.append((a, op))   # (its voice sends too: TODO #163)
     def target(t): return 'yield' if t == 'yield' else idx[prog['pos'][t]]
-    ops, hitkind, states = [], 1, []
+    ops, hitkind, states = [], hk0, []
     idx_of = {id(op): i for i, (a, op) in enumerate(prog['ops'])}
     hk_end = min([prog['pos'][op[1]] for a, op in prog['ops'] if op[0] == 'onhit'] or [len(prog['ops'])])
     for a, op in kept:

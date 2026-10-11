@@ -457,7 +457,7 @@ def _then(nd):
 
 def chain_tree(name, base, cfg, has):
     """the chain the game plays (see above): base = the fighter's tree (load()), cfg = build_tables.chain_cfg's entry
-    {archetype, length, total, hitstop [lo, hi], finishers {launcher, down, neutral?, forward?, up?, down_move?}, damage},
+    {archetype, length, total, hitstop [lo, hi], finishers {launcher, down, neutral?, forward?, up?, down_move?, df_move?}, damage},
     has = the moves it has. Returns a tree for encode() (with 'archetype', 'chain_links' and a 'chain' summary)"""
     if not cfg: return base
     N, total, (lo, hi) = cfg['length'], cfg['total'], cfg['hitstop']
@@ -546,6 +546,8 @@ def chain_tree(name, base, cfg, has):
         down = cand(sl, 'slam', usedm) or cand(sl, 'slam')
     else: down = None
     if down: last(down)['effect'] = 'trip' if dk == 'sweep' else 'slam'
+    df = named(fin['df_move'], 'trip') if fin.get('df_move') else None   # down-forward (2026-10-11, Kyo's double sweep:
+                                                                    # a named move only; none = the tree's fallback, forward)
 
     dm = _scale([_dmg(b) for b in builders] + [_dmg(neutral)], total)
     hs = [lo + ((hi - lo) * k * 2 + (N - 1)) // (2 * (N - 1)) for k in range(N)] if N > 1 else [hi]
@@ -553,7 +555,7 @@ def chain_tree(name, base, cfg, has):
         hs = list(cfg['hitstops'])
         assert len(hs) == N and all(isinstance(v, int) and 1 <= v <= 60 for v in hs), f'{name}: chain.hitstop {hs}: {N} values, 1-60 frames'
     for k, b in enumerate(builders): b['damage'] = dm[k]; b['hitstop'] = hs[k]
-    finals = {'A': neutral, 'fA': forward, 'uA': up, 'dA': down}
+    finals = {'A': neutral, 'fA': forward, 'uA': up, 'dA': down, 'dfA': df}
     for k, f in list(finals.items()):
         if f is None: del finals[k]; continue
         finals[k] = dict(f, damage=dm[-1], hitstop=hs[-1])
@@ -603,7 +605,7 @@ def chain_tree(name, base, cfg, has):
                                                                     # taken his ff + A)
     summary ={'archetype': cfg['archetype'], 'length': N, 'total': total,
                'links': [b['move'] for b in builders], 'damage': dm, 'hitstop': hs,
-               'finishers': {{'A': 'neutral', 'fA': 'forward', 'uA': 'up', 'dA': 'down', 'bA': 'back'}[k]:
+               'finishers': {{'A': 'neutral', 'fA': 'forward', 'uA': 'up', 'dA': 'down', 'dfA': 'df', 'bA': 'back'}[k]:
                              ('throw' if 'throw' in f else ('special ' + f['special'] if 'special' in f else ' > '.join(x['move'] for x in _then(f))) + ' (' + _then(f)[-1]['effect'] + ')') for k, f in finals.items()}}
     return {'fighter': name, 'links': {'A': nxt}, 'entries': entries, 'archetype': cfg['archetype'], 'chain_links': N, 'chain': summary}
 

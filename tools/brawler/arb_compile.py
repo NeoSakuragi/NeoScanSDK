@@ -24,14 +24,16 @@ game.json's roster entry, no agent needed) or UNRESOLVED (listed, never guessed)
 Slot -> roster field (the three agent-built rounds: Krauser 4261de6, Robert 591c7d0 / 74e5a04; Kim's paper gold):
   a1..aN       chain.links (presses 1..N-1) + finishers.neutral (the last press); "presses" = the chain length
   fin_fwd / fin_up / fin_down    finishers.forward / up / down_move (down: several animations = a list, back to back)
+  fin_df       finishers.df_move (last hit + down-forward, 2026-10-11: Kyo's double sweep)
   bz_ff / dd / uu / du           blitz.<k> (a special input, "$NN", or a normal's move name); empty = no key
   sp_c / sp_fc / sp_dc           specials.D (+ uD / dfD / ufD where they followed D) / fD / dD
   air_bz_dd    air_specials.ddA;   air_sp_c / fc / dc   air_specials.C / fC / dC
-  a Blitz / air special slot with several S- ids: a SEQUENCE, their inputs as a list (export_bm.sequences, back to back)
+  a Blitz / air special slot with several S- ids: a SEQUENCE, their inputs as a list (export_bm.sequences, back to back);
+               the answer's flags {"press": true}: each next piece on the slot's button pressed again (roster seq_press)
   air_a        air.forward + air.straight;   air_da   air.down
   grab_hit / grab_fin            throws.hold.hit / fin
   fury / max   fury / max (a decoded special)
-  no field (unresolved when changed): fin_df, air_bz_ff / uu / du, fin_back, grab_fwd, grab_back, fury_note
+  no field (unresolved when changed): air_bz_ff / uu / du, fin_back, grab_fwd, grab_back, fury_note
   chain_timing the chain's TIMING (the Assembly's knobs under the presses, arbitrage.js drawTiming; the old Chain Lab's
                chain tool): note = JSON {hitstop: {a1..aN: frames}, retime: {move: [frames per segment]}} -> roster
                chain.hitstop (left out at the archetype's scale) + retime {move: targets} (chain_save.py's form);
@@ -73,20 +75,19 @@ import piece_ids
 ID_RE = piece_ids.ID_RE                                    # S-001 / T-001: a decoded piece by its id
 
 # ---- the sheet's slots -> roster fields ----
-FIN = {'fin_fwd': 'forward', 'fin_up': 'up', 'fin_down': 'down_move'}
+FIN = {'fin_fwd': 'forward', 'fin_up': 'up', 'fin_down': 'down_move', 'fin_df': 'df_move'}
 BLITZ = {'bz_ff': 'ff', 'bz_dd': 'dd', 'bz_uu': 'uu', 'bz_du': 'du'}
 SPEC = {'sp_c': 'D', 'sp_fc': 'fD', 'sp_dc': 'dD'}
 FOLLOW_D = ('uD', 'dfD', 'ufD')                            # "C in any other direction = the neutral's" (the rounds)
 AIRSP = {'air_bz_dd': 'ddA', 'air_sp_c': 'C', 'air_sp_fc': 'fC', 'air_sp_dc': 'dC'}
 AIR = {'air_a': ('forward', 'straight'), 'air_da': ('down',)}
 HOLD = {'grab_hit': 'hit', 'grab_fin': 'fin'}
-NOFIELD = {'fin_df': 'the engine has no down-forward finisher (routes.py finishers: neutral / forward / up / down)',
-           'air_bz_ff': 'the engine has no forward,forward air Blitz (export_bm.AIR_KEY: dd + A only)',
+NOFIELD = {'air_bz_ff': 'the engine has no forward,forward air Blitz (export_bm.AIR_KEY: dd + A only)',
            'air_bz_uu': 'the engine has no up,up air Blitz (export_bm.AIR_KEY: dd + A only)',
            'air_bz_du': 'the engine has no down,up air Blitz (export_bm.AIR_KEY: dd + A only)',
            'fin_back': 'the back finisher is the throw: a paired script, not an animation',
            'grab_fwd': 'the throws are paired scripts (victim side): an agent', 'grab_back': 'the throws are paired scripts (victim side): an agent'}
-ORDER = ['a%d' % i for i in range(1, 9)] + list(FIN) + ['fin_df', 'fin_back'] + list(BLITZ) + \
+ORDER = ['a%d' % i for i in range(1, 9)] + list(FIN) + ['fin_back'] + list(BLITZ) + \
     ['air_bz_ff', 'air_bz_dd', 'air_bz_uu', 'air_bz_du'] + list(SPEC) + ['air_sp_c', 'air_sp_fc', 'air_sp_dc'] + \
     list(AIR) + list(HOLD) + ['grab_fwd', 'grab_back', 'fury_note', 'fury', 'max']
 LABEL = {'fin_fwd': 'last hit + forward', 'fin_up': 'last hit + up', 'fin_down': 'last hit + down', 'fin_df': 'last hit + down-forward',
@@ -101,11 +102,12 @@ LABEL = {'fin_fwd': 'last hit + forward', 'fin_up': 'last hit + up', 'fin_down':
 # Kizuna fighter does not have natively, in the order the golds took them (Kim: atk_ab_close / atk_ab_far / atk_cd_close /
 # cmd_fwd_c; Robert: atk_cd_close for $D4, atk_ab_far for $67)
 SPARE = ['atk_cd_close', 'atk_ab_far', 'atk_ab_close', 'atk_cd_crouch', 'atk_ab_crouch', 'cmd_fwd_c', 'cmd_fwd_cd']
+AIR_SPARE = ['atk_ab_jump']                                # (an air one, 2026-10-11: Kyo's j.2C $EE as jump + down + A)
 GROUND_ATK = re.compile(r'^(atk_[a-d]{1,2}_(close|far|crouch)|body_toss|cmd_\w+)$')
 AIR_ATK = re.compile(r'^atk_[a-d]{1,2}_(jump|hop)(_diag)?$')
 SPECIAL_INPUT = re.compile(r'^((?:MAX |EX |air )*(?:\[\d\])?\d+[A-D]+)(?=\s|$)')
 GAME_KEYS = ['name', 'display', 'bank', 'watch', 'routes', 'archetype', 'scale', 'about', 'moves', 'anim_specials', 'retime',
-             'chain', 'finishers', 'specials', 'blitz', 'air', 'air_specials', 'throws', 'fury', 'max', 'knobs']
+             'chain', 'finishers', 'specials', 'blitz', 'air', 'air_specials', 'seq_press', 'throws', 'fury', 'max', 'knobs']
 
 
 def repo_of(game): return os.path.normpath(os.path.join(game, '..', '..'))
@@ -349,9 +351,10 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if slot in BLITZ: return (r.get('blitz') or {}).get(BLITZ[slot])
         if slot in SPEC: return (r.get('specials') or {}).get(SPEC[slot])
         if slot in AIRSP: return (r.get('air_specials') or {}).get(AIRSP[slot])
-        if slot in AIR:
-            import build_tables
-            return build_tables.air_of(r)[AIR[slot][0]]
+        if slot in AIR:                                    # (air_a: forward + straight; two different moves = no one
+            import build_tables                            # pick, the answer sets both)
+            a_ = build_tables.air_of(r)
+            return a_[AIR[slot][0]] if len({a_[k] for k in AIR[slot]}) == 1 else None
         if slot in HOLD: return ((r.get('throws') or {}).get('hold') or {}).get(HOLD[slot])
         if slot in ('fury', 'max'): return r.get(slot)
         if slot in ('fin_back', 'grab_fwd', 'grab_back'): return 'throw_c'
@@ -368,7 +371,13 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
         if cur in mine_ + nat: return cur, 'its current name'
         if mine_: return mine_[0], 'roster moves'
         if nat: return nat[0], 'its own move'
-        if air: return None, f'${x} has no air move name for {f} (an air normal from another animation: an agent)'
+        if air:                                            # an air attack without a name: the spare air name (its pose
+            if e['kind'] != 'attack': return None, f'${x} is a {e["kind"]} animation (no attack box)'   # in the jump)
+            spare = next((n for n in AIR_SPARE if n not in mv and n not in used_names and n not in e['names']
+                          and not any(n in a_['names'] for a_ in A.values())), None)
+            if not spare: return None, f'${x} has no air move name for {f} (no spare air name left: an agent)'
+            mv[spare] = '$' + x
+            return spare, f'spare name: moves "{spare}": "${x}" (an air attack)'
         if e['names']: return None, f'${x} is {e["names"][0]} ({e["kind"]}): not a ground attack'
         if e['kind'] != 'attack': return None, f'${x} is a {e["kind"]} animation (no attack box)'
         if not spare_ok: return None, f'${x} has no move name and no known reaction (an animation special needs one: library anim_special)'
@@ -425,15 +434,21 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
             if not bad and slot in AIRSP:
                 bad = next((f'{i} {e["name"]} is a ground special: not for this slot' for i, e in zip(ids, es) if not e['air']), None)
             x.field = f'blitz.{BLITZ[slot]}' if slot in BLITZ else f'air_specials.{AIRSP[slot]}'
+            press = bool((a.get('flags') or {}).get('press'))   # each next piece on the slot's button again (seq_press)
+            pnow = x.field in (r.get('seq_press') or [])
             if bad: x.status, x.cls, x.why = 'unresolved', 'd', bad
             else:
                 v = [e['input'] for e in es]; x.anim0 = (S[v[0]]['anims'] or [None])[0]
-                if nowv == v: x.status, x.value, x.why = 'unchanged', nowv, 'pick = now (a sequence)'
+                if nowv == v and press == pnow: x.status, x.value, x.why = 'unchanged', nowv, 'pick = now (a sequence)'
                 else:
                     x.status, x.cls, x.value = 'linked', 'b', v
-                    x.why = 'a sequence, back to back: ' + ' then '.join(f'{i} {e["name"]}' for i, e in zip(ids, es))
+                    x.why = ('a sequence, each next piece on the button again: ' if press else 'a sequence, back to back: ') + \
+                        ' then '.join(f'{i} {e["name"]}' for i, e in zip(ids, es))
                     if slot in BLITZ: new.setdefault('blitz', {})[BLITZ[slot]] = v
                     else: new.setdefault('air_specials', {})[AIRSP[slot]] = v
+                    sp_ = [l_ for l_ in (new.get('seq_press') or []) if l_ != x.field] + ([x.field] if press else [])
+                    if sp_: new['seq_press'] = sp_
+                    else: new.pop('seq_press', None)
             out.append(x); continue
         if ids:                                            # a decoded piece by its id (the Workshop's S- / T- ids)
             e = piece_ids.resolve(reg, ids[0])
@@ -519,8 +534,9 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
             if not n_: x.status, x.cls, x.why = 'unresolved', 'd', why; out.append(x); continue
             for k in AIR[slot]: new.setdefault('air', {})[k] = n_
             x.status, x.cls, x.value, x.why, x.field = 'linked', 'a', n_, why, ' + '.join('air.' + k for k in AIR[slot])
-            if n_.endswith('_jump') and re.fullmatch(r'[0-9A-F]+', ps[0]):   # a forward jump plays the move's _diag twin (KOF / SS2):
-                new.setdefault('moves', {})[n_ + '_diag'] = '$' + ps[0]     # the same animation there too (Kim's atk_d_jump(_diag))
+            if n_.endswith('_jump') and re.fullmatch(r'[0-9A-F]+', ps[0]) and \
+                    not any(n_ + '_diag' in a_['names'] for a_ in A.values()):   # (a native _diag twin: KOF98's own kept)   # a forward jump plays the move's _diag twin (KOF / SS2):
+                mv[n_ + '_diag'] = '$' + ps[0]                             # the same animation there too (Kim's atk_d_jump(_diag))
                 x.field += f' (+ moves {n_}_diag = ${ps[0]})'
             out.append(x); continue
         # Blitz, specials, air specials, fury: a special (or, for a Blitz, a normal's move)
@@ -794,13 +810,13 @@ def check(game, f, res, lib):
         hits = lambda n: (lambda lg: len(lg['hits']) >= n)
         chain = lambda k: [('2:a', hits(i + 1), 40) for i in range(k)]
         if x.slot[0] == 'a' and x.slot[1:].isdigit(): return chain(int(x.slot[1:]) - 1) + [('2:a', None, 150)]
-        if x.slot in FIN: return chain(len(seq) - 1) + [('2:' + {'fin_fwd': 'R', 'fin_up': 'U', 'fin_down': 'D'}[x.slot] + 'a', None, 150)]
+        if x.slot in FIN: return chain(len(seq) - 1) + [('2:' + {'fin_fwd': 'R', 'fin_up': 'U', 'fin_down': 'D', 'fin_df': 'DR'}[x.slot] + 'a', None, 150)]
         if x.slot in BLITZ: return [({'ff': '1:R,1:-,1:R,2:Ra', 'dd': '1:D,1:-,1:D,2:Da', 'du': '1:D,1:-,1:U,2:Ua',
                                       'uu': '1:U,1:-,1:U,2:Ua'}[BLITZ[x.slot]], None, 150)]
         if x.slot in SPEC: return [('2:' + {'D': '', 'fD': 'R', 'dD': 'D'}[SPEC[x.slot]] + 'c', None, 200)]
         if x.slot in AIRSP: return [('2:b', None, 12), ({'ddA': '1:D,1:-,1:D,2:Da', 'C': '2:c', 'fC': '2:Rc', 'dC': '2:Dc'}[AIRSP[x.slot]], None, 150)]
-        if x.slot == 'air_a': return [('2:Rb', None, 14), ('2:a', None, 80)]
-        if x.slot == 'air_da': return [('2:Rb', None, 14), ('2:Da', None, 80)]
+        if x.slot == 'air_a': return [('2:b', None, 14), ('2:a', None, 80)]   # (a straight jump: the forward one plays the _diag twin)
+        if x.slot == 'air_da': return [('2:b', None, 14), ('2:Da', None, 80)]
         return None
     def attempt(x, v, dist, ph):
         b.load(base)

@@ -514,12 +514,13 @@
     const dk = fin.down === undefined ? 'sweep' : fin.down;
     if (dk !== 'sweep' && dk !== 'slam' && dk !== null) throw new Error('down: sweep, slam or none');
     const down = dk ? named(fin.down_move, dk === 'sweep' ? 'trip' : 'slam', 'down') : null;
+    const df = fin.df_move ? named(fin.df_move, 'trip', 'df') : null;   // (down-forward: a named move only, routes.py)
     const dm = scaleTo(builders.map(dmgOf).concat([dmgOf(neutral)]), total);
     const hs = spec.hitstop ? spec.hitstop.slice() : defaultHitstops(rules, N);
     if (hs.length !== N || !hs.every(v => Number.isInteger(v) && v >= 1 && v <= 60)) throw new Error(`hit-stop: ${N} values of 1-60 frames`);
     builders.forEach((b, k) => { b.damage = dm[k]; b.hitstop = hs[k]; });
     const finals = {};
-    for (const [k, x] of [['A', neutral], ['fA', forward], ['uA', up], ['dA', down]]) {
+    for (const [k, x] of [['A', neutral], ['fA', forward], ['uA', up], ['dA', down], ['dfA', df]]) {
       if (!x) continue;
       finals[k] = Object.assign({}, x, { damage: dm[dm.length - 1], hitstop: hs[N - 1] });
       if (!finals[k].weight) finals[k].weight = 'strong';
@@ -529,14 +530,14 @@
     let nxt = finals;
     for (let k = N - 2; k >= 0; k--) nxt = Object.assign({}, builders[k], { links: Object.assign({}, k < N - 2 ? { A: nxt } : nxt, SPL()) });   // (no B
                                                                 // link: the jump-cancel is gone, Bruno 2026-10-08; routes.py chain_tree)
-    const names = { A: 'neutral', fA: 'forward', uA: 'up', dA: 'down', bA: 'back' };
+    const names = { A: 'neutral', fA: 'forward', uA: 'up', dA: 'down', dfA: 'df', bA: 'back' };
     return { fighter: f.name, links: { A: nxt }, entries: JSON.parse(JSON.stringify(f.tree.entries)), archetype: arch, chain_links: N,
              chain: { archetype: arch, length: N, total, links: builders.map(b => b.move), damage: dm, hitstop: hs,
                       finishers: Object.fromEntries(Object.entries(finals).map(([k, x]) => [names[k], x.throw ? 'throw' : x.move + ' (' + x.effect + ')'])) } };
   }
   // the chain part of two specs (archetype, links, finishers, hit-stops) the same: the retime aside
   function sameChain(a, b) {
-    const fk = x => { const o = x.finishers || {}; return JSON.stringify([o.launcher || 'up', o.down === undefined ? 'sweep' : o.down, o.neutral, o.forward || null, o.up || null, o.down ? o.down_move : null]); };
+    const fk = x => { const o = x.finishers || {}; return JSON.stringify([o.launcher || 'up', o.down === undefined ? 'sweep' : o.down, o.neutral, o.forward || null, o.up || null, o.down ? o.down_move : null, o.df_move || null]); };
     return a.archetype === b.archetype && JSON.stringify(a.links) === JSON.stringify(b.links) && fk(a) === fk(b) &&
       JSON.stringify(a.hitstop || null) === JSON.stringify(b.hitstop || null);
   }
@@ -552,6 +553,7 @@
     fin.launcher = L.fA && L.fA.effect === 'launch' ? 'forward' : 'up';
     fin.down = L.dA ? (L.dA.effect === 'slam' ? 'slam' : 'sweep') : null;
     fin.down_move = L.dA ? L.dA.move : null;
+    fin.df_move = L.dfA ? L.dfA.move : null;
     const def = defaultHitstops(rules, N);
     const retime = {};
     for (const r of retimeRom || []) if (r.fighter === f.name && f.segs.moves[r.move]) retime[r.move] = r.targets.slice();
@@ -605,6 +607,7 @@
     if ((fin.launcher || 'up') === 'up') { out.finishers.up = fin.up; out.finishers.forward = fin.forward; }
     else { out.finishers.forward = fin.forward; if (fin.up) out.finishers.up = fin.up; }
     if (fin.down) out.finishers.down_move = fin.down_move;
+    if (fin.df_move) out.finishers.df_move = fin.df_move;
     out.chain = { links: spec.links.slice() };
     if (spec.hitstop) out.chain.hitstop = spec.hitstop.slice();
     return out;

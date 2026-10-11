@@ -61,6 +61,9 @@ def now_of(r, D, chain_len, gen=None, sids=None):
         if not ps and names and names[0] and not text: t.append(f'{names[0]} (no animation found)')
         return {'pieces': ps, 'text': '; '.join(t), 'moves': [n for n in names if n],
                 'ids': [sids.get(n) or sids.get(ver(n)) for n in names if n and (n in sids or ver(n) in sids)]}
+    def seq_text(label, v):                         # a sequence (export_bm.sequences): how its pieces follow
+        if not isinstance(v, list): return ''
+        return 'a sequence, each next piece on the button again' if label in (r.get('seq_press') or []) else 'a sequence, back to back'
     out = {}
     links = list((r.get('chain') or {}).get('links') or [])
     own = r.get('finishers') or {}
@@ -83,13 +86,13 @@ def now_of(r, D, chain_len, gen=None, sids=None):
     out['fin_up'] = slot(fin.get('up'), j('launcher' if la == 'up' else '', pick('up')) if fin.get('up') else 'the generator\'s pick')
     dm = fin.get('down_move')
     out['fin_down'] = slot(dm, j({'sweep': 'sweep (trips)', 'slam': 'slam (bounces)'}.get(fin.get('down'), '') + (', back to back' if isinstance(dm, list) and len(dm) > 1 else ''), pick('down_move')))
-    out['fin_df'] = {'pieces': [], 'text': 'empty', 'moves': []}
+    out['fin_df'] = slot(own['df_move']) if own.get('df_move') else {'pieces': [], 'text': 'empty', 'moves': []}
     out['fin_back'] = slot('throw_c', 'the throw')
     bz = r.get('blitz') or {'ff': 'dash'}
     for k in ('ff', 'dd', 'uu', 'du'):
         v = bz.get(k)
         dash = (gen or {}).get('dash')
-        out['bz_' + k] = (slot(dash, 'his dash attack (the route tree\'s dash entry)') if dash else {'pieces': [], 'text': 'his dash attack (the route tree\'s dash entry)', 'moves': []}) if v == 'dash' else slot(v) if v else {'pieces': [], 'text': 'empty', 'moves': []}
+        out['bz_' + k] = (slot(dash, 'his dash attack (the route tree\'s dash entry)') if dash else {'pieces': [], 'text': 'his dash attack (the route tree\'s dash entry)', 'moves': []}) if v == 'dash' else slot(v, seq_text(f'blitz.{k}', v)) if v else {'pieces': [], 'text': 'empty', 'moves': []}
     sp = r.get('specials') or {}
     out['sp_c'] = slot(sp.get('D'), 'also the combo breaker')
     out['sp_fc'] = slot(sp.get('fD'))
@@ -99,7 +102,7 @@ def now_of(r, D, chain_len, gen=None, sids=None):
     out['air_da'] = slot(air['down'])
     asp = r.get('air_specials') or {}             # air Blitz = '<dd>A' entries, air specials = '<stick>C' (docs/brawler_data_model.md)
     for k in ('ff', 'dd', 'uu', 'du'):
-        out['air_bz_' + k] = slot(asp[k + 'A']) if asp.get(k + 'A') else {'pieces': [], 'text': 'empty', 'moves': []}
+        out['air_bz_' + k] = slot(asp[k + 'A'], seq_text(f'air_specials.{k}A', asp[k + 'A'])) if asp.get(k + 'A') else {'pieces': [], 'text': 'empty', 'moves': []}
     for k, key in (('c', 'C'), ('fc', 'fC'), ('dc', 'dC')):
         out['air_sp_' + k] = slot(asp[key]) if asp.get(key) else {'pieces': [], 'text': 'empty', 'moves': []}
     hold = (r.get('throws') or {}).get('hold') or {}

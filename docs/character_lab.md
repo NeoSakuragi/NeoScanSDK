@@ -469,6 +469,19 @@ specials are the same programs; the new ones are LAB_ONLY).
 - 2026-10-11 later (notes 20261011-164455-5d29, 20261011-164801-5d29): air down,down + A = the A, B and A+B shurikens
   in turn (`air_specials` `ddA` [j.4123A, j.4123B, j.4123AB], a sequence: docs/brawler_gold.md "A sequence"), each
   startup halved (`retime` "0.5x"), still the jump attack after the last; Assembly answer `air_bz_dd` S-008 S-009 S-010.
+
+## Kyo (KOF98): his move sheet — 2026-10-11 (notes 20261011-175124 / 175350 / 175657 / 175806-5d29, Lab shell 20261011-153020 + kyo pack 20261011-130334)
+- Assembly answers (decisions set `kyo-arb`, new: no earlier answers), compiled by arb_compile.py: chain close A $50,
+  close C $5A, forward + B $EC (cmd_fwd_b), far D $60 (the neutral finisher); last hit + up close D $5F (the launcher),
+  + down crouch D $63, + down-forward 88 Shiki $EB (cmd_df_d, the "double sweep": `finishers.df_move`, new);
+  ff + A = 236A three times on A again (S-009 / S-010 / S-011, `seq_press`: docs/brawler_gold.md "A pressed sequence"),
+  dd + A = 623A small Oniyaki (S-013), uu + A = 421B R.E.D. Kick (S-004); C = 623C big Oniyaki (S-005), forward + C =
+  EX 421D (S-007, unchanged), down + C = 236D 75 Shiki Kai, both kicks (S-012); jump + A = jump D $61 (both jumps),
+  jump + down + A = j.2C Naraku Otoshi $EE (spare air name `atk_ab_jump`, new in arb_compile AIR_SPARE).
+- Decoded 2026-10-11 (handlers98 ROM_SPECIALS + ROM_DEMAND, programs from the ROM): 623A ($3C078), 236D ($3C7D6: its
+  second kick read as pressed, FOLLOW_PRESSED $3C90E: 142, 143, 145, then 148 on the event step, landing 149), and
+  the parts of 236A's handler $3C9D8: `236A>156` Aragami (156, 157), `236A>158` Konokizu ($3CB84: 158, 159),
+  `236A>162` Yanosabi ($3CC9E: 162). The first ff + A note (body toss C + D) was replaced by the third note.
 ---
 
 The sections below were the Character Lab's notes in docs/feedback.md, docs/brawler_gold.md and
