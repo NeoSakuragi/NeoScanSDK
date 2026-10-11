@@ -2605,6 +2605,22 @@ static void kof_react(fighter_t *v, int8_t away, uint8_t rc, int8_t slide) {   /
     v->vy = KOF_REACT[rc].vy; v->kg = KOF_REACT[rc].g; v->kgf = KOF_REACT[rc].gf; v->kgfr = KOF_REACT[rc].gfr;
     v->kmode = 1 | hurt;
 }
+/* a FREE victim's flight is the brawler's (note 20261011-223923-5d29, Kyo's 75 Shiki Kai: "the falling trajectory ... looks
+ * like it was copied from KOF98. We should have the standard trajectory from the brawler"). A special's body hit that only
+ * knocks its victim away (not held: no throw special, no command grab, no hold's caught one: fighter_hit `held`) flies the
+ * brawler's own launch (react: its velocity by the hit's reaction, the launch strength; GRAVITY_KD, no friction, no shake
+ * after the hit-stop), as the normals' launchers do. KOF's reaction keeps what is not a path: its juggle rule (kmode's
+ * KM_HURT: LAUNCH_BOX or none, game.json roster[].juggle) and the reel's slide on the ground. The hit's data: R_LIFT
+ * straight up (vx 0), R_SLAM in the air down to the floor at the brawler's slam speed (combat RE_SLAM, no bounce). A held
+ * victim keeps its source's path (vlist_fly, thrown_update, kof_react on held hits). Engine agnostic: any importer's
+ * reaction table (KOF_REACT, KOF_HIGH) goes through here; source reactions (src_react) and Double Dragon's hop untouched */
+static void std_flight(fighter_t *v, uint8_t reaction, int32_t bvx, int32_t bvy) {
+    if (v->state != S_KNOCKDOWN || !v->kmode || v->ksr) return;  /* no flight from KOF's table (a reel, the brawler's own) */
+    if (v->anim == BA_TRIP) return;                              /* Double Dragon's knockdown hop (its own data) */
+    v->vx = reaction == R_LIFT ? 0 : bvx; v->vy = reaction == R_SLAM && v->y > 0 ? -FIX(6) : bvy;
+    v->kg = v->kgf = GRAVITY_KD; v->kgfr = 0; v->kvfr = 0; v->kvmin = 0; v->kdelay = 0;
+    v->kmode = 2 | (v->kmode & KM_HURT);                         /* (2: kof_fall = the brawler's fall, no apex switch) */
+}
 static void kof_fall(fighter_t *f) {                             /* S_KNOCKDOWN in KOF's reaction: one frame */
     f->y += f->vy;
     if (f->kgfr) f->kg = fmul16(f->kg, f->kgfr);
@@ -3756,6 +3772,11 @@ static void update(fighter_t *f, const intent_t *in) {
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
     uint8_t caught = 0;                                          /* a ROM special's catch box took it (CATCH_STOP) */
+    uint8_t held = a->state == S_SPECIAL && (a->spec_id == BS_THROW || a->sthr || ((a->pflags & PF_HOLD) && v == a->target));
+                                                                 /* the victim is held by this special (a throw special,
+                                                                    a command grab, its hold's caught one): its flight stays
+                                                                    the source's (std_flight) */
+    int32_t bvx, bvy;                                            /* the brawler's own flight velocity (react) */
     uint8_t sr = a->state == S_SPECIAL && a->spec_sr ? (v->y > 0 ? a->spec_sr >> 4 : a->spec_sr & 15) : 0;   /* its source
                                                                     reaction (standing / airborne: Kizuna's situation) */
     if (reaction > 15) reaction = v->y > 0 && (sr || !(a->state == S_SPECIAL && a->spec_id == BS_FURY && (reaction & 7) <= R_HEAVY))
@@ -3775,10 +3796,10 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {   /* a ROM special (TODO #139): */
         a->pflags |= PF_HITANY;
         if ((a->spec_prev_hit & 16) && a->phit != 0xFF && !a->pcatch) {   /* a catch box: no damage, the victim held, */
-            a->pcatch = 3; a->pflags |= PF_HOLD; a->phold = 0; damage = 0; caught = 1;   /* its routine after the hit-stop */
+            a->pcatch = 3; a->pflags |= PF_HOLD; a->phold = 0; damage = 0; caught = held = 1;   /* its routine after the hit-stop */
         }
         if (a->spec_prev_hit & 128) {                            /* a hold hit (KOF's box $36, TODO #220): its victim */
-            a->pflags |= PF_HOLD; a->phold = 0; a->phh = 1;      /* held by the attacker's victim routine (+$1A0) */
+            a->pflags |= PF_HOLD; a->phold = 0; a->phh = 1; held = 1;   /* held by the attacker's victim routine (+$1A0) */
         } else if (a->phh && (a->pflags & PF_HOLD) && v == a->target && !caught) {   /* another box on it: let go, its */
             a->pflags &= ~PF_HOLD; a->phh = 0;                   /* own reaction (Yamazaki MAX's last strike: the launch) */
         }
@@ -3833,7 +3854,11 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
                                                                     away from its thrower: bproj_t.ppad 1, TODO #193) */
         react(v, INT(v->x) >= INT(from->x) ? 1 : -1, reaction, push);
     }
-    if (a->state == S_SPECIAL) kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* a special's body hit: KOF98's */
+    bvx = v->vx; bvy = v->vy;
+    if (a->state == S_SPECIAL) {                                 /* a special's body hit: KOF98's reaction (its reel's */
+        kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* slide, the juggle rule: KM_HURT), */
+        if (!held) std_flight(v, reaction, bvx, bvy);            /* a free victim's flight the brawler's (note 20261011-223923) */
+    }
     if (sr) src_react(v, a->facing, sr);                         /* or its source's (SF_SREACT): sent the way the
                                                                     attacker faces, facing it (Kizuna: the victim behind
                                                                     Kim at the Phoenix's 86.55 flies on forward) */

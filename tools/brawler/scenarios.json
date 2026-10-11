@@ -1,4 +1,19 @@
 {
+ "20261011-223923-5d29": {
+  "title": "Kyo: after the down + C scissors kick, Ryo falls like any other launched fighter",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "gap": 50,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Press down + C next to Ryo (both kicks of the scissors kick) and watch him fly and fall. Then press C while he is still in the air.",
+  "expect": "Ryo rises and falls in a plain, even arc, as after the chain's launchers: he stays on screen and lands a short way off, no slow float up out of the screen. C while he falls still hits him in the air.",
+  "do_keys": "2:Dc,64:-,2:c",
+  "proof": 90
+ },
  "20261006-194211-5d29": {
   "title": "Terry: cancel the throw's blow into the fury",
   "setup": {

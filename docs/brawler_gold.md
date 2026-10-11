@@ -295,6 +295,21 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   their own reactions. Set: Kyo `623A` (its own second hit now lands too: 2 hits, the victim up to ~146 px instead of
   114; then C / forward + C / the fury cancelled into it hit him in the air). Recipe scenarios.json 20261011-201837-5d29.
 
+- **A free victim flies the brawler's standard arc** — a rule, no flag (note 20261011-223923-5d29, Kyo's down + C 75 Shiki
+  Kai: "the falling trajectory ... looks like it was copied from KOF98. We should have the standard trajectory from the
+  brawler"). A special's body hit whose reaction is a flight (KOF's table: knockdown / blowback 283-285, launch 286, high
+  launch 299, slam 303, lift) on a victim it does NOT hold flies the brawler's own launch (fighter.c `std_flight`, called by
+  fighter_hit after kof_react): react's velocity for the hit's reaction (ground: knockdown vy 7 vx 2, launch / lift vy 9
+  vx 2.5; in the air vy 5 / 4 vx 1.5), GRAVITY_KD, no friction, no KOF shake after the hit-stop, as the chain's launchers.
+  The hit's data still decides: the reaction class (the launch strength), R_LIFT straight up (vx 0), R_SLAM in the air
+  down at the brawler's slam speed (6), and KOF's juggle rule (KM_HURT: LAUNCH_BOX or no box, `roster[].juggle`); a
+  standing reel keeps its KOF slide. Held victims keep their source's path: a throw special (BS_THROW), a command grab
+  (sthr), a hold's caught one (PF_HOLD on the target, a catch box, a hold hit, the hold's release strike), victim lists
+  (vlist_fly) and thrown scripts. Not changed: source reactions (Kizuna's src_react, measured 48 / 48) and Double Dragon's
+  knockdown hop (their importers' own reaction data). Before / after: Kyo 236D's victim rose to 156 px (KOF's 286: up 17.25
+  with gravity 2.69 decaying, 30 frames up, off screen) and now to 98 px in an even arc; 623C still juggles him after it.
+  Roster table + frames: /data/tmp/scissors (sweep_after.json; recipe scenarios.json 20261011-223923-5d29).
+
 - **A move that leaves the fighter airborne with his air attack** — `game.json roster[].keeps_air_attack` [special
   inputs] (Bruno 2026-10-11, decisions set open-2026-10-11 `hanzo-air-shuriken`: "after the shuriken Blitz, Hanzo is
   still in the air and he can still execute a regular air attack"). The special's `bspec_t.sflags` SF_AIRATK (64,
