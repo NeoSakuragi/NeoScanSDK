@@ -163,7 +163,13 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         status = tv(st, 14f, true)
         details.addView(status)
         details.addView(tv("Fixed = it works now. Still broken = hold it and say what is wrong. Tap i to hide this.", 12f).apply { alpha = 0.8f })
-        b.addView(details, LinearLayout.LayoutParams(-1, -2))
+        val scroll = object : android.widget.ScrollView(act) {     // the Do / Expect texts scroll: a long recipe must not
+            override fun onMeasure(w: Int, h: Int) {               // push the buttons off the screen (Bruno 2026-10-11)
+                val cap = (root.height * 0.38f).toInt().coerceAtLeast((120 * dp).toInt())
+                super.onMeasure(w, View.MeasureSpec.makeMeasureSpec(cap, View.MeasureSpec.AT_MOST)) } }
+        scroll.isFillViewport = false; scroll.isVerticalScrollBarEnabled = true
+        scroll.addView(details, android.widget.FrameLayout.LayoutParams(-1, -2))
+        b.addView(scroll, LinearLayout.LayoutParams(-1, -2))
         val nav = Color.argb(210, 40, 40, 48)
         playBtn = bigButton("\u25B6 Play", "Play / pause", nav).apply { setOnClickListener { val e = emu() ?: return@setOnClickListener
             if (state == null) return@setOnClickListener
