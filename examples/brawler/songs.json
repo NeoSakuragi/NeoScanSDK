@@ -74,7 +74,8 @@
   {"name": "THEME_HAOHMARU", "source": "samsho2", "cmd": "21", "what": "TODO #219: Haohmaru's stage theme (docs/samsho2_songs.md: stage 0, measured)"},
   {"name": "THEME_GENJURO", "source": "samsho2", "cmd": "28", "what": "TODO #219: Genjuro's stage theme (docs/samsho2_songs.md: stage 12, measured)"},
   {"name": "THEME_HANZO_SS2", "source": "samsho2", "cmd": "31", "what": "TODO #219: Hanzo's stage theme in Samurai Shodown II (docs/samsho2_songs.md: stage 2, stage table)"},
-  {"name": "THEME_KIM", "source": "kizuna", "cmd": "24", "what": "TODO #219: Kim's theme, Kizuna Encounter's stage 5 (stage = fighter id, table $DFA6; stage 5 measured in our emulator: $24, the harbour market; Rosa's stage 4 plays it too)"}
+  {"name": "THEME_KIM", "source": "kizuna", "cmd": "24", "what": "TODO #219: Kim's theme, Kizuna Encounter's stage 5 (stage = fighter id, table $DFA6; stage 5 measured in our emulator: $24, the harbour market; Rosa's stage 4 plays it too)"},
+  {"name": "STAGE_HIGHWAY", "source": "kizuna", "cmd": "22", "label": "HIGHWAY", "what": "voice note 20261011-111810-5d29 (Bruno: the Kizuna highway music, \u9ad8\u901f\u9053\u8def): Kizuna Encounter's stages 2 / 3, the broken elevated expressway (night / day); stage -> song word[$4DD18 + 2 stage] = index $25 -> $22, measured in our emulator ($109658 forced to 2 and 3: $22 sent at the round start; docs/kizuna_songs.md): the brawler's stage 2"}
  ],
  "ssg": {"what": "menu sounds (TODO #63): SSG cues on KOF98's own generated-sound path (command type 5), free commands $74-$77, data in the fixed area's free bytes (tools/port/ssg_cues.py); voices = SSG A, B, C: [note, ticks (13.9 ms), level 0-15]; build/snd/songs.h SSG_<name>",
   "cues": [

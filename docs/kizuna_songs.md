@@ -18,13 +18,13 @@ as regs98.py); identical = sequencer interrupts whose writes are identical in or
 
 | Cmd | Screen | Tempo (ticks/s) | Channels | Loop | Writes cap / model | Identical |
 |---|---|---|---|---|---|---|
-| `$21` | Stage (dusk street, attract demo) | 115 (92.2) | FM1-4 A1-3 B | 9312 ticks | 16504 / 16504 | 1189/1189 |
-| `$22` | Stage (night harbour, attract demo) | 102 (81.8) | FM1-4 A1-3 B | 6000 ticks | 17169 / 17169 | 900/900 |
-| `$23` | Stage (moonlit rooftop, attract demo) | 132 (105.9) | FM1-4 A1-3 B | 8448 ticks | 21883 / 21883 | 1297/1297 |
-| `$24` | Stage (harbour market; the first stage of the played credit) | 86 (69.0) | FM1-4 A1-3 B | 5760 ticks | 16649 / 16649 | 920/920 |
+| `$21` | Stage 0 / 1 (dusk street, attract demo) | 115 (92.2) | FM1-4 A1-3 B | 9312 ticks | 16504 / 16504 | 1189/1189 |
+| `$22` | Stage 2 / 3: the highway (高速道路, a broken elevated expressway, night / day; attract demo); the brawler's stage 2 (`STAGE_HIGHWAY`) | 102 (81.8) | FM1-4 A1-3 B | 6000 ticks | 17169 / 17169 | 900/900 |
+| `$23` | Stage 6 / 7 (sunset / moonlit rooftop, attract demo) | 132 (105.9) | FM1-4 A1-3 B | 8448 ticks | 21883 / 21883 | 1297/1297 |
+| `$24` | Stage 4 / 5 (harbour market; the first stage of the played credit) | 86 (69.0) | FM1-4 A1-3 B | 5760 ticks | 16649 / 16649 | 920/920 |
 | `$25` | Ranking (attract) | 120 (96.2) | FM1-4 A1-3 B | 4608 ticks | 10633 / 10633 | 580/580 |
-| `$2B` | ? | 130 (104.3) | FM1-4 A1-3 B | 8640 ticks | 36795 / 36795 | 1091/1091 |
-| `$2C` | ? | 110 (88.2) | FM1-4 A1-4 B | 11160 ticks | 14018 / 14018 | 1323/1323 |
+| `$2B` | Stage 8 (temple hall) | 130 (104.3) | FM1-4 A1-3 B | 8640 ticks | 36795 / 36795 | 1091/1091 |
+| `$2C` | Stage 9 (bone cave) | 110 (88.2) | FM1-4 A1-4 B | 11160 ticks | 14018 / 14018 | 1323/1323 |
 | `$2D` | ? | 104 (83.4) | FM1-4 A1-6 B | 5376 ticks | 15150 / 15151 | 1324/1325 * |
 | `$2E` | ? | 106 (85.0) | FM1-4 A1-6 B | 768 ticks | 3752 / 3752 | 230/230 |
 | `$2F` | ? | 155 (124.3) | FM1-4 A1-5 B | ends | 6409 / 6409 | 433/433 |
@@ -47,6 +47,11 @@ as regs98.py); identical = sequencer interrupts whose writes are identical in or
 Attract sequence (measured): `$3A` title at frame 935, fade (`$0A`), `$25` ranking, then a demo fight on `$21`, `$22`,
 `$23` or `$24`, back to `$3A`. A credit: coin → `$3B` how to play, `$32` tag team select, `$24` first stage, (fight
 lost) `$39` then `$36` continue, `$50` game over.
+
+Stages (measured 2026-10-11): the stage is the word `$109658` (set at `$DF9A` from table `$DFA6`; song =
+word[`$4DD18` + 2 stage] - 3, read at `$1CE28`). Forced to 0-9 in our emulator (mkvs.py's 2P boot, the word poked over
+the select), each fight sent the table's song at its start: 0 / 1 `$21`, 2 / 3 `$22`, 4 / 5 `$24`, 6 / 7 `$23`,
+8 `$2B`, 9 `$2C`; screenshots /data/tmp/kizuna_highway/stages/sheet.png.
 
 ## Song features (song98.py census, first pass of every song)
 

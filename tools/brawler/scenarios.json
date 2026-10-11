@@ -2850,5 +2850,18 @@
   "expect": "The screen opens with the NEO GEO LAND logo centred above, Terry in the middle of the crowd under it with the 1P cursor on him, Robert just left of him and Kim just right. P2's cursor joins on Kim, next to Terry. Left / right still walk everyone along the street.",
   "do_keys": "",
   "proof": 120
+ },
+ "20261011-111810-5d29": {
+  "title": "Stage 2 plays the Kizuna Encounter highway music",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 0
+  },
+  "do": "Stage 2 from its start. Listen to the music while the first wave walks in.",
+  "expect": "Kizuna Encounter's highway stage music (高速道路, its broken elevated expressway stage) plays instead of Fatal Fury 3's stage music; stage 1 keeps Fatal Fury 3's.",
+  "do_keys": "",
+  "proof": 900
  }
 }
