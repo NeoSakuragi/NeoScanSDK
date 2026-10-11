@@ -57,7 +57,7 @@ MOVES = {
     'atk_c_close': (302, 0, None), 'atk_c_far': (304, 0, None), 'atk_d_close': (322, 0, None), 'atk_d_far': (324, 0, None),
     'atk_a_crouch': (236, 0, None), 'atk_b_crouch': (254, 0, None), 'atk_c_crouch': (306, 0, None), 'atk_d_crouch': (326, 0, None),
     'atk_c_jump': (310, 0, None), 'atk_d_jump': (330, 0, None), 'atk_c_jump_diag': (310, 0, None), 'atk_d_jump_diag': (330, 0, None),
-    'atk_cd_jump': (284, 0, None), 'body_toss': (276, 0, None),
+    'body_toss': (276, 0, None),                  # (the air A+B / C+D: air_moves, the fighter's own animations)
     'hit_stand_light': (110, 0, None), 'hit_stand_heavy': (106, 0, None), 'hit_air': (220, 0, 0),
     'blowback': (220, 0, 0), 'blowback_n': (220, 0, 0), 'knockdown_flight': (220, 1, 1), 'knockdown_bounce': (222, 0, 0),
     'knockdown_fall': (222, 0, 0), 'down': (222, 1, 1), 'getup': (138, 1, None), 'trip': (120, 0, None),
@@ -81,7 +81,24 @@ def jump_moves(ch):
         half = next((i for i in range(1, len(ents)) if ents[i][1] == ents[0][1]), len(ents))
         an = [w & 0x3FF for _, _, w in ents[:half] if not w & 0x8000]
         out[key + '_rise'] = (an[0], 0, None); out[key + '_fall'] = (an[-1], 0, None)
+    out.update(air_moves(ch))
     return out
+
+# The SS2 air standard (Bruno 2026-10-11, voice note 20261011-112029-5d29: "as a standard for all Samurai Shodown 2
+# characters, the jump attack should be the A+B attack, and the jump down attack should be mapped to the in-game C+D,
+# so the high kick in the air"): every SS2 fighter's jump + A (straight and forward jump) = SS2's air A+B (the heavy
+# slash: atk_cd_jump, its forward jump's atk_cd_jump_diag), jump + down + A = SS2's air C+D (the high kick: atk_ab_jump /
+# atk_ab_jump_diag; the brawler's C+D name is taken by SS2's A+B, its heavy slash, like body_toss). The roster default
+# for a samsho2 bank: tools/brawler/build_tables.py AIR_BANK['samsho2'] (a roster entry's own "air" keys override it).
+# The animations from the fighter's own class 1 actions [code] ($28310 class 1: subs 13 / 14 / 15 = air A+B straight /
+# forward / back, 28 / 29 / 30 = air C+D; 3-5 A, 18-20 C, 23-25 D): they differ per fighter and per jump (Genjuro's air A+B
+# 284 straight / 288 forward, Hanzo's air C+D 356 / 361; Haohmaru 284 / 356 both); a back jump plays the forward one's (fighter.c: jump_dir != 0)
+AIR_SUBS = {'atk_cd_jump': 13, 'atk_cd_jump_diag': 14, 'atk_ab_jump': 28, 'atk_ab_jump_diag': 29}   # (the engine: _diag)
+
+def air_moves(ch):
+    """the air A+B / C+D animations of fighter ch, straight and forward (AIR_SUBS)"""
+    import commands_ss2 as K
+    return {mv: (K.anims_of(K.descriptor(ch, 0, 1, sub))[0], 0, None) for mv, sub in AIR_SUBS.items()}
 
 LOOP = {'idle', 'walk_fwd', 'run'}
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
@@ -508,7 +525,8 @@ def rage_palette(B, ch, a, sets):
 def export(names, outdir, only=None, extra=None, lab=None):
     """lab: {name: [(hex id, animation)]} the Character Lab's slot (export_bm LAB): that fighter also gets every special
     version as its own special (handlers_ss2.specials versions), his Lab throws (the big victim's, the air throw) and
-    the LAB special (every animation of his dictionary)"""
+    the LAB special (every animation of his dictionary). extra[name]['inputs']: the special inputs his roster entry names
+    (export_bm): a button version among them (623AB) is exported as its own special too (condition 'version')"""
     import handlers_ss2 as H, hitsound_ss2 as HS
     out = {'game': 'samsho2', 'tile_base': TILE_BASE, 'characters': {}}
     allt, tmap = [], {}
@@ -531,6 +549,12 @@ def export(names, outdir, only=None, extra=None, lab=None):
             anims[mv] = {'slot': a, 'mode': 'hold', 'steps': anim_steps(B, ch, a, f, l)}
         L = (lab or {}).get(name)
         sps = H.specials(B, ch, name, versions=L is not None)
+        if L is None:                                     # a button version a roster slot names (a sheet's S- id: Haohmaru's
+            named = set((extra or {}).get(name, {}).get('inputs') or ())   # C = 623AB, S-008, voice note 20261011-112056-5d29)
+            sps += [H.special(B, ch, name, inp, k) for inp, (_, nv, _) in H.SPECIALS[name].items() if nv > 1
+                    for k in range(nv) if H.version_input(inp, k, nv) in named]
+            sps += [H.special(B, ch, name, inp) for inp in H.SPECIALS[name]   # a Lab-only piece a roster slot names
+                    if (name, inp) in H.LAB_ONLY and inp in named]           # (Haohmaru's MAX = 34123421BC, S-006, 112545)
         throws = H.throws(B, ch, name, lab=L is not None)
         if L is not None:
             e, bad = H.lab_special(B, ch, L); sps.append(e)

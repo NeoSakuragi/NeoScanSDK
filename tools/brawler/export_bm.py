@@ -313,9 +313,13 @@ def build(specs, outdir):
             sys.path.insert(0, os.path.join(HERE, '..', 'samsho2')); import export_ss2
             return export_ss2.export(names, tmp, only=set(MOVES),
                                      extra={n: {'watch': tuple(roster()[n]['watch']), **flash_extra(game, n),
-                                                **({'moves': roster()[rname(game, n)]['moves']} if roster().get(rname(game, n), {}).get('moves') else {})}
+                                                **({'moves': roster()[rname(game, n)]['moves']} if roster().get(rname(game, n), {}).get('moves') else {}),
+                                                'inputs': [w for w in (roster().get(rname(game, n), {}).get('specials') or []) +
+                                                           [roster().get(rname(game, n), {}).get(k) for k in ('fury', 'max')] +
+                                                           list((roster().get(rname(game, n), {}).get('blitz') or {}).values()) if w]}
                                             for n in names if n in roster()},   # (moves: its roster entry's, by its bank:
-                                                                                #  samsho2:hanzo is hanzo_ss2)
+                                                                                #  samsho2:hanzo is hanzo_ss2; inputs: its slots'
+                                                                                #  specials, a button version among them exported)
                                      lab={n: LAB[n] for n in names if n in LAB} or None)   # (the Lab: versions, Lab throws, LAB)
         if game == 'whp':                               # World Heroes Perfect: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'whp')); import export_whp
@@ -1053,6 +1057,7 @@ def named_specials(ch, name):
     tryit.js). Each read from the ROM (a program); the normal game's pools are unchanged by it"""
     have = ch.get('specials', [])
     want = [w for w in ((roster().get(name) or {}).get('specials') or []) if w]
+    want += [w for w in ((roster().get(name) or {}).get('blitz') or {}).values() if w]   # (a Blitz's piece: Haohmaru's uu 623C)
     if any(sp['input'] == 'LAB' for sp in have):
         import piece_ids
         reg = piece_ids.load(src(name))

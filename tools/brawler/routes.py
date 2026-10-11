@@ -590,7 +590,11 @@ def chain_tree(name, base, cfg, has):
                            ('air_b', air['down'], 'light', 'none')):            # to the landing)
             assert m in AIR_MOVE_NAMES, f'{name}: air {k}: {m} is not an air move ({" ".join(AIR_MOVE_NAMES)})'
             entries[k] = cls({'move': m, 'weight': w, 'effect': e}, True)
-    summary = {'archetype': cfg['archetype'], 'length': N, 'total': total,
+    if cfg.get('dash'):                                             # a normal as a Blitz (roster[].blitz: a move name; Bruno
+        entries['dash'] = cls({'move': cfg['dash'], 'damage': 10, 'weight': 'strong', 'effect': 'knockdown'}, True)   # 2026-10-11,
+                                                                    # note 20261011-113641-5d29: Haohmaru's ff + A = far A+B):
+                                                                    # the tree's dash entry plays it (build_tables blitz_rows 0xFE)
+    summary ={'archetype': cfg['archetype'], 'length': N, 'total': total,
                'links': [b['move'] for b in builders], 'damage': dm, 'hitstop': hs,
                'finishers': {{'A': 'neutral', 'fA': 'forward', 'uA': 'up', 'dA': 'down', 'bA': 'back'}[k]:
                              ('throw' if 'throw' in f else ('special ' + f['special'] if 'special' in f else ' > '.join(x['move'] for x in _then(f))) + ' (' + _then(f)[-1]['effect'] + ')') for k, f in finals.items()}}

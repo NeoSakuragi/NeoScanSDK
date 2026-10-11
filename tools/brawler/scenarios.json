@@ -2863,5 +2863,72 @@
   "expect": "Kizuna Encounter's highway stage music (高速道路, its broken elevated expressway stage) plays instead of Fatal Fury 3's stage music; stage 1 keeps Fatal Fury 3's.",
   "do_keys": "",
   "proof": 900
+ },
+ "20261011-112056-5d29": {
+  "title": "Haohmaru: C = the 623 + A+B dragon slash (Ougi Kogetsuzan, A+B version), also his breaker",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Stand 40 px from Ryo and press C. Then let Ryo hit you and press C while you reel.",
+  "expect": "C plays SS2's 623 + A+B Kogetsuzan (the A+B version, S-008) and knocks Ryo down. Pressed while hit, the same move comes out as the breaker (white blink with 2 drive chunks, red blink and 12 life without).",
+  "do_keys": "2:c,80:-",
+  "proof": 60
+ },
+ "20261011-112029-5d29": {
+  "title": "SS2 fighters: jump + A = the air A+B slash, jump + down + A = the air C+D high kick",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 20
+  },
+  "do": "Jump straight up next to Ryo and press A at the top. Land, jump again and press down + A. Same on Genjuro and Hanzo (SS2), and on forward jumps.",
+  "expect": "Jump + A plays SS2's air A+B (the heavy slash) and knocks Ryo down; jump + down + A plays SS2's air C+D (the high kick) and makes him reel. A forward jump plays SS2's forward versions (Genjuro's A+B and Hanzo's C+D have their own). Hanzo's air shuriken (4123 + S in SS2) moved from jump + down + A to jump + down + C.",
+  "do_keys": "1:b,14:-,1:a,60:-,1:b,14:-,1:Da,60:-",
+  "proof": 60
+ },
+ "20261011-112722-5d29": {
+  "title": "Haohmaru: down,down + A = the sake bottle (replaced by note 20261011-113641: forward,forward + A is now his far A+B)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Stand 60 px from Ryo and tap down, down, then A.",
+  "expect": "Down,down + A throws the sake bottle (SS2's 214 + A, Sake Kougeki, S-001) for free and knocks Ryo down. (Forward,forward + A is his far A+B since note 20261011-113641.)",
+  "do_keys": "1:D,1:-,1:D,1:Da,60:-",
+  "proof": 60
+ },
+ "20261011-112545-5d29": {
+  "title": "Haohmaru: the MAX (red, low life, gauge full: down + D) = SS2's hidden Tenha Fuujinzan",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 60,
+   "hp": 15,
+   "fury": "full"
+  },
+  "do": "With your life in the red and the fury gauge full, press down + D.",
+  "expect": "Down + D plays SS2's secret Tenha Fuujinzan (S-006) as the MAX and hits Ryo for the MAX damage tier (180), emptying the gauge. The screen flash / objects vanishing during it are SS2's own (documented quirks).",
+  "do_keys": "2:Dd,200:-",
+  "proof": 60
+ },
+ "20261011-113641-5d29": {
+  "title": "Haohmaru Blitz: forward,forward + A = far A+B, down,down + A = the bottle, up,up + A = the 623 + C dragon",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Stand 60 px from Ryo: tap forward, forward, A. Then down, down, A. Then up, up, A (walk back in range between).",
+  "expect": "Forward,forward + A plays his standing far A+B slash and knocks Ryo down; down,down + A the sake bottle (214 + A, S-001); up,up + A SS2's 623 + C dragon (Ougi Resshinzan, C version, S-010), two hits. All free (no drive).",
+  "do_keys": "1:R,1:-,1:R,1:Ra,90:-",
+  "proof": 60
  }
 }

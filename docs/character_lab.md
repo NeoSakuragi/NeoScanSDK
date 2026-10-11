@@ -406,6 +406,28 @@ specials are the same programs; the new ones are LAB_ONLY).
   - The weapon loss on the WFT hit (+$B8) and the unarmed throws (class 4 actions 11-13, anims 275 / 347): no weapon
     state in the engine (TODO #175).
 
+## SS2 move standard + Haohmaru's picks — 2026-10-11 (voice notes 112029, 112056, 112545, 112722 -> 113641)
+- **The SS2 air standard** (112029: "as a standard for all Samurai Shodown 2 characters"): jump + A (straight and
+  forward) = SS2's air A+B, jump + down + A = SS2's air C+D (the high kick). The importer's default, not per-fighter
+  edits: `build_tables.AIR_BANK['samsho2']` (`air_of(r)`: AIR_DEFAULT < the bank game's < roster[].air; build_tables,
+  arb_compile's "now", arbitrage.py) with `export_ss2.air_moves`: the animations read from each fighter's class 1
+  actions (subs 13 / 14 air A+B straight / forward -> atk_cd_jump / atk_cd_jump_diag, 28 / 29 air C+D -> atk_ab_jump /
+  atk_ab_jump_diag): Haohmaru 284 / 356, Genjuro 284 + 288 forward / 356, Hanzo 284 / 356 + 361 forward. (The brawler's
+  `cd` names are SS2's A+B, its heavy slash, as body_toss; `ab_jump` = SS2's C+D.) Hanzo's air shuriken j.4123S moved
+  from air_specials dA (it took the down + A normal's place) to dC (jump + down + C, a C special's meter).
+- **Haohmaru**: C (and the breaker) = 623AB, S-008 (112056); MAX (down + D, red) = 34123421BC Tenha Fuujinzan, S-006
+  (112545; damage_raw.json max = its source 8 -> the MAX tier 180; the flash / object-end quirks above stay); Blitz
+  (113641, replaces 112722's ff): ff = his far A+B (`moves.atk_ab_far = $116`, anim 278), dd = 214A S-001, uu = 623C
+  S-010, du none.
+- Engine / export paths added: a button version named by a roster slot (specials, Blitz, fury, max) is exported as its
+  own special (export_ss2 `extra.inputs`, handlers_ss2.special vdef), a LAB_ONLY special a slot names likewise; a Blitz
+  slot naming a ground normal (arb_compile's "a normal as the Blitz") is played by the tree's dash entry
+  (build_tables.blitz_normal -> chain_cfg 'dash' -> routes.chain_tree; blitz_rows 0xFE); roster_export carries `blitz`
+  (named_specials takes a Blitz's piece into the pool).
+- Check (our emulator, training dummy Ryo): Haohmaru C fires 623AB and knocks down, the breaker with / without drive
+  plays it; ff -> atk_ab_far, dd -> 214A, uu -> 623C, MAX -> 34123421BC, each hits; all three SS2 fighters' straight /
+  forward jump + A -> atk_cd_jump(_diag), jump + down + A -> atk_ab_jump(_diag), each hits (16 / 16 rows).
+
 ---
 
 The sections below were the Character Lab's notes in docs/feedback.md, docs/brawler_gold.md and

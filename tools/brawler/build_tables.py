@@ -214,15 +214,27 @@ def chain_cfg(g, r):
     for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move'), f"roster {r['name']}: finishers.{k}"
     own = r.get('chain') or {}                     # (revamp 5, the chain tool's save) links: the moves before the finisher,
     for k in own: assert k in ('links', 'hitstop', 'length'), f"roster {r['name']}: chain.{k} (links / hitstop / length)"   # hitstop: per link + the finisher
-    air = dict(AIR_DEFAULT, **(r.get('air') or {}))  # its three air attacks (Bruno 2026-10-08): forward jump + A, straight
+    air = air_of(r)                                  # its three air attacks (Bruno 2026-10-08): forward jump + A, straight
     for k in air: assert k in AIR_DEFAULT, f"roster {r['name']}: air.{k} (forward / straight / down)"   # jump + A, down + A
     n = own.get('length', 4)                         # (Bruno 2026-10-10: "4 by default, I add / remove presses": the archetype no
                                                      # longer sets the length; every fighter's own chain.length, 4 when absent)
     assert isinstance(n, int) and 2 <= n <= 8, f"roster {r['name']}: chain.length {n} (2-8)"
     return {'archetype': a, 'length': n, 'total': c['totals'][a], 'hitstop': c['hitstop'], 'finishers': fin,
             'air': air, 'specials': r.get('specials') or {},          # (revamp gold: a finisher named as a special input)
+            **({'dash': blitz_normal(r)} if blitz_normal(r) else {}),     # (a normal as a Blitz: the dash entry plays it)
             'damage': r.get('damage', 1), **({'links': own['links']} if 'links' in own else {}),
             **({'hitstops': own['hitstop']} if 'hitstop' in own else {})}
+
+
+BLITZ_NORMAL = re.compile(r'^(atk_[a-d]{1,2}_(close|far|crouch)|body_toss|cmd_\w+)$')   # a Blitz slot naming a ground normal
+
+
+def blitz_normal(r):
+    """the ground normal a roster entry's Blitz names (roster[].blitz: a move name, arb_compile's 'a normal as the Blitz';
+    at most one: the tree's dash entry plays it, routes.chain_tree cfg 'dash'), else None"""
+    ns = {v for v in (r.get('blitz') or {}).values() if isinstance(v, str) and BLITZ_NORMAL.match(v)}
+    assert len(ns) <= 1, f"roster {r['name']}: blitz names two normals {sorted(ns)} (one dash entry)"
+    return ns.pop() if ns else None
 
 
 def blitz_rows(g, build):
@@ -238,7 +250,7 @@ def blitz_rows(g, build):
         for k in BLITZ_SLOTS:
             v = bz.get(k)
             if v is None: row.append(0xFF)
-            elif v == 'dash': row.append(0xFE)
+            elif v == 'dash' or BLITZ_NORMAL.match(v): row.append(0xFE)   # (a normal's move name: the dash entry plays it)
             else:
                 assert v in pools[r['name']], f"roster {r['name']}: blitz.{k} {v}: not in its pool ({' '.join(pools[r['name']])})"
                 row.append(pools[r['name']].index(v))
@@ -311,7 +323,7 @@ def roster_export(g):
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
-             **{k: r[k] for k in ('form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'down_attack', 'invincible', 'nopush', 'max', 'max_hits', 'run', 'slot_of') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'nopush', 'max', 'max_hits', 'run', 'slot_of') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -612,6 +624,15 @@ JUMP_KEYS = ('about', 'crouch', 'height', 'dx', 'land_dx', 'x_scale', 'land', 'l
 WALK_KEYS = ('about', 'fast', 'balanced', 'heavy', 'run', 'anim')
 AIR_DEFAULT = {'forward': 'atk_d_jump', 'straight': 'atk_c_jump', 'down': 'atk_a_jump'}   # roster[].air (Bruno 2026-10-08:
                                                     # forward jump D, straight jump C, down + A jump A or the closest)
+AIR_BANK = {'samsho2': {'forward': 'atk_cd_jump', 'straight': 'atk_cd_jump', 'down': 'atk_ab_jump'}}   # a bank game's own
+                                                    # standard (Bruno 2026-10-11, voice note 20261011-112029-5d29: every SS2
+                                                    # fighter's jump + A = SS2's air A+B, jump + down + A = its air C+D, the
+                                                    # high kick; tools/samsho2/export_ss2.py air_moves exports those names)
+
+
+def air_of(r):
+    """a roster entry's three air attacks: AIR_DEFAULT, its bank game's AIR_BANK, its own roster[].air (in that order)"""
+    return {**AIR_DEFAULT, **AIR_BANK.get(str(r.get('bank', '')).split(':')[0], {}), **(r.get('air') or {})}
 TIER_KEYS = ('about', 'special', 'fury', 'max', 'super_throw', 'spread', 'measured')
 
 
