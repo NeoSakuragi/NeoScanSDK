@@ -234,6 +234,18 @@ Cheng Fu's far D / body toss (14 px). The take-off and landing frames (height 0)
 New in round 2: a ROM special's catch box (and a captured special's grab reach) no longer takes a victim in the air by its
 own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays catchable as before.
 
+## Engine features (generic, data driven: set by the importers, off by default)
+
+- **Pinned effect holds with its owner's hit-stop** — `bproj_t.follow` bit 128 (`FL_HSTOP`, fighter.h; note
+  20261011-112545-5d29, Haohmaru's Tenha Fuujinzan: "the circling effect is now desynchronized from Haohmaru"). An effect
+  pinned to its owner (follow bit 1) with this bit does not advance on the frames its owner holds in hit-stop
+  (`fighter_t.hs_now`, set by fighter_update's hit-stop hold; fighter.c proj_update returns before its row / timer
+  move): it stays on its row, in its place, so it stays in step with his body to the end. Unset, the effect animates on
+  through his hit-stop (KOF / Kizuna / Double Dragon: unchanged). Set by `export_ss2.hold_pinned` on every SS2 object
+  pinned to its owner (Tenha's wind, the Kogetsuzan crescent, Genjuro's card wind and second-phase cards, Kuroko's
+  ghost). Another importer sets it the same way when its source game holds its pinned objects with the body. Proof:
+  tools/samsho2/hstop_proof.py.
+
 ## The arbitration sheet compiler, piece ids and the Workshop
 
 Moved to **docs/character_lab.md** (2026-10-10). `arb_compile.py` still appends each shipped "sheet round" here.
