@@ -466,6 +466,9 @@ specials are the same programs; the new ones are LAB_ONLY).
   (SS2's far A+B reaches from ~64 px). Assembly answers `bz_dd` anim-116 and `air_bz_dd` S-010 in the decisions store
   (arb_compile links both to exactly these fields; its other pending difference, fin_fwd anim-116 -> finishers.forward,
   is older and left alone).
+- 2026-10-11 later (notes 20261011-164455-5d29, 20261011-164801-5d29): air down,down + A = the A, B and A+B shurikens
+  in turn (`air_specials` `ddA` [j.4123A, j.4123B, j.4123AB], a sequence: docs/brawler_gold.md "A sequence"), each
+  startup halved (`retime` "0.5x"), still the jump attack after the last; Assembly answer `air_bz_dd` S-008 S-009 S-010.
 ---
 
 The sections below were the Character Lab's notes in docs/feedback.md, docs/brawler_gold.md and

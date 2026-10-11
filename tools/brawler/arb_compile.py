@@ -27,6 +27,7 @@ Slot -> roster field (the three agent-built rounds: Krauser 4261de6, Robert 591c
   bz_ff / dd / uu / du           blitz.<k> (a special input, "$NN", or a normal's move name); empty = no key
   sp_c / sp_fc / sp_dc           specials.D (+ uD / dfD / ufD where they followed D) / fD / dD
   air_bz_dd    air_specials.ddA;   air_sp_c / fc / dc   air_specials.C / fC / dC
+  a Blitz / air special slot with several S- ids: a SEQUENCE, their inputs as a list (export_bm.sequences, back to back)
   air_a        air.forward + air.straight;   air_da   air.down
   grab_hit / grab_fin            throws.hold.hit / fin
   fury / max   fury / max (a decoded special)
@@ -417,6 +418,23 @@ def compile_sheet(f, ans, G, lib, reg=None, gen=None):
                                                            # old note saved in <f>-arb is not read, a request goes to the Workshop)
         nowv = now_val(slot); nowp = pieces_of(nowv)
         ids = [p for p in ps if ID_RE.match(p)]
+        if len(ps) > 1 and len(ids) == len(ps) and (slot in BLITZ or slot in AIRSP) and not x.note:
+            es = [piece_ids.resolve(reg, i) for i in ids]   # a SEQUENCE: several S- pieces on a Blitz / air special slot,
+            bad = next((f'{i} is not a decoded special of {f}' for i, e in zip(ids, es)   # back to back (export_bm.sequences,
+                        if not e or e.get('gone') or e['kind'] != 'special' or e['input'] not in S), None)   # 2026-10-11)
+            if not bad and slot in AIRSP:
+                bad = next((f'{i} {e["name"]} is a ground special: not for this slot' for i, e in zip(ids, es) if not e['air']), None)
+            x.field = f'blitz.{BLITZ[slot]}' if slot in BLITZ else f'air_specials.{AIRSP[slot]}'
+            if bad: x.status, x.cls, x.why = 'unresolved', 'd', bad
+            else:
+                v = [e['input'] for e in es]; x.anim0 = (S[v[0]]['anims'] or [None])[0]
+                if nowv == v: x.status, x.value, x.why = 'unchanged', nowv, 'pick = now (a sequence)'
+                else:
+                    x.status, x.cls, x.value = 'linked', 'b', v
+                    x.why = 'a sequence, back to back: ' + ' then '.join(f'{i} {e["name"]}' for i, e in zip(ids, es))
+                    if slot in BLITZ: new.setdefault('blitz', {})[BLITZ[slot]] = v
+                    else: new.setdefault('air_specials', {})[AIRSP[slot]] = v
+            out.append(x); continue
         if ids:                                            # a decoded piece by its id (the Workshop's S- / T- ids)
             e = piece_ids.resolve(reg, ids[0])
             if e and e['kind'] == 'special' and e['input'] in S: x.anim0 = (S[e['input']]['anims'] or [None])[0]

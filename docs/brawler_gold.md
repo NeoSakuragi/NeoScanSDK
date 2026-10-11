@@ -278,6 +278,32 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   /data/tmp/hanzo_go (airblitz.py: shuriken from down,down + A, A in the recoil -> atk_cd_jump hits 24 like a plain jump
   attack, LAND -> IDLE; recipe scenarios.json `dec-hanzo-air-shuriken`).
 
+- **A sequence: several pieces back to back on one slot** — a Blitz or air special slot whose value is a LIST of inputs
+  (`game.json roster[].blitz.<k>` / `air_specials.<key>` = `["j.4123A", "j.4123B", "j.4123AB"]`; Bruno 2026-10-11, notes
+  20261011-164455-5d29 + 20261011-164801-5d29: "Hanzo throws all three shurikens in turn, first the A, then the B, then
+  the A+B"). Export (export_bm `sequences`): each piece is a copy of its bank special, appended at the END of the pool
+  (every other pool index as without it), consecutive; every piece but the last carries `bspec_t.sflags` SF_SEQ (128:
+  the last free bit, append-only like SF_AIRATK: lab_pack feature `sf-seq`, pack format 1 unchanged); the slot points at
+  the first (bm_air entry / gblitz_rom: build_tables reads the head from chainlab.json pool `seq` / `seq_i`). Engine
+  (fighter.c `seq_next`): a SF_SEQ special hands over to specials[its index + 1], same role, at its end (prog_end, a
+  script's end) or, in the air, as soon as its program waits for its landing (`land_wait`: its recovery fall), so the
+  pieces play without landing; the next piece's first frame plays in that frame. Each piece is the special as it plays
+  alone: its variant row (Hanzo: vdef 0 / 1 / 2), its projectile (one each: they fly together), its voices, its knobs;
+  the last keeps its own flags (Hanzo's j.4123AB: SF_AIRATK, the jump attack in its recoil). Its speed: `retime` by the
+  piece's input, which now applies to EVERY pool entry of that input (build_tables retime_tables). Unset (no list):
+  tables byte-identical (table diff 0.10.56 -> this build: only hanzo_ss2's rows + the SF enum + the retime rows
+  renumbered). The Assembly shows it already (several pieces on a slot: "A → B → C", "+ add after"); arb_compile links
+  several S- ids on a Blitz / air special slot as the list (else unresolved, as before). Not yet: the C special slots,
+  the fury (their maps are by input: spmap / spec_map would read the head the way blitz_rows does). Set: Hanzo SS2 `ddA`
+  [j.4123A, j.4123B, j.4123AB] (S-008, S-009, S-010; Assembly answer `air_bz_dd` in the decisions store, backup
+  `.bak-20261011-triple`), each with its startup halved (`retime` ["0.5x", null, null]: 15 -> 8 source frames).
+  Measured in our emulator (/data/tmp/hanzo_triple, triple.py): the first shuriken 9 frames after the move starts (was
+  16), the pieces at frames 0 / 22 / 42, all at height 30 (no landing between), paths A steepest (lands +32 px) / B
+  (+36) / A+B flattest (+46); vs Ryo at 50 px: 3 hits of 24, then A in the A+B's recoil -> atk_cd_jump knocks down,
+  LAND -> IDLE; without A it lands as before. regress: bleed True / True, facing traces = 0.10.56's for every fighter
+  (regress.py now presses coin / START / A again when the attract swallowed the coin: a one-frame window, 0.10.56 at
+  2599 frames, this build's boot a frame later at 2600).
+
 ## The arbitration sheet compiler, piece ids and the Workshop
 
 Moved to **docs/character_lab.md** (2026-10-10). `arb_compile.py` still appends each shipped "sheet round" here.

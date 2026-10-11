@@ -178,12 +178,15 @@ static uint8_t air_blitz(const fighter_t *f) {
  * plays its fall to the landing, the part it resumes at opens on "landed -> go on" (handlers' ('land', 'next') entry:
  * SS2 Hanzo's shuriken recoil). -> 1 when the special playing is one and is in that part (fighter_update: A = the jump's
  * attack) */
-static uint8_t air_free(const fighter_t *f) {
-    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+static uint8_t land_wait(const fighter_t *f) {                  /* the special's program waits for its landing (its */
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];            /* recovery fall: a ('land', 'next') entry) */
     const bprim_t *p;
-    if (!(sp->sflags & SF_AIRATK) || !sp->prog) return 0;
+    if (!sp->prog) return 0;
     p = &sp->prog[f->pres];
     return (p->op & 0x7F) == P_BR && p->a == (0x80 | PC_LAND) && p->b >= 0;
+}
+static uint8_t air_free(const fighter_t *f) {
+    return (f->ch->specials[f->spec_ix].sflags & SF_AIRATK) && land_wait(f);
 }
 static uint8_t air_button(const bchar_t *ch, uint8_t ix) {      /* the button of the air special ix (PC_HELD) */
     const uint8_t *e;
@@ -2797,7 +2800,21 @@ static void fury_area(fighter_t *f, const fighter_t *t, const bvlist_t *l, uint8
 }
 static uint8_t lab_next(fighter_t *f);                           /* ("Lab: try in game") */
 static void lab_cend(fighter_t *f);                              /* ("Lab: try in game": a chain press's end) */
+/* a SEQUENCE (SF_SEQ; game.json roster[] blitz / air_specials value = a list of pieces, Bruno 2026-10-11: Hanzo SS2's
+ * air down,down + A = his air shuriken's A, B and A+B versions in turn): a special flagged SF_SEQ hands over to the next
+ * one of its pool (specials[spec_ix + 1], export_bm.sequence: a sequence's pieces are consecutive pool entries, only
+ * the last unflagged), same role, at its end, or in the air as soon as its program waits for its landing (its recovery
+ * fall: the next piece starts there, still airborne). The next piece's first frame plays now. -> 1 when it started one */
+static uint8_t seq_next(fighter_t *f) {
+    uint8_t k = f->spec_id, nx = f->spec_ix + 1;
+    if (!(f->ch->specials[f->spec_ix].sflags & SF_SEQ) || f->state != S_SPECIAL || nx >= f->ch->nspec) return 0;
+    carry_drop(f); special_end(f); f->pflags = 0;
+    lab_ix = nx; start_special(f, k);                            /* (lab_ix: the pool index, whatever its role) */
+    if (f->state == S_SPECIAL) { f->pheld = 0; special_update(f); }
+    return 1;
+}
 static void prog_end(fighter_t *f) {
+    if (seq_next(f)) return;                                     /* a sequence: its next piece, back to back */
     special_end(f); lab_cend(f);
     if (lab_on && lab_next(f)) return;                           /* a lab list's next entry, back to back */
     if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
@@ -3162,6 +3179,7 @@ static void special_update(fighter_t *f) {
             part_go(f, sp, f->sarm ? sp->links[f->sarm - 1].to : sp->parts[f->spart].next);
     }
     if (f->srow > sp->nrows) {                                /* over; ended in the air (a rising move): fall */
+        if (seq_next(f)) return;                                 /* a sequence: its next piece, back to back */
         carry_drop(f);
         special_end(f); lab_cend(f);
         if (lab_on && lab_next(f)) return;                       /* a lab list's next entry, back to back */
@@ -3665,6 +3683,8 @@ static void update(fighter_t *f, const intent_t *in) {
             if (!blitz_go(f, s, LH_CANCEL)) to_neutral(f, 0);
             break;
         }
+        if ((f->ch->specials[f->spec_ix].sflags & SF_SEQ) && f->y > 0 && land_wait(f) && seq_next(f)) break;   /* a sequence in the air: its next piece from the
+                                                                    recovery fall (SF_SEQ, "seq_next") */
         if (in && (in->press & IN_A) && f->y > 0 && air_free(f)) {   /* SF_AIRATK (game.json roster[].keeps_air_attack,
                                                                     Bruno 2026-10-11, Hanzo's air shuriken Blitz): the
                                                                     move's fall to the landing is a jump's: A plays the

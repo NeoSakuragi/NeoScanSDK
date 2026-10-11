@@ -287,13 +287,18 @@ def played_inputs(n):
     sp = r.get('specials') or []
     return {v for v in (sp.values() if isinstance(sp, dict) else sp) if v} | ({r['fury']} if r.get('fury') else set())
 
+def slot_inputs(slots):
+    """the inputs a {slot: value} roster field names (blitz, air_specials): a value is an input, a move name, or a
+    SEQUENCE (a list of inputs played back to back: sequences())"""
+    return [w for v in (slots or {}).values() for w in (v if isinstance(v, list) else [v]) if w]
+
 def rom_wanted(n):
     """the KOF inputs of a fighter's ROM specials on demand (handlers98.ROM_DEMAND) that export96 reads (rom_more): the
     ones the roster plays (played_inputs, its Blitz, its throws' grab specials, its down attack, form, air specials) and,
     in a Lab build of him (LAB), every unlocked piece (arb_pieces/<f>_ids.json; named_specials puts them in his pool). One
     nothing names is not read: its frames stay out of the normal game (Robert's 6426A / C, 2026-10-10)"""
     r = roster().get(n) or {}
-    out = set(played_inputs(n)) | {v for v in (r.get('blitz') or {}).values() if v} | {v for v in (r.get('air_specials') or {}).values() if v}
+    out = set(played_inputs(n)) | set(slot_inputs(r.get('blitz'))) | set(slot_inputs(r.get('air_specials')))
     t = r.get('throws') or {}
     out |= {v for v in list((t.get('extra') or {}).values()) + [t.get('super')] if isinstance(v, str)}
     out |= {v for v in (r.get('max'), r.get('down_attack'), (r.get('form') or {}).get('transition')) if v}
@@ -330,8 +335,8 @@ def build(specs, outdir):
                                                 **({'moves': roster()[rname(game, n)]['moves']} if roster().get(rname(game, n), {}).get('moves') else {}),
                                                 'inputs': [w for w in (roster().get(rname(game, n), {}).get('specials') or []) +
                                                            [roster().get(rname(game, n), {}).get(k) for k in ('fury', 'max')] +
-                                                           list((roster().get(rname(game, n), {}).get('blitz') or {}).values()) +
-                                                           list((roster().get(rname(game, n), {}).get('air_specials') or {}).values()) if w]}
+                                                           slot_inputs(roster().get(rname(game, n), {}).get('blitz')) +
+                                                           slot_inputs(roster().get(rname(game, n), {}).get('air_specials')) if w]}
                                             for n in names if n in roster()},   # (moves: its roster entry's, by its bank:
                                                                                 #  samsho2:hanzo is hanzo_ss2; inputs: its slots'
                                                                                 #  specials, a button version among them exported)
@@ -705,7 +710,8 @@ def special_info(sp, game):
             'cont': sp.get('cont', 0), 'proj': None if pj is None else {'row': spawn, 'frame': pj['rows'][0][0], 'kind': pj.get('kind', 0),
                                                                         'travel': round(pj.get('travel') or 0)},
             'pose': sp['script'][spawn if pj else (hits[0][0] if hits else len(sp['script']) // 2)][0],
-            'travel': round(sh[0]), 'height': round(sh[1])}
+            'travel': round(sh[0]), 'height': round(sh[1]), **({'seq': sp['seq'], 'seq_i': sp['seq_i']} if sp.get('seq') else {})}   # (seq: a
+                                                         # sequence's piece, its slot and place: sequences(), build_tables.blitz_rows)
 
 
 def spec_index(pool, sp):
@@ -1069,6 +1075,7 @@ def special_pool(ch, name=None):
     fury = fury_special(ch, name)
     out = out + [fury] if fury is not None and fury not in out else out
     for _, air in air_specials(ch, name):          # its air specials (a press in a jump, TODO #200 / #221), table order
+        if air.get('seq'): continue                 # (a sequence's head: its pieces come last, sequences())
         out = out + [air] if air not in out else out
     fm = form_special(ch, name)                     # the form link's transition (vocabulary `form`), when it has one
     out = out + [fm] if fm is not None and fm not in out else out
@@ -1080,7 +1087,42 @@ def special_pool(ch, name=None):
         out = out + [sp] if sp not in out else out
     for sp in named_specials(ch, name):             # a DM a slot names / an unlocked piece of a Lab build, last
         out = out + [sp] if sp not in out else out
+    for _, pieces in sequences(ch, name):           # its sequences' pieces, last of all (consecutive: SF_SEQ = "the next
+        out = out + pieces                          # entry plays at its end"; every other index as without them)
     return out
+
+
+_SEQ = {}
+def sequences(ch, name):
+    """the fighter's SEQUENCES (Bruno 2026-10-11, note 20261011-164801-5d29: Hanzo SS2's air down,down + A = his air
+    shuriken's A, B and A+B versions in turn): a Blitz or air special slot whose value is a list of inputs (game.json
+    roster[].blitz.<k> / air_specials.<key>) plays those specials back to back: each piece hands over to the next at its
+    end, or in the air as soon as its program waits for its landing (fighter.c seq_next), the last as a lone special
+    plays (SF_AIRATK and the rest by its input as usual). -> [(label 'air_specials.ddA' / 'blitz.dd', [pieces])]: the
+    pieces are copies of the bank's specials (each its own pool entry, at the pool's end, consecutive), every one but the
+    last flagged 'seq_more' (bspec_t.sflags SF_SEQ); cached, so every call returns the same objects (spec_index)"""
+    r = roster().get(name) or {}
+    out = []
+    for field in ('air_specials', 'blitz'):
+        for key, v in (r.get(field) or {}).items():
+            if not isinstance(v, list): continue
+            label = f'{field}.{key}'
+            ck = (name, label, tuple(v))
+            if ck not in _SEQ:
+                assert len(v) >= 2, f'{name}: {label}: a sequence lists 2 pieces or more ({v})'
+                ps = []
+                for i, inp in enumerate(v):
+                    sp = next((sp for sp in ch.get('specials', []) if sp['input'] == inp and rom_ok(sp)), None)
+                    assert sp, f'{name}: {label}: no special {inp} read from the ROM in its bank'
+                    ps.append(dict(sp, seq=label, seq_i=i, seq_more=i < len(v) - 1))
+                _SEQ[ck] = ps
+            out.append((label, _SEQ[ck]))
+    return out
+
+
+def seq_head(ch, name, label):
+    """the first piece of the sequence a slot plays (label 'air_specials.ddA'), None when the slot is no sequence"""
+    return next((ps[0] for l, ps in sequences(ch, name) if l == label), None)
 
 
 def named_specials(ch, name):
@@ -1091,7 +1133,7 @@ def named_specials(ch, name):
     tryit.js). Each read from the ROM (a program); the normal game's pools are unchanged by it"""
     have = ch.get('specials', [])
     want = [w for w in ((roster().get(name) or {}).get('specials') or []) if w]
-    want += [w for w in ((roster().get(name) or {}).get('blitz') or {}).values() if w]   # (a Blitz's piece: Haohmaru's uu 623C)
+    want += [w for w in ((roster().get(name) or {}).get('blitz') or {}).values() if w and not isinstance(w, list)]   # (a Blitz's piece: Haohmaru's uu 623C; a sequence's pieces: sequences())
     if any(sp['input'] == 'LAB' for sp in have):
         import piece_ids
         reg = piece_ids.load(src(name))
@@ -1159,6 +1201,8 @@ def air_specials(ch, name):
     out = []
     for key, inp in (want or {}).items():
         assert AIR_KEY.match(key) and not (key.startswith('dd') and len(key) > 3), f'{name}: air_specials key {key!r} (slot "", f, d, u, df, uf or dd + A or C)'
+        if isinstance(inp, list):                   # a sequence: its first piece (sequences())
+            out.append((key, seq_head(ch, name, f'air_specials.{key}'))); continue
         sp = next((sp for sp in ch.get('specials', []) if sp['input'] == inp), None)
         assert sp and rom_ok(sp), f'{name}: no air special {inp} read from the ROM in its bank'
         out.append((key, sp))
@@ -1303,7 +1347,8 @@ def vl_c(n, k, sp):
     vl = rom_ok(sp) and sp['rom'].get('vlists'); fl = (1 if (rom_ok(sp) and sp['rom'].get('nopush')) or sp['input'] in roster().get(n, {}).get('nopush', ()) else 0) | (2 if rom_ok(sp) and sp['rom'].get('bighit') else 0) | (4 if rom_ok(sp) and sp['rom'].get('now') else 0) | (8 if rom_ok(sp) and sp['rom'].get('sharepush') else 0) | \
          (16 if sp['input'] in roster().get(n, {}).get('invincible', ()) else 0) | \
          (32 if rom_ok(sp) and sp['rom'].get('sreact') else 0) | \
-         (64 if any(same_special(k, sp['input']) for k in roster().get(n, {}).get('keeps_air_attack', ())) else 0)   # SF_INV (TODO #202), SF_SREACT (TODO #136), SF_AIRATK
+         (64 if any(same_special(k, sp['input']) for k in roster().get(n, {}).get('keeps_air_attack', ())) else 0) | \
+         (128 if sp.get('seq_more') else 0)   # SF_INV (TODO #202), SF_SREACT (TODO #136), SF_AIRATK, SF_SEQ
     if not vl and not fl: return v
     return (v or ', 0, 0, 0, 0, 0, 0, 0, 0') + f', {fl}, ' + (f'{n}_sp{k}_vl' if vl else '0')   # (sflags, then the lists)
 
@@ -1331,7 +1376,7 @@ def pick_specials(ch, name):
     """[D, forward+D, down+D, up+D, down-forward+D, up-forward+D] as the roster says (game.json roster[].specials: KOF inputs; None = no special)"""
     out = []
     for role, want in zip(ROLES, roster()[name]['specials']):
-        sp = next((sp for sp in special_pool(ch, name) if sp['input'] == want), None) if want else None
+        sp = next((sp for sp in special_pool(ch, name) if sp['input'] == want and not sp.get('seq')), None) if want else None
         assert sp or not want, f'{name}: no special {want} for {role}'
         out.append(sp)
     return out
@@ -1730,7 +1775,7 @@ def write_c(chars, outdir):
          'typedef struct { uint8_t n, flags; const bvent_t *e; int16_t vx, vy, g; } bvlist_t;   /* one list: entry k for the attacker\'s step k (the last for later steps); n 0 ends the table; flags VL_FLY: placed at its first entry once, then the victim flies on its own (vx forward of the attacker, vy up, g its gravity: 8.8 px / frame), posture held (SS2\'s rage-move victims, handlers_ss2.VL); VL_VEL: its release entry sends the victim off at vx / vy (else KOF\'s blowback) */',
          'enum { VL_FLY = 1, VL_VEL = 2, VL_CATCH = 4, VL_FRAMES = 8, VL_SREACT = 16, VL_DOWN = 32, VL_STAND = 64 };   /* VL_STAND (TODO #220): its release entry leaves the victim standing in its reel, still held (PF_HOLD) until a hit lets it go (KOF98 Yamazaki MAX 236236C: state 329); VL_CATCH (TODO #216): a list P_CATCH starts (KOF98\'s engine throw on the held victim), never a catch routine\'s start; (TODO #213, Kizuna\'s command grabs: tools/kizuna/rosa_kz.py) VL_FRAMES: entry k for the k-th frame of the list (from the P_VPHASE VA_LIST that started it), not the attacker\'s step; VL_SREACT: its release sends the victim into source reaction vx (bm_sreact index + 1: Kizuna\'s thrown flight, hittable when its source\'s steps carry boxes); VL_DOWN: its release lays it down (S_DOWN, then it gets up: Kizuna\'s thrown victim lying at its animation\'s end) */',
          '#define HY_HOLD 0x80   /* bstep_t.hy of a ROM special: KOF\'s hold hit (attack box $36, TODO #220; handlers98.HOLD_BOX): its victim held in place by the attacker (PF_HOLD), reeling; a later hit by another box lets it go with that hit\'s reaction */',
-         'enum { SF_NOPUSH = 1, SF_BIGHIT = 2, SF_NOW = 4, SF_SHARE = 8, SF_INV = 16, SF_SREACT = 32, SF_AIRATK = 64 };   /* bspec_t.sflags (SF_AIRATK: a move that leaves the fighter airborne with his air attack: from the program part that waits for its landing, A plays the jump\'s attack (game.json roster[].keeps_air_attack, Bruno 2026-10-11: Hanzo SS2\'s air shuriken Blitz), fighter.c air_free; SF_SREACT (TODO #136, vocabulary reaction.source_motion): its anims\' bstep_t.hy are source reactions, bm_sreact index + 1 standing | airborne << 4 (fighter.c src_react: Kizuna\'s reaction animations\' motions); SF_INV: invincible from its first frame to its end, the fury\'s rule (INV_FURY): game.json roster[].invincible, Bruno\'s call per move (TODO #202: Kyo\'s EX 421D), fighter.c start_special; SF_SHARE: its body and a standing opponent ahead share the push, half each: Kizuna\'s j.2B dives on pushing its victim (TODO #200), on the ground too since TODO #136 (Kizuna\'s push for every program of Kim\'s: the Phoenix\'s rush at half speed), fighter.c combat; SF_BIGHIT: SS2\'s big hit on its connect, fighter.c big_hit; SF_NOW: its program runs from the special\'s start frame, SS2\'s action routine in the frame the action is set: fighter.c start_special, TODO #191) */',
+         'enum { SF_NOPUSH = 1, SF_BIGHIT = 2, SF_NOW = 4, SF_SHARE = 8, SF_INV = 16, SF_SREACT = 32, SF_AIRATK = 64, SF_SEQ = 128 };   /* bspec_t.sflags (SF_SEQ: a piece of a SEQUENCE, not its last: specials[its index + 1] plays next, same role, at its end or in the air once its program waits for its landing (game.json roster[] blitz / air_specials value = a list of inputs, export_bm.sequences; Bruno 2026-10-11: Hanzo SS2\'s air shuriken A, B, A+B in turn), fighter.c seq_next; SF_AIRATK: a move that leaves the fighter airborne with his air attack: from the program part that waits for its landing, A plays the jump\'s attack (game.json roster[].keeps_air_attack, Bruno 2026-10-11: Hanzo SS2\'s air shuriken Blitz), fighter.c air_free; SF_SREACT (TODO #136, vocabulary reaction.source_motion): its anims\' bstep_t.hy are source reactions, bm_sreact index + 1 standing | airborne << 4 (fighter.c src_react: Kizuna\'s reaction animations\' motions); SF_INV: invincible from its first frame to its end, the fury\'s rule (INV_FURY): game.json roster[].invincible, Bruno\'s call per move (TODO #202: Kyo\'s EX 421D), fighter.c start_special; SF_SHARE: its body and a standing opponent ahead share the push, half each: Kizuna\'s j.2B dives on pushing its victim (TODO #200), on the ground too since TODO #136 (Kizuna\'s push for every program of Kim\'s: the Phoenix\'s rush at half speed), fighter.c combat; SF_BIGHIT: SS2\'s big hit on its connect, fighter.c big_hit; SF_NOW: its program runs from the special\'s start frame, SS2\'s action routine in the frame the action is set: fighter.c start_special, TODO #191) */',
          'enum { VE_BLOW = 1, VE_KO = 2, VE_TURN = 4, VE_FRONT = 8, VE_BURN = 48, VE_REL = 64 };   /* bvent_t.flags: a blow (damage, hit sound), the KO check, faces the attacker\'s way, drawn in front, the burn of its blow (bits 4-5: BURN_RAMP colour 1 purple / 2 orange, KOF\'s victim routine $17AC0: Iori 624), the release (its flight) */',
          'typedef struct { uint16_t nrows, inv_rows, nparts, nproj; const bspec_row_t *rows; const bproj_t *proj; const bprim_t *prog; const banim_t *anims; const bproj_t *robj; const bspart_t *parts; const bslink_t *links; uint16_t nlinks, bd_first, bd_end, bd_col[2]; int16_t sf_dx, sf_dy; uint8_t sf_anchor, sf_pad; const int32_t *vars; uint8_t nvar, vdef, vanim, vobj, vcols, vdmg, pvoice, sflags; const bvlist_t *vlists; } bspec_t;   /* sflags SF_NOPUSH: its attacker pushes nobody standing in its path (SS2: the action descriptor\'s byte 4 bit 7 -> +$FF, the players\' push $CC14 skipped: Genjuro\'s 236S slides through); vlists (TODO #173, vocabulary hold.victim_list): a catch\'s victim script, its lists in the order the program\'s P_VSIG steps through them (list 0 from the catch routine\'s start; fighter.c vlist_apply); vars..vdmg: the variant table (vocabulary variant.parameter_set, export_dd): nvar parameter rows of vcols columns (vars, row-major), the row its rule plays (vdef, latched at the move\'s start: fighter_t.var), its program\'s animations / objects per row (anims[a + var * vanim], robj[a + var * vobj]), the damage column + 1 (vdmg, 0 none); a bprim_t op | 0x80 takes its value from column b; pvoice 1: its voice keys are timed by its frames (a program\'s, fighter.c); sf_*: the super flash\'s optional anchor (fx.super_flash, TODO #139: an engine rule for every fury, gamedata.h gflash_t; main.c super_flash): sf_anchor 1 = the concentration plays sf_dx / sf_dy px from the fighter (KOF orientation: negative dx = forward; read from the move\'s KOF animation, handlers98.super_flash), 0 = the game-wide anchor; bd_*: its screen effect (Kizuna\'s Phoenix, export_kz FOLLOW \'backdrop\'): rows bd_first .. bd_end - 1 hide the stage and the backdrop alternates bd_col[0] / bd_col[1] every frame (main.c screen_fx; bd_end 0 = none); inv_rows: invincible for its first rows (prog: frames) when it is played as down+D (the rising reversal: fighter.c); parts / links: its follow-ups (nparts 0 = one part, the whole script; export_bm special_parts); proj: its nproj projectiles in spawn order (Geese\'s Double Reppuken: 2); prog (0 = none): the special read from the ROM, played by fighter.c prog_update from its anims (KOF step flags in bstep_t: 8 event $0080, 16 same hit $4000) and robj (its objects: projectiles, effects pinned to it); rows / proj stay its captured script (the Brawler Lab\'s data, and the fallback when prog is 0) */',
          'typedef struct { uint16_t frame; uint8_t n, voice; int16_t hx, hy; } bfpose_t;   /* a flash pose step (TODO #145): its frame, the frames it shows, the voice sent as it shows (TODO #189: its source sends it on that step; id | fx bit, 0 none), its head point (TODO #191: px from the feet, facing left; the glow\'s anchor while it shows) */\n',

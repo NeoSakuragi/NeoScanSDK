@@ -241,7 +241,9 @@ def blitz_rows(g, build):
     """gblitz_rom: per roster fighter (bm_chars order) its four Blitz slots (roster[].blitz ff / dd / du / uu): a special of
     its pool (its index; build/chainlab.json fighters[].pool, export_bm special_pool order), 'dash' = 0xFE (its tree's dash
     entry), a normal's move name = 0xFD (its tree's blitz entry: routes.chain_tree), absent = 0xFF; a fighter without roster[].blitz: ff = 'dash', the others none (Bruno 2026-10-08)"""
-    pools = {f['name']: [p['input'] for p in f['pool']] for f in json.load(open(os.path.join(build, 'chainlab.json')))['fighters']}
+    fl = json.load(open(os.path.join(build, 'chainlab.json')))['fighters']
+    pools = {f['name']: [None if p.get('seq') else p['input'] for p in f['pool']] for f in fl}   # (a sequence's pieces: by their slot)
+    seqs = {f['name']: {p['seq']: i for i, p in enumerate(f['pool']) if p.get('seq') and p['seq_i'] == 0} for f in fl}
     out = []
     for r in g['roster']:
         bz = r.get('blitz') or {'ff': 'dash'}
@@ -250,6 +252,9 @@ def blitz_rows(g, build):
         for k in BLITZ_SLOTS:
             v = bz.get(k)
             if v is None: row.append(0xFF)
+            elif isinstance(v, list):                                       # a SEQUENCE (export_bm.sequences): its first
+                assert f'blitz.{k}' in seqs[r['name']], f"roster {r['name']}: blitz.{k} {v}: no sequence in its pool"   # piece
+                row.append(seqs[r['name']][f'blitz.{k}'])
             elif v == 'dash': row.append(0xFE)                             # BZ_DASH: the tree's dash entry
             elif BLITZ_NORMAL.match(v): row.append(0xFD)                    # BZ_NORMAL: a normal's move name, the tree's
                                                                             # blitz entry (rt_head_t.pad[0]) plays it
@@ -725,10 +730,12 @@ def retime_tables(g, build):
             assert all(t >= 1 for t, s_ in zip(T, segs) if s_), f'{r["name"]}: retime "{move}": a segment of 0 frames {T}'
             warn = RT.hand_checks(f'{r["name"]} {move}', segs, T)
             for w in warn: print('retime:', w)
-            k = len(rows)
-            c.append(f'static const uint16_t gretime_t{k}[]{SLOT_SEC if r.get("slot_of") else ""} = {{ {", ".join(map(str, T))} }};   /* {r["name"]} {move}: {segs} -> {T} */')
-            rows.append(f'    {{ {i}, {len(T)}, {idx}, gretime_t{k} }},')
-            rep.append({'fighter': r['name'], 'move': move, 'index': idx, 'segments': segs, 'targets': T, 'spec': spec, 'hand_check': warn})
+            for ix in [idx] + ([len(ba) + j for j, q in enumerate(pool) if q == move and len(ba) + j != idx] if move not in ba else []):
+                k = len(rows)                            # (every pool entry of that special: a sequence's piece too,
+                                                         #  export_bm.sequences, Bruno 2026-10-11)
+                c.append(f'static const uint16_t gretime_t{k}[]{SLOT_SEC if r.get("slot_of") else ""} = {{ {", ".join(map(str, T))} }};   /* {r["name"]} {move}: {segs} -> {T} */')
+                rows.append(f'    {{ {i}, {len(T)}, {ix}, gretime_t{k} }},')
+                rep.append({'fighter': r['name'], 'move': move, 'index': ix, 'segments': segs, 'targets': T, 'spec': spec, 'hand_check': warn})
     if any(r.get('slot_of') for r in g['roster']):      # the shell: the slot's rows (last) padded to SLOT_RT_ROWS with
         ns = sum(1 for e in rep if e['fighter'] == SLOT)  # rows no fighter matches (0xFE), so the table's size and the
         assert ns <= SLOT_RT_ROWS, f'retime: the slot has {ns} retimed moves, the shell keeps {SLOT_RT_ROWS}'   # rows stay

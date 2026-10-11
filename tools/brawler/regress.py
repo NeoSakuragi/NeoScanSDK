@@ -21,11 +21,14 @@ bleed = {}; ticks = {}                                     # ticks: game ticks d
 for n in (0, 1500, 2600, 3700):
     b.core.retro_reset(); b.frame = 0
     b.run(600 + n)                                         # power on, the attract demo for n frames
-    b.seq('4:o,100:-,4:s,100:-,4:a')
     k = 0
-    while not (b.r(b.syms['mode'], 1) == 1 and b.r(b.syms['attract'], 1) == 0):
-        b.run(1); k += 1
-        assert k < 2000, 'no fight'
+    for tries in range(3):                                 # (a coin in a one-frame window of the attract is lost:
+        b.seq('4:o,100:-,4:s,100:-,4:a')                   #  measured 2026-10-11, 0.10.56 at 2599 frames, 0.10.57's
+        k = 0                                              #  boot a frame later at 2600: coin, START, A again)
+        while not (b.r(b.syms['mode'], 1) == 1 and b.r(b.syms['attract'], 1) == 0) and k < 600:
+            b.run(1); k += 1
+        if k < 600: break
+    assert k < 600, 'no fight'
     tr = []; tk = []; t0 = b.r(b.syms['hud_tick'], 2)
     for part in SCRIPT.split(','):
         m, keys = part.split(':')

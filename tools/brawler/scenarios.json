@@ -3231,17 +3231,17 @@
   "proof": 900
  },
  "dec-hanzo-air-shuriken": {
-  "title": "Hanzo: down, down + A in the air = the shuriken Blitz, then a jump attack",
+  "title": "Hanzo: down, down + A in the air = three shurikens (A, B, A+B), then a jump attack",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
    "dummy": "ryo",
-   "gap": 40
+   "gap": 50
   },
-  "do": "Jump (B), tap down, down + A in the air: Hanzo throws his shuriken. As he hops back after the throw, press A. Then try jump + down + C.",
-  "expect": "Down, down + A throws the shuriken (no meter). In the hop after it, A plays his jump attack, which can hit Ryo, and he lands normally. Without A he lands as before. Jump + down + C does nothing now.",
-  "do_keys": "3:b,8:-,1:D,1:-,1:D,2:Da,40:-,3:a",
-  "proof": 90
+  "do": "Jump (B), tap down, down + A in the air: Hanzo throws his three shurikens. As he hops back after the third, press A. Then try jump + down + C.",
+  "expect": "Down, down + A throws the A, B and A+B shurikens one after the other, all in the air (no meter). In the hop after the third, A plays his jump attack, which can hit Ryo, and he lands normally. Without A he lands as before. Jump + down + C does nothing.",
+  "do_keys": "3:b,8:-,1:D,1:-,1:D,2:Da,70:-,3:a,40:-",
+  "proof": 130
  },
  "20261011-154500-5d29": {
   "title": "Hanzo: forward, forward + A = his close slash again; down, down + A = his far A+B slash; air down, down + A = the shuriken",
@@ -3268,5 +3268,31 @@
   "expect": "The fury takes about twice as much life as before (target 60 instead of 30), the MAX about three times (135 instead of 45).",
   "do_keys": "",
   "proof": 60
+ },
+ "20261011-164455-5d29": {
+  "title": "Hanzo: the air down, down + A shuriken comes out twice as fast (its B version now in the triple)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Jump (B) and tap down, down + A in the air, close to Ryo.",
+  "expect": "The first shuriken leaves his hand about twice as fast as before (about 9 frames after the move starts, was 16). Following your later note, the move now throws three shurikens in turn: the A version, then the B version you asked for here, then the A+B, each as fast. Each one hits Ryo.",
+  "do_keys": "3:b,8:-,1:D,1:-,1:D,2:Da,110:-",
+  "proof": 130
+ },
+ "20261011-164801-5d29": {
+  "title": "Hanzo: air down, down + A throws three shurikens: A, then B, then A+B",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Jump (B), tap down, down + A in the air and watch the shurikens. Do it again and press A as he hops back after the third.",
+  "expect": "He throws three shurikens in turn without landing: the A one (the steepest), the B one, then the A+B one (the flattest), each hitting Ryo (3 hits). After the third he hops back; A then plays his jump attack, which can hit Ryo, and he lands normally. Without A he just lands.",
+  "do_keys": "3:b,8:-,1:D,1:-,1:D,2:Da,70:-,3:a,40:-",
+  "proof": 130
  }
 }
