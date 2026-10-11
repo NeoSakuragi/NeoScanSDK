@@ -324,6 +324,55 @@
      ]
     },
     {
+     "title": "Game over music",
+     "questions": [
+      {
+       "id": "gameover-music-kof94",
+       "title": "Game over: KOF94 has no game-over song of its own. Which one?",
+       "context": "Measured in our emulator (MVS, AES, losing to Rugal, no memory card): KOF94 sends nothing at GAME OVER; the continue song $31 just plays on, then the card-save screen and the title. Two KOF94 songs are never heard in play: $40 sits next to the continue song in KOF94's song table.",
+       "media": [
+        {
+         "image": "decisions-media/open-2026-10-11/gameover-kof94.png",
+         "caption": "KOF94's GAME OVER screen"
+        },
+        {
+         "audio": "decisions-media/open-2026-10-11/gameover-kof94-measured.mp3",
+         "caption": "KOF94 itself: countdown from 9, GAME OVER at 11 s, card save at 13 s (18 s)"
+        }
+       ],
+       "options": [
+        {
+         "label": "KOF94 $40 (unused song, 19 s, stops)",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/gameover-kof94-40.mp3",
+           "caption": "KOF94 $40 (22 s)"
+          }
+         ]
+        },
+        {
+         "label": "KOF94 $41 (unused song, loops; too big for the sound ROM today)",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/gameover-kof94-41.mp3",
+           "caption": "KOF94 $41 (first 40 s of 75 s)"
+          }
+         ]
+        },
+        {
+         "label": "No song: fade the continue music out",
+         "media": [
+          {
+           "audio": "decisions-media/open-2026-10-11/gameover-now.mp3",
+           "caption": "The fade-out, as in 0.10.53 (10 s)"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
      "title": "Cheng-Fu and Hanzo",
      "questions": [
       {

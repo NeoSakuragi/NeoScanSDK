@@ -66,6 +66,13 @@ opponent) or `$35` (the world map: after the fourth and the eighth match). The e
 `$29` (Rugal), `$34` (cutscene), `$2B` (Rugal's second stage, red), then `$04` `$07` `$07` and the ending
 `$54`, the team epilogue `$2C` and `$34` again (Geese) during it.
 
+**No game-over song** (measured 2026-10-11, /data/tmp/kof94_go: `go94.py` = a credit, lose, countdown to 0, 2500-4000
+frames watched after; every command logged, screenshots, WAVs): Universe BIOS MVS hardware, AES hardware, the same with
+no memory card, and a loss to Rugal (P2's life held at 1 through the eight teams) all send `$31` as the CONTINUE screen
+opens, `$63` per count, then nothing: GAME OVER (~11 s after `$31`) and the card-save screen play the tail of `$31`,
+then `$01 $03` (back to the BIOS). The ID table puts `$40` (ID `$1C`) right after the continue / team-select IDs
+`$19-$1B`, but no code path seen sends it (static scan: no constant, no table; dynamic: none of these runs).
+
 Shared data: `$53`, `$54` and `$55` are three copies of one song (identical event streams at `$E398`, `$E996`,
 `$EF94`, bank 1): only `$54` was heard (Italy team's ending; which teams send `$53` / `$55` is not known). The
 four openings `$2A`, `$50`, `$51`, `$52` (one per region / video standard by the 68K's table, *inferred*) and
