@@ -660,3 +660,7 @@ Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots 
 ### RALF: sheet round 2026-10-12 (tools/brawler/arb_compile.py, decisions set `ralf-arb`, build 0.10.73)
 Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
 - chain timing: hit-stops 7 9 12 (roster chain.hitstop / retime, the build checked)
+
+### RALF: sheet round 2026-10-12 (tools/brawler/arb_compile.py, decisions set `ralf-arb`, build 0.10.74)
+Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- chain timing: hit-stops 6 9 12 (roster chain.hitstop / retime, the build checked)

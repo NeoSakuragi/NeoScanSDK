@@ -47,7 +47,7 @@
    "watch": {"frame": 353, "step": -1},
    "routes": "default",
    "archetype": "heavy",
-   "chain": {"length": 3, "hitstop": [7, 9, 12]},
+   "chain": {"length": 3},
    "finishers": {"launcher": "up", "down": "slam", "neutral": "atk_b_far", "forward": "atk_c_far"},
    "specials": {"D": "AAAA", "fD": "[4]6A", "dD": "[2]8A", "uD": "[4]6B", "dfD": "[2]8C", "ufD": "[4]6D"},
    "fury": "23624C",
