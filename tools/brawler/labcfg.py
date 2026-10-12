@@ -140,6 +140,8 @@ def ship_one(c, f, row):
     except Fail as e:
         logf.write(f'\nFAILED: {e}\n'); logf.close()
         subprocess.run(g('reset', '-q', '--hard', start or 'HEAD'))   # (the checkout as pulled; a local commit dropped)
+        if st['v']: subprocess.run(nice + ['make', f'-j{c["jobs"]}'], cwd=game, env=env, capture_output=True)   # (build/ as
+        # the pulled game.json: arb_compile reads what the build plays as "now", a stale build hides the sheet's change)
         return 'failed', f'{e} (log {row["id"]}.log on the ship host)'
     logf.close()
     return 'done', f'shipped {v1}' + ('; left out: ' + '; '.join(left) if left else '')

@@ -482,7 +482,7 @@
     shipBtn.disabled = shipBusy || !!busy;
     if (!cur) gameSay(had + '.', inGame ? 'In game ' + inGame : 'Not shipped yet');
     else if (cur.status === 'pending') gameSay(`Queued (request ${cur.id}): the ship service takes it within 30 s. ${had}.`, 'Queued');
-    else if (cur.status === 'building') { const v = (/building (\S+)/.exec(cur.result || '') || [])[1] || ''; gameSay(`Building ${v} (request ${cur.id}): ${(cur.result || '').replace(/^building \S+:? ?/, '')}. ${had}.`, `Building ${v}…`); }
+    else if (cur.status === 'building') { const v = (/building ([\d.]+)/.exec(cur.result || '') || [])[1] || ''; gameSay(`Building ${v} (request ${cur.id}): ${(cur.result || '').replace(/^building [^:]*:? ?/, '')}. ${had}.`, `Building ${v}…`); }
     else if (cur.status === 'failed') gameSay(`FAILED (request ${cur.id}): ${(cur.result || '').replace(/^failed: /, '')}. Nothing changed in the game. ${had}.`, 'FAILED ✗ (⋯)', true);
     else gameSay(cur === done ? `Shipped ${inGame} (request ${cur.id}).` : `In the game: ${cur.result || 'done'}`, inGame ? 'Shipped ' + inGame : 'Shipped');
   }
