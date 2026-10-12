@@ -3,7 +3,8 @@
 ending, 20261006-160529-b3f3 continue, 20261006-160539-b3f3 game over), replayed on the current build in our emulator
 (harness.py, BRAWLER_CORE, the player's arcade system mvs-mvs): every music start the 68000 sends (REG_SOUND $320000:
 $07 then the song), with the screen it lands on (mode / phase / cont_ov), the YM2610 key-ons per second through the Z80
-port tap, and a 12 s WAV from each music start.
+port tap, a 20 s WAV from each music start and the whole sound log (OUT/<run>_sound.log: frame, M68K = a REG_SOUND
+write, Z80CMD = a command the Z80 reads, FM / A / B = key-ons).
   clear     stage 1, Terry kills Mr. Big: the KO sequence, STAGE CLEAR, the win screen, the next stage's song
   ending    stage 5, Terry kills its boss: STAGE CLEAR, (BOSS UNLOCKED), CONGRATULATIONS (the ending)
   continue  stage 1 wave 1, 1 life point, no lives: an enemy's hit, CONTINUE? 9 -> 0, GAME OVER, back to the BIOS, a coin
@@ -86,7 +87,9 @@ def child(rom, out, name):
         res.setdefault('keyons_per_s', {})[f'{f}:{n}'] = ks
         o = afr.get(f, 0)
         w = wave.open(os.path.join(out, f'{name}_{f}_{n}.wav'), 'wb'); w.setnchannels(2); w.setsampwidth(2); w.setframerate(RATE)
-        w.writeframes(bytes(audio[o:o + RATE * 12 * 4])); w.close()
+        w.writeframes(bytes(audio[o:o + RATE * 20 * 4])); w.close()
+    with open(os.path.join(out, f'{name}_sound.log'), 'w') as lg:
+        for f, k, v in snd: lg.write(f'{f} {k} {v:02X}\n')
     json.dump(res, open(os.path.join(out, f'_{name}.json'), 'w'), indent=1)
 
 def main():
