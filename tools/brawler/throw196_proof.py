@@ -41,7 +41,7 @@ def case(b, name, key):
         if b.fget(i, 'ch') == 0 or (i == 1 and b.fget(i, 'state') == st('OFF')): continue
         b.fset(i, 'state', st('IDLE')); b.fset(i, 'hp', 60); b.fset(i, 'freeze', 0); b.fset(i, 'inv', 0); b.fset(i, 'y', 0)
         b.fset(i, 'frame_ovr', 0xFFFF); b.fset(i, 'held', 0); b.intent(i)
-    x1 = 160 if key == 'throw_c' else 300
+    x1 = 160 if key == 'throw_c' else 240                     # (the victim 30 px ahead inside the screen's edge: screen_keep)
     b.place(0, x=x1, z=30); b.fset(0, 'facing', 1)
     b.place(ENEMY, x=x1 + 30, z=30); b.fset(ENEMY, 'facing', 0xFF)
     for j, i in enumerate((3, 4, 5)):
@@ -51,19 +51,31 @@ def case(b, name, key):
         b.run(1, p1='R')
         if S(0) == 'GRAB': break
     else: raise RuntimeError('no grab: ' + b.brief())
-    x0 = b.fget(0, 'x'); rows = []
+    rows = []; x0 = None
     for f in range(140):
         b.run(1, p1=KEYS[key] if f == 0 else '')
+        if x0 is None and S(0) == 'THROW':                 # (throws part 1: the pair is placed once at the throw start,
+            v = b.fget(0, 'throw_x0'); x0 = (v - (1 << 32) if v & 0x80000000 else v) / 65536   # pair_fit: the origin
+            face = 1 if b.fget(0, 'facing') in (1,) else -1                                 # and facing it took)
+        o, fc = (x0, face) if x0 is not None else (b.fget(0, 'x'), 1)
         rows.append(dict(f=f, p1=S(0), p1row=b.fget(0, 'srow') - 1, v=S(ENEMY), vrow=b.fget(ENEMY, 'srow') - 1,
-                         vx=round(b.fget(ENEMY, 'x') - x0), vy=round(b.fget(ENEMY, 'y')), vframe=b.fget(ENEMY, 'shown_frame')))
+                         vx=round((b.fget(ENEMY, 'x') - o) * fc), vy=round(b.fget(ENEMY, 'y')), vframe=b.fget(ENEMY, 'shown_frame')))
         if f > 30 and rows[-1]['v'] in ('DOWN', 'GETUP', 'IDLE'): break
     srows, pts = script_rows(name, key)
+    import throws_audit as TA                              # (the victim's own rows, bm_vthr: throws part 1)
+    vic = names[b.char_of(ENEMY)]
+    srows, _ = TA.victim_rows(dict(rows=srows, per_victim=TA.data()[0].get(name, {}).get(key, {}).get('per_victim', {})), vic)
+    swap = (json.load(open(os.path.join(GAME, 'game.json'))).get('throw_swap') or {}).get('frames', 0)
+    if srows[0][4] & 8:                                    # (row 0 drawn turned: P1's facing then is the throw's mirrored)
+        for r in rows:
+            if r['p1'] != 'GRAB': r['vx'] = -r['vx']
     th = [r for r in rows if r['v'] == 'THROWN']
     ret_f = next((r['f'] for r in rows if r['f'] > 0 and r['p1'] != 'THROW'), None)
     bad = []
     for r in th:                                           # each frame: the place of the row the victim shows
         k = min(r['vrow'], len(srows) - 1); s = srows[k]
-        want = (s[1] + s[5], max(0, s[2] + s[6]))
+        if k < swap: continue                              # (the start's swap segment: by design off its rows)
+        want = (s[1] + s[5], s[2] + s[6])                  # (no floor clamp: the script's height)
         if abs(want[0] - r['vx']) > 1 or abs(want[1] - r['vy']) > 1: bad.append(dict(f=r['f'], row=k, want=want, got=(r['vx'], r['vy'])))
     steps = [max(abs(b_['vx'] - a['vx']), abs(b_['vy'] - a['vy'])) for a, b_ in zip(th, th[1:])]
     sc = [max(abs(srows[i + 1][1] + srows[i + 1][5] - srows[i][1] - srows[i][5]),
@@ -80,6 +92,9 @@ def case(b, name, key):
                place_mismatches=len(bad), first_mismatches=bad[:4], release_window=[(r['f'], r['p1'], r['vrow'], r['vx'], r['vy'], r['vframe']) for r in win],
                release_steps=win_steps, script_steps_there=sc[max(0, k0 - 3):k0 + 3], stalls_at_release=stall)
     out['ok'] = len(th) > 20 and ret_f is not None and not bad and not stall and (max(win_steps) if win_steps else 0) <= own
+    out['handed_off_before_return'] = not any(r['v'] == 'THROWN' for r in win)   # (throw_handoff landing: the victim is
+                                                           # the engine's body before the control return, no hitch to have)
+    if out['handed_off_before_return'] and len(th) > 20 and not bad: out['ok'] = True
     return out, rows
 
 
