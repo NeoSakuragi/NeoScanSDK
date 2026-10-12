@@ -139,3 +139,84 @@ the start (the thrower may visibly step in from an edge, as KOF does at its wall
 measured here) and every proof that pinned the 2026-10-08 release behaviour (throws_rv3_proof, throw196_proof,
 chain_proof's Mr. Big back throw) need re-baselining; Rosa's frame lists (VL_FRAMES) were not compared entry by entry
 (the harness does not read `vfr`).
+
+## After (throws part 1, 2026-10-12, branch throws/fix1 on 0.10.68)
+
+Bruno's decision card: **"Script until the landing"** (2026-10-12) -> game.json `"throw_handoff": "landing"` shipped;
+`"release"` (the 2026-10-08 rule) kept behind the same switch (gamedata.h gthrow, fighter.c hand_row / thrown_land /
+thrown_release; docs/brawler_gold.md "Throws: the script owns the pair until the landing").
+
+What changed (one path for every paired throw and victim list, data driven, every game the same):
+
+1. **The pair is one body** (conflicts 1, 2, 7). fighter.c pair_fit / hold_fit / vlist_fit: at the grab (the hold), at
+   the throw start (the whole script: the thrower's rows to its control return, the victim's every row) and at a
+   victim list's catch (every entry of its lists) the pair is moved once so it all plays inside the screen and the
+   stage (fit_shift: the least move; a script wider than the screen centred). Then script_owned: no screen_keep, no
+   wall_update, no stage clamp on a held pair (the victim list's attacker stays under screen_keep and carries its
+   caught victim with it). The per-entry wall move (vlist_wall) is gone: PC_WALL's walls move in by the lists' reach,
+   so Rugal's God Press rush stops where its slam fits (KOF's 736 -> 644) instead of jumping 87 px.
+2. **One floor rule** (5): no y >= 0 clamp in a paired script (place_at), as the victim lists.
+3. **A blow on a held victim** (6): vlist_place's VE_BLOW keeps damage / sound / spark, then puts the victim back where
+   its entry put it, reeling (no fall frame).
+4. **The start's swap** (8): game.json `throw_swap` {frames 6, arc 16}: the victim travels from where it was held to
+   row 0's place over 6 rows (lifted when it passes over the thrower); pair_fit's move glides the thrower over the same
+   rows; the chain's back throw takes the reeling victim from where it stands.
+5. **Each KOF victim's own offsets** (section 4): export96 `victims_all` (the captured scripts' per-victim lists;
+   KOF98 Terry C / D, Ralf 426B, KOF96 Geese: throwrom walks the code for each victim) -> export_bm victim_tables ->
+   bm_vthr (vthrow.h, outside the pack ABI; fighter.c vrow). 251 thrower x victim tables (every same-game pair of the
+   roster / enemy pool: KOF98 11 x 10, KOF96 4 x 3), 224 distinct, 25 163 rows x 4 bytes: **103,300 bytes, in MB1**
+   (it fits: MB1 773,682 bytes used, the Lab anchor at $DC000 leaves ~127 KB; nothing to cut). New postures from the
+   victims' own lists: VP_COUNT 33 -> 36.
+   **Anchor fallback for other games' victims: built, measured, OFF.** The victim's frame centre (opaque pixels) placed
+   where the source's victim frame of that row had its centre (bvthr_t victim 0xFE). On the 18,513 KOF rows that have
+   their ground truth it lands further from the truth than the plain script rows: mean |dx| + |dy| 20.0 px vs 12.0
+   (x only 13.3, y only 18.7); on SS2 throws it swung Terry 70-180 px between postures. export_bm.VICTIM_ANCHORS = False:
+   cross-game victims play the script's rows as they are (the engine path stays for a better anchor).
+6. **Landing hand-off** (3, 4): the script plays the flight with its own postures (no re-derived parabola, no
+   blowback pop); the release row only starts the thrown body (combat, rows rel .. land); at the landing row
+   thrown_land makes it the standard knocked-down body with the script's motion there. The landing's impact counts.
+
+Measured in our emulator (`throws_audit.py run` on `make AI_OFF=1` builds, the 20 cases; `compare` ->
+/data/tmp/throws_fix/compare.json; before = 0.10.68 re-analysed against the new source rows (each KOF victim's own
+list); sheets /data/tmp/throws_fix/{before,release,landing}/sheet_*.png, KOF98 side by side
+/data/tmp/throws_fix/landing/side_3_throw_{c,d}_terry_*.png). jump = the victim's / thrower's largest one-frame move
+over the start (hold -> row 0), tel = the largest one-frame jump off the source path (swap rows apart), sep = the pair's
+separation error, float = height above a below-floor source row, held / flight = largest |dx|, |dy| off the source:
+
+| case | before: jump v/t, tel, sep, float, held, flight | release | **landing (shipped)** |
+|---|---|---|---|
+| Terry fwd | 8/0, 9, 0, 0, 0/0, 10/19 | 8/0, 9, 0, 0, 0/0, 10/19 | 8/0, 6, 0, 0, 0/0, **0/0** |
+| Terry fwd, edge | 8/0, 9, 0, 0, 0/0, **94**/19 | 29/22, 21, 0, 0, 0/0, 10/19 | 29/22, 21, 0, 0, 0/0, 0/0 |
+| Terry back | 7/0, 12, 16, 0, 16/4, 8/12 | 11/3, 8, 0, 0, 0/0, 4/12 | 11/3, 6, 0, 0, 0/0, 0/0 |
+| Terry chain back | 8/0, 12, 16, 0, 16/4, 6/12 | 11/4, 8, 0, 0, 0/0, 4/12 | 11/4, 6, 0, 0, 0/0, 0/0 |
+| Ryo fwd (on Terry) | 4/0, 32, 16, **24**, 16/24, 20/25 | 21/6, 12, 0, 0, 0/0, 20/25 | 21/6, 5, 0, 0, 0/0, 0/0 |
+| Kyo fwd (on Terry) | 4/0, 13, 4, 0, 4/0, 11/37 | 7/6, 13, 0, 0, 0/0, 7/37 | 7/6, 11, 0, 0, 0/0, 0/0 |
+| Kyo back (on Terry) | 3/0, 49, 16, 0, 16/36, 17/25 | 9/6, 12, 0, 0, 0/0, 8/25 | 9/6, 12, 0, 0, 0/0, 0/0 |
+| Krauser back (KOF96 on Terry) | **87**/0, 26, 15, 4, 15/4, 29/12 | 22/8, 36, 0, 0, 0/0, 0/12 | 22/8, 36, 0, 0, 0/0, 0/12 |
+| Ralf up + A (426B) | 4/0, **130**, 62, 0, 62/72, 91/9 | 22/16, 14, 0, 0, 0/0, 6/9 | 22/16, 14, 0, 0, 0/0, 0/3 |
+| Hanzo-SS2 fwd | 0/0, **94**, 31, 2, 31/2, 93/5 | 30/30, 29, 0, 0, 0/0, 1/5 | 30/30, 29, 0, 0, 0/0, 0/0 |
+| Hanzo-SS2 back | 5/0, 20, 0, **20**, 0/20, 2/4 | 1/0, 5, 0, 0, 0/0, 2/4 | 1/0, 5, 0, 0, 0/0, 2/0 |
+| Haohmaru fwd (SS2) | **66**/0, 4, 0, 0, 0/0, 2/5 | 11/0, 19, 0, 0, 0/0, 2/5 | 11/0, 19, 0, 0, 0/0, 0/0 |
+| Billy Lee fwd (DD) | **64**/0, **75**, 10, 0, 10/0, 74/5 | 9/2, 17, 0, 0, 0/0, 6/5 | 9/2, 17, 0, 0, 0/0, 0/0 |
+| Kim fwd (Kizuna, no release) | **76**/0, 13, 13, 11, 13/11, - | 22/4, 36, 0, 0, 3/11, - | 22/4, 36, 0, 0, 3/11 (its last row: lies at y 0), - |
+
+Victim lists (max entry error off / dy, the attacker's largest one-frame move, frames below the floor): Rugal up + A
+before 0 / 7 px, **87 px**, 0 -> after 0 / 0, 9 px (its program's own step), 0; Iori 624B 0 / 0, 19, 2 (list data:
+kept) unchanged; Rosa 214B 0 / 0, 64 (her dash) unchanged; Hanzo-SS2 623K unchanged. Remaining "tel" values in the
+after columns are the one-frame posture / phase changes of the source itself (the script's own steps), and the
+landing column's after-landing frames are the brawler's standard fall (by design).
+
+Proofs (our emulator, 0.10.68 + this branch, landing): bank_proof ALL OK (MB1 773,682 used); regress bleed True / True;
+throw196_proof ALL OK (updated: the throw's own origin after pair_fit, the victim's own rows, no floor clamp, the swap
+rows skipped, a victim handed off before the control return has no hitch to have; the back case's scene moved inside
+the screen's edge, it no longer grabbed since screen_keep, 0.10.1); chain_proof: the back throws ok (Terry / Kim /
+Krauser: behind, invincible, body), NEW BASELINES Terry back max y 48 -> 52 and dmg 26 -> 20 in its window (the throw's
+rest of damage now lands with the victim at the landing row, frame 72, instead of at the release; 12 in all, measured),
+invincibility 61 -> 62 f, Krauser 97 -> 98 f (one frame more, not traced); its two failures (Krauser forward atk_c_far, juggle
+held_air) fail the same on 0.10.68 (main tree). throws_rv3_proof does not run on 0.10.68 either (it reads the meter's
+super_throw and fighter_t.meter, gone since the 2026-10-08 redesign): not re-baselined.
+controls_proof (the roster, 25 fighters): normals / air / jumps / no_delay / jump_cancel / slots / meter / hit_special ok
+for all; fury FAIL for 23, the same on 0.10.68 (main tree, Terry and Kim checked): not throws.
+Recipes: no feedback note is tied to this change; the test is the 20 throws_audit cases above (`BRAWLER_CORE=<core>
+python3 tools/brawler/throws_audit.py OUT run <cases>` on a `make AI_OFF=1` build, then `compare BEFORE AFTER`), plus
+throw196_proof (Terry / Geese / Billy Lee forward and back).
