@@ -101,11 +101,11 @@
     root.replaceChildren(
       h('h2', {}, 'Roster & select', h('span', { class: 'sp' }), h('span', { class: 'gcount', text: n ? n + ' unshipped' : 'all in game' }), ' · ', h('span', { class: 'gv', text: nSel() + ' of ' + G().max + ' places' })),
       h('div', { class: 'rrows' }, fs.map(row)),
-      added.map(f => h('p', { class: 'note', text: `${f.display}: stage 1 plays ${f.music_ok ? 'his theme ' + f.music : 'the stage song (his theme is not in the sound ROM; no song is dropped automatically to make room)'}. His room (C ROM, P bank) is checked by the ship's build (bank_proof ALL OK), else the ship fails and nothing changes.` })),
-      h('p', { class: 'note', text: roomLine(G().room) }),
+      ...added.map(f => h('p', { class: 'rnote', text: `${f.display}: stage 1 plays ${f.music_ok ? 'his theme ' + f.music : 'the stage song (his theme is not in the sound ROM; no song is dropped automatically to make room)'}. His room (C ROM, P bank) is checked by the ship's build (bank_proof ALL OK), else the ship fails and nothing changes.` })),
+      h('p', { class: 'rnote', text: roomLine(G().room) }),
       h('div', { class: 'btns' }, h('button', { type: 'button', 'aria-expanded': open ? 'true' : 'false', text: open ? 'Close the select layout' : 'Select layout…', onclick: () => { open = !open; if (open) openEditor(); else { host && (host.alive = false); edCol.replaceChildren(); } draw(); } }),
         layoutChanged() && !openShip() ? h('button', { type: 'button', text: 'Layout back to the game\'s', onclick: () => save(selBody({}, null), 'Layout back to the game\'s').then(() => open && openEditor(), () => {}) }) : null),
-      msg, open ? edCol : null);
+      msg, ...(open ? [edCol] : []));
   }
 
   function load(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.body.append(s); }); }
